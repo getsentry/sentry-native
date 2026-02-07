@@ -353,7 +353,7 @@ sentry__curl_dump_queue(sentry_run_t *run, void *transport_state)
 }
 
 static int
-sentry__curl_submit_delayed(void *_state,
+sentry__curl_schedule(void *_state,
     void (*exec_func)(void *task_data, void *state),
     void (*cleanup_func)(void *task_data), void *task_data, uint64_t delay_ms)
 {
@@ -391,7 +391,7 @@ sentry__transport_new_default(void)
         transport, sentry__curl_transport_shutdown);
     sentry__transport_set_dump_func(transport, sentry__curl_dump_queue);
     sentry__transport_set_retry_func(
-        transport, sentry__curl_submit_delayed, sentry__curl_send);
+        transport, sentry__curl_schedule, sentry__curl_send);
 
     return transport;
 }

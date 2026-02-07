@@ -19,7 +19,7 @@ static uint64_t g_timestamps[NUM_ENVELOPES];
 static int g_call_count;
 
 static sentry_send_result_t
-recording_retry_func(void *envelope, void *state)
+test_send(void *envelope, void *state)
 {
     (void)envelope;
     (void)state;
@@ -31,8 +31,7 @@ recording_retry_func(void *envelope, void *state)
 }
 
 static int
-test_submit_delayed(void *_state,
-    void (*exec_func)(void *task_data, void *state),
+test_schedule(void *_state, void (*exec_func)(void *task_data, void *state),
     void (*cleanup_func)(void *task_data), void *task_data, uint64_t delay_ms)
 {
     return sentry__bgworker_submit_delayed((sentry_bgworker_t *)_state,
@@ -52,7 +51,7 @@ SENTRY_TEST(retry_throttle)
     }
 
     sentry__transport_set_retry_func(
-        options->transport, test_submit_delayed, recording_retry_func);
+        options->transport, test_schedule, test_send);
 
     sentry_path_t *retry_path
         = sentry__path_join_str(options->database_path, "retry");
