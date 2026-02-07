@@ -61,6 +61,17 @@ sentry__run_new(const sentry_path_t *database_path)
         return NULL;
     }
 
+    // `<db>/retry`
+    sentry_path_t *retry_path = sentry__path_join_str(database_path, "retry");
+    if (!retry_path) {
+        sentry__path_free(run_path);
+        sentry__path_free(lock_path);
+        sentry__path_free(session_path);
+        sentry__path_free(external_path);
+        sentry__path_free(cache_path);
+        return NULL;
+    }
+
     sentry_run_t *run = SENTRY_MAKE(sentry_run_t);
     if (!run) {
         sentry__path_free(run_path);
@@ -68,6 +79,7 @@ sentry__run_new(const sentry_path_t *database_path)
         sentry__path_free(lock_path);
         sentry__path_free(external_path);
         sentry__path_free(cache_path);
+        sentry__path_free(retry_path);
         return NULL;
     }
 
@@ -76,6 +88,7 @@ sentry__run_new(const sentry_path_t *database_path)
     run->session_path = session_path;
     run->external_path = external_path;
     run->cache_path = cache_path;
+    run->retry_path = retry_path;
     run->lock = sentry__filelock_new(lock_path);
     if (!run->lock) {
         goto error;
@@ -110,6 +123,7 @@ sentry__run_free(sentry_run_t *run)
     sentry__path_free(run->session_path);
     sentry__path_free(run->external_path);
     sentry__path_free(run->cache_path);
+    sentry__path_free(run->retry_path);
     sentry__filelock_free(run->lock);
     sentry_free(run);
 }

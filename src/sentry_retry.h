@@ -2,7 +2,6 @@
 #define SENTRY_RETRY_H_INCLUDED
 
 #include "sentry_boot.h"
-#include "sentry_path.h"
 #include "sentry_transport.h"
 
 #define SENTRY_RETRY_DELAY_MS 100
@@ -10,7 +9,6 @@
 typedef struct {
     const struct sentry_run_s *run;
     sentry_transport_t *transport;
-    sentry_path_t *database_path;
     int max_attempts;
     bool cache_keep;
 } sentry_retry_t;

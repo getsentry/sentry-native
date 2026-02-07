@@ -12,6 +12,7 @@ typedef struct sentry_run_s {
     sentry_path_t *session_path;
     sentry_path_t *external_path;
     sentry_path_t *cache_path;
+    sentry_path_t *retry_path;
     sentry_filelock_t *lock;
 } sentry_run_t;
 

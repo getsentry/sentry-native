@@ -15,7 +15,7 @@
 sentry_retry_t *
 sentry__retry_new(const sentry_options_t *options)
 {
-    if (!options || !options->database_path || options->http_retry <= 0) {
+    if (!options || !options->run || options->http_retry <= 0) {
         return NULL;
     }
 
@@ -25,14 +25,8 @@ sentry__retry_new(const sentry_options_t *options)
     }
     retry->run = options->run;
     retry->transport = options->transport;
-    retry->database_path = sentry__path_clone(options->database_path);
     retry->max_attempts = options->http_retry;
     retry->cache_keep = options->cache_keep;
-
-    if (!retry->database_path) {
-        sentry_free(retry);
-        return NULL;
-    }
     return retry;
 }
 
@@ -42,14 +36,7 @@ sentry__retry_free(sentry_retry_t *retry)
     if (!retry) {
         return;
     }
-    sentry__path_free(retry->database_path);
     sentry_free(retry);
-}
-
-static sentry_path_t *
-get_retry_path(const sentry_path_t *database_path)
-{
-    return sentry__path_join_str(database_path, "retry");
 }
 
 static char *
@@ -136,14 +123,10 @@ retry_write_envelope(
         return false;
     }
 
-    sentry_path_t *retry_path = get_retry_path(retry->database_path);
-    if (!retry_path) {
-        return false;
-    }
+    const sentry_path_t *retry_path = retry->run->retry_path;
 
     if (sentry__path_create_dir_all(retry_path) != 0) {
         SENTRY_ERRORF("mkdir failed: \"%s\"", retry_path->path);
-        sentry__path_free(retry_path);
         return false;
     }
 
@@ -160,7 +143,6 @@ retry_write_envelope(
     }
 
     if (next_attempt > retry->max_attempts) {
-        sentry__path_free(retry_path);
         if (retry->cache_keep) {
             SENTRY_WARNF("max retry attempts (%d) exceeded, moving to cache",
                 retry->max_attempts);
@@ -174,13 +156,11 @@ retry_write_envelope(
 
     char *filename = make_retry_filename(&event_id, next_attempt);
     if (!filename) {
-        sentry__path_free(retry_path);
         return false;
     }
 
     sentry_path_t *output_path = sentry__path_join_str(retry_path, filename);
     sentry_free(filename);
-    sentry__path_free(retry_path);
 
     if (!output_path) {
         return false;
@@ -247,9 +227,8 @@ sentry__retry_process_result(sentry_retry_t *retry,
         return;
     }
 
-    sentry_path_t *retry_path = get_retry_path(retry->database_path);
-    if (!retry_path || !sentry__path_is_dir(retry_path)) {
-        sentry__path_free(retry_path);
+    const sentry_path_t *retry_path = retry->run->retry_path;
+    if (!sentry__path_is_dir(retry_path)) {
         return;
     }
 
@@ -270,8 +249,6 @@ sentry__retry_process_result(sentry_retry_t *retry,
     case SENTRY_SEND_NETWORK_ERROR:
         break;
     }
-
-    sentry__path_free(retry_path);
 }
 
 static int
@@ -352,16 +329,12 @@ sentry__retry_process_envelopes(sentry_retry_t *retry)
         return;
     }
 
-    sentry_path_t *retry_path = get_retry_path(retry->database_path);
-    if (!retry_path) {
-        return;
-    }
+    const sentry_path_t *retry_path = retry->run->retry_path;
 
     size_t count = 0;
     size_t capacity = 8;
     sentry_path_t **paths = sentry_malloc(capacity * sizeof(sentry_path_t *));
     if (!paths) {
-        sentry__path_free(retry_path);
         return;
     }
 
@@ -388,7 +361,6 @@ sentry__retry_process_envelopes(sentry_retry_t *retry)
         }
     }
     sentry__pathiter_free(iter);
-    sentry__path_free(retry_path);
 
     if (count > 1) {
         qsort(paths, count, sizeof(sentry_path_t *), compare_paths_by_filename);
