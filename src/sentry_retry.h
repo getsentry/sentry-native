@@ -5,6 +5,8 @@
 #include "sentry_path.h"
 #include "sentry_transport.h"
 
+#define SENTRY_RETRY_DELAY_MS 100
+
 typedef struct {
     const struct sentry_run_s *run;
     sentry_transport_t *transport;

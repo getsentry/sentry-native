@@ -91,15 +91,15 @@ SENTRY_TEST(retry_throttle)
     TEST_CHECK_INT_EQUAL(g_call_count, NUM_ENVELOPES);
 
     uint64_t initial_delay = g_timestamps[0] - before;
-    TEST_CHECK(initial_delay >= 100);
-    TEST_MSG("initial: expected >= 100ms, got %llu ms",
+    TEST_CHECK(initial_delay >= SENTRY_RETRY_DELAY_MS);
+    TEST_MSG("initial: expected >= %dms, got %llu ms", SENTRY_RETRY_DELAY_MS,
         (unsigned long long)initial_delay);
 
     for (int i = 1; i < g_call_count && i < NUM_ENVELOPES; i++) {
         uint64_t delta = g_timestamps[i] - g_timestamps[i - 1];
-        TEST_CHECK(delta >= 100);
-        TEST_MSG("gap[%d]: expected >= 100ms, got %llu ms", i,
-            (unsigned long long)delta);
+        TEST_CHECK(delta >= SENTRY_RETRY_DELAY_MS);
+        TEST_MSG("gap[%d]: expected >= %dms, got %llu ms", i,
+            SENTRY_RETRY_DELAY_MS, (unsigned long long)delta);
     }
 
     sentry__retry_free(retry);
