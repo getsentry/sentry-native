@@ -116,6 +116,9 @@ sentry_send_result_t
 sentry__transport_send_retry(
     sentry_transport_t *transport, void *envelope, void *state)
 {
+    if (!transport || !transport->retry_send_func) {
+        return SENTRY_SEND_DISCARDED;
+    }
     return transport->retry_send_func(envelope, state);
 }
 
