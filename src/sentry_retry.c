@@ -53,6 +53,44 @@ make_retry_filename(const sentry_uuid_t *envelope_id, int attempt)
     return filename;
 }
 
+static bool
+parse_retry_filename(
+    const sentry_path_t *path, time_t *out_timestamp, int *out_attempt)
+{
+    const char *filename = sentry__path_filename(path);
+    if (!filename) {
+        return false;
+    }
+    char *end;
+    unsigned long long ts = strtoull(filename, &end, 10);
+    if (end == filename || *end != '-') {
+        return false;
+    }
+    long attempt = strtol(end + 1, &end, 10);
+    if (*end != '-' || attempt <= 0 || attempt > 99) {
+        return false;
+    }
+    if (out_timestamp) {
+        *out_timestamp = (time_t)ts;
+    }
+    if (out_attempt) {
+        *out_attempt = (int)attempt;
+    }
+    return true;
+}
+
+static time_t
+next_retry_time(const sentry_path_t *path)
+{
+    time_t timestamp;
+    int attempt;
+    if (!parse_retry_filename(path, &timestamp, &attempt) || attempt <= 1) {
+        return 0;
+    }
+    time_t delay = (time_t)SENTRY_RETRY_BASE_DELAY_S << (attempt - 2);
+    return timestamp + delay;
+}
+
 static const sentry_path_t *
 find_retry_file(sentry_pathiter_t *iter, const char *uuid_str)
 {
@@ -90,9 +128,9 @@ find_retry_attempt(
     sentry_pathiter_t *iter = sentry__path_iter_directory(retry_path);
     const sentry_path_t *file;
     while (iter && (file = find_retry_file(iter, uuid_str)) != NULL) {
-        const char *first_dash = strchr(sentry__path_filename(file), '-');
-        int attempt = atoi(first_dash + 1);
-        if (attempt > found_attempt) {
+        int attempt;
+        if (parse_retry_filename(file, NULL, &attempt)
+            && attempt > found_attempt) {
             found_attempt = attempt;
         }
     }
@@ -260,6 +298,7 @@ typedef struct {
 } retry_task_t;
 
 static void retry_task_exec(void *_task, void *bgworker_state);
+static void retry_rescan_exec(void *_retry, void *bgworker_state);
 
 static void
 retry_task_free(void *_task)
@@ -315,14 +354,16 @@ retry_task_exec(void *_task, void *bgworker_state)
     retry_task_free(task);
 }
 
-void
-sentry__retry_process_envelopes(sentry_retry_t *retry)
+static void
+retry_process_envelopes(sentry_retry_t *retry, bool check_backoff)
 {
     if (!retry) {
         return;
     }
 
     const sentry_path_t *retry_path = retry->run->retry_path;
+    time_t now = time(NULL);
+    time_t earliest_pending = 0;
 
     size_t count = 0;
     size_t capacity = 8;
@@ -336,6 +377,15 @@ sentry__retry_process_envelopes(sentry_retry_t *retry)
     while (iter && (file = sentry__pathiter_next(iter)) != NULL) {
         if (!sentry__path_ends_with(file, ".envelope")) {
             continue;
+        }
+        if (check_backoff) {
+            time_t ready_at = next_retry_time(file);
+            if (ready_at > now) {
+                if (earliest_pending == 0 || ready_at < earliest_pending) {
+                    earliest_pending = ready_at;
+                }
+                continue;
+            }
         }
         if (count == capacity) {
             capacity *= 2;
@@ -361,25 +411,49 @@ sentry__retry_process_envelopes(sentry_retry_t *retry)
 
     if (count == 0) {
         sentry_free(paths);
-        return;
-    }
+    } else {
+        retry_task_t *task = sentry_malloc(sizeof(retry_task_t));
+        if (!task) {
+            for (size_t i = 0; i < count; i++) {
+                sentry__path_free(paths[i]);
+            }
+            sentry_free(paths);
+        } else {
+            task->transport = retry->transport;
+            task->paths = paths;
+            task->count = count;
+            task->index = 0;
 
-    retry_task_t *task = sentry_malloc(sizeof(retry_task_t));
-    if (!task) {
-        for (size_t i = 0; i < count; i++) {
-            sentry__path_free(paths[i]);
+            if (sentry__transport_schedule_retry(retry->transport,
+                    retry_task_exec, NULL, task, SENTRY_RETRY_DELAY_MS)
+                != 0) {
+                retry_task_free(task);
+            }
         }
-        sentry_free(paths);
-        return;
     }
-    task->transport = retry->transport;
-    task->paths = paths;
-    task->count = count;
-    task->index = 0;
 
-    if (sentry__transport_schedule_retry(retry->transport, retry_task_exec,
-            NULL, task, SENTRY_RETRY_DELAY_MS)
-        != 0) {
-        retry_task_free(task);
+    if (earliest_pending > 0) {
+        uint64_t delay_ms = (uint64_t)(earliest_pending - now) * 1000;
+        sentry__transport_schedule_retry(
+            retry->transport, retry_rescan_exec, NULL, retry, delay_ms);
     }
+}
+
+static void
+retry_rescan_exec(void *_retry, void *bgworker_state)
+{
+    (void)bgworker_state;
+    retry_process_envelopes(_retry, true);
+}
+
+void
+sentry__retry_process_envelopes(sentry_retry_t *retry)
+{
+    retry_process_envelopes(retry, false);
+}
+
+void
+sentry__retry_rescan_envelopes(sentry_retry_t *retry)
+{
+    retry_process_envelopes(retry, true);
 }
