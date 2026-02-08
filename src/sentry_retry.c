@@ -5,6 +5,7 @@
 #include "sentry_logger.h"
 #include "sentry_options.h"
 #include "sentry_transport.h"
+#include "sentry_utils.h"
 #include "sentry_uuid.h"
 
 #include <stdio.h>
@@ -87,7 +88,8 @@ next_retry_time(const sentry_path_t *path)
     if (!parse_retry_filename(path, &timestamp, &attempt) || attempt <= 1) {
         return 0;
     }
-    time_t delay = (time_t)SENTRY_RETRY_BASE_DELAY_S << (attempt - 2);
+    // cap at 2h (base << 3)
+    time_t delay = (time_t)SENTRY_RETRY_BASE_DELAY_S << MIN(attempt - 2, 3);
     return timestamp + delay;
 }
 
