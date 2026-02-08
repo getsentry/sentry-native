@@ -279,7 +279,7 @@ sentry__retry_process_result(sentry_retry_t *retry,
     case SENTRY_SEND_DISCARDED:
         remove_retry_file(retry_path, &event_id);
         break;
-    case SENTRY_SEND_NETWORK_ERROR:
+    default:
         break;
     }
 }
