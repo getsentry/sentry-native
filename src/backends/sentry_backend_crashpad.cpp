@@ -811,15 +811,17 @@ crashpad_backend_prune_database(sentry_backend_t *backend)
 {
     auto *data = static_cast<crashpad_state_t *>(backend->data);
 
-    // We want to eagerly clean up reports older than 2 days, and limit the
-    // complete database to a maximum of 8M. That might still be a lot for
-    // an embedded use-case, but minidumps on desktop can sometimes be quite
-    // large. When offline caching is enabled, the cache_max_* options are
-    // used instead.
+    // For backwards compatibility, default to the parameters that were used
+    // before the offline caching API was introduced. We wanted to eagerly
+    // clean up reports older than 2 days, and limit the complete database
+    // to a maximum of 8M. That might still have been a lot for an embedded
+    // use-case, but minidumps on desktop can sometimes be quite large.
     time_t max_age = 2 * 24 * 60 * 60; // 2 days
     size_t max_size = 8 * 1024 * 1024; // 8 MB
     size_t max_items = 0;
 
+    // When offline caching is enabled, the user has full control over these
+    // parameters via the cache_max_* options.
     SENTRY_WITH_OPTIONS (options) {
         if (options->cache_keep) {
             max_age = options->cache_max_age;
