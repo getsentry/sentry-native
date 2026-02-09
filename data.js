@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1770386190190,
+  "lastUpdate": 1770636883302,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -9868,6 +9868,66 @@ window.BENCHMARK_DATA = {
             "value": 1.9912759999840546,
             "unit": "ms",
             "extra": "Min 1.984ms\nMax 2.024ms\nMean 2.001ms\nStdDev 0.019ms\nMedian 1.991ms\nCPU 0.621ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "jpnurmi@gmail.com",
+            "name": "J-P Nurmi",
+            "username": "jpnurmi"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "acc6b4a5104ed11971619a6f605eaf8eadabc9c8",
+          "message": "feat: add `sentry__path_rename()` (#1508)\n\n* feat: add sentry__path_rename()\n\nPartial cherry pick from commit 2135f0f196531788f0fdfecb53a1e9c16a3b746f\n\n* test: add unit tests for sentry__path_rename()\n\nCo-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>\n\n* fix: add null guards before memcmp in path_rename test\n\nCo-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>\n\n---------\n\nCo-authored-by: JoshuaMoelans <60878493+JoshuaMoelans@users.noreply.github.com>\nCo-authored-by: Claude Opus 4.6 <noreply@anthropic.com>",
+          "timestamp": "2026-02-09T12:32:22+01:00",
+          "tree_id": "b74e27ea483a2476774dbdafe0991490b410cbc9",
+          "url": "https://github.com/getsentry/sentry-native/commit/acc6b4a5104ed11971619a6f605eaf8eadabc9c8"
+        },
+        "date": 1770636882008,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 0.7208480000002737,
+            "unit": "ms",
+            "extra": "Min 0.717ms\nMax 0.814ms\nMean 0.742ms\nStdDev 0.041ms\nMedian 0.721ms\nCPU 0.730ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 0.7377090000062481,
+            "unit": "ms",
+            "extra": "Min 0.703ms\nMax 0.749ms\nMean 0.731ms\nStdDev 0.021ms\nMedian 0.738ms\nCPU 0.730ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 2.9341960000124345,
+            "unit": "ms",
+            "extra": "Min 2.814ms\nMax 3.051ms\nMean 2.940ms\nStdDev 0.104ms\nMedian 2.934ms\nCPU 1.507ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.012283000017987433,
+            "unit": "ms",
+            "extra": "Min 0.012ms\nMax 0.013ms\nMean 0.012ms\nStdDev 0.000ms\nMedian 0.012ms\nCPU 0.012ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.022131999998009633,
+            "unit": "ms",
+            "extra": "Min 0.022ms\nMax 0.029ms\nMean 0.023ms\nStdDev 0.003ms\nMedian 0.022ms\nCPU 0.023ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 1.7927309999947738,
+            "unit": "ms",
+            "extra": "Min 1.780ms\nMax 1.853ms\nMean 1.808ms\nStdDev 0.030ms\nMedian 1.793ms\nCPU 0.556ms"
           }
         ]
       }
