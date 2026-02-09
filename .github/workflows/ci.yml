@@ -182,16 +182,13 @@ jobs:
             MINGW_PKG_PREFIX: x86_64-w64-mingw32
             MINGW_ASM_MASM_COMPILER: llvm-ml
             MINGW_ASM_MASM_FLAGS: -m64
-          # The Android emulator is currently only available on macos, see:
-          # https://docs.microsoft.com/en-us/azure/devops/pipelines/ecosystems/android?view=azure-devops#test-on-the-android-emulator
-          # TODO: switch to reactivecircus/android-emulator-runner, concurrently running emulators continuously fail now.
-          # - name: Android (API 31, NDK 23)
-          #   os: macos-15-large
-          #   ANDROID_API: 31
-          #   ANDROID_NDK: 23.2.8568313
-          #   ANDROID_ARCH: x86_64
+          - name: Android (API 31, NDK 23)
+            os: ubuntu-latest-4-cores
+            ANDROID_API: 31
+            ANDROID_NDK: 23.2.8568313
+            ANDROID_ARCH: x86_64
           - name: Android (API 35, NDK 27)
-            os: macos-15-large
+            os: ubuntu-latest-4-cores
             ANDROID_API: 35
             ANDROID_NDK: 27.2.12479018
             ANDROID_ARCH: x86_64
@@ -226,12 +223,12 @@ jobs:
           cache: "pip"
 
       - name: Check Linux CC/CXX
-        if: ${{ runner.os == 'Linux' && !matrix.container }}
+        if: ${{ runner.os == 'Linux' && !matrix.container && !env['ANDROID_API'] }}
         run: |
           [ -n "$CC" ] && [ -n "$CXX" ] || { echo "Ubuntu runner configurations require toolchain selection via CC and CXX" >&2; exit 1; }
 
       - name: Installing Linux Dependencies
-        if: ${{ runner.os == 'Linux' && !env['TEST_X86'] && !matrix.container }}
+        if: ${{ runner.os == 'Linux' && !env['TEST_X86'] && !matrix.container && !env['ANDROID_API'] }}
         run: |
           sudo apt update
           # Install common dependencies
@@ -346,10 +343,12 @@ jobs:
         with:
           gradle-home-cache-cleanup: true
 
-      - name: Starting Android Simulator
-        if: ${{ env['ANDROID_API'] }}
-        run: bash scripts/start-android.sh
-        timeout-minutes: 20
+      - name: Enable KVM group perms
+        if: ${{ env['ANDROID_API'] && runner.os == 'Linux' }}
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
 
       - name: Add sentry.native.test hostname
         if: ${{ runner.os == 'Windows' }}
@@ -372,7 +371,21 @@ jobs:
           cat /etc/hosts
         shell: bash
 
+      - name: Test (Android)
+        if: ${{ env['ANDROID_API'] }}
+        uses: reactivecircus/android-emulator-runner@b530d96654c385303d652368551fb075bc2f0b6b # v2.35.0
+        with:
+          api-level: ${{ env.ANDROID_API }}
+          ndk: ${{ env.ANDROID_NDK }}
+          arch: ${{ env.ANDROID_ARCH }}
+          target: google_apis
+          script: |
+            pip install --upgrade --requirement tests/requirements.txt
+            pytest --capture=no --verbose tests
+        timeout-minutes: 20
+
       - name: Test
+        if: ${{ !env['ANDROID_API'] }}
         shell: bash
         run: |
           pip install --upgrade --requirement tests/requirements.txt
