@@ -752,9 +752,16 @@ crashpad_backend_prune_database(sentry_backend_t *backend)
     // an embedded use-case, but minidumps on desktop can sometimes be quite
     // large.
     data->db->CleanDatabase(60 * 60 * 24 * 2);
-    crashpad::BinaryPruneCondition condition(crashpad::BinaryPruneCondition::OR,
-        new (std::nothrow) crashpad::DatabaseSizePruneCondition(1024 * 8),
-        new (std::nothrow) crashpad::AgePruneCondition(2));
+    auto *size_condition
+        = new (std::nothrow) crashpad::DatabaseSizePruneCondition(1024 * 8);
+    auto *age_condition = new (std::nothrow) crashpad::AgePruneCondition(2);
+    if (!size_condition || !age_condition) {
+        delete size_condition;
+        delete age_condition;
+        return;
+    }
+    crashpad::BinaryPruneCondition condition(
+        crashpad::BinaryPruneCondition::OR, size_condition, age_condition);
     crashpad::PruneCrashReportDatabase(data->db, &condition);
 }
 
