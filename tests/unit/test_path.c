@@ -312,6 +312,7 @@ SENTRY_TEST(path_rename)
     TEST_CHECK(sentry__path_rename(src, dst) == 0);
     size_t len = 0;
     char *buf = sentry__path_read_to_buffer(dst, &len);
+    TEST_ASSERT(!!buf);
     TEST_CHECK(len == 5);
     TEST_CHECK(memcmp(buf, "hello", 5) == 0);
     sentry_free(buf);
@@ -323,6 +324,7 @@ SENTRY_TEST(path_rename)
     TEST_CHECK(sentry__path_rename(src, dst) == 0);
     TEST_CHECK(!sentry__path_is_file(src));
     buf = sentry__path_read_to_buffer(dst, &len);
+    TEST_ASSERT(!!buf);
     TEST_CHECK(len == 8);
     TEST_CHECK(memcmp(buf, "src-data", 8) == 0);
     sentry_free(buf);
