@@ -42,11 +42,11 @@
  * In its current implementation it only gathers the crash context for the
  * crashed thread and does not attempt to stop any other threads. While this
  * can be considered a downside for some users, it allows additional handlers
- * to process the crashed process again, which the other backends currenlty
+ * to process the crashed process again, which the other backends currently
  * can't guarantee to work. Additional crash signals coming from other threads
  * will be blocked indefinitely until previous handler takes over.
  *
- * The inproc backend splits the handler in two parts:
+ * The inproc backend splits the handler into two parts:
  *   - a signal handler/unhandled exception filter that severely limits what we
  *     can do, focusing on response to the OS mechanism and almost zero policy.
  *   - a separate handler thread that does most of the typical sentry error
@@ -57,7 +57,7 @@
  * fallback for report creation. The signal-handler part should not use any
  * synchronization or signal-unsafe function from `libc` (see function-level
  * comment), even access to options is ideally done before during
- * initailization. If access to option or scope (or any other global context)
+ * initialization. If access to option or scope (or any other global context)
  * is required this should happen in the handler thread.
  *
  * The handler thread is started during backend initialization and will be
@@ -86,7 +86,7 @@
  * The `on_crash` and `before_send` hook usually run on the handler thread
  * during `process_ucontext_deferred` but users cannot rely on any particular
  * thread to call their callbacks. However, they can be sure that the crashed
- * thread won't run during their the execution of their callback code.
+ * thread won't progress during the execution of their callback code.
  *
  * Note on unwinders:
  *
@@ -106,7 +106,7 @@
  * process. On setups like these it offers a handler strategy that chains the
  * previous signal handler first, allowing the .net runtime handler to either
  * immediately jump back into runtime code or reset IP/SP so that the returning
- * signal handler continues from the managed exception rather then the crashed
+ * signal handler continues from the managed exception rather than the crashed
  * instruction.
  *
  * The Android runtime (ART) otoh, while also relying heavily on signal handling
@@ -114,7 +114,7 @@
  * shields the signals from us (via `libsigchain` special handler ordering) and
  * only forwards signals that are not relevant to runtime. However, it relies on
  * each thread having a specific sigaltstack setup, which can lead to crashes if
- * overriden. For this reason, we do not set the sigaltstack of any thread if
+ * overridden. For this reason, we do not set the sigaltstack of any thread if
  * one was already configured even if the size is smaller than we'd want. Since
  * most of the handler runs in a separate thread the size limitation of any pre-
  * configured `sigaltstack` is not a problem to our more complex handler code.
@@ -152,6 +152,16 @@ static volatile long g_handler_thread_ready = 0;
 static volatile long g_handler_should_exit = 0;
 // signal handler tells handler thread to start working
 static volatile long g_handler_has_work = 0;
+// blocks pure reentrancy into the inproc signal handler after first crash
+// while `sentry__enter_signal_handler` also blocks reentrancy, it specifically
+// blocks all our critical sections from entering during the signal handler.
+// But
+//   a. it does this solely for UNIX and
+//   b. it does not consider that we cannot guarantee to safely run another
+//      signal handler once the current one "leaves".
+// This is trivial cross-platform guard that blocks all follow-up signals routed
+// to us indefinitely until the process terminates or the backend shut down.
+static volatile long g_signal_reentrancy_block = 0;
 
 // trigger/schedule primitives that block the other side until this side is done
 #ifdef SENTRY_PLATFORM_UNIX
@@ -221,6 +231,10 @@ static int
 startup_inproc_backend(
     sentry_backend_t *backend, const sentry_options_t *options)
 {
+#    ifdef SENTRY_WITH_UNWINDER_LIBBACKTRACE
+    SENTRY_WARN("Using `backtrace()` for stack traces together with the inproc "
+                "backend is signal-unsafe. This is a fallback configuration.");
+#    endif
     // get option state so we don't need to sync read during signal handling
     g_backend_config.enable_logging_when_crashed
         = options ? options->enable_logging_when_crashed : true;
@@ -288,9 +302,13 @@ shutdown_inproc_backend(sentry_backend_t *backend)
         g_signal_stack.ss_sp = NULL;
     }
     reset_signal_handlers();
+
     if (backend) {
         backend->data = NULL;
     }
+
+    // allow tests or orderly shutdown to re-arm the backend once unregistered
+    sentry__atomic_store(&g_signal_reentrancy_block, 0);
 }
 
 #elif defined(SENTRY_PLATFORM_WINDOWS)
@@ -363,9 +381,13 @@ shutdown_inproc_backend(sentry_backend_t *backend)
     if (current_handler != &handle_exception) {
         SetUnhandledExceptionFilter(current_handler);
     }
+
     if (backend) {
         backend->data = NULL;
     }
+
+    // the inproc handler is now unregistered; re-arm the guard for future use
+    sentry__atomic_store(&g_signal_reentrancy_block, 0);
 }
 
 #endif
@@ -864,10 +886,10 @@ handler_thread_main(void *UNUSED(data))
 {
     sentry__atomic_store(&g_handler_thread_ready, 1);
 
-    while (!sentry__atomic_fetch(&g_handler_should_exit)) {
+    for (;;) {
 #ifdef SENTRY_PLATFORM_UNIX
         char command = 0;
-        ssize_t rv = read(g_handler_pipe[0], &command, 1);
+        const ssize_t rv = read(g_handler_pipe[0], &command, 1);
         if (rv == -1 && errno == EINTR) {
             continue;
         }
@@ -882,12 +904,12 @@ handler_thread_main(void *UNUSED(data))
         if (wait_result != WAIT_OBJECT_0) {
             continue;
         }
-        if (sentry__atomic_fetch(&g_handler_should_exit)) {
-            break;
-        }
 #endif
 
         if (!sentry__atomic_fetch(&g_handler_has_work)) {
+            if (sentry__atomic_fetch(&g_handler_should_exit)) {
+                break;
+            }
             continue;
         }
 
@@ -901,12 +923,25 @@ handler_thread_main(void *UNUSED(data))
             do {
                 rv = write(g_handler_ack_pipe[1], &c, 1);
             } while (rv == -1 && errno == EINTR);
+            if (rv != 1) {
+                // TODO: replace with signal-safe log
+                SENTRY_WARNF(
+                    "failed to write handler ack: %s", strerror(errno));
+                close(g_handler_ack_pipe[1]);
+                g_handler_ack_pipe[1] = -1;
+                sentry__atomic_store(&g_handler_should_exit, 1);
+                break;
+            }
         }
 #elif defined(SENTRY_PLATFORM_WINDOWS)
         if (g_handler_ack_semaphore) {
             ReleaseSemaphore(g_handler_ack_semaphore, 1, NULL);
         }
 #endif
+
+        if (sentry__atomic_fetch(&g_handler_should_exit)) {
+            break;
+        }
     }
 
 #ifdef SENTRY_PLATFORM_WINDOWS
@@ -1073,12 +1108,39 @@ dispatch_ucontext(
     process_ucontext_deferred(uctx, sig_slot);
     return;
 #else
-    if (!sentry__atomic_fetch(&g_handler_thread_ready)
-        || has_handler_thread_crashed()) {
+    if (has_handler_thread_crashed()) {
         // directly execute unsafe part in signal handler as a last chance to
-        // report an error when the handler thread is unavailable.
+        // report an error when the handler thread has crashed.
         process_ucontext_deferred(uctx, sig_slot);
         return;
+    } else {
+        // Once a crash is being handled, block any further handler entry until
+        // the backend is explicitly shut down or the process terminated. This
+        // avoids other signal handlers from concurrent event generation while
+        // the handler thread runs, or after we engaged the signal chain. If the
+        // guard is already set, spin in place to prevent progressing into the
+        // previous handlers (which could terminate while the first crash is
+        // still running).
+        while (sentry__atomic_store(&g_signal_reentrancy_block, 1) != 0) {
+            sentry__cpu_relax();
+        }
+        // TODO:
+        //   - we could move the entire blocker into the handler thread
+        //   - make g_signal_reentrancy_block more statey where
+        //     - 0 means: not yet handling
+        //     - 1 means: handling in progress
+        //     - 2 means: handling done
+        //     which would allow threads to exit the loop once we are done
+        //   - still check whether the thread that crashed is the signal thread
+        //   - add another counter that prevents from looping on SIGABRT
+
+        // after we can be sure to be the first to handle any signals we can
+        // also provide a fall-back if the handler thread is not available for
+        // some reason.
+        if (!sentry__atomic_fetch(&g_handler_thread_ready)) {
+            process_ucontext_deferred(uctx, sig_slot);
+            return;
+        }
     }
 
     g_handler_state.uctx = *uctx;
