@@ -119,25 +119,22 @@ find_retry_file(sentry_pathiter_t *iter, const char *uuid_str)
     return NULL;
 }
 
-static int
-find_retry_attempt(
-    const sentry_path_t *retry_path, const sentry_uuid_t *envelope_id)
+static bool
+rename_retry_file(const sentry_path_t *retry_path, const sentry_path_t *old,
+    const sentry_uuid_t *envelope_id, int next_attempt)
 {
-    char uuid_str[37];
-    sentry_uuid_as_string(envelope_id, uuid_str);
-
-    int found_attempt = 0;
-    sentry_pathiter_t *iter = sentry__path_iter_directory(retry_path);
-    const sentry_path_t *file;
-    while (iter && (file = find_retry_file(iter, uuid_str)) != NULL) {
-        int attempt;
-        if (parse_retry_filename(file, NULL, &attempt)
-            && attempt > found_attempt) {
-            found_attempt = attempt;
-        }
+    char *filename = make_retry_filename(envelope_id, next_attempt);
+    if (!filename) {
+        return false;
     }
-    sentry__pathiter_free(iter);
-    return found_attempt;
+    sentry_path_t *dst = sentry__path_join_str(retry_path, filename);
+    sentry_free(filename);
+    if (!dst) {
+        return false;
+    }
+    int rv = sentry__path_rename(old, dst);
+    sentry__path_free(dst);
+    return rv == 0;
 }
 
 static void
@@ -175,14 +172,25 @@ retry_write_envelope(
         event_id = sentry_uuid_new_v4();
     }
 
-    int current_attempt = find_retry_attempt(retry_path, &event_id);
+    int current_attempt = 0;
+    sentry_path_t *existing = NULL;
+    char uuid_str[37];
+    sentry_uuid_as_string(&event_id, uuid_str);
+    sentry_pathiter_t *iter = sentry__path_iter_directory(retry_path);
+    const sentry_path_t *found = iter ? find_retry_file(iter, uuid_str) : NULL;
+    if (found) {
+        parse_retry_filename(found, NULL, &current_attempt);
+        existing = sentry__path_clone(found);
+    }
+    sentry__pathiter_free(iter);
+
     int next_attempt = current_attempt + 1;
 
-    if (current_attempt > 0) {
-        remove_retry_file(retry_path, &event_id);
-    }
-
     if (next_attempt > retry->max_attempts) {
+        if (existing) {
+            sentry__path_remove(existing);
+            sentry__path_free(existing);
+        }
         if (retry->cache_keep) {
             SENTRY_WARNF("max retry attempts (%d) exceeded, moving to cache",
                 retry->max_attempts);
@@ -192,6 +200,15 @@ retry_write_envelope(
                 retry->max_attempts);
             return false;
         }
+    }
+
+    if (existing) {
+        SENTRY_DEBUGF("renaming retry envelope (attempt %d/%d)", next_attempt,
+            retry->max_attempts);
+        bool rv
+            = rename_retry_file(retry_path, existing, &event_id, next_attempt);
+        sentry__path_free(existing);
+        return rv;
     }
 
     char *filename = make_retry_filename(&event_id, next_attempt);
