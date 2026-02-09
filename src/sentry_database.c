@@ -103,6 +103,13 @@ static bool
 write_envelope(const sentry_path_t *path, const sentry_envelope_t *envelope)
 {
     sentry_uuid_t event_id = sentry__envelope_get_event_id(envelope);
+
+    // Generate a random UUID for the filename if the envelope has no event_id
+    // this avoids collisions on NIL-UUIDs
+    if (sentry_uuid_is_nil(&event_id)) {
+        event_id = sentry_uuid_new_v4();
+    }
+
     char *envelope_filename = sentry__uuid_as_filename(&event_id, ".envelope");
     if (!envelope_filename) {
         return false;

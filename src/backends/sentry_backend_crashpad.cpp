@@ -10,6 +10,7 @@ extern "C" {
 #include "sentry_envelope.h"
 #include "sentry_logger.h"
 #include "sentry_logs.h"
+#include "sentry_metrics.h"
 #include "sentry_options.h"
 #ifdef SENTRY_PLATFORM_WINDOWS
 #    include "sentry_os.h"
@@ -330,10 +331,6 @@ crashpad_handler(int signum, siginfo_t *info, ucontext_t *user_context)
     bool should_dump = true;
 
     SENTRY_WITH_OPTIONS (options) {
-        // Flush logs in a crash-safe manner before crash handling
-        if (options->enable_logs) {
-            sentry__logs_flush_crash_safe();
-        }
         auto state = static_cast<crashpad_state_t *>(options->backend->data);
         sentry_value_t crash_event
             = sentry__value_new_event_with_id(&state->crash_event_id);
@@ -358,6 +355,15 @@ crashpad_handler(int signum, siginfo_t *info, ucontext_t *user_context)
             crash_event = options->before_send_func(
                 crash_event, nullptr, options->before_send_data);
         }
+
+        // Flush logs and metrics in a crash-safe manner before crash handling
+        if (options->enable_logs) {
+            sentry__logs_flush_crash_safe();
+        }
+        if (options->enable_metrics) {
+            sentry__metrics_flush_crash_safe();
+        }
+
         should_dump = !sentry_value_is_null(crash_event);
 
         if (should_dump) {
@@ -536,6 +542,9 @@ crashpad_backend_startup(
 
     std::vector<std::string> arguments { "--no-rate-limit" };
 
+    char report_id[37];
+    sentry_uuid_as_string(&data->crash_event_id, report_id);
+
     // Initialize database first, flushing the consent later on as part of
     // `sentry_init` will persist the upload flag.
     data->db = crashpad::CrashReportDatabase::Initialize(database).release();
@@ -561,7 +570,8 @@ crashpad_backend_startup(
         minidump_url ? minidump_url : "", proxy_url, annotations, arguments,
         /* restartable */ true,
         /* asynchronous_start */ false, attachments, screenshot,
-        options->crashpad_wait_for_upload, crash_reporter, crash_envelope);
+        options->crashpad_wait_for_upload, crash_reporter, crash_envelope,
+        report_id);
     sentry_free(minidump_url);
 
 #ifdef SENTRY_PLATFORM_WINDOWS

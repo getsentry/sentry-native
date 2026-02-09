@@ -1,6 +1,29 @@
 # Changelog
 
-## Unreleased
+## 0.12.6
+
+**Features**:
+
+- Add support for metrics. It is currently experimental, and one can enable it by setting `sentry_options_set_enable_metrics`. When enabled, you can record a metric using `sentry_metrics_count()`, `sentry_metrics_gauge()`, or `sentry_metrics_distribution()`. Metrics can be filtered by setting the `before_send_metric` hook. ([#1498](https://github.com/getsentry/sentry-native/pull/1498))
+
+## 0.12.5
+
+**Features**:
+
+- Add attachment support to user feedback. ([#1414](https://github.com/getsentry/sentry-native/pull/1414))
+
+**Fixes**:
+
+- Structured logs: avoid modifying custom per-log attributes when merging with scope attributes. ([#1500](https://github.com/getsentry/sentry-native/pull/1500))
+
+## 0.12.4
+
+**Fixes**:
+
+- Crashpad: namespace mpack to avoid ODR violation. ([#1476](https://github.com/getsentry/sentry-native/pull/1476), [crashpad#143](https://github.com/getsentry/crashpad/pull/143))
+- Structured logs: stop local attributes overwriting all globally set attributes. They now get merged, and local values overwrite existing global values for the same key. ([#1486](https://github.com/getsentry/sentry-native/pull/1486))
+
+## 0.12.3
 
 **Breaking**:
 
@@ -10,6 +33,8 @@
 **Fixes**:
 
 - Removed the 10-item limit per envelope for non-session data. Sessions are now limited to 100 per envelope, while other items (e.g., attachments) have no limit in amount. ([#1347](https://github.com/getsentry/sentry-native/pull/1347))
+- Align the `breakpad` interface changes introduced with [#1083](https://github.com/getsentry/sentry-native/pull/1083) with the corresponding iOS build. ([#1465](https://github.com/getsentry/sentry-native/pull/1465))
+- Add structured logs to debug output when `debug` option is set. ([#1466](https://github.com/getsentry/sentry-native/pull/1466))
 
 ## 0.12.2
 

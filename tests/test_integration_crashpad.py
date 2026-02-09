@@ -11,6 +11,7 @@ from . import (
     run,
     Envelope,
     split_log_request_cond,
+    extract_request,
     is_session_envelope,
     is_logs_envelope,
     is_feedback_envelope,
@@ -30,6 +31,7 @@ from .assertions import (
     assert_gzip_file_header,
     assert_logs,
     assert_user_feedback,
+    wait_for_file,
 )
 
 pytestmark = pytest.mark.skipif(
@@ -409,11 +411,17 @@ def test_crashpad_dumping_crash(cmake, httpserver, run_args, build_args):
 
     envelope = Envelope.deserialize(session)
     assert_session(envelope, {"status": "crashed", "errors": 1})
-    assert_crashpad_upload(
+    attachments = assert_crashpad_upload(
         multipart,
         expect_attachment="clear-attachments" not in run_args,
         expect_view_hierarchy="clear-attachments" not in run_args,
     )
+    event_id = attachments.event["event_id"]
+    if sys.platform == "win32":
+        minidump = tmp_path / ".sentry-native" / "reports" / f"{event_id}.dmp"
+    else:
+        minidump = tmp_path / ".sentry-native" / "completed" / f"{event_id}.dmp"
+    assert wait_for_file(minidump)
 
 
 @pytest.mark.parametrize(
@@ -612,6 +620,42 @@ def test_crashpad_logs_on_crash(cmake, httpserver):
 
     assert logs_envelope is not None
     assert_logs(logs_envelope, 1)
+
+
+@pytest.mark.skipif(not flushes_state, reason="test needs state flushing")
+def test_crashpad_logs_and_session_on_crash(cmake, httpserver):
+    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "crashpad"})
+
+    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
+    httpserver.expect_oneshot_request("/api/123456/minidump/").respond_with_data("OK")
+    httpserver.expect_request("/api/123456/envelope/").respond_with_data("OK")
+
+    with httpserver.wait(timeout=10) as waiting:
+        run(
+            tmp_path,
+            "sentry_example",
+            ["log", "enable-logs", "capture-log", "crash", "start-session"],
+            expect_failure=True,
+            env=env,
+        )
+
+    assert waiting.result
+
+    run(tmp_path, "sentry_example", ["log", "no-setup"], env=env)
+
+    # we expect 1 envelope with the log, 1 for the crash, and 1 for the session
+    assert len(httpserver.log) == 3
+
+    logs_request, remaining = extract_request(httpserver.log, is_logs_envelope)
+    session_request, remaining = extract_request(remaining, is_session_envelope)
+    multipart = remaining[0][0]  # The crash/minidump
+
+    logs_envelope = Envelope.deserialize(logs_request.get_data())
+    assert logs_envelope is not None
+    assert_logs(logs_envelope, 1)
+
+    session_envelope = Envelope.deserialize(session_request.get_data())
+    assert session_envelope is not None
 
 
 def test_disable_backend(cmake, httpserver):

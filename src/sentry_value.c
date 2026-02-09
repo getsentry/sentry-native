@@ -511,9 +511,9 @@ sentry_value_new_user(const char *id, const char *username, const char *email,
 
 /**
  * Converts a sentry_value_t attribute to its type string representation.
- * For lists, checks the first element to determine the array type.
+ * For lists, checks the first element to determine if it is a scalar array.
  * Returns NULL for unsupported types (NULL, OBJECT).
- * https://develop.sentry.dev/sdk/telemetry/spans/span-protocol/#attribute-object-properties
+ * https://develop.sentry.dev/sdk/telemetry/attributes/
  */
 static const char *
 attribute_value_type_to_str(sentry_value_t value)
@@ -537,15 +537,12 @@ attribute_value_type_to_str(sentry_value_t value)
         // Determine type based on first element
         switch (sentry_value_get_type(first_item)) {
         case SENTRY_VALUE_TYPE_BOOL:
-            return "boolean[]";
         case SENTRY_VALUE_TYPE_INT32:
         case SENTRY_VALUE_TYPE_INT64:
-        case SENTRY_VALUE_TYPE_UINT64:
-            return "integer[]";
         case SENTRY_VALUE_TYPE_DOUBLE:
-            return "double[]";
         case SENTRY_VALUE_TYPE_STRING:
-            return "string[]";
+            return "array";
+        case SENTRY_VALUE_TYPE_UINT64: // TODO update when we support this
         case SENTRY_VALUE_TYPE_NULL:
         case SENTRY_VALUE_TYPE_OBJECT:
         case SENTRY_VALUE_TYPE_LIST:
@@ -586,6 +583,20 @@ sentry_value_t
 sentry_value_new_attribute(sentry_value_t value, const char *unit)
 {
     return sentry_value_new_attribute_n(value, unit, unit ? strlen(unit) : 0);
+}
+
+void
+sentry__value_add_attribute(sentry_value_t attributes, sentry_value_t value,
+    const char *type, const char *name)
+{
+    if (!sentry_value_is_null(sentry_value_get_by_key(attributes, name))) {
+        sentry_value_decref(value);
+        return;
+    }
+    sentry_value_t param_obj = sentry_value_new_object();
+    sentry_value_set_by_key(param_obj, "value", value);
+    sentry_value_set_by_key(param_obj, "type", sentry_value_new_string(type));
+    sentry_value_set_by_key(attributes, name, param_obj);
 }
 
 sentry_value_type_t
@@ -1623,4 +1634,220 @@ sentry_event_value_add_stacktrace(sentry_value_t event, void **ips, size_t len)
     sentry_value_t thread = sentry_value_new_object();
     sentry_value_set_stacktrace(thread, ips, len);
     sentry_event_add_thread(event, thread);
+}
+
+static sentry_value_t
+value_from_mpack(mpack_node_t node)
+{
+    switch (mpack_node_type(node)) {
+    case mpack_type_nil:
+        return sentry_value_new_null();
+    case mpack_type_bool:
+        return sentry_value_new_bool(mpack_node_bool(node));
+    case mpack_type_int: {
+        int64_t i64_val = mpack_node_i64(node);
+        if (i64_val >= INT32_MIN && i64_val <= INT32_MAX) {
+            return sentry_value_new_int32((int32_t)i64_val);
+        } else {
+            return sentry_value_new_int64(i64_val);
+        }
+    }
+    case mpack_type_uint: {
+        uint64_t u64_val = mpack_node_u64(node);
+        if (u64_val <= INT32_MAX) {
+            return sentry_value_new_int32((int32_t)u64_val);
+        } else if (u64_val <= INT64_MAX) {
+            return sentry_value_new_int64((int64_t)u64_val);
+        } else {
+            return sentry_value_new_uint64(u64_val);
+        }
+    }
+    case mpack_type_float:
+    case mpack_type_double:
+        return sentry_value_new_double(mpack_node_double(node));
+    case mpack_type_str: {
+        size_t str_len = mpack_node_strlen(node);
+        return sentry_value_new_string_n(mpack_node_str(node), str_len);
+    }
+    case mpack_type_array: {
+        size_t arr_len = mpack_node_array_length(node);
+        sentry_value_t arr = sentry_value_new_list();
+        for (size_t i = 0; i < arr_len; i++) {
+            sentry_value_append(
+                arr, value_from_mpack(mpack_node_array_at(node, i)));
+        }
+        return arr;
+    }
+    case mpack_type_map: {
+        size_t map_len = mpack_node_map_count(node);
+        sentry_value_t obj = sentry_value_new_object();
+        for (size_t i = 0; i < map_len; i++) {
+            mpack_node_t key_node = mpack_node_map_key_at(node, i);
+            if (mpack_node_type(key_node) != mpack_type_str) {
+                continue; // skip non-string keys
+            }
+            mpack_node_t val_node = mpack_node_map_value_at(node, i);
+            size_t key_len = mpack_node_strlen(key_node);
+            sentry_value_set_by_key_n(obj, mpack_node_str(key_node), key_len,
+                value_from_mpack(val_node));
+        }
+        return obj;
+    }
+    case mpack_type_missing:
+    case mpack_type_bin:
+    default:
+        return sentry_value_new_null();
+    }
+}
+
+sentry_value_t
+sentry__value_from_msgpack(const char *buf, size_t buf_len)
+{
+    if (!buf || buf_len == 0) {
+        return sentry_value_new_null();
+    }
+
+    size_t offset = 0;
+    sentry_value_t result = sentry_value_new_null();
+
+    while (offset < buf_len) {
+        mpack_tree_t tree;
+        mpack_tree_init_data(&tree, buf + offset, buf_len - offset);
+        mpack_tree_parse(&tree);
+
+        if (mpack_tree_error(&tree) != mpack_ok) {
+            mpack_tree_destroy(&tree);
+            break;
+        }
+
+        size_t size = mpack_tree_size(&tree);
+        sentry_value_t value = value_from_mpack(mpack_tree_root(&tree));
+        mpack_tree_destroy(&tree);
+
+        if (offset == 0 && sentry_value_is_null(result)) {
+            if (offset + size < buf_len) {
+                result = sentry_value_new_list();
+                sentry_value_append(result, value);
+            } else {
+                result = value;
+            }
+        } else {
+            sentry_value_append(result, value);
+        }
+
+        offset += size;
+    }
+
+    return result;
+}
+
+static int
+cmp_breadcrumb(sentry_value_t a, sentry_value_t b, bool *error)
+{
+    sentry_value_t timestamp_a = sentry_value_get_by_key(a, "timestamp");
+    sentry_value_t timestamp_b = sentry_value_get_by_key(b, "timestamp");
+    if (sentry_value_is_null(timestamp_a)) {
+        *error = true;
+        return -1;
+    }
+    if (sentry_value_is_null(timestamp_b)) {
+        *error = true;
+        return 1;
+    }
+
+    return strcmp(sentry_value_as_string(timestamp_a),
+        sentry_value_as_string(timestamp_b));
+}
+
+static bool
+append_breadcrumb(sentry_value_t target, sentry_value_t source, size_t index)
+{
+    int rv = sentry_value_append(
+        target, sentry_value_get_by_index_owned(source, index));
+    if (rv != 0) {
+        SENTRY_ERROR("Failed to merge breadcrumbs");
+        sentry_value_decref(target);
+        return false;
+    }
+    return true;
+}
+
+sentry_value_t
+sentry__value_merge_breadcrumbs(
+    sentry_value_t list_a, sentry_value_t list_b, size_t max)
+{
+    size_t len_a = sentry_value_get_type(list_a) == SENTRY_VALUE_TYPE_LIST
+        ? sentry_value_get_length(list_a)
+        : 0;
+    size_t len_b = sentry_value_get_type(list_b) == SENTRY_VALUE_TYPE_LIST
+        ? sentry_value_get_length(list_b)
+        : 0;
+
+    if (len_a == 0 && len_b == 0) {
+        return sentry_value_new_null();
+    } else if (len_a == 0) {
+        sentry_value_incref(list_b);
+        return list_b;
+    } else if (len_b == 0) {
+        sentry_value_incref(list_a);
+        return list_a;
+    }
+
+    bool error = false;
+    size_t idx_a = 0;
+    size_t idx_b = 0;
+    size_t total = len_a + len_b;
+    size_t skip = total > max ? total - max : 0;
+    sentry_value_t result = sentry__value_new_list_with_size(total - skip);
+
+    // skip oldest breadcrumbs to fit max
+    while (idx_a < len_a && idx_b < len_b && idx_a + idx_b < skip) {
+        sentry_value_t item_a = sentry_value_get_by_index(list_a, idx_a);
+        sentry_value_t item_b = sentry_value_get_by_index(list_b, idx_b);
+
+        if (cmp_breadcrumb(item_a, item_b, &error) <= 0) {
+            idx_a++;
+        } else {
+            idx_b++;
+        }
+    }
+    while (idx_a < len_a && idx_a + idx_b < skip) {
+        idx_a++;
+    }
+    while (idx_b < len_b && idx_a + idx_b < skip) {
+        idx_b++;
+    }
+
+    // merge the remaining breadcrumbs in timestamp order
+    while (idx_a < len_a && idx_b < len_b) {
+        sentry_value_t item_a = sentry_value_get_by_index(list_a, idx_a);
+        sentry_value_t item_b = sentry_value_get_by_index(list_b, idx_b);
+
+        if (cmp_breadcrumb(item_a, item_b, &error) <= 0) {
+            if (!append_breadcrumb(result, list_a, idx_a++)) {
+                return sentry_value_new_null();
+            }
+        } else {
+            if (!append_breadcrumb(result, list_b, idx_b++)) {
+                return sentry_value_new_null();
+            }
+        }
+    }
+    while (idx_a < len_a) {
+        if (!append_breadcrumb(result, list_a, idx_a++)) {
+            return sentry_value_new_null();
+        }
+    }
+    while (idx_b < len_b) {
+        if (!append_breadcrumb(result, list_b, idx_b++)) {
+            return sentry_value_new_null();
+        }
+    }
+
+    if (error) {
+        SENTRY_WARN("Detected missing timestamps while merging breadcrumbs. "
+                    "This may lead to unexpected results.");
+    }
+
+    return result;
 }

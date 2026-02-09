@@ -23,15 +23,26 @@ jobs:
       - uses: actions/checkout@v4
       - run: make style
 
-  build-ios:
-    name: Xcode Build for iOS
+  build-ios-inproc:
+    name: Xcode Build for inproc on iOS
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
         with:
           submodules: "recursive"
       - run: |
-          cmake -B sentry-native-xcode -GXcode -DCMAKE_SYSTEM_NAME=iOS
+          cmake -B sentry-native-xcode -GXcode -DCMAKE_SYSTEM_NAME=iOS -DSENTRY_BACKEND=inproc
+          xcodebuild build -project sentry-native-xcode/Sentry-Native.xcodeproj -sdk iphonesimulator
+
+  build-ios-breakpad:
+    name: Xcode Build for breakpad on iOS
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: "recursive"
+      - run: |
+          cmake -B sentry-native-xcode -GXcode -DCMAKE_SYSTEM_NAME=iOS -DSENTRY_BACKEND=breakpad
           xcodebuild build -project sentry-native-xcode/Sentry-Native.xcodeproj -sdk iphonesimulator
 
   test:
@@ -161,6 +172,8 @@ jobs:
             TEST_X86: 1
           - name: Windows (latest)
             os: windows-latest
+          - name: Windows arm64
+            os: windows-11-arm
           - name: Windows (latest, UTF-8 paths)
             os: windows-latest
             UTF8_TEST_CWD: 1
