@@ -193,7 +193,7 @@ sentry__unwind_stack_libunwind_mac(
         }
     }
     // walk the callers
-    unw_word_t prev_ip = (uintptr_t)ptrs[0];
+    unw_word_t prev_ip = n > 0 ? (uintptr_t)ptrs[0] : 0;
     unw_word_t prev_sp = 0;
     (void)unw_get_reg(&cursor, UNW_REG_SP, &prev_sp);
     while (n < max_frames && unw_step(&cursor) > 0) {
