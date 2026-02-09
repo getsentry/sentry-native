@@ -744,11 +744,14 @@ crashpad_backend_last_crash(sentry_backend_t *backend)
     return crash_time;
 }
 
-// seconds-based alternative to crashpad::AgePruneCondition (days)
-class MaxAgePruneCondition final : public crashpad::PruneCondition {
+class CachePruneCondition final : public crashpad::PruneCondition {
 public:
-    explicit MaxAgePruneCondition(time_t max_age)
-        : max_age_(max_age)
+    CachePruneCondition(size_t max_items, size_t max_size, time_t max_age)
+        : max_items_(max_items)
+        , item_count_(0)
+        , max_size_(max_size)
+        , measured_size_(0)
+        , max_age_(max_age)
         , oldest_report_time_(time(nullptr) - max_age)
     {
     }
@@ -757,53 +760,23 @@ public:
     ShouldPruneReport(
         const crashpad::CrashReportDatabase::Report &report) override
     {
-        return max_age_ > 0 && report.creation_time < oldest_report_time_;
-    }
-
-private:
-    const time_t max_age_;
-    const time_t oldest_report_time_;
-};
-
-// bytes-based alternative to crashpad::DatabaseSizePruneCondition (kb)
-class MaxSizePruneCondition final : public crashpad::PruneCondition {
-public:
-    explicit MaxSizePruneCondition(size_t max_size)
-        : max_size_(max_size)
-        , measured_size_(0)
-    {
-    }
-
-    bool
-    ShouldPruneReport(
-        const crashpad::CrashReportDatabase::Report &report) override
-    {
+        ++item_count_;
         measured_size_ += static_cast<size_t>(report.total_size);
-        return max_size_ > 0 && measured_size_ > max_size_;
-    }
 
-private:
-    const size_t max_size_;
-    size_t measured_size_;
-};
-
-class MaxItemsPruneCondition final : public crashpad::PruneCondition {
-public:
-    explicit MaxItemsPruneCondition(size_t max_items)
-        : max_items_(max_items)
-        , item_count_(0)
-    {
-    }
-
-    bool
-    ShouldPruneReport(const crashpad::CrashReportDatabase::Report &) override
-    {
-        return max_items_ > 0 && ++item_count_ > max_items_;
+        bool by_items = max_items_ > 0 && item_count_ > max_items_;
+        bool by_size = max_size_ > 0 && measured_size_ > max_size_;
+        bool by_age
+            = max_age_ > 0 && report.creation_time < oldest_report_time_;
+        return by_items || by_size || by_age;
     }
 
 private:
     const size_t max_items_;
     size_t item_count_;
+    const size_t max_size_;
+    size_t measured_size_;
+    const time_t max_age_;
+    const time_t oldest_report_time_;
 };
 
 static void
@@ -834,11 +807,7 @@ crashpad_backend_prune_database(sentry_backend_t *backend)
         data->db->CleanDatabase(max_age);
     }
 
-    crashpad::BinaryPruneCondition condition(crashpad::BinaryPruneCondition::OR,
-        new MaxItemsPruneCondition(max_items),
-        new crashpad::BinaryPruneCondition(crashpad::BinaryPruneCondition::OR,
-            new MaxSizePruneCondition(max_size),
-            new MaxAgePruneCondition(max_age)));
+    CachePruneCondition condition(max_items, max_size, max_age);
     crashpad::PruneCrashReportDatabase(data->db, &condition);
 }
 
