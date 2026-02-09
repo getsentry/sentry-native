@@ -285,3 +285,62 @@ SENTRY_TEST(path_mtime)
     sentry__path_remove(path);
     sentry__path_free(path);
 }
+
+SENTRY_TEST(path_rename)
+{
+    sentry_path_t *src
+        = sentry__path_from_str(SENTRY_TEST_PATH_PREFIX ".rename-src");
+    TEST_ASSERT(!!src);
+    sentry_path_t *dst
+        = sentry__path_from_str(SENTRY_TEST_PATH_PREFIX ".rename-dst");
+    TEST_ASSERT(!!dst);
+
+    // cleanup
+    sentry__path_remove_all(src);
+    sentry__path_remove_all(dst);
+
+    // rename file
+    sentry__path_touch(src);
+    TEST_CHECK(sentry__path_is_file(src));
+    TEST_CHECK(sentry__path_rename(src, dst) == 0);
+    TEST_CHECK(!sentry__path_is_file(src));
+    TEST_CHECK(sentry__path_is_file(dst));
+    sentry__path_remove(dst);
+
+    // rename with content preserved
+    sentry__path_write_buffer(src, "hello", 5);
+    TEST_CHECK(sentry__path_rename(src, dst) == 0);
+    size_t len = 0;
+    char *buf = sentry__path_read_to_buffer(dst, &len);
+    TEST_ASSERT(!!buf);
+    TEST_CHECK(len == 5);
+    TEST_CHECK(memcmp(buf, "hello", 5) == 0);
+    sentry_free(buf);
+    sentry__path_remove(dst);
+
+    // overwrite existing dst
+    sentry__path_write_buffer(src, "src-data", 8);
+    sentry__path_write_buffer(dst, "dst-data", 8);
+    TEST_CHECK(sentry__path_rename(src, dst) == 0);
+    TEST_CHECK(!sentry__path_is_file(src));
+    buf = sentry__path_read_to_buffer(dst, &len);
+    TEST_ASSERT(!!buf);
+    TEST_CHECK(len == 8);
+    TEST_CHECK(memcmp(buf, "src-data", 8) == 0);
+    sentry_free(buf);
+    sentry__path_remove(dst);
+
+    // rename nonexistent src
+    TEST_CHECK(sentry__path_rename(src, dst) != 0);
+
+    // rename directory
+    sentry__path_create_dir_all(src);
+    TEST_CHECK(sentry__path_is_dir(src));
+    TEST_CHECK(sentry__path_rename(src, dst) == 0);
+    TEST_CHECK(!sentry__path_is_dir(src));
+    TEST_CHECK(sentry__path_is_dir(dst));
+    sentry__path_remove_all(dst);
+
+    sentry__path_free(dst);
+    sentry__path_free(src);
+}
