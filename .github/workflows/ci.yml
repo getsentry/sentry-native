@@ -167,6 +167,11 @@ jobs:
             ERROR_ON_WARNINGS: 1
             SYSTEM_VERSION_COMPAT: 0
             RUN_ANALYZER: asan,llvm-cov
+          - name: macOS 15 (arm64e + inproc PAC test)
+            os: macos-15-large
+            ERROR_ON_WARNINGS: 1
+            SYSTEM_VERSION_COMPAT: 0
+            CMAKE_DEFINES: -DCMAKE_OSX_ARCHITECTURES=arm64e -DSENTRY_BACKEND=inproc
           - name: Windows (old VS, 32-bit)
             os: windows-2022
             TEST_X86: 1

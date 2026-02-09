@@ -8,6 +8,17 @@
 #    include <mach/mach_vm.h>
 #endif
 
+// On arm64(e), return addresses may have Pointer Authentication Code (PAC) bits
+// set in the upper bits. These must be stripped before symbolization.
+// The mask 0x7fffffffffff keeps the lower 47 bits which is the actual address.
+// See:
+// https://developer.apple.com/documentation/security/preparing_your_app_to_work_with_pointer_authentication
+#if defined(__arm64__)
+#    define STRIP_PAC(addr) ((addr) & 0x7fffffffffffull)
+#else
+#    define STRIP_PAC(addr) (addr)
+#endif
+
 #if defined(SENTRY_PLATFORM_MACOS)
 // Basic pointer validation to make sure we stay inside mapped memory.
 static bool
@@ -81,11 +92,12 @@ fp_walk(uintptr_t fp, size_t *n, void **ptrs, size_t max_frames)
         // x86_64 frame record layout: [prev_rbp, saved_retaddr] at bp and bp+8
         const uintptr_t *record = (uintptr_t *)fp;
         const uintptr_t next_fp = record[0];
-        const uintptr_t ret_addr = record[1];
+        uintptr_t ret_addr = record[1];
         if (!valid_ptr(next_fp) || !ret_addr) {
             break;
         }
 
+        ret_addr = STRIP_PAC(ret_addr);
         ptrs[(*n)++] = (void *)(ret_addr - 1);
         if (next_fp <= fp) {
             break; // prevent loops
@@ -100,9 +112,19 @@ fp_walk_from_uctx(const sentry_ucontext_t *uctx, void **ptrs, size_t max_frames)
     size_t n = 0;
     struct __darwin_mcontext64 *mctx = uctx->user_context->uc_mcontext;
 #if defined(__arm64__)
-    uintptr_t pc = (uintptr_t)mctx->__ss.__pc;
-    uintptr_t fp = (uintptr_t)mctx->__ss.__fp;
-    uintptr_t lr = (uintptr_t)mctx->__ss.__lr;
+    uintptr_t pc, fp, lr;
+
+#    if defined(__arm64e__)
+    // arm64e uses opaque accessors that handle PAC authentication
+    pc = __darwin_arm_thread_state64_get_pc(mctx->__ss);
+    fp = __darwin_arm_thread_state64_get_fp(mctx->__ss);
+    lr = __darwin_arm_thread_state64_get_lr(mctx->__ss);
+#    else
+    // arm64 can access members directly, strip PAC defensively
+    pc = STRIP_PAC((uintptr_t)mctx->__ss.__pc);
+    fp = (uintptr_t)mctx->__ss.__fp;
+    lr = STRIP_PAC((uintptr_t)mctx->__ss.__lr);
+#    endif
 
     // top frame: adjust pc−1 so it symbolizes inside the function
     if (pc && n < max_frames) {
@@ -164,12 +186,7 @@ sentry__unwind_stack_libunwind_mac(
     if (n < max_frames) {
         unw_word_t ip = 0;
         if (unw_get_reg(&cursor, UNW_REG_IP, &ip) >= 0) {
-#if defined(__arm64__)
-            // Strip pointer authentication, for some reason ptrauth_strip() not
-            // working
-            // https://developer.apple.com/documentation/security/preparing_your_app_to_work_with_pointer_authentication
-            ip &= 0x7fffffffffffull;
-#endif
+            ip = STRIP_PAC(ip);
             ptrs[n++] = (void *)ip;
         } else {
             return 0;
@@ -192,12 +209,7 @@ sentry__unwind_stack_libunwind_mac(
         if (ip == prev_ip && sp == prev_sp) {
             break;
         }
-#if defined(__arm64__)
-        // Strip pointer authentication, for some reason ptrauth_strip() not
-        // working
-        // https://developer.apple.com/documentation/security/preparing_your_app_to_work_with_pointer_authentication
-        ip &= 0x7fffffffffffull;
-#endif
+        ip = STRIP_PAC(ip);
         prev_ip = ip;
         prev_sp = sp;
         ptrs[n++] = (void *)ip;
