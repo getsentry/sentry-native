@@ -169,7 +169,7 @@ sentry_envelope_free(sentry_envelope_t *envelope)
     sentry_free(envelope);
 }
 
-static void
+void
 sentry__envelope_set_header(
     sentry_envelope_t *envelope, const char *key, sentry_value_t value)
 {

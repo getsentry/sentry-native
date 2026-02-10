@@ -27,6 +27,7 @@ from .assertions import (
     assert_breadcrumb,
     assert_crashpad_upload,
     assert_meta,
+    assert_minidump,
     assert_session,
     assert_gzip_file_header,
     assert_logs,
@@ -807,6 +808,11 @@ def test_crashpad_cache_keep(cmake, httpserver, cache_keep):
     if cache_keep:
         cache_files = list(cache_dir.glob("*.envelope"))
         assert len(cache_files) == 1
+        with open(cache_files[0], "rb") as f:
+            envelope = Envelope.deserialize_from(f)
+        assert "dsn" in envelope.headers
+        assert_meta(envelope, integration="crashpad")
+        assert_minidump(envelope)
 
 
 def test_crashpad_cache_max_size(cmake, httpserver):

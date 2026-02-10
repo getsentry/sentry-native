@@ -519,6 +519,10 @@ report_to_envelope(const crashpad::CrashReportDatabase::Report &report,
     sentry_envelope_t *envelope = nullptr;
     if (!sentry_value_is_null(event)) {
         envelope = sentry__envelope_new();
+        if (envelope && options->dsn && options->dsn->is_valid) {
+            sentry__envelope_set_header(envelope, "dsn",
+                sentry_value_new_string(sentry_options_get_dsn(options)));
+        }
     }
     if (envelope) {
         sentry_value_set_by_key(event, "breadcrumbs",
