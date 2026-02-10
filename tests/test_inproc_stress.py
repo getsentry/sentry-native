@@ -12,6 +12,21 @@ from .build_config import get_test_executable_cmake_args, get_test_executable_en
 
 fixture_path = pathlib.Path("tests/fixtures/inproc_stress")
 
+ANDROID_TMP = "/data/local/tmp"
+
+
+def adb(*args):
+    """Run an adb command."""
+    return subprocess.run(
+        ["{}/platform-tools/adb".format(os.environ["ANDROID_HOME"]), *args],
+        check=True,
+        capture_output=True,
+    )
+
+
+def is_android():
+    return bool(os.environ.get("ANDROID_API"))
+
 
 def compile_test_program(tmp_path):
     build_dir = tmp_path / "inproc_stress_build"
@@ -39,13 +54,22 @@ def compile_test_program(tmp_path):
         env=env,
     )
 
-    if sys.platform == "win32":
-        return build_dir / "inproc_stress_test.exe"
-    else:
-        return build_dir / "inproc_stress_test"
+    exe_name = (
+        "inproc_stress_test.exe" if sys.platform == "win32" else "inproc_stress_test"
+    )
+    exe_path = build_dir / exe_name
+
+    # Push executable to Android device
+    if is_android():
+        adb("push", str(exe_path), ANDROID_TMP)
+
+    return exe_path
 
 
 def run_stress_test(tmp_path, test_executable, test_name, database_path=None):
+    if is_android():
+        return run_stress_test_android(test_executable, test_name, database_path)
+
     if database_path is None:
         database_path = tmp_path / ".sentry-native"
 
@@ -64,6 +88,79 @@ def run_stress_test(tmp_path, test_executable, test_name, database_path=None):
 
     stdout, stderr = proc.communicate(timeout=30)
     return proc.returncode, stdout, stderr
+
+
+def run_stress_test_android(test_executable, test_name, database_path):
+    """Run the stress test on Android via adb shell."""
+    exe_name = test_executable.name
+    remote_db_path = f"{ANDROID_TMP}/{database_path.name}"
+
+    # Clear logcat before running so we limit the capture as close to this run as possible
+    subprocess.run(
+        ["{}/platform-tools/adb".format(os.environ["ANDROID_HOME"]), "logcat", "-c"],
+        check=False,
+    )
+
+    # Run on device - we need to capture both stdout and stderr, and the return code
+    # Android shell doesn't separate stdout/stderr well, so we redirect stderr to stdout
+    # and parse the return code from the output (same approach as tests/__init__.py)
+    result = subprocess.run(
+        [
+            "{}/platform-tools/adb".format(os.environ["ANDROID_HOME"]),
+            "shell",
+            f"cd {ANDROID_TMP} && LD_LIBRARY_PATH=. ./{exe_name} {test_name} {remote_db_path} 2>&1; echo ret:$?",
+        ],
+        capture_output=True,
+        text=True,
+    )
+
+    output = result.stdout
+    ret_marker = output.rfind("ret:")
+    if ret_marker != -1:
+        returncode = int(output[ret_marker + 4 :].strip())
+        output = output[:ret_marker]
+    else:
+        returncode = result.returncode
+
+    # Capture logcat to get our logs
+    logcat_result = subprocess.run(
+        [
+            "{}/platform-tools/adb".format(os.environ["ANDROID_HOME"]),
+            "logcat",
+            "-d",
+            "-s",
+            "sentry-native:*",
+        ],
+        capture_output=True,
+        text=True,
+    )
+    logcat_output = logcat_result.stdout
+
+    # Pull the database directory back from the device
+    # adb pull creates a subdirectory, so we pull to the parent
+    if database_path.exists():
+        shutil.rmtree(database_path)
+
+    # Pull the remote database to local path (pulls to parent, creates database_path)
+    try:
+        adb("pull", f"{remote_db_path}/", str(database_path.parent))
+    except subprocess.CalledProcessError:
+        # Database might not exist if crash wasn't captured
+        pass
+
+    # Clean up remote database for next run
+    subprocess.run(
+        [
+            "{}/platform-tools/adb".format(os.environ["ANDROID_HOME"]),
+            "shell",
+            f"rm -rf {remote_db_path}",
+        ],
+        check=False,
+    )
+
+    # Combine shell output with logcat output for assertion checks
+    combined_output = output + "\n" + logcat_output
+    return returncode, combined_output, combined_output
 
 
 def assert_single_crash_envelope(database_path):
