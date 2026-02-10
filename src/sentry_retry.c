@@ -169,7 +169,7 @@ retry_write_envelope(
 
     sentry_uuid_t event_id = sentry__envelope_get_event_id(envelope);
     if (sentry_uuid_is_nil(&event_id)) {
-        event_id = sentry_uuid_new_v4();
+        return false;
     }
 
     int current_attempt = 0;
@@ -344,7 +344,6 @@ retry_task_exec(void *_task, void *bgworker_state)
         sentry__path_free(path);
 
         if (!envelope) {
-            SENTRY_WARN("removing invalid envelope from retry directory");
             continue;
         }
 
