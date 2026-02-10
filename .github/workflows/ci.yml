@@ -182,18 +182,20 @@ jobs:
             MINGW_PKG_PREFIX: x86_64-w64-mingw32
             MINGW_ASM_MASM_COMPILER: llvm-ml
             MINGW_ASM_MASM_FLAGS: -m64
-          # The Android emulator is currently only available on macos, see:
-          # https://docs.microsoft.com/en-us/azure/devops/pipelines/ecosystems/android?view=azure-devops#test-on-the-android-emulator
-          # TODO: switch to reactivecircus/android-emulator-runner, concurrently running emulators continuously fail now.
-          # - name: Android (API 31, NDK 23)
-          #   os: macos-15-large
-          #   ANDROID_API: 31
-          #   ANDROID_NDK: 23.2.8568313
-          #   ANDROID_ARCH: x86_64
-          - name: Android (API 35, NDK 27)
+          - name: Android (API 21, NDK 23)
+            os: macos-15-large
+            ANDROID_API: 21
+            ANDROID_NDK: 23.2.8568313
+            ANDROID_ARCH: x86_64
+          - name: Android (API 31, NDK 27)
+            os: macos-15-large
+            ANDROID_API: 31
+            ANDROID_NDK: 27.3.13750724
+            ANDROID_ARCH: x86_64
+          - name: Android (API 35, NDK 29)
             os: macos-15-large
             ANDROID_API: 35
-            ANDROID_NDK: 27.2.12479018
+            ANDROID_NDK: 29.0.14206865
             ANDROID_ARCH: x86_64
 
     name: ${{ matrix.name }}
@@ -346,10 +348,6 @@ jobs:
         with:
           gradle-home-cache-cleanup: true
 
-      - name: Starting Android Simulator
-        if: ${{ env['ANDROID_API'] }}
-        run: bash scripts/start-android.sh
-        timeout-minutes: 20
 
       - name: Add sentry.native.test hostname
         if: ${{ runner.os == 'Windows' }}
@@ -372,7 +370,21 @@ jobs:
           cat /etc/hosts
         shell: bash
 
+      - name: Test (Android)
+        if: ${{ env['ANDROID_API'] }}
+        uses: reactivecircus/android-emulator-runner@b530d96654c385303d652368551fb075bc2f0b6b # v2.35.0
+        with:
+          api-level: ${{ env.ANDROID_API }}
+          ndk: ${{ env.ANDROID_NDK }}
+          arch: ${{ env.ANDROID_ARCH }}
+          target: google_apis
+          emulator-boot-timeout: 1200
+          script: |
+            pip install --upgrade --requirement tests/requirements.txt
+            pytest --capture=no --verbose tests
+
       - name: Test
+        if: ${{ !env['ANDROID_API'] }}
         shell: bash
         run: |
           pip install --upgrade --requirement tests/requirements.txt
