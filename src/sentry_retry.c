@@ -48,7 +48,7 @@ make_retry_filename(const sentry_uuid_t *envelope_id, int attempt)
 
     char *filename = sentry_malloc(80);
     if (filename) {
-        snprintf(filename, 80, "%llu-%d-%s.envelope",
+        snprintf(filename, 80, "%llu-%02d-%s.envelope",
             (unsigned long long)time(NULL), attempt, uuid_str);
     }
     return filename;

@@ -215,7 +215,7 @@ write_retry_file(const sentry_path_t *retry_path, time_t timestamp, int attempt,
     char uuid_str[37];
     sentry_uuid_as_string(event_id, uuid_str);
     char filename[80];
-    snprintf(filename, sizeof(filename), "%llu-%d-%s.envelope",
+    snprintf(filename, sizeof(filename), "%llu-%02d-%s.envelope",
         (unsigned long long)timestamp, attempt, uuid_str);
 
     sentry_path_t *path = sentry__path_join_str(retry_path, filename);
