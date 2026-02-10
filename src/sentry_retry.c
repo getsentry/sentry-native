@@ -194,12 +194,12 @@ retry_write_envelope(
             sentry__path_free(existing);
         }
         if (retry->cache_keep) {
-            SENTRY_WARNF("max retries (%d) exceeded, moving to cache",
+            SENTRY_WARNF("max retries (%d) reached, moving to cache",
                 retry->max_retries);
             return sentry__run_write_cache(retry->run, envelope);
         } else {
             SENTRY_WARNF(
-                "max retries (%d) exceeded, discarding", retry->max_retries);
+                "max retries (%d) reached, discarding", retry->max_retries);
             return false;
         }
     }
