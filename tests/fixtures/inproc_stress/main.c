@@ -193,6 +193,11 @@ test_handler_thread_crash(PATH_TYPE database_path)
 static int
 test_handler_abort_crash(PATH_TYPE database_path)
 {
+#ifdef _WIN32
+    // Suppress the Windows abort dialog that would block CI
+    _set_abort_behavior(0, _WRITE_ABORT_MSG | _CALL_REPORTFAULT);
+#endif
+
     if (setup_sentry_with_aborting_on_crash(database_path) != 0) {
         return 1;
     }
