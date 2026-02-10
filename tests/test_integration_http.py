@@ -696,7 +696,7 @@ def test_http_retry_on_network_error(cmake, httpserver):
     assert retry_dir.exists()
     retry_files = list(retry_dir.glob("*.envelope"))
     assert len(retry_files) == 1
-    assert "-1-" in str(retry_files[0].name)
+    assert "-00-" in str(retry_files[0].name)
 
     # retry on next run with working server
     env_reachable = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
@@ -731,25 +731,25 @@ def test_http_retry_multiple_attempts(cmake, httpserver):
 
     retry_files = list(retry_dir.glob("*.envelope"))
     assert len(retry_files) == 1
-    assert "-1-" in str(retry_files[0].name)
+    assert "-00-" in str(retry_files[0].name)
 
     run(tmp_path, "sentry_example", ["log", "http-retry", "no-setup"], env=env)
 
     retry_files = list(retry_dir.glob("*.envelope"))
     assert len(retry_files) == 1
-    assert "-2-" in str(retry_files[0].name)
+    assert "-01-" in str(retry_files[0].name)
 
     run(tmp_path, "sentry_example", ["log", "http-retry", "no-setup"], env=env)
 
     retry_files = list(retry_dir.glob("*.envelope"))
     assert len(retry_files) == 1
-    assert "-3-" in str(retry_files[0].name)
+    assert "-02-" in str(retry_files[0].name)
 
-    # exhaust remaining attempts (max 5)
+    # exhaust remaining retries (max 5)
     for i in range(3):
         run(tmp_path, "sentry_example", ["log", "http-retry", "no-setup"], env=env)
 
-    # discarded after max attempts (cache_keep not enabled)
+    # discarded after max retries (cache_keep not enabled)
     retry_files = list(retry_dir.glob("*.envelope"))
     assert len(retry_files) == 0
 
@@ -864,7 +864,7 @@ def test_http_retry_rate_limit_discards_envelope(cmake, httpserver):
 
 
 @pytest.mark.skipif(not has_files, reason="test needs a local filesystem")
-def test_http_retry_chain_success(cmake, httpserver):
+def test_http_retry_multiple_success(cmake, httpserver):
     tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "none"})
     retry_dir = tmp_path.joinpath(".sentry-native/retry")
 
@@ -902,7 +902,7 @@ def test_http_retry_chain_success(cmake, httpserver):
 
 
 @pytest.mark.skipif(not has_files, reason="test needs a local filesystem")
-def test_http_retry_chain_stops_on_network_error(cmake):
+def test_http_retry_multiple_network_error(cmake):
     tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "none"})
     retry_dir = tmp_path.joinpath(".sentry-native/retry")
 
@@ -926,16 +926,15 @@ def test_http_retry_chain_stops_on_network_error(cmake):
         env=env,
     )
 
+    # all envelopes retried, all bumped to retry 1
     retry_files = list(retry_dir.glob("*.envelope"))
     assert len(retry_files) == 10
-    attempt_2 = [f for f in retry_files if "-2-" in f.name]
-    attempt_1 = [f for f in retry_files if "-1-" in f.name]
-    assert len(attempt_2) == 1
-    assert len(attempt_1) == 9
+    retry_1 = [f for f in retry_files if "-01-" in f.name]
+    assert len(retry_1) == 10
 
 
 @pytest.mark.skipif(not has_files, reason="test needs a local filesystem")
-def test_http_retry_chain_stops_on_rate_limit(cmake, httpserver):
+def test_http_retry_multiple_rate_limit(cmake, httpserver):
     tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "none"})
     retry_dir = tmp_path.joinpath(".sentry-native/retry")
 
@@ -952,20 +951,20 @@ def test_http_retry_chain_stops_on_rate_limit(cmake, httpserver):
     retry_files = list(retry_dir.glob("*.envelope"))
     assert len(retry_files) == 10
 
+    # rate limit response followed by discards for the rest (rate limiter
+    # kicks in after the first 429)
     env_reachable = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
-    httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data(
+    httpserver.expect_request("/api/123456/envelope/").respond_with_data(
         "Rate Limited", status=429, headers={"retry-after": "60"}
     )
 
-    with httpserver.wait(timeout=10) as waiting:
-        run(
-            tmp_path,
-            "sentry_example",
-            ["log", "http-retry", "no-setup"],
-            env=env_reachable,
-        )
-    assert waiting.result
+    run(
+        tmp_path,
+        "sentry_example",
+        ["log", "http-retry", "no-setup"],
+        env=env_reachable,
+    )
 
-    assert len(httpserver.log) == 1
+    # first envelope gets 429, rest are discarded by rate limiter
     retry_files = list(retry_dir.glob("*.envelope"))
-    assert len(retry_files) == 9
+    assert len(retry_files) == 0
