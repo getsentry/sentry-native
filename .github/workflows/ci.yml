@@ -167,8 +167,8 @@ jobs:
             ERROR_ON_WARNINGS: 1
             SYSTEM_VERSION_COMPAT: 0
             RUN_ANALYZER: asan,llvm-cov
-          - name: macOS 15 (arm64e + PAC test)
-            os: macos-15-large
+          - name: macOS 26 (arm64e + PAC test)
+            os: macos-26
             ERROR_ON_WARNINGS: 1
             SYSTEM_VERSION_COMPAT: 0
             CMAKE_DEFINES: -DCMAKE_OSX_ARCHITECTURES=arm64e
