@@ -96,15 +96,15 @@ SENTRY_TEST(retry_throttle)
     TEST_CHECK_INT_EQUAL(g_call_count, NUM_ENVELOPES);
 
     uint64_t initial_delay = g_timestamps[0] - before;
-    TEST_CHECK(initial_delay >= SENTRY_RETRY_DELAY_MS);
-    TEST_MSG("initial: expected >= %dms, got %llu ms", SENTRY_RETRY_DELAY_MS,
+    TEST_CHECK(initial_delay >= SENTRY_RETRY_THROTTLE);
+    TEST_MSG("initial: expected >= %dms, got %llu ms", SENTRY_RETRY_THROTTLE,
         (unsigned long long)initial_delay);
 
     for (int i = 1; i < g_call_count && i < NUM_ENVELOPES; i++) {
         uint64_t delta = g_timestamps[i] - g_timestamps[i - 1];
-        TEST_CHECK(delta >= SENTRY_RETRY_DELAY_MS);
+        TEST_CHECK(delta >= SENTRY_RETRY_THROTTLE);
         TEST_MSG("gap[%d]: expected >= %dms, got %llu ms", i,
-            SENTRY_RETRY_DELAY_MS, (unsigned long long)delta);
+            SENTRY_RETRY_THROTTLE, (unsigned long long)delta);
     }
 
     sentry__retry_free(retry);
@@ -349,11 +349,11 @@ SENTRY_TEST(retry_backoff)
 
     // retry 1 with old timestamp: eligible for re-scan
     sentry_uuid_t id3 = sentry_uuid_new_v4();
-    write_retry_file(retry_path, now - SENTRY_RETRY_BASE_DELAY_S, 1, &id3);
+    write_retry_file(retry_path, now - SENTRY_RETRY_INTERVAL / 1000, 1, &id3);
 
     // retry 2 with old-ish timestamp: needs 30min but only 15min old
     sentry_uuid_t id4 = sentry_uuid_new_v4();
-    write_retry_file(retry_path, now - SENTRY_RETRY_BASE_DELAY_S, 2, &id4);
+    write_retry_file(retry_path, now - SENTRY_RETRY_INTERVAL / 1000, 2, &id4);
 
     sentry_retry_t *retry = sentry__retry_new(options);
     TEST_ASSERT(!!retry);
@@ -377,8 +377,8 @@ SENTRY_TEST(retry_backoff)
 
     write_retry_file(retry_path, now, 0, &id1);
     write_retry_file(retry_path, now, 1, &id2);
-    write_retry_file(retry_path, now - SENTRY_RETRY_BASE_DELAY_S, 1, &id3);
-    write_retry_file(retry_path, now - SENTRY_RETRY_BASE_DELAY_S, 2, &id4);
+    write_retry_file(retry_path, now - SENTRY_RETRY_INTERVAL / 1000, 1, &id3);
+    write_retry_file(retry_path, now - SENTRY_RETRY_INTERVAL / 1000, 2, &id4);
 
     // re-scan applies backoff: only retry 0 + old retry 1 are eligible
     sentry__retry_rescan_envelopes(retry);

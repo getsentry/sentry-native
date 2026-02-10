@@ -90,7 +90,8 @@ next_retry_time(const sentry_path_t *path)
         return 0;
     }
     // cap at 2h (base << 3)
-    time_t delay = (time_t)SENTRY_RETRY_BASE_DELAY_S << MIN(retry_count - 1, 3);
+    time_t delay = (time_t)(SENTRY_RETRY_INTERVAL / 1000)
+        << MIN(retry_count - 1, 3);
     return timestamp + delay;
 }
 
@@ -355,7 +356,7 @@ retry_task_exec(void *_task, void *bgworker_state)
 
         if (task->index < task->count) {
             if (sentry__transport_schedule_retry(task->transport,
-                    retry_task_exec, NULL, task, SENTRY_RETRY_DELAY_MS)
+                    retry_task_exec, NULL, task, SENTRY_RETRY_THROTTLE)
                 == 0) {
                 return;
             }
@@ -437,7 +438,7 @@ retry_process_envelopes(sentry_retry_t *retry, bool check_backoff)
             task->index = 0;
 
             if (sentry__transport_schedule_retry(retry->transport,
-                    retry_task_exec, NULL, task, SENTRY_RETRY_DELAY_MS)
+                    retry_task_exec, NULL, task, SENTRY_RETRY_THROTTLE)
                 != 0) {
                 retry_task_free(task);
             }

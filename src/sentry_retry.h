@@ -4,8 +4,8 @@
 #include "sentry_boot.h"
 #include "sentry_transport.h"
 
-#define SENTRY_RETRY_DELAY_MS 100
-#define SENTRY_RETRY_BASE_DELAY_S (15 * 60)
+#define SENTRY_RETRY_THROTTLE 100
+#define SENTRY_RETRY_INTERVAL (15 * 60 * 1000)
 
 typedef struct {
     const struct sentry_run_s *run;
