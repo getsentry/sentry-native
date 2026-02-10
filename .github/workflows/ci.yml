@@ -231,6 +231,12 @@ jobs:
       - uses: actions/checkout@v4
         with:
           submodules: recursive
+
+      - name: Debug runner architecture
+        if: ${{ runner.os == 'macOS' }}
+        run: |
+          echo "Runner arch: $(uname -m)"
+
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ !env['SYSTEM_PYTHON'] && '3.12' || '' }}
