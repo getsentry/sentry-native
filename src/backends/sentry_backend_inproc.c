@@ -312,7 +312,12 @@ startup_inproc_backend(
     // install our own signal handler
     sigemptyset(&g_sigaction.sa_mask);
     g_sigaction.sa_sigaction = handle_signal;
-    g_sigaction.sa_flags = SA_SIGINFO | SA_ONSTACK;
+    // SA_NODEFER allows the signal to be delivered while the handler is
+    // running. This is needed for recursive crash detection to work - without
+    // it, a crash during crash handling would block the signal and leave the
+    // process in an undefined state. Our sentry__enter_signal_handler()
+    // detects recursive crashes and bails out to the previous handler.
+    g_sigaction.sa_flags = SA_SIGINFO | SA_ONSTACK | SA_NODEFER;
     for (size_t i = 0; i < SIGNAL_COUNT; ++i) {
         sigaction(SIGNAL_DEFINITIONS[i].signum, &g_sigaction, NULL);
     }
@@ -856,11 +861,35 @@ make_signal_event(const struct signal_slot *sig_slot,
  * allocator since the program is in a crashed state. At least one thread no
  * longer progresses and memory can be corrupted.
  */
+
+// Test hook for triggering crashes at specific points in the handler.
+// Set via sentry__set_test_crash_callback() during testing.
+#ifdef SENTRY_UNITTEST
+typedef void (*sentry_test_crash_callback_t)(const char *location);
+static sentry_test_crash_callback_t g_test_crash_callback = NULL;
+
+void
+sentry__set_test_crash_callback(sentry_test_crash_callback_t callback)
+{
+    g_test_crash_callback = callback;
+}
+
+#    define TEST_CRASH_POINT(location)                                         \
+        do {                                                                   \
+            if (g_test_crash_callback) {                                       \
+                g_test_crash_callback(location);                               \
+            }                                                                  \
+        } while (0)
+#else
+#    define TEST_CRASH_POINT(location) ((void)0)
+#endif
+
 static void
 process_ucontext_deferred(const sentry_ucontext_t *uctx,
-    const struct signal_slot *sig_slot, bool skip_on_crash)
+    const struct signal_slot *sig_slot, bool skip_hooks)
 {
     SENTRY_INFO("entering signal handler");
+    TEST_CRASH_POINT("after_enter");
 
     SENTRY_WITH_OPTIONS (options) {
         sentry_handler_strategy_t strategy =
@@ -872,11 +901,12 @@ process_ucontext_deferred(const sentry_ucontext_t *uctx,
         bool should_handle = true;
         sentry__write_crash_marker(options);
 
-        // TODO: before_send too
-        if (options->on_crash_func && !skip_on_crash) {
+        if (options->on_crash_func && !skip_hooks) {
             SENTRY_DEBUG("invoking `on_crash` hook");
             event = options->on_crash_func(uctx, event, options->on_crash_data);
             should_handle = !sentry_value_is_null(event);
+        } else if (skip_hooks && options->on_crash_func) {
+            SENTRY_DEBUG("skipping `on_crash` hook due to recursive crash");
         }
 
         // Flush logs in a crash-safe manner before crash handling
@@ -886,9 +916,10 @@ process_ucontext_deferred(const sentry_ucontext_t *uctx,
         if (options->enable_metrics) {
             sentry__metrics_flush_crash_safe();
         }
+        TEST_CRASH_POINT("before_capture");
         if (should_handle) {
-            sentry_envelope_t *envelope = sentry__prepare_event(
-                options, event, NULL, !options->on_crash_func, NULL);
+            sentry_envelope_t *envelope = sentry__prepare_event(options, event,
+                NULL, !options->on_crash_func && !skip_hooks, NULL);
             // TODO(tracing): Revisit when investigating transaction flushing
             //                during hard crashes.
 
@@ -1133,19 +1164,24 @@ has_handler_thread_crashed(void)
 }
 
 static void
-dispatch_ucontext(
-    const sentry_ucontext_t *uctx, const struct signal_slot *sig_slot)
+dispatch_ucontext(const sentry_ucontext_t *uctx,
+    const struct signal_slot *sig_slot, int handler_depth)
 {
+    // skip_hooks when re-entering (depth >= 2) to avoid crashing in the same
+    // hook again, but still try to capture the crash
+    bool skip_hooks = handler_depth >= 2;
+
 #ifdef SENTRY_WITH_UNWINDER_LIBBACKTRACE
     // For targets that still use `backtrace()` as the sole unwinder we must
     // run the signal-unsafe part in the signal handler like we did before.
-    process_ucontext_deferred(uctx, sig_slot, false);
+    process_ucontext_deferred(uctx, sig_slot, skip_hooks);
     return;
 #else
     if (has_handler_thread_crashed()) {
         // directly execute unsafe part in signal handler as a last chance to
-        // report an error when the handler thread has crashed. Skip the
-        // on_crash callback since that's likely what caused the crash.
+        // report an error when the handler thread has crashed.
+        // Always skip hooks here since the first attempt (from handler thread)
+        // already failed, likely due to a crashing hook.
         process_ucontext_deferred(uctx, sig_slot, true);
         return;
     }
@@ -1173,7 +1209,7 @@ dispatch_ucontext(
 
     // We are the first handler. Check if handler thread is available.
     if (!sentry__atomic_fetch(&g_handler_thread_ready)) {
-        process_ucontext_deferred(uctx, sig_slot, false);
+        process_ucontext_deferred(uctx, sig_slot, skip_hooks);
         return;
     }
 
@@ -1225,8 +1261,12 @@ dispatch_ucontext(
 
     if (!handler_signaled) {
         // Fall back to in-handler processing
-        sentry__enter_signal_handler();
-        process_ucontext_deferred(uctx, sig_slot, false);
+        int depth = sentry__enter_signal_handler();
+        if (depth >= 3) {
+            // Multiple recursive crashes - bail out
+            return;
+        }
+        process_ucontext_deferred(uctx, sig_slot, depth >= 2);
         return;
     }
 #    elif defined(SENTRY_PLATFORM_WINDOWS)
@@ -1241,7 +1281,7 @@ dispatch_ucontext(
 
     if (!handler_signaled) {
         // Fall back to in-handler processing
-        process_ucontext_deferred(uctx, sig_slot, false);
+        process_ucontext_deferred(uctx, sig_slot, skip_hooks);
         return;
     }
 #    endif
@@ -1262,7 +1302,8 @@ dispatch_ucontext(
 #    endif
 
 #    ifdef SENTRY_PLATFORM_UNIX
-    sentry__enter_signal_handler();
+    // Re-acquire signal handler lock after handler thread finished.
+    (void)!sentry__enter_signal_handler();
 #    endif
 
 #endif
@@ -1327,7 +1368,13 @@ process_ucontext(const sentry_ucontext_t *uctx)
 #endif
 
 #ifdef SENTRY_PLATFORM_UNIX
-    sentry__enter_signal_handler();
+    int handler_depth = sentry__enter_signal_handler();
+    if (handler_depth >= 3) {
+        // Multiple recursive crashes - bail out completely to avoid loops
+        SENTRY_SIGNAL_SAFE_LOG(
+            "multiple recursive crashes detected, bailing out");
+        goto cleanup;
+    }
 #endif
 
     if (!g_backend_config.enable_logging_when_crashed) {
@@ -1354,9 +1401,14 @@ process_ucontext(const sentry_ucontext_t *uctx)
 #endif
 
     // invoke the handler thread for signal unsafe actions
-    dispatch_ucontext(uctx, sig_slot);
+#ifdef SENTRY_PLATFORM_UNIX
+    dispatch_ucontext(uctx, sig_slot, handler_depth);
+#else
+    dispatch_ucontext(uctx, sig_slot, 1);
+#endif
 
 #ifdef SENTRY_PLATFORM_UNIX
+cleanup:
     // reset signal handlers and invoke the original ones.  This will then tear
     // down the process.  In theory someone might have some other handler here
     // which recovers the process but this will cause a memory leak going

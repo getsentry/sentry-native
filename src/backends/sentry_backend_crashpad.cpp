@@ -317,7 +317,7 @@ static bool
 crashpad_handler(int signum, siginfo_t *info, ucontext_t *user_context)
 {
     sentry__page_allocator_enable();
-    sentry__enter_signal_handler();
+    (void)!sentry__enter_signal_handler();
 #    endif
     // Disable logging during crash handling if the option is set
     SENTRY_WITH_OPTIONS (options) {

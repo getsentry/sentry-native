@@ -24,7 +24,7 @@ extern void run_concurrent_crash(void);
 
 static void *invalid_mem = (void *)1;
 
-// on_crash callback that crashes - simulates buggy user code
+// on_crash callback that crashes via SIGSEGV: simulates buggy user code
 static sentry_value_t
 crashing_on_crash_callback(
     const sentry_ucontext_t *uctx, sentry_value_t event, void *closure)
@@ -37,6 +37,23 @@ crashing_on_crash_callback(
     fflush(stderr);
 
     memset((char *)invalid_mem, 1, 100);
+
+    return event;
+}
+
+// on_crash callback that crashes via abort(): tests signal mask reset behavior
+static sentry_value_t
+aborting_on_crash_callback(
+    const sentry_ucontext_t *uctx, sentry_value_t event, void *closure)
+{
+    (void)uctx;
+    (void)event;
+    (void)closure;
+
+    fprintf(stderr, "on_crash callback about to abort\n");
+    fflush(stderr);
+
+    abort();
 
     return event;
 }
@@ -117,6 +134,25 @@ setup_sentry_with_crashing_on_crash(const char *database_path)
 }
 
 static int
+setup_sentry_with_aborting_on_crash(const char *database_path)
+{
+    sentry_options_t *options = sentry_options_new();
+    sentry_options_set_database_path(options, database_path);
+    sentry_options_set_auto_session_tracking(options, false);
+    sentry_options_set_dsn(options, "https://public@sentry.invalid/1");
+    sentry_options_set_debug(options, 1);
+    sentry_options_set_transport(options, sentry_transport_new(print_envelope));
+
+    sentry_options_set_on_crash(options, aborting_on_crash_callback, NULL);
+
+    if (sentry_init(options) != 0) {
+        fprintf(stderr, "Failed to initialize sentry\n");
+        return 1;
+    }
+    return 0;
+}
+
+static int
 test_handler_thread_crash(const char *database_path)
 {
     if (setup_sentry_with_crashing_on_crash(database_path) != 0) {
@@ -131,6 +167,28 @@ test_handler_thread_crash(const char *database_path)
     // This will crash, trigger the handler thread, which will call
     // on_crash callback, which will crash the handler thread.
     // The fallback should then process in the signal handler.
+    trigger_crash();
+
+    fprintf(stderr, "ERROR: Should have crashed\n");
+    sentry_close();
+    return 1;
+}
+
+static int
+test_handler_abort_crash(const char *database_path)
+{
+    if (setup_sentry_with_aborting_on_crash(database_path) != 0) {
+        return 1;
+    }
+
+    sentry_set_tag("test", "handler-abort-crash");
+
+    fprintf(stderr, "Starting handler abort crash test\n");
+    fflush(stderr);
+
+    // This will crash, trigger the handler thread, which will call
+    // on_crash callback, which will call abort(). abort() resets the
+    // signal mask, so this tests a different code path.
     trigger_crash();
 
     fprintf(stderr, "ERROR: Should have crashed\n");
@@ -165,7 +223,8 @@ main(int argc, char **argv)
         fprintf(stderr, "Tests:\n");
         fprintf(stderr, "  concurrent-crash       - Multiple threads crash simultaneously\n");
         fprintf(stderr, "  simple-crash           - Single thread crash (baseline)\n");
-        fprintf(stderr, "  handler-thread-crash   - Handler thread crashes in on_crash\n");
+        fprintf(stderr, "  handler-thread-crash   - Handler thread crashes in on_crash (SIGSEGV)\n");
+        fprintf(stderr, "  handler-abort-crash    - Handler thread crashes in on_crash (abort)\n");
         return 1;
     }
 
@@ -180,6 +239,9 @@ main(int argc, char **argv)
     }
     if (strcmp(test_name, "handler-thread-crash") == 0) {
         return test_handler_thread_crash(database_path);
+    }
+    if (strcmp(test_name, "handler-abort-crash") == 0) {
+        return test_handler_abort_crash(database_path);
     }
     fprintf(stderr, "Unknown test: %s\n", test_name);
     return 1;

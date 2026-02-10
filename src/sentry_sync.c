@@ -533,12 +533,25 @@ sentry__block_for_signal_handler(void)
     }
 }
 
-void
+// Tracks recursive entry depth for the signal handling thread.
+// 0 = not in handler, 1 = first entry, 2 = re-entry (skip hooks), 3+ = bail out
+static volatile sig_atomic_t g_signal_handler_depth = 0;
+
+int
 sentry__enter_signal_handler(void)
 {
     for (;;) {
         // entering a signal handler while another runs, should block us
+        // unless we are the signal handling thread (recursive crash)
         while (__atomic_load_n(&g_in_signal_handler, __ATOMIC_RELAXED)) {
+            if (sentry__threadid_equal(sentry__current_thread(),
+                    __atomic_load_n(
+                        &g_signal_handling_thread, __ATOMIC_ACQUIRE))) {
+                // same thread re-entering via recursive crash
+                int depth = __atomic_add_fetch(
+                    &g_signal_handler_depth, 1, __ATOMIC_ACQ_REL);
+                return depth;
+            }
             sentry__cpu_relax();
         }
 
@@ -548,7 +561,8 @@ sentry__enter_signal_handler(void)
             // once we have, publish the handling thread too
             sentry_threadid_t me = sentry__current_thread();
             __atomic_store_n(&g_signal_handling_thread, me, __ATOMIC_RELEASE);
-            return;
+            __atomic_store_n(&g_signal_handler_depth, 1, __ATOMIC_RELEASE);
+            return 1; // first entry
         }
 
         // otherwise we've been raced, spin

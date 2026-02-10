@@ -101,7 +101,7 @@ breakpad_backend_callback(const google_breakpad::MinidumpDescriptor &descriptor,
 
 #ifndef SENTRY_PLATFORM_WINDOWS
     sentry__page_allocator_enable();
-    sentry__enter_signal_handler();
+    (void)!sentry__enter_signal_handler();
 #endif
 
     sentry_path_t *dump_path = nullptr;

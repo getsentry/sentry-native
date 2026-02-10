@@ -237,7 +237,13 @@ sentry__threadid_equal(sentry_threadid_t a, sentry_threadid_t b)
    us crash under concurrent modifications.  The mutexes we're likely going
    to hit are the options and scope lock. */
 bool sentry__block_for_signal_handler(void);
-void sentry__enter_signal_handler(void);
+/**
+ * Enter signal handler context. Returns the recursion depth:
+ *   1 = first entry, normal processing
+ *   2 = re-entry (crash during handling), skip hooks but try to capture
+ *   3+ = multiple re-entries, bail out to previous handler
+ */
+int sentry__enter_signal_handler(void);
 void sentry__leave_signal_handler(void);
 
 typedef pthread_t sentry_threadid_t;

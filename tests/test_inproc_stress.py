@@ -280,10 +280,9 @@ def test_inproc_concurrent_crash(cmake):
         shutil.rmtree(database_path, ignore_errors=True)
 
 
-@flaky(max_runs=3)
 def test_inproc_handler_thread_crash(cmake):
     """
-    Test fallback when handler thread crashes.
+    Test fallback when handler thread crashes via SIGSEGV.
 
     This test verifies that when the on_crash callback crashes (which runs
     on the handler thread), the signal handler detects this and falls back
@@ -306,6 +305,51 @@ def test_inproc_handler_thread_crash(cmake):
 
         assert (
             "on_crash callback about to crash" in stderr
+        ), f"on_crash callback didn't run. stderr:\n{stderr}"
+
+        assert (
+            "FATAL crash in handler thread" in stderr
+        ), f"Handler thread crash not detected. stderr:\n{stderr}"
+
+        assert (
+            "crash has been captured" in stderr
+        ), f"Crash not captured via fallback. stderr:\n{stderr}"
+
+        assert_crash_marker(database_path)
+        envelope_path = assert_single_crash_envelope(database_path)
+        with open(envelope_path, "rb") as f:
+            envelope = Envelope.deserialize(f.read())
+        assert_inproc_crash(envelope)
+
+    finally:
+        shutil.rmtree(database_path, ignore_errors=True)
+
+
+def test_inproc_handler_abort_crash(cmake):
+    """
+    Test fallback when handler thread crashes via abort().
+
+    abort() has special behavior - it resets the signal mask before raising
+    SIGABRT. This tests that the recursive crash detection works even when
+    the signal mask is reset.
+    """
+    tmp_path = cmake(
+        ["sentry"],
+        {"SENTRY_BACKEND": "inproc", "SENTRY_TRANSPORT": "none"},
+    )
+
+    test_exe = compile_test_program(tmp_path)
+    database_path = tmp_path / ".sentry-native"
+
+    try:
+        returncode, stdout, stderr = run_stress_test(
+            tmp_path, test_exe, "handler-abort-crash", database_path
+        )
+
+        assert returncode != 0, f"Process should have crashed. stderr:\n{stderr}"
+
+        assert (
+            "on_crash callback about to abort" in stderr
         ), f"on_crash callback didn't run. stderr:\n{stderr}"
 
         assert (
