@@ -8,6 +8,11 @@
  *   ./inproc_stress_test pipe-failure
  */
 
+#ifdef _WIN32
+#    define WIN32_LEAN_AND_MEAN
+#    include <windows.h>
+#endif
+
 #include "sentry.h"
 #include <stdbool.h>
 #include <stdio.h>
@@ -70,11 +75,22 @@ print_envelope(sentry_envelope_t *envelope, void *unused_state)
     sentry_envelope_free(envelope);
 }
 
+// Use wide-char paths on Windows, narrow paths elsewhere
+#if defined(_WIN32) && defined(_MSC_VER)
+#    define PATH_TYPE const wchar_t *
+#    define SET_DATABASE_PATH sentry_options_set_database_pathw
+#    define DEFAULT_DATABASE_PATH L".sentry-native"
+#else
+#    define PATH_TYPE const char *
+#    define SET_DATABASE_PATH sentry_options_set_database_path
+#    define DEFAULT_DATABASE_PATH ".sentry-native"
+#endif
+
 static int
-setup_sentry(const char *database_path)
+setup_sentry(PATH_TYPE database_path)
 {
     sentry_options_t *options = sentry_options_new();
-    sentry_options_set_database_path(options, database_path);
+    SET_DATABASE_PATH(options, database_path);
     sentry_options_set_auto_session_tracking(options, false);
     sentry_options_set_dsn(options, "https://public@sentry.invalid/1");
     sentry_options_set_debug(options, 1);
@@ -88,7 +104,7 @@ setup_sentry(const char *database_path)
 }
 
 static int
-test_concurrent_crash(const char *database_path)
+test_concurrent_crash(PATH_TYPE database_path)
 {
     if (setup_sentry(database_path) != 0) {
         return 1;
@@ -114,10 +130,10 @@ trigger_crash(void)
 }
 
 static int
-setup_sentry_with_crashing_on_crash(const char *database_path)
+setup_sentry_with_crashing_on_crash(PATH_TYPE database_path)
 {
     sentry_options_t *options = sentry_options_new();
-    sentry_options_set_database_path(options, database_path);
+    SET_DATABASE_PATH(options, database_path);
     sentry_options_set_auto_session_tracking(options, false);
     sentry_options_set_dsn(options, "https://public@sentry.invalid/1");
     sentry_options_set_debug(options, 1);
@@ -134,10 +150,10 @@ setup_sentry_with_crashing_on_crash(const char *database_path)
 }
 
 static int
-setup_sentry_with_aborting_on_crash(const char *database_path)
+setup_sentry_with_aborting_on_crash(PATH_TYPE database_path)
 {
     sentry_options_t *options = sentry_options_new();
-    sentry_options_set_database_path(options, database_path);
+    SET_DATABASE_PATH(options, database_path);
     sentry_options_set_auto_session_tracking(options, false);
     sentry_options_set_dsn(options, "https://public@sentry.invalid/1");
     sentry_options_set_debug(options, 1);
@@ -153,7 +169,7 @@ setup_sentry_with_aborting_on_crash(const char *database_path)
 }
 
 static int
-test_handler_thread_crash(const char *database_path)
+test_handler_thread_crash(PATH_TYPE database_path)
 {
     if (setup_sentry_with_crashing_on_crash(database_path) != 0) {
         return 1;
@@ -175,7 +191,7 @@ test_handler_thread_crash(const char *database_path)
 }
 
 static int
-test_handler_abort_crash(const char *database_path)
+test_handler_abort_crash(PATH_TYPE database_path)
 {
     if (setup_sentry_with_aborting_on_crash(database_path) != 0) {
         return 1;
@@ -197,7 +213,7 @@ test_handler_abort_crash(const char *database_path)
 }
 
 static int
-test_simple_crash(const char *database_path)
+test_simple_crash(PATH_TYPE database_path)
 {
     if (setup_sentry(database_path) != 0) {
         return 1;
@@ -215,21 +231,69 @@ test_simple_crash(const char *database_path)
     return 1;
 }
 
+#if defined(_WIN32) && defined(_MSC_VER)
 int
-main(int argc, char **argv)
+wmain(int argc, wchar_t *argv[])
+{
+    if (argc < 2) {
+        fwprintf(stderr, L"Usage: %ls <test-name> [database-path]\n", argv[0]);
+        fwprintf(stderr, L"Tests:\n");
+        fwprintf(stderr,
+            L"  concurrent-crash       - Multiple threads crash "
+            L"simultaneously\n");
+        fwprintf(stderr,
+            L"  simple-crash           - Single thread crash (baseline)\n");
+        fwprintf(stderr,
+            L"  handler-thread-crash   - Handler thread crashes in on_crash "
+            L"(SIGSEGV)\n");
+        fwprintf(stderr,
+            L"  handler-abort-crash    - Handler thread crashes in on_crash "
+            L"(abort)\n");
+        return 1;
+    }
+
+    const wchar_t *test_name = argv[1];
+    const wchar_t *database_path
+        = argc > 2 ? argv[2] : DEFAULT_DATABASE_PATH;
+
+    if (wcscmp(test_name, L"concurrent-crash") == 0) {
+        return test_concurrent_crash(database_path);
+    }
+    if (wcscmp(test_name, L"simple-crash") == 0) {
+        return test_simple_crash(database_path);
+    }
+    if (wcscmp(test_name, L"handler-thread-crash") == 0) {
+        return test_handler_thread_crash(database_path);
+    }
+    if (wcscmp(test_name, L"handler-abort-crash") == 0) {
+        return test_handler_abort_crash(database_path);
+    }
+    fwprintf(stderr, L"Unknown test: %ls\n", test_name);
+    return 1;
+}
+#else
+int
+main(int argc, char *argv[])
 {
     if (argc < 2) {
         fprintf(stderr, "Usage: %s <test-name> [database-path]\n", argv[0]);
         fprintf(stderr, "Tests:\n");
-        fprintf(stderr, "  concurrent-crash       - Multiple threads crash simultaneously\n");
-        fprintf(stderr, "  simple-crash           - Single thread crash (baseline)\n");
-        fprintf(stderr, "  handler-thread-crash   - Handler thread crashes in on_crash (SIGSEGV)\n");
-        fprintf(stderr, "  handler-abort-crash    - Handler thread crashes in on_crash (abort)\n");
+        fprintf(stderr,
+            "  concurrent-crash       - Multiple threads crash "
+            "simultaneously\n");
+        fprintf(stderr,
+            "  simple-crash           - Single thread crash (baseline)\n");
+        fprintf(stderr,
+            "  handler-thread-crash   - Handler thread crashes in on_crash "
+            "(SIGSEGV)\n");
+        fprintf(stderr,
+            "  handler-abort-crash    - Handler thread crashes in on_crash "
+            "(abort)\n");
         return 1;
     }
 
     const char *test_name = argv[1];
-    const char *database_path = argc > 2 ? argv[2] : ".sentry-native";
+    const char *database_path = argc > 2 ? argv[2] : DEFAULT_DATABASE_PATH;
 
     if (strcmp(test_name, "concurrent-crash") == 0) {
         return test_concurrent_crash(database_path);
@@ -246,3 +310,4 @@ main(int argc, char **argv)
     fprintf(stderr, "Unknown test: %s\n", test_name);
     return 1;
 }
+#endif
