@@ -342,20 +342,23 @@ SENTRY_TEST(retry_backoff)
 
     time_t now = time(NULL);
 
-    sentry_uuid_t id1 = sentry_uuid_new_v4();
-    write_retry_file(retry_path, now, 0, &id1);
+    time_t base = SENTRY_RETRY_INTERVAL / 1000;
 
-    // retry 1 with recent timestamp: not yet eligible for re-scan
+    // retry 0 with old timestamp: eligible (base backoff expired)
+    sentry_uuid_t id1 = sentry_uuid_new_v4();
+    write_retry_file(retry_path, now - base, 0, &id1);
+
+    // retry 1 with recent timestamp: not yet eligible (needs 2*base)
     sentry_uuid_t id2 = sentry_uuid_new_v4();
     write_retry_file(retry_path, now, 1, &id2);
 
-    // retry 1 with old timestamp: eligible for re-scan
+    // retry 1 with old timestamp: eligible (2*base backoff expired)
     sentry_uuid_t id3 = sentry_uuid_new_v4();
-    write_retry_file(retry_path, now - SENTRY_RETRY_INTERVAL / 1000, 1, &id3);
+    write_retry_file(retry_path, now - 2 * base, 1, &id3);
 
-    // retry 2 with old-ish timestamp: needs 30min but only 15min old
+    // retry 2 with old-ish timestamp: needs 4*base but only 2*base old
     sentry_uuid_t id4 = sentry_uuid_new_v4();
-    write_retry_file(retry_path, now - SENTRY_RETRY_INTERVAL / 1000, 2, &id4);
+    write_retry_file(retry_path, now - 2 * base, 2, &id4);
 
     sentry_retry_t *retry = sentry__retry_new(options);
     TEST_ASSERT(!!retry);
@@ -377,10 +380,10 @@ SENTRY_TEST(retry_backoff)
     g_call_count = 0;
     memset(g_timestamps, 0, sizeof(g_timestamps));
 
-    write_retry_file(retry_path, now, 0, &id1);
+    write_retry_file(retry_path, now - base, 0, &id1);
     write_retry_file(retry_path, now, 1, &id2);
-    write_retry_file(retry_path, now - SENTRY_RETRY_INTERVAL / 1000, 1, &id3);
-    write_retry_file(retry_path, now - SENTRY_RETRY_INTERVAL / 1000, 2, &id4);
+    write_retry_file(retry_path, now - 2 * base, 1, &id3);
+    write_retry_file(retry_path, now - 2 * base, 2, &id4);
 
     // re-scan applies backoff: only retry 0 + old retry 1 are eligible
     sentry__retry_rescan_envelopes(retry);
@@ -449,8 +452,9 @@ SENTRY_TEST(retry_no_duplicate_rescan)
     }
 
     TEST_CHECK_INT_EQUAL(g_call_count, 1);
-    // batch completion schedules 1 rescan: total = 2
-    TEST_CHECK_INT_EQUAL(g_schedule_count, 2);
+    // no rescan from batch completion (test_send doesn't trigger
+    // retry_process_result), so schedule count stays at 1
+    TEST_CHECK_INT_EQUAL(g_schedule_count, 1);
 
     sentry_close();
     sentry__retry_free(retry);

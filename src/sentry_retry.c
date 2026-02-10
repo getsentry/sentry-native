@@ -85,13 +85,11 @@ next_retry_time(const sentry_path_t *path)
 {
     time_t timestamp;
     int retry_count;
-    if (!parse_retry_filename(path, &timestamp, &retry_count)
-        || retry_count < 1) {
+    if (!parse_retry_filename(path, &timestamp, &retry_count)) {
         return 0;
     }
-    // cap at 2h (base << 3)
     time_t delay = (time_t)(SENTRY_RETRY_INTERVAL / 1000)
-        << MIN(retry_count - 1, 3);
+        << MIN(retry_count, 3);
     return timestamp + delay;
 }
 
@@ -154,8 +152,8 @@ remove_retry_file(
     sentry__pathiter_free(iter);
 }
 
-// Returns: 0 = not written, 1 = new file, 2 = renamed existing
-static int
+// Returns 0 if not written, or the backoff delay in ms until next retry.
+static uint64_t
 retry_write_envelope(
     const sentry_retry_t *retry, const sentry_envelope_t *envelope)
 {
@@ -205,33 +203,37 @@ retry_write_envelope(
         return 0;
     }
 
+    bool ok;
     if (existing) {
-        bool rv
-            = rename_retry_file(retry_path, existing, &event_id, next_retry);
+        ok = rename_retry_file(retry_path, existing, &event_id, next_retry);
         sentry__path_free(existing);
-        return rv ? 2 : 0;
+    } else {
+        char *filename = make_retry_filename(&event_id, next_retry);
+        if (!filename) {
+            return 0;
+        }
+
+        sentry_path_t *output_path
+            = sentry__path_join_str(retry_path, filename);
+        sentry_free(filename);
+
+        if (!output_path) {
+            return 0;
+        }
+
+        int rv = sentry_envelope_write_to_path(envelope, output_path);
+        sentry__path_free(output_path);
+        if (rv) {
+            SENTRY_WARN("writing envelope to retry file failed");
+            return 0;
+        }
+        ok = true;
     }
 
-    char *filename = make_retry_filename(&event_id, next_retry);
-    if (!filename) {
+    if (!ok) {
         return 0;
     }
-
-    sentry_path_t *output_path = sentry__path_join_str(retry_path, filename);
-    sentry_free(filename);
-
-    if (!output_path) {
-        return 0;
-    }
-
-    int rv = sentry_envelope_write_to_path(envelope, output_path);
-    sentry__path_free(output_path);
-    if (rv) {
-        SENTRY_WARN("writing envelope to retry file failed");
-        return 0;
-    }
-
-    return 1;
+    return (uint64_t)SENTRY_RETRY_INTERVAL << MIN(next_retry, 3);
 }
 
 static void
@@ -274,9 +276,10 @@ sentry__retry_process_result(sentry_retry_t *retry,
     }
 
     if (result == SENTRY_SEND_NETWORK_ERROR) {
-        if (retry_write_envelope(retry, envelope) == 1) {
-            sentry__transport_schedule_retry(retry->transport,
-                retry_rescan_exec, NULL, retry, SENTRY_RETRY_INTERVAL);
+        uint64_t delay = retry_write_envelope(retry, envelope);
+        if (delay > 0) {
+            sentry__transport_schedule_retry(
+                retry->transport, retry_rescan_exec, NULL, retry, delay);
         }
         return;
     }
@@ -314,7 +317,6 @@ compare_paths_by_filename(const void *a, const void *b)
 }
 
 typedef struct {
-    sentry_retry_t *retry;
     sentry_transport_t *transport;
     int max_retries;
     sentry_path_t **paths;
@@ -369,8 +371,6 @@ retry_task_exec(void *_task, void *bgworker_state)
         }
     }
 
-    sentry__transport_schedule_retry(task->transport, retry_rescan_exec, NULL,
-        task->retry, SENTRY_RETRY_INTERVAL);
     retry_task_free(task);
 }
 
@@ -439,7 +439,6 @@ retry_process_envelopes(sentry_retry_t *retry, bool check_backoff)
             }
             sentry_free(paths);
         } else {
-            task->retry = retry;
             task->transport = retry->transport;
             task->max_retries = retry->max_retries;
             task->paths = paths;
