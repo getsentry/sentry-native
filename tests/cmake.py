@@ -165,8 +165,6 @@ def cmake(cwd, targets, options=None, cflags=None):
     cflags.extend(get_cflags())
     if "llvm-cov" in os.environ.get("RUN_ANALYZER", ""):
         configure_llvm_cov(config_cmd)
-    if "CMAKE_DEFINES" in os.environ:
-        config_cmd.extend(os.environ.get("CMAKE_DEFINES").split())
     env = dict(os.environ)
     env["CFLAGS"] = env["CXXFLAGS"] = " ".join(cflags)
 
