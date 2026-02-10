@@ -312,13 +312,19 @@ startup_inproc_backend(
     // install our own signal handler
     sigemptyset(&g_sigaction.sa_mask);
     g_sigaction.sa_sigaction = handle_signal;
-    // SA_NODEFER allows the signal to be delivered while the handler is
-    // running. This is needed for recursive crash detection to work - without
-    // it, a crash during crash handling would block the signal and leave the
-    // process in an undefined state. Our sentry__enter_signal_handler()
-    // detects recursive crashes and bails out to the previous handler.
-    g_sigaction.sa_flags = SA_SIGINFO | SA_ONSTACK | SA_NODEFER;
     for (size_t i = 0; i < SIGNAL_COUNT; ++i) {
+        // SA_NODEFER allows the signal to be delivered while the handler is
+        // running. This is needed for recursive crash detection to work -
+        // without it, a crash during crash handling would block the signal
+        // and leave the process in an undefined state.
+        // However, SA_NODEFER should NOT be used for SIGABRT because abort()
+        // does its own signal mask manipulation and having SA_NODEFER can
+        // cause unexpected interactions with different libc implementations.
+        if (SIGNAL_DEFINITIONS[i].signum == SIGABRT) {
+            g_sigaction.sa_flags = SA_SIGINFO | SA_ONSTACK;
+        } else {
+            g_sigaction.sa_flags = SA_SIGINFO | SA_ONSTACK | SA_NODEFER;
+        }
         sigaction(SIGNAL_DEFINITIONS[i].signum, &g_sigaction, NULL);
     }
     return 0;
