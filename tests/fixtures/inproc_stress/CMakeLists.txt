@@ -23,6 +23,13 @@ target_link_libraries(inproc_stress_test PRIVATE sentry Threads::Threads)
 
 set_target_properties(inproc_stress_test PROPERTIES
     BUILD_RPATH "${SENTRY_LIB_DIR}"
+    # Ensure the executable is placed directly in the build directory on all platforms
+    # (Visual Studio generators normally use Debug/Release subdirectories)
+    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}"
+    RUNTIME_OUTPUT_DIRECTORY_DEBUG "${CMAKE_BINARY_DIR}"
+    RUNTIME_OUTPUT_DIRECTORY_RELEASE "${CMAKE_BINARY_DIR}"
+    RUNTIME_OUTPUT_DIRECTORY_RELWITHDEBINFO "${CMAKE_BINARY_DIR}"
+    RUNTIME_OUTPUT_DIRECTORY_MINSIZEREL "${CMAKE_BINARY_DIR}"
 )
 
 if(NOT MSVC)
