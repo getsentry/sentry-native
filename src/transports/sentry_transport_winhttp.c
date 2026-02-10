@@ -32,14 +32,28 @@ typedef struct {
     bool debug;
 } winhttp_bgworker_state_t;
 
+static bool
+can_retry_winhttp_error(DWORD error_code)
+{
+    switch (error_code) {
+    case ERROR_WINHTTP_INTERNAL_ERROR:
+    case ERROR_WINHTTP_INVALID_URL:
+    case ERROR_WINHTTP_UNRECOGNIZED_SCHEME:
+        return false;
+    default:
+        return true;
+    }
+}
+
 /**
  * Classify the result of a WinHTTP operation.
  */
 static sentry_send_result_t
-classify_winhttp_result(BOOL success, DWORD status_code)
+classify_winhttp_result(BOOL success, DWORD status_code, DWORD error_code)
 {
     if (!success) {
-        return SENTRY_SEND_NETWORK_ERROR;
+        return can_retry_winhttp_error(error_code) ? SENTRY_SEND_NETWORK_ERROR
+                                                   : SENTRY_SEND_DISCARDED;
     }
     if (status_code >= 200 && status_code < 300) {
         return SENTRY_SEND_SUCCESS;
@@ -303,6 +317,7 @@ sentry__winhttp_send(void *_envelope, void *_state)
     }
 
     DWORD status_code = 0;
+    DWORD error_code = 0;
     if (WinHttpSendRequest(state->request, headers, (DWORD)-1,
             (LPVOID)req->body, (DWORD)req->body_len, (DWORD)req->body_len, 0)) {
         WinHttpReceiveResponse(state->request, NULL);
@@ -364,11 +379,11 @@ sentry__winhttp_send(void *_envelope, void *_state)
             sentry__rate_limiter_update_from_429(state->ratelimiter);
         }
     } else {
-        SENTRY_WARNF(
-            "`WinHttpSendRequest` failed with code `%d`", GetLastError());
+        error_code = GetLastError();
+        SENTRY_WARNF("`WinHttpSendRequest` failed with code `%d`", error_code);
     }
 
-    result = classify_winhttp_result(status_code > 0, status_code);
+    result = classify_winhttp_result(status_code > 0, status_code, error_code);
     sentry__retry_process_result(state->retry, envelope, result);
 
     uint64_t now = sentry__monotonic_time();

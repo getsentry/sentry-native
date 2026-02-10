@@ -32,6 +32,19 @@ typedef struct curl_transport_state_s {
 #endif
 } curl_bgworker_state_t;
 
+static bool
+can_retry_curl_error(CURLcode code)
+{
+    switch (code) {
+    case CURLE_UNSUPPORTED_PROTOCOL:
+    case CURLE_URL_MALFORMAT:
+    case CURLE_OUT_OF_MEMORY:
+        return false;
+    default:
+        return true;
+    }
+}
+
 /**
  * Classify the result of a curl operation.
  */
@@ -39,7 +52,8 @@ static sentry_send_result_t
 classify_curl_result(CURLcode rv, long response_code)
 {
     if (rv != CURLE_OK) {
-        return SENTRY_SEND_NETWORK_ERROR;
+        return can_retry_curl_error(rv) ? SENTRY_SEND_NETWORK_ERROR
+                                        : SENTRY_SEND_DISCARDED;
     }
     if (response_code >= 200 && response_code < 300) {
         return SENTRY_SEND_SUCCESS;
