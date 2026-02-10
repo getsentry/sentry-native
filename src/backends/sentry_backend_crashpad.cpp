@@ -578,7 +578,7 @@ process_completed_reports(
         }
         sentry_path_t *out_path
             = sentry__path_join_str(cache_dir, filename.c_str());
-        if (!out_path
+        if (!out_path || sentry__path_is_file(out_path)
             || sentry_envelope_write_to_path(envelope, out_path) != 0) {
             SENTRY_WARNF("failed to cache \"%s\"", filename.c_str());
         } else if (state->db->DeleteReport(report.uuid)
