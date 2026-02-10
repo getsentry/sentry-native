@@ -594,7 +594,6 @@ registers_from_uctx(const sentry_ucontext_t *uctx)
     SET_REG("x27", __x[27]);
     SET_REG("x28", __x[28]);
 #        if defined(__arm64e__)
-    // arm64e uses opaque accessors for PAC-protected registers
     sentry_value_set_by_key(registers, "fp",
         sentry__value_new_addr(
             (uint64_t)__darwin_arm_thread_state64_get_fp(*thread_state)));
