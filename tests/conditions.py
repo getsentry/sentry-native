@@ -8,6 +8,7 @@ is_asan = "asan" in os.environ.get("RUN_ANALYZER", "")
 is_tsan = "tsan" in os.environ.get("RUN_ANALYZER", "")
 is_kcov = "kcov" in os.environ.get("RUN_ANALYZER", "")
 is_valgrind = "valgrind" in os.environ.get("RUN_ANALYZER", "")
+is_arm64e = "CMAKE_OSX_ARCHITECTURES=arm64e" in os.environ.get("CMAKE_DEFINES", "")
 
 has_http = not is_android and not (sys.platform == "linux" and is_x86)
 # breakpad does not work correctly when using kcov or valgrind
@@ -22,6 +23,8 @@ has_breakpad = (
     # however running it from an `adb shell` does not work correctly :-(
     and not is_android
     and not (is_asan and sys.platform == "darwin")
+    # breakpad accesses thread state registers directly, which doesn't work on arm64e
+    and not (is_arm64e and sys.platform == "darwin")
 )
 # crashpad requires http, needs porting to AIX, and doesn’t work with kcov/valgrind/tsan either
 has_crashpad = (
