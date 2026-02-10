@@ -13,6 +13,7 @@
 #include "sentry_options.h"
 #if defined(SENTRY_PLATFORM_WINDOWS)
 #    include "sentry_os.h"
+#    include <signal.h>
 #endif
 #include "sentry_scope.h"
 #include "sentry_screenshot.h"
@@ -229,6 +230,50 @@ static const struct signal_slot SIGNAL_DEFINITIONS[SIGNAL_COUNT] = {
 
 static void handle_signal(int signum, siginfo_t *info, void *user_context);
 
+/**
+ * Sets up an alternate signal stack for the current thread if one isn't
+ * already configured. The allocated stack is stored in `out_stack` so it
+ * can be freed later via `teardown_sigaltstack()`.
+ */
+static void
+setup_sigaltstack(stack_t *out_stack)
+{
+    memset(out_stack, 0, sizeof(*out_stack));
+
+    stack_t old_sig_stack;
+    int ret = sigaltstack(NULL, &old_sig_stack);
+    if (ret == 0 && old_sig_stack.ss_flags == SS_DISABLE) {
+        SENTRY_DEBUGF("installing signal stack (size: %d)", SIGNAL_STACK_SIZE);
+        out_stack->ss_sp = sentry_malloc(SIGNAL_STACK_SIZE);
+        if (!out_stack->ss_sp) {
+            SENTRY_WARN("failed to allocate signal stack");
+            return;
+        }
+        out_stack->ss_size = SIGNAL_STACK_SIZE;
+        out_stack->ss_flags = 0;
+        sigaltstack(out_stack, 0);
+    } else if (ret == 0) {
+        SENTRY_DEBUGF("using existing signal stack (size: %d, flags: %d)",
+            old_sig_stack.ss_size, old_sig_stack.ss_flags);
+    } else if (ret == -1) {
+        SENTRY_WARNF("failed to query signal stack: %s", strerror(errno));
+    }
+}
+
+/**
+ * Tears down a signal stack previously set up via `setup_sigaltstack()`.
+ */
+static void
+teardown_sigaltstack(stack_t *sig_stack)
+{
+    if (sig_stack->ss_sp) {
+        sig_stack->ss_flags = SS_DISABLE;
+        sigaltstack(sig_stack, 0);
+        sentry_free(sig_stack->ss_sp);
+        sig_stack->ss_sp = NULL;
+    }
+}
+
 static void
 reset_signal_handlers(void)
 {
@@ -290,24 +335,7 @@ startup_inproc_backend(
         }
     }
 
-    // set up an alternate signal stack if noone defined one before
-    stack_t old_sig_stack;
-    int ret = sigaltstack(NULL, &old_sig_stack);
-    if (ret == 0 && old_sig_stack.ss_flags == SS_DISABLE) {
-        SENTRY_DEBUGF("installing signal stack (size: %d)", SIGNAL_STACK_SIZE);
-        g_signal_stack.ss_sp = sentry_malloc(SIGNAL_STACK_SIZE);
-        if (!g_signal_stack.ss_sp) {
-            return 1;
-        }
-        g_signal_stack.ss_size = SIGNAL_STACK_SIZE;
-        g_signal_stack.ss_flags = 0;
-        sigaltstack(&g_signal_stack, 0);
-    } else if (ret == 0) {
-        SENTRY_DEBUGF("using existing signal stack (size: %d, flags: %d)",
-            old_sig_stack.ss_size, old_sig_stack.ss_flags);
-    } else if (ret == -1) {
-        SENTRY_WARNF("Failed to query signal stack size: %s", strerror(errno));
-    }
+    setup_sigaltstack(&g_signal_stack);
 
     // install our own signal handler
     sigemptyset(&g_sigaction.sa_mask);
@@ -335,12 +363,7 @@ shutdown_inproc_backend(sentry_backend_t *backend)
 {
     stop_handler_thread();
 
-    if (g_signal_stack.ss_sp) {
-        g_signal_stack.ss_flags = SS_DISABLE;
-        sigaltstack(&g_signal_stack, 0);
-        sentry_free(g_signal_stack.ss_sp);
-        g_signal_stack.ss_sp = NULL;
-    }
+    teardown_sigaltstack(&g_signal_stack);
     reset_signal_handlers();
 
     if (backend) {
@@ -388,6 +411,46 @@ static const struct signal_slot SIGNAL_DEFINITIONS[SIGNAL_COUNT] = {
 
 static LONG WINAPI handle_exception(EXCEPTION_POINTERS *);
 
+// SIGABRT handling on Windows: abort() calls the signal handler but doesn't
+// go through the unhandled exception filter. We register a SIGABRT handler
+// that captures context and calls into our exception handler.
+static void (*g_previous_sigabrt_handler)(int) = NULL;
+
+static void
+handle_sigabrt(int signum)
+{
+    (void)signum;
+
+    // Capture the current CPU context
+    CONTEXT context;
+    RtlCaptureContext(&context);
+
+    // Create a synthetic exception record for abort
+    EXCEPTION_RECORD record;
+    memset(&record, 0, sizeof(record));
+    record.ExceptionCode = STATUS_FATAL_APP_EXIT;
+    record.ExceptionFlags = EXCEPTION_NONCONTINUABLE;
+#    if defined(_M_AMD64)
+    record.ExceptionAddress = (PVOID)context.Rip;
+#    elif defined(_M_IX86)
+    record.ExceptionAddress = (PVOID)context.Eip;
+#    elif defined(_M_ARM64)
+    record.ExceptionAddress = (PVOID)context.Pc;
+#    endif
+
+    EXCEPTION_POINTERS exception_pointers;
+    exception_pointers.ContextRecord = &context;
+    exception_pointers.ExceptionRecord = &record;
+
+    handle_exception(&exception_pointers);
+
+    // If we get here, call the previous handler or terminate
+    if (g_previous_sigabrt_handler && g_previous_sigabrt_handler != SIG_DFL
+        && g_previous_sigabrt_handler != SIG_IGN) {
+        g_previous_sigabrt_handler(signum);
+    }
+}
+
 static int
 startup_inproc_backend(
     sentry_backend_t *backend, const sentry_options_t *options)
@@ -408,6 +471,10 @@ startup_inproc_backend(
     }
     g_previous_handler = SetUnhandledExceptionFilter(&handle_exception);
     SetErrorMode(SEM_FAILCRITICALERRORS);
+
+    // Register SIGABRT handler - abort() doesn't go through the UEF
+    g_previous_sigabrt_handler = signal(SIGABRT, handle_sigabrt);
+
     return 0;
 }
 
@@ -420,6 +487,12 @@ shutdown_inproc_backend(sentry_backend_t *backend)
         = SetUnhandledExceptionFilter(g_previous_handler);
     if (current_handler != &handle_exception) {
         SetUnhandledExceptionFilter(current_handler);
+    }
+
+    // Restore previous SIGABRT handler
+    if (g_previous_sigabrt_handler) {
+        signal(SIGABRT, g_previous_sigabrt_handler);
+        g_previous_sigabrt_handler = NULL;
     }
 
     if (backend) {
@@ -966,6 +1039,12 @@ process_ucontext_deferred(const sentry_ucontext_t *uctx,
 SENTRY_THREAD_FN
 handler_thread_main(void *UNUSED(data))
 {
+#ifdef SENTRY_PLATFORM_UNIX
+    // Set up an alternate signal stack for the handler thread
+    stack_t handler_thread_stack;
+    setup_sigaltstack(&handler_thread_stack);
+#endif
+
     sentry__atomic_store(&g_handler_thread_ready, 1);
 
     for (;;) {
@@ -1022,6 +1101,10 @@ handler_thread_main(void *UNUSED(data))
             break;
         }
     }
+
+#ifdef SENTRY_PLATFORM_UNIX
+    teardown_sigaltstack(&handler_thread_stack);
+#endif
 
 #ifdef SENTRY_PLATFORM_WINDOWS
     return 0;
