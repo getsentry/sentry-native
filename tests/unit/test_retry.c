@@ -3,6 +3,7 @@
 #include "sentry_options.h"
 #include "sentry_path.h"
 #include "sentry_retry.h"
+#include "sentry_session.h"
 #include "sentry_sync.h"
 #include "sentry_testsupport.h"
 #include "sentry_transport.h"
@@ -185,7 +186,14 @@ SENTRY_TEST(retry_result)
     sentry__retry_process_result(retry, envelope, SENTRY_SEND_RATE_LIMITED);
     TEST_CHECK_INT_EQUAL(count_envelope_files(retry_path), 0);
 
-    // 5. NETWORK_ERROR x2 → retry counter bumps to 1
+    // 5. NETWORK_ERROR + DISCARDED → removes from retry dir
+    sentry__retry_process_result(retry, envelope, SENTRY_SEND_NETWORK_ERROR);
+    TEST_CHECK_INT_EQUAL(count_envelope_files(retry_path), 1);
+
+    sentry__retry_process_result(retry, envelope, SENTRY_SEND_DISCARDED);
+    TEST_CHECK_INT_EQUAL(count_envelope_files(retry_path), 0);
+
+    // 6. NETWORK_ERROR x2 → retry counter bumps to 1
     sentry__retry_process_result(retry, envelope, SENTRY_SEND_NETWORK_ERROR);
     TEST_CHECK_INT_EQUAL(count_envelope_files(retry_path), 1);
     TEST_CHECK_INT_EQUAL(find_envelope_attempt(retry_path), 0);
@@ -194,11 +202,43 @@ SENTRY_TEST(retry_result)
     TEST_CHECK_INT_EQUAL(count_envelope_files(retry_path), 1);
     TEST_CHECK_INT_EQUAL(find_envelope_attempt(retry_path), 1);
 
-    // 6. NETWORK_ERROR again → exceeds max_retries=2, discarded
+    // 7. NETWORK_ERROR again → exceeds max_retries=2, discarded
     sentry__retry_process_result(retry, envelope, SENTRY_SEND_NETWORK_ERROR);
     TEST_CHECK_INT_EQUAL(count_envelope_files(retry_path), 0);
 
     sentry_envelope_free(envelope);
+    sentry__retry_free(retry);
+    sentry__path_free(retry_path);
+    sentry_close();
+}
+
+SENTRY_TEST(retry_session)
+{
+    SENTRY_TEST_OPTIONS_NEW(options);
+    sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
+    sentry_options_set_release(options, "test@1.0.0");
+    sentry_options_set_http_retry(options, 2);
+    sentry_init(options);
+
+    sentry_path_t *retry_path
+        = sentry__path_join_str(options->database_path, "retry");
+    TEST_ASSERT(!!retry_path);
+    sentry__path_remove_all(retry_path);
+
+    sentry_retry_t *retry = sentry__retry_new(options);
+    TEST_ASSERT(!!retry);
+
+    sentry_session_t *session = sentry__session_new();
+    TEST_ASSERT(!!session);
+    sentry_envelope_t *envelope = sentry__envelope_new();
+    TEST_ASSERT(!!envelope);
+    sentry__envelope_add_session(envelope, session);
+
+    sentry__retry_process_result(retry, envelope, SENTRY_SEND_NETWORK_ERROR);
+    TEST_CHECK_INT_EQUAL(count_envelope_files(retry_path), 0);
+
+    sentry_envelope_free(envelope);
+    sentry__session_free(session);
     sentry__retry_free(retry);
     sentry__path_free(retry_path);
     sentry_close();
