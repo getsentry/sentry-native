@@ -801,7 +801,6 @@ prepare_user_report(sentry_value_t user_report)
 fail:
     SENTRY_WARN("dropping user report");
     sentry_envelope_free(envelope);
-    sentry_value_decref(user_report);
     return NULL;
 }
 
