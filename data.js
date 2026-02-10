@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1770724175912,
+  "lastUpdate": 1770724230923,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -19918,6 +19918,66 @@ window.BENCHMARK_DATA = {
             "value": 17.238667000015084,
             "unit": "ms",
             "extra": "Min 13.036ms\nMax 18.339ms\nMean 16.160ms\nStdDev 2.263ms\nMedian 17.239ms\nCPU 1.746ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "jpnurmi@gmail.com",
+            "name": "J-P Nurmi",
+            "username": "jpnurmi"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "30c662b36a001bebbc86d7ed7e11f5f286b41746",
+          "message": "ci: use reactivecircus/android-emulator-runner (#1509)\n\nCo-authored-by: Claude Opus 4.6 <noreply@anthropic.com>",
+          "timestamp": "2026-02-10T12:45:13+01:00",
+          "tree_id": "6f9ba826166b3a12be4088111b6de6bef0490615",
+          "url": "https://github.com/getsentry/sentry-native/commit/30c662b36a001bebbc86d7ed7e11f5f286b41746"
+        },
+        "date": 1770724227524,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 4.340958000000228,
+            "unit": "ms",
+            "extra": "Min 3.574ms\nMax 8.877ms\nMean 5.061ms\nStdDev 2.158ms\nMedian 4.341ms\nCPU 2.482ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 5.47799999998233,
+            "unit": "ms",
+            "extra": "Min 3.603ms\nMax 11.515ms\nMean 7.177ms\nStdDev 3.963ms\nMedian 5.478ms\nCPU 2.889ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 20.14104199997746,
+            "unit": "ms",
+            "extra": "Min 15.524ms\nMax 34.054ms\nMean 21.964ms\nStdDev 7.163ms\nMedian 20.141ms\nCPU 6.540ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.009999999974752427,
+            "unit": "ms",
+            "extra": "Min 0.008ms\nMax 0.025ms\nMean 0.015ms\nStdDev 0.008ms\nMedian 0.010ms\nCPU 0.014ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.23908299999675364,
+            "unit": "ms",
+            "extra": "Min 0.223ms\nMax 0.303ms\nMean 0.252ms\nStdDev 0.034ms\nMedian 0.239ms\nCPU 0.251ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 21.180458000003455,
+            "unit": "ms",
+            "extra": "Min 16.039ms\nMax 28.324ms\nMean 21.043ms\nStdDev 4.805ms\nMedian 21.180ms\nCPU 3.141ms"
           }
         ]
       }
