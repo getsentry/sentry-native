@@ -183,6 +183,8 @@ sentry__winhttp_transport_start(
         return 1;
     }
 
+    WinHttpSetTimeouts(state->session, 0, 15000, 0, 0);
+
     int rv = sentry__bgworker_start(bgworker);
     if (rv == 0 && state->retry) {
         sentry__retry_process_envelopes(state->retry);

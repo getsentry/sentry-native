@@ -288,6 +288,8 @@ sentry__curl_send(void *_envelope, void *_state)
         curl_easy_setopt(curl, CURLOPT_CAINFO, state->ca_certs);
     }
 
+    curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, 15);
+
 #ifdef SENTRY_PLATFORM_NX
     CURLcode rv = sentry_nx_curl_easy_setopt(state->nx_state, curl, req);
 #else
