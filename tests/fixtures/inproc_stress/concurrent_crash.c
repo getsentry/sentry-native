@@ -32,7 +32,12 @@ static volatile LONG g_barrier = 0;
 static volatile LONG g_ready_count = 0;
 #endif
 
-__attribute__((noinline)) void
+#if defined(__GNUC__) || defined(__clang__)
+__attribute__((noinline))
+#elif defined(_MSC_VER)
+__declspec(noinline)
+#endif
+void
 do_crash(void)
 {
     memset((char *)invalid_mem, 1, 100);
