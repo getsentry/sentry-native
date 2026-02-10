@@ -33,7 +33,7 @@
 #    define SENTRY_SIGNAL_SAFE_LOG(msg)                                        \
         do {                                                                   \
             static const char _msg[] = "[sentry] " msg "\n";                   \
-            (void)write(STDERR_FILENO, _msg, sizeof(_msg) - 1);                \
+            (void)!write(STDERR_FILENO, _msg, sizeof(_msg) - 1);               \
         } while (0)
 #elif defined(SENTRY_PLATFORM_WINDOWS)
 #    define SENTRY_SIGNAL_SAFE_LOG(msg)                                        \

@@ -8,6 +8,10 @@ option(SENTRY_BUILD_FORCE32 "Force a 32bit compile on a 64bit host" OFF)
 option(WITH_ASAN_OPTION "Build with address sanitizer" OFF)
 option(WITH_TSAN_OPTION "Build with thread sanitizer" OFF)
 
+# Use CMake's thread finding mechanism (handles Android correctly)
+set(THREADS_PREFER_PTHREAD_FLAG ON)
+find_package(Threads REQUIRED)
+
 add_executable(inproc_stress_test
     main.c
     concurrent_crash.c
@@ -15,7 +19,7 @@ add_executable(inproc_stress_test
 
 target_include_directories(inproc_stress_test PRIVATE ${SENTRY_INCLUDE_DIR})
 target_link_directories(inproc_stress_test PRIVATE ${SENTRY_LIB_DIR})
-target_link_libraries(inproc_stress_test PRIVATE sentry)
+target_link_libraries(inproc_stress_test PRIVATE sentry Threads::Threads)
 
 set_target_properties(inproc_stress_test PROPERTIES
     BUILD_RPATH "${SENTRY_LIB_DIR}"
@@ -23,7 +27,6 @@ set_target_properties(inproc_stress_test PROPERTIES
 
 if(NOT MSVC)
     target_compile_options(inproc_stress_test PRIVATE -O0 -g)
-    target_link_libraries(inproc_stress_test PRIVATE pthread)
 
     if(SENTRY_BUILD_FORCE32)
         target_compile_options(inproc_stress_test PRIVATE -m32)
