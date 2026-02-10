@@ -20,6 +20,7 @@
 
 static uint64_t g_timestamps[NUM_ENVELOPES];
 static int g_call_count;
+static int g_schedule_count;
 
 static sentry_send_result_t
 test_send(void *envelope, void *state)
@@ -37,6 +38,7 @@ static int
 test_schedule(void *_state, void (*exec_func)(void *task_data, void *state),
     void (*cleanup_func)(void *task_data), void *task_data, uint64_t delay_ms)
 {
+    g_schedule_count++;
     return sentry__bgworker_submit_delayed((sentry_bgworker_t *)_state,
         exec_func, cleanup_func, task_data, delay_ms);
 }
@@ -387,6 +389,68 @@ SENTRY_TEST(retry_backoff)
         sentry__bgworker_flush(bgw, 500);
     }
     TEST_CHECK_INT_EQUAL(g_call_count, 2);
+
+    sentry_close();
+    sentry__retry_free(retry);
+    sentry__path_free(retry_path);
+}
+
+SENTRY_TEST(retry_no_duplicate_rescan)
+{
+    SENTRY_TEST_OPTIONS_NEW(options);
+    sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
+    sentry_options_set_http_retry(options, 3);
+    sentry_init(options);
+
+    if (!sentry__transport_can_retry(options->transport)) {
+        sentry_close();
+        SKIP_TEST();
+    }
+
+    sentry__transport_set_retry_func(
+        options->transport, test_schedule, test_send);
+
+    sentry_path_t *retry_path
+        = sentry__path_join_str(options->database_path, "retry");
+    TEST_ASSERT(!!retry_path);
+    sentry__path_remove_all(retry_path);
+
+    g_call_count = 0;
+    g_schedule_count = 0;
+
+    TEST_ASSERT(sentry__path_create_dir_all(retry_path) == 0);
+
+    sentry_envelope_t *envelope = sentry__envelope_new();
+    TEST_ASSERT(!!envelope);
+    sentry_uuid_t event_id = sentry_uuid_new_v4();
+    sentry_value_t event = sentry__value_new_event_with_id(&event_id);
+    sentry__envelope_add_event(envelope, event);
+    char *filename = sentry__uuid_as_filename(&event_id, ".envelope");
+    TEST_ASSERT(!!filename);
+    sentry_path_t *path = sentry__path_join_str(retry_path, filename);
+    sentry_free(filename);
+    TEST_ASSERT(!!path);
+    TEST_CHECK(sentry_envelope_write_to_path(envelope, path) == 0);
+    sentry__path_free(path);
+    sentry_envelope_free(envelope);
+
+    sentry_retry_t *retry = sentry__retry_new(options);
+    TEST_ASSERT(!!retry);
+
+    sentry__retry_process_envelopes(retry);
+
+    // startup should schedule exactly 1 task (the batch)
+    TEST_CHECK_INT_EQUAL(g_schedule_count, 1);
+
+    sentry_bgworker_t *bgw = sentry__transport_get_bgworker(options->transport);
+    TEST_ASSERT(!!bgw);
+    for (int i = 0; i < 20 && g_call_count < 1; i++) {
+        sentry__bgworker_flush(bgw, 500);
+    }
+
+    TEST_CHECK_INT_EQUAL(g_call_count, 1);
+    // batch completion schedules 1 rescan: total = 2
+    TEST_CHECK_INT_EQUAL(g_schedule_count, 2);
 
     sentry_close();
     sentry__retry_free(retry);
