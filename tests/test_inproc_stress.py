@@ -16,6 +16,22 @@ fixture_path = pathlib.Path("tests/fixtures/inproc_stress")
 ANDROID_TMP = "/data/local/tmp"
 
 
+def is_android():
+    return bool(os.environ.get("ANDROID_API"))
+
+
+def is_ci():
+    return os.environ.get("CI") == "true" or os.environ.get("GITHUB_ACTIONS") == "true"
+
+
+# Skip Android tests in CI - adb shell execution is not stable enough
+# These tests can still be run locally for development/debugging
+pytestmark = pytest.mark.skipif(
+    is_android() and is_ci(),
+    reason="Android inproc stress tests disabled in CI (adb execution unreliable)",
+)
+
+
 def adb(*args):
     """Run an adb command."""
     return subprocess.run(
@@ -23,10 +39,6 @@ def adb(*args):
         check=True,
         capture_output=True,
     )
-
-
-def is_android():
-    return bool(os.environ.get("ANDROID_API"))
 
 
 def compile_test_program(tmp_path):
@@ -294,22 +306,13 @@ def test_inproc_handler_thread_crash(cmake):
             "on_crash callback about to crash" in stderr
         ), f"on_crash callback didn't run. stderr:\n{stderr}"
 
-        # The "FATAL crash in handler thread" message uses write() to stderr,
-        # which may not always be captured due to the racy nature of nested
-        # crash handling - the process might be killed before the write completes.
-        # We check for it but don't fail if it's missing, as long as the crash
-        # was still captured.
-        handler_crash_detected = "FATAL crash in handler thread" in stderr
+        assert (
+            "FATAL crash in handler thread" in stderr
+        ), f"Handler thread crash not detected. stderr:\n{stderr}"
 
         assert (
             "crash has been captured" in stderr
         ), f"Crash not captured via fallback. stderr:\n{stderr}"
-
-        # Log whether we saw the handler crash message for debugging
-        if not handler_crash_detected:
-            print(
-                "Note: 'FATAL crash in handler thread' message not captured (timing-dependent)"
-            )
 
         assert_crash_marker(database_path)
         envelope_path = assert_single_crash_envelope(database_path)
@@ -339,7 +342,7 @@ def test_inproc_concurrent_crash_repeated(cmake, iteration):
         assert returncode != 0, f"Iteration {iteration}: Process should have crashed"
         assert (
             "crash has been captured" in stderr
-        ), f"Iteration {iteration}: Crash not captured"
+        ), f"Crash not captured. stderr:\n{stderr}"
 
         envelope_path = assert_single_crash_envelope(database_path)
         with open(envelope_path, "rb") as f:
