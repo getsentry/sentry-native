@@ -467,6 +467,8 @@ report_attachments_dir(const crashpad::CrashReportDatabase::Report &report,
     return attachments_dir;
 }
 
+// Converts a completed crashpad report into a sentry envelope by reading the
+// event, breadcrumbs, and attachments from the report's attachments directory.
 static sentry_envelope_t *
 report_to_envelope(const crashpad::CrashReportDatabase::Report &report,
     const sentry_options_t *options)
@@ -545,6 +547,8 @@ report_to_envelope(const crashpad::CrashReportDatabase::Report &report,
     return envelope;
 }
 
+// Caches completed crashpad reports as sentry envelopes and removes them from
+// the crashpad database. Called during startup before the handler is started.
 static void
 process_completed_reports(
     crashpad_state_t *state, const sentry_options_t *options)
