@@ -8,6 +8,13 @@ from pathlib import Path
 
 import pytest
 
+from .build_config import (
+    get_android_config,
+    get_platform_cmake_args,
+    get_cflags,
+    get_tsan_env,
+)
+
 
 class CMake:
     def __init__(self, factory):
@@ -122,18 +129,8 @@ def cmake(cwd, targets, options=None, cflags=None):
             "CMAKE_RUNTIME_OUTPUT_DIRECTORY_RELEASE": cwd,
         }
     )
-    if os.environ.get("ANDROID_API") and os.environ.get("ANDROID_NDK"):
-        # See: https://developer.android.com/ndk/guides/cmake
-        toolchain = "{}/ndk/{}/build/cmake/android.toolchain.cmake".format(
-            os.environ["ANDROID_HOME"], os.environ["ANDROID_NDK"]
-        )
-        options.update(
-            {
-                "CMAKE_TOOLCHAIN_FILE": toolchain,
-                "ANDROID_ABI": os.environ.get("ANDROID_ARCH") or "x86",
-                "ANDROID_NATIVE_API_LEVEL": os.environ["ANDROID_API"],
-            }
-        )
+
+    options.update(get_android_config())
 
     source_dir = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 
@@ -158,25 +155,14 @@ def cmake(cwd, targets, options=None, cflags=None):
 
     for key, value in options.items():
         config_cmd.append("-D{}={}".format(key, value))
-    if sys.platform == "win32" and os.environ.get("TEST_X86"):
-        config_cmd.append("-AWin32")
-    elif sys.platform == "linux" and os.environ.get("TEST_X86"):
-        config_cmd.append("-DSENTRY_BUILD_FORCE32=ON")
-    if "asan" in os.environ.get("RUN_ANALYZER", ""):
-        config_cmd.append("-DWITH_ASAN_OPTION=ON")
-    if "tsan" in os.environ.get("RUN_ANALYZER", ""):
-        configure_tsan(config_cmd)
 
-    # we have to set `-Werror` for this cmake invocation only, otherwise
-    # completely unrelated things will break
-    if os.environ.get("ERROR_ON_WARNINGS"):
-        cflags.append("-Werror")
-    if sys.platform == "win32" and not os.environ.get("TEST_MINGW"):
-        # MP = object level parallelism, WX = warnings as errors
-        cpus = os.cpu_count()
-        cflags.append("/WX /MP{}".format(cpus))
-    if "gcc" in os.environ.get("RUN_ANALYZER", ""):
-        cflags.append("-fanalyzer")
+    config_cmd.extend(get_platform_cmake_args())
+
+    tsan_opts = get_tsan_env()
+    if tsan_opts:
+        os.environ["TSAN_OPTIONS"] = tsan_opts
+
+    cflags.extend(get_cflags())
     if "llvm-cov" in os.environ.get("RUN_ANALYZER", ""):
         configure_llvm_cov(config_cmd)
     if "CMAKE_DEFINES" in os.environ:
@@ -288,20 +274,6 @@ def configure_clang_cl(config_cmd: list[str]):
     config_cmd.append("-G Visual Studio 17 2022")
     config_cmd.append("-A x64")
     config_cmd.append("-T ClangCL")
-
-
-def configure_tsan(config_cmd: list[str]):
-    module_dir = Path(__file__).resolve().parent
-    tsan_options = {
-        "verbosity": 2,
-        "detect_deadlocks": 1,
-        "second_deadlock_stack": 1,
-        "suppressions": module_dir / "tsan.supp",
-    }
-    os.environ["TSAN_OPTIONS"] = ":".join(
-        f"{key}={value}" for key, value in tsan_options.items()
-    )
-    config_cmd.append("-DWITH_TSAN_OPTION=ON")
 
 
 def configure_llvm_cov(config_cmd: list[str]):

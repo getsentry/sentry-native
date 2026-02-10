@@ -8,6 +8,7 @@ import pytest
 
 from . import Envelope
 from .assertions import assert_inproc_crash
+from .build_config import get_test_executable_cmake_args, get_test_executable_env
 
 fixture_path = pathlib.Path("tests/fixtures/inproc_stress")
 
@@ -19,21 +20,23 @@ def compile_test_program(tmp_path):
     source_dir = pathlib.Path(__file__).parent.parent.resolve()
     include_dir = source_dir / "include"
 
+    cmake_args = get_test_executable_cmake_args(tmp_path, include_dir)
+    cmake_args.append(str(fixture_path.resolve()))
+
+    env = get_test_executable_env()
+
     subprocess.run(
-        [
-            "cmake",
-            f"-DSENTRY_LIB_DIR={tmp_path}",
-            f"-DSENTRY_INCLUDE_DIR={include_dir}",
-            str(fixture_path.resolve()),
-        ],
+        ["cmake"] + cmake_args,
         check=True,
         cwd=build_dir,
+        env=env,
     )
 
     subprocess.run(
         ["cmake", "--build", ".", "--parallel"],
         check=True,
         cwd=build_dir,
+        env=env,
     )
 
     if sys.platform == "win32":

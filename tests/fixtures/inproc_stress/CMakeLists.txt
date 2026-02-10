@@ -2,6 +2,12 @@ cmake_minimum_required(VERSION 3.10)
 project(inproc_stress_test C)
 
 # SENTRY_LIB_DIR and SENTRY_INCLUDE_DIR are passed from the pytest
+
+# Options that match the main sentry-native build
+option(SENTRY_BUILD_FORCE32 "Force a 32bit compile on a 64bit host" OFF)
+option(WITH_ASAN_OPTION "Build with address sanitizer" OFF)
+option(WITH_TSAN_OPTION "Build with thread sanitizer" OFF)
+
 add_executable(inproc_stress_test
     main.c
     concurrent_crash.c
@@ -18,4 +24,19 @@ set_target_properties(inproc_stress_test PROPERTIES
 if(NOT MSVC)
     target_compile_options(inproc_stress_test PRIVATE -O0 -g)
     target_link_libraries(inproc_stress_test PRIVATE pthread)
+
+    if(SENTRY_BUILD_FORCE32)
+        target_compile_options(inproc_stress_test PRIVATE -m32)
+        target_link_options(inproc_stress_test PRIVATE -m32)
+    endif()
+
+    if(WITH_ASAN_OPTION)
+        target_compile_options(inproc_stress_test PRIVATE -fsanitize=address)
+        target_link_options(inproc_stress_test PRIVATE -fsanitize=address)
+    endif()
+
+    if(WITH_TSAN_OPTION)
+        target_compile_options(inproc_stress_test PRIVATE -fsanitize=thread)
+        target_link_options(inproc_stress_test PRIVATE -fsanitize=thread)
+    endif()
 endif()
