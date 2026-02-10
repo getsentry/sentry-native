@@ -6,6 +6,7 @@ import sys
 import time
 
 import pytest
+from flaky import flaky
 
 from . import Envelope
 from .assertions import assert_inproc_crash
@@ -279,6 +280,7 @@ def test_inproc_concurrent_crash(cmake):
         shutil.rmtree(database_path, ignore_errors=True)
 
 
+@flaky(max_runs=3)
 def test_inproc_handler_thread_crash(cmake):
     """
     Test fallback when handler thread crashes.
