@@ -451,17 +451,6 @@ read_msgpack_file(const sentry_path_t *path)
 }
 
 static sentry_path_t *
-report_minidump_path(const crashpad::CrashReportDatabase::Report &report)
-{
-    return
-#ifdef SENTRY_PLATFORM_WINDOWS
-        sentry__path_from_wstr(report.file_path.value().c_str());
-#else
-        sentry__path_from_str(report.file_path.value().c_str());
-#endif
-}
-
-static sentry_path_t *
 report_attachments_dir(const crashpad::CrashReportDatabase::Report &report,
     const sentry_options_t *options)
 {
@@ -482,7 +471,13 @@ static sentry_envelope_t *
 report_to_envelope(const crashpad::CrashReportDatabase::Report &report,
     const sentry_options_t *options)
 {
-    sentry_path_t *minidump_path = report_minidump_path(report);
+#ifdef SENTRY_PLATFORM_WINDOWS
+    sentry_path_t *minidump_path
+        = sentry__path_from_wstr(report.file_path.value().c_str());
+#else
+    sentry_path_t *minidump_path
+        = sentry__path_from_str(report.file_path.value().c_str());
+#endif
     sentry_path_t *attachments_dir = report_attachments_dir(report, options);
 
     if (!minidump_path || !attachments_dir) {
