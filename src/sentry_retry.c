@@ -356,8 +356,10 @@ retry_task_exec(void *_task, void *bgworker_state)
 
         if (result == SENTRY_SEND_RATE_LIMITED
             || result == SENTRY_SEND_NETWORK_ERROR) {
-            SENTRY_DEBUG(
-                "stopping retry chain due to rate limit or network error");
+            if (task->index < task->count) {
+                SENTRY_DEBUG("stopping retry chain due to "
+                             "rate limit or network error");
+            }
             retry_task_free(task);
             return;
         }
