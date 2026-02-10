@@ -171,7 +171,7 @@ SENTRY_TEST(retry_result)
     // 1. NETWORK_ERROR → writes to retry dir
     sentry__retry_process_result(retry, envelope, SENTRY_SEND_NETWORK_ERROR);
     TEST_CHECK_INT_EQUAL(count_envelope_files(retry_path), 1);
-    TEST_CHECK_INT_EQUAL(find_envelope_attempt(retry_path), 1);
+    TEST_CHECK_INT_EQUAL(find_envelope_attempt(retry_path), 0);
 
     // 2. SUCCESS → removes from retry dir
     sentry__retry_process_result(retry, envelope, SENTRY_SEND_SUCCESS);
@@ -185,16 +185,16 @@ SENTRY_TEST(retry_result)
     sentry__retry_process_result(retry, envelope, SENTRY_SEND_RATE_LIMITED);
     TEST_CHECK_INT_EQUAL(count_envelope_files(retry_path), 0);
 
-    // 5. NETWORK_ERROR x2 → attempt bumps to 2
+    // 5. NETWORK_ERROR x2 → retry counter bumps to 1
+    sentry__retry_process_result(retry, envelope, SENTRY_SEND_NETWORK_ERROR);
+    TEST_CHECK_INT_EQUAL(count_envelope_files(retry_path), 1);
+    TEST_CHECK_INT_EQUAL(find_envelope_attempt(retry_path), 0);
+
     sentry__retry_process_result(retry, envelope, SENTRY_SEND_NETWORK_ERROR);
     TEST_CHECK_INT_EQUAL(count_envelope_files(retry_path), 1);
     TEST_CHECK_INT_EQUAL(find_envelope_attempt(retry_path), 1);
 
-    sentry__retry_process_result(retry, envelope, SENTRY_SEND_NETWORK_ERROR);
-    TEST_CHECK_INT_EQUAL(count_envelope_files(retry_path), 1);
-    TEST_CHECK_INT_EQUAL(find_envelope_attempt(retry_path), 2);
-
-    // 6. NETWORK_ERROR again → exceeds max_attempts=2, discarded
+    // 6. NETWORK_ERROR again → exceeds max_retries=2, discarded
     sentry__retry_process_result(retry, envelope, SENTRY_SEND_NETWORK_ERROR);
     TEST_CHECK_INT_EQUAL(count_envelope_files(retry_path), 0);
 
@@ -205,8 +205,8 @@ SENTRY_TEST(retry_result)
 }
 
 static void
-write_retry_file(const sentry_path_t *retry_path, time_t timestamp, int attempt,
-    const sentry_uuid_t *event_id)
+write_retry_file(const sentry_path_t *retry_path, time_t timestamp,
+    int retry_count, const sentry_uuid_t *event_id)
 {
     sentry_envelope_t *envelope = sentry__envelope_new();
     sentry_value_t event = sentry__value_new_event_with_id(event_id);
@@ -216,7 +216,7 @@ write_retry_file(const sentry_path_t *retry_path, time_t timestamp, int attempt,
     sentry_uuid_as_string(event_id, uuid_str);
     char filename[80];
     snprintf(filename, sizeof(filename), "%llu-%02d-%s.envelope",
-        (unsigned long long)timestamp, attempt, uuid_str);
+        (unsigned long long)timestamp, retry_count, uuid_str);
 
     sentry_path_t *path = sentry__path_join_str(retry_path, filename);
     (void)sentry_envelope_write_to_path(envelope, path);
@@ -246,11 +246,11 @@ SENTRY_TEST(retry_cache)
     sentry__path_remove_all(cache_path);
     TEST_ASSERT(sentry__path_create_dir_all(retry_path) == 0);
 
-    // Create a retry file at the max attempt. Startup retries all files,
-    // the transport fails to send, retry_process_result bumps the attempt
-    // past max_attempts and moves to cache.
+    // Create a retry file at the max retry count. Startup retries all
+    // files, the transport fails to send, retry_process_result bumps it
+    // past max_retries and moves to cache.
     sentry_uuid_t event_id = sentry_uuid_new_v4();
-    write_retry_file(retry_path, time(NULL), 5, &event_id);
+    write_retry_file(retry_path, time(NULL), 4, &event_id);
 
     TEST_CHECK_INT_EQUAL(count_envelope_files(retry_path), 1);
     TEST_CHECK_INT_EQUAL(count_envelope_files(cache_path), 0);
@@ -301,19 +301,19 @@ SENTRY_TEST(retry_backoff)
     time_t now = time(NULL);
 
     sentry_uuid_t id1 = sentry_uuid_new_v4();
-    write_retry_file(retry_path, now, 1, &id1);
+    write_retry_file(retry_path, now, 0, &id1);
 
-    // attempt 2 with recent timestamp: not yet eligible for re-scan
+    // retry 1 with recent timestamp: not yet eligible for re-scan
     sentry_uuid_t id2 = sentry_uuid_new_v4();
-    write_retry_file(retry_path, now, 2, &id2);
+    write_retry_file(retry_path, now, 1, &id2);
 
-    // attempt 2 with old timestamp: eligible for re-scan
+    // retry 1 with old timestamp: eligible for re-scan
     sentry_uuid_t id3 = sentry_uuid_new_v4();
-    write_retry_file(retry_path, now - SENTRY_RETRY_BASE_DELAY_S, 2, &id3);
+    write_retry_file(retry_path, now - SENTRY_RETRY_BASE_DELAY_S, 1, &id3);
 
-    // attempt 3 with old-ish timestamp: needs 30min but only 15min old
+    // retry 2 with old-ish timestamp: needs 30min but only 15min old
     sentry_uuid_t id4 = sentry_uuid_new_v4();
-    write_retry_file(retry_path, now - SENTRY_RETRY_BASE_DELAY_S, 3, &id4);
+    write_retry_file(retry_path, now - SENTRY_RETRY_BASE_DELAY_S, 2, &id4);
 
     sentry_retry_t *retry = sentry__retry_new(options);
     TEST_ASSERT(!!retry);
@@ -335,12 +335,12 @@ SENTRY_TEST(retry_backoff)
     g_call_count = 0;
     memset(g_timestamps, 0, sizeof(g_timestamps));
 
-    write_retry_file(retry_path, now, 1, &id1);
-    write_retry_file(retry_path, now, 2, &id2);
-    write_retry_file(retry_path, now - SENTRY_RETRY_BASE_DELAY_S, 2, &id3);
-    write_retry_file(retry_path, now - SENTRY_RETRY_BASE_DELAY_S, 3, &id4);
+    write_retry_file(retry_path, now, 0, &id1);
+    write_retry_file(retry_path, now, 1, &id2);
+    write_retry_file(retry_path, now - SENTRY_RETRY_BASE_DELAY_S, 1, &id3);
+    write_retry_file(retry_path, now - SENTRY_RETRY_BASE_DELAY_S, 2, &id4);
 
-    // re-scan applies backoff: only attempt 1 + old attempt 2 are eligible
+    // re-scan applies backoff: only retry 0 + old retry 1 are eligible
     sentry__retry_rescan_envelopes(retry);
 
     for (int i = 0; i < 20 && g_call_count < 2; i++) {

@@ -10,7 +10,7 @@
 typedef struct {
     const struct sentry_run_s *run;
     sentry_transport_t *transport;
-    int max_attempts;
+    int max_retries;
     bool cache_keep;
 } sentry_retry_t;
 
