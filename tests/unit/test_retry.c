@@ -107,9 +107,9 @@ SENTRY_TEST(retry_throttle)
             SENTRY_RETRY_THROTTLE, (unsigned long long)delta);
     }
 
+    sentry_close();
     sentry__retry_free(retry);
     sentry__path_free(retry_path);
-    sentry_close();
 }
 
 static int
@@ -299,14 +299,14 @@ SENTRY_TEST(retry_cache)
     TEST_ASSERT(!!retry);
     sentry__retry_process_envelopes(retry);
     sentry_flush(1000);
-    sentry__retry_free(retry);
 
     TEST_CHECK_INT_EQUAL(count_envelope_files(retry_path), 0);
     TEST_CHECK_INT_EQUAL(count_envelope_files(cache_path), 1);
 
+    sentry_close();
+    sentry__retry_free(retry);
     sentry__path_free(retry_path);
     sentry__path_free(cache_path);
-    sentry_close();
 }
 
 SENTRY_TEST(retry_backoff)
@@ -388,7 +388,7 @@ SENTRY_TEST(retry_backoff)
     }
     TEST_CHECK_INT_EQUAL(g_call_count, 2);
 
+    sentry_close();
     sentry__retry_free(retry);
     sentry__path_free(retry_path);
-    sentry_close();
 }

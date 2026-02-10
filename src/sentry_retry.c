@@ -445,8 +445,10 @@ retry_process_envelopes(sentry_retry_t *retry, bool check_backoff)
         }
     }
 
-    if (earliest_pending > 0) {
-        uint64_t delay_ms = (uint64_t)(earliest_pending - now) * 1000;
+    if (count > 0 || earliest_pending > 0) {
+        uint64_t delay_ms = earliest_pending > 0
+            ? (uint64_t)(earliest_pending - now) * 1000
+            : SENTRY_RETRY_INTERVAL;
         sentry__transport_schedule_retry(
             retry->transport, retry_rescan_exec, NULL, retry, delay_ms);
     }
