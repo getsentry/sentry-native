@@ -17,12 +17,9 @@
 #endif
 
 typedef struct {
-    sentry_dsn_t *dsn;
     CURL *curl_handle;
-    char *user_agent;
     char *proxy;
     char *ca_certs;
-    sentry_rate_limiter_t *ratelimiter;
     bool debug;
 #ifdef SENTRY_PLATFORM_NX
     void *nx_state;
@@ -43,7 +40,6 @@ curl_state_new(void)
     }
     memset(state, 0, sizeof(curl_state_t));
 
-    state->ratelimiter = sentry__rate_limiter_new();
 #ifdef SENTRY_PLATFORM_NX
     state->nx_state = sentry_nx_curl_state_new();
 #endif
@@ -58,10 +54,7 @@ curl_state_free(void *_state)
         curl_easy_cleanup(state->curl_handle);
         curl_global_cleanup();
     }
-    sentry__dsn_decref(state->dsn);
-    sentry__rate_limiter_free(state->ratelimiter);
     sentry_free(state->ca_certs);
-    sentry_free(state->user_agent);
     sentry_free(state->proxy);
 #ifdef SENTRY_PLATFORM_NX
     sentry_nx_curl_state_free(state->nx_state);
@@ -109,9 +102,7 @@ curl_start_backend(const sentry_options_t *options, void *_state)
         }
     }
 
-    state->dsn = sentry__dsn_incref(options->dsn);
     state->proxy = sentry__string_clone(options->proxy);
-    state->user_agent = sentry__string_clone(options->user_agent);
     state->ca_certs = sentry__string_clone(options->ca_certs);
     state->curl_handle = curl_easy_init();
     state->debug = options->debug;
@@ -163,22 +154,16 @@ header_callback(char *buffer, size_t size, size_t nitems, void *userdata)
 }
 
 static void
-curl_send_task(void *_envelope, void *_state)
+curl_send_task(sentry_prepared_http_request_t *req, sentry_rate_limiter_t *rl,
+    void *_state)
 {
-    sentry_envelope_t *envelope = (sentry_envelope_t *)_envelope;
     curl_state_t *state = (curl_state_t *)_state;
 
 #ifdef SENTRY_PLATFORM_NX
     if (!sentry_nx_curl_connect(state->nx_state)) {
-        return; // TODO should we dump the envelope to disk?
-    }
-#endif
-
-    sentry_prepared_http_request_t *req = sentry__prepare_http_request(
-        envelope, state->dsn, state->ratelimiter, state->user_agent);
-    if (!req) {
         return;
     }
+#endif
 
     struct curl_slist *headers = NULL;
     headers = curl_slist_append(headers, "expect:");
@@ -198,7 +183,6 @@ curl_send_task(void *_envelope, void *_state)
     if (state->debug) {
         curl_easy_setopt(curl, CURLOPT_VERBOSE, 1);
         curl_easy_setopt(curl, CURLOPT_WRITEDATA, stderr);
-        // CURLOPT_WRITEFUNCTION will `fwrite` by default
     } else {
         curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, swallow_data);
     }
@@ -242,12 +226,12 @@ curl_send_task(void *_envelope, void *_state)
 
         if (info.x_sentry_rate_limits) {
             sentry__rate_limiter_update_from_header(
-                state->ratelimiter, info.x_sentry_rate_limits);
+                rl, info.x_sentry_rate_limits);
         } else if (info.retry_after) {
             sentry__rate_limiter_update_from_http_retry_after(
-                state->ratelimiter, info.retry_after);
+                rl, info.retry_after);
         } else if (response_code == 429) {
-            sentry__rate_limiter_update_from_429(state->ratelimiter);
+            sentry__rate_limiter_update_from_429(rl);
         }
     } else {
         size_t len = strlen(error_buf);
@@ -266,7 +250,6 @@ curl_send_task(void *_envelope, void *_state)
     curl_slist_free_all(headers);
     sentry_free(info.retry_after);
     sentry_free(info.x_sentry_rate_limits);
-    sentry__prepared_http_request_free(req);
 }
 
 sentry_transport_t *

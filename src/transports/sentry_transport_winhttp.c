@@ -17,12 +17,9 @@
 #include <winhttp.h>
 
 typedef struct {
-    sentry_dsn_t *dsn;
-    wchar_t *user_agent;
     wchar_t *proxy;
     wchar_t *proxy_username;
     wchar_t *proxy_password;
-    sentry_rate_limiter_t *ratelimiter;
     HINTERNET session;
     HINTERNET connect;
     HINTERNET request;
@@ -38,8 +35,6 @@ winhttp_state_new(void)
     }
     memset(state, 0, sizeof(winhttp_state_t));
 
-    state->ratelimiter = sentry__rate_limiter_new();
-
     return state;
 }
 
@@ -53,9 +48,6 @@ winhttp_state_free(void *_state)
     if (state->session) {
         WinHttpCloseHandle(state->session);
     }
-    sentry__dsn_decref(state->dsn);
-    sentry__rate_limiter_free(state->ratelimiter);
-    sentry_free(state->user_agent);
     sentry_free(state->proxy_username);
     sentry_free(state->proxy_password);
     sentry_free(state->proxy);
@@ -90,8 +82,7 @@ winhttp_start_backend(const sentry_options_t *opts, void *_state)
 {
     winhttp_state_t *state = _state;
 
-    state->dsn = sentry__dsn_incref(opts->dsn);
-    state->user_agent = sentry__string_to_wstr(opts->user_agent);
+    wchar_t *user_agent = sentry__string_to_wstr(opts->user_agent);
     state->debug = opts->debug;
 
     const char *env_proxy = opts->dsn
@@ -119,22 +110,24 @@ winhttp_start_backend(const sentry_options_t *opts, void *_state)
 
     if (state->proxy) {
         state->session
-            = WinHttpOpen(state->user_agent, WINHTTP_ACCESS_TYPE_NAMED_PROXY,
+            = WinHttpOpen(user_agent, WINHTTP_ACCESS_TYPE_NAMED_PROXY,
                 state->proxy, WINHTTP_NO_PROXY_BYPASS, 0);
     } else {
 #if _WIN32_WINNT >= 0x0603
-        state->session = WinHttpOpen(state->user_agent,
-            WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY, WINHTTP_NO_PROXY_NAME,
-            WINHTTP_NO_PROXY_BYPASS, 0);
+        state->session
+            = WinHttpOpen(user_agent, WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY,
+                WINHTTP_NO_PROXY_NAME, WINHTTP_NO_PROXY_BYPASS, 0);
 #endif
         // On windows 8.0 or lower, WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY does
         // not work on error we fallback to WINHTTP_ACCESS_TYPE_DEFAULT_PROXY
         if (!state->session) {
-            state->session = WinHttpOpen(state->user_agent,
-                WINHTTP_ACCESS_TYPE_DEFAULT_PROXY, WINHTTP_NO_PROXY_NAME,
-                WINHTTP_NO_PROXY_BYPASS, 0);
+            state->session
+                = WinHttpOpen(user_agent, WINHTTP_ACCESS_TYPE_DEFAULT_PROXY,
+                    WINHTTP_NO_PROXY_NAME, WINHTTP_NO_PROXY_BYPASS, 0);
         }
     }
+    sentry_free(user_agent);
+
     if (!state->session) {
         SENTRY_WARN("`WinHttpOpen` failed");
         return 1;
@@ -167,20 +160,12 @@ winhttp_shutdown_hook(void *_state)
 }
 
 static void
-winhttp_send_task(void *_envelope, void *_state)
+winhttp_send_task(sentry_prepared_http_request_t *req,
+    sentry_rate_limiter_t *rl, void *_state)
 {
-    sentry_envelope_t *envelope = (sentry_envelope_t *)_envelope;
     winhttp_state_t *state = (winhttp_state_t *)_state;
 
     uint64_t started = sentry__monotonic_time();
-
-    char *user_agent = sentry__string_from_wstr(state->user_agent);
-    sentry_prepared_http_request_t *req = sentry__prepare_http_request(
-        envelope, state->dsn, state->ratelimiter, user_agent);
-    if (!req) {
-        sentry_free(user_agent);
-        return;
-    }
 
     wchar_t *url = sentry__string_to_wstr(req->url);
     wchar_t *headers = NULL;
@@ -296,7 +281,7 @@ winhttp_send_task(void *_envelope, void *_state)
                 WINHTTP_NO_HEADER_INDEX)) {
             char *h = sentry__string_from_wstr(buf);
             if (h) {
-                sentry__rate_limiter_update_from_header(state->ratelimiter, h);
+                sentry__rate_limiter_update_from_header(rl, h);
                 sentry_free(h);
             }
         } else if (WinHttpQueryHeaders(state->request, WINHTTP_QUERY_CUSTOM,
@@ -304,8 +289,7 @@ winhttp_send_task(void *_envelope, void *_state)
                        WINHTTP_NO_HEADER_INDEX)) {
             char *h = sentry__string_from_wstr(buf);
             if (h) {
-                sentry__rate_limiter_update_from_http_retry_after(
-                    state->ratelimiter, h);
+                sentry__rate_limiter_update_from_http_retry_after(rl, h);
                 sentry_free(h);
             }
         } else if (WinHttpQueryHeaders(state->request,
@@ -313,7 +297,7 @@ winhttp_send_task(void *_envelope, void *_state)
                        WINHTTP_HEADER_NAME_BY_INDEX, &status_code,
                        &status_code_size, WINHTTP_NO_HEADER_INDEX)
             && status_code == 429) {
-            sentry__rate_limiter_update_from_429(state->ratelimiter);
+            sentry__rate_limiter_update_from_429(rl);
         }
     } else {
         SENTRY_WARNF(
@@ -329,10 +313,8 @@ exit:
         state->request = NULL;
         WinHttpCloseHandle(request);
     }
-    sentry_free(user_agent);
     sentry_free(url);
     sentry_free(headers);
-    sentry__prepared_http_request_free(req);
 }
 
 sentry_transport_t *
