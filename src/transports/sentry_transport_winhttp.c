@@ -54,12 +54,14 @@ winhttp_client_free(void *_client)
     sentry_free(client);
 }
 
+// Function to extract and set credentials
 static void
 set_proxy_credentials(winhttp_client_t *state, const char *proxy)
 {
     sentry_url_t url;
     sentry__url_parse(&url, proxy, false);
     if (url.username && url.password) {
+        // Convert user and pass to LPCWSTR
         int user_wlen
             = MultiByteToWideChar(CP_UTF8, 0, url.username, -1, NULL, 0);
         int pass_wlen
@@ -326,6 +328,11 @@ sentry__transport_new_default(void)
         return NULL;
     }
 
-    return sentry__http_transport_new(client, winhttp_client_free,
-        winhttp_start_client, winhttp_send_task, winhttp_shutdown_hook);
+    sentry_transport_t *transport
+        = sentry__http_transport_new(client, winhttp_send_task);
+    sentry__http_transport_set_free_client(transport, winhttp_client_free);
+    sentry__http_transport_set_start_client(transport, winhttp_start_client);
+    sentry__http_transport_set_shutdown_client(
+        transport, winhttp_shutdown_hook);
+    return transport;
 }

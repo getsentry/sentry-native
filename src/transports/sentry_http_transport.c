@@ -16,7 +16,7 @@ typedef struct {
     void (*free_client)(void *);
     int (*start_client)(const sentry_options_t *, void *);
     sentry_http_send_func_t send_func;
-    void (*shutdown_hook)(void *client);
+    void (*shutdown_client)(void *client);
 } http_transport_state_t;
 
 static void
@@ -83,8 +83,8 @@ http_transport_shutdown(uint64_t timeout, void *transport_state)
     http_transport_state_t *state = sentry__bgworker_get_state(bgworker);
 
     int rv = sentry__bgworker_shutdown(bgworker, timeout);
-    if (rv != 0 && state->shutdown_hook) {
-        state->shutdown_hook(state->client);
+    if (rv != 0 && state->shutdown_client) {
+        state->shutdown_client(state->client);
     }
     return rv;
 }
@@ -113,10 +113,15 @@ http_dump_queue(sentry_run_t *run, void *transport_state)
         bgworker, http_send_task, http_dump_task_cb, run);
 }
 
+static http_transport_state_t *
+http_transport_get_state(sentry_transport_t *transport)
+{
+    sentry_bgworker_t *bgworker = sentry__transport_get_state(transport);
+    return sentry__bgworker_get_state(bgworker);
+}
+
 sentry_transport_t *
-sentry__http_transport_new(void *client, void (*free_client)(void *),
-    int (*start_client)(const sentry_options_t *, void *),
-    sentry_http_send_func_t send_func, void (*shutdown_hook)(void *client))
+sentry__http_transport_new(void *client, sentry_http_send_func_t send_func)
 {
     http_transport_state_t *state = SENTRY_MAKE(http_transport_state_t);
     if (!state) {
@@ -125,10 +130,7 @@ sentry__http_transport_new(void *client, void (*free_client)(void *),
     memset(state, 0, sizeof(http_transport_state_t));
     state->ratelimiter = sentry__rate_limiter_new();
     state->client = client;
-    state->free_client = free_client;
-    state->start_client = start_client;
     state->send_func = send_func;
-    state->shutdown_hook = shutdown_hook;
 
     sentry_bgworker_t *bgworker
         = sentry__bgworker_new(state, http_transport_state_free);
@@ -153,6 +155,27 @@ sentry__http_transport_new(void *client, void (*free_client)(void *),
     sentry__transport_set_dump_func(transport, http_dump_queue);
 
     return transport;
+}
+
+void
+sentry__http_transport_set_free_client(
+    sentry_transport_t *transport, void (*free_client)(void *))
+{
+    http_transport_get_state(transport)->free_client = free_client;
+}
+
+void
+sentry__http_transport_set_start_client(sentry_transport_t *transport,
+    int (*start_client)(const sentry_options_t *, void *))
+{
+    http_transport_get_state(transport)->start_client = start_client;
+}
+
+void
+sentry__http_transport_set_shutdown_client(
+    sentry_transport_t *transport, void (*shutdown_client)(void *))
+{
+    http_transport_get_state(transport)->shutdown_client = shutdown_client;
 }
 
 #ifdef SENTRY_UNITTEST

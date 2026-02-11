@@ -108,6 +108,8 @@ curl_start_client(const sentry_options_t *options, void *_client)
     client->debug = options->debug;
 
     if (!client->curl_handle) {
+        // In this case we don't start the worker at all, which means we can
+        // still dump all unsent envelopes to disk on shutdown.
         SENTRY_WARN("`curl_easy_init` failed");
         return 1;
     }
@@ -161,7 +163,7 @@ curl_send_task(sentry_prepared_http_request_t *req, sentry_rate_limiter_t *rl,
 
 #ifdef SENTRY_PLATFORM_NX
     if (!sentry_nx_curl_connect(client->nx_state)) {
-        return;
+        return; // TODO should we dump the envelope to disk?
     }
 #endif
 
@@ -183,6 +185,7 @@ curl_send_task(sentry_prepared_http_request_t *req, sentry_rate_limiter_t *rl,
     if (client->debug) {
         curl_easy_setopt(curl, CURLOPT_VERBOSE, 1);
         curl_easy_setopt(curl, CURLOPT_WRITEDATA, stderr);
+        // CURLOPT_WRITEFUNCTION will `fwrite` by default
     } else {
         curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, swallow_data);
     }
@@ -261,6 +264,9 @@ sentry__transport_new_default(void)
         return NULL;
     }
 
-    return sentry__http_transport_new(
-        client, curl_client_free, curl_start_client, curl_send_task, NULL);
+    sentry_transport_t *transport
+        = sentry__http_transport_new(client, curl_send_task);
+    sentry__http_transport_set_free_client(transport, curl_client_free);
+    sentry__http_transport_set_start_client(transport, curl_start_client);
+    return transport;
 }

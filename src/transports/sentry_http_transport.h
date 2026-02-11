@@ -10,18 +10,18 @@ typedef void (*sentry_http_send_func_t)(sentry_prepared_http_request_t *req,
     sentry_rate_limiter_t *rl, void *client);
 
 /**
- * Creates a new HTTP transport with the given client.
- *
- * The transport manages bgworker lifecycle (start, flush, shutdown, dump)
- * and delegates actual HTTP sending to the client's `send_func`.
- *
- * `shutdown_hook` is optional (NULL for curl). WinHTTP uses it to force-close
- * handles when bgworker_shutdown times out.
+ * Creates a new HTTP transport with the given client and send function.
+ * Use the setter functions below to configure optional client callbacks.
  */
-sentry_transport_t *sentry__http_transport_new(void *client,
-    void (*free_client)(void *),
-    int (*start_client)(const sentry_options_t *, void *),
-    sentry_http_send_func_t send_func, void (*shutdown_hook)(void *client));
+sentry_transport_t *sentry__http_transport_new(
+    void *client, sentry_http_send_func_t send_func);
+
+void sentry__http_transport_set_free_client(
+    sentry_transport_t *transport, void (*free_client)(void *));
+void sentry__http_transport_set_start_client(sentry_transport_t *transport,
+    int (*start_client)(const sentry_options_t *, void *));
+void sentry__http_transport_set_shutdown_client(
+    sentry_transport_t *transport, void (*shutdown_client)(void *));
 
 #ifdef SENTRY_UNITTEST
 void *sentry__http_transport_get_bgworker(sentry_transport_t *transport);
