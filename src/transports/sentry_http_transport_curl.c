@@ -63,7 +63,7 @@ curl_client_free(void *_client)
 }
 
 static int
-curl_client_start(const sentry_options_t *options, void *_client)
+curl_client_start(void *_client, const sentry_options_t *options)
 {
     curl_client_t *client = _client;
 
@@ -156,8 +156,8 @@ header_callback(char *buffer, size_t size, size_t nitems, void *userdata)
 }
 
 static void
-curl_send_task(sentry_prepared_http_request_t *req, sentry_rate_limiter_t *rl,
-    void *_client)
+curl_send_task(void *_client, sentry_prepared_http_request_t *req,
+    sentry_rate_limiter_t *rl)
 {
     curl_client_t *client = (curl_client_t *)_client;
 

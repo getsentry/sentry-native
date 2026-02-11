@@ -6,8 +6,8 @@
 #include "sentry_sync.h"
 #include "sentry_transport.h"
 
-typedef void (*sentry_http_send_func_t)(sentry_prepared_http_request_t *req,
-    sentry_rate_limiter_t *rl, void *client);
+typedef void (*sentry_http_send_func_t)(void *client,
+    sentry_prepared_http_request_t *req, sentry_rate_limiter_t *rl);
 
 /**
  * Creates a new HTTP transport with the given client and send function.
@@ -19,7 +19,7 @@ sentry_transport_t *sentry__http_transport_new(
 void sentry__http_transport_set_free_client(
     sentry_transport_t *transport, void (*free_client)(void *));
 void sentry__http_transport_set_start_client(sentry_transport_t *transport,
-    int (*start_client)(const sentry_options_t *, void *));
+    int (*start_client)(void *, const sentry_options_t *));
 void sentry__http_transport_set_shutdown_client(
     sentry_transport_t *transport, void (*shutdown_client)(void *));
 

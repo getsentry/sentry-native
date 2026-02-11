@@ -14,7 +14,7 @@ typedef struct {
     sentry_rate_limiter_t *ratelimiter;
     void *client;
     void (*free_client)(void *);
-    int (*start_client)(const sentry_options_t *, void *);
+    int (*start_client)(void *, const sentry_options_t *);
     sentry_http_send_func_t send_func;
     void (*shutdown_client)(void *client);
 } http_transport_state_t;
@@ -44,7 +44,7 @@ http_send_task(void *_envelope, void *_state)
         return;
     }
 
-    state->send_func(req, state->ratelimiter, state->client);
+    state->send_func(state->client, req, state->ratelimiter);
     sentry__prepared_http_request_free(req);
 }
 
@@ -60,7 +60,7 @@ http_transport_start(const sentry_options_t *options, void *transport_state)
     state->user_agent = sentry__string_clone(options->user_agent);
 
     if (state->start_client) {
-        int rv = state->start_client(options, state->client);
+        int rv = state->start_client(state->client, options);
         if (rv != 0) {
             return rv;
         }
@@ -166,7 +166,7 @@ sentry__http_transport_set_free_client(
 
 void
 sentry__http_transport_set_start_client(sentry_transport_t *transport,
-    int (*start_client)(const sentry_options_t *, void *))
+    int (*start_client)(void *, const sentry_options_t *))
 {
     http_transport_get_state(transport)->start_client = start_client;
 }

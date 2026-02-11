@@ -80,7 +80,7 @@ set_proxy_credentials(winhttp_client_t *state, const char *proxy)
 }
 
 static int
-winhttp_client_start(const sentry_options_t *opts, void *_client)
+winhttp_client_start(void *_client, const sentry_options_t *opts)
 {
     winhttp_client_t *client = _client;
 
@@ -162,8 +162,8 @@ winhttp_client_shutdown(void *_client)
 }
 
 static void
-winhttp_send_task(sentry_prepared_http_request_t *req,
-    sentry_rate_limiter_t *rl, void *_client)
+winhttp_send_task(void *_client, sentry_prepared_http_request_t *req,
+    sentry_rate_limiter_t *rl)
 {
     winhttp_client_t *client = (winhttp_client_t *)_client;
 
