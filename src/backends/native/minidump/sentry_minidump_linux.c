@@ -479,6 +479,13 @@ write_system_info_stream(minidump_writer_t *writer, minidump_directory_t *dir)
 
     sysinfo.number_of_processors = (uint8_t)sysconf(_SC_NPROCESSORS_ONLN);
 
+    // Write CSD version string (required by Sentry)
+    // Even if empty, must be present to avoid malformed minidump
+    sysinfo.csd_version_rva = write_minidump_string(writer, "");
+    if (!sysinfo.csd_version_rva) {
+        return -1;
+    }
+
     dir->stream_type = MINIDUMP_STREAM_SYSTEM_INFO;
     dir->rva = write_data(writer, &sysinfo, sizeof(sysinfo));
     dir->data_size = sizeof(sysinfo);
@@ -654,11 +661,11 @@ write_thread_context(
     return write_data(writer, &context, sizeof(context));
 
 #    elif defined(__i386__)
-    (void)tid; // Unused on i386 - no FPU state in simplified context
+    (void)tid; // Unused on i386 - no ptrace FPU capture implemented yet
 
     minidump_context_x86_t context = { 0 };
-    // Set flags for control + integer + segments (no floating point in this
-    // simplified struct)
+    // Set flags for full context (control + integer + segments + floating
+    // point)
     context.context_flags = 0x0001001f; // CONTEXT_i386 | CONTEXT_CONTROL |
                                         // CONTEXT_INTEGER | CONTEXT_SEGMENTS
 
@@ -688,8 +695,9 @@ write_thread_context(
     context.dr6 = 0;
     context.dr7 = 0;
 
-    // Note: FPU state not included in this simplified i386 context structure
-    // This is sufficient for stack unwinding and crash analysis
+    // FPU state - zero out (could be captured via ptrace GETFPREGS in future)
+    memset(&context.float_save, 0, sizeof(context.float_save));
+    memset(context.extended_registers, 0, sizeof(context.extended_registers));
 
     return write_data(writer, &context, sizeof(context));
 
