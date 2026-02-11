@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1770796755453,
+  "lastUpdate": 1770796765774,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -20038,6 +20038,66 @@ window.BENCHMARK_DATA = {
             "value": 21.180458000003455,
             "unit": "ms",
             "extra": "Min 16.039ms\nMax 28.324ms\nMean 21.043ms\nStdDev 4.805ms\nMedian 21.180ms\nCPU 3.141ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "jpnurmi@gmail.com",
+            "name": "J-P Nurmi",
+            "username": "jpnurmi"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "f65919e89c31f9419cb36c74cd435df6ff0ee9a6",
+          "message": "fix: remove spurious decref in `sentry_capture_user_feedback()` (#1510)\n\nCo-authored-by: Claude Opus 4.6 <noreply@anthropic.com>",
+          "timestamp": "2026-02-11T08:55:00+01:00",
+          "tree_id": "438019176a5f03039e68ef1546f35a6ef9fbf20c",
+          "url": "https://github.com/getsentry/sentry-native/commit/f65919e89c31f9419cb36c74cd435df6ff0ee9a6"
+        },
+        "date": 1770796764032,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 3.696583000021292,
+            "unit": "ms",
+            "extra": "Min 3.401ms\nMax 4.029ms\nMean 3.748ms\nStdDev 0.260ms\nMedian 3.697ms\nCPU 2.168ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 3.429042000021809,
+            "unit": "ms",
+            "extra": "Min 3.322ms\nMax 5.207ms\nMean 3.922ms\nStdDev 0.827ms\nMedian 3.429ms\nCPU 2.206ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 30.580541999995603,
+            "unit": "ms",
+            "extra": "Min 27.532ms\nMax 78.828ms\nMean 39.143ms\nStdDev 22.245ms\nMedian 30.581ms\nCPU 7.798ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.035749999995005055,
+            "unit": "ms",
+            "extra": "Min 0.028ms\nMax 1.819ms\nMean 0.393ms\nStdDev 0.797ms\nMedian 0.036ms\nCPU 0.039ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.4527080000116257,
+            "unit": "ms",
+            "extra": "Min 0.261ms\nMax 0.823ms\nMean 0.539ms\nStdDev 0.264ms\nMedian 0.453ms\nCPU 0.538ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 18.25016600002982,
+            "unit": "ms",
+            "extra": "Min 10.579ms\nMax 20.659ms\nMean 16.685ms\nStdDev 4.402ms\nMedian 18.250ms\nCPU 1.426ms"
           }
         ]
       }
