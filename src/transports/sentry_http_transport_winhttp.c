@@ -3,7 +3,6 @@
 #include "sentry_envelope.h"
 #include "sentry_http_transport.h"
 #include "sentry_options.h"
-#include "sentry_ratelimiter.h"
 #include "sentry_string.h"
 #include "sentry_transport.h"
 #include "sentry_utils.h"
@@ -163,7 +162,7 @@ winhttp_client_shutdown(void *_client)
 
 static void
 winhttp_send_task(void *_client, sentry_prepared_http_request_t *req,
-    sentry_rate_limiter_t *rl)
+    sentry_http_response_t *resp)
 {
     winhttp_client_t *client = (winhttp_client_t *)_client;
 
@@ -275,31 +274,21 @@ winhttp_send_task(void *_client, sentry_prepared_http_request_t *req,
         wchar_t buf[2048];
         DWORD buf_size = sizeof(buf);
 
-        DWORD status_code = 0;
-        DWORD status_code_size = sizeof(status_code);
+        DWORD status_code_size = sizeof(resp->status_code);
+
+        WinHttpQueryHeaders(client->request,
+            WINHTTP_QUERY_STATUS_CODE | WINHTTP_QUERY_FLAG_NUMBER,
+            WINHTTP_HEADER_NAME_BY_INDEX, &resp->status_code, &status_code_size,
+            WINHTTP_NO_HEADER_INDEX);
 
         if (WinHttpQueryHeaders(client->request, WINHTTP_QUERY_CUSTOM,
                 L"x-sentry-rate-limits", buf, &buf_size,
                 WINHTTP_NO_HEADER_INDEX)) {
-            char *h = sentry__string_from_wstr(buf);
-            if (h) {
-                sentry__rate_limiter_update_from_header(rl, h);
-                sentry_free(h);
-            }
+            resp->x_sentry_rate_limits = sentry__string_from_wstr(buf);
         } else if (WinHttpQueryHeaders(client->request, WINHTTP_QUERY_CUSTOM,
                        L"retry-after", buf, &buf_size,
                        WINHTTP_NO_HEADER_INDEX)) {
-            char *h = sentry__string_from_wstr(buf);
-            if (h) {
-                sentry__rate_limiter_update_from_http_retry_after(rl, h);
-                sentry_free(h);
-            }
-        } else if (WinHttpQueryHeaders(client->request,
-                       WINHTTP_QUERY_STATUS_CODE | WINHTTP_QUERY_FLAG_NUMBER,
-                       WINHTTP_HEADER_NAME_BY_INDEX, &status_code,
-                       &status_code_size, WINHTTP_NO_HEADER_INDEX)
-            && status_code == 429) {
-            sentry__rate_limiter_update_from_429(rl);
+            resp->retry_after = sentry__string_from_wstr(buf);
         }
     } else {
         SENTRY_WARNF(

@@ -3,7 +3,6 @@
 #include "sentry_envelope.h"
 #include "sentry_http_transport.h"
 #include "sentry_options.h"
-#include "sentry_ratelimiter.h"
 #include "sentry_string.h"
 #include "sentry_transport.h"
 #include "sentry_utils.h"
@@ -25,11 +24,6 @@ typedef struct {
     void *nx_state;
 #endif
 } curl_client_t;
-
-struct header_info {
-    char *x_sentry_rate_limits;
-    char *retry_after;
-};
 
 static curl_client_t *
 curl_client_new(void)
@@ -134,7 +128,7 @@ static size_t
 header_callback(char *buffer, size_t size, size_t nitems, void *userdata)
 {
     size_t bytes = size * nitems;
-    struct header_info *info = userdata;
+    sentry_http_response_t *info = userdata;
     char *header = sentry__string_clone_n(buffer, bytes);
     if (!header) {
         return bytes;
@@ -157,7 +151,7 @@ header_callback(char *buffer, size_t size, size_t nitems, void *userdata)
 
 static void
 curl_send_task(void *_client, sentry_prepared_http_request_t *req,
-    sentry_rate_limiter_t *rl)
+    sentry_http_response_t *resp)
 {
     curl_client_t *client = (curl_client_t *)_client;
 
@@ -200,10 +194,7 @@ curl_send_task(void *_client, sentry_prepared_http_request_t *req,
     error_buf[0] = 0;
     curl_easy_setopt(curl, CURLOPT_ERRORBUFFER, error_buf);
 
-    struct header_info info;
-    info.retry_after = NULL;
-    info.x_sentry_rate_limits = NULL;
-    curl_easy_setopt(curl, CURLOPT_HEADERDATA, (void *)&info);
+    curl_easy_setopt(curl, CURLOPT_HEADERDATA, (void *)resp);
     curl_easy_setopt(curl, CURLOPT_HEADERFUNCTION, header_callback);
 
     if (client->proxy) {
@@ -224,18 +215,7 @@ curl_send_task(void *_client, sentry_prepared_http_request_t *req,
     }
 
     if (rv == CURLE_OK) {
-        long response_code;
-        curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &response_code);
-
-        if (info.x_sentry_rate_limits) {
-            sentry__rate_limiter_update_from_header(
-                rl, info.x_sentry_rate_limits);
-        } else if (info.retry_after) {
-            sentry__rate_limiter_update_from_http_retry_after(
-                rl, info.retry_after);
-        } else if (response_code == 429) {
-            sentry__rate_limiter_update_from_429(rl);
-        }
+        curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &resp->status_code);
     } else {
         size_t len = strlen(error_buf);
         if (len) {
@@ -251,8 +231,6 @@ curl_send_task(void *_client, sentry_prepared_http_request_t *req,
     }
 
     curl_slist_free_all(headers);
-    sentry_free(info.retry_after);
-    sentry_free(info.x_sentry_rate_limits);
 }
 
 sentry_transport_t *

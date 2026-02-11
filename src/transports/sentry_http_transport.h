@@ -2,12 +2,17 @@
 #define SENTRY_HTTP_TRANSPORT_H_INCLUDED
 
 #include "sentry_boot.h"
-#include "sentry_ratelimiter.h"
 #include "sentry_sync.h"
 #include "sentry_transport.h"
 
+typedef struct {
+    long status_code;
+    char *retry_after;
+    char *x_sentry_rate_limits;
+} sentry_http_response_t;
+
 typedef void (*sentry_http_send_func_t)(void *client,
-    sentry_prepared_http_request_t *req, sentry_rate_limiter_t *rl);
+    sentry_prepared_http_request_t *req, sentry_http_response_t *resp);
 
 /**
  * Creates a new HTTP transport with the given client and send function.
