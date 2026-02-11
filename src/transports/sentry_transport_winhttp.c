@@ -24,38 +24,38 @@ typedef struct {
     HINTERNET connect;
     HINTERNET request;
     bool debug;
-} winhttp_state_t;
+} winhttp_client_t;
 
-static winhttp_state_t *
-winhttp_state_new(void)
+static winhttp_client_t *
+winhttp_client_new(void)
 {
-    winhttp_state_t *state = SENTRY_MAKE(winhttp_state_t);
-    if (!state) {
+    winhttp_client_t *client = SENTRY_MAKE(winhttp_client_t);
+    if (!client) {
         return NULL;
     }
-    memset(state, 0, sizeof(winhttp_state_t));
+    memset(client, 0, sizeof(winhttp_client_t));
 
-    return state;
+    return client;
 }
 
 static void
-winhttp_state_free(void *_state)
+winhttp_client_free(void *_client)
 {
-    winhttp_state_t *state = _state;
-    if (state->connect) {
-        WinHttpCloseHandle(state->connect);
+    winhttp_client_t *client = _client;
+    if (client->connect) {
+        WinHttpCloseHandle(client->connect);
     }
-    if (state->session) {
-        WinHttpCloseHandle(state->session);
+    if (client->session) {
+        WinHttpCloseHandle(client->session);
     }
-    sentry_free(state->proxy_username);
-    sentry_free(state->proxy_password);
-    sentry_free(state->proxy);
-    sentry_free(state);
+    sentry_free(client->proxy_username);
+    sentry_free(client->proxy_password);
+    sentry_free(client->proxy);
+    sentry_free(client);
 }
 
 static void
-set_proxy_credentials(winhttp_state_t *state, const char *proxy)
+set_proxy_credentials(winhttp_client_t *state, const char *proxy)
 {
     sentry_url_t url;
     sentry__url_parse(&url, proxy, false);
@@ -78,12 +78,12 @@ set_proxy_credentials(winhttp_state_t *state, const char *proxy)
 }
 
 static int
-winhttp_start_backend(const sentry_options_t *opts, void *_state)
+winhttp_start_client(const sentry_options_t *opts, void *_client)
 {
-    winhttp_state_t *state = _state;
+    winhttp_client_t *client = _client;
 
     wchar_t *user_agent = sentry__string_to_wstr(opts->user_agent);
-    state->debug = opts->debug;
+    client->debug = opts->debug;
 
     const char *env_proxy = opts->dsn
         ? getenv(opts->dsn->is_secure ? "https_proxy" : "http_proxy")
@@ -97,38 +97,38 @@ winhttp_start_backend(const sentry_options_t *opts, void *_state)
         const char *slash = strchr(ptr, '/');
         if (at_sign && (!slash || at_sign < slash)) {
             ptr = at_sign + 1;
-            set_proxy_credentials(state, proxy);
+            set_proxy_credentials(client, proxy);
         }
         if (slash) {
             char *copy = sentry__string_clone_n(ptr, (size_t)(slash - ptr));
-            state->proxy = sentry__string_to_wstr(copy);
+            client->proxy = sentry__string_to_wstr(copy);
             sentry_free(copy);
         } else {
-            state->proxy = sentry__string_to_wstr(ptr);
+            client->proxy = sentry__string_to_wstr(ptr);
         }
     }
 
-    if (state->proxy) {
-        state->session
+    if (client->proxy) {
+        client->session
             = WinHttpOpen(user_agent, WINHTTP_ACCESS_TYPE_NAMED_PROXY,
-                state->proxy, WINHTTP_NO_PROXY_BYPASS, 0);
+                client->proxy, WINHTTP_NO_PROXY_BYPASS, 0);
     } else {
 #if _WIN32_WINNT >= 0x0603
-        state->session
+        client->session
             = WinHttpOpen(user_agent, WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY,
                 WINHTTP_NO_PROXY_NAME, WINHTTP_NO_PROXY_BYPASS, 0);
 #endif
         // On windows 8.0 or lower, WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY does
         // not work on error we fallback to WINHTTP_ACCESS_TYPE_DEFAULT_PROXY
-        if (!state->session) {
-            state->session
+        if (!client->session) {
+            client->session
                 = WinHttpOpen(user_agent, WINHTTP_ACCESS_TYPE_DEFAULT_PROXY,
                     WINHTTP_NO_PROXY_NAME, WINHTTP_NO_PROXY_BYPASS, 0);
         }
     }
     sentry_free(user_agent);
 
-    if (!state->session) {
+    if (!client->session) {
         SENTRY_WARN("`WinHttpOpen` failed");
         return 1;
     }
@@ -137,33 +137,33 @@ winhttp_start_backend(const sentry_options_t *opts, void *_state)
 }
 
 static void
-winhttp_shutdown_hook(void *_state)
+winhttp_shutdown_hook(void *_client)
 {
-    winhttp_state_t *state = _state;
+    winhttp_client_t *client = _client;
     // Seems like some requests are taking too long/hanging
     // Just close them to make sure the background thread is exiting.
-    if (state->connect) {
-        WinHttpCloseHandle(state->connect);
-        state->connect = NULL;
+    if (client->connect) {
+        WinHttpCloseHandle(client->connect);
+        client->connect = NULL;
     }
 
     // NOTE: We need to close the session before closing the request.
     // This will cancel all other requests which might be queued as well.
-    if (state->session) {
-        WinHttpCloseHandle(state->session);
-        state->session = NULL;
+    if (client->session) {
+        WinHttpCloseHandle(client->session);
+        client->session = NULL;
     }
-    if (state->request) {
-        WinHttpCloseHandle(state->request);
-        state->request = NULL;
+    if (client->request) {
+        WinHttpCloseHandle(client->request);
+        client->request = NULL;
     }
 }
 
 static void
 winhttp_send_task(sentry_prepared_http_request_t *req,
-    sentry_rate_limiter_t *rl, void *_state)
+    sentry_rate_limiter_t *rl, void *_client)
 {
-    winhttp_state_t *state = (winhttp_state_t *)_state;
+    winhttp_client_t *client = (winhttp_client_t *)_client;
 
     uint64_t started = sentry__monotonic_time();
 
@@ -190,20 +190,20 @@ winhttp_send_task(sentry_prepared_http_request_t *req,
     }
 #endif
 
-    if (!state->connect) {
-        state->connect = WinHttpConnect(state->session,
+    if (!client->connect) {
+        client->connect = WinHttpConnect(client->session,
             url_components.lpszHostName, url_components.nPort, 0);
     }
-    if (!state->connect) {
+    if (!client->connect) {
         SENTRY_WARNF("`WinHttpConnect` failed with code `%d`", GetLastError());
         goto exit;
     }
 
     bool is_secure = strstr(req->url, "https") == req->url;
-    state->request = WinHttpOpenRequest(state->connect, L"POST",
+    client->request = WinHttpOpenRequest(client->connect, L"POST",
         url_components.lpszUrlPath, NULL, WINHTTP_NO_REFERER,
         WINHTTP_DEFAULT_ACCEPT_TYPES, is_secure ? WINHTTP_FLAG_SECURE : 0);
-    if (!state->request) {
+    if (!client->request) {
         SENTRY_WARNF(
             "`WinHttpOpenRequest` failed with code `%d`", GetLastError());
         goto exit;
@@ -233,22 +233,22 @@ winhttp_send_task(sentry_prepared_http_request_t *req,
         goto exit;
     }
 
-    if (state->proxy_username && state->proxy_password) {
-        WinHttpSetCredentials(state->request, WINHTTP_AUTH_TARGET_PROXY,
-            WINHTTP_AUTH_SCHEME_BASIC, state->proxy_username,
-            state->proxy_password, 0);
+    if (client->proxy_username && client->proxy_password) {
+        WinHttpSetCredentials(client->request, WINHTTP_AUTH_TARGET_PROXY,
+            WINHTTP_AUTH_SCHEME_BASIC, client->proxy_username,
+            client->proxy_password, 0);
     }
 
-    if (WinHttpSendRequest(state->request, headers, (DWORD)-1,
+    if (WinHttpSendRequest(client->request, headers, (DWORD)-1,
             (LPVOID)req->body, (DWORD)req->body_len, (DWORD)req->body_len, 0)) {
-        WinHttpReceiveResponse(state->request, NULL);
+        WinHttpReceiveResponse(client->request, NULL);
 
-        if (state->debug) {
+        if (client->debug) {
             // this is basically the example from:
             // https://docs.microsoft.com/en-us/windows/win32/api/winhttp/nf-winhttp-winhttpqueryheaders#examples
             DWORD dwSize = 0;
             LPVOID lpOutBuffer = NULL;
-            WinHttpQueryHeaders(state->request, WINHTTP_QUERY_RAW_HEADERS_CRLF,
+            WinHttpQueryHeaders(client->request, WINHTTP_QUERY_RAW_HEADERS_CRLF,
                 WINHTTP_HEADER_NAME_BY_INDEX, NULL, &dwSize,
                 WINHTTP_NO_HEADER_INDEX);
 
@@ -258,7 +258,7 @@ winhttp_send_task(sentry_prepared_http_request_t *req,
 
                 // Now, use WinHttpQueryHeaders to retrieve the header.
                 if (lpOutBuffer
-                    && WinHttpQueryHeaders(state->request,
+                    && WinHttpQueryHeaders(client->request,
                         WINHTTP_QUERY_RAW_HEADERS_CRLF,
                         WINHTTP_HEADER_NAME_BY_INDEX, lpOutBuffer, &dwSize,
                         WINHTTP_NO_HEADER_INDEX)) {
@@ -276,7 +276,7 @@ winhttp_send_task(sentry_prepared_http_request_t *req,
         DWORD status_code = 0;
         DWORD status_code_size = sizeof(status_code);
 
-        if (WinHttpQueryHeaders(state->request, WINHTTP_QUERY_CUSTOM,
+        if (WinHttpQueryHeaders(client->request, WINHTTP_QUERY_CUSTOM,
                 L"x-sentry-rate-limits", buf, &buf_size,
                 WINHTTP_NO_HEADER_INDEX)) {
             char *h = sentry__string_from_wstr(buf);
@@ -284,7 +284,7 @@ winhttp_send_task(sentry_prepared_http_request_t *req,
                 sentry__rate_limiter_update_from_header(rl, h);
                 sentry_free(h);
             }
-        } else if (WinHttpQueryHeaders(state->request, WINHTTP_QUERY_CUSTOM,
+        } else if (WinHttpQueryHeaders(client->request, WINHTTP_QUERY_CUSTOM,
                        L"retry-after", buf, &buf_size,
                        WINHTTP_NO_HEADER_INDEX)) {
             char *h = sentry__string_from_wstr(buf);
@@ -292,7 +292,7 @@ winhttp_send_task(sentry_prepared_http_request_t *req,
                 sentry__rate_limiter_update_from_http_retry_after(rl, h);
                 sentry_free(h);
             }
-        } else if (WinHttpQueryHeaders(state->request,
+        } else if (WinHttpQueryHeaders(client->request,
                        WINHTTP_QUERY_STATUS_CODE | WINHTTP_QUERY_FLAG_NUMBER,
                        WINHTTP_HEADER_NAME_BY_INDEX, &status_code,
                        &status_code_size, WINHTTP_NO_HEADER_INDEX)
@@ -308,9 +308,9 @@ winhttp_send_task(sentry_prepared_http_request_t *req,
     SENTRY_DEBUGF("request handled in %llums", now - started);
 
 exit:
-    if (state->request) {
-        HINTERNET request = state->request;
-        state->request = NULL;
+    if (client->request) {
+        HINTERNET request = client->request;
+        client->request = NULL;
         WinHttpCloseHandle(request);
     }
     sentry_free(url);
@@ -321,11 +321,11 @@ sentry_transport_t *
 sentry__transport_new_default(void)
 {
     SENTRY_INFO("initializing winhttp transport");
-    winhttp_state_t *state = winhttp_state_new();
-    if (!state) {
+    winhttp_client_t *client = winhttp_client_new();
+    if (!client) {
         return NULL;
     }
 
-    return sentry__http_transport_new(state, winhttp_state_free,
-        winhttp_start_backend, winhttp_send_task, winhttp_shutdown_hook);
+    return sentry__http_transport_new(client, winhttp_client_free,
+        winhttp_start_client, winhttp_send_task, winhttp_shutdown_hook);
 }

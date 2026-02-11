@@ -12,19 +12,19 @@ typedef struct {
     sentry_dsn_t *dsn;
     char *user_agent;
     sentry_rate_limiter_t *ratelimiter;
-    void *backend_state;
-    void (*free_backend_state)(void *);
-    int (*start_backend)(const sentry_options_t *, void *);
+    void *client;
+    void (*free_client)(void *);
+    int (*start_client)(const sentry_options_t *, void *);
     sentry_http_send_func_t send_func;
-    void (*shutdown_hook)(void *backend_state);
+    void (*shutdown_hook)(void *client);
 } http_transport_state_t;
 
 static void
 http_transport_state_free(void *_state)
 {
     http_transport_state_t *state = _state;
-    if (state->free_backend_state) {
-        state->free_backend_state(state->backend_state);
+    if (state->free_client) {
+        state->free_client(state->client);
     }
     sentry__dsn_decref(state->dsn);
     sentry_free(state->user_agent);
@@ -44,7 +44,7 @@ http_send_task(void *_envelope, void *_state)
         return;
     }
 
-    state->send_func(req, state->ratelimiter, state->backend_state);
+    state->send_func(req, state->ratelimiter, state->client);
     sentry__prepared_http_request_free(req);
 }
 
@@ -59,8 +59,8 @@ http_transport_start(const sentry_options_t *options, void *transport_state)
     state->dsn = sentry__dsn_incref(options->dsn);
     state->user_agent = sentry__string_clone(options->user_agent);
 
-    if (state->start_backend) {
-        int rv = state->start_backend(options, state->backend_state);
+    if (state->start_client) {
+        int rv = state->start_client(options, state->client);
         if (rv != 0) {
             return rv;
         }
@@ -84,7 +84,7 @@ http_transport_shutdown(uint64_t timeout, void *transport_state)
 
     int rv = sentry__bgworker_shutdown(bgworker, timeout);
     if (rv != 0 && state->shutdown_hook) {
-        state->shutdown_hook(state->backend_state);
+        state->shutdown_hook(state->client);
     }
     return rv;
 }
@@ -114,11 +114,9 @@ http_dump_queue(sentry_run_t *run, void *transport_state)
 }
 
 sentry_transport_t *
-sentry__http_transport_new(void *backend_state,
-    void (*free_backend_state)(void *),
-    int (*start_backend)(const sentry_options_t *, void *),
-    sentry_http_send_func_t send_func,
-    void (*shutdown_hook)(void *backend_state))
+sentry__http_transport_new(void *client, void (*free_client)(void *),
+    int (*start_client)(const sentry_options_t *, void *),
+    sentry_http_send_func_t send_func, void (*shutdown_hook)(void *client))
 {
     http_transport_state_t *state = SENTRY_MAKE(http_transport_state_t);
     if (!state) {
@@ -126,9 +124,9 @@ sentry__http_transport_new(void *backend_state,
     }
     memset(state, 0, sizeof(http_transport_state_t));
     state->ratelimiter = sentry__rate_limiter_new();
-    state->backend_state = backend_state;
-    state->free_backend_state = free_backend_state;
-    state->start_backend = start_backend;
+    state->client = client;
+    state->free_client = free_client;
+    state->start_client = start_client;
     state->send_func = send_func;
     state->shutdown_hook = shutdown_hook;
 

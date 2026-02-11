@@ -24,48 +24,48 @@ typedef struct {
 #ifdef SENTRY_PLATFORM_NX
     void *nx_state;
 #endif
-} curl_state_t;
+} curl_client_t;
 
 struct header_info {
     char *x_sentry_rate_limits;
     char *retry_after;
 };
 
-static curl_state_t *
-curl_state_new(void)
+static curl_client_t *
+curl_client_new(void)
 {
-    curl_state_t *state = SENTRY_MAKE(curl_state_t);
-    if (!state) {
+    curl_client_t *client = SENTRY_MAKE(curl_client_t);
+    if (!client) {
         return NULL;
     }
-    memset(state, 0, sizeof(curl_state_t));
+    memset(client, 0, sizeof(curl_client_t));
 
 #ifdef SENTRY_PLATFORM_NX
-    state->nx_state = sentry_nx_curl_state_new();
+    client->nx_state = sentry_nx_curl_state_new();
 #endif
-    return state;
+    return client;
 }
 
 static void
-curl_state_free(void *_state)
+curl_client_free(void *_client)
 {
-    curl_state_t *state = _state;
-    if (state->curl_handle) {
-        curl_easy_cleanup(state->curl_handle);
+    curl_client_t *client = _client;
+    if (client->curl_handle) {
+        curl_easy_cleanup(client->curl_handle);
         curl_global_cleanup();
     }
-    sentry_free(state->ca_certs);
-    sentry_free(state->proxy);
+    sentry_free(client->ca_certs);
+    sentry_free(client->proxy);
 #ifdef SENTRY_PLATFORM_NX
-    sentry_nx_curl_state_free(state->nx_state);
+    sentry_nx_curl_state_free(client->nx_state);
 #endif
-    sentry_free(state);
+    sentry_free(client);
 }
 
 static int
-curl_start_backend(const sentry_options_t *options, void *_state)
+curl_start_client(const sentry_options_t *options, void *_client)
 {
-    curl_state_t *state = _state;
+    curl_client_t *client = _client;
 
     static bool curl_initialized = false;
     if (!curl_initialized) {
@@ -102,18 +102,18 @@ curl_start_backend(const sentry_options_t *options, void *_state)
         }
     }
 
-    state->proxy = sentry__string_clone(options->proxy);
-    state->ca_certs = sentry__string_clone(options->ca_certs);
-    state->curl_handle = curl_easy_init();
-    state->debug = options->debug;
+    client->proxy = sentry__string_clone(options->proxy);
+    client->ca_certs = sentry__string_clone(options->ca_certs);
+    client->curl_handle = curl_easy_init();
+    client->debug = options->debug;
 
-    if (!state->curl_handle) {
+    if (!client->curl_handle) {
         SENTRY_WARN("`curl_easy_init` failed");
         return 1;
     }
 
 #ifdef SENTRY_PLATFORM_NX
-    if (!sentry_nx_transport_start(state->nx_state, options)) {
+    if (!sentry_nx_transport_start(client->nx_state, options)) {
         return 1;
     }
 #endif
@@ -155,12 +155,12 @@ header_callback(char *buffer, size_t size, size_t nitems, void *userdata)
 
 static void
 curl_send_task(sentry_prepared_http_request_t *req, sentry_rate_limiter_t *rl,
-    void *_state)
+    void *_client)
 {
-    curl_state_t *state = (curl_state_t *)_state;
+    curl_client_t *client = (curl_client_t *)_client;
 
 #ifdef SENTRY_PLATFORM_NX
-    if (!sentry_nx_curl_connect(state->nx_state)) {
+    if (!sentry_nx_curl_connect(client->nx_state)) {
         return;
     }
 #endif
@@ -178,9 +178,9 @@ curl_send_task(sentry_prepared_http_request_t *req, sentry_rate_limiter_t *rl,
         headers = curl_slist_append(headers, buf);
     }
 
-    CURL *curl = state->curl_handle;
+    CURL *curl = client->curl_handle;
     curl_easy_reset(curl);
-    if (state->debug) {
+    if (client->debug) {
         curl_easy_setopt(curl, CURLOPT_VERBOSE, 1);
         curl_easy_setopt(curl, CURLOPT_WRITEDATA, stderr);
     } else {
@@ -203,15 +203,15 @@ curl_send_task(sentry_prepared_http_request_t *req, sentry_rate_limiter_t *rl,
     curl_easy_setopt(curl, CURLOPT_HEADERDATA, (void *)&info);
     curl_easy_setopt(curl, CURLOPT_HEADERFUNCTION, header_callback);
 
-    if (state->proxy) {
-        curl_easy_setopt(curl, CURLOPT_PROXY, state->proxy);
+    if (client->proxy) {
+        curl_easy_setopt(curl, CURLOPT_PROXY, client->proxy);
     }
-    if (state->ca_certs) {
-        curl_easy_setopt(curl, CURLOPT_CAINFO, state->ca_certs);
+    if (client->ca_certs) {
+        curl_easy_setopt(curl, CURLOPT_CAINFO, client->ca_certs);
     }
 
 #ifdef SENTRY_PLATFORM_NX
-    CURLcode rv = sentry_nx_curl_easy_setopt(state->nx_state, curl, req);
+    CURLcode rv = sentry_nx_curl_easy_setopt(client->nx_state, curl, req);
 #else
     CURLcode rv = CURLE_OK;
 #endif
@@ -256,11 +256,11 @@ sentry_transport_t *
 sentry__transport_new_default(void)
 {
     SENTRY_INFO("initializing curl transport");
-    curl_state_t *state = curl_state_new();
-    if (!state) {
+    curl_client_t *client = curl_client_new();
+    if (!client) {
         return NULL;
     }
 
     return sentry__http_transport_new(
-        state, curl_state_free, curl_start_backend, curl_send_task, NULL);
+        client, curl_client_free, curl_start_client, curl_send_task, NULL);
 }
