@@ -158,14 +158,11 @@ sentry_transport_free(sentry_transport_t *transport)
     sentry_free(transport);
 }
 
-#ifdef SENTRY_UNITTEST
 void *
-sentry__transport_get_bgworker(sentry_transport_t *transport)
+sentry__transport_get_state(sentry_transport_t *transport)
 {
-    // For HTTP transports (curl/winhttp), the transport state is the bgworker
     return transport ? transport->state : NULL;
 }
-#endif
 
 #ifdef SENTRY_TRANSPORT_COMPRESSION
 static bool

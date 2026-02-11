@@ -23,4 +23,8 @@ sentry_transport_t *sentry__http_transport_new(void *client,
     int (*start_client)(const sentry_options_t *, void *),
     sentry_http_send_func_t send_func, void (*shutdown_hook)(void *client));
 
+#ifdef SENTRY_UNITTEST
+void *sentry__http_transport_get_bgworker(sentry_transport_t *transport);
+#endif
+
 #endif

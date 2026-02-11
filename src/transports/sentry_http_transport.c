@@ -154,3 +154,11 @@ sentry__http_transport_new(void *client, void (*free_client)(void *),
 
     return transport;
 }
+
+#ifdef SENTRY_UNITTEST
+void *
+sentry__http_transport_get_bgworker(sentry_transport_t *transport)
+{
+    return sentry__transport_get_state(transport);
+}
+#endif
