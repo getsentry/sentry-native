@@ -327,11 +327,15 @@ def test_inproc_handler_thread_crash(cmake):
 
 def test_inproc_handler_abort_crash(cmake):
     """
-    Test fallback when handler thread crashes via abort().
+    Test behavior when handler thread crashes via abort().
 
-    abort() has special behavior - it resets the signal mask before raising
-    SIGABRT. This tests that the recursive crash detection works even when
-    the signal mask is reset.
+    When abort() is called from the on_crash callback (running on the handler
+    thread), we intentionally do NOT attempt to capture the SIGABRT. This is
+    because abort() holds stdio/libc internal locks that our crash capture
+    code needs, which can lead to deadlocks or recursive aborts.
+
+    The original crash processing is interrupted, so no envelope is written.
+    The crash marker should exist (written before on_crash is called).
     """
     tmp_path = cmake(
         ["sentry"],
@@ -356,15 +360,22 @@ def test_inproc_handler_abort_crash(cmake):
             "FATAL crash in handler thread" in stderr
         ), f"Handler thread crash not detected. stderr:\n{stderr}"
 
+        # We intentionally do NOT capture SIGABRT from abort() on handler thread
+        # to avoid deadlocks. The original crash processing was interrupted.
         assert (
-            "crash has been captured" in stderr
-        ), f"Crash not captured via fallback. stderr:\n{stderr}"
+            "crash has been captured" not in stderr
+        ), f"Should not have attempted to capture abort(). stderr:\n{stderr}"
 
+        # Crash marker should exist (written before on_crash callback)
         assert_crash_marker(database_path)
-        envelope_path = assert_single_crash_envelope(database_path)
-        with open(envelope_path, "rb") as f:
-            envelope = Envelope.deserialize(f.read())
-        assert_inproc_crash(envelope)
+
+        # No envelope expected - processing was interrupted by abort()
+        run_dirs = list(database_path.glob("*.run"))
+        if run_dirs:
+            envelopes = list(run_dirs[0].glob("*.envelope"))
+            assert (
+                len(envelopes) == 0
+            ), f"Should not have envelope after abort(), found: {envelopes}"
 
     finally:
         shutil.rmtree(database_path, ignore_errors=True)

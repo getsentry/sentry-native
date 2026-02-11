@@ -1255,6 +1255,14 @@ dispatch_ucontext(const sentry_ucontext_t *uctx,
     // hook again, but still try to capture the crash
     bool skip_hooks = handler_depth >= 2;
 
+    // If SIGABRT occurs during recursive signal handling (depth >= 2), don't
+    // attempt to capture it. abort() holds stdio/libc internal locks that our
+    // crash capture code may need, which can lead to deadlocks or recursive
+    // aborts.
+    if (sig_slot && sig_slot->signum == SIGABRT && handler_depth >= 2) {
+        return;
+    }
+
 #ifdef SENTRY_WITH_UNWINDER_LIBBACKTRACE
     // For targets that still use `backtrace()` as the sole unwinder we must
     // run the signal-unsafe part in the signal handler like we did before.
@@ -1264,10 +1272,16 @@ dispatch_ucontext(const sentry_ucontext_t *uctx,
     return;
 #else
     if (has_handler_thread_crashed()) {
+        // If SIGABRT occurs on the handler thread, don't attempt to capture it.
+        // abort() holds stdio/libc internal locks that our crash capture code
+        // may need (snprintf for addresses, malloc, etc.), which can lead to
+        // deadlocks or recursive aborts.
+        if (sig_slot && sig_slot->signum == SIGABRT) {
+            return;
+        }
+
         // Disable stdio-based logging since we're now in signal handler context
-        // where stdio functions are not safe. This is critical for abort()
-        // which may hold stdio locks when raising SIGABRT - using fprintf would
-        // deadlock.
+        // where stdio functions are not safe.
         sentry__logger_disable();
 
         // directly execute unsafe part in signal handler as a last chance to
