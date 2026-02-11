@@ -1450,7 +1450,13 @@ process_ucontext(const sentry_ucontext_t *uctx)
 {
 #ifdef SENTRY_PLATFORM_LINUX
     if (g_backend_config.handler_strategy
-        == SENTRY_HANDLER_STRATEGY_CHAIN_AT_START) {
+            == SENTRY_HANDLER_STRATEGY_CHAIN_AT_START
+        && uctx->signum != SIGABRT) {
+        // SIGABRT is excluded: CLR/Mono never uses it for managed exception
+        // translation. Chaining SIGABRT to a SIG_DFL previous handler calls
+        // raise(SIGABRT), and with SA_NODEFER our handler re-enters
+        // immediately causing an infinite loop.
+        //
         // On Linux (and thus Android) CLR/Mono converts signals provoked by
         // AOT/JIT-generated native code into managed code exceptions. In these
         // cases, we shouldn't react to the signal at all and let their handler
