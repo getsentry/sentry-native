@@ -107,6 +107,12 @@ sentry_envelope_item_t *sentry__envelope_add_from_buffer(
     const char *type);
 
 /**
+ * This sets an explicit header for the given envelope.
+ */
+void sentry__envelope_set_header(
+    sentry_envelope_t *envelope, const char *key, sentry_value_t value);
+
+/**
  * This sets an explicit header for the given envelope item.
  */
 void sentry__envelope_item_set_header(
