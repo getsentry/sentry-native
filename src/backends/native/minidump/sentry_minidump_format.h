@@ -253,6 +253,21 @@ typedef struct {
 PACKED_STRUCT_END
 
 #elif defined(__i386__)
+// x87 FPU state (matches Windows FLOATING_SAVE_AREA)
+PACKED_STRUCT_BEGIN
+typedef struct {
+    uint32_t control_word;
+    uint32_t status_word;
+    uint32_t tag_word;
+    uint32_t error_offset;
+    uint32_t error_selector;
+    uint32_t data_offset;
+    uint32_t data_selector;
+    uint8_t register_area[80]; // ST0-ST7 FPU registers
+    uint32_t cr0_npx_state;
+} PACKED_ATTR floating_save_area_x86_t;
+PACKED_STRUCT_END
+
 PACKED_STRUCT_BEGIN
 typedef struct {
     uint32_t context_flags;
@@ -262,6 +277,7 @@ typedef struct {
     uint32_t dr3;
     uint32_t dr6;
     uint32_t dr7;
+    floating_save_area_x86_t float_save; // 108 bytes (112 with padding)
     uint32_t gs;
     uint32_t fs;
     uint32_t es;
@@ -278,6 +294,7 @@ typedef struct {
     uint32_t eflags;
     uint32_t esp;
     uint32_t ss;
+    uint8_t extended_registers[512]; // XMM/SSE state
 } PACKED_ATTR minidump_context_x86_t;
 PACKED_STRUCT_END
 
