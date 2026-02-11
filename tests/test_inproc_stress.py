@@ -97,7 +97,8 @@ def run_stress_test(tmp_path, test_executable, test_name, database_path=None):
         env=env,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
-        text=True,
+        encoding="utf-8",
+        errors="replace",
     )
 
     stdout, stderr = proc.communicate(timeout=30)
