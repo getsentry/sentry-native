@@ -165,6 +165,7 @@ winhttp_send_task(void *_client, sentry_prepared_http_request_t *req,
     sentry_http_response_t *resp)
 {
     winhttp_client_t *client = (winhttp_client_t *)_client;
+    resp->status_code = -1;
 
     uint64_t started = sentry__monotonic_time();
 
@@ -293,6 +294,7 @@ winhttp_send_task(void *_client, sentry_prepared_http_request_t *req,
     } else {
         SENTRY_WARNF(
             "`WinHttpSendRequest` failed with code `%d`", GetLastError());
+        resp->status_code = -1;
     }
 
     uint64_t now = sentry__monotonic_time();
