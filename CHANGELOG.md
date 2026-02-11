@@ -6,6 +6,10 @@
 
 - Add new offline caching options to persist envelopes locally, currently supported with the `inproc` and `breakpad` backends: `sentry_options_set_cache_keep`, `sentry_options_set_cache_max_items`, `sentry_options_set_cache_max_size`, and `sentry_options_set_cache_max_age`. ([#1490](https://github.com/getsentry/sentry-native/pull/1490))
 
+**Fixes**:
+
+- Remove spurious decref in `sentry_capture_user_feedback()` ([#1510](https://github.com/getsentry/sentry-native/pull/1510))
+
 ## 0.12.6
 
 **Features**:
