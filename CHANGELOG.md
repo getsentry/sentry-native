@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+**Features**:
+
+- Add new `native` crash handling backend as an alternative to `crashpad`, `breakpad`, and `inproc`. This backend uses an out-of-process daemon that monitors the application for crashes, generates minidumps, and sends crash reports to Sentry. It supports Linux, macOS, and Windows, and is fully compatible with TSAN and ASAN sanitizers. ([#1433](https://github.com/getsentry/sentry-native/pull/1433))
+
 **Fixes**:
 
 - Remove spurious decref in `sentry_capture_user_feedback()` ([#1510](https://github.com/getsentry/sentry-native/pull/1510))
@@ -11,7 +15,6 @@
 **Features**:
 
 - Add support for metrics. It is currently experimental, and one can enable it by setting `sentry_options_set_enable_metrics`. When enabled, you can record a metric using `sentry_metrics_count()`, `sentry_metrics_gauge()`, or `sentry_metrics_distribution()`. Metrics can be filtered by setting the `before_send_metric` hook. ([#1498](https://github.com/getsentry/sentry-native/pull/1498))
-- Add new `native` crash handling backend as an alternative to `crashpad`, `breakpad`, and `inproc`. This backend uses an out-of-process daemon that monitors the application for crashes, generates minidumps, and sends crash reports to Sentry. It supports Linux, macOS, and Windows, and is fully compatible with TSAN and ASAN sanitizers. ([#1433](https://github.com/getsentry/sentry-native/pull/1433))
 
 ## 0.12.5
 
