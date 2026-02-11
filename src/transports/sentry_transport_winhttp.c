@@ -1,11 +1,10 @@
 #include "sentry_alloc.h"
 #include "sentry_core.h"
-#include "sentry_database.h"
 #include "sentry_envelope.h"
+#include "sentry_http_transport.h"
 #include "sentry_options.h"
 #include "sentry_ratelimiter.h"
 #include "sentry_string.h"
-#include "sentry_sync.h"
 #include "sentry_transport.h"
 #include "sentry_utils.h"
 
@@ -28,16 +27,16 @@ typedef struct {
     HINTERNET connect;
     HINTERNET request;
     bool debug;
-} winhttp_bgworker_state_t;
+} winhttp_state_t;
 
-static winhttp_bgworker_state_t *
-sentry__winhttp_bgworker_state_new(void)
+static winhttp_state_t *
+winhttp_state_new(void)
 {
-    winhttp_bgworker_state_t *state = SENTRY_MAKE(winhttp_bgworker_state_t);
+    winhttp_state_t *state = SENTRY_MAKE(winhttp_state_t);
     if (!state) {
         return NULL;
     }
-    memset(state, 0, sizeof(winhttp_bgworker_state_t));
+    memset(state, 0, sizeof(winhttp_state_t));
 
     state->ratelimiter = sentry__rate_limiter_new();
 
@@ -45,9 +44,9 @@ sentry__winhttp_bgworker_state_new(void)
 }
 
 static void
-sentry__winhttp_bgworker_state_free(void *_state)
+winhttp_state_free(void *_state)
 {
-    winhttp_bgworker_state_t *state = _state;
+    winhttp_state_t *state = _state;
     if (state->connect) {
         WinHttpCloseHandle(state->connect);
     }
@@ -63,14 +62,12 @@ sentry__winhttp_bgworker_state_free(void *_state)
     sentry_free(state);
 }
 
-// Function to extract and set credentials
 static void
-set_proxy_credentials(winhttp_bgworker_state_t *state, const char *proxy)
+set_proxy_credentials(winhttp_state_t *state, const char *proxy)
 {
     sentry_url_t url;
     sentry__url_parse(&url, proxy, false);
     if (url.username && url.password) {
-        // Convert user and pass to LPCWSTR
         int user_wlen
             = MultiByteToWideChar(CP_UTF8, 0, url.username, -1, NULL, 0);
         int pass_wlen
@@ -89,17 +86,13 @@ set_proxy_credentials(winhttp_bgworker_state_t *state, const char *proxy)
 }
 
 static int
-sentry__winhttp_transport_start(
-    const sentry_options_t *opts, void *transport_state)
+winhttp_start_backend(const sentry_options_t *opts, void *_state)
 {
-    sentry_bgworker_t *bgworker = (sentry_bgworker_t *)transport_state;
-    winhttp_bgworker_state_t *state = sentry__bgworker_get_state(bgworker);
+    winhttp_state_t *state = _state;
 
     state->dsn = sentry__dsn_incref(opts->dsn);
     state->user_agent = sentry__string_to_wstr(opts->user_agent);
     state->debug = opts->debug;
-
-    sentry__bgworker_setname(bgworker, opts->transport_thread_name);
 
     const char *env_proxy = opts->dsn
         ? getenv(opts->dsn->is_secure ? "https_proxy" : "http_proxy")
@@ -147,51 +140,37 @@ sentry__winhttp_transport_start(
         return 1;
     }
 
-    return sentry__bgworker_start(bgworker);
-}
-
-static int
-sentry__winhttp_transport_flush(uint64_t timeout, void *transport_state)
-{
-    sentry_bgworker_t *bgworker = (sentry_bgworker_t *)transport_state;
-    return sentry__bgworker_flush(bgworker, timeout);
-}
-
-static int
-sentry__winhttp_transport_shutdown(uint64_t timeout, void *transport_state)
-{
-    sentry_bgworker_t *bgworker = (sentry_bgworker_t *)transport_state;
-    winhttp_bgworker_state_t *state = sentry__bgworker_get_state(bgworker);
-
-    int rv = sentry__bgworker_shutdown(bgworker, timeout);
-    if (rv != 0) {
-        // Seems like some requests are taking too long/hanging
-        // Just close them to make sure the background thread is exiting.
-        if (state->connect) {
-            WinHttpCloseHandle(state->connect);
-            state->connect = NULL;
-        }
-
-        // NOTE: We need to close the session before closing the request.
-        // This will cancel all other requests which might be queued as well.
-        if (state->session) {
-            WinHttpCloseHandle(state->session);
-            state->session = NULL;
-        }
-        if (state->request) {
-            WinHttpCloseHandle(state->request);
-            state->request = NULL;
-        }
-    }
-
-    return rv;
+    return 0;
 }
 
 static void
-sentry__winhttp_send_task(void *_envelope, void *_state)
+winhttp_shutdown_hook(void *_state)
+{
+    winhttp_state_t *state = _state;
+    // Seems like some requests are taking too long/hanging
+    // Just close them to make sure the background thread is exiting.
+    if (state->connect) {
+        WinHttpCloseHandle(state->connect);
+        state->connect = NULL;
+    }
+
+    // NOTE: We need to close the session before closing the request.
+    // This will cancel all other requests which might be queued as well.
+    if (state->session) {
+        WinHttpCloseHandle(state->session);
+        state->session = NULL;
+    }
+    if (state->request) {
+        WinHttpCloseHandle(state->request);
+        state->request = NULL;
+    }
+}
+
+static void
+winhttp_send_task(void *_envelope, void *_state)
 {
     sentry_envelope_t *envelope = (sentry_envelope_t *)_envelope;
-    winhttp_bgworker_state_t *state = (winhttp_bgworker_state_t *)_state;
+    winhttp_state_t *state = (winhttp_state_t *)_state;
 
     uint64_t started = sentry__monotonic_time();
 
@@ -265,7 +244,7 @@ sentry__winhttp_send_task(void *_envelope, void *_state)
     sentry_free(headers_buf);
 
     if (!headers) {
-        SENTRY_WARN("sentry__winhttp_send_task: failed to allocate headers");
+        SENTRY_WARN("winhttp_send_task: failed to allocate headers");
         goto exit;
     }
 
@@ -305,7 +284,7 @@ sentry__winhttp_send_task(void *_envelope, void *_state)
             }
         }
 
-        // lets just assume we won’t have headers > 2k
+        // lets just assume we won't have headers > 2k
         wchar_t buf[2048];
         DWORD buf_size = sizeof(buf);
 
@@ -356,61 +335,15 @@ exit:
     sentry__prepared_http_request_free(req);
 }
 
-static void
-sentry__winhttp_transport_send_envelope(
-    sentry_envelope_t *envelope, void *transport_state)
-{
-    sentry_bgworker_t *bgworker = (sentry_bgworker_t *)transport_state;
-    sentry__bgworker_submit(bgworker, sentry__winhttp_send_task,
-        (void (*)(void *))sentry_envelope_free, envelope);
-}
-
-static bool
-sentry__winhttp_dump_task(void *envelope, void *run)
-{
-    sentry__run_write_envelope(
-        (sentry_run_t *)run, (sentry_envelope_t *)envelope);
-    return true;
-}
-
-static size_t
-sentry__winhttp_dump_queue(sentry_run_t *run, void *transport_state)
-{
-    sentry_bgworker_t *bgworker = (sentry_bgworker_t *)transport_state;
-    return sentry__bgworker_foreach_matching(
-        bgworker, sentry__winhttp_send_task, sentry__winhttp_dump_task, run);
-}
-
 sentry_transport_t *
 sentry__transport_new_default(void)
 {
     SENTRY_INFO("initializing winhttp transport");
-    winhttp_bgworker_state_t *state = sentry__winhttp_bgworker_state_new();
+    winhttp_state_t *state = winhttp_state_new();
     if (!state) {
         return NULL;
     }
 
-    sentry_bgworker_t *bgworker
-        = sentry__bgworker_new(state, sentry__winhttp_bgworker_state_free);
-    if (!bgworker) {
-        return NULL;
-    }
-
-    sentry_transport_t *transport
-        = sentry_transport_new(sentry__winhttp_transport_send_envelope);
-    if (!transport) {
-        sentry__bgworker_decref(bgworker);
-        return NULL;
-    }
-    sentry_transport_set_state(transport, bgworker);
-    sentry_transport_set_free_func(
-        transport, (void (*)(void *))sentry__bgworker_decref);
-    sentry_transport_set_startup_func(
-        transport, sentry__winhttp_transport_start);
-    sentry_transport_set_flush_func(transport, sentry__winhttp_transport_flush);
-    sentry_transport_set_shutdown_func(
-        transport, sentry__winhttp_transport_shutdown);
-    sentry__transport_set_dump_func(transport, sentry__winhttp_dump_queue);
-
-    return transport;
+    return sentry__http_transport_new(state, winhttp_state_free,
+        winhttp_start_backend, winhttp_send_task, winhttp_shutdown_hook);
 }

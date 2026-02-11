@@ -117,6 +117,12 @@ elseif(AIX)
 endif()
 
 # transport
+if(SENTRY_TRANSPORT_CURL OR SENTRY_TRANSPORT_WINHTTP)
+	sentry_target_sources_cwd(sentry
+		transports/sentry_http_transport.c
+		transports/sentry_http_transport.h
+	)
+endif()
 if(SENTRY_TRANSPORT_CURL)
 	sentry_target_sources_cwd(sentry
 		transports/sentry_transport_curl.c
