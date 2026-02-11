@@ -152,25 +152,24 @@ remove_retry_file(
     sentry__pathiter_free(iter);
 }
 
-// Returns 0 if not written, or the backoff delay in ms until next retry.
-static uint64_t
+static bool
 retry_write_envelope(
     const sentry_retry_t *retry, const sentry_envelope_t *envelope)
 {
     if (!retry || !envelope) {
-        return 0;
+        return false;
     }
 
     const sentry_path_t *retry_path = retry->run->retry_path;
 
     if (sentry__path_create_dir_all(retry_path) != 0) {
         SENTRY_ERRORF("mkdir failed: \"%s\"", retry_path->path);
-        return 0;
+        return false;
     }
 
     sentry_uuid_t event_id = sentry__envelope_get_event_id(envelope);
     if (sentry_uuid_is_nil(&event_id)) {
-        return 0;
+        return false;
     }
 
     int current_retry = -1;
@@ -200,7 +199,7 @@ retry_write_envelope(
             SENTRY_WARNF(
                 "max retries (%d) reached, discarding", retry->max_retries);
         }
-        return 0;
+        return false;
     }
 
     bool ok;
@@ -210,7 +209,7 @@ retry_write_envelope(
     } else {
         char *filename = make_retry_filename(&event_id, next_retry);
         if (!filename) {
-            return 0;
+            return false;
         }
 
         sentry_path_t *output_path
@@ -218,22 +217,19 @@ retry_write_envelope(
         sentry_free(filename);
 
         if (!output_path) {
-            return 0;
+            return false;
         }
 
         int rv = sentry_envelope_write_to_path(envelope, output_path);
         sentry__path_free(output_path);
         if (rv) {
             SENTRY_WARN("writing envelope to retry file failed");
-            return 0;
+            return false;
         }
         ok = true;
     }
 
-    if (!ok) {
-        return 0;
-    }
-    return (uint64_t)SENTRY_RETRY_INTERVAL << MIN(next_retry, 3);
+    return ok;
 }
 
 static void
@@ -265,7 +261,14 @@ retry_cache_envelope(const sentry_path_t *retry_path, const sentry_run_t *run,
     sentry__pathiter_free(iter);
 }
 
-static void retry_rescan_exec(void *_retry, void *bgworker_state);
+static void retry_loop_exec(void *_retry, void *bgworker_state);
+
+static void
+retry_start_loop(sentry_retry_t *retry)
+{
+    sentry__transport_schedule_retry(
+        retry->transport, retry_loop_exec, NULL, retry, SENTRY_RETRY_INTERVAL);
+}
 
 void
 sentry__retry_process_result(sentry_retry_t *retry,
@@ -276,10 +279,8 @@ sentry__retry_process_result(sentry_retry_t *retry,
     }
 
     if (result == SENTRY_SEND_NETWORK_ERROR) {
-        uint64_t delay = retry_write_envelope(retry, envelope);
-        if (delay > 0) {
-            sentry__transport_schedule_retry(
-                retry->transport, retry_rescan_exec, NULL, retry, delay);
+        if (retry_write_envelope(retry, envelope)) {
+            retry_start_loop(retry);
         }
         return;
     }
@@ -383,7 +384,7 @@ retry_process_envelopes(sentry_retry_t *retry, bool check_backoff)
 
     const sentry_path_t *retry_path = retry->run->retry_path;
     time_t now = time(NULL);
-    time_t earliest_pending = 0;
+    bool has_pending = false;
 
     size_t count = 0;
     size_t capacity = 8;
@@ -401,9 +402,7 @@ retry_process_envelopes(sentry_retry_t *retry, bool check_backoff)
         if (check_backoff) {
             time_t ready_at = next_retry_time(file);
             if (ready_at > now) {
-                if (earliest_pending == 0 || ready_at < earliest_pending) {
-                    earliest_pending = ready_at;
-                }
+                has_pending = true;
                 continue;
             }
         }
@@ -453,15 +452,13 @@ retry_process_envelopes(sentry_retry_t *retry, bool check_backoff)
         }
     }
 
-    if (earliest_pending > 0) {
-        uint64_t delay_ms = (uint64_t)(earliest_pending - now) * 1000;
-        sentry__transport_schedule_retry(
-            retry->transport, retry_rescan_exec, NULL, retry, delay_ms);
+    if (has_pending) {
+        retry_start_loop(retry);
     }
 }
 
 static void
-retry_rescan_exec(void *_retry, void *bgworker_state)
+retry_loop_exec(void *_retry, void *bgworker_state)
 {
     (void)bgworker_state;
     retry_process_envelopes(_retry, true);
