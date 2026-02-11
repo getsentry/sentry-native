@@ -63,7 +63,7 @@ curl_client_free(void *_client)
 }
 
 static int
-curl_start_client(const sentry_options_t *options, void *_client)
+curl_client_start(const sentry_options_t *options, void *_client)
 {
     curl_client_t *client = _client;
 
@@ -267,6 +267,6 @@ sentry__transport_new_default(void)
     sentry_transport_t *transport
         = sentry__http_transport_new(client, curl_send_task);
     sentry__http_transport_set_free_client(transport, curl_client_free);
-    sentry__http_transport_set_start_client(transport, curl_start_client);
+    sentry__http_transport_set_start_client(transport, curl_client_start);
     return transport;
 }

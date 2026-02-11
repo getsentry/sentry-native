@@ -125,11 +125,11 @@ if(SENTRY_TRANSPORT_CURL OR SENTRY_TRANSPORT_WINHTTP)
 endif()
 if(SENTRY_TRANSPORT_CURL)
 	sentry_target_sources_cwd(sentry
-		transports/sentry_transport_curl.c
+		transports/sentry_http_transport_curl.c
 	)
 elseif(SENTRY_TRANSPORT_WINHTTP)
 	sentry_target_sources_cwd(sentry
-		transports/sentry_transport_winhttp.c
+		transports/sentry_http_transport_winhttp.c
 	)
 elseif(SENTRY_TRANSPORT_NONE)
 	sentry_target_sources_cwd(sentry

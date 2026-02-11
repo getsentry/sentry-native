@@ -80,7 +80,7 @@ set_proxy_credentials(winhttp_client_t *state, const char *proxy)
 }
 
 static int
-winhttp_start_client(const sentry_options_t *opts, void *_client)
+winhttp_client_start(const sentry_options_t *opts, void *_client)
 {
     winhttp_client_t *client = _client;
 
@@ -139,7 +139,7 @@ winhttp_start_client(const sentry_options_t *opts, void *_client)
 }
 
 static void
-winhttp_shutdown_hook(void *_client)
+winhttp_client_shutdown(void *_client)
 {
     winhttp_client_t *client = _client;
     // Seems like some requests are taking too long/hanging
@@ -331,8 +331,8 @@ sentry__transport_new_default(void)
     sentry_transport_t *transport
         = sentry__http_transport_new(client, winhttp_send_task);
     sentry__http_transport_set_free_client(transport, winhttp_client_free);
-    sentry__http_transport_set_start_client(transport, winhttp_start_client);
+    sentry__http_transport_set_start_client(transport, winhttp_client_start);
     sentry__http_transport_set_shutdown_client(
-        transport, winhttp_shutdown_hook);
+        transport, winhttp_client_shutdown);
     return transport;
 }
