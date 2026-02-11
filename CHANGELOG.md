@@ -9,6 +9,7 @@
 **Fixes**:
 
 - Remove spurious decref in `sentry_capture_user_feedback()` ([#1510](https://github.com/getsentry/sentry-native/pull/1510))
+- Prevent double-decref of event in envelope add functions ([#1511](https://github.com/getsentry/sentry-native/pull/1511))
 
 ## 0.12.6
 
