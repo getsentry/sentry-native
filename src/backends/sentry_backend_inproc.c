@@ -1168,6 +1168,36 @@ start_handler_thread(void)
         return 1;
     }
 
+    // Wait for handler thread to be ready before returning. This eliminates
+    // the race where a crash could occur before g_handler_thread_ready is set,
+    // which would cause in-handler processing with unexpected behavior for
+    // callbacks that crash (e.g., calling abort()).
+    int timeout_counter = 1000000;
+    while (
+        !sentry__atomic_fetch(&g_handler_thread_ready) && timeout_counter > 0) {
+        sentry__cpu_relax();
+        timeout_counter--;
+    }
+
+    if (!sentry__atomic_fetch(&g_handler_thread_ready)) {
+        SENTRY_WARN("handler thread failed to start in time");
+        // Thread was spawned but didn't become ready - try to clean up.
+        // Set exit flag and hope the thread eventually sees it.
+        sentry__atomic_store(&g_handler_should_exit, 1);
+#ifdef SENTRY_PLATFORM_UNIX
+        // Signal the pipe to unblock any pending read
+        if (g_handler_pipe[1] >= 0) {
+            close(g_handler_pipe[1]);
+            g_handler_pipe[1] = -1;
+        }
+#elif defined(SENTRY_PLATFORM_WINDOWS)
+        if (g_handler_semaphore) {
+            ReleaseSemaphore(g_handler_semaphore, 1, NULL);
+        }
+#endif
+        return 1;
+    }
+
     return 0;
 }
 
