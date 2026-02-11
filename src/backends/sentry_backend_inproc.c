@@ -340,19 +340,12 @@ startup_inproc_backend(
     // install our own signal handler
     sigemptyset(&g_sigaction.sa_mask);
     g_sigaction.sa_sigaction = handle_signal;
+    // SA_NODEFER allows the signal to be delivered while the handler is
+    // running. This is needed for recursive crash detection to work -
+    // without it, a crash during crash handling would block the signal
+    // and leave the process in an undefined state.
+    g_sigaction.sa_flags = SA_SIGINFO | SA_ONSTACK | SA_NODEFER;
     for (size_t i = 0; i < SIGNAL_COUNT; ++i) {
-        // SA_NODEFER allows the signal to be delivered while the handler is
-        // running. This is needed for recursive crash detection to work -
-        // without it, a crash during crash handling would block the signal
-        // and leave the process in an undefined state.
-        // However, SA_NODEFER should NOT be used for SIGABRT because abort()
-        // does its own signal mask manipulation and having SA_NODEFER can
-        // cause unexpected interactions with different libc implementations.
-        if (SIGNAL_DEFINITIONS[i].signum == SIGABRT) {
-            g_sigaction.sa_flags = SA_SIGINFO | SA_ONSTACK;
-        } else {
-            g_sigaction.sa_flags = SA_SIGINFO | SA_ONSTACK | SA_NODEFER;
-        }
         sigaction(SIGNAL_DEFINITIONS[i].signum, &g_sigaction, NULL);
     }
     return 0;
@@ -1032,7 +1025,9 @@ process_ucontext_deferred(const sentry_ucontext_t *uctx,
         // after capturing the crash event, dump all the envelopes to disk
         sentry__transport_dump_queue(options->transport, options->run);
 
-        SENTRY_INFO("crash has been captured");
+        // Use signal-safe logging here since this may run in signal handler
+        // context (fallback path) where stdio functions are not safe.
+        SENTRY_SIGNAL_SAFE_LOG("crash has been captured");
     }
 }
 
@@ -1263,10 +1258,18 @@ dispatch_ucontext(const sentry_ucontext_t *uctx,
 #ifdef SENTRY_WITH_UNWINDER_LIBBACKTRACE
     // For targets that still use `backtrace()` as the sole unwinder we must
     // run the signal-unsafe part in the signal handler like we did before.
+    // Disable stdio-based logging - not safe in signal handler context.
+    sentry__logger_disable();
     process_ucontext_deferred(uctx, sig_slot, skip_hooks);
     return;
 #else
     if (has_handler_thread_crashed()) {
+        // Disable stdio-based logging since we're now in signal handler context
+        // where stdio functions are not safe. This is critical for abort()
+        // which may hold stdio locks when raising SIGABRT - using fprintf would
+        // deadlock.
+        sentry__logger_disable();
+
         // directly execute unsafe part in signal handler as a last chance to
         // report an error when the handler thread has crashed.
         // Always skip hooks here since the first attempt (from handler thread)
@@ -1298,6 +1301,8 @@ dispatch_ucontext(const sentry_ucontext_t *uctx,
 
     // We are the first handler. Check if handler thread is available.
     if (!sentry__atomic_fetch(&g_handler_thread_ready)) {
+        // Disable stdio-based logging - not safe in signal handler context.
+        sentry__logger_disable();
         process_ucontext_deferred(uctx, sig_slot, skip_hooks);
         return;
     }
@@ -1355,6 +1360,8 @@ dispatch_ucontext(const sentry_ucontext_t *uctx,
             // Multiple recursive crashes - bail out
             return;
         }
+        // Disable stdio-based logging - not safe in signal handler context.
+        sentry__logger_disable();
         process_ucontext_deferred(uctx, sig_slot, depth >= 2);
         return;
     }
@@ -1370,6 +1377,8 @@ dispatch_ucontext(const sentry_ucontext_t *uctx,
 
     if (!handler_signaled) {
         // Fall back to in-handler processing
+        // Disable stdio-based logging - not safe in signal handler context.
+        sentry__logger_disable();
         process_ucontext_deferred(uctx, sig_slot, skip_hooks);
         return;
     }
