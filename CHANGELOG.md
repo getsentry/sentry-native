@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+**Fixes**:
+
+- Remove spurious decref in `sentry_capture_user_feedback()` ([#1510](https://github.com/getsentry/sentry-native/pull/1510))
+
 ## 0.12.6
 
 **Features**:
