@@ -169,7 +169,7 @@ sentry_envelope_free(sentry_envelope_t *envelope)
     sentry_free(envelope);
 }
 
-static void
+void
 sentry__envelope_set_header(
     sentry_envelope_t *envelope, const char *key, sentry_value_t value)
 {
@@ -296,12 +296,12 @@ sentry__envelope_add_event(sentry_envelope_t *envelope, sentry_value_t event)
     sentry_uuid_t event_id;
     sentry__ensure_event_id(event, &event_id);
 
-    item->event = event;
     sentry__jsonwriter_write_value(jw, event);
     item->payload = sentry__jsonwriter_into_string(jw, &item->payload_len);
     if (!item->payload) {
         return NULL;
     }
+    item->event = event;
 
     sentry__envelope_item_set_header(
         item, "type", sentry_value_new_string("event"));
@@ -381,12 +381,12 @@ sentry__envelope_add_transaction(
     sentry_uuid_t event_id;
     sentry__ensure_event_id(transaction, &event_id);
 
-    item->event = transaction;
     sentry__jsonwriter_write_value(jw, transaction);
     item->payload = sentry__jsonwriter_into_string(jw, &item->payload_len);
     if (!item->payload) {
         return NULL;
     }
+    item->event = transaction;
 
     sentry__envelope_item_set_header(
         item, "type", sentry_value_new_string("transaction"));

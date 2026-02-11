@@ -290,6 +290,10 @@ sentry_init(sentry_options_t *options)
         backend->prune_database_func(backend);
     }
 
+    if (options->cache_keep) {
+        sentry__cleanup_cache(options);
+    }
+
     if (options->auto_session_tracking) {
         sentry_start_session();
     }
@@ -801,7 +805,6 @@ prepare_user_report(sentry_value_t user_report)
 fail:
     SENTRY_WARN("dropping user report");
     sentry_envelope_free(envelope);
-    sentry_value_decref(user_report);
     return NULL;
 }
 

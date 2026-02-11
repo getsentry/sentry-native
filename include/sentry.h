@@ -165,6 +165,7 @@ extern "C" {
 #include <inttypes.h>
 #include <stdarg.h>
 #include <stddef.h>
+#include <time.h>
 
 /* context type dependencies */
 #ifdef _WIN32
@@ -1414,6 +1415,53 @@ SENTRY_API void sentry_options_set_symbolize_stacktraces(
  */
 SENTRY_API int sentry_options_get_symbolize_stacktraces(
     const sentry_options_t *opts);
+
+/**
+ * Enables or disables storing envelopes in a persistent cache.
+ *
+ * When enabled, envelopes are written to a `cache/` subdirectory within the
+ * database directory and retained regardless of send success or failure.
+ * The cache is cleared on startup based on the cache_max_items, cache_max_size,
+ * and cache_max_age options.
+ *
+ * Disabled by default.
+ */
+SENTRY_API void sentry_options_set_cache_keep(
+    sentry_options_t *opts, int enabled);
+
+/**
+ * Sets the maximum number of items in the cache directory.
+ * On startup, cached entries are removed from oldest to newest until the
+ * directory contains at most the specified number of items.
+ *
+ * Defaults to 30.
+ */
+SENTRY_API void sentry_options_set_cache_max_items(
+    sentry_options_t *opts, size_t items);
+
+/**
+ * Sets the maximum size (in bytes) for the cache directory.
+ * On startup, cached entries are removed from oldest to newest until the
+ * directory size is within the max size limit.
+ *
+ * Defaults to 0 (no max size).
+ */
+SENTRY_API void sentry_options_set_cache_max_size(
+    sentry_options_t *opts, size_t bytes);
+
+/**
+ * Sets the maximum age (in seconds) for cache entries in the cache directory.
+ * On startup, cached entries exceeding the max age limit are removed.
+ *
+ * Defaults to 0 (no max age).
+ */
+SENTRY_API void sentry_options_set_cache_max_age(
+    sentry_options_t *opts, time_t seconds);
+
+/**
+ * Gets the caching mode for crash reports.
+ */
+SENTRY_API int sentry_options_get_cache_keep(const sentry_options_t *opts);
 
 /**
  * Adds a new attachment to be sent along.

@@ -27,6 +27,7 @@ from .assertions import (
     assert_breadcrumb,
     assert_crashpad_upload,
     assert_meta,
+    assert_minidump,
     assert_session,
     assert_gzip_file_header,
     assert_logs,
@@ -765,3 +766,187 @@ def test_crashpad_external_crash_reporter(cmake, httpserver, run_args):
 )
 def test_crashpad_external_crash_reporter_wer(cmake, httpserver, run_args):
     test_crashpad_external_crash_reporter(cmake, httpserver, run_args)
+
+
+@pytest.mark.parametrize("cache_keep", [True, False])
+def test_crashpad_cache_keep(cmake, httpserver, cache_keep):
+    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "crashpad"})
+    cache_dir = tmp_path.joinpath(".sentry-native/cache")
+
+    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
+    httpserver.expect_oneshot_request("/api/123456/minidump/").respond_with_data("OK")
+
+    with httpserver.wait(timeout=10) as waiting:
+        run(
+            tmp_path,
+            "sentry_example",
+            ["log", "crash"] + (["cache-keep"] if cache_keep else []),
+            expect_failure=True,
+            env=env,
+        )
+    assert waiting.result
+
+    assert not cache_dir.exists() or len(list(cache_dir.glob("*.envelope"))) == 0
+
+    # upload
+    run(
+        tmp_path,
+        "sentry_example",
+        ["log", "no-setup"] + (["cache-keep"] if cache_keep else []),
+        env=env,
+    )
+
+    # cache
+    run(
+        tmp_path,
+        "sentry_example",
+        ["log", "no-setup"] + (["cache-keep"] if cache_keep else []),
+        env=env,
+    )
+
+    assert cache_dir.exists() or cache_keep is False
+    if cache_keep:
+        cache_files = list(cache_dir.glob("*.envelope"))
+        assert len(cache_files) == 1
+        with open(cache_files[0], "rb") as f:
+            envelope = Envelope.deserialize_from(f)
+        assert "dsn" in envelope.headers
+        assert_meta(envelope, integration="crashpad")
+        assert_minidump(envelope)
+
+
+def test_crashpad_cache_max_size(cmake, httpserver):
+    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "crashpad"})
+    cache_dir = tmp_path.joinpath(".sentry-native/cache")
+    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
+
+    # 5 x 2mb
+    for i in range(5):
+        httpserver.expect_oneshot_request("/api/123456/minidump/").respond_with_data(
+            "OK"
+        )
+
+        with httpserver.wait(timeout=10) as waiting:
+            run(
+                tmp_path,
+                "sentry_example",
+                ["log", "cache-keep", "crash"],
+                expect_failure=True,
+                env=env,
+            )
+        assert waiting.result
+
+        # upload
+        run(
+            tmp_path,
+            "sentry_example",
+            ["log", "cache-keep", "no-setup"],
+            env=env,
+        )
+
+        # cache
+        run(
+            tmp_path,
+            "sentry_example",
+            ["log", "cache-keep", "no-setup"],
+            env=env,
+        )
+
+        if cache_dir.exists():
+            for f in cache_dir.glob("*.envelope"):
+                with open(f, "r+b") as file:
+                    file.truncate(2 * 1024 * 1024)
+
+    run(
+        tmp_path,
+        "sentry_example",
+        ["log", "cache-keep", "no-setup"],
+        env=env,
+    )
+
+    # max 4mb
+    assert cache_dir.exists()
+    cache_files = list(cache_dir.glob("*.envelope"))
+    assert len(cache_files) <= 2
+    assert sum(f.stat().st_size for f in cache_files) <= 4 * 1024 * 1024
+
+
+def test_crashpad_cache_max_age(cmake, httpserver):
+    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "crashpad"})
+    cache_dir = tmp_path.joinpath(".sentry-native/cache")
+    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
+
+    # 4 crashes that get fully cached
+    for i in range(4):
+        httpserver.expect_oneshot_request("/api/123456/minidump/").respond_with_data(
+            "OK"
+        )
+
+        with httpserver.wait(timeout=10) as waiting:
+            run(
+                tmp_path,
+                "sentry_example",
+                ["log", "cache-keep", "crash"],
+                expect_failure=True,
+                env=env,
+            )
+        assert waiting.result
+
+        # upload
+        run(
+            tmp_path,
+            "sentry_example",
+            ["log", "cache-keep", "no-setup"],
+            env=env,
+        )
+
+        # cache
+        run(
+            tmp_path,
+            "sentry_example",
+            ["log", "cache-keep", "no-setup"],
+            env=env,
+        )
+
+    # 2,4,6,8 days old
+    assert cache_dir.exists()
+    cache_files = list(cache_dir.glob("*.envelope"))
+    assert len(cache_files) == 4
+    for i, f in enumerate(cache_files):
+        mtime = time.time() - ((i + 1) * 2 * 24 * 60 * 60)
+        os.utime(str(f), (mtime, mtime))
+
+    # 5th crash - only upload, not cached yet
+    httpserver.expect_oneshot_request("/api/123456/minidump/").respond_with_data("OK")
+
+    with httpserver.wait(timeout=10) as waiting:
+        run(
+            tmp_path,
+            "sentry_example",
+            ["log", "cache-keep", "crash"],
+            expect_failure=True,
+            env=env,
+        )
+    assert waiting.result
+
+    # upload
+    run(
+        tmp_path,
+        "sentry_example",
+        ["log", "cache-keep", "no-setup"],
+        env=env,
+    )
+
+    # 0 days old (caches 5th crash + prunes old files)
+    run(
+        tmp_path,
+        "sentry_example",
+        ["log", "cache-keep", "no-setup"],
+        env=env,
+    )
+
+    # max 5 days
+    cache_files = list(cache_dir.glob("*.envelope"))
+    assert len(cache_files) == 3
+    for f in cache_files:
+        assert time.time() - f.stat().st_mtime <= 5 * 24 * 60 * 60
