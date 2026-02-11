@@ -837,6 +837,10 @@ main(int argc, char **argv)
         assert(0);
     }
     if (has_arg(argc, argv, "abort")) {
+#ifdef _WIN32
+        // Suppress the Windows abort dialog that would block CI
+        _set_abort_behavior(0, _WRITE_ABORT_MSG | _CALL_REPORTFAULT);
+#endif
         abort();
     }
 #ifdef SENTRY_PLATFORM_UNIX
