@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1770822436539,
+  "lastUpdate": 1770822574098,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -20278,6 +20278,66 @@ window.BENCHMARK_DATA = {
             "value": 14.312291999999616,
             "unit": "ms",
             "extra": "Min 13.268ms\nMax 19.785ms\nMean 15.155ms\nStdDev 2.641ms\nMedian 14.312ms\nCPU 1.576ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "jpnurmi@gmail.com",
+            "name": "J-P Nurmi",
+            "username": "jpnurmi"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "7604519c95ed1b3e60eb33639734ce492e29c58c",
+          "message": "fix: prevent double-decref of event in envelope add functions (#1511)\n\nCo-authored-by: Claude Opus 4.6 <noreply@anthropic.com>",
+          "timestamp": "2026-02-11T16:02:51+01:00",
+          "tree_id": "90be15b72c69938a1093ae44fc546f1eb3c6b36d",
+          "url": "https://github.com/getsentry/sentry-native/commit/7604519c95ed1b3e60eb33639734ce492e29c58c"
+        },
+        "date": 1770822571112,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 5.6545420000020385,
+            "unit": "ms",
+            "extra": "Min 4.272ms\nMax 9.875ms\nMean 6.566ms\nStdDev 2.181ms\nMedian 5.655ms\nCPU 3.823ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 9.827707999988888,
+            "unit": "ms",
+            "extra": "Min 6.206ms\nMax 11.546ms\nMean 9.664ms\nStdDev 2.075ms\nMedian 9.828ms\nCPU 5.392ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 21.611500000062733,
+            "unit": "ms",
+            "extra": "Min 16.781ms\nMax 26.055ms\nMean 21.818ms\nStdDev 3.479ms\nMedian 21.612ms\nCPU 8.104ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.0362920000043232,
+            "unit": "ms",
+            "extra": "Min 0.010ms\nMax 0.099ms\nMean 0.045ms\nStdDev 0.038ms\nMedian 0.036ms\nCPU 0.044ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.6106670000463055,
+            "unit": "ms",
+            "extra": "Min 0.297ms\nMax 2.184ms\nMean 0.861ms\nStdDev 0.772ms\nMedian 0.611ms\nCPU 0.574ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 9.054332999994585,
+            "unit": "ms",
+            "extra": "Min 7.770ms\nMax 16.457ms\nMean 11.217ms\nStdDev 3.752ms\nMedian 9.054ms\nCPU 0.945ms"
           }
         ]
       }
