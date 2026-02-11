@@ -744,19 +744,70 @@ crashpad_backend_last_crash(sentry_backend_t *backend)
     return crash_time;
 }
 
+class CachePruneCondition final : public crashpad::PruneCondition {
+public:
+    CachePruneCondition(size_t max_items, size_t max_size, time_t max_age)
+        : max_items_(max_items)
+        , item_count_(0)
+        , max_size_(max_size)
+        , measured_size_(0)
+        , max_age_(max_age)
+        , oldest_report_time_(time(nullptr) - max_age)
+    {
+    }
+
+    bool
+    ShouldPruneReport(
+        const crashpad::CrashReportDatabase::Report &report) override
+    {
+        ++item_count_;
+        measured_size_ += static_cast<size_t>(report.total_size);
+
+        bool by_items = max_items_ > 0 && item_count_ > max_items_;
+        bool by_size = max_size_ > 0 && measured_size_ > max_size_;
+        bool by_age
+            = max_age_ > 0 && report.creation_time < oldest_report_time_;
+        return by_items || by_size || by_age;
+    }
+
+private:
+    const size_t max_items_;
+    size_t item_count_;
+    const size_t max_size_;
+    size_t measured_size_;
+    const time_t max_age_;
+    const time_t oldest_report_time_;
+};
+
 static void
 crashpad_backend_prune_database(sentry_backend_t *backend)
 {
     auto *data = static_cast<crashpad_state_t *>(backend->data);
 
-    // We want to eagerly clean up reports older than 2 days, and limit the
-    // complete database to a maximum of 8M. That might still be a lot for
-    // an embedded use-case, but minidumps on desktop can sometimes be quite
-    // large.
-    data->db->CleanDatabase(60 * 60 * 24 * 2);
-    crashpad::BinaryPruneCondition condition(crashpad::BinaryPruneCondition::OR,
-        new crashpad::DatabaseSizePruneCondition(1024 * 8),
-        new crashpad::AgePruneCondition(2));
+    // For backwards compatibility, default to the parameters that were used
+    // before the offline caching API was introduced. We wanted to eagerly
+    // clean up reports older than 2 days, and limit the complete database
+    // to a maximum of 8M. That might still have been a lot for an embedded
+    // use-case, but minidumps on desktop can sometimes be quite large.
+    time_t max_age = 2 * 24 * 60 * 60; // 2 days
+    size_t max_size = 8 * 1024 * 1024; // 8 MB
+    size_t max_items = 0;
+
+    // When offline caching is enabled, the user has full control over these
+    // parameters via the cache_max_* options.
+    SENTRY_WITH_OPTIONS (options) {
+        if (options->cache_keep) {
+            max_age = options->cache_max_age;
+            max_size = options->cache_max_size;
+            max_items = options->cache_max_items;
+        }
+    }
+
+    if (max_age > 0) {
+        data->db->CleanDatabase(max_age);
+    }
+
+    CachePruneCondition condition(max_items, max_size, max_age);
     crashpad::PruneCrashReportDatabase(data->db, &condition);
 }
 

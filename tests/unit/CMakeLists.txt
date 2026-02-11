@@ -23,6 +23,7 @@ add_executable(sentry_test_unit
 	sentry_testsupport.h
 	test_attachments.c
 	test_basic.c
+	test_cache.c
 	test_consent.c
 	test_concurrency.c
 	test_embedded_info.c
