@@ -8,15 +8,12 @@
 #include "sentry_retry.h"
 #include "sentry_string.h"
 #include "sentry_transport.h"
-#include "sentry_utils.h"
 
 #ifdef SENTRY_TRANSPORT_COMPRESSION
 #    include "zlib.h"
 #endif
 
-#include <stdlib.h>
 #include <string.h>
-#include <time.h>
 
 #define ENVELOPE_MIME "application/x-sentry-envelope"
 #ifdef SENTRY_TRANSPORT_COMPRESSION
@@ -373,6 +370,7 @@ sentry__http_transport_new(void *client, sentry_http_send_func_t send_func)
         http_transport_state_free(state);
         return NULL;
     }
+
     sentry_transport_t *transport
         = sentry_transport_new(http_transport_send_envelope);
     if (!transport) {
