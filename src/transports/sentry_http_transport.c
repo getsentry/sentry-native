@@ -239,8 +239,7 @@ retry_send_cb(const sentry_path_t *path, void *_state)
     }
     sentry_envelope_free(envelope);
 
-    sentry__retry_handle_result(state->retry, path, status_code);
-    return true;
+    return sentry__retry_handle_result(state->retry, path, status_code);
 }
 
 static void
