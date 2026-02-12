@@ -3,14 +3,20 @@
 
 #include "sentry_boot.h"
 #include "sentry_path.h"
-
-#define SENTRY_RETRY_INTERVAL (15 * 60 * 1000)
-#define SENTRY_RETRY_THROTTLE 100
+#include "sentry_sync.h"
 
 typedef struct sentry_retry_s sentry_retry_t;
 
+typedef bool (*sentry_retry_send_func_t)(const sentry_path_t *path, void *data);
+
 sentry_retry_t *sentry__retry_new(const sentry_options_t *options);
 void sentry__retry_free(sentry_retry_t *retry);
+
+void sentry__retry_start(sentry_retry_t *retry, sentry_bgworker_t *bgworker,
+    sentry_retry_send_func_t send_cb, void *send_data);
+
+void sentry__retry_enqueue(
+    sentry_retry_t *retry, const sentry_envelope_t *envelope);
 
 void sentry__retry_write_envelope(
     sentry_retry_t *retry, const sentry_envelope_t *envelope);

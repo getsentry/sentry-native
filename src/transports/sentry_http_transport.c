@@ -34,7 +34,6 @@ typedef struct {
     int (*start_client)(void *, const sentry_options_t *);
     sentry_http_send_func_t send_func;
     void (*shutdown_client)(void *client);
-    sentry_bgworker_t *bgworker;
     sentry_retry_t *retry;
 } http_transport_state_t;
 
@@ -243,22 +242,6 @@ retry_send_cb(const sentry_path_t *path, void *_state)
 }
 
 static void
-retry_process_task(void *_startup, void *_state)
-{
-    int startup = (int)(intptr_t)_startup;
-    http_transport_state_t *state = _state;
-
-    if (!state->retry) {
-        return;
-    }
-
-    if (sentry__retry_foreach(state->retry, startup, retry_send_cb, state)) {
-        sentry__bgworker_submit_delayed(state->bgworker, retry_process_task,
-            NULL, (void *)(intptr_t)0, SENTRY_RETRY_INTERVAL);
-    }
-}
-
-static void
 http_transport_state_free(void *_state)
 {
     http_transport_state_t *state = _state;
@@ -287,10 +270,8 @@ http_send_task(void *_envelope, void *_state)
     int status_code = http_send_request(state, req);
     sentry__prepared_http_request_free(req);
 
-    if (status_code < 0 && state->retry) {
-        sentry__retry_write_envelope(state->retry, envelope);
-        sentry__bgworker_submit_delayed(state->bgworker, retry_process_task,
-            NULL, (void *)(intptr_t)0, SENTRY_RETRY_INTERVAL);
+    if (status_code < 0) {
+        sentry__retry_enqueue(state->retry, envelope);
     }
 }
 
@@ -318,10 +299,7 @@ http_transport_start(const sentry_options_t *options, void *transport_state)
     }
 
     state->retry = sentry__retry_new(options);
-    if (state->retry) {
-        sentry__bgworker_submit_delayed(bgworker, retry_process_task, NULL,
-            (void *)(intptr_t)1, SENTRY_RETRY_THROTTLE);
-    }
+    sentry__retry_start(state->retry, bgworker, retry_send_cb, state);
 
     return 0;
 }
@@ -395,8 +373,6 @@ sentry__http_transport_new(void *client, sentry_http_send_func_t send_func)
         http_transport_state_free(state);
         return NULL;
     }
-    state->bgworker = bgworker;
-
     sentry_transport_t *transport
         = sentry_transport_new(http_transport_send_envelope);
     if (!transport) {
