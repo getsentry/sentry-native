@@ -5,6 +5,7 @@
 
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 
 struct sentry_retry_s {
     sentry_path_t *retry_dir;
@@ -97,7 +98,7 @@ sentry__retry_write_envelope(
         return;
     }
 
-    uint64_t now = sentry__monotonic_time();
+    uint64_t now = (uint64_t)time(NULL);
     char uuid_str[37];
     sentry_uuid_as_string(&event_id, uuid_str);
 
@@ -130,7 +131,7 @@ sentry__retry_scan(sentry_retry_t *retry, bool startup, size_t *count_out)
     }
 
     size_t path_count = 0;
-    uint64_t now = startup ? 0 : sentry__monotonic_time();
+    uint64_t now = startup ? 0 : (uint64_t)time(NULL);
 
     const sentry_path_t *p;
     while ((p = sentry__pathiter_next(piter)) != NULL) {
@@ -145,7 +146,7 @@ sentry__retry_scan(sentry_retry_t *retry, bool startup, size_t *count_out)
             if (retry->startup_time > 0 && ts >= retry->startup_time) {
                 continue;
             }
-        } else if ((now - ts) < sentry__retry_backoff_ms(count)) {
+        } else if ((now - ts) < sentry__retry_backoff_ms(count) / 1000) {
             continue;
         }
         if (path_count == path_cap) {
@@ -211,7 +212,7 @@ sentry__retry_handle_result(
                 sentry__path_remove(path);
             }
         } else {
-            uint64_t now = sentry__monotonic_time();
+            uint64_t now = (uint64_t)time(NULL);
             char new_filename[128];
             snprintf(new_filename, sizeof(new_filename), "%llu-%02d-%s",
                 (unsigned long long)now, count + 1, uuid_start);
