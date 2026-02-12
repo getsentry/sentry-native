@@ -9,8 +9,7 @@
 
 typedef struct sentry_retry_s sentry_retry_t;
 
-sentry_retry_t *sentry__retry_new(
-    sentry_path_t *retry_dir, sentry_path_t *cache_dir, int max_retries);
+sentry_retry_t *sentry__retry_new(const sentry_options_t *options);
 void sentry__retry_free(sentry_retry_t *retry);
 
 void sentry__retry_write_envelope(
