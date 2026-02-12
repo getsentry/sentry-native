@@ -267,7 +267,7 @@ http_send_task(void *_envelope, void *_state)
     int status_code = http_send_request(state, req);
     sentry__prepared_http_request_free(req);
 
-    if (status_code < 0) {
+    if (status_code < 0 && state->retry) {
         sentry__retry_enqueue(state->retry, envelope);
     }
 }
@@ -295,8 +295,12 @@ http_transport_start(const sentry_options_t *options, void *transport_state)
         return rv;
     }
 
-    state->retry = sentry__retry_new(options);
-    sentry__retry_start(state->retry, bgworker, retry_send_cb, state);
+    if (options->http_retries > 0) {
+        state->retry = sentry__retry_new(options);
+        if (state->retry) {
+            sentry__retry_start(state->retry, bgworker, retry_send_cb, state);
+        }
+    }
 
     return 0;
 }
