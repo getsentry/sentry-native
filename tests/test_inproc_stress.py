@@ -21,18 +21,6 @@ def is_android():
     return bool(os.environ.get("ANDROID_API"))
 
 
-def is_ci():
-    return os.environ.get("CI") == "true" or os.environ.get("GITHUB_ACTIONS") == "true"
-
-
-# Skip Android tests in CI - adb shell execution is not stable enough
-# These tests can still be run locally for development/debugging
-# pytestmark = pytest.mark.skipif(
-#     is_android() and is_ci(),
-#     reason="Android inproc stress tests disabled in CI (adb execution unreliable)",
-# )
-
-
 def adb(*args):
     """Run an adb command."""
     return subprocess.run(
