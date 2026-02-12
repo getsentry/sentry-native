@@ -30,7 +30,13 @@ extern void run_concurrent_crash(void);
 static void *invalid_mem = (void *)1;
 
 // Prevent inlining and optimization to ensure predictable frame records.
-#define NOINLINE __attribute__((noinline, optnone))
+#if defined(__clang__)
+#    define NOINLINE __attribute__((noinline, optnone))
+#elif defined(__GNUC__)
+#    define NOINLINE __attribute__((noinline, optimize("O0")))
+#else
+#    define NOINLINE __attribute__((noinline))
+#endif
 
 // Stack trace test functions (used on macOS because that uses a handwritten stack-walker, can compile on Linux/Unix).
 // The naming convention encodes the expected call chain so the Python test
@@ -45,7 +51,7 @@ static void *invalid_mem = (void *)1;
 //
 // Scenario 3: crash in function without a frame record
 //   stacktest_A_calls_B_no_frame_record -> stacktest_B_crash_no_frame_record
-#ifndef _WIN32
+#ifdef __APPLE__
 
 static volatile int g_side_effect = 0;
 
@@ -138,7 +144,7 @@ stacktest_A_calls_B_no_frame_record(void)
     stacktest_B_crash_no_frame_record();
 }
 
-#endif /* !_WIN32 */
+#endif /* __APPLE__ */
 
 // on_crash callback that crashes via SIGSEGV: simulates buggy user code
 static sentry_value_t
@@ -329,7 +335,7 @@ test_handler_abort_crash(PATH_TYPE database_path)
     return 1;
 }
 
-#ifndef _WIN32
+#ifdef __APPLE__
 static int
 test_stack_no_subcalls(PATH_TYPE database_path)
 {
@@ -374,7 +380,7 @@ test_stack_no_frame_record(PATH_TYPE database_path)
     sentry_close();
     return 1;
 }
-#endif /* !_WIN32 */
+#endif /* __APPLE__ */
 
 static int
 test_simple_crash(PATH_TYPE database_path)
@@ -453,12 +459,14 @@ main(int argc, char *argv[])
         fprintf(stderr,
             "  handler-abort-crash    - Handler thread crashes in on_crash "
             "(abort)\n");
+#ifdef __APPLE__
         fprintf(stderr,
             "  stack-no-subcalls      - Stack trace: no sub-calls\n");
         fprintf(stderr,
             "  stack-with-subcalls    - Stack trace: with sub-calls\n");
         fprintf(stderr,
             "  stack-no-frame-record  - Stack trace: no frame record\n");
+#endif
         return 1;
     }
 
@@ -477,6 +485,7 @@ main(int argc, char *argv[])
     if (strcmp(test_name, "handler-abort-crash") == 0) {
         return test_handler_abort_crash(database_path);
     }
+#ifdef __APPLE__
     if (strcmp(test_name, "stack-no-subcalls") == 0) {
         return test_stack_no_subcalls(database_path);
     }
@@ -486,6 +495,7 @@ main(int argc, char *argv[])
     if (strcmp(test_name, "stack-no-frame-record") == 0) {
         return test_stack_no_frame_record(database_path);
     }
+#endif
     fprintf(stderr, "Unknown test: %s\n", test_name);
     return 1;
 }
