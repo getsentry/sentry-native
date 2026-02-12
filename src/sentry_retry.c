@@ -92,7 +92,7 @@ uint64_t
 sentry__retry_backoff(int count)
 {
     int shift = count < 3 ? count : 3;
-    return (uint64_t)SENTRY_RETRY_BACKOFF_BASE_S << shift;
+    return (uint64_t)(SENTRY_RETRY_INTERVAL / 1000) << shift;
 }
 
 static int
