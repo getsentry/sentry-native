@@ -1190,11 +1190,12 @@ start_handler_thread(void)
 
     if (!sentry__atomic_fetch(&g_handler_thread_ready)) {
         SENTRY_WARN("handler thread failed to start in time");
-        // Thread was spawned but didn't become ready - try to clean up.
-        // Set exit flag and hope the thread eventually sees it.
+        // Thread was spawned but didn't become ready. Signal it to exit,
+        // join it, and clean up all resources.
         sentry__atomic_store(&g_handler_should_exit, 1);
 #ifdef SENTRY_PLATFORM_UNIX
-        // Signal the pipe to unblock any pending read
+        // Close the write end of the pipe to unblock any pending read()
+        // in the handler thread, causing it to see EOF and exit.
         if (g_handler_pipe[1] >= 0) {
             close(g_handler_pipe[1]);
             g_handler_pipe[1] = -1;
@@ -1202,6 +1203,37 @@ start_handler_thread(void)
 #elif defined(SENTRY_PLATFORM_WINDOWS)
         if (g_handler_semaphore) {
             ReleaseSemaphore(g_handler_semaphore, 1, NULL);
+        }
+#endif
+        sentry__thread_join(g_handler_thread);
+        sentry__thread_free(&g_handler_thread);
+
+        // The thread may have set g_handler_thread_ready before exiting;
+        // ensure it's cleared so we don't appear "started".
+        sentry__atomic_store(&g_handler_thread_ready, 0);
+
+        // Clean up remaining resources
+#ifdef SENTRY_PLATFORM_UNIX
+        if (g_handler_pipe[0] >= 0) {
+            close(g_handler_pipe[0]);
+            g_handler_pipe[0] = -1;
+        }
+        if (g_handler_ack_pipe[0] >= 0) {
+            close(g_handler_ack_pipe[0]);
+            g_handler_ack_pipe[0] = -1;
+        }
+        if (g_handler_ack_pipe[1] >= 0) {
+            close(g_handler_ack_pipe[1]);
+            g_handler_ack_pipe[1] = -1;
+        }
+#elif defined(SENTRY_PLATFORM_WINDOWS)
+        if (g_handler_semaphore) {
+            CloseHandle(g_handler_semaphore);
+            g_handler_semaphore = NULL;
+        }
+        if (g_handler_ack_semaphore) {
+            CloseHandle(g_handler_ack_semaphore);
+            g_handler_ack_semaphore = NULL;
         }
 #endif
         return 1;
