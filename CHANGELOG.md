@@ -2,12 +2,20 @@
 
 ## Unreleased
 
+**Breaking**:
+
+- inproc(Linux): the `inproc` backend on Linux now depends on "nognu" `libunwind`. ([#1446](https://github.com/getsentry/sentry-native/pull/1446))
+- inproc: since we split `inproc` into signal-handler/UEF part and a separate handler thread, `before_send` and `on_crash` could be called from other threads than the one that crashed. While this was never part of the contract, if your code relies on this, it will no longer work. ([#1446](https://github.com/getsentry/sentry-native/pull/1446))
+
 **Features**:
 
 - Add new offline caching options to persist envelopes locally: `sentry_options_set_cache_keep`, `sentry_options_set_cache_max_items`, `sentry_options_set_cache_max_size`, and `sentry_options_set_cache_max_age`. ([#1490](https://github.com/getsentry/sentry-native/pull/1490), [#1493](https://github.com/getsentry/sentry-native/pull/1493))
 
 **Fixes**:
 
+- Make the signal-handler synchronization fully atomic to fix rare race scenarios. ([#1446](https://github.com/getsentry/sentry-native/pull/1446))
+- Reintroduce an FP-based stack-walker for macOS that can start from a user context. This also makes `inproc` backend functional again on macOS 13+. ([#1446](https://github.com/getsentry/sentry-native/pull/1446))
+- Split the `inproc` signal handler (and UEF on Windows) into a safe handler part and an "unsafe" handler thread. This minimizes exposure to undefined behavior inside the signal handler. ([#1446](https://github.com/getsentry/sentry-native/pull/1446))
 - Remove spurious decref in `sentry_capture_user_feedback()` ([#1510](https://github.com/getsentry/sentry-native/pull/1510))
 - Prevent double-decref of event in envelope add functions ([#1511](https://github.com/getsentry/sentry-native/pull/1511))
 
@@ -36,11 +44,6 @@
 
 ## 0.12.3
 
-**Breaking**:
-
-- inproc(Linux): the `inproc` backend on Linux now depends on "nognu" `libunwind`. ([#1446](https://github.com/getsentry/sentry-native/pull/1446))
-- inproc: since we split `inproc` into signal-handler/UEF part and a separate handler thread, `before_send` and `on_crash` could be called from other threads than the one that crashed. While this was never part of the contract, if your code relies on this, it will no longer work. ([#1446](https://github.com/getsentry/sentry-native/pull/1446))
-
 **Fixes**:
 
 - Removed the 10-item limit per envelope for non-session data. Sessions are now limited to 100 per envelope, while other items (e.g., attachments) have no limit in amount. ([#1347](https://github.com/getsentry/sentry-native/pull/1347))
@@ -56,11 +59,6 @@
 - Add logs flush on `sentry_flush()`. ([#1434](https://github.com/getsentry/sentry-native/pull/1434))
 - Add global attributes API. These are added to all `sentry_log_X` calls. ([#1450](https://github.com/getsentry/sentry-native/pull/1450))
 
-**Fixes**:
-
-- Make the signal-handler synchronization fully atomic to fix rare race scenarios. ([#1446](https://github.com/getsentry/sentry-native/pull/1446))
-- Reintroduce an FP-based stack-walker for macOS that can start from a user context. This also makes `inproc` backend functional again on macOS 13+. ([#1446](https://github.com/getsentry/sentry-native/pull/1446))
-- Split the `inproc` signal handler (and UEF on Windows) into a safe handler part and an "unsafe" handler thread. This minimizes exposure to undefined behavior inside the signal handler. ([#1446](https://github.com/getsentry/sentry-native/pull/1446))
 
 ## 0.12.1
 
