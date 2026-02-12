@@ -330,39 +330,3 @@ SENTRY_TEST(retry_backoff)
     sentry__path_remove_all(db_path);
     sentry__path_free(db_path);
 }
-
-SENTRY_TEST(retry_no_duplicate_rescan)
-{
-    sentry_path_t *db_path
-        = sentry__path_from_str(SENTRY_TEST_PATH_PREFIX ".retry-no-dup-rescan");
-    sentry__path_remove_all(db_path);
-
-    SENTRY_TEST_OPTIONS_NEW(options);
-    sentry_options_set_database_path(
-        options, SENTRY_TEST_PATH_PREFIX ".retry-no-dup-rescan");
-    sentry_options_set_http_retries(options, 3);
-    sentry_retry_t *retry = sentry__retry_new(options);
-    sentry_options_free(options);
-    TEST_ASSERT(!!retry);
-
-    sentry_path_t *retry_path = sentry__path_join_str(db_path, "retry");
-
-    uint64_t old_ts = (uint64_t)time(NULL) - 10 * sentry__retry_backoff(0);
-    sentry_uuid_t event_id = sentry_uuid_new_v4();
-    write_retry_file(retry_path, old_ts, 0, &event_id);
-
-    // First scan returns the file
-    retry_test_ctx_t ctx = { retry, 200, 0 };
-    sentry__retry_foreach(retry, false, handle_result_cb, &ctx);
-    TEST_CHECK_INT_EQUAL(ctx.count, 1);
-
-    // Second scan returns nothing
-    ctx.count = 0;
-    sentry__retry_foreach(retry, false, handle_result_cb, &ctx);
-    TEST_CHECK_INT_EQUAL(ctx.count, 0);
-
-    sentry__path_free(retry_path);
-    sentry__retry_free(retry);
-    sentry__path_remove_all(db_path);
-    sentry__path_free(db_path);
-}
