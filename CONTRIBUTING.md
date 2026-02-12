@@ -12,7 +12,8 @@ Building and testing `sentry-native` currently requires the following tools:
 - **CMake** and a supported C/C++ compiler, to actually build the code.
 - **python** and **pytest**, to run integration tests.
 - **clang-format** and **black**, to format the C/C++ and python code respectively.
-- **curl** and **zlib** libraries (e.g. on Ubuntu: libcurl4-openssl-dev, libz-dev)
+- **curl** and **zlib** libraries (e.g. on Ubuntu: `libcurl4-openssl-dev`, `libz-dev`)
+- if you run `inproc` on Linux you need `libunwind` (from `nognu`, not `llvm`) (e.g. on Ubuntu: `libunwind-dev`)
 
 `pytest`, `clang-format` and `black` are installed as virtualenv dependencies automatically.
 
