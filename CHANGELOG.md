@@ -10,6 +10,7 @@
 **Features**:
 
 - Add new offline caching options to persist envelopes locally: `sentry_options_set_cache_keep`, `sentry_options_set_cache_max_items`, `sentry_options_set_cache_max_size`, and `sentry_options_set_cache_max_age`. ([#1490](https://github.com/getsentry/sentry-native/pull/1490), [#1493](https://github.com/getsentry/sentry-native/pull/1493))
+- Add support for `abort()` in the `inproc` backend on Windows. ([#1446](https://github.com/getsentry/sentry-native/pull/1446)) 
 
 **Fixes**:
 
@@ -18,6 +19,10 @@
 - Split the `inproc` signal handler (and UEF on Windows) into a safe handler part and an "unsafe" handler thread. This minimizes exposure to undefined behavior inside the signal handler. ([#1446](https://github.com/getsentry/sentry-native/pull/1446))
 - Remove spurious decref in `sentry_capture_user_feedback()` ([#1510](https://github.com/getsentry/sentry-native/pull/1510))
 - Prevent double-decref of event in envelope add functions ([#1511](https://github.com/getsentry/sentry-native/pull/1511))
+
+**Internal**:
+
+- Introduce PAC tests for `arm64e` on macOS. ([#1446](https://github.com/getsentry/sentry-native/pull/1446))
 
 ## 0.12.6
 
