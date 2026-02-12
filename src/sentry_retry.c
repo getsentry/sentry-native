@@ -111,8 +111,8 @@ sentry__retry_make_path(
     sentry_retry_t *retry, uint64_t ts, int count, const char *uuid)
 {
     char filename[128];
-    snprintf(filename, sizeof(filename), "%llu-%02d-%.36s.envelope",
-        (unsigned long long)ts, count, uuid);
+    snprintf(filename, sizeof(filename), "%" PRIu64 "-%02d-%.36s.envelope", ts,
+        count, uuid);
     return sentry__path_join_str(retry->retry_dir, filename);
 }
 
