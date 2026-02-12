@@ -7,7 +7,8 @@
 
 typedef struct sentry_retry_s sentry_retry_t;
 
-typedef bool (*sentry_retry_send_func_t)(const sentry_path_t *path, void *data);
+typedef int (*sentry_retry_send_func_t)(
+    sentry_envelope_t *envelope, void *data);
 
 sentry_retry_t *sentry__retry_new(const sentry_options_t *options);
 void sentry__retry_free(sentry_retry_t *retry);
@@ -21,11 +22,8 @@ void sentry__retry_enqueue(
 void sentry__retry_write_envelope(
     sentry_retry_t *retry, const sentry_envelope_t *envelope);
 
-size_t sentry__retry_foreach(sentry_retry_t *retry, uint64_t before,
-    bool (*callback)(const sentry_path_t *path, void *data), void *data);
-
-bool sentry__retry_handle_result(
-    sentry_retry_t *retry, const sentry_path_t *path, int status_code);
+size_t sentry__retry_send(sentry_retry_t *retry, uint64_t before,
+    sentry_retry_send_func_t send_cb, void *data);
 
 uint64_t sentry__retry_backoff(int count);
 
