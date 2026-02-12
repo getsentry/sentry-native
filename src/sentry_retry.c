@@ -208,7 +208,7 @@ sentry__retry_send(sentry_retry_t *retry, uint64_t before,
             continue;
         }
         total++;
-        if (!before && (now - ts) < sentry__retry_backoff(count)) {
+        if (!before && now >= ts && (now - ts) < sentry__retry_backoff(count)) {
             continue;
         }
         if (eligible == path_cap) {
