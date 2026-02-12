@@ -113,20 +113,20 @@ sentry__retry_write_envelope(
     }
 }
 
-void
+size_t
 sentry__retry_foreach(sentry_retry_t *retry, bool startup,
     bool (*callback)(const sentry_path_t *path, void *data), void *data)
 {
     sentry_pathiter_t *piter = sentry__path_iter_directory(retry->retry_dir);
     if (!piter) {
-        return;
+        return 0;
     }
 
     size_t path_cap = 16;
     sentry_path_t **paths = sentry_malloc(path_cap * sizeof(sentry_path_t *));
     if (!paths) {
         sentry__pathiter_free(piter);
-        return;
+        return 0;
     }
 
     size_t path_count = 0;
@@ -177,6 +177,7 @@ sentry__retry_foreach(sentry_retry_t *retry, bool startup,
         sentry__path_free(paths[i]);
     }
     sentry_free(paths);
+    return path_count;
 }
 
 void
@@ -233,27 +234,4 @@ sentry__retry_handle_result(
     } else {
         sentry__path_remove(path);
     }
-}
-
-bool
-sentry__retry_has_files(const sentry_retry_t *retry)
-{
-    sentry_pathiter_t *piter = sentry__path_iter_directory(retry->retry_dir);
-    if (!piter) {
-        return false;
-    }
-
-    const sentry_path_t *p;
-    while ((p = sentry__pathiter_next(piter)) != NULL) {
-        const char *fname = sentry__path_filename(p);
-        uint64_t ts;
-        int count;
-        const char *uuid_start;
-        if (sentry__retry_parse_filename(fname, &ts, &count, &uuid_start)) {
-            sentry__pathiter_free(piter);
-            return true;
-        }
-    }
-    sentry__pathiter_free(piter);
-    return false;
 }

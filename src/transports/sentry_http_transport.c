@@ -253,9 +253,7 @@ retry_process_task(void *_startup, void *_state)
         return;
     }
 
-    sentry__retry_foreach(state->retry, startup, retry_send_cb, state);
-
-    if (sentry__retry_has_files(state->retry)) {
+    if (sentry__retry_foreach(state->retry, startup, retry_send_cb, state)) {
         sentry__bgworker_submit_delayed(state->bgworker, retry_process_task,
             NULL, (void *)(intptr_t)0, SENTRY_RETRY_BACKOFF_BASE_S * 1000);
     }
