@@ -40,6 +40,7 @@ sentry__retry_new(const sentry_options_t *options)
     retry->retry_dir = retry_dir;
     retry->cache_dir = cache_dir;
     retry->max_retries = options->http_retries;
+    retry->startup_time = (uint64_t)time(NULL);
     sentry__path_create_dir_all(retry->retry_dir);
     if (retry->cache_dir) {
         sentry__path_create_dir_all(retry->cache_dir);
@@ -56,12 +57,6 @@ sentry__retry_free(sentry_retry_t *retry)
     sentry__path_free(retry->retry_dir);
     sentry__path_free(retry->cache_dir);
     sentry_free(retry);
-}
-
-void
-sentry__retry_set_startup_time(sentry_retry_t *retry, uint64_t startup_time)
-{
-    retry->startup_time = startup_time;
 }
 
 bool
