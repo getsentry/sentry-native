@@ -375,7 +375,7 @@ struct signal_slot {
     const char *sigdesc;
 };
 
-#    define SIGNAL_COUNT 20
+#    define SIGNAL_COUNT 21
 
 static LPTOP_LEVEL_EXCEPTION_FILTER g_previous_handler = NULL;
 
@@ -399,7 +399,8 @@ static const struct signal_slot SIGNAL_DEFINITIONS[SIGNAL_COUNT] = {
     SIGNAL_DEF(EXCEPTION_NONCONTINUABLE_EXCEPTION, "NonContinuableException"),
     SIGNAL_DEF(EXCEPTION_PRIV_INSTRUCTION, "PrivilgedInstruction"),
     SIGNAL_DEF(EXCEPTION_SINGLE_STEP, "SingleStep"),
-    SIGNAL_DEF(EXCEPTION_STACK_OVERFLOW, "StackOverflow")
+    SIGNAL_DEF(EXCEPTION_STACK_OVERFLOW, "StackOverflow"),
+    SIGNAL_DEF(STATUS_FATAL_APP_EXIT, "FatalAppExit"),
 };
 
 static LONG WINAPI handle_exception(EXCEPTION_POINTERS *);
