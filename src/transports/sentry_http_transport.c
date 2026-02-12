@@ -257,7 +257,7 @@ retry_process_task(void *_startup, void *_state)
 
     if (sentry__retry_has_files(state->retry)) {
         sentry__bgworker_submit_delayed(state->bgworker, retry_process_task,
-            NULL, (void *)(intptr_t)0, SENTRY_RETRY_BACKOFF_BASE_MS);
+            NULL, (void *)(intptr_t)0, SENTRY_RETRY_BACKOFF_BASE_S * 1000);
     }
 }
 
@@ -293,7 +293,7 @@ http_send_task(void *_envelope, void *_state)
     if (status_code < 0 && state->retry) {
         sentry__retry_write_envelope(state->retry, envelope);
         sentry__bgworker_submit_delayed(state->bgworker, retry_process_task,
-            NULL, (void *)(intptr_t)0, SENTRY_RETRY_BACKOFF_BASE_MS);
+            NULL, (void *)(intptr_t)0, SENTRY_RETRY_BACKOFF_BASE_S * 1000);
     }
 }
 

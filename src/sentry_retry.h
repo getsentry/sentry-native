@@ -4,7 +4,7 @@
 #include "sentry_boot.h"
 #include "sentry_path.h"
 
-#define SENTRY_RETRY_BACKOFF_BASE_MS 900000
+#define SENTRY_RETRY_BACKOFF_BASE_S 900
 #define SENTRY_RETRY_STARTUP_DELAY_MS 100
 
 typedef struct sentry_retry_s sentry_retry_t;
@@ -28,7 +28,7 @@ void sentry__retry_handle_result(
 
 bool sentry__retry_has_files(const sentry_retry_t *retry);
 
-uint64_t sentry__retry_backoff_ms(int count);
+uint64_t sentry__retry_backoff(int count);
 
 bool sentry__retry_parse_filename(const char *filename, uint64_t *ts_out,
     int *count_out, const char **uuid_out);

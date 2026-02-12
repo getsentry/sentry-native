@@ -75,10 +75,10 @@ sentry__retry_parse_filename(const char *filename, uint64_t *ts_out,
 }
 
 uint64_t
-sentry__retry_backoff_ms(int count)
+sentry__retry_backoff(int count)
 {
     int shift = count < 3 ? count : 3;
-    return (uint64_t)SENTRY_RETRY_BACKOFF_BASE_MS << shift;
+    return (uint64_t)SENTRY_RETRY_BACKOFF_BASE_S << shift;
 }
 
 static int
@@ -146,7 +146,7 @@ sentry__retry_scan(sentry_retry_t *retry, bool startup, size_t *count_out)
             if (retry->startup_time > 0 && ts >= retry->startup_time) {
                 continue;
             }
-        } else if ((now - ts) < sentry__retry_backoff_ms(count) / 1000) {
+        } else if ((now - ts) < sentry__retry_backoff(count)) {
             continue;
         }
         if (path_count == path_cap) {
