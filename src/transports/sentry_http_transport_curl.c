@@ -149,7 +149,7 @@ header_callback(char *buffer, size_t size, size_t nitems, void *userdata)
     return bytes;
 }
 
-static void
+static bool
 curl_send_task(void *_client, sentry_prepared_http_request_t *req,
     sentry_http_response_t *resp)
 {
@@ -157,8 +157,7 @@ curl_send_task(void *_client, sentry_prepared_http_request_t *req,
 
 #ifdef SENTRY_PLATFORM_NX
     if (!sentry_nx_curl_connect(client->nx_state)) {
-        resp->status_code = -1;
-        return; // TODO should we dump the envelope to disk?
+        return false; // TODO should we dump the envelope to disk?
     }
 #endif
 
@@ -229,10 +228,10 @@ curl_send_task(void *_client, sentry_prepared_http_request_t *req,
             SENTRY_WARNF("`curl_easy_perform` failed with code `%d`: %s",
                 (int)rv, curl_easy_strerror(rv));
         }
-        resp->status_code = -1;
     }
 
     curl_slist_free_all(headers);
+    return rv == CURLE_OK;
 }
 
 sentry_transport_t *

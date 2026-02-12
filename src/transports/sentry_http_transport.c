@@ -210,20 +210,20 @@ http_send_task(void *_envelope, void *_state)
     sentry_http_response_t resp;
     memset(&resp, 0, sizeof(resp));
 
-    state->send_func(state->client, req, &resp);
+    if (state->send_func(state->client, req, &resp)) {
+        if (resp.x_sentry_rate_limits) {
+            sentry__rate_limiter_update_from_header(
+                state->ratelimiter, resp.x_sentry_rate_limits);
+        } else if (resp.retry_after) {
+            sentry__rate_limiter_update_from_http_retry_after(
+                state->ratelimiter, resp.retry_after);
+        } else if (resp.status_code == 429) {
+            sentry__rate_limiter_update_from_429(state->ratelimiter);
+        }
 
-    if (resp.x_sentry_rate_limits) {
-        sentry__rate_limiter_update_from_header(
-            state->ratelimiter, resp.x_sentry_rate_limits);
-    } else if (resp.retry_after) {
-        sentry__rate_limiter_update_from_http_retry_after(
-            state->ratelimiter, resp.retry_after);
-    } else if (resp.status_code == 429) {
-        sentry__rate_limiter_update_from_429(state->ratelimiter);
+        sentry_free(resp.retry_after);
+        sentry_free(resp.x_sentry_rate_limits);
     }
-
-    sentry_free(resp.retry_after);
-    sentry_free(resp.x_sentry_rate_limits);
     sentry__prepared_http_request_free(req);
 }
 

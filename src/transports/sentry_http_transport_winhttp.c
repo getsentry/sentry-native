@@ -160,12 +160,12 @@ winhttp_client_shutdown(void *_client)
     }
 }
 
-static void
+static bool
 winhttp_send_task(void *_client, sentry_prepared_http_request_t *req,
     sentry_http_response_t *resp)
 {
     winhttp_client_t *client = (winhttp_client_t *)_client;
-    resp->status_code = -1;
+    bool result = false;
 
     uint64_t started = sentry__monotonic_time();
 
@@ -241,8 +241,9 @@ winhttp_send_task(void *_client, sentry_prepared_http_request_t *req,
             client->proxy_password, 0);
     }
 
-    if (WinHttpSendRequest(client->request, headers, (DWORD)-1,
-            (LPVOID)req->body, (DWORD)req->body_len, (DWORD)req->body_len, 0)) {
+    if ((result = WinHttpSendRequest(client->request, headers, (DWORD)-1,
+             (LPVOID)req->body, (DWORD)req->body_len, (DWORD)req->body_len,
+             0))) {
         WinHttpReceiveResponse(client->request, NULL);
 
         if (client->debug) {
@@ -294,7 +295,6 @@ winhttp_send_task(void *_client, sentry_prepared_http_request_t *req,
     } else {
         SENTRY_WARNF(
             "`WinHttpSendRequest` failed with code `%d`", GetLastError());
-        resp->status_code = -1;
     }
 
     uint64_t now = sentry__monotonic_time();
@@ -308,6 +308,7 @@ exit:
     }
     sentry_free(url);
     sentry_free(headers);
+    return result;
 }
 
 sentry_transport_t *

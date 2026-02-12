@@ -33,7 +33,7 @@ typedef struct {
     char *x_sentry_rate_limits;
 } sentry_http_response_t;
 
-typedef void (*sentry_http_send_func_t)(void *client,
+typedef bool (*sentry_http_send_func_t)(void *client,
     sentry_prepared_http_request_t *req, sentry_http_response_t *resp);
 
 /**
