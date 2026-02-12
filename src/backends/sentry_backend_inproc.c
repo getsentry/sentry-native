@@ -1290,23 +1290,25 @@ has_handler_thread_crashed(void)
  * STATUS_FATAL_APP_EXIT, which is not in the SIGNAL_DEFINITIONS table and
  * thus leaves sig_slot == NULL. We must check the exception code directly.
  */
+#if 0
 static bool
 is_abort(const sentry_ucontext_t *uctx, const struct signal_slot *sig_slot)
 {
-#ifdef SENTRY_PLATFORM_UNIX
+#    ifdef SENTRY_PLATFORM_UNIX
     (void)uctx;
     return sig_slot && sig_slot->signum == SIGABRT;
-#elif defined(SENTRY_PLATFORM_WINDOWS)
+#    elif defined(SENTRY_PLATFORM_WINDOWS)
     (void)sig_slot;
     return uctx->exception_ptrs.ExceptionRecord
         && uctx->exception_ptrs.ExceptionRecord->ExceptionCode
         == STATUS_FATAL_APP_EXIT;
-#else
+#    else
     (void)uctx;
     (void)sig_slot;
     return false;
-#endif
+#    endif
 }
+#endif
 
 static void
 dispatch_ucontext(const sentry_ucontext_t *uctx,
@@ -1324,7 +1326,6 @@ dispatch_ucontext(const sentry_ucontext_t *uctx,
     if (is_abort(uctx, sig_slot) && handler_depth >= 2) {
         return;
     }
-#else
 #endif
 
 #ifdef SENTRY_WITH_UNWINDER_LIBBACKTRACE
