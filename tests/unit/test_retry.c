@@ -47,20 +47,18 @@ find_envelope_attempt(const sentry_path_t *dir)
 }
 
 static void
-write_retry_file(const sentry_path_t *retry_path, uint64_t timestamp,
-    int retry_count, const sentry_uuid_t *event_id)
+write_retry_file(sentry_retry_t *retry, uint64_t timestamp, int retry_count,
+    const sentry_uuid_t *event_id)
 {
     sentry_envelope_t *envelope = sentry__envelope_new();
     sentry_value_t event = sentry__value_new_event_with_id(event_id);
     sentry__envelope_add_event(envelope, event);
 
-    char uuid_str[37];
-    sentry_uuid_as_string(event_id, uuid_str);
-    char filename[80];
-    snprintf(filename, sizeof(filename), "%llu-%02d-%s.envelope",
-        (unsigned long long)timestamp, retry_count, uuid_str);
+    char uuid[37];
+    sentry_uuid_as_string(event_id, uuid);
 
-    sentry_path_t *path = sentry__path_join_str(retry_path, filename);
+    sentry_path_t *path
+        = sentry__retry_make_path(retry, timestamp, retry_count, uuid);
     (void)sentry_envelope_write_to_path(envelope, path);
     sentry__path_free(path);
     sentry_envelope_free(envelope);
@@ -109,7 +107,7 @@ SENTRY_TEST(retry_throttle)
     sentry_uuid_t ids[4];
     for (int i = 0; i < 4; i++) {
         ids[i] = sentry_uuid_new_v4();
-        write_retry_file(retry_path, old_ts, 0, &ids[i]);
+        write_retry_file(retry, old_ts, 0, &ids[i]);
     }
 
     TEST_CHECK_INT_EQUAL(count_envelope_files(retry_path), 4);
@@ -145,7 +143,7 @@ SENTRY_TEST(retry_result)
     sentry_uuid_t event_id = sentry_uuid_new_v4();
 
     // 1. Success (200) → removes from retry dir
-    write_retry_file(retry_path, old_ts, 0, &event_id);
+    write_retry_file(retry, old_ts, 0, &event_id);
     TEST_CHECK_INT_EQUAL(count_envelope_files(retry_path), 1);
     TEST_CHECK_INT_EQUAL(find_envelope_attempt(retry_path), 0);
 
@@ -155,21 +153,21 @@ SENTRY_TEST(retry_result)
     TEST_CHECK_INT_EQUAL(count_envelope_files(retry_path), 0);
 
     // 2. Rate limited (429) → removes
-    write_retry_file(retry_path, old_ts, 0, &event_id);
+    write_retry_file(retry, old_ts, 0, &event_id);
     ctx = (retry_test_ctx_t) { retry, 429, 0 };
     sentry__retry_foreach(retry, 0, handle_result_cb, &ctx);
     TEST_CHECK_INT_EQUAL(ctx.count, 1);
     TEST_CHECK_INT_EQUAL(count_envelope_files(retry_path), 0);
 
     // 3. Discard (0) → removes
-    write_retry_file(retry_path, old_ts, 0, &event_id);
+    write_retry_file(retry, old_ts, 0, &event_id);
     ctx = (retry_test_ctx_t) { retry, 0, 0 };
     sentry__retry_foreach(retry, 0, handle_result_cb, &ctx);
     TEST_CHECK_INT_EQUAL(ctx.count, 1);
     TEST_CHECK_INT_EQUAL(count_envelope_files(retry_path), 0);
 
     // 4. Network error → bumps count
-    write_retry_file(retry_path, old_ts, 0, &event_id);
+    write_retry_file(retry, old_ts, 0, &event_id);
     TEST_CHECK_INT_EQUAL(find_envelope_attempt(retry_path), 0);
 
     ctx = (retry_test_ctx_t) { retry, -1, 0 };
@@ -181,7 +179,7 @@ SENTRY_TEST(retry_result)
     // 5. Network error at max count → exceeds max_retries=2, removed
     sentry__path_remove_all(retry_path);
     sentry__path_create_dir_all(retry_path);
-    write_retry_file(retry_path, old_ts, 1, &event_id);
+    write_retry_file(retry, old_ts, 1, &event_id);
     ctx = (retry_test_ctx_t) { retry, -1, 0 };
     sentry__retry_foreach(retry, 0, handle_result_cb, &ctx);
     TEST_CHECK_INT_EQUAL(ctx.count, 1);
@@ -253,7 +251,7 @@ SENTRY_TEST(retry_cache)
 
     uint64_t old_ts = (uint64_t)time(NULL) - 10 * sentry__retry_backoff(0);
     sentry_uuid_t event_id = sentry_uuid_new_v4();
-    write_retry_file(retry_path, old_ts, 4, &event_id);
+    write_retry_file(retry, old_ts, 4, &event_id);
 
     TEST_CHECK_INT_EQUAL(count_envelope_files(retry_path), 1);
     TEST_CHECK_INT_EQUAL(count_envelope_files(cache_path), 0);
@@ -294,19 +292,19 @@ SENTRY_TEST(retry_backoff)
 
     // retry 0: 10*base old, eligible (backoff=base)
     sentry_uuid_t id1 = sentry_uuid_new_v4();
-    write_retry_file(retry_path, ref, 0, &id1);
+    write_retry_file(retry, ref, 0, &id1);
 
     // retry 1: 1*base old, not yet eligible (backoff=2*base)
     sentry_uuid_t id2 = sentry_uuid_new_v4();
-    write_retry_file(retry_path, ref + 9 * base, 1, &id2);
+    write_retry_file(retry, ref + 9 * base, 1, &id2);
 
     // retry 1: 10*base old, eligible (backoff=2*base)
     sentry_uuid_t id3 = sentry_uuid_new_v4();
-    write_retry_file(retry_path, ref, 1, &id3);
+    write_retry_file(retry, ref, 1, &id3);
 
     // retry 2: 2*base old, not eligible (backoff=4*base)
     sentry_uuid_t id4 = sentry_uuid_new_v4();
-    write_retry_file(retry_path, ref + 8 * base, 2, &id4);
+    write_retry_file(retry, ref + 8 * base, 2, &id4);
 
     // Startup scan (no backoff check): all 4 files returned
     size_t count = 0;

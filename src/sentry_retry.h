@@ -29,6 +29,15 @@ bool sentry__retry_handle_result(
 
 uint64_t sentry__retry_backoff(int count);
 
+/**
+ * <db>/retry/<ts>-<count>-<uuid>.envelope
+ */
+sentry_path_t *sentry__retry_make_path(
+    sentry_retry_t *retry, uint64_t ts, int count, const char *uuid);
+
+/**
+ * <ts>-<count>-<uuid>.envelope
+ */
 bool sentry__retry_parse_filename(const char *filename, uint64_t *ts_out,
     int *count_out, const char **uuid_out);
 

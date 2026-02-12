@@ -111,16 +111,16 @@ sentry__retry_parse_filename(const char *filename, uint64_t *ts_out,
         return false;
     }
 
-    const char *uuid_start = end + 1;
-    size_t tail_len = strlen(uuid_start);
+    const char *uuid = end + 1;
+    size_t tail_len = strlen(uuid);
     // 36 chars UUID (with dashes) + ".envelope"
-    if (tail_len != 36 + 9 || strcmp(uuid_start + 36, ".envelope") != 0) {
+    if (tail_len != 36 + 9 || strcmp(uuid + 36, ".envelope") != 0) {
         return false;
     }
 
     *ts_out = ts;
     *count_out = (int)count;
-    *uuid_out = uuid_start;
+    *uuid_out = uuid;
     return true;
 }
 
@@ -139,6 +139,16 @@ compare_retry_paths(const void *a, const void *b)
     return strcmp(sentry__path_filename(*pa), sentry__path_filename(*pb));
 }
 
+sentry_path_t *
+sentry__retry_make_path(
+    sentry_retry_t *retry, uint64_t ts, int count, const char *uuid)
+{
+    char filename[128];
+    snprintf(filename, sizeof(filename), "%llu-%02d-%.36s.envelope",
+        (unsigned long long)ts, count, uuid);
+    return sentry__path_join_str(retry->retry_dir, filename);
+}
+
 void
 sentry__retry_write_envelope(
     sentry_retry_t *retry, const sentry_envelope_t *envelope)
@@ -148,15 +158,11 @@ sentry__retry_write_envelope(
         return;
     }
 
-    uint64_t now = (uint64_t)time(NULL);
-    char uuid_str[37];
-    sentry_uuid_as_string(&event_id, uuid_str);
+    char uuid[37];
+    sentry_uuid_as_string(&event_id, uuid);
 
-    char filename[128];
-    snprintf(filename, sizeof(filename), "%llu-00-%s.envelope",
-        (unsigned long long)now, uuid_str);
-
-    sentry_path_t *path = sentry__path_join_str(retry->retry_dir, filename);
+    sentry_path_t *path
+        = sentry__retry_make_path(retry, (uint64_t)time(NULL), 0, uuid);
     if (path) {
         (void)sentry_envelope_write_to_path(envelope, path);
         sentry__path_free(path);
@@ -188,8 +194,8 @@ sentry__retry_foreach(sentry_retry_t *retry, uint64_t before,
         const char *fname = sentry__path_filename(p);
         uint64_t ts;
         int count;
-        const char *uuid_start;
-        if (!sentry__retry_parse_filename(fname, &ts, &count, &uuid_start)) {
+        const char *uuid;
+        if (!sentry__retry_parse_filename(fname, &ts, &count, &uuid)) {
             continue;
         }
         if (before && ts >= before) {
@@ -238,8 +244,8 @@ sentry__retry_handle_result(
     const char *fname = sentry__path_filename(path);
     uint64_t ts;
     int count;
-    const char *uuid_start;
-    if (!sentry__retry_parse_filename(fname, &ts, &count, &uuid_start)) {
+    const char *uuid;
+    if (!sentry__retry_parse_filename(fname, &ts, &count, &uuid)) {
         sentry__path_remove(path);
         return false;
     }
@@ -260,12 +266,8 @@ sentry__retry_handle_result(
             }
             return false;
         } else {
-            uint64_t now = (uint64_t)time(NULL);
-            char new_filename[128];
-            snprintf(new_filename, sizeof(new_filename), "%llu-%02d-%s",
-                (unsigned long long)now, count + 1, uuid_start);
-            sentry_path_t *new_path
-                = sentry__path_join_str(retry->retry_dir, new_filename);
+            sentry_path_t *new_path = sentry__retry_make_path(
+                retry, (uint64_t)time(NULL), count + 1, uuid);
             if (new_path) {
                 sentry__path_rename(path, new_path);
                 sentry__path_free(new_path);
