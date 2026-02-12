@@ -319,12 +319,12 @@ def test_inproc_handler_abort_crash(cmake):
     Test behavior when handler thread crashes via abort().
 
     When abort() is called from the on_crash callback (running on the handler
-    thread), we intentionally do NOT attempt to capture the SIGABRT. This is
-    because abort() holds stdio/libc internal locks that our crash capture
-    code needs, which can lead to deadlocks or recursive aborts.
+    thread), we detect this is a handler thread crash and fall back to
+    processing in the signal handler context (with hooks skipped to avoid
+    calling the crashing hook again).
 
-    The original crash processing is interrupted, so no envelope is written.
-    The crash marker should exist (written before on_crash is called).
+    The crash marker should exist (written before on_crash callback), and
+    an envelope should be written for the abort crash.
     """
     tmp_path = cmake(
         ["sentry"],
@@ -349,22 +349,21 @@ def test_inproc_handler_abort_crash(cmake):
             "FATAL crash in handler thread" in stderr
         ), f"Handler thread crash not detected. stderr:\n{stderr}"
 
-        # We intentionally do NOT capture SIGABRT from abort() on handler thread
-        # to avoid deadlocks. The original crash processing was interrupted.
+        # The abort crash should be captured via the fallback path
         assert (
-            "crash has been captured" not in stderr
-        ), f"Should not have attempted to capture abort(). stderr:\n{stderr}"
+            "crash has been captured" in stderr
+        ), f"Crash should have been captured. stderr:\n{stderr}"
 
         # Crash marker should exist (written before on_crash callback)
         assert_crash_marker(database_path)
 
-        # No envelope expected - processing was interrupted by abort()
+        # An envelope should be written for the abort crash
         run_dirs = list(database_path.glob("*.run"))
-        if run_dirs:
-            envelopes = list(run_dirs[0].glob("*.envelope"))
-            assert (
-                len(envelopes) == 0
-            ), f"Should not have envelope after abort(), found: {envelopes}"
+        assert len(run_dirs) == 1, f"Expected 1 run dir, found: {run_dirs}"
+        envelopes = list(run_dirs[0].glob("*.envelope"))
+        assert (
+            len(envelopes) == 1
+        ), f"Expected 1 envelope after abort(), found: {envelopes}"
 
     finally:
         shutil.rmtree(database_path, ignore_errors=True)

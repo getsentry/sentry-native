@@ -1316,6 +1316,7 @@ dispatch_ucontext(const sentry_ucontext_t *uctx,
     // hook again, but still try to capture the crash
     bool skip_hooks = handler_depth >= 2;
 
+#if 0
     // If abort() occurs during recursive signal handling (depth >= 2), don't
     // attempt to capture it. abort() holds stdio/libc internal locks that our
     // crash capture code may need, which can lead to deadlocks or recursive
@@ -1323,6 +1324,8 @@ dispatch_ucontext(const sentry_ucontext_t *uctx,
     if (is_abort(uctx, sig_slot) && handler_depth >= 2) {
         return;
     }
+#else
+#endif
 
 #ifdef SENTRY_WITH_UNWINDER_LIBBACKTRACE
     // For targets that still use `backtrace()` as the sole unwinder we must
@@ -1333,6 +1336,7 @@ dispatch_ucontext(const sentry_ucontext_t *uctx,
     return;
 #else
     if (has_handler_thread_crashed()) {
+#    if 0
         // If abort() occurs on the handler thread, don't attempt to capture it.
         // abort() holds stdio/libc internal locks that our crash capture code
         // may need (snprintf for addresses, malloc, etc.), which can lead to
@@ -1340,6 +1344,7 @@ dispatch_ucontext(const sentry_ucontext_t *uctx,
         if (is_abort(uctx, sig_slot)) {
             return;
         }
+#    endif
 
         // Disable stdio-based logging since we're now in signal handler context
         // where stdio functions are not safe.
