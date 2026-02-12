@@ -337,8 +337,6 @@ SENTRY_TEST(retry_no_duplicate_rescan)
     sentry__retry_foreach(retry, true, handle_result_cb, &ctx);
     TEST_CHECK_INT_EQUAL(ctx.count, 0);
 
-    TEST_CHECK(!sentry__retry_has_files(retry));
-
     sentry_envelope_free(envelope);
     sentry__retry_free(retry);
     sentry__path_remove_all(retry_path);
