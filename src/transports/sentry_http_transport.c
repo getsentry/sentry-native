@@ -385,6 +385,7 @@ sentry__http_transport_new(void *client, sentry_http_send_func_t send_func)
     sentry_transport_set_flush_func(transport, http_transport_flush);
     sentry_transport_set_shutdown_func(transport, http_transport_shutdown);
     sentry__transport_set_dump_func(transport, http_dump_queue);
+    sentry__transport_set_can_retry(transport, true);
 
     return transport;
 }
