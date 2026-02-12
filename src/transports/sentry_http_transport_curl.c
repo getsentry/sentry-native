@@ -215,7 +215,9 @@ curl_send_task(void *_client, sentry_prepared_http_request_t *req,
     }
 
     if (rv == CURLE_OK) {
-        curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &resp->status_code);
+        long response_code;
+        curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &response_code);
+        resp->status_code = (int)response_code;
     } else {
         size_t len = strlen(error_buf);
         if (len) {

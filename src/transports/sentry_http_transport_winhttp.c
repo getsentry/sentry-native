@@ -276,12 +276,14 @@ winhttp_send_task(void *_client, sentry_prepared_http_request_t *req,
         wchar_t buf[2048];
         DWORD buf_size = sizeof(buf);
 
-        DWORD status_code_size = sizeof(resp->status_code);
+        DWORD status_code = 0;
+        DWORD status_code_size = sizeof(status_code);
 
         WinHttpQueryHeaders(client->request,
             WINHTTP_QUERY_STATUS_CODE | WINHTTP_QUERY_FLAG_NUMBER,
-            WINHTTP_HEADER_NAME_BY_INDEX, &resp->status_code, &status_code_size,
+            WINHTTP_HEADER_NAME_BY_INDEX, &status_code, &status_code_size,
             WINHTTP_NO_HEADER_INDEX);
+        resp->status_code = (int)status_code;
 
         if (WinHttpQueryHeaders(client->request, WINHTTP_QUERY_CUSTOM,
                 L"x-sentry-rate-limits", buf, &buf_size,

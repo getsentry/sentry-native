@@ -28,7 +28,7 @@ sentry_prepared_http_request_t *sentry__prepare_http_request(
 void sentry__prepared_http_request_free(sentry_prepared_http_request_t *req);
 
 typedef struct {
-    long status_code;
+    int status_code;
     char *retry_after;
     char *x_sentry_rate_limits;
 } sentry_http_response_t;
