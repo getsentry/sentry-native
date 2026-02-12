@@ -134,6 +134,8 @@ winhttp_client_start(void *_client, const sentry_options_t *opts)
         return 1;
     }
 
+    WinHttpSetTimeouts(client->session, 15000, 15000, 15000, 15000);
+
     return 0;
 }
 
