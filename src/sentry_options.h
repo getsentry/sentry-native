@@ -70,6 +70,7 @@ struct sentry_options_s {
     void *traces_sampler_data;
     size_t max_spans;
     bool enable_logs;
+    int http_retries;
     // takes the first varg as a `sentry_value_t` object containing attributes
     // if no custom attributes are to be passed, use `sentry_value_new_object()`
     bool logs_with_attributes;

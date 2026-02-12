@@ -829,6 +829,18 @@ sentry_options_set_handler_strategy(
 #endif // SENTRY_PLATFORM_LINUX
 
 void
+sentry_options_set_http_retries(sentry_options_t *opts, int http_retries)
+{
+    opts->http_retries = http_retries;
+}
+
+int
+sentry_options_get_http_retries(const sentry_options_t *opts)
+{
+    return opts->http_retries;
+}
+
+void
 sentry_options_set_propagate_traceparent(
     sentry_options_t *opts, int propagate_traceparent)
 {

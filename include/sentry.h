@@ -2125,6 +2125,15 @@ SENTRY_EXPERIMENTAL_API int sentry_options_get_enable_logs(
     const sentry_options_t *opts);
 
 /**
+ * Sets the maximum number of HTTP retry attempts for transient network errors.
+ * Set to 0 to disable retries (default).
+ */
+SENTRY_EXPERIMENTAL_API void sentry_options_set_http_retries(
+    sentry_options_t *opts, int http_retries);
+SENTRY_EXPERIMENTAL_API int sentry_options_get_http_retries(
+    const sentry_options_t *opts);
+
+/**
  * Enables or disables custom attributes parsing for structured logging.
  *
  * When enabled, all `sentry_log_X()` functions expect a `sentry_value_t` object
