@@ -240,8 +240,12 @@ sentry__process_old_runs(const sentry_options_t *options, uint64_t last_crash)
             continue;
         }
 
+        bool can_cache = options->cache_keep
+            && (options->http_retries == 0
+                || !sentry__transport_can_retry(options->transport));
+
         sentry_path_t *cache_dir = NULL;
-        if (options->cache_keep) {
+        if (can_cache) {
             cache_dir = sentry__path_join_str(options->database_path, "cache");
             if (cache_dir) {
                 sentry__path_create_dir_all(cache_dir);
@@ -293,9 +297,7 @@ sentry__process_old_runs(const sentry_options_t *options, uint64_t last_crash)
                 sentry_envelope_t *envelope = sentry__envelope_from_path(file);
                 sentry__capture_envelope(options->transport, envelope);
 
-                bool can_retry = sentry__transport_can_retry(options->transport)
-                    && options->http_retries > 0;
-                if (cache_dir && !can_retry) {
+                if (cache_dir) {
                     sentry_path_t *cached_file = sentry__path_join_str(
                         cache_dir, sentry__path_filename(file));
                     if (!cached_file
