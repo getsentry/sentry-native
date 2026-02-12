@@ -1282,34 +1282,6 @@ has_handler_thread_crashed(void)
     return false;
 }
 
-/**
- * Returns true if the crash context represents an abort().
- *
- * On UNIX, abort() delivers SIGABRT which populates sig_slot normally.
- * On Windows, our handle_sigabrt() creates a synthetic exception with
- * STATUS_FATAL_APP_EXIT, which is not in the SIGNAL_DEFINITIONS table and
- * thus leaves sig_slot == NULL. We must check the exception code directly.
- */
-#if 0
-static bool
-is_abort(const sentry_ucontext_t *uctx, const struct signal_slot *sig_slot)
-{
-#    ifdef SENTRY_PLATFORM_UNIX
-    (void)uctx;
-    return sig_slot && sig_slot->signum == SIGABRT;
-#    elif defined(SENTRY_PLATFORM_WINDOWS)
-    (void)sig_slot;
-    return uctx->exception_ptrs.ExceptionRecord
-        && uctx->exception_ptrs.ExceptionRecord->ExceptionCode
-        == STATUS_FATAL_APP_EXIT;
-#    else
-    (void)uctx;
-    (void)sig_slot;
-    return false;
-#    endif
-}
-#endif
-
 static void
 dispatch_ucontext(const sentry_ucontext_t *uctx,
     const struct signal_slot *sig_slot, int handler_depth)
@@ -1317,16 +1289,6 @@ dispatch_ucontext(const sentry_ucontext_t *uctx,
     // skip_hooks when re-entering (depth >= 2) to avoid crashing in the same
     // hook again, but still try to capture the crash
     bool skip_hooks = handler_depth >= 2;
-
-#if 0
-    // If abort() occurs during recursive signal handling (depth >= 2), don't
-    // attempt to capture it. abort() holds stdio/libc internal locks that our
-    // crash capture code may need, which can lead to deadlocks or recursive
-    // aborts.
-    if (is_abort(uctx, sig_slot) && handler_depth >= 2) {
-        return;
-    }
-#endif
 
 #ifdef SENTRY_WITH_UNWINDER_LIBBACKTRACE
     // For targets that still use `backtrace()` as the sole unwinder we must
@@ -1337,16 +1299,6 @@ dispatch_ucontext(const sentry_ucontext_t *uctx,
     return;
 #else
     if (has_handler_thread_crashed()) {
-#    if 0
-        // If abort() occurs on the handler thread, don't attempt to capture it.
-        // abort() holds stdio/libc internal locks that our crash capture code
-        // may need (snprintf for addresses, malloc, etc.), which can lead to
-        // deadlocks or recursive aborts.
-        if (is_abort(uctx, sig_slot)) {
-            return;
-        }
-#    endif
-
         // Disable stdio-based logging since we're now in signal handler context
         // where stdio functions are not safe.
         sentry__logger_disable();
