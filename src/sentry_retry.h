@@ -19,9 +19,8 @@ void sentry__retry_write_envelope(
 void sentry__retry_set_startup_time(
     sentry_retry_t *retry, uint64_t startup_time);
 
-sentry_path_t **sentry__retry_scan(
-    sentry_retry_t *retry, bool startup, size_t *count_out);
-void sentry__retry_free_paths(sentry_path_t **paths, size_t count);
+void sentry__retry_foreach(sentry_retry_t *retry, bool startup,
+    bool (*callback)(const sentry_path_t *path, void *data), void *data);
 
 void sentry__retry_handle_result(
     sentry_retry_t *retry, const sentry_path_t *path, int status_code);
