@@ -855,7 +855,7 @@ crashpad_backend_free(sentry_backend_t *backend)
     sentry__path_free(data->breadcrumb1_path);
     sentry__path_free(data->breadcrumb2_path);
     sentry__path_free(data->external_report_path);
-    sentry_free(data);
+    delete data;
 }
 
 static void
