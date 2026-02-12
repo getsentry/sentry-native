@@ -126,12 +126,12 @@ fp_walk_from_uctx(const sentry_ucontext_t *uctx, void **ptrs, size_t max_frames)
     lr = STRIP_PAC((uintptr_t)mctx->__ss.__lr);
 #    endif
 
-    // top frame: adjust pc−1 so it symbolizes inside the function
+    // top frame: no adjustment
     if (pc && n < max_frames) {
-        ptrs[n++] = (void *)(pc - 1);
+        ptrs[n++] = (void *)pc;
     }
 
-    // next frame is from saved LR at current FP record
+    // next frame is from saved LR at current FP record (adjust -1)
     if (lr && n < max_frames) {
         ptrs[n++] = (void *)(lr - 1);
     }
@@ -141,9 +141,9 @@ fp_walk_from_uctx(const sentry_ucontext_t *uctx, void **ptrs, size_t max_frames)
     uintptr_t ip = (uintptr_t)mctx->__ss.__rip;
     uintptr_t bp = (uintptr_t)mctx->__ss.__rbp;
 
-    // top frame: adjust ip−1 so it symbolizes inside the function
+    // top frame: no adjustment
     if (ip && n < max_frames) {
-        ptrs[n++] = (void *)(ip - 1);
+        ptrs[n++] = (void *)ip;
     }
 
     fp_walk(bp, &n, ptrs, max_frames);
