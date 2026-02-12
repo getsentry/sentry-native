@@ -57,4 +57,8 @@ size_t sentry__transport_dump_queue(
 
 void *sentry__transport_get_state(sentry_transport_t *transport);
 
+void sentry__transport_set_can_retry(
+    sentry_transport_t *transport, bool can_retry);
+bool sentry__transport_can_retry(sentry_transport_t *transport);
+
 #endif

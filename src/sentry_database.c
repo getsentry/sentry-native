@@ -4,6 +4,7 @@
 #include "sentry_json.h"
 #include "sentry_options.h"
 #include "sentry_session.h"
+#include "sentry_transport.h"
 #include "sentry_uuid.h"
 #include <errno.h>
 #include <stdlib.h>
@@ -292,7 +293,9 @@ sentry__process_old_runs(const sentry_options_t *options, uint64_t last_crash)
                 sentry_envelope_t *envelope = sentry__envelope_from_path(file);
                 sentry__capture_envelope(options->transport, envelope);
 
-                if (cache_dir) {
+                bool can_retry = sentry__transport_can_retry(options->transport)
+                    && options->http_retries > 0;
+                if (cache_dir && !can_retry) {
                     sentry_path_t *cached_file = sentry__path_join_str(
                         cache_dir, sentry__path_filename(file));
                     if (!cached_file

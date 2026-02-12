@@ -12,6 +12,7 @@ struct sentry_transport_s {
     size_t (*dump_func)(sentry_run_t *run, void *state);
     void *state;
     bool running;
+    bool can_retry;
 };
 
 sentry_transport_t *
@@ -146,4 +147,16 @@ void *
 sentry__transport_get_state(sentry_transport_t *transport)
 {
     return transport ? transport->state : NULL;
+}
+
+void
+sentry__transport_set_can_retry(sentry_transport_t *transport, bool can_retry)
+{
+    transport->can_retry = can_retry;
+}
+
+bool
+sentry__transport_can_retry(sentry_transport_t *transport)
+{
+    return transport && transport->can_retry;
 }
