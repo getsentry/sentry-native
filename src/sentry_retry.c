@@ -186,7 +186,7 @@ sentry__retry_foreach(sentry_retry_t *retry, bool startup,
 
     for (size_t i = 0; i < eligible; i++) {
         if (!callback(paths[i], data)) {
-            break;
+            total--;
         }
     }
 
@@ -197,7 +197,7 @@ sentry__retry_foreach(sentry_retry_t *retry, bool startup,
     return total;
 }
 
-void
+bool
 sentry__retry_handle_result(
     sentry_retry_t *retry, const sentry_path_t *path, int status_code)
 {
@@ -207,7 +207,7 @@ sentry__retry_handle_result(
     const char *uuid_start;
     if (!sentry__retry_parse_filename(fname, &ts, &count, &uuid_start)) {
         sentry__path_remove(path);
-        return;
+        return false;
     }
 
     if (status_code < 0) {
@@ -224,6 +224,7 @@ sentry__retry_handle_result(
             } else {
                 sentry__path_remove(path);
             }
+            return false;
         } else {
             uint64_t now = (uint64_t)time(NULL);
             char new_filename[128];
@@ -235,6 +236,7 @@ sentry__retry_handle_result(
                 sentry__path_rename(path, new_path);
                 sentry__path_free(new_path);
             }
+            return true;
         }
     } else if (status_code >= 200 && status_code < 300) {
         if (retry->cache_dir) {
@@ -251,4 +253,5 @@ sentry__retry_handle_result(
     } else {
         sentry__path_remove(path);
     }
+    return false;
 }
