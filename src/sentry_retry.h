@@ -21,7 +21,7 @@ void sentry__retry_enqueue(
 void sentry__retry_write_envelope(
     sentry_retry_t *retry, const sentry_envelope_t *envelope);
 
-size_t sentry__retry_foreach(sentry_retry_t *retry, bool startup,
+size_t sentry__retry_foreach(sentry_retry_t *retry, uint64_t before,
     bool (*callback)(const sentry_path_t *path, void *data), void *data);
 
 bool sentry__retry_handle_result(

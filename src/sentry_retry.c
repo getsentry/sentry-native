@@ -62,28 +62,18 @@ sentry__retry_free(sentry_retry_t *retry)
     sentry_free(retry);
 }
 
-static void retry_poll_task(void *_retry, void *_state);
-
-static void
-retry_startup_task(void *_retry, void *_state)
-{
-    (void)_state;
-    sentry_retry_t *retry = _retry;
-    if (sentry__retry_foreach(retry, true, retry->send_cb, retry->send_data)) {
-        sentry__bgworker_submit_delayed(retry->bgworker, retry_poll_task, NULL,
-            retry, SENTRY_RETRY_INTERVAL);
-    }
-}
-
 static void
 retry_poll_task(void *_retry, void *_state)
 {
     (void)_state;
     sentry_retry_t *retry = _retry;
-    if (sentry__retry_foreach(retry, false, retry->send_cb, retry->send_data)) {
+    if (sentry__retry_foreach(
+            retry, retry->startup_time, retry->send_cb, retry->send_data)) {
         sentry__bgworker_submit_delayed(retry->bgworker, retry_poll_task, NULL,
             retry, SENTRY_RETRY_INTERVAL);
     }
+    // subsequent polls use backoff instead of the startup time filter
+    retry->startup_time = 0;
 }
 
 void
@@ -94,7 +84,7 @@ sentry__retry_start(sentry_retry_t *retry, sentry_bgworker_t *bgworker,
     retry->send_cb = send_cb;
     retry->send_data = send_data;
     sentry__bgworker_submit_delayed(
-        bgworker, retry_startup_task, NULL, retry, SENTRY_RETRY_THROTTLE);
+        bgworker, retry_poll_task, NULL, retry, SENTRY_RETRY_THROTTLE);
 }
 
 void
@@ -174,7 +164,7 @@ sentry__retry_write_envelope(
 }
 
 size_t
-sentry__retry_foreach(sentry_retry_t *retry, bool startup,
+sentry__retry_foreach(sentry_retry_t *retry, uint64_t before,
     bool (*callback)(const sentry_path_t *path, void *data), void *data)
 {
     sentry_pathiter_t *piter = sentry__path_iter_directory(retry->retry_dir);
@@ -191,7 +181,7 @@ sentry__retry_foreach(sentry_retry_t *retry, bool startup,
 
     size_t total = 0;
     size_t eligible = 0;
-    uint64_t now = startup ? 0 : (uint64_t)time(NULL);
+    uint64_t now = before ? 0 : (uint64_t)time(NULL);
 
     const sentry_path_t *p;
     while ((p = sentry__pathiter_next(piter)) != NULL) {
@@ -202,13 +192,11 @@ sentry__retry_foreach(sentry_retry_t *retry, bool startup,
         if (!sentry__retry_parse_filename(fname, &ts, &count, &uuid_start)) {
             continue;
         }
-        if (startup) {
-            if (retry->startup_time > 0 && ts >= retry->startup_time) {
-                continue;
-            }
+        if (before && ts >= before) {
+            continue;
         }
         total++;
-        if (!startup && (now - ts) < sentry__retry_backoff(count)) {
+        if (!before && (now - ts) < sentry__retry_backoff(count)) {
             continue;
         }
         if (eligible == path_cap) {

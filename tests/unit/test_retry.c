@@ -115,7 +115,7 @@ SENTRY_TEST(retry_throttle)
     TEST_CHECK_INT_EQUAL(count_envelope_files(retry_path), 4);
 
     retry_test_ctx_t ctx = { retry, 200, 0 };
-    sentry__retry_foreach(retry, false, handle_result_cb, &ctx);
+    sentry__retry_foreach(retry, 0, handle_result_cb, &ctx);
     TEST_CHECK_INT_EQUAL(ctx.count, 4);
     TEST_CHECK_INT_EQUAL(count_envelope_files(retry_path), 0);
 
@@ -150,21 +150,21 @@ SENTRY_TEST(retry_result)
     TEST_CHECK_INT_EQUAL(find_envelope_attempt(retry_path), 0);
 
     retry_test_ctx_t ctx = { retry, 200, 0 };
-    sentry__retry_foreach(retry, false, handle_result_cb, &ctx);
+    sentry__retry_foreach(retry, 0, handle_result_cb, &ctx);
     TEST_CHECK_INT_EQUAL(ctx.count, 1);
     TEST_CHECK_INT_EQUAL(count_envelope_files(retry_path), 0);
 
     // 2. Rate limited (429) → removes
     write_retry_file(retry_path, old_ts, 0, &event_id);
     ctx = (retry_test_ctx_t) { retry, 429, 0 };
-    sentry__retry_foreach(retry, false, handle_result_cb, &ctx);
+    sentry__retry_foreach(retry, 0, handle_result_cb, &ctx);
     TEST_CHECK_INT_EQUAL(ctx.count, 1);
     TEST_CHECK_INT_EQUAL(count_envelope_files(retry_path), 0);
 
     // 3. Discard (0) → removes
     write_retry_file(retry_path, old_ts, 0, &event_id);
     ctx = (retry_test_ctx_t) { retry, 0, 0 };
-    sentry__retry_foreach(retry, false, handle_result_cb, &ctx);
+    sentry__retry_foreach(retry, 0, handle_result_cb, &ctx);
     TEST_CHECK_INT_EQUAL(ctx.count, 1);
     TEST_CHECK_INT_EQUAL(count_envelope_files(retry_path), 0);
 
@@ -173,7 +173,7 @@ SENTRY_TEST(retry_result)
     TEST_CHECK_INT_EQUAL(find_envelope_attempt(retry_path), 0);
 
     ctx = (retry_test_ctx_t) { retry, -1, 0 };
-    sentry__retry_foreach(retry, false, handle_result_cb, &ctx);
+    sentry__retry_foreach(retry, 0, handle_result_cb, &ctx);
     TEST_CHECK_INT_EQUAL(ctx.count, 1);
     TEST_CHECK_INT_EQUAL(count_envelope_files(retry_path), 1);
     TEST_CHECK_INT_EQUAL(find_envelope_attempt(retry_path), 1);
@@ -183,7 +183,7 @@ SENTRY_TEST(retry_result)
     sentry__path_create_dir_all(retry_path);
     write_retry_file(retry_path, old_ts, 1, &event_id);
     ctx = (retry_test_ctx_t) { retry, -1, 0 };
-    sentry__retry_foreach(retry, false, handle_result_cb, &ctx);
+    sentry__retry_foreach(retry, 0, handle_result_cb, &ctx);
     TEST_CHECK_INT_EQUAL(ctx.count, 1);
     TEST_CHECK_INT_EQUAL(count_envelope_files(retry_path), 0);
 
@@ -260,7 +260,7 @@ SENTRY_TEST(retry_cache)
 
     // Network error on a file at count=4 with max_retries=5 → moves to cache
     retry_test_ctx_t ctx = { retry, -1, 0 };
-    sentry__retry_foreach(retry, false, handle_result_cb, &ctx);
+    sentry__retry_foreach(retry, 0, handle_result_cb, &ctx);
     TEST_CHECK_INT_EQUAL(ctx.count, 1);
 
     TEST_CHECK_INT_EQUAL(count_envelope_files(retry_path), 0);
@@ -310,12 +310,12 @@ SENTRY_TEST(retry_backoff)
 
     // Startup scan (no backoff check): all 4 files returned
     size_t count = 0;
-    sentry__retry_foreach(retry, true, count_cb, &count);
+    sentry__retry_foreach(retry, (uint64_t)time(NULL), count_cb, &count);
     TEST_CHECK_INT_EQUAL(count, 4);
 
     // With backoff check: only eligible ones (id1 and id3)
     count = 0;
-    sentry__retry_foreach(retry, false, count_cb, &count);
+    sentry__retry_foreach(retry, 0, count_cb, &count);
     TEST_CHECK_INT_EQUAL(count, 2);
 
     // Verify backoff calculation
