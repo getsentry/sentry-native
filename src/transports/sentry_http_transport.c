@@ -5,10 +5,10 @@
 #include "sentry_options.h"
 #include "sentry_path.h"
 #include "sentry_ratelimiter.h"
+#include "sentry_retry.h"
 #include "sentry_string.h"
 #include "sentry_transport.h"
 #include "sentry_utils.h"
-#include "sentry_uuid.h"
 
 #ifdef SENTRY_TRANSPORT_COMPRESSION
 #    include "zlib.h"
@@ -24,9 +24,6 @@
 #    define MAX_HTTP_HEADERS 3
 #endif
 
-#define RETRY_BACKOFF_BASE_MS 900000
-#define RETRY_STARTUP_DELAY_MS 100
-
 typedef struct {
     sentry_dsn_t *dsn;
     char *user_agent;
@@ -37,9 +34,7 @@ typedef struct {
     sentry_http_send_func_t send_func;
     void (*shutdown_client)(void *client);
     sentry_bgworker_t *bgworker;
-    sentry_path_t *retry_dir;
-    sentry_path_t *cache_dir;
-    int http_retries;
+    sentry_retry_t *retry;
 } http_transport_state_t;
 
 #ifdef SENTRY_TRANSPORT_COMPRESSION
@@ -195,50 +190,6 @@ sentry__prepared_http_request_free(sentry_prepared_http_request_t *req)
 
 static void retry_process_task(void *_check_backoff, void *_state);
 
-static bool
-retry_parse_filename(const char *filename, uint64_t *ts_out, int *count_out,
-    const char **uuid_out)
-{
-    char *end;
-    uint64_t ts = strtoull(filename, &end, 10);
-    if (*end != '-') {
-        return false;
-    }
-
-    const char *count_str = end + 1;
-    long count = strtol(count_str, &end, 10);
-    if (*end != '-') {
-        return false;
-    }
-
-    const char *uuid_start = end + 1;
-    size_t tail_len = strlen(uuid_start);
-    // 36 chars UUID + ".envelope"
-    if (tail_len != 36 + 9 || strcmp(uuid_start + 36, ".envelope") != 0) {
-        return false;
-    }
-
-    *ts_out = ts;
-    *count_out = (int)count;
-    *uuid_out = uuid_start;
-    return true;
-}
-
-static uint64_t
-retry_backoff_ms(int count)
-{
-    int shift = count < 3 ? count : 3;
-    return (uint64_t)RETRY_BACKOFF_BASE_MS << shift;
-}
-
-static int
-compare_retry_paths(const void *a, const void *b)
-{
-    const sentry_path_t *const *pa = a;
-    const sentry_path_t *const *pb = b;
-    return strcmp(sentry__path_filename(*pa), sentry__path_filename(*pb));
-}
-
 static int
 http_send_request(
     http_transport_state_t *state, sentry_prepared_http_request_t *req)
@@ -268,95 +219,19 @@ http_send_request(
 }
 
 static void
-retry_write_envelope(
-    http_transport_state_t *state, const sentry_envelope_t *envelope)
+retry_process_task(void *_startup, void *_state)
 {
-    sentry_uuid_t event_id = sentry__envelope_get_event_id(envelope);
-    if (sentry_uuid_is_nil(&event_id)) {
-        return;
-    }
-
-    uint64_t now = sentry__monotonic_time();
-    char uuid_str[37];
-    sentry__internal_uuid_as_string(&event_id, uuid_str);
-
-    char filename[128];
-    snprintf(filename, sizeof(filename), "%llu-00-%s.envelope",
-        (unsigned long long)now, uuid_str);
-
-    sentry_path_t *path = sentry__path_join_str(state->retry_dir, filename);
-    if (path) {
-        int rv = sentry_envelope_write_to_path(envelope, path);
-        (void)rv;
-        sentry__path_free(path);
-    }
-
-    sentry__bgworker_submit_delayed(state->bgworker, retry_process_task, NULL,
-        (void *)(intptr_t)1, RETRY_BACKOFF_BASE_MS);
-}
-
-static void
-retry_process_task(void *_check_backoff, void *_state)
-{
-    int check_backoff = (int)(intptr_t)_check_backoff;
+    int startup = (int)(intptr_t)_startup;
     http_transport_state_t *state = _state;
 
-    sentry_pathiter_t *piter = sentry__path_iter_directory(state->retry_dir);
-    if (!piter) {
+    if (!state->retry) {
         return;
     }
 
-    size_t path_count = 0;
-    size_t path_cap = 16;
-    sentry_path_t **paths = sentry_malloc(path_cap * sizeof(sentry_path_t *));
-    if (!paths) {
-        sentry__pathiter_free(piter);
-        return;
-    }
+    size_t count = 0;
+    sentry_path_t **paths = sentry__retry_scan(state->retry, startup, &count);
 
-    const sentry_path_t *p;
-    while ((p = sentry__pathiter_next(piter)) != NULL) {
-        const char *fname = sentry__path_filename(p);
-        uint64_t ts;
-        int count;
-        const char *uuid_start;
-        if (!retry_parse_filename(fname, &ts, &count, &uuid_start)) {
-            continue;
-        }
-        if (path_count == path_cap) {
-            path_cap *= 2;
-            sentry_path_t **tmp
-                = sentry_malloc(path_cap * sizeof(sentry_path_t *));
-            if (!tmp) {
-                break;
-            }
-            memcpy(tmp, paths, path_count * sizeof(sentry_path_t *));
-            sentry_free(paths);
-            paths = tmp;
-        }
-        paths[path_count++] = sentry__path_clone(p);
-    }
-    sentry__pathiter_free(piter);
-
-    if (path_count > 1) {
-        qsort(paths, path_count, sizeof(sentry_path_t *), compare_retry_paths);
-    }
-
-    uint64_t now = sentry__monotonic_time();
-    bool files_remain = false;
-
-    for (size_t i = 0; i < path_count; i++) {
-        const char *fname = sentry__path_filename(paths[i]);
-        uint64_t ts;
-        int count;
-        const char *uuid_start;
-        retry_parse_filename(fname, &ts, &count, &uuid_start);
-
-        if (check_backoff && (now - ts) < retry_backoff_ms(count)) {
-            files_remain = true;
-            continue;
-        }
-
+    for (size_t i = 0; i < count; i++) {
         sentry_envelope_t *envelope = sentry__envelope_from_path(paths[i]);
         if (!envelope) {
             sentry__path_remove(paths[i]);
@@ -374,58 +249,14 @@ retry_process_task(void *_check_backoff, void *_state)
         }
         sentry_envelope_free(envelope);
 
-        if (status_code < 0) {
-            if (count + 1 >= state->http_retries) {
-                if (state->cache_dir) {
-                    sentry_path_t *dst
-                        = sentry__path_join_str(state->cache_dir, fname);
-                    if (dst) {
-                        sentry__path_rename(paths[i], dst);
-                        sentry__path_free(dst);
-                    } else {
-                        sentry__path_remove(paths[i]);
-                    }
-                } else {
-                    sentry__path_remove(paths[i]);
-                }
-            } else {
-                char new_filename[128];
-                snprintf(new_filename, sizeof(new_filename), "%llu-%02d-%s",
-                    (unsigned long long)now, count + 1, uuid_start);
-                sentry_path_t *new_path
-                    = sentry__path_join_str(state->retry_dir, new_filename);
-                if (new_path) {
-                    sentry__path_rename(paths[i], new_path);
-                    sentry__path_free(new_path);
-                }
-                files_remain = true;
-            }
-        } else if (status_code >= 200 && status_code < 300) {
-            if (state->cache_dir) {
-                sentry_path_t *dst
-                    = sentry__path_join_str(state->cache_dir, fname);
-                if (dst) {
-                    sentry__path_rename(paths[i], dst);
-                    sentry__path_free(dst);
-                } else {
-                    sentry__path_remove(paths[i]);
-                }
-            } else {
-                sentry__path_remove(paths[i]);
-            }
-        } else {
-            sentry__path_remove(paths[i]);
-        }
+        sentry__retry_handle_result(state->retry, paths[i], status_code);
     }
 
-    for (size_t i = 0; i < path_count; i++) {
-        sentry__path_free(paths[i]);
-    }
-    sentry_free(paths);
+    sentry__retry_free_paths(paths, count);
 
-    if (files_remain) {
+    if (sentry__retry_has_files(state->retry)) {
         sentry__bgworker_submit_delayed(state->bgworker, retry_process_task,
-            NULL, (void *)(intptr_t)1, RETRY_BACKOFF_BASE_MS);
+            NULL, (void *)(intptr_t)0, SENTRY_RETRY_BACKOFF_BASE_MS);
     }
 }
 
@@ -439,8 +270,7 @@ http_transport_state_free(void *_state)
     sentry__dsn_decref(state->dsn);
     sentry_free(state->user_agent);
     sentry__rate_limiter_free(state->ratelimiter);
-    sentry__path_free(state->retry_dir);
-    sentry__path_free(state->cache_dir);
+    sentry__retry_free(state->retry);
     sentry_free(state);
 }
 
@@ -459,8 +289,10 @@ http_send_task(void *_envelope, void *_state)
     int status_code = http_send_request(state, req);
     sentry__prepared_http_request_free(req);
 
-    if (status_code < 0 && state->retry_dir) {
-        retry_write_envelope(state, envelope);
+    if (status_code < 0 && state->retry) {
+        sentry__retry_write_envelope(state->retry, envelope);
+        sentry__bgworker_submit_delayed(state->bgworker, retry_process_task,
+            NULL, (void *)(intptr_t)0, SENTRY_RETRY_BACKOFF_BASE_MS);
     }
 }
 
@@ -488,18 +320,29 @@ http_transport_start(const sentry_options_t *options, void *transport_state)
     }
 
     if (options->http_retries > 0) {
-        state->http_retries = options->http_retries;
-        state->retry_dir
+        sentry_path_t *retry_dir
             = sentry__path_join_str(options->database_path, "retry");
-        if (state->retry_dir) {
-            sentry__path_create_dir_all(state->retry_dir);
+        if (retry_dir) {
+            sentry__path_create_dir_all(retry_dir);
+            sentry_path_t *cache_dir = NULL;
+            if (options->cache_keep) {
+                cache_dir
+                    = sentry__path_join_str(options->database_path, "cache");
+                if (cache_dir) {
+                    sentry__path_create_dir_all(cache_dir);
+                }
+            }
+            state->retry = sentry__retry_new(
+                retry_dir, cache_dir, options->http_retries);
+            sentry__path_free(cache_dir);
+            sentry__path_free(retry_dir);
         }
-        if (options->cache_keep) {
-            state->cache_dir
-                = sentry__path_join_str(options->database_path, "cache");
+        if (state->retry) {
+            sentry__retry_set_startup_time(
+                state->retry, sentry__monotonic_time());
+            sentry__bgworker_submit_delayed(bgworker, retry_process_task, NULL,
+                (void *)(intptr_t)1, SENTRY_RETRY_STARTUP_DELAY_MS);
         }
-        sentry__bgworker_submit_delayed(bgworker, retry_process_task, NULL,
-            (void *)(intptr_t)0, RETRY_STARTUP_DELAY_MS);
     }
 
     return 0;
