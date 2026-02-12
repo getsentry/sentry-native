@@ -1281,11 +1281,7 @@ sentry_value_t
 sentry__value_new_addr(uint64_t addr)
 {
     char buf[32];
-    size_t written = (size_t)snprintf(buf, sizeof(buf), "0x%" PRIx64, addr);
-    if (written >= sizeof(buf)) {
-        return sentry_value_new_null();
-    }
-    buf[written] = '\0';
+    sentry__addr_to_string(buf, sizeof(buf), addr);
     return sentry_value_new_string(buf);
 }
 
