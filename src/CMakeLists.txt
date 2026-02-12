@@ -64,6 +64,8 @@ sentry_target_sources_cwd(sentry
 	transports/sentry_disk_transport.c
 	transports/sentry_disk_transport.h
 	transports/sentry_function_transport.c
+	transports/sentry_http_transport.c
+	transports/sentry_http_transport.h
 	unwinder/sentry_unwinder.c
 )
 
@@ -117,12 +119,6 @@ elseif(AIX)
 endif()
 
 # transport
-if(SENTRY_TRANSPORT_CURL OR SENTRY_TRANSPORT_WINHTTP)
-	sentry_target_sources_cwd(sentry
-		transports/sentry_http_transport.c
-		transports/sentry_http_transport.h
-	)
-endif()
 if(SENTRY_TRANSPORT_CURL)
 	sentry_target_sources_cwd(sentry
 		transports/sentry_http_transport_curl.c
