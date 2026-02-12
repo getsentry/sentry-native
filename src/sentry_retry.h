@@ -4,8 +4,8 @@
 #include "sentry_boot.h"
 #include "sentry_path.h"
 
-#define SENTRY_RETRY_BACKOFF_BASE_S 15 // 900
-#define SENTRY_RETRY_STARTUP_DELAY_MS 100
+#define SENTRY_RETRY_INTERVAL (15 * 60 * 1000)
+#define SENTRY_RETRY_THROTTLE 100
 
 typedef struct sentry_retry_s sentry_retry_t;
 
