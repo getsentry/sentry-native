@@ -5,6 +5,7 @@
 #include "sentry_sync.h"
 #include "sentry_testsupport.h"
 #include "sentry_transport.h"
+#include "transports/sentry_http_transport.h"
 
 static void
 send_envelope_test_basic(sentry_envelope_t *envelope, void *data)
@@ -328,7 +329,7 @@ SENTRY_TEST(basic_transport_thread_name)
 
         // Get the bgworker from the transport (for HTTP transports)
         sentry_bgworker_t *bgworker
-            = (sentry_bgworker_t *)sentry__transport_get_bgworker(
+            = (sentry_bgworker_t *)sentry__http_transport_get_bgworker(
                 runtime_options->transport);
         TEST_ASSERT(!!bgworker);
 
