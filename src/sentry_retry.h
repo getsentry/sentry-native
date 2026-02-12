@@ -19,13 +19,11 @@ void sentry__retry_write_envelope(
 void sentry__retry_set_startup_time(
     sentry_retry_t *retry, uint64_t startup_time);
 
-void sentry__retry_foreach(sentry_retry_t *retry, bool startup,
+size_t sentry__retry_foreach(sentry_retry_t *retry, bool startup,
     bool (*callback)(const sentry_path_t *path, void *data), void *data);
 
 void sentry__retry_handle_result(
     sentry_retry_t *retry, const sentry_path_t *path, int status_code);
-
-bool sentry__retry_has_files(const sentry_retry_t *retry);
 
 uint64_t sentry__retry_backoff(int count);
 
