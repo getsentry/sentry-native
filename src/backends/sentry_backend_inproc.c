@@ -442,6 +442,9 @@ handle_sigabrt(int signum)
         && g_previous_sigabrt_handler != SIG_IGN) {
         g_previous_sigabrt_handler(signum);
     }
+
+    // Terminate the process - abort() must not return
+    TerminateProcess(GetCurrentProcess(), 3);
 }
 
 static int
