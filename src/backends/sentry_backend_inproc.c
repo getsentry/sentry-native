@@ -1168,15 +1168,20 @@ start_handler_thread(void)
         return 1;
     }
 
-    // Wait for handler thread to be ready before returning. This eliminates
-    // the race where a crash could occur before g_handler_thread_ready is set,
-    // which would cause in-handler processing with unexpected behavior for
-    // callbacks that crash (e.g., calling abort()).
-    int timeout_counter = 1000000;
-    while (
-        !sentry__atomic_fetch(&g_handler_thread_ready) && timeout_counter > 0) {
-        sentry__cpu_relax();
-        timeout_counter--;
+    // Wait for handler thread to be ready before returning. Use a time-based
+    // timeout (5 seconds) with periodic sleeps to ensure we give the handler
+    // thread enough time even on slow systems (e.g., Android emulators).
+    const int timeout_ms = 5000;
+    const int sleep_interval_ms = 10;
+    int elapsed_ms = 0;
+    while (!sentry__atomic_fetch(&g_handler_thread_ready)
+        && elapsed_ms < timeout_ms) {
+#ifdef SENTRY_PLATFORM_WINDOWS
+        Sleep(sleep_interval_ms);
+#else
+        usleep(sleep_interval_ms * 1000);
+#endif
+        elapsed_ms += sleep_interval_ms;
     }
 
     if (!sentry__atomic_fetch(&g_handler_thread_ready)) {
