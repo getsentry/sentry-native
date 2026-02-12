@@ -250,39 +250,24 @@ sentry__retry_handle_result(
         return false;
     }
 
-    if (status_code < 0) {
-        if (count + 1 >= retry->max_retries) {
-            if (retry->cache_dir) {
-                sentry_path_t *dst
-                    = sentry__path_join_str(retry->cache_dir, fname);
-                if (dst) {
-                    sentry__path_rename(path, dst);
-                    sentry__path_free(dst);
-                } else {
-                    sentry__path_remove(path);
-                }
-            } else {
-                sentry__path_remove(path);
-            }
-            return false;
-        } else {
-            sentry_path_t *new_path = sentry__retry_make_path(
-                retry, (uint64_t)time(NULL), count + 1, uuid);
-            if (new_path) {
-                sentry__path_rename(path, new_path);
-                sentry__path_free(new_path);
-            }
-            return true;
+    if (status_code < 0 && count + 1 < retry->max_retries) {
+        sentry_path_t *new_path = sentry__retry_make_path(
+            retry, (uint64_t)time(NULL), count + 1, uuid);
+        if (new_path) {
+            sentry__path_rename(path, new_path);
+            sentry__path_free(new_path);
         }
-    } else if (status_code >= 200 && status_code < 300) {
-        if (retry->cache_dir) {
-            sentry_path_t *dst = sentry__path_join_str(retry->cache_dir, fname);
-            if (dst) {
-                sentry__path_rename(path, dst);
-                sentry__path_free(dst);
-            } else {
-                sentry__path_remove(path);
-            }
+        return true;
+    }
+
+    if (count + 1 >= retry->max_retries && retry->cache_dir) {
+        char cache_name[46];
+        snprintf(cache_name, sizeof(cache_name), "%.36s.envelope", uuid);
+        sentry_path_t *dst
+            = sentry__path_join_str(retry->cache_dir, cache_name);
+        if (dst) {
+            sentry__path_rename(path, dst);
+            sentry__path_free(dst);
         } else {
             sentry__path_remove(path);
         }
