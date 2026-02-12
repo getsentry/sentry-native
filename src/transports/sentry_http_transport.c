@@ -320,7 +320,6 @@ http_transport_start(const sentry_options_t *options, void *transport_state)
 
     state->retry = sentry__retry_new(options);
     if (state->retry) {
-        sentry__retry_set_startup_time(state->retry, (uint64_t)time(NULL));
         sentry__bgworker_submit_delayed(bgworker, retry_process_task, NULL,
             (void *)(intptr_t)1, SENTRY_RETRY_STARTUP_DELAY_MS);
     }
