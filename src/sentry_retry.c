@@ -8,11 +8,17 @@
 #include <string.h>
 #include <time.h>
 
+#define SENTRY_RETRY_INTERVAL (15 * 60 * 1000)
+#define SENTRY_RETRY_THROTTLE 100
+
 struct sentry_retry_s {
     sentry_path_t *retry_dir;
     sentry_path_t *cache_dir;
     int max_retries;
     uint64_t startup_time;
+    sentry_bgworker_t *bgworker;
+    sentry_retry_send_func_t send_cb;
+    void *send_data;
 };
 
 sentry_retry_t *
@@ -57,6 +63,55 @@ sentry__retry_free(sentry_retry_t *retry)
     sentry__path_free(retry->retry_dir);
     sentry__path_free(retry->cache_dir);
     sentry_free(retry);
+}
+
+static void retry_poll_task(void *_retry, void *_state);
+
+static void
+retry_startup_task(void *_retry, void *_state)
+{
+    (void)_state;
+    sentry_retry_t *retry = _retry;
+    if (sentry__retry_foreach(retry, true, retry->send_cb, retry->send_data)) {
+        sentry__bgworker_submit_delayed(retry->bgworker, retry_poll_task, NULL,
+            retry, SENTRY_RETRY_INTERVAL);
+    }
+}
+
+static void
+retry_poll_task(void *_retry, void *_state)
+{
+    (void)_state;
+    sentry_retry_t *retry = _retry;
+    if (sentry__retry_foreach(retry, false, retry->send_cb, retry->send_data)) {
+        sentry__bgworker_submit_delayed(retry->bgworker, retry_poll_task, NULL,
+            retry, SENTRY_RETRY_INTERVAL);
+    }
+}
+
+void
+sentry__retry_start(sentry_retry_t *retry, sentry_bgworker_t *bgworker,
+    sentry_retry_send_func_t send_cb, void *send_data)
+{
+    if (!retry) {
+        return;
+    }
+    retry->bgworker = bgworker;
+    retry->send_cb = send_cb;
+    retry->send_data = send_data;
+    sentry__bgworker_submit_delayed(
+        bgworker, retry_startup_task, NULL, retry, SENTRY_RETRY_THROTTLE);
+}
+
+void
+sentry__retry_enqueue(sentry_retry_t *retry, const sentry_envelope_t *envelope)
+{
+    if (!retry) {
+        return;
+    }
+    sentry__retry_write_envelope(retry, envelope);
+    sentry__bgworker_submit_delayed(
+        retry->bgworker, retry_poll_task, NULL, retry, SENTRY_RETRY_INTERVAL);
 }
 
 bool
