@@ -486,11 +486,10 @@ shutdown_inproc_backend(sentry_backend_t *backend)
         SetUnhandledExceptionFilter(current_handler);
     }
 
-    // Restore previous SIGABRT handler
-    if (g_previous_sigabrt_handler) {
-        signal(SIGABRT, g_previous_sigabrt_handler);
-        g_previous_sigabrt_handler = NULL;
-    }
+    // Restore previous SIGABRT handler (unconditionally, since SIG_DFL is
+    // typically NULL on MSVC and a conditional check would skip restoration)
+    signal(SIGABRT, g_previous_sigabrt_handler);
+    g_previous_sigabrt_handler = NULL;
 
     if (backend) {
         backend->data = NULL;
