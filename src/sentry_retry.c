@@ -62,39 +62,6 @@ sentry__retry_free(sentry_retry_t *retry)
     sentry_free(retry);
 }
 
-static void
-retry_poll_task(void *_retry, void *_state)
-{
-    (void)_state;
-    sentry_retry_t *retry = _retry;
-    if (sentry__retry_foreach(
-            retry, retry->startup_time, retry->send_cb, retry->send_data)) {
-        sentry__bgworker_submit_delayed(retry->bgworker, retry_poll_task, NULL,
-            retry, SENTRY_RETRY_INTERVAL);
-    }
-    // subsequent polls use backoff instead of the startup time filter
-    retry->startup_time = 0;
-}
-
-void
-sentry__retry_start(sentry_retry_t *retry, sentry_bgworker_t *bgworker,
-    sentry_retry_send_func_t send_cb, void *send_data)
-{
-    retry->bgworker = bgworker;
-    retry->send_cb = send_cb;
-    retry->send_data = send_data;
-    sentry__bgworker_submit_delayed(
-        bgworker, retry_poll_task, NULL, retry, SENTRY_RETRY_THROTTLE);
-}
-
-void
-sentry__retry_enqueue(sentry_retry_t *retry, const sentry_envelope_t *envelope)
-{
-    sentry__retry_write_envelope(retry, envelope);
-    sentry__bgworker_submit_delayed(
-        retry->bgworker, retry_poll_task, NULL, retry, SENTRY_RETRY_INTERVAL);
-}
-
 bool
 sentry__retry_parse_filename(const char *filename, uint64_t *ts_out,
     int *count_out, const char **uuid_out)
@@ -169,9 +136,48 @@ sentry__retry_write_envelope(
     }
 }
 
+static bool
+handle_result(sentry_retry_t *retry, const sentry_path_t *path, int status_code)
+{
+    const char *fname = sentry__path_filename(path);
+    uint64_t ts;
+    int count;
+    const char *uuid;
+    if (!sentry__retry_parse_filename(fname, &ts, &count, &uuid)) {
+        sentry__path_remove(path);
+        return false;
+    }
+
+    if (status_code < 0 && count + 1 < retry->max_retries) {
+        sentry_path_t *new_path = sentry__retry_make_path(
+            retry, (uint64_t)time(NULL), count + 1, uuid);
+        if (new_path) {
+            sentry__path_rename(path, new_path);
+            sentry__path_free(new_path);
+        }
+        return true;
+    }
+
+    if (count + 1 >= retry->max_retries && retry->cache_dir) {
+        char cache_name[46];
+        snprintf(cache_name, sizeof(cache_name), "%.36s.envelope", uuid);
+        sentry_path_t *dst
+            = sentry__path_join_str(retry->cache_dir, cache_name);
+        if (dst) {
+            sentry__path_rename(path, dst);
+            sentry__path_free(dst);
+        } else {
+            sentry__path_remove(path);
+        }
+    } else {
+        sentry__path_remove(path);
+    }
+    return false;
+}
+
 size_t
-sentry__retry_foreach(sentry_retry_t *retry, uint64_t before,
-    bool (*callback)(const sentry_path_t *path, void *data), void *data)
+sentry__retry_send(sentry_retry_t *retry, uint64_t before,
+    sentry_retry_send_func_t send_cb, void *data)
 {
     sentry_pathiter_t *piter = sentry__path_iter_directory(retry->retry_dir);
     if (!piter) {
@@ -225,8 +231,15 @@ sentry__retry_foreach(sentry_retry_t *retry, uint64_t before,
     }
 
     for (size_t i = 0; i < eligible; i++) {
-        if (!callback(paths[i], data)) {
-            total--;
+        sentry_envelope_t *envelope = sentry__envelope_from_path(paths[i]);
+        if (!envelope) {
+            sentry__path_remove(paths[i]);
+        } else {
+            int status_code = send_cb(envelope, data);
+            sentry_envelope_free(envelope);
+            if (!handle_result(retry, paths[i], status_code)) {
+                total--;
+            }
         }
     }
 
@@ -237,42 +250,35 @@ sentry__retry_foreach(sentry_retry_t *retry, uint64_t before,
     return total;
 }
 
-bool
-sentry__retry_handle_result(
-    sentry_retry_t *retry, const sentry_path_t *path, int status_code)
+static void
+retry_poll_task(void *_retry, void *_state)
 {
-    const char *fname = sentry__path_filename(path);
-    uint64_t ts;
-    int count;
-    const char *uuid;
-    if (!sentry__retry_parse_filename(fname, &ts, &count, &uuid)) {
-        sentry__path_remove(path);
-        return false;
+    (void)_state;
+    sentry_retry_t *retry = _retry;
+    if (sentry__retry_send(
+            retry, retry->startup_time, retry->send_cb, retry->send_data)) {
+        sentry__bgworker_submit_delayed(retry->bgworker, retry_poll_task, NULL,
+            retry, SENTRY_RETRY_INTERVAL);
     }
+    // subsequent polls use backoff instead of the startup time filter
+    retry->startup_time = 0;
+}
 
-    if (status_code < 0 && count + 1 < retry->max_retries) {
-        sentry_path_t *new_path = sentry__retry_make_path(
-            retry, (uint64_t)time(NULL), count + 1, uuid);
-        if (new_path) {
-            sentry__path_rename(path, new_path);
-            sentry__path_free(new_path);
-        }
-        return true;
-    }
+void
+sentry__retry_start(sentry_retry_t *retry, sentry_bgworker_t *bgworker,
+    sentry_retry_send_func_t send_cb, void *send_data)
+{
+    retry->bgworker = bgworker;
+    retry->send_cb = send_cb;
+    retry->send_data = send_data;
+    sentry__bgworker_submit_delayed(
+        bgworker, retry_poll_task, NULL, retry, SENTRY_RETRY_THROTTLE);
+}
 
-    if (count + 1 >= retry->max_retries && retry->cache_dir) {
-        char cache_name[46];
-        snprintf(cache_name, sizeof(cache_name), "%.36s.envelope", uuid);
-        sentry_path_t *dst
-            = sentry__path_join_str(retry->cache_dir, cache_name);
-        if (dst) {
-            sentry__path_rename(path, dst);
-            sentry__path_free(dst);
-        } else {
-            sentry__path_remove(path);
-        }
-    } else {
-        sentry__path_remove(path);
-    }
-    return false;
+void
+sentry__retry_enqueue(sentry_retry_t *retry, const sentry_envelope_t *envelope)
+{
+    sentry__retry_write_envelope(retry, envelope);
+    sentry__bgworker_submit_delayed(
+        retry->bgworker, retry_poll_task, NULL, retry, SENTRY_RETRY_INTERVAL);
 }

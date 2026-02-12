@@ -3,7 +3,6 @@
 #include "sentry_database.h"
 #include "sentry_envelope.h"
 #include "sentry_options.h"
-#include "sentry_path.h"
 #include "sentry_ratelimiter.h"
 #include "sentry_retry.h"
 #include "sentry_string.h"
@@ -226,20 +225,11 @@ http_send_envelope(http_transport_state_t *state, sentry_envelope_t *envelope)
     return status_code;
 }
 
-static bool
-retry_send_cb(const sentry_path_t *path, void *_state)
+static int
+retry_send_cb(sentry_envelope_t *envelope, void *_state)
 {
     http_transport_state_t *state = _state;
-
-    sentry_envelope_t *envelope = sentry__envelope_from_path(path);
-    if (!envelope) {
-        sentry__path_remove(path);
-        return true;
-    }
-
-    int status_code = http_send_envelope(state, envelope);
-    sentry_envelope_free(envelope);
-    return sentry__retry_handle_result(state->retry, path, status_code);
+    return http_send_envelope(state, envelope);
 }
 
 static void
