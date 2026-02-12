@@ -247,6 +247,10 @@ sentry__transport_new_default(void)
 
     sentry_transport_t *transport
         = sentry__http_transport_new(client, curl_send_task);
+    if (!transport) {
+        curl_client_free(client);
+        return NULL;
+    }
     sentry__http_transport_set_free_client(transport, curl_client_free);
     sentry__http_transport_set_start_client(transport, curl_client_start);
     return transport;

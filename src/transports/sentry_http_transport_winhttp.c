@@ -324,6 +324,10 @@ sentry__transport_new_default(void)
 
     sentry_transport_t *transport
         = sentry__http_transport_new(client, winhttp_send_task);
+    if (!transport) {
+        winhttp_client_free(client);
+        return NULL;
+    }
     sentry__http_transport_set_free_client(transport, winhttp_client_free);
     sentry__http_transport_set_start_client(transport, winhttp_client_start);
     sentry__http_transport_set_shutdown_client(
