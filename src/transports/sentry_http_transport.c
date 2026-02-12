@@ -220,10 +220,9 @@ http_send_task(void *_envelope, void *_state)
         } else if (resp.status_code == 429) {
             sentry__rate_limiter_update_from_429(state->ratelimiter);
         }
-
-        sentry_free(resp.retry_after);
-        sentry_free(resp.x_sentry_rate_limits);
     }
+    sentry_free(resp.retry_after);
+    sentry_free(resp.x_sentry_rate_limits);
     sentry__prepared_http_request_free(req);
 }
 
