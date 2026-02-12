@@ -143,7 +143,8 @@ sentry__retry_foreach(sentry_retry_t *retry, bool startup,
         return 0;
     }
 
-    size_t path_count = 0;
+    size_t total = 0;
+    size_t eligible = 0;
     uint64_t now = startup ? 0 : (uint64_t)time(NULL);
 
     const sentry_path_t *p;
@@ -159,39 +160,41 @@ sentry__retry_foreach(sentry_retry_t *retry, bool startup,
             if (retry->startup_time > 0 && ts >= retry->startup_time) {
                 continue;
             }
-        } else if ((now - ts) < sentry__retry_backoff(count)) {
+        }
+        total++;
+        if (!startup && (now - ts) < sentry__retry_backoff(count)) {
             continue;
         }
-        if (path_count == path_cap) {
+        if (eligible == path_cap) {
             path_cap *= 2;
             sentry_path_t **tmp
                 = sentry_malloc(path_cap * sizeof(sentry_path_t *));
             if (!tmp) {
                 break;
             }
-            memcpy(tmp, paths, path_count * sizeof(sentry_path_t *));
+            memcpy(tmp, paths, eligible * sizeof(sentry_path_t *));
             sentry_free(paths);
             paths = tmp;
         }
-        paths[path_count++] = sentry__path_clone(p);
+        paths[eligible++] = sentry__path_clone(p);
     }
     sentry__pathiter_free(piter);
 
-    if (path_count > 1) {
-        qsort(paths, path_count, sizeof(sentry_path_t *), compare_retry_paths);
+    if (eligible > 1) {
+        qsort(paths, eligible, sizeof(sentry_path_t *), compare_retry_paths);
     }
 
-    for (size_t i = 0; i < path_count; i++) {
+    for (size_t i = 0; i < eligible; i++) {
         if (!callback(paths[i], data)) {
             break;
         }
     }
 
-    for (size_t i = 0; i < path_count; i++) {
+    for (size_t i = 0; i < eligible; i++) {
         sentry__path_free(paths[i]);
     }
     sentry_free(paths);
-    return path_count;
+    return total;
 }
 
 void
