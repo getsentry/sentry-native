@@ -24,9 +24,6 @@ struct sentry_retry_s {
 sentry_retry_t *
 sentry__retry_new(const sentry_options_t *options)
 {
-    if (options->http_retries <= 0 || !options->database_path) {
-        return NULL;
-    }
     sentry_path_t *retry_dir
         = sentry__path_join_str(options->database_path, "retry");
     if (!retry_dir) {
@@ -93,9 +90,6 @@ void
 sentry__retry_start(sentry_retry_t *retry, sentry_bgworker_t *bgworker,
     sentry_retry_send_func_t send_cb, void *send_data)
 {
-    if (!retry) {
-        return;
-    }
     retry->bgworker = bgworker;
     retry->send_cb = send_cb;
     retry->send_data = send_data;
@@ -106,9 +100,6 @@ sentry__retry_start(sentry_retry_t *retry, sentry_bgworker_t *bgworker,
 void
 sentry__retry_enqueue(sentry_retry_t *retry, const sentry_envelope_t *envelope)
 {
-    if (!retry) {
-        return;
-    }
     sentry__retry_write_envelope(retry, envelope);
     sentry__bgworker_submit_delayed(
         retry->bgworker, retry_poll_task, NULL, retry, SENTRY_RETRY_INTERVAL);
