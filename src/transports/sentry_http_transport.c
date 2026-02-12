@@ -189,8 +189,6 @@ sentry__prepared_http_request_free(sentry_prepared_http_request_t *req)
     sentry_free(req);
 }
 
-static void retry_process_task(void *_check_backoff, void *_state);
-
 static int
 http_send_request(
     http_transport_state_t *state, sentry_prepared_http_request_t *req)
@@ -219,6 +217,32 @@ http_send_request(
     return resp.status_code;
 }
 
+static bool
+retry_send_cb(const sentry_path_t *path, void *_state)
+{
+    http_transport_state_t *state = _state;
+
+    sentry_envelope_t *envelope = sentry__envelope_from_path(path);
+    if (!envelope) {
+        sentry__path_remove(path);
+        return true;
+    }
+
+    sentry_prepared_http_request_t *req = sentry__prepare_http_request(
+        envelope, state->dsn, state->ratelimiter, state->user_agent);
+    int status_code;
+    if (!req) {
+        status_code = 0;
+    } else {
+        status_code = http_send_request(state, req);
+        sentry__prepared_http_request_free(req);
+    }
+    sentry_envelope_free(envelope);
+
+    sentry__retry_handle_result(state->retry, path, status_code);
+    return true;
+}
+
 static void
 retry_process_task(void *_startup, void *_state)
 {
@@ -229,31 +253,7 @@ retry_process_task(void *_startup, void *_state)
         return;
     }
 
-    size_t count = 0;
-    sentry_path_t **paths = sentry__retry_scan(state->retry, startup, &count);
-
-    for (size_t i = 0; i < count; i++) {
-        sentry_envelope_t *envelope = sentry__envelope_from_path(paths[i]);
-        if (!envelope) {
-            sentry__path_remove(paths[i]);
-            continue;
-        }
-
-        sentry_prepared_http_request_t *req = sentry__prepare_http_request(
-            envelope, state->dsn, state->ratelimiter, state->user_agent);
-        int status_code;
-        if (!req) {
-            status_code = 0;
-        } else {
-            status_code = http_send_request(state, req);
-            sentry__prepared_http_request_free(req);
-        }
-        sentry_envelope_free(envelope);
-
-        sentry__retry_handle_result(state->retry, paths[i], status_code);
-    }
-
-    sentry__retry_free_paths(paths, count);
+    sentry__retry_foreach(state->retry, startup, retry_send_cb, state);
 
     if (sentry__retry_has_files(state->retry)) {
         sentry__bgworker_submit_delayed(state->bgworker, retry_process_task,

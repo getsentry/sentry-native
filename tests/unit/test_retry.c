@@ -76,6 +76,29 @@ make_test_envelope(sentry_uuid_t *event_id)
     return envelope;
 }
 
+typedef struct {
+    sentry_retry_t *retry;
+    int status_code;
+    size_t count;
+} retry_test_ctx_t;
+
+static bool
+handle_result_cb(const sentry_path_t *path, void *_ctx)
+{
+    retry_test_ctx_t *ctx = _ctx;
+    ctx->count++;
+    sentry__retry_handle_result(ctx->retry, path, ctx->status_code);
+    return true;
+}
+
+static bool
+count_cb(const sentry_path_t *path, void *_count)
+{
+    (void)path;
+    (*(size_t *)_count)++;
+    return true;
+}
+
 SENTRY_TEST(retry_throttle)
 {
     sentry_path_t *retry_path
@@ -95,14 +118,9 @@ SENTRY_TEST(retry_throttle)
 
     TEST_CHECK_INT_EQUAL(count_envelope_files(retry_path), 4);
 
-    size_t count = 0;
-    sentry_path_t **paths = sentry__retry_scan(retry, true, &count);
-    TEST_CHECK_INT_EQUAL(count, 4);
-
-    for (size_t i = 0; i < count; i++) {
-        sentry__retry_handle_result(retry, paths[i], 200);
-    }
-    sentry__retry_free_paths(paths, count);
+    retry_test_ctx_t ctx = { retry, 200, 0 };
+    sentry__retry_foreach(retry, true, handle_result_cb, &ctx);
+    TEST_CHECK_INT_EQUAL(ctx.count, 4);
     TEST_CHECK_INT_EQUAL(count_envelope_files(retry_path), 0);
 
     sentry__retry_free(retry);
@@ -129,11 +147,9 @@ SENTRY_TEST(retry_result)
     TEST_CHECK_INT_EQUAL(find_envelope_attempt(retry_path), 0);
 
     // 2. Success (200) → removes from retry dir
-    size_t count = 0;
-    sentry_path_t **paths = sentry__retry_scan(retry, true, &count);
-    TEST_CHECK_INT_EQUAL(count, 1);
-    sentry__retry_handle_result(retry, paths[0], 200);
-    sentry__retry_free_paths(paths, count);
+    retry_test_ctx_t ctx = { retry, 200, 0 };
+    sentry__retry_foreach(retry, true, handle_result_cb, &ctx);
+    TEST_CHECK_INT_EQUAL(ctx.count, 1);
     TEST_CHECK_INT_EQUAL(count_envelope_files(retry_path), 0);
 
     // 3. Write again
@@ -141,19 +157,17 @@ SENTRY_TEST(retry_result)
     TEST_CHECK_INT_EQUAL(count_envelope_files(retry_path), 1);
 
     // 4. Rate limited (429) → removes
-    paths = sentry__retry_scan(retry, true, &count);
-    TEST_CHECK_INT_EQUAL(count, 1);
-    sentry__retry_handle_result(retry, paths[0], 429);
-    sentry__retry_free_paths(paths, count);
+    ctx = (retry_test_ctx_t) { retry, 429, 0 };
+    sentry__retry_foreach(retry, true, handle_result_cb, &ctx);
+    TEST_CHECK_INT_EQUAL(ctx.count, 1);
     TEST_CHECK_INT_EQUAL(count_envelope_files(retry_path), 0);
 
     // 5. Write again, then discard (0) → removes
     sentry__retry_write_envelope(retry, envelope);
     TEST_CHECK_INT_EQUAL(count_envelope_files(retry_path), 1);
-    paths = sentry__retry_scan(retry, true, &count);
-    TEST_CHECK_INT_EQUAL(count, 1);
-    sentry__retry_handle_result(retry, paths[0], 0);
-    sentry__retry_free_paths(paths, count);
+    ctx = (retry_test_ctx_t) { retry, 0, 0 };
+    sentry__retry_foreach(retry, true, handle_result_cb, &ctx);
+    TEST_CHECK_INT_EQUAL(ctx.count, 1);
     TEST_CHECK_INT_EQUAL(count_envelope_files(retry_path), 0);
 
     // 6. Network error twice → bumps count
@@ -161,18 +175,16 @@ SENTRY_TEST(retry_result)
     TEST_CHECK_INT_EQUAL(count_envelope_files(retry_path), 1);
     TEST_CHECK_INT_EQUAL(find_envelope_attempt(retry_path), 0);
 
-    paths = sentry__retry_scan(retry, true, &count);
-    TEST_CHECK_INT_EQUAL(count, 1);
-    sentry__retry_handle_result(retry, paths[0], -1);
-    sentry__retry_free_paths(paths, count);
+    ctx = (retry_test_ctx_t) { retry, -1, 0 };
+    sentry__retry_foreach(retry, true, handle_result_cb, &ctx);
+    TEST_CHECK_INT_EQUAL(ctx.count, 1);
     TEST_CHECK_INT_EQUAL(count_envelope_files(retry_path), 1);
     TEST_CHECK_INT_EQUAL(find_envelope_attempt(retry_path), 1);
 
     // 7. Network error again → exceeds max_retries=2, removed
-    paths = sentry__retry_scan(retry, true, &count);
-    TEST_CHECK_INT_EQUAL(count, 1);
-    sentry__retry_handle_result(retry, paths[0], -1);
-    sentry__retry_free_paths(paths, count);
+    ctx = (retry_test_ctx_t) { retry, -1, 0 };
+    sentry__retry_foreach(retry, true, handle_result_cb, &ctx);
+    TEST_CHECK_INT_EQUAL(ctx.count, 1);
     TEST_CHECK_INT_EQUAL(count_envelope_files(retry_path), 0);
 
     sentry_envelope_free(envelope);
@@ -236,11 +248,9 @@ SENTRY_TEST(retry_cache)
     TEST_CHECK_INT_EQUAL(count_envelope_files(cache_path), 0);
 
     // Network error on a file at count=4 with max_retries=5 → moves to cache
-    size_t count = 0;
-    sentry_path_t **paths = sentry__retry_scan(retry, true, &count);
-    TEST_CHECK_INT_EQUAL(count, 1);
-    sentry__retry_handle_result(retry, paths[0], -1);
-    sentry__retry_free_paths(paths, count);
+    retry_test_ctx_t ctx = { retry, -1, 0 };
+    sentry__retry_foreach(retry, true, handle_result_cb, &ctx);
+    TEST_CHECK_INT_EQUAL(ctx.count, 1);
 
     TEST_CHECK_INT_EQUAL(count_envelope_files(retry_path), 0);
     TEST_CHECK_INT_EQUAL(count_envelope_files(cache_path), 1);
@@ -283,14 +293,13 @@ SENTRY_TEST(retry_backoff)
 
     // Startup scan (no backoff check): all 4 files returned
     size_t count = 0;
-    sentry_path_t **paths = sentry__retry_scan(retry, true, &count);
+    sentry__retry_foreach(retry, true, count_cb, &count);
     TEST_CHECK_INT_EQUAL(count, 4);
-    sentry__retry_free_paths(paths, count);
 
     // With backoff check: only eligible ones (id1 and id3)
-    paths = sentry__retry_scan(retry, false, &count);
+    count = 0;
+    sentry__retry_foreach(retry, false, count_cb, &count);
     TEST_CHECK_INT_EQUAL(count, 2);
-    sentry__retry_free_paths(paths, count);
 
     // Verify backoff_ms calculation
     TEST_CHECK_UINT64_EQUAL(sentry__retry_backoff(0), base);
@@ -319,18 +328,14 @@ SENTRY_TEST(retry_no_duplicate_rescan)
     sentry__retry_write_envelope(retry, envelope);
 
     // First scan returns the file
-    size_t count = 0;
-    sentry_path_t **paths = sentry__retry_scan(retry, true, &count);
-    TEST_CHECK_INT_EQUAL(count, 1);
-
-    // Handle as success → removes from retry dir
-    sentry__retry_handle_result(retry, paths[0], 200);
-    sentry__retry_free_paths(paths, count);
+    retry_test_ctx_t ctx = { retry, 200, 0 };
+    sentry__retry_foreach(retry, true, handle_result_cb, &ctx);
+    TEST_CHECK_INT_EQUAL(ctx.count, 1);
 
     // Second scan returns nothing
-    paths = sentry__retry_scan(retry, true, &count);
-    TEST_CHECK_INT_EQUAL(count, 0);
-    sentry__retry_free_paths(paths, count);
+    ctx.count = 0;
+    sentry__retry_foreach(retry, true, handle_result_cb, &ctx);
+    TEST_CHECK_INT_EQUAL(ctx.count, 0);
 
     TEST_CHECK(!sentry__retry_has_files(retry));
 

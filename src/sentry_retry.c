@@ -113,21 +113,20 @@ sentry__retry_write_envelope(
     }
 }
 
-sentry_path_t **
-sentry__retry_scan(sentry_retry_t *retry, bool startup, size_t *count_out)
+void
+sentry__retry_foreach(sentry_retry_t *retry, bool startup,
+    bool (*callback)(const sentry_path_t *path, void *data), void *data)
 {
-    *count_out = 0;
-
     sentry_pathiter_t *piter = sentry__path_iter_directory(retry->retry_dir);
     if (!piter) {
-        return NULL;
+        return;
     }
 
     size_t path_cap = 16;
     sentry_path_t **paths = sentry_malloc(path_cap * sizeof(sentry_path_t *));
     if (!paths) {
         sentry__pathiter_free(piter);
-        return NULL;
+        return;
     }
 
     size_t path_count = 0;
@@ -168,17 +167,13 @@ sentry__retry_scan(sentry_retry_t *retry, bool startup, size_t *count_out)
         qsort(paths, path_count, sizeof(sentry_path_t *), compare_retry_paths);
     }
 
-    *count_out = path_count;
-    return paths;
-}
-
-void
-sentry__retry_free_paths(sentry_path_t **paths, size_t count)
-{
-    if (!paths) {
-        return;
+    for (size_t i = 0; i < path_count; i++) {
+        if (!callback(paths[i], data)) {
+            break;
+        }
     }
-    for (size_t i = 0; i < count; i++) {
+
+    for (size_t i = 0; i < path_count; i++) {
         sentry__path_free(paths[i]);
     }
     sentry_free(paths);
