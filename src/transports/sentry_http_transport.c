@@ -213,6 +213,19 @@ http_send_request(
     return resp.status_code;
 }
 
+static int
+http_send_envelope(http_transport_state_t *state, sentry_envelope_t *envelope)
+{
+    sentry_prepared_http_request_t *req = sentry__prepare_http_request(
+        envelope, state->dsn, state->ratelimiter, state->user_agent);
+    if (!req) {
+        return 0;
+    }
+    int status_code = http_send_request(state, req);
+    sentry__prepared_http_request_free(req);
+    return status_code;
+}
+
 static bool
 retry_send_cb(const sentry_path_t *path, void *_state)
 {
@@ -224,17 +237,8 @@ retry_send_cb(const sentry_path_t *path, void *_state)
         return true;
     }
 
-    sentry_prepared_http_request_t *req = sentry__prepare_http_request(
-        envelope, state->dsn, state->ratelimiter, state->user_agent);
-    int status_code;
-    if (!req) {
-        status_code = 0;
-    } else {
-        status_code = http_send_request(state, req);
-        sentry__prepared_http_request_free(req);
-    }
+    int status_code = http_send_envelope(state, envelope);
     sentry_envelope_free(envelope);
-
     return sentry__retry_handle_result(state->retry, path, status_code);
 }
 
@@ -258,15 +262,7 @@ http_send_task(void *_envelope, void *_state)
     sentry_envelope_t *envelope = _envelope;
     http_transport_state_t *state = _state;
 
-    sentry_prepared_http_request_t *req = sentry__prepare_http_request(
-        envelope, state->dsn, state->ratelimiter, state->user_agent);
-    if (!req) {
-        return;
-    }
-
-    int status_code = http_send_request(state, req);
-    sentry__prepared_http_request_free(req);
-
+    int status_code = http_send_envelope(state, envelope);
     if (status_code < 0 && state->retry) {
         sentry__retry_enqueue(state->retry, envelope);
     }
