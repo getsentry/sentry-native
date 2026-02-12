@@ -126,17 +126,39 @@ fp_walk_from_uctx(const sentry_ucontext_t *uctx, void **ptrs, size_t max_frames)
     lr = STRIP_PAC((uintptr_t)mctx->__ss.__lr);
 #    endif
 
-    // top frame: no adjustment
+    // top frame: crash PC points to the faulting instruction, no adjustment
     if (pc && n < max_frames) {
         ptrs[n++] = (void *)pc;
     }
 
-    // next frame is from saved LR at current FP record (adjust -1)
+    // Emit LR as the next frame (return address, so adjust -1).
     if (lr && n < max_frames) {
         ptrs[n++] = (void *)(lr - 1);
     }
 
-    fp_walk(fp, &n, ptrs, max_frames);
+    // Determine where to start the frame pointer walk:
+    // If LR matches the saved LR in the current frame record,
+    // the crashing function has a frame and hasn't made sub-calls since its
+    // prologue
+    //   -> walking from fp would produce a duplicate.
+    //   -> Skip to the caller's frame pointer.
+    //
+    // When they differ,
+    // either the function has no frame record (fp belongs to the caller, and LR
+    // is the only reference to the caller frame)
+    // or
+    // it sub-calls (LR is a stale return within the crashing function).
+    //
+    // In both cases, walking from fp captures the correct remaining frames.
+    if (valid_ptr(fp)) {
+        const uintptr_t *record = (uintptr_t *)fp;
+        uintptr_t saved_lr = STRIP_PAC(record[1]);
+        if (lr == saved_lr) {
+            fp_walk(record[0], &n, ptrs, max_frames);
+        } else {
+            fp_walk(fp, &n, ptrs, max_frames);
+        }
+    }
 #elif defined(__x86_64__)
     uintptr_t ip = (uintptr_t)mctx->__ss.__rip;
     uintptr_t bp = (uintptr_t)mctx->__ss.__rbp;

@@ -369,6 +369,110 @@ def test_inproc_handler_abort_crash(cmake):
         shutil.rmtree(database_path, ignore_errors=True)
 
 
+@pytest.mark.skipif(sys.platform != "darwin", reason="Stack trace tests are macOS-only")
+@pytest.mark.parametrize(
+    "test_name,expected_functions,expect_no_duplicates",
+    [
+        (
+            "stack-no-subcalls",
+            [
+                "stacktest_B_crash_no_subcalls",
+                "stacktest_A_calls_B_no_subcalls",
+            ],
+            True,
+        ),
+        (
+            "stack-with-subcalls",
+            [
+                "stacktest_B_crash_after_subcall",
+                "stacktest_A_calls_B_with_subcalls",
+            ],
+            # LR holds a stale return into the crashing function (from the
+            # last bl before the crash). We accept this spurious extra frame
+            # because skipping LR would lose a real frame in the
+            # no-frame-record case, which we can't distinguish at walk time.
+            False,
+        ),
+        (
+            "stack-no-frame-record",
+            [
+                "stacktest_B_crash_no_frame_record",
+                "stacktest_A_calls_B_no_frame_record",
+            ],
+            True,
+        ),
+    ],
+    ids=["no-subcalls", "with-subcalls", "no-frame-record"],
+)
+def test_inproc_stack_trace(cmake, test_name, expected_functions, expect_no_duplicates):
+    """
+    Test that the fp-based unwinder produces correct stack traces on macOS.
+
+    Verifies:
+    - No duplicate frames where avoidable (arm64 LR vs saved LR dedup)
+    - No missing frames (functions without frame records need LR)
+    - Expected function names appear in the correct order
+    """
+    tmp_path = cmake(
+        ["sentry"],
+        {"SENTRY_BACKEND": "inproc", "SENTRY_TRANSPORT": "none"},
+    )
+
+    test_exe = compile_test_program(tmp_path)
+    database_path = tmp_path / ".sentry-native"
+
+    try:
+        returncode, stdout, stderr = run_stress_test(
+            tmp_path, test_exe, test_name, database_path
+        )
+
+        assert returncode != 0, f"Process should have crashed. stderr:\n{stderr}"
+        assert (
+            "crash has been captured" in stderr
+        ), f"Crash not captured. stderr:\n{stderr}"
+
+        envelope_path = assert_single_crash_envelope(database_path)
+        with open(envelope_path, "rb") as f:
+            envelope = Envelope.deserialize(f.read())
+
+        event = envelope.get_event()
+        assert event is not None, "Event missing from envelope"
+        assert "exception" in event, "Exception missing from event"
+
+        exc = event["exception"]["values"][0]
+        assert "stacktrace" in exc, "Stacktrace missing from exception"
+
+        frames = exc["stacktrace"]["frames"]
+        # Sentry convention: frames are bottom-to-top, so reverse for
+        # top-to-bottom (crash frame first)
+        func_names = [f.get("function", "") for f in reversed(frames)]
+
+        # Check no consecutive duplicate function names (where expected)
+        if expect_no_duplicates:
+            for i in range(len(func_names) - 1):
+                assert func_names[i] != func_names[i + 1] or not func_names[i], (
+                    f"Duplicate consecutive frame: {func_names[i]} at positions"
+                    f" {i} and {i+1}.\nAll frames: {func_names}"
+                )
+
+        # Check expected functions appear in order
+        search_start = 0
+        for expected in expected_functions:
+            found = False
+            for i in range(search_start, len(func_names)):
+                if expected in (func_names[i] or ""):
+                    found = True
+                    search_start = i + 1
+                    break
+            assert found, (
+                f"Expected function '{expected}' not found (after position"
+                f" {search_start}) in stack trace.\nAll frames: {func_names}"
+            )
+
+    finally:
+        shutil.rmtree(database_path, ignore_errors=True)
+
+
 @pytest.mark.parametrize("iteration", range(5))
 def test_inproc_concurrent_crash_repeated(cmake, iteration):
     tmp_path = cmake(

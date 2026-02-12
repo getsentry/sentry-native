@@ -29,6 +29,117 @@ extern void run_concurrent_crash(void);
 
 static void *invalid_mem = (void *)1;
 
+// Prevent inlining and optimization to ensure predictable frame records.
+#define NOINLINE __attribute__((noinline, optnone))
+
+// Stack trace test functions (used on macOS because that uses a handwritten stack-walker, can compile on Linux/Unix).
+// The naming convention encodes the expected call chain so the Python test
+// can verify frames by function name.
+//
+// Scenario 1: crash in function with frame record, no sub-calls since prologue
+//   stacktest_A_calls_B_no_subcalls -> stacktest_B_crash_no_subcalls
+//
+// Scenario 2: crash in function with frame record, made sub-calls before crash
+//   stacktest_A_calls_B_with_subcalls -> stacktest_B_crash_after_subcall
+//     (B calls stacktest_C_helper which returns, then B crashes)
+//
+// Scenario 3: crash in function without a frame record
+//   stacktest_A_calls_B_no_frame_record -> stacktest_B_crash_no_frame_record
+#ifndef _WIN32
+
+static volatile int g_side_effect = 0;
+
+// Has a frame record (explicit prologue) but makes no calls, so LR still
+// holds the return address from the caller's bl, matching [FP+8].
+#    if defined(__aarch64__)
+__attribute__((naked, noinline)) static void
+stacktest_B_crash_no_subcalls(void)
+{
+    __asm__ volatile(
+        "stp x29, x30, [sp, #-16]!\n\t" // prologue: save fp, lr
+        "mov x29, sp\n\t"               // set up frame pointer
+        "mov x8, #1\n\t"
+        "str wzr, [x8]\n\t"             // store to address 0x1 -> SIGSEGV
+    );
+}
+#    elif defined(__x86_64__)
+__attribute__((naked, noinline)) static void
+stacktest_B_crash_no_subcalls(void)
+{
+    __asm__ volatile(
+        "pushq %%rbp\n\t"               // prologue: save bp
+        "movq %%rsp, %%rbp\n\t"         // set up frame pointer
+        "movl $0, 0x1\n\t"              // store to address 0x1 -> SIGSEGV
+        ::: "memory"
+    );
+}
+#    endif
+
+NOINLINE static void
+stacktest_A_calls_B_no_subcalls(void)
+{
+    fprintf(stderr, "stacktest_A_calls_B_no_subcalls\n");
+    fflush(stderr);
+    stacktest_B_crash_no_subcalls();
+}
+
+NOINLINE static void
+stacktest_C_helper(void)
+{
+    // A function that returns normally, just to modify LR in the caller
+    g_side_effect = 42;
+}
+
+NOINLINE static void
+stacktest_B_crash_after_subcall(void)
+{
+    fprintf(stderr, "stacktest_B_crash_after_subcall\n");
+    fflush(stderr);
+    // Call a helper (modifies LR), then crash without another call
+    stacktest_C_helper();
+    *(volatile int *)invalid_mem = 0xdead;
+}
+
+NOINLINE static void
+stacktest_A_calls_B_with_subcalls(void)
+{
+    fprintf(stderr, "stacktest_A_calls_B_with_subcalls\n");
+    fflush(stderr);
+    stacktest_B_crash_after_subcall();
+}
+
+// This function must not have a frame record. We use __attribute__((naked))
+// to suppress the prologue/epilogue entirely, and write the crashing store
+// in assembly. This ensures FP still points to the caller's frame.
+#    if defined(__aarch64__)
+__attribute__((naked, noinline)) static void
+stacktest_B_crash_no_frame_record(void)
+{
+    __asm__ volatile(
+        "mov x8, #1\n\t"
+        "str wzr, [x8]\n\t" // store to address 0x1 -> SIGSEGV
+    );
+}
+#    elif defined(__x86_64__)
+__attribute__((naked, noinline)) static void
+stacktest_B_crash_no_frame_record(void)
+{
+    __asm__ volatile(
+        "movl $0, 0x1\n\t" // store to address 0x1 -> SIGSEGV
+    );
+}
+#    endif
+
+NOINLINE static void
+stacktest_A_calls_B_no_frame_record(void)
+{
+    fprintf(stderr, "stacktest_A_calls_B_no_frame_record\n");
+    fflush(stderr);
+    stacktest_B_crash_no_frame_record();
+}
+
+#endif /* !_WIN32 */
+
 // on_crash callback that crashes via SIGSEGV: simulates buggy user code
 static sentry_value_t
 crashing_on_crash_callback(
@@ -94,6 +205,7 @@ setup_sentry(PATH_TYPE database_path)
     sentry_options_set_auto_session_tracking(options, false);
     sentry_options_set_dsn(options, "https://public@sentry.invalid/1");
     sentry_options_set_debug(options, 1);
+    sentry_options_set_symbolize_stacktraces(options, 1);
     sentry_options_set_transport(options, sentry_transport_new(print_envelope));
 
     if (sentry_init(options) != 0) {
@@ -217,6 +329,53 @@ test_handler_abort_crash(PATH_TYPE database_path)
     return 1;
 }
 
+#ifndef _WIN32
+static int
+test_stack_no_subcalls(PATH_TYPE database_path)
+{
+    if (setup_sentry(database_path) != 0) {
+        return 1;
+    }
+    sentry_set_tag("test", "stack-no-subcalls");
+    fprintf(stderr, "Starting stack-no-subcalls test\n");
+    fflush(stderr);
+    stacktest_A_calls_B_no_subcalls();
+    fprintf(stderr, "ERROR: Should have crashed\n");
+    sentry_close();
+    return 1;
+}
+
+static int
+test_stack_with_subcalls(PATH_TYPE database_path)
+{
+    if (setup_sentry(database_path) != 0) {
+        return 1;
+    }
+    sentry_set_tag("test", "stack-with-subcalls");
+    fprintf(stderr, "Starting stack-with-subcalls test\n");
+    fflush(stderr);
+    stacktest_A_calls_B_with_subcalls();
+    fprintf(stderr, "ERROR: Should have crashed\n");
+    sentry_close();
+    return 1;
+}
+
+static int
+test_stack_no_frame_record(PATH_TYPE database_path)
+{
+    if (setup_sentry(database_path) != 0) {
+        return 1;
+    }
+    sentry_set_tag("test", "stack-no-frame-record");
+    fprintf(stderr, "Starting stack-no-frame-record test\n");
+    fflush(stderr);
+    stacktest_A_calls_B_no_frame_record();
+    fprintf(stderr, "ERROR: Should have crashed\n");
+    sentry_close();
+    return 1;
+}
+#endif /* !_WIN32 */
+
 static int
 test_simple_crash(PATH_TYPE database_path)
 {
@@ -294,6 +453,12 @@ main(int argc, char *argv[])
         fprintf(stderr,
             "  handler-abort-crash    - Handler thread crashes in on_crash "
             "(abort)\n");
+        fprintf(stderr,
+            "  stack-no-subcalls      - Stack trace: no sub-calls\n");
+        fprintf(stderr,
+            "  stack-with-subcalls    - Stack trace: with sub-calls\n");
+        fprintf(stderr,
+            "  stack-no-frame-record  - Stack trace: no frame record\n");
         return 1;
     }
 
@@ -311,6 +476,15 @@ main(int argc, char *argv[])
     }
     if (strcmp(test_name, "handler-abort-crash") == 0) {
         return test_handler_abort_crash(database_path);
+    }
+    if (strcmp(test_name, "stack-no-subcalls") == 0) {
+        return test_stack_no_subcalls(database_path);
+    }
+    if (strcmp(test_name, "stack-with-subcalls") == 0) {
+        return test_stack_with_subcalls(database_path);
+    }
+    if (strcmp(test_name, "stack-no-frame-record") == 0) {
+        return test_stack_no_frame_record(database_path);
     }
     fprintf(stderr, "Unknown test: %s\n", test_name);
     return 1;
