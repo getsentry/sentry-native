@@ -1,6 +1,7 @@
 #include "sentry_retry.h"
 #include "sentry_alloc.h"
 #include "sentry_envelope.h"
+#include "sentry_options.h"
 #include "sentry_utils.h"
 
 #include <stdlib.h>
@@ -15,16 +16,34 @@ struct sentry_retry_s {
 };
 
 sentry_retry_t *
-sentry__retry_new(
-    sentry_path_t *retry_dir, sentry_path_t *cache_dir, int max_retries)
+sentry__retry_new(const sentry_options_t *options)
 {
-    sentry_retry_t *retry = SENTRY_MAKE(sentry_retry_t);
-    if (!retry) {
+    if (options->http_retries <= 0 || !options->database_path) {
         return NULL;
     }
-    retry->retry_dir = sentry__path_clone(retry_dir);
-    retry->cache_dir = cache_dir ? sentry__path_clone(cache_dir) : NULL;
-    retry->max_retries = max_retries;
+    sentry_path_t *retry_dir
+        = sentry__path_join_str(options->database_path, "retry");
+    if (!retry_dir) {
+        return NULL;
+    }
+    sentry_path_t *cache_dir = NULL;
+    if (options->cache_keep) {
+        cache_dir = sentry__path_join_str(options->database_path, "cache");
+    }
+
+    sentry_retry_t *retry = SENTRY_MAKE(sentry_retry_t);
+    if (!retry) {
+        sentry__path_free(cache_dir);
+        sentry__path_free(retry_dir);
+        return NULL;
+    }
+    retry->retry_dir = retry_dir;
+    retry->cache_dir = cache_dir;
+    retry->max_retries = options->http_retries;
+    sentry__path_create_dir_all(retry->retry_dir);
+    if (retry->cache_dir) {
+        sentry__path_create_dir_all(retry->cache_dir);
+    }
     return retry;
 }
 

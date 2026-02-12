@@ -318,29 +318,11 @@ http_transport_start(const sentry_options_t *options, void *transport_state)
         return rv;
     }
 
-    if (options->http_retries > 0) {
-        sentry_path_t *retry_dir
-            = sentry__path_join_str(options->database_path, "retry");
-        if (retry_dir) {
-            sentry__path_create_dir_all(retry_dir);
-            sentry_path_t *cache_dir = NULL;
-            if (options->cache_keep) {
-                cache_dir
-                    = sentry__path_join_str(options->database_path, "cache");
-                if (cache_dir) {
-                    sentry__path_create_dir_all(cache_dir);
-                }
-            }
-            state->retry = sentry__retry_new(
-                retry_dir, cache_dir, options->http_retries);
-            sentry__path_free(cache_dir);
-            sentry__path_free(retry_dir);
-        }
-        if (state->retry) {
-            sentry__retry_set_startup_time(state->retry, (uint64_t)time(NULL));
-            sentry__bgworker_submit_delayed(bgworker, retry_process_task, NULL,
-                (void *)(intptr_t)1, SENTRY_RETRY_STARTUP_DELAY_MS);
-        }
+    state->retry = sentry__retry_new(options);
+    if (state->retry) {
+        sentry__retry_set_startup_time(state->retry, (uint64_t)time(NULL));
+        sentry__bgworker_submit_delayed(bgworker, retry_process_task, NULL,
+            (void *)(intptr_t)1, SENTRY_RETRY_STARTUP_DELAY_MS);
     }
 
     return 0;
