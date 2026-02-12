@@ -230,7 +230,7 @@ SENTRY_TEST(retry_cache)
 
     // Create a retry file at the max retry count (4, with max_retries=5)
     sentry_uuid_t event_id = sentry_uuid_new_v4();
-    write_retry_file(retry_path, sentry__monotonic_time(), 4, &event_id);
+    write_retry_file(retry_path, (uint64_t)time(NULL), 4, &event_id);
 
     TEST_CHECK_INT_EQUAL(count_envelope_files(retry_path), 1);
     TEST_CHECK_INT_EQUAL(count_envelope_files(cache_path), 0);
@@ -262,8 +262,8 @@ SENTRY_TEST(retry_backoff)
     sentry_retry_t *retry = sentry__retry_new(retry_path, NULL, 5);
     TEST_ASSERT(!!retry);
 
-    uint64_t now = sentry__monotonic_time();
-    uint64_t base = SENTRY_RETRY_BACKOFF_BASE_MS;
+    uint64_t now = (uint64_t)time(NULL);
+    uint64_t base = SENTRY_RETRY_BACKOFF_BASE_MS / 1000;
 
     // retry 0 with old timestamp: eligible (base backoff expired)
     sentry_uuid_t id1 = sentry_uuid_new_v4();
@@ -293,11 +293,16 @@ SENTRY_TEST(retry_backoff)
     sentry__retry_free_paths(paths, count);
 
     // Verify backoff_ms calculation
-    TEST_CHECK_UINT64_EQUAL(sentry__retry_backoff_ms(0), base);
-    TEST_CHECK_UINT64_EQUAL(sentry__retry_backoff_ms(1), base * 2);
-    TEST_CHECK_UINT64_EQUAL(sentry__retry_backoff_ms(2), base * 4);
-    TEST_CHECK_UINT64_EQUAL(sentry__retry_backoff_ms(3), base * 8);
-    TEST_CHECK_UINT64_EQUAL(sentry__retry_backoff_ms(4), base * 8);
+    TEST_CHECK_UINT64_EQUAL(
+        sentry__retry_backoff_ms(0), SENTRY_RETRY_BACKOFF_BASE_MS);
+    TEST_CHECK_UINT64_EQUAL(
+        sentry__retry_backoff_ms(1), SENTRY_RETRY_BACKOFF_BASE_MS * 2);
+    TEST_CHECK_UINT64_EQUAL(
+        sentry__retry_backoff_ms(2), SENTRY_RETRY_BACKOFF_BASE_MS * 4);
+    TEST_CHECK_UINT64_EQUAL(
+        sentry__retry_backoff_ms(3), SENTRY_RETRY_BACKOFF_BASE_MS * 8);
+    TEST_CHECK_UINT64_EQUAL(
+        sentry__retry_backoff_ms(4), SENTRY_RETRY_BACKOFF_BASE_MS * 8);
 
     sentry__retry_free(retry);
     sentry__path_remove_all(retry_path);
