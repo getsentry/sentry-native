@@ -50,7 +50,7 @@ static int
 count_eligible_files(const sentry_path_t *dir, uint64_t before)
 {
     int eligible = 0;
-    uint64_t now = before ? 0 : (uint64_t)time(NULL);
+    uint64_t now = before > 0 ? 0 : (uint64_t)time(NULL);
     sentry_pathiter_t *iter = sentry__path_iter_directory(dir);
     const sentry_path_t *file;
     while (iter && (file = sentry__pathiter_next(iter)) != NULL) {
@@ -61,7 +61,7 @@ count_eligible_files(const sentry_path_t *dir, uint64_t before)
         if (!sentry__retry_parse_filename(name, &ts, &count, &uuid)) {
             continue;
         }
-        if (before && ts >= before) {
+        if (before > 0 && ts >= before) {
             continue;
         }
         if (!before && (now - ts) < sentry__retry_backoff(count)) {

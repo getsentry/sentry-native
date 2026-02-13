@@ -193,7 +193,7 @@ sentry__retry_send(sentry_retry_t *retry, uint64_t before,
 
     size_t total = 0;
     size_t eligible = 0;
-    uint64_t now = before ? 0 : (uint64_t)time(NULL);
+    uint64_t now = before > 0 ? 0 : (uint64_t)time(NULL);
 
     const sentry_path_t *p;
     while ((p = sentry__pathiter_next(piter)) != NULL) {
@@ -204,7 +204,7 @@ sentry__retry_send(sentry_retry_t *retry, uint64_t before,
         if (!sentry__retry_parse_filename(fname, &ts, &count, &uuid)) {
             continue;
         }
-        if (before && ts >= before) {
+        if (before > 0 && ts >= before) {
             continue;
         }
         total++;
@@ -279,6 +279,8 @@ void
 sentry__retry_enqueue(sentry_retry_t *retry, const sentry_envelope_t *envelope)
 {
     sentry__retry_write_envelope(retry, envelope);
+    // prevent the startup poll from re-processing this session's envelope
+    retry->startup_time = 0;
     sentry__bgworker_submit_delayed(
         retry->bgworker, retry_poll_task, NULL, retry, SENTRY_RETRY_INTERVAL);
 }
