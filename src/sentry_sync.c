@@ -226,7 +226,9 @@ sentry__bgworker_get_state(sentry_bgworker_t *bgw)
 static bool
 sentry__bgworker_is_done(sentry_bgworker_t *bgw)
 {
-    return !bgw->first_task && !sentry__atomic_fetch(&bgw->running);
+    return (!bgw->first_task
+               || sentry__monotonic_time() < bgw->first_task->execute_after)
+        && !sentry__atomic_fetch(&bgw->running);
 }
 
 SENTRY_THREAD_FN
@@ -265,16 +267,6 @@ worker_thread(void *data)
         {
             uint64_t now = sentry__monotonic_time();
             if (now < task->execute_after) {
-                // discard delayed tasks submitted after shutdown pruning
-                if (!sentry__atomic_fetch(&bgw->running)) {
-                    while (bgw->first_task) {
-                        sentry_bgworker_task_t *t = bgw->first_task;
-                        bgw->first_task = t->next_task;
-                        sentry__task_decref(t);
-                    }
-                    bgw->last_task = NULL;
-                    continue;
-                }
                 sentry__cond_wait_timeout(&bgw->submit_signal, &bgw->task_lock,
                     (uint32_t)(task->execute_after - now));
                 continue;

@@ -344,13 +344,13 @@ SENTRY_TEST(bgworker_delayed_shutdown)
     sentry__bgworker_submit(bgw, record_order_task, NULL, (void *)2);
     sentry__bgworker_submit(bgw, record_order_task, NULL, (void *)3);
 
-    // delayed tasks are discarded on shutdown unless already ready
-    sentry__bgworker_submit_delayed(
-        bgw, record_order_task, NULL, (void *)4, 50);
-    sentry__bgworker_submit_delayed(
-        bgw, record_order_task, NULL, (void *)5, 5000);
-    sentry__bgworker_submit_delayed(
-        bgw, record_order_task, NULL, (void *)6, 5000);
+    // pending delayed tasks are discarded on shutdown
+    sentry__bgworker_submit_at(
+        bgw, record_order_task, NULL, (void *)4, UINT64_MAX);
+    sentry__bgworker_submit_at(
+        bgw, record_order_task, NULL, (void *)5, UINT64_MAX);
+    sentry__bgworker_submit_at(
+        bgw, record_order_task, NULL, (void *)6, UINT64_MAX);
 
     sentry__bgworker_start(bgw);
     TEST_CHECK_INT_EQUAL(sentry__bgworker_shutdown(bgw, 1000), 0);
