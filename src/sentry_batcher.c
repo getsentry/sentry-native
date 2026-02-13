@@ -1,7 +1,9 @@
 #include "sentry_batcher.h"
 #include "sentry_core.h"
 #include "sentry_cpu_relax.h"
+#include "sentry_database.h"
 #include "sentry_options.h"
+#include "sentry_transport.h"
 
 #ifdef SENTRY_UNITTEST
 #    ifdef SENTRY_PLATFORM_WINDOWS
@@ -116,19 +118,23 @@ sentry__batcher_flush(sentry_batcher_t *batcher, bool crash_safe)
             }
             sentry_value_set_by_key(logs, "items", log_items);
 
-            sentry_envelope_t *envelope = sentry__envelope_new();
+            sentry_envelope_t *envelope
+                = sentry__envelope_new_with_dsn(batcher->options->dsn);
             batcher->batch_func(envelope, logs);
 
-            SENTRY_WITH_OPTIONS (options) {
-                if (crash_safe) {
-                    // Write directly to disk to avoid transport queuing during
-                    // crash
-                    sentry__run_write_envelope(options->run, envelope);
-                    sentry_envelope_free(envelope);
-                } else {
-                    // Normal operation: use transport for HTTP transmission
-                    sentry__capture_envelope(options->transport, envelope);
-                }
+            if (crash_safe) {
+                // Write directly to disk to avoid transport queuing during
+                // crash
+                sentry__run_write_envelope(batcher->options->run, envelope);
+                sentry_envelope_free(envelope);
+            } else if (!batcher->options->require_user_consent
+                || sentry__options_get_user_consent(batcher->options)
+                    == SENTRY_USER_CONSENT_GIVEN) {
+                // Normal operation: use transport for HTTP transmission
+                sentry__transport_send_envelope(
+                    batcher->options->transport, envelope);
+            } else {
+                sentry_envelope_free(envelope);
             }
             sentry_value_decref(logs);
         }
@@ -282,8 +288,11 @@ batcher_thread_func(void *data)
 }
 
 void
-sentry__batcher_startup(sentry_batcher_t *batcher)
+sentry__batcher_startup(
+    sentry_batcher_t *batcher, const sentry_options_t *options)
 {
+    batcher->options = options;
+
     // Mark thread as starting before actually spawning so thread can transition
     // to RUNNING. This prevents shutdown from thinking the thread was never
     // started if it races with the thread's initialization.

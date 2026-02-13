@@ -9,6 +9,7 @@
 #include "sentry_ratelimiter.h"
 #include "sentry_session.h"
 #include "sentry_string.h"
+#include "sentry_utils.h"
 
 // https://develop.sentry.dev/sdk/data-model/envelopes/#size-limits
 #define SENTRY_MAX_ENVELOPE_SESSIONS 100
@@ -19,6 +20,11 @@ typedef struct sentry_envelope_item_s sentry_envelope_item_t;
  * Create a new empty envelope.
  */
 sentry_envelope_t *sentry__envelope_new(void);
+
+/**
+ * Create a new empty envelope with the given DSN header.
+ */
+sentry_envelope_t *sentry__envelope_new_with_dsn(const sentry_dsn_t *dsn);
 
 /**
  * This loads a previously serialized envelope from disk.

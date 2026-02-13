@@ -41,11 +41,13 @@ typedef struct {
     sentry_cond_t request_flush; // condition variable to schedule a flush
     sentry_threadid_t batching_thread; // the batching thread
     sentry_batch_func_t batch_func; // function to add items to envelope
+    const sentry_options_t *options; // used during flush
 } sentry_batcher_t;
 
 bool sentry__batcher_flush(sentry_batcher_t *batcher, bool crash_safe);
 bool sentry__batcher_enqueue(sentry_batcher_t *batcher, sentry_value_t item);
-void sentry__batcher_startup(sentry_batcher_t *batcher);
+void sentry__batcher_startup(
+    sentry_batcher_t *batcher, const sentry_options_t *options);
 bool sentry__batcher_shutdown_begin(sentry_batcher_t *batcher);
 void sentry__batcher_shutdown_wait(sentry_batcher_t *batcher, uint64_t timeout);
 void sentry__batcher_flush_crash_safe(sentry_batcher_t *batcher);

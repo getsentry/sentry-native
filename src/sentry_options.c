@@ -88,6 +88,13 @@ sentry__options_incref(sentry_options_t *options)
     return options;
 }
 
+sentry_user_consent_t
+sentry__options_get_user_consent(const sentry_options_t *options)
+{
+    return (sentry_user_consent_t)(int)sentry__atomic_fetch(
+        (long *)&options->user_consent);
+}
+
 void
 sentry_options_free(sentry_options_t *opts)
 {

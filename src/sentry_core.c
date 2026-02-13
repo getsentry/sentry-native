@@ -97,7 +97,7 @@ sentry__should_skip_upload(void)
     bool skip = true;
     SENTRY_WITH_OPTIONS (options) {
         skip = options->require_user_consent
-            && sentry__atomic_fetch((long *)&options->user_consent)
+            && sentry__options_get_user_consent(options)
                 != SENTRY_USER_CONSENT_GIVEN;
     }
     return skip;
@@ -299,11 +299,11 @@ sentry_init(sentry_options_t *options)
     }
 
     if (options->enable_logs) {
-        sentry__logs_startup();
+        sentry__logs_startup(options);
     }
 
     if (options->enable_metrics) {
-        sentry__metrics_startup();
+        sentry__metrics_startup(options);
     }
 
     sentry__mutex_unlock(&g_options_lock);
@@ -484,8 +484,7 @@ sentry_user_consent_get(void)
 {
     sentry_user_consent_t rv = SENTRY_USER_CONSENT_UNKNOWN;
     SENTRY_WITH_OPTIONS (options) {
-        rv = (sentry_user_consent_t)(int)sentry__atomic_fetch(
-            (long *)&options->user_consent);
+        rv = sentry__options_get_user_consent(options);
     }
     return rv;
 }

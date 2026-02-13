@@ -182,6 +182,16 @@ sentry__envelope_set_header(
 sentry_envelope_t *
 sentry__envelope_new(void)
 {
+    sentry_dsn_t *dsn = NULL;
+    SENTRY_WITH_OPTIONS (options) {
+        dsn = options->dsn;
+    }
+    return sentry__envelope_new_with_dsn(dsn);
+}
+
+sentry_envelope_t *
+sentry__envelope_new_with_dsn(const sentry_dsn_t *dsn)
+{
     sentry_envelope_t *rv = SENTRY_MAKE(sentry_envelope_t);
     if (!rv) {
         return NULL;
@@ -193,11 +203,9 @@ sentry__envelope_new(void)
     rv->contents.items.item_count = 0;
     rv->contents.items.headers = sentry_value_new_object();
 
-    SENTRY_WITH_OPTIONS (options) {
-        if (options->dsn && options->dsn->is_valid) {
-            sentry__envelope_set_header(rv, "dsn",
-                sentry_value_new_string(sentry_options_get_dsn(options)));
-        }
+    if (dsn && dsn->is_valid) {
+        sentry__envelope_set_header(
+            rv, "dsn", sentry_value_new_string(dsn->raw));
     }
 
     return rv;

@@ -9,7 +9,7 @@ log_return_value_t sentry__logs_log(
 /**
  * Sets up the logs timer/flush thread
  */
-void sentry__logs_startup(void);
+void sentry__logs_startup(const sentry_options_t *options);
 
 /**
  * Begin non-blocking shutdown of the logs timer/flush thread.
