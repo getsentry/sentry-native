@@ -1,5 +1,6 @@
 import os
 import pathlib
+import platform
 import shutil
 import subprocess
 import sys
@@ -396,13 +397,17 @@ def test_inproc_handler_abort_crash(cmake):
             # no-frame-record case, which we can't distinguish at walk time.
             False,
         ),
-        (
+        pytest.param(
             "stack-no-frame-record",
             [
                 "stacktest_B_crash_no_frame_record",
                 "stacktest_A_calls_B_no_frame_record",
             ],
             True,
+            marks=pytest.mark.skipif(
+                platform.machine() not in ("arm64", "aarch64"),
+                reason="no-frame-record recovery requires LR (arm64 only)",
+            ),
         ),
     ],
     ids=["no-subcalls", "with-subcalls", "no-frame-record"],
