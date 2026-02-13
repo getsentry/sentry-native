@@ -185,6 +185,24 @@ def test_inproc_crash_stdout(cmake):
     assert_inproc_crash(envelope)
 
 
+def test_inproc_abort_stdout(cmake):
+    """Test that a normal abort() call is captured by inproc backend.
+
+    This verifies that our SIGABRT handling changes (which bail out early
+    for abort() on the handler thread or during recursion) don't break
+    normal abort() capture from user code.
+    """
+    tmp_path, output = run_stdout_for("inproc", cmake, ["attachment", "abort"])
+
+    envelope = Envelope.deserialize(output)
+
+    assert_crash_timestamp(has_files, tmp_path)
+    assert_meta(envelope, integration="inproc")
+    assert_breadcrumb(envelope)
+    assert_attachment(envelope)
+    assert_inproc_crash(envelope)
+
+
 def test_inproc_crash_stdout_before_send(cmake):
     tmp_path, output = run_crash_stdout_for("inproc", cmake, ["before-send"])
 
@@ -240,7 +258,7 @@ def test_inproc_crash_stdout_before_send_and_on_crash(cmake):
 )
 def test_inproc_stack_overflow_stdout(cmake, build_args):
     tmp_path, output = run_stdout_for(
-        "inproc", cmake, ["attachment", "stack-overflow"], build_args
+        "inproc", cmake, ["log", "attachment", "stack-overflow"], build_args
     )
 
     envelope = Envelope.deserialize(output)

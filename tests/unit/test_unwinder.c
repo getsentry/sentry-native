@@ -2,6 +2,16 @@
 #include "sentry_symbolizer.h"
 #include "sentry_testsupport.h"
 
+// On arm64e, function pointers have PAC (Pointer Authentication Code) bits
+// that must be stripped for comparison with addresses from dladdr().
+#if defined(__arm64e__)
+#    include <ptrauth.h>
+#    define STRIP_PAC_FROM_FPTR(fptr)                                          \
+        ptrauth_strip(fptr, ptrauth_key_function_pointer)
+#else
+#    define STRIP_PAC_FROM_FPTR(fptr) (fptr)
+#endif
+
 #define MAX_FRAMES 128
 
 TEST_VISIBLE size_t
@@ -29,7 +39,7 @@ find_frame(const sentry_frame_info_t *info, void *data)
         // XXX: Should apply on _CALL_ELF == 1 when on PowerPC i.e. Linux
         *(void **)&invoke_unwinder;
 #else
-        &invoke_unwinder;
+        STRIP_PAC_FROM_FPTR((void *)&invoke_unwinder);
 #endif
     if (info->symbol_addr == unwinder_address) {
         *found_frame += 1;

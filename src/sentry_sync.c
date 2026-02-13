@@ -505,34 +505,78 @@ sentry__bgworker_get_thread_name(sentry_bgworker_t *bgw)
 
 #if defined(SENTRY_PLATFORM_UNIX) || defined(SENTRY_PLATFORM_NX)
 #    include "sentry_cpu_relax.h"
+#    include <unistd.h>
 
-static sig_atomic_t g_in_signal_handler = 0;
 static sentry_threadid_t g_signal_handling_thread = { 0 };
+static sig_atomic_t g_in_signal_handler __attribute__((aligned(64))) = 0;
 
 bool
 sentry__block_for_signal_handler(void)
 {
-    while (__sync_fetch_and_add(&g_in_signal_handler, 0)) {
-        if (sentry__threadid_equal(
-                sentry__current_thread(), g_signal_handling_thread)) {
+    for (;;) {
+        // if there is no signal handler active, we don't need to block
+        // we can spin cheaply, but for the return we must acquire
+        if (!__atomic_load_n(&g_in_signal_handler, __ATOMIC_RELAXED)) {
+            if (__atomic_load_n(&g_in_signal_handler, __ATOMIC_ACQUIRE) == 0) {
+                return true;
+            }
+        }
+
+        // if we are on the signal handler thread we can also leave
+        if (sentry__threadid_equal(sentry__current_thread(),
+                __atomic_load_n(&g_signal_handling_thread, __ATOMIC_ACQUIRE))) {
             return false;
         }
+
+        // otherwise, we spin
         sentry__cpu_relax();
     }
-    return true;
 }
 
-void
+// Tracks recursive entry depth for the signal handling thread.
+// 0 = not in handler, 1 = first entry, 2 = re-entry (skip hooks), 3+ = bail out
+static volatile sig_atomic_t g_signal_handler_depth = 0;
+
+int
 sentry__enter_signal_handler(void)
 {
-    sentry__block_for_signal_handler();
-    g_signal_handling_thread = sentry__current_thread();
-    __sync_fetch_and_or(&g_in_signal_handler, 1);
+    for (;;) {
+        // entering a signal handler while another runs, should block us
+        // unless we are the signal handling thread (recursive crash)
+        while (__atomic_load_n(&g_in_signal_handler, __ATOMIC_RELAXED)) {
+            if (sentry__threadid_equal(sentry__current_thread(),
+                    __atomic_load_n(
+                        &g_signal_handling_thread, __ATOMIC_ACQUIRE))) {
+                // same thread re-entering via recursive crash
+                int depth = __atomic_add_fetch(
+                    &g_signal_handler_depth, 1, __ATOMIC_ACQ_REL);
+                return depth;
+            }
+            sentry__cpu_relax();
+        }
+
+        // atomically try to take ownership
+        if (__atomic_exchange_n(&g_in_signal_handler, 1, __ATOMIC_ACQ_REL)
+            == 0) {
+            // once we have, publish the handling thread too
+            sentry_threadid_t me = sentry__current_thread();
+            __atomic_store_n(&g_signal_handling_thread, me, __ATOMIC_RELEASE);
+            __atomic_store_n(&g_signal_handler_depth, 1, __ATOMIC_RELEASE);
+            return 1; // first entry
+        }
+
+        // otherwise we've been raced, spin
+    }
 }
 
 void
 sentry__leave_signal_handler(void)
 {
-    __sync_fetch_and_and(&g_in_signal_handler, 0);
+    // reset handling thread
+    __atomic_store_n(
+        &g_signal_handling_thread, (sentry_threadid_t) { 0 }, __ATOMIC_RELAXED);
+
+    // reset handler flag
+    __atomic_store_n(&g_in_signal_handler, 0, __ATOMIC_RELEASE);
 }
 #endif

@@ -16,6 +16,7 @@ DEFINE_UNWINDER(libunwindstack);
 DEFINE_UNWINDER(libbacktrace);
 DEFINE_UNWINDER(dbghelp);
 DEFINE_UNWINDER(libunwind);
+DEFINE_UNWINDER(libunwind_mac);
 DEFINE_UNWINDER(psunwind);
 
 static size_t
@@ -33,6 +34,9 @@ unwind_stack(
 #endif
 #ifdef SENTRY_WITH_UNWINDER_LIBUNWIND
     TRY_UNWINDER(libunwind);
+#endif
+#ifdef SENTRY_WITH_UNWINDER_LIBUNWIND_MAC
+    TRY_UNWINDER(libunwind_mac);
 #endif
 #ifdef SENTRY_WITH_UNWINDER_PS
     TRY_UNWINDER(psunwind);

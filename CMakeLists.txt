@@ -144,15 +144,6 @@ if(LINUX)
 		set(CMAKE_ASM_FLAGS  "${CMAKE_ASM_FLAGS} -m32 -D_FILE_OFFSET_BITS=64 -D_LARGEFILE64_SOURCE")
 		set_property(GLOBAL PROPERTY FIND_LIBRARY_USE_LIB64_PATHS OFF)
 	endif()
-
-        execute_process(
-                COMMAND ${CMAKE_C_COMPILER} -dumpmachine
-                OUTPUT_VARIABLE TARGET_TRIPLET
-                OUTPUT_STRIP_TRAILING_WHITESPACE
-        )
-        if(TARGET_TRIPLET MATCHES "musl")
-                set(MUSL TRUE)
-        endif()
 endif()
 
 # CMAKE_POSITION_INDEPENDENT_CODE must be set BEFORE adding any libraries (including subprojects)
@@ -266,9 +257,12 @@ endif()
 
 if(ANDROID)
 	set(SENTRY_WITH_LIBUNWINDSTACK TRUE)
-elseif(MUSL)
+elseif(LINUX)
 	set(SENTRY_WITH_LIBUNWIND TRUE)
+elseif(APPLE)
+	set(SENTRY_WITH_LIBUNWIND_MAC TRUE)
 elseif(NOT WIN32 AND NOT PROSPERO)
+	# this should never be true, but we keep it as fallback
 	set(SENTRY_WITH_LIBBACKTRACE TRUE)
 endif()
 
@@ -621,12 +615,30 @@ endif()
 if(SENTRY_WITH_LIBUNWIND)
 	if(LINUX)
 		option(SENTRY_LIBUNWIND_SHARED "Link to shared libunwind" ${SENTRY_BUILD_SHARED_LIBS})
-		find_path(LIBUNWIND_INCLUDE_DIR libunwind.h PATH_SUFFIXES libunwind REQUIRED)
-		if(SENTRY_LIBUNWIND_SHARED)
-			find_library(LIBUNWIND_LIBRARIES unwind REQUIRED)
+
+		# ensure suffix and search paths for include and library search (specifically for multilib)
+		if(SENTRY_BUILD_FORCE32)
+			set(_unwind_triplet "i386-linux-gnu")
+			set(_i386_libpaths /usr/lib/i386-linux-gnu /lib/i386-linux-gnu /usr/lib32 /lib32)
 		else()
-			find_library(LIBUNWIND_LIBRARIES libunwind.a REQUIRED)
-			find_library(LZMA_LIBRARY lzma)
+			set(_unwind_triplet "${CMAKE_LIBRARY_ARCHITECTURE}")
+		endif()
+
+		find_path(LIBUNWIND_INCLUDE_DIR libunwind.h
+			PATH_SUFFIXES
+				${_unwind_triplet}
+				libunwind # some distros put the libunwind headers into a subdirectory
+			REQUIRED)
+		if(SENTRY_LIBUNWIND_SHARED)
+			find_library(LIBUNWIND_LIBRARIES unwind PATH_SUFFIXES ${_unwind_triplet} REQUIRED)
+		else()
+			find_library(LIBUNWIND_LIBRARIES libunwind.a PATH_SUFFIXES ${_unwind_triplet} REQUIRED)
+			if(SENTRY_BUILD_FORCE32)
+				find_library(LZMA_LIBRARY lzma PATHS ${_i386_libpaths} NO_DEFAULT_PATH)
+			else()
+				find_library(LZMA_LIBRARY lzma PATH_SUFFIXES ${_unwind_triplet})
+			endif()
+
 			if(LZMA_LIBRARY)
 				list(APPEND LIBUNWIND_LIBRARIES ${LZMA_LIBRARY})
 			endif()
@@ -685,6 +697,15 @@ if(SENTRY_BACKEND_CRASHPAD)
 		$<BUILD_INTERFACE:crashpad::client>
 		$<INSTALL_INTERFACE:sentry_crashpad::client>
 	)
+
+	# ignore #include_next <signal.h> warning being a GCC extension via pedantic
+	if (LINUX)
+		target_include_directories(sentry
+				SYSTEM PRIVATE
+				external/crashpad/compat/linux
+		)
+	endif()
+
 	install(EXPORT crashpad_export NAMESPACE sentry_crashpad:: FILE sentry_crashpad-targets.cmake
 		DESTINATION "${CMAKE_INSTALL_CMAKEDIR}"
 	)
@@ -813,6 +834,21 @@ if(SENTRY_BUILD_EXAMPLES)
 		# Disable all optimizations for the `sentry_example` in gcc/clang. This allows us to keep crash triggers simple.
 		# The effects besides reproducible code-gen across compiler versions, will be negligible for build- and runtime.
 		target_compile_options(sentry_example PRIVATE $<BUILD_INTERFACE:-O0>)
+
+		# Most Linux distros will build executables with PIE. However, if we build a static library, not all static
+		# dependencies being packaged with the same distro, are built with PIC enabled. This will lead `ld` to error on
+		# relocation data, thus failing the build/tests. There is no need to build the example with PIE enabled.
+		# Similarly, LTO must be disabled since the static library archive might have different LTO bytecode version.
+		if (LINUX AND NOT SENTRY_BUILD_SHARED_LIBS)
+			target_link_options(sentry_example PRIVATE
+				-no-pie
+				-fno-lto
+			)
+			target_compile_options(sentry_example PRIVATE
+				-fno-pie
+				-fno-lto
+			)
+		endif()
 	endif()
 
 	# set static runtime if enabled
@@ -824,11 +860,17 @@ if(SENTRY_BUILD_EXAMPLES)
 		set_target_properties(sentry_example PROPERTIES FOLDER ${SENTRY_FOLDER})
 	endif()
 
-	add_custom_command(TARGET sentry_example POST_BUILD
-		COMMAND ${CMAKE_COMMAND} -E copy_if_different "${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/minidump.dmp" "$<TARGET_FILE_DIR:sentry_example>/minidump.dmp")
+	if(CMAKE_GENERATOR STREQUAL "Xcode")
+		set(SENTRY_FIXTURE_OUTPUT_DIR "$<TARGET_BUNDLE_DIR:sentry_example>/..")
+	else()
+		set(SENTRY_FIXTURE_OUTPUT_DIR "$<TARGET_FILE_DIR:sentry_example>")
+	endif()
 
 	add_custom_command(TARGET sentry_example POST_BUILD
-		COMMAND ${CMAKE_COMMAND} -E copy_if_different "${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/view-hierarchy.json" "$<TARGET_FILE_DIR:sentry_example>/view-hierarchy.json")
+		COMMAND ${CMAKE_COMMAND} -E copy_if_different "${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/minidump.dmp" "${SENTRY_FIXTURE_OUTPUT_DIR}/minidump.dmp")
+
+	add_custom_command(TARGET sentry_example POST_BUILD
+		COMMAND ${CMAKE_COMMAND} -E copy_if_different "${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/view-hierarchy.json" "${SENTRY_FIXTURE_OUTPUT_DIR}/view-hierarchy.json")
 endif()
 
 # Limit the exported symbols when sentry is built as a shared library to those with a "sentry_" prefix:
