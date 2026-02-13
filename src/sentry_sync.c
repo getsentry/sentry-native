@@ -265,6 +265,16 @@ worker_thread(void *data)
         {
             uint64_t now = sentry__monotonic_time();
             if (now < task->execute_after) {
+                // discard delayed tasks submitted after shutdown pruning
+                if (!sentry__atomic_fetch(&bgw->running)) {
+                    while (bgw->first_task) {
+                        sentry_bgworker_task_t *t = bgw->first_task;
+                        bgw->first_task = t->next_task;
+                        sentry__task_decref(t);
+                    }
+                    bgw->last_task = NULL;
+                    continue;
+                }
                 sentry__cond_wait_timeout(&bgw->submit_signal, &bgw->task_lock,
                     (uint32_t)(task->execute_after - now));
                 continue;
@@ -419,30 +429,6 @@ sentry__bgworker_shutdown(sentry_bgworker_t *bgw, uint64_t timeout)
 
     uint64_t started = sentry__monotonic_time();
     sentry__mutex_lock(&bgw->task_lock);
-
-    // prune delayed tasks that exceed the shutdown timeout
-    sentry_bgworker_task_t *prev = NULL;
-    sentry_bgworker_task_t *cur = bgw->first_task;
-    while (cur) {
-        if (cur->execute_after > started + timeout) {
-            if (prev) {
-                prev->next_task = NULL;
-                bgw->last_task = prev;
-            } else {
-                bgw->first_task = NULL;
-                bgw->last_task = NULL;
-            }
-            while (cur) {
-                sentry_bgworker_task_t *next = cur->next_task;
-                sentry__task_decref(cur);
-                cur = next;
-            }
-            break;
-        }
-        prev = cur;
-        cur = cur->next_task;
-    }
-
     while (true) {
         if (sentry__bgworker_is_done(bgw)) {
             sentry__mutex_unlock(&bgw->task_lock);

@@ -344,11 +344,9 @@ SENTRY_TEST(bgworker_delayed_shutdown)
     sentry__bgworker_submit(bgw, record_order_task, NULL, (void *)2);
     sentry__bgworker_submit(bgw, record_order_task, NULL, (void *)3);
 
-    // short delay fits within shutdown deadline
+    // delayed tasks are discarded on shutdown unless already ready
     sentry__bgworker_submit_delayed(
         bgw, record_order_task, NULL, (void *)4, 50);
-
-    // long delay exceeds shutdown deadline and should be pruned
     sentry__bgworker_submit_delayed(
         bgw, record_order_task, NULL, (void *)5, 5000);
     sentry__bgworker_submit_delayed(
@@ -357,11 +355,10 @@ SENTRY_TEST(bgworker_delayed_shutdown)
     sentry__bgworker_start(bgw);
     TEST_CHECK_INT_EQUAL(sentry__bgworker_shutdown(bgw, 1000), 0);
 
-    TEST_CHECK_INT_EQUAL(os.count, 4);
+    TEST_CHECK_INT_EQUAL(os.count, 3);
     TEST_CHECK_INT_EQUAL(os.order[0], 1);
     TEST_CHECK_INT_EQUAL(os.order[1], 2);
     TEST_CHECK_INT_EQUAL(os.order[2], 3);
-    TEST_CHECK_INT_EQUAL(os.order[3], 4);
 
     sentry__bgworker_decref(bgw);
 }
