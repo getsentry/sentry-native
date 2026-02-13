@@ -415,3 +415,27 @@ SENTRY_TEST(metrics_default_attributes)
 
     sentry_value_decref(g_captured_metric);
 }
+
+SENTRY_TEST(metrics_reinit)
+{
+    SENTRY_TEST_OPTIONS_NEW(options);
+    sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
+    sentry_options_set_enable_metrics(options, true);
+
+    sentry_init(options);
+    sentry__metrics_wait_for_thread_startup();
+
+    // Fill the buffer to trigger a flush on the batcher thread
+    for (int i = 0; i < 5; i++) {
+        sentry_metrics_count("metric", 1, sentry_value_new_null());
+    }
+
+    // Re-init immediately while the batcher thread is likely mid-flush.
+    // This will deadlock if sentry__batcher_flush holds g_options_lock.
+    SENTRY_TEST_OPTIONS_NEW(options2);
+    sentry_options_set_dsn(options2, "https://foo@sentry.invalid/42");
+    sentry_options_set_enable_logs(options2, true);
+
+    sentry_init(options2);
+    sentry_close();
+}

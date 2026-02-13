@@ -426,7 +426,7 @@ SENTRY_TEST(logs_reinit)
     }
 
     // Re-init immediately while the batcher thread is likely mid-flush.
-    // This will deadlock if flush_logs_queue holds g_options_lock.
+    // This will deadlock if sentry__batcher_flush holds g_options_lock.
     SENTRY_TEST_OPTIONS_NEW(options2);
     sentry_options_set_dsn(options2, "https://foo@sentry.invalid/42");
     sentry_options_set_enable_logs(options2, true);
