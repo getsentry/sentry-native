@@ -184,9 +184,11 @@ sentry__envelope_new(void)
 {
     sentry_dsn_t *dsn = NULL;
     SENTRY_WITH_OPTIONS (options) {
-        dsn = options->dsn;
+        dsn = sentry__dsn_incref(options->dsn);
     }
-    return sentry__envelope_new_with_dsn(dsn);
+    sentry_envelope_t *rv = sentry__envelope_new_with_dsn(dsn);
+    sentry__dsn_decref(dsn);
+    return rv;
 }
 
 sentry_envelope_t *
