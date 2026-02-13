@@ -312,6 +312,8 @@ sentry__batcher_startup(
         // storage (pthread_cond_t on POSIX and CONDITION_VARIABLE on Windows)
         sentry__atomic_store(
             &batcher->thread_state, (long)SENTRY_BATCHER_THREAD_STOPPED);
+        sentry__dsn_decref(batcher->dsn);
+        batcher->dsn = NULL;
     }
 }
 
