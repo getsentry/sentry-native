@@ -434,7 +434,7 @@ SENTRY_TEST(metrics_reinit)
     // This will deadlock if sentry__batcher_flush holds g_options_lock.
     SENTRY_TEST_OPTIONS_NEW(options2);
     sentry_options_set_dsn(options2, "https://foo@sentry.invalid/42");
-    sentry_options_set_enable_logs(options2, true);
+    sentry_options_set_enable_metrics(options2, true);
 
     sentry_init(options2);
     sentry_close();
