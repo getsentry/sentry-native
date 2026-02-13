@@ -6,7 +6,7 @@
 /**
  * Sets up the metrics timer/flush thread
  */
-void sentry__metrics_startup(void);
+void sentry__metrics_startup(const sentry_options_t *options);
 
 /**
  * Begin non-blocking shutdown of the metrics timer/flush thread.
