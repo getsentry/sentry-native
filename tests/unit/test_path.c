@@ -288,6 +288,9 @@ SENTRY_TEST(path_mtime)
 
 SENTRY_TEST(path_rename)
 {
+#if defined(SENTRY_PLATFORM_NX)
+    SKIP_TEST();
+#endif
     sentry_path_t *src
         = sentry__path_from_str(SENTRY_TEST_PATH_PREFIX ".rename-src");
     TEST_ASSERT(!!src);

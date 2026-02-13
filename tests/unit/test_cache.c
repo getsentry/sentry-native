@@ -9,7 +9,7 @@
 
 #ifdef SENTRY_PLATFORM_WINDOWS
 #    include <windows.h>
-#else
+#elif !defined(SENTRY_PLATFORM_NX) && !defined(SENTRY_PLATFORM_PS)
 #    include <utime.h>
 #endif
 
@@ -28,14 +28,21 @@ set_file_mtime(const sentry_path_t *path, time_t mtime)
     BOOL rv = SetFileTime(h, NULL, NULL, &ft);
     CloseHandle(h);
     return rv ? 0 : -1;
-#else
+#elif !defined(SENTRY_PLATFORM_NX) && !defined(SENTRY_PLATFORM_PS)
     struct utimbuf times = { .modtime = mtime, .actime = mtime };
     return utime(path->path, &times);
+#else
+    (void)path;
+    (void)mtime;
+    return -1;
 #endif
 }
 
 SENTRY_TEST(cache_keep)
 {
+#if defined(SENTRY_PLATFORM_NX) || defined(SENTRY_PLATFORM_PS)
+    SKIP_TEST();
+#endif
     SENTRY_TEST_OPTIONS_NEW(options);
     sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
     sentry_options_set_cache_keep(options, true);
@@ -87,6 +94,9 @@ SENTRY_TEST(cache_keep)
 
 SENTRY_TEST(cache_max_size)
 {
+#if defined(SENTRY_PLATFORM_NX) || defined(SENTRY_PLATFORM_PS)
+    SKIP_TEST();
+#endif
     SENTRY_TEST_OPTIONS_NEW(options);
     sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
     sentry_options_set_cache_keep(options, true);
@@ -138,6 +148,9 @@ SENTRY_TEST(cache_max_size)
 
 SENTRY_TEST(cache_max_age)
 {
+#if defined(SENTRY_PLATFORM_NX) || defined(SENTRY_PLATFORM_PS)
+    SKIP_TEST();
+#endif
     SENTRY_TEST_OPTIONS_NEW(options);
     sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
     sentry_options_set_cache_keep(options, true);
@@ -185,6 +198,9 @@ SENTRY_TEST(cache_max_age)
 
 SENTRY_TEST(cache_max_items)
 {
+#if defined(SENTRY_PLATFORM_NX) || defined(SENTRY_PLATFORM_PS)
+    SKIP_TEST();
+#endif
     SENTRY_TEST_OPTIONS_NEW(options);
     sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
     sentry_options_set_cache_keep(options, true);
@@ -229,6 +245,9 @@ SENTRY_TEST(cache_max_items)
 
 SENTRY_TEST(cache_max_size_and_age)
 {
+#if defined(SENTRY_PLATFORM_NX) || defined(SENTRY_PLATFORM_PS)
+    SKIP_TEST();
+#endif
     // Verify size pruning keeps newer entries, removes all older once limit
     // hit. A (5KB), B (6KB), C (3KB) newest-to-oldest, max_size=10KB A+B=11KB
     // exceeds limit -> B pruned, C (older) also pruned
