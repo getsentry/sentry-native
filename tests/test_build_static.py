@@ -2,7 +2,7 @@ import subprocess
 import sys
 import os
 import pytest
-from .conditions import has_breakpad, has_crashpad
+from .conditions import has_breakpad, has_crashpad, has_native
 
 
 def test_static_lib(cmake):
@@ -81,6 +81,18 @@ def test_static_breakpad(cmake):
         ["sentry_example"],
         {
             "SENTRY_BACKEND": "breakpad",
+            "SENTRY_TRANSPORT": "none",
+            "BUILD_SHARED_LIBS": "OFF",
+        },
+    )
+
+
+@pytest.mark.skipif(not has_native, reason="test needs native backend")
+def test_static_native(cmake):
+    cmake(
+        ["sentry_example"],
+        {
+            "SENTRY_BACKEND": "native",
             "SENTRY_TRANSPORT": "none",
             "BUILD_SHARED_LIBS": "OFF",
         },

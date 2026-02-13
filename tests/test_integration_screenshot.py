@@ -40,6 +40,12 @@ def assert_screenshot_upload(req):
     [
         ({"SENTRY_BACKEND": "inproc"}),
         ({"SENTRY_BACKEND": "breakpad"}),
+        pytest.param(
+            {"SENTRY_BACKEND": "native"},
+            marks=pytest.mark.skip(
+                reason="Native backend screenshot needs testing on Windows machine"
+            ),
+        ),
     ],
 )
 def test_capture_screenshot(cmake, httpserver, build_args):

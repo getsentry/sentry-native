@@ -836,7 +836,6 @@ void
 sentry_handle_exception(const sentry_ucontext_t *uctx)
 {
     SENTRY_WITH_OPTIONS (options) {
-        SENTRY_INFO("handling exception");
         if (options->backend && options->backend->except_func) {
             options->backend->except_func(options->backend, uctx);
         }

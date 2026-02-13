@@ -9,6 +9,11 @@ else()
 	cmake_policy(SET CMP0077 NEW)
 endif()
 
+# Allow target_link_libraries() in subdirectories
+if(POLICY CMP0079)
+	cmake_policy(SET CMP0079 NEW)
+endif()
+
 # Allow downstream SDKs to override the SDK version at CMake configuration time
 set(SENTRY_SDK_VERSION "" CACHE STRING "Override the SDK version (supports full semver format with build metadata)")
 
@@ -219,9 +224,12 @@ else()
 	set(SENTRY_DEFAULT_BACKEND "inproc")
 endif()
 
+# Native backend is available on all platforms as an alternative
+# It's lightweight (~5K LOC) and supports all platforms
+
 if(NOT DEFINED SENTRY_BACKEND)
 	set(SENTRY_BACKEND ${SENTRY_DEFAULT_BACKEND} CACHE STRING
-		"The sentry backend responsible for reporting crashes, can be either 'none', 'inproc', 'breakpad' or 'crashpad'.")
+		"The sentry backend responsible for reporting crashes, can be either 'none', 'inproc', 'breakpad', 'crashpad', or 'native'.")
 endif()
 
 if(SENTRY_BACKEND STREQUAL "crashpad")
@@ -230,6 +238,8 @@ elseif(SENTRY_BACKEND STREQUAL "inproc")
 	set(SENTRY_BACKEND_INPROC TRUE)
 elseif(SENTRY_BACKEND STREQUAL "breakpad")
 	set(SENTRY_BACKEND_BREAKPAD TRUE)
+elseif(SENTRY_BACKEND STREQUAL "native")
+	set(SENTRY_BACKEND_NATIVE TRUE)
 elseif(SENTRY_BACKEND STREQUAL "none")
 	set(SENTRY_BACKEND_NONE TRUE)
 elseif(SENTRY_BACKEND STREQUAL "custom")
@@ -237,7 +247,7 @@ elseif(SENTRY_BACKEND STREQUAL "custom")
 		"SENTRY_BACKEND set to 'custom' - a custom backend source must be added to the compilation unit by the downstream SDK.")
 else()
 	message(FATAL_ERROR
-		"SENTRY_BACKEND must be one of 'crashpad', 'inproc', 'breakpad' or 'none'.
+		"SENTRY_BACKEND must be one of 'crashpad', 'inproc', 'breakpad', 'native', or 'none'.
 		Downstream SDKs may choose to provide their own by specifying 'custom'.")
 endif()
 
@@ -729,6 +739,97 @@ elseif(SENTRY_BACKEND_BREAKPAD)
 	endif()
 elseif(SENTRY_BACKEND_INPROC)
 	target_compile_definitions(sentry PRIVATE SENTRY_WITH_INPROC_BACKEND)
+elseif(SENTRY_BACKEND_NATIVE)
+	target_compile_definitions(sentry PRIVATE SENTRY_WITH_NATIVE_BACKEND)
+
+	# Native backend sources and configuration are in src/CMakeLists.txt
+	# The native backend requires C11 for atomics (set in src/CMakeLists.txt)
+
+	# Build sentry-crash executable for native backend
+	# Get all sources that were added to sentry target
+	get_target_property(SENTRY_SOURCES sentry SOURCES)
+
+	# Create daemon executable with same sources plus daemon-specific files
+	add_executable(sentry-crash
+		${SENTRY_SOURCES}
+		src/backends/native/sentry_crash_daemon.c
+		src/backends/native/sentry_crash_ipc.c
+		src/backends/native/sentry_crash_context.h
+	)
+
+	# Define standalone mode and copy compile definitions from sentry
+	target_compile_definitions(sentry-crash PRIVATE
+		SENTRY_CRASH_DAEMON_STANDALONE
+		SENTRY_BUILD_STATIC
+		SENTRY_HANDLER_STACK_SIZE=${SENTRY_HANDLER_STACK_SIZE}
+	)
+
+	# Windows-specific compile definitions
+	if(WIN32)
+		target_compile_definitions(sentry-crash PRIVATE
+			SENTRY_THREAD_STACK_GUARANTEE_FACTOR=${SENTRY_THREAD_STACK_GUARANTEE_FACTOR}
+		)
+	endif()
+
+	# Copy include directories from sentry target
+	target_include_directories(sentry-crash PRIVATE
+		${PROJECT_SOURCE_DIR}/include
+		${PROJECT_SOURCE_DIR}/src
+		${PROJECT_SOURCE_DIR}/src/backends/native
+	)
+
+	# Link same libraries as sentry
+	if(WIN32)
+		target_link_libraries(sentry-crash PRIVATE dbghelp shlwapi version)
+	elseif(LINUX OR ANDROID)
+		target_link_libraries(sentry-crash PRIVATE pthread rt dl)
+	elseif(APPLE)
+		find_library(COREFOUNDATION_LIBRARY CoreFoundation REQUIRED)
+		find_library(SECURITY_LIBRARY Security REQUIRED)
+		target_link_libraries(sentry-crash PRIVATE
+			${COREFOUNDATION_LIBRARY}
+			${SECURITY_LIBRARY}
+		)
+	endif()
+
+	# Transport-specific libraries
+	if(SENTRY_TRANSPORT_CURL)
+		target_link_libraries(sentry-crash PRIVATE CURL::libcurl)
+	endif()
+
+	if(SENTRY_TRANSPORT_WINHTTP)
+		target_link_libraries(sentry-crash PRIVATE winhttp)
+	endif()
+
+
+	# Compression library
+	if(SENTRY_TRANSPORT_COMPRESSION)
+		target_link_libraries(sentry-crash PRIVATE ZLIB::ZLIB)
+	endif()
+
+	# Unwinder libraries (must match sentry target)
+	if(SENTRY_WITH_LIBUNWINDSTACK)
+		target_link_libraries(sentry-crash PRIVATE unwindstack)
+	endif()
+
+	if(SENTRY_WITH_LIBUNWIND)
+		target_include_directories(sentry-crash PRIVATE ${LIBUNWIND_INCLUDE_DIR})
+		target_link_libraries(sentry-crash PRIVATE ${LIBUNWIND_LIBRARIES})
+	endif()
+
+	# Make sentry library depend on crash daemon so it's always built together
+	add_dependencies(sentry sentry-crash)
+
+	# Install daemon
+	install(TARGETS sentry-crash
+		RUNTIME DESTINATION bin
+	)
+
+	if(DEFINED SENTRY_FOLDER)
+		# Native backend doesn't have separate targets to organize
+	endif()
+
+	message(STATUS "Sentry crash daemon executable: enabled")
 endif()
 
 option(SENTRY_INTEGRATION_QT "Build Qt integration")

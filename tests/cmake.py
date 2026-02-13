@@ -120,6 +120,12 @@ def cmake(cwd, targets, options=None, cflags=None):
             "CMAKE_RUNTIME_OUTPUT_DIRECTORY": cwd,
             "CMAKE_RUNTIME_OUTPUT_DIRECTORY_DEBUG": cwd,
             "CMAKE_RUNTIME_OUTPUT_DIRECTORY_RELEASE": cwd,
+            # Also set library output directory so shared libraries (libsentry.so/.dylib)
+            # are in the same directory as executables (sentry-crash, sentry_example).
+            # This is needed for the native backend daemon to find sentry-crash.
+            "CMAKE_LIBRARY_OUTPUT_DIRECTORY": cwd,
+            "CMAKE_LIBRARY_OUTPUT_DIRECTORY_DEBUG": cwd,
+            "CMAKE_LIBRARY_OUTPUT_DIRECTORY_RELEASE": cwd,
         }
     )
     if os.environ.get("ANDROID_API") and os.environ.get("ANDROID_NDK"):

@@ -153,14 +153,17 @@ calculate_region(DWORD pid, HRGN region)
 }
 
 bool
-sentry__screenshot_capture(const sentry_path_t *path)
+sentry__screenshot_capture(const sentry_path_t *path, uint32_t pid)
 {
 #ifdef SENTRY_PLATFORM_XBOX
     (sentry_path_t *)path;
+    (uint32_t)pid;
     return false;
 #else
+    // Use provided PID, or current process if 0
+    DWORD target_pid = pid ? pid : GetCurrentProcessId();
     HRGN region = CreateRectRgn(0, 0, 0, 0);
-    calculate_region(GetCurrentProcessId(), region);
+    calculate_region(target_pid, region);
 
     RECT box;
     GetRgnBox(region, &box);
