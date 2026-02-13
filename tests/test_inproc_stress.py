@@ -369,7 +369,10 @@ def test_inproc_handler_abort_crash(cmake):
         shutil.rmtree(database_path, ignore_errors=True)
 
 
-@pytest.mark.skipif(sys.platform != "darwin", reason="Stack trace tests are macOS-only")
+@pytest.mark.skipif(
+    sys.platform != "darwin" or is_android(),
+    reason="Stack trace tests are macOS-only",
+)
 @pytest.mark.parametrize(
     "test_name,expected_functions,expect_no_duplicates",
     [
