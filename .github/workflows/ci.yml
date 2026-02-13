@@ -237,7 +237,7 @@ jobs:
         run: |
           sudo apt update
           # Install common dependencies
-          sudo apt install cmake llvm valgrind zlib1g-dev libcurl4-openssl-dev
+          sudo apt install cmake llvm valgrind zlib1g-dev libcurl4-openssl-dev libvulkan-dev
           # For GCC, install both gcc-X and g++-X. For Clang, only install clang-X (includes C++ compiler)
           if [[ "$CC" == gcc-* ]]; then
             sudo apt install "${CC}" "${CXX}"
