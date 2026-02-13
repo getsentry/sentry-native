@@ -97,7 +97,7 @@ sentry__should_skip_upload(void)
     bool skip = true;
     SENTRY_WITH_OPTIONS (options) {
         skip = options->require_user_consent
-            && sentry__options_get_user_consent(options)
+            && sentry__atomic_fetch((long *)&options->user_consent)
                 != SENTRY_USER_CONSENT_GIVEN;
     }
     return skip;
@@ -484,7 +484,8 @@ sentry_user_consent_get(void)
 {
     sentry_user_consent_t rv = SENTRY_USER_CONSENT_UNKNOWN;
     SENTRY_WITH_OPTIONS (options) {
-        rv = sentry__options_get_user_consent(options);
+        rv = (sentry_user_consent_t)(int)sentry__atomic_fetch(
+            (long *)&options->user_consent);
     }
     return rv;
 }

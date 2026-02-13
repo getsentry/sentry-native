@@ -1,9 +1,6 @@
 #include "sentry_batcher.h"
-#include "sentry_core.h"
 #include "sentry_cpu_relax.h"
-#include "sentry_database.h"
 #include "sentry_options.h"
-#include "sentry_transport.h"
 
 #ifdef SENTRY_UNITTEST
 #    ifdef SENTRY_PLATFORM_WINDOWS
@@ -119,20 +116,19 @@ sentry__batcher_flush(sentry_batcher_t *batcher, bool crash_safe)
             sentry_value_set_by_key(logs, "items", log_items);
 
             sentry_envelope_t *envelope
-                = sentry__envelope_new_with_dsn(batcher->options->dsn);
+                = sentry__envelope_new_with_dsn(batcher->dsn);
             batcher->batch_func(envelope, logs);
 
             if (crash_safe) {
                 // Write directly to disk to avoid transport queuing during
                 // crash
-                sentry__run_write_envelope(batcher->options->run, envelope);
+                sentry__run_write_envelope(batcher->run, envelope);
                 sentry_envelope_free(envelope);
-            } else if (!batcher->options->require_user_consent
-                || sentry__options_get_user_consent(batcher->options)
+            } else if (!batcher->user_consent
+                || sentry__atomic_fetch(batcher->user_consent)
                     == SENTRY_USER_CONSENT_GIVEN) {
                 // Normal operation: use transport for HTTP transmission
-                sentry__transport_send_envelope(
-                    batcher->options->transport, envelope);
+                sentry__transport_send_envelope(batcher->transport, envelope);
             } else {
                 sentry_envelope_free(envelope);
             }
@@ -291,7 +287,11 @@ void
 sentry__batcher_startup(
     sentry_batcher_t *batcher, const sentry_options_t *options)
 {
-    batcher->options = options;
+    batcher->dsn = sentry__dsn_incref(options->dsn);
+    batcher->transport = options->transport;
+    batcher->run = options->run;
+    batcher->user_consent
+        = options->require_user_consent ? (long *)&options->user_consent : NULL;
 
     // Mark thread as starting before actually spawning so thread can transition
     // to RUNNING. This prevents shutdown from thinking the thread was never
@@ -346,6 +346,9 @@ sentry__batcher_shutdown_wait(sentry_batcher_t *batcher, uint64_t timeout)
 
     // Perform final flush to ensure any remaining items are sent
     sentry__batcher_flush(batcher, false);
+
+    sentry__dsn_decref(batcher->dsn);
+    batcher->dsn = NULL;
 
     sentry__thread_free(&batcher->batching_thread);
 }

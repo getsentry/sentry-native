@@ -98,10 +98,4 @@ struct sentry_options_s {
  */
 sentry_options_t *sentry__options_incref(sentry_options_t *options);
 
-/**
- * Returns the user consent state from the given options.
- */
-sentry_user_consent_t sentry__options_get_user_consent(
-    const sentry_options_t *options);
-
 #endif
