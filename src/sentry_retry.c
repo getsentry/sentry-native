@@ -6,7 +6,6 @@
 
 #include <stdlib.h>
 #include <string.h>
-#include <time.h>
 
 #define SENTRY_RETRY_INTERVAL (15 * 60 * 1000)
 #define SENTRY_RETRY_THROTTLE 100
@@ -43,7 +42,7 @@ sentry__retry_new(const sentry_options_t *options)
     retry->retry_dir = retry_dir;
     retry->cache_dir = cache_dir;
     retry->max_retries = options->http_retries;
-    retry->startup_time = (uint64_t)time(NULL);
+    retry->startup_time = sentry__usec_time() / 1000;
     sentry__path_create_dir_all(retry->retry_dir);
     if (retry->cache_dir) {
         sentry__path_create_dir_all(retry->cache_dir);
@@ -95,7 +94,7 @@ uint64_t
 sentry__retry_backoff(int count)
 {
     int shift = count < 3 ? count : 3;
-    return (uint64_t)(SENTRY_RETRY_INTERVAL / 1000) << shift;
+    return (uint64_t)SENTRY_RETRY_INTERVAL << shift;
 }
 
 static int
@@ -129,7 +128,7 @@ sentry__retry_write_envelope(
     sentry_uuid_as_string(&event_id, uuid);
 
     sentry_path_t *path
-        = sentry__retry_make_path(retry, (uint64_t)time(NULL), 0, uuid);
+        = sentry__retry_make_path(retry, sentry__usec_time() / 1000, 0, uuid);
     if (path) {
         (void)sentry_envelope_write_to_path(envelope, path);
         sentry__path_free(path);
@@ -150,7 +149,7 @@ handle_result(sentry_retry_t *retry, const sentry_path_t *path, int status_code)
 
     if (status_code < 0 && count + 1 < retry->max_retries) {
         sentry_path_t *new_path = sentry__retry_make_path(
-            retry, (uint64_t)time(NULL), count + 1, uuid);
+            retry, sentry__usec_time() / 1000, count + 1, uuid);
         if (new_path) {
             sentry__path_rename(path, new_path);
             sentry__path_free(new_path);
@@ -193,7 +192,7 @@ sentry__retry_send(sentry_retry_t *retry, uint64_t before,
 
     size_t total = 0;
     size_t eligible = 0;
-    uint64_t now = before > 0 ? 0 : (uint64_t)time(NULL);
+    uint64_t now = before > 0 ? 0 : sentry__usec_time() / 1000;
 
     const sentry_path_t *p;
     while ((p = sentry__pathiter_next(piter)) != NULL) {
