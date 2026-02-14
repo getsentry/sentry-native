@@ -275,6 +275,25 @@ sentry__retry_start(sentry_retry_t *retry, sentry_bgworker_t *bgworker,
         bgworker, retry_poll_task, NULL, retry, SENTRY_RETRY_THROTTLE);
 }
 
+static void
+retry_flush_task(void *_retry, void *_state)
+{
+    (void)_state;
+    sentry_retry_t *retry = _retry;
+    if (retry->startup_time > 0) {
+        sentry__retry_send(retry, UINT64_MAX, retry->send_cb, retry->send_data);
+        retry->startup_time = 0;
+    }
+}
+
+void
+sentry__retry_flush(sentry_retry_t *retry)
+{
+    if (retry) {
+        sentry__bgworker_submit(retry->bgworker, retry_flush_task, NULL, retry);
+    }
+}
+
 void
 sentry__retry_enqueue(sentry_retry_t *retry, const sentry_envelope_t *envelope)
 {
