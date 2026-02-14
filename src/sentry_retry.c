@@ -286,10 +286,11 @@ retry_flush_task(void *_retry, void *_state)
 }
 
 void
-sentry__retry_flush(sentry_retry_t *retry)
+sentry__retry_flush(sentry_retry_t *retry, uint64_t timeout)
 {
     if (retry) {
         sentry__bgworker_submit(retry->bgworker, retry_flush_task, NULL, retry);
+        sentry__bgworker_flush(retry->bgworker, timeout);
     }
 }
 

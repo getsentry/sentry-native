@@ -7,6 +7,7 @@
 #include "sentry_retry.h"
 #include "sentry_string.h"
 #include "sentry_transport.h"
+#include "sentry_utils.h"
 
 #ifdef SENTRY_TRANSPORT_COMPRESSION
 #    include "zlib.h"
@@ -304,9 +305,12 @@ http_transport_shutdown(uint64_t timeout, void *transport_state)
     sentry_bgworker_t *bgworker = transport_state;
     http_transport_state_t *state = sentry__bgworker_get_state(bgworker);
 
-    sentry__retry_flush(state->retry);
+    uint64_t started = sentry__monotonic_time();
+    sentry__retry_flush(state->retry, timeout);
+    uint64_t elapsed = sentry__monotonic_time() - started;
+    uint64_t remaining = elapsed < timeout ? timeout - elapsed : 0;
 
-    int rv = sentry__bgworker_shutdown(bgworker, timeout);
+    int rv = sentry__bgworker_shutdown(bgworker, remaining);
     if (rv != 0 && state->shutdown_client) {
         state->shutdown_client(state->client);
     }
