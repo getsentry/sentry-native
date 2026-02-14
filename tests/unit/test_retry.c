@@ -120,7 +120,8 @@ SENTRY_TEST(retry_throttle)
 
     sentry_path_t *retry_path = sentry__path_join_str(db_path, "retry");
 
-    uint64_t old_ts = sentry__usec_time() / 1000 - 10 * sentry__retry_backoff(0);
+    uint64_t old_ts
+        = sentry__usec_time() / 1000 - 10 * sentry__retry_backoff(0);
     sentry_uuid_t ids[4];
     for (int i = 0; i < 4; i++) {
         ids[i] = sentry_uuid_new_v4();
@@ -156,7 +157,8 @@ SENTRY_TEST(retry_result)
 
     sentry_path_t *retry_path = sentry__path_join_str(db_path, "retry");
 
-    uint64_t old_ts = sentry__usec_time() / 1000 - 10 * sentry__retry_backoff(0);
+    uint64_t old_ts
+        = sentry__usec_time() / 1000 - 10 * sentry__retry_backoff(0);
     sentry_uuid_t event_id = sentry_uuid_new_v4();
 
     // 1. Success (200) → removes from retry dir
@@ -266,7 +268,8 @@ SENTRY_TEST(retry_cache)
     sentry_path_t *retry_path = sentry__path_join_str(db_path, "retry");
     sentry_path_t *cache_path = sentry__path_join_str(db_path, "cache");
 
-    uint64_t old_ts = sentry__usec_time() / 1000 - 10 * sentry__retry_backoff(0);
+    uint64_t old_ts
+        = sentry__usec_time() / 1000 - 10 * sentry__retry_backoff(0);
     sentry_uuid_t event_id = sentry_uuid_new_v4();
     write_retry_file(retry, old_ts, 4, &event_id);
 
