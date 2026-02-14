@@ -92,11 +92,13 @@ sentry__retry_parse_filename(const char *filename, uint64_t *ts_out,
     return true;
 }
 
+/**
+ * Exponential backoff: 15m, 30m, 1h, 2h, 4h, 8h, 8h, ... (capped at 8 hours)
+ */
 uint64_t
 sentry__retry_backoff(int count)
 {
-    int shift = count < 3 ? count : 3;
-    return (uint64_t)SENTRY_RETRY_INTERVAL << shift;
+    return (uint64_t)SENTRY_RETRY_INTERVAL << MIN(count, 5);
 }
 
 static int
