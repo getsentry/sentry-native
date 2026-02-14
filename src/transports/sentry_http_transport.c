@@ -311,8 +311,11 @@ http_transport_shutdown(uint64_t timeout, void *transport_state)
     uint64_t remaining = elapsed < timeout ? timeout - elapsed : 0;
 
     int rv = sentry__bgworker_shutdown(bgworker, remaining);
-    if (rv != 0 && state->shutdown_client) {
-        state->shutdown_client(state->client);
+    if (rv != 0) {
+        sentry__retry_dump_queue(state->retry, http_send_task);
+        if (state->shutdown_client) {
+            state->shutdown_client(state->client);
+        }
     }
     return rv;
 }

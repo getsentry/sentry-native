@@ -299,6 +299,24 @@ sentry__retry_flush(sentry_retry_t *retry, uint64_t timeout)
     }
 }
 
+static bool
+retry_dump_cb(void *_envelope, void *_retry)
+{
+    sentry__retry_write_envelope(
+        (sentry_retry_t *)_retry, (sentry_envelope_t *)_envelope);
+    return true;
+}
+
+void
+sentry__retry_dump_queue(
+    sentry_retry_t *retry, sentry_task_exec_func_t task_func)
+{
+    if (retry) {
+        sentry__bgworker_foreach_matching(
+            retry->bgworker, task_func, retry_dump_cb, retry);
+    }
+}
+
 void
 sentry__retry_enqueue(sentry_retry_t *retry, const sentry_envelope_t *envelope)
 {
