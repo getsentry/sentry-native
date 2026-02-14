@@ -18,6 +18,9 @@ void sentry__retry_start(sentry_retry_t *retry, sentry_bgworker_t *bgworker,
 
 void sentry__retry_flush(sentry_retry_t *retry, uint64_t timeout);
 
+void sentry__retry_dump_queue(
+    sentry_retry_t *retry, sentry_task_exec_func_t task_func);
+
 void sentry__retry_enqueue(
     sentry_retry_t *retry, const sentry_envelope_t *envelope);
 
