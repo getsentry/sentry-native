@@ -927,11 +927,11 @@ def test_http_retry_multiple_network_error(cmake):
         env=env,
     )
 
-    # all envelopes retried, all bumped to retry 1
+    # first envelope retried and bumped, rest untouched (stop on failure)
     retry_files = list(retry_dir.glob("*.envelope"))
     assert len(retry_files) == 10
-    retry_1 = [f for f in retry_files if "-01-" in f.name]
-    assert len(retry_1) == 10
+    assert len([f for f in retry_files if "-00-" in f.name]) == 9
+    assert len([f for f in retry_files if "-01-" in f.name]) == 1
 
 
 @pytest.mark.skipif(not has_files, reason="test needs a local filesystem")
