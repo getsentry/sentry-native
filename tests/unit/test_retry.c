@@ -45,33 +45,6 @@ find_envelope_attempt(const sentry_path_t *dir)
     return -1;
 }
 
-static int
-count_eligible_files(const sentry_path_t *dir, uint64_t before)
-{
-    int eligible = 0;
-    uint64_t now = before > 0 ? 0 : sentry__usec_time() / 1000;
-    sentry_pathiter_t *iter = sentry__path_iter_directory(dir);
-    const sentry_path_t *file;
-    while (iter && (file = sentry__pathiter_next(iter)) != NULL) {
-        const char *name = sentry__path_filename(file);
-        uint64_t ts;
-        int count;
-        const char *uuid;
-        if (!sentry__retry_parse_filename(name, &ts, &count, &uuid)) {
-            continue;
-        }
-        if (before > 0 && ts >= before) {
-            continue;
-        }
-        if (!before && (now - ts) < sentry__retry_backoff(count)) {
-            continue;
-        }
-        eligible++;
-    }
-    sentry__pathiter_free(iter);
-    return eligible;
-}
-
 static void
 write_retry_file(sentry_retry_t *retry, uint64_t timestamp, int retry_count,
     const sentry_uuid_t *event_id)
@@ -340,12 +313,17 @@ SENTRY_TEST(retry_backoff)
     sentry_uuid_t id4 = sentry_uuid_new_v4();
     write_retry_file(retry, ref + 8 * base, 2, &id4);
 
-    // Startup scan (no backoff check): all 4 files
-    TEST_CHECK_INT_EQUAL(
-        count_eligible_files(retry_path, sentry__usec_time() / 1000), 4);
+    // With backoff: only eligible ones (id1 and id3) are sent
+    retry_test_ctx_t ctx = { 200, 0 };
+    sentry__retry_send(retry, 0, test_send_cb, &ctx);
+    TEST_CHECK_INT_EQUAL(ctx.count, 2);
+    TEST_CHECK_INT_EQUAL(count_envelope_files(retry_path), 2);
 
-    // With backoff check: only eligible ones (id1 and id3)
-    TEST_CHECK_INT_EQUAL(count_eligible_files(retry_path, 0), 2);
+    // Startup scan (no backoff check): remaining 2 files are sent
+    ctx = (retry_test_ctx_t) { 200, 0 };
+    sentry__retry_send(retry, UINT64_MAX, test_send_cb, &ctx);
+    TEST_CHECK_INT_EQUAL(ctx.count, 2);
+    TEST_CHECK_INT_EQUAL(count_envelope_files(retry_path), 0);
 
     // Verify backoff calculation
     TEST_CHECK_UINT64_EQUAL(sentry__retry_backoff(0), base);
