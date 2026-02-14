@@ -239,6 +239,11 @@ sentry__retry_send(sentry_retry_t *retry, uint64_t before,
             if (!handle_result(retry, paths[i], status_code)) {
                 total--;
             }
+            // stop on network failure to avoid wasting time on a dead
+            // connection; remaining envelopes stay untouched for later
+            if (status_code < 0) {
+                break;
+            }
         }
     }
 
