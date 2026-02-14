@@ -2125,7 +2125,7 @@ SENTRY_EXPERIMENTAL_API int sentry_options_get_enable_logs(
     const sentry_options_t *opts);
 
 /**
- * Sets the maximum number of HTTP retry attempts for transient network errors.
+ * Sets the maximum number of HTTP retry attempts for network failures.
  * Set to 0 to disable retries (default).
  */
 SENTRY_EXPERIMENTAL_API void sentry_options_set_http_retries(
