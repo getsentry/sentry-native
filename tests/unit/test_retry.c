@@ -241,8 +241,7 @@ SENTRY_TEST(retry_cache)
     sentry_path_t *retry_path = sentry__path_join_str(db_path, "retry");
     sentry_path_t *cache_path = sentry__path_join_str(db_path, "cache");
 
-    uint64_t old_ts
-        = sentry__usec_time() / 1000 - 10 * sentry__retry_backoff(0);
+    uint64_t old_ts = sentry__usec_time() / 1000 - 2 * sentry__retry_backoff(4);
     sentry_uuid_t event_id = sentry_uuid_new_v4();
     write_retry_file(retry, old_ts, 4, &event_id);
 
@@ -330,7 +329,9 @@ SENTRY_TEST(retry_backoff)
     TEST_CHECK_UINT64_EQUAL(sentry__retry_backoff(1), base * 2);
     TEST_CHECK_UINT64_EQUAL(sentry__retry_backoff(2), base * 4);
     TEST_CHECK_UINT64_EQUAL(sentry__retry_backoff(3), base * 8);
-    TEST_CHECK_UINT64_EQUAL(sentry__retry_backoff(4), base * 8);
+    TEST_CHECK_UINT64_EQUAL(sentry__retry_backoff(4), base * 16);
+    TEST_CHECK_UINT64_EQUAL(sentry__retry_backoff(5), base * 32);
+    TEST_CHECK_UINT64_EQUAL(sentry__retry_backoff(6), base * 32);
 
     sentry__retry_free(retry);
     sentry__path_free(retry_path);
