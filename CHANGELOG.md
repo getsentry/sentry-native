@@ -1,6 +1,10 @@
 # Changelog
 
-## Unreleased:
+## Unreleased
+
+**Features**:
+
+- Add HTTP retry with exponential backoff: `sentry_options_set_http_retries()`. ([#1520](https://github.com/getsentry/sentry-native/pull/1520))
 
 **Fixes**:
 
