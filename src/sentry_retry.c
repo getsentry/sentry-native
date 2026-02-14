@@ -15,6 +15,7 @@ struct sentry_retry_s {
     sentry_path_t *cache_dir;
     int max_retries;
     uint64_t startup_time;
+    volatile long sealed;
     sentry_bgworker_t *bgworker;
     sentry_retry_send_func_t send_cb;
     void *send_data;
@@ -43,6 +44,7 @@ sentry__retry_new(const sentry_options_t *options)
     retry->cache_dir = cache_dir;
     retry->max_retries = options->http_retries;
     retry->startup_time = sentry__usec_time() / 1000;
+    retry->sealed = 0;
     sentry__path_create_dir_all(retry->retry_dir);
     if (retry->cache_dir) {
         sentry__path_create_dir_all(retry->cache_dir);
@@ -314,12 +316,17 @@ sentry__retry_dump_queue(
     if (retry) {
         sentry__bgworker_foreach_matching(
             retry->bgworker, task_func, retry_dump_cb, retry);
+        // prevent duplicate writes from a still-running detached worker
+        sentry__atomic_store(&retry->sealed, 1);
     }
 }
 
 void
 sentry__retry_enqueue(sentry_retry_t *retry, const sentry_envelope_t *envelope)
 {
+    if (sentry__atomic_fetch(&retry->sealed)) {
+        return;
+    }
     sentry__retry_write_envelope(retry, envelope);
     // prevent the startup poll from re-processing this session's envelope
     retry->startup_time = 0;
