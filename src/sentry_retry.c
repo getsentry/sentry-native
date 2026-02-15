@@ -246,6 +246,7 @@ sentry__retry_send(sentry_retry_t *retry, uint64_t before,
         sentry_envelope_t *envelope = sentry__envelope_from_path(items[i].path);
         if (!envelope) {
             sentry__path_remove(items[i].path);
+            total--;
         } else {
             SENTRY_DEBUGF("retrying envelope (%d/%d)", items[i].count + 1,
                 retry->max_retries);
