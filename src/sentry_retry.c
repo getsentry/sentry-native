@@ -1,5 +1,6 @@
 #include "sentry_retry.h"
 #include "sentry_alloc.h"
+#include "sentry_database.h"
 #include "sentry_envelope.h"
 #include "sentry_logger.h"
 #include "sentry_options.h"
@@ -13,8 +14,9 @@
 
 struct sentry_retry_s {
     sentry_path_t *retry_dir;
-    sentry_path_t *cache_dir;
+    const sentry_run_t *run;
     int max_retries;
+    bool cache_keep;
     uint64_t startup_time;
     volatile long sealed;
     sentry_bgworker_t *bgworker;
@@ -30,26 +32,19 @@ sentry__retry_new(const sentry_options_t *options)
     if (!retry_dir) {
         return NULL;
     }
-    sentry_path_t *cache_dir = NULL;
-    if (options->cache_keep) {
-        cache_dir = sentry__path_join_str(options->database_path, "cache");
-    }
 
     sentry_retry_t *retry = SENTRY_MAKE(sentry_retry_t);
     if (!retry) {
-        sentry__path_free(cache_dir);
         sentry__path_free(retry_dir);
         return NULL;
     }
     retry->retry_dir = retry_dir;
-    retry->cache_dir = cache_dir;
+    retry->run = options->run;
     retry->max_retries = options->http_retries;
+    retry->cache_keep = options->cache_keep;
     retry->startup_time = sentry__usec_time() / 1000;
     retry->sealed = 0;
     sentry__path_create_dir_all(retry->retry_dir);
-    if (retry->cache_dir) {
-        sentry__path_create_dir_all(retry->cache_dir);
-    }
     return retry;
 }
 
@@ -60,7 +55,6 @@ sentry__retry_free(sentry_retry_t *retry)
         return;
     }
     sentry__path_free(retry->retry_dir);
-    sentry__path_free(retry->cache_dir);
     sentry_free(retry);
 }
 
@@ -171,17 +165,12 @@ handle_result(sentry_retry_t *retry, const retry_item_t *item, int status_code)
         return true;
     }
 
-    if (exhausted && retry->cache_dir) {
+    if (exhausted && retry->cache_keep && retry->run) {
         SENTRY_WARNF("max retries (%d) reached, moving envelope to cache",
             retry->max_retries);
         char cache_name[46];
         snprintf(cache_name, sizeof(cache_name), "%.36s.envelope", item->uuid);
-        sentry_path_t *dst
-            = sentry__path_join_str(retry->cache_dir, cache_name);
-        if (dst) {
-            sentry__path_rename(item->path, dst);
-            sentry__path_free(dst);
-        } else {
+        if (!sentry__run_move_cache(retry->run, item->path, cache_name)) {
             sentry__path_remove(item->path);
         }
     } else {
