@@ -1,4 +1,6 @@
+#include "sentry_database.h"
 #include "sentry_envelope.h"
+#include "sentry_options.h"
 #include "sentry_path.h"
 #include "sentry_retry.h"
 #include "sentry_session.h"
@@ -228,14 +230,18 @@ SENTRY_TEST(retry_cache)
     sentry_path_t *db_path
         = sentry__path_from_str(SENTRY_TEST_PATH_PREFIX ".retry-cache");
     sentry__path_remove_all(db_path);
+    sentry__path_create_dir_all(db_path);
+
+    sentry_run_t *run = sentry__run_new(db_path);
+    TEST_ASSERT(!!run);
 
     SENTRY_TEST_OPTIONS_NEW(options);
     sentry_options_set_database_path(
         options, SENTRY_TEST_PATH_PREFIX ".retry-cache");
     sentry_options_set_http_retries(options, 5);
     sentry_options_set_cache_keep(options, 1);
+    options->run = run;
     sentry_retry_t *retry = sentry__retry_new(options);
-    sentry_options_free(options);
     TEST_ASSERT(!!retry);
 
     sentry_path_t *retry_path = sentry__path_join_str(db_path, "retry");
@@ -273,6 +279,7 @@ SENTRY_TEST(retry_cache)
     sentry__retry_free(retry);
     sentry__path_free(retry_path);
     sentry__path_free(cache_path);
+    sentry_options_free(options);
     sentry__path_remove_all(db_path);
     sentry__path_free(db_path);
 }
