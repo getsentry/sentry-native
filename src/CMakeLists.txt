@@ -34,6 +34,8 @@ sentry_target_sources_cwd(sentry
 	sentry_process.h
 	sentry_ratelimiter.c
 	sentry_ratelimiter.h
+	sentry_retry.c
+	sentry_retry.h
 	sentry_ringbuffer.c
 	sentry_ringbuffer.h
 	sentry_sampling_context.h
@@ -64,6 +66,8 @@ sentry_target_sources_cwd(sentry
 	transports/sentry_disk_transport.c
 	transports/sentry_disk_transport.h
 	transports/sentry_function_transport.c
+	transports/sentry_http_transport.c
+	transports/sentry_http_transport.h
 	unwinder/sentry_unwinder.c
 )
 
@@ -119,11 +123,11 @@ endif()
 # transport
 if(SENTRY_TRANSPORT_CURL)
 	sentry_target_sources_cwd(sentry
-		transports/sentry_transport_curl.c
+		transports/sentry_http_transport_curl.c
 	)
 elseif(SENTRY_TRANSPORT_WINHTTP)
 	sentry_target_sources_cwd(sentry
-		transports/sentry_transport_winhttp.c
+		transports/sentry_http_transport_winhttp.c
 	)
 elseif(SENTRY_TRANSPORT_NONE)
 	sentry_target_sources_cwd(sentry
