@@ -351,6 +351,16 @@ http_transport_get_state(sentry_transport_t *transport)
     return sentry__bgworker_get_state(bgworker);
 }
 
+static void
+http_transport_retry(void *transport_state)
+{
+    sentry_bgworker_t *bgworker = transport_state;
+    http_transport_state_t *state = sentry__bgworker_get_state(bgworker);
+    if (state->retry) {
+        sentry__retry_trigger(state->retry);
+    }
+}
+
 sentry_transport_t *
 sentry__http_transport_new(void *client, sentry_http_send_func_t send_func)
 {
@@ -384,7 +394,7 @@ sentry__http_transport_new(void *client, sentry_http_send_func_t send_func)
     sentry_transport_set_flush_func(transport, http_transport_flush);
     sentry_transport_set_shutdown_func(transport, http_transport_shutdown);
     sentry__transport_set_dump_func(transport, http_dump_queue);
-    sentry__transport_set_can_retry(transport, true);
+    sentry__transport_set_retry_func(transport, http_transport_retry);
 
     return transport;
 }

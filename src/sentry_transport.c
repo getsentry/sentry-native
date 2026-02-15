@@ -10,9 +10,9 @@ struct sentry_transport_s {
     int (*flush_func)(uint64_t timeout, void *state);
     void (*free_func)(void *state);
     size_t (*dump_func)(sentry_run_t *run, void *state);
+    void (*retry_func)(void *state);
     void *state;
     bool running;
-    bool can_retry;
 };
 
 sentry_transport_t *
@@ -150,13 +150,22 @@ sentry__transport_get_state(sentry_transport_t *transport)
 }
 
 void
-sentry__transport_set_can_retry(sentry_transport_t *transport, bool can_retry)
+sentry_transport_retry(sentry_transport_t *transport)
 {
-    transport->can_retry = can_retry;
+    if (transport && transport->retry_func) {
+        transport->retry_func(transport->state);
+    }
+}
+
+void
+sentry__transport_set_retry_func(
+    sentry_transport_t *transport, void (*retry_func)(void *state))
+{
+    transport->retry_func = retry_func;
 }
 
 bool
 sentry__transport_can_retry(sentry_transport_t *transport)
 {
-    return transport && transport->can_retry;
+    return transport && transport->retry_func;
 }

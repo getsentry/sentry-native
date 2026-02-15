@@ -5,6 +5,7 @@
 #include "sentry_retry.h"
 #include "sentry_session.h"
 #include "sentry_testsupport.h"
+#include "sentry_transport.h"
 #include "sentry_utils.h"
 #include "sentry_uuid.h"
 
@@ -282,6 +283,43 @@ SENTRY_TEST(retry_cache)
     sentry_options_free(options);
     sentry__path_remove_all(db_path);
     sentry__path_free(db_path);
+}
+
+static int retry_func_calls = 0;
+
+static void
+mock_retry_func(void *state)
+{
+    (void)state;
+    retry_func_calls++;
+}
+
+static void
+noop_send(sentry_envelope_t *envelope, void *state)
+{
+    (void)state;
+    sentry_envelope_free(envelope);
+}
+
+SENTRY_TEST(transport_retry)
+{
+    // no retry_func → no-op
+    sentry_transport_t *transport = sentry_transport_new(noop_send);
+    TEST_CHECK(!sentry__transport_can_retry(transport));
+    sentry_transport_retry(transport);
+
+    // with retry_func → calls it
+    retry_func_calls = 0;
+    sentry__transport_set_retry_func(transport, mock_retry_func);
+    TEST_CHECK(sentry__transport_can_retry(transport));
+    sentry_transport_retry(transport);
+    TEST_CHECK_INT_EQUAL(retry_func_calls, 1);
+
+    // NULL transport → no-op
+    sentry_transport_retry(NULL);
+    TEST_CHECK_INT_EQUAL(retry_func_calls, 1);
+
+    sentry_transport_free(transport);
 }
 
 SENTRY_TEST(retry_backoff)

@@ -67,4 +67,9 @@ sentry_path_t *sentry__retry_make_path(
 bool sentry__retry_parse_filename(const char *filename, uint64_t *ts_out,
     int *count_out, const char **uuid_out);
 
+/**
+ * Submits a delayed retry poll task on the background worker.
+ */
+void sentry__retry_trigger(sentry_retry_t *retry);
+
 #endif
