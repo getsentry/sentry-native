@@ -189,7 +189,7 @@ curl_send_task(void *_client, sentry_prepared_http_request_t *req,
     curl_easy_setopt(curl, CURLOPT_POSTFIELDS, req->body);
     curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE, (long)req->body_len);
     curl_easy_setopt(curl, CURLOPT_USERAGENT, SENTRY_SDK_USER_AGENT);
-    curl_easy_setopt(curl, CURLOPT_TIMEOUT_MS, 15000L);
+    curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT_MS, 15000L);
 
     char error_buf[CURL_ERROR_SIZE];
     error_buf[0] = 0;
