@@ -51,12 +51,23 @@ sentry__run_new(const sentry_path_t *database_path)
         return NULL;
     }
 
+    // `<db>/cache`
+    sentry_path_t *cache_path = sentry__path_join_str(database_path, "cache");
+    if (!cache_path) {
+        sentry__path_free(run_path);
+        sentry__path_free(lock_path);
+        sentry__path_free(session_path);
+        sentry__path_free(external_path);
+        return NULL;
+    }
+
     sentry_run_t *run = SENTRY_MAKE(sentry_run_t);
     if (!run) {
         sentry__path_free(run_path);
         sentry__path_free(session_path);
         sentry__path_free(lock_path);
         sentry__path_free(external_path);
+        sentry__path_free(cache_path);
         return NULL;
     }
 
@@ -64,6 +75,7 @@ sentry__run_new(const sentry_path_t *database_path)
     run->run_path = run_path;
     run->session_path = session_path;
     run->external_path = external_path;
+    run->cache_path = cache_path;
     run->lock = sentry__filelock_new(lock_path);
     if (!run->lock) {
         goto error;
@@ -97,12 +109,13 @@ sentry__run_free(sentry_run_t *run)
     sentry__path_free(run->run_path);
     sentry__path_free(run->session_path);
     sentry__path_free(run->external_path);
+    sentry__path_free(run->cache_path);
     sentry__filelock_free(run->lock);
     sentry_free(run);
 }
 
 static bool
-write_envelope(const sentry_path_t *path, const sentry_envelope_t *envelope)
+write_envelope(const sentry_path_t *dir, const sentry_envelope_t *envelope)
 {
     sentry_uuid_t event_id = sentry__envelope_get_event_id(envelope);
 
@@ -112,24 +125,23 @@ write_envelope(const sentry_path_t *path, const sentry_envelope_t *envelope)
         event_id = sentry_uuid_new_v4();
     }
 
-    char *envelope_filename = sentry__uuid_as_filename(&event_id, ".envelope");
-    if (!envelope_filename) {
+    char *filename = sentry__uuid_as_filename(&event_id, ".envelope");
+    if (!filename) {
         return false;
     }
 
-    sentry_path_t *output_path = sentry__path_join_str(path, envelope_filename);
-    sentry_free(envelope_filename);
-    if (!output_path) {
+    sentry_path_t *path = sentry__path_join_str(dir, filename);
+    sentry_free(filename);
+    if (!path) {
         return false;
     }
 
-    int rv = sentry_envelope_write_to_path(envelope, output_path);
-    sentry__path_free(output_path);
+    int rv = sentry_envelope_write_to_path(envelope, path);
+    sentry__path_free(path);
     if (rv) {
         SENTRY_WARN("writing envelope to file failed");
         return false;
     }
-
     return true;
 }
 
@@ -148,8 +160,43 @@ sentry__run_write_external(
         SENTRY_ERRORF("mkdir failed: \"%s\"", run->external_path->path);
         return false;
     }
-
     return write_envelope(run->external_path, envelope);
+}
+
+bool
+sentry__run_write_cache(
+    const sentry_run_t *run, const sentry_envelope_t *envelope)
+{
+    if (sentry__path_create_dir_all(run->cache_path) != 0) {
+        SENTRY_ERRORF("mkdir failed: \"%s\"", run->cache_path->path);
+        return false;
+    }
+    return write_envelope(run->cache_path, envelope);
+}
+
+bool
+sentry__run_move_cache(
+    const sentry_run_t *run, const sentry_path_t *src, const char *dst)
+{
+    if (sentry__path_create_dir_all(run->cache_path) != 0) {
+        SENTRY_ERRORF("mkdir failed: \"%s\"", run->cache_path->path);
+        return false;
+    }
+
+    const char *filename = dst ? dst : sentry__path_filename(src);
+    sentry_path_t *dst_path = sentry__path_join_str(run->cache_path, filename);
+    if (!dst_path) {
+        return false;
+    }
+
+    int rv = sentry__path_rename(src, dst_path);
+    sentry__path_free(dst_path);
+    if (rv != 0) {
+        SENTRY_WARNF(
+            "failed to cache envelope \"%s\"", sentry__path_filename(src));
+        return false;
+    }
+    return true;
 }
 
 bool
@@ -244,14 +291,6 @@ sentry__process_old_runs(const sentry_options_t *options, uint64_t last_crash)
             && (options->http_retries == 0
                 || !sentry__transport_can_retry(options->transport));
 
-        sentry_path_t *cache_dir = NULL;
-        if (can_cache) {
-            cache_dir = sentry__path_join_str(options->database_path, "cache");
-            if (cache_dir) {
-                sentry__path_create_dir_all(cache_dir);
-            }
-        }
-
         sentry_pathiter_t *run_iter = sentry__path_iter_directory(run_dir);
         const sentry_path_t *file;
         while (run_iter && (file = sentry__pathiter_next(run_iter)) != NULL) {
@@ -297,15 +336,8 @@ sentry__process_old_runs(const sentry_options_t *options, uint64_t last_crash)
                 sentry_envelope_t *envelope = sentry__envelope_from_path(file);
                 sentry__capture_envelope(options->transport, envelope);
 
-                if (cache_dir) {
-                    sentry_path_t *cached_file = sentry__path_join_str(
-                        cache_dir, sentry__path_filename(file));
-                    if (!cached_file
-                        || sentry__path_rename(file, cached_file) != 0) {
-                        SENTRY_WARNF("failed to cache envelope \"%s\"",
-                            sentry__path_filename(file));
-                    }
-                    sentry__path_free(cached_file);
+                if (can_cache
+                    && sentry__run_move_cache(options->run, file, NULL)) {
                     continue;
                 }
             }
@@ -314,7 +346,6 @@ sentry__process_old_runs(const sentry_options_t *options, uint64_t last_crash)
         }
         sentry__pathiter_free(run_iter);
 
-        sentry__path_free(cache_dir);
         sentry__path_remove_all(run_dir);
         sentry__filelock_free(lock);
     }
