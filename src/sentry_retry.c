@@ -1,6 +1,7 @@
 #include "sentry_retry.h"
 #include "sentry_alloc.h"
 #include "sentry_envelope.h"
+#include "sentry_logger.h"
 #include "sentry_options.h"
 #include "sentry_utils.h"
 
@@ -147,7 +148,10 @@ sentry__retry_write_envelope(
     sentry_path_t *path
         = sentry__retry_make_path(retry, sentry__usec_time() / 1000, 0, uuid);
     if (path) {
-        (void)sentry_envelope_write_to_path(envelope, path);
+        if (sentry_envelope_write_to_path(envelope, path) != 0) {
+            SENTRY_WARNF(
+                "failed to write retry envelope to \"%s\"", path->path);
+        }
         sentry__path_free(path);
     }
 }
@@ -155,7 +159,9 @@ sentry__retry_write_envelope(
 static bool
 handle_result(sentry_retry_t *retry, const retry_item_t *item, int status_code)
 {
-    if (status_code < 0 && item->count + 1 < retry->max_retries) {
+    bool exhausted = item->count + 1 >= retry->max_retries;
+
+    if (status_code < 0 && !exhausted) {
         sentry_path_t *new_path = sentry__retry_make_path(
             retry, sentry__usec_time() / 1000, item->count + 1, item->uuid);
         if (new_path) {
@@ -165,7 +171,9 @@ handle_result(sentry_retry_t *retry, const retry_item_t *item, int status_code)
         return true;
     }
 
-    if (item->count + 1 >= retry->max_retries && retry->cache_dir) {
+    if (exhausted && retry->cache_dir) {
+        SENTRY_WARNF("max retries (%d) reached, moving envelope to cache",
+            retry->max_retries);
         char cache_name[46];
         snprintf(cache_name, sizeof(cache_name), "%.36s.envelope", item->uuid);
         sentry_path_t *dst
@@ -177,6 +185,10 @@ handle_result(sentry_retry_t *retry, const retry_item_t *item, int status_code)
             sentry__path_remove(item->path);
         }
     } else {
+        if (exhausted) {
+            SENTRY_WARNF("max retries (%d) reached, discarding envelope",
+                retry->max_retries);
+        }
         sentry__path_remove(item->path);
     }
     return false;
@@ -246,6 +258,8 @@ sentry__retry_send(sentry_retry_t *retry, uint64_t before,
         if (!envelope) {
             sentry__path_remove(items[i].path);
         } else {
+            SENTRY_DEBUGF("retrying envelope (%d/%d)", items[i].count + 1,
+                retry->max_retries);
             int status_code = send_cb(envelope, data);
             sentry_envelope_free(envelope);
             if (!handle_result(retry, &items[i], status_code)) {
