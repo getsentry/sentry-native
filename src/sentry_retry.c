@@ -153,9 +153,8 @@ sentry__retry_write_envelope(
 static bool
 handle_result(sentry_retry_t *retry, const retry_item_t *item, int status_code)
 {
-    bool exhausted = item->count + 1 >= retry->max_retries;
-
-    if (status_code < 0 && !exhausted) {
+    // network failure with retries remaining: bump count & re-enqueue
+    if (item->count + 1 < retry->max_retries && status_code < 0) {
         sentry_path_t *new_path = sentry__retry_make_path(
             retry, sentry__usec_time() / 1000, item->count + 1, item->uuid);
         if (new_path) {
@@ -165,21 +164,30 @@ handle_result(sentry_retry_t *retry, const retry_item_t *item, int status_code)
         return true;
     }
 
-    if (exhausted && retry->cache_keep && retry->run) {
-        SENTRY_WARNF("max retries (%d) reached, moving envelope to cache",
-            retry->max_retries);
+    bool exhausted = item->count + 1 >= retry->max_retries;
+
+    // network failure with retries exhausted
+    if (exhausted && status_code < 0) {
+        if (retry->cache_keep) {
+            SENTRY_WARNF("max retries (%d) reached, moving envelope to cache",
+                retry->max_retries);
+        } else {
+            SENTRY_WARNF("max retries (%d) reached, discarding envelope",
+                retry->max_retries);
+        }
+    }
+
+    // cache on last attempt
+    if (exhausted && retry->cache_keep) {
         char cache_name[46];
         snprintf(cache_name, sizeof(cache_name), "%.36s.envelope", item->uuid);
         if (!sentry__run_move_cache(retry->run, item->path, cache_name)) {
             sentry__path_remove(item->path);
         }
-    } else {
-        if (exhausted) {
-            SENTRY_WARNF("max retries (%d) reached, discarding envelope",
-                retry->max_retries);
-        }
-        sentry__path_remove(item->path);
+        return false;
     }
+
+    sentry__path_remove(item->path);
     return false;
 }
 
