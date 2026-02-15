@@ -101,12 +101,25 @@ sentry__retry_backoff(int count)
     return (uint64_t)SENTRY_RETRY_INTERVAL << MIN(count, 5);
 }
 
+typedef struct {
+    sentry_path_t *path;
+    uint64_t ts;
+    int count;
+    char uuid[37];
+} retry_item_t;
+
 static int
-compare_retry_paths(const void *a, const void *b)
+compare_retry_items(const void *a, const void *b)
 {
-    const sentry_path_t *const *pa = a;
-    const sentry_path_t *const *pb = b;
-    return strcmp(sentry__path_filename(*pa), sentry__path_filename(*pb));
+    const retry_item_t *ia = a;
+    const retry_item_t *ib = b;
+    if (ia->ts != ib->ts) {
+        return ia->ts < ib->ts ? -1 : 1;
+    }
+    if (ia->count != ib->count) {
+        return ia->count - ib->count;
+    }
+    return strcmp(ia->uuid, ib->uuid);
 }
 
 sentry_path_t *
@@ -140,40 +153,31 @@ sentry__retry_write_envelope(
 }
 
 static bool
-handle_result(sentry_retry_t *retry, const sentry_path_t *path, int status_code)
+handle_result(sentry_retry_t *retry, const retry_item_t *item, int status_code)
 {
-    const char *fname = sentry__path_filename(path);
-    uint64_t ts;
-    int count;
-    const char *uuid;
-    if (!sentry__retry_parse_filename(fname, &ts, &count, &uuid)) {
-        sentry__path_remove(path);
-        return false;
-    }
-
-    if (status_code < 0 && count + 1 < retry->max_retries) {
+    if (status_code < 0 && item->count + 1 < retry->max_retries) {
         sentry_path_t *new_path = sentry__retry_make_path(
-            retry, sentry__usec_time() / 1000, count + 1, uuid);
+            retry, sentry__usec_time() / 1000, item->count + 1, item->uuid);
         if (new_path) {
-            sentry__path_rename(path, new_path);
+            sentry__path_rename(item->path, new_path);
             sentry__path_free(new_path);
         }
         return true;
     }
 
-    if (count + 1 >= retry->max_retries && retry->cache_dir) {
+    if (item->count + 1 >= retry->max_retries && retry->cache_dir) {
         char cache_name[46];
-        snprintf(cache_name, sizeof(cache_name), "%.36s.envelope", uuid);
+        snprintf(cache_name, sizeof(cache_name), "%.36s.envelope", item->uuid);
         sentry_path_t *dst
             = sentry__path_join_str(retry->cache_dir, cache_name);
         if (dst) {
-            sentry__path_rename(path, dst);
+            sentry__path_rename(item->path, dst);
             sentry__path_free(dst);
         } else {
-            sentry__path_remove(path);
+            sentry__path_remove(item->path);
         }
     } else {
-        sentry__path_remove(path);
+        sentry__path_remove(item->path);
     }
     return false;
 }
@@ -187,9 +191,9 @@ sentry__retry_send(sentry_retry_t *retry, uint64_t before,
         return 0;
     }
 
-    size_t path_cap = 16;
-    sentry_path_t **paths = sentry_malloc(path_cap * sizeof(sentry_path_t *));
-    if (!paths) {
+    size_t item_cap = 16;
+    retry_item_t *items = sentry_malloc(item_cap * sizeof(retry_item_t));
+    if (!items) {
         sentry__pathiter_free(piter);
         return 0;
     }
@@ -214,33 +218,37 @@ sentry__retry_send(sentry_retry_t *retry, uint64_t before,
         if (!before && now >= ts && (now - ts) < sentry__retry_backoff(count)) {
             continue;
         }
-        if (eligible == path_cap) {
-            path_cap *= 2;
-            sentry_path_t **tmp
-                = sentry_malloc(path_cap * sizeof(sentry_path_t *));
+        if (eligible == item_cap) {
+            item_cap *= 2;
+            retry_item_t *tmp = sentry_malloc(item_cap * sizeof(retry_item_t));
             if (!tmp) {
                 break;
             }
-            memcpy(tmp, paths, eligible * sizeof(sentry_path_t *));
-            sentry_free(paths);
-            paths = tmp;
+            memcpy(tmp, items, eligible * sizeof(retry_item_t));
+            sentry_free(items);
+            items = tmp;
         }
-        paths[eligible++] = sentry__path_clone(p);
+        retry_item_t *item = &items[eligible++];
+        item->path = sentry__path_clone(p);
+        item->ts = ts;
+        item->count = count;
+        memcpy(item->uuid, uuid, 36);
+        item->uuid[36] = '\0';
     }
     sentry__pathiter_free(piter);
 
     if (eligible > 1) {
-        qsort(paths, eligible, sizeof(sentry_path_t *), compare_retry_paths);
+        qsort(items, eligible, sizeof(retry_item_t), compare_retry_items);
     }
 
     for (size_t i = 0; i < eligible; i++) {
-        sentry_envelope_t *envelope = sentry__envelope_from_path(paths[i]);
+        sentry_envelope_t *envelope = sentry__envelope_from_path(items[i].path);
         if (!envelope) {
-            sentry__path_remove(paths[i]);
+            sentry__path_remove(items[i].path);
         } else {
             int status_code = send_cb(envelope, data);
             sentry_envelope_free(envelope);
-            if (!handle_result(retry, paths[i], status_code)) {
+            if (!handle_result(retry, &items[i], status_code)) {
                 total--;
             }
             // stop on network failure to avoid wasting time on a dead
@@ -252,9 +260,9 @@ sentry__retry_send(sentry_retry_t *retry, uint64_t before,
     }
 
     for (size_t i = 0; i < eligible; i++) {
-        sentry__path_free(paths[i]);
+        sentry__path_free(items[i].path);
     }
-    sentry_free(paths);
+    sentry_free(items);
     return total;
 }
 
