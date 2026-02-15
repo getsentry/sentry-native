@@ -82,19 +82,16 @@ test_send_cb(sentry_envelope_t *envelope, void *_ctx)
 
 SENTRY_TEST(retry_throttle)
 {
-    sentry_path_t *db_path
-        = sentry__path_from_str(SENTRY_TEST_PATH_PREFIX ".retry-throttle");
-    sentry__path_remove_all(db_path);
-
     SENTRY_TEST_OPTIONS_NEW(options);
-    sentry_options_set_database_path(
-        options, SENTRY_TEST_PATH_PREFIX ".retry-throttle");
+    sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
     sentry_options_set_http_retries(options, 5);
+    sentry_init(options);
+
     sentry_retry_t *retry = sentry__retry_new(options);
-    sentry_options_free(options);
     TEST_ASSERT(!!retry);
 
-    sentry_path_t *retry_path = sentry__path_join_str(db_path, "retry");
+    sentry__path_remove_all(options->run->cache_path);
+    sentry__path_create_dir_all(options->run->cache_path);
 
     uint64_t old_ts
         = sentry__usec_time() / 1000 - 10 * sentry__retry_backoff(0);
@@ -104,108 +101,95 @@ SENTRY_TEST(retry_throttle)
         write_retry_file(retry, old_ts, 0, &ids[i]);
     }
 
-    TEST_CHECK_INT_EQUAL(count_envelope_files(retry_path), 4);
+    TEST_CHECK_INT_EQUAL(count_envelope_files(options->run->cache_path), 4);
 
     retry_test_ctx_t ctx = { 200, 0 };
     sentry__retry_send(retry, 0, test_send_cb, &ctx);
     TEST_CHECK_INT_EQUAL(ctx.count, 4);
-    TEST_CHECK_INT_EQUAL(count_envelope_files(retry_path), 0);
+    TEST_CHECK_INT_EQUAL(count_envelope_files(options->run->cache_path), 0);
 
     sentry__retry_free(retry);
-    sentry__path_free(retry_path);
-    sentry__path_remove_all(db_path);
-    sentry__path_free(db_path);
+    sentry_close();
 }
 
 SENTRY_TEST(retry_result)
 {
-    sentry_path_t *db_path
-        = sentry__path_from_str(SENTRY_TEST_PATH_PREFIX ".retry-result");
-    sentry__path_remove_all(db_path);
-
     SENTRY_TEST_OPTIONS_NEW(options);
-    sentry_options_set_database_path(
-        options, SENTRY_TEST_PATH_PREFIX ".retry-result");
+    sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
     sentry_options_set_http_retries(options, 2);
+    sentry_init(options);
+
     sentry_retry_t *retry = sentry__retry_new(options);
-    sentry_options_free(options);
     TEST_ASSERT(!!retry);
 
-    sentry_path_t *retry_path = sentry__path_join_str(db_path, "retry");
+    const sentry_path_t *cache_path = options->run->cache_path;
+    sentry__path_remove_all(cache_path);
+    sentry__path_create_dir_all(cache_path);
 
     uint64_t old_ts
         = sentry__usec_time() / 1000 - 10 * sentry__retry_backoff(0);
     sentry_uuid_t event_id = sentry_uuid_new_v4();
 
-    // 1. Success (200) → removes from retry dir
+    // 1. Success (200) → removes
     write_retry_file(retry, old_ts, 0, &event_id);
-    TEST_CHECK_INT_EQUAL(count_envelope_files(retry_path), 1);
-    TEST_CHECK_INT_EQUAL(find_envelope_attempt(retry_path), 0);
+    TEST_CHECK_INT_EQUAL(count_envelope_files(cache_path), 1);
+    TEST_CHECK_INT_EQUAL(find_envelope_attempt(cache_path), 0);
 
     retry_test_ctx_t ctx = { 200, 0 };
     sentry__retry_send(retry, 0, test_send_cb, &ctx);
     TEST_CHECK_INT_EQUAL(ctx.count, 1);
-    TEST_CHECK_INT_EQUAL(count_envelope_files(retry_path), 0);
+    TEST_CHECK_INT_EQUAL(count_envelope_files(cache_path), 0);
 
     // 2. Rate limited (429) → removes
     write_retry_file(retry, old_ts, 0, &event_id);
     ctx = (retry_test_ctx_t) { 429, 0 };
     sentry__retry_send(retry, 0, test_send_cb, &ctx);
     TEST_CHECK_INT_EQUAL(ctx.count, 1);
-    TEST_CHECK_INT_EQUAL(count_envelope_files(retry_path), 0);
+    TEST_CHECK_INT_EQUAL(count_envelope_files(cache_path), 0);
 
     // 3. Discard (0) → removes
     write_retry_file(retry, old_ts, 0, &event_id);
     ctx = (retry_test_ctx_t) { 0, 0 };
     sentry__retry_send(retry, 0, test_send_cb, &ctx);
     TEST_CHECK_INT_EQUAL(ctx.count, 1);
-    TEST_CHECK_INT_EQUAL(count_envelope_files(retry_path), 0);
+    TEST_CHECK_INT_EQUAL(count_envelope_files(cache_path), 0);
 
     // 4. Network error → bumps count
     write_retry_file(retry, old_ts, 0, &event_id);
-    TEST_CHECK_INT_EQUAL(find_envelope_attempt(retry_path), 0);
+    TEST_CHECK_INT_EQUAL(find_envelope_attempt(cache_path), 0);
 
     ctx = (retry_test_ctx_t) { -1, 0 };
     sentry__retry_send(retry, 0, test_send_cb, &ctx);
     TEST_CHECK_INT_EQUAL(ctx.count, 1);
-    TEST_CHECK_INT_EQUAL(count_envelope_files(retry_path), 1);
-    TEST_CHECK_INT_EQUAL(find_envelope_attempt(retry_path), 1);
+    TEST_CHECK_INT_EQUAL(count_envelope_files(cache_path), 1);
+    TEST_CHECK_INT_EQUAL(find_envelope_attempt(cache_path), 1);
 
     // 5. Network error at max count → exceeds max_retries=2, removed
-    sentry__path_remove_all(retry_path);
-    sentry__path_create_dir_all(retry_path);
+    sentry__path_remove_all(cache_path);
+    sentry__path_create_dir_all(cache_path);
     write_retry_file(retry, old_ts, 1, &event_id);
     ctx = (retry_test_ctx_t) { -1, 0 };
     sentry__retry_send(retry, 0, test_send_cb, &ctx);
     TEST_CHECK_INT_EQUAL(ctx.count, 1);
-    TEST_CHECK_INT_EQUAL(count_envelope_files(retry_path), 0);
+    TEST_CHECK_INT_EQUAL(count_envelope_files(cache_path), 0);
 
     sentry__retry_free(retry);
-    sentry__path_free(retry_path);
-    sentry__path_remove_all(db_path);
-    sentry__path_free(db_path);
+    sentry_close();
 }
 
 SENTRY_TEST(retry_session)
 {
-    SENTRY_TEST_OPTIONS_NEW(init_options);
-    sentry_options_set_dsn(init_options, "https://foo@sentry.invalid/42");
-    sentry_options_set_release(init_options, "test@1.0.0");
-    sentry_init(init_options);
-
-    sentry_path_t *db_path
-        = sentry__path_from_str(SENTRY_TEST_PATH_PREFIX ".retry-session");
-    sentry__path_remove_all(db_path);
-
     SENTRY_TEST_OPTIONS_NEW(options);
-    sentry_options_set_database_path(
-        options, SENTRY_TEST_PATH_PREFIX ".retry-session");
+    sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
+    sentry_options_set_release(options, "test@1.0.0");
     sentry_options_set_http_retries(options, 2);
+    sentry_init(options);
+
     sentry_retry_t *retry = sentry__retry_new(options);
-    sentry_options_free(options);
     TEST_ASSERT(!!retry);
 
-    sentry_path_t *retry_path = sentry__path_join_str(db_path, "retry");
+    sentry__path_remove_all(options->run->cache_path);
+    sentry__path_create_dir_all(options->run->cache_path);
 
     sentry_session_t *session = sentry__session_new();
     TEST_ASSERT(!!session);
@@ -215,74 +199,66 @@ SENTRY_TEST(retry_session)
 
     // Session-only envelopes have no event_id → should not be written
     sentry__retry_write_envelope(retry, envelope);
-    TEST_CHECK_INT_EQUAL(count_envelope_files(retry_path), 0);
+    TEST_CHECK_INT_EQUAL(count_envelope_files(options->run->cache_path), 0);
 
     sentry_envelope_free(envelope);
     sentry__session_free(session);
     sentry__retry_free(retry);
-    sentry__path_free(retry_path);
-    sentry__path_remove_all(db_path);
-    sentry__path_free(db_path);
     sentry_close();
 }
 
 SENTRY_TEST(retry_cache)
 {
-    sentry_path_t *db_path
-        = sentry__path_from_str(SENTRY_TEST_PATH_PREFIX ".retry-cache");
-    sentry__path_remove_all(db_path);
-    sentry__path_create_dir_all(db_path);
-
-    sentry_run_t *run = sentry__run_new(db_path);
-    TEST_ASSERT(!!run);
-
     SENTRY_TEST_OPTIONS_NEW(options);
-    sentry_options_set_database_path(
-        options, SENTRY_TEST_PATH_PREFIX ".retry-cache");
+    sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
     sentry_options_set_http_retries(options, 5);
     sentry_options_set_cache_keep(options, 1);
-    options->run = run;
+    sentry_init(options);
+
     sentry_retry_t *retry = sentry__retry_new(options);
     TEST_ASSERT(!!retry);
 
-    sentry_path_t *retry_path = sentry__path_join_str(db_path, "retry");
-    sentry_path_t *cache_path = sentry__path_join_str(db_path, "cache");
+    const sentry_path_t *cache_path = options->run->cache_path;
+    sentry__path_remove_all(cache_path);
+    sentry__path_create_dir_all(cache_path);
 
     uint64_t old_ts = sentry__usec_time() / 1000 - 2 * sentry__retry_backoff(4);
     sentry_uuid_t event_id = sentry_uuid_new_v4();
     write_retry_file(retry, old_ts, 4, &event_id);
 
-    TEST_CHECK_INT_EQUAL(count_envelope_files(retry_path), 1);
-    TEST_CHECK_INT_EQUAL(count_envelope_files(cache_path), 0);
+    char uuid_str[37];
+    sentry_uuid_as_string(&event_id, uuid_str);
+    char cache_name[46];
+    snprintf(cache_name, sizeof(cache_name), "%.36s.envelope", uuid_str);
+    sentry_path_t *cached = sentry__path_join_str(cache_path, cache_name);
 
-    // Network error on a file at count=4 with max_retries=5 → moves to cache
+    TEST_CHECK_INT_EQUAL(count_envelope_files(cache_path), 1);
+    TEST_CHECK(!sentry__path_is_file(cached));
+
+    // Network error on a file at count=4 with max_retries=5 → renames to
+    // cache format (<uuid>.envelope)
     retry_test_ctx_t ctx = { -1, 0 };
     sentry__retry_send(retry, 0, test_send_cb, &ctx);
     TEST_CHECK_INT_EQUAL(ctx.count, 1);
-
-    TEST_CHECK_INT_EQUAL(count_envelope_files(retry_path), 0);
     TEST_CHECK_INT_EQUAL(count_envelope_files(cache_path), 1);
+    TEST_CHECK(sentry__path_is_file(cached));
 
-    // Success on a file at count=4 → also moves to cache (cache_keep
-    // preserves all envelopes regardless of send outcome)
+    // Success on a file at count=4 → also renames to cache format
+    // (cache_keep preserves all envelopes regardless of send outcome)
     sentry__path_remove_all(cache_path);
     sentry__path_create_dir_all(cache_path);
     write_retry_file(retry, old_ts, 4, &event_id);
-    TEST_CHECK_INT_EQUAL(count_envelope_files(retry_path), 1);
+    TEST_CHECK(!sentry__path_is_file(cached));
 
     ctx = (retry_test_ctx_t) { 200, 0 };
     sentry__retry_send(retry, 0, test_send_cb, &ctx);
     TEST_CHECK_INT_EQUAL(ctx.count, 1);
-
-    TEST_CHECK_INT_EQUAL(count_envelope_files(retry_path), 0);
     TEST_CHECK_INT_EQUAL(count_envelope_files(cache_path), 1);
+    TEST_CHECK(sentry__path_is_file(cached));
 
     sentry__retry_free(retry);
-    sentry__path_free(retry_path);
-    sentry__path_free(cache_path);
-    sentry_options_free(options);
-    sentry__path_remove_all(db_path);
-    sentry__path_free(db_path);
+    sentry__path_free(cached);
+    sentry_close();
 }
 
 static int retry_func_calls = 0;
@@ -324,19 +300,17 @@ SENTRY_TEST(transport_retry)
 
 SENTRY_TEST(retry_backoff)
 {
-    sentry_path_t *db_path
-        = sentry__path_from_str(SENTRY_TEST_PATH_PREFIX ".retry-backoff");
-    sentry__path_remove_all(db_path);
-
     SENTRY_TEST_OPTIONS_NEW(options);
-    sentry_options_set_database_path(
-        options, SENTRY_TEST_PATH_PREFIX ".retry-backoff");
+    sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
     sentry_options_set_http_retries(options, 5);
+    sentry_init(options);
+
     sentry_retry_t *retry = sentry__retry_new(options);
-    sentry_options_free(options);
     TEST_ASSERT(!!retry);
 
-    sentry_path_t *retry_path = sentry__path_join_str(db_path, "retry");
+    const sentry_path_t *cache_path = options->run->cache_path;
+    sentry__path_remove_all(cache_path);
+    sentry__path_create_dir_all(cache_path);
 
     uint64_t base = sentry__retry_backoff(0);
     uint64_t ref = sentry__usec_time() / 1000 - 10 * base;
@@ -361,13 +335,13 @@ SENTRY_TEST(retry_backoff)
     retry_test_ctx_t ctx = { 200, 0 };
     sentry__retry_send(retry, 0, test_send_cb, &ctx);
     TEST_CHECK_INT_EQUAL(ctx.count, 2);
-    TEST_CHECK_INT_EQUAL(count_envelope_files(retry_path), 2);
+    TEST_CHECK_INT_EQUAL(count_envelope_files(cache_path), 2);
 
     // Startup scan (no backoff check): remaining 2 files are sent
     ctx = (retry_test_ctx_t) { 200, 0 };
     sentry__retry_send(retry, UINT64_MAX, test_send_cb, &ctx);
     TEST_CHECK_INT_EQUAL(ctx.count, 2);
-    TEST_CHECK_INT_EQUAL(count_envelope_files(retry_path), 0);
+    TEST_CHECK_INT_EQUAL(count_envelope_files(cache_path), 0);
 
     // Verify backoff calculation
     TEST_CHECK_UINT64_EQUAL(sentry__retry_backoff(0), base);
@@ -379,7 +353,5 @@ SENTRY_TEST(retry_backoff)
     TEST_CHECK_UINT64_EQUAL(sentry__retry_backoff(6), base * 32);
 
     sentry__retry_free(retry);
-    sentry__path_free(retry_path);
-    sentry__path_remove_all(db_path);
-    sentry__path_free(db_path);
+    sentry_close();
 }

@@ -46,6 +46,7 @@ SENTRY_TEST(cache_keep)
     SENTRY_TEST_OPTIONS_NEW(options);
     sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
     sentry_options_set_cache_keep(options, true);
+    sentry_options_set_http_retries(options, 0);
     sentry_init(options);
 
     sentry_path_t *cache_path
@@ -238,6 +239,69 @@ SENTRY_TEST(cache_max_items)
     sentry__pathiter_free(iter);
 
     TEST_CHECK_INT_EQUAL(cache_count, 5);
+
+    sentry__path_free(cache_path);
+    sentry_close();
+}
+
+SENTRY_TEST(cache_max_items_with_retry)
+{
+#if defined(SENTRY_PLATFORM_NX) || defined(SENTRY_PLATFORM_PS)
+    SKIP_TEST();
+#endif
+    SENTRY_TEST_OPTIONS_NEW(options);
+    sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
+    sentry_options_set_cache_keep(options, true);
+    sentry_options_set_cache_max_items(options, 7);
+    sentry_init(options);
+
+    sentry_path_t *cache_path
+        = sentry__path_join_str(options->database_path, "cache");
+    TEST_ASSERT(!!cache_path);
+    TEST_ASSERT(sentry__path_remove_all(cache_path) == 0);
+    TEST_ASSERT(sentry__path_create_dir_all(cache_path) == 0);
+
+    time_t now = time(NULL);
+
+    // 5 cache-format files: 1,3,5,7,9 min old
+    for (int i = 0; i < 5; i++) {
+        sentry_uuid_t event_id = sentry_uuid_new_v4();
+        char *filename = sentry__uuid_as_filename(&event_id, ".envelope");
+        TEST_ASSERT(!!filename);
+        sentry_path_t *filepath = sentry__path_join_str(cache_path, filename);
+        sentry_free(filename);
+
+        TEST_ASSERT(sentry__path_touch(filepath) == 0);
+        TEST_ASSERT(set_file_mtime(filepath, now - ((i * 2 + 1) * 60)) == 0);
+        sentry__path_free(filepath);
+    }
+
+    // 5 retry-format files: 0,2,4,6,8 min old
+    for (int i = 0; i < 5; i++) {
+        sentry_uuid_t event_id = sentry_uuid_new_v4();
+        char uuid[37];
+        sentry_uuid_as_string(&event_id, uuid);
+        char filename[128];
+        snprintf(filename, sizeof(filename), "%" PRIu64 "-00-%.36s.envelope",
+            (uint64_t)now, uuid);
+        sentry_path_t *filepath = sentry__path_join_str(cache_path, filename);
+
+        TEST_ASSERT(sentry__path_touch(filepath) == 0);
+        TEST_ASSERT(set_file_mtime(filepath, now - (i * 2 * 60)) == 0);
+        sentry__path_free(filepath);
+    }
+
+    sentry__cleanup_cache(options);
+
+    int total_count = 0;
+    sentry_pathiter_t *iter = sentry__path_iter_directory(cache_path);
+    const sentry_path_t *entry;
+    while (iter && (entry = sentry__pathiter_next(iter)) != NULL) {
+        total_count++;
+    }
+    sentry__pathiter_free(iter);
+
+    TEST_CHECK_INT_EQUAL(total_count, 7);
 
     sentry__path_free(cache_path);
     sentry_close();

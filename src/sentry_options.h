@@ -70,13 +70,13 @@ struct sentry_options_s {
     void *traces_sampler_data;
     size_t max_spans;
     bool enable_logs;
-    int http_retries;
     // takes the first varg as a `sentry_value_t` object containing attributes
     // if no custom attributes are to be passed, use `sentry_value_new_object()`
     bool logs_with_attributes;
     bool enable_metrics;
     sentry_before_send_metric_function_t before_send_metric_func;
     void *before_send_metric_data;
+    int http_retries;
 
     /* everything from here on down are options which are stored here but
        not exposed through the options API */

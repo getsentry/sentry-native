@@ -13,7 +13,6 @@
 #define SENTRY_RETRY_THROTTLE 100
 
 struct sentry_retry_s {
-    sentry_path_t *retry_dir;
     const sentry_run_t *run;
     int max_retries;
     bool cache_keep;
@@ -27,24 +26,16 @@ struct sentry_retry_s {
 sentry_retry_t *
 sentry__retry_new(const sentry_options_t *options)
 {
-    sentry_path_t *retry_dir
-        = sentry__path_join_str(options->database_path, "retry");
-    if (!retry_dir) {
-        return NULL;
-    }
-
     sentry_retry_t *retry = SENTRY_MAKE(sentry_retry_t);
     if (!retry) {
-        sentry__path_free(retry_dir);
         return NULL;
     }
-    retry->retry_dir = retry_dir;
     retry->run = options->run;
     retry->max_retries = options->http_retries;
     retry->cache_keep = options->cache_keep;
     retry->startup_time = sentry__usec_time() / 1000;
     retry->sealed = 0;
-    sentry__path_create_dir_all(retry->retry_dir);
+    sentry__path_create_dir_all(options->run->cache_path);
     return retry;
 }
 
@@ -54,7 +45,6 @@ sentry__retry_free(sentry_retry_t *retry)
     if (!retry) {
         return;
     }
-    sentry__path_free(retry->retry_dir);
     sentry_free(retry);
 }
 
@@ -62,6 +52,12 @@ bool
 sentry__retry_parse_filename(const char *filename, uint64_t *ts_out,
     int *count_out, const char **uuid_out)
 {
+    // Minimum retry filename: <ts>-<count>-<uuid>.envelope (49+ chars).
+    // Cache filenames are exactly 45 chars (<uuid>.envelope).
+    if (strlen(filename) <= 45) {
+        return false;
+    }
+
     char *end;
     uint64_t ts = strtoull(filename, &end, 10);
     if (*end != '-') {
@@ -121,7 +117,7 @@ sentry__retry_make_path(
     char filename[128];
     snprintf(filename, sizeof(filename), "%" PRIu64 "-%02d-%.36s.envelope", ts,
         count, uuid);
-    return sentry__path_join_str(retry->retry_dir, filename);
+    return sentry__path_join_str(retry->run->cache_path, filename);
 }
 
 void
@@ -192,7 +188,8 @@ size_t
 sentry__retry_send(sentry_retry_t *retry, uint64_t before,
     sentry_retry_send_func_t send_cb, void *data)
 {
-    sentry_pathiter_t *piter = sentry__path_iter_directory(retry->retry_dir);
+    sentry_pathiter_t *piter
+        = sentry__path_iter_directory(retry->run->cache_path);
     if (!piter) {
         return 0;
     }

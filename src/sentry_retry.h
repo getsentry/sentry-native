@@ -56,7 +56,7 @@ size_t sentry__retry_send(sentry_retry_t *retry, uint64_t before,
 uint64_t sentry__retry_backoff(int count);
 
 /**
- * <db>/retry/<ts>-<count>-<uuid>.envelope
+ * <db>/cache/<ts>-<count>-<uuid>.envelope
  */
 sentry_path_t *sentry__retry_make_path(
     sentry_retry_t *retry, uint64_t ts, int count, const char *uuid);
