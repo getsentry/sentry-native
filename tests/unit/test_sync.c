@@ -171,6 +171,17 @@ SENTRY_TEST(bgworker_flush)
     sentry__bgworker_decref(bgw);
 }
 
+static void
+noop_task(void *UNUSED(data), void *UNUSED(state))
+{
+}
+
+static void
+incr_cleanup(void *data)
+{
+    (*(int *)data)++;
+}
+
 static sentry_cond_t blocker_signal;
 #ifdef SENTRY__MUTEX_INIT_DYN
 SENTRY__MUTEX_INIT_DYN(blocker_lock)
@@ -329,6 +340,61 @@ SENTRY_TEST(bgworker_delayed_priority)
     TEST_CHECK_INT_EQUAL(os.order[1], 2); // immediate (submitted later)
 
     sentry__bgworker_decref(bgw);
+}
+
+SENTRY_TEST(bgworker_delayed_head)
+{
+    struct order_state os;
+    os.count = 0;
+
+    sentry_bgworker_t *bgw = sentry__bgworker_new(&os, NULL);
+    TEST_ASSERT(!!bgw);
+
+    uint64_t base = sentry__monotonic_time();
+
+    sentry__bgworker_submit_at(bgw, record_order_task, NULL, (void *)1, base);
+    sentry__bgworker_submit_at(
+        bgw, record_order_task, NULL, (void *)2, base + 1);
+    // earlier than first_task -> triggers insert-before-head
+    sentry__bgworker_submit_at(
+        bgw, record_order_task, NULL, (void *)3, base - 1);
+
+    sentry__bgworker_start(bgw);
+    TEST_CHECK_INT_EQUAL(sentry__bgworker_flush(bgw, 5000), 0);
+
+    TEST_CHECK_INT_EQUAL(os.count, 3);
+    TEST_CHECK_INT_EQUAL(os.order[0], 3);
+    TEST_CHECK_INT_EQUAL(os.order[1], 1);
+    TEST_CHECK_INT_EQUAL(os.order[2], 2);
+
+    sentry__bgworker_shutdown(bgw, 500);
+    sentry__bgworker_decref(bgw);
+}
+
+SENTRY_TEST(bgworker_delayed_cleanup)
+{
+    int cleaned = 0;
+
+    sentry_bgworker_t *bgw = sentry__bgworker_new(NULL, NULL);
+    TEST_ASSERT(!!bgw);
+
+    // immediate tasks (cleanup after execution)
+    sentry__bgworker_submit(bgw, noop_task, incr_cleanup, &cleaned);
+    sentry__bgworker_submit(bgw, noop_task, incr_cleanup, &cleaned);
+
+    // far-future delayed tasks (discarded on shutdown, cleanup in decref)
+    sentry__bgworker_submit_at(
+        bgw, noop_task, incr_cleanup, &cleaned, UINT64_MAX);
+    sentry__bgworker_submit_at(
+        bgw, noop_task, incr_cleanup, &cleaned, UINT64_MAX);
+    sentry__bgworker_submit_at(
+        bgw, noop_task, incr_cleanup, &cleaned, UINT64_MAX);
+
+    sentry__bgworker_start(bgw);
+    TEST_CHECK_INT_EQUAL(sentry__bgworker_shutdown(bgw, 1000), 0);
+    sentry__bgworker_decref(bgw);
+
+    TEST_CHECK_INT_EQUAL(cleaned, 5);
 }
 
 SENTRY_TEST(bgworker_delayed_shutdown)
