@@ -87,9 +87,6 @@ sentry__retry_parse_filename(const char *filename, uint64_t *ts_out,
     return true;
 }
 
-/**
- * Exponential backoff: 15m, 30m, 1h, 2h, 4h, 8h, 8h, ... (capped at 8 hours)
- */
 uint64_t
 sentry__retry_backoff(int count)
 {
