@@ -947,6 +947,14 @@ SENTRY_API void sentry_transport_set_shutdown_func(
     int (*shutdown_func)(uint64_t timeout, void *state));
 
 /**
+ * Retries sending all pending envelopes in the transport's retry queue,
+ * e.g. when coming back online. Only applicable for HTTP transports with
+ * retries enabled via `sentry_options_set_http_retries`.
+ */
+SENTRY_EXPERIMENTAL_API void sentry_transport_retry(
+    sentry_transport_t *transport);
+
+/**
  * Generic way to free transport.
  */
 SENTRY_API void sentry_transport_free(sentry_transport_t *transport);
