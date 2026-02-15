@@ -340,6 +340,23 @@ sentry__retry_dump_queue(
     }
 }
 
+static void
+retry_trigger_task(void *_retry, void *_state)
+{
+    (void)_state;
+    sentry_retry_t *retry = _retry;
+    if (sentry__retry_send(
+            retry, UINT64_MAX, retry->send_cb, retry->send_data)) {
+        sentry__retry_trigger(retry);
+    }
+}
+
+void
+sentry__retry_trigger(sentry_retry_t *retry)
+{
+    sentry__bgworker_submit(retry->bgworker, retry_trigger_task, NULL, retry);
+}
+
 void
 sentry__retry_enqueue(sentry_retry_t *retry, const sentry_envelope_t *envelope)
 {
