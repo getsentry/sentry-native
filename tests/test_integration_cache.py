@@ -179,3 +179,57 @@ def test_cache_max_items(cmake, backend):
     assert cache_dir.exists()
     cache_files = list(cache_dir.glob("*.envelope"))
     assert len(cache_files) == 5
+
+
+@pytest.mark.parametrize(
+    "backend",
+    [
+        "inproc",
+        pytest.param(
+            "breakpad",
+            marks=pytest.mark.skipif(
+                not has_breakpad, reason="breakpad backend not available"
+            ),
+        ),
+    ],
+)
+def test_cache_max_items_with_retry(cmake, backend):
+    tmp_path = cmake(
+        ["sentry_example"], {"SENTRY_BACKEND": backend, "SENTRY_TRANSPORT": "none"}
+    )
+    cache_dir = tmp_path.joinpath(".sentry-native/cache")
+
+    # Create cache files via crash+restart cycles
+    for i in range(4):
+        run(
+            tmp_path,
+            "sentry_example",
+            ["log", "cache-keep", "crash"],
+            expect_failure=True,
+        )
+
+    # Move envelopes into cache
+    run(
+        tmp_path,
+        "sentry_example",
+        ["log", "cache-keep", "no-setup"],
+    )
+
+    # Pre-populate cache/ with retry-format envelope files
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    for i in range(4):
+        ts = int(time.time() * 1000)
+        f = cache_dir / f"{ts}-00-00000000-0000-0000-0000-{i:012x}.envelope"
+        f.write_text("dummy envelope content")
+
+    # Trigger sentry_init which runs cleanup
+    run(
+        tmp_path,
+        "sentry_example",
+        ["log", "cache-keep", "http-retry", "no-setup"],
+    )
+
+    # max 5 items total in cache/
+    assert cache_dir.exists()
+    cache_files = list(cache_dir.glob("*.envelope"))
+    assert len(cache_files) <= 5
