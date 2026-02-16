@@ -121,6 +121,12 @@ thread_setname(sentry_threadid_t thread_id, const char *thread_name)
  * `done` *from* the worker signaling that it will close down and can be joined.
  */
 
+static uint64_t
+add_saturate(uint64_t a, uint64_t b)
+{
+    return b <= UINT64_MAX - a ? a + b : UINT64_MAX;
+}
+
 struct sentry_bgworker_task_s;
 typedef struct sentry_bgworker_task_s {
     struct sentry_bgworker_task_s *next_task;
@@ -367,7 +373,7 @@ sentry__bgworker_flush(sentry_bgworker_t *bgw, uint64_t timeout)
     // tasks delayed beyond the timeout cannot complete in time anyway
     uint64_t delay_ms = 0;
     uint64_t before = sentry__monotonic_time();
-    uint64_t deadline = before + timeout;
+    uint64_t deadline = add_saturate(before, timeout);
     sentry__mutex_lock(&bgw->task_lock);
     for (sentry_bgworker_task_t *t = bgw->first_task;
         t && t->execute_after <= deadline; t = t->next_task) {
@@ -463,8 +469,9 @@ sentry__bgworker_submit_delayed(sentry_bgworker_t *bgw,
     SENTRY_DEBUGF("submitting %" PRIu64
                   " ms delayed task to background worker thread",
         delay_ms);
-    return sentry__bgworker_submit_at(bgw, exec_func, cleanup_func, task_data,
-        sentry__monotonic_time() + delay_ms);
+    uint64_t execute_after = add_saturate(sentry__monotonic_time(), delay_ms);
+    return sentry__bgworker_submit_at(
+        bgw, exec_func, cleanup_func, task_data, execute_after);
 }
 
 int

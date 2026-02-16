@@ -251,7 +251,7 @@ SENTRY_TEST(bgworker_delayed_flush)
     sentry__bgworker_submit_at(bgw, record_order_task, NULL, (void *)1, base);
     sentry__bgworker_submit_at(
         bgw, record_order_task, NULL, (void *)2, base + 50);
-    sentry__bgworker_submit_at(
+    sentry__bgworker_submit_delayed(
         bgw, record_order_task, NULL, (void *)3, UINT64_MAX);
 
     sentry__bgworker_start(bgw);
