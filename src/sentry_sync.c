@@ -162,6 +162,7 @@ struct sentry_bgworker_s {
     sentry_mutex_t task_lock;
     sentry_bgworker_task_t *first_task;
     sentry_bgworker_task_t *last_task;
+    sentry_bgworker_task_t *current_task;
     void *state;
     void (*free_state)(void *state);
     long refcount;
@@ -280,6 +281,7 @@ worker_thread(void *data)
         }
 
         sentry__task_incref(task);
+        bgw->current_task = task;
         sentry__mutex_unlock(&bgw->task_lock);
 
         SENTRY_DEBUG("executing task on worker thread");
@@ -293,6 +295,7 @@ worker_thread(void *data)
         // if not, we pop it and `decref` again, removing the _is inside
         // list_ refcount.
         sentry__mutex_lock(&bgw->task_lock);
+        bgw->current_task = NULL;
         if (bgw->first_task == task) {
             bgw->first_task = task->next_task;
             if (task == bgw->last_task) {
@@ -504,9 +507,10 @@ sentry__bgworker_submit_at(sentry_bgworker_t *bgw,
         bgw->last_task->next_task = task;
         bgw->last_task = task;
     } else {
-        // insert sorted by execute_after
-        sentry_bgworker_task_t *prev = NULL;
-        sentry_bgworker_task_t *cur = bgw->first_task;
+        // insert sorted by execute_after; skip past current_task which
+        // may be executing without the lock held
+        sentry_bgworker_task_t *prev = bgw->current_task;
+        sentry_bgworker_task_t *cur = prev ? prev->next_task : bgw->first_task;
         while (cur && cur->execute_after <= task->execute_after) {
             prev = cur;
             cur = cur->next_task;

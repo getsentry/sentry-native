@@ -371,6 +371,56 @@ SENTRY_TEST(bgworker_delayed_priority)
     sentry__bgworker_decref(bgw);
 }
 
+static void
+blocking_record_task(void *data, void *_state)
+{
+    struct order_state *state = (struct order_state *)_state;
+    state->order[state->count++] = (int)(size_t)data;
+
+    SENTRY__MUTEX_INIT_DYN_ONCE(blocker_lock);
+    sentry__mutex_lock(&blocker_lock);
+    while (!blocker_released) {
+        sentry__cond_wait_timeout(&blocker_signal, &blocker_lock, 100);
+    }
+    sentry__mutex_unlock(&blocker_lock);
+}
+
+SENTRY_TEST(bgworker_delayed_current)
+{
+    SENTRY__MUTEX_INIT_DYN_ONCE(blocker_lock);
+    sentry__cond_init(&blocker_signal);
+    blocker_released = false;
+
+    struct order_state os;
+    os.count = 0;
+
+    sentry_bgworker_t *bgw = sentry__bgworker_new(&os, NULL);
+    TEST_ASSERT(!!bgw);
+
+    // head task that blocks and records execution
+    sentry__bgworker_submit(bgw, blocking_record_task, NULL, (void *)1);
+
+    sentry__bgworker_start(bgw);
+    sleep_ms(100);
+
+    // submit_at(0) would insert before head without the current_task guard
+    sentry__bgworker_submit_at(bgw, record_order_task, NULL, (void *)2, 0);
+
+    sentry__mutex_lock(&blocker_lock);
+    blocker_released = true;
+    sentry__cond_wake(&blocker_signal);
+    sentry__mutex_unlock(&blocker_lock);
+
+    TEST_CHECK_INT_EQUAL(sentry__bgworker_shutdown(bgw, 5000), 0);
+
+    // head task must not be re-executed
+    TEST_CHECK_INT_EQUAL(os.count, 2);
+    TEST_CHECK_INT_EQUAL(os.order[0], 1);
+    TEST_CHECK_INT_EQUAL(os.order[1], 2);
+
+    sentry__bgworker_decref(bgw);
+}
+
 SENTRY_TEST(bgworker_delayed_head)
 {
     struct order_state os;
