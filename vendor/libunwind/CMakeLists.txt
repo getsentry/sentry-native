@@ -1,8 +1,14 @@
 # CMakeLists.txt for vendored libunwind (Linux only, x86_64 and aarch64)
 # This builds only the local unwinding library (libunwind.a equivalent)
 
-cmake_minimum_required(VERSION 3.10)
-project(unwind C ASM)
+# Vendored libunwind - built as a subdirectory of the main project.
+# Enable ASM for the .S sources without a nested project() call.
+include(CheckLanguage)
+check_language(ASM)
+if(NOT CMAKE_ASM_COMPILER)
+    message(FATAL_ERROR "ASM required for vendored libunwind's context code, but no assembler found.")
+endif()
+enable_language(ASM)
 
 set(LIBUNWIND_SRC "${CMAKE_CURRENT_SOURCE_DIR}/src")
 set(LIBUNWIND_INC "${CMAKE_CURRENT_SOURCE_DIR}/include")
