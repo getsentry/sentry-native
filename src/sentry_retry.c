@@ -9,12 +9,12 @@
 #include <stdlib.h>
 #include <string.h>
 
+#define SENTRY_RETRY_ATTEMPTS 5
 #define SENTRY_RETRY_INTERVAL (15 * 60 * 1000)
 #define SENTRY_RETRY_THROTTLE 100
 
 struct sentry_retry_s {
     sentry_path_t *cache_path;
-    int max_retries;
     bool cache_keep;
     uint64_t startup_time;
     volatile long sealed;
@@ -31,7 +31,6 @@ sentry__retry_new(const sentry_options_t *options)
         return NULL;
     }
     retry->cache_path = sentry__path_clone(options->run->cache_path);
-    retry->max_retries = options->http_retries;
     retry->cache_keep = options->cache_keep;
     retry->startup_time = sentry__usec_time() / 1000;
     retry->sealed = 0;
@@ -148,7 +147,7 @@ static bool
 handle_result(sentry_retry_t *retry, const retry_item_t *item, int status_code)
 {
     // network failure with retries remaining: bump count & re-enqueue
-    if (item->count + 1 < retry->max_retries && status_code < 0) {
+    if (item->count + 1 < SENTRY_RETRY_ATTEMPTS && status_code < 0) {
         sentry_path_t *new_path = sentry__retry_make_path(
             retry, sentry__usec_time() / 1000, item->count + 1, item->uuid);
         if (new_path) {
@@ -158,16 +157,16 @@ handle_result(sentry_retry_t *retry, const retry_item_t *item, int status_code)
         return true;
     }
 
-    bool exhausted = item->count + 1 >= retry->max_retries;
+    bool exhausted = item->count + 1 >= SENTRY_RETRY_ATTEMPTS;
 
     // network failure with retries exhausted
     if (exhausted && status_code < 0) {
         if (retry->cache_keep) {
             SENTRY_WARNF("max retries (%d) reached, moving envelope to cache",
-                retry->max_retries);
+                SENTRY_RETRY_ATTEMPTS);
         } else {
             SENTRY_WARNF("max retries (%d) reached, discarding envelope",
-                retry->max_retries);
+                SENTRY_RETRY_ATTEMPTS);
         }
     }
 
@@ -254,7 +253,7 @@ sentry__retry_send(sentry_retry_t *retry, uint64_t before,
             total--;
         } else {
             SENTRY_DEBUGF("retrying envelope (%d/%d)", items[i].count + 1,
-                retry->max_retries);
+                SENTRY_RETRY_ATTEMPTS);
             int status_code = send_cb(envelope, data);
             sentry_envelope_free(envelope);
             if (!handle_result(retry, &items[i], status_code)) {

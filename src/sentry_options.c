@@ -82,6 +82,7 @@ sentry_options_new(void)
     opts->crash_reporting_mode
         = SENTRY_CRASH_REPORTING_MODE_NATIVE_WITH_MINIDUMP; // Default: best of
                                                             // both worlds
+    opts->http_retry = true;
 
     return opts;
 }
@@ -877,15 +878,15 @@ sentry_options_set_handler_strategy(
 #endif // SENTRY_PLATFORM_LINUX
 
 void
-sentry_options_set_http_retries(sentry_options_t *opts, int http_retries)
+sentry_options_set_http_retry(sentry_options_t *opts, int enabled)
 {
-    opts->http_retries = http_retries;
+    opts->http_retry = enabled;
 }
 
 int
-sentry_options_get_http_retries(const sentry_options_t *opts)
+sentry_options_get_http_retry(const sentry_options_t *opts)
 {
-    return opts->http_retries;
+    return opts->http_retry;
 }
 
 void
