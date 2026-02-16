@@ -22,7 +22,7 @@ void sentry__retry_start(sentry_retry_t *retry, sentry_bgworker_t *bgworker,
 /**
  * Flushes unprocessed previous-session retries. No-op if already polled.
  */
-void sentry__retry_flush(sentry_retry_t *retry, uint64_t timeout);
+void sentry__retry_flush(sentry_retry_t *retry);
 
 /**
  * Dumps queued envelopes to the retry dir and seals against further writes.
