@@ -689,7 +689,7 @@ def test_http_retry_on_network_error(cmake, httpserver):
     run(
         tmp_path,
         "sentry_example",
-        ["log", "http-retry", "capture-event"],
+        ["log", "capture-event"],
         env=env_unreachable,
     )
 
@@ -706,7 +706,7 @@ def test_http_retry_on_network_error(cmake, httpserver):
         run(
             tmp_path,
             "sentry_example",
-            ["log", "http-retry", "no-setup"],
+            ["log", "no-setup"],
             env=env_reachable,
         )
     assert waiting.result
@@ -727,19 +727,19 @@ def test_http_retry_multiple_attempts(cmake, httpserver):
     unreachable_dsn = "http://uiaeosnrtdy@127.0.0.1:19999/123456"
     env = dict(os.environ, SENTRY_DSN=unreachable_dsn)
 
-    run(tmp_path, "sentry_example", ["log", "http-retry", "capture-event"], env=env)
+    run(tmp_path, "sentry_example", ["log", "capture-event"], env=env)
 
     cache_files = list(cache_dir.glob("*.envelope"))
     assert len(cache_files) == 1
     assert "-00-" in str(cache_files[0].name)
 
-    run(tmp_path, "sentry_example", ["log", "http-retry", "no-setup"], env=env)
+    run(tmp_path, "sentry_example", ["log", "no-setup"], env=env)
 
     cache_files = list(cache_dir.glob("*.envelope"))
     assert len(cache_files) == 1
     assert "-01-" in str(cache_files[0].name)
 
-    run(tmp_path, "sentry_example", ["log", "http-retry", "no-setup"], env=env)
+    run(tmp_path, "sentry_example", ["log", "no-setup"], env=env)
 
     cache_files = list(cache_dir.glob("*.envelope"))
     assert len(cache_files) == 1
@@ -747,7 +747,7 @@ def test_http_retry_multiple_attempts(cmake, httpserver):
 
     # exhaust remaining retries (max 5)
     for i in range(3):
-        run(tmp_path, "sentry_example", ["log", "http-retry", "no-setup"], env=env)
+        run(tmp_path, "sentry_example", ["log", "no-setup"], env=env)
 
     # discarded after max retries (cache_keep not enabled)
     cache_files = list(cache_dir.glob("*.envelope"))
@@ -765,7 +765,7 @@ def test_http_retry_with_cache_keep(cmake, httpserver):
     run(
         tmp_path,
         "sentry_example",
-        ["log", "http-retry", "cache-keep", "capture-event"],
+        ["log", "cache-keep", "capture-event"],
         env=env_unreachable,
     )
 
@@ -779,7 +779,7 @@ def test_http_retry_with_cache_keep(cmake, httpserver):
         run(
             tmp_path,
             "sentry_example",
-            ["log", "http-retry", "cache-keep", "no-setup"],
+            ["log", "cache-keep", "no-setup"],
             env=env_reachable,
         )
     assert waiting.result
@@ -798,7 +798,7 @@ def test_http_retry_cache_keep_max_attempts(cmake):
     run(
         tmp_path,
         "sentry_example",
-        ["log", "http-retry", "cache-keep", "capture-event"],
+        ["log", "cache-keep", "capture-event"],
         env=env,
     )
 
@@ -809,7 +809,7 @@ def test_http_retry_cache_keep_max_attempts(cmake):
         run(
             tmp_path,
             "sentry_example",
-            ["log", "http-retry", "cache-keep", "no-setup"],
+            ["log", "cache-keep", "no-setup"],
             env=env,
         )
 
@@ -866,7 +866,7 @@ def test_http_retry_multiple_success(cmake, httpserver):
     run(
         tmp_path,
         "sentry_example",
-        ["log", "http-retry", "capture-multiple"],
+        ["log", "capture-multiple"],
         env=env_unreachable,
     )
 
@@ -883,7 +883,7 @@ def test_http_retry_multiple_success(cmake, httpserver):
         run(
             tmp_path,
             "sentry_example",
-            ["log", "http-retry", "no-setup"],
+            ["log", "no-setup"],
             env=env_reachable,
         )
     assert waiting.result
@@ -904,7 +904,7 @@ def test_http_retry_multiple_network_error(cmake):
     run(
         tmp_path,
         "sentry_example",
-        ["log", "http-retry", "capture-multiple"],
+        ["log", "capture-multiple"],
         env=env,
     )
 
@@ -914,7 +914,7 @@ def test_http_retry_multiple_network_error(cmake):
     run(
         tmp_path,
         "sentry_example",
-        ["log", "http-retry", "no-setup"],
+        ["log", "no-setup"],
         env=env,
     )
 
@@ -936,7 +936,7 @@ def test_http_retry_multiple_rate_limit(cmake, httpserver):
     run(
         tmp_path,
         "sentry_example",
-        ["log", "http-retry", "capture-multiple"],
+        ["log", "capture-multiple"],
         env=env_unreachable,
     )
 
@@ -953,7 +953,7 @@ def test_http_retry_multiple_rate_limit(cmake, httpserver):
     run(
         tmp_path,
         "sentry_example",
-        ["log", "http-retry", "no-setup"],
+        ["log", "no-setup"],
         env=env_reachable,
     )
 

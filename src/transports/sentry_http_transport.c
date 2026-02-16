@@ -282,7 +282,7 @@ http_transport_start(const sentry_options_t *options, void *transport_state)
         return rv;
     }
 
-    if (options->http_retries > 0) {
+    if (options->http_retry) {
         state->retry = sentry__retry_new(options);
         if (state->retry) {
             sentry__retry_start(state->retry, bgworker, retry_send_cb, state);

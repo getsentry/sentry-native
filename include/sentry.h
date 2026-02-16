@@ -948,8 +948,7 @@ SENTRY_API void sentry_transport_set_shutdown_func(
 
 /**
  * Retries sending all pending envelopes in the transport's retry queue,
- * e.g. when coming back online. Only applicable for HTTP transports with
- * retries enabled via `sentry_options_set_http_retries`.
+ * e.g. when coming back online. Only applicable for HTTP transports.
  */
 SENTRY_EXPERIMENTAL_API void sentry_transport_retry(
     sentry_transport_t *transport);
@@ -2133,12 +2132,12 @@ SENTRY_EXPERIMENTAL_API int sentry_options_get_enable_logs(
     const sentry_options_t *opts);
 
 /**
- * Sets the maximum number of HTTP retry attempts for network failures.
- * Set to 0 to disable retries (default).
+ * Enables or disables HTTP retry with exponential backoff for network failures.
+ * Enabled by default.
  */
-SENTRY_EXPERIMENTAL_API void sentry_options_set_http_retries(
-    sentry_options_t *opts, int http_retries);
-SENTRY_EXPERIMENTAL_API int sentry_options_get_http_retries(
+SENTRY_EXPERIMENTAL_API void sentry_options_set_http_retry(
+    sentry_options_t *opts, int enabled);
+SENTRY_EXPERIMENTAL_API int sentry_options_get_http_retry(
     const sentry_options_t *opts);
 
 /**

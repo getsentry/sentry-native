@@ -226,7 +226,7 @@ def test_cache_max_items_with_retry(cmake, backend):
     run(
         tmp_path,
         "sentry_example",
-        ["log", "cache-keep", "http-retry", "no-setup"],
+        ["log", "cache-keep", "no-setup"],
     )
 
     # max 5 items total in cache/
