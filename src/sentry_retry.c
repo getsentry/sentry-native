@@ -314,10 +314,22 @@ retry_flush_task(void *_retry, void *_state)
     }
 }
 
+static bool
+drop_task_cb(void *_data, void *_ctx)
+{
+    (void)_data;
+    (void)_ctx;
+    return true;
+}
+
 void
 sentry__retry_flush(sentry_retry_t *retry, uint64_t timeout)
 {
     if (retry) {
+        // drop the delayed poll that would stall bgworker_flush
+        sentry__bgworker_foreach_matching(
+            retry->bgworker, retry_poll_task, drop_task_cb, NULL);
+        sentry__atomic_store(&retry->scheduled, 0);
         sentry__bgworker_submit(retry->bgworker, retry_flush_task, NULL, retry);
         sentry__bgworker_flush(retry->bgworker, timeout);
     }
