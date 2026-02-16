@@ -308,7 +308,7 @@ retry_flush_task(void *_retry, void *_state)
 {
     (void)_state;
     sentry_retry_t *retry = _retry;
-    if (retry->startup_time > 0) {
+    if (retry->startup_time > 0 && !sentry__atomic_fetch(&retry->sealed)) {
         sentry__retry_send(retry, UINT64_MAX, retry->send_cb, retry->send_data);
         retry->startup_time = 0;
     }
