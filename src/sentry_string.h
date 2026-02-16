@@ -209,9 +209,8 @@ sentry__uint64_to_string(uint64_t val)
  * This is a replacement for `snprintf` in signal handlers:
  *   - signal-safe: uses no stdio, malloc, locks, or thread-local state.
  *   - reentrant: only stack locals; no writable globals.
- * Returns 0 on success.
  */
-bool sentry__addr_to_string(char *buf, size_t buf_len, uint64_t addr);
+void sentry__addr_to_string(char *buf, size_t buf_len, uint64_t addr);
 
 #ifdef SENTRY_PLATFORM_WINDOWS
 /**
