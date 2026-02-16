@@ -134,8 +134,8 @@ winhttp_client_start(void *_client, const sentry_options_t *opts)
         return 1;
     }
 
-    // 15s resolve, 15s connect, default send/receive
-    WinHttpSetTimeouts(client->session, 15000, 15000, 0, 0);
+    // 15s resolve/connect, 30s send/receive (WinHTTP defaults)
+    WinHttpSetTimeouts(client->session, 15000, 15000, 30000, 30000);
 
     return 0;
 }
