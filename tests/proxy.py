@@ -25,8 +25,8 @@ def setup_proxy_env_vars(port):
 
 
 def cleanup_proxy_env_vars():
-    del os.environ["http_proxy"]
-    del os.environ["https_proxy"]
+    os.environ.pop("http_proxy", None)
+    os.environ.pop("https_proxy", None)
 
 
 def _parse_listening_port(proxy_process, timeout=10):

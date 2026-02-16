@@ -183,7 +183,7 @@ def test_crashpad_proxy_https_not_http(cmake, httpserver):
         assert waiting.result
 
     finally:
-        del os.environ["https_proxy"]
+        os.environ.pop("https_proxy", None)
         proxy_test_finally(1, httpserver, proxy_process, expected_proxy_logsize=0)
 
 
