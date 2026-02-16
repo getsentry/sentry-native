@@ -305,10 +305,12 @@ http_transport_shutdown(uint64_t timeout, void *transport_state)
     sentry_bgworker_t *bgworker = transport_state;
     http_transport_state_t *state = sentry__bgworker_get_state(bgworker);
 
-    // flush drains in-flight retries; shutdown is near-instant afterward
+    uint64_t started = sentry__monotonic_time();
     sentry__retry_flush(state->retry, timeout);
+    uint64_t elapsed = sentry__monotonic_time() - started;
+    uint64_t remaining = elapsed < timeout ? timeout - elapsed : 0;
 
-    int rv = sentry__bgworker_shutdown(bgworker, timeout);
+    int rv = sentry__bgworker_shutdown(bgworker, remaining);
     if (rv != 0) {
         sentry__retry_dump_queue(state->retry, http_send_task);
         if (state->shutdown_client) {
