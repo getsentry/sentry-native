@@ -20,8 +20,8 @@ def closed_port():
 
 
 def setup_proxy_env_vars(port):
-    os.environ["http_proxy"] = f"http://localhost:{port}"
-    os.environ["https_proxy"] = f"http://localhost:{port}"
+    os.environ["http_proxy"] = f"http://127.0.0.1:{port}"
+    os.environ["https_proxy"] = f"http://127.0.0.1:{port}"
 
 
 def cleanup_proxy_env_vars():

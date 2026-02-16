@@ -48,8 +48,8 @@ def test_proxy_from_env(cmake, httpserver):
         env, proxy_process, tmp_path, port = _setup_http_proxy_test(
             cmake, httpserver, "http-proxy"
         )
-        env["http_proxy"] = f"http://localhost:{port}"
-        env["https_proxy"] = f"http://localhost:{port}"
+        env["http_proxy"] = f"http://127.0.0.1:{port}"
+        env["https_proxy"] = f"http://127.0.0.1:{port}"
 
         run(
             tmp_path,
@@ -72,8 +72,8 @@ def test_proxy_from_env_port_incorrect(cmake, httpserver):
             cmake, httpserver, "http-proxy"
         )
         # Set env vars with a wrong port (offset by 1 from the actual proxy port)
-        env["http_proxy"] = f"http://localhost:{port + 1}"
-        env["https_proxy"] = f"http://localhost:{port + 1}"
+        env["http_proxy"] = f"http://127.0.0.1:{port + 1}"
+        env["https_proxy"] = f"http://127.0.0.1:{port + 1}"
 
         run(
             tmp_path,
@@ -175,8 +175,8 @@ def test_proxy_set_empty(cmake, httpserver):
             cmake, httpserver, "http-proxy"
         )
         # we start the proxy but expect it to remain unused
-        env["http_proxy"] = f"http://localhost:{port}"
-        env["https_proxy"] = f"http://localhost:{port}"
+        env["http_proxy"] = f"http://127.0.0.1:{port}"
+        env["https_proxy"] = f"http://127.0.0.1:{port}"
 
         run(
             tmp_path,
@@ -199,7 +199,7 @@ def test_proxy_https_not_http(cmake, httpserver):
         env, proxy_process, tmp_path, port = _setup_http_proxy_test(
             cmake, httpserver, "http-proxy"
         )
-        env["https_proxy"] = f"http://localhost:{port}"
+        env["https_proxy"] = f"http://127.0.0.1:{port}"
 
         run(
             tmp_path,

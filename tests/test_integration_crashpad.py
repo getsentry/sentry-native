@@ -83,8 +83,8 @@ def test_crashpad_crash_proxy_env(cmake, httpserver):
             cmake, httpserver, "http-proxy"
         )
         setup_proxy_env_vars(port=port)
-        env["http_proxy"] = f"http://localhost:{port}"
-        env["https_proxy"] = f"http://localhost:{port}"
+        env["http_proxy"] = f"http://127.0.0.1:{port}"
+        env["https_proxy"] = f"http://127.0.0.1:{port}"
 
         with httpserver.wait(timeout=10) as waiting:
             run(
@@ -110,8 +110,8 @@ def test_crashpad_crash_proxy_env_port_incorrect(cmake, httpserver):
             cmake, httpserver, "http-proxy"
         )
         setup_proxy_env_vars(port=port + 1)
-        env["http_proxy"] = f"http://localhost:{port + 1}"
-        env["https_proxy"] = f"http://localhost:{port + 1}"
+        env["http_proxy"] = f"http://127.0.0.1:{port + 1}"
+        env["https_proxy"] = f"http://127.0.0.1:{port + 1}"
 
         with pytest.raises(AssertionError):
             with httpserver.wait(timeout=10):
@@ -139,8 +139,8 @@ def test_crashpad_proxy_set_empty(cmake, httpserver):
         setup_proxy_env_vars(
             port=port
         )  # we start the proxy but expect it to remain unused
-        env["http_proxy"] = f"http://localhost:{port}"
-        env["https_proxy"] = f"http://localhost:{port}"
+        env["http_proxy"] = f"http://127.0.0.1:{port}"
+        env["https_proxy"] = f"http://127.0.0.1:{port}"
 
         with httpserver.wait(timeout=10) as waiting:
             run(
@@ -167,8 +167,8 @@ def test_crashpad_proxy_https_not_http(cmake, httpserver):
         env, proxy_process, tmp_path, port = _setup_crashpad_proxy_test(
             cmake, httpserver, "http-proxy"
         )
-        os.environ["https_proxy"] = f"http://localhost:{port}"
-        env["https_proxy"] = f"http://localhost:{port}"
+        os.environ["https_proxy"] = f"http://127.0.0.1:{port}"
+        env["https_proxy"] = f"http://127.0.0.1:{port}"
 
         with httpserver.wait(timeout=10) as waiting:
             run(
