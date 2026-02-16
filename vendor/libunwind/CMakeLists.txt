@@ -168,9 +168,7 @@ elseif(UNWIND_ARCH STREQUAL "x86")
         ${LIBUNWIND_SRC}/x86/Lregs.c
         ${LIBUNWIND_SRC}/x86/Lreg_states_iterate.c
         ${LIBUNWIND_SRC}/x86/Lresume.c
-        ${LIBUNWIND_SRC}/x86/Lstash_frame.c
         ${LIBUNWIND_SRC}/x86/Lstep.c
-        ${LIBUNWIND_SRC}/x86/Ltrace.c
     )
 endif()
 
