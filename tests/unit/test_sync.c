@@ -171,6 +171,28 @@ SENTRY_TEST(bgworker_flush)
     sentry__bgworker_decref(bgw);
 }
 
+SENTRY_TEST(bgworker_delayed_flush)
+{
+    struct task_state ts;
+    ts.executed = 0;
+    ts.running = true;
+
+    sentry_bgworker_t *bgw = sentry__bgworker_new(NULL, NULL);
+    TEST_ASSERT(!!bgw);
+
+    sentry__bgworker_submit(bgw, task_func, NULL, &ts);
+    sentry__bgworker_submit_at(bgw, task_func, NULL, &ts, UINT64_MAX);
+
+    sentry__bgworker_start(bgw);
+
+    // flush succeeds after the immediate task; the far-future task is skipped
+    TEST_CHECK_INT_EQUAL(sentry__bgworker_flush(bgw, 2000), 0);
+    TEST_CHECK_INT_EQUAL(ts.executed, 1);
+
+    sentry__bgworker_shutdown(bgw, 500);
+    sentry__bgworker_decref(bgw);
+}
+
 static void
 noop_task(void *UNUSED(data), void *UNUSED(state))
 {
