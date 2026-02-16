@@ -68,6 +68,8 @@ def _setup_crashpad_proxy_test(cmake, httpserver, proxy):
     tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "crashpad"})
 
     env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver, proxy_host=True))
+    if port is not None:
+        env["SENTRY_TEST_PROXY_PORT"] = str(port)
     httpserver.expect_oneshot_request("/api/123456/minidump/").respond_with_data("OK")
 
     return env, proxy_process, tmp_path, port
