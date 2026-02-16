@@ -2,8 +2,10 @@
 #define SENTRY_BATCHER_H_INCLUDED
 
 #include "sentry_boot.h"
+#include "sentry_database.h"
 #include "sentry_envelope.h"
 #include "sentry_sync.h"
+#include "sentry_transport.h"
 
 #ifdef SENTRY_UNITTEST
 #    define SENTRY_BATCHER_QUEUE_LENGTH 5
@@ -41,11 +43,16 @@ typedef struct {
     sentry_cond_t request_flush; // condition variable to schedule a flush
     sentry_threadid_t batching_thread; // the batching thread
     sentry_batch_func_t batch_func; // function to add items to envelope
+    sentry_dsn_t *dsn;
+    sentry_transport_t *transport;
+    sentry_run_t *run;
+    long *user_consent; // (atomic) NULL if consent not required
 } sentry_batcher_t;
 
 bool sentry__batcher_flush(sentry_batcher_t *batcher, bool crash_safe);
 bool sentry__batcher_enqueue(sentry_batcher_t *batcher, sentry_value_t item);
-void sentry__batcher_startup(sentry_batcher_t *batcher);
+void sentry__batcher_startup(
+    sentry_batcher_t *batcher, const sentry_options_t *options);
 bool sentry__batcher_shutdown_begin(sentry_batcher_t *batcher);
 void sentry__batcher_shutdown_wait(sentry_batcher_t *batcher, uint64_t timeout);
 void sentry__batcher_flush_crash_safe(sentry_batcher_t *batcher);
