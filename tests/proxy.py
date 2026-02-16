@@ -74,7 +74,12 @@ def start_mitmdump(proxy_type, proxy_auth: str = None, listen_host: str = "127.0
         proxy_command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=env
     )
 
-    port = _parse_listening_port(proxy_process)
+    try:
+        port = _parse_listening_port(proxy_process)
+    except Exception:
+        proxy_process.terminate()
+        proxy_process.wait()
+        raise
     return proxy_process, port
 
 
