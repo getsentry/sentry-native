@@ -336,10 +336,10 @@ sentry__retry_dump_queue(
     sentry_retry_t *retry, sentry_task_exec_func_t task_func)
 {
     if (retry) {
-        sentry__bgworker_foreach_matching(
-            retry->bgworker, task_func, retry_dump_cb, retry);
         // prevent duplicate writes from a still-running detached worker
         sentry__atomic_store(&retry->sealed, 1);
+        sentry__bgworker_foreach_matching(
+            retry->bgworker, task_func, retry_dump_cb, retry);
     }
 }
 
