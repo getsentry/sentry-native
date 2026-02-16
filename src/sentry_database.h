@@ -65,14 +65,6 @@ bool sentry__run_write_session(
 bool sentry__run_clear_session(const sentry_run_t *run);
 
 /**
- * This will serialize and write the given envelope to disk into a file named
- * like so:
- * `<database>/cache/<event-uuid>.envelope`
- */
-bool sentry__run_write_cache(
-    const sentry_run_t *run, const sentry_envelope_t *envelope);
-
-/**
  * Moves `src` to `<database>/cache/<dst>`. If `dst` is NULL, the filename of
  * `src` is used.
  */

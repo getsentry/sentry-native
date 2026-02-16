@@ -164,17 +164,6 @@ sentry__run_write_external(
 }
 
 bool
-sentry__run_write_cache(
-    const sentry_run_t *run, const sentry_envelope_t *envelope)
-{
-    if (sentry__path_create_dir_all(run->cache_path) != 0) {
-        SENTRY_ERRORF("mkdir failed: \"%s\"", run->cache_path->path);
-        return false;
-    }
-    return write_envelope(run->cache_path, envelope);
-}
-
-bool
 sentry__run_move_cache(
     const sentry_run_t *run, const sentry_path_t *src, const char *dst)
 {
