@@ -374,14 +374,14 @@ sentry__bgworker_flush(sentry_bgworker_t *bgw, uint64_t timeout)
 
     // place the flush sentinel after the last task due within the timeout;
     // tasks delayed beyond the timeout cannot complete in time anyway
-    uint64_t delay_ms = 0;
     uint64_t before = sentry__monotonic_time();
     uint64_t deadline = add_saturate(before, timeout);
+    uint64_t execute_after = before;
     sentry__mutex_lock(&bgw->task_lock);
     for (sentry_bgworker_task_t *t = bgw->first_task;
         t && t->execute_after <= deadline; t = t->next_task) {
-        if (t->execute_after > before) {
-            delay_ms = t->execute_after - before;
+        if (t->execute_after > execute_after) {
+            execute_after = t->execute_after;
         }
     }
     sentry__mutex_unlock(&bgw->task_lock);
@@ -389,8 +389,8 @@ sentry__bgworker_flush(sentry_bgworker_t *bgw, uint64_t timeout)
     sentry__mutex_lock(&flush_task->lock);
 
     /* submit the task that triggers our condvar once it runs */
-    sentry__bgworker_submit_delayed(bgw, sentry__flush_task,
-        (void (*)(void *))sentry__flush_task_decref, flush_task, delay_ms);
+    sentry__bgworker_submit_at(bgw, sentry__flush_task,
+        (void (*)(void *))sentry__flush_task_decref, flush_task, execute_after);
 
     uint64_t started = sentry__monotonic_time();
     bool was_flushed = false;
