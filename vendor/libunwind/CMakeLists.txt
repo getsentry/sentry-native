@@ -260,7 +260,7 @@ target_compile_definitions(unwind PRIVATE
 )
 
 set_target_properties(unwind PROPERTIES
-    C_STANDARD 99
+    C_STANDARD 11
     POSITION_INDEPENDENT_CODE ON
 )
 
