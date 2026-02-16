@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1771245194039,
+  "lastUpdate": 1771245309672,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -20754,6 +20754,66 @@ window.BENCHMARK_DATA = {
             "value": 11.310458000025392,
             "unit": "ms",
             "extra": "Min 6.892ms\nMax 58.756ms\nMean 19.639ms\nStdDev 22.035ms\nMedian 11.310ms\nCPU 0.936ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "jpnurmi@gmail.com",
+            "name": "J-P Nurmi",
+            "username": "jpnurmi"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "1ade4e0cc6645b46d5aaf3470da397d6a1fdcf09",
+          "message": "fix(batcher): fix deadlock on reinit (#1518)\n\n* test(logs): add reinit deadlock test\n\nCo-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>\n\n* test(metrics): add reinit deadlock test\n\nCo-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>\n\n* fix(batcher): eliminate g_options_lock from flush path to prevent deadlock\n\nWhen sentry_init() is called while a batcher thread is mid-flush,\na deadlock occurs: the main thread holds g_options_lock and waits\nfor the batcher thread to join, while the batcher thread tries to\nacquire g_options_lock via SENTRY_WITH_OPTIONS during flush.\n\nStore the options pointer in the batcher at startup and use it\ndirectly during flush instead of going through SENTRY_WITH_OPTIONS.\nAdd sentry__envelope_new_with_dsn() to create envelopes without\nlocking, and sentry__options_get_user_consent() for lock-free\nconsent checks.\n\nCo-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>\n\n* ref(batcher): store individual fields instead of options pointer\n\nReplace the raw options pointer with individual fields (dsn,\ntransport, run, user_consent) to avoid unsynchronized access to\noptions members from the batcher thread. The dsn is incref'd,\nand user_consent is a pointer to the atomic field (NULL when\nconsent is not required).\n\nRevert sentry__options_get_user_consent since it is no longer\nneeded.\n\nCo-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>\n\n* docs: add changelog entry for batcher deadlock fix\n\nCo-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>\n\n* fix(envelope): hold DSN ref across sentry__envelope_new_with_dsn call\n\nThe DSN pointer was extracted under g_options_lock but used after\nthe lock was released, racing with sentry_close freeing it.\n\nCo-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>\n\n* fix(test): enable metrics instead of logs in metrics_reinit test\n\nCo-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>\n\n* fix(batcher): release DSN ref when thread spawn fails\n\nCo-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>\n\n---------\n\nCo-authored-by: Claude Opus 4.6 <noreply@anthropic.com>",
+          "timestamp": "2026-02-16T13:30:59+01:00",
+          "tree_id": "59308436775423dca7d4c1d10ac39dcdc017d63f",
+          "url": "https://github.com/getsentry/sentry-native/commit/1ade4e0cc6645b46d5aaf3470da397d6a1fdcf09"
+        },
+        "date": 1771245306788,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 3.6673750000204564,
+            "unit": "ms",
+            "extra": "Min 3.491ms\nMax 6.182ms\nMean 4.340ms\nStdDev 1.138ms\nMedian 3.667ms\nCPU 2.281ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 3.9392080000197893,
+            "unit": "ms",
+            "extra": "Min 3.446ms\nMax 4.271ms\nMean 3.919ms\nStdDev 0.312ms\nMedian 3.939ms\nCPU 2.178ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 13.674458000025425,
+            "unit": "ms",
+            "extra": "Min 12.571ms\nMax 22.894ms\nMean 15.515ms\nStdDev 4.237ms\nMedian 13.674ms\nCPU 5.809ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.01112500001454464,
+            "unit": "ms",
+            "extra": "Min 0.008ms\nMax 0.032ms\nMean 0.018ms\nStdDev 0.011ms\nMedian 0.011ms\nCPU 0.017ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.2926249999859465,
+            "unit": "ms",
+            "extra": "Min 0.234ms\nMax 0.320ms\nMean 0.288ms\nStdDev 0.032ms\nMedian 0.293ms\nCPU 0.288ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 7.320499999991625,
+            "unit": "ms",
+            "extra": "Min 6.696ms\nMax 8.493ms\nMean 7.482ms\nStdDev 0.665ms\nMedian 7.320ms\nCPU 1.059ms"
           }
         ]
       }
