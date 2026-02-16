@@ -367,10 +367,13 @@ sentry__bgworker_flush(sentry_bgworker_t *bgw, uint64_t timeout)
     // tasks delayed beyond the timeout cannot complete in time anyway
     uint64_t delay_ms = 0;
     uint64_t before = sentry__monotonic_time();
+    uint64_t deadline = before + timeout;
     sentry__mutex_lock(&bgw->task_lock);
-    if (bgw->last_task && bgw->last_task->execute_after > before
-        && bgw->last_task->execute_after - before <= timeout) {
-        delay_ms = bgw->last_task->execute_after - before;
+    for (sentry_bgworker_task_t *t = bgw->first_task;
+        t && t->execute_after <= deadline; t = t->next_task) {
+        if (t->execute_after > before) {
+            delay_ms = t->execute_after - before;
+        }
     }
     sentry__mutex_unlock(&bgw->task_lock);
 

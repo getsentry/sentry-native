@@ -171,28 +171,6 @@ SENTRY_TEST(bgworker_flush)
     sentry__bgworker_decref(bgw);
 }
 
-SENTRY_TEST(bgworker_delayed_flush)
-{
-    struct task_state ts;
-    ts.executed = 0;
-    ts.running = true;
-
-    sentry_bgworker_t *bgw = sentry__bgworker_new(NULL, NULL);
-    TEST_ASSERT(!!bgw);
-
-    sentry__bgworker_submit(bgw, task_func, NULL, &ts);
-    sentry__bgworker_submit_at(bgw, task_func, NULL, &ts, UINT64_MAX);
-
-    sentry__bgworker_start(bgw);
-
-    // flush succeeds after the immediate task; the far-future task is skipped
-    TEST_CHECK_INT_EQUAL(sentry__bgworker_flush(bgw, 2000), 0);
-    TEST_CHECK_INT_EQUAL(ts.executed, 1);
-
-    sentry__bgworker_shutdown(bgw, 500);
-    sentry__bgworker_decref(bgw);
-}
-
 static void
 noop_task(void *UNUSED(data), void *UNUSED(state))
 {
@@ -254,6 +232,35 @@ SENTRY_TEST(bgworker_task_delay)
     TEST_CHECK_INT_EQUAL(os.count, 1);
     TEST_CHECK_INT_EQUAL(os.order[0], 1);
     TEST_CHECK(after - before >= 50);
+
+    sentry__bgworker_shutdown(bgw, 500);
+    sentry__bgworker_decref(bgw);
+}
+
+SENTRY_TEST(bgworker_delayed_flush)
+{
+    struct order_state os;
+    os.count = 0;
+
+    sentry_bgworker_t *bgw = sentry__bgworker_new(&os, NULL);
+    TEST_ASSERT(!!bgw);
+
+    uint64_t base = sentry__monotonic_time();
+
+    // immediate + eligible delayed + far-future delayed
+    sentry__bgworker_submit_at(bgw, record_order_task, NULL, (void *)1, base);
+    sentry__bgworker_submit_at(
+        bgw, record_order_task, NULL, (void *)2, base + 50);
+    sentry__bgworker_submit_at(
+        bgw, record_order_task, NULL, (void *)3, UINT64_MAX);
+
+    sentry__bgworker_start(bgw);
+
+    // flush covers the immediate and the 50ms task but skips the far-future one
+    TEST_CHECK_INT_EQUAL(sentry__bgworker_flush(bgw, 2000), 0);
+    TEST_CHECK_INT_EQUAL(os.count, 2);
+    TEST_CHECK_INT_EQUAL(os.order[0], 1);
+    TEST_CHECK_INT_EQUAL(os.order[1], 2);
 
     sentry__bgworker_shutdown(bgw, 500);
     sentry__bgworker_decref(bgw);
