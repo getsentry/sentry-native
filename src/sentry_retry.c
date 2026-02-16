@@ -13,7 +13,7 @@
 #define SENTRY_RETRY_THROTTLE 100
 
 struct sentry_retry_s {
-    const sentry_run_t *run;
+    sentry_path_t *cache_path;
     int max_retries;
     bool cache_keep;
     uint64_t startup_time;
@@ -30,7 +30,7 @@ sentry__retry_new(const sentry_options_t *options)
     if (!retry) {
         return NULL;
     }
-    retry->run = options->run;
+    retry->cache_path = sentry__path_clone(options->run->cache_path);
     retry->max_retries = options->http_retries;
     retry->cache_keep = options->cache_keep;
     retry->startup_time = sentry__usec_time() / 1000;
@@ -45,6 +45,7 @@ sentry__retry_free(sentry_retry_t *retry)
     if (!retry) {
         return;
     }
+    sentry__path_free(retry->cache_path);
     sentry_free(retry);
 }
 
@@ -117,7 +118,7 @@ sentry__retry_make_path(
     char filename[128];
     snprintf(filename, sizeof(filename), "%" PRIu64 "-%02d-%.36s.envelope", ts,
         count, uuid);
-    return sentry__path_join_str(retry->run->cache_path, filename);
+    return sentry__path_join_str(retry->cache_path, filename);
 }
 
 void
@@ -174,9 +175,12 @@ handle_result(sentry_retry_t *retry, const retry_item_t *item, int status_code)
     if (exhausted && retry->cache_keep) {
         char cache_name[46];
         snprintf(cache_name, sizeof(cache_name), "%.36s.envelope", item->uuid);
-        if (!sentry__run_move_cache(retry->run, item->path, cache_name)) {
+        sentry_path_t *dest
+            = sentry__path_join_str(retry->cache_path, cache_name);
+        if (!dest || sentry__path_rename(item->path, dest) != 0) {
             sentry__path_remove(item->path);
         }
+        sentry__path_free(dest);
         return false;
     }
 
@@ -188,8 +192,7 @@ size_t
 sentry__retry_send(sentry_retry_t *retry, uint64_t before,
     sentry_retry_send_func_t send_cb, void *data)
 {
-    sentry_pathiter_t *piter
-        = sentry__path_iter_directory(retry->run->cache_path);
+    sentry_pathiter_t *piter = sentry__path_iter_directory(retry->cache_path);
     if (!piter) {
         return 0;
     }
