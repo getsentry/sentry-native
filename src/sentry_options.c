@@ -832,7 +832,7 @@ sentry_options_set_handler_strategy(
 void
 sentry_options_set_http_retry(sentry_options_t *opts, int enabled)
 {
-    opts->http_retry = enabled;
+    opts->http_retry = !!enabled;
 }
 
 int
