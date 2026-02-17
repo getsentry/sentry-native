@@ -67,7 +67,7 @@ SENTRY_TEST(basic_logging_functionality)
     TEST_CHECK_INT_EQUAL(sentry_log_error("Error message"), 0);
     // Sleep up to 5s to allow first batch to flush (testing batch timing
     // behavior)
-    for (int i = 0; i < 500 && validation_data.called_count < 1; i++) {
+    for (int i = 0; i < 250 && validation_data.called_count < 1; i++) {
         sleep_ms(20);
     }
     TEST_CHECK_INT_EQUAL(validation_data.called_count, 1);

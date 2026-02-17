@@ -147,7 +147,7 @@ SENTRY_TEST(metrics_batch)
             SENTRY_METRICS_RESULT_SUCCESS);
     }
     // Sleep up to 5s to allow first batch to flush
-    for (int i = 0; i < 500 && validation_data.called_count < 1; i++) {
+    for (int i = 0; i < 250 && validation_data.called_count < 1; i++) {
         sleep_ms(20);
     }
     TEST_CHECK_INT_EQUAL(validation_data.called_count, 1);
