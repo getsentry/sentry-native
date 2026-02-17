@@ -450,6 +450,47 @@ SENTRY_TEST(bgworker_delayed_head)
     sentry__bgworker_decref(bgw);
 }
 
+SENTRY_TEST(bgworker_delayed_drop_current)
+{
+    SENTRY__MUTEX_INIT_DYN_ONCE(blocker_lock);
+    sentry__cond_init(&blocker_signal);
+    blocker_released = false;
+
+    struct order_state os;
+    os.count = 0;
+
+    sentry_bgworker_t *bgw = sentry__bgworker_new(&os, NULL);
+    TEST_ASSERT(!!bgw);
+
+    // A blocks the worker; B is queued behind
+    sentry__bgworker_submit(bgw, blocking_record_task, NULL, (void *)1);
+    sentry__bgworker_submit(bgw, record_order_task, NULL, (void *)2);
+
+    sentry__bgworker_start(bgw);
+    sleep_ms(100);
+
+    // drop the currently executing task A
+    sentry__bgworker_foreach_matching(
+        bgw, blocking_record_task, drop_lessthan, (void *)2);
+
+    // without the fix, this links to stale current_task
+    sentry__bgworker_submit_at(bgw, record_order_task, NULL, (void *)3, 0);
+
+    sentry__mutex_lock(&blocker_lock);
+    blocker_released = true;
+    sentry__cond_wake(&blocker_signal);
+    sentry__mutex_unlock(&blocker_lock);
+
+    TEST_CHECK_INT_EQUAL(sentry__bgworker_shutdown(bgw, 5000), 0);
+
+    TEST_CHECK_INT_EQUAL(os.count, 3);
+    TEST_CHECK_INT_EQUAL(os.order[0], 1);
+    TEST_CHECK_INT_EQUAL(os.order[1], 3);
+    TEST_CHECK_INT_EQUAL(os.order[2], 2);
+
+    sentry__bgworker_decref(bgw);
+}
+
 SENTRY_TEST(bgworker_delayed_cleanup)
 {
     int cleaned = 0;
