@@ -2,14 +2,6 @@
 #include "sentry_process.h"
 #include "sentry_testsupport.h"
 
-#ifdef SENTRY_PLATFORM_WINDOWS
-#    include <windows.h>
-#    define sleep_ms(MILLISECONDS) Sleep(MILLISECONDS)
-#else
-#    include <unistd.h>
-#    define sleep_ms(MILLISECONDS) usleep(MILLISECONDS * 1000)
-#endif
-
 // merely tests that it doesn't crash with invalid arguments
 SENTRY_TEST(process_invalid)
 {

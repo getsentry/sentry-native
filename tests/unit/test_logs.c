@@ -4,14 +4,6 @@
 #include "sentry_envelope.h"
 #include <string.h>
 
-#ifdef SENTRY_PLATFORM_WINDOWS
-#    include <windows.h>
-#    define sleep_ms(MILLISECONDS) Sleep(MILLISECONDS)
-#else
-#    include <unistd.h>
-#    define sleep_ms(MILLISECONDS) usleep(MILLISECONDS * 1000)
-#endif
-
 typedef struct {
     uint64_t called_count;
     bool has_validation_error;

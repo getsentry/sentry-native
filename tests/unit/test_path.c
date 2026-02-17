@@ -2,14 +2,6 @@
 #include "sentry_string.h"
 #include "sentry_testsupport.h"
 
-#ifdef SENTRY_PLATFORM_WINDOWS
-#    include <windows.h>
-#    define sleep_s(SECONDS) Sleep(SECONDS * 1000)
-#else
-#    include <unistd.h>
-#    define sleep_s(SECONDS) sleep(SECONDS)
-#endif
-
 SENTRY_TEST(recursive_paths)
 {
     sentry_path_t *base = sentry__path_from_str(SENTRY_TEST_PATH_PREFIX ".foo");

@@ -104,4 +104,14 @@
         SENTRY_RESTORE_DEPRECATED                                              \
     } while (0)
 
+#ifdef SENTRY_PLATFORM_WINDOWS
+#    include <windows.h>
+#    define sleep_s(SECONDS) Sleep((SECONDS) * 1000)
+#    define sleep_ms(MILLISECONDS) Sleep(MILLISECONDS)
+#else
+#    include <unistd.h>
+#    define sleep_s(SECONDS) sleep(SECONDS)
+#    define sleep_ms(MILLISECONDS) usleep((MILLISECONDS) * 1000)
+#endif
+
 #endif // SENTRY_TEST_SUPPORT_H_INCLUDED
