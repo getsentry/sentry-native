@@ -610,6 +610,9 @@ main(int argc, char **argv)
         sentry_options_set_cache_max_age(options, 5 * 24 * 60 * 60); // 5 days
         sentry_options_set_cache_max_items(options, 5);
     }
+    if (has_arg(argc, argv, "no-http-retry")) {
+        sentry_options_set_http_retry(options, false);
+    }
 
     if (has_arg(argc, argv, "enable-metrics")) {
         sentry_options_set_enable_metrics(options, true);

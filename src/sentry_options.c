@@ -75,6 +75,7 @@ sentry_options_new(void)
     opts->traces_sample_rate = 0.0;
     opts->max_spans = SENTRY_SPANS_MAX;
     opts->handler_strategy = SENTRY_HANDLER_STRATEGY_DEFAULT;
+    opts->http_retry = true;
 
     return opts;
 }
@@ -827,6 +828,18 @@ sentry_options_set_handler_strategy(
 }
 
 #endif // SENTRY_PLATFORM_LINUX
+
+void
+sentry_options_set_http_retry(sentry_options_t *opts, int enabled)
+{
+    opts->http_retry = !!enabled;
+}
+
+int
+sentry_options_get_http_retry(const sentry_options_t *opts)
+{
+    return opts->http_retry;
+}
 
 void
 sentry_options_set_propagate_traceparent(

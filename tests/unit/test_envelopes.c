@@ -2,9 +2,9 @@
 #include "sentry_json.h"
 #include "sentry_path.h"
 #include "sentry_testsupport.h"
-#include "sentry_transport.h"
 #include "sentry_utils.h"
 #include "sentry_value.h"
+#include "transports/sentry_http_transport.h"
 
 static char *const SERIALIZED_ENVELOPE_STR
     = "{\"dsn\":\"https://foo@sentry.invalid/42\","
@@ -374,6 +374,65 @@ SENTRY_TEST(write_raw_envelope_to_file)
     sentry__path_free(test_file_path);
     sentry_envelope_free(envelope);
     sentry_envelope_free(raw_envelope);
+    sentry_close();
+}
+
+SENTRY_TEST(raw_envelope_event_id)
+{
+    sentry_envelope_t *envelope = create_test_envelope();
+    const char *test_file_str = SENTRY_TEST_PATH_PREFIX "sentry_test_envelope";
+    sentry_path_t *test_file_path = sentry__path_from_str(test_file_str);
+    TEST_CHECK_INT_EQUAL(
+        sentry_envelope_write_to_file(envelope, test_file_str), 0);
+
+    sentry_envelope_t *raw_envelope
+        = sentry__envelope_from_path(test_file_path);
+    TEST_CHECK(!!raw_envelope);
+
+    sentry_uuid_t event_id = sentry__envelope_get_event_id(raw_envelope);
+    char event_id_str[37];
+    sentry_uuid_as_string(&event_id, event_id_str);
+    TEST_CHECK_STRING_EQUAL(
+        event_id_str, "c993afb6-b4ac-48a6-b61b-2558e601d65d");
+
+    sentry__path_remove(test_file_path);
+    sentry__path_free(test_file_path);
+    sentry_envelope_free(envelope);
+    sentry_envelope_free(raw_envelope);
+
+    // missing event_id
+    const char header_no_event_id[]
+        = "{\"dsn\":\"https://foo@sentry.invalid/42\"}\n{}";
+    test_file_path = sentry__path_from_str(test_file_str);
+    TEST_CHECK_INT_EQUAL(
+        sentry__path_write_buffer(
+            test_file_path, header_no_event_id, sizeof(header_no_event_id) - 1),
+        0);
+    raw_envelope = sentry__envelope_from_path(test_file_path);
+    TEST_CHECK(!!raw_envelope);
+    event_id = sentry__envelope_get_event_id(raw_envelope);
+    TEST_CHECK(sentry_uuid_is_nil(&event_id));
+    sentry__path_remove(test_file_path);
+    sentry__path_free(test_file_path);
+    sentry_envelope_free(raw_envelope);
+
+    // missing newline
+    const char header_no_newline[]
+        = "{\"event_id\":\"c993afb6-b4ac-48a6-b61b-2558e601d65d\"}";
+    test_file_path = sentry__path_from_str(test_file_str);
+    TEST_CHECK_INT_EQUAL(sentry__path_write_buffer(test_file_path,
+                             header_no_newline, sizeof(header_no_newline) - 1),
+        0);
+    raw_envelope = sentry__envelope_from_path(test_file_path);
+    TEST_CHECK(!!raw_envelope);
+    event_id = sentry__envelope_get_event_id(raw_envelope);
+    sentry_uuid_as_string(&event_id, event_id_str);
+    TEST_CHECK_STRING_EQUAL(
+        event_id_str, "c993afb6-b4ac-48a6-b61b-2558e601d65d");
+    sentry__path_remove(test_file_path);
+    sentry__path_free(test_file_path);
+    sentry_envelope_free(raw_envelope);
+
     sentry_close();
 }
 

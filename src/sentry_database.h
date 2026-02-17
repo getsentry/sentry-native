@@ -11,6 +11,7 @@ typedef struct sentry_run_s {
     sentry_path_t *run_path;
     sentry_path_t *session_path;
     sentry_path_t *external_path;
+    sentry_path_t *cache_path;
     sentry_filelock_t *lock;
 } sentry_run_t;
 
@@ -62,6 +63,13 @@ bool sentry__run_write_session(
  * See `sentry__run_write_session`.
  */
 bool sentry__run_clear_session(const sentry_run_t *run);
+
+/**
+ * Moves `src` to `<database>/cache/<dst>`. If `dst` is NULL, the filename of
+ * `src` is used.
+ */
+bool sentry__run_move_cache(
+    const sentry_run_t *run, const sentry_path_t *src, const char *dst);
 
 /**
  * This function is essential to send crash reports from previous runs of the

@@ -76,6 +76,7 @@ struct sentry_options_s {
     bool enable_metrics;
     sentry_before_send_metric_function_t before_send_metric_func;
     void *before_send_metric_data;
+    bool http_retry;
 
     /* everything from here on down are options which are stored here but
        not exposed through the options API */
