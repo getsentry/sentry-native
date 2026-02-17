@@ -278,7 +278,7 @@ worker_thread(void *data)
             uint64_t now = sentry__monotonic_time();
             if (now < task->execute_after) {
                 sentry__cond_wait_timeout(&bgw->submit_signal, &bgw->task_lock,
-                    (uint32_t)(task->execute_after - now));
+                    (uint32_t)MIN(task->execute_after - now, UINT32_MAX));
                 continue;
             }
         }
