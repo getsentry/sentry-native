@@ -381,7 +381,8 @@ sentry__bgworker_flush(sentry_bgworker_t *bgw, uint64_t timeout)
     uint64_t deadline = add_saturate(before, timeout);
     uint64_t execute_after = before;
     sentry__mutex_lock(&bgw->task_lock);
-    for (sentry_bgworker_task_t *t = bgw->first_task;
+    for (sentry_bgworker_task_t *t
+        = bgw->current_task ? bgw->current_task->next_task : bgw->first_task;
         t && t->execute_after <= deadline; t = t->next_task) {
         if (t->execute_after > execute_after) {
             execute_after = t->execute_after;
