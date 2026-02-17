@@ -557,7 +557,10 @@ sentry__bgworker_foreach_matching(sentry_bgworker_t *bgw,
             } else {
                 bgw->first_task = next_task;
             }
-            if (bgw->current_task && bgw->current_task->next_task == task) {
+            if (bgw->current_task == task) {
+                bgw->current_task = NULL;
+            } else if (bgw->current_task
+                && bgw->current_task->next_task == task) {
                 bgw->current_task->next_task = next_task;
             }
             sentry__task_decref(task);
