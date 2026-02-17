@@ -121,6 +121,9 @@ thread_setname(sentry_threadid_t thread_id, const char *thread_name)
  * `done` *from* the worker signaling that it will close down and can be joined.
  */
 
+/**
+ * Overflow-safe addition that clamps to UINT64_MAX instead of wrapping.
+ */
 static uint64_t
 add_saturate(uint64_t a, uint64_t b)
 {
