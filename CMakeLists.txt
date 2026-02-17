@@ -143,6 +143,7 @@ if(LINUX)
 		set(CMAKE_CXX_FLAGS  "${CMAKE_CXX_FLAGS} -m32 -D_FILE_OFFSET_BITS=64 -D_LARGEFILE64_SOURCE")
 		set(CMAKE_ASM_FLAGS  "${CMAKE_ASM_FLAGS} -m32 -D_FILE_OFFSET_BITS=64 -D_LARGEFILE64_SOURCE")
 		set_property(GLOBAL PROPERTY FIND_LIBRARY_USE_LIB64_PATHS OFF)
+		set(CMAKE_SYSTEM_PROCESSOR "i686")
 	endif()
 endif()
 
@@ -614,37 +615,15 @@ endif()
 
 if(SENTRY_WITH_LIBUNWIND)
 	if(LINUX)
-		option(SENTRY_LIBUNWIND_SHARED "Link to shared libunwind" ${SENTRY_BUILD_SHARED_LIBS})
-
-		# ensure suffix and search paths for include and library search (specifically for multilib)
-		if(SENTRY_BUILD_FORCE32)
-			set(_unwind_triplet "i386-linux-gnu")
-			set(_i386_libpaths /usr/lib/i386-linux-gnu /lib/i386-linux-gnu /usr/lib32 /lib32)
-		else()
-			set(_unwind_triplet "${CMAKE_LIBRARY_ARCHITECTURE}")
+		# Use vendored libunwind
+		add_subdirectory(vendor/libunwind)
+		target_link_libraries(sentry PRIVATE unwind)
+		if(NOT SENTRY_BUILD_SHARED_LIBS)
+			sentry_install(TARGETS unwind EXPORT sentry
+				LIBRARY DESTINATION "${CMAKE_INSTALL_LIBDIR}"
+				ARCHIVE DESTINATION "${CMAKE_INSTALL_LIBDIR}"
+			)
 		endif()
-
-		find_path(LIBUNWIND_INCLUDE_DIR libunwind.h
-			PATH_SUFFIXES
-				${_unwind_triplet}
-				libunwind # some distros put the libunwind headers into a subdirectory
-			REQUIRED)
-		if(SENTRY_LIBUNWIND_SHARED)
-			find_library(LIBUNWIND_LIBRARIES unwind PATH_SUFFIXES ${_unwind_triplet} REQUIRED)
-		else()
-			find_library(LIBUNWIND_LIBRARIES libunwind.a PATH_SUFFIXES ${_unwind_triplet} REQUIRED)
-			if(SENTRY_BUILD_FORCE32)
-				find_library(LZMA_LIBRARY lzma PATHS ${_i386_libpaths} NO_DEFAULT_PATH)
-			else()
-				find_library(LZMA_LIBRARY lzma PATH_SUFFIXES ${_unwind_triplet})
-			endif()
-
-			if(LZMA_LIBRARY)
-				list(APPEND LIBUNWIND_LIBRARIES ${LZMA_LIBRARY})
-			endif()
-		endif()
-		target_include_directories(sentry PRIVATE ${LIBUNWIND_INCLUDE_DIR})
-		target_link_libraries(sentry PRIVATE ${LIBUNWIND_LIBRARIES})
 	endif()
 endif()
 
@@ -839,16 +818,17 @@ if(SENTRY_BUILD_EXAMPLES)
 		# dependencies being packaged with the same distro, are built with PIC enabled. This will lead `ld` to error on
 		# relocation data, thus failing the build/tests. There is no need to build the example with PIE enabled.
 		# Similarly, LTO must be disabled since the static library archive might have different LTO bytecode version.
-		if (LINUX AND NOT SENTRY_BUILD_SHARED_LIBS)
-			target_link_options(sentry_example PRIVATE
-				-no-pie
-				-fno-lto
-			)
-			target_compile_options(sentry_example PRIVATE
-				-fno-pie
-				-fno-lto
-			)
-		endif()
+		# NOTE: With vendored libunwind (built with PIC), this workaround should no longer be necessary.
+		# if (LINUX AND NOT SENTRY_BUILD_SHARED_LIBS)
+		# 	target_link_options(sentry_example PRIVATE
+		# 		-no-pie
+		# 		-fno-lto
+		# 	)
+		# 	target_compile_options(sentry_example PRIVATE
+		# 		-fno-pie
+		# 		-fno-lto
+		# 	)
+		# endif()
 	endif()
 
 	# set static runtime if enabled

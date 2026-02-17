@@ -14,13 +14,13 @@
  * and then copy them forward. This avoids reverse-writing into the destination
  * and keeps the code simple.
  */
-bool
+void
 sentry__addr_to_string(char *buf, size_t buf_len, uint64_t addr)
 {
     static const char hex[] = "0123456789abcdef";
 
     if (!buf || buf_len < SENTRY_ADDR_MIN_BUFFER_SIZE) {
-        return false;
+        return;
     }
 
     size_t buf_idx = 0;
@@ -44,7 +44,6 @@ sentry__addr_to_string(char *buf, size_t buf_len, uint64_t addr)
         buf[buf_idx++] = rev[--rev_idx];
     }
     buf[buf_idx] = '\0';
-    return true;
 }
 
 #define INITIAL_BUFFER_SIZE 128

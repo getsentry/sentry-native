@@ -136,14 +136,12 @@ jobs:
           - name: Linux (GCC + musl + libunwind)
             os: ubuntu-latest
             container: ghcr.io/getsentry/sentry-native-alpine:3.21
-            CMAKE_DEFINES: -DSENTRY_LIBUNWIND_SHARED=OFF
             CC: gcc
             CXX: g++
             SYSTEM_PYTHON: 1
           - name: Linux (clang + musl + libunwind)
             os: ubuntu-latest
             container: ghcr.io/getsentry/sentry-native-alpine:3.21
-            CMAKE_DEFINES: -DSENTRY_LIBUNWIND_SHARED=OFF
             CC: clang
             CXX: clang++
             SYSTEM_PYTHON: 1
@@ -252,7 +250,7 @@ jobs:
         run: |
           sudo apt update
           # Install common dependencies
-          sudo apt install cmake llvm valgrind zlib1g-dev libcurl4-openssl-dev libunwind-dev
+          sudo apt install cmake llvm valgrind zlib1g-dev libcurl4-openssl-dev
           # For GCC, install both gcc-X and g++-X. For Clang, only install clang-X (includes C++ compiler)
           if [[ "$CC" == gcc-* ]]; then
             sudo apt install "${CC}" "${CXX}"
@@ -283,13 +281,13 @@ jobs:
         run: |
           sudo dpkg --add-architecture i386
           sudo apt update
-          sudo apt install cmake "${CC}-multilib" "${CXX}-multilib" zlib1g-dev:i386 libssl-dev:i386 libcurl4-openssl-dev:i386 libunwind-dev:i386 liblzma-dev:i386
+          sudo apt install cmake "${CC}-multilib" "${CXX}-multilib" zlib1g-dev:i386 libssl-dev:i386 libcurl4-openssl-dev:i386 liblzma-dev:i386
 
       - name: Installing Alpine Linux Dependencies
         if: ${{ contains(matrix.container, 'alpine') }}
         run: |
           apk update
-          apk add curl-dev libunwind-dev libunwind-static xz-dev
+          apk add curl-dev xz-dev
       # install manually until available by default (also for future .NET updates)
       - name: Install .NET 10 SDK for ARM64 runners
         if: ${{ runner.os == 'Linux' && runner.arch == 'ARM64' && !matrix.container }}

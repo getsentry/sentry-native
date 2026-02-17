@@ -45,6 +45,7 @@ sentry__unwind_stack_libunwind(
     }
 
     unw_cursor_t cursor;
+    unw_context_t uc;
     if (uctx) {
         int ret = unw_init_local2(&cursor, (unw_context_t *)uctx->user_context,
             UNW_INIT_SIGNAL_FRAME);
@@ -53,7 +54,6 @@ sentry__unwind_stack_libunwind(
             return 0;
         }
     } else {
-        unw_context_t uc;
 #ifdef __clang__
 // This pragma is required to build with Werror on ARM64 Ubuntu
 #    pragma clang diagnostic push
