@@ -1,4 +1,5 @@
 #include "sentry_metrics.h"
+#include "sentry_sync.h"
 #include "sentry_testsupport.h"
 
 #include "sentry_envelope.h"
@@ -13,7 +14,7 @@
 #endif
 
 typedef struct {
-    uint64_t called_count;
+    volatile long called_count;
     bool has_validation_error;
 } transport_validation_data_t;
 
@@ -36,7 +37,7 @@ validate_metrics_envelope(sentry_envelope_t *envelope, void *data)
 
     // Only validate and count metric envelopes, skip others (e.g., session)
     if (strcmp(type, "trace_metric") == 0) {
-        validation_data->called_count += 1;
+        sentry__atomic_fetch_and_add(&validation_data->called_count, 1);
     }
 
     sentry_envelope_free(envelope);
@@ -147,7 +148,9 @@ SENTRY_TEST(metrics_batch)
             SENTRY_METRICS_RESULT_SUCCESS);
     }
     // Sleep up to 5s to allow first batch to flush
-    for (int i = 0; i < 250 && validation_data.called_count < 1; i++) {
+    for (int i = 0;
+        i < 250 && sentry__atomic_fetch(&validation_data.called_count) < 1;
+        i++) {
         sleep_ms(20);
     }
     TEST_CHECK_INT_EQUAL(validation_data.called_count, 1);
