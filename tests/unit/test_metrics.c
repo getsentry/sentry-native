@@ -146,8 +146,11 @@ SENTRY_TEST(metrics_batch)
             sentry_metrics_count("test.counter", 1, sentry_value_new_null()),
             SENTRY_METRICS_RESULT_SUCCESS);
     }
-    // Sleep to allow first batch to flush
-    sleep_ms(20);
+    // Sleep up to 5s to allow first batch to flush
+    for (int i = 0; i < 500 && validation_data.called_count < 1; i++) {
+        sleep_ms(20);
+    }
+    TEST_CHECK_INT_EQUAL(validation_data.called_count, 1);
     TEST_CHECK_INT_EQUAL(
         sentry_metrics_count("test.counter", 1, sentry_value_new_null()),
         SENTRY_METRICS_RESULT_SUCCESS);
