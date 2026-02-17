@@ -67,7 +67,7 @@ sentry__retry_parse_filename(const char *filename, uint64_t *ts_out,
 
     const char *count_str = end + 1;
     long count = strtol(count_str, &end, 10);
-    if (*end != '-') {
+    if (*end != '-' || count < 0) {
         return false;
     }
 
@@ -87,7 +87,7 @@ sentry__retry_parse_filename(const char *filename, uint64_t *ts_out,
 uint64_t
 sentry__retry_backoff(int count)
 {
-    return (uint64_t)SENTRY_RETRY_INTERVAL << MIN(count, 5);
+    return (uint64_t)SENTRY_RETRY_INTERVAL << MIN(MAX(count, 0), 5);
 }
 
 typedef struct {
