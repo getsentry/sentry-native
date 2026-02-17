@@ -71,7 +71,7 @@ def start_mitmdump(proxy_type, proxy_auth: str = None, listen_host: str = "127.0
     # mitmdump (also written in python) often buffers output long enough so that we don't catch it
     env = {**os.environ, "PYTHONUNBUFFERED": "1"}
     proxy_process = subprocess.Popen(
-        proxy_command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=env
+        proxy_command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, env=env
     )
 
     try:
@@ -97,8 +97,7 @@ def proxy_test_finally(
         # Give mitmdump some time to get a response from the mock server
         time.sleep(0.5)
         proxy_process.terminate()
-        proxy_process.wait()
-        stdout_bytes, stderr_bytes = proxy_process.communicate()
+        stdout_bytes, _ = proxy_process.communicate()
         stdout = stdout_bytes.decode("utf-8", errors="replace")
         if expected_proxy_logsize == 0:
             # don't expect any incoming requests to make it through the proxy
