@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1771341828984,
+  "lastUpdate": 1771341930938,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -21110,6 +21110,66 @@ window.BENCHMARK_DATA = {
             "value": 12.952667000035945,
             "unit": "ms",
             "extra": "Min 10.991ms\nMax 16.329ms\nMean 13.324ms\nStdDev 2.383ms\nMedian 12.953ms\nCPU 1.598ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "mischan@abovevacant.com",
+            "name": "Mischan Toosarani-Hausberger",
+            "username": "supervacuus"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "dc6bd151a0b27b07f3f27554f13b1c1176bcaa8d",
+          "message": "tests: assign proxy ports dynamically (#1524)\n\n* tests: assign proxy ports dynamically\n\n* use explicit IPv4 address in proxy tests in order not to pay costs with IPv6 to IPv4 fallback on `localhost`\n\n* set SENTRY_TEST_PROXY_PORT from crashpad integration test setup too\n\n* replace env del with pop to remove proxy in cleanup paths\n\n* shutdown proxy process when parsing of the listening port fails\n\n* redirect stderr to stdout and remove redundant proxy_process.wait()",
+          "timestamp": "2026-02-17T16:21:16+01:00",
+          "tree_id": "0a4c24a6c203ac2630eee7cb60ad98a0c876e64f",
+          "url": "https://github.com/getsentry/sentry-native/commit/dc6bd151a0b27b07f3f27554f13b1c1176bcaa8d"
+        },
+        "date": 1771341927920,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 4.39587500000016,
+            "unit": "ms",
+            "extra": "Min 3.862ms\nMax 4.542ms\nMean 4.250ms\nStdDev 0.288ms\nMedian 4.396ms\nCPU 2.367ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 3.6652090000188764,
+            "unit": "ms",
+            "extra": "Min 3.568ms\nMax 4.096ms\nMean 3.760ms\nStdDev 0.212ms\nMedian 3.665ms\nCPU 2.117ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 19.460665999986304,
+            "unit": "ms",
+            "extra": "Min 15.007ms\nMax 29.503ms\nMean 21.462ms\nStdDev 6.790ms\nMedian 19.461ms\nCPU 6.939ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.011332999974911218,
+            "unit": "ms",
+            "extra": "Min 0.009ms\nMax 0.277ms\nMean 0.068ms\nStdDev 0.117ms\nMedian 0.011ms\nCPU 0.081ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.2963750000617438,
+            "unit": "ms",
+            "extra": "Min 0.237ms\nMax 0.313ms\nMean 0.285ms\nStdDev 0.029ms\nMedian 0.296ms\nCPU 0.285ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 8.702666999965913,
+            "unit": "ms",
+            "extra": "Min 6.977ms\nMax 9.931ms\nMean 8.403ms\nStdDev 1.175ms\nMedian 8.703ms\nCPU 1.031ms"
           }
         ]
       }
