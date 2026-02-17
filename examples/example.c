@@ -240,6 +240,27 @@ has_arg(int argc, char **argv, const char *arg)
     return false;
 }
 
+/**
+ * Builds a proxy URL from a scheme, optional credentials, host, and a port
+ * read from an environment variable (with a fallback default).
+ */
+static void
+make_proxy_url(char *buf, size_t buf_size, const char *scheme,
+    const char *credentials, const char *host, const char *port_env_var,
+    const char *default_port)
+{
+    const char *port = getenv(port_env_var);
+    if (!port)
+        port = default_port;
+
+    if (credentials) {
+        snprintf(
+            buf, buf_size, "%s://%s@%s:%s", scheme, credentials, host, port);
+    } else {
+        snprintf(buf, buf_size, "%s://%s:%s", scheme, host, port);
+    }
+}
+
 #if defined(SENTRY_PLATFORM_WINDOWS) && !defined(__MINGW32__)                  \
     && !defined(__MINGW64__)
 
@@ -515,21 +536,31 @@ main(int argc, char **argv)
     }
 
     if (has_arg(argc, argv, "http-proxy")) {
-        sentry_options_set_proxy(options, "http://127.0.0.1:8080");
+        char proxy_url[128];
+        make_proxy_url(proxy_url, sizeof(proxy_url), "http", NULL, "127.0.0.1",
+            "SENTRY_TEST_PROXY_PORT", "8080");
+        sentry_options_set_proxy(options, proxy_url);
     }
     if (has_arg(argc, argv, "http-proxy-auth")) {
-        sentry_options_set_proxy(
-            options, "http://user:password@127.0.0.1:8080");
+        char proxy_url[128];
+        make_proxy_url(proxy_url, sizeof(proxy_url), "http", "user:password",
+            "127.0.0.1", "SENTRY_TEST_PROXY_PORT", "8080");
+        sentry_options_set_proxy(options, proxy_url);
     }
     if (has_arg(argc, argv, "http-proxy-ipv6")) {
-        sentry_options_set_proxy(options, "http://[::1]:8080");
+        char proxy_url[128];
+        make_proxy_url(proxy_url, sizeof(proxy_url), "http", NULL, "[::1]",
+            "SENTRY_TEST_PROXY_PORT", "8080");
+        sentry_options_set_proxy(options, proxy_url);
     }
     if (has_arg(argc, argv, "proxy-empty")) {
         sentry_options_set_proxy(options, "");
     }
-
     if (has_arg(argc, argv, "socks5-proxy")) {
-        sentry_options_set_proxy(options, "socks5://127.0.0.1:1080");
+        char proxy_url[128];
+        make_proxy_url(proxy_url, sizeof(proxy_url), "socks5", NULL,
+            "127.0.0.1", "SENTRY_TEST_PROXY_PORT", "1080");
+        sentry_options_set_proxy(options, proxy_url);
     }
 
     if (has_arg(argc, argv, "crashpad-wait-for-upload")) {

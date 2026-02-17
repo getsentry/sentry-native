@@ -60,14 +60,19 @@ def test_crashpad_capture(cmake, httpserver):
 
 
 def _setup_crashpad_proxy_test(cmake, httpserver, proxy):
-    proxy_process = start_mitmdump(proxy) if proxy else None
+    if proxy:
+        proxy_process, port = start_mitmdump(proxy)
+    else:
+        proxy_process, port = None, None
 
     tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "crashpad"})
 
     env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver, proxy_host=True))
+    if port is not None:
+        env["SENTRY_TEST_PROXY_PORT"] = str(port)
     httpserver.expect_oneshot_request("/api/123456/minidump/").respond_with_data("OK")
 
-    return env, proxy_process, tmp_path
+    return env, proxy_process, tmp_path, port
 
 
 def test_crashpad_crash_proxy_env(cmake, httpserver):
@@ -75,11 +80,13 @@ def test_crashpad_crash_proxy_env(cmake, httpserver):
         pytest.skip("mitmdump is not installed")
 
     proxy_process = None  # store the proxy process to terminate it later
-    setup_proxy_env_vars(port=8080)
     try:
-        env, proxy_process, tmp_path = _setup_crashpad_proxy_test(
+        env, proxy_process, tmp_path, port = _setup_crashpad_proxy_test(
             cmake, httpserver, "http-proxy"
         )
+        setup_proxy_env_vars(port=port)
+        env["http_proxy"] = f"http://127.0.0.1:{port}"
+        env["https_proxy"] = f"http://127.0.0.1:{port}"
 
         with httpserver.wait(timeout=10) as waiting:
             run(
@@ -100,11 +107,13 @@ def test_crashpad_crash_proxy_env_port_incorrect(cmake, httpserver):
         pytest.skip("mitmdump is not installed")
 
     proxy_process = None  # store the proxy process to terminate it later
-    setup_proxy_env_vars(port=8081)
     try:
-        env, proxy_process, tmp_path = _setup_crashpad_proxy_test(
+        env, proxy_process, tmp_path, port = _setup_crashpad_proxy_test(
             cmake, httpserver, "http-proxy"
         )
+        setup_proxy_env_vars(port=port + 1)
+        env["http_proxy"] = f"http://127.0.0.1:{port + 1}"
+        env["https_proxy"] = f"http://127.0.0.1:{port + 1}"
 
         with pytest.raises(AssertionError):
             with httpserver.wait(timeout=10):
@@ -125,11 +134,15 @@ def test_crashpad_proxy_set_empty(cmake, httpserver):
         pytest.skip("mitmdump is not installed")
 
     proxy_process = None  # store the proxy process to terminate it later
-    setup_proxy_env_vars(port=8080)  # we start the proxy but expect it to remain unused
     try:
-        env, proxy_process, tmp_path = _setup_crashpad_proxy_test(
+        env, proxy_process, tmp_path, port = _setup_crashpad_proxy_test(
             cmake, httpserver, "http-proxy"
         )
+        setup_proxy_env_vars(
+            port=port
+        )  # we start the proxy but expect it to remain unused
+        env["http_proxy"] = f"http://127.0.0.1:{port}"
+        env["https_proxy"] = f"http://127.0.0.1:{port}"
 
         with httpserver.wait(timeout=10) as waiting:
             run(
@@ -152,11 +165,12 @@ def test_crashpad_proxy_https_not_http(cmake, httpserver):
 
     proxy_process = None  # store the proxy process to terminate it later
     # we start the proxy but expect it to remain unused (dsn is http, so shouldn't use https proxy)
-    os.environ["https_proxy"] = f"http://localhost:8080"
     try:
-        env, proxy_process, tmp_path = _setup_crashpad_proxy_test(
+        env, proxy_process, tmp_path, port = _setup_crashpad_proxy_test(
             cmake, httpserver, "http-proxy"
         )
+        os.environ["https_proxy"] = f"http://127.0.0.1:{port}"
+        env["https_proxy"] = f"http://127.0.0.1:{port}"
 
         with httpserver.wait(timeout=10) as waiting:
             run(
@@ -169,7 +183,7 @@ def test_crashpad_proxy_https_not_http(cmake, httpserver):
         assert waiting.result
 
     finally:
-        del os.environ["https_proxy"]
+        os.environ.pop("https_proxy", None)
         proxy_test_finally(1, httpserver, proxy_process, expected_proxy_logsize=0)
 
 
@@ -196,7 +210,7 @@ def test_crashpad_crash_proxy(cmake, httpserver, run_args, proxy_running):
 
     try:
         proxy_to_start = run_args[0] if proxy_running else None
-        env, proxy_process, tmp_path = _setup_crashpad_proxy_test(
+        env, proxy_process, tmp_path, port = _setup_crashpad_proxy_test(
             cmake, httpserver, proxy_to_start
         )
 
