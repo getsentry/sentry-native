@@ -80,6 +80,39 @@ test_send_cb(sentry_envelope_t *envelope, void *_ctx)
     return ctx->status_code;
 }
 
+SENTRY_TEST(retry_filename)
+{
+    uint64_t ts;
+    int count;
+    const char *uuid;
+
+    TEST_CHECK(sentry__retry_parse_filename(
+        "1234567890-00-abcdefab-1234-5678-9abc-def012345678.envelope", &ts,
+        &count, &uuid));
+    TEST_CHECK_UINT64_EQUAL(ts, 1234567890);
+    TEST_CHECK_INT_EQUAL(count, 0);
+    TEST_CHECK(strncmp(uuid, "abcdefab-1234-5678-9abc-def012345678", 36) == 0);
+
+    TEST_CHECK(sentry__retry_parse_filename(
+        "999-04-abcdefab-1234-5678-9abc-def012345678.envelope", &ts, &count,
+        &uuid));
+    TEST_CHECK_UINT64_EQUAL(ts, 999);
+    TEST_CHECK_INT_EQUAL(count, 4);
+
+    // negative count
+    TEST_CHECK(!sentry__retry_parse_filename(
+        "123--01-abcdefab-1234-5678-9abc-def012345678.envelope", &ts, &count,
+        &uuid));
+
+    // cache filename (no timestamp/count)
+    TEST_CHECK(!sentry__retry_parse_filename(
+        "abcdefab-1234-5678-9abc-def012345678.envelope", &ts, &count, &uuid));
+
+    // missing .envelope suffix
+    TEST_CHECK(!sentry__retry_parse_filename(
+        "123-00-abcdefab-1234-5678-9abc-def012345678.txt", &ts, &count, &uuid));
+}
+
 SENTRY_TEST(retry_throttle)
 {
     SENTRY_TEST_OPTIONS_NEW(options);
@@ -353,6 +386,7 @@ SENTRY_TEST(retry_backoff)
     TEST_CHECK_UINT64_EQUAL(sentry__retry_backoff(4), base * 16);
     TEST_CHECK_UINT64_EQUAL(sentry__retry_backoff(5), base * 32);
     TEST_CHECK_UINT64_EQUAL(sentry__retry_backoff(6), base * 32);
+    TEST_CHECK_UINT64_EQUAL(sentry__retry_backoff(-1), base);
 
     sentry__retry_free(retry);
     sentry_close();
