@@ -433,7 +433,7 @@ sentry__bgworker_shutdown(sentry_bgworker_t *bgw, uint64_t timeout)
     uint64_t started = sentry__monotonic_time();
     sentry__mutex_lock(&bgw->task_lock);
     while (true) {
-        if (sentry__bgworker_is_done(bgw)) {
+        if (!sentry__atomic_fetch(&bgw->running)) {
             sentry__mutex_unlock(&bgw->task_lock);
             sentry__thread_join(bgw->thread_id);
             return 0;
