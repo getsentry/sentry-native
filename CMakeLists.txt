@@ -813,22 +813,6 @@ if(SENTRY_BUILD_EXAMPLES)
 		# Disable all optimizations for the `sentry_example` in gcc/clang. This allows us to keep crash triggers simple.
 		# The effects besides reproducible code-gen across compiler versions, will be negligible for build- and runtime.
 		target_compile_options(sentry_example PRIVATE $<BUILD_INTERFACE:-O0>)
-
-		# Most Linux distros will build executables with PIE. However, if we build a static library, not all static
-		# dependencies being packaged with the same distro, are built with PIC enabled. This will lead `ld` to error on
-		# relocation data, thus failing the build/tests. There is no need to build the example with PIE enabled.
-		# Similarly, LTO must be disabled since the static library archive might have different LTO bytecode version.
-		# NOTE: With vendored libunwind (built with PIC), this workaround should no longer be necessary.
-		# if (LINUX AND NOT SENTRY_BUILD_SHARED_LIBS)
-		# 	target_link_options(sentry_example PRIVATE
-		# 		-no-pie
-		# 		-fno-lto
-		# 	)
-		# 	target_compile_options(sentry_example PRIVATE
-		# 		-fno-pie
-		# 		-fno-lto
-		# 	)
-		# endif()
 	endif()
 
 	# set static runtime if enabled
