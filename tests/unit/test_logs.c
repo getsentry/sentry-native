@@ -1,11 +1,12 @@
 #include "sentry_logs.h"
+#include "sentry_sync.h"
 #include "sentry_testsupport.h"
 
 #include "sentry_envelope.h"
 #include <string.h>
 
 typedef struct {
-    uint64_t called_count;
+    volatile long called_count;
     bool has_validation_error;
 } transport_validation_data_t;
 
@@ -29,7 +30,7 @@ validate_logs_envelope(sentry_envelope_t *envelope, void *data)
 
     // Only validate and count log envelopes, skip others (e.g., session)
     if (strcmp(type, "log") == 0) {
-        validation_data->called_count += 1;
+        sentry__atomic_fetch_and_add(&validation_data->called_count, 1);
     }
 
     sentry_envelope_free(envelope);
@@ -57,8 +58,14 @@ SENTRY_TEST(basic_logging_functionality)
     TEST_CHECK_INT_EQUAL(sentry_log_info("Info message"), 0);
     TEST_CHECK_INT_EQUAL(sentry_log_warn("Warning message"), 0);
     TEST_CHECK_INT_EQUAL(sentry_log_error("Error message"), 0);
-    // Sleep to allow first batch to flush (testing batch timing behavior)
-    sleep_ms(20);
+    // Sleep up to 5s to allow first batch to flush (testing batch timing
+    // behavior)
+    for (int i = 0;
+        i < 250 && sentry__atomic_fetch(&validation_data.called_count) < 1;
+        i++) {
+        sleep_ms(20);
+    }
+    TEST_CHECK_INT_EQUAL(validation_data.called_count, 1);
     TEST_CHECK_INT_EQUAL(sentry_log_fatal("Fatal message"), 0);
     sentry_close();
 
