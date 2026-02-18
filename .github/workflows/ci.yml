@@ -10,6 +10,7 @@ on:
   pull_request:
     paths-ignore:
       - "*.md"
+  workflow_dispatch:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -23,15 +24,26 @@ jobs:
       - uses: actions/checkout@v4
       - run: make style
 
-  build-ios:
-    name: Xcode Build for iOS
+  build-ios-inproc:
+    name: Xcode Build for inproc on iOS
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
         with:
           submodules: "recursive"
       - run: |
-          cmake -B sentry-native-xcode -GXcode -DCMAKE_SYSTEM_NAME=iOS
+          cmake -B sentry-native-xcode -GXcode -DCMAKE_SYSTEM_NAME=iOS -DSENTRY_BACKEND=inproc
+          xcodebuild build -project sentry-native-xcode/Sentry-Native.xcodeproj -sdk iphonesimulator
+
+  build-ios-breakpad:
+    name: Xcode Build for breakpad on iOS
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: "recursive"
+      - run: |
+          cmake -B sentry-native-xcode -GXcode -DCMAKE_SYSTEM_NAME=iOS -DSENTRY_BACKEND=breakpad
           xcodebuild build -project sentry-native-xcode/Sentry-Native.xcodeproj -sdk iphonesimulator
 
   test:
@@ -39,7 +51,7 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # toolchain per runner-image availability:
+            # toolchain per runner-image availability:
             #   ubuntu 22.04
             #     GCC: 9-12
             #     clang: 11-15
@@ -125,19 +137,21 @@ jobs:
           - name: Linux (GCC + musl + libunwind)
             os: ubuntu-latest
             container: ghcr.io/getsentry/sentry-native-alpine:3.21
-            CMAKE_DEFINES: -DSENTRY_LIBUNWIND_SHARED=OFF
             CC: gcc
             CXX: g++
             SYSTEM_PYTHON: 1
           - name: Linux (clang + musl + libunwind)
             os: ubuntu-latest
             container: ghcr.io/getsentry/sentry-native-alpine:3.21
-            CMAKE_DEFINES: -DSENTRY_LIBUNWIND_SHARED=OFF
             CC: clang
             CXX: clang++
             SYSTEM_PYTHON: 1
           - name: macOS 14 (xcode llvm)
             os: macos-14
+            ERROR_ON_WARNINGS: 1
+            SYSTEM_VERSION_COMPAT: 0
+          - name: macOS 26 (xcode llvm)
+            os: macos-26
             ERROR_ON_WARNINGS: 1
             SYSTEM_VERSION_COMPAT: 0
           - name: macOS 14 (xcode llvm + universal)
@@ -152,11 +166,18 @@ jobs:
             ERROR_ON_WARNINGS: 1
             SYSTEM_VERSION_COMPAT: 0
             RUN_ANALYZER: asan,llvm-cov
+          - name: macOS 26 (arm64e + PAC test)
+            os: macos-26
+            ERROR_ON_WARNINGS: 1
+            SYSTEM_VERSION_COMPAT: 0
+            CMAKE_DEFINES: -DCMAKE_OSX_ARCHITECTURES=arm64e
           - name: Windows (old VS, 32-bit)
             os: windows-2022
             TEST_X86: 1
           - name: Windows (latest)
             os: windows-latest
+          - name: Windows arm64
+            os: windows-11-arm
           - name: Windows (latest, UTF-8 paths)
             os: windows-latest
             UTF8_TEST_CWD: 1
@@ -169,18 +190,20 @@ jobs:
             MINGW_PKG_PREFIX: x86_64-w64-mingw32
             MINGW_ASM_MASM_COMPILER: llvm-ml
             MINGW_ASM_MASM_FLAGS: -m64
-          # The Android emulator is currently only available on macos, see:
-          # https://docs.microsoft.com/en-us/azure/devops/pipelines/ecosystems/android?view=azure-devops#test-on-the-android-emulator
-          # TODO: switch to reactivecircus/android-emulator-runner, concurrently running emulators continuously fail now.
-          # - name: Android (API 31, NDK 23)
-          #   os: macos-15-large
-          #   ANDROID_API: 31
-          #   ANDROID_NDK: 23.2.8568313
-          #   ANDROID_ARCH: x86_64
-          - name: Android (API 35, NDK 27)
+          - name: Android (API 21, NDK 23)
+            os: macos-15-large
+            ANDROID_API: 21
+            ANDROID_NDK: 23.2.8568313
+            ANDROID_ARCH: x86_64
+          - name: Android (API 31, NDK 27)
+            os: macos-15-large
+            ANDROID_API: 31
+            ANDROID_NDK: 27.3.13750724
+            ANDROID_ARCH: x86_64
+          - name: Android (API 35, NDK 29)
             os: macos-15-large
             ANDROID_API: 35
-            ANDROID_NDK: 27.2.12479018
+            ANDROID_NDK: 29.0.14206865
             ANDROID_ARCH: x86_64
 
     name: ${{ matrix.name }}
@@ -207,6 +230,12 @@ jobs:
       - uses: actions/checkout@v4
         with:
           submodules: recursive
+
+      - name: Debug runner architecture
+        if: ${{ runner.os == 'macOS' }}
+        run: |
+          echo "Runner arch: $(uname -m)"
+
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ !env['SYSTEM_PYTHON'] && '3.12' || '' }}
@@ -253,13 +282,13 @@ jobs:
         run: |
           sudo dpkg --add-architecture i386
           sudo apt update
-          sudo apt install cmake "${CC}-multilib" "${CXX}-multilib" zlib1g-dev:i386 libssl-dev:i386 libcurl4-openssl-dev:i386
+          sudo apt install cmake "${CC}-multilib" "${CXX}-multilib" zlib1g-dev:i386 libssl-dev:i386 libcurl4-openssl-dev:i386 liblzma-dev:i386
 
       - name: Installing Alpine Linux Dependencies
         if: ${{ contains(matrix.container, 'alpine') }}
         run: |
           apk update
-          apk add curl-dev libunwind-dev libunwind-static xz-dev
+          apk add curl-dev xz-dev
       # install manually until available by default (also for future .NET updates)
       - name: Install .NET 10 SDK for ARM64 runners
         if: ${{ runner.os == 'Linux' && runner.arch == 'ARM64' && !matrix.container }}
@@ -269,11 +298,6 @@ jobs:
           ./dotnet-install.sh --channel 10.0 --install-dir $HOME/.dotnet
           echo "$HOME/.dotnet" >> $GITHUB_PATH
           echo "DOTNET_ROOT=$HOME/.dotnet" >> $GITHUB_ENV
-
-        # https://github.com/actions/runner-images/issues/9491
-      - name: Decrease vm.mmap_rnd_bit to prevent ASLR ASAN issues
-        if: ${{ runner.os == 'Linux' && contains(env['RUN_ANALYZER'], 'asan') }}
-        run: sudo sysctl vm.mmap_rnd_bits=28
 
       - name: Installing CodeChecker
         if: ${{ contains(env['RUN_ANALYZER'], 'code-checker') }}
@@ -333,10 +357,6 @@ jobs:
         with:
           gradle-home-cache-cleanup: true
 
-      - name: Starting Android Simulator
-        if: ${{ env['ANDROID_API'] }}
-        run: bash scripts/start-android.sh
-        timeout-minutes: 20
 
       - name: Add sentry.native.test hostname
         if: ${{ runner.os == 'Windows' }}
@@ -359,7 +379,21 @@ jobs:
           cat /etc/hosts
         shell: bash
 
+      - name: Test (Android)
+        if: ${{ env['ANDROID_API'] }}
+        uses: reactivecircus/android-emulator-runner@b530d96654c385303d652368551fb075bc2f0b6b # v2.35.0
+        with:
+          api-level: ${{ env.ANDROID_API }}
+          ndk: ${{ env.ANDROID_NDK }}
+          arch: ${{ env.ANDROID_ARCH }}
+          target: google_apis
+          emulator-boot-timeout: 1200
+          script: |
+            pip install --upgrade --requirement tests/requirements.txt
+            pytest --capture=no --verbose tests
+
       - name: Test
+        if: ${{ !env['ANDROID_API'] }}
         shell: bash
         run: |
           pip install --upgrade --requirement tests/requirements.txt

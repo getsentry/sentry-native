@@ -11,6 +11,7 @@ from . import (
     run,
     Envelope,
     split_log_request_cond,
+    extract_request,
     is_session_envelope,
     is_logs_envelope,
     is_feedback_envelope,
@@ -26,10 +27,12 @@ from .assertions import (
     assert_breadcrumb,
     assert_crashpad_upload,
     assert_meta,
+    assert_minidump,
     assert_session,
     assert_gzip_file_header,
     assert_logs,
     assert_user_feedback,
+    wait_for_file,
 )
 
 pytestmark = pytest.mark.skipif(
@@ -57,14 +60,19 @@ def test_crashpad_capture(cmake, httpserver):
 
 
 def _setup_crashpad_proxy_test(cmake, httpserver, proxy):
-    proxy_process = start_mitmdump(proxy) if proxy else None
+    if proxy:
+        proxy_process, port = start_mitmdump(proxy)
+    else:
+        proxy_process, port = None, None
 
     tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "crashpad"})
 
     env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver, proxy_host=True))
+    if port is not None:
+        env["SENTRY_TEST_PROXY_PORT"] = str(port)
     httpserver.expect_oneshot_request("/api/123456/minidump/").respond_with_data("OK")
 
-    return env, proxy_process, tmp_path
+    return env, proxy_process, tmp_path, port
 
 
 def test_crashpad_crash_proxy_env(cmake, httpserver):
@@ -72,11 +80,13 @@ def test_crashpad_crash_proxy_env(cmake, httpserver):
         pytest.skip("mitmdump is not installed")
 
     proxy_process = None  # store the proxy process to terminate it later
-    setup_proxy_env_vars(port=8080)
     try:
-        env, proxy_process, tmp_path = _setup_crashpad_proxy_test(
+        env, proxy_process, tmp_path, port = _setup_crashpad_proxy_test(
             cmake, httpserver, "http-proxy"
         )
+        setup_proxy_env_vars(port=port)
+        env["http_proxy"] = f"http://127.0.0.1:{port}"
+        env["https_proxy"] = f"http://127.0.0.1:{port}"
 
         with httpserver.wait(timeout=10) as waiting:
             run(
@@ -97,11 +107,13 @@ def test_crashpad_crash_proxy_env_port_incorrect(cmake, httpserver):
         pytest.skip("mitmdump is not installed")
 
     proxy_process = None  # store the proxy process to terminate it later
-    setup_proxy_env_vars(port=8081)
     try:
-        env, proxy_process, tmp_path = _setup_crashpad_proxy_test(
+        env, proxy_process, tmp_path, port = _setup_crashpad_proxy_test(
             cmake, httpserver, "http-proxy"
         )
+        setup_proxy_env_vars(port=port + 1)
+        env["http_proxy"] = f"http://127.0.0.1:{port + 1}"
+        env["https_proxy"] = f"http://127.0.0.1:{port + 1}"
 
         with pytest.raises(AssertionError):
             with httpserver.wait(timeout=10):
@@ -122,11 +134,15 @@ def test_crashpad_proxy_set_empty(cmake, httpserver):
         pytest.skip("mitmdump is not installed")
 
     proxy_process = None  # store the proxy process to terminate it later
-    setup_proxy_env_vars(port=8080)  # we start the proxy but expect it to remain unused
     try:
-        env, proxy_process, tmp_path = _setup_crashpad_proxy_test(
+        env, proxy_process, tmp_path, port = _setup_crashpad_proxy_test(
             cmake, httpserver, "http-proxy"
         )
+        setup_proxy_env_vars(
+            port=port
+        )  # we start the proxy but expect it to remain unused
+        env["http_proxy"] = f"http://127.0.0.1:{port}"
+        env["https_proxy"] = f"http://127.0.0.1:{port}"
 
         with httpserver.wait(timeout=10) as waiting:
             run(
@@ -149,11 +165,12 @@ def test_crashpad_proxy_https_not_http(cmake, httpserver):
 
     proxy_process = None  # store the proxy process to terminate it later
     # we start the proxy but expect it to remain unused (dsn is http, so shouldn't use https proxy)
-    os.environ["https_proxy"] = f"http://localhost:8080"
     try:
-        env, proxy_process, tmp_path = _setup_crashpad_proxy_test(
+        env, proxy_process, tmp_path, port = _setup_crashpad_proxy_test(
             cmake, httpserver, "http-proxy"
         )
+        os.environ["https_proxy"] = f"http://127.0.0.1:{port}"
+        env["https_proxy"] = f"http://127.0.0.1:{port}"
 
         with httpserver.wait(timeout=10) as waiting:
             run(
@@ -166,7 +183,7 @@ def test_crashpad_proxy_https_not_http(cmake, httpserver):
         assert waiting.result
 
     finally:
-        del os.environ["https_proxy"]
+        os.environ.pop("https_proxy", None)
         proxy_test_finally(1, httpserver, proxy_process, expected_proxy_logsize=0)
 
 
@@ -193,7 +210,7 @@ def test_crashpad_crash_proxy(cmake, httpserver, run_args, proxy_running):
 
     try:
         proxy_to_start = run_args[0] if proxy_running else None
-        env, proxy_process, tmp_path = _setup_crashpad_proxy_test(
+        env, proxy_process, tmp_path, port = _setup_crashpad_proxy_test(
             cmake, httpserver, proxy_to_start
         )
 
@@ -409,11 +426,17 @@ def test_crashpad_dumping_crash(cmake, httpserver, run_args, build_args):
 
     envelope = Envelope.deserialize(session)
     assert_session(envelope, {"status": "crashed", "errors": 1})
-    assert_crashpad_upload(
+    attachments = assert_crashpad_upload(
         multipart,
         expect_attachment="clear-attachments" not in run_args,
         expect_view_hierarchy="clear-attachments" not in run_args,
     )
+    event_id = attachments.event["event_id"]
+    if sys.platform == "win32":
+        minidump = tmp_path / ".sentry-native" / "reports" / f"{event_id}.dmp"
+    else:
+        minidump = tmp_path / ".sentry-native" / "completed" / f"{event_id}.dmp"
+    assert wait_for_file(minidump)
 
 
 @pytest.mark.parametrize(
@@ -614,6 +637,42 @@ def test_crashpad_logs_on_crash(cmake, httpserver):
     assert_logs(logs_envelope, 1)
 
 
+@pytest.mark.skipif(not flushes_state, reason="test needs state flushing")
+def test_crashpad_logs_and_session_on_crash(cmake, httpserver):
+    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "crashpad"})
+
+    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
+    httpserver.expect_oneshot_request("/api/123456/minidump/").respond_with_data("OK")
+    httpserver.expect_request("/api/123456/envelope/").respond_with_data("OK")
+
+    with httpserver.wait(timeout=10) as waiting:
+        run(
+            tmp_path,
+            "sentry_example",
+            ["log", "enable-logs", "capture-log", "crash", "start-session"],
+            expect_failure=True,
+            env=env,
+        )
+
+    assert waiting.result
+
+    run(tmp_path, "sentry_example", ["log", "no-setup"], env=env)
+
+    # we expect 1 envelope with the log, 1 for the crash, and 1 for the session
+    assert len(httpserver.log) == 3
+
+    logs_request, remaining = extract_request(httpserver.log, is_logs_envelope)
+    session_request, remaining = extract_request(remaining, is_session_envelope)
+    multipart = remaining[0][0]  # The crash/minidump
+
+    logs_envelope = Envelope.deserialize(logs_request.get_data())
+    assert logs_envelope is not None
+    assert_logs(logs_envelope, 1)
+
+    session_envelope = Envelope.deserialize(session_request.get_data())
+    assert session_envelope is not None
+
+
 def test_disable_backend(cmake, httpserver):
     tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "crashpad"})
 
@@ -721,3 +780,187 @@ def test_crashpad_external_crash_reporter(cmake, httpserver, run_args):
 )
 def test_crashpad_external_crash_reporter_wer(cmake, httpserver, run_args):
     test_crashpad_external_crash_reporter(cmake, httpserver, run_args)
+
+
+@pytest.mark.parametrize("cache_keep", [True, False])
+def test_crashpad_cache_keep(cmake, httpserver, cache_keep):
+    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "crashpad"})
+    cache_dir = tmp_path.joinpath(".sentry-native/cache")
+
+    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
+    httpserver.expect_oneshot_request("/api/123456/minidump/").respond_with_data("OK")
+
+    with httpserver.wait(timeout=10) as waiting:
+        run(
+            tmp_path,
+            "sentry_example",
+            ["log", "crash"] + (["cache-keep"] if cache_keep else []),
+            expect_failure=True,
+            env=env,
+        )
+    assert waiting.result
+
+    assert not cache_dir.exists() or len(list(cache_dir.glob("*.envelope"))) == 0
+
+    # upload
+    run(
+        tmp_path,
+        "sentry_example",
+        ["log", "no-setup"] + (["cache-keep"] if cache_keep else []),
+        env=env,
+    )
+
+    # cache
+    run(
+        tmp_path,
+        "sentry_example",
+        ["log", "no-setup"] + (["cache-keep"] if cache_keep else []),
+        env=env,
+    )
+
+    assert cache_dir.exists() or cache_keep is False
+    if cache_keep:
+        cache_files = list(cache_dir.glob("*.envelope"))
+        assert len(cache_files) == 1
+        with open(cache_files[0], "rb") as f:
+            envelope = Envelope.deserialize_from(f)
+        assert "dsn" in envelope.headers
+        assert_meta(envelope, integration="crashpad")
+        assert_minidump(envelope)
+
+
+def test_crashpad_cache_max_size(cmake, httpserver):
+    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "crashpad"})
+    cache_dir = tmp_path.joinpath(".sentry-native/cache")
+    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
+
+    # 5 x 2mb
+    for i in range(5):
+        httpserver.expect_oneshot_request("/api/123456/minidump/").respond_with_data(
+            "OK"
+        )
+
+        with httpserver.wait(timeout=10) as waiting:
+            run(
+                tmp_path,
+                "sentry_example",
+                ["log", "cache-keep", "crash"],
+                expect_failure=True,
+                env=env,
+            )
+        assert waiting.result
+
+        # upload
+        run(
+            tmp_path,
+            "sentry_example",
+            ["log", "cache-keep", "no-setup"],
+            env=env,
+        )
+
+        # cache
+        run(
+            tmp_path,
+            "sentry_example",
+            ["log", "cache-keep", "no-setup"],
+            env=env,
+        )
+
+        if cache_dir.exists():
+            for f in cache_dir.glob("*.envelope"):
+                with open(f, "r+b") as file:
+                    file.truncate(2 * 1024 * 1024)
+
+    run(
+        tmp_path,
+        "sentry_example",
+        ["log", "cache-keep", "no-setup"],
+        env=env,
+    )
+
+    # max 4mb
+    assert cache_dir.exists()
+    cache_files = list(cache_dir.glob("*.envelope"))
+    assert len(cache_files) <= 2
+    assert sum(f.stat().st_size for f in cache_files) <= 4 * 1024 * 1024
+
+
+def test_crashpad_cache_max_age(cmake, httpserver):
+    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "crashpad"})
+    cache_dir = tmp_path.joinpath(".sentry-native/cache")
+    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
+
+    # 4 crashes that get fully cached
+    for i in range(4):
+        httpserver.expect_oneshot_request("/api/123456/minidump/").respond_with_data(
+            "OK"
+        )
+
+        with httpserver.wait(timeout=10) as waiting:
+            run(
+                tmp_path,
+                "sentry_example",
+                ["log", "cache-keep", "crash"],
+                expect_failure=True,
+                env=env,
+            )
+        assert waiting.result
+
+        # upload
+        run(
+            tmp_path,
+            "sentry_example",
+            ["log", "cache-keep", "no-setup"],
+            env=env,
+        )
+
+        # cache
+        run(
+            tmp_path,
+            "sentry_example",
+            ["log", "cache-keep", "no-setup"],
+            env=env,
+        )
+
+    # 2,4,6,8 days old
+    assert cache_dir.exists()
+    cache_files = list(cache_dir.glob("*.envelope"))
+    assert len(cache_files) == 4
+    for i, f in enumerate(cache_files):
+        mtime = time.time() - ((i + 1) * 2 * 24 * 60 * 60)
+        os.utime(str(f), (mtime, mtime))
+
+    # 5th crash - only upload, not cached yet
+    httpserver.expect_oneshot_request("/api/123456/minidump/").respond_with_data("OK")
+
+    with httpserver.wait(timeout=10) as waiting:
+        run(
+            tmp_path,
+            "sentry_example",
+            ["log", "cache-keep", "crash"],
+            expect_failure=True,
+            env=env,
+        )
+    assert waiting.result
+
+    # upload
+    run(
+        tmp_path,
+        "sentry_example",
+        ["log", "cache-keep", "no-setup"],
+        env=env,
+    )
+
+    # 0 days old (caches 5th crash + prunes old files)
+    run(
+        tmp_path,
+        "sentry_example",
+        ["log", "cache-keep", "no-setup"],
+        env=env,
+    )
+
+    # max 5 days
+    cache_files = list(cache_dir.glob("*.envelope"))
+    assert len(cache_files) == 3
+    for f in cache_files:
+        assert time.time() - f.stat().st_mtime <= 5 * 24 * 60 * 60

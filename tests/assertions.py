@@ -127,11 +127,11 @@ def assert_event_meta(
             match = VERSION_RE.match(version)
             version = match.group(1)
             build = match.group(2)
+            expected_os_context = {"name": "Linux", "version": version}
+            if build:
+                expected_os_context["build"] = build
 
-            assert_matches(
-                event["contexts"]["os"],
-                {"name": "Linux", "version": version, "build": build},
-            )
+            assert_matches(event["contexts"]["os"], expected_os_context)
             assert "distribution_name" in event["contexts"]["os"]
             assert "distribution_version" in event["contexts"]["os"]
         elif sys.platform == "darwin":
@@ -170,6 +170,16 @@ def assert_event_meta(
         )
 
 
+def is_valid_hex(s):
+    if not s.lower().startswith("0x"):
+        return False
+    try:
+        int(s, 0)
+        return True
+    except ValueError:
+        return False
+
+
 def assert_stacktrace(
     envelope, inside_exception=False, check_size=True, check_package=False
 ):
@@ -181,7 +191,7 @@ def assert_stacktrace(
 
     if check_size:
         assert len(frames) > 0
-        assert all(frame["instruction_addr"].startswith("0x") for frame in frames)
+        assert all(is_valid_hex(frame["instruction_addr"]) for frame in frames)
         assert any(
             frame.get("function") is not None and frame.get("package") is not None
             for frame in frames
@@ -272,6 +282,38 @@ def assert_logs(envelope, expected_item_count=1, expected_trace_id=None):
         assert "sentry.sdk.version" in log_item["attributes"]
         if expected_trace_id:
             assert log_item["trace_id"] == expected_trace_id
+
+
+def assert_metrics(envelope, expected_item_count=1, expected_trace_id=None):
+    metrics = None
+    for item in envelope:
+        assert item.headers.get("type") == "trace_metric"
+        assert item.headers.get("item_count") >= expected_item_count
+        assert (
+            item.headers.get("content_type")
+            == "application/vnd.sentry.items.trace-metric+json"
+        )
+        metrics = item.payload.json
+
+    assert isinstance(metrics, dict)
+    assert "items" in metrics
+    assert len(metrics["items"]) >= expected_item_count
+    for i in range(expected_item_count):
+        metric_item = metrics["items"][i]
+        assert "name" in metric_item
+        assert "type" in metric_item
+        assert metric_item["type"] in ["counter", "gauge", "distribution"]
+        assert "value" in metric_item
+        assert "timestamp" in metric_item
+        assert "trace_id" in metric_item
+        assert "attributes" in metric_item
+        attrs = metric_item["attributes"]
+        assert "sentry.environment" in attrs
+        assert "sentry.release" in attrs
+        assert "sentry.sdk.name" in attrs
+        assert "sentry.sdk.version" in attrs
+        if expected_trace_id:
+            assert metric_item["trace_id"] == expected_trace_id
 
 
 def assert_attachment_view_hierarchy(envelope):
@@ -475,6 +517,7 @@ def assert_crashpad_upload(req, expect_attachment=False, expect_view_hierarchy=F
         and b"\n\nMDMP" in part.as_bytes()
         for part in msg.walk()
     )
+    return attachments
 
 
 def assert_gzip_file_header(output):
@@ -495,3 +538,14 @@ def assert_failed_proxy_auth_request(stdout):
         and "407 Proxy Authentication Required" in stdout
         and "200 OK" not in stdout
     )
+
+
+def wait_for_file(path, timeout=10.0, poll_interval=0.1):
+    import time
+
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        if path.exists():
+            return True
+        time.sleep(poll_interval)
+    return False

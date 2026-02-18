@@ -9,6 +9,7 @@ extern "C" {
 #include "sentry_envelope.h"
 #include "sentry_logger.h"
 #include "sentry_logs.h"
+#include "sentry_metrics.h"
 #include "sentry_options.h"
 #ifdef SENTRY_PLATFORM_WINDOWS
 #    include "sentry_os.h"
@@ -60,7 +61,7 @@ breakpad_backend_callback(const wchar_t *breakpad_dump_path,
     EXCEPTION_POINTERS *exinfo, MDRawAssertionInfo *UNUSED(assertion),
     bool succeeded)
 #elif defined(SENTRY_PLATFORM_DARWIN)
-#    ifdef SENTRY_BREAKPAD_SYSTEM
+#    if defined(SENTRY_BREAKPAD_SYSTEM) || defined(SENTRY_PLATFORM_IOS)
 static bool
 breakpad_backend_callback(const char *breakpad_dump_path,
     const char *minidump_id, void *UNUSED(context), bool succeeded)
@@ -100,7 +101,7 @@ breakpad_backend_callback(const google_breakpad::MinidumpDescriptor &descriptor,
 
 #ifndef SENTRY_PLATFORM_WINDOWS
     sentry__page_allocator_enable();
-    sentry__enter_signal_handler();
+    (void)!sentry__enter_signal_handler();
 #endif
 
     sentry_path_t *dump_path = nullptr;
@@ -126,11 +127,6 @@ breakpad_backend_callback(const google_breakpad::MinidumpDescriptor &descriptor,
         event, "level", sentry__value_new_level(SENTRY_LEVEL_FATAL));
 
     SENTRY_WITH_OPTIONS (options) {
-        // Flush logs in a crash-safe manner before crash handling
-        if (options->enable_logs) {
-            sentry__logs_flush_crash_safe();
-        }
-
         sentry__write_crash_marker(options);
 
         bool should_handle = true;
@@ -138,7 +134,8 @@ breakpad_backend_callback(const google_breakpad::MinidumpDescriptor &descriptor,
         if (options->on_crash_func) {
             sentry_ucontext_t *uctx = nullptr;
 
-#if defined(SENTRY_PLATFORM_DARWIN) && !defined(SENTRY_BREAKPAD_SYSTEM)
+#if defined(SENTRY_PLATFORM_DARWIN)                                            \
+    && !(defined(SENTRY_BREAKPAD_SYSTEM) || defined(SENTRY_PLATFORM_IOS))
             sentry_ucontext_t uctx_data;
             uctx_data.user_context = user_context;
             uctx = &uctx_data;
@@ -154,6 +151,14 @@ breakpad_backend_callback(const google_breakpad::MinidumpDescriptor &descriptor,
             sentry_value_t result
                 = options->on_crash_func(uctx, event, options->on_crash_data);
             should_handle = !sentry_value_is_null(result);
+        }
+
+        // Flush logs and metrics in a crash-safe manner before crash handling
+        if (options->enable_logs) {
+            sentry__logs_flush_crash_safe();
+        }
+        if (options->enable_metrics) {
+            sentry__metrics_flush_crash_safe();
         }
 
         if (should_handle) {
@@ -261,22 +266,22 @@ breakpad_backend_startup(
         && defined(SENTRY_THREAD_STACK_GUARANTEE_AUTO_INIT)
     sentry__set_default_thread_stack_guarantee();
 #    endif
-    backend->data = new google_breakpad::ExceptionHandler(
+    backend->data = new (std::nothrow) google_breakpad::ExceptionHandler(
         current_run_folder->path_w, nullptr, breakpad_backend_callback, nullptr,
         google_breakpad::ExceptionHandler::HANDLER_EXCEPTION);
 #elif defined(SENTRY_PLATFORM_MACOS)
     // If process is being debugged and there are breakpoints set it will cause
     // task_set_exception_ports to crash the whole process and debugger
-    backend->data = new google_breakpad::ExceptionHandler(
-        current_run_folder->path, nullptr, breakpad_backend_callback, nullptr,
-        !IsDebuggerActive(), nullptr);
+    backend->data = new (std::nothrow)
+        google_breakpad::ExceptionHandler(current_run_folder->path, nullptr,
+            breakpad_backend_callback, nullptr, !IsDebuggerActive(), nullptr);
 #elif defined(SENTRY_PLATFORM_IOS)
-    backend->data
-        = new google_breakpad::ExceptionHandler(current_run_folder->path,
-            nullptr, breakpad_backend_callback, nullptr, true, nullptr);
+    backend->data = new (std::nothrow)
+        google_breakpad::ExceptionHandler(current_run_folder->path, nullptr,
+            breakpad_backend_callback, nullptr, true, nullptr);
 #else
     google_breakpad::MinidumpDescriptor descriptor(current_run_folder->path);
-    backend->data = new google_breakpad::ExceptionHandler(
+    backend->data = new (std::nothrow) google_breakpad::ExceptionHandler(
         descriptor, nullptr, breakpad_backend_callback, nullptr, true, -1);
 #endif
     return backend->data == nullptr;

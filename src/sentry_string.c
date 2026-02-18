@@ -7,6 +7,45 @@
 #    include <wchar.h>
 #endif
 
+// "0x" + 16 nibbles + NUL
+#define SENTRY_ADDR_MIN_BUFFER_SIZE 19
+/**
+ * We collect hex digits into a small stack scratch buffer (in reverse order)
+ * and then copy them forward. This avoids reverse-writing into the destination
+ * and keeps the code simple.
+ */
+void
+sentry__addr_to_string(char *buf, size_t buf_len, uint64_t addr)
+{
+    static const char hex[] = "0123456789abcdef";
+
+    if (!buf || buf_len < SENTRY_ADDR_MIN_BUFFER_SIZE) {
+        return;
+    }
+
+    size_t buf_idx = 0;
+    buf[buf_idx++] = '0';
+    buf[buf_idx++] = 'x';
+
+    // fill a reverse buffer from each nibble
+    char rev[2 * sizeof(uint64_t)];
+    size_t rev_idx = 0;
+    if (addr == 0) {
+        rev[rev_idx++] = '0';
+    } else {
+        while (addr && rev_idx < sizeof(rev)) {
+            rev[rev_idx++] = hex[addr & 0xF];
+            addr >>= 4;
+        }
+    }
+
+    // read rev into buf from its end
+    while (rev_idx && buf_idx + 1 < buf_len) {
+        buf[buf_idx++] = rev[--rev_idx];
+    }
+    buf[buf_idx] = '\0';
+}
+
 #define INITIAL_BUFFER_SIZE 128
 
 void

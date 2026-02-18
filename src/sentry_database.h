@@ -79,6 +79,12 @@ void sentry__process_old_runs(
     const sentry_options_t *options, uint64_t last_crash);
 
 /**
+ * Cleans up the cache based on options.max_cache_size and
+ * options.max_cache_age.
+ */
+void sentry__cleanup_cache(const sentry_options_t *options);
+
+/**
  * This will write the current ISO8601 formatted timestamp into the
  * `<database>/last_crash` file.
  */

@@ -169,7 +169,7 @@ sentry_envelope_free(sentry_envelope_t *envelope)
     sentry_free(envelope);
 }
 
-static void
+void
 sentry__envelope_set_header(
     sentry_envelope_t *envelope, const char *key, sentry_value_t value)
 {
@@ -182,6 +182,18 @@ sentry__envelope_set_header(
 sentry_envelope_t *
 sentry__envelope_new(void)
 {
+    sentry_dsn_t *dsn = NULL;
+    SENTRY_WITH_OPTIONS (options) {
+        dsn = sentry__dsn_incref(options->dsn);
+    }
+    sentry_envelope_t *rv = sentry__envelope_new_with_dsn(dsn);
+    sentry__dsn_decref(dsn);
+    return rv;
+}
+
+sentry_envelope_t *
+sentry__envelope_new_with_dsn(const sentry_dsn_t *dsn)
+{
     sentry_envelope_t *rv = SENTRY_MAKE(sentry_envelope_t);
     if (!rv) {
         return NULL;
@@ -193,11 +205,9 @@ sentry__envelope_new(void)
     rv->contents.items.item_count = 0;
     rv->contents.items.headers = sentry_value_new_object();
 
-    SENTRY_WITH_OPTIONS (options) {
-        if (options->dsn && options->dsn->is_valid) {
-            sentry__envelope_set_header(rv, "dsn",
-                sentry_value_new_string(sentry_options_get_dsn(options)));
-        }
+    if (dsn && dsn->is_valid) {
+        sentry__envelope_set_header(
+            rv, "dsn", sentry_value_new_string(dsn->raw));
     }
 
     return rv;
@@ -296,12 +306,12 @@ sentry__envelope_add_event(sentry_envelope_t *envelope, sentry_value_t event)
     sentry_uuid_t event_id;
     sentry__ensure_event_id(event, &event_id);
 
-    item->event = event;
     sentry__jsonwriter_write_value(jw, event);
     item->payload = sentry__jsonwriter_into_string(jw, &item->payload_len);
     if (!item->payload) {
         return NULL;
     }
+    item->event = event;
 
     sentry__envelope_item_set_header(
         item, "type", sentry_value_new_string("event"));
@@ -381,12 +391,12 @@ sentry__envelope_add_transaction(
     sentry_uuid_t event_id;
     sentry__ensure_event_id(transaction, &event_id);
 
-    item->event = transaction;
     sentry__jsonwriter_write_value(jw, transaction);
     item->payload = sentry__jsonwriter_into_string(jw, &item->payload_len);
     if (!item->payload) {
         return NULL;
     }
+    item->event = transaction;
 
     sentry__envelope_item_set_header(
         item, "type", sentry_value_new_string("transaction"));
@@ -440,8 +450,9 @@ sentry__envelope_add_transaction(
     return item;
 }
 
-sentry_envelope_item_t *
-sentry__envelope_add_logs(sentry_envelope_t *envelope, sentry_value_t logs)
+static sentry_envelope_item_t *
+add_telemetry(sentry_envelope_t *envelope, sentry_value_t telemetry,
+    const char *type, const char *content_type)
 {
     sentry_envelope_item_t *item = envelope_add_item(envelope);
     if (!item) {
@@ -453,23 +464,38 @@ sentry__envelope_add_logs(sentry_envelope_t *envelope, sentry_value_t logs)
         return NULL;
     }
 
-    sentry__jsonwriter_write_value(jw, logs);
+    sentry__jsonwriter_write_value(jw, telemetry);
     item->payload = sentry__jsonwriter_into_string(jw, &item->payload_len);
     if (!item->payload) {
         return NULL;
     }
 
     sentry__envelope_item_set_header(
-        item, "type", sentry_value_new_string("log"));
+        item, "type", sentry_value_new_string(type));
     sentry__envelope_item_set_header(item, "item_count",
         sentry_value_new_int32((int32_t)sentry_value_get_length(
-            sentry_value_get_by_key(logs, "items"))));
-    sentry__envelope_item_set_header(item, "content_type",
-        sentry_value_new_string("application/vnd.sentry.items.log+json"));
+            sentry_value_get_by_key(telemetry, "items"))));
+    sentry__envelope_item_set_header(
+        item, "content_type", sentry_value_new_string(content_type));
     sentry_value_t length = sentry_value_new_int32((int32_t)item->payload_len);
     sentry__envelope_item_set_header(item, "length", length);
 
     return item;
+}
+
+sentry_envelope_item_t *
+sentry__envelope_add_logs(sentry_envelope_t *envelope, sentry_value_t logs)
+{
+    return add_telemetry(
+        envelope, logs, "log", "application/vnd.sentry.items.log+json");
+}
+
+sentry_envelope_item_t *
+sentry__envelope_add_metrics(
+    sentry_envelope_t *envelope, sentry_value_t metrics)
+{
+    return add_telemetry(envelope, metrics, "trace_metric",
+        "application/vnd.sentry.items.trace-metric+json");
 }
 
 sentry_envelope_item_t *

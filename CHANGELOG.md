@@ -1,6 +1,60 @@
 # Changelog
 
-## Unreleased
+## 0.12.8
+
+**Fixes**:
+
+- Fix deadlock when re-initializing the SDK while logs or metrics threads are mid-flush. ([#1518](https://github.com/getsentry/sentry-native/pull/1518))
+
+## 0.12.7
+
+**Breaking**:
+
+- inproc: since we split `inproc` into signal-handler/UEF part and a separate handler thread, `before_send` and `on_crash` could be called from other threads than the one that crashed. While this was never part of the contract, if your code relies on this, it will no longer work. ([#1446](https://github.com/getsentry/sentry-native/pull/1446))
+
+**Features**:
+
+- Add new offline caching options to persist envelopes locally: `sentry_options_set_cache_keep`, `sentry_options_set_cache_max_items`, `sentry_options_set_cache_max_size`, and `sentry_options_set_cache_max_age`. ([#1490](https://github.com/getsentry/sentry-native/pull/1490), [#1493](https://github.com/getsentry/sentry-native/pull/1493))
+- Add support for `abort()` in the `inproc` backend on Windows. ([#1446](https://github.com/getsentry/sentry-native/pull/1446)) 
+
+**Fixes**:
+
+- Remove spurious decref in `sentry_capture_user_feedback()` ([#1510](https://github.com/getsentry/sentry-native/pull/1510))
+- Prevent double-decref of event in envelope add functions ([#1511](https://github.com/getsentry/sentry-native/pull/1511))
+- Make the signal-handler synchronization fully atomic to fix rare race scenarios. ([#1446](https://github.com/getsentry/sentry-native/pull/1446))
+- Reintroduce an FP-based stack-walker for macOS that can start from a user context. This also makes `inproc` backend functional again on macOS 13+. ([#1446](https://github.com/getsentry/sentry-native/pull/1446))
+- Split the `inproc` signal handler (and UEF on Windows) into a safe handler part and an "unsafe" handler thread. This minimizes exposure to undefined behavior inside the signal handler. ([#1446](https://github.com/getsentry/sentry-native/pull/1446))
+- Use a signal-safe address formatter instead of `snprintf()`. ([#1446](https://github.com/getsentry/sentry-native/pull/1446))
+
+**Internal**:
+
+- Introduce PAC tests for `arm64e` on macOS. ([#1446](https://github.com/getsentry/sentry-native/pull/1446))
+- For Linux, the SDK now has a vendored "nognu" `libunwind` as the default stack walker and links it statically, but with PIC enabled so it can be used in PIE executables. ([#1446](https://github.com/getsentry/sentry-native/pull/1446))
+
+## 0.12.6
+
+**Features**:
+
+- Add support for metrics. It is currently experimental, and one can enable it by setting `sentry_options_set_enable_metrics`. When enabled, you can record a metric using `sentry_metrics_count()`, `sentry_metrics_gauge()`, or `sentry_metrics_distribution()`. Metrics can be filtered by setting the `before_send_metric` hook. ([#1498](https://github.com/getsentry/sentry-native/pull/1498))
+
+## 0.12.5
+
+**Features**:
+
+- Add attachment support to user feedback. ([#1414](https://github.com/getsentry/sentry-native/pull/1414))
+
+**Fixes**:
+
+- Structured logs: avoid modifying custom per-log attributes when merging with scope attributes. ([#1500](https://github.com/getsentry/sentry-native/pull/1500))
+
+## 0.12.4
+
+**Fixes**:
+
+- Crashpad: namespace mpack to avoid ODR violation. ([#1476](https://github.com/getsentry/sentry-native/pull/1476), [crashpad#143](https://github.com/getsentry/crashpad/pull/143))
+- Structured logs: stop local attributes overwriting all globally set attributes. They now get merged, and local values overwrite existing global values for the same key. ([#1486](https://github.com/getsentry/sentry-native/pull/1486))
+
+## 0.12.3
 
 **Breaking Changes**:
 
@@ -9,6 +63,8 @@
 **Fixes**:
 
 - Removed the 10-item limit per envelope for non-session data. Sessions are now limited to 100 per envelope, while other items (e.g., attachments) have no limit in amount. ([#1347](https://github.com/getsentry/sentry-native/pull/1347))
+- Align the `breakpad` interface changes introduced with [#1083](https://github.com/getsentry/sentry-native/pull/1083) with the corresponding iOS build. ([#1465](https://github.com/getsentry/sentry-native/pull/1465))
+- Add structured logs to debug output when `debug` option is set. ([#1466](https://github.com/getsentry/sentry-native/pull/1466))
 
 ## 0.12.2
 
@@ -18,6 +74,7 @@
 - Add runtime API to query user consent requirement. ([#1443](https://github.com/getsentry/sentry-native/pull/1443))
 - Add logs flush on `sentry_flush()`. ([#1434](https://github.com/getsentry/sentry-native/pull/1434))
 - Add global attributes API. These are added to all `sentry_log_X` calls. ([#1450](https://github.com/getsentry/sentry-native/pull/1450))
+
 
 ## 0.12.1
 

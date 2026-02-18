@@ -46,4 +46,9 @@ void sentry__logger_disable(void);
 
 #define SENTRY_ERROR(message) sentry__logger_log(SENTRY_LEVEL_ERROR, message)
 
+#define SENTRY_FATALF(message, ...)                                            \
+    sentry__logger_log(SENTRY_LEVEL_FATAL, message, __VA_ARGS__)
+
+#define SENTRY_FATAL(message) sentry__logger_log(SENTRY_LEVEL_FATAL, message)
+
 #endif

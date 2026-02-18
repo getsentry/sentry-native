@@ -23,15 +23,18 @@ add_executable(sentry_test_unit
 	sentry_testsupport.h
 	test_attachments.c
 	test_basic.c
+	test_cache.c
 	test_consent.c
 	test_concurrency.c
 	test_embedded_info.c
 	test_envelopes.c
 	test_failures.c
+	test_feedback.c
 	test_fuzzfailures.c
 	test_info.c
 	test_logger.c
 	test_logs.c
+	test_metrics.c
 	test_modulefinder.c
 	test_mpack.c
 	test_options.c
@@ -44,6 +47,7 @@ add_executable(sentry_test_unit
 	test_scope.c
 	test_session.c
 	test_slice.c
+	test_string.c
 	test_symbolizer.c
 	test_sync.c
 	test_tracing.c

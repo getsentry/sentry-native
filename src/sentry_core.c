@@ -8,7 +8,9 @@
 #include "sentry_core.h"
 #include "sentry_database.h"
 #include "sentry_envelope.h"
+#include "sentry_hint.h"
 #include "sentry_logs.h"
+#include "sentry_metrics.h"
 #include "sentry_options.h"
 #include "sentry_path.h"
 #include "sentry_process.h"
@@ -288,12 +290,20 @@ sentry_init(sentry_options_t *options)
         backend->prune_database_func(backend);
     }
 
+    if (options->cache_keep) {
+        sentry__cleanup_cache(options);
+    }
+
     if (options->auto_session_tracking) {
         sentry_start_session();
     }
 
     if (options->enable_logs) {
-        sentry__logs_startup();
+        sentry__logs_startup(options);
+    }
+
+    if (options->enable_metrics) {
+        sentry__metrics_startup(options);
     }
 
     sentry__mutex_unlock(&g_options_lock);
@@ -314,8 +324,18 @@ sentry_flush(uint64_t timeout)
 {
     int rv = 0;
     SENTRY_WITH_OPTIONS (options) {
+        // flush logs and metrics in parallel
         if (options->enable_logs) {
-            sentry__logs_force_flush();
+            sentry__logs_force_flush_begin();
+        }
+        if (options->enable_metrics) {
+            sentry__metrics_force_flush_begin();
+        }
+        if (options->enable_logs) {
+            sentry__logs_force_flush_wait();
+        }
+        if (options->enable_metrics) {
+            sentry__metrics_force_flush_wait();
         }
         rv = sentry__transport_flush(options->transport, timeout);
     }
@@ -325,12 +345,23 @@ sentry_flush(uint64_t timeout)
 int
 sentry_close(void)
 {
-    // Shutdown logs system before locking options to ensure logs are flushed.
-    // This prevents a potential deadlock on the options during log envelope
-    // creation.
+    // Shutdown logs and metrics in parallel before locking options to ensure
+    // they are flushed. This prevents a potential deadlock on the options
+    // during envelope creation.
     SENTRY_WITH_OPTIONS (options) {
+        bool wait_logs = false;
         if (options->enable_logs) {
-            sentry__logs_shutdown(options->shutdown_timeout);
+            wait_logs = sentry__logs_shutdown_begin();
+        }
+        bool wait_metrics = false;
+        if (options->enable_metrics) {
+            wait_metrics = sentry__metrics_shutdown_begin();
+        }
+        if (wait_logs) {
+            sentry__logs_shutdown_wait(options->shutdown_timeout);
+        }
+        if (wait_metrics) {
+            sentry__metrics_shutdown_wait(options->shutdown_timeout);
         }
     }
 
@@ -774,12 +805,11 @@ prepare_user_report(sentry_value_t user_report)
 fail:
     SENTRY_WARN("dropping user report");
     sentry_envelope_free(envelope);
-    sentry_value_decref(user_report);
     return NULL;
 }
 
 static sentry_envelope_t *
-prepare_user_feedback(sentry_value_t user_feedback)
+prepare_user_feedback(sentry_value_t user_feedback, sentry_hint_t *hint)
 {
     sentry_envelope_t *envelope = NULL;
 
@@ -787,6 +817,10 @@ prepare_user_feedback(sentry_value_t user_feedback)
     if (!envelope
         || !sentry__envelope_add_user_feedback(envelope, user_feedback)) {
         goto fail;
+    }
+
+    if (hint && hint->attachments) {
+        sentry__envelope_add_attachments(envelope, hint->attachments);
     }
 
     return envelope;
@@ -996,6 +1030,32 @@ sentry__set_propagation_context(const char *key, sentry_value_t value)
     SENTRY_WITH_SCOPE_MUT (scope) {
         sentry_value_set_by_key(scope->propagation_context, key, value);
     }
+}
+
+void
+sentry__apply_attributes(sentry_value_t telemetry, sentry_value_t attributes)
+{
+    SENTRY_WITH_SCOPE (scope) {
+        sentry__scope_apply_attributes(scope, telemetry, attributes);
+    }
+    SENTRY_WITH_OPTIONS (options) {
+        if (options->environment) {
+            sentry__value_add_attribute(attributes,
+                sentry_value_new_string(options->environment), "string",
+                "sentry.environment");
+        }
+        if (options->release) {
+            sentry__value_add_attribute(attributes,
+                sentry_value_new_string(options->release), "string",
+                "sentry.release");
+        }
+        sentry__value_add_attribute(attributes,
+            sentry_value_new_string(sentry_options_get_sdk_name(options)),
+            "string", "sentry.sdk.name");
+    }
+    sentry__value_add_attribute(attributes,
+        sentry_value_new_string(sentry_sdk_version()), "string",
+        "sentry.sdk.version");
 }
 
 void
@@ -1530,15 +1590,25 @@ sentry_capture_user_feedback(sentry_value_t user_report)
 void
 sentry_capture_feedback(sentry_value_t user_feedback)
 {
+    // Reuse the implementation with NULL hint
+    sentry_capture_feedback_with_hint(user_feedback, NULL);
+}
+
+void
+sentry_capture_feedback_with_hint(
+    sentry_value_t user_feedback, sentry_hint_t *hint)
+{
     sentry_envelope_t *envelope = NULL;
 
     SENTRY_WITH_OPTIONS (options) {
-        envelope = prepare_user_feedback(user_feedback);
+        envelope = prepare_user_feedback(user_feedback, hint);
         if (envelope) {
             sentry__capture_envelope(options->transport, envelope);
-        } else {
-            sentry_value_decref(user_feedback);
         }
+    }
+
+    if (hint) {
+        sentry__hint_free(hint);
     }
 }
 

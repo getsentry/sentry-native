@@ -37,3 +37,11 @@
     fun:sentry__bgworker_start
     fun:test_sentry_task_queue
 }
+{
+    # writes of uninit buffers with padding or foreign-stack pointers lead to false-positive during stack unwinding
+   libunwind writes buffers we do not manage
+   Memcheck:Param
+   write(buf)
+   ...
+   obj:*/libunwind.so*
+}

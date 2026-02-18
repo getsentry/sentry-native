@@ -15,7 +15,7 @@ sourcedir = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 # https://docs.pytest.org/en/latest/assert.html#assert-details
 pytest.register_assert_rewrite("tests.assertions")
 
-SENTRY_VERSION = "0.12.2"
+SENTRY_VERSION = "0.12.8"
 
 
 def make_dsn(httpserver, auth="uiaeosnrtdy", id=123456, proxy_host=False):
@@ -58,6 +58,10 @@ def is_logs_envelope(data):
     return b'"type":"log"' in data
 
 
+def is_metrics_envelope(data):
+    return b'"type":"trace_metric"' in data
+
+
 def is_feedback_envelope(data):
     return b'"type":"feedback"' in data
 
@@ -68,6 +72,21 @@ def split_log_request_cond(httpserver_log, cond):
         if cond(httpserver_log[0][0].get_data())
         else (httpserver_log[1][0], httpserver_log[0][0])
     )
+
+
+def extract_request(httpserver_log, cond):
+    """
+    Extract a request matching the condition from the httpserver log.
+    Returns (matching_request, remaining_log_entries)
+
+    The remaining_log_entries preserves the original format so it can be
+    chained with subsequent extract_request calls.
+    """
+    for i, entry in enumerate(httpserver_log):
+        if cond(entry[0].get_data()):
+            others = [httpserver_log[j] for j in range(len(httpserver_log)) if j != i]
+            return (entry[0], others)
+    return (None, httpserver_log)
 
 
 def run(cwd, exe, args, expect_failure=False, env=None, **kwargs):
@@ -331,6 +350,7 @@ class Item(object):
             "transaction",
             "user_report",
             "log",
+            "trace_metric",
         ]:
             rv = cls(headers=headers, payload=PayloadRef(json=json.loads(payload)))
         else:

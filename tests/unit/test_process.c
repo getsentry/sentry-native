@@ -2,14 +2,6 @@
 #include "sentry_process.h"
 #include "sentry_testsupport.h"
 
-#ifdef SENTRY_PLATFORM_WINDOWS
-#    include <windows.h>
-#    define sleep_ms(MILLISECONDS) Sleep(MILLISECONDS)
-#else
-#    include <unistd.h>
-#    define sleep_ms(MILLISECONDS) usleep(MILLISECONDS * 1000)
-#endif
-
 // merely tests that it doesn't crash with invalid arguments
 SENTRY_TEST(process_invalid)
 {
@@ -23,6 +15,20 @@ SENTRY_TEST(process_invalid)
     sentry__process_spawn(nul, NULL);
     sentry__path_free(nul);
 }
+
+#ifndef SENTRY_PLATFORM_WINDOWS
+void
+find_cp_path(char *buf, size_t buf_len)
+{
+    FILE *fp = popen("command -v cp 2>/dev/null", "r");
+    if (fp && fgets(buf, buf_len, fp)) {
+        buf[strcspn(buf, "\n")] = 0; // strip newline
+    }
+    if (fp) {
+        pclose(fp);
+    }
+}
+#endif
 
 SENTRY_TEST(process_spawn)
 {
@@ -46,8 +52,10 @@ SENTRY_TEST(process_spawn)
     sentry__process_spawn(cmd, "/C", "copy", exe->path, dst->path, NULL);
     sentry__path_free(cmd);
 #    else
-    // /bin/cp <src> <dst>
-    sentry_path_t *cp = sentry__path_from_str("/bin/cp");
+    char cp_path[512] = "/bin/cp";
+    find_cp_path(cp_path, sizeof(cp_path));
+    // cp <src> <dst>
+    sentry_path_t *cp = sentry__path_from_str(cp_path);
     TEST_ASSERT(!!cp);
     sentry__process_spawn(cp, exe->path, dst->path, NULL);
     sentry__path_free(cp);

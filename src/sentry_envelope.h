@@ -9,6 +9,7 @@
 #include "sentry_ratelimiter.h"
 #include "sentry_session.h"
 #include "sentry_string.h"
+#include "sentry_utils.h"
 
 // https://develop.sentry.dev/sdk/data-model/envelopes/#size-limits
 #define SENTRY_MAX_ENVELOPE_SESSIONS 100
@@ -19,6 +20,11 @@ typedef struct sentry_envelope_item_s sentry_envelope_item_t;
  * Create a new empty envelope.
  */
 sentry_envelope_t *sentry__envelope_new(void);
+
+/**
+ * Create a new empty envelope with the given DSN header.
+ */
+sentry_envelope_t *sentry__envelope_new_with_dsn(const sentry_dsn_t *dsn);
 
 /**
  * This loads a previously serialized envelope from disk.
@@ -63,6 +69,12 @@ sentry_envelope_item_t *sentry__envelope_add_logs(
     sentry_envelope_t *envelope, sentry_value_t logs);
 
 /**
+ * Add a list of metrics to this envelope.
+ */
+sentry_envelope_item_t *sentry__envelope_add_metrics(
+    sentry_envelope_t *envelope, sentry_value_t metrics);
+
+/**
  * Add a user feedback to this envelope.
  */
 sentry_envelope_item_t *sentry__envelope_add_user_feedback(
@@ -99,6 +111,12 @@ sentry_envelope_item_t *sentry__envelope_add_from_path(
 sentry_envelope_item_t *sentry__envelope_add_from_buffer(
     sentry_envelope_t *envelope, const char *buf, size_t buf_len,
     const char *type);
+
+/**
+ * This sets an explicit header for the given envelope.
+ */
+void sentry__envelope_set_header(
+    sentry_envelope_t *envelope, const char *key, sentry_value_t value);
 
 /**
  * This sets an explicit header for the given envelope item.

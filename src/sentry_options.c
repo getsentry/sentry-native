@@ -53,6 +53,10 @@ sentry_options_new(void)
     opts->enable_logging_when_crashed = true;
     opts->propagate_traceparent = false;
     opts->crashpad_limit_stack_capture_to_sp = false;
+    opts->cache_keep = false;
+    opts->cache_max_age = 0;
+    opts->cache_max_size = 0;
+    opts->cache_max_items = 30;
     opts->symbolize_stacktraces =
     // AIX doesn't have reliable debug IDs for server-side symbolication,
     // and the diversity of Android makes it infeasible to have access to debug
@@ -476,6 +480,36 @@ sentry_options_get_symbolize_stacktraces(const sentry_options_t *opts)
 }
 
 void
+sentry_options_set_cache_keep(sentry_options_t *opts, int enabled)
+{
+    opts->cache_keep = !!enabled;
+}
+
+void
+sentry_options_set_cache_max_items(sentry_options_t *opts, size_t items)
+{
+    opts->cache_max_items = items;
+}
+
+void
+sentry_options_set_cache_max_size(sentry_options_t *opts, size_t bytes)
+{
+    opts->cache_max_size = bytes;
+}
+
+void
+sentry_options_set_cache_max_age(sentry_options_t *opts, time_t seconds)
+{
+    opts->cache_max_age = seconds;
+}
+
+int
+sentry_options_get_cache_keep(const sentry_options_t *opts)
+{
+    return opts->cache_keep;
+}
+
+void
 sentry_options_set_system_crash_reporter_enabled(
     sentry_options_t *opts, int enabled)
 {
@@ -755,6 +789,26 @@ int
 sentry_options_get_logs_with_attributes(const sentry_options_t *opts)
 {
     return opts->logs_with_attributes;
+}
+
+void
+sentry_options_set_enable_metrics(sentry_options_t *opts, int enable_metrics)
+{
+    opts->enable_metrics = !!enable_metrics;
+}
+
+int
+sentry_options_get_enable_metrics(const sentry_options_t *opts)
+{
+    return opts->enable_metrics;
+}
+
+void
+sentry_options_set_before_send_metric(sentry_options_t *opts,
+    sentry_before_send_metric_function_t func, void *user_data)
+{
+    opts->before_send_metric_func = func;
+    opts->before_send_metric_data = user_data;
 }
 
 #ifdef SENTRY_PLATFORM_LINUX

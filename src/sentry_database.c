@@ -6,6 +6,7 @@
 #include "sentry_session.h"
 #include "sentry_uuid.h"
 #include <errno.h>
+#include <stdlib.h>
 #include <string.h>
 
 sentry_run_t *
@@ -103,6 +104,13 @@ static bool
 write_envelope(const sentry_path_t *path, const sentry_envelope_t *envelope)
 {
     sentry_uuid_t event_id = sentry__envelope_get_event_id(envelope);
+
+    // Generate a random UUID for the filename if the envelope has no event_id
+    // this avoids collisions on NIL-UUIDs
+    if (sentry_uuid_is_nil(&event_id)) {
+        event_id = sentry_uuid_new_v4();
+    }
+
     char *envelope_filename = sentry__uuid_as_filename(&event_id, ".envelope");
     if (!envelope_filename) {
         return false;
@@ -230,6 +238,15 @@ sentry__process_old_runs(const sentry_options_t *options, uint64_t last_crash)
         if (strcmp(options->run->run_path->path, run_dir->path) == 0) {
             continue;
         }
+
+        sentry_path_t *cache_dir = NULL;
+        if (options->cache_keep) {
+            cache_dir = sentry__path_join_str(options->database_path, "cache");
+            if (cache_dir) {
+                sentry__path_create_dir_all(cache_dir);
+            }
+        }
+
         sentry_pathiter_t *run_iter = sentry__path_iter_directory(run_dir);
         const sentry_path_t *file;
         while (run_iter && (file = sentry__pathiter_next(run_iter)) != NULL) {
@@ -274,18 +291,155 @@ sentry__process_old_runs(const sentry_options_t *options, uint64_t last_crash)
             } else if (sentry__path_ends_with(file, ".envelope")) {
                 sentry_envelope_t *envelope = sentry__envelope_from_path(file);
                 sentry__capture_envelope(options->transport, envelope);
+
+                if (cache_dir) {
+                    sentry_path_t *cached_file = sentry__path_join_str(
+                        cache_dir, sentry__path_filename(file));
+                    if (!cached_file
+                        || sentry__path_rename(file, cached_file) != 0) {
+                        SENTRY_WARNF("failed to cache envelope \"%s\"",
+                            sentry__path_filename(file));
+                    }
+                    sentry__path_free(cached_file);
+                    continue;
+                }
             }
 
             sentry__path_remove(file);
         }
         sentry__pathiter_free(run_iter);
 
+        sentry__path_free(cache_dir);
         sentry__path_remove_all(run_dir);
         sentry__filelock_free(lock);
     }
     sentry__pathiter_free(db_iter);
 
     sentry__capture_envelope(options->transport, session_envelope);
+}
+
+// Cache Pruning below is based on prune_crash_reports.cc from Crashpad
+
+/**
+ * A cache entry with its metadata for sorting and pruning decisions.
+ */
+typedef struct {
+    sentry_path_t *path;
+    time_t mtime;
+    size_t size;
+} cache_entry_t;
+
+/**
+ * Comparison function to sort cache entries by mtime, newest first.
+ */
+static int
+compare_cache_entries_newest_first(const void *a, const void *b)
+{
+    const cache_entry_t *entry_a = (const cache_entry_t *)a;
+    const cache_entry_t *entry_b = (const cache_entry_t *)b;
+    // Newest first: if b is newer, return positive (b comes before a)
+    if (entry_b->mtime > entry_a->mtime) {
+        return 1;
+    }
+    if (entry_b->mtime < entry_a->mtime) {
+        return -1;
+    }
+    return 0;
+}
+
+void
+sentry__cleanup_cache(const sentry_options_t *options)
+{
+    if (!options->database_path) {
+        return;
+    }
+
+    sentry_path_t *cache_dir
+        = sentry__path_join_str(options->database_path, "cache");
+    if (!cache_dir || !sentry__path_is_dir(cache_dir)) {
+        sentry__path_free(cache_dir);
+        return;
+    }
+
+    // First pass: collect all cache entries with their metadata
+    size_t entries_capacity = 16;
+    size_t entries_count = 0;
+    cache_entry_t *entries
+        = sentry_malloc(sizeof(cache_entry_t) * entries_capacity);
+    if (!entries) {
+        sentry__path_free(cache_dir);
+        return;
+    }
+
+    sentry_pathiter_t *iter = sentry__path_iter_directory(cache_dir);
+    const sentry_path_t *entry;
+    while (iter && (entry = sentry__pathiter_next(iter)) != NULL) {
+        if (sentry__path_is_dir(entry)) {
+            continue;
+        }
+
+        // Grow array if needed
+        if (entries_count >= entries_capacity) {
+            entries_capacity *= 2;
+            cache_entry_t *new_entries
+                = sentry_malloc(sizeof(cache_entry_t) * entries_capacity);
+            if (!new_entries) {
+                break;
+            }
+            memcpy(new_entries, entries, sizeof(cache_entry_t) * entries_count);
+            sentry_free(entries);
+            entries = new_entries;
+        }
+
+        entries[entries_count].path = sentry__path_clone(entry);
+        if (!entries[entries_count].path) {
+            break;
+        }
+        entries[entries_count].mtime = sentry__path_get_mtime(entry);
+        entries[entries_count].size = sentry__path_get_size(entry);
+        entries_count++;
+    }
+    sentry__pathiter_free(iter);
+
+    // Sort by mtime, newest first (like crashpad)
+    // This ensures we keep the newest entries when pruning by size
+    qsort(entries, entries_count, sizeof(cache_entry_t),
+        compare_cache_entries_newest_first);
+
+    // Calculate the age threshold
+    time_t now = time(NULL);
+    time_t oldest_allowed = now - options->cache_max_age;
+
+    // Prune entries: iterate newest-to-oldest, accumulating size
+    // Remove if: too old OR accumulated size exceeds limit
+    size_t accumulated_size = 0;
+    for (size_t i = 0; i < entries_count; i++) {
+        bool should_prune = false;
+
+        // Age-based pruning
+        if (options->cache_max_age > 0 && entries[i].mtime < oldest_allowed) {
+            should_prune = true;
+        } else {
+            // Size-based pruning (accumulate size as we go, like crashpad)
+            accumulated_size += entries[i].size;
+            if (options->cache_max_size > 0
+                && accumulated_size > options->cache_max_size) {
+                should_prune = true;
+            }
+            // Item count pruning
+            if (options->cache_max_items > 0 && i >= options->cache_max_items) {
+                should_prune = true;
+            }
+        }
+
+        if (should_prune) {
+            sentry__path_remove_all(entries[i].path);
+        }
+        sentry__path_free(entries[i].path);
+    }
+
+    sentry_free(entries);
+    sentry__path_free(cache_dir);
 }
 
 static const char *g_last_crash_filename = "last_crash";
