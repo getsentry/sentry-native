@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.12.8
+
+**Fixes**:
+
+- Fix deadlock when re-initializing the SDK while logs or metrics threads are mid-flush. ([#1518](https://github.com/getsentry/sentry-native/pull/1518))
+
 ## 0.12.7
 
 **Features**:

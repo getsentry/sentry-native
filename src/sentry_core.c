@@ -299,11 +299,11 @@ sentry_init(sentry_options_t *options)
     }
 
     if (options->enable_logs) {
-        sentry__logs_startup();
+        sentry__logs_startup(options);
     }
 
     if (options->enable_metrics) {
-        sentry__metrics_startup();
+        sentry__metrics_startup(options);
     }
 
     sentry__mutex_unlock(&g_options_lock);

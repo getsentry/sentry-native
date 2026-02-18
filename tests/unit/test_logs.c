@@ -1,19 +1,12 @@
 #include "sentry_logs.h"
+#include "sentry_sync.h"
 #include "sentry_testsupport.h"
 
 #include "sentry_envelope.h"
 #include <string.h>
 
-#ifdef SENTRY_PLATFORM_WINDOWS
-#    include <windows.h>
-#    define sleep_ms(MILLISECONDS) Sleep(MILLISECONDS)
-#else
-#    include <unistd.h>
-#    define sleep_ms(MILLISECONDS) usleep(MILLISECONDS * 1000)
-#endif
-
 typedef struct {
-    uint64_t called_count;
+    volatile long called_count;
     bool has_validation_error;
 } transport_validation_data_t;
 
@@ -37,7 +30,7 @@ validate_logs_envelope(sentry_envelope_t *envelope, void *data)
 
     // Only validate and count log envelopes, skip others (e.g., session)
     if (strcmp(type, "log") == 0) {
-        validation_data->called_count += 1;
+        sentry__atomic_fetch_and_add(&validation_data->called_count, 1);
     }
 
     sentry_envelope_free(envelope);
@@ -65,8 +58,14 @@ SENTRY_TEST(basic_logging_functionality)
     TEST_CHECK_INT_EQUAL(sentry_log_info("Info message"), 0);
     TEST_CHECK_INT_EQUAL(sentry_log_warn("Warning message"), 0);
     TEST_CHECK_INT_EQUAL(sentry_log_error("Error message"), 0);
-    // Sleep to allow first batch to flush (testing batch timing behavior)
-    sleep_ms(20);
+    // Sleep up to 5s to allow first batch to flush (testing batch timing
+    // behavior)
+    for (int i = 0;
+        i < 250 && sentry__atomic_fetch(&validation_data.called_count) < 1;
+        i++) {
+        sleep_ms(20);
+    }
+    TEST_CHECK_INT_EQUAL(validation_data.called_count, 1);
     TEST_CHECK_INT_EQUAL(sentry_log_fatal("Fatal message"), 0);
     sentry_close();
 
@@ -408,5 +407,29 @@ SENTRY_TEST(logs_custom_attributes_not_modified)
         sentry_value_is_null(sentry_value_get_by_key(attrs, "global.key")));
 
     sentry_value_decref(attrs);
+    sentry_close();
+}
+
+SENTRY_TEST(logs_reinit)
+{
+    SENTRY_TEST_OPTIONS_NEW(options);
+    sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
+    sentry_options_set_enable_logs(options, true);
+
+    sentry_init(options);
+    sentry__logs_wait_for_thread_startup();
+
+    // Fill the buffer to trigger a flush on the batcher thread
+    for (int i = 0; i < 5; i++) {
+        sentry_log_info("log %d", i);
+    }
+
+    // Re-init immediately while the batcher thread is likely mid-flush.
+    // This will deadlock if sentry__batcher_flush holds g_options_lock.
+    SENTRY_TEST_OPTIONS_NEW(options2);
+    sentry_options_set_dsn(options2, "https://foo@sentry.invalid/42");
+    sentry_options_set_enable_logs(options2, true);
+
+    sentry_init(options2);
     sentry_close();
 }

@@ -1,19 +1,12 @@
 #include "sentry_metrics.h"
+#include "sentry_sync.h"
 #include "sentry_testsupport.h"
 
 #include "sentry_envelope.h"
 #include <string.h>
 
-#ifdef SENTRY_PLATFORM_WINDOWS
-#    include <windows.h>
-#    define sleep_ms(MILLISECONDS) Sleep(MILLISECONDS)
-#else
-#    include <unistd.h>
-#    define sleep_ms(MILLISECONDS) usleep(MILLISECONDS * 1000)
-#endif
-
 typedef struct {
-    uint64_t called_count;
+    volatile long called_count;
     bool has_validation_error;
 } transport_validation_data_t;
 
@@ -36,7 +29,7 @@ validate_metrics_envelope(sentry_envelope_t *envelope, void *data)
 
     // Only validate and count metric envelopes, skip others (e.g., session)
     if (strcmp(type, "trace_metric") == 0) {
-        validation_data->called_count += 1;
+        sentry__atomic_fetch_and_add(&validation_data->called_count, 1);
     }
 
     sentry_envelope_free(envelope);
@@ -146,8 +139,13 @@ SENTRY_TEST(metrics_batch)
             sentry_metrics_count("test.counter", 1, sentry_value_new_null()),
             SENTRY_METRICS_RESULT_SUCCESS);
     }
-    // Sleep to allow first batch to flush
-    sleep_ms(20);
+    // Sleep up to 5s to allow first batch to flush
+    for (int i = 0;
+        i < 250 && sentry__atomic_fetch(&validation_data.called_count) < 1;
+        i++) {
+        sleep_ms(20);
+    }
+    TEST_CHECK_INT_EQUAL(validation_data.called_count, 1);
     TEST_CHECK_INT_EQUAL(
         sentry_metrics_count("test.counter", 1, sentry_value_new_null()),
         SENTRY_METRICS_RESULT_SUCCESS);
@@ -414,4 +412,28 @@ SENTRY_TEST(metrics_default_attributes)
     TEST_CHECK(!sentry_value_is_null(sdk_version));
 
     sentry_value_decref(g_captured_metric);
+}
+
+SENTRY_TEST(metrics_reinit)
+{
+    SENTRY_TEST_OPTIONS_NEW(options);
+    sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
+    sentry_options_set_enable_metrics(options, true);
+
+    sentry_init(options);
+    sentry__metrics_wait_for_thread_startup();
+
+    // Fill the buffer to trigger a flush on the batcher thread
+    for (int i = 0; i < 5; i++) {
+        sentry_metrics_count("metric", 1, sentry_value_new_null());
+    }
+
+    // Re-init immediately while the batcher thread is likely mid-flush.
+    // This will deadlock if sentry__batcher_flush holds g_options_lock.
+    SENTRY_TEST_OPTIONS_NEW(options2);
+    sentry_options_set_dsn(options2, "https://foo@sentry.invalid/42");
+    sentry_options_set_enable_metrics(options2, true);
+
+    sentry_init(options2);
+    sentry_close();
 }

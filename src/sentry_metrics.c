@@ -143,9 +143,9 @@ sentry_metrics_distribution(
 }
 
 void
-sentry__metrics_startup(void)
+sentry__metrics_startup(const sentry_options_t *options)
 {
-    sentry__batcher_startup(&g_batcher);
+    sentry__batcher_startup(&g_batcher, options);
 }
 
 bool

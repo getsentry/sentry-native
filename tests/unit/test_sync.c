@@ -3,16 +3,6 @@
 #include "sentry_testsupport.h"
 #include "sentry_utils.h"
 
-#ifdef SENTRY_PLATFORM_WINDOWS
-#    include <windows.h>
-#    define sleep_s(SECONDS) Sleep((SECONDS) * 1000)
-#    define sleep_ms(MS) Sleep(MS)
-#else
-#    include <unistd.h>
-#    define sleep_s(SECONDS) sleep(SECONDS)
-#    define sleep_ms(MS) usleep((MS) * 1000)
-#endif
-
 struct task_state {
     int executed;
     bool running;
