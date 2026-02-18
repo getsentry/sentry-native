@@ -4,7 +4,6 @@
 
 **Breaking**:
 
-- inproc(Linux): the `inproc` backend on Linux now depends on "nognu" `libunwind`. ([#1446](https://github.com/getsentry/sentry-native/pull/1446))
 - inproc: since we split `inproc` into signal-handler/UEF part and a separate handler thread, `before_send` and `on_crash` could be called from other threads than the one that crashed. While this was never part of the contract, if your code relies on this, it will no longer work. ([#1446](https://github.com/getsentry/sentry-native/pull/1446))
 
 **Features**:
@@ -24,6 +23,7 @@
 **Internal**:
 
 - Introduce PAC tests for `arm64e` on macOS. ([#1446](https://github.com/getsentry/sentry-native/pull/1446))
+- For Linux, the SDK now has a vendored "nognu" `libunwind` as the default stack walker and links it statically, but with PIC enabled so it can be used in PIE executables. ([#1446](https://github.com/getsentry/sentry-native/pull/1446))
 
 ## 0.12.6
 
