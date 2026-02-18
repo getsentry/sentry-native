@@ -1430,7 +1430,11 @@ dispatch_ucontext(const sentry_ucontext_t *uctx,
         }
         // Disable stdio-based logging - not safe in signal handler context.
         sentry__logger_disable();
-        process_ucontext_deferred(uctx, sig_slot, depth >= 2);
+        // Use skip_hooks from the original handler_depth rather than the
+        // fresh depth: the lock was released above, so depth here is
+        // always 1, which would incorrectly re-run hooks on a recursive
+        // crash where the pipe also fails.
+        process_ucontext_deferred(uctx, sig_slot, skip_hooks);
         return;
     }
 #    elif defined(SENTRY_PLATFORM_WINDOWS)
