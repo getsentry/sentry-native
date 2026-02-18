@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1771408762101,
+  "lastUpdate": 1771408842695,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -21350,6 +21350,66 @@ window.BENCHMARK_DATA = {
             "value": 7.090625000046202,
             "unit": "ms",
             "extra": "Min 6.841ms\nMax 11.038ms\nMean 8.000ms\nStdDev 1.778ms\nMedian 7.091ms\nCPU 1.171ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "jpnurmi@gmail.com",
+            "name": "J-P Nurmi",
+            "username": "jpnurmi"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "4740a9aeee3da85d509793b92ba1c18359088aae",
+          "message": "tests: poll for batch flush instead of fixed sleep (#1527)\n\n* tests: poll for batch flush instead of fixed sleep\n\nReplace fixed `sleep_ms(20)` with a polling loop (up to 5s) that exits\nas soon as the flush completes. Fixes flaky `basic_logging_functionality`\nand `metrics_batch` tests in the CI under CPU pressure where the batcher\nthread may not get scheduled quickly enough (#1525).\n\nCo-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>\n\n* tests: fix 5s polling timeout\n\nCo-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>\n\n* tests: use atomics for called_count polled across threads\n\nCo-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>\n\n---------\n\nCo-authored-by: Claude Opus 4.6 <noreply@anthropic.com>",
+          "timestamp": "2026-02-18T10:54:33+01:00",
+          "tree_id": "055734a099e97363f271bf4af193fde749e3042f",
+          "url": "https://github.com/getsentry/sentry-native/commit/4740a9aeee3da85d509793b92ba1c18359088aae"
+        },
+        "date": 1771408841437,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 3.4476669999889964,
+            "unit": "ms",
+            "extra": "Min 3.123ms\nMax 4.251ms\nMean 3.489ms\nStdDev 0.457ms\nMedian 3.448ms\nCPU 1.868ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 3.5145830000260503,
+            "unit": "ms",
+            "extra": "Min 3.288ms\nMax 4.540ms\nMean 3.666ms\nStdDev 0.513ms\nMedian 3.515ms\nCPU 2.077ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 11.530082999968272,
+            "unit": "ms",
+            "extra": "Min 11.131ms\nMax 26.149ms\nMean 16.107ms\nStdDev 6.810ms\nMedian 11.530ms\nCPU 5.321ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.01995799999576775,
+            "unit": "ms",
+            "extra": "Min 0.009ms\nMax 0.027ms\nMean 0.019ms\nStdDev 0.009ms\nMedian 0.020ms\nCPU 0.018ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.29504200000474157,
+            "unit": "ms",
+            "extra": "Min 0.269ms\nMax 0.321ms\nMean 0.295ms\nStdDev 0.018ms\nMedian 0.295ms\nCPU 0.294ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 6.444082999962575,
+            "unit": "ms",
+            "extra": "Min 6.355ms\nMax 7.528ms\nMean 6.831ms\nStdDev 0.604ms\nMedian 6.444ms\nCPU 0.911ms"
           }
         ]
       }
