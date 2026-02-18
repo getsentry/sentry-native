@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1771421857017,
+  "lastUpdate": 1771421869758,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -32596,6 +32596,66 @@ window.BENCHMARK_DATA = {
             "value": 15.337999999928797,
             "unit": "ms",
             "extra": "Min 15.160ms\nMax 15.763ms\nMean 15.423ms\nStdDev 0.240ms\nMedian 15.338ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "die.drei99@yahoo.de",
+            "name": "Hanno J. Gödecke",
+            "username": "hannojg"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "b57211c39e925865aa3a05a764aa7275195a36fa",
+          "message": "feat(ndk): expose init return code (#1430)\n\n* ndk: expose init return code from sentry_init\n\n* changelog: note SentryNdk.init return code\n\n* formatting\n\n* Address PR feedback\n\n* fix up CHANGELOG.md\n\n* release ready fixup\n\n---------\n\nCo-authored-by: Markus Hintersteiner <markus.hintersteiner@sentry.io>\nCo-authored-by: Mischan Toosarani-Hausberger <mischan@abovevacant.com>",
+          "timestamp": "2026-02-18T14:33:09+01:00",
+          "tree_id": "b40970dac6ec480c337c6350c4df127ec58dc4b6",
+          "url": "https://github.com/getsentry/sentry-native/commit/b57211c39e925865aa3a05a764aa7275195a36fa"
+        },
+        "date": 1771421866604,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 20.029299999919203,
+            "unit": "ms",
+            "extra": "Min 19.947ms\nMax 29.225ms\nMean 21.929ms\nStdDev 4.083ms\nMedian 20.029ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 10.294700000031298,
+            "unit": "ms",
+            "extra": "Min 9.862ms\nMax 11.771ms\nMean 10.635ms\nStdDev 0.746ms\nMedian 10.295ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 24.12760000004255,
+            "unit": "ms",
+            "extra": "Min 23.694ms\nMax 25.194ms\nMean 24.226ms\nStdDev 0.571ms\nMedian 24.128ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 14.883800000006886,
+            "unit": "ms",
+            "extra": "Min 12.042ms\nMax 18.160ms\nMean 14.884ms\nStdDev 2.272ms\nMedian 14.884ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.3935999999384876,
+            "unit": "ms",
+            "extra": "Min 0.387ms\nMax 0.432ms\nMean 0.402ms\nStdDev 0.019ms\nMedian 0.394ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 13.729100000091421,
+            "unit": "ms",
+            "extra": "Min 13.471ms\nMax 14.328ms\nMean 13.790ms\nStdDev 0.323ms\nMedian 13.729ms"
           }
         ]
       }
