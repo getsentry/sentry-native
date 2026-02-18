@@ -1,4 +1,6 @@
 #include "sentry_envelope.h"
+#include "sentry_options.h"
+#include "sentry_path.h"
 #include "sentry_session.h"
 #include "sentry_testsupport.h"
 #include "sentry_value.h"
@@ -57,6 +59,8 @@ SENTRY_TEST(session_basics)
 {
     uint64_t called = 0;
     SENTRY_TEST_OPTIONS_NEW(options);
+    // clear any leftover from previous test runs
+    sentry__path_remove_all(options->database_path);
     sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
     sentry_transport_t *transport = sentry_transport_new(send_envelope);
     sentry_transport_set_state(transport, &called);
@@ -143,6 +147,8 @@ SENTRY_TEST(count_sampled_events)
     session_assertion_t assertion = { false, 0 };
 
     SENTRY_TEST_OPTIONS_NEW(options);
+    // clear any leftover from previous test runs
+    sentry__path_remove_all(options->database_path);
     sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
     sentry_transport_t *transport = sentry_transport_new(send_sampled_envelope);
     sentry_transport_set_state(transport, &assertion);
