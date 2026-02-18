@@ -247,7 +247,7 @@ static void send_envelope(sentry_envelope_t *envelope, void *data) {
     sentry_envelope_free(envelope);
 }
 
-JNIEXPORT void JNICALL
+JNIEXPORT jint JNICALL
 Java_io_sentry_ndk_SentryNdk_initSentryNative(
         JNIEnv *env,
         jclass cls,
@@ -355,8 +355,8 @@ Java_io_sentry_ndk_SentryNdk_initSentryNative(
     jfloat traces_sample_rate = (jfloat) (*env)->CallFloatMethod(env, sentry_ndk_options, traces_sample_rate_mid);
     sentry_options_set_traces_sample_rate(options, traces_sample_rate);
 
-    sentry_init(options);
-    return;
+    int rv = sentry_init(options);
+    return (jint) rv;
 
     fail:
     if (!transport_owns_path) {
@@ -366,6 +366,7 @@ Java_io_sentry_ndk_SentryNdk_initSentryNative(
         sentry_transport_free(transport);
     }
     sentry_options_free(options);
+    return (jint) -1;
 }
 
 JNIEXPORT void JNICALL

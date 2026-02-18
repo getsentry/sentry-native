@@ -10,7 +10,13 @@ public final class SentryNdk {
 
   private SentryNdk() {}
 
-  private static native void initSentryNative(@NotNull final NdkOptions options);
+  /**
+   * Initializes sentry-native and returns 0 on success, non-zero on failure.
+   *
+   * @return -1 if an JNI or options configuration issue occurred, 1 if sentry native itself failed
+   *     to initialize
+   */
+  private static native int initSentryNative(@NotNull final NdkOptions options);
 
   private static native void shutdown();
 
@@ -18,10 +24,17 @@ public final class SentryNdk {
    * Init the NDK integration
    *
    * @param options the SentryAndroidOptions
+   * @throws IllegalStateException if sentry-native couldn't be initialized
    */
   public static void init(@NotNull final NdkOptions options) {
     loadNativeLibraries();
-    initSentryNative(options);
+    final int returnCode = initSentryNative(options);
+    if (returnCode > 0) {
+      throw new IllegalStateException(
+          "A sentry-native internal init error occurred, please check the logs for more details.");
+    } else if (returnCode < 0) {
+      throw new IllegalStateException("A sentry-native setup failure occurred");
+    }
   }
 
   /** Closes the NDK integration */

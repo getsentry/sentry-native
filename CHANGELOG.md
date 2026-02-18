@@ -1,26 +1,18 @@
 # Changelog
 
-## 0.12.8
-
-**Fixes**:
-
-- Fix deadlock when re-initializing the SDK while logs or metrics threads are mid-flush. ([#1518](https://github.com/getsentry/sentry-native/pull/1518))
-
-## 0.12.7
+## Unreleased
 
 **Breaking**:
 
 - inproc: since we split `inproc` into signal-handler/UEF part and a separate handler thread, `before_send` and `on_crash` could be called from other threads than the one that crashed. While this was never part of the contract, if your code relies on this, it will no longer work. ([#1446](https://github.com/getsentry/sentry-native/pull/1446))
+- Android NDK: `SentryNdk.init(NdkOptions)` now throws an `Exception` if init fails (non-zero return code) rather than silently swallowing the error. ([#1430](https://github.com/getsentry/sentry-native/pull/1430))
 
 **Features**:
 
-- Add new offline caching options to persist envelopes locally: `sentry_options_set_cache_keep`, `sentry_options_set_cache_max_items`, `sentry_options_set_cache_max_size`, and `sentry_options_set_cache_max_age`. ([#1490](https://github.com/getsentry/sentry-native/pull/1490), [#1493](https://github.com/getsentry/sentry-native/pull/1493))
-- Add support for `abort()` in the `inproc` backend on Windows. ([#1446](https://github.com/getsentry/sentry-native/pull/1446)) 
+- Add support for `abort()` in the `inproc` backend on Windows. ([#1446](https://github.com/getsentry/sentry-native/pull/1446))
 
 **Fixes**:
 
-- Remove spurious decref in `sentry_capture_user_feedback()` ([#1510](https://github.com/getsentry/sentry-native/pull/1510))
-- Prevent double-decref of event in envelope add functions ([#1511](https://github.com/getsentry/sentry-native/pull/1511))
 - Make the signal-handler synchronization fully atomic to fix rare race scenarios. ([#1446](https://github.com/getsentry/sentry-native/pull/1446))
 - Reintroduce an FP-based stack-walker for macOS that can start from a user context. This also makes `inproc` backend functional again on macOS 13+. ([#1446](https://github.com/getsentry/sentry-native/pull/1446))
 - Split the `inproc` signal handler (and UEF on Windows) into a safe handler part and an "unsafe" handler thread. This minimizes exposure to undefined behavior inside the signal handler. ([#1446](https://github.com/getsentry/sentry-native/pull/1446))
@@ -30,6 +22,27 @@
 
 - Introduce PAC tests for `arm64e` on macOS. ([#1446](https://github.com/getsentry/sentry-native/pull/1446))
 - For Linux, the SDK now has a vendored "nognu" `libunwind` as the default stack walker and links it statically, but with PIC enabled so it can be used in PIE executables. ([#1446](https://github.com/getsentry/sentry-native/pull/1446))
+
+**Thank you**:
+
+- [hannojg](https://github.com/hannojg)
+
+## 0.12.8
+
+**Fixes**:
+
+- Fix deadlock when re-initializing the SDK while logs or metrics threads are mid-flush. ([#1518](https://github.com/getsentry/sentry-native/pull/1518))
+
+## 0.12.7
+
+**Features**:
+
+- Add new offline caching options to persist envelopes locally: `sentry_options_set_cache_keep`, `sentry_options_set_cache_max_items`, `sentry_options_set_cache_max_size`, and `sentry_options_set_cache_max_age`. ([#1490](https://github.com/getsentry/sentry-native/pull/1490), [#1493](https://github.com/getsentry/sentry-native/pull/1493))
+
+**Fixes**:
+
+- Remove spurious decref in `sentry_capture_user_feedback()` ([#1510](https://github.com/getsentry/sentry-native/pull/1510))
+- Prevent double-decref of event in envelope add functions ([#1511](https://github.com/getsentry/sentry-native/pull/1511))
 
 ## 0.12.6
 
