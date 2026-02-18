@@ -21,6 +21,17 @@ sentry_malloc(size_t size)
     return malloc(size);
 }
 
+void *
+sentry__calloc(size_t count, size_t size)
+{
+#ifdef WITH_PAGE_ALLOCATOR
+    if (sentry__page_allocator_enabled()) {
+        return sentry__page_allocator_alloc(count * size);
+    }
+#endif
+    return calloc(count, size);
+}
+
 void
 sentry_free(void *ptr)
 {

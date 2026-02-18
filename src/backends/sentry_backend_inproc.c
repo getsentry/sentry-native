@@ -1646,11 +1646,10 @@ handle_except(sentry_backend_t *UNUSED(backend), const sentry_ucontext_t *uctx)
 sentry_backend_t *
 sentry__backend_new(void)
 {
-    sentry_backend_t *backend = SENTRY_MAKE(sentry_backend_t);
+    sentry_backend_t *backend = SENTRY_MAKE_0(sentry_backend_t);
     if (!backend) {
         return NULL;
     }
-    memset(backend, 0, sizeof(sentry_backend_t));
 
     backend->startup_func = startup_inproc_backend;
     backend->shutdown_func = shutdown_inproc_backend;

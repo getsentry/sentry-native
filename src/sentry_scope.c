@@ -68,7 +68,6 @@ get_client_sdk(void)
 static void
 init_scope(sentry_scope_t *scope)
 {
-    memset(scope, 0, sizeof(sentry_scope_t));
     scope->transaction = NULL;
     scope->fingerprint = sentry_value_new_null();
     scope->user = sentry_value_new_null();
@@ -94,6 +93,7 @@ get_scope(void)
         return &g_scope;
     }
 
+    memset(&g_scope, 0, sizeof(sentry_scope_t));
     init_scope(&g_scope);
     sentry_value_set_by_key(g_scope.contexts, "os", sentry__get_os_context());
     g_scope.client_sdk = get_client_sdk();
@@ -165,7 +165,7 @@ sentry__scope_flush_unlock(void)
 sentry_scope_t *
 sentry_local_scope_new(void)
 {
-    sentry_scope_t *scope = SENTRY_MAKE(sentry_scope_t);
+    sentry_scope_t *scope = SENTRY_MAKE_0(sentry_scope_t);
     if (!scope) {
         return NULL;
     }

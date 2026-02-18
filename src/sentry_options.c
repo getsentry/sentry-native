@@ -13,11 +13,10 @@
 sentry_options_t *
 sentry_options_new(void)
 {
-    sentry_options_t *opts = SENTRY_MAKE(sentry_options_t);
+    sentry_options_t *opts = SENTRY_MAKE_0(sentry_options_t);
     if (!opts) {
         return NULL;
     }
-    memset(opts, 0, sizeof(sentry_options_t));
     opts->database_path = sentry__path_from_str(".sentry-native");
     // we assume the DSN to be ASCII only
     sentry_options_set_dsn(opts, getenv("SENTRY_DSN"));

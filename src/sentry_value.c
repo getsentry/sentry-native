@@ -390,9 +390,8 @@ sentry_value_new_string(const char *value)
 sentry_value_t
 sentry_value_new_list(void)
 {
-    list_t *l = SENTRY_MAKE(list_t);
+    list_t *l = SENTRY_MAKE_0(list_t);
     if (l) {
-        memset(l, 0, sizeof(list_t));
         sentry_value_t rv = new_thing_value(l, THING_TYPE_LIST);
         if (sentry_value_is_null(rv)) {
             sentry_free(l);
@@ -406,9 +405,8 @@ sentry_value_new_list(void)
 sentry_value_t
 sentry__value_new_list_with_size(size_t size)
 {
-    list_t *l = SENTRY_MAKE(list_t);
+    list_t *l = SENTRY_MAKE_0(list_t);
     if (l) {
-        memset(l, 0, sizeof(list_t));
         l->allocated = size;
         if (size) {
             l->items = sentry_malloc(sizeof(sentry_value_t) * size);
@@ -431,9 +429,8 @@ sentry__value_new_list_with_size(size_t size)
 sentry_value_t
 sentry_value_new_object(void)
 {
-    obj_t *o = SENTRY_MAKE(obj_t);
+    obj_t *o = SENTRY_MAKE_0(obj_t);
     if (o) {
-        memset(o, 0, sizeof(obj_t));
         sentry_value_t rv = new_thing_value(o, THING_TYPE_OBJECT);
         if (sentry_value_is_null(rv)) {
             sentry_free(o);
@@ -447,9 +444,8 @@ sentry_value_new_object(void)
 sentry_value_t
 sentry__value_new_object_with_size(size_t size)
 {
-    obj_t *o = SENTRY_MAKE(obj_t);
+    obj_t *o = SENTRY_MAKE_0(obj_t);
     if (o) {
-        memset(o, 0, sizeof(obj_t));
         o->allocated = size;
         if (size) {
             o->pairs = sentry_malloc(sizeof(obj_pair_t) * size);

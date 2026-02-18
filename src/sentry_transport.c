@@ -34,11 +34,10 @@ sentry_transport_t *
 sentry_transport_new(
     void (*send_func)(sentry_envelope_t *envelope, void *state))
 {
-    sentry_transport_t *transport = SENTRY_MAKE(sentry_transport_t);
+    sentry_transport_t *transport = SENTRY_MAKE_0(sentry_transport_t);
     if (!transport) {
         return NULL;
     }
-    memset(transport, 0, sizeof(sentry_transport_t));
     transport->send_envelope_func = send_func;
 
     return transport;

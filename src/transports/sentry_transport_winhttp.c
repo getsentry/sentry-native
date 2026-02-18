@@ -33,11 +33,10 @@ typedef struct {
 static winhttp_bgworker_state_t *
 sentry__winhttp_bgworker_state_new(void)
 {
-    winhttp_bgworker_state_t *state = SENTRY_MAKE(winhttp_bgworker_state_t);
+    winhttp_bgworker_state_t *state = SENTRY_MAKE_0(winhttp_bgworker_state_t);
     if (!state) {
         return NULL;
     }
-    memset(state, 0, sizeof(winhttp_bgworker_state_t));
 
     state->ratelimiter = sentry__rate_limiter_new();
 

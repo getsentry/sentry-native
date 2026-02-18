@@ -38,11 +38,10 @@ struct header_info {
 static curl_bgworker_state_t *
 sentry__curl_bgworker_state_new(void)
 {
-    curl_bgworker_state_t *state = SENTRY_MAKE(curl_bgworker_state_t);
+    curl_bgworker_state_t *state = SENTRY_MAKE_0(curl_bgworker_state_t);
     if (!state) {
         return NULL;
     }
-    memset(state, 0, sizeof(curl_bgworker_state_t));
 
     state->ratelimiter = sentry__rate_limiter_new();
 #ifdef SENTRY_PLATFORM_NX
