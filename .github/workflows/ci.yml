@@ -51,7 +51,7 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # toolchain per runner-image availability:
+            # toolchain per runner-image availability:
             #   ubuntu 22.04
             #     GCC: 9-12
             #     clang: 11-15
@@ -137,19 +137,21 @@ jobs:
           - name: Linux (GCC + musl + libunwind)
             os: ubuntu-latest
             container: ghcr.io/getsentry/sentry-native-alpine:3.21
-            CMAKE_DEFINES: -DSENTRY_LIBUNWIND_SHARED=OFF
             CC: gcc
             CXX: g++
             SYSTEM_PYTHON: 1
           - name: Linux (clang + musl + libunwind)
             os: ubuntu-latest
             container: ghcr.io/getsentry/sentry-native-alpine:3.21
-            CMAKE_DEFINES: -DSENTRY_LIBUNWIND_SHARED=OFF
             CC: clang
             CXX: clang++
             SYSTEM_PYTHON: 1
           - name: macOS 14 (xcode llvm)
             os: macos-14
+            ERROR_ON_WARNINGS: 1
+            SYSTEM_VERSION_COMPAT: 0
+          - name: macOS 26 (xcode llvm)
+            os: macos-26
             ERROR_ON_WARNINGS: 1
             SYSTEM_VERSION_COMPAT: 0
           - name: macOS 14 (xcode llvm + universal)
@@ -164,6 +166,11 @@ jobs:
             ERROR_ON_WARNINGS: 1
             SYSTEM_VERSION_COMPAT: 0
             RUN_ANALYZER: asan,llvm-cov
+          - name: macOS 26 (arm64e + PAC test)
+            os: macos-26
+            ERROR_ON_WARNINGS: 1
+            SYSTEM_VERSION_COMPAT: 0
+            CMAKE_DEFINES: -DCMAKE_OSX_ARCHITECTURES=arm64e
           - name: Windows (old VS, 32-bit)
             os: windows-2022
             TEST_X86: 1
@@ -223,6 +230,12 @@ jobs:
       - uses: actions/checkout@v4
         with:
           submodules: recursive
+
+      - name: Debug runner architecture
+        if: ${{ runner.os == 'macOS' }}
+        run: |
+          echo "Runner arch: $(uname -m)"
+
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ !env['SYSTEM_PYTHON'] && '3.12' || '' }}
@@ -269,13 +282,13 @@ jobs:
         run: |
           sudo dpkg --add-architecture i386
           sudo apt update
-          sudo apt install cmake "${CC}-multilib" "${CXX}-multilib" zlib1g-dev:i386 libssl-dev:i386 libcurl4-openssl-dev:i386
+          sudo apt install cmake "${CC}-multilib" "${CXX}-multilib" zlib1g-dev:i386 libssl-dev:i386 libcurl4-openssl-dev:i386 liblzma-dev:i386
 
       - name: Installing Alpine Linux Dependencies
         if: ${{ contains(matrix.container, 'alpine') }}
         run: |
           apk update
-          apk add curl-dev libunwind-dev libunwind-static xz-dev
+          apk add curl-dev xz-dev
       # install manually until available by default (also for future .NET updates)
       - name: Install .NET 10 SDK for ARM64 runners
         if: ${{ runner.os == 'Linux' && runner.arch == 'ARM64' && !matrix.container }}
@@ -285,11 +298,6 @@ jobs:
           ./dotnet-install.sh --channel 10.0 --install-dir $HOME/.dotnet
           echo "$HOME/.dotnet" >> $GITHUB_PATH
           echo "DOTNET_ROOT=$HOME/.dotnet" >> $GITHUB_ENV
-
-        # https://github.com/actions/runner-images/issues/9491
-      - name: Decrease vm.mmap_rnd_bit to prevent ASLR ASAN issues
-        if: ${{ runner.os == 'Linux' && contains(env['RUN_ANALYZER'], 'asan') }}
-        run: sudo sysctl vm.mmap_rnd_bits=28
 
       - name: Installing CodeChecker
         if: ${{ contains(env['RUN_ANALYZER'], 'code-checker') }}

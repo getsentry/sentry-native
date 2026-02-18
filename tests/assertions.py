@@ -127,11 +127,11 @@ def assert_event_meta(
             match = VERSION_RE.match(version)
             version = match.group(1)
             build = match.group(2)
+            expected_os_context = {"name": "Linux", "version": version}
+            if build:
+                expected_os_context["build"] = build
 
-            assert_matches(
-                event["contexts"]["os"],
-                {"name": "Linux", "version": version, "build": build},
-            )
+            assert_matches(event["contexts"]["os"], expected_os_context)
             assert "distribution_name" in event["contexts"]["os"]
             assert "distribution_version" in event["contexts"]["os"]
         elif sys.platform == "darwin":
@@ -170,6 +170,16 @@ def assert_event_meta(
         )
 
 
+def is_valid_hex(s):
+    if not s.lower().startswith("0x"):
+        return False
+    try:
+        int(s, 0)
+        return True
+    except ValueError:
+        return False
+
+
 def assert_stacktrace(
     envelope, inside_exception=False, check_size=True, check_package=False
 ):
@@ -181,7 +191,7 @@ def assert_stacktrace(
 
     if check_size:
         assert len(frames) > 0
-        assert all(frame["instruction_addr"].startswith("0x") for frame in frames)
+        assert all(is_valid_hex(frame["instruction_addr"]) for frame in frames)
         assert any(
             frame.get("function") is not None and frame.get("package") is not None
             for frame in frames

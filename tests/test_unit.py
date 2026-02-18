@@ -17,7 +17,11 @@ def test_unit(cmake, unittest):
 
 @pytest.mark.skipif(not has_http, reason="tests need http transport")
 def test_unit_transport(cmake, unittest):
-    if unittest in ["custom_logger", "logger_enable_disable_functionality"]:
+    if unittest in [
+        "custom_logger",
+        "logger_enable_disable_functionality",
+        "logger_level",
+    ]:
         pytest.skip("excluded from transport test-suite")
 
     cwd = cmake(

@@ -301,27 +301,26 @@ using `cmake -D BUILD_SHARED_LIBS=OFF ..`.
 
 ### Support Matrix
 
-| Feature    | Windows | macOS | Linux | Android | iOS   |
-|------------|---------|-------|-------|---------|-------|
-| Transports |         |       |       |         |       |
-| - curl     |         | ☑     | ☑     | (✓)***  |       |
-| - winhttp  | ☑       |       |       |         |       |
-| - none     | ✓       | ✓     | ✓     | ☑       | ☑     |
-|            |         |       |       |         |       |
-| Backends   |         |       |       |         |       |
-| - crashpad | ☑       | ☑     | ☑     |         |       |
-| - breakpad | ✓       | ✓     | ✓     | (✓)**   | (✓)** |
-| - inproc   | ✓       | (✓)*  | ✓     | ☑       |       |
-| - none     | ✓       | ✓     | ✓     | ✓       |       |
+| Feature    | Windows | macOS | Linux | Android | iOS  |
+|------------|---------|-------|-------|---------|------|
+| Transports |         |       |       |         |      |
+| - curl     |         | ☑     | ☑     | (✓)**   |      |
+| - winhttp  | ☑       |       |       |         |      |
+| - none     | ✓       | ✓     | ✓     | ☑       | ☑    |
+|            |         |       |       |         |      |
+| Backends   |         |       |       |         |      |
+| - crashpad | ☑       | ☑     | ☑     |         |      |
+| - breakpad | ✓       | ✓     | ✓     | (✓)*    | (✓)* |
+| - inproc   | ✓       | ✓     | ✓     | ☑       |      |
+| - none     | ✓       | ✓     | ✓     | ✓       |      |
 
 Legend:
 
 - ☑ default
 - ✓ supported
 - (✓) supported with limitations
-- `*`: `inproc` has not produced valid stack traces on macOS since version 13 ("Ventura"). Tracking: https://github.com/getsentry/sentry-native/issues/906
-- `**`: `breakpad` on Android and iOS builds and should work according to upstream but is untested.
-- `***`: `curl` as a transport works on Android but isn't used in any supported configuration to reduce the size of our artifacts.
+- `*`: `breakpad` on Android and iOS builds and should work according to upstream but is untested.
+- `**`: `curl` as a transport works on Android but isn't used in any supported configuration to reduce the size of our artifacts.
 
 In addition to platform support, the "Advanced Usage" section of the SDK docs now [describes the tradeoffs](https://docs.sentry.io/platforms/native/advanced-usage/backend-tradeoffs/) involved in choosing a suitable backend for a particular use case.
 

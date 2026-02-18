@@ -34,8 +34,7 @@ extern "C" {
 #if defined(__GNUC__)
 #    pragma GCC diagnostic push
 #    pragma GCC diagnostic ignored "-Wunused-parameter"
-#    pragma GCC diagnostic ignored "-Wgnu-zero-variadic-macro-arguments"
-#    pragma GCC diagnostic ignored "-Wfour-char-constants"
+#    pragma GCC diagnostic ignored "-Wmultichar"
 #elif defined(_MSC_VER)
 #    pragma warning(push)
 #    pragma warning(disable : 4100) // unreferenced formal parameter
@@ -312,14 +311,14 @@ flush_scope_from_handler(
 
 #    ifdef SENTRY_PLATFORM_WINDOWS
 static bool
-sentry__crashpad_handler(EXCEPTION_POINTERS *ExceptionInfo)
+crashpad_handler(EXCEPTION_POINTERS *ExceptionInfo)
 {
 #    else
 static bool
-sentry__crashpad_handler(int signum, siginfo_t *info, ucontext_t *user_context)
+crashpad_handler(int signum, siginfo_t *info, ucontext_t *user_context)
 {
     sentry__page_allocator_enable();
-    sentry__enter_signal_handler();
+    (void)!sentry__enter_signal_handler();
 #    endif
     // Disable logging during crash handling if the option is set
     SENTRY_WITH_OPTIONS (options) {
@@ -712,7 +711,7 @@ crashpad_backend_startup(
     // `sentry_init` will persist the upload flag.
     data->db = crashpad::CrashReportDatabase::Initialize(database).release();
     process_completed_reports(data, options);
-    data->client = new crashpad::CrashpadClient;
+    data->client = new (std::nothrow) crashpad::CrashpadClient;
     char *minidump_url
         = sentry__dsn_get_minidump_url(options->dsn, options->user_agent);
     if (minidump_url) {
@@ -754,8 +753,7 @@ crashpad_backend_startup(
     }
 
 #if defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_WINDOWS)
-    crashpad::CrashpadClient::SetFirstChanceExceptionHandler(
-        &sentry__crashpad_handler);
+    crashpad::CrashpadClient::SetFirstChanceExceptionHandler(&crashpad_handler);
 #endif
 #ifdef SENTRY_PLATFORM_LINUX
     // Crashpad was recently changed to register its own signal stack, which for
@@ -766,7 +764,7 @@ crashpad_backend_startup(
     if (g_signal_stack.ss_sp) {
         g_signal_stack.ss_size = SIGNAL_STACK_SIZE;
         g_signal_stack.ss_flags = 0;
-        sigaltstack(&g_signal_stack, 0);
+        sigaltstack(&g_signal_stack, nullptr);
     }
 #endif
 
@@ -805,9 +803,9 @@ crashpad_backend_shutdown(sentry_backend_t *backend)
 
 #ifdef SENTRY_PLATFORM_LINUX
     g_signal_stack.ss_flags = SS_DISABLE;
-    sigaltstack(&g_signal_stack, 0);
+    sigaltstack(&g_signal_stack, nullptr);
     sentry_free(g_signal_stack.ss_sp);
-    g_signal_stack.ss_sp = NULL;
+    g_signal_stack.ss_sp = nullptr;
 #endif
 }
 
@@ -857,7 +855,7 @@ crashpad_backend_free(sentry_backend_t *backend)
     sentry__path_free(data->breadcrumb1_path);
     sentry__path_free(data->breadcrumb2_path);
     sentry__path_free(data->external_report_path);
-    sentry_free(data);
+    delete data;
 }
 
 static void
@@ -1049,12 +1047,11 @@ sentry__backend_new(void)
     }
     memset(backend, 0, sizeof(sentry_backend_t));
 
-    auto *data = SENTRY_MAKE(crashpad_state_t);
+    auto *data = new (std::nothrow) crashpad_state_t {};
     if (!data) {
         sentry_free(backend);
         return nullptr;
     }
-    memset(data, 0, sizeof(crashpad_state_t));
     data->scope_flush = false;
     data->crashed = false;
 
