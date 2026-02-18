@@ -12,6 +12,10 @@
 
 - Add new offline caching options to persist envelopes locally: `sentry_options_set_cache_keep`, `sentry_options_set_cache_max_items`, `sentry_options_set_cache_max_size`, and `sentry_options_set_cache_max_age`. ([#1490](https://github.com/getsentry/sentry-native/pull/1490), [#1493](https://github.com/getsentry/sentry-native/pull/1493))
 
+**Features**:
+
+- Implement the GPU Info gathering within the Native SDK ([#1336](https://github.com/getsentry/sentry-native/pull/1336))
+
 **Fixes**:
 
 - Remove spurious decref in `sentry_capture_user_feedback()` ([#1510](https://github.com/getsentry/sentry-native/pull/1510))

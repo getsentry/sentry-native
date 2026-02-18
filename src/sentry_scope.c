@@ -4,6 +4,7 @@
 #include "sentry_backend.h"
 #include "sentry_core.h"
 #include "sentry_database.h"
+#include "sentry_gpu.h"
 #include "sentry_options.h"
 #include "sentry_os.h"
 #include "sentry_ringbuffer.h"
@@ -96,6 +97,10 @@ get_scope(void)
 
     init_scope(&g_scope);
     sentry_value_set_by_key(g_scope.contexts, "os", sentry__get_os_context());
+
+    // Add GPU contexts if GPU info is enabled
+    sentry__add_gpu_contexts(g_scope.contexts);
+
     g_scope.client_sdk = get_client_sdk();
 
     g_scope_initialized = true;
