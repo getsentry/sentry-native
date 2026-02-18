@@ -72,7 +72,6 @@ def get_cflags(extra_cflags=None):
     - ERROR_ON_WARNINGS -> -Werror
     - MSVC parallel builds and warnings as errors
     - GCC analyzer
-    - llvm-cov coverage flags
 
     Args:
         extra_cflags: Additional flags to include
@@ -89,31 +88,7 @@ def get_cflags(extra_cflags=None):
     if "gcc" in os.environ.get("RUN_ANALYZER", ""):
         cflags.append("-fanalyzer")
 
-    if "llvm-cov" in os.environ.get("RUN_ANALYZER", ""):
-        cflags.extend(_get_llvm_cov_flags())
-
     return cflags
-
-
-def _get_llvm_cov_flags():
-    """Returns compiler flags for llvm-cov coverage."""
-    flags = ["-fprofile-instr-generate", "-fcoverage-mapping"]
-
-    # Handle macOS with llvm@15 from homebrew
-    if (
-        sys.platform == "darwin"
-        and os.environ.get("CC", "") == "clang"
-        and shutil.which("clang") == "/usr/local/opt/llvm@15/bin/clang"
-    ):
-        flags.extend(
-            [
-                "-L/usr/local/opt/llvm@15/lib/c++",
-                "-fexperimental-library",
-                "-Wno-unused-command-line-argument",
-            ]
-        )
-
-    return flags
 
 
 def get_tsan_env():
