@@ -628,8 +628,7 @@ SENTRY_TEST(before_breadcrumb_discard)
 
         sentry_value_t breadcrumbs
             = sentry_value_get_by_key(event, "breadcrumbs");
-        TEST_CHECK(
-            sentry_value_is_null(breadcrumbs)
+        TEST_CHECK(sentry_value_is_null(breadcrumbs)
             || sentry_value_get_length(breadcrumbs) == 0);
 
         sentry_value_decref(event);

@@ -1913,9 +1913,8 @@ typedef sentry_value_t (*sentry_before_breadcrumb_function_t)(
  * See the `sentry_before_breadcrumb_function_t` typedef above for more
  * information.
  */
-SENTRY_API void sentry_options_set_before_breadcrumb(
-    sentry_options_t *opts, sentry_before_breadcrumb_function_t func,
-    void *data);
+SENTRY_API void sentry_options_set_before_breadcrumb(sentry_options_t *opts,
+    sentry_before_breadcrumb_function_t func, void *data);
 
 /**
  * Adds the breadcrumb to be sent in case of an event.

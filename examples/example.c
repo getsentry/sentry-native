@@ -215,7 +215,8 @@ before_breadcrumb_callback(sentry_value_t breadcrumb, void *user_data)
 }
 
 static sentry_value_t
-discarding_before_breadcrumb_callback(sentry_value_t breadcrumb, void *user_data)
+discarding_before_breadcrumb_callback(
+    sentry_value_t breadcrumb, void *user_data)
 {
     (void)user_data;
 
