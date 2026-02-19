@@ -910,6 +910,7 @@ sentry_add_breadcrumb(sentry_value_t breadcrumb)
 
         if (!discarded && options->backend
             && options->backend->add_breadcrumb_func) {
+            // the hook will *not* take ownership
             options->backend->add_breadcrumb_func(
                 options->backend, breadcrumb, options);
         }
