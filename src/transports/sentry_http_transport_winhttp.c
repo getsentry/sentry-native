@@ -330,6 +330,12 @@ winhttp_send_task(void *_client, sentry_prepared_http_request_t *req,
                        WINHTTP_NO_HEADER_INDEX)) {
             resp->retry_after = sentry__string_from_wstr(buf);
         }
+
+        buf_size = sizeof(buf);
+        if (WinHttpQueryHeaders(client->request, WINHTTP_QUERY_CUSTOM,
+                L"location", buf, &buf_size, WINHTTP_NO_HEADER_INDEX)) {
+            resp->location = sentry__string_from_wstr(buf);
+        }
     }
 
     uint64_t now = sentry__monotonic_time();

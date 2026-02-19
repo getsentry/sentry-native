@@ -15,9 +15,9 @@
 
 #define ENVELOPE_MIME "application/x-sentry-envelope"
 #ifdef SENTRY_TRANSPORT_COMPRESSION
-#    define MAX_HTTP_HEADERS 4
+#    define MAX_HTTP_HEADERS 8
 #else
-#    define MAX_HTTP_HEADERS 3
+#    define MAX_HTTP_HEADERS 7
 #endif
 
 typedef struct {
@@ -183,6 +183,49 @@ sentry__prepared_http_request_free(sentry_prepared_http_request_t *req)
     sentry_free(req);
 }
 
+static int
+http_send_request(
+    http_transport_state_t *state, sentry_prepared_http_request_t *req)
+{
+    sentry_http_response_t resp;
+    memset(&resp, 0, sizeof(resp));
+
+    if (!state->send_func(state->client, req, &resp)) {
+        sentry_free(resp.retry_after);
+        sentry_free(resp.x_sentry_rate_limits);
+        sentry_free(resp.location);
+        return -1;
+    }
+
+    if (resp.x_sentry_rate_limits) {
+        sentry__rate_limiter_update_from_header(
+            state->ratelimiter, resp.x_sentry_rate_limits);
+    } else if (resp.retry_after) {
+        sentry__rate_limiter_update_from_http_retry_after(
+            state->ratelimiter, resp.retry_after);
+    } else if (resp.status_code == 429) {
+        sentry__rate_limiter_update_from_429(state->ratelimiter);
+    }
+
+    sentry_free(resp.retry_after);
+    sentry_free(resp.x_sentry_rate_limits);
+    sentry_free(resp.location);
+    return resp.status_code;
+}
+
+static int
+http_send_envelope(http_transport_state_t *state, sentry_envelope_t *envelope)
+{
+    sentry_prepared_http_request_t *req = sentry__prepare_http_request(
+        envelope, state->dsn, state->ratelimiter, state->user_agent);
+    if (!req) {
+        return 0;
+    }
+    int status_code = http_send_request(state, req);
+    sentry__prepared_http_request_free(req);
+    return status_code;
+}
+
 static void
 http_transport_state_free(void *_state)
 {
@@ -202,29 +245,7 @@ http_send_task(void *_envelope, void *_state)
     sentry_envelope_t *envelope = _envelope;
     http_transport_state_t *state = _state;
 
-    sentry_prepared_http_request_t *req = sentry__prepare_http_request(
-        envelope, state->dsn, state->ratelimiter, state->user_agent);
-    if (!req) {
-        return;
-    }
-
-    sentry_http_response_t resp;
-    memset(&resp, 0, sizeof(resp));
-
-    if (state->send_func(state->client, req, &resp)) {
-        if (resp.x_sentry_rate_limits) {
-            sentry__rate_limiter_update_from_header(
-                state->ratelimiter, resp.x_sentry_rate_limits);
-        } else if (resp.retry_after) {
-            sentry__rate_limiter_update_from_http_retry_after(
-                state->ratelimiter, resp.retry_after);
-        } else if (resp.status_code == 429) {
-            sentry__rate_limiter_update_from_429(state->ratelimiter);
-        }
-    }
-    sentry_free(resp.retry_after);
-    sentry_free(resp.x_sentry_rate_limits);
-    sentry__prepared_http_request_free(req);
+    http_send_envelope(state, envelope);
 }
 
 static int
