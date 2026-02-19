@@ -322,17 +322,18 @@ wait_for_handler_ready(int timeout_ms)
     struct pollfd pfd;
     pfd.fd = g_handler_ready_pipe[0];
     pfd.events = POLLIN;
-    int rv = poll(&pfd, 1, timeout_ms);
-    if (rv > 0) {
+    int rv;
+    do {
+        rv = poll(&pfd, 1, timeout_ms);
+    } while (rv == -1 && errno == EINTR);
+    if (rv == -1) {
+        SENTRY_WARNF("poll for handler ready failed: %s", strerror(errno));
+    } else if (rv > 0) {
         char c;
         read(g_handler_ready_pipe[0], &c, 1);
     }
-    close(g_handler_ready_pipe[0]);
-    g_handler_ready_pipe[0] = -1;
 #elif defined(SENTRY_PLATFORM_WINDOWS)
     WaitForSingleObject(g_handler_ready_event, timeout_ms);
-    CloseHandle(g_handler_ready_event);
-    g_handler_ready_event = NULL;
 #endif
     return sentry__atomic_fetch(&g_handler_thread_ready);
 }
