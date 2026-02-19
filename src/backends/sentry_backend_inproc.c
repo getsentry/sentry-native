@@ -357,6 +357,7 @@ wake_handler_thread(bool close_for_exit)
         }
     }
 #elif defined(SENTRY_PLATFORM_WINDOWS)
+    (void)close_for_exit;
     if (g_handler_semaphore) {
         ReleaseSemaphore(g_handler_semaphore, 1, NULL);
     }
