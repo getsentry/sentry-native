@@ -603,6 +603,114 @@ SENTRY_TEST(scope_breadcrumbs)
     sentry_close();
 }
 
+static sentry_value_t
+before_breadcrumb_discard_cb(sentry_value_t breadcrumb, void *data)
+{
+    (void)data;
+    sentry_value_decref(breadcrumb);
+    return sentry_value_new_null();
+}
+
+SENTRY_TEST(before_breadcrumb_discard)
+{
+    SENTRY_TEST_OPTIONS_NEW(options);
+    sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
+    sentry_options_set_before_breadcrumb(
+        options, before_breadcrumb_discard_cb, NULL);
+    sentry_init(options);
+
+    sentry_add_breadcrumb(sentry_value_new_breadcrumb(NULL, "discarded"));
+
+    SENTRY_WITH_SCOPE (scope) {
+        sentry_value_t event = sentry_value_new_object();
+        sentry__scope_apply_to_event(
+            scope, options, event, SENTRY_SCOPE_BREADCRUMBS);
+
+        sentry_value_t breadcrumbs
+            = sentry_value_get_by_key(event, "breadcrumbs");
+        TEST_CHECK(sentry_value_is_null(breadcrumbs)
+            || sentry_value_get_length(breadcrumbs) == 0);
+
+        sentry_value_decref(event);
+    }
+
+    sentry_close();
+}
+
+static sentry_value_t
+before_breadcrumb_modify_cb(sentry_value_t breadcrumb, void *data)
+{
+    (void)data;
+    sentry_value_set_by_key(
+        breadcrumb, "message", sentry_value_new_string("modified"));
+    return breadcrumb;
+}
+
+SENTRY_TEST(before_breadcrumb_modify)
+{
+    SENTRY_TEST_OPTIONS_NEW(options);
+    sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
+    sentry_options_set_before_breadcrumb(
+        options, before_breadcrumb_modify_cb, NULL);
+    sentry_init(options);
+
+    sentry_add_breadcrumb(sentry_value_new_breadcrumb(NULL, "original"));
+
+    SENTRY_WITH_SCOPE (scope) {
+        sentry_value_t event = sentry_value_new_object();
+        sentry__scope_apply_to_event(
+            scope, options, event, SENTRY_SCOPE_BREADCRUMBS);
+
+        sentry_value_t breadcrumbs
+            = sentry_value_get_by_key(event, "breadcrumbs");
+        TEST_CHECK_INT_EQUAL(sentry_value_get_length(breadcrumbs), 1);
+        TEST_CHECK_STRING_EQUAL(
+            sentry_value_as_string(sentry_value_get_by_key(
+                sentry_value_get_by_index(breadcrumbs, 0), "message")),
+            "modified");
+
+        sentry_value_decref(event);
+    }
+
+    sentry_close();
+}
+
+static sentry_value_t
+before_breadcrumb_passthrough_cb(sentry_value_t breadcrumb, void *data)
+{
+    (void)data;
+    return breadcrumb;
+}
+
+SENTRY_TEST(before_breadcrumb_passthrough)
+{
+    SENTRY_TEST_OPTIONS_NEW(options);
+    sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
+    sentry_options_set_before_breadcrumb(
+        options, before_breadcrumb_passthrough_cb, NULL);
+    sentry_init(options);
+
+    sentry_add_breadcrumb(sentry_value_new_breadcrumb(NULL, "kept"));
+
+    SENTRY_WITH_SCOPE (scope) {
+        sentry_value_t event = sentry_value_new_object();
+        sentry__scope_apply_to_event(
+            scope, options, event, SENTRY_SCOPE_BREADCRUMBS);
+
+        sentry_value_t breadcrumbs
+            = sentry_value_get_by_key(event, "breadcrumbs");
+        TEST_CHECK_INT_EQUAL(sentry_value_get_length(breadcrumbs), 1);
+        TEST_CHECK_STRING_EQUAL(
+            sentry_value_as_string(sentry_value_get_by_key(
+                sentry_value_get_by_index(breadcrumbs, 0), "message")),
+            "kept");
+
+        sentry_value_decref(event);
+    }
+
+    sentry_close();
+}
+
 SENTRY_TEST(scope_global_attributes)
 {
     SENTRY_TEST_OPTIONS_NEW(options);

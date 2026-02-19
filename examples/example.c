@@ -202,6 +202,29 @@ discarding_before_send_metric_callback(sentry_value_t metric, void *user_data)
     return sentry_value_new_null();
 }
 
+static sentry_value_t
+before_breadcrumb_callback(sentry_value_t breadcrumb, void *user_data)
+{
+    (void)user_data;
+
+    // make our mark on the breadcrumbs
+    sentry_value_set_by_key(
+        breadcrumb, "category", sentry_value_new_string("before_breadcrumb"));
+
+    return breadcrumb;
+}
+
+static sentry_value_t
+discarding_before_breadcrumb_callback(
+    sentry_value_t breadcrumb, void *user_data)
+{
+    (void)user_data;
+
+    // discard breadcrumb
+    sentry_value_decref(breadcrumb);
+    return sentry_value_new_null();
+}
+
 // Test logger that outputs in a format the integration tests can parse
 static void
 test_logger_callback(
@@ -623,6 +646,16 @@ main(int argc, char **argv)
     if (has_arg(argc, argv, "discarding-before-send-metric")) {
         sentry_options_set_before_send_metric(
             options, discarding_before_send_metric_callback, NULL);
+    }
+
+    if (has_arg(argc, argv, "before-breadcrumb")) {
+        sentry_options_set_before_breadcrumb(
+            options, before_breadcrumb_callback, NULL);
+    }
+
+    if (has_arg(argc, argv, "discarding-before-breadcrumb")) {
+        sentry_options_set_before_breadcrumb(
+            options, discarding_before_breadcrumb_callback, NULL);
     }
 
     if (0 != sentry_init(options)) {
