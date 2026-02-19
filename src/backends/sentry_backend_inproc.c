@@ -333,7 +333,7 @@ wait_for_handler_ready(int timeout_ms)
         read(g_handler_ready_pipe[0], &c, 1);
     }
 #elif defined(SENTRY_PLATFORM_WINDOWS)
-    WaitForSingleObject(g_handler_ready_event, timeout_ms);
+    WaitForSingleObject(g_handler_ready_event, (DWORD)timeout_ms);
 #endif
     return sentry__atomic_fetch(&g_handler_thread_ready);
 }
