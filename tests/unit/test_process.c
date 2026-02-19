@@ -16,7 +16,8 @@ SENTRY_TEST(process_invalid)
     sentry__path_free(nul);
 }
 
-#ifndef SENTRY_PLATFORM_WINDOWS
+#if defined(SENTRY_PLATFORM_MACOS)                                             \
+    || (defined(SENTRY_PLATFORM_LINUX) && !defined(SENTRY_PLATFORM_ANDROID))
 void
 find_cp_path(char *buf, size_t buf_len)
 {
