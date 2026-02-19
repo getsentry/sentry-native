@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1771517743742,
+  "lastUpdate": 1771519655473,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -11064,6 +11064,66 @@ window.BENCHMARK_DATA = {
             "value": 1.9530419999966853,
             "unit": "ms",
             "extra": "Min 1.919ms\nMax 1.990ms\nMean 1.957ms\nStdDev 0.029ms\nMedian 1.953ms\nCPU 0.595ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "mischan@abovevacant.com",
+            "name": "Mischan Toosarani-Hausberger",
+            "username": "supervacuus"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "2475b26d033f7c9ea547fafd2ed9e9cab1fe091a",
+          "message": "fix: clean up inproc handler sync (#1533)\n\n* fix: clean up inproc handler sync\n\n* add a poll EINTR loop and log warning for any other error (all except OOM unrealistic)\n\n* prevent Werror build failure on Windows.\n\n* fix another Werror cast for clang-cl\n\n* get rid of another infinite wait that would most likely be triggered in CI\n\nalso make abort() popups on Windows a global config for the inproc stress test.",
+          "timestamp": "2026-02-19T17:45:06+01:00",
+          "tree_id": "ff789a601267f29109dd7c6700039d49e79fe78f",
+          "url": "https://github.com/getsentry/sentry-native/commit/2475b26d033f7c9ea547fafd2ed9e9cab1fe091a"
+        },
+        "date": 1771519652964,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 0.7534049999975423,
+            "unit": "ms",
+            "extra": "Min 0.736ms\nMax 0.782ms\nMean 0.756ms\nStdDev 0.018ms\nMedian 0.753ms\nCPU 0.718ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 0.706872999998609,
+            "unit": "ms",
+            "extra": "Min 0.700ms\nMax 0.762ms\nMean 0.719ms\nStdDev 0.025ms\nMedian 0.707ms\nCPU 0.718ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 2.586821999983613,
+            "unit": "ms",
+            "extra": "Min 2.546ms\nMax 2.719ms\nMean 2.606ms\nStdDev 0.066ms\nMedian 2.587ms\nCPU 1.281ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.10542100000066057,
+            "unit": "ms",
+            "extra": "Min 0.101ms\nMax 0.118ms\nMean 0.107ms\nStdDev 0.006ms\nMedian 0.105ms\nCPU 0.062ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.021231999994597572,
+            "unit": "ms",
+            "extra": "Min 0.021ms\nMax 0.022ms\nMean 0.021ms\nStdDev 0.000ms\nMedian 0.021ms\nCPU 0.020ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 1.6049700000166922,
+            "unit": "ms",
+            "extra": "Min 1.529ms\nMax 1.694ms\nMean 1.607ms\nStdDev 0.074ms\nMedian 1.605ms\nCPU 0.418ms"
           }
         ]
       }
