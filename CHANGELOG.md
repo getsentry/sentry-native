@@ -10,6 +10,7 @@
 **Features**:
 
 - Add support for `abort()` in the `inproc` backend on Windows. ([#1446](https://github.com/getsentry/sentry-native/pull/1446))
+- Add `beforeBreadcrumb` callback support ([#1534](https://github.com/getsentry/sentry-native/pull/1534))
 
 **Fixes**:
 
