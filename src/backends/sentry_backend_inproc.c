@@ -1501,7 +1501,13 @@ dispatch_ucontext(const sentry_ucontext_t *uctx,
     }
 #    elif defined(SENTRY_PLATFORM_WINDOWS)
     if (g_handler_ack_semaphore) {
-        WaitForSingleObject(g_handler_ack_semaphore, INFINITE);
+        // Use a timeout rather than INFINITE to prevent hanging forever.
+        // The most likely reason for this  are integration tests in CI.
+        DWORD wait_result = WaitForSingleObject(g_handler_ack_semaphore, 10000);
+        if (wait_result == WAIT_TIMEOUT) {
+            SENTRY_SIGNAL_SAFE_LOG(
+                "WARN handler thread did not ACK within timeout");
+        }
     }
 #    endif
 
