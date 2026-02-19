@@ -433,8 +433,8 @@ def assert_before_breadcrumb(envelope):
 
 def assert_no_breadcrumbs(envelope):
     event = envelope.get_event()
-    breadcrumbs = event.get("breadcrumbs", [])
-    assert len(breadcrumbs) == 0
+    breadcrumbs = event.get("breadcrumbs")
+    assert not breadcrumbs
 
 
 @dataclass(frozen=True)
