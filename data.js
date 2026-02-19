@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1771427775750,
+  "lastUpdate": 1771493476184,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -10944,6 +10944,66 @@ window.BENCHMARK_DATA = {
             "value": 2.0947309999996833,
             "unit": "ms",
             "extra": "Min 2.022ms\nMax 2.167ms\nMean 2.098ms\nStdDev 0.052ms\nMedian 2.095ms\nCPU 0.624ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "jpnurmi@gmail.com",
+            "name": "J-P Nurmi",
+            "username": "jpnurmi"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "80aab168f4583df00a8b1b0d2044de705f620356",
+          "message": "fix: build on consoles (#1532)\n\nThe find_cp_path helper used popen/pclose which are unavailable on\nconsoles. Narrow the guard to match the platforms where the function\nis actually called: macOS and desktop Linux.",
+          "timestamp": "2026-02-19T10:28:43+01:00",
+          "tree_id": "9904fb040f57f041f2e6db155041b37bd76ffcac",
+          "url": "https://github.com/getsentry/sentry-native/commit/80aab168f4583df00a8b1b0d2044de705f620356"
+        },
+        "date": 1771493474166,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 10.950706000002697,
+            "unit": "ms",
+            "extra": "Min 10.901ms\nMax 10.980ms\nMean 10.940ms\nStdDev 0.032ms\nMedian 10.951ms\nCPU 0.874ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 0.8196759999918868,
+            "unit": "ms",
+            "extra": "Min 0.794ms\nMax 0.885ms\nMean 0.829ms\nStdDev 0.034ms\nMedian 0.820ms\nCPU 0.828ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 3.3566060000111975,
+            "unit": "ms",
+            "extra": "Min 3.241ms\nMax 3.681ms\nMean 3.409ms\nStdDev 0.175ms\nMedian 3.357ms\nCPU 1.734ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 10.144036000014012,
+            "unit": "ms",
+            "extra": "Min 10.139ms\nMax 10.150ms\nMean 10.144ms\nStdDev 0.004ms\nMedian 10.144ms\nCPU 0.090ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.03758999997671708,
+            "unit": "ms",
+            "extra": "Min 0.036ms\nMax 0.038ms\nMean 0.037ms\nStdDev 0.001ms\nMedian 0.038ms\nCPU 0.036ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 2.071751999977778,
+            "unit": "ms",
+            "extra": "Min 2.016ms\nMax 2.128ms\nMean 2.075ms\nStdDev 0.045ms\nMedian 2.072ms\nCPU 0.630ms"
           }
         ]
       }
