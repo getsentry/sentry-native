@@ -895,12 +895,29 @@ sentry_remove_user(void)
 void
 sentry_add_breadcrumb(sentry_value_t breadcrumb)
 {
+    bool discarded = false;
     SENTRY_WITH_OPTIONS (options) {
-        if (options->backend && options->backend->add_breadcrumb_func) {
-            // the hook will *not* take ownership
+        if (options->before_breadcrumb_func) {
+            SENTRY_DEBUG("invoking `before_breadcrumb` hook");
+            breadcrumb = options->before_breadcrumb_func(
+                breadcrumb, options->before_breadcrumb_data);
+            if (sentry_value_is_null(breadcrumb)) {
+                SENTRY_DEBUG(
+                    "breadcrumb was discarded by the "
+                    "`before_breadcrumb` hook");
+                discarded = true;
+            }
+        }
+
+        if (!discarded && options->backend
+            && options->backend->add_breadcrumb_func) {
             options->backend->add_breadcrumb_func(
                 options->backend, breadcrumb, options);
         }
+    }
+
+    if (discarded) {
+        return;
     }
 
     // the `no_flush` will avoid triggering *both* scope-change and

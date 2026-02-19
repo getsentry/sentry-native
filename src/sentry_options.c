@@ -170,6 +170,14 @@ sentry_options_set_before_send_log(sentry_options_t *opts,
 }
 
 void
+sentry_options_set_before_breadcrumb(sentry_options_t *opts,
+    sentry_before_breadcrumb_function_t func, void *user_data)
+{
+    opts->before_breadcrumb_func = func;
+    opts->before_breadcrumb_data = user_data;
+}
+
+void
 sentry_options_set_dsn_n(
     sentry_options_t *opts, const char *raw_dsn, size_t raw_dsn_len)
 {
