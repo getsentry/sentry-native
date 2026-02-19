@@ -489,12 +489,23 @@ const char *sentry__bgworker_get_thread_name(sentry_bgworker_t *bgw);
 /**
  * This will submit a new task to the background thread.
  *
+ * The `_delayed` variant delays execution by the specified delay in
+ * milliseconds, and the `_at` variant executes after the specified monotonic
+ * timestamp. The latter is mostly useful for testing to ensure deterministic
+ * ordering of tasks regardless of OS preemption between submissions.
+ *
  * Takes ownership of `data`, freeing it using the provided `cleanup_func`.
  * Returns 0 on success.
  */
 int sentry__bgworker_submit(sentry_bgworker_t *bgw,
     sentry_task_exec_func_t exec_func, void (*cleanup_func)(void *task_data),
     void *task_data);
+int sentry__bgworker_submit_delayed(sentry_bgworker_t *bgw,
+    sentry_task_exec_func_t exec_func, void (*cleanup_func)(void *task_data),
+    void *task_data, uint64_t delay_ms);
+int sentry__bgworker_submit_at(sentry_bgworker_t *bgw,
+    sentry_task_exec_func_t exec_func, void (*cleanup_func)(void *task_data),
+    void *task_data, uint64_t execute_after);
 
 /**
  * This function will iterate through all the current tasks of the worker
