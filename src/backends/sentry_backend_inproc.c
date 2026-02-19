@@ -23,6 +23,9 @@
 #include "transports/sentry_disk_transport.h"
 #include <errno.h>
 #include <limits.h>
+#ifdef SENTRY_PLATFORM_UNIX
+#    include <poll.h>
+#endif
 #include <string.h>
 
 /**
@@ -197,10 +200,167 @@ static volatile long g_crash_handling_state = CRASH_STATE_IDLE;
 #ifdef SENTRY_PLATFORM_UNIX
 static int g_handler_pipe[2] = { -1, -1 };
 static int g_handler_ack_pipe[2] = { -1, -1 };
+static int g_handler_ready_pipe[2] = { -1, -1 };
 #elif defined(SENTRY_PLATFORM_WINDOWS)
 static HANDLE g_handler_semaphore = NULL;
 static HANDLE g_handler_ack_semaphore = NULL;
+static HANDLE g_handler_ready_event = NULL;
 #endif
+
+#ifdef SENTRY_PLATFORM_UNIX
+static void
+close_pipe(int pipe_fds[2])
+{
+    if (pipe_fds[0] >= 0) {
+        close(pipe_fds[0]);
+        pipe_fds[0] = -1;
+    }
+    if (pipe_fds[1] >= 0) {
+        close(pipe_fds[1]);
+        pipe_fds[1] = -1;
+    }
+}
+#endif
+
+static int
+init_handler_sync(void)
+{
+#ifdef SENTRY_PLATFORM_UNIX
+    if (pipe(g_handler_pipe) != 0) {
+        SENTRY_WARNF("failed to create handler pipe: %s", strerror(errno));
+        return 1;
+    }
+    if (pipe(g_handler_ack_pipe) != 0) {
+        SENTRY_WARNF("failed to create handler ack pipe: %s", strerror(errno));
+        close_pipe(g_handler_pipe);
+        return 1;
+    }
+    if (pipe(g_handler_ready_pipe) != 0) {
+        SENTRY_WARNF(
+            "failed to create handler ready pipe: %s", strerror(errno));
+        close_pipe(g_handler_pipe);
+        close_pipe(g_handler_ack_pipe);
+        return 1;
+    }
+#elif defined(SENTRY_PLATFORM_WINDOWS)
+    g_handler_semaphore = CreateSemaphoreW(NULL, 0, LONG_MAX, NULL);
+    if (!g_handler_semaphore) {
+        SENTRY_WARN("failed to create handler semaphore");
+        return 1;
+    }
+    g_handler_ack_semaphore = CreateSemaphoreW(NULL, 0, LONG_MAX, NULL);
+    if (!g_handler_ack_semaphore) {
+        SENTRY_WARN("failed to create handler ack semaphore");
+        CloseHandle(g_handler_semaphore);
+        g_handler_semaphore = NULL;
+        return 1;
+    }
+    g_handler_ready_event = CreateEventW(NULL, TRUE, FALSE, NULL);
+    if (!g_handler_ready_event) {
+        SENTRY_WARN("failed to create handler ready event");
+        CloseHandle(g_handler_semaphore);
+        g_handler_semaphore = NULL;
+        CloseHandle(g_handler_ack_semaphore);
+        g_handler_ack_semaphore = NULL;
+        return 1;
+    }
+#endif
+    return 0;
+}
+
+static void
+teardown_handler_sync(void)
+{
+#ifdef SENTRY_PLATFORM_UNIX
+    close_pipe(g_handler_pipe);
+    close_pipe(g_handler_ack_pipe);
+    close_pipe(g_handler_ready_pipe);
+#elif defined(SENTRY_PLATFORM_WINDOWS)
+    if (g_handler_semaphore) {
+        CloseHandle(g_handler_semaphore);
+        g_handler_semaphore = NULL;
+    }
+    if (g_handler_ack_semaphore) {
+        CloseHandle(g_handler_ack_semaphore);
+        g_handler_ack_semaphore = NULL;
+    }
+    if (g_handler_ready_event) {
+        CloseHandle(g_handler_ready_event);
+        g_handler_ready_event = NULL;
+    }
+#endif
+}
+
+// Signals that the handler thread is ready to process crashes
+static void
+signal_handler_ready(void)
+{
+    sentry__atomic_store(&g_handler_thread_ready, 1);
+#ifdef SENTRY_PLATFORM_UNIX
+    char c = 1;
+    ssize_t rv;
+    do {
+        rv = write(g_handler_ready_pipe[1], &c, 1);
+    } while (rv == -1 && errno == EINTR);
+    close(g_handler_ready_pipe[1]);
+    g_handler_ready_pipe[1] = -1;
+#elif defined(SENTRY_PLATFORM_WINDOWS)
+    SetEvent(g_handler_ready_event);
+#endif
+}
+
+// Allows init to wait until the handler thread is ready to handle crashes. The
+// initialization is quick enough for early crashes ending up in a half-
+// initialized handler state.
+//
+// A timed out handler thread is an initialization error. The wait happens with
+// OS-level polling rather than spinning on an atomic.
+static bool
+wait_for_handler_ready(int timeout_ms)
+{
+#ifdef SENTRY_PLATFORM_UNIX
+    struct pollfd pfd;
+    pfd.fd = g_handler_ready_pipe[0];
+    pfd.events = POLLIN;
+    int rv = poll(&pfd, 1, timeout_ms);
+    if (rv > 0) {
+        char c;
+        read(g_handler_ready_pipe[0], &c, 1);
+    }
+    close(g_handler_ready_pipe[0]);
+    g_handler_ready_pipe[0] = -1;
+#elif defined(SENTRY_PLATFORM_WINDOWS)
+    WaitForSingleObject(g_handler_ready_event, timeout_ms);
+    CloseHandle(g_handler_ready_event);
+    g_handler_ready_event = NULL;
+#endif
+    return sentry__atomic_fetch(&g_handler_thread_ready);
+}
+
+// Wakes the handler thread. If `close_for_exit` is true, closes the write end
+// of the pipe (Unix) to cause an EOF, otherwise writes a command byte.
+static void
+wake_handler_thread(bool close_for_exit)
+{
+#ifdef SENTRY_PLATFORM_UNIX
+    if (g_handler_pipe[1] >= 0) {
+        if (close_for_exit) {
+            close(g_handler_pipe[1]);
+            g_handler_pipe[1] = -1;
+        } else {
+            char c = 0;
+            ssize_t rv;
+            do {
+                rv = write(g_handler_pipe[1], &c, 1);
+            } while (rv == -1 && errno == EINTR);
+        }
+    }
+#elif defined(SENTRY_PLATFORM_WINDOWS)
+    if (g_handler_semaphore) {
+        ReleaseSemaphore(g_handler_semaphore, 1, NULL);
+    }
+#endif
+}
 
 static int start_handler_thread(void);
 static void stop_handler_thread(void);
@@ -236,14 +396,15 @@ static void handle_signal(int signum, siginfo_t *info, void *user_context);
  * can be freed later via `teardown_sigaltstack()`.
  */
 static void
-setup_sigaltstack(stack_t *out_stack)
+setup_sigaltstack(stack_t *out_stack, const char *context)
 {
     memset(out_stack, 0, sizeof(*out_stack));
 
     stack_t old_sig_stack;
     int ret = sigaltstack(NULL, &old_sig_stack);
     if (ret == 0 && old_sig_stack.ss_flags == SS_DISABLE) {
-        SENTRY_DEBUGF("installing signal stack (size: %d)", SIGNAL_STACK_SIZE);
+        SENTRY_DEBUGF(
+            "installing %s sigaltstack (size: %d)", context, SIGNAL_STACK_SIZE);
         out_stack->ss_sp = sentry_malloc(SIGNAL_STACK_SIZE);
         if (!out_stack->ss_sp) {
             SENTRY_WARN("failed to allocate signal stack");
@@ -335,7 +496,7 @@ startup_inproc_backend(
         }
     }
 
-    setup_sigaltstack(&g_signal_stack);
+    setup_sigaltstack(&g_signal_stack, "init");
 
     // install our own signal handler
     sigemptyset(&g_sigaction.sa_mask);
@@ -1040,10 +1201,10 @@ handler_thread_main(void *UNUSED(data))
 #ifdef SENTRY_PLATFORM_UNIX
     // Set up an alternate signal stack for the handler thread
     stack_t handler_thread_stack;
-    setup_sigaltstack(&handler_thread_stack);
+    setup_sigaltstack(&handler_thread_stack, "handler");
 #endif
 
-    sentry__atomic_store(&g_handler_thread_ready, 1);
+    signal_handler_ready();
 
     for (;;) {
 #ifdef SENTRY_PLATFORM_UNIX
@@ -1122,119 +1283,30 @@ start_handler_thread(void)
     sentry__atomic_store(&g_handler_should_exit, 0);
     sentry__atomic_store(&g_handler_has_work, 0);
 
-#ifdef SENTRY_PLATFORM_UNIX
-    if (pipe(g_handler_pipe) != 0) {
-        SENTRY_WARNF("failed to create handler pipe: %s", strerror(errno));
+    if (init_handler_sync() != 0) {
         return 1;
     }
-    if (pipe(g_handler_ack_pipe) != 0) {
-        SENTRY_WARNF("failed to create handler ack pipe: %s", strerror(errno));
-        close(g_handler_pipe[0]);
-        close(g_handler_pipe[1]);
-        g_handler_pipe[0] = -1;
-        g_handler_pipe[1] = -1;
-        return 1;
-    }
-#elif defined(SENTRY_PLATFORM_WINDOWS)
-    g_handler_semaphore = CreateSemaphoreW(NULL, 0, LONG_MAX, NULL);
-    if (!g_handler_semaphore) {
-        SENTRY_WARN("failed to create handler semaphore");
-        return 1;
-    }
-    g_handler_ack_semaphore = CreateSemaphoreW(NULL, 0, LONG_MAX, NULL);
-    if (!g_handler_ack_semaphore) {
-        SENTRY_WARN("failed to create handler ack semaphore");
-        CloseHandle(g_handler_semaphore);
-        g_handler_semaphore = NULL;
-        return 1;
-    }
-#endif
 
     if (sentry__thread_spawn(&g_handler_thread, handler_thread_main, NULL)
         != 0) {
         SENTRY_WARN("failed to spawn handler thread");
-#ifdef SENTRY_PLATFORM_UNIX
-        close(g_handler_pipe[0]);
-        close(g_handler_pipe[1]);
-        g_handler_pipe[0] = -1;
-        g_handler_pipe[1] = -1;
-        close(g_handler_ack_pipe[0]);
-        close(g_handler_ack_pipe[1]);
-        g_handler_ack_pipe[0] = -1;
-        g_handler_ack_pipe[1] = -1;
-#elif defined(SENTRY_PLATFORM_WINDOWS)
-        CloseHandle(g_handler_semaphore);
-        g_handler_semaphore = NULL;
-        CloseHandle(g_handler_ack_semaphore);
-        g_handler_ack_semaphore = NULL;
-#endif
+        teardown_handler_sync();
         return 1;
     }
 
-    // Wait for handler thread to be ready before returning. Use a time-based
-    // timeout (5 seconds) with periodic sleeps to ensure we give the handler
-    // thread enough time even on slow systems (e.g., Android emulators).
-    const int timeout_ms = 5000;
-    const int sleep_interval_ms = 10;
-    int elapsed_ms = 0;
-    while (!sentry__atomic_fetch(&g_handler_thread_ready)
-        && elapsed_ms < timeout_ms) {
-#ifdef SENTRY_PLATFORM_WINDOWS
-        Sleep(sleep_interval_ms);
-#else
-        usleep(sleep_interval_ms * 1000);
-#endif
-        elapsed_ms += sleep_interval_ms;
-    }
-
-    if (!sentry__atomic_fetch(&g_handler_thread_ready)) {
+    if (!wait_for_handler_ready(5000)) {
         SENTRY_WARN("handler thread failed to start in time");
         // Thread was spawned but didn't become ready. Signal it to exit,
         // join it, and clean up all resources.
         sentry__atomic_store(&g_handler_should_exit, 1);
-#ifdef SENTRY_PLATFORM_UNIX
-        // Close the write end of the pipe to unblock any pending read()
-        // in the handler thread, causing it to see EOF and exit.
-        if (g_handler_pipe[1] >= 0) {
-            close(g_handler_pipe[1]);
-            g_handler_pipe[1] = -1;
-        }
-#elif defined(SENTRY_PLATFORM_WINDOWS)
-        if (g_handler_semaphore) {
-            ReleaseSemaphore(g_handler_semaphore, 1, NULL);
-        }
-#endif
+        wake_handler_thread(true);
         sentry__thread_join(g_handler_thread);
         sentry__thread_free(&g_handler_thread);
 
         // The thread may have set g_handler_thread_ready before exiting;
         // ensure it's cleared so we don't appear "started".
         sentry__atomic_store(&g_handler_thread_ready, 0);
-
-        // Clean up remaining resources
-#ifdef SENTRY_PLATFORM_UNIX
-        if (g_handler_pipe[0] >= 0) {
-            close(g_handler_pipe[0]);
-            g_handler_pipe[0] = -1;
-        }
-        if (g_handler_ack_pipe[0] >= 0) {
-            close(g_handler_ack_pipe[0]);
-            g_handler_ack_pipe[0] = -1;
-        }
-        if (g_handler_ack_pipe[1] >= 0) {
-            close(g_handler_ack_pipe[1]);
-            g_handler_ack_pipe[1] = -1;
-        }
-#elif defined(SENTRY_PLATFORM_WINDOWS)
-        if (g_handler_semaphore) {
-            CloseHandle(g_handler_semaphore);
-            g_handler_semaphore = NULL;
-        }
-        if (g_handler_ack_semaphore) {
-            CloseHandle(g_handler_ack_semaphore);
-            g_handler_ack_semaphore = NULL;
-        }
-#endif
+        teardown_handler_sync();
         return 1;
     }
 
@@ -1249,51 +1321,11 @@ stop_handler_thread(void)
     }
 
     sentry__atomic_store(&g_handler_should_exit, 1);
-
-#ifdef SENTRY_PLATFORM_UNIX
-    if (g_handler_pipe[1] >= 0) {
-        char c = 0;
-        ssize_t rv;
-        do {
-            rv = write(g_handler_pipe[1], &c, 1);
-        } while (rv == -1 && errno == EINTR);
-    }
-#elif defined(SENTRY_PLATFORM_WINDOWS)
-    if (g_handler_semaphore) {
-        ReleaseSemaphore(g_handler_semaphore, 1, NULL);
-    }
-#endif
+    wake_handler_thread(false);
 
     sentry__thread_join(g_handler_thread);
     sentry__thread_free(&g_handler_thread);
-
-#ifdef SENTRY_PLATFORM_UNIX
-    if (g_handler_pipe[0] >= 0) {
-        close(g_handler_pipe[0]);
-        g_handler_pipe[0] = -1;
-    }
-    if (g_handler_pipe[1] >= 0) {
-        close(g_handler_pipe[1]);
-        g_handler_pipe[1] = -1;
-    }
-    if (g_handler_ack_pipe[0] >= 0) {
-        close(g_handler_ack_pipe[0]);
-        g_handler_ack_pipe[0] = -1;
-    }
-    if (g_handler_ack_pipe[1] >= 0) {
-        close(g_handler_ack_pipe[1]);
-        g_handler_ack_pipe[1] = -1;
-    }
-#elif defined(SENTRY_PLATFORM_WINDOWS)
-    if (g_handler_semaphore) {
-        CloseHandle(g_handler_semaphore);
-        g_handler_semaphore = NULL;
-    }
-    if (g_handler_ack_semaphore) {
-        CloseHandle(g_handler_ack_semaphore);
-        g_handler_ack_semaphore = NULL;
-    }
-#endif
+    teardown_handler_sync();
 
     sentry__atomic_store(&g_handler_thread_ready, 0);
     sentry__atomic_store(&g_handler_should_exit, 0);
