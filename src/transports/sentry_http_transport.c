@@ -17,9 +17,9 @@
 
 #define ENVELOPE_MIME "application/x-sentry-envelope"
 #ifdef SENTRY_TRANSPORT_COMPRESSION
-#    define MAX_HTTP_HEADERS 4
+#    define MAX_HTTP_HEADERS 8
 #else
-#    define MAX_HTTP_HEADERS 3
+#    define MAX_HTTP_HEADERS 7
 #endif
 
 typedef struct {
@@ -197,6 +197,7 @@ http_send_request(
     if (!state->send_func(state->client, req, &resp)) {
         sentry_free(resp.retry_after);
         sentry_free(resp.x_sentry_rate_limits);
+        sentry_free(resp.location);
         return -1;
     }
 
@@ -212,6 +213,7 @@ http_send_request(
 
     sentry_free(resp.retry_after);
     sentry_free(resp.x_sentry_rate_limits);
+    sentry_free(resp.location);
     return resp.status_code;
 }
 

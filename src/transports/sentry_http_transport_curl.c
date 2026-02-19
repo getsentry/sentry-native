@@ -146,6 +146,8 @@ header_callback(char *buffer, size_t size, size_t nitems, void *userdata)
             info->retry_after = sentry__slice_to_owned(value);
         } else if (sentry__string_eq(header, "x-sentry-rate-limits")) {
             info->x_sentry_rate_limits = sentry__slice_to_owned(value);
+        } else if (sentry__string_eq(header, "location")) {
+            info->location = sentry__slice_to_owned(value);
         }
     }
 
