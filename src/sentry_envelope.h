@@ -147,6 +147,12 @@ void sentry__envelope_serialize_into_stringbuilder(
 MUST_USE int sentry_envelope_write_to_path(
     const sentry_envelope_t *envelope, const sentry_path_t *path);
 
+/**
+ * Materialize a raw envelope by deserializing its payload into structured
+ * headers and items. Returns 0 on success, or if already materialized.
+ */
+int sentry__envelope_materialize(sentry_envelope_t *envelope);
+
 // these for now are only needed for tests
 #ifdef SENTRY_UNITTEST
 size_t sentry__envelope_get_item_count(const sentry_envelope_t *envelope);
