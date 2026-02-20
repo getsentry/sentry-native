@@ -79,8 +79,8 @@ void sentry__process_old_runs(
     const sentry_options_t *options, uint64_t last_crash);
 
 /**
- * Cleans up the cache based on options.max_cache_size and
- * options.max_cache_age.
+ * Cleans up the cache based on options.cache_max_items,
+ * options.cache_max_size and options.cache_max_age.
  */
 void sentry__cleanup_cache(const sentry_options_t *options);
 
