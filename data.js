@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1771599822494,
+  "lastUpdate": 1771599978559,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -22310,6 +22310,66 @@ window.BENCHMARK_DATA = {
             "value": 8.371292000020958,
             "unit": "ms",
             "extra": "Min 5.380ms\nMax 15.622ms\nMean 8.990ms\nStdDev 4.043ms\nMedian 8.371ms\nCPU 1.467ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "mischan@abovevacant.com",
+            "name": "Mischan Toosarani-Hausberger",
+            "username": "supervacuus"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "5cae5da550cb3ce41256a587ef7ef180728cc7db",
+          "message": "ci: sync android emulator time with host time (#1536)\n\n* ci: sync android emulator time with host time\n\n* provide `su root date` as fallback for when `cmd alarm set-time` fails",
+          "timestamp": "2026-02-20T16:01:08+01:00",
+          "tree_id": "d192959692b5754a440c892671bc02baabf1d26a",
+          "url": "https://github.com/getsentry/sentry-native/commit/5cae5da550cb3ce41256a587ef7ef180728cc7db"
+        },
+        "date": 1771599975343,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 6.820042000015292,
+            "unit": "ms",
+            "extra": "Min 5.570ms\nMax 10.894ms\nMean 7.567ms\nStdDev 2.180ms\nMedian 6.820ms\nCPU 4.285ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 5.636207999998533,
+            "unit": "ms",
+            "extra": "Min 3.837ms\nMax 11.959ms\nMean 7.311ms\nStdDev 3.424ms\nMedian 5.636ms\nCPU 4.305ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 25.38545800001657,
+            "unit": "ms",
+            "extra": "Min 18.077ms\nMax 56.450ms\nMean 29.969ms\nStdDev 15.453ms\nMedian 25.385ms\nCPU 7.030ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.06975000002285014,
+            "unit": "ms",
+            "extra": "Min 0.049ms\nMax 0.091ms\nMean 0.072ms\nStdDev 0.017ms\nMedian 0.070ms\nCPU 0.048ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.2682500000332766,
+            "unit": "ms",
+            "extra": "Min 0.242ms\nMax 0.319ms\nMean 0.278ms\nStdDev 0.035ms\nMedian 0.268ms\nCPU 0.277ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 10.645041000032052,
+            "unit": "ms",
+            "extra": "Min 6.423ms\nMax 10.740ms\nMean 9.170ms\nStdDev 2.126ms\nMedian 10.645ms\nCPU 1.032ms"
           }
         ]
       }
