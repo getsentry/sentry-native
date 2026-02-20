@@ -3,6 +3,7 @@
 #include "sentry_envelope.h"
 #include "sentry_http_transport.h"
 #include "sentry_options.h"
+#include "sentry_slice.h"
 #include "sentry_string.h"
 #include "sentry_transport.h"
 #include "sentry_utils.h"
@@ -138,10 +139,12 @@ header_callback(char *buffer, size_t size, size_t nitems, void *userdata)
     if (sep) {
         *sep = '\0';
         sentry__string_ascii_lower(header);
+        sentry_slice_t value
+            = sentry__slice_trim(sentry__slice_from_str(sep + 1));
         if (sentry__string_eq(header, "retry-after")) {
-            info->retry_after = sentry__string_clone(sep + 1);
+            info->retry_after = sentry__slice_to_owned(value);
         } else if (sentry__string_eq(header, "x-sentry-rate-limits")) {
-            info->x_sentry_rate_limits = sentry__string_clone(sep + 1);
+            info->x_sentry_rate_limits = sentry__slice_to_owned(value);
         }
     }
 
