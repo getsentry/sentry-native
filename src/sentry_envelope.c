@@ -628,9 +628,9 @@ str_from_attachment_type(sentry_attachment_type_t attachment_type)
     }
 }
 
-sentry_envelope_item_t *
-sentry__envelope_add_attachment_ref(
-    sentry_envelope_t *envelope, const sentry_path_t *path, size_t file_size)
+static sentry_envelope_item_t *
+envelope_add_attachment_ref(sentry_envelope_t *envelope,
+    const sentry_path_t *path, size_t file_size, const char *content_type)
 {
     sentry_envelope_item_t *item = envelope_add_item(envelope);
     if (!item) {
@@ -655,6 +655,10 @@ sentry__envelope_add_attachment_ref(
 #else
     sentry__jsonwriter_write_str(jw, path->path);
 #endif
+    if (content_type) {
+        sentry__jsonwriter_write_key(jw, "content_type");
+        sentry__jsonwriter_write_str(jw, content_type);
+    }
     sentry__jsonwriter_write_object_end(jw);
     sentry__jsonwriter_free(jw);
 
@@ -689,8 +693,9 @@ sentry__envelope_add_attachment(
                     options->run, envelope, attachment);
             }
         }
-        item = sentry__envelope_add_attachment_ref(
-            envelope, dest ? dest : attachment->path, file_size);
+        item = envelope_add_attachment_ref(envelope,
+            dest ? dest : attachment->path, file_size,
+            attachment->content_type);
         sentry__path_free(dest);
     } else if (attachment->buf) {
         item = sentry__envelope_add_from_buffer(
