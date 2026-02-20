@@ -2,9 +2,9 @@
 #include "sentry_json.h"
 #include "sentry_path.h"
 #include "sentry_testsupport.h"
-#include "sentry_transport.h"
 #include "sentry_utils.h"
 #include "sentry_value.h"
+#include "transports/sentry_http_transport.h"
 
 static char *const SERIALIZED_ENVELOPE_STR
     = "{\"dsn\":\"https://foo@sentry.invalid/42\","
