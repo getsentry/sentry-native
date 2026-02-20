@@ -269,6 +269,18 @@ http_send_request(
 }
 
 static void
+remove_large_attachment(const sentry_path_t *path)
+{
+    sentry__path_remove(path);
+    sentry_path_t *event_dir = sentry__path_dir(path);
+    sentry__path_remove(event_dir);
+    sentry_path_t *attachments_dir = sentry__path_dir(event_dir);
+    sentry__path_remove(attachments_dir);
+    sentry__path_free(attachments_dir);
+    sentry__path_free(event_dir);
+}
+
+static void
 tus_upload_attachment_refs(
     http_transport_state_t *state, sentry_envelope_t *envelope)
 {
@@ -316,9 +328,10 @@ tus_upload_attachment_refs(
 
         sentry_prepared_http_request_t *req = prepare_tus_request(
             file_path, file_size, state->dsn, state->user_agent);
-        sentry__path_free(file_path);
 
         if (!req) {
+            remove_large_attachment(file_path);
+            sentry__path_free(file_path);
             continue;
         }
 
@@ -327,6 +340,8 @@ tus_upload_attachment_refs(
 
         bool ok = state->send_func(state->client, req, &resp);
         sentry__prepared_http_request_free(req);
+        remove_large_attachment(file_path);
+        sentry__path_free(file_path);
 
         if (!ok || resp.status_code == 404) {
             if (resp.status_code == 404) {

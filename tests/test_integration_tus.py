@@ -87,6 +87,10 @@ def test_tus_upload_large_attachment(cmake, httpserver):
     assert attachment_ref.payload.json["location"] == location
     assert attachment_ref.headers.get("attachment_length") == 100 * 1024 * 1024
 
+    # large attachment files should be cleaned up after send
+    attachments_dir = os.path.join(tmp_path, ".sentry-native", "attachments")
+    assert not os.path.exists(attachments_dir) or os.listdir(attachments_dir) == []
+
 
 def test_tus_upload_404_disables(cmake, httpserver):
     tmp_path = cmake(
