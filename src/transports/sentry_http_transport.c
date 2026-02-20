@@ -2,10 +2,14 @@
 #include "sentry_alloc.h"
 #include "sentry_database.h"
 #include "sentry_envelope.h"
+#include "sentry_json.h"
 #include "sentry_options.h"
 #include "sentry_ratelimiter.h"
+#include "sentry_slice.h"
 #include "sentry_string.h"
 #include "sentry_transport.h"
+#include "sentry_utils.h"
+#include "sentry_value.h"
 
 #ifdef SENTRY_TRANSPORT_COMPRESSION
 #    include "zlib.h"
@@ -14,6 +18,8 @@
 #include <string.h>
 
 #define ENVELOPE_MIME "application/x-sentry-envelope"
+#define TUS_MIME "application/offset+octet-stream"
+#define TUS_MAX_HTTP_HEADERS 4
 #ifdef SENTRY_TRANSPORT_COMPRESSION
 #    define MAX_HTTP_HEADERS 8
 #else
@@ -29,6 +35,7 @@ typedef struct {
     int (*start_client)(void *, const sentry_options_t *);
     sentry_http_send_func_t send_func;
     void (*shutdown_client)(void *client);
+    bool tus_disabled;
 } http_transport_state_t;
 
 #ifdef SENTRY_TRANSPORT_COMPRESSION
@@ -183,6 +190,55 @@ sentry__prepared_http_request_free(sentry_prepared_http_request_t *req)
     sentry_free(req);
 }
 
+static sentry_prepared_http_request_t *
+prepare_tus_request(const sentry_path_t *path, size_t file_size,
+    const sentry_dsn_t *dsn, const char *user_agent)
+{
+    if (!dsn || !dsn->is_valid || !path) {
+        return NULL;
+    }
+
+    sentry_prepared_http_request_t *req
+        = SENTRY_MAKE(sentry_prepared_http_request_t);
+    if (!req) {
+        return NULL;
+    }
+    memset(req, 0, sizeof(*req));
+
+    req->headers = sentry_malloc(
+        sizeof(sentry_prepared_http_header_t) * TUS_MAX_HTTP_HEADERS);
+    if (!req->headers) {
+        sentry_free(req);
+        return NULL;
+    }
+    req->headers_len = 0;
+
+    req->method = "POST";
+    req->url = sentry__dsn_get_upload_url(dsn);
+
+    sentry_prepared_http_header_t *h;
+    h = &req->headers[req->headers_len++];
+    h->key = "x-sentry-auth";
+    h->value = sentry__dsn_get_auth_header(dsn, user_agent);
+
+    h = &req->headers[req->headers_len++];
+    h->key = "content-type";
+    h->value = sentry__string_clone(TUS_MIME);
+
+    h = &req->headers[req->headers_len++];
+    h->key = "tus-resumable";
+    h->value = sentry__string_clone("1.0.0");
+
+    h = &req->headers[req->headers_len++];
+    h->key = "upload-length";
+    h->value = sentry__uint64_to_string((uint64_t)file_size);
+
+    req->body_path = sentry__path_clone(path);
+    req->body_len = file_size;
+
+    return req;
+}
+
 static int
 http_send_request(
     http_transport_state_t *state, sentry_prepared_http_request_t *req)
@@ -213,9 +269,110 @@ http_send_request(
     return resp.status_code;
 }
 
+static void
+tus_upload_attachment_refs(
+    http_transport_state_t *state, sentry_envelope_t *envelope)
+{
+    if (state->tus_disabled) {
+        return;
+    }
+
+    size_t count = sentry__envelope_get_item_count(envelope);
+    for (size_t i = 0; i < count; i++) {
+        sentry_envelope_item_t *item
+            = sentry__envelope_get_item_mut(envelope, i);
+
+        const char *content_type = sentry_value_as_string(
+            sentry__envelope_item_get_header(item, "content_type"));
+        if (!content_type
+            || strcmp(content_type, "application/vnd.sentry.attachment-ref")
+                != 0) {
+            continue;
+        }
+
+        size_t payload_len = 0;
+        const char *payload
+            = sentry__envelope_item_get_payload(item, &payload_len);
+        if (!payload) {
+            continue;
+        }
+
+        sentry_value_t payload_json
+            = sentry__value_from_json(payload, payload_len);
+        const char *path_str = sentry_value_as_string(
+            sentry_value_get_by_key(payload_json, "path"));
+        if (!path_str || *path_str == '\0') {
+            sentry_value_decref(payload_json);
+            continue;
+        }
+
+        sentry_path_t *file_path = sentry__path_from_str(path_str);
+        size_t file_size = sentry__path_get_size(file_path);
+        sentry_value_decref(payload_json);
+
+        if (file_size == 0) {
+            sentry__path_free(file_path);
+            continue;
+        }
+
+        sentry_prepared_http_request_t *req = prepare_tus_request(
+            file_path, file_size, state->dsn, state->user_agent);
+        sentry__path_free(file_path);
+
+        if (!req) {
+            continue;
+        }
+
+        sentry_http_response_t resp;
+        memset(&resp, 0, sizeof(resp));
+
+        bool ok = state->send_func(state->client, req, &resp);
+        sentry__prepared_http_request_free(req);
+
+        if (!ok || resp.status_code == 404) {
+            if (resp.status_code == 404) {
+                state->tus_disabled = true;
+                SENTRY_WARN("TUS upload returned 404, disabling TUS");
+            }
+            sentry_free(resp.retry_after);
+            sentry_free(resp.x_sentry_rate_limits);
+            sentry_free(resp.location);
+            if (state->tus_disabled) {
+                return;
+            }
+            continue;
+        }
+
+        if (resp.status_code == 201 && resp.location) {
+            sentry_slice_t location
+                = sentry__slice_trim(sentry__slice_from_str(resp.location));
+            resp.location[location.ptr - resp.location + location.len] = '\0';
+
+            sentry_stringbuilder_t sb;
+            sentry__stringbuilder_init(&sb);
+            sentry_jsonwriter_t *jw = sentry__jsonwriter_new_sb(&sb);
+            sentry__jsonwriter_write_object_start(jw);
+            sentry__jsonwriter_write_key(jw, "location");
+            sentry__jsonwriter_write_str(jw, location.ptr);
+            sentry__jsonwriter_write_object_end(jw);
+            sentry__jsonwriter_free(jw);
+
+            size_t new_len = sentry__stringbuilder_len(&sb);
+            char *new_payload = sentry__stringbuilder_into_string(&sb);
+            sentry__envelope_item_set_payload(item, new_payload, new_len);
+        }
+
+        sentry_free(resp.retry_after);
+        sentry_free(resp.x_sentry_rate_limits);
+        sentry_free(resp.location);
+    }
+}
+
 static int
 http_send_envelope(http_transport_state_t *state, sentry_envelope_t *envelope)
 {
+    tus_upload_attachment_refs(state, envelope);
+
     sentry_prepared_http_request_t *req = sentry__prepare_http_request(
         envelope, state->dsn, state->ratelimiter, state->user_agent);
     if (!req) {
@@ -383,5 +540,12 @@ void *
 sentry__http_transport_get_bgworker(sentry_transport_t *transport)
 {
     return sentry__transport_get_state(transport);
+}
+
+sentry_prepared_http_request_t *
+sentry__prepare_tus_request(const sentry_path_t *path, size_t file_size,
+    const sentry_dsn_t *dsn, const char *user_agent)
+{
+    return prepare_tus_request(path, file_size, dsn, user_agent);
 }
 #endif

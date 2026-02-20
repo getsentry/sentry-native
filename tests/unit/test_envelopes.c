@@ -1,3 +1,4 @@
+#include "sentry_attachment.h"
 #include "sentry_envelope.h"
 #include "sentry_json.h"
 #include "sentry_path.h"
@@ -720,6 +721,151 @@ SENTRY_TEST(deserialize_envelope_empty)
 
     // eof
     test_deserialize_envelope_empty(buf, buf_len - 1);
+}
+
+SENTRY_TEST(tus_upload_url)
+{
+    SENTRY_TEST_DSN_NEW_DEFAULT(dsn);
+
+    char *url = sentry__dsn_get_upload_url(dsn);
+    TEST_CHECK_STRING_EQUAL(url, "https://sentry.invalid:443/api/42/upload/");
+    sentry_free(url);
+    sentry__dsn_decref(dsn);
+
+    TEST_CHECK(!sentry__dsn_get_upload_url(NULL));
+}
+
+SENTRY_TEST(tus_request_preparation)
+{
+    SENTRY_TEST_DSN_NEW_DEFAULT(dsn);
+
+    const char *test_file_str = SENTRY_TEST_PATH_PREFIX "sentry_test_tus_file";
+    sentry_path_t *test_file_path = sentry__path_from_str(test_file_str);
+    TEST_CHECK_INT_EQUAL(
+        sentry__path_write_buffer(test_file_path, "test-data", 9), 0);
+
+    sentry_prepared_http_request_t *req
+        = sentry__prepare_tus_request(test_file_path, 9, dsn, NULL);
+    TEST_CHECK(!!req);
+    TEST_CHECK_STRING_EQUAL(req->method, "POST");
+    TEST_CHECK_STRING_EQUAL(
+        req->url, "https://sentry.invalid:443/api/42/upload/");
+    TEST_CHECK(!!req->body_path);
+    TEST_CHECK_INT_EQUAL(req->body_len, 9);
+    TEST_CHECK(!req->body);
+
+    bool has_tus_resumable = false;
+    bool has_upload_length = false;
+    bool has_content_type = false;
+    for (size_t i = 0; i < req->headers_len; i++) {
+        if (strcmp(req->headers[i].key, "tus-resumable") == 0) {
+            TEST_CHECK_STRING_EQUAL(req->headers[i].value, "1.0.0");
+            has_tus_resumable = true;
+        }
+        if (strcmp(req->headers[i].key, "upload-length") == 0) {
+            TEST_CHECK_STRING_EQUAL(req->headers[i].value, "9");
+            has_upload_length = true;
+        }
+        if (strcmp(req->headers[i].key, "content-type") == 0) {
+            TEST_CHECK_STRING_EQUAL(
+                req->headers[i].value, "application/offset+octet-stream");
+            has_content_type = true;
+        }
+    }
+    TEST_CHECK(has_tus_resumable);
+    TEST_CHECK(has_upload_length);
+    TEST_CHECK(has_content_type);
+
+    sentry__prepared_http_request_free(req);
+    sentry__path_remove(test_file_path);
+    sentry__path_free(test_file_path);
+    sentry__dsn_decref(dsn);
+}
+
+SENTRY_TEST(attachment_ref_creation)
+{
+    const char *test_file_str
+        = SENTRY_TEST_PATH_PREFIX "sentry_test_attachment_ref";
+    sentry_path_t *test_file_path = sentry__path_from_str(test_file_str);
+
+    // Small file: should be inlined
+    {
+        sentry_envelope_t *envelope = sentry__envelope_new();
+        char small_data[] = "small";
+        TEST_CHECK_INT_EQUAL(sentry__path_write_buffer(test_file_path,
+                                 small_data, sizeof(small_data) - 1),
+            0);
+
+        sentry_attachment_t *attachment
+            = sentry__attachment_from_path(sentry__path_clone(test_file_path));
+        sentry__envelope_add_attachment(envelope, attachment);
+
+        TEST_CHECK_INT_EQUAL(sentry__envelope_get_item_count(envelope), 1);
+        const sentry_envelope_item_t *item
+            = sentry__envelope_get_item(envelope, 0);
+        TEST_CHECK(!!item);
+        TEST_CHECK_STRING_EQUAL(
+            sentry_value_as_string(
+                sentry__envelope_item_get_header(item, "type")),
+            "attachment");
+        TEST_CHECK(sentry_value_is_null(
+            sentry__envelope_item_get_header(item, "content_type")));
+        size_t payload_len = 0;
+        TEST_CHECK_STRING_EQUAL(
+            sentry__envelope_item_get_payload(item, &payload_len), "small");
+
+        sentry__attachment_free(attachment);
+        sentry_envelope_free(envelope);
+    }
+
+    // Large file (>= threshold): should create attachment_ref
+    {
+        sentry_envelope_t *envelope = sentry__envelope_new();
+        size_t large_size = 100 * 1024 * 1024;
+        FILE *f = fopen(test_file_str, "wb");
+        TEST_CHECK(!!f);
+        fseek(f, (long)(large_size - 1), SEEK_SET);
+        fputc(0, f);
+        fclose(f);
+
+        sentry_attachment_t *attachment
+            = sentry__attachment_from_path(sentry__path_clone(test_file_path));
+        sentry__envelope_add_attachment(envelope, attachment);
+
+        TEST_CHECK_INT_EQUAL(sentry__envelope_get_item_count(envelope), 1);
+        const sentry_envelope_item_t *item
+            = sentry__envelope_get_item(envelope, 0);
+        TEST_CHECK(!!item);
+        TEST_CHECK_STRING_EQUAL(
+            sentry_value_as_string(
+                sentry__envelope_item_get_header(item, "type")),
+            "attachment");
+        TEST_CHECK_STRING_EQUAL(
+            sentry_value_as_string(
+                sentry__envelope_item_get_header(item, "content_type")),
+            "application/vnd.sentry.attachment-ref");
+        TEST_CHECK_INT_EQUAL(
+            sentry_value_as_uint64(
+                sentry__envelope_item_get_header(item, "attachment_length")),
+            large_size);
+
+        size_t payload_len = 0;
+        const char *payload
+            = sentry__envelope_item_get_payload(item, &payload_len);
+        TEST_CHECK(!!payload);
+        sentry_value_t payload_json
+            = sentry__value_from_json(payload, payload_len);
+        TEST_CHECK_STRING_EQUAL(sentry_value_as_string(sentry_value_get_by_key(
+                                    payload_json, "path")),
+            test_file_str);
+        sentry_value_decref(payload_json);
+
+        sentry__attachment_free(attachment);
+        sentry_envelope_free(envelope);
+    }
+
+    sentry__path_remove(test_file_path);
+    sentry__path_free(test_file_path);
 }
 
 SENTRY_TEST(deserialize_envelope_invalid)

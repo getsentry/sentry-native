@@ -454,6 +454,25 @@ main(int argc, char **argv)
         sentry_options_add_attachment(options, "./CMakeCache.txt");
     }
 
+    if (has_arg(argc, argv, "large-attachment")) {
+        const char *large_file = ".sentry-large-attachment";
+        FILE *f = fopen(large_file, "wb");
+        if (f) {
+            // 100 MB = TUS upload threshold
+            char zeros[4096];
+            memset(zeros, 0, sizeof(zeros));
+            size_t remaining = 100 * 1024 * 1024;
+            while (remaining > 0) {
+                size_t chunk
+                    = remaining < sizeof(zeros) ? remaining : sizeof(zeros);
+                fwrite(zeros, 1, chunk, f);
+                remaining -= chunk;
+            }
+            fclose(f);
+            sentry_options_add_attachment(options, large_file);
+        }
+    }
+
     if (has_arg(argc, argv, "stdout")) {
         sentry_options_set_transport(
             options, sentry_transport_new(print_envelope));

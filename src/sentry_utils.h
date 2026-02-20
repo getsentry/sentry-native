@@ -111,6 +111,11 @@ char *sentry__dsn_get_auth_header(
 char *sentry__dsn_get_envelope_url(const sentry_dsn_t *dsn);
 
 /**
+ * Returns the TUS upload endpoint url as a newly allocated string.
+ */
+char *sentry__dsn_get_upload_url(const sentry_dsn_t *dsn);
+
+/**
  * Returns the minidump endpoint url used for uploads done by the out-of-process
  * crashpad backend as a newly allocated string.
  */

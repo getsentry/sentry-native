@@ -93,6 +93,14 @@ sentry_envelope_item_t *sentry__envelope_add_attachment(
     sentry_envelope_t *envelope, const sentry_attachment_t *attachment);
 
 /**
+ * Add an attachment reference to this envelope. The file is not read into
+ * memory. Instead, the item payload contains a JSON object with the file path,
+ * and the original file size is stored in the `attachment_length` header.
+ */
+sentry_envelope_item_t *sentry__envelope_add_attachment_ref(
+    sentry_envelope_t *envelope, const sentry_path_t *path, size_t file_size);
+
+/**
  * Add attachments to this envelope.
  */
 void sentry__envelope_add_attachments(
@@ -153,15 +161,17 @@ MUST_USE int sentry_envelope_write_to_path(
  */
 int sentry__envelope_materialize(sentry_envelope_t *envelope);
 
-// these for now are only needed for tests
-#ifdef SENTRY_UNITTEST
+
 size_t sentry__envelope_get_item_count(const sentry_envelope_t *envelope);
 const sentry_envelope_item_t *sentry__envelope_get_item(
     const sentry_envelope_t *envelope, size_t idx);
+sentry_envelope_item_t *sentry__envelope_get_item_mut(
+    sentry_envelope_t *envelope, size_t idx);
 sentry_value_t sentry__envelope_item_get_header(
     const sentry_envelope_item_t *item, const char *key);
 const char *sentry__envelope_item_get_payload(
     const sentry_envelope_item_t *item, size_t *payload_len_out);
-#endif
+void sentry__envelope_item_set_payload(
+    sentry_envelope_item_t *item, char *payload, size_t payload_len);
 
 #endif
