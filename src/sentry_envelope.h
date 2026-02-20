@@ -33,8 +33,8 @@ sentry_envelope_t *sentry__envelope_from_path(const sentry_path_t *path);
 
 /**
  * This returns the UUID of the event associated with this envelope.
- * If there is no event inside this envelope, or the envelope was previously
- * loaded from disk, the empty nil UUID will be returned.
+ * If there is no event inside this envelope, the empty nil UUID will be
+ * returned.
  */
 sentry_uuid_t sentry__envelope_get_event_id(const sentry_envelope_t *envelope);
 
