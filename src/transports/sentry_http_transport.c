@@ -190,10 +190,10 @@ sentry__prepared_http_request_free(sentry_prepared_http_request_t *req)
 }
 
 static sentry_prepared_http_request_t *
-prepare_tus_request(const sentry_path_t *path, size_t file_size,
-    const sentry_dsn_t *dsn, const char *user_agent)
+prepare_tus_request_common(
+    size_t upload_size, const sentry_dsn_t *dsn, const char *user_agent)
 {
-    if (!dsn || !dsn->is_valid || !path) {
+    if (!dsn || !dsn->is_valid) {
         return NULL;
     }
 
@@ -230,11 +230,24 @@ prepare_tus_request(const sentry_path_t *path, size_t file_size,
 
     h = &req->headers[req->headers_len++];
     h->key = "upload-length";
-    h->value = sentry__uint64_to_string((uint64_t)file_size);
+    h->value = sentry__uint64_to_string((uint64_t)upload_size);
 
-    req->body_path = sentry__path_clone(path);
-    req->body_len = file_size;
+    return req;
+}
 
+static sentry_prepared_http_request_t *
+prepare_tus_request(const sentry_path_t *path, size_t file_size,
+    const sentry_dsn_t *dsn, const char *user_agent)
+{
+    if (!path) {
+        return NULL;
+    }
+    sentry_prepared_http_request_t *req
+        = prepare_tus_request_common(file_size, dsn, user_agent);
+    if (req) {
+        req->body_path = sentry__path_clone(path);
+        req->body_len = file_size;
+    }
     return req;
 }
 
@@ -293,45 +306,49 @@ tus_upload_attachment_refs(
         sentry_envelope_item_t *item
             = sentry__envelope_get_item_mut(envelope, i);
 
-        const char *content_type = sentry_value_as_string(
-            sentry__envelope_item_get_header(item, "content_type"));
-        if (!content_type
-            || strcmp(content_type, "application/vnd.sentry.attachment-ref")
-                != 0) {
+        if (!sentry__envelope_item_is_attachment_ref(item)) {
             continue;
         }
 
-        size_t payload_len = 0;
-        const char *payload
-            = sentry__envelope_item_get_payload(item, &payload_len);
-        if (!payload) {
-            continue;
+        bool is_inline = sentry_value_is_true(
+            sentry__envelope_item_get_header(item, "inline"));
+
+        sentry_prepared_http_request_t *req = NULL;
+        sentry_path_t *file_path = NULL;
+
+        if (is_inline) {
+            size_t payload_len = 0;
+            const char *payload
+                = sentry__envelope_item_get_payload(item, &payload_len);
+            if (!payload || payload_len == 0) {
+                continue;
+            }
+            req = prepare_tus_request_common(
+                payload_len, state->dsn, state->user_agent);
+            if (req) {
+                req->body = (char *)payload;
+                req->body_len = payload_len;
+                req->body_owned = false;
+            }
+        } else {
+            file_path = sentry__envelope_item_get_attachment_ref_path(item);
+            if (!file_path) {
+                continue;
+            }
+            size_t file_size = sentry__path_get_size(file_path);
+            if (file_size == 0) {
+                sentry__path_free(file_path);
+                continue;
+            }
+            req = prepare_tus_request(
+                file_path, file_size, state->dsn, state->user_agent);
         }
-
-        sentry_value_t payload_json
-            = sentry__value_from_json(payload, payload_len);
-        const char *path_str = sentry_value_as_string(
-            sentry_value_get_by_key(payload_json, "path"));
-        if (!path_str || *path_str == '\0') {
-            sentry_value_decref(payload_json);
-            continue;
-        }
-
-        sentry_path_t *file_path = sentry__path_from_str(path_str);
-        size_t file_size = sentry__path_get_size(file_path);
-        sentry_value_decref(payload_json);
-
-        if (file_size == 0) {
-            sentry__path_free(file_path);
-            continue;
-        }
-
-        sentry_prepared_http_request_t *req = prepare_tus_request(
-            file_path, file_size, state->dsn, state->user_agent);
 
         if (!req) {
-            remove_large_attachment(file_path);
-            sentry__path_free(file_path);
+            if (file_path) {
+                remove_large_attachment(file_path);
+                sentry__path_free(file_path);
+            }
             continue;
         }
 
@@ -340,8 +357,10 @@ tus_upload_attachment_refs(
 
         bool ok = state->send_func(state->client, req, &resp);
         sentry__prepared_http_request_free(req);
-        remove_large_attachment(file_path);
-        sentry__path_free(file_path);
+        if (file_path) {
+            remove_large_attachment(file_path);
+            sentry__path_free(file_path);
+        }
 
         if (!ok || resp.status_code == 404) {
             if (resp.status_code == 404) {

@@ -164,5 +164,12 @@ const char *sentry__envelope_item_get_payload(
     const sentry_envelope_item_t *item, size_t *payload_len_out);
 void sentry__envelope_item_set_payload(
     sentry_envelope_item_t *item, char *payload, size_t payload_len);
+void sentry__envelope_item_set_attachment_ref(
+    sentry_envelope_item_t *item, const sentry_path_t *path);
+
+bool sentry__envelope_item_is_attachment_ref(
+    const sentry_envelope_item_t *item);
+sentry_path_t *sentry__envelope_item_get_attachment_ref_path(
+    const sentry_envelope_item_t *item);
 
 #endif

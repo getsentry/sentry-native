@@ -672,6 +672,56 @@ envelope_add_attachment_ref(sentry_envelope_t *envelope,
     return item;
 }
 
+void
+sentry__envelope_item_set_attachment_ref(
+    sentry_envelope_item_t *item, const sentry_path_t *path)
+{
+    sentry_stringbuilder_t sb;
+    sentry__stringbuilder_init(&sb);
+    sentry_jsonwriter_t *jw = sentry__jsonwriter_new_sb(&sb);
+    sentry__jsonwriter_write_object_start(jw);
+    sentry__jsonwriter_write_key(jw, "path");
+#ifdef SENTRY_PLATFORM_WINDOWS
+    char *path_str = sentry__string_from_wstr(path->path_w);
+    sentry__jsonwriter_write_str(jw, path_str);
+    sentry_free(path_str);
+#else
+    sentry__jsonwriter_write_str(jw, path->path);
+#endif
+    sentry__jsonwriter_write_object_end(jw);
+    sentry__jsonwriter_free(jw);
+
+    size_t json_len = sentry__stringbuilder_len(&sb);
+    char *json = sentry__stringbuilder_into_string(&sb);
+    sentry__envelope_item_set_payload(item, json, json_len);
+}
+
+bool
+sentry__envelope_item_is_attachment_ref(const sentry_envelope_item_t *item)
+{
+    const char *ct = sentry_value_as_string(
+        sentry__envelope_item_get_header(item, "content_type"));
+    return ct && strcmp(ct, "application/vnd.sentry.attachment-ref") == 0;
+}
+
+sentry_path_t *
+sentry__envelope_item_get_attachment_ref_path(
+    const sentry_envelope_item_t *item)
+{
+    size_t payload_len = 0;
+    const char *payload = sentry__envelope_item_get_payload(item, &payload_len);
+    if (!payload || payload_len == 0) {
+        return NULL;
+    }
+    sentry_value_t pj = sentry__value_from_json(payload, payload_len);
+    const char *ps
+        = sentry_value_as_string(sentry_value_get_by_key(pj, "path"));
+    sentry_path_t *path
+        = (ps && *ps != '\0') ? sentry__path_from_str(ps) : NULL;
+    sentry_value_decref(pj);
+    return path;
+}
+
 sentry_envelope_item_t *
 sentry__envelope_add_attachment(
     sentry_envelope_t *envelope, const sentry_attachment_t *attachment)
@@ -686,17 +736,28 @@ sentry__envelope_add_attachment(
 
     sentry_envelope_item_t *item = NULL;
     if (file_size >= SENTRY_TUS_UPLOAD_THRESHOLD) {
-        sentry_path_t *dest = NULL;
-        SENTRY_WITH_OPTIONS (options) {
-            if (options->run) {
-                dest = sentry__run_write_large_attachment(
-                    options->run, envelope, attachment);
+        if (attachment->buf) {
+            item = envelope_add_item(envelope);
+            if (item) {
+                sentry__envelope_item_set_header(
+                    item, "type", sentry_value_new_string("attachment"));
+                sentry__envelope_item_set_header(item, "content_type",
+                    sentry_value_new_string(
+                        "application/vnd.sentry.attachment-ref"));
+                sentry__envelope_item_set_header(item, "attachment_length",
+                    sentry_value_new_uint64((uint64_t)file_size));
+                sentry__envelope_item_set_header(
+                    item, "inline", sentry_value_new_bool(true));
+                item->payload = sentry__string_clone_n(
+                    attachment->buf, attachment->buf_len);
+                item->payload_len = attachment->buf_len;
+                sentry__envelope_item_set_header(item, "length",
+                    sentry_value_new_int32((int32_t)item->payload_len));
             }
+        } else {
+            item = envelope_add_attachment_ref(envelope, attachment->path,
+                file_size, attachment->content_type);
         }
-        item = envelope_add_attachment_ref(envelope,
-            dest ? dest : attachment->path, file_size,
-            attachment->content_type);
-        sentry__path_free(dest);
     } else if (attachment->buf) {
         item = sentry__envelope_add_from_buffer(
             envelope, attachment->buf, attachment->buf_len, "attachment");

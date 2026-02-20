@@ -899,10 +899,9 @@ SENTRY_TEST(attachment_ref_copy)
         = sentry__attachment_from_path(sentry__path_clone(test_file_path));
     sentry__envelope_add_attachment(envelope, attachment);
 
-    // original file should still exist (copied, not moved)
     TEST_CHECK(sentry__path_is_file(test_file_path));
 
-    // verify attachment_ref payload points to db/attachments/<event-uuid>/
+    // after add: ref points to original path (deferred copy)
     const sentry_envelope_item_t *item = sentry__envelope_get_item(envelope, 1);
     TEST_CHECK(!!item);
     TEST_CHECK_STRING_EQUAL(
@@ -916,12 +915,24 @@ SENTRY_TEST(attachment_ref_copy)
     sentry_value_t payload_json = sentry__value_from_json(payload, payload_len);
     const char *ref_path
         = sentry_value_as_string(sentry_value_get_by_key(payload_json, "path"));
+    TEST_CHECK_STRING_EQUAL(ref_path, test_file_str);
+    sentry_value_decref(payload_json);
 
-    // path should contain /attachments/c993afb6-b4ac-48a6-b61b-2558e601d65d/
+    // after dump: ref points to attachments dir copy
+    sentry_run_t *run = NULL;
+    SENTRY_WITH_OPTIONS (opts) {
+        run = opts->run;
+    }
+    sentry__run_write_envelope(run, envelope);
+
+    payload = sentry__envelope_item_get_payload(item, &payload_len);
+    TEST_CHECK(!!payload);
+    payload_json = sentry__value_from_json(payload, payload_len);
+    ref_path
+        = sentry_value_as_string(sentry_value_get_by_key(payload_json, "path"));
     TEST_CHECK(!!strstr(
         ref_path, "/attachments/c993afb6-b4ac-48a6-b61b-2558e601d65d/"));
 
-    // dest file should exist
     sentry_path_t *dest_path = sentry__path_from_str(ref_path);
     TEST_CHECK(sentry__path_is_file(dest_path));
     sentry__path_free(dest_path);
@@ -951,8 +962,10 @@ SENTRY_TEST(attachment_ref_move)
 
     // create large file inside the run directory (SDK-owned)
     sentry_path_t *run_path = NULL;
+    sentry_run_t *run = NULL;
     SENTRY_WITH_OPTIONS (opts) {
         run_path = sentry__path_clone(opts->run->run_path);
+        run = opts->run;
     }
     TEST_CHECK(!!run_path);
     sentry_path_t *src_path
@@ -969,10 +982,9 @@ SENTRY_TEST(attachment_ref_move)
         = sentry__attachment_from_path(sentry__path_clone(src_path));
     sentry__envelope_add_attachment(envelope, attachment);
 
-    // original file should be gone (moved, not copied)
-    TEST_CHECK(!sentry__path_is_file(src_path));
+    // file stays in place on add (deferred)
+    TEST_CHECK(sentry__path_is_file(src_path));
 
-    // verify attachment_ref payload points to db/attachments/<event-uuid>/
     const sentry_envelope_item_t *item = sentry__envelope_get_item(envelope, 1);
     TEST_CHECK(!!item);
 
@@ -982,13 +994,19 @@ SENTRY_TEST(attachment_ref_move)
     sentry_value_t payload_json = sentry__value_from_json(payload, payload_len);
     const char *ref_path
         = sentry_value_as_string(sentry_value_get_by_key(payload_json, "path"));
+    TEST_CHECK_STRING_EQUAL(ref_path, src_path->path);
+    sentry_value_decref(payload_json);
 
-    TEST_CHECK(!!strstr(
-        ref_path, "/attachments/c993afb6-b4ac-48a6-b61b-2558e601d65d/"));
+    // after dump: run-dir file is left in place (already owned)
+    sentry__run_write_envelope(run, envelope);
 
-    sentry_path_t *dest_path = sentry__path_from_str(ref_path);
-    TEST_CHECK(sentry__path_is_file(dest_path));
-    sentry__path_free(dest_path);
+    TEST_CHECK(sentry__path_is_file(src_path));
+
+    payload = sentry__envelope_item_get_payload(item, &payload_len);
+    payload_json = sentry__value_from_json(payload, payload_len);
+    ref_path
+        = sentry_value_as_string(sentry_value_get_by_key(payload_json, "path"));
+    TEST_CHECK_STRING_EQUAL(ref_path, src_path->path);
 
     sentry_value_decref(payload_json);
     sentry__attachment_free(attachment);
