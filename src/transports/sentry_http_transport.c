@@ -5,7 +5,6 @@
 #include "sentry_json.h"
 #include "sentry_options.h"
 #include "sentry_ratelimiter.h"
-#include "sentry_slice.h"
 #include "sentry_string.h"
 #include "sentry_transport.h"
 #include "sentry_utils.h"
@@ -344,21 +343,24 @@ tus_upload_attachment_refs(
         }
 
         if (resp.status_code == 201 && resp.location) {
-            sentry_slice_t location
-                = sentry__slice_trim(sentry__slice_from_str(resp.location));
-            resp.location[location.ptr - resp.location + location.len] = '\0';
+            sentry_value_t loc_json;
+            if (is_inline) {
+                loc_json = sentry_value_new_object();
+            } else {
+                size_t old_len = 0;
+                const char *old_payload
+                    = sentry__envelope_item_get_payload(item, &old_len);
+                loc_json = sentry__value_from_json(old_payload, old_len);
+                sentry_value_remove_by_key(loc_json, "path");
+            }
+            sentry_value_set_by_key(
+                loc_json, "location", sentry_value_new_string(resp.location));
 
-            sentry_stringbuilder_t sb;
-            sentry__stringbuilder_init(&sb);
-            sentry_jsonwriter_t *jw = sentry__jsonwriter_new_sb(&sb);
-            sentry__jsonwriter_write_object_start(jw);
-            sentry__jsonwriter_write_key(jw, "location");
-            sentry__jsonwriter_write_str(jw, location.ptr);
-            sentry__jsonwriter_write_object_end(jw);
-            sentry__jsonwriter_free(jw);
-
-            size_t new_len = sentry__stringbuilder_len(&sb);
-            char *new_payload = sentry__stringbuilder_into_string(&sb);
+            sentry_jsonwriter_t *jw = sentry__jsonwriter_new_sb(NULL);
+            sentry__jsonwriter_write_value(jw, loc_json);
+            sentry_value_decref(loc_json);
+            size_t new_len = 0;
+            char *new_payload = sentry__jsonwriter_into_string(jw, &new_len);
             sentry__envelope_item_set_payload(item, new_payload, new_len);
         }
 
