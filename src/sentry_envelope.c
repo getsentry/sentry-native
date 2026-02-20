@@ -676,19 +676,28 @@ sentry__envelope_add_attachment(
         return NULL;
     }
 
+    size_t file_size = attachment->buf
+        ? attachment->buf_len
+        : sentry__path_get_size(attachment->path);
+
     sentry_envelope_item_t *item = NULL;
-    if (attachment->buf) {
+    if (file_size >= SENTRY_TUS_UPLOAD_THRESHOLD) {
+        sentry_path_t *dest = NULL;
+        SENTRY_WITH_OPTIONS (options) {
+            if (options->run) {
+                dest = sentry__run_write_large_attachment(
+                    options->run, envelope, attachment);
+            }
+        }
+        item = sentry__envelope_add_attachment_ref(
+            envelope, dest ? dest : attachment->path, file_size);
+        sentry__path_free(dest);
+    } else if (attachment->buf) {
         item = sentry__envelope_add_from_buffer(
             envelope, attachment->buf, attachment->buf_len, "attachment");
     } else {
-        size_t file_size = sentry__path_get_size(attachment->path);
-        if (file_size >= SENTRY_TUS_UPLOAD_THRESHOLD) {
-            item = sentry__envelope_add_attachment_ref(
-                envelope, attachment->path, file_size);
-        } else {
-            item = sentry__envelope_add_from_path(
-                envelope, attachment->path, "attachment");
-        }
+        item = sentry__envelope_add_from_path(
+            envelope, attachment->path, "attachment");
     }
     if (!item) {
         return NULL;
