@@ -160,6 +160,12 @@ int sentry__path_remove_all(const sentry_path_t *path);
 int sentry__path_rename(const sentry_path_t *src, const sentry_path_t *dst);
 
 /**
+ * Copy the file from `src` to `dst`.
+ * Returns 0 on success.
+ */
+int sentry__path_copy(const sentry_path_t *src, const sentry_path_t *dst);
+
+/**
  * This will create the directory referred to by `path`, and any non-existing
  * parent directory.
  * Returns 0 on success.

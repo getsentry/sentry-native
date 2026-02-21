@@ -347,3 +347,52 @@ SENTRY_TEST(path_rename)
     sentry__path_free(dst);
     sentry__path_free(src);
 }
+
+SENTRY_TEST(path_copy)
+{
+#if defined(SENTRY_PLATFORM_NX)
+    SKIP_TEST();
+#endif
+    sentry_path_t *src
+        = sentry__path_from_str(SENTRY_TEST_PATH_PREFIX ".copy-src");
+    TEST_ASSERT(!!src);
+    sentry_path_t *dst
+        = sentry__path_from_str(SENTRY_TEST_PATH_PREFIX ".copy-dst");
+    TEST_ASSERT(!!dst);
+
+    // cleanup
+    sentry__path_remove_all(src);
+    sentry__path_remove_all(dst);
+
+    // copy file with content preserved
+    sentry__path_write_buffer(src, "hello", 5);
+    TEST_CHECK(sentry__path_copy(src, dst) == 0);
+    TEST_CHECK(sentry__path_is_file(src));
+    TEST_CHECK(sentry__path_is_file(dst));
+    size_t len = 0;
+    char *buf = sentry__path_read_to_buffer(dst, &len);
+    TEST_ASSERT(!!buf);
+    TEST_CHECK(len == 5);
+    TEST_CHECK(memcmp(buf, "hello", 5) == 0);
+    sentry_free(buf);
+    sentry__path_remove(dst);
+
+    // overwrite existing dst
+    sentry__path_write_buffer(dst, "dst-data", 8);
+    TEST_CHECK(sentry__path_copy(src, dst) == 0);
+    TEST_CHECK(sentry__path_is_file(src));
+    buf = sentry__path_read_to_buffer(dst, &len);
+    TEST_ASSERT(!!buf);
+    TEST_CHECK(len == 5);
+    TEST_CHECK(memcmp(buf, "hello", 5) == 0);
+    sentry_free(buf);
+    sentry__path_remove(dst);
+
+    // copy nonexistent src
+    sentry__path_remove(src);
+    TEST_CHECK(sentry__path_copy(src, dst) != 0);
+
+    sentry__path_remove_all(dst);
+    sentry__path_free(dst);
+    sentry__path_free(src);
+}
