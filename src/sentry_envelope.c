@@ -706,6 +706,22 @@ sentry__envelope_item_is_attachment_ref(const sentry_envelope_item_t *item)
     return ct && strcmp(ct, "application/vnd.sentry.attachment-ref") == 0;
 }
 
+bool
+sentry__envelope_has_attachment_refs(const sentry_envelope_t *envelope)
+{
+    if (!envelope || envelope->is_raw) {
+        return false;
+    }
+    for (const sentry_envelope_item_t *item
+        = envelope->contents.items.first_item;
+        item; item = item->next) {
+        if (sentry__envelope_item_is_attachment_ref(item)) {
+            return true;
+        }
+    }
+    return false;
+}
+
 sentry_path_t *
 sentry__envelope_item_get_attachment_ref_path(
     const sentry_envelope_item_t *item)

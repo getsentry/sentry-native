@@ -223,28 +223,30 @@ write_large_attachment(sentry_envelope_item_t *item,
 bool
 sentry__run_write_envelope(const sentry_run_t *run, sentry_envelope_t *envelope)
 {
-    if (sentry__envelope_materialize(envelope) != 0) {
-        return false;
-    }
-
-    sentry_path_t *db_path = sentry__path_dir(run->run_path);
-    if (!db_path) {
-        return false;
-    }
-
-    sentry_uuid_t event_id = sentry__envelope_get_event_id(envelope);
-    char uuid_str[37];
-    sentry_uuid_as_string(&event_id, uuid_str);
-
-    size_t count = sentry__envelope_get_item_count(envelope);
-    for (size_t i = 0; i < count; i++) {
-        sentry_envelope_item_t *item
-            = sentry__envelope_get_item_mut(envelope, i);
-        if (sentry__envelope_item_is_attachment_ref(item)) {
-            write_large_attachment(item, db_path, uuid_str, run->run_path);
+    // This function may run in signal handler context when dumping in-flight
+    // envelopes on crash. Only persist attachment_refs when the envelope
+    // actually has them — this avoids calling materialize() on raw envelopes
+    // from the bgworker queue, which would do heap allocation and JSON parsing.
+    if (sentry__envelope_has_attachment_refs(envelope)) {
+        sentry_path_t *db_path = sentry__path_dir(run->run_path);
+        if (!db_path) {
+            return false;
         }
+
+        sentry_uuid_t event_id = sentry__envelope_get_event_id(envelope);
+        char uuid_str[37];
+        sentry_uuid_as_string(&event_id, uuid_str);
+
+        size_t count = sentry__envelope_get_item_count(envelope);
+        for (size_t i = 0; i < count; i++) {
+            sentry_envelope_item_t *item
+                = sentry__envelope_get_item_mut(envelope, i);
+            if (sentry__envelope_item_is_attachment_ref(item)) {
+                write_large_attachment(item, db_path, uuid_str, run->run_path);
+            }
+        }
+        sentry__path_free(db_path);
     }
-    sentry__path_free(db_path);
     return write_envelope(run->run_path, envelope);
 }
 

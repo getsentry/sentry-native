@@ -169,6 +169,7 @@ void sentry__envelope_item_set_attachment_ref(
 
 bool sentry__envelope_item_is_attachment_ref(
     const sentry_envelope_item_t *item);
+bool sentry__envelope_has_attachment_refs(const sentry_envelope_t *envelope);
 sentry_path_t *sentry__envelope_item_get_attachment_ref_path(
     const sentry_envelope_item_t *item);
 
