@@ -64,16 +64,6 @@ bool sentry__run_write_session(
 bool sentry__run_clear_session(const sentry_run_t *run);
 
 /**
- * Writes a large attachment to `<db>/attachments/<event-uuid>/<filename>`.
- * For file attachments already inside the run directory, the file is moved;
- * for file attachments elsewhere, the file is copied; for buffer attachments,
- * the buffer is written to disk.
- * Returns the destination path on success, or NULL on failure.
- */
-sentry_path_t *sentry__run_write_large_attachment(const sentry_run_t *run,
-    const sentry_envelope_t *envelope, const sentry_attachment_t *attachment);
-
-/**
  * This function is essential to send crash reports from previous runs of the
  * program.
  * More specifically, this function will iterate over all the  directories
