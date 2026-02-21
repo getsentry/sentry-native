@@ -676,23 +676,25 @@ void
 sentry__envelope_item_set_attachment_ref(
     sentry_envelope_item_t *item, const sentry_path_t *path)
 {
-    sentry_stringbuilder_t sb;
-    sentry__stringbuilder_init(&sb);
-    sentry_jsonwriter_t *jw = sentry__jsonwriter_new_sb(&sb);
-    sentry__jsonwriter_write_object_start(jw);
-    sentry__jsonwriter_write_key(jw, "path");
+    size_t old_len = 0;
+    const char *old_payload = sentry__envelope_item_get_payload(item, &old_len);
+    sentry_value_t obj = (old_payload && old_len > 0)
+        ? sentry__value_from_json(old_payload, old_len)
+        : sentry_value_new_object();
+
 #ifdef SENTRY_PLATFORM_WINDOWS
     char *path_str = sentry__string_from_wstr(path->path_w);
-    sentry__jsonwriter_write_str(jw, path_str);
+    sentry_value_set_by_key(obj, "path", sentry_value_new_string(path_str));
     sentry_free(path_str);
 #else
-    sentry__jsonwriter_write_str(jw, path->path);
+    sentry_value_set_by_key(obj, "path", sentry_value_new_string(path->path));
 #endif
-    sentry__jsonwriter_write_object_end(jw);
-    sentry__jsonwriter_free(jw);
 
-    size_t json_len = sentry__stringbuilder_len(&sb);
-    char *json = sentry__stringbuilder_into_string(&sb);
+    sentry_jsonwriter_t *jw = sentry__jsonwriter_new_sb(NULL);
+    sentry__jsonwriter_write_value(jw, obj);
+    sentry_value_decref(obj);
+    size_t json_len = 0;
+    char *json = sentry__jsonwriter_into_string(jw, &json_len);
     sentry__envelope_item_set_payload(item, json, json_len);
 }
 

@@ -897,6 +897,7 @@ SENTRY_TEST(attachment_ref_copy)
 
     sentry_attachment_t *attachment
         = sentry__attachment_from_path(sentry__path_clone(test_file_path));
+    sentry_attachment_set_content_type(attachment, "application/x-dmp");
     sentry__envelope_add_attachment(envelope, attachment);
 
     TEST_CHECK(sentry__path_is_file(test_file_path));
@@ -916,9 +917,12 @@ SENTRY_TEST(attachment_ref_copy)
     const char *ref_path
         = sentry_value_as_string(sentry_value_get_by_key(payload_json, "path"));
     TEST_CHECK_STRING_EQUAL(ref_path, test_file_str);
+    TEST_CHECK_STRING_EQUAL(sentry_value_as_string(sentry_value_get_by_key(
+                                payload_json, "content_type")),
+        "application/x-dmp");
     sentry_value_decref(payload_json);
 
-    // after dump: ref points to attachments dir copy
+    // after dump: ref points to attachments dir copy, content_type preserved
     sentry_run_t *run = NULL;
     SENTRY_WITH_OPTIONS (opts) {
         run = opts->run;
@@ -932,6 +936,9 @@ SENTRY_TEST(attachment_ref_copy)
         = sentry_value_as_string(sentry_value_get_by_key(payload_json, "path"));
     TEST_CHECK(!!strstr(
         ref_path, "/attachments/c993afb6-b4ac-48a6-b61b-2558e601d65d/"));
+    TEST_CHECK_STRING_EQUAL(sentry_value_as_string(sentry_value_get_by_key(
+                                payload_json, "content_type")),
+        "application/x-dmp");
 
     sentry_path_t *dest_path = sentry__path_from_str(ref_path);
     TEST_CHECK(sentry__path_is_file(dest_path));
