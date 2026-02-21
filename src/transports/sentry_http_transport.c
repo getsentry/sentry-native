@@ -34,7 +34,7 @@ typedef struct {
     int (*start_client)(void *, const sentry_options_t *);
     sentry_http_send_func_t send_func;
     void (*shutdown_client)(void *client);
-    bool tus_disabled;
+    bool has_tus;
 } http_transport_state_t;
 
 #ifdef SENTRY_TRANSPORT_COMPRESSION
@@ -297,7 +297,7 @@ static void
 tus_upload_attachment_refs(
     http_transport_state_t *state, sentry_envelope_t *envelope)
 {
-    if (state->tus_disabled) {
+    if (!state->has_tus) {
         return;
     }
 
@@ -364,13 +364,13 @@ tus_upload_attachment_refs(
 
         if (!ok || resp.status_code == 404) {
             if (resp.status_code == 404) {
-                state->tus_disabled = true;
+                state->has_tus = false;
                 SENTRY_WARN("TUS upload returned 404, disabling TUS");
             }
             sentry_free(resp.retry_after);
             sentry_free(resp.x_sentry_rate_limits);
             sentry_free(resp.location);
-            if (state->tus_disabled) {
+            if (!state->has_tus) {
                 return;
             }
             continue;
@@ -522,6 +522,7 @@ sentry__http_transport_new(void *client, sentry_http_send_func_t send_func)
     }
     memset(state, 0, sizeof(http_transport_state_t));
     state->ratelimiter = sentry__rate_limiter_new();
+    state->has_tus = true;
     state->client = client;
     state->send_func = send_func;
 
