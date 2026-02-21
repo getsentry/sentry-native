@@ -281,6 +281,8 @@ http_send_request(
     return resp.status_code;
 }
 
+// TODO: with future creation-only TUS, file cleanup moves to after the
+// deferred data upload completes
 static void
 remove_large_attachment(const sentry_path_t *path)
 {
@@ -293,6 +295,110 @@ remove_large_attachment(const sentry_path_t *path)
     sentry__path_free(event_dir);
 }
 
+static void
+tus_resolve_item(
+    sentry_envelope_item_t *item, const char *location, bool is_inline)
+{
+    sentry_value_t loc_json;
+    if (is_inline) {
+        loc_json = sentry_value_new_object();
+        const char *ref_ct = sentry_value_as_string(
+            sentry__envelope_item_get_header(item, "ref_content_type"));
+        if (ref_ct && *ref_ct != '\0') {
+            sentry_value_set_by_key(
+                loc_json, "content_type", sentry_value_new_string(ref_ct));
+        }
+    } else {
+        size_t old_len = 0;
+        const char *old_payload
+            = sentry__envelope_item_get_payload(item, &old_len);
+        loc_json = sentry__value_from_json(old_payload, old_len);
+        sentry_value_remove_by_key(loc_json, "path");
+    }
+    sentry_value_set_by_key(
+        loc_json, "location", sentry_value_new_string(location));
+
+    sentry_jsonwriter_t *jw = sentry__jsonwriter_new_sb(NULL);
+    sentry__jsonwriter_write_value(jw, loc_json);
+    sentry_value_decref(loc_json);
+    size_t new_len = 0;
+    char *new_payload = sentry__jsonwriter_into_string(jw, &new_len);
+    sentry__envelope_item_set_payload(item, new_payload, new_len);
+}
+
+// TODO: with future creation-only TUS, this becomes a creation-only request
+// (prepare_tus_request_common without a body) that obtains the location, and
+// the actual data upload is queued as a separate bgworker task
+static int
+tus_upload_item(http_transport_state_t *state, sentry_envelope_item_t *item)
+{
+    bool is_inline = sentry_value_is_true(
+        sentry__envelope_item_get_header(item, "inline"));
+
+    sentry_prepared_http_request_t *req = NULL;
+    sentry_path_t *file_path = NULL;
+
+    if (is_inline) {
+        size_t payload_len = 0;
+        const char *payload
+            = sentry__envelope_item_get_payload(item, &payload_len);
+        if (!payload || payload_len == 0) {
+            return 0;
+        }
+        req = prepare_tus_request_common(
+            payload_len, state->dsn, state->user_agent);
+        if (req) {
+            req->body = (char *)payload;
+            req->body_len = payload_len;
+            req->body_owned = false;
+        }
+    } else {
+        file_path = sentry__envelope_item_get_attachment_ref_path(item);
+        if (!file_path) {
+            return 0;
+        }
+        size_t file_size = sentry__path_get_size(file_path);
+        if (file_size == 0) {
+            sentry__path_free(file_path);
+            return 0;
+        }
+        req = prepare_tus_request(
+            file_path, file_size, state->dsn, state->user_agent);
+    }
+
+    if (!req) {
+        if (file_path) {
+            remove_large_attachment(file_path);
+            sentry__path_free(file_path);
+        }
+        return -1;
+    }
+
+    sentry_http_response_t resp;
+    memset(&resp, 0, sizeof(resp));
+
+    bool ok = state->send_func(state->client, req, &resp);
+    sentry__prepared_http_request_free(req);
+    if (file_path) {
+        remove_large_attachment(file_path);
+        sentry__path_free(file_path);
+    }
+
+    int status_code = ok ? resp.status_code : -1;
+
+    if (ok && resp.status_code == 201 && resp.location) {
+        tus_resolve_item(item, resp.location, is_inline);
+    }
+
+    sentry_free(resp.retry_after);
+    sentry_free(resp.x_sentry_rate_limits);
+    sentry_free(resp.location);
+    return status_code;
+}
+
+// TODO: with future creation-only TUS, the envelope is sent immediately after
+// resolving locations (no blocking data uploads), and data uploads are queued
+// as lower-priority bgworker tasks
 static void
 tus_upload_attachment_refs(
     http_transport_state_t *state, sentry_envelope_t *envelope)
@@ -310,103 +416,12 @@ tus_upload_attachment_refs(
             continue;
         }
 
-        bool is_inline = sentry_value_is_true(
-            sentry__envelope_item_get_header(item, "inline"));
-
-        sentry_prepared_http_request_t *req = NULL;
-        sentry_path_t *file_path = NULL;
-
-        if (is_inline) {
-            size_t payload_len = 0;
-            const char *payload
-                = sentry__envelope_item_get_payload(item, &payload_len);
-            if (!payload || payload_len == 0) {
-                continue;
-            }
-            req = prepare_tus_request_common(
-                payload_len, state->dsn, state->user_agent);
-            if (req) {
-                req->body = (char *)payload;
-                req->body_len = payload_len;
-                req->body_owned = false;
-            }
-        } else {
-            file_path = sentry__envelope_item_get_attachment_ref_path(item);
-            if (!file_path) {
-                continue;
-            }
-            size_t file_size = sentry__path_get_size(file_path);
-            if (file_size == 0) {
-                sentry__path_free(file_path);
-                continue;
-            }
-            req = prepare_tus_request(
-                file_path, file_size, state->dsn, state->user_agent);
+        int status_code = tus_upload_item(state, item);
+        if (status_code == 404) {
+            state->has_tus = false;
+            SENTRY_WARN("TUS upload returned 404, disabling TUS");
+            return;
         }
-
-        if (!req) {
-            if (file_path) {
-                remove_large_attachment(file_path);
-                sentry__path_free(file_path);
-            }
-            continue;
-        }
-
-        sentry_http_response_t resp;
-        memset(&resp, 0, sizeof(resp));
-
-        bool ok = state->send_func(state->client, req, &resp);
-        sentry__prepared_http_request_free(req);
-        if (file_path) {
-            remove_large_attachment(file_path);
-            sentry__path_free(file_path);
-        }
-
-        if (!ok || resp.status_code == 404) {
-            if (resp.status_code == 404) {
-                state->has_tus = false;
-                SENTRY_WARN("TUS upload returned 404, disabling TUS");
-            }
-            sentry_free(resp.retry_after);
-            sentry_free(resp.x_sentry_rate_limits);
-            sentry_free(resp.location);
-            if (!state->has_tus) {
-                return;
-            }
-            continue;
-        }
-
-        if (resp.status_code == 201 && resp.location) {
-            sentry_value_t loc_json;
-            if (is_inline) {
-                loc_json = sentry_value_new_object();
-                const char *ref_ct = sentry_value_as_string(
-                    sentry__envelope_item_get_header(item, "ref_content_type"));
-                if (ref_ct && *ref_ct != '\0') {
-                    sentry_value_set_by_key(loc_json, "content_type",
-                        sentry_value_new_string(ref_ct));
-                }
-            } else {
-                size_t old_len = 0;
-                const char *old_payload
-                    = sentry__envelope_item_get_payload(item, &old_len);
-                loc_json = sentry__value_from_json(old_payload, old_len);
-                sentry_value_remove_by_key(loc_json, "path");
-            }
-            sentry_value_set_by_key(
-                loc_json, "location", sentry_value_new_string(resp.location));
-
-            sentry_jsonwriter_t *jw = sentry__jsonwriter_new_sb(NULL);
-            sentry__jsonwriter_write_value(jw, loc_json);
-            sentry_value_decref(loc_json);
-            size_t new_len = 0;
-            char *new_payload = sentry__jsonwriter_into_string(jw, &new_len);
-            sentry__envelope_item_set_payload(item, new_payload, new_len);
-        }
-
-        sentry_free(resp.retry_after);
-        sentry_free(resp.x_sentry_rate_limits);
-        sentry_free(resp.location);
     }
 }
 
