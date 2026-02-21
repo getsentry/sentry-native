@@ -333,6 +333,41 @@ sentry__path_rename(const sentry_path_t *src, const sentry_path_t *dst)
 }
 
 int
+sentry__path_copy(const sentry_path_t *src, const sentry_path_t *dst)
+{
+    int src_fd = open(src->path, O_RDONLY);
+    if (src_fd < 0) {
+        return 1;
+    }
+    int dst_fd = open(dst->path, O_WRONLY | O_CREAT | O_TRUNC,
+        S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH);
+    if (dst_fd < 0) {
+        close(src_fd);
+        return 1;
+    }
+
+    char buf[16384];
+    int rv = 0;
+    while (true) {
+        ssize_t n = read(src_fd, buf, sizeof(buf));
+        if (n < 0 && (errno == EAGAIN || errno == EINTR)) {
+            continue;
+        } else if (n <= 0) {
+            rv = n < 0;
+            break;
+        }
+        if (write_loop(dst_fd, buf, (size_t)n) != 0) {
+            rv = 1;
+            break;
+        }
+    }
+
+    close(src_fd);
+    close(dst_fd);
+    return rv;
+}
+
+int
 sentry__path_create_dir_all(const sentry_path_t *path)
 {
     char *p, *ptr;
