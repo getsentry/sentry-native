@@ -380,6 +380,12 @@ tus_upload_attachment_refs(
             sentry_value_t loc_json;
             if (is_inline) {
                 loc_json = sentry_value_new_object();
+                const char *ref_ct = sentry_value_as_string(
+                    sentry__envelope_item_get_header(item, "ref_content_type"));
+                if (ref_ct && *ref_ct != '\0') {
+                    sentry_value_set_by_key(loc_json, "content_type",
+                        sentry_value_new_string(ref_ct));
+                }
             } else {
                 size_t old_len = 0;
                 const char *old_payload

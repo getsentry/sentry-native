@@ -690,6 +690,13 @@ sentry__envelope_item_set_attachment_ref(
     sentry_value_set_by_key(obj, "path", sentry_value_new_string(path->path));
 #endif
 
+    const char *ref_ct = sentry_value_as_string(
+        sentry__envelope_item_get_header(item, "ref_content_type"));
+    if (ref_ct && *ref_ct != '\0') {
+        sentry_value_set_by_key(
+            obj, "content_type", sentry_value_new_string(ref_ct));
+    }
+
     sentry_jsonwriter_t *jw = sentry__jsonwriter_new_sb(NULL);
     sentry__jsonwriter_write_value(jw, obj);
     sentry_value_decref(obj);
@@ -771,6 +778,10 @@ sentry__envelope_add_attachment(
                 item->payload_len = attachment->buf_len;
                 sentry__envelope_item_set_header(item, "length",
                     sentry_value_new_int32((int32_t)item->payload_len));
+                if (attachment->content_type) {
+                    sentry__envelope_item_set_header(item, "ref_content_type",
+                        sentry_value_new_string(attachment->content_type));
+                }
             }
         } else {
             item = envelope_add_attachment_ref(envelope, attachment->path,
