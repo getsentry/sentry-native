@@ -1022,6 +1022,113 @@ SENTRY_TEST(attachment_ref_move)
     sentry_close();
 }
 
+static void
+send_restore_envelope(sentry_envelope_t *envelope, void *data)
+{
+    int *called = data;
+    *called += 1;
+
+    size_t item_count = sentry__envelope_get_item_count(envelope);
+    // event + attachment_ref = 2 items (proves materialization worked)
+    TEST_CHECK(item_count >= 2);
+
+    if (item_count >= 2) {
+        const sentry_envelope_item_t *item
+            = sentry__envelope_get_item(envelope, 1);
+        TEST_CHECK(sentry__envelope_item_is_attachment_ref(item));
+
+        size_t payload_len = 0;
+        const char *payload
+            = sentry__envelope_item_get_payload(item, &payload_len);
+        TEST_CHECK(!!payload);
+        sentry_value_t pj = sentry__value_from_json(payload, payload_len);
+        const char *ref_path
+            = sentry_value_as_string(sentry_value_get_by_key(pj, "path"));
+        TEST_CHECK(!!strstr(ref_path,
+            "/attachments/c993afb6-b4ac-48a6-b61b-2558e601d65d/"
+            "test_minidump.dmp"));
+        sentry_value_decref(pj);
+    }
+
+    sentry_envelope_free(envelope);
+}
+
+SENTRY_TEST(attachment_ref_restore)
+{
+#if defined(SENTRY_PLATFORM_NX) || defined(SENTRY_PLATFORM_PS)
+    SKIP_TEST();
+#endif
+    const char *db_str = SENTRY_TEST_PATH_PREFIX ".sentry-native";
+
+    sentry_uuid_t event_id
+        = sentry_uuid_from_string("c993afb6-b4ac-48a6-b61b-2558e601d65d");
+
+    // set up old run dir with an envelope containing an attachment_ref
+    sentry_path_t *db_path = sentry__path_from_str(db_str);
+    sentry_path_t *old_run_path = sentry__path_join_str(db_path, "old.run");
+    TEST_ASSERT(sentry__path_create_dir_all(old_run_path) == 0);
+
+    // build attachment path in db/attachments/<uuid>/
+    sentry_path_t *att_dir = sentry__path_join_str(db_path, "attachments");
+    sentry_path_t *event_att_dir = sentry__path_join_str(
+        att_dir, "c993afb6-b4ac-48a6-b61b-2558e601d65d");
+    sentry__path_free(att_dir);
+    TEST_ASSERT(sentry__path_create_dir_all(event_att_dir) == 0);
+
+    sentry_path_t *att_file
+        = sentry__path_join_str(event_att_dir, "test_minidump.dmp");
+    size_t large_size = 100 * 1024 * 1024;
+    FILE *f = fopen(att_file->path, "wb");
+    TEST_ASSERT(!!f);
+    fseek(f, (long)(large_size - 1), SEEK_SET);
+    fputc(0, f);
+    fclose(f);
+
+    // build envelope: event + attachment_ref pointing to the attachment file
+    sentry_envelope_t *envelope = sentry__envelope_new();
+    sentry_value_t event = sentry_value_new_object();
+    sentry_value_set_by_key(
+        event, "event_id", sentry__value_new_uuid(&event_id));
+    sentry__envelope_add_event(envelope, event);
+
+    sentry_envelope_item_t *item = sentry__envelope_get_item_mut(envelope, 0);
+    TEST_ASSERT(sentry__envelope_get_item_count(envelope) == 1);
+    (void)item;
+
+    // manually add an attachment_ref item with path payload
+    sentry_attachment_t *attachment
+        = sentry__attachment_from_path(sentry__path_clone(att_file));
+    attachment->type = MINIDUMP;
+    sentry__envelope_add_attachment(envelope, attachment);
+    TEST_ASSERT(sentry__envelope_get_item_count(envelope) == 2);
+
+    // write envelope to old run dir
+    sentry_path_t *envelope_path = sentry__path_join_str(
+        old_run_path, "c993afb6-b4ac-48a6-b61b-2558e601d65d.envelope");
+    TEST_ASSERT(sentry_envelope_write_to_path(envelope, envelope_path) == 0);
+    sentry__attachment_free(attachment);
+    sentry_envelope_free(envelope);
+
+    // init sentry with function transport — process_old_runs runs during init
+    int called = 0;
+    SENTRY_TEST_OPTIONS_NEW(options);
+    sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
+    sentry_transport_t *transport = sentry_transport_new(send_restore_envelope);
+    sentry_transport_set_state(transport, &called);
+    sentry_options_set_transport(options, transport);
+    sentry_init(options);
+
+    // transport callback should have been called with the materialized envelope
+    TEST_CHECK(called >= 1);
+
+    sentry__path_free(envelope_path);
+    sentry__path_free(att_file);
+    sentry__path_free(event_att_dir);
+    sentry__path_free(old_run_path);
+    sentry__path_free(db_path);
+    sentry_close();
+}
+
 SENTRY_TEST(deserialize_envelope_invalid)
 {
     TEST_CHECK(!sentry_envelope_deserialize("", 0));
