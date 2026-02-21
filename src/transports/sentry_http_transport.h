@@ -2,6 +2,7 @@
 #define SENTRY_HTTP_TRANSPORT_H_INCLUDED
 
 #include "sentry_boot.h"
+#include "sentry_path.h"
 #include "sentry_ratelimiter.h"
 #include "sentry_sync.h"
 #include "sentry_transport.h"
@@ -19,6 +20,7 @@ typedef struct sentry_prepared_http_request_s {
     char *body;
     size_t body_len;
     bool body_owned;
+    sentry_path_t *body_path;
 } sentry_prepared_http_request_t;
 
 sentry_prepared_http_request_t *sentry__prepare_http_request(
