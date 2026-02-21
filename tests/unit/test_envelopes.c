@@ -997,16 +997,22 @@ SENTRY_TEST(attachment_ref_move)
     TEST_CHECK_STRING_EQUAL(ref_path, src_path->path);
     sentry_value_decref(payload_json);
 
-    // after dump: run-dir file is left in place (already owned)
+    // after dump: run-dir file is renamed to db/attachments/
     sentry__run_write_envelope(run, envelope);
 
-    TEST_CHECK(sentry__path_is_file(src_path));
+    TEST_CHECK(!sentry__path_is_file(src_path));
 
     payload = sentry__envelope_item_get_payload(item, &payload_len);
     payload_json = sentry__value_from_json(payload, payload_len);
     ref_path
         = sentry_value_as_string(sentry_value_get_by_key(payload_json, "path"));
-    TEST_CHECK_STRING_EQUAL(ref_path, src_path->path);
+    TEST_CHECK(!!strstr(ref_path,
+        "/attachments/c993afb6-b4ac-48a6-b61b-2558e601d65d/"
+        "test_minidump.dmp"));
+
+    sentry_path_t *dest_path = sentry__path_from_str(ref_path);
+    TEST_CHECK(sentry__path_is_file(dest_path));
+    sentry__path_free(dest_path);
 
     sentry_value_decref(payload_json);
     sentry__attachment_free(attachment);

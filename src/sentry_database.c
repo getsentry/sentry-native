@@ -133,6 +133,19 @@ write_envelope(const sentry_path_t *path, const sentry_envelope_t *envelope)
 }
 
 static sentry_path_t *
+resolve_large_attachment_dir(const sentry_path_t *db_path, const char *uuid_str)
+{
+    sentry_path_t *attachments_dir
+        = sentry__path_join_str(db_path, "attachments");
+    if (!attachments_dir) {
+        return NULL;
+    }
+    sentry_path_t *event_dir = sentry__path_join_str(attachments_dir, uuid_str);
+    sentry__path_free(attachments_dir);
+    return event_dir;
+}
+
+static sentry_path_t *
 resolve_large_attachment(
     const sentry_path_t *db_path, const char *uuid_str, const char *filename)
 {
@@ -191,18 +204,15 @@ write_large_attachment(sentry_envelope_item_t *item,
             return;
         }
         sentry_path_t *src_dir = sentry__path_dir(src);
-        if (src_dir && sentry__path_eq(src_dir, run_path)) {
-            sentry__path_free(src_dir);
-            sentry__path_free(src);
-            return;
-        }
+        bool is_run_owned = src_dir && sentry__path_eq(src_dir, run_path);
         sentry__path_free(src_dir);
         dst = resolve_large_attachment(db_path, uuid_str, filename);
         if (!dst) {
             sentry__path_free(src);
             return;
         }
-        rv = sentry__path_copy(src, dst);
+        rv = is_run_owned ? sentry__path_rename(src, dst)
+                          : sentry__path_copy(src, dst);
         sentry__path_free(src);
     }
 
@@ -454,6 +464,21 @@ sentry__process_old_runs(const sentry_options_t *options, uint64_t last_crash)
                 }
             } else if (sentry__path_ends_with(file, ".envelope")) {
                 sentry_envelope_t *envelope = sentry__envelope_from_path(file);
+                if (envelope) {
+                    const char *fname = sentry__path_filename(file);
+                    size_t fname_len = fname ? strlen(fname) : 0;
+                    if (fname_len > 36) {
+                        char uuid_str[37];
+                        memcpy(uuid_str, fname, 36);
+                        uuid_str[36] = '\0';
+                        sentry_path_t *att_dir = resolve_large_attachment_dir(
+                            options->database_path, uuid_str);
+                        if (att_dir && sentry__path_is_dir(att_dir)) {
+                            sentry__envelope_materialize(envelope);
+                        }
+                        sentry__path_free(att_dir);
+                    }
+                }
                 sentry__capture_envelope(options->transport, envelope);
 
                 if (cache_dir) {
