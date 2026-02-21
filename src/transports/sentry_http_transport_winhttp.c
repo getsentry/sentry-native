@@ -241,9 +241,45 @@ winhttp_send_task(void *_client, sentry_prepared_http_request_t *req,
             client->proxy_password, 0);
     }
 
-    if ((result = WinHttpSendRequest(client->request, headers, (DWORD)-1,
-             (LPVOID)req->body, (DWORD)req->body_len, (DWORD)req->body_len,
-             0))) {
+    if (req->body_path) {
+        HANDLE hFile = CreateFileW(req->body_path->path_w, GENERIC_READ,
+            FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+        if (hFile == INVALID_HANDLE_VALUE) {
+            SENTRY_WARN("failed to open body_path for upload");
+            goto exit;
+        }
+
+        result = WinHttpSendRequest(client->request, headers, (DWORD)-1, NULL,
+            0, (DWORD)req->body_len, 0);
+        if (result) {
+            char chunk[65536];
+            DWORD bytes_read = 0;
+            while (ReadFile(hFile, chunk, sizeof(chunk), &bytes_read, NULL)
+                && bytes_read > 0) {
+                DWORD bytes_written = 0;
+                if (!WinHttpWriteData(
+                        client->request, chunk, bytes_read, &bytes_written)) {
+                    SENTRY_WARNF("`WinHttpWriteData` failed with code `%d`",
+                        GetLastError());
+                    result = false;
+                    break;
+                }
+            }
+        } else {
+            SENTRY_WARNF(
+                "`WinHttpSendRequest` failed with code `%d`", GetLastError());
+        }
+        CloseHandle(hFile);
+    } else {
+        result = WinHttpSendRequest(client->request, headers, (DWORD)-1,
+            (LPVOID)req->body, (DWORD)req->body_len, (DWORD)req->body_len, 0);
+        if (!result) {
+            SENTRY_WARNF(
+                "`WinHttpSendRequest` failed with code `%d`", GetLastError());
+        }
+    }
+
+    if (result) {
         WinHttpReceiveResponse(client->request, NULL);
 
         if (client->debug) {
@@ -294,9 +330,6 @@ winhttp_send_task(void *_client, sentry_prepared_http_request_t *req,
                        WINHTTP_NO_HEADER_INDEX)) {
             resp->retry_after = sentry__string_from_wstr(buf);
         }
-    } else {
-        SENTRY_WARNF(
-            "`WinHttpSendRequest` failed with code `%d`", GetLastError());
     }
 
     uint64_t now = sentry__monotonic_time();

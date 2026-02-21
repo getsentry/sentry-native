@@ -179,6 +179,7 @@ sentry__prepared_http_request_free(sentry_prepared_http_request_t *req)
     if (req->body_owned) {
         sentry_free(req->body);
     }
+    sentry__path_free(req->body_path);
     sentry_free(req);
 }
 
