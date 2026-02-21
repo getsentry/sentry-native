@@ -149,13 +149,7 @@ static sentry_path_t *
 resolve_large_attachment(
     const sentry_path_t *db_path, const char *uuid_str, const char *filename)
 {
-    sentry_path_t *attachments_dir
-        = sentry__path_join_str(db_path, "attachments");
-    if (!attachments_dir) {
-        return NULL;
-    }
-    sentry_path_t *event_dir = sentry__path_join_str(attachments_dir, uuid_str);
-    sentry__path_free(attachments_dir);
+    sentry_path_t *event_dir = resolve_large_attachment_dir(db_path, uuid_str);
     if (!event_dir) {
         return NULL;
     }
