@@ -1,5 +1,14 @@
 #include "sentry_options.h"
 #include "sentry_testsupport.h"
+#include <stdlib.h>
+
+#ifdef SENTRY_PLATFORM_WINDOWS
+#    define SETENV(k, v) _putenv_s(k, v)
+#    define UNSETENV(k) _putenv_s(k, "")
+#else
+#    define SETENV(k, v) setenv(k, v, 1)
+#    define UNSETENV(k) unsetenv(k)
+#endif
 
 SENTRY_TEST(options_sdk_name_defaults)
 {
@@ -73,4 +82,34 @@ SENTRY_TEST(options_logger_enabled_when_crashed_default)
     TEST_CHECK_INT_EQUAL(options->enable_logging_when_crashed, 1);
 
     sentry_options_free(options);
+}
+
+SENTRY_TEST(options_sample_rate_env)
+{
+    SETENV("SENTRY_SAMPLE_RATE", "0.5");
+    SETENV("SENTRY_TRACES_SAMPLE_RATE", "0.25");
+
+    sentry_options_t *options = sentry_options_new();
+    TEST_ASSERT(!!options);
+    TEST_CHECK(sentry_options_get_sample_rate(options) == 0.5);
+    TEST_CHECK(sentry_options_get_traces_sample_rate(options) == 0.25);
+    sentry_options_free(options);
+
+    UNSETENV("SENTRY_SAMPLE_RATE");
+    UNSETENV("SENTRY_TRACES_SAMPLE_RATE");
+}
+
+SENTRY_TEST(options_sample_rate_env_invalid)
+{
+    SETENV("SENTRY_SAMPLE_RATE", "not_a_number");
+    SETENV("SENTRY_TRACES_SAMPLE_RATE", "");
+
+    sentry_options_t *options = sentry_options_new();
+    TEST_ASSERT(!!options);
+    TEST_CHECK(sentry_options_get_sample_rate(options) == 1.0);
+    TEST_CHECK(sentry_options_get_traces_sample_rate(options) == 0.0);
+    sentry_options_free(options);
+
+    UNSETENV("SENTRY_SAMPLE_RATE");
+    UNSETENV("SENTRY_TRACES_SAMPLE_RATE");
 }

@@ -8,6 +8,7 @@
 #include "sentry_string.h"
 #include "sentry_sync.h"
 #include "sentry_transport.h"
+#include "sentry_utils.h"
 #include <stdlib.h>
 
 sentry_options_t *
@@ -73,6 +74,24 @@ sentry_options_new(void)
     opts->refcount = 1;
     opts->shutdown_timeout = SENTRY_DEFAULT_SHUTDOWN_TIMEOUT;
     opts->traces_sample_rate = 0.0;
+
+    const char *sample_rate = getenv("SENTRY_SAMPLE_RATE");
+    if (sample_rate) {
+        char *end = NULL;
+        double rate = sentry__strtod_c(sample_rate, &end);
+        if (end != sample_rate && *end == '\0') {
+            sentry_options_set_sample_rate(opts, rate);
+        }
+    }
+
+    const char *traces_sample_rate = getenv("SENTRY_TRACES_SAMPLE_RATE");
+    if (traces_sample_rate) {
+        char *end = NULL;
+        double rate = sentry__strtod_c(traces_sample_rate, &end);
+        if (end != traces_sample_rate && *end == '\0') {
+            sentry_options_set_traces_sample_rate(opts, rate);
+        }
+    }
     opts->max_spans = SENTRY_SPANS_MAX;
     opts->handler_strategy = SENTRY_HANDLER_STRATEGY_DEFAULT;
 
