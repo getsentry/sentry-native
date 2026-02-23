@@ -115,7 +115,7 @@ sentry__run_free(sentry_run_t *run)
 }
 
 static bool
-write_envelope(const sentry_path_t *dir, const sentry_envelope_t *envelope)
+write_envelope(const sentry_path_t *path, const sentry_envelope_t *envelope)
 {
     sentry_uuid_t event_id = sentry__envelope_get_event_id(envelope);
 
@@ -125,23 +125,24 @@ write_envelope(const sentry_path_t *dir, const sentry_envelope_t *envelope)
         event_id = sentry_uuid_new_v4();
     }
 
-    char *filename = sentry__uuid_as_filename(&event_id, ".envelope");
-    if (!filename) {
+    char *envelope_filename = sentry__uuid_as_filename(&event_id, ".envelope");
+    if (!envelope_filename) {
         return false;
     }
 
-    sentry_path_t *path = sentry__path_join_str(dir, filename);
-    sentry_free(filename);
-    if (!path) {
+    sentry_path_t *output_path = sentry__path_join_str(path, envelope_filename);
+    sentry_free(envelope_filename);
+    if (!output_path) {
         return false;
     }
 
-    int rv = sentry_envelope_write_to_path(envelope, path);
-    sentry__path_free(path);
+    int rv = sentry_envelope_write_to_path(envelope, output_path);
+    sentry__path_free(output_path);
     if (rv) {
         SENTRY_WARN("writing envelope to file failed");
         return false;
     }
+
     return true;
 }
 
@@ -160,6 +161,7 @@ sentry__run_write_external(
         SENTRY_ERRORF("mkdir failed: \"%s\"", run->external_path->path);
         return false;
     }
+
     return write_envelope(run->external_path, envelope);
 }
 
