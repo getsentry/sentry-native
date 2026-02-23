@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1771851315420,
+  "lastUpdate": 1771851388795,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -22906,6 +22906,66 @@ window.BENCHMARK_DATA = {
             "value": 14.324499999986529,
             "unit": "ms",
             "extra": "Min 13.374ms\nMax 38.674ms\nMean 20.716ms\nStdDev 10.835ms\nMedian 14.324ms\nCPU 1.643ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "jpnurmi@gmail.com",
+            "name": "J-P Nurmi",
+            "username": "jpnurmi"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "82e4e947d0faba62d313edb71916f2ece37405ca",
+          "message": "ref(transport): unify and restructure HTTP transport layer (#1514)\n\nCo-authored-by: Claude Opus 4.6 <noreply@anthropic.com>",
+          "timestamp": "2026-02-23T13:52:44+01:00",
+          "tree_id": "668f30a2ee1d945e4bf6369beb540fc5885a185b",
+          "url": "https://github.com/getsentry/sentry-native/commit/82e4e947d0faba62d313edb71916f2ece37405ca"
+        },
+        "date": 1771851385695,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 3.253667000024052,
+            "unit": "ms",
+            "extra": "Min 2.970ms\nMax 3.543ms\nMean 3.268ms\nStdDev 0.208ms\nMedian 3.254ms\nCPU 1.803ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 3.7807920000432205,
+            "unit": "ms",
+            "extra": "Min 3.195ms\nMax 4.748ms\nMean 3.972ms\nStdDev 0.714ms\nMedian 3.781ms\nCPU 2.003ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 11.450708000040777,
+            "unit": "ms",
+            "extra": "Min 11.184ms\nMax 12.688ms\nMean 11.695ms\nStdDev 0.590ms\nMedian 11.451ms\nCPU 4.141ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.07379200002333164,
+            "unit": "ms",
+            "extra": "Min 0.054ms\nMax 0.304ms\nMean 0.114ms\nStdDev 0.107ms\nMedian 0.074ms\nCPU 0.058ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.3535419999707301,
+            "unit": "ms",
+            "extra": "Min 0.292ms\nMax 0.524ms\nMean 0.378ms\nStdDev 0.089ms\nMedian 0.354ms\nCPU 0.377ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 7.0261249999816755,
+            "unit": "ms",
+            "extra": "Min 6.567ms\nMax 8.055ms\nMean 7.228ms\nStdDev 0.671ms\nMedian 7.026ms\nCPU 0.985ms"
           }
         ]
       }
