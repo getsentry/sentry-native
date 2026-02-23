@@ -22,7 +22,7 @@ parse_double_env(const char *name, double *out)
     }
     char *end = NULL;
     double val = sentry__strtod_c(str, &end);
-    if (end == str || isnan(val)) {
+    if (end == str || !isfinite(val)) {
         return false;
     }
     if (end[strspn(end, " \t\r\n")] != '\0') {

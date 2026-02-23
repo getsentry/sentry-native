@@ -152,3 +152,18 @@ SENTRY_TEST(options_sample_rate_nan)
     popenv("SENTRY_SAMPLE_RATE", old_sr);
     popenv("SENTRY_TRACES_SAMPLE_RATE", old_tsr);
 }
+
+SENTRY_TEST(options_sample_rate_inf)
+{
+    char *old_sr = pushenv("SENTRY_SAMPLE_RATE", "inf");
+    char *old_tsr = pushenv("SENTRY_TRACES_SAMPLE_RATE", "-inf");
+
+    sentry_options_t *options = sentry_options_new();
+    TEST_ASSERT(!!options);
+    TEST_CHECK(sentry_options_get_sample_rate(options) == 1.0);
+    TEST_CHECK(sentry_options_get_traces_sample_rate(options) == 0.0);
+    sentry_options_free(options);
+
+    popenv("SENTRY_SAMPLE_RATE", old_sr);
+    popenv("SENTRY_TRACES_SAMPLE_RATE", old_tsr);
+}
