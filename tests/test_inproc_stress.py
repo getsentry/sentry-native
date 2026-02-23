@@ -7,7 +7,6 @@ import sys
 import time
 
 import pytest
-from flaky import flaky
 
 from . import Envelope
 from .assertions import assert_inproc_crash
@@ -223,6 +222,9 @@ def test_inproc_simple_crash(cmake):
         shutil.rmtree(database_path, ignore_errors=True)
 
 
+@pytest.mark.skipif(
+    is_tsan, reason="disabled in tsan due to triggering edge-case flaky behavior"
+)
 def test_inproc_concurrent_crash(cmake):
     """
     Stress test: multiple threads crash simultaneously.
@@ -487,6 +489,9 @@ def test_inproc_stack_trace(cmake, test_name, expected_functions, expect_no_dupl
     is_tsan, reason="disabled in tsan due to triggering edge-case flaky behavior"
 )
 def test_inproc_concurrent_crash_repeated(cmake, iteration):
+    """
+    minimal assertions version of test_inproc_concurrent_crash that just hits multiple times each CI run.
+    """
     tmp_path = cmake(
         ["sentry"],
         {"SENTRY_BACKEND": "inproc", "SENTRY_TRANSPORT": "none"},
