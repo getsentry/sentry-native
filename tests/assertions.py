@@ -127,11 +127,11 @@ def assert_event_meta(
             match = VERSION_RE.match(version)
             version = match.group(1)
             build = match.group(2)
+            expected_os_context = {"name": "Linux", "version": version}
+            if build:
+                expected_os_context["build"] = build
 
-            assert_matches(
-                event["contexts"]["os"],
-                {"name": "Linux", "version": version, "build": build},
-            )
+            assert_matches(event["contexts"]["os"], expected_os_context)
             assert "distribution_name" in event["contexts"]["os"]
             assert "distribution_version" in event["contexts"]["os"]
         elif sys.platform == "darwin":
@@ -170,6 +170,16 @@ def assert_event_meta(
         )
 
 
+def is_valid_hex(s):
+    if not s.lower().startswith("0x"):
+        return False
+    try:
+        int(s, 0)
+        return True
+    except ValueError:
+        return False
+
+
 def assert_stacktrace(
     envelope, inside_exception=False, check_size=True, check_package=False
 ):
@@ -181,7 +191,7 @@ def assert_stacktrace(
 
     if check_size:
         assert len(frames) > 0
-        assert all(frame["instruction_addr"].startswith("0x") for frame in frames)
+        assert all(is_valid_hex(frame["instruction_addr"]) for frame in frames)
         assert any(
             frame.get("function") is not None and frame.get("package") is not None
             for frame in frames
@@ -412,6 +422,19 @@ def assert_before_send(envelope):
 def assert_no_before_send(envelope):
     event = envelope.get_event()
     assert ("adapted_by", "before_send") not in event.items()
+
+
+def assert_before_breadcrumb(envelope):
+    event = envelope.get_event()
+    breadcrumbs = event.get("breadcrumbs", [])
+    assert len(breadcrumbs) > 0
+    assert all(b.get("category") == "before_breadcrumb" for b in breadcrumbs)
+
+
+def assert_no_breadcrumbs(envelope):
+    event = envelope.get_event()
+    breadcrumbs = event.get("breadcrumbs")
+    assert not breadcrumbs
 
 
 @dataclass(frozen=True)

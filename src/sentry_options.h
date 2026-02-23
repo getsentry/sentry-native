@@ -63,6 +63,8 @@ struct sentry_options_s {
     void *before_transaction_data;
     sentry_before_send_log_function_t before_send_log_func;
     void *before_send_log_data;
+    sentry_before_breadcrumb_function_t before_breadcrumb_func;
+    void *before_breadcrumb_data;
 
     /* Experimentally exposed */
     double traces_sample_rate;

@@ -1,5 +1,33 @@
 # Changelog
 
+## 0.13.0
+
+**Breaking**:
+
+- inproc: since we split `inproc` into signal-handler/UEF part and a separate handler thread, `before_send` and `on_crash` could be called from other threads than the one that crashed. While this was never part of the contract, if your code relies on this, it will no longer work. ([#1446](https://github.com/getsentry/sentry-native/pull/1446))
+- Android NDK: `SentryNdk.init(NdkOptions)` now throws an `Exception` if init fails (non-zero return code) rather than silently swallowing the error. ([#1430](https://github.com/getsentry/sentry-native/pull/1430))
+
+**Features**:
+
+- Add support for `abort()` in the `inproc` backend on Windows. ([#1446](https://github.com/getsentry/sentry-native/pull/1446))
+- Add `beforeBreadcrumb` callback support ([#1534](https://github.com/getsentry/sentry-native/pull/1534))
+
+**Fixes**:
+
+- Make the signal-handler synchronization fully atomic to fix rare race scenarios. ([#1446](https://github.com/getsentry/sentry-native/pull/1446))
+- Reintroduce an FP-based stack-walker for macOS that can start from a user context. This also makes `inproc` backend functional again on macOS 13+. ([#1446](https://github.com/getsentry/sentry-native/pull/1446))
+- Split the `inproc` signal handler (and UEF on Windows) into a safe handler part and an "unsafe" handler thread. This minimizes exposure to undefined behavior inside the signal handler. ([#1446](https://github.com/getsentry/sentry-native/pull/1446))
+- Use a signal-safe address formatter instead of `snprintf()`. ([#1446](https://github.com/getsentry/sentry-native/pull/1446))
+
+**Internal**:
+
+- Introduce PAC tests for `arm64e` on macOS. ([#1446](https://github.com/getsentry/sentry-native/pull/1446))
+- For Linux, the SDK now has a vendored "nognu" `libunwind` as the default stack walker and links it statically, but with PIC enabled so it can be used in PIE executables. ([#1446](https://github.com/getsentry/sentry-native/pull/1446))
+
+**Thank you**:
+
+- [hannojg](https://github.com/hannojg)
+
 ## 0.12.8
 
 **Fixes**:
@@ -56,6 +84,7 @@
 - Add runtime API to query user consent requirement. ([#1443](https://github.com/getsentry/sentry-native/pull/1443))
 - Add logs flush on `sentry_flush()`. ([#1434](https://github.com/getsentry/sentry-native/pull/1434))
 - Add global attributes API. These are added to all `sentry_log_X` calls. ([#1450](https://github.com/getsentry/sentry-native/pull/1450))
+
 
 ## 0.12.1
 

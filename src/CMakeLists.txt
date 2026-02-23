@@ -159,6 +159,9 @@ elseif(SENTRY_BACKEND_NONE)
 endif()
 
 # unwinder
+sentry_target_sources_cwd(sentry
+	unwinder/sentry_unwinder.h
+)
 if(SENTRY_WITH_LIBBACKTRACE)
 	target_compile_definitions(sentry PRIVATE SENTRY_WITH_UNWINDER_LIBBACKTRACE)
 	sentry_target_sources_cwd(sentry
@@ -170,6 +173,13 @@ if(SENTRY_WITH_LIBUNWIND)
 	target_compile_definitions(sentry PRIVATE SENTRY_WITH_UNWINDER_LIBUNWIND)
 	sentry_target_sources_cwd(sentry
 		unwinder/sentry_unwinder_libunwind.c
+	)
+endif()
+
+if(SENTRY_WITH_LIBUNWIND_MAC)
+	target_compile_definitions(sentry PRIVATE SENTRY_WITH_UNWINDER_LIBUNWIND_MAC)
+	sentry_target_sources_cwd(sentry
+			unwinder/sentry_unwinder_libunwind_mac.c
 	)
 endif()
 

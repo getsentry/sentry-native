@@ -14,9 +14,15 @@ typedef volatile sig_atomic_t sentry_spinlock_t;
 
 #define SENTRY__SPINLOCK_INIT 0
 #define sentry__spinlock_lock(spinlock_ref)                                    \
-    while (!__sync_bool_compare_and_swap(spinlock_ref, 0, 1)) {                \
-        sentry__cpu_relax();                                                   \
+    for (;;) {                                                                 \
+        while (__atomic_load_n(spinlock_ref, __ATOMIC_RELAXED)) {              \
+            sentry__cpu_relax();                                               \
+        }                                                                      \
+        if (__atomic_exchange_n(spinlock_ref, 1, __ATOMIC_ACQUIRE) == 0) {     \
+            break;                                                             \
+        }                                                                      \
     }
-#define sentry__spinlock_unlock(spinlock_ref) (*spinlock_ref = 0)
+#define sentry__spinlock_unlock(spinlock_ref)                                  \
+    (__atomic_store_n(spinlock_ref, 0, __ATOMIC_RELEASE))
 
 #endif

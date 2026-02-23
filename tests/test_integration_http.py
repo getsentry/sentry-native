@@ -30,6 +30,8 @@ from .assertions import (
     assert_gzip_content_encoding,
     assert_gzip_file_header,
     assert_attachment_view_hierarchy,
+    assert_before_breadcrumb,
+    assert_no_breadcrumbs,
 )
 from .conditions import has_http, has_breakpad, has_files, is_kcov
 
@@ -675,3 +677,51 @@ def test_capture_with_scope(cmake, httpserver):
 
     assert_breadcrumb(envelope, "scoped crumb")
     assert_attachment(envelope)
+
+
+def test_before_breadcrumb_http(cmake, httpserver):
+    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "none"})
+
+    httpserver.expect_oneshot_request(
+        "/api/123456/envelope/",
+        headers={"x-sentry-auth": auth_header},
+    ).respond_with_data("OK")
+    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
+
+    run(
+        tmp_path,
+        "sentry_example",
+        ["log", "before-breadcrumb", "capture-event"],
+        env=env,
+    )
+
+    assert len(httpserver.log) == 1
+    output = httpserver.log[0][0].get_data()
+    envelope = Envelope.deserialize(output)
+
+    assert_event(envelope)
+    assert_before_breadcrumb(envelope)
+
+
+def test_discarding_before_breadcrumb_http(cmake, httpserver):
+    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "none"})
+
+    httpserver.expect_oneshot_request(
+        "/api/123456/envelope/",
+        headers={"x-sentry-auth": auth_header},
+    ).respond_with_data("OK")
+    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
+
+    run(
+        tmp_path,
+        "sentry_example",
+        ["log", "discarding-before-breadcrumb", "capture-event"],
+        env=env,
+    )
+
+    assert len(httpserver.log) == 1
+    output = httpserver.log[0][0].get_data()
+    envelope = Envelope.deserialize(output)
+
+    assert_event(envelope)
+    assert_no_breadcrumbs(envelope)

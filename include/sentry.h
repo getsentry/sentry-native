@@ -100,7 +100,7 @@ extern "C" {
 #    endif
 #endif
 #ifndef SENTRY_SDK_VERSION
-#    define SENTRY_SDK_VERSION "0.12.8"
+#    define SENTRY_SDK_VERSION "0.13.0"
 #endif
 #define SENTRY_SDK_USER_AGENT SENTRY_SDK_NAME "/" SENTRY_SDK_VERSION
 
@@ -1893,6 +1893,28 @@ SENTRY_API sentry_uuid_t sentry_capture_minidump_n(
  */
 SENTRY_EXPERIMENTAL_API void sentry_handle_exception(
     const sentry_ucontext_t *uctx);
+
+/**
+ * Type of the `before_breadcrumb` callback.
+ *
+ * The callback takes ownership of the `breadcrumb` and should usually return
+ * that same breadcrumb. In case the breadcrumb should be discarded, the
+ * callback needs to call `sentry_value_decref` on the provided breadcrumb and
+ * return a `sentry_value_new_null()` instead.
+ *
+ * The callback may also modify the breadcrumb and return it.
+ */
+typedef sentry_value_t (*sentry_before_breadcrumb_function_t)(
+    sentry_value_t breadcrumb, void *user_data);
+
+/**
+ * Sets the `before_breadcrumb` callback.
+ *
+ * See the `sentry_before_breadcrumb_function_t` typedef above for more
+ * information.
+ */
+SENTRY_API void sentry_options_set_before_breadcrumb(sentry_options_t *opts,
+    sentry_before_breadcrumb_function_t func, void *data);
 
 /**
  * Adds the breadcrumb to be sent in case of an event.

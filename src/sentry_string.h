@@ -204,6 +204,14 @@ sentry__uint64_to_string(uint64_t val)
     return sentry__string_clone(buf);
 }
 
+/**
+ * Formats an address as "0x" + lowercase hex into a caller-provided buffer.
+ * This is a replacement for `snprintf` in signal handlers:
+ *   - signal-safe: uses no stdio, malloc, locks, or thread-local state.
+ *   - reentrant: only stack locals; no writable globals.
+ */
+void sentry__addr_to_string(char *buf, size_t buf_len, uint64_t addr);
+
 #ifdef SENTRY_PLATFORM_WINDOWS
 /**
  * Create a utf-8 string from a Wide String.

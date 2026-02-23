@@ -47,6 +47,7 @@ add_executable(sentry_test_unit
 	test_scope.c
 	test_session.c
 	test_slice.c
+	test_string.c
 	test_symbolizer.c
 	test_sync.c
 	test_tracing.c
