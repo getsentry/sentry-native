@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1771848274712,
+  "lastUpdate": 1771848306208,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -22786,6 +22786,66 @@ window.BENCHMARK_DATA = {
             "value": 7.577459000003728,
             "unit": "ms",
             "extra": "Min 6.192ms\nMax 8.998ms\nMean 7.530ms\nStdDev 1.049ms\nMedian 7.577ms\nCPU 1.088ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "jpnurmi@gmail.com",
+            "name": "J-P Nurmi",
+            "username": "jpnurmi"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "04472e5f1f42c5fd031f514f31b24ea34776e4c3",
+          "message": "feat(sync): add delayed task submission (#1506)\n\nCo-authored-by: Claude Opus 4.6 <noreply@anthropic.com>",
+          "timestamp": "2026-02-23T13:00:20+01:00",
+          "tree_id": "8d5221c4715bf1675e1431239ded241898d236b5",
+          "url": "https://github.com/getsentry/sentry-native/commit/04472e5f1f42c5fd031f514f31b24ea34776e4c3"
+        },
+        "date": 1771848302033,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 5.404540999990104,
+            "unit": "ms",
+            "extra": "Min 3.302ms\nMax 7.222ms\nMean 5.667ms\nStdDev 1.602ms\nMedian 5.405ms\nCPU 3.163ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 4.968415999996978,
+            "unit": "ms",
+            "extra": "Min 3.282ms\nMax 12.385ms\nMean 5.967ms\nStdDev 3.665ms\nMedian 4.968ms\nCPU 2.829ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 31.035374999987653,
+            "unit": "ms",
+            "extra": "Min 17.657ms\nMax 65.503ms\nMean 38.439ms\nStdDev 22.651ms\nMedian 31.035ms\nCPU 7.392ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.12945899999294852,
+            "unit": "ms",
+            "extra": "Min 0.098ms\nMax 0.192ms\nMean 0.135ms\nStdDev 0.038ms\nMedian 0.129ms\nCPU 0.097ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.2771249999682368,
+            "unit": "ms",
+            "extra": "Min 0.276ms\nMax 0.990ms\nMean 0.475ms\nStdDev 0.312ms\nMedian 0.277ms\nCPU 0.459ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 14.324499999986529,
+            "unit": "ms",
+            "extra": "Min 13.374ms\nMax 38.674ms\nMean 20.716ms\nStdDev 10.835ms\nMedian 14.324ms\nCPU 1.643ms"
           }
         ]
       }
