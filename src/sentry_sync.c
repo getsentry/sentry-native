@@ -388,6 +388,8 @@ sentry__bgworker_flush(sentry_bgworker_t *bgw, uint64_t timeout)
             execute_after = t->execute_after;
         }
     }
+    // NOTE: another thread could submit between unlock and submit_at, making
+    // execute_after stale. Flush semantics make this harmless.
     sentry__mutex_unlock(&bgw->task_lock);
 
     sentry__mutex_lock(&flush_task->lock);
