@@ -11,6 +11,26 @@
 #include "sentry_utils.h"
 #include <math.h>
 #include <stdlib.h>
+#include <string.h>
+
+static bool
+parse_double_env(const char *name, double *out)
+{
+    const char *str = getenv(name);
+    if (!str) {
+        return false;
+    }
+    char *end = NULL;
+    double val = sentry__strtod_c(str, &end);
+    if (end == str || isnan(val)) {
+        return false;
+    }
+    if (end[strspn(end, " \t\r\n")] != '\0') {
+        return false;
+    }
+    *out = val;
+    return true;
+}
 
 sentry_options_t *
 sentry_options_new(void)
@@ -76,22 +96,12 @@ sentry_options_new(void)
     opts->shutdown_timeout = SENTRY_DEFAULT_SHUTDOWN_TIMEOUT;
     opts->traces_sample_rate = 0.0;
 
-    const char *sample_rate = getenv("SENTRY_SAMPLE_RATE");
-    if (sample_rate) {
-        char *end = NULL;
-        double rate = sentry__strtod_c(sample_rate, &end);
-        if (end != sample_rate && *end == '\0' && !isnan(rate)) {
-            sentry_options_set_sample_rate(opts, rate);
-        }
+    double rate;
+    if (parse_double_env("SENTRY_SAMPLE_RATE", &rate)) {
+        sentry_options_set_sample_rate(opts, rate);
     }
-
-    const char *traces_sample_rate = getenv("SENTRY_TRACES_SAMPLE_RATE");
-    if (traces_sample_rate) {
-        char *end = NULL;
-        double rate = sentry__strtod_c(traces_sample_rate, &end);
-        if (end != traces_sample_rate && *end == '\0' && !isnan(rate)) {
-            sentry_options_set_traces_sample_rate(opts, rate);
-        }
+    if (parse_double_env("SENTRY_TRACES_SAMPLE_RATE", &rate)) {
+        sentry_options_set_traces_sample_rate(opts, rate);
     }
     opts->max_spans = SENTRY_SPANS_MAX;
     opts->handler_strategy = SENTRY_HANDLER_STRATEGY_DEFAULT;
