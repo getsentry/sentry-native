@@ -4,21 +4,21 @@
 
 #ifdef SENTRY_PLATFORM_WINDOWS
 #    define SETENV(k, v) _putenv_s(k, v)
-#    define UNSETENV(k, old) \
-        do {                 \
-            if (old)         \
-                SETENV(k, old); \
-            else             \
-                _putenv_s(k, ""); \
+#    define UNSETENV(k, old)                                                   \
+        do {                                                                   \
+            if (old)                                                           \
+                SETENV(k, old);                                                \
+            else                                                               \
+                _putenv_s(k, "");                                              \
         } while (0)
 #else
 #    define SETENV(k, v) setenv(k, v, 1)
-#    define UNSETENV(k, old) \
-        do {                 \
-            if (old)         \
-                SETENV(k, old); \
-            else             \
-                unsetenv(k); \
+#    define UNSETENV(k, old)                                                   \
+        do {                                                                   \
+            if (old)                                                           \
+                SETENV(k, old);                                                \
+            else                                                               \
+                unsetenv(k);                                                   \
         } while (0)
 #endif
 
