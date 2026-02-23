@@ -4,10 +4,22 @@
 
 #ifdef SENTRY_PLATFORM_WINDOWS
 #    define SETENV(k, v) _putenv_s(k, v)
-#    define UNSETENV(k) _putenv_s(k, "")
+#    define UNSETENV(k, old) \
+        do {                 \
+            if (old)         \
+                SETENV(k, old); \
+            else             \
+                _putenv_s(k, ""); \
+        } while (0)
 #else
 #    define SETENV(k, v) setenv(k, v, 1)
-#    define UNSETENV(k) unsetenv(k)
+#    define UNSETENV(k, old) \
+        do {                 \
+            if (old)         \
+                SETENV(k, old); \
+            else             \
+                unsetenv(k); \
+        } while (0)
 #endif
 
 SENTRY_TEST(options_sdk_name_defaults)
@@ -86,6 +98,9 @@ SENTRY_TEST(options_logger_enabled_when_crashed_default)
 
 SENTRY_TEST(options_sample_rate_env)
 {
+    const char *old_sr = getenv("SENTRY_SAMPLE_RATE");
+    const char *old_tsr = getenv("SENTRY_TRACES_SAMPLE_RATE");
+
     SETENV("SENTRY_SAMPLE_RATE", "0.5");
     SETENV("SENTRY_TRACES_SAMPLE_RATE", "0.25");
 
@@ -95,12 +110,15 @@ SENTRY_TEST(options_sample_rate_env)
     TEST_CHECK(sentry_options_get_traces_sample_rate(options) == 0.25);
     sentry_options_free(options);
 
-    UNSETENV("SENTRY_SAMPLE_RATE");
-    UNSETENV("SENTRY_TRACES_SAMPLE_RATE");
+    UNSETENV("SENTRY_SAMPLE_RATE", old_sr);
+    UNSETENV("SENTRY_TRACES_SAMPLE_RATE", old_tsr);
 }
 
 SENTRY_TEST(options_sample_rate_env_invalid)
 {
+    const char *old_sr = getenv("SENTRY_SAMPLE_RATE");
+    const char *old_tsr = getenv("SENTRY_TRACES_SAMPLE_RATE");
+
     SETENV("SENTRY_SAMPLE_RATE", "not_a_number");
     SETENV("SENTRY_TRACES_SAMPLE_RATE", "");
 
@@ -110,6 +128,24 @@ SENTRY_TEST(options_sample_rate_env_invalid)
     TEST_CHECK(sentry_options_get_traces_sample_rate(options) == 0.0);
     sentry_options_free(options);
 
-    UNSETENV("SENTRY_SAMPLE_RATE");
-    UNSETENV("SENTRY_TRACES_SAMPLE_RATE");
+    UNSETENV("SENTRY_SAMPLE_RATE", old_sr);
+    UNSETENV("SENTRY_TRACES_SAMPLE_RATE", old_tsr);
+}
+
+SENTRY_TEST(options_sample_rate_nan)
+{
+    const char *old_sr = getenv("SENTRY_SAMPLE_RATE");
+    const char *old_tsr = getenv("SENTRY_TRACES_SAMPLE_RATE");
+
+    SETENV("SENTRY_SAMPLE_RATE", "NaN");
+    SETENV("SENTRY_TRACES_SAMPLE_RATE", "NaN");
+
+    sentry_options_t *options = sentry_options_new();
+    TEST_ASSERT(!!options);
+    TEST_CHECK(sentry_options_get_sample_rate(options) == 1.0);
+    TEST_CHECK(sentry_options_get_traces_sample_rate(options) == 0.0);
+    sentry_options_free(options);
+
+    UNSETENV("SENTRY_SAMPLE_RATE", old_sr);
+    UNSETENV("SENTRY_TRACES_SAMPLE_RATE", old_tsr);
 }

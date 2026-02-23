@@ -9,6 +9,7 @@
 #include "sentry_sync.h"
 #include "sentry_transport.h"
 #include "sentry_utils.h"
+#include <math.h>
 #include <stdlib.h>
 
 sentry_options_t *
@@ -79,7 +80,7 @@ sentry_options_new(void)
     if (sample_rate) {
         char *end = NULL;
         double rate = sentry__strtod_c(sample_rate, &end);
-        if (end != sample_rate && *end == '\0') {
+        if (end != sample_rate && *end == '\0' && !isnan(rate)) {
             sentry_options_set_sample_rate(opts, rate);
         }
     }
@@ -88,7 +89,7 @@ sentry_options_new(void)
     if (traces_sample_rate) {
         char *end = NULL;
         double rate = sentry__strtod_c(traces_sample_rate, &end);
-        if (end != traces_sample_rate && *end == '\0') {
+        if (end != traces_sample_rate && *end == '\0' && !isnan(rate)) {
             sentry_options_set_traces_sample_rate(opts, rate);
         }
     }
