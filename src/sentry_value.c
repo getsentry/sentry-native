@@ -1112,10 +1112,10 @@ sentry__value_merge_objects(sentry_value_t dst, sentry_value_t src)
                 return 1;
             }
         } else if (sentry_value_is_null(dst_val)) {
+            sentry_value_incref(src_val);
             if (sentry_value_set_by_key(dst, key, src_val) != 0) {
                 return 1;
             }
-            sentry_value_incref(src_val);
         }
     }
     return 0;

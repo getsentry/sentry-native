@@ -122,6 +122,13 @@ def cmake(cwd, targets, options=None, cflags=None):
     __tracebackhide__ = True
     if options is None:
         options = {}
+    if os.environ.get("USE_CCACHE"):
+        options.update(
+            {
+                "CMAKE_C_COMPILER_LAUNCHER": "ccache",
+                "CMAKE_CXX_COMPILER_LAUNCHER": "ccache",
+            }
+        )
     options.update(
         {
             "CMAKE_RUNTIME_OUTPUT_DIRECTORY": cwd,
@@ -167,6 +174,12 @@ def cmake(cwd, targets, options=None, cflags=None):
         configure_llvm_cov(config_cmd)
     env = dict(os.environ)
     env["CFLAGS"] = env["CXXFLAGS"] = " ".join(cflags)
+    if env.get("USE_CCACHE"):
+        # Each pytest run builds in a new temp directory. Paths are normalized
+        # relative to the build dir and CWD hashing is skipped to allow ccache
+        # hits across runs.
+        env.setdefault("CCACHE_BASEDIR", str(cwd))
+        env.setdefault("CCACHE_NOHASHDIR", "true")
 
     config_cmd.append(source_dir)
 
@@ -206,7 +219,7 @@ def cmake(cwd, targets, options=None, cflags=None):
 
     print("{} > {}".format(cwd, " ".join(buildcmd)), flush=True)
     try:
-        subprocess.run(buildcmd, cwd=cwd, check=True)
+        subprocess.run(buildcmd, cwd=cwd, env=env, check=True)
     except subprocess.CalledProcessError:
         raise pytest.fail.Exception("cmake build failed") from None
 

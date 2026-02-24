@@ -6,6 +6,10 @@
 
 - Add HTTP retry with exponential backoff. ([#1520](https://github.com/getsentry/sentry-native/pull/1520))
 
+**Fixes**:
+
+- Fix use-after-free on allocation failure when merging scope tags, extra, and contexts into a captured event. ([#1539](https://github.com/getsentry/sentry-native/pull/1539))
+
 ## 0.13.0
 
 **Breaking**:
