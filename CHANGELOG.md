@@ -6,6 +6,10 @@
 
 - Support `SENTRY_SAMPLE_RATE` and `SENTRY_TRACES_SAMPLE_RATE` environment variables. ([#1540](https://github.com/getsentry/sentry-native/pull/1540))
 
+**Fixes**:
+
+- Fix use-after-free on allocation failure when merging scope tags, extra, and contexts into a captured event. ([#1539](https://github.com/getsentry/sentry-native/pull/1539))
+
 ## 0.13.0
 
 **Breaking**:
