@@ -286,6 +286,10 @@ http_transport_start(const sentry_options_t *options, void *transport_state)
         state->retry = sentry__retry_new(options);
         if (state->retry) {
             sentry__retry_start(state->retry, bgworker, retry_send_cb, state);
+        } else {
+            // cannot retry, clear retry_func so envelopes get cached instead of
+            // dropped
+            sentry__transport_set_retry_func(options->transport, NULL);
         }
     }
 
