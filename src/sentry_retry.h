@@ -20,9 +20,9 @@ void sentry__retry_start(sentry_retry_t *retry, sentry_bgworker_t *bgworker,
     sentry_retry_send_func_t send_cb, void *send_data);
 
 /**
- * Flushes unprocessed previous-session retries. No-op if already polled.
+ * Prepares retry for shutdown: drops pending polls and submits a flush task.
  */
-void sentry__retry_flush(sentry_retry_t *retry, uint64_t timeout);
+void sentry__retry_shutdown(sentry_retry_t *retry);
 
 /**
  * Dumps queued envelopes to the retry dir and seals against further writes.
