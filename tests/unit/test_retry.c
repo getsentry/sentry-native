@@ -229,8 +229,8 @@ SENTRY_TEST(retry_result)
     sentry__path_remove_all(cache_path);
     sentry__path_create_dir_all(cache_path);
     uint64_t very_old_ts
-        = sentry__usec_time() / 1000 - 2 * sentry__retry_backoff(4);
-    write_retry_file(retry, very_old_ts, 4, &event_id);
+        = sentry__usec_time() / 1000 - 2 * sentry__retry_backoff(5);
+    write_retry_file(retry, very_old_ts, 5, &event_id);
     ctx = (retry_test_ctx_t) { -1, 0 };
     sentry__retry_send(retry, 0, test_send_cb, &ctx);
     TEST_CHECK_INT_EQUAL(ctx.count, 1);
@@ -285,9 +285,9 @@ SENTRY_TEST(retry_cache)
     sentry__path_remove_all(cache_path);
     sentry__path_create_dir_all(cache_path);
 
-    uint64_t old_ts = sentry__usec_time() / 1000 - 2 * sentry__retry_backoff(4);
+    uint64_t old_ts = sentry__usec_time() / 1000 - 2 * sentry__retry_backoff(5);
     sentry_uuid_t event_id = sentry_uuid_new_v4();
-    write_retry_file(retry, old_ts, 4, &event_id);
+    write_retry_file(retry, old_ts, 5, &event_id);
 
     char uuid_str[37];
     sentry_uuid_as_string(&event_id, uuid_str);
@@ -298,7 +298,7 @@ SENTRY_TEST(retry_cache)
     TEST_CHECK_INT_EQUAL(count_envelope_files(cache_path), 1);
     TEST_CHECK(!sentry__path_is_file(cached));
 
-    // Network error on a file at count=4 with max_retries=5 → renames to
+    // Network error on a file at count=5 with max_retries=6 → renames to
     // cache format (<uuid>.envelope)
     retry_test_ctx_t ctx = { -1, 0 };
     sentry__retry_send(retry, 0, test_send_cb, &ctx);
@@ -306,11 +306,11 @@ SENTRY_TEST(retry_cache)
     TEST_CHECK_INT_EQUAL(count_envelope_files(cache_path), 1);
     TEST_CHECK(sentry__path_is_file(cached));
 
-    // Success on a file at count=4 → also renames to cache format
+    // Success on a file at count=5 → also renames to cache format
     // (cache_keep preserves all envelopes regardless of send outcome)
     sentry__path_remove_all(cache_path);
     sentry__path_create_dir_all(cache_path);
-    write_retry_file(retry, old_ts, 4, &event_id);
+    write_retry_file(retry, old_ts, 5, &event_id);
     TEST_CHECK(!sentry__path_is_file(cached));
 
     ctx = (retry_test_ctx_t) { 200, 0 };

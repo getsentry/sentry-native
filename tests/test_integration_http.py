@@ -908,8 +908,8 @@ def test_http_retry_multiple_attempts(cmake, httpserver):
     assert len(cache_files) == 1
     assert "-02-" in str(cache_files[0].name)
 
-    # exhaust remaining retries (max 5)
-    for i in range(3):
+    # exhaust remaining retries (max 6)
+    for i in range(4):
         run(tmp_path, "sentry_example", ["log", "no-setup"], env=env)
 
     # discarded after max retries (cache_keep not enabled)
