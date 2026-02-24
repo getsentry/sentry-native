@@ -163,7 +163,10 @@ handle_result(sentry_retry_t *retry, const retry_item_t *item, int status_code)
         sentry_path_t *new_path = sentry__retry_make_path(
             retry, sentry__usec_time() / 1000, item->count + 1, item->uuid);
         if (new_path) {
-            sentry__path_rename(item->path, new_path);
+            if (sentry__path_rename(item->path, new_path) != 0) {
+                SENTRY_WARNF(
+                    "failed to rename retry envelope \"%s\"", item->path->path);
+            }
             sentry__path_free(new_path);
         }
         return true;
