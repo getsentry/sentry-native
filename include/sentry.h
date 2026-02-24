@@ -949,6 +949,17 @@ SENTRY_API void sentry_transport_set_shutdown_func(
 /**
  * Retries sending all pending envelopes in the transport's retry queue,
  * e.g. when coming back online. Only applicable for HTTP transports.
+ *
+ * Note: The SDK automatically retries failed envelopes on next application
+ * startup. This function allows manual triggering of pending retries at
+ * runtime. Each envelope is retried up to 5 times. If all attempts are
+ * exhausted during intermittent connectivity, events will be discarded
+ * (or moved to cache if enabled via sentry_options_set_cache_keep).
+ *
+ * Warning: This function has no rate limiting - it will immediately
+ * attempt to send all pending envelopes. Calling this repeatedly during
+ * extended network outages may exhaust retry attempts that might have
+ * succeeded with the SDK's built-in exponential backoff.
  */
 SENTRY_EXPERIMENTAL_API void sentry_transport_retry(
     sentry_transport_t *transport);
