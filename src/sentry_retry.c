@@ -121,13 +121,13 @@ sentry__retry_make_path(
     return sentry__path_join_str(retry->cache_path, filename);
 }
 
-void
+bool
 sentry__retry_write_envelope(
     sentry_retry_t *retry, const sentry_envelope_t *envelope)
 {
     sentry_uuid_t event_id = sentry__envelope_get_event_id(envelope);
     if (sentry_uuid_is_nil(&event_id)) {
-        return;
+        return false;
     }
 
     char uuid[37];
@@ -135,13 +135,16 @@ sentry__retry_write_envelope(
 
     sentry_path_t *path
         = sentry__retry_make_path(retry, sentry__usec_time() / 1000, 0, uuid);
-    if (path) {
-        if (sentry_envelope_write_to_path(envelope, path) != 0) {
-            SENTRY_WARNF(
-                "failed to write retry envelope to \"%s\"", path->path);
-        }
-        sentry__path_free(path);
+    if (!path) {
+        return false;
     }
+
+    int rv = sentry_envelope_write_to_path(envelope, path);
+    if (rv != 0) {
+        SENTRY_WARNF("failed to write retry envelope to \"%s\"", path->path);
+    }
+    sentry__path_free(path);
+    return rv == 0;
 }
 
 static bool
@@ -379,7 +382,9 @@ sentry__retry_enqueue(sentry_retry_t *retry, const sentry_envelope_t *envelope)
     if (sentry__atomic_fetch(&retry->sealed)) {
         return;
     }
-    sentry__retry_write_envelope(retry, envelope);
+    if (!sentry__retry_write_envelope(retry, envelope)) {
+        return;
+    }
     // prevent the startup poll from re-processing this session's envelope
     retry->startup_time = 0;
     if (sentry__atomic_compare_swap(&retry->scheduled, 0, 1)) {
