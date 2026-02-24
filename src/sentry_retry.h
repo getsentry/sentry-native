@@ -38,8 +38,9 @@ void sentry__retry_enqueue(
 
 /**
  * Writes an event envelope to the retry dir. Non-event envelopes are skipped.
+ * Returns true if a file was written, false otherwise.
  */
-void sentry__retry_write_envelope(
+bool sentry__retry_write_envelope(
     sentry_retry_t *retry, const sentry_envelope_t *envelope);
 
 /**
