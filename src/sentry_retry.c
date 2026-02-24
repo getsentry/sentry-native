@@ -249,12 +249,16 @@ sentry__retry_send(sentry_retry_t *retry, uint64_t before,
             sentry_free(items);
             items = tmp;
         }
-        retry_item_t *item = &items[eligible++];
+        retry_item_t *item = &items[eligible];
         item->path = sentry__path_clone(p);
+        if (!item->path) {
+            break;
+        }
         item->ts = ts;
         item->count = count;
         memcpy(item->uuid, uuid, 36);
         item->uuid[36] = '\0';
+        eligible++;
     }
     sentry__pathiter_free(piter);
 
