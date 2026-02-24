@@ -13,11 +13,17 @@
 #define SENTRY_RETRY_INTERVAL (15 * 60 * 1000)
 #define SENTRY_RETRY_THROTTLE 100
 
+typedef enum {
+    SENTRY_RETRY_STARTUP = 0,
+    SENTRY_RETRY_RUNNING = 1,
+    SENTRY_RETRY_SEALED = 2
+} sentry_retry_state_t;
+
 struct sentry_retry_s {
     sentry_path_t *cache_path;
     bool cache_keep;
     uint64_t startup_time;
-    volatile long sealed;
+    volatile long state;
     volatile long scheduled;
     sentry_bgworker_t *bgworker;
     sentry_retry_send_func_t send_cb;
@@ -299,15 +305,19 @@ retry_poll_task(void *_retry, void *_state)
 {
     (void)_state;
     sentry_retry_t *retry = _retry;
-    if (sentry__retry_send(
-            retry, retry->startup_time, retry->send_cb, retry->send_data)) {
+    uint64_t before
+        = sentry__atomic_fetch(&retry->state) == SENTRY_RETRY_STARTUP
+        ? retry->startup_time
+        : 0;
+    if (sentry__retry_send(retry, before, retry->send_cb, retry->send_data)) {
         sentry__bgworker_submit_delayed(retry->bgworker, retry_poll_task, NULL,
             retry, SENTRY_RETRY_INTERVAL);
     } else {
         sentry__atomic_store(&retry->scheduled, 0);
     }
     // subsequent polls use backoff instead of the startup time filter
-    retry->startup_time = 0;
+    sentry__atomic_compare_swap(
+        &retry->state, SENTRY_RETRY_STARTUP, SENTRY_RETRY_RUNNING);
 }
 
 void
@@ -327,9 +337,9 @@ retry_flush_task(void *_retry, void *_state)
 {
     (void)_state;
     sentry_retry_t *retry = _retry;
-    if (retry->startup_time > 0 && !sentry__atomic_fetch(&retry->sealed)) {
+    if (sentry__atomic_compare_swap(
+            &retry->state, SENTRY_RETRY_STARTUP, SENTRY_RETRY_RUNNING)) {
         sentry__retry_send(retry, UINT64_MAX, retry->send_cb, retry->send_data);
-        retry->startup_time = 0;
     }
 }
 
@@ -367,7 +377,7 @@ sentry__retry_dump_queue(
 {
     if (retry) {
         // prevent duplicate writes from a still-running detached worker
-        sentry__atomic_store(&retry->sealed, 1);
+        sentry__atomic_store(&retry->state, SENTRY_RETRY_SEALED);
         sentry__bgworker_foreach_matching(
             retry->bgworker, task_func, retry_dump_cb, retry);
     }
@@ -390,14 +400,14 @@ sentry__retry_trigger(sentry_retry_t *retry)
 void
 sentry__retry_enqueue(sentry_retry_t *retry, const sentry_envelope_t *envelope)
 {
-    if (sentry__atomic_fetch(&retry->sealed)) {
+    if (sentry__atomic_fetch(&retry->state) == SENTRY_RETRY_SEALED) {
         return;
     }
     if (!sentry__retry_write_envelope(retry, envelope)) {
         return;
     }
-    // prevent the startup poll from re-processing this session's envelope
-    retry->startup_time = 0;
+    sentry__atomic_compare_swap(
+        &retry->state, SENTRY_RETRY_STARTUP, SENTRY_RETRY_RUNNING);
     if (sentry__atomic_compare_swap(&retry->scheduled, 0, 1)) {
         sentry__bgworker_submit_delayed(retry->bgworker, retry_poll_task, NULL,
             retry, SENTRY_RETRY_INTERVAL);
