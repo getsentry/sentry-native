@@ -9,28 +9,7 @@
 #include "sentry_sync.h"
 #include "sentry_transport.h"
 #include "sentry_utils.h"
-#include <math.h>
 #include <stdlib.h>
-#include <string.h>
-
-static bool
-parse_double_env(const char *name, double *out)
-{
-    const char *str = getenv(name);
-    if (!str) {
-        return false;
-    }
-    char *end = NULL;
-    double val = sentry__strtod_c(str, &end);
-    if (end == str || !isfinite(val)) {
-        return false;
-    }
-    if (end[strspn(end, " \t\r\n")] != '\0') {
-        return false;
-    }
-    *out = val;
-    return true;
-}
 
 sentry_options_t *
 sentry_options_new(void)
@@ -91,18 +70,12 @@ sentry_options_new(void)
 #endif
     opts->backend = sentry__backend_new();
     opts->transport = sentry__transport_new_default();
-    opts->sample_rate = 1.0;
     opts->refcount = 1;
     opts->shutdown_timeout = SENTRY_DEFAULT_SHUTDOWN_TIMEOUT;
-    opts->traces_sample_rate = 0.0;
-
-    double rate;
-    if (parse_double_env("SENTRY_SAMPLE_RATE", &rate)) {
-        sentry_options_set_sample_rate(opts, rate);
-    }
-    if (parse_double_env("SENTRY_TRACES_SAMPLE_RATE", &rate)) {
-        sentry_options_set_traces_sample_rate(opts, rate);
-    }
+    sentry_options_set_sample_rate(
+        opts, sentry__getenv_double("SENTRY_SAMPLE_RATE", 1.0));
+    sentry_options_set_traces_sample_rate(
+        opts, sentry__getenv_double("SENTRY_TRACES_SAMPLE_RATE", 0.0));
     opts->max_spans = SENTRY_SPANS_MAX;
     opts->handler_strategy = SENTRY_HANDLER_STRATEGY_DEFAULT;
 
