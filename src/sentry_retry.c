@@ -147,6 +147,10 @@ sentry__retry_write_envelope(
 static bool
 handle_result(sentry_retry_t *retry, const retry_item_t *item, int status_code)
 {
+    // Only network failures (status_code < 0) trigger retries. HTTP responses
+    // including 5xx (500, 502, 503, 504) are discarded:
+    // https://develop.sentry.dev/sdk/expected-features/#dealing-with-network-failures
+
     // network failure with retries remaining: bump count & re-enqueue
     if (item->count + 1 < SENTRY_RETRY_ATTEMPTS && status_code < 0) {
         sentry_path_t *new_path = sentry__retry_make_path(
