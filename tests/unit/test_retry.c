@@ -145,6 +145,34 @@ SENTRY_TEST(retry_throttle)
     sentry_close();
 }
 
+SENTRY_TEST(retry_skew)
+{
+    SENTRY_TEST_OPTIONS_NEW(options);
+    sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
+    sentry_options_set_http_retry(options, true);
+    sentry_init(options);
+
+    sentry_retry_t *retry = sentry__retry_new(options);
+    TEST_ASSERT(!!retry);
+
+    sentry__path_remove_all(options->run->cache_path);
+    sentry__path_create_dir_all(options->run->cache_path);
+
+    // future timestamp simulates clock moving backward
+    uint64_t future_ts = sentry__usec_time() / 1000 + 1000000;
+    sentry_uuid_t event_id = sentry_uuid_new_v4();
+    write_retry_file(retry, future_ts, 0, &event_id);
+
+    retry_test_ctx_t ctx = { 200, 0 };
+    sentry__retry_send(retry, 0, test_send_cb, &ctx);
+
+    // item should NOT be processed due to backoff (clock backward)
+    TEST_CHECK_INT_EQUAL(ctx.count, 0);
+
+    sentry__retry_free(retry);
+    sentry_close();
+}
+
 SENTRY_TEST(retry_result)
 {
     SENTRY_TEST_OPTIONS_NEW(options);
