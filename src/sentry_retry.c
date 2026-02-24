@@ -33,9 +33,13 @@ sentry__retry_new(const sentry_options_t *options)
     }
     memset(retry, 0, sizeof(sentry_retry_t));
     retry->cache_path = sentry__path_clone(options->run->cache_path);
+    if (!retry->cache_path) {
+        sentry_free(retry);
+        return NULL;
+    }
     retry->cache_keep = options->cache_keep;
     retry->startup_time = sentry__usec_time() / 1000;
-    sentry__path_create_dir_all(options->run->cache_path);
+    sentry__path_create_dir_all(retry->cache_path);
     return retry;
 }
 
