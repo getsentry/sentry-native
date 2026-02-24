@@ -9,7 +9,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define SENTRY_RETRY_ATTEMPTS 5
+#define SENTRY_RETRY_ATTEMPTS 6
 #define SENTRY_RETRY_INTERVAL (15 * 60 * 1000)
 #define SENTRY_RETRY_THROTTLE 100
 
