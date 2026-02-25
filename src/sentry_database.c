@@ -5,6 +5,7 @@
 #include "sentry_options.h"
 #include "sentry_session.h"
 #include "sentry_transport.h"
+#include "sentry_utils.h"
 #include "sentry_uuid.h"
 #include <errno.h>
 #include <stdlib.h>
@@ -115,7 +116,8 @@ sentry__run_free(sentry_run_t *run)
 }
 
 static bool
-write_envelope(const sentry_path_t *path, const sentry_envelope_t *envelope)
+write_envelope(const sentry_path_t *path, const sentry_envelope_t *envelope,
+    int retry_count)
 {
     sentry_uuid_t event_id = sentry__envelope_get_event_id(envelope);
 
@@ -125,13 +127,18 @@ write_envelope(const sentry_path_t *path, const sentry_envelope_t *envelope)
         event_id = sentry_uuid_new_v4();
     }
 
-    char *envelope_filename = sentry__uuid_as_filename(&event_id, ".envelope");
-    if (!envelope_filename) {
-        return false;
+    char uuid[37];
+    sentry_uuid_as_string(&event_id, uuid);
+
+    char filename[128];
+    if (retry_count >= 0) {
+        snprintf(filename, sizeof(filename), "%" PRIu64 "-%02d-%.36s.envelope",
+            sentry__usec_time() / 1000, retry_count, uuid);
+    } else {
+        snprintf(filename, sizeof(filename), "%.36s.envelope", uuid);
     }
 
-    sentry_path_t *output_path = sentry__path_join_str(path, envelope_filename);
-    sentry_free(envelope_filename);
+    sentry_path_t *output_path = sentry__path_join_str(path, filename);
     if (!output_path) {
         return false;
     }
@@ -150,7 +157,7 @@ bool
 sentry__run_write_envelope(
     const sentry_run_t *run, const sentry_envelope_t *envelope)
 {
-    return write_envelope(run->run_path, envelope);
+    return write_envelope(run->run_path, envelope, -1);
 }
 
 bool
@@ -162,7 +169,19 @@ sentry__run_write_external(
         return false;
     }
 
-    return write_envelope(run->external_path, envelope);
+    return write_envelope(run->external_path, envelope, -1);
+}
+
+bool
+sentry__run_write_cache(
+    const sentry_run_t *run, const sentry_envelope_t *envelope, int retry_count)
+{
+    if (sentry__path_create_dir_all(run->cache_path) != 0) {
+        SENTRY_ERRORF("mkdir failed: \"%s\"", run->cache_path->path);
+        return false;
+    }
+
+    return write_envelope(run->cache_path, envelope, retry_count);
 }
 
 bool
