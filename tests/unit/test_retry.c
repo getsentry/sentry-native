@@ -260,9 +260,8 @@ SENTRY_TEST(retry_session)
     TEST_ASSERT(!!envelope);
     sentry__envelope_add_session(envelope, session);
 
-    // Session-only envelopes have no event_id → should not be written
-    TEST_CHECK(!sentry__retry_write_envelope(retry, envelope));
-    TEST_CHECK_INT_EQUAL(count_envelope_files(options->run->cache_path), 0);
+    TEST_CHECK(sentry__retry_write_envelope(retry, envelope));
+    TEST_CHECK_INT_EQUAL(count_envelope_files(options->run->cache_path), 1);
 
     sentry_envelope_free(envelope);
     sentry__session_free(session);

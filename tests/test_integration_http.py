@@ -37,6 +37,8 @@ from .conditions import has_http, has_breakpad, has_files, is_kcov
 
 pytestmark = pytest.mark.skipif(not has_http, reason="tests need http")
 
+unreachable_dsn = "http://uiaeosnrtdy@127.0.0.1:19999/123456"
+
 # fmt: off
 auth_header = (
     f"Sentry sentry_key=uiaeosnrtdy, sentry_version=7, sentry_client=sentry.native/{SENTRY_VERSION}"
@@ -733,7 +735,6 @@ def test_http_retry_on_network_error(cmake, httpserver):
     cache_dir = tmp_path.joinpath(".sentry-native/cache")
 
     # unreachable port triggers CURLE_COULDNT_CONNECT
-    unreachable_dsn = "http://uiaeosnrtdy@127.0.0.1:19999/123456"
     env_unreachable = dict(os.environ, SENTRY_DSN=unreachable_dsn)
 
     run(
@@ -747,6 +748,7 @@ def test_http_retry_on_network_error(cmake, httpserver):
     cache_files = list(cache_dir.glob("*.envelope"))
     assert len(cache_files) == 1
     assert "-00-" in str(cache_files[0].name)
+    envelope_uuid = cache_files[0].stem[-36:]
 
     # retry on next run with working server
     env_reachable = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
@@ -763,6 +765,7 @@ def test_http_retry_on_network_error(cmake, httpserver):
 
     assert len(httpserver.log) == 1
     envelope = Envelope.deserialize(httpserver.log[0][0].get_data())
+    assert envelope.headers["event_id"] == envelope_uuid
     assert_meta(envelope, integration="inproc")
 
     cache_files = list(cache_dir.glob("*.envelope"))
@@ -774,7 +777,6 @@ def test_http_retry_multiple_attempts(cmake, httpserver):
     tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "inproc"})
     cache_dir = tmp_path.joinpath(".sentry-native/cache")
 
-    unreachable_dsn = "http://uiaeosnrtdy@127.0.0.1:19999/123456"
     env = dict(os.environ, SENTRY_DSN=unreachable_dsn)
 
     run(tmp_path, "sentry_example", ["log", "capture-event"], env=env)
@@ -782,18 +784,23 @@ def test_http_retry_multiple_attempts(cmake, httpserver):
     cache_files = list(cache_dir.glob("*.envelope"))
     assert len(cache_files) == 1
     assert "-00-" in str(cache_files[0].name)
+    envelope_uuid = cache_files[0].stem[-36:]
+    envelope = Envelope.deserialize(cache_files[0].read_bytes())
+    assert envelope.headers["event_id"] == envelope_uuid
 
     run(tmp_path, "sentry_example", ["log", "no-setup"], env=env)
 
     cache_files = list(cache_dir.glob("*.envelope"))
     assert len(cache_files) == 1
     assert "-01-" in str(cache_files[0].name)
+    assert cache_files[0].stem[-36:] == envelope_uuid
 
     run(tmp_path, "sentry_example", ["log", "no-setup"], env=env)
 
     cache_files = list(cache_dir.glob("*.envelope"))
     assert len(cache_files) == 1
     assert "-02-" in str(cache_files[0].name)
+    assert cache_files[0].stem[-36:] == envelope_uuid
 
     # exhaust remaining retries (max 6)
     for i in range(4):
@@ -809,7 +816,6 @@ def test_http_retry_with_cache_keep(cmake, httpserver):
     tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "inproc"})
     cache_dir = tmp_path.joinpath(".sentry-native/cache")
 
-    unreachable_dsn = "http://uiaeosnrtdy@127.0.0.1:19999/123456"
     env_unreachable = dict(os.environ, SENTRY_DSN=unreachable_dsn)
 
     run(
@@ -842,7 +848,6 @@ def test_http_retry_cache_keep_max_attempts(cmake):
     tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "none"})
     cache_dir = tmp_path.joinpath(".sentry-native/cache")
 
-    unreachable_dsn = "http://uiaeosnrtdy@127.0.0.1:19999/123456"
     env = dict(os.environ, SENTRY_DSN=unreachable_dsn)
 
     run(
@@ -910,7 +915,6 @@ def test_http_retry_multiple_success(cmake, httpserver):
     tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "none"})
     cache_dir = tmp_path.joinpath(".sentry-native/cache")
 
-    unreachable_dsn = "http://uiaeosnrtdy@127.0.0.1:19999/123456"
     env_unreachable = dict(os.environ, SENTRY_DSN=unreachable_dsn)
 
     run(
@@ -948,7 +952,6 @@ def test_http_retry_multiple_network_error(cmake):
     tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "none"})
     cache_dir = tmp_path.joinpath(".sentry-native/cache")
 
-    unreachable_dsn = "http://uiaeosnrtdy@127.0.0.1:19999/123456"
     env = dict(os.environ, SENTRY_DSN=unreachable_dsn)
 
     run(
@@ -980,7 +983,6 @@ def test_http_retry_multiple_rate_limit(cmake, httpserver):
     tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "none"})
     cache_dir = tmp_path.joinpath(".sentry-native/cache")
 
-    unreachable_dsn = "http://uiaeosnrtdy@127.0.0.1:19999/123456"
     env_unreachable = dict(os.environ, SENTRY_DSN=unreachable_dsn)
 
     run(
@@ -1008,5 +1010,61 @@ def test_http_retry_multiple_rate_limit(cmake, httpserver):
     )
 
     # first envelope gets 429, rest are discarded by rate limiter
+    cache_files = list(cache_dir.glob("*.envelope"))
+    assert len(cache_files) == 0
+
+
+@pytest.mark.skipif(not has_files, reason="test needs a local filesystem")
+def test_http_retry_session_on_network_error(cmake, httpserver):
+    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "none"})
+    cache_dir = tmp_path.joinpath(".sentry-native/cache")
+
+    env_unreachable = dict(os.environ, SENTRY_DSN=unreachable_dsn)
+
+    run(
+        tmp_path,
+        "sentry_example",
+        ["log", "start-session"],
+        env=env_unreachable,
+    )
+
+    assert cache_dir.exists()
+    cache_files = list(cache_dir.glob("*.envelope"))
+    assert len(cache_files) == 1
+    assert "-00-" in str(cache_files[0].name)
+    envelope_uuid = cache_files[0].stem[-36:]
+
+    # second and third attempts still fail — envelope gets renamed each time
+    run(tmp_path, "sentry_example", ["log", "no-setup"], env=env_unreachable)
+
+    cache_files = list(cache_dir.glob("*.envelope"))
+    assert len(cache_files) == 1
+    assert "-01-" in str(cache_files[0].name)
+    assert cache_files[0].stem[-36:] == envelope_uuid
+
+    run(tmp_path, "sentry_example", ["log", "no-setup"], env=env_unreachable)
+
+    cache_files = list(cache_dir.glob("*.envelope"))
+    assert len(cache_files) == 1
+    assert "-02-" in str(cache_files[0].name)
+    assert cache_files[0].stem[-36:] == envelope_uuid
+
+    # succeed on fourth attempt
+    env_reachable = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
+    httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data("OK")
+
+    with httpserver.wait(timeout=10) as waiting:
+        run(
+            tmp_path,
+            "sentry_example",
+            ["log", "no-setup"],
+            env=env_reachable,
+        )
+    assert waiting.result
+
+    assert len(httpserver.log) == 1
+    envelope = Envelope.deserialize(httpserver.log[0][0].get_data())
+    assert_session(envelope, {"init": True, "status": "exited", "errors": 0})
+
     cache_files = list(cache_dir.glob("*.envelope"))
     assert len(cache_files) == 0
