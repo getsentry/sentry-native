@@ -460,3 +460,48 @@ SENTRY_TEST(retry_trigger)
     sentry__retry_free(retry);
     sentry_close();
 }
+
+SENTRY_TEST(retry_consent)
+{
+#if defined(SENTRY_PLATFORM_NX) || defined(SENTRY_PLATFORM_PS)
+    SKIP_TEST();
+#endif
+    SENTRY_TEST_OPTIONS_NEW(options);
+    sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
+    sentry_options_set_http_retry(options, true);
+    sentry_options_set_require_user_consent(options, true);
+    sentry_init(options);
+    sentry_user_consent_revoke();
+
+    sentry_retry_t *retry = sentry__retry_new(options);
+    TEST_ASSERT(!!retry);
+
+    const sentry_path_t *cache_path = options->run->cache_path;
+    sentry__path_remove_all(cache_path);
+    sentry__path_create_dir_all(cache_path);
+
+    uint64_t old_ts
+        = sentry__usec_time() / 1000 - 10 * sentry__retry_backoff(0);
+    sentry_uuid_t event_id = sentry_uuid_new_v4();
+    write_retry_file(options->run, old_ts, 0, &event_id);
+
+    TEST_CHECK_INT_EQUAL(count_envelope_files(cache_path), 1);
+
+    // consent revoked: retry_send returns 0 without calling send_cb
+    retry_test_ctx_t ctx = { 200, 0 };
+    size_t remaining = sentry__retry_send(retry, 0, test_send_cb, &ctx);
+    TEST_CHECK_INT_EQUAL(ctx.count, 0);
+    TEST_CHECK_INT_EQUAL(remaining, 0);
+    TEST_CHECK_INT_EQUAL(count_envelope_files(cache_path), 1);
+
+    // give consent: retry_send sends and removes the file
+    sentry_user_consent_give();
+    ctx = (retry_test_ctx_t) { 200, 0 };
+    remaining = sentry__retry_send(retry, UINT64_MAX, test_send_cb, &ctx);
+    TEST_CHECK_INT_EQUAL(ctx.count, 1);
+    TEST_CHECK_INT_EQUAL(remaining, 0);
+    TEST_CHECK_INT_EQUAL(count_envelope_files(cache_path), 0);
+
+    sentry__retry_free(retry);
+    sentry_close();
+}

@@ -3,6 +3,7 @@
 #include "sentry_envelope.h"
 #include "sentry_options.h"
 #include "sentry_path.h"
+#include "sentry_retry.h"
 #include "sentry_testsupport.h"
 #include "sentry_uuid.h"
 #include "sentry_value.h"
@@ -73,20 +74,24 @@ SENTRY_TEST(cache_keep)
         sentry_envelope_write_to_path(envelope, old_envelope_path) == 0);
     sentry_envelope_free(envelope);
 
-    sentry_path_t *cached_envelope_path
-        = sentry__path_join_str(cache_path, envelope_filename);
-    TEST_ASSERT(!!cached_envelope_path);
-
     TEST_ASSERT(sentry__path_is_file(old_envelope_path));
-    TEST_ASSERT(!sentry__path_is_file(cached_envelope_path));
 
     sentry__process_old_runs(options, 0);
 
     TEST_ASSERT(!sentry__path_is_file(old_envelope_path));
-    TEST_ASSERT(sentry__path_is_file(cached_envelope_path));
+
+    int count = 0;
+    sentry_pathiter_t *iter = sentry__path_iter_directory(cache_path);
+    const sentry_path_t *entry;
+    while (iter && (entry = sentry__pathiter_next(iter)) != NULL) {
+        if (sentry__path_ends_with(entry, ".envelope")) {
+            count++;
+        }
+    }
+    sentry__pathiter_free(iter);
+    TEST_CHECK_INT_EQUAL(count, 1);
 
     sentry__path_free(old_envelope_path);
-    sentry__path_free(cached_envelope_path);
     sentry__path_free(old_run_path);
     sentry__path_free(cache_path);
     sentry_free(envelope_filename);
@@ -328,15 +333,22 @@ SENTRY_TEST(cache_consent_revoked)
         sentry_value_new_message_event(SENTRY_LEVEL_INFO, "test", "revoked"));
 
     int count = 0;
+    bool is_retry_format = false;
     sentry_pathiter_t *iter = sentry__path_iter_directory(cache_path);
     const sentry_path_t *entry;
     while (iter && (entry = sentry__pathiter_next(iter)) != NULL) {
         if (sentry__path_ends_with(entry, ".envelope")) {
             count++;
+            uint64_t ts;
+            int attempt;
+            const char *uuid;
+            is_retry_format = sentry__parse_cache_filename(
+                sentry__path_filename(entry), &ts, &attempt, &uuid);
         }
     }
     sentry__pathiter_free(iter);
     TEST_CHECK_INT_EQUAL(count, 1);
+    TEST_CHECK(is_retry_format);
 
     sentry__path_free(cache_path);
     sentry_close();
@@ -413,21 +425,32 @@ SENTRY_TEST(cache_consent_revoked_old_run)
         sentry_envelope_write_to_path(envelope, old_envelope_path) == 0);
     sentry_envelope_free(envelope);
 
-    sentry_path_t *cached_envelope_path
-        = sentry__path_join_str(cache_path, envelope_filename);
-    TEST_ASSERT(!!cached_envelope_path);
-
     TEST_ASSERT(sentry__path_is_file(old_envelope_path));
-    TEST_ASSERT(!sentry__path_is_file(cached_envelope_path));
 
     sentry__process_old_runs(options, 0);
 
     TEST_ASSERT(!sentry__path_is_file(old_envelope_path));
-    TEST_ASSERT(sentry__path_is_file(cached_envelope_path));
     TEST_ASSERT(!sentry__path_is_dir(old_run_path));
 
+    int count = 0;
+    bool is_retry_format = false;
+    sentry_pathiter_t *iter = sentry__path_iter_directory(cache_path);
+    const sentry_path_t *entry;
+    while (iter && (entry = sentry__pathiter_next(iter)) != NULL) {
+        if (sentry__path_ends_with(entry, ".envelope")) {
+            count++;
+            uint64_t ts;
+            int attempt;
+            const char *uuid;
+            is_retry_format = sentry__parse_cache_filename(
+                sentry__path_filename(entry), &ts, &attempt, &uuid);
+        }
+    }
+    sentry__pathiter_free(iter);
+    TEST_CHECK_INT_EQUAL(count, 1);
+    TEST_CHECK(is_retry_format);
+
     sentry__path_free(old_envelope_path);
-    sentry__path_free(cached_envelope_path);
     sentry__path_free(old_run_path);
     sentry__path_free(cache_path);
     sentry_free(envelope_filename);
