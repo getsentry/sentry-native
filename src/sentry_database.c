@@ -206,19 +206,16 @@ sentry__run_move_cache(
 
     char filename[128];
     const char *src_name = sentry__path_filename(src);
+    // Strip the retry prefix if present. Envelope filenames are either
+    // "<uuid>.envelope" (45 chars) or "<ts>-<count>-<uuid>.envelope"
+    // (>45 chars). The last 45 chars are always "<uuid>.envelope".
+    size_t src_len = strlen(src_name);
+    const char *cache_name = src_len > 45 ? src_name + src_len - 45 : src_name;
     if (retry_count >= 0) {
         snprintf(filename, sizeof(filename), "%" PRIu64 "-%02d-%.36s.envelope",
-            sentry__usec_time() / 1000, retry_count, src_name);
+            sentry__usec_time() / 1000, retry_count, cache_name);
     } else {
-        // Strip the retry prefix if present. Envelope filenames are either
-        // "<uuid>.envelope" (45 chars) or "<ts>-<count>-<uuid>.envelope"
-        // (>45 chars). The last 45 chars are always "<uuid>.envelope".
-        size_t len = strlen(src_name);
-        if (len > 45) {
-            snprintf(filename, sizeof(filename), "%s", src_name + len - 45);
-        } else {
-            snprintf(filename, sizeof(filename), "%s", src_name);
-        }
+        snprintf(filename, sizeof(filename), "%s", cache_name);
     }
 
     sentry_path_t *dst_path = sentry__path_join_str(run->cache_path, filename);
