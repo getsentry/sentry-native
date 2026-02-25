@@ -5,6 +5,7 @@
 **Features**:
 
 - Add HTTP retry with exponential backoff. ([#1520](https://github.com/getsentry/sentry-native/pull/1520))
+- Support `SENTRY_SAMPLE_RATE` and `SENTRY_TRACES_SAMPLE_RATE` environment variables. ([#1540](https://github.com/getsentry/sentry-native/pull/1540))
 
 **Fixes**:
 

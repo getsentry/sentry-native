@@ -1169,7 +1169,7 @@ process_ucontext_deferred(const sentry_ucontext_t *uctx,
                 sentry_attachment_t *screenshot = sentry__attachment_from_path(
                     sentry__screenshot_get_path(options));
                 if (screenshot
-                    && sentry__screenshot_capture(screenshot->path)) {
+                    && sentry__screenshot_capture(screenshot->path, 0)) {
                     sentry__envelope_add_attachment(envelope, screenshot);
                 }
                 sentry__attachment_free(screenshot);

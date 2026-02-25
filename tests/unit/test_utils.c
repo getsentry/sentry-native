@@ -2,9 +2,15 @@
 #include "sentry_testsupport.h"
 #include "sentry_utils.h"
 #include "sentry_value.h"
+#include <stdlib.h>
 
 #ifdef SENTRY_PLATFORM_UNIX
 #    include "sentry_unix_pageallocator.h"
+#endif
+
+#ifdef SENTRY_PLATFORM_WINDOWS
+#    define setenv(k, v, o) _putenv_s(k, v)
+#    define unsetenv(k) _putenv_s(k, "")
 #endif
 
 SENTRY_TEST(iso_time)
@@ -420,4 +426,37 @@ SENTRY_TEST(dsn_auth_header_invalid_dsn)
 
     sentry_free(auth_header);
     sentry__dsn_decref(dsn);
+}
+
+SENTRY_TEST(getenv_double)
+{
+    setenv("SENTRY_TEST_DOUBLE", "", 1);
+    TEST_CHECK(sentry__getenv_double("SENTRY_TEST_DOUBLE", 42.0) == 42.0);
+
+    setenv("SENTRY_TEST_DOUBLE", "0.5", 1);
+    TEST_CHECK(sentry__getenv_double("SENTRY_TEST_DOUBLE", 99.0) == 0.5);
+
+    setenv("SENTRY_TEST_DOUBLE", "-3.14", 1);
+    TEST_CHECK(sentry__getenv_double("SENTRY_TEST_DOUBLE", 99.0) == -3.14);
+
+    setenv("SENTRY_TEST_DOUBLE", "0", 1);
+    TEST_CHECK(sentry__getenv_double("SENTRY_TEST_DOUBLE", 99.0) == 0.0);
+
+    setenv("SENTRY_TEST_DOUBLE", " 1.0 \t", 1);
+    TEST_CHECK(sentry__getenv_double("SENTRY_TEST_DOUBLE", 99.0) == 1.0);
+
+    setenv("SENTRY_TEST_DOUBLE", "not_a_number", 1);
+    TEST_CHECK(sentry__getenv_double("SENTRY_TEST_DOUBLE", 42.0) == 42.0);
+
+    setenv("SENTRY_TEST_DOUBLE", "NaN", 1);
+    TEST_CHECK(sentry__getenv_double("SENTRY_TEST_DOUBLE", 42.0) == 42.0);
+
+    setenv("SENTRY_TEST_DOUBLE", "inf", 1);
+    TEST_CHECK(sentry__getenv_double("SENTRY_TEST_DOUBLE", 42.0) == 42.0);
+
+    setenv("SENTRY_TEST_DOUBLE", "-inf", 1);
+    TEST_CHECK(sentry__getenv_double("SENTRY_TEST_DOUBLE", 42.0) == 42.0);
+
+    unsetenv("SENTRY_TEST_DOUBLE");
+    TEST_CHECK(sentry__getenv_double("SENTRY_TEST_DOUBLE", 42.0) == 42.0);
 }

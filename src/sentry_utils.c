@@ -11,6 +11,7 @@
 #include "sentry_random.h"
 
 #include <locale.h>
+#include <math.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -561,6 +562,24 @@ sentry__strtod_c(const char *ptr, char **endptr)
 #else
     return strtod_l(ptr, endptr, c_locale());
 #endif
+}
+
+double
+sentry__getenv_double(const char *name, double fallback)
+{
+    const char *str = getenv(name);
+    if (!str) {
+        return fallback;
+    }
+    char *end = NULL;
+    double val = sentry__strtod_c(str, &end);
+    if (end == str || !isfinite(val)) {
+        return fallback;
+    }
+    if (end[strspn(end, " \t\r\n")] != '\0') {
+        return fallback;
+    }
+    return val;
 }
 
 int

@@ -216,6 +216,13 @@ uint64_t sentry__iso8601_to_usec(const char *iso);
 double sentry__strtod_c(const char *ptr, char **endptr);
 
 /**
+ * Reads a double from the environment variable `name`.
+ * Returns `fallback` if the variable is unset, empty, or not a finite number.
+ * Leading and trailing whitespace is tolerated.
+ */
+double sentry__getenv_double(const char *name, double fallback);
+
+/**
  * Locale independent (or rather, using "C" locale) `snprintf`.
  */
 int sentry__snprintf_c(char *buf, size_t buf_size, const char *fmt, ...);

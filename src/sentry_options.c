@@ -8,6 +8,7 @@
 #include "sentry_string.h"
 #include "sentry_sync.h"
 #include "sentry_transport.h"
+#include "sentry_utils.h"
 #include <stdlib.h>
 
 sentry_options_t *
@@ -69,10 +70,12 @@ sentry_options_new(void)
 #endif
     opts->backend = sentry__backend_new();
     opts->transport = sentry__transport_new_default();
-    opts->sample_rate = 1.0;
     opts->refcount = 1;
     opts->shutdown_timeout = SENTRY_DEFAULT_SHUTDOWN_TIMEOUT;
-    opts->traces_sample_rate = 0.0;
+    sentry_options_set_sample_rate(
+        opts, sentry__getenv_double("SENTRY_SAMPLE_RATE", 1.0));
+    sentry_options_set_traces_sample_rate(
+        opts, sentry__getenv_double("SENTRY_TRACES_SAMPLE_RATE", 0.0));
     opts->max_spans = SENTRY_SPANS_MAX;
     opts->handler_strategy = SENTRY_HANDLER_STRATEGY_DEFAULT;
     opts->http_retry = true;
