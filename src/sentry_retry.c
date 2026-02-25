@@ -137,7 +137,7 @@ sentry__retry_write_envelope(
 {
     sentry_uuid_t event_id = sentry__envelope_get_event_id(envelope);
     if (sentry_uuid_is_nil(&event_id)) {
-        return false;
+        event_id = sentry_uuid_new_v4();
     }
 
     char uuid[37];
