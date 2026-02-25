@@ -307,6 +307,133 @@ SENTRY_TEST(cache_max_items_with_retry)
     sentry_close();
 }
 
+SENTRY_TEST(cache_consent_revoked)
+{
+#if defined(SENTRY_PLATFORM_NX) || defined(SENTRY_PLATFORM_PS)
+    SKIP_TEST();
+#endif
+    SENTRY_TEST_OPTIONS_NEW(options);
+    sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
+    sentry_options_set_cache_keep(options, true);
+    sentry_options_set_require_user_consent(options, true);
+    sentry_init(options);
+    sentry_user_consent_revoke();
+
+    sentry_path_t *cache_path
+        = sentry__path_join_str(options->database_path, "cache");
+    TEST_ASSERT(!!cache_path);
+    sentry__path_remove_all(cache_path);
+
+    sentry_capture_event(
+        sentry_value_new_message_event(SENTRY_LEVEL_INFO, "test", "revoked"));
+
+    int count = 0;
+    sentry_pathiter_t *iter = sentry__path_iter_directory(cache_path);
+    const sentry_path_t *entry;
+    while (iter && (entry = sentry__pathiter_next(iter)) != NULL) {
+        if (sentry__path_ends_with(entry, ".envelope")) {
+            count++;
+        }
+    }
+    sentry__pathiter_free(iter);
+    TEST_CHECK_INT_EQUAL(count, 1);
+
+    sentry__path_free(cache_path);
+    sentry_close();
+}
+
+SENTRY_TEST(cache_consent_revoked_nocache)
+{
+#if defined(SENTRY_PLATFORM_NX) || defined(SENTRY_PLATFORM_PS)
+    SKIP_TEST();
+#endif
+    SENTRY_TEST_OPTIONS_NEW(options);
+    sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
+    sentry_options_set_cache_keep(options, false);
+    sentry_options_set_require_user_consent(options, true);
+    sentry_init(options);
+    sentry_user_consent_revoke();
+
+    sentry_path_t *cache_path
+        = sentry__path_join_str(options->database_path, "cache");
+    TEST_ASSERT(!!cache_path);
+    sentry__path_remove_all(cache_path);
+
+    sentry_capture_event(
+        sentry_value_new_message_event(SENTRY_LEVEL_INFO, "test", "revoked"));
+
+    int count = 0;
+    sentry_pathiter_t *iter = sentry__path_iter_directory(cache_path);
+    const sentry_path_t *entry;
+    while (iter && (entry = sentry__pathiter_next(iter)) != NULL) {
+        if (sentry__path_ends_with(entry, ".envelope")) {
+            count++;
+        }
+    }
+    sentry__pathiter_free(iter);
+    TEST_CHECK_INT_EQUAL(count, 0);
+
+    sentry__path_free(cache_path);
+    sentry_close();
+}
+
+SENTRY_TEST(cache_consent_revoked_old_run)
+{
+#if defined(SENTRY_PLATFORM_NX) || defined(SENTRY_PLATFORM_PS)
+    SKIP_TEST();
+#endif
+    SENTRY_TEST_OPTIONS_NEW(options);
+    sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
+    sentry_options_set_cache_keep(options, true);
+    sentry_options_set_require_user_consent(options, true);
+    sentry_init(options);
+    sentry_user_consent_revoke();
+
+    sentry_path_t *cache_path
+        = sentry__path_join_str(options->database_path, "cache");
+    TEST_ASSERT(!!cache_path);
+    sentry__path_remove_all(cache_path);
+
+    sentry_path_t *old_run_path
+        = sentry__path_join_str(options->database_path, "old.run");
+    TEST_ASSERT(!!old_run_path);
+    TEST_ASSERT(sentry__path_create_dir_all(old_run_path) == 0);
+
+    sentry_envelope_t *envelope = sentry__envelope_new();
+    TEST_ASSERT(!!envelope);
+    sentry_uuid_t event_id = sentry_uuid_new_v4();
+    sentry_value_t event = sentry__value_new_event_with_id(&event_id);
+    sentry__envelope_add_event(envelope, event);
+
+    char *envelope_filename = sentry__uuid_as_filename(&event_id, ".envelope");
+    TEST_ASSERT(!!envelope_filename);
+    sentry_path_t *old_envelope_path
+        = sentry__path_join_str(old_run_path, envelope_filename);
+    TEST_ASSERT(
+        sentry_envelope_write_to_path(envelope, old_envelope_path) == 0);
+    sentry_envelope_free(envelope);
+
+    sentry_path_t *cached_envelope_path
+        = sentry__path_join_str(cache_path, envelope_filename);
+    TEST_ASSERT(!!cached_envelope_path);
+
+    TEST_ASSERT(sentry__path_is_file(old_envelope_path));
+    TEST_ASSERT(!sentry__path_is_file(cached_envelope_path));
+
+    sentry__process_old_runs(options, 0);
+
+    TEST_ASSERT(!sentry__path_is_file(old_envelope_path));
+    TEST_ASSERT(sentry__path_is_file(cached_envelope_path));
+    TEST_ASSERT(!sentry__path_is_dir(old_run_path));
+
+    sentry__path_free(old_envelope_path);
+    sentry__path_free(cached_envelope_path);
+    sentry__path_free(old_run_path);
+    sentry__path_free(cache_path);
+    sentry_free(envelope_filename);
+    sentry_close();
+}
+
 SENTRY_TEST(cache_max_size_and_age)
 {
 #if defined(SENTRY_PLATFORM_NX) || defined(SENTRY_PLATFORM_PS)

@@ -1,5 +1,6 @@
 #include "sentry_database.h"
 #include "sentry_alloc.h"
+#include "sentry_core.h"
 #include "sentry_envelope.h"
 #include "sentry_json.h"
 #include "sentry_options.h"
@@ -369,7 +370,7 @@ sentry__process_old_runs(const sentry_options_t *options, uint64_t last_crash)
         }
 
         bool can_cache = options->cache_keep
-            && (!options->http_retry
+            && (sentry__should_skip_upload() || !options->http_retry
                 || !sentry__transport_can_retry(options->transport));
 
         sentry_pathiter_t *run_iter = sentry__path_iter_directory(run_dir);
@@ -432,7 +433,9 @@ sentry__process_old_runs(const sentry_options_t *options, uint64_t last_crash)
     }
     sentry__pathiter_free(db_iter);
 
-    sentry__capture_envelope(options->transport, session_envelope);
+    if (session_envelope) {
+        sentry__capture_envelope(options->transport, session_envelope);
+    }
 }
 
 // Cache Pruning below is based on prune_crash_reports.cc from Crashpad

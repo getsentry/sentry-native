@@ -504,13 +504,19 @@ void
 sentry__capture_envelope(
     sentry_transport_t *transport, sentry_envelope_t *envelope)
 {
-    bool has_consent = !sentry__should_skip_upload();
-    if (!has_consent) {
-        SENTRY_INFO("discarding envelope due to missing user consent");
-        sentry_envelope_free(envelope);
+    if (!sentry__should_skip_upload()) {
+        sentry__transport_send_envelope(transport, envelope);
         return;
     }
-    sentry__transport_send_envelope(transport, envelope);
+    bool cached = false;
+    SENTRY_WITH_OPTIONS (options) {
+        if (options->cache_keep) {
+            cached = sentry__run_write_cache(options->run, envelope, 0);
+        }
+    }
+    SENTRY_INFO(cached ? "caching envelope due to missing user consent"
+                       : "discarding envelope due to missing user consent");
+    sentry_envelope_free(envelope);
 }
 
 void
