@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1772026194763,
+  "lastUpdate": 1772026262464,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -23266,6 +23266,66 @@ window.BENCHMARK_DATA = {
             "value": 12.314166999999543,
             "unit": "ms",
             "extra": "Min 10.507ms\nMax 13.716ms\nMean 11.965ms\nStdDev 1.370ms\nMedian 12.314ms\nCPU 1.529ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "amir.mujacic@sentry.io",
+            "name": "Amir Mujacic",
+            "username": "mujacica"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "8058bb3f751e48248272d1c52c277d7c8ddda5a6",
+          "message": "feat(screenshot): support out-of-proc capture (#1541)\n\n* feat(screenshot): support out-of-proc capture\n\nAdd a `pid` parameter to `sentry__screenshot_capture()` to allow\ncapturing the windows of a specific process instead of always using the\ncurrent process. Passing 0 preserves the existing behavior.\n\nThis is needed for the upcoming native backend (#1433), where a daemon\nprocess captures screenshots on behalf of the crashed application.\n\nPartially cherry-picked from 62f1cdb34db1c9de6d7262bf8b91db70041061d7\n(#1433)\n\n* Fix lint\n\n---------\n\nCo-authored-by: J-P Nurmi <jpnurmi@gmail.com>",
+          "timestamp": "2026-02-25T14:25:33+01:00",
+          "tree_id": "e635eff4bbb4c1a0090ce74b95e2f6b88c8ad59e",
+          "url": "https://github.com/getsentry/sentry-native/commit/8058bb3f751e48248272d1c52c277d7c8ddda5a6"
+        },
+        "date": 1772026258092,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 5.290667000025451,
+            "unit": "ms",
+            "extra": "Min 3.865ms\nMax 7.968ms\nMean 5.692ms\nStdDev 1.688ms\nMedian 5.291ms\nCPU 3.195ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 5.057875000005652,
+            "unit": "ms",
+            "extra": "Min 3.559ms\nMax 6.100ms\nMean 4.882ms\nStdDev 1.066ms\nMedian 5.058ms\nCPU 3.055ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 29.120583000008082,
+            "unit": "ms",
+            "extra": "Min 23.673ms\nMax 45.059ms\nMean 31.975ms\nStdDev 8.050ms\nMedian 29.121ms\nCPU 8.235ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.07399999998369822,
+            "unit": "ms",
+            "extra": "Min 0.052ms\nMax 0.081ms\nMean 0.070ms\nStdDev 0.012ms\nMedian 0.074ms\nCPU 0.047ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.405833000002076,
+            "unit": "ms",
+            "extra": "Min 0.331ms\nMax 0.546ms\nMean 0.412ms\nStdDev 0.083ms\nMedian 0.406ms\nCPU 0.411ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 15.455041999985042,
+            "unit": "ms",
+            "extra": "Min 14.014ms\nMax 69.107ms\nMean 26.723ms\nStdDev 23.806ms\nMedian 15.455ms\nCPU 1.753ms"
           }
         ]
       }
