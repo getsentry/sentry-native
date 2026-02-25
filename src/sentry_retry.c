@@ -309,11 +309,12 @@ retry_poll_task(void *_retry, void *_state)
         = sentry__atomic_fetch(&retry->state) == SENTRY_RETRY_STARTUP
         ? retry->startup_time
         : 0;
-    if (sentry__retry_send(retry, before, retry->send_cb, retry->send_data)) {
+    // clear before scanning so a concurrent enqueue sees 0 and arms a poll
+    sentry__atomic_store(&retry->scheduled, 0);
+    if (sentry__retry_send(retry, before, retry->send_cb, retry->send_data)
+        && sentry__atomic_compare_swap(&retry->scheduled, 0, 1)) {
         sentry__bgworker_submit_delayed(retry->bgworker, retry_poll_task, NULL,
             retry, SENTRY_RETRY_INTERVAL);
-    } else {
-        sentry__atomic_store(&retry->scheduled, 0);
     }
     // subsequent polls use backoff instead of the startup time filter
     sentry__atomic_compare_swap(
