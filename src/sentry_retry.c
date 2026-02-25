@@ -20,7 +20,7 @@ typedef enum {
 } sentry_retry_state_t;
 
 struct sentry_retry_s {
-    sentry_path_t *cache_path;
+    sentry_run_t *run;
     bool cache_keep;
     uint64_t startup_time;
     volatile long state;
@@ -38,14 +38,9 @@ sentry__retry_new(const sentry_options_t *options)
         return NULL;
     }
     memset(retry, 0, sizeof(sentry_retry_t));
-    retry->cache_path = sentry__path_clone(options->run->cache_path);
-    if (!retry->cache_path) {
-        sentry_free(retry);
-        return NULL;
-    }
+    retry->run = sentry__run_incref(options->run);
     retry->cache_keep = options->cache_keep;
     retry->startup_time = sentry__usec_time() / 1000;
-    sentry__path_create_dir_all(retry->cache_path);
     return retry;
 }
 
@@ -55,7 +50,7 @@ sentry__retry_free(sentry_retry_t *retry)
     if (!retry) {
         return;
     }
-    sentry__path_free(retry->cache_path);
+    sentry__run_free(retry->run);
     sentry_free(retry);
 }
 
@@ -128,33 +123,7 @@ sentry__retry_make_path(
     char filename[128];
     snprintf(filename, sizeof(filename), "%" PRIu64 "-%02d-%.36s.envelope", ts,
         count, uuid);
-    return sentry__path_join_str(retry->cache_path, filename);
-}
-
-bool
-sentry__retry_write_envelope(
-    sentry_retry_t *retry, const sentry_envelope_t *envelope)
-{
-    sentry_uuid_t event_id = sentry__envelope_get_event_id(envelope);
-    if (sentry_uuid_is_nil(&event_id)) {
-        event_id = sentry_uuid_new_v4();
-    }
-
-    char uuid[37];
-    sentry_uuid_as_string(&event_id, uuid);
-
-    sentry_path_t *path
-        = sentry__retry_make_path(retry, sentry__usec_time() / 1000, 0, uuid);
-    if (!path) {
-        return false;
-    }
-
-    int rv = sentry_envelope_write_to_path(envelope, path);
-    if (rv != 0) {
-        SENTRY_WARNF("failed to write retry envelope to \"%s\"", path->path);
-    }
-    sentry__path_free(path);
-    return rv == 0;
+    return sentry__path_join_str(retry->run->cache_path, filename);
 }
 
 static bool
@@ -196,7 +165,7 @@ handle_result(sentry_retry_t *retry, const retry_item_t *item, int status_code)
         char cache_name[46];
         snprintf(cache_name, sizeof(cache_name), "%.36s.envelope", item->uuid);
         sentry_path_t *dest
-            = sentry__path_join_str(retry->cache_path, cache_name);
+            = sentry__path_join_str(retry->run->cache_path, cache_name);
         if (!dest || sentry__path_rename(item->path, dest) != 0) {
             sentry__path_remove(item->path);
         }
@@ -212,7 +181,8 @@ size_t
 sentry__retry_send(sentry_retry_t *retry, uint64_t before,
     sentry_retry_send_func_t send_cb, void *data)
 {
-    sentry_pathiter_t *piter = sentry__path_iter_directory(retry->cache_path);
+    sentry_pathiter_t *piter
+        = sentry__path_iter_directory(retry->run->cache_path);
     if (!piter) {
         return 0;
     }
@@ -367,8 +337,8 @@ sentry__retry_shutdown(sentry_retry_t *retry)
 static bool
 retry_dump_cb(void *_envelope, void *_retry)
 {
-    sentry__retry_write_envelope(
-        (sentry_retry_t *)_retry, (sentry_envelope_t *)_envelope);
+    sentry_retry_t *retry = (sentry_retry_t *)_retry;
+    sentry__run_write_cache(retry->run, (sentry_envelope_t *)_envelope, 0);
     return true;
 }
 
@@ -404,7 +374,7 @@ sentry__retry_enqueue(sentry_retry_t *retry, const sentry_envelope_t *envelope)
     if (sentry__atomic_fetch(&retry->state) == SENTRY_RETRY_SEALED) {
         return;
     }
-    if (!sentry__retry_write_envelope(retry, envelope)) {
+    if (!sentry__run_write_cache(retry->run, envelope, 0)) {
         return;
     }
     sentry__atomic_compare_swap(

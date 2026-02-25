@@ -37,13 +37,6 @@ void sentry__retry_enqueue(
     sentry_retry_t *retry, const sentry_envelope_t *envelope);
 
 /**
- * Writes an envelope to the retry dir.
- * Returns true if an envelope was written, false otherwise.
- */
-bool sentry__retry_write_envelope(
-    sentry_retry_t *retry, const sentry_envelope_t *envelope);
-
-/**
  * Sends eligible retry files via `send_cb`. `before > 0`: send files with
  * ts < before (startup). `before == 0`: use backoff. Returns remaining file
  * count for controlling polling.

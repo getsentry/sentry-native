@@ -4,6 +4,7 @@
 #include "sentry_json.h"
 #include "sentry_options.h"
 #include "sentry_session.h"
+#include "sentry_sync.h"
 #include "sentry_transport.h"
 #include "sentry_utils.h"
 #include "sentry_uuid.h"
@@ -72,6 +73,7 @@ sentry__run_new(const sentry_path_t *database_path)
         return NULL;
     }
 
+    run->refcount = 1;
     run->uuid = uuid;
     run->run_path = run_path;
     run->session_path = session_path;
@@ -94,6 +96,15 @@ error:
     return NULL;
 }
 
+sentry_run_t *
+sentry__run_incref(sentry_run_t *run)
+{
+    if (run) {
+        sentry__atomic_fetch_and_add(&run->refcount, 1);
+    }
+    return run;
+}
+
 void
 sentry__run_clean(sentry_run_t *run)
 {
@@ -104,7 +115,7 @@ sentry__run_clean(sentry_run_t *run)
 void
 sentry__run_free(sentry_run_t *run)
 {
-    if (!run) {
+    if (!run || sentry__atomic_fetch_and_add(&run->refcount, -1) != 1) {
         return;
     }
     sentry__path_free(run->run_path);

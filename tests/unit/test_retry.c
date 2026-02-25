@@ -1,3 +1,4 @@
+#include "sentry_core.h"
 #include "sentry_database.h"
 #include "sentry_envelope.h"
 #include "sentry_options.h"
@@ -260,7 +261,7 @@ SENTRY_TEST(retry_session)
     TEST_ASSERT(!!envelope);
     sentry__envelope_add_session(envelope, session);
 
-    TEST_CHECK(sentry__retry_write_envelope(retry, envelope));
+    TEST_CHECK(sentry__run_write_cache(options->run, envelope, 0));
     TEST_CHECK_INT_EQUAL(count_envelope_files(options->run->cache_path), 1);
 
     sentry_envelope_free(envelope);
