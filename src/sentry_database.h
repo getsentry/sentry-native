@@ -13,6 +13,7 @@ typedef struct sentry_run_s {
     sentry_path_t *external_path;
     sentry_path_t *cache_path;
     sentry_filelock_t *lock;
+    long refcount;
 } sentry_run_t;
 
 /**
@@ -22,6 +23,11 @@ typedef struct sentry_run_s {
  * * `<database>/<uuid>.run.lock`
  */
 sentry_run_t *sentry__run_new(const sentry_path_t *database_path);
+
+/**
+ * Increment the refcount and return the run pointer.
+ */
+sentry_run_t *sentry__run_incref(sentry_run_t *run);
 
 /**
  * This will clean up all the files belonging to this run.
