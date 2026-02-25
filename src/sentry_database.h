@@ -79,11 +79,12 @@ bool sentry__run_write_cache(const sentry_run_t *run,
     const sentry_envelope_t *envelope, int retry_count);
 
 /**
- * Moves `src` to `<database>/cache/<dst>`. If `dst` is NULL, the filename of
- * `src` is used.
+ * Moves a file into the cache directory. When retry_count >= 0 the
+ * destination uses retry format `<ts>-<count>-<uuid>.envelope`,
+ * otherwise the original filename is preserved.
  */
 bool sentry__run_move_cache(
-    const sentry_run_t *run, const sentry_path_t *src, const char *dst);
+    const sentry_run_t *run, const sentry_path_t *src, int retry_count);
 
 /**
  * This function is essential to send crash reports from previous runs of the

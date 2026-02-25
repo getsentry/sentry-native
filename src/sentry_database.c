@@ -197,14 +197,30 @@ sentry__run_write_cache(
 
 bool
 sentry__run_move_cache(
-    const sentry_run_t *run, const sentry_path_t *src, const char *dst)
+    const sentry_run_t *run, const sentry_path_t *src, int retry_count)
 {
     if (sentry__path_create_dir_all(run->cache_path) != 0) {
         SENTRY_ERRORF("mkdir failed: \"%s\"", run->cache_path->path);
         return false;
     }
 
-    const char *filename = dst ? dst : sentry__path_filename(src);
+    char filename[128];
+    const char *src_name = sentry__path_filename(src);
+    if (retry_count >= 0) {
+        snprintf(filename, sizeof(filename), "%" PRIu64 "-%02d-%.36s.envelope",
+            sentry__usec_time() / 1000, retry_count, src_name);
+    } else {
+        // Strip the retry prefix if present. Envelope filenames are either
+        // "<uuid>.envelope" (45 chars) or "<ts>-<count>-<uuid>.envelope"
+        // (>45 chars). The last 45 chars are always "<uuid>.envelope".
+        size_t len = strlen(src_name);
+        if (len > 45) {
+            snprintf(filename, sizeof(filename), "%s", src_name + len - 45);
+        } else {
+            snprintf(filename, sizeof(filename), "%s", src_name);
+        }
+    }
+
     sentry_path_t *dst_path = sentry__path_join_str(run->cache_path, filename);
     if (!dst_path) {
         return false;
@@ -213,10 +229,10 @@ sentry__run_move_cache(
     int rv = sentry__path_rename(src, dst_path);
     sentry__path_free(dst_path);
     if (rv != 0) {
-        SENTRY_WARNF(
-            "failed to cache envelope \"%s\"", sentry__path_filename(src));
+        SENTRY_WARNF("failed to cache envelope \"%s\"", src_name);
         return false;
     }
+
     return true;
 }
 
@@ -358,7 +374,7 @@ sentry__process_old_runs(const sentry_options_t *options, uint64_t last_crash)
                 sentry__capture_envelope(options->transport, envelope);
 
                 if (can_cache
-                    && sentry__run_move_cache(options->run, file, NULL)) {
+                    && sentry__run_move_cache(options->run, file, -1)) {
                     continue;
                 }
             }
