@@ -162,14 +162,9 @@ handle_result(sentry_retry_t *retry, const retry_item_t *item, int status_code)
 
     // cache on last attempt
     if (exhausted && retry->cache_keep) {
-        char cache_name[46];
-        snprintf(cache_name, sizeof(cache_name), "%.36s.envelope", item->uuid);
-        sentry_path_t *dest
-            = sentry__path_join_str(retry->run->cache_path, cache_name);
-        if (!dest || sentry__path_rename(item->path, dest) != 0) {
+        if (!sentry__run_move_cache(retry->run, item->path, -1)) {
             sentry__path_remove(item->path);
         }
-        sentry__path_free(dest);
         return false;
     }
 
