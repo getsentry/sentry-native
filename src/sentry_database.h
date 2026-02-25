@@ -65,6 +65,14 @@ bool sentry__run_write_session(
 bool sentry__run_clear_session(const sentry_run_t *run);
 
 /**
+ * This will serialize and write the given envelope to disk into the cache
+ * directory. When retry_count >= 0 the filename uses retry format
+ * `<ts>-<count>-<uuid>.envelope`, otherwise `<uuid>.envelope`.
+ */
+bool sentry__run_write_cache(const sentry_run_t *run,
+    const sentry_envelope_t *envelope, int retry_count);
+
+/**
  * Moves `src` to `<database>/cache/<dst>`. If `dst` is NULL, the filename of
  * `src` is used.
  */
