@@ -144,9 +144,9 @@ static void
 winhttp_client_cancel(void *_client)
 {
     winhttp_client_t *client = _client;
-    if (client->request) {
-        WinHttpCloseHandle(client->request);
-        client->request = NULL;
+    HINTERNET request;
+    if ((request = InterlockedExchangePointer(&client->request, NULL))) {
+        WinHttpCloseHandle(request);
     }
 }
 
@@ -167,9 +167,9 @@ winhttp_client_shutdown(void *_client)
         WinHttpCloseHandle(client->session);
         client->session = NULL;
     }
-    if (client->request) {
-        WinHttpCloseHandle(client->request);
-        client->request = NULL;
+    HINTERNET request;
+    if ((request = InterlockedExchangePointer(&client->request, NULL))) {
+        WinHttpCloseHandle(request);
     }
 }
 
@@ -218,7 +218,8 @@ winhttp_send_task(void *_client, sentry_prepared_http_request_t *req,
     client->request = WinHttpOpenRequest(client->connect, L"POST",
         url_components.lpszUrlPath, NULL, WINHTTP_NO_REFERER,
         WINHTTP_DEFAULT_ACCEPT_TYPES, is_secure ? WINHTTP_FLAG_SECURE : 0);
-    if (!client->request) {
+    HINTERNET request = client->request;
+    if (!request) {
         SENTRY_WARNF(
             "`WinHttpOpenRequest` failed with code `%d`", GetLastError());
         goto exit;
@@ -249,22 +250,22 @@ winhttp_send_task(void *_client, sentry_prepared_http_request_t *req,
     }
 
     if (client->proxy_username && client->proxy_password) {
-        WinHttpSetCredentials(client->request, WINHTTP_AUTH_TARGET_PROXY,
+        WinHttpSetCredentials(request, WINHTTP_AUTH_TARGET_PROXY,
             WINHTTP_AUTH_SCHEME_BASIC, client->proxy_username,
             client->proxy_password, 0);
     }
 
-    if ((result = WinHttpSendRequest(client->request, headers, (DWORD)-1,
-             (LPVOID)req->body, (DWORD)req->body_len, (DWORD)req->body_len,
-             0))) {
-        WinHttpReceiveResponse(client->request, NULL);
+    if ((result
+            = WinHttpSendRequest(request, headers, (DWORD)-1, (LPVOID)req->body,
+                (DWORD)req->body_len, (DWORD)req->body_len, 0))) {
+        WinHttpReceiveResponse(request, NULL);
 
         if (client->debug) {
             // this is basically the example from:
             // https://docs.microsoft.com/en-us/windows/win32/api/winhttp/nf-winhttp-winhttpqueryheaders#examples
             DWORD dwSize = 0;
             LPVOID lpOutBuffer = NULL;
-            WinHttpQueryHeaders(client->request, WINHTTP_QUERY_RAW_HEADERS_CRLF,
+            WinHttpQueryHeaders(request, WINHTTP_QUERY_RAW_HEADERS_CRLF,
                 WINHTTP_HEADER_NAME_BY_INDEX, NULL, &dwSize,
                 WINHTTP_NO_HEADER_INDEX);
 
@@ -274,7 +275,7 @@ winhttp_send_task(void *_client, sentry_prepared_http_request_t *req,
 
                 // Now, use WinHttpQueryHeaders to retrieve the header.
                 if (lpOutBuffer
-                    && WinHttpQueryHeaders(client->request,
+                    && WinHttpQueryHeaders(request,
                         WINHTTP_QUERY_RAW_HEADERS_CRLF,
                         WINHTTP_HEADER_NAME_BY_INDEX, lpOutBuffer, &dwSize,
                         WINHTTP_NO_HEADER_INDEX)) {
@@ -292,17 +293,17 @@ winhttp_send_task(void *_client, sentry_prepared_http_request_t *req,
         DWORD status_code = 0;
         DWORD status_code_size = sizeof(status_code);
 
-        WinHttpQueryHeaders(client->request,
+        WinHttpQueryHeaders(request,
             WINHTTP_QUERY_STATUS_CODE | WINHTTP_QUERY_FLAG_NUMBER,
             WINHTTP_HEADER_NAME_BY_INDEX, &status_code, &status_code_size,
             WINHTTP_NO_HEADER_INDEX);
         resp->status_code = (int)status_code;
 
-        if (WinHttpQueryHeaders(client->request, WINHTTP_QUERY_CUSTOM,
+        if (WinHttpQueryHeaders(request, WINHTTP_QUERY_CUSTOM,
                 L"x-sentry-rate-limits", buf, &buf_size,
                 WINHTTP_NO_HEADER_INDEX)) {
             resp->x_sentry_rate_limits = sentry__string_from_wstr(buf);
-        } else if (WinHttpQueryHeaders(client->request, WINHTTP_QUERY_CUSTOM,
+        } else if (WinHttpQueryHeaders(request, WINHTTP_QUERY_CUSTOM,
                        L"retry-after", buf, &buf_size,
                        WINHTTP_NO_HEADER_INDEX)) {
             resp->retry_after = sentry__string_from_wstr(buf);
@@ -316,9 +317,7 @@ winhttp_send_task(void *_client, sentry_prepared_http_request_t *req,
     SENTRY_DEBUGF("request handled in %llums", now - started);
 
 exit:
-    if (client->request) {
-        HINTERNET request = client->request;
-        client->request = NULL;
+    if ((request = InterlockedExchangePointer(&client->request, NULL))) {
         WinHttpCloseHandle(request);
     }
     sentry_free(url);
