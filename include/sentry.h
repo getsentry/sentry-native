@@ -952,7 +952,7 @@ SENTRY_API void sentry_transport_set_shutdown_func(
  *
  * Note: The SDK automatically retries failed envelopes on next application
  * startup. This function allows manual triggering of pending retries at
- * runtime. Each envelope is retried up to 5 times. If all attempts are
+ * runtime. Each envelope is retried up to 6 times. If all attempts are
  * exhausted during intermittent connectivity, events will be discarded
  * (or moved to cache if enabled via sentry_options_set_cache_keep).
  *
