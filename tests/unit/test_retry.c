@@ -118,7 +118,7 @@ SENTRY_TEST(retry_throttle)
 {
     SENTRY_TEST_OPTIONS_NEW(options);
     sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
-    sentry_options_set_http_retry(options, true);
+    sentry_options_set_http_retry(options, false);
     sentry_init(options);
 
     sentry_retry_t *retry = sentry__retry_new(options);
@@ -150,7 +150,7 @@ SENTRY_TEST(retry_skew)
 {
     SENTRY_TEST_OPTIONS_NEW(options);
     sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
-    sentry_options_set_http_retry(options, true);
+    sentry_options_set_http_retry(options, false);
     sentry_init(options);
 
     sentry_retry_t *retry = sentry__retry_new(options);
@@ -178,7 +178,7 @@ SENTRY_TEST(retry_result)
 {
     SENTRY_TEST_OPTIONS_NEW(options);
     sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
-    sentry_options_set_http_retry(options, true);
+    sentry_options_set_http_retry(options, false);
     sentry_init(options);
 
     sentry_retry_t *retry = sentry__retry_new(options);
@@ -246,7 +246,7 @@ SENTRY_TEST(retry_session)
     SENTRY_TEST_OPTIONS_NEW(options);
     sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
     sentry_options_set_release(options, "test@1.0.0");
-    sentry_options_set_http_retry(options, true);
+    sentry_options_set_http_retry(options, false);
     sentry_init(options);
 
     sentry_retry_t *retry = sentry__retry_new(options);
@@ -274,7 +274,7 @@ SENTRY_TEST(retry_cache)
 {
     SENTRY_TEST_OPTIONS_NEW(options);
     sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
-    sentry_options_set_http_retry(options, true);
+    sentry_options_set_http_retry(options, false);
     sentry_options_set_cache_keep(options, 1);
     sentry_init(options);
 
@@ -365,7 +365,7 @@ SENTRY_TEST(retry_backoff)
 {
     SENTRY_TEST_OPTIONS_NEW(options);
     sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
-    sentry_options_set_http_retry(options, true);
+    sentry_options_set_http_retry(options, false);
     sentry_init(options);
 
     sentry_retry_t *retry = sentry__retry_new(options);
@@ -424,7 +424,7 @@ SENTRY_TEST(retry_trigger)
 {
     SENTRY_TEST_OPTIONS_NEW(options);
     sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
-    sentry_options_set_http_retry(options, true);
+    sentry_options_set_http_retry(options, false);
     sentry_init(options);
 
     sentry_retry_t *retry = sentry__retry_new(options);
