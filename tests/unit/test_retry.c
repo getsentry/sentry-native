@@ -40,7 +40,7 @@ find_envelope_attempt(const sentry_path_t *dir)
         uint64_t ts;
         int attempt;
         const char *uuid;
-        if (sentry__retry_parse_filename(name, &ts, &attempt, &uuid)) {
+        if (sentry__parse_cache_filename(name, &ts, &attempt, &uuid)) {
             sentry__pathiter_free(iter);
             return attempt;
         }
@@ -50,7 +50,7 @@ find_envelope_attempt(const sentry_path_t *dir)
 }
 
 static void
-write_retry_file(sentry_retry_t *retry, uint64_t timestamp, int retry_count,
+write_retry_file(const sentry_run_t *run, uint64_t timestamp, int retry_count,
     const sentry_uuid_t *event_id)
 {
     sentry_envelope_t *envelope = sentry__envelope_new();
@@ -61,7 +61,7 @@ write_retry_file(sentry_retry_t *retry, uint64_t timestamp, int retry_count,
     sentry_uuid_as_string(event_id, uuid);
 
     sentry_path_t *path
-        = sentry__retry_make_path(retry, timestamp, retry_count, uuid);
+        = sentry__run_make_cache_path(run, timestamp, retry_count, uuid);
     (void)sentry_envelope_write_to_path(envelope, path);
     sentry__path_free(path);
     sentry_envelope_free(envelope);
@@ -87,30 +87,30 @@ SENTRY_TEST(retry_filename)
     int count;
     const char *uuid;
 
-    TEST_CHECK(sentry__retry_parse_filename(
+    TEST_CHECK(sentry__parse_cache_filename(
         "1234567890-00-abcdefab-1234-5678-9abc-def012345678.envelope", &ts,
         &count, &uuid));
     TEST_CHECK_UINT64_EQUAL(ts, 1234567890);
     TEST_CHECK_INT_EQUAL(count, 0);
     TEST_CHECK(strncmp(uuid, "abcdefab-1234-5678-9abc-def012345678", 36) == 0);
 
-    TEST_CHECK(sentry__retry_parse_filename(
+    TEST_CHECK(sentry__parse_cache_filename(
         "999-04-abcdefab-1234-5678-9abc-def012345678.envelope", &ts, &count,
         &uuid));
     TEST_CHECK_UINT64_EQUAL(ts, 999);
     TEST_CHECK_INT_EQUAL(count, 4);
 
     // negative count
-    TEST_CHECK(!sentry__retry_parse_filename(
+    TEST_CHECK(!sentry__parse_cache_filename(
         "123--01-abcdefab-1234-5678-9abc-def012345678.envelope", &ts, &count,
         &uuid));
 
     // cache filename (no timestamp/count)
-    TEST_CHECK(!sentry__retry_parse_filename(
+    TEST_CHECK(!sentry__parse_cache_filename(
         "abcdefab-1234-5678-9abc-def012345678.envelope", &ts, &count, &uuid));
 
     // missing .envelope suffix
-    TEST_CHECK(!sentry__retry_parse_filename(
+    TEST_CHECK(!sentry__parse_cache_filename(
         "123-00-abcdefab-1234-5678-9abc-def012345678.txt", &ts, &count, &uuid));
 }
 
@@ -132,7 +132,7 @@ SENTRY_TEST(retry_throttle)
     sentry_uuid_t ids[4];
     for (int i = 0; i < 4; i++) {
         ids[i] = sentry_uuid_new_v4();
-        write_retry_file(retry, old_ts, 0, &ids[i]);
+        write_retry_file(options->run, old_ts, 0, &ids[i]);
     }
 
     TEST_CHECK_INT_EQUAL(count_envelope_files(options->run->cache_path), 4);
@@ -162,7 +162,7 @@ SENTRY_TEST(retry_skew)
     // future timestamp simulates clock moving backward
     uint64_t future_ts = sentry__usec_time() / 1000 + 1000000;
     sentry_uuid_t event_id = sentry_uuid_new_v4();
-    write_retry_file(retry, future_ts, 0, &event_id);
+    write_retry_file(options->run, future_ts, 0, &event_id);
 
     retry_test_ctx_t ctx = { 200, 0 };
     sentry__retry_send(retry, 0, test_send_cb, &ctx);
@@ -193,7 +193,7 @@ SENTRY_TEST(retry_result)
     sentry_uuid_t event_id = sentry_uuid_new_v4();
 
     // 1. Success (200) → removes
-    write_retry_file(retry, old_ts, 0, &event_id);
+    write_retry_file(options->run, old_ts, 0, &event_id);
     TEST_CHECK_INT_EQUAL(count_envelope_files(cache_path), 1);
     TEST_CHECK_INT_EQUAL(find_envelope_attempt(cache_path), 0);
 
@@ -203,21 +203,21 @@ SENTRY_TEST(retry_result)
     TEST_CHECK_INT_EQUAL(count_envelope_files(cache_path), 0);
 
     // 2. Rate limited (429) → removes
-    write_retry_file(retry, old_ts, 0, &event_id);
+    write_retry_file(options->run, old_ts, 0, &event_id);
     ctx = (retry_test_ctx_t) { 429, 0 };
     sentry__retry_send(retry, 0, test_send_cb, &ctx);
     TEST_CHECK_INT_EQUAL(ctx.count, 1);
     TEST_CHECK_INT_EQUAL(count_envelope_files(cache_path), 0);
 
     // 3. Discard (0) → removes
-    write_retry_file(retry, old_ts, 0, &event_id);
+    write_retry_file(options->run, old_ts, 0, &event_id);
     ctx = (retry_test_ctx_t) { 0, 0 };
     sentry__retry_send(retry, 0, test_send_cb, &ctx);
     TEST_CHECK_INT_EQUAL(ctx.count, 1);
     TEST_CHECK_INT_EQUAL(count_envelope_files(cache_path), 0);
 
     // 4. Network error → bumps count
-    write_retry_file(retry, old_ts, 0, &event_id);
+    write_retry_file(options->run, old_ts, 0, &event_id);
     TEST_CHECK_INT_EQUAL(find_envelope_attempt(cache_path), 0);
 
     ctx = (retry_test_ctx_t) { -1, 0 };
@@ -231,7 +231,7 @@ SENTRY_TEST(retry_result)
     sentry__path_create_dir_all(cache_path);
     uint64_t very_old_ts
         = sentry__usec_time() / 1000 - 2 * sentry__retry_backoff(5);
-    write_retry_file(retry, very_old_ts, 5, &event_id);
+    write_retry_file(options->run, very_old_ts, 5, &event_id);
     ctx = (retry_test_ctx_t) { -1, 0 };
     sentry__retry_send(retry, 0, test_send_cb, &ctx);
     TEST_CHECK_INT_EQUAL(ctx.count, 1);
@@ -287,7 +287,7 @@ SENTRY_TEST(retry_cache)
 
     uint64_t old_ts = sentry__usec_time() / 1000 - 2 * sentry__retry_backoff(5);
     sentry_uuid_t event_id = sentry_uuid_new_v4();
-    write_retry_file(retry, old_ts, 5, &event_id);
+    write_retry_file(options->run, old_ts, 5, &event_id);
 
     char uuid_str[37];
     sentry_uuid_as_string(&event_id, uuid_str);
@@ -310,7 +310,7 @@ SENTRY_TEST(retry_cache)
     // (cache_keep preserves all envelopes regardless of send outcome)
     sentry__path_remove_all(cache_path);
     sentry__path_create_dir_all(cache_path);
-    write_retry_file(retry, old_ts, 5, &event_id);
+    write_retry_file(options->run, old_ts, 5, &event_id);
     TEST_CHECK(!sentry__path_is_file(cached));
 
     ctx = (retry_test_ctx_t) { 200, 0 };
@@ -380,19 +380,19 @@ SENTRY_TEST(retry_backoff)
 
     // retry 0: 10*base old, eligible (backoff=base)
     sentry_uuid_t id1 = sentry_uuid_new_v4();
-    write_retry_file(retry, ref, 0, &id1);
+    write_retry_file(options->run, ref, 0, &id1);
 
     // retry 1: 1*base old, not yet eligible (backoff=2*base)
     sentry_uuid_t id2 = sentry_uuid_new_v4();
-    write_retry_file(retry, ref + 9 * base, 1, &id2);
+    write_retry_file(options->run, ref + 9 * base, 1, &id2);
 
     // retry 1: 10*base old, eligible (backoff=2*base)
     sentry_uuid_t id3 = sentry_uuid_new_v4();
-    write_retry_file(retry, ref, 1, &id3);
+    write_retry_file(options->run, ref, 1, &id3);
 
     // retry 2: 2*base old, not eligible (backoff=4*base)
     sentry_uuid_t id4 = sentry_uuid_new_v4();
-    write_retry_file(retry, ref + 8 * base, 2, &id4);
+    write_retry_file(options->run, ref + 8 * base, 2, &id4);
 
     // With backoff: only eligible ones (id1 and id3) are sent
     retry_test_ctx_t ctx = { 200, 0 };
@@ -437,7 +437,7 @@ SENTRY_TEST(retry_trigger)
     uint64_t old_ts
         = sentry__usec_time() / 1000 - 10 * sentry__retry_backoff(0);
     sentry_uuid_t event_id = sentry_uuid_new_v4();
-    write_retry_file(retry, old_ts, 0, &event_id);
+    write_retry_file(options->run, old_ts, 0, &event_id);
 
     // UINT64_MAX (trigger mode) bypasses backoff: bumps count
     retry_test_ctx_t ctx = { -1, 0 };
