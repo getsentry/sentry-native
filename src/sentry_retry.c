@@ -28,6 +28,8 @@ struct sentry_retry_s {
     sentry_bgworker_t *bgworker;
     sentry_retry_send_func_t send_cb;
     void *send_data;
+    sentry_mutex_t sealed_lock;
+    uintptr_t sealed_envelope;
 };
 
 sentry_retry_t *
@@ -38,6 +40,7 @@ sentry__retry_new(const sentry_options_t *options)
         return NULL;
     }
     memset(retry, 0, sizeof(sentry_retry_t));
+    sentry__mutex_init(&retry->sealed_lock);
     retry->run = sentry__run_incref(options->run);
     retry->cache_keep = options->cache_keep;
     retry->startup_time = sentry__usec_time() / 1000;
@@ -50,6 +53,7 @@ sentry__retry_free(sentry_retry_t *retry)
     if (!retry) {
         return;
     }
+    sentry__mutex_free(&retry->sealed_lock);
     sentry__run_free(retry->run);
     sentry_free(retry);
 }
@@ -333,7 +337,10 @@ static bool
 retry_dump_cb(void *_envelope, void *_retry)
 {
     sentry_retry_t *retry = (sentry_retry_t *)_retry;
-    sentry__run_write_cache(retry->run, (sentry_envelope_t *)_envelope, 0);
+    sentry_envelope_t *envelope = (sentry_envelope_t *)_envelope;
+    if ((uintptr_t)envelope != retry->sealed_envelope) {
+        sentry__run_write_cache(retry->run, envelope, 0);
+    }
     return true;
 }
 
@@ -343,7 +350,10 @@ sentry__retry_dump_queue(
 {
     if (retry) {
         // prevent duplicate writes from a still-running detached worker
+        sentry__mutex_lock(&retry->sealed_lock);
         sentry__atomic_store(&retry->state, SENTRY_RETRY_SEALED);
+        sentry__mutex_unlock(&retry->sealed_lock);
+
         sentry__bgworker_foreach_matching(
             retry->bgworker, task_func, retry_dump_cb, retry);
     }
@@ -366,12 +376,18 @@ sentry__retry_trigger(sentry_retry_t *retry)
 void
 sentry__retry_enqueue(sentry_retry_t *retry, const sentry_envelope_t *envelope)
 {
+    sentry__mutex_lock(&retry->sealed_lock);
     if (sentry__atomic_fetch(&retry->state) == SENTRY_RETRY_SEALED) {
+        sentry__mutex_unlock(&retry->sealed_lock);
         return;
     }
     if (!sentry__run_write_cache(retry->run, envelope, 0)) {
+        sentry__mutex_unlock(&retry->sealed_lock);
         return;
     }
+    retry->sealed_envelope = (uintptr_t)envelope;
+    sentry__mutex_unlock(&retry->sealed_lock);
+
     sentry__atomic_compare_swap(
         &retry->state, SENTRY_RETRY_STARTUP, SENTRY_RETRY_RUNNING);
     if (sentry__atomic_compare_swap(&retry->scheduled, 0, 1)) {
