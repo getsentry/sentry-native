@@ -303,6 +303,8 @@ retry_dump_cb(void *_envelope, void *_retry)
     sentry_envelope_t *envelope = (sentry_envelope_t *)_envelope;
     if ((uintptr_t)envelope != retry->sealed_envelope) {
         sentry__run_write_cache(retry->run, envelope, 0);
+    } else {
+        retry->sealed_envelope = 0;
     }
     return true;
 }
