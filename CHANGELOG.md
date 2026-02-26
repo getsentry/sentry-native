@@ -9,6 +9,7 @@
 **Fixes**:
 
 - Fix use-after-free on allocation failure when merging scope tags, extra, and contexts into a captured event. ([#1539](https://github.com/getsentry/sentry-native/pull/1539))
+- Remove C++ exception ABI symbols (`_Unwind_Resume`, etc.) from vendored `libunwind` build. ([#1544](https://github.com/getsentry/sentry-native/pull/1544))
 
 ## 0.13.0
 
