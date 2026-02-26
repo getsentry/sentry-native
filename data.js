@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1772029849662,
+  "lastUpdate": 1772107762904,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -11722,6 +11722,66 @@ window.BENCHMARK_DATA = {
             "value": 1.8178680000175973,
             "unit": "ms",
             "extra": "Min 1.768ms\nMax 1.868ms\nMean 1.815ms\nStdDev 0.038ms\nMedian 1.818ms\nCPU 0.558ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "mischan@abovevacant.com",
+            "name": "Mischan Toosarani-Hausberger",
+            "username": "supervacuus"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "f85f8601cd087a49dbff73975d590b608c630970",
+          "message": "fix: remove C++ exception ABI from vendored libunwind build. (#1544)",
+          "timestamp": "2026-02-26T13:06:53+01:00",
+          "tree_id": "125d565d90cbd76391ff6c1ddcf44f209143e62e",
+          "url": "https://github.com/getsentry/sentry-native/commit/f85f8601cd087a49dbff73975d590b608c630970"
+        },
+        "date": 1772107760740,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 0.724045000012552,
+            "unit": "ms",
+            "extra": "Min 0.701ms\nMax 0.770ms\nMean 0.727ms\nStdDev 0.026ms\nMedian 0.724ms\nCPU 0.680ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 0.7135960000113073,
+            "unit": "ms",
+            "extra": "Min 0.655ms\nMax 0.761ms\nMean 0.711ms\nStdDev 0.046ms\nMedian 0.714ms\nCPU 0.711ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 2.6421809999988,
+            "unit": "ms",
+            "extra": "Min 2.548ms\nMax 3.033ms\nMean 2.711ms\nStdDev 0.193ms\nMedian 2.642ms\nCPU 1.345ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.10682499998893036,
+            "unit": "ms",
+            "extra": "Min 0.103ms\nMax 0.114ms\nMean 0.108ms\nStdDev 0.005ms\nMedian 0.107ms\nCPU 0.063ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.020086000006358518,
+            "unit": "ms",
+            "extra": "Min 0.019ms\nMax 0.021ms\nMean 0.020ms\nStdDev 0.001ms\nMedian 0.020ms\nCPU 0.019ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 1.5250470000012228,
+            "unit": "ms",
+            "extra": "Min 1.497ms\nMax 1.570ms\nMean 1.533ms\nStdDev 0.028ms\nMedian 1.525ms\nCPU 0.396ms"
           }
         ]
       }
