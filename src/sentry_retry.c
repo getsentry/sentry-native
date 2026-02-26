@@ -28,6 +28,7 @@ typedef enum {
 struct sentry_retry_s {
     sentry_run_t *run;
     bool cache_keep;
+    long *user_consent;
     uint64_t startup_time;
     volatile long state;
     volatile long scheduled;
@@ -49,6 +50,8 @@ sentry__retry_new(const sentry_options_t *options)
     sentry__mutex_init(&retry->sealed_lock);
     retry->run = sentry__run_incref(options->run);
     retry->cache_keep = options->cache_keep;
+    retry->user_consent
+        = options->require_user_consent ? (long *)&options->user_consent : NULL;
     retry->startup_time = sentry__usec_time() / 1000;
     return retry;
 }
@@ -141,6 +144,12 @@ size_t
 sentry__retry_send(sentry_retry_t *retry, uint64_t before,
     sentry_retry_send_func_t send_cb, void *data)
 {
+    if (retry->user_consent
+        && sentry__atomic_fetch(retry->user_consent)
+            != SENTRY_USER_CONSENT_GIVEN) {
+        return 0;
+    }
+
     sentry_pathiter_t *piter
         = sentry__path_iter_directory(retry->run->cache_path);
     if (!piter) {

@@ -1,5 +1,6 @@
 #include "sentry_database.h"
 #include "sentry_alloc.h"
+#include "sentry_core.h"
 #include "sentry_envelope.h"
 #include "sentry_json.h"
 #include "sentry_options.h"
@@ -368,8 +369,9 @@ sentry__process_old_runs(const sentry_options_t *options, uint64_t last_crash)
             continue;
         }
 
+        bool consent_missing = sentry__should_skip_upload();
         bool can_cache = options->cache_keep
-            && (!options->http_retry
+            && (consent_missing || !options->http_retry
                 || !sentry__transport_can_retry(options->transport));
 
         sentry_pathiter_t *run_iter = sentry__path_iter_directory(run_dir);
@@ -414,11 +416,14 @@ sentry__process_old_runs(const sentry_options_t *options, uint64_t last_crash)
                     }
                 }
             } else if (sentry__path_ends_with(file, ".envelope")) {
-                sentry_envelope_t *envelope = sentry__envelope_from_path(file);
-                sentry__capture_envelope(options->transport, envelope);
-
+                if (!consent_missing) {
+                    sentry_envelope_t *envelope
+                        = sentry__envelope_from_path(file);
+                    sentry__capture_envelope(options->transport, envelope);
+                }
                 if (can_cache
-                    && sentry__run_move_cache(options->run, file, -1)) {
+                    && sentry__run_move_cache(
+                        options->run, file, consent_missing ? 0 : -1)) {
                     continue;
                 }
             }
@@ -432,7 +437,9 @@ sentry__process_old_runs(const sentry_options_t *options, uint64_t last_crash)
     }
     sentry__pathiter_free(db_iter);
 
-    sentry__capture_envelope(options->transport, session_envelope);
+    if (session_envelope) {
+        sentry__capture_envelope(options->transport, session_envelope);
+    }
 }
 
 // Cache Pruning below is based on prune_crash_reports.cc from Crashpad
