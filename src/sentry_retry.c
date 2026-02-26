@@ -19,6 +19,12 @@ typedef enum {
     SENTRY_RETRY_SEALED = 2
 } sentry_retry_state_t;
 
+typedef enum {
+    SENTRY_POLL_IDLE = 0,
+    SENTRY_POLL_SCHEDULED = 1,
+    SENTRY_POLL_SHUTDOWN = 2
+} sentry_poll_state_t;
+
 struct sentry_retry_s {
     sentry_run_t *run;
     bool cache_keep;
@@ -233,10 +239,12 @@ retry_poll_task(void *_retry, void *_state)
         = sentry__atomic_fetch(&retry->state) == SENTRY_RETRY_STARTUP
         ? retry->startup_time
         : 0;
-    // clear before scanning so a concurrent enqueue sees 0 and arms a poll
-    sentry__atomic_store(&retry->scheduled, 0);
+    // CAS instead of unconditional store to preserve SENTRY_POLL_SHUTDOWN
+    sentry__atomic_compare_swap(
+        &retry->scheduled, SENTRY_POLL_SCHEDULED, SENTRY_POLL_IDLE);
     if (sentry__retry_send(retry, before, retry->send_cb, retry->send_data)
-        && sentry__atomic_compare_swap(&retry->scheduled, 0, 1)) {
+        && sentry__atomic_compare_swap(
+            &retry->scheduled, SENTRY_POLL_IDLE, SENTRY_POLL_SCHEDULED)) {
         sentry__bgworker_submit_delayed(retry->bgworker, retry_poll_task, NULL,
             retry, SENTRY_RETRY_INTERVAL);
     }
@@ -252,7 +260,7 @@ sentry__retry_start(sentry_retry_t *retry, sentry_bgworker_t *bgworker,
     retry->bgworker = bgworker;
     retry->send_cb = send_cb;
     retry->send_data = send_data;
-    sentry__atomic_store(&retry->scheduled, 1);
+    sentry__atomic_store(&retry->scheduled, SENTRY_POLL_SCHEDULED);
     sentry__bgworker_submit_delayed(
         bgworker, retry_poll_task, NULL, retry, SENTRY_RETRY_THROTTLE);
 }
@@ -280,10 +288,10 @@ void
 sentry__retry_shutdown(sentry_retry_t *retry)
 {
     if (retry) {
-        // drop the delayed poll that would stall bgworker_flush
+        // drop the delayed poll and prevent retry_poll_task from re-arming
         sentry__bgworker_foreach_matching(
             retry->bgworker, retry_poll_task, drop_task_cb, NULL);
-        sentry__atomic_store(&retry->scheduled, 0);
+        sentry__atomic_store(&retry->scheduled, SENTRY_POLL_SHUTDOWN);
         sentry__bgworker_submit(retry->bgworker, retry_flush_task, NULL, retry);
     }
 }
@@ -345,7 +353,8 @@ sentry__retry_enqueue(sentry_retry_t *retry, const sentry_envelope_t *envelope)
 
     sentry__atomic_compare_swap(
         &retry->state, SENTRY_RETRY_STARTUP, SENTRY_RETRY_RUNNING);
-    if (sentry__atomic_compare_swap(&retry->scheduled, 0, 1)) {
+    if (sentry__atomic_compare_swap(
+            &retry->scheduled, SENTRY_POLL_IDLE, SENTRY_POLL_SCHEDULED)) {
         sentry__bgworker_submit_delayed(retry->bgworker, retry_poll_task, NULL,
             retry, SENTRY_RETRY_INTERVAL);
     }
