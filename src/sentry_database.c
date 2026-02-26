@@ -196,6 +196,51 @@ sentry__run_write_cache(
 }
 
 bool
+sentry__parse_cache_filename(const char *filename, uint64_t *ts_out,
+    int *count_out, const char **uuid_out)
+{
+    // Minimum retry filename: <ts>-<count>-<uuid>.envelope (49+ chars).
+    // Cache filenames are exactly 45 chars (<uuid>.envelope).
+    if (strlen(filename) <= 45) {
+        return false;
+    }
+
+    char *end;
+    uint64_t ts = strtoull(filename, &end, 10);
+    if (*end != '-') {
+        return false;
+    }
+
+    const char *count_str = end + 1;
+    long count = strtol(count_str, &end, 10);
+    if (*end != '-' || count < 0) {
+        return false;
+    }
+
+    const char *uuid = end + 1;
+    size_t tail_len = strlen(uuid);
+    // 36 chars UUID (with dashes) + ".envelope"
+    if (tail_len != 36 + 9 || strcmp(uuid + 36, ".envelope") != 0) {
+        return false;
+    }
+
+    *ts_out = ts;
+    *count_out = (int)count;
+    *uuid_out = uuid;
+    return true;
+}
+
+sentry_path_t *
+sentry__run_make_cache_path(
+    const sentry_run_t *run, uint64_t ts, int count, const char *uuid)
+{
+    char filename[128];
+    snprintf(filename, sizeof(filename), "%" PRIu64 "-%02d-%.36s.envelope", ts,
+        count, uuid);
+    return sentry__path_join_str(run->cache_path, filename);
+}
+
+bool
 sentry__run_move_cache(
     const sentry_run_t *run, const sentry_path_t *src, int retry_count)
 {
@@ -206,11 +251,13 @@ sentry__run_move_cache(
 
     char filename[128];
     const char *src_name = sentry__path_filename(src);
-    // Strip the retry prefix if present. Envelope filenames are either
-    // "<uuid>.envelope" (45 chars) or "<ts>-<count>-<uuid>.envelope"
-    // (>45 chars). The last 45 chars are always "<uuid>.envelope".
-    size_t src_len = strlen(src_name);
-    const char *cache_name = src_len > 45 ? src_name + src_len - 45 : src_name;
+    uint64_t parsed_ts;
+    int parsed_count;
+    const char *parsed_uuid;
+    const char *cache_name = sentry__parse_cache_filename(src_name, &parsed_ts,
+                                 &parsed_count, &parsed_uuid)
+        ? parsed_uuid
+        : src_name;
     if (retry_count >= 0) {
         snprintf(filename, sizeof(filename), "%" PRIu64 "-%02d-%.36s.envelope",
             sentry__usec_time() / 1000, retry_count, cache_name);

@@ -87,6 +87,12 @@ bool sentry__run_move_cache(
     const sentry_run_t *run, const sentry_path_t *src, int retry_count);
 
 /**
+ * Builds a cache path: `<db>/cache/<ts>-<count>-<uuid>.envelope`.
+ */
+sentry_path_t *sentry__run_make_cache_path(
+    const sentry_run_t *run, uint64_t ts, int count, const char *uuid);
+
+/**
  * This function is essential to send crash reports from previous runs of the
  * program.
  * More specifically, this function will iterate over all the  directories
@@ -100,6 +106,13 @@ bool sentry__run_move_cache(
  */
 void sentry__process_old_runs(
     const sentry_options_t *options, uint64_t last_crash);
+
+/**
+ * Parses a retry cache filename: `<ts>-<count>-<uuid>.envelope`.
+ * Returns false for plain cache filenames (`<uuid>.envelope`).
+ */
+bool sentry__parse_cache_filename(const char *filename, uint64_t *ts_out,
+    int *count_out, const char **uuid_out);
 
 /**
  * Cleans up the cache based on options.max_cache_size and

@@ -58,41 +58,6 @@ sentry__retry_free(sentry_retry_t *retry)
     sentry_free(retry);
 }
 
-bool
-sentry__retry_parse_filename(const char *filename, uint64_t *ts_out,
-    int *count_out, const char **uuid_out)
-{
-    // Minimum retry filename: <ts>-<count>-<uuid>.envelope (49+ chars).
-    // Cache filenames are exactly 45 chars (<uuid>.envelope).
-    if (strlen(filename) <= 45) {
-        return false;
-    }
-
-    char *end;
-    uint64_t ts = strtoull(filename, &end, 10);
-    if (*end != '-') {
-        return false;
-    }
-
-    const char *count_str = end + 1;
-    long count = strtol(count_str, &end, 10);
-    if (*end != '-' || count < 0) {
-        return false;
-    }
-
-    const char *uuid = end + 1;
-    size_t tail_len = strlen(uuid);
-    // 36 chars UUID (with dashes) + ".envelope"
-    if (tail_len != 36 + 9 || strcmp(uuid + 36, ".envelope") != 0) {
-        return false;
-    }
-
-    *ts_out = ts;
-    *count_out = (int)count;
-    *uuid_out = uuid;
-    return true;
-}
-
 uint64_t
 sentry__retry_backoff(int count)
 {
@@ -120,16 +85,6 @@ compare_retry_items(const void *a, const void *b)
     return strcmp(ia->uuid, ib->uuid);
 }
 
-sentry_path_t *
-sentry__retry_make_path(
-    sentry_retry_t *retry, uint64_t ts, int count, const char *uuid)
-{
-    char filename[128];
-    snprintf(filename, sizeof(filename), "%" PRIu64 "-%02d-%.36s.envelope", ts,
-        count, uuid);
-    return sentry__path_join_str(retry->run->cache_path, filename);
-}
-
 static bool
 handle_result(sentry_retry_t *retry, const retry_item_t *item, int status_code)
 {
@@ -139,8 +94,8 @@ handle_result(sentry_retry_t *retry, const retry_item_t *item, int status_code)
 
     // network failure with retries remaining: bump count & re-enqueue
     if (item->count + 1 < SENTRY_RETRY_ATTEMPTS && status_code < 0) {
-        sentry_path_t *new_path = sentry__retry_make_path(
-            retry, sentry__usec_time() / 1000, item->count + 1, item->uuid);
+        sentry_path_t *new_path = sentry__run_make_cache_path(retry->run,
+            sentry__usec_time() / 1000, item->count + 1, item->uuid);
         if (new_path) {
             if (sentry__path_rename(item->path, new_path) != 0) {
                 SENTRY_WARNF(
@@ -203,7 +158,7 @@ sentry__retry_send(sentry_retry_t *retry, uint64_t before,
         uint64_t ts;
         int count;
         const char *uuid;
-        if (!sentry__retry_parse_filename(fname, &ts, &count, &uuid)) {
+        if (!sentry__parse_cache_filename(fname, &ts, &count, &uuid)) {
             continue;
         }
         if (before > 0 && ts >= before) {
