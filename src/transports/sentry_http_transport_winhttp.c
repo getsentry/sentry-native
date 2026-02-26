@@ -141,16 +141,6 @@ winhttp_client_start(void *_client, const sentry_options_t *opts)
 }
 
 static void
-winhttp_client_cancel(void *_client)
-{
-    winhttp_client_t *client = _client;
-    HINTERNET request;
-    if ((request = InterlockedExchangePointer(&client->request, NULL))) {
-        WinHttpCloseHandle(request);
-    }
-}
-
-static void
 winhttp_client_shutdown(void *_client)
 {
     winhttp_client_t *client = _client;
@@ -342,7 +332,6 @@ sentry__transport_new_default(void)
     }
     sentry__http_transport_set_free_client(transport, winhttp_client_free);
     sentry__http_transport_set_start_client(transport, winhttp_client_start);
-    sentry__http_transport_set_cancel_client(transport, winhttp_client_cancel);
     sentry__http_transport_set_shutdown_client(
         transport, winhttp_client_shutdown);
     return transport;

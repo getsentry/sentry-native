@@ -425,7 +425,8 @@ shutdown_task(void *task_data, void *UNUSED(state))
 }
 
 int
-sentry__bgworker_shutdown(sentry_bgworker_t *bgw, uint64_t timeout)
+sentry__bgworker_shutdown_cb(sentry_bgworker_t *bgw, uint64_t timeout,
+    void (*on_timeout)(void *), void *on_timeout_data)
 {
     if (!sentry__atomic_fetch(&bgw->running)) {
         SENTRY_WARN("trying to shut down non-running thread");
@@ -442,11 +443,21 @@ sentry__bgworker_shutdown(sentry_bgworker_t *bgw, uint64_t timeout)
         uint64_t now = sentry__monotonic_time();
         if (now > started && now - started > timeout) {
             sentry__atomic_store(&bgw->running, 0);
-            sentry__thread_detach(bgw->thread_id);
-            sentry__mutex_unlock(&bgw->task_lock);
-            SENTRY_WARN(
-                "background thread failed to shut down cleanly within timeout");
-            return 1;
+            if (on_timeout) {
+                // Unblock the worker (e.g. close transport handles) and
+                // let it finish in-flight work like handle_result.
+                sentry__mutex_unlock(&bgw->task_lock);
+                on_timeout(on_timeout_data);
+                on_timeout = NULL;
+                sentry__mutex_lock(&bgw->task_lock);
+                // fall through to !running check below
+            } else {
+                sentry__thread_detach(bgw->thread_id);
+                sentry__mutex_unlock(&bgw->task_lock);
+                SENTRY_WARN("background thread failed to shut down cleanly "
+                            "within timeout");
+                return 1;
+            }
         }
 
         if (!sentry__atomic_fetch(&bgw->running)) {
