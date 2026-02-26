@@ -30,6 +30,7 @@ typedef struct {
     void (*free_client)(void *);
     int (*start_client)(void *, const sentry_options_t *);
     sentry_http_send_func_t send_func;
+    void (*cancel_client)(void *client);
     void (*shutdown_client)(void *client);
     sentry_retry_t *retry;
 } http_transport_state_t;
@@ -311,6 +312,10 @@ http_transport_shutdown(uint64_t timeout, void *transport_state)
 
     sentry__retry_shutdown(state->retry);
 
+    if (state->cancel_client) {
+        state->cancel_client(state->client);
+    }
+
     int rv = sentry__bgworker_shutdown(bgworker, timeout);
     if (rv != 0) {
         sentry__retry_dump_queue(state->retry, http_send_task);
@@ -412,6 +417,13 @@ sentry__http_transport_set_start_client(sentry_transport_t *transport,
     int (*start_client)(void *, const sentry_options_t *))
 {
     http_transport_get_state(transport)->start_client = start_client;
+}
+
+void
+sentry__http_transport_set_cancel_client(
+    sentry_transport_t *transport, void (*cancel_client)(void *))
+{
+    http_transport_get_state(transport)->cancel_client = cancel_client;
 }
 
 void

@@ -47,6 +47,8 @@ void sentry__http_transport_set_free_client(
     sentry_transport_t *transport, void (*free_client)(void *));
 void sentry__http_transport_set_start_client(sentry_transport_t *transport,
     int (*start_client)(void *, const sentry_options_t *));
+void sentry__http_transport_set_cancel_client(
+    sentry_transport_t *transport, void (*cancel_client)(void *));
 void sentry__http_transport_set_shutdown_client(
     sentry_transport_t *transport, void (*shutdown_client)(void *));
 
