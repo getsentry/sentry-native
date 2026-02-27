@@ -15,6 +15,16 @@
 
 #define SENTRY_LARGE_ATTACHMENT_SIZE (100 * 1024 * 1024) // 100 MB
 
+static bool
+is_large_attachment(const sentry_path_t *path, size_t file_size)
+{
+    // TODO: for temporarily testing with <1 MB minidumps
+    // return file_size < 1024 * 1024 && sentry__path_ends_with(path, ".dmp");
+
+    (void)path;
+    return file_size >= SENTRY_LARGE_ATTACHMENT_SIZE;
+}
+
 struct sentry_envelope_item_s {
     sentry_value_t headers;
     sentry_value_t event;
@@ -760,7 +770,7 @@ sentry__envelope_add_attachment(
         : sentry__path_get_size(attachment->path);
 
     sentry_envelope_item_t *item = NULL;
-    if (file_size >= SENTRY_LARGE_ATTACHMENT_SIZE) {
+    if (is_large_attachment(attachment->path, file_size)) {
         if (attachment->buf) {
             item = envelope_add_item(envelope);
             if (item) {
@@ -848,7 +858,7 @@ sentry__envelope_add_from_path(
         return NULL;
     }
     size_t file_size = sentry__path_get_size(path);
-    if (file_size >= SENTRY_LARGE_ATTACHMENT_SIZE) {
+    if (is_large_attachment(path, file_size)) {
         return envelope_add_attachment_ref(envelope, path, file_size, NULL);
     }
     size_t buf_len;
