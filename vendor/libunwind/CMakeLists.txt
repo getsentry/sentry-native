@@ -39,9 +39,6 @@ set(UNWIND_COMMON_SOURCES
 
 # Local sources (libunwind_la_SOURCES_local_nounwind + os_local)
 set(UNWIND_LOCAL_SOURCES
-    # os_linux_local (CXX exceptions support - _ReadULEB/_ReadSLEB)
-    ${LIBUNWIND_SRC}/mi/_ReadULEB.c
-    ${LIBUNWIND_SRC}/mi/_ReadSLEB.c
     # local nounwind
     ${LIBUNWIND_SRC}/mi/backtrace.c
     ${LIBUNWIND_SRC}/mi/dyn-cancel.c
@@ -64,25 +61,10 @@ set(UNWIND_LOCAL_SOURCES
     ${LIBUNWIND_SRC}/mi/Lset_iterate_phdr_function.c
     ${LIBUNWIND_SRC}/mi/Lset_reg.c
     ${LIBUNWIND_SRC}/mi/Lget_elf_filename.c
-    # local unwind (CXX exception support)
-    ${LIBUNWIND_SRC}/unwind/Backtrace.c
-    ${LIBUNWIND_SRC}/unwind/DeleteException.c
-    ${LIBUNWIND_SRC}/unwind/FindEnclosingFunction.c
-    ${LIBUNWIND_SRC}/unwind/ForcedUnwind.c
-    ${LIBUNWIND_SRC}/unwind/GetBSP.c
-    ${LIBUNWIND_SRC}/unwind/GetCFA.c
-    ${LIBUNWIND_SRC}/unwind/GetDataRelBase.c
-    ${LIBUNWIND_SRC}/unwind/GetGR.c
-    ${LIBUNWIND_SRC}/unwind/GetIP.c
-    ${LIBUNWIND_SRC}/unwind/GetIPInfo.c
-    ${LIBUNWIND_SRC}/unwind/GetLanguageSpecificData.c
-    ${LIBUNWIND_SRC}/unwind/GetRegionStart.c
-    ${LIBUNWIND_SRC}/unwind/GetTextRelBase.c
-    ${LIBUNWIND_SRC}/unwind/RaiseException.c
-    ${LIBUNWIND_SRC}/unwind/Resume.c
-    ${LIBUNWIND_SRC}/unwind/Resume_or_Rethrow.c
-    ${LIBUNWIND_SRC}/unwind/SetGR.c
-    ${LIBUNWIND_SRC}/unwind/SetIP.c
+    # NOTE: The src/unwind/ sources (C++ exception ABI: _Unwind_Resume,
+    # _Unwind_RaiseException, etc.) are intentionally excluded. They conflict
+    # with libgcc_eh.a when linking with -static-libgcc, and sentry-native
+    # only needs the local unwinding API (_UL*_init_local, _UL*_step, etc.).
 )
 
 # DWARF sources (local)

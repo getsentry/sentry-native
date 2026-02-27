@@ -115,8 +115,8 @@ bool sentry__parse_cache_filename(const char *filename, uint64_t *ts_out,
     int *count_out, const char **uuid_out);
 
 /**
- * Cleans up the cache based on options.max_cache_size and
- * options.max_cache_age.
+ * Cleans up the cache based on options.cache_max_items,
+ * options.cache_max_size and options.cache_max_age.
  */
 void sentry__cleanup_cache(const sentry_options_t *options);
 

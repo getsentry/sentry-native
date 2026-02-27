@@ -20,8 +20,11 @@ Linux without requiring users to install any external packages.  Only the
 | x86 (i686, 32-bit) | `src/x86/`     | `include/tdep-x86/`     |
 | aarch64            | `src/aarch64/` | `include/tdep-aarch64/` |
 
-Core shared code: `src/mi/`, `src/dwarf/`, `src/unwind/`, `src/os-linux.c`,
+Core shared code: `src/mi/`, `src/dwarf/`, `src/os-linux.c`,
 `src/dl-iterate-phdr.c`.
+
+> **Note:** `src/unwind/` is present in the tree but is **not compiled**. See
+> [Excluded: C++ exception ABI sources](#excluded-c-exception-abi-sources) below.
 
 ## What Was Removed from the Release Tarball
 
@@ -81,8 +84,24 @@ custom `CMakeLists.txt`:
 |----------------------------------------------------------------------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------|
 | `src/arm/`, `include/tdep-arm/`                                                                          | ARM 32-bit — kept for potential future use                                                                                                 |
 | `src/riscv/`, `include/tdep-riscv/`                                                                      | RISC-V — kept for potential future use                                                                                                     |
+| `src/unwind/`, `src/mi/_ReadULEB.c`, `src/mi/_ReadSLEB.c`                                                | C++ exception ABI conflicts with `libgcc_eh.a`; see [above](#excluded-c-exception-abi-sources)                                             |
 | `include/libunwind-*.h` for removed arches                                                               | Referenced via `#ifdef` in `include/libunwind.h` — harmless dead code                                                                      |
 | Autotools artifacts (`configure`, `configure.ac`, `Makefile.am`, `Makefile.in`, `aclocal.m4`, `INSTALL`) | Carried over from the release tarball. Not used by CMake, but `configure.ac` and `Makefile.am` are useful as reference for the build logic |
+
+### Excluded: C++ exception ABI sources
+
+The `src/unwind/` directory and `src/mi/_ReadULEB.c` / `src/mi/_ReadSLEB.c`
+are **present in the tree but excluded from the CMake build**.  These files
+implement the Itanium C++ exception handling ABI (`_Unwind_Resume`,
+`_Unwind_RaiseException`, `_Unwind_ForcedUnwind`, etc.) — the same symbols
+that `libgcc_eh.a` provides.
+
+When sentry-native is built as a static library (`SENTRY_BUILD_SHARED_LIBS=OFF`)
+and linked into a shared library whose toolchain uses `-static-libgcc`
+(e.g. godot-cpp), including these symbols causes **multiple definition** errors
+against `libgcc_eh.a`.  Excluding them is safe because sentry-native only uses
+the local unwinding API (`_ULx86_64_init_local`, `_ULx86_64_step`, etc.) and
+never calls into the C++ exception ABI.
 
 ## Custom Additions (not in the upstream tarball)
 
@@ -123,6 +142,8 @@ both GCC and Clang.
    removed architecture dirs listed above:
    - `src/` — keep only: `aarch64/`, `arm/`, `dwarf/`, `mi/`, `riscv/`,
      `unwind/`, `x86/`, `x86_64/`, and top-level `.c` / `.h` files
+     (`src/unwind/` is kept for reference but **not compiled** — do not add it
+     to `CMakeLists.txt`)
    - `include/` — keep only: `tdep/`, `tdep-aarch64/`, `tdep-arm/`,
      `tdep-riscv/`, `tdep-x86/`, `tdep-x86_64/`, and all top-level `.h` /
      `.h.in` files
