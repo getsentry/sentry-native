@@ -1,3 +1,4 @@
+#include "sentry_attachment.h"
 #include "sentry_envelope.h"
 #include "sentry_json.h"
 #include "sentry_path.h"
@@ -720,6 +721,172 @@ SENTRY_TEST(deserialize_envelope_empty)
 
     // eof
     test_deserialize_envelope_empty(buf, buf_len - 1);
+}
+
+SENTRY_TEST(tus_upload_url)
+{
+    SENTRY_TEST_DSN_NEW_DEFAULT(dsn);
+
+    char *url = sentry__dsn_get_upload_url(dsn);
+    TEST_CHECK_STRING_EQUAL(url, "https://sentry.invalid:443/api/42/upload/");
+    sentry_free(url);
+    sentry__dsn_decref(dsn);
+
+    TEST_CHECK(!sentry__dsn_get_upload_url(NULL));
+}
+
+SENTRY_TEST(attachment_ref_creation)
+{
+    const char *test_file_str
+        = SENTRY_TEST_PATH_PREFIX "sentry_test_attachment_ref";
+    sentry_path_t *test_file_path = sentry__path_from_str(test_file_str);
+
+    // Small file: should be inlined
+    {
+        sentry_envelope_t *envelope = sentry__envelope_new();
+        char small_data[] = "small";
+        TEST_CHECK_INT_EQUAL(sentry__path_write_buffer(test_file_path,
+                                 small_data, sizeof(small_data) - 1),
+            0);
+
+        sentry_attachment_t *attachment
+            = sentry__attachment_from_path(sentry__path_clone(test_file_path));
+        sentry__envelope_add_attachment(envelope, attachment);
+
+        TEST_CHECK_INT_EQUAL(sentry__envelope_get_item_count(envelope), 1);
+        const sentry_envelope_item_t *item
+            = sentry__envelope_get_item(envelope, 0);
+        TEST_CHECK(!!item);
+        TEST_CHECK_STRING_EQUAL(
+            sentry_value_as_string(
+                sentry__envelope_item_get_header(item, "type")),
+            "attachment");
+        TEST_CHECK(sentry_value_is_null(
+            sentry__envelope_item_get_header(item, "content_type")));
+        size_t payload_len = 0;
+        TEST_CHECK_STRING_EQUAL(
+            sentry__envelope_item_get_payload(item, &payload_len), "small");
+
+        sentry__attachment_free(attachment);
+        sentry_envelope_free(envelope);
+    }
+
+    // Large file (>= threshold): should create attachment_ref
+    {
+        sentry_envelope_t *envelope = sentry__envelope_new();
+        size_t large_size = 100 * 1024 * 1024;
+        FILE *f = fopen(test_file_str, "wb");
+        TEST_CHECK(!!f);
+        fseek(f, (long)(large_size - 1), SEEK_SET);
+        fputc(0, f);
+        fclose(f);
+
+        sentry_attachment_t *attachment
+            = sentry__attachment_from_path(sentry__path_clone(test_file_path));
+        sentry__envelope_add_attachment(envelope, attachment);
+
+        TEST_CHECK_INT_EQUAL(sentry__envelope_get_item_count(envelope), 1);
+        const sentry_envelope_item_t *item
+            = sentry__envelope_get_item(envelope, 0);
+        TEST_CHECK(!!item);
+        TEST_CHECK_STRING_EQUAL(
+            sentry_value_as_string(
+                sentry__envelope_item_get_header(item, "type")),
+            "attachment");
+        TEST_CHECK_STRING_EQUAL(
+            sentry_value_as_string(
+                sentry__envelope_item_get_header(item, "content_type")),
+            "application/vnd.sentry.attachment-ref");
+        TEST_CHECK_INT_EQUAL(
+            sentry_value_as_uint64(
+                sentry__envelope_item_get_header(item, "attachment_length")),
+            large_size);
+
+        size_t payload_len = 0;
+        const char *payload
+            = sentry__envelope_item_get_payload(item, &payload_len);
+        TEST_CHECK(!!payload);
+        sentry_value_t payload_json
+            = sentry__value_from_json(payload, payload_len);
+        TEST_CHECK_STRING_EQUAL(sentry_value_as_string(sentry_value_get_by_key(
+                                    payload_json, "path")),
+            test_file_str);
+        sentry_value_decref(payload_json);
+
+        sentry__attachment_free(attachment);
+        sentry_envelope_free(envelope);
+    }
+
+    sentry__path_remove(test_file_path);
+    sentry__path_free(test_file_path);
+}
+
+SENTRY_TEST(attachment_ref_from_path)
+{
+    const char *test_file_str
+        = SENTRY_TEST_PATH_PREFIX "sentry_test_attachment_ref_from_path";
+    sentry_path_t *test_file_path = sentry__path_from_str(test_file_str);
+
+    // Small file: should be inlined
+    {
+        sentry_envelope_t *envelope = sentry__envelope_new();
+        char small_data[] = "small";
+        TEST_CHECK_INT_EQUAL(sentry__path_write_buffer(test_file_path,
+                                 small_data, sizeof(small_data) - 1),
+            0);
+
+        sentry__envelope_add_from_path(envelope, test_file_path, "attachment");
+
+        TEST_CHECK_INT_EQUAL(sentry__envelope_get_item_count(envelope), 1);
+        const sentry_envelope_item_t *item
+            = sentry__envelope_get_item(envelope, 0);
+        TEST_CHECK(!!item);
+        TEST_CHECK(!sentry__envelope_item_is_attachment_ref(item));
+        size_t payload_len = 0;
+        TEST_CHECK_STRING_EQUAL(
+            sentry__envelope_item_get_payload(item, &payload_len), "small");
+
+        sentry_envelope_free(envelope);
+    }
+
+    // Large file (>= threshold): should create attachment_ref
+    {
+        sentry_envelope_t *envelope = sentry__envelope_new();
+        size_t large_size = 100 * 1024 * 1024;
+        FILE *f = fopen(test_file_str, "wb");
+        TEST_CHECK(!!f);
+        fseek(f, (long)(large_size - 1), SEEK_SET);
+        fputc(0, f);
+        fclose(f);
+
+        sentry__envelope_add_from_path(envelope, test_file_path, "attachment");
+
+        TEST_CHECK_INT_EQUAL(sentry__envelope_get_item_count(envelope), 1);
+        const sentry_envelope_item_t *item
+            = sentry__envelope_get_item(envelope, 0);
+        TEST_CHECK(!!item);
+        TEST_CHECK(sentry__envelope_item_is_attachment_ref(item));
+        TEST_CHECK_INT_EQUAL(
+            sentry_value_as_uint64(
+                sentry__envelope_item_get_header(item, "attachment_length")),
+            large_size);
+
+        size_t payload_len = 0;
+        const char *payload
+            = sentry__envelope_item_get_payload(item, &payload_len);
+        TEST_CHECK(!!payload);
+        sentry_value_t payload_json
+            = sentry__value_from_json(payload, payload_len);
+        TEST_CHECK_STRING_EQUAL(sentry_value_as_string(sentry_value_get_by_key(
+                                    payload_json, "path")),
+            test_file_str);
+        sentry_value_decref(payload_json);
+
+        sentry_envelope_free(envelope);
+    }
+
+    sentry__path_remove(test_file_path);
+    sentry__path_free(test_file_path);
 }
 
 SENTRY_TEST(deserialize_envelope_invalid)

@@ -153,15 +153,24 @@ MUST_USE int sentry_envelope_write_to_path(
  */
 int sentry__envelope_materialize(sentry_envelope_t *envelope);
 
-// these for now are only needed for tests
-#ifdef SENTRY_UNITTEST
 size_t sentry__envelope_get_item_count(const sentry_envelope_t *envelope);
 const sentry_envelope_item_t *sentry__envelope_get_item(
     const sentry_envelope_t *envelope, size_t idx);
+sentry_envelope_item_t *sentry__envelope_get_item_mut(
+    sentry_envelope_t *envelope, size_t idx);
 sentry_value_t sentry__envelope_item_get_header(
     const sentry_envelope_item_t *item, const char *key);
 const char *sentry__envelope_item_get_payload(
     const sentry_envelope_item_t *item, size_t *payload_len_out);
-#endif
+void sentry__envelope_item_set_payload(
+    sentry_envelope_item_t *item, char *payload, size_t payload_len);
+void sentry__envelope_item_set_attachment_ref(
+    sentry_envelope_item_t *item, const sentry_path_t *path);
+
+bool sentry__envelope_item_is_attachment_ref(
+    const sentry_envelope_item_t *item);
+bool sentry__envelope_has_attachment_refs(const sentry_envelope_t *envelope);
+sentry_path_t *sentry__envelope_item_get_attachment_ref_path(
+    const sentry_envelope_item_t *item);
 
 #endif
