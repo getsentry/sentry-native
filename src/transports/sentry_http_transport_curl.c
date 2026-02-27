@@ -126,6 +126,57 @@ swallow_data(
     return size * nmemb;
 }
 
+static int
+debug_function(CURL *UNUSED(handle), curl_infotype type, char *data,
+    size_t size, void *UNUSED(userdata))
+{
+    const char *prefix;
+    switch (type) {
+    case CURLINFO_TEXT:
+        prefix = "* ";
+        break;
+    case CURLINFO_HEADER_OUT:
+        prefix = "> ";
+        break;
+    case CURLINFO_HEADER_IN:
+        prefix = "< ";
+        break;
+    case CURLINFO_DATA_OUT:
+    case CURLINFO_DATA_IN: {
+        const char *dir = type == CURLINFO_DATA_OUT ? "Send" : "Recv";
+        size_t len = size;
+        while (len > 0 && (data[len - 1] == '\n' || data[len - 1] == '\r')) {
+            len--;
+        }
+        if (len >= 2 && data[0] == '{' && data[len - 1] == '}') {
+            fprintf(stderr, "%s %s (%zu bytes): %.*s\n",
+                type == CURLINFO_DATA_OUT ? "=>" : "<=", dir, size, (int)len,
+                data);
+        } else {
+            fprintf(stderr, "%s %s (%zu bytes)\n",
+                type == CURLINFO_DATA_OUT ? "=>" : "<=", dir, size);
+        }
+        return 0;
+    }
+    default:
+        return 0;
+    }
+
+    const char *pos = data;
+    const char *end = data + size;
+    while (pos < end) {
+        const char *eol = memchr(pos, '\n', (size_t)(end - pos));
+        if (eol) {
+            fprintf(stderr, "%s%.*s\n", prefix, (int)(eol - pos), pos);
+            pos = eol + 1;
+        } else {
+            fprintf(stderr, "%s%.*s\n", prefix, (int)(end - pos), pos);
+            break;
+        }
+    }
+    return 0;
+}
+
 static size_t
 header_callback(char *buffer, size_t size, size_t nitems, void *userdata)
 {
@@ -190,6 +241,7 @@ curl_send_task(void *_client, sentry_prepared_http_request_t *req,
     curl_easy_reset(curl);
     if (client->debug) {
         curl_easy_setopt(curl, CURLOPT_VERBOSE, 1);
+        curl_easy_setopt(curl, CURLOPT_DEBUGFUNCTION, debug_function);
         curl_easy_setopt(curl, CURLOPT_WRITEDATA, stderr);
         // CURLOPT_WRITEFUNCTION will `fwrite` by default
     } else {
