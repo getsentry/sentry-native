@@ -1,6 +1,8 @@
 #include "sentry_attachment.h"
+#include "sentry_database.h"
 #include "sentry_envelope.h"
 #include "sentry_json.h"
+#include "sentry_options.h"
 #include "sentry_path.h"
 #include "sentry_testsupport.h"
 #include "sentry_utils.h"
@@ -887,6 +889,289 @@ SENTRY_TEST(attachment_ref_from_path)
 
     sentry__path_remove(test_file_path);
     sentry__path_free(test_file_path);
+}
+
+SENTRY_TEST(attachment_ref_copy)
+{
+    SENTRY_TEST_OPTIONS_NEW(options);
+    sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
+    sentry_init(options);
+
+    sentry_uuid_t event_id
+        = sentry_uuid_from_string("c993afb6-b4ac-48a6-b61b-2558e601d65d");
+
+    sentry_envelope_t *envelope = sentry__envelope_new();
+    sentry_value_t event = sentry_value_new_object();
+    sentry_value_set_by_key(
+        event, "event_id", sentry__value_new_uuid(&event_id));
+    sentry__envelope_add_event(envelope, event);
+
+    const char *test_file_str
+        = SENTRY_TEST_PATH_PREFIX "sentry_test_large_attachment";
+    sentry_path_t *test_file_path = sentry__path_from_str(test_file_str);
+    size_t large_size = 100 * 1024 * 1024;
+    FILE *f = fopen(test_file_str, "wb");
+    TEST_CHECK(!!f);
+    fseek(f, (long)(large_size - 1), SEEK_SET);
+    fputc(0, f);
+    fclose(f);
+
+    sentry_attachment_t *attachment
+        = sentry__attachment_from_path(sentry__path_clone(test_file_path));
+    sentry_attachment_set_content_type(attachment, "application/x-dmp");
+    sentry__envelope_add_attachment(envelope, attachment);
+
+    TEST_CHECK(sentry__path_is_file(test_file_path));
+
+    // after add: ref points to original path (deferred copy)
+    const sentry_envelope_item_t *item = sentry__envelope_get_item(envelope, 1);
+    TEST_CHECK(!!item);
+    TEST_CHECK_STRING_EQUAL(
+        sentry_value_as_string(
+            sentry__envelope_item_get_header(item, "content_type")),
+        "application/vnd.sentry.attachment-ref");
+
+    size_t payload_len = 0;
+    const char *payload = sentry__envelope_item_get_payload(item, &payload_len);
+    TEST_CHECK(!!payload);
+    sentry_value_t payload_json = sentry__value_from_json(payload, payload_len);
+    const char *ref_path
+        = sentry_value_as_string(sentry_value_get_by_key(payload_json, "path"));
+    TEST_CHECK_STRING_EQUAL(ref_path, test_file_str);
+    TEST_CHECK_STRING_EQUAL(sentry_value_as_string(sentry_value_get_by_key(
+                                payload_json, "content_type")),
+        "application/x-dmp");
+    sentry_value_decref(payload_json);
+
+    // after dump: ref points to attachments dir copy, content_type preserved
+    sentry_run_t *run = NULL;
+    SENTRY_WITH_OPTIONS (opts) {
+        run = opts->run;
+    }
+    sentry__run_write_envelope(run, envelope);
+
+    payload = sentry__envelope_item_get_payload(item, &payload_len);
+    TEST_CHECK(!!payload);
+    payload_json = sentry__value_from_json(payload, payload_len);
+    ref_path
+        = sentry_value_as_string(sentry_value_get_by_key(payload_json, "path"));
+#ifdef SENTRY_PLATFORM_WINDOWS
+    TEST_CHECK(!!strstr(
+        ref_path, "\\attachments\\c993afb6-b4ac-48a6-b61b-2558e601d65d\\"));
+#else
+    TEST_CHECK(!!strstr(
+        ref_path, "/attachments/c993afb6-b4ac-48a6-b61b-2558e601d65d/"));
+#endif
+    TEST_CHECK_STRING_EQUAL(sentry_value_as_string(sentry_value_get_by_key(
+                                payload_json, "content_type")),
+        "application/x-dmp");
+
+    sentry_path_t *dest_path = sentry__path_from_str(ref_path);
+    TEST_CHECK(sentry__path_is_file(dest_path));
+    sentry__path_free(dest_path);
+
+    sentry_value_decref(payload_json);
+    sentry__attachment_free(attachment);
+    sentry_envelope_free(envelope);
+    sentry__path_remove(test_file_path);
+    sentry__path_free(test_file_path);
+    sentry_close();
+}
+
+SENTRY_TEST(attachment_ref_move)
+{
+    SENTRY_TEST_OPTIONS_NEW(options);
+    sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
+    sentry_init(options);
+
+    sentry_uuid_t event_id
+        = sentry_uuid_from_string("c993afb6-b4ac-48a6-b61b-2558e601d65d");
+
+    sentry_envelope_t *envelope = sentry__envelope_new();
+    sentry_value_t event = sentry_value_new_object();
+    sentry_value_set_by_key(
+        event, "event_id", sentry__value_new_uuid(&event_id));
+    sentry__envelope_add_event(envelope, event);
+
+    // create large file inside the run directory (SDK-owned)
+    sentry_path_t *run_path = NULL;
+    sentry_run_t *run = NULL;
+    SENTRY_WITH_OPTIONS (opts) {
+        run_path = sentry__path_clone(opts->run->run_path);
+        run = opts->run;
+    }
+    TEST_CHECK(!!run_path);
+    sentry_path_t *src_path
+        = sentry__path_join_str(run_path, "test_minidump.dmp");
+
+    size_t large_size = 100 * 1024 * 1024;
+    FILE *f = fopen(src_path->path, "wb");
+    TEST_CHECK(!!f);
+    fseek(f, (long)(large_size - 1), SEEK_SET);
+    fputc(0, f);
+    fclose(f);
+
+    sentry_attachment_t *attachment
+        = sentry__attachment_from_path(sentry__path_clone(src_path));
+    sentry__envelope_add_attachment(envelope, attachment);
+
+    // file stays in place on add (deferred)
+    TEST_CHECK(sentry__path_is_file(src_path));
+
+    const sentry_envelope_item_t *item = sentry__envelope_get_item(envelope, 1);
+    TEST_CHECK(!!item);
+
+    size_t payload_len = 0;
+    const char *payload = sentry__envelope_item_get_payload(item, &payload_len);
+    TEST_CHECK(!!payload);
+    sentry_value_t payload_json = sentry__value_from_json(payload, payload_len);
+    const char *ref_path
+        = sentry_value_as_string(sentry_value_get_by_key(payload_json, "path"));
+    TEST_CHECK_STRING_EQUAL(ref_path, src_path->path);
+    sentry_value_decref(payload_json);
+
+    // after dump: run-dir file is renamed to db/attachments/
+    sentry__run_write_envelope(run, envelope);
+
+    TEST_CHECK(!sentry__path_is_file(src_path));
+
+    payload = sentry__envelope_item_get_payload(item, &payload_len);
+    payload_json = sentry__value_from_json(payload, payload_len);
+    ref_path
+        = sentry_value_as_string(sentry_value_get_by_key(payload_json, "path"));
+#ifdef SENTRY_PLATFORM_WINDOWS
+    TEST_CHECK(!!strstr(ref_path,
+        "\\attachments\\c993afb6-b4ac-48a6-b61b-2558e601d65d\\"
+        "test_minidump.dmp"));
+#else
+    TEST_CHECK(!!strstr(ref_path,
+        "/attachments/c993afb6-b4ac-48a6-b61b-2558e601d65d/"
+        "test_minidump.dmp"));
+#endif
+
+    sentry_path_t *dest_path = sentry__path_from_str(ref_path);
+    TEST_CHECK(sentry__path_is_file(dest_path));
+    sentry__path_free(dest_path);
+
+    sentry_value_decref(payload_json);
+    sentry__attachment_free(attachment);
+    sentry_envelope_free(envelope);
+    sentry__path_free(src_path);
+    sentry__path_free(run_path);
+    sentry_close();
+}
+
+static void
+send_restore_envelope(sentry_envelope_t *envelope, void *data)
+{
+    int *called = data;
+    *called += 1;
+
+    size_t item_count = sentry__envelope_get_item_count(envelope);
+    // event + attachment_ref = 2 items (proves materialization worked)
+    TEST_CHECK(item_count >= 2);
+
+    if (item_count >= 2) {
+        const sentry_envelope_item_t *item
+            = sentry__envelope_get_item(envelope, 1);
+        TEST_CHECK(sentry__envelope_item_is_attachment_ref(item));
+
+        size_t payload_len = 0;
+        const char *payload
+            = sentry__envelope_item_get_payload(item, &payload_len);
+        TEST_CHECK(!!payload);
+        sentry_value_t pj = sentry__value_from_json(payload, payload_len);
+        const char *ref_path
+            = sentry_value_as_string(sentry_value_get_by_key(pj, "path"));
+#ifdef SENTRY_PLATFORM_WINDOWS
+        TEST_CHECK(!!strstr(ref_path,
+            "\\attachments\\c993afb6-b4ac-48a6-b61b-2558e601d65d\\"
+            "test_minidump.dmp"));
+#else
+        TEST_CHECK(!!strstr(ref_path,
+            "/attachments/c993afb6-b4ac-48a6-b61b-2558e601d65d/"
+            "test_minidump.dmp"));
+#endif
+        sentry_value_decref(pj);
+    }
+
+    sentry_envelope_free(envelope);
+}
+
+SENTRY_TEST(attachment_ref_restore)
+{
+#if defined(SENTRY_PLATFORM_NX) || defined(SENTRY_PLATFORM_PS)
+    SKIP_TEST();
+#endif
+    const char *db_str = SENTRY_TEST_PATH_PREFIX ".sentry-native";
+
+    sentry_uuid_t event_id
+        = sentry_uuid_from_string("c993afb6-b4ac-48a6-b61b-2558e601d65d");
+
+    // set up old run dir with an envelope containing an attachment_ref
+    sentry_path_t *db_path = sentry__path_from_str(db_str);
+    sentry_path_t *old_run_path = sentry__path_join_str(db_path, "old.run");
+    TEST_ASSERT(sentry__path_create_dir_all(old_run_path) == 0);
+
+    // build attachment path in db/attachments/<uuid>/
+    sentry_path_t *att_dir = sentry__path_join_str(db_path, "attachments");
+    sentry_path_t *event_att_dir = sentry__path_join_str(
+        att_dir, "c993afb6-b4ac-48a6-b61b-2558e601d65d");
+    sentry__path_free(att_dir);
+    TEST_ASSERT(sentry__path_create_dir_all(event_att_dir) == 0);
+
+    sentry_path_t *att_file
+        = sentry__path_join_str(event_att_dir, "test_minidump.dmp");
+    size_t large_size = 100 * 1024 * 1024;
+    FILE *f = fopen(att_file->path, "wb");
+    TEST_ASSERT(!!f);
+    fseek(f, (long)(large_size - 1), SEEK_SET);
+    fputc(0, f);
+    fclose(f);
+
+    // build envelope: event + attachment_ref pointing to the attachment file
+    sentry_envelope_t *envelope = sentry__envelope_new();
+    sentry_value_t event = sentry_value_new_object();
+    sentry_value_set_by_key(
+        event, "event_id", sentry__value_new_uuid(&event_id));
+    sentry__envelope_add_event(envelope, event);
+
+    sentry_envelope_item_t *item = sentry__envelope_get_item_mut(envelope, 0);
+    TEST_ASSERT(sentry__envelope_get_item_count(envelope) == 1);
+    (void)item;
+
+    // manually add an attachment_ref item with path payload
+    sentry_attachment_t *attachment
+        = sentry__attachment_from_path(sentry__path_clone(att_file));
+    attachment->type = MINIDUMP;
+    sentry__envelope_add_attachment(envelope, attachment);
+    TEST_ASSERT(sentry__envelope_get_item_count(envelope) == 2);
+
+    // write envelope to old run dir
+    sentry_path_t *envelope_path = sentry__path_join_str(
+        old_run_path, "c993afb6-b4ac-48a6-b61b-2558e601d65d.envelope");
+    TEST_ASSERT(sentry_envelope_write_to_path(envelope, envelope_path) == 0);
+    sentry__attachment_free(attachment);
+    sentry_envelope_free(envelope);
+
+    // init sentry with function transport — process_old_runs runs during init
+    int called = 0;
+    SENTRY_TEST_OPTIONS_NEW(options);
+    sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
+    sentry_transport_t *transport = sentry_transport_new(send_restore_envelope);
+    sentry_transport_set_state(transport, &called);
+    sentry_options_set_transport(options, transport);
+    sentry_init(options);
+
+    // transport callback should have been called with the materialized envelope
+    TEST_CHECK(called >= 1);
+
+    sentry__path_free(envelope_path);
+    sentry__path_free(att_file);
+    sentry__path_free(event_att_dir);
+    sentry__path_free(old_run_path);
+    sentry__path_free(db_path);
+    sentry_close();
 }
 
 SENTRY_TEST(deserialize_envelope_invalid)
