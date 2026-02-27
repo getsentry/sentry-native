@@ -55,6 +55,9 @@ void sentry__http_transport_set_shutdown_client(
 
 #ifdef SENTRY_UNITTEST
 void *sentry__http_transport_get_bgworker(sentry_transport_t *transport);
+sentry_prepared_http_request_t *sentry__prepare_tus_request(
+    const sentry_path_t *path, size_t file_size, const sentry_dsn_t *dsn,
+    const char *user_agent);
 #endif
 
 #endif
