@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1772199897788,
+  "lastUpdate": 1772199937379,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -23744,6 +23744,64 @@ window.BENCHMARK_DATA = {
             "value": 5.9945000000141135,
             "unit": "ms",
             "extra": "Min 5.645ms\nMax 31.238ms\nMean 11.156ms\nStdDev 11.244ms\nMedian 5.995ms\nCPU 0.744ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "bot@getsentry.com",
+            "name": "getsentry-bot"
+          },
+          "committer": {
+            "email": "bot@getsentry.com",
+            "name": "getsentry-bot"
+          },
+          "distinct": true,
+          "id": "4ac74a896194698d8f4bd74cc93016a1a44f51db",
+          "message": "Merge branch 'release/0.13.1'",
+          "timestamp": "2026-02-27T13:42:20Z",
+          "tree_id": "eafef881b929a320aa1e7724940ed8904c53e6d8",
+          "url": "https://github.com/getsentry/sentry-native/commit/4ac74a896194698d8f4bd74cc93016a1a44f51db"
+        },
+        "date": 1772199935529,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 3.131667000161542,
+            "unit": "ms",
+            "extra": "Min 2.997ms\nMax 4.129ms\nMean 3.360ms\nStdDev 0.458ms\nMedian 3.132ms\nCPU 1.789ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 3.1743330000608694,
+            "unit": "ms",
+            "extra": "Min 3.134ms\nMax 3.451ms\nMean 3.257ms\nStdDev 0.150ms\nMedian 3.174ms\nCPU 1.852ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 10.249124999972992,
+            "unit": "ms",
+            "extra": "Min 9.926ms\nMax 10.689ms\nMean 10.283ms\nStdDev 0.334ms\nMedian 10.249ms\nCPU 3.566ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.06262499982767622,
+            "unit": "ms",
+            "extra": "Min 0.053ms\nMax 0.064ms\nMean 0.060ms\nStdDev 0.005ms\nMedian 0.063ms\nCPU 0.046ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.23454199981642887,
+            "unit": "ms",
+            "extra": "Min 0.183ms\nMax 0.250ms\nMean 0.222ms\nStdDev 0.027ms\nMedian 0.235ms\nCPU 0.222ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 5.882667000150832,
+            "unit": "ms",
+            "extra": "Min 5.517ms\nMax 7.648ms\nMean 6.187ms\nStdDev 0.850ms\nMedian 5.883ms\nCPU 0.770ms"
           }
         ]
       }
