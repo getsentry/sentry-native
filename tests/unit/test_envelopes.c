@@ -1094,7 +1094,11 @@ SENTRY_TEST(attachment_ref_move)
         = sentry__path_join_str(run_path, "test_minidump.dmp");
 
     size_t large_size = 100 * 1024 * 1024;
+#ifdef SENTRY_PLATFORM_WINDOWS
+    FILE *f = _wfopen(src_path->path_w, L"wb");
+#else
     FILE *f = fopen(src_path->path, "wb");
+#endif
     TEST_CHECK(!!f);
     fseek(f, (long)(large_size - 1), SEEK_SET);
     fputc(0, f);
