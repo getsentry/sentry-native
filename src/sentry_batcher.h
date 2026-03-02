@@ -39,6 +39,7 @@ typedef struct {
     sentry_batcher_buffer_t buffers[2]; // double buffer
     long active_idx; // (atomic) index to the active buffer
     long flushing; // (atomic) reentrancy guard to the flusher
+    long last_enqueue_ms; // (atomic) monotonic ms of last successful enqueue
     long thread_state; // (atomic) sentry_batcher_thread_state_t
     sentry_cond_t request_flush; // condition variable to schedule a flush
     sentry_threadid_t batching_thread; // the batching thread

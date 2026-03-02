@@ -113,24 +113,28 @@ ptrace_attach_process(minidump_writer_t *writer)
         return true;
     }
 
-    pid_t pid = writer->crash_ctx->crashed_pid;
-    if (ptrace(PTRACE_ATTACH, pid, NULL, NULL) != 0) {
-        SENTRY_WARNF("ptrace(PTRACE_ATTACH) failed for PID %d: %s", pid,
+    // Attach to the crashed thread specifically (not just the process PID).
+    // On Linux, ptrace operates on individual threads (LWPs). Attaching to
+    // crashed_pid would only attach to the main thread, causing
+    // PTRACE_GETFPREGS to fail when the crash occurs on a different thread.
+    pid_t tid = writer->crash_ctx->crashed_tid;
+    if (ptrace(PTRACE_ATTACH, tid, NULL, NULL) != 0) {
+        SENTRY_WARNF("ptrace(PTRACE_ATTACH) failed for TID %d: %s", tid,
             strerror(errno));
         return false;
     }
 
-    // Wait for process to stop
+    // Wait for thread to stop
     int status;
-    if (waitpid(pid, &status, __WALL) < 0) {
-        SENTRY_WARNF("waitpid after PTRACE_ATTACH failed for PID %d: %s", pid,
+    if (waitpid(tid, &status, __WALL) < 0) {
+        SENTRY_WARNF("waitpid after PTRACE_ATTACH failed for TID %d: %s", tid,
             strerror(errno));
-        ptrace(PTRACE_DETACH, pid, NULL, NULL);
+        ptrace(PTRACE_DETACH, tid, NULL, NULL);
         return false;
     }
 
     writer->ptrace_attached = true;
-    SENTRY_DEBUGF("Successfully attached to process %d via ptrace", pid);
+    SENTRY_DEBUGF("Successfully attached to thread %d via ptrace", tid);
     return true;
 }
 
@@ -284,23 +288,25 @@ read_process_memory(
         return -1;
     }
 
-    pid_t pid = writer->crash_ctx->crashed_pid;
+    // Use crashed_tid for ptrace ops (we attached to this thread).
+    // process_vm_readv works with any TID in the thread group.
+    pid_t tid = writer->crash_ctx->crashed_tid;
 
     // Try process_vm_readv first - much faster for bulk reads
     // (single syscall vs one syscall per word with ptrace)
     struct iovec local_iov = { .iov_base = buf, .iov_len = len };
     struct iovec remote_iov = { .iov_base = (void *)addr, .iov_len = len };
 
-    ssize_t nread = process_vm_readv(pid, &local_iov, 1, &remote_iov, 1, 0);
+    ssize_t nread = process_vm_readv(tid, &local_iov, 1, &remote_iov, 1, 0);
     if (nread > 0) {
         return nread;
     }
 
     // Fall back to ptrace word-by-word read if process_vm_readv fails
     // This is much slower but works in more restricted environments
-    SENTRY_DEBUGF("process_vm_readv failed for pid %d at 0x%llx: %s, falling "
+    SENTRY_DEBUGF("process_vm_readv failed for tid %d at 0x%llx: %s, falling "
                   "back to ptrace",
-        pid, (unsigned long long)addr, strerror(errno));
+        tid, (unsigned long long)addr, strerror(errno));
 
     size_t bytes_read = 0;
     uint8_t *byte_buf = (uint8_t *)buf;
@@ -312,7 +318,7 @@ read_process_memory(
         size_t offset_in_word = current_addr - aligned_addr;
 
         errno = 0;
-        long word = ptrace(PTRACE_PEEKDATA, pid, aligned_addr, NULL);
+        long word = ptrace(PTRACE_PEEKDATA, tid, aligned_addr, NULL);
         if (errno != 0) {
             if (bytes_read > 0) {
                 // Return partial read
@@ -1487,7 +1493,7 @@ sentry__write_minidump(
     if (lseek(writer.fd, writer.current_offset, SEEK_SET) < 0) {
         SENTRY_WARN("lseek failed");
         if (writer.ptrace_attached) {
-            ptrace(PTRACE_DETACH, ctx->crashed_pid, NULL, NULL);
+            ptrace(PTRACE_DETACH, ctx->crashed_tid, NULL, NULL);
         }
         close(writer.fd);
         unlink(output_path);
@@ -1514,7 +1520,7 @@ sentry__write_minidump(
 
     if (result < 0) {
         if (writer.ptrace_attached) {
-            ptrace(PTRACE_DETACH, ctx->crashed_pid, NULL, NULL);
+            ptrace(PTRACE_DETACH, ctx->crashed_tid, NULL, NULL);
         }
         close(writer.fd);
         unlink(output_path);
@@ -1524,7 +1530,7 @@ sentry__write_minidump(
     // Write header and directory at the beginning
     if (lseek(writer.fd, 0, SEEK_SET) < 0) {
         if (writer.ptrace_attached) {
-            ptrace(PTRACE_DETACH, ctx->crashed_pid, NULL, NULL);
+            ptrace(PTRACE_DETACH, ctx->crashed_tid, NULL, NULL);
         }
         close(writer.fd);
         unlink(output_path);
@@ -1533,7 +1539,7 @@ sentry__write_minidump(
 
     if (write_header(&writer, stream_count) < 0) {
         if (writer.ptrace_attached) {
-            ptrace(PTRACE_DETACH, ctx->crashed_pid, NULL, NULL);
+            ptrace(PTRACE_DETACH, ctx->crashed_tid, NULL, NULL);
         }
         close(writer.fd);
         unlink(output_path);
@@ -1544,7 +1550,7 @@ sentry__write_minidump(
     size_t dir_size = stream_count * sizeof(minidump_directory_t);
     if (write(writer.fd, directories, dir_size) != (ssize_t)dir_size) {
         if (writer.ptrace_attached) {
-            ptrace(PTRACE_DETACH, ctx->crashed_pid, NULL, NULL);
+            ptrace(PTRACE_DETACH, ctx->crashed_tid, NULL, NULL);
         }
         close(writer.fd);
         unlink(output_path);
@@ -1555,8 +1561,8 @@ sentry__write_minidump(
 
     // Detach from process if we attached
     if (writer.ptrace_attached) {
-        ptrace(PTRACE_DETACH, ctx->crashed_pid, NULL, NULL);
-        SENTRY_DEBUGF("Detached from process %d", ctx->crashed_pid);
+        ptrace(PTRACE_DETACH, ctx->crashed_tid, NULL, NULL);
+        SENTRY_DEBUGF("Detached from thread %d", ctx->crashed_tid);
     }
 
     SENTRY_DEBUG("successfully wrote minidump");

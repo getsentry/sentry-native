@@ -243,8 +243,8 @@ typedef struct {
     uint64_t sp; // Stack pointer
     uint64_t pc; // Program counter
     uint128_struct fpsimd[32]; // NEON/FP registers V0-V31
-    uint32_t fpsr; // Floating-point status register
     uint32_t fpcr; // Floating-point control register
+    uint32_t fpsr; // Floating-point status register
     uint32_t bcr[8]; // Debug breakpoint control registers
     uint64_t bvr[8]; // Debug breakpoint value registers
     uint32_t wcr[2]; // Debug watchpoint control registers

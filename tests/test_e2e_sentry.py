@@ -62,6 +62,9 @@ def poll_sentry_for_event(test_id, max_attempts=POLL_MAX_ATTEMPTS):
     """
     Poll Sentry API until event with test.id tag appears.
 
+    Uses the project events endpoint to query events directly by tag,
+    avoiding the indirection through the issues search index.
+
     Args:
         test_id: The unique test ID tag value to search for
         max_attempts: Maximum number of polling attempts
@@ -82,40 +85,68 @@ def poll_sentry_for_event(test_id, max_attempts=POLL_MAX_ATTEMPTS):
 
     for attempt in range(max_attempts):
         try:
-            # Use the issues endpoint to find issues by tag
-            issues_url = f"{SENTRY_API_BASE}/projects/{org}/{project}/issues/"
+            # Query events directly by tag, bypassing the issues search index
+            events_url = f"{SENTRY_API_BASE}/projects/{org}/{project}/events/"
             response = requests.get(
-                issues_url,
+                events_url,
                 headers=headers,
-                params={"query": f"test.id:{test_id}", "limit": 10},
+                params={"query": f"test.id:{test_id}", "full": "true"},
                 timeout=30,
             )
 
+            print(
+                f"  Attempt {attempt + 1}/{max_attempts}: "
+                f"GET {events_url} -> {response.status_code}"
+            )
+
             if response.status_code == 200:
-                issues = response.json()
-                if issues:
-                    # Get the latest event from the first issue
-                    issue_id = issues[0]["id"]
-                    latest_event_url = (
-                        f"{SENTRY_API_BASE}/issues/{issue_id}/events/latest/"
+                events = response.json()
+                print(f"    Events returned: {len(events)}")
+                if events:
+                    event_id = events[0]["eventID"]
+                    print(f"    Found event {event_id}, fetching details...")
+
+                    # Fetch the full event detail
+                    detail_url = (
+                        f"{SENTRY_API_BASE}/projects/{org}/{project}"
+                        f"/events/{event_id}/"
                     )
-                    event_response = requests.get(
-                        latest_event_url, headers=headers, timeout=30
+                    detail_response = requests.get(
+                        detail_url, headers=headers, timeout=30
                     )
-                    if event_response.status_code == 200:
-                        event = event_response.json()
-                        # Verify this event has our test.id tag
-                        tags = {t["key"]: t["value"] for t in event.get("tags", [])}
+                    print(
+                        f"    GET {detail_url} -> {detail_response.status_code}"
+                    )
+
+                    if detail_response.status_code == 200:
+                        event = detail_response.json()
+                        tags = {
+                            t["key"]: t["value"] for t in event.get("tags", [])
+                        }
                         if tags.get("test.id") == test_id:
-                            print(f"Found event after {attempt + 1} attempts")
+                            print(f"  Found event after {attempt + 1} attempts")
                             return event
-            elif response.status_code != 200:
+                        else:
+                            print(
+                                f"    Tag mismatch: expected test.id={test_id}, "
+                                f"got {tags.get('test.id', '<missing>')}"
+                            )
+                    else:
+                        last_error = (
+                            f"Event detail returned {detail_response.status_code}: "
+                            f"{detail_response.text[:200]}"
+                        )
+                        print(f"    Error: {last_error}")
+            else:
                 last_error = (
-                    f"API returned {response.status_code}: {response.text[:100]}"
+                    f"Events API returned {response.status_code}: "
+                    f"{response.text[:200]}"
                 )
+                print(f"    Error: {last_error}")
 
         except requests.RequestException as e:
             last_error = str(e)
+            print(f"    Request exception: {last_error}")
 
         time.sleep(POLL_INTERVAL)
 

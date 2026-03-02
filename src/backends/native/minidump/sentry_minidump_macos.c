@@ -419,10 +419,10 @@ write_thread_context(
         context.regs[i] = mcontext->__ss.__x[i];
     }
     // Copy FP, LR, SP, PC separately
-    context.fp = mcontext->__ss.__fp; // X29
-    context.lr = mcontext->__ss.__lr; // X30
-    context.sp = mcontext->__ss.__sp;
-    context.pc = mcontext->__ss.__pc;
+    context.fp = SENTRY__ARM64_GET_FP(mcontext->__ss); // X29
+    context.lr = SENTRY__ARM64_GET_LR(mcontext->__ss); // X30
+    context.sp = SENTRY__ARM64_GET_SP(mcontext->__ss);
+    context.pc = SENTRY__ARM64_GET_PC(mcontext->__ss);
     context.cpsr = mcontext->__ss.__cpsr;
 
     // Copy NEON/FP registers (V0-V31)
@@ -585,7 +585,7 @@ write_thread_list_stream(minidump_writer_t *writer, minidump_directory_t *dir)
 #    if defined(__x86_64__)
                 sp = mcontext.__ss.__rsp;
 #    elif defined(__aarch64__)
-                sp = mcontext.__ss.__sp;
+                sp = SENTRY__ARM64_GET_SP(mcontext.__ss);
 #    endif
                 size_t stack_size = 0;
                 uint64_t stack_start = 0;
@@ -621,7 +621,7 @@ write_thread_list_stream(minidump_writer_t *writer, minidump_directory_t *dir)
 #    if defined(__x86_64__)
             sp = state->__ss.__rsp;
 #    elif defined(__aarch64__)
-            sp = state->__ss.__sp;
+            sp = SENTRY__ARM64_GET_SP(state->__ss);
 #    endif
 
             const char *stack_path

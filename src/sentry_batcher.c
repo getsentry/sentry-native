@@ -2,6 +2,11 @@
 #include "sentry_cpu_relax.h"
 #include "sentry_options.h"
 
+// The batcher thread polls at this interval and flushes if the buffer has been
+// idle (no new items enqueued) for at least SENTRY_BATCHER_IDLE_FLUSH_MS.
+#define SENTRY_BATCHER_POLL_INTERVAL_MS 500
+#define SENTRY_BATCHER_IDLE_FLUSH_MS 5000
+
 #ifdef SENTRY_UNITTEST
 #    ifdef SENTRY_PLATFORM_WINDOWS
 #        include <windows.h>
@@ -189,6 +194,10 @@ sentry__batcher_enqueue(sentry_batcher_t *batcher, sentry_value_t item)
             active->items[item_idx] = item;
             sentry__atomic_fetch_and_add(&active->adding, -1);
 
+            // Record enqueue time for idle-based flushing
+            sentry__atomic_store(&batcher->last_enqueue_ms,
+                (long)sentry__monotonic_time());
+
             // Check if active buffer is now full and trigger flush. We could
             // introduce additional watermarks here to trigger the flush earlier
             // under high contention.
@@ -236,11 +245,18 @@ batcher_thread_func(void *data)
     }
 
     // Main loop: run while state is RUNNING
+    //
+    // Flush triggers:
+    //  1. Buffer full → enqueue wakes us via request_flush (immediate flush)
+    //  2. Idle timeout → no new items for SENTRY_BATCHER_IDLE_FLUSH_MS
+    //  3. Shutdown / force-flush → thread state change or cond_wake
+    //
+    // We poll on a short interval and only flush on idle timeout so that
+    // bursts of items are batched together regardless of wall-clock speed.
     while (sentry__atomic_fetch(&batcher->thread_state)
         == SENTRY_BATCHER_THREAD_RUNNING) {
-        // Sleep for 5 seconds or until request_flush hits
-        const int triggered_by = sentry__cond_wait_timeout(
-            &batcher->request_flush, &task_lock, 5000);
+        sentry__cond_wait_timeout(
+            &batcher->request_flush, &task_lock, SENTRY_BATCHER_POLL_INTERVAL_MS);
 
         // Check if we should still be running
         if (sentry__atomic_fetch(&batcher->thread_state)
@@ -248,32 +264,26 @@ batcher_thread_func(void *data)
             break;
         }
 
-        switch (triggered_by) {
-        case 0:
-#ifdef SENTRY_PLATFORM_WINDOWS
-            if (GetLastError() == ERROR_TIMEOUT) {
-                SENTRY_TRACE("Batcher flushed by timeout");
-                break;
-            }
-#endif
-            SENTRY_TRACE("Batcher flushed by filled buffer");
-            break;
-#ifdef SENTRY_PLATFORM_UNIX
-        case ETIMEDOUT:
-            SENTRY_TRACE("Batcher flushed by timeout");
-            break;
-#endif
-#ifdef SENTRY_PLATFORM_WINDOWS
-        case 1:
-            SENTRY_TRACE("Batcher flushed by filled buffer");
-            break;
-#endif
-        default:
-            SENTRY_WARN("Batcher flush trigger returned unexpected value");
+        // Check whether we should flush: either the buffer is full (signalled
+        // by enqueue) or the buffer has been idle long enough.
+        const long active_idx = sentry__atomic_fetch(&batcher->active_idx);
+        sentry_batcher_buffer_t *buf = &batcher->buffers[active_idx];
+        const long count = sentry__atomic_fetch(&buf->index);
+        if (count <= 0) {
             continue;
         }
 
-        // Try to flush
+        if (count >= SENTRY_BATCHER_QUEUE_LENGTH) {
+            SENTRY_TRACE("Batcher flushed by filled buffer");
+        } else {
+            const long last_ms = sentry__atomic_fetch(&batcher->last_enqueue_ms);
+            const long now_ms = (long)sentry__monotonic_time();
+            if ((now_ms - last_ms) < SENTRY_BATCHER_IDLE_FLUSH_MS) {
+                continue;
+            }
+            SENTRY_TRACE("Batcher flushed by idle timeout");
+        }
+
         sentry__batcher_flush(batcher, false);
     }
 

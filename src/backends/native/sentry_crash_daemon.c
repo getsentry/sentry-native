@@ -344,13 +344,13 @@ build_registers_from_ctx(const sentry_crash_context_t *ctx, size_t thread_idx)
             registers, name, sentry__value_new_addr(mctx->__ss.__x[i]));
     }
     sentry_value_set_by_key(
-        registers, "fp", sentry__value_new_addr(mctx->__ss.__fp));
+        registers, "fp", sentry__value_new_addr(SENTRY__ARM64_GET_FP(mctx->__ss)));
     sentry_value_set_by_key(
-        registers, "lr", sentry__value_new_addr(mctx->__ss.__lr));
+        registers, "lr", sentry__value_new_addr(SENTRY__ARM64_GET_LR(mctx->__ss)));
     sentry_value_set_by_key(
-        registers, "sp", sentry__value_new_addr(mctx->__ss.__sp));
+        registers, "sp", sentry__value_new_addr(SENTRY__ARM64_GET_SP(mctx->__ss)));
     sentry_value_set_by_key(
-        registers, "pc", sentry__value_new_addr(mctx->__ss.__pc));
+        registers, "pc", sentry__value_new_addr(SENTRY__ARM64_GET_PC(mctx->__ss)));
 #    endif
 
 #elif defined(SENTRY_PLATFORM_WINDOWS)
@@ -564,9 +564,9 @@ build_stacktrace_for_thread(
     fp = ctx->platform.mcontext.__ss.__rbp;
     sp = ctx->platform.mcontext.__ss.__rsp;
 #    elif defined(__aarch64__)
-    ip = ctx->platform.mcontext.__ss.__pc;
-    fp = ctx->platform.mcontext.__ss.__fp;
-    sp = ctx->platform.mcontext.__ss.__sp;
+    ip = SENTRY__ARM64_GET_PC(ctx->platform.mcontext.__ss);
+    fp = SENTRY__ARM64_GET_FP(ctx->platform.mcontext.__ss);
+    sp = SENTRY__ARM64_GET_SP(ctx->platform.mcontext.__ss);
 #    endif
 #elif defined(SENTRY_PLATFORM_WINDOWS)
     // Use thread-specific context, defaulting to crashed thread
@@ -633,9 +633,9 @@ build_stacktrace_for_thread(
         fp = thread->state.__ss.__rbp;
         sp = thread->state.__ss.__rsp;
 #    elif defined(__aarch64__)
-        ip = thread->state.__ss.__pc;
-        fp = thread->state.__ss.__fp;
-        sp = thread->state.__ss.__sp;
+        ip = SENTRY__ARM64_GET_PC(thread->state.__ss);
+        fp = SENTRY__ARM64_GET_FP(thread->state.__ss);
+        sp = SENTRY__ARM64_GET_SP(thread->state.__ss);
 #    endif
 
         SENTRY_DEBUGF("Thread %zu: IP=0x%llx FP=0x%llx SP=0x%llx", idx,
@@ -2548,6 +2548,26 @@ sentry__process_crash(const sentry_options_t *options, sentry_crash_ipc_t *ipc)
     if (ev_path)
         sentry__path_free(ev_path);
 
+    // Acquire the run directory lock file so that process_old_runs() in a
+    // new SDK run will skip this directory while the daemon is still
+    // processing the crash. The crashed process's flock() is released on
+    // death, so without this the new run could delete the directory.
+    sentry_filelock_t *run_lock = NULL;
+    if (run_folder) {
+        sentry_path_t *lock_path
+            = sentry__path_append_str(run_folder, ".lock");
+        if (lock_path) {
+            run_lock = sentry__filelock_new(lock_path);
+            if (run_lock) {
+                if (!sentry__filelock_try_lock(run_lock)) {
+                    SENTRY_WARN("daemon could not acquire run folder lock");
+                    sentry__filelock_free(run_lock);
+                    run_lock = NULL;
+                }
+            }
+        }
+    }
+
     // Create envelope file in database directory
     char envelope_path[SENTRY_CRASH_MAX_PATH];
     int path_len = snprintf(envelope_path, sizeof(envelope_path),
@@ -2557,6 +2577,10 @@ sentry__process_crash(const sentry_options_t *options, sentry_crash_ipc_t *ipc)
         SENTRY_WARN("Envelope path truncated or invalid");
         if (run_folder) {
             sentry__path_free(run_folder);
+        }
+        if (run_lock) {
+            sentry__filelock_unlock(run_lock);
+            sentry__filelock_free(run_lock);
         }
         goto done;
     }
@@ -2639,6 +2663,10 @@ sentry__process_crash(const sentry_options_t *options, sentry_crash_ipc_t *ipc)
         SENTRY_WARN("Failed to write envelope");
         if (run_folder) {
             sentry__path_free(run_folder);
+        }
+        if (run_lock) {
+            sentry__filelock_unlock(run_lock);
+            sentry__filelock_free(run_lock);
         }
         goto done;
     }
@@ -2746,17 +2774,15 @@ cleanup:
     if (run_folder) {
         SENTRY_DEBUG("Cleaning up run folder");
         sentry__path_remove_all(run_folder);
-
-        // Also delete the lock file (run_folder.lock)
-        sentry_path_t *lock_path = sentry__path_append_str(run_folder, ".lock");
-        if (lock_path) {
-            sentry__path_remove(lock_path);
-            sentry__path_free(lock_path);
-        }
-
         sentry__path_free(run_folder);
-        SENTRY_DEBUG("Cleaned up crash run folder and lock file");
     }
+
+    // Release and clean up the lock file
+    if (run_lock) {
+        sentry__filelock_unlock(run_lock);
+        sentry__filelock_free(run_lock);
+    }
+    SENTRY_DEBUG("Cleaned up crash run folder and lock file");
 
     SENTRY_DEBUG("Crash processing completed successfully");
 

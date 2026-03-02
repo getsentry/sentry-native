@@ -24,6 +24,7 @@ static sentry_batcher_t g_batcher = {
     },
     .active_idx = 0,
     .flushing = 0,
+    .last_enqueue_ms = 0,
     .thread_state = SENTRY_BATCHER_THREAD_STOPPED,
     .batch_func = sentry__envelope_add_logs,
 };

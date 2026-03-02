@@ -376,21 +376,10 @@ crash_signal_handler(int signum, siginfo_t *info, void *context)
                 ctx->platform.threads[i].state.__ss.__gs
                     = uctx->uc_mcontext->__ss.__gs;
 #        elif defined(__aarch64__)
-                // Copy all registers from signal handler context
-                for (int j = 0; j < 29; j++) {
-                    ctx->platform.threads[i].state.__ss.__x[j]
-                        = uctx->uc_mcontext->__ss.__x[j];
-                }
-                ctx->platform.threads[i].state.__ss.__fp
-                    = uctx->uc_mcontext->__ss.__fp;
-                ctx->platform.threads[i].state.__ss.__lr
-                    = uctx->uc_mcontext->__ss.__lr;
-                ctx->platform.threads[i].state.__ss.__sp
-                    = uctx->uc_mcontext->__ss.__sp;
-                ctx->platform.threads[i].state.__ss.__pc
-                    = uctx->uc_mcontext->__ss.__pc;
-                ctx->platform.threads[i].state.__ss.__cpsr
-                    = uctx->uc_mcontext->__ss.__cpsr;
+                // Copy entire thread state struct. This preserves raw
+                // register values including PAC-signed pointers on arm64e.
+                ctx->platform.threads[i].state.__ss
+                    = uctx->uc_mcontext->__ss;
 #        endif
             } else {
                 // Capture thread state from thread_get_state for other threads
@@ -416,7 +405,7 @@ crash_signal_handler(int signum, siginfo_t *info, void *context)
 #        if defined(__x86_64__)
             sp = ctx->platform.threads[i].state.__ss.__rsp;
 #        elif defined(__aarch64__)
-            sp = ctx->platform.threads[i].state.__ss.__sp;
+            sp = SENTRY__ARM64_GET_SP(ctx->platform.threads[i].state.__ss);
 #        else
             sp = 0;
 #        endif
