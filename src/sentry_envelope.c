@@ -675,10 +675,7 @@ envelope_add_attachment_ref(sentry_envelope_t *envelope,
 
     size_t payload_len = sentry__stringbuilder_len(&sb);
     char *payload = sentry__stringbuilder_into_string(&sb);
-    item->payload = payload;
-    item->payload_len = payload_len;
-    sentry__envelope_item_set_header(
-        item, "length", sentry_value_new_int32((int32_t)payload_len));
+    sentry__envelope_item_set_payload(item, payload, payload_len);
 
     return item;
 }
@@ -787,11 +784,10 @@ sentry__envelope_add_attachment(
                     sentry_value_new_uint64((uint64_t)file_size));
                 sentry__envelope_item_set_header(
                     item, "inline", sentry_value_new_bool(true));
-                item->payload = sentry__string_clone_n(
-                    attachment->buf, attachment->buf_len);
-                item->payload_len = attachment->buf_len;
-                sentry__envelope_item_set_header(item, "length",
-                    sentry_value_new_int32((int32_t)item->payload_len));
+                sentry__envelope_item_set_payload(item,
+                    sentry__string_clone_n(
+                        attachment->buf, attachment->buf_len),
+                    attachment->buf_len);
                 if (attachment->content_type) {
                     sentry__envelope_item_set_header(item, "ref_content_type",
                         sentry_value_new_string(attachment->content_type));
