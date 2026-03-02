@@ -3,6 +3,8 @@
 
 #include "sentry_boot.h"
 #include "sentry_json.h"
+#include "sentry_path.h"
+
 /**
  * Create a new Value from an owned string.
  */
@@ -66,6 +68,11 @@ sentry_value_t sentry__value_new_list_with_size(size_t size);
  * Creates a new Object Value with a capacity of `size`.
  */
 sentry_value_t sentry__value_new_object_with_size(size_t size);
+
+/**
+ * Create a new String Value from a `sentry_path_t`.
+ */
+sentry_value_t sentry__value_new_path(const sentry_path_t *path);
 
 /**
  * This will parse the Value into a UUID, or return a `nil` UUID on error.

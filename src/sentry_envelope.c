@@ -654,27 +654,18 @@ envelope_add_attachment_ref(sentry_envelope_t *envelope,
     sentry__envelope_item_set_header(item, "attachment_length",
         sentry_value_new_uint64((uint64_t)file_size));
 
-    sentry_stringbuilder_t sb;
-    sentry__stringbuilder_init(&sb);
-    sentry_jsonwriter_t *jw = sentry__jsonwriter_new_sb(&sb);
-    sentry__jsonwriter_write_object_start(jw);
-    sentry__jsonwriter_write_key(jw, "path");
-#ifdef SENTRY_PLATFORM_WINDOWS
-    char *path_str = sentry__string_from_wstr(path->path_w);
-    sentry__jsonwriter_write_str(jw, path_str);
-    sentry_free(path_str);
-#else
-    sentry__jsonwriter_write_str(jw, path->path);
-#endif
+    sentry_value_t obj = sentry_value_new_object();
+    sentry_value_set_by_key(obj, "path", sentry__value_new_path(path));
     if (content_type) {
-        sentry__jsonwriter_write_key(jw, "content_type");
-        sentry__jsonwriter_write_str(jw, content_type);
+        sentry_value_set_by_key(
+            obj, "content_type", sentry_value_new_string(content_type));
     }
-    sentry__jsonwriter_write_object_end(jw);
-    sentry__jsonwriter_free(jw);
 
-    size_t payload_len = sentry__stringbuilder_len(&sb);
-    char *payload = sentry__stringbuilder_into_string(&sb);
+    sentry_jsonwriter_t *jw = sentry__jsonwriter_new_sb(NULL);
+    sentry__jsonwriter_write_value(jw, obj);
+    sentry_value_decref(obj);
+    size_t payload_len = 0;
+    char *payload = sentry__jsonwriter_into_string(jw, &payload_len);
     sentry__envelope_item_set_payload(item, payload, payload_len);
 
     return item;
@@ -693,13 +684,7 @@ sentry__envelope_item_set_attachment_ref(
         obj = sentry_value_new_object();
     }
 
-#ifdef SENTRY_PLATFORM_WINDOWS
-    char *path_str = sentry__string_from_wstr(path->path_w);
-    sentry_value_set_by_key(obj, "path", sentry_value_new_string(path_str));
-    sentry_free(path_str);
-#else
-    sentry_value_set_by_key(obj, "path", sentry_value_new_string(path->path));
-#endif
+    sentry_value_set_by_key(obj, "path", sentry__value_new_path(path));
 
     const char *ref_ct = sentry_value_as_string(
         sentry__envelope_item_get_header(item, "ref_content_type"));

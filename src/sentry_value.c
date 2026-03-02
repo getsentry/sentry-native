@@ -470,6 +470,16 @@ sentry__value_new_object_with_size(size_t size)
 }
 
 sentry_value_t
+sentry__value_new_path(const sentry_path_t *path)
+{
+#ifdef SENTRY_PLATFORM_WINDOWS
+    return sentry__value_new_string_from_wstr(path->path_w);
+#else
+    return sentry_value_new_string(path->path);
+#endif
+}
+
+sentry_value_t
 sentry_value_new_user_n(const char *id, size_t id_len, const char *username,
     size_t username_len, const char *email, size_t email_len,
     const char *ip_address, size_t ip_address_len)
