@@ -21,6 +21,7 @@
 #include <unistd.h>
 
 #ifdef SENTRY_PLATFORM_DARWIN
+#    include <copyfile.h>
 #    include <mach-o/dyld.h>
 #endif
 
@@ -335,6 +336,9 @@ sentry__path_rename(const sentry_path_t *src, const sentry_path_t *dst)
 int
 sentry__path_copy(const sentry_path_t *src, const sentry_path_t *dst)
 {
+#ifdef SENTRY_PLATFORM_DARWIN
+    return copyfile(src->path, dst->path, NULL, COPYFILE_DATA) == 0 ? 0 : 1;
+#else
     int src_fd = open(src->path, O_RDONLY);
     if (src_fd < 0) {
         return 1;
@@ -346,25 +350,51 @@ sentry__path_copy(const sentry_path_t *src, const sentry_path_t *dst)
         return 1;
     }
 
-    char buf[16384];
     int rv = 0;
+
+#    ifdef SENTRY_HAVE_COPY_FILE_RANGE
     while (true) {
-        ssize_t n = read(src_fd, buf, sizeof(buf));
-        if (n < 0 && (errno == EAGAIN || errno == EINTR)) {
+        ssize_t n
+            = copy_file_range(src_fd, NULL, dst_fd, NULL, SIZE_MAX / 2, 0);
+        if (n > 0) {
             continue;
-        } else if (n <= 0) {
-            rv = n < 0;
+        } else if (n == 0) {
+            goto done;
+        } else if (errno == EAGAIN || errno == EINTR) {
+            continue;
+        } else if (errno == ENOSYS) {
             break;
-        }
-        if (write_loop(dst_fd, buf, (size_t)n) != 0) {
+        } else {
             rv = 1;
-            break;
+            goto done;
+        }
+    }
+#    endif
+
+    {
+        char buf[16384];
+        while (true) {
+            ssize_t n = read(src_fd, buf, sizeof(buf));
+            if (n < 0 && (errno == EAGAIN || errno == EINTR)) {
+                continue;
+            } else if (n <= 0) {
+                rv = n < 0;
+                break;
+            }
+            if (write_loop(dst_fd, buf, (size_t)n) != 0) {
+                rv = 1;
+                break;
+            }
         }
     }
 
+#    ifdef SENTRY_HAVE_COPY_FILE_RANGE
+done:
+#    endif
     close(src_fd);
     close(dst_fd);
     return rv;
+#endif
 }
 
 int
