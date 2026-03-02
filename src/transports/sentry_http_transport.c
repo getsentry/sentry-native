@@ -21,9 +21,9 @@
 #define TUS_MIME "application/offset+octet-stream"
 #define TUS_MAX_HTTP_HEADERS 4
 #ifdef SENTRY_TRANSPORT_COMPRESSION
-#    define MAX_HTTP_HEADERS 8
+#    define MAX_HTTP_HEADERS 4
 #else
-#    define MAX_HTTP_HEADERS 7
+#    define MAX_HTTP_HEADERS 3
 #endif
 
 typedef struct {
