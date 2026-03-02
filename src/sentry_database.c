@@ -743,3 +743,43 @@ sentry__clear_crash_marker(const sentry_options_t *options)
     }
     return !rv;
 }
+
+void
+sentry__db_remove_large_attachment(
+    const sentry_path_t *db_path, const sentry_path_t *path)
+{
+    if (!db_path || !path) {
+        return;
+    }
+
+    // Only delete files under <db>/attachments/<uuid>/<file>.
+    // Walk up the directory tree and verify the grandparent matches.
+    sentry_path_t *event_dir = sentry__path_dir(path);
+    if (!event_dir) {
+        return;
+    }
+    sentry_path_t *parent_dir = sentry__path_dir(event_dir);
+    if (!parent_dir) {
+        sentry__path_free(event_dir);
+        return;
+    }
+
+    sentry_path_t *attachments_dir
+        = sentry__path_join_str(db_path, "attachments");
+    bool is_db_owned
+        = attachments_dir && sentry__path_eq(parent_dir, attachments_dir);
+
+    sentry__path_free(parent_dir);
+
+    if (!is_db_owned) {
+        sentry__path_free(attachments_dir);
+        sentry__path_free(event_dir);
+        return;
+    }
+
+    sentry__path_remove(path);
+    sentry__path_remove(event_dir);
+    sentry__path_free(event_dir);
+    sentry__path_remove(attachments_dir);
+    sentry__path_free(attachments_dir);
+}
