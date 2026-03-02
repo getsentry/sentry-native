@@ -291,11 +291,17 @@ remove_large_attachment(const sentry_path_t *path)
 {
     sentry__path_remove(path);
     sentry_path_t *event_dir = sentry__path_dir(path);
+    if (!event_dir) {
+        return;
+    }
     sentry__path_remove(event_dir);
     sentry_path_t *attachments_dir = sentry__path_dir(event_dir);
+    sentry__path_free(event_dir);
+    if (!attachments_dir) {
+        return;
+    }
     sentry__path_remove(attachments_dir);
     sentry__path_free(attachments_dir);
-    sentry__path_free(event_dir);
 }
 
 static void
