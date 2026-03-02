@@ -84,6 +84,9 @@ record_metric(sentry_metric_type_t type, const char *name, sentry_value_t value,
                 if (sentry_value_is_null(metric)) {
                     SENTRY_DEBUG("metric was discarded by the "
                                  "`before_send_metric` hook");
+                    sentry__client_report_discard(
+                        SENTRY_DISCARD_REASON_BEFORE_SEND,
+                        SENTRY_DATA_CATEGORY_TRACE_METRIC, 1);
                     discarded = true;
                 }
             }
@@ -131,8 +134,8 @@ sentry_metrics_distribution(
 void
 sentry__metrics_startup(const sentry_options_t *options)
 {
-    sentry_batcher_t *batcher
-        = sentry__batcher_new(sentry__envelope_add_metrics);
+    sentry_batcher_t *batcher = sentry__batcher_new(
+        sentry__envelope_add_metrics, SENTRY_DATA_CATEGORY_TRACE_METRIC);
     if (!batcher) {
         SENTRY_WARN("failed to allocate metrics batcher");
         return;

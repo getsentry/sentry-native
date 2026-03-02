@@ -84,6 +84,7 @@ sentry_options_new(void)
         = SENTRY_CRASH_REPORTING_MODE_NATIVE_WITH_MINIDUMP; // Default: best of
                                                             // both worlds
     opts->http_retry = false;
+    opts->send_client_reports = true;
 
     return opts;
 }
@@ -901,4 +902,16 @@ int
 sentry_options_get_propagate_traceparent(const sentry_options_t *opts)
 {
     return opts->propagate_traceparent;
+}
+
+void
+sentry_options_set_send_client_reports(sentry_options_t *opts, int val)
+{
+    opts->send_client_reports = !!val;
+}
+
+int
+sentry_options_get_send_client_reports(const sentry_options_t *opts)
+{
+    return opts->send_client_reports;
 }

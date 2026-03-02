@@ -1,5 +1,6 @@
 #include "sentry_http_transport.h"
 #include "sentry_alloc.h"
+#include "sentry_client_report.h"
 #include "sentry_database.h"
 #include "sentry_envelope.h"
 #include "sentry_options.h"
@@ -34,6 +35,7 @@ typedef struct {
     sentry_retry_t *retry;
     bool cache_keep;
     sentry_run_t *run;
+    bool send_client_reports;
 } http_transport_state_t;
 
 #ifdef SENTRY_TRANSPORT_COMPRESSION
@@ -229,6 +231,17 @@ http_send_envelope(sentry_envelope_t *envelope, void *_state)
     return status_code;
 }
 
+static int
+retry_send_cb(sentry_envelope_t *envelope, void *_state)
+{
+    http_transport_state_t *state = _state;
+    if (state->send_client_reports
+        && !sentry__envelope_is_rate_limited(envelope, state->ratelimiter)) {
+        sentry__client_report_into_envelope(envelope);
+    }
+    return http_send_envelope(envelope, state);
+}
+
 static void
 http_transport_state_free(void *_state)
 {
@@ -250,11 +263,25 @@ http_send_task(void *_envelope, void *_state)
     sentry_envelope_t *envelope = _envelope;
     http_transport_state_t *state = _state;
 
+    if (state->send_client_reports
+        && !sentry__envelope_is_rate_limited(envelope, state->ratelimiter)) {
+        sentry__client_report_into_envelope(envelope);
+    }
+
     int status_code = http_send_envelope(envelope, state);
-    if (status_code < 0 && state->retry) {
-        sentry__retry_enqueue(state->retry, envelope);
-    } else if (status_code < 0 && state->cache_keep) {
-        sentry__run_write_cache(state->run, envelope, -1);
+    if (status_code < 0) {
+        if (state->retry) {
+            sentry__retry_enqueue(state->retry, envelope);
+        } else {
+            if (state->cache_keep) {
+                sentry__run_write_cache(state->run, envelope, -1);
+            }
+            sentry__client_report_discard_envelope(envelope,
+                SENTRY_DISCARD_REASON_NETWORK_ERROR, state->ratelimiter);
+        }
+    } else if (status_code >= 400) {
+        sentry__client_report_discard_envelope(
+            envelope, SENTRY_DISCARD_REASON_SEND_ERROR, state->ratelimiter);
     }
 }
 
@@ -287,6 +314,7 @@ http_transport_start(const sentry_options_t *options, void *transport_state)
     state->user_agent = sentry__string_clone(options->user_agent);
     state->cache_keep = options->cache_keep;
     state->run = sentry__run_incref(options->run);
+    state->send_client_reports = options->send_client_reports;
 
     if (state->start_client) {
         int rv = state->start_client(state->client, options);
@@ -303,8 +331,7 @@ http_transport_start(const sentry_options_t *options, void *transport_state)
     if (options->http_retry) {
         state->retry = sentry__retry_new(options);
         if (state->retry) {
-            sentry__retry_start(
-                state->retry, bgworker, http_send_envelope, state);
+            sentry__retry_start(state->retry, bgworker, retry_send_cb, state);
         }
     }
 

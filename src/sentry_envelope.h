@@ -125,6 +125,18 @@ void sentry__envelope_item_set_header(
     sentry_envelope_item_t *item, const char *key, sentry_value_t value);
 
 /**
+ * Returns the rate limiter category for an envelope item type, or -1 if the
+ * item should bypass rate limiting.
+ */
+int sentry__envelope_item_type_to_rl_category(const char *ty);
+
+/**
+ * Returns true if all non-internal items in the envelope are rate-limited.
+ */
+bool sentry__envelope_is_rate_limited(
+    const sentry_envelope_t *envelope, const sentry_rate_limiter_t *rl);
+
+/**
  * Serialize the envelope while applying the rate limits from `rl`.
  * Returns `NULL` when all items have been rate-limited, and might return a
  * pointer to borrowed data in case of a raw envelope, in which case `owned_out`
@@ -155,13 +167,14 @@ MUST_USE int sentry_envelope_write_to_path(
 int sentry__envelope_write_to_cache(
     const sentry_envelope_t *envelope, const sentry_path_t *cache_dir);
 
-// these for now are only needed for tests
-#ifdef SENTRY_UNITTEST
 size_t sentry__envelope_get_item_count(const sentry_envelope_t *envelope);
 const sentry_envelope_item_t *sentry__envelope_get_item(
     const sentry_envelope_t *envelope, size_t idx);
 sentry_value_t sentry__envelope_item_get_header(
     const sentry_envelope_item_t *item, const char *key);
+
+// these for now are only needed for tests
+#ifdef SENTRY_UNITTEST
 const char *sentry__envelope_item_get_payload(
     const sentry_envelope_item_t *item, size_t *payload_len_out);
 #endif

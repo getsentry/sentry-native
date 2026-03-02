@@ -1,6 +1,7 @@
 #include "sentry_envelope.h"
 #include "sentry_json.h"
 #include "sentry_path.h"
+#include "sentry_ratelimiter.h"
 #include "sentry_testsupport.h"
 #include "sentry_utils.h"
 #include "sentry_value.h"
@@ -734,4 +735,53 @@ SENTRY_TEST(deserialize_envelope_invalid)
     char buf[128];
     snprintf(buf, sizeof(buf), "{}\n{\"length\":%zu}\n", SIZE_MAX);
     TEST_CHECK(!sentry_envelope_deserialize(buf, strlen(buf)));
+}
+
+SENTRY_TEST(envelope_is_rate_limited)
+{
+    SENTRY_TEST_OPTIONS_NEW(options);
+    sentry_init(options);
+
+    sentry_envelope_t *envelope = sentry__envelope_new();
+    sentry__envelope_add_from_buffer(envelope, "{}", 2, "event");
+    TEST_CHECK(!sentry__envelope_is_rate_limited(envelope, NULL));
+
+    sentry_rate_limiter_t *rl = sentry__rate_limiter_new();
+    TEST_CHECK(!sentry__envelope_is_rate_limited(envelope, rl));
+
+    sentry__rate_limiter_update_from_header(rl, "60:error:organization");
+    TEST_CHECK(sentry__envelope_is_rate_limited(envelope, rl));
+
+    sentry_envelope_free(envelope);
+
+    // Empty envelope is not rate-limited
+    envelope = sentry__envelope_new();
+    TEST_CHECK(!sentry__envelope_is_rate_limited(envelope, NULL));
+
+    sentry_envelope_free(envelope);
+
+    // Envelope with only internal items is not rate-limited
+    envelope = sentry__envelope_new();
+    sentry__envelope_add_from_buffer(envelope, "{}", 2, "client_report");
+    TEST_CHECK(!sentry__envelope_is_rate_limited(envelope, NULL));
+
+    sentry_envelope_free(envelope);
+
+    // Raw envelope is not rate-limited
+    envelope = sentry__envelope_new();
+    sentry__envelope_add_from_buffer(envelope, "{}", 2, "event");
+    const char *path_str = SENTRY_TEST_PATH_PREFIX "sentry_test_raw";
+    sentry_path_t *path = sentry__path_from_str(path_str);
+    TEST_CHECK_INT_EQUAL(sentry_envelope_write_to_path(envelope, path), 0);
+    sentry_envelope_free(envelope);
+
+    sentry_envelope_t *raw = sentry__envelope_from_path(path);
+    TEST_CHECK(!!raw);
+    TEST_CHECK(!sentry__envelope_is_rate_limited(raw, NULL));
+
+    sentry_envelope_free(raw);
+    sentry__path_remove(path);
+    sentry__path_free(path);
+    sentry__rate_limiter_free(rl);
+    sentry_close();
 }

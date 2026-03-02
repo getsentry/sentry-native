@@ -2305,6 +2305,27 @@ SENTRY_EXPERIMENTAL_API int sentry_options_get_logs_with_attributes(
     const sentry_options_t *opts);
 
 /**
+ * Enables or disables client reports.
+ *
+ * Client reports allow the SDK to track and report why events were discarded
+ * before being sent to Sentry (e.g., due to sampling, hooks, rate limiting,
+ * network or send errors, queue overflow, etc.).
+ *
+ * When enabled (the default), client reports are opportunistically attached to
+ * outgoing envelopes to minimize HTTP requests.
+ *
+ * See https://develop.sentry.dev/sdk/telemetry/client-reports/ for details.
+ */
+SENTRY_API void sentry_options_set_send_client_reports(
+    sentry_options_t *opts, int val);
+
+/**
+ * Returns true if client reports are enabled.
+ */
+SENTRY_API int sentry_options_get_send_client_reports(
+    const sentry_options_t *opts);
+
+/**
  * The potential returns of calling any of the sentry_log_X functions
  * - Success means a log was enqueued
  * - Discard means the `before_send_log` function discarded the log
