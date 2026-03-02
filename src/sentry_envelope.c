@@ -1,5 +1,6 @@
 #include "sentry_envelope.h"
 #include "sentry_alloc.h"
+#include "sentry_client_report.h"
 #include "sentry_core.h"
 #include "sentry_json.h"
 #include "sentry_options.h"
@@ -106,6 +107,11 @@ sentry__envelope_item_set_header(
     sentry_value_set_by_key(item->headers, key, value);
 }
 
+/**
+ * Returns the rate limiter category for an envelope item, or -1 if the item
+ * should bypass rate limiting (e.g., client_report items are internal
+ * telemetry and should always be sent).
+ */
 static int
 envelope_item_get_ratelimiter_category(const sentry_envelope_item_t *item)
 {
@@ -115,10 +121,48 @@ envelope_item_get_ratelimiter_category(const sentry_envelope_item_t *item)
         return SENTRY_RL_CATEGORY_SESSION;
     } else if (sentry__string_eq(ty, "transaction")) {
         return SENTRY_RL_CATEGORY_TRANSACTION;
+    } else if (sentry__string_eq(ty, "client_report")) {
+        // internal telemetry, bypass rate limiting
+        return -1;
     }
     // NOTE: the `type` here can be `event` or `attachment`.
     // Ideally, attachments should have their own RL_CATEGORY.
     return SENTRY_RL_CATEGORY_ERROR;
+}
+
+bool
+sentry__envelope_has_sendable_items(
+    const sentry_envelope_t *envelope, const sentry_rate_limiter_t *rl)
+{
+    if (envelope->is_raw) {
+        return true;
+    }
+    for (const sentry_envelope_item_t *item
+        = envelope->contents.items.first_item;
+        item; item = item->next) {
+        int rl_category = envelope_item_get_ratelimiter_category(item);
+        if (rl_category < 0) {
+            continue;
+        }
+        if (!rl || !sentry__rate_limiter_is_disabled(rl, rl_category)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+static sentry_data_category_t
+ratelimiter_category_to_data_category(int rl_category)
+{
+    switch (rl_category) {
+    case SENTRY_RL_CATEGORY_SESSION:
+        return SENTRY_DATA_CATEGORY_SESSION;
+    case SENTRY_RL_CATEGORY_TRANSACTION:
+        return SENTRY_DATA_CATEGORY_TRANSACTION;
+    case SENTRY_RL_CATEGORY_ERROR:
+    default:
+        return SENTRY_DATA_CATEGORY_ERROR;
+    }
 }
 
 static sentry_envelope_item_t *
@@ -745,8 +789,15 @@ sentry_envelope_serialize_ratelimited(const sentry_envelope_t *envelope,
         = envelope->contents.items.first_item;
         item; item = item->next) {
         if (rl) {
-            int category = envelope_item_get_ratelimiter_category(item);
-            if (sentry__rate_limiter_is_disabled(rl, category)) {
+            int rl_category = envelope_item_get_ratelimiter_category(item);
+            // rl_category < 0 means the item should bypass rate limiting
+            if (rl_category >= 0
+                && sentry__rate_limiter_is_disabled(rl, rl_category)) {
+                // Track rate-limited items for client reports
+                sentry_data_category_t data_category
+                    = ratelimiter_category_to_data_category(rl_category);
+                sentry__client_report_discard(
+                    SENTRY_DISCARD_REASON_RATELIMIT_BACKOFF, data_category, 1);
                 continue;
             }
         }
@@ -1020,7 +1071,6 @@ sentry_envelope_read_from_filew_n(const wchar_t *path, size_t path_len)
 }
 #endif
 
-#ifdef SENTRY_UNITTEST
 size_t
 sentry__envelope_get_item_count(const sentry_envelope_t *envelope)
 {
@@ -1055,6 +1105,7 @@ sentry__envelope_item_get_header(
     return sentry_value_get_by_key(item->headers, key);
 }
 
+#ifdef SENTRY_UNITTEST
 const char *
 sentry__envelope_item_get_payload(
     const sentry_envelope_item_t *item, size_t *payload_len_out)

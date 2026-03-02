@@ -351,6 +351,7 @@ class Item(object):
             "user_report",
             "log",
             "trace_metric",
+            "client_report",
         ]:
             rv = cls(headers=headers, payload=PayloadRef(json=json.loads(payload)))
         else:

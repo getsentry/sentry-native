@@ -8,6 +8,8 @@ sentry_target_sources_cwd(sentry
 	sentry_batcher.c
 	sentry_batcher.h
 	sentry_boot.h
+	sentry_client_report.c
+	sentry_client_report.h
 	sentry_core.c
 	sentry_core.h
 	sentry_cpu_relax.h

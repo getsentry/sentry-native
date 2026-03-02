@@ -1,5 +1,6 @@
 #include "sentry_http_transport.h"
 #include "sentry_alloc.h"
+#include "sentry_client_report.h"
 #include "sentry_database.h"
 #include "sentry_envelope.h"
 #include "sentry_options.h"
@@ -32,6 +33,7 @@ typedef struct {
     sentry_http_send_func_t send_func;
     void (*shutdown_client)(void *client);
     sentry_retry_t *retry;
+    bool send_client_reports;
 } http_transport_state_t;
 
 #ifdef SENTRY_TRANSPORT_COMPRESSION
@@ -230,6 +232,10 @@ static int
 retry_send_cb(sentry_envelope_t *envelope, void *_state)
 {
     http_transport_state_t *state = _state;
+    if (state->send_client_reports
+        && sentry__envelope_has_sendable_items(envelope, state->ratelimiter)) {
+        sentry__client_report_into_envelope(envelope);
+    }
     return http_send_envelope(state, envelope);
 }
 
@@ -253,9 +259,17 @@ http_send_task(void *_envelope, void *_state)
     sentry_envelope_t *envelope = _envelope;
     http_transport_state_t *state = _state;
 
+    if (state->send_client_reports
+        && sentry__envelope_has_sendable_items(envelope, state->ratelimiter)) {
+        sentry__client_report_into_envelope(envelope);
+    }
+
     int status_code = http_send_envelope(state, envelope);
     if (status_code < 0 && state->retry) {
         sentry__retry_enqueue(state->retry, envelope);
+    } else if (status_code < 0) {
+        sentry__client_report_discard_envelope(
+            envelope, SENTRY_DISCARD_REASON_NETWORK_ERROR);
     }
 }
 
@@ -278,6 +292,7 @@ http_transport_start(const sentry_options_t *options, void *transport_state)
 
     state->dsn = sentry__dsn_incref(options->dsn);
     state->user_agent = sentry__string_clone(options->user_agent);
+    state->send_client_reports = options->send_client_reports;
 
     if (state->start_client) {
         int rv = state->start_client(state->client, options);
