@@ -672,7 +672,7 @@ envelope_add_attachment_ref(sentry_envelope_t *envelope,
 }
 
 void
-sentry__envelope_item_set_attachment_ref(
+sentry__envelope_item_set_attachment_ref_path(
     sentry_envelope_item_t *item, const sentry_path_t *path)
 {
     size_t old_len = 0;
@@ -707,6 +707,46 @@ sentry__envelope_item_is_attachment_ref(const sentry_envelope_item_t *item)
     const char *ct = sentry_value_as_string(
         sentry__envelope_item_get_header(item, "content_type"));
     return ct && strcmp(ct, "application/vnd.sentry.attachment-ref") == 0;
+}
+
+void
+sentry__envelope_item_set_attachment_ref_location(
+    sentry_envelope_item_t *item, const char *location)
+{
+    bool is_inline = sentry_value_is_true(
+        sentry__envelope_item_get_header(item, "inline"));
+
+    sentry_value_t obj;
+    if (is_inline) {
+        obj = sentry_value_new_object();
+    } else {
+        size_t old_len = 0;
+        const char *old_payload
+            = sentry__envelope_item_get_payload(item, &old_len);
+        obj = (old_payload && old_len > 0)
+            ? sentry__value_from_json(old_payload, old_len)
+            : sentry_value_new_object();
+        if (sentry_value_is_null(obj)) {
+            obj = sentry_value_new_object();
+        }
+        sentry_value_remove_by_key(obj, "path");
+    }
+
+    const char *ref_ct = sentry_value_as_string(
+        sentry__envelope_item_get_header(item, "ref_content_type"));
+    if (ref_ct && *ref_ct != '\0') {
+        sentry_value_set_by_key(
+            obj, "content_type", sentry_value_new_string(ref_ct));
+    }
+
+    sentry_value_set_by_key(obj, "location", sentry_value_new_string(location));
+
+    sentry_jsonwriter_t *jw = sentry__jsonwriter_new_sb(NULL);
+    sentry__jsonwriter_write_value(jw, obj);
+    sentry_value_decref(obj);
+    size_t json_len = 0;
+    char *json = sentry__jsonwriter_into_string(jw, &json_len);
+    sentry__envelope_item_set_payload(item, json, json_len);
 }
 
 bool

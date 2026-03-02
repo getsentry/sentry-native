@@ -2,14 +2,12 @@
 #include "sentry_alloc.h"
 #include "sentry_database.h"
 #include "sentry_envelope.h"
-#include "sentry_json.h"
 #include "sentry_options.h"
 #include "sentry_ratelimiter.h"
 #include "sentry_retry.h"
 #include "sentry_string.h"
 #include "sentry_transport.h"
 #include "sentry_utils.h"
-#include "sentry_value.h"
 
 #ifdef SENTRY_TRANSPORT_COMPRESSION
 #    include "zlib.h"
@@ -289,37 +287,6 @@ http_send_request(
     return resp.status_code;
 }
 
-static void
-tus_resolve_item(
-    sentry_envelope_item_t *item, const char *location, bool is_inline)
-{
-    sentry_value_t loc_json;
-    if (is_inline) {
-        loc_json = sentry_value_new_object();
-        const char *ref_ct = sentry_value_as_string(
-            sentry__envelope_item_get_header(item, "ref_content_type"));
-        if (ref_ct && *ref_ct != '\0') {
-            sentry_value_set_by_key(
-                loc_json, "content_type", sentry_value_new_string(ref_ct));
-        }
-    } else {
-        size_t old_len = 0;
-        const char *old_payload
-            = sentry__envelope_item_get_payload(item, &old_len);
-        loc_json = sentry__value_from_json(old_payload, old_len);
-        sentry_value_remove_by_key(loc_json, "path");
-    }
-    sentry_value_set_by_key(
-        loc_json, "location", sentry_value_new_string(location));
-
-    sentry_jsonwriter_t *jw = sentry__jsonwriter_new_sb(NULL);
-    sentry__jsonwriter_write_value(jw, loc_json);
-    sentry_value_decref(loc_json);
-    size_t new_len = 0;
-    char *new_payload = sentry__jsonwriter_into_string(jw, &new_len);
-    sentry__envelope_item_set_payload(item, new_payload, new_len);
-}
-
 // TODO: with future creation-only TUS, this becomes a creation-only request
 // (prepare_tus_request_common without a body) that obtains the location, and
 // the actual data upload is queued as a separate bgworker task
@@ -381,7 +348,7 @@ tus_upload_item(http_transport_state_t *state, sentry_envelope_item_t *item)
     int status_code = ok ? resp.status_code : -1;
 
     if (ok && resp.status_code == 201 && resp.location) {
-        tus_resolve_item(item, resp.location, is_inline);
+        sentry__envelope_item_set_attachment_ref_location(item, resp.location);
     }
 
     http_response_cleanup(&resp);

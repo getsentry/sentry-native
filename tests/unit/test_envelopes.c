@@ -804,7 +804,7 @@ SENTRY_TEST(attachment_ref_inline)
         item, "ref_content_type", sentry_value_new_string("application/x-dmp"));
 
     sentry_path_t *path = sentry__path_from_str("/tmp/test.dmp");
-    sentry__envelope_item_set_attachment_ref(item, path);
+    sentry__envelope_item_set_attachment_ref_path(item, path);
 
     // verify the payload is valid JSON with correct keys
     size_t payload_len = 0;
