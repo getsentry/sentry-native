@@ -255,6 +255,14 @@ prepare_tus_request(const sentry_path_t *path, size_t file_size,
     return req;
 }
 
+static void
+http_response_cleanup(sentry_http_response_t *resp)
+{
+    sentry_free(resp->retry_after);
+    sentry_free(resp->x_sentry_rate_limits);
+    sentry_free(resp->location);
+}
+
 static int
 http_send_request(
     http_transport_state_t *state, sentry_prepared_http_request_t *req)
@@ -263,9 +271,7 @@ http_send_request(
     memset(&resp, 0, sizeof(resp));
 
     if (!state->send_func(state->client, req, &resp)) {
-        sentry_free(resp.retry_after);
-        sentry_free(resp.x_sentry_rate_limits);
-        sentry_free(resp.location);
+        http_response_cleanup(&resp);
         return -1;
     }
 
@@ -279,9 +285,7 @@ http_send_request(
         sentry__rate_limiter_update_from_429(state->ratelimiter);
     }
 
-    sentry_free(resp.retry_after);
-    sentry_free(resp.x_sentry_rate_limits);
-    sentry_free(resp.location);
+    http_response_cleanup(&resp);
     return resp.status_code;
 }
 
@@ -380,9 +384,7 @@ tus_upload_item(http_transport_state_t *state, sentry_envelope_item_t *item)
         tus_resolve_item(item, resp.location, is_inline);
     }
 
-    sentry_free(resp.retry_after);
-    sentry_free(resp.x_sentry_rate_limits);
-    sentry_free(resp.location);
+    http_response_cleanup(&resp);
     return status_code;
 }
 
