@@ -11,9 +11,6 @@
 #ifdef SENTRY_PLATFORM_WINDOWS
 #    define setenv(k, v, o) _putenv_s(k, v)
 #    define unsetenv(k) _putenv_s(k, "")
-#elif defined(SENTRY_PLATFORM_PS)
-int setenv(const char *, const char *, int);
-int unsetenv(const char *);
 #endif
 
 SENTRY_TEST(iso_time)
