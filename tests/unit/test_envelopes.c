@@ -784,6 +784,47 @@ SENTRY_TEST(tus_request_preparation)
     sentry__dsn_decref(dsn);
 }
 
+SENTRY_TEST(attachment_ref_inline)
+{
+    sentry_envelope_t *envelope = sentry__envelope_new();
+    sentry_value_t event = sentry_value_new_object();
+    sentry__envelope_add_event(envelope, event);
+
+    // overwrite the item's payload with raw binary (not JSON)
+    sentry_envelope_item_t *item = sentry__envelope_get_item_mut(envelope, 0);
+    TEST_CHECK(!!item);
+    char *raw = sentry_malloc(5);
+    memcpy(raw, "\x00\x01\x02\x03\x04", 5);
+    sentry__envelope_item_set_payload(item, raw, 5);
+
+    sentry__envelope_item_set_header(item, "content_type",
+        sentry_value_new_string("application/vnd.sentry.attachment-ref"));
+    sentry__envelope_item_set_header(
+        item, "ref_content_type", sentry_value_new_string("application/x-dmp"));
+
+    sentry_path_t *path = sentry__path_from_str("/tmp/test.dmp");
+    sentry__envelope_item_set_attachment_ref(item, path);
+
+    // verify the payload is valid JSON with correct keys
+    size_t payload_len = 0;
+    const char *payload = sentry__envelope_item_get_payload(item, &payload_len);
+    TEST_CHECK(!!payload);
+    TEST_CHECK(payload_len > 0);
+
+    sentry_value_t payload_json = sentry__value_from_json(payload, payload_len);
+    TEST_CHECK(!sentry_value_is_null(payload_json));
+    TEST_CHECK_STRING_EQUAL(
+        sentry_value_as_string(sentry_value_get_by_key(payload_json, "path")),
+        "/tmp/test.dmp");
+    TEST_CHECK_STRING_EQUAL(sentry_value_as_string(sentry_value_get_by_key(
+                                payload_json, "content_type")),
+        "application/x-dmp");
+    sentry_value_decref(payload_json);
+
+    sentry__path_free(path);
+    sentry_envelope_free(envelope);
+}
+
 SENTRY_TEST(attachment_ref_creation)
 {
     const char *test_file_str

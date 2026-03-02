@@ -691,6 +691,9 @@ sentry__envelope_item_set_attachment_ref(
     sentry_value_t obj = (old_payload && old_len > 0)
         ? sentry__value_from_json(old_payload, old_len)
         : sentry_value_new_object();
+    if (sentry_value_is_null(obj)) {
+        obj = sentry_value_new_object();
+    }
 
 #ifdef SENTRY_PLATFORM_WINDOWS
     char *path_str = sentry__string_from_wstr(path->path_w);
