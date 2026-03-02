@@ -812,9 +812,8 @@ elseif(SENTRY_BACKEND_NATIVE)
 		target_link_libraries(sentry-crash PRIVATE unwindstack)
 	endif()
 
-	if(SENTRY_WITH_LIBUNWIND)
-		target_include_directories(sentry-crash PRIVATE ${LIBUNWIND_INCLUDE_DIR})
-		target_link_libraries(sentry-crash PRIVATE ${LIBUNWIND_LIBRARIES})
+	if(SENTRY_WITH_LIBUNWIND AND LINUX)
+		target_link_libraries(sentry-crash PRIVATE unwind)
 	endif()
 
 	# Make sentry library depend on crash daemon so it's always built together
