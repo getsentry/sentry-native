@@ -27,6 +27,7 @@
 #include "sentry_json.h"
 #include "sentry_logger.h"
 #include "sentry_logs.h"
+#include "sentry_metrics.h"
 #include "sentry_options.h"
 #include "sentry_path.h"
 
@@ -298,9 +299,10 @@ native_backend_startup(
         state->ipc->event_handle, state->ipc->ready_event_handle);
 #    endif
 
-    // On Windows, pid_t is unsigned (DWORD), so we check for 0 instead of < 0
+    // On Windows, pid_t is DWORD (unsigned), so (pid_t)-1 == 0xFFFFFFFF.
+    // On Unix, pid_t is signed and fork returns -1 on failure.
 #    if defined(SENTRY_PLATFORM_WINDOWS)
-    if (state->daemon_pid == 0) {
+    if (state->daemon_pid == (pid_t)-1) {
 #    else
     if (state->daemon_pid < 0) {
 #    endif
@@ -757,9 +759,12 @@ native_backend_except(sentry_backend_t *backend, const sentry_ucontext_t *uctx)
 
         SENTRY_DEBUG("handling native backend exception");
 
-        // Flush logs in crash-safe manner
+        // Flush logs and metrics in a crash-safe manner before crash handling
         if (options->enable_logs) {
             sentry__logs_flush_crash_safe();
+        }
+        if (options->enable_metrics) {
+            sentry__metrics_flush_crash_safe();
         }
 
         // Write crash marker
