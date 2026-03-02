@@ -40,11 +40,10 @@ struct sentry_retry_s {
 sentry_retry_t *
 sentry__retry_new(const sentry_options_t *options)
 {
-    sentry_retry_t *retry = SENTRY_MAKE(sentry_retry_t);
+    sentry_retry_t *retry = SENTRY_MAKE_0(sentry_retry_t);
     if (!retry) {
         return NULL;
     }
-    memset(retry, 0, sizeof(sentry_retry_t));
     sentry__mutex_init(&retry->sealed_lock);
     retry->run = sentry__run_incref(options->run);
     retry->cache_keep = options->cache_keep;

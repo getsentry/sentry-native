@@ -117,11 +117,10 @@ native_backend_startup(
     sentry__mutex_unlock(&g_ipc_init_mutex);
 #endif
 
-    native_backend_state_t *state = SENTRY_MAKE(native_backend_state_t);
+    native_backend_state_t *state = SENTRY_MAKE_0(native_backend_state_t);
     if (!state) {
         return 1;
     }
-    memset(state, 0, sizeof(native_backend_state_t));
     backend->data = state;
 
     // Initialize IPC (protected by global synchronization for concurrent
@@ -930,12 +929,10 @@ sentry__backend_preload(void)
 sentry_backend_t *
 sentry__backend_new(void)
 {
-    sentry_backend_t *backend = SENTRY_MAKE(sentry_backend_t);
+    sentry_backend_t *backend = SENTRY_MAKE_0(sentry_backend_t);
     if (!backend) {
         return NULL;
     }
-
-    memset(backend, 0, sizeof(sentry_backend_t));
 
     backend->startup_func = native_backend_startup;
     backend->shutdown_func = native_backend_shutdown;

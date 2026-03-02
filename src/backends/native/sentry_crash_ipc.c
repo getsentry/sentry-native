@@ -19,11 +19,10 @@
 sentry_crash_ipc_t *
 sentry__crash_ipc_init_app(sem_t *init_sem)
 {
-    sentry_crash_ipc_t *ipc = SENTRY_MAKE(sentry_crash_ipc_t);
+    sentry_crash_ipc_t *ipc = SENTRY_MAKE_0(sentry_crash_ipc_t);
     if (!ipc) {
         return NULL;
     }
-    memset(ipc, 0, sizeof(sentry_crash_ipc_t));
     ipc->is_daemon = false;
     ipc->init_sem = init_sem; // Use provided semaphore (managed by backend)
 
@@ -175,11 +174,10 @@ sentry_crash_ipc_t *
 sentry__crash_ipc_init_daemon(
     pid_t app_pid, uint64_t app_tid, int notify_eventfd, int ready_eventfd)
 {
-    sentry_crash_ipc_t *ipc = SENTRY_MAKE(sentry_crash_ipc_t);
+    sentry_crash_ipc_t *ipc = SENTRY_MAKE_0(sentry_crash_ipc_t);
     if (!ipc) {
         return NULL;
     }
-    memset(ipc, 0, sizeof(sentry_crash_ipc_t));
     ipc->is_daemon = true;
 
     // Open existing shared memory created by app (using PID and thread ID)
@@ -312,11 +310,10 @@ sentry__crash_ipc_free(sentry_crash_ipc_t *ipc)
 sentry_crash_ipc_t *
 sentry__crash_ipc_init_app(sem_t *init_sem)
 {
-    sentry_crash_ipc_t *ipc = SENTRY_MAKE(sentry_crash_ipc_t);
+    sentry_crash_ipc_t *ipc = SENTRY_MAKE_0(sentry_crash_ipc_t);
     if (!ipc) {
         return NULL;
     }
-    memset(ipc, 0, sizeof(sentry_crash_ipc_t));
     ipc->is_daemon = false;
     ipc->init_sem = init_sem; // Use provided semaphore (managed by backend)
 
@@ -470,11 +467,10 @@ sentry_crash_ipc_t *
 sentry__crash_ipc_init_daemon(
     pid_t app_pid, uint64_t app_tid, int notify_pipe_read, int ready_pipe_write)
 {
-    sentry_crash_ipc_t *ipc = SENTRY_MAKE(sentry_crash_ipc_t);
+    sentry_crash_ipc_t *ipc = SENTRY_MAKE_0(sentry_crash_ipc_t);
     if (!ipc) {
         return NULL;
     }
-    memset(ipc, 0, sizeof(sentry_crash_ipc_t));
     ipc->is_daemon = true;
 
     // Open existing shared memory created by app (using PID and thread ID)
@@ -604,11 +600,10 @@ sentry__crash_ipc_free(sentry_crash_ipc_t *ipc)
 sentry_crash_ipc_t *
 sentry__crash_ipc_init_app(HANDLE init_mutex)
 {
-    sentry_crash_ipc_t *ipc = SENTRY_MAKE(sentry_crash_ipc_t);
+    sentry_crash_ipc_t *ipc = SENTRY_MAKE_0(sentry_crash_ipc_t);
     if (!ipc) {
         return NULL;
     }
-    memset(ipc, 0, sizeof(sentry_crash_ipc_t));
     ipc->is_daemon = false;
     ipc->init_mutex = init_mutex; // Use provided mutex (managed by backend)
 
@@ -734,11 +729,10 @@ sentry__crash_ipc_init_daemon(pid_t app_pid, uint64_t app_tid,
     (void)event_handle;
     (void)ready_event_handle;
 
-    sentry_crash_ipc_t *ipc = SENTRY_MAKE(sentry_crash_ipc_t);
+    sentry_crash_ipc_t *ipc = SENTRY_MAKE_0(sentry_crash_ipc_t);
     if (!ipc) {
         return NULL;
     }
-    memset(ipc, 0, sizeof(sentry_crash_ipc_t));
     ipc->is_daemon = true;
 
     // Open existing shared memory (using PID and thread ID)

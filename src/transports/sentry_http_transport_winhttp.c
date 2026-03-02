@@ -28,11 +28,10 @@ typedef struct {
 static winhttp_client_t *
 winhttp_client_new(void)
 {
-    winhttp_client_t *client = SENTRY_MAKE(winhttp_client_t);
+    winhttp_client_t *client = SENTRY_MAKE_0(winhttp_client_t);
     if (!client) {
         return NULL;
     }
-    memset(client, 0, sizeof(winhttp_client_t));
 
     return client;
 }
