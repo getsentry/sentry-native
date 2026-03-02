@@ -535,8 +535,10 @@ sentry__process_old_runs(const sentry_options_t *options, uint64_t last_crash)
                         uuid_str[36] = '\0';
                         sentry_path_t *att_dir = resolve_large_attachment_dir(
                             options->database_path, uuid_str);
-                        if (att_dir && sentry__path_is_dir(att_dir)) {
-                            sentry__envelope_materialize(envelope);
+                        if (att_dir && sentry__path_is_dir(att_dir)
+                            && sentry__envelope_materialize(envelope) != 0) {
+                            sentry_envelope_free(envelope);
+                            envelope = NULL;
                         }
                         sentry__path_free(att_dir);
                     }
