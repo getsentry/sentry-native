@@ -328,10 +328,7 @@ tus_upload_item(http_transport_state_t *state, sentry_envelope_item_t *item)
     }
 
     if (!req) {
-        if (file_path) {
-            sentry__db_remove_large_attachment(state->database_path, file_path);
-            sentry__path_free(file_path);
-        }
+        sentry__path_free(file_path);
         return -1;
     }
 
@@ -340,17 +337,17 @@ tus_upload_item(http_transport_state_t *state, sentry_envelope_item_t *item)
 
     bool ok = state->send_func(state->client, req, &resp);
     sentry__prepared_http_request_free(req);
-    if (file_path) {
-        sentry__db_remove_large_attachment(state->database_path, file_path);
-        sentry__path_free(file_path);
-    }
 
     int status_code = ok ? resp.status_code : -1;
 
     if (ok && resp.status_code == 201 && resp.location) {
         sentry__envelope_item_set_attachment_ref_location(item, resp.location);
+        if (file_path) {
+            sentry__db_remove_large_attachment(state->database_path, file_path);
+        }
     }
 
+    sentry__path_free(file_path);
     http_response_cleanup(&resp);
     return status_code;
 }
