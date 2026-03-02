@@ -430,6 +430,7 @@ SENTRY_TEST(dsn_auth_header_invalid_dsn)
 
 SENTRY_TEST(getenv_double)
 {
+#if !defined(SENTRY_PLATFORM_PS)
     setenv("SENTRY_TEST_DOUBLE", "", 1);
     TEST_CHECK(sentry__getenv_double("SENTRY_TEST_DOUBLE", 42.0) == 42.0);
 
@@ -459,4 +460,5 @@ SENTRY_TEST(getenv_double)
 
     unsetenv("SENTRY_TEST_DOUBLE");
     TEST_CHECK(sentry__getenv_double("SENTRY_TEST_DOUBLE", 42.0) == 42.0);
+#endif
 }
