@@ -201,7 +201,7 @@ write_large_attachment(sentry_envelope_item_t *item,
 {
     const char *filename = sentry_value_as_string(
         sentry__envelope_item_get_header(item, "filename"));
-    if (!filename) {
+    if (!filename || *filename == '\0') {
         return;
     }
 
