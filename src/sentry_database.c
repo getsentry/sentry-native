@@ -225,7 +225,7 @@ write_large_attachment(sentry_envelope_item_t *item,
     }
 
     if (rv == 0) {
-        sentry__envelope_item_set_attachment_ref(item, dst);
+        sentry__envelope_item_set_attachment_ref_path(item, dst);
         if (is_inline) {
             sentry__envelope_item_set_header(
                 item, "inline", sentry_value_new_bool(false));
