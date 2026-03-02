@@ -640,14 +640,15 @@ str_from_attachment_type(sentry_attachment_type_t attachment_type)
 
 static sentry_envelope_item_t *
 envelope_add_attachment_ref(sentry_envelope_t *envelope,
-    const sentry_path_t *path, size_t file_size, const char *content_type)
+    const sentry_path_t *path, size_t file_size, const char *type,
+    const char *content_type)
 {
     sentry_envelope_item_t *item = envelope_add_item(envelope);
     if (!item) {
         return NULL;
     }
     sentry__envelope_item_set_header(
-        item, "type", sentry_value_new_string("attachment"));
+        item, "type", sentry_value_new_string(type));
     sentry__envelope_item_set_header(item, "content_type",
         sentry_value_new_string("application/vnd.sentry.attachment-ref"));
     sentry__envelope_item_set_header(item, "attachment_length",
@@ -798,7 +799,7 @@ sentry__envelope_add_attachment(
             }
         } else {
             item = envelope_add_attachment_ref(envelope, attachment->path,
-                file_size, attachment->content_type);
+                file_size, "attachment", attachment->content_type);
         }
     } else if (attachment->buf) {
         item = sentry__envelope_add_from_buffer(
@@ -862,7 +863,8 @@ sentry__envelope_add_from_path(
     }
     size_t file_size = sentry__path_get_size(path);
     if (is_large_attachment(path, file_size)) {
-        return envelope_add_attachment_ref(envelope, path, file_size, NULL);
+        return envelope_add_attachment_ref(
+            envelope, path, file_size, type, NULL);
     }
     size_t buf_len;
     char *buf = sentry__path_read_to_buffer(path, &buf_len);
