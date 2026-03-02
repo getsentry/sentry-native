@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+**Features**:
+
+- Add new `native` crash handling backend as an alternative to `crashpad`, `breakpad`, and `inproc`. This backend uses an out-of-process daemon that monitors the application for crashes, generates minidumps, and sends crash reports to Sentry. It supports Linux, macOS, and Windows, and is fully compatible with TSAN and ASAN sanitizers. ([#1433](https://github.com/getsentry/sentry-native/pull/1433))
+
 **Fixes**:
 
 - Allow null custom log attributes without debug warning ([#1552](https://github.com/getsentry/sentry-native/pull/1552))
@@ -56,10 +60,6 @@
 **Features**:
 
 - Add new offline caching options to persist envelopes locally: `sentry_options_set_cache_keep`, `sentry_options_set_cache_max_items`, `sentry_options_set_cache_max_size`, and `sentry_options_set_cache_max_age`. ([#1490](https://github.com/getsentry/sentry-native/pull/1490), [#1493](https://github.com/getsentry/sentry-native/pull/1493))
-
-**Features**:
-
-- Add new `native` crash handling backend as an alternative to `crashpad`, `breakpad`, and `inproc`. This backend uses an out-of-process daemon that monitors the application for crashes, generates minidumps, and sends crash reports to Sentry. It supports Linux, macOS, and Windows, and is fully compatible with TSAN and ASAN sanitizers. ([#1433](https://github.com/getsentry/sentry-native/pull/1433))
 
 **Fixes**:
 
