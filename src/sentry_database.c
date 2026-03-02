@@ -177,27 +177,9 @@ resolve_large_attachment_dir(const sentry_path_t *db_path, const char *uuid_str)
     return event_dir;
 }
 
-static sentry_path_t *
-resolve_large_attachment(
-    const sentry_path_t *db_path, const char *uuid_str, const char *filename)
-{
-    sentry_path_t *event_dir = resolve_large_attachment_dir(db_path, uuid_str);
-    if (!event_dir) {
-        return NULL;
-    }
-    if (sentry__path_create_dir_all(event_dir) != 0) {
-        sentry__path_free(event_dir);
-        return NULL;
-    }
-    sentry_path_t *dst = sentry__path_join_str(event_dir, filename);
-    sentry__path_free(event_dir);
-    return dst;
-}
-
 static void
 write_large_attachment(sentry_envelope_item_t *item,
-    const sentry_path_t *db_path, const char *uuid_str,
-    const sentry_path_t *run_path)
+    const sentry_path_t *event_dir, const sentry_path_t *run_path)
 {
     const char *filename = sentry_value_as_string(
         sentry__envelope_item_get_header(item, "filename"));
@@ -218,7 +200,7 @@ write_large_attachment(sentry_envelope_item_t *item,
         if (!payload || payload_len == 0) {
             return;
         }
-        dst = resolve_large_attachment(db_path, uuid_str, filename);
+        dst = sentry__path_join_str(event_dir, filename);
         if (!dst) {
             return;
         }
@@ -232,7 +214,7 @@ write_large_attachment(sentry_envelope_item_t *item,
         sentry_path_t *src_dir = sentry__path_dir(src);
         bool is_run_owned = src_dir && sentry__path_eq(src_dir, run_path);
         sentry__path_free(src_dir);
-        dst = resolve_large_attachment(db_path, uuid_str, filename);
+        dst = sentry__path_join_str(event_dir, filename);
         if (!dst) {
             sentry__path_free(src);
             return;
@@ -269,15 +251,26 @@ sentry__run_write_envelope(const sentry_run_t *run, sentry_envelope_t *envelope)
         char uuid_str[37];
         sentry_uuid_as_string(&event_id, uuid_str);
 
+        sentry_path_t *event_dir
+            = resolve_large_attachment_dir(db_path, uuid_str);
+        sentry__path_free(db_path);
+        if (!event_dir) {
+            return false;
+        }
+        if (sentry__path_create_dir_all(event_dir) != 0) {
+            sentry__path_free(event_dir);
+            return false;
+        }
+
         size_t count = sentry__envelope_get_item_count(envelope);
         for (size_t i = 0; i < count; i++) {
             sentry_envelope_item_t *item
                 = sentry__envelope_get_item_mut(envelope, i);
             if (sentry__envelope_item_is_attachment_ref(item)) {
-                write_large_attachment(item, db_path, uuid_str, run->run_path);
+                write_large_attachment(item, event_dir, run->run_path);
             }
         }
-        sentry__path_free(db_path);
+        sentry__path_free(event_dir);
     }
     return write_envelope(run->run_path, envelope, -1);
 }
