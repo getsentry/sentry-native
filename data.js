@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1772461631282,
+  "lastUpdate": 1772461685259,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -23862,6 +23862,66 @@ window.BENCHMARK_DATA = {
             "value": 5.882667000150832,
             "unit": "ms",
             "extra": "Min 5.517ms\nMax 7.648ms\nMean 6.187ms\nStdDev 0.850ms\nMedian 5.883ms\nCPU 0.770ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "tustanivsky@gmail.com",
+            "name": "Ivan Tustanivskyi",
+            "username": "tustanivsky"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "2d6b100e6580132f5c49edeac292240b1c7013f8",
+          "message": "chore: Skip `getenv_double` test on PlayStation (#1547)\n\n* chore: fix missing PS5 function declerations\n\n* Revert function decl\n\n* Disable getenv_double test on PS5\n\n* Update tests/unit/test_utils.c\n\nCo-authored-by: J-P Nurmi <jpnurmi@gmail.com>\n\n---------\n\nCo-authored-by: J-P Nurmi <jpnurmi@gmail.com>",
+          "timestamp": "2026-03-02T16:22:55+02:00",
+          "tree_id": "4de19ee59030507cbf6fec72da92d3b7a038ab79",
+          "url": "https://github.com/getsentry/sentry-native/commit/2d6b100e6580132f5c49edeac292240b1c7013f8"
+        },
+        "date": 1772461681313,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 4.886040999991792,
+            "unit": "ms",
+            "extra": "Min 3.493ms\nMax 8.881ms\nMean 5.647ms\nStdDev 2.130ms\nMedian 4.886ms\nCPU 3.287ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 5.034874999978456,
+            "unit": "ms",
+            "extra": "Min 4.232ms\nMax 16.024ms\nMean 7.376ms\nStdDev 4.997ms\nMedian 5.035ms\nCPU 3.356ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 40.896458000020175,
+            "unit": "ms",
+            "extra": "Min 19.123ms\nMax 61.623ms\nMean 38.717ms\nStdDev 17.543ms\nMedian 40.896ms\nCPU 7.010ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.08937500001593435,
+            "unit": "ms",
+            "extra": "Min 0.081ms\nMax 0.157ms\nMean 0.101ms\nStdDev 0.032ms\nMedian 0.089ms\nCPU 0.061ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.32724999999800275,
+            "unit": "ms",
+            "extra": "Min 0.291ms\nMax 2.462ms\nMean 0.753ms\nStdDev 0.956ms\nMedian 0.327ms\nCPU 0.377ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 14.34845800002904,
+            "unit": "ms",
+            "extra": "Min 8.957ms\nMax 17.654ms\nMean 14.291ms\nStdDev 3.290ms\nMedian 14.348ms\nCPU 1.645ms"
           }
         ]
       }
