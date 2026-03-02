@@ -29,6 +29,7 @@
 typedef struct {
     sentry_dsn_t *dsn;
     char *user_agent;
+    sentry_path_t *database_path;
     sentry_rate_limiter_t *ratelimiter;
     void *client;
     void (*free_client)(void *);
@@ -284,26 +285,6 @@ http_send_request(
     return resp.status_code;
 }
 
-// TODO: with future creation-only TUS, file cleanup moves to after the
-// deferred data upload completes
-static void
-remove_large_attachment(const sentry_path_t *path)
-{
-    sentry__path_remove(path);
-    sentry_path_t *event_dir = sentry__path_dir(path);
-    if (!event_dir) {
-        return;
-    }
-    sentry__path_remove(event_dir);
-    sentry_path_t *attachments_dir = sentry__path_dir(event_dir);
-    sentry__path_free(event_dir);
-    if (!attachments_dir) {
-        return;
-    }
-    sentry__path_remove(attachments_dir);
-    sentry__path_free(attachments_dir);
-}
-
 static void
 tus_resolve_item(
     sentry_envelope_item_t *item, const char *location, bool is_inline)
@@ -377,7 +358,7 @@ tus_upload_item(http_transport_state_t *state, sentry_envelope_item_t *item)
 
     if (!req) {
         if (file_path) {
-            remove_large_attachment(file_path);
+            sentry__db_remove_large_attachment(state->database_path, file_path);
             sentry__path_free(file_path);
         }
         return -1;
@@ -389,7 +370,7 @@ tus_upload_item(http_transport_state_t *state, sentry_envelope_item_t *item)
     bool ok = state->send_func(state->client, req, &resp);
     sentry__prepared_http_request_free(req);
     if (file_path) {
-        remove_large_attachment(file_path);
+        sentry__db_remove_large_attachment(state->database_path, file_path);
         sentry__path_free(file_path);
     }
 
@@ -465,6 +446,7 @@ http_transport_state_free(void *_state)
     }
     sentry__dsn_decref(state->dsn);
     sentry_free(state->user_agent);
+    sentry__path_free(state->database_path);
     sentry__rate_limiter_free(state->ratelimiter);
     sentry__retry_free(state->retry);
     sentry_free(state);
@@ -501,6 +483,7 @@ http_transport_start(const sentry_options_t *options, void *transport_state)
 
     state->dsn = sentry__dsn_incref(options->dsn);
     state->user_agent = sentry__string_clone(options->user_agent);
+    state->database_path = sentry__path_clone(options->database_path);
 
     if (state->start_client) {
         int rv = state->start_client(state->client, options);

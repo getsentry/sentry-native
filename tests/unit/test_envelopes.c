@@ -4,6 +4,7 @@
 #include "sentry_json.h"
 #include "sentry_options.h"
 #include "sentry_path.h"
+#include "sentry_string.h"
 #include "sentry_testsupport.h"
 #include "sentry_utils.h"
 #include "sentry_value.h"
@@ -1344,4 +1345,49 @@ SENTRY_TEST(materialize_envelope)
     sentry__path_remove(test_file_path);
     sentry__path_free(test_file_path);
     sentry_close();
+}
+
+static bool
+tus_mock_send(void *client, sentry_prepared_http_request_t *req,
+    sentry_http_response_t *resp)
+{
+    (void)client;
+    (void)req;
+    resp->status_code = 201;
+    resp->location = sentry__string_clone("https://sentry.invalid/upload/abc");
+    return true;
+}
+
+SENTRY_TEST(tus_file_attachment_preserves_original)
+{
+    const char *test_file_str
+        = SENTRY_TEST_PATH_PREFIX "sentry_test_tus_preserve";
+    sentry_path_t *test_file_path = sentry__path_from_str(test_file_str);
+
+    size_t large_size = 100 * 1024 * 1024;
+    FILE *f = fopen(test_file_str, "wb");
+    TEST_CHECK(!!f);
+    fseek(f, (long)(large_size - 1), SEEK_SET);
+    fputc(0, f);
+    fclose(f);
+
+    sentry_transport_t *transport
+        = sentry__http_transport_new(NULL, tus_mock_send);
+    TEST_CHECK(!!transport);
+
+    SENTRY_TEST_OPTIONS_NEW(options);
+    sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
+    sentry_options_set_transport(options, transport);
+    sentry_options_add_attachment(options, test_file_str);
+    sentry_init(options);
+
+    sentry_capture_event(
+        sentry_value_new_message_event(SENTRY_LEVEL_INFO, NULL, "test"));
+
+    sentry_close();
+
+    TEST_CHECK(sentry__path_is_file(test_file_path));
+
+    sentry__path_remove(test_file_path);
+    sentry__path_free(test_file_path);
 }

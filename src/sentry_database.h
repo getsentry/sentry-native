@@ -138,4 +138,13 @@ bool sentry__has_crash_marker(const sentry_options_t *options);
  */
 bool sentry__clear_crash_marker(const sentry_options_t *options);
 
+/**
+ * Removes a large attachment file only if it lives under
+ * `<db_path>/attachments/`. This prevents deletion of user-owned
+ * original files that were referenced directly (not copied by the
+ * crash persistence path).
+ */
+void sentry__db_remove_large_attachment(
+    const sentry_path_t *db_path, const sentry_path_t *path);
+
 #endif
