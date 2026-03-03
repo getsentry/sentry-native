@@ -578,7 +578,8 @@ write_thread_list_stream(minidump_writer_t *writer, minidump_directory_t *dir)
                 // Write thread context (registers)
                 thread->thread_context.rva
                     = write_thread_context(writer, &mcontext);
-                thread->thread_context.size = get_context_size();
+                thread->thread_context.size
+                    = thread->thread_context.rva ? get_context_size() : 0;
 
                 // Write stack memory
                 uint64_t sp;
@@ -612,7 +613,8 @@ write_thread_list_stream(minidump_writer_t *writer, minidump_directory_t *dir)
             const _STRUCT_MCONTEXT *state
                 = &writer->crash_ctx->platform.threads[i].state;
             thread->thread_context.rva = write_thread_context(writer, state);
-            thread->thread_context.size = get_context_size();
+            thread->thread_context.size
+                = thread->thread_context.rva ? get_context_size() : 0;
             SENTRY_DEBUGF("Thread %zu: wrote context at RVA 0x%x", i,
                 thread->thread_context.rva);
 
@@ -716,7 +718,8 @@ write_exception_stream(minidump_writer_t *writer, minidump_directory_t *dir)
     const _STRUCT_MCONTEXT *crash_state = &writer->crash_ctx->platform.mcontext;
     exception_stream.thread_context.rva
         = write_thread_context(writer, crash_state);
-    exception_stream.thread_context.size = get_context_size();
+    exception_stream.thread_context.size
+        = exception_stream.thread_context.rva ? get_context_size() : 0;
     SENTRY_DEBUGF("Exception: wrote context at RVA 0x%x for thread %u",
         exception_stream.thread_context.rva, exception_stream.thread_id);
 

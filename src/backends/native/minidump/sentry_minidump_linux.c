@@ -1012,7 +1012,8 @@ write_thread_list_stream(minidump_writer_t *writer, minidump_directory_t *dir)
             // Write thread context
             thread->thread_context.rva
                 = write_thread_context(writer, uctx, thread->thread_id);
-            thread->thread_context.size = get_context_size();
+            thread->thread_context.size
+                = thread->thread_context.rva ? get_context_size() : 0;
             SENTRY_DEBUGF("Thread %u: context written at RVA 0x%x",
                 thread->thread_id, thread->thread_context.rva);
 
@@ -1189,6 +1190,13 @@ write_module_list_stream(minidump_writer_t *writer, minidump_directory_t *dir)
     dir->rva = write_data(writer, module_list, list_size);
     dir->data_size = list_size;
 
+    if (dir->rva == 0) {
+        SENTRY_WARN("failed to write module list structure");
+        sentry_free(mod_infos);
+        sentry_free(module_list);
+        return -1;
+    }
+
     // Guard against uint32_t RVA overflow. Minidump RVAs are 32-bit, so the
     // entire file must stay under 4GB. In practice this never happens, but
     // check defensively to avoid silently corrupt seek+patch writes below.
@@ -1310,7 +1318,8 @@ write_exception_stream(minidump_writer_t *writer, minidump_directory_t *dir)
     const ucontext_t *uctx = &writer->crash_ctx->platform.context;
     exception_stream.thread_context.rva
         = write_thread_context(writer, uctx, writer->crash_ctx->crashed_tid);
-    exception_stream.thread_context.size = get_context_size();
+    exception_stream.thread_context.size
+        = exception_stream.thread_context.rva ? get_context_size() : 0;
 
     SENTRY_DEBUGF("Exception: wrote context at RVA 0x%x for thread %u",
         exception_stream.thread_context.rva, exception_stream.thread_id);

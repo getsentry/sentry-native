@@ -22,6 +22,11 @@ sentry__minidump_write_data(
     ssize_t written = write(writer->fd, data, size);
     if (written != (ssize_t)size) {
         SENTRY_WARNF("minidump write failed: %s", strerror(errno));
+        // Seek back to undo any partial write so the fd position stays
+        // in sync with current_offset.
+        if (written > 0) {
+            lseek(writer->fd, -written, SEEK_CUR);
+        }
         return 0;
     }
 
