@@ -1012,8 +1012,7 @@ sentry__write_minidump(
         SENTRY_DEBUG("write_minidump: seeking to stream offset");
         if (lseek(writer.fd, writer.current_offset, SEEK_SET) < 0) {
             SENTRY_WARN("write_minidump: lseek failed");
-            close(writer.fd);
-            return -1;
+            goto fallback_error;
         }
 
         // Write streams in same order as Crashpad (will update directory RVAs
@@ -1022,38 +1021,32 @@ sentry__write_minidump(
         SENTRY_DEBUG("write_minidump: writing system_info stream");
         if (write_system_info_stream(&writer, &directories[0]) < 0) {
             SENTRY_WARN("write_minidump: system_info failed");
-            close(writer.fd);
-            return -1;
+            goto fallback_error;
         }
         SENTRY_DEBUG("write_minidump: writing misc_info stream");
         if (write_misc_info_stream(&writer, &directories[1]) < 0) {
             SENTRY_WARN("write_minidump: misc_info failed");
-            close(writer.fd);
-            return -1;
+            goto fallback_error;
         }
         SENTRY_DEBUG("write_minidump: writing thread_list stream");
         if (write_thread_list_stream(&writer, &directories[2]) < 0) {
             SENTRY_WARN("write_minidump: thread_list failed");
-            close(writer.fd);
-            return -1;
+            goto fallback_error;
         }
         SENTRY_DEBUG("write_minidump: writing exception stream");
         if (write_exception_stream(&writer, &directories[3]) < 0) {
             SENTRY_WARN("write_minidump: exception failed");
-            close(writer.fd);
-            return -1;
+            goto fallback_error;
         }
         SENTRY_DEBUG("write_minidump: writing module_list stream");
         if (write_module_list_stream(&writer, &directories[4]) < 0) {
             SENTRY_WARN("write_minidump: module_list failed");
-            close(writer.fd);
-            return -1;
+            goto fallback_error;
         }
         SENTRY_DEBUG("write_minidump: writing memory_list stream");
         if (write_memory_list_stream(&writer, &directories[5]) < 0) {
             SENTRY_WARN("write_minidump: memory_list failed");
-            close(writer.fd);
-            return -1;
+            goto fallback_error;
         }
         SENTRY_DEBUG("write_minidump: all streams written");
 
@@ -1061,8 +1054,7 @@ sentry__write_minidump(
         SENTRY_DEBUG("write_minidump: seeking to beginning for header");
         if (lseek(writer.fd, 0, SEEK_SET) < 0) {
             SENTRY_WARN("write_minidump: lseek to beginning failed");
-            close(writer.fd);
-            return -1;
+            goto fallback_error;
         }
 
         SENTRY_DEBUG("write_minidump: writing header");
@@ -1075,8 +1067,7 @@ sentry__write_minidump(
             .flags = 0 };
         if (write(writer.fd, &header, sizeof(header)) != sizeof(header)) {
             SENTRY_WARN("write_minidump: header write failed");
-            close(writer.fd);
-            return -1;
+            goto fallback_error;
         }
 
         SENTRY_DEBUG("write_minidump: writing directory");
@@ -1084,14 +1075,18 @@ sentry__write_minidump(
         if (write(writer.fd, directories, sizeof(directories))
             != sizeof(directories)) {
             SENTRY_WARN("write_minidump: directory write failed");
-            close(writer.fd);
-            return -1;
+            goto fallback_error;
         }
 
         SENTRY_DEBUG("write_minidump: closing file");
         close(writer.fd);
         SENTRY_DEBUG("write_minidump: success");
         return 0;
+
+    fallback_error:
+        close(writer.fd);
+        unlink(output_path);
+        return -1;
     }
 
     // Get threads

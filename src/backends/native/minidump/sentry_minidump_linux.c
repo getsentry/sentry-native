@@ -1243,11 +1243,9 @@ write_module_list_stream(minidump_writer_t *writer, minidump_directory_t *dir)
                 ssize_t written2 = write(writer->fd, &cv_rva, sizeof(cv_rva));
 
                 if (written1 == sizeof(cv_size) && written2 == sizeof(cv_rva)) {
-                    // Force flush to disk
-                    fsync(writer->fd);
                     SENTRY_DEBUGF(
                         "  Updated module[%zu]: name_rva=0x%x, cv_rva=0x%x, "
-                        "cv_size=%u (flushed)",
+                        "cv_size=%u",
                         i, name_rva, cv_rva, cv_size);
                 } else {
                     SENTRY_WARNF("Failed to write CV record for module %zu: "

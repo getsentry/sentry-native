@@ -749,12 +749,10 @@ elseif(SENTRY_BACKEND_NATIVE)
 	# Get all sources that were added to sentry target
 	get_target_property(SENTRY_SOURCES sentry SOURCES)
 
-	# Create daemon executable with same sources plus daemon-specific files
+	# Create daemon executable with same sources (already includes
+	# sentry_crash_daemon.c and sentry_crash_ipc.c from src/CMakeLists.txt)
 	add_executable(sentry-crash
 		${SENTRY_SOURCES}
-		src/backends/native/sentry_crash_daemon.c
-		src/backends/native/sentry_crash_ipc.c
-		src/backends/native/sentry_crash_context.h
 	)
 
 	# Define standalone mode and copy compile definitions from sentry
