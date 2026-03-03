@@ -86,7 +86,7 @@ typedef struct {
 typedef struct {
     // Base fields (must match minidump_writer_base_t layout)
     int fd;
-    uint32_t current_offset;
+    uint64_t current_offset;
 
     // Linux-specific fields
     const sentry_crash_context_t *crash_ctx;
