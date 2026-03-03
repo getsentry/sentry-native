@@ -62,8 +62,9 @@ def poll_sentry_for_event(test_id, max_attempts=POLL_MAX_ATTEMPTS):
     """
     Poll Sentry API until event with test.id tag appears.
 
-    Uses the project events endpoint to query events directly by tag,
-    avoiding the indirection through the issues search index.
+    Uses a two-step approach:
+    1. Search issues by test.id tag to find the containing issue
+    2. Query that issue's events with the same tag to get the exact event
 
     Args:
         test_id: The unique test ID tag value to search for
@@ -85,57 +86,91 @@ def poll_sentry_for_event(test_id, max_attempts=POLL_MAX_ATTEMPTS):
 
     for attempt in range(max_attempts):
         try:
-            # Query events directly by tag, bypassing the issues search index
-            events_url = f"{SENTRY_API_BASE}/projects/{org}/{project}/events/"
+            # Step 1: Search issues by test.id tag
+            issues_url = f"{SENTRY_API_BASE}/projects/{org}/{project}/issues/"
             response = requests.get(
-                events_url,
+                issues_url,
                 headers=headers,
-                params={"query": f'test.id:"{test_id}"', "full": "true"},
+                params={"query": f"test.id:{test_id}"},
                 timeout=30,
             )
 
             print(
                 f"  Attempt {attempt + 1}/{max_attempts}: "
-                f"GET {events_url} -> {response.status_code}"
+                f"issues search -> {response.status_code}"
             )
 
             if response.status_code == 200:
-                events = response.json()
-                print(f"    Events returned: {len(events)}")
-                if events:
-                    event_id = events[0]["eventID"]
-                    print(f"    Found event {event_id}, fetching details...")
+                issues = response.json()
+                if issues:
+                    issue_id = issues[0]["id"]
 
-                    # Fetch the full event detail
-                    detail_url = (
-                        f"{SENTRY_API_BASE}/projects/{org}/{project}"
-                        f"/events/{event_id}/"
+                    # Step 2: Find the exact event within this issue
+                    events_url = (
+                        f"{SENTRY_API_BASE}/issues/{issue_id}/events/"
                     )
-                    detail_response = requests.get(
-                        detail_url, headers=headers, timeout=30
+                    event_response = requests.get(
+                        events_url,
+                        headers=headers,
+                        params={"query": f"test.id:{test_id}"},
+                        timeout=30,
                     )
-                    print(f"    GET {detail_url} -> {detail_response.status_code}")
 
-                    if detail_response.status_code == 200:
-                        event = detail_response.json()
-                        tags = {t["key"]: t["value"] for t in event.get("tags", [])}
-                        if tags.get("test.id") == test_id:
-                            print(f"  Found event after {attempt + 1} attempts")
-                            return event
+                    if event_response.status_code == 200:
+                        events = event_response.json()
+                        if events:
+                            event_id = events[0]["eventID"]
+                            print(
+                                f"    Found issue {issue_id}, "
+                                f"event {event_id}, fetching details..."
+                            )
+
+                            # Step 3: Fetch full event detail
+                            detail_url = (
+                                f"{SENTRY_API_BASE}/projects/{org}/{project}"
+                                f"/events/{event_id}/"
+                            )
+                            detail_response = requests.get(
+                                detail_url, headers=headers, timeout=30
+                            )
+
+                            if detail_response.status_code == 200:
+                                event = detail_response.json()
+                                tags = {
+                                    t["key"]: t["value"]
+                                    for t in event.get("tags", [])
+                                }
+                                if tags.get("test.id") == test_id:
+                                    print(
+                                        f"  Found event after "
+                                        f"{attempt + 1} attempts"
+                                    )
+                                    return event
+                                else:
+                                    last_error = (
+                                        f"Tag mismatch: expected {test_id}, "
+                                        f"got {tags.get('test.id', '<missing>')}"
+                                    )
+                            else:
+                                last_error = (
+                                    f"Event detail returned "
+                                    f"{detail_response.status_code}"
+                                )
                         else:
                             print(
-                                f"    Tag mismatch: expected test.id={test_id}, "
-                                f"got {tags.get('test.id', '<missing>')}"
+                                f"    Issue {issue_id} found but "
+                                f"event query returned 0 events"
                             )
                     else:
                         last_error = (
-                            f"Event detail returned {detail_response.status_code}: "
-                            f"{detail_response.text[:200]}"
+                            f"Issue events returned "
+                            f"{event_response.status_code}"
                         )
-                        print(f"    Error: {last_error}")
+                else:
+                    print(f"    No issues found yet")
             else:
                 last_error = (
-                    f"Events API returned {response.status_code}: "
+                    f"Issues API returned {response.status_code}: "
                     f"{response.text[:200]}"
                 )
                 print(f"    Error: {last_error}")
