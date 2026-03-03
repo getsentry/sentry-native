@@ -85,8 +85,12 @@ read_task_memory(
     task_t task, mach_vm_address_t addr, void *buf, mach_vm_size_t size)
 {
     mach_vm_size_t bytes_read = 0;
-    return mach_vm_read_overwrite(
+    kern_return_t kr = mach_vm_read_overwrite(
         task, addr, size, (mach_vm_address_t)buf, &bytes_read);
+    if (kr == KERN_SUCCESS && bytes_read != size) {
+        return KERN_FAILURE;
+    }
+    return kr;
 }
 
 /**

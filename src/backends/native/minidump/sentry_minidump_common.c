@@ -36,11 +36,13 @@ sentry__minidump_write_data(
     uint32_t padding = (4 - (writer->current_offset % 4)) % 4;
     if (padding > 0) {
         const uint8_t zeros[4] = { 0 };
-        if (write(writer->fd, zeros, padding) == (ssize_t)padding) {
+        ssize_t pad_written = write(writer->fd, zeros, padding);
+        if (pad_written == (ssize_t)padding) {
             writer->current_offset += padding;
+        } else if (pad_written > 0) {
+            // Seek back to undo partial padding write so fd stays in sync
+            lseek(writer->fd, -pad_written, SEEK_CUR);
         }
-        // On padding write failure, don't update offset - RVA is still valid
-        // for the data that was written
     }
 
     return rva;

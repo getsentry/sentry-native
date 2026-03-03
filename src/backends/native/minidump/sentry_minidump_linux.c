@@ -1061,6 +1061,8 @@ write_thread_list_stream(minidump_writer_t *writer, minidump_directory_t *dir)
                     // Re-write the thread context with the captured registers
                     thread->thread_context.rva = write_thread_context(
                         writer, &ptrace_ctx, thread->thread_id);
+                    thread->thread_context.size
+                        = thread->thread_context.rva ? get_context_size() : 0;
 
                     // Extract SP from captured context
                     uint64_t ptrace_sp;
