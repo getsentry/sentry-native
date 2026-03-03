@@ -17,6 +17,11 @@ minidump_rva_t
 sentry__minidump_write_data(
     minidump_writer_base_t *writer, const void *data, size_t size)
 {
+    // Check for 4GB overflow before truncating to uint32_t RVA
+    if (writer->current_offset > UINT32_MAX) {
+        SENTRY_WARN("minidump exceeded 4GB, RVA would overflow");
+        return 0;
+    }
     minidump_rva_t rva = (minidump_rva_t)writer->current_offset;
 
     ssize_t written = write(writer->fd, data, size);

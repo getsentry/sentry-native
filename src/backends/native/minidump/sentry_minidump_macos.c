@@ -850,8 +850,8 @@ write_misc_info_stream(minidump_writer_t *writer, minidump_directory_t *dir)
  * Check if a memory region should be included based on minidump mode
  */
 static bool
-should_include_region_macos(
-    const memory_region_t *region, sentry_minidump_mode_t mode)
+should_include_region_macos(const memory_region_t *region,
+    sentry_minidump_mode_t mode, uint64_t crash_addr)
 {
     // STACK_ONLY: Don't include heap regions (stack is in thread list)
     if (mode == SENTRY_MINIDUMP_MODE_STACK_ONLY) {
@@ -863,15 +863,21 @@ should_include_region_macos(
         return (region->protection & VM_PROT_READ) != 0;
     }
 
-    // SMART: Include writable regions (heap), exclude read-only (code/data)
+    // SMART: Include only regions containing the crash address, matching the
+    // Linux behavior. We do NOT include all rw regions as that captures too
+    // much memory (thread stacks, mmap allocations, etc.) and produces
+    // minidumps 10-30x larger than expected. Stack memory is already captured
+    // per-thread in the thread list stream.
     if (mode == SENTRY_MINIDUMP_MODE_SMART) {
-        // Include regions that are readable and writable (heap allocations)
         bool readable = (region->protection & VM_PROT_READ) != 0;
-        bool writable = (region->protection & VM_PROT_WRITE) != 0;
+        if (!readable) {
+            return false;
+        }
 
-        if (readable && writable) {
-            // Limit to reasonable size (64MB per region)
-            return region->size <= (SENTRY_CRASH_MAX_STACK_CAPTURE / 8 * 1024);
+        // Include region containing crash address
+        if (crash_addr >= region->address
+            && crash_addr < region->address + region->size) {
+            return true;
         }
     }
 
@@ -885,6 +891,7 @@ static int
 write_memory_list_stream(minidump_writer_t *writer, minidump_directory_t *dir)
 {
     sentry_minidump_mode_t mode = writer->crash_ctx->minidump_mode;
+    uint64_t crash_addr = (uint64_t)writer->crash_ctx->platform.siginfo.si_addr;
 
     // STACK_ONLY: Don't write memory list (stack is in thread list already)
     if (mode == SENTRY_MINIDUMP_MODE_STACK_ONLY) {
@@ -899,7 +906,8 @@ write_memory_list_stream(minidump_writer_t *writer, minidump_directory_t *dir)
     // Count regions to include
     size_t region_count = 0;
     for (size_t i = 0; i < writer->region_count; i++) {
-        if (should_include_region_macos(&writer->regions[i], mode)) {
+        if (should_include_region_macos(
+                &writer->regions[i], mode, crash_addr)) {
             region_count++;
         }
     }
@@ -923,7 +931,8 @@ write_memory_list_stream(minidump_writer_t *writer, minidump_directory_t *dir)
     size_t mem_idx = 0;
     for (size_t i = 0; i < writer->region_count && mem_idx < region_count;
         i++) {
-        if (!should_include_region_macos(&writer->regions[i], mode)) {
+        if (!should_include_region_macos(
+                &writer->regions[i], mode, crash_addr)) {
             continue;
         }
 
@@ -932,9 +941,8 @@ write_memory_list_stream(minidump_writer_t *writer, minidump_directory_t *dir)
 
         mach_vm_size_t region_size = region->size;
 
-        // Limit individual region size
-        const size_t MAX_REGION_SIZE
-            = SENTRY_CRASH_MAX_STACK_CAPTURE / 8 * 1024; // 64MB
+        // Limit individual region size to 4MB (matching Linux)
+        const size_t MAX_REGION_SIZE = 4 * 1024 * 1024;
         if (region_size > MAX_REGION_SIZE) {
             region_size = MAX_REGION_SIZE;
         }
