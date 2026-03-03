@@ -1164,11 +1164,13 @@ write_module_list_stream(minidump_writer_t *writer, minidump_directory_t *dir)
         uint64_t base;
         uint32_t size;
     } module_info_t;
-    module_info_t *mod_infos
-        = sentry_malloc(sizeof(module_info_t) * module_count);
-    if (!mod_infos) {
-        sentry_free(module_list);
-        return -1;
+    module_info_t *mod_infos = NULL;
+    if (module_count > 0) {
+        mod_infos = sentry_malloc(sizeof(module_info_t) * module_count);
+        if (!mod_infos) {
+            sentry_free(module_list);
+            return -1;
+        }
     }
 
     size_t mod_idx = 0;

@@ -1118,9 +1118,9 @@ sentry__write_minidump(
     enumerate_memory_regions(&writer);
 
     // Reserve space for header and directory
-    // Write 5 streams: system_info, threads, exception, module_list,
-    // memory_list
-    const uint32_t stream_count = 5;
+    // Write 6 streams: system_info, misc_info, threads, exception,
+    // module_list, memory_list
+    const uint32_t stream_count = 6;
     writer.current_offset = sizeof(minidump_header_t)
         + (stream_count * sizeof(minidump_directory_t));
 
@@ -1129,14 +1129,15 @@ sentry__write_minidump(
     }
 
     // Write streams
-    minidump_directory_t directories[5];
+    minidump_directory_t directories[6];
     int result = 0;
 
     result |= write_system_info_stream(&writer, &directories[0]);
-    result |= write_thread_list_stream(&writer, &directories[1]);
-    result |= write_exception_stream(&writer, &directories[2]);
-    result |= write_module_list_stream(&writer, &directories[3]);
-    result |= write_memory_list_stream(&writer, &directories[4]);
+    result |= write_misc_info_stream(&writer, &directories[1]);
+    result |= write_thread_list_stream(&writer, &directories[2]);
+    result |= write_exception_stream(&writer, &directories[3]);
+    result |= write_module_list_stream(&writer, &directories[4]);
+    result |= write_memory_list_stream(&writer, &directories[5]);
 
     if (result < 0) {
         goto cleanup_error;

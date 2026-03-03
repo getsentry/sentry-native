@@ -1,6 +1,12 @@
 #ifndef SENTRY_CRASH_CONTEXT_H_INCLUDED
 #define SENTRY_CRASH_CONTEXT_H_INCLUDED
 
+// _XOPEN_SOURCE must be defined before any system header inclusion for
+// ucontext_t to be fully exposed on strict POSIX-conforming systems.
+#if !defined(_WIN32) && !defined(_XOPEN_SOURCE)
+#    define _XOPEN_SOURCE 700
+#endif
+
 #include "sentry.h" // For sentry_minidump_mode_t
 #include "sentry_boot.h"
 
@@ -8,10 +14,6 @@
 #include <stdint.h>
 
 #if defined(SENTRY_PLATFORM_UNIX)
-// Define _XOPEN_SOURCE for ucontext.h on macOS
-#    ifndef _XOPEN_SOURCE
-#        define _XOPEN_SOURCE 700
-#    endif
 #    include <signal.h>
 #    include <sys/types.h>
 #    include <ucontext.h>
