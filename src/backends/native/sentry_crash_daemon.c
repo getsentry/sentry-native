@@ -2554,8 +2554,7 @@ sentry__process_crash(const sentry_options_t *options, sentry_crash_ipc_t *ipc)
     // death, so without this the new run could delete the directory.
     sentry_filelock_t *run_lock = NULL;
     if (run_folder) {
-        sentry_path_t *lock_path
-            = sentry__path_append_str(run_folder, ".lock");
+        sentry_path_t *lock_path = sentry__path_append_str(run_folder, ".lock");
         if (lock_path) {
             run_lock = sentry__filelock_new(lock_path);
             if (run_lock) {

@@ -2,10 +2,13 @@
 #include "sentry_cpu_relax.h"
 #include "sentry_options.h"
 
-// The batcher thread polls at this interval and flushes if the buffer has been
-// idle (no new items enqueued) for at least SENTRY_BATCHER_IDLE_FLUSH_MS.
-#define SENTRY_BATCHER_POLL_INTERVAL_MS 500
-#define SENTRY_BATCHER_IDLE_FLUSH_MS 5000
+// The batcher thread sleeps for FLUSH_INTERVAL between cycles. On timeout, a
+// partial buffer is only flushed if no new items have been enqueued for at
+// least IDLE_FLUSH threshold. The idle threshold is 2x the sleep interval so
+// that a single timeout cycle can never match it, preventing premature flushes
+// during active log production under slow environments (ASAN, coverage, etc.).
+#define SENTRY_BATCHER_FLUSH_INTERVAL_MS 5000
+#define SENTRY_BATCHER_IDLE_FLUSH_MS (SENTRY_BATCHER_FLUSH_INTERVAL_MS * 2)
 
 #ifdef SENTRY_UNITTEST
 #    ifdef SENTRY_PLATFORM_WINDOWS
@@ -195,8 +198,8 @@ sentry__batcher_enqueue(sentry_batcher_t *batcher, sentry_value_t item)
             sentry__atomic_fetch_and_add(&active->adding, -1);
 
             // Record enqueue time for idle-based flushing
-            sentry__atomic_store(&batcher->last_enqueue_ms,
-                (long)sentry__monotonic_time());
+            sentry__atomic_store(
+                &batcher->last_enqueue_ms, (long)sentry__monotonic_time());
 
             // Check if active buffer is now full and trigger flush. We could
             // introduce additional watermarks here to trigger the flush earlier
@@ -248,15 +251,14 @@ batcher_thread_func(void *data)
     //
     // Flush triggers:
     //  1. Buffer full → enqueue wakes us via request_flush (immediate flush)
-    //  2. Idle timeout → no new items for SENTRY_BATCHER_IDLE_FLUSH_MS
+    //  2. Idle timeout → partial buffer with no new items for one full
+    //     interval (prevents premature flushes under slow environments)
     //  3. Shutdown / force-flush → thread state change or cond_wake
-    //
-    // We poll on a short interval and only flush on idle timeout so that
-    // bursts of items are batched together regardless of wall-clock speed.
     while (sentry__atomic_fetch(&batcher->thread_state)
         == SENTRY_BATCHER_THREAD_RUNNING) {
-        sentry__cond_wait_timeout(
-            &batcher->request_flush, &task_lock, SENTRY_BATCHER_POLL_INTERVAL_MS);
+        // Sleep for 5 seconds or until request_flush hits
+        sentry__cond_wait_timeout(&batcher->request_flush, &task_lock,
+            SENTRY_BATCHER_FLUSH_INTERVAL_MS);
 
         // Check if we should still be running
         if (sentry__atomic_fetch(&batcher->thread_state)
@@ -264,8 +266,6 @@ batcher_thread_func(void *data)
             break;
         }
 
-        // Check whether we should flush: either the buffer is full (signalled
-        // by enqueue) or the buffer has been idle long enough.
         const long active_idx = sentry__atomic_fetch(&batcher->active_idx);
         sentry_batcher_buffer_t *buf = &batcher->buffers[active_idx];
         const long count = sentry__atomic_fetch(&buf->index);
@@ -274,9 +274,15 @@ batcher_thread_func(void *data)
         }
 
         if (count >= SENTRY_BATCHER_QUEUE_LENGTH) {
+            // Buffer is full → always flush immediately
             SENTRY_TRACE("Batcher flushed by filled buffer");
         } else {
-            const long last_ms = sentry__atomic_fetch(&batcher->last_enqueue_ms);
+            // Partial buffer → only flush if idle (no new items since we
+            // started sleeping). This prevents premature flushes when log
+            // production is slower than the flush interval (e.g. under ASAN
+            // or coverage instrumentation).
+            const long last_ms
+                = sentry__atomic_fetch(&batcher->last_enqueue_ms);
             const long now_ms = (long)sentry__monotonic_time();
             if ((now_ms - last_ms) < SENTRY_BATCHER_IDLE_FLUSH_MS) {
                 continue;
