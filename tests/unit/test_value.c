@@ -1,4 +1,5 @@
 #include "sentry_json.h"
+#include "sentry_path.h"
 #include "sentry_testsupport.h"
 #include "sentry_value.h"
 #include <locale.h>
@@ -1683,4 +1684,24 @@ SENTRY_TEST(value_merge_breadcrumbs_max_limit)
 
     sentry_value_decref(list_a);
     sentry_value_decref(list_b);
+}
+
+SENTRY_TEST(value_new_path)
+{
+    sentry_path_t *path = sentry__path_from_str("/tmp/test.txt");
+    sentry_value_t val = sentry__value_new_path(path);
+    TEST_CHECK(sentry_value_get_type(val) == SENTRY_VALUE_TYPE_STRING);
+    TEST_CHECK_STRING_EQUAL(sentry_value_as_string(val), "/tmp/test.txt");
+    sentry_value_decref(val);
+    sentry__path_free(path);
+
+#ifdef SENTRY_PLATFORM_WINDOWS
+    sentry_path_t *wpath = sentry__path_from_wstr(L"C:\\Users\\test\\file.txt");
+    sentry_value_t wval = sentry__value_new_path(wpath);
+    TEST_CHECK(sentry_value_get_type(wval) == SENTRY_VALUE_TYPE_STRING);
+    TEST_CHECK_STRING_EQUAL(
+        sentry_value_as_string(wval), "C:\\Users\\test\\file.txt");
+    sentry_value_decref(wval);
+    sentry__path_free(wpath);
+#endif
 }
