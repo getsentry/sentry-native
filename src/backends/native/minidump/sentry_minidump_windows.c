@@ -40,11 +40,14 @@ sentry__write_minidump(
     }
     sentry_free(woutput_path);
 
-    // Open crashed process with minimum required permissions for
-    // MiniDumpWriteDump Using PROCESS_ALL_ACCESS is excessive and can fail in
-    // restricted environments (services, sandboxes)
-    HANDLE process_handle = OpenProcess(
-        PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, FALSE, ctx->crashed_pid);
+    // Open crashed process with permissions needed for MiniDumpWriteDump.
+    // FULL mode uses MiniDumpWithHandleData | MiniDumpWithThreadInfo which
+    // requires PROCESS_DUP_HANDLE.
+    DWORD access_flags = PROCESS_QUERY_INFORMATION | PROCESS_VM_READ;
+    if (ctx->minidump_mode == SENTRY_MINIDUMP_MODE_FULL) {
+        access_flags |= PROCESS_DUP_HANDLE;
+    }
+    HANDLE process_handle = OpenProcess(access_flags, FALSE, ctx->crashed_pid);
 
     if (process_handle == NULL) {
         SENTRY_WARNF("failed to open process %lu: %lu", ctx->crashed_pid,

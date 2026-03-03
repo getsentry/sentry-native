@@ -277,20 +277,22 @@ build_registers_from_ctx(const sentry_crash_context_t *ctx, size_t thread_idx)
     sentry_value_set_by_key(
         registers, "rip", sentry__value_new_addr((uint64_t)mctx[16]));
 #    elif defined(__aarch64__)
+    // Use struct field access instead of raw pointer indexing because
+    // struct sigcontext has fault_address before regs[31] on aarch64.
     for (int i = 0; i < 29; i++) {
         char name[4];
         snprintf(name, sizeof(name), "x%d", i);
         sentry_value_set_by_key(
-            registers, name, sentry__value_new_addr((uint64_t)mctx[i]));
+            registers, name, sentry__value_new_addr(uctx->uc_mcontext.regs[i]));
     }
     sentry_value_set_by_key(
-        registers, "fp", sentry__value_new_addr((uint64_t)mctx[29]));
+        registers, "fp", sentry__value_new_addr(uctx->uc_mcontext.regs[29]));
     sentry_value_set_by_key(
-        registers, "lr", sentry__value_new_addr((uint64_t)mctx[30]));
+        registers, "lr", sentry__value_new_addr(uctx->uc_mcontext.regs[30]));
     sentry_value_set_by_key(
-        registers, "sp", sentry__value_new_addr((uint64_t)mctx[31]));
+        registers, "sp", sentry__value_new_addr(uctx->uc_mcontext.sp));
     sentry_value_set_by_key(
-        registers, "pc", sentry__value_new_addr((uint64_t)mctx[32]));
+        registers, "pc", sentry__value_new_addr(uctx->uc_mcontext.pc));
 #    endif
 
 #elif defined(SENTRY_PLATFORM_MACOS)
