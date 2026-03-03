@@ -239,9 +239,9 @@ build_registers_from_ctx(const sentry_crash_context_t *ctx, size_t thread_idx)
         && thread_idx < ctx->platform.num_threads) {
         uctx = &ctx->platform.threads[thread_idx].context;
     }
-    uintptr_t *mctx = (uintptr_t *)&uctx->uc_mcontext;
 
 #    if defined(__x86_64__)
+    uintptr_t *mctx = (uintptr_t *)&uctx->uc_mcontext;
     sentry_value_set_by_key(
         registers, "r8", sentry__value_new_addr((uint64_t)mctx[0]));
     sentry_value_set_by_key(
