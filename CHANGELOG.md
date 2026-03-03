@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.13.2
+
+### Internal Changes 🔧
+
+- (typo) Update `cleanup_cache` function documentation by @JoshuaMoelans in [#1522](https://github.com/getsentry/sentry-native/pull/1522)
+
 ## 0.13.1
 
 **Features**:
