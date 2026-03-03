@@ -11,7 +11,7 @@
  */
 typedef struct {
     int fd;
-    uint32_t current_offset;
+    uint64_t current_offset;
 } minidump_writer_base_t;
 
 /**

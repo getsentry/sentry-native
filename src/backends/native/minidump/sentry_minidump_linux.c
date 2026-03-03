@@ -929,6 +929,7 @@ write_thread_stack(minidump_writer_t *writer, uint64_t stack_pointer,
     void *stack_buffer = sentry_malloc(stack_size);
     if (!stack_buffer) {
         *stack_size_out = 0;
+        *stack_start_out = 0;
         return 0;
     }
 

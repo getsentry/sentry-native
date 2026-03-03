@@ -17,7 +17,7 @@ minidump_rva_t
 sentry__minidump_write_data(
     minidump_writer_base_t *writer, const void *data, size_t size)
 {
-    minidump_rva_t rva = writer->current_offset;
+    minidump_rva_t rva = (minidump_rva_t)writer->current_offset;
 
     ssize_t written = write(writer->fd, data, size);
     if (written != (ssize_t)size) {
