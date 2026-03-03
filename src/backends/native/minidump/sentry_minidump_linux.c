@@ -964,8 +964,10 @@ write_thread_stack(minidump_writer_t *writer, uint64_t stack_pointer,
     minidump_rva_t rva = 0;
     if (nread > 0) {
         rva = write_data(writer, stack_buffer, nread);
-        *stack_size_out = nread;
-        *stack_start_out = capture_start; // Return the actual start address
+        // Only set size/start if write succeeded; rva=0 with size>0 would
+        // cause parsers to read stack data from offset 0 (the minidump header).
+        *stack_size_out = rva ? (size_t)nread : 0;
+        *stack_start_out = rva ? capture_start : 0;
         SENTRY_DEBUGF(
             "Read %zd bytes of stack memory from 0x%llx (SP was 0x%llx)", nread,
             (unsigned long long)capture_start,
@@ -1468,7 +1470,7 @@ write_memory_list_stream(minidump_writer_t *writer, minidump_directory_t *dir)
         if (nread > 0) {
             mem->start_address = mapping->start;
             mem->memory.rva = write_data(writer, region_buffer, nread);
-            mem->memory.size = nread;
+            mem->memory.size = mem->memory.rva ? (uint32_t)nread : 0;
         } else {
             mem->start_address = mapping->start;
             mem->memory.size = 0;

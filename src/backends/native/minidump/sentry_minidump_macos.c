@@ -481,8 +481,8 @@ write_thread_stack(minidump_writer_t *writer, uint64_t stack_pointer,
     minidump_rva_t rva = 0;
     if (kr == KERN_SUCCESS) {
         rva = write_data(writer, stack_buffer, stack_size);
-        *stack_size_out = stack_size;
-        *stack_start_out = stack_start;
+        *stack_size_out = rva ? stack_size : 0;
+        *stack_start_out = rva ? stack_start : 0;
     } else {
         // Try with smaller size if full read fails (may hit unmapped memory)
         stack_size = MAX_STACK_SIZE / 4;
@@ -490,8 +490,8 @@ write_thread_stack(minidump_writer_t *writer, uint64_t stack_pointer,
             writer->task, stack_start, stack_buffer, stack_size);
         if (kr == KERN_SUCCESS) {
             rva = write_data(writer, stack_buffer, stack_size);
-            *stack_size_out = stack_size;
-            *stack_start_out = stack_start;
+            *stack_size_out = rva ? stack_size : 0;
+            *stack_start_out = rva ? stack_start : 0;
         } else {
             *stack_size_out = 0;
             *stack_start_out = 0;
@@ -965,7 +965,7 @@ write_memory_list_stream(minidump_writer_t *writer, minidump_directory_t *dir)
         if (kr == KERN_SUCCESS) {
             mem->start_address = region->address;
             mem->memory.rva = write_data(writer, region_buffer, region_size);
-            mem->memory.size = region_size;
+            mem->memory.size = mem->memory.rva ? region_size : 0;
         } else {
             mem->start_address = region->address;
             mem->memory.size = 0;
