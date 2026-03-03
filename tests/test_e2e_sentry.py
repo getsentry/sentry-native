@@ -90,7 +90,7 @@ def poll_sentry_for_event(test_id, max_attempts=POLL_MAX_ATTEMPTS):
             response = requests.get(
                 events_url,
                 headers=headers,
-                params={"query": f"test.id:{test_id}", "full": "true"},
+                params={"query": f'test.id:"{test_id}"', "full": "true"},
                 timeout=30,
             )
 
