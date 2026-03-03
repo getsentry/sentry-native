@@ -106,9 +106,7 @@ def poll_sentry_for_event(test_id, max_attempts=POLL_MAX_ATTEMPTS):
                     issue_id = issues[0]["id"]
 
                     # Step 2: Find the exact event within this issue
-                    events_url = (
-                        f"{SENTRY_API_BASE}/issues/{issue_id}/events/"
-                    )
+                    events_url = f"{SENTRY_API_BASE}/issues/{issue_id}/events/"
                     event_response = requests.get(
                         events_url,
                         headers=headers,
@@ -137,8 +135,7 @@ def poll_sentry_for_event(test_id, max_attempts=POLL_MAX_ATTEMPTS):
                             if detail_response.status_code == 200:
                                 event = detail_response.json()
                                 tags = {
-                                    t["key"]: t["value"]
-                                    for t in event.get("tags", [])
+                                    t["key"]: t["value"] for t in event.get("tags", [])
                                 }
                                 if tags.get("test.id") == test_id:
                                     print(
@@ -163,8 +160,7 @@ def poll_sentry_for_event(test_id, max_attempts=POLL_MAX_ATTEMPTS):
                             )
                     else:
                         last_error = (
-                            f"Issue events returned "
-                            f"{event_response.status_code}"
+                            f"Issue events returned " f"{event_response.status_code}"
                         )
                 else:
                     print(f"    No issues found yet")
