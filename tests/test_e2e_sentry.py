@@ -114,15 +114,11 @@ def poll_sentry_for_event(test_id, max_attempts=POLL_MAX_ATTEMPTS):
                     detail_response = requests.get(
                         detail_url, headers=headers, timeout=30
                     )
-                    print(
-                        f"    GET {detail_url} -> {detail_response.status_code}"
-                    )
+                    print(f"    GET {detail_url} -> {detail_response.status_code}")
 
                     if detail_response.status_code == 200:
                         event = detail_response.json()
-                        tags = {
-                            t["key"]: t["value"] for t in event.get("tags", [])
-                        }
+                        tags = {t["key"]: t["value"] for t in event.get("tags", [])}
                         if tags.get("test.id") == test_id:
                             print(f"  Found event after {attempt + 1} attempts")
                             return event
