@@ -99,17 +99,14 @@ typedef DWORD pid_t;
 // These wrappers use Apple's macros when available, falling back to direct
 // member access on plain arm64.
 // Note: only GET macros are provided. For copying full register state between
-// mcontext structs, use struct assignment which preserves raw PAC-signed values.
+// mcontext structs, use struct assignment which preserves raw PAC-signed
+// values.
 #if defined(SENTRY_PLATFORM_MACOS) && defined(__aarch64__)
 #    if defined(__DARWIN_OPAQUE_ARM_THREAD_STATE64)
-#        define SENTRY__ARM64_GET_FP(ss)                                        \
-            __darwin_arm_thread_state64_get_fp(ss)
-#        define SENTRY__ARM64_GET_LR(ss)                                        \
-            __darwin_arm_thread_state64_get_lr(ss)
-#        define SENTRY__ARM64_GET_SP(ss)                                        \
-            __darwin_arm_thread_state64_get_sp(ss)
-#        define SENTRY__ARM64_GET_PC(ss)                                        \
-            __darwin_arm_thread_state64_get_pc(ss)
+#        define SENTRY__ARM64_GET_FP(ss) __darwin_arm_thread_state64_get_fp(ss)
+#        define SENTRY__ARM64_GET_LR(ss) __darwin_arm_thread_state64_get_lr(ss)
+#        define SENTRY__ARM64_GET_SP(ss) __darwin_arm_thread_state64_get_sp(ss)
+#        define SENTRY__ARM64_GET_PC(ss) __darwin_arm_thread_state64_get_pc(ss)
 #    else
 #        define SENTRY__ARM64_GET_FP(ss) ((ss).__fp)
 #        define SENTRY__ARM64_GET_LR(ss) ((ss).__lr)

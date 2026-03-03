@@ -378,8 +378,7 @@ crash_signal_handler(int signum, siginfo_t *info, void *context)
 #        elif defined(__aarch64__)
                 // Copy entire thread state struct. This preserves raw
                 // register values including PAC-signed pointers on arm64e.
-                ctx->platform.threads[i].state.__ss
-                    = uctx->uc_mcontext->__ss;
+                ctx->platform.threads[i].state.__ss = uctx->uc_mcontext->__ss;
 #        endif
             } else {
                 // Capture thread state from thread_get_state for other threads

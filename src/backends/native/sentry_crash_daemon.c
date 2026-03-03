@@ -343,14 +343,14 @@ build_registers_from_ctx(const sentry_crash_context_t *ctx, size_t thread_idx)
         sentry_value_set_by_key(
             registers, name, sentry__value_new_addr(mctx->__ss.__x[i]));
     }
-    sentry_value_set_by_key(
-        registers, "fp", sentry__value_new_addr(SENTRY__ARM64_GET_FP(mctx->__ss)));
-    sentry_value_set_by_key(
-        registers, "lr", sentry__value_new_addr(SENTRY__ARM64_GET_LR(mctx->__ss)));
-    sentry_value_set_by_key(
-        registers, "sp", sentry__value_new_addr(SENTRY__ARM64_GET_SP(mctx->__ss)));
-    sentry_value_set_by_key(
-        registers, "pc", sentry__value_new_addr(SENTRY__ARM64_GET_PC(mctx->__ss)));
+    sentry_value_set_by_key(registers, "fp",
+        sentry__value_new_addr(SENTRY__ARM64_GET_FP(mctx->__ss)));
+    sentry_value_set_by_key(registers, "lr",
+        sentry__value_new_addr(SENTRY__ARM64_GET_LR(mctx->__ss)));
+    sentry_value_set_by_key(registers, "sp",
+        sentry__value_new_addr(SENTRY__ARM64_GET_SP(mctx->__ss)));
+    sentry_value_set_by_key(registers, "pc",
+        sentry__value_new_addr(SENTRY__ARM64_GET_PC(mctx->__ss)));
 #    endif
 
 #elif defined(SENTRY_PLATFORM_WINDOWS)
