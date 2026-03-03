@@ -1188,6 +1188,17 @@ write_module_list_stream(minidump_writer_t *writer, minidump_directory_t *dir)
     dir->rva = write_data(writer, module_list, list_size);
     dir->data_size = list_size;
 
+    // Guard against uint32_t RVA overflow. Minidump RVAs are 32-bit, so the
+    // entire file must stay under 4GB. In practice this never happens, but
+    // check defensively to avoid silently corrupt seek+patch writes below.
+    if (writer->current_offset > UINT32_MAX) {
+        SENTRY_WARN("minidump offset exceeds uint32_t range, skipping module "
+                    "name/CV patching");
+        sentry_free(mod_infos);
+        sentry_free(module_list);
+        return dir->rva ? 0 : -1;
+    }
+
     // Second pass: write module names and CV records, then update module list
     for (size_t i = 0; i < module_count; i++) {
         // Write module name

@@ -755,19 +755,21 @@ elseif(SENTRY_BACKEND_NATIVE)
 		${SENTRY_SOURCES}
 	)
 
-	# Define standalone mode and copy compile definitions from sentry
+	# Copy all compile definitions from sentry target so shared sources
+	# compile under identical preprocessor conditions (backend, transport,
+	# unwinder, compression, etc.)
+	get_target_property(SENTRY_COMPILE_DEFS sentry COMPILE_DEFINITIONS)
+	if(SENTRY_COMPILE_DEFS)
+		# The daemon is always a static executable, never a shared library
+		list(REMOVE_ITEM SENTRY_COMPILE_DEFS "SENTRY_BUILD_SHARED")
+		target_compile_definitions(sentry-crash PRIVATE ${SENTRY_COMPILE_DEFS})
+	endif()
+
+	# Add daemon-specific definitions
 	target_compile_definitions(sentry-crash PRIVATE
 		SENTRY_CRASH_DAEMON_STANDALONE
 		SENTRY_BUILD_STATIC
-		SENTRY_HANDLER_STACK_SIZE=${SENTRY_HANDLER_STACK_SIZE}
 	)
-
-	# Windows-specific compile definitions
-	if(WIN32)
-		target_compile_definitions(sentry-crash PRIVATE
-			SENTRY_THREAD_STACK_GUARANTEE_FACTOR=${SENTRY_THREAD_STACK_GUARANTEE_FACTOR}
-		)
-	endif()
 
 	# Copy include directories from sentry target
 	target_include_directories(sentry-crash PRIVATE

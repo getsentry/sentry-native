@@ -55,7 +55,12 @@ sentry__minidump_write_header(
         .flags = 0,
     };
 
-    if (sentry__minidump_write_data(writer, &header, sizeof(header)) == 0) {
+    // Write directly instead of via write_data to avoid corrupting
+    // current_offset. This function is called after seeking back to
+    // position 0, when current_offset holds the end-of-streams value.
+    ssize_t written = write(writer->fd, &header, sizeof(header));
+    if (written != (ssize_t)sizeof(header)) {
+        SENTRY_WARNF("minidump header write failed: %s", strerror(errno));
         return -1;
     }
 
