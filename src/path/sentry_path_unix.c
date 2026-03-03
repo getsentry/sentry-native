@@ -362,7 +362,8 @@ sentry__path_copy(const sentry_path_t *src, const sentry_path_t *dst)
             goto done;
         } else if (errno == EAGAIN || errno == EINTR) {
             continue;
-        } else if (errno == ENOSYS) {
+        } else if (errno == ENOSYS || errno == EXDEV || errno == EOPNOTSUPP
+            || errno == EINVAL) {
             break;
         } else {
             rv = 1;
