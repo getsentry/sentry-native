@@ -301,8 +301,10 @@ crash_signal_handler(int signum, siginfo_t *info, void *context)
     thread_act_array_t threads = NULL;
     mach_msg_type_number_t thread_count = 0;
 
-    // Get the crashing thread
-    thread_t crashing_thread = mach_thread_self();
+    // Get the crashing thread port without incrementing the reference count.
+    // mach_thread_self() would leak the port since mach_port_deallocate is
+    // not async-signal-safe.
+    thread_t crashing_thread = pthread_mach_thread_np(pthread_self());
 
     kern_return_t kr = task_threads(task, &threads, &thread_count);
     if (kr == KERN_SUCCESS) {

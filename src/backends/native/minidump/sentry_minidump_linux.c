@@ -602,10 +602,13 @@ write_thread_context(
             context.float_save.control_word = fpregs.cwd;
             context.float_save.status_word = fpregs.swd;
             context.float_save.tag_word = fpregs.ftw;
-            context.float_save.error_offset = fpregs.rip;
-            context.float_save.error_selector = 0;
-            context.float_save.data_offset = fpregs.rdp;
-            context.float_save.data_selector = 0;
+            context.float_save.error_opcode = fpregs.fop;
+            // On x86_64, FPU IP/DP are 64-bit. The FXSAVE format splits them
+            // across offset (low 32) and selector (high 16) fields.
+            context.float_save.error_offset = (uint32_t)fpregs.rip;
+            context.float_save.error_selector = (uint16_t)(fpregs.rip >> 32);
+            context.float_save.data_offset = (uint32_t)fpregs.rdp;
+            context.float_save.data_selector = (uint16_t)(fpregs.rdp >> 32);
             SENTRY_DEBUGF("Thread %d: copied control/status words", tid);
 
             // Copy XMM registers (XMM0-XMM15)
@@ -1523,11 +1526,9 @@ sentry__write_minidump(
     }
 
     // Reserve space for header and directory
-    // Number of streams depends on minidump mode:
-    // - STACK_ONLY: 4 streams (no memory list)
-    // - SMART/FULL: 5 streams (with memory list)
-    const uint32_t stream_count
-        = (ctx->minidump_mode == SENTRY_MINIDUMP_MODE_STACK_ONLY) ? 4 : 5;
+    // Always write 5 streams: system_info, threads, modules, exception,
+    // memory_list. For STACK_ONLY mode, memory_list is empty (count=0).
+    const uint32_t stream_count = 5;
     writer.current_offset = sizeof(minidump_header_t)
         + (stream_count * sizeof(minidump_directory_t));
 
@@ -1557,10 +1558,8 @@ sentry__write_minidump(
     SENTRY_DEBUG("writing exception stream");
     result |= write_exception_stream(&writer, &directories[3]);
 
-    // Write memory list stream for SMART and FULL modes
-    if (stream_count == 5) {
-        result |= write_memory_list_stream(&writer, &directories[4]);
-    }
+    // Write memory list stream (empty for STACK_ONLY, populated for SMART/FULL)
+    result |= write_memory_list_stream(&writer, &directories[4]);
 
     if (result < 0) {
         if (writer.ptrace_attached) {

@@ -390,7 +390,9 @@ write_thread_context(
     context.float_save.tag_word = mcontext->__fs.__fpu_ftw;
     context.float_save.error_opcode = mcontext->__fs.__fpu_fop;
     context.float_save.error_offset = mcontext->__fs.__fpu_ip;
+    context.float_save.error_selector = mcontext->__fs.__fpu_cs;
     context.float_save.data_offset = mcontext->__fs.__fpu_dp;
+    context.float_save.data_selector = mcontext->__fs.__fpu_ds;
     context.float_save.mx_csr = mcontext->__fs.__fpu_mxcsr;
     context.float_save.mx_csr_mask = mcontext->__fs.__fpu_mxcsrmask;
 
