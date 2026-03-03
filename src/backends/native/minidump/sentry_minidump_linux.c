@@ -892,7 +892,10 @@ write_thread_stack(minidump_writer_t *writer, uint64_t stack_pointer,
     uint64_t capture_start = stack_pointer;
 #    endif
 
-    // Find the stack mapping for this thread
+    // Find the stack mapping for this thread.
+    // First try named [stack] mappings (main thread), then fall back to any
+    // anonymous rw-p mapping containing the SP (non-main thread stacks are
+    // anonymous on Linux).
     uint64_t stack_start = 0;
     uint64_t stack_end = 0;
 
@@ -903,6 +906,24 @@ write_thread_stack(minidump_writer_t *writer, uint64_t stack_pointer,
             stack_start = writer->mappings[i].start;
             stack_end = writer->mappings[i].end;
             break;
+        }
+    }
+
+    if (stack_start == 0) {
+        // No named [stack] mapping found. Look for an anonymous rw-p mapping
+        // containing the SP (this is how non-main thread stacks appear in
+        // /proc/pid/maps).
+        for (size_t i = 0; i < writer->mapping_count; i++) {
+            if (stack_pointer >= writer->mappings[i].start
+                && stack_pointer < writer->mappings[i].end
+                && writer->mappings[i].permissions[0] == 'r'
+                && writer->mappings[i].permissions[1] == 'w'
+                && writer->mappings[i].permissions[2] != 'x'
+                && writer->mappings[i].name[0] == '\0') {
+                stack_start = writer->mappings[i].start;
+                stack_end = writer->mappings[i].end;
+                break;
+            }
         }
     }
 

@@ -46,13 +46,13 @@ typedef enum {
     MINIDUMP_CPU_ARM64 = 12, // PROCESSOR_ARCHITECTURE_ARM64
 } minidump_cpu_type_t;
 
-// OS types
+// OS types (must match Breakpad MDOSPlatform values)
 typedef enum {
-    MINIDUMP_OS_LINUX = 0x8000,
-    MINIDUMP_OS_ANDROID = 0x8001,
-    MINIDUMP_OS_MACOS = 0x8002,
-    MINIDUMP_OS_IOS = 0x8003,
-    MINIDUMP_OS_WINDOWS = 2,
+    MINIDUMP_OS_WINDOWS = 0x0002, // MD_OS_WIN32_NT
+    MINIDUMP_OS_MACOS = 0x8101, // MD_OS_MAC_OS_X
+    MINIDUMP_OS_IOS = 0x8102, // MD_OS_IOS
+    MINIDUMP_OS_LINUX = 0x8201, // MD_OS_LINUX
+    MINIDUMP_OS_ANDROID = 0x8203, // MD_OS_ANDROID
 } minidump_os_type_t;
 
 /**
