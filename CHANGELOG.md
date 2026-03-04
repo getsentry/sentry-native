@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+**Fixes**:
+
+- Allow null custom attributes without debug warning ([#1552](https://github.com/getsentry/sentry-native/pull/1552))
+
 ## 0.13.1
 
 **Features**:
@@ -10,7 +16,6 @@
 
 - Fix use-after-free on allocation failure when merging scope tags, extra, and contexts into a captured event. ([#1539](https://github.com/getsentry/sentry-native/pull/1539))
 - Remove C++ exception ABI symbols (`_Unwind_Resume`, etc.) from vendored `libunwind` build. ([#1544](https://github.com/getsentry/sentry-native/pull/1544))
-- Allow null custom attributes without debug warning ([#1552](https://github.com/getsentry/sentry-native/pull/1552))
 
 ## 0.13.0
 
