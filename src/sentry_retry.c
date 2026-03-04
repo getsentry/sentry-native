@@ -91,6 +91,17 @@ compare_retry_items(const void *a, const void *b)
     return strcmp(ia->uuid, ib->uuid);
 }
 
+static void
+remove_attachment_dir(const sentry_retry_t *retry, const retry_item_t *item)
+{
+    sentry_path_t *att_dir
+        = sentry__path_join_str(retry->run->cache_path, item->uuid);
+    if (att_dir) {
+        sentry__path_remove_all(att_dir);
+        sentry__path_free(att_dir);
+    }
+}
+
 static bool
 handle_result(sentry_retry_t *retry, const retry_item_t *item, int status_code)
 {
@@ -129,11 +140,13 @@ handle_result(sentry_retry_t *retry, const retry_item_t *item, int status_code)
     if (exhausted && retry->cache_keep) {
         if (!sentry__run_move_cache(retry->run, item->path, -1)) {
             sentry__path_remove(item->path);
+            remove_attachment_dir(retry, item);
         }
         return false;
     }
 
     sentry__path_remove(item->path);
+    remove_attachment_dir(retry, item);
     return false;
 }
 

@@ -88,8 +88,14 @@ def test_tus_upload_large_attachment(cmake, httpserver):
     assert attachment_ref.headers.get("attachment_length") == 100 * 1024 * 1024
 
     # large attachment files should be cleaned up after send
-    attachments_dir = os.path.join(tmp_path, ".sentry-native", "attachments")
-    assert not os.path.exists(attachments_dir) or os.listdir(attachments_dir) == []
+    cache_dir = os.path.join(tmp_path, ".sentry-native", "cache")
+    if os.path.isdir(cache_dir):
+        subdirs = [
+            d
+            for d in os.listdir(cache_dir)
+            if os.path.isdir(os.path.join(cache_dir, d))
+        ]
+        assert subdirs == []
 
 
 def test_tus_upload_404_disables(cmake, httpserver):
@@ -153,10 +159,19 @@ def test_tus_crash_restart(cmake, httpserver):
         env=env,
     )
 
-    # Verify large attachment was persisted to disk
-    attachments_dir = os.path.join(tmp_path, ".sentry-native", "attachments")
-    assert os.path.isdir(attachments_dir)
-    assert len(os.listdir(attachments_dir)) > 0
+    # Verify large attachment was persisted to disk in cache/<uuid>/
+    cache_dir = os.path.join(tmp_path, ".sentry-native", "cache")
+    assert os.path.isdir(cache_dir)
+    att_dirs = [
+        d for d in os.listdir(cache_dir) if os.path.isdir(os.path.join(cache_dir, d))
+    ]
+    assert len(att_dirs) > 0
+    # Verify the attachment file is at least 100MB
+    att_dir = os.path.join(cache_dir, att_dirs[0])
+    att_files = os.listdir(att_dir)
+    assert len(att_files) > 0
+    att_size = os.path.getsize(os.path.join(att_dir, att_files[0]))
+    assert att_size >= 100 * 1024 * 1024
 
     location = "/api/123456/upload/abc123def456789/?length=104857600&signature=xyz"
 
@@ -215,8 +230,11 @@ def test_tus_crash_restart(cmake, httpserver):
     assert attachment_ref.payload.json["location"] == location
     assert attachment_ref.headers.get("attachment_length") == 100 * 1024 * 1024
 
-    # Large attachment files should be cleaned up after send
-    assert not os.path.exists(attachments_dir) or os.listdir(attachments_dir) == []
+    # Large attachment dirs should be cleaned up after send
+    remaining_dirs = [
+        d for d in os.listdir(cache_dir) if os.path.isdir(os.path.join(cache_dir, d))
+    ]
+    assert remaining_dirs == []
 
 
 def test_small_attachment_no_tus(cmake, httpserver):

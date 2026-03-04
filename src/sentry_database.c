@@ -167,13 +167,12 @@ write_envelope(const sentry_path_t *path, const sentry_envelope_t *envelope,
 static sentry_path_t *
 resolve_large_attachment_dir(const sentry_path_t *db_path, const char *uuid_str)
 {
-    sentry_path_t *attachments_dir
-        = sentry__path_join_str(db_path, "attachments");
-    if (!attachments_dir) {
+    sentry_path_t *cache_dir = sentry__path_join_str(db_path, "cache");
+    if (!cache_dir) {
         return NULL;
     }
-    sentry_path_t *event_dir = sentry__path_join_str(attachments_dir, uuid_str);
-    sentry__path_free(attachments_dir);
+    sentry_path_t *event_dir = sentry__path_join_str(cache_dir, uuid_str);
+    sentry__path_free(cache_dir);
     return event_dir;
 }
 
@@ -530,6 +529,7 @@ sentry__process_old_runs(const sentry_options_t *options, uint64_t last_crash)
                             && sentry__envelope_materialize(envelope) != 0) {
                             sentry_envelope_free(envelope);
                             envelope = NULL;
+                            sentry__path_remove_all(att_dir);
                         }
                         sentry__path_free(att_dir);
                     }
@@ -581,6 +581,22 @@ compare_cache_entries_newest_first(const void *a, const void *b)
         return -1;
     }
     return 0;
+}
+
+static const char *
+extract_envelope_uuid(const char *filename)
+{
+    uint64_t ts;
+    int count;
+    const char *uuid;
+    if (sentry__parse_cache_filename(filename, &ts, &count, &uuid)) {
+        return uuid;
+    }
+    size_t len = strlen(filename);
+    if (len == 45 && strcmp(filename + 36, ".envelope") == 0) {
+        return filename;
+    }
+    return NULL;
 }
 
 void
@@ -669,12 +685,66 @@ sentry__cleanup_cache(const sentry_options_t *options)
         }
 
         if (should_prune) {
+            const char *fname = sentry__path_filename(entries[i].path);
+            if (fname) {
+                const char *uuid = extract_envelope_uuid(fname);
+                if (uuid) {
+                    char uuid_buf[37];
+                    memcpy(uuid_buf, uuid, 36);
+                    uuid_buf[36] = '\0';
+                    sentry_path_t *att_dir
+                        = sentry__path_join_str(cache_dir, uuid_buf);
+                    if (att_dir) {
+                        sentry__path_remove_all(att_dir);
+                        sentry__path_free(att_dir);
+                    }
+                }
+            }
             sentry__path_remove_all(entries[i].path);
         }
         sentry__path_free(entries[i].path);
     }
 
     sentry_free(entries);
+
+    // Second pass: age-prune orphaned attachment directories
+    // (dirs without a matching .envelope, e.g. envelope deleted by
+    // materialization failure or TUS disabled)
+    if (options->cache_max_age > 0) {
+        iter = sentry__path_iter_directory(cache_dir);
+        while (iter && (entry = sentry__pathiter_next(iter)) != NULL) {
+            if (!sentry__path_is_dir(entry)) {
+                continue;
+            }
+            const char *dirname = sentry__path_filename(entry);
+            if (!dirname || strlen(dirname) != 36) {
+                continue;
+            }
+            time_t dir_mtime = sentry__path_get_mtime(entry);
+            if (dir_mtime >= oldest_allowed) {
+                continue;
+            }
+            bool has_envelope = false;
+            sentry_pathiter_t *fiter = sentry__path_iter_directory(cache_dir);
+            const sentry_path_t *f;
+            while (fiter && (f = sentry__pathiter_next(fiter)) != NULL) {
+                if (sentry__path_is_dir(f)) {
+                    continue;
+                }
+                const char *fname = sentry__path_filename(f);
+                if (fname && strstr(fname, dirname)) {
+                    has_envelope = true;
+                    break;
+                }
+            }
+            sentry__pathiter_free(fiter);
+            if (!has_envelope) {
+                sentry__path_remove_all(entry);
+            }
+        }
+        sentry__pathiter_free(iter);
+    }
+
     sentry__path_free(cache_dir);
 }
 
@@ -745,7 +815,7 @@ sentry__db_remove_large_attachment(
         return;
     }
 
-    // Only delete files under <db>/attachments/<uuid>/<file>.
+    // Only delete files under <db>/cache/<uuid>/<file>.
     // Walk up the directory tree and verify the grandparent matches.
     sentry_path_t *event_dir = sentry__path_dir(path);
     if (!event_dir) {
@@ -757,15 +827,13 @@ sentry__db_remove_large_attachment(
         return;
     }
 
-    sentry_path_t *attachments_dir
-        = sentry__path_join_str(db_path, "attachments");
-    bool is_db_owned
-        = attachments_dir && sentry__path_eq(parent_dir, attachments_dir);
+    sentry_path_t *cache_dir = sentry__path_join_str(db_path, "cache");
+    bool is_db_owned = cache_dir && sentry__path_eq(parent_dir, cache_dir);
 
+    sentry__path_free(cache_dir);
     sentry__path_free(parent_dir);
 
     if (!is_db_owned) {
-        sentry__path_free(attachments_dir);
         sentry__path_free(event_dir);
         return;
     }
@@ -773,6 +841,4 @@ sentry__db_remove_large_attachment(
     sentry__path_remove(path);
     sentry__path_remove(event_dir);
     sentry__path_free(event_dir);
-    sentry__path_remove(attachments_dir);
-    sentry__path_free(attachments_dir);
 }

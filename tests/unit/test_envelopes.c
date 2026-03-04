@@ -1032,7 +1032,7 @@ SENTRY_TEST(attachment_ref_copy)
         "application/x-dmp");
     sentry_value_decref(payload_json);
 
-    // after dump: ref points to attachments dir copy, content_type preserved
+    // after dump: ref points to cache dir copy, content_type preserved
     sentry_run_t *run = NULL;
     SENTRY_WITH_OPTIONS (opts) {
         run = opts->run;
@@ -1045,11 +1045,11 @@ SENTRY_TEST(attachment_ref_copy)
     ref_path
         = sentry_value_as_string(sentry_value_get_by_key(payload_json, "path"));
 #ifdef SENTRY_PLATFORM_WINDOWS
-    TEST_CHECK(!!strstr(
-        ref_path, "\\attachments\\c993afb6-b4ac-48a6-b61b-2558e601d65d\\"));
+    TEST_CHECK(
+        !!strstr(ref_path, "\\cache\\c993afb6-b4ac-48a6-b61b-2558e601d65d\\"));
 #else
-    TEST_CHECK(!!strstr(
-        ref_path, "/attachments/c993afb6-b4ac-48a6-b61b-2558e601d65d/"));
+    TEST_CHECK(
+        !!strstr(ref_path, "/cache/c993afb6-b4ac-48a6-b61b-2558e601d65d/"));
 #endif
     TEST_CHECK_STRING_EQUAL(sentry_value_as_string(sentry_value_get_by_key(
                                 payload_json, "content_type")),
@@ -1123,7 +1123,7 @@ SENTRY_TEST(attachment_ref_move)
     TEST_CHECK_STRING_EQUAL(ref_path, src_path->path);
     sentry_value_decref(payload_json);
 
-    // after dump: run-dir file is renamed to db/attachments/
+    // after dump: run-dir file is renamed to db/cache/<uuid>/
     sentry__run_write_envelope(run, envelope);
 
     TEST_CHECK(!sentry__path_is_file(src_path));
@@ -1134,11 +1134,11 @@ SENTRY_TEST(attachment_ref_move)
         = sentry_value_as_string(sentry_value_get_by_key(payload_json, "path"));
 #ifdef SENTRY_PLATFORM_WINDOWS
     TEST_CHECK(!!strstr(ref_path,
-        "\\attachments\\c993afb6-b4ac-48a6-b61b-2558e601d65d\\"
+        "\\cache\\c993afb6-b4ac-48a6-b61b-2558e601d65d\\"
         "test_minidump.dmp"));
 #else
     TEST_CHECK(!!strstr(ref_path,
-        "/attachments/c993afb6-b4ac-48a6-b61b-2558e601d65d/"
+        "/cache/c993afb6-b4ac-48a6-b61b-2558e601d65d/"
         "test_minidump.dmp"));
 #endif
 
@@ -1178,11 +1178,11 @@ send_restore_envelope(sentry_envelope_t *envelope, void *data)
             = sentry_value_as_string(sentry_value_get_by_key(pj, "path"));
 #ifdef SENTRY_PLATFORM_WINDOWS
         TEST_CHECK(!!strstr(ref_path,
-            "\\attachments\\c993afb6-b4ac-48a6-b61b-2558e601d65d\\"
+            "\\cache\\c993afb6-b4ac-48a6-b61b-2558e601d65d\\"
             "test_minidump.dmp"));
 #else
         TEST_CHECK(!!strstr(ref_path,
-            "/attachments/c993afb6-b4ac-48a6-b61b-2558e601d65d/"
+            "/cache/c993afb6-b4ac-48a6-b61b-2558e601d65d/"
             "test_minidump.dmp"));
 #endif
         sentry_value_decref(pj);
@@ -1206,11 +1206,11 @@ SENTRY_TEST(attachment_ref_restore)
     sentry_path_t *old_run_path = sentry__path_join_str(db_path, "old.run");
     TEST_ASSERT(sentry__path_create_dir_all(old_run_path) == 0);
 
-    // build attachment path in db/attachments/<uuid>/
-    sentry_path_t *att_dir = sentry__path_join_str(db_path, "attachments");
+    // build attachment path in db/cache/<uuid>/
+    sentry_path_t *cache_dir = sentry__path_join_str(db_path, "cache");
     sentry_path_t *event_att_dir = sentry__path_join_str(
-        att_dir, "c993afb6-b4ac-48a6-b61b-2558e601d65d");
-    sentry__path_free(att_dir);
+        cache_dir, "c993afb6-b4ac-48a6-b61b-2558e601d65d");
+    sentry__path_free(cache_dir);
     TEST_ASSERT(sentry__path_create_dir_all(event_att_dir) == 0);
 
     sentry_path_t *att_file
