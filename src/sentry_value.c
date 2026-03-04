@@ -93,6 +93,7 @@ typedef struct {
     sentry_value_t *items;
     size_t len;
     size_t allocated;
+    long refcount;
 } list_t;
 
 typedef struct {
@@ -104,6 +105,7 @@ typedef struct {
     obj_pair_t *pairs;
     size_t len;
     size_t allocated;
+    long refcount;
 } obj_t;
 
 static const char *
@@ -161,32 +163,142 @@ thing_get_type(const thing_t *thing)
 }
 
 static void
-thing_free(thing_t *thing)
+list_free(list_t *list)
+{
+    if (sentry__atomic_fetch_and_add(&list->refcount, -1) != 1) {
+        return;
+    }
+    for (size_t i = 0; i < list->len; i++) {
+        sentry_value_decref(list->items[i]);
+    }
+    sentry_free(list->items);
+    sentry_free(list);
+}
+
+static void
+obj_free(obj_t *obj)
+{
+    if (sentry__atomic_fetch_and_add(&obj->refcount, -1) != 1) {
+        return;
+    }
+    for (size_t i = 0; i < obj->len; i++) {
+        sentry_free(obj->pairs[i].k);
+        sentry_value_decref(obj->pairs[i].v);
+    }
+    sentry_free(obj->pairs);
+    sentry_free(obj);
+}
+
+static bool
+thing_detach(thing_t *thing)
 {
     switch (thing_get_type(thing)) {
     case THING_TYPE_LIST: {
-        list_t *list = thing->payload._ptr;
-        for (size_t i = 0; i < list->len; i++) {
-            sentry_value_decref(list->items[i]);
+        list_t *old = thing->payload._ptr;
+        if (sentry__atomic_fetch(&old->refcount) <= 1) {
+            return true;
         }
-        sentry_free(list->items);
-        sentry_free(list);
-        break;
+        list_t *new_list = SENTRY_MAKE(list_t);
+        if (!new_list) {
+            return false;
+        }
+        new_list->len = old->len;
+        new_list->allocated = old->len;
+        new_list->refcount = 1;
+        if (old->len) {
+            new_list->items = sentry_malloc(sizeof(sentry_value_t) * old->len);
+            if (!new_list->items) {
+                sentry_free(new_list);
+                return false;
+            }
+            memcpy(
+                new_list->items, old->items, sizeof(sentry_value_t) * old->len);
+            for (size_t i = 0; i < old->len; i++) {
+                sentry_value_incref(new_list->items[i]);
+            }
+        } else {
+            new_list->items = NULL;
+        }
+        list_free(old);
+        thing->payload._ptr = new_list;
+        return true;
     }
     case THING_TYPE_OBJECT: {
-        obj_t *obj = thing->payload._ptr;
-        for (size_t i = 0; i < obj->len; i++) {
-            sentry_free(obj->pairs[i].k);
-            sentry_value_decref(obj->pairs[i].v);
+        obj_t *old = thing->payload._ptr;
+        if (sentry__atomic_fetch(&old->refcount) <= 1) {
+            return true;
         }
-        sentry_free(obj->pairs);
-        sentry_free(obj);
+        obj_t *new_obj = SENTRY_MAKE(obj_t);
+        if (!new_obj) {
+            return false;
+        }
+        new_obj->len = old->len;
+        new_obj->allocated = old->len;
+        new_obj->refcount = 1;
+        if (old->len) {
+            new_obj->pairs = sentry_malloc(sizeof(obj_pair_t) * old->len);
+            if (!new_obj->pairs) {
+                sentry_free(new_obj);
+                return false;
+            }
+            for (size_t i = 0; i < old->len; i++) {
+                new_obj->pairs[i].k = sentry__string_clone(old->pairs[i].k);
+                new_obj->pairs[i].v = old->pairs[i].v;
+                sentry_value_incref(new_obj->pairs[i].v);
+            }
+        } else {
+            new_obj->pairs = NULL;
+        }
+        obj_free(old);
+        thing->payload._ptr = new_obj;
+        return true;
+    }
+    default:
+        return true;
+    }
+}
+
+static sentry_value_t
+thing_get_child(const thing_t *thing, size_t i)
+{
+    switch (thing_get_type(thing)) {
+    case THING_TYPE_LIST:
+        return ((const list_t *)thing->payload._ptr)->items[i];
+    case THING_TYPE_OBJECT:
+        return ((const obj_t *)thing->payload._ptr)->pairs[i].v;
+    default:
+        return sentry_value_new_null();
+    }
+}
+
+static void
+thing_set_child(thing_t *thing, size_t i, sentry_value_t value)
+{
+    switch (thing_get_type(thing)) {
+    case THING_TYPE_LIST:
+        ((list_t *)thing->payload._ptr)->items[i] = value;
+        break;
+    case THING_TYPE_OBJECT:
+        ((obj_t *)thing->payload._ptr)->pairs[i].v = value;
+        break;
+    default:
         break;
     }
-    case THING_TYPE_STRING: {
+}
+
+static void
+thing_free(thing_t *thing)
+{
+    switch (thing_get_type(thing)) {
+    case THING_TYPE_LIST:
+        list_free(thing->payload._ptr);
+        break;
+    case THING_TYPE_OBJECT:
+        obj_free(thing->payload._ptr);
+        break;
+    case THING_TYPE_STRING:
         sentry_free(thing->payload._ptr);
         break;
-    }
     }
     sentry_free(thing);
 }
@@ -393,6 +505,7 @@ sentry_value_new_list(void)
     list_t *l = SENTRY_MAKE(list_t);
     if (l) {
         memset(l, 0, sizeof(list_t));
+        l->refcount = 1;
         sentry_value_t rv = new_thing_value(l, THING_TYPE_LIST);
         if (sentry_value_is_null(rv)) {
             sentry_free(l);
@@ -409,6 +522,7 @@ sentry__value_new_list_with_size(size_t size)
     list_t *l = SENTRY_MAKE(list_t);
     if (l) {
         memset(l, 0, sizeof(list_t));
+        l->refcount = 1;
         l->allocated = size;
         if (size) {
             l->items = sentry_malloc(sizeof(sentry_value_t) * size);
@@ -434,6 +548,7 @@ sentry_value_new_object(void)
     obj_t *o = SENTRY_MAKE(obj_t);
     if (o) {
         memset(o, 0, sizeof(obj_t));
+        o->refcount = 1;
         sentry_value_t rv = new_thing_value(o, THING_TYPE_OBJECT);
         if (sentry_value_is_null(rv)) {
             sentry_free(o);
@@ -450,6 +565,7 @@ sentry__value_new_object_with_size(size_t size)
     obj_t *o = SENTRY_MAKE(obj_t);
     if (o) {
         memset(o, 0, sizeof(obj_t));
+        o->refcount = 1;
         o->allocated = size;
         if (size) {
             o->pairs = sentry_malloc(sizeof(obj_pair_t) * size);
@@ -640,7 +756,8 @@ sentry_value_set_by_key_n(
     }
     sentry_slice_t k_slice = { k, k_len };
     thing_t *thing = value_as_unfrozen_thing(value);
-    if (!thing || thing_get_type(thing) != THING_TYPE_OBJECT) {
+    if (!thing || thing_get_type(thing) != THING_TYPE_OBJECT
+        || !thing_detach(thing)) {
         goto fail;
     }
     obj_t *o = thing->payload._ptr;
@@ -691,7 +808,8 @@ sentry_value_remove_by_key_n(sentry_value_t value, const char *k, size_t k_len)
     }
     sentry_slice_t k_slice = { k, k_len };
     thing_t *thing = value_as_unfrozen_thing(value);
-    if (!thing || thing_get_type(thing) != THING_TYPE_OBJECT) {
+    if (!thing || thing_get_type(thing) != THING_TYPE_OBJECT
+        || !thing_detach(thing)) {
         return 1;
     }
     obj_t *o = thing->payload._ptr;
@@ -723,7 +841,8 @@ int
 sentry_value_append(sentry_value_t value, sentry_value_t v)
 {
     thing_t *thing = value_as_unfrozen_thing(value);
-    if (!thing || thing_get_type(thing) != THING_TYPE_LIST) {
+    if (!thing || thing_get_type(thing) != THING_TYPE_LIST
+        || !thing_detach(thing)) {
         goto fail;
     }
 
@@ -792,6 +911,39 @@ sentry__value_stringify(sentry_value_t value)
 #undef STRINGIFY_NUMERIC
 }
 
+static bool
+value_is_container(sentry_value_t value)
+{
+    const thing_t *thing = value_as_thing(value);
+    if (!thing) {
+        return false;
+    }
+    int type = thing_get_type(thing);
+    return type == THING_TYPE_LIST || type == THING_TYPE_OBJECT;
+}
+
+static bool
+thing_clone_children(thing_t *thing, size_t len)
+{
+    bool detached = false;
+    for (size_t i = 0; i < len; i++) {
+        sentry_value_t child = thing_get_child(thing, i);
+        if (!value_is_container(child)) {
+            continue;
+        }
+        if (!detached) {
+            if (!thing_detach(thing)) {
+                return false;
+            }
+            detached = true;
+        }
+        sentry_value_t cloned = sentry__value_clone(child);
+        sentry_value_decref(child);
+        thing_set_child(thing, i, cloned);
+    }
+    return true;
+}
+
 sentry_value_t
 sentry__value_clone(sentry_value_t value)
 {
@@ -801,20 +953,30 @@ sentry__value_clone(sentry_value_t value)
     }
     switch (thing_get_type(thing)) {
     case THING_TYPE_LIST: {
-        const list_t *list = thing->payload._ptr;
-        sentry_value_t rv = sentry__value_new_list_with_size(list->len);
-        for (size_t i = 0; i < list->len; i++) {
-            sentry_value_incref(list->items[i]);
-            sentry_value_append(rv, list->items[i]);
+        list_t *list = thing->payload._ptr;
+        sentry__atomic_fetch_and_add(&list->refcount, 1);
+        sentry_value_t rv = new_thing_value(list, THING_TYPE_LIST);
+        if (sentry_value_is_null(rv)) {
+            list_free(list);
+            return rv;
+        }
+        if (!thing_clone_children(value_as_thing(rv), list->len)) {
+            sentry_value_decref(rv);
+            return sentry_value_new_null();
         }
         return rv;
     }
     case THING_TYPE_OBJECT: {
-        const obj_t *obj = thing->payload._ptr;
-        sentry_value_t rv = sentry__value_new_object_with_size(obj->len);
-        for (size_t i = 0; i < obj->len; i++) {
-            sentry_value_incref(obj->pairs[i].v);
-            sentry_value_set_by_key(rv, obj->pairs[i].k, obj->pairs[i].v);
+        obj_t *obj = thing->payload._ptr;
+        sentry__atomic_fetch_and_add(&obj->refcount, 1);
+        sentry_value_t rv = new_thing_value(obj, THING_TYPE_OBJECT);
+        if (sentry_value_is_null(rv)) {
+            obj_free(obj);
+            return rv;
+        }
+        if (!thing_clone_children(value_as_thing(rv), obj->len)) {
+            sentry_value_decref(rv);
+            return sentry_value_new_null();
         }
         return rv;
     }
@@ -833,7 +995,8 @@ int
 sentry_value_set_by_index(sentry_value_t value, size_t index, sentry_value_t v)
 {
     thing_t *thing = value_as_unfrozen_thing(value);
-    if (!thing || thing_get_type(thing) != THING_TYPE_LIST) {
+    if (!thing || thing_get_type(thing) != THING_TYPE_LIST
+        || !thing_detach(thing)) {
         goto fail;
     }
 
@@ -863,7 +1026,8 @@ int
 sentry_value_remove_by_index(sentry_value_t value, size_t index)
 {
     thing_t *thing = value_as_unfrozen_thing(value);
-    if (!thing || thing_get_type(thing) != THING_TYPE_LIST) {
+    if (!thing || thing_get_type(thing) != THING_TYPE_LIST
+        || !thing_detach(thing)) {
         return 1;
     }
 
