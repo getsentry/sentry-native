@@ -259,7 +259,7 @@ construct_log(sentry_level_t level, const char *message, va_list args)
                 // precedence for conflicts)
                 sentry_value_decref(attributes);
                 attributes = sentry__value_clone(custom_attributes);
-            } else {
+            } else if (!sentry_value_is_null(custom_attributes)) {
                 SENTRY_DEBUG("Discarded custom attributes on log: non-object "
                              "sentry_value_t passed in");
             }
