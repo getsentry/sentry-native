@@ -4,7 +4,7 @@
 
 **Fixes**:
 
-- Allow null custom attributes without debug warning ([#1552](https://github.com/getsentry/sentry-native/pull/1552))
+- Allow null custom log attributes without debug warning ([#1552](https://github.com/getsentry/sentry-native/pull/1552))
 
 ## 0.13.1
 
