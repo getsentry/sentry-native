@@ -235,8 +235,12 @@ sentry__run_make_cache_path(
     const sentry_run_t *run, uint64_t ts, int count, const char *uuid)
 {
     char filename[128];
-    snprintf(filename, sizeof(filename), "%" PRIu64 "-%02d-%.36s.envelope", ts,
-        count, uuid);
+    if (count >= 0) {
+        snprintf(filename, sizeof(filename), "%" PRIu64 "-%02d-%.36s.envelope",
+            ts, count, uuid);
+    } else {
+        snprintf(filename, sizeof(filename), "%.36s.envelope", uuid);
+    }
     return sentry__path_join_str(run->cache_path, filename);
 }
 
@@ -249,7 +253,6 @@ sentry__run_move_cache(
         return false;
     }
 
-    char filename[128];
     const char *src_name = sentry__path_filename(src);
     uint64_t parsed_ts;
     int parsed_count;
@@ -258,14 +261,9 @@ sentry__run_move_cache(
                                  &parsed_count, &parsed_uuid)
         ? parsed_uuid
         : src_name;
-    if (retry_count >= 0) {
-        snprintf(filename, sizeof(filename), "%" PRIu64 "-%02d-%.36s.envelope",
-            sentry__usec_time() / 1000, retry_count, cache_name);
-    } else {
-        snprintf(filename, sizeof(filename), "%s", cache_name);
-    }
 
-    sentry_path_t *dst_path = sentry__path_join_str(run->cache_path, filename);
+    sentry_path_t *dst_path = sentry__run_make_cache_path(
+        run, sentry__usec_time() / 1000, retry_count, cache_name);
     if (!dst_path) {
         return false;
     }
