@@ -340,6 +340,36 @@ SENTRY_TEST(path_rename)
     sentry__path_free(src);
 }
 
+SENTRY_TEST(path_dir_size)
+{
+    sentry_path_t *dir
+        = sentry__path_from_str(SENTRY_TEST_PATH_PREFIX ".dir-size");
+    TEST_ASSERT(!!dir);
+
+    sentry__path_remove_all(dir);
+
+    TEST_CHECK(sentry__path_get_dir_size(dir) == 0);
+
+    sentry__path_create_dir_all(dir);
+
+    sentry_path_t *file_a = sentry__path_join_str(dir, "a.txt");
+    TEST_ASSERT(!!file_a);
+    sentry__path_write_buffer(file_a, "hello", 5);
+
+    sentry_path_t *file_b = sentry__path_join_str(dir, "b.txt");
+    TEST_ASSERT(!!file_b);
+    sentry__path_write_buffer(file_b, "world!", 6);
+
+    TEST_CHECK(sentry__path_get_dir_size(dir) == 11);
+
+    TEST_CHECK(sentry__path_get_dir_size(file_a) == 0);
+
+    sentry__path_remove_all(dir);
+    sentry__path_free(file_b);
+    sentry__path_free(file_a);
+    sentry__path_free(dir);
+}
+
 SENTRY_TEST(path_copy)
 {
 #if defined(SENTRY_PLATFORM_NX)
