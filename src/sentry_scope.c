@@ -350,8 +350,8 @@ sentry__scope_apply_to_event(const sentry_scope_t *scope,
         SET("level", sentry__value_new_level(scope->level));
     }
 
-    PLACE_VALUE("user", scope->user);
-    PLACE_VALUE("fingerprint", scope->fingerprint);
+    PLACE_CLONED_VALUE("user", scope->user);
+    PLACE_CLONED_VALUE("fingerprint", scope->fingerprint);
     PLACE_STRING("transaction", scope->transaction);
     PLACE_VALUE("sdk", scope->client_sdk);
 

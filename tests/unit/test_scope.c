@@ -711,6 +711,88 @@ SENTRY_TEST(before_breadcrumb_passthrough)
     sentry_close();
 }
 
+static sentry_value_t
+before_send_modify_scope_values(
+    sentry_value_t event, void *UNUSED(hint), void *UNUSED(data))
+{
+    sentry_value_t contexts = sentry_value_get_by_key(event, "contexts");
+    sentry_value_t gpu = sentry_value_get_by_key(contexts, "gpu");
+    sentry_value_set_by_key(gpu, "name", sentry_value_new_string("modified"));
+    sentry_value_set_by_key(
+        gpu, "injected", sentry_value_new_string("injected"));
+
+    sentry_value_t extra = sentry_value_get_by_key(event, "extra");
+    sentry_value_t data_obj = sentry_value_get_by_key(extra, "data");
+    sentry_value_set_by_key(
+        data_obj, "key", sentry_value_new_string("modified"));
+    sentry_value_set_by_key(
+        data_obj, "injected", sentry_value_new_string("injected"));
+
+    sentry_value_t user = sentry_value_get_by_key(event, "user");
+    sentry_value_set_by_key(
+        user, "username", sentry_value_new_string("modified"));
+    sentry_value_set_by_key(
+        user, "injected", sentry_value_new_string("injected"));
+
+    sentry_value_t fingerprint = sentry_value_get_by_key(event, "fingerprint");
+    sentry_value_append(fingerprint, sentry_value_new_string("injected"));
+
+    return event;
+}
+
+SENTRY_TEST(scope_clone)
+{
+    SENTRY_TEST_OPTIONS_NEW(options);
+    sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
+    sentry_options_set_before_send(
+        options, before_send_modify_scope_values, NULL);
+    sentry_init(options);
+
+    sentry_value_t gpu = sentry_value_new_object();
+    sentry_value_set_by_key(gpu, "name", sentry_value_new_string("original"));
+    sentry_set_context("gpu", gpu);
+
+    sentry_value_t data = sentry_value_new_object();
+    sentry_value_set_by_key(data, "key", sentry_value_new_string("original"));
+    sentry_set_extra("data", data);
+
+    sentry_set_user(sentry_value_new_user("1", "original", NULL, NULL));
+    sentry_set_fingerprint("fp1", "fp2", NULL);
+
+    // before_send modifies contexts, extra, user, and fingerprint on the event
+    sentry_capture_event(
+        sentry_value_new_message_event(SENTRY_LEVEL_INFO, NULL, "test"));
+
+    // scope values must not be corrupted by before_send modifications
+    SENTRY_WITH_SCOPE (scope) {
+        sentry_value_t scope_gpu
+            = sentry_value_get_by_key(scope->contexts, "gpu");
+        TEST_CHECK_STRING_EQUAL(
+            sentry_value_as_string(sentry_value_get_by_key(scope_gpu, "name")),
+            "original");
+        TEST_CHECK(sentry_value_is_null(
+            sentry_value_get_by_key(scope_gpu, "injected")));
+
+        sentry_value_t scope_data
+            = sentry_value_get_by_key(scope->extra, "data");
+        TEST_CHECK_STRING_EQUAL(
+            sentry_value_as_string(sentry_value_get_by_key(scope_data, "key")),
+            "original");
+        TEST_CHECK(sentry_value_is_null(
+            sentry_value_get_by_key(scope_data, "injected")));
+
+        TEST_CHECK_STRING_EQUAL(sentry_value_as_string(sentry_value_get_by_key(
+                                    scope->user, "username")),
+            "original");
+        TEST_CHECK(sentry_value_is_null(
+            sentry_value_get_by_key(scope->user, "injected")));
+
+        TEST_CHECK_INT_EQUAL(sentry_value_get_length(scope->fingerprint), 2);
+    }
+
+    sentry_close();
+}
+
 SENTRY_TEST(scope_global_attributes)
 {
     SENTRY_TEST_OPTIONS_NEW(options);
