@@ -184,6 +184,12 @@ int sentry__path_touch(const sentry_path_t *path);
 size_t sentry__path_get_size(const sentry_path_t *path);
 
 /**
+ * This will return the total size of all files in the directory at `path`,
+ * or 0 if the directory does not exist or is empty.
+ */
+size_t sentry__path_get_dir_size(const sentry_path_t *path);
+
+/**
  * This will return the last modification time of the file at `path`, or 0 on
  * failure.
  */
