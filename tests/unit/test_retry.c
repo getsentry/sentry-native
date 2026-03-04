@@ -114,6 +114,34 @@ SENTRY_TEST(retry_filename)
         "123-00-abcdefab-1234-5678-9abc-def012345678.txt", &ts, &count, &uuid));
 }
 
+SENTRY_TEST(retry_make_cache_path)
+{
+#if defined(SENTRY_PLATFORM_NX) || defined(SENTRY_PLATFORM_PS)
+    SKIP_TEST();
+#endif
+    SENTRY_TEST_OPTIONS_NEW(options);
+    sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
+    sentry_options_set_http_retry(options, false);
+    sentry_init(options);
+
+    const char *uuid = "abcdefab-1234-5678-9abc-def012345678";
+
+    // count >= 0 → retry format
+    sentry_path_t *path
+        = sentry__run_make_cache_path(options->run, 1000, 2, uuid);
+    TEST_CHECK_STRING_EQUAL(sentry__path_filename(path),
+        "1000-02-abcdefab-1234-5678-9abc-def012345678.envelope");
+    sentry__path_free(path);
+
+    // count < 0 → cache format
+    path = sentry__run_make_cache_path(options->run, 0, -1, uuid);
+    TEST_CHECK_STRING_EQUAL(sentry__path_filename(path),
+        "abcdefab-1234-5678-9abc-def012345678.envelope");
+    sentry__path_free(path);
+
+    sentry_close();
+}
+
 SENTRY_TEST(retry_throttle)
 {
     SENTRY_TEST_OPTIONS_NEW(options);

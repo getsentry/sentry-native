@@ -87,7 +87,9 @@ bool sentry__run_move_cache(
     const sentry_run_t *run, const sentry_path_t *src, int retry_count);
 
 /**
- * Builds a cache path: `<db>/cache/<ts>-<count>-<uuid>.envelope`.
+ * Builds a cache path. When count >= 0 the result is
+ * `<db>/cache/<ts>-<count>-<uuid>.envelope`, otherwise
+ * `<db>/cache/<uuid>.envelope`.
  */
 sentry_path_t *sentry__run_make_cache_path(
     const sentry_run_t *run, uint64_t ts, int count, const char *uuid);
