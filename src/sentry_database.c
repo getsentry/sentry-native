@@ -583,20 +583,23 @@ compare_cache_entries_newest_first(const void *a, const void *b)
     return 0;
 }
 
-static const char *
-extract_envelope_uuid(const char *filename)
+static sentry_path_t *
+envelope_attachment_dir(const sentry_path_t *cache_dir, const char *filename)
 {
     uint64_t ts;
     int count;
     const char *uuid;
-    if (sentry__parse_cache_filename(filename, &ts, &count, &uuid)) {
-        return uuid;
+    if (!sentry__parse_cache_filename(filename, &ts, &count, &uuid)) {
+        size_t len = strlen(filename);
+        if (len != 45 || strcmp(filename + 36, ".envelope") != 0) {
+            return NULL;
+        }
+        uuid = filename;
     }
-    size_t len = strlen(filename);
-    if (len == 45 && strcmp(filename + 36, ".envelope") == 0) {
-        return filename;
-    }
-    return NULL;
+    char uuid_buf[37];
+    memcpy(uuid_buf, uuid, 36);
+    uuid_buf[36] = '\0';
+    return sentry__path_join_str(cache_dir, uuid_buf);
 }
 
 void
@@ -649,6 +652,17 @@ sentry__cleanup_cache(const sentry_options_t *options)
         }
         entries[entries_count].mtime = sentry__path_get_mtime(entry);
         entries[entries_count].size = sentry__path_get_size(entry);
+
+        const char *fname = sentry__path_filename(entry);
+        if (fname) {
+            sentry_path_t *att_dir = envelope_attachment_dir(cache_dir, fname);
+            if (att_dir) {
+                entries[entries_count].size
+                    += sentry__path_get_dir_size(att_dir);
+                sentry__path_free(att_dir);
+            }
+        }
+
         entries_count++;
     }
     sentry__pathiter_free(iter);
@@ -687,17 +701,11 @@ sentry__cleanup_cache(const sentry_options_t *options)
         if (should_prune) {
             const char *fname = sentry__path_filename(entries[i].path);
             if (fname) {
-                const char *uuid = extract_envelope_uuid(fname);
-                if (uuid) {
-                    char uuid_buf[37];
-                    memcpy(uuid_buf, uuid, 36);
-                    uuid_buf[36] = '\0';
-                    sentry_path_t *att_dir
-                        = sentry__path_join_str(cache_dir, uuid_buf);
-                    if (att_dir) {
-                        sentry__path_remove_all(att_dir);
-                        sentry__path_free(att_dir);
-                    }
+                sentry_path_t *att_dir
+                    = envelope_attachment_dir(cache_dir, fname);
+                if (att_dir) {
+                    sentry__path_remove_all(att_dir);
+                    sentry__path_free(att_dir);
                 }
             }
             sentry__path_remove_all(entries[i].path);
