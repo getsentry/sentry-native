@@ -483,23 +483,10 @@ if(MSVC)
 
 	if(CMAKE_CXX_COMPILER_ID STREQUAL "Clang") # clang-cl
 		target_compile_options(sentry PRIVATE
-			$<BUILD_INTERFACE:-Werror -Wall>
-			$<BUILD_INTERFACE:-Wno-unsafe-buffer-usage>
-			$<BUILD_INTERFACE:-Wno-nonportable-system-include-path>
-			$<BUILD_INTERFACE:-Wno-declaration-after-statement>
-			$<BUILD_INTERFACE:-Wno-cast-qual>
-			$<BUILD_INTERFACE:-Wno-switch-default>
-			$<BUILD_INTERFACE:-Wno-cast-function-type>
-			$<BUILD_INTERFACE:-Wno-cast-function-type-strict>
-			$<BUILD_INTERFACE:-Wno-covered-switch-default>
-			$<BUILD_INTERFACE:-Wno-format-nonliteral>
-			$<BUILD_INTERFACE:-Wno-unused-macros>
-			$<BUILD_INTERFACE:-Wno-reserved-macro-identifier>
-			$<BUILD_INTERFACE:-Wno-assign-enum>
-			$<BUILD_INTERFACE:-Wno-c++98-compat-pedantic>
-			$<BUILD_INTERFACE:-Wno-reserved-identifier>
-			$<BUILD_INTERFACE:-Wno-old-style-cast>
-			$<BUILD_INTERFACE:-Wno-zero-as-null-pointer-constant>
+			# NOTE: In clang-cl, bare `-Wall` maps to `-Weverything`.
+			# Use `/clang:-Wall` to get the curated clang `-Wall` instead.
+			$<BUILD_INTERFACE:-Werror /clang:-Wall>
+			$<BUILD_INTERFACE:-Wno-cast-function-type-mismatch>
 		)
 	endif()
 else()
