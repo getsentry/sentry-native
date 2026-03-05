@@ -898,7 +898,7 @@ void
 sentry_set_release_n(const char *release, size_t release_len)
 {
     SENTRY_WITH_OPTIONS (options) {
-        SENTRY_WITH_SCOPE_MUT_NO_FLUSH (scope) {
+        SENTRY_WITH_SCOPE_MUT (scope) {
             sentry_free(scope->release);
             scope->release = sentry__string_clone_n(release, release_len);
             set_dynamic_sampling_context(options, scope);
@@ -916,7 +916,7 @@ void
 sentry_set_environment_n(const char *environment, size_t environment_len)
 {
     SENTRY_WITH_OPTIONS (options) {
-        SENTRY_WITH_SCOPE_MUT_NO_FLUSH (scope) {
+        SENTRY_WITH_SCOPE_MUT (scope) {
             sentry_free(scope->environment);
             scope->environment
                 = sentry__string_clone_n(environment, environment_len);
