@@ -231,6 +231,8 @@ elseif(SENTRY_BACKEND STREQUAL "inproc")
 elseif(SENTRY_BACKEND STREQUAL "breakpad")
 	set(SENTRY_BACKEND_BREAKPAD TRUE)
 elseif(SENTRY_BACKEND STREQUAL "native")
+	message(WARNING "The 'native' backend is experimental and under active development. "
+		"It may have incomplete features or unexpected behavior.")
 	set(SENTRY_BACKEND_NATIVE TRUE)
 elseif(SENTRY_BACKEND STREQUAL "none")
 	set(SENTRY_BACKEND_NONE TRUE)

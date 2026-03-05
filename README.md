@@ -247,6 +247,10 @@ using `cmake -D BUILD_SHARED_LIBS=OFF ..`.
     only supported on Desktop OSs.
   - **inproc**: A small in-process handler that is supported on all platforms,
     and is used as a default on Android.
+  - **native**: **(Experimental)** An out-of-process crash handler that uses a
+    lightweight daemon to monitor the application, generate minidumps, and send
+    crash reports. Supports Linux, macOS, and Windows. Compatible with TSAN and
+    ASAN sanitizers. This backend is under active development.
   - **none**: This builds `sentry-native` without a backend, so it does not handle
     crashes. It is primarily used for tests.
 

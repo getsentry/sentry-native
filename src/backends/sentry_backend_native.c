@@ -71,6 +71,8 @@ static int
 native_backend_startup(
     sentry_backend_t *backend, const sentry_options_t *options)
 {
+    SENTRY_WARN("The native backend is experimental and under active "
+                "development.");
     SENTRY_DEBUG("starting native backend");
 
 #if defined(SENTRY_PLATFORM_WINDOWS)
