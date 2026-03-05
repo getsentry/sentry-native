@@ -161,8 +161,11 @@ extract_macho_uuid(const char *macho_path, uint8_t uuid[16])
     uint32_t expected_magic = MH_MAGIC;
 #    endif
 
-    if (header.magic != expected_magic && header.magic != MH_CIGAM_64
-        && header.magic != MH_CIGAM) {
+    // Only accept native-endian Mach-O. Byte-swapped (MH_CIGAM*) binaries
+    // can't be loaded on the current platform, so they should never appear
+    // for a running process's modules. Accepting them without swapping all
+    // header fields would cause corrupt reads.
+    if (header.magic != expected_magic) {
         close(fd);
         return false;
     }
