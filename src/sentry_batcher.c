@@ -244,7 +244,8 @@ batcher_thread_func(void *data)
     //
     // Flush triggers:
     //  1. Buffer full → enqueue wakes us via request_flush (immediate flush)
-    //  2. Timeout → partial buffer flushed after SENTRY_BATCHER_FLUSH_INTERVAL_MS
+    //  2. Timeout → partial buffer flushed after
+    //  SENTRY_BATCHER_FLUSH_INTERVAL_MS
     //  3. Shutdown / force-flush → thread state change or cond_wake
     while (sentry__atomic_fetch(&batcher->thread_state)
         == SENTRY_BATCHER_THREAD_RUNNING) {
