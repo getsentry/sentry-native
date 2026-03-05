@@ -290,7 +290,9 @@ sentry_init(sentry_options_t *options)
         backend->prune_database_func(backend);
     }
 
-    sentry__cleanup_cache(options);
+    if (options->cache_keep || options->http_retry) {
+        sentry__cleanup_cache(options);
+    }
 
     if (options->auto_session_tracking) {
         sentry_start_session();

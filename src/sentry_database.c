@@ -715,38 +715,6 @@ sentry__cleanup_cache(const sentry_options_t *options)
 
     sentry_free(entries);
 
-    // Second pass: remove orphaned attachment directories
-    // (dirs without a matching .envelope, e.g. envelope deleted by
-    // materialization failure or TUS disabled)
-    iter = sentry__path_iter_directory(cache_dir);
-    while (iter && (entry = sentry__pathiter_next(iter)) != NULL) {
-        if (!sentry__path_is_dir(entry)) {
-            continue;
-        }
-        const char *dirname = sentry__path_filename(entry);
-        if (!dirname || strlen(dirname) != 36) {
-            continue;
-        }
-        bool has_envelope = false;
-        sentry_pathiter_t *fiter = sentry__path_iter_directory(cache_dir);
-        const sentry_path_t *f;
-        while (fiter && (f = sentry__pathiter_next(fiter)) != NULL) {
-            if (sentry__path_is_dir(f)) {
-                continue;
-            }
-            const char *fname = sentry__path_filename(f);
-            if (fname && strstr(fname, dirname)) {
-                has_envelope = true;
-                break;
-            }
-        }
-        sentry__pathiter_free(fiter);
-        if (!has_envelope) {
-            sentry__path_remove_all(entry);
-        }
-    }
-    sentry__pathiter_free(iter);
-
     sentry__path_free(cache_dir);
 }
 
