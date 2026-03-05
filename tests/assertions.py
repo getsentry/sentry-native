@@ -25,7 +25,12 @@ def assert_matches(actual, expected):
     assert {k: v for (k, v) in actual.items() if k in expected.keys()} == expected
 
 
-def assert_session(envelope, extra_assertion=None):
+def assert_session(
+    envelope,
+    extra_assertion=None,
+    release="test-example-release",
+    environment="development",
+):
     session = None
     for item in envelope:
         if item.headers.get("type") == "session" and item.payload.json is not None:
@@ -34,8 +39,8 @@ def assert_session(envelope, extra_assertion=None):
     assert session is not None
     assert session["did"] == "42"
     assert session["attrs"] == {
-        "release": "test-example-release",
-        "environment": "development",
+        "release": release,
+        "environment": environment,
     }
     if extra_assertion:
         assert_matches(session, extra_assertion)

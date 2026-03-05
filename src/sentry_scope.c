@@ -69,6 +69,8 @@ static void
 init_scope(sentry_scope_t *scope)
 {
     memset(scope, 0, sizeof(sentry_scope_t));
+    scope->release = NULL;
+    scope->environment = NULL;
     scope->transaction = NULL;
     scope->fingerprint = sentry_value_new_null();
     scope->user = sentry_value_new_null();
@@ -106,6 +108,8 @@ get_scope(void)
 static void
 cleanup_scope(sentry_scope_t *scope)
 {
+    sentry_free(scope->release);
+    sentry_free(scope->environment);
     sentry_free(scope->transaction);
     sentry_value_decref(scope->fingerprint);
     sentry_value_decref(scope->user);
@@ -341,9 +345,9 @@ sentry__scope_apply_to_event(const sentry_scope_t *scope,
 
     PLACE_STRING("platform", "native");
 
-    PLACE_STRING("release", options->release);
+    PLACE_STRING("release", scope->release);
     PLACE_STRING("dist", options->dist);
-    PLACE_STRING("environment", options->environment);
+    PLACE_STRING("environment", scope->environment);
 
     // is not transaction and has no level
     if (IS_NULL("type") && IS_NULL("level")) {
