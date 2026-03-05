@@ -164,10 +164,113 @@ write_envelope(const sentry_path_t *path, const sentry_envelope_t *envelope,
     return true;
 }
 
-bool
-sentry__run_write_envelope(
-    const sentry_run_t *run, const sentry_envelope_t *envelope)
+static sentry_path_t *
+resolve_large_attachment_dir(const sentry_path_t *db_path, const char *uuid_str)
 {
+    sentry_path_t *cache_dir = sentry__path_join_str(db_path, "cache");
+    if (!cache_dir) {
+        return NULL;
+    }
+    sentry_path_t *event_dir = sentry__path_join_str(cache_dir, uuid_str);
+    sentry__path_free(cache_dir);
+    return event_dir;
+}
+
+static void
+write_large_attachment(sentry_envelope_item_t *item,
+    const sentry_path_t *event_dir, const sentry_path_t *run_path)
+{
+    const char *filename = sentry_value_as_string(
+        sentry__envelope_item_get_header(item, "filename"));
+    if (!filename || *filename == '\0') {
+        return;
+    }
+
+    bool is_inline = sentry_value_is_true(
+        sentry__envelope_item_get_header(item, "inline"));
+
+    int rv;
+    sentry_path_t *dst = NULL;
+
+    if (is_inline) {
+        size_t payload_len = 0;
+        const char *payload
+            = sentry__envelope_item_get_payload(item, &payload_len);
+        if (!payload || payload_len == 0) {
+            return;
+        }
+        dst = sentry__path_join_str(event_dir, filename);
+        if (!dst) {
+            return;
+        }
+        rv = sentry__path_write_buffer(dst, payload, payload_len);
+    } else {
+        sentry_path_t *src
+            = sentry__envelope_item_get_attachment_ref_path(item);
+        if (!src) {
+            return;
+        }
+        sentry_path_t *src_dir = sentry__path_dir(src);
+        bool is_run_owned = src_dir && sentry__path_eq(src_dir, run_path);
+        sentry__path_free(src_dir);
+        dst = sentry__path_join_str(event_dir, filename);
+        if (!dst) {
+            sentry__path_free(src);
+            return;
+        }
+        rv = is_run_owned ? sentry__path_rename(src, dst)
+                          : sentry__path_copy(src, dst);
+        sentry__path_free(src);
+    }
+
+    if (rv == 0) {
+        sentry__envelope_item_set_attachment_ref_path(item, dst);
+        if (is_inline) {
+            sentry__envelope_item_set_header(
+                item, "inline", sentry_value_new_bool(false));
+        }
+    }
+    sentry__path_free(dst);
+}
+
+bool
+sentry__run_write_envelope(const sentry_run_t *run, sentry_envelope_t *envelope)
+{
+    // This function may run in signal handler context when dumping in-flight
+    // envelopes on crash. Only persist attachment_refs when the envelope
+    // actually has them — this avoids calling materialize() on raw envelopes
+    // from the bgworker queue, which would do heap allocation and JSON parsing.
+    if (sentry__envelope_has_attachment_refs(envelope)) {
+        sentry_path_t *db_path = sentry__path_dir(run->run_path);
+        if (!db_path) {
+            return false;
+        }
+
+        sentry_uuid_t event_id = sentry__envelope_get_event_id(envelope);
+        char uuid_str[37];
+        sentry_uuid_as_string(&event_id, uuid_str);
+
+        sentry_path_t *event_dir
+            = resolve_large_attachment_dir(db_path, uuid_str);
+        sentry__path_free(db_path);
+        if (!event_dir) {
+            return false;
+        }
+        if (sentry__path_create_dir_all(event_dir) != 0) {
+            sentry__path_free(event_dir);
+            return false;
+        }
+
+        size_t count = sentry__envelope_get_item_count(envelope);
+        for (size_t i = 0; i < count; i++) {
+            sentry_envelope_item_t *item
+                = sentry__envelope_get_item_mut(envelope, i);
+            if (sentry__envelope_item_is_attachment_ref(item)) {
+                write_large_attachment(item, event_dir, run->run_path);
+            }
+        }
+        sentry__path_free(event_dir);
+    }
     return write_envelope(run->run_path, envelope, -1);
 }
 
@@ -413,6 +516,24 @@ sentry__process_old_runs(const sentry_options_t *options, uint64_t last_crash)
                 }
             } else if (sentry__path_ends_with(file, ".envelope")) {
                 sentry_envelope_t *envelope = sentry__envelope_from_path(file);
+                if (envelope) {
+                    const char *fname = sentry__path_filename(file);
+                    size_t fname_len = fname ? strlen(fname) : 0;
+                    if (fname_len > 36) {
+                        char uuid_str[37];
+                        memcpy(uuid_str, fname, 36);
+                        uuid_str[36] = '\0';
+                        sentry_path_t *att_dir = resolve_large_attachment_dir(
+                            options->database_path, uuid_str);
+                        if (att_dir && sentry__path_is_dir(att_dir)
+                            && sentry__envelope_materialize(envelope) != 0) {
+                            sentry_envelope_free(envelope);
+                            envelope = NULL;
+                            sentry__path_remove_all(att_dir);
+                        }
+                        sentry__path_free(att_dir);
+                    }
+                }
                 sentry__capture_envelope(options->transport, envelope);
 
                 if (can_cache
@@ -460,6 +581,25 @@ compare_cache_entries_newest_first(const void *a, const void *b)
         return -1;
     }
     return 0;
+}
+
+static sentry_path_t *
+envelope_attachment_dir(const sentry_path_t *cache_dir, const char *filename)
+{
+    uint64_t ts;
+    int count;
+    const char *uuid;
+    if (!sentry__parse_cache_filename(filename, &ts, &count, &uuid)) {
+        size_t len = strlen(filename);
+        if (len != 45 || strcmp(filename + 36, ".envelope") != 0) {
+            return NULL;
+        }
+        uuid = filename;
+    }
+    char uuid_buf[37];
+    memcpy(uuid_buf, uuid, 36);
+    uuid_buf[36] = '\0';
+    return sentry__path_join_str(cache_dir, uuid_buf);
 }
 
 void
@@ -512,6 +652,17 @@ sentry__cleanup_cache(const sentry_options_t *options)
         }
         entries[entries_count].mtime = sentry__path_get_mtime(entry);
         entries[entries_count].size = sentry__path_get_size(entry);
+
+        const char *fname = sentry__path_filename(entry);
+        if (fname) {
+            sentry_path_t *att_dir = envelope_attachment_dir(cache_dir, fname);
+            if (att_dir) {
+                entries[entries_count].size
+                    += sentry__path_get_dir_size(att_dir);
+                sentry__path_free(att_dir);
+            }
+        }
+
         entries_count++;
     }
     sentry__pathiter_free(iter);
@@ -548,12 +699,22 @@ sentry__cleanup_cache(const sentry_options_t *options)
         }
 
         if (should_prune) {
+            const char *fname = sentry__path_filename(entries[i].path);
+            if (fname) {
+                sentry_path_t *att_dir
+                    = envelope_attachment_dir(cache_dir, fname);
+                if (att_dir) {
+                    sentry__path_remove_all(att_dir);
+                    sentry__path_free(att_dir);
+                }
+            }
             sentry__path_remove_all(entries[i].path);
         }
         sentry__path_free(entries[i].path);
     }
 
     sentry_free(entries);
+
     sentry__path_free(cache_dir);
 }
 
@@ -614,4 +775,40 @@ sentry__clear_crash_marker(const sentry_options_t *options)
         SENTRY_WARN("removing the crash timestamp file has failed");
     }
     return !rv;
+}
+
+void
+sentry__db_remove_large_attachment(
+    const sentry_path_t *db_path, const sentry_path_t *path)
+{
+    if (!db_path || !path) {
+        return;
+    }
+
+    // Only delete files under <db>/cache/<uuid>/<file>.
+    // Walk up the directory tree and verify the grandparent matches.
+    sentry_path_t *event_dir = sentry__path_dir(path);
+    if (!event_dir) {
+        return;
+    }
+    sentry_path_t *parent_dir = sentry__path_dir(event_dir);
+    if (!parent_dir) {
+        sentry__path_free(event_dir);
+        return;
+    }
+
+    sentry_path_t *cache_dir = sentry__path_join_str(db_path, "cache");
+    bool is_db_owned = cache_dir && sentry__path_eq(parent_dir, cache_dir);
+
+    sentry__path_free(cache_dir);
+    sentry__path_free(parent_dir);
+
+    if (!is_db_owned) {
+        sentry__path_free(event_dir);
+        return;
+    }
+
+    sentry__path_remove(path);
+    sentry__path_remove(event_dir);
+    sentry__path_free(event_dir);
 }

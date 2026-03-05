@@ -79,6 +79,19 @@ sentry__path_remove_all(const sentry_path_t *path)
     return sentry__path_remove(path);
 }
 
+size_t
+sentry__path_get_dir_size(const sentry_path_t *path)
+{
+    size_t total = 0;
+    sentry_pathiter_t *iter = sentry__path_iter_directory(path);
+    const sentry_path_t *entry;
+    while (iter && (entry = sentry__pathiter_next(iter)) != NULL) {
+        total += sentry__path_get_size(entry);
+    }
+    sentry__pathiter_free(iter);
+    return total;
+}
+
 sentry_filelock_t *
 sentry__filelock_new(sentry_path_t *path)
 {

@@ -160,6 +160,12 @@ int sentry__path_remove_all(const sentry_path_t *path);
 int sentry__path_rename(const sentry_path_t *src, const sentry_path_t *dst);
 
 /**
+ * Copy the file from `src` to `dst`.
+ * Returns 0 on success.
+ */
+int sentry__path_copy(const sentry_path_t *src, const sentry_path_t *dst);
+
+/**
  * This will create the directory referred to by `path`, and any non-existing
  * parent directory.
  * Returns 0 on success.
@@ -176,6 +182,12 @@ int sentry__path_touch(const sentry_path_t *path);
  * This will return the size of the file at `path`, or 0 on failure.
  */
 size_t sentry__path_get_size(const sentry_path_t *path);
+
+/**
+ * This will return the total size of all files in the directory at `path`,
+ * or 0 if the directory does not exist or is empty.
+ */
+size_t sentry__path_get_dir_size(const sentry_path_t *path);
 
 /**
  * This will return the last modification time of the file at `path`, or 0 on

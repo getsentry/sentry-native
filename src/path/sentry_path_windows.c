@@ -524,6 +524,15 @@ sentry__path_rename(const sentry_path_t *src, const sentry_path_t *dst)
 }
 
 int
+sentry__path_copy(const sentry_path_t *src, const sentry_path_t *dst)
+{
+    if (!src->path_w || !dst->path_w) {
+        return 1;
+    }
+    return CopyFileW(src->path_w, dst->path_w, FALSE) ? 0 : 1;
+}
+
+int
 sentry__path_create_dir_all(const sentry_path_t *path)
 {
     char *p = NULL;

@@ -47,7 +47,7 @@ void sentry__run_free(sentry_run_t *run);
  * `<database>/<uuid>.run/<event-uuid>.envelope`
  */
 bool sentry__run_write_envelope(
-    const sentry_run_t *run, const sentry_envelope_t *envelope);
+    const sentry_run_t *run, sentry_envelope_t *envelope);
 
 /**
  * This will serialize and write the given envelope to disk into a file named
@@ -137,5 +137,14 @@ bool sentry__has_crash_marker(const sentry_options_t *options);
  * This will remove the `<database>/last_crash` file.
  */
 bool sentry__clear_crash_marker(const sentry_options_t *options);
+
+/**
+ * Removes a large attachment file only if it lives under
+ * `<db_path>/attachments/`. This prevents deletion of user-owned
+ * original files that were referenced directly (not copied by the
+ * crash persistence path).
+ */
+void sentry__db_remove_large_attachment(
+    const sentry_path_t *db_path, const sentry_path_t *path);
 
 #endif
