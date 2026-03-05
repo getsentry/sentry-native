@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+**Features**:
+
+- Add `sentry_set_release()` / `sentry_set_environment()` for updating release and environment after SDK init. ([#1555](https://github.com/getsentry/sentry-native/pull/1555))
+
 **Fixes**:
 
 - Allow null custom log attributes without debug warning ([#1552](https://github.com/getsentry/sentry-native/pull/1552))
