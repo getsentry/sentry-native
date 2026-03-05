@@ -3,13 +3,9 @@
 #include "sentry_options.h"
 
 // The batcher thread sleeps for this interval between flush cycles.
+// When the timer fires and there are items in the buffer, they are flushed
+// regardless of how recently they were enqueued.
 #define SENTRY_BATCHER_FLUSH_INTERVAL_MS 5000
-
-// Minimum idle time before flushing a partial buffer. Items must have been
-// sitting untouched for at least this long before the timer flushes them.
-// This prevents premature flushes when log production is slower than the
-// flush interval (e.g. under ASAN or coverage instrumentation).
-#define SENTRY_BATCHER_IDLE_THRESHOLD_MS 1000
 
 #ifdef SENTRY_UNITTEST
 #    ifdef SENTRY_PLATFORM_WINDOWS
@@ -198,10 +194,6 @@ sentry__batcher_enqueue(sentry_batcher_t *batcher, sentry_value_t item)
             active->items[item_idx] = item;
             sentry__atomic_fetch_and_add(&active->adding, -1);
 
-            // Record enqueue time for idle-based flushing
-            sentry__atomic_store(
-                &batcher->last_enqueue_ms, (long)sentry__monotonic_time());
-
             // Check if active buffer is now full and trigger flush. We could
             // introduce additional watermarks here to trigger the flush earlier
             // under high contention.
@@ -272,19 +264,9 @@ batcher_thread_func(void *data)
         }
 
         if (count >= SENTRY_BATCHER_QUEUE_LENGTH) {
-            // Buffer is full → always flush immediately
             SENTRY_TRACE("Batcher flushed by filled buffer");
         } else {
-            // Partial buffer → only flush if items have been idle long
-            // enough. This prevents premature flushes when production is
-            // slower than the flush interval (e.g. under ASAN/coverage).
-            const long last_ms
-                = sentry__atomic_fetch(&batcher->last_enqueue_ms);
-            const long now_ms = (long)sentry__monotonic_time();
-            if ((now_ms - last_ms) < SENTRY_BATCHER_IDLE_THRESHOLD_MS) {
-                continue;
-            }
-            SENTRY_TRACE("Batcher flushed by idle timeout");
+            SENTRY_TRACE("Batcher flushed by timer");
         }
 
         sentry__batcher_flush(batcher, false);
