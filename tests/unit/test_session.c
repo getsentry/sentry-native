@@ -167,3 +167,125 @@ SENTRY_TEST(count_sampled_events)
 
     TEST_CHECK_INT_EQUAL(assertion.called, 1);
 }
+
+typedef struct {
+    bool enabled;
+    uint64_t sessions;
+    uint64_t events;
+    const char *expected_release;
+    const char *expected_environment;
+} release_env_assertion_t;
+
+static void
+send_release_env_envelope(sentry_envelope_t *envelope, void *data)
+{
+    release_env_assertion_t *assertion = data;
+
+    if (!assertion->enabled) {
+        sentry_envelope_free(envelope);
+        return;
+    }
+
+    sentry_value_t event = sentry_envelope_get_event(envelope);
+    if (!sentry_value_is_null(event)) {
+        assertion->events += 1;
+        TEST_CHECK_STRING_EQUAL(
+            sentry_value_as_string(sentry_value_get_by_key(event, "release")),
+            assertion->expected_release);
+        TEST_CHECK_STRING_EQUAL(sentry_value_as_string(sentry_value_get_by_key(
+                                    event, "environment")),
+            assertion->expected_environment);
+    }
+
+    for (size_t i = 0; i < sentry__envelope_get_item_count(envelope); i++) {
+        const sentry_envelope_item_t *item
+            = sentry__envelope_get_item(envelope, i);
+        const char *type = sentry_value_as_string(
+            sentry__envelope_item_get_header(item, "type"));
+
+        if (strcmp(type, "session") == 0) {
+            assertion->sessions += 1;
+
+            size_t buf_len;
+            const char *buf = sentry__envelope_item_get_payload(item, &buf_len);
+            sentry_value_t session = sentry__value_from_json(buf, buf_len);
+
+            sentry_value_t attrs = sentry_value_get_by_key(session, "attrs");
+            TEST_CHECK_STRING_EQUAL(
+                sentry_value_as_string(
+                    sentry_value_get_by_key(attrs, "release")),
+                assertion->expected_release);
+            TEST_CHECK_STRING_EQUAL(
+                sentry_value_as_string(
+                    sentry_value_get_by_key(attrs, "environment")),
+                assertion->expected_environment);
+
+            sentry_value_decref(session);
+        }
+    }
+    sentry_envelope_free(envelope);
+}
+
+SENTRY_TEST(set_release_and_environment_late)
+{
+    release_env_assertion_t assertion
+        = { true, 0, 0, "late_release", "late_env" };
+
+    SENTRY_TEST_OPTIONS_NEW(options);
+    sentry__path_remove_all(options->database_path);
+    sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
+    sentry_transport_t *transport
+        = sentry_transport_new(send_release_env_envelope);
+    sentry_transport_set_state(transport, &assertion);
+    sentry_options_set_transport(options, transport);
+    sentry_init(options);
+
+    sentry_set_release("late_release");
+    sentry_set_environment("late_env");
+
+    sentry_capture_event(
+        sentry_value_new_message_event(SENTRY_LEVEL_INFO, NULL, "test"));
+
+    sentry_start_session();
+    sentry_end_session();
+
+    TEST_CHECK_INT_EQUAL(assertion.events, 1);
+    TEST_CHECK_INT_EQUAL(assertion.sessions, 1);
+
+    sentry_close();
+}
+
+SENTRY_TEST(update_release_and_environment_late)
+{
+    release_env_assertion_t assertion
+        = { false, 0, 0, "updated_release", "updated_env" };
+
+    SENTRY_TEST_OPTIONS_NEW(options);
+    sentry__path_remove_all(options->database_path);
+    sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
+    sentry_transport_t *transport
+        = sentry_transport_new(send_release_env_envelope);
+    sentry_transport_set_state(transport, &assertion);
+    sentry_options_set_transport(options, transport);
+    sentry_options_set_release(options, "initial");
+    sentry_options_set_environment(options, "initial");
+    sentry_init(options);
+
+    sentry_end_session();
+
+    sentry_set_release("updated_release");
+    sentry_set_environment("updated_env");
+
+    assertion.enabled = true;
+
+    sentry_capture_event(
+        sentry_value_new_message_event(SENTRY_LEVEL_INFO, NULL, "test"));
+
+    sentry_start_session();
+    sentry_end_session();
+
+    TEST_CHECK_INT_EQUAL(assertion.events, 1);
+    TEST_CHECK_INT_EQUAL(assertion.sessions, 1);
+
+    sentry_close();
+}

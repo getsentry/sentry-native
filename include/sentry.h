@@ -1936,6 +1936,21 @@ SENTRY_API void sentry_scope_set_user(
 SENTRY_API void sentry_remove_user(void);
 
 /**
+ * Sets the release after the SDK has been initialized. To apply the new release
+ * to sessions, start a new session after calling this function.
+ */
+SENTRY_API void sentry_set_release(const char *release);
+SENTRY_API void sentry_set_release_n(const char *release, size_t release_len);
+
+/**
+ * Sets the environment after the SDK has been initialized. To apply the new
+ * environment to sessions, start a new session after calling this function.
+ */
+SENTRY_API void sentry_set_environment(const char *environment);
+SENTRY_API void sentry_set_environment_n(
+    const char *environment, size_t environment_len);
+
+/**
  * Sets a tag.
  */
 SENTRY_API void sentry_set_tag(const char *key, const char *value);

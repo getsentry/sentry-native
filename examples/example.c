@@ -821,6 +821,11 @@ main(int argc, char **argv)
         sentry_attachment_set_content_type(bytes, "application/octet-stream");
     }
 
+    if (has_arg(argc, argv, "update-release-env")) {
+        sentry_set_release("updated-release");
+        sentry_set_environment("updated-environment");
+    }
+
     if (has_arg(argc, argv, "start-session")) {
         sentry_start_session();
     }

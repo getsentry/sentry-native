@@ -51,10 +51,9 @@ sentry__session_new(void)
 {
     char *release = NULL;
     char *environment = NULL;
-    SENTRY_WITH_OPTIONS (options) {
-        release = sentry__string_clone(sentry_options_get_release(options));
-        environment
-            = sentry__string_clone(sentry_options_get_environment(options));
+    SENTRY_WITH_SCOPE (scope) {
+        release = sentry__string_clone(scope->release);
+        environment = sentry__string_clone(scope->environment);
     }
 
     if (!release) {

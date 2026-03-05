@@ -115,6 +115,46 @@ def test_session_http(cmake, httpserver):
     assert_session(envelope, {"init": True, "status": "exited", "errors": 0})
 
 
+def test_set_release_and_environment_http(cmake, httpserver):
+    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "none"})
+
+    httpserver.expect_request(
+        "/api/123456/envelope/",
+        headers={"x-sentry-auth": auth_header},
+    ).respond_with_data("OK")
+    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
+
+    run(
+        tmp_path,
+        "sentry_example",
+        ["log", "update-release-env", "start-session", "capture-event"],
+        env=env,
+    )
+
+    assert len(httpserver.log) == 2
+
+    output = httpserver.log[0][0].get_data()
+    envelope = Envelope.deserialize(output)
+    event = envelope.get_event()
+    assert event["release"] == "updated-release"
+    assert event["environment"] == "updated-environment"
+    assert_session(
+        envelope,
+        {"init": True, "status": "ok", "errors": 0},
+        release="updated-release",
+        environment="updated-environment",
+    )
+
+    output = httpserver.log[1][0].get_data()
+    envelope = Envelope.deserialize(output)
+    assert_session(
+        envelope,
+        {"status": "exited", "errors": 0},
+        release="updated-release",
+        environment="updated-environment",
+    )
+
+
 def test_capture_and_session_http(cmake, httpserver):
     tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "none"})
 
