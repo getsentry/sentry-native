@@ -648,10 +648,11 @@ write_thread_list_stream(minidump_writer_t *writer, minidump_directory_t *dir)
                         if (bytes_read == (ssize_t)saved_stack_size) {
                             thread->stack.memory.rva = write_data(
                                 writer, stack_buffer, saved_stack_size);
-                            thread->stack.memory.size = saved_stack_size;
-                            // Stack memory starts at SP (we captured from SP
-                            // upwards)
-                            thread->stack.start_address = sp;
+                            thread->stack.memory.size = thread->stack.memory.rva
+                                ? saved_stack_size
+                                : 0;
+                            thread->stack.start_address
+                                = thread->stack.memory.rva ? sp : 0;
                             SENTRY_DEBUGF(
                                 "Thread %zu: wrote stack from file at RVA "
                                 "0x%x, size %llu, start_addr 0x%llx",

@@ -537,7 +537,14 @@ crash_signal_handler(int signum, siginfo_t *info, void *context)
                 if (cmd->cmd == LC_SEGMENT_64) {
                     const struct segment_command_64 *seg
                         = (const struct segment_command_64 *)cmd;
-                    // Use uint64_t to avoid overflow with large 64-bit segments
+                    // Skip __PAGEZERO which has vmsize=4GB on 64-bit and
+                    // would vastly inflate the module size
+                    if (seg->initprot == 0 && seg->maxprot == 0) {
+                        cmds += cmd->cmdsize;
+                        if (cmd->cmdsize == 0)
+                            break;
+                        continue;
+                    }
                     uint64_t seg_end = seg->vmaddr + seg->vmsize;
                     if (seg_end > size) {
                         size = seg_end;
