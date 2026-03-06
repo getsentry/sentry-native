@@ -789,11 +789,8 @@ elseif(SENTRY_BACKEND_NATIVE)
 	)
 
 	# Link same libraries as sentry
-	if(WIN32)
-		target_link_libraries(sentry-crash PRIVATE dbghelp shlwapi version)
-	elseif(LINUX OR ANDROID)
-		target_link_libraries(sentry-crash PRIVATE pthread rt dl)
-	elseif(APPLE)
+	target_link_libraries(sentry-crash PRIVATE ${_SENTRY_PLATFORM_LIBS})
+	if(APPLE)
 		find_library(COREFOUNDATION_LIBRARY CoreFoundation REQUIRED)
 		find_library(SECURITY_LIBRARY Security REQUIRED)
 		target_link_libraries(sentry-crash PRIVATE
