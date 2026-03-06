@@ -1,4 +1,5 @@
 #include "sentry_batcher.h"
+#include "sentry_client_report.h"
 #include "sentry_cpu_relax.h"
 #include "sentry_options.h"
 
@@ -206,7 +207,8 @@ sentry__batcher_enqueue(sentry_batcher_t *batcher, sentry_value_t item)
         // Buffer is already full, roll back our increments and retry or drop.
         sentry__atomic_fetch_and_add(&active->adding, -1);
         if (attempt == ENQUEUE_MAX_RETRIES) {
-            // TODO report this (e.g. client reports)
+            sentry__client_report_discard(SENTRY_DISCARD_REASON_QUEUE_OVERFLOW,
+                SENTRY_DATA_CATEGORY_LOG_ITEM, 1);
             return false;
         }
     }
