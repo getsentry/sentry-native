@@ -593,14 +593,10 @@ sentry__waitable_flag_set(sentry_waitable_flag_t *flag)
 static inline bool
 sentry__waitable_flag_wait(sentry_waitable_flag_t *flag, uint64_t timeout_ms)
 {
-    // Fast path: flag already set
-    int expected = 0;
+    // Fast path: flag already set, atomically consume it
+    int expected = 1;
     if (__atomic_compare_exchange_n(&flag->value, &expected, 0, false,
             __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST)) {
-        // value was 0, not set
-    } else {
-        // value was 1, consume it
-        __atomic_store_n(&flag->value, 0, __ATOMIC_SEQ_CST);
         return true;
     }
 
