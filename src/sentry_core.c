@@ -345,23 +345,15 @@ sentry_flush(uint64_t timeout)
 int
 sentry_close(void)
 {
-    // Shutdown logs and metrics in parallel before locking options to ensure
-    // they are flushed. This prevents a potential deadlock on the options
-    // during envelope creation.
+    // Shutdown logs and metrics before locking options to ensure they are
+    // flushed. This prevents a potential deadlock on the options during
+    // envelope creation.
     SENTRY_WITH_OPTIONS (options) {
-        bool wait_logs = false;
         if (options->enable_logs) {
-            wait_logs = sentry__logs_shutdown_begin();
+            sentry__logs_shutdown(options->shutdown_timeout);
         }
-        bool wait_metrics = false;
         if (options->enable_metrics) {
-            wait_metrics = sentry__metrics_shutdown_begin();
-        }
-        if (wait_logs) {
-            sentry__logs_shutdown_wait(options->shutdown_timeout);
-        }
-        if (wait_metrics) {
-            sentry__metrics_shutdown_wait(options->shutdown_timeout);
+            sentry__metrics_shutdown(options->shutdown_timeout);
         }
     }
 

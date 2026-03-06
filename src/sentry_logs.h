@@ -12,15 +12,9 @@ log_return_value_t sentry__logs_log(
 void sentry__logs_startup(const sentry_options_t *options);
 
 /**
- * Begin non-blocking shutdown of the logs timer/flush thread.
+ * Shuts down the logs timer/flush thread.
  */
-bool sentry__logs_shutdown_begin(void);
-
-/**
- * Wait for the logs timer/flush thread to complete shutdown.
- * Should only be called if sentry__logs_shutdown_begin returned true.
- */
-void sentry__logs_shutdown_wait(uint64_t timeout);
+void sentry__logs_shutdown(uint64_t timeout);
 
 /**
  * Crash-safe logs flush that avoids thread synchronization.

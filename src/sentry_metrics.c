@@ -139,25 +139,13 @@ sentry__metrics_startup(const sentry_options_t *options)
     sentry__batcher_release(sentry__batcher_swap(&g_batcher, batcher));
 }
 
-bool
-sentry__metrics_shutdown_begin(void)
-{
-    SENTRY_DEBUG("beginning metrics system shutdown");
-    sentry_batcher_t *batcher = sentry__batcher_acquire(&g_batcher);
-    if (!batcher) {
-        return false;
-    }
-    bool result = sentry__batcher_shutdown_begin(batcher);
-    sentry__batcher_release(batcher);
-    return result;
-}
-
 void
-sentry__metrics_shutdown_wait(uint64_t timeout)
+sentry__metrics_shutdown(uint64_t timeout)
 {
+    SENTRY_DEBUG("shutting down metrics system");
     sentry_batcher_t *batcher = sentry__batcher_swap(&g_batcher, NULL);
     if (batcher) {
-        sentry__batcher_shutdown_wait(batcher, timeout);
+        sentry__batcher_shutdown(batcher, timeout);
         sentry__batcher_release(batcher);
     }
     SENTRY_DEBUG("metrics system shutdown complete");

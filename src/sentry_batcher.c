@@ -381,9 +381,11 @@ sentry__batcher_startup(
     }
 }
 
-bool
-sentry__batcher_shutdown_begin(sentry_batcher_t *batcher)
+void
+sentry__batcher_shutdown(sentry_batcher_t *batcher, uint64_t timeout)
 {
+    (void)timeout;
+
     // Atomically transition to STOPPED and get the previous state
     // This handles the race where thread might be in STARTING state:
     // - If thread's CAS hasn't run yet: CAS will fail, thread exits cleanly
@@ -394,18 +396,11 @@ sentry__batcher_shutdown_begin(sentry_batcher_t *batcher)
     // If thread was never started, nothing to do
     if (old_state == SENTRY_BATCHER_THREAD_STOPPED) {
         SENTRY_DEBUG("batcher thread was not started, skipping shutdown");
-        return false;
+        return;
     }
 
     // Thread was started (either STARTING or RUNNING), signal it to stop
     sentry__waitable_flag_set(&batcher->request_flush);
-    return true;
-}
-
-void
-sentry__batcher_shutdown_wait(sentry_batcher_t *batcher, uint64_t timeout)
-{
-    (void)timeout;
 
     // Always join the thread to avoid leaks
     sentry__thread_join(batcher->batching_thread);

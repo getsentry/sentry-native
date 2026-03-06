@@ -9,15 +9,9 @@
 void sentry__metrics_startup(const sentry_options_t *options);
 
 /**
- * Begin non-blocking shutdown of the metrics timer/flush thread.
+ * Shuts down the metrics timer/flush thread.
  */
-bool sentry__metrics_shutdown_begin(void);
-
-/**
- * Wait for the metrics timer/flush thread to complete shutdown.
- * Should only be called if sentry__metrics_shutdown_begin returned true.
- */
-void sentry__metrics_shutdown_wait(uint64_t timeout);
+void sentry__metrics_shutdown(uint64_t timeout);
 
 /**
  * Crash-safe metrics flush that avoids thread synchronization.
