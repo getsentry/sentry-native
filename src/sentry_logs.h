@@ -24,14 +24,16 @@ void sentry__logs_shutdown(uint64_t timeout);
 void sentry__logs_flush_crash_safe(void);
 
 /**
- * Begin non-blocking force flush of logs.
+ * Begin non-blocking force flush of logs. Returns an opaque token that must
+ * be passed to sentry__logs_force_flush_wait to complete the flush.
  */
-void sentry__logs_force_flush_begin(void);
+uintptr_t sentry__logs_force_flush_begin(void);
 
 /**
- * Wait for the logs force flush to complete.
+ * Wait for the logs force flush to complete. Takes the token returned by
+ * sentry__logs_force_flush_begin.
  */
-void sentry__logs_force_flush_wait(void);
+void sentry__logs_force_flush_wait(uintptr_t token);
 
 #ifdef SENTRY_UNITTEST
 int populate_message_parameters(

@@ -476,20 +476,20 @@ sentry__logs_flush_crash_safe(void)
     SENTRY_DEBUG("crash-safe logs flush complete");
 }
 
-void
+uintptr_t
 sentry__logs_force_flush_begin(void)
 {
     sentry_batcher_t *batcher = sentry__batcher_acquire(&g_batcher);
     if (batcher) {
         sentry__batcher_force_flush_begin(batcher);
-        sentry__batcher_release(batcher);
     }
+    return (uintptr_t)batcher;
 }
 
 void
-sentry__logs_force_flush_wait(void)
+sentry__logs_force_flush_wait(uintptr_t token)
 {
-    sentry_batcher_t *batcher = sentry__batcher_acquire(&g_batcher);
+    sentry_batcher_t *batcher = (sentry_batcher_t *)token;
     if (batcher) {
         sentry__batcher_force_flush_wait(batcher);
         sentry__batcher_release(batcher);

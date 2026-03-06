@@ -325,17 +325,19 @@ sentry_flush(uint64_t timeout)
     int rv = 0;
     SENTRY_WITH_OPTIONS (options) {
         // flush logs and metrics in parallel
+        uintptr_t ltoken = 0;
+        uintptr_t mtoken = 0;
         if (options->enable_logs) {
-            sentry__logs_force_flush_begin();
+            ltoken = sentry__logs_force_flush_begin();
         }
         if (options->enable_metrics) {
-            sentry__metrics_force_flush_begin();
+            mtoken = sentry__metrics_force_flush_begin();
         }
-        if (options->enable_logs) {
-            sentry__logs_force_flush_wait();
+        if (ltoken) {
+            sentry__logs_force_flush_wait(ltoken);
         }
-        if (options->enable_metrics) {
-            sentry__metrics_force_flush_wait();
+        if (mtoken) {
+            sentry__metrics_force_flush_wait(mtoken);
         }
         rv = sentry__transport_flush(options->transport, timeout);
     }
