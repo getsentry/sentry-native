@@ -28,11 +28,10 @@ typedef struct {
 static curl_client_t *
 curl_client_new(void)
 {
-    curl_client_t *client = SENTRY_MAKE(curl_client_t);
+    curl_client_t *client = SENTRY_MAKE_0(curl_client_t);
     if (!client) {
         return NULL;
     }
-    memset(client, 0, sizeof(curl_client_t));
 
 #ifdef SENTRY_PLATFORM_NX
     client->nx_state = sentry_nx_curl_state_new();

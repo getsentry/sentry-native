@@ -10,11 +10,10 @@
 sentry_hint_t *
 sentry_hint_new(void)
 {
-    sentry_hint_t *hint = SENTRY_MAKE(sentry_hint_t);
+    sentry_hint_t *hint = SENTRY_MAKE_0(sentry_hint_t);
     if (!hint) {
         return NULL;
     }
-    memset(hint, 0, sizeof(sentry_hint_t));
     return hint;
 }
 
