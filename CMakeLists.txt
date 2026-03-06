@@ -586,9 +586,8 @@ elseif(WIN32)
 		set(_SENTRY_PLATFORM_LIBS "dbghelp" "shlwapi" "version")
 	endif()
 	# WaitOnAddress/WakeByAddressSingle require Windows 8+
-	# (Synchronization.lib). Older targets and Xbox fall back to sleep-poll.
-	if(NOT XBOX
-		AND NOT (MSVC AND CMAKE_GENERATOR_TOOLSET MATCHES "_xp$")
+	# (Synchronization.lib). Older targets fall back to sleep-poll.
+	if(NOT (MSVC AND CMAKE_GENERATOR_TOOLSET MATCHES "_xp$")
 		AND (${CMAKE_SYSTEM_VERSION} MATCHES "^10"
 			OR ${CMAKE_SYSTEM_VERSION} MATCHES "^6\\.[23]"))
 		list(APPEND _SENTRY_PLATFORM_LIBS "synchronization")

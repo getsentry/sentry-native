@@ -527,13 +527,12 @@ size_t sentry__bgworker_foreach_matching(sentry_bgworker_t *bgw,
  * - `sentry__waitable_flag_wait`: waits until the flag is set or the timeout
  *   expires, then atomically clears the flag. Returns true if the flag was
  *   set, false on timeout.
- * - On Windows 8+ uses WaitOnAddress, on Linux and Android a futex to keep
+ * - On Windows 8+/Xbox uses WaitOnAddress, on Linux and Android a futex to keep
  *   trigger latency low and pass on wait to the OS. Other POSIX, older Windows
- *   and Xbox fall back on a sleepy atomic poll loop.
+ *   fall back on a sleepy atomic poll loop.
  */
 
-#if defined(SENTRY_PLATFORM_WINDOWS) && !defined(SENTRY_PLATFORM_XBOX)         \
-    && _WIN32_WINNT >= 0x0602
+#if defined(SENTRY_PLATFORM_WINDOWS) && _WIN32_WINNT >= 0x0602
 
 typedef struct {
     volatile LONG value;
@@ -612,7 +611,7 @@ sentry__waitable_flag_wait(sentry_waitable_flag_t *flag, uint64_t timeout_ms)
 }
 
 #elif defined(SENTRY_PLATFORM_WINDOWS)
-/* Fallback for older Windows / Xbox: sleep-poll with Sleep(). */
+/* Fallback for older Windows: sleep-poll with Sleep(). */
 
 typedef struct {
     volatile LONG value;
