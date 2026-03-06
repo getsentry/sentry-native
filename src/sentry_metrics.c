@@ -156,8 +156,10 @@ void
 sentry__metrics_shutdown_wait(uint64_t timeout)
 {
     sentry_batcher_t *batcher = sentry__batcher_swap(&g_batcher, NULL);
-    sentry__batcher_shutdown_wait(batcher, timeout);
-    sentry__batcher_release(batcher);
+    if (batcher) {
+        sentry__batcher_shutdown_wait(batcher, timeout);
+        sentry__batcher_release(batcher);
+    }
     SENTRY_DEBUG("metrics system shutdown complete");
 }
 
