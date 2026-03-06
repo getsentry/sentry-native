@@ -673,7 +673,10 @@ sentry__waitable_flag_wait(sentry_waitable_flag_t *flag, uint64_t timeout_ms)
     clock_gettime(CLOCK_MONOTONIC, &ts);
     uint64_t deadline_ms = (uint64_t)ts.tv_sec * 1000
         + (uint64_t)ts.tv_nsec / 1000000 + timeout_ms;
-    while (!__atomic_load_n(&flag->value, __ATOMIC_ACQUIRE)) {
+    int expected = 1;
+    while (!__atomic_compare_exchange_n(&flag->value, &expected, 0, false,
+        __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST)) {
+        expected = 1;
         clock_gettime(CLOCK_MONOTONIC, &ts);
         uint64_t now_ms
             = (uint64_t)ts.tv_sec * 1000 + (uint64_t)ts.tv_nsec / 1000000;
@@ -682,7 +685,6 @@ sentry__waitable_flag_wait(sentry_waitable_flag_t *flag, uint64_t timeout_ms)
         }
         usleep(10000); // 10ms
     }
-    __atomic_store_n(&flag->value, 0, __ATOMIC_SEQ_CST);
     return true;
 }
 
