@@ -189,10 +189,7 @@ sentry__batcher_enqueue(sentry_batcher_t *batcher, sentry_value_t item)
             active->items[item_idx] = item;
             sentry__atomic_fetch_and_add(&active->adding, -1);
 
-            // Check if active buffer is now full and trigger flush. We could
-            // introduce additional watermarks here to trigger the flush earlier
-            // under high contention.
-            // TODO replace with a level-triggered flag
+            // Check if active buffer is now full and trigger flush.
             if (item_idx == SENTRY_BATCHER_QUEUE_LENGTH - 1) {
                 sentry__waitable_flag_set(&batcher->request_flush);
             }
@@ -234,8 +231,7 @@ batcher_thread_func(void *data)
     while (sentry__atomic_fetch(&batcher->thread_state)
         == SENTRY_BATCHER_THREAD_RUNNING) {
         // Sleep for 5 seconds or until request_flush is set
-        const bool triggered
-            = sentry__waitable_flag_wait(&batcher->request_flush, 5000);
+        sentry__waitable_flag_wait(&batcher->request_flush, 5000);
 
         // Check if we should still be running
         if (sentry__atomic_fetch(&batcher->thread_state)
@@ -243,13 +239,21 @@ batcher_thread_func(void *data)
             break;
         }
 
-        if (triggered) {
+        // Use the buffer state as the source of truth rather than the
+        // wake trigger: flush if there's data, skip otherwise.
+        const long active_idx = sentry__atomic_fetch(&batcher->active_idx);
+        sentry_batcher_buffer_t *buf = &batcher->buffers[active_idx];
+        const long count = sentry__atomic_fetch(&buf->index);
+        if (count <= 0) {
+            continue;
+        }
+
+        if (count >= SENTRY_BATCHER_QUEUE_LENGTH) {
             SENTRY_TRACE("Batcher flushed by filled buffer");
         } else {
             SENTRY_TRACE("Batcher flushed by timeout");
         }
 
-        // Try to flush
         sentry__batcher_flush(batcher, false);
     }
 
