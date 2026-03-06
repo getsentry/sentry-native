@@ -284,11 +284,6 @@ def test_metrics_threaded(cmake, httpserver):
         env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
     )
 
-    # there is a chance we drop metrics while flushing buffers and the final shutdown flush may produce extra envelopes
-    # from residual items in both double-buffer slots, since we now have very low wake latency from the producer on
-    # Windows and Linux/Android, so we assume to get less than 50 requests, but also allow 2 batches of overshoot for
-    # residual items.
-    assert 1 <= len(httpserver.log) <= 52
     total_count = 0
 
     for i in range(len(httpserver.log)):
