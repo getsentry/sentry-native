@@ -562,7 +562,7 @@ sentry__waitable_flag_wait(sentry_waitable_flag_t *flag, uint64_t timeout_ms)
     }
     // WaitOnAddress blocks while *address == undesired
     WaitOnAddress((volatile VOID *)&flag->value, &undesired, sizeof(LONG),
-        (timeout_ms == UINT64_MAX) ? INFINITE : (DWORD)timeout_ms);
+        (DWORD)timeout_ms);
     // Try to consume the flag regardless of wait result
     return InterlockedCompareExchange(&flag->value, 0, 1) == 1;
 }
