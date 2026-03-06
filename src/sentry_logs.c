@@ -450,7 +450,7 @@ sentry__logs_startup(const sentry_options_t *options)
     if (batcher) {
         sentry__batcher_startup(batcher, options);
     }
-    sentry__batcher_swap(&g_batcher, batcher);
+    sentry__batcher_release(sentry__batcher_swap(&g_batcher, batcher));
 }
 
 bool
