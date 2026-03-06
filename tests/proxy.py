@@ -48,6 +48,8 @@ def _discover_listening_port(process, timeout=10):
                 for conn in proc.net_connections(kind="tcp")
                 if conn.status == psutil.CONN_LISTEN
             ]
+        except psutil.NoSuchProcess:
+            raise RuntimeError(f"mitmdump (pid {process.pid}) exited before listening")
         except (psutil.AccessDenied, OSError):
             listeners = []
 
@@ -100,7 +102,7 @@ def start_mitmdump(
         try:
             port = _discover_listening_port(proxy_process)
             return proxy_process, port
-        except TimeoutError as e:
+        except (TimeoutError, RuntimeError) as e:
             proxy_process.kill()
             proxy_process.wait()
             if attempt < retries:
