@@ -58,9 +58,29 @@ typedef struct {
 #define SENTRY_BATCHER_REF_INIT { NULL, 0 }
 
 sentry_batcher_t *sentry__batcher_new(sentry_batch_func_t batch_func);
+
+/**
+ * Acquires a reference to the batcher behind `ref`, atomically incrementing
+ * its refcount under the spinlock. Returns NULL if the ref is empty.
+ */
 sentry_batcher_t *sentry__batcher_acquire(sentry_batcher_ref_t *ref);
+
+/**
+ * Lock-free, signal-safe read of `ref->ptr`. No refcount bump, no lock.
+ * Only safe when the caller will never release the returned pointer
+ * (i.e. crash-safe flush paths where the process is dying).
+ */
 sentry_batcher_t *sentry__batcher_peek(sentry_batcher_ref_t *ref);
+
+/**
+ * Decrements the batcher's refcount and frees it when it reaches zero.
+ */
 void sentry__batcher_release(sentry_batcher_t *batcher);
+
+/**
+ * Atomically swaps the batcher pointer in `ref`, returning the old one.
+ * The caller is responsible for shutting down and releasing the old batcher.
+ */
 sentry_batcher_t *sentry__batcher_swap(
     sentry_batcher_ref_t *ref, sentry_batcher_t *batcher);
 
