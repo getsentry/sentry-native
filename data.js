@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1772796112372,
+  "lastUpdate": 1772796236118,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -36304,6 +36304,66 @@ window.BENCHMARK_DATA = {
             "value": 13.830600000005688,
             "unit": "ms",
             "extra": "Min 13.393ms\nMax 14.231ms\nMean 13.776ms\nStdDev 0.314ms\nMedian 13.831ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "mischan@abovevacant.com",
+            "name": "Mischan Toosarani-Hausberger",
+            "username": "supervacuus"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "219c5f384b3afd237a5674422a8dd66dca1a64f6",
+          "message": "fix(test): discover `mitmdump` ports via `psutil` (#1557)\n\n* fix: discover mitmdump ports via psutil\n\nParsing its output is generally brittle for this process. Let's start it like we did before and let the OS assign a free port, but use OS-level utilities to extract the listening port instead of stdout polling and parsing.\n\n* of course there is no cross-platform solution without a wide fallback for windows\n\n* ensure we retry on the added RuntimeErrors too and consider the case where mitmdump died between poll() and net_connections()\n\n* remove the net_connections fallback and instead iterate the process tree\n\nif mitmdump is installed via pip (vs the release binary) it isn't the top-level executable that listens but a child process.",
+          "timestamp": "2026-03-06T12:19:27+01:00",
+          "tree_id": "4b173ea0815f358b98b79d7b4cf65c7dc33e08a4",
+          "url": "https://github.com/getsentry/sentry-native/commit/219c5f384b3afd237a5674422a8dd66dca1a64f6"
+        },
+        "date": 1772796232686,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 10.009800000034375,
+            "unit": "ms",
+            "extra": "Min 9.896ms\nMax 10.399ms\nMean 10.062ms\nStdDev 0.194ms\nMedian 10.010ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 10.350500000072316,
+            "unit": "ms",
+            "extra": "Min 9.988ms\nMax 11.493ms\nMean 10.527ms\nStdDev 0.582ms\nMedian 10.351ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 26.434300000119038,
+            "unit": "ms",
+            "extra": "Min 26.268ms\nMax 33.334ms\nMean 27.955ms\nStdDev 3.037ms\nMedian 26.434ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.21949999995740654,
+            "unit": "ms",
+            "extra": "Min 0.196ms\nMax 0.299ms\nMean 0.229ms\nStdDev 0.042ms\nMedian 0.219ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.4473999999845546,
+            "unit": "ms",
+            "extra": "Min 0.414ms\nMax 0.514ms\nMean 0.452ms\nStdDev 0.037ms\nMedian 0.447ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 15.138799999931507,
+            "unit": "ms",
+            "extra": "Min 14.630ms\nMax 15.720ms\nMean 15.209ms\nStdDev 0.424ms\nMedian 15.139ms"
           }
         ]
       }
