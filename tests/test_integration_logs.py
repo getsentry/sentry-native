@@ -1,4 +1,5 @@
 import os
+import time
 
 import pytest
 
@@ -310,6 +311,13 @@ def test_native_logs_on_crash(cmake, httpserver):
         ["log", "no-setup"],
         env=env,
     )
+
+    # The crash daemon (sentry-crash) runs out-of-process and may still be
+    # sending envelopes after the crashed process exits.  Poll with a timeout
+    # so we don't flake on slow CI.
+    deadline = time.monotonic() + 10
+    while len(httpserver.log) < 2 and time.monotonic() < deadline:
+        time.sleep(0.2)
 
     # we expect 1 envelope with the log, and 1 for the crash
     assert len(httpserver.log) == 2
