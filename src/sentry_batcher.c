@@ -59,7 +59,6 @@ sentry__batcher_release(sentry_batcher_t *batcher)
     buffer_drain(&batcher->buffers[0]);
     buffer_drain(&batcher->buffers[1]);
     sentry__dsn_decref(batcher->dsn);
-    sentry__cond_destroy(&batcher->request_flush);
     sentry__thread_free(&batcher->batching_thread);
     sentry_free(batcher);
 }
