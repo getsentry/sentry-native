@@ -1,6 +1,7 @@
 #include "sentry_batcher.h"
 #include "sentry_cpu_relax.h"
 #include "sentry_options.h"
+#include <string.h>
 
 // The batcher thread sleeps for this interval between flush cycles.
 // When the timer fires and there are items in the buffer, they are flushed
@@ -16,6 +17,69 @@
 #        define sleep_ms(MILLISECONDS) usleep(MILLISECONDS * 1000)
 #    endif
 #endif
+
+sentry_batcher_t *
+sentry__batcher_new(sentry_batch_func_t batch_func)
+{
+    sentry_batcher_t *batcher = sentry_malloc(sizeof(sentry_batcher_t));
+    if (!batcher) {
+        return NULL;
+    }
+    memset(batcher, 0, sizeof(sentry_batcher_t));
+    batcher->refcount = 1;
+    batcher->batch_func = batch_func;
+    batcher->thread_state = (long)SENTRY_BATCHER_THREAD_STOPPED;
+    sentry__waitable_flag_init(&batcher->request_flush);
+    sentry__thread_init(&batcher->batching_thread);
+    return batcher;
+}
+
+void
+sentry__batcher_release(sentry_batcher_t *batcher)
+{
+    if (!batcher || sentry__atomic_fetch_and_add(&batcher->refcount, -1) != 1) {
+        return;
+    }
+    sentry__dsn_decref(batcher->dsn);
+    sentry__thread_free(&batcher->batching_thread);
+    sentry_free(batcher);
+}
+
+static inline void
+lock_ref(sentry_batcher_ref_t *ref)
+{
+    while (!sentry__atomic_compare_swap(&ref->lock, 0, 1)) {
+        sentry__cpu_relax();
+    }
+}
+
+static inline void
+unlock_ref(sentry_batcher_ref_t *ref)
+{
+    sentry__atomic_store(&ref->lock, 0);
+}
+
+sentry_batcher_t *
+sentry__batcher_acquire(sentry_batcher_ref_t *ref)
+{
+    lock_ref(ref);
+    sentry_batcher_t *batcher = ref->ptr;
+    if (batcher) {
+        sentry__atomic_fetch_and_add(&batcher->refcount, 1);
+    }
+    unlock_ref(ref);
+    return batcher;
+}
+
+sentry_batcher_t *
+sentry__batcher_swap(sentry_batcher_ref_t *ref, sentry_batcher_t *batcher)
+{
+    lock_ref(ref);
+    sentry_batcher_t *old = ref->ptr;
+    ref->ptr = batcher;
+    unlock_ref(ref);
+    return old;
+}
 
 // Use a sleep spinner around a monotonic timer so we don't syscall sleep from
 // a signal handler. While this is strictly needed only there, there is no
@@ -288,9 +352,6 @@ sentry__batcher_startup(
     sentry__atomic_store(
         &batcher->thread_state, (long)SENTRY_BATCHER_THREAD_STARTING);
 
-    sentry__waitable_flag_init(&batcher->request_flush);
-
-    sentry__thread_init(&batcher->batching_thread);
     int spawn_result = sentry__thread_spawn(
         &batcher->batching_thread, batcher_thread_func, batcher);
 
@@ -299,8 +360,6 @@ sentry__batcher_startup(
         // Failed to spawn, reset to STOPPED
         sentry__atomic_store(
             &batcher->thread_state, (long)SENTRY_BATCHER_THREAD_STOPPED);
-        sentry__dsn_decref(batcher->dsn);
-        batcher->dsn = NULL;
     }
 }
 
@@ -335,11 +394,6 @@ sentry__batcher_shutdown_wait(sentry_batcher_t *batcher, uint64_t timeout)
 
     // Perform final flush to ensure any remaining items are sent
     sentry__batcher_flush(batcher, false);
-
-    sentry__dsn_decref(batcher->dsn);
-    batcher->dsn = NULL;
-
-    sentry__thread_free(&batcher->batching_thread);
 }
 
 void

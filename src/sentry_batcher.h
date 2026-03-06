@@ -36,6 +36,7 @@ typedef sentry_envelope_item_t *(*sentry_batch_func_t)(
     sentry_envelope_t *envelope, sentry_value_t items);
 
 typedef struct {
+    long refcount; // (atomic) reference count
     sentry_batcher_buffer_t buffers[2]; // double buffer
     long active_idx; // (atomic) index to the active buffer
     long flushing; // (atomic) reentrancy guard to the flusher
@@ -48,6 +49,19 @@ typedef struct {
     sentry_run_t *run;
     long *user_consent; // (atomic) NULL if consent not required
 } sentry_batcher_t;
+
+typedef struct {
+    sentry_batcher_t *ptr;
+    long lock; // (atomic) spinlock
+} sentry_batcher_ref_t;
+
+#define SENTRY_BATCHER_REF_INIT { NULL, 0 }
+
+sentry_batcher_t *sentry__batcher_new(sentry_batch_func_t batch_func);
+sentry_batcher_t *sentry__batcher_acquire(sentry_batcher_ref_t *ref);
+void sentry__batcher_release(sentry_batcher_t *batcher);
+sentry_batcher_t *sentry__batcher_swap(
+    sentry_batcher_ref_t *ref, sentry_batcher_t *batcher);
 
 bool sentry__batcher_flush(sentry_batcher_t *batcher, bool crash_safe);
 bool sentry__batcher_enqueue(sentry_batcher_t *batcher, sentry_value_t item);
