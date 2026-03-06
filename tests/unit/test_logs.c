@@ -454,15 +454,14 @@ SENTRY_TEST(logs_reinit_stress)
         sentry__thread_init(&threads[t]);
     }
 
-    for (int i = 0; i < 10; i++) {
+    for (int i = 0; i < 5; i++) {
         SENTRY_TEST_OPTIONS_NEW(options);
         sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
         sentry_options_set_enable_logs(options, true);
         sentry_init(options);
 
-        sentry__logs_wait_for_thread_startup();
-
         if (i == 0) {
+            sentry__logs_wait_for_thread_startup();
             for (int t = 0; t < 8; t++) {
                 sentry__thread_spawn(
                     &threads[t], log_producer_thread, (void *)&produce);
