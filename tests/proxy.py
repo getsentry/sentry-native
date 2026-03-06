@@ -31,7 +31,9 @@ def cleanup_proxy_env_vars():
 
 
 def _discover_listening_port(process, timeout=10):
-    """Use psutil to discover which port the process is listening on."""
+    """Use psutil to discover which port the process is listening on.
+    Tries per-process net_connections first, falls back to system-wide
+    (filtered by PID) which works on Windows without elevated privileges."""
     deadline = time.monotonic() + timeout
     proc = psutil.Process(process.pid)
     while time.monotonic() < deadline:
@@ -39,11 +41,27 @@ def _discover_listening_port(process, timeout=10):
             raise RuntimeError(
                 f"mitmdump exited with code {process.returncode} before listening"
             )
-        listeners = [
-            conn
-            for conn in proc.net_connections(kind="tcp")
-            if conn.status == psutil.CONN_LISTEN
-        ]
+        # Try per-process first (works on macOS/Linux without privileges)
+        try:
+            listeners = [
+                conn
+                for conn in proc.net_connections(kind="tcp")
+                if conn.status == psutil.CONN_LISTEN
+            ]
+        except (psutil.AccessDenied, OSError):
+            listeners = []
+
+        # Fall back to system-wide, filtered by PID
+        if not listeners:
+            try:
+                listeners = [
+                    conn
+                    for conn in psutil.net_connections(kind="tcp")
+                    if conn.status == psutil.CONN_LISTEN and conn.pid == process.pid
+                ]
+            except (psutil.AccessDenied, OSError):
+                listeners = []
+
         if listeners:
             assert (
                 len(listeners) == 1
