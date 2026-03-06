@@ -1,6 +1,7 @@
 #include "sentry_batcher.h"
 #include "sentry_cpu_relax.h"
 #include "sentry_options.h"
+#include "sentry_utils.h"
 #include <string.h>
 
 // The batcher thread sleeps for this interval between flush cycles.
@@ -34,12 +35,28 @@ sentry__batcher_new(sentry_batch_func_t batch_func)
     return batcher;
 }
 
+/**
+ * Releases any items left in the buffers that were enqueued after the final
+ * flush (e.g. by a producer that acquired a ref before shutdown).
+ */
+static void
+buffer_drain(sentry_batcher_buffer_t *buf)
+{
+    const long n = MIN(buf->index, SENTRY_BATCHER_QUEUE_LENGTH);
+    for (long i = 0; i < n; i++) {
+        sentry_value_decref(buf->items[i]);
+    }
+    buf->index = 0;
+}
+
 void
 sentry__batcher_release(sentry_batcher_t *batcher)
 {
     if (!batcher || sentry__atomic_fetch_and_add(&batcher->refcount, -1) != 1) {
         return;
     }
+    buffer_drain(&batcher->buffers[0]);
+    buffer_drain(&batcher->buffers[1]);
     sentry__dsn_decref(batcher->dsn);
     sentry__thread_free(&batcher->batching_thread);
     sentry_free(batcher);
