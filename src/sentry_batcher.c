@@ -92,7 +92,14 @@ sentry__batcher_acquire(sentry_batcher_ref_t *ref)
 sentry_batcher_t *
 sentry__batcher_peek(sentry_batcher_ref_t *ref)
 {
-    return (sentry_batcher_t *)sentry__atomic_fetch((volatile long *)&ref->ptr);
+#ifdef SENTRY_PLATFORM_WINDOWS
+    return (sentry_batcher_t *)InterlockedCompareExchangePointer(
+        (volatile PVOID *)&ref->ptr, NULL, NULL);
+#else
+    sentry_batcher_t *ptr;
+    __atomic_load(&ref->ptr, &ptr, __ATOMIC_SEQ_CST);
+    return ptr;
+#endif
 }
 
 sentry_batcher_t *
