@@ -1,9 +1,10 @@
 import contextlib
-import re
 import os
 import socket
 import subprocess
 import time
+
+import psutil
 
 import pytest
 
@@ -29,58 +30,71 @@ def cleanup_proxy_env_vars():
     os.environ.pop("https_proxy", None)
 
 
-def _parse_listening_port(proxy_process, timeout=10):
-    """Read the 'Proxy server listening at ...' line from mitmdump stdout
-    and extract the port. This consumes only the first line; subsequent
-    stdout (request logs) remains available via proxy_process.stdout."""
+def _discover_listening_port(process, timeout=10):
+    """Use psutil to discover which port the process is listening on."""
     deadline = time.monotonic() + timeout
-    buf = b""
+    proc = psutil.Process(process.pid)
     while time.monotonic() < deadline:
-        ch = proxy_process.stdout.read(1)
-        if not ch:
-            break
-        buf += ch
-        if ch == b"\n":
-            match = re.search(rb"listening at .+:(\d+)", buf)
-            if match:
-                return int(match.group(1))
-            buf = b""
-        if proxy_process.poll() is not None:
-            break
-    pytest.fail(
-        f"mitmdump did not report a listening port within {timeout}s. Output so far: {buf!r}"
+        if process.poll() is not None:
+            raise RuntimeError(
+                f"mitmdump exited with code {process.returncode} before listening"
+            )
+        listeners = [
+            conn
+            for conn in proc.net_connections(kind="tcp")
+            if conn.status == psutil.CONN_LISTEN
+        ]
+        if listeners:
+            assert (
+                len(listeners) == 1
+            ), f"Expected mitmdump to listen on exactly one port, got: {listeners}"
+            return listeners[0].laddr.port
+        time.sleep(0.2)
+    raise TimeoutError(
+        f"mitmdump (pid {process.pid}) did not start listening within {timeout}s"
     )
 
 
-def start_mitmdump(proxy_type, proxy_auth: str = None, listen_host: str = "127.0.0.1"):
-    """Start mitmdump with OS-assigned port (--listen-port 0). Returns (process, port)."""
-    proxy_command = [
-        "mitmdump",
-        "--set",
-        f"listen_host={listen_host}",
-        "--listen-port",
-        "0",
-    ]
+def start_mitmdump(
+    proxy_type, proxy_auth: str = None, listen_host: str = "127.0.0.1", retries: int = 3
+):
+    """Start mitmdump on a free port. Returns (process, port).
+    Retries up to `retries` times if mitmdump fails to start listening."""
+    for attempt in range(1, retries + 1):
+        proxy_command = [
+            "mitmdump",
+            "--set",
+            f"listen_host={listen_host}",
+            "--listen-port",
+            "0",
+        ]
 
-    if proxy_type == "socks5-proxy":
-        proxy_command += ["--mode", "socks5"]
+        if proxy_type == "socks5-proxy":
+            proxy_command += ["--mode", "socks5"]
 
-    if proxy_auth:
-        proxy_command += ["-v", "--proxyauth", proxy_auth]
+        if proxy_auth:
+            proxy_command += ["-v", "--proxyauth", proxy_auth]
 
-    # mitmdump (also written in python) often buffers output long enough so that we don't catch it
-    env = {**os.environ, "PYTHONUNBUFFERED": "1"}
-    proxy_process = subprocess.Popen(
-        proxy_command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, env=env
-    )
+        proxy_process = subprocess.Popen(
+            proxy_command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT
+        )
 
-    try:
-        port = _parse_listening_port(proxy_process)
-    except Exception:
-        proxy_process.terminate()
-        proxy_process.wait()
-        raise
-    return proxy_process, port
+        try:
+            port = _discover_listening_port(proxy_process)
+            return proxy_process, port
+        except TimeoutError as e:
+            proxy_process.kill()
+            proxy_process.wait()
+            if attempt < retries:
+                print(f"mitmdump attempt {attempt}/{retries} failed, retrying: {e}")
+                continue
+            else:
+                pytest.fail(str(e))
+        except Exception:
+            proxy_process.terminate()
+            proxy_process.wait()
+            raise
+    pytest.fail("start_mitmdump: all retries exhausted")
 
 
 def proxy_test_finally(
