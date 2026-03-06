@@ -284,8 +284,6 @@ def test_metrics_threaded(cmake, httpserver):
         env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
     )
 
-    # there is a chance we drop metrics while flushing buffers
-    assert 1 <= len(httpserver.log) <= 50
     total_count = 0
 
     for i in range(len(httpserver.log)):

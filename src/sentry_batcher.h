@@ -40,7 +40,7 @@ typedef struct {
     long active_idx; // (atomic) index to the active buffer
     long flushing; // (atomic) reentrancy guard to the flusher
     long thread_state; // (atomic) sentry_batcher_thread_state_t
-    sentry_cond_t request_flush; // condition variable to schedule a flush
+    sentry_waitable_flag_t request_flush; // level-triggered flush flag
     sentry_threadid_t batching_thread; // the batching thread
     sentry_batch_func_t batch_func; // function to add items to envelope
     sentry_dsn_t *dsn;

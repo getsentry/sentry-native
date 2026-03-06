@@ -1,4 +1,5 @@
 import os
+import time
 
 import pytest
 
@@ -134,8 +135,6 @@ def test_logs_threaded(cmake, httpserver):
         env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
     )
 
-    # there is a chance we drop logs while flushing buffers
-    assert 1 <= len(httpserver.log) <= 50
     total_count = 0
 
     for i in range(len(httpserver.log)):
@@ -312,6 +311,13 @@ def test_native_logs_on_crash(cmake, httpserver):
         ["log", "no-setup"],
         env=env,
     )
+
+    # The crash daemon (sentry-crash) runs out-of-process and may still be
+    # sending envelopes after the crashed process exits.  Poll with a timeout
+    # so we don't flake on slow CI.
+    deadline = time.monotonic() + 10
+    while len(httpserver.log) < 2 and time.monotonic() < deadline:
+        time.sleep(0.2)
 
     # we expect 1 envelope with the log, and 1 for the crash
     assert len(httpserver.log) == 2

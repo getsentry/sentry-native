@@ -585,6 +585,13 @@ elseif(WIN32)
 	else()
 		set(_SENTRY_PLATFORM_LIBS "dbghelp" "shlwapi" "version")
 	endif()
+	# WaitOnAddress/WakeByAddressSingle require Windows 8+
+	# (Synchronization.lib). Older targets fall back to sleep-poll.
+	if(NOT (MSVC AND CMAKE_GENERATOR_TOOLSET MATCHES "_xp$")
+		AND (${CMAKE_SYSTEM_VERSION} MATCHES "^10"
+			OR ${CMAKE_SYSTEM_VERSION} MATCHES "^6\\.[23]"))
+		list(APPEND _SENTRY_PLATFORM_LIBS "synchronization")
+	endif()
 endif()
 
 if(SENTRY_TRANSPORT_WINHTTP)
@@ -781,11 +788,8 @@ elseif(SENTRY_BACKEND_NATIVE)
 	)
 
 	# Link same libraries as sentry
-	if(WIN32)
-		target_link_libraries(sentry-crash PRIVATE dbghelp shlwapi version)
-	elseif(LINUX OR ANDROID)
-		target_link_libraries(sentry-crash PRIVATE pthread rt dl)
-	elseif(APPLE)
+	target_link_libraries(sentry-crash PRIVATE ${_SENTRY_PLATFORM_LIBS})
+	if(APPLE)
 		find_library(COREFOUNDATION_LIBRARY CoreFoundation REQUIRED)
 		find_library(SECURITY_LIBRARY Security REQUIRED)
 		target_link_libraries(sentry-crash PRIVATE

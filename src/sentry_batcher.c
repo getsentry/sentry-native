@@ -194,18 +194,15 @@ sentry__batcher_enqueue(sentry_batcher_t *batcher, sentry_value_t item)
             active->items[item_idx] = item;
             sentry__atomic_fetch_and_add(&active->adding, -1);
 
-            // Check if active buffer is now full and trigger flush. We could
-            // introduce additional watermarks here to trigger the flush earlier
-            // under high contention.
-            // TODO replace with a level-triggered flag
+            // Check if active buffer is now full and trigger flush.
             if (item_idx == SENTRY_BATCHER_QUEUE_LENGTH - 1) {
-                sentry__cond_wake(&batcher->request_flush);
+                sentry__waitable_flag_set(&batcher->request_flush);
             }
             return true;
         }
-        // ping the batching thread to flush, since we could miss a cond_wake
+        // ping the batching thread to flush, since we could miss the flag set
         // on adding the last item
-        sentry__cond_wake(&batcher->request_flush);
+        sentry__waitable_flag_set(&batcher->request_flush);
         // Buffer is already full, roll back our increments and retry or drop.
         sentry__atomic_fetch_and_add(&active->adding, -1);
         if (attempt == ENQUEUE_MAX_RETRIES) {
@@ -221,9 +218,6 @@ batcher_thread_func(void *data)
 {
     sentry_batcher_t *batcher = data;
     SENTRY_DEBUG("Starting batching thread");
-    sentry_mutex_t task_lock;
-    sentry__mutex_init(&task_lock);
-    sentry__mutex_lock(&task_lock);
 
     // Transition from STARTING to RUNNING using compare-and-swap
     // CAS ensures atomic state verification: only succeeds if state is STARTING
@@ -235,8 +229,6 @@ batcher_thread_func(void *data)
             (long)SENTRY_BATCHER_THREAD_RUNNING)) {
         SENTRY_DEBUG(
             "batcher thread detected shutdown during startup, exiting");
-        sentry__mutex_unlock(&task_lock);
-        sentry__mutex_free(&task_lock);
         return 0;
     }
 
@@ -249,14 +241,17 @@ batcher_thread_func(void *data)
     //  3. Shutdown / force-flush → thread state change or cond_wake
     while (sentry__atomic_fetch(&batcher->thread_state)
         == SENTRY_BATCHER_THREAD_RUNNING) {
-        sentry__cond_wait_timeout(&batcher->request_flush, &task_lock,
-            SENTRY_BATCHER_FLUSH_INTERVAL_MS);
+        // Sleep for 5 seconds or until request_flush is set
+        sentry__waitable_flag_wait(
+            &batcher->request_flush, SENTRY_BATCHER_FLUSH_INTERVAL_MS);
 
         if (sentry__atomic_fetch(&batcher->thread_state)
             != SENTRY_BATCHER_THREAD_RUNNING) {
             break;
         }
 
+        // Use the buffer state as the source of truth rather than the
+        // wake trigger: flush if there's data, skip otherwise.
         const long active_idx = sentry__atomic_fetch(&batcher->active_idx);
         sentry_batcher_buffer_t *buf = &batcher->buffers[active_idx];
         const long count = sentry__atomic_fetch(&buf->index);
@@ -267,14 +262,12 @@ batcher_thread_func(void *data)
         if (count >= SENTRY_BATCHER_QUEUE_LENGTH) {
             SENTRY_TRACE("Batcher flushed by filled buffer");
         } else {
-            SENTRY_TRACE("Batcher flushed by timer");
+            SENTRY_TRACE("Batcher flushed by timeout");
         }
 
         sentry__batcher_flush(batcher, false);
     }
 
-    sentry__mutex_unlock(&task_lock);
-    sentry__mutex_free(&task_lock);
     SENTRY_DEBUG("batching thread exiting");
     return 0;
 }
@@ -295,7 +288,7 @@ sentry__batcher_startup(
     sentry__atomic_store(
         &batcher->thread_state, (long)SENTRY_BATCHER_THREAD_STARTING);
 
-    sentry__cond_init(&batcher->request_flush);
+    sentry__waitable_flag_init(&batcher->request_flush);
 
     sentry__thread_init(&batcher->batching_thread);
     int spawn_result = sentry__thread_spawn(
@@ -304,8 +297,6 @@ sentry__batcher_startup(
     if (spawn_result == 1) {
         SENTRY_ERROR("Failed to start batching thread");
         // Failed to spawn, reset to STOPPED
-        // Note: condition variable doesn't need explicit cleanup for static
-        // storage (pthread_cond_t on POSIX and CONDITION_VARIABLE on Windows)
         sentry__atomic_store(
             &batcher->thread_state, (long)SENTRY_BATCHER_THREAD_STOPPED);
         sentry__dsn_decref(batcher->dsn);
@@ -330,7 +321,7 @@ sentry__batcher_shutdown_begin(sentry_batcher_t *batcher)
     }
 
     // Thread was started (either STARTING or RUNNING), signal it to stop
-    sentry__cond_wake(&batcher->request_flush);
+    sentry__waitable_flag_set(&batcher->request_flush);
     return true;
 }
 
@@ -374,7 +365,7 @@ sentry__batcher_flush_crash_safe(sentry_batcher_t *batcher)
 void
 sentry__batcher_force_flush_begin(sentry_batcher_t *batcher)
 {
-    sentry__cond_wake(&batcher->request_flush);
+    sentry__waitable_flag_set(&batcher->request_flush);
 }
 
 void
