@@ -527,12 +527,13 @@ size_t sentry__bgworker_foreach_matching(sentry_bgworker_t *bgw,
  * - `sentry__waitable_flag_wait`: waits until the flag is set or the timeout
  *   expires, then atomically clears the flag. Returns true if the flag was
  *   set, false on timeout.
- * - On Windows uses WaitOnAddress, on Linux and Android a futex to keep latency
- *   low and pass on wait to the OS. Other POSIX fall back on a sleepy atomic
- *   poll loop.
+ * - On Windows 8+ uses WaitOnAddress, on Linux and Android a futex to keep
+ *   trigger latency low and pass on wait to the OS. Other POSIX, older Windows
+ *   and Xbox fall back on a sleepy atomic poll loop.
  */
 
-#ifdef SENTRY_PLATFORM_WINDOWS
+#if defined(SENTRY_PLATFORM_WINDOWS) && !defined(SENTRY_PLATFORM_XBOX)         \
+    && _WIN32_WINNT >= 0x0602
 
 typedef struct {
     volatile LONG value;
@@ -614,8 +615,44 @@ sentry__waitable_flag_wait(sentry_waitable_flag_t *flag, uint64_t timeout_ms)
         &flag->value, &expected, 0, false, __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST);
 }
 
+#elif defined(SENTRY_PLATFORM_WINDOWS)
+/* Fallback for older Windows / Xbox: sleep-poll with Sleep(). */
+
+typedef struct {
+    volatile LONG value;
+} sentry_waitable_flag_t;
+
+static inline void
+sentry__waitable_flag_init(sentry_waitable_flag_t *flag)
+{
+    InterlockedExchange(&flag->value, 0);
+}
+
+static inline void
+sentry__waitable_flag_set(sentry_waitable_flag_t *flag)
+{
+    InterlockedExchange(&flag->value, 1);
+}
+
+static inline bool
+sentry__waitable_flag_wait(sentry_waitable_flag_t *flag, uint64_t timeout_ms)
+{
+    const DWORD poll_interval_ms = 10;
+    DWORD remaining_ms = (DWORD)timeout_ms;
+    while (!InterlockedCompareExchange(&flag->value, 0, 1)) {
+        if (remaining_ms == 0) {
+            return false;
+        }
+        DWORD sleep_ms
+            = remaining_ms < poll_interval_ms ? remaining_ms : poll_interval_ms;
+        Sleep(sleep_ms);
+        remaining_ms -= sleep_ms;
+    }
+    return true;
+}
+
 #else
-/* Fallback for other POSIX platforms (FreeBSD, AIX, NX, etc.).
+/* Fallback for other POSIX platforms (Darwin, FreeBSD, AIX, NX, etc.).
  * Uses a simple sleep-poll loop over an atomic flag. Trades up to 10ms of
  * wake latency for zero platform-specific dependencies. */
 
