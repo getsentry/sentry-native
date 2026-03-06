@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1772800335851,
+  "lastUpdate": 1772800417669,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -24342,6 +24342,66 @@ window.BENCHMARK_DATA = {
             "value": 23.40108299995336,
             "unit": "ms",
             "extra": "Min 10.481ms\nMax 39.521ms\nMean 22.002ms\nStdDev 11.520ms\nMedian 23.401ms\nCPU 1.355ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "49699333+dependabot[bot]@users.noreply.github.com",
+            "name": "dependabot[bot]",
+            "username": "dependabot[bot]"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "f73765cb4df39f38e2bb00d754bbba5dd8921f2a",
+          "message": "build(deps): bump requests from 2.31.0 to 2.32.4 in /tests (#1559)\n\nBumps [requests](https://github.com/psf/requests) from 2.31.0 to 2.32.4.\n- [Release notes](https://github.com/psf/requests/releases)\n- [Changelog](https://github.com/psf/requests/blob/main/HISTORY.md)\n- [Commits](https://github.com/psf/requests/compare/v2.31.0...v2.32.4)\n\n---\nupdated-dependencies:\n- dependency-name: requests\n  dependency-version: 2.32.4\n  dependency-type: direct:production\n...\n\nSigned-off-by: dependabot[bot] <support@github.com>\nCo-authored-by: dependabot[bot] <49699333+dependabot[bot]@users.noreply.github.com>",
+          "timestamp": "2026-03-06T13:29:39+01:00",
+          "tree_id": "e757bf274c39309627ba1c464576268a7bcb08a6",
+          "url": "https://github.com/getsentry/sentry-native/commit/f73765cb4df39f38e2bb00d754bbba5dd8921f2a"
+        },
+        "date": 1772800414761,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 4.091708000032668,
+            "unit": "ms",
+            "extra": "Min 3.565ms\nMax 4.509ms\nMean 4.092ms\nStdDev 0.415ms\nMedian 4.092ms\nCPU 2.183ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 4.638416999966921,
+            "unit": "ms",
+            "extra": "Min 4.210ms\nMax 8.343ms\nMean 5.278ms\nStdDev 1.728ms\nMedian 4.638ms\nCPU 3.431ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 14.297166000005745,
+            "unit": "ms",
+            "extra": "Min 12.924ms\nMax 18.801ms\nMean 15.490ms\nStdDev 2.475ms\nMedian 14.297ms\nCPU 4.460ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.08191599999918253,
+            "unit": "ms",
+            "extra": "Min 0.065ms\nMax 0.132ms\nMean 0.096ms\nStdDev 0.032ms\nMedian 0.082ms\nCPU 0.057ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.2730410000140182,
+            "unit": "ms",
+            "extra": "Min 0.225ms\nMax 0.296ms\nMean 0.268ms\nStdDev 0.028ms\nMedian 0.273ms\nCPU 0.267ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 9.719125000003714,
+            "unit": "ms",
+            "extra": "Min 7.578ms\nMax 12.041ms\nMean 10.154ms\nStdDev 1.812ms\nMedian 9.719ms\nCPU 0.964ms"
           }
         ]
       }
