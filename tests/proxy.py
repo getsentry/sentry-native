@@ -30,10 +30,21 @@ def cleanup_proxy_env_vars():
     os.environ.pop("https_proxy", None)
 
 
+def _get_process_tree(proc):
+    """Return a list of psutil.Process for proc and all its descendants."""
+    procs = [proc]
+    try:
+        procs.extend(proc.children(recursive=True))
+    except (psutil.NoSuchProcess, psutil.AccessDenied):
+        pass
+    return procs
+
+
 def _discover_listening_port(process, timeout=10):
-    """Use psutil to discover which port the process is listening on.
-    Tries per-process net_connections first, falls back to system-wide
-    (filtered by PID) which works on Windows without elevated privileges."""
+    """Use psutil to discover which port the process (or any of its children)
+    is listening on.  On Windows, pip-installed mitmdump is a launcher that
+    spawns Python child processes, so the actual listener lives in a
+    descendant, not the top-level PID."""
     deadline = time.monotonic() + timeout
     proc = psutil.Process(process.pid)
     while time.monotonic() < deadline:
@@ -41,28 +52,20 @@ def _discover_listening_port(process, timeout=10):
             raise RuntimeError(
                 f"mitmdump exited with code {process.returncode} before listening"
             )
-        # Try per-process first (works on macOS/Linux without privileges)
-        try:
-            listeners = [
-                conn
-                for conn in proc.net_connections(kind="tcp")
-                if conn.status == psutil.CONN_LISTEN
-            ]
-        except psutil.NoSuchProcess:
-            raise RuntimeError(f"mitmdump (pid {process.pid}) exited before listening")
-        except (psutil.AccessDenied, OSError):
-            listeners = []
+        # Collect the process and all its children (pip-installed mitmdump on
+        # Windows spawns child python.exe processes that do the actual work).
+        tree = _get_process_tree(proc)
 
-        # Fall back to system-wide, filtered by PID
-        if not listeners:
+        listeners = []
+        for p in tree:
             try:
-                listeners = [
+                listeners.extend(
                     conn
-                    for conn in psutil.net_connections(kind="tcp")
-                    if conn.status == psutil.CONN_LISTEN and conn.pid == process.pid
-                ]
-            except (psutil.AccessDenied, OSError):
-                listeners = []
+                    for conn in p.net_connections(kind="tcp")
+                    if conn.status == psutil.CONN_LISTEN
+                )
+            except (psutil.NoSuchProcess, psutil.AccessDenied, OSError):
+                continue
 
         if listeners:
             assert (
