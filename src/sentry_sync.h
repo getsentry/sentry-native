@@ -637,16 +637,12 @@ sentry__waitable_flag_set(sentry_waitable_flag_t *flag)
 static inline bool
 sentry__waitable_flag_wait(sentry_waitable_flag_t *flag, uint64_t timeout_ms)
 {
-    const DWORD poll_interval_ms = 10;
-    DWORD remaining_ms = (DWORD)timeout_ms;
+    ULONGLONG deadline = GetTickCount64() + (ULONGLONG)timeout_ms;
     while (!InterlockedCompareExchange(&flag->value, 0, 1)) {
-        if (remaining_ms == 0) {
+        if (GetTickCount64() >= deadline) {
             return false;
         }
-        DWORD sleep_ms
-            = remaining_ms < poll_interval_ms ? remaining_ms : poll_interval_ms;
-        Sleep(sleep_ms);
-        remaining_ms -= sleep_ms;
+        Sleep(10); // 10ms
     }
     return true;
 }
@@ -677,17 +673,18 @@ sentry__waitable_flag_set(sentry_waitable_flag_t *flag)
 static inline bool
 sentry__waitable_flag_wait(sentry_waitable_flag_t *flag, uint64_t timeout_ms)
 {
-    const useconds_t poll_interval_us = 10000; // 10ms
-    uint64_t remaining_us = timeout_ms * 1000;
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    uint64_t deadline_ms = (uint64_t)ts.tv_sec * 1000
+        + (uint64_t)ts.tv_nsec / 1000000 + timeout_ms;
     while (!__atomic_load_n(&flag->value, __ATOMIC_ACQUIRE)) {
-        if (remaining_us == 0) {
+        clock_gettime(CLOCK_MONOTONIC, &ts);
+        uint64_t now_ms
+            = (uint64_t)ts.tv_sec * 1000 + (uint64_t)ts.tv_nsec / 1000000;
+        if (now_ms >= deadline_ms) {
             return false;
         }
-        useconds_t sleep_us = remaining_us < poll_interval_us
-            ? (useconds_t)remaining_us
-            : poll_interval_us;
-        usleep(sleep_us);
-        remaining_us -= sleep_us;
+        usleep(10000); // 10ms
     }
     __atomic_store_n(&flag->value, 0, __ATOMIC_SEQ_CST);
     return true;
