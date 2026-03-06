@@ -1,4 +1,5 @@
 #include "sentry_batcher.h"
+#include "sentry_alloc.h"
 #include "sentry_cpu_relax.h"
 #include "sentry_options.h"
 #include "sentry_utils.h"
@@ -22,7 +23,7 @@
 sentry_batcher_t *
 sentry__batcher_new(sentry_batch_func_t batch_func)
 {
-    sentry_batcher_t *batcher = sentry_malloc(sizeof(sentry_batcher_t));
+    sentry_batcher_t *batcher = SENTRY_MAKE(sentry_batcher_t);
     if (!batcher) {
         return NULL;
     }
