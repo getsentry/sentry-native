@@ -242,7 +242,8 @@ batcher_thread_func(void *data)
     while (sentry__atomic_fetch(&batcher->thread_state)
         == SENTRY_BATCHER_THREAD_RUNNING) {
         // Sleep for 5 seconds or until request_flush is set
-        sentry__waitable_flag_wait(&batcher->request_flush, 5000);
+        sentry__waitable_flag_wait(
+            &batcher->request_flush, SENTRY_BATCHER_FLUSH_INTERVAL_MS);
 
         if (sentry__atomic_fetch(&batcher->thread_state)
             != SENTRY_BATCHER_THREAD_RUNNING) {
