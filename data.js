@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1772800458557,
+  "lastUpdate": 1772811933304,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -12200,6 +12200,66 @@ window.BENCHMARK_DATA = {
             "value": 1.9833450000419361,
             "unit": "ms",
             "extra": "Min 1.954ms\nMax 2.003ms\nMean 1.976ms\nStdDev 0.022ms\nMedian 1.983ms\nCPU 0.599ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "mischan@abovevacant.com",
+            "name": "Mischan Toosarani-Hausberger",
+            "username": "supervacuus"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "a42aca580d91234447ce231525a260f338329d10",
+          "message": "fix: introduce level-triggered waitable flag to trigger batcher... (#1558)\n\n* fix: introduce level-triggered waitable flag to trigger batcher from the producer\n\n* ensure we have the WaitOnAddress library linked and also introduce gate and fall back for older Windows and Xbox similar to Posix other than Linux and Android.\n\n* add deadline checks to the sleepy polls instead of accumulating sleep cycles\n\n* with the new extremely low latency wakes on Windows and Linux we see the buffers transmitted during the final shutdown flush... add them to the test assertion\n\n* make the active buffer content the flush arbiter in the batcher vs differentiating based on what the non-existent condvar meant previously\n\n* adapt assertions in test_logs_threaded analogous to test_metrics_threaded\n\n* let sentry-crash inherit the platform libs\n\n* align linux fast path for flag_wait with the other implementations.\n\n* use SENTRY_BATCHER_FLUSH_INTERVAL_MS\n\n* drop the request number assertion entirely since it is now even more meaningless than before...\n\nwe are not only bounded by the last flush, but since we now trigger with almost immediate wake on essentially any count in the buffer... we can get requests as high as the number of items we send. The important part is the total count and that one has been stable throughout.\n\n* align POSIX fallback for consistency\n\n* remove another inconsistency that could trip up the bots\n\n* use WOA on Xbox too\n\n* add a time-bounded wait loop for the native backend's daemon since it could still be running after the example process terminated due to the crash",
+          "timestamp": "2026-03-06T16:43:07+01:00",
+          "tree_id": "00532638db2d04617e87e34e3170e50713fb38f7",
+          "url": "https://github.com/getsentry/sentry-native/commit/a42aca580d91234447ce231525a260f338329d10"
+        },
+        "date": 1772811931399,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 0.8671070000048076,
+            "unit": "ms",
+            "extra": "Min 0.845ms\nMax 0.882ms\nMean 0.865ms\nStdDev 0.014ms\nMedian 0.867ms\nCPU 0.820ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 0.7844130000052019,
+            "unit": "ms",
+            "extra": "Min 0.771ms\nMax 0.816ms\nMean 0.789ms\nStdDev 0.018ms\nMedian 0.784ms\nCPU 0.788ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 3.2994050000070274,
+            "unit": "ms",
+            "extra": "Min 3.168ms\nMax 3.557ms\nMean 3.321ms\nStdDev 0.154ms\nMedian 3.299ms\nCPU 1.704ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.14174599999705606,
+            "unit": "ms",
+            "extra": "Min 0.123ms\nMax 0.172ms\nMean 0.142ms\nStdDev 0.019ms\nMedian 0.142ms\nCPU 0.088ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.036649000008992516,
+            "unit": "ms",
+            "extra": "Min 0.035ms\nMax 0.038ms\nMean 0.037ms\nStdDev 0.001ms\nMedian 0.037ms\nCPU 0.036ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 2.1657270000048356,
+            "unit": "ms",
+            "extra": "Min 2.062ms\nMax 2.939ms\nMean 2.290ms\nStdDev 0.369ms\nMedian 2.166ms\nCPU 0.685ms"
           }
         ]
       }
