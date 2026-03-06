@@ -155,10 +155,9 @@ void
 sentry__metrics_flush_crash_safe(void)
 {
     SENTRY_DEBUG("crash-safe metrics flush");
-    sentry_batcher_t *batcher = sentry__batcher_acquire(&g_batcher);
+    sentry_batcher_t *batcher = sentry__batcher_peek(&g_batcher);
     if (batcher) {
         sentry__batcher_flush_crash_safe(batcher);
-        sentry__batcher_release(batcher);
     }
     SENTRY_DEBUG("crash-safe metrics flush complete");
 }

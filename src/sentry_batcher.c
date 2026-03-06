@@ -90,6 +90,12 @@ sentry__batcher_acquire(sentry_batcher_ref_t *ref)
 }
 
 sentry_batcher_t *
+sentry__batcher_peek(sentry_batcher_ref_t *ref)
+{
+    return (sentry_batcher_t *)sentry__atomic_fetch((volatile long *)&ref->ptr);
+}
+
+sentry_batcher_t *
 sentry__batcher_swap(sentry_batcher_ref_t *ref, sentry_batcher_t *batcher)
 {
     lock_ref(ref);

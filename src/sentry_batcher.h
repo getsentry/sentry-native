@@ -59,6 +59,7 @@ typedef struct {
 
 sentry_batcher_t *sentry__batcher_new(sentry_batch_func_t batch_func);
 sentry_batcher_t *sentry__batcher_acquire(sentry_batcher_ref_t *ref);
+sentry_batcher_t *sentry__batcher_peek(sentry_batcher_ref_t *ref);
 void sentry__batcher_release(sentry_batcher_t *batcher);
 sentry_batcher_t *sentry__batcher_swap(
     sentry_batcher_ref_t *ref, sentry_batcher_t *batcher);
