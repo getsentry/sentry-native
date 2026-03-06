@@ -433,3 +433,47 @@ SENTRY_TEST(logs_reinit)
     sentry_init(options2);
     sentry_close();
 }
+
+SENTRY_THREAD_FN
+log_producer_thread(void *data)
+{
+    volatile long *produce = data;
+    while (sentry__atomic_fetch(produce)) {
+        sentry_log_info("log from producer thread");
+    }
+    return 0;
+}
+
+// multiple threads produce logs during SDK re-init
+SENTRY_TEST(logs_reinit_stress)
+{
+    volatile long produce = 1;
+
+    sentry_threadid_t threads[8];
+    for (int t = 0; t < 8; t++) {
+        sentry__thread_init(&threads[t]);
+    }
+
+    for (int i = 0; i < 10; i++) {
+        SENTRY_TEST_OPTIONS_NEW(options);
+        sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
+        sentry_options_set_enable_logs(options, true);
+        sentry_init(options);
+
+        sentry__logs_wait_for_thread_startup();
+
+        if (i == 0) {
+            for (int t = 0; t < 8; t++) {
+                sentry__thread_spawn(
+                    &threads[t], log_producer_thread, (void *)&produce);
+            }
+        }
+
+        sentry_close();
+    }
+
+    sentry__atomic_store(&produce, 0);
+    for (int t = 0; t < 8; t++) {
+        sentry__thread_join(threads[t]);
+    }
+}
