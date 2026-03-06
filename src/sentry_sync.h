@@ -518,4 +518,144 @@ size_t sentry__bgworker_foreach_matching(sentry_bgworker_t *bgw,
     sentry_task_exec_func_t exec_func,
     bool (*callback)(void *task_data, void *data), void *data);
 
+/**
+ * A level-triggered waitable atomic flag.
+ *
+ * The flag has two states: 0 (unset) and 1 (set).
+ * - `sentry__waitable_flag_set`: atomically sets the flag to 1 and wakes
+ *   a waiting thread.
+ * - `sentry__waitable_flag_wait`: waits until the flag is set or the timeout
+ *   expires, then atomically clears the flag. Returns true if the flag was
+ *   set, false on timeout.
+ * - On Windows uses WaitOnAddress, on Linux and Android a futex to keep latency
+ *   low and pass on wait to the OS. Other POSIX fall back on a sleepy atomic
+ *   poll loop.
+ */
+
+#ifdef SENTRY_PLATFORM_WINDOWS
+
+typedef struct {
+    volatile LONG value;
+} sentry_waitable_flag_t;
+
+static inline void
+sentry__waitable_flag_init(sentry_waitable_flag_t *flag)
+{
+    flag->value = 0;
+}
+
+static inline void
+sentry__waitable_flag_set(sentry_waitable_flag_t *flag)
+{
+    InterlockedExchange(&flag->value, 1);
+    WakeByAddressSingle((PVOID)&flag->value);
+}
+
+static inline bool
+sentry__waitable_flag_wait(sentry_waitable_flag_t *flag, uint64_t timeout_ms)
+{
+    LONG undesired = 0;
+    // Fast path: flag already set
+    if (InterlockedCompareExchange(&flag->value, 0, 1) == 1) {
+        return true;
+    }
+    // WaitOnAddress blocks while *address == undesired
+    WaitOnAddress((volatile VOID *)&flag->value, &undesired, sizeof(LONG),
+        (timeout_ms == UINT64_MAX) ? INFINITE : (DWORD)timeout_ms);
+    // Try to consume the flag regardless of wait result
+    return InterlockedCompareExchange(&flag->value, 0, 1) == 1;
+}
+
+#elif defined(SENTRY_PLATFORM_LINUX)
+
+#    include <linux/futex.h>
+#    include <sys/syscall.h>
+#    include <unistd.h>
+
+typedef struct {
+    volatile int value;
+} sentry_waitable_flag_t;
+
+static inline void
+sentry__waitable_flag_init(sentry_waitable_flag_t *flag)
+{
+    flag->value = 0;
+}
+
+static inline void
+sentry__waitable_flag_set(sentry_waitable_flag_t *flag)
+{
+    __atomic_store_n(&flag->value, 1, __ATOMIC_SEQ_CST);
+    syscall(SYS_futex, &flag->value, FUTEX_WAKE_PRIVATE, 1, NULL, NULL, 0);
+}
+
+static inline bool
+sentry__waitable_flag_wait(sentry_waitable_flag_t *flag, uint64_t timeout_ms)
+{
+    // Fast path: flag already set
+    int expected = 0;
+    if (__atomic_compare_exchange_n(&flag->value, &expected, 0, false,
+            __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST)) {
+        // value was 0, not set
+    } else {
+        // value was 1, consume it
+        __atomic_store_n(&flag->value, 0, __ATOMIC_SEQ_CST);
+        return true;
+    }
+
+    struct timespec ts;
+    ts.tv_sec = (time_t)(timeout_ms / 1000);
+    ts.tv_nsec = (long)((timeout_ms % 1000) * 1000000);
+    // Block while value == 0
+    syscall(SYS_futex, &flag->value, FUTEX_WAIT_PRIVATE, 0, &ts, NULL, 0);
+    // Try to consume the flag
+    expected = 1;
+    return __atomic_compare_exchange_n(
+        &flag->value, &expected, 0, false, __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST);
+}
+
+#else
+/* Fallback for other POSIX platforms (FreeBSD, AIX, NX, etc.).
+ * Uses a simple sleep-poll loop over an atomic flag. Trades up to 10ms of
+ * wake latency for zero platform-specific dependencies. */
+
+#    include <unistd.h>
+
+typedef struct {
+    volatile int value;
+} sentry_waitable_flag_t;
+
+static inline void
+sentry__waitable_flag_init(sentry_waitable_flag_t *flag)
+{
+    __atomic_store_n(&flag->value, 0, __ATOMIC_SEQ_CST);
+}
+
+static inline void
+sentry__waitable_flag_set(sentry_waitable_flag_t *flag)
+{
+    __atomic_store_n(&flag->value, 1, __ATOMIC_RELEASE);
+}
+
+static inline bool
+sentry__waitable_flag_wait(sentry_waitable_flag_t *flag, uint64_t timeout_ms)
+{
+    const useconds_t poll_interval_us = 10000; // 10ms
+    uint64_t remaining_us = timeout_ms * 1000;
+    while (!__atomic_load_n(&flag->value, __ATOMIC_ACQUIRE)) {
+        if (remaining_us == 0) {
+            return false;
+        }
+        useconds_t sleep_us = remaining_us < poll_interval_us
+            ? (useconds_t)remaining_us
+            : poll_interval_us;
+        usleep(sleep_us);
+        remaining_us -= sleep_us;
+    }
+    __atomic_store_n(&flag->value, 0, __ATOMIC_SEQ_CST);
+    return true;
+}
+
+#endif
+
 #endif
