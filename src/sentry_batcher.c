@@ -2,6 +2,11 @@
 #include "sentry_cpu_relax.h"
 #include "sentry_options.h"
 
+// The batcher thread sleeps for this interval between flush cycles.
+// When the timer fires and there are items in the buffer, they are flushed
+// regardless of how recently they were enqueued.
+#define SENTRY_BATCHER_FLUSH_INTERVAL_MS 5000
+
 #ifdef SENTRY_UNITTEST
 #    ifdef SENTRY_PLATFORM_WINDOWS
 #        include <windows.h>
@@ -228,12 +233,18 @@ batcher_thread_func(void *data)
     }
 
     // Main loop: run while state is RUNNING
+    //
+    // Flush triggers:
+    //  1. Buffer full → enqueue wakes us via request_flush (immediate flush)
+    //  2. Timeout → partial buffer flushed after
+    //  SENTRY_BATCHER_FLUSH_INTERVAL_MS
+    //  3. Shutdown / force-flush → thread state change or cond_wake
     while (sentry__atomic_fetch(&batcher->thread_state)
         == SENTRY_BATCHER_THREAD_RUNNING) {
         // Sleep for 5 seconds or until request_flush is set
         sentry__waitable_flag_wait(&batcher->request_flush, 5000);
 
-        // Check if we should still be running
+
         if (sentry__atomic_fetch(&batcher->thread_state)
             != SENTRY_BATCHER_THREAD_RUNNING) {
             break;
