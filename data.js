@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1772918600256,
+  "lastUpdate": 1772918629547,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -12380,6 +12380,66 @@ window.BENCHMARK_DATA = {
             "value": 1.9485309999822675,
             "unit": "ms",
             "extra": "Min 1.902ms\nMax 2.036ms\nMean 1.963ms\nStdDev 0.052ms\nMedian 1.949ms\nCPU 0.607ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "49699333+dependabot[bot]@users.noreply.github.com",
+            "name": "dependabot[bot]",
+            "username": "dependabot[bot]"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "5022c00a2c87cfca20f8e543b841b18ec3bcd424",
+          "message": "build(deps): bump actions/setup-python from 5 to 6 (#1562)\n\nBumps [actions/setup-python](https://github.com/actions/setup-python) from 5 to 6.\n- [Release notes](https://github.com/actions/setup-python/releases)\n- [Commits](https://github.com/actions/setup-python/compare/v5...v6)\n\n---\nupdated-dependencies:\n- dependency-name: actions/setup-python\n  dependency-version: '6'\n  dependency-type: direct:production\n  update-type: version-update:semver-major\n...\n\nSigned-off-by: dependabot[bot] <support@github.com>\nCo-authored-by: dependabot[bot] <49699333+dependabot[bot]@users.noreply.github.com>",
+          "timestamp": "2026-03-07T22:21:24+01:00",
+          "tree_id": "7c117dcaeefb68b9998eecd6096e3ca5b954aaec",
+          "url": "https://github.com/getsentry/sentry-native/commit/5022c00a2c87cfca20f8e543b841b18ec3bcd424"
+        },
+        "date": 1772918627731,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 0.8823990000053072,
+            "unit": "ms",
+            "extra": "Min 0.868ms\nMax 0.906ms\nMean 0.886ms\nStdDev 0.018ms\nMedian 0.882ms\nCPU 0.839ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 0.7876139999893894,
+            "unit": "ms",
+            "extra": "Min 0.775ms\nMax 0.801ms\nMean 0.788ms\nStdDev 0.010ms\nMedian 0.788ms\nCPU 0.788ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 3.1898040000157835,
+            "unit": "ms",
+            "extra": "Min 3.014ms\nMax 3.439ms\nMean 3.175ms\nStdDev 0.172ms\nMedian 3.190ms\nCPU 1.629ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.1279770000053304,
+            "unit": "ms",
+            "extra": "Min 0.120ms\nMax 0.142ms\nMean 0.129ms\nStdDev 0.008ms\nMedian 0.128ms\nCPU 0.082ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.036115999989760894,
+            "unit": "ms",
+            "extra": "Min 0.034ms\nMax 0.058ms\nMean 0.040ms\nStdDev 0.010ms\nMedian 0.036ms\nCPU 0.039ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 1.9862189999741986,
+            "unit": "ms",
+            "extra": "Min 1.905ms\nMax 2.078ms\nMean 1.990ms\nStdDev 0.080ms\nMedian 1.986ms\nCPU 0.608ms"
           }
         ]
       }
