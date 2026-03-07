@@ -13,24 +13,7 @@ typedef enum {
     SENTRY_METRIC_DISTRIBUTION,
 } sentry_metric_type_t;
 
-static sentry_batcher_t g_batcher = {
-    {
-        {
-            .index = 0,
-            .adding = 0,
-            .sealed = 0,
-        },
-        {
-            .index = 0,
-            .adding = 0,
-            .sealed = 0,
-        },
-    },
-    .active_idx = 0,
-    .flushing = 0,
-    .thread_state = SENTRY_BATCHER_THREAD_STOPPED,
-    .batch_func = sentry__envelope_add_metrics,
-};
+static sentry_batcher_ref_t g_batcher = SENTRY_BATCHER_REF_INIT;
 
 static const char *
 metric_type_string(sentry_metric_type_t type)
@@ -108,10 +91,13 @@ record_metric(sentry_metric_type_t type, const char *name, sentry_value_t value,
         if (discarded) {
             return SENTRY_METRICS_RESULT_DISCARD;
         }
-        if (!sentry__batcher_enqueue(&g_batcher, metric)) {
+        sentry_batcher_t *batcher = sentry__batcher_acquire(&g_batcher);
+        if (!batcher || !sentry__batcher_enqueue(batcher, metric)) {
+            sentry__batcher_release(batcher);
             sentry_value_decref(metric);
             return SENTRY_METRICS_RESULT_FAILED;
         }
+        sentry__batcher_release(batcher);
         return SENTRY_METRICS_RESULT_SUCCESS;
     }
     sentry_value_decref(value);
@@ -145,20 +131,23 @@ sentry_metrics_distribution(
 void
 sentry__metrics_startup(const sentry_options_t *options)
 {
-    sentry__batcher_startup(&g_batcher, options);
-}
-
-bool
-sentry__metrics_shutdown_begin(void)
-{
-    SENTRY_DEBUG("beginning metrics system shutdown");
-    return sentry__batcher_shutdown_begin(&g_batcher);
+    sentry_batcher_t *batcher
+        = sentry__batcher_new(sentry__envelope_add_metrics);
+    if (batcher) {
+        sentry__batcher_startup(batcher, options);
+    }
+    sentry__batcher_release(sentry__batcher_swap(&g_batcher, batcher));
 }
 
 void
-sentry__metrics_shutdown_wait(uint64_t timeout)
+sentry__metrics_shutdown(uint64_t timeout)
 {
-    sentry__batcher_shutdown_wait(&g_batcher, timeout);
+    SENTRY_DEBUG("shutting down metrics system");
+    sentry_batcher_t *batcher = sentry__batcher_swap(&g_batcher, NULL);
+    if (batcher) {
+        sentry__batcher_shutdown(batcher, timeout);
+        sentry__batcher_release(batcher);
+    }
     SENTRY_DEBUG("metrics system shutdown complete");
 }
 
@@ -166,20 +155,31 @@ void
 sentry__metrics_flush_crash_safe(void)
 {
     SENTRY_DEBUG("crash-safe metrics flush");
-    sentry__batcher_flush_crash_safe(&g_batcher);
+    sentry_batcher_t *batcher = sentry__batcher_peek(&g_batcher);
+    if (batcher) {
+        sentry__batcher_flush_crash_safe(batcher);
+    }
     SENTRY_DEBUG("crash-safe metrics flush complete");
 }
 
-void
+uintptr_t
 sentry__metrics_force_flush_begin(void)
 {
-    sentry__batcher_force_flush_begin(&g_batcher);
+    sentry_batcher_t *batcher = sentry__batcher_acquire(&g_batcher);
+    if (batcher) {
+        sentry__batcher_force_flush_begin(batcher);
+    }
+    return (uintptr_t)batcher;
 }
 
 void
-sentry__metrics_force_flush_wait(void)
+sentry__metrics_force_flush_wait(uintptr_t token)
 {
-    sentry__batcher_force_flush_wait(&g_batcher);
+    sentry_batcher_t *batcher = (sentry_batcher_t *)token;
+    if (batcher) {
+        sentry__batcher_force_flush_wait(batcher);
+        sentry__batcher_release(batcher);
+    }
 }
 
 #ifdef SENTRY_UNITTEST
@@ -190,6 +190,10 @@ sentry__metrics_force_flush_wait(void)
 void
 sentry__metrics_wait_for_thread_startup(void)
 {
-    sentry__batcher_wait_for_thread_startup(&g_batcher);
+    sentry_batcher_t *batcher = sentry__batcher_acquire(&g_batcher);
+    if (batcher) {
+        sentry__batcher_wait_for_thread_startup(batcher);
+        sentry__batcher_release(batcher);
+    }
 }
 #endif
