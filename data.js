@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1772918629547,
+  "lastUpdate": 1772918674668,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -24762,6 +24762,66 @@ window.BENCHMARK_DATA = {
             "value": 7.243500000072345,
             "unit": "ms",
             "extra": "Min 6.676ms\nMax 7.674ms\nMean 7.199ms\nStdDev 0.378ms\nMedian 7.244ms\nCPU 0.849ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "49699333+dependabot[bot]@users.noreply.github.com",
+            "name": "dependabot[bot]",
+            "username": "dependabot[bot]"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "3b7f2484daa18e105f0018d50a7c7b6655d1a17b",
+          "message": "build(deps): bump actions/upload-artifact from 4 to 7 (#1561)\n\nBumps [actions/upload-artifact](https://github.com/actions/upload-artifact) from 4 to 7.\n- [Release notes](https://github.com/actions/upload-artifact/releases)\n- [Commits](https://github.com/actions/upload-artifact/compare/v4...v7)\n\n---\nupdated-dependencies:\n- dependency-name: actions/upload-artifact\n  dependency-version: '7'\n  dependency-type: direct:production\n  update-type: version-update:semver-major\n...\n\nSigned-off-by: dependabot[bot] <support@github.com>\nCo-authored-by: dependabot[bot] <49699333+dependabot[bot]@users.noreply.github.com>",
+          "timestamp": "2026-03-07T22:20:52+01:00",
+          "tree_id": "aadf0569455145faf6f2c891dd0eb245d1dd374e",
+          "url": "https://github.com/getsentry/sentry-native/commit/3b7f2484daa18e105f0018d50a7c7b6655d1a17b"
+        },
+        "date": 1772918671179,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 3.2099999998536077,
+            "unit": "ms",
+            "extra": "Min 2.852ms\nMax 9.926ms\nMean 5.394ms\nStdDev 3.370ms\nMedian 3.210ms\nCPU 2.795ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 3.3475000000180444,
+            "unit": "ms",
+            "extra": "Min 3.275ms\nMax 4.009ms\nMean 3.481ms\nStdDev 0.301ms\nMedian 3.348ms\nCPU 1.998ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 11.154541999985668,
+            "unit": "ms",
+            "extra": "Min 10.068ms\nMax 11.530ms\nMean 10.842ms\nStdDev 0.636ms\nMedian 11.155ms\nCPU 3.559ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.05770799998572329,
+            "unit": "ms",
+            "extra": "Min 0.047ms\nMax 0.065ms\nMean 0.057ms\nStdDev 0.007ms\nMedian 0.058ms\nCPU 0.043ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.21612499995171675,
+            "unit": "ms",
+            "extra": "Min 0.174ms\nMax 0.280ms\nMean 0.229ms\nStdDev 0.046ms\nMedian 0.216ms\nCPU 0.228ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 6.1038750000079744,
+            "unit": "ms",
+            "extra": "Min 5.687ms\nMax 6.555ms\nMean 6.134ms\nStdDev 0.347ms\nMedian 6.104ms\nCPU 0.783ms"
           }
         ]
       }
