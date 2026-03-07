@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1772918911679,
+  "lastUpdate": 1772918933470,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -25062,6 +25062,66 @@ window.BENCHMARK_DATA = {
             "value": 6.29258399999344,
             "unit": "ms",
             "extra": "Min 5.917ms\nMax 7.025ms\nMean 6.367ms\nStdDev 0.432ms\nMedian 6.293ms\nCPU 0.947ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "49699333+dependabot[bot]@users.noreply.github.com",
+            "name": "dependabot[bot]",
+            "username": "dependabot[bot]"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "b784ea3e2abb5bd5b0d46daa58ed42c870670656",
+          "message": "build(deps): update gradle/actions requirement to a3dd0763dc7a406ed0ec944010d38f923956dbc3 (#1564)\n\nUpdates the requirements on [gradle/actions](https://github.com/gradle/actions) to permit the latest version.\n- [Release notes](https://github.com/gradle/actions/releases)\n- [Commits](https://github.com/gradle/actions/commits/a3dd0763dc7a406ed0ec944010d38f923956dbc3)\n\n---\nupdated-dependencies:\n- dependency-name: gradle/actions\n  dependency-version: a3dd0763dc7a406ed0ec944010d38f923956dbc3\n  dependency-type: direct:production\n...\n\nSigned-off-by: dependabot[bot] <support@github.com>\nCo-authored-by: dependabot[bot] <49699333+dependabot[bot]@users.noreply.github.com>",
+          "timestamp": "2026-03-07T22:23:33+01:00",
+          "tree_id": "d9fb7c2902ba334f48dc23a4e2009c4f18d130cc",
+          "url": "https://github.com/getsentry/sentry-native/commit/b784ea3e2abb5bd5b0d46daa58ed42c870670656"
+        },
+        "date": 1772918929767,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 5.4621670000187805,
+            "unit": "ms",
+            "extra": "Min 4.298ms\nMax 9.799ms\nMean 6.362ms\nStdDev 2.279ms\nMedian 5.462ms\nCPU 3.359ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 4.346875000010186,
+            "unit": "ms",
+            "extra": "Min 3.925ms\nMax 7.399ms\nMean 4.860ms\nStdDev 1.431ms\nMedian 4.347ms\nCPU 2.755ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 25.738041000067824,
+            "unit": "ms",
+            "extra": "Min 22.844ms\nMax 26.929ms\nMean 25.354ms\nStdDev 1.521ms\nMedian 25.738ms\nCPU 6.663ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.15133400006561715,
+            "unit": "ms",
+            "extra": "Min 0.067ms\nMax 0.306ms\nMean 0.168ms\nStdDev 0.087ms\nMedian 0.151ms\nCPU 0.118ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.3142080000770875,
+            "unit": "ms",
+            "extra": "Min 0.283ms\nMax 0.535ms\nMean 0.356ms\nStdDev 0.103ms\nMedian 0.314ms\nCPU 0.355ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 16.740125000069384,
+            "unit": "ms",
+            "extra": "Min 13.168ms\nMax 18.198ms\nMean 16.083ms\nStdDev 1.993ms\nMedian 16.740ms\nCPU 1.569ms"
           }
         ]
       }
