@@ -444,7 +444,8 @@ SENTRY_TEST(logs_plain_string)
     sentry_value_set_by_key(attrs, "my.key",
         sentry_value_new_attribute(sentry_value_new_string("my_value"), NULL));
     TEST_CHECK_INT_EQUAL(
-        sentry_log(SENTRY_LEVEL_INFO, "100% done %n %s", attrs), 0);
+        sentry_log(SENTRY_LEVEL_INFO, "100% done %n %s", attrs),
+        SENTRY_LOG_RETURN_SUCCESS);
 
     // Verify body is stored literally
     TEST_CHECK_STRING_EQUAL(
@@ -471,7 +472,7 @@ SENTRY_TEST(logs_plain_string)
     // Test with null attributes
     TEST_CHECK_INT_EQUAL(sentry_log(SENTRY_LEVEL_ERROR, "another %d message",
                              sentry_value_new_null()),
-        0);
+        SENTRY_LOG_RETURN_SUCCESS);
     TEST_CHECK_STRING_EQUAL(
         sentry_value_as_string(sentry_value_get_by_key(captured_log, "body")),
         "another %d message");
