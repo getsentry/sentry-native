@@ -1,5 +1,6 @@
 #include "sentry_envelope.h"
 #include "sentry_alloc.h"
+#include "sentry_attachment.h"
 #include "sentry_core.h"
 #include "sentry_json.h"
 #include "sentry_options.h"
@@ -605,20 +606,53 @@ sentry__envelope_add_session(
         envelope, payload, payload_len, "session");
 }
 
-static const char *
-str_from_attachment_type(sentry_attachment_type_t attachment_type)
+sentry_envelope_item_t *
+sentry__envelope_add_attachment_ref(sentry_envelope_t *envelope,
+    const char *location, const char *filename, const char *content_type,
+    const char *attachment_type, sentry_value_t attachment_length)
 {
-    switch (attachment_type) {
-    case ATTACHMENT:
-        return "event.attachment";
-    case MINIDUMP:
-        return "event.minidump";
-    case VIEW_HIERARCHY:
-        return "event.view_hierarchy";
-    default:
-        UNREACHABLE("Unknown attachment type");
-        return "event.attachment";
+    sentry_envelope_item_t *item = envelope_add_item(envelope);
+    if (!item) {
+        return NULL;
     }
+    sentry__envelope_item_set_header(
+        item, "type", sentry_value_new_string("attachment"));
+    sentry__envelope_item_set_header(item, "content_type",
+        sentry_value_new_string("application/vnd.sentry.attachment-ref"));
+    if (filename) {
+        sentry__envelope_item_set_header(
+            item, "filename", sentry_value_new_string(filename));
+    }
+    if (attachment_type) {
+        sentry__envelope_item_set_header(
+            item, "attachment_type", sentry_value_new_string(attachment_type));
+    }
+    sentry__envelope_item_set_header(
+        item, "attachment_length", attachment_length);
+
+    if (location || content_type) {
+        sentry_value_t obj = sentry_value_new_object();
+        if (location) {
+            sentry_value_set_by_key(
+                obj, "location", sentry_value_new_string(location));
+        }
+        if (content_type) {
+            sentry_value_set_by_key(
+                obj, "content_type", sentry_value_new_string(content_type));
+        }
+        sentry_jsonwriter_t *jw = sentry__jsonwriter_new_sb(NULL);
+        sentry__jsonwriter_write_value(jw, obj);
+        sentry_value_decref(obj);
+        size_t payload_len = 0;
+        char *payload = sentry__jsonwriter_into_string(jw, &payload_len);
+        sentry_free(item->payload);
+        item->payload = payload;
+        item->payload_len = payload_len;
+        sentry__envelope_item_set_header(
+            item, "length", sentry_value_new_int32((int32_t)payload_len));
+    }
+
+    return item;
 }
 
 sentry_envelope_item_t *
@@ -626,6 +660,12 @@ sentry__envelope_add_attachment(
     sentry_envelope_t *envelope, const sentry_attachment_t *attachment)
 {
     if (!envelope || !attachment) {
+        return NULL;
+    }
+
+    size_t file_size = sentry__attachment_get_size(attachment);
+
+    if (file_size >= SENTRY_LARGE_ATTACHMENT_SIZE) {
         return NULL;
     }
 
@@ -643,15 +683,14 @@ sentry__envelope_add_attachment(
     if (attachment->type != ATTACHMENT) { // don't need to set the default
         sentry__envelope_item_set_header(item, "attachment_type",
             sentry_value_new_string(
-                str_from_attachment_type(attachment->type)));
+                sentry__attachment_type_to_string(attachment->type)));
     }
     if (attachment->content_type) {
         sentry__envelope_item_set_header(item, "content_type",
             sentry_value_new_string(attachment->content_type));
     }
     sentry__envelope_item_set_header(item, "filename",
-        sentry_value_new_string(sentry__path_filename(
-            attachment->filename ? attachment->filename : attachment->path)));
+        sentry_value_new_string(sentry__attachment_get_filename(attachment)));
 
     return item;
 }
@@ -686,6 +725,10 @@ sentry__envelope_add_from_path(
     sentry_envelope_t *envelope, const sentry_path_t *path, const char *type)
 {
     if (!envelope) {
+        return NULL;
+    }
+    size_t file_size = sentry__path_get_size(path);
+    if (file_size >= SENTRY_LARGE_ATTACHMENT_SIZE) {
         return NULL;
     }
     size_t buf_len;
@@ -878,7 +921,11 @@ sentry_envelope_deserialize(const char *buf, size_t buf_len)
         return NULL;
     }
 
-    sentry_envelope_t *envelope = sentry__envelope_new();
+    // Use sentry__envelope_new_with_dsn(NULL) instead of sentry__envelope_new()
+    // because the DSN is part of the serialized headers and will be restored by
+    // deserialization. This avoids acquiring the options lock, which would
+    // deadlock if called from a bgworker thread during shutdown.
+    sentry_envelope_t *envelope = sentry__envelope_new_with_dsn(NULL);
     if (!envelope) {
         goto fail;
     }

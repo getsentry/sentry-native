@@ -8,6 +8,7 @@
 #include "sentry_string.h"
 #include "sentry_transport.h"
 #include "sentry_utils.h"
+#include "sentry_value.h"
 
 #ifdef SENTRY_TRANSPORT_COMPRESSION
 #    include "zlib.h"
@@ -27,6 +28,7 @@
 typedef struct {
     sentry_dsn_t *dsn;
     char *user_agent;
+    sentry_run_t *run;
     sentry_rate_limiter_t *ratelimiter;
     void *client;
     void (*free_client)(void *);
@@ -35,7 +37,7 @@ typedef struct {
     void (*shutdown_client)(void *client);
     sentry_retry_t *retry;
     bool cache_keep;
-    sentry_run_t *run;
+    bool has_tus;
 } http_transport_state_t;
 
 #ifdef SENTRY_TRANSPORT_COMPRESSION
@@ -287,9 +289,168 @@ http_send_request(
     return resp.status_code;
 }
 
-static int
-http_send_envelope(http_transport_state_t *state, sentry_envelope_t *envelope)
+static bool
+tus_upload_ref(http_transport_state_t *state, const sentry_path_t *att_dir,
+    sentry_value_t entry, sentry_envelope_t *send_envelope)
 {
+    const char *filename
+        = sentry_value_as_string(sentry_value_get_by_key(entry, "filename"));
+    if (!filename || *filename == '\0') {
+        return false;
+    }
+
+    sentry_path_t *att_file = sentry__path_join_str(att_dir, filename);
+    size_t file_size = att_file ? sentry__path_get_size(att_file) : 0;
+    if (!att_file || file_size == 0) {
+        sentry__path_free(att_file);
+        return false;
+    }
+
+    sentry_prepared_http_request_t *req = prepare_tus_request(
+        att_file, file_size, state->dsn, state->user_agent);
+    if (!req) {
+        sentry__path_free(att_file);
+        return false;
+    }
+
+    sentry_http_response_t resp;
+    memset(&resp, 0, sizeof(resp));
+    bool ok = state->send_func(state->client, req, &resp);
+    sentry__prepared_http_request_free(req);
+
+    if (!ok) {
+        sentry__path_free(att_file);
+        http_response_cleanup(&resp);
+        return false;
+    }
+
+    if (resp.status_code == 404) {
+        state->has_tus = false;
+        SENTRY_WARN("TUS upload returned 404, disabling TUS");
+        sentry__path_free(att_file);
+        http_response_cleanup(&resp);
+        return false;
+    }
+
+    if (resp.status_code != 201 || !resp.location) {
+        sentry__path_free(att_file);
+        http_response_cleanup(&resp);
+        return false;
+    }
+
+    const char *ref_ct = sentry_value_as_string(
+        sentry_value_get_by_key(entry, "content_type"));
+    const char *att_type = sentry_value_as_string(
+        sentry_value_get_by_key(entry, "attachment_type"));
+    sentry_value_t att_length
+        = sentry_value_get_by_key(entry, "attachment_length");
+    sentry_value_incref(att_length);
+    sentry__envelope_add_attachment_ref(send_envelope, resp.location, filename,
+        *ref_ct ? ref_ct : NULL, *att_type ? att_type : NULL, att_length);
+
+    sentry__path_remove(att_file);
+    sentry__path_free(att_file);
+    http_response_cleanup(&resp);
+    return true;
+}
+
+static void
+tus_resolve_and_send(http_transport_state_t *state, const char *uuid)
+{
+    if (!state->has_tus || !uuid || !state->run) {
+        return;
+    }
+
+    sentry_path_t *att_dir
+        = sentry__path_join_str(state->run->cache_path, uuid);
+    if (!att_dir || !sentry__path_is_dir(att_dir)) {
+        sentry__path_free(att_dir);
+        return;
+    }
+
+    sentry_path_t *refs_path = sentry__path_join_str(att_dir, "refs.json");
+    if (!refs_path) {
+        sentry__path_free(att_dir);
+        return;
+    }
+    if (!sentry__path_is_file(refs_path)) {
+        sentry__path_free(refs_path);
+        sentry__path_free(att_dir);
+        return;
+    }
+
+    size_t buf_len = 0;
+    char *buf = sentry__path_read_to_buffer(refs_path, &buf_len);
+    if (!buf) {
+        sentry__path_free(refs_path);
+        sentry__path_free(att_dir);
+        return;
+    }
+    sentry_value_t refs = sentry__value_from_json(buf, buf_len);
+    sentry_free(buf);
+    if (sentry_value_get_type(refs) != SENTRY_VALUE_TYPE_LIST) {
+        sentry_value_decref(refs);
+        sentry__path_free(refs_path);
+        sentry__path_free(att_dir);
+        return;
+    }
+
+    sentry_uuid_t event_id = sentry_uuid_from_string(uuid);
+    sentry_envelope_t *send_envelope
+        = sentry__envelope_new_with_dsn(state->dsn);
+    if (!send_envelope) {
+        sentry_value_decref(refs);
+        sentry__path_free(refs_path);
+        sentry__path_free(att_dir);
+        return;
+    }
+    sentry__envelope_set_event_id(send_envelope, &event_id);
+
+    bool has_refs = false;
+    size_t count = sentry_value_get_length(refs);
+    for (size_t i = 0; i < count; i++) {
+        sentry_value_t entry = sentry_value_get_by_index(refs, i);
+        if (tus_upload_ref(state, att_dir, entry, send_envelope)) {
+            has_refs = true;
+        }
+        if (!state->has_tus) {
+            break;
+        }
+    }
+
+    sentry_value_decref(refs);
+
+    if (has_refs) {
+        sentry_prepared_http_request_t *req = sentry__prepare_http_request(
+            send_envelope, state->dsn, state->ratelimiter, state->user_agent);
+        if (req) {
+            http_send_request(state, req);
+            sentry__prepared_http_request_free(req);
+        }
+    }
+    sentry_envelope_free(send_envelope);
+
+    sentry__path_remove(refs_path);
+    sentry__path_free(refs_path);
+    sentry__path_remove(att_dir);
+    sentry__path_free(att_dir);
+}
+
+static int
+http_send_envelope(http_transport_state_t *state, sentry_envelope_t *envelope,
+    const char *uuid)
+{
+    char uuid_buf[37];
+    if (!uuid) {
+        sentry_uuid_t event_id = sentry__envelope_get_event_id(envelope);
+        if (!sentry_uuid_is_nil(&event_id)) {
+            sentry_uuid_as_string(&event_id, uuid_buf);
+            uuid = uuid_buf;
+        }
+    }
+
+    tus_resolve_and_send(state, uuid);
+
     sentry_prepared_http_request_t *req = sentry__prepare_http_request(
         envelope, state->dsn, state->ratelimiter, state->user_agent);
     if (!req) {
@@ -301,10 +462,10 @@ http_send_envelope(http_transport_state_t *state, sentry_envelope_t *envelope)
 }
 
 static int
-retry_send_cb(sentry_envelope_t *envelope, void *_state)
+retry_send_cb(sentry_envelope_t *envelope, const char *uuid, void *_state)
 {
     http_transport_state_t *state = _state;
-    return http_send_envelope(state, envelope);
+    return http_send_envelope(state, envelope, uuid);
 }
 
 static void
@@ -316,9 +477,9 @@ http_transport_state_free(void *_state)
     }
     sentry__dsn_decref(state->dsn);
     sentry_free(state->user_agent);
+    sentry__run_free(state->run);
     sentry__rate_limiter_free(state->ratelimiter);
     sentry__retry_free(state->retry);
-    sentry__run_free(state->run);
     sentry_free(state);
 }
 
@@ -328,7 +489,7 @@ http_send_task(void *_envelope, void *_state)
     sentry_envelope_t *envelope = _envelope;
     http_transport_state_t *state = _state;
 
-    int status_code = http_send_envelope(state, envelope);
+    int status_code = http_send_envelope(state, envelope, NULL);
     if (status_code < 0 && state->retry) {
         sentry__retry_enqueue(state->retry, envelope);
     } else if (status_code < 0 && state->cache_keep) {
@@ -475,6 +636,7 @@ sentry__http_transport_new(void *client, sentry_http_send_func_t send_func)
     }
     memset(state, 0, sizeof(http_transport_state_t));
     state->ratelimiter = sentry__rate_limiter_new();
+    state->has_tus = true;
     state->client = client;
     state->send_func = send_func;
 

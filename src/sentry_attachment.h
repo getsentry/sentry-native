@@ -5,6 +5,8 @@
 
 #include "sentry_path.h"
 
+#define SENTRY_LARGE_ATTACHMENT_SIZE (100 * 1024 * 1024) // 100 MB
+
 /**
  * The attachment_type.
  */
@@ -88,5 +90,25 @@ void sentry__attachments_remove(
  */
 void sentry__attachments_extend(
     sentry_attachment_t **attachments_ptr, sentry_attachment_t *attachments);
+
+/**
+ * Returns the size in bytes of the attachment's data (buffer length or file
+ * size).
+ */
+size_t sentry__attachment_get_size(const sentry_attachment_t *attachment);
+
+/**
+ * Returns the filename string for the attachment (basename of `filename` if
+ * set, otherwise basename of `path`).
+ */
+const char *sentry__attachment_get_filename(
+    const sentry_attachment_t *attachment);
+
+/**
+ * Returns the Sentry envelope attachment_type string for the given type,
+ * e.g. "event.attachment", "event.minidump", "event.view_hierarchy".
+ */
+const char *sentry__attachment_type_to_string(
+    sentry_attachment_type_t attachment_type);
 
 #endif

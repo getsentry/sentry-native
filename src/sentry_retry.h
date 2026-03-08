@@ -8,7 +8,7 @@
 typedef struct sentry_retry_s sentry_retry_t;
 
 typedef int (*sentry_retry_send_func_t)(
-    sentry_envelope_t *envelope, void *data);
+    sentry_envelope_t *envelope, const char *uuid, void *data);
 
 sentry_retry_t *sentry__retry_new(const sentry_options_t *options);
 void sentry__retry_free(sentry_retry_t *retry);
