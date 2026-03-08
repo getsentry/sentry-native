@@ -16,6 +16,8 @@
 #include <string.h>
 
 #define ENVELOPE_MIME "application/x-sentry-envelope"
+#define TUS_MIME "application/offset+octet-stream"
+#define TUS_MAX_HTTP_HEADERS 4
 #ifdef SENTRY_TRANSPORT_COMPRESSION
 #    define MAX_HTTP_HEADERS 4
 #else
@@ -141,6 +143,7 @@ sentry__prepare_http_request(sentry_envelope_t *envelope,
 
     req->method = "POST";
     req->url = sentry__dsn_get_envelope_url(dsn);
+    req->body_path = NULL;
 
     sentry_prepared_http_header_t *h;
     h = &req->headers[req->headers_len++];
@@ -184,7 +187,78 @@ sentry__prepared_http_request_free(sentry_prepared_http_request_t *req)
     if (req->body_owned) {
         sentry_free(req->body);
     }
+    sentry__path_free(req->body_path);
     sentry_free(req);
+}
+
+static sentry_prepared_http_request_t *
+prepare_tus_request_common(
+    size_t upload_size, const sentry_dsn_t *dsn, const char *user_agent)
+{
+    if (!dsn || !dsn->is_valid) {
+        return NULL;
+    }
+
+    sentry_prepared_http_request_t *req
+        = SENTRY_MAKE(sentry_prepared_http_request_t);
+    if (!req) {
+        return NULL;
+    }
+    memset(req, 0, sizeof(*req));
+
+    req->headers = sentry_malloc(
+        sizeof(sentry_prepared_http_header_t) * TUS_MAX_HTTP_HEADERS);
+    if (!req->headers) {
+        sentry_free(req);
+        return NULL;
+    }
+    req->headers_len = 0;
+
+    req->method = "POST";
+    req->url = sentry__dsn_get_upload_url(dsn);
+
+    sentry_prepared_http_header_t *h;
+    h = &req->headers[req->headers_len++];
+    h->key = "x-sentry-auth";
+    h->value = sentry__dsn_get_auth_header(dsn, user_agent);
+
+    h = &req->headers[req->headers_len++];
+    h->key = "content-type";
+    h->value = sentry__string_clone(TUS_MIME);
+
+    h = &req->headers[req->headers_len++];
+    h->key = "tus-resumable";
+    h->value = sentry__string_clone("1.0.0");
+
+    h = &req->headers[req->headers_len++];
+    h->key = "upload-length";
+    h->value = sentry__uint64_to_string((uint64_t)upload_size);
+
+    return req;
+}
+
+static sentry_prepared_http_request_t *
+prepare_tus_request(const sentry_path_t *path, size_t file_size,
+    const sentry_dsn_t *dsn, const char *user_agent)
+{
+    if (!path) {
+        return NULL;
+    }
+    sentry_prepared_http_request_t *req
+        = prepare_tus_request_common(file_size, dsn, user_agent);
+    if (req) {
+        req->body_path = sentry__path_clone(path);
+        req->body_len = file_size;
+    }
+    return req;
+}
+
+static void
+http_response_cleanup(sentry_http_response_t *resp)
+{
+    sentry_free(resp->retry_after);
+    sentry_free(resp->x_sentry_rate_limits);
+    sentry_free(resp->location);
 }
 
 static int
@@ -195,8 +269,7 @@ http_send_request(
     memset(&resp, 0, sizeof(resp));
 
     if (!state->send_func(state->client, req, &resp)) {
-        sentry_free(resp.retry_after);
-        sentry_free(resp.x_sentry_rate_limits);
+        http_response_cleanup(&resp);
         return -1;
     }
 
@@ -210,8 +283,7 @@ http_send_request(
         sentry__rate_limiter_update_from_429(state->ratelimiter);
     }
 
-    sentry_free(resp.retry_after);
-    sentry_free(resp.x_sentry_rate_limits);
+    http_response_cleanup(&resp);
     return resp.status_code;
 }
 
@@ -460,5 +532,12 @@ void *
 sentry__http_transport_get_bgworker(sentry_transport_t *transport)
 {
     return sentry__transport_get_state(transport);
+}
+
+sentry_prepared_http_request_t *
+sentry__prepare_tus_request(const sentry_path_t *path, size_t file_size,
+    const sentry_dsn_t *dsn, const char *user_agent)
+{
+    return prepare_tus_request(path, file_size, dsn, user_agent);
 }
 #endif
