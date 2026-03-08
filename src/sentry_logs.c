@@ -239,6 +239,43 @@ static
     return param_index;
 }
 
+// Takes ownership of custom_attributes. Returns a new attributes object:
+// cloned if object, empty otherwise.
+static sentry_value_t
+clone_attributes(sentry_value_t custom_attributes)
+{
+    sentry_value_t attributes;
+    if (sentry_value_get_type(custom_attributes) == SENTRY_VALUE_TYPE_OBJECT) {
+        attributes = sentry__value_clone(custom_attributes);
+    } else {
+        if (!sentry_value_is_null(custom_attributes)) {
+            SENTRY_DEBUG("Discarded custom attributes on log: non-object "
+                         "sentry_value_t passed in");
+        }
+        attributes = sentry_value_new_object();
+    }
+    sentry_value_decref(custom_attributes);
+    return attributes;
+}
+
+static void
+apply_attributes(
+    sentry_value_t log, sentry_value_t attributes, sentry_level_t level)
+{
+    sentry_value_set_by_key(
+        log, "level", sentry_value_new_string(level_as_string(level)));
+
+    // timestamp in seconds
+    uint64_t usec_time = sentry__usec_time();
+    sentry_value_set_by_key(log, "timestamp",
+        sentry_value_new_double((double)usec_time / 1000000.0));
+
+    // adds data from the scope & options to the attributes, and adds `trace_id`
+    // to the log
+    sentry__apply_attributes(log, attributes);
+    sentry_value_set_by_key(log, "attributes", attributes);
+}
+
 static sentry_value_t
 construct_log(sentry_level_t level, const char *message, va_list args)
 {
@@ -253,17 +290,8 @@ construct_log(sentry_level_t level, const char *message, va_list args)
             sentry_value_t custom_attributes
                 = va_arg(args_copy, sentry_value_t);
             va_end(args_copy);
-            if (sentry_value_get_type(custom_attributes)
-                == SENTRY_VALUE_TYPE_OBJECT) {
-                // Clone custom attributes first (per-log attributes take
-                // precedence for conflicts)
-                sentry_value_decref(attributes);
-                attributes = sentry__value_clone(custom_attributes);
-            } else if (!sentry_value_is_null(custom_attributes)) {
-                SENTRY_DEBUG("Discarded custom attributes on log: non-object "
-                             "sentry_value_t passed in");
-            }
-            sentry_value_decref(custom_attributes);
+            sentry_value_decref(attributes);
+            attributes = clone_attributes(custom_attributes);
         }
 
         // Format the message with remaining args (or all args if not using
@@ -307,19 +335,7 @@ construct_log(sentry_level_t level, const char *message, va_list args)
         va_end(args_copy_3);
     }
 
-    sentry_value_set_by_key(
-        log, "level", sentry_value_new_string(level_as_string(level)));
-
-    // timestamp in seconds
-    uint64_t usec_time = sentry__usec_time();
-    sentry_value_set_by_key(log, "timestamp",
-        sentry_value_new_double((double)usec_time / 1000000.0));
-
-    // adds data from the scope & options to the attributes, and adds `trace_id`
-    // to the log
-    sentry__apply_attributes(log, attributes);
-
-    sentry_value_set_by_key(log, "attributes", attributes);
+    apply_attributes(log, attributes, level);
 
     return log;
 }
@@ -351,6 +367,34 @@ debug_print_log(sentry_level_t level, const char *log_body)
     }
 }
 
+static log_return_value_t
+send_log(sentry_level_t level, sentry_value_t log)
+{
+    bool discarded = false;
+    SENTRY_WITH_OPTIONS (options) {
+        if (options->before_send_log_func) {
+            log = options->before_send_log_func(
+                log, options->before_send_log_data);
+            if (sentry_value_is_null(log)) {
+                SENTRY_DEBUG("log was discarded by the `before_send_log` hook");
+                discarded = true;
+            }
+        }
+        if (options->debug && !sentry_value_is_null(log)) {
+            debug_print_log(level,
+                sentry_value_as_string(sentry_value_get_by_key(log, "body")));
+        }
+    }
+    if (discarded) {
+        return SENTRY_LOG_RETURN_DISCARD;
+    }
+    if (!sentry__batcher_enqueue(&g_batcher, log)) {
+        sentry_value_decref(log);
+        return SENTRY_LOG_RETURN_FAILED;
+    }
+    return SENTRY_LOG_RETURN_SUCCESS;
+}
+
 log_return_value_t
 sentry__logs_log(sentry_level_t level, const char *message, va_list args)
 {
@@ -359,36 +403,10 @@ sentry__logs_log(sentry_level_t level, const char *message, va_list args)
         if (options->enable_logs)
             enable_logs = true;
     }
-    if (enable_logs) {
-        bool discarded = false;
-        // create log from message
-        sentry_value_t log = construct_log(level, message, args);
-        SENTRY_WITH_OPTIONS (options) {
-            if (options->before_send_log_func) {
-                log = options->before_send_log_func(
-                    log, options->before_send_log_data);
-                if (sentry_value_is_null(log)) {
-                    SENTRY_DEBUG(
-                        "log was discarded by the `before_send_log` hook");
-                    discarded = true;
-                }
-            }
-            if (options->debug && !sentry_value_is_null(log)) {
-                debug_print_log(level,
-                    sentry_value_as_string(
-                        sentry_value_get_by_key(log, "body")));
-            }
-        }
-        if (discarded) {
-            return SENTRY_LOG_RETURN_DISCARD;
-        }
-        if (!sentry__batcher_enqueue(&g_batcher, log)) {
-            sentry_value_decref(log);
-            return SENTRY_LOG_RETURN_FAILED;
-        }
-        return SENTRY_LOG_RETURN_SUCCESS;
+    if (!enable_logs) {
+        return SENTRY_LOG_RETURN_DISABLED;
     }
-    return SENTRY_LOG_RETURN_DISABLED;
+    return send_log(level, construct_log(level, message, args));
 }
 
 log_return_value_t
@@ -455,6 +473,29 @@ sentry_log_fatal(const char *message, ...)
         = sentry__logs_log(SENTRY_LEVEL_FATAL, message, args);
     va_end(args);
     return result;
+}
+
+log_return_value_t
+sentry_log(
+    sentry_level_t level, const char *body, sentry_value_t custom_attributes)
+{
+    bool enable_logs = false;
+    SENTRY_WITH_OPTIONS (options) {
+        if (options->enable_logs)
+            enable_logs = true;
+    }
+    if (!enable_logs) {
+        sentry_value_decref(custom_attributes);
+        return SENTRY_LOG_RETURN_DISABLED;
+    }
+
+    sentry_value_t log = sentry_value_new_object();
+    sentry_value_t attributes = clone_attributes(custom_attributes);
+
+    sentry_value_set_by_key(log, "body", sentry_value_new_string(body));
+    apply_attributes(log, attributes, level);
+
+    return send_log(level, log);
 }
 
 void
