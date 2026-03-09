@@ -326,11 +326,10 @@ extern "C" {
 sentry_backend_t *
 sentry__backend_new(void)
 {
-    auto *backend = SENTRY_MAKE(sentry_backend_t);
+    auto *backend = SENTRY_MAKE_0(sentry_backend_t);
     if (!backend) {
         return nullptr;
     }
-    memset(backend, 0, sizeof(sentry_backend_t));
 
     backend->startup_func = breakpad_backend_startup;
     backend->shutdown_func = breakpad_backend_shutdown;
