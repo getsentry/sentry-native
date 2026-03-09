@@ -47,15 +47,10 @@ status_from_string(const char *status)
 }
 
 sentry_session_t *
-sentry__session_new(void)
+sentry__session_new(const sentry_scope_t *scope)
 {
-    char *release = NULL;
-    char *environment = NULL;
-    SENTRY_WITH_OPTIONS (options) {
-        release = sentry__string_clone(sentry_options_get_release(options));
-        environment
-            = sentry__string_clone(sentry_options_get_environment(options));
-    }
+    char *release = sentry__string_clone(scope->release);
+    char *environment = sentry__string_clone(scope->environment);
 
     if (!release) {
         sentry_free(environment);
@@ -218,7 +213,7 @@ sentry_start_session(void)
     sentry_options_t *options = sentry__options_lock();
     SENTRY_WITH_SCOPE (scope) {
         if (options) {
-            options->session = sentry__session_new();
+            options->session = sentry__session_new(scope);
             if (options->session) {
                 sentry__session_sync_user(options->session, scope->user);
                 sentry__run_write_session(options->run, options->session);
