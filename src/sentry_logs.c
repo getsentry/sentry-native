@@ -447,10 +447,18 @@ void
 sentry__logs_startup(const sentry_options_t *options)
 {
     sentry_batcher_t *batcher = sentry__batcher_new(sentry__envelope_add_logs);
-    if (batcher) {
-        sentry__batcher_startup(batcher, options);
+    if (!batcher) {
+        SENTRY_WARN("failed to allocate logs batcher");
+        return;
     }
-    sentry__batcher_release(sentry__batcher_swap(&g_batcher, batcher));
+
+    sentry__batcher_startup(batcher, options);
+    sentry_batcher_t *old = sentry__batcher_swap(&g_batcher, batcher);
+
+    if (old) {
+        sentry__batcher_shutdown(old, 0);
+    }
+    sentry__batcher_release(old);
 }
 
 void
