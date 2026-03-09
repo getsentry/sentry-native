@@ -100,7 +100,7 @@ extern "C" {
 #    endif
 #endif
 #ifndef SENTRY_SDK_VERSION
-#    define SENTRY_SDK_VERSION "0.13.1"
+#    define SENTRY_SDK_VERSION "0.13.2"
 #endif
 #define SENTRY_SDK_USER_AGENT SENTRY_SDK_NAME "/" SENTRY_SDK_VERSION
 
@@ -2051,6 +2051,21 @@ SENTRY_API void sentry_scope_set_user(
 SENTRY_API void sentry_remove_user(void);
 
 /**
+ * Sets the release after the SDK has been initialized. To apply the new release
+ * to sessions, start a new session after calling this function.
+ */
+SENTRY_API void sentry_set_release(const char *release);
+SENTRY_API void sentry_set_release_n(const char *release, size_t release_len);
+
+/**
+ * Sets the environment after the SDK has been initialized. To apply the new
+ * environment to sessions, start a new session after calling this function.
+ */
+SENTRY_API void sentry_set_environment(const char *environment);
+SENTRY_API void sentry_set_environment_n(
+    const char *environment, size_t environment_len);
+
+/**
  * Sets a tag.
  */
 SENTRY_API void sentry_set_tag(const char *key, const char *value);
@@ -2343,6 +2358,20 @@ SENTRY_EXPERIMENTAL_API log_return_value_t sentry_log_error(
     const char *message, ...);
 SENTRY_EXPERIMENTAL_API log_return_value_t sentry_log_fatal(
     const char *message, ...);
+
+/**
+ * Sends a structured log with a plain string body and explicit attributes.
+ *
+ * Unlike the `sentry_log_*` functions, this function does NOT interpret the
+ * body as a printf format string. The body is stored as-is, making it safe
+ * for user-provided text that may contain `%` characters.
+ *
+ * Ownership of the `attributes` value is transferred to this function.
+ * Pass `sentry_value_new_null()` if no custom attributes are needed.
+ * To re-use the same attributes, call `sentry_value_incref` before passing.
+ */
+SENTRY_EXPERIMENTAL_API log_return_value_t sentry_log(
+    sentry_level_t level, const char *body, sentry_value_t attributes);
 
 /**
  * Type of the `before_send_log` callback.

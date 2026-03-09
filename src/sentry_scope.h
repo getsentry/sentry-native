@@ -12,6 +12,8 @@
  * This represents the current scope.
  */
 struct sentry_scope_s {
+    char *release;
+    char *environment;
     char *transaction;
     sentry_value_t fingerprint;
     sentry_value_t user;

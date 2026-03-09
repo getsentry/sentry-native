@@ -27,7 +27,7 @@ typedef struct sentry_session_s {
 /**
  * This creates a new session.
  */
-sentry_session_t *sentry__session_new(void);
+sentry_session_t *sentry__session_new(const sentry_scope_t *scope);
 
 /**
  * This will free a previously allocated session.

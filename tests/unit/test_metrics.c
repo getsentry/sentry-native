@@ -437,3 +437,46 @@ SENTRY_TEST(metrics_reinit)
     sentry_init(options2);
     sentry_close();
 }
+
+SENTRY_THREAD_FN
+metric_producer_thread(void *data)
+{
+    volatile long *produce = data;
+    while (sentry__atomic_fetch(produce)) {
+        sentry_metrics_count("metric", 1, sentry_value_new_null());
+    }
+    return 0;
+}
+
+// multiple threads produce metrics during SDK re-init
+SENTRY_TEST(metrics_reinit_stress)
+{
+    volatile long produce = 1;
+
+    sentry_threadid_t threads[8];
+    for (int t = 0; t < 8; t++) {
+        sentry__thread_init(&threads[t]);
+    }
+
+    for (int i = 0; i < 5; i++) {
+        SENTRY_TEST_OPTIONS_NEW(options);
+        sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
+        sentry_options_set_enable_metrics(options, true);
+        sentry_init(options);
+
+        if (i == 0) {
+            sentry__metrics_wait_for_thread_startup();
+            for (int t = 0; t < 8; t++) {
+                sentry__thread_spawn(
+                    &threads[t], metric_producer_thread, (void *)&produce);
+            }
+        }
+
+        sentry_close();
+    }
+
+    sentry__atomic_store(&produce, 0);
+    for (int t = 0; t < 8; t++) {
+        sentry__thread_join(threads[t]);
+    }
+}
