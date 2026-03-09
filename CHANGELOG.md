@@ -5,6 +5,7 @@
 **Features**:
 
 - **Experimental**: Add new `native` crash handling backend as an alternative to `crashpad`, `breakpad`, and `inproc`. This backend uses an out-of-process daemon that monitors the application for crashes, generates minidumps, and sends crash reports to Sentry. It supports Linux, macOS, and Windows, and is fully compatible with TSAN and ASAN sanitizers. This feature is experimental and under active development. ([#1433](https://github.com/getsentry/sentry-native/pull/1433))
+- Add `sentry_log()` for plain-string log messages. ([#1566](https://github.com/getsentry/sentry-native/pull/1566))
 
 **Fixes**:
 
