@@ -2318,6 +2318,20 @@ SENTRY_EXPERIMENTAL_API log_return_value_t sentry_log_fatal(
     const char *message, ...);
 
 /**
+ * Sends a structured log with a plain string body and explicit attributes.
+ *
+ * Unlike the `sentry_log_*` functions, this function does NOT interpret the
+ * body as a printf format string. The body is stored as-is, making it safe
+ * for user-provided text that may contain `%` characters.
+ *
+ * Ownership of the `attributes` value is transferred to this function.
+ * Pass `sentry_value_new_null()` if no custom attributes are needed.
+ * To re-use the same attributes, call `sentry_value_incref` before passing.
+ */
+SENTRY_EXPERIMENTAL_API log_return_value_t sentry_log(
+    sentry_level_t level, const char *body, sentry_value_t attributes);
+
+/**
  * Type of the `before_send_log` callback.
  *
  * The callback takes ownership of the `log` and should usually return
