@@ -890,12 +890,11 @@ sentry_remove_user(void)
 void
 sentry_set_release_n(const char *release, size_t release_len)
 {
-    SENTRY_WITH_OPTIONS (options) {
-        SENTRY_WITH_SCOPE_MUT (scope) {
-            sentry_free(scope->release);
-            scope->release = sentry__string_clone_n(release, release_len);
-            set_dynamic_sampling_context(options, scope);
-        }
+    SENTRY_WITH_SCOPE_MUT (scope) {
+        sentry_free(scope->release);
+        scope->release = sentry__string_clone_n(release, release_len);
+        sentry_value_set_by_key(scope->dynamic_sampling_context, "release",
+            sentry_value_new_string(scope->release));
     }
 }
 
@@ -912,8 +911,8 @@ sentry_set_environment_n(const char *environment, size_t environment_len)
         sentry_free(scope->environment);
         scope->environment
             = sentry__string_clone_n(environment, environment_len);
-        sentry_value_set_by_key(scope->dynamic_sampling_context,
-               "environment", sentry_value_new_string(scope->environment));
+        sentry_value_set_by_key(scope->dynamic_sampling_context, "environment",
+            sentry_value_new_string(scope->environment));
     }
 }
 
