@@ -4,6 +4,7 @@
 #include "sentry_options.h"
 #include "sentry_path.h"
 #include "sentry_retry.h"
+#include "sentry_scope.h"
 #include "sentry_session.h"
 #include "sentry_testsupport.h"
 #include "sentry_transport.h"
@@ -283,7 +284,10 @@ SENTRY_TEST(retry_session)
     sentry__path_remove_all(options->run->cache_path);
     sentry__path_create_dir_all(options->run->cache_path);
 
-    sentry_session_t *session = sentry__session_new();
+    sentry_session_t *session = NULL;
+    SENTRY_WITH_SCOPE (scope) {
+        session = sentry__session_new(scope);
+    }
     TEST_ASSERT(!!session);
     sentry_envelope_t *envelope = sentry__envelope_new();
     TEST_ASSERT(!!envelope);
