@@ -371,7 +371,10 @@ void
 sentry__batcher_startup(
     sentry_batcher_t *batcher, const sentry_options_t *options)
 {
+    // dsn is incref'd because release() decref's it and may outlive options.
     batcher->dsn = sentry__dsn_incref(options->dsn);
+    // transport, run, and user_consent are non-owning refs, safe because they
+    // are only accessed in flush() which is bound by the options lifetime.
     batcher->transport = options->transport;
     batcher->run = options->run;
     batcher->user_consent
