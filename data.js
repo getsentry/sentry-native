@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1773056849307,
+  "lastUpdate": 1773060236948,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -12620,6 +12620,66 @@ window.BENCHMARK_DATA = {
             "value": 1.9444520000035936,
             "unit": "ms",
             "extra": "Min 1.929ms\nMax 1.962ms\nMean 1.944ms\nStdDev 0.015ms\nMedian 1.944ms\nCPU 0.586ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "jpnurmi@gmail.com",
+            "name": "J-P Nurmi",
+            "username": "jpnurmi"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "5f1b18ca3fc7299b3418775a5ae7d79db7b21da3",
+          "message": "fix(batcher): replace static global with dynamic allocation and refcounting (#1556)\n\n* test(logs): add stress test for batcher reinit hang\n\nSpawns 8 producer threads continuously logging while the main thread\ndoes 10 cycles of sentry_init/sentry_close. Reproduces a condvar\ncorruption hang in the batcher under TSan.\n\nCo-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>\n\n* fix(batcher): replace static global with dynamic allocation and refcounting\n\nThe static g_batcher persisted across init/close cycles, causing condvar\ncorruption when sentry__batcher_startup re-initialized the condvar while\nold threads still used it. Dynamic allocation with refcounting solves\nboth the condvar corruption and the lifetime problem.\n\nIntroduces sentry_batcher_ref_t with acquire/release/swap API that\nencapsulates a spinlock to make concurrent access from producer threads\nand shutdown safe.\n\nCo-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>\n\n* fix(batcher): release old batcher on swap in startup\n\nWhen the previous startup failed to spawn its thread, shutdown_begin\nreturns false and shutdown_wait is never called. The old batcher stays\nin g_batcher and leaks when startup swaps it out without releasing.\n\nCo-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>\n\n* fix(batcher): NULL-guard batcher in shutdown_wait\n\nCo-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>\n\n* Update CHANGELOG.md\n\n* fix(batcher): drain buffer items in release to prevent leaks\n\nA producer that acquired a ref before shutdown could enqueue items after\nthe final flush. These items were leaked when the batcher was freed.\n\nCo-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>\n\n* refactor(batcher): use SENTRY_MAKE macro for allocation\n\nCo-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>\n\n* fix(batcher): destroy condvar before freeing batcher memory\n\nAdd sentry__cond_destroy for all platforms (pthread_cond_destroy on\nPOSIX, CloseHandle on pre-Vista Windows, no-op on Vista+) and call it\nin sentry__batcher_release. Without this, each SDK re-initialization\nleaks kernel handles on pre-Vista Windows and violates POSIX which\nrequires pthread_cond_destroy before freeing memory containing a\npthread_cond_t.\n\nCo-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>\n\n* Revert \"fix(batcher): destroy condvar before freeing batcher memory\"\n\nThis reverts commit 467bfb5ecb2c4528e1048dab1c467203fdc29cdf.\n\n* refactor(batcher): merge two-phase shutdown into single function\n\nThe two-phase shutdown (begin/wait) was designed to signal both the logs\nand metrics threads in parallel before joining either. With #1558\nreplacing the condvar with a level-triggered waitable flag, thread wake\nlatency drops to sub-millisecond (futex/WaitOnAddress), making the\nparallel signaling unnecessary.\n\nMerging into a single function also fixes a race where a concurrent\nsentry_init() could replace g_batcher between the signal and join steps,\ncausing the new batcher to be shut down instead of the old one.\n\nCo-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>\n\n* test(metrics): add reinit stress test\n\nCo-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>\n\n* test: speed up reinit stress tests\n\nCo-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>\n\n* fix(batcher): use lock-free peek in crash-safe flush path\n\nThe crash-safe flush functions called sentry__batcher_acquire, which\nspins on a spinlock. If the crash occurs on the thread holding that\nlock, the signal handler deadlocks. Replace with a new lock-free\nsentry__batcher_peek that reads ref->ptr via atomic load without\ntaking the spinlock or bumping the refcount (safe because the process\nis dying).\n\nCo-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>\n\n* fix(batcher): use pointer-width atomics in batcher_peek for Windows\n\nOn Windows x64, `long` is 32-bit but pointers are 64-bit. Use\nInterlockedCompareExchangePointer on Windows and __atomic_load\nelsewhere to avoid truncating the pointer.\n\nCo-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>\n\n* docs(batcher): add header comments for ref management functions\n\nCo-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>\n\n* fix(batcher): fix race between force flush and reinit\n\nforce_flush_begin and force_flush_wait each acquired the batcher\nindependently. A concurrent sentry_init could swap the batcher between\nthe two calls, causing wait to flush the new empty batcher while the\noriginal data is lost.\n\nFix by returning an opaque token (the acquired batcher ref) from begin\nand passing it to wait, ensuring both operate on the same instance.\n\nCo-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>\n\n* Update src/sentry_logs.c\n\nCo-authored-by: Mischan Toosarani-Hausberger <mischan@abovevacant.com>\n\n* Update sentry__metrics_startup\n\n* docs(batcher): clarify ownership semantics of options refs\n\nCo-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>\n\n---------\n\nCo-authored-by: Claude Opus 4.6 <noreply@anthropic.com>\nCo-authored-by: Mischan Toosarani-Hausberger <mischan@abovevacant.com>",
+          "timestamp": "2026-03-09T13:41:23+01:00",
+          "tree_id": "71354bd55f1b6df9e2af7ea9966c94695ed869fb",
+          "url": "https://github.com/getsentry/sentry-native/commit/5f1b18ca3fc7299b3418775a5ae7d79db7b21da3"
+        },
+        "date": 1773060234402,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 0.8738500000049498,
+            "unit": "ms",
+            "extra": "Min 0.864ms\nMax 0.899ms\nMean 0.878ms\nStdDev 0.014ms\nMedian 0.874ms\nCPU 0.833ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 0.8036700000104702,
+            "unit": "ms",
+            "extra": "Min 0.765ms\nMax 0.900ms\nMean 0.814ms\nStdDev 0.052ms\nMedian 0.804ms\nCPU 0.799ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 3.1453100000078393,
+            "unit": "ms",
+            "extra": "Min 3.041ms\nMax 3.205ms\nMean 3.135ms\nStdDev 0.065ms\nMedian 3.145ms\nCPU 1.652ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.13052299999571915,
+            "unit": "ms",
+            "extra": "Min 0.126ms\nMax 0.134ms\nMean 0.131ms\nStdDev 0.003ms\nMedian 0.131ms\nCPU 0.080ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.03549600000951614,
+            "unit": "ms",
+            "extra": "Min 0.034ms\nMax 0.036ms\nMean 0.035ms\nStdDev 0.001ms\nMedian 0.035ms\nCPU 0.034ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 1.9234469999958037,
+            "unit": "ms",
+            "extra": "Min 1.894ms\nMax 1.978ms\nMean 1.930ms\nStdDev 0.031ms\nMedian 1.923ms\nCPU 0.583ms"
           }
         ]
       }
