@@ -1,6 +1,14 @@
 #include "sentry_batcher.h"
+#include "sentry_alloc.h"
 #include "sentry_cpu_relax.h"
 #include "sentry_options.h"
+#include "sentry_utils.h"
+#include <string.h>
+
+// The batcher thread sleeps for this interval between flush cycles.
+// When the timer fires and there are items in the buffer, they are flushed
+// regardless of how recently they were enqueued.
+#define SENTRY_BATCHER_FLUSH_INTERVAL_MS 5000
 
 #ifdef SENTRY_UNITTEST
 #    ifdef SENTRY_PLATFORM_WINDOWS
@@ -11,6 +19,98 @@
 #        define sleep_ms(MILLISECONDS) usleep(MILLISECONDS * 1000)
 #    endif
 #endif
+
+sentry_batcher_t *
+sentry__batcher_new(sentry_batch_func_t batch_func)
+{
+    sentry_batcher_t *batcher = SENTRY_MAKE(sentry_batcher_t);
+    if (!batcher) {
+        return NULL;
+    }
+    memset(batcher, 0, sizeof(sentry_batcher_t));
+    batcher->refcount = 1;
+    batcher->batch_func = batch_func;
+    batcher->thread_state = (long)SENTRY_BATCHER_THREAD_STOPPED;
+    sentry__waitable_flag_init(&batcher->request_flush);
+    sentry__thread_init(&batcher->batching_thread);
+    return batcher;
+}
+
+/**
+ * Releases any items left in the buffers that were enqueued after the final
+ * flush (e.g. by a producer that acquired a ref before shutdown).
+ */
+static void
+buffer_drain(sentry_batcher_buffer_t *buf)
+{
+    const long n = MIN(buf->index, SENTRY_BATCHER_QUEUE_LENGTH);
+    for (long i = 0; i < n; i++) {
+        sentry_value_decref(buf->items[i]);
+    }
+    buf->index = 0;
+}
+
+void
+sentry__batcher_release(sentry_batcher_t *batcher)
+{
+    if (!batcher || sentry__atomic_fetch_and_add(&batcher->refcount, -1) != 1) {
+        return;
+    }
+    buffer_drain(&batcher->buffers[0]);
+    buffer_drain(&batcher->buffers[1]);
+    sentry__dsn_decref(batcher->dsn);
+    sentry__thread_free(&batcher->batching_thread);
+    sentry_free(batcher);
+}
+
+static inline void
+lock_ref(sentry_batcher_ref_t *ref)
+{
+    while (!sentry__atomic_compare_swap(&ref->lock, 0, 1)) {
+        sentry__cpu_relax();
+    }
+}
+
+static inline void
+unlock_ref(sentry_batcher_ref_t *ref)
+{
+    sentry__atomic_store(&ref->lock, 0);
+}
+
+sentry_batcher_t *
+sentry__batcher_acquire(sentry_batcher_ref_t *ref)
+{
+    lock_ref(ref);
+    sentry_batcher_t *batcher = ref->ptr;
+    if (batcher) {
+        sentry__atomic_fetch_and_add(&batcher->refcount, 1);
+    }
+    unlock_ref(ref);
+    return batcher;
+}
+
+sentry_batcher_t *
+sentry__batcher_peek(sentry_batcher_ref_t *ref)
+{
+#ifdef SENTRY_PLATFORM_WINDOWS
+    return (sentry_batcher_t *)InterlockedCompareExchangePointer(
+        (volatile PVOID *)&ref->ptr, NULL, NULL);
+#else
+    sentry_batcher_t *ptr;
+    __atomic_load(&ref->ptr, &ptr, __ATOMIC_SEQ_CST);
+    return ptr;
+#endif
+}
+
+sentry_batcher_t *
+sentry__batcher_swap(sentry_batcher_ref_t *ref, sentry_batcher_t *batcher)
+{
+    lock_ref(ref);
+    sentry_batcher_t *old = ref->ptr;
+    ref->ptr = batcher;
+    unlock_ref(ref);
+    return old;
+}
 
 // Use a sleep spinner around a monotonic timer so we don't syscall sleep from
 // a signal handler. While this is strictly needed only there, there is no
@@ -189,18 +289,15 @@ sentry__batcher_enqueue(sentry_batcher_t *batcher, sentry_value_t item)
             active->items[item_idx] = item;
             sentry__atomic_fetch_and_add(&active->adding, -1);
 
-            // Check if active buffer is now full and trigger flush. We could
-            // introduce additional watermarks here to trigger the flush earlier
-            // under high contention.
-            // TODO replace with a level-triggered flag
+            // Check if active buffer is now full and trigger flush.
             if (item_idx == SENTRY_BATCHER_QUEUE_LENGTH - 1) {
-                sentry__cond_wake(&batcher->request_flush);
+                sentry__waitable_flag_set(&batcher->request_flush);
             }
             return true;
         }
-        // ping the batching thread to flush, since we could miss a cond_wake
+        // ping the batching thread to flush, since we could miss the flag set
         // on adding the last item
-        sentry__cond_wake(&batcher->request_flush);
+        sentry__waitable_flag_set(&batcher->request_flush);
         // Buffer is already full, roll back our increments and retry or drop.
         sentry__atomic_fetch_and_add(&active->adding, -1);
         if (attempt == ENQUEUE_MAX_RETRIES) {
@@ -216,9 +313,6 @@ batcher_thread_func(void *data)
 {
     sentry_batcher_t *batcher = data;
     SENTRY_DEBUG("Starting batching thread");
-    sentry_mutex_t task_lock;
-    sentry__mutex_init(&task_lock);
-    sentry__mutex_lock(&task_lock);
 
     // Transition from STARTING to RUNNING using compare-and-swap
     // CAS ensures atomic state verification: only succeeds if state is STARTING
@@ -230,55 +324,45 @@ batcher_thread_func(void *data)
             (long)SENTRY_BATCHER_THREAD_RUNNING)) {
         SENTRY_DEBUG(
             "batcher thread detected shutdown during startup, exiting");
-        sentry__mutex_unlock(&task_lock);
-        sentry__mutex_free(&task_lock);
         return 0;
     }
 
     // Main loop: run while state is RUNNING
+    //
+    // Flush triggers:
+    //  1. Buffer full → enqueue wakes us via request_flush (immediate flush)
+    //  2. Timeout → partial buffer flushed after
+    //  SENTRY_BATCHER_FLUSH_INTERVAL_MS
+    //  3. Shutdown / force-flush → thread state change or cond_wake
     while (sentry__atomic_fetch(&batcher->thread_state)
         == SENTRY_BATCHER_THREAD_RUNNING) {
-        // Sleep for 5 seconds or until request_flush hits
-        const int triggered_by = sentry__cond_wait_timeout(
-            &batcher->request_flush, &task_lock, 5000);
+        // Sleep for 5 seconds or until request_flush is set
+        sentry__waitable_flag_wait(
+            &batcher->request_flush, SENTRY_BATCHER_FLUSH_INTERVAL_MS);
 
-        // Check if we should still be running
         if (sentry__atomic_fetch(&batcher->thread_state)
             != SENTRY_BATCHER_THREAD_RUNNING) {
             break;
         }
 
-        switch (triggered_by) {
-        case 0:
-#ifdef SENTRY_PLATFORM_WINDOWS
-            if (GetLastError() == ERROR_TIMEOUT) {
-                SENTRY_TRACE("Batcher flushed by timeout");
-                break;
-            }
-#endif
-            SENTRY_TRACE("Batcher flushed by filled buffer");
-            break;
-#ifdef SENTRY_PLATFORM_UNIX
-        case ETIMEDOUT:
-            SENTRY_TRACE("Batcher flushed by timeout");
-            break;
-#endif
-#ifdef SENTRY_PLATFORM_WINDOWS
-        case 1:
-            SENTRY_TRACE("Batcher flushed by filled buffer");
-            break;
-#endif
-        default:
-            SENTRY_WARN("Batcher flush trigger returned unexpected value");
+        // Use the buffer state as the source of truth rather than the
+        // wake trigger: flush if there's data, skip otherwise.
+        const long active_idx = sentry__atomic_fetch(&batcher->active_idx);
+        sentry_batcher_buffer_t *buf = &batcher->buffers[active_idx];
+        const long count = sentry__atomic_fetch(&buf->index);
+        if (count <= 0) {
             continue;
         }
 
-        // Try to flush
+        if (count >= SENTRY_BATCHER_QUEUE_LENGTH) {
+            SENTRY_TRACE("Batcher flushed by filled buffer");
+        } else {
+            SENTRY_TRACE("Batcher flushed by timeout");
+        }
+
         sentry__batcher_flush(batcher, false);
     }
 
-    sentry__mutex_unlock(&task_lock);
-    sentry__mutex_free(&task_lock);
     SENTRY_DEBUG("batching thread exiting");
     return 0;
 }
@@ -287,7 +371,10 @@ void
 sentry__batcher_startup(
     sentry_batcher_t *batcher, const sentry_options_t *options)
 {
+    // dsn is incref'd because release() decref's it and may outlive options.
     batcher->dsn = sentry__dsn_incref(options->dsn);
+    // transport, run, and user_consent are non-owning refs, safe because they
+    // are only accessed in flush() which is bound by the options lifetime.
     batcher->transport = options->transport;
     batcher->run = options->run;
     batcher->user_consent
@@ -299,27 +386,22 @@ sentry__batcher_startup(
     sentry__atomic_store(
         &batcher->thread_state, (long)SENTRY_BATCHER_THREAD_STARTING);
 
-    sentry__cond_init(&batcher->request_flush);
-
-    sentry__thread_init(&batcher->batching_thread);
     int spawn_result = sentry__thread_spawn(
         &batcher->batching_thread, batcher_thread_func, batcher);
 
     if (spawn_result == 1) {
         SENTRY_ERROR("Failed to start batching thread");
         // Failed to spawn, reset to STOPPED
-        // Note: condition variable doesn't need explicit cleanup for static
-        // storage (pthread_cond_t on POSIX and CONDITION_VARIABLE on Windows)
         sentry__atomic_store(
             &batcher->thread_state, (long)SENTRY_BATCHER_THREAD_STOPPED);
-        sentry__dsn_decref(batcher->dsn);
-        batcher->dsn = NULL;
     }
 }
 
-bool
-sentry__batcher_shutdown_begin(sentry_batcher_t *batcher)
+void
+sentry__batcher_shutdown(sentry_batcher_t *batcher, uint64_t timeout)
 {
+    (void)timeout;
+
     // Atomically transition to STOPPED and get the previous state
     // This handles the race where thread might be in STARTING state:
     // - If thread's CAS hasn't run yet: CAS will fail, thread exits cleanly
@@ -330,29 +412,17 @@ sentry__batcher_shutdown_begin(sentry_batcher_t *batcher)
     // If thread was never started, nothing to do
     if (old_state == SENTRY_BATCHER_THREAD_STOPPED) {
         SENTRY_DEBUG("batcher thread was not started, skipping shutdown");
-        return false;
+        return;
     }
 
     // Thread was started (either STARTING or RUNNING), signal it to stop
-    sentry__cond_wake(&batcher->request_flush);
-    return true;
-}
-
-void
-sentry__batcher_shutdown_wait(sentry_batcher_t *batcher, uint64_t timeout)
-{
-    (void)timeout;
+    sentry__waitable_flag_set(&batcher->request_flush);
 
     // Always join the thread to avoid leaks
     sentry__thread_join(batcher->batching_thread);
 
     // Perform final flush to ensure any remaining items are sent
     sentry__batcher_flush(batcher, false);
-
-    sentry__dsn_decref(batcher->dsn);
-    batcher->dsn = NULL;
-
-    sentry__thread_free(&batcher->batching_thread);
 }
 
 void
@@ -378,7 +448,7 @@ sentry__batcher_flush_crash_safe(sentry_batcher_t *batcher)
 void
 sentry__batcher_force_flush_begin(sentry_batcher_t *batcher)
 {
-    sentry__cond_wake(&batcher->request_flush);
+    sentry__waitable_flag_set(&batcher->request_flush);
 }
 
 void

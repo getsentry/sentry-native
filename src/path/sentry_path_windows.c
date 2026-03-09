@@ -20,7 +20,8 @@
 #define MAX_PATH_BUFFER_SIZE 32768
 
 // only read this many bytes to memory ever
-static const size_t MAX_READ_TO_BUFFER = 134217728;
+// Increased to 512MB to support large minidumps from TSAN/ASAN builds
+static const size_t MAX_READ_TO_BUFFER = 536870912;
 
 #ifndef __MINGW32__
 #    define S_ISREG(m) (((m) & _S_IFMT) == _S_IFREG)

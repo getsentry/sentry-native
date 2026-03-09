@@ -518,4 +518,175 @@ size_t sentry__bgworker_foreach_matching(sentry_bgworker_t *bgw,
     sentry_task_exec_func_t exec_func,
     bool (*callback)(void *task_data, void *data), void *data);
 
+/**
+ * A level-triggered waitable atomic flag.
+ *
+ * The flag has two states: 0 (unset) and 1 (set).
+ * - `sentry__waitable_flag_set`: atomically sets the flag to 1 and wakes
+ *   a waiting thread.
+ * - `sentry__waitable_flag_wait`: waits until the flag is set or the timeout
+ *   expires, then atomically clears the flag. Returns true if the flag was
+ *   set, false on timeout.
+ * - On Windows 8+/Xbox uses WaitOnAddress, on Linux and Android a futex to keep
+ *   trigger latency low and pass on wait to the OS. Other POSIX, older Windows
+ *   fall back on a sleepy atomic poll loop.
+ */
+
+#if defined(SENTRY_PLATFORM_WINDOWS) && _WIN32_WINNT >= 0x0602
+
+typedef struct {
+    volatile LONG value;
+} sentry_waitable_flag_t;
+
+static inline void
+sentry__waitable_flag_init(sentry_waitable_flag_t *flag)
+{
+    flag->value = 0;
+}
+
+static inline void
+sentry__waitable_flag_set(sentry_waitable_flag_t *flag)
+{
+    InterlockedExchange(&flag->value, 1);
+    WakeByAddressSingle((PVOID)&flag->value);
+}
+
+static inline bool
+sentry__waitable_flag_wait(sentry_waitable_flag_t *flag, uint64_t timeout_ms)
+{
+    LONG undesired = 0;
+    // Fast path: flag already set
+    if (InterlockedCompareExchange(&flag->value, 0, 1) == 1) {
+        return true;
+    }
+    // WaitOnAddress blocks while *address == undesired
+    WaitOnAddress((volatile VOID *)&flag->value, &undesired, sizeof(LONG),
+        (DWORD)timeout_ms);
+    // Try to consume the flag regardless of wait result
+    return InterlockedCompareExchange(&flag->value, 0, 1) == 1;
+}
+
+#elif defined(SENTRY_PLATFORM_LINUX)
+
+#    include <linux/futex.h>
+#    include <sys/syscall.h>
+#    include <unistd.h>
+
+typedef struct {
+    volatile int value;
+} sentry_waitable_flag_t;
+
+static inline void
+sentry__waitable_flag_init(sentry_waitable_flag_t *flag)
+{
+    flag->value = 0;
+}
+
+static inline void
+sentry__waitable_flag_set(sentry_waitable_flag_t *flag)
+{
+    __atomic_store_n(&flag->value, 1, __ATOMIC_SEQ_CST);
+    syscall(SYS_futex, &flag->value, FUTEX_WAKE_PRIVATE, 1, NULL, NULL, 0);
+}
+
+static inline bool
+sentry__waitable_flag_wait(sentry_waitable_flag_t *flag, uint64_t timeout_ms)
+{
+    // Fast path: flag already set, atomically consume it
+    int expected = 1;
+    if (__atomic_compare_exchange_n(&flag->value, &expected, 0, false,
+            __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST)) {
+        return true;
+    }
+
+    struct timespec ts;
+    ts.tv_sec = (time_t)(timeout_ms / 1000);
+    ts.tv_nsec = (long)((timeout_ms % 1000) * 1000000);
+    // Block while value == 0
+    syscall(SYS_futex, &flag->value, FUTEX_WAIT_PRIVATE, 0, &ts, NULL, 0);
+    // Try to consume the flag
+    expected = 1;
+    return __atomic_compare_exchange_n(
+        &flag->value, &expected, 0, false, __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST);
+}
+
+#elif defined(SENTRY_PLATFORM_WINDOWS)
+/* Fallback for older Windows: sleep-poll with Sleep(). */
+
+typedef struct {
+    volatile LONG value;
+} sentry_waitable_flag_t;
+
+static inline void
+sentry__waitable_flag_init(sentry_waitable_flag_t *flag)
+{
+    InterlockedExchange(&flag->value, 0);
+}
+
+static inline void
+sentry__waitable_flag_set(sentry_waitable_flag_t *flag)
+{
+    InterlockedExchange(&flag->value, 1);
+}
+
+static inline bool
+sentry__waitable_flag_wait(sentry_waitable_flag_t *flag, uint64_t timeout_ms)
+{
+    ULONGLONG deadline = GetTickCount64() + (ULONGLONG)timeout_ms;
+    while (!InterlockedCompareExchange(&flag->value, 0, 1)) {
+        if (GetTickCount64() >= deadline) {
+            return false;
+        }
+        Sleep(10); // 10ms
+    }
+    return true;
+}
+
+#else
+/* Fallback for other POSIX platforms (Darwin, FreeBSD, AIX, NX, etc.).
+ * Uses a simple sleep-poll loop over an atomic flag. Trades up to 10ms of
+ * wake latency for zero platform-specific dependencies. */
+
+#    include <unistd.h>
+
+typedef struct {
+    volatile int value;
+} sentry_waitable_flag_t;
+
+static inline void
+sentry__waitable_flag_init(sentry_waitable_flag_t *flag)
+{
+    __atomic_store_n(&flag->value, 0, __ATOMIC_SEQ_CST);
+}
+
+static inline void
+sentry__waitable_flag_set(sentry_waitable_flag_t *flag)
+{
+    __atomic_store_n(&flag->value, 1, __ATOMIC_RELEASE);
+}
+
+static inline bool
+sentry__waitable_flag_wait(sentry_waitable_flag_t *flag, uint64_t timeout_ms)
+{
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    uint64_t deadline_ms = (uint64_t)ts.tv_sec * 1000
+        + (uint64_t)ts.tv_nsec / 1000000 + timeout_ms;
+    int expected = 1;
+    while (!__atomic_compare_exchange_n(&flag->value, &expected, 0, false,
+        __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST)) {
+        expected = 1;
+        clock_gettime(CLOCK_MONOTONIC, &ts);
+        uint64_t now_ms
+            = (uint64_t)ts.tv_sec * 1000 + (uint64_t)ts.tv_nsec / 1000000;
+        if (now_ms >= deadline_ms) {
+            return false;
+        }
+        usleep(10000); // 10ms
+    }
+    return true;
+}
+
+#endif
+
 #endif

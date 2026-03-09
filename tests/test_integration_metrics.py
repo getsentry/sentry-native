@@ -14,7 +14,7 @@ from .assertions import (
     assert_event,
     assert_metrics,
 )
-from .conditions import has_http, has_breakpad
+from .conditions import has_http, has_breakpad, has_native
 
 pytestmark = pytest.mark.skipif(not has_http, reason="tests need http")
 
@@ -284,8 +284,6 @@ def test_metrics_threaded(cmake, httpserver):
         env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
     )
 
-    # there is a chance we drop metrics while flushing buffers
-    assert 1 <= len(httpserver.log) <= 50
     total_count = 0
 
     for i in range(len(httpserver.log)):
@@ -385,6 +383,12 @@ def test_metrics_discarded_on_crash_no_backend(cmake, httpserver):
             "breakpad",
             marks=pytest.mark.skipif(
                 not has_breakpad, reason="breakpad backend not available"
+            ),
+        ),
+        pytest.param(
+            "native",
+            marks=pytest.mark.skipif(
+                not has_native, reason="native backend not available"
             ),
         ),
     ],

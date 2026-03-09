@@ -74,3 +74,56 @@ SENTRY_TEST(options_logger_enabled_when_crashed_default)
 
     sentry_options_free(options);
 }
+
+SENTRY_TEST(options_crash_reporting_mode_default)
+{
+    SENTRY_TEST_OPTIONS_NEW(options);
+
+    // Default should be NATIVE_WITH_MINIDUMP (mode 3)
+    TEST_CHECK_INT_EQUAL(sentry_options_get_crash_reporting_mode(options),
+        SENTRY_CRASH_REPORTING_MODE_NATIVE_WITH_MINIDUMP);
+
+    sentry_options_free(options);
+}
+
+SENTRY_TEST(options_crash_reporting_mode_set_get)
+{
+    SENTRY_TEST_OPTIONS_NEW(options);
+
+    // Test setting to MINIDUMP mode
+    sentry_options_set_crash_reporting_mode(
+        options, SENTRY_CRASH_REPORTING_MODE_MINIDUMP);
+    TEST_CHECK_INT_EQUAL(sentry_options_get_crash_reporting_mode(options),
+        SENTRY_CRASH_REPORTING_MODE_MINIDUMP);
+
+    // Test setting to NATIVE mode
+    sentry_options_set_crash_reporting_mode(
+        options, SENTRY_CRASH_REPORTING_MODE_NATIVE);
+    TEST_CHECK_INT_EQUAL(sentry_options_get_crash_reporting_mode(options),
+        SENTRY_CRASH_REPORTING_MODE_NATIVE);
+
+    // Test setting to NATIVE_WITH_MINIDUMP mode
+    sentry_options_set_crash_reporting_mode(
+        options, SENTRY_CRASH_REPORTING_MODE_NATIVE_WITH_MINIDUMP);
+    TEST_CHECK_INT_EQUAL(sentry_options_get_crash_reporting_mode(options),
+        SENTRY_CRASH_REPORTING_MODE_NATIVE_WITH_MINIDUMP);
+
+    sentry_options_free(options);
+}
+
+SENTRY_TEST(options_crash_reporting_mode_clamp)
+{
+    SENTRY_TEST_OPTIONS_NEW(options);
+
+    // Test clamping invalid high values to NATIVE_WITH_MINIDUMP
+    sentry_options_set_crash_reporting_mode(options, 99);
+    TEST_CHECK_INT_EQUAL(sentry_options_get_crash_reporting_mode(options),
+        SENTRY_CRASH_REPORTING_MODE_NATIVE_WITH_MINIDUMP);
+
+    // Test clamping invalid low values to MINIDUMP
+    sentry_options_set_crash_reporting_mode(options, -1);
+    TEST_CHECK_INT_EQUAL(sentry_options_get_crash_reporting_mode(options),
+        SENTRY_CRASH_REPORTING_MODE_MINIDUMP);
+
+    sentry_options_free(options);
+}

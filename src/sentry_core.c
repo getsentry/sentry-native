@@ -327,17 +327,19 @@ sentry_flush(uint64_t timeout)
     int rv = 0;
     SENTRY_WITH_OPTIONS (options) {
         // flush logs and metrics in parallel
+        uintptr_t ltoken = 0;
+        uintptr_t mtoken = 0;
         if (options->enable_logs) {
-            sentry__logs_force_flush_begin();
+            ltoken = sentry__logs_force_flush_begin();
         }
         if (options->enable_metrics) {
-            sentry__metrics_force_flush_begin();
+            mtoken = sentry__metrics_force_flush_begin();
         }
-        if (options->enable_logs) {
-            sentry__logs_force_flush_wait();
+        if (ltoken) {
+            sentry__logs_force_flush_wait(ltoken);
         }
-        if (options->enable_metrics) {
-            sentry__metrics_force_flush_wait();
+        if (mtoken) {
+            sentry__metrics_force_flush_wait(mtoken);
         }
         rv = sentry__transport_flush(options->transport, timeout);
     }
@@ -347,23 +349,15 @@ sentry_flush(uint64_t timeout)
 int
 sentry_close(void)
 {
-    // Shutdown logs and metrics in parallel before locking options to ensure
-    // they are flushed. This prevents a potential deadlock on the options
-    // during envelope creation.
+    // Shutdown logs and metrics before locking options to ensure they are
+    // flushed. This prevents a potential deadlock on the options during
+    // envelope creation.
     SENTRY_WITH_OPTIONS (options) {
-        bool wait_logs = false;
         if (options->enable_logs) {
-            wait_logs = sentry__logs_shutdown_begin();
+            sentry__logs_shutdown(options->shutdown_timeout);
         }
-        bool wait_metrics = false;
         if (options->enable_metrics) {
-            wait_metrics = sentry__metrics_shutdown_begin();
-        }
-        if (wait_logs) {
-            sentry__logs_shutdown_wait(options->shutdown_timeout);
-        }
-        if (wait_metrics) {
-            sentry__metrics_shutdown_wait(options->shutdown_timeout);
+            sentry__metrics_shutdown(options->shutdown_timeout);
         }
     }
 
@@ -838,7 +832,6 @@ void
 sentry_handle_exception(const sentry_ucontext_t *uctx)
 {
     SENTRY_WITH_OPTIONS (options) {
-        SENTRY_INFO("handling exception");
         if (options->backend && options->backend->except_func) {
             options->backend->except_func(options->backend, uctx);
         }

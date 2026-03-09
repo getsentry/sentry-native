@@ -410,6 +410,97 @@ SENTRY_TEST(logs_custom_attributes_not_modified)
     sentry_close();
 }
 
+static sentry_value_t
+capture_log_before_send(sentry_value_t log, void *data)
+{
+    sentry_value_t *captured = data;
+    sentry_value_decref(*captured);
+    sentry_value_incref(log);
+    *captured = log;
+    return log;
+}
+
+SENTRY_TEST(logs_plain_string)
+{
+    sentry_value_t captured_log = sentry_value_new_null();
+
+    SENTRY_TEST_OPTIONS_NEW(options);
+    sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
+    sentry_options_set_enable_logs(options, true);
+    sentry_options_set_before_send_log(
+        options, capture_log_before_send, &captured_log);
+
+    sentry_transport_t *transport
+        = sentry_transport_new(validate_logs_envelope);
+    transport_validation_data_t validation_data = { 0, false };
+    sentry_transport_set_state(transport, &validation_data);
+    sentry_options_set_transport(options, transport);
+
+    sentry_init(options);
+    sentry__logs_wait_for_thread_startup();
+
+    // Body with printf-dangerous characters stored literally
+    sentry_value_t attrs = sentry_value_new_object();
+    sentry_value_set_by_key(attrs, "my.key",
+        sentry_value_new_attribute(sentry_value_new_string("my_value"), NULL));
+    TEST_CHECK_INT_EQUAL(
+        sentry_log(SENTRY_LEVEL_INFO, "100% done %n %s", attrs),
+        SENTRY_LOG_RETURN_SUCCESS);
+
+    // Verify body is stored literally
+    TEST_CHECK_STRING_EQUAL(
+        sentry_value_as_string(sentry_value_get_by_key(captured_log, "body")),
+        "100% done %n %s");
+
+    // Verify level
+    TEST_CHECK_STRING_EQUAL(
+        sentry_value_as_string(sentry_value_get_by_key(captured_log, "level")),
+        "info");
+
+    // Verify custom attribute is present
+    sentry_value_t log_attrs
+        = sentry_value_get_by_key(captured_log, "attributes");
+    TEST_CHECK(
+        !sentry_value_is_null(sentry_value_get_by_key(log_attrs, "my.key")));
+
+    // Verify no message template or parameters
+    TEST_CHECK(sentry_value_is_null(
+        sentry_value_get_by_key(log_attrs, "sentry.message.template")));
+    TEST_CHECK(sentry_value_is_null(
+        sentry_value_get_by_key(log_attrs, "sentry.message.parameter.0")));
+
+    // Test with null attributes
+    TEST_CHECK_INT_EQUAL(sentry_log(SENTRY_LEVEL_ERROR, "another %d message",
+                             sentry_value_new_null()),
+        SENTRY_LOG_RETURN_SUCCESS);
+    TEST_CHECK_STRING_EQUAL(
+        sentry_value_as_string(sentry_value_get_by_key(captured_log, "body")),
+        "another %d message");
+
+    sentry_value_decref(captured_log);
+    sentry_close();
+
+    TEST_CHECK(!validation_data.has_validation_error);
+}
+
+SENTRY_TEST(logs_plain_string_disabled)
+{
+    SENTRY_TEST_OPTIONS_NEW(options);
+    sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
+    sentry_options_set_enable_logs(options, false);
+
+    sentry_init(options);
+
+    // Should not leak the attributes value
+    sentry_value_t attrs = sentry_value_new_object();
+    sentry_value_set_by_key(attrs, "key",
+        sentry_value_new_attribute(sentry_value_new_string("val"), NULL));
+    TEST_CHECK_INT_EQUAL(sentry_log(SENTRY_LEVEL_INFO, "test", attrs),
+        SENTRY_LOG_RETURN_DISABLED);
+
+    sentry_close();
+}
+
 SENTRY_TEST(logs_reinit)
 {
     SENTRY_TEST_OPTIONS_NEW(options);
@@ -432,4 +523,47 @@ SENTRY_TEST(logs_reinit)
 
     sentry_init(options2);
     sentry_close();
+}
+
+SENTRY_THREAD_FN
+log_producer_thread(void *data)
+{
+    volatile long *produce = data;
+    while (sentry__atomic_fetch(produce)) {
+        sentry_log_info("log from producer thread");
+    }
+    return 0;
+}
+
+// multiple threads produce logs during SDK re-init
+SENTRY_TEST(logs_reinit_stress)
+{
+    volatile long produce = 1;
+
+    sentry_threadid_t threads[8];
+    for (int t = 0; t < 8; t++) {
+        sentry__thread_init(&threads[t]);
+    }
+
+    for (int i = 0; i < 5; i++) {
+        SENTRY_TEST_OPTIONS_NEW(options);
+        sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
+        sentry_options_set_enable_logs(options, true);
+        sentry_init(options);
+
+        if (i == 0) {
+            sentry__logs_wait_for_thread_startup();
+            for (int t = 0; t < 8; t++) {
+                sentry__thread_spawn(
+                    &threads[t], log_producer_thread, (void *)&produce);
+            }
+        }
+
+        sentry_close();
+    }
+
+    sentry__atomic_store(&produce, 0);
+    for (int t = 0; t < 8; t++) {
+        sentry__thread_join(threads[t]);
+    }
 }
