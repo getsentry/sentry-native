@@ -9,24 +9,7 @@
 #include <stdarg.h>
 #include <string.h>
 
-static sentry_batcher_t g_batcher = {
-    {
-        {
-            .index = 0,
-            .adding = 0,
-            .sealed = 0,
-        },
-        {
-            .index = 0,
-            .adding = 0,
-            .sealed = 0,
-        },
-    },
-    .active_idx = 0,
-    .flushing = 0,
-    .thread_state = SENTRY_BATCHER_THREAD_STOPPED,
-    .batch_func = sentry__envelope_add_logs,
-};
+static sentry_batcher_ref_t g_batcher = SENTRY_BATCHER_REF_INIT;
 
 static const char *
 level_as_string(sentry_level_t level)
@@ -388,10 +371,13 @@ send_log(sentry_level_t level, sentry_value_t log)
     if (discarded) {
         return SENTRY_LOG_RETURN_DISCARD;
     }
-    if (!sentry__batcher_enqueue(&g_batcher, log)) {
+    sentry_batcher_t *batcher = sentry__batcher_acquire(&g_batcher);
+    if (!batcher || !sentry__batcher_enqueue(batcher, log)) {
+        sentry__batcher_release(batcher);
         sentry_value_decref(log);
         return SENTRY_LOG_RETURN_FAILED;
     }
+    sentry__batcher_release(batcher);
     return SENTRY_LOG_RETURN_SUCCESS;
 }
 
@@ -501,20 +487,30 @@ sentry_log(
 void
 sentry__logs_startup(const sentry_options_t *options)
 {
-    sentry__batcher_startup(&g_batcher, options);
-}
+    sentry_batcher_t *batcher = sentry__batcher_new(sentry__envelope_add_logs);
+    if (!batcher) {
+        SENTRY_WARN("failed to allocate logs batcher");
+        return;
+    }
 
-bool
-sentry__logs_shutdown_begin(void)
-{
-    SENTRY_DEBUG("beginning logs system shutdown");
-    return sentry__batcher_shutdown_begin(&g_batcher);
+    sentry__batcher_startup(batcher, options);
+    sentry_batcher_t *old = sentry__batcher_swap(&g_batcher, batcher);
+
+    if (old) {
+        sentry__batcher_shutdown(old, 0);
+    }
+    sentry__batcher_release(old);
 }
 
 void
-sentry__logs_shutdown_wait(uint64_t timeout)
+sentry__logs_shutdown(uint64_t timeout)
 {
-    sentry__batcher_shutdown_wait(&g_batcher, timeout);
+    SENTRY_DEBUG("shutting down logs system");
+    sentry_batcher_t *batcher = sentry__batcher_swap(&g_batcher, NULL);
+    if (batcher) {
+        sentry__batcher_shutdown(batcher, timeout);
+        sentry__batcher_release(batcher);
+    }
     SENTRY_DEBUG("logs system shutdown complete");
 }
 
@@ -522,20 +518,31 @@ void
 sentry__logs_flush_crash_safe(void)
 {
     SENTRY_DEBUG("crash-safe logs flush");
-    sentry__batcher_flush_crash_safe(&g_batcher);
+    sentry_batcher_t *batcher = sentry__batcher_peek(&g_batcher);
+    if (batcher) {
+        sentry__batcher_flush_crash_safe(batcher);
+    }
     SENTRY_DEBUG("crash-safe logs flush complete");
 }
 
-void
+uintptr_t
 sentry__logs_force_flush_begin(void)
 {
-    sentry__batcher_force_flush_begin(&g_batcher);
+    sentry_batcher_t *batcher = sentry__batcher_acquire(&g_batcher);
+    if (batcher) {
+        sentry__batcher_force_flush_begin(batcher);
+    }
+    return (uintptr_t)batcher;
 }
 
 void
-sentry__logs_force_flush_wait(void)
+sentry__logs_force_flush_wait(uintptr_t token)
 {
-    sentry__batcher_force_flush_wait(&g_batcher);
+    sentry_batcher_t *batcher = (sentry_batcher_t *)token;
+    if (batcher) {
+        sentry__batcher_force_flush_wait(batcher);
+        sentry__batcher_release(batcher);
+    }
 }
 
 #ifdef SENTRY_UNITTEST
@@ -546,6 +553,10 @@ sentry__logs_force_flush_wait(void)
 void
 sentry__logs_wait_for_thread_startup(void)
 {
-    sentry__batcher_wait_for_thread_startup(&g_batcher);
+    sentry_batcher_t *batcher = sentry__batcher_acquire(&g_batcher);
+    if (batcher) {
+        sentry__batcher_wait_for_thread_startup(batcher);
+        sentry__batcher_release(batcher);
+    }
 }
 #endif

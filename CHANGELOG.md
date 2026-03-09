@@ -11,7 +11,8 @@
 
 - Allow null custom log attributes without debug warning. ([#1552](https://github.com/getsentry/sentry-native/pull/1552))
 - Introduce level-triggered wait flag for use in the batcher thread for logs and metrics. ([#1558](https://github.com/getsentry/sentry-native/pull/1558))
- 
+- Fixed a data race when re-initializing the SDK while logs or metrics are active. ([#1556](https://github.com/getsentry/sentry-native/pull/1556))
+
 ## 0.13.1
 
 **Features**:
