@@ -441,15 +441,15 @@ def test_metrics_on_crash_native(cmake, httpserver, rerun):
             env=env,
         )
 
-    if rerun:
-        # Rerun the application without crashing to ensure that the second run
-        # and a second daemon do not conflict with each other
-        run(
-            tmp_path,
-            "sentry_example",
-            ["log", "no-setup"],
-            env=env,
-        )
+        if rerun:
+            # Rerun the application without crashing to ensure that the second run
+            # and a second daemon do not conflict with each other
+            run(
+                tmp_path,
+                "sentry_example",
+                ["log", "no-setup"],
+                env=env,
+            )
 
     # we expect 1 envelope with the metric, and 1 for the crash
     assert len(httpserver.log) == 2
