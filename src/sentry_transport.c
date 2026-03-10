@@ -93,7 +93,7 @@ sentry__transport_startup(
 int
 sentry__transport_flush(sentry_transport_t *transport, uint64_t timeout)
 {
-    if (transport->flush_func && transport->running) {
+    if (transport && transport->flush_func && transport->running) {
         SENTRY_DEBUG("flushing transport");
         return transport->flush_func(timeout, transport->state);
     }
