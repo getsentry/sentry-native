@@ -367,8 +367,7 @@ sentry__process_old_runs(const sentry_options_t *options, uint64_t last_crash)
         }
 
         bool can_cache = options->cache_keep
-            && (!options->http_retry
-                || !sentry__transport_can_retry(options->transport));
+            && !sentry__transport_can_retry(options->transport);
 
         sentry_pathiter_t *run_iter = sentry__path_iter_directory(run_dir);
         const sentry_path_t *file;

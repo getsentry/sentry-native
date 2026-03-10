@@ -32,6 +32,8 @@ typedef struct {
     sentry_http_send_func_t send_func;
     void (*shutdown_client)(void *client);
     sentry_retry_t *retry;
+    bool cache_keep;
+    sentry_run_t *run;
 } http_transport_state_t;
 
 #ifdef SENTRY_TRANSPORT_COMPRESSION
@@ -244,6 +246,7 @@ http_transport_state_free(void *_state)
     sentry_free(state->user_agent);
     sentry__rate_limiter_free(state->ratelimiter);
     sentry__retry_free(state->retry);
+    sentry__run_free(state->run);
     sentry_free(state);
 }
 
@@ -256,6 +259,8 @@ http_send_task(void *_envelope, void *_state)
     int status_code = http_send_envelope(state, envelope);
     if (status_code < 0 && state->retry) {
         sentry__retry_enqueue(state->retry, envelope);
+    } else if (status_code < 0 && state->cache_keep) {
+        sentry__run_write_cache(state->run, envelope, -1);
     }
 }
 
@@ -278,6 +283,8 @@ http_transport_start(const sentry_options_t *options, void *transport_state)
 
     state->dsn = sentry__dsn_incref(options->dsn);
     state->user_agent = sentry__string_clone(options->user_agent);
+    state->cache_keep = options->cache_keep;
+    state->run = sentry__run_incref(options->run);
 
     if (state->start_client) {
         int rv = state->start_client(state->client, options);
