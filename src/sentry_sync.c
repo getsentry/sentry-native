@@ -443,8 +443,9 @@ sentry__bgworker_shutdown_cb(sentry_bgworker_t *bgw, uint64_t timeout,
         uint64_t now = sentry__monotonic_time();
         if (now > started && now - started > timeout) {
             if (on_timeout) {
-                // Unblock the worker (e.g. close transport handles) and
-                // let it finish in-flight work like handle_result.
+                // fire on_timeout to cancel the ongoing task, and give the
+                // worker an extra loop cycle up to 250ms to handle the
+                // cancellation
                 sentry__mutex_unlock(&bgw->task_lock);
                 on_timeout(on_timeout_data);
                 on_timeout = NULL;
