@@ -221,10 +221,23 @@ def test_logs_on_crash(cmake, httpserver):
     assert len(httpserver.log) == 0
 
 
-def test_inproc_logs_on_crash(cmake, httpserver):
-    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "inproc"})
+@pytest.mark.parametrize(
+    "backend",
+    [
+        "inproc",
+        pytest.param(
+            "breakpad",
+            marks=pytest.mark.skipif(
+                not has_breakpad, reason="breakpad backend not available"
+            ),
+        ),
+    ],
+)
+def test_logs_on_crash(cmake, httpserver, backend):
+    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": backend})
 
-    httpserver.expect_request("/api/123456/envelope/").respond_with_data("OK")
+    httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data("OK")
+    httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data("OK")
     env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
 
     run(
@@ -235,47 +248,13 @@ def test_inproc_logs_on_crash(cmake, httpserver):
         env=env,
     )
 
-    run(
-        tmp_path,
-        "sentry_example",
-        ["log", "no-setup"],
-        env=env,
-    )
-
-    # we expect 1 envelope with the log, and 1 for the crash
-    assert len(httpserver.log) == 2
-    logs_request, crash_request = split_log_request_cond(
-        httpserver.log, is_logs_envelope
-    )
-    logs = logs_request.get_data()
-
-    logs_envelope = Envelope.deserialize(logs)
-
-    assert logs_envelope is not None
-    assert_logs(logs_envelope, 1)
-
-
-@pytest.mark.skipif(not has_breakpad, reason="test needs breakpad backend")
-def test_breakpad_logs_on_crash(cmake, httpserver):
-    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "breakpad"})
-
-    httpserver.expect_request("/api/123456/envelope/").respond_with_data("OK")
-    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
-
-    run(
-        tmp_path,
-        "sentry_example",
-        ["log", "enable-logs", "capture-log", "crash"],
-        expect_failure=True,
-        env=env,
-    )
-
-    run(
-        tmp_path,
-        "sentry_example",
-        ["log", "no-setup"],
-        env=env,
-    )
+    with httpserver.wait(timeout=10):
+        run(
+            tmp_path,
+            "sentry_example",
+            ["log", "no-setup"],
+            env=env,
+        )
 
     # we expect 1 envelope with the log, and 1 for the crash
     assert len(httpserver.log) == 2
@@ -291,33 +270,32 @@ def test_breakpad_logs_on_crash(cmake, httpserver):
 
 
 @pytest.mark.skipif(not has_native, reason="test needs native backend")
-def test_native_logs_on_crash(cmake, httpserver):
+@pytest.mark.parametrize("rerun", [True, False], ids=["rerun", "no-rerun"])
+def test_native_logs_on_crash(cmake, httpserver, rerun):
     tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "native"})
 
-    httpserver.expect_request("/api/123456/envelope/").respond_with_data("OK")
+    httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data("OK")
+    httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data("OK")
     env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
 
-    run(
-        tmp_path,
-        "sentry_example",
-        ["log", "enable-logs", "capture-log", "crash"],
-        expect_failure=True,
-        env=env,
-    )
+    with httpserver.wait(timeout=10):
+        run(
+            tmp_path,
+            "sentry_example",
+            ["log", "enable-logs", "capture-log", "crash"],
+            expect_failure=True,
+            env=env,
+        )
 
-    run(
-        tmp_path,
-        "sentry_example",
-        ["log", "no-setup"],
-        env=env,
-    )
-
-    # The crash daemon (sentry-crash) runs out-of-process and may still be
-    # sending envelopes after the crashed process exits.  Poll with a timeout
-    # so we don't flake on slow CI.
-    deadline = time.monotonic() + 10
-    while len(httpserver.log) < 2 and time.monotonic() < deadline:
-        time.sleep(0.2)
+    if rerun:
+        # Rerun the application without crashing to ensure that the second run
+        # and a second daemon do not conflict with each other
+        run(
+            tmp_path,
+            "sentry_example",
+            ["log", "no-setup"],
+            env=env,
+        )
 
     # we expect 1 envelope with the log, and 1 for the crash
     assert len(httpserver.log) == 2
