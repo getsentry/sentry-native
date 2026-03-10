@@ -357,7 +357,7 @@ def test_metrics_global_and_local_attributes_merge(cmake, httpserver):
     assert attributes["global.attribute.array"]["type"] == "array"
 
 
-def test_metrics_discarded_on_crash_no_backend(cmake, httpserver):
+def test_metrics_on_crash_none(cmake, httpserver):
     tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "none"})
 
     httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data("OK")
@@ -425,7 +425,7 @@ def test_metrics_on_crash(cmake, httpserver, backend):
 
 @pytest.mark.skipif(not has_native, reason="test needs native backend")
 @pytest.mark.parametrize("rerun", [True, False], ids=["rerun", "no-rerun"])
-def test_native_metrics_on_crash(cmake, httpserver, rerun):
+def test_metrics_on_crash_native(cmake, httpserver, rerun):
     tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "native"})
 
     httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data("OK")

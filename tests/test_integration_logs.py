@@ -203,7 +203,7 @@ def test_before_send_log_discard(cmake, httpserver):
     assert len(httpserver.log) == 0
 
 
-def test_logs_on_crash(cmake, httpserver):
+def test_logs_on_crash_none(cmake, httpserver):
     tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "none"})
 
     httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data("OK")
@@ -271,7 +271,7 @@ def test_logs_on_crash(cmake, httpserver, backend):
 
 @pytest.mark.skipif(not has_native, reason="test needs native backend")
 @pytest.mark.parametrize("rerun", [True, False], ids=["rerun", "no-rerun"])
-def test_native_logs_on_crash(cmake, httpserver, rerun):
+def test_logs_on_crash_native(cmake, httpserver, rerun):
     tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "native"})
 
     httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data("OK")
