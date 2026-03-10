@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1773144516534,
+  "lastUpdate": 1773145966806,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -12858,6 +12858,66 @@ window.BENCHMARK_DATA = {
             "value": 1.9650689999934912,
             "unit": "ms",
             "extra": "Min 1.932ms\nMax 2.038ms\nMean 1.978ms\nStdDev 0.041ms\nMedian 1.965ms\nCPU 0.605ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "49699333+dependabot[bot]@users.noreply.github.com",
+            "name": "dependabot[bot]",
+            "username": "dependabot[bot]"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "c4d108d6f72ebeb3911a7fb3f647fa993c8896b4",
+          "message": "build(deps): bump actions/checkout from 4 to 6 (#1568)\n\nBumps [actions/checkout](https://github.com/actions/checkout) from 4 to 6.\n- [Release notes](https://github.com/actions/checkout/releases)\n- [Changelog](https://github.com/actions/checkout/blob/main/CHANGELOG.md)\n- [Commits](https://github.com/actions/checkout/compare/v4...v6)\n\n---\nupdated-dependencies:\n- dependency-name: actions/checkout\n  dependency-version: '6'\n  dependency-type: direct:production\n  update-type: version-update:semver-major\n...\n\nSigned-off-by: dependabot[bot] <support@github.com>\nCo-authored-by: dependabot[bot] <49699333+dependabot[bot]@users.noreply.github.com>",
+          "timestamp": "2026-03-10T13:30:26+01:00",
+          "tree_id": "acccb4020a5d7895d0878d1d74e6f9487697083d",
+          "url": "https://github.com/getsentry/sentry-native/commit/c4d108d6f72ebeb3911a7fb3f647fa993c8896b4"
+        },
+        "date": 1773145964757,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 0.8573760000132324,
+            "unit": "ms",
+            "extra": "Min 0.848ms\nMax 0.881ms\nMean 0.860ms\nStdDev 0.013ms\nMedian 0.857ms\nCPU 0.816ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 0.7864020000170058,
+            "unit": "ms",
+            "extra": "Min 0.767ms\nMax 0.796ms\nMean 0.783ms\nStdDev 0.011ms\nMedian 0.786ms\nCPU 0.783ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 3.095183999988649,
+            "unit": "ms",
+            "extra": "Min 3.076ms\nMax 3.161ms\nMean 3.105ms\nStdDev 0.035ms\nMedian 3.095ms\nCPU 1.605ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.13030599998842263,
+            "unit": "ms",
+            "extra": "Min 0.119ms\nMax 0.226ms\nMean 0.147ms\nStdDev 0.045ms\nMedian 0.130ms\nCPU 0.086ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.033893000022544584,
+            "unit": "ms",
+            "extra": "Min 0.033ms\nMax 0.036ms\nMean 0.034ms\nStdDev 0.001ms\nMedian 0.034ms\nCPU 0.033ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 1.9311700000059773,
+            "unit": "ms",
+            "extra": "Min 1.877ms\nMax 1.969ms\nMean 1.929ms\nStdDev 0.035ms\nMedian 1.931ms\nCPU 0.589ms"
           }
         ]
       }
