@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1773146111648,
+  "lastUpdate": 1773146164886,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -38938,6 +38938,66 @@ window.BENCHMARK_DATA = {
             "value": 20.124399999986053,
             "unit": "ms",
             "extra": "Min 18.035ms\nMax 22.579ms\nMean 20.531ms\nStdDev 1.892ms\nMedian 20.124ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "49699333+dependabot[bot]@users.noreply.github.com",
+            "name": "dependabot[bot]",
+            "username": "dependabot[bot]"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "67f2a0830158471d2a287af391d501e2f0517ae6",
+          "message": "build(deps): bump codecov/codecov-action from 5.4.2 to 5.5.2 (#1569)\n\nBumps [codecov/codecov-action](https://github.com/codecov/codecov-action) from 5.4.2 to 5.5.2.\n- [Release notes](https://github.com/codecov/codecov-action/releases)\n- [Changelog](https://github.com/codecov/codecov-action/blob/main/CHANGELOG.md)\n- [Commits](https://github.com/codecov/codecov-action/compare/ad3126e916f78f00edff4ed0317cf185271ccc2d...671740ac38dd9b0130fbe1cec585b89eea48d3de)\n\n---\nupdated-dependencies:\n- dependency-name: codecov/codecov-action\n  dependency-version: 5.5.2\n  dependency-type: direct:production\n  update-type: version-update:semver-minor\n...\n\nSigned-off-by: dependabot[bot] <support@github.com>\nCo-authored-by: dependabot[bot] <49699333+dependabot[bot]@users.noreply.github.com>",
+          "timestamp": "2026-03-10T13:31:34+01:00",
+          "tree_id": "809431b5b39034b612b9460f9eb7015722d7dfc8",
+          "url": "https://github.com/getsentry/sentry-native/commit/67f2a0830158471d2a287af391d501e2f0517ae6"
+        },
+        "date": 1773146161205,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 9.995199999934812,
+            "unit": "ms",
+            "extra": "Min 9.734ms\nMax 11.437ms\nMean 10.239ms\nStdDev 0.682ms\nMedian 9.995ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 9.973400000035326,
+            "unit": "ms",
+            "extra": "Min 9.697ms\nMax 10.660ms\nMean 10.062ms\nStdDev 0.362ms\nMedian 9.973ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 24.79209999989962,
+            "unit": "ms",
+            "extra": "Min 24.570ms\nMax 25.610ms\nMean 25.024ms\nStdDev 0.448ms\nMedian 24.792ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.17579999996542028,
+            "unit": "ms",
+            "extra": "Min 0.170ms\nMax 0.198ms\nMean 0.178ms\nStdDev 0.011ms\nMedian 0.176ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.4083000000036918,
+            "unit": "ms",
+            "extra": "Min 0.393ms\nMax 0.447ms\nMean 0.414ms\nStdDev 0.021ms\nMedian 0.408ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 13.676899999950365,
+            "unit": "ms",
+            "extra": "Min 13.502ms\nMax 15.989ms\nMean 14.123ms\nStdDev 1.057ms\nMedian 13.677ms"
           }
         ]
       }
