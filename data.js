@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1773072669852,
+  "lastUpdate": 1773144371500,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -12798,6 +12798,66 @@ window.BENCHMARK_DATA = {
             "value": 2.0684610000216708,
             "unit": "ms",
             "extra": "Min 2.012ms\nMax 2.275ms\nMean 2.117ms\nStdDev 0.103ms\nMedian 2.068ms\nCPU 0.650ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "jpnurmi@gmail.com",
+            "name": "J-P Nurmi",
+            "username": "jpnurmi"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "d1c006fb5b942f220c88b0d6323d3ac4f6e7f16c",
+          "message": "test: de-dupe and fix flaky logs/metrics crash tests (#1567)\n\nCo-authored-by: Claude Opus 4.6 <noreply@anthropic.com>",
+          "timestamp": "2026-03-10T13:03:19+01:00",
+          "tree_id": "8e1be171781957ab9d0377537ecef1709e755880",
+          "url": "https://github.com/getsentry/sentry-native/commit/d1c006fb5b942f220c88b0d6323d3ac4f6e7f16c"
+        },
+        "date": 1773144369477,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 0.9301879999981111,
+            "unit": "ms",
+            "extra": "Min 0.872ms\nMax 1.069ms\nMean 0.946ms\nStdDev 0.076ms\nMedian 0.930ms\nCPU 0.897ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 0.9481609999966167,
+            "unit": "ms",
+            "extra": "Min 0.944ms\nMax 0.969ms\nMean 0.952ms\nStdDev 0.010ms\nMedian 0.948ms\nCPU 0.951ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 3.253820999987056,
+            "unit": "ms",
+            "extra": "Min 3.236ms\nMax 3.790ms\nMean 3.359ms\nStdDev 0.241ms\nMedian 3.254ms\nCPU 1.754ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.12862900001664457,
+            "unit": "ms",
+            "extra": "Min 0.125ms\nMax 0.136ms\nMean 0.129ms\nStdDev 0.004ms\nMedian 0.129ms\nCPU 0.083ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.03759900002364702,
+            "unit": "ms",
+            "extra": "Min 0.037ms\nMax 0.038ms\nMean 0.037ms\nStdDev 0.001ms\nMedian 0.038ms\nCPU 0.036ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 1.9650689999934912,
+            "unit": "ms",
+            "extra": "Min 1.932ms\nMax 2.038ms\nMean 1.978ms\nStdDev 0.041ms\nMedian 1.965ms\nCPU 0.605ms"
           }
         ]
       }
