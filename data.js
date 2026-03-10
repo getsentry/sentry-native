@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1773157899777,
+  "lastUpdate": 1773158003143,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -26198,6 +26198,66 @@ window.BENCHMARK_DATA = {
             "value": 9.189083000023857,
             "unit": "ms",
             "extra": "Min 7.204ms\nMax 10.186ms\nMean 8.794ms\nStdDev 1.358ms\nMedian 9.189ms\nCPU 0.855ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "49699333+dependabot[bot]@users.noreply.github.com",
+            "name": "dependabot[bot]",
+            "username": "dependabot[bot]"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "ff711317bcb06e762d21395484d445c025f274d4",
+          "message": "build(deps): bump docker/login-action from 3 to 4 (#1571)\n\nBumps [docker/login-action](https://github.com/docker/login-action) from 3 to 4.\n- [Release notes](https://github.com/docker/login-action/releases)\n- [Commits](https://github.com/docker/login-action/compare/v3...v4)\n\n---\nupdated-dependencies:\n- dependency-name: docker/login-action\n  dependency-version: '4'\n  dependency-type: direct:production\n  update-type: version-update:semver-major\n...\n\nSigned-off-by: dependabot[bot] <support@github.com>\nCo-authored-by: dependabot[bot] <49699333+dependabot[bot]@users.noreply.github.com>",
+          "timestamp": "2026-03-10T16:49:10+01:00",
+          "tree_id": "5c974621bcb73788c55737fe2a679d0ad1c523f2",
+          "url": "https://github.com/getsentry/sentry-native/commit/ff711317bcb06e762d21395484d445c025f274d4"
+        },
+        "date": 1773157998920,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 5.264917000005198,
+            "unit": "ms",
+            "extra": "Min 3.069ms\nMax 6.091ms\nMean 4.787ms\nStdDev 1.444ms\nMedian 5.265ms\nCPU 2.498ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 3.430959000013445,
+            "unit": "ms",
+            "extra": "Min 3.016ms\nMax 5.429ms\nMean 3.770ms\nStdDev 0.949ms\nMedian 3.431ms\nCPU 2.173ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 19.827041999974426,
+            "unit": "ms",
+            "extra": "Min 16.562ms\nMax 26.134ms\nMean 20.071ms\nStdDev 3.888ms\nMedian 19.827ms\nCPU 7.035ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.09304200000315177,
+            "unit": "ms",
+            "extra": "Min 0.075ms\nMax 0.139ms\nMean 0.100ms\nStdDev 0.025ms\nMedian 0.093ms\nCPU 0.054ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.4434579999497146,
+            "unit": "ms",
+            "extra": "Min 0.314ms\nMax 1.231ms\nMean 0.598ms\nStdDev 0.383ms\nMedian 0.443ms\nCPU 0.597ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 11.842790999992303,
+            "unit": "ms",
+            "extra": "Min 10.966ms\nMax 68.979ms\nMean 23.736ms\nStdDev 25.346ms\nMedian 11.843ms\nCPU 1.176ms"
           }
         ]
       }
