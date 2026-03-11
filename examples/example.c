@@ -943,6 +943,10 @@ main(int argc, char **argv)
         sentry_reinstall_backend();
     }
 
+    if (has_arg(argc, argv, "flush")) {
+        sentry_flush(10000);
+    }
+
     if (has_arg(argc, argv, "sleep")) {
         sleep_s(10);
     }

@@ -44,6 +44,7 @@ SENTRY_TEST(cache_keep)
     SKIP_TEST();
 #endif
     SENTRY_TEST_OPTIONS_NEW(options);
+    TEST_ASSERT(!!options->transport);
     sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
     sentry_options_set_cache_keep(options, true);
     sentry_options_set_http_retry(options, false);

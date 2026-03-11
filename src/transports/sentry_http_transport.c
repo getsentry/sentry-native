@@ -376,6 +376,23 @@ http_transport_retry(void *transport_state)
     }
 }
 
+static void
+http_cleanup_cache_task(void *task_data, void *_state)
+{
+    (void)_state;
+    const sentry_options_t *options = task_data;
+    sentry__cleanup_cache(options);
+}
+
+static void
+http_transport_submit_cleanup(
+    const sentry_options_t *options, void *transport_state)
+{
+    sentry_bgworker_t *bgworker = transport_state;
+    sentry__bgworker_submit(
+        bgworker, http_cleanup_cache_task, NULL, (void *)options);
+}
+
 sentry_transport_t *
 sentry__http_transport_new(void *client, sentry_http_send_func_t send_func)
 {
@@ -410,6 +427,8 @@ sentry__http_transport_new(void *client, sentry_http_send_func_t send_func)
     sentry_transport_set_shutdown_func(transport, http_transport_shutdown);
     sentry__transport_set_dump_func(transport, http_dump_queue);
     sentry__transport_set_retry_func(transport, http_transport_retry);
+    sentry__transport_set_cleanup_func(
+        transport, http_transport_submit_cleanup);
 
     return transport;
 }
