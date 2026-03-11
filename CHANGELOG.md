@@ -4,7 +4,7 @@
 
 **Fixes**:
 
-- Skip `SA_NODEFER` when the `CHAIN_AT_START` handler strategy is used. The flag causes the runtime's re-raised signal to be delivered immediately, killing the process before `inproc` can capture the crash. ([#1572](https://github.com/getsentry/sentry-native/pull/1572))
+- Fix `CHAIN_AT_START` handler strategy crashing when the chained handler resets the signal handler and re-raises. ([#1572](https://github.com/getsentry/sentry-native/pull/1572))
 
 ## 0.13.2
 
