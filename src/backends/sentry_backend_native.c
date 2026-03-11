@@ -209,8 +209,7 @@ native_backend_startup(
         strncpy_s(
             ctx->ca_certs, sizeof(ctx->ca_certs), options->ca_certs, _TRUNCATE);
 #else
-        strncpy(
-            ctx->ca_certs, options->ca_certs, sizeof(ctx->ca_certs) - 1);
+        strncpy(ctx->ca_certs, options->ca_certs, sizeof(ctx->ca_certs) - 1);
         ctx->ca_certs[sizeof(ctx->ca_certs) - 1] = '\0';
 #endif
     }
@@ -226,11 +225,11 @@ native_backend_startup(
 
     if (options->user_agent) {
 #ifdef _WIN32
-        strncpy_s(ctx->user_agent, sizeof(ctx->user_agent),
-            options->user_agent, _TRUNCATE);
+        strncpy_s(ctx->user_agent, sizeof(ctx->user_agent), options->user_agent,
+            _TRUNCATE);
 #else
-        strncpy(ctx->user_agent, options->user_agent,
-            sizeof(ctx->user_agent) - 1);
+        strncpy(
+            ctx->user_agent, options->user_agent, sizeof(ctx->user_agent) - 1);
         ctx->user_agent[sizeof(ctx->user_agent) - 1] = '\0';
 #endif
     }
@@ -340,9 +339,9 @@ native_backend_startup(
         state->ipc->notify_fd, state->ipc->ready_fd, daemon_handler_path);
 #    elif defined(SENTRY_PLATFORM_MACOS)
     uint64_t tid = (uint64_t)pthread_self();
-    state->daemon_pid = sentry__crash_daemon_start(getpid(), tid,
-        state->ipc->notify_pipe[0], state->ipc->ready_pipe[1],
-        daemon_handler_path);
+    state->daemon_pid
+        = sentry__crash_daemon_start(getpid(), tid, state->ipc->notify_pipe[0],
+            state->ipc->ready_pipe[1], daemon_handler_path);
 #    elif defined(SENTRY_PLATFORM_WINDOWS)
     uint64_t tid = (uint64_t)GetCurrentThreadId();
     state->daemon_pid = sentry__crash_daemon_start(GetCurrentProcessId(), tid,

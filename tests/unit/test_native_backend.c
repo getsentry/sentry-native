@@ -5,8 +5,8 @@
  * and low-level crash handling functionality.
  */
 
-#include "sentry_testsupport.h"
 #include "sentry_options.h"
+#include "sentry_testsupport.h"
 #include <string.h>
 
 #ifdef SENTRY_BACKEND_NATIVE
@@ -400,8 +400,7 @@ SENTRY_TEST(crash_context_options_propagation)
     memset(&ctx, 0, sizeof(ctx));
 
     if (options->ca_certs) {
-        strncpy(
-            ctx.ca_certs, options->ca_certs, sizeof(ctx.ca_certs) - 1);
+        strncpy(ctx.ca_certs, options->ca_certs, sizeof(ctx.ca_certs) - 1);
         ctx.ca_certs[sizeof(ctx.ca_certs) - 1] = '\0';
     }
     if (options->proxy) {
@@ -409,8 +408,8 @@ SENTRY_TEST(crash_context_options_propagation)
         ctx.proxy[sizeof(ctx.proxy) - 1] = '\0';
     }
     if (options->user_agent) {
-        strncpy(ctx.user_agent, options->user_agent,
-            sizeof(ctx.user_agent) - 1);
+        strncpy(
+            ctx.user_agent, options->user_agent, sizeof(ctx.user_agent) - 1);
         ctx.user_agent[sizeof(ctx.user_agent) - 1] = '\0';
     }
 
@@ -480,8 +479,7 @@ SENTRY_TEST(crash_context_null_options)
 
     // Copy like native_backend_startup does (with NULL checks)
     if (options->ca_certs) {
-        strncpy(
-            ctx.ca_certs, options->ca_certs, sizeof(ctx.ca_certs) - 1);
+        strncpy(ctx.ca_certs, options->ca_certs, sizeof(ctx.ca_certs) - 1);
     }
     if (options->proxy) {
         strncpy(ctx.proxy, options->proxy, sizeof(ctx.proxy) - 1);
