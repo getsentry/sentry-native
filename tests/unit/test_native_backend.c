@@ -382,7 +382,6 @@ SENTRY_TEST(crash_context_transport_fields)
 SENTRY_TEST(crash_context_options_propagation)
 {
 #ifdef SENTRY_BACKEND_NATIVE
-#    include "../../src/backends/native/sentry_crash_context.h"
     // Create options with transport config
     SENTRY_TEST_OPTIONS_NEW(options);
 
@@ -431,7 +430,6 @@ SENTRY_TEST(crash_context_options_propagation)
 SENTRY_TEST(crash_context_handler_path_propagation)
 {
 #ifdef SENTRY_BACKEND_NATIVE
-#    include "../../src/backends/native/sentry_crash_context.h"
     SENTRY_TEST_OPTIONS_NEW(options);
 
     // Set handler path
@@ -470,7 +468,6 @@ SENTRY_TEST(crash_context_handler_path_propagation)
 SENTRY_TEST(crash_context_null_options)
 {
 #ifdef SENTRY_BACKEND_NATIVE
-#    include "../../src/backends/native/sentry_crash_context.h"
     SENTRY_TEST_OPTIONS_NEW(options);
 
     // Don't set ca_certs or proxy - leave them as NULL

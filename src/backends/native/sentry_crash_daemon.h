@@ -32,8 +32,7 @@ pid_t sentry__crash_daemon_start(pid_t app_pid, uint64_t app_tid,
     int notify_pipe_read, int ready_pipe_write, const char *handler_path);
 #elif defined(SENTRY_PLATFORM_WINDOWS)
 pid_t sentry__crash_daemon_start(pid_t app_pid, uint64_t app_tid,
-    HANDLE event_handle, HANDLE ready_event_handle,
-    const char *handler_path);
+    HANDLE event_handle, HANDLE ready_event_handle, const char *handler_path);
 #endif
 
 /**
