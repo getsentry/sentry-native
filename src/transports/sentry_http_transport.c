@@ -380,7 +380,7 @@ static void
 http_cleanup_cache_task(void *task_data, void *_state)
 {
     (void)_state;
-    const sentry_options_t *options = task_data;
+    sentry_options_t *options = task_data;
     sentry__cleanup_cache(options);
 }
 
@@ -389,8 +389,9 @@ http_transport_submit_cleanup(
     const sentry_options_t *options, void *transport_state)
 {
     sentry_bgworker_t *bgworker = transport_state;
-    sentry__bgworker_submit(
-        bgworker, http_cleanup_cache_task, NULL, (void *)options);
+    sentry__bgworker_submit(bgworker, http_cleanup_cache_task,
+        (void (*)(void *))sentry_options_free,
+        sentry__options_incref((sentry_options_t *)options));
 }
 
 sentry_transport_t *
