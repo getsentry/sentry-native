@@ -376,13 +376,12 @@ SENTRY_TEST(transport_retry)
 {
     // no retry_func → no-op
     sentry_transport_t *transport = sentry_transport_new(noop_send);
-    TEST_CHECK(!sentry__transport_can_retry(transport));
+    retry_func_calls = 0;
     sentry_transport_retry(transport);
+    TEST_CHECK_INT_EQUAL(retry_func_calls, 0);
 
     // with retry_func → calls it
-    retry_func_calls = 0;
     sentry__transport_set_retry_func(transport, mock_retry_func);
-    TEST_CHECK(sentry__transport_can_retry(transport));
     sentry_transport_retry(transport);
     TEST_CHECK_INT_EQUAL(retry_func_calls, 1);
 
