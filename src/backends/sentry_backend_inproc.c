@@ -25,6 +25,7 @@
 #include <limits.h>
 #ifdef SENTRY_PLATFORM_UNIX
 #    include <poll.h>
+#    include <sys/syscall.h>
 #endif
 #include <string.h>
 
@@ -1563,6 +1564,15 @@ process_ucontext(const sentry_ucontext_t *uctx)
         uintptr_t ip = get_instruction_pointer(uctx);
         uintptr_t sp = get_stack_pointer(uctx);
 
+        // Mask the signal so SA_NODEFER doesn't let re-raises from the chained
+        // handler to kill the process before we regain control.
+        sigset_t mask, old_mask;
+        sigemptyset(&mask);
+        sigaddset(&mask, uctx->signum);
+        // raw syscall to bypass libsigchain on Android
+        syscall(
+            SYS_rt_sigprocmask, SIG_BLOCK, &mask, &old_mask, sizeof(sigset_t));
+
         // invoke the previous handler (typically the CLR/Mono
         // signal-to-managed-exception handler)
         invoke_signal_handler(
@@ -1577,6 +1587,21 @@ process_ucontext(const sentry_ucontext_t *uctx)
             || sp != get_stack_pointer(uctx)) {
             return;
         }
+
+        // restore our handler
+        struct sigaction current;
+        sigaction(uctx->signum, NULL, &current);
+        if (current.sa_handler == SIG_DFL) {
+            sigaction(uctx->signum, &g_sigaction, NULL);
+        }
+
+        // consume pending signal
+        struct timespec timeout = { 0, 0 };
+        sigtimedwait(&mask, NULL, &timeout);
+
+        // unmask
+        syscall(
+            SYS_rt_sigprocmask, SIG_SETMASK, &old_mask, NULL, sizeof(sigset_t));
 
         // return from runtime handler; continue processing the crash on the
         // signal thread until the worker takes over
