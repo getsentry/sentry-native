@@ -507,16 +507,7 @@ startup_inproc_backend(
     // running. This is needed for recursive crash detection to work -
     // without it, a crash during crash handling would block the signal
     // and leave the process in an undefined state.
-    // However, SA_NODEFER is incompatible with CHAIN_AT_START: when we
-    // chain to the runtime's signal handler (e.g. Mono), it may reset
-    // the signal to SIG_DFL and re-raise. With SA_NODEFER the re-raised
-    // signal is delivered immediately (killing the process) before our
-    // handler can regain control.
-    g_sigaction.sa_flags = SA_SIGINFO | SA_ONSTACK;
-    if (g_backend_config.handler_strategy
-        != SENTRY_HANDLER_STRATEGY_CHAIN_AT_START) {
-        g_sigaction.sa_flags |= SA_NODEFER;
-    }
+    g_sigaction.sa_flags = SA_SIGINFO | SA_ONSTACK | SA_NODEFER;
     for (size_t i = 0; i < SIGNAL_COUNT; ++i) {
         sigaction(SIGNAL_DEFINITIONS[i].signum, &g_sigaction, NULL);
     }
