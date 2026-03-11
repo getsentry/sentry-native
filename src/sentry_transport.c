@@ -165,12 +165,6 @@ sentry__transport_set_retry_func(
     transport->retry_func = retry_func;
 }
 
-bool
-sentry__transport_can_retry(sentry_transport_t *transport)
-{
-    return transport && transport->retry_func;
-}
-
 void
 sentry__transport_set_cleanup_func(sentry_transport_t *transport,
     void (*cleanup_func)(const sentry_options_t *options, void *state))
