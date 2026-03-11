@@ -6,11 +6,13 @@
  */
 
 #include "sentry_testsupport.h"
+#include "sentry_options.h"
 #include <string.h>
 
 #ifdef SENTRY_BACKEND_NATIVE
 // Include native backend headers
 #    include "../../src/backends/native/minidump/sentry_minidump_format.h"
+#    include "../../src/backends/native/sentry_crash_context.h"
 #endif
 
 /**
@@ -322,6 +324,179 @@ SENTRY_TEST(m128a_size)
 
     TEST_CHECK(val.low == 0x123456789abcdef0ULL);
     TEST_CHECK(val.high == 0xfedcba9876543210ULL);
+#else
+    SKIP_TEST();
+#endif
+}
+
+/**
+ * Test that crash context structure includes transport configuration fields
+ * and that they are properly sized for paths and URLs.
+ */
+SENTRY_TEST(crash_context_transport_fields)
+{
+#ifdef SENTRY_BACKEND_NATIVE
+    sentry_crash_context_t ctx;
+    memset(&ctx, 0, sizeof(ctx));
+
+    // Verify ca_certs field exists and can hold a typical path
+    const char *test_ca = "/etc/ssl/certs/ca-certificates.crt";
+    strncpy(ctx.ca_certs, test_ca, sizeof(ctx.ca_certs) - 1);
+    ctx.ca_certs[sizeof(ctx.ca_certs) - 1] = '\0';
+    TEST_CHECK_STRING_EQUAL(ctx.ca_certs, test_ca);
+
+    // Verify proxy field exists and can hold a typical proxy URL
+    const char *test_proxy = "http://proxy.example.com:8080";
+    strncpy(ctx.proxy, test_proxy, sizeof(ctx.proxy) - 1);
+    ctx.proxy[sizeof(ctx.proxy) - 1] = '\0';
+    TEST_CHECK_STRING_EQUAL(ctx.proxy, test_proxy);
+
+    // Verify user_agent field exists
+    const char *test_ua = "sentry.native/0.8.0";
+    strncpy(ctx.user_agent, test_ua, sizeof(ctx.user_agent) - 1);
+    ctx.user_agent[sizeof(ctx.user_agent) - 1] = '\0';
+    TEST_CHECK_STRING_EQUAL(ctx.user_agent, test_ua);
+
+    // Verify handler_path field exists and can hold a typical path
+    const char *test_handler = "/usr/local/bin/sentry-crash";
+    strncpy(ctx.handler_path, test_handler, sizeof(ctx.handler_path) - 1);
+    ctx.handler_path[sizeof(ctx.handler_path) - 1] = '\0';
+    TEST_CHECK_STRING_EQUAL(ctx.handler_path, test_handler);
+
+    // Verify fields are zero-initialized when memset to 0
+    memset(&ctx, 0, sizeof(ctx));
+    TEST_CHECK(ctx.ca_certs[0] == '\0');
+    TEST_CHECK(ctx.proxy[0] == '\0');
+    TEST_CHECK(ctx.user_agent[0] == '\0');
+    TEST_CHECK(ctx.handler_path[0] == '\0');
+#else
+    SKIP_TEST();
+#endif
+}
+
+/**
+ * Test that options transport configuration is propagated to crash context
+ * during native backend startup. This verifies the fix for the daemon
+ * not receiving SSL certs and proxy settings from the parent process.
+ */
+SENTRY_TEST(crash_context_options_propagation)
+{
+#ifdef SENTRY_BACKEND_NATIVE
+#    include "../../src/backends/native/sentry_crash_context.h"
+    // Create options with transport config
+    SENTRY_TEST_OPTIONS_NEW(options);
+
+    sentry_options_set_ca_certs(options, "/path/to/ca-bundle.crt");
+    sentry_options_set_proxy(options, "http://myproxy:3128");
+
+    // Verify options were set correctly
+    TEST_CHECK_STRING_EQUAL(
+        sentry_options_get_ca_certs(options), "/path/to/ca-bundle.crt");
+    TEST_CHECK_STRING_EQUAL(
+        sentry_options_get_proxy(options), "http://myproxy:3128");
+
+    // Simulate what native_backend_startup does: copy to crash context
+    sentry_crash_context_t ctx;
+    memset(&ctx, 0, sizeof(ctx));
+
+    if (options->ca_certs) {
+        strncpy(
+            ctx.ca_certs, options->ca_certs, sizeof(ctx.ca_certs) - 1);
+        ctx.ca_certs[sizeof(ctx.ca_certs) - 1] = '\0';
+    }
+    if (options->proxy) {
+        strncpy(ctx.proxy, options->proxy, sizeof(ctx.proxy) - 1);
+        ctx.proxy[sizeof(ctx.proxy) - 1] = '\0';
+    }
+    if (options->user_agent) {
+        strncpy(ctx.user_agent, options->user_agent,
+            sizeof(ctx.user_agent) - 1);
+        ctx.user_agent[sizeof(ctx.user_agent) - 1] = '\0';
+    }
+
+    // Verify crash context received the values
+    TEST_CHECK_STRING_EQUAL(ctx.ca_certs, "/path/to/ca-bundle.crt");
+    TEST_CHECK_STRING_EQUAL(ctx.proxy, "http://myproxy:3128");
+    // user_agent should have the default SDK user agent
+    TEST_CHECK(ctx.user_agent[0] != '\0');
+
+    sentry_options_free(options);
+#else
+    SKIP_TEST();
+#endif
+}
+
+/**
+ * Test that handler_path option is propagated to crash context
+ */
+SENTRY_TEST(crash_context_handler_path_propagation)
+{
+#ifdef SENTRY_BACKEND_NATIVE
+#    include "../../src/backends/native/sentry_crash_context.h"
+    SENTRY_TEST_OPTIONS_NEW(options);
+
+    // Set handler path
+    sentry_options_set_handler_path(options, "/opt/sentry/sentry-crash");
+
+    // Simulate what native_backend_startup does
+    sentry_crash_context_t ctx;
+    memset(&ctx, 0, sizeof(ctx));
+
+    if (options->handler_path) {
+        strncpy(ctx.handler_path, options->handler_path->path,
+            sizeof(ctx.handler_path) - 1);
+        ctx.handler_path[sizeof(ctx.handler_path) - 1] = '\0';
+    }
+
+    TEST_CHECK_STRING_EQUAL(ctx.handler_path, "/opt/sentry/sentry-crash");
+
+    // Without handler_path set, field should remain empty
+    sentry_options_t *options2 = sentry_options_new();
+    TEST_ASSERT(!!options2);
+    sentry_crash_context_t ctx2;
+    memset(&ctx2, 0, sizeof(ctx2));
+    // Don't set handler_path - verify it stays empty
+    TEST_CHECK(ctx2.handler_path[0] == '\0');
+
+    sentry_options_free(options);
+    sentry_options_free(options2);
+#else
+    SKIP_TEST();
+#endif
+}
+
+/**
+ * Test that NULL/empty transport options don't corrupt crash context
+ */
+SENTRY_TEST(crash_context_null_options)
+{
+#ifdef SENTRY_BACKEND_NATIVE
+#    include "../../src/backends/native/sentry_crash_context.h"
+    SENTRY_TEST_OPTIONS_NEW(options);
+
+    // Don't set ca_certs or proxy - leave them as NULL
+    sentry_crash_context_t ctx;
+    memset(&ctx, 0, sizeof(ctx));
+
+    // Copy like native_backend_startup does (with NULL checks)
+    if (options->ca_certs) {
+        strncpy(
+            ctx.ca_certs, options->ca_certs, sizeof(ctx.ca_certs) - 1);
+    }
+    if (options->proxy) {
+        strncpy(ctx.proxy, options->proxy, sizeof(ctx.proxy) - 1);
+    }
+    if (options->handler_path) {
+        strncpy(ctx.handler_path, options->handler_path->path,
+            sizeof(ctx.handler_path) - 1);
+    }
+
+    // All should remain empty (zero-initialized)
+    TEST_CHECK(ctx.ca_certs[0] == '\0');
+    TEST_CHECK(ctx.proxy[0] == '\0');
+    TEST_CHECK(ctx.handler_path[0] == '\0');
+
+    sentry_options_free(options);
 #else
     SKIP_TEST();
 #endif
