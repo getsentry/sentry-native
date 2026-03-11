@@ -1571,8 +1571,7 @@ process_ucontext(const sentry_ucontext_t *uctx)
         sigemptyset(&mask);
         sigaddset(&mask, uctx->signum);
         // raw syscall to bypass libsigchain on Android
-        syscall(
-            SYS_rt_sigprocmask, SIG_BLOCK, &mask, &old_mask, sizeof(sigset_t));
+        syscall(SYS_rt_sigprocmask, SIG_BLOCK, &mask, &old_mask, _NSIG / 8);
 
         // invoke the previous handler (typically the CLR/Mono
         // signal-to-managed-exception handler)
@@ -1598,11 +1597,10 @@ process_ucontext(const sentry_ucontext_t *uctx)
 
         // consume pending signal
         struct timespec timeout = { 0, 0 };
-        sigtimedwait(&mask, NULL, &timeout);
+        syscall(SYS_rt_sigtimedwait, &mask, NULL, &timeout, _NSIG / 8);
 
         // unmask
-        syscall(
-            SYS_rt_sigprocmask, SIG_SETMASK, &old_mask, NULL, sizeof(sigset_t));
+        syscall(SYS_rt_sigprocmask, SIG_SETMASK, &old_mask, NULL, _NSIG / 8);
 
         // return from runtime handler; continue processing the crash on the
         // signal thread until the worker takes over
