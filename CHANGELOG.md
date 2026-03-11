@@ -7,7 +7,7 @@
 - inproc: only the handling thread cleans up after the crash. ([#1579](https://github.com/getsentry/sentry-native/pull/1579))
 - Propagate transport options (`ca_certs`, `proxy`, `user_agent`) and `handler_path` to the native backend crash daemon. Previously, the daemon did not receive SSL certificate or proxy settings from the parent process, causing SSL errors (curl code 60) when uploading crash reports. The daemon also ignored the user-configured handler path, requiring the `sentry-crash` binary to be placed next to the application executable. ([#1573](https://github.com/getsentry/sentry-native/pull/1573))
 - Add module header pages to MemoryList and fix exception code in the native backend. ([#1576](https://github.com/getsentry/sentry-native/pull/1576))
-- Skip `SA_NODEFER` when the `CHAIN_AT_START` handler strategy is used. The flag causes the runtime's re-raised signal to be delivered immediately, killing the process before `inproc` can capture the crash. ([#1572](https://github.com/getsentry/sentry-native/pull/1572))
+- Fix `CHAIN_AT_START` handler strategy crashing when the chained handler resets the signal handler and re-raises. ([#1572](https://github.com/getsentry/sentry-native/pull/1572))
 
 ## 0.13.2
 
