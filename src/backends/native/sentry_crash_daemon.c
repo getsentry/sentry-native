@@ -2980,6 +2980,23 @@ sentry__crash_daemon_main(pid_t app_pid, uint64_t app_tid, HANDLE event_handle,
         SENTRY_DEBUG("No DSN configured");
     }
 
+    // Set transport configuration from parent process options
+    if (ipc->shmem->ca_certs[0] != '\0') {
+        SENTRY_DEBUGF("Setting CA certs: %s", ipc->shmem->ca_certs);
+        sentry_options_set_ca_certs(options, ipc->shmem->ca_certs);
+    }
+
+    if (ipc->shmem->proxy[0] != '\0') {
+        SENTRY_DEBUGF("Setting proxy: %s", ipc->shmem->proxy);
+        sentry_options_set_proxy(options, ipc->shmem->proxy);
+    }
+
+    if (ipc->shmem->user_agent[0] != '\0') {
+        SENTRY_DEBUGF("Setting user agent: %s", ipc->shmem->user_agent);
+        sentry_free(options->user_agent);
+        options->user_agent = sentry__string_clone(ipc->shmem->user_agent);
+    }
+
     // Create run with database path
     SENTRY_DEBUG("Creating run with database path");
     sentry_path_t *db_path = sentry__path_from_str(ipc->shmem->database_path);
@@ -3085,16 +3102,16 @@ sentry__crash_daemon_main(pid_t app_pid, uint64_t app_tid, HANDLE event_handle,
 
 #if defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID)
 pid_t
-sentry__crash_daemon_start(
-    pid_t app_pid, uint64_t app_tid, int notify_eventfd, int ready_eventfd)
+sentry__crash_daemon_start(pid_t app_pid, uint64_t app_tid,
+    int notify_eventfd, int ready_eventfd, const char *handler_path)
 #elif defined(SENTRY_PLATFORM_MACOS)
 pid_t
-sentry__crash_daemon_start(
-    pid_t app_pid, uint64_t app_tid, int notify_pipe_read, int ready_pipe_write)
+sentry__crash_daemon_start(pid_t app_pid, uint64_t app_tid,
+    int notify_pipe_read, int ready_pipe_write, const char *handler_path)
 #elif defined(SENTRY_PLATFORM_WINDOWS)
 pid_t
 sentry__crash_daemon_start(pid_t app_pid, uint64_t app_tid, HANDLE event_handle,
-    HANDLE ready_event_handle)
+    HANDLE ready_event_handle, const char *handler_path)
 #endif
 {
 #if defined(SENTRY_PLATFORM_UNIX)
@@ -3146,6 +3163,12 @@ sentry__crash_daemon_start(pid_t app_pid, uint64_t app_tid, HANDLE event_handle,
 
         char *argv[]
             = { "sentry-crash", pid_str, tid_str, notify_str, ready_str, NULL };
+
+        // 0. If handler_path was explicitly set via options, try it first
+        if (handler_path && handler_path[0] != '\0') {
+            execv(handler_path, argv);
+            // If execv fails, continue to fallback search
+        }
 
         // Try multiple locations to find sentry-crash executable
 
@@ -3217,32 +3240,46 @@ sentry__crash_daemon_start(pid_t app_pid, uint64_t app_tid, HANDLE event_handle,
     // On Windows, create a separate daemon process using CreateProcess
     // Spawn the sentry-crash.exe executable
 
-    // Try to find sentry-crash.exe in the same directory as the current
-    // executable
-    wchar_t exe_dir[SENTRY_CRASH_MAX_PATH];
-    DWORD len = GetModuleFileNameW(NULL, exe_dir, SENTRY_CRASH_MAX_PATH);
-    if (len == 0 || len >= SENTRY_CRASH_MAX_PATH) {
-        SENTRY_WARN("Failed to get current executable path");
-        return (pid_t)-1;
-    }
+    wchar_t daemon_path_w[SENTRY_CRASH_MAX_PATH];
 
-    // Remove filename to get directory
-    wchar_t *last_slash = wcsrchr(exe_dir, L'\\');
-    if (last_slash) {
-        *(last_slash + 1) = L'\0'; // Keep the trailing backslash
-    }
+    // If handler_path was explicitly set via options, use it directly
+    if (handler_path && handler_path[0] != '\0') {
+        wchar_t *wpath = sentry__string_to_wstr(handler_path);
+        if (wpath) {
+            wcsncpy(daemon_path_w, wpath, SENTRY_CRASH_MAX_PATH - 1);
+            daemon_path_w[SENTRY_CRASH_MAX_PATH - 1] = L'\0';
+            sentry_free(wpath);
+        } else {
+            SENTRY_WARN("Failed to convert handler_path to wide string");
+            return (pid_t)-1;
+        }
+    } else {
+        // Try to find sentry-crash.exe in the same directory as the current
+        // executable
+        wchar_t exe_dir[SENTRY_CRASH_MAX_PATH];
+        DWORD len = GetModuleFileNameW(NULL, exe_dir, SENTRY_CRASH_MAX_PATH);
+        if (len == 0 || len >= SENTRY_CRASH_MAX_PATH) {
+            SENTRY_WARN("Failed to get current executable path");
+            return (pid_t)-1;
+        }
 
-    // Build full path to sentry-crash.exe
-    wchar_t daemon_path[SENTRY_CRASH_MAX_PATH];
-    int path_len = _snwprintf(
-        daemon_path, SENTRY_CRASH_MAX_PATH, L"%ssentry-crash.exe", exe_dir);
-    if (path_len < 0 || path_len >= SENTRY_CRASH_MAX_PATH) {
-        SENTRY_WARN("Daemon path too long");
-        return (pid_t)-1;
+        // Remove filename to get directory
+        wchar_t *last_slash = wcsrchr(exe_dir, L'\\');
+        if (last_slash) {
+            *(last_slash + 1) = L'\0'; // Keep the trailing backslash
+        }
+
+        // Build full path to sentry-crash.exe
+        int path_len = _snwprintf(daemon_path_w, SENTRY_CRASH_MAX_PATH,
+            L"%ssentry-crash.exe", exe_dir);
+        if (path_len < 0 || path_len >= SENTRY_CRASH_MAX_PATH) {
+            SENTRY_WARN("Daemon path too long");
+            return (pid_t)-1;
+        }
     }
 
     // Log the daemon path we're trying to launch for debugging
-    char *daemon_path_utf8 = sentry__string_from_wstr(daemon_path);
+    char *daemon_path_utf8 = sentry__string_from_wstr(daemon_path_w);
     if (daemon_path_utf8) {
         SENTRY_DEBUGF("Attempting to launch daemon: %s", daemon_path_utf8);
         sentry_free(daemon_path_utf8);
@@ -3252,7 +3289,7 @@ sentry__crash_daemon_start(pid_t app_pid, uint64_t app_tid, HANDLE event_handle,
     // <ready_event_handle>
     wchar_t cmd_line[SENTRY_CRASH_MAX_PATH + 128];
     int cmd_len = _snwprintf(cmd_line, sizeof(cmd_line) / sizeof(wchar_t),
-        L"\"%s\" %lu %llx %llu %llu", daemon_path, (unsigned long)app_pid,
+        L"\"%s\" %lu %llx %llu %llu", daemon_path_w, (unsigned long)app_pid,
         (unsigned long long)app_tid,
         (unsigned long long)(uintptr_t)event_handle,
         (unsigned long long)(uintptr_t)ready_event_handle);
@@ -3284,7 +3321,7 @@ sentry__crash_daemon_start(pid_t app_pid, uint64_t app_tid, HANDLE event_handle,
             &si, // Startup info
             &pi)) { // Process information
         DWORD error = GetLastError();
-        char *daemon_path_err = sentry__string_from_wstr(daemon_path);
+        char *daemon_path_err = sentry__string_from_wstr(daemon_path_w);
         if (daemon_path_err) {
             SENTRY_WARNF("Failed to create daemon process at '%s': Error %lu%s",
                 daemon_path_err, error,
