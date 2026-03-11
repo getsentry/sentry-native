@@ -11,6 +11,7 @@ struct sentry_transport_s {
     void (*free_func)(void *state);
     size_t (*dump_func)(sentry_run_t *run, void *state);
     void (*retry_func)(void *state);
+    void (*cleanup_func)(const sentry_options_t *options, void *state);
     void *state;
     bool running;
 };
@@ -168,4 +169,22 @@ bool
 sentry__transport_can_retry(sentry_transport_t *transport)
 {
     return transport && transport->retry_func;
+}
+
+void
+sentry__transport_set_cleanup_func(sentry_transport_t *transport,
+    void (*cleanup_func)(const sentry_options_t *options, void *state))
+{
+    transport->cleanup_func = cleanup_func;
+}
+
+bool
+sentry__transport_submit_cleanup(
+    sentry_transport_t *transport, const sentry_options_t *options)
+{
+    if (transport && transport->cleanup_func && transport->running) {
+        transport->cleanup_func(options, transport->state);
+        return true;
+    }
+    return false;
 }

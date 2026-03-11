@@ -366,9 +366,6 @@ sentry__process_old_runs(const sentry_options_t *options, uint64_t last_crash)
             continue;
         }
 
-        bool can_cache = options->cache_keep
-            && !sentry__transport_can_retry(options->transport);
-
         sentry_pathiter_t *run_iter = sentry__path_iter_directory(run_dir);
         const sentry_path_t *file;
         while (run_iter && (file = sentry__pathiter_next(run_iter)) != NULL) {
@@ -413,11 +410,6 @@ sentry__process_old_runs(const sentry_options_t *options, uint64_t last_crash)
             } else if (sentry__path_ends_with(file, ".envelope")) {
                 sentry_envelope_t *envelope = sentry__envelope_from_path(file);
                 sentry__capture_envelope(options->transport, envelope);
-
-                if (can_cache
-                    && sentry__run_move_cache(options->run, file, -1)) {
-                    continue;
-                }
             }
 
             sentry__path_remove(file);

@@ -1500,6 +1500,8 @@ SENTRY_API int sentry_options_get_symbolize_stacktraces(
  * subdirectory within the database directory. The cache is cleared on startup
  * based on the cache_max_items, cache_max_size, and cache_max_age options.
  *
+ * Only applicable for HTTP transports.
+ *
  * Disabled by default.
  */
 SENTRY_API void sentry_options_set_cache_keep(
