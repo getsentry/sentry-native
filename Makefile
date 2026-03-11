@@ -60,16 +60,17 @@ setup-git: $(GIT_COMMON_DIR)/hooks/pre-commit
 	git submodule update --init --recursive
 .PHONY: setup-git
 
-setup-venv: .venv/bin/python
+setup-venv: .venv/.stamp
 .PHONY: setup-venv
 
 $(GIT_COMMON_DIR)/hooks/pre-commit:
 	@cd $(GIT_COMMON_DIR)/hooks && ln -sf $(PWD)/scripts/git-precommit-hook.sh pre-commit
 
-.venv/bin/python: Makefile tests/requirements.txt
+.venv/.stamp: Makefile tests/requirements.txt
 	@rm -rf .venv
 	python3 -m venv .venv
 	.venv/bin/pip install --upgrade --requirement tests/requirements.txt
+	@touch $@
 
 format: setup-venv
 	@.venv/bin/clang-format -i \
