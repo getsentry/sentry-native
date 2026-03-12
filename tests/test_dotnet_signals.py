@@ -287,6 +287,7 @@ def run_android(args=None, timeout=30):
         "shell",
         "am",
         "start",
+        "-W",
         "-n",
         "{}/dotnet_signal.MainActivity".format(ANDROID_PACKAGE),
         *intent_args,
