@@ -25,6 +25,8 @@
 #include <limits.h>
 #ifdef SENTRY_PLATFORM_UNIX
 #    include <poll.h>
+#endif
+#ifdef SENTRY_PLATFORM_ANDROID
 #    include <sys/syscall.h>
 #endif
 #include <string.h>
@@ -1565,17 +1567,15 @@ process_ucontext(const sentry_ucontext_t *uctx)
         uintptr_t ip = get_instruction_pointer(uctx);
         uintptr_t sp = get_stack_pointer(uctx);
 
+#    ifdef SENTRY_PLATFORM_ANDROID
         // Mask the signal so SA_NODEFER doesn't let re-raises from the chained
         // handler kill the process before we regain control.
         sigset_t mask, old_mask;
         sigemptyset(&mask);
         sigaddset(&mask, uctx->signum);
-#    ifdef SENTRY_PLATFORM_ANDROID
         // Raw syscall to bypass libsigchain, whose sigprocmask guard
         // is only active inside its own special handlers.
         syscall(SYS_rt_sigprocmask, SIG_BLOCK, &mask, &old_mask, _NSIG / 8);
-#    else
-        sigprocmask(SIG_BLOCK, &mask, &old_mask);
 #    endif
 
         // invoke the previous handler (typically the CLR/Mono
@@ -1593,6 +1593,7 @@ process_ucontext(const sentry_ucontext_t *uctx)
             return;
         }
 
+#    ifdef SENTRY_PLATFORM_ANDROID
         // restore our handler
         struct sigaction current;
         sigaction(uctx->signum, NULL, &current);
@@ -1605,10 +1606,7 @@ process_ucontext(const sentry_ucontext_t *uctx)
         syscall(SYS_rt_sigtimedwait, &mask, NULL, &timeout, _NSIG / 8);
 
         // unmask
-#    ifdef SENTRY_PLATFORM_ANDROID
         syscall(SYS_rt_sigprocmask, SIG_SETMASK, &old_mask, NULL, _NSIG / 8);
-#    else
-        sigprocmask(SIG_SETMASK, &old_mask, NULL);
 #    endif
 
         // return from runtime handler; continue processing the crash on the
