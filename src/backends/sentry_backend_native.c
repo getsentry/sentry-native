@@ -234,18 +234,6 @@ native_backend_startup(
 #endif
     }
 
-    // Store handler path for daemon executable lookup
-    if (options->handler_path) {
-#ifdef _WIN32
-        strncpy_s(ctx->handler_path, sizeof(ctx->handler_path),
-            options->handler_path->path, _TRUNCATE);
-#else
-        strncpy(ctx->handler_path, options->handler_path->path,
-            sizeof(ctx->handler_path) - 1);
-        ctx->handler_path[sizeof(ctx->handler_path) - 1] = '\0';
-#endif
-    }
-
     state->event_path = sentry__path_join_str(run_path, "__sentry-event");
     state->breadcrumb1_path
         = sentry__path_join_str(run_path, "__sentry-breadcrumb1");
@@ -330,9 +318,8 @@ native_backend_startup(
 #else
     // Other platforms: Use out-of-process daemon
     // Pass the notification handles (eventfd/pipe on Unix, events on Windows)
-    // handler_path from crash context (empty string if not set by user)
     const char *daemon_handler_path
-        = ctx->handler_path[0] != '\0' ? ctx->handler_path : NULL;
+        = options->handler_path ? options->handler_path->path : NULL;
 #    if defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID)
     uint64_t tid = (uint64_t)pthread_self();
     state->daemon_pid = sentry__crash_daemon_start(getpid(), tid,
