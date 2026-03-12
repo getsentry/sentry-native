@@ -284,7 +284,6 @@ typedef struct {
     char ca_certs[SENTRY_CRASH_MAX_PATH]; // CA certificates file path for SSL
     char proxy[SENTRY_CRASH_MAX_PATH]; // HTTP proxy URL
     char user_agent[256]; // User-Agent header for HTTP requests
-    char handler_path[SENTRY_CRASH_MAX_PATH]; // Path to sentry-crash executable
 
     // Minidump output path (filled by daemon)
     char minidump_path[SENTRY_CRASH_MAX_PATH];

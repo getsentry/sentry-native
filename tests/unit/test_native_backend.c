@@ -357,18 +357,11 @@ SENTRY_TEST(crash_context_transport_fields)
     ctx.user_agent[sizeof(ctx.user_agent) - 1] = '\0';
     TEST_CHECK_STRING_EQUAL(ctx.user_agent, test_ua);
 
-    // Verify handler_path field exists and can hold a typical path
-    const char *test_handler = "/usr/local/bin/sentry-crash";
-    strncpy(ctx.handler_path, test_handler, sizeof(ctx.handler_path) - 1);
-    ctx.handler_path[sizeof(ctx.handler_path) - 1] = '\0';
-    TEST_CHECK_STRING_EQUAL(ctx.handler_path, test_handler);
-
     // Verify fields are zero-initialized when memset to 0
     memset(&ctx, 0, sizeof(ctx));
     TEST_CHECK(ctx.ca_certs[0] == '\0');
     TEST_CHECK(ctx.proxy[0] == '\0');
     TEST_CHECK(ctx.user_agent[0] == '\0');
-    TEST_CHECK(ctx.handler_path[0] == '\0');
 #else
     SKIP_TEST();
 #endif
@@ -425,7 +418,10 @@ SENTRY_TEST(crash_context_options_propagation)
 }
 
 /**
- * Test that handler_path option is propagated to crash context
+ * Test that handler_path option is set correctly in options.
+ * Note: handler_path is now passed directly to the daemon start function
+ * instead of being stored in shared memory, since the daemon never reads
+ * it from shared memory.
  */
 SENTRY_TEST(crash_context_handler_path_propagation)
 {
@@ -435,25 +431,15 @@ SENTRY_TEST(crash_context_handler_path_propagation)
     // Set handler path
     sentry_options_set_handler_path(options, "/opt/sentry/sentry-crash");
 
-    // Simulate what native_backend_startup does
-    sentry_crash_context_t ctx;
-    memset(&ctx, 0, sizeof(ctx));
+    // Verify handler_path option is set correctly
+    TEST_ASSERT(!!options->handler_path);
+    TEST_CHECK_STRING_EQUAL(
+        options->handler_path->path, "/opt/sentry/sentry-crash");
 
-    if (options->handler_path) {
-        strncpy(ctx.handler_path, options->handler_path->path,
-            sizeof(ctx.handler_path) - 1);
-        ctx.handler_path[sizeof(ctx.handler_path) - 1] = '\0';
-    }
-
-    TEST_CHECK_STRING_EQUAL(ctx.handler_path, "/opt/sentry/sentry-crash");
-
-    // Without handler_path set, field should remain empty
+    // Without handler_path set, it should be NULL
     sentry_options_t *options2 = sentry_options_new();
     TEST_ASSERT(!!options2);
-    sentry_crash_context_t ctx2;
-    memset(&ctx2, 0, sizeof(ctx2));
-    // Don't set handler_path - verify it stays empty
-    TEST_CHECK(ctx2.handler_path[0] == '\0');
+    TEST_CHECK(options2->handler_path == NULL);
 
     sentry_options_free(options);
     sentry_options_free(options2);
@@ -481,15 +467,10 @@ SENTRY_TEST(crash_context_null_options)
     if (options->proxy) {
         strncpy(ctx.proxy, options->proxy, sizeof(ctx.proxy) - 1);
     }
-    if (options->handler_path) {
-        strncpy(ctx.handler_path, options->handler_path->path,
-            sizeof(ctx.handler_path) - 1);
-    }
 
     // All should remain empty (zero-initialized)
     TEST_CHECK(ctx.ca_certs[0] == '\0');
     TEST_CHECK(ctx.proxy[0] == '\0');
-    TEST_CHECK(ctx.handler_path[0] == '\0');
 
     sentry_options_free(options);
 #else
