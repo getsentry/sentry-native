@@ -357,6 +357,15 @@ jobs:
         with:
           gradle-home-cache-cleanup: true
 
+      - name: Setup .NET for Android
+        if: ${{ env['ANDROID_API'] }}
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Install .NET Android workload
+        if: ${{ env['ANDROID_API'] }}
+        run: dotnet workload restore tests/fixtures/dotnet_signal/test_dotnet.csproj
 
       - name: Add sentry.native.test hostname
         if: ${{ runner.os == 'Windows' }}
