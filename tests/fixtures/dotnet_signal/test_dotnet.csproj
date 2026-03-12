@@ -2,7 +2,7 @@
   <PropertyGroup>
     <OutputType>Exe</OutputType>
     <TargetFrameworks>net10.0</TargetFrameworks>
-    <TargetFrameworks Condition="'$(ANDROID_HOME)' != ''">$(TargetFrameworks);net10.0-android</TargetFrameworks>
+    <TargetFrameworks Condition="'$(ANDROID_API)' != ''">$(TargetFrameworks);net10.0-android</TargetFrameworks>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
   </PropertyGroup>
