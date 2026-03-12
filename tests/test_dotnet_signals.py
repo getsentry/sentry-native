@@ -3,10 +3,11 @@ import pathlib
 import shutil
 import subprocess
 import sys
+import time
 
 import pytest
 
-from tests.conditions import is_tsan, is_x86, is_asan
+from tests.conditions import is_android, is_tsan, is_x86, is_asan
 
 project_fixture_path = pathlib.Path("tests/fixtures/dotnet_signal")
 
@@ -49,19 +50,23 @@ def run_dotnet(tmp_path, args):
 
 
 def run_dotnet_managed_exception(tmp_path):
-    return run_dotnet(tmp_path, ["dotnet", "run", "managed-exception"])
+    return run_dotnet(
+        tmp_path, ["dotnet", "run", "-f:net10.0", "--", "managed-exception"]
+    )
 
 
 def run_dotnet_unhandled_managed_exception(tmp_path):
-    return run_dotnet(tmp_path, ["dotnet", "run", "unhandled-managed-exception"])
+    return run_dotnet(
+        tmp_path, ["dotnet", "run", "-f:net10.0", "--", "unhandled-managed-exception"]
+    )
 
 
 def run_dotnet_native_crash(tmp_path):
-    return run_dotnet(tmp_path, ["dotnet", "run", "native-crash"])
+    return run_dotnet(tmp_path, ["dotnet", "run", "-f:net10.0", "--", "native-crash"])
 
 
 @pytest.mark.skipif(
-    sys.platform != "linux" or is_x86 or is_asan or is_tsan,
+    sys.platform != "linux" or is_x86 or is_asan or is_tsan or is_android,
     reason="dotnet signal handling is currently only supported on 64-bit Linux without sanitizers",
 )
 def test_dotnet_signals_inproc(cmake):
@@ -165,7 +170,7 @@ def run_aot_native_crash(tmp_path):
 
 
 @pytest.mark.skipif(
-    sys.platform != "linux" or is_x86 or is_asan or is_tsan,
+    sys.platform != "linux" or is_x86 or is_asan or is_tsan or is_android,
     reason="dotnet AOT signal handling is currently only supported on 64-bit Linux without sanitizers",
 )
 def test_aot_signals_inproc(cmake):
@@ -199,6 +204,7 @@ def test_aot_signals_inproc(cmake):
             [
                 "dotnet",
                 "publish",
+                "-f:net10.0",
                 "-p:PublishAot=true",
                 "-p:Configuration=Release",
                 "-o",
@@ -255,3 +261,174 @@ def test_aot_signals_inproc(cmake):
         shutil.rmtree(tmp_path / ".sentry-native", ignore_errors=True)
         shutil.rmtree(project_fixture_path / "bin", ignore_errors=True)
         shutil.rmtree(project_fixture_path / "obj", ignore_errors=True)
+
+
+ANDROID_PACKAGE = "io.sentry.ndk.dotnet.signal.test"
+
+
+def adb(*args, **kwargs):
+    adb_path = "{}/platform-tools/adb".format(os.environ["ANDROID_HOME"])
+    return subprocess.run([adb_path, *args], **kwargs)
+
+
+def run_android(args=None, timeout=30):
+    if args is None:
+        args = []
+    adb("logcat", "-c")
+    adb("shell", "pm", "clear", ANDROID_PACKAGE)
+    intent_args = []
+    for arg in args:
+        intent_args += ["--es", "arg", arg]
+    adb(
+        "shell",
+        "am",
+        "start",
+        "-n",
+        "{}/dotnet_signal.MainActivity".format(ANDROID_PACKAGE),
+        *intent_args,
+        check=True,
+    )
+    start = time.time()
+    while time.time() - start < timeout:
+        result = adb("shell", "pidof", ANDROID_PACKAGE, capture_output=True, text=True)
+        if result.returncode != 0 or not result.stdout.strip():
+            break
+        time.sleep(0.5)
+    time.sleep(1)
+    return adb("logcat", "-d", capture_output=True, text=True).stdout
+
+
+def run_android_managed_exception():
+    return run_android(["managed-exception"])
+
+
+def run_android_unhandled_managed_exception():
+    return run_android(["unhandled-managed-exception"])
+
+
+def run_android_native_crash():
+    return run_android(["native-crash"])
+
+
+@pytest.mark.skipif(not is_android, reason="needs Android")
+def test_android_signals_inproc(cmake):
+    if shutil.which("dotnet") is None:
+        pytest.skip("dotnet is not installed")
+
+    arch = os.environ.get("ANDROID_ARCH", "x86_64")
+    rid_map = {
+        "x86_64": "android-x64",
+        "x86": "android-x86",
+        "arm64-v8a": "android-arm64",
+        "armeabi-v7a": "android-arm",
+    }
+
+    try:
+        tmp_path = cmake(
+            ["sentry"],
+            {"SENTRY_BACKEND": "inproc", "SENTRY_TRANSPORT": "none"},
+        )
+
+        # build libcrash.so with NDK clang
+        ndk_prebuilt = pathlib.Path(
+            "{}/ndk/{}/toolchains/llvm/prebuilt".format(
+                os.environ["ANDROID_HOME"], os.environ["ANDROID_NDK"]
+            )
+        )
+        triples = {
+            "x86_64": "x86_64-linux-android",
+            "x86": "i686-linux-android",
+            "arm64-v8a": "aarch64-linux-android",
+            "armeabi-v7a": "armv7a-linux-androideabi",
+        }
+        ndk_clang = str(
+            next(ndk_prebuilt.iterdir())
+            / "bin"
+            / "{}{}-clang".format(triples[arch], os.environ["ANDROID_API"])
+        )
+        native_lib_dir = project_fixture_path / "native" / arch
+        native_lib_dir.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(tmp_path / "libsentry.so", native_lib_dir / "libsentry.so")
+        subprocess.run(
+            [
+                ndk_clang,
+                "-Wall",
+                "-Wextra",
+                "-fPIC",
+                "-shared",
+                str(project_fixture_path / "crash.c"),
+                "-o",
+                str(native_lib_dir / "libcrash.so"),
+            ],
+            check=True,
+        )
+
+        # build and install the APK
+        subprocess.run(
+            [
+                "dotnet",
+                "build",
+                "-f:net10.0-android",
+                "-p:RuntimeIdentifier={}".format(rid_map[arch]),
+                "-p:Configuration=Release",
+            ],
+            cwd=project_fixture_path,
+            check=True,
+        )
+        apk_dir = (
+            project_fixture_path / "bin" / "Release" / "net10.0-android" / rid_map[arch]
+        )
+        apk_path = next(apk_dir.glob("*-Signed.apk"))
+        adb("install", "-r", str(apk_path), check=True)
+
+        def run_as(*args, **kwargs):
+            return adb("shell", "run-as", ANDROID_PACKAGE, *args, **kwargs)
+
+        db = "files/.sentry-native"
+
+        # managed exception: handled, no crash
+        logcat = run_android_managed_exception()
+        assert (
+            "NullReferenceException" not in logcat
+        ), "Managed exception leaked.\nlogcat:\n{}".format(logcat)
+        assert (
+            run_as("test", "-d", db, capture_output=True).returncode == 0
+        ), "No database-path exists"
+        assert (
+            run_as("test", "-f", db + "/last_crash", capture_output=True).returncode
+            != 0
+        ), "A crash was registered"
+        result = run_as(
+            "find", db, "-name", "*.envelope", capture_output=True, text=True
+        )
+        assert not result.stdout.strip(), "Unexpected envelope found"
+
+        # unhandled managed exception: Mono calls abort(), captured by the native SDK
+        logcat = run_android_unhandled_managed_exception()
+        assert (
+            "NullReferenceException" in logcat
+        ), "Expected NullReferenceException.\nlogcat:\n{}".format(logcat)
+        assert (
+            run_as("test", "-d", db, capture_output=True).returncode == 0
+        ), "No database-path exists"
+        assert (
+            run_as("test", "-f", db + "/last_crash", capture_output=True).returncode
+            == 0
+        ), "Crash marker missing"
+
+        # native crash
+        run_android_native_crash()
+        assert (
+            run_as("test", "-f", db + "/last_crash", capture_output=True).returncode
+            == 0
+        ), "Crash marker missing"
+        result = run_as(
+            "find", db, "-name", "*.envelope", capture_output=True, text=True
+        )
+        assert result.stdout.strip(), "Crash envelope is missing"
+
+    finally:
+        shutil.rmtree(project_fixture_path / "native", ignore_errors=True)
+        shutil.rmtree(project_fixture_path / "bin", ignore_errors=True)
+        shutil.rmtree(project_fixture_path / "obj", ignore_errors=True)
+        adb("uninstall", ANDROID_PACKAGE, check=False)
