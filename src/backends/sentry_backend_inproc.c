@@ -1575,7 +1575,8 @@ process_ucontext(const sentry_ucontext_t *uctx)
         sigaddset(&mask, uctx->signum);
         // Raw syscall to bypass libsigchain, whose sigprocmask guard
         // is only active inside its own special handlers.
-        syscall(SYS_rt_sigprocmask, SIG_BLOCK, &mask, &old_mask, _NSIG / 8);
+        syscall(
+            SYS_rt_sigprocmask, SIG_BLOCK, &mask, &old_mask, sizeof(sigset_t));
 #    endif
 
         // invoke the previous handler (typically the CLR/Mono
@@ -1603,10 +1604,11 @@ process_ucontext(const sentry_ucontext_t *uctx)
 
         // consume pending signal
         struct timespec timeout = { 0, 0 };
-        syscall(SYS_rt_sigtimedwait, &mask, NULL, &timeout, _NSIG / 8);
+        syscall(SYS_rt_sigtimedwait, &mask, NULL, &timeout, sizeof(sigset_t));
 
         // unmask
-        syscall(SYS_rt_sigprocmask, SIG_SETMASK, &old_mask, NULL, _NSIG / 8);
+        syscall(
+            SYS_rt_sigprocmask, SIG_SETMASK, &old_mask, NULL, sizeof(sigset_t));
 #    endif
 
         // return from runtime handler; continue processing the crash on the
