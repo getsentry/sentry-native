@@ -388,12 +388,13 @@ def test_android_signals_inproc(cmake):
 
         # managed exception: handled, no crash
         logcat = run_android_managed_exception()
+        print("=== managed exception logcat ===\n", logcat)
         assert (
             "NullReferenceException" not in logcat
         ), "Managed exception leaked.\nlogcat:\n{}".format(logcat)
         assert (
             run_as("test", "-d", db, capture_output=True).returncode == 0
-        ), "No database-path exists"
+        ), "No database-path exists.\nlogcat:\n{}".format(logcat)
         assert (
             run_as("test", "-f", db + "/last_crash", capture_output=True).returncode
             != 0
@@ -405,23 +406,25 @@ def test_android_signals_inproc(cmake):
 
         # unhandled managed exception: Mono calls abort(), captured by the native SDK
         logcat = run_android_unhandled_managed_exception()
+        print("=== unhandled managed exception logcat ===\n", logcat)
         assert (
             "NullReferenceException" in logcat
         ), "Expected NullReferenceException.\nlogcat:\n{}".format(logcat)
         assert (
             run_as("test", "-d", db, capture_output=True).returncode == 0
-        ), "No database-path exists"
+        ), "No database-path exists.\nlogcat:\n{}".format(logcat)
         assert (
             run_as("test", "-f", db + "/last_crash", capture_output=True).returncode
             == 0
         ), "Crash marker missing"
 
         # native crash
-        run_android_native_crash()
+        logcat = run_android_native_crash()
+        print("=== native crash logcat ===\n", logcat)
         assert (
             run_as("test", "-f", db + "/last_crash", capture_output=True).returncode
             == 0
-        ), "Crash marker missing"
+        ), "Crash marker missing.\nlogcat:\n{}".format(logcat)
         result = run_as(
             "find", db, "-name", "*.envelope", capture_output=True, text=True
         )
