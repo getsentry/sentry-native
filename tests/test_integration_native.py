@@ -22,7 +22,6 @@ from .assertions import (
 )
 from .conditions import has_native, is_kcov, is_asan
 
-
 pytestmark = pytest.mark.skipif(
     not has_native,
     reason="Tests need the native backend enabled",
