@@ -716,8 +716,10 @@ write_exception_stream(minidump_writer_t *writer, minidump_directory_t *dir)
     minidump_exception_stream_t exception_stream = { 0 };
 
     exception_stream.thread_id = writer->crash_ctx->crashed_tid;
+    // Use raw signal number as exception code, matching Breakpad/Crashpad
+    // convention. Debuggers (lldb) expect the signal number directly.
     exception_stream.exception_record.exception_code
-        = 0x40000000 | writer->crash_ctx->platform.signum;
+        = writer->crash_ctx->platform.signum;
     exception_stream.exception_record.exception_flags = 0;
     exception_stream.exception_record.exception_address
         = (uint64_t)writer->crash_ctx->platform.siginfo.si_addr;
@@ -857,8 +859,10 @@ write_misc_info_stream(minidump_writer_t *writer, minidump_directory_t *dir)
  */
 static bool
 should_include_region_macos(const memory_region_t *region,
-    sentry_minidump_mode_t mode, uint64_t crash_addr)
+    const sentry_crash_context_t *crash_ctx, uint64_t crash_addr)
 {
+    sentry_minidump_mode_t mode = crash_ctx->minidump_mode;
+
     // STACK_ONLY: Don't include heap regions (stack is in thread list)
     if (mode == SENTRY_MINIDUMP_MODE_STACK_ONLY) {
         return false;
@@ -885,13 +889,82 @@ should_include_region_macos(const memory_region_t *region,
             && crash_addr < region->address + region->size) {
             return true;
         }
+
+        // Include first page of loaded modules (Mach-O headers) for offline
+        // symbolication, matching breakpad/crashpad behavior.
+        uint32_t mod_count = crash_ctx->module_count;
+        if (mod_count > SENTRY_CRASH_MAX_MODULES) {
+            mod_count = SENTRY_CRASH_MAX_MODULES;
+        }
+        for (uint32_t i = 0; i < mod_count; i++) {
+            if (region->address == crash_ctx->modules[i].base_address) {
+                return true;
+            }
+        }
     }
 
     return false;
 }
 
 /**
- * Write memory list stream with memory based on minidump mode
+ * Write module header pages from the signal handler's captured file.
+ * The file format is: 4096 bytes per module, concatenated in module order.
+ * Returns the number of modules successfully written.
+ */
+static size_t
+write_module_headers_from_capture(minidump_writer_t *writer,
+    minidump_memory_descriptor_t *ranges, uint32_t mod_count)
+{
+    const size_t HEADER_PAGE_SIZE = 4096;
+
+    // Build path: {database_path}/__sentry-modheaders
+    const char *db_path = writer->crash_ctx->database_path;
+    size_t db_len = strlen(db_path);
+    char hdr_path[1024 + 32];
+    if (db_len + 22 >= sizeof(hdr_path)) {
+        return 0;
+    }
+    snprintf(hdr_path, sizeof(hdr_path), "%s/__sentry-modheaders", db_path);
+
+    int fd = open(hdr_path, O_RDONLY);
+    if (fd < 0) {
+        return 0;
+    }
+
+    uint8_t buf[4096];
+    size_t written_count = 0;
+
+    for (uint32_t i = 0; i < mod_count; i++) {
+        ssize_t nread = read(fd, buf, HEADER_PAGE_SIZE);
+        minidump_memory_descriptor_t *mem = &ranges[i];
+
+        if (nread > 0) {
+            mem->start_address = writer->crash_ctx->modules[i].base_address;
+            mem->memory.rva = write_data(writer, buf, (size_t)nread);
+            mem->memory.size = mem->memory.rva ? (uint32_t)nread : 0;
+            if (mem->memory.size > 0) {
+                written_count++;
+            }
+        } else {
+            mem->start_address = writer->crash_ctx->modules[i].base_address;
+            mem->memory.size = 0;
+            mem->memory.rva = 0;
+        }
+    }
+
+    close(fd);
+    // Clean up the capture file
+    unlink(hdr_path);
+    return written_count;
+}
+
+/**
+ * Write memory list stream with memory based on minidump mode.
+ *
+ * When we have a task port (full path), memory is read from the process.
+ * When task_for_pid failed (minimal path), module header pages are read
+ * directly from the module files on disk so debuggers can still identify
+ * modules for offline symbolication.
  */
 static int
 write_memory_list_stream(minidump_writer_t *writer, minidump_directory_t *dir)
@@ -908,82 +981,126 @@ write_memory_list_stream(minidump_writer_t *writer, minidump_directory_t *dir)
         return dir->rva ? 0 : -1;
     }
 
-    // For SMART and FULL modes, capture memory regions
-    // Count regions to include
-    size_t region_count = 0;
-    for (size_t i = 0; i < writer->region_count; i++) {
-        if (should_include_region_macos(
-                &writer->regions[i], mode, crash_addr)) {
-            region_count++;
+    // When we have VM regions (task_for_pid succeeded), use them
+    if (writer->region_count > 0) {
+        // Count regions to include
+        size_t region_count = 0;
+        for (size_t i = 0; i < writer->region_count; i++) {
+            if (should_include_region_macos(
+                    &writer->regions[i], writer->crash_ctx, crash_addr)) {
+                region_count++;
+            }
         }
-    }
 
-    // Allocate memory list
-    size_t list_size = sizeof(uint32_t)
-        + (region_count * sizeof(minidump_memory_descriptor_t));
-    minidump_memory_list_t *memory_list = sentry_malloc(list_size);
-    if (!memory_list) {
-        // Fallback to empty list
-        uint32_t count = 0;
+        size_t list_size = sizeof(uint32_t)
+            + (region_count * sizeof(minidump_memory_descriptor_t));
+        minidump_memory_list_t *memory_list = sentry_malloc(list_size);
+        if (!memory_list) {
+            goto empty_list;
+        }
+
+        memory_list->count = region_count;
+
+        size_t mem_idx = 0;
+        for (size_t i = 0; i < writer->region_count && mem_idx < region_count;
+            i++) {
+            if (!should_include_region_macos(
+                    &writer->regions[i], writer->crash_ctx, crash_addr)) {
+                continue;
+            }
+
+            memory_region_t *region = &writer->regions[i];
+            minidump_memory_descriptor_t *mem = &memory_list->ranges[mem_idx++];
+
+            mach_vm_size_t region_size = region->size;
+
+            // For SMART mode, cap module header pages to one page.
+            if (mode == SENTRY_MINIDUMP_MODE_SMART) {
+                uint32_t mod_count = writer->crash_ctx->module_count;
+                if (mod_count > SENTRY_CRASH_MAX_MODULES) {
+                    mod_count = SENTRY_CRASH_MAX_MODULES;
+                }
+                for (uint32_t j = 0; j < mod_count; j++) {
+                    if (region->address
+                        == writer->crash_ctx->modules[j].base_address) {
+                        if (region_size > 4096) {
+                            region_size = 4096;
+                        }
+                        break;
+                    }
+                }
+            }
+
+            // Cap at 4MB
+            if (region_size > 4 * 1024 * 1024) {
+                region_size = 4 * 1024 * 1024;
+            }
+
+            void *region_buffer = sentry_malloc(region_size);
+            if (!region_buffer) {
+                mem->start_address = region->address;
+                mem->memory.size = 0;
+                mem->memory.rva = 0;
+                continue;
+            }
+
+            kern_return_t kr = read_task_memory(
+                writer->task, region->address, region_buffer, region_size);
+            if (kr == KERN_SUCCESS) {
+                mem->start_address = region->address;
+                mem->memory.rva
+                    = write_data(writer, region_buffer, region_size);
+                mem->memory.size = mem->memory.rva ? region_size : 0;
+            } else {
+                mem->start_address = region->address;
+                mem->memory.size = 0;
+                mem->memory.rva = 0;
+            }
+
+            sentry_free(region_buffer);
+        }
+
         dir->stream_type = MINIDUMP_STREAM_MEMORY_LIST;
-        dir->rva = write_data(writer, &count, sizeof(count));
-        dir->data_size = sizeof(count);
+        dir->rva = write_data(writer, memory_list, list_size);
+        dir->data_size = list_size;
+
+        sentry_free(memory_list);
         return dir->rva ? 0 : -1;
     }
 
-    memory_list->count = region_count;
-
-    // Write memory regions
-    size_t mem_idx = 0;
-    for (size_t i = 0; i < writer->region_count && mem_idx < region_count;
-        i++) {
-        if (!should_include_region_macos(
-                &writer->regions[i], mode, crash_addr)) {
-            continue;
-        }
-
-        memory_region_t *region = &writer->regions[i];
-        minidump_memory_descriptor_t *mem = &memory_list->ranges[mem_idx++];
-
-        mach_vm_size_t region_size = region->size;
-
-        // Limit individual region size to 4MB (matching Linux)
-        const size_t MAX_REGION_SIZE = 4 * 1024 * 1024;
-        if (region_size > MAX_REGION_SIZE) {
-            region_size = MAX_REGION_SIZE;
-        }
-
-        // Allocate buffer for region memory
-        void *region_buffer = sentry_malloc(region_size);
-        if (!region_buffer) {
-            mem->start_address = region->address;
-            mem->memory.size = 0;
-            mem->memory.rva = 0;
-            continue;
-        }
-
-        // Try to read memory from task
-        kern_return_t kr = read_task_memory(
-            writer->task, region->address, region_buffer, region_size);
-
-        if (kr == KERN_SUCCESS) {
-            mem->start_address = region->address;
-            mem->memory.rva = write_data(writer, region_buffer, region_size);
-            mem->memory.size = mem->memory.rva ? region_size : 0;
-        } else {
-            mem->start_address = region->address;
-            mem->memory.size = 0;
-            mem->memory.rva = 0;
-        }
-
-        sentry_free(region_buffer);
+    // Minimal path: task_for_pid failed, no VM regions available.
+    // Read module header pages from the file captured by the signal handler.
+    // The signal handler saves the first 4096 bytes of each module's in-memory
+    // Mach-O header (including dyld shared cache modules that don't exist as
+    // individual files on disk).
+    uint32_t mod_count = writer->crash_ctx->module_count;
+    if (mod_count > SENTRY_CRASH_MAX_MODULES) {
+        mod_count = SENTRY_CRASH_MAX_MODULES;
     }
+
+    size_t list_size
+        = sizeof(uint32_t) + (mod_count * sizeof(minidump_memory_descriptor_t));
+    minidump_memory_list_t *memory_list = sentry_malloc(list_size);
+    if (!memory_list) {
+        goto empty_list;
+    }
+
+    memory_list->count = mod_count;
+
+    write_module_headers_from_capture(writer, memory_list->ranges, mod_count);
 
     dir->stream_type = MINIDUMP_STREAM_MEMORY_LIST;
     dir->rva = write_data(writer, memory_list, list_size);
     dir->data_size = list_size;
 
     sentry_free(memory_list);
+    return dir->rva ? 0 : -1;
+
+empty_list:;
+    uint32_t count = 0;
+    dir->stream_type = MINIDUMP_STREAM_MEMORY_LIST;
+    dir->rva = write_data(writer, &count, sizeof(count));
+    dir->data_size = sizeof(count);
     return dir->rva ? 0 : -1;
 }
 
