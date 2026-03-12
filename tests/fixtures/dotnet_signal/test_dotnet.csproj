@@ -13,6 +13,10 @@
     <EmbedAssembliesIntoApk>true</EmbedAssembliesIntoApk>
   </PropertyGroup>
 
+  <ItemGroup Condition="!$(TargetFramework.Contains('-android'))">
+    <Compile Remove="Platforms\Android\**" />
+  </ItemGroup>
+
   <ItemGroup Condition="$(TargetFramework.Contains('-android'))">
     <AndroidNativeLibrary Include="native\**\*.so" />
   </ItemGroup>
