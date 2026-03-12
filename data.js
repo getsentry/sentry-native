@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1773240148199,
+  "lastUpdate": 1773349764467,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -13158,6 +13158,66 @@ window.BENCHMARK_DATA = {
             "value": 1.5072209999971165,
             "unit": "ms",
             "extra": "Min 1.498ms\nMax 1.547ms\nMean 1.514ms\nStdDev 0.019ms\nMedian 1.507ms\nCPU 0.385ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "49699333+dependabot[bot]@users.noreply.github.com",
+            "name": "dependabot[bot]",
+            "username": "dependabot[bot]"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "a1844c02d91287e8eb0cab50a39f65d047c2cd32",
+          "message": "build(deps): bump black from 24.3.0 to 26.3.1 in /tests (#1575)\n\n* build(deps): bump black from 24.3.0 to 26.3.1 in /tests\n\nBumps [black](https://github.com/psf/black) from 24.3.0 to 26.3.1.\n- [Release notes](https://github.com/psf/black/releases)\n- [Changelog](https://github.com/psf/black/blob/main/CHANGES.md)\n- [Commits](https://github.com/psf/black/compare/24.3.0...26.3.1)\n\n---\nupdated-dependencies:\n- dependency-name: black\n  dependency-version: 26.3.1\n  dependency-type: direct:production\n...\n\nSigned-off-by: dependabot[bot] <support@github.com>\n\n* apply format to pass black bump\n\n---------\n\nSigned-off-by: dependabot[bot] <support@github.com>\nCo-authored-by: dependabot[bot] <49699333+dependabot[bot]@users.noreply.github.com>\nCo-authored-by: Mischan Toosarani-Hausberger <mischan@abovevacant.com>",
+          "timestamp": "2026-03-12T22:06:33+01:00",
+          "tree_id": "c86aa629993a97d852b4f365f8a9839fd11afc45",
+          "url": "https://github.com/getsentry/sentry-native/commit/a1844c02d91287e8eb0cab50a39f65d047c2cd32"
+        },
+        "date": 1773349761656,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 0.9310690000035038,
+            "unit": "ms",
+            "extra": "Min 0.908ms\nMax 1.039ms\nMean 0.947ms\nStdDev 0.052ms\nMedian 0.931ms\nCPU 0.887ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 0.7852439999993521,
+            "unit": "ms",
+            "extra": "Min 0.774ms\nMax 0.797ms\nMean 0.787ms\nStdDev 0.009ms\nMedian 0.785ms\nCPU 0.786ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 3.4774469999945268,
+            "unit": "ms",
+            "extra": "Min 3.375ms\nMax 3.524ms\nMean 3.467ms\nStdDev 0.056ms\nMedian 3.477ms\nCPU 1.765ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.14669600000161154,
+            "unit": "ms",
+            "extra": "Min 0.130ms\nMax 0.211ms\nMean 0.155ms\nStdDev 0.032ms\nMedian 0.147ms\nCPU 0.090ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.03890300001785363,
+            "unit": "ms",
+            "extra": "Min 0.036ms\nMax 0.046ms\nMean 0.041ms\nStdDev 0.004ms\nMedian 0.039ms\nCPU 0.040ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 2.0862189999775183,
+            "unit": "ms",
+            "extra": "Min 2.049ms\nMax 2.266ms\nMean 2.119ms\nStdDev 0.086ms\nMedian 2.086ms\nCPU 0.643ms"
           }
         ]
       }
