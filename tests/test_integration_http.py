@@ -69,7 +69,7 @@ auth_header = (
 @pytest.mark.parametrize(
     "build_args",
     [
-        ({"SENTRY_TRANSPORT_COMPRESSION": "Off"}),
+        ({}),  # SENTRY_TRANSPORT_COMPRESSION=Off (default, cached)
         ({"SENTRY_TRANSPORT_COMPRESSION": "On"}),
     ],
 )
@@ -436,7 +436,7 @@ def test_abnormal_session(cmake, httpserver):
 @pytest.mark.parametrize(
     "build_args",
     [
-        ({"SENTRY_TRANSPORT_COMPRESSION": "Off"}),
+        ({}),  # SENTRY_TRANSPORT_COMPRESSION=Off (default, cached)
         ({"SENTRY_TRANSPORT_COMPRESSION": "On"}),
     ],
 )
@@ -538,7 +538,7 @@ def test_inproc_dump_inflight(cmake, httpserver):
 @pytest.mark.parametrize(
     "build_args",
     [
-        ({"SENTRY_TRANSPORT_COMPRESSION": "Off"}),
+        ({}),  # SENTRY_TRANSPORT_COMPRESSION=Off (default, cached)
         ({"SENTRY_TRANSPORT_COMPRESSION": "On"}),
     ],
 )
