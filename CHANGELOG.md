@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+**Fixes**:
+
+- Add module header pages to MemoryList and fix exception code in the native backend. ([#1576](https://github.com/getsentry/sentry-native/pull/1576))
+
 ## 0.13.2
 
 **Features**:
