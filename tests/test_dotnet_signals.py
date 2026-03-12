@@ -102,9 +102,11 @@ def test_dotnet_signals_inproc(cmake):
         dotnet_run_stdout, dotnet_run_stderr = dotnet_run.communicate()
 
         # the program handles the `NullReferenceException`, so the Native SDK won't register a crash.
-        assert dotnet_run.returncode == 0
-        assert not (
-            "NullReferenceException" in dotnet_run_stderr
+        assert (
+            dotnet_run.returncode == 0
+        ), f"Managed exception run failed.\nstdout:\n{dotnet_run_stdout}\nstderr:\n{dotnet_run_stderr}"
+        assert (
+            "NullReferenceException" not in dotnet_run_stderr
         ), f"Managed exception run failed.\nstdout:\n{dotnet_run_stdout}\nstderr:\n{dotnet_run_stderr}"
         database_path = project_fixture_path / ".sentry-native"
         assert database_path.exists(), "No database-path exists"
@@ -221,9 +223,11 @@ def test_aot_signals_inproc(cmake):
         dotnet_run_stdout, dotnet_run_stderr = dotnet_run.communicate()
 
         # the program handles the `NullReferenceException`, so the Native SDK won't register a crash.
-        assert dotnet_run.returncode == 0
-        assert not (
-            "NullReferenceException" in dotnet_run_stderr
+        assert (
+            dotnet_run.returncode == 0
+        ), f"Managed exception run failed.\nstdout:\n{dotnet_run_stdout}\nstderr:\n{dotnet_run_stderr}"
+        assert (
+            "NullReferenceException" not in dotnet_run_stderr
         ), f"Managed exception run failed.\nstdout:\n{dotnet_run_stdout}\nstderr:\n{dotnet_run_stderr}"
         database_path = tmp_path / ".sentry-native"
         assert database_path.exists(), "No database-path exists"
