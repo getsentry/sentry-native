@@ -66,7 +66,7 @@ def run_dotnet_native_crash(tmp_path):
 
 
 @pytest.mark.skipif(
-    sys.platform != "linux" or is_x86 or is_asan or is_tsan or is_android,
+    bool(sys.platform != "linux" or is_x86 or is_asan or is_tsan or is_android),
     reason="dotnet signal handling is currently only supported on 64-bit Linux without sanitizers",
 )
 def test_dotnet_signals_inproc(cmake):
@@ -170,7 +170,7 @@ def run_aot_native_crash(tmp_path):
 
 
 @pytest.mark.skipif(
-    sys.platform != "linux" or is_x86 or is_asan or is_tsan or is_android,
+    bool(sys.platform != "linux" or is_x86 or is_asan or is_tsan or is_android),
     reason="dotnet AOT signal handling is currently only supported on 64-bit Linux without sanitizers",
 )
 def test_aot_signals_inproc(cmake):
