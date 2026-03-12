@@ -381,8 +381,12 @@ def test_android_signals_inproc(cmake):
         apk_path = next(apk_dir.glob("*-Signed.apk"))
         adb("install", "-r", str(apk_path), check=True)
 
-        def run_as(*args, **kwargs):
-            return adb("shell", "run-as", ANDROID_PACKAGE, *args, **kwargs)
+        def run_as(cmd, **kwargs):
+            return adb(
+                "shell",
+                "run-as {} sh -c '{}'".format(ANDROID_PACKAGE, cmd),
+                **kwargs,
+            )
 
         db = "files/.sentry-native"
 
@@ -393,14 +397,13 @@ def test_android_signals_inproc(cmake):
             "NullReferenceException" not in logcat
         ), "Managed exception leaked.\nlogcat:\n{}".format(logcat)
         assert (
-            run_as("test", "-d", db, capture_output=True).returncode == 0
+            run_as("test -d " + db, capture_output=True).returncode == 0
         ), "No database-path exists.\nlogcat:\n{}".format(logcat)
         assert (
-            run_as("test", "-f", db + "/last_crash", capture_output=True).returncode
-            != 0
+            run_as("test -f " + db + "/last_crash", capture_output=True).returncode != 0
         ), "A crash was registered"
         result = run_as(
-            "find", db, "-name", "*.envelope", capture_output=True, text=True
+            "find " + db + " -name '*.envelope'", capture_output=True, text=True
         )
         assert not result.stdout.strip(), "Unexpected envelope found"
 
@@ -411,22 +414,20 @@ def test_android_signals_inproc(cmake):
             "NullReferenceException" in logcat
         ), "Expected NullReferenceException.\nlogcat:\n{}".format(logcat)
         assert (
-            run_as("test", "-d", db, capture_output=True).returncode == 0
+            run_as("test -d " + db, capture_output=True).returncode == 0
         ), "No database-path exists.\nlogcat:\n{}".format(logcat)
         assert (
-            run_as("test", "-f", db + "/last_crash", capture_output=True).returncode
-            == 0
+            run_as("test -f " + db + "/last_crash", capture_output=True).returncode == 0
         ), "Crash marker missing"
 
         # native crash
         logcat = run_android_native_crash()
         print("=== native crash logcat ===\n", logcat)
         assert (
-            run_as("test", "-f", db + "/last_crash", capture_output=True).returncode
-            == 0
+            run_as("test -f " + db + "/last_crash", capture_output=True).returncode == 0
         ), "Crash marker missing.\nlogcat:\n{}".format(logcat)
         result = run_as(
-            "find", db, "-name", "*.envelope", capture_output=True, text=True
+            "find " + db + " -name '*.envelope'", capture_output=True, text=True
         )
         assert result.stdout.strip(), "Crash envelope is missing"
 
