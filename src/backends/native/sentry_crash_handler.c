@@ -566,6 +566,37 @@ crash_signal_handler(int signum, siginfo_t *info, void *context)
         // Copy module name (signal-safe)
         safe_strncpy(module->name, name, sizeof(module->name));
     }
+
+    // Save module header pages to a single file for the daemon.
+    // The first 4096 bytes of each module contain the Mach-O header and load
+    // commands. System dylibs in the shared cache can't be read from disk,
+    // but we can read them from this process's address space.
+    // File format: module[0] header (4096 bytes) || module[1] header || ...
+    {
+        char hdr_path[SENTRY_CRASH_MAX_PATH];
+        size_t pos = safe_strlen(ctx->database_path);
+        if (pos + 22 < sizeof(hdr_path)) { // "/__sentry-modheaders\0"
+            safe_strncpy(hdr_path, ctx->database_path, sizeof(hdr_path));
+            const char *suffix = "/__sentry-modheaders";
+            for (size_t si = 0; suffix[si] != '\0'; si++) {
+                hdr_path[pos++] = suffix[si];
+            }
+            hdr_path[pos] = '\0';
+
+            int hdr_fd = open(hdr_path, O_WRONLY | O_CREAT | O_TRUNC, 0600);
+            if (hdr_fd >= 0) {
+                for (uint32_t mi = 0; mi < ctx->module_count; mi++) {
+                    const void *base = (const void *)(uintptr_t)ctx->modules[mi]
+                                           .base_address;
+                    // Write first page; if the address is invalid the write
+                    // still succeeds (kernel copies what it can) or we get a
+                    // short write which is fine.
+                    write(hdr_fd, base, 4096);
+                }
+                close(hdr_fd);
+            }
+        }
+    }
 #    endif
 
     // Enable signal-safe page allocator before calling exception handler
