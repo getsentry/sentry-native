@@ -432,8 +432,9 @@ def test_android_signals_inproc(cmake):
         assert not file_exists(db + "/last_crash"), "A crash was registered"
         assert not has_envelope(), "Unexpected envelope found"
 
-        # unhandled managed exception: the app catches and calls abort()
-        # (emulating MAUI), captured by the native SDK
+        # unhandled managed exception: Mono calls exit(1), the native SDK
+        # should not register a crash (sentry-dotnet handles this at the
+        # managed layer via UnhandledExceptionRaiser)
         logcat = run_android_unhandled_managed_exception()
         print("=== unhandled managed exception logcat ===\n", logcat)
         assert (
@@ -442,7 +443,8 @@ def test_android_signals_inproc(cmake):
         assert wait_for(
             lambda: dir_exists(db)
         ), "No database-path exists.\nlogcat:\n{}".format(logcat)
-        assert wait_for(lambda: file_exists(db + "/last_crash")), "Crash marker missing"
+        assert not file_exists(db + "/last_crash"), "A crash was registered"
+        assert not has_envelope(), "Unexpected envelope found"
 
         # native crash
         logcat = run_android_native_crash()
