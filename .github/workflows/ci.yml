@@ -407,7 +407,7 @@ jobs:
           api-level: ${{ env.ANDROID_API }}
           ndk: ${{ env.ANDROID_NDK }}
           arch: ${{ env.ANDROID_ARCH }}
-          target: google_apis
+          target: default
           emulator-boot-timeout: 1200
           script: |
             # Sync emulator clock with host to avoid timestamp assertion failures
