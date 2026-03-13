@@ -39,7 +39,9 @@ class CMake:
         # cache the build configuration
         if key not in self.runs:
             with open("CONOUT$", "w") as con:
-                con.write(f"\n*** CMAKE CACHE MISS (build #{len(self.runs) + 1}): {key} ***\n")
+                con.write(
+                    f"\n*** CMAKE CACHE MISS (build #{len(self.runs) + 1}): {key} ***\n"
+                )
             cwd = self.factory.mktemp("cmake")
             self.runs[key] = cwd
             t0 = time.monotonic()
@@ -177,6 +179,14 @@ def cmake(cwd, targets, options=None, cflags=None):
         config_cmd.append("-D{}={}".format(key, value))
 
     config_cmd.extend(get_platform_cmake_args())
+
+    if sys.platform == "win32" and "sccache" in os.environ.get("CMAKE_DEFINES", ""):
+        # sccache + Ninja launches parallel cl.exe processes that conflict on
+        # shared PDB files (/Zi). Use /Z7 to embed debug info in .obj files.
+        config_cmd.append("-DCMAKE_C_FLAGS_DEBUG=/Z7 /Ob0 /Od /RTC1")
+        config_cmd.append("-DCMAKE_CXX_FLAGS_DEBUG=/Z7 /Ob0 /Od /RTC1")
+        config_cmd.append("-DCMAKE_C_FLAGS_RELWITHDEBINFO=/Z7 /O2 /Ob1 /DNDEBUG")
+        config_cmd.append("-DCMAKE_CXX_FLAGS_RELWITHDEBINFO=/Z7 /O2 /Ob1 /DNDEBUG")
 
     tsan_opts = get_tsan_env()
     if tsan_opts:
