@@ -401,7 +401,7 @@ def test_android_signals_inproc(cmake):
         def run_as(cmd, **kwargs):
             return adb(
                 "shell",
-                "run-as {} sh -c '{}'".format(ANDROID_PACKAGE, cmd),
+                'run-as {} sh -c "{}"'.format(ANDROID_PACKAGE, cmd),
                 **kwargs,
             )
 
