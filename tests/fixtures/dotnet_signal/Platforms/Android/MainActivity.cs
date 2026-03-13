@@ -9,9 +9,9 @@ namespace dotnet_signal;
 [Activity(Name = "dotnet_signal.MainActivity", MainLauncher = true)]
 public class MainActivity : Activity
 {
-    protected override void OnCreate(Bundle? savedInstanceState)
+    protected override void OnResume()
     {
-        base.OnCreate(savedInstanceState);
+        base.OnResume();
 
         var arg = Intent?.GetStringExtra("arg");
         if (!string.IsNullOrEmpty(arg))
