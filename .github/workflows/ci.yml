@@ -365,9 +365,9 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/AppData/Local/Mozilla/sccache
-          key: sccache-${{ matrix.name }}-${{ github.head_ref || github.ref_name }}
+          key: sccache-${{ matrix.os }}-${{ github.head_ref || github.ref_name }}
           restore-keys: |
-            sccache-${{ matrix.name }}-
+            sccache-${{ matrix.os }}-
 
       - name: Setup Java Version
         if: ${{ env['ANDROID_API'] }}
