@@ -1,4 +1,10 @@
 cmake_minimum_required(VERSION 3.10)
+
+# enables support for CMAKE_MSVC_DEBUG_INFORMATION_FORMAT
+if(POLICY CMP0141)
+	cmake_policy(SET CMP0141 NEW)
+endif()
+
 project(inproc_stress_test C)
 
 # SENTRY_LIB_DIR and SENTRY_INCLUDE_DIR are passed from the pytest

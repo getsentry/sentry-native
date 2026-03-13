@@ -1,4 +1,10 @@
 cmake_minimum_required(VERSION 3.10)
+
+# enables support for CMAKE_MSVC_DEBUG_INFORMATION_FORMAT
+if(POLICY CMP0141)
+	cmake_policy(SET CMP0141 NEW)
+endif()
+
 project(sentry_screenshot LANGUAGES C)
 
 if(WIN32 AND NOT XBOX)
