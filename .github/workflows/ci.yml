@@ -191,12 +191,17 @@ jobs:
             MINGW_ASM_MASM_COMPILER: llvm-ml
             MINGW_ASM_MASM_FLAGS: -m64
           - name: Android (API 21, NDK 23)
-            os: macos-15-large
+            os: ubuntu-latest
             ANDROID_API: 21
             ANDROID_NDK: 23.2.8568313
             ANDROID_ARCH: x86_64
+          - name: Android (API 26, NDK 27)
+            os: ubuntu-latest
+            ANDROID_API: 26
+            ANDROID_NDK: 27.3.13750724
+            ANDROID_ARCH: x86_64
           - name: Android (API 31, NDK 27)
-            os: macos-15-large
+            os: ubuntu-latest
             ANDROID_API: 31
             ANDROID_NDK: 27.3.13750724
             ANDROID_ARCH: x86_64
@@ -242,12 +247,12 @@ jobs:
           cache: "pip"
 
       - name: Check Linux CC/CXX
-        if: ${{ runner.os == 'Linux' && !matrix.container }}
+        if: ${{ runner.os == 'Linux' && !env['ANDROID_API'] &&!matrix.container }}
         run: |
           [ -n "$CC" ] && [ -n "$CXX" ] || { echo "Ubuntu runner configurations require toolchain selection via CC and CXX" >&2; exit 1; }
 
       - name: Installing Linux Dependencies
-        if: ${{ runner.os == 'Linux' && !env['TEST_X86'] && !matrix.container }}
+        if: ${{ runner.os == 'Linux' && !env['TEST_X86'] && !env['ANDROID_API'] && !matrix.container }}
         run: |
           sudo apt update
           # Install common dependencies
@@ -278,7 +283,7 @@ jobs:
           sudo make install
 
       - name: Installing Linux 32-bit Dependencies
-        if: ${{ runner.os == 'Linux' && env['TEST_X86'] && !matrix.container }}
+        if: ${{ runner.os == 'Linux' && env['TEST_X86'] && !env['ANDROID_API'] &&!matrix.container }}
         run: |
           sudo dpkg --add-architecture i386
           sudo apt update
@@ -357,6 +362,22 @@ jobs:
         with:
           gradle-home-cache-cleanup: true
 
+      - name: Setup .NET for Android
+        if: ${{ env['ANDROID_API'] }}
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Install .NET Android workload
+        if: ${{ env['ANDROID_API'] }}
+        run: dotnet workload restore tests/fixtures/dotnet_signal/test_dotnet.csproj
+
+      - name: Enable KVM group perms
+        if: ${{ runner.os == 'Linux' && env['ANDROID_API'] }}
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
 
       - name: Add sentry.native.test hostname
         if: ${{ runner.os == 'Windows' }}
@@ -386,7 +407,7 @@ jobs:
           api-level: ${{ env.ANDROID_API }}
           ndk: ${{ env.ANDROID_NDK }}
           arch: ${{ env.ANDROID_ARCH }}
-          target: google_apis
+          target: default
           emulator-boot-timeout: 1200
           script: |
             # Sync emulator clock with host to avoid timestamp assertion failures
