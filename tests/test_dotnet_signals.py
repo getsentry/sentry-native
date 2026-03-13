@@ -292,16 +292,23 @@ def run_android(args=None, timeout=30):
     intent_args = []
     for arg in args:
         intent_args += ["--es", "arg", arg]
-    adb(
-        "shell",
-        "am",
-        "start",
-        "-W",
-        "-n",
-        "{}/dotnet_signal.MainActivity".format(ANDROID_PACKAGE),
-        *intent_args,
-        check=True,
-    )
+    try:
+        adb(
+            "shell",
+            "am",
+            "start",
+            "-W",
+            "-n",
+            "{}/dotnet_signal.MainActivity".format(ANDROID_PACKAGE),
+            *intent_args,
+            check=True,
+            timeout=timeout,
+        )
+    except subprocess.TimeoutExpired:
+        logcat = adb("logcat", "-d", capture_output=True, text=True).stdout
+        raise AssertionError(
+            "am start -W timed out after {}s.\nlogcat:\n{}".format(timeout, logcat)
+        )
     wait_for(
         lambda: adb(
             "shell", "pidof", ANDROID_PACKAGE, capture_output=True, text=True
