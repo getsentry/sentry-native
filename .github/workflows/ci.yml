@@ -176,9 +176,9 @@ jobs:
             TEST_X86: 1
           - name: Windows (latest)
             os: windows-latest
-          - name: Windows (latest, Ninja)
+          - name: Windows (latest, Ninja + sccache)
             os: windows-latest
-            CMAKE_DEFINES: -GNinja
+            CMAKE_DEFINES: -GNinja -DCMAKE_C_COMPILER_LAUNCHER=sccache -DCMAKE_CXX_COMPILER_LAUNCHER=sccache
           - name: Windows arm64
             os: windows-11-arm
           - name: Windows (latest, UTF-8 paths)
@@ -354,6 +354,11 @@ jobs:
         if: ${{ runner.os == 'Windows' }}
         shell: powershell
         run: . "scripts\install-zlib.ps1"
+
+      - name: Install sccache
+        if: ${{ contains(env.CMAKE_DEFINES, 'sccache') }}
+        shell: bash
+        run: choco install sccache -y
 
       - name: Setup Java Version
         if: ${{ env['ANDROID_API'] }}
