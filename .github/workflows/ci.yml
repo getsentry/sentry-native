@@ -215,11 +215,6 @@ jobs:
             ANDROID_API: 26
             ANDROID_NDK: 27.3.13750724
             ANDROID_ARCH: x86_64
-          - name: Android (API 27, NDK 27)
-            os: ubuntu-latest
-            ANDROID_API: 27
-            ANDROID_NDK: 27.3.13750724
-            ANDROID_ARCH: x86_64
           - name: Android (API 28, NDK 27)
             os: ubuntu-latest
             ANDROID_API: 28
@@ -442,7 +437,7 @@ jobs:
           api-level: ${{ env.ANDROID_API }}
           ndk: ${{ env.ANDROID_NDK }}
           arch: ${{ env.ANDROID_ARCH }}
-          target: default
+          target: google_apis
           emulator-boot-timeout: 1200
           script: |
             # Sync emulator clock with host to avoid timestamp assertion failures
