@@ -16,19 +16,17 @@ public class MainActivity : Activity
         var arg = Intent?.GetStringExtra("arg");
         if (!string.IsNullOrEmpty(arg))
         {
-            Window?.DecorView?.Post(() =>
+            var databasePath = FilesDir?.AbsolutePath + "/.sentry-native";
+
+            new Thread(() =>
             {
-                var databasePath = FilesDir?.AbsolutePath + "/.sentry-native";
-                new Thread(() =>
+                Program.RunTest(new[] { arg }, databasePath);
+                RunOnUiThread(() =>
                 {
-                    Program.RunTest(new[] { arg }, databasePath);
-                    RunOnUiThread(() =>
-                    {
-                        FinishAndRemoveTask();
-                        Java.Lang.JavaSystem.Exit(0);
-                    });
-                }).Start();
-            });
+                    FinishAndRemoveTask();
+                    Java.Lang.JavaSystem.Exit(0);
+                });
+            }).Start();
         }
     }
 }
