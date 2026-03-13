@@ -18,8 +18,8 @@ public class MainActivity : Activity
         {
             var databasePath = FilesDir?.AbsolutePath + "/.sentry-native";
 
-            // Post the test to the main thread's message queue so it runs
-            // after OnResume returns and the activity is fully started.
+            // Post to the message queue so the activity finishes starting
+            // before the crash test runs. Without this, "am start -W" may hang.
             new Handler(Looper.MainLooper!).Post(() =>
             {
                 Program.RunTest(new[] { arg }, databasePath);
