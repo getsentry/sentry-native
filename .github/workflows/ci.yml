@@ -360,6 +360,15 @@ jobs:
         shell: bash
         run: choco install sccache -y
 
+      - name: Cache sccache
+        if: ${{ contains(env.CMAKE_DEFINES, 'sccache') }}
+        uses: actions/cache@v4
+        with:
+          path: ~/AppData/Local/Mozilla/sccache
+          key: sccache-${{ matrix.name }}-${{ github.head_ref || github.ref_name }}
+          restore-keys: |
+            sccache-${{ matrix.name }}-
+
       - name: Setup Java Version
         if: ${{ env['ANDROID_API'] }}
         uses: actions/setup-java@v5
@@ -416,6 +425,10 @@ jobs:
         run: |
           pip install --upgrade --requirement tests/requirements.txt
           pytest --capture=no --verbose tests
+
+      - name: Show sccache stats
+        if: ${{ contains(env.CMAKE_DEFINES, 'sccache') }}
+        run: sccache --show-stats
 
       - name: Check NDK
         if: ${{ env['ANDROID_API'] }}
