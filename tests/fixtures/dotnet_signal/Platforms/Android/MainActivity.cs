@@ -17,16 +17,9 @@ public class MainActivity : Activity
         if (!string.IsNullOrEmpty(arg))
         {
             var databasePath = FilesDir?.AbsolutePath + "/.sentry-native";
-
-            new Thread(() =>
-            {
-                Program.RunTest(new[] { arg }, databasePath);
-                RunOnUiThread(() =>
-                {
-                    FinishAndRemoveTask();
-                    Java.Lang.JavaSystem.Exit(0);
-                });
-            }).Start();
+            Program.RunTest(new[] { arg }, databasePath);
+            FinishAndRemoveTask();
+            Java.Lang.JavaSystem.Exit(0);
         }
     }
 }
