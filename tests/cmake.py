@@ -3,6 +3,7 @@ import os
 import shutil
 import subprocess
 import sys
+import time
 import platform
 from pathlib import Path
 
@@ -37,9 +38,15 @@ class CMake:
 
         # cache the build configuration
         if key not in self.runs:
+            with open("CONOUT$", "w") as con:
+                con.write(f"\n*** CMAKE CACHE MISS (build #{len(self.runs) + 1}): {key} ***\n")
             cwd = self.factory.mktemp("cmake")
             self.runs[key] = cwd
+            t0 = time.monotonic()
             cmake(cwd, targets, options, cflags)
+            elapsed = time.monotonic() - t0
+            with open("CONOUT$", "w") as con:
+                con.write(f"*** BUILD #{len(self.runs)} done in {elapsed:.1f}s ***\n")
 
         build_tmp_path = self.runs[key]
 
