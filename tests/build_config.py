@@ -82,8 +82,10 @@ def get_cflags(extra_cflags=None):
         cflags.append("-Werror")
 
     if sys.platform == "win32" and not os.environ.get("TEST_MINGW"):
-        cpus = os.cpu_count()
-        cflags.append("/WX /MP{}".format(cpus))
+        cflags.append("/WX")
+        if "sccache" not in os.environ.get("CMAKE_DEFINES", ""):
+            cpus = os.cpu_count()
+            cflags.append("/MP{}".format(cpus))
 
     if "gcc" in os.environ.get("RUN_ANALYZER", ""):
         cflags.append("-fanalyzer")
