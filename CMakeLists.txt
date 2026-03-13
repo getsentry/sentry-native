@@ -14,6 +14,11 @@ if(POLICY CMP0079)
 	cmake_policy(SET CMP0079 NEW)
 endif()
 
+# enables support for CMAKE_MSVC_DEBUG_INFORMATION_FORMAT
+if(POLICY CMP0141)
+	cmake_policy(SET CMP0141 NEW)
+endif()
+
 # Allow downstream SDKs to override the SDK version at CMake configuration time
 set(SENTRY_SDK_VERSION "" CACHE STRING "Override the SDK version (supports full semver format with build metadata)")
 

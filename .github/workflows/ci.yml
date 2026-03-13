@@ -178,7 +178,7 @@ jobs:
             os: windows-latest
           - name: Windows (latest, Ninja + sccache)
             os: windows-latest
-            CMAKE_DEFINES: -GNinja -DCMAKE_C_COMPILER_LAUNCHER=sccache -DCMAKE_CXX_COMPILER_LAUNCHER=sccache
+            CMAKE_DEFINES: -GNinja -DCMAKE_C_COMPILER_LAUNCHER=sccache -DCMAKE_CXX_COMPILER_LAUNCHER=sccache -DCMAKE_MSVC_DEBUG_INFORMATION_FORMAT=Embedded
           - name: Windows arm64
             os: windows-11-arm
           - name: Windows (latest, UTF-8 paths)
