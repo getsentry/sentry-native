@@ -328,7 +328,10 @@ def run_android_native_crash():
     return run_android(["native-crash"])
 
 
-@pytest.mark.skipif(not is_android, reason="needs Android")
+@pytest.mark.skipif(
+    not is_android or int(is_android) < 26,
+    reason="needs Android API 26+ (tombstoned)",
+)
 def test_android_signals_inproc(cmake):
     if shutil.which("dotnet") is None:
         pytest.skip("dotnet is not installed")
