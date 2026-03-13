@@ -270,6 +270,15 @@ def test_aot_signals_inproc(cmake):
 ANDROID_PACKAGE = "io.sentry.ndk.dotnet.signal.test"
 
 
+def wait_for(condition, timeout=10, interval=0.5):
+    start = time.time()
+    while time.time() - start < timeout:
+        if condition():
+            return True
+        time.sleep(interval)
+    return condition()
+
+
 def adb(*args, **kwargs):
     adb_path = "{}/platform-tools/adb".format(os.environ["ANDROID_HOME"])
     return subprocess.run([adb_path, *args], **kwargs)
@@ -293,13 +302,13 @@ def run_android(args=None, timeout=30):
         *intent_args,
         check=True,
     )
-    start = time.time()
-    while time.time() - start < timeout:
-        result = adb("shell", "pidof", ANDROID_PACKAGE, capture_output=True, text=True)
-        if result.returncode != 0 or not result.stdout.strip():
-            break
-        time.sleep(0.5)
-    time.sleep(1)
+    wait_for(
+        lambda: adb(
+            "shell", "pidof", ANDROID_PACKAGE, capture_output=True, text=True
+        ).returncode
+        != 0,
+        timeout=timeout,
+    )
     return adb("logcat", "-d", capture_output=True, text=True).stdout
 
 
@@ -395,22 +404,29 @@ def test_android_signals_inproc(cmake):
 
         db = "files/.sentry-native"
 
+        def file_exists(path):
+            return run_as("test -f " + path, capture_output=True).returncode == 0
+
+        def dir_exists(path):
+            return run_as("test -d " + path, capture_output=True).returncode == 0
+
+        def has_envelope():
+            result = run_as(
+                "find " + db + " -name '*.envelope'", capture_output=True, text=True
+            )
+            return bool(result.stdout.strip())
+
         # managed exception: handled, no crash
         logcat = run_android_managed_exception()
         print("=== managed exception logcat ===\n", logcat)
         assert (
             "NullReferenceException" not in logcat
         ), "Managed exception leaked.\nlogcat:\n{}".format(logcat)
-        assert (
-            run_as("test -d " + db, capture_output=True).returncode == 0
+        assert wait_for(
+            lambda: dir_exists(db)
         ), "No database-path exists.\nlogcat:\n{}".format(logcat)
-        assert (
-            run_as("test -f " + db + "/last_crash", capture_output=True).returncode != 0
-        ), "A crash was registered"
-        result = run_as(
-            "find " + db + " -name '*.envelope'", capture_output=True, text=True
-        )
-        assert not result.stdout.strip(), "Unexpected envelope found"
+        assert not file_exists(db + "/last_crash"), "A crash was registered"
+        assert not has_envelope(), "Unexpected envelope found"
 
         # unhandled managed exception: Mono calls abort(), captured by the native SDK
         logcat = run_android_unhandled_managed_exception()
@@ -418,23 +434,18 @@ def test_android_signals_inproc(cmake):
         assert (
             "NullReferenceException" in logcat
         ), "Expected NullReferenceException.\nlogcat:\n{}".format(logcat)
-        assert (
-            run_as("test -d " + db, capture_output=True).returncode == 0
+        assert wait_for(
+            lambda: dir_exists(db)
         ), "No database-path exists.\nlogcat:\n{}".format(logcat)
-        assert (
-            run_as("test -f " + db + "/last_crash", capture_output=True).returncode == 0
-        ), "Crash marker missing"
+        assert wait_for(lambda: file_exists(db + "/last_crash")), "Crash marker missing"
 
         # native crash
         logcat = run_android_native_crash()
         print("=== native crash logcat ===\n", logcat)
-        assert (
-            run_as("test -f " + db + "/last_crash", capture_output=True).returncode == 0
+        assert wait_for(
+            lambda: file_exists(db + "/last_crash")
         ), "Crash marker missing.\nlogcat:\n{}".format(logcat)
-        result = run_as(
-            "find " + db + " -name '*.envelope'", capture_output=True, text=True
-        )
-        assert result.stdout.strip(), "Crash envelope is missing"
+        assert wait_for(has_envelope), "Crash envelope is missing"
 
     finally:
         shutil.rmtree(project_fixture_path / "native", ignore_errors=True)
