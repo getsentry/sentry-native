@@ -1,3 +1,4 @@
+using System.Runtime.InteropServices;
 using Android.App;
 using Android.OS;
 
@@ -9,6 +10,9 @@ namespace dotnet_signal;
 [Activity(Name = "dotnet_signal.MainActivity", MainLauncher = true)]
 public class MainActivity : Activity
 {
+    [DllImport("libc", EntryPoint = "abort")]
+    static extern void abort();
+
     protected override void OnResume()
     {
         base.OnResume();
@@ -18,15 +22,26 @@ public class MainActivity : Activity
         {
             var databasePath = FilesDir?.AbsolutePath + "/.sentry-native";
 
-            new Thread(() =>
+            // Post the test to the main thread's message queue so it runs
+            // after OnResume returns and the activity is fully started.
+            new Handler(Looper.MainLooper!).Post(() =>
             {
-                Program.RunTest(new[] { arg }, databasePath);
-                RunOnUiThread(() =>
+                try
                 {
+                    Program.RunTest(new[] { arg }, databasePath);
                     FinishAndRemoveTask();
                     Java.Lang.JavaSystem.Exit(0);
-                });
-            }).Start();
+                }
+                catch (Exception e)
+                {
+                    // Emulate what MAUI does: call abort() for unhandled
+                    // exceptions so that the native crash handler can
+                    // capture them. Without this, the main thread's
+                    // UncaughtExceptionHandler would kill with SIGKILL.
+                    Console.Error.WriteLine(e);
+                    abort();
+                }
+            });
         }
     }
 }

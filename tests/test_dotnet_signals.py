@@ -432,7 +432,8 @@ def test_android_signals_inproc(cmake):
         assert not file_exists(db + "/last_crash"), "A crash was registered"
         assert not has_envelope(), "Unexpected envelope found"
 
-        # unhandled managed exception: Mono calls abort(), captured by the native SDK
+        # unhandled managed exception: the app catches and calls abort()
+        # (emulating MAUI), captured by the native SDK
         logcat = run_android_unhandled_managed_exception()
         print("=== unhandled managed exception logcat ===\n", logcat)
         assert (
