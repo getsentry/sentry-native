@@ -195,9 +195,9 @@ jobs:
             ANDROID_API: 21
             ANDROID_NDK: 23.2.8568313
             ANDROID_ARCH: x86_64
-          - name: Android (API 26, NDK 27)
+          - name: Android (API 28, NDK 27)
             os: ubuntu-latest
-            ANDROID_API: 26
+            ANDROID_API: 28
             ANDROID_NDK: 27.3.13750724
             ANDROID_ARCH: x86_64
           - name: Android (API 31, NDK 27)
