@@ -26,6 +26,9 @@
 #ifdef SENTRY_PLATFORM_UNIX
 #    include <poll.h>
 #endif
+#ifdef SENTRY_PLATFORM_ANDROID
+#    include <sys/syscall.h>
+#endif
 #include <string.h>
 
 /**
@@ -1564,6 +1567,29 @@ process_ucontext(const sentry_ucontext_t *uctx)
         uintptr_t ip = get_instruction_pointer(uctx);
         uintptr_t sp = get_stack_pointer(uctx);
 
+#    ifdef SENTRY_PLATFORM_ANDROID
+        // Mask the signal so SA_NODEFER doesn't let re-raises from the chained
+        // handler kill the process before we regain control.
+        sigset_t mask, old_mask;
+        sigemptyset(&mask);
+        sigaddset(&mask, uctx->signum);
+        // Raw syscall because ART's libsigchain intercepts
+        // sigprocmask() and silently drops the request when called
+        // outside its own special handlers. Without the raw syscall
+        // the mask change would be ignored and SA_NODEFER would let
+        // the chained handler's raise() re-deliver the signal
+        // immediately, crashing the process before we can inspect
+        // the modified IP/SP.
+        //
+        // DANGER: this makes libsigchain's internal mask state
+        // diverge from the kernel's actual mask. If ART ever relies
+        // on that state for correctness (e.g. GC safepoints), this
+        // could cause subtle failures. We restore the mask right
+        // after the chained handler returns, limiting the window.
+        syscall(
+            SYS_rt_sigprocmask, SIG_BLOCK, &mask, &old_mask, sizeof(sigset_t));
+#    endif
+
         // invoke the previous handler (typically the CLR/Mono
         // signal-to-managed-exception handler)
         invoke_signal_handler(
@@ -1578,6 +1604,23 @@ process_ucontext(const sentry_ucontext_t *uctx)
             || sp != get_stack_pointer(uctx)) {
             return;
         }
+
+#    ifdef SENTRY_PLATFORM_ANDROID
+        // restore our handler
+        struct sigaction current;
+        sigaction(uctx->signum, NULL, &current);
+        if (current.sa_handler == SIG_DFL) {
+            sigaction(uctx->signum, &g_sigaction, NULL);
+        }
+
+        // consume pending signal
+        struct timespec timeout = { 0, 0 };
+        syscall(SYS_rt_sigtimedwait, &mask, NULL, &timeout, sizeof(sigset_t));
+
+        // unmask
+        syscall(
+            SYS_rt_sigprocmask, SIG_SETMASK, &old_mask, NULL, sizeof(sigset_t));
+#    endif
 
         // return from runtime handler; continue processing the crash on the
         // signal thread until the worker takes over

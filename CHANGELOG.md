@@ -1,10 +1,11 @@
 # Changelog
 
-## Unreleased:
+## Unreleased
 
 **Fixes**:
 
 - inproc: only the handling thread cleans up after the crash. ([#1579](https://github.com/getsentry/sentry-native/pull/1579))
+- Fix `CHAIN_AT_START` handler strategy crashing on Android when the chained Mono handler resets the signal handler and re-raises. ([#1572](https://github.com/getsentry/sentry-native/pull/1572))
 
 ## 0.13.2
 
