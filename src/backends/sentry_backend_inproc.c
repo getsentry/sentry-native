@@ -1573,8 +1573,19 @@ process_ucontext(const sentry_ucontext_t *uctx)
         sigset_t mask, old_mask;
         sigemptyset(&mask);
         sigaddset(&mask, uctx->signum);
-        // Raw syscall to bypass libsigchain, whose sigprocmask guard
-        // is only active inside its own special handlers.
+        // Raw syscall because ART's libsigchain intercepts
+        // sigprocmask() and silently drops the request when called
+        // outside its own special handlers. Without the raw syscall
+        // the mask change would be ignored and SA_NODEFER would let
+        // the chained handler's raise() re-deliver the signal
+        // immediately, crashing the process before we can inspect
+        // the modified IP/SP.
+        //
+        // DANGER: this makes libsigchain's internal mask state
+        // diverge from the kernel's actual mask. If ART ever relies
+        // on that state for correctness (e.g. GC safepoints), this
+        // could cause subtle failures. We restore the mask right
+        // after the chained handler returns, limiting the window.
         syscall(
             SYS_rt_sigprocmask, SIG_BLOCK, &mask, &old_mask, sizeof(sigset_t));
 #    endif
