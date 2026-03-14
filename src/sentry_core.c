@@ -1761,7 +1761,7 @@ sentry_capture_minidump_n(const char *path, size_t path_len)
             // the minidump is added as an attachment, with the type
             // `event.minidump`
             size_t dump_size = sentry__path_get_size(dump_path);
-            bool is_large = dump_size >= SENTRY_LARGE_ATTACHMENT_SIZE;
+            bool is_large = sentry__is_large_attachment(dump_path, dump_size);
             sentry_envelope_item_t *item = sentry__envelope_add_from_path(
                 envelope, dump_path, "attachment");
 

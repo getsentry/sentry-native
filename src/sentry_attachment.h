@@ -7,6 +7,15 @@
 
 #define SENTRY_LARGE_ATTACHMENT_SIZE (100 * 1024 * 1024) // 100 MB
 
+static inline bool
+sentry__is_large_attachment(const sentry_path_t *path, size_t file_size)
+{
+    // TODO: for temporarily testing with <1 MB minidumps
+    // return file_size < 1024 * 1024 && sentry__path_ends_with(path, ".dmp");
+    (void)path;
+    return file_size >= SENTRY_LARGE_ATTACHMENT_SIZE;
+}
+
 /**
  * The attachment_type.
  */

@@ -665,7 +665,7 @@ sentry__envelope_add_attachment(
 
     size_t file_size = sentry__attachment_get_size(attachment);
 
-    if (file_size >= SENTRY_LARGE_ATTACHMENT_SIZE) {
+    if (sentry__is_large_attachment(attachment->path, file_size)) {
         return NULL;
     }
 
@@ -728,7 +728,7 @@ sentry__envelope_add_from_path(
         return NULL;
     }
     size_t file_size = sentry__path_get_size(path);
-    if (file_size >= SENTRY_LARGE_ATTACHMENT_SIZE) {
+    if (sentry__is_large_attachment(path, file_size)) {
         return NULL;
     }
     size_t buf_len;

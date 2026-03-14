@@ -187,7 +187,7 @@ sentry__cache_large_attachments(const sentry_path_t *cache_path,
 
     for (const sentry_attachment_t *att = attachments; att; att = att->next) {
         size_t file_size = sentry__attachment_get_size(att);
-        if (file_size < SENTRY_LARGE_ATTACHMENT_SIZE) {
+        if (!sentry__is_large_attachment(att->path, file_size)) {
             continue;
         }
 
