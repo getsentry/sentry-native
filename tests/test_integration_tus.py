@@ -26,8 +26,11 @@ def test_tus_upload_large_attachment(cmake, httpserver):
         {"SENTRY_BACKEND": "none", "SENTRY_TRANSPORT_COMPRESSION": "Off"},
     )
 
-    location = "/api/123456/upload/abc123def456789/?length=104857600&signature=xyz"
+    upload_uri = "/api/123456/upload/abc123def456789/"
+    upload_qs = "length=104857600&signature=xyz"
+    location = httpserver.url_for(upload_uri) + "?" + upload_qs
 
+    # TUS creation request (POST, no body) -> 201 + Location
     httpserver.expect_oneshot_request(
         "/api/123456/upload/",
         headers={"tus-resumable": "1.0.0"},
@@ -36,6 +39,14 @@ def test_tus_upload_large_attachment(cmake, httpserver):
         status=201,
         headers={"Location": location},
     )
+
+    # TUS upload request (PATCH with body) -> 204
+    httpserver.expect_oneshot_request(
+        upload_uri,
+        method="PATCH",
+        headers={"tus-resumable": "1.0.0"},
+        query_string=upload_qs,
+    ).respond_with_data("", status=204)
 
     httpserver.expect_request(
         "/api/123456/envelope/",
@@ -51,27 +62,35 @@ def test_tus_upload_large_attachment(cmake, httpserver):
         env=env,
     )
 
-    assert len(httpserver.log) == 3
+    assert len(httpserver.log) == 4
 
-    # Find the upload request and envelope requests
+    # Find the create, upload, and envelope requests
+    create_req = None
     upload_req = None
     envelope_reqs = []
     for entry in httpserver.log:
         req = entry[0]
-        if "/upload/" in req.path:
+        if req.path == "/api/123456/upload/" and req.method == "POST":
+            create_req = req
+        elif upload_uri in req.path and req.method == "PATCH":
             upload_req = req
         elif "/envelope/" in req.path:
             envelope_reqs.append(req)
 
+    assert create_req is not None
     assert upload_req is not None
     assert len(envelope_reqs) == 2
+
+    # Verify TUS creation request headers
+    assert create_req.headers.get("tus-resumable") == "1.0.0"
+    upload_length = create_req.headers.get("upload-length")
+    assert upload_length is not None
+    assert int(upload_length) == 100 * 1024 * 1024
 
     # Verify TUS upload request headers
     assert upload_req.headers.get("tus-resumable") == "1.0.0"
     assert upload_req.headers.get("content-type") == "application/offset+octet-stream"
-    upload_length = upload_req.headers.get("upload-length")
-    assert upload_length is not None
-    assert int(upload_length) == 100 * 1024 * 1024
+    assert upload_req.headers.get("upload-offset") == "0"
 
     # One envelope has the resolved attachment-refs, the other is the original
     attachment_ref = None
@@ -183,7 +202,9 @@ def test_tus_crash_restart(cmake, httpserver):
     att_size = os.path.getsize(os.path.join(att_dir, att_files[0]))
     assert att_size >= 100 * 1024 * 1024
 
-    location = "/api/123456/upload/abc123def456789/?length=104857600&signature=xyz"
+    upload_uri = "/api/123456/upload/abc123def456789/"
+    upload_qs = "length=104857600&signature=xyz"
+    location = httpserver.url_for(upload_uri) + "?" + upload_qs
 
     # Second run: restart picks up crash and uploads via TUS
     httpserver.expect_oneshot_request(
@@ -194,6 +215,13 @@ def test_tus_crash_restart(cmake, httpserver):
         status=201,
         headers={"Location": location},
     )
+
+    httpserver.expect_oneshot_request(
+        upload_uri,
+        method="PATCH",
+        headers={"tus-resumable": "1.0.0"},
+        query_string=upload_qs,
+    ).respond_with_data("", status=204)
 
     httpserver.expect_request(
         "/api/123456/envelope/",
@@ -207,24 +235,32 @@ def test_tus_crash_restart(cmake, httpserver):
         env=env,
     )
 
-    assert len(httpserver.log) == 3
+    assert len(httpserver.log) == 4
 
+    create_req = None
     upload_req = None
     envelope_reqs = []
     for entry in httpserver.log:
         req = entry[0]
-        if "/upload/" in req.path:
+        if req.path == "/api/123456/upload/" and req.method == "POST":
+            create_req = req
+        elif upload_uri in req.path and req.method == "PATCH":
             upload_req = req
         elif "/envelope/" in req.path:
             envelope_reqs.append(req)
 
+    assert create_req is not None
     assert upload_req is not None
     assert len(envelope_reqs) == 2
+
+    # Verify TUS creation request headers
+    assert create_req.headers.get("tus-resumable") == "1.0.0"
+    assert int(create_req.headers.get("upload-length")) == 100 * 1024 * 1024
 
     # Verify TUS upload request headers
     assert upload_req.headers.get("tus-resumable") == "1.0.0"
     assert upload_req.headers.get("content-type") == "application/offset+octet-stream"
-    assert int(upload_req.headers.get("upload-length")) == 100 * 1024 * 1024
+    assert upload_req.headers.get("upload-offset") == "0"
 
     # One envelope has the resolved attachment-refs, the other is the original
     attachment_ref = None
