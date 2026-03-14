@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased:
+
+**Fixes**:
+
+- inproc: only the handling thread cleans up after the crash. ([#1579](https://github.com/getsentry/sentry-native/pull/1579))
+
 ## 0.13.2
 
 **Features**:
