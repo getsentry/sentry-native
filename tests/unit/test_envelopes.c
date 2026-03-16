@@ -742,15 +742,19 @@ SENTRY_TEST(tus_request_preparation)
 {
     SENTRY_TEST_DSN_NEW_DEFAULT(dsn);
 
-    // Test creation request (POST, no body)
+    const char *test_file_str = SENTRY_TEST_PATH_PREFIX "sentry_test_tus_file";
+    sentry_path_t *test_file_path = sentry__path_from_str(test_file_str);
+    TEST_CHECK_INT_EQUAL(
+        sentry__path_write_buffer(test_file_path, "test-data", 9), 0);
+
     sentry_prepared_http_request_t *req
-        = sentry__prepare_tus_create_request(9, dsn, NULL);
+        = sentry__prepare_tus_request(test_file_path, 9, dsn, NULL);
     TEST_CHECK(!!req);
     TEST_CHECK_STRING_EQUAL(req->method, "POST");
     TEST_CHECK_STRING_EQUAL(
         req->url, "https://sentry.invalid:443/api/42/upload/");
-    TEST_CHECK(!req->body_path);
-    TEST_CHECK_INT_EQUAL(req->body_len, 0);
+    TEST_CHECK(!!req->body_path);
+    TEST_CHECK_INT_EQUAL(req->body_len, 9);
     TEST_CHECK(!req->body);
 
     bool has_tus_resumable = false;
@@ -766,51 +770,14 @@ SENTRY_TEST(tus_request_preparation)
             has_upload_length = true;
         }
         if (strcmp(req->headers[i].key, "content-type") == 0) {
+            TEST_CHECK_STRING_EQUAL(
+                req->headers[i].value, "application/offset+octet-stream");
             has_content_type = true;
         }
     }
     TEST_CHECK(has_tus_resumable);
     TEST_CHECK(has_upload_length);
-    TEST_CHECK(!has_content_type);
-
-    sentry__prepared_http_request_free(req);
-
-    // Test upload request (PATCH with body)
-    const char *test_file_str = SENTRY_TEST_PATH_PREFIX "sentry_test_tus_file";
-    sentry_path_t *test_file_path = sentry__path_from_str(test_file_str);
-    TEST_CHECK_INT_EQUAL(
-        sentry__path_write_buffer(test_file_path, "test-data", 9), 0);
-
-    const char *location = "https://sentry.invalid/api/42/upload/abc123/";
-    req = sentry__prepare_tus_upload_request(location, test_file_path, 9);
-    TEST_CHECK(!!req);
-    TEST_CHECK_STRING_EQUAL(req->method, "PATCH");
-    TEST_CHECK_STRING_EQUAL(req->url, location);
-    TEST_CHECK(!!req->body_path);
-    TEST_CHECK_INT_EQUAL(req->body_len, 9);
-    TEST_CHECK(!req->body);
-
-    has_tus_resumable = false;
-    has_content_type = false;
-    bool has_upload_offset = false;
-    for (size_t i = 0; i < req->headers_len; i++) {
-        if (strcmp(req->headers[i].key, "tus-resumable") == 0) {
-            TEST_CHECK_STRING_EQUAL(req->headers[i].value, "1.0.0");
-            has_tus_resumable = true;
-        }
-        if (strcmp(req->headers[i].key, "content-type") == 0) {
-            TEST_CHECK_STRING_EQUAL(
-                req->headers[i].value, "application/offset+octet-stream");
-            has_content_type = true;
-        }
-        if (strcmp(req->headers[i].key, "upload-offset") == 0) {
-            TEST_CHECK_STRING_EQUAL(req->headers[i].value, "0");
-            has_upload_offset = true;
-        }
-    }
-    TEST_CHECK(has_tus_resumable);
     TEST_CHECK(has_content_type);
-    TEST_CHECK(has_upload_offset);
 
     sentry__prepared_http_request_free(req);
     sentry__path_remove(test_file_path);
