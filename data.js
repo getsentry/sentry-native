@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1773515782073,
+  "lastUpdate": 1773664170167,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -13278,6 +13278,66 @@ window.BENCHMARK_DATA = {
             "value": 2.029774999982692,
             "unit": "ms",
             "extra": "Min 1.975ms\nMax 2.037ms\nMean 2.019ms\nStdDev 0.025ms\nMedian 2.030ms\nCPU 0.606ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "amir.mujacic@sentry.io",
+            "name": "Amir Mujacic",
+            "username": "mujacica"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "ba6f187c70c691d2a7aa721259fbecd57d7e925e",
+          "message": "fix(native): propagate transport options and handler path to crash daemon (#1573)\n\n* fix(native): propagate transport options and handler path to crash daemon\n\nThe native backend daemon was not receiving SSL certificate, proxy,\nuser agent, or handler path settings from the parent process options.\nThis caused SSL errors (curl code 60) when the daemon tried to upload\ncrash reports, and required users to place the sentry-crash binary\nnext to their executable instead of using sentry_options_set_handler_path.\n\nPass ca_certs, proxy, user_agent, and handler_path through the shared\nmemory crash context so the daemon can configure its curl transport\nand find the sentry-crash executable correctly.\n\n---------\n\nCo-authored-by: Claude Opus 4.6 <noreply@anthropic.com>\nCo-authored-by: Cursor Agent <cursoragent@cursor.com>",
+          "timestamp": "2026-03-16T13:26:55+01:00",
+          "tree_id": "861a1cd093665695d4ce885d00cd9c59519d2597",
+          "url": "https://github.com/getsentry/sentry-native/commit/ba6f187c70c691d2a7aa721259fbecd57d7e925e"
+        },
+        "date": 1773664167878,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 0.9003990000024942,
+            "unit": "ms",
+            "extra": "Min 0.880ms\nMax 0.930ms\nMean 0.901ms\nStdDev 0.019ms\nMedian 0.900ms\nCPU 0.847ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 0.7967370000017127,
+            "unit": "ms",
+            "extra": "Min 0.772ms\nMax 0.860ms\nMean 0.807ms\nStdDev 0.033ms\nMedian 0.797ms\nCPU 0.805ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 3.192213000005495,
+            "unit": "ms",
+            "extra": "Min 3.067ms\nMax 3.317ms\nMean 3.179ms\nStdDev 0.111ms\nMedian 3.192ms\nCPU 1.663ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.1342700000179775,
+            "unit": "ms",
+            "extra": "Min 0.132ms\nMax 0.159ms\nMean 0.139ms\nStdDev 0.011ms\nMedian 0.134ms\nCPU 0.084ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.036138000012897464,
+            "unit": "ms",
+            "extra": "Min 0.035ms\nMax 0.037ms\nMean 0.036ms\nStdDev 0.001ms\nMedian 0.036ms\nCPU 0.035ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 2.035905000013827,
+            "unit": "ms",
+            "extra": "Min 1.915ms\nMax 2.061ms\nMean 2.013ms\nStdDev 0.061ms\nMedian 2.036ms\nCPU 0.607ms"
           }
         ]
       }
