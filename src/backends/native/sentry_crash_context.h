@@ -280,6 +280,11 @@ typedef struct {
     char external_reporter_path[SENTRY_CRASH_MAX_PATH];
     char dsn[SENTRY_CRASH_MAX_PATH]; // Sentry DSN for uploading crashes
 
+    // Transport configuration (passed from parent options to daemon)
+    char ca_certs[SENTRY_CRASH_MAX_PATH]; // CA certificates file path for SSL
+    char proxy[SENTRY_CRASH_MAX_PATH]; // HTTP proxy URL
+    char user_agent[256]; // User-Agent header for HTTP requests
+
     // Minidump output path (filled by daemon)
     char minidump_path[SENTRY_CRASH_MAX_PATH];
 
