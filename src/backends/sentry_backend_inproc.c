@@ -27,6 +27,7 @@
 #    include <poll.h>
 #endif
 #ifdef SENTRY_PLATFORM_ANDROID
+#    include <android/api-level.h>
 #    include <sys/syscall.h>
 #endif
 #include <string.h>
@@ -1550,9 +1551,20 @@ dispatch_ucontext(const sentry_ucontext_t *uctx,
 static void
 process_ucontext(const sentry_ucontext_t *uctx)
 {
+    sentry_handler_strategy_t strategy = g_backend_config.handler_strategy;
+#ifdef SENTRY_PLATFORM_ANDROID
+    // CHAIN_AT_START invokes the previous handler and expects to regain
+    // control. On Android API < 26, the old debuggerd daemon kills the
+    // crashing process via SIGKILL after the chained handler triggers
+    // it, so we fall back to DEFAULT which chains at the end instead.
+    if (strategy == SENTRY_HANDLER_STRATEGY_CHAIN_AT_START
+        && android_get_device_api_level() < 26) {
+        strategy = SENTRY_HANDLER_STRATEGY_DEFAULT;
+    }
+#endif
+
 #ifdef SENTRY_PLATFORM_LINUX
-    if (g_backend_config.handler_strategy
-            == SENTRY_HANDLER_STRATEGY_CHAIN_AT_START
+    if (strategy == SENTRY_HANDLER_STRATEGY_CHAIN_AT_START
         && uctx->signum != SIGABRT) {
         // SIGABRT is excluded: CLR/Mono never uses it for managed exception
         // translation. Chaining SIGABRT to a SIG_DFL previous handler calls
@@ -1688,8 +1700,7 @@ cleanup:
     sentry__atomic_store(&g_crash_handling_state, CRASH_STATE_DONE);
 
     sentry__leave_signal_handler();
-    if (g_backend_config.handler_strategy
-        != SENTRY_HANDLER_STRATEGY_CHAIN_AT_START) {
+    if (strategy != SENTRY_HANDLER_STRATEGY_CHAIN_AT_START) {
         invoke_signal_handler(
             uctx->signum, uctx->siginfo, (void *)uctx->user_context);
     }
