@@ -599,8 +599,7 @@ crash_signal_handler(int signum, siginfo_t *info, void *context)
                     } else if (written < 4096) {
                         // Short write - pad with zeros to maintain
                         // alignment.
-                        write(hdr_fd, zero_page,
-                            (size_t)(4096 - written));
+                        write(hdr_fd, zero_page, (size_t)(4096 - written));
                     }
                 }
                 close(hdr_fd);

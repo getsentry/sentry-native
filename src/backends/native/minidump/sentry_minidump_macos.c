@@ -920,7 +920,7 @@ write_module_headers_from_capture(minidump_writer_t *writer,
     // Build path: {database_path}/__sentry-modheaders
     const char *db_path = writer->crash_ctx->database_path;
     size_t db_len = strlen(db_path);
-    char hdr_path[1024 + 32];
+    char hdr_path[SENTRY_CRASH_MAX_PATH];
     if (db_len + 22 >= sizeof(hdr_path)) {
         return 0;
     }
@@ -1068,6 +1068,18 @@ write_memory_list_stream(minidump_writer_t *writer, minidump_directory_t *dir)
         dir->data_size = list_size;
 
         sentry_free(memory_list);
+
+        // Clean up the capture file written by the signal handler since
+        // we used VM regions instead.
+        const char *db_path = writer->crash_ctx->database_path;
+        size_t db_len = strlen(db_path);
+        char hdr_path[SENTRY_CRASH_MAX_PATH];
+        if (db_len + 22 < sizeof(hdr_path)) {
+            snprintf(
+                hdr_path, sizeof(hdr_path), "%s/__sentry-modheaders", db_path);
+            unlink(hdr_path);
+        }
+
         return dir->rva ? 0 : -1;
     }
 
@@ -1087,6 +1099,7 @@ write_memory_list_stream(minidump_writer_t *writer, minidump_directory_t *dir)
     if (!memory_list) {
         goto empty_list;
     }
+    memset(memory_list, 0, list_size);
 
     memory_list->count = mod_count;
 

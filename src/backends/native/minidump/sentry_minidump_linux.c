@@ -987,6 +987,62 @@ write_thread_stack(minidump_writer_t *writer, uint64_t stack_pointer,
 }
 
 /**
+ * Capture a thread's context and stack via ptrace.
+ * Writes the thread context and stack memory into the minidump and updates
+ * the thread entry accordingly. Returns true on success.
+ */
+static bool
+ptrace_capture_thread(
+    minidump_writer_t *writer, minidump_thread_t *thread, const char *reason)
+{
+    SENTRY_DEBUGF(
+        "Thread %u: %s, attempting ptrace capture", thread->thread_id, reason);
+
+    ucontext_t ptrace_ctx;
+    memset(&ptrace_ctx, 0, sizeof(ptrace_ctx));
+
+    if (!ptrace_get_thread_registers(thread->thread_id, &ptrace_ctx)) {
+        SENTRY_WARNF("Thread %u: ptrace capture failed, thread will have "
+                     "no context or stack in minidump",
+            thread->thread_id);
+        return false;
+    }
+
+    SENTRY_DEBUGF(
+        "Thread %u: successfully captured via ptrace", thread->thread_id);
+
+    thread->thread_context.rva
+        = write_thread_context(writer, &ptrace_ctx, thread->thread_id);
+    thread->thread_context.size
+        = thread->thread_context.rva ? get_context_size() : 0;
+
+    uint64_t ptrace_sp;
+#    if defined(__x86_64__)
+    ptrace_sp = ptrace_ctx.uc_mcontext.gregs[REG_RSP];
+#    elif defined(__aarch64__)
+    ptrace_sp = ptrace_ctx.uc_mcontext.sp;
+#    elif defined(__i386__)
+    ptrace_sp = ptrace_ctx.uc_mcontext.gregs[REG_ESP];
+#    endif
+
+    if (ptrace_sp != 0) {
+        size_t stack_size = 0;
+        uint64_t stack_start = 0;
+        thread->stack.memory.rva
+            = write_thread_stack(writer, ptrace_sp, &stack_size, &stack_start);
+        thread->stack.memory.size = stack_size;
+        thread->stack.start_address = stack_start;
+
+        SENTRY_DEBUGF("Thread %u: wrote ptrace context at RVA "
+                      "0x%x, stack at RVA 0x%x (size %zu)",
+            thread->thread_id, thread->thread_context.rva,
+            thread->stack.memory.rva, stack_size);
+    }
+
+    return true;
+}
+
+/**
  * Write thread list stream
  */
 static int
@@ -1070,104 +1126,15 @@ write_thread_list_stream(minidump_writer_t *writer, minidump_directory_t *dir)
                     thread->stack.memory.rva, stack_size);
             } else {
                 // SP is 0, try to get registers via ptrace
-                SENTRY_DEBUGF(
-                    "Thread %u: SP is 0, attempting to capture via ptrace",
-                    thread->thread_id);
-
-                ucontext_t ptrace_ctx;
-                memset(&ptrace_ctx, 0, sizeof(ptrace_ctx));
-
-                if (ptrace_get_thread_registers(
-                        thread->thread_id, &ptrace_ctx)) {
-                    // Successfully got registers, update context and re-write
-                    // it
-                    SENTRY_DEBUGF("Thread %u: successfully captured via ptrace",
-                        thread->thread_id);
-
-                    // Re-write the thread context with the captured registers
-                    thread->thread_context.rva = write_thread_context(
-                        writer, &ptrace_ctx, thread->thread_id);
-                    thread->thread_context.size
-                        = thread->thread_context.rva ? get_context_size() : 0;
-
-                    // Extract SP from captured context
-                    uint64_t ptrace_sp;
-#    if defined(__x86_64__)
-                    ptrace_sp = ptrace_ctx.uc_mcontext.gregs[REG_RSP];
-#    elif defined(__aarch64__)
-                    ptrace_sp = ptrace_ctx.uc_mcontext.sp;
-#    elif defined(__i386__)
-                    ptrace_sp = ptrace_ctx.uc_mcontext.gregs[REG_ESP];
-#    endif
-
-                    if (ptrace_sp != 0) {
-                        size_t stack_size = 0;
-                        uint64_t stack_start = 0;
-                        thread->stack.memory.rva = write_thread_stack(
-                            writer, ptrace_sp, &stack_size, &stack_start);
-                        thread->stack.memory.size = stack_size;
-                        thread->stack.start_address = stack_start;
-
-                        SENTRY_DEBUGF("Thread %u: wrote ptrace context at RVA "
-                                      "0x%x, stack at "
-                                      "RVA 0x%x (size %zu)",
-                            thread->thread_id, thread->thread_context.rva,
-                            thread->stack.memory.rva, stack_size);
-                    }
-                } else {
-                    SENTRY_WARNF("Thread %u: failed to capture via ptrace",
-                        thread->thread_id);
-                }
+                ptrace_capture_thread(writer, thread, "SP is 0");
             }
         } else {
             // No context from signal handler - capture via ptrace.
             // On Linux, the signal handler only captures the crashing thread's
             // context. For all other threads, we need to attach via ptrace to
             // get their registers and stack memory.
-            SENTRY_DEBUGF("Thread %u: no context from signal handler, "
-                          "attempting ptrace capture",
-                thread->thread_id);
-
-            ucontext_t ptrace_ctx;
-            memset(&ptrace_ctx, 0, sizeof(ptrace_ctx));
-
-            if (ptrace_get_thread_registers(thread->thread_id, &ptrace_ctx)) {
-                SENTRY_DEBUGF("Thread %u: successfully captured via ptrace",
-                    thread->thread_id);
-
-                thread->thread_context.rva = write_thread_context(
-                    writer, &ptrace_ctx, thread->thread_id);
-                thread->thread_context.size
-                    = thread->thread_context.rva ? get_context_size() : 0;
-
-                uint64_t ptrace_sp;
-#    if defined(__x86_64__)
-                ptrace_sp = ptrace_ctx.uc_mcontext.gregs[REG_RSP];
-#    elif defined(__aarch64__)
-                ptrace_sp = ptrace_ctx.uc_mcontext.sp;
-#    elif defined(__i386__)
-                ptrace_sp = ptrace_ctx.uc_mcontext.gregs[REG_ESP];
-#    endif
-
-                if (ptrace_sp != 0) {
-                    size_t stack_size = 0;
-                    uint64_t stack_start = 0;
-                    thread->stack.memory.rva = write_thread_stack(
-                        writer, ptrace_sp, &stack_size, &stack_start);
-                    thread->stack.memory.size = stack_size;
-                    thread->stack.start_address = stack_start;
-
-                    SENTRY_DEBUGF("Thread %u: wrote ptrace context at RVA "
-                                  "0x%x, stack at RVA 0x%x (size %zu)",
-                        thread->thread_id, thread->thread_context.rva,
-                        thread->stack.memory.rva, stack_size);
-                }
-            } else {
-                SENTRY_WARNF(
-                    "Thread %u: ptrace capture failed, thread will have "
-                    "no context or stack in minidump",
-                    thread->thread_id);
-            }
+            ptrace_capture_thread(
+                writer, thread, "no context from signal handler");
         }
     }
 
@@ -1512,8 +1479,7 @@ write_memory_list_stream(minidump_writer_t *writer, minidump_directory_t *dir)
         if (writer->crash_ctx->minidump_mode == SENTRY_MINIDUMP_MODE_SMART
             && mapping->offset == 0 && mapping->name[0] != '\0'
             && mapping->name[0] != '['
-            && !(crash_addr >= mapping->start
-                && crash_addr < mapping->end)) {
+            && !(crash_addr >= mapping->start && crash_addr < mapping->end)) {
             const uint64_t MODULE_HEADER_SIZE = 4096;
             if (region_size > MODULE_HEADER_SIZE) {
                 region_size = MODULE_HEADER_SIZE;
