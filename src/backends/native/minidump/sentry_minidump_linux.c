@@ -1507,9 +1507,13 @@ write_memory_list_stream(minidump_writer_t *writer, minidump_directory_t *dir)
 
         // For SMART mode, cap module header pages to one page (4096 bytes).
         // We only need the ELF header, not the entire read-only segment.
+        // Skip the cap if this region contains the crash address, since
+        // that memory is the most important for debugging.
         if (writer->crash_ctx->minidump_mode == SENTRY_MINIDUMP_MODE_SMART
             && mapping->offset == 0 && mapping->name[0] != '\0'
-            && mapping->name[0] != '[') {
+            && mapping->name[0] != '['
+            && !(crash_addr >= mapping->start
+                && crash_addr < mapping->end)) {
             const uint64_t MODULE_HEADER_SIZE = 4096;
             if (region_size > MODULE_HEADER_SIZE) {
                 region_size = MODULE_HEADER_SIZE;
@@ -1604,7 +1608,8 @@ write_linux_maps_stream(minidump_writer_t *writer, minidump_directory_t *dir)
         return -1;
     }
 
-    // Read in chunks since /proc/maps can be large
+    // Read in chunks, growing the buffer as needed since /proc/maps can
+    // exceed 32KB for processes with many memory mappings.
     size_t buf_size = 32768;
     char *buf = sentry_malloc(buf_size);
     if (!buf) {
@@ -1617,7 +1622,19 @@ write_linux_maps_stream(minidump_writer_t *writer, minidump_directory_t *dir)
     while ((n = read(fd, buf + total, buf_size - total - 1)) > 0) {
         total += n;
         if (total >= buf_size - 1) {
-            break;
+            // Double the buffer, capped at 1MB
+            size_t new_size = buf_size * 2;
+            if (new_size > 1024 * 1024) {
+                break;
+            }
+            char *new_buf = sentry_malloc(new_size);
+            if (!new_buf) {
+                break;
+            }
+            memcpy(new_buf, buf, total);
+            sentry_free(buf);
+            buf = new_buf;
+            buf_size = new_size;
         }
     }
     close(fd);

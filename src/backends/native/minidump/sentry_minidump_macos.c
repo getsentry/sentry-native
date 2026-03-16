@@ -1015,7 +1015,10 @@ write_memory_list_stream(minidump_writer_t *writer, minidump_directory_t *dir)
             mach_vm_size_t region_size = region->size;
 
             // For SMART mode, cap module header pages to one page.
-            if (mode == SENTRY_MINIDUMP_MODE_SMART) {
+            // Skip the cap if this region contains the crash address.
+            if (mode == SENTRY_MINIDUMP_MODE_SMART
+                && !(crash_addr >= region->address
+                    && crash_addr < region->address + region->size)) {
                 uint32_t mod_count = writer->crash_ctx->module_count;
                 if (mod_count > SENTRY_CRASH_MAX_MODULES) {
                     mod_count = SENTRY_CRASH_MAX_MODULES;

@@ -585,13 +585,23 @@ crash_signal_handler(int signum, siginfo_t *info, void *context)
 
             int hdr_fd = open(hdr_path, O_WRONLY | O_CREAT | O_TRUNC, 0600);
             if (hdr_fd >= 0) {
+                // Zero page used as fallback when write fails, ensuring
+                // each module's slot stays aligned at 4096-byte boundaries.
+                static const char zero_page[4096] = { 0 };
                 for (uint32_t mi = 0; mi < ctx->module_count; mi++) {
                     const void *base = (const void *)(uintptr_t)ctx->modules[mi]
                                            .base_address;
-                    // Write first page; if the address is invalid the write
-                    // still succeeds (kernel copies what it can) or we get a
-                    // short write which is fine.
-                    write(hdr_fd, base, 4096);
+                    ssize_t written = write(hdr_fd, base, 4096);
+                    if (written < 0) {
+                        // Write failed (EFAULT etc.) - write zeros to
+                        // maintain alignment for subsequent modules.
+                        write(hdr_fd, zero_page, 4096);
+                    } else if (written < 4096) {
+                        // Short write - pad with zeros to maintain
+                        // alignment.
+                        write(hdr_fd, zero_page,
+                            (size_t)(4096 - written));
+                    }
                 }
                 close(hdr_fd);
             }
