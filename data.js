@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1773754058446,
+  "lastUpdate": 1773754083227,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -40798,6 +40798,66 @@ window.BENCHMARK_DATA = {
             "value": 14.448700000002646,
             "unit": "ms",
             "extra": "Min 14.056ms\nMax 14.911ms\nMean 14.438ms\nStdDev 0.354ms\nMedian 14.449ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "49699333+dependabot[bot]@users.noreply.github.com",
+            "name": "dependabot[bot]",
+            "username": "dependabot[bot]"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "41315c2a3874d2255d29423b720ec56929ddaf90",
+          "message": "build(deps): bump reactivecircus/android-emulator-runner (#1581)\n\nBumps [reactivecircus/android-emulator-runner](https://github.com/reactivecircus/android-emulator-runner) from 2.35.0 to 2.37.0.\n- [Release notes](https://github.com/reactivecircus/android-emulator-runner/releases)\n- [Changelog](https://github.com/ReactiveCircus/android-emulator-runner/blob/main/CHANGELOG.md)\n- [Commits](https://github.com/reactivecircus/android-emulator-runner/compare/b530d96654c385303d652368551fb075bc2f0b6b...e89f39f1abbbd05b1113a29cf4db69e7540cae5a)\n\n---\nupdated-dependencies:\n- dependency-name: reactivecircus/android-emulator-runner\n  dependency-version: 2.37.0\n  dependency-type: direct:production\n  update-type: version-update:semver-minor\n...\n\nSigned-off-by: dependabot[bot] <support@github.com>\nCo-authored-by: dependabot[bot] <49699333+dependabot[bot]@users.noreply.github.com>",
+          "timestamp": "2026-03-17T14:22:58+01:00",
+          "tree_id": "b8343b0cac3879c3d9685390a9563c438fb5227e",
+          "url": "https://github.com/getsentry/sentry-native/commit/41315c2a3874d2255d29423b720ec56929ddaf90"
+        },
+        "date": 1773754078229,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 14.268899999933637,
+            "unit": "ms",
+            "extra": "Min 11.662ms\nMax 15.493ms\nMean 13.774ms\nStdDev 1.448ms\nMedian 14.269ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 13.975800000025629,
+            "unit": "ms",
+            "extra": "Min 11.135ms\nMax 94.676ms\nMean 30.286ms\nStdDev 36.091ms\nMedian 13.976ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 27.87469999998393,
+            "unit": "ms",
+            "extra": "Min 24.958ms\nMax 34.211ms\nMean 28.135ms\nStdDev 3.652ms\nMedian 27.875ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.24310000003424648,
+            "unit": "ms",
+            "extra": "Min 0.200ms\nMax 0.266ms\nMean 0.233ms\nStdDev 0.028ms\nMedian 0.243ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.45279999994818354,
+            "unit": "ms",
+            "extra": "Min 0.399ms\nMax 0.480ms\nMean 0.445ms\nStdDev 0.035ms\nMedian 0.453ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 20.00709999992978,
+            "unit": "ms",
+            "extra": "Min 13.495ms\nMax 21.489ms\nMean 18.083ms\nStdDev 3.464ms\nMedian 20.007ms"
           }
         ]
       }
