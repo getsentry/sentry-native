@@ -7,7 +7,6 @@ import sys
 from . import run
 from .cmake import CMake
 
-
 LABEL = "label"
 TIME_UNIT = "time_unit"
 REAL_TIME = "real_time"

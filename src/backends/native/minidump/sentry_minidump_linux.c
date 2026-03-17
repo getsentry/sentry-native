@@ -987,6 +987,62 @@ write_thread_stack(minidump_writer_t *writer, uint64_t stack_pointer,
 }
 
 /**
+ * Capture a thread's context and stack via ptrace.
+ * Writes the thread context and stack memory into the minidump and updates
+ * the thread entry accordingly. Returns true on success.
+ */
+static bool
+ptrace_capture_thread(
+    minidump_writer_t *writer, minidump_thread_t *thread, const char *reason)
+{
+    SENTRY_DEBUGF(
+        "Thread %u: %s, attempting ptrace capture", thread->thread_id, reason);
+
+    ucontext_t ptrace_ctx;
+    memset(&ptrace_ctx, 0, sizeof(ptrace_ctx));
+
+    if (!ptrace_get_thread_registers(thread->thread_id, &ptrace_ctx)) {
+        SENTRY_WARNF("Thread %u: ptrace capture failed, thread will have "
+                     "no context or stack in minidump",
+            thread->thread_id);
+        return false;
+    }
+
+    SENTRY_DEBUGF(
+        "Thread %u: successfully captured via ptrace", thread->thread_id);
+
+    thread->thread_context.rva
+        = write_thread_context(writer, &ptrace_ctx, thread->thread_id);
+    thread->thread_context.size
+        = thread->thread_context.rva ? get_context_size() : 0;
+
+    uint64_t ptrace_sp;
+#    if defined(__x86_64__)
+    ptrace_sp = ptrace_ctx.uc_mcontext.gregs[REG_RSP];
+#    elif defined(__aarch64__)
+    ptrace_sp = ptrace_ctx.uc_mcontext.sp;
+#    elif defined(__i386__)
+    ptrace_sp = ptrace_ctx.uc_mcontext.gregs[REG_ESP];
+#    endif
+
+    if (ptrace_sp != 0) {
+        size_t stack_size = 0;
+        uint64_t stack_start = 0;
+        thread->stack.memory.rva
+            = write_thread_stack(writer, ptrace_sp, &stack_size, &stack_start);
+        thread->stack.memory.size = stack_size;
+        thread->stack.start_address = stack_start;
+
+        SENTRY_DEBUGF("Thread %u: wrote ptrace context at RVA "
+                      "0x%x, stack at RVA 0x%x (size %zu)",
+            thread->thread_id, thread->thread_context.rva,
+            thread->stack.memory.rva, stack_size);
+    }
+
+    return true;
+}
+
+/**
  * Write thread list stream
  */
 static int
@@ -1070,57 +1126,15 @@ write_thread_list_stream(minidump_writer_t *writer, minidump_directory_t *dir)
                     thread->stack.memory.rva, stack_size);
             } else {
                 // SP is 0, try to get registers via ptrace
-                SENTRY_DEBUGF(
-                    "Thread %u: SP is 0, attempting to capture via ptrace",
-                    thread->thread_id);
-
-                ucontext_t ptrace_ctx;
-                memset(&ptrace_ctx, 0, sizeof(ptrace_ctx));
-
-                if (ptrace_get_thread_registers(
-                        thread->thread_id, &ptrace_ctx)) {
-                    // Successfully got registers, update context and re-write
-                    // it
-                    SENTRY_DEBUGF("Thread %u: successfully captured via ptrace",
-                        thread->thread_id);
-
-                    // Re-write the thread context with the captured registers
-                    thread->thread_context.rva = write_thread_context(
-                        writer, &ptrace_ctx, thread->thread_id);
-                    thread->thread_context.size
-                        = thread->thread_context.rva ? get_context_size() : 0;
-
-                    // Extract SP from captured context
-                    uint64_t ptrace_sp;
-#    if defined(__x86_64__)
-                    ptrace_sp = ptrace_ctx.uc_mcontext.gregs[REG_RSP];
-#    elif defined(__aarch64__)
-                    ptrace_sp = ptrace_ctx.uc_mcontext.sp;
-#    elif defined(__i386__)
-                    ptrace_sp = ptrace_ctx.uc_mcontext.gregs[REG_ESP];
-#    endif
-
-                    if (ptrace_sp != 0) {
-                        size_t stack_size = 0;
-                        uint64_t stack_start = 0;
-                        thread->stack.memory.rva = write_thread_stack(
-                            writer, ptrace_sp, &stack_size, &stack_start);
-                        thread->stack.memory.size = stack_size;
-                        thread->stack.start_address = stack_start;
-
-                        SENTRY_DEBUGF("Thread %u: wrote ptrace context at RVA "
-                                      "0x%x, stack at "
-                                      "RVA 0x%x (size %zu)",
-                            thread->thread_id, thread->thread_context.rva,
-                            thread->stack.memory.rva, stack_size);
-                    }
-                } else {
-                    SENTRY_WARNF("Thread %u: failed to capture via ptrace",
-                        thread->thread_id);
-                }
+                ptrace_capture_thread(writer, thread, "SP is 0");
             }
         } else {
-            SENTRY_DEBUGF("Thread %u: no context available", thread->thread_id);
+            // No context from signal handler - capture via ptrace.
+            // On Linux, the signal handler only captures the crashing thread's
+            // context. For all other threads, we need to attach via ptrace to
+            // get their registers and stack memory.
+            ptrace_capture_thread(
+                writer, thread, "no context from signal handler");
         }
     }
 
@@ -1336,9 +1350,12 @@ write_exception_stream(minidump_writer_t *writer, minidump_directory_t *dir)
 
     exception_stream.thread_id = writer->crash_ctx->crashed_tid;
 
-    // Map signal to exception code
+    // Use raw signal number as exception code, matching Breakpad/Crashpad
+    // convention for Linux minidumps. lldb and other debuggers expect the
+    // signal number directly (e.g. 11 for SIGSEGV), not a Windows-style
+    // exception code.
     exception_stream.exception_record.exception_code
-        = 0x40000000 | writer->crash_ctx->platform.signum;
+        = writer->crash_ctx->platform.signum;
     exception_stream.exception_record.exception_flags = 0;
     exception_stream.exception_record.exception_address
         = (uint64_t)writer->crash_ctx->platform.siginfo.si_addr;
@@ -1396,6 +1413,14 @@ should_include_region(const memory_mapping_t *mapping,
                 && (mapping->end - mapping->start) <= (4 * 1024 * 1024);
         }
 
+        // Include first page of loaded modules (ELF headers) for offline
+        // symbolication, matching breakpad/crashpad behavior. Debuggers need
+        // these to identify modules when symbol files aren't available locally.
+        if (mapping->offset == 0 && mapping->name[0] != '\0'
+            && mapping->name[0] != '[' && mapping->permissions[0] == 'r') {
+            return true;
+        }
+
         // Don't include anonymous regions - they're typically thread stacks
         // (already captured), mmap'd memory, or large allocations that would
         // bloat the minidump. Windows' MiniDumpWithIndirectlyReferencedMemory
@@ -1447,6 +1472,20 @@ write_memory_list_stream(minidump_writer_t *writer, minidump_directory_t *dir)
 
         uint64_t region_size = mapping->end - mapping->start;
 
+        // For SMART mode, cap module header pages to one page (4096 bytes).
+        // We only need the ELF header, not the entire read-only segment.
+        // Skip the cap if this region contains the crash address, since
+        // that memory is the most important for debugging.
+        if (writer->crash_ctx->minidump_mode == SENTRY_MINIDUMP_MODE_SMART
+            && mapping->offset == 0 && mapping->name[0] != '\0'
+            && mapping->name[0] != '['
+            && !(crash_addr >= mapping->start && crash_addr < mapping->end)) {
+            const uint64_t MODULE_HEADER_SIZE = 4096;
+            if (region_size > MODULE_HEADER_SIZE) {
+                region_size = MODULE_HEADER_SIZE;
+            }
+        }
+
         // Limit individual region size to 4MB to avoid huge dumps
         // (should_include_region already limits heap to 4MB for SMART mode)
         const size_t MAX_REGION_SIZE = 4 * 1024 * 1024; // 4MB
@@ -1485,6 +1524,97 @@ write_memory_list_stream(minidump_writer_t *writer, minidump_directory_t *dir)
     dir->data_size = list_size;
 
     sentry_free(memory_list);
+    return dir->rva ? 0 : -1;
+}
+
+/**
+ * Write /proc/PID/status as LinuxProcStatus stream.
+ * lldb reads this to get the process ID (Pid: line).
+ */
+static int
+write_linux_proc_status_stream(
+    minidump_writer_t *writer, minidump_directory_t *dir)
+{
+    char path[64];
+    snprintf(
+        path, sizeof(path), "/proc/%d/status", writer->crash_ctx->crashed_pid);
+
+    int fd = open(path, O_RDONLY);
+    if (fd < 0) {
+        return -1;
+    }
+
+    char buf[4096];
+    ssize_t n = read(fd, buf, sizeof(buf) - 1);
+    close(fd);
+    if (n <= 0) {
+        return -1;
+    }
+    buf[n] = '\0';
+
+    dir->stream_type = MINIDUMP_STREAM_LINUX_PROC_STATUS;
+    dir->rva = write_data(writer, buf, n);
+    dir->data_size = n;
+    return dir->rva ? 0 : -1;
+}
+
+/**
+ * Write /proc/PID/maps as LinuxMaps stream.
+ * lldb uses this for memory region info and module resolution.
+ */
+static int
+write_linux_maps_stream(minidump_writer_t *writer, minidump_directory_t *dir)
+{
+    char path[64];
+    snprintf(
+        path, sizeof(path), "/proc/%d/maps", writer->crash_ctx->crashed_pid);
+
+    int fd = open(path, O_RDONLY);
+    if (fd < 0) {
+        return -1;
+    }
+
+    // Read in chunks, growing the buffer as needed since /proc/maps can
+    // exceed 32KB for processes with many memory mappings.
+    size_t buf_size = 32768;
+    char *buf = sentry_malloc(buf_size);
+    if (!buf) {
+        close(fd);
+        return -1;
+    }
+
+    size_t total = 0;
+    ssize_t n;
+    while ((n = read(fd, buf + total, buf_size - total - 1)) > 0) {
+        total += n;
+        if (total >= buf_size - 1) {
+            // Double the buffer, capped at 1MB
+            size_t new_size = buf_size * 2;
+            if (new_size > 1024 * 1024) {
+                break;
+            }
+            char *new_buf = sentry_malloc(new_size);
+            if (!new_buf) {
+                break;
+            }
+            memcpy(new_buf, buf, total);
+            sentry_free(buf);
+            buf = new_buf;
+            buf_size = new_size;
+        }
+    }
+    close(fd);
+
+    if (total == 0) {
+        sentry_free(buf);
+        return -1;
+    }
+
+    dir->stream_type = MINIDUMP_STREAM_LINUX_MAPS;
+    dir->rva = write_data(writer, buf, total);
+    dir->data_size = total;
+
+    sentry_free(buf);
     return dir->rva ? 0 : -1;
 }
 
@@ -1528,9 +1658,10 @@ sentry__write_minidump(
     }
 
     // Reserve space for header and directory
-    // Always write 5 streams: system_info, threads, modules, exception,
-    // memory_list. For STACK_ONLY mode, memory_list is empty (count=0).
-    const uint32_t stream_count = 5;
+    // Write 7 streams: system_info, threads, modules, exception,
+    // memory_list, linux_proc_status, linux_maps.
+    // The Linux streams provide PID and memory map info for debuggers.
+    const uint32_t stream_count = 7;
     writer.current_offset = sizeof(minidump_header_t)
         + (stream_count * sizeof(minidump_directory_t));
 
@@ -1548,7 +1679,7 @@ sentry__write_minidump(
     }
 
     // Write streams
-    minidump_directory_t directories[5];
+    minidump_directory_t directories[7];
     int result = 0;
 
     SENTRY_DEBUG("writing system info stream");
@@ -1562,6 +1693,24 @@ sentry__write_minidump(
 
     // Write memory list stream (empty for STACK_ONLY, populated for SMART/FULL)
     result |= write_memory_list_stream(&writer, &directories[4]);
+
+    // Write Linux-specific streams for debugger compatibility.
+    // These are non-fatal: if they fail, the minidump is still valid.
+    SENTRY_DEBUG("writing linux proc status stream");
+    if (write_linux_proc_status_stream(&writer, &directories[5]) < 0) {
+        SENTRY_WARN("failed to write linux proc status stream");
+        directories[5].stream_type = MINIDUMP_STREAM_LINUX_PROC_STATUS;
+        directories[5].data_size = 0;
+        directories[5].rva = 0;
+    }
+
+    SENTRY_DEBUG("writing linux maps stream");
+    if (write_linux_maps_stream(&writer, &directories[6]) < 0) {
+        SENTRY_WARN("failed to write linux maps stream");
+        directories[6].stream_type = MINIDUMP_STREAM_LINUX_MAPS;
+        directories[6].data_size = 0;
+        directories[6].rva = 0;
+    }
 
     if (result < 0) {
         if (writer.ptrace_attached) {

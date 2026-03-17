@@ -1351,7 +1351,7 @@ has_handler_thread_crashed(void)
     return false;
 }
 
-static void
+static bool
 dispatch_ucontext(const sentry_ucontext_t *uctx,
     const struct signal_slot *sig_slot, int handler_depth)
 {
@@ -1365,7 +1365,7 @@ dispatch_ucontext(const sentry_ucontext_t *uctx,
     // Disable stdio-based logging - not safe in signal handler context.
     sentry__logger_disable();
     process_ucontext_deferred(uctx, sig_slot, skip_hooks);
-    return;
+    return true;
 #else
     if (has_handler_thread_crashed()) {
         // Disable stdio-based logging since we're now in signal handler context
@@ -1377,7 +1377,7 @@ dispatch_ucontext(const sentry_ucontext_t *uctx,
         // Always skip hooks here since the first attempt (from handler thread)
         // already failed, likely due to a crashing hook.
         process_ucontext_deferred(uctx, sig_slot, true);
-        return;
+        return true;
     }
 
     // Try to become the crash handler. Only one thread can transition
@@ -1398,7 +1398,7 @@ dispatch_ucontext(const sentry_ucontext_t *uctx,
             sentry__cpu_relax();
         }
         // State is now DONE: just return and let the signal propagate
-        return;
+        return false;
     }
 
     // We are the first handler. Check if handler thread is available.
@@ -1406,7 +1406,7 @@ dispatch_ucontext(const sentry_ucontext_t *uctx,
         // Disable stdio-based logging - not safe in signal handler context.
         sentry__logger_disable();
         process_ucontext_deferred(uctx, sig_slot, skip_hooks);
-        return;
+        return true;
     }
 
     g_handler_state.uctx = *uctx;
@@ -1460,7 +1460,7 @@ dispatch_ucontext(const sentry_ucontext_t *uctx,
         int depth = sentry__enter_signal_handler();
         if (depth >= 3) {
             // Multiple recursive crashes - bail out
-            return;
+            return true;
         }
         // Disable stdio-based logging - not safe in signal handler context.
         sentry__logger_disable();
@@ -1469,7 +1469,7 @@ dispatch_ucontext(const sentry_ucontext_t *uctx,
         // always 1, which would incorrectly re-run hooks on a recursive
         // crash where the pipe also fails.
         process_ucontext_deferred(uctx, sig_slot, skip_hooks);
-        return;
+        return true;
     }
 #    elif defined(SENTRY_PLATFORM_WINDOWS)
     if (g_handler_semaphore) {
@@ -1486,7 +1486,7 @@ dispatch_ucontext(const sentry_ucontext_t *uctx,
         // Disable stdio-based logging - not safe in signal handler context.
         sentry__logger_disable();
         process_ucontext_deferred(uctx, sig_slot, skip_hooks);
-        return;
+        return true;
     }
 #    endif
 
@@ -1516,6 +1516,7 @@ dispatch_ucontext(const sentry_ucontext_t *uctx,
     (void)!sentry__enter_signal_handler();
 #    endif
 
+    return true;
 #endif
 }
 
@@ -1618,10 +1619,17 @@ process_ucontext(const sentry_ucontext_t *uctx)
 
     // invoke the handler thread for signal unsafe actions
 #ifdef SENTRY_PLATFORM_UNIX
-    dispatch_ucontext(uctx, sig_slot, handler_depth);
+    bool is_handling_thread = dispatch_ucontext(uctx, sig_slot, handler_depth);
 #else
-    dispatch_ucontext(uctx, sig_slot, 1);
+    bool is_handling_thread = dispatch_ucontext(uctx, sig_slot, 1);
 #endif
+
+    // Non-handling threads (that lost the CAS race) should just return.
+    // Signal handlers are already reset by the handling thread, so
+    // re-executing the crashing instruction will hit the default handler.
+    if (!is_handling_thread) {
+        return;
+    }
 
 #ifdef SENTRY_PLATFORM_UNIX
 cleanup:

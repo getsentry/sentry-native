@@ -6,6 +6,12 @@
 
 - Add HTTP retry with exponential backoff. ([#1520](https://github.com/getsentry/sentry-native/pull/1520))
 
+**Fixes**:
+
+- inproc: only the handling thread cleans up after the crash. ([#1579](https://github.com/getsentry/sentry-native/pull/1579))
+- Propagate transport options (`ca_certs`, `proxy`, `user_agent`) and `handler_path` to the native backend crash daemon. Previously, the daemon did not receive SSL certificate or proxy settings from the parent process, causing SSL errors (curl code 60) when uploading crash reports. The daemon also ignored the user-configured handler path, requiring the `sentry-crash` binary to be placed next to the application executable. ([#1573](https://github.com/getsentry/sentry-native/pull/1573))
+- Add module header pages to MemoryList and fix exception code in the native backend. ([#1576](https://github.com/getsentry/sentry-native/pull/1576))
+
 ## 0.13.2
 
 **Features**:

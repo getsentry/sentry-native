@@ -357,7 +357,7 @@ def test_metrics_global_and_local_attributes_merge(cmake, httpserver):
     assert attributes["global.attribute.array"]["type"] == "array"
 
 
-def test_metrics_discarded_on_crash_no_backend(cmake, httpserver):
+def test_metrics_on_crash_none(cmake, httpserver):
     tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "none"})
 
     httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data("OK")
@@ -385,18 +385,13 @@ def test_metrics_discarded_on_crash_no_backend(cmake, httpserver):
                 not has_breakpad, reason="breakpad backend not available"
             ),
         ),
-        pytest.param(
-            "native",
-            marks=pytest.mark.skipif(
-                not has_native, reason="native backend not available"
-            ),
-        ),
     ],
 )
 def test_metrics_on_crash(cmake, httpserver, backend):
     tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": backend})
 
-    httpserver.expect_request("/api/123456/envelope/").respond_with_data("OK")
+    httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data("OK")
+    httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data("OK")
     env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
 
     run(
@@ -407,12 +402,54 @@ def test_metrics_on_crash(cmake, httpserver, backend):
         env=env,
     )
 
-    run(
-        tmp_path,
-        "sentry_example",
-        ["log", "no-setup"],
-        env=env,
+    with httpserver.wait(timeout=10):
+        run(
+            tmp_path,
+            "sentry_example",
+            ["log", "no-setup"],
+            env=env,
+        )
+
+    # we expect 1 envelope with the metric, and 1 for the crash
+    assert len(httpserver.log) == 2
+    metrics_request, crash_request = split_log_request_cond(
+        httpserver.log, is_metrics_envelope
     )
+    metrics = metrics_request.get_data()
+
+    metrics_envelope = Envelope.deserialize(metrics)
+
+    assert metrics_envelope is not None
+    assert_metrics(metrics_envelope, 1)
+
+
+@pytest.mark.skipif(not has_native, reason="test needs native backend")
+@pytest.mark.parametrize("rerun", [True, False], ids=["rerun", "no-rerun"])
+def test_metrics_on_crash_native(cmake, httpserver, rerun):
+    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "native"})
+
+    httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data("OK")
+    httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data("OK")
+    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
+
+    with httpserver.wait(timeout=10):
+        run(
+            tmp_path,
+            "sentry_example",
+            ["log", "enable-metrics", "capture-metric", "crash"],
+            expect_failure=True,
+            env=env,
+        )
+
+        if rerun:
+            # Rerun the application without crashing to ensure that the second run
+            # and a second daemon do not conflict with each other
+            run(
+                tmp_path,
+                "sentry_example",
+                ["log", "no-setup"],
+                env=env,
+            )
 
     # we expect 1 envelope with the metric, and 1 for the crash
     assert len(httpserver.log) == 2

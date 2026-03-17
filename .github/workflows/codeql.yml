@@ -30,7 +30,7 @@ jobs:
           submodules: 'recursive'
 
       - name: Initialize CodeQL
-        uses: github/codeql-action/init@0d579ffd059c29b07949a3cce3983f0780820c98 # pin@v2
+        uses: github/codeql-action/init@b1bff81932f5cdfc8695c7752dcee935dcd061c8 # pin@v2
         with:
           languages: ${{ matrix.language }}
 
@@ -48,7 +48,7 @@ jobs:
 
       - if: matrix.language == 'java'
         name: Setup Gradle
-        uses: gradle/actions/setup-gradle@a3dd0763dc7a406ed0ec944010d38f923956dbc3 # pin@v3
+        uses: gradle/actions/setup-gradle@03ee1e1693f571d64506b3ed4cdf120520300ff2 # pin@v3
         with:
           gradle-home-cache-cleanup: true
 
@@ -64,4 +64,4 @@ jobs:
           cmake -B build -DCMAKE_BUILD_TYPE=RelWithDebInfo && cmake --build build --parallel
 
       - name: Perform CodeQL Analysis
-        uses: github/codeql-action/analyze@0d579ffd059c29b07949a3cce3983f0780820c98 # pin@v2
+        uses: github/codeql-action/analyze@b1bff81932f5cdfc8695c7752dcee935dcd061c8 # pin@v2

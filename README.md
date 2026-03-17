@@ -66,9 +66,8 @@ The SDK currently supports and is tested on the following OS/Compiler variations
 - x64 Linux with GCC 9
 - x64/arm64 Linux with clang 19
 - x86 Linux with GCC 9 (cross compiled from x64 host)
-- x86 Windows with MSVC 2019
-- x64 Windows with MSVC 2022
-- macOS 13, 14, 15 with respective most recent Apple compiler toolchain and LLVM clang 15 + 18
+- x86, x64 and arm64 Windows with MSVC 2022
+- macOS 13, 14, 15, 26 with respective most recent Apple compiler toolchain and LLVM clang 15 + 18
 - Android API35 built by NDK27 toolchain
 - Android API16 built by NDK19 toolchain
 - PlayStation via [sentry-playstation](https://github.com/getsentry/sentry-playstation). See [PlayStation documentation](https://docs.sentry.io/platforms/playstation/) to get access.
