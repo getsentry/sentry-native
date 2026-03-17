@@ -35,7 +35,7 @@ struct sentry_retry_s {
     sentry_retry_send_func_t send_cb;
     void *send_data;
     sentry_mutex_t sealed_lock;
-    uintptr_t sealed_envelope;
+    long sealed_tag;
 };
 
 sentry_retry_t *
@@ -301,10 +301,10 @@ retry_dump_cb(void *_envelope, void *_retry)
 {
     sentry_retry_t *retry = (sentry_retry_t *)_retry;
     sentry_envelope_t *envelope = (sentry_envelope_t *)_envelope;
-    if ((uintptr_t)envelope != retry->sealed_envelope) {
+    if (sentry__envelope_get_tag(envelope) != retry->sealed_tag) {
         sentry__run_write_cache(retry->run, envelope, 0);
     } else {
-        retry->sealed_envelope = 0;
+        retry->sealed_tag = 0;
     }
     return true;
 }
@@ -350,7 +350,7 @@ sentry__retry_enqueue(sentry_retry_t *retry, const sentry_envelope_t *envelope)
         sentry__mutex_unlock(&retry->sealed_lock);
         return;
     }
-    retry->sealed_envelope = (uintptr_t)envelope;
+    retry->sealed_tag = sentry__envelope_get_tag(envelope);
     sentry__mutex_unlock(&retry->sealed_lock);
 
     sentry__atomic_compare_swap(
