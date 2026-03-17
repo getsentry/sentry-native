@@ -244,6 +244,7 @@ sentry__envelope_from_path(const sentry_path_t *path)
         return NULL;
     }
 
+    envelope->tag = next_tag();
     envelope->is_raw = true;
     envelope->contents.raw.payload = buf;
     envelope->contents.raw.payload_len = buf_len;
