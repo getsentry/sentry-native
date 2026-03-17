@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1773737986007,
+  "lastUpdate": 1773738106972,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -26798,6 +26798,66 @@ window.BENCHMARK_DATA = {
             "value": 9.229833999995662,
             "unit": "ms",
             "extra": "Min 7.833ms\nMax 18.509ms\nMean 10.699ms\nStdDev 4.413ms\nMedian 9.230ms\nCPU 1.130ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "amir.mujacic@sentry.io",
+            "name": "Amir Mujacic",
+            "username": "mujacica"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "9cad572e5cfa35a5010ea89646f557a0e6fa5d06",
+          "message": "fix(minidump): add module header pages to MemoryList and fix exception code (#1576)\n\n* fix(minidump): add module header pages to MemoryList and fix exception code\n\nThree fixes for the native minidump writer:\n\n1. Use raw signal number as exception_code (e.g. 11 for SIGSEGV) instead\n   of Windows-style 0x40000000|signum. This matches breakpad/crashpad\n   convention and fixes lldb hanging when loading our minidumps.\n\n2. Include first page (4096 bytes) of each loaded module in the MemoryList\n   stream for SMART mode on both Linux and macOS. Debuggers need these\n   ELF/Mach-O headers for offline symbolication when symbol files aren't\n   available locally, matching breakpad/crashpad behavior.\n\n3. On macOS, capture module header pages in the signal handler and save\n   them to disk. System dylibs in the dyld shared cache don't exist as\n   individual files, so the daemon reads headers from a capture file\n   written by the crashed process instead of requiring task_for_pid.\n\n---------\n\nCo-authored-by: Claude Opus 4.6 <noreply@anthropic.com>",
+          "timestamp": "2026-03-17T09:57:08+01:00",
+          "tree_id": "3f45d6b45c36472fd6e55150ddefa723f367f3aa",
+          "url": "https://github.com/getsentry/sentry-native/commit/9cad572e5cfa35a5010ea89646f557a0e6fa5d06"
+        },
+        "date": 1773738102843,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 5.48466699990513,
+            "unit": "ms",
+            "extra": "Min 3.922ms\nMax 6.725ms\nMean 5.483ms\nStdDev 1.245ms\nMedian 5.485ms\nCPU 3.084ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 6.532499999934771,
+            "unit": "ms",
+            "extra": "Min 4.825ms\nMax 10.862ms\nMean 7.256ms\nStdDev 2.247ms\nMedian 6.532ms\nCPU 4.047ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 22.50533300002644,
+            "unit": "ms",
+            "extra": "Min 20.259ms\nMax 24.803ms\nMean 22.474ms\nStdDev 1.650ms\nMedian 22.505ms\nCPU 6.126ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.08408299993334367,
+            "unit": "ms",
+            "extra": "Min 0.064ms\nMax 0.130ms\nMean 0.088ms\nStdDev 0.025ms\nMedian 0.084ms\nCPU 0.060ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.37324999993870733,
+            "unit": "ms",
+            "extra": "Min 0.294ms\nMax 0.796ms\nMean 0.503ms\nStdDev 0.220ms\nMedian 0.373ms\nCPU 0.501ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 15.520458999958464,
+            "unit": "ms",
+            "extra": "Min 9.420ms\nMax 18.550ms\nMean 14.313ms\nStdDev 3.768ms\nMedian 15.520ms\nCPU 1.377ms"
           }
         ]
       }
