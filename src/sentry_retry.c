@@ -67,6 +67,8 @@ sentry__retry_free(sentry_retry_t *retry)
 uint64_t
 sentry__retry_backoff(int count)
 {
+    // TODO: consider adding jitter and shortening the poll interval to spread
+    // out retries when multiple envelopes (esp. large attachments) pile up.
     return (uint64_t)SENTRY_RETRY_INTERVAL << MIN(MAX(count, 0), 5);
 }
 
