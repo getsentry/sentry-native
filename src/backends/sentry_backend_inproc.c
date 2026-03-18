@@ -28,7 +28,8 @@
 #endif
 #ifdef SENTRY_PLATFORM_ANDROID
 #    include <android/api-level.h>
-#    include <sys/syscall.h>
+#    include <sched.h>
+#    include <sys/mman.h>
 #endif
 #include <string.h>
 
@@ -1535,6 +1536,25 @@ dispatch_ucontext(const sentry_ucontext_t *uctx,
 #endif
 }
 
+#ifdef SENTRY_PLATFORM_ANDROID
+/**
+ * Invokes the previous signal handler (e.g. Mono/.NET, debuggerd) in a cloned
+ * child process that shares the parent's address space. That way, debuggerd's
+ * resend_signal() setting SIG_DFL only affects this disposable child, not the
+ * parent's other threads:
+ * https://android.googlesource.com/platform/system/core/+/refs/tags/android-16.0.0_r1/debuggerd/handler/debuggerd_handler.cpp#580
+ */
+static int
+chain_at_start(void *arg)
+{
+    const sentry_ucontext_t *uctx = (const sentry_ucontext_t *)arg;
+    invoke_signal_handler(
+        uctx->signum, uctx->siginfo, (void *)uctx->user_context);
+    _exit(0);
+    return 0;
+}
+#endif
+
 /**
  * This is the signal-safe part of the inproc handler. Everything in here should
  * not defer to more than the set of functions listed in:
@@ -1579,33 +1599,44 @@ process_ucontext(const sentry_ucontext_t *uctx)
         uintptr_t ip = get_instruction_pointer(uctx);
         uintptr_t sp = get_stack_pointer(uctx);
 
+        bool chained = false;
 #    ifdef SENTRY_PLATFORM_ANDROID
-        // Mask the signal so SA_NODEFER doesn't let re-raises from the chained
-        // handler kill the process before we regain control.
-        sigset_t mask, old_mask;
-        sigemptyset(&mask);
-        sigaddset(&mask, uctx->signum);
-        // Raw syscall because ART's libsigchain intercepts
-        // sigprocmask() and silently drops the request when called
-        // outside its own special handlers. Without the raw syscall
-        // the mask change would be ignored and SA_NODEFER would let
-        // the chained handler's raise() re-deliver the signal
-        // immediately, crashing the process before we can inspect
-        // the modified IP/SP.
+        // On Android, the chain may invoke debuggerd whose resend_signal()
+        // calls signal(signo, SIG_DFL), changing the disposition process-
+        // wide. Other threads generating SIGSEGV during normal operation
+        // (Mono JIT, ART GC) would hit SIG_DFL and kill the process.
         //
-        // DANGER: this makes libsigchain's internal mask state
-        // diverge from the kernel's actual mask. If ART ever relies
-        // on that state for correctness (e.g. GC safepoints), this
-        // could cause subtle failures. We restore the mask right
-        // after the chained handler returns, limiting the window.
-        syscall(
-            SYS_rt_sigprocmask, SIG_BLOCK, &mask, &old_mask, sizeof(sigset_t));
+        // To avoid this, we run the chain in a disposable child process
+        // created with clone(CLONE_VM | CLONE_VFORK):
+        //  - CLONE_VM: shares address space so Mono can modify the
+        //    ucontext (IP/SP) for managed exception translation, and
+        //    access thread-local state (jit_tls, etc.)
+        //  - CLONE_VFORK: parent blocks until child exits, giving us
+        //    a synchronization point to inspect the (possibly modified)
+        //    ucontext afterwards
+        //  - no CLONE_THREAD: child is a separate thread group, so
+        //    signal(SIG_DFL) only affects the child
+        //  - no CLONE_SIGHAND: child gets a copy of the handler table,
+        //    so modifications don't affect the parent
+        {
+#        define CHAIN_STACK_SIZE 65536
+            void *child_stack
+                = mmap(NULL, CHAIN_STACK_SIZE, PROT_READ | PROT_WRITE,
+                    MAP_PRIVATE | MAP_ANONYMOUS | MAP_STACK, -1, 0);
+            if (child_stack != MAP_FAILED) {
+                chained = clone(chain_at_start,
+                              (char *)child_stack + CHAIN_STACK_SIZE,
+                              CLONE_VM | CLONE_VFORK, (void *)uctx)
+                    >= 0;
+                munmap(child_stack, CHAIN_STACK_SIZE);
+            }
+#        undef CHAIN_STACK_SIZE
+        }
 #    endif
-
-        // invoke the previous handler (typically the CLR/Mono
-        // signal-to-managed-exception handler)
-        invoke_signal_handler(
-            uctx->signum, uctx->siginfo, (void *)uctx->user_context);
+        if (!chained) {
+            invoke_signal_handler(
+                uctx->signum, uctx->siginfo, (void *)uctx->user_context);
+        }
 
         // If the execution returns here in AOT mode, and the instruction
         // or stack pointer were changed, it means CLR/Mono converted the
@@ -1616,23 +1647,6 @@ process_ucontext(const sentry_ucontext_t *uctx)
             || sp != get_stack_pointer(uctx)) {
             return;
         }
-
-#    ifdef SENTRY_PLATFORM_ANDROID
-        // restore our handler
-        struct sigaction current;
-        sigaction(uctx->signum, NULL, &current);
-        if (current.sa_handler == SIG_DFL) {
-            sigaction(uctx->signum, &g_sigaction, NULL);
-        }
-
-        // consume pending signal
-        struct timespec timeout = { 0, 0 };
-        syscall(SYS_rt_sigtimedwait, &mask, NULL, &timeout, sizeof(sigset_t));
-
-        // unmask
-        syscall(
-            SYS_rt_sigprocmask, SIG_SETMASK, &old_mask, NULL, sizeof(sigset_t));
-#    endif
 
         // return from runtime handler; continue processing the crash on the
         // signal thread until the worker takes over
