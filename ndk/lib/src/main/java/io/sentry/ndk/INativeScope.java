@@ -1,7 +1,5 @@
 package io.sentry.ndk;
 
-import org.jetbrains.annotations.NotNull;
-
 public interface INativeScope {
   void setTag(String key, String value);
 
@@ -20,7 +18,7 @@ public interface INativeScope {
 
   void setTrace(String traceId, String parentSpanId);
 
-  void addAttachment(@NotNull String path);
+  void addAttachment(String path);
 
   void clearAttachments();
 }
