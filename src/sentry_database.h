@@ -141,7 +141,7 @@ bool sentry__clear_crash_marker(const sentry_options_t *options);
 
 /**
  * Cache large attachments (>= SENTRY_LARGE_ATTACHMENT_SIZE) to
- * `<cache_path>/<event-uuid>/` and write `refs.json` metadata.
+ * `<cache_path>/<event-uuid>/` and write `__sentry-attachments.json` metadata.
  *
  * When `run_path` is non-NULL and a file attachment's parent directory
  * matches it, the file is renamed instead of copied.

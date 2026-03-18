@@ -368,7 +368,8 @@ tus_resolve_and_send(http_transport_state_t *state, const char *uuid)
         return;
     }
 
-    sentry_path_t *refs_path = sentry__path_join_str(att_dir, "refs.json");
+    sentry_path_t *refs_path
+        = sentry__path_join_str(att_dir, "__sentry-attachments.json");
     if (!refs_path) {
         sentry__path_free(att_dir);
         return;

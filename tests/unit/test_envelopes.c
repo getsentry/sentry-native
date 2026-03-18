@@ -932,8 +932,9 @@ SENTRY_TEST(attachment_ref_copy)
         = sentry__path_join_str(event_dir, "sentry_test_large_attachment");
     TEST_CHECK(sentry__path_is_file(att_file));
 
-    // refs.json exists with correct metadata
-    sentry_path_t *refs_path = sentry__path_join_str(event_dir, "refs.json");
+    // __sentry-attachments.json exists with correct metadata
+    sentry_path_t *refs_path
+        = sentry__path_join_str(event_dir, "__sentry-attachments.json");
     TEST_CHECK(sentry__path_is_file(refs_path));
 
     size_t refs_len = 0;
@@ -1016,8 +1017,9 @@ SENTRY_TEST(attachment_ref_move)
         = sentry__path_join_str(event_dir, "test_minidump.dmp");
     TEST_CHECK(sentry__path_is_file(att_file));
 
-    // refs.json exists
-    sentry_path_t *refs_path = sentry__path_join_str(event_dir, "refs.json");
+    // __sentry-attachments.json exists
+    sentry_path_t *refs_path
+        = sentry__path_join_str(event_dir, "__sentry-attachments.json");
     TEST_CHECK(sentry__path_is_file(refs_path));
 
     sentry__path_free(refs_path);
@@ -1053,7 +1055,7 @@ SENTRY_TEST(attachment_ref_restore)
     sentry_path_t *old_run_path = sentry__path_join_str(db_path, "old.run");
     TEST_ASSERT(sentry__path_create_dir_all(old_run_path) == 0);
 
-    // build attachment + refs.json in db/cache/<uuid>/
+    // build attachment + __sentry-attachments.json in db/cache/<uuid>/
     sentry_path_t *cache_dir = sentry__path_join_str(db_path, "cache");
     sentry_path_t *event_att_dir = sentry__path_join_str(
         cache_dir, "c993afb6-b4ac-48a6-b61b-2558e601d65d");
@@ -1069,7 +1071,7 @@ SENTRY_TEST(attachment_ref_restore)
     fputc(0, f);
     fclose(f);
 
-    // write refs.json
+    // write __sentry-attachments.json
     sentry_value_t refs = sentry_value_new_list();
     sentry_value_t ref_obj = sentry_value_new_object();
     sentry_value_set_by_key(
@@ -1085,7 +1087,7 @@ SENTRY_TEST(attachment_ref_restore)
     char *refs_buf = sentry__jsonwriter_into_string(jw, &refs_buf_len);
     sentry_value_decref(refs);
     sentry_path_t *refs_path
-        = sentry__path_join_str(event_att_dir, "refs.json");
+        = sentry__path_join_str(event_att_dir, "__sentry-attachments.json");
     TEST_ASSERT(
         sentry__path_write_buffer(refs_path, refs_buf, refs_buf_len) == 0);
     sentry_free(refs_buf);
@@ -1116,7 +1118,8 @@ SENTRY_TEST(attachment_ref_restore)
     // transport callback should have been called with the raw envelope
     TEST_CHECK(called >= 1);
 
-    // attachment + refs.json remain in cache for transport to resolve via TUS
+    // attachment + __sentry-attachments.json remain in cache for transport to
+    // resolve via TUS
     TEST_CHECK(sentry__path_is_file(att_file));
     TEST_CHECK(sentry__path_is_file(refs_path));
 

@@ -247,12 +247,12 @@ sentry__cache_large_attachments(const sentry_path_t *cache_path,
             size_t buf_len = 0;
             char *buf = sentry__jsonwriter_into_string(jw, &buf_len);
             if (buf) {
-                sentry_path_t *refs_path
-                    = sentry__path_join_str(event_dir, "refs.json");
+                sentry_path_t *refs_path = sentry__path_join_str(
+                    event_dir, "__sentry-attachments.json");
                 if (refs_path) {
                     int rv = sentry__path_write_buffer(refs_path, buf, buf_len);
                     if (rv != 0) {
-                        SENTRY_WARN("writing refs.json failed");
+                        SENTRY_WARN("writing __sentry-attachments.json failed");
                     }
                     sentry__path_free(refs_path);
                 }

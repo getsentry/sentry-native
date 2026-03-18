@@ -177,7 +177,7 @@ def test_tus_crash_restart(cmake, httpserver):
         for f in os.listdir(att_dir)
         if not f.endswith(".json") and os.path.isfile(os.path.join(att_dir, f))
     ]
-    refs_files = [f for f in os.listdir(att_dir) if f == "refs.json"]
+    refs_files = [f for f in os.listdir(att_dir) if f == "__sentry-attachments.json"]
     assert len(att_files) > 0
     assert len(refs_files) > 0
     att_size = os.path.getsize(os.path.join(att_dir, att_files[0]))
