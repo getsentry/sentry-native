@@ -4,6 +4,7 @@
 #include "sentry_http_transport.h"
 #include "sentry_options.h"
 #include "sentry_string.h"
+#include "sentry_sync.h"
 #include "sentry_transport.h"
 #include "sentry_utils.h"
 
@@ -20,6 +21,7 @@ typedef struct {
     char *proxy;
     char *ca_certs;
     bool debug;
+    long shutdown;
 #ifdef SENTRY_PLATFORM_NX
     void *nx_state;
 #endif
@@ -117,6 +119,22 @@ curl_client_start(void *_client, const sentry_options_t *options)
     return 0;
 }
 
+static void
+curl_client_shutdown(void *_client)
+{
+    curl_client_t *client = _client;
+    sentry__atomic_store(&client->shutdown, 1);
+}
+
+static int
+progress_callback(void *clientp, curl_off_t UNUSED(dltotal),
+    curl_off_t UNUSED(dlnow), curl_off_t UNUSED(ultotal),
+    curl_off_t UNUSED(ulnow))
+{
+    curl_client_t *client = clientp;
+    return sentry__atomic_fetch(&client->shutdown) ? 1 : 0;
+}
+
 static size_t
 swallow_data(
     char *UNUSED(ptr), size_t size, size_t nmemb, void *UNUSED(userdata))
@@ -190,6 +208,9 @@ curl_send_task(void *_client, sentry_prepared_http_request_t *req,
     curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE, (long)req->body_len);
     curl_easy_setopt(curl, CURLOPT_USERAGENT, SENTRY_SDK_USER_AGENT);
     curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT_MS, 15000L);
+    curl_easy_setopt(curl, CURLOPT_NOPROGRESS, 0L);
+    curl_easy_setopt(curl, CURLOPT_XFERINFOFUNCTION, progress_callback);
+    curl_easy_setopt(curl, CURLOPT_XFERINFODATA, client);
 
     char error_buf[CURL_ERROR_SIZE];
     error_buf[0] = 0;
@@ -254,5 +275,6 @@ sentry__transport_new_default(void)
     }
     sentry__http_transport_set_free_client(transport, curl_client_free);
     sentry__http_transport_set_start_client(transport, curl_client_start);
+    sentry__http_transport_set_shutdown_client(transport, curl_client_shutdown);
     return transport;
 }
