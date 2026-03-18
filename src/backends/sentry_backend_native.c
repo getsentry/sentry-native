@@ -176,6 +176,7 @@ native_backend_startup(
     // Pass debug logging setting to daemon
     ctx->debug_enabled = options->debug;
     ctx->attach_screenshot = options->attach_screenshot;
+    ctx->cache_keep = options->cache_keep;
 
     // Set up event and breadcrumb paths
     sentry_path_t *run_path = options->run->run_path;

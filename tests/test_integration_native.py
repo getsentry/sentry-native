@@ -19,6 +19,7 @@ from . import (
 from .assertions import (
     assert_meta,
     assert_session,
+    wait_for_file,
 )
 from .conditions import has_native, is_kcov, is_asan
 
@@ -626,3 +627,30 @@ def test_crash_mode_native_with_minidump(cmake, httpserver):
 
     # Should have debug_meta
     assert "debug_meta" in event
+
+
+@pytest.mark.parametrize("cache_keep", [True, False])
+def test_native_cache_keep(cmake, cache_keep):
+    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "native"})
+    db_dir = tmp_path / ".sentry-native"
+    cache_dir = db_dir / "cache"
+    unreachable_dsn = "http://uiaeosnrtdy@127.0.0.1:19999/123456"
+    env = dict(os.environ, SENTRY_DSN=unreachable_dsn)
+
+    # crash -> daemon sends via HTTP -> unreachable -> cache
+    run_crash(
+        tmp_path,
+        "sentry_example",
+        ["log", "stdout", "crash"] + (["cache-keep"] if cache_keep else []),
+        env=env,
+    )
+
+    if cache_keep:
+        assert wait_for_file(cache_dir / "*.envelope")
+        assert len(list(cache_dir.glob("*.envelope"))) == 1
+    else:
+        # Best-effort wait for crash processing to finish. 2s is not
+        # guaranteed to be enough, but we cannot poll for the non-existence
+        # of a file.
+        time.sleep(2)
+        assert len(list(cache_dir.glob("*.envelope"))) == 0

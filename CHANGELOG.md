@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+**Features**:
+
+- Add offline caching support to the new experimental `native` backend. ([#1585](https://github.com/getsentry/sentry-native/pull/1585))
+
 **Fixes**:
 
 - Fix `cache_keep` to only cache envelopes when HTTP send fails, instead of unconditionally on restart. ([#1585](https://github.com/getsentry/sentry-native/pull/1585))
