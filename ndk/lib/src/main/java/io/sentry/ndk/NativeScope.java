@@ -1,5 +1,7 @@
 package io.sentry.ndk;
 
+import org.jetbrains.annotations.NotNull;
+
 public final class NativeScope implements INativeScope {
   public static native void nativeSetTag(String key, String value);
 
@@ -63,4 +65,28 @@ public final class NativeScope implements INativeScope {
   public void setTrace(String traceId, String parentSpanId) {
     nativeSetTrace(traceId, parentSpanId);
   }
+<<<<<<< Updated upstream
+||||||| Stash base
+
+  @Override
+  public void addAttachment(String path) {
+    nativeAddAttachment(path);
+  }
+
+  @Override
+  public void clearAttachments() {
+    nativeClearAttachments();
+  }
+=======
+
+  @Override
+  public void addAttachment(@NotNull String path) {
+    nativeAddAttachment(path);
+  }
+
+  @Override
+  public void clearAttachments() {
+    nativeClearAttachments();
+  }
+>>>>>>> Stashed changes
 }

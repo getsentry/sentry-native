@@ -227,6 +227,56 @@ Java_io_sentry_ndk_NativeScope_nativeAddBreadcrumb(
     sentry_add_breadcrumb(crumb);
 }
 
+<<<<<<< Updated upstream
+||||||| Stash base
+JNIEXPORT void JNICALL
+Java_io_sentry_ndk_NativeScope_nativeAddAttachment(
+        JNIEnv *env,
+        jclass cls,
+        jstring path) {
+    const char *charPath = (*env)->GetStringUTFChars(env, path, 0);
+
+    // The returned sentry_attachment_t* is intentionally discarded.
+    // Tracking it across the JNI boundary for individual removal is not
+    // worth the complexity. Use sentry_clear_attachments() for bulk removal.
+    sentry_attach_file(charPath);
+
+    (*env)->ReleaseStringUTFChars(env, path, charPath);
+}
+
+JNIEXPORT void JNICALL
+Java_io_sentry_ndk_NativeScope_nativeClearAttachments(JNIEnv *env, jclass cls) {
+    sentry_clear_attachments();
+}
+
+=======
+JNIEXPORT void JNICALL
+Java_io_sentry_ndk_NativeScope_nativeAddAttachment(
+        JNIEnv *env,
+        jclass cls,
+        jstring path) {
+    if (!path) {
+        return;
+    }
+    const char *charPath = (*env)->GetStringUTFChars(env, path, 0);
+    if (!charPath) {
+        return;
+    }
+
+    // The returned sentry_attachment_t* is intentionally discarded.
+    // Tracking it across the JNI boundary for individual removal is not
+    // worth the complexity. Use sentry_clear_attachments() for bulk removal.
+    sentry_attach_file(charPath);
+
+    (*env)->ReleaseStringUTFChars(env, path, charPath);
+}
+
+JNIEXPORT void JNICALL
+Java_io_sentry_ndk_NativeScope_nativeClearAttachments(JNIEnv *env, jclass cls) {
+    sentry_clear_attachments();
+}
+
+>>>>>>> Stashed changes
 static void send_envelope(sentry_envelope_t *envelope, void *data) {
     const char *outbox_path = (const char *) data;
     char envelope_id_str[40];
