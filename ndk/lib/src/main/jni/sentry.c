@@ -302,6 +302,15 @@ static void send_envelope(sentry_envelope_t *envelope, void *data) {
     sentry_envelope_free(envelope);
 }
 
+// sentry_backend.h
+extern void sentry__backend_preload(void);
+
+JNIEXPORT void JNICALL
+Java_io_sentry_ndk_SentryNdk_preloadSentryNative(JNIEnv *env, jclass cls)
+{
+    sentry__backend_preload();
+}
+
 JNIEXPORT jint JNICALL
 Java_io_sentry_ndk_SentryNdk_initSentryNative(
         JNIEnv *env,

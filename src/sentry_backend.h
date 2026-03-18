@@ -33,6 +33,19 @@ struct sentry_backend_s {
 };
 
 /**
+ * Backend-specific pre-initialization that can be called before sentry_init().
+ *
+ * Currently only used from the NDK's SentryNdkPreloadProvider via JNI to
+ * preload the inproc backend on Android. This installs and chains the Native
+ * SDK's signal handlers before the Mono runtime, allowing Mono to correctly
+ * handle managed exceptions while chaining native crashes to the Native SDK.
+ *
+ * If a crash occurs before sentry_init() is called, the handler will fall
+ * through to the previously installed handler.
+ */
+SENTRY_API void sentry__backend_preload(void);
+
+/**
  * This will free a previously allocated backend.
  */
 void sentry__backend_free(sentry_backend_t *backend);

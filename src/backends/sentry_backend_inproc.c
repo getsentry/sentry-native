@@ -38,11 +38,19 @@
  */
 #ifdef SENTRY_PLATFORM_UNIX
 #    include <unistd.h>
-#    define SENTRY_SIGNAL_SAFE_LOG(msg)                                        \
-        do {                                                                   \
-            static const char _msg[] = "[sentry] " msg "\n";                   \
-            (void)!write(STDERR_FILENO, _msg, sizeof(_msg) - 1);               \
-        } while (0)
+#    ifdef SENTRY_PLATFORM_ANDROID
+#        include <android/log.h>
+#        define SENTRY_SIGNAL_SAFE_LOG(msg)                                    \
+            do {                                                               \
+                __android_log_write(ANDROID_LOG_ERROR, "sentry", msg);         \
+            } while (0)
+#    else
+#        define SENTRY_SIGNAL_SAFE_LOG(msg)                                    \
+            do {                                                               \
+                static const char _msg[] = "[sentry] " msg "\n";               \
+                (void)!write(STDERR_FILENO, _msg, sizeof(_msg) - 1);           \
+            } while (0)
+#    endif
 #elif defined(SENTRY_PLATFORM_WINDOWS)
 #    define SENTRY_SIGNAL_SAFE_LOG(msg)                                        \
         do {                                                                   \
@@ -199,6 +207,10 @@ static volatile long g_handler_has_work = 0;
 #define CRASH_STATE_HANDLING 1
 #define CRASH_STATE_DONE 2
 static volatile long g_crash_handling_state = CRASH_STATE_IDLE;
+
+// Whether signal handlers have been installed (possibly via
+// sentry__backend_preload)
+static volatile long g_handlers_installed = 0;
 
 // trigger/schedule primitives that block the other side until this side is done
 #ifdef SENTRY_PLATFORM_UNIX
@@ -468,6 +480,38 @@ invoke_signal_handler(int signum, siginfo_t *info, void *user_context)
     }
 }
 
+static void
+install_signal_handlers(void)
+{
+    if (sentry__atomic_fetch(&g_handlers_installed)) {
+        return;
+    }
+
+    memset(g_previous_handlers, 0, sizeof(g_previous_handlers));
+    for (size_t i = 0; i < SIGNAL_COUNT; ++i) {
+        if (sigaction(
+                SIGNAL_DEFINITIONS[i].signum, NULL, &g_previous_handlers[i])
+            == -1) {
+            return;
+        }
+    }
+
+    setup_sigaltstack(&g_signal_stack, "init");
+
+    sigemptyset(&g_sigaction.sa_mask);
+    g_sigaction.sa_sigaction = handle_signal;
+    // SA_NODEFER allows the signal to be delivered while the handler is
+    // running. This is needed for recursive crash detection to work -
+    // without it, a crash during crash handling would block the signal
+    // and leave the process in an undefined state.
+    g_sigaction.sa_flags = SA_SIGINFO | SA_ONSTACK | SA_NODEFER;
+    for (size_t i = 0; i < SIGNAL_COUNT; ++i) {
+        sigaction(SIGNAL_DEFINITIONS[i].signum, &g_sigaction, NULL);
+    }
+
+    sentry__atomic_store(&g_handlers_installed, 1);
+}
+
 static int
 startup_inproc_backend(
     sentry_backend_t *backend, const sentry_options_t *options)
@@ -503,29 +547,7 @@ startup_inproc_backend(
         return 1;
     }
 
-    // save the old signal handlers
-    memset(g_previous_handlers, 0, sizeof(g_previous_handlers));
-    for (size_t i = 0; i < SIGNAL_COUNT; ++i) {
-        if (sigaction(
-                SIGNAL_DEFINITIONS[i].signum, NULL, &g_previous_handlers[i])
-            == -1) {
-            return 1;
-        }
-    }
-
-    setup_sigaltstack(&g_signal_stack, "init");
-
-    // install our own signal handler
-    sigemptyset(&g_sigaction.sa_mask);
-    g_sigaction.sa_sigaction = handle_signal;
-    // SA_NODEFER allows the signal to be delivered while the handler is
-    // running. This is needed for recursive crash detection to work -
-    // without it, a crash during crash handling would block the signal
-    // and leave the process in an undefined state.
-    g_sigaction.sa_flags = SA_SIGINFO | SA_ONSTACK | SA_NODEFER;
-    for (size_t i = 0; i < SIGNAL_COUNT; ++i) {
-        sigaction(SIGNAL_DEFINITIONS[i].signum, &g_sigaction, NULL);
-    }
+    install_signal_handlers();
     return 0;
 }
 
@@ -536,6 +558,7 @@ shutdown_inproc_backend(sentry_backend_t *backend)
 
     teardown_sigaltstack(&g_signal_stack);
     reset_signal_handlers();
+    sentry__atomic_store(&g_handlers_installed, 0);
 
     if (backend) {
         backend->data = NULL;
@@ -1643,6 +1666,18 @@ process_ucontext(const sentry_ucontext_t *uctx)
             "multiple recursive crashes detected, bailing out");
         goto cleanup;
     }
+
+    // If signal handlers were installed via sentry__backend_preload() but
+    // sentry_init() hasn't been called yet (no handler thread), skip crash
+    // processing and fall through to the previous handler.
+    if (!sentry__atomic_fetch(&g_handler_thread_ready)) {
+        SENTRY_SIGNAL_SAFE_LOG(
+            "handler thread not ready, falling through to previous handler");
+        sentry__leave_signal_handler();
+        invoke_signal_handler(
+            uctx->signum, uctx->siginfo, (void *)uctx->user_context);
+        return;
+    }
 #endif
 
     if (!g_backend_config.enable_logging_when_crashed) {
@@ -1740,6 +1775,14 @@ static void
 handle_except(sentry_backend_t *UNUSED(backend), const sentry_ucontext_t *uctx)
 {
     process_ucontext(uctx);
+}
+
+void
+sentry__backend_preload(void)
+{
+#ifdef SENTRY_PLATFORM_UNIX
+    install_signal_handlers();
+#endif
 }
 
 sentry_backend_t *

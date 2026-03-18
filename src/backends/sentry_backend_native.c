@@ -928,6 +928,11 @@ native_backend_except(sentry_backend_t *backend, const sentry_ucontext_t *uctx)
     }
 }
 
+void
+sentry__backend_preload(void)
+{
+}
+
 /**
  * Create native backend
  */

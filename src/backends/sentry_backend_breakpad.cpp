@@ -323,6 +323,11 @@ breakpad_backend_except(
 
 extern "C" {
 
+void
+sentry__backend_preload(void)
+{
+}
+
 sentry_backend_t *
 sentry__backend_new(void)
 {

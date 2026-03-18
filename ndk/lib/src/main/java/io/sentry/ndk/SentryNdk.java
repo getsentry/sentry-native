@@ -10,6 +10,8 @@ public final class SentryNdk {
 
   private SentryNdk() {}
 
+  private static native void preloadSentryNative();
+
   /**
    * Initializes sentry-native and returns 0 on success, non-zero on failure.
    *
@@ -19,6 +21,12 @@ public final class SentryNdk {
   private static native int initSentryNative(@NotNull final NdkOptions options);
 
   private static native void shutdown();
+
+  /** Preloads the NDK integration */
+  public static void preload() {
+    loadNativeLibraries();
+    preloadSentryNative();
+  }
 
   /**
    * Init the NDK integration
