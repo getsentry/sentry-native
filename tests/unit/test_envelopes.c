@@ -899,24 +899,23 @@ SENTRY_TEST(attachment_ref_copy)
         = sentry_uuid_from_string("c993afb6-b4ac-48a6-b61b-2558e601d65d");
 
     const char *test_file_str
-        = SENTRY_TEST_PATH_PREFIX "sentry_test_large_attachment";
+        = SENTRY_TEST_PATH_PREFIX "sentry_test_minidump.dmp";
     sentry_path_t *test_file_path = sentry__path_from_str(test_file_str);
-    size_t large_size = 100 * 1024 * 1024;
     FILE *f = fopen(test_file_str, "wb");
     TEST_CHECK(!!f);
-    fseek(f, (long)(large_size - 1), SEEK_SET);
-    fputc(0, f);
+    fputs("minidump_data", f);
     fclose(f);
 
     sentry_attachment_t *attachment
         = sentry__attachment_from_path(sentry__path_clone(test_file_path));
+    attachment->type = MINIDUMP;
     sentry_attachment_set_content_type(attachment, "application/x-dmp");
 
-    // cache_large_attachments copies the file (not under run_path)
+    // cache_external_attachments copies the file (not under run_path)
     sentry_path_t *db_path = NULL;
     SENTRY_WITH_OPTIONS (opts) {
         db_path = sentry__path_clone(opts->database_path);
-        sentry__cache_large_attachments(
+        sentry__cache_external_attachments(
             opts->run->cache_path, &event_id, attachment, NULL);
     }
 
@@ -929,7 +928,7 @@ SENTRY_TEST(attachment_ref_copy)
         cache_dir, "c993afb6-b4ac-48a6-b61b-2558e601d65d");
     sentry__path_free(cache_dir);
     sentry_path_t *att_file
-        = sentry__path_join_str(event_dir, "sentry_test_large_attachment");
+        = sentry__path_join_str(event_dir, "sentry_test_minidump.dmp");
     TEST_CHECK(sentry__path_is_file(att_file));
 
     // __sentry-attachments.json exists with correct metadata
@@ -948,10 +947,13 @@ SENTRY_TEST(attachment_ref_copy)
         sentry_value_t ref_entry = sentry_value_get_by_index(refs, 0);
         TEST_CHECK_STRING_EQUAL(sentry_value_as_string(sentry_value_get_by_key(
                                     ref_entry, "filename")),
-            "sentry_test_large_attachment");
+            "sentry_test_minidump.dmp");
         TEST_CHECK_STRING_EQUAL(sentry_value_as_string(sentry_value_get_by_key(
                                     ref_entry, "content_type")),
             "application/x-dmp");
+        TEST_CHECK_STRING_EQUAL(sentry_value_as_string(sentry_value_get_by_key(
+                                    ref_entry, "attachment_type")),
+            "event.minidump");
         sentry_value_decref(refs);
     }
 
@@ -974,7 +976,7 @@ SENTRY_TEST(attachment_ref_move)
     sentry_uuid_t event_id
         = sentry_uuid_from_string("c993afb6-b4ac-48a6-b61b-2558e601d65d");
 
-    // create large file inside the run directory (SDK-owned)
+    // create minidump file inside the run directory (SDK-owned)
     sentry_path_t *run_path = NULL;
     sentry_path_t *db_path = NULL;
     SENTRY_WITH_OPTIONS (opts) {
@@ -985,23 +987,22 @@ SENTRY_TEST(attachment_ref_move)
     sentry_path_t *src_path
         = sentry__path_join_str(run_path, "test_minidump.dmp");
 
-    size_t large_size = 100 * 1024 * 1024;
 #ifdef SENTRY_PLATFORM_WINDOWS
     FILE *f = _wfopen(src_path->path_w, L"wb");
 #else
     FILE *f = fopen(src_path->path, "wb");
 #endif
     TEST_CHECK(!!f);
-    fseek(f, (long)(large_size - 1), SEEK_SET);
-    fputc(0, f);
+    fputs("minidump_data", f);
     fclose(f);
 
     sentry_attachment_t *attachment
         = sentry__attachment_from_path(sentry__path_clone(src_path));
+    attachment->type = MINIDUMP;
 
     // cache with run_path → file is renamed (moved)
     SENTRY_WITH_OPTIONS (opts) {
-        sentry__cache_large_attachments(
+        sentry__cache_external_attachments(
             opts->run->cache_path, &event_id, attachment, run_path);
     }
 
@@ -1064,11 +1065,11 @@ SENTRY_TEST(attachment_ref_restore)
 
     sentry_path_t *att_file
         = sentry__path_join_str(event_att_dir, "test_minidump.dmp");
-    size_t large_size = 100 * 1024 * 1024;
+    const char *minidump_data = "minidump_data";
+    size_t minidump_size = strlen(minidump_data);
     FILE *f = fopen(att_file->path, "wb");
     TEST_ASSERT(!!f);
-    fseek(f, (long)(large_size - 1), SEEK_SET);
-    fputc(0, f);
+    fputs(minidump_data, f);
     fclose(f);
 
     // write __sentry-attachments.json
@@ -1079,7 +1080,7 @@ SENTRY_TEST(attachment_ref_restore)
     sentry_value_set_by_key(
         ref_obj, "attachment_type", sentry_value_new_string("event.minidump"));
     sentry_value_set_by_key(ref_obj, "attachment_length",
-        sentry_value_new_uint64((uint64_t)large_size));
+        sentry_value_new_uint64((uint64_t)minidump_size));
     sentry_value_append(refs, ref_obj);
     sentry_jsonwriter_t *jw = sentry__jsonwriter_new_sb(NULL);
     sentry__jsonwriter_write_value(jw, refs);

@@ -166,7 +166,7 @@ write_envelope(const sentry_path_t *path, const sentry_envelope_t *envelope,
 }
 
 void
-sentry__cache_large_attachments(const sentry_path_t *cache_path,
+sentry__cache_external_attachments(const sentry_path_t *cache_path,
     const sentry_uuid_t *event_id, const sentry_attachment_t *attachments,
     const sentry_path_t *run_path)
 {
@@ -187,7 +187,7 @@ sentry__cache_large_attachments(const sentry_path_t *cache_path,
 
     for (const sentry_attachment_t *att = attachments; att; att = att->next) {
         size_t file_size = sentry__attachment_get_size(att);
-        if (!sentry__is_large_attachment(att->path, file_size)) {
+        if (!sentry__attachment_is_external(att)) {
             continue;
         }
 

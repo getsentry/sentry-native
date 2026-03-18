@@ -1,5 +1,6 @@
 #include "sentry_http_transport.h"
 #include "sentry_alloc.h"
+#include "sentry_attachment.h"
 #include "sentry_database.h"
 #include "sentry_envelope.h"
 #include "sentry_options.h"
@@ -291,7 +292,7 @@ http_send_request(
 
 static bool
 tus_upload_ref(http_transport_state_t *state, const sentry_path_t *att_dir,
-    sentry_value_t entry, sentry_envelope_t *send_envelope)
+    sentry_value_t entry, sentry_envelope_t *tus_envelope)
 {
     const char *filename
         = sentry_value_as_string(sentry_value_get_by_key(entry, "filename"));
@@ -345,7 +346,7 @@ tus_upload_ref(http_transport_state_t *state, const sentry_path_t *att_dir,
     sentry_value_t att_length
         = sentry_value_get_by_key(entry, "attachment_length");
     sentry_value_incref(att_length);
-    sentry__envelope_add_attachment_ref(send_envelope, resp.location, filename,
+    sentry__envelope_add_attachment_ref(tus_envelope, resp.location, filename,
         *ref_ct ? ref_ct : NULL, *att_type ? att_type : NULL, att_length);
 
     sentry__path_remove(att_file);
@@ -354,10 +355,56 @@ tus_upload_ref(http_transport_state_t *state, const sentry_path_t *att_dir,
     return true;
 }
 
-static void
-tus_resolve_and_send(http_transport_state_t *state, const char *uuid)
+static bool
+inline_cached_attachment(const sentry_path_t *att_dir, sentry_value_t entry,
+    sentry_envelope_t *envelope)
 {
-    if (!state->has_tus || !uuid || !state->run) {
+    const char *filename
+        = sentry_value_as_string(sentry_value_get_by_key(entry, "filename"));
+    if (!filename || *filename == '\0') {
+        return false;
+    }
+
+    const char *att_type = sentry_value_as_string(
+        sentry_value_get_by_key(entry, "attachment_type"));
+    const char *ref_ct = sentry_value_as_string(
+        sentry_value_get_by_key(entry, "content_type"));
+
+    sentry_path_t *att_file = sentry__path_join_str(att_dir, filename);
+    if (!att_file) {
+        return false;
+    }
+
+    // Try structured envelope first, fall back to raw append
+    sentry_envelope_item_t *item
+        = sentry__envelope_add_from_path(envelope, att_file, "attachment");
+    if (item) {
+        if (*att_type) {
+            sentry__envelope_item_set_header(
+                item, "attachment_type", sentry_value_new_string(att_type));
+        }
+        if (*ref_ct) {
+            sentry__envelope_item_set_header(
+                item, "content_type", sentry_value_new_string(ref_ct));
+        }
+        sentry__envelope_item_set_header(
+            item, "filename", sentry_value_new_string(filename));
+    } else if (!sentry__envelope_append_raw_attachment(envelope, att_file,
+                   filename, *att_type ? att_type : NULL,
+                   *ref_ct ? ref_ct : NULL)) {
+        sentry__path_free(att_file);
+        return false;
+    }
+
+    sentry__path_free(att_file);
+    return true;
+}
+
+static void
+resolve_and_send_external_attachments(http_transport_state_t *state,
+    const char *uuid, sentry_envelope_t *envelope)
+{
+    if (!uuid || !state->run) {
         return;
     }
 
@@ -397,44 +444,66 @@ tus_resolve_and_send(http_transport_state_t *state, const char *uuid)
     }
 
     sentry_uuid_t event_id = sentry_uuid_from_string(uuid);
-    sentry_envelope_t *send_envelope
-        = sentry__envelope_new_with_dsn(state->dsn);
-    if (!send_envelope) {
-        sentry_value_decref(refs);
-        sentry__path_free(refs_path);
-        sentry__path_free(att_dir);
-        return;
-    }
-    sentry__envelope_set_event_id(send_envelope, &event_id);
+    sentry_envelope_t *tus_envelope = NULL;
 
-    bool has_refs = false;
     size_t count = sentry_value_get_length(refs);
     for (size_t i = 0; i < count; i++) {
         sentry_value_t entry = sentry_value_get_by_index(refs, i);
-        if (tus_upload_ref(state, att_dir, entry, send_envelope)) {
-            has_refs = true;
+
+        const char *filename = sentry_value_as_string(
+            sentry_value_get_by_key(entry, "filename"));
+        if (!filename || *filename == '\0') {
+            continue;
         }
-        if (!state->has_tus) {
-            break;
+        sentry_path_t *att_file = sentry__path_join_str(att_dir, filename);
+        size_t file_size = att_file ? sentry__path_get_size(att_file) : 0;
+        sentry__path_free(att_file);
+
+        if (file_size >= SENTRY_LARGE_ATTACHMENT_SIZE && state->has_tus) {
+            if (!tus_envelope) {
+                tus_envelope = sentry__envelope_new_with_dsn(state->dsn);
+                if (tus_envelope) {
+                    sentry__envelope_set_event_id(tus_envelope, &event_id);
+                }
+            }
+            if (tus_envelope) {
+                tus_upload_ref(state, att_dir, entry, tus_envelope);
+            }
+            if (!state->has_tus) {
+                break;
+            }
+        } else {
+            inline_cached_attachment(att_dir, entry, envelope);
         }
     }
 
     sentry_value_decref(refs);
 
-    if (has_refs) {
+    if (tus_envelope) {
         sentry_prepared_http_request_t *req = sentry__prepare_http_request(
-            send_envelope, state->dsn, state->ratelimiter, state->user_agent);
+            tus_envelope, state->dsn, state->ratelimiter, state->user_agent);
         if (req) {
             http_send_request(state, req);
             sentry__prepared_http_request_free(req);
         }
+        sentry_envelope_free(tus_envelope);
     }
-    sentry_envelope_free(send_envelope);
 
-    sentry__path_remove(refs_path);
     sentry__path_free(refs_path);
-    sentry__path_remove(att_dir);
     sentry__path_free(att_dir);
+}
+
+static void
+cleanup_external_attachments(const sentry_run_t *run, const char *uuid)
+{
+    if (!uuid || !run) {
+        return;
+    }
+    sentry_path_t *att_dir = sentry__path_join_str(run->cache_path, uuid);
+    if (att_dir) {
+        sentry__path_remove_all(att_dir);
+        sentry__path_free(att_dir);
+    }
 }
 
 static int
@@ -450,7 +519,7 @@ http_send_envelope(http_transport_state_t *state, sentry_envelope_t *envelope,
         }
     }
 
-    tus_resolve_and_send(state, uuid);
+    resolve_and_send_external_attachments(state, uuid, envelope);
 
     sentry_prepared_http_request_t *req = sentry__prepare_http_request(
         envelope, state->dsn, state->ratelimiter, state->user_agent);
@@ -459,6 +528,11 @@ http_send_envelope(http_transport_state_t *state, sentry_envelope_t *envelope,
     }
     int status_code = http_send_request(state, req);
     sentry__prepared_http_request_free(req);
+
+    if (status_code >= 0) {
+        cleanup_external_attachments(state->run, uuid);
+    }
+
     return status_code;
 }
 

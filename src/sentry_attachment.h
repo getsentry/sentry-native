@@ -7,15 +7,6 @@
 
 #define SENTRY_LARGE_ATTACHMENT_SIZE (100 * 1024 * 1024) // 100 MB
 
-static inline bool
-sentry__is_large_attachment(const sentry_path_t *path, size_t file_size)
-{
-    // TODO: for temporarily testing with <1 MB minidumps
-    // return file_size < 1024 * 1024 && sentry__path_ends_with(path, ".dmp");
-    (void)path;
-    return file_size >= SENTRY_LARGE_ATTACHMENT_SIZE;
-}
-
 /**
  * The attachment_type.
  */
@@ -50,6 +41,24 @@ struct sentry_attachment_s {
     char *content_type;
     sentry_attachment_t *next; // Linked list pointer
 };
+
+/**
+ * Returns the size in bytes of the attachment's data (buffer length or file
+ * size).
+ */
+size_t sentry__attachment_get_size(const sentry_attachment_t *attachment);
+
+/**
+ * Returns true if the attachment should be cached as an external file.
+ * Minidumps are always external; other attachments are external when they
+ * exceed the large attachment size threshold.
+ */
+static inline bool
+sentry__attachment_is_external(const sentry_attachment_t *att)
+{
+    return att->type == MINIDUMP
+        || sentry__attachment_get_size(att) >= SENTRY_LARGE_ATTACHMENT_SIZE;
+}
 
 /**
  *  Creates a new file attachment. Takes ownership of `path`.
@@ -99,12 +108,6 @@ void sentry__attachments_remove(
  */
 void sentry__attachments_extend(
     sentry_attachment_t **attachments_ptr, sentry_attachment_t *attachments);
-
-/**
- * Returns the size in bytes of the attachment's data (buffer length or file
- * size).
- */
-size_t sentry__attachment_get_size(const sentry_attachment_t *attachment);
 
 /**
  * Returns the filename string for the attachment (basename of `filename` if

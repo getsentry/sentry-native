@@ -663,9 +663,7 @@ sentry__envelope_add_attachment(
         return NULL;
     }
 
-    size_t file_size = sentry__attachment_get_size(attachment);
-
-    if (sentry__is_large_attachment(attachment->path, file_size)) {
+    if (sentry__attachment_is_external(attachment)) {
         return NULL;
     }
 
@@ -728,7 +726,7 @@ sentry__envelope_add_from_path(
         return NULL;
     }
     size_t file_size = sentry__path_get_size(path);
-    if (sentry__is_large_attachment(path, file_size)) {
+    if (file_size >= SENTRY_LARGE_ATTACHMENT_SIZE) {
         return NULL;
     }
     size_t buf_len;
@@ -739,6 +737,79 @@ sentry__envelope_add_from_path(
     }
     // NOTE: function will free `buf` on error
     return envelope_add_from_owned_buffer(envelope, buf, buf_len, type);
+}
+
+bool
+sentry__envelope_append_raw_attachment(sentry_envelope_t *envelope,
+    const sentry_path_t *path, const char *filename,
+    const char *attachment_type, const char *content_type)
+{
+    if (!envelope || !envelope->is_raw || !path) {
+        return false;
+    }
+
+    size_t file_len;
+    char *file_buf = sentry__path_read_to_buffer(path, &file_len);
+    if (!file_buf) {
+        return false;
+    }
+
+    sentry_jsonwriter_t *jw = sentry__jsonwriter_new_sb(NULL);
+    if (!jw) {
+        sentry_free(file_buf);
+        return false;
+    }
+    sentry_value_t headers = sentry_value_new_object();
+    sentry_value_set_by_key(
+        headers, "type", sentry_value_new_string("attachment"));
+    sentry_value_set_by_key(
+        headers, "length", sentry_value_new_int32((int32_t)file_len));
+    if (filename) {
+        sentry_value_set_by_key(
+            headers, "filename", sentry_value_new_string(filename));
+    }
+    if (attachment_type) {
+        sentry_value_set_by_key(headers, "attachment_type",
+            sentry_value_new_string(attachment_type));
+    }
+    if (content_type) {
+        sentry_value_set_by_key(
+            headers, "content_type", sentry_value_new_string(content_type));
+    }
+    sentry__jsonwriter_write_value(jw, headers);
+    sentry_value_decref(headers);
+    size_t header_len = 0;
+    char *header_buf = sentry__jsonwriter_into_string(jw, &header_len);
+    if (!header_buf) {
+        sentry_free(file_buf);
+        return false;
+    }
+
+    size_t old_len = envelope->contents.raw.payload_len;
+    size_t new_len = old_len + 1 + header_len + 1 + file_len;
+    char *new_payload = sentry_malloc(new_len);
+    if (!new_payload) {
+        sentry_free(header_buf);
+        sentry_free(file_buf);
+        return false;
+    }
+
+    char *p = new_payload;
+    memcpy(p, envelope->contents.raw.payload, old_len);
+    p += old_len;
+    *p++ = '\n';
+    memcpy(p, header_buf, header_len);
+    p += header_len;
+    *p++ = '\n';
+    memcpy(p, file_buf, file_len);
+
+    sentry_free(envelope->contents.raw.payload);
+    envelope->contents.raw.payload = new_payload;
+    envelope->contents.raw.payload_len = new_len;
+
+    sentry_free(header_buf);
+    sentry_free(file_buf);
+    return true;
 }
 
 static void

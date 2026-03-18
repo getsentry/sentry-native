@@ -122,6 +122,14 @@ sentry_envelope_item_t *sentry__envelope_add_from_path(
     sentry_envelope_t *envelope, const sentry_path_t *path, const char *type);
 
 /**
+ * Append an attachment item to a raw envelope by reading `path` and
+ * building the item header/payload bytes directly into the raw buffer.
+ */
+bool sentry__envelope_append_raw_attachment(sentry_envelope_t *envelope,
+    const sentry_path_t *path, const char *filename,
+    const char *attachment_type, const char *content_type);
+
+/**
  * This will add the given buffer as a new envelope item of type `type`.
  */
 sentry_envelope_item_t *sentry__envelope_add_from_buffer(
