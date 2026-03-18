@@ -19,16 +19,8 @@ public interface INativeScope {
       String level, String message, String category, String type, String timestamp, String data);
 
   void setTrace(String traceId, String parentSpanId);
-<<<<<<< Updated upstream
-||||||| Stash base
-
-  void addAttachment(String path);
-
-  void clearAttachments();
-=======
 
   void addAttachment(@NotNull String path);
 
   void clearAttachments();
->>>>>>> Stashed changes
 }

@@ -21,6 +21,10 @@ public final class NativeScope implements INativeScope {
 
   public static native void nativeSetTrace(String traceId, String parentSpanId);
 
+  public static native void nativeAddAttachment(@NotNull String path);
+
+  public static native void nativeClearAttachments();
+
   @Override
   public void setTag(String key, String value) {
     nativeSetTag(key, value);
@@ -65,19 +69,6 @@ public final class NativeScope implements INativeScope {
   public void setTrace(String traceId, String parentSpanId) {
     nativeSetTrace(traceId, parentSpanId);
   }
-<<<<<<< Updated upstream
-||||||| Stash base
-
-  @Override
-  public void addAttachment(String path) {
-    nativeAddAttachment(path);
-  }
-
-  @Override
-  public void clearAttachments() {
-    nativeClearAttachments();
-  }
-=======
 
   @Override
   public void addAttachment(@NotNull String path) {
@@ -88,5 +79,4 @@ public final class NativeScope implements INativeScope {
   public void clearAttachments() {
     nativeClearAttachments();
   }
->>>>>>> Stashed changes
 }
