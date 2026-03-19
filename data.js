@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1773935355578,
+  "lastUpdate": 1773935560939,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -13698,6 +13698,66 @@ window.BENCHMARK_DATA = {
             "value": 2.017698999964068,
             "unit": "ms",
             "extra": "Min 1.909ms\nMax 2.053ms\nMean 2.006ms\nStdDev 0.056ms\nMedian 2.018ms\nCPU 0.606ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "jpnurmi@gmail.com",
+            "name": "J-P Nurmi",
+            "username": "jpnurmi"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "c1ac26c521f580b60bd99da44f126a2dc6603e14",
+          "message": "fix(android): mask signal during CHAIN_AT_START to survive chained Mono handler re-raises (#1572)\n\nCo-authored-by: Claude Opus 4.6 (1M context) <noreply@anthropic.com>",
+          "timestamp": "2026-03-19T16:50:04+01:00",
+          "tree_id": "9edadbf89c7db7bbd3cf7d1b7afd4e995efd0eab",
+          "url": "https://github.com/getsentry/sentry-native/commit/c1ac26c521f580b60bd99da44f126a2dc6603e14"
+        },
+        "date": 1773935558513,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 0.9239569999976993,
+            "unit": "ms",
+            "extra": "Min 0.907ms\nMax 0.967ms\nMean 0.928ms\nStdDev 0.024ms\nMedian 0.924ms\nCPU 0.879ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 0.7894550000173695,
+            "unit": "ms",
+            "extra": "Min 0.764ms\nMax 0.857ms\nMean 0.796ms\nStdDev 0.037ms\nMedian 0.789ms\nCPU 0.786ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 3.3243979999895146,
+            "unit": "ms",
+            "extra": "Min 3.242ms\nMax 3.371ms\nMean 3.320ms\nStdDev 0.051ms\nMedian 3.324ms\nCPU 1.754ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.13747599999192062,
+            "unit": "ms",
+            "extra": "Min 0.132ms\nMax 0.139ms\nMean 0.136ms\nStdDev 0.003ms\nMedian 0.137ms\nCPU 0.083ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.03701899998986846,
+            "unit": "ms",
+            "extra": "Min 0.035ms\nMax 0.037ms\nMean 0.037ms\nStdDev 0.001ms\nMedian 0.037ms\nCPU 0.036ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 1.9726990000208389,
+            "unit": "ms",
+            "extra": "Min 1.965ms\nMax 2.049ms\nMean 1.998ms\nStdDev 0.040ms\nMedian 1.973ms\nCPU 0.598ms"
           }
         ]
       }
