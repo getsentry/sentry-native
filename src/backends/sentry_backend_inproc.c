@@ -1618,13 +1618,8 @@ process_ucontext(const sentry_ucontext_t *uctx)
         }
 
 #    ifdef SENTRY_PLATFORM_ANDROID
-        // Restore our handler via raw syscall to bypass libsigchain.
-        // resend_signal() sets SIG_DFL via libsigchain, which updates
-        // libsigchain's internal state but also the kernel disposition.
-        // A regular sigaction() call goes through libsigchain which may
-        // not propagate to the kernel if its internal state is stale.
-        syscall(SYS_rt_sigaction, uctx->signum, &g_sigaction, NULL,
-            sizeof(sigset_t));
+        // restore our handler after resend_signal() set SIG_DFL
+        sigaction(uctx->signum, &g_sigaction, NULL);
 
         // consume pending signal
         struct timespec timeout = { 0, 0 };
