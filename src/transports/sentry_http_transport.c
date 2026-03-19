@@ -495,9 +495,6 @@ resolve_and_send_external_attachments(http_transport_state_t *state,
         return;
     }
 
-    sentry_uuid_t event_id = sentry_uuid_from_string(uuid);
-    sentry_envelope_t *tus_envelope = NULL;
-
     size_t count = sentry_value_get_length(refs);
     for (size_t i = 0; i < count; i++) {
         sentry_value_t entry = sentry_value_get_by_index(refs, i);
@@ -512,15 +509,7 @@ resolve_and_send_external_attachments(http_transport_state_t *state,
         sentry__path_free(att_file);
 
         if (file_size >= SENTRY_LARGE_ATTACHMENT_SIZE && state->has_tus) {
-            if (!tus_envelope) {
-                tus_envelope = sentry__envelope_new_with_dsn(state->dsn);
-                if (tus_envelope) {
-                    sentry__envelope_set_event_id(tus_envelope, &event_id);
-                }
-            }
-            if (tus_envelope) {
-                tus_upload_ref(state, att_dir, entry, tus_envelope);
-            }
+            tus_upload_ref(state, att_dir, entry, envelope);
             if (!state->has_tus) {
                 break;
             }
@@ -530,16 +519,6 @@ resolve_and_send_external_attachments(http_transport_state_t *state,
     }
 
     sentry_value_decref(refs);
-
-    if (tus_envelope) {
-        sentry_prepared_http_request_t *req = sentry__prepare_http_request(
-            tus_envelope, state->dsn, state->ratelimiter, state->user_agent);
-        if (req) {
-            http_send_request(state, req);
-            sentry__prepared_http_request_free(req);
-        }
-        sentry_envelope_free(tus_envelope);
-    }
 
     sentry__path_free(refs_path);
     sentry__path_free(att_dir);

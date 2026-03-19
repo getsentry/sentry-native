@@ -62,12 +62,12 @@ def test_tus_upload_large_attachment(cmake, httpserver):
         env=env,
     )
 
-    assert len(httpserver.log) == 4
+    assert len(httpserver.log) == 3
 
     # Find the create, upload, and envelope requests
     create_req = None
     upload_req = None
-    envelope_reqs = []
+    envelope_req = None
     for entry in httpserver.log:
         req = entry[0]
         if req.path == "/api/123456/upload/" and req.method == "POST":
@@ -75,11 +75,11 @@ def test_tus_upload_large_attachment(cmake, httpserver):
         elif upload_uri in req.path and req.method == "PATCH":
             upload_req = req
         elif "/envelope/" in req.path:
-            envelope_reqs.append(req)
+            envelope_req = req
 
     assert create_req is not None
     assert upload_req is not None
-    assert len(envelope_reqs) == 2
+    assert envelope_req is not None
 
     # Verify TUS creation request headers
     assert create_req.headers.get("tus-resumable") == "1.0.0"
@@ -92,19 +92,15 @@ def test_tus_upload_large_attachment(cmake, httpserver):
     assert upload_req.headers.get("content-type") == "application/offset+octet-stream"
     assert upload_req.headers.get("upload-offset") == "0"
 
-    # One envelope has the resolved attachment-refs, the other is the original
+    # The envelope contains the event and the attachment-ref
+    body = envelope_req.get_data()
+    envelope = Envelope.deserialize(body)
     attachment_ref = None
-    for envelope_req in envelope_reqs:
-        body = envelope_req.get_data()
-        envelope = Envelope.deserialize(body)
-        for item in envelope:
-            if (
-                item.headers.get("content_type")
-                == "application/vnd.sentry.attachment-ref"
-            ):
-                if hasattr(item.payload, "json") and "location" in item.payload.json:
-                    attachment_ref = item
-                    break
+    for item in envelope:
+        if item.headers.get("content_type") == "application/vnd.sentry.attachment-ref":
+            if hasattr(item.payload, "json") and "location" in item.payload.json:
+                attachment_ref = item
+                break
 
     assert attachment_ref is not None
     assert attachment_ref.payload.json["location"] == location
@@ -235,11 +231,11 @@ def test_tus_crash_restart(cmake, httpserver):
         env=env,
     )
 
-    assert len(httpserver.log) == 4
+    assert len(httpserver.log) == 3
 
     create_req = None
     upload_req = None
-    envelope_reqs = []
+    envelope_req = None
     for entry in httpserver.log:
         req = entry[0]
         if req.path == "/api/123456/upload/" and req.method == "POST":
@@ -247,11 +243,11 @@ def test_tus_crash_restart(cmake, httpserver):
         elif upload_uri in req.path and req.method == "PATCH":
             upload_req = req
         elif "/envelope/" in req.path:
-            envelope_reqs.append(req)
+            envelope_req = req
 
     assert create_req is not None
     assert upload_req is not None
-    assert len(envelope_reqs) == 2
+    assert envelope_req is not None
 
     # Verify TUS creation request headers
     assert create_req.headers.get("tus-resumable") == "1.0.0"
@@ -262,19 +258,15 @@ def test_tus_crash_restart(cmake, httpserver):
     assert upload_req.headers.get("content-type") == "application/offset+octet-stream"
     assert upload_req.headers.get("upload-offset") == "0"
 
-    # One envelope has the resolved attachment-refs, the other is the original
+    # The envelope contains the event and the attachment-ref
+    body = envelope_req.get_data()
+    envelope = Envelope.deserialize(body)
     attachment_ref = None
-    for envelope_req in envelope_reqs:
-        body = envelope_req.get_data()
-        envelope = Envelope.deserialize(body)
-        for item in envelope:
-            if (
-                item.headers.get("content_type")
-                == "application/vnd.sentry.attachment-ref"
-            ):
-                if hasattr(item.payload, "json") and "location" in item.payload.json:
-                    attachment_ref = item
-                    break
+    for item in envelope:
+        if item.headers.get("content_type") == "application/vnd.sentry.attachment-ref":
+            if hasattr(item.payload, "json") and "location" in item.payload.json:
+                attachment_ref = item
+                break
 
     assert attachment_ref is not None
     assert attachment_ref.payload.json["location"] == location
