@@ -41,6 +41,8 @@ static PFN_vkGetPhysicalDeviceMemoryProperties
 
 static SENTRY_LIBRARY_HANDLE vulkan_library = NULL;
 
+static void unload_vulkan_library(void);
+
 static bool
 load_vulkan_library(void)
 {
