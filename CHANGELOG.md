@@ -2,6 +2,10 @@
 
 ## Unreleased:
 
+**Features**:
+
+- Implement GPU info context gathering for the Native SDK. Supported on Windows, macOS, and Linux via Vulkan. Disabled by default — enable with `-DSENTRY_WITH_GPU_INFO=ON`. ([#1336](https://github.com/getsentry/sentry-native/pull/1336))
+
 **Fixes**:
 
 - inproc: only the handling thread cleans up after the crash. ([#1579](https://github.com/getsentry/sentry-native/pull/1579))
@@ -72,10 +76,6 @@
 **Features**:
 
 - Add new offline caching options to persist envelopes locally: `sentry_options_set_cache_keep`, `sentry_options_set_cache_max_items`, `sentry_options_set_cache_max_size`, and `sentry_options_set_cache_max_age`. ([#1490](https://github.com/getsentry/sentry-native/pull/1490), [#1493](https://github.com/getsentry/sentry-native/pull/1493))
-
-**Features**:
-
-- Implement GPU info context gathering for the Native SDK. Supported on Windows, macOS, and Linux via Vulkan. Disabled by default — enable with `-DSENTRY_WITH_GPU_INFO=ON`. ([#1336](https://github.com/getsentry/sentry-native/pull/1336))
 
 **Fixes**:
 
