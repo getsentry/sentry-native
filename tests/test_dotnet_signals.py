@@ -284,7 +284,10 @@ def run_android(args=None, timeout=30):
     if args is None:
         args = []
     adb("logcat", "-c")
-    adb("shell", "pm", "clear", ANDROID_PACKAGE)
+    adb("shell", "am", "force-stop", ANDROID_PACKAGE)
+    adb(
+        "shell", "run-as {} sh -c 'rm -rf files/.sentry-native'".format(ANDROID_PACKAGE)
+    )
     intent_args = []
     for arg in args:
         intent_args += ["--es", "arg", arg]
