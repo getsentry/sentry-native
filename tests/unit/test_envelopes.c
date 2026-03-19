@@ -782,7 +782,8 @@ SENTRY_TEST(tus_request_preparation)
         sentry__path_write_buffer(test_file_path, "test-data", 9), 0);
 
     const char *location = "https://sentry.invalid/api/42/upload/abc123/";
-    req = sentry__prepare_tus_upload_request(location, test_file_path, 9);
+    req = sentry__prepare_tus_upload_request(
+        location, test_file_path, 9, dsn, NULL);
     TEST_CHECK(!!req);
     TEST_CHECK_STRING_EQUAL(req->method, "PATCH");
     TEST_CHECK_STRING_EQUAL(req->url, location);

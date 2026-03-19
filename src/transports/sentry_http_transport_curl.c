@@ -287,10 +287,12 @@ curl_send_task(void *_client, sentry_prepared_http_request_t *req,
         curl_easy_setopt(curl, CURLOPT_READDATA, body_file);
         curl_easy_setopt(
             curl, CURLOPT_INFILESIZE_LARGE, (curl_off_t)req->body_len);
-    } else {
+    } else if (req->body) {
         curl_easy_setopt(curl, CURLOPT_POST, (long)1);
         curl_easy_setopt(curl, CURLOPT_POSTFIELDS, req->body);
         curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE, (long)req->body_len);
+    } else {
+        curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, req->method);
     }
 
     char error_buf[CURL_ERROR_SIZE];

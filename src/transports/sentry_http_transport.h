@@ -58,7 +58,8 @@ void *sentry__http_transport_get_bgworker(sentry_transport_t *transport);
 sentry_prepared_http_request_t *sentry__prepare_tus_create_request(
     size_t file_size, const sentry_dsn_t *dsn, const char *user_agent);
 sentry_prepared_http_request_t *sentry__prepare_tus_upload_request(
-    const char *location, const sentry_path_t *path, size_t file_size);
+    const char *location, const sentry_path_t *path, size_t file_size,
+    const sentry_dsn_t *dsn, const char *user_agent);
 #endif
 
 #endif

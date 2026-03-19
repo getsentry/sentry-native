@@ -237,8 +237,8 @@ prepare_tus_request_common(
 }
 
 static sentry_prepared_http_request_t *
-prepare_tus_upload_request(
-    const char *location, const sentry_path_t *path, size_t file_size)
+prepare_tus_upload_request(const char *location, const sentry_path_t *path,
+    size_t file_size, const sentry_dsn_t *dsn, const char *user_agent)
 {
     if (!location || !path) {
         return NULL;
@@ -265,6 +265,10 @@ prepare_tus_upload_request(
     req->body_len = file_size;
 
     sentry_prepared_http_header_t *h;
+    h = &req->headers[req->headers_len++];
+    h->key = "x-sentry-auth";
+    h->value = sentry__dsn_get_auth_header(dsn, user_agent);
+
     h = &req->headers[req->headers_len++];
     h->key = "tus-resumable";
     h->value = sentry__string_clone("1.0.0");
@@ -365,10 +369,10 @@ tus_upload_ref(http_transport_state_t *state, const sentry_path_t *att_dir,
     }
 
     // Step 2: TUS upload request (PATCH with file body)
-    req = prepare_tus_upload_request(resp.location, att_file, file_size);
-    char *location = resp.location;
-    resp.location = NULL;
+    char *location = sentry__dsn_resolve_url(state->dsn, resp.location);
     http_response_cleanup(&resp);
+    req = prepare_tus_upload_request(
+        location, att_file, file_size, state->dsn, state->user_agent);
 
     if (!req) {
         sentry__path_free(att_file);
@@ -827,9 +831,11 @@ sentry__prepare_tus_create_request(
 }
 
 sentry_prepared_http_request_t *
-sentry__prepare_tus_upload_request(
-    const char *location, const sentry_path_t *path, size_t file_size)
+sentry__prepare_tus_upload_request(const char *location,
+    const sentry_path_t *path, size_t file_size, const sentry_dsn_t *dsn,
+    const char *user_agent)
 {
-    return prepare_tus_upload_request(location, path, file_size);
+    return prepare_tus_upload_request(
+        location, path, file_size, dsn, user_agent);
 }
 #endif

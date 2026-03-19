@@ -275,6 +275,28 @@ SENTRY_TEST(dsn_store_url_custom_agent)
     sentry__dsn_decref(dsn);
 }
 
+SENTRY_TEST(dsn_resolve_url)
+{
+    SENTRY_TEST_DSN_NEW(dsn, "https://key@sentry.io/42");
+    char *url;
+
+    // relative path gets origin prepended
+    url = sentry__dsn_resolve_url(dsn, "/api/42/upload/abc123/");
+    TEST_CHECK_STRING_EQUAL(url, "https://sentry.io:443/api/42/upload/abc123/");
+    sentry_free(url);
+
+    // absolute URL passes through
+    url = sentry__dsn_resolve_url(dsn, "https://other.host/path");
+    TEST_CHECK_STRING_EQUAL(url, "https://other.host/path");
+    sentry_free(url);
+
+    // NULL inputs
+    TEST_CHECK(!sentry__dsn_resolve_url(NULL, "/path"));
+    TEST_CHECK(!sentry__dsn_resolve_url(dsn, NULL));
+
+    sentry__dsn_decref(dsn);
+}
+
 SENTRY_TEST(page_allocator)
 {
 #if !defined(SENTRY_PLATFORM_UNIX) || defined(SENTRY_PLATFORM_PS)
