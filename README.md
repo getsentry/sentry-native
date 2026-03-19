@@ -303,12 +303,10 @@ using `cmake -D BUILD_SHARED_LIBS=OFF ..`.
   tuning the thread stack guarantee parameters. Warnings and errors in the process of setting thread stack guarantees
   will always be logged.
 
-- `SENTRY_WITH_GPU_INFO` (Default: `ON` on Windows, macOS, and Linux, otherwise `OFF`):
-  Enables GPU information collection and reporting. When enabled, the SDK will attempt to gather GPU details such as
-  GPU name, vendor, memory size, and driver version, which are included in event contexts. The implementation uses
-  the Vulkan API for cross-platform GPU detection. **Requires the Vulkan SDK to be installed** - if not found,
-  GPU information gathering will be automatically disabled during build. Setting this to `OFF` disables GPU
-  information collection entirely, which can reduce dependencies and binary size.
+- `SENTRY_WITH_GPU_INFO` (Default: `OFF`):
+  Enables GPU information collection and reporting. Supported on Windows, macOS, and Linux. When enabled, the SDK
+  will attempt to gather GPU details such as GPU name, vendor, memory size, and driver version, which are included
+  in event contexts. The implementation uses the Vulkan API with dynamic loading for cross-platform GPU detection.
 
 ### Support Matrix
 

@@ -75,7 +75,7 @@
 
 **Features**:
 
-- Implement the GPU Info gathering within the Native SDK ([#1336](https://github.com/getsentry/sentry-native/pull/1336))
+- Implement GPU info context gathering for the Native SDK. Supported on Windows, macOS, and Linux via Vulkan. Disabled by default — enable with `-DSENTRY_WITH_GPU_INFO=ON`. ([#1336](https://github.com/getsentry/sentry-native/pull/1336))
 
 **Fixes**:
 

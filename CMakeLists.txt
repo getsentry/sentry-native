@@ -103,22 +103,7 @@ option(SENTRY_PIC "Build sentry (and dependent) libraries as position independen
 
 option(SENTRY_TRANSPORT_COMPRESSION "Enable transport gzip compression" OFF)
 
-# GPU information gathering support - enabled by default on supported platforms only
-set(SENTRY_GPU_INFO_DEFAULT OFF)
-
-# Only enable GPU info on supported platforms
-if(WIN32)
-	set(SENTRY_GPU_INFO_DEFAULT ON)
-elseif(APPLE AND NOT IOS)
-	set(SENTRY_GPU_INFO_DEFAULT ON)
-elseif(LINUX)
-	set(SENTRY_GPU_INFO_DEFAULT ON)
-else()
-	# Disable GPU info on all other platforms (Android, iOS, AIX, etc.)
-	message(STATUS "GPU Info: Platform not supported, GPU information gathering disabled")
-endif()
-
-option(SENTRY_WITH_GPU_INFO "Build with GPU information gathering support" ${SENTRY_GPU_INFO_DEFAULT})
+option(SENTRY_WITH_GPU_INFO "Build with GPU information gathering support (supported on Windows, macOS, Linux)" OFF)
 
 # GPU info enabled - no longer requires Vulkan SDK (uses headers submodule + dynamic linking)
 if(SENTRY_WITH_GPU_INFO)

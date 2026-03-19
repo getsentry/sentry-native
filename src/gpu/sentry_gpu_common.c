@@ -20,6 +20,10 @@ sentry__gpu_vendor_id_to_name(unsigned int vendor_id)
     case 0x5143:
     case 0x17CB:
         return sentry__string_clone("Qualcomm");
+    case 0x13B5:
+        return sentry__string_clone("ARM");
+    case 0x144D:
+        return sentry__string_clone("Samsung Electronics");
     case 0x1AE0:
         return sentry__string_clone("Google");
     case 0x1010:
@@ -147,7 +151,8 @@ sentry__add_gpu_contexts(sentry_value_t contexts)
         sentry_value_t gpu_context
             = create_gpu_context_from_info(gpu_list->gpus[i]);
         if (!sentry_value_is_null(gpu_context)) {
-            char context_key[16];
+            // "gpu" + up to 10 digits for uint32 + NUL = 14 bytes max
+            char context_key[32];
             if (i == 0) {
                 snprintf(context_key, sizeof(context_key), "gpu");
             } else {

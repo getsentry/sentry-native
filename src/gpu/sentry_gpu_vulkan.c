@@ -12,16 +12,10 @@
 #    define SENTRY_LOAD_LIBRARY(name) LoadLibraryA(name)
 #    define SENTRY_GET_PROC_ADDRESS(handle, name) GetProcAddress(handle, name)
 #    define SENTRY_FREE_LIBRARY(handle) FreeLibrary(handle)
-#elif defined(__APPLE__)
-#    include <dlfcn.h>
-#    define SENTRY_LIBRARY_HANDLE void *
-#    define SENTRY_LOAD_LIBRARY(name) dlopen(name, RTLD_LAZY)
-#    define SENTRY_GET_PROC_ADDRESS(handle, name) dlsym(handle, name)
-#    define SENTRY_FREE_LIBRARY(handle) dlclose(handle)
 #else
 #    include <dlfcn.h>
 #    define SENTRY_LIBRARY_HANDLE void *
-#    define SENTRY_LOAD_LIBRARY(name) dlopen(name, RTLD_LAZY)
+#    define SENTRY_LOAD_LIBRARY(name) dlopen(name, RTLD_NOW)
 #    define SENTRY_GET_PROC_ADDRESS(handle, name) dlsym(handle, name)
 #    define SENTRY_FREE_LIBRARY(handle) dlclose(handle)
 #endif
@@ -32,10 +26,10 @@
 #endif
 
 // Dynamic function pointers
-// Note: These are not thread-safe, but this is not a concern for our use case.
-// We are only accessing these during scope initialization, which is explicitly
-// locked, so it's fair to assume that only single-threadded access is happening
-// here.
+// Thread safety: These statics are only accessed from sentry__add_gpu_contexts()
+// which is called during scope initialization in get_scope() (sentry_scope.c).
+// get_scope() is only reachable through sentry__scope_lock() which holds
+// g_lock, so concurrent access cannot happen.
 static PFN_vkCreateInstance pfn_vkCreateInstance = NULL;
 static PFN_vkDestroyInstance pfn_vkDestroyInstance = NULL;
 static PFN_vkEnumeratePhysicalDevices pfn_vkEnumeratePhysicalDevices = NULL;
@@ -57,6 +51,7 @@ load_vulkan_library(void)
 #ifdef _WIN32
     vulkan_library = SENTRY_LOAD_LIBRARY("vulkan-1.dll");
 #elif defined(__APPLE__)
+    // MoltenVK / Vulkan SDK install paths on macOS
     vulkan_library = SENTRY_LOAD_LIBRARY("libvulkan.1.dylib");
     if (!vulkan_library) {
         vulkan_library = SENTRY_LOAD_LIBRARY("libvulkan.dylib");
@@ -73,7 +68,13 @@ load_vulkan_library(void)
 #endif
 
     if (!vulkan_library) {
+#ifndef _WIN32
+        const char *dl_err = dlerror();
+        SENTRY_WARNF("Failed to load Vulkan library: %s",
+            dl_err ? dl_err : "unknown error");
+#else
         SENTRY_WARN("Failed to load Vulkan library");
+#endif
         return false;
     }
 
@@ -128,28 +129,43 @@ create_vulkan_instance(void)
     app_info.applicationVersion = VK_MAKE_VERSION(1, 0, 0);
     app_info.pEngineName = "Sentry";
     app_info.engineVersion = VK_MAKE_VERSION(1, 0, 0);
+    // Vulkan 1.0 is the minimum version we require; all physical device
+    // property and memory queries we use are part of the 1.0 core API.
     app_info.apiVersion = VK_API_VERSION_1_0;
 
     VkInstanceCreateInfo create_info = { 0 };
     create_info.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
     create_info.pApplicationInfo = &app_info;
 
+    VkInstance instance = VK_NULL_HANDLE;
+    VkResult result;
+
 #ifdef __APPLE__
-    // Required extensions for MoltenVK on macOS
+    // On macOS, Vulkan is provided through MoltenVK which requires the
+    // portability enumeration extension and flag to expose MoltenVK devices.
+    // We try with extensions first, and fall back to a plain instance if
+    // the extensions are not available (e.g. native Vulkan without MoltenVK).
     const char *extensions[] = { "VK_KHR_portability_enumeration",
         "VK_KHR_get_physical_device_properties2" };
     create_info.enabledExtensionCount = 2;
     create_info.ppEnabledExtensionNames = extensions;
-
-    // Required flag for MoltenVK on macOS
     create_info.flags = VK_INSTANCE_CREATE_ENUMERATE_PORTABILITY_BIT_KHR;
-
-    // Disable validation layers on macOS as they may not be available
     create_info.enabledLayerCount = 0;
+
+    result = pfn_vkCreateInstance(&create_info, NULL, &instance);
+    if (result == VK_SUCCESS) {
+        return instance;
+    }
+
+    // Fallback: try without portability extensions
+    SENTRY_DEBUG(
+        "MoltenVK extensions not available, retrying without portability");
+    create_info.enabledExtensionCount = 0;
+    create_info.ppEnabledExtensionNames = NULL;
+    create_info.flags = 0;
 #endif
 
-    VkInstance instance = VK_NULL_HANDLE;
-    VkResult result = pfn_vkCreateInstance(&create_info, NULL, &instance);
+    result = pfn_vkCreateInstance(&create_info, NULL, &instance);
     if (result != VK_SUCCESS) {
         SENTRY_DEBUGF("Failed to create Vulkan instance: %d", result);
         return VK_NULL_HANDLE;
@@ -174,11 +190,16 @@ create_gpu_info_from_device(VkPhysicalDevice device)
 
     memset(gpu_info, 0, sizeof(sentry_gpu_info_t));
 
+    // deviceName is a fixed char array in VkPhysicalDeviceProperties,
+    // guaranteed to be null-terminated by the Vulkan spec.
     gpu_info->name = sentry__string_clone(properties.deviceName);
     gpu_info->vendor_id = properties.vendorID;
     gpu_info->device_id = properties.deviceID;
     gpu_info->vendor_name = sentry__gpu_vendor_id_to_name(properties.vendorID);
 
+    // The Vulkan driverVersion encoding is vendor-specific. We use the
+    // standard VK_VERSION macros which work for most drivers; on some
+    // proprietary drivers the output may not match the marketed version.
     char driver_version_str[64];
     uint32_t driver_version = properties.driverVersion;
     snprintf(driver_version_str, sizeof(driver_version_str), "%u.%u.%u",
@@ -187,11 +208,26 @@ create_gpu_info_from_device(VkPhysicalDevice device)
 
     gpu_info->driver_version = sentry__string_clone(driver_version_str);
 
+    // Any NULL string fields (from allocation failure) are handled gracefully
+    // by create_gpu_context_from_info which checks each field before use.
+    if (!gpu_info->name && !gpu_info->vendor_name
+        && !gpu_info->driver_version) {
+        SENTRY_WARN("All string allocations failed for GPU info");
+        sentry_free(gpu_info);
+        return NULL;
+    }
+
     uint64_t total_memory = 0;
     for (uint32_t i = 0; i < memory_properties.memoryHeapCount; i++) {
         if (memory_properties.memoryHeaps[i].flags
             & VK_MEMORY_HEAP_DEVICE_LOCAL_BIT) {
-            total_memory += memory_properties.memoryHeaps[i].size;
+            uint64_t heap_size = memory_properties.memoryHeaps[i].size;
+            // Guard against overflow when summing heap sizes
+            if (total_memory > UINT64_MAX - heap_size) {
+                total_memory = UINT64_MAX;
+                break;
+            }
+            total_memory += heap_size;
         }
     }
 
@@ -265,6 +301,8 @@ sentry__get_gpu_info(void)
         if (gpu_info) {
             gpu_list->gpus[gpu_list->count] = gpu_info;
             gpu_list->count++;
+        } else {
+            SENTRY_DEBUGF("Skipped GPU device %u (info creation failed)", i);
         }
     }
 
