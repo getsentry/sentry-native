@@ -30,6 +30,7 @@ public final class io/sentry/ndk/DebugImage {
 
 public abstract interface class io/sentry/ndk/INativeScope {
 	public abstract fun addAttachment (Ljava/lang/String;)V
+	public abstract fun addAttachmentBytes ([BLjava/lang/String;)V
 	public abstract fun addBreadcrumb (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V
 	public abstract fun clearAttachments ()V
 	public abstract fun removeExtra (Ljava/lang/String;)V
@@ -52,9 +53,11 @@ public final class io/sentry/ndk/NativeModuleListLoader {
 public final class io/sentry/ndk/NativeScope : io/sentry/ndk/INativeScope {
 	public fun <init> ()V
 	public fun addAttachment (Ljava/lang/String;)V
+	public fun addAttachmentBytes ([BLjava/lang/String;)V
 	public fun addBreadcrumb (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V
 	public fun clearAttachments ()V
 	public static fun nativeAddAttachment (Ljava/lang/String;)V
+	public static fun nativeAddAttachmentBytes ([BLjava/lang/String;)V
 	public static fun nativeAddBreadcrumb (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V
 	public static fun nativeClearAttachments ()V
 	public static fun nativeRemoveExtra (Ljava/lang/String;)V
