@@ -26,10 +26,10 @@
 #endif
 
 // Dynamic function pointers
-// Thread safety: These statics are only accessed from sentry__add_gpu_contexts()
-// which is called during scope initialization in get_scope() (sentry_scope.c).
-// get_scope() is only reachable through sentry__scope_lock() which holds
-// g_lock, so concurrent access cannot happen.
+// Thread safety: These statics are only accessed from
+// sentry__add_gpu_contexts() which is called during scope initialization in
+// get_scope() (sentry_scope.c). get_scope() is only reachable through
+// sentry__scope_lock() which holds g_lock, so concurrent access cannot happen.
 static PFN_vkCreateInstance pfn_vkCreateInstance = NULL;
 static PFN_vkDestroyInstance pfn_vkDestroyInstance = NULL;
 static PFN_vkEnumeratePhysicalDevices pfn_vkEnumeratePhysicalDevices = NULL;
@@ -269,7 +269,10 @@ sentry__get_gpu_info(void)
     }
 
     result = pfn_vkEnumeratePhysicalDevices(instance, &device_count, devices);
-    if (result != VK_SUCCESS) {
+    // VK_INCOMPLETE means the buffer was too small but contains valid data
+    // for the entries written. This can also occur spuriously on Windows with
+    // multiple GPUs and implicit layers. We accept it and use what we got.
+    if (result != VK_SUCCESS && result != VK_INCOMPLETE) {
         SENTRY_DEBUGF("Failed to get Vulkan physical devices: %d", result);
         sentry_free(devices);
         pfn_vkDestroyInstance(instance, NULL);

@@ -147,18 +147,21 @@ sentry__add_gpu_contexts(sentry_value_t contexts)
         return;
     }
 
+    unsigned int context_index = 0;
     for (unsigned int i = 0; i < gpu_list->count; i++) {
         sentry_value_t gpu_context
             = create_gpu_context_from_info(gpu_list->gpus[i]);
         if (!sentry_value_is_null(gpu_context)) {
-            // "gpu" + up to 10 digits for uint32 + NUL = 14 bytes max
+            // Use context_index (not i) so keys are contiguous: gpu, gpu2, gpu3
             char context_key[32];
-            if (i == 0) {
+            if (context_index == 0) {
                 snprintf(context_key, sizeof(context_key), "gpu");
             } else {
-                snprintf(context_key, sizeof(context_key), "gpu%u", i + 1);
+                snprintf(context_key, sizeof(context_key), "gpu%u",
+                    context_index + 1);
             }
             sentry_value_set_by_key(contexts, context_key, gpu_context);
+            context_index++;
         }
     }
 
