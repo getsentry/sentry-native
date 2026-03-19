@@ -4,7 +4,7 @@
 
 **Features**:
 
-- Add `addAttachment` and `clearAttachments` to the NDK `NativeScope` API for managing file attachments via JNI. ([#1584](https://github.com/getsentry/sentry-native/pull/1584))
+- Add `addAttachment` and `clearAttachments` to the NDK `NativeScope` API for managing file and byte attachments via JNI. ([#1584](https://github.com/getsentry/sentry-native/pull/1584))
 
 **Fixes**:
 
