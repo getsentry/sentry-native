@@ -97,8 +97,7 @@ load_vulkan_library(void)
         || !pfn_vkEnumeratePhysicalDevices || !pfn_vkGetPhysicalDeviceProperties
         || !pfn_vkGetPhysicalDeviceMemoryProperties) {
         SENTRY_WARN("Failed to load required Vulkan functions");
-        SENTRY_FREE_LIBRARY(vulkan_library);
-        vulkan_library = NULL;
+        unload_vulkan_library();
         return false;
     }
 
