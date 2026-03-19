@@ -130,11 +130,21 @@ curl_client_shutdown(void *_client)
 
 static int
 progress_callback(void *clientp, curl_off_t UNUSED(dltotal),
-    curl_off_t UNUSED(dlnow), curl_off_t UNUSED(ultotal),
-    curl_off_t UNUSED(ulnow))
+    curl_off_t UNUSED(dlnow), curl_off_t ultotal, curl_off_t ulnow)
 {
     curl_client_t *client = clientp;
-    return sentry__atomic_fetch(&client->shutdown) ? 1 : 0;
+    if (sentry__atomic_fetch(&client->shutdown)) {
+        return 1;
+    }
+    if (ultotal > 0) {
+        double speed = 0;
+        curl_easy_getinfo(client->curl_handle, CURLINFO_SPEED_UPLOAD, &speed);
+        SENTRY_DEBUGF("upload progress: %.1f / %.1f MB (%.0f%%, %.1f MB/s)",
+            (double)ulnow / (1024.0 * 1024.0),
+            (double)ultotal / (1024.0 * 1024.0),
+            (double)ulnow / (double)ultotal * 100.0, speed / (1024.0 * 1024.0));
+    }
+    return 0;
 }
 
 static size_t
@@ -159,20 +169,27 @@ debug_function(CURL *UNUSED(handle), curl_infotype type, char *data,
     case CURLINFO_HEADER_IN:
         prefix = "< ";
         break;
-    case CURLINFO_DATA_OUT:
-    case CURLINFO_DATA_IN: {
-        const char *dir = type == CURLINFO_DATA_OUT ? "Send" : "Recv";
+    case CURLINFO_DATA_OUT: {
         size_t len = size;
         while (len > 0 && (data[len - 1] == '\n' || data[len - 1] == '\r')) {
             len--;
         }
         if (len >= 2 && data[0] == '{' && data[len - 1] == '}') {
-            fprintf(stderr, "%s %s (%zu bytes): %.*s\n",
-                type == CURLINFO_DATA_OUT ? "=>" : "<=", dir, size, (int)len,
-                data);
+            fprintf(
+                stderr, "=> Send (%zu bytes): %.*s\n", size, (int)len, data);
+        }
+        return 0;
+    }
+    case CURLINFO_DATA_IN: {
+        size_t len = size;
+        while (len > 0 && (data[len - 1] == '\n' || data[len - 1] == '\r')) {
+            len--;
+        }
+        if (len >= 2 && data[0] == '{' && data[len - 1] == '}') {
+            fprintf(
+                stderr, "<= Recv (%zu bytes): %.*s\n", size, (int)len, data);
         } else {
-            fprintf(stderr, "%s %s (%zu bytes)\n",
-                type == CURLINFO_DATA_OUT ? "=>" : "<=", dir, size);
+            fprintf(stderr, "<= Recv (%zu bytes)\n", size);
         }
         return 0;
     }
