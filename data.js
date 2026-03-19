@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1773754106057,
+  "lastUpdate": 1773935243107,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -13638,6 +13638,66 @@ window.BENCHMARK_DATA = {
             "value": 1.9271780000167382,
             "unit": "ms",
             "extra": "Min 1.920ms\nMax 2.029ms\nMean 1.960ms\nStdDev 0.049ms\nMedian 1.927ms\nCPU 0.582ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "reg@bitfox.at",
+            "name": "Stefan Jandl",
+            "username": "bitsandfoxes"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "937f5f2b00e5aeb170cf2ab0e7f64d00c485e812",
+          "message": "feat: Enable java scope sync for attachments (#1584)",
+          "timestamp": "2026-03-19T16:44:52+01:00",
+          "tree_id": "27f1e021fd89983b1580936699c22c3d6bb25ed5",
+          "url": "https://github.com/getsentry/sentry-native/commit/937f5f2b00e5aeb170cf2ab0e7f64d00c485e812"
+        },
+        "date": 1773935240806,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 0.8746070000142936,
+            "unit": "ms",
+            "extra": "Min 0.867ms\nMax 0.885ms\nMean 0.876ms\nStdDev 0.007ms\nMedian 0.875ms\nCPU 0.833ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 0.7876729999907184,
+            "unit": "ms",
+            "extra": "Min 0.758ms\nMax 0.791ms\nMean 0.780ms\nStdDev 0.014ms\nMedian 0.788ms\nCPU 0.780ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 3.212968000013916,
+            "unit": "ms",
+            "extra": "Min 3.176ms\nMax 5.562ms\nMean 3.720ms\nStdDev 1.036ms\nMedian 3.213ms\nCPU 1.676ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.13051500002347893,
+            "unit": "ms",
+            "extra": "Min 0.127ms\nMax 0.141ms\nMean 0.132ms\nStdDev 0.005ms\nMedian 0.131ms\nCPU 0.079ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.035215999957927124,
+            "unit": "ms",
+            "extra": "Min 0.034ms\nMax 0.041ms\nMean 0.036ms\nStdDev 0.003ms\nMedian 0.035ms\nCPU 0.035ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 2.017698999964068,
+            "unit": "ms",
+            "extra": "Min 1.909ms\nMax 2.053ms\nMean 2.006ms\nStdDev 0.056ms\nMedian 2.018ms\nCPU 0.606ms"
           }
         ]
       }
