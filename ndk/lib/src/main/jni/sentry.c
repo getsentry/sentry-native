@@ -249,6 +249,32 @@ Java_io_sentry_ndk_NativeScope_nativeAddAttachment(
 }
 
 JNIEXPORT void JNICALL
+Java_io_sentry_ndk_NativeScope_nativeAddAttachmentBytes(
+        JNIEnv *env,
+        jclass cls,
+        jbyteArray data,
+        jstring filename) {
+    if (!data || !filename) {
+        return;
+    }
+    jsize bufLen = (*env)->GetArrayLength(env, data);
+    jbyte *buf = (*env)->GetByteArrayElements(env, data, 0);
+    if (!buf) {
+        return;
+    }
+    const char *charFilename = (*env)->GetStringUTFChars(env, filename, 0);
+    if (!charFilename) {
+        (*env)->ReleaseByteArrayElements(env, data, buf, JNI_ABORT);
+        return;
+    }
+
+    sentry_attach_bytes((const char *)buf, (size_t)bufLen, charFilename);
+
+    (*env)->ReleaseStringUTFChars(env, filename, charFilename);
+    (*env)->ReleaseByteArrayElements(env, data, buf, JNI_ABORT);
+}
+
+JNIEXPORT void JNICALL
 Java_io_sentry_ndk_NativeScope_nativeClearAttachments(JNIEnv *env, jclass cls) {
     sentry_clear_attachments();
 }

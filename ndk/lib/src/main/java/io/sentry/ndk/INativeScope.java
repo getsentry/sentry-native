@@ -20,5 +20,7 @@ public interface INativeScope {
 
   void addAttachment(String path);
 
+  void addAttachmentBytes(byte[] data, String filename);
+
   void clearAttachments();
 }

@@ -21,6 +21,8 @@ public final class NativeScope implements INativeScope {
 
   public static native void nativeAddAttachment(String path);
 
+  public static native void nativeAddAttachmentBytes(byte[] data, String filename);
+
   public static native void nativeClearAttachments();
 
   @Override
@@ -71,6 +73,11 @@ public final class NativeScope implements INativeScope {
   @Override
   public void addAttachment(String path) {
     nativeAddAttachment(path);
+  }
+
+  @Override
+  public void addAttachmentBytes(byte[] data, String filename) {
+    nativeAddAttachmentBytes(data, filename);
   }
 
   @Override
