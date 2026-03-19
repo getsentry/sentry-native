@@ -305,6 +305,9 @@ def run_android(args=None, timeout=30):
         )
     except subprocess.TimeoutExpired:
         pass
+    pid = adb(
+        "shell", "pidof", ANDROID_PACKAGE, capture_output=True, text=True
+    ).stdout.strip()
     wait_for(
         lambda: adb(
             "shell", "pidof", ANDROID_PACKAGE, capture_output=True, text=True
@@ -312,7 +315,10 @@ def run_android(args=None, timeout=30):
         != 0,
         timeout=timeout,
     )
-    return adb("logcat", "-d", capture_output=True, text=True).stdout
+    logcat_args = ["logcat", "-d"]
+    if pid:
+        logcat_args += ["--pid=" + pid]
+    return adb(*logcat_args, capture_output=True, text=True).stdout
 
 
 def run_android_managed_exception():
