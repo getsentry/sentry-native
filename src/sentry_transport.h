@@ -57,4 +57,22 @@ size_t sentry__transport_dump_queue(
 
 void *sentry__transport_get_state(sentry_transport_t *transport);
 
+/**
+ * Sets the cleanup function of the transport.
+ *
+ * This function submits cache cleanup as a task on the transport's background
+ * worker, so it runs after any pending send tasks from process_old_runs.
+ */
+void sentry__transport_set_cleanup_func(sentry_transport_t *transport,
+    void (*cleanup_func)(const sentry_options_t *options, void *state));
+
+/**
+ * Submits cache cleanup to the transport's background worker.
+ *
+ * Returns true if cleanup was submitted, false if the transport does not
+ * support async cleanup (caller should run cleanup synchronously).
+ */
+bool sentry__transport_submit_cleanup(
+    sentry_transport_t *transport, const sentry_options_t *options);
+
 #endif

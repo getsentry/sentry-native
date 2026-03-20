@@ -6,6 +6,7 @@
 #include "sentry_ratelimiter.h"
 #include "sentry_string.h"
 #include "sentry_transport.h"
+#include "sentry_utils.h"
 
 #ifdef SENTRY_TRANSPORT_COMPRESSION
 #    include "zlib.h"
@@ -29,6 +30,8 @@ typedef struct {
     int (*start_client)(void *, const sentry_options_t *);
     sentry_http_send_func_t send_func;
     void (*shutdown_client)(void *client);
+    bool cache_keep;
+    sentry_run_t *run;
 } http_transport_state_t;
 
 #ifdef SENTRY_TRANSPORT_COMPRESSION
@@ -182,6 +185,47 @@ sentry__prepared_http_request_free(sentry_prepared_http_request_t *req)
     sentry_free(req);
 }
 
+static int
+http_send_request(
+    http_transport_state_t *state, sentry_prepared_http_request_t *req)
+{
+    sentry_http_response_t resp;
+    memset(&resp, 0, sizeof(resp));
+
+    if (!state->send_func(state->client, req, &resp)) {
+        sentry_free(resp.retry_after);
+        sentry_free(resp.x_sentry_rate_limits);
+        return -1;
+    }
+
+    if (resp.x_sentry_rate_limits) {
+        sentry__rate_limiter_update_from_header(
+            state->ratelimiter, resp.x_sentry_rate_limits);
+    } else if (resp.retry_after) {
+        sentry__rate_limiter_update_from_http_retry_after(
+            state->ratelimiter, resp.retry_after);
+    } else if (resp.status_code == 429) {
+        sentry__rate_limiter_update_from_429(state->ratelimiter);
+    }
+
+    sentry_free(resp.retry_after);
+    sentry_free(resp.x_sentry_rate_limits);
+    return resp.status_code;
+}
+
+static int
+http_send_envelope(http_transport_state_t *state, sentry_envelope_t *envelope)
+{
+    sentry_prepared_http_request_t *req = sentry__prepare_http_request(
+        envelope, state->dsn, state->ratelimiter, state->user_agent);
+    if (!req) {
+        return 0;
+    }
+    int status_code = http_send_request(state, req);
+    sentry__prepared_http_request_free(req);
+    return status_code;
+}
+
 static void
 http_transport_state_free(void *_state)
 {
@@ -192,6 +236,7 @@ http_transport_state_free(void *_state)
     sentry__dsn_decref(state->dsn);
     sentry_free(state->user_agent);
     sentry__rate_limiter_free(state->ratelimiter);
+    sentry__run_free(state->run);
     sentry_free(state);
 }
 
@@ -201,29 +246,10 @@ http_send_task(void *_envelope, void *_state)
     sentry_envelope_t *envelope = _envelope;
     http_transport_state_t *state = _state;
 
-    sentry_prepared_http_request_t *req = sentry__prepare_http_request(
-        envelope, state->dsn, state->ratelimiter, state->user_agent);
-    if (!req) {
-        return;
+    int status_code = http_send_envelope(state, envelope);
+    if (status_code < 0 && state->cache_keep) {
+        sentry__run_write_cache(state->run, envelope);
     }
-
-    sentry_http_response_t resp;
-    memset(&resp, 0, sizeof(resp));
-
-    if (state->send_func(state->client, req, &resp)) {
-        if (resp.x_sentry_rate_limits) {
-            sentry__rate_limiter_update_from_header(
-                state->ratelimiter, resp.x_sentry_rate_limits);
-        } else if (resp.retry_after) {
-            sentry__rate_limiter_update_from_http_retry_after(
-                state->ratelimiter, resp.retry_after);
-        } else if (resp.status_code == 429) {
-            sentry__rate_limiter_update_from_429(state->ratelimiter);
-        }
-    }
-    sentry_free(resp.retry_after);
-    sentry_free(resp.x_sentry_rate_limits);
-    sentry__prepared_http_request_free(req);
 }
 
 static int
@@ -236,6 +262,8 @@ http_transport_start(const sentry_options_t *options, void *transport_state)
 
     state->dsn = sentry__dsn_incref(options->dsn);
     state->user_agent = sentry__string_clone(options->user_agent);
+    state->cache_keep = options->cache_keep;
+    state->run = sentry__run_incref(options->run);
 
     if (state->start_client) {
         int rv = state->start_client(state->client, options);
@@ -298,6 +326,24 @@ http_transport_get_state(sentry_transport_t *transport)
     return sentry__bgworker_get_state(bgworker);
 }
 
+static void
+http_cleanup_cache_task(void *task_data, void *_state)
+{
+    (void)_state;
+    sentry_options_t *options = task_data;
+    sentry__cleanup_cache(options);
+}
+
+static void
+http_transport_submit_cleanup(
+    const sentry_options_t *options, void *transport_state)
+{
+    sentry_bgworker_t *bgworker = transport_state;
+    sentry__bgworker_submit(bgworker, http_cleanup_cache_task,
+        (void (*)(void *))sentry_options_free,
+        sentry__options_incref((sentry_options_t *)options));
+}
+
 sentry_transport_t *
 sentry__http_transport_new(void *client, sentry_http_send_func_t send_func)
 {
@@ -331,6 +377,8 @@ sentry__http_transport_new(void *client, sentry_http_send_func_t send_func)
     sentry_transport_set_flush_func(transport, http_transport_flush);
     sentry_transport_set_shutdown_func(transport, http_transport_shutdown);
     sentry__transport_set_dump_func(transport, http_dump_queue);
+    sentry__transport_set_cleanup_func(
+        transport, http_transport_submit_cleanup);
 
     return transport;
 }

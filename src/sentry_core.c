@@ -293,7 +293,9 @@ sentry_init(sentry_options_t *options)
     }
 
     if (options->cache_keep) {
-        sentry__cleanup_cache(options);
+        if (!sentry__transport_submit_cleanup(options->transport, options)) {
+            sentry__cleanup_cache(options);
+        }
     }
 
     if (options->auto_session_tracking) {

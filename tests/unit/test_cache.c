@@ -44,6 +44,7 @@ SENTRY_TEST(cache_keep)
     SKIP_TEST();
 #endif
     SENTRY_TEST_OPTIONS_NEW(options);
+    TEST_ASSERT(!!options->transport);
     sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
     sentry_options_set_cache_keep(options, true);
     sentry_init(options);
@@ -80,6 +81,7 @@ SENTRY_TEST(cache_keep)
     TEST_ASSERT(!sentry__path_is_file(cached_envelope_path));
 
     sentry__process_old_runs(options, 0);
+    sentry_flush(5000);
 
     TEST_ASSERT(!sentry__path_is_file(old_envelope_path));
     TEST_ASSERT(sentry__path_is_file(cached_envelope_path));
