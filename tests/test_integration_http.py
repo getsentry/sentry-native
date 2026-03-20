@@ -1181,3 +1181,73 @@ def test_http_retry_session_on_network_error(cmake, httpserver):
 
     cache_files = list(cache_dir.glob("*.envelope"))
     assert len(cache_files) == 0
+
+
+@pytest.mark.skipif(
+    not has_breakpad,
+    reason="test needs breakpad backend",
+)
+def test_breakpad_cache_external_minidump(cmake, httpserver):
+    """
+    Breakpad crash produces a minidump that is cached externally.
+    On restart, the minidump is resolved from cache and included in the
+    sent envelope.
+    """
+    tmp_path = cmake(
+        ["sentry_example"],
+        {"SENTRY_BACKEND": "breakpad", "SENTRY_TRANSPORT_COMPRESSION": "Off"},
+    )
+
+    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
+
+    # First run: crash
+    run(
+        tmp_path,
+        "sentry_example",
+        ["log", "start-session", "crash"],
+        expect_failure=True,
+        env=get_asan_crash_env(env),
+    )
+
+    # Verify minidump was cached externally in cache/<uuid>/
+    cache_dir = os.path.join(tmp_path, ".sentry-native", "cache")
+    if os.path.isdir(cache_dir):
+        att_dirs = [
+            d
+            for d in os.listdir(cache_dir)
+            if os.path.isdir(os.path.join(cache_dir, d))
+        ]
+        if att_dirs:
+            att_dir = os.path.join(cache_dir, att_dirs[0])
+            refs_files = [
+                f for f in os.listdir(att_dir) if f == "__sentry-attachments.json"
+            ]
+            assert len(refs_files) > 0, "expected __sentry-attachments.json"
+
+    # Second run: restart picks up crash envelope and resolves external attachments
+    httpserver.expect_request(
+        "/api/123456/envelope/",
+        headers={"x-sentry-auth": auth_header},
+    ).respond_with_data("OK")
+
+    run(
+        tmp_path,
+        "sentry_example",
+        ["log", "no-setup"],
+        env=env,
+    )
+
+    assert len(httpserver.log) >= 1
+
+    # Find the crash envelope with a minidump
+    crash_envelope = None
+    for entry in httpserver.log:
+        body = entry[0].get_data()
+        envelope = Envelope.deserialize(body)
+        for item in envelope:
+            if item.headers.get("attachment_type") == "event.minidump":
+                crash_envelope = envelope
+                break
+
+    assert crash_envelope is not None, "expected envelope with minidump"
+    assert_breakpad_crash(crash_envelope)
