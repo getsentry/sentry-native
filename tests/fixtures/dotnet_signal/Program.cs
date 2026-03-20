@@ -39,7 +39,8 @@ class Program
 
         // setup minimal sentry-native
         var options = sentry_options_new();
-        sentry_options_set_handler_strategy(options, 1);
+        int strategy = args.Contains("default-strategy") ? 0 : 1;
+        sentry_options_set_handler_strategy(options, strategy);
         sentry_options_set_debug(options, 1);
         if (databasePath != null)
         {

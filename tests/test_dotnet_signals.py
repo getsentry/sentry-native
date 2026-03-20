@@ -280,7 +280,7 @@ def adb(*args, **kwargs):
     return subprocess.run([adb_path, *args], **kwargs)
 
 
-def run_android(args=None, timeout=30):
+def run_android(args=None, strategy=None, timeout=30):
     if args is None:
         args = []
     adb("logcat", "-c")
@@ -291,6 +291,8 @@ def run_android(args=None, timeout=30):
     intent_args = []
     for arg in args:
         intent_args += ["--es", "arg", arg]
+    if strategy:
+        intent_args += ["--es", "strategy", strategy]
     try:
         adb(
             "shell",
@@ -321,25 +323,57 @@ def run_android(args=None, timeout=30):
     return adb(*logcat_args, capture_output=True, text=True).stdout
 
 
-def run_android_managed_exception():
-    return run_android(["managed-exception"])
+def run_android_managed_exception(strategy=None):
+    return run_android(["managed-exception"], strategy=strategy)
 
 
-def run_android_unhandled_managed_exception():
-    return run_android(["unhandled-managed-exception"])
+def run_android_unhandled_managed_exception(strategy=None):
+    return run_android(["unhandled-managed-exception"], strategy=strategy)
 
 
-def run_android_native_crash():
-    return run_android(["native-crash"])
+def run_android_native_crash(strategy=None):
+    return run_android(["native-crash"], strategy=strategy)
+
+
+ndk_aar_path = (
+    pathlib.Path(__file__).parent.parent
+    / "ndk"
+    / "lib"
+    / "build"
+    / "outputs"
+    / "aar"
+    / "sentry-native-ndk-release.aar"
+)
 
 
 @pytest.mark.skipif(
     not is_android or int(is_android) < 26,
     reason="needs Android API 26+ (tombstoned)",
 )
-def test_android_signals_inproc(cmake):
+@pytest.mark.parametrize(
+    "runtime,strategy",
+    [
+        ("mono", "chain-at-start"),
+        ("mono", "preload"),
+        # CoreCLR + chain-at-start is not supported: on Android, libsigchain
+        # prevents sentry from overriding CoreCLR's signal handlers when
+        # installed after the runtime. Only preload (install before runtime)
+        # works with CoreCLR.
+        ("coreclr", "preload"),
+    ],
+)
+def test_android_signals_inproc(cmake, runtime, strategy):
     if shutil.which("dotnet") is None:
         pytest.skip("dotnet is not installed")
+
+    if strategy == "preload" and not ndk_aar_path.exists():
+        pytest.skip(
+            "NDK AAR not found at {}. Build it with: "
+            "cd ndk && ./gradlew :lib:assembleRelease".format(ndk_aar_path)
+        )
+
+    use_mono = runtime == "mono"
+    is_preload = strategy == "preload"
 
     arch = os.environ.get("ANDROID_ARCH", "x86_64")
     rid_map = {
@@ -374,7 +408,6 @@ def test_android_signals_inproc(cmake):
         )
         native_lib_dir = project_fixture_path / "native" / arch
         native_lib_dir.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(tmp_path / "libsentry.so", native_lib_dir / "libsentry.so")
         subprocess.run(
             [
                 ndk_clang,
@@ -389,18 +422,26 @@ def test_android_signals_inproc(cmake):
             check=True,
         )
 
+        # for chain-at-start, bundle the cmake-built libsentry.so directly
+        # (preload uses the AAR which brings its own libsentry.so)
+        if not is_preload:
+            shutil.copy2(tmp_path / "libsentry.so", native_lib_dir / "libsentry.so")
+
         # build and install the APK
-        subprocess.run(
-            [
-                "dotnet",
-                "build",
-                "-f:net10.0-android",
-                "-p:RuntimeIdentifier={}".format(rid_map[arch]),
-                "-p:Configuration=Release",
-            ],
-            cwd=project_fixture_path,
-            check=True,
-        )
+        build_args = [
+            "dotnet",
+            "build",
+            "-f:net10.0-android",
+            "-p:RuntimeIdentifier={}".format(rid_map[arch]),
+            "-p:Configuration=Release",
+            "-p:UseMonoRuntime={}".format(str(use_mono).lower()),
+        ]
+        if is_preload:
+            build_args += [
+                "-p:EnablePreload=true",
+                "-p:NdkAarPath={}".format(ndk_aar_path),
+            ]
+        subprocess.run(build_args, cwd=project_fixture_path, check=True)
         apk_dir = (
             project_fixture_path / "bin" / "Release" / "net10.0-android" / rid_map[arch]
         )
@@ -428,8 +469,12 @@ def test_android_signals_inproc(cmake):
             )
             return bool(result.stdout.strip())
 
+        # Preload installs signal handlers before the runtime, so the
+        # handler strategy should be DEFAULT (0) instead of CHAIN_AT_START.
+        app_strategy = "default-strategy" if is_preload else None
+
         # managed exception: handled, no crash
-        logcat = run_android_managed_exception()
+        logcat = run_android_managed_exception(strategy=app_strategy)
         assert not (
             "NullReferenceException" in logcat
         ), f"Managed exception leaked.\nlogcat:\n{logcat}"
@@ -437,10 +482,10 @@ def test_android_signals_inproc(cmake):
         assert not file_exists(db + "/last_crash"), "A crash was registered"
         assert not has_envelope(), "Unexpected envelope found"
 
-        # unhandled managed exception: Mono calls exit(1), the native SDK
-        # should not register a crash (sentry-dotnet handles this at the
+        # unhandled managed exception: the runtime calls exit(1), the native
+        # SDK should not register a crash (sentry-dotnet handles this at the
         # managed layer via UnhandledExceptionRaiser)
-        logcat = run_android_unhandled_managed_exception()
+        logcat = run_android_unhandled_managed_exception(strategy=app_strategy)
         assert (
             "NullReferenceException" in logcat
         ), f"Expected NullReferenceException.\nlogcat:\n{logcat}"
@@ -449,7 +494,7 @@ def test_android_signals_inproc(cmake):
         assert not has_envelope(), "Unexpected envelope found"
 
         # native crash
-        run_android_native_crash()
+        run_android_native_crash(strategy=app_strategy)
         assert wait_for(lambda: file_exists(db + "/last_crash")), "Crash marker missing"
         assert wait_for(has_envelope), "Crash envelope is missing"
 
