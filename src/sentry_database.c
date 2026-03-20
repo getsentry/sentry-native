@@ -5,7 +5,6 @@
 #include "sentry_options.h"
 #include "sentry_session.h"
 #include "sentry_sync.h"
-#include "sentry_transport.h"
 #include "sentry_utils.h"
 #include "sentry_uuid.h"
 #include <errno.h>
