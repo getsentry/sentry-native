@@ -42,11 +42,11 @@ def test_cache_keep(cmake, backend, cache_keep):
 
     assert not cache_dir.exists() or len(list(cache_dir.glob("*.envelope"))) == 0
 
-    # cache
+    # flush + cache
     run(
         tmp_path,
         "sentry_example",
-        ["log", "no-setup"] + (["cache-keep"] if cache_keep else []),
+        ["log", "flush", "no-setup"] + (["cache-keep"] if cache_keep else []),
         env=env,
     )
 
