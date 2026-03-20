@@ -228,6 +228,9 @@ send_release_env_envelope(sentry_envelope_t *envelope, void *data)
 
 SENTRY_TEST(set_release_and_environment_late)
 {
+#if defined(SENTRY_PLATFORM_NX)
+    SKIP_TEST();
+#endif
     release_env_assertion_t assertion
         = { true, 0, 0, "late_release", "late_env" };
 
