@@ -623,6 +623,10 @@ append_raw_attachment_ref(sentry_envelope_t *envelope, const char *location,
     sentry_value_t payload_obj = sentry_value_new_object();
     sentry_value_set_by_key(
         payload_obj, "location", sentry_value_new_string(location));
+    if (content_type) {
+        sentry_value_set_by_key(
+            payload_obj, "content_type", sentry_value_new_string(content_type));
+    }
     sentry__jsonwriter_write_value(jw, payload_obj);
     sentry_value_decref(payload_obj);
     size_t payload_len = 0;

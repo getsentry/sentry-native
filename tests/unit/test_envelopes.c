@@ -1167,6 +1167,36 @@ SENTRY_TEST(attachment_ref_restore)
     sentry_close();
 }
 
+SENTRY_TEST(attachment_ref_raw_content_type)
+{
+    const char *test_file_str = SENTRY_TEST_PATH_PREFIX "sentry_test_raw_ref";
+    sentry_path_t *test_file_path = sentry__path_from_str(test_file_str);
+
+    // write a minimal envelope to disk so we can load it as raw
+    sentry_envelope_t *envelope = sentry__envelope_new();
+    sentry_value_t event = sentry_value_new_object();
+    sentry__envelope_add_event(envelope, event);
+    TEST_ASSERT(sentry_envelope_write_to_path(envelope, test_file_path) == 0);
+    sentry_envelope_free(envelope);
+
+    // load as raw and append an attachment-ref with content_type
+    sentry_envelope_t *raw = sentry__envelope_from_path(test_file_path);
+    TEST_ASSERT(!!raw);
+    sentry__envelope_add_attachment_ref(raw, "https://up.example.com/abc",
+        "dump.dmp", "application/x-dmp", "event.minidump",
+        sentry_value_new_int32(42));
+
+    size_t size = 0;
+    char *serialized = sentry_envelope_serialize(raw, &size);
+    TEST_CHECK(!!serialized);
+    TEST_CHECK(!!strstr(serialized, "\"content_type\":\"application/x-dmp\""));
+    sentry_free(serialized);
+
+    sentry_envelope_free(raw);
+    sentry__path_remove(test_file_path);
+    sentry__path_free(test_file_path);
+}
+
 SENTRY_TEST(deserialize_envelope_invalid)
 {
     TEST_CHECK(!sentry_envelope_deserialize("", 0));
