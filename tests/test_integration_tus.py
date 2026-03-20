@@ -97,7 +97,10 @@ def test_tus_upload_large_attachment(cmake, httpserver):
     envelope = Envelope.deserialize(body)
     attachment_ref = None
     for item in envelope:
-        if item.headers.get("content_type") == "application/vnd.sentry.attachment-ref":
+        if (
+            item.headers.get("content_type")
+            == "application/vnd.sentry.attachment-ref+json"
+        ):
             if hasattr(item.payload, "json") and "location" in item.payload.json:
                 attachment_ref = item
                 break
@@ -158,7 +161,8 @@ def test_tus_upload_404_disables(cmake, httpserver):
     envelope = Envelope.deserialize(body)
     for item in envelope:
         assert (
-            item.headers.get("content_type") != "application/vnd.sentry.attachment-ref"
+            item.headers.get("content_type")
+            != "application/vnd.sentry.attachment-ref+json"
         )
 
 
@@ -263,7 +267,10 @@ def test_tus_crash_restart(cmake, httpserver):
     envelope = Envelope.deserialize(body)
     attachment_ref = None
     for item in envelope:
-        if item.headers.get("content_type") == "application/vnd.sentry.attachment-ref":
+        if (
+            item.headers.get("content_type")
+            == "application/vnd.sentry.attachment-ref+json"
+        ):
             if hasattr(item.payload, "json") and "location" in item.payload.json:
                 attachment_ref = item
                 break

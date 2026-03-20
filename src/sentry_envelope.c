@@ -641,7 +641,7 @@ append_raw_attachment_ref(sentry_envelope_t *envelope, const char *location,
     sentry_value_set_by_key(
         headers, "type", sentry_value_new_string("attachment"));
     sentry_value_set_by_key(headers, "content_type",
-        sentry_value_new_string("application/vnd.sentry.attachment-ref"));
+        sentry_value_new_string("application/vnd.sentry.attachment-ref+json"));
     sentry_value_set_by_key(
         headers, "length", sentry_value_new_int32((int32_t)payload_len));
     if (filename) {
@@ -707,7 +707,7 @@ sentry__envelope_add_attachment_ref(sentry_envelope_t *envelope,
     sentry__envelope_item_set_header(
         item, "type", sentry_value_new_string("attachment"));
     sentry__envelope_item_set_header(item, "content_type",
-        sentry_value_new_string("application/vnd.sentry.attachment-ref"));
+        sentry_value_new_string("application/vnd.sentry.attachment-ref+json"));
     if (filename) {
         sentry__envelope_item_set_header(
             item, "filename", sentry_value_new_string(filename));
