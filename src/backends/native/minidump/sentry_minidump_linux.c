@@ -97,6 +97,8 @@ typedef struct {
 
     // Threads
     pid_t tids[SENTRY_CRASH_MAX_THREADS];
+    char thread_names[SENTRY_CRASH_MAX_THREADS]
+                     [16]; // From /proc/[pid]/task/[tid]/comm
     size_t thread_count;
 
     // Ptrace state
@@ -438,7 +440,31 @@ enumerate_threads(minidump_writer_t *writer)
 
         pid_t tid = (pid_t)atoi(entry->d_name);
         if (tid > 0) {
-            writer->tids[writer->thread_count++] = tid;
+            size_t idx = writer->thread_count;
+            writer->tids[idx] = tid;
+
+            // Read thread name from /proc/[pid]/task/[tid]/comm
+            char comm_path[64];
+            snprintf(comm_path, sizeof(comm_path), "/proc/%d/task/%d/comm",
+                writer->crash_ctx->crashed_pid, tid);
+            FILE *comm_file = fopen(comm_path, "r");
+            if (comm_file) {
+                if (fgets(writer->thread_names[idx],
+                        sizeof(writer->thread_names[idx]), comm_file)) {
+                    // Trim trailing newline
+                    size_t len = strlen(writer->thread_names[idx]);
+                    if (len > 0 && writer->thread_names[idx][len - 1] == '\n') {
+                        writer->thread_names[idx][len - 1] = '\0';
+                    }
+                } else {
+                    writer->thread_names[idx][0] = '\0';
+                }
+                fclose(comm_file);
+            } else {
+                writer->thread_names[idx][0] = '\0';
+            }
+
+            writer->thread_count++;
         }
     }
 
@@ -1149,33 +1175,120 @@ write_thread_list_stream(minidump_writer_t *writer, minidump_directory_t *dir)
 /**
  * Write module list stream (shared libraries)
  */
+/**
+ * Resolved module info: merges all /proc/pid/maps segments of the same ELF
+ * file into a single module with correct base address and full virtual size.
+ *
+ * On Linux, ELF files are mapped as multiple segments:
+ *   addr1 r--p offset=0x000000 /lib/foo.so   (ELF headers, rodata)
+ *   addr2 r-xp offset=0x010000 /lib/foo.so   (code)
+ *   addr3 r--p offset=0x030000 /lib/foo.so   (rodata)
+ *   addr4 rw-p offset=0x040000 /lib/foo.so   (data/bss)
+ *
+ * base_of_image must be the start of the mapping with offset==0 (the real ELF
+ * load address). size_of_image must span from base to end of the last segment.
+ * This matches Breakpad/Crashpad behavior and is required for server-side CFI
+ * unwinding to correctly compute RVAs (rva = ip - base_of_image).
+ */
+typedef struct {
+    uint64_t base; // Start of mapping with offset==0
+    uint64_t end; // End of last mapping for this file
+    char *name; // Pointer into mappings[].name (not owned)
+    uint8_t build_id[32];
+    size_t build_id_len;
+} resolved_module_t;
+
+/**
+ * Resolve all mappings into deduplicated modules.
+ * For each unique named file, find the mapping with offset==0 as the base
+ * and the last mapping as the end. Returns the number of modules found.
+ */
+static size_t
+resolve_modules(const minidump_writer_t *writer, resolved_module_t *modules,
+    size_t max_modules)
+{
+    size_t module_count = 0;
+
+    for (size_t i = 0; i < writer->mapping_count && module_count < max_modules;
+        i++) {
+        const memory_mapping_t *mapping = &writer->mappings[i];
+
+        // Skip anonymous mappings and special kernel mappings
+        if (mapping->name[0] == '\0' || mapping->name[0] == '[') {
+            continue;
+        }
+
+        // Compute the ELF load base: virtual_addr - file_offset.
+        // This gives the same base regardless of which segment we look at,
+        // matching Breakpad/Crashpad behavior.
+        uint64_t load_base = mapping->start - mapping->offset;
+
+        // Check if we already have a module for this file
+        bool found = false;
+        for (size_t j = 0; j < module_count; j++) {
+            if (strcmp(modules[j].name, mapping->name) == 0) {
+                // Extend the module's range if this mapping goes further
+                if (mapping->end > modules[j].end) {
+                    modules[j].end = mapping->end;
+                }
+                // Use the lowest load base we see
+                if (load_base < modules[j].base) {
+                    modules[j].base = load_base;
+                }
+                found = true;
+                break;
+            }
+        }
+
+        if (!found) {
+            resolved_module_t *mod = &modules[module_count];
+            mod->name = (char *)mapping->name;
+            mod->base = load_base;
+            mod->end = mapping->end;
+            mod->build_id_len = 0;
+            module_count++;
+        }
+    }
+
+    // Extract Build IDs for each resolved module
+    for (size_t i = 0; i < module_count; i++) {
+        modules[i].build_id_len = extract_elf_build_id(
+            modules[i].name, modules[i].build_id, sizeof(modules[i].build_id));
+    }
+
+    return module_count;
+}
+
 static int
 write_module_list_stream(minidump_writer_t *writer, minidump_directory_t *dir)
 {
     SENTRY_DEBUGF("write_module_list_stream: processing %zu total mappings",
         writer->mapping_count);
 
-    // Count modules (mappings with executable flag and name)
-    size_t module_count = 0;
-    for (size_t i = 0; i < writer->mapping_count; i++) {
-        if (writer->mappings[i].permissions[2] == 'x'
-            && writer->mappings[i].name[0] != '\0'
-            && writer->mappings[i].name[0] != '[') {
-            module_count++;
-        }
+    // Resolve mappings into deduplicated modules with correct base/size.
+    // Use a stack-allocated array with a reasonable max
+    // (SENTRY_CRASH_MAX_MODULES).
+    resolved_module_t *resolved
+        = sentry_malloc(sizeof(resolved_module_t) * SENTRY_CRASH_MAX_MODULES);
+    if (!resolved) {
+        return -1;
     }
+
+    size_t module_count
+        = resolve_modules(writer, resolved, SENTRY_CRASH_MAX_MODULES);
 
     size_t list_size
         = sizeof(uint32_t) + (module_count * sizeof(minidump_module_t));
     minidump_module_list_t *module_list = sentry_malloc(list_size);
     if (!module_list) {
+        sentry_free(resolved);
         return -1;
     }
 
     module_list->count = module_count;
     SENTRY_DEBUGF("Writing %zu modules to minidump", module_count);
 
-    // First pass: collect module info and Build IDs (don't write anything yet)
+    // First pass: populate module list entries
     typedef struct {
         uint8_t build_id[32];
         size_t build_id_len;
@@ -1188,46 +1301,37 @@ write_module_list_stream(minidump_writer_t *writer, minidump_directory_t *dir)
         mod_infos = sentry_malloc(sizeof(module_info_t) * module_count);
         if (!mod_infos) {
             sentry_free(module_list);
+            sentry_free(resolved);
             return -1;
         }
     }
 
-    size_t mod_idx = 0;
-    for (size_t i = 0; i < writer->mapping_count && mod_idx < module_count;
-        i++) {
-        memory_mapping_t *mapping = &writer->mappings[i];
+    for (size_t i = 0; i < module_count; i++) {
+        minidump_module_t *module = &module_list->modules[i];
+        memset(module, 0, sizeof(*module));
 
-        if (mapping->permissions[2] == 'x' && mapping->name[0] != '\0'
-            && mapping->name[0] != '[') {
-            minidump_module_t *module = &module_list->modules[mod_idx];
-            memset(module, 0, sizeof(*module));
+        module->base_of_image = resolved[i].base;
+        module->size_of_image = (uint32_t)(resolved[i].end - resolved[i].base);
 
-            module->base_of_image = mapping->start;
-            module->size_of_image = mapping->end - mapping->start;
+        // Set VS_FIXEDFILEINFO signature (first uint32_t of version_info)
+        // This is required for minidump processors to recognize the module
+        uint32_t version_sig = 0xFEEF04BD;
+        memcpy(&module->version_info[0], &version_sig, sizeof(version_sig));
 
-            // Set VS_FIXEDFILEINFO signature (first uint32_t of version_info)
-            // This is required for minidump processors to recognize the module
-            uint32_t version_sig = 0xFEEF04BD;
-            memcpy(&module->version_info[0], &version_sig, sizeof(version_sig));
+        // Store info for later writing
+        mod_infos[i].name = resolved[i].name;
+        mod_infos[i].base = resolved[i].base;
+        mod_infos[i].size = (uint32_t)(resolved[i].end - resolved[i].base);
+        memcpy(mod_infos[i].build_id, resolved[i].build_id,
+            sizeof(mod_infos[i].build_id));
+        mod_infos[i].build_id_len = resolved[i].build_id_len;
 
-            // Store info for later writing
-            mod_infos[mod_idx].name = mapping->name;
-            mod_infos[mod_idx].base = mapping->start;
-            mod_infos[mod_idx].size = mapping->end - mapping->start;
-
-            // Extract Build ID but don't write anything yet
-            mod_infos[mod_idx].build_id_len = extract_elf_build_id(
-                mapping->name, mod_infos[mod_idx].build_id,
-                sizeof(mod_infos[mod_idx].build_id));
-
-            SENTRY_DEBUGF("Module: %s base=0x%llx size=0x%llx build_id_len=%zu",
-                mapping->name, (unsigned long long)mapping->start,
-                (unsigned long long)(mapping->end - mapping->start),
-                mod_infos[mod_idx].build_id_len);
-
-            mod_idx++;
-        }
+        SENTRY_DEBUGF("Module: %s base=0x%llx size=0x%x build_id_len=%zu",
+            resolved[i].name, (unsigned long long)resolved[i].base,
+            mod_infos[i].size, mod_infos[i].build_id_len);
     }
+
+    sentry_free(resolved);
 
     // Write the module list structure FIRST (with zero RVAs)
     dir->stream_type = MINIDUMP_STREAM_MODULE_LIST;
@@ -1374,6 +1478,59 @@ write_exception_stream(minidump_writer_t *writer, minidump_directory_t *dir)
     dir->stream_type = MINIDUMP_STREAM_EXCEPTION;
     dir->rva = write_data(writer, &exception_stream, sizeof(exception_stream));
     dir->data_size = sizeof(exception_stream);
+
+    return dir->rva ? 0 : -1;
+}
+
+/**
+ * Write thread names stream (stream type 24).
+ * Matches Crashpad's ThreadNamesStream format: a list of
+ * MINIDUMP_THREAD_NAME entries, each pointing to a UTF-16LE string.
+ */
+static int
+write_thread_names_stream(minidump_writer_t *writer, minidump_directory_t *dir)
+{
+    SENTRY_DEBUGF(
+        "write_thread_names_stream: %zu threads", writer->thread_count);
+
+    // First pass: write all thread name strings and collect their RVAs
+    minidump_rva_t *name_rvas
+        = sentry_malloc(sizeof(minidump_rva_t) * writer->thread_count);
+    if (!name_rvas) {
+        return -1;
+    }
+
+    for (size_t i = 0; i < writer->thread_count; i++) {
+        const char *name = writer->thread_names[i];
+        if (name[0] != '\0') {
+            name_rvas[i] = write_minidump_string(writer, name);
+        } else {
+            // Write empty string for threads without names
+            name_rvas[i] = write_minidump_string(writer, "");
+        }
+    }
+
+    // Second pass: write the thread names list structure
+    size_t list_size = sizeof(uint32_t)
+        + (writer->thread_count * sizeof(minidump_thread_name_t));
+    minidump_thread_name_list_t *name_list = sentry_malloc(list_size);
+    if (!name_list) {
+        sentry_free(name_rvas);
+        return -1;
+    }
+
+    name_list->count = writer->thread_count;
+    for (size_t i = 0; i < writer->thread_count; i++) {
+        name_list->thread_names[i].thread_id = writer->tids[i];
+        name_list->thread_names[i].thread_name_rva = name_rvas[i];
+    }
+
+    dir->stream_type = MINIDUMP_STREAM_THREAD_NAMES;
+    dir->rva = write_data(writer, name_list, list_size);
+    dir->data_size = list_size;
+
+    sentry_free(name_list);
+    sentry_free(name_rvas);
 
     return dir->rva ? 0 : -1;
 }
@@ -1658,10 +1815,11 @@ sentry__write_minidump(
     }
 
     // Reserve space for header and directory
-    // Write 7 streams: system_info, threads, modules, exception,
-    // memory_list, linux_proc_status, linux_maps.
+    // Write 8 streams: system_info, threads, modules, exception,
+    // memory_list, linux_proc_status, linux_maps, thread_names.
     // The Linux streams provide PID and memory map info for debuggers.
-    const uint32_t stream_count = 7;
+    // ThreadNamesStream matches Crashpad format for server-side processing.
+    const uint32_t stream_count = 8;
     writer.current_offset = sizeof(minidump_header_t)
         + (stream_count * sizeof(minidump_directory_t));
 
@@ -1679,7 +1837,7 @@ sentry__write_minidump(
     }
 
     // Write streams
-    minidump_directory_t directories[7];
+    minidump_directory_t directories[8];
     int result = 0;
 
     SENTRY_DEBUG("writing system info stream");
@@ -1710,6 +1868,15 @@ sentry__write_minidump(
         directories[6].stream_type = MINIDUMP_STREAM_LINUX_MAPS;
         directories[6].data_size = 0;
         directories[6].rva = 0;
+    }
+
+    // Write thread names stream (matches Crashpad format)
+    SENTRY_DEBUG("writing thread names stream");
+    if (write_thread_names_stream(&writer, &directories[7]) < 0) {
+        SENTRY_WARN("failed to write thread names stream");
+        directories[7].stream_type = MINIDUMP_STREAM_THREAD_NAMES;
+        directories[7].data_size = 0;
+        directories[7].rva = 0;
     }
 
     if (result < 0) {
