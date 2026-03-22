@@ -18,6 +18,7 @@
 #    include <time.h>
 #    include <unistd.h>
 
+#    include "../../../modulefinder/sentry_modulefinder_linux.h"
 #    include "sentry_alloc.h"
 #    include "sentry_logger.h"
 #    include "sentry_minidump_common.h"
@@ -1199,9 +1200,11 @@ typedef struct {
 } resolved_module_t;
 
 /**
- * Resolve all mappings into deduplicated modules.
- * For each unique named file, find the mapping with offset==0 as the base
- * and the last mapping as the end. Returns the number of modules found.
+ * Resolve all mappings into deduplicated modules using the shared modulefinder
+ * merge logic (sentry__module_mapping_push). For each unique named file, all
+ * contiguous /proc/pid/maps segments are merged into a single sentry_module_t,
+ * from which we extract base_of_image and size_of_image the same way the
+ * in-process modulefinder does.
  */
 static size_t
 resolve_modules(const minidump_writer_t *writer, resolved_module_t *modules,
@@ -1209,45 +1212,83 @@ resolve_modules(const minidump_writer_t *writer, resolved_module_t *modules,
 {
     size_t module_count = 0;
 
-    for (size_t i = 0; i < writer->mapping_count && module_count < max_modules;
-        i++) {
+    // Track the current module being built via sentry__module_mapping_push.
+    // When the filename changes, we finalize the current module and start a
+    // new one — /proc/pid/maps groups mappings by file, so consecutive lines
+    // with the same name belong to the same ELF.
+    sentry_module_t current;
+    memset(&current, 0, sizeof(current));
+    char *current_name = NULL;
+
+    for (size_t i = 0; i < writer->mapping_count; i++) {
         const memory_mapping_t *mapping = &writer->mappings[i];
 
         // Skip anonymous mappings and special kernel mappings
         if (mapping->name[0] == '\0' || mapping->name[0] == '[') {
             continue;
         }
+        // Skip non-readable mappings
+        if (mapping->permissions[0] != 'r') {
+            continue;
+        }
 
-        // Compute the ELF load base: virtual_addr - file_offset.
-        // This gives the same base regardless of which segment we look at,
-        // matching Breakpad/Crashpad behavior.
-        uint64_t load_base = mapping->start - mapping->offset;
+        // Build a sentry_parsed_module_t to feed to the shared merge function
+        sentry_parsed_module_t parsed;
+        parsed.start = mapping->start;
+        parsed.end = mapping->end;
+        parsed.offset = mapping->offset;
+        memcpy(parsed.permissions, mapping->permissions, 5);
+        // Use a dummy inode — the merge function uses it to detect file
+        // changes, but we rely on name comparison instead (see below)
+        parsed.inode = 0;
+        parsed.file.ptr = mapping->name;
+        parsed.file.len = strlen(mapping->name);
 
-        // Check if we already have a module for this file
-        bool found = false;
-        for (size_t j = 0; j < module_count; j++) {
-            if (strcmp(modules[j].name, mapping->name) == 0) {
-                // Extend the module's range if this mapping goes further
-                if (mapping->end > modules[j].end) {
-                    modules[j].end = mapping->end;
-                }
-                // Use the lowest load base we see
-                if (load_base < modules[j].base) {
-                    modules[j].base = load_base;
-                }
-                found = true;
-                break;
+        bool same_file
+            = current_name && strcmp(current_name, mapping->name) == 0;
+
+        if (!same_file) {
+            // Finalize the previous module (if any)
+            if (current_name && current.num_mappings > 0
+                && module_count < max_modules) {
+                const sentry_mapped_region_t *first = &current.mappings[0];
+                const sentry_mapped_region_t *last
+                    = &current.mappings[current.num_mappings - 1];
+                resolved_module_t *mod = &modules[module_count];
+                mod->name = current_name;
+                mod->base = first->addr;
+                mod->end = last->addr + last->size;
+                mod->build_id_len = 0;
+                module_count++;
             }
+
+            // Start a new module
+            memset(&current, 0, sizeof(current));
+            current_name = (char *)mapping->name;
         }
 
-        if (!found) {
-            resolved_module_t *mod = &modules[module_count];
-            mod->name = (char *)mapping->name;
-            mod->base = load_base;
-            mod->end = mapping->end;
-            mod->build_id_len = 0;
-            module_count++;
+        // Use a consistent dummy inode so the merge function doesn't reject
+        // this mapping as belonging to a different file
+        parsed.inode = current.mappings_inode;
+        if (current.num_mappings == 0) {
+            parsed.inode = 1; // Any non-zero value for the first mapping
         }
+
+        sentry__module_mapping_push(&current, &parsed);
+    }
+
+    // Finalize the last module
+    if (current_name && current.num_mappings > 0
+        && module_count < max_modules) {
+        const sentry_mapped_region_t *first = &current.mappings[0];
+        const sentry_mapped_region_t *last
+            = &current.mappings[current.num_mappings - 1];
+        resolved_module_t *mod = &modules[module_count];
+        mod->name = current_name;
+        mod->base = first->addr;
+        mod->end = last->addr + last->size;
+        mod->build_id_len = 0;
+        module_count++;
     }
 
     // Extract Build IDs for each resolved module
