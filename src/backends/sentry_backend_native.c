@@ -658,16 +658,6 @@ native_backend_flush_scope(
             }
         }
     }
-
-    // Flush external crash report envelope if configured
-    if (options->external_crash_reporter && state->envelope_path) {
-        sentry_envelope_t *envelope = sentry__envelope_new();
-        if (envelope && options->session) {
-            sentry__envelope_add_session(envelope, options->session);
-            sentry__run_write_external(options->run, envelope);
-        }
-        sentry_envelope_free(envelope);
-    }
 }
 
 static void

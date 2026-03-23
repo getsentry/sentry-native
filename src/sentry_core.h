@@ -128,7 +128,8 @@ void sentry__set_propagation_context(const char *key, sentry_value_t value);
 void sentry__apply_attributes(
     sentry_value_t telemetry, sentry_value_t attributes);
 
-bool sentry__launch_external_crash_reporter(sentry_envelope_t *envelope);
+bool sentry__launch_external_crash_reporter(
+    const sentry_options_t *options, sentry_envelope_t *envelope);
 
 #define SENTRY_WITH_OPTIONS(Options)                                           \
     for (const sentry_options_t *Options = sentry__options_getref(); Options;  \
