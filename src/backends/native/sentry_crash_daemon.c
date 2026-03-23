@@ -1795,9 +1795,6 @@ build_stacktrace_from_ctx(const sentry_crash_context_t *ctx)
  *
  * @param ctx Crash context
  * @param event_file_path Path to event file from parent process
- * @param include_threads Whether to include threads in the event.
- *        Set to false when minidump is attached (Sentry extracts threads from
- * minidump).
  */
 static sentry_value_t
 build_native_crash_event(
