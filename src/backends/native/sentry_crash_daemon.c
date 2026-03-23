@@ -2279,6 +2279,7 @@ write_envelope_with_minidump(const sentry_options_t *options,
 #endif
     if (fd < 0) {
         SENTRY_WARN("Failed to open envelope file for writing");
+        sentry_free(event_json);
         sentry_free(event_id);
         return false;
     }
@@ -2333,8 +2334,8 @@ write_envelope_with_minidump(const sentry_options_t *options,
             _write(fd, "\n", 1);
 #endif
         }
-        sentry_free(event_json);
     }
+    sentry_free(event_json);
 
     // Add minidump as attachment
 #if defined(SENTRY_PLATFORM_UNIX)
@@ -2750,8 +2751,6 @@ sentry__process_crash(const sentry_options_t *options, sentry_crash_ipc_t *ipc)
             SENTRY_WARN("No transport available for sending envelope");
             sentry_envelope_free(envelope);
         }
-    } else {
-        sentry_envelope_free(envelope);
     }
 
     // Clean up temporary envelope file (keep minidump for
