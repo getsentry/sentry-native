@@ -2066,13 +2066,13 @@ write_envelope_with_native_stacktrace(const sentry_options_t *options,
         = options && options->dsn ? sentry_options_get_dsn(options) : NULL;
     char header_buf[SENTRY_CRASH_ENVELOPE_HEADER_SIZE];
     int header_len;
-    if (dsn && event_id) {
+    if (dsn && event_id && event_id[0] != '\0') {
         header_len = snprintf(header_buf, sizeof(header_buf),
             "{\"dsn\":\"%s\",\"event_id\":\"%s\"}\n", dsn, event_id);
     } else if (dsn) {
         header_len = snprintf(
             header_buf, sizeof(header_buf), "{\"dsn\":\"%s\"}\n", dsn);
-    } else if (event_id) {
+    } else if (event_id && event_id[0] != '\0') {
         header_len = snprintf(header_buf, sizeof(header_buf),
             "{\"event_id\":\"%s\"}\n", event_id);
     } else {
@@ -2289,13 +2289,13 @@ write_envelope_with_minidump(const sentry_options_t *options,
         = options && options->dsn ? sentry_options_get_dsn(options) : NULL;
     char header_buf[SENTRY_CRASH_ENVELOPE_HEADER_SIZE];
     int header_len;
-    if (dsn && event_id) {
+    if (dsn && event_id && event_id[0] != '\0') {
         header_len = snprintf(header_buf, sizeof(header_buf),
             "{\"dsn\":\"%s\",\"event_id\":\"%s\"}\n", dsn, event_id);
     } else if (dsn) {
         header_len = snprintf(
             header_buf, sizeof(header_buf), "{\"dsn\":\"%s\"}\n", dsn);
-    } else if (event_id) {
+    } else if (event_id && event_id[0] != '\0') {
         header_len = snprintf(header_buf, sizeof(header_buf),
             "{\"event_id\":\"%s\"}\n", event_id);
     } else {
