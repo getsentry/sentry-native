@@ -541,7 +541,7 @@ native_backend_free(sentry_backend_t *backend)
 
 static void
 native_backend_flush_scope(
-    sentry_backend_t *backend, const sentry_options_t *options)
+    sentry_backend_t *backend, const sentry_options_t *UNUSED(options))
 {
     native_backend_state_t *state = (native_backend_state_t *)backend->data;
     if (!state || !state->event_path) {
