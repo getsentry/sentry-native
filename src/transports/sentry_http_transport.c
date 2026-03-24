@@ -252,6 +252,15 @@ http_send_task(void *_envelope, void *_state)
     }
 }
 
+static void
+http_transport_shutdown_timeout(void *_state)
+{
+    http_transport_state_t *state = _state;
+    if (state->shutdown_client) {
+        state->shutdown_client(state->client);
+    }
+}
+
 static int
 http_transport_start(const sentry_options_t *options, void *transport_state)
 {
@@ -288,10 +297,8 @@ http_transport_shutdown(uint64_t timeout, void *transport_state)
     sentry_bgworker_t *bgworker = transport_state;
     http_transport_state_t *state = sentry__bgworker_get_state(bgworker);
 
-    int rv = sentry__bgworker_shutdown(bgworker, timeout);
-    if (rv != 0 && state->shutdown_client) {
-        state->shutdown_client(state->client);
-    }
+    int rv = sentry__bgworker_shutdown_cb(
+        bgworker, timeout, http_transport_shutdown_timeout, state);
     return rv;
 }
 

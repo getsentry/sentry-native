@@ -469,8 +469,20 @@ int sentry__bgworker_flush(sentry_bgworker_t *bgw, uint64_t timeout);
 /**
  * This will try to shut down the background worker thread, with a `timeout`.
  * Returns 0 on success.
+ *
+ * The `_cb` variant accepts an `on_timeout` callback that is invoked when
+ * the timeout expires, just before detaching the thread. This gives the
+ * caller a chance to unblock the worker (e.g. by closing transport handles)
+ * so it can finish in-flight work.
  */
-int sentry__bgworker_shutdown(sentry_bgworker_t *bgw, uint64_t timeout);
+int sentry__bgworker_shutdown_cb(sentry_bgworker_t *bgw, uint64_t timeout,
+    void (*on_timeout)(void *), void *on_timeout_data);
+
+static inline int
+sentry__bgworker_shutdown(sentry_bgworker_t *bgw, uint64_t timeout)
+{
+    return sentry__bgworker_shutdown_cb(bgw, timeout, NULL, NULL);
+}
 
 /**
  * This will set a preferable thread name for background worker.
