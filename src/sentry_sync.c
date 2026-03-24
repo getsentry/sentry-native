@@ -157,6 +157,12 @@ sentry__task_decref(sentry_bgworker_task_t *task)
     }
 }
 
+enum {
+    SENTRY_BGW_STOPPED = 0,
+    SENTRY_BGW_RUNNING = 1,
+    SENTRY_BGW_STOPPING = 2,
+};
+
 struct sentry_bgworker_s {
     sentry_threadid_t thread_id;
     char *thread_name;
@@ -169,7 +175,7 @@ struct sentry_bgworker_s {
     void *state;
     void (*free_state)(void *state);
     long refcount;
-    long running;
+    long status; // SENTRY_BGW_*
 };
 
 sentry_bgworker_t *
@@ -236,9 +242,14 @@ sentry__bgworker_get_state(sentry_bgworker_t *bgw)
 static bool
 sentry__bgworker_is_done(sentry_bgworker_t *bgw)
 {
-    return (!bgw->first_task
-               || sentry__monotonic_time() < bgw->first_task->execute_after)
-        && !sentry__atomic_fetch(&bgw->running);
+    long status = sentry__atomic_fetch(&bgw->status);
+    if (status == SENTRY_BGW_STOPPING) {
+        // stop immediately to leave remaining tasks in the queue
+        return true;
+    }
+    return status != SENTRY_BGW_RUNNING
+        && (!bgw->first_task
+            || sentry__monotonic_time() < bgw->first_task->execute_after);
 }
 
 SENTRY_THREAD_FN
@@ -317,11 +328,11 @@ int
 sentry__bgworker_start(sentry_bgworker_t *bgw)
 {
     SENTRY_DEBUG("starting background worker thread");
-    sentry__atomic_store(&bgw->running, 1);
+    sentry__atomic_store(&bgw->status, SENTRY_BGW_RUNNING);
     // this incref moves the reference into the background thread
     sentry__bgworker_incref(bgw);
     if (sentry__thread_spawn(&bgw->thread_id, &worker_thread, bgw) != 0) {
-        sentry__atomic_store(&bgw->running, 0);
+        sentry__atomic_store(&bgw->status, SENTRY_BGW_STOPPED);
         sentry__bgworker_decref(bgw);
         return 1;
     }
@@ -358,7 +369,7 @@ sentry__flush_task_decref(sentry_flush_task_t *task)
 int
 sentry__bgworker_flush(sentry_bgworker_t *bgw, uint64_t timeout)
 {
-    if (!sentry__atomic_fetch(&bgw->running)) {
+    if (sentry__atomic_fetch(&bgw->status) != SENTRY_BGW_RUNNING) {
         SENTRY_WARN("trying to flush non-running thread");
         return 0;
     }
@@ -421,14 +432,14 @@ static void
 shutdown_task(void *task_data, void *UNUSED(state))
 {
     sentry_bgworker_t *bgw = task_data;
-    sentry__atomic_store(&bgw->running, 0);
+    sentry__atomic_store(&bgw->status, SENTRY_BGW_STOPPED);
 }
 
 int
 sentry__bgworker_shutdown_cb(sentry_bgworker_t *bgw, uint64_t timeout,
     void (*on_timeout)(void *), void *on_timeout_data)
 {
-    if (!sentry__atomic_fetch(&bgw->running)) {
+    if (sentry__atomic_fetch(&bgw->status) != SENTRY_BGW_RUNNING) {
         SENTRY_WARN("trying to shut down non-running thread");
         return 0;
     }
@@ -443,16 +454,18 @@ sentry__bgworker_shutdown_cb(sentry_bgworker_t *bgw, uint64_t timeout,
         uint64_t now = sentry__monotonic_time();
         if (now > started && now - started > timeout) {
             if (on_timeout) {
-                // fire on_timeout to cancel the ongoing task, and give the
-                // worker an extra loop cycle up to 250ms to handle the
-                // cancellation
+                // fire on_timeout to cancel the ongoing task, and tell
+                // the worker to stop so remaining tasks stay in the
+                // queue for dumping. the worker gets up to 250ms for
+                // graceful cancellation before the thread is detached.
                 sentry__mutex_unlock(&bgw->task_lock);
                 on_timeout(on_timeout_data);
+                sentry__atomic_store(&bgw->status, SENTRY_BGW_STOPPING);
                 on_timeout = NULL;
                 sentry__mutex_lock(&bgw->task_lock);
-                // fall through to !running check below
+                // fall through to detach on next timeout
             } else {
-                sentry__atomic_store(&bgw->running, 0);
+                sentry__atomic_store(&bgw->status, SENTRY_BGW_STOPPED);
                 sentry__thread_detach(bgw->thread_id);
                 sentry__mutex_unlock(&bgw->task_lock);
                 SENTRY_WARN("background thread failed to shut down cleanly "
@@ -461,7 +474,7 @@ sentry__bgworker_shutdown_cb(sentry_bgworker_t *bgw, uint64_t timeout,
             }
         }
 
-        if (!sentry__atomic_fetch(&bgw->running)) {
+        if (sentry__atomic_fetch(&bgw->status) == SENTRY_BGW_STOPPED) {
             sentry__mutex_unlock(&bgw->task_lock);
             sentry__thread_join(bgw->thread_id);
             return 0;
