@@ -14,6 +14,7 @@
 #    include <sys/types.h>
 #    include <sys/uio.h>
 #    include <sys/user.h>
+#    include <sys/utsname.h>
 #    include <sys/wait.h>
 #    include <time.h>
 #    include <unistd.h>
@@ -512,9 +513,23 @@ write_system_info_stream(minidump_writer_t *writer, minidump_directory_t *dir)
 
     sysinfo.number_of_processors = (uint8_t)sysconf(_SC_NPROCESSORS_ONLN);
 
-    // Write CSD version string (required by Sentry)
-    // Even if empty, must be present to avoid malformed minidump
-    sysinfo.csd_version_rva = write_minidump_string(writer, "");
+    // Populate OS version from uname(), matching Crashpad behavior
+    struct utsname uts;
+    if (uname(&uts) == 0) {
+        int major = 0, minor = 0, patch = 0;
+        sscanf(uts.release, "%d.%d.%d", &major, &minor, &patch);
+        sysinfo.major_version = (uint32_t)major;
+        sysinfo.minor_version = (uint32_t)minor;
+        sysinfo.build_number = (uint32_t)patch;
+    }
+
+    // Write CSD version string with full uname info, matching Crashpad
+    char csd_version[256] = "";
+    if (uname(&uts) == 0) {
+        snprintf(csd_version, sizeof(csd_version), "%s %s %s %s",
+            uts.sysname, uts.release, uts.version, uts.machine);
+    }
+    sysinfo.csd_version_rva = write_minidump_string(writer, csd_version);
     if (!sysinfo.csd_version_rva) {
         return -1;
     }
@@ -864,6 +879,230 @@ done:
 }
 
 /**
+ * Compute the virtual memory size of an ELF file from its PT_LOAD segments.
+ * This matches Crashpad's behavior: size = max(p_vaddr + p_memsz) -
+ * min(p_vaddr) across all PT_LOAD segments, rather than using page-aligned
+ * /proc/maps sizes.
+ * Returns the computed size, or 0 on failure (caller should fall back to
+ * /proc/maps size).
+ */
+static uint64_t
+compute_elf_size_from_phdrs(const char *elf_path)
+{
+    int fd = open(elf_path, O_RDONLY);
+    if (fd < 0) {
+        return 0;
+    }
+
+#    if defined(__x86_64__) || defined(__aarch64__)
+    Elf64_Ehdr ehdr;
+#    else
+    Elf32_Ehdr ehdr;
+#    endif
+
+    if (read(fd, &ehdr, sizeof(ehdr)) != sizeof(ehdr)
+        || memcmp(ehdr.e_ident, ELFMAG, SELFMAG) != 0
+        || ehdr.e_phnum == 0) {
+        close(fd);
+        return 0;
+    }
+
+    // Read program headers
+    size_t phdr_size = (size_t)ehdr.e_phentsize * ehdr.e_phnum;
+    void *phdr_buf = sentry_malloc(phdr_size);
+    if (!phdr_buf) {
+        close(fd);
+        return 0;
+    }
+
+    if (lseek(fd, ehdr.e_phoff, SEEK_SET) != (off_t)ehdr.e_phoff
+        || read(fd, phdr_buf, phdr_size) != (ssize_t)phdr_size) {
+        sentry_free(phdr_buf);
+        close(fd);
+        return 0;
+    }
+
+#    if defined(__x86_64__) || defined(__aarch64__)
+    Elf64_Phdr *phdrs = (Elf64_Phdr *)phdr_buf;
+#    else
+    Elf32_Phdr *phdrs = (Elf32_Phdr *)phdr_buf;
+#    endif
+
+    uint64_t min_vaddr = UINT64_MAX;
+    uint64_t max_vaddr = 0;
+    bool found_load = false;
+
+    for (int i = 0; i < ehdr.e_phnum; i++) {
+        if (phdrs[i].p_type == PT_LOAD) {
+            if (!found_load) {
+                min_vaddr = phdrs[i].p_vaddr;
+                found_load = true;
+            }
+            uint64_t end = phdrs[i].p_vaddr + phdrs[i].p_memsz;
+            if (end > max_vaddr) {
+                max_vaddr = end;
+            }
+        }
+    }
+
+    sentry_free(phdr_buf);
+    close(fd);
+
+    if (!found_load || max_vaddr <= min_vaddr) {
+        return 0;
+    }
+
+    return max_vaddr - min_vaddr;
+}
+
+/**
+ * Read the DT_SONAME from an ELF file's dynamic section.
+ * Crashpad uses SONAME as the module name, falling back to the /proc/maps
+ * path. This function reads the .dynamic section to find DT_SONAME and
+ * resolves it through .dynstr.
+ * Returns true if SONAME was found and written to soname_buf.
+ */
+static bool
+read_elf_soname(
+    const char *elf_path, char *soname_buf, size_t soname_buf_size)
+{
+    int fd = open(elf_path, O_RDONLY);
+    if (fd < 0) {
+        return false;
+    }
+
+#    if defined(__x86_64__) || defined(__aarch64__)
+    Elf64_Ehdr ehdr;
+    typedef Elf64_Phdr PhdrT;
+    typedef Elf64_Dyn DynT;
+    typedef Elf64_Shdr ShdrT;
+#    else
+    Elf32_Ehdr ehdr;
+    typedef Elf32_Phdr PhdrT;
+    typedef Elf32_Dyn DynT;
+    typedef Elf32_Shdr ShdrT;
+#    endif
+
+    bool result = false;
+
+    if (read(fd, &ehdr, sizeof(ehdr)) != sizeof(ehdr)
+        || memcmp(ehdr.e_ident, ELFMAG, SELFMAG) != 0) {
+        close(fd);
+        return false;
+    }
+
+    // Read section headers to find .dynamic and .dynstr
+    size_t shdr_size = (size_t)ehdr.e_shentsize * ehdr.e_shnum;
+    void *shdr_buf = sentry_malloc(shdr_size);
+    if (!shdr_buf) {
+        close(fd);
+        return false;
+    }
+
+    if (lseek(fd, ehdr.e_shoff, SEEK_SET) != (off_t)ehdr.e_shoff
+        || read(fd, shdr_buf, shdr_size) != (ssize_t)shdr_size) {
+        sentry_free(shdr_buf);
+        close(fd);
+        return false;
+    }
+
+    ShdrT *sections = (ShdrT *)shdr_buf;
+
+    // Find .dynamic and .dynstr sections
+    ShdrT *dynamic_shdr = NULL;
+    ShdrT *dynstr_shdr = NULL;
+    for (int i = 0; i < ehdr.e_shnum; i++) {
+        if (sections[i].sh_type == SHT_DYNAMIC) {
+            dynamic_shdr = &sections[i];
+        } else if (sections[i].sh_type == SHT_STRTAB && !dynstr_shdr) {
+            // The .dynstr is typically the first SHT_STRTAB that is also
+            // referenced by a SHT_DYNAMIC section's sh_link
+            dynstr_shdr = &sections[i];
+        }
+    }
+
+    // Use sh_link from .dynamic to find the correct string table
+    if (dynamic_shdr && dynamic_shdr->sh_link < ehdr.e_shnum) {
+        dynstr_shdr = &sections[dynamic_shdr->sh_link];
+    }
+
+    if (!dynamic_shdr || !dynstr_shdr) {
+        sentry_free(shdr_buf);
+        close(fd);
+        return false;
+    }
+
+    // Read .dynstr
+    size_t dynstr_size = dynstr_shdr->sh_size;
+    if (dynstr_size > 1024 * 1024) { // Sanity: max 1MB
+        sentry_free(shdr_buf);
+        close(fd);
+        return false;
+    }
+    char *dynstr = sentry_malloc(dynstr_size);
+    if (!dynstr) {
+        sentry_free(shdr_buf);
+        close(fd);
+        return false;
+    }
+    if (lseek(fd, dynstr_shdr->sh_offset, SEEK_SET)
+            != (off_t)dynstr_shdr->sh_offset
+        || read(fd, dynstr, dynstr_size) != (ssize_t)dynstr_size) {
+        sentry_free(dynstr);
+        sentry_free(shdr_buf);
+        close(fd);
+        return false;
+    }
+
+    // Read .dynamic entries and find DT_SONAME
+    size_t dyn_size = dynamic_shdr->sh_size;
+    void *dyn_buf = sentry_malloc(dyn_size);
+    if (!dyn_buf) {
+        sentry_free(dynstr);
+        sentry_free(shdr_buf);
+        close(fd);
+        return false;
+    }
+    if (lseek(fd, dynamic_shdr->sh_offset, SEEK_SET)
+            != (off_t)dynamic_shdr->sh_offset
+        || read(fd, dyn_buf, dyn_size) != (ssize_t)dyn_size) {
+        sentry_free(dyn_buf);
+        sentry_free(dynstr);
+        sentry_free(shdr_buf);
+        close(fd);
+        return false;
+    }
+
+    DynT *dyn_entries = (DynT *)dyn_buf;
+    size_t dyn_count = dyn_size / sizeof(DynT);
+
+    for (size_t i = 0; i < dyn_count; i++) {
+        if (dyn_entries[i].d_tag == DT_SONAME) {
+            size_t name_offset = dyn_entries[i].d_un.d_val;
+            if (name_offset < dynstr_size) {
+                const char *soname = dynstr + name_offset;
+                size_t len = strnlen(soname, dynstr_size - name_offset);
+                if (len > 0 && len < soname_buf_size) {
+                    memcpy(soname_buf, soname, len);
+                    soname_buf[len] = '\0';
+                    result = true;
+                }
+            }
+            break;
+        }
+        if (dyn_entries[i].d_tag == DT_NULL) {
+            break;
+        }
+    }
+
+    sentry_free(dyn_buf);
+    sentry_free(dynstr);
+    sentry_free(shdr_buf);
+    close(fd);
+    return result;
+}
+
+/**
  * Write CodeView record with Build ID
  */
 static minidump_rva_t
@@ -1195,6 +1434,8 @@ typedef struct {
     uint64_t base; // Start of mapping with offset==0
     uint64_t end; // End of last mapping for this file
     char *name; // Pointer into mappings[].name (not owned)
+    char soname[256]; // SONAME from ELF dynamic section (empty if not found)
+    uint64_t elf_size; // Size from PT_LOAD segments (0 = use maps size)
     uint8_t build_id[32];
     size_t build_id_len;
 } resolved_module_t;
@@ -1259,6 +1500,8 @@ resolve_modules(const minidump_writer_t *writer, resolved_module_t *modules,
                 mod->base = first->addr;
                 mod->end = last->addr + last->size;
                 mod->build_id_len = 0;
+                mod->soname[0] = '\0';
+                mod->elf_size = 0;
                 module_count++;
             }
 
@@ -1288,13 +1531,20 @@ resolve_modules(const minidump_writer_t *writer, resolved_module_t *modules,
         mod->base = first->addr;
         mod->end = last->addr + last->size;
         mod->build_id_len = 0;
+        mod->soname[0] = '\0';
+        mod->elf_size = 0;
         module_count++;
     }
 
-    // Extract Build IDs for each resolved module
+    // Extract Build IDs, ELF sizes, and SONAMEs for each resolved module
     for (size_t i = 0; i < module_count; i++) {
         modules[i].build_id_len = extract_elf_build_id(
             modules[i].name, modules[i].build_id, sizeof(modules[i].build_id));
+        modules[i].elf_size = compute_elf_size_from_phdrs(modules[i].name);
+        if (!read_elf_soname(
+                modules[i].name, modules[i].soname, sizeof(modules[i].soname))) {
+            modules[i].soname[0] = '\0';
+        }
     }
 
     return module_count;
@@ -1352,17 +1602,20 @@ write_module_list_stream(minidump_writer_t *writer, minidump_directory_t *dir)
         memset(module, 0, sizeof(*module));
 
         module->base_of_image = resolved[i].base;
-        module->size_of_image = (uint32_t)(resolved[i].end - resolved[i].base);
+        module->size_of_image = resolved[i].elf_size
+            ? (uint32_t)resolved[i].elf_size
+            : (uint32_t)(resolved[i].end - resolved[i].base);
 
         // Set VS_FIXEDFILEINFO signature (first uint32_t of version_info)
         // This is required for minidump processors to recognize the module
         uint32_t version_sig = 0xFEEF04BD;
         memcpy(&module->version_info[0], &version_sig, sizeof(version_sig));
 
-        // Store info for later writing
-        mod_infos[i].name = resolved[i].name;
+        // Store info for later writing — prefer SONAME over full path
+        mod_infos[i].name = resolved[i].soname[0] ? resolved[i].soname
+                                                   : resolved[i].name;
         mod_infos[i].base = resolved[i].base;
-        mod_infos[i].size = (uint32_t)(resolved[i].end - resolved[i].base);
+        mod_infos[i].size = module->size_of_image;
         memcpy(mod_infos[i].build_id, resolved[i].build_id,
             sizeof(mod_infos[i].build_id));
         mod_infos[i].build_id_len = resolved[i].build_id_len;
@@ -1372,7 +1625,9 @@ write_module_list_stream(minidump_writer_t *writer, minidump_directory_t *dir)
             mod_infos[i].size, mod_infos[i].build_id_len);
     }
 
-    sentry_free(resolved);
+    // NOTE: do NOT free `resolved` here — mod_infos[i].name may point into
+    // resolved[i].soname, which lives inside the resolved array. We free it
+    // after the second pass that writes module names to the minidump file.
 
     // Write the module list structure FIRST (with zero RVAs)
     dir->stream_type = MINIDUMP_STREAM_MODULE_LIST;
@@ -1480,7 +1735,7 @@ write_module_list_stream(minidump_writer_t *writer, minidump_directory_t *dir)
     SENTRY_DEBUG("Flushed all module updates to disk");
 
     sentry_free(mod_infos);
-
+    sentry_free(resolved);
     sentry_free(module_list);
     return dir->rva ? 0 : -1;
 }
@@ -1501,7 +1756,10 @@ write_exception_stream(minidump_writer_t *writer, minidump_directory_t *dir)
     // exception code.
     exception_stream.exception_record.exception_code
         = writer->crash_ctx->platform.signum;
-    exception_stream.exception_record.exception_flags = 0;
+    // Set exception_flags to si_code, matching Crashpad behavior
+    // (e.g., SEGV_MAPERR for SIGSEGV address not mapped to object)
+    exception_stream.exception_record.exception_flags
+        = (uint32_t)writer->crash_ctx->platform.siginfo.si_code;
     exception_stream.exception_record.exception_address
         = (uint64_t)writer->crash_ctx->platform.siginfo.si_addr;
     exception_stream.exception_record.number_parameters = 0;
