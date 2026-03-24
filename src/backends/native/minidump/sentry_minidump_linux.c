@@ -971,12 +971,10 @@ read_elf_soname(const char *elf_path, char *soname_buf, size_t soname_buf_size)
 
 #    if defined(__x86_64__) || defined(__aarch64__)
     Elf64_Ehdr ehdr;
-    typedef Elf64_Phdr PhdrT;
     typedef Elf64_Dyn DynT;
     typedef Elf64_Shdr ShdrT;
 #    else
     Elf32_Ehdr ehdr;
-    typedef Elf32_Phdr PhdrT;
     typedef Elf32_Dyn DynT;
     typedef Elf32_Shdr ShdrT;
 #    endif
