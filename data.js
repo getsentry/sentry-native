@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1774376626904,
+  "lastUpdate": 1774376654317,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -28174,6 +28174,66 @@ window.BENCHMARK_DATA = {
             "value": 11.31054199998971,
             "unit": "ms",
             "extra": "Min 10.570ms\nMax 20.198ms\nMean 14.449ms\nStdDev 4.766ms\nMedian 11.311ms\nCPU 1.190ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "49699333+dependabot[bot]@users.noreply.github.com",
+            "name": "dependabot[bot]",
+            "username": "dependabot[bot]"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "40e2a95b6e8ecbc09c38b4787d9cd19c6995257b",
+          "message": "build(deps): bump github/codeql-action from 4.33.0 to 4.34.1 (#1594)\n\n* build(deps): bump github/codeql-action from 4.33.0 to 4.34.1\n\nBumps [github/codeql-action](https://github.com/github/codeql-action) from 4.33.0 to 4.34.1.\n- [Release notes](https://github.com/github/codeql-action/releases)\n- [Changelog](https://github.com/github/codeql-action/blob/main/CHANGELOG.md)\n- [Commits](https://github.com/github/codeql-action/compare/b1bff81932f5cdfc8695c7752dcee935dcd061c8...38697555549f1db7851b81482ff19f1fa5c4fedc)\n\n---\nupdated-dependencies:\n- dependency-name: github/codeql-action\n  dependency-version: 4.34.1\n  dependency-type: direct:production\n  update-type: version-update:semver-minor\n...\n\nSigned-off-by: dependabot[bot] <support@github.com>\n\n* align comment major with sha pin\n\n---------\n\nSigned-off-by: dependabot[bot] <support@github.com>\nCo-authored-by: dependabot[bot] <49699333+dependabot[bot]@users.noreply.github.com>\nCo-authored-by: Mischan Toosarani-Hausberger <mischan@abovevacant.com>",
+          "timestamp": "2026-03-24T19:19:07+01:00",
+          "tree_id": "0e74634d4d4a48a032d1ddae5493d436f4eb7108",
+          "url": "https://github.com/getsentry/sentry-native/commit/40e2a95b6e8ecbc09c38b4787d9cd19c6995257b"
+        },
+        "date": 1774376649547,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 3.6629589999961354,
+            "unit": "ms",
+            "extra": "Min 3.527ms\nMax 4.220ms\nMean 3.746ms\nStdDev 0.272ms\nMedian 3.663ms\nCPU 2.131ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 4.431334000003062,
+            "unit": "ms",
+            "extra": "Min 3.367ms\nMax 6.335ms\nMean 4.706ms\nStdDev 1.306ms\nMedian 4.431ms\nCPU 2.675ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 17.83279199997878,
+            "unit": "ms",
+            "extra": "Min 15.539ms\nMax 23.846ms\nMean 19.275ms\nStdDev 3.691ms\nMedian 17.833ms\nCPU 6.528ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.08174999999255306,
+            "unit": "ms",
+            "extra": "Min 0.068ms\nMax 0.133ms\nMean 0.093ms\nStdDev 0.028ms\nMedian 0.082ms\nCPU 0.062ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.24116599996659716,
+            "unit": "ms",
+            "extra": "Min 0.221ms\nMax 0.279ms\nMean 0.249ms\nStdDev 0.026ms\nMedian 0.241ms\nCPU 0.249ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 11.66766699998334,
+            "unit": "ms",
+            "extra": "Min 9.594ms\nMax 26.224ms\nMean 14.562ms\nStdDev 6.895ms\nMedian 11.668ms\nCPU 1.106ms"
           }
         ]
       }
