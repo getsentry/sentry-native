@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1774376795527,
+  "lastUpdate": 1774379551878,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -14116,6 +14116,66 @@ window.BENCHMARK_DATA = {
             "value": 1.629698999977336,
             "unit": "ms",
             "extra": "Min 1.548ms\nMax 1.799ms\nMean 1.643ms\nStdDev 0.100ms\nMedian 1.630ms\nCPU 0.427ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "49699333+dependabot[bot]@users.noreply.github.com",
+            "name": "dependabot[bot]",
+            "username": "dependabot[bot]"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "6e908af3d8a8eea79f20d68fa5c3fe7efe0f612b",
+          "message": "build(deps): bump gradle/actions from 03ee1e1693f571d64506b3ed4cdf120520300ff2 to c2457a7fb283d2bfe1c94ac0c360c27a79bcffd4 (#1592)\n\n* build(deps): bump gradle/actions\n\nBumps [gradle/actions](https://github.com/gradle/actions) from 03ee1e1693f571d64506b3ed4cdf120520300ff2 to c2457a7fb283d2bfe1c94ac0c360c27a79bcffd4.\n- [Release notes](https://github.com/gradle/actions/releases)\n- [Commits](https://github.com/gradle/actions/compare/03ee1e1693f571d64506b3ed4cdf120520300ff2...c2457a7fb283d2bfe1c94ac0c360c27a79bcffd4)\n\n---\nupdated-dependencies:\n- dependency-name: gradle/actions\n  dependency-version: c2457a7fb283d2bfe1c94ac0c360c27a79bcffd4\n  dependency-type: direct:production\n...\n\nSigned-off-by: dependabot[bot] <support@github.com>\n\n* pin gradle setup action to version 5.0.2\n\n* pin setup-gradle in codeql workflow too\n\n---------\n\nSigned-off-by: dependabot[bot] <support@github.com>\nCo-authored-by: dependabot[bot] <49699333+dependabot[bot]@users.noreply.github.com>\nCo-authored-by: Mischan Toosarani-Hausberger <mischan@abovevacant.com>",
+          "timestamp": "2026-03-24T20:09:53+01:00",
+          "tree_id": "0cdea0fddd5e52b88e420fcf3e37ae04b6876a07",
+          "url": "https://github.com/getsentry/sentry-native/commit/6e908af3d8a8eea79f20d68fa5c3fe7efe0f612b"
+        },
+        "date": 1774379543426,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 0.867526999996926,
+            "unit": "ms",
+            "extra": "Min 0.861ms\nMax 0.869ms\nMean 0.866ms\nStdDev 0.004ms\nMedian 0.868ms\nCPU 0.822ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 0.7746139999937895,
+            "unit": "ms",
+            "extra": "Min 0.770ms\nMax 0.801ms\nMean 0.779ms\nStdDev 0.012ms\nMedian 0.775ms\nCPU 0.779ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 3.053533000013431,
+            "unit": "ms",
+            "extra": "Min 2.958ms\nMax 3.082ms\nMean 3.040ms\nStdDev 0.051ms\nMedian 3.054ms\nCPU 1.590ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.12658599999326725,
+            "unit": "ms",
+            "extra": "Min 0.125ms\nMax 0.128ms\nMean 0.126ms\nStdDev 0.001ms\nMedian 0.127ms\nCPU 0.081ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.03411400001596121,
+            "unit": "ms",
+            "extra": "Min 0.034ms\nMax 0.036ms\nMean 0.035ms\nStdDev 0.001ms\nMedian 0.034ms\nCPU 0.034ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 1.868642999994563,
+            "unit": "ms",
+            "extra": "Min 1.864ms\nMax 1.908ms\nMean 1.881ms\nStdDev 0.021ms\nMedian 1.869ms\nCPU 0.574ms"
           }
         ]
       }
