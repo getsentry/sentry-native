@@ -2032,10 +2032,13 @@ write_envelope_with_native_stacktrace(const sentry_options_t *options,
 
     // Serialize event to JSON
     char *event_json = sentry_value_to_json(event);
+    char *event_id = sentry__string_clone(
+        sentry_value_as_string(sentry_value_get_by_key(event, "event_id")));
     sentry_value_decref(event);
 
     if (!event_json) {
         SENTRY_WARN("Failed to serialize native crash event to JSON");
+        sentry_free(event_id);
         return false;
     }
 
@@ -2054,6 +2057,7 @@ write_envelope_with_native_stacktrace(const sentry_options_t *options,
     if (fd < 0) {
         SENTRY_WARN("Failed to open envelope file for writing");
         sentry_free(event_json);
+        sentry_free(event_id);
         return false;
     }
 
@@ -2062,12 +2066,19 @@ write_envelope_with_native_stacktrace(const sentry_options_t *options,
         = options && options->dsn ? sentry_options_get_dsn(options) : NULL;
     char header_buf[SENTRY_CRASH_ENVELOPE_HEADER_SIZE];
     int header_len;
-    if (dsn) {
+    if (dsn && event_id && event_id[0] != '\0') {
+        header_len = snprintf(header_buf, sizeof(header_buf),
+            "{\"dsn\":\"%s\",\"event_id\":\"%s\"}\n", dsn, event_id);
+    } else if (dsn) {
         header_len = snprintf(
             header_buf, sizeof(header_buf), "{\"dsn\":\"%s\"}\n", dsn);
+    } else if (event_id && event_id[0] != '\0') {
+        header_len = snprintf(header_buf, sizeof(header_buf),
+            "{\"event_id\":\"%s\"}\n", event_id);
     } else {
         header_len = snprintf(header_buf, sizeof(header_buf), "{}\n");
     }
+    sentry_free(event_id);
     if (header_len > 0 && header_len < (int)sizeof(header_buf)) {
 #if defined(SENTRY_PLATFORM_UNIX)
         if (write(fd, header_buf, header_len) != header_len) {
@@ -2238,6 +2249,23 @@ write_envelope_with_minidump(const sentry_options_t *options,
     const char *envelope_path, const char *event_msgpack_path,
     const char *minidump_path, sentry_path_t *run_folder)
 {
+    // Read event JSON data
+    size_t event_size = 0;
+    char *event_json = NULL;
+    char *event_id = NULL;
+    sentry_path_t *ev_path = sentry__path_from_str(event_msgpack_path);
+    if (ev_path) {
+        event_json = sentry__path_read_to_buffer(ev_path, &event_size);
+        sentry__path_free(ev_path);
+        if (event_json && event_size > 0) {
+            sentry_value_t event
+                = sentry__value_from_json(event_json, event_size);
+            event_id = sentry__string_clone(sentry_value_as_string(
+                sentry_value_get_by_key(event, "event_id")));
+            sentry_value_decref(event);
+        }
+    }
+
     // Open envelope file for writing
 #if defined(SENTRY_PLATFORM_UNIX)
     int fd = open(envelope_path, O_WRONLY | O_CREAT | O_TRUNC, 0644);
@@ -2251,20 +2279,29 @@ write_envelope_with_minidump(const sentry_options_t *options,
 #endif
     if (fd < 0) {
         SENTRY_WARN("Failed to open envelope file for writing");
+        sentry_free(event_json);
+        sentry_free(event_id);
         return false;
     }
 
-    // Write envelope headers (just DSN if available)
+    // Write envelope headers (just DSN and event ID if available)
     const char *dsn
         = options && options->dsn ? sentry_options_get_dsn(options) : NULL;
     char header_buf[SENTRY_CRASH_ENVELOPE_HEADER_SIZE];
     int header_len;
-    if (dsn) {
+    if (dsn && event_id && event_id[0] != '\0') {
+        header_len = snprintf(header_buf, sizeof(header_buf),
+            "{\"dsn\":\"%s\",\"event_id\":\"%s\"}\n", dsn, event_id);
+    } else if (dsn) {
         header_len = snprintf(
             header_buf, sizeof(header_buf), "{\"dsn\":\"%s\"}\n", dsn);
+    } else if (event_id && event_id[0] != '\0') {
+        header_len = snprintf(header_buf, sizeof(header_buf),
+            "{\"event_id\":\"%s\"}\n", event_id);
     } else {
         header_len = snprintf(header_buf, sizeof(header_buf), "{}\n");
     }
+    sentry_free(event_id);
     if (header_len > 0 && header_len < (int)sizeof(header_buf)) {
 #if defined(SENTRY_PLATFORM_UNIX)
         if (write(fd, header_buf, header_len) != header_len) {
@@ -2275,39 +2312,30 @@ write_envelope_with_minidump(const sentry_options_t *options,
 #endif
     }
 
-    // Read event JSON data
-    sentry_path_t *ev_path = sentry__path_from_str(event_msgpack_path);
-    if (ev_path) {
-        size_t event_size = 0;
-        char *event_json = sentry__path_read_to_buffer(ev_path, &event_size);
-        sentry__path_free(ev_path);
-
-        if (event_json && event_size > 0) {
-            // Write event item header
-            char event_header[SENTRY_CRASH_ITEM_HEADER_SIZE];
-            int ev_header_len = snprintf(event_header, sizeof(event_header),
-                "{\"type\":\"event\",\"length\":%zu}\n", event_size);
-            if (ev_header_len > 0
-                && ev_header_len < (int)sizeof(event_header)) {
+    // Write event item
+    if (event_json && event_size > 0) {
+        char event_header[SENTRY_CRASH_ITEM_HEADER_SIZE];
+        int ev_header_len = snprintf(event_header, sizeof(event_header),
+            "{\"type\":\"event\",\"length\":%zu}\n", event_size);
+        if (ev_header_len > 0 && ev_header_len < (int)sizeof(event_header)) {
 #if defined(SENTRY_PLATFORM_UNIX)
-                if (write(fd, event_header, ev_header_len) != ev_header_len) {
-                    SENTRY_WARN("Failed to write event header to envelope");
-                }
-                if (write(fd, event_json, event_size) != (ssize_t)event_size) {
-                    SENTRY_WARN("Failed to write event data to envelope");
-                }
-                if (write(fd, "\n", 1) != 1) {
-                    SENTRY_WARN("Failed to write event newline to envelope");
-                }
-#elif defined(SENTRY_PLATFORM_WINDOWS)
-                _write(fd, event_header, (unsigned int)ev_header_len);
-                _write(fd, event_json, (unsigned int)event_size);
-                _write(fd, "\n", 1);
-#endif
+            if (write(fd, event_header, ev_header_len) != ev_header_len) {
+                SENTRY_WARN("Failed to write event header to envelope");
             }
-            sentry_free(event_json);
+            if (write(fd, event_json, event_size) != (ssize_t)event_size) {
+                SENTRY_WARN("Failed to write event data to envelope");
+            }
+            if (write(fd, "\n", 1) != 1) {
+                SENTRY_WARN("Failed to write event newline to envelope");
+            }
+#elif defined(SENTRY_PLATFORM_WINDOWS)
+            _write(fd, event_header, (unsigned int)ev_header_len);
+            _write(fd, event_json, (unsigned int)event_size);
+            _write(fd, "\n", 1);
+#endif
         }
     }
+    sentry_free(event_json);
 
     // Add minidump as attachment
 #if defined(SENTRY_PLATFORM_UNIX)
@@ -2712,14 +2740,17 @@ sentry__process_crash(const sentry_options_t *options, sentry_crash_ipc_t *ipc)
 
     SENTRY_DEBUG("Envelope loaded, sending via transport");
 
-    // Send directly via transport
-    if (options && options->transport) {
-        SENTRY_DEBUG("Calling transport send_envelope");
-        sentry__transport_send_envelope(options->transport, envelope);
-        SENTRY_DEBUG("Crash envelope sent to transport (queued)");
-    } else {
-        SENTRY_WARN("No transport available for sending envelope");
-        sentry_envelope_free(envelope);
+    // Send directly via transport, or to external crash reporter
+    if (!sentry__launch_external_crash_reporter(options, envelope)) {
+        // Send directly via transport
+        if (options && options->transport) {
+            SENTRY_DEBUG("Calling transport send_envelope");
+            sentry__transport_send_envelope(options->transport, envelope);
+            SENTRY_DEBUG("Crash envelope sent to transport (queued)");
+        } else {
+            SENTRY_WARN("No transport available for sending envelope");
+            sentry_envelope_free(envelope);
+        }
     }
 
     // Clean up temporary envelope file (keep minidump for

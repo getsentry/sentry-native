@@ -12,14 +12,18 @@ import struct
 import pytest
 
 from . import (
+    is_feedback_envelope,
     make_dsn,
     run,
     Envelope,
+    split_log_request_cond,
 )
 from .assertions import (
+    assert_breadcrumb,
     assert_meta,
     assert_session,
     wait_for_file,
+    assert_user_feedback,
 )
 from .conditions import has_native, is_kcov, is_asan
 
@@ -473,26 +477,34 @@ def test_native_external_crash_reporter(cmake, httpserver):
     )
 
     env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
-    httpserver.expect_request("/api/123456/envelope/").respond_with_data("OK")
+    httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data("OK")
+    httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data("OK")
 
     # Crash and use external reporter
-    run_crash(
-        tmp_path,
-        "sentry_example",
-        ["log", "crash-reporter", "crash"],
-        env=env,
+    with httpserver.wait(timeout=10) as waiting:
+        run_crash(
+            tmp_path,
+            "sentry_example",
+            ["log", "crash-reporter", "crash"],
+            env=env,
+        )
+    assert waiting.result
+
+    # Should have sent crash report and feedback via external reporter
+    assert len(httpserver.log) == 2
+    feedback_request, crash_request = split_log_request_cond(
+        httpserver.log, is_feedback_envelope
     )
+    feedback = feedback_request.get_data()
+    crash = crash_request.get_data()
 
-    # Give time for external reporter to run
-    time.sleep(2)
+    # Verify it's a minidump crash report and user feedback
+    envelope = Envelope.deserialize(crash)
+    assert_meta(envelope)
+    assert_breadcrumb(envelope)
 
-    # Should have sent crash report via external reporter
-    assert len(httpserver.log) >= 1
-
-    # Verify it's a minidump crash report
-    envelope = Envelope.deserialize(httpserver.log[0][0].get_data())
-    event = envelope.get_event()
-    assert event is not None
+    envelope = Envelope.deserialize(feedback)
+    assert_user_feedback(envelope)
 
 
 def test_crash_mode_minidump_only(cmake, httpserver):
