@@ -526,8 +526,8 @@ write_system_info_stream(minidump_writer_t *writer, minidump_directory_t *dir)
     // Write CSD version string with full uname info, matching Crashpad
     char csd_version[256] = "";
     if (uname(&uts) == 0) {
-        snprintf(csd_version, sizeof(csd_version), "%s %s %s %s",
-            uts.sysname, uts.release, uts.version, uts.machine);
+        snprintf(csd_version, sizeof(csd_version), "%s %s %s %s", uts.sysname,
+            uts.release, uts.version, uts.machine);
     }
     sysinfo.csd_version_rva = write_minidump_string(writer, csd_version);
     if (!sysinfo.csd_version_rva) {
@@ -901,8 +901,7 @@ compute_elf_size_from_phdrs(const char *elf_path)
 #    endif
 
     if (read(fd, &ehdr, sizeof(ehdr)) != sizeof(ehdr)
-        || memcmp(ehdr.e_ident, ELFMAG, SELFMAG) != 0
-        || ehdr.e_phnum == 0) {
+        || memcmp(ehdr.e_ident, ELFMAG, SELFMAG) != 0 || ehdr.e_phnum == 0) {
         close(fd);
         return 0;
     }
@@ -963,8 +962,7 @@ compute_elf_size_from_phdrs(const char *elf_path)
  * Returns true if SONAME was found and written to soname_buf.
  */
 static bool
-read_elf_soname(
-    const char *elf_path, char *soname_buf, size_t soname_buf_size)
+read_elf_soname(const char *elf_path, char *soname_buf, size_t soname_buf_size)
 {
     int fd = open(elf_path, O_RDONLY);
     if (fd < 0) {
@@ -1541,8 +1539,8 @@ resolve_modules(const minidump_writer_t *writer, resolved_module_t *modules,
         modules[i].build_id_len = extract_elf_build_id(
             modules[i].name, modules[i].build_id, sizeof(modules[i].build_id));
         modules[i].elf_size = compute_elf_size_from_phdrs(modules[i].name);
-        if (!read_elf_soname(
-                modules[i].name, modules[i].soname, sizeof(modules[i].soname))) {
+        if (!read_elf_soname(modules[i].name, modules[i].soname,
+                sizeof(modules[i].soname))) {
             modules[i].soname[0] = '\0';
         }
     }
@@ -1612,8 +1610,8 @@ write_module_list_stream(minidump_writer_t *writer, minidump_directory_t *dir)
         memcpy(&module->version_info[0], &version_sig, sizeof(version_sig));
 
         // Store info for later writing — prefer SONAME over full path
-        mod_infos[i].name = resolved[i].soname[0] ? resolved[i].soname
-                                                   : resolved[i].name;
+        mod_infos[i].name
+            = resolved[i].soname[0] ? resolved[i].soname : resolved[i].name;
         mod_infos[i].base = resolved[i].base;
         mod_infos[i].size = module->size_of_image;
         memcpy(mod_infos[i].build_id, resolved[i].build_id,
