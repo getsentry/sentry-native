@@ -322,6 +322,7 @@ sentry__bgworker_start(sentry_bgworker_t *bgw)
 {
     SENTRY_DEBUG("starting background worker thread");
     sentry__atomic_store(&bgw->running, 1);
+    sentry__atomic_store(&bgw->draining, 0);
     // this incref moves the reference into the background thread
     sentry__bgworker_incref(bgw);
     if (sentry__thread_spawn(&bgw->thread_id, &worker_thread, bgw) != 0) {
