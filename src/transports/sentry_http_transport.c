@@ -299,6 +299,13 @@ http_transport_flush(uint64_t timeout, void *transport_state)
     return sentry__bgworker_flush(bgworker, timeout);
 }
 
+static bool
+http_flush_cleanup_cb(void *task_data, void *UNUSED(data))
+{
+    http_cleanup_cache_task(task_data, NULL);
+    return true;
+}
+
 static int
 http_transport_shutdown(uint64_t timeout, void *transport_state)
 {
@@ -309,7 +316,7 @@ http_transport_shutdown(uint64_t timeout, void *transport_state)
         bgworker, timeout, http_transport_shutdown_timeout, state);
     if (rv != 0) {
         sentry__bgworker_foreach_matching(
-            bgworker, http_cleanup_cache_task, NULL, NULL);
+            bgworker, http_cleanup_cache_task, http_flush_cleanup_cb, NULL);
     }
     return rv;
 }
