@@ -570,7 +570,7 @@ sentry__bgworker_foreach_matching(sentry_bgworker_t *bgw,
         bool drop_task = false;
         // only consider tasks matching this exec_func
         if (task->exec_func == exec_func) {
-            drop_task = callback(task->task_data, data);
+            drop_task = !callback || callback(task->task_data, data);
         }
 
         sentry_bgworker_task_t *next_task = task->next_task;

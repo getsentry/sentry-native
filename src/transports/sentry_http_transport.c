@@ -253,6 +253,14 @@ http_send_task(void *_envelope, void *_state)
 }
 
 static void
+http_cleanup_cache_task(void *task_data, void *_state)
+{
+    (void)_state;
+    sentry_options_t *options = task_data;
+    sentry__cleanup_cache(options);
+}
+
+static void
 http_transport_shutdown_timeout(void *_state)
 {
     http_transport_state_t *state = _state;
@@ -299,6 +307,10 @@ http_transport_shutdown(uint64_t timeout, void *transport_state)
 
     int rv = sentry__bgworker_shutdown_cb(
         bgworker, timeout, http_transport_shutdown_timeout, state);
+    if (rv != 0) {
+        sentry__bgworker_foreach_matching(
+            bgworker, http_cleanup_cache_task, NULL, NULL);
+    }
     return rv;
 }
 
@@ -331,14 +343,6 @@ http_transport_get_state(sentry_transport_t *transport)
 {
     sentry_bgworker_t *bgworker = sentry__transport_get_state(transport);
     return sentry__bgworker_get_state(bgworker);
-}
-
-static void
-http_cleanup_cache_task(void *task_data, void *_state)
-{
-    (void)_state;
-    sentry_options_t *options = task_data;
-    sentry__cleanup_cache(options);
 }
 
 static void
