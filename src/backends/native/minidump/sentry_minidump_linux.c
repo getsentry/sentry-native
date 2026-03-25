@@ -515,17 +515,14 @@ write_system_info_stream(minidump_writer_t *writer, minidump_directory_t *dir)
 
     // Populate OS version from uname(), matching Crashpad behavior
     struct utsname uts;
+    char csd_version[256] = "";
     if (uname(&uts) == 0) {
         int major = 0, minor = 0, patch = 0;
         sscanf(uts.release, "%d.%d.%d", &major, &minor, &patch);
         sysinfo.major_version = (uint32_t)major;
         sysinfo.minor_version = (uint32_t)minor;
         sysinfo.build_number = (uint32_t)patch;
-    }
 
-    // Write CSD version string with full uname info, matching Crashpad
-    char csd_version[256] = "";
-    if (uname(&uts) == 0) {
         snprintf(csd_version, sizeof(csd_version), "%s %s %s %s", uts.sysname,
             uts.release, uts.version, uts.machine);
     }
@@ -1634,6 +1631,7 @@ write_module_list_stream(minidump_writer_t *writer, minidump_directory_t *dir)
         SENTRY_WARN("failed to write module list structure");
         sentry_free(mod_infos);
         sentry_free(module_list);
+        sentry_free(resolved);
         return -1;
     }
 
@@ -1645,6 +1643,7 @@ write_module_list_stream(minidump_writer_t *writer, minidump_directory_t *dir)
                     "name/CV patching");
         sentry_free(mod_infos);
         sentry_free(module_list);
+        sentry_free(resolved);
         return dir->rva ? 0 : -1;
     }
 
