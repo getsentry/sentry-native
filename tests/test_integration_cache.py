@@ -35,7 +35,7 @@ def test_cache_keep(cmake, backend, cache_keep):
     run(
         tmp_path,
         "sentry_example",
-        ["log", "crash"] + (["cache-keep"] if cache_keep else []),
+        ["log", "flush", "crash"] + (["cache-keep"] if cache_keep else []),
         expect_failure=True,
         env=env,
     )
@@ -77,7 +77,7 @@ def test_cache_max_size(cmake, backend):
         run(
             tmp_path,
             "sentry_example",
-            ["log", "cache-keep", "crash"],
+            ["log", "cache-keep", "flush", "crash"],
             expect_failure=True,
             env=env,
         )
@@ -131,7 +131,7 @@ def test_cache_max_age(cmake, backend):
         run(
             tmp_path,
             "sentry_example",
-            ["log", "cache-keep", "crash"],
+            ["log", "cache-keep", "flush", "crash"],
             expect_failure=True,
             env=env,
         )
@@ -186,7 +186,7 @@ def test_cache_max_items(cmake, backend):
         run(
             tmp_path,
             "sentry_example",
-            ["log", "cache-keep", "crash"],
+            ["log", "cache-keep", "flush", "crash"],
             expect_failure=True,
             env=env,
         )
