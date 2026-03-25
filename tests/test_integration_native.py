@@ -588,6 +588,12 @@ def test_crash_mode_native_only(cmake, httpserver):
     for frame in exc["stacktrace"]["frames"]:
         assert "instruction_addr" in frame
 
+    if sys.platform == "win32":
+        # At least some frames should have symbolicated function names
+        assert any(
+            frame.get("function") is not None for frame in exc["stacktrace"]["frames"]
+        )
+
     # Should have debug_meta
     assert "debug_meta" in event
     assert len(event["debug_meta"]["images"]) > 0
@@ -635,6 +641,11 @@ def test_crash_mode_native_with_minidump(cmake, httpserver):
     assert exc["mechanism"]["type"] == "signalhandler"
     assert "stacktrace" in exc
     assert len(exc["stacktrace"]["frames"]) > 0
+    if sys.platform == "win32":
+        # At least some frames should have symbolicated function names
+        assert any(
+            frame.get("function") is not None for frame in exc["stacktrace"]["frames"]
+        )
 
     # Should have debug_meta
     assert "debug_meta" in event
