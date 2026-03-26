@@ -12,6 +12,8 @@
 #include "sentry_path.h"
 #include "sentry_process.h"
 #include "sentry_screenshot.h"
+#include "sentry_string.h"
+#include "sentry_symbolizer.h"
 #include "sentry_sync.h"
 #include "sentry_transport.h"
 #include "sentry_utils.h"
@@ -51,7 +53,7 @@
 
 // Forward declaration for StackWalk64-based stack unwinding (defined later)
 static size_t walk_stack_with_dbghelp(HANDLE hProcess, DWORD crashed_tid,
-    const CONTEXT *ctx_record, void **frames, size_t max_frames);
+    const CONTEXT *ctx_record, sentry_frame_info_t *frames, size_t max_frames);
 #endif
 
 // Provide default ASAN options for sentry-crash daemon executable
@@ -721,7 +723,7 @@ build_stacktrace_for_thread(
     HANDLE hProcess = OpenProcess(PROCESS_VM_READ | PROCESS_QUERY_INFORMATION,
         FALSE, (DWORD)ctx->crashed_pid);
     if (hProcess) {
-        void *stack_frames[MAX_STACK_FRAMES];
+        sentry_frame_info_t stack_frames[MAX_STACK_FRAMES];
         // Make a copy since StackWalk64 may modify the context
         CONTEXT ctx_copy = *walk_context;
         size_t dbghelp_frame_count = walk_stack_with_dbghelp(hProcess,
@@ -735,7 +737,8 @@ build_stacktrace_for_thread(
             for (size_t i = 0;
                 i < dbghelp_frame_count && frame_count < MAX_STACK_FRAMES;
                 i++) {
-                uint64_t frame_addr = (uint64_t)(uintptr_t)stack_frames[i];
+                uint64_t frame_addr
+                    = (uint64_t)(uintptr_t)stack_frames[i].instruction_addr;
                 temp_frames[frame_count] = sentry_value_new_object();
                 sentry_value_set_by_key(temp_frames[frame_count],
                     "instruction_addr", sentry__value_new_addr(frame_addr));
@@ -744,7 +747,22 @@ build_stacktrace_for_thread(
                     sentry_value_new_string(i == 0 ? "context" : "cfi"));
                 enrich_frame_with_module_info(
                     ctx, temp_frames[frame_count], frame_addr);
+                if (stack_frames[i].symbol) {
+                    sentry_value_set_by_key(temp_frames[frame_count],
+                        "function",
+                        sentry_value_new_string(stack_frames[i].symbol));
+                }
+                if (stack_frames[i].symbol_addr) {
+                    sentry_value_set_by_key(temp_frames[frame_count],
+                        "symbol_addr",
+                        sentry__value_new_addr(
+                            (uint64_t)(uintptr_t)stack_frames[i].symbol_addr));
+                }
                 frame_count++;
+            }
+
+            for (size_t i = 0; i < dbghelp_frame_count; i++) {
+                sentry_free((char *)stack_frames[i].symbol);
             }
 
             // Sentry expects frames in reverse order (outermost caller first)
@@ -1200,7 +1218,7 @@ stack_walk_read_memory(HANDLE hProcess, DWORD64 lpBaseAddress, PVOID lpBuffer,
  */
 static size_t
 walk_stack_with_dbghelp(HANDLE hProcess, DWORD crashed_tid,
-    const CONTEXT *ctx_record, void **frames, size_t max_frames)
+    const CONTEXT *ctx_record, sentry_frame_info_t *frames, size_t max_frames)
 {
     // Open thread handle for the crashed thread
     HANDLE hThread = OpenThread(
@@ -1261,6 +1279,10 @@ walk_stack_with_dbghelp(HANDLE hProcess, DWORD crashed_tid,
     stack_frame.AddrFrame.Mode = AddrModeFlat;
     stack_frame.AddrStack.Mode = AddrModeFlat;
 
+    const size_t sym_info_size
+        = sizeof(SYMBOL_INFOW) + MAX_SYM_NAME * sizeof(WCHAR);
+    SYMBOL_INFOW *sym_info = (SYMBOL_INFOW *)sentry_malloc(sym_info_size);
+
     size_t frame_count = 0;
     while (frame_count < max_frames
         && StackWalk64(machine_type, hProcess, hThread, &stack_frame, &ctx,
@@ -1269,10 +1291,31 @@ walk_stack_with_dbghelp(HANDLE hProcess, DWORD crashed_tid,
         if (stack_frame.AddrPC.Offset == 0) {
             break;
         }
-        frames[frame_count++] = (void *)(uintptr_t)stack_frame.AddrPC.Offset;
-        SENTRY_DEBUGF("StackWalk64 frame %zu: 0x%llx", frame_count - 1,
-            (unsigned long long)stack_frame.AddrPC.Offset);
+        memset(&frames[frame_count], 0, sizeof(sentry_frame_info_t));
+        frames[frame_count].instruction_addr
+            = (void *)(uintptr_t)stack_frame.AddrPC.Offset;
+
+        if (sym_info) {
+            memset(sym_info, 0, sym_info_size);
+            sym_info->SizeOfStruct = sizeof(SYMBOL_INFOW);
+            sym_info->MaxNameLen = MAX_SYM_NAME;
+
+            if (SymFromAddrW(
+                    hProcess, stack_frame.AddrPC.Offset, NULL, sym_info)) {
+                frames[frame_count].symbol
+                    = sentry__string_from_wstr(sym_info->Name);
+                frames[frame_count].symbol_addr
+                    = (void *)(uintptr_t)sym_info->Address;
+            }
+        }
+
+        SENTRY_DEBUGF("StackWalk64 frame %zu: 0x%llx %s", frame_count,
+            (unsigned long long)stack_frame.AddrPC.Offset,
+            frames[frame_count].symbol ? frames[frame_count].symbol : "");
+        frame_count++;
     }
+
+    sentry_free(sym_info);
 
     SymCleanup(hProcess);
     CloseHandle(hThread);
