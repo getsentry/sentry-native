@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1774542656192,
+  "lastUpdate": 1774546436423,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -14416,6 +14416,66 @@ window.BENCHMARK_DATA = {
             "value": 2.2174629999938134,
             "unit": "ms",
             "extra": "Min 2.117ms\nMax 2.298ms\nMean 2.201ms\nStdDev 0.072ms\nMedian 2.217ms\nCPU 0.638ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "jpnurmi@gmail.com",
+            "name": "J-P Nurmi",
+            "username": "jpnurmi"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "67be23221e6a52cf0e2e51c2b154012f1d4cd2b0",
+          "message": "test: reduce and optimize pytest builds (#1598)\n\nCo-authored-by: Claude Opus 4.6 <noreply@anthropic.com>",
+          "timestamp": "2026-03-26T18:31:32+01:00",
+          "tree_id": "f4319add6f110a693c4ed7fb27fb1244f1a00397",
+          "url": "https://github.com/getsentry/sentry-native/commit/67be23221e6a52cf0e2e51c2b154012f1d4cd2b0"
+        },
+        "date": 1774546433877,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 0.972095999998146,
+            "unit": "ms",
+            "extra": "Min 0.966ms\nMax 0.985ms\nMean 0.976ms\nStdDev 0.008ms\nMedian 0.972ms\nCPU 0.923ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 0.8723239999994803,
+            "unit": "ms",
+            "extra": "Min 0.867ms\nMax 0.951ms\nMean 0.888ms\nStdDev 0.036ms\nMedian 0.872ms\nCPU 0.887ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 3.3762769999725606,
+            "unit": "ms",
+            "extra": "Min 3.354ms\nMax 3.433ms\nMean 3.390ms\nStdDev 0.033ms\nMedian 3.376ms\nCPU 1.768ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.14326499996286657,
+            "unit": "ms",
+            "extra": "Min 0.135ms\nMax 0.159ms\nMean 0.144ms\nStdDev 0.009ms\nMedian 0.143ms\nCPU 0.091ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.04026999999950931,
+            "unit": "ms",
+            "extra": "Min 0.040ms\nMax 0.042ms\nMean 0.040ms\nStdDev 0.001ms\nMedian 0.040ms\nCPU 0.040ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 2.0653309999829617,
+            "unit": "ms",
+            "extra": "Min 2.043ms\nMax 2.082ms\nMean 2.064ms\nStdDev 0.015ms\nMedian 2.065ms\nCPU 0.608ms"
           }
         ]
       }
