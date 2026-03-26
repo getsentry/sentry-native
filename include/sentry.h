@@ -1476,12 +1476,14 @@ SENTRY_API int sentry_options_get_symbolize_stacktraces(
     const sentry_options_t *opts);
 
 /**
- * Enables or disables storing envelopes in a persistent cache.
+ * Enables or disables storing envelopes that fail to send in a persistent
+ * cache.
  *
- * When enabled, envelopes are written to a `cache/` subdirectory within the
- * database directory and retained regardless of send success or failure.
- * The cache is cleared on startup based on the cache_max_items, cache_max_size,
- * and cache_max_age options.
+ * When enabled, envelopes that fail to send are written to a `cache/`
+ * subdirectory within the database directory. The cache is cleared on startup
+ * based on the cache_max_items, cache_max_size, and cache_max_age options.
+ *
+ * Only applicable for HTTP transports.
  *
  * Disabled by default.
  */
