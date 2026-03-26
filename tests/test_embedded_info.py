@@ -58,7 +58,7 @@ def test_embedded_info_disabled(cmake):
         {
             "SENTRY_BACKEND": "none",
             "SENTRY_TRANSPORT": "none",
-            "SENTRY_EMBED_INFO": "OFF",
+            # "SENTRY_EMBED_INFO": "OFF" (default, cached)
         },
     )
 
