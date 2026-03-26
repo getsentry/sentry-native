@@ -185,12 +185,6 @@ def cmake_configure(cwd, options, cflags=None):
         configure_llvm_cov(config_cmd)
     env = dict(os.environ)
     env["CFLAGS"] = env["CXXFLAGS"] = " ".join(cflags)
-    if env.get("USE_CCACHE"):
-        # Each pytest run builds in a new temp directory. Paths are normalized
-        # relative to the build dir and CWD hashing is skipped to allow ccache
-        # hits across runs.
-        env.setdefault("CCACHE_BASEDIR", str(cwd))
-        env.setdefault("CCACHE_NOHASHDIR", "true")
 
     config_cmd.append(source_dir)
 
@@ -229,6 +223,12 @@ def cmake_build(cwd, targets, options):
             "cmake",
         ]
     env = dict(os.environ)
+    if env.get("USE_CCACHE"):
+        # Each pytest run builds in a new temp directory. Paths are normalized
+        # relative to the build dir and CWD hashing is skipped to allow ccache
+        # hits across runs.
+        env.setdefault("CCACHE_BASEDIR", str(cwd))
+        env.setdefault("CCACHE_NOHASHDIR", "true")
 
     buildcmd = [*cmake, "--build", "."]
     for target in targets:
