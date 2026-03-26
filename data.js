@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1774531999765,
+  "lastUpdate": 1774532026699,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -42952,6 +42952,66 @@ window.BENCHMARK_DATA = {
             "value": 236.2845999999763,
             "unit": "ms",
             "extra": "Min 86.703ms\nMax 520.801ms\nMean 257.059ms\nStdDev 160.221ms\nMedian 236.285ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "jpnurmi@gmail.com",
+            "name": "J-P Nurmi",
+            "username": "jpnurmi"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "cd45dc08d9cca244e2e6bfab3893e9e10b33cdba",
+          "message": "feat(native): symbolicate stack frames in crash daemon on Windows (#1595)\n\nCo-authored-by: Claude Opus 4.6 <noreply@anthropic.com>",
+          "timestamp": "2026-03-26T14:28:20+01:00",
+          "tree_id": "ed55a9546b23d32e3c48a83fecd8f80149b0b4c9",
+          "url": "https://github.com/getsentry/sentry-native/commit/cd45dc08d9cca244e2e6bfab3893e9e10b33cdba"
+        },
+        "date": 1774532015345,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 9.958100000062586,
+            "unit": "ms",
+            "extra": "Min 9.671ms\nMax 10.530ms\nMean 10.020ms\nStdDev 0.368ms\nMedian 9.958ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 11.820499999998901,
+            "unit": "ms",
+            "extra": "Min 10.833ms\nMax 13.697ms\nMean 12.224ms\nStdDev 1.387ms\nMedian 11.820ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 42.34499999995478,
+            "unit": "ms",
+            "extra": "Min 30.573ms\nMax 55.419ms\nMean 43.350ms\nStdDev 11.747ms\nMedian 42.345ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.24539999992612138,
+            "unit": "ms",
+            "extra": "Min 0.203ms\nMax 0.293ms\nMean 0.251ms\nStdDev 0.034ms\nMedian 0.245ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.616400000012618,
+            "unit": "ms",
+            "extra": "Min 0.478ms\nMax 0.638ms\nMean 0.585ms\nStdDev 0.069ms\nMedian 0.616ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 19.22619999993458,
+            "unit": "ms",
+            "extra": "Min 16.130ms\nMax 21.209ms\nMean 18.850ms\nStdDev 1.935ms\nMedian 19.226ms"
           }
         ]
       }
