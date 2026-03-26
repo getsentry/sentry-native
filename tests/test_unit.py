@@ -38,7 +38,7 @@ def test_unit_with_test_path(cmake, unittest):
     cwd = cmake(
         ["sentry_test_unit"],
         {"SENTRY_BACKEND": "none", "SENTRY_TRANSPORT": "none"},
-        cflags=["-DSENTRY_TEST_PATH_PREFIX=./"],
+        cflags=['-DSENTRY_TEST_PATH_PREFIX=\\"./\\"'],
     )
     env = dict(os.environ)
     run(cwd, "sentry_test_unit", ["--no-summary", unittest], env=env)
