@@ -1,8 +1,11 @@
 import os
+import shutil
 import subprocess
 import pytest
 from . import run, SENTRY_VERSION
 from .conditions import has_http
+
+has_strings = shutil.which("strings") is not None
 
 
 def test_embedded_info_enabled(cmake):
@@ -79,6 +82,7 @@ def test_embedded_info_disabled(cmake):
 
 
 @pytest.mark.skipif(not has_http, reason="test needs http transport (curl)")
+@pytest.mark.skipif(not has_strings, reason="test needs strings command")
 def test_embedded_info_binary_inspection(cmake):
     """Test that embedded info appears in the actual binary"""
     cwd = cmake(
@@ -147,6 +151,7 @@ def test_embedded_info_custom_items(cmake):
 
 
 @pytest.mark.skipif(not has_http, reason="test needs http transport (curl)")
+@pytest.mark.skipif(not has_strings, reason="test needs strings command")
 def test_sdk_version_override(cmake):
     """Test that SENTRY_SDK_VERSION override works correctly"""
     cwd = cmake(
@@ -193,6 +198,7 @@ def test_sdk_version_override(cmake):
 
 
 @pytest.mark.skipif(not has_http, reason="test needs http transport (curl)")
+@pytest.mark.skipif(not has_strings, reason="test needs strings command")
 def test_sdk_version_override_with_explicit_build_id(cmake):
     """Test that explicit SENTRY_BUILD_ID takes precedence over extracted build ID"""
     cwd = cmake(

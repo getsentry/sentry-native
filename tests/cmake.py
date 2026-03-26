@@ -30,18 +30,23 @@ class CMake:
 
         if options is None:
             options = dict()
-        key = (
-            ";".join(targets),
-            ";".join(f"{k}={v}" for k, v in options.items()),
-        )
+        key = ";".join(f"{k}={v}" for k, v in options.items())
 
         # cache the build configuration
         if key not in self.runs:
             cwd = self.factory.mktemp("cmake")
-            self.runs[key] = cwd
-            cmake(cwd, targets, options, cflags)
+            cmake_configure(cwd, options, cflags)
+            cmake_build(cwd, targets, options)
+            self.runs[key] = (cwd, set(targets))
+        else:
+            # build missing targets incrementally
+            cwd, built_targets = self.runs[key]
+            new_targets = [t for t in targets if t not in built_targets]
+            if new_targets:
+                cmake_build(cwd, new_targets, options)
+                built_targets.update(new_targets)
 
-        build_tmp_path = self.runs[key]
+        build_tmp_path = cwd
 
         # ensure that there are no left-overs from previous runs
         shutil.rmtree(build_tmp_path / ".sentry-native", ignore_errors=True)
@@ -63,7 +68,7 @@ class CMake:
         os.mkdir(coveragedir)
 
         if "llvm-cov" in os.environ.get("RUN_ANALYZER", ""):
-            for i, d in enumerate(self.runs.values()):
+            for i, (d, _) in enumerate(self.runs.values()):
                 # first merge the raw profiling runs
                 files = [f for f in os.listdir(d) if f.endswith(".profraw")]
                 if len(files) == 0:
@@ -101,7 +106,7 @@ class CMake:
         if "kcov" in os.environ.get("RUN_ANALYZER", ""):
             coverage_dirs = [
                 d
-                for d in [d.joinpath("coverage") for d in self.runs.values()]
+                for d in [d.joinpath("coverage") for (d, _) in self.runs.values()]
                 if d.exists()
             ]
             if len(coverage_dirs) > 0:
@@ -116,12 +121,12 @@ class CMake:
                 )
 
 
-def cmake(cwd, targets, options=None, cflags=None):
+def cmake_configure(cwd, options, cflags=None):
     if cflags is None:
         cflags = []
     __tracebackhide__ = True
-    if options is None:
-        options = {}
+
+    options = dict(options)
     if os.environ.get("USE_CCACHE"):
         options.update(
             {
@@ -204,8 +209,26 @@ def cmake(cwd, targets, options=None, cflags=None):
             sys.stderr.write(e.stderr or "")
             raise pytest.fail.Exception("cmake configure failed") from None
 
-    # CodeChecker invocations and options are documented here:
-    # https://github.com/Ericsson/codechecker/blob/master/docs/analyzer/user_guide.md
+
+def cmake_build(cwd, targets, options):
+    __tracebackhide__ = True
+
+    source_dir = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
+
+    cmake = ["cmake"]
+    if "scan-build" in os.environ.get("RUN_ANALYZER", ""):
+        cc = os.environ.get("CC")
+        cxx = os.environ.get("CXX")
+        cmake = [
+            "scan-build",
+            *(["--use-cc", cc] if cc else []),
+            *(["--use-c++", cxx] if cxx else []),
+            "--status-bugs",
+            "--exclude",
+            os.path.join(source_dir, "external"),
+            "cmake",
+        ]
+    env = dict(os.environ)
 
     buildcmd = [*cmake, "--build", "."]
     for target in targets:
@@ -237,6 +260,8 @@ def cmake(cwd, targets, options=None, cflags=None):
         check_binary_version(Path(cwd) / "crashpad_wer.dll")
         check_binary_version(Path(cwd) / "crashpad_handler.exe")
 
+    # CodeChecker invocations and options are documented here:
+    # https://github.com/Ericsson/codechecker/blob/master/docs/analyzer/user_guide.md
     if "code-checker" in os.environ.get("RUN_ANALYZER", ""):
         # For whatever reason, the compilation summary contains duplicate entries,
         # one with the correct absolute path, and the other one just with the basename,
