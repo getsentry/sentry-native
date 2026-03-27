@@ -1,5 +1,7 @@
 # CMakeLists.txt for vendored libunwind (Linux only; x86_64, aarch64, x86, arm)
-# This builds only the local unwinding library (libunwind.a equivalent)
+# Builds the local unwinding library (libunwind.a equivalent).
+# When LIBUNWIND_BUILD_REMOTE is set, also builds unwind_remote with
+# generic (G-prefix) sources and ptrace accessors for remote unwinding.
 
 # Vendored libunwind - built as a subdirectory of the main project.
 # Enable ASM for the .S sources without a nested project() call.
@@ -289,3 +291,166 @@ if(CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
 endif()
 
 target_link_libraries(unwind PRIVATE ${CMAKE_DL_LIBS} pthread)
+
+# --- Remote unwinding support (optional, for native backend daemon) ---
+if(LIBUNWIND_BUILD_REMOTE)
+
+# Generic (G-prefix) sources — compiled WITHOUT UNW_LOCAL_ONLY.
+# Produce _U<arch>_ symbols that coexist with the _UL<arch>_ local symbols.
+set(UNWIND_GENERIC_MI_SOURCES
+    ${LIBUNWIND_SRC}/mi/Gaddress_validator.c
+    ${LIBUNWIND_SRC}/mi/Gdestroy_addr_space.c
+    ${LIBUNWIND_SRC}/mi/Gdyn-extract.c
+    ${LIBUNWIND_SRC}/mi/Gdyn-remote.c
+    ${LIBUNWIND_SRC}/mi/Gfind_dynamic_proc_info.c
+    ${LIBUNWIND_SRC}/mi/Gget_accessors.c
+    ${LIBUNWIND_SRC}/mi/Gget_elf_filename.c
+    ${LIBUNWIND_SRC}/mi/Gget_fpreg.c
+    ${LIBUNWIND_SRC}/mi/Gget_proc_info_by_ip.c
+    ${LIBUNWIND_SRC}/mi/Gget_proc_name.c
+    ${LIBUNWIND_SRC}/mi/Gget_reg.c
+    ${LIBUNWIND_SRC}/mi/Gis_plt_entry.c
+    ${LIBUNWIND_SRC}/mi/Gput_dynamic_unwind_info.c
+    ${LIBUNWIND_SRC}/mi/Gset_cache_size.c
+    ${LIBUNWIND_SRC}/mi/Gset_caching_policy.c
+    ${LIBUNWIND_SRC}/mi/Gset_fpreg.c
+    ${LIBUNWIND_SRC}/mi/Gset_iterate_phdr_function.c
+    ${LIBUNWIND_SRC}/mi/Gset_reg.c
+)
+
+set(UNWIND_GENERIC_DWARF_SOURCES
+    ${LIBUNWIND_SRC}/dwarf/Gexpr.c
+    ${LIBUNWIND_SRC}/dwarf/Gfde.c
+    ${LIBUNWIND_SRC}/dwarf/Gfind_proc_info-lsb.c
+    ${LIBUNWIND_SRC}/dwarf/Gfind_unwind_table.c
+    ${LIBUNWIND_SRC}/dwarf/Gget_proc_info_in_range.c
+    ${LIBUNWIND_SRC}/dwarf/Gparser.c
+    ${LIBUNWIND_SRC}/dwarf/Gpe.c
+)
+
+if(UNWIND_ARCH STREQUAL "x86_64")
+    set(UNWIND_GENERIC_ARCH_SOURCES
+        ${LIBUNWIND_SRC}/x86_64/Gos-linux.c
+        ${LIBUNWIND_SRC}/x86_64/Gapply_reg_state.c
+        ${LIBUNWIND_SRC}/x86_64/Gcreate_addr_space.c
+        ${LIBUNWIND_SRC}/x86_64/Gget_proc_info.c
+        ${LIBUNWIND_SRC}/x86_64/Gget_save_loc.c
+        ${LIBUNWIND_SRC}/x86_64/Gglobal.c
+        ${LIBUNWIND_SRC}/x86_64/Ginit.c
+        ${LIBUNWIND_SRC}/x86_64/Ginit_local.c
+        ${LIBUNWIND_SRC}/x86_64/Ginit_remote.c
+        ${LIBUNWIND_SRC}/x86_64/Gregs.c
+        ${LIBUNWIND_SRC}/x86_64/Greg_states_iterate.c
+        ${LIBUNWIND_SRC}/x86_64/Gresume.c
+        ${LIBUNWIND_SRC}/x86_64/Gstash_frame.c
+        ${LIBUNWIND_SRC}/x86_64/Gstep.c
+        ${LIBUNWIND_SRC}/x86_64/Gtrace.c
+    )
+elseif(UNWIND_ARCH STREQUAL "aarch64")
+    set(UNWIND_GENERIC_ARCH_SOURCES
+        ${LIBUNWIND_SRC}/aarch64/Gos-linux.c
+        ${LIBUNWIND_SRC}/aarch64/Gapply_reg_state.c
+        ${LIBUNWIND_SRC}/aarch64/Gcreate_addr_space.c
+        ${LIBUNWIND_SRC}/aarch64/Gget_proc_info.c
+        ${LIBUNWIND_SRC}/aarch64/Gget_save_loc.c
+        ${LIBUNWIND_SRC}/aarch64/Gglobal.c
+        ${LIBUNWIND_SRC}/aarch64/Ginit.c
+        ${LIBUNWIND_SRC}/aarch64/Ginit_local.c
+        ${LIBUNWIND_SRC}/aarch64/Ginit_remote.c
+        ${LIBUNWIND_SRC}/aarch64/Gis_signal_frame.c
+        ${LIBUNWIND_SRC}/aarch64/Gregs.c
+        ${LIBUNWIND_SRC}/aarch64/Greg_states_iterate.c
+        ${LIBUNWIND_SRC}/aarch64/Gresume.c
+        ${LIBUNWIND_SRC}/aarch64/Gstash_frame.c
+        ${LIBUNWIND_SRC}/aarch64/Gstep.c
+        ${LIBUNWIND_SRC}/aarch64/Gtrace.c
+        ${LIBUNWIND_SRC}/aarch64/Gstrip_ptrauth_insn_mask.c
+    )
+elseif(UNWIND_ARCH STREQUAL "x86")
+    set(UNWIND_GENERIC_ARCH_SOURCES
+        ${LIBUNWIND_SRC}/x86/Gos-linux.c
+        ${LIBUNWIND_SRC}/x86/Gapply_reg_state.c
+        ${LIBUNWIND_SRC}/x86/Gcreate_addr_space.c
+        ${LIBUNWIND_SRC}/x86/Gget_proc_info.c
+        ${LIBUNWIND_SRC}/x86/Gget_save_loc.c
+        ${LIBUNWIND_SRC}/x86/Gglobal.c
+        ${LIBUNWIND_SRC}/x86/Ginit.c
+        ${LIBUNWIND_SRC}/x86/Ginit_local.c
+        ${LIBUNWIND_SRC}/x86/Ginit_remote.c
+        ${LIBUNWIND_SRC}/x86/Gregs.c
+        ${LIBUNWIND_SRC}/x86/Greg_states_iterate.c
+        ${LIBUNWIND_SRC}/x86/Gresume.c
+        ${LIBUNWIND_SRC}/x86/Gstep.c
+    )
+endif()
+
+# Ptrace accessor library (_UPT_* functions for remote unwinding via ptrace)
+set(UNWIND_PTRACE_SOURCES
+    ${LIBUNWIND_SRC}/ptrace/_UPT_accessors.c
+    ${LIBUNWIND_SRC}/ptrace/_UPT_access_fpreg.c
+    ${LIBUNWIND_SRC}/ptrace/_UPT_access_mem.c
+    ${LIBUNWIND_SRC}/ptrace/_UPT_access_reg.c
+    ${LIBUNWIND_SRC}/ptrace/_UPT_create.c
+    ${LIBUNWIND_SRC}/ptrace/_UPT_destroy.c
+    ${LIBUNWIND_SRC}/ptrace/_UPT_elf.c
+    ${LIBUNWIND_SRC}/ptrace/_UPT_find_proc_info.c
+    ${LIBUNWIND_SRC}/ptrace/_UPT_get_dyn_info_list_addr.c
+    ${LIBUNWIND_SRC}/ptrace/_UPT_get_elf_filename.c
+    ${LIBUNWIND_SRC}/ptrace/_UPT_get_proc_name.c
+    ${LIBUNWIND_SRC}/ptrace/_UPT_ptrauth_insn_mask.c
+    ${LIBUNWIND_SRC}/ptrace/_UPT_put_unwind_info.c
+    ${LIBUNWIND_SRC}/ptrace/_UPT_reg_offset.c
+    ${LIBUNWIND_SRC}/ptrace/_UPT_resume.c
+)
+
+# unwind_remote: superset of unwind (local + generic + ptrace)
+add_library(unwind_remote STATIC
+    ${UNWIND_COMMON_SOURCES}
+    ${UNWIND_LOCAL_SOURCES}
+    ${UNWIND_DWARF_LOCAL_SOURCES}
+    ${UNWIND_ELF_SOURCES}
+    ${UNWIND_ARCH_SOURCES}
+    ${UNWIND_GENERIC_MI_SOURCES}
+    ${UNWIND_GENERIC_DWARF_SOURCES}
+    ${UNWIND_GENERIC_ARCH_SOURCES}
+    ${UNWIND_PTRACE_SOURCES}
+)
+
+target_include_directories(unwind_remote
+    PRIVATE
+        ${CMAKE_CURRENT_BINARY_DIR}/include
+        ${LIBUNWIND_INC}
+        ${LIBUNWIND_SRC}
+    PUBLIC
+        $<BUILD_INTERFACE:${LIBUNWIND_INC}>
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/include>
+)
+
+if(UNWIND_ARCH STREQUAL "x86_64")
+    target_include_directories(unwind_remote PRIVATE ${LIBUNWIND_INC}/tdep-x86_64)
+    target_compile_definitions(unwind_remote PRIVATE UNW_TARGET_X86_64=1)
+elseif(UNWIND_ARCH STREQUAL "aarch64")
+    target_include_directories(unwind_remote PRIVATE ${LIBUNWIND_INC}/tdep-aarch64)
+    target_compile_definitions(unwind_remote PRIVATE UNW_TARGET_AARCH64=1)
+elseif(UNWIND_ARCH STREQUAL "x86")
+    target_include_directories(unwind_remote PRIVATE ${LIBUNWIND_INC}/tdep-x86)
+    target_compile_definitions(unwind_remote PRIVATE UNW_TARGET_X86=1)
+endif()
+
+target_compile_definitions(unwind_remote PRIVATE
+    HAVE_CONFIG_H
+    _GNU_SOURCE
+)
+
+set_target_properties(unwind_remote PROPERTIES
+    C_STANDARD 99
+    POSITION_INDEPENDENT_CODE ON
+)
+
+if(CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
+    target_compile_options(unwind_remote PRIVATE -w)
+endif()
+
+target_link_libraries(unwind_remote PRIVATE ${CMAKE_DL_LIBS} pthread)
+
+endif() # LIBUNWIND_BUILD_REMOTE

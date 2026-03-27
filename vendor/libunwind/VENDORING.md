@@ -9,8 +9,18 @@
 ## Purpose
 
 libunwind is vendored so the sentry-native SDK can perform stack unwinding on
-Linux without requiring users to install any external packages.  Only the
-**local** unwinding functionality is needed.
+Linux without requiring users to install any external packages.
+
+Two CMake targets are provided:
+
+- **`unwind`** — local unwinding only (`L`-prefix sources, `_UL*` symbols).
+  Used by the main `sentry` library and the inproc backend.
+- **`unwind_remote`** — local + remote unwinding (`L`-prefix + `G`-prefix
+  sources + `src/ptrace/` accessors, `_UL*` + `_U*` + `_UPT_*` symbols).
+  Only built when `LIBUNWIND_BUILD_REMOTE` is set (i.e., native backend on
+  Linux).  Used by the `sentry-crash` daemon for out-of-process DWARF
+  unwinding and symbol name resolution via `unw_init_remote()` /
+  `unw_get_proc_name()`.
 
 ## Supported Architectures (built by CMake)
 
@@ -66,15 +76,14 @@ Source and include directories for architectures sentry-native does not target:
 ### 4. Unused feature modules
 
 These are separate `libunwind` "accessor" libraries for non-local unwinding use
-cases.  sentry-native only uses local unwinding (unwinding the current process
-in-process), so none of these are needed:
+cases:
 
-| Directory       | Purpose                             | Why removed                       |
-|-----------------|-------------------------------------|-----------------------------------|
-| `src/coredump/` | Unwinding from a coredump file      | Not a live-process use case       |
-| `src/nto/`      | QNX Neutrino ptrace-based unwinding | QNX is not a sentry-native target |
-| `src/ptrace/`   | Remote unwinding via `ptrace()`     | Only local unwinding is needed    |
-| `src/setjmp/`   | `setjmp`/`longjmp` wrappers         | Not relevant for crash reporting  |
+| Directory       | Purpose                             | Status                                                  |
+|-----------------|-------------------------------------|---------------------------------------------------------|
+| `src/ptrace/`   | Remote unwinding via `ptrace()`     | **Re-added** — used by the native backend's crash daemon |
+| `src/coredump/` | Unwinding from a coredump file      | Removed — not a live-process use case                   |
+| `src/nto/`      | QNX Neutrino ptrace-based unwinding | Removed — QNX is not a sentry-native target             |
+| `src/setjmp/`   | `setjmp`/`longjmp` wrappers         | Removed — not relevant for crash reporting              |
 
 ### What is kept but NOT built
 
@@ -107,7 +116,7 @@ never calls into the C++ exception ABI.
 
 | File                                | Purpose                                                                                                                                           |
 |-------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------|
-| `CMakeLists.txt`                    | Custom CMake build that replaces the upstream autotools + upstream CMake build. Builds a static `unwind` target for x86, x86_64, and aarch64 only |
+| `CMakeLists.txt`                    | Custom CMake build that replaces the upstream autotools + upstream CMake build. Builds `unwind` (local) and optionally `unwind_remote` (local + remote + ptrace) |
 | `cmake/config.h.cmake.in`           | CMake template for `config.h` (replaces autotools `configure`-generated header)                                                                   |
 | `cmake/libunwind-common.h.cmake.in` | CMake template for `libunwind-common.h`                                                                                                           |
 | `VENDORING.md`                      | This file                                                                                                                                         |
@@ -140,8 +149,8 @@ both GCC and Clang.
 
 3. Delete and re-copy these directories from the new tarball, **excluding** the
    removed architecture dirs listed above:
-   - `src/` — keep only: `aarch64/`, `arm/`, `dwarf/`, `mi/`, `riscv/`,
-     `unwind/`, `x86/`, `x86_64/`, and top-level `.c` / `.h` files
+   - `src/` — keep only: `aarch64/`, `arm/`, `dwarf/`, `mi/`, `ptrace/`,
+     `riscv/`, `unwind/`, `x86/`, `x86_64/`, and top-level `.c` / `.h` files
      (`src/unwind/` is kept for reference but **not compiled** — do not add it
      to `CMakeLists.txt`)
    - `include/` — keep only: `tdep/`, `tdep-aarch64/`, `tdep-arm/`,
