@@ -54,6 +54,10 @@ def test_cache_keep(cmake, backend, cache_keep):
     if cache_keep:
         cache_files = list(cache_dir.glob("*.envelope"))
         assert len(cache_files) == 1
+        if backend != "inproc":
+            dmp_files = list(cache_dir.glob("*.dmp"))
+            assert len(dmp_files) == 1
+            assert cache_files[0].stem == dmp_files[0].stem
 
 
 @pytest.mark.parametrize(

@@ -8,6 +8,7 @@
 #include "sentry_utils.h"
 #include "sentry_uuid.h"
 #include <errno.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -185,7 +186,7 @@ sentry__run_write_cache(
         return false;
     }
 
-    return write_envelope(run->cache_path, envelope);
+    return sentry__envelope_write_to_cache(envelope, run->cache_path) == 0;
 }
 
 bool
@@ -363,6 +364,51 @@ compare_cache_entries_newest_first(const void *a, const void *b)
     return 0;
 }
 
+/**
+ * Iterate over minidump files for a given .envelope path.
+ * Tries <base>.dmp, <base>-1.dmp, <base>-2.dmp, ... and stops when a file
+ * is not found.
+ */
+static void
+foreach_minidump(const sentry_path_t *envelope_path,
+    void (*callback)(sentry_path_t *dmp_path, void *data), void *data)
+{
+    sentry_path_t *base = sentry__path_basename(envelope_path, ".envelope");
+    if (!base) {
+        return;
+    }
+    for (int i = 0;; i++) {
+        char suffix[16];
+        if (i == 0) {
+            memcpy(suffix, ".dmp", 5);
+        } else {
+            snprintf(suffix, sizeof(suffix), "-%d.dmp", i);
+        }
+        sentry_path_t *dmp_path = sentry__path_append_str(base, suffix);
+        if (!dmp_path || !sentry__path_is_file(dmp_path)) {
+            sentry__path_free(dmp_path);
+            break;
+        }
+        callback(dmp_path, data);
+        sentry__path_free(dmp_path);
+    }
+    sentry__path_free(base);
+}
+
+static void
+accumulate_size(sentry_path_t *path, void *data)
+{
+    size_t *size = data;
+    *size += sentry__path_get_size(path);
+}
+
+static void
+remove_file(sentry_path_t *path, void *data)
+{
+    (void)data;
+    sentry__path_remove(path);
+}
+
 void
 sentry__cleanup_cache(const sentry_options_t *options)
 {
@@ -377,7 +423,9 @@ sentry__cleanup_cache(const sentry_options_t *options)
         return;
     }
 
-    // First pass: collect all cache entries with their metadata
+    // First pass: collect .envelope entries with their metadata.
+    // .dmp files are skipped here; their size is added to the matching
+    // .envelope entry and they are deleted together.
     size_t entries_capacity = 16;
     size_t entries_count = 0;
     cache_entry_t *entries
@@ -390,7 +438,8 @@ sentry__cleanup_cache(const sentry_options_t *options)
     sentry_pathiter_t *iter = sentry__path_iter_directory(cache_dir);
     const sentry_path_t *entry;
     while (iter && (entry = sentry__pathiter_next(iter)) != NULL) {
-        if (sentry__path_is_dir(entry)) {
+        if (sentry__path_is_dir(entry)
+            || !sentry__path_ends_with(entry, ".envelope")) {
             continue;
         }
 
@@ -413,6 +462,10 @@ sentry__cleanup_cache(const sentry_options_t *options)
         }
         entries[entries_count].mtime = sentry__path_get_mtime(entry);
         entries[entries_count].size = sentry__path_get_size(entry);
+
+        // include matching .dmp file sizes in this entry
+        foreach_minidump(entry, accumulate_size, &entries[entries_count].size);
+
         entries_count++;
     }
     sentry__pathiter_free(iter);
@@ -449,6 +502,7 @@ sentry__cleanup_cache(const sentry_options_t *options)
         }
 
         if (should_prune) {
+            foreach_minidump(entries[i].path, remove_file, NULL);
             sentry__path_remove_all(entries[i].path);
         }
         sentry__path_free(entries[i].path);

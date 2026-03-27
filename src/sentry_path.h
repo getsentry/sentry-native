@@ -86,6 +86,14 @@ sentry_path_t *sentry__path_join_str(
     const sentry_path_t *base, const char *other);
 
 /**
+ * Return a new path with the given suffix stripped.
+ * If `suffix` is NULL, strips at the last dot in the filename.
+ * Returns NULL if the suffix does not match.
+ */
+sentry_path_t *sentry__path_basename(
+    const sentry_path_t *path, const char *suffix);
+
+/**
  * Return a new path with the given suffix appended.
  * This is different to `sentry__path_join_str` as it does not create a new path
  * segment.

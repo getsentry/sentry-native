@@ -1,6 +1,8 @@
 #include "sentry_path.h"
 #include "sentry_alloc.h"
 
+#include <string.h>
+
 sentry_path_t *
 sentry__path_from_str_n(const char *s, size_t s_len)
 {
@@ -99,4 +101,25 @@ sentry__filelock_free(sentry_filelock_t *lock)
     sentry__filelock_unlock(lock);
     sentry__path_free(lock->path);
     sentry_free(lock);
+}
+
+sentry_path_t *
+sentry__path_basename(const sentry_path_t *path, const char *suffix)
+{
+    size_t path_len = strlen(path->path);
+    if (suffix) {
+        size_t suffix_len = strlen(suffix);
+        if (suffix_len > 0 && path_len > suffix_len
+            && strcmp(path->path + path_len - suffix_len, suffix) == 0) {
+            return sentry__path_from_str_n(path->path, path_len - suffix_len);
+        }
+    } else {
+        const char *filename = sentry__path_filename(path);
+        const char *dot = strrchr(filename, '.');
+        if (dot && dot != filename) {
+            return sentry__path_from_str_n(
+                path->path, (size_t)(dot - path->path));
+        }
+    }
+    return NULL;
 }

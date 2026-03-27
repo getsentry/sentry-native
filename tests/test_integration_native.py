@@ -670,7 +670,11 @@ def test_native_cache_keep(cmake, cache_keep):
 
     if cache_keep:
         assert wait_for_file(cache_dir / "*.envelope")
-        assert len(list(cache_dir.glob("*.envelope"))) == 1
+        cache_files = list(cache_dir.glob("*.envelope"))
+        assert len(cache_files) == 1
+        dmp_files = list(cache_dir.glob("*.dmp"))
+        assert len(dmp_files) == 1
+        assert cache_files[0].stem == dmp_files[0].stem
     else:
         # Best-effort wait for crash processing to finish. 2s is not
         # guaranteed to be enough, but we cannot poll for the non-existence

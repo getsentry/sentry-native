@@ -826,7 +826,11 @@ def test_crashpad_cache_keep(cmake, httpserver, cache_keep):
             envelope = Envelope.deserialize_from(f)
         assert "dsn" in envelope.headers
         assert_meta(envelope, integration="crashpad")
-        assert_minidump(envelope)
+        with pytest.raises(StopIteration):
+            assert_minidump(envelope)
+        dmp_files = list(cache_dir.glob("*.dmp"))
+        assert len(dmp_files) == 1
+        assert cache_files[0].stem == dmp_files[0].stem
 
 
 def test_crashpad_cache_max_size(cmake, httpserver):
