@@ -790,6 +790,54 @@ build_stacktrace_for_thread(
     sentry_value_t temp_frames[MAX_STACK_FRAMES];
     int frame_count = 0;
 
+#if defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID)
+    // Use pre-captured libunwind backtrace if available (DWARF-based, works
+    // without frame pointers). This is preferred over FP-based walking for
+    // the crashed thread.
+    if (ctx->platform.backtrace_count > 0
+        && (thread_idx == SIZE_MAX || thread_idx == 0)) {
+        SENTRY_DEBUGF("Using pre-captured libunwind backtrace (%zu frames)",
+            ctx->platform.backtrace_count);
+
+        for (size_t i = 0;
+            i < ctx->platform.backtrace_count && frame_count < MAX_STACK_FRAMES;
+            i++) {
+            uint64_t frame_ip = ctx->platform.backtrace_ips[i];
+            if (frame_ip == 0 || !is_valid_code_addr(frame_ip)) {
+                continue;
+            }
+            temp_frames[frame_count] = sentry_value_new_object();
+            sentry_value_set_by_key(temp_frames[frame_count],
+                "instruction_addr", sentry__value_new_addr(frame_ip));
+            sentry_value_set_by_key(temp_frames[frame_count], "trust",
+                sentry_value_new_string(i == 0 ? "context" : "cfi"));
+            enrich_frame_with_module_info(
+                ctx, temp_frames[frame_count], frame_ip);
+            frame_count++;
+        }
+
+        if (stack_buf) {
+            sentry_free(stack_buf);
+        }
+
+        if (frame_count == 0) {
+            sentry_value_decref(frames);
+            sentry_value_decref(stacktrace);
+            return sentry_value_new_null();
+        }
+
+        // Sentry expects frames in reverse order (outermost caller first)
+        for (int i = frame_count - 1; i >= 0; i--) {
+            sentry_value_append(frames, temp_frames[i]);
+        }
+
+        sentry_value_set_by_key(stacktrace, "frames", frames);
+        sentry_value_set_by_key(
+            stacktrace, "registers", build_registers_from_ctx(ctx, thread_idx));
+        return stacktrace;
+    }
+#endif
+
     // Add the crashing frame (instruction pointer)
     if (ip != 0 && is_valid_code_addr(ip)) {
         temp_frames[frame_count] = sentry_value_new_object();
@@ -1162,6 +1210,26 @@ enumerate_threads_from_proc(sentry_crash_context_t *ctx)
     pid_t crashed_tid = ctx->platform.threads[0].tid;
     size_t thread_count = 1; // Start at 1 since we already have crashed thread
 
+    // Read thread name for the crashed thread (index 0)
+    ctx->platform.threads[0].name[0] = '\0';
+    {
+        char comm_path[64];
+        snprintf(comm_path, sizeof(comm_path), "/proc/%d/task/%d/comm",
+            ctx->crashed_pid, crashed_tid);
+        FILE *comm_file = fopen(comm_path, "r");
+        if (comm_file) {
+            if (fgets(ctx->platform.threads[0].name,
+                    sizeof(ctx->platform.threads[0].name), comm_file)) {
+                // Trim trailing newline
+                size_t len = strlen(ctx->platform.threads[0].name);
+                if (len > 0 && ctx->platform.threads[0].name[len - 1] == '\n') {
+                    ctx->platform.threads[0].name[len - 1] = '\0';
+                }
+            }
+            fclose(comm_file);
+        }
+    }
+
     struct dirent *entry;
     while ((entry = readdir(dir)) && thread_count < SENTRY_CRASH_MAX_THREADS) {
         if (entry->d_name[0] == '.') {
@@ -1177,6 +1245,28 @@ enumerate_threads_from_proc(sentry_crash_context_t *ctx)
         ctx->platform.threads[thread_count].tid = tid;
         memset(&ctx->platform.threads[thread_count].context, 0,
             sizeof(ctx->platform.threads[thread_count].context));
+
+        // Read thread name from /proc/[pid]/task/[tid]/comm
+        ctx->platform.threads[thread_count].name[0] = '\0';
+        char comm_path[64];
+        snprintf(comm_path, sizeof(comm_path), "/proc/%d/task/%d/comm",
+            ctx->crashed_pid, tid);
+        FILE *comm_file = fopen(comm_path, "r");
+        if (comm_file) {
+            if (fgets(ctx->platform.threads[thread_count].name,
+                    sizeof(ctx->platform.threads[thread_count].name),
+                    comm_file)) {
+                // Trim trailing newline
+                size_t len = strlen(ctx->platform.threads[thread_count].name);
+                if (len > 0
+                    && ctx->platform.threads[thread_count].name[len - 1]
+                        == '\n') {
+                    ctx->platform.threads[thread_count].name[len - 1] = '\0';
+                }
+            }
+            fclose(comm_file);
+        }
+
         thread_count++;
     }
 
@@ -1703,13 +1793,10 @@ build_stacktrace_from_ctx(const sentry_crash_context_t *ctx)
  *
  * @param ctx Crash context
  * @param event_file_path Path to event file from parent process
- * @param include_threads Whether to include threads in the event.
- *        Set to false when minidump is attached (Sentry extracts threads from
- * minidump).
  */
 static sentry_value_t
-build_native_crash_event(const sentry_crash_context_t *ctx,
-    const char *event_file_path, bool include_threads)
+build_native_crash_event(
+    const sentry_crash_context_t *ctx, const char *event_file_path)
 {
     // Read base event from parent's file
     sentry_value_t event = sentry_value_new_null();
@@ -1792,10 +1879,8 @@ build_native_crash_event(const sentry_crash_context_t *ctx,
     sentry_value_set_by_key(exceptions, "values", exc_values);
     sentry_value_set_by_key(event, "exception", exceptions);
 
-    // Add threads only when minidump is NOT attached
-    // (When minidump is attached, Sentry extracts threads from it, avoiding
-    // duplication)
-    if (include_threads) {
+    // Always add threads with names to the event JSON
+    {
         sentry_value_t threads = sentry_value_new_object();
         sentry_value_t thread_values = sentry_value_new_list();
 
@@ -1836,6 +1921,12 @@ build_native_crash_event(const sentry_crash_context_t *ctx,
 
             sentry_value_set_by_key(
                 thread, "id", sentry_value_new_int32((int32_t)tctx->tid));
+
+            // Set thread name if available
+            if (tctx->name[0] != '\0') {
+                sentry_value_set_by_key(
+                    thread, "name", sentry_value_new_string(tctx->name));
+            }
 
             bool is_crashed = (tctx->tid == ctx->crashed_tid);
             sentry_value_set_by_key(
@@ -2048,30 +2139,10 @@ write_envelope_with_native_stacktrace(const sentry_options_t *options,
     const char *event_file_path, const char *minidump_path,
     sentry_path_t *run_folder)
 {
-    // Build native crash event
-    // Include threads only when minidump is NOT attached (Sentry extracts
-    // threads from minidump, so including them would cause duplication)
-    bool include_threads = (minidump_path == NULL || minidump_path[0] == '\0');
-    SENTRY_DEBUGF("write_envelope_with_native_stacktrace: minidump_path=%s, "
-                  "include_threads=%d",
-        minidump_path ? minidump_path : "(null)", include_threads);
-    sentry_value_t event
-        = build_native_crash_event(ctx, event_file_path, include_threads);
-
-    // Log whether event has threads (for debugging duplication issues)
-    sentry_value_t event_threads = sentry_value_get_by_key(event, "threads");
-    if (!sentry_value_is_null(event_threads)) {
-        sentry_value_t thread_values
-            = sentry_value_get_by_key(event_threads, "values");
-        size_t thread_count = sentry_value_get_length(thread_values);
-        SENTRY_WARNF("EVENT HAS THREADS: %zu threads in event JSON (expected: "
-                     "%s)",
-            thread_count, include_threads ? "yes" : "NO - SHOULD BE EMPTY!");
-    } else {
-        SENTRY_DEBUGF("Event has no threads (include_threads=%d, minidump "
-                      "will provide threads)",
-            include_threads);
-    }
+    // Build native crash event (always include threads with names)
+    SENTRY_DEBUGF("write_envelope_with_native_stacktrace: minidump_path=%s",
+        minidump_path ? minidump_path : "(null)");
+    sentry_value_t event = build_native_crash_event(ctx, event_file_path);
 
     // Serialize event to JSON
     char *event_json = sentry_value_to_json(event);
