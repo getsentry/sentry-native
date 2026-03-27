@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1774626064485,
+  "lastUpdate": 1774626132717,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -29194,6 +29194,66 @@ window.BENCHMARK_DATA = {
             "value": 10.080582999989929,
             "unit": "ms",
             "extra": "Min 8.320ms\nMax 17.542ms\nMean 11.348ms\nStdDev 3.613ms\nMedian 10.081ms\nCPU 1.447ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "amir.mujacic@sentry.io",
+            "name": "Amir Mujacic",
+            "username": "mujacica"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "8128cbef93ecda663b849ec059b10f0c2c4f9682",
+          "message": "fix(native): fix incorrect stacktraces on Linux (ELF segment merging + DWARF unwinding) (#1588)\n\nCo-authored-by: Claude Opus 4.6 <noreply@anthropic.com>\nCo-authored-by: Claude Opus 4.6 (1M context) <noreply@anthropic.com>\nCo-authored-by: Cursor Agent <cursoragent@cursor.com>\nCo-authored-by: J-P Nurmi <jpnurmi@gmail.com>",
+          "timestamp": "2026-03-27T16:38:32+01:00",
+          "tree_id": "d279092439f832b090e21b9966e6e47db9df7978",
+          "url": "https://github.com/getsentry/sentry-native/commit/8128cbef93ecda663b849ec059b10f0c2c4f9682"
+        },
+        "date": 1774626128862,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 3.327042000023539,
+            "unit": "ms",
+            "extra": "Min 3.242ms\nMax 3.412ms\nMean 3.328ms\nStdDev 0.074ms\nMedian 3.327ms\nCPU 1.848ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 3.250125000022308,
+            "unit": "ms",
+            "extra": "Min 3.018ms\nMax 3.339ms\nMean 3.207ms\nStdDev 0.122ms\nMedian 3.250ms\nCPU 1.792ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 12.490500000012617,
+            "unit": "ms",
+            "extra": "Min 12.042ms\nMax 15.626ms\nMean 13.026ms\nStdDev 1.496ms\nMedian 12.491ms\nCPU 4.420ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.07337500005633046,
+            "unit": "ms",
+            "extra": "Min 0.054ms\nMax 0.089ms\nMean 0.072ms\nStdDev 0.015ms\nMedian 0.073ms\nCPU 0.044ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.27312500003517926,
+            "unit": "ms",
+            "extra": "Min 0.252ms\nMax 0.308ms\nMean 0.276ms\nStdDev 0.023ms\nMedian 0.273ms\nCPU 0.276ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 7.127416000002995,
+            "unit": "ms",
+            "extra": "Min 6.359ms\nMax 14.757ms\nMean 8.757ms\nStdDev 3.528ms\nMedian 7.127ms\nCPU 0.923ms"
           }
         ]
       }
