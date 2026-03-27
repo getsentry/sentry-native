@@ -1472,9 +1472,6 @@ resolve_modules(const minidump_writer_t *writer, resolved_module_t *modules,
         parsed.end = mapping->end;
         parsed.offset = mapping->offset;
         memcpy(parsed.permissions, mapping->permissions, 5);
-        // Use a dummy inode — the merge function uses it to detect file
-        // changes, but we rely on name comparison instead (see below)
-        parsed.inode = 0;
         parsed.file.ptr = mapping->name;
         parsed.file.len = strlen(mapping->name);
 
