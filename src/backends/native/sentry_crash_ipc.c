@@ -863,6 +863,10 @@ sentry__crash_ipc_free(sentry_crash_ipc_t *ipc)
         CloseHandle(ipc->ready_event_handle);
     }
 
+    if (ipc->parent_handle) {
+        CloseHandle(ipc->parent_handle);
+    }
+
     sentry_free(ipc);
 }
 
