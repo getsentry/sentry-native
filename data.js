@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1774641066403,
+  "lastUpdate": 1774641119082,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -44212,6 +44212,66 @@ window.BENCHMARK_DATA = {
             "value": 17.02829999999267,
             "unit": "ms",
             "extra": "Min 15.919ms\nMax 18.533ms\nMean 16.958ms\nStdDev 1.016ms\nMedian 17.028ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "stephanie.anderson@sentry.io",
+            "name": "Stephanie Anderson",
+            "username": "stephanie-anderson"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "b59f7230cb0dbb2378fcadf1daaf9fdfab8bb0cc",
+          "message": "chore: Add shared validate-pr composite action (#1604)\n\nAdd the PR validation workflow using the shared composite action from\ngetsentry/github-workflows#153.\n\nValidates non-maintainer PRs against contribution guidelines and enforces\ndraft status on all new PRs.\n\n#skip-changelog\n\nCo-authored-by: Claude Opus 4.6 (1M context) <noreply@anthropic.com>",
+          "timestamp": "2026-03-27T20:47:32+01:00",
+          "tree_id": "c3f3cb4a64a1bac9af307b6d3cffff68380710c0",
+          "url": "https://github.com/getsentry/sentry-native/commit/b59f7230cb0dbb2378fcadf1daaf9fdfab8bb0cc"
+        },
+        "date": 1774641114812,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 10.211099999992257,
+            "unit": "ms",
+            "extra": "Min 10.122ms\nMax 10.964ms\nMean 10.400ms\nStdDev 0.356ms\nMedian 10.211ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 9.951100000023416,
+            "unit": "ms",
+            "extra": "Min 9.882ms\nMax 10.144ms\nMean 10.001ms\nStdDev 0.132ms\nMedian 9.951ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 25.060899999971298,
+            "unit": "ms",
+            "extra": "Min 24.905ms\nMax 25.919ms\nMean 25.227ms\nStdDev 0.400ms\nMedian 25.061ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.18669999997200648,
+            "unit": "ms",
+            "extra": "Min 0.171ms\nMax 0.206ms\nMean 0.188ms\nStdDev 0.012ms\nMedian 0.187ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.4261999999926047,
+            "unit": "ms",
+            "extra": "Min 0.386ms\nMax 0.545ms\nMean 0.457ms\nStdDev 0.080ms\nMedian 0.426ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 14.297899999974106,
+            "unit": "ms",
+            "extra": "Min 13.614ms\nMax 14.392ms\nMean 14.147ms\nStdDev 0.328ms\nMedian 14.298ms"
           }
         ]
       }
