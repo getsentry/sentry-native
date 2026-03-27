@@ -1643,7 +1643,9 @@ enumerate_threads_from_process(sentry_crash_context_t *ctx)
     HANDLE hCrashedThread
         = OpenThread(THREAD_QUERY_LIMITED_INFORMATION, FALSE, crashed_tid);
     get_thread_name(hCrashedThread, &ctx->platform.threads[0]);
-    CloseHandle(hCrashedThread);
+    if (hCrashedThread) {
+        CloseHandle(hCrashedThread);
+    }
 
     SENTRY_DEBUGF(
         "enumerate_threads: start, crashed_tid=%lu, threads[0].id=%lu",
