@@ -387,7 +387,13 @@ trigger_oom(void)
     size_t count = 1024;
     for (;;) {
         void *p = malloc(count);
-        (void)p;
+        if (!p) {
+#ifdef SENTRY_PLATFORM_WINDOWS
+            RaiseException(0xc000, 0, 0, NULL);
+#else
+            *((volatile int *)3) = 1;
+#endif
+        }
         count *= 2;
     }
 }
