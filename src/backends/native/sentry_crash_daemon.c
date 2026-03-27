@@ -2990,25 +2990,17 @@ done:
  * Check if parent process is still alive
  */
 static bool
-is_parent_alive(pid_t parent_pid)
+is_parent_alive(sentry_process_handle_t parent)
 {
 #if defined(SENTRY_PLATFORM_UNIX)
     // Send signal 0 to check if process exists
-    return kill(parent_pid, 0) == 0 || errno != ESRCH;
+    return kill(parent, 0) == 0 || errno != ESRCH;
 #elif defined(SENTRY_PLATFORM_WINDOWS)
-    // Open handle to process - need PROCESS_QUERY_LIMITED_INFORMATION
-    // for GetExitCodeProcess, plus SYNCHRONIZE for WaitForSingleObject
-    HANDLE hProcess = OpenProcess(
-        SYNCHRONIZE | PROCESS_QUERY_LIMITED_INFORMATION, FALSE, parent_pid);
-    if (!hProcess) {
+    if (!parent) {
         return false; // Process doesn't exist or can't be accessed
     }
     // Check if process has exited
-    DWORD exit_code;
-    bool alive
-        = GetExitCodeProcess(hProcess, &exit_code) && exit_code == STILL_ACTIVE;
-    CloseHandle(hProcess);
-    return alive;
+    return WaitForSingleObject(parent, 0) == WAIT_TIMEOUT;
 #endif
 }
 
@@ -3231,6 +3223,18 @@ sentry__crash_daemon_main(pid_t app_pid, uint64_t app_tid, HANDLE event_handle,
     (void)ready_event_handle;
 #endif
 
+#if defined(SENTRY_PLATFORM_WINDOWS)
+    // Open handle to parent process with SYNCHRONIZE for WaitForSingleObject
+    // in is_parent_alive(). Once on startup because OpenProcess fails on OOM.
+    ipc->parent_handle = OpenProcess(SYNCHRONIZE, FALSE, (DWORD)app_pid);
+    if (!ipc->parent_handle) {
+        SENTRY_WARNF(
+            "Failed to open parent process handle: %lu", GetLastError());
+    }
+#else
+    ipc->parent_handle = app_pid;
+#endif
+
     // Signal to parent that daemon is ready
     SENTRY_DEBUG("Signaling ready to parent");
     sentry__crash_ipc_signal_ready(ipc);
@@ -3266,7 +3270,7 @@ sentry__crash_daemon_main(pid_t app_pid, uint64_t app_tid, HANDLE event_handle,
         }
 
         // Check if parent is still alive (only if no crash processed yet)
-        if (!crash_processed && !is_parent_alive(app_pid)) {
+        if (!crash_processed && !is_parent_alive(ipc->parent_handle)) {
             SENTRY_DEBUG("Parent process exited without crash");
             break;
         }
