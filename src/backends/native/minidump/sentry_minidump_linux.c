@@ -1017,6 +1017,9 @@ read_elf_soname(const char *elf_path, char *soname_buf, size_t soname_buf_size)
     // Use sh_link from .dynamic to find the correct string table
     if (dynamic_shdr && dynamic_shdr->sh_link < ehdr.e_shnum) {
         dynstr_shdr = &sections[dynamic_shdr->sh_link];
+    } else {
+        // Discard the SHT_STRTAB fallback — it may be .shstrtab, not .dynstr
+        dynstr_shdr = NULL;
     }
 
     if (!dynamic_shdr || !dynstr_shdr) {
