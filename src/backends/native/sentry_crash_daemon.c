@@ -2879,8 +2879,10 @@ is_parent_alive(pid_t parent_pid)
     // Send signal 0 to check if process exists
     return kill(parent_pid, 0) == 0 || errno != ESRCH;
 #elif defined(SENTRY_PLATFORM_WINDOWS)
-    // Open handle to process with minimum rights
-    HANDLE hProcess = OpenProcess(SYNCHRONIZE, FALSE, parent_pid);
+    // Open handle to process - need PROCESS_QUERY_LIMITED_INFORMATION
+    // for GetExitCodeProcess, plus SYNCHRONIZE for WaitForSingleObject
+    HANDLE hProcess = OpenProcess(
+        SYNCHRONIZE | PROCESS_QUERY_LIMITED_INFORMATION, FALSE, parent_pid);
     if (!hProcess) {
         return false; // Process doesn't exist or can't be accessed
     }
