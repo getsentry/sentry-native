@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1774641119082,
+  "lastUpdate": 1774647967814,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -14716,6 +14716,66 @@ window.BENCHMARK_DATA = {
             "value": 2.077724000002945,
             "unit": "ms",
             "extra": "Min 2.019ms\nMax 2.161ms\nMean 2.083ms\nStdDev 0.053ms\nMedian 2.078ms\nCPU 0.610ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "stephanie.anderson@sentry.io",
+            "name": "Stephanie Anderson",
+            "username": "stephanie-anderson"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "d3494e49019d41c0ede6cdc8b861c1e2512d6b19",
+          "message": "chore: Update validate-pr action to latest version (#1605)\n\nUpdates the pinned SHA to pick up the bot allowlist fix, which\nprevents trusted bots (dependabot, renovate, etc.) from being\nclosed by the PR validation workflow.\n\n#skip-changelog\n\nCo-authored-by: Claude Opus 4.6 (1M context) <noreply@anthropic.com>",
+          "timestamp": "2026-03-27T22:43:29+01:00",
+          "tree_id": "c5e71ada321f4dd295f1c3ac0f5b24a09e9875db",
+          "url": "https://github.com/getsentry/sentry-native/commit/d3494e49019d41c0ede6cdc8b861c1e2512d6b19"
+        },
+        "date": 1774647964668,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 0.8422440000117604,
+            "unit": "ms",
+            "extra": "Min 0.822ms\nMax 0.912ms\nMean 0.851ms\nStdDev 0.035ms\nMedian 0.842ms\nCPU 0.801ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 0.7415169999944737,
+            "unit": "ms",
+            "extra": "Min 0.712ms\nMax 0.787ms\nMean 0.744ms\nStdDev 0.028ms\nMedian 0.742ms\nCPU 0.743ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 2.876925000009578,
+            "unit": "ms",
+            "extra": "Min 2.814ms\nMax 5.721ms\nMean 3.424ms\nStdDev 1.285ms\nMedian 2.877ms\nCPU 1.513ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.11738799997829119,
+            "unit": "ms",
+            "extra": "Min 0.112ms\nMax 0.167ms\nMean 0.126ms\nStdDev 0.023ms\nMedian 0.117ms\nCPU 0.076ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.0280620000125964,
+            "unit": "ms",
+            "extra": "Min 0.027ms\nMax 0.029ms\nMean 0.028ms\nStdDev 0.001ms\nMedian 0.028ms\nCPU 0.027ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 1.7880139999988387,
+            "unit": "ms",
+            "extra": "Min 1.734ms\nMax 1.826ms\nMean 1.780ms\nStdDev 0.037ms\nMedian 1.788ms\nCPU 0.518ms"
           }
         ]
       }
