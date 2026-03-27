@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1774594819206,
+  "lastUpdate": 1774594849001,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -29074,6 +29074,66 @@ window.BENCHMARK_DATA = {
             "value": 7.826457999954073,
             "unit": "ms",
             "extra": "Min 6.831ms\nMax 13.362ms\nMean 8.705ms\nStdDev 2.637ms\nMedian 7.826ms\nCPU 1.160ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "tustanivsky@gmail.com",
+            "name": "Ivan Tustanivskyi",
+            "username": "tustanivsky"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "6310244a8613ca07dfe4a2bfebc089c3fde12f41",
+          "message": "fix(native): Fix crash daemon premature exit on Windows (#1600)\n\n* fix(native): Fix daemon exiting after 5s on Windows due to insufficient process handle access\n\n* Update changelog",
+          "timestamp": "2026-03-27T08:56:01+02:00",
+          "tree_id": "efb10dc8e5b1062c8d084c45d3c5718f08def9ec",
+          "url": "https://github.com/getsentry/sentry-native/commit/6310244a8613ca07dfe4a2bfebc089c3fde12f41"
+        },
+        "date": 1774594844548,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 4.849457999966944,
+            "unit": "ms",
+            "extra": "Min 4.623ms\nMax 10.413ms\nMean 6.016ms\nStdDev 2.486ms\nMedian 4.849ms\nCPU 3.113ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 4.92920800002139,
+            "unit": "ms",
+            "extra": "Min 4.162ms\nMax 6.226ms\nMean 5.046ms\nStdDev 0.762ms\nMedian 4.929ms\nCPU 2.851ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 16.183500000124695,
+            "unit": "ms",
+            "extra": "Min 14.487ms\nMax 24.980ms\nMean 18.163ms\nStdDev 4.531ms\nMedian 16.184ms\nCPU 6.417ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.10479100001248298,
+            "unit": "ms",
+            "extra": "Min 0.087ms\nMax 0.211ms\nMean 0.124ms\nStdDev 0.050ms\nMedian 0.105ms\nCPU 0.067ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.33058300004995544,
+            "unit": "ms",
+            "extra": "Min 0.267ms\nMax 0.361ms\nMean 0.316ms\nStdDev 0.046ms\nMedian 0.331ms\nCPU 0.315ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 10.080582999989929,
+            "unit": "ms",
+            "extra": "Min 8.320ms\nMax 17.542ms\nMean 11.348ms\nStdDev 3.613ms\nMedian 10.081ms\nCPU 1.447ms"
           }
         ]
       }
