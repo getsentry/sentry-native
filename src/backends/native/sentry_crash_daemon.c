@@ -1211,6 +1211,7 @@ enumerate_threads_from_proc(sentry_crash_context_t *ctx)
     size_t thread_count = 1; // Start at 1 since we already have crashed thread
 
     // Read thread name for the crashed thread (index 0)
+    ctx->platform.threads[0].name[0] = '\0';
     {
         char comm_path[64];
         snprintf(comm_path, sizeof(comm_path), "/proc/%d/task/%d/comm",
@@ -1226,8 +1227,6 @@ enumerate_threads_from_proc(sentry_crash_context_t *ctx)
                 }
             }
             fclose(comm_file);
-        } else {
-            ctx->platform.threads[0].name[0] = '\0';
         }
     }
 
@@ -1248,6 +1247,7 @@ enumerate_threads_from_proc(sentry_crash_context_t *ctx)
             sizeof(ctx->platform.threads[thread_count].context));
 
         // Read thread name from /proc/[pid]/task/[tid]/comm
+        ctx->platform.threads[thread_count].name[0] = '\0';
         char comm_path[64];
         snprintf(comm_path, sizeof(comm_path), "/proc/%d/task/%d/comm",
             ctx->crashed_pid, tid);
@@ -1265,8 +1265,6 @@ enumerate_threads_from_proc(sentry_crash_context_t *ctx)
                 }
             }
             fclose(comm_file);
-        } else {
-            ctx->platform.threads[thread_count].name[0] = '\0';
         }
 
         thread_count++;
