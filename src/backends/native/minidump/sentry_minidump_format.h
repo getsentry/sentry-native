@@ -33,6 +33,7 @@ typedef enum {
     MINIDUMP_STREAM_SYSTEM_INFO = 7,
     MINIDUMP_STREAM_THREAD_EX_LIST = 8,
     MINIDUMP_STREAM_MEMORY64_LIST = 9,
+    MINIDUMP_STREAM_THREAD_NAMES = 24, // ThreadNamesStream (Crashpad/Windows)
     MINIDUMP_STREAM_LINUX_CPU_INFO = 0x47670003,
     MINIDUMP_STREAM_LINUX_PROC_STATUS = 0x47670004,
     MINIDUMP_STREAM_LINUX_MAPS = 0x47670008,
@@ -441,6 +442,27 @@ typedef struct {
     uint32_t length; // In bytes, not including null terminator
     uint16_t buffer[]; // Variable length
 } PACKED_ATTR minidump_string_t;
+PACKED_STRUCT_END
+
+/**
+ * Thread name entry (for ThreadNamesStream, stream type 24)
+ * Matches Crashpad/Windows MINIDUMP_THREAD_NAME format.
+ */
+PACKED_STRUCT_BEGIN
+typedef struct {
+    uint32_t thread_id;
+    uint64_t thread_name_rva; // RVA to MINIDUMP_STRING (UTF-16LE)
+} PACKED_ATTR minidump_thread_name_t;
+PACKED_STRUCT_END
+
+/**
+ * Thread names list
+ */
+PACKED_STRUCT_BEGIN
+typedef struct {
+    uint32_t count;
+    minidump_thread_name_t thread_names[]; // Variable length
+} PACKED_ATTR minidump_thread_name_list_t;
 PACKED_STRUCT_END
 
 #endif
