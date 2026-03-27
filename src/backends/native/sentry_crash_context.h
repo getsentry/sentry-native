@@ -223,6 +223,7 @@ typedef struct {
  */
 typedef struct {
     DWORD thread_id;
+    char name[64];
     CONTEXT context;
 } sentry_thread_context_windows_t;
 

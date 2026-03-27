@@ -1684,6 +1684,35 @@ thread_id_exists(
 }
 
 /**
+ * Retrieve the thread name via GetThreadDescription (Windows 10 1607+).
+ */
+static void
+get_thread_name(HANDLE hThread, sentry_thread_context_windows_t *tctx)
+{
+    typedef HRESULT(WINAPI * GetThreadDescription_t)(HANDLE, PWSTR *);
+    static GetThreadDescription_t get_thread_description
+        = (GetThreadDescription_t)-1;
+    if (get_thread_description == (GetThreadDescription_t)-1) {
+        get_thread_description = (GetThreadDescription_t)GetProcAddress(
+            GetModuleHandleW(L"kernel32.dll"), "GetThreadDescription");
+    }
+
+    tctx->name[0] = '\0';
+    if (!get_thread_description || !hThread) {
+        return;
+    }
+
+    PWSTR description = NULL;
+    HRESULT hr = get_thread_description(hThread, &description);
+    if (SUCCEEDED(hr) && description && description[0] != L'\0') {
+        WideCharToMultiByte(CP_UTF8, 0, description, -1, tctx->name,
+            sizeof(tctx->name), NULL, NULL);
+        tctx->name[sizeof(tctx->name) - 1] = '\0';
+    }
+    LocalFree(description);
+}
+
+/**
  * Enumerate threads from the crashed process for the native event on Windows
  * Captures thread contexts for stack walking.
  */
@@ -1699,6 +1728,14 @@ enumerate_threads_from_process(sentry_crash_context_t *ctx)
     // Keep the crashed thread at index 0 (already captured)
     DWORD crashed_tid = (DWORD)ctx->crashed_tid;
     DWORD thread_count = 1;
+
+    // Retrieve the name for the crashed thread (index 0)
+    HANDLE hCrashedThread
+        = OpenThread(THREAD_QUERY_LIMITED_INFORMATION, FALSE, crashed_tid);
+    get_thread_name(hCrashedThread, &ctx->platform.threads[0]);
+    if (hCrashedThread) {
+        CloseHandle(hCrashedThread);
+    }
 
     SENTRY_DEBUGF(
         "enumerate_threads: start, crashed_tid=%lu, threads[0].id=%lu",
@@ -1734,6 +1771,9 @@ enumerate_threads_from_process(sentry_crash_context_t *ctx)
                     (unsigned long)te32.th32ThreadID, GetLastError());
                 continue;
             }
+
+            // Retrieve thread name before suspending
+            get_thread_name(hThread, &ctx->platform.threads[thread_count]);
 
             // Suspend thread to safely capture context
             // (likely already suspended due to crash, but be safe)
@@ -1957,6 +1997,12 @@ build_native_crash_event(
 
             sentry_value_set_by_key(
                 thread, "id", sentry_value_new_int32((int32_t)tctx->thread_id));
+
+            // Set thread name if available
+            if (tctx->name[0] != '\0') {
+                sentry_value_set_by_key(
+                    thread, "name", sentry_value_new_string(tctx->name));
+            }
 
             bool is_crashed = (tctx->thread_id == (DWORD)ctx->crashed_tid);
             sentry_value_set_by_key(
