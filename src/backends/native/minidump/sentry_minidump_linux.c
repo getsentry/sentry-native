@@ -930,9 +930,9 @@ compute_elf_size_from_phdrs(const char *elf_path)
 
     for (int i = 0; i < ehdr.e_phnum; i++) {
         if (phdrs[i].p_type == PT_LOAD) {
-            if (!found_load) {
+            found_load = true;
+            if (phdrs[i].p_vaddr < min_vaddr) {
                 min_vaddr = phdrs[i].p_vaddr;
-                found_load = true;
             }
             uint64_t end = phdrs[i].p_vaddr + phdrs[i].p_memsz;
             if (end > max_vaddr) {
