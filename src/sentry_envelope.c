@@ -23,20 +23,7 @@ struct sentry_envelope_item_s {
     sentry_envelope_item_t *next;
 };
 
-static long
-next_tag(void)
-{
-    static volatile long counter = 0;
-    long tag = sentry__atomic_fetch_and_add(&counter, 1);
-    if (tag == 0) {
-        // skip 0-sentinel on overflow
-        tag = sentry__atomic_fetch_and_add(&counter, 1);
-    }
-    return tag;
-}
-
 struct sentry_envelope_s {
-    long tag;
     bool is_raw;
     union {
         struct {
@@ -214,7 +201,6 @@ sentry__envelope_new_with_dsn(const sentry_dsn_t *dsn)
         return NULL;
     }
 
-    rv->tag = next_tag();
     rv->is_raw = false;
     rv->contents.items.first_item = NULL;
     rv->contents.items.last_item = NULL;
@@ -245,18 +231,11 @@ sentry__envelope_from_path(const sentry_path_t *path)
         return NULL;
     }
 
-    envelope->tag = next_tag();
     envelope->is_raw = true;
     envelope->contents.raw.payload = buf;
     envelope->contents.raw.payload_len = buf_len;
 
     return envelope;
-}
-
-long
-sentry__envelope_get_tag(const sentry_envelope_t *envelope)
-{
-    return envelope->tag;
 }
 
 sentry_uuid_t

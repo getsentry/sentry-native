@@ -35,7 +35,6 @@ struct sentry_retry_s {
     sentry_retry_send_func_t send_cb;
     void *send_data;
     sentry_mutex_t sealed_lock;
-    long sealed_tag;
 };
 
 sentry_retry_t *
@@ -335,7 +334,6 @@ sentry__retry_enqueue(sentry_retry_t *retry, const sentry_envelope_t *envelope)
         sentry__mutex_unlock(&retry->sealed_lock);
         return;
     }
-    retry->sealed_tag = sentry__envelope_get_tag(envelope);
     sentry__mutex_unlock(&retry->sealed_lock);
 
     sentry__atomic_compare_swap(
