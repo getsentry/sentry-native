@@ -339,3 +339,57 @@ SENTRY_TEST(path_rename)
     sentry__path_free(dst);
     sentry__path_free(src);
 }
+
+SENTRY_TEST(path_basename)
+{
+    sentry_path_t *path;
+    sentry_path_t *base;
+
+    // strips matching suffix
+    path = sentry__path_from_str("/foo/bar.envelope");
+    base = sentry__path_basename(path, ".envelope");
+    TEST_CHECK_STRING_EQUAL(base->path, "/foo/bar");
+    sentry__path_free(base);
+    sentry__path_free(path);
+
+    // strips compound suffix
+    path = sentry__path_from_str("/foo/bar.tar.gz");
+    base = sentry__path_basename(path, ".tar.gz");
+    TEST_CHECK_STRING_EQUAL(base->path, "/foo/bar");
+    sentry__path_free(base);
+    sentry__path_free(path);
+
+    // non-matching suffix returns NULL
+    path = sentry__path_from_str("/foo/bar.envelope");
+    TEST_CHECK(!sentry__path_basename(path, ".dmp"));
+    sentry__path_free(path);
+
+    // NULL suffix strips at last dot
+    path = sentry__path_from_str("/foo/bar.envelope");
+    base = sentry__path_basename(path, NULL);
+    TEST_CHECK_STRING_EQUAL(base->path, "/foo/bar");
+    sentry__path_free(base);
+    sentry__path_free(path);
+
+    // NULL suffix on compound extension strips only last
+    path = sentry__path_from_str("/foo/bar.tar.gz");
+    base = sentry__path_basename(path, NULL);
+    TEST_CHECK_STRING_EQUAL(base->path, "/foo/bar.tar");
+    sentry__path_free(base);
+    sentry__path_free(path);
+
+    // NULL suffix with no extension returns NULL
+    path = sentry__path_from_str("/foo/bar");
+    TEST_CHECK(!sentry__path_basename(path, NULL));
+    sentry__path_free(path);
+
+    // NULL suffix with dotfile returns NULL
+    path = sentry__path_from_str("/foo/.hidden");
+    TEST_CHECK(!sentry__path_basename(path, NULL));
+    sentry__path_free(path);
+
+    // suffix longer than path returns NULL
+    path = sentry__path_from_str(".gz");
+    TEST_CHECK(!sentry__path_basename(path, ".tar.gz"));
+    sentry__path_free(path);
+}
