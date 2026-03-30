@@ -7,7 +7,6 @@
 #include "sentry_ratelimiter.h"
 #include "sentry_scope.h"
 #include "sentry_string.h"
-#include "sentry_sync.h"
 #include "sentry_transport.h"
 #include "sentry_uuid.h"
 #include "sentry_value.h"
