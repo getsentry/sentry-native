@@ -143,11 +143,16 @@ typedef struct {
 
 #if defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID)
 
+// Max frames for pre-captured backtrace (signal handler -> daemon)
+#    define SENTRY_CRASH_MAX_BACKTRACE_FRAMES 128
+
 /**
  * Linux/Android thread context
  */
 typedef struct {
     pid_t tid;
+    char
+        name[16]; // Thread name from /proc/[pid]/task/[tid]/comm (max 16 chars)
     ucontext_t context;
 } sentry_thread_context_linux_t;
 
@@ -158,6 +163,12 @@ typedef struct {
     int signum;
     siginfo_t siginfo;
     ucontext_t context;
+
+    // Pre-captured backtrace from signal handler using libunwind (DWARF-based).
+    // This works without frame pointers, unlike the daemon's FP-based walking.
+    // The daemon prefers this over FP-walking when backtrace_count > 0.
+    size_t backtrace_count;
+    uint64_t backtrace_ips[SENTRY_CRASH_MAX_BACKTRACE_FRAMES];
 
     // Additional thread contexts (for multi-thread dumps)
     size_t num_threads;
@@ -212,6 +223,7 @@ typedef struct {
  */
 typedef struct {
     DWORD thread_id;
+    char name[64];
     CONTEXT context;
 } sentry_thread_context_windows_t;
 
@@ -260,6 +272,7 @@ typedef struct {
     int crash_reporting_mode; // sentry_crash_reporting_mode_t
     bool debug_enabled; // Debug logging enabled in parent process
     bool attach_screenshot; // Screenshot attachment enabled in parent process
+    bool cache_keep;
 
     // Platform-specific crash context
 #if defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID)

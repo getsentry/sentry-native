@@ -265,6 +265,14 @@ http_send_task(void *_envelope, void *_state)
 }
 
 static void
+http_cleanup_cache_task(void *task_data, void *_state)
+{
+    (void)_state;
+    sentry_options_t *options = task_data;
+    sentry__cleanup_cache(options);
+}
+
+static void
 http_transport_shutdown_timeout(void *_state)
 {
     http_transport_state_t *state = _state;
@@ -319,6 +327,13 @@ http_transport_flush(uint64_t timeout, void *transport_state)
     return sentry__bgworker_flush(bgworker, timeout);
 }
 
+static bool
+http_flush_cleanup_cb(void *task_data, void *UNUSED(data))
+{
+    http_cleanup_cache_task(task_data, NULL);
+    return true;
+}
+
 static int
 http_transport_shutdown(uint64_t timeout, void *transport_state)
 {
@@ -330,7 +345,9 @@ http_transport_shutdown(uint64_t timeout, void *transport_state)
     int rv = sentry__bgworker_shutdown_cb(
         bgworker, timeout, http_transport_shutdown_timeout, state);
     if (rv != 0) {
-        sentry__retry_dump_queue(state->retry, http_send_task);
+        sentry__bgworker_foreach_matching(
+            bgworker, http_cleanup_cache_task, http_flush_cleanup_cb, NULL);
+        sentry__retry_seal(state->retry);
     }
     return rv;
 }
@@ -374,14 +391,6 @@ http_transport_retry(void *transport_state)
     if (state->retry) {
         sentry__retry_trigger(state->retry);
     }
-}
-
-static void
-http_cleanup_cache_task(void *task_data, void *_state)
-{
-    (void)_state;
-    sentry_options_t *options = task_data;
-    sentry__cleanup_cache(options);
 }
 
 static void

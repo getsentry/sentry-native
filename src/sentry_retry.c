@@ -298,31 +298,14 @@ sentry__retry_shutdown(sentry_retry_t *retry)
     }
 }
 
-static bool
-retry_dump_cb(void *_envelope, void *_retry)
-{
-    sentry_retry_t *retry = (sentry_retry_t *)_retry;
-    sentry_envelope_t *envelope = (sentry_envelope_t *)_envelope;
-    if (sentry__envelope_get_tag(envelope) != retry->sealed_tag) {
-        sentry__run_write_cache(retry->run, envelope, 0);
-    } else {
-        retry->sealed_tag = 0;
-    }
-    return true;
-}
-
 void
-sentry__retry_dump_queue(
-    sentry_retry_t *retry, sentry_task_exec_func_t task_func)
+sentry__retry_seal(sentry_retry_t *retry)
 {
     if (retry) {
         // prevent duplicate writes from a still-running detached worker
         sentry__mutex_lock(&retry->sealed_lock);
         sentry__atomic_store(&retry->state, SENTRY_RETRY_SEALED);
         sentry__mutex_unlock(&retry->sealed_lock);
-
-        sentry__bgworker_foreach_matching(
-            retry->bgworker, task_func, retry_dump_cb, retry);
     }
 }
 

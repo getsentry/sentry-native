@@ -100,7 +100,7 @@ extern "C" {
 #    endif
 #endif
 #ifndef SENTRY_SDK_VERSION
-#    define SENTRY_SDK_VERSION "0.13.2"
+#    define SENTRY_SDK_VERSION "0.13.4"
 #endif
 #define SENTRY_SDK_USER_AGENT SENTRY_SDK_NAME "/" SENTRY_SDK_VERSION
 
@@ -1494,7 +1494,8 @@ SENTRY_API int sentry_options_get_symbolize_stacktraces(
     const sentry_options_t *opts);
 
 /**
- * Enables or disables storing failed envelopes in a persistent cache.
+ * Enables or disables storing envelopes that fail to send in a persistent
+ * cache.
  *
  * When enabled, envelopes that fail to send are written to a `cache/`
  * subdirectory within the database directory. The cache is cleared on startup

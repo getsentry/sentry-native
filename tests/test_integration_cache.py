@@ -35,18 +35,20 @@ def test_cache_keep(cmake, backend, cache_keep):
     run(
         tmp_path,
         "sentry_example",
-        ["log", "crash"] + (["cache-keep"] if cache_keep else []),
+        ["log", "no-http-retry", "flush", "crash"]
+        + (["cache-keep"] if cache_keep else []),
         expect_failure=True,
         env=env,
     )
 
     assert not cache_dir.exists() or len(list(cache_dir.glob("*.envelope"))) == 0
 
-    # cache
+    # flush + cache
     run(
         tmp_path,
         "sentry_example",
-        ["log", "no-setup"] + (["cache-keep"] if cache_keep else []),
+        ["log", "no-http-retry", "flush", "no-setup"]
+        + (["cache-keep"] if cache_keep else []),
         env=env,
     )
 
@@ -77,7 +79,7 @@ def test_cache_max_size(cmake, backend):
         run(
             tmp_path,
             "sentry_example",
-            ["log", "cache-keep", "crash"],
+            ["log", "no-http-retry", "cache-keep", "flush", "crash"],
             expect_failure=True,
             env=env,
         )
@@ -131,7 +133,7 @@ def test_cache_max_age(cmake, backend):
         run(
             tmp_path,
             "sentry_example",
-            ["log", "no-http-retry", "cache-keep", "crash"],
+            ["log", "no-http-retry", "cache-keep", "flush", "crash"],
             expect_failure=True,
             env=env,
         )
@@ -151,7 +153,7 @@ def test_cache_max_age(cmake, backend):
         mtime = time.time() - ((i + 1) * 2 * 24 * 60 * 60)
         os.utime(str(f), (mtime, mtime))
 
-    # cleanup (max 5 days)
+    # max 5 days
     run(
         tmp_path,
         "sentry_example",
@@ -186,7 +188,7 @@ def test_cache_max_items(cmake, backend):
         run(
             tmp_path,
             "sentry_example",
-            ["log", "cache-keep", "crash"],
+            ["log", "no-http-retry", "cache-keep", "flush", "crash"],
             expect_failure=True,
             env=env,
         )
@@ -195,7 +197,7 @@ def test_cache_max_items(cmake, backend):
     run(
         tmp_path,
         "sentry_example",
-        ["log", "cache-keep", "flush", "no-setup"],
+        ["log", "no-http-retry", "cache-keep", "flush", "no-setup"],
         env=env,
     )
 
