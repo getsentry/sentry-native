@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1774866141958,
+  "lastUpdate": 1774866229284,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -29794,6 +29794,66 @@ window.BENCHMARK_DATA = {
             "value": 6.431750000047032,
             "unit": "ms",
             "extra": "Min 5.837ms\nMax 10.032ms\nMean 7.245ms\nStdDev 1.671ms\nMedian 6.432ms\nCPU 1.044ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "stephanie.anderson@sentry.io",
+            "name": "Stephanie Anderson",
+            "username": "stephanie-anderson"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "d25d3ec928ad24cb80643997ee541ee850c426cf",
+          "message": "fix(ci): Update validate-pr action to remove draft enforcement (#1608)\n\nThe draft enforcement step was failing due to insufficient app\npermissions. It has been removed from the shared action.\n\nRefs getsentry/github-workflows#159\n\nCo-authored-by: Claude Opus 4.6 (1M context) <noreply@anthropic.com>",
+          "timestamp": "2026-03-30T12:19:40+02:00",
+          "tree_id": "078a969595c44dd39f77166ced03eba40d46b23c",
+          "url": "https://github.com/getsentry/sentry-native/commit/d25d3ec928ad24cb80643997ee541ee850c426cf"
+        },
+        "date": 1774866222578,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 3.8020830000107253,
+            "unit": "ms",
+            "extra": "Min 3.365ms\nMax 4.990ms\nMean 3.913ms\nStdDev 0.658ms\nMedian 3.802ms\nCPU 2.251ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 3.7947080000151345,
+            "unit": "ms",
+            "extra": "Min 3.696ms\nMax 5.265ms\nMean 4.068ms\nStdDev 0.674ms\nMedian 3.795ms\nCPU 2.409ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 22.075041999983114,
+            "unit": "ms",
+            "extra": "Min 13.180ms\nMax 62.320ms\nMean 34.109ms\nStdDev 21.398ms\nMedian 22.075ms\nCPU 6.649ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.1477079999858688,
+            "unit": "ms",
+            "extra": "Min 0.048ms\nMax 0.317ms\nMean 0.171ms\nStdDev 0.099ms\nMedian 0.148ms\nCPU 0.104ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.3101670000091872,
+            "unit": "ms",
+            "extra": "Min 0.175ms\nMax 0.892ms\nMean 0.432ms\nStdDev 0.290ms\nMedian 0.310ms\nCPU 0.422ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 9.53420799999094,
+            "unit": "ms",
+            "extra": "Min 7.027ms\nMax 10.620ms\nMean 9.282ms\nStdDev 1.340ms\nMedian 9.534ms\nCPU 0.883ms"
           }
         ]
       }
