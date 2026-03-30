@@ -660,8 +660,8 @@ main(int argc, char **argv)
         sentry_options_set_cache_max_items(options, 5);
     }
 
-    if (has_arg(argc, argv, "enable-metrics")) {
-        sentry_options_set_enable_metrics(options, true);
+    if (has_arg(argc, argv, "disable-metrics")) {
+        sentry_options_set_enable_metrics(options, false);
     }
 
     if (has_arg(argc, argv, "before-send-metric")) {
