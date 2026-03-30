@@ -179,7 +179,7 @@ def cmake_configure(cwd, options, cflags=None):
     elif sys.platform == "win32" and os.environ.get("USE_SCCACHE"):
         # The Visual Studio generator does not support CMAKE_C_COMPILER_LAUNCHER.
         # Use Ninja instead to enable sccache.
-        config_cmd.append("-G Ninja")
+        config_cmd.extend(["-G", "Ninja"])
 
     for key, value in options.items():
         config_cmd.append("-D{}={}".format(key, value))
