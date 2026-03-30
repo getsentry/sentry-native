@@ -826,7 +826,10 @@ def test_crashpad_cache_keep(cmake, httpserver, cache_keep):
             envelope = Envelope.deserialize_from(f)
         assert "dsn" in envelope.headers
         assert_meta(envelope, integration="crashpad")
-        assert_minidump(envelope)
+        # minidump is cached as an external file, not inline in the envelope
+        att_dirs = [d for d in cache_dir.iterdir() if d.is_dir()]
+        assert len(att_dirs) > 0, "expected external minidump dir"
+        assert list(att_dirs[0].glob("__sentry-attachments.json"))
 
 
 def test_crashpad_cache_max_size(cmake, httpserver):
@@ -964,3 +967,50 @@ def test_crashpad_cache_max_age(cmake, httpserver):
     assert len(cache_files) == 3
     for f in cache_files:
         assert time.time() - f.stat().st_mtime <= 5 * 24 * 60 * 60
+
+
+def test_crashpad_cache_external_minidump(cmake, httpserver):
+    """
+    Crashpad crash report is converted to a cached envelope at startup.
+    The minidump is cached as an external file in cache/<uuid>/ and
+    resolved into the envelope at send time.
+    """
+    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "crashpad"})
+    cache_dir = tmp_path.joinpath(".sentry-native/cache")
+
+    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
+    httpserver.expect_oneshot_request("/api/123456/minidump/").respond_with_data("OK")
+
+    # First run: crash — crashpad handler uploads minidump directly
+    with httpserver.wait(timeout=10) as waiting:
+        run(
+            tmp_path,
+            "sentry_example",
+            ["log", "cache-keep", "crash"],
+            expect_failure=True,
+            env=env,
+        )
+    assert waiting.result
+
+    # Second run: process_completed_reports converts crashpad report to
+    # cached envelope + external minidump in cache/
+    run(
+        tmp_path,
+        "sentry_example",
+        ["log", "cache-keep", "no-setup"],
+        env=env,
+    )
+
+    # Verify cached envelope exists with external minidump dir
+    assert cache_dir.exists()
+    cache_files = list(cache_dir.glob("*.envelope"))
+    assert len(cache_files) == 1
+
+    att_dirs = [d for d in cache_dir.iterdir() if d.is_dir()]
+    assert len(att_dirs) > 0, "expected external attachment dir in cache"
+    att_files = [
+        f for f in att_dirs[0].iterdir() if f.name != "__sentry-attachments.json"
+    ]
+    refs_files = list(att_dirs[0].glob("__sentry-attachments.json"))
+    assert len(refs_files) == 1, "expected __sentry-attachments.json"
+    assert len(att_files) > 0, "expected minidump file in attachment dir"

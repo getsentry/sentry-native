@@ -258,3 +258,32 @@ sentry__attachments_extend(
             attachments_ptr, attachment_clone(it), it->type, it->content_type);
     }
 }
+
+size_t
+sentry__attachment_get_size(const sentry_attachment_t *attachment)
+{
+    return attachment->buf ? attachment->buf_len
+                           : sentry__path_get_size(attachment->path);
+}
+
+const char *
+sentry__attachment_get_filename(const sentry_attachment_t *attachment)
+{
+    return sentry__path_filename(
+        attachment->filename ? attachment->filename : attachment->path);
+}
+
+const char *
+sentry__attachment_type_to_string(sentry_attachment_type_t attachment_type)
+{
+    switch (attachment_type) {
+    case ATTACHMENT:
+        return "event.attachment";
+    case MINIDUMP:
+        return "event.minidump";
+    case VIEW_HIERARCHY:
+        return "event.view_hierarchy";
+    default:
+        return "event.attachment";
+    }
+}

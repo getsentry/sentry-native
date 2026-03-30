@@ -420,6 +420,14 @@ endif()
 include(CheckTypeSize)
 check_type_size("long" CMAKE_SIZEOF_LONG)
 
+if(LINUX)
+	include(CheckSymbolExists)
+	check_symbol_exists(copy_file_range "unistd.h" HAVE_COPY_FILE_RANGE)
+	if(HAVE_COPY_FILE_RANGE)
+		target_compile_definitions(sentry PRIVATE SENTRY_HAVE_COPY_FILE_RANGE)
+	endif()
+endif()
+
 # https://gitlab.kitware.com/cmake/cmake/issues/18393
 if(SENTRY_BUILD_SHARED_LIBS)
 	if(APPLE)

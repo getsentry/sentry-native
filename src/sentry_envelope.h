@@ -98,6 +98,17 @@ sentry_envelope_item_t *sentry__envelope_add_attachment(
     sentry_envelope_t *envelope, const sentry_attachment_t *attachment);
 
 /**
+ * Add an attachment-ref item to this envelope.
+ *
+ * Builds a JSON payload containing `location` and/or `content_type` (omitting
+ * keys when NULL), and sets the standard attachment-ref item headers.
+ */
+sentry_envelope_item_t *sentry__envelope_add_attachment_ref(
+    sentry_envelope_t *envelope, const char *location, const char *filename,
+    const char *content_type, const char *attachment_type,
+    sentry_value_t attachment_length);
+
+/**
  * Add attachments to this envelope.
  */
 void sentry__envelope_add_attachments(
@@ -109,6 +120,14 @@ void sentry__envelope_add_attachments(
  */
 sentry_envelope_item_t *sentry__envelope_add_from_path(
     sentry_envelope_t *envelope, const sentry_path_t *path, const char *type);
+
+/**
+ * Append an attachment item to a raw envelope by reading `path` and
+ * building the item header/payload bytes directly into the raw buffer.
+ */
+bool sentry__envelope_append_raw_attachment(sentry_envelope_t *envelope,
+    const sentry_path_t *path, const char *filename,
+    const char *attachment_type, const char *content_type);
 
 /**
  * This will add the given buffer as a new envelope item of type `type`.

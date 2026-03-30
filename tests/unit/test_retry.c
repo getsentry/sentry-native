@@ -74,9 +74,10 @@ typedef struct {
 } retry_test_ctx_t;
 
 static int
-test_send_cb(sentry_envelope_t *envelope, void *_ctx)
+test_send_cb(sentry_envelope_t *envelope, const char *uuid, void *_ctx)
 {
     (void)envelope;
+    (void)uuid;
     retry_test_ctx_t *ctx = _ctx;
     ctx->count++;
     return ctx->status_code;

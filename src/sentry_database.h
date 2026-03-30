@@ -3,6 +3,7 @@
 
 #include "sentry_boot.h"
 
+#include "sentry_attachment.h"
 #include "sentry_path.h"
 #include "sentry_session.h"
 
@@ -137,5 +138,16 @@ bool sentry__has_crash_marker(const sentry_options_t *options);
  * This will remove the `<database>/last_crash` file.
  */
 bool sentry__clear_crash_marker(const sentry_options_t *options);
+
+/**
+ * Cache external attachments (e.g. minidumps) to
+ * `<cache_path>/<event-uuid>/` and write `__sentry-attachments.json` metadata.
+ *
+ * When `run_path` is non-NULL and a file attachment's parent directory
+ * matches it, the file is renamed instead of copied.
+ */
+void sentry__cache_external_attachments(const sentry_path_t *cache_path,
+    const sentry_uuid_t *event_id, const sentry_attachment_t *attachments,
+    const sentry_path_t *run_path);
 
 #endif

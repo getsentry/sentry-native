@@ -727,12 +727,12 @@ sentry__prepare_event(const sentry_options_t *options, sentry_value_t event,
     }
 
     SENTRY_WITH_SCOPE (scope) {
-        if (all_attachments) {
-            // all attachments merged from multiple scopes
-            sentry__envelope_add_attachments(envelope, all_attachments);
-        } else {
-            // only global scope has attachments
-            sentry__envelope_add_attachments(envelope, scope->attachments);
+        const sentry_attachment_t *atts
+            = all_attachments ? all_attachments : scope->attachments;
+        sentry__envelope_add_attachments(envelope, atts);
+        if (options->run) {
+            sentry__cache_external_attachments(options->run->cache_path,
+                event_id, atts, options->run->run_path);
         }
     }
 
@@ -819,6 +819,13 @@ prepare_user_feedback(sentry_value_t user_feedback, sentry_hint_t *hint)
 
     if (hint && hint->attachments) {
         sentry__envelope_add_attachments(envelope, hint->attachments);
+        sentry_uuid_t event_id = sentry__envelope_get_event_id(envelope);
+        SENTRY_WITH_OPTIONS (options) {
+            if (options->run) {
+                sentry__cache_external_attachments(options->run->cache_path,
+                    &event_id, hint->attachments, options->run->run_path);
+            }
+        }
     }
 
     return envelope;
@@ -1753,18 +1760,30 @@ sentry_capture_minidump_n(const char *path, size_t path_len)
         } else {
             // the minidump is added as an attachment, with the type
             // `event.minidump`
+            size_t dump_size = sentry__path_get_size(dump_path);
+            bool is_large = dump_size >= SENTRY_LARGE_ATTACHMENT_SIZE;
             sentry_envelope_item_t *item = sentry__envelope_add_from_path(
                 envelope, dump_path, "attachment");
 
-            if (!item) {
-                sentry_envelope_free(envelope);
-            } else {
+            if (item) {
                 sentry__envelope_item_set_header(item, "attachment_type",
                     sentry_value_new_string("event.minidump"));
-
                 sentry__envelope_item_set_header(item, "filename",
                     sentry_value_new_string(sentry__path_filename(dump_path)));
+            } else if (is_large && options->run) {
+                sentry_attachment_t tmp;
+                memset(&tmp, 0, sizeof(tmp));
+                tmp.path = dump_path;
+                tmp.type = MINIDUMP;
+                tmp.next = NULL;
+                sentry__cache_external_attachments(
+                    options->run->cache_path, &event_id, &tmp, NULL);
+            } else {
+                sentry_envelope_free(envelope);
+                envelope = NULL;
+            }
 
+            if (envelope) {
                 sentry__capture_envelope(options->transport, envelope);
 
                 SENTRY_INFOF(

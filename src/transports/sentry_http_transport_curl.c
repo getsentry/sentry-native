@@ -3,6 +3,7 @@
 #include "sentry_envelope.h"
 #include "sentry_http_transport.h"
 #include "sentry_options.h"
+#include "sentry_slice.h"
 #include "sentry_string.h"
 #include "sentry_sync.h"
 #include "sentry_transport.h"
@@ -10,6 +11,7 @@
 
 #include <curl/curl.h>
 #include <curl/easy.h>
+#include <stdio.h>
 #include <string.h>
 
 #ifdef SENTRY_PLATFORM_NX
@@ -128,11 +130,21 @@ curl_client_shutdown(void *_client)
 
 static int
 progress_callback(void *clientp, curl_off_t UNUSED(dltotal),
-    curl_off_t UNUSED(dlnow), curl_off_t UNUSED(ultotal),
-    curl_off_t UNUSED(ulnow))
+    curl_off_t UNUSED(dlnow), curl_off_t ultotal, curl_off_t ulnow)
 {
     curl_client_t *client = clientp;
-    return sentry__atomic_fetch(&client->shutdown) ? 1 : 0;
+    if (sentry__atomic_fetch(&client->shutdown)) {
+        return 1;
+    }
+    if (ultotal > 0) {
+        double speed = 0;
+        curl_easy_getinfo(client->curl_handle, CURLINFO_SPEED_UPLOAD, &speed);
+        SENTRY_DEBUGF("upload progress: %.1f / %.1f MB (%.0f%%, %.1f MB/s)",
+            (double)ulnow / (1024.0 * 1024.0),
+            (double)ultotal / (1024.0 * 1024.0),
+            (double)ulnow / (double)ultotal * 100.0, speed / (1024.0 * 1024.0));
+    }
+    return 0;
 }
 
 static size_t
@@ -140,6 +152,64 @@ swallow_data(
     char *UNUSED(ptr), size_t size, size_t nmemb, void *UNUSED(userdata))
 {
     return size * nmemb;
+}
+
+static int
+debug_function(CURL *UNUSED(handle), curl_infotype type, char *data,
+    size_t size, void *UNUSED(userdata))
+{
+    const char *prefix;
+    switch (type) {
+    case CURLINFO_TEXT:
+        prefix = "* ";
+        break;
+    case CURLINFO_HEADER_OUT:
+        prefix = "> ";
+        break;
+    case CURLINFO_HEADER_IN:
+        prefix = "< ";
+        break;
+    case CURLINFO_DATA_OUT: {
+        size_t len = size;
+        while (len > 0 && (data[len - 1] == '\n' || data[len - 1] == '\r')) {
+            len--;
+        }
+        if (len >= 2 && data[0] == '{' && data[len - 1] == '}') {
+            fprintf(
+                stderr, "=> Send (%zu bytes): %.*s\n", size, (int)len, data);
+        }
+        return 0;
+    }
+    case CURLINFO_DATA_IN: {
+        size_t len = size;
+        while (len > 0 && (data[len - 1] == '\n' || data[len - 1] == '\r')) {
+            len--;
+        }
+        if (len >= 2 && data[0] == '{' && data[len - 1] == '}') {
+            fprintf(
+                stderr, "<= Recv (%zu bytes): %.*s\n", size, (int)len, data);
+        } else {
+            fprintf(stderr, "<= Recv (%zu bytes)\n", size);
+        }
+        return 0;
+    }
+    default:
+        return 0;
+    }
+
+    const char *pos = data;
+    const char *end = data + size;
+    while (pos < end) {
+        const char *eol = memchr(pos, '\n', (size_t)(end - pos));
+        if (eol) {
+            fprintf(stderr, "%s%.*s\n", prefix, (int)(eol - pos), pos);
+            pos = eol + 1;
+        } else {
+            fprintf(stderr, "%s%.*s\n", prefix, (int)(end - pos), pos);
+            break;
+        }
+    }
+    return 0;
 }
 
 static size_t
@@ -156,15 +226,25 @@ header_callback(char *buffer, size_t size, size_t nitems, void *userdata)
     if (sep) {
         *sep = '\0';
         sentry__string_ascii_lower(header);
+        sentry_slice_t value
+            = sentry__slice_trim(sentry__slice_from_str(sep + 1));
         if (sentry__string_eq(header, "retry-after")) {
-            info->retry_after = sentry__string_clone(sep + 1);
+            info->retry_after = sentry__slice_to_owned(value);
         } else if (sentry__string_eq(header, "x-sentry-rate-limits")) {
-            info->x_sentry_rate_limits = sentry__string_clone(sep + 1);
+            info->x_sentry_rate_limits = sentry__slice_to_owned(value);
+        } else if (sentry__string_eq(header, "location")) {
+            info->location = sentry__slice_to_owned(value);
         }
     }
 
     sentry_free(header);
     return bytes;
+}
+
+static size_t
+file_read_callback(char *buffer, size_t size, size_t nitems, void *userdata)
+{
+    return fread(buffer, size, nitems, (FILE *)userdata);
 }
 
 static bool
@@ -196,21 +276,41 @@ curl_send_task(void *_client, sentry_prepared_http_request_t *req,
     curl_easy_reset(curl);
     if (client->debug) {
         curl_easy_setopt(curl, CURLOPT_VERBOSE, 1);
+        curl_easy_setopt(curl, CURLOPT_DEBUGFUNCTION, debug_function);
         curl_easy_setopt(curl, CURLOPT_WRITEDATA, stderr);
         // CURLOPT_WRITEFUNCTION will `fwrite` by default
     } else {
         curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, swallow_data);
     }
     curl_easy_setopt(curl, CURLOPT_URL, req->url);
-    curl_easy_setopt(curl, CURLOPT_POST, (long)1);
     curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
-    curl_easy_setopt(curl, CURLOPT_POSTFIELDS, req->body);
-    curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE, (long)req->body_len);
     curl_easy_setopt(curl, CURLOPT_USERAGENT, SENTRY_SDK_USER_AGENT);
     curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT_MS, 15000L);
     curl_easy_setopt(curl, CURLOPT_NOPROGRESS, 0L);
     curl_easy_setopt(curl, CURLOPT_XFERINFOFUNCTION, progress_callback);
     curl_easy_setopt(curl, CURLOPT_XFERINFODATA, client);
+
+    FILE *body_file = NULL;
+    if (req->body_path) {
+        body_file = fopen(req->body_path->path, "rb");
+        if (!body_file) {
+            SENTRY_WARN("failed to open body_path for upload");
+            curl_slist_free_all(headers);
+            return false;
+        }
+        curl_easy_setopt(curl, CURLOPT_UPLOAD, 1L);
+        curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, req->method);
+        curl_easy_setopt(curl, CURLOPT_READFUNCTION, file_read_callback);
+        curl_easy_setopt(curl, CURLOPT_READDATA, body_file);
+        curl_easy_setopt(
+            curl, CURLOPT_INFILESIZE_LARGE, (curl_off_t)req->body_len);
+    } else if (req->body) {
+        curl_easy_setopt(curl, CURLOPT_POST, (long)1);
+        curl_easy_setopt(curl, CURLOPT_POSTFIELDS, req->body);
+        curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE, (long)req->body_len);
+    } else {
+        curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, req->method);
+    }
 
     char error_buf[CURL_ERROR_SIZE];
     error_buf[0] = 0;
@@ -254,6 +354,9 @@ curl_send_task(void *_client, sentry_prepared_http_request_t *req,
         }
     }
 
+    if (body_file) {
+        fclose(body_file);
+    }
     curl_slist_free_all(headers);
     return rv == CURLE_OK;
 }
