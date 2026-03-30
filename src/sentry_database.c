@@ -127,8 +127,7 @@ sentry__run_free(sentry_run_t *run)
 }
 
 static bool
-write_envelope(const sentry_path_t *path, const sentry_envelope_t *envelope,
-    int retry_count)
+write_envelope(const sentry_path_t *path, const sentry_envelope_t *envelope)
 {
     sentry_uuid_t event_id = sentry__envelope_get_event_id(envelope);
 
@@ -138,18 +137,13 @@ write_envelope(const sentry_path_t *path, const sentry_envelope_t *envelope,
         event_id = sentry_uuid_new_v4();
     }
 
-    char uuid[37];
-    sentry_uuid_as_string(&event_id, uuid);
-
-    char filename[128];
-    if (retry_count >= 0) {
-        snprintf(filename, sizeof(filename), "%" PRIu64 "-%02d-%.36s.envelope",
-            sentry__usec_time() / 1000, retry_count, uuid);
-    } else {
-        snprintf(filename, sizeof(filename), "%.36s.envelope", uuid);
+    char *envelope_filename = sentry__uuid_as_filename(&event_id, ".envelope");
+    if (!envelope_filename) {
+        return false;
     }
 
-    sentry_path_t *output_path = sentry__path_join_str(path, filename);
+    sentry_path_t *output_path = sentry__path_join_str(path, envelope_filename);
+    sentry_free(envelope_filename);
     if (!output_path) {
         return false;
     }
@@ -168,7 +162,7 @@ bool
 sentry__run_write_envelope(
     const sentry_run_t *run, const sentry_envelope_t *envelope)
 {
-    return write_envelope(run->run_path, envelope, -1);
+    return write_envelope(run->run_path, envelope);
 }
 
 bool
@@ -180,7 +174,7 @@ sentry__run_write_external(
         return false;
     }
 
-    return write_envelope(run->external_path, envelope, -1);
+    return write_envelope(run->external_path, envelope);
 }
 
 bool
@@ -195,7 +189,27 @@ sentry__run_write_cache(
     if (retry_count < 0) {
         return sentry__envelope_write_to_cache(envelope, run->cache_path) == 0;
     }
-    return write_envelope(run->cache_path, envelope, retry_count);
+
+    sentry_uuid_t event_id = sentry__envelope_get_event_id(envelope);
+    if (sentry_uuid_is_nil(&event_id)) {
+        event_id = sentry_uuid_new_v4();
+    }
+
+    char uuid[37];
+    sentry_uuid_as_string(&event_id, uuid);
+
+    sentry_path_t *path = sentry__run_make_cache_path(
+        run, sentry__usec_time() / 1000, retry_count, uuid);
+    if (!path) {
+        return false;
+    }
+
+    int rv = sentry_envelope_write_to_path(envelope, path);
+    sentry__path_free(path);
+    if (rv) {
+        SENTRY_WARN("writing envelope to file failed");
+    }
+    return rv == 0;
 }
 
 bool
