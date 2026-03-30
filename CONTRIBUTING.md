@@ -121,6 +121,10 @@ Some of its behavior is controlled by env-variables:
   - `gcc`: Use the `-fanalyzer` flag of `gcc > 10`.
     This is currently not stable enough to use, as it leads to false positives
     and internal compiler errors.
+- `USE_SCCACHE`: Uses [`sccache`](https://github.com/mozilla/sccache) (`brew`/`choco`/`apt install sccache`)
+  as the compiler launcher to speed up rebuilds. On Windows, this automatically
+  switches to the Ninja generator (`choco install ninja`) and uses `/Z7` debug
+  info format for compatibility.
 - `TEST_X86`: Passes flags to CMake to enable a 32-bit (cross-)compile.
 - `ANDROID_API` / `ANDROID_NDK` / `ANDROID_ARCH`: Instructs the test runner to
   build using the given Android `NDK` version, targeting the given `API` and
