@@ -381,6 +381,23 @@ trigger_stack_overflow()
     trigger_stack_overflow();
 }
 
+static void
+trigger_oom(void)
+{
+    size_t count = 1024;
+    for (;;) {
+        void *p = malloc(count);
+        if (!p) {
+#ifdef SENTRY_PLATFORM_WINDOWS
+            RaiseException(0xc000, 0, 0, NULL);
+#else
+            *((volatile int *)3) = 1;
+#endif
+        }
+        count *= 2;
+    }
+}
+
 static sentry_value_t
 create_debug_crumb(const char *message)
 {
@@ -959,6 +976,9 @@ main(int argc, char **argv)
     }
     if (has_arg(argc, argv, "stack-overflow")) {
         trigger_stack_overflow();
+    }
+    if (has_arg(argc, argv, "oom")) {
+        trigger_oom();
     }
 #if defined(SENTRY_PLATFORM_WINDOWS) && !defined(__MINGW32__)                  \
     && !defined(__MINGW64__)
