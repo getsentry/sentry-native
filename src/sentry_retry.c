@@ -127,7 +127,7 @@ handle_result(sentry_retry_t *retry, const retry_item_t *item, int status_code)
     }
 
     // cache on last attempt
-    if (exhausted && retry->cache_keep) {
+    if (exhausted && retry->cache_keep && status_code < 0) {
         if (!sentry__run_move_cache(retry->run, item->path, -1)) {
             sentry__path_remove(item->path);
         }

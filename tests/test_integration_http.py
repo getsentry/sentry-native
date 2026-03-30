@@ -958,17 +958,17 @@ def test_http_retry_with_cache_keep(cmake, httpserver):
 
 
 @pytest.mark.skipif(not has_files, reason="test needs a local filesystem")
-def test_http_retry_cache_keep_max_attempts(cmake):
+def test_http_retry_cache_keep_max_attempts(cmake, httpserver):
     tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "none"})
     cache_dir = tmp_path.joinpath(".sentry-native/cache")
 
-    env = dict(os.environ, SENTRY_DSN=unreachable_dsn)
+    env_unreachable = dict(os.environ, SENTRY_DSN=unreachable_dsn)
 
     run(
         tmp_path,
         "sentry_example",
         ["log", "http-retry", "cache-keep", "capture-event"],
-        env=env,
+        env=env_unreachable,
     )
 
     assert cache_dir.exists()
@@ -979,11 +979,26 @@ def test_http_retry_cache_keep_max_attempts(cmake):
             tmp_path,
             "sentry_example",
             ["log", "http-retry", "cache-keep", "no-setup"],
-            env=env,
+            env=env_unreachable,
         )
 
     assert cache_dir.exists()
     assert len(list(cache_dir.glob("*.envelope"))) == 1
+
+    # last attempt succeeds — envelope should be removed, not cached
+    env_reachable = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
+    httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data("OK")
+
+    with httpserver.wait(timeout=10) as waiting:
+        run(
+            tmp_path,
+            "sentry_example",
+            ["log", "http-retry", "cache-keep", "no-setup"],
+            env=env_reachable,
+        )
+    assert waiting.result
+
+    assert len(list(cache_dir.glob("*.envelope"))) == 0
 
 
 @pytest.mark.skipif(not has_files, reason="test needs a local filesystem")

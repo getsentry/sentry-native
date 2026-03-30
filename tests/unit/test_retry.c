@@ -338,8 +338,7 @@ SENTRY_TEST(retry_cache)
     TEST_CHECK_INT_EQUAL(count_envelope_files(cache_path), 1);
     TEST_CHECK(sentry__path_is_file(cached));
 
-    // Success on a file at count=5 → also renames to cache format
-    // (cache_keep preserves all envelopes regardless of send outcome)
+    // Success on a file at count=5 → removed (successfully delivered)
     sentry__path_remove_all(cache_path);
     sentry__path_create_dir_all(cache_path);
     write_retry_file(options->run, old_ts, 5, &event_id);
@@ -348,8 +347,7 @@ SENTRY_TEST(retry_cache)
     ctx = (retry_test_ctx_t) { 200, 0 };
     sentry__retry_send(retry, 0, test_send_cb, &ctx);
     TEST_CHECK_INT_EQUAL(ctx.count, 1);
-    TEST_CHECK_INT_EQUAL(count_envelope_files(cache_path), 1);
-    TEST_CHECK(sentry__path_is_file(cached));
+    TEST_CHECK_INT_EQUAL(count_envelope_files(cache_path), 0);
 
     sentry__retry_free(retry);
     sentry__path_free(cached);
