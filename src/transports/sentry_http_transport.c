@@ -357,25 +357,19 @@ http_transport_send_envelope(sentry_envelope_t *envelope, void *transport_state)
 }
 
 static bool
-http_dump_task_cb(void *envelope, void *_state)
+http_dump_task_cb(void *envelope, void *run)
 {
-    http_transport_state_t *state = _state;
-    if (state->retry) {
-        sentry__run_write_cache(state->run, (sentry_envelope_t *)envelope, 0);
-    } else {
-        sentry__run_write_envelope(state->run, (sentry_envelope_t *)envelope);
-    }
+    sentry__run_write_envelope(
+        (sentry_run_t *)run, (sentry_envelope_t *)envelope);
     return true;
 }
 
 static size_t
 http_dump_queue(sentry_run_t *run, void *transport_state)
 {
-    (void)run;
     sentry_bgworker_t *bgworker = transport_state;
-    http_transport_state_t *state = sentry__bgworker_get_state(bgworker);
     return sentry__bgworker_foreach_matching(
-        bgworker, http_send_task, http_dump_task_cb, state);
+        bgworker, http_send_task, http_dump_task_cb, run);
 }
 
 static http_transport_state_t *

@@ -1035,7 +1035,8 @@ def test_http_retry_rate_limit_discards_envelope(cmake, httpserver):
 @pytest.mark.skipif(not has_files, reason="test needs a local filesystem")
 def test_http_retry_multiple_success(cmake, httpserver):
     tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "none"})
-    cache_dir = tmp_path.joinpath(".sentry-native/cache")
+    db_dir = tmp_path.joinpath(".sentry-native")
+    cache_dir = db_dir.joinpath("cache")
 
     run(
         tmp_path,
@@ -1044,8 +1045,10 @@ def test_http_retry_multiple_success(cmake, httpserver):
         env=dict(os.environ, SENTRY_DSN=unreachable_dsn),
     )
 
-    cache_files = list(cache_dir.glob("*.envelope"))
-    assert len(cache_files) == 10
+    # envelopes end up in cache/ (retry) or *.run/ (dumped on shutdown timeout)
+    cached = list(cache_dir.glob("*.envelope"))
+    dumped = list(db_dir.glob("*.run/*.envelope"))
+    assert len(cached) + len(dumped) == 10
 
     for _ in range(10):
         httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data(
@@ -1069,7 +1072,8 @@ def test_http_retry_multiple_success(cmake, httpserver):
 @pytest.mark.skipif(not has_files, reason="test needs a local filesystem")
 def test_http_retry_multiple_network_error(cmake):
     tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "none"})
-    cache_dir = tmp_path.joinpath(".sentry-native/cache")
+    db_dir = tmp_path.joinpath(".sentry-native")
+    cache_dir = db_dir.joinpath("cache")
 
     env = dict(os.environ, SENTRY_DSN=unreachable_dsn)
 
@@ -1080,8 +1084,10 @@ def test_http_retry_multiple_network_error(cmake):
         env=env,
     )
 
-    cache_files = list(cache_dir.glob("*.envelope"))
-    assert len(cache_files) == 10
+    # envelopes end up in cache/ (retry) or *.run/ (dumped on shutdown timeout)
+    cached = list(cache_dir.glob("*.envelope"))
+    dumped = list(db_dir.glob("*.run/*.envelope"))
+    assert len(cached) + len(dumped) == 10
 
     run(
         tmp_path,
@@ -1091,16 +1097,19 @@ def test_http_retry_multiple_network_error(cmake):
     )
 
     # first envelope retried and bumped, rest untouched (stop on failure)
-    cache_files = list(cache_dir.glob("*.envelope"))
-    assert len(cache_files) == 10
-    assert len([f for f in cache_files if "-00-" in f.name]) == 9
-    assert len([f for f in cache_files if "-01-" in f.name]) == 1
+    # envelopes end up in cache/ (retry) or *.run/ (dumped on shutdown timeout)
+    cached = list(cache_dir.glob("*.envelope"))
+    dumped = list(db_dir.glob("*.run/*.envelope"))
+    assert len(cached) + len(dumped) == 10
+    assert len([f for f in cached if "-00-" in f.name]) >= 1
+    assert len([f for f in cached if "-01-" in f.name]) == 1
 
 
 @pytest.mark.skipif(not has_files, reason="test needs a local filesystem")
 def test_http_retry_multiple_rate_limit(cmake, httpserver):
     tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "none"})
-    cache_dir = tmp_path.joinpath(".sentry-native/cache")
+    db_dir = tmp_path.joinpath(".sentry-native")
+    cache_dir = db_dir.joinpath("cache")
 
     run(
         tmp_path,
@@ -1109,8 +1118,10 @@ def test_http_retry_multiple_rate_limit(cmake, httpserver):
         env=dict(os.environ, SENTRY_DSN=unreachable_dsn),
     )
 
-    cache_files = list(cache_dir.glob("*.envelope"))
-    assert len(cache_files) == 10
+    # envelopes end up in cache/ (retry) or *.run/ (dumped on shutdown timeout)
+    cached = list(cache_dir.glob("*.envelope"))
+    dumped = list(db_dir.glob("*.run/*.envelope"))
+    assert len(cached) + len(dumped) == 10
 
     # rate limit response followed by discards for the rest (rate limiter
     # kicks in after the first 429)
