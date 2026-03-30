@@ -271,10 +271,9 @@ retry_flush_task(void *_retry, void *_state)
 {
     (void)_state;
     sentry_retry_t *retry = _retry;
-    if (sentry__atomic_compare_swap(
-            &retry->state, SENTRY_RETRY_STARTUP, SENTRY_RETRY_RUNNING)) {
-        sentry__retry_send(retry, UINT64_MAX, retry->send_cb, retry->send_data);
-    }
+    sentry__atomic_compare_swap(
+        &retry->state, SENTRY_RETRY_STARTUP, SENTRY_RETRY_RUNNING);
+    sentry__retry_send(retry, UINT64_MAX, retry->send_cb, retry->send_data);
 }
 
 static bool
@@ -336,6 +335,8 @@ sentry__retry_enqueue(sentry_retry_t *retry, const sentry_envelope_t *envelope)
     }
     sentry__mutex_unlock(&retry->sealed_lock);
 
+    sentry__atomic_compare_swap(
+        &retry->state, SENTRY_RETRY_STARTUP, SENTRY_RETRY_RUNNING);
     if (sentry__atomic_compare_swap(
             &retry->scheduled, SENTRY_POLL_IDLE, SENTRY_POLL_SCHEDULED)) {
         sentry__bgworker_submit_delayed(retry->bgworker, retry_poll_task, NULL,
