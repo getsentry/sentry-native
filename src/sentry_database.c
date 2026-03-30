@@ -126,7 +126,8 @@ sentry__run_free(sentry_run_t *run)
 }
 
 static bool
-write_envelope(const sentry_path_t *path, const sentry_envelope_t *envelope)
+write_envelope(const sentry_path_t *path, const sentry_envelope_t *envelope,
+    int retry_count)
 {
     sentry_uuid_t event_id = sentry__envelope_get_event_id(envelope);
 
@@ -136,13 +137,18 @@ write_envelope(const sentry_path_t *path, const sentry_envelope_t *envelope)
         event_id = sentry_uuid_new_v4();
     }
 
-    char *envelope_filename = sentry__uuid_as_filename(&event_id, ".envelope");
-    if (!envelope_filename) {
-        return false;
+    char uuid[37];
+    sentry_uuid_as_string(&event_id, uuid);
+
+    char filename[128];
+    if (retry_count >= 0) {
+        snprintf(filename, sizeof(filename), "%" PRIu64 "-%02d-%.36s.envelope",
+            sentry__usec_time() / 1000, retry_count, uuid);
+    } else {
+        snprintf(filename, sizeof(filename), "%.36s.envelope", uuid);
     }
 
-    sentry_path_t *output_path = sentry__path_join_str(path, envelope_filename);
-    sentry_free(envelope_filename);
+    sentry_path_t *output_path = sentry__path_join_str(path, filename);
     if (!output_path) {
         return false;
     }
@@ -161,7 +167,7 @@ bool
 sentry__run_write_envelope(
     const sentry_run_t *run, const sentry_envelope_t *envelope)
 {
-    return write_envelope(run->run_path, envelope);
+    return write_envelope(run->run_path, envelope, -1);
 }
 
 bool
@@ -173,19 +179,102 @@ sentry__run_write_external(
         return false;
     }
 
-    return write_envelope(run->external_path, envelope);
+    return write_envelope(run->external_path, envelope, -1);
 }
 
 bool
 sentry__run_write_cache(
-    const sentry_run_t *run, const sentry_envelope_t *envelope)
+    const sentry_run_t *run, const sentry_envelope_t *envelope, int retry_count)
 {
     if (sentry__path_create_dir_all(run->cache_path) != 0) {
         SENTRY_ERRORF("mkdir failed: \"%s\"", run->cache_path->path);
         return false;
     }
 
-    return write_envelope(run->cache_path, envelope);
+    return write_envelope(run->cache_path, envelope, retry_count);
+}
+
+bool
+sentry__parse_cache_filename(const char *filename, uint64_t *ts_out,
+    int *count_out, const char **uuid_out)
+{
+    // Minimum retry filename: <ts>-<count>-<uuid>.envelope (49+ chars).
+    // Cache filenames are exactly 45 chars (<uuid>.envelope).
+    if (strlen(filename) <= 45) {
+        return false;
+    }
+
+    char *end;
+    uint64_t ts = strtoull(filename, &end, 10);
+    if (*end != '-') {
+        return false;
+    }
+
+    const char *count_str = end + 1;
+    long count = strtol(count_str, &end, 10);
+    if (*end != '-' || count < 0) {
+        return false;
+    }
+
+    const char *uuid = end + 1;
+    size_t tail_len = strlen(uuid);
+    // 36 chars UUID (with dashes) + ".envelope"
+    if (tail_len != 36 + 9 || strcmp(uuid + 36, ".envelope") != 0) {
+        return false;
+    }
+
+    *ts_out = ts;
+    *count_out = (int)count;
+    *uuid_out = uuid;
+    return true;
+}
+
+sentry_path_t *
+sentry__run_make_cache_path(
+    const sentry_run_t *run, uint64_t ts, int count, const char *uuid)
+{
+    char filename[128];
+    if (count >= 0) {
+        snprintf(filename, sizeof(filename), "%" PRIu64 "-%02d-%.36s.envelope",
+            ts, count, uuid);
+    } else {
+        snprintf(filename, sizeof(filename), "%.36s.envelope", uuid);
+    }
+    return sentry__path_join_str(run->cache_path, filename);
+}
+
+bool
+sentry__run_move_cache(
+    const sentry_run_t *run, const sentry_path_t *src, int retry_count)
+{
+    if (sentry__path_create_dir_all(run->cache_path) != 0) {
+        SENTRY_ERRORF("mkdir failed: \"%s\"", run->cache_path->path);
+        return false;
+    }
+
+    const char *src_name = sentry__path_filename(src);
+    uint64_t parsed_ts;
+    int parsed_count;
+    const char *parsed_uuid;
+    const char *cache_name = sentry__parse_cache_filename(src_name, &parsed_ts,
+                                 &parsed_count, &parsed_uuid)
+        ? parsed_uuid
+        : src_name;
+
+    sentry_path_t *dst_path = sentry__run_make_cache_path(
+        run, sentry__usec_time() / 1000, retry_count, cache_name);
+    if (!dst_path) {
+        return false;
+    }
+
+    int rv = sentry__path_rename(src, dst_path);
+    sentry__path_free(dst_path);
+    if (rv != 0) {
+        SENTRY_WARNF("failed to cache envelope \"%s\"", src_name);
+        return false;
+    }
+
+    return true;
 }
 
 bool

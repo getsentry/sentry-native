@@ -292,7 +292,7 @@ sentry_init(sentry_options_t *options)
         backend->prune_database_func(backend);
     }
 
-    if (options->cache_keep) {
+    if (options->cache_keep || options->http_retry) {
         if (!sentry__transport_submit_cleanup(options->transport, options)) {
             sentry__cleanup_cache(options);
         }

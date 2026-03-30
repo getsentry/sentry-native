@@ -57,6 +57,9 @@ size_t sentry__transport_dump_queue(
 
 void *sentry__transport_get_state(sentry_transport_t *transport);
 
+void sentry__transport_set_retry_func(
+    sentry_transport_t *transport, void (*retry_func)(void *state));
+
 /**
  * Sets the cleanup function of the transport.
  *
