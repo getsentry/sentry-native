@@ -20,10 +20,13 @@ class Program
     [DllImport("sentry", EntryPoint = "sentry_options_set_debug")]
     static extern IntPtr sentry_options_set_debug(IntPtr options, int debug);
 
+    [DllImport("sentry", EntryPoint = "sentry_options_set_database_path")]
+    static extern void sentry_options_set_database_path(IntPtr options, string path);
+
     [DllImport("sentry", EntryPoint = "sentry_init")]
     static extern int sentry_init(IntPtr options);
 
-    static void Main(string[] args)
+    public static void RunTest(string[] args, string? databasePath = null)
     {
         var githubActions = Environment.GetEnvironmentVariable("GITHUB_ACTIONS") ?? string.Empty;
         if (githubActions == "true") {
@@ -38,10 +41,13 @@ class Program
         var options = sentry_options_new();
         sentry_options_set_handler_strategy(options, 1);
         sentry_options_set_debug(options, 1);
+        if (databasePath != null)
+        {
+            sentry_options_set_database_path(options, databasePath);
+        }
         sentry_init(options);
 
-        var doNativeCrash = args is ["native-crash"];
-        if (doNativeCrash)
+        if (args.Contains("native-crash"))
         {
             native_crash();
         }
@@ -51,9 +57,9 @@ class Program
             {
                 Console.WriteLine("dereference a NULL object from managed code");
                 var s = default(string);
-                var c = s.Length;
+                var c = s!.Length;
             }
-            catch (NullReferenceException exception)
+            catch (NullReferenceException)
             {
             }
         }
@@ -61,7 +67,14 @@ class Program
         {
             Console.WriteLine("dereference a NULL object from managed code (unhandled)");
             var s = default(string);
-            var c = s.Length;
+            var c = s!.Length;
         }
     }
+
+#if !ANDROID
+    static void Main(string[] args)
+    {
+        RunTest(args);
+    }
+#endif
 }

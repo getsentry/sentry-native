@@ -3,6 +3,7 @@
 #include "sentry_envelope.h"
 #include "sentry_options.h"
 #include "sentry_path.h"
+#include "sentry_string.h"
 #include "sentry_testsupport.h"
 #include "sentry_uuid.h"
 #include "sentry_value.h"
@@ -372,6 +373,150 @@ SENTRY_TEST(cache_max_size_and_age)
     sentry__path_free(a_path);
     sentry__path_free(b_path);
     sentry__path_free(c_path);
+    sentry__path_free(cache_path);
+    sentry_close();
+}
+
+SENTRY_TEST(cache_write_minidump)
+{
+#if defined(SENTRY_PLATFORM_NX) || defined(SENTRY_PLATFORM_PS)
+    SKIP_TEST();
+#endif
+    SENTRY_TEST_OPTIONS_NEW(options);
+    sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
+    sentry_options_set_cache_keep(options, true);
+    sentry_init(options);
+
+    sentry_path_t *cache_path
+        = sentry__path_join_str(options->database_path, "cache");
+    TEST_ASSERT(!!cache_path);
+    TEST_ASSERT(sentry__path_remove_all(cache_path) == 0);
+
+    sentry_uuid_t event_id = sentry_uuid_new_v4();
+    sentry_envelope_t *envelope = sentry__envelope_new();
+    TEST_ASSERT(!!envelope);
+
+    sentry_value_t event = sentry__value_new_event_with_id(&event_id);
+    sentry__envelope_add_event(envelope, event);
+
+    const char *minidump_data = "fake_minidump_payload";
+    size_t minidump_len = strlen(minidump_data);
+    sentry_envelope_item_t *item = sentry__envelope_add_from_buffer(
+        envelope, minidump_data, minidump_len, "attachment");
+    TEST_ASSERT(!!item);
+    sentry__envelope_item_set_header(
+        item, "attachment_type", sentry_value_new_string("event.minidump"));
+    sentry__envelope_item_set_header(
+        item, "filename", sentry_value_new_string("minidump.dmp"));
+
+    TEST_CHECK(sentry__run_write_cache(options->run, envelope, -1));
+    sentry_envelope_free(envelope);
+
+    char *env_filename = sentry__uuid_as_filename(&event_id, ".envelope");
+    char *dmp_filename = sentry__uuid_as_filename(&event_id, ".dmp");
+    TEST_ASSERT(!!env_filename);
+    TEST_ASSERT(!!dmp_filename);
+
+    sentry_path_t *env_path = sentry__path_join_str(cache_path, env_filename);
+    sentry_path_t *dmp_path = sentry__path_join_str(cache_path, dmp_filename);
+
+    // both files should exist
+    TEST_CHECK(sentry__path_is_file(env_path));
+    TEST_CHECK(sentry__path_is_file(dmp_path));
+
+    // .dmp should contain the minidump payload
+    size_t dmp_buf_len = 0;
+    char *dmp_buf = sentry__path_read_to_buffer(dmp_path, &dmp_buf_len);
+    TEST_ASSERT(!!dmp_buf);
+    TEST_CHECK_INT_EQUAL(dmp_buf_len, minidump_len);
+    TEST_CHECK(memcmp(dmp_buf, minidump_data, minidump_len) == 0);
+    sentry_free(dmp_buf);
+
+    // .envelope should NOT contain the minidump
+    size_t env_buf_len = 0;
+    char *env_buf = sentry__path_read_to_buffer(env_path, &env_buf_len);
+    TEST_ASSERT(!!env_buf);
+    sentry_envelope_t *cached
+        = sentry_envelope_deserialize(env_buf, env_buf_len);
+    sentry_free(env_buf);
+    TEST_ASSERT(!!cached);
+    TEST_CHECK_INT_EQUAL(sentry__envelope_get_item_count(cached), 1);
+    const sentry_envelope_item_t *cached_item
+        = sentry__envelope_get_item(cached, 0);
+    TEST_ASSERT(!!cached_item);
+    const char *type = sentry_value_as_string(
+        sentry__envelope_item_get_header(cached_item, "type"));
+    TEST_CHECK(sentry__string_eq(type, "event"));
+    sentry_envelope_free(cached);
+
+    sentry__path_free(env_path);
+    sentry__path_free(dmp_path);
+    sentry_free(env_filename);
+    sentry_free(dmp_filename);
+    sentry__path_free(cache_path);
+    sentry_close();
+}
+
+SENTRY_TEST(cache_write_raw_with_minidump)
+{
+#if defined(SENTRY_PLATFORM_NX) || defined(SENTRY_PLATFORM_PS)
+    SKIP_TEST();
+#endif
+    SENTRY_TEST_OPTIONS_NEW(options);
+    sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
+    sentry_options_set_cache_keep(options, true);
+    sentry_init(options);
+
+    sentry_path_t *cache_path
+        = sentry__path_join_str(options->database_path, "cache");
+    TEST_ASSERT(!!cache_path);
+    TEST_ASSERT(sentry__path_remove_all(cache_path) == 0);
+
+    // build a structured envelope, serialize it, then reload as raw
+    sentry_uuid_t event_id = sentry_uuid_new_v4();
+    sentry_envelope_t *envelope = sentry__envelope_new();
+    TEST_ASSERT(!!envelope);
+
+    sentry_value_t event = sentry__value_new_event_with_id(&event_id);
+    sentry__envelope_add_event(envelope, event);
+
+    const char *minidump_data = "raw_minidump_payload";
+    size_t minidump_len = strlen(minidump_data);
+    sentry_envelope_item_t *item = sentry__envelope_add_from_buffer(
+        envelope, minidump_data, minidump_len, "attachment");
+    TEST_ASSERT(!!item);
+    sentry__envelope_item_set_header(
+        item, "attachment_type", sentry_value_new_string("event.minidump"));
+
+    // serialize to a temp file and reload as raw
+    sentry_path_t *tmp_path = sentry__path_join_str(cache_path, "tmp.envelope");
+    TEST_ASSERT(sentry__path_create_dir_all(cache_path) == 0);
+    TEST_ASSERT(sentry_envelope_write_to_path(envelope, tmp_path) == 0);
+    sentry_envelope_free(envelope);
+
+    sentry_envelope_t *raw = sentry__envelope_from_path(tmp_path);
+    sentry__path_remove(tmp_path);
+    sentry__path_free(tmp_path);
+    TEST_ASSERT(!!raw);
+
+    // write raw envelope to cache — should materialize and split
+    TEST_CHECK(sentry__run_write_cache(options->run, raw, -1));
+    sentry_envelope_free(raw);
+
+    char *dmp_filename = sentry__uuid_as_filename(&event_id, ".dmp");
+    TEST_ASSERT(!!dmp_filename);
+    sentry_path_t *dmp_path = sentry__path_join_str(cache_path, dmp_filename);
+    TEST_CHECK(sentry__path_is_file(dmp_path));
+
+    size_t dmp_buf_len = 0;
+    char *dmp_buf = sentry__path_read_to_buffer(dmp_path, &dmp_buf_len);
+    TEST_ASSERT(!!dmp_buf);
+    TEST_CHECK_INT_EQUAL(dmp_buf_len, minidump_len);
+    TEST_CHECK(memcmp(dmp_buf, minidump_data, minidump_len) == 0);
+    sentry_free(dmp_buf);
+
+    sentry__path_free(dmp_path);
+    sentry_free(dmp_filename);
     sentry__path_free(cache_path);
     sentry_close();
 }

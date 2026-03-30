@@ -25,10 +25,9 @@ void sentry__retry_start(sentry_retry_t *retry, sentry_bgworker_t *bgworker,
 void sentry__retry_shutdown(sentry_retry_t *retry);
 
 /**
- * Dumps queued envelopes to the retry dir and seals against further writes.
+ * Seals the retry system against further enqueue calls.
  */
-void sentry__retry_dump_queue(
-    sentry_retry_t *retry, sentry_task_exec_func_t task_func);
+void sentry__retry_seal(sentry_retry_t *retry);
 
 /**
  * Writes a failed envelope to the retry dir and schedules a delayed poll.

@@ -227,6 +227,61 @@ Java_io_sentry_ndk_NativeScope_nativeAddBreadcrumb(
     sentry_add_breadcrumb(crumb);
 }
 
+JNIEXPORT void JNICALL
+Java_io_sentry_ndk_NativeScope_nativeAddAttachment(
+        JNIEnv *env,
+        jclass cls,
+        jstring path) {
+    if (!path) {
+        return;
+    }
+    const char *charPath = (*env)->GetStringUTFChars(env, path, 0);
+    if (!charPath) {
+        return;
+    }
+
+    // The returned sentry_attachment_t* is intentionally discarded.
+    // We are not tracking it across the JNI boundary for individual removals.
+    // Use sentry_clear_attachments() for bulk removal.
+    sentry_attach_file(charPath);
+
+    (*env)->ReleaseStringUTFChars(env, path, charPath);
+}
+
+JNIEXPORT void JNICALL
+Java_io_sentry_ndk_NativeScope_nativeAddAttachmentBytes(
+        JNIEnv *env,
+        jclass cls,
+        jbyteArray data,
+        jstring filename) {
+    if (!data || !filename) {
+        return;
+    }
+    jsize bufLen = (*env)->GetArrayLength(env, data);
+    jbyte *buf = (*env)->GetByteArrayElements(env, data, 0);
+    if (!buf) {
+        return;
+    }
+    const char *charFilename = (*env)->GetStringUTFChars(env, filename, 0);
+    if (!charFilename) {
+        (*env)->ReleaseByteArrayElements(env, data, buf, JNI_ABORT);
+        return;
+    }
+
+    // The returned sentry_attachment_t* is intentionally discarded.
+    // We are not tracking it across the JNI boundary for individual removals.
+    // Use sentry_clear_attachments() for bulk removal.
+    sentry_attach_bytes((const char *)buf, (size_t)bufLen, charFilename);
+
+    (*env)->ReleaseStringUTFChars(env, filename, charFilename);
+    (*env)->ReleaseByteArrayElements(env, data, buf, JNI_ABORT);
+}
+
+JNIEXPORT void JNICALL
+Java_io_sentry_ndk_NativeScope_nativeClearAttachments(JNIEnv *env, jclass cls) {
+    sentry_clear_attachments();
+}
+
 static void send_envelope(sentry_envelope_t *envelope, void *data) {
     const char *outbox_path = (const char *) data;
     char envelope_id_str[40];

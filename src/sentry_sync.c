@@ -170,6 +170,7 @@ struct sentry_bgworker_s {
     void (*free_state)(void *state);
     long refcount;
     long running;
+    long draining;
 };
 
 sentry_bgworker_t *
@@ -236,6 +237,9 @@ sentry__bgworker_get_state(sentry_bgworker_t *bgw)
 static bool
 sentry__bgworker_is_done(sentry_bgworker_t *bgw)
 {
+    if (sentry__atomic_fetch(&bgw->draining)) {
+        return true;
+    }
     return (!bgw->first_task
                || sentry__monotonic_time() < bgw->first_task->execute_after)
         && !sentry__atomic_fetch(&bgw->running);
@@ -318,6 +322,7 @@ sentry__bgworker_start(sentry_bgworker_t *bgw)
 {
     SENTRY_DEBUG("starting background worker thread");
     sentry__atomic_store(&bgw->running, 1);
+    sentry__atomic_store(&bgw->draining, 0);
     // this incref moves the reference into the background thread
     sentry__bgworker_incref(bgw);
     if (sentry__thread_spawn(&bgw->thread_id, &worker_thread, bgw) != 0) {
@@ -448,6 +453,7 @@ sentry__bgworker_shutdown_cb(sentry_bgworker_t *bgw, uint64_t timeout,
                 // cancellation
                 sentry__mutex_unlock(&bgw->task_lock);
                 on_timeout(on_timeout_data);
+                sentry__atomic_store(&bgw->draining, 1);
                 on_timeout = NULL;
                 sentry__mutex_lock(&bgw->task_lock);
                 // fall through to !running check below
@@ -565,7 +571,7 @@ sentry__bgworker_foreach_matching(sentry_bgworker_t *bgw,
         bool drop_task = false;
         // only consider tasks matching this exec_func
         if (task->exec_func == exec_func) {
-            drop_task = callback(task->task_data, data);
+            drop_task = !callback || callback(task->task_data, data);
         }
 
         sentry_bgworker_task_t *next_task = task->next_task;

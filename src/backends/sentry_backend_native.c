@@ -176,6 +176,7 @@ native_backend_startup(
     // Pass debug logging setting to daemon
     ctx->debug_enabled = options->debug;
     ctx->attach_screenshot = options->attach_screenshot;
+    ctx->cache_keep = options->cache_keep;
 
     // Set up event and breadcrumb paths
     sentry_path_t *run_path = options->run->run_path;
@@ -541,7 +542,7 @@ native_backend_free(sentry_backend_t *backend)
 
 static void
 native_backend_flush_scope(
-    sentry_backend_t *backend, const sentry_options_t *options)
+    sentry_backend_t *backend, const sentry_options_t *UNUSED(options))
 {
     native_backend_state_t *state = (native_backend_state_t *)backend->data;
     if (!state || !state->event_path) {
@@ -657,16 +658,6 @@ native_backend_flush_scope(
                 sentry__path_free(run_path);
             }
         }
-    }
-
-    // Flush external crash report envelope if configured
-    if (options->external_crash_reporter && state->envelope_path) {
-        sentry_envelope_t *envelope = sentry__envelope_new();
-        if (envelope && options->session) {
-            sentry__envelope_add_session(envelope, options->session);
-            sentry__run_write_external(options->run, envelope);
-        }
-        sentry_envelope_free(envelope);
     }
 }
 

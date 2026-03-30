@@ -9,6 +9,7 @@
 #include "sentry_string.h"
 #include "sentry_sync.h"
 #include "sentry_transport.h"
+#include "sentry_uuid.h"
 #include "sentry_value.h"
 #include <assert.h>
 #include <limits.h>
@@ -800,9 +801,16 @@ sentry_envelope_serialize(const sentry_envelope_t *envelope, size_t *size_out)
     return sentry__stringbuilder_into_string(&sb);
 }
 
-MUST_USE int
-sentry_envelope_write_to_path(
-    const sentry_envelope_t *envelope, const sentry_path_t *path)
+/**
+ * Called for each envelope item during serialization. Returns true if the
+ * item was written externally and should be excluded from the envelope.
+ */
+typedef bool (*envelope_item_writer_fn)(
+    const sentry_envelope_item_t *item, void *data);
+
+static int
+envelope_write_to_path(const sentry_envelope_t *envelope,
+    const sentry_path_t *path, envelope_item_writer_fn writer, void *data)
 {
     sentry_filewriter_t *fw = sentry__filewriter_new(path);
     if (!fw) {
@@ -824,6 +832,9 @@ sentry_envelope_write_to_path(
         for (const sentry_envelope_item_t *item
             = envelope->contents.items.first_item;
             item; item = item->next) {
+            if (writer && writer(item, data)) {
+                continue;
+            }
             const char newline = '\n';
             sentry__filewriter_write(fw, &newline, sizeof(char));
 
@@ -841,6 +852,13 @@ sentry_envelope_write_to_path(
     sentry__filewriter_free(fw);
 
     return rv == 0;
+}
+
+MUST_USE int
+sentry_envelope_write_to_path(
+    const sentry_envelope_t *envelope, const sentry_path_t *path)
+{
+    return envelope_write_to_path(envelope, path, NULL, NULL);
 }
 
 int
@@ -1041,6 +1059,106 @@ sentry_envelope_read_from_filew_n(const wchar_t *path, size_t path_len)
     return parse_envelope_from_file(sentry__path_from_wstr_n(path, path_len));
 }
 #endif
+
+static sentry_envelope_t *
+envelope_materialize(const sentry_envelope_t *envelope)
+{
+    if (!envelope || !envelope->is_raw) {
+        return (sentry_envelope_t *)envelope;
+    }
+    return sentry_envelope_deserialize(
+        envelope->contents.raw.payload, envelope->contents.raw.payload_len);
+}
+
+typedef struct {
+    const sentry_path_t *dir;
+    const sentry_uuid_t *event_id;
+    int index;
+} minidump_writer_t;
+
+static bool
+write_minidump(const sentry_envelope_item_t *item, void *data)
+{
+    const char *att_type = sentry_value_as_string(
+        sentry_value_get_by_key(item->headers, "attachment_type"));
+    if (!sentry__string_eq(att_type, "event.minidump") || !item->payload
+        || item->payload_len == 0) {
+        return false;
+    }
+
+    minidump_writer_t *ctx = data;
+
+    char suffix[16];
+    if (ctx->index == 0) {
+        memcpy(suffix, ".dmp", 5);
+    } else {
+        snprintf(suffix, sizeof(suffix), "-%d.dmp", ctx->index);
+    }
+
+    char *filename = sentry__uuid_as_filename(ctx->event_id, suffix);
+    if (!filename) {
+        return false;
+    }
+    sentry_path_t *path = sentry__path_join_str(ctx->dir, filename);
+    sentry_free(filename);
+    if (!path) {
+        return false;
+    }
+
+    int rv = sentry__path_write_buffer(path, item->payload, item->payload_len);
+    if (rv != 0) {
+        SENTRY_WARNF("failed to write minidump to \"%s\"", path->path);
+    } else {
+        ctx->index++;
+    }
+    sentry__path_free(path);
+    return rv == 0;
+}
+
+int
+sentry__envelope_write_to_cache(
+    const sentry_envelope_t *envelope, const sentry_path_t *cache_dir)
+{
+    if (!envelope || !cache_dir) {
+        return 1;
+    }
+
+    sentry_uuid_t event_id = sentry__envelope_get_event_id(envelope);
+    if (sentry_uuid_is_nil(&event_id)) {
+        event_id = sentry_uuid_new_v4();
+    }
+
+    char *filename = sentry__uuid_as_filename(&event_id, ".envelope");
+    if (!filename) {
+        return 1;
+    }
+    sentry_path_t *path = sentry__path_join_str(cache_dir, filename);
+    sentry_free(filename);
+    if (!path) {
+        return 1;
+    }
+
+    // already cached
+    if (sentry__path_is_file(path)) {
+        sentry__path_free(path);
+        return 0;
+    }
+
+    sentry_envelope_t *materialized = envelope_materialize(envelope);
+    if (!materialized) {
+        sentry__path_free(path);
+        return 1;
+    }
+
+    minidump_writer_t ctx = { cache_dir, &event_id, 0 };
+
+    int rv = envelope_write_to_path(materialized, path, write_minidump, &ctx);
+    sentry__path_free(path);
+    if (materialized != envelope) {
+        sentry_envelope_free(materialized);
+    }
+    return rv;
+}
 
 #ifdef SENTRY_UNITTEST
 size_t

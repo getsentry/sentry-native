@@ -5,12 +5,36 @@
 **Features**:
 
 - Add HTTP retry with exponential backoff. ([#1520](https://github.com/getsentry/sentry-native/pull/1520))
+- Store minidump attachments as separate `.dmp` files in the offline cache for direct debugger access. ([#1607](https://github.com/getsentry/sentry-native/pull/1607))
+
+## 0.13.4
+
+**Features**:
+
+- Symbolicate stack frames in crash daemon on Windows. ([#1595](https://github.com/getsentry/sentry-native/pull/1595))
+- Add offline caching support to the new experimental `native` backend. ([#1585](https://github.com/getsentry/sentry-native/pull/1585))
+
+**Fixes**:
+
+- Fix `cache_keep` to only cache envelopes when HTTP send fails, instead of unconditionally on restart. ([#1585](https://github.com/getsentry/sentry-native/pull/1585))
+- Fix external crash reporter to work with the new experimental `native` backend. ([#1589](https://github.com/getsentry/sentry-native/pull/1589))
+- Fix crash daemon premature exit on Windows ([#1600](https://github.com/getsentry/sentry-native/pull/1600))
+- native: Fix incorrect stacktraces on Linux by merging ELF segment mappings from `/proc/pid/maps`. Without merging, `base_of_image` pointed to the code segment instead of the real ELF load base, breaking server-side CFI unwinding. ([#1588](https://github.com/getsentry/sentry-native/pull/1588))
+- native: Fix single-frame stacktraces on x86_64 and `-fomit-frame-pointer` builds by capturing DWARF-based backtraces (via libunwind) in the signal handler. The daemon now prefers these over FP-based walking, which fails when RBP is used as a general-purpose register. ([#1588](https://github.com/getsentry/sentry-native/pull/1588))
+- native: Fix missing thread names on Windows ([#1601](https://github.com/getsentry/sentry-native/pull/1601))
+
+## 0.13.3
+
+**Features**:
+
+- Add `addAttachment` and `clearAttachments` to the NDK `NativeScope` API for managing file and byte attachments via JNI. ([#1584](https://github.com/getsentry/sentry-native/pull/1584))
 
 **Fixes**:
 
 - inproc: only the handling thread cleans up after the crash. ([#1579](https://github.com/getsentry/sentry-native/pull/1579))
 - Propagate transport options (`ca_certs`, `proxy`, `user_agent`) and `handler_path` to the native backend crash daemon. Previously, the daemon did not receive SSL certificate or proxy settings from the parent process, causing SSL errors (curl code 60) when uploading crash reports. The daemon also ignored the user-configured handler path, requiring the `sentry-crash` binary to be placed next to the application executable. ([#1573](https://github.com/getsentry/sentry-native/pull/1573))
 - Add module header pages to MemoryList and fix exception code in the native backend. ([#1576](https://github.com/getsentry/sentry-native/pull/1576))
+- Fix `CHAIN_AT_START` handler strategy crashing on Android when the chained Mono handler resets the signal handler and re-raises. ([#1572](https://github.com/getsentry/sentry-native/pull/1572))
 
 ## 0.13.2
 
@@ -121,7 +145,6 @@
 - Add runtime API to query user consent requirement. ([#1443](https://github.com/getsentry/sentry-native/pull/1443))
 - Add logs flush on `sentry_flush()`. ([#1434](https://github.com/getsentry/sentry-native/pull/1434))
 - Add global attributes API. These are added to all `sentry_log_X` calls. ([#1450](https://github.com/getsentry/sentry-native/pull/1450))
-
 
 ## 0.12.1
 

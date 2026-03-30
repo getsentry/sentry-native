@@ -152,6 +152,14 @@ void sentry__envelope_serialize_into_stringbuilder(
 MUST_USE int sentry_envelope_write_to_path(
     const sentry_envelope_t *envelope, const sentry_path_t *path);
 
+/**
+ * Cache the envelope unless it already exists in the cache directory.
+ * Minidump attachments are extracted as separate `<uuid>.dmp` files
+ * alongside the `<uuid>.envelope` (and excluded from the envelope file).
+ */
+int sentry__envelope_write_to_cache(
+    const sentry_envelope_t *envelope, const sentry_path_t *cache_dir);
+
 // these for now are only needed for tests
 #ifdef SENTRY_UNITTEST
 size_t sentry__envelope_get_item_count(const sentry_envelope_t *envelope);

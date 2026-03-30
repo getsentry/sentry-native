@@ -346,7 +346,7 @@ def test_crashpad_wer_crash(cmake, httpserver, run_args):
     "run_args,build_args",
     [
         # if we crash, we want a dump
-        (["attachment"], {"SENTRY_TRANSPORT_COMPRESSION": "Off"}),
+        (["attachment"], {}),  # SENTRY_TRANSPORT_COMPRESSION=Off (default, cached)
         (["attachment"], {"SENTRY_TRANSPORT_COMPRESSION": "On"}),
         # if we crash and before-send doesn't discard, we want a dump
         pytest.param(
@@ -826,7 +826,11 @@ def test_crashpad_cache_keep(cmake, httpserver, cache_keep):
             envelope = Envelope.deserialize_from(f)
         assert "dsn" in envelope.headers
         assert_meta(envelope, integration="crashpad")
-        assert_minidump(envelope)
+        with pytest.raises(StopIteration):
+            assert_minidump(envelope)
+        dmp_files = list(cache_dir.glob("*.dmp"))
+        assert len(dmp_files) == 1
+        assert cache_files[0].stem == dmp_files[0].stem
 
 
 def test_crashpad_cache_max_size(cmake, httpserver):

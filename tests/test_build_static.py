@@ -2,7 +2,7 @@ import subprocess
 import sys
 import os
 import pytest
-from .conditions import has_breakpad, has_crashpad, has_native
+from .conditions import has_breakpad, has_crashpad, has_native, is_android
 
 
 def test_static_lib(cmake):
@@ -16,7 +16,7 @@ def test_static_lib(cmake):
     )
 
     # on linux we can use `ldd` to check that we don’t link to `libsentry.so`
-    if sys.platform == "linux":
+    if sys.platform == "linux" and not is_android:
         output = subprocess.check_output("ldd sentry_example", cwd=tmp_path, shell=True)
         assert b"libsentry.so" not in output
 

@@ -559,11 +559,12 @@ def assert_failed_proxy_auth_request(stdout):
 
 
 def wait_for_file(path, timeout=10.0, poll_interval=0.1):
+    import glob
     import time
 
     deadline = time.time() + timeout
     while time.time() < deadline:
-        if path.exists():
+        if glob.glob(str(path)):
             return True
         time.sleep(poll_interval)
     return False
