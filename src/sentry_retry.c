@@ -271,9 +271,8 @@ retry_flush_task(void *_retry, void *_state)
 {
     (void)_state;
     sentry_retry_t *retry = _retry;
-    sentry__atomic_compare_swap(
-        &retry->state, SENTRY_RETRY_STARTUP, SENTRY_RETRY_RUNNING);
-    sentry__retry_send(retry, UINT64_MAX, retry->send_cb, retry->send_data);
+    sentry__retry_send(
+        retry, retry->startup_time, retry->send_cb, retry->send_data);
 }
 
 static bool
