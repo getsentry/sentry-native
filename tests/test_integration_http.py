@@ -1096,10 +1096,13 @@ def test_http_retry_multiple_network_error(cmake):
         env=env,
     )
 
+    # first envelope retried and bumped, rest untouched (stop on failure)
     # envelopes end up in cache/ (retry) or *.run/ (dumped on shutdown timeout)
     cached = list(cache_dir.glob("*.envelope"))
     dumped = list(db_dir.glob("*.run/*.envelope"))
     assert len(cached) + len(dumped) == 10
+    assert len([f for f in cached if "-00-" in f.name]) >= 1
+    assert len([f for f in cached if "-01-" in f.name]) == 1
 
 
 @pytest.mark.skipif(not has_files, reason="test needs a local filesystem")
