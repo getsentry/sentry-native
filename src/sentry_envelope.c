@@ -1072,7 +1072,6 @@ write_minidump(const sentry_envelope_item_t *item, void *data)
     } else {
         snprintf(suffix, sizeof(suffix), "-%d.dmp", ctx->index);
     }
-    ctx->index++;
 
     char *filename = sentry__uuid_as_filename(ctx->event_id, suffix);
     if (!filename) {
@@ -1087,6 +1086,8 @@ write_minidump(const sentry_envelope_item_t *item, void *data)
     int rv = sentry__path_write_buffer(path, item->payload, item->payload_len);
     if (rv != 0) {
         SENTRY_WARNF("failed to write minidump to \"%s\"", path->path);
+    } else {
+        ctx->index++;
     }
     sentry__path_free(path);
     return rv == 0;
