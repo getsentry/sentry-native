@@ -328,6 +328,7 @@ batcher_thread_func(void *data)
             (long)SENTRY_BATCHER_THREAD_RUNNING)) {
         SENTRY_DEBUG(
             "batcher thread detected shutdown during startup, exiting");
+        sentry__batcher_release(batcher);
         return 0;
     }
 
@@ -368,6 +369,7 @@ batcher_thread_func(void *data)
     }
 
     SENTRY_DEBUG("batching thread exiting");
+    sentry__batcher_release(batcher);
     return 0;
 }
 
@@ -400,14 +402,25 @@ start_thread(sentry_batcher_t *batcher)
         return;
     }
 
+    // The spawned thread receives a raw pointer — keep the batcher alive.
+    sentry__atomic_fetch_and_add(&batcher->refcount, 1);
+
     int spawn_result = sentry__thread_spawn(
         &batcher->batching_thread, batcher_thread_func, batcher);
 
     if (spawn_result == 1) {
         SENTRY_ERROR("Failed to start batching thread");
-        sentry__atomic_store(
-            &batcher->thread_state, (long)SENTRY_BATCHER_THREAD_IDLE);
+        sentry__atomic_fetch_and_add(&batcher->refcount, -1);
+        // CAS: if shutdown already set SHUT_DOWN, leave it.
+        sentry__atomic_compare_swap(&batcher->thread_state,
+            (long)SENTRY_BATCHER_THREAD_STARTING,
+            (long)SENTRY_BATCHER_THREAD_IDLE);
+        sentry__atomic_store(&batcher->thread_spawned, -1);
+        return;
     }
+
+    // Handle is now valid — shutdown may join after seeing this.
+    sentry__atomic_store(&batcher->thread_spawned, 1);
 }
 
 void
@@ -428,11 +441,19 @@ sentry__batcher_shutdown(sentry_batcher_t *batcher, uint64_t timeout)
         return;
     }
 
+    // Wait for start_thread() to finish storing the thread handle
+    // (or to report spawn failure). This is a very short spin.
+    while (sentry__atomic_fetch(&batcher->thread_spawned) == 0) {
+        sentry__cpu_relax();
+    }
+
     // Thread was started (either STARTING or RUNNING), signal it to stop
     sentry__waitable_flag_set(&batcher->request_flush);
 
-    // Always join the thread to avoid leaks
-    sentry__thread_join(batcher->batching_thread);
+    // Join only if the thread was actually spawned
+    if (sentry__atomic_fetch(&batcher->thread_spawned) == 1) {
+        sentry__thread_join(batcher->batching_thread);
+    }
 
     // Perform final flush to ensure any remaining items are sent
     sentry__batcher_flush(batcher, false);
