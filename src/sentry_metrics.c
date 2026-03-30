@@ -92,7 +92,11 @@ record_metric(sentry_metric_type_t type, const char *name, sentry_value_t value,
             return SENTRY_METRICS_RESULT_DISCARD;
         }
         sentry_batcher_t *batcher = sentry__batcher_acquire(&g_batcher);
-        if (!batcher || !sentry__batcher_enqueue(batcher, metric)) {
+        if (!batcher) {
+            sentry_value_decref(metric);
+            return SENTRY_METRICS_RESULT_FAILED;
+        }
+        if (!sentry__batcher_enqueue(batcher, metric)) {
             sentry__batcher_release(batcher);
             sentry_value_decref(metric);
             return SENTRY_METRICS_RESULT_FAILED;
@@ -138,7 +142,7 @@ sentry__metrics_startup(const sentry_options_t *options)
         return;
     }
 
-    sentry__batcher_startup(batcher, options);
+    sentry__batcher_configure(batcher, options);
     sentry_batcher_t *old = sentry__batcher_swap(&g_batcher, batcher);
 
     if (old) {

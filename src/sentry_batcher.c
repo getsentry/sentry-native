@@ -240,11 +240,15 @@ sentry__batcher_flush(sentry_batcher_t *batcher, bool crash_safe)
     return true;
 }
 
+static void start_thread(sentry_batcher_t *batcher);
+
 #define ENQUEUE_MAX_RETRIES 2
 
 bool
 sentry__batcher_enqueue(sentry_batcher_t *batcher, sentry_value_t item)
 {
+    start_thread(batcher);
+
     for (int attempt = 0; attempt <= ENQUEUE_MAX_RETRIES; attempt++) {
         // retrieve the active buffer
         const long active_idx = sentry__atomic_fetch(&batcher->active_idx);
@@ -368,7 +372,7 @@ batcher_thread_func(void *data)
 }
 
 void
-sentry__batcher_startup(
+sentry__batcher_configure(
     sentry_batcher_t *batcher, const sentry_options_t *options)
 {
     // dsn is incref'd because release() decref's it and may outlive options.
@@ -379,19 +383,28 @@ sentry__batcher_startup(
     batcher->run = options->run;
     batcher->user_consent
         = options->require_user_consent ? (long *)&options->user_consent : NULL;
+}
 
-    // Mark thread as starting before actually spawning so thread can transition
-    // to RUNNING. This prevents shutdown from thinking the thread was never
-    // started if it races with the thread's initialization.
-    sentry__atomic_store(
-        &batcher->thread_state, (long)SENTRY_BATCHER_THREAD_STARTING);
+static void
+start_thread(sentry_batcher_t *batcher)
+{
+    // Fast path: if the thread is already started, avoid the heavier CAS.
+    if (sentry__atomic_fetch(&batcher->thread_state)
+        != SENTRY_BATCHER_THREAD_STOPPED) {
+        return;
+    }
+    // CAS: only one caller transitions STOPPED → STARTING and spawns.
+    if (!sentry__atomic_compare_swap(&batcher->thread_state,
+            (long)SENTRY_BATCHER_THREAD_STOPPED,
+            (long)SENTRY_BATCHER_THREAD_STARTING)) {
+        return;
+    }
 
     int spawn_result = sentry__thread_spawn(
         &batcher->batching_thread, batcher_thread_func, batcher);
 
     if (spawn_result == 1) {
         SENTRY_ERROR("Failed to start batching thread");
-        // Failed to spawn, reset to STOPPED
         sentry__atomic_store(
             &batcher->thread_state, (long)SENTRY_BATCHER_THREAD_STOPPED);
     }

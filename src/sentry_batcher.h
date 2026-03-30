@@ -86,8 +86,13 @@ sentry_batcher_t *sentry__batcher_swap(
 
 bool sentry__batcher_flush(sentry_batcher_t *batcher, bool crash_safe);
 bool sentry__batcher_enqueue(sentry_batcher_t *batcher, sentry_value_t item);
-void sentry__batcher_startup(
+/**
+ * Stores the options refs (DSN, transport, run, user_consent) needed for
+ * flushing, but does NOT spawn the batching thread. Call this at init time.
+ */
+void sentry__batcher_configure(
     sentry_batcher_t *batcher, const sentry_options_t *options);
+
 void sentry__batcher_shutdown(sentry_batcher_t *batcher, uint64_t timeout);
 void sentry__batcher_flush_crash_safe(sentry_batcher_t *batcher);
 void sentry__batcher_force_flush_begin(sentry_batcher_t *batcher);

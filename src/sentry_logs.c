@@ -372,7 +372,11 @@ send_log(sentry_level_t level, sentry_value_t log)
         return SENTRY_LOG_RETURN_DISCARD;
     }
     sentry_batcher_t *batcher = sentry__batcher_acquire(&g_batcher);
-    if (!batcher || !sentry__batcher_enqueue(batcher, log)) {
+    if (!batcher) {
+        sentry_value_decref(log);
+        return SENTRY_LOG_RETURN_FAILED;
+    }
+    if (!sentry__batcher_enqueue(batcher, log)) {
         sentry__batcher_release(batcher);
         sentry_value_decref(log);
         return SENTRY_LOG_RETURN_FAILED;
@@ -493,7 +497,7 @@ sentry__logs_startup(const sentry_options_t *options)
         return;
     }
 
-    sentry__batcher_startup(batcher, options);
+    sentry__batcher_configure(batcher, options);
     sentry_batcher_t *old = sentry__batcher_swap(&g_batcher, batcher);
 
     if (old) {
