@@ -41,7 +41,6 @@ SENTRY_TEST(metrics_count)
 
     SENTRY_TEST_OPTIONS_NEW(options);
     sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
-    sentry_options_set_enable_metrics(options, true);
 
     sentry_transport_t *transport
         = sentry_transport_new(validate_metrics_envelope);
@@ -68,7 +67,6 @@ SENTRY_TEST(metrics_gauge)
 
     SENTRY_TEST_OPTIONS_NEW(options);
     sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
-    sentry_options_set_enable_metrics(options, true);
 
     sentry_transport_t *transport
         = sentry_transport_new(validate_metrics_envelope);
@@ -95,7 +93,6 @@ SENTRY_TEST(metrics_distribution)
 
     SENTRY_TEST_OPTIONS_NEW(options);
     sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
-    sentry_options_set_enable_metrics(options, true);
 
     sentry_transport_t *transport
         = sentry_transport_new(validate_metrics_envelope);
@@ -123,7 +120,6 @@ SENTRY_TEST(metrics_batch)
 
     SENTRY_TEST_OPTIONS_NEW(options);
     sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
-    sentry_options_set_enable_metrics(options, true);
 
     sentry_transport_t *transport
         = sentry_transport_new(validate_metrics_envelope);
@@ -161,7 +157,6 @@ SENTRY_TEST(metrics_with_attributes)
 
     SENTRY_TEST_OPTIONS_NEW(options);
     sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
-    sentry_options_set_enable_metrics(options, true);
 
     sentry_transport_t *transport
         = sentry_transport_new(validate_metrics_envelope);
@@ -201,7 +196,6 @@ SENTRY_TEST(metrics_before_send_discard)
 
     SENTRY_TEST_OPTIONS_NEW(options);
     sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
-    sentry_options_set_enable_metrics(options, true);
     sentry_options_set_before_send_metric(
         options, before_send_metric_discard, NULL);
 
@@ -246,7 +240,6 @@ SENTRY_TEST(metrics_before_send_modify)
 
     SENTRY_TEST_OPTIONS_NEW(options);
     sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
-    sentry_options_set_enable_metrics(options, true);
     sentry_options_set_before_send_metric(
         options, before_send_metric_modify, NULL);
 
@@ -275,7 +268,7 @@ SENTRY_TEST(metrics_disabled)
 
     SENTRY_TEST_OPTIONS_NEW(options);
     sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
-    // Metrics are disabled by default
+    sentry_options_set_enable_metrics(options, false);
 
     sentry_transport_t *transport
         = sentry_transport_new(validate_metrics_envelope);
@@ -284,7 +277,7 @@ SENTRY_TEST(metrics_disabled)
 
     sentry_init(options);
 
-    // These should return DISABLED since metrics are not enabled
+    // These should return DISABLED since metrics were explicitly disabled
     TEST_CHECK_INT_EQUAL(
         sentry_metrics_count("test.counter", 1, sentry_value_new_null()),
         SENTRY_METRICS_RESULT_DISABLED);
@@ -297,7 +290,7 @@ SENTRY_TEST(metrics_disabled)
 
     sentry_close();
 
-    // Transport should not be called since metrics are disabled
+    // Transport should not be called since metrics were explicitly disabled
     TEST_CHECK(!validation_data.has_validation_error);
     TEST_CHECK_INT_EQUAL(validation_data.called_count, 0);
 }
@@ -308,7 +301,6 @@ SENTRY_TEST(metrics_force_flush)
 
     SENTRY_TEST_OPTIONS_NEW(options);
     sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
-    sentry_options_set_enable_metrics(options, true);
 
     sentry_transport_t *transport
         = sentry_transport_new(validate_metrics_envelope);
@@ -362,7 +354,6 @@ SENTRY_TEST(metrics_default_attributes)
 
     SENTRY_TEST_OPTIONS_NEW(options);
     sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
-    sentry_options_set_enable_metrics(options, true);
     sentry_options_set_environment(options, "test-env");
     sentry_options_set_release(options, "1.0.0");
     sentry_options_set_before_send_metric(options, capture_metric, NULL);
@@ -418,7 +409,6 @@ SENTRY_TEST(metrics_reinit)
 {
     SENTRY_TEST_OPTIONS_NEW(options);
     sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
-    sentry_options_set_enable_metrics(options, true);
 
     sentry_init(options);
     sentry__metrics_wait_for_thread_startup();
@@ -461,7 +451,6 @@ SENTRY_TEST(metrics_reinit_stress)
     for (int i = 0; i < 5; i++) {
         SENTRY_TEST_OPTIONS_NEW(options);
         sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
-        sentry_options_set_enable_metrics(options, true);
         sentry_init(options);
 
         if (i == 0) {
