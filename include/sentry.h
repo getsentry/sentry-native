@@ -2283,7 +2283,7 @@ SENTRY_EXPERIMENTAL_API int sentry_options_get_enable_logs(
  *
  * Only applicable for HTTP transports.
  *
- * Enabled by default.
+ * Disabled by default.
  */
 SENTRY_EXPERIMENTAL_API void sentry_options_set_http_retry(
     sentry_options_t *opts, int enabled);

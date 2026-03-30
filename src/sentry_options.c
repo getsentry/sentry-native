@@ -82,7 +82,7 @@ sentry_options_new(void)
     opts->crash_reporting_mode
         = SENTRY_CRASH_REPORTING_MODE_NATIVE_WITH_MINIDUMP; // Default: best of
                                                             // both worlds
-    opts->http_retry = true;
+    opts->http_retry = false;
 
     return opts;
 }
