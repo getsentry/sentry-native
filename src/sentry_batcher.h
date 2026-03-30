@@ -17,12 +17,15 @@
  * Thread lifecycle states for the batching thread.
  */
 typedef enum {
-    /** Thread is not running (initial state or after shutdown) */
-    SENTRY_BATCHER_THREAD_STOPPED = 0,
+    /** Thread has not been started yet, or a spawn attempt failed (retryable)
+     */
+    SENTRY_BATCHER_THREAD_IDLE = 0,
     /** Thread is starting up but not yet ready */
     SENTRY_BATCHER_THREAD_STARTING = 1,
     /** Thread is running and processing items */
     SENTRY_BATCHER_THREAD_RUNNING = 2,
+    /** Terminal state after shutdown — no restart allowed */
+    SENTRY_BATCHER_THREAD_SHUT_DOWN = 3,
 } sentry_batcher_thread_state_t;
 
 typedef struct {

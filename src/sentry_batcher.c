@@ -30,7 +30,7 @@ sentry__batcher_new(sentry_batch_func_t batch_func)
     memset(batcher, 0, sizeof(sentry_batcher_t));
     batcher->refcount = 1;
     batcher->batch_func = batch_func;
-    batcher->thread_state = (long)SENTRY_BATCHER_THREAD_STOPPED;
+    batcher->thread_state = (long)SENTRY_BATCHER_THREAD_IDLE;
     sentry__waitable_flag_init(&batcher->request_flush);
     sentry__thread_init(&batcher->batching_thread);
     return batcher;
@@ -320,9 +320,9 @@ batcher_thread_func(void *data)
 
     // Transition from STARTING to RUNNING using compare-and-swap
     // CAS ensures atomic state verification: only succeeds if state is STARTING
-    // If CAS fails, shutdown already set state to STOPPED, so exit immediately
-    // Uses sequential consistency to ensure all thread initialization is
-    // visible
+    // If CAS fails, shutdown already set state to SHUT_DOWN, so exit
+    // immediately Uses sequential consistency to ensure all thread
+    // initialization is visible
     if (!sentry__atomic_compare_swap(&batcher->thread_state,
             (long)SENTRY_BATCHER_THREAD_STARTING,
             (long)SENTRY_BATCHER_THREAD_RUNNING)) {
@@ -390,12 +390,12 @@ start_thread(sentry_batcher_t *batcher)
 {
     // Fast path: if the thread is already started, avoid the heavier CAS.
     if (sentry__atomic_fetch(&batcher->thread_state)
-        != SENTRY_BATCHER_THREAD_STOPPED) {
+        != SENTRY_BATCHER_THREAD_IDLE) {
         return;
     }
-    // CAS: only one caller transitions STOPPED → STARTING and spawns.
+    // CAS: only one caller transitions IDLE → STARTING and spawns.
     if (!sentry__atomic_compare_swap(&batcher->thread_state,
-            (long)SENTRY_BATCHER_THREAD_STOPPED,
+            (long)SENTRY_BATCHER_THREAD_IDLE,
             (long)SENTRY_BATCHER_THREAD_STARTING)) {
         return;
     }
@@ -406,7 +406,7 @@ start_thread(sentry_batcher_t *batcher)
     if (spawn_result == 1) {
         SENTRY_ERROR("Failed to start batching thread");
         sentry__atomic_store(
-            &batcher->thread_state, (long)SENTRY_BATCHER_THREAD_STOPPED);
+            &batcher->thread_state, (long)SENTRY_BATCHER_THREAD_IDLE);
     }
 }
 
@@ -415,15 +415,15 @@ sentry__batcher_shutdown(sentry_batcher_t *batcher, uint64_t timeout)
 {
     (void)timeout;
 
-    // Atomically transition to STOPPED and get the previous state
-    // This handles the race where thread might be in STARTING state:
+    // Atomically transition to SHUT_DOWN and get the previous state.
+    // This is a terminal state that prevents start_thread from respawning.
     // - If thread's CAS hasn't run yet: CAS will fail, thread exits cleanly
     // - If thread already transitioned to RUNNING: normal shutdown path
     const long old_state = sentry__atomic_store(
-        &batcher->thread_state, (long)SENTRY_BATCHER_THREAD_STOPPED);
+        &batcher->thread_state, (long)SENTRY_BATCHER_THREAD_SHUT_DOWN);
 
     // If thread was never started, nothing to do
-    if (old_state == SENTRY_BATCHER_THREAD_STOPPED) {
+    if (old_state == SENTRY_BATCHER_THREAD_IDLE) {
         SENTRY_DEBUG("batcher thread was not started, skipping shutdown");
         return;
     }
@@ -441,16 +441,17 @@ sentry__batcher_shutdown(sentry_batcher_t *batcher, uint64_t timeout)
 void
 sentry__batcher_flush_crash_safe(sentry_batcher_t *batcher)
 {
-    // Check if batcher is initialized
+    // Check if batcher thread was ever started
     const long state = sentry__atomic_fetch(&batcher->thread_state);
-    if (state == SENTRY_BATCHER_THREAD_STOPPED) {
+    if (state == SENTRY_BATCHER_THREAD_IDLE
+        || state == SENTRY_BATCHER_THREAD_SHUT_DOWN) {
         return;
     }
 
     // Signal the thread to stop but don't wait, since the crash-safe flush
     // will spin-lock on flushing anyway.
     sentry__atomic_store(
-        &batcher->thread_state, (long)SENTRY_BATCHER_THREAD_STOPPED);
+        &batcher->thread_state, (long)SENTRY_BATCHER_THREAD_SHUT_DOWN);
 
     // Perform crash-safe flush directly to disk to avoid transport queuing
     // This is safe because we're in a crash scenario and the main thread
