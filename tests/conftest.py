@@ -55,7 +55,7 @@ def _get_clock_offset():
         device_time = datetime.fromtimestamp(int(result.stdout.strip()), tz=UTC)
         host_time = before + (after - before) / 2
         return device_time - host_time
-    except (ValueError, OSError):
+    except (KeyError, ValueError, OSError):
         return timedelta(0)
 
 
