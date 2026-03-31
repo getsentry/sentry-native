@@ -59,9 +59,16 @@ def _get_clock_offset():
 _clock_offset = _get_clock_offset()
 
 
+def _now():
+    return datetime.now(UTC) + _clock_offset
+
+
+tests.now = _now
+
+
 @pytest.fixture(autouse=True)
 def _record_test_start():
-    tests.test_start = datetime.now(UTC) + _clock_offset
+    tests.test_start = tests.now()
 
 
 def pytest_addoption(parser):

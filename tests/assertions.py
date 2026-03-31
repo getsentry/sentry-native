@@ -364,7 +364,7 @@ def assert_minidump(envelope):
 def assert_timestamp(ts):
     dt = datetime.fromisoformat(ts)
     # 1s tolerance for `date +%s` truncation in device clock offset measurement
-    assert dt <= datetime.now(UTC) + timedelta(seconds=1), "timestamp is in the future"
+    assert dt <= tests.now() + timedelta(seconds=1), "timestamp is in the future"
     assert dt >= tests.test_start, "timestamp is in the past"
 
 
