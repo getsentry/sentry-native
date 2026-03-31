@@ -38,19 +38,11 @@
  */
 #ifdef SENTRY_PLATFORM_UNIX
 #    include <unistd.h>
-#    ifdef SENTRY_PLATFORM_ANDROID
-#        include <android/log.h>
-#        define SENTRY_SIGNAL_SAFE_LOG(msg)                                    \
-            do {                                                               \
-                __android_log_write(ANDROID_LOG_ERROR, "sentry", msg);         \
-            } while (0)
-#    else
-#        define SENTRY_SIGNAL_SAFE_LOG(msg)                                    \
-            do {                                                               \
-                static const char _msg[] = "[sentry] " msg "\n";               \
-                (void)!write(STDERR_FILENO, _msg, sizeof(_msg) - 1);           \
-            } while (0)
-#    endif
+#    define SENTRY_SIGNAL_SAFE_LOG(msg)                                        \
+        do {                                                                   \
+            static const char _msg[] = "[sentry] " msg "\n";                   \
+            (void)!write(STDERR_FILENO, _msg, sizeof(_msg) - 1);               \
+        } while (0)
 #elif defined(SENTRY_PLATFORM_WINDOWS)
 #    define SENTRY_SIGNAL_SAFE_LOG(msg)                                        \
         do {                                                                   \
