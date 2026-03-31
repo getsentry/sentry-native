@@ -6,6 +6,10 @@
 
 - Store minidump attachments as separate `.dmp` files in the offline cache for direct debugger access. ([#1607](https://github.com/getsentry/sentry-native/pull/1607))
 
+**Fixes**:
+
+- native: Fix crash daemon failing to detect crashes during OOM on Windows. ([#1603](https://github.com/getsentry/sentry-native/issues/1603))
+
 ## 0.13.4
 
 **Features**:

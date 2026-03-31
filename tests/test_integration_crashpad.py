@@ -16,7 +16,7 @@ from . import (
     is_logs_envelope,
     is_feedback_envelope,
 )
-from .conditions import has_crashpad
+from .conditions import has_crashpad, has_oom
 from .proxy import (
     setup_proxy_env_vars,
     cleanup_proxy_env_vars,
@@ -501,6 +501,38 @@ def test_crashpad_dumping_stack_overflow(cmake, httpserver, build_args):
     assert_crashpad_upload(
         multipart, expect_attachment=True, expect_view_hierarchy=True
     )
+
+
+@pytest.mark.skipif(not has_oom, reason="OOM test unreliable in this environment")
+def test_crashpad_oom(cmake, httpserver):
+    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "crashpad"})
+
+    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
+    httpserver.expect_oneshot_request("/api/123456/minidump/").respond_with_data("OK")
+    httpserver.expect_request("/api/123456/envelope/").respond_with_data("OK")
+
+    with httpserver.wait(timeout=10) as waiting:
+        run(
+            tmp_path,
+            "sentry_example",
+            ["log", "start-session", "oom"],
+            expect_failure=True,
+            env=env,
+        )
+
+    assert waiting.result
+
+    time.sleep(1)
+
+    run(tmp_path, "sentry_example", ["log", "no-setup"], env=env)
+
+    assert len(httpserver.log) == 2
+    session_request, multipart = split_log_request_cond(
+        httpserver.log, is_session_envelope
+    )
+    envelope = Envelope.deserialize(session_request.get_data())
+    assert_session(envelope, {"status": "crashed", "errors": 1})
+    assert_crashpad_upload(multipart)
 
 
 @pytest.mark.skipif(

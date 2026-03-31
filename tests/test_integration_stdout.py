@@ -22,7 +22,7 @@ from .assertions import (
     assert_breakpad_crash,
     assert_exception,
 )
-from .conditions import has_breakpad, has_files
+from .conditions import has_breakpad, has_files, has_oom
 
 
 def test_capture_stdout(cmake):
@@ -270,6 +270,19 @@ def test_inproc_stack_overflow_stdout(cmake, build_args):
     assert_inproc_crash(envelope)
 
 
+@pytest.mark.skipif(not has_oom, reason="OOM test unreliable in this environment")
+def test_inproc_oom_stdout(cmake):
+    tmp_path, output = run_stdout_for("inproc", cmake, ["log", "attachment", "oom"])
+
+    envelope = Envelope.deserialize(output)
+
+    assert_crash_timestamp(has_files, tmp_path)
+    assert_meta(envelope, integration="inproc")
+    assert_breadcrumb(envelope)
+    assert_attachment(envelope)
+    assert_inproc_crash(envelope)
+
+
 @pytest.mark.skipif(not has_breakpad, reason="test needs breakpad backend")
 def test_breakpad_crash_stdout(cmake):
     tmp_path, output = run_crash_stdout_for("breakpad", cmake, [])
@@ -352,6 +365,21 @@ def test_breakpad_stack_overflow_stdout(cmake, build_args):
     tmp_path, output = run_stdout_for(
         "breakpad", cmake, ["attachment", "stack-overflow"], build_args
     )
+
+    envelope = Envelope.deserialize(output)
+
+    assert_crash_timestamp(has_files, tmp_path)
+    assert_meta(envelope, integration="breakpad")
+    assert_breadcrumb(envelope)
+    assert_attachment(envelope)
+    assert_minidump(envelope)
+    assert_breakpad_crash(envelope)
+
+
+@pytest.mark.skipif(not has_oom, reason="OOM test unreliable in this environment")
+@pytest.mark.skipif(not has_breakpad, reason="test needs breakpad backend")
+def test_breakpad_oom_stdout(cmake):
+    tmp_path, output = run_stdout_for("breakpad", cmake, ["attachment", "oom"])
 
     envelope = Envelope.deserialize(output)
 
