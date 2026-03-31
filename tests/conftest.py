@@ -56,18 +56,10 @@ def _get_clock_offset():
     return device_time - host_time
 
 
-_clock_offset = _get_clock_offset()
-
-
-def _now():
-    return datetime.now(UTC) + _clock_offset
-
-
-tests.now = _now
-
-
 @pytest.fixture(autouse=True)
 def _record_test_start():
+    offset = _get_clock_offset()
+    tests.now = lambda: datetime.now(UTC) + offset
     tests.test_start = tests.now()
 
 
