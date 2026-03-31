@@ -70,6 +70,7 @@ jobs:
         run: |
           gh workflow run native-compat-check.yml \
             --repo ${{ matrix.repo }} \
+            --ref main \
             -f native_ref=${{ github.event.pull_request.head.sha || github.sha }} \
             -f callback_repo=${{ github.repository }} \
             -f callback_sha=${{ github.event.pull_request.head.sha || github.sha }} \
