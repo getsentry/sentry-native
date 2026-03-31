@@ -9,6 +9,7 @@ from pathlib import Path
 import pytest
 
 from . import adb
+from .conditions import has_sccache
 from .build_config import (
     get_android_config,
     get_platform_cmake_args,
@@ -130,7 +131,7 @@ def cmake_configure(cwd, options, cflags=None):
     __tracebackhide__ = True
 
     options = dict(options)
-    if os.environ.get("USE_SCCACHE"):
+    if has_sccache:
         options.update(
             {
                 "CMAKE_C_COMPILER_LAUNCHER": "sccache",
@@ -234,7 +235,7 @@ def cmake_build(cwd, targets, options):
             "cmake",
         ]
     env = dict(os.environ)
-    if env.get("USE_SCCACHE"):
+    if has_sccache:
         # Each pytest run builds in a new temp directory. Paths are normalized
         # relative to the build dir to allow sccache hits across runs.
         env.setdefault("SCCACHE_BASEDIRS", str(cwd))

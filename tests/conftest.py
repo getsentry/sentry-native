@@ -1,6 +1,5 @@
 import json
 import os
-import shutil
 import subprocess
 import pytest
 import re
@@ -9,7 +8,7 @@ import sys
 from datetime import datetime, timedelta, UTC
 from . import adb, run
 from .cmake import CMake
-from .conditions import is_android
+from .conditions import has_sccache, is_android
 import tests
 
 LABEL = "label"
@@ -166,9 +165,6 @@ def pytest_sessionfinish(session, exitstatus):
         with open(json_path, "w") as f:
             benchmarks = [_get_benchmark(name, "\n") for name in gbenchmarks.keys()]
             json.dump(benchmarks, f, indent=2)
-
-
-has_sccache = os.environ.get("USE_SCCACHE") and shutil.which("sccache")
 
 
 def pytest_sessionstart(session):
