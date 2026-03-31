@@ -108,10 +108,13 @@
 #    include <windows.h>
 #    define sleep_s(SECONDS) Sleep((SECONDS) * 1000)
 #    define sleep_ms(MILLISECONDS) Sleep(MILLISECONDS)
+#    define sentry__thread_yield() SwitchToThread()
 #else
+#    include <sched.h>
 #    include <unistd.h>
 #    define sleep_s(SECONDS) sleep(SECONDS)
 #    define sleep_ms(MILLISECONDS) usleep((MILLISECONDS) * 1000)
+#    define sentry__thread_yield() sched_yield()
 #endif
 
 #endif // SENTRY_TEST_SUPPORT_H_INCLUDED
