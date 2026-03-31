@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+**Features**:
+
+- Enable metrics by default; metrics are now opt-out via `sentry_options_set_enable_metrics(options, false)`. ([#1609](https://github.com/getsentry/sentry-native/pull/1609))
+
 **Fixes**:
 
 - Fix external crash reporter to work with the new experimental `native` backend. ([#1589](https://github.com/getsentry/sentry-native/pull/1589))
