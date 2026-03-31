@@ -1,5 +1,6 @@
 import json
 import os
+import subprocess
 import pytest
 import re
 import statistics
@@ -139,3 +140,18 @@ def pytest_sessionfinish(session, exitstatus):
         with open(json_path, "w") as f:
             benchmarks = [_get_benchmark(name, "\n") for name in gbenchmarks.keys()]
             json.dump(benchmarks, f, indent=2)
+
+
+def pytest_sessionstart(session):
+    if os.environ.get("USE_SCCACHE"):
+        subprocess.run(["sccache", "--zero-stats"], capture_output=True)
+
+
+def pytest_terminal_summary(terminalreporter):
+    if os.environ.get("USE_SCCACHE"):
+        result = subprocess.run(
+            ["sccache", "--show-stats"], capture_output=True, text=True
+        )
+        if result.stdout:
+            terminalreporter.section("sccache stats")
+            terminalreporter.write(result.stdout)
