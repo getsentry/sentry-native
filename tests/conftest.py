@@ -1,5 +1,6 @@
 import json
 import os
+import shutil
 import subprocess
 import pytest
 import re
@@ -167,13 +168,16 @@ def pytest_sessionfinish(session, exitstatus):
             json.dump(benchmarks, f, indent=2)
 
 
+has_sccache = os.environ.get("USE_SCCACHE") and shutil.which("sccache")
+
+
 def pytest_sessionstart(session):
-    if os.environ.get("USE_SCCACHE"):
+    if has_sccache:
         subprocess.run(["sccache", "--zero-stats"], capture_output=True)
 
 
 def pytest_terminal_summary(terminalreporter):
-    if os.environ.get("USE_SCCACHE"):
+    if has_sccache:
         result = subprocess.run(
             ["sccache", "--show-stats"], capture_output=True, text=True
         )
