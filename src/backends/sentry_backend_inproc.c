@@ -1667,7 +1667,8 @@ process_ucontext(const sentry_ucontext_t *uctx)
     // If signal handlers were installed via sentry__backend_preload() but
     // sentry_init() hasn't been called yet (no handler thread), skip crash
     // processing and fall through to the previous handler.
-    if (!sentry__atomic_fetch(&g_handler_thread_ready)) {
+    if (sentry__atomic_fetch(&g_preloaded)
+        && !sentry__atomic_fetch(&g_handler_thread_ready)) {
         SENTRY_SIGNAL_SAFE_LOG(
             "handler thread not ready, falling through to previous handler");
         sentry__leave_signal_handler();
