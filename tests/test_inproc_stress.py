@@ -351,7 +351,7 @@ def test_inproc_handler_abort_crash(cmake):
 
 
 @pytest.mark.skipif(
-    sys.platform != "darwin" or is_android,
+    sys.platform != "darwin" or bool(is_android),
     reason="Stack trace tests are macOS-only",
 )
 @pytest.mark.parametrize(
