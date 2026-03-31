@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1774985269076,
+  "lastUpdate": 1774985272097,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -46192,6 +46192,66 @@ window.BENCHMARK_DATA = {
             "value": 16.016200000024128,
             "unit": "ms",
             "extra": "Min 15.596ms\nMax 16.739ms\nMean 16.011ms\nStdDev 0.457ms\nMedian 16.016ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "jpnurmi@gmail.com",
+            "name": "J-P Nurmi",
+            "username": "jpnurmi"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "72e1d425f50e166bf4db1e1dca28fdae8e47c184",
+          "message": "feat(transport): add HTTP retry with exponential backoff (#1520)\n\nCo-authored-by: Claude Opus 4.6 <noreply@anthropic.com>\nCo-authored-by: Claude Opus 4.6 (1M context) <noreply@anthropic.com>\nCo-authored-by: Cursor Agent <cursoragent@cursor.com>",
+          "timestamp": "2026-03-31T21:23:43+02:00",
+          "tree_id": "a01bf9056ea73a8a3f237358456859def64f6f77",
+          "url": "https://github.com/getsentry/sentry-native/commit/72e1d425f50e166bf4db1e1dca28fdae8e47c184"
+        },
+        "date": 1774985267666,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 9.732800000165298,
+            "unit": "ms",
+            "extra": "Min 9.485ms\nMax 15.961ms\nMean 11.024ms\nStdDev 2.775ms\nMedian 9.733ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 10.18740000017715,
+            "unit": "ms",
+            "extra": "Min 9.880ms\nMax 10.844ms\nMean 10.262ms\nStdDev 0.387ms\nMedian 10.187ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 24.869800000033138,
+            "unit": "ms",
+            "extra": "Min 24.373ms\nMax 26.083ms\nMean 25.138ms\nStdDev 0.740ms\nMedian 24.870ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.1658000001043547,
+            "unit": "ms",
+            "extra": "Min 0.154ms\nMax 0.181ms\nMean 0.166ms\nStdDev 0.010ms\nMedian 0.166ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.42020000000775326,
+            "unit": "ms",
+            "extra": "Min 0.389ms\nMax 0.534ms\nMean 0.447ms\nStdDev 0.067ms\nMedian 0.420ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 13.967099999717902,
+            "unit": "ms",
+            "extra": "Min 13.138ms\nMax 15.415ms\nMean 14.185ms\nStdDev 0.839ms\nMedian 13.967ms"
           }
         ]
       }
