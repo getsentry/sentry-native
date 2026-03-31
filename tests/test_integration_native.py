@@ -101,25 +101,15 @@ def test_native_oom(cmake, httpserver):
 
     httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data("OK")
 
-    run_crash(
-        tmp_path,
-        "sentry_example",
-        ["log", "stdout", "oom"],
-        env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
-    )
-
-    assert wait_for_file(tmp_path / ".sentry-native" / "*.run" / "*.envelope")
-
     with httpserver.wait(timeout=10) as waiting:
-        run(
+        run_crash(
             tmp_path,
             "sentry_example",
-            ["log", "no-setup"],
+            ["log", "stdout", "oom"],
             env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
         )
 
     assert waiting.result
-    assert len(httpserver.log) >= 1
 
 
 def test_native_capture_minidump_generated(cmake, httpserver):
