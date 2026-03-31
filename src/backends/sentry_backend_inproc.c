@@ -200,7 +200,9 @@ static volatile long g_handler_has_work = 0;
 #define CRASH_STATE_DONE 2
 static volatile long g_crash_handling_state = CRASH_STATE_IDLE;
 
+#ifdef SENTRY_PLATFORM_UNIX
 static volatile long g_preloaded = 0;
+#endif
 
 // trigger/schedule primitives that block the other side until this side is done
 #ifdef SENTRY_PLATFORM_UNIX
