@@ -8,6 +8,8 @@ from dataclasses import dataclass
 from datetime import datetime, UTC
 from pathlib import Path
 
+import tests
+
 import msgpack
 
 from . import SENTRY_VERSION
@@ -360,8 +362,8 @@ def assert_minidump(envelope):
 
 
 def assert_timestamp(ts):
-    elapsed_time = datetime.now(UTC) - datetime.fromisoformat(ts)
-    assert elapsed_time.total_seconds() < 10
+    assert datetime.fromisoformat(ts) <= datetime.now(UTC), "timestamp is in the future"
+    assert datetime.fromisoformat(ts) >= tests._test_start, "timestamp is in the past"
 
 
 def assert_event(envelope, message="Hello World!", expected_trace_id=""):

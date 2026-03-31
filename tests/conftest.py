@@ -5,8 +5,10 @@ import pytest
 import re
 import statistics
 import sys
+from datetime import datetime, UTC
 from . import run
 from .cmake import CMake
+import tests
 
 LABEL = "label"
 TIME_UNIT = "time_unit"
@@ -39,6 +41,11 @@ def cmake(tmp_path_factory):
     yield cmake.compile
 
     cmake.destroy()
+
+
+@pytest.fixture(autouse=True)
+def _record_test_start():
+    tests._test_start = datetime.now(UTC)
 
 
 def pytest_addoption(parser):
