@@ -109,7 +109,17 @@ def test_native_oom(cmake, httpserver):
             env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
         )
 
+        time.sleep(2)
+
+        run(
+            tmp_path,
+            "sentry_example",
+            ["log", "no-setup"],
+            env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
+        )
+
     assert waiting.result
+    assert len(httpserver.log) >= 1
 
 
 def test_native_capture_minidump_generated(cmake, httpserver):
