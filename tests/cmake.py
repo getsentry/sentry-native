@@ -8,6 +8,8 @@ from pathlib import Path
 
 import pytest
 
+from . import adb
+from .conditions import has_sccache
 from .build_config import (
     get_android_config,
     get_platform_cmake_args,
@@ -129,13 +131,17 @@ def cmake_configure(cwd, options, cflags=None):
     __tracebackhide__ = True
 
     options = dict(options)
-    if os.environ.get("USE_CCACHE"):
+    if has_sccache:
         options.update(
             {
-                "CMAKE_C_COMPILER_LAUNCHER": "ccache",
-                "CMAKE_CXX_COMPILER_LAUNCHER": "ccache",
+                "CMAKE_C_COMPILER_LAUNCHER": "sccache",
+                "CMAKE_CXX_COMPILER_LAUNCHER": "sccache",
             }
         )
+        if sys.platform == "win32":
+            # Use /Z7 instead of /Zi to embed debug info in object files. /Zi creates
+            # a shared PDB that conflicts with sccache's parallelized compilation.
+            options["CMAKE_MSVC_DEBUG_INFORMATION_FORMAT"] = "Embedded"
     options.update(
         {
             "CMAKE_RUNTIME_OUTPUT_DIRECTORY": cwd,
@@ -172,6 +178,10 @@ def cmake_configure(cwd, options, cflags=None):
 
     if os.environ.get("VS_GENERATOR_TOOLSET") == "ClangCL":
         configure_clang_cl(config_cmd)
+    elif sys.platform == "win32" and os.environ.get("USE_SCCACHE"):
+        # The Visual Studio generator does not support CMAKE_C_COMPILER_LAUNCHER.
+        # Use Ninja instead to enable sccache.
+        config_cmd.extend(["-G", "Ninja"])
 
     for key, value in options.items():
         config_cmd.append("-D{}={}".format(key, value))
@@ -225,12 +235,10 @@ def cmake_build(cwd, targets, options):
             "cmake",
         ]
     env = dict(os.environ)
-    if env.get("USE_CCACHE"):
+    if has_sccache:
         # Each pytest run builds in a new temp directory. Paths are normalized
-        # relative to the build dir and CWD hashing is skipped to allow ccache
-        # hits across runs.
-        env.setdefault("CCACHE_BASEDIR", str(cwd))
-        env.setdefault("CCACHE_NOHASHDIR", "true")
+        # relative to the build dir to allow sccache hits across runs.
+        env.setdefault("SCCACHE_BASEDIRS", str(cwd))
 
     buildcmd = [*cmake, "--build", "."]
     for target in targets:
@@ -302,16 +310,7 @@ def cmake_build(cwd, targets, options):
 
     if os.environ.get("ANDROID_API"):
         # copy the output to the android image via adb
-        subprocess.run(
-            [
-                "{}/platform-tools/adb".format(os.environ["ANDROID_HOME"]),
-                "push",
-                "./",
-                "/data/local/tmp",
-            ],
-            cwd=cwd,
-            check=True,
-        )
+        adb("push", "./", "/data/local/tmp", cwd=cwd, check=True)
 
 
 def configure_clang_cl(config_cmd: list[str]):

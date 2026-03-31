@@ -16,6 +16,12 @@
 #    include <windows.h>
 #endif
 
+#if defined(SENTRY_PLATFORM_WINDOWS)
+typedef HANDLE sentry_process_handle_t;
+#else
+typedef pid_t sentry_process_handle_t;
+#endif
+
 /**
  * IPC handle for crash communication between app and daemon
  */
@@ -47,6 +53,7 @@ typedef struct {
     HANDLE init_mutex; // Named mutex for initialization synchronization
 #endif
 
+    sentry_process_handle_t parent_handle;
     bool is_daemon; // true if this is the daemon side of IPC
 } sentry_crash_ipc_t;
 

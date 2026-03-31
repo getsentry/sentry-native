@@ -444,6 +444,7 @@ metric_producer_thread(void *data)
     volatile long *produce = data;
     while (sentry__atomic_fetch(produce)) {
         sentry_metrics_count("metric", 1, sentry_value_new_null());
+        sentry__thread_yield();
     }
     return 0;
 }

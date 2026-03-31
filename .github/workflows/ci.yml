@@ -181,6 +181,9 @@ jobs:
           - name: Windows (latest, UTF-8 paths)
             os: windows-latest
             UTF8_TEST_CWD: 1
+          - name: Windows (latest, ninja + sccache)
+            os: windows-latest
+            USE_SCCACHE: 1
           - name: Windows ClangCL (latest)
             os: windows-latest
             VS_GENERATOR_TOOLSET: ClangCL
@@ -220,6 +223,8 @@ jobs:
       CXX: ${{ matrix.CXX }}
       TEST_X86: ${{ matrix.TEST_X86 }}
       TEST_MINGW: ${{ matrix.TEST_MINGW }}
+      USE_SCCACHE: ${{ matrix.USE_SCCACHE }}
+      SCCACHE_DIR: ${{ github.workspace }}/.sccache
       ERROR_ON_WARNINGS: ${{ matrix.ERROR_ON_WARNINGS }}
       RUN_ANALYZER: ${{ matrix.RUN_ANALYZER }}
       ANDROID_API: ${{ matrix.ANDROID_API }}
@@ -335,6 +340,14 @@ jobs:
 
           "PATH=$newPath" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
+      - name: Set up MSVC environment for Ninja
+        if: ${{ runner.os == 'Windows' && env['USE_SCCACHE'] }}
+        shell: cmd
+        run: |
+          for /f "tokens=*" %%i in ('"%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe" -latest -property installationPath') do set "VS_PATH=%%i"
+          call "%VS_PATH%\VC\Auxiliary\Build\vcvarsall.bat" x64
+          set >> %GITHUB_ENV%
+
       - name: Installing LLVM-MINGW Dependencies
         if: ${{ runner.os == 'Windows' && env['TEST_MINGW'] }}
         shell: powershell
@@ -348,6 +361,21 @@ jobs:
         if: ${{ runner.os == 'Windows' }}
         shell: powershell
         run: . "scripts\install-zlib.ps1"
+
+      - name: Install sccache
+        if: ${{ runner.os == 'Windows' && env['USE_SCCACHE'] }}
+        continue-on-error: true # build with plain ninja if chocolatey is down
+        shell: bash
+        run: |
+          choco install sccache -y
+          sccache --version
+
+      - name: Cache sccache
+        if: ${{ runner.os == 'Windows' && env['USE_SCCACHE'] }}
+        uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 #v5
+        with:
+          path: ${{ github.workspace }}/.sccache
+          key: sccache-${{ runner.os }}-${{ runner.arch }}
 
       - name: Setup Java Version
         if: ${{ env['ANDROID_API'] }}
@@ -429,7 +457,7 @@ jobs:
 
       - name: "Upload to codecov.io"
         if: ${{ contains(env['RUN_ANALYZER'], 'cov') }}
-        uses: codecov/codecov-action@1af58845a975a7985b0beb0cbe6fbbb71a41dbad # pin@v5.5.3
+        uses: codecov/codecov-action@57e3a136b779b570ffcdbf80b3bdc90e7fab3de2 # pin@v6.0.0
         with:
           directory: coverage
           token: ${{ secrets.CODECOV_TOKEN }}

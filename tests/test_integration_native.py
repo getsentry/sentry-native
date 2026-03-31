@@ -25,7 +25,7 @@ from .assertions import (
     wait_for_file,
     assert_user_feedback,
 )
-from .conditions import has_native, is_kcov, is_asan
+from .conditions import has_native, has_oom, is_kcov, is_asan
 
 pytestmark = pytest.mark.skipif(
     not has_native,
@@ -91,6 +91,34 @@ def test_native_capture_crash(cmake, httpserver):
         env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
     )
 
+    assert len(httpserver.log) >= 1
+
+
+@pytest.mark.skipif(not has_oom, reason="OOM test unreliable in this environment")
+def test_native_oom(cmake, httpserver):
+    """Test OOM crash capture with native backend"""
+    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "native"})
+
+    httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data("OK")
+
+    with httpserver.wait(timeout=10) as waiting:
+        run_crash(
+            tmp_path,
+            "sentry_example",
+            ["log", "stdout", "oom"],
+            env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
+        )
+
+        time.sleep(2)
+
+        run(
+            tmp_path,
+            "sentry_example",
+            ["log", "no-setup"],
+            env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
+        )
+
+    assert waiting.result
     assert len(httpserver.log) >= 1
 
 
