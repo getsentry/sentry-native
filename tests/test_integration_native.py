@@ -99,7 +99,7 @@ def test_native_oom(cmake, httpserver):
     """Test OOM crash capture with native backend"""
     tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "native"})
 
-    httpserver.expect_request("/api/123456/envelope/").respond_with_data("OK")
+    httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data("OK")
 
     run_crash(
         tmp_path,
@@ -108,15 +108,17 @@ def test_native_oom(cmake, httpserver):
         env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
     )
 
-    time.sleep(2)
+    assert wait_for_file(tmp_path / ".sentry-native" / "*.run" / "*.envelope")
 
-    run(
-        tmp_path,
-        "sentry_example",
-        ["log", "no-setup"],
-        env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
-    )
+    with httpserver.wait(timeout=10) as waiting:
+        run(
+            tmp_path,
+            "sentry_example",
+            ["log", "no-setup"],
+            env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
+        )
 
+    assert waiting.result
     assert len(httpserver.log) >= 1
 
 
