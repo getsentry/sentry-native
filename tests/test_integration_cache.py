@@ -35,7 +35,8 @@ def test_cache_keep(cmake, backend, cache_keep):
     run(
         tmp_path,
         "sentry_example",
-        ["log", "flush", "crash"] + (["cache-keep"] if cache_keep else []),
+        ["log", "no-http-retry", "flush", "crash"]
+        + (["cache-keep"] if cache_keep else []),
         expect_failure=True,
         env=env,
     )
@@ -46,7 +47,8 @@ def test_cache_keep(cmake, backend, cache_keep):
     run(
         tmp_path,
         "sentry_example",
-        ["log", "flush", "no-setup"] + (["cache-keep"] if cache_keep else []),
+        ["log", "no-http-retry", "flush", "no-setup"]
+        + (["cache-keep"] if cache_keep else []),
         env=env,
     )
 
@@ -81,7 +83,7 @@ def test_cache_max_size(cmake, backend):
         run(
             tmp_path,
             "sentry_example",
-            ["log", "cache-keep", "flush", "crash"],
+            ["log", "no-http-retry", "cache-keep", "flush", "crash"],
             expect_failure=True,
             env=env,
         )
@@ -90,7 +92,7 @@ def test_cache_max_size(cmake, backend):
     run(
         tmp_path,
         "sentry_example",
-        ["log", "cache-keep", "flush", "no-setup"],
+        ["log", "no-http-retry", "cache-keep", "flush", "no-setup"],
         env=env,
     )
 
@@ -105,7 +107,7 @@ def test_cache_max_size(cmake, backend):
     run(
         tmp_path,
         "sentry_example",
-        ["log", "cache-keep", "no-setup"],
+        ["log", "no-http-retry", "cache-keep", "no-setup"],
         env=env,
     )
 
@@ -135,7 +137,7 @@ def test_cache_max_age(cmake, backend):
         run(
             tmp_path,
             "sentry_example",
-            ["log", "cache-keep", "flush", "crash"],
+            ["log", "no-http-retry", "cache-keep", "flush", "crash"],
             expect_failure=True,
             env=env,
         )
@@ -144,7 +146,7 @@ def test_cache_max_age(cmake, backend):
     run(
         tmp_path,
         "sentry_example",
-        ["log", "cache-keep", "flush", "no-setup"],
+        ["log", "no-http-retry", "cache-keep", "flush", "no-setup"],
         env=env,
     )
 
@@ -159,7 +161,7 @@ def test_cache_max_age(cmake, backend):
     run(
         tmp_path,
         "sentry_example",
-        ["log", "cache-keep", "no-setup"],
+        ["log", "no-http-retry", "cache-keep", "no-setup"],
         env=env,
     )
 
@@ -190,7 +192,48 @@ def test_cache_max_items(cmake, backend):
         run(
             tmp_path,
             "sentry_example",
-            ["log", "cache-keep", "flush", "crash"],
+            ["log", "no-http-retry", "cache-keep", "flush", "crash"],
+            expect_failure=True,
+            env=env,
+        )
+
+    # flush + cache
+    run(
+        tmp_path,
+        "sentry_example",
+        ["log", "no-http-retry", "cache-keep", "flush", "no-setup"],
+        env=env,
+    )
+
+    # max 5 items
+    assert cache_dir.exists()
+    cache_files = list(cache_dir.glob("*.envelope"))
+    assert len(cache_files) == 5
+
+
+@pytest.mark.parametrize(
+    "backend",
+    [
+        "inproc",
+        pytest.param(
+            "breakpad",
+            marks=pytest.mark.skipif(
+                not has_breakpad, reason="breakpad backend not available"
+            ),
+        ),
+    ],
+)
+def test_cache_max_items_with_retry(cmake, backend):
+    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": backend})
+    cache_dir = tmp_path.joinpath(".sentry-native/cache")
+    env = dict(os.environ, SENTRY_DSN=unreachable_dsn)
+
+    # Create cache files via crash+restart cycles
+    for i in range(4):
+        run(
+            tmp_path,
+            "sentry_example",
+            ["log", "cache-keep", "crash"],
             expect_failure=True,
             env=env,
         )
@@ -203,7 +246,22 @@ def test_cache_max_items(cmake, backend):
         env=env,
     )
 
-    # max 5 items
+    # Pre-populate cache/ with retry-format envelope files
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    for i in range(4):
+        ts = int(time.time() * 1000)
+        f = cache_dir / f"{ts}-00-00000000-0000-0000-0000-{i:012x}.envelope"
+        f.write_text("dummy envelope content")
+
+    # Trigger sentry_init which runs cleanup
+    run(
+        tmp_path,
+        "sentry_example",
+        ["log", "cache-keep", "no-setup"],
+        env=env,
+    )
+
+    # max 5 items total in cache/
     assert cache_dir.exists()
     cache_files = list(cache_dir.glob("*.envelope"))
-    assert len(cache_files) == 5
+    assert len(cache_files) <= 5

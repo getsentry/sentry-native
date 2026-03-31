@@ -3152,6 +3152,7 @@ sentry__crash_daemon_main(pid_t app_pid, uint64_t app_tid, HANDLE event_handle,
     sentry_options_set_debug(options, ipc->shmem->debug_enabled);
     options->attach_screenshot = ipc->shmem->attach_screenshot;
     options->cache_keep = ipc->shmem->cache_keep;
+    options->http_retry = false;
 
     // Set custom logger that writes to file
     if (log_file) {
