@@ -364,8 +364,11 @@ jobs:
 
       - name: Install sccache
         if: ${{ runner.os == 'Windows' && env['USE_SCCACHE'] }}
+        continue-on-error: true # build with plain ninja if chocolatey is down
         shell: bash
-        run: choco install sccache -y
+        run: |
+          choco install sccache -y
+          sccache --version
 
       - name: Cache sccache
         if: ${{ runner.os == 'Windows' && env['USE_SCCACHE'] }}

@@ -1,5 +1,6 @@
 import sys
 import os
+import shutil
 
 is_aix = sys.platform == "aix" or sys.platform == "os400"
 is_android = os.environ.get("ANDROID_API")
@@ -48,3 +49,5 @@ has_oom = sys.platform != "linux" and not is_asan and not is_valgrind
 # It's always available - tests explicitly set SENTRY_BACKEND: native in cmake
 # On macOS ASAN, the signal handling conflicts with ASAN's memory interception
 has_native = has_http and not (is_asan and sys.platform == "darwin")
+
+has_sccache = os.environ.get("USE_SCCACHE") and shutil.which("sccache")
