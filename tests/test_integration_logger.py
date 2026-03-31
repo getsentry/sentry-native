@@ -66,6 +66,7 @@ def _run_logger_crash_test(backend, cmake, logger_option):
 def parse_logger_output(output):
     # Background thread startup messages (e.g. from the metrics/logs batcher) can
     # race with the pre-crash marker and are not crash-time logs.
+    # (from batcher_thread_func in sentry_batcher.c)
     background_thread_messages = {"Starting batching thread"}
 
     lines = output.split("\n")
