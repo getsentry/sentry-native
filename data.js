@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1774945841489,
+  "lastUpdate": 1774945909337,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -30034,6 +30034,66 @@ window.BENCHMARK_DATA = {
             "value": 12.87941599991882,
             "unit": "ms",
             "extra": "Min 9.272ms\nMax 22.069ms\nMean 13.746ms\nStdDev 4.957ms\nMedian 12.879ms\nCPU 1.668ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "jpnurmi@gmail.com",
+            "name": "J-P Nurmi",
+            "username": "jpnurmi"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "a848058a695cb5e9d81119f3743a237ee4fa608a",
+          "message": "fix(native): cache parent process handle to survive OOM crashes on Windows (#1603)\n\nCo-authored-by: Claude Opus 4.6 (1M context) <noreply@anthropic.com>\nCo-authored-by: Claude Opus 4.6 <noreply@anthropic.com>",
+          "timestamp": "2026-03-31T10:27:59+02:00",
+          "tree_id": "da65b8d64601208636de203795ab2e1640af9dc0",
+          "url": "https://github.com/getsentry/sentry-native/commit/a848058a695cb5e9d81119f3743a237ee4fa608a"
+        },
+        "date": 1774945905052,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 3.566458000022976,
+            "unit": "ms",
+            "extra": "Min 3.413ms\nMax 4.062ms\nMean 3.637ms\nStdDev 0.270ms\nMedian 3.566ms\nCPU 2.078ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 6.812375000208704,
+            "unit": "ms",
+            "extra": "Min 4.825ms\nMax 9.069ms\nMean 6.739ms\nStdDev 1.561ms\nMedian 6.812ms\nCPU 4.104ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 14.146500000151718,
+            "unit": "ms",
+            "extra": "Min 11.096ms\nMax 15.006ms\nMean 13.460ms\nStdDev 1.593ms\nMedian 14.147ms\nCPU 4.920ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.06345800011331448,
+            "unit": "ms",
+            "extra": "Min 0.056ms\nMax 0.095ms\nMean 0.070ms\nStdDev 0.017ms\nMedian 0.063ms\nCPU 0.047ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.3506250000100408,
+            "unit": "ms",
+            "extra": "Min 0.267ms\nMax 0.447ms\nMean 0.353ms\nStdDev 0.078ms\nMedian 0.351ms\nCPU 0.351ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 7.86183299987897,
+            "unit": "ms",
+            "extra": "Min 6.829ms\nMax 8.428ms\nMean 7.836ms\nStdDev 0.627ms\nMedian 7.862ms\nCPU 1.049ms"
           }
         ]
       }
