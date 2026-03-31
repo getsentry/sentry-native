@@ -8,6 +8,7 @@ from pathlib import Path
 
 import pytest
 
+from . import adb
 from .build_config import (
     get_android_config,
     get_platform_cmake_args,
@@ -308,16 +309,7 @@ def cmake_build(cwd, targets, options):
 
     if os.environ.get("ANDROID_API"):
         # copy the output to the android image via adb
-        subprocess.run(
-            [
-                "{}/platform-tools/adb".format(os.environ["ANDROID_HOME"]),
-                "push",
-                "./",
-                "/data/local/tmp",
-            ],
-            cwd=cwd,
-            check=True,
-        )
+        adb("push", "./", "/data/local/tmp", cwd=cwd, check=True)
 
 
 def configure_clang_cl(config_cmd: list[str]):

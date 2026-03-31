@@ -12,6 +12,13 @@ import socket
 
 sourcedir = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 
+
+def adb(*args, **kwargs):
+    return subprocess.run(
+        ["{}/platform-tools/adb".format(os.environ["ANDROID_HOME"]), *args], **kwargs
+    )
+
+
 # https://docs.pytest.org/en/latest/assert.html#assert-details
 pytest.register_assert_rewrite("tests.assertions")
 

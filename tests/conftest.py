@@ -5,9 +5,10 @@ import pytest
 import re
 import statistics
 import sys
-from datetime import datetime, UTC
-from . import run
+from datetime import datetime, timedelta, UTC
+from . import adb, run
 from .cmake import CMake
+from .conditions import is_android
 import tests
 
 LABEL = "label"
@@ -43,9 +44,24 @@ def cmake(tmp_path_factory):
     cmake.destroy()
 
 
+def _get_clock_offset():
+    """Measure clock offset between host and Android device."""
+    if not is_android:
+        return timedelta(0)
+    before = datetime.now(UTC)
+    result = adb("shell", "date", "+%s", capture_output=True, text=True)
+    after = datetime.now(UTC)
+    device_time = datetime.fromtimestamp(int(result.stdout.strip()), tz=UTC)
+    host_time = before + (after - before) / 2
+    return device_time - host_time
+
+
+_clock_offset = _get_clock_offset()
+
+
 @pytest.fixture(autouse=True)
 def _record_test_start():
-    tests._test_start = datetime.now(UTC)
+    tests.test_start = datetime.now(UTC) + _clock_offset
 
 
 def pytest_addoption(parser):
