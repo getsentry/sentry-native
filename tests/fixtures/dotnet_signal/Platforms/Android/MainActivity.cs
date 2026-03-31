@@ -21,12 +21,15 @@ public class MainActivity : Activity
 
         var arg = Intent?.GetStringExtra("arg");
         var strategy = Intent?.GetStringExtra("strategy") ?? "";
+        var reinit = Intent?.GetStringExtra("reinit") ?? "";
         if (!string.IsNullOrEmpty(arg))
         {
             var databasePath = FilesDir?.AbsolutePath + "/.sentry-native";
             var args = new List<string> { arg };
             if (!string.IsNullOrEmpty(strategy))
                 args.Add(strategy);
+            if (!string.IsNullOrEmpty(reinit))
+                args.Add("reinit");
 
             // Post to the message queue so the activity finishes starting
             // before the crash test runs. Without this, "am start -W" may hang.

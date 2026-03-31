@@ -208,9 +208,7 @@ static volatile long g_handler_has_work = 0;
 #define CRASH_STATE_DONE 2
 static volatile long g_crash_handling_state = CRASH_STATE_IDLE;
 
-// Whether signal handlers have been installed (possibly via
-// sentry__backend_preload)
-static volatile long g_handlers_installed = 0;
+static volatile long g_preloaded = 0;
 
 // trigger/schedule primitives that block the other side until this side is done
 #ifdef SENTRY_PLATFORM_UNIX
@@ -483,7 +481,7 @@ invoke_signal_handler(int signum, siginfo_t *info, void *user_context)
 static void
 install_signal_handlers(void)
 {
-    if (sentry__atomic_fetch(&g_handlers_installed)) {
+    if (sentry__atomic_fetch(&g_preloaded)) {
         return;
     }
 
@@ -508,8 +506,6 @@ install_signal_handlers(void)
     for (size_t i = 0; i < SIGNAL_COUNT; ++i) {
         sigaction(SIGNAL_DEFINITIONS[i].signum, &g_sigaction, NULL);
     }
-
-    sentry__atomic_store(&g_handlers_installed, 1);
 }
 
 static int
@@ -556,9 +552,10 @@ shutdown_inproc_backend(sentry_backend_t *backend)
 {
     stop_handler_thread();
 
-    teardown_sigaltstack(&g_signal_stack);
-    reset_signal_handlers();
-    sentry__atomic_store(&g_handlers_installed, 0);
+    if (!sentry__atomic_fetch(&g_preloaded)) {
+        teardown_sigaltstack(&g_signal_stack);
+        reset_signal_handlers();
+    }
 
     if (backend) {
         backend->data = NULL;
@@ -1782,6 +1779,7 @@ sentry__backend_preload(void)
 {
 #ifdef SENTRY_PLATFORM_UNIX
     install_signal_handlers();
+    sentry__atomic_store(&g_preloaded, 1);
 #endif
 }
 

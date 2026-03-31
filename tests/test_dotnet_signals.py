@@ -276,7 +276,7 @@ def wait_for(condition, timeout=10, interval=0.5):
     return condition()
 
 
-def run_android(args=None, strategy=None, timeout=30):
+def run_android(args=None, strategy=None, reinit=False, timeout=30):
     if args is None:
         args = []
     adb("logcat", "-c")
@@ -289,6 +289,8 @@ def run_android(args=None, strategy=None, timeout=30):
         intent_args += ["--es", "arg", arg]
     if strategy:
         intent_args += ["--es", "strategy", strategy]
+    if reinit:
+        intent_args += ["--es", "reinit", "true"]
     try:
         adb(
             "shell",
@@ -319,8 +321,8 @@ def run_android(args=None, strategy=None, timeout=30):
     return adb(*logcat_args, capture_output=True, text=True).stdout
 
 
-def run_android_managed_exception(strategy=None):
-    return run_android(["managed-exception"], strategy=strategy)
+def run_android_managed_exception(strategy=None, reinit=False):
+    return run_android(["managed-exception"], strategy=strategy, reinit=reinit)
 
 
 def run_android_unhandled_managed_exception(strategy=None):
@@ -486,6 +488,19 @@ def test_android_signals_inproc(cmake, runtime, strategy):
         run_android_native_crash(strategy=app_strategy)
         assert wait_for(lambda: file_exists(db + "/last_crash")), "Crash marker missing"
         assert wait_for(has_envelope), "Crash envelope is missing"
+
+        if is_preload:
+            # after close/reinit, managed exceptions must still be handled by
+            # the runtime (not caught as native crashes by sentry)
+            logcat = run_android_managed_exception(strategy=app_strategy, reinit=True)
+            assert not (
+                "NullReferenceException" in logcat
+            ), f"Managed exception leaked after reinit.\nlogcat:\n{logcat}"
+            assert wait_for(lambda: dir_exists(db)), "No database-path exists"
+            assert not file_exists(
+                db + "/last_crash"
+            ), "A crash was registered after reinit"
+            assert not has_envelope(), "Unexpected envelope found after reinit"
 
     finally:
         shutil.rmtree(project_fixture_path / "native", ignore_errors=True)
