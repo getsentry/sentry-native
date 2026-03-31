@@ -48,12 +48,15 @@ def _get_clock_offset():
     """Measure clock offset between host and Android device."""
     if not is_android:
         return timedelta(0)
-    before = datetime.now(UTC)
-    result = adb("shell", "date", "+%s", capture_output=True, text=True)
-    after = datetime.now(UTC)
-    device_time = datetime.fromtimestamp(int(result.stdout.strip()), tz=UTC)
-    host_time = before + (after - before) / 2
-    return device_time - host_time
+    try:
+        before = datetime.now(UTC)
+        result = adb("shell", "date", "+%s", capture_output=True, text=True)
+        after = datetime.now(UTC)
+        device_time = datetime.fromtimestamp(int(result.stdout.strip()), tz=UTC)
+        host_time = before + (after - before) / 2
+        return device_time - host_time
+    except (ValueError, OSError):
+        return timedelta(0)
 
 
 @pytest.fixture(autouse=True)
