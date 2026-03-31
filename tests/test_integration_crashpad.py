@@ -16,7 +16,7 @@ from . import (
     is_logs_envelope,
     is_feedback_envelope,
 )
-from .conditions import has_crashpad, is_asan, is_valgrind
+from .conditions import has_crashpad, has_oom
 from .proxy import (
     setup_proxy_env_vars,
     cleanup_proxy_env_vars,
@@ -503,11 +503,7 @@ def test_crashpad_dumping_stack_overflow(cmake, httpserver, build_args):
     )
 
 
-@pytest.mark.skipif(
-    sys.platform == "linux", reason="Linux OOM killer sends uncatchable SIGKILL"
-)
-@pytest.mark.skipif(is_asan, reason="ASAN intercepts malloc; OOM test unreliable")
-@pytest.mark.skipif(is_valgrind, reason="Valgrind too slow with many allocations")
+@pytest.mark.skipif(not has_oom, reason="OOM test unreliable in this environment")
 def test_crashpad_oom(cmake, httpserver):
     tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "crashpad"})
 

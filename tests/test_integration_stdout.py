@@ -22,7 +22,7 @@ from .assertions import (
     assert_breakpad_crash,
     assert_exception,
 )
-from .conditions import has_breakpad, has_files, is_asan, is_valgrind
+from .conditions import has_breakpad, has_files, has_oom
 
 
 def test_capture_stdout(cmake):
@@ -270,11 +270,7 @@ def test_inproc_stack_overflow_stdout(cmake, build_args):
     assert_inproc_crash(envelope)
 
 
-@pytest.mark.skipif(
-    sys.platform == "linux", reason="Linux OOM killer sends uncatchable SIGKILL"
-)
-@pytest.mark.skipif(is_asan, reason="ASAN intercepts malloc; OOM test unreliable")
-@pytest.mark.skipif(is_valgrind, reason="Valgrind too slow with many allocations")
+@pytest.mark.skipif(not has_oom, reason="OOM test unreliable in this environment")
 def test_inproc_oom_stdout(cmake):
     tmp_path, output = run_stdout_for("inproc", cmake, ["log", "attachment", "oom"])
 
@@ -380,11 +376,7 @@ def test_breakpad_stack_overflow_stdout(cmake, build_args):
     assert_breakpad_crash(envelope)
 
 
-@pytest.mark.skipif(
-    sys.platform == "linux", reason="Linux OOM killer sends uncatchable SIGKILL"
-)
-@pytest.mark.skipif(is_asan, reason="ASAN intercepts malloc; OOM test unreliable")
-@pytest.mark.skipif(is_valgrind, reason="Valgrind too slow with many allocations")
+@pytest.mark.skipif(not has_oom, reason="OOM test unreliable in this environment")
 @pytest.mark.skipif(not has_breakpad, reason="test needs breakpad backend")
 def test_breakpad_oom_stdout(cmake):
     tmp_path, output = run_stdout_for("breakpad", cmake, ["attachment", "oom"])

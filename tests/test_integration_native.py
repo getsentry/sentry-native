@@ -25,7 +25,7 @@ from .assertions import (
     wait_for_file,
     assert_user_feedback,
 )
-from .conditions import has_native, is_kcov, is_asan, is_valgrind
+from .conditions import has_native, has_oom, is_kcov, is_asan
 
 pytestmark = pytest.mark.skipif(
     not has_native,
@@ -94,11 +94,7 @@ def test_native_capture_crash(cmake, httpserver):
     assert len(httpserver.log) >= 1
 
 
-@pytest.mark.skipif(
-    sys.platform == "linux", reason="Linux OOM killer sends uncatchable SIGKILL"
-)
-@pytest.mark.skipif(is_asan, reason="ASAN intercepts malloc; OOM test unreliable")
-@pytest.mark.skipif(is_valgrind, reason="Valgrind too slow with many allocations")
+@pytest.mark.skipif(not has_oom, reason="OOM test unreliable in this environment")
 def test_native_oom(cmake, httpserver):
     """Test OOM crash capture with native backend"""
     tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "native"})

@@ -38,6 +38,12 @@ has_crashpad = (
 # android has no local filesystem
 has_files = not is_android
 
+# OOM tests are unreliable under several conditions:
+# - Linux OOM killer sends uncatchable SIGKILL
+# - ASAN intercepts malloc
+# - Valgrind is too slow with many allocations
+has_oom = sys.platform != "linux" and not is_asan and not is_valgrind
+
 # Native backend works on all platforms (lightweight, no external dependencies)
 # It's always available - tests explicitly set SENTRY_BACKEND: native in cmake
 # On macOS ASAN, the signal handling conflicts with ASAN's memory interception
