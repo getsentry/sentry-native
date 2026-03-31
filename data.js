@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1774964635267,
+  "lastUpdate": 1774964655752,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -45772,6 +45772,66 @@ window.BENCHMARK_DATA = {
             "value": 20.90349999997443,
             "unit": "ms",
             "extra": "Min 19.944ms\nMax 24.104ms\nMean 21.671ms\nStdDev 1.837ms\nMedian 20.903ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "49699333+dependabot[bot]@users.noreply.github.com",
+            "name": "dependabot[bot]",
+            "username": "dependabot[bot]"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "0031878ba947460bc272a7c09d0766c872d7a1c7",
+          "message": "build(deps): bump benchmark-action/github-action-benchmark from 1.21.0 to 1.22.0 (#1615)\n\n* build(deps): bump benchmark-action/github-action-benchmark\n\nBumps [benchmark-action/github-action-benchmark](https://github.com/benchmark-action/github-action-benchmark) from 1.21.0 to 1.22.0.\n- [Release notes](https://github.com/benchmark-action/github-action-benchmark/releases)\n- [Changelog](https://github.com/benchmark-action/github-action-benchmark/blob/master/CHANGELOG.md)\n- [Commits](https://github.com/benchmark-action/github-action-benchmark/compare/a7bc2366eda11037936ea57d811a43b3418d3073...a60cea5bc7b49e15c1f58f411161f99e0df48372)\n\n---\nupdated-dependencies:\n- dependency-name: benchmark-action/github-action-benchmark\n  dependency-version: 1.22.0\n  dependency-type: direct:production\n  update-type: version-update:semver-minor\n...\n\nSigned-off-by: dependabot[bot] <support@github.com>\n\n* update pin comment\n\n---------\n\nSigned-off-by: dependabot[bot] <support@github.com>\nCo-authored-by: dependabot[bot] <49699333+dependabot[bot]@users.noreply.github.com>\nCo-authored-by: Mischan Toosarani-Hausberger <mischan@abovevacant.com>",
+          "timestamp": "2026-03-31T15:38:48+02:00",
+          "tree_id": "a342f711b81c1cc9af8a877019b9b1930a402fdf",
+          "url": "https://github.com/getsentry/sentry-native/commit/0031878ba947460bc272a7c09d0766c872d7a1c7"
+        },
+        "date": 1774964629749,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 10.23099999997612,
+            "unit": "ms",
+            "extra": "Min 9.895ms\nMax 11.130ms\nMean 10.372ms\nStdDev 0.513ms\nMedian 10.231ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 11.597600000072816,
+            "unit": "ms",
+            "extra": "Min 11.073ms\nMax 13.898ms\nMean 11.945ms\nStdDev 1.130ms\nMedian 11.598ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 25.38219999996727,
+            "unit": "ms",
+            "extra": "Min 24.547ms\nMax 25.707ms\nMean 25.224ms\nStdDev 0.464ms\nMedian 25.382ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.18409999984214664,
+            "unit": "ms",
+            "extra": "Min 0.165ms\nMax 0.185ms\nMean 0.180ms\nStdDev 0.009ms\nMedian 0.184ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.4234999998971034,
+            "unit": "ms",
+            "extra": "Min 0.402ms\nMax 0.486ms\nMean 0.434ms\nStdDev 0.034ms\nMedian 0.423ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 14.548399999966932,
+            "unit": "ms",
+            "extra": "Min 13.839ms\nMax 39.709ms\nMean 19.478ms\nStdDev 11.315ms\nMedian 14.548ms"
           }
         ]
       }
