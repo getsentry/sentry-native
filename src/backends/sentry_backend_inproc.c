@@ -472,11 +472,11 @@ invoke_signal_handler(int signum, siginfo_t *info, void *user_context)
     }
 }
 
-static void
+static int
 install_signal_handlers(void)
 {
     if (sentry__atomic_fetch(&g_preloaded)) {
-        return;
+        return 0;
     }
 
     memset(g_previous_handlers, 0, sizeof(g_previous_handlers));
@@ -484,7 +484,7 @@ install_signal_handlers(void)
         if (sigaction(
                 SIGNAL_DEFINITIONS[i].signum, NULL, &g_previous_handlers[i])
             == -1) {
-            return;
+            return 1;
         }
     }
 
@@ -500,6 +500,7 @@ install_signal_handlers(void)
     for (size_t i = 0; i < SIGNAL_COUNT; ++i) {
         sigaction(SIGNAL_DEFINITIONS[i].signum, &g_sigaction, NULL);
     }
+    return 0;
 }
 
 static int
@@ -537,8 +538,7 @@ startup_inproc_backend(
         return 1;
     }
 
-    install_signal_handlers();
-    return 0;
+    return install_signal_handlers();
 }
 
 static void
@@ -1774,8 +1774,9 @@ void
 sentry__backend_preload(void)
 {
 #ifdef SENTRY_PLATFORM_UNIX
-    install_signal_handlers();
-    sentry__atomic_store(&g_preloaded, 1);
+    if (install_signal_handlers() == 0) {
+        sentry__atomic_store(&g_preloaded, 1);
+    }
 #endif
 }
 
