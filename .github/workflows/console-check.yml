@@ -21,6 +21,7 @@ concurrency:
 
 jobs:
   trigger-console-builds:
+    if: github.event.pull_request.head.repo.fork == false || github.event_name == 'push' # secrets unavailable for fork PRs
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
