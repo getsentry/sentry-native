@@ -1665,6 +1665,7 @@ process_ucontext(const sentry_ucontext_t *uctx)
         && !sentry__atomic_fetch(&g_handler_thread_ready)) {
         SENTRY_SIGNAL_SAFE_LOG(
             "handler thread not ready, falling through to previous handler");
+        reset_signal_handlers();
         sentry__leave_signal_handler();
         invoke_signal_handler(
             uctx->signum, uctx->siginfo, (void *)uctx->user_context);
