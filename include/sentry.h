@@ -2398,6 +2398,8 @@ SENTRY_EXPERIMENTAL_API void sentry_options_set_before_send_log(
 /**
  * Enables or disables the metrics feature.
  * When disabled, all calls to `sentry_metrics_*()` are no-ops.
+ *
+ * Enabled by default.
  */
 SENTRY_EXPERIMENTAL_API void sentry_options_set_enable_metrics(
     sentry_options_t *opts, int enable_metrics);
