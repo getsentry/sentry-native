@@ -10,6 +10,7 @@ pytestmark = [
     pytest.mark.skipif(not has_http, reason="tests need http transport"),
 ]
 
+
 @pytest.mark.parametrize("cache_keep", [True, False])
 @pytest.mark.parametrize(
     "backend",
