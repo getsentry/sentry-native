@@ -340,6 +340,17 @@ jobs:
 
           "PATH=$newPath" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
+      - name: Disable Windows Defender realtime monitoring
+        if: ${{ runner.os == 'Windows' }}
+        shell: powershell
+        run: |
+          $rtm = (Get-MpPreference).DisableRealtimeMonitoring
+          Write-Output "DisableRealtimeMonitoring: $rtm"
+          if (-not $rtm) {
+            Set-MpPreference -DisableRealtimeMonitoring $true
+            Write-Output "Realtime monitoring disabled"
+          }
+
       - name: Set up MSVC environment for Ninja
         if: ${{ runner.os == 'Windows' && env['USE_SCCACHE'] }}
         shell: cmd
