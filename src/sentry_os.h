@@ -20,6 +20,13 @@ void sentry__get_system_time(LPFILETIME filetime);
 
 #endif
 
+/**
+ * Returns the handler stack size in KiB. Uses the SENTRY_HANDLER_STACK_SIZE
+ * environment variable if set, otherwise falls back to the compile-time
+ * SENTRY_HANDLER_STACK_SIZE default.
+ */
+size_t sentry__handler_stack_size(void);
+
 sentry_value_t sentry__get_os_context(void);
 
 #endif

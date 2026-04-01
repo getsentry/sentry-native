@@ -11,8 +11,8 @@
 #include "sentry_logs.h"
 #include "sentry_metrics.h"
 #include "sentry_options.h"
+#include "sentry_os.h"
 #if defined(SENTRY_PLATFORM_WINDOWS)
-#    include "sentry_os.h"
 #    include <signal.h>
 #    include <stdlib.h>
 #endif
@@ -389,7 +389,7 @@ struct signal_slot {
 
 // we need quite a bit of space for backtrace generation
 #    define SIGNAL_COUNT 6
-#    define SIGNAL_STACK_SIZE (1024 * SENTRY_HANDLER_STACK_SIZE)
+#    define SIGNAL_STACK_SIZE (1024 * sentry__handler_stack_size())
 static struct sigaction g_sigaction;
 static struct sigaction g_previous_handlers[SIGNAL_COUNT];
 static stack_t g_signal_stack = { 0 };

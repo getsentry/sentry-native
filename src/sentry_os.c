@@ -1,14 +1,26 @@
 #include "sentry_os.h"
 #include "sentry_slice.h"
 #include "sentry_string.h"
+#include "sentry_utils.h"
 #if defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_WINDOWS)
 #    include "sentry_core.h"
 #    include "sentry_logger.h"
-#    include "sentry_utils.h"
 #endif
 #ifdef SENTRY_PLATFORM_LINUX
 #    include <unistd.h>
 #endif
+
+size_t
+sentry__handler_stack_size(void)
+{
+    static size_t stack_size = 0;
+    if (!stack_size) {
+        double value = sentry__getenv_double(
+            "SENTRY_HANDLER_STACK_SIZE", SENTRY_HANDLER_STACK_SIZE);
+        stack_size = value > 0 ? (size_t)value : SENTRY_HANDLER_STACK_SIZE;
+    }
+    return stack_size;
+}
 
 #ifdef SENTRY_PLATFORM_WINDOWS
 
@@ -270,8 +282,9 @@ sentry__set_default_thread_stack_guarantee(void)
         return;
     }
 
+    size_t stack_size = sentry__handler_stack_size();
     const unsigned long expected_stack_guarantee
-        = SENTRY_HANDLER_STACK_SIZE * 1024;
+        = (unsigned long)stack_size * 1024;
     DWORD thread_id = GetThreadId(GetCurrentThread());
     ULONG_PTR high = 0;
     ULONG_PTR low = 0;
@@ -284,8 +297,7 @@ sentry__set_default_thread_stack_guarantee(void)
         SENTRY_WARNF(
             "Cannot set handler stack guarantee of %zuKiB for thread %lu "
             "(stack reserve: %zuKiB, expected factor: %zux, actual: %.2fx)",
-            (size_t)SENTRY_HANDLER_STACK_SIZE, thread_id,
-            thread_stack_reserve / 1024,
+            stack_size, thread_id, thread_stack_reserve / 1024,
             (size_t)SENTRY_THREAD_STACK_GUARANTEE_FACTOR,
             expected_stack_reserve / (double)expected_stack_guarantee);
         return;

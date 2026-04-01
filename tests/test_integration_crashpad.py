@@ -440,18 +440,18 @@ def test_crashpad_dumping_crash(cmake, httpserver, run_args, build_args):
 
 
 @pytest.mark.parametrize(
-    "build_args",
+    "stack_size",
     [
-        ({}),  # uses default of 64KiB
+        None,  # uses default of 64KiB
         pytest.param(
-            {"SENTRY_HANDLER_STACK_SIZE": "16"},
+            "16",
             marks=pytest.mark.skipif(
                 sys.platform != "win32",
                 reason="handler stack size parameterization tests stack guarantee on windows only",
             ),
         ),
         pytest.param(
-            {"SENTRY_HANDLER_STACK_SIZE": "32"},
+            "32",
             marks=pytest.mark.skipif(
                 sys.platform != "win32",
                 reason="handler stack size parameterization tests stack guarantee on windows only",
@@ -459,11 +459,12 @@ def test_crashpad_dumping_crash(cmake, httpserver, run_args, build_args):
         ),
     ],
 )
-def test_crashpad_dumping_stack_overflow(cmake, httpserver, build_args):
-    build_args.update({"SENTRY_BACKEND": "crashpad"})
-    tmp_path = cmake(["sentry_example"], build_args)
+def test_crashpad_dumping_stack_overflow(cmake, httpserver, stack_size):
+    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "crashpad"})
 
     env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
+    if stack_size:
+        env["SENTRY_HANDLER_STACK_SIZE"] = stack_size
     httpserver.expect_oneshot_request("/api/123456/minidump/").respond_with_data("OK")
     httpserver.expect_request("/api/123456/envelope/").respond_with_data("OK")
 
