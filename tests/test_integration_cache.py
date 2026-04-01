@@ -10,9 +10,6 @@ pytestmark = [
     pytest.mark.skipif(not has_http, reason="tests need http transport"),
 ]
 
-unreachable_dsn = "http://uiaeosnrtdy@127.0.0.1:19999/123456"
-
-
 @pytest.mark.parametrize("cache_keep", [True, False])
 @pytest.mark.parametrize(
     "backend",
@@ -26,7 +23,7 @@ unreachable_dsn = "http://uiaeosnrtdy@127.0.0.1:19999/123456"
         ),
     ],
 )
-def test_cache_keep(cmake, backend, cache_keep):
+def test_cache_keep(cmake, backend, cache_keep, unreachable_dsn):
     tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": backend})
     cache_dir = tmp_path.joinpath(".sentry-native/cache")
     env = dict(os.environ, SENTRY_DSN=unreachable_dsn)
@@ -74,7 +71,7 @@ def test_cache_keep(cmake, backend, cache_keep):
         ),
     ],
 )
-def test_cache_max_size(cmake, backend):
+def test_cache_max_size(cmake, backend, unreachable_dsn):
     tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": backend})
     cache_dir = tmp_path.joinpath(".sentry-native/cache")
     env = dict(os.environ, SENTRY_DSN=unreachable_dsn)
@@ -128,7 +125,7 @@ def test_cache_max_size(cmake, backend):
         ),
     ],
 )
-def test_cache_max_age(cmake, backend):
+def test_cache_max_age(cmake, backend, unreachable_dsn):
     tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": backend})
     cache_dir = tmp_path.joinpath(".sentry-native/cache")
     env = dict(os.environ, SENTRY_DSN=unreachable_dsn)
@@ -183,7 +180,7 @@ def test_cache_max_age(cmake, backend):
         ),
     ],
 )
-def test_cache_max_items(cmake, backend):
+def test_cache_max_items(cmake, backend, unreachable_dsn):
     tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": backend})
     cache_dir = tmp_path.joinpath(".sentry-native/cache")
     env = dict(os.environ, SENTRY_DSN=unreachable_dsn)
@@ -223,7 +220,7 @@ def test_cache_max_items(cmake, backend):
         ),
     ],
 )
-def test_cache_max_items_with_retry(cmake, backend):
+def test_cache_max_items_with_retry(cmake, backend, unreachable_dsn):
     tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": backend})
     cache_dir = tmp_path.joinpath(".sentry-native/cache")
     env = dict(os.environ, SENTRY_DSN=unreachable_dsn)

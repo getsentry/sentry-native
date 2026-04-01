@@ -59,7 +59,6 @@ def get_asan_crash_env(env):
 
 pytestmark = pytest.mark.skipif(not has_http, reason="tests need http")
 
-unreachable_dsn = "http://uiaeosnrtdy@127.0.0.1:19999/123456"
 
 # fmt: off
 auth_header = (
@@ -844,7 +843,7 @@ def test_native_crash_http(cmake, httpserver):
 
 
 @pytest.mark.skipif(not has_files, reason="test needs a local filesystem")
-def test_http_retry_on_network_error(cmake, httpserver):
+def test_http_retry_on_network_error(cmake, httpserver, unreachable_dsn):
     tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "inproc"})
     cache_dir = tmp_path.joinpath(".sentry-native/cache")
 
@@ -884,7 +883,7 @@ def test_http_retry_on_network_error(cmake, httpserver):
 
 
 @pytest.mark.skipif(not has_files, reason="test needs a local filesystem")
-def test_http_retry_multiple_attempts(cmake, httpserver):
+def test_http_retry_multiple_attempts(cmake, httpserver, unreachable_dsn):
     tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "inproc"})
     cache_dir = tmp_path.joinpath(".sentry-native/cache")
 
@@ -923,7 +922,7 @@ def test_http_retry_multiple_attempts(cmake, httpserver):
 
 
 @pytest.mark.skipif(not has_files, reason="test needs a local filesystem")
-def test_http_retry_with_cache_keep(cmake, httpserver):
+def test_http_retry_with_cache_keep(cmake, httpserver, unreachable_dsn):
     tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "inproc"})
     cache_dir = tmp_path.joinpath(".sentry-native/cache")
 
@@ -952,7 +951,7 @@ def test_http_retry_with_cache_keep(cmake, httpserver):
 
 
 @pytest.mark.skipif(not has_files, reason="test needs a local filesystem")
-def test_http_retry_cache_keep_max_attempts(cmake, httpserver):
+def test_http_retry_cache_keep_max_attempts(cmake, httpserver, unreachable_dsn):
     tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "none"})
     cache_dir = tmp_path.joinpath(".sentry-native/cache")
 
@@ -1033,7 +1032,7 @@ def test_http_retry_rate_limit_discards_envelope(cmake, httpserver):
 
 
 @pytest.mark.skipif(not has_files, reason="test needs a local filesystem")
-def test_http_retry_multiple_success(cmake, httpserver):
+def test_http_retry_multiple_success(cmake, httpserver, unreachable_dsn):
     tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "none"})
     db_dir = tmp_path.joinpath(".sentry-native")
     cache_dir = db_dir.joinpath("cache")
@@ -1070,7 +1069,7 @@ def test_http_retry_multiple_success(cmake, httpserver):
 
 
 @pytest.mark.skipif(not has_files, reason="test needs a local filesystem")
-def test_http_retry_multiple_network_error(cmake):
+def test_http_retry_multiple_network_error(cmake, unreachable_dsn):
     tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "none"})
     db_dir = tmp_path.joinpath(".sentry-native")
     cache_dir = db_dir.joinpath("cache")
@@ -1103,7 +1102,7 @@ def test_http_retry_multiple_network_error(cmake):
 
 
 @pytest.mark.skipif(not has_files, reason="test needs a local filesystem")
-def test_http_retry_multiple_rate_limit(cmake, httpserver):
+def test_http_retry_multiple_rate_limit(cmake, httpserver, unreachable_dsn):
     tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "none"})
     db_dir = tmp_path.joinpath(".sentry-native")
     cache_dir = db_dir.joinpath("cache")
@@ -1139,7 +1138,7 @@ def test_http_retry_multiple_rate_limit(cmake, httpserver):
 
 
 @pytest.mark.skipif(not has_files, reason="test needs a local filesystem")
-def test_http_retry_session_on_network_error(cmake, httpserver):
+def test_http_retry_session_on_network_error(cmake, httpserver, unreachable_dsn):
     tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "none"})
     cache_dir = tmp_path.joinpath(".sentry-native/cache")
 
