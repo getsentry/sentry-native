@@ -449,7 +449,7 @@ jobs:
         shell: bash
         run: |
           pip install --upgrade --requirement tests/requirements.txt
-          pytest --capture=no --verbose tests
+          pytest --capture=no --verbose --durations=0 tests
 
       - name: Check NDK
         if: ${{ env['ANDROID_API'] }}
