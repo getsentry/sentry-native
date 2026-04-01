@@ -168,7 +168,7 @@ sentry__module_read_safely(void *dst, const sentry_module_t *module,
     return read_safely(dst, src, (size_t)size);
 }
 
-static void
+void
 sentry__module_mapping_push(
     sentry_module_t *module, const sentry_parsed_module_t *parsed)
 {

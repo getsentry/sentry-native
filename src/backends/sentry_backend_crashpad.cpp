@@ -565,11 +565,9 @@ process_completed_reports(
 
     SENTRY_DEBUGF("caching %zu completed reports", reports.size());
 
-    sentry_path_t *cache_dir
-        = sentry__path_join_str(options->database_path, "cache");
-    if (!cache_dir || sentry__path_create_dir_all(cache_dir) != 0) {
+    sentry_path_t *cache_dir = options->run->cache_path;
+    if (sentry__path_create_dir_all(cache_dir) != 0) {
         SENTRY_WARN("failed to create cache dir");
-        sentry__path_free(cache_dir);
         return;
     }
 
@@ -580,21 +578,14 @@ process_completed_reports(
             SENTRY_WARNF("failed to convert \"%s\"", filename.c_str());
             continue;
         }
-        sentry_path_t *out_path
-            = sentry__path_join_str(cache_dir, filename.c_str());
-        if (!out_path
-            || (!sentry__path_is_file(out_path)
-                && sentry_envelope_write_to_path(envelope, out_path) != 0)) {
+        if (sentry__envelope_write_to_cache(envelope, cache_dir) != 0) {
             SENTRY_WARNF("failed to cache \"%s\"", filename.c_str());
         } else if (state->db->DeleteReport(report.uuid)
             != crashpad::CrashReportDatabase::kNoError) {
             SENTRY_WARNF("failed to delete \"%s\"", filename.c_str());
         }
-        sentry__path_free(out_path);
         sentry_envelope_free(envelope);
     }
-
-    sentry__path_free(cache_dir);
 }
 
 static int

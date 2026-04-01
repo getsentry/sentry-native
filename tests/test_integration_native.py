@@ -22,9 +22,10 @@ from .assertions import (
     assert_breadcrumb,
     assert_meta,
     assert_session,
+    wait_for_file,
     assert_user_feedback,
 )
-from .conditions import has_native, is_kcov, is_asan
+from .conditions import has_native, has_oom, is_kcov, is_asan
 
 pytestmark = pytest.mark.skipif(
     not has_native,
@@ -90,6 +91,34 @@ def test_native_capture_crash(cmake, httpserver):
         env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
     )
 
+    assert len(httpserver.log) >= 1
+
+
+@pytest.mark.skipif(not has_oom, reason="OOM test unreliable in this environment")
+def test_native_oom(cmake, httpserver):
+    """Test OOM crash capture with native backend"""
+    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "native"})
+
+    httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data("OK")
+
+    with httpserver.wait(timeout=10) as waiting:
+        run_crash(
+            tmp_path,
+            "sentry_example",
+            ["log", "stdout", "oom"],
+            env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
+        )
+
+        time.sleep(2)
+
+        run(
+            tmp_path,
+            "sentry_example",
+            ["log", "no-setup"],
+            env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
+        )
+
+    assert waiting.result
     assert len(httpserver.log) >= 1
 
 
@@ -588,6 +617,12 @@ def test_crash_mode_native_only(cmake, httpserver):
     for frame in exc["stacktrace"]["frames"]:
         assert "instruction_addr" in frame
 
+    if sys.platform == "win32":
+        # At least some frames should have symbolicated function names
+        assert any(
+            frame.get("function") is not None for frame in exc["stacktrace"]["frames"]
+        )
+
     # Should have debug_meta
     assert "debug_meta" in event
     assert len(event["debug_meta"]["images"]) > 0
@@ -635,6 +670,42 @@ def test_crash_mode_native_with_minidump(cmake, httpserver):
     assert exc["mechanism"]["type"] == "signalhandler"
     assert "stacktrace" in exc
     assert len(exc["stacktrace"]["frames"]) > 0
+    if sys.platform == "win32":
+        # At least some frames should have symbolicated function names
+        assert any(
+            frame.get("function") is not None for frame in exc["stacktrace"]["frames"]
+        )
 
     # Should have debug_meta
     assert "debug_meta" in event
+
+
+@pytest.mark.parametrize("cache_keep", [True, False])
+def test_native_cache_keep(cmake, cache_keep):
+    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "native"})
+    db_dir = tmp_path / ".sentry-native"
+    cache_dir = db_dir / "cache"
+    unreachable_dsn = "http://uiaeosnrtdy@127.0.0.1:19999/123456"
+    env = dict(os.environ, SENTRY_DSN=unreachable_dsn)
+
+    # crash -> daemon sends via HTTP -> unreachable -> cache
+    run_crash(
+        tmp_path,
+        "sentry_example",
+        ["log", "stdout", "crash"] + (["cache-keep"] if cache_keep else []),
+        env=env,
+    )
+
+    if cache_keep:
+        assert wait_for_file(cache_dir / "*.envelope")
+        cache_files = list(cache_dir.glob("*.envelope"))
+        assert len(cache_files) == 1
+        dmp_files = list(cache_dir.glob("*.dmp"))
+        assert len(dmp_files) == 1
+        assert cache_files[0].stem == dmp_files[0].stem
+    else:
+        # Best-effort wait for crash processing to finish. 2s is not
+        # guaranteed to be enough, but we cannot poll for the non-existence
+        # of a file.
+        time.sleep(2)
+        assert len(list(cache_dir.glob("*.envelope"))) == 0

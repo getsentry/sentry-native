@@ -4,8 +4,11 @@
 #include "sentry_json.h"
 #include "sentry_options.h"
 #include "sentry_session.h"
+#include "sentry_sync.h"
+#include "sentry_utils.h"
 #include "sentry_uuid.h"
 #include <errno.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -50,19 +53,32 @@ sentry__run_new(const sentry_path_t *database_path)
         return NULL;
     }
 
+    // `<db>/cache`
+    sentry_path_t *cache_path = sentry__path_join_str(database_path, "cache");
+    if (!cache_path) {
+        sentry__path_free(run_path);
+        sentry__path_free(lock_path);
+        sentry__path_free(session_path);
+        sentry__path_free(external_path);
+        return NULL;
+    }
+
     sentry_run_t *run = SENTRY_MAKE(sentry_run_t);
     if (!run) {
         sentry__path_free(run_path);
         sentry__path_free(session_path);
         sentry__path_free(lock_path);
         sentry__path_free(external_path);
+        sentry__path_free(cache_path);
         return NULL;
     }
 
+    run->refcount = 1;
     run->uuid = uuid;
     run->run_path = run_path;
     run->session_path = session_path;
     run->external_path = external_path;
+    run->cache_path = cache_path;
     run->lock = sentry__filelock_new(lock_path);
     if (!run->lock) {
         goto error;
@@ -80,6 +96,15 @@ error:
     return NULL;
 }
 
+sentry_run_t *
+sentry__run_incref(sentry_run_t *run)
+{
+    if (run) {
+        sentry__atomic_fetch_and_add(&run->refcount, 1);
+    }
+    return run;
+}
+
 void
 sentry__run_clean(sentry_run_t *run)
 {
@@ -90,12 +115,13 @@ sentry__run_clean(sentry_run_t *run)
 void
 sentry__run_free(sentry_run_t *run)
 {
-    if (!run) {
+    if (!run || sentry__atomic_fetch_and_add(&run->refcount, -1) != 1) {
         return;
     }
     sentry__path_free(run->run_path);
     sentry__path_free(run->session_path);
     sentry__path_free(run->external_path);
+    sentry__path_free(run->cache_path);
     sentry__filelock_free(run->lock);
     sentry_free(run);
 }
@@ -149,6 +175,124 @@ sentry__run_write_external(
     }
 
     return write_envelope(run->external_path, envelope);
+}
+
+bool
+sentry__run_write_cache(
+    const sentry_run_t *run, const sentry_envelope_t *envelope, int retry_count)
+{
+    if (sentry__path_create_dir_all(run->cache_path) != 0) {
+        SENTRY_ERRORF("mkdir failed: \"%s\"", run->cache_path->path);
+        return false;
+    }
+
+    if (retry_count < 0) {
+        return sentry__envelope_write_to_cache(envelope, run->cache_path) == 0;
+    }
+
+    sentry_uuid_t event_id = sentry__envelope_get_event_id(envelope);
+    if (sentry_uuid_is_nil(&event_id)) {
+        event_id = sentry_uuid_new_v4();
+    }
+
+    char uuid[37];
+    sentry_uuid_as_string(&event_id, uuid);
+
+    sentry_path_t *path = sentry__run_make_cache_path(
+        run, sentry__usec_time() / 1000, retry_count, uuid);
+    if (!path) {
+        return false;
+    }
+
+    int rv = sentry_envelope_write_to_path(envelope, path);
+    sentry__path_free(path);
+    if (rv) {
+        SENTRY_WARN("writing envelope to file failed");
+    }
+    return rv == 0;
+}
+
+bool
+sentry__parse_cache_filename(const char *filename, uint64_t *ts_out,
+    int *count_out, const char **uuid_out)
+{
+    // Minimum retry filename: <ts>-<count>-<uuid>.envelope (49+ chars).
+    // Cache filenames are exactly 45 chars (<uuid>.envelope).
+    if (strlen(filename) <= 45) {
+        return false;
+    }
+
+    char *end;
+    uint64_t ts = strtoull(filename, &end, 10);
+    if (*end != '-') {
+        return false;
+    }
+
+    const char *count_str = end + 1;
+    long count = strtol(count_str, &end, 10);
+    if (*end != '-' || count < 0) {
+        return false;
+    }
+
+    const char *uuid = end + 1;
+    size_t tail_len = strlen(uuid);
+    // 36 chars UUID (with dashes) + ".envelope"
+    if (tail_len != 36 + 9 || strcmp(uuid + 36, ".envelope") != 0) {
+        return false;
+    }
+
+    *ts_out = ts;
+    *count_out = (int)count;
+    *uuid_out = uuid;
+    return true;
+}
+
+sentry_path_t *
+sentry__run_make_cache_path(
+    const sentry_run_t *run, uint64_t ts, int count, const char *uuid)
+{
+    char filename[128];
+    if (count >= 0) {
+        snprintf(filename, sizeof(filename), "%" PRIu64 "-%02d-%.36s.envelope",
+            ts, count, uuid);
+    } else {
+        snprintf(filename, sizeof(filename), "%.36s.envelope", uuid);
+    }
+    return sentry__path_join_str(run->cache_path, filename);
+}
+
+bool
+sentry__run_move_cache(
+    const sentry_run_t *run, const sentry_path_t *src, int retry_count)
+{
+    if (sentry__path_create_dir_all(run->cache_path) != 0) {
+        SENTRY_ERRORF("mkdir failed: \"%s\"", run->cache_path->path);
+        return false;
+    }
+
+    const char *src_name = sentry__path_filename(src);
+    uint64_t parsed_ts;
+    int parsed_count;
+    const char *parsed_uuid;
+    const char *cache_name = sentry__parse_cache_filename(src_name, &parsed_ts,
+                                 &parsed_count, &parsed_uuid)
+        ? parsed_uuid
+        : src_name;
+
+    sentry_path_t *dst_path = sentry__run_make_cache_path(
+        run, sentry__usec_time() / 1000, retry_count, cache_name);
+    if (!dst_path) {
+        return false;
+    }
+
+    int rv = sentry__path_rename(src, dst_path);
+    sentry__path_free(dst_path);
+    if (rv != 0) {
+        SENTRY_WARNF("failed to cache envelope \"%s\"", src_name);
+        return false;
+    }
+
+    return true;
 }
 
 bool
@@ -239,14 +383,6 @@ sentry__process_old_runs(const sentry_options_t *options, uint64_t last_crash)
             continue;
         }
 
-        sentry_path_t *cache_dir = NULL;
-        if (options->cache_keep) {
-            cache_dir = sentry__path_join_str(options->database_path, "cache");
-            if (cache_dir) {
-                sentry__path_create_dir_all(cache_dir);
-            }
-        }
-
         sentry_pathiter_t *run_iter = sentry__path_iter_directory(run_dir);
         const sentry_path_t *file;
         while (run_iter && (file = sentry__pathiter_next(run_iter)) != NULL) {
@@ -291,25 +427,12 @@ sentry__process_old_runs(const sentry_options_t *options, uint64_t last_crash)
             } else if (sentry__path_ends_with(file, ".envelope")) {
                 sentry_envelope_t *envelope = sentry__envelope_from_path(file);
                 sentry__capture_envelope(options->transport, envelope);
-
-                if (cache_dir) {
-                    sentry_path_t *cached_file = sentry__path_join_str(
-                        cache_dir, sentry__path_filename(file));
-                    if (!cached_file
-                        || sentry__path_rename(file, cached_file) != 0) {
-                        SENTRY_WARNF("failed to cache envelope \"%s\"",
-                            sentry__path_filename(file));
-                    }
-                    sentry__path_free(cached_file);
-                    continue;
-                }
             }
 
             sentry__path_remove(file);
         }
         sentry__pathiter_free(run_iter);
 
-        sentry__path_free(cache_dir);
         sentry__path_remove_all(run_dir);
         sentry__filelock_free(lock);
     }
@@ -347,6 +470,51 @@ compare_cache_entries_newest_first(const void *a, const void *b)
     return 0;
 }
 
+/**
+ * Iterate over minidump files for a given .envelope path.
+ * Tries <base>.dmp, <base>-1.dmp, <base>-2.dmp, ... and stops when a file
+ * is not found.
+ */
+static void
+foreach_minidump(const sentry_path_t *envelope_path,
+    void (*callback)(sentry_path_t *dmp_path, void *data), void *data)
+{
+    sentry_path_t *base = sentry__path_basename(envelope_path, ".envelope");
+    if (!base) {
+        return;
+    }
+    for (int i = 0;; i++) {
+        char suffix[16];
+        if (i == 0) {
+            memcpy(suffix, ".dmp", 5);
+        } else {
+            snprintf(suffix, sizeof(suffix), "-%d.dmp", i);
+        }
+        sentry_path_t *dmp_path = sentry__path_append_str(base, suffix);
+        if (!dmp_path || !sentry__path_is_file(dmp_path)) {
+            sentry__path_free(dmp_path);
+            break;
+        }
+        callback(dmp_path, data);
+        sentry__path_free(dmp_path);
+    }
+    sentry__path_free(base);
+}
+
+static void
+accumulate_size(sentry_path_t *path, void *data)
+{
+    size_t *size = data;
+    *size += sentry__path_get_size(path);
+}
+
+static void
+remove_file(sentry_path_t *path, void *data)
+{
+    (void)data;
+    sentry__path_remove(path);
+}
+
 void
 sentry__cleanup_cache(const sentry_options_t *options)
 {
@@ -361,7 +529,9 @@ sentry__cleanup_cache(const sentry_options_t *options)
         return;
     }
 
-    // First pass: collect all cache entries with their metadata
+    // First pass: collect .envelope entries with their metadata.
+    // .dmp files are skipped here; their size is added to the matching
+    // .envelope entry and they are deleted together.
     size_t entries_capacity = 16;
     size_t entries_count = 0;
     cache_entry_t *entries
@@ -374,7 +544,8 @@ sentry__cleanup_cache(const sentry_options_t *options)
     sentry_pathiter_t *iter = sentry__path_iter_directory(cache_dir);
     const sentry_path_t *entry;
     while (iter && (entry = sentry__pathiter_next(iter)) != NULL) {
-        if (sentry__path_is_dir(entry)) {
+        if (sentry__path_is_dir(entry)
+            || !sentry__path_ends_with(entry, ".envelope")) {
             continue;
         }
 
@@ -397,6 +568,10 @@ sentry__cleanup_cache(const sentry_options_t *options)
         }
         entries[entries_count].mtime = sentry__path_get_mtime(entry);
         entries[entries_count].size = sentry__path_get_size(entry);
+
+        // include matching .dmp file sizes in this entry
+        foreach_minidump(entry, accumulate_size, &entries[entries_count].size);
+
         entries_count++;
     }
     sentry__pathiter_free(iter);
@@ -433,6 +608,7 @@ sentry__cleanup_cache(const sentry_options_t *options)
         }
 
         if (should_prune) {
+            foreach_minidump(entries[i].path, remove_file, NULL);
             sentry__path_remove_all(entries[i].path);
         }
         sentry__path_free(entries[i].path);

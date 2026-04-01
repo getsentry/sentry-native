@@ -381,6 +381,23 @@ trigger_stack_overflow()
     trigger_stack_overflow();
 }
 
+static void
+trigger_oom(void)
+{
+    size_t count = 1024;
+    for (;;) {
+        void *p = malloc(count);
+        if (!p) {
+#ifdef SENTRY_PLATFORM_WINDOWS
+            RaiseException(0xc000, 0, 0, NULL);
+#else
+            *((volatile int *)3) = 1;
+#endif
+        }
+        count *= 2;
+    }
+}
+
 static sentry_value_t
 create_debug_crumb(const char *message)
 {
@@ -658,6 +675,12 @@ main(int argc, char **argv)
         sentry_options_set_cache_max_size(options, 4 * 1024 * 1024); // 4 MB
         sentry_options_set_cache_max_age(options, 5 * 24 * 60 * 60); // 5 days
         sentry_options_set_cache_max_items(options, 5);
+    }
+    if (has_arg(argc, argv, "http-retry")) {
+        sentry_options_set_http_retry(options, true);
+    }
+    if (has_arg(argc, argv, "no-http-retry")) {
+        sentry_options_set_http_retry(options, false);
     }
 
     if (has_arg(argc, argv, "disable-metrics")) {
@@ -940,6 +963,10 @@ main(int argc, char **argv)
         sentry_reinstall_backend();
     }
 
+    if (has_arg(argc, argv, "flush")) {
+        sentry_flush(10000);
+    }
+
     if (has_arg(argc, argv, "sleep")) {
         sleep_s(10);
     }
@@ -955,6 +982,9 @@ main(int argc, char **argv)
     }
     if (has_arg(argc, argv, "stack-overflow")) {
         trigger_stack_overflow();
+    }
+    if (has_arg(argc, argv, "oom")) {
+        trigger_oom();
     }
 #if defined(SENTRY_PLATFORM_WINDOWS) && !defined(__MINGW32__)                  \
     && !defined(__MINGW64__)

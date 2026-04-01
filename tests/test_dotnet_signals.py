@@ -7,6 +7,7 @@ import time
 
 import pytest
 
+from tests import adb
 from tests.conditions import is_android, is_tsan, is_x86, is_asan
 
 project_fixture_path = pathlib.Path("tests/fixtures/dotnet_signal")
@@ -273,11 +274,6 @@ def wait_for(condition, timeout=10, interval=0.5):
             return True
         time.sleep(interval)
     return condition()
-
-
-def adb(*args, **kwargs):
-    adb_path = "{}/platform-tools/adb".format(os.environ["ANDROID_HOME"])
-    return subprocess.run([adb_path, *args], **kwargs)
 
 
 def run_android(args=None, timeout=30):

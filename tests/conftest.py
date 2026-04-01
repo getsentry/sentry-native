@@ -1,11 +1,15 @@
 import json
 import os
+import subprocess
 import pytest
 import re
 import statistics
 import sys
-from . import run
+from datetime import datetime, timedelta, UTC
+from . import adb, run
 from .cmake import CMake
+from .conditions import has_sccache, is_android
+import tests
 
 LABEL = "label"
 TIME_UNIT = "time_unit"
@@ -38,6 +42,28 @@ def cmake(tmp_path_factory):
     yield cmake.compile
 
     cmake.destroy()
+
+
+def _get_clock_offset():
+    """Measure clock offset between host and Android device."""
+    if not is_android:
+        return timedelta(0)
+    try:
+        before = datetime.now(UTC)
+        result = adb("shell", "date", "+%s", capture_output=True, text=True)
+        after = datetime.now(UTC)
+        device_time = datetime.fromtimestamp(int(result.stdout.strip()), tz=UTC)
+        host_time = before + (after - before) / 2
+        return device_time - host_time
+    except (KeyError, ValueError, OSError):
+        return timedelta(0)
+
+
+@pytest.fixture(autouse=True)
+def _record_test_start():
+    offset = _get_clock_offset()
+    tests.now = lambda: datetime.now(UTC) + offset
+    tests.test_start = tests.now()
 
 
 def pytest_addoption(parser):
@@ -139,3 +165,18 @@ def pytest_sessionfinish(session, exitstatus):
         with open(json_path, "w") as f:
             benchmarks = [_get_benchmark(name, "\n") for name in gbenchmarks.keys()]
             json.dump(benchmarks, f, indent=2)
+
+
+def pytest_sessionstart(session):
+    if has_sccache:
+        subprocess.run(["sccache", "--zero-stats"], capture_output=True)
+
+
+def pytest_terminal_summary(terminalreporter):
+    if has_sccache:
+        result = subprocess.run(
+            ["sccache", "--show-stats"], capture_output=True, text=True
+        )
+        if result.stdout:
+            terminalreporter.section("sccache stats")
+            terminalreporter.write(result.stdout)

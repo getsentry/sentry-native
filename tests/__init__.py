@@ -12,10 +12,17 @@ import socket
 
 sourcedir = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 
+
+def adb(*args, **kwargs):
+    return subprocess.run(
+        ["{}/platform-tools/adb".format(os.environ["ANDROID_HOME"]), *args], **kwargs
+    )
+
+
 # https://docs.pytest.org/en/latest/assert.html#assert-details
 pytest.register_assert_rewrite("tests.assertions")
 
-SENTRY_VERSION = "0.13.3"
+SENTRY_VERSION = "0.13.4"
 
 
 def make_dsn(httpserver, auth="uiaeosnrtdy", id=123456, proxy_host=False):
