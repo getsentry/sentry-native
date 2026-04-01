@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1775040445649,
+  "lastUpdate": 1775047828117,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -15496,6 +15496,66 @@ window.BENCHMARK_DATA = {
             "value": 1.822255999996969,
             "unit": "ms",
             "extra": "Min 1.731ms\nMax 1.829ms\nMean 1.798ms\nStdDev 0.041ms\nMedian 1.822ms\nCPU 0.534ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "stephanie.anderson@sentry.io",
+            "name": "Stephanie Anderson",
+            "username": "stephanie-anderson"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "39ca94f69aa112c18e36b3d45106c769a916726a",
+          "message": "chore: Update validate-pr workflow (#1621)\n\nCo-authored-by: Claude Opus 4.6 (1M context) <noreply@anthropic.com>",
+          "timestamp": "2026-04-01T14:47:50+02:00",
+          "tree_id": "ec09b34f1a04dd8dd690701c0603213e1cd67f1e",
+          "url": "https://github.com/getsentry/sentry-native/commit/39ca94f69aa112c18e36b3d45106c769a916726a"
+        },
+        "date": 1775047824656,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 0.8659270000066499,
+            "unit": "ms",
+            "extra": "Min 0.852ms\nMax 0.875ms\nMean 0.865ms\nStdDev 0.009ms\nMedian 0.866ms\nCPU 0.822ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 0.7700990000216734,
+            "unit": "ms",
+            "extra": "Min 0.747ms\nMax 0.804ms\nMean 0.775ms\nStdDev 0.021ms\nMedian 0.770ms\nCPU 0.771ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 2.9404560000330093,
+            "unit": "ms",
+            "extra": "Min 2.867ms\nMax 3.036ms\nMean 2.950ms\nStdDev 0.066ms\nMedian 2.940ms\nCPU 1.547ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.11676799999804643,
+            "unit": "ms",
+            "extra": "Min 0.115ms\nMax 0.121ms\nMean 0.118ms\nStdDev 0.003ms\nMedian 0.117ms\nCPU 0.071ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.029284999982337467,
+            "unit": "ms",
+            "extra": "Min 0.028ms\nMax 0.030ms\nMean 0.029ms\nStdDev 0.001ms\nMedian 0.029ms\nCPU 0.028ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 1.7822859999796492,
+            "unit": "ms",
+            "extra": "Min 1.752ms\nMax 1.787ms\nMean 1.772ms\nStdDev 0.016ms\nMedian 1.782ms\nCPU 0.517ms"
           }
         ]
       }
