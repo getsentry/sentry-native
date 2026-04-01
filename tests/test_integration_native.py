@@ -181,11 +181,10 @@ def test_native_session_tracking(cmake, httpserver):
         )
     assert waiting.result
 
-    # Check for session data - may be in dedicated session envelope or embedded in crash envelope
+    # Check for session data - sent as a separate envelope from the run folder
     has_session = False
     for req in httpserver.log:
         data = req[0].get_data()
-        # Session can be sent as standalone session envelope or embedded in event
         if b'"type":"session"' in data or b'"status":"crashed"' in data:
             has_session = True
             break
