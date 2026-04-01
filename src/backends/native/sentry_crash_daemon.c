@@ -3282,7 +3282,7 @@ sentry__crash_daemon_main(pid_t app_pid, uint64_t app_tid, HANDLE event_handle,
     // Cleanup
     if (options) {
         if (options->transport) {
-            // Wait up to 2 seconds for transport to send pending envelopes
+            // Wait up to 10 seconds for transport to send pending envelopes
             // (crash envelope + logs envelope, etc.)
             sentry__transport_shutdown(
                 options->transport, SENTRY_CRASH_TRANSPORT_SHUTDOWN_TIMEOUT_MS);
