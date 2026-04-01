@@ -14,6 +14,7 @@
 #if defined(SENTRY_PLATFORM_WINDOWS)
 #    include "sentry_os.h"
 #    include <signal.h>
+#    include <stdlib.h>
 #endif
 #include "sentry_scope.h"
 #include "sentry_screenshot.h"
@@ -181,6 +182,13 @@ static sentry_inproc_backend_config_t g_backend_config;
 static sentry_threadid_t g_handler_thread;
 // true once the handler thread starts waiting
 static volatile long g_handler_thread_ready = 0;
+#ifdef SENTRY_PLATFORM_WINDOWS
+// Whether to allow WER (Windows Error Reporting) to handle crashes.
+// Initialized to true (safe default) and set from SENTRY_INPROC_WER env var
+// during startup. When false, EXCEPTION_EXECUTE_HANDLER bypasses WER for
+// faster process termination after crash capture.
+static volatile long g_enable_wer = 1;
+#endif
 // shutdown loop invariant
 static volatile long g_handler_should_exit = 0;
 // signal handler tells handler thread to start working
@@ -633,6 +641,10 @@ startup_inproc_backend(
     g_backend_config.enable_logging_when_crashed
         = options ? options->enable_logging_when_crashed : true;
     g_backend_config.handler_strategy = SENTRY_HANDLER_STRATEGY_DEFAULT;
+    const char *wer = getenv("SENTRY_INPROC_WER");
+    if (wer && *wer == '0') {
+        sentry__atomic_store(&g_enable_wer, 0);
+    }
     if (backend) {
         backend->data = &g_backend_config;
     }
@@ -1732,7 +1744,11 @@ handle_exception(EXCEPTION_POINTERS *ExceptionInfo)
     sentry_ucontext_t uctx = { 0 };
     uctx.exception_ptrs = *ExceptionInfo;
     process_ucontext(&uctx);
-    return EXCEPTION_CONTINUE_SEARCH;
+    // EXCEPTION_EXECUTE_HANDLER tells Windows to terminate immediately,
+    // bypassing WER (Windows Error Reporting) which adds ~2s delay.
+    // Set SENTRY_INPROC_WER=0 to use EXCEPTION_EXECUTE_HANDLER.
+    return sentry__atomic_fetch(&g_enable_wer) ? EXCEPTION_CONTINUE_SEARCH
+                                               : EXCEPTION_EXECUTE_HANDLER;
 }
 #endif
 
