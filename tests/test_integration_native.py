@@ -552,11 +552,10 @@ def test_crash_mode_native_with_minidump(cmake, httpserver):
 
 
 @pytest.mark.parametrize("cache_keep", [True, False])
-def test_native_cache_keep(cmake, cache_keep):
+def test_native_cache_keep(cmake, cache_keep, unreachable_dsn):
     tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "native"})
     db_dir = tmp_path / ".sentry-native"
     cache_dir = db_dir / "cache"
-    unreachable_dsn = "http://uiaeosnrtdy@127.0.0.1:19999/123456"
     env = dict(os.environ, SENTRY_DSN=unreachable_dsn)
 
     # crash -> daemon sends via HTTP -> unreachable -> cache

@@ -247,7 +247,11 @@ winhttp_send_task(void *_client, sentry_prepared_http_request_t *req,
     if ((result = WinHttpSendRequest(client->request, headers, (DWORD)-1,
              (LPVOID)req->body, (DWORD)req->body_len, (DWORD)req->body_len,
              0))) {
-        WinHttpReceiveResponse(client->request, NULL);
+        if (!(result = WinHttpReceiveResponse(client->request, NULL))) {
+            SENTRY_WARNF("`WinHttpReceiveResponse` failed with code `%d`",
+                GetLastError());
+            goto exit;
+        }
 
         if (client->debug) {
             // this is basically the example from:
