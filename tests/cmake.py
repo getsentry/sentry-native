@@ -21,6 +21,7 @@ from .build_config import (
 class CMake:
     def __init__(self, factory):
         self.runs = dict()
+        self.cache_file = None
         self.factory = factory
 
     def compile(self, targets, options=None, cflags=None):
@@ -39,7 +40,9 @@ class CMake:
         # cache the build configuration
         if key not in self.runs:
             cwd = self.factory.mktemp("cmake")
-            cmake_configure(cwd, options, cflags)
+            cmake_configure(cwd, options, cflags, self.cache_file)
+            if not self.cache_file:
+                self.cache_file = cwd / "CMakeCache.txt"
             cmake_build(cwd, targets, options)
             self.runs[key] = (cwd, set(targets))
         else:
@@ -125,7 +128,7 @@ class CMake:
                 )
 
 
-def cmake_configure(cwd, options, cflags=None):
+def cmake_configure(cwd, options, cflags=None, cache_file=None):
     if cflags is None:
         cflags = []
     __tracebackhide__ = True
@@ -182,6 +185,19 @@ def cmake_configure(cwd, options, cflags=None):
         # The Visual Studio generator does not support CMAKE_C_COMPILER_LAUNCHER.
         # Use Ninja instead to enable sccache.
         config_cmd.extend(["-G", "Ninja"])
+
+    if cache_file and cache_file.exists():
+        import re
+
+        init_script = cwd / "cache_init.cmake"
+        with open(cache_file) as src, open(init_script, "w") as dst:
+            for line in src:
+                m = re.match(r"^(\w+):INTERNAL=(.*)", line.strip())
+                if m:
+                    key, value = m.group(1), m.group(2)
+                    value = value.replace("\\", "\\\\").replace('"', '\\"')
+                    dst.write(f'set({key} "{value}" CACHE INTERNAL "")\n')
+        config_cmd.extend(["-C", str(init_script)])
 
     for key, value in options.items():
         config_cmd.append("-D{}={}".format(key, value))
