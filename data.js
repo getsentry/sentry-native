@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1774985272097,
+  "lastUpdate": 1775034714565,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -15376,6 +15376,66 @@ window.BENCHMARK_DATA = {
             "value": 1.9650449999630837,
             "unit": "ms",
             "extra": "Min 1.902ms\nMax 1.997ms\nMean 1.960ms\nStdDev 0.035ms\nMedian 1.965ms\nCPU 0.544ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "60878493+JoshuaMoelans@users.noreply.github.com",
+            "name": "JoshuaMoelans",
+            "username": "JoshuaMoelans"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "23ffd10d2efe6b96ad12e224bf9d174556621c32",
+          "message": "feat: enable metrics by default (#1609)\n\n* enable metrics by defaullt\n\n* update tests\n\n* patch: update test to expect batching thread log message (#1612)\n\n* update test to expect batching thread log message\n\n* fix(tests): disable metrics in logger unit tests to avoid tsan race\n\nThe batcher thread spawned by metrics startup logs via the custom\nlogger callback, racing with the main thread's writes to assert_now.\n\nCo-Authored-By: Claude Opus 4.6 (1M context) <noreply@anthropic.com>\n\n---------\n\nCo-authored-by: Claude Opus 4.6 (1M context) <noreply@anthropic.com>\n\n* update changelog\n\n* update notes\n\n---------\n\nCo-authored-by: Claude Opus 4.6 (1M context) <noreply@anthropic.com>",
+          "timestamp": "2026-04-01T11:09:10+02:00",
+          "tree_id": "ad25b300c987374489b345545940e82a2d2ae039",
+          "url": "https://github.com/getsentry/sentry-native/commit/23ffd10d2efe6b96ad12e224bf9d174556621c32"
+        },
+        "date": 1775034708462,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 0.8518519999967111,
+            "unit": "ms",
+            "extra": "Min 0.841ms\nMax 0.956ms\nMean 0.882ms\nStdDev 0.049ms\nMedian 0.852ms\nCPU 0.837ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 0.7865299999991748,
+            "unit": "ms",
+            "extra": "Min 0.770ms\nMax 0.803ms\nMean 0.785ms\nStdDev 0.015ms\nMedian 0.787ms\nCPU 0.784ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 2.987689999997656,
+            "unit": "ms",
+            "extra": "Min 2.822ms\nMax 3.045ms\nMean 2.941ms\nStdDev 0.100ms\nMedian 2.988ms\nCPU 1.527ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.12211799997885464,
+            "unit": "ms",
+            "extra": "Min 0.113ms\nMax 0.136ms\nMean 0.125ms\nStdDev 0.011ms\nMedian 0.122ms\nCPU 0.079ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.029403999974420003,
+            "unit": "ms",
+            "extra": "Min 0.028ms\nMax 0.031ms\nMean 0.029ms\nStdDev 0.001ms\nMedian 0.029ms\nCPU 0.028ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 1.7761580000126287,
+            "unit": "ms",
+            "extra": "Min 1.733ms\nMax 1.831ms\nMean 1.775ms\nStdDev 0.037ms\nMedian 1.776ms\nCPU 0.528ms"
           }
         ]
       }
