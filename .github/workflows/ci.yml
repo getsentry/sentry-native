@@ -458,7 +458,13 @@ jobs:
 
       - name: Save sccache
         if: ${{ runner.os == 'Windows' && env['USE_SCCACHE'] && always() }}
-        uses: actions/cache/save@668228422ae6a00e4ad889ee87cd7109ec5666a7 #v5
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh cache delete "sccache-${{ runner.os }}-${{ runner.arch }}" --repo ${{ github.repository }} || true
+      - uses: actions/cache/save@668228422ae6a00e4ad889ee87cd7109ec5666a7 #v5
+        if: ${{ runner.os == 'Windows' && env['USE_SCCACHE'] && always() }}
         with:
           path: ${{ github.workspace }}/.sccache
           key: sccache-${{ runner.os }}-${{ runner.arch }}
