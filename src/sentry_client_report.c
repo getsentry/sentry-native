@@ -138,7 +138,7 @@ sentry__client_report_into_envelope(sentry_envelope_t *envelope)
                 sentry__jsonwriter_write_key(jw, "category");
                 sentry__jsonwriter_write_str(jw, data_category_to_string(c));
                 sentry__jsonwriter_write_key(jw, "quantity");
-                sentry__jsonwriter_write_int32(jw, (int32_t)count);
+                sentry__jsonwriter_write_int64(jw, count);
                 sentry__jsonwriter_write_object_end(jw);
             }
         }
