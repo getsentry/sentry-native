@@ -108,6 +108,55 @@ def test_client_report_ratelimit(cmake, httpserver):
     assert total_discards == {("ratelimit_backoff", "error"): 9}
 
 
+def test_client_report_ratelimit_then_send_error(cmake, httpserver):
+    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "none"})
+
+    # First request rate-limits sessions. Second request returns 400.
+    # The session item is filtered during serialization (ratelimit_backoff).
+    # The event item is sent but rejected (send_error). Each item must be
+    # counted exactly once under the correct reason.
+    request_count = [0]
+
+    def handler(request):
+        from werkzeug import Response
+
+        request_count[0] += 1
+        if request_count[0] == 1:
+            return Response(
+                "OK", 200, {"X-Sentry-Rate-Limits": "60:session:organization"}
+            )
+        if request_count[0] == 2:
+            return Response("Bad Request", 400)
+        return Response("OK", 200)
+
+    httpserver.expect_request("/api/123456/envelope/").respond_with_handler(handler)
+    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
+
+    run(
+        tmp_path,
+        "sentry_example",
+        ["log", "start-session", "capture-multiple"],
+        env=env,
+    )
+
+    total_discards = {}
+    for req, _resp in httpserver.log:
+        envelope = Envelope.deserialize(req.get_data())
+        for item in envelope:
+            if item.headers.get("type") != "client_report" or not item.payload.json:
+                continue
+            for entry in item.payload.json.get("discarded_events", []):
+                key = (entry["reason"], entry["category"])
+                total_discards[key] = total_discards.get(key, 0) + entry["quantity"]
+
+    # Session updates rate-limited after the first envelope
+    assert ("ratelimit_backoff", "session") in total_discards
+    # Second event rejected by the server
+    assert ("send_error", "error") in total_discards
+    # Sessions must NOT also be counted as send_error
+    assert ("send_error", "session") not in total_discards
+
+
 def test_client_report_sample_rate(cmake, httpserver):
     tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "none"})
 
