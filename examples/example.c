@@ -389,11 +389,10 @@ trigger_oom(void)
     HANDLE job = CreateJobObjectW(NULL, NULL);
     if (job) {
         JOBOBJECT_EXTENDED_LIMIT_INFORMATION info = { 0 };
-        info.BasicLimitInformation.LimitFlags
-            = JOB_OBJECT_LIMIT_PROCESS_MEMORY;
+        info.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_PROCESS_MEMORY;
         info.ProcessMemoryLimit = (size_t)2 * 1024 * 1024 * 1024;
-        SetInformationJobObject(job, JobObjectExtendedLimitInformation, &info,
-            sizeof(info));
+        SetInformationJobObject(
+            job, JobObjectExtendedLimitInformation, &info, sizeof(info));
         AssignProcessToJobObject(job, GetCurrentProcess());
     }
 #endif
