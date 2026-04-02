@@ -224,7 +224,7 @@ jobs:
       TEST_X86: ${{ matrix.TEST_X86 }}
       TEST_MINGW: ${{ matrix.TEST_MINGW }}
       USE_SCCACHE: ${{ matrix.USE_SCCACHE }}
-      SCCACHE_DIR: ${{ github.workspace }}/.sccache
+      SCCACHE_GHA_ENABLED: ${{ matrix.USE_SCCACHE && 'true' || '' }}
       ERROR_ON_WARNINGS: ${{ matrix.ERROR_ON_WARNINGS }}
       RUN_ANALYZER: ${{ matrix.RUN_ANALYZER }}
       ANDROID_API: ${{ matrix.ANDROID_API }}
@@ -362,20 +362,9 @@ jobs:
         shell: powershell
         run: . "scripts\install-zlib.ps1"
 
-      - name: Install sccache
-        if: ${{ runner.os == 'Windows' && env['USE_SCCACHE'] }}
-        continue-on-error: true # build with plain ninja if chocolatey is down
-        shell: bash
-        run: |
-          choco install sccache -y
-          sccache --version
-
-      - name: Cache sccache
-        if: ${{ runner.os == 'Windows' && env['USE_SCCACHE'] }}
-        uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 #v5
-        with:
-          path: ${{ github.workspace }}/.sccache
-          key: sccache-${{ runner.os }}-${{ runner.arch }}
+      - name: Setup sccache
+        if: ${{ env['USE_SCCACHE'] }}
+        uses: mozilla-actions/sccache-action@7d986dd989559c6ecdb630a3fd2557667be217ad # v0.0.9
 
       - name: Setup Java Version
         if: ${{ env['ANDROID_API'] }}
