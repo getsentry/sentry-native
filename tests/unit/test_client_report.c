@@ -87,6 +87,7 @@ SENTRY_TEST(client_report_discard_envelope)
     sentry__envelope_add_from_buffer(envelope, "{}", 2, "attachment");
     sentry__envelope_add_from_buffer(envelope, "{}", 2, "log");
     sentry__envelope_add_from_buffer(envelope, "{}", 2, "feedback");
+    sentry__envelope_add_from_buffer(envelope, "{}", 2, "trace_metric");
     sentry__envelope_add_from_buffer(envelope, "{}", 2, "client_report");
 
     sentry__client_report_discard_envelope(
@@ -104,7 +105,7 @@ SENTRY_TEST(client_report_discard_envelope)
 
     sentry_value_t discarded
         = sentry_value_get_by_key(report, "discarded_events");
-    TEST_CHECK_INT_EQUAL(sentry_value_get_length(discarded), 6);
+    TEST_CHECK_INT_EQUAL(sentry_value_get_length(discarded), 7);
 
     sentry_value_t entry0 = sentry_value_get_by_index(discarded, 0);
     TEST_CHECK_STRING_EQUAL(
@@ -165,6 +166,16 @@ SENTRY_TEST(client_report_discard_envelope)
         "feedback");
     TEST_CHECK_INT_EQUAL(
         sentry_value_as_int32(sentry_value_get_by_key(entry5, "quantity")), 1);
+
+    sentry_value_t entry6 = sentry_value_get_by_index(discarded, 6);
+    TEST_CHECK_STRING_EQUAL(
+        sentry_value_as_string(sentry_value_get_by_key(entry6, "reason")),
+        "network_error");
+    TEST_CHECK_STRING_EQUAL(
+        sentry_value_as_string(sentry_value_get_by_key(entry6, "category")),
+        "trace_metric");
+    TEST_CHECK_INT_EQUAL(
+        sentry_value_as_int32(sentry_value_get_by_key(entry6, "quantity")), 1);
 
     sentry_value_decref(report);
     sentry_envelope_free(carrier);

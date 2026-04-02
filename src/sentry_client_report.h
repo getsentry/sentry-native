@@ -39,6 +39,8 @@ typedef enum {
  * Record a discarded event with the given reason and category.
  * This function is thread-safe using atomic operations.
  */
+sentry_data_category_t sentry__item_type_to_data_category(const char *ty);
+
 void sentry__client_report_discard(sentry_discard_reason_t reason,
     sentry_data_category_t category, long quantity);
 

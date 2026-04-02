@@ -164,8 +164,8 @@ sentry__client_report_into_envelope(sentry_envelope_t *envelope)
     return item;
 }
 
-static sentry_data_category_t
-item_type_to_data_category(const char *ty)
+sentry_data_category_t
+sentry__item_type_to_data_category(const char *ty)
 {
     if (sentry__string_eq(ty, "session")) {
         return SENTRY_DATA_CATEGORY_SESSION;
@@ -203,7 +203,7 @@ sentry__client_report_discard_envelope(const sentry_envelope_t *envelope,
             continue;
         }
         sentry__client_report_discard(
-            reason, item_type_to_data_category(ty), 1);
+            reason, sentry__item_type_to_data_category(ty), 1);
     }
 }
 

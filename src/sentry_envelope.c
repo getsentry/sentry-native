@@ -155,20 +155,6 @@ sentry__envelope_is_rate_limited(
     return has_items;
 }
 
-static sentry_data_category_t
-ratelimiter_category_to_data_category(int rl_category)
-{
-    switch (rl_category) {
-    case SENTRY_RL_CATEGORY_SESSION:
-        return SENTRY_DATA_CATEGORY_SESSION;
-    case SENTRY_RL_CATEGORY_TRANSACTION:
-        return SENTRY_DATA_CATEGORY_TRANSACTION;
-    case SENTRY_RL_CATEGORY_ERROR:
-    default:
-        return SENTRY_DATA_CATEGORY_ERROR;
-    }
-}
-
 static sentry_envelope_item_t *
 envelope_add_from_owned_buffer(
     sentry_envelope_t *envelope, char *buf, size_t buf_len, const char *type)
@@ -799,10 +785,9 @@ sentry_envelope_serialize_ratelimited(const sentry_envelope_t *envelope,
             // rl_category < 0 means the item should bypass rate limiting
             if (rl_category >= 0
                 && sentry__rate_limiter_is_disabled(rl, rl_category)) {
-                sentry_data_category_t data_category
-                    = ratelimiter_category_to_data_category(rl_category);
                 sentry__client_report_discard(
-                    SENTRY_DISCARD_REASON_RATELIMIT_BACKOFF, data_category, 1);
+                    SENTRY_DISCARD_REASON_RATELIMIT_BACKOFF,
+                    sentry__item_type_to_data_category(ty), 1);
                 continue;
             }
         }
