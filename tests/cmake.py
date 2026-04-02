@@ -75,8 +75,9 @@ class CMake:
         if os.environ.get("UTF8_TEST_CWD"):
             # this is Thai and translates to "this is a test directory"
             utf8_subpath = build_tmp_path / "นี่คือไดเร็กทอรีทดสอบ"
+            shutil.rmtree(utf8_subpath, ignore_errors=True)
             copy_except(build_tmp_path, utf8_subpath,
-                        exclude=lambda e: e.is_dir())
+                        exclude=lambda e: e.name == utf8_subpath.name)
             return utf8_subpath
 
         return build_tmp_path
