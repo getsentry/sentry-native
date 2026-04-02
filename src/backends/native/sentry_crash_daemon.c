@@ -2392,7 +2392,7 @@ write_envelope_with_native_stacktrace(const sentry_options_t *options,
     }
 
     // Add screenshot attachment if captured by the daemon
-    if (run_folder) {
+    if (options && options->attach_screenshot && run_folder) {
         sentry_path_t *screenshot_path
             = sentry__path_join_str(run_folder, "screenshot.png");
         if (screenshot_path) {
@@ -2626,7 +2626,7 @@ write_envelope_with_minidump(const sentry_options_t *options,
     }
 
     // Add screenshot attachment if captured by the daemon
-    if (run_folder) {
+    if (options && options->attach_screenshot && run_folder) {
         sentry_path_t *screenshot_path
             = sentry__path_join_str(run_folder, "screenshot.png");
         if (screenshot_path) {
