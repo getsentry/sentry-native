@@ -3,9 +3,9 @@ import shutil
 import subprocess
 import pytest
 from . import run, SENTRY_VERSION
-from .conditions import has_http
+from .conditions import has_http, is_android
 
-has_strings = shutil.which("strings") is not None
+has_strings = shutil.which("strings") is not None and not is_android
 
 
 def test_embedded_info_enabled(cmake):
