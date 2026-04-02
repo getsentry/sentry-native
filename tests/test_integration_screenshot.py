@@ -43,8 +43,8 @@ def assert_screenshot_upload(req):
         pytest.param(
             {"SENTRY_BACKEND": "native"},
             marks=pytest.mark.skip(
-                reason="Native daemon cleans up run folder after processing; "
-                "needs upload-based assertion like test_capture_screenshot_crashpad"
+                reason="Native daemon cleans up run folder after processing "
+                "so the screenshot file is no longer on disk"
             ),
         ),
     ],
