@@ -81,13 +81,14 @@ def test_embedded_info_disabled(cmake):
     )
 
 
-@pytest.mark.skipif(not has_http, reason="test needs http transport (curl)")
 @pytest.mark.skipif(not has_strings, reason="test needs strings command")
 def test_embedded_info_binary_inspection(cmake):
     """Test that embedded info appears in the actual binary"""
     cwd = cmake(
-        ["sentry"],  # Build the library itself
+        ["sentry"],
         {
+            "SENTRY_BACKEND": "none",
+            "SENTRY_TRANSPORT": "none",
             "SENTRY_EMBED_INFO": "ON",
             "SENTRY_BUILD_PLATFORM": "binary-test",
             "SENTRY_BUILD_VARIANT": "inspection",
@@ -98,9 +99,7 @@ def test_embedded_info_binary_inspection(cmake):
     # Find the library file
     library_file = None
     for file in os.listdir(cwd):
-        if file.startswith("libsentry") and (
-            file.endswith(".so") or file.endswith(".dylib") or file.endswith(".dll")
-        ):
+        if file.endswith((".so", ".dylib", ".dll")) and "sentry" in file:
             library_file = os.path.join(cwd, file)
             break
 
@@ -150,13 +149,14 @@ def test_embedded_info_custom_items(cmake):
     )
 
 
-@pytest.mark.skipif(not has_http, reason="test needs http transport (curl)")
 @pytest.mark.skipif(not has_strings, reason="test needs strings command")
 def test_sdk_version_override(cmake):
     """Test that SENTRY_SDK_VERSION override works correctly"""
     cwd = cmake(
         ["sentry"],
         {
+            "SENTRY_BACKEND": "none",
+            "SENTRY_TRANSPORT": "none",
             "SENTRY_EMBED_INFO": "ON",
             "SENTRY_BUILD_PLATFORM": "version-test",
             "SENTRY_BUILD_VARIANT": "override",
@@ -167,9 +167,7 @@ def test_sdk_version_override(cmake):
     # Find the library file
     library_file = None
     for file in os.listdir(cwd):
-        if file.startswith("libsentry") and (
-            file.endswith(".so") or file.endswith(".dylib") or file.endswith(".dll")
-        ):
+        if file.endswith((".so", ".dylib", ".dll")) and "sentry" in file:
             library_file = os.path.join(cwd, file)
             break
 
@@ -197,13 +195,14 @@ def test_sdk_version_override(cmake):
         pytest.skip("strings command not available or failed")
 
 
-@pytest.mark.skipif(not has_http, reason="test needs http transport (curl)")
 @pytest.mark.skipif(not has_strings, reason="test needs strings command")
 def test_sdk_version_override_with_explicit_build_id(cmake):
     """Test that explicit SENTRY_BUILD_ID takes precedence over extracted build ID"""
     cwd = cmake(
         ["sentry"],
         {
+            "SENTRY_BACKEND": "none",
+            "SENTRY_TRANSPORT": "none",
             "SENTRY_EMBED_INFO": "ON",
             "SENTRY_BUILD_PLATFORM": "version-test",
             "SENTRY_BUILD_VARIANT": "explicit-build",
@@ -215,9 +214,7 @@ def test_sdk_version_override_with_explicit_build_id(cmake):
     # Find the library file
     library_file = None
     for file in os.listdir(cwd):
-        if file.startswith("libsentry") and (
-            file.endswith(".so") or file.endswith(".dylib") or file.endswith(".dll")
-        ):
+        if file.endswith((".so", ".dylib", ".dll")) and "sentry" in file:
             library_file = os.path.join(cwd, file)
             break
 
