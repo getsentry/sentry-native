@@ -79,7 +79,9 @@ class CMake:
             copy_except(
                 build_tmp_path,
                 utf8_subpath,
-                exclude=lambda e: e.name == utf8_subpath.name,
+                exclude=lambda e: e.is_dir()
+                and e.name
+                in (utf8_subpath.name, "CMakeFiles", "src", "tests", "Debug"),
             )
             return utf8_subpath
 
@@ -203,9 +205,9 @@ def cmake_configure(cwd, options, cflags=None, cache_file=None):
         # Use Ninja instead to enable sccache.
         config_cmd.extend(["-G", "Ninja"])
 
-    is_cross = "CMAKE_TOOLCHAIN_FILE" in str(
-        options
-    ) or "CMAKE_TOOLCHAIN_FILE" in str(get_platform_cmake_args())
+    is_cross = "CMAKE_TOOLCHAIN_FILE" in str(options) or "CMAKE_TOOLCHAIN_FILE" in str(
+        get_platform_cmake_args()
+    )
     if cache_file and cache_file.exists() and not is_cross:
         import re
 
