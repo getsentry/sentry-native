@@ -49,8 +49,6 @@ def test_capture_stdout(cmake):
     assert_event(envelope)
 
 
-
-
 def test_dynamic_sdk_name_override(cmake):
     tmp_path = cmake(
         ["sentry_example"],

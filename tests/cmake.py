@@ -76,8 +76,11 @@ class CMake:
             # this is Thai and translates to "this is a test directory"
             utf8_subpath = build_tmp_path / "นี่คือไดเร็กทอรีทดสอบ"
             shutil.rmtree(utf8_subpath, ignore_errors=True)
-            copy_except(build_tmp_path, utf8_subpath,
-                        exclude=lambda e: e.name == utf8_subpath.name)
+            copy_except(
+                build_tmp_path,
+                utf8_subpath,
+                exclude=lambda e: e.name == utf8_subpath.name,
+            )
             return utf8_subpath
 
         return build_tmp_path
@@ -200,8 +203,9 @@ def cmake_configure(cwd, options, cflags=None, cache_file=None):
         # Use Ninja instead to enable sccache.
         config_cmd.extend(["-G", "Ninja"])
 
-    is_cross = "CMAKE_TOOLCHAIN_FILE" in str(options) or \
-        "CMAKE_TOOLCHAIN_FILE" in str(get_platform_cmake_args())
+    is_cross = "CMAKE_TOOLCHAIN_FILE" in str(
+        options
+    ) or "CMAKE_TOOLCHAIN_FILE" in str(get_platform_cmake_args())
     if cache_file and cache_file.exists() and not is_cross:
         import re
 
