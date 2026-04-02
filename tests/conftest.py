@@ -5,6 +5,9 @@ import pytest
 import re
 import statistics
 import sys
+import socket
+import struct
+import threading
 from datetime import datetime, timedelta, UTC
 from . import adb, run
 from .cmake import CMake
@@ -42,6 +45,39 @@ def cmake(tmp_path_factory):
     yield cmake.compile
 
     cmake.destroy()
+
+
+@pytest.fixture(scope="session")
+def unreachable_dsn():
+    """A DSN that instantly rejects connections.
+
+    On Windows, connecting to a closed port (e.g. 127.0.0.1:19999) causes
+    WinHTTP to wait ~2s before failing. This fixture instead runs a TCP
+    server that accepts and immediately RSTs the connection, giving the
+    SDK an instant connection failure.
+    """
+    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    sock.bind(("127.0.0.1", 0))
+    sock.listen(5)
+    port = sock.getsockname()[1]
+
+    def reject_loop():
+        while True:
+            try:
+                conn, _ = sock.accept()
+                conn.setsockopt(
+                    socket.SOL_SOCKET, socket.SO_LINGER, struct.pack("ii", 1, 0)
+                )
+                conn.close()
+            except OSError:
+                break
+
+    thread = threading.Thread(target=reject_loop, daemon=True)
+    thread.start()
+
+    yield f"http://uiaeosnrtdy@127.0.0.1:{port}/123456"
+
+    sock.close()
 
 
 def _get_clock_offset():
