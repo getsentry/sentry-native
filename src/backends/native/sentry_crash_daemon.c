@@ -2391,6 +2391,17 @@ write_envelope_with_native_stacktrace(const sentry_options_t *options,
         }
     }
 
+    // Add screenshot attachment if captured by the daemon
+    if (options && options->attach_screenshot && run_folder) {
+        sentry_path_t *screenshot_path
+            = sentry__path_join_str(run_folder, "screenshot.png");
+        if (screenshot_path) {
+            write_attachment_to_envelope(
+                fd, screenshot_path->path, "screenshot.png", "image/png");
+            sentry__path_free(screenshot_path);
+        }
+    }
+
 #if defined(SENTRY_PLATFORM_UNIX)
     close(fd);
 #elif defined(SENTRY_PLATFORM_WINDOWS)
@@ -2611,6 +2622,17 @@ write_envelope_with_minidump(const sentry_options_t *options,
                     sentry_value_decref(attach_list);
                 }
             }
+        }
+    }
+
+    // Add screenshot attachment if captured by the daemon
+    if (options && options->attach_screenshot && run_folder) {
+        sentry_path_t *screenshot_path
+            = sentry__path_join_str(run_folder, "screenshot.png");
+        if (screenshot_path) {
+            write_attachment_to_envelope(
+                fd, screenshot_path->path, "screenshot.png", "image/png");
+            sentry__path_free(screenshot_path);
         }
     }
 
