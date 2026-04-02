@@ -371,14 +371,12 @@ jobs:
           choco install sccache -y
           sccache --version
 
-      - name: Cache sccache
+      - name: Restore sccache
         if: ${{ runner.os == 'Windows' && env['USE_SCCACHE'] }}
-        uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 #v5
+        uses: actions/cache/restore@668228422ae6a00e4ad889ee87cd7109ec5666a7 #v5
         with:
           path: ${{ github.workspace }}/.sccache
-          key: sccache-${{ runner.os }}-${{ runner.arch }}-${{ github.run_id }}
-          restore-keys: |
-            sccache-${{ runner.os }}-${{ runner.arch }}-
+          key: sccache-${{ runner.os }}-${{ runner.arch }}
 
       - name: Setup Java Version
         if: ${{ env['ANDROID_API'] }}
@@ -457,6 +455,13 @@ jobs:
         if: ${{ env['ANDROID_API'] }}
         working-directory: ndk
         run: make check
+
+      - name: Save sccache
+        if: ${{ runner.os == 'Windows' && env['USE_SCCACHE'] && always() }}
+        uses: actions/cache/save@668228422ae6a00e4ad889ee87cd7109ec5666a7 #v5
+        with:
+          path: ${{ github.workspace }}/.sccache
+          key: sccache-${{ runner.os }}-${{ runner.arch }}
 
       - name: "Upload to codecov.io"
         if: ${{ contains(env['RUN_ANALYZER'], 'cov') }}
