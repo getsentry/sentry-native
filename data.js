@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1775118206365,
+  "lastUpdate": 1775140136037,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -15616,6 +15616,66 @@ window.BENCHMARK_DATA = {
             "value": 1.7837119999910556,
             "unit": "ms",
             "extra": "Min 1.757ms\nMax 1.852ms\nMean 1.790ms\nStdDev 0.037ms\nMedian 1.784ms\nCPU 0.500ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "tustanivsky@gmail.com",
+            "name": "Ivan Tustanivskyi",
+            "username": "tustanivsky"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "c355e21212bfa376998bb02584d3bf1942ee8841",
+          "message": "fix: Include screenshot attachment in native backend envelope (#1624)\n\n* fix: Include screenshot attachment in native backend envelope\n\n* Update changelog\n\n* Add scrrenshot options check\n\n* Enable native backend screenshot test\n\n* Revert test\n\n* Update skip reason comment",
+          "timestamp": "2026-04-02T17:26:18+03:00",
+          "tree_id": "410fc13614a40209357f1a848ed9027a9bb1b2e2",
+          "url": "https://github.com/getsentry/sentry-native/commit/c355e21212bfa376998bb02584d3bf1942ee8841"
+        },
+        "date": 1775140132745,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 0.8579830000030597,
+            "unit": "ms",
+            "extra": "Min 0.844ms\nMax 0.864ms\nMean 0.855ms\nStdDev 0.009ms\nMedian 0.858ms\nCPU 0.814ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 0.7710300000098869,
+            "unit": "ms",
+            "extra": "Min 0.752ms\nMax 0.774ms\nMean 0.768ms\nStdDev 0.009ms\nMedian 0.771ms\nCPU 0.767ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 2.87793799998326,
+            "unit": "ms",
+            "extra": "Min 2.850ms\nMax 2.932ms\nMean 2.885ms\nStdDev 0.035ms\nMedian 2.878ms\nCPU 1.496ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.12417199999958939,
+            "unit": "ms",
+            "extra": "Min 0.111ms\nMax 0.136ms\nMean 0.123ms\nStdDev 0.010ms\nMedian 0.124ms\nCPU 0.070ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.029604999980392677,
+            "unit": "ms",
+            "extra": "Min 0.029ms\nMax 0.098ms\nMean 0.049ms\nStdDev 0.030ms\nMedian 0.030ms\nCPU 0.043ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 1.7519379999839657,
+            "unit": "ms",
+            "extra": "Min 1.735ms\nMax 1.833ms\nMean 1.765ms\nStdDev 0.040ms\nMedian 1.752ms\nCPU 0.512ms"
           }
         ]
       }
