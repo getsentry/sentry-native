@@ -384,6 +384,30 @@ trigger_stack_overflow()
 static void
 trigger_oom(void)
 {
+#ifdef SENTRY_PLATFORM_WINDOWS
+    // Optionally limit process memory to trigger OOM faster.
+    // Set SENTRY_TEST_OOM_LIMIT to the limit in MiB (e.g. "8192" for 8GB).
+    // Without this, OOM exhausts all virtual memory which can take minutes.
+    // Note: a Job Object limit only constrains user-mode allocations and
+    // does not exhaust kernel pool memory like a real system-wide OOM would.
+    const char *oom_limit = getenv("SENTRY_TEST_OOM_LIMIT");
+    if (oom_limit) {
+        unsigned long long limit = strtoull(oom_limit, NULL, 10) * 1024 * 1024;
+        if (limit > 0 && limit <= SIZE_MAX) {
+            HANDLE job = CreateJobObjectW(NULL, NULL);
+            if (job) {
+                JOBOBJECT_EXTENDED_LIMIT_INFORMATION info = { 0 };
+                info.BasicLimitInformation.LimitFlags
+                    = JOB_OBJECT_LIMIT_PROCESS_MEMORY;
+                info.ProcessMemoryLimit = (size_t)limit;
+                SetInformationJobObject(job, JobObjectExtendedLimitInformation,
+                    &info, sizeof(info));
+                AssignProcessToJobObject(job, GetCurrentProcess());
+            }
+        }
+    }
+#endif
+
     size_t count = 1024;
     for (;;) {
         void *p = malloc(count);
