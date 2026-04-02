@@ -418,7 +418,7 @@ setup_sigaltstack(stack_t *out_stack, const char *context)
     int ret = sigaltstack(NULL, &old_sig_stack);
     if (ret == 0 && old_sig_stack.ss_flags == SS_DISABLE) {
         SENTRY_DEBUGF(
-            "installing %s sigaltstack (size: %d)", context, SIGNAL_STACK_SIZE);
+            "installing %s sigaltstack (size: %zu)", context, SIGNAL_STACK_SIZE);
         out_stack->ss_sp = sentry_malloc(SIGNAL_STACK_SIZE);
         if (!out_stack->ss_sp) {
             SENTRY_WARN("failed to allocate signal stack");
