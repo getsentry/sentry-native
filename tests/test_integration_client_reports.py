@@ -232,14 +232,17 @@ def test_client_report_before_send_transaction(cmake, httpserver):
 def test_client_report_send_error(cmake, httpserver):
     tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "none"})
 
+    # 429 + rate limit header: the rate limiter is updated before the status
+    # code is returned. The rejected event must still be reported as
+    # send_error, not skipped due to the new rate limit.
     httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data(
-        "Bad Request", status=400
+        "Rate Limited",
+        status=429,
+        headers={"X-Sentry-Rate-Limits": "60:error:organization"},
     )
     httpserver.expect_request("/api/123456/envelope/").respond_with_data("OK")
     env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
 
-    # Event is rejected (400). The session at shutdown carries the
-    # client report.
     run(
         tmp_path,
         "sentry_example",

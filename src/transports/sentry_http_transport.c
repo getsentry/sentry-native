@@ -281,7 +281,7 @@ http_send_task(void *_envelope, void *_state)
         }
     } else if (status_code >= 400) {
         sentry__client_report_discard_envelope(
-            envelope, SENTRY_DISCARD_REASON_SEND_ERROR, state->ratelimiter);
+            envelope, SENTRY_DISCARD_REASON_SEND_ERROR, NULL);
     }
 }
 
