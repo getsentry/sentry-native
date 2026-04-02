@@ -200,7 +200,9 @@ def cmake_configure(cwd, options, cflags=None, cache_file=None):
         # Use Ninja instead to enable sccache.
         config_cmd.extend(["-G", "Ninja"])
 
-    if cache_file and cache_file.exists():
+    is_cross = "CMAKE_TOOLCHAIN_FILE" in str(options) or \
+        "CMAKE_TOOLCHAIN_FILE" in str(get_platform_cmake_args())
+    if cache_file and cache_file.exists() and not is_cross:
         import re
 
         init_script = cwd / "cache_init.cmake"
