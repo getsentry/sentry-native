@@ -18,6 +18,20 @@ from .build_config import (
 )
 
 
+def copy_except(src, dst, exclude=None):
+    """
+    Copy entries from src to dst, skipping entries where exclude returns True.
+    """
+    dst.mkdir(parents=True, exist_ok=True)
+    for entry in src.iterdir():
+        if exclude and exclude(entry):
+            continue
+        if entry.is_dir():
+            shutil.copytree(entry, dst / entry.name, symlinks=True)
+        else:
+            shutil.copy2(entry, dst / entry.name)
+
+
 class CMake:
     def __init__(self, factory):
         self.runs = dict()
@@ -58,12 +72,11 @@ class CMake:
         # ensure that there are no left-overs from previous runs
         shutil.rmtree(build_tmp_path / ".sentry-native", ignore_errors=True)
 
-        # Inject a sub-path into the temporary build directory as the CWD for all tests to verify UTF-8 path handling.
         if os.environ.get("UTF8_TEST_CWD"):
             # this is Thai and translates to "this is a test directory"
             utf8_subpath = build_tmp_path / "นี่คือไดเร็กทอรีทดสอบ"
-            shutil.rmtree(utf8_subpath, ignore_errors=True)
-            shutil.copytree(build_tmp_path, utf8_subpath, dirs_exist_ok=True)
+            copy_except(build_tmp_path, utf8_subpath,
+                        exclude=lambda e: e.is_dir())
             return utf8_subpath
 
         return build_tmp_path

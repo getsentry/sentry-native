@@ -384,6 +384,20 @@ trigger_stack_overflow()
 static void
 trigger_oom(void)
 {
+#ifdef SENTRY_PLATFORM_WINDOWS
+    // Limit process memory to trigger OOM faster on machines with lots of RAM
+    HANDLE job = CreateJobObjectW(NULL, NULL);
+    if (job) {
+        JOBOBJECT_EXTENDED_LIMIT_INFORMATION info = { 0 };
+        info.BasicLimitInformation.LimitFlags
+            = JOB_OBJECT_LIMIT_PROCESS_MEMORY;
+        info.ProcessMemoryLimit = (size_t)2 * 1024 * 1024 * 1024;
+        SetInformationJobObject(job, JobObjectExtendedLimitInformation, &info,
+            sizeof(info));
+        AssignProcessToJobObject(job, GetCurrentProcess());
+    }
+#endif
+
     size_t count = 1024;
     for (;;) {
         void *p = malloc(count);

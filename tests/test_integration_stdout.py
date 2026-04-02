@@ -49,24 +49,6 @@ def test_capture_stdout(cmake):
     assert_event(envelope)
 
 
-def copy_except(src: Path, dst: Path, exceptions: list[str] = None) -> None:
-    """
-    Recursively copy everything from src to dst, except for entries whose
-    names are in `exceptions`.
-    """
-    exceptions = set(exceptions or [])
-
-    dst.mkdir(parents=True, exist_ok=True)
-
-    for entry in src.iterdir():
-        if entry.name in exceptions:
-            continue
-
-        dest = dst / entry.name
-        if entry.is_dir():
-            shutil.copytree(entry, dest, symlinks=True)
-        else:
-            shutil.copy2(entry, dest)
 
 
 def test_dynamic_sdk_name_override(cmake):
