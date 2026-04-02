@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1775140235587,
+  "lastUpdate": 1775140669037,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -15676,6 +15676,66 @@ window.BENCHMARK_DATA = {
             "value": 1.7519379999839657,
             "unit": "ms",
             "extra": "Min 1.735ms\nMax 1.833ms\nMean 1.765ms\nStdDev 0.040ms\nMedian 1.752ms\nCPU 0.512ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "jpnurmi@gmail.com",
+            "name": "J-P Nurmi",
+            "username": "jpnurmi"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "a4518444b297b3a2c16d2fd6ad6794b332d0eef4",
+          "message": "ci: speed up OOM tests with configurable memory limit (#1623)\n\nCo-authored-by: Claude Opus 4.6 (1M context) <noreply@anthropic.com>",
+          "timestamp": "2026-04-02T16:35:00+02:00",
+          "tree_id": "d57831d52bfb01ea3584273d28e74124ee4ab972",
+          "url": "https://github.com/getsentry/sentry-native/commit/a4518444b297b3a2c16d2fd6ad6794b332d0eef4"
+        },
+        "date": 1775140665328,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 0.895192999990968,
+            "unit": "ms",
+            "extra": "Min 0.870ms\nMax 0.950ms\nMean 0.909ms\nStdDev 0.035ms\nMedian 0.895ms\nCPU 0.865ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 0.8241209999937382,
+            "unit": "ms",
+            "extra": "Min 0.794ms\nMax 0.883ms\nMean 0.832ms\nStdDev 0.034ms\nMedian 0.824ms\nCPU 0.827ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 3.1311509999909504,
+            "unit": "ms",
+            "extra": "Min 2.994ms\nMax 3.443ms\nMean 3.183ms\nStdDev 0.182ms\nMedian 3.131ms\nCPU 1.663ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.12238799999408911,
+            "unit": "ms",
+            "extra": "Min 0.118ms\nMax 0.156ms\nMean 0.128ms\nStdDev 0.016ms\nMedian 0.122ms\nCPU 0.080ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.030086000009532654,
+            "unit": "ms",
+            "extra": "Min 0.028ms\nMax 0.057ms\nMean 0.039ms\nStdDev 0.013ms\nMedian 0.030ms\nCPU 0.038ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 1.9515249999813022,
+            "unit": "ms",
+            "extra": "Min 1.931ms\nMax 2.048ms\nMean 1.969ms\nStdDev 0.049ms\nMedian 1.952ms\nCPU 0.574ms"
           }
         ]
       }
