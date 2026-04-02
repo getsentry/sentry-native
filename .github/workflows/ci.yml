@@ -376,7 +376,9 @@ jobs:
         uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 #v5
         with:
           path: ${{ github.workspace }}/.sccache
-          key: sccache-${{ runner.os }}-${{ runner.arch }}
+          key: sccache-${{ runner.os }}-${{ runner.arch }}-${{ github.run_id }}
+          restore-keys: |
+            sccache-${{ runner.os }}-${{ runner.arch }}-
 
       - name: Setup Java Version
         if: ${{ env['ANDROID_API'] }}
