@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1775576861596,
+  "lastUpdate": 1775576914411,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -31954,6 +31954,66 @@ window.BENCHMARK_DATA = {
             "value": 16.16008299998839,
             "unit": "ms",
             "extra": "Min 9.696ms\nMax 64.672ms\nMean 26.812ms\nStdDev 22.218ms\nMedian 16.160ms\nCPU 1.581ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "49699333+dependabot[bot]@users.noreply.github.com",
+            "name": "dependabot[bot]",
+            "username": "dependabot[bot]"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "814b8227bd2e5a22740714d656e7bcf634e400af",
+          "message": "build(deps): bump docker/login-action from 4.0.0 to 4.1.0 (#1627)\n\n* build(deps): bump docker/login-action from 4.0.0 to 4.1.0\n\nBumps [docker/login-action](https://github.com/docker/login-action) from 4.0.0 to 4.1.0.\n- [Release notes](https://github.com/docker/login-action/releases)\n- [Commits](https://github.com/docker/login-action/compare/b45d80f862d83dbcd57f89517bcf500b2ab88fb2...4907a6ddec9925e35a0a9e82d7399ccc52663121)\n\n---\nupdated-dependencies:\n- dependency-name: docker/login-action\n  dependency-version: 4.1.0\n  dependency-type: direct:production\n  update-type: version-update:semver-minor\n...\n\nSigned-off-by: dependabot[bot] <support@github.com>\n\n* adopt new version pin comment format\n\n---------\n\nSigned-off-by: dependabot[bot] <support@github.com>\nCo-authored-by: dependabot[bot] <49699333+dependabot[bot]@users.noreply.github.com>\nCo-authored-by: Mischan Toosarani-Hausberger <mischan@abovevacant.com>",
+          "timestamp": "2026-04-07T17:45:07+02:00",
+          "tree_id": "6c3b79f3ad0fe5ffe122cf9f659c41893656f0b1",
+          "url": "https://github.com/getsentry/sentry-native/commit/814b8227bd2e5a22740714d656e7bcf634e400af"
+        },
+        "date": 1775576910635,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 3.3451670000204103,
+            "unit": "ms",
+            "extra": "Min 3.305ms\nMax 3.415ms\nMean 3.352ms\nStdDev 0.041ms\nMedian 3.345ms\nCPU 1.888ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 3.5352080000166097,
+            "unit": "ms",
+            "extra": "Min 3.327ms\nMax 3.844ms\nMean 3.584ms\nStdDev 0.242ms\nMedian 3.535ms\nCPU 2.061ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 11.359000000084052,
+            "unit": "ms",
+            "extra": "Min 10.459ms\nMax 14.194ms\nMean 11.793ms\nStdDev 1.433ms\nMedian 11.359ms\nCPU 4.292ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.058625000065148924,
+            "unit": "ms",
+            "extra": "Min 0.051ms\nMax 0.062ms\nMean 0.058ms\nStdDev 0.005ms\nMedian 0.059ms\nCPU 0.041ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.2559170000040467,
+            "unit": "ms",
+            "extra": "Min 0.239ms\nMax 0.359ms\nMean 0.281ms\nStdDev 0.051ms\nMedian 0.256ms\nCPU 0.280ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 6.3212090000206445,
+            "unit": "ms",
+            "extra": "Min 5.954ms\nMax 8.114ms\nMean 6.618ms\nStdDev 0.854ms\nMedian 6.321ms\nCPU 0.894ms"
           }
         ]
       }
