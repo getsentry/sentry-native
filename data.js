@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1775571502170,
+  "lastUpdate": 1775571592648,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -31714,6 +31714,66 @@ window.BENCHMARK_DATA = {
             "value": 9.432083000035618,
             "unit": "ms",
             "extra": "Min 8.623ms\nMax 17.069ms\nMean 11.188ms\nStdDev 3.449ms\nMedian 9.432ms\nCPU 1.288ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "mischan@abovevacant.com",
+            "name": "Mischan Toosarani-Hausberger",
+            "username": "supervacuus"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "a8dda2fadddd9bb1f85f7f1a4b4cdfd176bec02a",
+          "message": "fix: replace `googlesource` submodules with GitHub ones (#1628)\n\n* fix: replace googlesource submodules with GitHub ones\n\n* update changelog\n\n* Update crashpad ref to getsentry after merge\n\n* Update CHANGELOG.md\n\nCo-authored-by: Markus Hintersteiner <markus.hintersteiner@sentry.io>\n\n---------\n\nCo-authored-by: Markus Hintersteiner <markus.hintersteiner@sentry.io>",
+          "timestamp": "2026-04-07T16:15:36+02:00",
+          "tree_id": "1395c72d72fef1c702dfccd131b8dcd9a85d4f05",
+          "url": "https://github.com/getsentry/sentry-native/commit/a8dda2fadddd9bb1f85f7f1a4b4cdfd176bec02a"
+        },
+        "date": 1775571588047,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 4.434416999970381,
+            "unit": "ms",
+            "extra": "Min 4.007ms\nMax 4.763ms\nMean 4.362ms\nStdDev 0.321ms\nMedian 4.434ms\nCPU 2.443ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 5.360957999982929,
+            "unit": "ms",
+            "extra": "Min 3.958ms\nMax 5.893ms\nMean 5.058ms\nStdDev 0.766ms\nMedian 5.361ms\nCPU 2.955ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 15.464416999975583,
+            "unit": "ms",
+            "extra": "Min 11.711ms\nMax 21.345ms\nMean 15.872ms\nStdDev 3.486ms\nMedian 15.464ms\nCPU 5.490ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.07133300005079946,
+            "unit": "ms",
+            "extra": "Min 0.059ms\nMax 0.108ms\nMean 0.080ms\nStdDev 0.021ms\nMedian 0.071ms\nCPU 0.054ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.3768329999047637,
+            "unit": "ms",
+            "extra": "Min 0.288ms\nMax 0.530ms\nMean 0.382ms\nStdDev 0.099ms\nMedian 0.377ms\nCPU 0.376ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 7.662999999979547,
+            "unit": "ms",
+            "extra": "Min 7.245ms\nMax 8.564ms\nMean 7.795ms\nStdDev 0.545ms\nMedian 7.663ms\nCPU 1.299ms"
           }
         ]
       }
