@@ -12,7 +12,8 @@
 
 - native: Fix crash daemon failing to detect crashes during OOM on Windows. ([#1603](https://github.com/getsentry/sentry-native/issues/1603))
 - Fix `WinHttpReceiveResponse` failures being silently ignored, which could cause envelopes to be lost instead of retried or cached. ([#1620](https://github.com/getsentry/sentry-native/pull/1620))
-- Fix missing screenshot attachment in native backend envelope ([#1624](https://github.com/getsentry/sentry-native/pull/1624))
+- Fix missing screenshot attachment in native backend envelope. ([#1624](https://github.com/getsentry/sentry-native/pull/1624))
+- Replace `googlesource` submodules with GitHub ones. ([#1628](https://github.com/getsentry/sentry-native/pull/1628))
 
 ## 0.13.4
 
