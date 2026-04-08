@@ -100,6 +100,14 @@ void sentry__envelope_add_attachments(
     sentry_envelope_t *envelope, const sentry_attachment_t *attachments);
 
 /**
+ * Returns true if a client report can be added to the envelope, i.e., the
+ * envelope is structured (not raw) and has at least one non-internal item
+ * that is not rate-limited.
+ */
+bool sentry__envelope_can_add_client_report(
+    const sentry_envelope_t *envelope, const sentry_rate_limiter_t *rl);
+
+/**
  * Serialize a client report and add it to the envelope.
  */
 sentry_envelope_item_t *sentry__envelope_add_client_report(
@@ -136,12 +144,6 @@ void sentry__envelope_set_header(
  */
 void sentry__envelope_item_set_header(
     sentry_envelope_item_t *item, const char *key, sentry_value_t value);
-
-/**
- * Returns true if all non-internal items in the envelope are rate-limited.
- */
-bool sentry__envelope_is_rate_limited(
-    const sentry_envelope_t *envelope, const sentry_rate_limiter_t *rl);
 
 /**
  * Serialize the envelope while applying the rate limits from `rl`.

@@ -737,37 +737,37 @@ SENTRY_TEST(deserialize_envelope_invalid)
     TEST_CHECK(!sentry_envelope_deserialize(buf, strlen(buf)));
 }
 
-SENTRY_TEST(envelope_is_rate_limited)
+SENTRY_TEST(envelope_can_add_client_report)
 {
     SENTRY_TEST_OPTIONS_NEW(options);
     sentry_init(options);
 
     sentry_envelope_t *envelope = sentry__envelope_new();
     sentry__envelope_add_from_buffer(envelope, "{}", 2, "event");
-    TEST_CHECK(!sentry__envelope_is_rate_limited(envelope, NULL));
+    TEST_CHECK(sentry__envelope_can_add_client_report(envelope, NULL));
 
     sentry_rate_limiter_t *rl = sentry__rate_limiter_new();
-    TEST_CHECK(!sentry__envelope_is_rate_limited(envelope, rl));
+    TEST_CHECK(sentry__envelope_can_add_client_report(envelope, rl));
 
     sentry__rate_limiter_update_from_header(rl, "60:error:organization");
-    TEST_CHECK(sentry__envelope_is_rate_limited(envelope, rl));
+    TEST_CHECK(!sentry__envelope_can_add_client_report(envelope, rl));
 
     sentry_envelope_free(envelope);
 
-    // Empty envelope is not rate-limited
+    // Empty envelope
     envelope = sentry__envelope_new();
-    TEST_CHECK(!sentry__envelope_is_rate_limited(envelope, NULL));
+    TEST_CHECK(!sentry__envelope_can_add_client_report(envelope, NULL));
 
     sentry_envelope_free(envelope);
 
-    // Envelope with only internal items is not rate-limited
+    // Envelope with only internal items
     envelope = sentry__envelope_new();
     sentry__envelope_add_from_buffer(envelope, "{}", 2, "client_report");
-    TEST_CHECK(!sentry__envelope_is_rate_limited(envelope, NULL));
+    TEST_CHECK(!sentry__envelope_can_add_client_report(envelope, NULL));
 
     sentry_envelope_free(envelope);
 
-    // Raw envelope is not rate-limited
+    // Raw envelope
     envelope = sentry__envelope_new();
     sentry__envelope_add_from_buffer(envelope, "{}", 2, "event");
     const char *path_str = SENTRY_TEST_PATH_PREFIX "sentry_test_raw";
@@ -777,7 +777,7 @@ SENTRY_TEST(envelope_is_rate_limited)
 
     sentry_envelope_t *raw = sentry__envelope_from_path(path);
     TEST_CHECK(!!raw);
-    TEST_CHECK(!sentry__envelope_is_rate_limited(raw, NULL));
+    TEST_CHECK(!sentry__envelope_can_add_client_report(raw, NULL));
 
     sentry_envelope_free(raw);
     sentry__path_remove(path);

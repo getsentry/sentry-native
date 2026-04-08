@@ -145,13 +145,12 @@ item_type_to_data_category(const char *ty)
 }
 
 bool
-sentry__envelope_is_rate_limited(
+sentry__envelope_can_add_client_report(
     const sentry_envelope_t *envelope, const sentry_rate_limiter_t *rl)
 {
-    if (envelope->is_raw) {
+    if (!envelope || envelope->is_raw) {
         return false;
     }
-    bool has_items = false;
     for (const sentry_envelope_item_t *item
         = envelope->contents.items.first_item;
         item; item = item->next) {
@@ -159,12 +158,11 @@ sentry__envelope_is_rate_limited(
         if (category < 0) {
             continue;
         }
-        has_items = true;
         if (!rl || !sentry__rate_limiter_is_disabled(rl, category)) {
-            return false;
+            return true;
         }
     }
-    return has_items;
+    return false;
 }
 
 static sentry_envelope_item_t *

@@ -434,6 +434,38 @@ SENTRY_TEST(client_report_discard_raw_envelope)
     sentry_close();
 }
 
+SENTRY_TEST(client_report_save_raw_envelope)
+{
+    SENTRY_TEST_OPTIONS_NEW(options);
+    sentry_init(options);
+
+    sentry__client_report_discard(
+        SENTRY_DISCARD_REASON_SAMPLE_RATE, SENTRY_DATA_CATEGORY_ERROR, 3);
+    TEST_CHECK(sentry__client_report_has_pending());
+
+    // Create a raw (file-backed) envelope
+    sentry_envelope_t *structured = sentry__envelope_new();
+    sentry__envelope_add_from_buffer(structured, "{}", 2, "event");
+    const char *path_str = SENTRY_TEST_PATH_PREFIX "sentry_test_cr_raw";
+    sentry_path_t *path = sentry__path_from_str(path_str);
+    TEST_CHECK_INT_EQUAL(sentry_envelope_write_to_path(structured, path), 0);
+    sentry_envelope_free(structured);
+
+    sentry_envelope_t *raw = sentry__envelope_from_path(path);
+    TEST_CHECK(!!raw);
+
+    // can_add_client_report must return false for raw envelopes so that
+    // the transport never drains globals into a report that cannot be
+    // attached, which would silently lose the counts.
+    TEST_CHECK(!sentry__envelope_can_add_client_report(raw, NULL));
+    TEST_CHECK(sentry__client_report_has_pending());
+
+    sentry_envelope_free(raw);
+    sentry__path_remove(path);
+    sentry__path_free(path);
+    sentry_close();
+}
+
 #define DISCARD_PER_THREAD 10000
 #define NUM_THREADS 8
 
