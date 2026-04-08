@@ -2,7 +2,6 @@
 #define SENTRY_CLIENT_REPORT_H_INCLUDED
 
 #include "sentry_boot.h"
-#include "sentry_ratelimiter.h"
 
 /**
  * Discard reasons as specified in the Sentry SDK telemetry documentation.
@@ -36,6 +35,13 @@ typedef enum {
 } sentry_data_category_t;
 
 /**
+ * Consumed discard counts, used to restore them on send failure.
+ */
+typedef struct {
+    long counts[SENTRY_DISCARD_REASON_MAX][SENTRY_DATA_CATEGORY_MAX];
+} sentry_client_report_t;
+
+/**
  * Record a discarded event with the given reason and category.
  * This function is thread-safe using atomic operations.
  */
@@ -46,23 +52,18 @@ void sentry__client_report_discard(sentry_discard_reason_t reason,
 
 /**
  * Check if there are any pending discards to report.
- * Returns true if there are discards, false otherwise.
  */
 bool sentry__client_report_has_pending(void);
 
 /**
- * Create a client report envelope item and add it to the given envelope.
- * This atomically flushes all pending discard counters.
- * Returns the envelope item if added successfully, NULL otherwise.
+ * Atomically read and clear all pending discard counters into `report`.
+ * Returns true if any counts were pending.
  */
-struct sentry_envelope_item_s *sentry__client_report_into_envelope(
-    sentry_envelope_t *envelope);
+bool sentry__client_report_save(sentry_client_report_t *report);
 
 /**
- * Record discards for all non-internal items in the envelope.
- * Skips client_report items. Each item is mapped to its data category.
+ * Re-add a client report's counts back to the global counters.
  */
-void sentry__client_report_discard_envelope(const sentry_envelope_t *envelope,
-    sentry_discard_reason_t reason, const sentry_rate_limiter_t *rl);
+void sentry__client_report_restore(const sentry_client_report_t *report);
 
 #endif

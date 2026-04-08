@@ -130,12 +130,6 @@ sentry__envelope_item_type_to_rl_category(const char *ty)
 }
 
 bool
-sentry__envelope_is_raw(const sentry_envelope_t *envelope)
-{
-    return envelope && envelope->is_raw;
-}
-
-bool
 sentry__envelope_is_rate_limited(
     const sentry_envelope_t *envelope, const sentry_rate_limiter_t *rl)
 {
@@ -1217,6 +1211,105 @@ sentry__envelope_item_get_header(
     return sentry_value_get_by_key(item->headers, key);
 }
 
+static const char *
+discard_reason_to_string(sentry_discard_reason_t reason)
+{
+    switch (reason) {
+    case SENTRY_DISCARD_REASON_QUEUE_OVERFLOW:
+        return "queue_overflow";
+    case SENTRY_DISCARD_REASON_RATELIMIT_BACKOFF:
+        return "ratelimit_backoff";
+    case SENTRY_DISCARD_REASON_NETWORK_ERROR:
+        return "network_error";
+    case SENTRY_DISCARD_REASON_SAMPLE_RATE:
+        return "sample_rate";
+    case SENTRY_DISCARD_REASON_BEFORE_SEND:
+        return "before_send";
+    case SENTRY_DISCARD_REASON_EVENT_PROCESSOR:
+        return "event_processor";
+    case SENTRY_DISCARD_REASON_SEND_ERROR:
+        return "send_error";
+    case SENTRY_DISCARD_REASON_MAX:
+    default:
+        return "unknown";
+    }
+}
+
+static const char *
+data_category_to_string(sentry_data_category_t category)
+{
+    switch (category) {
+    case SENTRY_DATA_CATEGORY_ERROR:
+        return "error";
+    case SENTRY_DATA_CATEGORY_SESSION:
+        return "session";
+    case SENTRY_DATA_CATEGORY_TRANSACTION:
+        return "transaction";
+    case SENTRY_DATA_CATEGORY_ATTACHMENT:
+        return "attachment";
+    case SENTRY_DATA_CATEGORY_LOG_ITEM:
+        return "log_item";
+    case SENTRY_DATA_CATEGORY_FEEDBACK:
+        return "feedback";
+    case SENTRY_DATA_CATEGORY_TRACE_METRIC:
+        return "trace_metric";
+    case SENTRY_DATA_CATEGORY_MAX:
+    default:
+        return "unknown";
+    }
+}
+
+sentry_envelope_item_t *
+sentry__envelope_add_client_report(
+    sentry_envelope_t *envelope, const sentry_client_report_t *report)
+{
+    if (!envelope || envelope->is_raw || !report) {
+        return NULL;
+    }
+
+    sentry_jsonwriter_t *jw = sentry__jsonwriter_new_sb(NULL);
+    if (!jw) {
+        return NULL;
+    }
+
+    sentry__jsonwriter_write_object_start(jw);
+    sentry__jsonwriter_write_key(jw, "timestamp");
+    char *timestamp = sentry__usec_time_to_iso8601(sentry__usec_time());
+    sentry__jsonwriter_write_str(jw, timestamp);
+    sentry_free(timestamp);
+
+    sentry__jsonwriter_write_key(jw, "discarded_events");
+    sentry__jsonwriter_write_list_start(jw);
+    for (int r = 0; r < SENTRY_DISCARD_REASON_MAX; r++) {
+        for (int c = 0; c < SENTRY_DATA_CATEGORY_MAX; c++) {
+            if (report->counts[r][c] > 0) {
+                sentry__jsonwriter_write_object_start(jw);
+                sentry__jsonwriter_write_key(jw, "reason");
+                sentry__jsonwriter_write_str(jw, discard_reason_to_string(r));
+                sentry__jsonwriter_write_key(jw, "category");
+                sentry__jsonwriter_write_str(jw, data_category_to_string(c));
+                sentry__jsonwriter_write_key(jw, "quantity");
+                sentry__jsonwriter_write_int64(jw, report->counts[r][c]);
+                sentry__jsonwriter_write_object_end(jw);
+            }
+        }
+    }
+    sentry__jsonwriter_write_list_end(jw);
+    sentry__jsonwriter_write_object_end(jw);
+
+    size_t payload_len = 0;
+    char *payload = sentry__jsonwriter_into_string(jw, &payload_len);
+    if (!payload) {
+        return NULL;
+    }
+
+    sentry_envelope_item_t *item = sentry__envelope_add_from_buffer(
+        envelope, payload, payload_len, "client_report");
+    sentry_free(payload);
+
+    return item;
+}
+
 #ifdef SENTRY_UNITTEST
 const char *
 sentry__envelope_item_get_payload(
@@ -1228,3 +1321,27 @@ sentry__envelope_item_get_payload(
     return item->payload;
 }
 #endif
+
+void
+sentry__envelope_discard(const sentry_envelope_t *envelope,
+    sentry_discard_reason_t reason, const sentry_rate_limiter_t *rl)
+{
+    size_t count = sentry__envelope_get_item_count(envelope);
+    for (size_t i = 0; i < count; i++) {
+        const sentry_envelope_item_t *item
+            = sentry__envelope_get_item(envelope, i);
+        const char *ty = sentry_value_as_string(
+            sentry__envelope_item_get_header(item, "type"));
+        int rl_category = sentry__envelope_item_type_to_rl_category(ty);
+        // internal items (e.g. client_report) bypass rate limiting
+        if (rl_category < 0) {
+            continue;
+        }
+        // already recorded as ratelimit_backoff
+        if (rl && sentry__rate_limiter_is_disabled(rl, rl_category)) {
+            continue;
+        }
+        sentry__client_report_discard(
+            reason, sentry__item_type_to_data_category(ty), 1);
+    }
+}

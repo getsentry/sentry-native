@@ -24,8 +24,10 @@ SENTRY_TEST(client_report_discard)
     sentry_envelope_t *envelope = sentry__envelope_new();
     TEST_CHECK(!!envelope);
 
+    sentry_client_report_t report;
+    TEST_CHECK(sentry__client_report_save(&report));
     sentry_envelope_item_t *item
-        = sentry__client_report_into_envelope(envelope);
+        = sentry__envelope_add_client_report(envelope, &report);
     TEST_CHECK(!!item);
 
     TEST_CHECK(!sentry__client_report_has_pending());
@@ -39,14 +41,14 @@ SENTRY_TEST(client_report_discard)
     TEST_CHECK(!!payload);
     TEST_CHECK(payload_len > 0);
 
-    sentry_value_t report = sentry__value_from_json(payload, payload_len);
-    TEST_CHECK(!sentry_value_is_null(report));
+    sentry_value_t value = sentry__value_from_json(payload, payload_len);
+    TEST_CHECK(!sentry_value_is_null(value));
 
     TEST_CHECK(
-        !sentry_value_is_null(sentry_value_get_by_key(report, "timestamp")));
+        !sentry_value_is_null(sentry_value_get_by_key(value, "timestamp")));
 
     sentry_value_t discarded
-        = sentry_value_get_by_key(report, "discarded_events");
+        = sentry_value_get_by_key(value, "discarded_events");
     TEST_CHECK_INT_EQUAL(sentry_value_get_length(discarded), 2);
 
     sentry_value_t entry0 = sentry_value_get_by_index(discarded, 0);
@@ -69,7 +71,69 @@ SENTRY_TEST(client_report_discard)
     TEST_CHECK_INT_EQUAL(
         sentry_value_as_int32(sentry_value_get_by_key(entry1, "quantity")), 1);
 
-    sentry_value_decref(report);
+    sentry_value_decref(value);
+    sentry_envelope_free(envelope);
+    sentry_close();
+}
+
+SENTRY_TEST(client_report_restore)
+{
+    SENTRY_TEST_OPTIONS_NEW(options);
+    sentry_init(options);
+
+    TEST_CHECK(!sentry__client_report_has_pending());
+
+    sentry__client_report_discard(
+        SENTRY_DISCARD_REASON_SAMPLE_RATE, SENTRY_DATA_CATEGORY_ERROR, 3);
+    sentry__client_report_discard(
+        SENTRY_DISCARD_REASON_BEFORE_SEND, SENTRY_DATA_CATEGORY_SESSION, 1);
+
+    sentry_client_report_t report;
+    TEST_CHECK(sentry__client_report_save(&report));
+    TEST_CHECK(!sentry__client_report_has_pending());
+
+    // Simulate send failure: restore counts
+    sentry__client_report_restore(&report);
+
+    TEST_CHECK(sentry__client_report_has_pending());
+
+    // Verify restored counts appear in the next report
+    sentry_client_report_t next_report;
+    TEST_CHECK(sentry__client_report_save(&next_report));
+    sentry_envelope_t *envelope = sentry__envelope_new();
+    sentry_envelope_item_t *item
+        = sentry__envelope_add_client_report(envelope, &next_report);
+    TEST_CHECK(!!item);
+
+    size_t payload_len = 0;
+    const char *payload = sentry__envelope_item_get_payload(item, &payload_len);
+    sentry_value_t value = sentry__value_from_json(payload, payload_len);
+
+    sentry_value_t discarded
+        = sentry_value_get_by_key(value, "discarded_events");
+    TEST_CHECK_INT_EQUAL(sentry_value_get_length(discarded), 2);
+
+    sentry_value_t entry0 = sentry_value_get_by_index(discarded, 0);
+    TEST_CHECK_STRING_EQUAL(
+        sentry_value_as_string(sentry_value_get_by_key(entry0, "reason")),
+        "sample_rate");
+    TEST_CHECK_STRING_EQUAL(
+        sentry_value_as_string(sentry_value_get_by_key(entry0, "category")),
+        "error");
+    TEST_CHECK_INT_EQUAL(
+        sentry_value_as_int32(sentry_value_get_by_key(entry0, "quantity")), 3);
+
+    sentry_value_t entry1 = sentry_value_get_by_index(discarded, 1);
+    TEST_CHECK_STRING_EQUAL(
+        sentry_value_as_string(sentry_value_get_by_key(entry1, "reason")),
+        "before_send");
+    TEST_CHECK_STRING_EQUAL(
+        sentry_value_as_string(sentry_value_get_by_key(entry1, "category")),
+        "session");
+    TEST_CHECK_INT_EQUAL(
+        sentry_value_as_int32(sentry_value_get_by_key(entry1, "quantity")), 1);
+
+    sentry_value_decref(value);
     sentry_envelope_free(envelope);
     sentry_close();
 }
@@ -91,21 +155,24 @@ SENTRY_TEST(client_report_discard_envelope)
     sentry__envelope_add_from_buffer(envelope, "{}", 2, "trace_metric");
     sentry__envelope_add_from_buffer(envelope, "{}", 2, "client_report");
 
-    sentry__client_report_discard_envelope(
+    sentry__envelope_discard(
         envelope, SENTRY_DISCARD_REASON_NETWORK_ERROR, NULL);
 
     TEST_CHECK(sentry__client_report_has_pending());
 
+    sentry_client_report_t report;
+    TEST_CHECK(sentry__client_report_save(&report));
     sentry_envelope_t *carrier = sentry__envelope_new();
-    sentry_envelope_item_t *item = sentry__client_report_into_envelope(carrier);
+    sentry_envelope_item_t *item
+        = sentry__envelope_add_client_report(carrier, &report);
     TEST_CHECK(!!item);
 
     size_t payload_len = 0;
     const char *payload = sentry__envelope_item_get_payload(item, &payload_len);
-    sentry_value_t report = sentry__value_from_json(payload, payload_len);
+    sentry_value_t value = sentry__value_from_json(payload, payload_len);
 
     sentry_value_t discarded
-        = sentry_value_get_by_key(report, "discarded_events");
+        = sentry_value_get_by_key(value, "discarded_events");
     TEST_CHECK_INT_EQUAL(sentry_value_get_length(discarded), 7);
 
     sentry_value_t entry0 = sentry_value_get_by_index(discarded, 0);
@@ -178,7 +245,7 @@ SENTRY_TEST(client_report_discard_envelope)
     TEST_CHECK_INT_EQUAL(
         sentry_value_as_int32(sentry_value_get_by_key(entry6, "quantity")), 1);
 
-    sentry_value_decref(report);
+    sentry_value_decref(value);
     sentry_envelope_free(carrier);
     sentry_envelope_free(envelope);
     sentry_close();
@@ -198,19 +265,21 @@ SENTRY_TEST(client_report_discard_rate_limited)
     sentry__rate_limiter_update_from_header(rl, "60:error:organization");
 
     // Discard with RL: should only record session, not event
-    sentry__client_report_discard_envelope(
-        envelope, SENTRY_DISCARD_REASON_NETWORK_ERROR, rl);
+    sentry__envelope_discard(envelope, SENTRY_DISCARD_REASON_NETWORK_ERROR, rl);
 
+    sentry_client_report_t report;
+    TEST_CHECK(sentry__client_report_save(&report));
     sentry_envelope_t *carrier = sentry__envelope_new();
-    sentry_envelope_item_t *item = sentry__client_report_into_envelope(carrier);
+    sentry_envelope_item_t *item
+        = sentry__envelope_add_client_report(carrier, &report);
     TEST_CHECK(!!item);
 
     size_t payload_len = 0;
     const char *payload = sentry__envelope_item_get_payload(item, &payload_len);
-    sentry_value_t report = sentry__value_from_json(payload, payload_len);
+    sentry_value_t value = sentry__value_from_json(payload, payload_len);
 
     sentry_value_t discarded
-        = sentry_value_get_by_key(report, "discarded_events");
+        = sentry_value_get_by_key(value, "discarded_events");
     TEST_CHECK_INT_EQUAL(sentry_value_get_length(discarded), 1);
 
     sentry_value_t entry0 = sentry_value_get_by_index(discarded, 0);
@@ -223,7 +292,7 @@ SENTRY_TEST(client_report_discard_rate_limited)
     TEST_CHECK_INT_EQUAL(
         sentry_value_as_int32(sentry_value_get_by_key(entry0, "quantity")), 1);
 
-    sentry_value_decref(report);
+    sentry_value_decref(value);
     sentry_envelope_free(carrier);
     sentry_envelope_free(envelope);
     sentry__rate_limiter_free(rl);
@@ -237,14 +306,9 @@ SENTRY_TEST(client_report_none)
 
     TEST_CHECK(!sentry__client_report_has_pending());
 
-    sentry_envelope_t *envelope = sentry__envelope_new();
-    TEST_CHECK(!!envelope);
+    sentry_client_report_t report;
+    TEST_CHECK(!sentry__client_report_save(&report));
 
-    sentry_envelope_item_t *item
-        = sentry__client_report_into_envelope(envelope);
-    TEST_CHECK(!item);
-
-    sentry_envelope_free(envelope);
     sentry_close();
 }
 
@@ -277,18 +341,20 @@ SENTRY_TEST(client_report_queue_overflow)
 
     TEST_CHECK(sentry__client_report_has_pending());
 
+    sentry_client_report_t report;
+    TEST_CHECK(sentry__client_report_save(&report));
     sentry_envelope_t *envelope = sentry__envelope_new();
     sentry_envelope_item_t *cr_item
-        = sentry__client_report_into_envelope(envelope);
+        = sentry__envelope_add_client_report(envelope, &report);
     TEST_CHECK(!!cr_item);
 
     size_t payload_len = 0;
     const char *payload
         = sentry__envelope_item_get_payload(cr_item, &payload_len);
-    sentry_value_t report = sentry__value_from_json(payload, payload_len);
+    sentry_value_t value = sentry__value_from_json(payload, payload_len);
 
     sentry_value_t discarded
-        = sentry_value_get_by_key(report, "discarded_events");
+        = sentry_value_get_by_key(value, "discarded_events");
     TEST_CHECK_INT_EQUAL(sentry_value_get_length(discarded), 1);
 
     sentry_value_t entry0 = sentry_value_get_by_index(discarded, 0);
@@ -301,7 +367,7 @@ SENTRY_TEST(client_report_queue_overflow)
     TEST_CHECK_INT_EQUAL(
         sentry_value_as_int32(sentry_value_get_by_key(entry0, "quantity")), 1);
 
-    sentry_value_decref(report);
+    sentry_value_decref(value);
     sentry_envelope_free(envelope);
     sentry__batcher_release(batcher);
     sentry_close();
@@ -327,22 +393,24 @@ SENTRY_TEST(client_report_discard_raw_envelope)
     sentry_free(buf);
     TEST_CHECK(!!parsed);
 
-    sentry__client_report_discard_envelope(
-        parsed, SENTRY_DISCARD_REASON_SEND_ERROR, NULL);
+    sentry__envelope_discard(parsed, SENTRY_DISCARD_REASON_SEND_ERROR, NULL);
     sentry_envelope_free(parsed);
 
     TEST_CHECK(sentry__client_report_has_pending());
 
+    sentry_client_report_t report;
+    TEST_CHECK(sentry__client_report_save(&report));
     sentry_envelope_t *carrier = sentry__envelope_new();
-    sentry_envelope_item_t *item = sentry__client_report_into_envelope(carrier);
+    sentry_envelope_item_t *item
+        = sentry__envelope_add_client_report(carrier, &report);
     TEST_CHECK(!!item);
 
     size_t payload_len = 0;
     const char *payload = sentry__envelope_item_get_payload(item, &payload_len);
-    sentry_value_t report = sentry__value_from_json(payload, payload_len);
+    sentry_value_t value = sentry__value_from_json(payload, payload_len);
 
     sentry_value_t discarded
-        = sentry_value_get_by_key(report, "discarded_events");
+        = sentry_value_get_by_key(value, "discarded_events");
     TEST_CHECK_INT_EQUAL(sentry_value_get_length(discarded), 2);
 
     sentry_value_t entry0 = sentry_value_get_by_index(discarded, 0);
@@ -361,7 +429,7 @@ SENTRY_TEST(client_report_discard_raw_envelope)
         sentry_value_as_string(sentry_value_get_by_key(entry1, "category")),
         "session");
 
-    sentry_value_decref(report);
+    sentry_value_decref(value);
     sentry_envelope_free(carrier);
     sentry_close();
 }
@@ -390,24 +458,28 @@ flush_thread_func(void *data)
 {
     (void)data;
     while (sentry__atomic_fetch((long *)&g_running)) {
+        sentry_client_report_t report;
+        if (!sentry__client_report_save(&report)) {
+            continue;
+        }
         sentry_envelope_t *envelope = sentry__envelope_new();
         sentry_envelope_item_t *item
-            = sentry__client_report_into_envelope(envelope);
+            = sentry__envelope_add_client_report(envelope, &report);
         if (item) {
             size_t payload_len = 0;
             const char *payload
                 = sentry__envelope_item_get_payload(item, &payload_len);
-            sentry_value_t report
+            sentry_value_t value
                 = sentry__value_from_json(payload, payload_len);
             sentry_value_t discarded
-                = sentry_value_get_by_key(report, "discarded_events");
+                = sentry_value_get_by_key(value, "discarded_events");
             for (uint32_t j = 0; j < sentry_value_get_length(discarded); j++) {
                 sentry_value_t entry = sentry_value_get_by_index(discarded, j);
                 sentry__atomic_fetch_and_add((long *)&g_consumed,
                     sentry_value_as_int32(
                         sentry_value_get_by_key(entry, "quantity")));
             }
-            sentry_value_decref(report);
+            sentry_value_decref(value);
         }
         sentry_envelope_free(envelope);
     }
@@ -441,23 +513,27 @@ SENTRY_TEST(client_report_concurrent)
     }
 
     // drain remaining
-    sentry_envelope_t *envelope = sentry__envelope_new();
-    sentry_envelope_item_t *item
-        = sentry__client_report_into_envelope(envelope);
+    sentry_client_report_t report;
+    sentry_envelope_item_t *item = NULL;
+    sentry_envelope_t *envelope = NULL;
+    if (sentry__client_report_save(&report)) {
+        envelope = sentry__envelope_new();
+        item = sentry__envelope_add_client_report(envelope, &report);
+    }
     if (item) {
         size_t payload_len = 0;
         const char *payload
             = sentry__envelope_item_get_payload(item, &payload_len);
-        sentry_value_t report = sentry__value_from_json(payload, payload_len);
+        sentry_value_t value = sentry__value_from_json(payload, payload_len);
         sentry_value_t discarded
-            = sentry_value_get_by_key(report, "discarded_events");
+            = sentry_value_get_by_key(value, "discarded_events");
         for (uint32_t j = 0; j < sentry_value_get_length(discarded); j++) {
             sentry_value_t entry = sentry_value_get_by_index(discarded, j);
             sentry__atomic_fetch_and_add((long *)&g_consumed,
                 sentry_value_as_int32(
                     sentry_value_get_by_key(entry, "quantity")));
         }
-        sentry_value_decref(report);
+        sentry_value_decref(value);
     }
     sentry_envelope_free(envelope);
 

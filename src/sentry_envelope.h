@@ -2,6 +2,7 @@
 #define SENTRY_ENVELOPE_H_INCLUDED
 
 #include "sentry_boot.h"
+#include "sentry_client_report.h"
 #include "sentry_core.h"
 
 #include "sentry_attachment.h"
@@ -99,6 +100,18 @@ void sentry__envelope_add_attachments(
     sentry_envelope_t *envelope, const sentry_attachment_t *attachments);
 
 /**
+ * Serialize a client report and add it to the envelope.
+ */
+sentry_envelope_item_t *sentry__envelope_add_client_report(
+    sentry_envelope_t *envelope, const sentry_client_report_t *report);
+
+/**
+ * Record discards for all non-internal items in the envelope.
+ */
+void sentry__envelope_discard(const sentry_envelope_t *envelope,
+    sentry_discard_reason_t reason, const sentry_rate_limiter_t *rl);
+
+/**
  * This will add the file contents from `path` as an envelope item of type
  * `type`.
  */
@@ -129,11 +142,6 @@ void sentry__envelope_item_set_header(
  * item should bypass rate limiting.
  */
 int sentry__envelope_item_type_to_rl_category(const char *ty);
-
-/**
- * Returns true if the envelope is a raw envelope loaded from disk.
- */
-bool sentry__envelope_is_raw(const sentry_envelope_t *envelope);
 
 /**
  * Returns true if all non-internal items in the envelope are rate-limited.

@@ -278,6 +278,43 @@ def test_client_report_before_send_transaction(cmake, httpserver):
     )
 
 
+def test_client_report_send_error_preserves_pending(cmake, httpserver):
+    """Client report counts attached to a failed envelope are preserved."""
+    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "none"})
+
+    httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data(
+        "Internal Server Error", status=500
+    )
+    httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data(
+        "Internal Server Error", status=500
+    )
+    httpserver.expect_request("/api/123456/envelope/").respond_with_data("OK")
+    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
+
+    run(
+        tmp_path,
+        "sentry_example",
+        ["log", "start-session", "capture-multiple"],
+        env=env,
+    )
+
+    # Events 1-2 fail (500) -> send_error discards accumulate.
+    # Event 3+ succeed and deliver the accumulated client report.
+    assert len(httpserver.log) > 2
+    total_discards = {}
+    for req, _resp in httpserver.log[2:]:
+        envelope = Envelope.deserialize(req.get_data())
+        for item in envelope:
+            if item.headers.get("type") != "client_report" or not item.payload.json:
+                continue
+            for entry in item.payload.json.get("discarded_events", []):
+                key = (entry["reason"], entry["category"])
+                total_discards[key] = total_discards.get(key, 0) + entry["quantity"]
+
+    assert total_discards[("send_error", "error")] == 2
+    assert total_discards[("send_error", "session")] == 2
+
+
 def test_client_report_send_error(cmake, httpserver):
     tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "none"})
 

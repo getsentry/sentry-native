@@ -241,19 +241,23 @@ static int
 retry_send_cb(sentry_envelope_t *envelope, void *_state)
 {
     http_transport_state_t *state = _state;
+    sentry_client_report_t report = { { 0 } };
     if (state->send_client_reports
         && !sentry__envelope_is_rate_limited(envelope, state->ratelimiter)) {
-        sentry__client_report_into_envelope(envelope);
+        if (sentry__client_report_save(&report)) {
+            sentry__envelope_add_client_report(envelope, &report);
+        }
     }
     int status_code = http_send_envelope(envelope, state);
     if (state->send_client_reports && status_code >= 400
         && status_code != 429) {
+        sentry__client_report_restore(&report);
         size_t buf_len = 0;
         char *buf = sentry_envelope_serialize(envelope, &buf_len);
         sentry_envelope_t *parsed = sentry_envelope_deserialize(buf, buf_len);
         sentry_free(buf);
         if (parsed) {
-            sentry__client_report_discard_envelope(
+            sentry__envelope_discard(
                 parsed, SENTRY_DISCARD_REASON_SEND_ERROR, state->ratelimiter);
             sentry_envelope_free(parsed);
         }
@@ -282,14 +286,18 @@ http_send_task(void *_envelope, void *_state)
     sentry_envelope_t *envelope = _envelope;
     http_transport_state_t *state = _state;
 
+    sentry_client_report_t report = { { 0 } };
     if (state->send_client_reports
         && !sentry__envelope_is_rate_limited(envelope, state->ratelimiter)) {
-        sentry__client_report_into_envelope(envelope);
+        if (sentry__client_report_save(&report)) {
+            sentry__envelope_add_client_report(envelope, &report);
+        }
     }
 
     sentry_prepared_http_request_t *req = sentry__prepare_http_request(
         envelope, state->dsn, state->ratelimiter, state->user_agent);
     if (!req) {
+        sentry__client_report_restore(&report);
         return;
     }
     sentry_http_response_t resp;
@@ -303,12 +311,14 @@ http_send_task(void *_envelope, void *_state)
             if (state->cache_keep) {
                 sentry__run_write_cache(state->run, envelope, -1);
             }
-            sentry__client_report_discard_envelope(envelope,
+            sentry__client_report_restore(&report);
+            sentry__envelope_discard(envelope,
                 SENTRY_DISCARD_REASON_NETWORK_ERROR, state->ratelimiter);
         }
     } else {
         if (status_code >= 400 && status_code != 429) {
-            sentry__client_report_discard_envelope(
+            sentry__client_report_restore(&report);
+            sentry__envelope_discard(
                 envelope, SENTRY_DISCARD_REASON_SEND_ERROR, state->ratelimiter);
         }
         http_update_ratelimiter(state, &resp);
