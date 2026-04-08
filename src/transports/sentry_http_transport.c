@@ -246,7 +246,8 @@ retry_send_cb(sentry_envelope_t *envelope, void *_state)
         sentry__client_report_into_envelope(envelope);
     }
     int status_code = http_send_envelope(envelope, state);
-    if (state->send_client_reports && status_code >= 400) {
+    if (state->send_client_reports && status_code >= 400
+        && status_code != 429) {
         size_t buf_len = 0;
         char *buf = sentry_envelope_serialize(envelope, &buf_len);
         sentry_envelope_t *parsed = sentry_envelope_deserialize(buf, buf_len);
@@ -305,11 +306,11 @@ http_send_task(void *_envelope, void *_state)
             sentry__client_report_discard_envelope(envelope,
                 SENTRY_DISCARD_REASON_NETWORK_ERROR, state->ratelimiter);
         }
-    } else if (status_code >= 400) {
-        sentry__client_report_discard_envelope(
-            envelope, SENTRY_DISCARD_REASON_SEND_ERROR, state->ratelimiter);
-        http_update_ratelimiter(state, &resp);
     } else {
+        if (status_code >= 400 && status_code != 429) {
+            sentry__client_report_discard_envelope(
+                envelope, SENTRY_DISCARD_REASON_SEND_ERROR, state->ratelimiter);
+        }
         http_update_ratelimiter(state, &resp);
     }
 }
