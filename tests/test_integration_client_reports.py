@@ -4,11 +4,10 @@ import pytest
 from . import make_dsn, run, Envelope
 from .assertions import (
     assert_client_report,
-    assert_no_client_report,
     assert_event,
     assert_session,
 )
-from .conditions import has_http
+from .conditions import has_files, has_http
 
 pytestmark = pytest.mark.skipif(not has_http, reason="tests need http")
 
@@ -29,8 +28,9 @@ def test_client_report_none(cmake, httpserver):
     assert len(httpserver.log) == 1
     envelope = Envelope.deserialize(httpserver.log[0][0].get_data())
 
-    assert_no_client_report(envelope)
     assert_event(envelope)
+    for item in envelope:
+        assert item.headers.get("type") != "client_report"
 
 
 def test_client_report_before_send(cmake, httpserver):
@@ -66,21 +66,10 @@ def test_client_report_ratelimit(cmake, httpserver):
     # during serialization, but their session updates still pass through (not
     # rate-limited). Each subsequent envelope carries client report discards
     # incrementally, so we aggregate across all envelopes.
-    request_count = [0]
-
-    def ratelimit_first(request):
-        from werkzeug import Response
-
-        request_count[0] += 1
-        if request_count[0] == 1:
-            return Response(
-                "OK", 200, {"X-Sentry-Rate-Limits": "60:error:organization"}
-            )
-        return Response("OK", 200)
-
-    httpserver.expect_request("/api/123456/envelope/").respond_with_handler(
-        ratelimit_first
+    httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data(
+        "OK", headers={"X-Sentry-Rate-Limits": "60:error:organization"}
     )
+    httpserver.expect_request("/api/123456/envelope/").respond_with_data("OK")
     env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
 
     run(
@@ -115,21 +104,13 @@ def test_client_report_ratelimit_then_send_error(cmake, httpserver):
     # The session item is filtered during serialization (ratelimit_backoff).
     # The event item is sent but rejected (send_error). Each item must be
     # counted exactly once under the correct reason.
-    request_count = [0]
-
-    def handler(request):
-        from werkzeug import Response
-
-        request_count[0] += 1
-        if request_count[0] == 1:
-            return Response(
-                "OK", 200, {"X-Sentry-Rate-Limits": "60:session:organization"}
-            )
-        if request_count[0] == 2:
-            return Response("Bad Request", 400)
-        return Response("OK", 200)
-
-    httpserver.expect_request("/api/123456/envelope/").respond_with_handler(handler)
+    httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data(
+        "OK", headers={"X-Sentry-Rate-Limits": "60:session:organization"}
+    )
+    httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data(
+        "Bad Request", status=400
+    )
+    httpserver.expect_request("/api/123456/envelope/").respond_with_data("OK")
     env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
 
     run(
@@ -339,3 +320,53 @@ def test_client_report_send_error(cmake, httpserver):
         envelope,
         [{"reason": "send_error", "category": "error", "quantity": 1}],
     )
+
+
+@pytest.mark.skipif(not has_files, reason="test needs a local filesystem")
+def test_client_report_with_retry(cmake, httpserver, unreachable_dsn):
+    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "none"})
+    cache_dir = tmp_path.joinpath(".sentry-native/cache")
+
+    # Run 1: event discarded by before_send (client report recorded).
+    # The session at shutdown picks up the client report, but send fails
+    # (unreachable), so the session+client_report is cached for retry.
+    run(
+        tmp_path,
+        "sentry_example",
+        [
+            "log",
+            "http-retry",
+            "start-session",
+            "discarding-before-send",
+            "capture-event",
+        ],
+        env=dict(os.environ, SENTRY_DSN=unreachable_dsn),
+    )
+
+    assert cache_dir.exists()
+    cache_files = list(cache_dir.glob("*.envelope"))
+    assert len(cache_files) == 1
+
+    # Run 2: retry succeeds — the retried session should carry the
+    # client report from run 1.
+    httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data("OK")
+
+    with httpserver.wait(timeout=10) as waiting:
+        run(
+            tmp_path,
+            "sentry_example",
+            ["log", "http-retry", "no-setup"],
+            env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
+        )
+    assert waiting.result
+
+    assert len(httpserver.log) == 1
+    envelope = Envelope.deserialize(httpserver.log[0][0].get_data())
+    assert_session(envelope)
+    assert_client_report(
+        envelope,
+        [{"reason": "before_send", "category": "error", "quantity": 1}],
+    )
+
+    cache_files = list(cache_dir.glob("*.envelope"))
+    assert len(cache_files) == 0

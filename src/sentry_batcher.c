@@ -1,6 +1,5 @@
 #include "sentry_batcher.h"
 #include "sentry_alloc.h"
-#include "sentry_client_report.h"
 #include "sentry_cpu_relax.h"
 #include "sentry_options.h"
 #include "sentry_utils.h"

@@ -13,7 +13,6 @@ typedef enum {
     SENTRY_DISCARD_REASON_NETWORK_ERROR,
     SENTRY_DISCARD_REASON_SAMPLE_RATE,
     SENTRY_DISCARD_REASON_BEFORE_SEND,
-    SENTRY_DISCARD_REASON_EVENT_PROCESSOR,
     SENTRY_DISCARD_REASON_SEND_ERROR,
     SENTRY_DISCARD_REASON_MAX
 } sentry_discard_reason_t;
@@ -45,8 +44,6 @@ typedef struct {
  * Record a discarded event with the given reason and category.
  * This function is thread-safe using atomic operations.
  */
-sentry_data_category_t sentry__item_type_to_data_category(const char *ty);
-
 void sentry__client_report_discard(sentry_discard_reason_t reason,
     sentry_data_category_t category, long quantity);
 

@@ -16,14 +16,12 @@ from . import (
 )
 from .assertions import (
     assert_attachment,
-    assert_client_report,
     assert_meta,
     assert_breadcrumb,
     assert_stacktrace,
     assert_event,
     assert_exception,
     assert_inproc_crash,
-    assert_no_client_report,
     assert_session,
     assert_user_feedback,
     assert_user_report,
@@ -879,7 +877,6 @@ def test_http_retry_on_network_error(cmake, httpserver, unreachable_dsn):
     envelope = Envelope.deserialize(httpserver.log[0][0].get_data())
     assert envelope.headers["event_id"] == envelope_uuid
     assert_meta(envelope, integration="inproc")
-    assert_no_client_report(envelope)
 
     cache_files = list(cache_dir.glob("*.envelope"))
     assert len(cache_files) == 0
@@ -1200,60 +1197,6 @@ def test_http_retry_session_on_network_error(cmake, httpserver, unreachable_dsn)
     assert len(httpserver.log) == 1
     envelope = Envelope.deserialize(httpserver.log[0][0].get_data())
     assert_session(envelope, {"init": True, "status": "exited", "errors": 0})
-    assert_no_client_report(envelope)
-
-    cache_files = list(cache_dir.glob("*.envelope"))
-    assert len(cache_files) == 0
-
-
-@pytest.mark.skipif(not has_files, reason="test needs a local filesystem")
-def test_http_retry_with_client_report(cmake, httpserver, unreachable_dsn):
-    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "none"})
-    cache_dir = tmp_path.joinpath(".sentry-native/cache")
-
-    # Run 1: event discarded by before_send (client report recorded).
-    # The session at shutdown picks up the client report, but send fails
-    # (unreachable), so the session+client_report is cached for retry.
-    env_unreachable = dict(os.environ, SENTRY_DSN=unreachable_dsn)
-
-    run(
-        tmp_path,
-        "sentry_example",
-        [
-            "log",
-            "http-retry",
-            "start-session",
-            "discarding-before-send",
-            "capture-event",
-        ],
-        env=env_unreachable,
-    )
-
-    assert cache_dir.exists()
-    cache_files = list(cache_dir.glob("*.envelope"))
-    assert len(cache_files) == 1
-
-    # Run 2: retry succeeds — the retried session should carry the
-    # client report from run 1.
-    env_reachable = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
-    httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data("OK")
-
-    with httpserver.wait(timeout=10) as waiting:
-        run(
-            tmp_path,
-            "sentry_example",
-            ["log", "http-retry", "no-setup"],
-            env=env_reachable,
-        )
-    assert waiting.result
-
-    assert len(httpserver.log) == 1
-    envelope = Envelope.deserialize(httpserver.log[0][0].get_data())
-    assert_session(envelope)
-    assert_client_report(
-        envelope,
-        [{"reason": "before_send", "category": "error", "quantity": 1}],
-    )
 
     cache_files = list(cache_dir.glob("*.envelope"))
     assert len(cache_files) == 0

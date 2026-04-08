@@ -1,5 +1,4 @@
 #include "sentry_client_report.h"
-#include "sentry_string.h"
 #include "sentry_sync.h"
 
 // Counters for discarded events, indexed by [reason][category]
@@ -47,25 +46,6 @@ sentry__client_report_save(sentry_client_report_t *report)
         }
     }
     return has_counts;
-}
-
-sentry_data_category_t
-sentry__item_type_to_data_category(const char *ty)
-{
-    if (sentry__string_eq(ty, "session")) {
-        return SENTRY_DATA_CATEGORY_SESSION;
-    } else if (sentry__string_eq(ty, "transaction")) {
-        return SENTRY_DATA_CATEGORY_TRANSACTION;
-    } else if (sentry__string_eq(ty, "attachment")) {
-        return SENTRY_DATA_CATEGORY_ATTACHMENT;
-    } else if (sentry__string_eq(ty, "log")) {
-        return SENTRY_DATA_CATEGORY_LOG_ITEM;
-    } else if (sentry__string_eq(ty, "feedback")) {
-        return SENTRY_DATA_CATEGORY_FEEDBACK;
-    } else if (sentry__string_eq(ty, "trace_metric")) {
-        return SENTRY_DATA_CATEGORY_TRACE_METRIC;
-    }
-    return SENTRY_DATA_CATEGORY_ERROR;
 }
 
 void

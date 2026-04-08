@@ -614,13 +614,6 @@ def assert_client_report(envelope, expected_discards=None):
             )
 
 
-def assert_no_client_report(envelope):
-    """Assert that the envelope does NOT contain a client_report item."""
-    for item in envelope:
-        if item.headers.get("type") == "client_report":
-            raise AssertionError("Unexpected client_report item found in envelope")
-
-
 def assert_no_proxy_request(stdout):
     assert "POST" not in stdout
 
