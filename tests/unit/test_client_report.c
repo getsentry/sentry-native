@@ -307,6 +307,65 @@ SENTRY_TEST(client_report_queue_overflow)
     sentry_close();
 }
 
+SENTRY_TEST(client_report_discard_raw_envelope)
+{
+    SENTRY_TEST_OPTIONS_NEW(options);
+    sentry_init(options);
+
+    // Build a structured envelope, serialize it, then deserialize to get
+    // a parsed copy (simulating what retry_send_cb does with raw envelopes).
+    sentry_envelope_t *envelope = sentry__envelope_new();
+    sentry__envelope_add_from_buffer(envelope, "{}", 2, "event");
+    sentry__envelope_add_from_buffer(envelope, "{}", 2, "session");
+
+    size_t buf_len = 0;
+    char *buf = sentry_envelope_serialize(envelope, &buf_len);
+    sentry_envelope_free(envelope);
+    TEST_CHECK(!!buf);
+
+    sentry_envelope_t *parsed = sentry_envelope_deserialize(buf, buf_len);
+    sentry_free(buf);
+    TEST_CHECK(!!parsed);
+
+    sentry__client_report_discard_envelope(
+        parsed, SENTRY_DISCARD_REASON_SEND_ERROR, NULL);
+    sentry_envelope_free(parsed);
+
+    TEST_CHECK(sentry__client_report_has_pending());
+
+    sentry_envelope_t *carrier = sentry__envelope_new();
+    sentry_envelope_item_t *item = sentry__client_report_into_envelope(carrier);
+    TEST_CHECK(!!item);
+
+    size_t payload_len = 0;
+    const char *payload = sentry__envelope_item_get_payload(item, &payload_len);
+    sentry_value_t report = sentry__value_from_json(payload, payload_len);
+
+    sentry_value_t discarded
+        = sentry_value_get_by_key(report, "discarded_events");
+    TEST_CHECK_INT_EQUAL(sentry_value_get_length(discarded), 2);
+
+    sentry_value_t entry0 = sentry_value_get_by_index(discarded, 0);
+    TEST_CHECK_STRING_EQUAL(
+        sentry_value_as_string(sentry_value_get_by_key(entry0, "reason")),
+        "send_error");
+    TEST_CHECK_STRING_EQUAL(
+        sentry_value_as_string(sentry_value_get_by_key(entry0, "category")),
+        "error");
+
+    sentry_value_t entry1 = sentry_value_get_by_index(discarded, 1);
+    TEST_CHECK_STRING_EQUAL(
+        sentry_value_as_string(sentry_value_get_by_key(entry1, "reason")),
+        "send_error");
+    TEST_CHECK_STRING_EQUAL(
+        sentry_value_as_string(sentry_value_get_by_key(entry1, "category")),
+        "session");
+
+    sentry_value_decref(report);
+    sentry_envelope_free(carrier);
+    sentry_close();
+}
+
 #define DISCARD_PER_THREAD 10000
 #define NUM_THREADS 8
 

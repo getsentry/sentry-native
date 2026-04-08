@@ -130,6 +130,12 @@ sentry__envelope_item_type_to_rl_category(const char *ty)
 }
 
 bool
+sentry__envelope_is_raw(const sentry_envelope_t *envelope)
+{
+    return envelope && envelope->is_raw;
+}
+
+bool
 sentry__envelope_is_rate_limited(
     const sentry_envelope_t *envelope, const sentry_rate_limiter_t *rl)
 {

@@ -245,7 +245,19 @@ retry_send_cb(sentry_envelope_t *envelope, void *_state)
         && !sentry__envelope_is_rate_limited(envelope, state->ratelimiter)) {
         sentry__client_report_into_envelope(envelope);
     }
-    return http_send_envelope(envelope, state);
+    int status_code = http_send_envelope(envelope, state);
+    if (state->send_client_reports && status_code >= 400) {
+        size_t buf_len = 0;
+        char *buf = sentry_envelope_serialize(envelope, &buf_len);
+        sentry_envelope_t *parsed = sentry_envelope_deserialize(buf, buf_len);
+        sentry_free(buf);
+        if (parsed) {
+            sentry__client_report_discard_envelope(
+                parsed, SENTRY_DISCARD_REASON_SEND_ERROR, state->ratelimiter);
+            sentry_envelope_free(parsed);
+        }
+    }
+    return status_code;
 }
 
 static void

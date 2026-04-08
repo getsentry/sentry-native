@@ -131,6 +131,11 @@ void sentry__envelope_item_set_header(
 int sentry__envelope_item_type_to_rl_category(const char *ty);
 
 /**
+ * Returns true if the envelope is a raw envelope loaded from disk.
+ */
+bool sentry__envelope_is_raw(const sentry_envelope_t *envelope);
+
+/**
  * Returns true if all non-internal items in the envelope are rate-limited.
  */
 bool sentry__envelope_is_rate_limited(

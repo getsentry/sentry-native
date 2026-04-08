@@ -90,7 +90,8 @@ sentry__client_report_has_pending(void)
 sentry_envelope_item_t *
 sentry__client_report_into_envelope(sentry_envelope_t *envelope)
 {
-    if (!envelope || !sentry__client_report_has_pending()) {
+    if (!envelope || sentry__envelope_is_raw(envelope)
+        || !sentry__client_report_has_pending()) {
         return NULL;
     }
 
