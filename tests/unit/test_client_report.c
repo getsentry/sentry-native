@@ -3,6 +3,7 @@
 #include "sentry_envelope.h"
 #include "sentry_path.h"
 #include "sentry_ratelimiter.h"
+#include "sentry_sync.h"
 #include "sentry_testsupport.h"
 #include "sentry_value.h"
 
@@ -303,5 +304,107 @@ SENTRY_TEST(client_report_queue_overflow)
     sentry_value_decref(report);
     sentry_envelope_free(envelope);
     sentry__batcher_release(batcher);
+    sentry_close();
+}
+
+#define DISCARD_PER_THREAD 10000
+#define NUM_THREADS 8
+
+static volatile long g_produced = 0;
+static volatile long g_consumed = 0;
+static volatile long g_running = 1;
+
+SENTRY_THREAD_FN
+discard_thread_func(void *data)
+{
+    (void)data;
+    for (int i = 0; i < DISCARD_PER_THREAD; i++) {
+        sentry__client_report_discard(
+            SENTRY_DISCARD_REASON_SAMPLE_RATE, SENTRY_DATA_CATEGORY_ERROR, 1);
+        sentry__atomic_fetch_and_add((long *)&g_produced, 1);
+    }
+    return 0;
+}
+
+SENTRY_THREAD_FN
+flush_thread_func(void *data)
+{
+    (void)data;
+    while (sentry__atomic_fetch((long *)&g_running)) {
+        sentry_envelope_t *envelope = sentry__envelope_new();
+        sentry_envelope_item_t *item
+            = sentry__client_report_into_envelope(envelope);
+        if (item) {
+            size_t payload_len = 0;
+            const char *payload
+                = sentry__envelope_item_get_payload(item, &payload_len);
+            sentry_value_t report
+                = sentry__value_from_json(payload, payload_len);
+            sentry_value_t discarded
+                = sentry_value_get_by_key(report, "discarded_events");
+            for (uint32_t j = 0; j < sentry_value_get_length(discarded); j++) {
+                sentry_value_t entry = sentry_value_get_by_index(discarded, j);
+                sentry__atomic_fetch_and_add((long *)&g_consumed,
+                    sentry_value_as_int32(
+                        sentry_value_get_by_key(entry, "quantity")));
+            }
+            sentry_value_decref(report);
+        }
+        sentry_envelope_free(envelope);
+    }
+    return 0;
+}
+
+SENTRY_TEST(client_report_concurrent)
+{
+    SENTRY_TEST_OPTIONS_NEW(options);
+    sentry_init(options);
+
+    sentry__atomic_store((long *)&g_produced, 0);
+    sentry__atomic_store((long *)&g_consumed, 0);
+    sentry__atomic_store((long *)&g_running, 1);
+
+    sentry_threadid_t discard_threads[NUM_THREADS];
+    sentry_threadid_t flush_threads[NUM_THREADS];
+    for (int i = 0; i < NUM_THREADS; i++) {
+        sentry__thread_init(&discard_threads[i]);
+        sentry__thread_spawn(&discard_threads[i], discard_thread_func, NULL);
+        sentry__thread_init(&flush_threads[i]);
+        sentry__thread_spawn(&flush_threads[i], flush_thread_func, NULL);
+    }
+
+    for (int i = 0; i < NUM_THREADS; i++) {
+        sentry__thread_join(discard_threads[i]);
+    }
+    sentry__atomic_store((long *)&g_running, 0);
+    for (int i = 0; i < NUM_THREADS; i++) {
+        sentry__thread_join(flush_threads[i]);
+    }
+
+    // drain remaining
+    sentry_envelope_t *envelope = sentry__envelope_new();
+    sentry_envelope_item_t *item
+        = sentry__client_report_into_envelope(envelope);
+    if (item) {
+        size_t payload_len = 0;
+        const char *payload
+            = sentry__envelope_item_get_payload(item, &payload_len);
+        sentry_value_t report = sentry__value_from_json(payload, payload_len);
+        sentry_value_t discarded
+            = sentry_value_get_by_key(report, "discarded_events");
+        for (uint32_t j = 0; j < sentry_value_get_length(discarded); j++) {
+            sentry_value_t entry = sentry_value_get_by_index(discarded, j);
+            sentry__atomic_fetch_and_add((long *)&g_consumed,
+                sentry_value_as_int32(
+                    sentry_value_get_by_key(entry, "quantity")));
+        }
+        sentry_value_decref(report);
+    }
+    sentry_envelope_free(envelope);
+
+    TEST_CHECK(!sentry__client_report_has_pending());
+    TEST_CHECK_INT_EQUAL(sentry__atomic_fetch((long *)&g_consumed),
+        NUM_THREADS * DISCARD_PER_THREAD);
+
     sentry_close();
 }

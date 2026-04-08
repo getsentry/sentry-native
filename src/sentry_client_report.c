@@ -61,24 +61,6 @@ data_category_to_string(sentry_data_category_t category)
     }
 }
 
-static void
-reset_discard_counts(
-    long counts[SENTRY_DISCARD_REASON_MAX][SENTRY_DATA_CATEGORY_MAX])
-{
-    for (int r = 0; r < SENTRY_DISCARD_REASON_MAX; r++) {
-        for (int c = 0; c < SENTRY_DATA_CATEGORY_MAX; c++) {
-            if (counts) {
-                if (counts[r][c] > 0) {
-                    sentry__atomic_fetch_and_add(
-                        (long *)&g_discard_counts[r][c], -counts[r][c]);
-                }
-            } else {
-                sentry__atomic_store((long *)&g_discard_counts[r][c], 0);
-            }
-        }
-    }
-}
-
 void
 sentry__client_report_discard(sentry_discard_reason_t reason,
     sentry_data_category_t category, long quantity)
@@ -123,14 +105,12 @@ sentry__client_report_into_envelope(sentry_envelope_t *envelope)
     sentry__jsonwriter_write_str(jw, timestamp);
     sentry_free(timestamp);
 
-    long counts[SENTRY_DISCARD_REASON_MAX][SENTRY_DATA_CATEGORY_MAX];
-
     sentry__jsonwriter_write_key(jw, "discarded_events");
     sentry__jsonwriter_write_list_start(jw);
     for (int r = 0; r < SENTRY_DISCARD_REASON_MAX; r++) {
         for (int c = 0; c < SENTRY_DATA_CATEGORY_MAX; c++) {
-            long count = sentry__atomic_fetch((long *)&g_discard_counts[r][c]);
-            counts[r][c] = count;
+            long count
+                = sentry__atomic_store((long *)&g_discard_counts[r][c], 0);
             if (count > 0) {
                 sentry__jsonwriter_write_object_start(jw);
                 sentry__jsonwriter_write_key(jw, "reason");
@@ -156,11 +136,6 @@ sentry__client_report_into_envelope(sentry_envelope_t *envelope)
         envelope, payload, payload_len, "client_report");
     sentry_free(payload);
 
-    if (!item) {
-        return NULL;
-    }
-
-    reset_discard_counts(counts);
     return item;
 }
 
@@ -210,5 +185,9 @@ sentry__client_report_discard_envelope(const sentry_envelope_t *envelope,
 void
 sentry__client_report_reset(void)
 {
-    reset_discard_counts(NULL);
+    for (int r = 0; r < SENTRY_DISCARD_REASON_MAX; r++) {
+        for (int c = 0; c < SENTRY_DATA_CATEGORY_MAX; c++) {
+            sentry__atomic_store((long *)&g_discard_counts[r][c], 0);
+        }
+    }
 }
