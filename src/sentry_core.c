@@ -247,8 +247,6 @@ sentry_init(sentry_options_t *options)
     g_last_crash = sentry__has_crash_marker(options);
     g_options = options;
 
-    sentry__client_report_reset();
-
     // *after* setting the global options, trigger a scope and consent flush,
     // since at least crashpad needs that. At this point we also freeze the
     // `client_sdk` in the `scope` because some downstream SDKs want to override

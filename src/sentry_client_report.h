@@ -65,10 +65,4 @@ struct sentry_envelope_item_s *sentry__client_report_into_envelope(
 void sentry__client_report_discard_envelope(const sentry_envelope_t *envelope,
     sentry_discard_reason_t reason, const sentry_rate_limiter_t *rl);
 
-/**
- * Reset all client report counters to zero.
- * Called during SDK initialization to ensure a clean state.
- */
-void sentry__client_report_reset(void);
-
 #endif
