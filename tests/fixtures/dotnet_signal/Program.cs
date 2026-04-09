@@ -42,6 +42,9 @@ class Program
 
         // setup minimal sentry-native
         var options = sentry_options_new();
+        // Preload replaces CHAIN_AT_START in the CoreCLR path. If preload is
+        // active, run sentry-native with DEFAULT strategy so the runtime can
+        // chain native crashes back to us.
         int strategy = args.Contains("default-strategy") ? 0 : 1;
         sentry_options_set_handler_strategy(options, strategy);
         sentry_options_set_debug(options, 1);

@@ -200,6 +200,10 @@ static volatile long g_handler_has_work = 0;
 #define CRASH_STATE_DONE 2
 static volatile long g_crash_handling_state = CRASH_STATE_IDLE;
 
+// Set once handlers were installed via sentry__backend_preload(). In this
+// mode sentry may keep its chain position across sentry_close() until either
+// full init reuses it, or a pre-init/post-close signal falls through, and
+// consumes the preload state.
 #ifdef SENTRY_PLATFORM_UNIX
 static volatile long g_preloaded = 0;
 #endif
@@ -546,6 +550,15 @@ shutdown_inproc_backend(sentry_backend_t *backend)
 {
     stop_handler_thread();
 
+    // In Android preload mode, we intentionally keep our signal handlers
+    // installed across shutdown. The handler thread is torn down, but our
+    // position in the signal chain must remain stable so that a later
+    // sentry_init() can reactivate full crash handling without losing the
+    // ordering relative to the managed runtime.
+    //
+    // While in this state, full inproc crash processing is inactive and any
+    // signal we still observe will fall through to the previously installed
+    // handler.
     if (!sentry__atomic_fetch(&g_preloaded)) {
         teardown_sigaltstack(&g_signal_stack);
         reset_signal_handlers();

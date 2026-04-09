@@ -12,14 +12,20 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * Preloads the NDK integration before the Mono runtime. This installs and
- * chains the Native SDK's signal handlers before Mono, allowing Mono to
- * correctly handle managed exceptions while chaining native crashes to the
- * Native SDK.
+ * Preloads the NDK integration before the .NET runtime provider on Android.
  *
- * <p>Enabled by setting {@code io.sentry.ndk.preload} to {@code true} in
- * AndroidManifest.xml metadata. The high {@code initOrder} ensures this runs
- * before {@code mono.MonoRuntimeProvider}.
+ * <p>This is intended for downstream SDK integrations that run with CoreCLR on
+ * Android. By installing sentry-native before the managed runtime registers
+ * its own signal handlers, native crash signals can chain from the runtime
+ * back to the Native SDK, while runtime-generated fault signals can still be
+ * consumed by the runtime for managed exception handling.
+ *
+ * <p>This is the preload alternative to CHAIN_AT_START. Mono on Android
+ * continues to use CHAIN_AT_START.
+ *
+ * <p>Enabled by setting {@code io.sentry.ndk.preload} to {@code true} in the
+ * app manifest metadata. The high {@code initOrder} ensures this runs before
+ * the runtime provider emitted by dotnet/android.
  */
 public final class SentryNdkPreloadProvider extends ContentProvider {
 

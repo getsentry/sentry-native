@@ -329,8 +329,8 @@ def run_android_unhandled_managed_exception(strategy=None):
     return run_android(["unhandled-managed-exception"], strategy=strategy)
 
 
-def run_android_native_crash(strategy=None):
-    return run_android(["native-crash"], strategy=strategy)
+def run_android_native_crash(strategy=None, reinit=False):
+    return run_android(["native-crash"], strategy=strategy, reinit=reinit)
 
 
 ndk_aar_path = (
@@ -348,6 +348,9 @@ ndk_aar_path = (
     not is_android or int(is_android) < 26,
     reason="needs Android API 26+ (tombstoned)",
 )
+# Mono on Android keeps using CHAIN_AT_START. Preload is the CoreCLR path,
+# where sentry-native can enter the signal chain before the runtime installs
+# its own handlers.
 @pytest.mark.parametrize(
     "runtime,strategy",
     [
@@ -460,8 +463,9 @@ def test_android_signals_inproc(cmake, runtime, strategy):
             )
             return bool(result.stdout.strip())
 
-        # Preload installs signal handlers before the runtime, so the
-        # handler strategy should be DEFAULT (0) instead of CHAIN_AT_START.
+        # Preload replaces CHAIN_AT_START in the CoreCLR path. Once the runtime 
+        # chains native crashes back to sentry-native, the app-side handler strategy 
+        # should be DEFAULT rather than CHAIN_AT_START.
         app_strategy = "default-strategy" if is_preload else None
 
         # managed exception: handled, no crash
@@ -502,6 +506,13 @@ def test_android_signals_inproc(cmake, runtime, strategy):
             ), "A crash was registered after reinit"
             assert not has_envelope(), "Unexpected envelope found after reinit"
 
+            # after close/reinit, native crashes must still be captured through
+            # the preloaded chain position
+            run_android_native_crash(strategy=app_strategy, reinit=True)
+            assert wait_for(
+                lambda: file_exists(db + "/last_crash")
+            ), "Crash marker missing after reinit"
+            assert wait_for(has_envelope), "Crash envelope is missing after reinit"
     finally:
         shutil.rmtree(project_fixture_path / "native", ignore_errors=True)
         shutil.rmtree(project_fixture_path / "bin", ignore_errors=True)

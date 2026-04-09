@@ -22,7 +22,19 @@ public final class SentryNdk {
 
   private static native void shutdown();
 
-  /** Preloads the NDK integration */
+  /**
+   * Preloads sentry-native into the process signal chain before full
+   * initialization.
+   *
+   * <p>Intended for downstream SDK/runtime integrations on Android. This does
+   * not initialize sentry-native, configure a database path, or start the
+   * inproc handler thread; it only establishes signal-handler ordering ahead of
+   * the managed runtime.
+   *
+   * <p>This is intended to be used by downstream integrations that gate the
+   * preload flow to supported runtimes and then call {@link #init(NdkOptions)}
+   * with the normal DEFAULT handler strategy.
+   */
   public static void preload() {
     loadNativeLibraries();
     preloadSentryNative();
