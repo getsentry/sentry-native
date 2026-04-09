@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1775741928922,
+  "lastUpdate": 1775748752218,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -16216,6 +16216,66 @@ window.BENCHMARK_DATA = {
             "value": 1.846271999994542,
             "unit": "ms",
             "extra": "Min 1.786ms\nMax 1.896ms\nMean 1.843ms\nStdDev 0.043ms\nMedian 1.846ms\nCPU 0.529ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "jpnurmi@gmail.com",
+            "name": "J-P Nurmi",
+            "username": "jpnurmi"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "fda13a389539c25dca01ab9d86109354856b8742",
+          "message": "feat(android): allow NDK preload for .NET/CoreCLR (#1613)\n\nCo-authored-by: Claude Opus 4.6 (1M context) <noreply@anthropic.com>\nCo-authored-by: Mischan Toosarani-Hausberger <mischan@abovevacant.com>",
+          "timestamp": "2026-04-09T17:29:58+02:00",
+          "tree_id": "b9b459cdf39219189743d16922a3050eb24cc75c",
+          "url": "https://github.com/getsentry/sentry-native/commit/fda13a389539c25dca01ab9d86109354856b8742"
+        },
+        "date": 1775748749018,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 0.8807529999899089,
+            "unit": "ms",
+            "extra": "Min 0.851ms\nMax 0.886ms\nMean 0.873ms\nStdDev 0.015ms\nMedian 0.881ms\nCPU 0.826ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 0.7941210000126375,
+            "unit": "ms",
+            "extra": "Min 0.742ms\nMax 0.811ms\nMean 0.786ms\nStdDev 0.027ms\nMedian 0.794ms\nCPU 0.782ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 3.040970000000698,
+            "unit": "ms",
+            "extra": "Min 2.990ms\nMax 3.103ms\nMean 3.048ms\nStdDev 0.048ms\nMedian 3.041ms\nCPU 1.621ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.12357099998894228,
+            "unit": "ms",
+            "extra": "Min 0.120ms\nMax 0.128ms\nMean 0.124ms\nStdDev 0.004ms\nMedian 0.124ms\nCPU 0.076ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.03229000000715132,
+            "unit": "ms",
+            "extra": "Min 0.029ms\nMax 0.037ms\nMean 0.032ms\nStdDev 0.003ms\nMedian 0.032ms\nCPU 0.031ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 1.981357000005346,
+            "unit": "ms",
+            "extra": "Min 1.958ms\nMax 2.050ms\nMean 1.996ms\nStdDev 0.042ms\nMedian 1.981ms\nCPU 0.559ms"
           }
         ]
       }
