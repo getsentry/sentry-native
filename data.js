@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1775758927993,
+  "lastUpdate": 1775758970842,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -49072,6 +49072,66 @@ window.BENCHMARK_DATA = {
             "value": 17.660799999930532,
             "unit": "ms",
             "extra": "Min 15.419ms\nMax 185.089ms\nMean 71.793ms\nStdDev 78.837ms\nMedian 17.661ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "jpnurmi@gmail.com",
+            "name": "J-P Nurmi",
+            "username": "jpnurmi"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "713361e6300d86fd0e577acdb69625342b9d5245",
+          "message": "fix: Revert CMP0141 policy, scope to test infrastructure only (#1630)\n\nCo-authored-by: Claude Opus 4.6 (1M context) <noreply@anthropic.com>",
+          "timestamp": "2026-04-09T20:17:42+02:00",
+          "tree_id": "a9d158941be0184094f2ee2ef7211e233c4b6c96",
+          "url": "https://github.com/getsentry/sentry-native/commit/713361e6300d86fd0e577acdb69625342b9d5245"
+        },
+        "date": 1775758964860,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 10.502699999960896,
+            "unit": "ms",
+            "extra": "Min 9.537ms\nMax 17.193ms\nMean 12.285ms\nStdDev 3.327ms\nMedian 10.503ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 10.113700000033532,
+            "unit": "ms",
+            "extra": "Min 9.838ms\nMax 10.677ms\nMean 10.192ms\nStdDev 0.312ms\nMedian 10.114ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 26.352400000007492,
+            "unit": "ms",
+            "extra": "Min 24.743ms\nMax 38.331ms\nMean 28.459ms\nStdDev 5.598ms\nMedian 26.352ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.1756999999997788,
+            "unit": "ms",
+            "extra": "Min 0.164ms\nMax 0.193ms\nMean 0.177ms\nStdDev 0.010ms\nMedian 0.176ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.4305999999587584,
+            "unit": "ms",
+            "extra": "Min 0.383ms\nMax 0.465ms\nMean 0.429ms\nStdDev 0.030ms\nMedian 0.431ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 13.80069999999023,
+            "unit": "ms",
+            "extra": "Min 13.709ms\nMax 14.887ms\nMean 14.004ms\nStdDev 0.499ms\nMedian 13.801ms"
           }
         ]
       }
