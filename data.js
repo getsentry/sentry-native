@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1775737069177,
+  "lastUpdate": 1775737125339,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -32194,6 +32194,66 @@ window.BENCHMARK_DATA = {
             "value": 10.131042000011803,
             "unit": "ms",
             "extra": "Min 8.010ms\nMax 16.481ms\nMean 10.795ms\nStdDev 3.364ms\nMedian 10.131ms\nCPU 1.299ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "tustanivsky@gmail.com",
+            "name": "Ivan Tustanivskyi",
+            "username": "tustanivsky"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "9f8ca57a59ef8a9be6162ef95df3f51fcaafc418",
+          "message": "feat: Add WinGDK (Gaming.Desktop.x64) platform support (#1631)\n\n* feat: Add WinGDK (Gaming.Desktop.x64) platform support\n\n* Update changelog\n\n* Fix changelog",
+          "timestamp": "2026-04-09T15:13:31+03:00",
+          "tree_id": "5a75fd4e3b7fd55f826bc5ea68ff64dfceba09e2",
+          "url": "https://github.com/getsentry/sentry-native/commit/9f8ca57a59ef8a9be6162ef95df3f51fcaafc418"
+        },
+        "date": 1775737120117,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 9.725624999987303,
+            "unit": "ms",
+            "extra": "Min 4.650ms\nMax 22.336ms\nMean 11.293ms\nStdDev 6.832ms\nMedian 9.726ms\nCPU 4.543ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 5.88712499995836,
+            "unit": "ms",
+            "extra": "Min 3.893ms\nMax 7.187ms\nMean 5.666ms\nStdDev 1.439ms\nMedian 5.887ms\nCPU 3.180ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 24.310166000077515,
+            "unit": "ms",
+            "extra": "Min 16.489ms\nMax 25.371ms\nMean 22.563ms\nStdDev 3.607ms\nMedian 24.310ms\nCPU 6.826ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.10529200005748862,
+            "unit": "ms",
+            "extra": "Min 0.086ms\nMax 0.161ms\nMean 0.118ms\nStdDev 0.031ms\nMedian 0.105ms\nCPU 0.079ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.3538339999522577,
+            "unit": "ms",
+            "extra": "Min 0.264ms\nMax 0.494ms\nMean 0.379ms\nStdDev 0.092ms\nMedian 0.354ms\nCPU 0.379ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 12.463832999969782,
+            "unit": "ms",
+            "extra": "Min 9.533ms\nMax 15.558ms\nMean 12.271ms\nStdDev 2.242ms\nMedian 12.464ms\nCPU 1.746ms"
           }
         ]
       }
