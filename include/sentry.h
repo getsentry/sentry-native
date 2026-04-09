@@ -59,6 +59,8 @@ extern "C" {
 #    define SENTRY_PLATFORM_WINDOWS
 #    ifdef _GAMING_XBOX
 #        define SENTRY_PLATFORM_XBOX
+#    elif defined(_GAMING_DESKTOP)
+#        define SENTRY_PLATFORM_WINGDK
 #    endif
 #elif defined(__APPLE__)
 #    include <TargetConditionals.h>
@@ -95,6 +97,8 @@ extern "C" {
 #        define SENTRY_SDK_NAME "sentry.native.android"
 #    elif defined(SENTRY_PLATFORM_XBOX)
 #        define SENTRY_SDK_NAME "sentry.native.xbox"
+#    elif defined(SENTRY_PLATFORM_WINGDK)
+#        define SENTRY_SDK_NAME "sentry.native.wingdk"
 #    else
 #        define SENTRY_SDK_NAME "sentry.native"
 #    endif

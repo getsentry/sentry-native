@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+**Features**:
+
+- Add WinGDK (Gaming.Desktop.x64) platform support ([#1631](https://github.com/getsentry/sentry-native/pull/1631))
+
 ## 0.13.5
 
 **Features**:
