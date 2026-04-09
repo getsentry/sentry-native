@@ -97,6 +97,9 @@ SENTRY_TEST(client_report_restore)
 
     TEST_CHECK(sentry__client_report_has_pending());
 
+    // Double restore must not double the counts
+    sentry__client_report_restore(&report);
+
     // Verify restored counts appear in the next report
     sentry_client_report_t next_report;
     TEST_CHECK(sentry__client_report_save(&next_report));

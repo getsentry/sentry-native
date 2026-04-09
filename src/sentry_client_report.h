@@ -61,6 +61,6 @@ bool sentry__client_report_save(sentry_client_report_t *report);
 /**
  * Re-add a client report's counts back to the global counters.
  */
-void sentry__client_report_restore(const sentry_client_report_t *report);
+void sentry__client_report_restore(sentry_client_report_t *report);
 
 #endif

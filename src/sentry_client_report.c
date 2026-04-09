@@ -49,7 +49,7 @@ sentry__client_report_save(sentry_client_report_t *report)
 }
 
 void
-sentry__client_report_restore(const sentry_client_report_t *report)
+sentry__client_report_restore(sentry_client_report_t *report)
 {
     if (!report) {
         return;
@@ -62,4 +62,5 @@ sentry__client_report_restore(const sentry_client_report_t *report)
             }
         }
     }
+    memset(report, 0, sizeof(*report));
 }
