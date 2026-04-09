@@ -37,9 +37,9 @@ def test_static_lib(cmake):
             assert magic == expected
         # check that no external PDB (/Zi) is produced for the static library.
         # debug info should be embedded in the .obj files (/Z7) instead.
-        assert not os.path.exists(os.path.join(tmp_path, "sentry.pdb")), (
-            "Expected /Z7 (embedded debug info), not /Zi (external PDB)"
-        )
+        assert not os.path.exists(
+            os.path.join(tmp_path, "sentry.pdb")
+        ), "Expected /Z7 (embedded debug info), not /Zi (external PDB)"
     # similarly, we use `file` on linux
     if sys.platform == "linux":
         output = subprocess.check_output(
