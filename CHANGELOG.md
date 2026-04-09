@@ -6,6 +6,7 @@
 
 - Add WinGDK (Gaming.Desktop.x64) platform support ([#1631](https://github.com/getsentry/sentry-native/pull/1631))
 - Track discarded events via client reports. ([#1549](https://github.com/getsentry/sentry-native/pull/1549))
+- Android: allow Sentry.NET to preload the NDK integration to install signal handlers before the .NET runtime. ([#1613](https://github.com/getsentry/sentry-native/pull/1613))
 
 ## 0.13.5
 
@@ -14,7 +15,6 @@
 - Add HTTP retry with exponential backoff, opt-in via `sentry_options_set_http_retry`. ([#1520](https://github.com/getsentry/sentry-native/pull/1520))
 - Store minidump attachments as separate `.dmp` files in the offline cache for direct debugger access. ([#1607](https://github.com/getsentry/sentry-native/pull/1607))
 - Enable metrics by default; metrics are now opt-out via `sentry_options_set_enable_metrics(options, false)`. ([#1609](https://github.com/getsentry/sentry-native/pull/1609))
-- Android: allow Sentry.NET to preload the NDK integration to install signal handlers before the .NET runtime. ([#1613](https://github.com/getsentry/sentry-native/pull/1613))
 
 **Fixes**:
 
