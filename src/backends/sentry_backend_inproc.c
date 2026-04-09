@@ -1671,9 +1671,22 @@ process_ucontext(const sentry_ucontext_t *uctx)
         goto cleanup;
     }
 
-    // If signal handlers were installed via sentry__backend_preload() but
-    // sentry_init() hasn't been called yet (no handler thread), skip crash
-    // processing and fall through to the previous handler.
+    // If we were only preloaded (before sentry_init()) or were closed after
+    // preload (handlers still installed, but no handler thread), do not attempt
+    // full crash capture here. In this state, preload only serves as a
+    // placeholder in the signal chain.
+    //
+    // We therefore remove our placeholder from the chain and forward the
+    // signal to the previously installed handler set.
+    //
+    // This path is expected to be terminal for real crash signals. If it
+    // returns, preload mode is consumed for the remainder of the process
+    // lifetime until a later sentry_init() reinstalls handlers from the
+    // then-current chain.
+    //
+    // This also covers the window after preload but before the managed runtime
+    // has installed its own handlers: a signal seen in that window is forwarded
+    // to the pre-preload handler set rather than being captured by Sentry.
     if (sentry__atomic_fetch(&g_preloaded)
         && !sentry__atomic_fetch(&g_handler_thread_ready)) {
         SENTRY_SIGNAL_SAFE_LOG(

@@ -463,8 +463,8 @@ def test_android_signals_inproc(cmake, runtime, strategy):
             )
             return bool(result.stdout.strip())
 
-        # Preload replaces CHAIN_AT_START in the CoreCLR path. Once the runtime 
-        # chains native crashes back to sentry-native, the app-side handler strategy 
+        # Preload replaces CHAIN_AT_START in the CoreCLR path. Once the runtime
+        # chains native crashes back to sentry-native, the app-side handler strategy
         # should be DEFAULT rather than CHAIN_AT_START.
         app_strategy = "default-strategy" if is_preload else None
 
