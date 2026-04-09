@@ -14,11 +14,6 @@ if(POLICY CMP0079)
 	cmake_policy(SET CMP0079 NEW)
 endif()
 
-# Enable CMAKE_MSVC_DEBUG_INFORMATION_FORMAT
-if(POLICY CMP0141)
-	cmake_policy(SET CMP0141 NEW)
-endif()
-
 # Allow downstream SDKs to override the SDK version at CMake configuration time
 set(SENTRY_SDK_VERSION "" CACHE STRING "Override the SDK version (supports full semver format with build metadata)")
 
@@ -476,13 +471,6 @@ endif()
 
 set_property(TARGET sentry PROPERTY C_VISIBILITY_PRESET hidden)
 if(MSVC)
-	# Static libraries are typically distributed without a PDB, so default to
-	# embedding debug info in the .obj files (/Z7) rather than referencing
-	# an external PDB (/Zi), which would cause LNK4099 warnings for consumers.
-	if(NOT SENTRY_BUILD_SHARED_LIBS AND NOT CMAKE_MSVC_DEBUG_INFORMATION_FORMAT)
-		set_target_properties(sentry PROPERTIES MSVC_DEBUG_INFORMATION_FORMAT "$<$<CONFIG:Debug,RelWithDebInfo>:Embedded>")
-	endif()
-
 	if(CMAKE_SIZEOF_VOID_P EQUAL 4)
 		set(CMAKE_ASM_MASM_FLAGS "${CMAKE_ASM_MASM_FLAGS} /safeseh")
 	endif()

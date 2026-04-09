@@ -142,6 +142,7 @@ def cmake_configure(cwd, options, cflags=None):
             # Use /Z7 instead of /Zi to embed debug info in object files. /Zi creates
             # a shared PDB that conflicts with sccache's parallelized compilation.
             options["CMAKE_MSVC_DEBUG_INFORMATION_FORMAT"] = "Embedded"
+            options["CMAKE_POLICY_DEFAULT_CMP0141"] = "NEW"
     options.update(
         {
             "CMAKE_RUNTIME_OUTPUT_DIRECTORY": cwd,
@@ -156,9 +157,6 @@ def cmake_configure(cwd, options, cflags=None):
             "CMAKE_ARCHIVE_OUTPUT_DIRECTORY": cwd,
             "CMAKE_ARCHIVE_OUTPUT_DIRECTORY_DEBUG": cwd,
             "CMAKE_ARCHIVE_OUTPUT_DIRECTORY_RELEASE": cwd,
-            "CMAKE_COMPILE_PDB_OUTPUT_DIRECTORY": cwd,
-            "CMAKE_COMPILE_PDB_OUTPUT_DIRECTORY_DEBUG": cwd,
-            "CMAKE_COMPILE_PDB_OUTPUT_DIRECTORY_RELEASE": cwd,
         }
     )
 

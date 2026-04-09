@@ -8,7 +8,7 @@
 
 **Fixes**:
 
-- Embed debug info in static library to avoid LNK4099 warnings. ([#1630](https://github.com/getsentry/sentry-native/pull/1630))
+- Revert `CMP0141` policy that broke debug info settings for downstream consumers. ([#1630](https://github.com/getsentry/sentry-native/pull/1630))
 
 ## 0.13.5
 
