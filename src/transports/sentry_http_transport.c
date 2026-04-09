@@ -246,7 +246,9 @@ retry_send_cb(sentry_envelope_t *envelope, void *_state)
         && sentry__envelope_can_add_client_report(
             envelope, state->ratelimiter)) {
         if (sentry__client_report_save(&report)) {
-            sentry__envelope_add_client_report(envelope, &report);
+            if (!sentry__envelope_add_client_report(envelope, &report)) {
+                sentry__client_report_restore(&report);
+            }
         }
     }
     int status_code = http_send_envelope(envelope, state);
@@ -292,7 +294,9 @@ http_send_task(void *_envelope, void *_state)
         && sentry__envelope_can_add_client_report(
             envelope, state->ratelimiter)) {
         if (sentry__client_report_save(&report)) {
-            sentry__envelope_add_client_report(envelope, &report);
+            if (!sentry__envelope_add_client_report(envelope, &report)) {
+                sentry__client_report_restore(&report);
+            }
         }
     }
 
