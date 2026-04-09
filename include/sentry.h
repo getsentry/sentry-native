@@ -59,6 +59,8 @@ extern "C" {
 #    define SENTRY_PLATFORM_WINDOWS
 #    ifdef _GAMING_XBOX
 #        define SENTRY_PLATFORM_XBOX
+#    elif defined(_GAMING_DESKTOP)
+#        define SENTRY_PLATFORM_WINGDK
 #    endif
 #elif defined(__APPLE__)
 #    include <TargetConditionals.h>
@@ -95,12 +97,14 @@ extern "C" {
 #        define SENTRY_SDK_NAME "sentry.native.android"
 #    elif defined(SENTRY_PLATFORM_XBOX)
 #        define SENTRY_SDK_NAME "sentry.native.xbox"
+#    elif defined(SENTRY_PLATFORM_WINGDK)
+#        define SENTRY_SDK_NAME "sentry.native.wingdk"
 #    else
 #        define SENTRY_SDK_NAME "sentry.native"
 #    endif
 #endif
 #ifndef SENTRY_SDK_VERSION
-#    define SENTRY_SDK_VERSION "0.13.4"
+#    define SENTRY_SDK_VERSION "0.13.5"
 #endif
 #define SENTRY_SDK_USER_AGENT SENTRY_SDK_NAME "/" SENTRY_SDK_VERSION
 
@@ -2305,6 +2309,27 @@ SENTRY_EXPERIMENTAL_API int sentry_options_get_http_retry(
 SENTRY_EXPERIMENTAL_API void sentry_options_set_logs_with_attributes(
     sentry_options_t *opts, int logs_with_attributes);
 SENTRY_EXPERIMENTAL_API int sentry_options_get_logs_with_attributes(
+    const sentry_options_t *opts);
+
+/**
+ * Enables or disables client reports.
+ *
+ * Client reports allow the SDK to track and report why events were discarded
+ * before being sent to Sentry (e.g., due to sampling, hooks, rate limiting,
+ * network or send errors, queue overflow, etc.).
+ *
+ * When enabled (the default), client reports are opportunistically attached to
+ * outgoing envelopes to minimize HTTP requests.
+ *
+ * See https://develop.sentry.dev/sdk/telemetry/client-reports/ for details.
+ */
+SENTRY_API void sentry_options_set_send_client_reports(
+    sentry_options_t *opts, int val);
+
+/**
+ * Returns true if client reports are enabled.
+ */
+SENTRY_API int sentry_options_get_send_client_reports(
     const sentry_options_t *opts);
 
 /**

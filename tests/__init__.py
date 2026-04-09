@@ -22,7 +22,7 @@ def adb(*args, **kwargs):
 # https://docs.pytest.org/en/latest/assert.html#assert-details
 pytest.register_assert_rewrite("tests.assertions")
 
-SENTRY_VERSION = "0.13.4"
+SENTRY_VERSION = "0.13.5"
 
 
 def make_dsn(httpserver, auth="uiaeosnrtdy", id=123456, proxy_host=False):
@@ -358,6 +358,7 @@ class Item(object):
             "user_report",
             "log",
             "trace_metric",
+            "client_report",
         ]:
             rv = cls(headers=headers, payload=PayloadRef(json=json.loads(payload)))
         else:

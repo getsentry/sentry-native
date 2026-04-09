@@ -4,6 +4,13 @@
 
 **Features**:
 
+- Add WinGDK (Gaming.Desktop.x64) platform support ([#1631](https://github.com/getsentry/sentry-native/pull/1631))
+- Track discarded events via client reports. ([#1549](https://github.com/getsentry/sentry-native/pull/1549))
+
+## 0.13.5
+
+**Features**:
+
 - Add HTTP retry with exponential backoff, opt-in via `sentry_options_set_http_retry`. ([#1520](https://github.com/getsentry/sentry-native/pull/1520))
 - Store minidump attachments as separate `.dmp` files in the offline cache for direct debugger access. ([#1607](https://github.com/getsentry/sentry-native/pull/1607))
 - Enable metrics by default; metrics are now opt-out via `sentry_options_set_enable_metrics(options, false)`. ([#1609](https://github.com/getsentry/sentry-native/pull/1609))
@@ -12,6 +19,10 @@
 **Fixes**:
 
 - native: Fix crash daemon failing to detect crashes during OOM on Windows. ([#1603](https://github.com/getsentry/sentry-native/issues/1603))
+- Fix `WinHttpReceiveResponse` failures being silently ignored, which could cause envelopes to be lost instead of retried or cached. ([#1620](https://github.com/getsentry/sentry-native/pull/1620))
+- Fix missing screenshot attachment in native backend envelope. ([#1624](https://github.com/getsentry/sentry-native/pull/1624))
+- Replace `googlesource` submodules with GitHub ones. ([#1628](https://github.com/getsentry/sentry-native/pull/1628))
+  - This fixes build-time failures where building sentry-native fails with HTTP 403 errors when fetching the zlib and lss libraries from Chromium.
 
 ## 0.13.4
 
