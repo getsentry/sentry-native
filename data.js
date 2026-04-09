@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1775739384201,
+  "lastUpdate": 1775739445879,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -32314,6 +32314,66 @@ window.BENCHMARK_DATA = {
             "value": 12.463832999969782,
             "unit": "ms",
             "extra": "Min 9.533ms\nMax 15.558ms\nMean 12.271ms\nStdDev 2.242ms\nMedian 12.464ms\nCPU 1.746ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "60878493+JoshuaMoelans@users.noreply.github.com",
+            "name": "JoshuaMoelans",
+            "username": "JoshuaMoelans"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "18cabe7f73519499f5c6f0806c3cea281c19e132",
+          "message": "chore(ci): run console unit tests on master push (#1629)\n\nAdd UNIT_TEST mode (single-config build + on-device unit tests) triggered\non pushes to master, sitting between BUILD_ONLY (PRs) and FULL_TEST\n(release branches).\n\nCo-authored-by: Claude Opus 4.6 (1M context) <noreply@anthropic.com>",
+          "timestamp": "2026-04-09T14:53:39+02:00",
+          "tree_id": "3d61e635a90dbd3facfa2ab207e8ca70156073b0",
+          "url": "https://github.com/getsentry/sentry-native/commit/18cabe7f73519499f5c6f0806c3cea281c19e132"
+        },
+        "date": 1775739441739,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 5.534458000056475,
+            "unit": "ms",
+            "extra": "Min 4.433ms\nMax 8.347ms\nMean 6.131ms\nStdDev 1.503ms\nMedian 5.534ms\nCPU 3.568ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 3.4645830000954447,
+            "unit": "ms",
+            "extra": "Min 3.281ms\nMax 3.729ms\nMean 3.523ms\nStdDev 0.191ms\nMedian 3.465ms\nCPU 2.013ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 15.435041999808163,
+            "unit": "ms",
+            "extra": "Min 12.710ms\nMax 16.172ms\nMean 14.896ms\nStdDev 1.448ms\nMedian 15.435ms\nCPU 5.393ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.09633400009079196,
+            "unit": "ms",
+            "extra": "Min 0.064ms\nMax 0.101ms\nMean 0.090ms\nStdDev 0.015ms\nMedian 0.096ms\nCPU 0.052ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.3134580001642462,
+            "unit": "ms",
+            "extra": "Min 0.244ms\nMax 0.384ms\nMean 0.314ms\nStdDev 0.064ms\nMedian 0.313ms\nCPU 0.313ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 7.151625000005879,
+            "unit": "ms",
+            "extra": "Min 6.668ms\nMax 8.536ms\nMean 7.346ms\nStdDev 0.705ms\nMedian 7.152ms\nCPU 0.971ms"
           }
         ]
       }
