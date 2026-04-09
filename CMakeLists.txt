@@ -480,7 +480,7 @@ if(MSVC)
 	# embedding debug info in the .obj files (/Z7) rather than referencing
 	# an external PDB (/Zi), which would cause LNK4099 warnings for consumers.
 	if(NOT SENTRY_BUILD_SHARED_LIBS AND NOT CMAKE_MSVC_DEBUG_INFORMATION_FORMAT)
-		set_target_properties(sentry PROPERTIES MSVC_DEBUG_INFORMATION_FORMAT Embedded)
+		set_target_properties(sentry PROPERTIES MSVC_DEBUG_INFORMATION_FORMAT "$<$<CONFIG:Debug,RelWithDebInfo>:Embedded>")
 	endif()
 
 	if(CMAKE_SIZEOF_VOID_P EQUAL 4)
