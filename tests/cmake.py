@@ -156,6 +156,9 @@ def cmake_configure(cwd, options, cflags=None):
             "CMAKE_ARCHIVE_OUTPUT_DIRECTORY": cwd,
             "CMAKE_ARCHIVE_OUTPUT_DIRECTORY_DEBUG": cwd,
             "CMAKE_ARCHIVE_OUTPUT_DIRECTORY_RELEASE": cwd,
+            "CMAKE_COMPILE_PDB_OUTPUT_DIRECTORY": cwd,
+            "CMAKE_COMPILE_PDB_OUTPUT_DIRECTORY_DEBUG": cwd,
+            "CMAKE_COMPILE_PDB_OUTPUT_DIRECTORY_RELEASE": cwd,
         }
     )
 
