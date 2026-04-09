@@ -1,7 +1,4 @@
 cmake_minimum_required(VERSION 3.10)
-if(POLICY CMP0141)
-	cmake_policy(SET CMP0141 NEW)
-endif()
 project(sentry_screenshot LANGUAGES C)
 
 if(WIN32 AND NOT XBOX)
