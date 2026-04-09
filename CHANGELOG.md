@@ -6,6 +6,10 @@
 
 - Add WinGDK (Gaming.Desktop.x64) platform support ([#1631](https://github.com/getsentry/sentry-native/pull/1631))
 
+**Fixes**:
+
+- Embed debug info in static library to avoid LNK4099 warnings. ([#1630](https://github.com/getsentry/sentry-native/pull/1630))
+
 ## 0.13.5
 
 **Features**:
