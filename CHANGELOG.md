@@ -1,10 +1,36 @@
 # Changelog
 
-## Unreleased
+## 0.13.5
+
+**Features**:
+
+- Add HTTP retry with exponential backoff, opt-in via `sentry_options_set_http_retry`. ([#1520](https://github.com/getsentry/sentry-native/pull/1520))
+- Store minidump attachments as separate `.dmp` files in the offline cache for direct debugger access. ([#1607](https://github.com/getsentry/sentry-native/pull/1607))
+- Enable metrics by default; metrics are now opt-out via `sentry_options_set_enable_metrics(options, false)`. ([#1609](https://github.com/getsentry/sentry-native/pull/1609))
 
 **Fixes**:
 
+- native: Fix crash daemon failing to detect crashes during OOM on Windows. ([#1603](https://github.com/getsentry/sentry-native/issues/1603))
+- Fix `WinHttpReceiveResponse` failures being silently ignored, which could cause envelopes to be lost instead of retried or cached. ([#1620](https://github.com/getsentry/sentry-native/pull/1620))
+- Fix missing screenshot attachment in native backend envelope. ([#1624](https://github.com/getsentry/sentry-native/pull/1624))
+- Replace `googlesource` submodules with GitHub ones. ([#1628](https://github.com/getsentry/sentry-native/pull/1628))
+  - This fixes build-time failures where building sentry-native fails with HTTP 403 errors when fetching the zlib and lss libraries from Chromium.
+
+## 0.13.4
+
+**Features**:
+
+- Symbolicate stack frames in crash daemon on Windows. ([#1595](https://github.com/getsentry/sentry-native/pull/1595))
+- Add offline caching support to the new experimental `native` backend. ([#1585](https://github.com/getsentry/sentry-native/pull/1585))
+
+**Fixes**:
+
+- Fix `cache_keep` to only cache envelopes when HTTP send fails, instead of unconditionally on restart. ([#1585](https://github.com/getsentry/sentry-native/pull/1585))
 - Fix external crash reporter to work with the new experimental `native` backend. ([#1589](https://github.com/getsentry/sentry-native/pull/1589))
+- Fix crash daemon premature exit on Windows ([#1600](https://github.com/getsentry/sentry-native/pull/1600))
+- native: Fix incorrect stacktraces on Linux by merging ELF segment mappings from `/proc/pid/maps`. Without merging, `base_of_image` pointed to the code segment instead of the real ELF load base, breaking server-side CFI unwinding. ([#1588](https://github.com/getsentry/sentry-native/pull/1588))
+- native: Fix single-frame stacktraces on x86_64 and `-fomit-frame-pointer` builds by capturing DWARF-based backtraces (via libunwind) in the signal handler. The daemon now prefers these over FP-based walking, which fails when RBP is used as a general-purpose register. ([#1588](https://github.com/getsentry/sentry-native/pull/1588))
+- native: Fix missing thread names on Windows ([#1601](https://github.com/getsentry/sentry-native/pull/1601))
 
 ## 0.13.3
 

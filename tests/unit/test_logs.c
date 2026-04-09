@@ -531,6 +531,7 @@ log_producer_thread(void *data)
     volatile long *produce = data;
     while (sentry__atomic_fetch(produce)) {
         sentry_log_info("log from producer thread");
+        sentry__thread_yield();
     }
     return 0;
 }

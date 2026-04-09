@@ -381,6 +381,47 @@ trigger_stack_overflow()
     trigger_stack_overflow();
 }
 
+static void
+trigger_oom(void)
+{
+#ifdef SENTRY_PLATFORM_WINDOWS
+    // Optionally limit process memory to trigger OOM faster.
+    // Set SENTRY_TEST_OOM_LIMIT to the limit in MiB (e.g. "8192" for 8GB).
+    // Without this, OOM exhausts all virtual memory which can take minutes.
+    // Note: a Job Object limit only constrains user-mode allocations and
+    // does not exhaust kernel pool memory like a real system-wide OOM would.
+    const char *oom_limit = getenv("SENTRY_TEST_OOM_LIMIT");
+    if (oom_limit) {
+        unsigned long long limit = strtoull(oom_limit, NULL, 10) * 1024 * 1024;
+        if (limit > 0 && limit <= SIZE_MAX) {
+            HANDLE job = CreateJobObjectW(NULL, NULL);
+            if (job) {
+                JOBOBJECT_EXTENDED_LIMIT_INFORMATION info = { 0 };
+                info.BasicLimitInformation.LimitFlags
+                    = JOB_OBJECT_LIMIT_PROCESS_MEMORY;
+                info.ProcessMemoryLimit = (size_t)limit;
+                SetInformationJobObject(job, JobObjectExtendedLimitInformation,
+                    &info, sizeof(info));
+                AssignProcessToJobObject(job, GetCurrentProcess());
+            }
+        }
+    }
+#endif
+
+    size_t count = 1024;
+    for (;;) {
+        void *p = malloc(count);
+        if (!p) {
+#ifdef SENTRY_PLATFORM_WINDOWS
+            RaiseException(0xc000, 0, 0, NULL);
+#else
+            *((volatile int *)3) = 1;
+#endif
+        }
+        count *= 2;
+    }
+}
+
 static sentry_value_t
 create_debug_crumb(const char *message)
 {
@@ -659,9 +700,15 @@ main(int argc, char **argv)
         sentry_options_set_cache_max_age(options, 5 * 24 * 60 * 60); // 5 days
         sentry_options_set_cache_max_items(options, 5);
     }
+    if (has_arg(argc, argv, "http-retry")) {
+        sentry_options_set_http_retry(options, true);
+    }
+    if (has_arg(argc, argv, "no-http-retry")) {
+        sentry_options_set_http_retry(options, false);
+    }
 
-    if (has_arg(argc, argv, "enable-metrics")) {
-        sentry_options_set_enable_metrics(options, true);
+    if (has_arg(argc, argv, "disable-metrics")) {
+        sentry_options_set_enable_metrics(options, false);
     }
 
     if (has_arg(argc, argv, "before-send-metric")) {
@@ -940,6 +987,10 @@ main(int argc, char **argv)
         sentry_reinstall_backend();
     }
 
+    if (has_arg(argc, argv, "flush")) {
+        sentry_flush(10000);
+    }
+
     if (has_arg(argc, argv, "sleep")) {
         sleep_s(10);
     }
@@ -955,6 +1006,9 @@ main(int argc, char **argv)
     }
     if (has_arg(argc, argv, "stack-overflow")) {
         trigger_stack_overflow();
+    }
+    if (has_arg(argc, argv, "oom")) {
+        trigger_oom();
     }
 #if defined(SENTRY_PLATFORM_WINDOWS) && !defined(__MINGW32__)                  \
     && !defined(__MINGW64__)

@@ -5,8 +5,10 @@ import platform
 import re
 import sys
 from dataclasses import dataclass
-from datetime import datetime, UTC
+from datetime import datetime, timedelta, UTC
 from pathlib import Path
+
+import tests
 
 import msgpack
 
@@ -360,8 +362,10 @@ def assert_minidump(envelope):
 
 
 def assert_timestamp(ts):
-    elapsed_time = datetime.now(UTC) - datetime.fromisoformat(ts)
-    assert elapsed_time.total_seconds() < 10
+    dt = datetime.fromisoformat(ts)
+    # 1s tolerance for `date +%s` truncation in device clock offset measurement
+    assert dt <= tests.now() + timedelta(seconds=1), "timestamp is in the future"
+    assert dt >= tests.test_start, "timestamp is in the past"
 
 
 def assert_event(envelope, message="Hello World!", expected_trace_id=""):
@@ -559,11 +563,12 @@ def assert_failed_proxy_auth_request(stdout):
 
 
 def wait_for_file(path, timeout=10.0, poll_interval=0.1):
+    import glob
     import time
 
     deadline = time.time() + timeout
     while time.time() < deadline:
-        if path.exists():
+        if glob.glob(str(path)):
             return True
         time.sleep(poll_interval)
     return False

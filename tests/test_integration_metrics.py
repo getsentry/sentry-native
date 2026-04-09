@@ -28,7 +28,7 @@ def test_metrics_capture(cmake, httpserver):
     run(
         tmp_path,
         "sentry_example",
-        ["log", "enable-metrics", "capture-metric"],
+        ["log", "capture-metric"],
         env=env,
     )
 
@@ -51,7 +51,7 @@ def test_metrics_all_types(cmake, httpserver):
     run(
         tmp_path,
         "sentry_example",
-        ["log", "enable-metrics", "capture-metric-all-types"],
+        ["log", "capture-metric-all-types"],
         env=env,
     )
 
@@ -79,7 +79,7 @@ def test_metrics_with_custom_attributes(cmake, httpserver):
     run(
         tmp_path,
         "sentry_example",
-        ["log", "enable-metrics", "metric-with-attributes"],
+        ["log", "metric-with-attributes"],
         env=env,
     )
 
@@ -109,7 +109,7 @@ def test_metrics_timer(cmake, httpserver):
     run(
         tmp_path,
         "sentry_example",
-        ["log", "enable-metrics", "metrics-timer"],
+        ["log", "metrics-timer"],
         env=env,
     )
 
@@ -138,7 +138,6 @@ def test_metrics_scoped_transaction(cmake, httpserver):
         "sentry_example",
         [
             "log",
-            "enable-metrics",
             "metrics-scoped-transaction",
             "capture-transaction",
             "scope-transaction-event",
@@ -179,7 +178,7 @@ def test_before_send_metric(cmake, httpserver):
     run(
         tmp_path,
         "sentry_example",
-        ["log", "enable-metrics", "capture-metric", "before-send-metric"],
+        ["log", "capture-metric", "before-send-metric"],
         env=env,
     )
 
@@ -215,7 +214,7 @@ def test_before_send_metric_discard(cmake, httpserver):
     run(
         tmp_path,
         "sentry_example",
-        ["log", "enable-metrics", "capture-metric", "discarding-before-send-metric"],
+        ["log", "capture-metric", "discarding-before-send-metric"],
         env=env,
     )
 
@@ -229,11 +228,10 @@ def test_metrics_disabled(cmake, httpserver):
     httpserver.expect_request("/api/123456/envelope/").respond_with_data("OK")
     env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
 
-    # Run without enable-metrics flag
     run(
         tmp_path,
         "sentry_example",
-        ["log", "capture-metric"],
+        ["log", "disable-metrics", "capture-metric"],
         env=env,
     )
 
@@ -250,7 +248,7 @@ def test_metrics_event(cmake, httpserver):
     run(
         tmp_path,
         "sentry_example",
-        ["log", "enable-metrics", "capture-metric", "capture-event"],
+        ["log", "capture-metric", "capture-event"],
         env=env,
     )
 
@@ -280,7 +278,7 @@ def test_metrics_threaded(cmake, httpserver):
     run(
         tmp_path,
         "sentry_example",
-        ["log", "enable-metrics", "metrics-threads"],
+        ["log", "metrics-threads"],
         env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
     )
 
@@ -306,7 +304,7 @@ def test_metrics_global_and_local_attributes_merge(cmake, httpserver):
     run(
         tmp_path,
         "sentry_example",
-        ["log", "enable-metrics", "set-global-attribute", "metric-with-attributes"],
+        ["log", "set-global-attribute", "metric-with-attributes"],
         env=env,
     )
 
@@ -366,7 +364,7 @@ def test_metrics_on_crash_none(cmake, httpserver):
     run(
         tmp_path,
         "sentry_example",
-        ["log", "enable-metrics", "capture-metric", "crash"],
+        ["log", "capture-metric", "crash"],
         expect_failure=True,
         env=env,
     )
@@ -397,7 +395,7 @@ def test_metrics_on_crash(cmake, httpserver, backend):
     run(
         tmp_path,
         "sentry_example",
-        ["log", "enable-metrics", "capture-metric", "crash"],
+        ["log", "capture-metric", "crash"],
         expect_failure=True,
         env=env,
     )
@@ -436,7 +434,7 @@ def test_metrics_on_crash_native(cmake, httpserver, rerun):
         run(
             tmp_path,
             "sentry_example",
-            ["log", "enable-metrics", "capture-metric", "crash"],
+            ["log", "capture-metric", "crash"],
             expect_failure=True,
             env=env,
         )

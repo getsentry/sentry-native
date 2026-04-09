@@ -26,7 +26,7 @@ RFC3339_FORMAT = "%Y-%m-%dT%H:%M:%S.%fZ"
 @pytest.mark.parametrize(
     "build_args",
     [
-        ({"SENTRY_TRANSPORT_COMPRESSION": "Off"}),
+        ({}),  # SENTRY_TRANSPORT_COMPRESSION=Off (default, cached)
         ({"SENTRY_TRANSPORT_COMPRESSION": "On"}),
     ],
 )

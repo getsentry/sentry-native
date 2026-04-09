@@ -43,7 +43,8 @@ def assert_screenshot_upload(req):
         pytest.param(
             {"SENTRY_BACKEND": "native"},
             marks=pytest.mark.skip(
-                reason="Native backend screenshot needs testing on Windows machine"
+                reason="Native daemon cleans up run folder after processing "
+                "so the screenshot file is no longer on disk"
             ),
         ),
     ],

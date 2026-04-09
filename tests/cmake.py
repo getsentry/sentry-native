@@ -8,6 +8,8 @@ from pathlib import Path
 
 import pytest
 
+from . import adb
+from .conditions import has_sccache
 from .build_config import (
     get_android_config,
     get_platform_cmake_args,
@@ -30,18 +32,25 @@ class CMake:
 
         if options is None:
             options = dict()
-        key = (
-            ";".join(targets),
-            ";".join(f"{k}={v}" for k, v in options.items()),
-        )
+        key = ";".join(f"{k}={v}" for k, v in options.items())
+        if cflags:
+            key += ";" + ";".join(cflags)
 
         # cache the build configuration
         if key not in self.runs:
             cwd = self.factory.mktemp("cmake")
-            self.runs[key] = cwd
-            cmake(cwd, targets, options, cflags)
+            cmake_configure(cwd, options, cflags)
+            cmake_build(cwd, targets, options)
+            self.runs[key] = (cwd, set(targets))
+        else:
+            # build missing targets incrementally
+            cwd, built_targets = self.runs[key]
+            new_targets = [t for t in targets if t not in built_targets]
+            if new_targets:
+                cmake_build(cwd, new_targets, options)
+                built_targets.update(new_targets)
 
-        build_tmp_path = self.runs[key]
+        build_tmp_path = cwd
 
         # ensure that there are no left-overs from previous runs
         shutil.rmtree(build_tmp_path / ".sentry-native", ignore_errors=True)
@@ -63,7 +72,7 @@ class CMake:
         os.mkdir(coveragedir)
 
         if "llvm-cov" in os.environ.get("RUN_ANALYZER", ""):
-            for i, d in enumerate(self.runs.values()):
+            for i, (d, _) in enumerate(self.runs.values()):
                 # first merge the raw profiling runs
                 files = [f for f in os.listdir(d) if f.endswith(".profraw")]
                 if len(files) == 0:
@@ -101,7 +110,7 @@ class CMake:
         if "kcov" in os.environ.get("RUN_ANALYZER", ""):
             coverage_dirs = [
                 d
-                for d in [d.joinpath("coverage") for d in self.runs.values()]
+                for d in [d.joinpath("coverage") for (d, _) in self.runs.values()]
                 if d.exists()
             ]
             if len(coverage_dirs) > 0:
@@ -116,19 +125,23 @@ class CMake:
                 )
 
 
-def cmake(cwd, targets, options=None, cflags=None):
+def cmake_configure(cwd, options, cflags=None):
     if cflags is None:
         cflags = []
     __tracebackhide__ = True
-    if options is None:
-        options = {}
-    if os.environ.get("USE_CCACHE"):
+
+    options = dict(options)
+    if has_sccache:
         options.update(
             {
-                "CMAKE_C_COMPILER_LAUNCHER": "ccache",
-                "CMAKE_CXX_COMPILER_LAUNCHER": "ccache",
+                "CMAKE_C_COMPILER_LAUNCHER": "sccache",
+                "CMAKE_CXX_COMPILER_LAUNCHER": "sccache",
             }
         )
+        if sys.platform == "win32":
+            # Use /Z7 instead of /Zi to embed debug info in object files. /Zi creates
+            # a shared PDB that conflicts with sccache's parallelized compilation.
+            options["CMAKE_MSVC_DEBUG_INFORMATION_FORMAT"] = "Embedded"
     options.update(
         {
             "CMAKE_RUNTIME_OUTPUT_DIRECTORY": cwd,
@@ -165,6 +178,10 @@ def cmake(cwd, targets, options=None, cflags=None):
 
     if os.environ.get("VS_GENERATOR_TOOLSET") == "ClangCL":
         configure_clang_cl(config_cmd)
+    elif sys.platform == "win32" and os.environ.get("USE_SCCACHE"):
+        # The Visual Studio generator does not support CMAKE_C_COMPILER_LAUNCHER.
+        # Use Ninja instead to enable sccache.
+        config_cmd.extend(["-G", "Ninja"])
 
     for key, value in options.items():
         config_cmd.append("-D{}={}".format(key, value))
@@ -180,12 +197,6 @@ def cmake(cwd, targets, options=None, cflags=None):
         configure_llvm_cov(config_cmd)
     env = dict(os.environ)
     env["CFLAGS"] = env["CXXFLAGS"] = " ".join(cflags)
-    if env.get("USE_CCACHE"):
-        # Each pytest run builds in a new temp directory. Paths are normalized
-        # relative to the build dir and CWD hashing is skipped to allow ccache
-        # hits across runs.
-        env.setdefault("CCACHE_BASEDIR", str(cwd))
-        env.setdefault("CCACHE_NOHASHDIR", "true")
 
     config_cmd.append(source_dir)
 
@@ -204,8 +215,30 @@ def cmake(cwd, targets, options=None, cflags=None):
             sys.stderr.write(e.stderr or "")
             raise pytest.fail.Exception("cmake configure failed") from None
 
-    # CodeChecker invocations and options are documented here:
-    # https://github.com/Ericsson/codechecker/blob/master/docs/analyzer/user_guide.md
+
+def cmake_build(cwd, targets, options):
+    __tracebackhide__ = True
+
+    source_dir = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
+
+    cmake = ["cmake"]
+    if "scan-build" in os.environ.get("RUN_ANALYZER", ""):
+        cc = os.environ.get("CC")
+        cxx = os.environ.get("CXX")
+        cmake = [
+            "scan-build",
+            *(["--use-cc", cc] if cc else []),
+            *(["--use-c++", cxx] if cxx else []),
+            "--status-bugs",
+            "--exclude",
+            os.path.join(source_dir, "external"),
+            "cmake",
+        ]
+    env = dict(os.environ)
+    if has_sccache:
+        # Each pytest run builds in a new temp directory. Paths are normalized
+        # relative to the build dir to allow sccache hits across runs.
+        env.setdefault("SCCACHE_BASEDIRS", str(cwd))
 
     buildcmd = [*cmake, "--build", "."]
     for target in targets:
@@ -237,6 +270,8 @@ def cmake(cwd, targets, options=None, cflags=None):
         check_binary_version(Path(cwd) / "crashpad_wer.dll")
         check_binary_version(Path(cwd) / "crashpad_handler.exe")
 
+    # CodeChecker invocations and options are documented here:
+    # https://github.com/Ericsson/codechecker/blob/master/docs/analyzer/user_guide.md
     if "code-checker" in os.environ.get("RUN_ANALYZER", ""):
         # For whatever reason, the compilation summary contains duplicate entries,
         # one with the correct absolute path, and the other one just with the basename,
@@ -275,16 +310,7 @@ def cmake(cwd, targets, options=None, cflags=None):
 
     if os.environ.get("ANDROID_API"):
         # copy the output to the android image via adb
-        subprocess.run(
-            [
-                "{}/platform-tools/adb".format(os.environ["ANDROID_HOME"]),
-                "push",
-                "./",
-                "/data/local/tmp",
-            ],
-            cwd=cwd,
-            check=True,
-        )
+        adb("push", "./", "/data/local/tmp", cwd=cwd, check=True)
 
 
 def configure_clang_cl(config_cmd: list[str]):

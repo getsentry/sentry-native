@@ -68,6 +68,10 @@ signal_safe_memzero(void *dest, size_t n)
 #        include <dirent.h>
 #        include <stdlib.h>
 #        include <sys/syscall.h>
+#        ifdef SENTRY_WITH_UNWINDER_LIBUNWIND
+#            define UNW_LOCAL_ONLY
+#            include <libunwind.h>
+#        endif
 #    endif
 
 #    if defined(SENTRY_PLATFORM_MACOS)
@@ -286,6 +290,34 @@ crash_signal_handler(int signum, siginfo_t *info, void *context)
     ctx->platform.threads[0].tid = ctx->crashed_tid;
     signal_safe_memcpy(&ctx->platform.threads[0].context, uctx,
         sizeof(ctx->platform.threads[0].context));
+
+    // Capture backtrace using libunwind (DWARF-based, works without frame
+    // pointers). This runs in the signal handler, which is safe because
+    // libunwind's core unwinding API (unw_init_local2, unw_step, unw_get_reg)
+    // is async-signal-safe. The daemon will prefer this over FP-based walking.
+#        ifdef SENTRY_WITH_UNWINDER_LIBUNWIND
+    ctx->platform.backtrace_count = 0;
+    {
+        unw_cursor_t cursor;
+        int ret = unw_init_local2(
+            &cursor, (unw_context_t *)uctx, UNW_INIT_SIGNAL_FRAME);
+        if (ret == 0) {
+            size_t n = 0;
+            while (n < SENTRY_CRASH_MAX_BACKTRACE_FRAMES) {
+                unw_word_t ip = 0;
+                if (unw_get_reg(&cursor, UNW_REG_IP, &ip) < 0 || ip == 0) {
+                    break;
+                }
+                ctx->platform.backtrace_ips[n++] = (uint64_t)ip;
+                if (unw_step(&cursor) <= 0) {
+                    break;
+                }
+            }
+            ctx->platform.backtrace_count = n;
+        }
+    }
+#        endif
+
 #    elif defined(SENTRY_PLATFORM_MACOS)
     ctx->platform.signum = signum;
     // Use signal-safe memcpy to avoid TSAN-intercepted memcpy in signal handler
@@ -779,6 +811,35 @@ sentry__crash_handler_init(sentry_crash_ipc_t *ipc)
         }
         installed_count++;
     }
+
+    // Prime libunwind's internal cache by performing a short unwind.
+    // This forces dl_iterate_phdr to be called now (while safe) rather than
+    // in the signal handler where it could deadlock if the crash occurs
+    // during dlopen/dlclose.
+#    if (defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID))   \
+        && defined(SENTRY_WITH_UNWINDER_LIBUNWIND)
+    {
+        unw_context_t uc;
+        unw_cursor_t cursor;
+#        ifdef __clang__
+#            pragma clang diagnostic push
+#            pragma clang diagnostic ignored                                   \
+                "-Wgnu-statement-expression-from-macro-expansion"
+#        endif
+        if (unw_getcontext(&uc) == 0) {
+#        ifdef __clang__
+#            pragma clang diagnostic pop
+#        endif
+            if (unw_init_local(&cursor, &uc) == 0) {
+                // Walk a few frames to ensure .eh_frame info is cached
+                for (int i = 0; i < 5 && unw_step(&cursor) > 0; i++) {
+                    // intentionally empty - just priming the cache
+                }
+            }
+        }
+        SENTRY_DEBUG("libunwind cache primed");
+    }
+#    endif
 
     SENTRY_DEBUG("crash handler initialized");
     return 0;

@@ -100,7 +100,7 @@ extern "C" {
 #    endif
 #endif
 #ifndef SENTRY_SDK_VERSION
-#    define SENTRY_SDK_VERSION "0.13.3"
+#    define SENTRY_SDK_VERSION "0.13.5"
 #endif
 #define SENTRY_SDK_USER_AGENT SENTRY_SDK_NAME "/" SENTRY_SDK_VERSION
 
@@ -947,6 +947,24 @@ SENTRY_API void sentry_transport_set_shutdown_func(
     int (*shutdown_func)(uint64_t timeout, void *state));
 
 /**
+ * Retries sending all pending envelopes in the transport's retry queue,
+ * e.g. when coming back online. Only applicable for HTTP transports.
+ *
+ * Note: The SDK automatically retries failed envelopes on next application
+ * startup. This function allows manual triggering of pending retries at
+ * runtime. Each envelope is retried up to 6 times. If all attempts are
+ * exhausted during intermittent connectivity, events will be discarded
+ * (or moved to cache if enabled via sentry_options_set_cache_keep).
+ *
+ * Warning: This function has no rate limiting - it will immediately
+ * attempt to send all pending envelopes. Calling this repeatedly during
+ * extended network outages may exhaust retry attempts that might have
+ * succeeded with the SDK's built-in exponential backoff.
+ */
+SENTRY_EXPERIMENTAL_API void sentry_transport_retry(
+    sentry_transport_t *transport);
+
+/**
  * Generic way to free transport.
  */
 SENTRY_API void sentry_transport_free(sentry_transport_t *transport);
@@ -1476,12 +1494,14 @@ SENTRY_API int sentry_options_get_symbolize_stacktraces(
     const sentry_options_t *opts);
 
 /**
- * Enables or disables storing envelopes in a persistent cache.
+ * Enables or disables storing envelopes that fail to send in a persistent
+ * cache.
  *
- * When enabled, envelopes are written to a `cache/` subdirectory within the
- * database directory and retained regardless of send success or failure.
- * The cache is cleared on startup based on the cache_max_items, cache_max_size,
- * and cache_max_age options.
+ * When enabled, envelopes that fail to send are written to a `cache/`
+ * subdirectory within the database directory. The cache is cleared on startup
+ * based on the cache_max_items, cache_max_size, and cache_max_age options.
+ *
+ * Only applicable for HTTP transports.
  *
  * Disabled by default.
  */
@@ -2259,6 +2279,18 @@ SENTRY_EXPERIMENTAL_API int sentry_options_get_enable_logs(
     const sentry_options_t *opts);
 
 /**
+ * Enables or disables HTTP retry with exponential backoff for network failures.
+ *
+ * Only applicable for HTTP transports.
+ *
+ * Disabled by default.
+ */
+SENTRY_EXPERIMENTAL_API void sentry_options_set_http_retry(
+    sentry_options_t *opts, int enabled);
+SENTRY_EXPERIMENTAL_API int sentry_options_get_http_retry(
+    const sentry_options_t *opts);
+
+/**
  * Enables or disables custom attributes parsing for structured logging.
  *
  * When enabled, all `sentry_log_X()` functions expect a `sentry_value_t` object
@@ -2366,6 +2398,8 @@ SENTRY_EXPERIMENTAL_API void sentry_options_set_before_send_log(
 /**
  * Enables or disables the metrics feature.
  * When disabled, all calls to `sentry_metrics_*()` are no-ops.
+ *
+ * Enabled by default.
  */
 SENTRY_EXPERIMENTAL_API void sentry_options_set_enable_metrics(
     sentry_options_t *opts, int enable_metrics);

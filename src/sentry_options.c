@@ -54,6 +54,7 @@ sentry_options_new(void)
     opts->enable_logging_when_crashed = true;
     opts->propagate_traceparent = false;
     opts->crashpad_limit_stack_capture_to_sp = false;
+    opts->enable_metrics = true;
     opts->cache_keep = false;
     opts->cache_max_age = 0;
     opts->cache_max_size = 0;
@@ -82,6 +83,7 @@ sentry_options_new(void)
     opts->crash_reporting_mode
         = SENTRY_CRASH_REPORTING_MODE_NATIVE_WITH_MINIDUMP; // Default: best of
                                                             // both worlds
+    opts->http_retry = false;
 
     return opts;
 }
@@ -875,6 +877,18 @@ sentry_options_set_handler_strategy(
 }
 
 #endif // SENTRY_PLATFORM_LINUX
+
+void
+sentry_options_set_http_retry(sentry_options_t *opts, int enabled)
+{
+    opts->http_retry = !!enabled;
+}
+
+int
+sentry_options_get_http_retry(const sentry_options_t *opts)
+{
+    return opts->http_retry;
+}
 
 void
 sentry_options_set_propagate_traceparent(

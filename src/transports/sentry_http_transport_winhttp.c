@@ -134,6 +134,9 @@ winhttp_client_start(void *_client, const sentry_options_t *opts)
         return 1;
     }
 
+    // 15s resolve/connect, 30s send/receive (WinHTTP defaults)
+    WinHttpSetTimeouts(client->session, 15000, 15000, 30000, 30000);
+
     return 0;
 }
 
@@ -154,9 +157,9 @@ winhttp_client_shutdown(void *_client)
         WinHttpCloseHandle(client->session);
         client->session = NULL;
     }
-    if (client->request) {
-        WinHttpCloseHandle(client->request);
-        client->request = NULL;
+    HINTERNET request = InterlockedExchangePointer(&client->request, NULL);
+    if (request) {
+        WinHttpCloseHandle(request);
     }
 }
 
@@ -244,7 +247,11 @@ winhttp_send_task(void *_client, sentry_prepared_http_request_t *req,
     if ((result = WinHttpSendRequest(client->request, headers, (DWORD)-1,
              (LPVOID)req->body, (DWORD)req->body_len, (DWORD)req->body_len,
              0))) {
-        WinHttpReceiveResponse(client->request, NULL);
+        if (!(result = WinHttpReceiveResponse(client->request, NULL))) {
+            SENTRY_WARNF("`WinHttpReceiveResponse` failed with code `%d`",
+                GetLastError());
+            goto exit;
+        }
 
         if (client->debug) {
             // this is basically the example from:
@@ -302,10 +309,9 @@ winhttp_send_task(void *_client, sentry_prepared_http_request_t *req,
     uint64_t now = sentry__monotonic_time();
     SENTRY_DEBUGF("request handled in %llums", now - started);
 
-exit:
-    if (client->request) {
-        HINTERNET request = client->request;
-        client->request = NULL;
+exit:;
+    HINTERNET request = InterlockedExchangePointer(&client->request, NULL);
+    if (request) {
         WinHttpCloseHandle(request);
     }
     sentry_free(url);
