@@ -1,5 +1,6 @@
 # Triggers build-compatibility checks in console repos (PlayStation, Xbox, Switch)
-# whenever a PR is updated, or full tests on release branches.
+# whenever a PR is updated, unit tests on master pushes, or full tests on
+# release branches.
 #
 # This workflow does NOT wait for results. Each console repo posts a commit
 # status back to this repo's SHA when it finishes (success/failure).
@@ -13,6 +14,7 @@ on:
       - "*.md"
   push:
     branches:
+      - master
       - "release/**"
 
 concurrency:
@@ -56,8 +58,10 @@ jobs:
       - name: Determine mode
         id: mode
         run: |
-          if [[ "${{ github.event_name }}" == "push" ]]; then
+          if [[ "${{ github.event_name }}" == "push" && "${{ github.ref }}" == refs/heads/release/* ]]; then
             echo "mode=FULL_TEST" >> "$GITHUB_OUTPUT"
+          elif [[ "${{ github.event_name }}" == "push" && "${{ github.ref }}" == "refs/heads/master" ]]; then
+            echo "mode=UNIT_TEST" >> "$GITHUB_OUTPUT"
           else
             echo "mode=BUILD_ONLY" >> "$GITHUB_OUTPUT"
           fi
