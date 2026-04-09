@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1775576977894,
+  "lastUpdate": 1775724333854,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -15976,6 +15976,66 @@ window.BENCHMARK_DATA = {
             "value": 1.9291749999865715,
             "unit": "ms",
             "extra": "Min 1.895ms\nMax 2.003ms\nMean 1.937ms\nStdDev 0.043ms\nMedian 1.929ms\nCPU 0.549ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "60878493+JoshuaMoelans@users.noreply.github.com",
+            "name": "JoshuaMoelans",
+            "username": "JoshuaMoelans"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "f48246aa262ff1f5a8b783758d27b302ee8102e9",
+          "message": "chore(ci): introduce console SDK build checks (#1597)\n\n* ci: use GitHub App token for console compat checks\n\nReplace CONSOLE_COMPAT_TOKEN (PAT) with a short-lived token generated\nfrom a GitHub App. The app needs actions:write on console repos and\nstatuses:write on sentry-native.\n\nCo-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>\n\n* add --ref main\n\n* ci: skip console compat check for fork PRs\n\nSecrets are unavailable for pull_request events from forks, so the\nGitHub App auth would fail anyway.\n\nCo-Authored-By: Claude Sonnet 4.6 (1M context) <noreply@anthropic.com>\n\n---------\n\nCo-authored-by: Claude Opus 4.6 <noreply@anthropic.com>",
+          "timestamp": "2026-04-09T10:42:55+02:00",
+          "tree_id": "ae2745f9b0e946612bdbd51454d9c55af9bb9346",
+          "url": "https://github.com/getsentry/sentry-native/commit/f48246aa262ff1f5a8b783758d27b302ee8102e9"
+        },
+        "date": 1775724330490,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 0.8988679999930582,
+            "unit": "ms",
+            "extra": "Min 0.875ms\nMax 0.913ms\nMean 0.896ms\nStdDev 0.015ms\nMedian 0.899ms\nCPU 0.853ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 0.7926290000028757,
+            "unit": "ms",
+            "extra": "Min 0.749ms\nMax 0.803ms\nMean 0.782ms\nStdDev 0.023ms\nMedian 0.793ms\nCPU 0.782ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 3.3005129999992278,
+            "unit": "ms",
+            "extra": "Min 2.979ms\nMax 3.403ms\nMean 3.221ms\nStdDev 0.189ms\nMedian 3.301ms\nCPU 1.626ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.13456099998165882,
+            "unit": "ms",
+            "extra": "Min 0.115ms\nMax 0.147ms\nMean 0.133ms\nStdDev 0.014ms\nMedian 0.135ms\nCPU 0.079ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.02998600001546947,
+            "unit": "ms",
+            "extra": "Min 0.028ms\nMax 0.032ms\nMean 0.030ms\nStdDev 0.002ms\nMedian 0.030ms\nCPU 0.029ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 1.8228940000142302,
+            "unit": "ms",
+            "extra": "Min 1.785ms\nMax 1.841ms\nMean 1.816ms\nStdDev 0.023ms\nMedian 1.823ms\nCPU 0.514ms"
           }
         ]
       }
