@@ -1029,6 +1029,11 @@ crashpad_backend_remove_attachment(
 }
 #endif
 
+void
+sentry__backend_preload(void)
+{
+}
+
 sentry_backend_t *
 sentry__backend_new(void)
 {

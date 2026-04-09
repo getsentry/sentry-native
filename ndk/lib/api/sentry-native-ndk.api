@@ -104,5 +104,16 @@ public final class io/sentry/ndk/SentryNdk {
 	public static fun close ()V
 	public static fun init (Lio/sentry/ndk/NdkOptions;)V
 	public static fun loadNativeLibraries ()V
+	public static fun preload ()V
+}
+
+public final class io/sentry/ndk/SentryNdkPreloadProvider : android/content/ContentProvider {
+	public fun <init> ()V
+	public fun delete (Landroid/net/Uri;Ljava/lang/String;[Ljava/lang/String;)I
+	public fun getType (Landroid/net/Uri;)Ljava/lang/String;
+	public fun insert (Landroid/net/Uri;Landroid/content/ContentValues;)Landroid/net/Uri;
+	public fun onCreate ()Z
+	public fun query (Landroid/net/Uri;[Ljava/lang/String;Ljava/lang/String;[Ljava/lang/String;Ljava/lang/String;)Landroid/database/Cursor;
+	public fun update (Landroid/net/Uri;Landroid/content/ContentValues;Ljava/lang/String;[Ljava/lang/String;)I
 }
 

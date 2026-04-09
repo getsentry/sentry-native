@@ -26,6 +26,9 @@ class Program
     [DllImport("sentry", EntryPoint = "sentry_init")]
     static extern int sentry_init(IntPtr options);
 
+    [DllImport("sentry", EntryPoint = "sentry_close")]
+    static extern void sentry_close();
+
     public static void RunTest(string[] args, string? databasePath = null)
     {
         var githubActions = Environment.GetEnvironmentVariable("GITHUB_ACTIONS") ?? string.Empty;
@@ -39,13 +42,28 @@ class Program
 
         // setup minimal sentry-native
         var options = sentry_options_new();
-        sentry_options_set_handler_strategy(options, 1);
+        // Preload replaces CHAIN_AT_START in the CoreCLR path. If preload is
+        // active, run sentry-native with DEFAULT strategy so the runtime can
+        // chain native crashes back to us.
+        int strategy = args.Contains("default-strategy") ? 0 : 1;
+        sentry_options_set_handler_strategy(options, strategy);
         sentry_options_set_debug(options, 1);
         if (databasePath != null)
         {
             sentry_options_set_database_path(options, databasePath);
         }
         sentry_init(options);
+
+        if (args.Contains("reinit"))
+        {
+            sentry_close();
+            options = sentry_options_new();
+            sentry_options_set_handler_strategy(options, strategy);
+            sentry_options_set_debug(options, 1);
+            if (databasePath != null)
+                sentry_options_set_database_path(options, databasePath);
+            sentry_init(options);
+        }
 
         if (args.Contains("native-crash"))
         {

@@ -17,7 +17,13 @@
     <Compile Remove="Platforms\Android\**" />
   </ItemGroup>
 
-  <ItemGroup Condition="$(TargetFramework.Contains('-android'))">
+  <ItemGroup Condition="$(TargetFramework.Contains('-android')) and '$(EnablePreload)' != 'true'">
     <AndroidNativeLibrary Include="native\**\*.so" />
+  </ItemGroup>
+
+  <ItemGroup Condition="$(TargetFramework.Contains('-android')) and '$(EnablePreload)' == 'true'">
+    <AndroidNativeLibrary Include="native\**\libcrash.so" />
+    <AndroidLibrary Include="$(NdkAarPath)" Bind="false" />
+    <AndroidManifestOverlay Include="Platforms\Android\PreloadManifest.xml" />
   </ItemGroup>
 </Project>

@@ -200,6 +200,14 @@ static volatile long g_handler_has_work = 0;
 #define CRASH_STATE_DONE 2
 static volatile long g_crash_handling_state = CRASH_STATE_IDLE;
 
+// Set once handlers were installed via sentry__backend_preload(). In this
+// mode sentry may keep its chain position across sentry_close() until either
+// full init reuses it, or a pre-init/post-close signal falls through, and
+// consumes the preload state.
+#ifdef SENTRY_PLATFORM_UNIX
+static volatile long g_preloaded = 0;
+#endif
+
 // trigger/schedule primitives that block the other side until this side is done
 #ifdef SENTRY_PLATFORM_UNIX
 static int g_handler_pipe[2] = { -1, -1 };
@@ -469,6 +477,37 @@ invoke_signal_handler(int signum, siginfo_t *info, void *user_context)
 }
 
 static int
+install_signal_handlers(void)
+{
+    if (sentry__atomic_fetch(&g_preloaded)) {
+        return 0;
+    }
+
+    memset(g_previous_handlers, 0, sizeof(g_previous_handlers));
+    for (size_t i = 0; i < SIGNAL_COUNT; ++i) {
+        if (sigaction(
+                SIGNAL_DEFINITIONS[i].signum, NULL, &g_previous_handlers[i])
+            == -1) {
+            return 1;
+        }
+    }
+
+    setup_sigaltstack(&g_signal_stack, "init");
+
+    sigemptyset(&g_sigaction.sa_mask);
+    g_sigaction.sa_sigaction = handle_signal;
+    // SA_NODEFER allows the signal to be delivered while the handler is
+    // running. This is needed for recursive crash detection to work -
+    // without it, a crash during crash handling would block the signal
+    // and leave the process in an undefined state.
+    g_sigaction.sa_flags = SA_SIGINFO | SA_ONSTACK | SA_NODEFER;
+    for (size_t i = 0; i < SIGNAL_COUNT; ++i) {
+        sigaction(SIGNAL_DEFINITIONS[i].signum, &g_sigaction, NULL);
+    }
+    return 0;
+}
+
+static int
 startup_inproc_backend(
     sentry_backend_t *backend, const sentry_options_t *options)
 {
@@ -503,30 +542,7 @@ startup_inproc_backend(
         return 1;
     }
 
-    // save the old signal handlers
-    memset(g_previous_handlers, 0, sizeof(g_previous_handlers));
-    for (size_t i = 0; i < SIGNAL_COUNT; ++i) {
-        if (sigaction(
-                SIGNAL_DEFINITIONS[i].signum, NULL, &g_previous_handlers[i])
-            == -1) {
-            return 1;
-        }
-    }
-
-    setup_sigaltstack(&g_signal_stack, "init");
-
-    // install our own signal handler
-    sigemptyset(&g_sigaction.sa_mask);
-    g_sigaction.sa_sigaction = handle_signal;
-    // SA_NODEFER allows the signal to be delivered while the handler is
-    // running. This is needed for recursive crash detection to work -
-    // without it, a crash during crash handling would block the signal
-    // and leave the process in an undefined state.
-    g_sigaction.sa_flags = SA_SIGINFO | SA_ONSTACK | SA_NODEFER;
-    for (size_t i = 0; i < SIGNAL_COUNT; ++i) {
-        sigaction(SIGNAL_DEFINITIONS[i].signum, &g_sigaction, NULL);
-    }
-    return 0;
+    return install_signal_handlers();
 }
 
 static void
@@ -534,8 +550,19 @@ shutdown_inproc_backend(sentry_backend_t *backend)
 {
     stop_handler_thread();
 
-    teardown_sigaltstack(&g_signal_stack);
-    reset_signal_handlers();
+    // In Android preload mode, we intentionally keep our signal handlers
+    // installed across shutdown. The handler thread is torn down, but our
+    // position in the signal chain must remain stable so that a later
+    // sentry_init() can reactivate full crash handling without losing the
+    // ordering relative to the managed runtime.
+    //
+    // While in this state, full inproc crash processing is inactive and any
+    // signal we still observe will fall through to the previously installed
+    // handler.
+    if (!sentry__atomic_fetch(&g_preloaded)) {
+        teardown_sigaltstack(&g_signal_stack);
+        reset_signal_handlers();
+    }
 
     if (backend) {
         backend->data = NULL;
@@ -1643,6 +1670,34 @@ process_ucontext(const sentry_ucontext_t *uctx)
             "multiple recursive crashes detected, bailing out");
         goto cleanup;
     }
+
+    // If we were only preloaded (before sentry_init()) or were closed after
+    // preload (handlers still installed, but no handler thread), do not attempt
+    // full crash capture here. In this state, preload only serves as a
+    // placeholder in the signal chain.
+    //
+    // We therefore remove our placeholder from the chain and forward the
+    // signal to the previously installed handler set.
+    //
+    // This path is expected to be terminal for real crash signals. If it
+    // returns, preload mode is consumed for the remainder of the process
+    // lifetime until a later sentry_init() reinstalls handlers from the
+    // then-current chain.
+    //
+    // This also covers the window after preload but before the managed runtime
+    // has installed its own handlers: a signal seen in that window is forwarded
+    // to the pre-preload handler set rather than being captured by Sentry.
+    if (sentry__atomic_fetch(&g_preloaded)
+        && !sentry__atomic_fetch(&g_handler_thread_ready)) {
+        SENTRY_SIGNAL_SAFE_LOG(
+            "handler thread not ready, falling through to previous handler");
+        reset_signal_handlers();
+        sentry__atomic_store(&g_preloaded, 0);
+        sentry__leave_signal_handler();
+        invoke_signal_handler(
+            uctx->signum, uctx->siginfo, (void *)uctx->user_context);
+        return;
+    }
 #endif
 
     if (!g_backend_config.enable_logging_when_crashed) {
@@ -1740,6 +1795,16 @@ static void
 handle_except(sentry_backend_t *UNUSED(backend), const sentry_ucontext_t *uctx)
 {
     process_ucontext(uctx);
+}
+
+void
+sentry__backend_preload(void)
+{
+#ifdef SENTRY_PLATFORM_UNIX
+    if (install_signal_handlers() == 0) {
+        sentry__atomic_store(&g_preloaded, 1);
+    }
+#endif
 }
 
 sentry_backend_t *
