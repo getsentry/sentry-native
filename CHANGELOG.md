@@ -5,6 +5,7 @@
 **Features**:
 
 - Add WinGDK (Gaming.Desktop.x64) platform support ([#1631](https://github.com/getsentry/sentry-native/pull/1631))
+- Track discarded events via client reports. ([#1549](https://github.com/getsentry/sentry-native/pull/1549))
 
 ## 0.13.5
 

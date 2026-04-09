@@ -5,6 +5,7 @@
 #include "sentry_core.h"
 
 #include "sentry_attachment.h"
+#include "sentry_client_report.h"
 #include "sentry_path.h"
 #include "sentry_ratelimiter.h"
 #include "sentry_session.h"
@@ -97,6 +98,26 @@ sentry_envelope_item_t *sentry__envelope_add_attachment(
  */
 void sentry__envelope_add_attachments(
     sentry_envelope_t *envelope, const sentry_attachment_t *attachments);
+
+/**
+ * Returns true if a client report can be added to the envelope, i.e., the
+ * envelope is structured (not raw) and has at least one non-internal item
+ * that is not rate-limited.
+ */
+bool sentry__envelope_can_add_client_report(
+    const sentry_envelope_t *envelope, const sentry_rate_limiter_t *rl);
+
+/**
+ * Serialize a client report and add it to the envelope.
+ */
+sentry_envelope_item_t *sentry__envelope_add_client_report(
+    sentry_envelope_t *envelope, const sentry_client_report_t *report);
+
+/**
+ * Record discards for all non-internal items in the envelope.
+ */
+void sentry__envelope_discard(const sentry_envelope_t *envelope,
+    sentry_discard_reason_t reason, const sentry_rate_limiter_t *rl);
 
 /**
  * This will add the file contents from `path` as an envelope item of type

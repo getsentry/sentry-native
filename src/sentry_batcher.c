@@ -21,7 +21,8 @@
 #endif
 
 sentry_batcher_t *
-sentry__batcher_new(sentry_batch_func_t batch_func)
+sentry__batcher_new(
+    sentry_batch_func_t batch_func, sentry_data_category_t data_category)
 {
     sentry_batcher_t *batcher = SENTRY_MAKE(sentry_batcher_t);
     if (!batcher) {
@@ -30,6 +31,7 @@ sentry__batcher_new(sentry_batch_func_t batch_func)
     memset(batcher, 0, sizeof(sentry_batcher_t));
     batcher->refcount = 1;
     batcher->batch_func = batch_func;
+    batcher->data_category = data_category;
     batcher->thread_state = (long)SENTRY_BATCHER_THREAD_STOPPED;
     sentry__waitable_flag_init(&batcher->request_flush);
     sentry__thread_init(&batcher->batching_thread);
@@ -301,7 +303,8 @@ sentry__batcher_enqueue(sentry_batcher_t *batcher, sentry_value_t item)
         // Buffer is already full, roll back our increments and retry or drop.
         sentry__atomic_fetch_and_add(&active->adding, -1);
         if (attempt == ENQUEUE_MAX_RETRIES) {
-            // TODO report this (e.g. client reports)
+            sentry__client_report_discard(SENTRY_DISCARD_REASON_QUEUE_OVERFLOW,
+                batcher->data_category, 1);
             return false;
         }
     }

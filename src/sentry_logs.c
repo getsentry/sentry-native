@@ -360,6 +360,8 @@ send_log(sentry_level_t level, sentry_value_t log)
                 log, options->before_send_log_data);
             if (sentry_value_is_null(log)) {
                 SENTRY_DEBUG("log was discarded by the `before_send_log` hook");
+                sentry__client_report_discard(SENTRY_DISCARD_REASON_BEFORE_SEND,
+                    SENTRY_DATA_CATEGORY_LOG_ITEM, 1);
                 discarded = true;
             }
         }
@@ -487,7 +489,8 @@ sentry_log(
 void
 sentry__logs_startup(const sentry_options_t *options)
 {
-    sentry_batcher_t *batcher = sentry__batcher_new(sentry__envelope_add_logs);
+    sentry_batcher_t *batcher = sentry__batcher_new(
+        sentry__envelope_add_logs, SENTRY_DATA_CATEGORY_LOG_ITEM);
     if (!batcher) {
         SENTRY_WARN("failed to allocate logs batcher");
         return;
