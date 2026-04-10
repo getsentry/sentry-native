@@ -158,13 +158,13 @@ def test_multi_process(cmake):
     assert len(runs) == 0
 
 
-def run_stdout_for(backend, cmake, example_args, build_args=None):
+def run_stdout_for(backend, cmake, example_args, build_args=None, env=None):
     build_args = dict(build_args or {})
     build_args.update({"SENTRY_BACKEND": backend, "SENTRY_TRANSPORT": "none"})
 
     tmp_path = cmake(["sentry_example"], build_args)
 
-    run(tmp_path, "sentry_example", example_args, expect_failure=True)
+    run(tmp_path, "sentry_example", example_args, expect_failure=True, env=env)
 
     return tmp_path, check_output(tmp_path, "sentry_example", ["stdout", "no-setup"])
 
@@ -243,12 +243,12 @@ def test_inproc_crash_stdout_before_send_and_on_crash(cmake):
 
 
 @pytest.mark.parametrize(
-    "build_args",
+    "stack_size",
     [
-        ({}),  # uses default of 64KiB
+        None,  # uses default of 64KiB
         # no test with 16KiB since `inproc` fails with that handler stack size
         pytest.param(
-            {"SENTRY_HANDLER_STACK_SIZE": "32"},
+            "32",
             marks=pytest.mark.skipif(
                 sys.platform != "win32",
                 reason="handler stack size parameterization tests stack guarantee on windows only",
@@ -256,9 +256,12 @@ def test_inproc_crash_stdout_before_send_and_on_crash(cmake):
         ),
     ],
 )
-def test_inproc_stack_overflow_stdout(cmake, build_args):
+def test_inproc_stack_overflow_stdout(cmake, stack_size):
+    env = dict(os.environ)
+    if stack_size:
+        env["SENTRY_HANDLER_STACK_SIZE"] = stack_size
     tmp_path, output = run_stdout_for(
-        "inproc", cmake, ["log", "attachment", "stack-overflow"], build_args
+        "inproc", cmake, ["log", "attachment", "stack-overflow"], env=env
     )
 
     envelope = Envelope.deserialize(output)
@@ -328,18 +331,18 @@ def test_breakpad_crash_stdout_before_send_and_on_crash(cmake):
 
 
 @pytest.mark.parametrize(
-    "build_args",
+    "stack_size",
     [
-        ({}),  # uses default of 64KiB
+        None,  # uses default of 64KiB
         pytest.param(
-            {"SENTRY_HANDLER_STACK_SIZE": "16"},
+            "16",
             marks=pytest.mark.skipif(
                 sys.platform != "win32",
                 reason="handler stack size parameterization tests stack guarantee on windows only",
             ),
         ),
         pytest.param(
-            {"SENTRY_HANDLER_STACK_SIZE": "32"},
+            "32",
             marks=pytest.mark.skipif(
                 sys.platform != "win32",
                 reason="handler stack size parameterization tests stack guarantee on windows only",
@@ -348,9 +351,12 @@ def test_breakpad_crash_stdout_before_send_and_on_crash(cmake):
     ],
 )
 @pytest.mark.skipif(not has_breakpad, reason="test needs breakpad backend")
-def test_breakpad_stack_overflow_stdout(cmake, build_args):
+def test_breakpad_stack_overflow_stdout(cmake, stack_size):
+    env = dict(os.environ)
+    if stack_size:
+        env["SENTRY_HANDLER_STACK_SIZE"] = stack_size
     tmp_path, output = run_stdout_for(
-        "breakpad", cmake, ["attachment", "stack-overflow"], build_args
+        "breakpad", cmake, ["attachment", "stack-overflow"], env=env
     )
 
     envelope = Envelope.deserialize(output)
