@@ -21,13 +21,29 @@
 
 #if defined(SENTRY_PLATFORM_MACOS)
 // Basic pointer validation to make sure we stay inside mapped memory.
+// `cache` is an optional pointer to a previously-validated VM region.  When
+// the requested range falls inside the cached region we skip the
+// mach_vm_region kernel trap entirely. This eliminates nearly all the traps
+// during a typical frame-pointer walk because adjacent frames almost always
+// live in the same stack region.
 static bool
-is_readable_ptr(uintptr_t p, size_t size)
+is_readable_ptr(uintptr_t p, size_t size, mem_range_t *cache)
 {
     if (!p) {
         return false;
     }
 
+    uintptr_t end = p + (uintptr_t)size;
+    if (end < p) {
+        return false;
+    }
+
+    // Fast path: check against the cached region.
+    if (cache && cache->lo < cache->hi && p >= cache->lo && end <= cache->hi) {
+        return true;
+    }
+
+    // Slow path: ask the kernel.
     mach_vm_address_t address = (mach_vm_address_t)p;
     mach_vm_size_t region_size = 0;
     vm_region_basic_info_data_64_t info;
@@ -47,31 +63,37 @@ is_readable_ptr(uintptr_t p, size_t size)
         return false;
     }
 
-    mem_range_t vm_region
-        = { (uintptr_t)address, (uintptr_t)address + (uintptr_t)region_size };
-    if (vm_region.hi < vm_region.lo) {
+    uintptr_t region_lo = address;
+    uintptr_t region_hi = (uintptr_t)address + (uintptr_t)region_size;
+    if (region_hi < region_lo) {
         return false;
     }
 
-    uintptr_t end = p + (uintptr_t)size;
-    if (end < p) {
+    if (p < region_lo || end > region_hi) {
         return false;
     }
 
-    return p >= vm_region.lo && end <= vm_region.hi;
+    // Update the cache so subsequent checks in the same region are free.
+    if (cache) {
+        cache->lo = region_lo;
+        cache->hi = region_hi;
+    }
+
+    return true;
 }
 #endif
 
 static bool
-valid_ptr(uintptr_t p)
+valid_ptr(uintptr_t p, mem_range_t *cache)
 {
     if (!p || (p % sizeof(uintptr_t)) != 0) {
         return false;
     }
 
 #if defined(SENTRY_PLATFORM_MACOS)
-    return is_readable_ptr(p, sizeof(uintptr_t) * 2);
+    return is_readable_ptr(p, sizeof(uintptr_t) * 2, cache);
 #else
+    (void)cache;
     return true;
 #endif
 }
@@ -81,10 +103,11 @@ valid_ptr(uintptr_t p)
  * difference being which registers value is used as frame-pointer (fp vs rbp)
  */
 static void
-fp_walk(uintptr_t fp, size_t *n, void **ptrs, size_t max_frames)
+fp_walk(
+    uintptr_t fp, size_t *n, void **ptrs, size_t max_frames, mem_range_t *cache)
 {
     while (*n < max_frames) {
-        if (!valid_ptr(fp)) {
+        if (!valid_ptr(fp, cache)) {
             break;
         }
 
@@ -93,7 +116,7 @@ fp_walk(uintptr_t fp, size_t *n, void **ptrs, size_t max_frames)
         const uintptr_t *record = (uintptr_t *)fp;
         const uintptr_t next_fp = record[0];
         uintptr_t ret_addr = record[1];
-        if (!valid_ptr(next_fp) || !ret_addr) {
+        if (!valid_ptr(next_fp, cache) || !ret_addr) {
             break;
         }
 
@@ -110,6 +133,7 @@ static size_t
 fp_walk_from_uctx(const sentry_ucontext_t *uctx, void **ptrs, size_t max_frames)
 {
     size_t n = 0;
+    mem_range_t cache = { 0, 0 };
     struct __darwin_mcontext64 *mctx = uctx->user_context->uc_mcontext;
 #if defined(__arm64__)
     uintptr_t pc, fp, lr;
@@ -150,13 +174,13 @@ fp_walk_from_uctx(const sentry_ucontext_t *uctx, void **ptrs, size_t max_frames)
     // it sub-calls (LR is a stale return within the crashing function).
     //
     // In both cases, walking from fp captures the correct remaining frames.
-    if (valid_ptr(fp)) {
+    if (valid_ptr(fp, &cache)) {
         const uintptr_t *record = (uintptr_t *)fp;
         uintptr_t saved_lr = STRIP_PAC(record[1]);
         if (lr == saved_lr) {
-            fp_walk(record[0], &n, ptrs, max_frames);
+            fp_walk(record[0], &n, ptrs, max_frames, &cache);
         } else {
-            fp_walk(fp, &n, ptrs, max_frames);
+            fp_walk(fp, &n, ptrs, max_frames, &cache);
         }
     }
 #elif defined(__x86_64__)
@@ -168,7 +192,7 @@ fp_walk_from_uctx(const sentry_ucontext_t *uctx, void **ptrs, size_t max_frames)
         ptrs[n++] = (void *)ip;
     }
 
-    fp_walk(bp, &n, ptrs, max_frames);
+    fp_walk(bp, &n, ptrs, max_frames, &cache);
 #else
 #    error "Unsupported CPU architecture for macOS stackwalker"
 #endif
@@ -181,7 +205,8 @@ sentry__unwind_stack_libunwind_mac(
 {
     if (addr) {
         size_t n = 0;
-        fp_walk((uintptr_t)addr, &n, ptrs, max_frames);
+        mem_range_t cache = { 0, 0 };
+        fp_walk((uintptr_t)addr, &n, ptrs, max_frames, &cache);
         return n;
     }
 

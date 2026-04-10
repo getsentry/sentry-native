@@ -58,9 +58,9 @@ class CMake:
         # Inject a sub-path into the temporary build directory as the CWD for all tests to verify UTF-8 path handling.
         if os.environ.get("UTF8_TEST_CWD"):
             # this is Thai and translates to "this is a test directory"
-            utf8_subpath = build_tmp_path / "นี่คือไดเร็กทอรีทดสอบ"
-            shutil.rmtree(utf8_subpath, ignore_errors=True)
-            shutil.copytree(build_tmp_path, utf8_subpath, dirs_exist_ok=True)
+            utf8_parent = self.factory.mktemp("utf8")
+            utf8_subpath = utf8_parent / "นี่คือไดเร็กทอรีทดสอบ"
+            utf8_subpath.symlink_to(build_tmp_path, target_is_directory=True)
             return utf8_subpath
 
         return build_tmp_path
