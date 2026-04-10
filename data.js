@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1775832235465,
+  "lastUpdate": 1775832337945,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -49912,6 +49912,66 @@ window.BENCHMARK_DATA = {
             "value": 14.051300000119227,
             "unit": "ms",
             "extra": "Min 13.767ms\nMax 14.500ms\nMean 14.104ms\nStdDev 0.284ms\nMedian 14.051ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "tustanivsky@gmail.com",
+            "name": "Ivan Tustanivskyi",
+            "username": "tustanivsky"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "91e7a66176e65572e71a0a5b278149e1d2b0a63e",
+          "message": "fix: reset client report counters during initialization (#1632)",
+          "timestamp": "2026-04-10T17:41:15+03:00",
+          "tree_id": "6e3e5146c2b677bf7d83689265bbc18932708987",
+          "url": "https://github.com/getsentry/sentry-native/commit/91e7a66176e65572e71a0a5b278149e1d2b0a63e"
+        },
+        "date": 1775832332303,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 12.55659999992531,
+            "unit": "ms",
+            "extra": "Min 11.388ms\nMax 33.445ms\nMean 16.754ms\nStdDev 9.401ms\nMedian 12.557ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 11.009599999852071,
+            "unit": "ms",
+            "extra": "Min 10.833ms\nMax 11.475ms\nMean 11.074ms\nStdDev 0.263ms\nMedian 11.010ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 29.83670000003258,
+            "unit": "ms",
+            "extra": "Min 28.770ms\nMax 33.782ms\nMean 30.562ms\nStdDev 2.046ms\nMedian 29.837ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.2924999998867861,
+            "unit": "ms",
+            "extra": "Min 0.265ms\nMax 0.297ms\nMean 0.288ms\nStdDev 0.013ms\nMedian 0.292ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.5868000000646134,
+            "unit": "ms",
+            "extra": "Min 0.543ms\nMax 0.654ms\nMean 0.599ms\nStdDev 0.045ms\nMedian 0.587ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 17.759499999783657,
+            "unit": "ms",
+            "extra": "Min 16.771ms\nMax 31.642ms\nMean 20.355ms\nStdDev 6.326ms\nMedian 17.759ms"
           }
         ]
       }
