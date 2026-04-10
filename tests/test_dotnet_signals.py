@@ -409,6 +409,7 @@ def test_android_signals_inproc(cmake, runtime, strategy):
                 "-Wextra",
                 "-fPIC",
                 "-shared",
+                "-Wl,-z,max-page-size=16384",
                 str(project_fixture_path / "crash.c"),
                 "-o",
                 str(native_lib_dir / "libcrash.so"),
