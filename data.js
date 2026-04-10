@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1775827451311,
+  "lastUpdate": 1775827500334,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -33094,6 +33094,66 @@ window.BENCHMARK_DATA = {
             "value": 8.811665999985507,
             "unit": "ms",
             "extra": "Min 7.467ms\nMax 10.095ms\nMean 8.664ms\nStdDev 1.051ms\nMedian 8.812ms\nCPU 1.013ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "mischan@abovevacant.com",
+            "name": "Mischan Toosarani-Hausberger",
+            "username": "supervacuus"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "7d8c3ae5c614dfb2b0ddf299d5267dac4b45cec5",
+          "message": "fix(macos): cache VM regions for FP validation in new unwinder (#1634)",
+          "timestamp": "2026-04-10T15:21:12+02:00",
+          "tree_id": "0baf4cc370c22deb56fc447dd5264c6a74a1cd18",
+          "url": "https://github.com/getsentry/sentry-native/commit/7d8c3ae5c614dfb2b0ddf299d5267dac4b45cec5"
+        },
+        "date": 1775827495626,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 3.2438339999316668,
+            "unit": "ms",
+            "extra": "Min 3.041ms\nMax 3.852ms\nMean 3.322ms\nStdDev 0.309ms\nMedian 3.244ms\nCPU 1.767ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 3.6702500001410954,
+            "unit": "ms",
+            "extra": "Min 3.486ms\nMax 4.389ms\nMean 3.746ms\nStdDev 0.373ms\nMedian 3.670ms\nCPU 2.093ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 28.068500000017593,
+            "unit": "ms",
+            "extra": "Min 19.799ms\nMax 36.877ms\nMean 27.431ms\nStdDev 7.345ms\nMedian 28.069ms\nCPU 9.746ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.10658300016075373,
+            "unit": "ms",
+            "extra": "Min 0.092ms\nMax 0.190ms\nMean 0.125ms\nStdDev 0.040ms\nMedian 0.107ms\nCPU 0.089ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.3229159999591502,
+            "unit": "ms",
+            "extra": "Min 0.239ms\nMax 0.355ms\nMean 0.303ms\nStdDev 0.050ms\nMedian 0.323ms\nCPU 0.297ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 8.381042000110028,
+            "unit": "ms",
+            "extra": "Min 6.710ms\nMax 15.292ms\nMean 9.496ms\nStdDev 3.475ms\nMedian 8.381ms\nCPU 1.115ms"
           }
         ]
       }
