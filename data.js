@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1775827500334,
+  "lastUpdate": 1775827514071,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -33154,6 +33154,66 @@ window.BENCHMARK_DATA = {
             "value": 8.381042000110028,
             "unit": "ms",
             "extra": "Min 6.710ms\nMax 15.292ms\nMean 9.496ms\nStdDev 3.475ms\nMedian 8.381ms\nCPU 1.115ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "mischan@abovevacant.com",
+            "name": "Mischan Toosarani-Hausberger",
+            "username": "supervacuus"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "8966ed8c0e8cb1222a7cbbc5ed289d0deffb2ac8",
+          "message": "test: make libcrash.so in the .NET tests 16KB page-size compatible (#1635)",
+          "timestamp": "2026-04-10T15:21:34+02:00",
+          "tree_id": "f8b756ae8138c1d7507bf5dac069f9d64c41b3b2",
+          "url": "https://github.com/getsentry/sentry-native/commit/8966ed8c0e8cb1222a7cbbc5ed289d0deffb2ac8"
+        },
+        "date": 1775827509648,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 3.5035409999863987,
+            "unit": "ms",
+            "extra": "Min 3.316ms\nMax 4.438ms\nMean 3.703ms\nStdDev 0.456ms\nMedian 3.504ms\nCPU 2.072ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 3.331541999983756,
+            "unit": "ms",
+            "extra": "Min 3.228ms\nMax 3.769ms\nMean 3.410ms\nStdDev 0.214ms\nMedian 3.332ms\nCPU 1.981ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 12.52025000002277,
+            "unit": "ms",
+            "extra": "Min 11.359ms\nMax 17.407ms\nMean 13.159ms\nStdDev 2.426ms\nMedian 12.520ms\nCPU 4.149ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.07658300000912277,
+            "unit": "ms",
+            "extra": "Min 0.049ms\nMax 0.138ms\nMean 0.086ms\nStdDev 0.038ms\nMedian 0.077ms\nCPU 0.056ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.2376659999754338,
+            "unit": "ms",
+            "extra": "Min 0.218ms\nMax 0.334ms\nMean 0.256ms\nStdDev 0.046ms\nMedian 0.238ms\nCPU 0.252ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 12.749542000051406,
+            "unit": "ms",
+            "extra": "Min 10.985ms\nMax 13.326ms\nMean 12.427ms\nStdDev 0.910ms\nMedian 12.750ms\nCPU 1.104ms"
           }
         ]
       }
