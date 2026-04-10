@@ -63,4 +63,11 @@ bool sentry__client_report_save(sentry_client_report_t *report);
  */
 void sentry__client_report_restore(sentry_client_report_t *report);
 
+/**
+ * Reset all pending discard counters to zero.
+ * Called during sentry_init() so that stale counts from a previous session
+ * do not leak into the new one.
+ */
+void sentry__client_report_reset(void);
+
 #endif

@@ -4,6 +4,7 @@
 
 **Fixes**:
 
+- Reset client report counters during initialization ([#1632](https://github.com/getsentry/sentry-native/pull/1632))
 - macOS: cache VM regions for FP validation in the new unwinder. ([#1634](https://github.com/getsentry/sentry-native/pull/1634))
 
 ## 0.13.6

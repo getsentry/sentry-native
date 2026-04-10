@@ -64,3 +64,13 @@ sentry__client_report_restore(sentry_client_report_t *report)
     }
     memset(report, 0, sizeof(*report));
 }
+
+void
+sentry__client_report_reset(void)
+{
+    for (int r = 0; r < SENTRY_DISCARD_REASON_MAX; r++) {
+        for (int c = 0; c < SENTRY_DATA_CATEGORY_MAX; c++) {
+            sentry__atomic_store((long *)&g_discard_counts[r][c], 0);
+        }
+    }
+}
