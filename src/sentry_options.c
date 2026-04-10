@@ -632,6 +632,14 @@ sentry_options_set_attach_screenshot(sentry_options_t *opts, int val)
 }
 
 void
+sentry_options_set_before_screenshot(sentry_options_t *opts,
+    sentry_before_screenshot_function_t func, void *user_data)
+{
+    opts->before_screenshot_func = func;
+    opts->before_screenshot_data = user_data;
+}
+
+void
 sentry_options_set_handler_path(sentry_options_t *opts, const char *path)
 {
     sentry__path_free(opts->handler_path);

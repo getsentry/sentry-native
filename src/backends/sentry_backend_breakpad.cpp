@@ -162,6 +162,16 @@ breakpad_backend_callback(const google_breakpad::MinidumpDescriptor &descriptor,
         }
 
         if (should_handle) {
+            bool capture_screenshot = options->attach_screenshot;
+#ifdef SENTRY_PLATFORM_WINDOWS
+            if (capture_screenshot && options->before_screenshot_func) {
+                SENTRY_DEBUG("invoking `before_screenshot` hook");
+                capture_screenshot = options->before_screenshot_func(
+                                         event, options->before_screenshot_data)
+                    != 0;
+            }
+#endif
+
             sentry_envelope_t *envelope = sentry__prepare_event(
                 options, event, nullptr, !options->on_crash_func, nullptr);
             sentry_session_t *session = sentry__end_current_session_with_status(
@@ -180,7 +190,7 @@ breakpad_backend_callback(const google_breakpad::MinidumpDescriptor &descriptor,
                     sentry_value_new_string(sentry__path_filename(dump_path)));
             }
 
-            if (options->attach_screenshot) {
+            if (capture_screenshot) {
                 sentry_attachment_t *screenshot = sentry__attachment_from_path(
                     sentry__screenshot_get_path(options));
                 if (screenshot

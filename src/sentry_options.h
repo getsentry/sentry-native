@@ -41,6 +41,8 @@ struct sentry_options_s {
     bool symbolize_stacktraces;
     bool system_crash_reporter_enabled;
     bool attach_screenshot;
+    sentry_before_screenshot_function_t before_screenshot_func;
+    void *before_screenshot_data;
     bool crashpad_wait_for_upload;
     bool enable_logging_when_crashed;
     bool propagate_traceparent;
