@@ -172,6 +172,8 @@ sentry_init(sentry_options_t *options)
 
     sentry_close();
 
+    sentry__client_report_reset();
+
     sentry_logger_t logger = { NULL, NULL, SENTRY_LEVEL_DEBUG };
 
     if (options->debug) {
