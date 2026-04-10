@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+**Fixes**:
+
+- Reset client report counters during initialization ([#1632](https://github.com/getsentry/sentry-native/pull/1632))
+
 ## 0.13.6
 
 **Features**:
