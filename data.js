@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1775807576787,
+  "lastUpdate": 1775824077792,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -16396,6 +16396,66 @@ window.BENCHMARK_DATA = {
             "value": 1.7929929999809247,
             "unit": "ms",
             "extra": "Min 1.762ms\nMax 1.828ms\nMean 1.792ms\nStdDev 0.026ms\nMedian 1.793ms\nCPU 0.524ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "mischan@abovevacant.com",
+            "name": "Mischan Toosarani-Hausberger",
+            "username": "supervacuus"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "1be45ac8f2f7ca4612ce905e9eb6647117a7bc27",
+          "message": "fix(test): replace wasteful copytree with symlink in the windows UTF8_TEST (#1633)",
+          "timestamp": "2026-04-10T14:25:15+02:00",
+          "tree_id": "0bd75c2fcabda9d43d1bc870342f76ae57a20ccb",
+          "url": "https://github.com/getsentry/sentry-native/commit/1be45ac8f2f7ca4612ce905e9eb6647117a7bc27"
+        },
+        "date": 1775824073811,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 0.8658520000039971,
+            "unit": "ms",
+            "extra": "Min 0.851ms\nMax 0.889ms\nMean 0.868ms\nStdDev 0.014ms\nMedian 0.866ms\nCPU 0.824ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 0.7910530000003746,
+            "unit": "ms",
+            "extra": "Min 0.779ms\nMax 0.823ms\nMean 0.799ms\nStdDev 0.017ms\nMedian 0.791ms\nCPU 0.794ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 2.92524099998559,
+            "unit": "ms",
+            "extra": "Min 2.897ms\nMax 3.204ms\nMean 2.981ms\nStdDev 0.126ms\nMedian 2.925ms\nCPU 1.589ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.11753900000144313,
+            "unit": "ms",
+            "extra": "Min 0.113ms\nMax 0.121ms\nMean 0.118ms\nStdDev 0.003ms\nMedian 0.118ms\nCPU 0.072ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.02773099998876205,
+            "unit": "ms",
+            "extra": "Min 0.027ms\nMax 0.030ms\nMean 0.028ms\nStdDev 0.001ms\nMedian 0.028ms\nCPU 0.028ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 1.7889959999877192,
+            "unit": "ms",
+            "extra": "Min 1.737ms\nMax 1.821ms\nMean 1.781ms\nStdDev 0.031ms\nMedian 1.789ms\nCPU 0.527ms"
           }
         ]
       }
