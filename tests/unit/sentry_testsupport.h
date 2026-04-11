@@ -55,6 +55,13 @@
         TEST_CHECK_(_a == _b, "%llu == %llu", _a, _b);                         \
     } while (0)
 
+#define TEST_CHECK_PTR_EQUAL(A, B)                                             \
+    do {                                                                       \
+        const void *_a = (const void *)(A);                                    \
+        const void *_b = (const void *)(B);                                    \
+        TEST_CHECK_(_a == _b, "%p == %p", _a, _b);                             \
+    } while (0)
+
 #define TEST_ASSERT_INT_EQUAL(A, B)                                            \
     do {                                                                       \
         long long _a = (long long)(A);                                         \
