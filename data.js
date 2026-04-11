@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1775901472934,
+  "lastUpdate": 1775901507837,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -50152,6 +50152,66 @@ window.BENCHMARK_DATA = {
             "value": 17.759499999783657,
             "unit": "ms",
             "extra": "Min 16.771ms\nMax 31.642ms\nMean 20.355ms\nStdDev 6.326ms\nMedian 17.759ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "mischan@abovevacant.com",
+            "name": "Mischan Toosarani-Hausberger",
+            "username": "supervacuus"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "e8ef54b72ef085ce91eb4c4da0a0f138bd70ed12",
+          "message": "test: disable Android CoreCLR warning noise in the CI (#1638)",
+          "timestamp": "2026-04-11T11:53:25+02:00",
+          "tree_id": "92b75a205c563569c60d070c9c1de2cd698f42c6",
+          "url": "https://github.com/getsentry/sentry-native/commit/e8ef54b72ef085ce91eb4c4da0a0f138bd70ed12"
+        },
+        "date": 1775901502417,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 9.706700000037927,
+            "unit": "ms",
+            "extra": "Min 9.584ms\nMax 10.345ms\nMean 9.856ms\nStdDev 0.321ms\nMedian 9.707ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 10.28129999997418,
+            "unit": "ms",
+            "extra": "Min 10.077ms\nMax 10.455ms\nMean 10.285ms\nStdDev 0.139ms\nMedian 10.281ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 26.29520000004959,
+            "unit": "ms",
+            "extra": "Min 25.486ms\nMax 28.783ms\nMean 26.629ms\nStdDev 1.258ms\nMedian 26.295ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.20989999984522,
+            "unit": "ms",
+            "extra": "Min 0.178ms\nMax 0.241ms\nMean 0.212ms\nStdDev 0.024ms\nMedian 0.210ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.47779999999875145,
+            "unit": "ms",
+            "extra": "Min 0.415ms\nMax 0.556ms\nMean 0.481ms\nStdDev 0.050ms\nMedian 0.478ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 15.351800000189542,
+            "unit": "ms",
+            "extra": "Min 14.685ms\nMax 16.889ms\nMean 15.549ms\nStdDev 0.870ms\nMedian 15.352ms"
           }
         ]
       }
