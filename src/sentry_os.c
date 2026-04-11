@@ -283,7 +283,8 @@ sentry__handler_stack_size_kib(void)
         }
         val = val * 10 + (size_t)(buf[i] - '0');
     }
-    return val > 0 ? val : SENTRY_HANDLER_STACK_SIZE;
+    return (val > 0 && val <= 0xFFFFFFFFu / 1024) ? val
+                                                  : SENTRY_HANDLER_STACK_SIZE;
 }
 
 void
