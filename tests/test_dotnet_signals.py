@@ -430,6 +430,7 @@ def test_android_signals_inproc(cmake, runtime, strategy):
             "-p:RuntimeIdentifier={}".format(rid_map[arch]),
             "-p:Configuration=Release",
             "-p:UseMonoRuntime={}".format(str(use_mono).lower()),
+            "-p:EnablePreviewFeatures=true",
         ]
         if is_preload:
             build_args += [
