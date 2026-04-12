@@ -184,6 +184,9 @@ jobs:
           - name: Windows (latest, ninja + sccache)
             os: windows-latest
             USE_SCCACHE: 1
+          - name: Windows (VS2026 + CMake 4)
+            os: windows-2025-vs2026
+            CMAKE_VERSION: "4.3.x"
           - name: Windows ClangCL (latest)
             os: windows-latest
             VS_GENERATOR_TOOLSET: ClangCL
@@ -231,6 +234,7 @@ jobs:
       ANDROID_NDK: ${{ matrix.ANDROID_NDK }}
       ANDROID_ARCH: ${{ matrix.ANDROID_ARCH }}
       CMAKE_DEFINES: ${{ matrix.CMAKE_DEFINES }}
+      CMAKE_VERSION: ${{ matrix.CMAKE_VERSION }}
       SYSTEM_VERSION_COMPAT: ${{ matrix.SYSTEM_VERSION_COMPAT }}
       VS_GENERATOR_TOOLSET: ${{ matrix.VS_GENERATOR_TOOLSET }}
       SYSTEM_PYTHON: ${{ matrix.SYSTEM_PYTHON }}
@@ -251,6 +255,12 @@ jobs:
         with:
           python-version: ${{ !env['SYSTEM_PYTHON'] && '3.12' || '' }}
           cache: "pip"
+
+      - name: Install CMake ${{ env.CMAKE_VERSION }}
+        if: ${{ env['CMAKE_VERSION'] }}
+        uses: jwlawson/actions-setup-cmake@0d6a7d60b009d01c9e7523be22153ff8f19460d3 # v2.2.0
+        with:
+          cmake-version: ${{ env.CMAKE_VERSION }}
 
       - name: Check Linux CC/CXX
         if: ${{ runner.os == 'Linux' && !env['ANDROID_API'] &&!matrix.container }}
