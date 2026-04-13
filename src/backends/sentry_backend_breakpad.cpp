@@ -335,7 +335,6 @@ sentry__backend_new(void)
     if (!backend) {
         return nullptr;
     }
-    memset(backend, 0, sizeof(sentry_backend_t));
 
     backend->startup_func = breakpad_backend_startup;
     backend->shutdown_func = breakpad_backend_shutdown;

@@ -24,7 +24,6 @@ sentry_transport_new(
     if (!transport) {
         return NULL;
     }
-    memset(transport, 0, sizeof(sentry_transport_t));
     transport->send_envelope_func = send_func;
 
     return transport;

@@ -44,7 +44,6 @@ sentry__retry_new(const sentry_options_t *options)
     if (!retry) {
         return NULL;
     }
-    memset(retry, 0, sizeof(sentry_retry_t));
     sentry__mutex_init(&retry->sealed_lock);
     retry->run = sentry__run_incref(options->run);
     retry->cache_keep = options->cache_keep;

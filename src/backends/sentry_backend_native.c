@@ -121,7 +121,6 @@ native_backend_startup(
     if (!state) {
         return 1;
     }
-    memset(state, 0, sizeof(native_backend_state_t));
     backend->data = state;
 
     // Initialize IPC (protected by global synchronization for concurrent
@@ -934,8 +933,6 @@ sentry__backend_new(void)
     if (!backend) {
         return NULL;
     }
-
-    memset(backend, 0, sizeof(sentry_backend_t));
 
     backend->startup_func = native_backend_startup;
     backend->shutdown_func = native_backend_shutdown;

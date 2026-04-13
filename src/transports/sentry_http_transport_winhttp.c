@@ -32,7 +32,6 @@ winhttp_client_new(void)
     if (!client) {
         return NULL;
     }
-    memset(client, 0, sizeof(winhttp_client_t));
 
     return client;
 }

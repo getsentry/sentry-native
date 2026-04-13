@@ -474,7 +474,6 @@ sentry__http_transport_new(void *client, sentry_http_send_func_t send_func)
     if (!state) {
         return NULL;
     }
-    memset(state, 0, sizeof(http_transport_state_t));
     state->ratelimiter = sentry__rate_limiter_new();
     state->client = client;
     state->send_func = send_func;

@@ -68,7 +68,6 @@ get_client_sdk(void)
 static void
 init_scope(sentry_scope_t *scope)
 {
-    memset(scope, 0, sizeof(sentry_scope_t));
     scope->release = NULL;
     scope->environment = NULL;
     scope->transaction = NULL;
@@ -96,6 +95,7 @@ get_scope(void)
         return &g_scope;
     }
 
+    memset(&g_scope, 0, sizeof(sentry_scope_t));
     init_scope(&g_scope);
     sentry_value_set_by_key(g_scope.contexts, "os", sentry__get_os_context());
     g_scope.client_sdk = get_client_sdk();

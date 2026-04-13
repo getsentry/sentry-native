@@ -14,7 +14,6 @@ sentry_hint_new(void)
     if (!hint) {
         return NULL;
     }
-    memset(hint, 0, sizeof(sentry_hint_t));
     return hint;
 }
 

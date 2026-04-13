@@ -79,7 +79,6 @@ sentry__attachment_from_path(sentry_path_t *path)
         sentry__path_free(path);
         return NULL;
     }
-    memset(attachment, 0, sizeof(sentry_attachment_t));
     attachment->path = path;
     return attachment;
 }
@@ -100,7 +99,6 @@ sentry__attachment_from_buffer(
         sentry__path_free(filename);
         return NULL;
     }
-    memset(attachment, 0, sizeof(sentry_attachment_t));
     attachment->filename = filename;
     attachment->buf = sentry_malloc(buf_len * sizeof(char));
     memcpy(attachment->buf, buf, buf_len * sizeof(char));
@@ -220,7 +218,6 @@ attachment_clone(const sentry_attachment_t *attachment)
     if (!clone) {
         return NULL;
     }
-    memset(clone, 0, sizeof(sentry_attachment_t));
 
     if (attachment->path) {
         clone->path = sentry__path_clone(attachment->path);

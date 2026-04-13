@@ -3,7 +3,6 @@
 #include "sentry_cpu_relax.h"
 #include "sentry_options.h"
 #include "sentry_utils.h"
-#include <string.h>
 
 // The batcher thread sleeps for this interval between flush cycles.
 // When the timer fires and there are items in the buffer, they are flushed
@@ -28,7 +27,6 @@ sentry__batcher_new(
     if (!batcher) {
         return NULL;
     }
-    memset(batcher, 0, sizeof(sentry_batcher_t));
     batcher->refcount = 1;
     batcher->batch_func = batch_func;
     batcher->data_category = data_category;

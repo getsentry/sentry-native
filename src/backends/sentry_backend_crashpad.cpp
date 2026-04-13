@@ -1041,7 +1041,6 @@ sentry__backend_new(void)
     if (!backend) {
         return nullptr;
     }
-    memset(backend, 0, sizeof(sentry_backend_t));
 
     auto *data = new (std::nothrow) crashpad_state_t {};
     if (!data) {

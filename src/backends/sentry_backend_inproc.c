@@ -1814,7 +1814,6 @@ sentry__backend_new(void)
     if (!backend) {
         return NULL;
     }
-    memset(backend, 0, sizeof(sentry_backend_t));
 
     backend->startup_func = startup_inproc_backend;
     backend->shutdown_func = shutdown_inproc_backend;

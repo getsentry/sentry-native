@@ -23,7 +23,6 @@ sentry__crash_ipc_init_app(sem_t *init_sem)
     if (!ipc) {
         return NULL;
     }
-    memset(ipc, 0, sizeof(sentry_crash_ipc_t));
     ipc->is_daemon = false;
     ipc->init_sem = init_sem; // Use provided semaphore (managed by backend)
 
@@ -179,7 +178,6 @@ sentry__crash_ipc_init_daemon(
     if (!ipc) {
         return NULL;
     }
-    memset(ipc, 0, sizeof(sentry_crash_ipc_t));
     ipc->is_daemon = true;
 
     // Open existing shared memory created by app (using PID and thread ID)
@@ -316,7 +314,6 @@ sentry__crash_ipc_init_app(sem_t *init_sem)
     if (!ipc) {
         return NULL;
     }
-    memset(ipc, 0, sizeof(sentry_crash_ipc_t));
     ipc->is_daemon = false;
     ipc->init_sem = init_sem; // Use provided semaphore (managed by backend)
 
@@ -474,7 +471,6 @@ sentry__crash_ipc_init_daemon(
     if (!ipc) {
         return NULL;
     }
-    memset(ipc, 0, sizeof(sentry_crash_ipc_t));
     ipc->is_daemon = true;
 
     // Open existing shared memory created by app (using PID and thread ID)
@@ -608,7 +604,6 @@ sentry__crash_ipc_init_app(HANDLE init_mutex)
     if (!ipc) {
         return NULL;
     }
-    memset(ipc, 0, sizeof(sentry_crash_ipc_t));
     ipc->is_daemon = false;
     ipc->init_mutex = init_mutex; // Use provided mutex (managed by backend)
 
@@ -738,7 +733,6 @@ sentry__crash_ipc_init_daemon(pid_t app_pid, uint64_t app_tid,
     if (!ipc) {
         return NULL;
     }
-    memset(ipc, 0, sizeof(sentry_crash_ipc_t));
     ipc->is_daemon = true;
 
     // Open existing shared memory (using PID and thread ID)
