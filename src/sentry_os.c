@@ -263,6 +263,30 @@ sentry_set_thread_stack_guarantee(uint32_t stack_guarantee_in_bytes)
     return 1;
 }
 
+// Resolves the handler stack size (in KiB) from the `SENTRY_HANDLER_STACK_SIZE`
+// environment variable, falling back to the compile-time default. This is
+// called from `DllMain` via `sentry__set_default_thread_stack_guarantee`, so
+// it must avoid CRT (`getenv`, `strtod`, ...) and only use kernel32 exports.
+static size_t
+sentry__handler_stack_size_kib(void)
+{
+    char buf[12];
+    DWORD n = GetEnvironmentVariableA(
+        "SENTRY_HANDLER_STACK_SIZE", buf, sizeof(buf));
+    if (n == 0 || n >= sizeof(buf)) {
+        return SENTRY_HANDLER_STACK_SIZE;
+    }
+    size_t val = 0;
+    for (DWORD i = 0; i < n; i++) {
+        if (buf[i] < '0' || buf[i] > '9') {
+            return SENTRY_HANDLER_STACK_SIZE;
+        }
+        val = val * 10 + (size_t)(buf[i] - '0');
+    }
+    return (val > 0 && val <= 0xFFFFFFFFu / 1024) ? val
+                                                  : SENTRY_HANDLER_STACK_SIZE;
+}
+
 void
 sentry__set_default_thread_stack_guarantee(void)
 {
@@ -270,8 +294,9 @@ sentry__set_default_thread_stack_guarantee(void)
         return;
     }
 
+    const size_t stack_size_kib = sentry__handler_stack_size_kib();
     const unsigned long expected_stack_guarantee
-        = SENTRY_HANDLER_STACK_SIZE * 1024;
+        = (unsigned long)stack_size_kib * 1024;
     DWORD thread_id = GetThreadId(GetCurrentThread());
     ULONG_PTR high = 0;
     ULONG_PTR low = 0;
@@ -284,8 +309,7 @@ sentry__set_default_thread_stack_guarantee(void)
         SENTRY_WARNF(
             "Cannot set handler stack guarantee of %zuKiB for thread %lu "
             "(stack reserve: %zuKiB, expected factor: %zux, actual: %.2fx)",
-            (size_t)SENTRY_HANDLER_STACK_SIZE, thread_id,
-            thread_stack_reserve / 1024,
+            stack_size_kib, thread_id, thread_stack_reserve / 1024,
             (size_t)SENTRY_THREAD_STACK_GUARANTEE_FACTOR,
             expected_stack_reserve / (double)expected_stack_guarantee);
         return;
