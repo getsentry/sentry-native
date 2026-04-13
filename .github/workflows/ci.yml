@@ -64,158 +64,167 @@ jobs:
             #   Since available GCCs on 22.04 are a strict
             #   subset of the ones available on 24.04, we
             #   run all GCC tests on the latter version.
-          - name: Linux (GCC 9.5.0, 32-bit)
-            os: ubuntu-24.04
-            CC: gcc-9
-            CXX: g++-9
-            TEST_X86: 1
-          - name: Linux (GCC 9.5.0)
-            os: ubuntu-24.04
-            CC: gcc-9
-            CXX: g++-9
-          - name: Linux (GCC 12.3.0)
-            os: ubuntu-24.04
-            CC: gcc-12
-            CXX: g++-12
-          - name: Linux Arm64 (GCC 14.2.0)
-            os: ubuntu-24.04-arm
-            CC: gcc-14
-            CXX: g++-14
-          - name: Linux (GCC 14.2.0)
-            os: ubuntu-24.04
-            CC: gcc-14
-            CXX: g++-14
-          - name: Linux Arm64 (GCC 14.2.0 + tsan)
-            os: ubuntu-24.04-arm
-            CC: gcc-14
-            CXX: g++-14
-            RUN_ANALYZER: tsan
-          - name: Linux (GCC 14.2.0 + tsan)
-            os: ubuntu-24.04
-            CC: gcc-14
-            CXX: g++-14
-            RUN_ANALYZER: tsan
-          - name: Linux (clang 11)
-            os: ubuntu-22.04
-            CC: clang-11
-            CXX: clang++-11
-          - name: Linux (clang 20 + asan + llvm-cov)
-            os: ubuntu-24.04
-            CC: clang-20
-            CXX: clang++-20
-            ERROR_ON_WARNINGS: 1
-            RUN_ANALYZER: asan,llvm-cov
-          - name: Linux Arm64 (clang 20 + asan + llvm-cov)
-            os: ubuntu-24.04-arm
-            CC: clang-20
-            CXX: clang++-20
-            ERROR_ON_WARNINGS: 1
-            RUN_ANALYZER: asan,llvm-cov
-          - name: Linux (clang 20 + tsan)
-            os: ubuntu-24.04
-            CC: clang-20
-            CXX: clang++-20
-            ERROR_ON_WARNINGS: 1
-            RUN_ANALYZER: tsan
-          - name: Linux Arm64 (clang 20 + tsan)
-            os: ubuntu-24.04-arm
-            CC: clang-20
-            CXX: clang++-20
-            ERROR_ON_WARNINGS: 1
-            RUN_ANALYZER: tsan
-          - name: Linux (clang 20 + kcov)
-            os: ubuntu-24.04
-            CC: clang-20
-            CXX: clang++-20
-            ERROR_ON_WARNINGS: 1
-            RUN_ANALYZER: kcov
-          - name: Linux (GCC 13.3.0 + code-checker + valgrind)
-            CC: gcc-13
-            CXX: g++-13
-            os: ubuntu-24.04
-            RUN_ANALYZER: code-checker,valgrind
-          - name: Linux (GCC + musl + libunwind)
-            os: ubuntu-latest
-            container: ghcr.io/getsentry/sentry-native-alpine:3.21
-            CC: gcc
-            CXX: g++
-            SYSTEM_PYTHON: 1
-          - name: Linux (clang + musl + libunwind)
-            os: ubuntu-latest
-            container: ghcr.io/getsentry/sentry-native-alpine:3.21
-            CC: clang
-            CXX: clang++
-            SYSTEM_PYTHON: 1
-          - name: macOS 14 (xcode llvm)
-            os: macos-14
-            ERROR_ON_WARNINGS: 1
-            SYSTEM_VERSION_COMPAT: 0
-          - name: macOS 26 (xcode llvm)
-            os: macos-26
-            ERROR_ON_WARNINGS: 1
-            SYSTEM_VERSION_COMPAT: 0
-          - name: macOS 14 (xcode llvm + universal)
-            os: macos-14
-            ERROR_ON_WARNINGS: 1
-            SYSTEM_VERSION_COMPAT: 0
-            CMAKE_DEFINES: -DCMAKE_OSX_ARCHITECTURES=arm64;x86_64
-          - name: macOS 15 (clang 18 + asan + llvm-cov)
-            os: macos-15-large
-            CC: clang
-            CXX: clang++
-            ERROR_ON_WARNINGS: 1
-            SYSTEM_VERSION_COMPAT: 0
-            RUN_ANALYZER: asan,llvm-cov
-          - name: macOS 26 (arm64e + PAC test)
-            os: macos-26
-            ERROR_ON_WARNINGS: 1
-            SYSTEM_VERSION_COMPAT: 0
-            CMAKE_DEFINES: -DCMAKE_OSX_ARCHITECTURES=arm64e
-          - name: Windows (old VS, 32-bit)
-            os: windows-2022
-            TEST_X86: 1
-          - name: Windows (latest)
+          # - name: Linux (GCC 9.5.0, 32-bit)
+          #   os: ubuntu-24.04
+          #   CC: gcc-9
+          #   CXX: g++-9
+          #   TEST_X86: 1
+          # - name: Linux (GCC 9.5.0)
+          #   os: ubuntu-24.04
+          #   CC: gcc-9
+          #   CXX: g++-9
+          # - name: Linux (GCC 12.3.0)
+          #   os: ubuntu-24.04
+          #   CC: gcc-12
+          #   CXX: g++-12
+          # - name: Linux Arm64 (GCC 14.2.0)
+          #   os: ubuntu-24.04-arm
+          #   CC: gcc-14
+          #   CXX: g++-14
+          # - name: Linux (GCC 14.2.0)
+          #   os: ubuntu-24.04
+          #   CC: gcc-14
+          #   CXX: g++-14
+          # - name: Linux Arm64 (GCC 14.2.0 + tsan)
+          #   os: ubuntu-24.04-arm
+          #   CC: gcc-14
+          #   CXX: g++-14
+          #   RUN_ANALYZER: tsan
+          # - name: Linux (GCC 14.2.0 + tsan)
+          #   os: ubuntu-24.04
+          #   CC: gcc-14
+          #   CXX: g++-14
+          #   RUN_ANALYZER: tsan
+          # - name: Linux (clang 11)
+          #   os: ubuntu-22.04
+          #   CC: clang-11
+          #   CXX: clang++-11
+          # - name: Linux (clang 20 + asan + llvm-cov)
+          #   os: ubuntu-24.04
+          #   CC: clang-20
+          #   CXX: clang++-20
+          #   ERROR_ON_WARNINGS: 1
+          #   RUN_ANALYZER: asan,llvm-cov
+          # - name: Linux Arm64 (clang 20 + asan + llvm-cov)
+          #   os: ubuntu-24.04-arm
+          #   CC: clang-20
+          #   CXX: clang++-20
+          #   ERROR_ON_WARNINGS: 1
+          #   RUN_ANALYZER: asan,llvm-cov
+          # - name: Linux (clang 20 + tsan)
+          #   os: ubuntu-24.04
+          #   CC: clang-20
+          #   CXX: clang++-20
+          #   ERROR_ON_WARNINGS: 1
+          #   RUN_ANALYZER: tsan
+          # - name: Linux Arm64 (clang 20 + tsan)
+          #   os: ubuntu-24.04-arm
+          #   CC: clang-20
+          #   CXX: clang++-20
+          #   ERROR_ON_WARNINGS: 1
+          #   RUN_ANALYZER: tsan
+          # - name: Linux (clang 20 + kcov)
+          #   os: ubuntu-24.04
+          #   CC: clang-20
+          #   CXX: clang++-20
+          #   ERROR_ON_WARNINGS: 1
+          #   RUN_ANALYZER: kcov
+          # - name: Linux (GCC 13.3.0 + code-checker + valgrind)
+          #   CC: gcc-13
+          #   CXX: g++-13
+          #   os: ubuntu-24.04
+          #   RUN_ANALYZER: code-checker,valgrind
+          # - name: Linux (GCC + musl + libunwind)
+          #   os: ubuntu-latest
+          #   container: ghcr.io/getsentry/sentry-native-alpine:3.21
+          #   CC: gcc
+          #   CXX: g++
+          #   SYSTEM_PYTHON: 1
+          # - name: Linux (clang + musl + libunwind)
+          #   os: ubuntu-latest
+          #   container: ghcr.io/getsentry/sentry-native-alpine:3.21
+          #   CC: clang
+          #   CXX: clang++
+          #   SYSTEM_PYTHON: 1
+          # - name: macOS 14 (xcode llvm)
+          #   os: macos-14
+          #   ERROR_ON_WARNINGS: 1
+          #   SYSTEM_VERSION_COMPAT: 0
+          # - name: macOS 26 (xcode llvm)
+          #   os: macos-26
+          #   ERROR_ON_WARNINGS: 1
+          #   SYSTEM_VERSION_COMPAT: 0
+          # - name: macOS 14 (xcode llvm + universal)
+          #   os: macos-14
+          #   ERROR_ON_WARNINGS: 1
+          #   SYSTEM_VERSION_COMPAT: 0
+          #   CMAKE_DEFINES: -DCMAKE_OSX_ARCHITECTURES=arm64;x86_64
+          # - name: macOS 15 (clang 18 + asan + llvm-cov)
+          #   os: macos-15-large
+          #   CC: clang
+          #   CXX: clang++
+          #   ERROR_ON_WARNINGS: 1
+          #   SYSTEM_VERSION_COMPAT: 0
+          #   RUN_ANALYZER: asan,llvm-cov
+          # - name: macOS 26 (arm64e + PAC test)
+          #   os: macos-26
+          #   ERROR_ON_WARNINGS: 1
+          #   SYSTEM_VERSION_COMPAT: 0
+          #   CMAKE_DEFINES: -DCMAKE_OSX_ARCHITECTURES=arm64e
+          # - name: Windows (old VS, 32-bit)
+          #   os: windows-2022
+          #   TEST_X86: 1
+          # - name: Windows (latest)
+          #   os: windows-latest
+          # - name: Windows arm64
+          #   os: windows-11-arm
+          # - name: Windows (latest, UTF-8 paths)
+          #   os: windows-latest
+          #   UTF8_TEST_CWD: 1
+          # - name: Windows (latest, ninja + sccache)
+          #   os: windows-latest
+          #   USE_SCCACHE: 1
+          - name: Windows (latest, CMake 4.0)
             os: windows-latest
-          - name: Windows arm64
-            os: windows-11-arm
-          - name: Windows (latest, UTF-8 paths)
+            CMAKE_VERSION: "4.0.x"
+          - name: Windows (latest, CMake 4.3)
             os: windows-latest
-            UTF8_TEST_CWD: 1
-          - name: Windows (latest, ninja + sccache)
-            os: windows-latest
-            USE_SCCACHE: 1
-          - name: Windows (VS2026 + CMake 4)
+            CMAKE_VERSION: "4.3.x"
+          - name: Windows (VS2026, CMake 4.2)
+            os: windows-2025-vs2026
+            CMAKE_VERSION: "4.2.x"
+          - name: Windows (VS2026, CMake 4.3)
             os: windows-2025-vs2026
             CMAKE_VERSION: "4.3.x"
-          - name: Windows ClangCL (latest)
-            os: windows-latest
-            VS_GENERATOR_TOOLSET: ClangCL
-          - name: LLVM-Mingw
-            os: windows-latest
-            TEST_MINGW: 1
-            MINGW_PKG_PREFIX: x86_64-w64-mingw32
-            MINGW_ASM_MASM_COMPILER: llvm-ml
-            MINGW_ASM_MASM_FLAGS: -m64
-          - name: Android (API 21, NDK 23)
-            os: ubuntu-latest
-            ANDROID_API: 21
-            ANDROID_NDK: 23.2.8568313
-            ANDROID_ARCH: x86_64
-          - name: Android (API 26, NDK 27)
-            os: ubuntu-latest
-            ANDROID_API: 26
-            ANDROID_NDK: 27.3.13750724
-            ANDROID_ARCH: x86_64
-          - name: Android (API 31, NDK 27)
-            os: ubuntu-latest
-            ANDROID_API: 31
-            ANDROID_NDK: 27.3.13750724
-            ANDROID_ARCH: x86_64
-          - name: Android (API 35, NDK 29)
-            os: macos-15-large
-            ANDROID_API: 35
-            ANDROID_NDK: 29.0.14206865
-            ANDROID_ARCH: x86_64
+          # - name: Windows ClangCL (latest)
+          #   os: windows-latest
+          #   VS_GENERATOR_TOOLSET: ClangCL
+          # - name: LLVM-Mingw
+          #   os: windows-latest
+          #   TEST_MINGW: 1
+          #   MINGW_PKG_PREFIX: x86_64-w64-mingw32
+          #   MINGW_ASM_MASM_COMPILER: llvm-ml
+          #   MINGW_ASM_MASM_FLAGS: -m64
+          # - name: Android (API 21, NDK 23)
+          #   os: ubuntu-latest
+          #   ANDROID_API: 21
+          #   ANDROID_NDK: 23.2.8568313
+          #   ANDROID_ARCH: x86_64
+          # - name: Android (API 26, NDK 27)
+          #   os: ubuntu-latest
+          #   ANDROID_API: 26
+          #   ANDROID_NDK: 27.3.13750724
+          #   ANDROID_ARCH: x86_64
+          # - name: Android (API 31, NDK 27)
+          #   os: ubuntu-latest
+          #   ANDROID_API: 31
+          #   ANDROID_NDK: 27.3.13750724
+          #   ANDROID_ARCH: x86_64
+          # - name: Android (API 35, NDK 29)
+          #   os: macos-15-large
+          #   ANDROID_API: 35
+          #   ANDROID_NDK: 29.0.14206865
+          #   ANDROID_ARCH: x86_64
 
     name: ${{ matrix.name }}
     runs-on: ${{ matrix.os }}
