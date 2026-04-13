@@ -169,7 +169,7 @@ sentry__scope_flush_unlock(void)
 sentry_scope_t *
 sentry_local_scope_new(void)
 {
-    sentry_scope_t *scope = SENTRY_MAKE_0(sentry_scope_t);
+    sentry_scope_t *scope = SENTRY_MAKE(sentry_scope_t);
     if (!scope) {
         return NULL;
     }

@@ -40,7 +40,7 @@ struct sentry_retry_s {
 sentry_retry_t *
 sentry__retry_new(const sentry_options_t *options)
 {
-    sentry_retry_t *retry = SENTRY_MAKE_0(sentry_retry_t);
+    sentry_retry_t *retry = SENTRY_MAKE(sentry_retry_t);
     if (!retry) {
         return NULL;
     }

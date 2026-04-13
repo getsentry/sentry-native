@@ -14,7 +14,7 @@
 sentry_options_t *
 sentry_options_new(void)
 {
-    sentry_options_t *opts = SENTRY_MAKE_0(sentry_options_t);
+    sentry_options_t *opts = SENTRY_MAKE(sentry_options_t);
     if (!opts) {
         return NULL;
     }

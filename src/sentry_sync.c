@@ -176,7 +176,7 @@ struct sentry_bgworker_s {
 sentry_bgworker_t *
 sentry__bgworker_new(void *state, void (*free_state)(void *state))
 {
-    sentry_bgworker_t *bgw = SENTRY_MAKE_0(sentry_bgworker_t);
+    sentry_bgworker_t *bgw = SENTRY_MAKE(sentry_bgworker_t);
     if (!bgw) {
         if (free_state) {
             free_state(state);
@@ -368,7 +368,7 @@ sentry__bgworker_flush(sentry_bgworker_t *bgw, uint64_t timeout)
     }
     SENTRY_DEBUG("flushing background worker thread");
 
-    sentry_flush_task_t *flush_task = SENTRY_MAKE_0(sentry_flush_task_t);
+    sentry_flush_task_t *flush_task = SENTRY_MAKE(sentry_flush_task_t);
     if (!flush_task) {
         return 1;
     }

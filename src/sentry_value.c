@@ -390,7 +390,7 @@ sentry_value_new_string(const char *value)
 sentry_value_t
 sentry_value_new_list(void)
 {
-    list_t *l = SENTRY_MAKE_0(list_t);
+    list_t *l = SENTRY_MAKE(list_t);
     if (l) {
         sentry_value_t rv = new_thing_value(l, THING_TYPE_LIST);
         if (sentry_value_is_null(rv)) {
@@ -405,7 +405,7 @@ sentry_value_new_list(void)
 sentry_value_t
 sentry__value_new_list_with_size(size_t size)
 {
-    list_t *l = SENTRY_MAKE_0(list_t);
+    list_t *l = SENTRY_MAKE(list_t);
     if (l) {
         l->allocated = size;
         if (size) {
@@ -429,7 +429,7 @@ sentry__value_new_list_with_size(size_t size)
 sentry_value_t
 sentry_value_new_object(void)
 {
-    obj_t *o = SENTRY_MAKE_0(obj_t);
+    obj_t *o = SENTRY_MAKE(obj_t);
     if (o) {
         sentry_value_t rv = new_thing_value(o, THING_TYPE_OBJECT);
         if (sentry_value_is_null(rv)) {
@@ -444,7 +444,7 @@ sentry_value_new_object(void)
 sentry_value_t
 sentry__value_new_object_with_size(size_t size)
 {
-    obj_t *o = SENTRY_MAKE_0(obj_t);
+    obj_t *o = SENTRY_MAKE(obj_t);
     if (o) {
         o->allocated = size;
         if (size) {

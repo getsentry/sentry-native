@@ -23,7 +23,7 @@ sentry_batcher_t *
 sentry__batcher_new(
     sentry_batch_func_t batch_func, sentry_data_category_t data_category)
 {
-    sentry_batcher_t *batcher = SENTRY_MAKE_0(sentry_batcher_t);
+    sentry_batcher_t *batcher = SENTRY_MAKE(sentry_batcher_t);
     if (!batcher) {
         return NULL;
     }

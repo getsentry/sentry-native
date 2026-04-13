@@ -30,7 +30,7 @@ typedef struct {
 static curl_client_t *
 curl_client_new(void)
 {
-    curl_client_t *client = SENTRY_MAKE_0(curl_client_t);
+    curl_client_t *client = SENTRY_MAKE(curl_client_t);
     if (!client) {
         return NULL;
     }

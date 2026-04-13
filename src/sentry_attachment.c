@@ -74,7 +74,7 @@ sentry__attachment_from_path(sentry_path_t *path)
     if (!path) {
         return NULL;
     }
-    sentry_attachment_t *attachment = SENTRY_MAKE_0(sentry_attachment_t);
+    sentry_attachment_t *attachment = SENTRY_MAKE(sentry_attachment_t);
     if (!attachment) {
         sentry__path_free(path);
         return NULL;
@@ -94,7 +94,7 @@ sentry__attachment_from_buffer(
         sentry__path_free(filename);
         return NULL;
     }
-    sentry_attachment_t *attachment = SENTRY_MAKE_0(sentry_attachment_t);
+    sentry_attachment_t *attachment = SENTRY_MAKE(sentry_attachment_t);
     if (!attachment) {
         sentry__path_free(filename);
         return NULL;
@@ -214,7 +214,7 @@ attachment_clone(const sentry_attachment_t *attachment)
         return NULL;
     }
 
-    sentry_attachment_t *clone = SENTRY_MAKE_0(sentry_attachment_t);
+    sentry_attachment_t *clone = SENTRY_MAKE(sentry_attachment_t);
     if (!clone) {
         return NULL;
     }

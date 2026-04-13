@@ -470,7 +470,7 @@ http_transport_submit_cleanup(
 sentry_transport_t *
 sentry__http_transport_new(void *client, sentry_http_send_func_t send_func)
 {
-    http_transport_state_t *state = SENTRY_MAKE_0(http_transport_state_t);
+    http_transport_state_t *state = SENTRY_MAKE(http_transport_state_t);
     if (!state) {
         return NULL;
     }

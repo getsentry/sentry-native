@@ -1810,7 +1810,7 @@ sentry__backend_preload(void)
 sentry_backend_t *
 sentry__backend_new(void)
 {
-    sentry_backend_t *backend = SENTRY_MAKE_0(sentry_backend_t);
+    sentry_backend_t *backend = SENTRY_MAKE(sentry_backend_t);
     if (!backend) {
         return NULL;
     }

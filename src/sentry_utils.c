@@ -234,7 +234,7 @@ sentry__dsn_new_n(const char *raw_dsn, size_t raw_dsn_len)
     // org_id is u64 in relay, so needs 20 characters + null termination
     char org_id[21] = "";
 
-    sentry_dsn_t *dsn = SENTRY_MAKE_0(sentry_dsn_t);
+    sentry_dsn_t *dsn = SENTRY_MAKE(sentry_dsn_t);
     if (!dsn) {
         return NULL;
     }
