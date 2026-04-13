@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1776067211364,
+  "lastUpdate": 1776067301576,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -33634,6 +33634,66 @@ window.BENCHMARK_DATA = {
             "value": 10.062875000130589,
             "unit": "ms",
             "extra": "Min 6.833ms\nMax 13.224ms\nMean 9.904ms\nStdDev 2.494ms\nMedian 10.063ms\nCPU 1.231ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "jpnurmi@gmail.com",
+            "name": "J-P Nurmi",
+            "username": "jpnurmi"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "14bc4521a0c89e1df45c2958e1de0783e8d8c74a",
+          "message": "ref: make SENTRY_HANDLER_STACK_SIZE overridable via env var (#1636)\n\nCo-authored-by: Claude Opus 4.6 (1M context) <noreply@anthropic.com>",
+          "timestamp": "2026-04-13T09:57:43+02:00",
+          "tree_id": "81178fe8a13d6aa9e9b2055345290b84aa499b78",
+          "url": "https://github.com/getsentry/sentry-native/commit/14bc4521a0c89e1df45c2958e1de0783e8d8c74a"
+        },
+        "date": 1776067296572,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 3.3619579999140115,
+            "unit": "ms",
+            "extra": "Min 3.115ms\nMax 6.966ms\nMean 4.324ms\nStdDev 1.662ms\nMedian 3.362ms\nCPU 2.350ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 4.282333999981347,
+            "unit": "ms",
+            "extra": "Min 3.773ms\nMax 6.981ms\nMean 5.130ms\nStdDev 1.599ms\nMedian 4.282ms\nCPU 2.886ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 12.538375000076485,
+            "unit": "ms",
+            "extra": "Min 11.266ms\nMax 22.340ms\nMean 14.626ms\nStdDev 4.579ms\nMedian 12.538ms\nCPU 4.935ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.08191599999918253,
+            "unit": "ms",
+            "extra": "Min 0.062ms\nMax 0.144ms\nMean 0.089ms\nStdDev 0.032ms\nMedian 0.082ms\nCPU 0.048ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.2832499999385618,
+            "unit": "ms",
+            "extra": "Min 0.230ms\nMax 0.378ms\nMean 0.292ms\nStdDev 0.054ms\nMedian 0.283ms\nCPU 0.291ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 10.016124999765452,
+            "unit": "ms",
+            "extra": "Min 7.407ms\nMax 12.541ms\nMean 9.669ms\nStdDev 2.023ms\nMedian 10.016ms\nCPU 1.091ms"
           }
         ]
       }
