@@ -2392,7 +2392,7 @@ write_envelope_with_native_stacktrace(const sentry_options_t *options,
     }
 
     // Add screenshot attachment if captured by the daemon
-    if (options && options->attach_screenshot && run_folder) {
+    if (ctx && ctx->attach_screenshot && run_folder) {
         sentry_path_t *screenshot_path
             = sentry__path_join_str(run_folder, "screenshot.png");
         if (screenshot_path) {
@@ -2417,8 +2417,9 @@ write_envelope_with_native_stacktrace(const sentry_options_t *options,
  */
 static bool
 write_envelope_with_minidump(const sentry_options_t *options,
-    const char *envelope_path, const char *event_msgpack_path,
-    const char *minidump_path, sentry_path_t *run_folder)
+    const sentry_crash_context_t *ctx, const char *envelope_path,
+    const char *event_msgpack_path, const char *minidump_path,
+    sentry_path_t *run_folder)
 {
     // Read event JSON data
     size_t event_size = 0;
@@ -2626,7 +2627,7 @@ write_envelope_with_minidump(const sentry_options_t *options,
     }
 
     // Add screenshot attachment if captured by the daemon
-    if (options && options->attach_screenshot && run_folder) {
+    if (ctx && ctx->attach_screenshot && run_folder) {
         sentry_path_t *screenshot_path
             = sentry__path_join_str(run_folder, "screenshot.png");
         if (screenshot_path) {
@@ -2867,7 +2868,7 @@ sentry__process_crash(const sentry_options_t *options, sentry_crash_ipc_t *ipc)
         // Mode 0 (MINIDUMP only)
         SENTRY_DEBUG("Writing envelope with minidump");
         envelope_written = write_envelope_with_minidump(
-            options, envelope_path, event_path, minidump_path, run_folder);
+            options, ctx, envelope_path, event_path, minidump_path, run_folder);
     }
 
     if (!envelope_written) {
