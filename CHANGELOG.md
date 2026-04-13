@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+**Features**:
+
+- Add `before_screenshot` hook. ([#1641](https://github.com/getsentry/sentry-native/pull/1641))
+
 **Fixes**:
 
 - Reset client report counters during initialization ([#1632](https://github.com/getsentry/sentry-native/pull/1632))
