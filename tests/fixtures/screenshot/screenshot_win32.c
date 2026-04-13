@@ -76,6 +76,7 @@ wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR lpCmdLine,
 {
     sentry_options_t *options = sentry_options_new();
     sentry_options_set_release(options, "sentry-screenshot");
+    sentry_options_set_auto_session_tracking(options, false);
     sentry_options_set_attach_screenshot(options, true);
     sentry_options_set_debug(options, true);
     sentry_init(options);
