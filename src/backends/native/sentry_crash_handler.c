@@ -705,7 +705,6 @@ daemon_handling:
         for (const char *p = shm_id_src; *p; p++) {
             if (*p == '-') {
                 shm_id = p + 1;
-                break;
             }
         }
 
