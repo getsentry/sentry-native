@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1776173249249,
+  "lastUpdate": 1776173301761,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -51232,6 +51232,66 @@ window.BENCHMARK_DATA = {
             "value": 13.771799999972245,
             "unit": "ms",
             "extra": "Min 13.326ms\nMax 14.641ms\nMean 13.872ms\nStdDev 0.492ms\nMedian 13.772ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "amir.mujacic@sentry.io",
+            "name": "Amir Mujacic",
+            "username": "mujacica"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "2a6ec9d21dfcfbdda6f04a4739de020f1e72be13",
+          "message": "fix(native): replace sandbox-incompatible IPC primitives on macOS (#1644)\n\n* fix(native): replace sandbox-incompatible IPC primitives on macOS\n\nmacOS App Sandbox blocks sem_open(), shm_open(), and fork() in\nsandboxed apps, causing the native backend to fail during init.\n\n- Replace sem_open/sem_wait with pthread_mutex_t for IPC synchronization\n- Replace shm_open with file-backed mmap using $TMPDIR (sandbox-safe)\n- Replace fork+exec with posix_spawn using POSIX_SPAWN_CLOEXEC_DEFAULT\n  and explicit fd inheritance via posix_spawn_file_actions_addinherit_np\n- Pass shm_fd to daemon via posix_spawn instead of reopening by name\n- Add macOS App Sandbox integration tests verifying init, crash capture,\n  minidump generation, and native stacktraces inside a sandboxed .app\n\n---------\n\nCo-authored-by: Claude Opus 4.6 <noreply@anthropic.com>",
+          "timestamp": "2026-04-14T15:22:54+02:00",
+          "tree_id": "ac2ea5e4e53e9ceb2cba06288c3adf1c2bcea6ea",
+          "url": "https://github.com/getsentry/sentry-native/commit/2a6ec9d21dfcfbdda6f04a4739de020f1e72be13"
+        },
+        "date": 1776173297307,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 22.750399999949877,
+            "unit": "ms",
+            "extra": "Min 21.677ms\nMax 29.713ms\nMean 24.453ms\nStdDev 3.336ms\nMedian 22.750ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 15.580100000079256,
+            "unit": "ms",
+            "extra": "Min 13.274ms\nMax 17.337ms\nMean 15.119ms\nStdDev 1.725ms\nMedian 15.580ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 28.34980000000087,
+            "unit": "ms",
+            "extra": "Min 28.106ms\nMax 29.315ms\nMean 28.640ms\nStdDev 0.587ms\nMedian 28.350ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.26489999993373203,
+            "unit": "ms",
+            "extra": "Min 0.264ms\nMax 0.321ms\nMean 0.276ms\nStdDev 0.025ms\nMedian 0.265ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.46849999989717617,
+            "unit": "ms",
+            "extra": "Min 0.445ms\nMax 0.541ms\nMean 0.483ms\nStdDev 0.042ms\nMedian 0.468ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 15.548200000012002,
+            "unit": "ms",
+            "extra": "Min 14.669ms\nMax 18.659ms\nMean 15.935ms\nStdDev 1.594ms\nMedian 15.548ms"
           }
         ]
       }
