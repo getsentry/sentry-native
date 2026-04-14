@@ -11,6 +11,7 @@
 - Reset client report counters during initialization ([#1632](https://github.com/getsentry/sentry-native/pull/1632))
 - macOS: cache VM regions for FP validation in the new unwinder. ([#1634](https://github.com/getsentry/sentry-native/pull/1634))
 - Linux: remove dependency on `stdio` in the unwinder pointer validation code to reduce exposure to async-signal-unsafe functions. ([#1637](https://github.com/getsentry/sentry-native/pull/1637))
+- macOS: replace sandbox-incompatible IPC primitives (`sem_open`, `shm_open`, `fork`) with sandbox-safe alternatives (`pthread_mutex`, file-backed `mmap`, `posix_spawn`) so the native backend works inside App Sandbox. ([#1644](https://github.com/getsentry/sentry-native/pull/1644))
 
 ## 0.13.6
 

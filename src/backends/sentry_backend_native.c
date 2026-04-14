@@ -41,17 +41,25 @@
 // This lives for the entire backend lifetime and is shared across all threads
 #if defined(SENTRY_PLATFORM_WINDOWS)
 static HANDLE g_ipc_mutex = NULL;
+#elif defined(SENTRY_PLATFORM_MACOS)
+// macOS uses a plain pthread mutex instead of named semaphores (sem_open)
+// because App Sandbox blocks POSIX named semaphores.
+static sentry_mutex_t g_ipc_sync_mutex = SENTRY__MUTEX_INIT;
 #else
 #    include <semaphore.h>
 static sem_t *g_ipc_init_sem = SEM_FAILED;
 static char g_ipc_sem_name[64] = { 0 };
 #endif
 
-// Mutex to protect IPC initialization (POSIX only, not iOS)
-#ifdef SENTRY__MUTEX_INIT_DYN
+// Mutex to protect IPC initialization (Windows and Linux only, not macOS/iOS)
+// macOS uses g_ipc_sync_mutex directly; iOS has no out-of-process daemon.
+#if defined(SENTRY_PLATFORM_WINDOWS)                                           \
+    || (!defined(SENTRY_PLATFORM_MACOS) && !defined(SENTRY_PLATFORM_IOS))
+#    ifdef SENTRY__MUTEX_INIT_DYN
 SENTRY__MUTEX_INIT_DYN(g_ipc_init_mutex)
-#else
+#    else
 static sentry_mutex_t g_ipc_init_mutex = SENTRY__MUTEX_INIT;
+#    endif
 #endif
 
 /**
@@ -94,6 +102,10 @@ native_backend_startup(
     }
 
     sentry__mutex_unlock(&g_ipc_init_mutex);
+#elif defined(SENTRY_PLATFORM_MACOS)
+    // macOS uses a plain pthread mutex (no sem_open which is blocked by App
+    // Sandbox). The mutex is statically initialized - no setup needed.
+    (void)0;
 #elif !defined(SENTRY_PLATFORM_IOS)
     // Create process-wide IPC initialization semaphore (singleton pattern)
     // Protected by mutex to handle concurrent backend startups
@@ -129,6 +141,8 @@ native_backend_startup(
     state->ipc = sentry__crash_ipc_init_app(g_ipc_mutex);
 #elif defined(SENTRY_PLATFORM_IOS)
     state->ipc = sentry__crash_ipc_init_app(NULL);
+#elif defined(SENTRY_PLATFORM_MACOS)
+    state->ipc = sentry__crash_ipc_init_app(&g_ipc_sync_mutex);
 #else
     state->ipc = sentry__crash_ipc_init_app(g_ipc_init_sem);
 #endif
@@ -153,6 +167,8 @@ native_backend_startup(
             return 1;
         }
     }
+#elif defined(SENTRY_PLATFORM_MACOS)
+    sentry__mutex_lock(&g_ipc_sync_mutex);
 #elif !defined(SENTRY_PLATFORM_IOS)
     if (g_ipc_init_sem && sem_wait(g_ipc_init_sem) < 0) {
         SENTRY_WARNF("failed to acquire semaphore for context setup: %s",
@@ -298,6 +314,8 @@ native_backend_startup(
     if (g_ipc_mutex) {
         ReleaseMutex(g_ipc_mutex);
     }
+#elif defined(SENTRY_PLATFORM_MACOS)
+    sentry__mutex_unlock(&g_ipc_sync_mutex);
 #elif !defined(SENTRY_PLATFORM_IOS)
     // Release semaphore after context configuration
     if (g_ipc_init_sem) {
@@ -328,7 +346,7 @@ native_backend_startup(
     uint64_t tid = (uint64_t)pthread_self();
     state->daemon_pid
         = sentry__crash_daemon_start(getpid(), tid, state->ipc->notify_pipe[0],
-            state->ipc->ready_pipe[1], daemon_handler_path);
+            state->ipc->ready_pipe[1], state->ipc->shm_fd, daemon_handler_path);
 #    elif defined(SENTRY_PLATFORM_WINDOWS)
     uint64_t tid = (uint64_t)GetCurrentThreadId();
     state->daemon_pid = sentry__crash_daemon_start(GetCurrentProcessId(), tid,
@@ -449,12 +467,13 @@ native_backend_shutdown(sentry_backend_t *backend)
 
     // Dump daemon log file for debugging (especially useful in CI)
     // Use same naming as shared memory to find the correct log file
-    if (state->ipc && state->ipc->shmem && state->ipc->shm_name[0] != '\0') {
+    if (state->ipc && state->ipc->shmem) {
         char log_path[SENTRY_CRASH_MAX_PATH];
         int log_path_len = -1;
 
+        // Extract the unique ID from the shm name/path to find the daemon log
+        // Platform-specific: shm_name on Linux/Windows, shm_path on macOS
 #if defined(SENTRY_PLATFORM_WINDOWS)
-        // On Windows, shm_name is wchar_t, need to convert to char for printing
         const wchar_t *shm_id_w = wcsrchr(state->ipc->shm_name, L'-');
         if (shm_id_w) {
             shm_id_w++; // Skip the '-'
@@ -484,8 +503,15 @@ native_backend_shutdown(sentry_backend_t *backend)
             }
         }
 #else
-        // On Unix, shm_name is char
-        const char *shm_id = strchr(state->ipc->shm_name, '-');
+        // On macOS: shm_path = "{tmpdir}/.sentry-shm-{id}"
+        // On Linux: shm_name = "/s-{id}"
+        // In both cases, the ID follows the last '-'
+#    if defined(SENTRY_PLATFORM_MACOS)
+        const char *shm_id_src = state->ipc->shm_path;
+#    else
+        const char *shm_id_src = state->ipc->shm_name;
+#    endif
+        const char *shm_id = shm_id_src[0] ? strrchr(shm_id_src, '-') : NULL;
         if (shm_id) {
             shm_id++; // Skip the '-'
             log_path_len = snprintf(log_path, sizeof(log_path),

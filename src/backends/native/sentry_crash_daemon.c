@@ -42,7 +42,9 @@
 #    include <sys/wait.h>
 #    include <unistd.h>
 #    if defined(SENTRY_PLATFORM_MACOS)
+#        include <crt_externs.h>
 #        include <mach-o/dyld.h>
+#        include <spawn.h>
 #    endif
 #elif defined(SENTRY_PLATFORM_WINDOWS)
 #    include <dbghelp.h>
@@ -3062,8 +3064,8 @@ sentry__crash_daemon_main(
     pid_t app_pid, uint64_t app_tid, int notify_eventfd, int ready_eventfd)
 #elif defined(SENTRY_PLATFORM_MACOS)
 int
-sentry__crash_daemon_main(
-    pid_t app_pid, uint64_t app_tid, int notify_pipe_read, int ready_pipe_write)
+sentry__crash_daemon_main(pid_t app_pid, uint64_t app_tid, int notify_pipe_read,
+    int ready_pipe_write, int shm_fd)
 #elif defined(SENTRY_PLATFORM_WINDOWS)
 int
 sentry__crash_daemon_main(pid_t app_pid, uint64_t app_tid, HANDLE event_handle,
@@ -3077,7 +3079,7 @@ sentry__crash_daemon_main(pid_t app_pid, uint64_t app_tid, HANDLE event_handle,
         app_pid, app_tid, notify_eventfd, ready_eventfd);
 #elif defined(SENTRY_PLATFORM_MACOS)
     sentry_crash_ipc_t *ipc = sentry__crash_ipc_init_daemon(
-        app_pid, app_tid, notify_pipe_read, ready_pipe_write);
+        app_pid, app_tid, notify_pipe_read, ready_pipe_write, shm_fd);
 #elif defined(SENTRY_PLATFORM_WINDOWS)
     sentry_crash_ipc_t *ipc = sentry__crash_ipc_init_daemon(
         app_pid, app_tid, event_handle, ready_event_handle);
@@ -3329,21 +3331,105 @@ sentry__crash_daemon_start(pid_t app_pid, uint64_t app_tid, int notify_eventfd,
 #elif defined(SENTRY_PLATFORM_MACOS)
 pid_t
 sentry__crash_daemon_start(pid_t app_pid, uint64_t app_tid,
-    int notify_pipe_read, int ready_pipe_write, const char *handler_path)
+    int notify_pipe_read, int ready_pipe_write, int shm_fd,
+    const char *handler_path)
 #elif defined(SENTRY_PLATFORM_WINDOWS)
 pid_t
 sentry__crash_daemon_start(pid_t app_pid, uint64_t app_tid, HANDLE event_handle,
     HANDLE ready_event_handle, const char *handler_path)
 #endif
 {
-#if defined(SENTRY_PLATFORM_UNIX)
-    // Fork and exec sentry-crash executable
-    // Using exec (not just fork) avoids inheriting sanitizer state and is
-    // cleaner
+#if defined(SENTRY_PLATFORM_MACOS)
+    // macOS: Use posix_spawn instead of fork+exec for App Sandbox
+    // compatibility. posix_spawn is Apple's recommended API and works correctly
+    // in sandboxed processes, unlike fork() which can have issues with sandbox
+    // inheritance.
+
+    // Resolve daemon path
+    char daemon_path[SENTRY_CRASH_MAX_PATH];
+    if (handler_path && handler_path[0] != '\0') {
+        strncpy(daemon_path, handler_path, sizeof(daemon_path) - 1);
+        daemon_path[sizeof(daemon_path) - 1] = '\0';
+    } else {
+        char exe_path[SENTRY_CRASH_MAX_PATH];
+        uint32_t exe_size = sizeof(exe_path);
+        if (_NSGetExecutablePath(exe_path, &exe_size) != 0) {
+            SENTRY_WARN("Failed to get executable path for daemon");
+            return -1;
+        }
+        const char *slash = strrchr(exe_path, '/');
+        if (!slash
+            || (size_t)(slash - exe_path + 1) + strlen("sentry-crash")
+                >= sizeof(daemon_path)) {
+            SENTRY_WARN("Daemon path too long");
+            return -1;
+        }
+        size_t dir_len = (size_t)(slash - exe_path + 1);
+        memcpy(daemon_path, exe_path, dir_len);
+        strcpy(daemon_path + dir_len, "sentry-crash");
+    }
+
+    // Build argument strings (6 args: pid, tid, notify_fd, ready_fd, shm_fd)
+    char pid_str[32], tid_str[32], notify_str[32], ready_str[32], shm_str[32];
+    snprintf(pid_str, sizeof(pid_str), "%d", (int)app_pid);
+    snprintf(tid_str, sizeof(tid_str), "%" PRIx64, app_tid);
+    snprintf(notify_str, sizeof(notify_str), "%d", notify_pipe_read);
+    snprintf(ready_str, sizeof(ready_str), "%d", ready_pipe_write);
+    snprintf(shm_str, sizeof(shm_str), "%d", shm_fd);
+
+    char *spawn_argv[] = { "sentry-crash", pid_str, tid_str, notify_str,
+        ready_str, shm_str, NULL };
+
+    // Set up posix_spawn attributes
+    posix_spawnattr_t attr;
+    posix_spawnattr_init(&attr);
+    // POSIX_SPAWN_SETSID: create new session (like setsid() after fork)
+    // POSIX_SPAWN_CLOEXEC_DEFAULT: close all fds except explicitly inherited
+    short spawn_flags = POSIX_SPAWN_SETSID | POSIX_SPAWN_CLOEXEC_DEFAULT;
+    posix_spawnattr_setflags(&attr, spawn_flags);
+
+    // Explicitly inherit only the fds the daemon needs
+    posix_spawn_file_actions_t file_actions;
+    posix_spawn_file_actions_init(&file_actions);
+    posix_spawn_file_actions_addinherit_np(&file_actions, notify_pipe_read);
+    posix_spawn_file_actions_addinherit_np(&file_actions, ready_pipe_write);
+    posix_spawn_file_actions_addinherit_np(&file_actions, shm_fd);
+    // Open /dev/null on stdin/stdout/stderr so the daemon starts with valid
+    // standard fds. Without this, POSIX_SPAWN_CLOEXEC_DEFAULT closes them,
+    // and the first fopen() in the daemon would get fd 0, which the daemon's
+    // own close(STDIN_FILENO) would then destroy.
+    // Skip if an IPC fd occupies that slot (e.g. caller closed stdin before
+    // sentry_init), to avoid clobbering it with /dev/null.
+    int std_fds[3] = { STDIN_FILENO, STDOUT_FILENO, STDERR_FILENO };
+    int std_modes[3] = { O_RDONLY, O_WRONLY, O_WRONLY };
+    for (int i = 0; i < 3; i++) {
+        if (std_fds[i] != notify_pipe_read && std_fds[i] != ready_pipe_write
+            && std_fds[i] != shm_fd) {
+            posix_spawn_file_actions_addopen(
+                &file_actions, std_fds[i], "/dev/null", std_modes[i], 0);
+        }
+    }
+
+    pid_t daemon_pid;
+    int spawn_result = posix_spawn(&daemon_pid, daemon_path, &file_actions,
+        &attr, spawn_argv, *_NSGetEnviron());
+
+    posix_spawn_file_actions_destroy(&file_actions);
+    posix_spawnattr_destroy(&attr);
+
+    if (spawn_result != 0) {
+        SENTRY_WARNF("posix_spawn failed for %s: %s", daemon_path,
+            strerror(spawn_result));
+        return -1;
+    }
+
+    return daemon_pid;
+
+#elif defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID)
+    // Linux: Use fork+exec
     pid_t daemon_pid = fork();
 
     if (daemon_pid < 0) {
-        // Fork failed
         SENTRY_WARN("Failed to fork daemon process");
         return -1;
     } else if (daemon_pid == 0) {
@@ -3351,7 +3437,6 @@ sentry__crash_daemon_start(pid_t app_pid, uint64_t app_tid, HANDLE event_handle,
         setsid();
 
         // Clear FD_CLOEXEC on notify and ready fds so they survive exec
-#    if defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID)
         int notify_flags = fcntl(notify_eventfd, F_GETFD);
         if (notify_flags != -1) {
             fcntl(notify_eventfd, F_SETFD, notify_flags & ~FD_CLOEXEC);
@@ -3360,73 +3445,38 @@ sentry__crash_daemon_start(pid_t app_pid, uint64_t app_tid, HANDLE event_handle,
         if (ready_flags != -1) {
             fcntl(ready_eventfd, F_SETFD, ready_flags & ~FD_CLOEXEC);
         }
-#    elif defined(SENTRY_PLATFORM_MACOS)
-        int notify_flags = fcntl(notify_pipe_read, F_GETFD);
-        if (notify_flags != -1) {
-            fcntl(notify_pipe_read, F_SETFD, notify_flags & ~FD_CLOEXEC);
-        }
-        int ready_flags = fcntl(ready_pipe_write, F_GETFD);
-        if (ready_flags != -1) {
-            fcntl(ready_pipe_write, F_SETFD, ready_flags & ~FD_CLOEXEC);
-        }
-#    endif
 
         // Convert arguments to strings for exec
         char pid_str[32], tid_str[32], notify_str[32], ready_str[32];
         snprintf(pid_str, sizeof(pid_str), "%d", (int)app_pid);
         snprintf(tid_str, sizeof(tid_str), "%" PRIx64, app_tid);
-#    if defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID)
         snprintf(notify_str, sizeof(notify_str), "%d", notify_eventfd);
         snprintf(ready_str, sizeof(ready_str), "%d", ready_eventfd);
-#    elif defined(SENTRY_PLATFORM_MACOS)
-        snprintf(notify_str, sizeof(notify_str), "%d", notify_pipe_read);
-        snprintf(ready_str, sizeof(ready_str), "%d", ready_pipe_write);
-#    endif
 
         char *argv[]
             = { "sentry-crash", pid_str, tid_str, notify_str, ready_str, NULL };
 
-        // If handler_path was explicitly set via options, use it directly.
-        // Otherwise, look for sentry-crash next to the current executable
-        // (matching crashpad's behavior). No fallback chain — fail hard so
-        // configuration issues are visible.
         if (handler_path && handler_path[0] != '\0') {
             execv(handler_path, argv);
         } else {
             char exe_path[SENTRY_CRASH_MAX_PATH];
-            char daemon_path[SENTRY_CRASH_MAX_PATH];
+            char daemon_exec_path[SENTRY_CRASH_MAX_PATH];
 
-#    if defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID)
             ssize_t exe_len
                 = readlink("/proc/self/exe", exe_path, sizeof(exe_path) - 1);
             if (exe_len > 0) {
                 exe_path[exe_len] = '\0';
                 const char *slash = strrchr(exe_path, '/');
                 if (slash) {
-                    size_t dir_len = slash - exe_path + 1;
+                    size_t dir_len = (size_t)(slash - exe_path + 1);
                     if (dir_len + strlen("sentry-crash")
-                        < sizeof(daemon_path)) {
-                        memcpy(daemon_path, exe_path, dir_len);
-                        strcpy(daemon_path + dir_len, "sentry-crash");
-                        execv(daemon_path, argv);
+                        < sizeof(daemon_exec_path)) {
+                        memcpy(daemon_exec_path, exe_path, dir_len);
+                        strcpy(daemon_exec_path + dir_len, "sentry-crash");
+                        execv(daemon_exec_path, argv);
                     }
                 }
             }
-#    elif defined(SENTRY_PLATFORM_MACOS)
-            uint32_t exe_size = sizeof(exe_path);
-            if (_NSGetExecutablePath(exe_path, &exe_size) == 0) {
-                const char *slash = strrchr(exe_path, '/');
-                if (slash) {
-                    size_t dir_len = slash - exe_path + 1;
-                    if (dir_len + strlen("sentry-crash")
-                        < sizeof(daemon_path)) {
-                        memcpy(daemon_path, exe_path, dir_len);
-                        strcpy(daemon_path + dir_len, "sentry-crash");
-                        execv(daemon_path, argv);
-                    }
-                }
-            }
-#    endif
         }
 
         // exec failed - exit with error
@@ -3553,13 +3603,24 @@ sentry__crash_daemon_start(pid_t app_pid, uint64_t app_tid, HANDLE event_handle,
 int
 main(int argc, char **argv)
 {
-    // Expected arguments: <app_pid> <app_tid> <notify_handle> <ready_handle>
+    // Expected arguments:
+    //   Linux:  <app_pid> <app_tid> <notify_handle> <ready_handle>
+    //   macOS:  <app_pid> <app_tid> <notify_handle> <ready_handle> <shm_fd>
+#    if defined(SENTRY_PLATFORM_MACOS)
+    if (argc < 6) {
+        fprintf(stderr,
+            "Usage: sentry-crash <app_pid> <app_tid> <notify_pipe> "
+            "<ready_pipe> <shm_fd>\n");
+        return 1;
+    }
+#    else
     if (argc < 5) {
         fprintf(stderr,
             "Usage: sentry-crash <app_pid> <app_tid> <notify_handle> "
             "<ready_handle>\n");
         return 1;
     }
+#    endif
 
     // Parse arguments
     pid_t app_pid = (pid_t)strtoul(argv[1], NULL, 10);
@@ -3573,8 +3634,9 @@ main(int argc, char **argv)
 #    elif defined(SENTRY_PLATFORM_MACOS)
     int notify_pipe_read = atoi(argv[3]);
     int ready_pipe_write = atoi(argv[4]);
+    int shm_fd_arg = atoi(argv[5]);
     return sentry__crash_daemon_main(
-        app_pid, app_tid, notify_pipe_read, ready_pipe_write);
+        app_pid, app_tid, notify_pipe_read, ready_pipe_write, shm_fd_arg);
 #    elif defined(SENTRY_PLATFORM_WINDOWS)
     unsigned long long event_handle_val = strtoull(argv[3], NULL, 10);
     unsigned long long ready_event_val = strtoull(argv[4], NULL, 10);
