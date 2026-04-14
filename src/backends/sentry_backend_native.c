@@ -51,11 +51,15 @@ static sem_t *g_ipc_init_sem = SEM_FAILED;
 static char g_ipc_sem_name[64] = { 0 };
 #endif
 
-// Mutex to protect IPC initialization (POSIX only, not iOS)
-#ifdef SENTRY__MUTEX_INIT_DYN
+// Mutex to protect IPC initialization (Windows and Linux only, not macOS/iOS)
+// macOS uses g_ipc_sync_mutex directly; iOS has no out-of-process daemon.
+#if defined(SENTRY_PLATFORM_WINDOWS)                                           \
+    || (!defined(SENTRY_PLATFORM_MACOS) && !defined(SENTRY_PLATFORM_IOS))
+#    ifdef SENTRY__MUTEX_INIT_DYN
 SENTRY__MUTEX_INIT_DYN(g_ipc_init_mutex)
-#else
+#    else
 static sentry_mutex_t g_ipc_init_mutex = SENTRY__MUTEX_INIT;
+#    endif
 #endif
 
 /**
