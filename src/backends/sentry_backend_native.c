@@ -856,6 +856,24 @@ native_backend_except(sentry_backend_t *backend, const sentry_ucontext_t *uctx)
                     device_context, "arch", sentry_value_new_string("arm64"));
 #    endif
                 sentry_value_set_by_key(contexts, "device", device_context);
+
+                // The screenshot is captured by the daemon out-of-process, so
+                // we invoke the hook here (in the crashing process, where
+                // user callbacks can run) and communicate the decision to the
+                // daemon by flipping attach_screenshot in the shared crash
+                // context. Screenshots are only captured on Windows.
+                if (options->attach_screenshot
+                    && options->before_screenshot_func && state && state->ipc
+                    && state->ipc->shmem) {
+                    SENTRY_DEBUG("invoking `before_screenshot` hook");
+                    if (options->before_screenshot_func(
+                            event, options->before_screenshot_data)
+                        == 0) {
+                        SENTRY_DEBUG("screenshot skipped by "
+                                     "`before_screenshot` hook");
+                        state->ipc->shmem->attach_screenshot = false;
+                    }
+                }
 #endif
 
                 // Write event as JSON file

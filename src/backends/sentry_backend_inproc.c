@@ -1198,6 +1198,16 @@ process_ucontext_deferred(const sentry_ucontext_t *uctx,
         }
         TEST_CRASH_POINT("before_capture");
         if (should_handle) {
+            bool capture_screenshot = options->attach_screenshot;
+#ifdef SENTRY_PLATFORM_WINDOWS
+            if (capture_screenshot && options->before_screenshot_func) {
+                SENTRY_DEBUG("invoking `before_screenshot` hook");
+                capture_screenshot = options->before_screenshot_func(
+                                         event, options->before_screenshot_data)
+                    != 0;
+            }
+#endif
+
             sentry_envelope_t *envelope = sentry__prepare_event(options, event,
                 NULL, !options->on_crash_func && !skip_hooks, NULL);
             // TODO(tracing): Revisit when investigating transaction flushing
@@ -1207,7 +1217,7 @@ process_ucontext_deferred(const sentry_ucontext_t *uctx,
                 SENTRY_SESSION_STATUS_CRASHED);
             sentry__envelope_add_session(envelope, session);
 
-            if (options->attach_screenshot) {
+            if (capture_screenshot) {
                 sentry_attachment_t *screenshot = sentry__attachment_from_path(
                     sentry__screenshot_get_path(options));
                 if (screenshot

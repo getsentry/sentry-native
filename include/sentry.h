@@ -1580,12 +1580,46 @@ SENTRY_API void sentry_options_add_view_hierarchy_n(
  * Enables or disables attaching screenshots to fatal error events. Disabled by
  * default.
  *
- * This feature is currently supported by all backends on Windows. Only the
- * `crashpad` backend can capture screenshots of fast-fail crashes that bypass
- * SEH (structured exception handling).
+ * This feature is currently supported by all backends on Windows. The
+ * `crashpad` and `native` backends capture screenshots from an out-of-process
+ * handler. Only the `crashpad` backend can capture screenshots of fast-fail
+ * crashes that bypass SEH (structured exception handling).
+ *
+ * To decide per-event whether a screenshot should be captured, set a
+ * `before_screenshot` callback via `sentry_options_set_before_screenshot`.
  */
 SENTRY_EXPERIMENTAL_API void sentry_options_set_attach_screenshot(
     sentry_options_t *opts, int val);
+
+/**
+ * Type of the `before_screenshot` callback.
+ *
+ * The callback is invoked before a screenshot is captured for an event. It
+ * receives the event (without ownership) and should return non-zero to capture
+ * the screenshot, or zero to skip it. The `attach_screenshot` option must be
+ * enabled for screenshots to be considered at all.
+ *
+ * Capturing screenshots is only supported on Windows, so the callback is
+ * only invoked there. The callback is not supported by the `crashpad`
+ * backend, which captures screenshots from its out-of-process handler.
+ *
+ * The callback may be called from inside an `UnhandledExceptionFilter`, see
+ * the documentation on SEH (structured exception handling) for more
+ * information
+ * https://docs.microsoft.com/en-us/windows/win32/debug/structured-exception-handling
+ */
+typedef int (*sentry_before_screenshot_function_t)(
+    sentry_value_t event, void *user_data);
+
+/**
+ * Sets the `before_screenshot` callback.
+ *
+ * See the `sentry_before_screenshot_function_t` typedef above for more
+ * information.
+ */
+SENTRY_EXPERIMENTAL_API void sentry_options_set_before_screenshot(
+    sentry_options_t *opts, sentry_before_screenshot_function_t func,
+    void *user_data);
 
 /**
  * Sets the path to the crashpad handler if the crashpad backend is used.
