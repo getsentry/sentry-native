@@ -3390,6 +3390,16 @@ sentry__crash_daemon_start(pid_t app_pid, uint64_t app_tid, HANDLE event_handle,
     // Explicitly inherit only the fds the daemon needs
     posix_spawn_file_actions_t file_actions;
     posix_spawn_file_actions_init(&file_actions);
+    // Open /dev/null on stdin/stdout/stderr so the daemon starts with valid
+    // standard fds. Without this, POSIX_SPAWN_CLOEXEC_DEFAULT closes them,
+    // and the first fopen() in the daemon would get fd 0, which the daemon's
+    // own close(STDIN_FILENO) would then destroy.
+    posix_spawn_file_actions_addopen(
+        &file_actions, STDIN_FILENO, "/dev/null", O_RDONLY, 0);
+    posix_spawn_file_actions_addopen(
+        &file_actions, STDOUT_FILENO, "/dev/null", O_WRONLY, 0);
+    posix_spawn_file_actions_addopen(
+        &file_actions, STDERR_FILENO, "/dev/null", O_WRONLY, 0);
     posix_spawn_file_actions_addinherit_np(&file_actions, notify_pipe_read);
     posix_spawn_file_actions_addinherit_np(&file_actions, ready_pipe_write);
     posix_spawn_file_actions_addinherit_np(&file_actions, shm_fd);
