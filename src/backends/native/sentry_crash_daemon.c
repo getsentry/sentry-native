@@ -42,7 +42,9 @@
 #    include <sys/wait.h>
 #    include <unistd.h>
 #    if defined(SENTRY_PLATFORM_MACOS)
+#        include <crt_externs.h>
 #        include <mach-o/dyld.h>
+#        include <spawn.h>
 #    endif
 #elif defined(SENTRY_PLATFORM_WINDOWS)
 #    include <dbghelp.h>
@@ -3341,8 +3343,6 @@ sentry__crash_daemon_start(pid_t app_pid, uint64_t app_tid, HANDLE event_handle,
     // compatibility. posix_spawn is Apple's recommended API and works correctly
     // in sandboxed processes, unlike fork() which can have issues with sandbox
     // inheritance.
-#    include <crt_externs.h>
-#    include <spawn.h>
 
     // Resolve daemon path
     char daemon_path[SENTRY_CRASH_MAX_PATH];
