@@ -202,6 +202,20 @@ http_send_request(http_transport_state_t *state,
     return resp->status_code;
 }
 
+static bool
+http_handle_error(int status_code)
+{
+    switch (status_code) {
+    case 413:
+        SENTRY_ERROR("Envelope was discarded due to size limits (HTTP 413 "
+                     "Content Too Large).");
+        break;
+    default:
+        break;
+    }
+    return status_code >= 400 && status_code != 429;
+}
+
 static void
 http_update_ratelimiter(
     http_transport_state_t *state, sentry_http_response_t *resp)
@@ -252,8 +266,7 @@ retry_send_cb(sentry_envelope_t *envelope, void *_state)
         }
     }
     int status_code = http_send_envelope(envelope, state);
-    if (state->send_client_reports && status_code >= 400
-        && status_code != 429) {
+    if (http_handle_error(status_code) && state->send_client_reports) {
         sentry__client_report_restore(&report);
         size_t buf_len = 0;
         char *buf = sentry_envelope_serialize(envelope, &buf_len);
@@ -322,7 +335,7 @@ http_send_task(void *_envelope, void *_state)
                 SENTRY_DISCARD_REASON_NETWORK_ERROR, state->ratelimiter);
         }
     } else {
-        if (status_code >= 400 && status_code != 429) {
+        if (http_handle_error(status_code)) {
             sentry__client_report_restore(&report);
             sentry__envelope_discard(
                 envelope, SENTRY_DISCARD_REASON_SEND_ERROR, state->ratelimiter);

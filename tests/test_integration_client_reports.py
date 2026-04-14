@@ -1,4 +1,6 @@
 import os
+import subprocess
+
 import pytest
 
 from . import make_dsn, run, Envelope
@@ -320,6 +322,35 @@ def test_client_report_send_error(cmake, httpserver):
         envelope,
         [{"reason": "send_error", "category": "error", "quantity": 1}],
     )
+
+
+def test_client_report_content_too_large(cmake, httpserver):
+    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "none"})
+
+    httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data(
+        "Content Too Large", status=413
+    )
+    httpserver.expect_request("/api/123456/envelope/").respond_with_data("OK")
+    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
+
+    result = run(
+        tmp_path,
+        "sentry_example",
+        ["log", "start-session", "capture-event"],
+        env=env,
+        stderr=subprocess.PIPE,
+    )
+
+    assert len(httpserver.log) == 2
+    envelope = Envelope.deserialize(httpserver.log[1][0].get_data())
+
+    assert_session(envelope)
+    assert_client_report(
+        envelope,
+        [{"reason": "send_error", "category": "error", "quantity": 1}],
+    )
+
+    assert b"HTTP 413 Content Too Large" in result.stderr
 
 
 @pytest.mark.skipif(not has_files, reason="test needs a local filesystem")
