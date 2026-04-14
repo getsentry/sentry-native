@@ -3390,19 +3390,24 @@ sentry__crash_daemon_start(pid_t app_pid, uint64_t app_tid, HANDLE event_handle,
     // Explicitly inherit only the fds the daemon needs
     posix_spawn_file_actions_t file_actions;
     posix_spawn_file_actions_init(&file_actions);
+    posix_spawn_file_actions_addinherit_np(&file_actions, notify_pipe_read);
+    posix_spawn_file_actions_addinherit_np(&file_actions, ready_pipe_write);
+    posix_spawn_file_actions_addinherit_np(&file_actions, shm_fd);
     // Open /dev/null on stdin/stdout/stderr so the daemon starts with valid
     // standard fds. Without this, POSIX_SPAWN_CLOEXEC_DEFAULT closes them,
     // and the first fopen() in the daemon would get fd 0, which the daemon's
     // own close(STDIN_FILENO) would then destroy.
-    posix_spawn_file_actions_addopen(
-        &file_actions, STDIN_FILENO, "/dev/null", O_RDONLY, 0);
-    posix_spawn_file_actions_addopen(
-        &file_actions, STDOUT_FILENO, "/dev/null", O_WRONLY, 0);
-    posix_spawn_file_actions_addopen(
-        &file_actions, STDERR_FILENO, "/dev/null", O_WRONLY, 0);
-    posix_spawn_file_actions_addinherit_np(&file_actions, notify_pipe_read);
-    posix_spawn_file_actions_addinherit_np(&file_actions, ready_pipe_write);
-    posix_spawn_file_actions_addinherit_np(&file_actions, shm_fd);
+    // Skip if an IPC fd occupies that slot (e.g. caller closed stdin before
+    // sentry_init), to avoid clobbering it with /dev/null.
+    int std_fds[3] = { STDIN_FILENO, STDOUT_FILENO, STDERR_FILENO };
+    int std_modes[3] = { O_RDONLY, O_WRONLY, O_WRONLY };
+    for (int i = 0; i < 3; i++) {
+        if (std_fds[i] != notify_pipe_read && std_fds[i] != ready_pipe_write
+            && std_fds[i] != shm_fd) {
+            posix_spawn_file_actions_addopen(
+                &file_actions, std_fds[i], "/dev/null", std_modes[i], 0);
+        }
+    }
 
     pid_t daemon_pid;
     int spawn_result = posix_spawn(&daemon_pid, daemon_path, &file_actions,
