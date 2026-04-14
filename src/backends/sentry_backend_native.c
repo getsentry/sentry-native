@@ -340,9 +340,9 @@ native_backend_startup(
         state->ipc->notify_fd, state->ipc->ready_fd, daemon_handler_path);
 #    elif defined(SENTRY_PLATFORM_MACOS)
     uint64_t tid = (uint64_t)pthread_self();
-    state->daemon_pid = sentry__crash_daemon_start(getpid(), tid,
-        state->ipc->notify_pipe[0], state->ipc->ready_pipe[1],
-        state->ipc->shm_fd, daemon_handler_path);
+    state->daemon_pid
+        = sentry__crash_daemon_start(getpid(), tid, state->ipc->notify_pipe[0],
+            state->ipc->ready_pipe[1], state->ipc->shm_fd, daemon_handler_path);
 #    elif defined(SENTRY_PLATFORM_WINDOWS)
     uint64_t tid = (uint64_t)GetCurrentThreadId();
     state->daemon_pid = sentry__crash_daemon_start(GetCurrentProcessId(), tid,

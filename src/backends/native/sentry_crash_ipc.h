@@ -9,9 +9,9 @@
 #    include <sys/eventfd.h>
 #    include <sys/mman.h>
 #elif defined(SENTRY_PLATFORM_MACOS)
+#    include "sentry_sync.h"
 #    include <mach/mach.h>
 #    include <sys/mman.h>
-#    include "sentry_sync.h"
 #elif defined(SENTRY_PLATFORM_WINDOWS)
 #    include <windows.h>
 #endif
@@ -40,7 +40,8 @@ typedef struct {
     int notify_pipe[2]; // Pipe for crash notifications (fork-safe)
     int ready_pipe[2]; // Pipe for daemon ready signal (fork-safe)
     char shm_path[SENTRY_CRASH_MAX_PATH]; // File-backed shm path (sandbox-safe)
-    sentry_mutex_t *init_mutex; // Process-wide mutex (sandbox-safe, no sem_open)
+    sentry_mutex_t
+        *init_mutex; // Process-wide mutex (sandbox-safe, no sem_open)
 #elif defined(SENTRY_PLATFORM_WINDOWS)
     HANDLE shm_handle;
     HANDLE event_handle; // Event for crash notifications (parent -> daemon)

@@ -3061,8 +3061,8 @@ sentry__crash_daemon_main(
     pid_t app_pid, uint64_t app_tid, int notify_eventfd, int ready_eventfd)
 #elif defined(SENTRY_PLATFORM_MACOS)
 int
-sentry__crash_daemon_main(pid_t app_pid, uint64_t app_tid,
-    int notify_pipe_read, int ready_pipe_write, int shm_fd)
+sentry__crash_daemon_main(pid_t app_pid, uint64_t app_tid, int notify_pipe_read,
+    int ready_pipe_write, int shm_fd)
 #elif defined(SENTRY_PLATFORM_WINDOWS)
 int
 sentry__crash_daemon_main(pid_t app_pid, uint64_t app_tid, HANDLE event_handle,
@@ -3337,11 +3337,12 @@ sentry__crash_daemon_start(pid_t app_pid, uint64_t app_tid, HANDLE event_handle,
 #endif
 {
 #if defined(SENTRY_PLATFORM_MACOS)
-    // macOS: Use posix_spawn instead of fork+exec for App Sandbox compatibility.
-    // posix_spawn is Apple's recommended API and works correctly in sandboxed
-    // processes, unlike fork() which can have issues with sandbox inheritance.
-#    include <spawn.h>
+    // macOS: Use posix_spawn instead of fork+exec for App Sandbox
+    // compatibility. posix_spawn is Apple's recommended API and works correctly
+    // in sandboxed processes, unlike fork() which can have issues with sandbox
+    // inheritance.
 #    include <crt_externs.h>
+#    include <spawn.h>
 
     // Resolve daemon path
     char daemon_path[SENTRY_CRASH_MAX_PATH];
@@ -3394,9 +3395,8 @@ sentry__crash_daemon_start(pid_t app_pid, uint64_t app_tid, HANDLE event_handle,
     posix_spawn_file_actions_addinherit_np(&file_actions, shm_fd);
 
     pid_t daemon_pid;
-    int spawn_result = posix_spawn(
-        &daemon_pid, daemon_path, &file_actions, &attr, spawn_argv,
-        *_NSGetEnviron());
+    int spawn_result = posix_spawn(&daemon_pid, daemon_path, &file_actions,
+        &attr, spawn_argv, *_NSGetEnviron());
 
     posix_spawn_file_actions_destroy(&file_actions);
     posix_spawnattr_destroy(&attr);

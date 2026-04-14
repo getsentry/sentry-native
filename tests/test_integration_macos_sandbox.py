@@ -193,9 +193,7 @@ def test_sandbox_crash_capture(cmake, httpserver):
     app_dir, exe, daemon, ent = _create_sandbox_app_bundle(tmp_path)
     _codesign_bundle(app_dir, ent)
 
-    httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data(
-        "OK"
-    )
+    httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data("OK")
 
     with httpserver.wait(timeout=15) as waiting:
         _run_sandboxed(
@@ -218,9 +216,7 @@ def test_sandbox_minidump_generated(cmake, httpserver):
     app_dir, exe, daemon, ent = _create_sandbox_app_bundle(tmp_path)
     _codesign_bundle(app_dir, ent)
 
-    httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data(
-        "OK"
-    )
+    httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data("OK")
 
     with httpserver.wait(timeout=15) as waiting:
         _run_sandboxed(
@@ -251,9 +247,7 @@ def test_sandbox_minidump_generated(cmake, httpserver):
             and item.headers.get("attachment_type") == "event.minidump"
         ):
             signature = struct.unpack("<I", item.payload.bytes[:4])[0]
-            assert (
-                signature == 0x504D444D
-            ), "Minidump should have MDMP signature"
+            assert signature == 0x504D444D, "Minidump should have MDMP signature"
             break
 
 
@@ -267,9 +261,7 @@ def test_sandbox_native_stacktrace(cmake, httpserver):
     app_dir, exe, daemon, ent = _create_sandbox_app_bundle(tmp_path)
     _codesign_bundle(app_dir, ent)
 
-    httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data(
-        "OK"
-    )
+    httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data("OK")
 
     with httpserver.wait(timeout=15) as waiting:
         _run_sandboxed(

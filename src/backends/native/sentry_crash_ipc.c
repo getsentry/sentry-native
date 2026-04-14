@@ -367,8 +367,8 @@ sentry__crash_ipc_init_app(sentry_mutex_t *init_mutex)
         }
         if (st.st_size != SENTRY_CRASH_SHM_SIZE) {
             if (ftruncate(ipc->shm_fd, SENTRY_CRASH_SHM_SIZE) < 0) {
-                SENTRY_WARNF("failed to resize shared memory file: %s",
-                    strerror(errno));
+                SENTRY_WARNF(
+                    "failed to resize shared memory file: %s", strerror(errno));
                 close(ipc->shm_fd);
                 if (ipc->init_mutex) {
                     sentry__mutex_unlock(ipc->init_mutex);
@@ -498,9 +498,8 @@ sentry__crash_ipc_init_daemon(pid_t app_pid, uint64_t app_tid,
     ipc->ready_pipe[0] = -1;
     ipc->ready_pipe[1] = ready_pipe_write;
 
-    SENTRY_DEBUGF(
-        "daemon: attached to crash IPC (shm_fd=%d, notify_pipe=%d, "
-        "ready_pipe=%d)",
+    SENTRY_DEBUGF("daemon: attached to crash IPC (shm_fd=%d, notify_pipe=%d, "
+                  "ready_pipe=%d)",
         shm_fd, notify_pipe_read, ready_pipe_write);
 
     return ipc;
