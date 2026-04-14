@@ -29,7 +29,8 @@ pid_t sentry__crash_daemon_start(pid_t app_pid, uint64_t app_tid,
     int notify_eventfd, int ready_eventfd, const char *handler_path);
 #elif defined(SENTRY_PLATFORM_MACOS)
 pid_t sentry__crash_daemon_start(pid_t app_pid, uint64_t app_tid,
-    int notify_pipe_read, int ready_pipe_write, const char *handler_path);
+    int notify_pipe_read, int ready_pipe_write, int shm_fd,
+    const char *handler_path);
 #elif defined(SENTRY_PLATFORM_WINDOWS)
 pid_t sentry__crash_daemon_start(pid_t app_pid, uint64_t app_tid,
     HANDLE event_handle, HANDLE ready_event_handle, const char *handler_path);
@@ -48,7 +49,7 @@ int sentry__crash_daemon_main(
     pid_t app_pid, uint64_t app_tid, int notify_eventfd, int ready_eventfd);
 #elif defined(SENTRY_PLATFORM_MACOS)
 int sentry__crash_daemon_main(pid_t app_pid, uint64_t app_tid,
-    int notify_pipe_read, int ready_pipe_write);
+    int notify_pipe_read, int ready_pipe_write, int shm_fd);
 #elif defined(SENTRY_PLATFORM_WINDOWS)
 int sentry__crash_daemon_main(pid_t app_pid, uint64_t app_tid,
     HANDLE event_handle, HANDLE ready_event_handle);

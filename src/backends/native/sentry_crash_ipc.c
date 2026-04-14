@@ -303,50 +303,50 @@ sentry__crash_ipc_free(sentry_crash_ipc_t *ipc)
 #    include <errno.h>
 #    include <fcntl.h>
 #    include <pthread.h>
+#    include <stdlib.h>
 #    include <sys/file.h>
 #    include <sys/stat.h>
 #    include <unistd.h>
 
 sentry_crash_ipc_t *
-sentry__crash_ipc_init_app(sem_t *init_sem)
+sentry__crash_ipc_init_app(sentry_mutex_t *init_mutex)
 {
     sentry_crash_ipc_t *ipc = SENTRY_MAKE(sentry_crash_ipc_t);
     if (!ipc) {
         return NULL;
     }
     ipc->is_daemon = false;
-    ipc->init_sem = init_sem; // Use provided semaphore (managed by backend)
+    ipc->init_mutex = init_mutex;
 
-    // Create shared memory with unique name based on PID and thread ID
-    // macOS has a 31-character limit for POSIX shared memory names (PSEMNAMLEN)
-    // Format: /s-{8_hex_chars} = 11 chars total (well under 31 limit)
-    // We mix PID and TID to create a unique 32-bit identifier, allowing
-    // multiple sentry_init() calls from different threads in the same process.
+    // Build a file path for shared memory using the system temp directory.
+    // Unlike shm_open(), regular files in $TMPDIR work inside App Sandbox.
+    // $TMPDIR is per-app in sandbox (e.g. .../Containers/.../T/).
     uint64_t tid = (uint64_t)pthread_self();
     uint32_t id = (uint32_t)((getpid() ^ (tid & 0xFFFFFFFF)) & 0xFFFFFFFF);
-    snprintf(ipc->shm_name, sizeof(ipc->shm_name), "/s-%08x", id);
+    const char *tmpdir = getenv("TMPDIR");
+    if (!tmpdir) {
+        tmpdir = "/tmp";
+    }
+    snprintf(ipc->shm_path, sizeof(ipc->shm_path), "%s/.sentry-shm-%08x",
+        tmpdir, id);
 
-    // Acquire semaphore for exclusive access during initialization
-    if (ipc->init_sem && sem_wait(ipc->init_sem) < 0) {
-        SENTRY_WARNF(
-            "failed to acquire initialization semaphore: %s", strerror(errno));
-        sentry_free(ipc);
-        return NULL;
+    // Acquire mutex for exclusive access during initialization
+    if (ipc->init_mutex) {
+        sentry__mutex_lock(ipc->init_mutex);
     }
 
-    // Try to create or open shared memory
+    // Use file-backed shared memory (sandbox-safe, no shm_open)
     bool shm_exists = false;
-    ipc->shm_fd = shm_open(ipc->shm_name, O_CREAT | O_RDWR | O_EXCL, 0600);
+    ipc->shm_fd = open(ipc->shm_path, O_CREAT | O_RDWR | O_EXCL, 0600);
     if (ipc->shm_fd < 0 && errno == EEXIST) {
-        // Shared memory already exists - reuse it
         shm_exists = true;
-        ipc->shm_fd = shm_open(ipc->shm_name, O_RDWR, 0600);
+        ipc->shm_fd = open(ipc->shm_path, O_RDWR, 0600);
     }
 
     if (ipc->shm_fd < 0) {
-        SENTRY_WARNF("failed to open shared memory: %s", strerror(errno));
-        if (ipc->init_sem) {
-            sem_post(ipc->init_sem);
+        SENTRY_WARNF("failed to open shared memory file: %s", strerror(errno));
+        if (ipc->init_mutex) {
+            sentry__mutex_unlock(ipc->init_mutex);
         }
         sentry_free(ipc);
         return NULL;
@@ -354,38 +354,37 @@ sentry__crash_ipc_init_app(sem_t *init_sem)
 
     // Verify and resize shared memory (both new and existing)
     if (shm_exists) {
-        // Check if existing shared memory has correct size
         struct stat st;
         if (fstat(ipc->shm_fd, &st) < 0) {
-            SENTRY_WARNF("failed to stat shared memory: %s", strerror(errno));
+            SENTRY_WARNF(
+                "failed to stat shared memory file: %s", strerror(errno));
             close(ipc->shm_fd);
-            if (ipc->init_sem) {
-                sem_post(ipc->init_sem);
+            if (ipc->init_mutex) {
+                sentry__mutex_unlock(ipc->init_mutex);
             }
             sentry_free(ipc);
             return NULL;
         }
         if (st.st_size != SENTRY_CRASH_SHM_SIZE) {
-            // Existing shm has wrong size, resize it
             if (ftruncate(ipc->shm_fd, SENTRY_CRASH_SHM_SIZE) < 0) {
-                SENTRY_WARNF("failed to resize existing shared memory: %s",
+                SENTRY_WARNF("failed to resize shared memory file: %s",
                     strerror(errno));
                 close(ipc->shm_fd);
-                if (ipc->init_sem) {
-                    sem_post(ipc->init_sem);
+                if (ipc->init_mutex) {
+                    sentry__mutex_unlock(ipc->init_mutex);
                 }
                 sentry_free(ipc);
                 return NULL;
             }
         }
     } else {
-        // New shared memory, set size
         if (ftruncate(ipc->shm_fd, SENTRY_CRASH_SHM_SIZE) < 0) {
-            SENTRY_WARNF("failed to resize shared memory: %s", strerror(errno));
+            SENTRY_WARNF(
+                "failed to resize shared memory file: %s", strerror(errno));
             close(ipc->shm_fd);
-            shm_unlink(ipc->shm_name);
-            if (ipc->init_sem) {
-                sem_post(ipc->init_sem);
+            unlink(ipc->shm_path);
+            if (ipc->init_mutex) {
+                sentry__mutex_unlock(ipc->init_mutex);
             }
             sentry_free(ipc);
             return NULL;
@@ -398,25 +397,25 @@ sentry__crash_ipc_init_app(sem_t *init_sem)
         SENTRY_WARNF("failed to map shared memory: %s", strerror(errno));
         close(ipc->shm_fd);
         if (!shm_exists) {
-            shm_unlink(ipc->shm_name);
+            unlink(ipc->shm_path);
         }
-        if (ipc->init_sem) {
-            sem_post(ipc->init_sem);
+        if (ipc->init_mutex) {
+            sentry__mutex_unlock(ipc->init_mutex);
         }
         sentry_free(ipc);
         return NULL;
     }
 
-    // Create pipe for crash notifications (works across fork)
+    // Create pipe for crash notifications (works across fork/posix_spawn)
     if (pipe(ipc->notify_pipe) < 0) {
         SENTRY_WARNF("failed to create notification pipe: %s", strerror(errno));
         munmap(ipc->shmem, SENTRY_CRASH_SHM_SIZE);
         close(ipc->shm_fd);
         if (!shm_exists) {
-            shm_unlink(ipc->shm_name);
+            unlink(ipc->shm_path);
         }
-        if (ipc->init_sem) {
-            sem_post(ipc->init_sem);
+        if (ipc->init_mutex) {
+            sentry__mutex_unlock(ipc->init_mutex);
         }
         sentry_free(ipc);
         return NULL;
@@ -425,7 +424,7 @@ sentry__crash_ipc_init_app(sem_t *init_sem)
     // Make write end non-blocking for signal-safe writes
     fcntl(ipc->notify_pipe[1], F_SETFL, O_NONBLOCK);
 
-    // Create pipe for daemon ready signal (works across fork)
+    // Create pipe for daemon ready signal
     if (pipe(ipc->ready_pipe) < 0) {
         SENTRY_WARNF("failed to create ready pipe: %s", strerror(errno));
         close(ipc->notify_pipe[0]);
@@ -433,17 +432,15 @@ sentry__crash_ipc_init_app(sem_t *init_sem)
         munmap(ipc->shmem, SENTRY_CRASH_SHM_SIZE);
         close(ipc->shm_fd);
         if (!shm_exists) {
-            shm_unlink(ipc->shm_name);
+            unlink(ipc->shm_path);
         }
-        if (ipc->init_sem) {
-            sem_post(ipc->init_sem);
+        if (ipc->init_mutex) {
+            sentry__mutex_unlock(ipc->init_mutex);
         }
         sentry_free(ipc);
         return NULL;
     }
 
-    // Zero out shared memory only when first created to ensure clean state
-    // Don't zero existing memory to avoid corrupting state set by other threads
     if (!shm_exists) {
         memset(ipc->shmem, 0, SENTRY_CRASH_SHM_SIZE);
         ipc->shmem->magic = SENTRY_CRASH_MAGIC;
@@ -452,40 +449,31 @@ sentry__crash_ipc_init_app(sem_t *init_sem)
         sentry__atomic_store(&ipc->shmem->sequence, 0);
     }
 
-    // Release semaphore after initialization
-    if (ipc->init_sem) {
-        sem_post(ipc->init_sem);
+    if (ipc->init_mutex) {
+        sentry__mutex_unlock(ipc->init_mutex);
     }
 
-    SENTRY_DEBUGF("initialized crash IPC (shm=%s, pipe=%d/%d)", ipc->shm_name,
+    SENTRY_DEBUGF("initialized crash IPC (shm=%s, pipe=%d/%d)", ipc->shm_path,
         ipc->notify_pipe[0], ipc->notify_pipe[1]);
 
     return ipc;
 }
 
 sentry_crash_ipc_t *
-sentry__crash_ipc_init_daemon(
-    pid_t app_pid, uint64_t app_tid, int notify_pipe_read, int ready_pipe_write)
+sentry__crash_ipc_init_daemon(pid_t app_pid, uint64_t app_tid,
+    int notify_pipe_read, int ready_pipe_write, int shm_fd)
 {
+    (void)app_pid;
+    (void)app_tid;
+
     sentry_crash_ipc_t *ipc = SENTRY_MAKE(sentry_crash_ipc_t);
     if (!ipc) {
         return NULL;
     }
     ipc->is_daemon = true;
 
-    // Open existing shared memory created by app (using PID and thread ID)
-    // Must match the format in sentry__crash_ipc_init_app
-    uint32_t id = (uint32_t)((app_pid ^ (app_tid & 0xFFFFFFFF)) & 0xFFFFFFFF);
-    snprintf(ipc->shm_name, sizeof(ipc->shm_name), "/s-%08x", id);
-
-    ipc->shm_fd = shm_open(ipc->shm_name, O_RDWR, 0600);
-    if (ipc->shm_fd < 0) {
-        SENTRY_WARNF(
-            "daemon: failed to open shared memory: %s", strerror(errno));
-        sentry_free(ipc);
-        return NULL;
-    }
-
+    // Use the inherited shm_fd directly (no shm_open needed, sandbox-safe)
+    ipc->shm_fd = shm_fd;
     ipc->shmem = mmap(NULL, SENTRY_CRASH_SHM_SIZE, PROT_READ | PROT_WRITE,
         MAP_SHARED, ipc->shm_fd, 0);
     if (ipc->shmem == MAP_FAILED) {
@@ -504,15 +492,16 @@ sentry__crash_ipc_init_daemon(
         return NULL;
     }
 
-    // Pipes are inherited from parent after fork - assign the fds
+    // Pipes and shm_fd are inherited from parent via posix_spawn
     ipc->notify_pipe[0] = notify_pipe_read;
-    ipc->notify_pipe[1] = -1; // Daemon doesn't write to notify pipe
-    ipc->ready_pipe[0] = -1; // Daemon doesn't read from ready pipe
+    ipc->notify_pipe[1] = -1;
+    ipc->ready_pipe[0] = -1;
     ipc->ready_pipe[1] = ready_pipe_write;
 
     SENTRY_DEBUGF(
-        "daemon: attached to crash IPC (shm=%s, notify_pipe=%d, ready_pipe=%d)",
-        ipc->shm_name, notify_pipe_read, ready_pipe_write);
+        "daemon: attached to crash IPC (shm_fd=%d, notify_pipe=%d, "
+        "ready_pipe=%d)",
+        shm_fd, notify_pipe_read, ready_pipe_write);
 
     return ipc;
 }
@@ -588,8 +577,8 @@ sentry__crash_ipc_free(sentry_crash_ipc_t *ipc)
         close(ipc->ready_pipe[1]);
     }
 
-    if (!ipc->is_daemon && ipc->shm_name[0]) {
-        shm_unlink(ipc->shm_name);
+    if (!ipc->is_daemon && ipc->shm_path[0]) {
+        unlink(ipc->shm_path);
     }
 
     sentry_free(ipc);
