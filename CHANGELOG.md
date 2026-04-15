@@ -5,6 +5,7 @@
 **Features**:
 
 - Add `before_screenshot` hook. ([#1641](https://github.com/getsentry/sentry-native/pull/1641))
+- Add error log for oversized envelopes (HTTP 413 Content Too Large). ([#1647](https://github.com/getsentry/sentry-native/pull/1647))
 
 **Fixes**:
 
