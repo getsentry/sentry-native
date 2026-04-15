@@ -224,9 +224,7 @@ sentry__batcher_flush(sentry_batcher_t *batcher, bool crash_safe)
                 // crash
                 sentry__run_write_envelope(batcher->run, envelope);
                 sentry_envelope_free(envelope);
-            } else if (!batcher->user_consent
-                || sentry__atomic_fetch(batcher->user_consent)
-                    == SENTRY_USER_CONSENT_GIVEN) {
+            } else if (!sentry__run_should_skip_upload(batcher->run)) {
                 // Normal operation: use transport for HTTP transmission
                 sentry__transport_send_envelope(batcher->transport, envelope);
             } else {
@@ -374,12 +372,10 @@ sentry__batcher_startup(
 {
     // dsn is incref'd because release() decref's it and may outlive options.
     batcher->dsn = sentry__dsn_incref(options->dsn);
-    // transport, run, and user_consent are non-owning refs, safe because they
+    // transport and run are non-owning refs, safe because they
     // are only accessed in flush() which is bound by the options lifetime.
     batcher->transport = options->transport;
     batcher->run = options->run;
-    batcher->user_consent
-        = options->require_user_consent ? (long *)&options->user_consent : NULL;
 
     // Mark thread as starting before actually spawning so thread can transition
     // to RUNNING. This prevents shutdown from thinking the thread was never

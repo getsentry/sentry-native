@@ -34,6 +34,10 @@
 /**
  * This function will check the user consent, and return `true` if uploads
  * should *not* be sent to the sentry server, and be discarded instead.
+ *
+ * Note: This function acquires the options lock internally. Use
+ * `sentry__run_should_skip_upload` from worker threads that may run while
+ * the options are locked during SDK shutdown.
  */
 bool sentry__should_skip_upload(void);
 

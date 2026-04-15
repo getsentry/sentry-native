@@ -14,7 +14,24 @@ typedef struct sentry_run_s {
     sentry_path_t *cache_path;
     sentry_filelock_t *lock;
     long refcount;
+    long require_user_consent; // (atomic) bool
+    long user_consent; // (atomic) sentry_user_consent_t
 } sentry_run_t;
+
+/**
+ * This function will check the user consent, and return `true` if uploads
+ * should *not* be sent to the sentry server, and be discarded instead.
+ *
+ * This is a lock-free variant of `sentry__should_skip_upload`, safe to call
+ * from worker threads while the options are locked during SDK shutdown.
+ */
+bool sentry__run_should_skip_upload(sentry_run_t *run);
+
+/**
+ * Loads the persisted user consent (`<database>/user-consent`) into the run.
+ */
+void sentry__run_load_user_consent(
+    sentry_run_t *run, const sentry_path_t *database_path);
 
 /**
  * This creates a new application run including its associated directory and

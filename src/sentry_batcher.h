@@ -49,7 +49,6 @@ typedef struct {
     sentry_dsn_t *dsn;
     sentry_transport_t *transport;
     sentry_run_t *run;
-    long *user_consent; // (atomic) NULL if consent not required
 } sentry_batcher_t;
 
 typedef struct {
