@@ -54,6 +54,7 @@ extern "C" {
 #    pragma clang diagnostic ignored                                           \
         "-Winconsistent-missing-destructor-override"
 #endif
+#include "base/logging.h"
 #include "client/crash_report_database.h"
 #include "client/crashpad_client.h"
 #include "client/crashpad_info.h"
@@ -694,6 +695,38 @@ crashpad_backend_startup(
     }
 
     std::vector<std::string> arguments { "--no-rate-limit" };
+
+    // Map sentry's log level to mini_chromium's LogSeverity. They diverge at
+    // FATAL (sentry=3, mini_chromium=4); otherwise 1:1.
+    int level = static_cast<int>(options->logger.logger_level);
+    switch (options->logger.logger_level) {
+    case SENTRY_LEVEL_TRACE:
+    case SENTRY_LEVEL_DEBUG:
+        level = -1; // LOG_VERBOSE
+        break;
+    case SENTRY_LEVEL_INFO:
+    case SENTRY_LEVEL_WARNING:
+    case SENTRY_LEVEL_ERROR:
+        // LOG_INFO/WARNING/ERROR (0/1/2) match 1:1
+        break;
+    case SENTRY_LEVEL_FATAL:
+        level = 4; // LOG_FATAL
+        break;
+    }
+
+    sentry_path_t *log_path
+        = sentry__path_join_str(current_run_folder, "crashpad-handler.log");
+    if (log_path) {
+        arguments.push_back(std::string("--log-file=") + log_path->path);
+        sentry__path_free(log_path);
+    }
+    if (options->debug) {
+        logging::LoggingSettings settings;
+        settings.logging_dest = logging::LOG_TO_STDERR;
+        settings.min_log_level = level;
+        logging::InitLogging(settings);
+        arguments.push_back("--log-level=" + std::to_string(level));
+    }
 
     char report_id[37];
     sentry_uuid_as_string(&data->crash_event_id, report_id);
