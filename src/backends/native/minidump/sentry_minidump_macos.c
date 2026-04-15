@@ -248,17 +248,26 @@ write_cv_record(
     // Windows GUID layout where the first 3 fields (Data1=uint32, Data2=uint16,
     // Data3=uint16) are little-endian. When minidump readers (symbolicator,
     // breakpad) parse the GUID struct, they byte-swap these fields back.
-    // We must pre-swap here so the round-trip produces the original Mach-O UUID.
+    // We must pre-swap here so the round-trip produces the original Mach-O
+    // UUID.
     memcpy(cv_record->signature, uuid, 16);
     // Swap Data1 (bytes 0-3)
     uint8_t *s = cv_record->signature;
     uint8_t tmp;
-    tmp = s[0]; s[0] = s[3]; s[3] = tmp;
-    tmp = s[1]; s[1] = s[2]; s[2] = tmp;
+    tmp = s[0];
+    s[0] = s[3];
+    s[3] = tmp;
+    tmp = s[1];
+    s[1] = s[2];
+    s[2] = tmp;
     // Swap Data2 (bytes 4-5)
-    tmp = s[4]; s[4] = s[5]; s[5] = tmp;
+    tmp = s[4];
+    s[4] = s[5];
+    s[5] = tmp;
     // Swap Data3 (bytes 6-7)
-    tmp = s[6]; s[6] = s[7]; s[7] = tmp;
+    tmp = s[6];
+    s[6] = s[7];
+    s[7] = tmp;
 
     // Copy module path
     memcpy(cv_record->pdb_file_name, module_path, path_len + 1);

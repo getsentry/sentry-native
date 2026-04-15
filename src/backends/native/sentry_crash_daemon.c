@@ -2092,7 +2092,8 @@ build_native_crash_event(
             sentry_value_set_by_key(
                 image, "image_addr", sentry_value_new_string(addr_buf));
 
-            // Use double for image_size to handle modules > 2GB (e.g. shared cache)
+            // Use double for image_size to handle modules > 2GB (e.g. shared
+            // cache)
             sentry_value_set_by_key(image, "image_size",
                 sentry_value_new_double((double)mod->size));
 

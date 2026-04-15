@@ -12,6 +12,7 @@
 - macOS: cache VM regions for FP validation in the new unwinder. ([#1634](https://github.com/getsentry/sentry-native/pull/1634))
 - Linux: remove dependency on `stdio` in the unwinder pointer validation code to reduce exposure to async-signal-unsafe functions. ([#1637](https://github.com/getsentry/sentry-native/pull/1637))
 - macOS: replace sandbox-incompatible IPC primitives (`sem_open`, `shm_open`, `fork`) with sandbox-safe alternatives (`pthread_mutex`, file-backed `mmap`, `posix_spawn`) so the native backend works inside App Sandbox. ([#1644](https://github.com/getsentry/sentry-native/pull/1644))
+- macOS: fix minidump UUID byte order (swap GUID fields to match RSDS format) and use `double` for image sizes to support modules larger than 2 GB. ([#1651](https://github.com/getsentry/sentry-native/pull/1651))
 
 ## 0.13.6
 
