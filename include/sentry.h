@@ -1476,6 +1476,11 @@ SENTRY_API int sentry_options_get_auto_session_tracking(
  * This disables uploads until the user has given the consent to the SDK.
  * Consent itself is given with `sentry_user_consent_give` and
  * `sentry_user_consent_revoke`.
+ *
+ * When combined with `cache_keep` or `http_retry`, envelopes captured
+ * while consent is revoked are written to the cache directory instead
+ * of being discarded. With `http_retry` enabled, cached envelopes are
+ * sent automatically once consent is given.
  */
 SENTRY_API void sentry_options_set_require_user_consent(
     sentry_options_t *opts, int val);
@@ -1510,6 +1515,10 @@ SENTRY_API int sentry_options_get_symbolize_stacktraces(
  * When enabled, envelopes that fail to send are written to a `cache/`
  * subdirectory within the database directory. The cache is cleared on startup
  * based on the cache_max_items, cache_max_size, and cache_max_age options.
+ *
+ * When combined with `sentry_options_set_require_user_consent`, envelopes
+ * captured while consent is revoked are also written to the cache. With
+ * `http_retry` enabled, they are sent once consent is given.
  *
  * Only applicable for HTTP transports.
  *
@@ -1960,6 +1969,9 @@ SENTRY_EXPERIMENTAL_API int sentry_reinstall_backend(void);
 
 /**
  * Gives user consent.
+ *
+ * Schedules a retry of any envelopes cached while consent was revoked,
+ * provided that `http_retry` is enabled.
  */
 SENTRY_API void sentry_user_consent_give(void);
 

@@ -231,7 +231,7 @@ def test_cache_max_items_with_retry(cmake, backend, unreachable_dsn):
         run(
             tmp_path,
             "sentry_example",
-            ["log", "cache-keep", "crash"],
+            ["log", "cache-keep", "flush", "crash"],
             expect_failure=True,
             env=env,
         )
@@ -263,3 +263,78 @@ def test_cache_max_items_with_retry(cmake, backend, unreachable_dsn):
     assert cache_dir.exists()
     cache_files = list(cache_dir.glob("*.envelope"))
     assert len(cache_files) <= 5
+
+
+def test_cache_consent_revoke(cmake, unreachable_dsn):
+    """With consent revoked and cache_keep, envelopes are cached to disk."""
+    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "none"})
+    cache_dir = tmp_path.joinpath(".sentry-native/cache")
+    env = dict(os.environ, SENTRY_DSN=unreachable_dsn)
+
+    run(
+        tmp_path,
+        "sentry_example",
+        [
+            "log",
+            "cache-keep",
+            "require-user-consent",
+            "user-consent-revoke",
+            "capture-event",
+            "flush",
+        ],
+        env=env,
+    )
+
+    assert cache_dir.exists()
+    cache_files = list(cache_dir.glob("*.envelope"))
+    assert len(cache_files) == 1
+
+
+def test_cache_consent_discard(cmake, unreachable_dsn):
+    """With consent revoked but no cache_keep, envelopes are discarded."""
+    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "none"})
+    cache_dir = tmp_path.joinpath(".sentry-native/cache")
+    env = dict(os.environ, SENTRY_DSN=unreachable_dsn)
+
+    run(
+        tmp_path,
+        "sentry_example",
+        [
+            "log",
+            "require-user-consent",
+            "user-consent-revoke",
+            "capture-event",
+            "flush",
+        ],
+        env=env,
+    )
+
+    assert not cache_dir.exists() or len(list(cache_dir.glob("*.envelope"))) == 0
+
+
+def test_cache_consent_flush(cmake, httpserver):
+    """Giving consent after capturing flushes cached envelopes immediately."""
+    from . import make_dsn
+
+    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "none"})
+    cache_dir = tmp_path.joinpath(".sentry-native/cache")
+    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
+
+    httpserver.expect_request("/api/123456/envelope/").respond_with_data("OK")
+
+    run(
+        tmp_path,
+        "sentry_example",
+        [
+            "log",
+            "http-retry",
+            "require-user-consent",
+            "user-consent-revoke",
+            "capture-event",
+            "user-consent-give",
+        ],
+        env=env,
+    )
+
+    assert len(httpserver.log) >= 1
+    assert not cache_dir.exists() or len(list(cache_dir.glob("*.envelope"))) == 0
