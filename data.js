@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1776173301761,
+  "lastUpdate": 1776240679897,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -17056,6 +17056,66 @@ window.BENCHMARK_DATA = {
             "value": 1.7543109999849094,
             "unit": "ms",
             "extra": "Min 1.721ms\nMax 1.772ms\nMean 1.751ms\nStdDev 0.019ms\nMedian 1.754ms\nCPU 0.509ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "jpnurmi@gmail.com",
+            "name": "J-P Nurmi",
+            "username": "jpnurmi"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "7bf4d2c1cff5de19330e547bcd1882e9135b71b8",
+          "message": "feat(transport): add error log for oversized envelopes (HTTP 413) (#1647)",
+          "timestamp": "2026-04-15T10:08:45+02:00",
+          "tree_id": "58459021594b3ec2718854c70ce9a5a051034f47",
+          "url": "https://github.com/getsentry/sentry-native/commit/7bf4d2c1cff5de19330e547bcd1882e9135b71b8"
+        },
+        "date": 1776240677384,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 0.8669169999961923,
+            "unit": "ms",
+            "extra": "Min 0.852ms\nMax 0.875ms\nMean 0.863ms\nStdDev 0.011ms\nMedian 0.867ms\nCPU 0.816ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 0.796115000014197,
+            "unit": "ms",
+            "extra": "Min 0.770ms\nMax 0.824ms\nMean 0.797ms\nStdDev 0.023ms\nMedian 0.796ms\nCPU 0.787ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 2.892202999987603,
+            "unit": "ms",
+            "extra": "Min 2.866ms\nMax 2.996ms\nMean 2.916ms\nStdDev 0.055ms\nMedian 2.892ms\nCPU 1.534ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.12011500001563036,
+            "unit": "ms",
+            "extra": "Min 0.116ms\nMax 0.137ms\nMean 0.123ms\nStdDev 0.008ms\nMedian 0.120ms\nCPU 0.074ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.027461000001949287,
+            "unit": "ms",
+            "extra": "Min 0.027ms\nMax 0.029ms\nMean 0.028ms\nStdDev 0.001ms\nMedian 0.027ms\nCPU 0.027ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 1.7520850000209975,
+            "unit": "ms",
+            "extra": "Min 1.711ms\nMax 1.793ms\nMean 1.752ms\nStdDev 0.030ms\nMedian 1.752ms\nCPU 0.504ms"
           }
         ]
       }
