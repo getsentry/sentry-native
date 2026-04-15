@@ -268,7 +268,7 @@ sentry__capture_session(sentry_session_t *session)
     sentry__envelope_add_session(envelope, session);
 
     SENTRY_WITH_OPTIONS (options) {
-        sentry__capture_envelope(options->transport, envelope);
+        sentry__capture_envelope(options->transport, envelope, options);
     }
 }
 

@@ -482,22 +482,20 @@ sentry_user_consent_is_required(void)
 }
 
 void
-sentry__capture_envelope(
-    sentry_transport_t *transport, sentry_envelope_t *envelope)
+sentry__capture_envelope(sentry_transport_t *transport,
+    sentry_envelope_t *envelope, const sentry_options_t *options)
 {
-    if (!sentry__should_skip_upload()) {
+    if (!options->run || !sentry__run_should_skip_upload(options->run)) {
         sentry__transport_send_envelope(transport, envelope);
         return;
     }
     bool cached = false;
-    SENTRY_WITH_OPTIONS (options) {
-        if (options->cache_keep || options->http_retry) {
-            cached = sentry__run_write_cache(options->run, envelope, 0);
-            if (cached && !sentry__run_should_skip_upload(options->run)) {
-                // consent given meanwhile -> trigger retry to avoid waiting
-                // until the next retry poll
-                sentry_transport_retry(options->transport);
-            }
+    if (options->cache_keep || options->http_retry) {
+        cached = sentry__run_write_cache(options->run, envelope, 0);
+        if (cached && !sentry__run_should_skip_upload(options->run)) {
+            // consent given meanwhile -> trigger retry to avoid waiting
+            // until the next retry poll
+            sentry_transport_retry(options->transport);
         }
     }
     SENTRY_INFO(cached ? "caching envelope due to missing user consent"
@@ -512,7 +510,7 @@ sentry_capture_envelope(sentry_envelope_t *envelope)
         return;
     }
     SENTRY_WITH_OPTIONS (options) {
-        sentry__capture_envelope(options->transport, envelope);
+        sentry__capture_envelope(options->transport, envelope, options);
     }
 }
 
@@ -621,7 +619,7 @@ sentry__capture_event(sentry_value_t event, sentry_scope_t *local_scope)
                     SENTRY_DATA_CATEGORY_ERROR, 1);
                 sentry_envelope_free(envelope);
             } else {
-                sentry__capture_envelope(options->transport, envelope);
+                sentry__capture_envelope(options->transport, envelope, options);
                 was_sent = true;
             }
         }
@@ -1630,7 +1628,7 @@ sentry_capture_user_feedback(sentry_value_t user_report)
     SENTRY_WITH_OPTIONS (options) {
         envelope = prepare_user_report(user_report);
         if (envelope) {
-            sentry__capture_envelope(options->transport, envelope);
+            sentry__capture_envelope(options->transport, envelope, options);
         }
     }
     sentry_value_decref(user_report);
@@ -1652,7 +1650,7 @@ sentry_capture_feedback_with_hint(
     SENTRY_WITH_OPTIONS (options) {
         envelope = prepare_user_feedback(user_feedback, hint);
         if (envelope) {
-            sentry__capture_envelope(options->transport, envelope);
+            sentry__capture_envelope(options->transport, envelope, options);
         }
     }
 
@@ -1765,7 +1763,7 @@ sentry_capture_minidump_n(const char *path, size_t path_len)
                 sentry__envelope_item_set_header(item, "filename",
                     sentry_value_new_string(sentry__path_filename(dump_path)));
 
-                sentry__capture_envelope(options->transport, envelope);
+                sentry__capture_envelope(options->transport, envelope, options);
 
                 SENTRY_INFOF(
                     "Minidump has been captured: \"%s\"", dump_path->path);

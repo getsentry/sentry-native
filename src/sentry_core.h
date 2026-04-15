@@ -93,8 +93,8 @@ sentry_envelope_t *sentry__prepare_transaction(const sentry_options_t *options,
  * This function will submit the `envelope` to the given `transport`, first
  * checking for consent.
  */
-void sentry__capture_envelope(
-    sentry_transport_t *transport, sentry_envelope_t *envelope);
+void sentry__capture_envelope(sentry_transport_t *transport,
+    sentry_envelope_t *envelope, const sentry_options_t *options);
 
 /**
  * Generates a new random UUID for events.
