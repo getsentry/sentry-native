@@ -485,7 +485,7 @@ void
 sentry__capture_envelope(sentry_transport_t *transport,
     sentry_envelope_t *envelope, const sentry_options_t *options)
 {
-    if (!options->run || !sentry__run_should_skip_upload(options->run)) {
+    if (!sentry__run_should_skip_upload(options->run)) {
         sentry__transport_send_envelope(transport, envelope);
         return;
     }

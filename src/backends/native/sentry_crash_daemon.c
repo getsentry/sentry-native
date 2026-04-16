@@ -2934,7 +2934,7 @@ sentry__process_crash(const sentry_options_t *options, sentry_crash_ipc_t *ipc)
 
     // Capture directly, or pass to external crash reporter
     if (!sentry__launch_external_crash_reporter(options, envelope)) {
-        if (options && options->transport) {
+        if (options && options->transport && options->run) {
             SENTRY_DEBUG("Capturing crash envelope");
             sentry__capture_envelope(options->transport, envelope, options);
             SENTRY_DEBUG("Crash envelope captured (queued)");
@@ -2958,7 +2958,7 @@ sentry__process_crash(const sentry_options_t *options, sentry_crash_ipc_t *ipc)
 
 cleanup:
     // Send all other envelopes from run folder (logs, etc.) before cleanup
-    if (run_folder && options && options->transport) {
+    if (run_folder && options && options->transport && options->run) {
         SENTRY_DEBUG("Checking for additional envelopes in run folder");
         sentry_pathiter_t *piter = sentry__path_iter_directory(run_folder);
         if (piter) {
