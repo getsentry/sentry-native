@@ -1439,9 +1439,15 @@ SENTRY_API void sentry_options_set_logger(
 
 /**
  * Enables or disables console logging after a crash.
+ *
  * When disabled, Sentry will not invoke logger callbacks after a crash
  * has been detected. This can be useful to avoid potential issues during
- * crash handling that logging might cause. This is enabled by default.
+ * crash handling that logging might cause.
+ *
+ * Enabled by default, except for the breakpad backend on macOS, where
+ * it defaults to off because the in-process Mach exception handler can
+ * deadlock on stdio locks held by threads that were suspended at crash
+ * time.
  */
 SENTRY_API void sentry_options_set_logger_enabled_when_crashed(
     sentry_options_t *opts, int enabled);

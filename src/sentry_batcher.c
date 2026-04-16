@@ -155,9 +155,9 @@ sentry__batcher_flush(sentry_batcher_t *batcher, bool crash_safe)
         while (!sentry__atomic_compare_swap(&batcher->flushing, 0, 1)) {
             const int max_attempts = 200;
             if (++attempts > max_attempts) {
-                SENTRY_WARN(
-                    "sentry__batcher_flush: timeout waiting for flushing "
-                    "lock in crash-safe mode");
+                SENTRY_SIGNAL_SAFE_LOG(
+                    "WARN sentry__batcher_flush: timeout waiting for "
+                    "flushing lock in crash-safe mode");
                 return false;
             }
 

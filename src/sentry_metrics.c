@@ -165,12 +165,12 @@ sentry__metrics_shutdown(uint64_t timeout)
 void
 sentry__metrics_flush_crash_safe(void)
 {
-    SENTRY_DEBUG("crash-safe metrics flush");
+    SENTRY_SIGNAL_SAFE_LOG("DEBUG crash-safe metrics flush");
     sentry_batcher_t *batcher = sentry__batcher_peek(&g_batcher);
     if (batcher) {
         sentry__batcher_flush_crash_safe(batcher);
     }
-    SENTRY_DEBUG("crash-safe metrics flush complete");
+    SENTRY_SIGNAL_SAFE_LOG("DEBUG crash-safe metrics flush complete");
 }
 
 uintptr_t

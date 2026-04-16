@@ -520,12 +520,12 @@ sentry__logs_shutdown(uint64_t timeout)
 void
 sentry__logs_flush_crash_safe(void)
 {
-    SENTRY_DEBUG("crash-safe logs flush");
+    SENTRY_SIGNAL_SAFE_LOG("DEBUG crash-safe logs flush");
     sentry_batcher_t *batcher = sentry__batcher_peek(&g_batcher);
     if (batcher) {
         sentry__batcher_flush_crash_safe(batcher);
     }
-    SENTRY_DEBUG("crash-safe logs flush complete");
+    SENTRY_SIGNAL_SAFE_LOG("DEBUG crash-safe logs flush complete");
 }
 
 uintptr_t
