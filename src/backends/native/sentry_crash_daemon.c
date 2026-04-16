@@ -29,7 +29,6 @@
 #include <time.h>
 
 #if defined(SENTRY_PLATFORM_UNIX)
-#    include <arpa/inet.h>
 #    include <dirent.h>
 #    include <dlfcn.h>
 #    include <errno.h>
@@ -1171,13 +1170,7 @@ capture_modules_from_proc_maps(sentry_crash_context_t *ctx)
             mod->name, mod->uuid, sizeof(mod->uuid));
 
         // Convert to little-endian GUID format for Sentry debug_id
-        // (same byte swapping as sentry_modulefinder_linux.c)
-        uint32_t *a = (uint32_t *)mod->uuid;
-        *a = htonl(*a);
-        uint16_t *b = (uint16_t *)(mod->uuid + 4);
-        *b = htons(*b);
-        uint16_t *c = (uint16_t *)(mod->uuid + 6);
-        *c = htons(*c);
+        sentry__uuid_swap_guid_bytes(mod->uuid);
 
         SENTRY_DEBUGF("Captured module: %s base=0x%llx size=0x%llx", mod->name,
             (unsigned long long)mod->base_address,
@@ -2092,10 +2085,8 @@ build_native_crash_event(
             sentry_value_set_by_key(
                 image, "image_addr", sentry_value_new_string(addr_buf));
 
-            // Use double for image_size to handle modules > 2GB (e.g. shared
-            // cache)
             sentry_value_set_by_key(image, "image_size",
-                sentry_value_new_double((double)mod->size));
+                sentry_value_new_int64((int64_t)mod->size));
 
 #if defined(SENTRY_PLATFORM_WINDOWS)
             // Set code_id for PE modules (TimeDateStamp + SizeOfImage)

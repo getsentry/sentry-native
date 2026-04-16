@@ -10,7 +10,6 @@
 #include "sentry_utils.h"
 #include "sentry_value.h"
 
-#include <arpa/inet.h>
 #include <elf.h>
 #include <fcntl.h>
 #include <string.h>
@@ -493,13 +492,7 @@ sentry__procmaps_read_ids_from_elf(
     // https://getsentry.github.io/symbolicator/advanced/symbol-server-compatibility/#identifiers
     // in particular, the debug_id is a `little-endian GUID`, so we have
     // to do appropriate byte-flipping
-    char *uuid_bytes = uuid.bytes;
-    uint32_t *a = (uint32_t *)uuid_bytes;
-    *a = htonl(*a);
-    uint16_t *b = (uint16_t *)(uuid_bytes + 4);
-    *b = htons(*b);
-    uint16_t *c = (uint16_t *)(uuid_bytes + 6);
-    *c = htons(*c);
+    sentry__uuid_swap_guid_bytes(uuid.bytes);
 
     sentry_value_set_by_key(value, "debug_id", sentry__value_new_uuid(&uuid));
     return true;

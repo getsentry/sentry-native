@@ -15,6 +15,10 @@
 #    include <time.h>
 #endif
 
+#ifndef SENTRY_PLATFORM_WINDOWS
+#    include <arpa/inet.h>
+#endif
+
 #ifdef SENTRY_PLATFORM_PS
 #    undef MIN
 #    undef MAX
@@ -23,6 +27,23 @@
 
 #define MIN(a, b) ((a) < (b) ? (a) : (b))
 #define MAX(a, b) ((a) > (b) ? (a) : (b))
+
+/**
+ * Byte-swap the first three GUID fields (Data1, Data2, Data3) of a 16-byte
+ * UUID in place.  This converts between RFC 4122 (big-endian) and Windows
+ * mixed-endian GUID layout, which is used by RSDS CodeView records and Sentry
+ * debug-id strings.
+ */
+static inline void
+sentry__uuid_swap_guid_bytes(void *uuid)
+{
+    uint32_t *a = (uint32_t *)uuid;
+    *a = htonl(*a);
+    uint16_t *b = (uint16_t *)((char *)uuid + 4);
+    *b = htons(*b);
+    uint16_t *c = (uint16_t *)((char *)uuid + 6);
+    *c = htons(*c);
+}
 
 #if defined(_MSC_VER) && !defined(__clang__)
 #    define UNREACHABLE(reason) assert(!reason)
