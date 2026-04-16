@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1776331146781,
+  "lastUpdate": 1776338915925,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -17236,6 +17236,66 @@ window.BENCHMARK_DATA = {
             "value": 2.006489999985206,
             "unit": "ms",
             "extra": "Min 1.991ms\nMax 2.079ms\nMean 2.029ms\nStdDev 0.042ms\nMedian 2.006ms\nCPU 0.570ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "52735121+HrMathematiker@users.noreply.github.com",
+            "name": "Dmitrii Korzhimanov",
+            "username": "HrMathematiker"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "a5f11f11be5c309f92bb587d129d728c83df48d6",
+          "message": "fix(modulefinder): handle ENOSYS in read_safely for Kubernetes seccomp (#1655)\n\n* fix(modulefinder): handle ENOSYS in read_safely for K8s seccomp\n\nKubernetes RuntimeDefault seccomp profiles block `process_vm_readv`\nand return ENOSYS (errno=38). The existing fallback only handled EPERM\nand EINVAL, so every ELF module validation failed silently, leaving\n`debug_meta.images` empty in manually-captured events and causing all\nstack frames to show as `unknown_image` in Sentry.\n\nAdd ENOSYS to the fallback so the memcpy path is taken when the syscall\nis unavailable, matching the behaviour already in place for EPERM/EINVAL.\n\n* address review: tighten comment and add changelog entry\n\n---------\n\nCo-authored-by: Dmitrii Korzhimanov <dmitrii.korzhimanov@deepl.com>",
+          "timestamp": "2026-04-16T13:26:03+02:00",
+          "tree_id": "27a0e2c5ca5c9f752fbedc805e3751743f9b3eb0",
+          "url": "https://github.com/getsentry/sentry-native/commit/a5f11f11be5c309f92bb587d129d728c83df48d6"
+        },
+        "date": 1776338912590,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 0.9560430000021825,
+            "unit": "ms",
+            "extra": "Min 0.904ms\nMax 0.966ms\nMean 0.943ms\nStdDev 0.027ms\nMedian 0.956ms\nCPU 0.901ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 0.7813950000041814,
+            "unit": "ms",
+            "extra": "Min 0.768ms\nMax 0.840ms\nMean 0.796ms\nStdDev 0.033ms\nMedian 0.781ms\nCPU 0.795ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 3.1505690000130926,
+            "unit": "ms",
+            "extra": "Min 3.015ms\nMax 3.377ms\nMean 3.164ms\nStdDev 0.151ms\nMedian 3.151ms\nCPU 1.587ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.1216479999754938,
+            "unit": "ms",
+            "extra": "Min 0.116ms\nMax 0.124ms\nMean 0.120ms\nStdDev 0.003ms\nMedian 0.122ms\nCPU 0.073ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.028182999983528134,
+            "unit": "ms",
+            "extra": "Min 0.027ms\nMax 0.030ms\nMean 0.029ms\nStdDev 0.001ms\nMedian 0.028ms\nCPU 0.028ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 1.7806559999939964,
+            "unit": "ms",
+            "extra": "Min 1.726ms\nMax 2.009ms\nMean 1.832ms\nStdDev 0.111ms\nMedian 1.781ms\nCPU 0.523ms"
           }
         ]
       }
