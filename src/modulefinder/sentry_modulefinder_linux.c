@@ -141,9 +141,12 @@ read_safely(void *dst, void *src, size_t size)
     // See https://github.com/getsentry/sentry-native/issues/578).
     // Also, the syscall is only available in Linux 3.2, meaning Android 17.
     // In that case we get an `EINVAL`.
+    // Additionally, in some seccomp-restricted environments,
+    // `process_vm_readv` may be unavailable and fail with `ENOSYS` (see
+    // https://github.com/getsentry/sentry-native/issues/1653).
     //
-    // In either of these cases, just fall back to an unsafe `memcpy`.
-    if (!rv && (errno == EPERM || errno == EINVAL)) {
+    // In any of these cases, just fall back to an unsafe `memcpy`.
+    if (!rv && (errno == EPERM || errno == EINVAL || errno == ENOSYS)) {
         memcpy(dst, src, size);
         rv = true;
     }
