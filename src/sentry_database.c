@@ -74,6 +74,8 @@ sentry__run_new(const sentry_path_t *database_path)
     }
 
     run->refcount = 1;
+    run->require_user_consent = 0;
+    run->user_consent = SENTRY_USER_CONSENT_UNKNOWN;
     run->uuid = uuid;
     run->run_path = run_path;
     run->session_path = session_path;
@@ -94,6 +96,36 @@ sentry__run_new(const sentry_path_t *database_path)
 error:
     sentry__run_free(run);
     return NULL;
+}
+
+bool
+sentry__run_should_skip_upload(sentry_run_t *run)
+{
+    return sentry__atomic_fetch(&run->require_user_consent)
+        && (sentry__atomic_fetch(&run->user_consent)
+            != SENTRY_USER_CONSENT_GIVEN);
+}
+
+void
+sentry__run_load_user_consent(
+    sentry_run_t *run, const sentry_path_t *database_path)
+{
+    sentry_path_t *consent_path
+        = sentry__path_join_str(database_path, "user-consent");
+    char *contents = sentry__path_read_to_buffer(consent_path, NULL);
+    sentry__path_free(consent_path);
+    switch (contents ? contents[0] : 0) {
+    case '1':
+        sentry__atomic_store(&run->user_consent, SENTRY_USER_CONSENT_GIVEN);
+        break;
+    case '0':
+        sentry__atomic_store(&run->user_consent, SENTRY_USER_CONSENT_REVOKED);
+        break;
+    default:
+        sentry__atomic_store(&run->user_consent, SENTRY_USER_CONSENT_UNKNOWN);
+        break;
+    }
+    sentry_free(contents);
 }
 
 sentry_run_t *

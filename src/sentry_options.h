@@ -88,7 +88,6 @@ struct sentry_options_s {
     struct sentry_backend_s *backend;
     sentry_session_t *session;
 
-    long user_consent;
     long refcount;
     uint64_t shutdown_timeout;
     sentry_handler_strategy_t handler_strategy;

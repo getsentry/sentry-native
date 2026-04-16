@@ -71,35 +71,12 @@ sentry__options_unlock(void)
     sentry__mutex_unlock(&g_options_lock);
 }
 
-static void
-load_user_consent(sentry_options_t *opts)
-{
-    sentry_path_t *consent_path
-        = sentry__path_join_str(opts->database_path, "user-consent");
-    char *contents = sentry__path_read_to_buffer(consent_path, NULL);
-    sentry__path_free(consent_path);
-    switch (contents ? contents[0] : 0) {
-    case '1':
-        opts->user_consent = SENTRY_USER_CONSENT_GIVEN;
-        break;
-    case '0':
-        opts->user_consent = SENTRY_USER_CONSENT_REVOKED;
-        break;
-    default:
-        opts->user_consent = SENTRY_USER_CONSENT_UNKNOWN;
-        break;
-    }
-    sentry_free(contents);
-}
-
 bool
 sentry__should_skip_upload(void)
 {
     bool skip = true;
     SENTRY_WITH_OPTIONS (options) {
-        skip = options->require_user_consent
-            && sentry__atomic_fetch((long *)&options->user_consent)
-                != SENTRY_USER_CONSENT_GIVEN;
+        skip = sentry__run_should_skip_upload(options->run);
     }
     return skip;
 }
@@ -207,8 +184,9 @@ sentry_init(sentry_options_t *options)
         SENTRY_WARN("failed to initialize run directory");
         goto fail;
     }
+    options->run->require_user_consent = options->require_user_consent;
 
-    load_user_consent(options);
+    sentry__run_load_user_consent(options->run, options->database_path);
 
     if (!options->dsn || !options->dsn->is_valid) {
         const char *raw_dsn = sentry_options_get_dsn(options);
@@ -437,7 +415,7 @@ static void
 set_user_consent(sentry_user_consent_t new_val)
 {
     SENTRY_WITH_OPTIONS (options) {
-        if (sentry__atomic_store((long *)&options->user_consent, new_val)
+        if (sentry__atomic_store(&options->run->user_consent, new_val)
             != new_val) {
             if (options->backend
                 && options->backend->user_consent_changed_func) {
@@ -486,7 +464,7 @@ sentry_user_consent_get(void)
     sentry_user_consent_t rv = SENTRY_USER_CONSENT_UNKNOWN;
     SENTRY_WITH_OPTIONS (options) {
         rv = (sentry_user_consent_t)(int)sentry__atomic_fetch(
-            (long *)&options->user_consent);
+            &options->run->user_consent);
     }
     return rv;
 }

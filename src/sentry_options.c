@@ -45,7 +45,6 @@ sentry_options_new(void)
     }
     sentry_options_set_sdk_name(opts, SENTRY_SDK_NAME);
     opts->max_breadcrumbs = SENTRY_BREADCRUMBS_MAX;
-    opts->user_consent = SENTRY_USER_CONSENT_UNKNOWN;
     opts->auto_session_tracking = true;
     opts->system_crash_reporter_enabled = false;
     opts->attach_screenshot = false;
