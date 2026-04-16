@@ -2911,6 +2911,11 @@ sentry__process_crash(const sentry_options_t *options, sentry_crash_ipc_t *ipc)
     }
 #endif
 
+    if (options->run) {
+        sentry__atomic_store(&options->run->user_consent,
+            sentry__atomic_fetch(&ctx->user_consent));
+    }
+
     sentry_path_t *env_path = sentry__path_from_str(envelope_path);
     if (!env_path) {
         SENTRY_WARN("Failed to create envelope path");
@@ -2926,11 +2931,6 @@ sentry__process_crash(const sentry_options_t *options, sentry_crash_ipc_t *ipc)
     }
 
     SENTRY_DEBUG("Envelope loaded, capturing");
-
-    if (options->run) {
-        sentry__atomic_store(&options->run->user_consent,
-            sentry__atomic_fetch(&ctx->user_consent));
-    }
 
     // Capture directly, or pass to external crash reporter
     if (!sentry__launch_external_crash_reporter(options, envelope)) {
