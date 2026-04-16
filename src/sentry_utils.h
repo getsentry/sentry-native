@@ -15,7 +15,9 @@
 #    include <time.h>
 #endif
 
-#ifndef SENTRY_PLATFORM_WINDOWS
+#ifdef SENTRY_PLATFORM_WINDOWS
+#    include <stdlib.h>
+#else
 #    include <arpa/inet.h>
 #endif
 
@@ -38,11 +40,17 @@ static inline void
 sentry__uuid_swap_guid_bytes(void *uuid)
 {
     uint32_t *a = (uint32_t *)uuid;
-    *a = htonl(*a);
     uint16_t *b = (uint16_t *)((char *)uuid + 4);
-    *b = htons(*b);
     uint16_t *c = (uint16_t *)((char *)uuid + 6);
+#ifdef SENTRY_PLATFORM_WINDOWS
+    *a = _byteswap_ulong(*a);
+    *b = _byteswap_ushort(*b);
+    *c = _byteswap_ushort(*c);
+#else
+    *a = htonl(*a);
+    *b = htons(*b);
     *c = htons(*c);
+#endif
 }
 
 #if defined(_MSC_VER) && !defined(__clang__)
