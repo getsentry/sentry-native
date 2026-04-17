@@ -49,7 +49,19 @@ sentry_options_new(void)
     opts->system_crash_reporter_enabled = false;
     opts->attach_screenshot = false;
     opts->crashpad_wait_for_upload = false;
+    // On macOS, breakpad suspends all other threads of the process before
+    // writing the minidump and invokes our backend callback from inside
+    // WriteMinidumpWithException() while those threads are still suspended.
+    // Any vfprintf-based log call from that context can deadlock waiting for
+    // a stdio lock held by a suspended thread (e.g. libcurl's verbose output
+    // on stderr). Default off here; users who accept the risk can still opt
+    // in via `sentry_options_set_logger_enabled_when_crashed(opts, 1)`.
+#if defined(SENTRY_BACKEND_BREAKPAD) && defined(SENTRY_PLATFORM_DARWIN)        \
+    && !defined(SENTRY_PLATFORM_IOS)
+    opts->enable_logging_when_crashed = false;
+#else
     opts->enable_logging_when_crashed = true;
+#endif
     opts->propagate_traceparent = false;
     opts->crashpad_limit_stack_capture_to_sp = false;
     opts->enable_metrics = true;
