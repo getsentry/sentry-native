@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1776412977939,
+  "lastUpdate": 1776413000393,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -52492,6 +52492,66 @@ window.BENCHMARK_DATA = {
             "value": 13.909499999954278,
             "unit": "ms",
             "extra": "Min 13.368ms\nMax 14.169ms\nMean 13.819ms\nStdDev 0.305ms\nMedian 13.909ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "tustanivsky@gmail.com",
+            "name": "Ivan Tustanivskyi",
+            "username": "tustanivsky"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "a5ac002b36bae65fbd39254de59bae255f9ff782",
+          "message": "fix(CI): disable `client_report_concurrent` test on NX platform (#1657)\n\n* fix: disable `client_report_concurrent` test on NX platform\n\n* Update changelog\n\n* Update CHANGELOG.md",
+          "timestamp": "2026-04-17T10:58:34+03:00",
+          "tree_id": "65d7f6e0f930ad485d8cb7a7717576f0f6ebfbee",
+          "url": "https://github.com/getsentry/sentry-native/commit/a5ac002b36bae65fbd39254de59bae255f9ff782"
+        },
+        "date": 1776412994808,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 11.754500000051848,
+            "unit": "ms",
+            "extra": "Min 10.684ms\nMax 14.859ms\nMean 12.062ms\nStdDev 1.632ms\nMedian 11.755ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 10.730400000056761,
+            "unit": "ms",
+            "extra": "Min 10.544ms\nMax 11.534ms\nMean 10.892ms\nStdDev 0.391ms\nMedian 10.730ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 26.61220000004505,
+            "unit": "ms",
+            "extra": "Min 25.524ms\nMax 43.326ms\nMean 29.692ms\nStdDev 7.636ms\nMedian 26.612ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.22169999988363998,
+            "unit": "ms",
+            "extra": "Min 0.191ms\nMax 0.291ms\nMean 0.239ms\nStdDev 0.042ms\nMedian 0.222ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.4157000000759581,
+            "unit": "ms",
+            "extra": "Min 0.386ms\nMax 0.566ms\nMean 0.448ms\nStdDev 0.074ms\nMedian 0.416ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 14.480899999853136,
+            "unit": "ms",
+            "extra": "Min 14.327ms\nMax 23.510ms\nMean 16.258ms\nStdDev 4.055ms\nMedian 14.481ms"
           }
         ]
       }
