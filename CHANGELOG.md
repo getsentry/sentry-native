@@ -5,7 +5,6 @@
 **Fixes**:
 
 - Linux: handle `ENOSYS` in `read_safely` to fix empty module list in seccomp-restricted environments. ([#1655](https://github.com/getsentry/sentry-native/pull/1655))
-- Disable `client_report_concurrent` test on NX platform ([#1657](https://github.com/getsentry/sentry-native/pull/1657))
 
 ## 0.13.7
 
