@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1776433091880,
+  "lastUpdate": 1776433202153,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -35194,6 +35194,66 @@ window.BENCHMARK_DATA = {
             "value": 8.966958999963026,
             "unit": "ms",
             "extra": "Min 8.050ms\nMax 15.348ms\nMean 10.065ms\nStdDev 3.006ms\nMedian 8.967ms\nCPU 1.058ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "49699333+dependabot[bot]@users.noreply.github.com",
+            "name": "dependabot[bot]",
+            "username": "dependabot[bot]"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "a02a1416971c73f2e5a9a1734bb59eadc4105103",
+          "message": "build(deps): bump actions/create-github-app-token from 1.11.0 to 3.1.1 (#1645)\n\nBumps [actions/create-github-app-token](https://github.com/actions/create-github-app-token) from 1.11.0 to 3.1.1.\n- [Release notes](https://github.com/actions/create-github-app-token/releases)\n- [Commits](https://github.com/actions/create-github-app-token/compare/v1.11.0...1b10c78c7865c340bc4f6099eb2f838309f1e8c3)\n\n---\nupdated-dependencies:\n- dependency-name: actions/create-github-app-token\n  dependency-version: 3.1.1\n  dependency-type: direct:production\n  update-type: version-update:semver-major\n...\n\nSigned-off-by: dependabot[bot] <support@github.com>\nCo-authored-by: dependabot[bot] <49699333+dependabot[bot]@users.noreply.github.com>",
+          "timestamp": "2026-04-17T15:33:33+02:00",
+          "tree_id": "b9b6ed5edcc864239c6480509f76a3b508aabe8a",
+          "url": "https://github.com/getsentry/sentry-native/commit/a02a1416971c73f2e5a9a1734bb59eadc4105103"
+        },
+        "date": 1776433195379,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 7.854749999978594,
+            "unit": "ms",
+            "extra": "Min 6.172ms\nMax 10.071ms\nMean 7.844ms\nStdDev 1.438ms\nMedian 7.855ms\nCPU 4.280ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 6.5835839999977,
+            "unit": "ms",
+            "extra": "Min 4.677ms\nMax 8.516ms\nMean 6.683ms\nStdDev 1.385ms\nMedian 6.584ms\nCPU 4.229ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 29.914416999986315,
+            "unit": "ms",
+            "extra": "Min 28.387ms\nMax 69.945ms\nMean 41.141ms\nStdDev 18.186ms\nMedian 29.914ms\nCPU 8.105ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.17737500002112938,
+            "unit": "ms",
+            "extra": "Min 0.093ms\nMax 0.275ms\nMean 0.169ms\nStdDev 0.073ms\nMedian 0.177ms\nCPU 0.133ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.5178750000141008,
+            "unit": "ms",
+            "extra": "Min 0.304ms\nMax 0.823ms\nMean 0.532ms\nStdDev 0.191ms\nMedian 0.518ms\nCPU 0.531ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 14.483457999972416,
+            "unit": "ms",
+            "extra": "Min 12.142ms\nMax 21.227ms\nMean 15.804ms\nStdDev 3.702ms\nMedian 14.483ms\nCPU 1.706ms"
           }
         ]
       }
