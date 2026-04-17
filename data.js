@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1776416927427,
+  "lastUpdate": 1776416938672,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -52672,6 +52672,66 @@ window.BENCHMARK_DATA = {
             "value": 14.480899999853136,
             "unit": "ms",
             "extra": "Min 14.327ms\nMax 23.510ms\nMean 16.258ms\nStdDev 4.055ms\nMedian 14.481ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "jpnurmi@gmail.com",
+            "name": "J-P Nurmi",
+            "username": "jpnurmi"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "6c7f08b12ed9c88a99fc27f442b2532605af79ca",
+          "message": "fix(breakpad): avoid stdio deadlock in macOS exception handler (#1656)\n\nCo-authored-by: Claude Opus 4.6 (1M context) <noreply@anthropic.com>",
+          "timestamp": "2026-04-17T11:04:27+02:00",
+          "tree_id": "33120611bdba091e2a196236cfe16ea36ed826e3",
+          "url": "https://github.com/getsentry/sentry-native/commit/6c7f08b12ed9c88a99fc27f442b2532605af79ca"
+        },
+        "date": 1776416933056,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 10.950199999967936,
+            "unit": "ms",
+            "extra": "Min 9.895ms\nMax 14.162ms\nMean 11.881ms\nStdDev 2.056ms\nMedian 10.950ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 10.197399999981371,
+            "unit": "ms",
+            "extra": "Min 9.996ms\nMax 12.906ms\nMean 10.718ms\nStdDev 1.232ms\nMedian 10.197ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 25.19510000001901,
+            "unit": "ms",
+            "extra": "Min 24.850ms\nMax 29.917ms\nMean 26.081ms\nStdDev 2.151ms\nMedian 25.195ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.17030000003614987,
+            "unit": "ms",
+            "extra": "Min 0.163ms\nMax 0.212ms\nMean 0.184ms\nStdDev 0.022ms\nMedian 0.170ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.4576999999699183,
+            "unit": "ms",
+            "extra": "Min 0.393ms\nMax 0.503ms\nMean 0.453ms\nStdDev 0.044ms\nMedian 0.458ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 13.803999999993266,
+            "unit": "ms",
+            "extra": "Min 13.721ms\nMax 13.956ms\nMean 13.826ms\nStdDev 0.086ms\nMedian 13.804ms"
           }
         ]
       }
