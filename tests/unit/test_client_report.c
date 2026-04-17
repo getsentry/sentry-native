@@ -523,6 +523,12 @@ flush_thread_func(void *data)
 
 SENTRY_TEST(client_report_concurrent)
 {
+#if defined(SENTRY_PLATFORM_NX)
+    // Hot busy-wait in flush_thread_func saturates the devkit and trips the
+    // Nintendo OS watchdog, which terminates the process with
+    // `ExitKind: InterruptByOtherProcess`.
+    SKIP_TEST();
+#endif
     SENTRY_TEST_OPTIONS_NEW(options);
     sentry_init(options);
 
