@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+**Features**:
+
+- Linux: build vendored libunwind for 32-bit ARM. ([#1659](https://github.com/getsentry/sentry-native/issues/1659))
+
 **Fixes**:
 
 - Linux: handle `ENOSYS` in `read_safely` to fix empty module list in seccomp-restricted environments. ([#1655](https://github.com/getsentry/sentry-native/pull/1655))
