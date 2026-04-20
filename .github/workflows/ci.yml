@@ -73,7 +73,8 @@ jobs:
             os: ubuntu-24.04-arm
             CC: arm-linux-gnueabihf-gcc
             CXX: arm-linux-gnueabihf-g++
-            CROSS_ARM32: 1
+            TEST_ARM32: 1
+            TEST_QEMU: 1
           - name: Linux (GCC 9.5.0)
             os: ubuntu-24.04
             CC: gcc-9
@@ -228,7 +229,8 @@ jobs:
       CXX: ${{ matrix.CXX }}
       TEST_X86: ${{ matrix.TEST_X86 }}
       TEST_MINGW: ${{ matrix.TEST_MINGW }}
-      CROSS_ARM32: ${{ matrix.CROSS_ARM32 }}
+      TEST_ARM32: ${{ matrix.TEST_ARM32 }}
+      TEST_QEMU: ${{ matrix.TEST_QEMU }}
       USE_SCCACHE: ${{ matrix.USE_SCCACHE }}
       SCCACHE_GHA_ENABLED: ${{ matrix.USE_SCCACHE && 'true' || '' }}
       ERROR_ON_WARNINGS: ${{ matrix.ERROR_ON_WARNINGS }}
@@ -264,7 +266,7 @@ jobs:
           [ -n "$CC" ] && [ -n "$CXX" ] || { echo "Ubuntu runner configurations require toolchain selection via CC and CXX" >&2; exit 1; }
 
       - name: Installing Linux Dependencies
-        if: ${{ runner.os == 'Linux' && !env['TEST_X86'] && !env['CROSS_ARM32'] && !env['ANDROID_API'] && !matrix.container }}
+        if: ${{ runner.os == 'Linux' && !env['TEST_X86'] && !env['TEST_ARM32'] && !env['ANDROID_API'] && !matrix.container }}
         run: |
           sudo apt update
           # Install common dependencies
@@ -302,7 +304,7 @@ jobs:
           sudo apt install cmake "${CC}-multilib" "${CXX}-multilib" zlib1g-dev:i386 libssl-dev:i386 libcurl4-openssl-dev:i386 liblzma-dev:i386
 
       - name: Installing Linux arm32 Dependencies
-        if: ${{ runner.os == 'Linux' && env['CROSS_ARM32'] && !matrix.container }}
+        if: ${{ runner.os == 'Linux' && env['TEST_ARM32'] && !matrix.container }}
         run: |
           sudo dpkg --add-architecture armhf
           sudo apt update
@@ -314,17 +316,11 @@ jobs:
             libcurl4-openssl-dev:armhf \
             liblzma-dev:armhf
 
-      - name: Cross-compile (arm32)
-        if: ${{ env['CROSS_ARM32'] }}
+      - name: Installing qemu-user
+        if: ${{ runner.os == 'Linux' && env['TEST_QEMU'] && !matrix.container }}
         run: |
-          cmake -B build \
-            -DCMAKE_SYSTEM_NAME=Linux \
-            -DCMAKE_SYSTEM_PROCESSOR=arm \
-            -DCMAKE_C_COMPILER=arm-linux-gnueabihf-gcc \
-            -DCMAKE_CXX_COMPILER=arm-linux-gnueabihf-g++ \
-            -DCMAKE_ASM_COMPILER=arm-linux-gnueabihf-gcc \
-            -DSENTRY_BACKEND=inproc
-          cmake --build build --parallel
+          sudo apt update
+          sudo apt install -y qemu-user-static binfmt-support
 
       - name: Installing Alpine Linux Dependencies
         if: ${{ contains(matrix.container, 'alpine') }}
@@ -465,7 +461,7 @@ jobs:
             pytest --capture=no --verbose tests
 
       - name: Test
-        if: ${{ !env['ANDROID_API'] && !env['CROSS_ARM32'] }}
+        if: ${{ !env['ANDROID_API'] }}
         shell: bash
         run: |
           pip install --upgrade --requirement tests/requirements.txt
