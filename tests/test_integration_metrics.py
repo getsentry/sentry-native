@@ -14,7 +14,7 @@ from .assertions import (
     assert_event,
     assert_metrics,
 )
-from .conditions import has_http, has_breakpad, has_native
+from .conditions import has_http, has_breakpad, has_native, is_qemu
 
 pytestmark = pytest.mark.skipif(not has_http, reason="tests need http")
 
@@ -380,7 +380,7 @@ def test_metrics_on_crash_none(cmake, httpserver):
         pytest.param(
             "breakpad",
             marks=pytest.mark.skipif(
-                not has_breakpad, reason="breakpad backend not available"
+                not has_breakpad or is_qemu, reason="breakpad backend not available"
             ),
         ),
     ],
