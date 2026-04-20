@@ -69,7 +69,7 @@ jobs:
             CC: gcc-9
             CXX: g++-9
             TEST_X86: 1
-          - name: Linux Arm32 (cross-compile)
+          - name: Linux Arm32 (gcc-arm-linux-gnueabihf + qemu-user)
             os: ubuntu-24.04-arm
             CC: arm-linux-gnueabihf-gcc
             CXX: arm-linux-gnueabihf-g++
