@@ -878,6 +878,17 @@ sentry__ensure_event_id(sentry_value_t event, sentry_uuid_t *uuid_out)
     return event_id;
 }
 
+sentry_value_t
+sentry__ensure_user_id(sentry_value_t user, const char *installation_id)
+{
+    sentry_value_t user_id = sentry_value_get_by_key(user, "id");
+    if (sentry_value_is_null(user_id) && installation_id) {
+        user_id = sentry_value_new_string(installation_id);
+        sentry_value_set_by_key(user, "id", user_id);
+    }
+    return user_id;
+}
+
 void
 sentry_set_user(sentry_value_t user)
 {

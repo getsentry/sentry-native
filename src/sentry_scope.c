@@ -360,12 +360,9 @@ sentry__scope_apply_to_event(const sentry_scope_t *scope,
             if (IS_NULL("user")) {
                 SET("user", sentry__value_clone(scope->user));
             }
-            // patch missing user ID with installation ID
             sentry_value_t user = sentry_value_get_by_key(event, "user");
-            if (sentry_value_get_type(user) == SENTRY_VALUE_TYPE_OBJECT
-                && sentry_value_is_null(sentry_value_get_by_key(user, "id"))) {
-                sentry_value_set_by_key(user, "id",
-                    sentry_value_new_string(options->run->installation_id));
+            if (sentry_value_get_type(user) == SENTRY_VALUE_TYPE_OBJECT) {
+                sentry__ensure_user_id(user, options->run->installation_id);
             }
         } else if (sentry_value_get_length(scope->user) > 0) {
             PLACE_VALUE("user", scope->user);

@@ -1,5 +1,6 @@
 #include "sentry_session.h"
 #include "sentry_alloc.h"
+#include "sentry_core.h"
 #include "sentry_database.h"
 #include "sentry_envelope.h"
 #include "sentry_json.h"
@@ -301,12 +302,8 @@ void
 sentry__session_sync_user(
     sentry_session_t *session, sentry_value_t user, const char *installation_id)
 {
-    sentry_value_t did = sentry_value_get_by_key(user, "id");
+    sentry_value_t did = sentry__ensure_user_id(user, installation_id);
     sentry_value_decref(session->distinct_id);
-    if (sentry_value_is_null(did) && installation_id) {
-        session->distinct_id = sentry_value_new_string(installation_id);
-    } else {
-        sentry_value_incref(did);
-        session->distinct_id = did;
-    }
+    sentry_value_incref(did);
+    session->distinct_id = did;
 }
