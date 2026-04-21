@@ -273,6 +273,34 @@ ptrace_get_thread_registers(pid_t tid, ucontext_t *uctx)
         SENTRY_DEBUGF("ptrace(PTRACE_GETREGS) failed for thread %d: %s", tid,
             strerror(errno));
     }
+#    elif defined(__arm__)
+    struct user_regs regs;
+    if (ptrace(PTRACE_GETREGS, tid, NULL, &regs) == 0) {
+        // uregs[0..15] = R0..R15, uregs[16] = CPSR
+        uctx->uc_mcontext.arm_r0 = regs.uregs[0];
+        uctx->uc_mcontext.arm_r1 = regs.uregs[1];
+        uctx->uc_mcontext.arm_r2 = regs.uregs[2];
+        uctx->uc_mcontext.arm_r3 = regs.uregs[3];
+        uctx->uc_mcontext.arm_r4 = regs.uregs[4];
+        uctx->uc_mcontext.arm_r5 = regs.uregs[5];
+        uctx->uc_mcontext.arm_r6 = regs.uregs[6];
+        uctx->uc_mcontext.arm_r7 = regs.uregs[7];
+        uctx->uc_mcontext.arm_r8 = regs.uregs[8];
+        uctx->uc_mcontext.arm_r9 = regs.uregs[9];
+        uctx->uc_mcontext.arm_r10 = regs.uregs[10];
+        uctx->uc_mcontext.arm_fp = regs.uregs[11];
+        uctx->uc_mcontext.arm_ip = regs.uregs[12];
+        uctx->uc_mcontext.arm_sp = regs.uregs[13];
+        uctx->uc_mcontext.arm_lr = regs.uregs[14];
+        uctx->uc_mcontext.arm_pc = regs.uregs[15];
+        uctx->uc_mcontext.arm_cpsr = regs.uregs[16];
+        success = true;
+        SENTRY_DEBUGF("Thread %d: captured registers via ptrace, SP=0x%lx", tid,
+            (unsigned long)regs.uregs[13]);
+    } else {
+        SENTRY_DEBUGF("ptrace(PTRACE_GETREGS) failed for thread %d: %s", tid,
+            strerror(errno));
+    }
 #    endif
 
     // Detach from thread
