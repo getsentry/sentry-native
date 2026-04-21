@@ -1717,10 +1717,19 @@ get_thread_name(HANDLE hThread, sentry_thread_context_windows_t *tctx)
 /**
  * Enumerate threads from the crashed process for the native event on Windows
  * Captures thread contexts for stack walking.
+ *
+ * Not available on Xbox (the ToolHelp32 API is not part of the gaming
+ * partition). MiniDumpWriteDump still captures all thread contexts from the
+ * target process independently, so skipping this only loses supplementary
+ * per-thread metadata from the Sentry event payload.
  */
 static void
 enumerate_threads_from_process(sentry_crash_context_t *ctx)
 {
+#ifdef SENTRY_PLATFORM_XBOX
+    (void)ctx;
+    return;
+#else
     HANDLE hSnapshot = CreateToolhelp32Snapshot(TH32CS_SNAPTHREAD, 0);
     if (hSnapshot == INVALID_HANDLE_VALUE) {
         SENTRY_WARN("CreateToolhelp32Snapshot failed");
@@ -1817,6 +1826,7 @@ enumerate_threads_from_process(sentry_crash_context_t *ctx)
     ctx->platform.num_threads = thread_count;
     SENTRY_DEBUGF("Enumerated %u threads from process %d", thread_count,
         ctx->crashed_pid);
+#endif // SENTRY_PLATFORM_XBOX
 }
 #endif // SENTRY_PLATFORM_WINDOWS
 
