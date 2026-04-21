@@ -88,6 +88,7 @@ def test_embedded_info_binary_inspection(cmake):
     cwd = cmake(
         ["sentry"],  # Build the library itself
         {
+            "SENTRY_BACKEND": "none",
             "SENTRY_EMBED_INFO": "ON",
             "SENTRY_BUILD_PLATFORM": "binary-test",
             "SENTRY_BUILD_VARIANT": "inspection",
@@ -157,6 +158,7 @@ def test_sdk_version_override(cmake):
     cwd = cmake(
         ["sentry"],
         {
+            "SENTRY_BACKEND": "none",
             "SENTRY_EMBED_INFO": "ON",
             "SENTRY_BUILD_PLATFORM": "version-test",
             "SENTRY_BUILD_VARIANT": "override",
@@ -204,6 +206,7 @@ def test_sdk_version_override_with_explicit_build_id(cmake):
     cwd = cmake(
         ["sentry"],
         {
+            "SENTRY_BACKEND": "none",
             "SENTRY_EMBED_INFO": "ON",
             "SENTRY_BUILD_PLATFORM": "version-test",
             "SENTRY_BUILD_VARIANT": "explicit-build",

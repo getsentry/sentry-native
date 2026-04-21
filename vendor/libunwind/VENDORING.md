@@ -19,6 +19,7 @@ Linux without requiring users to install any external packages.  Only the
 | x86_64             | `src/x86_64/`  | `include/tdep-x86_64/`  |
 | x86 (i686, 32-bit) | `src/x86/`     | `include/tdep-x86/`     |
 | aarch64            | `src/aarch64/` | `include/tdep-aarch64/` |
+| arm (32-bit)       | `src/arm/`     | `include/tdep-arm/`     |
 
 Core shared code: `src/mi/`, `src/dwarf/`, `src/os-linux.c`,
 `src/dl-iterate-phdr.c`.
@@ -82,7 +83,6 @@ custom `CMakeLists.txt`:
 
 | Path                                                                                                     | Notes                                                                                                                                      |
 |----------------------------------------------------------------------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------|
-| `src/arm/`, `include/tdep-arm/`                                                                          | ARM 32-bit — kept for potential future use                                                                                                 |
 | `src/riscv/`, `include/tdep-riscv/`                                                                      | RISC-V — kept for potential future use                                                                                                     |
 | `src/unwind/`, `src/mi/_ReadULEB.c`, `src/mi/_ReadSLEB.c`                                                | C++ exception ABI conflicts with `libgcc_eh.a`; see [above](#excluded-c-exception-abi-sources)                                             |
 | `include/libunwind-*.h` for removed arches                                                               | Referenced via `#ifdef` in `include/libunwind.h` — harmless dead code                                                                      |
@@ -163,7 +163,7 @@ both GCC and Clang.
      `__attribute__((aligned(...)))`.
    - Scan for other C11/C23 constructs incompatible with C99.
 
-7. Build and test on all three architectures: x86_64, x86 (32-bit), aarch64.
+7. Build and test on all four architectures: x86_64, x86 (32-bit), aarch64, arm (32-bit).
 
 8. To add a **new architecture**, also:
    - Keep its `src/<arch>/` and `include/tdep-<arch>/` directories from the

@@ -2,7 +2,7 @@ import subprocess
 import sys
 import os
 import pytest
-from .conditions import has_breakpad, has_crashpad, has_native, is_android
+from .conditions import has_breakpad, has_crashpad, has_native, is_android, is_qemu
 
 
 def test_static_lib(cmake):
@@ -16,7 +16,7 @@ def test_static_lib(cmake):
     )
 
     # on linux we can use `ldd` to check that we don’t link to `libsentry.so`
-    if sys.platform == "linux" and not is_android:
+    if sys.platform == "linux" and not is_android and not is_qemu:
         output = subprocess.check_output("ldd sentry_example", cwd=tmp_path, shell=True)
         assert b"libsentry.so" not in output
 
@@ -40,9 +40,8 @@ def test_static_lib(cmake):
         output = subprocess.check_output(
             "file sentry_example", cwd=tmp_path, shell=True
         )
-        assert (
-            b"ELF 32-bit" if os.environ.get("TEST_X86") else b"ELF 64-bit"
-        ) in output
+        is_32bit = os.environ.get("TEST_X86") or os.environ.get("TEST_ARM32")
+        assert (b"ELF 32-bit" if is_32bit else b"ELF 64-bit") in output
 
 
 @pytest.mark.skipif(not has_crashpad, reason="test needs crashpad backend")

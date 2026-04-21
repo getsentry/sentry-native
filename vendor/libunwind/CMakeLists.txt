@@ -1,4 +1,4 @@
-# CMakeLists.txt for vendored libunwind (Linux only, x86_64 and aarch64)
+# CMakeLists.txt for vendored libunwind (Linux only; x86_64, aarch64, x86, arm)
 # This builds only the local unwinding library (libunwind.a equivalent)
 
 # Vendored libunwind - built as a subdirectory of the main project.
@@ -22,6 +22,9 @@ elseif(CMAKE_SYSTEM_PROCESSOR MATCHES "aarch64|ARM64|arm64")
     set(UNWIND_ELF "elf64")
 elseif(CMAKE_SYSTEM_PROCESSOR MATCHES "i[3-6]86|x86")
     set(UNWIND_ARCH "x86")
+    set(UNWIND_ELF "elf32")
+elseif(CMAKE_SYSTEM_PROCESSOR MATCHES "^(arm|ARM)")
+    set(UNWIND_ARCH "arm")
     set(UNWIND_ELF "elf32")
 else()
     message(FATAL_ERROR "Unsupported architecture for vendored libunwind: ${CMAKE_SYSTEM_PROCESSOR}")
@@ -158,6 +161,31 @@ elseif(UNWIND_ARCH STREQUAL "x86")
         ${LIBUNWIND_SRC}/x86/Lresume.c
         ${LIBUNWIND_SRC}/x86/Lstep.c
     )
+elseif(UNWIND_ARCH STREQUAL "arm")
+    set(UNWIND_ARCH_SOURCES
+        # common
+        ${LIBUNWIND_SRC}/arm/is_fpreg.c
+        ${LIBUNWIND_SRC}/arm/regname.c
+        # os_local (Linux)
+        ${LIBUNWIND_SRC}/arm/Los-linux.c
+        # arch-specific local
+        ${LIBUNWIND_SRC}/arm/getcontext.S
+        ${LIBUNWIND_SRC}/arm/Lapply_reg_state.c
+        ${LIBUNWIND_SRC}/arm/Lcreate_addr_space.c
+        ${LIBUNWIND_SRC}/arm/Lex_tables.c
+        ${LIBUNWIND_SRC}/arm/Lget_proc_info.c
+        ${LIBUNWIND_SRC}/arm/Lget_save_loc.c
+        ${LIBUNWIND_SRC}/arm/Lglobal.c
+        ${LIBUNWIND_SRC}/arm/Linit.c
+        ${LIBUNWIND_SRC}/arm/Linit_local.c
+        ${LIBUNWIND_SRC}/arm/Linit_remote.c
+        ${LIBUNWIND_SRC}/arm/Lregs.c
+        ${LIBUNWIND_SRC}/arm/Lreg_states_iterate.c
+        ${LIBUNWIND_SRC}/arm/Lresume.c
+        ${LIBUNWIND_SRC}/arm/Lstash_frame.c
+        ${LIBUNWIND_SRC}/arm/Lstep.c
+        ${LIBUNWIND_SRC}/arm/Ltrace.c
+    )
 endif()
 
 add_library(unwind STATIC
@@ -240,6 +268,9 @@ elseif(UNWIND_ARCH STREQUAL "aarch64")
 elseif(UNWIND_ARCH STREQUAL "x86")
     target_include_directories(unwind PRIVATE ${LIBUNWIND_INC}/tdep-x86)
     target_compile_definitions(unwind PRIVATE UNW_TARGET_X86=1)
+elseif(UNWIND_ARCH STREQUAL "arm")
+    target_include_directories(unwind PRIVATE ${LIBUNWIND_INC}/tdep-arm)
+    target_compile_definitions(unwind PRIVATE UNW_TARGET_ARM=1)
 endif()
 
 target_compile_definitions(unwind PRIVATE

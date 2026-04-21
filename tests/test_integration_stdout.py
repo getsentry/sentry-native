@@ -22,9 +22,10 @@ from .assertions import (
     assert_breakpad_crash,
     assert_exception,
 )
-from .conditions import has_breakpad, has_files
+from .conditions import has_breakpad, has_files, is_qemu
 
 
+@pytest.mark.skipif(is_qemu, reason="unreliable under qemu-user")
 def test_capture_stdout(cmake):
     tmp_path = cmake(
         ["sentry_example"],
@@ -185,6 +186,7 @@ def test_inproc_crash_stdout(cmake):
     assert_inproc_crash(envelope)
 
 
+@pytest.mark.skipif(is_qemu, reason="unreliable under qemu-user")
 def test_inproc_abort_stdout(cmake):
     """Test that a normal abort() call is captured by inproc backend.
 
@@ -203,6 +205,7 @@ def test_inproc_abort_stdout(cmake):
     assert_inproc_crash(envelope)
 
 
+@pytest.mark.skipif(is_qemu, reason="unreliable under qemu-user")
 def test_inproc_crash_stdout_before_send(cmake):
     tmp_path, output = run_crash_stdout_for("inproc", cmake, ["before-send"])
 
@@ -216,6 +219,7 @@ def test_inproc_crash_stdout_before_send(cmake):
     assert_before_send(envelope)
 
 
+@pytest.mark.skipif(is_qemu, reason="unreliable under qemu-user")
 def test_inproc_crash_stdout_discarding_on_crash(cmake):
     tmp_path, output = run_crash_stdout_for("inproc", cmake, ["discarding-on-crash"])
 
@@ -273,7 +277,7 @@ def test_inproc_stack_overflow_stdout(cmake, stack_size):
     assert_inproc_crash(envelope)
 
 
-@pytest.mark.skipif(not has_breakpad, reason="test needs breakpad backend")
+@pytest.mark.skipif(not has_breakpad or is_qemu, reason="test needs breakpad backend")
 def test_breakpad_crash_stdout(cmake):
     tmp_path, output = run_crash_stdout_for("breakpad", cmake, [])
 
@@ -287,7 +291,7 @@ def test_breakpad_crash_stdout(cmake):
     assert_breakpad_crash(envelope)
 
 
-@pytest.mark.skipif(not has_breakpad, reason="test needs breakpad backend")
+@pytest.mark.skipif(not has_breakpad or is_qemu, reason="test needs breakpad backend")
 def test_breakpad_crash_stdout_before_send(cmake):
     tmp_path, output = run_crash_stdout_for("breakpad", cmake, ["before-send"])
 
@@ -302,7 +306,7 @@ def test_breakpad_crash_stdout_before_send(cmake):
     assert_breakpad_crash(envelope)
 
 
-@pytest.mark.skipif(not has_breakpad, reason="test needs breakpad backend")
+@pytest.mark.skipif(not has_breakpad or is_qemu, reason="test needs breakpad backend")
 def test_breakpad_crash_stdout_discarding_on_crash(cmake):
     tmp_path, output = run_crash_stdout_for("breakpad", cmake, ["discarding-on-crash"])
 
@@ -312,7 +316,7 @@ def test_breakpad_crash_stdout_discarding_on_crash(cmake):
     assert_crash_timestamp(has_files, tmp_path)
 
 
-@pytest.mark.skipif(not has_breakpad, reason="test needs breakpad backend")
+@pytest.mark.skipif(not has_breakpad or is_qemu, reason="test needs breakpad backend")
 def test_breakpad_crash_stdout_before_send_and_on_crash(cmake):
     tmp_path, output = run_crash_stdout_for(
         "breakpad", cmake, ["before-send", "on-crash"]
@@ -350,7 +354,7 @@ def test_breakpad_crash_stdout_before_send_and_on_crash(cmake):
         ),
     ],
 )
-@pytest.mark.skipif(not has_breakpad, reason="test needs breakpad backend")
+@pytest.mark.skipif(not has_breakpad or is_qemu, reason="test needs breakpad backend")
 def test_breakpad_stack_overflow_stdout(cmake, stack_size):
     env = dict(os.environ)
     if stack_size:

@@ -273,6 +273,34 @@ ptrace_get_thread_registers(pid_t tid, ucontext_t *uctx)
         SENTRY_DEBUGF("ptrace(PTRACE_GETREGS) failed for thread %d: %s", tid,
             strerror(errno));
     }
+#    elif defined(__arm__)
+    struct user_regs regs;
+    if (ptrace(PTRACE_GETREGS, tid, NULL, &regs) == 0) {
+        // uregs[0..15] = R0..R15, uregs[16] = CPSR
+        uctx->uc_mcontext.arm_r0 = regs.uregs[0];
+        uctx->uc_mcontext.arm_r1 = regs.uregs[1];
+        uctx->uc_mcontext.arm_r2 = regs.uregs[2];
+        uctx->uc_mcontext.arm_r3 = regs.uregs[3];
+        uctx->uc_mcontext.arm_r4 = regs.uregs[4];
+        uctx->uc_mcontext.arm_r5 = regs.uregs[5];
+        uctx->uc_mcontext.arm_r6 = regs.uregs[6];
+        uctx->uc_mcontext.arm_r7 = regs.uregs[7];
+        uctx->uc_mcontext.arm_r8 = regs.uregs[8];
+        uctx->uc_mcontext.arm_r9 = regs.uregs[9];
+        uctx->uc_mcontext.arm_r10 = regs.uregs[10];
+        uctx->uc_mcontext.arm_fp = regs.uregs[11];
+        uctx->uc_mcontext.arm_ip = regs.uregs[12];
+        uctx->uc_mcontext.arm_sp = regs.uregs[13];
+        uctx->uc_mcontext.arm_lr = regs.uregs[14];
+        uctx->uc_mcontext.arm_pc = regs.uregs[15];
+        uctx->uc_mcontext.arm_cpsr = regs.uregs[16];
+        success = true;
+        SENTRY_DEBUGF("Thread %d: captured registers via ptrace, SP=0x%lx", tid,
+            (unsigned long)regs.uregs[13]);
+    } else {
+        SENTRY_DEBUGF("ptrace(PTRACE_GETREGS) failed for thread %d: %s", tid,
+            strerror(errno));
+    }
 #    endif
 
     // Detach from thread
@@ -746,6 +774,35 @@ write_thread_context(
     // FPU state - zero out (could be captured via ptrace GETFPREGS in future)
     memset(&context.float_save, 0, sizeof(context.float_save));
     memset(context.extended_registers, 0, sizeof(context.extended_registers));
+
+    return write_data(writer, &context, sizeof(context));
+
+#    elif defined(__arm__)
+    (void)tid; // Unused on ARM32 - no VFP capture implemented yet
+
+    minidump_context_arm_t context = { 0 };
+    // MD_CONTEXT_ARM | CONTROL | INTEGER — breakpad-style 0x40000000 base
+    // (not Microsoft's 0x00200000; rust-minidump keys off the breakpad value)
+    context.context_flags = 0x40000003;
+
+    // Copy general purpose registers R0-R10 from Linux ucontext
+    context.r[0] = uctx->uc_mcontext.arm_r0;
+    context.r[1] = uctx->uc_mcontext.arm_r1;
+    context.r[2] = uctx->uc_mcontext.arm_r2;
+    context.r[3] = uctx->uc_mcontext.arm_r3;
+    context.r[4] = uctx->uc_mcontext.arm_r4;
+    context.r[5] = uctx->uc_mcontext.arm_r5;
+    context.r[6] = uctx->uc_mcontext.arm_r6;
+    context.r[7] = uctx->uc_mcontext.arm_r7;
+    context.r[8] = uctx->uc_mcontext.arm_r8;
+    context.r[9] = uctx->uc_mcontext.arm_r9;
+    context.r[10] = uctx->uc_mcontext.arm_r10;
+    context.r[11] = uctx->uc_mcontext.arm_fp; // R11 (FP)
+    context.r[12] = uctx->uc_mcontext.arm_ip; // R12 (IP)
+    context.sp = uctx->uc_mcontext.arm_sp;
+    context.lr = uctx->uc_mcontext.arm_lr;
+    context.pc = uctx->uc_mcontext.arm_pc;
+    context.cpsr = uctx->uc_mcontext.arm_cpsr;
 
     return write_data(writer, &context, sizeof(context));
 
@@ -1285,6 +1342,8 @@ ptrace_capture_thread(
     ptrace_sp = ptrace_ctx.uc_mcontext.sp;
 #    elif defined(__i386__)
     ptrace_sp = ptrace_ctx.uc_mcontext.gregs[REG_ESP];
+#    elif defined(__arm__)
+    ptrace_sp = ptrace_ctx.uc_mcontext.arm_sp;
 #    endif
 
     if (ptrace_sp != 0) {
@@ -1369,6 +1428,8 @@ write_thread_list_stream(minidump_writer_t *writer, minidump_directory_t *dir)
             sp = uctx->uc_mcontext.sp;
 #    elif defined(__i386__)
             sp = uctx->uc_mcontext.gregs[REG_ESP];
+#    elif defined(__arm__)
+            sp = uctx->uc_mcontext.arm_sp;
 #    endif
 
             SENTRY_DEBUGF("Thread %u: has context, SP=0x%llx",
