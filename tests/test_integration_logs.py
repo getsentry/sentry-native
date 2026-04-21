@@ -268,7 +268,7 @@ def test_logs_on_crash(cmake, httpserver, backend):
     assert_logs(logs_envelope, 1)
 
 
-@pytest.mark.skipif(not has_native, reason="test needs native backend")
+@pytest.mark.skipif(not has_native or is_qemu, reason="test needs native backend")
 @pytest.mark.parametrize("rerun", [True, False], ids=["rerun", "no-rerun"])
 def test_logs_on_crash_native(cmake, httpserver, rerun):
     tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "native"})

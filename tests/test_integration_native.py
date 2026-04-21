@@ -25,10 +25,10 @@ from .assertions import (
     wait_for_file,
     assert_user_feedback,
 )
-from .conditions import has_native, has_oom, is_kcov, is_asan
+from .conditions import has_native, has_oom, is_kcov, is_asan, is_qemu
 
 pytestmark = pytest.mark.skipif(
-    not has_native,
+    not has_native or is_qemu,
     reason="Tests need the native backend enabled",
 )
 

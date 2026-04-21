@@ -811,7 +811,7 @@ def test_discarding_before_breadcrumb_http(cmake, httpserver):
 
 
 @pytest.mark.skipif(is_kcov, reason="kcov exits with 0 even when the process crashes")
-@pytest.mark.skipif(not has_native, reason="test needs native backend")
+@pytest.mark.skipif(not has_native or is_qemu, reason="test needs native backend")
 def test_native_crash_http(cmake, httpserver):
     """Test native backend crash handling with HTTP transport"""
     tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "native"})
