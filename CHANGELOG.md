@@ -4,12 +4,15 @@
 
 **Features**:
 
-- Linux: build vendored libunwind for 32-bit ARM. ([#1659](https://github.com/getsentry/sentry-native/issues/1659))
+- Linux: support 32-bit ARM. ([#1659](https://github.com/getsentry/sentry-native/issues/1659))
 
 **Fixes**:
 
 - Linux: handle `ENOSYS` in `read_safely` to fix empty module list in seccomp-restricted environments. ([#1655](https://github.com/getsentry/sentry-native/pull/1655))
 - macOS: avoid stdio deadlock in breakpad exception handler. ([#1656](https://github.com/getsentry/sentry-native/pull/1656))
+- Crashpad: build for 32-bit ARM on Linux. ([#1659](https://github.com/getsentry/sentry-native/issues/1659))
+- Native: build for 32-bit ARM on Linux. ([#1659](https://github.com/getsentry/sentry-native/issues/1659))
+- Inproc: build vendored libunwind for 32-bit ARM on Linux. ([#1659](https://github.com/getsentry/sentry-native/issues/1659))
 
 ## 0.13.7
 
