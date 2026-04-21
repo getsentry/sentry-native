@@ -110,14 +110,6 @@ sentry_value_t sentry__ensure_event_id(
     sentry_value_t event, sentry_uuid_t *uuid_out);
 
 /**
- * This will ensure that the given `user` has an `id`, falling back to
- * `installation_id` when the user has no explicit id. Returns the id value
- * (existing or newly-set), or a null value if neither is available.
- */
-sentry_value_t sentry__ensure_user_id(
-    sentry_value_t user, const char *installation_id);
-
-/**
  * This will return an owned reference to the global options.
  */
 const sentry_options_t *sentry__options_getref(void);
