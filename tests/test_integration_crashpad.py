@@ -16,7 +16,7 @@ from . import (
     is_logs_envelope,
     is_feedback_envelope,
 )
-from .conditions import has_crashpad, has_oom, is_qemu
+from .conditions import has_crashpad, has_oom
 from .proxy import (
     setup_proxy_env_vars,
     cleanup_proxy_env_vars,
@@ -44,7 +44,6 @@ pytestmark = pytest.mark.skipif(
 flushes_state = sys.platform != "darwin"
 
 
-@pytest.mark.skipif(is_qemu, reason="unreliable under qemu-user")
 def test_crashpad_capture(cmake, httpserver):
     tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "crashpad"})
 
@@ -76,7 +75,6 @@ def _setup_crashpad_proxy_test(cmake, httpserver, proxy):
     return env, proxy_process, tmp_path, port
 
 
-@pytest.mark.skipif(is_qemu, reason="unreliable under qemu-user")
 def test_crashpad_crash_proxy_env(cmake, httpserver):
     if not shutil.which("mitmdump"):
         pytest.skip("mitmdump is not installed")
@@ -131,7 +129,6 @@ def test_crashpad_crash_proxy_env_port_incorrect(cmake, httpserver):
         proxy_test_finally(0, httpserver, proxy_process)
 
 
-@pytest.mark.skipif(is_qemu, reason="unreliable under qemu-user")
 def test_crashpad_proxy_set_empty(cmake, httpserver):
     if not shutil.which("mitmdump"):
         pytest.skip("mitmdump is not installed")
@@ -162,7 +159,6 @@ def test_crashpad_proxy_set_empty(cmake, httpserver):
         proxy_test_finally(1, httpserver, proxy_process, expected_proxy_logsize=0)
 
 
-@pytest.mark.skipif(is_qemu, reason="unreliable under qemu-user")
 def test_crashpad_proxy_https_not_http(cmake, httpserver):
     if not shutil.which("mitmdump"):
         pytest.skip("mitmdump is not installed")
@@ -238,7 +234,6 @@ def test_crashpad_crash_proxy(cmake, httpserver, run_args, proxy_running):
         proxy_test_finally(expected_logsize, httpserver, proxy_process)
 
 
-@pytest.mark.skipif(is_qemu, reason="unreliable under qemu-user")
 def test_crashpad_reinstall(cmake, httpserver):
     tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "crashpad"})
 
@@ -347,7 +342,6 @@ def test_crashpad_wer_crash(cmake, httpserver, run_args):
     assert wait_for_no_werfault()
 
 
-@pytest.mark.skipif(is_qemu, reason="unreliable under qemu-user")
 @pytest.mark.parametrize(
     "run_args,build_args",
     [
@@ -445,7 +439,6 @@ def test_crashpad_dumping_crash(cmake, httpserver, run_args, build_args):
     assert wait_for_file(minidump)
 
 
-@pytest.mark.skipif(is_qemu, reason="unreliable under qemu-user")
 @pytest.mark.parametrize(
     "stack_size",
     [
@@ -543,7 +536,6 @@ def test_crashpad_oom(cmake, httpserver):
     assert_crashpad_upload(multipart)
 
 
-@pytest.mark.skipif(is_qemu, reason="unreliable under qemu-user")
 @pytest.mark.skipif(
     sys.platform == "darwin",
     reason="crashpad doesn't provide SetFirstChanceExceptionHandler on macOS",
@@ -621,7 +613,6 @@ def test_crashpad_crash_after_shutdown(cmake, httpserver):
     assert_crashpad_upload(httpserver.log[0][0])
 
 
-@pytest.mark.skipif(is_qemu, reason="unreliable under qemu-user")
 @pytest.mark.skipif(not flushes_state, reason="test needs state flushing")
 def test_crashpad_dump_inflight(cmake, httpserver):
     tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "crashpad"})
@@ -647,7 +638,6 @@ def test_crashpad_dump_inflight(cmake, httpserver):
     assert len(httpserver.log) >= 11
 
 
-@pytest.mark.skipif(is_qemu, reason="unreliable under qemu-user")
 @pytest.mark.skipif(not flushes_state, reason="test needs state flushing")
 def test_crashpad_logs_on_crash(cmake, httpserver):
     tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "crashpad"})
@@ -680,7 +670,6 @@ def test_crashpad_logs_on_crash(cmake, httpserver):
     assert_logs(logs_envelope, 1)
 
 
-@pytest.mark.skipif(is_qemu, reason="unreliable under qemu-user")
 @pytest.mark.skipif(not flushes_state, reason="test needs state flushing")
 def test_crashpad_logs_and_session_on_crash(cmake, httpserver):
     tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "crashpad"})
@@ -717,7 +706,6 @@ def test_crashpad_logs_and_session_on_crash(cmake, httpserver):
     assert session_envelope is not None
 
 
-@pytest.mark.skipif(is_qemu, reason="unreliable under qemu-user")
 def test_disable_backend(cmake, httpserver):
     tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "crashpad"})
 
@@ -770,7 +758,6 @@ def test_crashpad_retry(cmake, httpserver):
     assert len(httpserver.log) == 1
 
 
-@pytest.mark.skipif(is_qemu, reason="unreliable under qemu-user")
 @pytest.mark.parametrize(
     "run_args",
     [
@@ -828,7 +815,6 @@ def test_crashpad_external_crash_reporter_wer(cmake, httpserver, run_args):
     test_crashpad_external_crash_reporter(cmake, httpserver, run_args)
 
 
-@pytest.mark.skipif(is_qemu, reason="unreliable under qemu-user")
 @pytest.mark.parametrize("cache_keep", [True, False])
 def test_crashpad_cache_keep(cmake, httpserver, cache_keep):
     tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "crashpad"})
@@ -880,7 +866,6 @@ def test_crashpad_cache_keep(cmake, httpserver, cache_keep):
         assert cache_files[0].stem == dmp_files[0].stem
 
 
-@pytest.mark.skipif(is_qemu, reason="unreliable under qemu-user")
 def test_crashpad_cache_max_size(cmake, httpserver):
     tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "crashpad"})
     cache_dir = tmp_path.joinpath(".sentry-native/cache")
@@ -937,7 +922,6 @@ def test_crashpad_cache_max_size(cmake, httpserver):
     assert sum(f.stat().st_size for f in cache_files) <= 4 * 1024 * 1024
 
 
-@pytest.mark.skipif(is_qemu, reason="unreliable under qemu-user")
 def test_crashpad_cache_max_age(cmake, httpserver):
     tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "crashpad"})
     cache_dir = tmp_path.joinpath(".sentry-native/cache")

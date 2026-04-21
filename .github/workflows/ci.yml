@@ -314,7 +314,8 @@ jobs:
             zlib1g-dev:armhf \
             libssl-dev:armhf \
             libcurl4-openssl-dev:armhf \
-            liblzma-dev:armhf
+            liblzma-dev:armhf \
+            libstdc++6:armhf
 
       - name: Installing qemu-user
         if: ${{ runner.os == 'Linux' && env['TEST_QEMU'] && !matrix.container }}
