@@ -3611,7 +3611,11 @@ sentry__crash_daemon_start(pid_t app_pid, uint64_t app_tid, HANDLE event_handle,
 #ifdef SENTRY_CRASH_DAEMON_STANDALONE
 
 #    if defined(SENTRY_PLATFORM_XBOX)
-#        include <XGameRuntime.h>
+// Forward-declare the two XGameRuntime entry points we need rather than
+// #include <XGameRuntime.h> — that header (transitively) requires C++11
+// and the daemon is compiled as C.
+extern HRESULT XGameRuntimeInitialize(void);
+extern void XGameRuntimeUninitialize(void);
 
 // Forward declared here; implemented by the downstream SDK (sentry-xbox's
 // sentry_transport_xbox.cpp) and linked into the daemon. The same contract
