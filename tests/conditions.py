@@ -37,7 +37,6 @@ has_crashpad = (
     and not is_android
     and not is_aix
     and not is_tsan
-    and not is_arm32
 )
 # android has no local filesystem
 has_files = not is_android
