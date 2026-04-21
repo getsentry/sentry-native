@@ -1313,6 +1313,8 @@ ptrace_capture_thread(
     ptrace_sp = ptrace_ctx.uc_mcontext.sp;
 #    elif defined(__i386__)
     ptrace_sp = ptrace_ctx.uc_mcontext.gregs[REG_ESP];
+#    elif defined(__arm__)
+    ptrace_sp = ptrace_ctx.uc_mcontext.arm_sp;
 #    endif
 
     if (ptrace_sp != 0) {
@@ -1397,6 +1399,8 @@ write_thread_list_stream(minidump_writer_t *writer, minidump_directory_t *dir)
             sp = uctx->uc_mcontext.sp;
 #    elif defined(__i386__)
             sp = uctx->uc_mcontext.gregs[REG_ESP];
+#    elif defined(__arm__)
+            sp = uctx->uc_mcontext.arm_sp;
 #    endif
 
             SENTRY_DEBUGF("Thread %u: has context, SP=0x%llx",
