@@ -15,12 +15,6 @@
 #    include <time.h>
 #endif
 
-#ifdef SENTRY_PLATFORM_WINDOWS
-#    include <stdlib.h>
-#else
-#    include <arpa/inet.h>
-#endif
-
 #ifdef SENTRY_PLATFORM_PS
 #    undef MIN
 #    undef MAX
@@ -39,18 +33,23 @@
 static inline void
 sentry__uuid_swap_guid_bytes(void *uuid)
 {
-    uint32_t *a = (uint32_t *)uuid;
-    uint16_t *b = (uint16_t *)((char *)uuid + 4);
-    uint16_t *c = (uint16_t *)((char *)uuid + 6);
-#ifdef SENTRY_PLATFORM_WINDOWS
-    *a = _byteswap_ulong(*a);
-    *b = _byteswap_ushort(*b);
-    *c = _byteswap_ushort(*c);
-#else
-    *a = htonl(*a);
-    *b = htons(*b);
-    *c = htons(*c);
-#endif
+    uint8_t *p = (uint8_t *)uuid;
+    uint8_t t;
+    // Swap Data1 (4 bytes)
+    t = p[0];
+    p[0] = p[3];
+    p[3] = t;
+    t = p[1];
+    p[1] = p[2];
+    p[2] = t;
+    // Swap Data2 (2 bytes)
+    t = p[4];
+    p[4] = p[5];
+    p[5] = t;
+    // Swap Data3 (2 bytes)
+    t = p[6];
+    p[6] = p[7];
+    p[7] = t;
 }
 
 #if defined(_MSC_VER) && !defined(__clang__)
