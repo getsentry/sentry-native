@@ -308,10 +308,6 @@ typedef struct {
     uint32_t lr; // R14
     uint32_t pc; // R15
     uint32_t cpsr;
-    // VFP/NEON state (matches breakpad's MDRawContextARM / Microsoft's
-    // CONTEXT_ARM floating-point area). We don't populate these today
-    // but the layout needs to match what downstream minidump parsers
-    // (crashpad, rust-minidump, breakpad) expect when reading the stream.
     uint64_t fpscr;
     uint64_t fpregs[32]; // D0-D31
     uint32_t fpextra[8];
