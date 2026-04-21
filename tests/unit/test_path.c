@@ -394,6 +394,73 @@ SENTRY_TEST(path_basename)
     sentry__path_free(path);
 }
 
+SENTRY_TEST(path_unique)
+{
+    sentry_path_t *dir
+        = sentry__path_from_str(SENTRY_TEST_PATH_PREFIX ".unique-name");
+    TEST_ASSERT(!!dir);
+    sentry__path_remove_all(dir);
+    sentry__path_create_dir_all(dir);
+
+    // free name returns unchanged
+    sentry_path_t *path = sentry__path_unique(dir, "foo.txt");
+    TEST_ASSERT(!!path);
+    TEST_CHECK_STRING_EQUAL(sentry__path_filename(path), "foo.txt");
+    sentry__path_free(path);
+
+    // first collision bumps to -1 before the extension
+    sentry_path_t *taken = sentry__path_join_str(dir, "foo.txt");
+    sentry__path_write_buffer(taken, "x", 1);
+    sentry__path_free(taken);
+    path = sentry__path_unique(dir, "foo.txt");
+    TEST_ASSERT(!!path);
+    TEST_CHECK_STRING_EQUAL(sentry__path_filename(path), "foo-1.txt");
+    sentry__path_free(path);
+
+    // subsequent collisions skip taken suffixes in order
+    taken = sentry__path_join_str(dir, "foo-1.txt");
+    sentry__path_write_buffer(taken, "x", 1);
+    sentry__path_free(taken);
+    path = sentry__path_unique(dir, "foo.txt");
+    TEST_ASSERT(!!path);
+    TEST_CHECK_STRING_EQUAL(sentry__path_filename(path), "foo-2.txt");
+    sentry__path_free(path);
+
+    // filename without extension gets a trailing index
+    path = sentry__path_unique(dir, "bar");
+    TEST_ASSERT(!!path);
+    TEST_CHECK_STRING_EQUAL(sentry__path_filename(path), "bar");
+    sentry__path_free(path);
+    taken = sentry__path_join_str(dir, "bar");
+    sentry__path_write_buffer(taken, "x", 1);
+    sentry__path_free(taken);
+    path = sentry__path_unique(dir, "bar");
+    TEST_ASSERT(!!path);
+    TEST_CHECK_STRING_EQUAL(sentry__path_filename(path), "bar-1");
+    sentry__path_free(path);
+
+    // leading-dot filename is treated as stem-only, not as a bare extension
+    path = sentry__path_unique(dir, ".hidden");
+    TEST_ASSERT(!!path);
+    TEST_CHECK_STRING_EQUAL(sentry__path_filename(path), ".hidden");
+    sentry__path_free(path);
+    taken = sentry__path_join_str(dir, ".hidden");
+    sentry__path_write_buffer(taken, "x", 1);
+    sentry__path_free(taken);
+    path = sentry__path_unique(dir, ".hidden");
+    TEST_ASSERT(!!path);
+    TEST_CHECK_STRING_EQUAL(sentry__path_filename(path), ".hidden-1");
+    sentry__path_free(path);
+
+    // NULL / empty inputs are rejected
+    TEST_CHECK(!sentry__path_unique(NULL, "x"));
+    TEST_CHECK(!sentry__path_unique(dir, NULL));
+    TEST_CHECK(!sentry__path_unique(dir, ""));
+
+    sentry__path_remove_all(dir);
+    sentry__path_free(dir);
+}
+
 SENTRY_TEST(path_copy)
 {
 #if defined(SENTRY_PLATFORM_NX)

@@ -1012,24 +1012,17 @@ crashpad_backend_prune_database(sentry_backend_t *backend)
 static bool
 ensure_unique_path(sentry_attachment_t *attachment)
 {
-    sentry_uuid_t uuid = sentry_uuid_new_v4();
-    char uuid_str[37];
-    sentry_uuid_as_string(&uuid, uuid_str);
-
-    sentry_path_t *base_path = nullptr;
+    sentry_path_t *path = nullptr;
     SENTRY_WITH_OPTIONS (options) {
-        base_path = sentry__path_join_str(options->run->run_path, uuid_str);
+        path = sentry__path_unique(options->run->run_path,
+            sentry__path_filename(attachment->filename));
     }
-    if (!base_path || sentry__path_create_dir_all(base_path) != 0) {
+    if (!path) {
         return false;
     }
 
-    sentry_path_t *old_path = attachment->path;
-    attachment->path = sentry__path_join_str(
-        base_path, sentry__path_filename(attachment->filename));
-
-    sentry__path_free(base_path);
-    sentry__path_free(old_path);
+    sentry__path_free(attachment->path);
+    attachment->path = path;
     return true;
 }
 
