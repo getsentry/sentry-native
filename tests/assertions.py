@@ -43,7 +43,7 @@ def assert_session(
             session = item.payload.json
 
     assert session is not None
-    assert session["did"] == "42"
+    assert INSTALLATION_ID_RE.match(session["did"]), session["did"]
     assert session["attrs"] == {
         "release": release,
         "environment": environment,
