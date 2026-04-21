@@ -17,6 +17,10 @@ from .conditions import is_android
 
 VERSION_RE = re.compile(r"(\d+\.\d+\.\d+)[-.]?(.*)")
 
+INSTALLATION_ID_RE = re.compile(
+    r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+)
+
 
 def matches(actual, expected):
     return {k: v for (k, v) in actual.items() if k in expected.keys()} == expected
@@ -108,7 +112,6 @@ def assert_event_meta(
         "platform": "native",
         "environment": "development",
         "release": release,
-        "user": {"id": "42", "username": "some_name"},
         "transaction": transaction,
         "tags": {"expected-tag": "some value"},
         "extra": extra,
@@ -161,6 +164,8 @@ def assert_event_meta(
         expected_sdk["name"] = sdk_override
 
     assert_matches(event, expected)
+    assert event["user"]["username"] == "some_name"
+    assert INSTALLATION_ID_RE.match(event["user"]["id"])
     assert_matches(event["sdk"], expected_sdk)
     assert_matches(
         event["contexts"], {"runtime": {"type": "runtime", "name": "testing-runtime"}}

@@ -18,6 +18,7 @@ typedef struct sentry_run_s {
     long retain; // (atomic) bool
     long require_user_consent; // (atomic) bool
     long user_consent; // (atomic) sentry_user_consent_t
+    char *installation_id;
 } sentry_run_t;
 
 /**
@@ -34,6 +35,16 @@ bool sentry__run_should_skip_upload(sentry_run_t *run);
  */
 void sentry__run_load_user_consent(
     sentry_run_t *run, const sentry_path_t *database_path);
+
+/**
+ * Loads or creates the persisted installation ID. The file
+ * `<database>/installation_id` stores a UUIDv4 on line 1 and the given
+ * `public_key` on line 2. If the stored key matches, the UUID is reused;
+ * otherwise a new one is generated and the file is rewritten. A NULL
+ * `public_key` is treated as an empty string.
+ */
+void sentry__run_load_installation_id(sentry_run_t *run,
+    const sentry_path_t *database_path, const char *public_key);
 
 /**
  * This creates a new application run including its associated directory and

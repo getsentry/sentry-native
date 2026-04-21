@@ -379,3 +379,49 @@ SENTRY_TEST(basic_transport_thread_name)
 
     sentry_close();
 }
+
+SENTRY_TEST(installation_id)
+{
+    // no DSN -> installation ID is generated
+    SENTRY_TEST_OPTIONS_NEW(opts0);
+    sentry_init(opts0);
+    SENTRY_WITH_OPTIONS (options) {
+        TEST_ASSERT(!!options->run->installation_id);
+        TEST_CHECK_INT_EQUAL(strlen(options->run->installation_id), 36);
+    }
+    sentry_close();
+
+    // DSN A -> installation ID is generated
+    SENTRY_TEST_OPTIONS_NEW(opts1);
+    sentry_options_set_dsn(opts1, "http://keya@127.0.0.1/42");
+    sentry_init(opts1);
+    char *id_a = NULL;
+    SENTRY_WITH_OPTIONS (options) {
+        TEST_ASSERT(!!options->run->installation_id);
+        TEST_CHECK_INT_EQUAL(strlen(options->run->installation_id), 36);
+        id_a = sentry__string_clone(options->run->installation_id);
+    }
+    sentry_close();
+
+    // same DSN A -> installation ID persists
+    SENTRY_TEST_OPTIONS_NEW(opts2);
+    sentry_options_set_dsn(opts2, "http://keya@127.0.0.1/42");
+    sentry_init(opts2);
+    SENTRY_WITH_OPTIONS (options) {
+        TEST_ASSERT(!!options->run->installation_id);
+        TEST_CHECK_STRING_EQUAL(options->run->installation_id, id_a);
+    }
+    sentry_close();
+
+    // different DSN B -> installation ID rotates
+    SENTRY_TEST_OPTIONS_NEW(opts3);
+    sentry_options_set_dsn(opts3, "http://keyb@127.0.0.1/42");
+    sentry_init(opts3);
+    SENTRY_WITH_OPTIONS (options) {
+        TEST_ASSERT(!!options->run->installation_id);
+        TEST_CHECK(strcmp(options->run->installation_id, id_a) != 0);
+    }
+    sentry_close();
+
+    sentry_free(id_a);
+}

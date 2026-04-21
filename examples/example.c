@@ -925,9 +925,7 @@ main(int argc, char **argv)
             context, "name", sentry_value_new_string("testing-runtime"));
         sentry_set_context("runtime", context);
 
-        sentry_value_t user
-            = sentry_value_new_user("42", "some_name", NULL, NULL);
-        sentry_set_user(user);
+        sentry_set_user(sentry_value_new_user(NULL, "some_name", NULL, NULL));
 
         sentry_value_t default_crumb
             = sentry_value_new_breadcrumb(NULL, "default level is info");

@@ -194,6 +194,9 @@ sentry_init(sentry_options_t *options)
             "the provided DSN \"%s\" is not valid", raw_dsn ? raw_dsn : "");
     }
 
+    sentry__run_load_installation_id(options->run, options->database_path,
+        options->dsn ? options->dsn->public_key : NULL);
+
     if (transport) {
         if (sentry__transport_startup(transport, options) != 0) {
 #ifdef SENTRY_PLATFORM_NX
