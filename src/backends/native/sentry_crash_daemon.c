@@ -3610,6 +3610,16 @@ sentry__crash_daemon_start(pid_t app_pid, uint64_t app_tid, HANDLE event_handle,
 // When built as standalone executable, provide main entry point
 #ifdef SENTRY_CRASH_DAEMON_STANDALONE
 
+#    if defined(SENTRY_PLATFORM_XBOX)
+#        include <XGameRuntime.h>
+
+// Forward declared here; implemented by the downstream SDK (sentry-xbox's
+// sentry_transport_xbox.cpp) and linked into the daemon. The same contract
+// is already assumed by sentry_http_transport_winhttp.c under
+// SENTRY_PLATFORM_XBOX.
+extern bool sentry__xbox_ensure_network_initialized(void);
+#    endif
+
 int
 main(int argc, char **argv)
 {
@@ -3652,8 +3662,34 @@ main(int argc, char **argv)
     unsigned long long ready_event_val = strtoull(argv[4], NULL, 10);
     HANDLE event_handle = (HANDLE)(uintptr_t)event_handle_val;
     HANDLE ready_event_handle = (HANDLE)(uintptr_t)ready_event_val;
-    return sentry__crash_daemon_main(
+
+#        if defined(SENTRY_PLATFORM_XBOX)
+    // XGameRuntime must be initialized before any XGameRuntime / XNetworking
+    // API call. Without this, the Xbox transport's connectivity check fails
+    // and the daemon cannot upload crash reports.
+    HRESULT init_hr = XGameRuntimeInitialize();
+    if (FAILED(init_hr)) {
+        fprintf(stderr,
+            "sentry-crash: XGameRuntimeInitialize failed: 0x%08lX\n",
+            (unsigned long)init_hr);
+        return 1;
+    }
+    // Pre-warm XNetworking so the upload path inside the crash handler is
+    // fast. The parent's exception filter only waits up to
+    // SENTRY_CRASH_HANDLER_WAIT_TIMEOUT_MS for the daemon to finish, and a
+    // cold XNetworking init can exceed that window — so pay the cost here,
+    // before the crash arrives. Failure is non-fatal; the transport's lazy
+    // init will retry.
+    (void)sentry__xbox_ensure_network_initialized();
+#        endif
+
+    int rv = sentry__crash_daemon_main(
         app_pid, app_tid, event_handle, ready_event_handle);
+
+#        if defined(SENTRY_PLATFORM_XBOX)
+    XGameRuntimeUninitialize();
+#        endif
+    return rv;
 #    else
     fprintf(stderr, "Platform not supported\n");
     return 1;
