@@ -781,8 +781,9 @@ write_thread_context(
     (void)tid; // Unused on ARM32 - no VFP capture implemented yet
 
     minidump_context_arm_t context = { 0 };
-    // CONTEXT_ARM | CONTEXT_CONTROL | CONTEXT_INTEGER
-    context.context_flags = 0x00200003;
+    // MD_CONTEXT_ARM | CONTROL | INTEGER — breakpad-style 0x40000000 base
+    // (not Microsoft's 0x00200000; rust-minidump keys off the breakpad value)
+    context.context_flags = 0x40000003;
 
     // Copy general purpose registers R0-R10 from Linux ucontext
     context.r[0] = uctx->uc_mcontext.arm_r0;
