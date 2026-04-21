@@ -749,6 +749,34 @@ write_thread_context(
 
     return write_data(writer, &context, sizeof(context));
 
+#    elif defined(__arm__)
+    (void)tid; // Unused on ARM32 - no VFP capture implemented yet
+
+    minidump_context_arm_t context = { 0 };
+    // CONTEXT_ARM | CONTEXT_CONTROL | CONTEXT_INTEGER
+    context.context_flags = 0x00200003;
+
+    // Copy general purpose registers R0-R10 from Linux ucontext
+    context.r[0] = uctx->uc_mcontext.arm_r0;
+    context.r[1] = uctx->uc_mcontext.arm_r1;
+    context.r[2] = uctx->uc_mcontext.arm_r2;
+    context.r[3] = uctx->uc_mcontext.arm_r3;
+    context.r[4] = uctx->uc_mcontext.arm_r4;
+    context.r[5] = uctx->uc_mcontext.arm_r5;
+    context.r[6] = uctx->uc_mcontext.arm_r6;
+    context.r[7] = uctx->uc_mcontext.arm_r7;
+    context.r[8] = uctx->uc_mcontext.arm_r8;
+    context.r[9] = uctx->uc_mcontext.arm_r9;
+    context.r[10] = uctx->uc_mcontext.arm_r10;
+    context.r[11] = uctx->uc_mcontext.arm_fp; // R11 (FP)
+    context.r[12] = uctx->uc_mcontext.arm_ip; // R12 (IP)
+    context.sp = uctx->uc_mcontext.arm_sp;
+    context.lr = uctx->uc_mcontext.arm_lr;
+    context.pc = uctx->uc_mcontext.arm_pc;
+    context.cpsr = uctx->uc_mcontext.arm_cpsr;
+
+    return write_data(writer, &context, sizeof(context));
+
 #    else
 #        error "Unsupported architecture for Linux"
 #    endif
