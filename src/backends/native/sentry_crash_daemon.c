@@ -3622,6 +3622,14 @@ extern void XGameRuntimeUninitialize(void);
 // is already assumed by sentry_http_transport_winhttp.c under
 // SENTRY_PLATFORM_XBOX.
 extern bool sentry__xbox_ensure_network_initialized(void);
+
+static DWORD WINAPI
+sentry__xbox_network_prewarm_thread_proc(LPVOID param)
+{
+    (void)param;
+    (void)sentry__xbox_ensure_network_initialized();
+    return 0;
+}
 #    endif
 
 int
@@ -3678,13 +3686,17 @@ main(int argc, char **argv)
             (unsigned long)init_hr);
         return 1;
     }
-    // Pre-warm XNetworking so the upload path inside the crash handler is
-    // fast. The parent's exception filter only waits up to
-    // SENTRY_CRASH_HANDLER_WAIT_TIMEOUT_MS for the daemon to finish, and a
-    // cold XNetworking init can exceed that window — so pay the cost here,
-    // before the crash arrives. Failure is non-fatal; the transport's lazy
-    // init will retry.
-    (void)sentry__xbox_ensure_network_initialized();
+    // Pre-warm XNetworking on a detached thread so the daemon can enter
+    // sentry__crash_daemon_main() immediately and signal ready to the parent
+    // within SENTRY_CRASH_DAEMON_READY_TIMEOUT_MS. A cold XNetworking init
+    // can take up to 60s; running it inline would miss the deadline. The
+    // transport's send-time call to sentry__xbox_ensure_network_initialized
+    // will pick up (or race with, safely) the background warm-up result.
+    HANDLE prewarm_thread = CreateThread(
+        NULL, 0, sentry__xbox_network_prewarm_thread_proc, NULL, 0, NULL);
+    if (prewarm_thread) {
+        CloseHandle(prewarm_thread);
+    }
 #        endif
 
     int rv = sentry__crash_daemon_main(
