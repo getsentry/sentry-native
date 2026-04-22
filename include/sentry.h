@@ -2329,6 +2329,28 @@ SENTRY_EXPERIMENTAL_API int sentry_options_get_propagate_traceparent(
     const sentry_options_t *opts);
 
 /**
+ * Enables or disables strict trace continuation.
+ *
+ * Controls whether to continue an incoming trace when either the trace or the
+ * SDK has an organization ID (derived from the DSN), but not both. When set
+ * to true, a new trace is started in that case; when false, the incoming
+ * trace is continued. If both organization IDs are present and differ, the
+ * trace is never continued regardless of this setting.
+ *
+ * See https://develop.sentry.dev/sdk/foundations/trace-propagation/#strict-trace-continuation
+ *
+ * This is disabled by default.
+ */
+SENTRY_EXPERIMENTAL_API void sentry_options_set_strict_trace_continuation(
+    sentry_options_t *opts, int strict_trace_continuation);
+
+/**
+ * Returns whether strict trace continuation is enabled.
+ */
+SENTRY_EXPERIMENTAL_API int sentry_options_get_strict_trace_continuation(
+    const sentry_options_t *opts);
+
+/**
  * Enables or disables the structured logging feature.
  * When disabled, all calls to `sentry_log_X()` are no-ops.
  *

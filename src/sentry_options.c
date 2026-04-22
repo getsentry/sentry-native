@@ -63,6 +63,7 @@ sentry_options_new(void)
     opts->enable_logging_when_crashed = true;
 #endif
     opts->propagate_traceparent = false;
+    opts->strict_trace_continuation = false;
     opts->crashpad_limit_stack_capture_to_sp = false;
     opts->enable_metrics = true;
     opts->enable_logs = true;
@@ -935,6 +936,19 @@ int
 sentry_options_get_propagate_traceparent(const sentry_options_t *opts)
 {
     return opts->propagate_traceparent;
+}
+
+void
+sentry_options_set_strict_trace_continuation(
+    sentry_options_t *opts, int strict_trace_continuation)
+{
+    opts->strict_trace_continuation = !!strict_trace_continuation;
+}
+
+int
+sentry_options_get_strict_trace_continuation(const sentry_options_t *opts)
+{
+    return opts->strict_trace_continuation;
 }
 
 void

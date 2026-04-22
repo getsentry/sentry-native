@@ -46,6 +46,7 @@ struct sentry_options_s {
     bool crashpad_wait_for_upload;
     bool enable_logging_when_crashed;
     bool propagate_traceparent;
+    bool strict_trace_continuation;
     bool crashpad_limit_stack_capture_to_sp;
     bool cache_keep;
 
