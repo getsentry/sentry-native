@@ -243,6 +243,18 @@ sentry_options_get_org_id(const sentry_options_t *opts)
     return opts->org_id;
 }
 
+const char *
+sentry__options_get_effective_org_id(const sentry_options_t *opts)
+{
+    if (opts->org_id && *opts->org_id) {
+        return opts->org_id;
+    }
+    if (opts->dsn && opts->dsn->org_id && *opts->dsn->org_id) {
+        return opts->dsn->org_id;
+    }
+    return NULL;
+}
+
 void
 sentry_options_set_sample_rate(sentry_options_t *opts, double sample_rate)
 {

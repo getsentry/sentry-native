@@ -110,4 +110,12 @@ struct sentry_options_s {
  */
 sentry_options_t *sentry__options_incref(sentry_options_t *options);
 
+/**
+ * Returns the effective organization ID used for trace propagation:
+ * the `org_id` option if set and non-empty, otherwise the DSN-derived value
+ * if non-empty, otherwise NULL.
+ */
+const char *sentry__options_get_effective_org_id(
+    const sentry_options_t *options);
+
 #endif

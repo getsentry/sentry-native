@@ -109,8 +109,10 @@ set_dynamic_sampling_context(
     if (options->dsn) {
         sentry_value_set_by_key(dsc, "public_key",
             sentry_value_new_string(options->dsn->public_key));
-        sentry_value_set_by_key(
-            dsc, "org_id", sentry_value_new_string(options->dsn->org_id));
+    }
+    const char *org_id = sentry__options_get_effective_org_id(options);
+    if (org_id) {
+        sentry_value_set_by_key(dsc, "org_id", sentry_value_new_string(org_id));
     }
     sentry_value_set_by_key(dsc, "sample_rate",
         sentry_value_new_double(options->traces_sample_rate));

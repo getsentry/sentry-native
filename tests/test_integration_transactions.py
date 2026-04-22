@@ -255,7 +255,6 @@ def test_transaction_trace_header(cmake, httpserver):
     del trace_header["sample_rand"]
     assert trace_header == {
         "environment": "development",
-        "org_id": "",
         "public_key": "uiaeosnrtdy",
         "release": "test-example-release",
         "sample_rate": 1,
@@ -301,7 +300,6 @@ def test_event_trace_header(cmake, httpserver):
     del trace_header["sample_rand"]
     assert trace_header == {
         "environment": "development",
-        "org_id": "",
         "public_key": "uiaeosnrtdy",
         "release": "test-example-release",
         "sample_rate": 0,  # since we don't capture-transaction
