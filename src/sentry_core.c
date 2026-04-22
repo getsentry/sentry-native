@@ -1206,15 +1206,24 @@ sentry_set_trace_n(const char *trace_id, size_t trace_id_len,
         sentry__generate_sample_rand(context);
 
         sentry__set_propagation_context("trace", context);
+
+        SENTRY_WITH_OPTIONS (options) {
+            SENTRY_WITH_SCOPE_MUT (scope) {
+                set_dynamic_sampling_context(options, scope);
+            }
+        }
     }
 }
 
 void
 sentry_regenerate_trace(void)
 {
-    SENTRY_WITH_SCOPE_MUT (scope) {
-        generate_propagation_context(scope->propagation_context);
-        scope->trace_managed = false;
+    SENTRY_WITH_OPTIONS (options) {
+        SENTRY_WITH_SCOPE_MUT (scope) {
+            generate_propagation_context(scope->propagation_context);
+            scope->trace_managed = false;
+            set_dynamic_sampling_context(options, scope);
+        }
     }
 }
 
