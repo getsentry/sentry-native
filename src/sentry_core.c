@@ -1315,7 +1315,7 @@ sentry_transaction_start_ts(sentry_transaction_context_t *opaque_tx_ctx,
     sentry_sampling_context_t sampling_ctx
         = { opaque_tx_ctx, custom_sampling_ctx, NULL, sample_rand };
 
-    bool should_sample = sentry__should_send_transaction(tx_ctx, &sampling_ctx);
+    bool should_sample = sentry__should_send_transaction(tx, &sampling_ctx);
     sentry_value_set_by_key(
         tx, "sampled", sentry_value_new_bool(should_sample));
     sentry_value_decref(custom_sampling_ctx);

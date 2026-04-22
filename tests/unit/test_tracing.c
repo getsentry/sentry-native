@@ -2125,7 +2125,9 @@ SENTRY_TEST(strict_continuation_org_mismatch_forks)
     sentry_options_set_dsn(options, "https://k@o123456.ingest.sentry.io/1");
     sentry_options_set_transport(
         options, sentry_transport_new(discard_envelope));
-    sentry_options_set_traces_sample_rate(options, 1.0);
+    // sample_rate=0 + upstream sentry-trace ending in `-1`: only the fork
+    // dropping the inherited sampling decision lets the local rate win.
+    sentry_options_set_traces_sample_rate(options, 0.0);
     // Strict OFF: mismatch must still fork (spec MUST).
     sentry_init(options);
 
@@ -2137,6 +2139,8 @@ SENTRY_TEST(strict_continuation_org_mismatch_forks)
     TEST_CHECK(strcmp(trace_id, UPSTREAM_TRACE_ID) != 0);
     TEST_CHECK(sentry_value_is_null(
         sentry_value_get_by_key(tx->inner, "parent_span_id")));
+    TEST_CHECK(
+        !sentry_value_is_true(sentry_value_get_by_key(tx->inner, "sampled")));
 
     // Outgoing baggage carries the SDK's own org_id, not upstream's.
     continuation_collector_t c = { 0 };
