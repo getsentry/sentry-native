@@ -3676,35 +3676,17 @@ main(int argc, char **argv)
     HANDLE ready_event_handle = (HANDLE)(uintptr_t)ready_event_val;
 
 #        if defined(SENTRY_PLATFORM_XBOX)
-    // XGameRuntime must be initialized before any XGameRuntime / XNetworking
-    // API call. Without this, the Xbox transport's connectivity check fails
-    // and the daemon cannot upload crash reports.
-    HRESULT init_hr = XGameRuntimeInitialize();
-    if (FAILED(init_hr)) {
-        fprintf(stderr,
-            "sentry-crash: XGameRuntimeInitialize failed: 0x%08lX\n",
-            (unsigned long)init_hr);
-        return 1;
-    }
-    // Pre-warm XNetworking on a detached thread so the daemon can enter
-    // sentry__crash_daemon_main() immediately and signal ready to the parent
-    // within SENTRY_CRASH_DAEMON_READY_TIMEOUT_MS. A cold XNetworking init
-    // can take up to 60s; running it inline would miss the deadline. The
-    // transport's send-time call to sentry__xbox_ensure_network_initialized
-    // will pick up (or race with, safely) the background warm-up result.
-    HANDLE prewarm_thread = CreateThread(
-        NULL, 0, sentry__xbox_network_prewarm_thread_proc, NULL, 0, NULL);
-    if (prewarm_thread) {
-        CloseHandle(prewarm_thread);
-    }
+    // DIAGNOSTIC: XGameRuntimeInitialize and the network pre-warm are
+    // temporarily removed to test whether one of them is blocking the
+    // daemon from reaching sentry__crash_daemon_main(). Without network
+    // init, the daemon won't be able to actually upload a crash envelope,
+    // but we should at least see the daemon's own log file appear in
+    // the database dir if IPC init succeeds. Restore before merge.
 #        endif
 
     int rv = sentry__crash_daemon_main(
         app_pid, app_tid, event_handle, ready_event_handle);
 
-#        if defined(SENTRY_PLATFORM_XBOX)
-    XGameRuntimeUninitialize();
-#        endif
     return rv;
 #    else
     fprintf(stderr, "Platform not supported\n");
