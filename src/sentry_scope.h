@@ -129,6 +129,13 @@ void sentry__scope_remove_attribute_n(
         sentry__scope_unlock(), Scope = NULL)
 
 /**
+ * Rebuilds the scope's dynamic sampling context (DSC) from the SDK options
+ * and the current propagation context. The previous DSC is discarded.
+ */
+void sentry__scope_rebuild_dsc_from_options(
+    sentry_scope_t *scope, const sentry_options_t *options);
+
+/**
  * Adds scoped attributes to the telemetry attributes object.
  */
 void sentry__scope_apply_attributes(const sentry_scope_t *scope,
