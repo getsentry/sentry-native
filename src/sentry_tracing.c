@@ -13,6 +13,13 @@
 #include <stdio.h>
 #include <string.h>
 
+static inline bool
+isalnum_c(unsigned char c)
+{
+    return (c >= '0' && c <= '9') || (c >= 'A' && c <= 'Z')
+        || (c >= 'a' && c <= 'z');
+}
+
 static void
 percent_encode_append(sentry_stringbuilder_t *sb, const char *value)
 {
@@ -21,7 +28,7 @@ percent_encode_append(sentry_stringbuilder_t *sb, const char *value)
     static const char hex[] = "0123456789ABCDEF";
     for (const unsigned char *p = (const unsigned char *)value; *p; p++) {
         unsigned char c = *p;
-        if (isalnum(c) || c == '-' || c == '.' || c == '_' || c == '~') {
+        if (isalnum_c(c) || c == '-' || c == '.' || c == '_' || c == '~') {
             sentry__stringbuilder_append_char(sb, (char)c);
         } else {
             char esc[3] = { '%', hex[c >> 4], hex[c & 0xF] };
