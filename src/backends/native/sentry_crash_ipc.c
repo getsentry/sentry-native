@@ -730,8 +730,20 @@ sentry__crash_ipc_init_daemon(pid_t app_pid, uint64_t app_tid,
     ipc->shm_handle
         = OpenFileMappingW(FILE_MAP_ALL_ACCESS, FALSE, ipc->shm_name);
     if (!ipc->shm_handle) {
-        SENTRY_WARNF(
-            "daemon: failed to open shared memory: %lu", GetLastError());
+        DWORD _err = GetLastError();
+#if defined(SENTRY_PLATFORM_XBOX)
+        // DIAGNOSTIC: the daemon's sentry logger isn't wired up yet at
+        // this point, so failures here are otherwise invisible. Write
+        // directly to a known-writable path on Xbox.
+        FILE *_f = fopen("D:\\Logs\\sentry-ipc-diag.log", "a");
+        if (_f) {
+            fprintf(_f,
+                "OpenFileMappingW(shm) failed: GetLastError=%lu, name=%ls\n",
+                _err, ipc->shm_name);
+            fclose(_f);
+        }
+#endif
+        SENTRY_WARNF("daemon: failed to open shared memory: %lu", _err);
         sentry_free(ipc);
         return NULL;
     }
@@ -760,7 +772,17 @@ sentry__crash_ipc_init_daemon(pid_t app_pid, uint64_t app_tid,
 
     ipc->event_handle = OpenEventW(SYNCHRONIZE, FALSE, ipc->event_name);
     if (!ipc->event_handle) {
-        SENTRY_WARNF("daemon: failed to open event: %lu", GetLastError());
+        DWORD _err = GetLastError();
+#if defined(SENTRY_PLATFORM_XBOX)
+        FILE *_f = fopen("D:\\Logs\\sentry-ipc-diag.log", "a");
+        if (_f) {
+            fprintf(_f,
+                "OpenEventW(notify) failed: GetLastError=%lu, name=%ls\n",
+                _err, ipc->event_name);
+            fclose(_f);
+        }
+#endif
+        SENTRY_WARNF("daemon: failed to open event: %lu", _err);
         UnmapViewOfFile(ipc->shmem);
         CloseHandle(ipc->shm_handle);
         sentry_free(ipc);
@@ -774,7 +796,17 @@ sentry__crash_ipc_init_daemon(pid_t app_pid, uint64_t app_tid,
     ipc->ready_event_handle
         = OpenEventW(EVENT_MODIFY_STATE, FALSE, ipc->ready_event_name);
     if (!ipc->ready_event_handle) {
-        SENTRY_WARNF("daemon: failed to open ready event: %lu", GetLastError());
+        DWORD _err = GetLastError();
+#if defined(SENTRY_PLATFORM_XBOX)
+        FILE *_f = fopen("D:\\Logs\\sentry-ipc-diag.log", "a");
+        if (_f) {
+            fprintf(_f,
+                "OpenEventW(ready) failed: GetLastError=%lu, name=%ls\n",
+                _err, ipc->ready_event_name);
+            fclose(_f);
+        }
+#endif
+        SENTRY_WARNF("daemon: failed to open ready event: %lu", _err);
         CloseHandle(ipc->event_handle);
         UnmapViewOfFile(ipc->shmem);
         CloseHandle(ipc->shm_handle);

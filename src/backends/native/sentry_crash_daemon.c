@@ -3678,15 +3678,37 @@ main(int argc, char **argv)
 #        if defined(SENTRY_PLATFORM_XBOX)
     // DIAGNOSTIC: XGameRuntimeInitialize and the network pre-warm are
     // temporarily removed to test whether one of them is blocking the
-    // daemon from reaching sentry__crash_daemon_main(). Without network
-    // init, the daemon won't be able to actually upload a crash envelope,
-    // but we should at least see the daemon's own log file appear in
-    // the database dir if IPC init succeeds. Restore before merge.
+    // daemon from reaching sentry__crash_daemon_main(). Restore before merge.
+    //
+    // Phase markers below track whether main() is reached and whether
+    // sentry__crash_daemon_main() returns, since the daemon's normal
+    // Sentry logger isn't available until after IPC init — and IPC init
+    // is the current suspect for the silent-exit behavior seen in Unreal.
+    char _diag_path[128];
+    snprintf(_diag_path, sizeof(_diag_path),
+        "D:\\Logs\\sentry-daemon-diag-%lu.log", (unsigned long)app_pid);
+    {
+        FILE *f = fopen(_diag_path, "w");
+        if (f) {
+            fprintf(f, "[A] main entered, app_pid=%lu app_tid=0x%llx\n",
+                (unsigned long)app_pid, (unsigned long long)app_tid);
+            fclose(f);
+        }
+    }
 #        endif
 
     int rv = sentry__crash_daemon_main(
         app_pid, app_tid, event_handle, ready_event_handle);
 
+#        if defined(SENTRY_PLATFORM_XBOX)
+    {
+        FILE *f = fopen(_diag_path, "a");
+        if (f) {
+            fprintf(f, "[B] daemon_main returned rv=%d\n", rv);
+            fclose(f);
+        }
+    }
+#        endif
     return rv;
 #    else
     fprintf(stderr, "Platform not supported\n");
