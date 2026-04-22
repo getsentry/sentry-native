@@ -2356,7 +2356,8 @@ SENTRY_EXPERIMENTAL_API const char *sentry_options_get_org_id(
  * trace is continued. If both organization IDs are present and differ, the
  * trace is never continued regardless of this setting.
  *
- * See https://develop.sentry.dev/sdk/foundations/trace-propagation/#strict-trace-continuation
+ * See
+ * https://develop.sentry.dev/sdk/foundations/trace-propagation/#strict-trace-continuation
  *
  * This is disabled by default.
  */
@@ -2945,6 +2946,10 @@ SENTRY_EXPERIMENTAL_API void sentry_transaction_context_remove_sampled(
  * services. Therefore, the headers of incoming requests should be fed into this
  * function so that sentry is able to continue a trace that was started by an
  * upstream service.
+ *
+ * Recognized header keys are `sentry-trace` and `baggage` (case-insensitive);
+ * other keys are ignored. Feed both when available so that strict trace
+ * continuation can consult the incoming `sentry-org_id`.
  */
 SENTRY_EXPERIMENTAL_API void sentry_transaction_context_update_from_header(
     sentry_transaction_context_t *tx_ctx, const char *key, const char *value);

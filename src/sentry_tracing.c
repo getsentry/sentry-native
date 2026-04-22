@@ -9,6 +9,7 @@
 #include "sentry_string.h"
 #include "sentry_utils.h"
 #include "sentry_value.h"
+#include <ctype.h>
 #include <string.h>
 
 static sentry_value_t
@@ -296,6 +297,44 @@ parse_sentry_trace(
     sentry_value_set_by_key(inner, "sampled", sentry_value_new_bool(sampled));
 }
 
+static void
+parse_baggage(
+    sentry_transaction_context_t *tx_ctx, const char *value, size_t value_len)
+{
+    // https://www.w3.org/TR/baggage/ — Sentry-prefixed members are kept and
+    // percent-decoded; non-sentry members are ignored.
+    static const char sentry_prefix[] = "sentry-";
+    static const size_t sentry_prefix_len = sizeof(sentry_prefix) - 1;
+
+    sentry_value_t inner = tx_ctx->inner;
+    sentry_value_t incoming = sentry_value_get_by_key(inner, "incoming_dsc");
+    if (sentry_value_is_null(incoming)) {
+        incoming = sentry_value_new_object();
+        sentry_value_set_by_key(inner, "incoming_dsc", incoming);
+        incoming = sentry_value_get_by_key(inner, "incoming_dsc");
+    }
+
+    sentry_slice_t remaining = { value, value_len };
+    sentry_slice_t key, val;
+    while (sentry__baggage_iter_next(&remaining, &key, &val)) {
+        if (key.len <= sentry_prefix_len
+            || memcmp(key.ptr, sentry_prefix, sentry_prefix_len) != 0) {
+            continue;
+        }
+        const char *sub_key = key.ptr + sentry_prefix_len;
+        size_t sub_key_len = key.len - sentry_prefix_len;
+
+        char *decoded = sentry__string_clone_n(val.ptr, val.len);
+        if (!decoded) {
+            continue;
+        }
+        size_t decoded_len = sentry__percent_decode_inplace(decoded, val.len);
+        decoded[decoded_len] = '\0';
+        sentry_value_set_by_key_n(incoming, sub_key, sub_key_len,
+            sentry__value_new_string_owned(decoded));
+    }
+}
+
 void
 sentry_transaction_context_update_from_header_n(
     sentry_transaction_context_t *tx_ctx, const char *key, size_t key_len,
@@ -308,10 +347,16 @@ sentry_transaction_context_update_from_header_n(
     // do case-insensitive header key comparison
     const char sentry_trace[] = "sentry-trace";
     const size_t sentry_trace_len = sizeof(sentry_trace) - 1;
-    bool is_sentry_trace
-        = compare_header_key(key, key_len, sentry_trace, sentry_trace_len);
-    if (is_sentry_trace) {
+    if (compare_header_key(key, key_len, sentry_trace, sentry_trace_len)) {
         parse_sentry_trace(tx_ctx, value, value_len);
+        return;
+    }
+
+    const char baggage[] = "baggage";
+    const size_t baggage_len = sizeof(baggage) - 1;
+    if (compare_header_key(key, key_len, baggage, baggage_len)) {
+        parse_baggage(tx_ctx, value, value_len);
+        return;
     }
 }
 
