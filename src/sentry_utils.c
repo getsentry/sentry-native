@@ -10,6 +10,7 @@
 
 #include "sentry_random.h"
 
+#include <ctype.h>
 #include <locale.h>
 #include <math.h>
 #include <stdarg.h>
@@ -661,4 +662,59 @@ sentry__generate_sample_rand(sentry_value_t context)
     } while (sample_rand == 1.0); // re-roll when generating 1.0
     sentry_value_set_by_key(
         context, "sample_rand", sentry_value_new_double(sample_rand));
+}
+
+bool
+sentry__baggage_iter_next(
+    sentry_slice_t *remaining, sentry_slice_t *key, sentry_slice_t *value)
+{
+    while (remaining->len > 0) {
+        size_t comma = sentry__slice_find(*remaining, ',');
+        sentry_slice_t member;
+        if (comma == (size_t)-1) {
+            member = *remaining;
+            *remaining = sentry__slice_advance(*remaining, remaining->len);
+        } else {
+            member = (sentry_slice_t) { remaining->ptr, comma };
+            *remaining = sentry__slice_advance(*remaining, comma + 1);
+        }
+        member = sentry__slice_trim(member);
+
+        size_t eq = sentry__slice_find(member, '=');
+        if (eq == (size_t)-1) {
+            continue;
+        }
+        sentry_slice_t k
+            = sentry__slice_trim((sentry_slice_t) { member.ptr, eq });
+        if (k.len == 0) {
+            continue;
+        }
+        sentry_slice_t v = { member.ptr + eq + 1, member.len - eq - 1 };
+        size_t semi = sentry__slice_find(v, ';');
+        if (semi != (size_t)-1) {
+            v.len = semi;
+        }
+        *key = k;
+        *value = sentry__slice_trim(v);
+        return true;
+    }
+    return false;
+}
+
+size_t
+sentry__percent_decode_inplace(char *s, size_t len)
+{
+    size_t r = 0;
+    size_t w = 0;
+    while (r < len) {
+        if (s[r] == '%' && r + 2 < len && isxdigit((unsigned char)s[r + 1])
+            && isxdigit((unsigned char)s[r + 2])) {
+            char hex[3] = { s[r + 1], s[r + 2], '\0' };
+            s[w++] = (char)strtol(hex, NULL, 16);
+            r += 3;
+        } else {
+            s[w++] = s[r++];
+        }
+    }
+    return w;
 }

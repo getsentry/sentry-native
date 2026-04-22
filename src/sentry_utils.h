@@ -2,6 +2,7 @@
 #define SENTRY_UTILS_H_INCLUDED
 
 #include "sentry_boot.h"
+#include "sentry_slice.h"
 
 #ifdef SENTRY_PLATFORM_DARWIN
 #    include <mach/clock.h>
@@ -288,5 +289,26 @@ bool sentry__check_min_version(
  * The value set will be in range [0.0, 1.0)
  */
 void sentry__generate_sample_rand(sentry_value_t context);
+
+/**
+ * Yields the next W3C Baggage member from `remaining`, advancing it past the
+ * yielded member. `key` and `value` are borrowed slices into the original
+ * buffer with surrounding whitespace trimmed; any property suffix (`;...`)
+ * after the value is stripped. Values are not percent-decoded; use
+ * `sentry__percent_decode_inplace` on a mutable copy if needed.
+ *
+ * Malformed members (missing `=`, empty key) are skipped silently. Returns
+ * false when `remaining` is exhausted.
+ */
+bool sentry__baggage_iter_next(
+    sentry_slice_t *remaining, sentry_slice_t *key, sentry_slice_t *value);
+
+/**
+ * Decodes `%XX` percent-escapes in the first `len` bytes of `s` in place.
+ * Malformed escapes (non-hex or truncated at the end) are passed through
+ * verbatim. Returns the new length; the caller is responsible for writing a
+ * terminating NUL if one is required.
+ */
+size_t sentry__percent_decode_inplace(char *s, size_t len);
 
 #endif

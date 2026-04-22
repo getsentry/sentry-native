@@ -1,8 +1,11 @@
 #include "sentry_os.h"
+#include "sentry_slice.h"
+#include "sentry_string.h"
 #include "sentry_testsupport.h"
 #include "sentry_utils.h"
 #include "sentry_value.h"
 #include <stdlib.h>
+#include <string.h>
 
 #ifdef SENTRY_PLATFORM_UNIX
 #    include "sentry_unix_pageallocator.h"
@@ -486,3 +489,227 @@ SENTRY_TEST(getenv_double)
     TEST_CHECK(sentry__getenv_double("SENTRY_TEST_DOUBLE", 42.0) == 42.0);
 #endif
 }
+
+#define CHECK_SLICE_EQ(Slice, Str)                                             \
+    do {                                                                       \
+        TEST_CHECK_INT_EQUAL((Slice).len, strlen(Str));                        \
+        TEST_CHECK((Slice).len == strlen(Str)                                  \
+            && memcmp((Slice).ptr, (Str), (Slice).len) == 0);                  \
+    } while (0)
+
+SENTRY_TEST(baggage_iter_basic)
+{
+    const char *hdr = "a=1,b=2,c=3";
+    sentry_slice_t remaining = { hdr, strlen(hdr) };
+    sentry_slice_t key, val;
+
+    TEST_CHECK(sentry__baggage_iter_next(&remaining, &key, &val));
+    CHECK_SLICE_EQ(key, "a");
+    CHECK_SLICE_EQ(val, "1");
+    TEST_CHECK(sentry__baggage_iter_next(&remaining, &key, &val));
+    CHECK_SLICE_EQ(key, "b");
+    CHECK_SLICE_EQ(val, "2");
+    TEST_CHECK(sentry__baggage_iter_next(&remaining, &key, &val));
+    CHECK_SLICE_EQ(key, "c");
+    CHECK_SLICE_EQ(val, "3");
+    TEST_CHECK(!sentry__baggage_iter_next(&remaining, &key, &val));
+}
+
+SENTRY_TEST(baggage_iter_ows_trimmed)
+{
+    // Per W3C baggage, optional whitespace around keys, values, and commas
+    // must be ignored.
+    const char *hdr = "  a = 1 ,\tb=2  ,  c =\t3\t";
+    sentry_slice_t remaining = { hdr, strlen(hdr) };
+    sentry_slice_t key, val;
+
+    TEST_CHECK(sentry__baggage_iter_next(&remaining, &key, &val));
+    CHECK_SLICE_EQ(key, "a");
+    CHECK_SLICE_EQ(val, "1");
+    TEST_CHECK(sentry__baggage_iter_next(&remaining, &key, &val));
+    CHECK_SLICE_EQ(key, "b");
+    CHECK_SLICE_EQ(val, "2");
+    TEST_CHECK(sentry__baggage_iter_next(&remaining, &key, &val));
+    CHECK_SLICE_EQ(key, "c");
+    CHECK_SLICE_EQ(val, "3");
+    TEST_CHECK(!sentry__baggage_iter_next(&remaining, &key, &val));
+}
+
+SENTRY_TEST(baggage_iter_empty_and_malformed_skipped)
+{
+    // Missing `=`, empty keys, and bare commas are all skipped; valid
+    // members on either side still yield.
+    const char *hdr = ",malformed,  ,=orphan,a=1,=,bare,b=2,";
+    sentry_slice_t remaining = { hdr, strlen(hdr) };
+    sentry_slice_t key, val;
+
+    TEST_CHECK(sentry__baggage_iter_next(&remaining, &key, &val));
+    CHECK_SLICE_EQ(key, "a");
+    CHECK_SLICE_EQ(val, "1");
+    TEST_CHECK(sentry__baggage_iter_next(&remaining, &key, &val));
+    CHECK_SLICE_EQ(key, "b");
+    CHECK_SLICE_EQ(val, "2");
+    TEST_CHECK(!sentry__baggage_iter_next(&remaining, &key, &val));
+}
+
+SENTRY_TEST(baggage_iter_empty_value_allowed)
+{
+    // Empty values are valid per spec.
+    const char *hdr = "a=,b=x";
+    sentry_slice_t remaining = { hdr, strlen(hdr) };
+    sentry_slice_t key, val;
+
+    TEST_CHECK(sentry__baggage_iter_next(&remaining, &key, &val));
+    CHECK_SLICE_EQ(key, "a");
+    TEST_CHECK_INT_EQUAL(val.len, 0);
+    TEST_CHECK(sentry__baggage_iter_next(&remaining, &key, &val));
+    CHECK_SLICE_EQ(key, "b");
+    CHECK_SLICE_EQ(val, "x");
+    TEST_CHECK(!sentry__baggage_iter_next(&remaining, &key, &val));
+}
+
+SENTRY_TEST(baggage_iter_properties_stripped)
+{
+    // Value ends at the first `;`; property text is discarded.
+    const char *hdr = "a=1;prop=x;q,b=2;meta,c=3";
+    sentry_slice_t remaining = { hdr, strlen(hdr) };
+    sentry_slice_t key, val;
+
+    TEST_CHECK(sentry__baggage_iter_next(&remaining, &key, &val));
+    CHECK_SLICE_EQ(key, "a");
+    CHECK_SLICE_EQ(val, "1");
+    TEST_CHECK(sentry__baggage_iter_next(&remaining, &key, &val));
+    CHECK_SLICE_EQ(key, "b");
+    CHECK_SLICE_EQ(val, "2");
+    TEST_CHECK(sentry__baggage_iter_next(&remaining, &key, &val));
+    CHECK_SLICE_EQ(key, "c");
+    CHECK_SLICE_EQ(val, "3");
+    TEST_CHECK(!sentry__baggage_iter_next(&remaining, &key, &val));
+}
+
+SENTRY_TEST(baggage_iter_equals_in_value)
+{
+    // Only the first `=` separates key from value; subsequent ones are
+    // part of the value.
+    const char *hdr = "a=x=y=z";
+    sentry_slice_t remaining = { hdr, strlen(hdr) };
+    sentry_slice_t key, val;
+
+    TEST_CHECK(sentry__baggage_iter_next(&remaining, &key, &val));
+    CHECK_SLICE_EQ(key, "a");
+    CHECK_SLICE_EQ(val, "x=y=z");
+    TEST_CHECK(!sentry__baggage_iter_next(&remaining, &key, &val));
+}
+
+SENTRY_TEST(baggage_iter_empty_input)
+{
+    sentry_slice_t remaining = { "", 0 };
+    sentry_slice_t key, val;
+    TEST_CHECK(!sentry__baggage_iter_next(&remaining, &key, &val));
+
+    const char *hdr = "   ";
+    remaining = (sentry_slice_t) { hdr, strlen(hdr) };
+    TEST_CHECK(!sentry__baggage_iter_next(&remaining, &key, &val));
+
+    const char *only_commas = ",,,";
+    remaining = (sentry_slice_t) { only_commas, strlen(only_commas) };
+    TEST_CHECK(!sentry__baggage_iter_next(&remaining, &key, &val));
+}
+
+SENTRY_TEST(baggage_iter_case_preserved)
+{
+    // Baggage keys are case-sensitive and the iterator must preserve case.
+    const char *hdr = "Sentry-Foo=Bar,sentry-foo=baz";
+    sentry_slice_t remaining = { hdr, strlen(hdr) };
+    sentry_slice_t key, val;
+
+    TEST_CHECK(sentry__baggage_iter_next(&remaining, &key, &val));
+    CHECK_SLICE_EQ(key, "Sentry-Foo");
+    CHECK_SLICE_EQ(val, "Bar");
+    TEST_CHECK(sentry__baggage_iter_next(&remaining, &key, &val));
+    CHECK_SLICE_EQ(key, "sentry-foo");
+    CHECK_SLICE_EQ(val, "baz");
+    TEST_CHECK(!sentry__baggage_iter_next(&remaining, &key, &val));
+}
+
+static char *
+decode_to_owned(const char *src)
+{
+    size_t len = strlen(src);
+    char *buf = sentry__string_clone_n(src, len);
+    size_t new_len = sentry__percent_decode_inplace(buf, len);
+    buf[new_len] = '\0';
+    return buf;
+}
+
+SENTRY_TEST(percent_decode_basic)
+{
+    char *s;
+
+    s = decode_to_owned("");
+    TEST_CHECK_STRING_EQUAL(s, "");
+    sentry_free(s);
+
+    s = decode_to_owned("no-escapes_here~.");
+    TEST_CHECK_STRING_EQUAL(s, "no-escapes_here~.");
+    sentry_free(s);
+
+    s = decode_to_owned("a%40b%2Cc");
+    TEST_CHECK_STRING_EQUAL(s, "a@b,c");
+    sentry_free(s);
+
+    // Both lower and upper case hex digits decode the same.
+    s = decode_to_owned("%2f%2F");
+    TEST_CHECK_STRING_EQUAL(s, "//");
+    sentry_free(s);
+
+    // %XX decodes to one byte even when that byte is high-ASCII.
+    s = decode_to_owned("%E2%98%83");
+    TEST_CHECK_INT_EQUAL((unsigned char)s[0], 0xE2);
+    TEST_CHECK_INT_EQUAL((unsigned char)s[1], 0x98);
+    TEST_CHECK_INT_EQUAL((unsigned char)s[2], 0x83);
+    TEST_CHECK_INT_EQUAL(s[3], '\0');
+    sentry_free(s);
+}
+
+SENTRY_TEST(percent_decode_malformed_passed_through)
+{
+    char *s;
+
+    // Non-hex digits: left as-is.
+    s = decode_to_owned("%GG");
+    TEST_CHECK_STRING_EQUAL(s, "%GG");
+    sentry_free(s);
+
+    s = decode_to_owned("a%Zbc");
+    TEST_CHECK_STRING_EQUAL(s, "a%Zbc");
+    sentry_free(s);
+
+    // Truncated escape at end of string: left as-is.
+    s = decode_to_owned("abc%");
+    TEST_CHECK_STRING_EQUAL(s, "abc%");
+    sentry_free(s);
+
+    s = decode_to_owned("abc%4");
+    TEST_CHECK_STRING_EQUAL(s, "abc%4");
+    sentry_free(s);
+
+    // Mid-string escape followed by non-hex: left as-is, then resumes.
+    s = decode_to_owned("%4X%40");
+    TEST_CHECK_STRING_EQUAL(s, "%4X@");
+    sentry_free(s);
+}
+
+SENTRY_TEST(percent_decode_does_not_read_past_len)
+{
+    // The decoder must respect `len` even when the buffer is longer; a
+    // trailing `%XX` after `len` must not be touched.
+    char buf[] = "a%40b%41";
+    size_t new_len = sentry__percent_decode_inplace(buf, 3);
+    TEST_CHECK_INT_EQUAL(new_len, 3);
+    TEST_CHECK(memcmp(buf, "a%4", 3) == 0);
+    // Bytes past `len` are untouched.
+    TEST_CHECK_STRING_EQUAL(buf + 3, "0b%41");
+}
+
+#undef CHECK_SLICE_EQ
