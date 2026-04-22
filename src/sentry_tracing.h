@@ -59,4 +59,15 @@ sentry_span_t *sentry__span_new(
  */
 sentry_value_t sentry__value_get_trace_context(sentry_value_t span);
 
+/**
+ * Returns whether to continue an incoming trace given the SDK's organization
+ * ID, the incoming trace's organization ID, and the strict-trace-continuation
+ * flag. Either ID may be NULL or empty to indicate "absent".
+ *
+ * See
+ * https://develop.sentry.dev/sdk/foundations/trace-propagation/#strict-trace-continuation
+ */
+bool sentry__trace_continuation_allowed(
+    const char *sdk_org_id, const char *incoming_org_id, bool strict);
+
 #endif

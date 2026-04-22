@@ -136,6 +136,15 @@ void sentry__scope_rebuild_dsc_from_options(
     sentry_scope_t *scope, const sentry_options_t *options);
 
 /**
+ * Replaces the scope's dynamic sampling context (DSC) with a verbatim copy
+ * of the incoming object. Used when continuing an upstream trace: per the
+ * trace-propagation spec, the receiving SDK MUST treat the incoming DSC as
+ * frozen and propagate its values "as is".
+ */
+void sentry__scope_freeze_dsc_from_incoming(
+    sentry_scope_t *scope, sentry_value_t incoming);
+
+/**
  * Adds scoped attributes to the telemetry attributes object.
  */
 void sentry__scope_apply_attributes(const sentry_scope_t *scope,

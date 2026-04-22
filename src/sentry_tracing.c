@@ -270,6 +270,15 @@ parse_sentry_trace(
     sentry_value_t trace_id = sentry__value_new_string_owned(s);
     sentry_value_set_by_key(inner, "trace_id", trace_id);
 
+    // Mark that an upstream trace was received. `incoming_dsc` doubles as this
+    // marker so the strict-continuation check fires even when no `baggage`
+    // arrives; baggage parsing merges into the same object regardless of
+    // header order.
+    if (sentry_value_is_null(sentry_value_get_by_key(inner, "incoming_dsc"))) {
+        sentry_value_set_by_key(
+            inner, "incoming_dsc", sentry_value_new_object());
+    }
+
     const char *span_id_start = trace_id_end + 1;
     const char *span_id_end = strchr(span_id_start, '-');
     if (!span_id_end) {
@@ -333,6 +342,21 @@ parse_baggage(
         sentry_value_set_by_key_n(incoming, sub_key, sub_key_len,
             sentry__value_new_string_owned(decoded));
     }
+}
+
+bool
+sentry__trace_continuation_allowed(
+    const char *sdk_org_id, const char *incoming_org_id, bool strict)
+{
+    bool sdk_has = sdk_org_id && *sdk_org_id;
+    bool inc_has = incoming_org_id && *incoming_org_id;
+    if (sdk_has && inc_has) {
+        return strcmp(sdk_org_id, incoming_org_id) == 0;
+    }
+    if (sdk_has != inc_has) {
+        return !strict;
+    }
+    return true;
 }
 
 void

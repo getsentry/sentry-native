@@ -1262,6 +1262,50 @@ sentry_transaction_start_ts(sentry_transaction_context_t *opaque_tx_ctx,
     sentry_value_remove_by_key(tx, "timestamp");
 
     sentry__value_merge_objects(tx, tx_ctx);
+
+    sentry_value_t incoming = sentry_value_get_by_key(tx, "incoming_dsc");
+    if (!sentry_value_is_null(incoming)) {
+        SENTRY_WITH_OPTIONS (options) {
+            SENTRY_WITH_SCOPE_MUT (scope) {
+                const char *sdk_org
+                    = sentry__options_get_effective_org_id(options);
+                const char *inc_org = sentry_value_as_string(
+                    sentry_value_get_by_key(incoming, "org_id"));
+                if (!*inc_org) {
+                    inc_org = NULL;
+                }
+
+                if (sentry__trace_continuation_allowed(
+                        sdk_org, inc_org, options->strict_trace_continuation)) {
+                    // Freeze only when the upstream actually sent DSC values;
+                    // a sentry-trace-only signal leaves incoming empty, in
+                    // which case the SDK builds its own DSC.
+                    if (sentry_value_get_length(incoming) > 0) {
+                        sentry__scope_freeze_dsc_from_incoming(scope, incoming);
+                    } else {
+                        sentry__scope_rebuild_dsc_from_options(scope, options);
+                    }
+                } else {
+                    // Fork: ignore upstream trace, become head of a new trace.
+                    // Regenerate the scope's propagation context so events
+                    // captured outside this transaction also carry the new
+                    // trace_id, and align the tx's trace_id with it.
+                    generate_propagation_context(scope->propagation_context);
+                    sentry_value_t scope_trace_id = sentry_value_get_by_key(
+                        sentry_value_get_by_key(
+                            scope->propagation_context, "trace"),
+                        "trace_id");
+                    sentry_value_incref(scope_trace_id);
+                    sentry_value_set_by_key(tx, "trace_id", scope_trace_id);
+                    sentry_value_remove_by_key(tx, "parent_span_id");
+                    sentry_value_remove_by_key(tx, "sampled");
+                    sentry__scope_rebuild_dsc_from_options(scope, options);
+                }
+            }
+        }
+    }
+    sentry_value_remove_by_key(tx, "incoming_dsc");
+
     double sample_rand = 1.0;
     SENTRY_WITH_SCOPE (scope) {
         sample_rand = sentry_value_as_double(sentry_value_get_by_key(

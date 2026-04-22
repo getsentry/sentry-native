@@ -190,6 +190,16 @@ sentry__scope_free(sentry_scope_t *scope)
 }
 
 void
+sentry__scope_freeze_dsc_from_incoming(
+    sentry_scope_t *scope, sentry_value_t incoming)
+{
+    sentry_value_decref(scope->dynamic_sampling_context);
+    sentry_value_t dsc = sentry_value_new_object();
+    sentry__value_merge_objects(dsc, incoming);
+    scope->dynamic_sampling_context = dsc;
+}
+
+void
 sentry__scope_rebuild_dsc_from_options(
     sentry_scope_t *scope, const sentry_options_t *options)
 {
