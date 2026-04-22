@@ -2100,14 +2100,20 @@ SENTRY_TEST(strict_continuation_matching_org_continues)
     TEST_CHECK(sentry_value_is_null(
         sentry_value_get_by_key(tx->inner, "incoming_dsc")));
 
+    // Late local updates must not mutate the frozen incoming DSC.
+    sentry_set_release("local-app@3.0");
+    sentry_set_environment("local");
+
     // Outgoing baggage echoes the upstream environment / release verbatim.
     continuation_collector_t c = { 0 };
     sentry_transaction_iter_headers(tx, collect_continuation_headers, &c);
     TEST_CHECK(strstr(c.baggage, "sentry-trace_id=" UPSTREAM_TRACE_ID) != NULL);
     TEST_CHECK(strstr(c.baggage, "sentry-org_id=123456") != NULL);
     TEST_CHECK(strstr(c.baggage, "sentry-environment=upstream") != NULL);
+    TEST_CHECK(strstr(c.baggage, "sentry-environment=local") == NULL);
     // Percent-encoded as it came in.
     TEST_CHECK(strstr(c.baggage, "sentry-release=upstream-app%401.0") != NULL);
+    TEST_CHECK(strstr(c.baggage, "sentry-release=local-app%403.0") == NULL);
 
     sentry_transaction_finish(tx);
     sentry_close();

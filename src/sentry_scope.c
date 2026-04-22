@@ -196,6 +196,7 @@ sentry__scope_freeze_dsc_from_incoming(
     sentry_value_decref(scope->dynamic_sampling_context);
     sentry_value_t dsc = sentry_value_new_object();
     sentry__value_merge_objects(dsc, incoming);
+    sentry_value_freeze(dsc);
     scope->dynamic_sampling_context = dsc;
 }
 
