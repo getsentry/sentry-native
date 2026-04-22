@@ -2329,6 +2329,25 @@ SENTRY_EXPERIMENTAL_API int sentry_options_get_propagate_traceparent(
     const sentry_options_t *opts);
 
 /**
+ * Overrides the organization ID derived from the DSN host
+ * (e.g. `o123456.ingest.sentry.io` → `123456`). Typically only required for
+ * self-hosted setups where the DSN host does not encode the organization ID.
+ *
+ * The value is passed through as a string; no validation is performed.
+ */
+SENTRY_EXPERIMENTAL_API void sentry_options_set_org_id(
+    sentry_options_t *opts, const char *org_id);
+SENTRY_EXPERIMENTAL_API void sentry_options_set_org_id_n(
+    sentry_options_t *opts, const char *org_id, size_t org_id_len);
+
+/**
+ * Returns the organization ID previously set via `sentry_options_set_org_id`,
+ * or NULL if none was set. Does not fall back to the DSN-derived value.
+ */
+SENTRY_EXPERIMENTAL_API const char *sentry_options_get_org_id(
+    const sentry_options_t *opts);
+
+/**
  * Enables or disables strict trace continuation.
  *
  * Controls whether to continue an incoming trace when either the trace or the

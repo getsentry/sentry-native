@@ -73,6 +73,7 @@ struct sentry_options_s {
     double traces_sample_rate;
     sentry_traces_sampler_function traces_sampler;
     void *traces_sampler_data;
+    char *org_id;
     size_t max_spans;
     bool enable_logs;
     // takes the first varg as a `sentry_value_t` object containing attributes

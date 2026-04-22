@@ -125,6 +125,7 @@ sentry_options_free(sentry_options_t *opts)
     sentry_free(opts->dist);
     sentry_free(opts->proxy);
     sentry_free(opts->ca_certs);
+    sentry_free(opts->org_id);
     sentry_free(opts->transport_thread_name);
     sentry__path_free(opts->database_path);
     sentry__path_free(opts->handler_path);
@@ -219,6 +220,27 @@ const char *
 sentry_options_get_dsn(const sentry_options_t *opts)
 {
     return opts->dsn ? opts->dsn->raw : NULL;
+}
+
+void
+sentry_options_set_org_id_n(
+    sentry_options_t *opts, const char *org_id, size_t org_id_len)
+{
+    sentry_free(opts->org_id);
+    opts->org_id = sentry__string_clone_n(org_id, org_id_len);
+}
+
+void
+sentry_options_set_org_id(sentry_options_t *opts, const char *org_id)
+{
+    sentry_free(opts->org_id);
+    opts->org_id = sentry__string_clone(org_id);
+}
+
+const char *
+sentry_options_get_org_id(const sentry_options_t *opts)
+{
+    return opts->org_id;
 }
 
 void
