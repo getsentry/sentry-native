@@ -268,14 +268,9 @@ retry_send_cb(sentry_envelope_t *envelope, void *_state)
     int status_code = http_send_envelope(envelope, state);
     if (http_handle_error(status_code) && state->send_client_reports) {
         sentry__client_report_restore(&report);
-        size_t buf_len = 0;
-        char *buf = sentry_envelope_serialize(envelope, &buf_len);
-        sentry_envelope_t *parsed = sentry_envelope_deserialize(buf, buf_len);
-        sentry_free(buf);
-        if (parsed) {
+        if (sentry__envelope_materialize(envelope)) {
             sentry__envelope_discard(
-                parsed, SENTRY_DISCARD_REASON_SEND_ERROR, state->ratelimiter);
-            sentry_envelope_free(parsed);
+                envelope, SENTRY_DISCARD_REASON_SEND_ERROR, state->ratelimiter);
         }
     }
     return status_code;
