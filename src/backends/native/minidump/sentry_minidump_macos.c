@@ -1,4 +1,5 @@
 #include "sentry_boot.h"
+#include "sentry_utils.h"
 
 #if defined(SENTRY_PLATFORM_MACOS)
 
@@ -243,8 +244,11 @@ write_cv_record(
     cv_record->cv_signature = CV_SIGNATURE_RSDS;
     cv_record->age = 0; // Not used for Mach-O
 
-    // Copy UUID
+    // Copy UUID with byte-swap for GUID format.
+    // Mach-O LC_UUID is big-endian (RFC 4122), but the RSDS CV record uses
+    // Windows GUID layout where the first 3 fields are little-endian.
     memcpy(cv_record->signature, uuid, 16);
+    sentry__uuid_swap_guid_bytes(cv_record->signature);
 
     // Copy module path
     memcpy(cv_record->pdb_file_name, module_path, path_len + 1);

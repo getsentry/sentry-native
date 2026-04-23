@@ -24,6 +24,34 @@
 #define MIN(a, b) ((a) < (b) ? (a) : (b))
 #define MAX(a, b) ((a) > (b) ? (a) : (b))
 
+/**
+ * Byte-swap the first three GUID fields (Data1, Data2, Data3) of a 16-byte
+ * UUID in place.  This converts between RFC 4122 (big-endian) and Windows
+ * mixed-endian GUID layout, which is used by RSDS CodeView records and Sentry
+ * debug-id strings.
+ */
+static inline void
+sentry__uuid_swap_guid_bytes(void *uuid)
+{
+    uint8_t *p = (uint8_t *)uuid;
+    uint8_t t;
+    // Swap Data1 (4 bytes)
+    t = p[0];
+    p[0] = p[3];
+    p[3] = t;
+    t = p[1];
+    p[1] = p[2];
+    p[2] = t;
+    // Swap Data2 (2 bytes)
+    t = p[4];
+    p[4] = p[5];
+    p[5] = t;
+    // Swap Data3 (2 bytes)
+    t = p[6];
+    p[6] = p[7];
+    p[7] = t;
+}
+
 #if defined(_MSC_VER) && !defined(__clang__)
 #    define UNREACHABLE(reason) assert(!reason)
 #else
