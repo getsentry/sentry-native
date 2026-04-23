@@ -929,7 +929,6 @@ restore_active_trace(saved_trace_t *s)
     }
     sentry__span_decref(s->saved_span);
     sentry__transaction_decref(s->saved_tx_obj);
-    sentry__transaction_decref(s->active_tx);
 }
 
 // Atomically swap the live-children list off `tx` and finish each span.
