@@ -4,6 +4,7 @@
 
 **Fixes**:
 
+- Finish active trace on crash. ([#1667](https://github.com/getsentry/sentry-native/pull/1667))
 - Reject overly deep msgpack payloads during deserialization. ([#1727](https://github.com/getsentry/sentry-native/pull/1727))
 - Read lengths for variadic fingerprints. ([#1730](https://github.com/getsentry/sentry-native/pull/1730))
 - Guard against JSON token allocation overflow on 32-bit platforms. ([#1733](https://github.com/getsentry/sentry-native/pull/1733))
