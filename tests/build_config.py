@@ -51,6 +51,16 @@ def get_platform_cmake_args():
         args.append("-AWin32")
     elif sys.platform == "linux" and os.environ.get("TEST_X86"):
         args.append("-DSENTRY_BUILD_FORCE32=ON")
+    elif sys.platform == "linux" and os.environ.get("TEST_ARM32"):
+        args.extend(
+            [
+                "-DCMAKE_SYSTEM_NAME=Linux",
+                "-DCMAKE_SYSTEM_PROCESSOR=arm",
+                "-DCMAKE_C_COMPILER=arm-linux-gnueabihf-gcc",
+                "-DCMAKE_CXX_COMPILER=arm-linux-gnueabihf-g++",
+                "-DCMAKE_ASM_COMPILER=arm-linux-gnueabihf-gcc",
+            ]
+        )
 
     if "asan" in os.environ.get("RUN_ANALYZER", ""):
         args.append("-DWITH_ASAN_OPTION=ON")
