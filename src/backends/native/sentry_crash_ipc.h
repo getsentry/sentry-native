@@ -120,6 +120,11 @@ void sentry__crash_ipc_notify(sentry_crash_ipc_t *ipc);
 bool sentry__crash_ipc_wait(sentry_crash_ipc_t *ipc, int timeout_ms);
 
 /**
+ * Unlink the shared memory.
+ */
+void sentry__crash_ipc_unlink(sentry_crash_ipc_t *ipc);
+
+/**
  * Clean up IPC resources.
  */
 void sentry__crash_ipc_free(sentry_crash_ipc_t *ipc);
