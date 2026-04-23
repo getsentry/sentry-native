@@ -41,6 +41,13 @@ sentry_transaction_t *sentry__transaction_new(sentry_value_t inner);
 void sentry__transaction_incref(sentry_transaction_t *tx);
 void sentry__transaction_decref(sentry_transaction_t *tx);
 
+/**
+ * Finishes the active span/transaction (if any) with `status` and copies
+ * their trace IDs to the propagation context, so a subsequently-built
+ * crash event nests under the active span. No-op if nothing is active.
+ */
+void sentry__trace_finish(sentry_span_status_t status);
+
 void sentry__span_incref(sentry_span_t *span);
 void sentry__span_decref(sentry_span_t *span);
 
