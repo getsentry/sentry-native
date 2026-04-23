@@ -269,6 +269,14 @@ sentry__crash_ipc_wait(sentry_crash_ipc_t *ipc, int timeout_ms)
 }
 
 void
+sentry__crash_ipc_unlink(sentry_crash_ipc_t *ipc)
+{
+    if (ipc && ipc->shm_name[0]) {
+        shm_unlink(ipc->shm_name);
+    }
+}
+
+void
 sentry__crash_ipc_free(sentry_crash_ipc_t *ipc)
 {
     if (!ipc) {
@@ -283,8 +291,8 @@ sentry__crash_ipc_free(sentry_crash_ipc_t *ipc)
         close(ipc->shm_fd);
     }
 
-    if (!ipc->is_daemon && ipc->shm_name[0]) {
-        shm_unlink(ipc->shm_name);
+    if (!ipc->is_daemon) {
+        sentry__crash_ipc_unlink(ipc);
     }
 
     if (ipc->notify_fd >= 0) {
@@ -546,6 +554,14 @@ sentry__crash_ipc_wait(sentry_crash_ipc_t *ipc, int timeout_ms)
 }
 
 void
+sentry__crash_ipc_unlink(sentry_crash_ipc_t *ipc)
+{
+    if (ipc && ipc->shm_path[0]) {
+        unlink(ipc->shm_path);
+    }
+}
+
+void
 sentry__crash_ipc_free(sentry_crash_ipc_t *ipc)
 {
     if (!ipc) {
@@ -576,8 +592,8 @@ sentry__crash_ipc_free(sentry_crash_ipc_t *ipc)
         close(ipc->ready_pipe[1]);
     }
 
-    if (!ipc->is_daemon && ipc->shm_path[0]) {
-        unlink(ipc->shm_path);
+    if (!ipc->is_daemon) {
+        sentry__crash_ipc_unlink(ipc);
     }
 
     sentry_free(ipc);
@@ -820,6 +836,12 @@ sentry__crash_ipc_wait(sentry_crash_ipc_t *ipc, int timeout_ms)
             GetLastError());
         return false;
     }
+}
+
+void
+sentry__crash_ipc_unlink(sentry_crash_ipc_t *ipc)
+{
+    (void)ipc;
 }
 
 void

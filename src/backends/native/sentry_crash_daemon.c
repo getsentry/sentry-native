@@ -3314,6 +3314,9 @@ sentry__crash_daemon_main(pid_t app_pid, uint64_t app_tid, HANDLE event_handle,
         }
         sentry_options_free(options);
     }
+    if (crash_processed || !is_parent_alive(ipc->parent_handle)) {
+        sentry__crash_ipc_unlink(ipc);
+    }
     sentry__crash_ipc_free(ipc);
 
     // Close log file
