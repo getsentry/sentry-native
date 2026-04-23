@@ -34,6 +34,7 @@
 #include "sentry_scope.h"
 #include "sentry_session.h"
 #include "sentry_sync.h"
+#include "sentry_tracing.h"
 #include "sentry_transport.h"
 #include "transports/sentry_disk_transport.h"
 

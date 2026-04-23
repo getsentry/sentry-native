@@ -910,7 +910,30 @@ def test_trace_finish_on_crash(cmake, httpserver, backend):
 
     tx = tx_items[0].payload.json
     assert tx["contexts"]["trace"]["status"] == "aborted"
-    assert any(s.get("op") == "open.span" for s in tx.get("spans", []))
+    spans = tx.get("spans", [])
+    # Every in-flight child in the active span chain should have been finished
+    # with aborted status, not just the deepest one.
+    for op in ("open.span", "open.grand.span"):
+        span = next((s for s in spans if s.get("op") == op), None)
+        assert span is not None, f"missing {op} in {[s.get('op') for s in spans]}"
+        assert span.get("status") == "aborted"
+        assert span.get("timestamp")
+
+    # The crash event should nest under the deepest active span (open.grand.span)
+    # via matching trace_id + span_id, so Sentry renders it inside the chain
+    # rather than orphaning it at the trace root.
+    event_items = [
+        item
+        for req, _ in httpserver.log
+        for item in Envelope.deserialize(req.get_data()).items
+        if item.headers.get("type") == "event"
+    ]
+    assert event_items
+    event = event_items[0].payload.json
+    grand = next(s for s in spans if s.get("op") == "open.grand.span")
+    assert event["contexts"]["trace"]["trace_id"] == tx["contexts"]["trace"]["trace_id"]
+    assert event["contexts"]["trace"]["span_id"] == grand["span_id"]
+    assert event.get("level") == "fatal"
 
 
 @pytest.mark.skipif(not has_files, reason="test needs a local filesystem")

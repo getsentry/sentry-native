@@ -788,6 +788,17 @@ check_aborted_transaction(sentry_envelope_t *envelope, void *data)
                               sentry_value_get_by_key(tx, "contexts"), "trace"),
         "status", "aborted");
 
+    // Every in-flight child span should be finished with aborted status and a
+    // timestamp so the crash event can nest under the active span chain.
+    sentry_value_t spans = sentry_value_get_by_key(tx, "spans");
+    TEST_CHECK_INT_EQUAL(sentry_value_get_length(spans), 2);
+    for (size_t i = 0; i < sentry_value_get_length(spans); i++) {
+        sentry_value_t span = sentry_value_get_by_index(spans, i);
+        CHECK_STRING_PROPERTY(span, "status", "aborted");
+        TEST_CHECK(
+            !sentry_value_is_null(sentry_value_get_by_key(span, "timestamp")));
+    }
+
     sentry_envelope_free(envelope);
 }
 
@@ -814,14 +825,19 @@ SENTRY_TEST(trace_finish)
         = sentry_transaction_start(ctx, sentry_value_new_null());
     sentry_set_transaction_object(tx);
 
-    sentry_set_span(sentry_transaction_start_child(tx, "child-op", "child"));
+    sentry_span_t *child
+        = sentry_transaction_start_child(tx, "child-op", "child");
+    sentry_set_span(sentry_span_start_child(child, "grand-op", "grand"));
 
     sentry__trace_finish(SENTRY_SPAN_STATUS_ABORTED);
 
-    // Scope is torn down: no active span or tx remains.
+    // Scope keeps pointing at the (now finished) active span so a
+    // subsequently-captured crash event still inherits its trace context via
+    // `sentry__apply_scope_to_event`. The span carries `timestamp` now, but
+    // otherwise its trace_id / span_id / parent_span_id are still valid for
+    // scope apply.
     SENTRY_WITH_SCOPE (scope) {
-        TEST_CHECK(scope->span == NULL);
-        TEST_CHECK(scope->transaction_object == NULL);
+        TEST_CHECK(scope->span != NULL);
     }
 
     sentry_close();

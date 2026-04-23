@@ -18,6 +18,7 @@ extern "C" {
 #include "sentry_screenshot.h"
 #include "sentry_string.h"
 #include "sentry_sync.h"
+#include "sentry_tracing.h"
 #include "sentry_transport.h"
 #include "sentry_unix_pageallocator.h"
 #include "transports/sentry_disk_transport.h"

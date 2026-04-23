@@ -1010,15 +1010,19 @@ main(int argc, char **argv)
     }
 
     if (has_arg(argc, argv, "open-transaction")) {
-        // Start a transaction + child span on the scope and intentionally
-        // do not finish them. On a subsequent crash, the backend's auto-
-        // finalize is expected to ship the transaction envelope.
+        // Start a transaction + nested child spans on the scope and
+        // intentionally do not finish them. On a subsequent crash, the
+        // backend's auto-finalize is expected to ship the transaction envelope
+        // with all the in-flight children closed out, not just the deepest.
         sentry_transaction_context_t *otx_ctx
             = sentry_transaction_context_new("open.tx", "op");
         sentry_transaction_t *otx
             = sentry_transaction_start(otx_ctx, sentry_value_new_null());
         sentry_set_transaction_object(otx);
-        sentry_set_span(sentry_transaction_start_child(otx, "open.span", NULL));
+        sentry_span_t *ospan
+            = sentry_transaction_start_child(otx, "open.span", NULL);
+        sentry_set_span(
+            sentry_span_start_child(ospan, "open.grand.span", NULL));
     }
 
     if (has_arg(argc, argv, "crash")) {

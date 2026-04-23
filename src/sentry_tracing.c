@@ -336,6 +336,10 @@ sentry__transaction_new(sentry_value_t inner)
     }
 
     tx->inner = inner;
+    sentry__mutex_init(&tx->children_mutex);
+    tx->children = NULL;
+    tx->children_count = 0;
+    tx->children_cap = 0;
 
     return tx;
 }
@@ -357,9 +361,35 @@ sentry__transaction_decref(sentry_transaction_t *tx)
 
     if (sentry_value_refcount(tx->inner) <= 1) {
         sentry_value_decref(tx->inner);
+        for (size_t i = 0; i < tx->children_count; i++) {
+            sentry__span_decref(tx->children[i]);
+        }
+        sentry_free(tx->children);
+        sentry__mutex_free(&tx->children_mutex);
         sentry_free(tx);
     } else {
         sentry_value_decref(tx->inner);
+    }
+}
+
+void
+sentry__transaction_remove_child(sentry_transaction_t *tx, sentry_span_t *span)
+{
+    if (!tx || !span) {
+        return;
+    }
+    bool found = false;
+    sentry__mutex_lock(&tx->children_mutex);
+    for (size_t i = 0; i < tx->children_count; i++) {
+        if (tx->children[i] == span) {
+            tx->children[i] = tx->children[--tx->children_count];
+            found = true;
+            break;
+        }
+    }
+    sentry__mutex_unlock(&tx->children_mutex);
+    if (found) {
+        sentry__span_decref(span);
     }
 }
 
@@ -403,6 +433,27 @@ sentry__span_new(sentry_transaction_t *tx, sentry_value_t inner)
 
     sentry__transaction_incref(tx);
     span->transaction = tx;
+
+    sentry__mutex_lock(&tx->children_mutex);
+    if (tx->children_count == tx->children_cap) {
+        size_t new_cap = tx->children_cap ? tx->children_cap * 2 : 4;
+        sentry_span_t **new_children
+            = sentry_malloc(new_cap * sizeof(sentry_span_t *));
+        if (new_children) {
+            if (tx->children) {
+                memcpy(new_children, tx->children,
+                    tx->children_count * sizeof(sentry_span_t *));
+                sentry_free(tx->children);
+            }
+            tx->children = new_children;
+            tx->children_cap = new_cap;
+        }
+    }
+    if (tx->children_count < tx->children_cap) {
+        sentry__span_incref(span);
+        tx->children[tx->children_count++] = span;
+    }
+    sentry__mutex_unlock(&tx->children_mutex);
 
     return span;
 }
@@ -835,29 +886,75 @@ sentry_transaction_iter_headers(sentry_transaction_t *tx,
 void
 sentry__trace_finish(sentry_span_status_t status)
 {
-    sentry_span_t *active_span = NULL;
+    // Save `scope->span` / `scope->transaction_object` so the subsequent crash
+    // event still sees the active trace context (matches sentry-cocoa's
+    // `finishTracer:shouldCleanUp:NO`). Finishing the tx through the normal
+    // path clears both; we restore them after the drain so the finished spans
+    // — which now carry `timestamp` but otherwise retain trace_id, span_id,
+    // parent_span_id, op, etc. — stay on scope for event capture.
+    sentry_span_t *saved_span = NULL;
+    sentry_transaction_t *saved_tx_obj = NULL;
     sentry_transaction_t *active_tx = NULL;
-    SENTRY_WITH_SCOPE_MUT (scope) {
+    SENTRY_WITH_SCOPE (scope) {
         if (scope->span) {
             sentry__span_incref(scope->span);
-            active_span = scope->span;
-            // sentry_set_span clears scope->transaction_object; the tx
-            // is reachable only via the span.
-            if (active_span->transaction) {
-                sentry__transaction_incref(active_span->transaction);
-                active_tx = active_span->transaction;
-            }
-        } else if (scope->transaction_object) {
+            saved_span = scope->span;
+        }
+        if (scope->transaction_object) {
             sentry__transaction_incref(scope->transaction_object);
-            active_tx = scope->transaction_object;
+            saved_tx_obj = scope->transaction_object;
+        }
+        if (saved_span && saved_span->transaction) {
+            sentry__transaction_incref(saved_span->transaction);
+            active_tx = saved_span->transaction;
+        } else if (saved_tx_obj) {
+            sentry__transaction_incref(saved_tx_obj);
+            active_tx = saved_tx_obj;
         }
     }
-    if (active_span) {
-        sentry_span_set_status(active_span, status);
-        sentry_span_finish(active_span);
+    if (!active_tx) {
+        sentry__span_decref(saved_span);
+        sentry__transaction_decref(saved_tx_obj);
+        return;
     }
-    if (active_tx) {
-        sentry_transaction_set_status(active_tx, status);
-        sentry_transaction_finish(active_tx);
+
+    // Swap out the live-children list so `sentry_span_finish_ts`'s remove path
+    // becomes a no-op for the drained spans; iterate in reverse (leaf-first)
+    // so `scope->span` is cleared before its ancestors are finished.
+    sentry__mutex_lock(&active_tx->children_mutex);
+    sentry_span_t **drained = active_tx->children;
+    size_t drained_count = active_tx->children_count;
+    active_tx->children = NULL;
+    active_tx->children_count = 0;
+    active_tx->children_cap = 0;
+    sentry__mutex_unlock(&active_tx->children_mutex);
+
+    uint64_t end_ts = sentry__usec_time();
+    for (size_t i = drained_count; i-- > 0;) {
+        sentry_span_t *child = drained[i];
+        sentry_span_set_status(child, status);
+        sentry_span_finish_ts(child, end_ts);
+        sentry__span_decref(child);
     }
+    sentry_free(drained);
+
+    sentry_transaction_set_status(active_tx, status);
+    sentry_transaction_finish_ts(active_tx, end_ts);
+
+    // Restore scope so `sentry__apply_scope_to_event` (called when the crash
+    // event is captured right after) picks up the full trace context off the
+    // saved span/tx rather than falling through to the stale propagation
+    // context.
+    SENTRY_WITH_SCOPE_MUT (scope) {
+        if (!scope->span && saved_span) {
+            scope->span = saved_span;
+            saved_span = NULL;
+        }
+        if (!scope->transaction_object && saved_tx_obj) {
+            scope->transaction_object = saved_tx_obj;
+            saved_tx_obj = NULL;
+        }
+    }
+    sentry__span_decref(saved_span);
+    sentry__transaction_decref(saved_tx_obj);
 }

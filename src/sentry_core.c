@@ -1542,6 +1542,8 @@ sentry_span_finish_ts(sentry_span_t *opaque_span, uint64_t timestamp)
         goto fail;
     }
 
+    sentry__transaction_remove_child(opaque_root_transaction, opaque_span);
+
     sentry_value_t root_transaction = opaque_root_transaction->inner;
 
     if (!sentry_value_is_true(
