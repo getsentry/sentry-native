@@ -1726,10 +1726,10 @@ get_thread_name(HANDLE hThread, sentry_thread_context_windows_t *tctx)
 static void
 enumerate_threads_from_process(sentry_crash_context_t *ctx)
 {
-#ifdef SENTRY_PLATFORM_XBOX
+#    ifdef SENTRY_PLATFORM_XBOX
     (void)ctx;
     return;
-#else
+#    else
     HANDLE hSnapshot = CreateToolhelp32Snapshot(TH32CS_SNAPTHREAD, 0);
     if (hSnapshot == INVALID_HANDLE_VALUE) {
         SENTRY_WARN("CreateToolhelp32Snapshot failed");
@@ -1826,7 +1826,7 @@ enumerate_threads_from_process(sentry_crash_context_t *ctx)
     ctx->platform.num_threads = thread_count;
     SENTRY_DEBUGF("Enumerated %u threads from process %d", thread_count,
         ctx->crashed_pid);
-#endif // SENTRY_PLATFORM_XBOX
+#    endif // SENTRY_PLATFORM_XBOX
 }
 #endif // SENTRY_PLATFORM_WINDOWS
 
@@ -3611,16 +3611,9 @@ sentry__crash_daemon_start(pid_t app_pid, uint64_t app_tid, HANDLE event_handle,
 #ifdef SENTRY_CRASH_DAEMON_STANDALONE
 
 #    if defined(SENTRY_PLATFORM_XBOX)
-// Forward-declare the two XGameRuntime entry points we need rather than
-// #include <XGameRuntime.h> — that header (transitively) requires C++11
-// and the daemon is compiled as C.
 extern HRESULT XGameRuntimeInitialize(void);
 extern void XGameRuntimeUninitialize(void);
 
-// Forward declared here; implemented by the downstream SDK (sentry-xbox's
-// sentry_transport_xbox.cpp) and linked into the daemon. The same contract
-// is already assumed by sentry_http_transport_winhttp.c under
-// SENTRY_PLATFORM_XBOX.
 extern bool sentry__xbox_ensure_network_initialized(void);
 
 static DWORD WINAPI
@@ -3676,9 +3669,8 @@ main(int argc, char **argv)
     HANDLE ready_event_handle = (HANDLE)(uintptr_t)ready_event_val;
 
 #        if defined(SENTRY_PLATFORM_XBOX)
-    // XGameRuntime must be initialized before any XGameRuntime / XNetworking
-    // API call. Without this, the Xbox transport's connectivity check fails
-    // and the daemon cannot upload crash reports.
+    // Required before any XNetworking call the transport makes at
+    // crash-upload time.
     HRESULT init_hr = XGameRuntimeInitialize();
     if (FAILED(init_hr)) {
         fprintf(stderr,
@@ -3686,21 +3678,11 @@ main(int argc, char **argv)
             (unsigned long)init_hr);
         return 1;
     }
-    // Pre-warm XNetworking on a detached thread so the daemon can enter
-    // sentry__crash_daemon_main() immediately and signal ready to the parent
-    // within SENTRY_CRASH_DAEMON_READY_TIMEOUT_MS. Per GDK docs, network
-    // initialization "usually takes a couple of seconds on both resume and
-    // title launch and varies, based on console type and the user's network
-    // environment" — near-instant on dev kits but non-trivial on retail
-    // cold-boots (MS provides xbconfig NetworkInitDelayInSeconds up to 30s
-    // for simulating this). Running the warm-up inline would push the
-    // daemon's ready signal past the parent's timeout on retail hardware.
-    // The transport's send-time call to sentry__xbox_ensure_network_initialized
-    // will pick up (or race with, safely) the background warm-up result.
-    HANDLE prewarm_thread = CreateThread(
+
+    HANDLE network_prewarm_thread = CreateThread(
         NULL, 0, sentry__xbox_network_prewarm_thread_proc, NULL, 0, NULL);
-    if (prewarm_thread) {
-        CloseHandle(prewarm_thread);
+    if (network_prewarm_thread) {
+        CloseHandle(network_prewarm_thread);
     }
 #        endif
 

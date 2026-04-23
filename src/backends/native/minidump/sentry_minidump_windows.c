@@ -11,9 +11,11 @@
 #    include "sentry_minidump_writer.h"
 #    include "sentry_string.h"
 
+/**
+ * On Xbox, MiniDumpWriteDump is provided by xgameplatform.lib
+ * (linked by the Xbox toolchain), not dbghelp.lib.
+ */
 #    if !defined(_GAMING_XBOX)
-// On Xbox console MiniDumpWriteDump is supplied by xgameplatform.lib
-// (linked by the Xbox toolchain), not dbghelp.lib.
 #        pragma comment(lib, "dbghelp.lib")
 #    endif
 
