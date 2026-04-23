@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+**Features**:
+
+- Enable experimental `native` backend on Xbox ([#1666](https://github.com/getsentry/sentry-native/pull/1666))
+
 **Fixes**:
 
 - Linux: handle `ENOSYS` in `read_safely` to fix empty module list in seccomp-restricted environments. ([#1655](https://github.com/getsentry/sentry-native/pull/1655))
