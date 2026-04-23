@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1776937074798,
+  "lastUpdate": 1776937221046,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -35674,6 +35674,66 @@ window.BENCHMARK_DATA = {
             "value": 15.026167000030455,
             "unit": "ms",
             "extra": "Min 14.711ms\nMax 16.562ms\nMean 15.422ms\nStdDev 0.803ms\nMedian 15.026ms\nCPU 1.478ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "jpnurmi@gmail.com",
+            "name": "J-P Nurmi",
+            "username": "jpnurmi"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "11b60bd1a8898ba272a0d1898fa9dc7c61530c07",
+          "message": "fix(native): prevent shared memory leak on crash (#1664)\n\nCo-authored-by: Claude Opus 4.7 (1M context) <noreply@anthropic.com>",
+          "timestamp": "2026-04-23T11:35:11+02:00",
+          "tree_id": "8002e5869620ab9d495e3d608550ac70bd9cf144",
+          "url": "https://github.com/getsentry/sentry-native/commit/11b60bd1a8898ba272a0d1898fa9dc7c61530c07"
+        },
+        "date": 1776937215533,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 7.0157920000042395,
+            "unit": "ms",
+            "extra": "Min 4.299ms\nMax 8.752ms\nMean 6.640ms\nStdDev 1.637ms\nMedian 7.016ms\nCPU 3.690ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 3.973040999994737,
+            "unit": "ms",
+            "extra": "Min 3.535ms\nMax 5.544ms\nMean 4.217ms\nStdDev 0.789ms\nMedian 3.973ms\nCPU 2.470ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 18.88174999999137,
+            "unit": "ms",
+            "extra": "Min 16.165ms\nMax 20.521ms\nMean 18.789ms\nStdDev 1.750ms\nMedian 18.882ms\nCPU 5.660ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.11583399998471577,
+            "unit": "ms",
+            "extra": "Min 0.095ms\nMax 0.138ms\nMean 0.114ms\nStdDev 0.018ms\nMedian 0.116ms\nCPU 0.072ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.24666700005582243,
+            "unit": "ms",
+            "extra": "Min 0.170ms\nMax 0.304ms\nMean 0.244ms\nStdDev 0.048ms\nMedian 0.247ms\nCPU 0.244ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 9.897625000007793,
+            "unit": "ms",
+            "extra": "Min 8.732ms\nMax 11.645ms\nMean 10.009ms\nStdDev 1.210ms\nMedian 9.898ms\nCPU 1.152ms"
           }
         ]
       }
