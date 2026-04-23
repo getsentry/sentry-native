@@ -2,6 +2,7 @@
 #define SENTRY_TRACING_H_INCLUDED
 
 #include "sentry_slice.h"
+#include "sentry_sync.h"
 #include "sentry_value.h"
 
 // W3C traceparent header: 00-<traceId>-<spanId>-<flags>
@@ -33,6 +34,13 @@ struct sentry_transaction_context_s {
  */
 struct sentry_transaction_s {
     sentry_value_t inner;
+    // Live (unfinished) child spans, so `sentry__trace_finish` can close them
+    // out on crash. Entries are added in `sentry__span_new` and removed in
+    // `sentry_span_finish_ts`. Each entry holds one ref on the span.
+    sentry_mutex_t children_mutex;
+    sentry_span_t **children;
+    size_t children_count;
+    size_t children_cap;
 };
 
 void sentry__transaction_context_free(sentry_transaction_context_t *tx_ctx);
@@ -42,9 +50,18 @@ void sentry__transaction_incref(sentry_transaction_t *tx);
 void sentry__transaction_decref(sentry_transaction_t *tx);
 
 /**
- * Finishes the active span/transaction (if any) with `status` and copies
- * their trace IDs to the propagation context, so a subsequently-built
- * crash event nests under the active span. No-op if nothing is active.
+ * Removes `span` from the transaction's live-children list and drops the ref
+ * that was taken by `sentry__span_new`. No-op if not found.
+ */
+void sentry__transaction_remove_child(
+    sentry_transaction_t *tx, sentry_span_t *span);
+
+/**
+ * Finishes the active transaction (if any) with `status`, closing out every
+ * in-flight child span in leaf-first order and shipping the tx envelope.
+ * `scope->span` / `scope->transaction_object` are preserved so a
+ * subsequently-captured crash event still inherits the active trace context.
+ * No-op if nothing is active.
  */
 void sentry__trace_finish(sentry_span_status_t status);
 
