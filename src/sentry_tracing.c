@@ -447,6 +447,8 @@ sentry__span_new(sentry_transaction_t *tx, sentry_value_t inner)
             }
             tx->children = new_children;
             tx->children_cap = new_cap;
+        } else {
+            SENTRY_WARN("failed to track live span for crash auto-finalize");
         }
     }
     if (tx->children_count < tx->children_cap) {
@@ -886,12 +888,10 @@ sentry_transaction_iter_headers(sentry_transaction_t *tx,
 void
 sentry__trace_finish(sentry_span_status_t status)
 {
-    // Save `scope->span` / `scope->transaction_object` so the subsequent crash
-    // event still sees the active trace context (matches sentry-cocoa's
-    // `finishTracer:shouldCleanUp:NO`). Finishing the tx through the normal
-    // path clears both; we restore them after the drain so the finished spans
-    // — which now carry `timestamp` but otherwise retain trace_id, span_id,
-    // parent_span_id, op, etc. — stay on scope for event capture.
+    // Save/restore scope around the drain so the crash event captured next
+    // still inherits the active trace context (cf. sentry-cocoa's
+    // `finishTracer:shouldCleanUp:NO`). Finished spans retain their ids; only
+    // `timestamp` is added.
     sentry_span_t *saved_span = NULL;
     sentry_transaction_t *saved_tx_obj = NULL;
     sentry_transaction_t *active_tx = NULL;
@@ -918,9 +918,8 @@ sentry__trace_finish(sentry_span_status_t status)
         return;
     }
 
-    // Swap out the live-children list so `sentry_span_finish_ts`'s remove path
-    // becomes a no-op for the drained spans; iterate in reverse (leaf-first)
-    // so `scope->span` is cleared before its ancestors are finished.
+    // Detach the live-children list so each drained `sentry_span_finish_ts`
+    // skips the remove-scan.
     sentry__mutex_lock(&active_tx->children_mutex);
     sentry_span_t **drained = active_tx->children;
     size_t drained_count = active_tx->children_count;
@@ -941,10 +940,6 @@ sentry__trace_finish(sentry_span_status_t status)
     sentry_transaction_set_status(active_tx, status);
     sentry_transaction_finish_ts(active_tx, end_ts);
 
-    // Restore scope so `sentry__apply_scope_to_event` (called when the crash
-    // event is captured right after) picks up the full trace context off the
-    // saved span/tx rather than falling through to the stale propagation
-    // context.
     SENTRY_WITH_SCOPE_MUT (scope) {
         if (!scope->span && saved_span) {
             scope->span = saved_span;

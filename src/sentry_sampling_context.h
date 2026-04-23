@@ -6,7 +6,7 @@
 #include "sentry_value.h"
 
 typedef struct sentry_sampling_context_s {
-    struct sentry_transaction_context_s *transaction_context;
+    sentry_transaction_context_t *transaction_context;
     sentry_value_t custom_sampling_context;
     bool *parent_sampled;
     double sample_rand;

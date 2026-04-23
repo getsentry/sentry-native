@@ -911,17 +911,15 @@ def test_trace_finish_on_crash(cmake, httpserver, backend):
     tx = tx_items[0].payload.json
     assert tx["contexts"]["trace"]["status"] == "aborted"
     spans = tx.get("spans", [])
-    # Every in-flight child in the active span chain should have been finished
-    # with aborted status, not just the deepest one.
+    # Every in-flight child is finished, not just the deepest.
     for op in ("open.span", "open.grand.span"):
         span = next((s for s in spans if s.get("op") == op), None)
         assert span is not None, f"missing {op} in {[s.get('op') for s in spans]}"
         assert span.get("status") == "aborted"
         assert span.get("timestamp")
 
-    # The crash event should nest under the deepest active span (open.grand.span)
-    # via matching trace_id + span_id, so Sentry renders it inside the chain
-    # rather than orphaning it at the trace root.
+    # The crash event nests under the deepest active span via matching
+    # trace_id + span_id.
     event_items = [
         item
         for req, _ in httpserver.log

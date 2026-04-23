@@ -1010,10 +1010,8 @@ main(int argc, char **argv)
     }
 
     if (has_arg(argc, argv, "open-transaction")) {
-        // Start a transaction + nested child spans on the scope and
-        // intentionally do not finish them. On a subsequent crash, the
-        // backend's auto-finalize is expected to ship the transaction envelope
-        // with all the in-flight children closed out, not just the deepest.
+        // Leave a transaction + nested children unfinished; the crash
+        // auto-finalize should close them all.
         sentry_transaction_context_t *otx_ctx
             = sentry_transaction_context_new("open.tx", "op");
         sentry_transaction_t *otx
