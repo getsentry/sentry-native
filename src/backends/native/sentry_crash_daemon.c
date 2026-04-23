@@ -3702,35 +3702,12 @@ main(int argc, char **argv)
     if (prewarm_thread) {
         CloseHandle(prewarm_thread);
     }
-
-    // Phase markers track whether main() is reached and whether
-    // sentry__crash_daemon_main() returns — the daemon's Sentry logger
-    // isn't available until after IPC init, so these pre-logger markers
-    // are the only way to observe early-startup failures from the outside.
-    char _diag_path[128];
-    snprintf(_diag_path, sizeof(_diag_path),
-        "D:\\Logs\\sentry-daemon-diag-%lu.log", (unsigned long)app_pid);
-    {
-        FILE *f = fopen(_diag_path, "w");
-        if (f) {
-            fprintf(f, "[A] main entered, app_pid=%lu app_tid=0x%llx\n",
-                (unsigned long)app_pid, (unsigned long long)app_tid);
-            fclose(f);
-        }
-    }
 #        endif
 
     int rv = sentry__crash_daemon_main(
         app_pid, app_tid, event_handle, ready_event_handle);
 
 #        if defined(SENTRY_PLATFORM_XBOX)
-    {
-        FILE *f = fopen(_diag_path, "a");
-        if (f) {
-            fprintf(f, "[B] daemon_main returned rv=%d\n", rv);
-            fclose(f);
-        }
-    }
     XGameRuntimeUninitialize();
 #        endif
     return rv;
