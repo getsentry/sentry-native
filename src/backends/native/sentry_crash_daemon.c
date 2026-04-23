@@ -3676,14 +3676,37 @@ main(int argc, char **argv)
     HANDLE ready_event_handle = (HANDLE)(uintptr_t)ready_event_val;
 
 #        if defined(SENTRY_PLATFORM_XBOX)
-    // DIAGNOSTIC: XGameRuntimeInitialize and the network pre-warm are
-    // temporarily removed to test whether one of them is blocking the
-    // daemon from reaching sentry__crash_daemon_main(). Restore before merge.
-    //
-    // Phase markers below track whether main() is reached and whether
-    // sentry__crash_daemon_main() returns, since the daemon's normal
-    // Sentry logger isn't available until after IPC init — and IPC init
-    // is the current suspect for the silent-exit behavior seen in Unreal.
+    // XGameRuntime must be initialized before any XGameRuntime / XNetworking
+    // API call. Without this, the Xbox transport's connectivity check fails
+    // and the daemon cannot upload crash reports.
+    HRESULT init_hr = XGameRuntimeInitialize();
+    if (FAILED(init_hr)) {
+        fprintf(stderr,
+            "sentry-crash: XGameRuntimeInitialize failed: 0x%08lX\n",
+            (unsigned long)init_hr);
+        return 1;
+    }
+    // Pre-warm XNetworking on a detached thread so the daemon can enter
+    // sentry__crash_daemon_main() immediately and signal ready to the parent
+    // within SENTRY_CRASH_DAEMON_READY_TIMEOUT_MS. Per GDK docs, network
+    // initialization "usually takes a couple of seconds on both resume and
+    // title launch and varies, based on console type and the user's network
+    // environment" — near-instant on dev kits but non-trivial on retail
+    // cold-boots (MS provides xbconfig NetworkInitDelayInSeconds up to 30s
+    // for simulating this). Running the warm-up inline would push the
+    // daemon's ready signal past the parent's timeout on retail hardware.
+    // The transport's send-time call to sentry__xbox_ensure_network_initialized
+    // will pick up (or race with, safely) the background warm-up result.
+    HANDLE prewarm_thread = CreateThread(
+        NULL, 0, sentry__xbox_network_prewarm_thread_proc, NULL, 0, NULL);
+    if (prewarm_thread) {
+        CloseHandle(prewarm_thread);
+    }
+
+    // Phase markers track whether main() is reached and whether
+    // sentry__crash_daemon_main() returns — the daemon's Sentry logger
+    // isn't available until after IPC init, so these pre-logger markers
+    // are the only way to observe early-startup failures from the outside.
     char _diag_path[128];
     snprintf(_diag_path, sizeof(_diag_path),
         "D:\\Logs\\sentry-daemon-diag-%lu.log", (unsigned long)app_pid);
@@ -3708,6 +3731,7 @@ main(int argc, char **argv)
             fclose(f);
         }
     }
+    XGameRuntimeUninitialize();
 #        endif
     return rv;
 #    else
