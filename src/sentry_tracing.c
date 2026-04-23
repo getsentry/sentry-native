@@ -949,7 +949,6 @@ finish_children(
         sentry_span_t *child = children[i];
         sentry_span_set_status(child, status);
         sentry_span_finish_ts(child, end_ts);
-        sentry__span_decref(child);
     }
     sentry_free(children);
 }
