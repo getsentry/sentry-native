@@ -47,7 +47,8 @@ typedef struct {
 #        define FPSIMD_MAGIC 0x46508001
 
 // Only define these if not already provided by system headers
-#        ifndef __ASM_SIGCONTEXT_H
+// (on musl, defined in <bits/signal.h> instead).
+#        if !defined(__ASM_SIGCONTEXT_H) && defined(__GLIBC__)
 // Base header for context blocks in __reserved
 struct _aarch64_ctx {
     uint32_t magic;
