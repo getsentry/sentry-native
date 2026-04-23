@@ -35,8 +35,8 @@ struct sentry_transaction_context_s {
 struct sentry_transaction_s {
     sentry_value_t inner;
     // Live (unfinished) child spans, so `sentry__trace_finish` can close them
-    // out on crash. Entries are added in `sentry__span_new` and removed in
-    // `sentry_span_finish_ts`. Each entry holds one ref on the span.
+    // out on crash. Weak pointers: entries do not own a ref — spans remove
+    // themselves via `sentry__transaction_remove_child` on finish or decref.
     sentry_mutex_t children_mutex;
     sentry_span_t **children;
     size_t children_count;
@@ -50,8 +50,8 @@ void sentry__transaction_incref(sentry_transaction_t *tx);
 void sentry__transaction_decref(sentry_transaction_t *tx);
 
 /**
- * Removes `span` from the transaction's live-children list and drops the ref
- * that was taken by `sentry__span_new`. No-op if not found.
+ * Unlists `span` from the transaction's live-children list. No-op if not
+ * found. Does not decref (the list holds weak pointers).
  */
 void sentry__transaction_remove_child(
     sentry_transaction_t *tx, sentry_span_t *span);

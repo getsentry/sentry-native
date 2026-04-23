@@ -361,9 +361,6 @@ sentry__transaction_decref(sentry_transaction_t *tx)
 
     if (sentry_value_refcount(tx->inner) <= 1) {
         sentry_value_decref(tx->inner);
-        for (size_t i = 0; i < tx->children_count; i++) {
-            sentry__span_decref(tx->children[i]);
-        }
         sentry_free(tx->children);
         sentry__mutex_free(&tx->children_mutex);
         sentry_free(tx);
@@ -378,19 +375,14 @@ sentry__transaction_remove_child(sentry_transaction_t *tx, sentry_span_t *span)
     if (!tx || !span) {
         return;
     }
-    bool found = false;
     sentry__mutex_lock(&tx->children_mutex);
     for (size_t i = 0; i < tx->children_count; i++) {
         if (tx->children[i] == span) {
             tx->children[i] = tx->children[--tx->children_count];
-            found = true;
             break;
         }
     }
     sentry__mutex_unlock(&tx->children_mutex);
-    if (found) {
-        sentry__span_decref(span);
-    }
 }
 
 void
@@ -409,6 +401,7 @@ sentry__span_decref(sentry_span_t *span)
     }
 
     if (sentry_value_refcount(span->inner) <= 1) {
+        sentry__transaction_remove_child(span->transaction, span);
         sentry_value_decref(span->inner);
         sentry__transaction_decref(span->transaction);
         sentry_free(span);
@@ -452,7 +445,6 @@ sentry__span_new(sentry_transaction_t *tx, sentry_value_t inner)
         }
     }
     if (tx->children_count < tx->children_cap) {
-        sentry__span_incref(span);
         tx->children[tx->children_count++] = span;
     }
     sentry__mutex_unlock(&tx->children_mutex);
