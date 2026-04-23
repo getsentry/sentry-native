@@ -885,71 +885,93 @@ sentry_transaction_iter_headers(sentry_transaction_t *tx,
     }
 }
 
-void
-sentry__trace_finish(sentry_span_status_t status)
+typedef struct {
+    sentry_span_t *saved_span;
+    sentry_transaction_t *saved_tx_obj;
+    sentry_transaction_t *active_tx;
+} saved_trace_t;
+
+static saved_trace_t
+save_active_trace(void)
 {
-    // Save/restore scope around the drain so the crash event captured next
-    // still inherits the active trace context (cf. sentry-cocoa's
-    // `finishTracer:shouldCleanUp:NO`). Finished spans retain their ids; only
-    // `timestamp` is added.
-    sentry_span_t *saved_span = NULL;
-    sentry_transaction_t *saved_tx_obj = NULL;
-    sentry_transaction_t *active_tx = NULL;
+    saved_trace_t s = { 0 };
     SENTRY_WITH_SCOPE (scope) {
         if (scope->span) {
             sentry__span_incref(scope->span);
-            saved_span = scope->span;
+            s.saved_span = scope->span;
         }
         if (scope->transaction_object) {
             sentry__transaction_incref(scope->transaction_object);
-            saved_tx_obj = scope->transaction_object;
-        }
-        if (saved_span && saved_span->transaction) {
-            sentry__transaction_incref(saved_span->transaction);
-            active_tx = saved_span->transaction;
-        } else if (saved_tx_obj) {
-            sentry__transaction_incref(saved_tx_obj);
-            active_tx = saved_tx_obj;
+            s.saved_tx_obj = scope->transaction_object;
         }
     }
-    if (!active_tx) {
-        sentry__span_decref(saved_span);
-        sentry__transaction_decref(saved_tx_obj);
-        return;
+    s.active_tx = s.saved_span && s.saved_span->transaction
+        ? s.saved_span->transaction
+        : s.saved_tx_obj;
+    if (s.active_tx) {
+        sentry__transaction_incref(s.active_tx);
     }
+    return s;
+}
 
-    // Detach the live-children list so each drained `sentry_span_finish_ts`
-    // skips the remove-scan.
-    sentry__mutex_lock(&active_tx->children_mutex);
-    sentry_span_t **drained = active_tx->children;
-    size_t drained_count = active_tx->children_count;
-    active_tx->children = NULL;
-    active_tx->children_count = 0;
-    active_tx->children_cap = 0;
-    sentry__mutex_unlock(&active_tx->children_mutex);
+static void
+restore_active_trace(saved_trace_t *s)
+{
+    SENTRY_WITH_SCOPE_MUT (scope) {
+        if (!scope->span && s->saved_span) {
+            scope->span = s->saved_span;
+            s->saved_span = NULL;
+        }
+        if (!scope->transaction_object && s->saved_tx_obj) {
+            scope->transaction_object = s->saved_tx_obj;
+            s->saved_tx_obj = NULL;
+        }
+    }
+    sentry__span_decref(s->saved_span);
+    sentry__transaction_decref(s->saved_tx_obj);
+    sentry__transaction_decref(s->active_tx);
+}
 
-    uint64_t end_ts = sentry__usec_time();
-    for (size_t i = drained_count; i-- > 0;) {
-        sentry_span_t *child = drained[i];
+// Atomically swap the live-children list off `tx` and finish each span.
+// The swap ensures `sentry_span_finish_ts`'s per-span remove-scan is a no-op.
+static void
+finish_children(
+    sentry_transaction_t *tx, sentry_span_status_t status, uint64_t end_ts)
+{
+    sentry__mutex_lock(&tx->children_mutex);
+    sentry_span_t **children = tx->children;
+    size_t count = tx->children_count;
+    tx->children = NULL;
+    tx->children_count = 0;
+    tx->children_cap = 0;
+    sentry__mutex_unlock(&tx->children_mutex);
+
+    for (size_t i = count; i-- > 0;) {
+        sentry_span_t *child = children[i];
         sentry_span_set_status(child, status);
         sentry_span_finish_ts(child, end_ts);
         sentry__span_decref(child);
     }
-    sentry_free(drained);
+    sentry_free(children);
+}
 
-    sentry_transaction_set_status(active_tx, status);
-    sentry_transaction_finish_ts(active_tx, end_ts);
-
-    SENTRY_WITH_SCOPE_MUT (scope) {
-        if (!scope->span && saved_span) {
-            scope->span = saved_span;
-            saved_span = NULL;
-        }
-        if (!scope->transaction_object && saved_tx_obj) {
-            scope->transaction_object = saved_tx_obj;
-            saved_tx_obj = NULL;
-        }
+void
+sentry__trace_finish(sentry_span_status_t status)
+{
+    // Save/restore scope around the finish so the crash event captured next
+    // still inherits the active trace context (cf. sentry-cocoa's
+    // `finishTracer:shouldCleanUp:NO`). Finished spans retain their ids; only
+    // `timestamp` is added.
+    saved_trace_t s = save_active_trace();
+    if (!s.active_tx) {
+        return;
     }
-    sentry__span_decref(saved_span);
-    sentry__transaction_decref(saved_tx_obj);
+
+    uint64_t end_ts = sentry__usec_time();
+    finish_children(s.active_tx, status, end_ts);
+
+    sentry_transaction_set_status(s.active_tx, status);
+    sentry_transaction_finish_ts(s.active_tx, end_ts);
+
+    restore_active_trace(&s);
 }
