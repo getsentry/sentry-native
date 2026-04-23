@@ -1,6 +1,7 @@
 #include "sentry_boot.h"
 #include "sentry_symbolizer.h"
 #include "sentry_testsupport.h"
+#include <stdlib.h>
 
 #ifdef SENTRY_WITH_UNWINDER_LIBUNWIND
 #    include "unwinder/sentry_unwinder.h"
@@ -58,6 +59,9 @@ SENTRY_TEST(unwinder)
 #if defined(SENTRY_PLATFORM_NX) || defined(SENTRY_PLATFORM_XBOX)
     SKIP_TEST();
 #endif
+    if (getenv("TEST_QEMU")) {
+        SKIP_TEST();
+    }
 
     void *backtrace1[MAX_FRAMES] = { 0 };
     size_t frame_count1 = invoke_unwinder(backtrace1);

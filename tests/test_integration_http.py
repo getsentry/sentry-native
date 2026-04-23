@@ -33,7 +33,15 @@ from .assertions import (
     assert_before_breadcrumb,
     assert_no_breadcrumbs,
 )
-from .conditions import has_http, has_breakpad, has_native, has_files, is_kcov, is_asan
+from .conditions import (
+    has_http,
+    has_breakpad,
+    has_native,
+    has_files,
+    is_kcov,
+    is_asan,
+    is_qemu,
+)
 
 
 def get_asan_crash_env(env):
@@ -67,6 +75,7 @@ auth_header = (
 # fmt: on
 
 
+@pytest.mark.skipif(is_qemu, reason="unreliable under qemu-user")
 @pytest.mark.parametrize(
     "build_args",
     [
@@ -298,7 +307,7 @@ def test_user_report_http(cmake, httpserver):
         pytest.param(
             {"SENTRY_BACKEND": "breakpad"},
             marks=pytest.mark.skipif(
-                not has_breakpad, reason="test needs breakpad backend"
+                not has_breakpad or is_qemu, reason="test needs breakpad backend"
             ),
         ),
     ],
@@ -351,6 +360,7 @@ def test_external_crash_reporter_http(cmake, httpserver, build_args):
     assert_user_feedback(envelope)
 
 
+@pytest.mark.skipif(is_qemu, reason="unreliable under qemu-user")
 def test_exception_and_session_http(cmake, httpserver):
     tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "none"})
 
@@ -535,7 +545,7 @@ def test_inproc_dump_inflight(cmake, httpserver):
     assert len(httpserver.log) >= 11
 
 
-@pytest.mark.skipif(not has_breakpad, reason="test needs breakpad backend")
+@pytest.mark.skipif(not has_breakpad or is_qemu, reason="test needs breakpad backend")
 @pytest.mark.parametrize(
     "build_args",
     [
@@ -589,7 +599,7 @@ def test_breakpad_crash_http(cmake, httpserver, build_args):
     assert_minidump(envelope)
 
 
-@pytest.mark.skipif(not has_breakpad, reason="test needs breakpad backend")
+@pytest.mark.skipif(not has_breakpad or is_qemu, reason="test needs breakpad backend")
 def test_breakpad_reinstall(cmake, httpserver):
     tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "breakpad"})
 
@@ -617,7 +627,7 @@ def test_breakpad_reinstall(cmake, httpserver):
     assert len(httpserver.log) == 1
 
 
-@pytest.mark.skipif(not has_breakpad, reason="test needs breakpad backend")
+@pytest.mark.skipif(not has_breakpad or is_qemu, reason="test needs breakpad backend")
 @flaky(max_runs=3)
 def test_breakpad_dump_inflight(cmake, httpserver):
     tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "breakpad"})
@@ -801,7 +811,7 @@ def test_discarding_before_breadcrumb_http(cmake, httpserver):
 
 
 @pytest.mark.skipif(is_kcov, reason="kcov exits with 0 even when the process crashes")
-@pytest.mark.skipif(not has_native, reason="test needs native backend")
+@pytest.mark.skipif(not has_native or is_qemu, reason="test needs native backend")
 def test_native_crash_http(cmake, httpserver):
     """Test native backend crash handling with HTTP transport"""
     tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "native"})

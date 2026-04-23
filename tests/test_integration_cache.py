@@ -3,7 +3,7 @@ import time
 import pytest
 
 from . import run
-from .conditions import has_breakpad, has_files, has_http
+from .conditions import has_breakpad, has_files, has_http, is_qemu
 
 pytestmark = [
     pytest.mark.skipif(not has_files, reason="tests need local filesystem"),
@@ -19,7 +19,7 @@ pytestmark = [
         pytest.param(
             "breakpad",
             marks=pytest.mark.skipif(
-                not has_breakpad, reason="breakpad backend not available"
+                not has_breakpad or is_qemu, reason="breakpad backend not available"
             ),
         ),
     ],
@@ -67,7 +67,7 @@ def test_cache_keep(cmake, backend, cache_keep, unreachable_dsn):
         pytest.param(
             "breakpad",
             marks=pytest.mark.skipif(
-                not has_breakpad, reason="breakpad backend not available"
+                not has_breakpad or is_qemu, reason="breakpad backend not available"
             ),
         ),
     ],
@@ -121,7 +121,7 @@ def test_cache_max_size(cmake, backend, unreachable_dsn):
         pytest.param(
             "breakpad",
             marks=pytest.mark.skipif(
-                not has_breakpad, reason="breakpad backend not available"
+                not has_breakpad or is_qemu, reason="breakpad backend not available"
             ),
         ),
     ],
@@ -176,7 +176,7 @@ def test_cache_max_age(cmake, backend, unreachable_dsn):
         pytest.param(
             "breakpad",
             marks=pytest.mark.skipif(
-                not has_breakpad, reason="breakpad backend not available"
+                not has_breakpad or is_qemu, reason="breakpad backend not available"
             ),
         ),
     ],
@@ -216,7 +216,7 @@ def test_cache_max_items(cmake, backend, unreachable_dsn):
         pytest.param(
             "breakpad",
             marks=pytest.mark.skipif(
-                not has_breakpad, reason="breakpad backend not available"
+                not has_breakpad or is_qemu, reason="breakpad backend not available"
             ),
         ),
     ],

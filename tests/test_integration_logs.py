@@ -14,7 +14,7 @@ from .assertions import (
     assert_event,
     assert_logs,
 )
-from .conditions import has_http, has_breakpad, has_native
+from .conditions import has_http, has_breakpad, has_native, is_qemu
 
 pytestmark = pytest.mark.skipif(not has_http, reason="tests need http")
 
@@ -227,7 +227,7 @@ def test_logs_on_crash_none(cmake, httpserver):
         pytest.param(
             "breakpad",
             marks=pytest.mark.skipif(
-                not has_breakpad, reason="breakpad backend not available"
+                not has_breakpad or is_qemu, reason="breakpad backend not available"
             ),
         ),
     ],
@@ -268,7 +268,7 @@ def test_logs_on_crash(cmake, httpserver, backend):
     assert_logs(logs_envelope, 1)
 
 
-@pytest.mark.skipif(not has_native, reason="test needs native backend")
+@pytest.mark.skipif(not has_native or is_qemu, reason="test needs native backend")
 @pytest.mark.parametrize("rerun", [True, False], ids=["rerun", "no-rerun"])
 def test_logs_on_crash_native(cmake, httpserver, rerun):
     tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "native"})

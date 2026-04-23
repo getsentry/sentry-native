@@ -69,6 +69,12 @@ jobs:
             CC: gcc-9
             CXX: g++-9
             TEST_X86: 1
+          - name: Linux Arm32 (gcc-arm-linux-gnueabihf + qemu-user)
+            os: ubuntu-24.04-arm
+            CC: arm-linux-gnueabihf-gcc
+            CXX: arm-linux-gnueabihf-g++
+            TEST_ARM32: 1
+            TEST_QEMU: 1
           - name: Linux (GCC 9.5.0)
             os: ubuntu-24.04
             CC: gcc-9
@@ -223,6 +229,8 @@ jobs:
       CXX: ${{ matrix.CXX }}
       TEST_X86: ${{ matrix.TEST_X86 }}
       TEST_MINGW: ${{ matrix.TEST_MINGW }}
+      TEST_ARM32: ${{ matrix.TEST_ARM32 }}
+      TEST_QEMU: ${{ matrix.TEST_QEMU }}
       USE_SCCACHE: ${{ matrix.USE_SCCACHE }}
       SCCACHE_GHA_ENABLED: ${{ matrix.USE_SCCACHE && 'true' || '' }}
       ERROR_ON_WARNINGS: ${{ matrix.ERROR_ON_WARNINGS }}
@@ -258,7 +266,7 @@ jobs:
           [ -n "$CC" ] && [ -n "$CXX" ] || { echo "Ubuntu runner configurations require toolchain selection via CC and CXX" >&2; exit 1; }
 
       - name: Installing Linux Dependencies
-        if: ${{ runner.os == 'Linux' && !env['TEST_X86'] && !env['ANDROID_API'] && !matrix.container }}
+        if: ${{ runner.os == 'Linux' && !env['TEST_X86'] && !env['TEST_ARM32'] && !env['ANDROID_API'] && !matrix.container }}
         run: |
           sudo apt update
           # Install common dependencies
@@ -294,6 +302,26 @@ jobs:
           sudo dpkg --add-architecture i386
           sudo apt update
           sudo apt install cmake "${CC}-multilib" "${CXX}-multilib" zlib1g-dev:i386 libssl-dev:i386 libcurl4-openssl-dev:i386 liblzma-dev:i386
+
+      - name: Installing Linux arm32 Dependencies
+        if: ${{ runner.os == 'Linux' && env['TEST_ARM32'] && !matrix.container }}
+        run: |
+          sudo dpkg --add-architecture armhf
+          sudo apt update
+          sudo apt install -y \
+            cmake \
+            gcc-arm-linux-gnueabihf g++-arm-linux-gnueabihf \
+            zlib1g-dev:armhf \
+            libssl-dev:armhf \
+            libcurl4-openssl-dev:armhf \
+            liblzma-dev:armhf \
+            libstdc++6:armhf
+
+      - name: Installing qemu-user
+        if: ${{ runner.os == 'Linux' && env['TEST_QEMU'] && !matrix.container }}
+        run: |
+          sudo apt update
+          sudo apt install -y qemu-user-static binfmt-support
 
       - name: Installing Alpine Linux Dependencies
         if: ${{ contains(matrix.container, 'alpine') }}

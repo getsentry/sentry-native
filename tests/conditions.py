@@ -5,6 +5,8 @@ import shutil
 is_aix = sys.platform == "aix" or sys.platform == "os400"
 is_android = os.environ.get("ANDROID_API")
 is_x86 = os.environ.get("TEST_X86")
+is_arm32 = bool(os.environ.get("TEST_ARM32"))
+is_qemu = bool(os.environ.get("TEST_QEMU"))
 is_asan = "asan" in os.environ.get("RUN_ANALYZER", "")
 is_tsan = "tsan" in os.environ.get("RUN_ANALYZER", "")
 is_kcov = "kcov" in os.environ.get("RUN_ANALYZER", "")
