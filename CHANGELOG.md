@@ -5,6 +5,7 @@
 **Features**:
 
 - Linux: support 32-bit ARM. ([#1659](https://github.com/getsentry/sentry-native/issues/1659))
+- Crashpad: capture handler process log output to `<run>/crashpad-handler.log`, matching the SDK's `debug` verbosity. ([#1658](https://github.com/getsentry/sentry-native/pull/1658))
 
 **Fixes**:
 
@@ -14,6 +15,7 @@
 - Native: build for 32-bit ARM on Linux. ([#1659](https://github.com/getsentry/sentry-native/issues/1659))
 - Inproc: build vendored libunwind for 32-bit ARM on Linux. ([#1659](https://github.com/getsentry/sentry-native/issues/1659))
 - Native: build for 64-bit ARM on Linux with musl. ([#1665](https://github.com/getsentry/sentry-native/pull/1665))
+- Native/Linux: prevent shared memory leak on crash. ([#1664](https://github.com/getsentry/sentry-native/pull/1664))
 
 ## 0.13.7
 
