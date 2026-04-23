@@ -847,6 +847,8 @@ native_backend_except(sentry_backend_t *backend, const sentry_ucontext_t *uctx)
         // Write crash marker
         sentry__write_crash_marker(options);
 
+        sentry__trace_finish(SENTRY_SPAN_STATUS_ABORTED);
+
         // Create crash event
         sentry_value_t event = sentry_value_new_event();
         sentry_value_set_by_key(

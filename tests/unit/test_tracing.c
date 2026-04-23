@@ -776,6 +776,60 @@ check_spans(sentry_envelope_t *envelope, void *data)
     sentry_envelope_free(envelope);
 }
 
+static void
+check_aborted_transaction(sentry_envelope_t *envelope, void *data)
+{
+    uint64_t *called = data;
+    *called += 1;
+
+    sentry_value_t tx = sentry_envelope_get_transaction(envelope);
+    TEST_CHECK(!sentry_value_is_null(tx));
+    CHECK_STRING_PROPERTY(sentry_value_get_by_key(
+                              sentry_value_get_by_key(tx, "contexts"), "trace"),
+        "status", "aborted");
+
+    sentry_envelope_free(envelope);
+}
+
+SENTRY_TEST(trace_finish)
+{
+    // No active span/tx: no-op, no crash.
+    sentry__trace_finish(SENTRY_SPAN_STATUS_ABORTED);
+
+    uint64_t called = 0;
+    SENTRY_TEST_OPTIONS_NEW(options);
+    sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
+    sentry_options_set_auto_session_tracking(options, 0);
+
+    sentry_transport_t *transport
+        = sentry_transport_new(check_aborted_transaction);
+    sentry_transport_set_state(transport, &called);
+    sentry_options_set_transport(options, transport);
+    sentry_options_set_traces_sample_rate(options, 1.0);
+    sentry_init(options);
+
+    sentry_transaction_context_t *ctx
+        = sentry_transaction_context_new("root", "op");
+    sentry_transaction_t *tx
+        = sentry_transaction_start(ctx, sentry_value_new_null());
+    sentry_set_transaction_object(tx);
+
+    sentry_set_span(sentry_transaction_start_child(tx, "child-op", "child"));
+
+    sentry__trace_finish(SENTRY_SPAN_STATUS_ABORTED);
+
+    // Scope is torn down: no active span or tx remains.
+    SENTRY_WITH_SCOPE (scope) {
+        TEST_CHECK(scope->span == NULL);
+        TEST_CHECK(scope->transaction_object == NULL);
+    }
+
+    sentry_close();
+
+    // The tx envelope was sent with status=aborted.
+    TEST_CHECK_INT_EQUAL(called, 1);
+}
+
 SENTRY_TEST(drop_unfinished_spans)
 {
     uint64_t called_transport = 0;

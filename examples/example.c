@@ -570,7 +570,8 @@ main(int argc, char **argv)
             options, sentry_transport_new(print_envelope));
     }
 
-    if (has_arg(argc, argv, "capture-transaction")) {
+    if (has_arg(argc, argv, "capture-transaction")
+        || has_arg(argc, argv, "open-transaction")) {
         sentry_options_set_traces_sample_rate(options, 1.0);
     }
 
@@ -1006,6 +1007,18 @@ main(int argc, char **argv)
         // Output marker directly using printf for test parsing
         printf("pre-crash-log-message\n");
         fflush(stdout);
+    }
+
+    if (has_arg(argc, argv, "open-transaction")) {
+        // Start a transaction + child span on the scope and intentionally
+        // do not finish them. On a subsequent crash, the backend's auto-
+        // finalize is expected to ship the transaction envelope.
+        sentry_transaction_context_t *otx_ctx
+            = sentry_transaction_context_new("open.tx", "op");
+        sentry_transaction_t *otx
+            = sentry_transaction_start(otx_ctx, sentry_value_new_null());
+        sentry_set_transaction_object(otx);
+        sentry_set_span(sentry_transaction_start_child(otx, "open.span", NULL));
     }
 
     if (has_arg(argc, argv, "crash")) {

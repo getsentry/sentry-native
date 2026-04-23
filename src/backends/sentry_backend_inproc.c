@@ -1156,6 +1156,8 @@ process_ucontext_deferred(const sentry_ucontext_t *uctx,
         bool should_handle = true;
         sentry__write_crash_marker(options);
 
+        sentry__trace_finish(SENTRY_SPAN_STATUS_ABORTED);
+
         if (options->on_crash_func && !skip_hooks) {
             SENTRY_DEBUG("invoking `on_crash` hook");
             event = options->on_crash_func(uctx, event, options->on_crash_data);

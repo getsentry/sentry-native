@@ -129,6 +129,8 @@ breakpad_backend_callback(const google_breakpad::MinidumpDescriptor &descriptor,
     SENTRY_WITH_OPTIONS (options) {
         sentry__write_crash_marker(options);
 
+        sentry__trace_finish(SENTRY_SPAN_STATUS_ABORTED);
+
         bool should_handle = true;
 
         if (options->on_crash_func) {

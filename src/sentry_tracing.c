@@ -831,3 +831,33 @@ sentry_transaction_iter_headers(sentry_transaction_t *tx,
         sentry__span_iter_headers(tx->inner, callback, userdata);
     }
 }
+
+void
+sentry__trace_finish(sentry_span_status_t status)
+{
+    sentry_span_t *active_span = NULL;
+    sentry_transaction_t *active_tx = NULL;
+    SENTRY_WITH_SCOPE_MUT (scope) {
+        if (scope->span) {
+            sentry__span_incref(scope->span);
+            active_span = scope->span;
+            // sentry_set_span clears scope->transaction_object; the tx
+            // is reachable only via the span.
+            if (active_span->transaction) {
+                sentry__transaction_incref(active_span->transaction);
+                active_tx = active_span->transaction;
+            }
+        } else if (scope->transaction_object) {
+            sentry__transaction_incref(scope->transaction_object);
+            active_tx = scope->transaction_object;
+        }
+    }
+    if (active_span) {
+        sentry_span_set_status(active_span, status);
+        sentry_span_finish(active_span);
+    }
+    if (active_tx) {
+        sentry_transaction_set_status(active_tx, status);
+        sentry_transaction_finish(active_tx);
+    }
+}
