@@ -826,7 +826,8 @@ SENTRY_TEST(trace_finish)
 
     sentry_span_t *child
         = sentry_transaction_start_child(tx, "child-op", "child");
-    sentry_set_span(sentry_span_start_child(child, "grand-op", "grand"));
+    sentry_span_t *grand = sentry_span_start_child(child, "grand-op", "grand");
+    sentry_set_span(grand);
 
     sentry__trace_finish(SENTRY_SPAN_STATUS_ABORTED);
 
@@ -835,6 +836,10 @@ SENTRY_TEST(trace_finish)
     SENTRY_WITH_SCOPE (scope) {
         TEST_CHECK(scope->span != NULL);
     }
+
+    sentry__span_decref(grand);
+    sentry__span_decref(child);
+    sentry__transaction_decref(tx);
 
     sentry_close();
 

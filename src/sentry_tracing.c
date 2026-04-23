@@ -939,6 +939,7 @@ finish_children(
 
     for (size_t i = count; i-- > 0;) {
         sentry_span_t *child = children[i];
+        sentry__span_incref(child);
         sentry_span_set_status(child, status);
         sentry_span_finish_ts(child, end_ts);
     }
