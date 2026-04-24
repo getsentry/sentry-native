@@ -3681,15 +3681,17 @@ main(int argc, char **argv)
 
     HANDLE network_prewarm_thread = CreateThread(
         NULL, 0, sentry__xbox_network_prewarm_thread_proc, NULL, 0, NULL);
-    if (network_prewarm_thread) {
-        CloseHandle(network_prewarm_thread);
-    }
 #        endif
 
     int rv = sentry__crash_daemon_main(
         app_pid, app_tid, event_handle, ready_event_handle);
 
 #        if defined(SENTRY_PLATFORM_XBOX)
+    if (network_prewarm_thread) {
+        WaitForSingleObject(network_prewarm_thread, INFINITE);
+        CloseHandle(network_prewarm_thread);
+    }
+
     XGameRuntimeUninitialize();
 #        endif
     return rv;
