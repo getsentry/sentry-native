@@ -154,7 +154,19 @@ crashpad_backend_user_consent_changed(sentry_backend_t *backend)
     if (!data->db || !data->db->GetSettings()) {
         return;
     }
-    data->db->GetSettings()->SetUploadsEnabled(!sentry__should_skip_upload());
+    const bool enabled = !sentry__should_skip_upload();
+    bool paused = false;
+    if (!enabled) {
+        SENTRY_WITH_OPTIONS (options) {
+            paused = options->cache_keep || options->http_retry;
+        }
+    }
+    auto *settings = data->db->GetSettings();
+    settings->SetUploadsEnabled(enabled);
+    settings->SetUploadsPaused(paused);
+    if (enabled && data->client) {
+        data->client->RequestRetry();
+    }
 }
 
 #ifdef SENTRY_PLATFORM_WINDOWS

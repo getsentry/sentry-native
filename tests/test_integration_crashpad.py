@@ -866,6 +866,62 @@ def test_crashpad_cache_keep(cmake, httpserver, cache_keep):
         assert cache_files[0].stem == dmp_files[0].stem
 
 
+def test_crashpad_cache_consent(cmake, httpserver):
+    """Crash while consent is revoked + cache_keep: the minidump stays in
+    crashpad's pending queue (no upload, not moved to completed). Once
+    consent is given, RequestRetry() wakes the handler and the minidump
+    is uploaded."""
+    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "crashpad"})
+    db_path = tmp_path.joinpath(".sentry-native")
+    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
+
+    # 1) Crash with consent revoked. No upload should happen.
+    run(
+        tmp_path,
+        "sentry_example",
+        [
+            "log",
+            "require-user-consent",
+            "user-consent-revoke",
+            "cache-keep",
+            "crash",
+        ],
+        expect_failure=True,
+        env=env,
+    )
+
+    # Give the (out-of-process) handler a moment to write the report.
+    time.sleep(1)
+    assert len(httpserver.log) == 0
+
+    # On Linux/macOS the database lays out pending/ and completed/ as
+    # separate directories; on Windows a single reports/ dir tracks state
+    # in metadata, so only assert the dir-based invariants off-Windows.
+    if sys.platform != "win32":
+        pending_dir = db_path.joinpath("pending")
+        completed_dir = db_path.joinpath("completed")
+        assert pending_dir.exists()
+        assert len(list(pending_dir.glob("*.dmp"))) >= 1
+        assert not completed_dir.exists() or not any(completed_dir.glob("*.dmp"))
+
+    # 2) Give consent. The handler should wake via RequestRetry() and upload.
+    httpserver.expect_oneshot_request("/api/123456/minidump/").respond_with_data("OK")
+    with httpserver.wait(timeout=10) as waiting:
+        run(
+            tmp_path,
+            "sentry_example",
+            [
+                "log",
+                "require-user-consent",
+                "user-consent-give",
+                "cache-keep",
+                "no-setup",
+            ],
+            env=env,
+        )
+    assert waiting.result
+
+
 def test_crashpad_cache_max_size(cmake, httpserver):
     tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "crashpad"})
     cache_dir = tmp_path.joinpath(".sentry-native/cache")
