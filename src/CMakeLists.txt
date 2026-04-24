@@ -202,8 +202,12 @@ elseif(SENTRY_BACKEND_NATIVE)
 			${SECURITY_LIBRARY}
 		)
 	elseif(WIN32)
-		# Windows needs dbghelp for MiniDumpWriteDump
-		target_link_libraries(sentry PRIVATE dbghelp)
+		if(NOT XBOX)
+			# Windows needs dbghelp for MiniDumpWriteDump. On Xbox console
+			# MiniDumpWriteDump is supplied by xgameplatform.lib (linked by
+			# the Xbox toolchain as a standard library), so skip dbghelp.
+			target_link_libraries(sentry PRIVATE dbghelp)
+		endif()
 	endif()
 
 	# Enable C11 for atomics support
