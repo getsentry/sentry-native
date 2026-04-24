@@ -3611,8 +3611,10 @@ sentry__crash_daemon_start(pid_t app_pid, uint64_t app_tid, HANDLE event_handle,
 #ifdef SENTRY_CRASH_DAEMON_STANDALONE
 
 #    if defined(SENTRY_PLATFORM_XBOX)
-extern HRESULT XGameRuntimeInitialize(void);
-extern void XGameRuntimeUninitialize(void);
+// Thin wrappers provided by sentry-xbox; the daemon doesn't link XGameRuntime
+// directly so these indirections keep all Xbox-platform coupling on that side.
+extern bool sentry__xbox_game_runtime_initialize(void);
+extern void sentry__xbox_game_runtime_uninitialize(void);
 
 extern bool sentry__xbox_ensure_network_initialized(void);
 
@@ -3671,11 +3673,7 @@ main(int argc, char **argv)
 #        if defined(SENTRY_PLATFORM_XBOX)
     // Required before any XNetworking call the transport makes at
     // crash-upload time.
-    HRESULT init_hr = XGameRuntimeInitialize();
-    if (FAILED(init_hr)) {
-        fprintf(stderr,
-            "sentry-crash: XGameRuntimeInitialize failed: 0x%08lX\n",
-            (unsigned long)init_hr);
+    if (!sentry__xbox_game_runtime_initialize()) {
         return 1;
     }
 
@@ -3692,7 +3690,7 @@ main(int argc, char **argv)
         CloseHandle(network_prewarm_thread);
     }
 
-    XGameRuntimeUninitialize();
+    sentry__xbox_game_runtime_uninitialize();
 #        endif
     return rv;
 #    else
