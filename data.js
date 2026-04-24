@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1777028448064,
+  "lastUpdate": 1777028462855,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -36154,6 +36154,66 @@ window.BENCHMARK_DATA = {
             "value": 10.003542000049492,
             "unit": "ms",
             "extra": "Min 7.605ms\nMax 15.182ms\nMean 11.214ms\nStdDev 3.031ms\nMedian 10.004ms\nCPU 1.243ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "tustanivsky@gmail.com",
+            "name": "Ivan Tustanivskyi",
+            "username": "tustanivsky"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "73fb1e8e0b0f8c7e9f010f027c67708341a7f712",
+          "message": "feat(native): enable the native backend on Xbox (#1666)\n\n* feat(native): allow building for Xbox\n\n* Guard ToolHelp32 use in daemon on Xbox console\n\n* initialize XGameRuntime in daemon on Xbox console\n\n* Forward-declare XGameRuntime entry points instead of including header\n\n* Pre-warm network init\n\n* Test without XGameRuntimeInitialize\n\n* Test markers\n\n* Restore XGameRuntime and network init in daemon\n\n* Remove Xbox daemon diagnostic markers\n\n* Clean up\n\n* Update changelog\n\n* Fix PR suggestion\n\n* Use SENTRY_PLATFORM_XBOX in minidump dbghelp.lib guard\n\n* Use sentry-xbox helpers for XGameRuntime init/uninit\n\n* Update CHANGELOG.md\n\nCo-authored-by: JoshuaMoelans <60878493+JoshuaMoelans@users.noreply.github.com>\n\n* Update src/backends/native/sentry_crash_daemon.c\n\nCo-authored-by: JoshuaMoelans <60878493+JoshuaMoelans@users.noreply.github.com>\n\n---------\n\nCo-authored-by: JoshuaMoelans <60878493+JoshuaMoelans@users.noreply.github.com>",
+          "timestamp": "2026-04-24T13:56:05+03:00",
+          "tree_id": "bce53c1c0567959fdd8f1ec524c09728cb61dc45",
+          "url": "https://github.com/getsentry/sentry-native/commit/73fb1e8e0b0f8c7e9f010f027c67708341a7f712"
+        },
+        "date": 1777028457351,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 3.7793340000007447,
+            "unit": "ms",
+            "extra": "Min 3.489ms\nMax 3.935ms\nMean 3.752ms\nStdDev 0.172ms\nMedian 3.779ms\nCPU 2.191ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 4.891917000009016,
+            "unit": "ms",
+            "extra": "Min 3.851ms\nMax 9.312ms\nMean 5.720ms\nStdDev 2.200ms\nMedian 4.892ms\nCPU 3.432ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 29.079666000029647,
+            "unit": "ms",
+            "extra": "Min 15.374ms\nMax 76.485ms\nMean 37.031ms\nStdDev 23.361ms\nMedian 29.080ms\nCPU 10.794ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.09299999999257125,
+            "unit": "ms",
+            "extra": "Min 0.083ms\nMax 0.137ms\nMean 0.103ms\nStdDev 0.021ms\nMedian 0.093ms\nCPU 0.063ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.33854100001917686,
+            "unit": "ms",
+            "extra": "Min 0.232ms\nMax 0.372ms\nMean 0.325ms\nStdDev 0.055ms\nMedian 0.339ms\nCPU 0.324ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 9.803042000044115,
+            "unit": "ms",
+            "extra": "Min 8.530ms\nMax 15.710ms\nMean 11.512ms\nStdDev 3.089ms\nMedian 9.803ms\nCPU 1.616ms"
           }
         ]
       }
