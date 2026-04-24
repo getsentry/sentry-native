@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1777021386591,
+  "lastUpdate": 1777021391849,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -54112,6 +54112,66 @@ window.BENCHMARK_DATA = {
             "value": 16.191599999956452,
             "unit": "ms",
             "extra": "Min 15.252ms\nMax 16.420ms\nMean 15.931ms\nStdDev 0.497ms\nMedian 16.192ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "jpnurmi@gmail.com",
+            "name": "J-P Nurmi",
+            "username": "jpnurmi"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "79911f8811447ff79eb29ec472f79920a5176965",
+          "message": "fix(native): Skip scope flush during crash handling (#1668)\n\nCo-authored-by: Claude Opus 4.7 (1M context) <noreply@anthropic.com>",
+          "timestamp": "2026-04-24T10:57:53+02:00",
+          "tree_id": "12e678be990a3e35c2267e1cf88cc5440908761d",
+          "url": "https://github.com/getsentry/sentry-native/commit/79911f8811447ff79eb29ec472f79920a5176965"
+        },
+        "date": 1777021383097,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 11.131700000078126,
+            "unit": "ms",
+            "extra": "Min 8.883ms\nMax 13.254ms\nMean 11.164ms\nStdDev 1.553ms\nMedian 11.132ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 12.690499999962412,
+            "unit": "ms",
+            "extra": "Min 9.555ms\nMax 16.930ms\nMean 12.868ms\nStdDev 2.665ms\nMedian 12.690ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 28.08180000010907,
+            "unit": "ms",
+            "extra": "Min 24.289ms\nMax 137.902ms\nMean 48.739ms\nStdDev 49.875ms\nMedian 28.082ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.1780999998572952,
+            "unit": "ms",
+            "extra": "Min 0.135ms\nMax 0.222ms\nMean 0.182ms\nStdDev 0.035ms\nMedian 0.178ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.3570999999737978,
+            "unit": "ms",
+            "extra": "Min 0.329ms\nMax 0.410ms\nMean 0.367ms\nStdDev 0.038ms\nMedian 0.357ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 16.280299999834824,
+            "unit": "ms",
+            "extra": "Min 11.873ms\nMax 314.411ms\nMean 75.013ms\nStdDev 133.841ms\nMedian 16.280ms"
           }
         ]
       }
