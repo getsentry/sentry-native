@@ -1710,10 +1710,19 @@ get_thread_name(HANDLE hThread, sentry_thread_context_windows_t *tctx)
 /**
  * Enumerate threads from the crashed process for the native event on Windows
  * Captures thread contexts for stack walking.
+ *
+ * Not available on Xbox (the ToolHelp32 API is not part of the gaming
+ * partition). MiniDumpWriteDump still captures all thread contexts from the
+ * target process independently, so skipping this only loses supplementary
+ * per-thread metadata from the Sentry event payload.
  */
 static void
 enumerate_threads_from_process(sentry_crash_context_t *ctx)
 {
+#    if defined(SENTRY_PLATFORM_XBOX)
+    (void)ctx;
+    return;
+#    else
     HANDLE hSnapshot = CreateToolhelp32Snapshot(TH32CS_SNAPTHREAD, 0);
     if (hSnapshot == INVALID_HANDLE_VALUE) {
         SENTRY_WARN("CreateToolhelp32Snapshot failed");
@@ -1810,6 +1819,7 @@ enumerate_threads_from_process(sentry_crash_context_t *ctx)
     ctx->platform.num_threads = thread_count;
     SENTRY_DEBUGF("Enumerated %u threads from process %d", thread_count,
         ctx->crashed_pid);
+#    endif // SENTRY_PLATFORM_XBOX
 }
 #endif // SENTRY_PLATFORM_WINDOWS
 
@@ -3595,6 +3605,23 @@ sentry__crash_daemon_start(pid_t app_pid, uint64_t app_tid, HANDLE event_handle,
 // When built as standalone executable, provide main entry point
 #ifdef SENTRY_CRASH_DAEMON_STANDALONE
 
+#    if defined(SENTRY_PLATFORM_XBOX)
+// Thin wrappers provided by sentry-xbox; the daemon doesn't link XGameRuntime
+// directly so these indirections keep all Xbox-platform coupling on that side.
+extern bool sentry__xbox_game_runtime_initialize(void);
+extern void sentry__xbox_game_runtime_uninitialize(void);
+
+extern bool sentry__xbox_ensure_network_initialized(void);
+
+static DWORD WINAPI
+sentry__xbox_network_prewarm_thread_proc(LPVOID param)
+{
+    (void)param;
+    (void)sentry__xbox_ensure_network_initialized();
+    return 0;
+}
+#    endif
+
 int
 main(int argc, char **argv)
 {
@@ -3637,8 +3664,30 @@ main(int argc, char **argv)
     unsigned long long ready_event_val = strtoull(argv[4], NULL, 10);
     HANDLE event_handle = (HANDLE)(uintptr_t)event_handle_val;
     HANDLE ready_event_handle = (HANDLE)(uintptr_t)ready_event_val;
-    return sentry__crash_daemon_main(
+
+#        if defined(SENTRY_PLATFORM_XBOX)
+    // Required before any XNetworking call the transport makes at
+    // crash-upload time.
+    if (!sentry__xbox_game_runtime_initialize()) {
+        return 1;
+    }
+
+    HANDLE network_prewarm_thread = CreateThread(
+        NULL, 0, sentry__xbox_network_prewarm_thread_proc, NULL, 0, NULL);
+#        endif
+
+    int rv = sentry__crash_daemon_main(
         app_pid, app_tid, event_handle, ready_event_handle);
+
+#        if defined(SENTRY_PLATFORM_XBOX)
+    if (network_prewarm_thread) {
+        WaitForSingleObject(network_prewarm_thread, INFINITE);
+        CloseHandle(network_prewarm_thread);
+    }
+
+    sentry__xbox_game_runtime_uninitialize();
+#        endif
+    return rv;
 #    else
     fprintf(stderr, "Platform not supported\n");
     return 1;

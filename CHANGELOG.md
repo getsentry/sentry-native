@@ -4,6 +4,7 @@
 
 **Features**:
 
+- Enable experimental `native` backend on Xbox. ([#1666](https://github.com/getsentry/sentry-native/pull/1666))
 - Linux: support 32-bit ARM. ([#1659](https://github.com/getsentry/sentry-native/issues/1659))
 - Crashpad: capture handler process log output to `<run>/crashpad-handler.log`, matching the SDK's `debug` verbosity. ([#1658](https://github.com/getsentry/sentry-native/pull/1658))
 
