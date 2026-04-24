@@ -1726,7 +1726,7 @@ get_thread_name(HANDLE hThread, sentry_thread_context_windows_t *tctx)
 static void
 enumerate_threads_from_process(sentry_crash_context_t *ctx)
 {
-#    ifdef SENTRY_PLATFORM_XBOX
+#    if defined(SENTRY_PLATFORM_XBOX)
     (void)ctx;
     return;
 #    else
