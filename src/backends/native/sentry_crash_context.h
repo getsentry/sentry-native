@@ -273,6 +273,11 @@ typedef struct {
     bool debug_enabled; // Debug logging enabled in parent process
     bool attach_screenshot; // Screenshot attachment enabled in parent process
     bool cache_keep;
+    bool require_user_consent;
+
+    // Atomic user consent (sentry_user_consent_t), updated whenever user
+    // consent changes so the daemon can honor it at crash time.
+    volatile long user_consent;
 
     // Platform-specific crash context
 #if defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID)

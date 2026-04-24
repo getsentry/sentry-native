@@ -871,7 +871,7 @@ def test_crashpad_cache_max_size(cmake, httpserver):
     cache_dir = tmp_path.joinpath(".sentry-native/cache")
     env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
 
-    # 5 x 2mb
+    # 5 x 4mb
     for i in range(5):
         httpserver.expect_oneshot_request("/api/123456/minidump/").respond_with_data(
             "OK"
@@ -906,7 +906,7 @@ def test_crashpad_cache_max_size(cmake, httpserver):
         if cache_dir.exists():
             for f in cache_dir.glob("*.envelope"):
                 with open(f, "r+b") as file:
-                    file.truncate(2 * 1024 * 1024)
+                    file.truncate(4 * 1024 * 1024)
 
     run(
         tmp_path,
@@ -915,11 +915,11 @@ def test_crashpad_cache_max_size(cmake, httpserver):
         env=env,
     )
 
-    # max 4mb
+    # max 16mb
     assert cache_dir.exists()
     cache_files = list(cache_dir.glob("*.envelope"))
-    assert len(cache_files) <= 2
-    assert sum(f.stat().st_size for f in cache_files) <= 4 * 1024 * 1024
+    assert len(cache_files) <= 4
+    assert sum(f.stat().st_size for f in cache_files) <= 16 * 1024 * 1024
 
 
 def test_crashpad_cache_max_age(cmake, httpserver):

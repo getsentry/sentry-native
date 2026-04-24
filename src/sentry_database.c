@@ -451,7 +451,7 @@ sentry__process_old_runs(const sentry_options_t *options, uint64_t last_crash)
                     sentry__session_free(session);
                     if ((++session_num) >= SENTRY_MAX_ENVELOPE_SESSIONS) {
                         sentry__capture_envelope(
-                            options->transport, session_envelope);
+                            options->transport, session_envelope, options);
                         session_envelope = NULL;
                         session_num = 0;
                     }
@@ -459,7 +459,8 @@ sentry__process_old_runs(const sentry_options_t *options, uint64_t last_crash)
             } else if (sentry__path_ends_with(file, ".envelope")) {
                 sentry_envelope_t *envelope = sentry__envelope_from_path(file);
                 if (envelope) {
-                    sentry__capture_envelope(options->transport, envelope);
+                    sentry__capture_envelope(
+                        options->transport, envelope, options);
                 }
             }
 
@@ -473,7 +474,7 @@ sentry__process_old_runs(const sentry_options_t *options, uint64_t last_crash)
     sentry__pathiter_free(db_iter);
 
     if (session_envelope) {
-        sentry__capture_envelope(options->transport, session_envelope);
+        sentry__capture_envelope(options->transport, session_envelope, options);
     }
 }
 

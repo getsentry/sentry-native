@@ -551,6 +551,52 @@ def test_crash_mode_native_with_minidump(cmake, httpserver):
     assert "debug_meta" in event
 
 
+def test_native_cache_consent(cmake, httpserver):
+    """Daemon honors revoked consent: envelope is cached, not sent. Giving
+    consent in a subsequent run flushes the cached envelope."""
+    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "native"})
+    cache_dir = tmp_path / ".sentry-native" / "cache"
+    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
+
+    # 1) Crash while consent is revoked. Envelope is cached, no upload.
+    run_crash(
+        tmp_path,
+        "sentry_example",
+        [
+            "log",
+            "stdout",
+            "cache-keep",
+            "http-retry",
+            "require-user-consent",
+            "user-consent-revoke",
+            "crash",
+        ],
+        env=env,
+    )
+
+    assert wait_for_file(cache_dir / "*.envelope")
+    assert len(list(cache_dir.glob("*.envelope"))) == 1
+    assert len(httpserver.log) == 0
+
+    # 2) Give consent. The cached envelope should be flushed to the server.
+    httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data("OK")
+    with httpserver.wait(timeout=10) as waiting:
+        run(
+            tmp_path,
+            "sentry_example",
+            [
+                "log",
+                "cache-keep",
+                "http-retry",
+                "require-user-consent",
+                "user-consent-give",
+            ],
+            env=env,
+        )
+    assert waiting.result
+    assert len(list(cache_dir.glob("*.envelope"))) == 0
+
+
 @pytest.mark.parametrize("cache_keep", [True, False])
 def test_native_cache_keep(cmake, cache_keep, unreachable_dsn):
     tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "native"})

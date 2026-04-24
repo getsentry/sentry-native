@@ -94,14 +94,14 @@ def test_cache_max_size(cmake, backend, unreachable_dsn):
         env=env,
     )
 
-    # 5 x 2mb
+    # 5 x 4mb
     assert cache_dir.exists()
     cache_files = list(cache_dir.glob("*.envelope"))
     for f in cache_files:
         with open(f, "r+b") as file:
-            file.truncate(2 * 1024 * 1024)
+            file.truncate(4 * 1024 * 1024)
 
-    # max 4mb
+    # max 16mb
     run(
         tmp_path,
         "sentry_example",
@@ -110,8 +110,8 @@ def test_cache_max_size(cmake, backend, unreachable_dsn):
     )
 
     cache_files = list(cache_dir.glob("*.envelope"))
-    assert len(cache_files) <= 2
-    assert sum(f.stat().st_size for f in cache_files) <= 4 * 1024 * 1024
+    assert len(cache_files) <= 4
+    assert sum(f.stat().st_size for f in cache_files) <= 16 * 1024 * 1024
 
 
 @pytest.mark.parametrize(

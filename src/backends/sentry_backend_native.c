@@ -193,6 +193,9 @@ native_backend_startup(
     ctx->debug_enabled = options->debug;
     ctx->attach_screenshot = options->attach_screenshot;
     ctx->cache_keep = options->cache_keep;
+    ctx->require_user_consent = options->require_user_consent;
+    sentry__atomic_store(
+        &ctx->user_consent, sentry__atomic_fetch(&options->run->user_consent));
 
     // Set up event and breadcrumb paths
     sentry_path_t *run_path = options->run->run_path;
@@ -548,6 +551,21 @@ native_backend_shutdown(sentry_backend_t *backend)
 #endif
 
     SENTRY_DEBUG("native backend shutdown complete");
+}
+
+static void
+native_backend_user_consent_changed(sentry_backend_t *backend)
+{
+    native_backend_state_t *state = (native_backend_state_t *)backend->data;
+    if (!state || !state->ipc || !state->ipc->shmem) {
+        return;
+    }
+    SENTRY_WITH_OPTIONS (options) {
+        if (options->run) {
+            sentry__atomic_store(&state->ipc->shmem->user_consent,
+                sentry__atomic_fetch(&options->run->user_consent));
+        }
+    }
 }
 
 static void
@@ -941,7 +959,8 @@ native_backend_except(sentry_backend_t *backend, const sentry_ucontext_t *uctx)
                         if (disk_transport) {
                             // sentry__capture_envelope takes ownership of
                             // envelope
-                            sentry__capture_envelope(disk_transport, envelope);
+                            sentry__capture_envelope(
+                                disk_transport, envelope, options);
                             sentry__transport_dump_queue(
                                 disk_transport, options->run);
                             sentry_transport_free(disk_transport);
@@ -988,6 +1007,7 @@ sentry__backend_new(void)
     backend->flush_scope_func = native_backend_flush_scope;
     backend->add_breadcrumb_func = native_backend_add_breadcrumb;
     backend->add_attachment_func = native_backend_add_attachment;
+    backend->user_consent_changed_func = native_backend_user_consent_changed;
     backend->can_capture_after_shutdown = false;
 
     return backend;

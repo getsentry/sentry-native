@@ -1206,7 +1206,7 @@ process_ucontext_deferred(const sentry_ucontext_t *uctx,
                 // capture the envelope with the disk transport
                 sentry_transport_t *disk_transport
                     = sentry_new_disk_transport(options->run);
-                sentry__capture_envelope(disk_transport, envelope);
+                sentry__capture_envelope(disk_transport, envelope, options);
                 sentry__transport_dump_queue(disk_transport, options->run);
                 sentry_transport_free(disk_transport);
             }

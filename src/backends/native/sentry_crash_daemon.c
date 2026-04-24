@@ -2911,6 +2911,11 @@ sentry__process_crash(const sentry_options_t *options, sentry_crash_ipc_t *ipc)
     }
 #endif
 
+    if (options->run) {
+        sentry__atomic_store(&options->run->user_consent,
+            sentry__atomic_fetch(&ctx->user_consent));
+    }
+
     sentry_path_t *env_path = sentry__path_from_str(envelope_path);
     if (!env_path) {
         SENTRY_WARN("Failed to create envelope path");
@@ -2925,15 +2930,14 @@ sentry__process_crash(const sentry_options_t *options, sentry_crash_ipc_t *ipc)
         goto cleanup;
     }
 
-    SENTRY_DEBUG("Envelope loaded, sending via transport");
+    SENTRY_DEBUG("Envelope loaded, capturing");
 
-    // Send directly via transport, or to external crash reporter
+    // Capture directly, or pass to external crash reporter
     if (!sentry__launch_external_crash_reporter(options, envelope)) {
-        // Send directly via transport
-        if (options && options->transport) {
-            SENTRY_DEBUG("Calling transport send_envelope");
-            sentry__transport_send_envelope(options->transport, envelope);
-            SENTRY_DEBUG("Crash envelope sent to transport (queued)");
+        if (options && options->transport && options->run) {
+            SENTRY_DEBUG("Capturing crash envelope");
+            sentry__capture_envelope(options->transport, envelope, options);
+            SENTRY_DEBUG("Crash envelope captured (queued)");
         } else {
             SENTRY_WARN("No transport available for sending envelope");
             sentry_envelope_free(envelope);
@@ -2954,7 +2958,7 @@ sentry__process_crash(const sentry_options_t *options, sentry_crash_ipc_t *ipc)
 
 cleanup:
     // Send all other envelopes from run folder (logs, etc.) before cleanup
-    if (run_folder && options && options->transport) {
+    if (run_folder && options && options->transport && options->run) {
         SENTRY_DEBUG("Checking for additional envelopes in run folder");
         sentry_pathiter_t *piter = sentry__path_iter_directory(run_folder);
         if (piter) {
@@ -2971,8 +2975,8 @@ cleanup:
                     sentry_envelope_t *run_envelope
                         = sentry__envelope_from_path(file_path);
                     if (run_envelope) {
-                        sentry__transport_send_envelope(
-                            options->transport, run_envelope);
+                        sentry__capture_envelope(
+                            options->transport, run_envelope, options);
                         envelope_count++;
                     } else {
                         SENTRY_WARNF("Failed to load envelope: %s", path_str);
@@ -3216,6 +3220,10 @@ sentry__crash_daemon_main(pid_t app_pid, uint64_t app_tid, HANDLE event_handle,
     sentry_path_t *db_path = sentry__path_from_str(ipc->shmem->database_path);
     if (db_path) {
         options->run = sentry__run_new(db_path);
+        if (options->run) {
+            options->run->require_user_consent
+                = ipc->shmem->require_user_consent;
+        }
         sentry__path_free(db_path);
     }
 
