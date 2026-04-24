@@ -73,6 +73,7 @@ typedef struct {
     sentry_path_t *breadcrumb2_path;
     sentry_path_t *envelope_path;
     size_t num_breadcrumbs;
+    volatile long crashed;
 } native_backend_state_t;
 
 static int
@@ -570,7 +571,7 @@ native_backend_flush_scope(
     sentry_backend_t *backend, const sentry_options_t *UNUSED(options))
 {
     native_backend_state_t *state = (native_backend_state_t *)backend->data;
-    if (!state || !state->event_path) {
+    if (!state || !state->event_path || sentry__atomic_fetch(&state->crashed)) {
         return;
     }
 
@@ -804,6 +805,11 @@ native_backend_add_attachment(
 static void
 native_backend_except(sentry_backend_t *backend, const sentry_ucontext_t *uctx)
 {
+    native_backend_state_t *state = (native_backend_state_t *)backend->data;
+    if (state) {
+        sentry__atomic_store(&state->crashed, 1);
+    }
+
     SENTRY_WITH_OPTIONS (options) {
         // Disable logging during crash handling if configured
         if (!options->enable_logging_when_crashed) {
@@ -840,9 +846,6 @@ native_backend_except(sentry_backend_t *backend, const sentry_ucontext_t *uctx)
         }
 
         if (should_handle) {
-            native_backend_state_t *state
-                = (native_backend_state_t *)backend->data;
-
             // Apply before_send hook if on_crash wasn't set
             if (!options->on_crash_func && options->before_send_func) {
                 SENTRY_DEBUG("invoking `before_send` hook");

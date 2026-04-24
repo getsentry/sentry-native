@@ -16,6 +16,7 @@
 - Inproc: build vendored libunwind for 32-bit ARM on Linux. ([#1659](https://github.com/getsentry/sentry-native/issues/1659))
 - Native: build for 64-bit ARM on Linux with musl. ([#1665](https://github.com/getsentry/sentry-native/pull/1665))
 - Native/Linux: prevent shared memory leak on crash. ([#1664](https://github.com/getsentry/sentry-native/pull/1664))
+- Native: skip scope flush during crash handling. ([#1668](https://github.com/getsentry/sentry-native/pull/1668))
 
 ## 0.13.7
 
