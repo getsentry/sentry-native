@@ -955,6 +955,7 @@ sentry__trace_finish(sentry_span_status_t status)
     // `timestamp` is added.
     saved_trace_t s = save_active_trace();
     if (!s.active_tx) {
+        restore_active_trace(&s);
         return;
     }
 
