@@ -909,7 +909,7 @@ save_active_trace(void)
 static void
 restore_active_trace(saved_trace_t *s)
 {
-    SENTRY_WITH_SCOPE_MUT (scope) {
+    SENTRY_WITH_SCOPE_MUT_NO_FLUSH (scope) {
         if (!scope->span && s->saved_span) {
             scope->span = s->saved_span;
             s->saved_span = NULL;
