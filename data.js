@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1777034021627,
+  "lastUpdate": 1777034162493,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -54772,6 +54772,66 @@ window.BENCHMARK_DATA = {
             "value": 17.87369999999555,
             "unit": "ms",
             "extra": "Min 14.107ms\nMax 21.981ms\nMean 17.359ms\nStdDev 3.104ms\nMedian 17.874ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "jpnurmi@gmail.com",
+            "name": "J-P Nurmi",
+            "username": "jpnurmi"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "9330badd55f22976f7900d705b6abdc7391d24c8",
+          "message": "feat(crashpad): consent-aware offline caching (#1650)\n\nCo-authored-by: Claude Opus 4.6 (1M context) <noreply@anthropic.com>",
+          "timestamp": "2026-04-24T14:31:10+02:00",
+          "tree_id": "74921f49203470739c3e6acdb48ff5917131a0d6",
+          "url": "https://github.com/getsentry/sentry-native/commit/9330badd55f22976f7900d705b6abdc7391d24c8"
+        },
+        "date": 1777034156849,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 38.947099999973034,
+            "unit": "ms",
+            "extra": "Min 11.670ms\nMax 68.225ms\nMean 44.443ms\nStdDev 23.531ms\nMedian 38.947ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 11.455699999942226,
+            "unit": "ms",
+            "extra": "Min 10.939ms\nMax 12.339ms\nMean 11.514ms\nStdDev 0.527ms\nMedian 11.456ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 28.386999999952423,
+            "unit": "ms",
+            "extra": "Min 27.788ms\nMax 42.030ms\nMean 31.332ms\nStdDev 6.045ms\nMedian 28.387ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.25080000000343716,
+            "unit": "ms",
+            "extra": "Min 0.235ms\nMax 0.260ms\nMean 0.249ms\nStdDev 0.010ms\nMedian 0.251ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.5141000000321583,
+            "unit": "ms",
+            "extra": "Min 0.476ms\nMax 0.558ms\nMean 0.515ms\nStdDev 0.038ms\nMedian 0.514ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 17.48039999995399,
+            "unit": "ms",
+            "extra": "Min 16.891ms\nMax 18.891ms\nMean 17.574ms\nStdDev 0.797ms\nMedian 17.480ms"
           }
         ]
       }
