@@ -694,6 +694,9 @@ main(int argc, char **argv)
     if (has_arg(argc, argv, "log-attributes")) {
         sentry_options_set_logs_with_attributes(options, true);
     }
+    if (has_arg(argc, argv, "require-user-consent")) {
+        sentry_options_set_require_user_consent(options, true);
+    }
     if (has_arg(argc, argv, "cache-keep")) {
         sentry_options_set_cache_keep(options, true);
         sentry_options_set_cache_max_size(options, 4 * 1024 * 1024); // 4 MB
@@ -756,6 +759,10 @@ main(int argc, char **argv)
 
     if (0 != sentry_init(options)) {
         return EXIT_FAILURE;
+    }
+
+    if (has_arg(argc, argv, "user-consent-revoke")) {
+        sentry_user_consent_revoke();
     }
 
     if (has_arg(argc, argv, "set-global-attribute")) {
@@ -1048,6 +1055,10 @@ main(int argc, char **argv)
             sentry_event_add_thread(event, thread);
         }
         sentry_capture_event(event);
+    }
+    if (has_arg(argc, argv, "user-consent-give")) {
+        sentry_user_consent_give();
+        sentry_flush(10000);
     }
     if (has_arg(argc, argv, "capture-exception")) {
         sentry_value_t exc = sentry_value_new_exception(

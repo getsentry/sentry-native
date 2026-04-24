@@ -5,6 +5,7 @@
 **Features**:
 
 - Enable experimental `native` backend on Xbox. ([#1666](https://github.com/getsentry/sentry-native/pull/1666))
+- Cache consent-revoked envelopes to disk when `cache_keep` or `http_retry` is enabled, instead of discarding them. With `http_retry`, the cached envelopes are sent automatically once consent is given. ([#1542](https://github.com/getsentry/sentry-native/pull/1542))
 - Linux: support 32-bit ARM. ([#1659](https://github.com/getsentry/sentry-native/issues/1659))
 - Crashpad: capture handler process log output to `<run>/crashpad-handler.log`, matching the SDK's `debug` verbosity. ([#1658](https://github.com/getsentry/sentry-native/pull/1658))
 

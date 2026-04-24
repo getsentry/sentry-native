@@ -458,7 +458,9 @@ sentry__process_old_runs(const sentry_options_t *options, uint64_t last_crash)
                 }
             } else if (sentry__path_ends_with(file, ".envelope")) {
                 sentry_envelope_t *envelope = sentry__envelope_from_path(file);
-                sentry__capture_envelope(options->transport, envelope);
+                if (envelope) {
+                    sentry__capture_envelope(options->transport, envelope);
+                }
             }
 
             sentry__path_remove(file);
@@ -470,7 +472,9 @@ sentry__process_old_runs(const sentry_options_t *options, uint64_t last_crash)
     }
     sentry__pathiter_free(db_iter);
 
-    sentry__capture_envelope(options->transport, session_envelope);
+    if (session_envelope) {
+        sentry__capture_envelope(options->transport, session_envelope);
+    }
 }
 
 // Cache Pruning below is based on prune_crash_reports.cc from Crashpad

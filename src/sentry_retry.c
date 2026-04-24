@@ -141,6 +141,10 @@ size_t
 sentry__retry_send(sentry_retry_t *retry, uint64_t before,
     sentry_retry_send_func_t send_cb, void *data)
 {
+    if (sentry__run_should_skip_upload(retry->run)) {
+        return 1; // keep the poll alive until consent is given
+    }
+
     sentry_pathiter_t *piter
         = sentry__path_iter_directory(retry->run->cache_path);
     if (!piter) {
