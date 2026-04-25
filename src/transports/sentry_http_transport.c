@@ -257,7 +257,7 @@ static int
 retry_send_cb(sentry_envelope_t *envelope, void *_state)
 {
     http_transport_state_t *state = _state;
-    sentry_client_report_t report = { { 0 } };
+    sentry_client_report_t report = { 0 };
     if (state->send_client_reports
         && sentry__envelope_can_add_client_report(
             envelope, state->ratelimiter)) {
@@ -299,7 +299,7 @@ http_send_task(void *_envelope, void *_state)
     sentry_envelope_t *envelope = _envelope;
     http_transport_state_t *state = _state;
 
-    sentry_client_report_t report = { { 0 } };
+    sentry_client_report_t report = { 0 };
     if (state->send_client_reports
         && sentry__envelope_can_add_client_report(
             envelope, state->ratelimiter)) {
