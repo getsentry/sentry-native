@@ -1157,7 +1157,8 @@ process_ucontext_deferred(const sentry_ucontext_t *uctx,
         bool should_handle = true;
         sentry__write_crash_marker(options);
 
-        sentry__trace_finish(SENTRY_SPAN_STATUS_ABORTED);
+        sentry_value_t transaction
+            = sentry__trace_finish(SENTRY_SPAN_STATUS_ABORTED);
 
         if (options->on_crash_func && !skip_hooks) {
             SENTRY_DEBUG("invoking `on_crash` hook");
@@ -1188,8 +1189,15 @@ process_ucontext_deferred(const sentry_ucontext_t *uctx,
 
             sentry_envelope_t *envelope = sentry__prepare_event(options, event,
                 NULL, !options->on_crash_func && !skip_hooks, NULL);
-            // TODO(tracing): Revisit when investigating transaction flushing
-            //                during hard crashes.
+            if (!sentry_value_is_null(transaction)) {
+                transaction
+                    = sentry__prepare_transaction_value(options, transaction, NULL);
+                if (!sentry_value_is_null(transaction)
+                    && !sentry__envelope_add_transaction(
+                        envelope, transaction)) {
+                    sentry_value_decref(transaction);
+                }
+            }
 
             sentry_session_t *session = sentry__end_current_session_with_status(
                 SENTRY_SESSION_STATUS_CRASHED);
@@ -1216,6 +1224,7 @@ process_ucontext_deferred(const sentry_ucontext_t *uctx,
         } else {
             SENTRY_DEBUG("event was discarded by the `on_crash` hook");
             sentry_value_decref(event);
+            sentry_value_decref(transaction);
         }
 
         // after capturing the crash event, dump all the envelopes to disk

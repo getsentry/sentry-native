@@ -58,12 +58,12 @@ void sentry__transaction_remove_child(
 
 /**
  * Finishes the active transaction (if any) with `status`, closing out every
- * in-flight child span in leaf-first order and shipping the tx envelope.
+ * in-flight child span in leaf-first order and returning the tx payload.
  * `scope->span` / `scope->transaction_object` are preserved so a
  * subsequently-captured crash event still inherits the active trace context.
- * No-op if nothing is active.
+ * Returns null if nothing is active.
  */
-void sentry__trace_finish(sentry_span_status_t status);
+sentry_value_t sentry__trace_finish(sentry_span_status_t status);
 
 void sentry__span_incref(sentry_span_t *span);
 void sentry__span_decref(sentry_span_t *span);

@@ -370,7 +370,10 @@ sentry__envelope_add_event(sentry_envelope_t *envelope, sentry_value_t event)
     sentry_value_t length = sentry_value_new_int32((int32_t)item->payload_len);
     sentry__envelope_item_set_header(item, "length", length);
 
-    sentry__envelope_set_event_id(envelope, &event_id);
+    sentry_uuid_t envelope_event_id = sentry__envelope_get_event_id(envelope);
+    if (sentry_uuid_is_nil(&envelope_event_id)) {
+        sentry__envelope_set_event_id(envelope, &event_id);
+    }
 
     double traces_sample_rate = 0.0;
     SENTRY_WITH_OPTIONS (options) {

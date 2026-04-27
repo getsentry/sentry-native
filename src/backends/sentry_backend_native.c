@@ -848,7 +848,8 @@ native_backend_except(sentry_backend_t *backend, const sentry_ucontext_t *uctx)
         // Write crash marker
         sentry__write_crash_marker(options);
 
-        sentry__trace_finish(SENTRY_SPAN_STATUS_ABORTED);
+        sentry_value_t transaction
+            = sentry__trace_finish(SENTRY_SPAN_STATUS_ABORTED);
 
         // Create crash event
         sentry_value_t event = sentry_value_new_event();
@@ -942,6 +943,32 @@ native_backend_except(sentry_backend_t *backend, const sentry_ucontext_t *uctx)
                     }
                 }
 
+                if (!sentry_value_is_null(transaction) && state
+                    && state->event_path) {
+                    transaction = sentry__prepare_transaction_value(
+                        options, transaction, NULL);
+                    if (!sentry_value_is_null(transaction)) {
+                        char *transaction_json
+                            = sentry_value_to_json(transaction);
+                        sentry_path_t *run_path
+                            = sentry__path_dir(state->event_path);
+                        sentry_path_t *transaction_path = run_path
+                            ? sentry__path_join_str(
+                                  run_path, "__sentry-transaction")
+                            : NULL;
+                        if (transaction_json && transaction_path) {
+                            sentry__path_write_buffer(transaction_path,
+                                transaction_json, strlen(transaction_json));
+                        }
+                        sentry__path_free(transaction_path);
+                        sentry__path_free(run_path);
+                        sentry_free(transaction_json);
+                        sentry_value_decref(transaction);
+                    }
+                } else {
+                    sentry_value_decref(transaction);
+                }
+
                 sentry_value_decref(event);
 
                 // End session with crashed status and write session envelope to
@@ -983,6 +1010,7 @@ native_backend_except(sentry_backend_t *backend, const sentry_ucontext_t *uctx)
         } else {
             SENTRY_DEBUG("event was discarded by the `on_crash` hook");
             sentry_value_decref(event);
+            sentry_value_decref(transaction);
         }
     }
 }

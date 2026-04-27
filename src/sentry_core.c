@@ -748,6 +748,32 @@ sentry__prepare_transaction(const sentry_options_t *options,
 {
     sentry_envelope_t *envelope = NULL;
 
+    transaction
+        = sentry__prepare_transaction_value(options, transaction, event_id);
+    if (sentry_value_is_null(transaction)) {
+        return NULL;
+    }
+
+    envelope = sentry__envelope_new();
+    if (!envelope || !sentry__envelope_add_transaction(envelope, transaction)) {
+        goto fail;
+    }
+
+    // TODO(tracing): Revisit when adding attachment support for transactions.
+
+    return envelope;
+
+fail:
+    SENTRY_WARN("dropping transaction");
+    sentry_envelope_free(envelope);
+    sentry_value_decref(transaction);
+    return NULL;
+}
+
+sentry_value_t
+sentry__prepare_transaction_value(const sentry_options_t *options,
+    sentry_value_t transaction, sentry_uuid_t *event_id)
+{
     SENTRY_WITH_SCOPE (scope) {
         SENTRY_DEBUG("merging scope into transaction");
         // Don't include debugging info
@@ -765,25 +791,12 @@ sentry__prepare_transaction(const sentry_options_t *options,
                 "transaction was discarded by the `before_transaction` hook");
             sentry__client_report_discard(SENTRY_DISCARD_REASON_BEFORE_SEND,
                 SENTRY_DATA_CATEGORY_TRANSACTION, 1);
-            return NULL;
+            return sentry_value_new_null();
         }
     }
 
     sentry__ensure_event_id(transaction, event_id);
-    envelope = sentry__envelope_new();
-    if (!envelope || !sentry__envelope_add_transaction(envelope, transaction)) {
-        goto fail;
-    }
-
-    // TODO(tracing): Revisit when adding attachment support for transactions.
-
-    return envelope;
-
-fail:
-    SENTRY_WARN("dropping transaction");
-    sentry_envelope_free(envelope);
-    sentry_value_decref(transaction);
-    return NULL;
+    return transaction;
 }
 
 static sentry_envelope_t *
@@ -1303,6 +1316,20 @@ sentry_uuid_t
 sentry_transaction_finish_ts(
     sentry_transaction_t *opaque_tx, uint64_t timestamp)
 {
+    sentry_value_t tx = sentry__transaction_finish_value(opaque_tx, timestamp);
+    if (sentry_value_is_null(tx)) {
+        return sentry_uuid_nil();
+    }
+
+    // This takes ownership of the transaction, generates an event ID, merges
+    // scope
+    return sentry__capture_event(tx, NULL);
+}
+
+sentry_value_t
+sentry__transaction_finish_value(
+    sentry_transaction_t *opaque_tx, uint64_t timestamp)
+{
     if (!opaque_tx || sentry_value_is_null(opaque_tx->inner)) {
         SENTRY_WARN("no transaction available to finish");
         goto fail;
@@ -1382,12 +1409,10 @@ sentry_transaction_finish_ts(
 
     sentry__transaction_decref(opaque_tx);
 
-    // This takes ownership of the transaction, generates an event ID, merges
-    // scope
-    return sentry__capture_event(tx, NULL);
+    return tx;
 fail:
     sentry__transaction_decref(opaque_tx);
-    return sentry_uuid_nil();
+    return sentry_value_new_null();
 }
 
 void

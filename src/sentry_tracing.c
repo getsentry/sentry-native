@@ -946,7 +946,7 @@ finish_children(
     sentry_free(children);
 }
 
-void
+sentry_value_t
 sentry__trace_finish(sentry_span_status_t status)
 {
     // Save/restore scope around the finish so the crash event captured next
@@ -956,14 +956,15 @@ sentry__trace_finish(sentry_span_status_t status)
     saved_trace_t s = save_active_trace();
     if (!s.active_tx) {
         restore_active_trace(&s);
-        return;
+        return sentry_value_new_null();
     }
 
     uint64_t end_ts = sentry__usec_time();
     finish_children(s.active_tx, status, end_ts);
 
     sentry_transaction_set_status(s.active_tx, status);
-    sentry_transaction_finish_ts(s.active_tx, end_ts);
+    sentry_value_t tx = sentry__transaction_finish_value(s.active_tx, end_ts);
 
     restore_active_trace(&s);
+    return tx;
 }

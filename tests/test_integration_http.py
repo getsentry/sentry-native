@@ -904,11 +904,6 @@ def test_trace_finish_on_crash(cmake, httpserver, backend):
     unfinished transaction on the scope ships alongside the crash."""
     tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": backend})
 
-    # crash + auto-finished transaction
-    httpserver.expect_oneshot_request(
-        "/api/123456/envelope/",
-        headers={"x-sentry-auth": auth_header},
-    ).respond_with_data("OK")
     httpserver.expect_oneshot_request(
         "/api/123456/envelope/",
         headers={"x-sentry-auth": auth_header},
@@ -936,16 +931,6 @@ def test_trace_finish_on_crash(cmake, httpserver, backend):
 def test_trace_finish_on_crash_native(cmake, httpserver):
     tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "native"})
 
-    # crash + auto-finished transaction
-    httpserver.expect_oneshot_request(
-        "/api/123456/envelope/",
-        headers={"x-sentry-auth": auth_header},
-    ).respond_with_data("OK")
-    httpserver.expect_oneshot_request(
-        "/api/123456/envelope/",
-        headers={"x-sentry-auth": auth_header},
-    ).respond_with_data("OK")
-    # TODO: fix duplicate tx
     httpserver.expect_oneshot_request(
         "/api/123456/envelope/",
         headers={"x-sentry-auth": auth_header},

@@ -130,7 +130,8 @@ breakpad_backend_callback(const google_breakpad::MinidumpDescriptor &descriptor,
     SENTRY_WITH_OPTIONS (options) {
         sentry__write_crash_marker(options);
 
-        sentry__trace_finish(SENTRY_SPAN_STATUS_ABORTED);
+        sentry_value_t transaction
+            = sentry__trace_finish(SENTRY_SPAN_STATUS_ABORTED);
 
         bool should_handle = true;
 
@@ -178,6 +179,15 @@ breakpad_backend_callback(const google_breakpad::MinidumpDescriptor &descriptor,
 
             sentry_envelope_t *envelope = sentry__prepare_event(
                 options, event, nullptr, !options->on_crash_func, nullptr);
+            if (!sentry_value_is_null(transaction)) {
+                transaction = sentry__prepare_transaction_value(
+                    options, transaction, nullptr);
+                if (!sentry_value_is_null(transaction)
+                    && !sentry__envelope_add_transaction(
+                        envelope, transaction)) {
+                    sentry_value_decref(transaction);
+                }
+            }
             sentry_session_t *session = sentry__end_current_session_with_status(
                 SENTRY_SESSION_STATUS_CRASHED);
             sentry__envelope_add_session(envelope, session);
@@ -221,6 +231,7 @@ breakpad_backend_callback(const google_breakpad::MinidumpDescriptor &descriptor,
             SENTRY_SIGNAL_SAFE_LOG(
                 "DEBUG event was discarded by the `on_crash` hook");
             sentry_value_decref(event);
+            sentry_value_decref(transaction);
         }
 
         // after capturing the crash event, try to dump all the in-flight
