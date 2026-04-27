@@ -305,6 +305,38 @@ SENTRY_TEST(capture_minidump_invalid_path)
     sentry_close();
 }
 
+SENTRY_TEST(capture_minidump_discard)
+{
+    // skipping on platforms that don't have access to fixtures on the local FS
+#if defined(SENTRY_PLATFORM_ANDROID) || defined(SENTRY_PLATFORM_NX)            \
+    || defined(SENTRY_PLATFORM_PS) || defined(SENTRY_PLATFORM_XBOX)
+    SKIP_TEST();
+#else
+    uint64_t called_beforesend = 0;
+
+    SENTRY_TEST_OPTIONS_NEW(options);
+    sentry_options_set_before_send(
+        options, discarding_before_send, &called_beforesend);
+    sentry_init(options);
+
+    const char *minidump_rel_path = "../fixtures/minidump.dmp";
+    sentry_path_t *path = sentry__path_from_str(__FILE__);
+    sentry_path_t *dir = sentry__path_dir(path);
+    sentry_path_t *minidump_path
+        = sentry__path_join_str(dir, minidump_rel_path);
+
+    const sentry_uuid_t event_id = sentry_capture_minidump(minidump_path->path);
+    TEST_CHECK(sentry_uuid_is_nil(&event_id));
+    TEST_CHECK_INT_EQUAL(called_beforesend, 1);
+
+    sentry__path_free(minidump_path);
+    sentry__path_free(dir);
+    sentry__path_free(path);
+
+    sentry_close();
+#endif
+}
+
 SENTRY_TEST(basic_transport_thread_name)
 {
 #if defined(SENTRY_PLATFORM_NX)

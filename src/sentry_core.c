@@ -1747,7 +1747,7 @@ sentry_capture_minidump_n(const char *path, size_t path_len)
             = sentry__prepare_event(options, event, &event_id, true, NULL);
 
         if (!envelope || sentry_uuid_is_nil(&event_id)) {
-            sentry_value_decref(event);
+            sentry_envelope_free(envelope);
         } else {
             // the minidump is added as an attachment, with the type
             // `event.minidump`
