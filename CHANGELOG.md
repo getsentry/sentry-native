@@ -12,6 +12,7 @@
 - Fix event ownership (potential double-decref) in sentry_capture_minidump. ([#1669](https://github.com/getsentry/sentry-native/pull/1669))
 - Guard against internal stringbuilder append and reserve size overflows. ([#1672](https://github.com/getsentry/sentry-native/pull/1672))
 - Preserve attachments added during crash handling ([#1687](https://github.com/getsentry/sentry-native/pull/1687))
+- Fix build-time warnings with C++ builds. ([#1671](https://github.com/getsentry/sentry-native/pull/1671))
 
 ## 0.13.8
 
