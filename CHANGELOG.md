@@ -7,6 +7,13 @@
 - Metrics are enabled by default. This behavior first appeared in `0.13.5` and is now documented as part of the `0.14.0` behavior. Applications that do not want to send metrics must explicitly opt out with `sentry_options_set_enable_metrics(options, false)`. ([#1609](https://github.com/getsentry/sentry-native/pull/1609))
 - Structured logs are enabled by default. This behavior first appeared in `0.13.9` and is now documented as part of the `0.14.0` behavior. Applications that do not want to capture structured logs must explicitly opt out with `sentry_options_set_enable_logs(options, false)`. ([#1673](https://github.com/getsentry/sentry-native/pull/1673))
 
+**Fixes**:
+
+- Native/Linux: correct `MD_LINUX_MAPS` stream type (was tagged as `MD_LINUX_AUXV`).
+- Native/Linux: drop non-ELF mappings (e.g. `/dev/shm/*`, `(deleted)` files) from the minidump module list.
+- Native/Linux: merge non-contiguous mappings of the same shared library into a single module, and use the offset==0 mapping as `base_of_image`. Fixes duplicate `ld-linux` entries that confused some debuggers (notably Windows LLDB) reading Linux ARM64 minidumps.
+- Native/Linux: log when `uname()` is blocked (sandbox/seccomp) and fall back to `/proc/sys/kernel/osrelease` for the OS version.
+
 ## 0.13.9
 
 **Features**:

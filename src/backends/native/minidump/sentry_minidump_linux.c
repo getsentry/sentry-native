@@ -19,7 +19,6 @@
 #    include <time.h>
 #    include <unistd.h>
 
-#    include "../../../modulefinder/sentry_modulefinder_linux.h"
 #    include "sentry_alloc.h"
 #    include "sentry_logger.h"
 #    include "sentry_minidump_common.h"
@@ -545,7 +544,9 @@ write_system_info_stream(minidump_writer_t *writer, minidump_directory_t *dir)
     // Populate OS version from uname(), matching Crashpad behavior
     struct utsname uts;
     char csd_version[512] = "";
+    bool have_uname = false;
     if (uname(&uts) == 0) {
+        have_uname = true;
         int major = 0, minor = 0, patch = 0;
         sscanf(uts.release, "%d.%d.%d", &major, &minor, &patch);
         sysinfo.major_version = (uint32_t)major;
@@ -554,6 +555,37 @@ write_system_info_stream(minidump_writer_t *writer, minidump_directory_t *dir)
 
         snprintf(csd_version, sizeof(csd_version), "%s %s %s %s", uts.sysname,
             uts.release, uts.version, uts.machine);
+    } else {
+        SENTRY_WARNF("uname() failed: %s — falling back to "
+                     "/proc/sys/kernel/osrelease",
+            strerror(errno));
+    }
+
+    // Fallback when uname succeeds but release didn't parse, or uname is
+    // blocked entirely (sandboxed/seccomp environments often return "(none)"
+    // or disable the syscall).
+    if (sysinfo.major_version == 0 && sysinfo.minor_version == 0
+        && sysinfo.build_number == 0) {
+        int rfd = open("/proc/sys/kernel/osrelease", O_RDONLY);
+        if (rfd >= 0) {
+            char buf[64] = { 0 };
+            ssize_t n = read(rfd, buf, sizeof(buf) - 1);
+            close(rfd);
+            if (n > 0) {
+                int major = 0, minor = 0, patch = 0;
+                if (sscanf(buf, "%d.%d.%d", &major, &minor, &patch) >= 1) {
+                    sysinfo.major_version = (uint32_t)major;
+                    sysinfo.minor_version = (uint32_t)minor;
+                    sysinfo.build_number = (uint32_t)patch;
+                }
+            }
+        }
+        if (sysinfo.major_version == 0 && sysinfo.minor_version == 0
+            && sysinfo.build_number == 0) {
+            SENTRY_WARNF(
+                "OS version unavailable (uname %s, /proc fallback failed)",
+                have_uname ? "release unparseable" : "blocked");
+        }
     }
     sysinfo.csd_version_rva = write_minidump_string(writer, csd_version);
     if (!sysinfo.csd_version_rva) {
@@ -810,6 +842,26 @@ write_thread_context(
 #    else
 #        error "Unsupported architecture for Linux"
 #    endif
+}
+
+/**
+ * Quickly verify a file is an ELF binary by reading its magic bytes.
+ * Used to filter out non-ELF mappings (e.g. /dev/shm/*, deleted files,
+ * sentry-native's own IPC shared memory) from the module list — LLDB and
+ * other consumers can choke on entries that look like modules but aren't.
+ */
+static bool
+is_elf_file(const char *path)
+{
+    int fd = open(path, O_RDONLY);
+    if (fd < 0) {
+        return false;
+    }
+    unsigned char magic[SELFMAG];
+    bool is_elf = read(fd, magic, SELFMAG) == (ssize_t)SELFMAG
+        && memcmp(magic, ELFMAG, SELFMAG) == 0;
+    close(fd);
+    return is_elf;
 }
 
 /**
@@ -1499,11 +1551,22 @@ typedef struct {
 } resolved_module_t;
 
 /**
- * Resolve all mappings into deduplicated modules using the shared modulefinder
- * merge logic (sentry__module_mapping_push). For each unique named file, all
- * contiguous /proc/pid/maps segments are merged into a single sentry_module_t,
- * from which we extract base_of_image and size_of_image the same way the
- * in-process modulefinder does.
+ * Resolve all mappings into deduplicated modules.
+ *
+ * For each named, readable mapping that points at a real ELF file, group
+ * every mapping of the same file (regardless of order in /proc/pid/maps)
+ * into a single resolved_module_t. This matches Crashpad's behavior and
+ * avoids two pitfalls that confuse downstream consumers (notably LLDB's
+ * ModuleList on Windows reading Linux dumps):
+ *
+ *   1. Non-ELF entries (e.g. /dev/shm/* IPC files, "(deleted)" files) being
+ *      emitted as modules with bogus zero-id CV records.
+ *   2. The same shared library appearing twice when its segments are
+ *      separated by an unrelated mapping (e.g. ld-linux-aarch64.so.1 split
+ *      across non-contiguous /proc/maps lines).
+ *
+ * base_of_image is set to the address of the offset==0 mapping — the real
+ * ELF load address — which is what Breakpad/Crashpad/rust-minidump expect.
  */
 static size_t
 resolve_modules(const minidump_writer_t *writer, resolved_module_t *modules,
@@ -1511,18 +1574,15 @@ resolve_modules(const minidump_writer_t *writer, resolved_module_t *modules,
 {
     size_t module_count = 0;
 
-    // Track the current module being built via sentry__module_mapping_push.
-    // When the filename changes, we finalize the current module and start a
-    // new one — /proc/pid/maps groups mappings by file, so consecutive lines
-    // with the same name belong to the same ELF.
-    sentry_module_t current;
-    memset(&current, 0, sizeof(current));
-    char *current_name = NULL;
+    // Names we've already classified as non-ELF, so we don't repeatedly open
+    // the same file (e.g. /dev/shm/sentry-IPC has multiple segments).
+    const char *skip_names[SENTRY_CRASH_MAX_MODULES];
+    size_t skip_count = 0;
 
     for (size_t i = 0; i < writer->mapping_count; i++) {
         const memory_mapping_t *mapping = &writer->mappings[i];
 
-        // Skip anonymous mappings and special kernel mappings
+        // Skip anonymous and special kernel mappings ([stack], [vdso], etc.)
         if (mapping->name[0] == '\0' || mapping->name[0] == '[') {
             continue;
         }
@@ -1531,64 +1591,68 @@ resolve_modules(const minidump_writer_t *writer, resolved_module_t *modules,
             continue;
         }
 
-        // Build a sentry_parsed_module_t to feed to the shared merge function
-        sentry_parsed_module_t parsed;
-        parsed.start = mapping->start;
-        parsed.end = mapping->end;
-        parsed.offset = mapping->offset;
-        memcpy(parsed.permissions, mapping->permissions, 5);
-        parsed.file.ptr = mapping->name;
-        parsed.file.len = strlen(mapping->name);
-
-        bool same_file
-            = current_name && strcmp(current_name, mapping->name) == 0;
-
-        if (!same_file) {
-            // Finalize the previous module (if any)
-            if (current_name && current.num_mappings > 0
-                && module_count < max_modules) {
-                const sentry_mapped_region_t *first = &current.mappings[0];
-                const sentry_mapped_region_t *last
-                    = &current.mappings[current.num_mappings - 1];
-                resolved_module_t *mod = &modules[module_count];
-                mod->name = current_name;
-                mod->base = first->addr;
-                mod->end = last->addr + last->size;
-                mod->build_id_len = 0;
-                mod->soname[0] = '\0';
-                mod->elf_size = 0;
-                module_count++;
+        // Already classified as non-ELF? Cheap pointer compare first
+        // (mapping->name is stable for the writer's lifetime), then strcmp.
+        bool already_skipped = false;
+        for (size_t j = 0; j < skip_count; j++) {
+            if (skip_names[j] == mapping->name
+                || strcmp(skip_names[j], mapping->name) == 0) {
+                already_skipped = true;
+                break;
             }
-
-            // Start a new module
-            memset(&current, 0, sizeof(current));
-            current_name = (char *)mapping->name;
+        }
+        if (already_skipped) {
+            continue;
         }
 
-        // Use a consistent dummy inode so the merge function doesn't reject
-        // this mapping as belonging to a different file
-        parsed.inode = current.mappings_inode;
-        if (current.num_mappings == 0) {
-            parsed.inode = 1; // Any non-zero value for the first mapping
+        // Find an existing module entry by name. This merges across
+        // non-contiguous /proc/maps lines — fixes duplicate ld-linux entries.
+        resolved_module_t *mod = NULL;
+        for (size_t j = 0; j < module_count; j++) {
+            if (strcmp(modules[j].name, mapping->name) == 0) {
+                mod = &modules[j];
+                break;
+            }
         }
 
-        sentry__module_mapping_push(&current, &parsed);
-    }
+        if (mod) {
+            // Extend the existing module to cover this segment.
+            if (mapping->end > mod->end) {
+                mod->end = mapping->end;
+            }
+            // base_of_image must be the address of the offset==0 mapping —
+            // the actual ELF load address. Prefer it when found.
+            if (mapping->offset == 0) {
+                mod->base = mapping->start;
+            } else if (mapping->start < mod->base) {
+                // No offset==0 mapping seen yet; track lowest address as a
+                // fallback (will be overridden when the offset==0 mapping
+                // arrives).
+                mod->base = mapping->start;
+            }
+            continue;
+        }
 
-    // Finalize the last module
-    if (current_name && current.num_mappings > 0
-        && module_count < max_modules) {
-        const sentry_mapped_region_t *first = &current.mappings[0];
-        const sentry_mapped_region_t *last
-            = &current.mappings[current.num_mappings - 1];
-        resolved_module_t *mod = &modules[module_count];
-        mod->name = current_name;
-        mod->base = first->addr;
-        mod->end = last->addr + last->size;
-        mod->build_id_len = 0;
-        mod->soname[0] = '\0';
-        mod->elf_size = 0;
-        module_count++;
+        // First time we see this file — confirm it's actually an ELF before
+        // adding it as a module. This drops sentry-native's own IPC shm,
+        // deleted semaphores, and any other non-ELF named mapping.
+        if (!is_elf_file(mapping->name)) {
+            if (skip_count < SENTRY_CRASH_MAX_MODULES) {
+                skip_names[skip_count++] = mapping->name;
+            }
+            SENTRY_DEBUGF("skipping non-ELF mapping: %s", mapping->name);
+            continue;
+        }
+
+        if (module_count >= max_modules) {
+            continue;
+        }
+
+        mod = &modules[module_count++];
+        memset(mod, 0, sizeof(*mod));
+        mod->name = (char *)mapping->name;
+        mod->base = mapping->start;
+        mod->end = mapping->end;
     }
 
     // Extract Build IDs, ELF sizes, and SONAMEs for each resolved module
