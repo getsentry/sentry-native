@@ -194,44 +194,6 @@ write_attachment_to_envelope(int fd, const char *file_path,
     return true;
 }
 
-static bool
-write_json_item_to_envelope(int fd, const char *file_path, const char *type)
-{
-    sentry_path_t *path = sentry__path_from_str(file_path);
-    size_t size = 0;
-    char *json = path ? sentry__path_read_to_buffer(path, &size) : NULL;
-    sentry__path_free(path);
-    if (!json || size == 0) {
-        sentry_free(json);
-        return false;
-    }
-
-    char header[SENTRY_CRASH_ITEM_HEADER_SIZE];
-    int header_len = snprintf(
-        header, sizeof(header), "{\"type\":\"%s\",\"length\":%zu}\n", type, size);
-    if (header_len <= 0 || header_len >= (int)sizeof(header)) {
-        sentry_free(json);
-        return false;
-    }
-
-#if defined(SENTRY_PLATFORM_UNIX)
-    if (write(fd, header, header_len) != (ssize_t)header_len
-        || write(fd, json, size) != (ssize_t)size
-        || write(fd, "\n", 1) != 1) {
-        SENTRY_WARNF("Failed to write %s item to envelope", type);
-        sentry_free(json);
-        return false;
-    }
-#elif defined(SENTRY_PLATFORM_WINDOWS)
-    _write(fd, header, (unsigned int)header_len);
-    _write(fd, json, (unsigned int)size);
-    _write(fd, "\n", 1);
-#endif
-
-    sentry_free(json);
-    return true;
-}
-
 #if defined(SENTRY_PLATFORM_UNIX)
 /**
  * Get signal name from signal number (Unix platforms only)
@@ -2315,16 +2277,6 @@ write_envelope_with_native_stacktrace(const sentry_options_t *options,
 
     sentry_free(event_json);
 
-    if (run_folder) {
-        sentry_path_t *transaction_path
-            = sentry__path_join_str(run_folder, "__sentry-transaction");
-        if (transaction_path) {
-            write_json_item_to_envelope(
-                fd, transaction_path->path, "transaction");
-            sentry__path_free(transaction_path);
-        }
-    }
-
     // Add minidump as attachment if provided
     if (minidump_path && minidump_path[0]) {
 #if defined(SENTRY_PLATFORM_UNIX)
@@ -2560,16 +2512,6 @@ write_envelope_with_minidump(const sentry_options_t *options,
         }
     }
     sentry_free(event_json);
-
-    if (run_folder) {
-        sentry_path_t *transaction_path
-            = sentry__path_join_str(run_folder, "__sentry-transaction");
-        if (transaction_path) {
-            write_json_item_to_envelope(
-                fd, transaction_path->path, "transaction");
-            sentry__path_free(transaction_path);
-        }
-    }
 
     // Add minidump as attachment
 #if defined(SENTRY_PLATFORM_UNIX)

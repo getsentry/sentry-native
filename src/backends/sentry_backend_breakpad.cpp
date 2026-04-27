@@ -179,15 +179,6 @@ breakpad_backend_callback(const google_breakpad::MinidumpDescriptor &descriptor,
 
             sentry_envelope_t *envelope = sentry__prepare_event(
                 options, event, nullptr, !options->on_crash_func, nullptr);
-            if (!sentry_value_is_null(transaction)) {
-                transaction = sentry__prepare_transaction_value(
-                    options, transaction, nullptr);
-                if (!sentry_value_is_null(transaction)
-                    && !sentry__envelope_add_transaction(
-                        envelope, transaction)) {
-                    sentry_value_decref(transaction);
-                }
-            }
             sentry_session_t *session = sentry__end_current_session_with_status(
                 SENTRY_SESSION_STATUS_CRASHED);
             sentry__envelope_add_session(envelope, session);
@@ -215,9 +206,17 @@ breakpad_backend_callback(const google_breakpad::MinidumpDescriptor &descriptor,
             }
 
             if (!sentry__launch_external_crash_reporter(options, envelope)) {
-                // capture the envelope with the disk transport
                 sentry_transport_t *disk_transport
                     = sentry_new_disk_transport(options->run);
+                if (!sentry_value_is_null(transaction)) {
+                    sentry_envelope_t *tx_envelope
+                        = sentry__prepare_transaction(
+                            options, transaction, nullptr);
+                    if (tx_envelope) {
+                        sentry__capture_envelope(
+                            disk_transport, tx_envelope, options);
+                    }
+                }
                 sentry__capture_envelope(disk_transport, envelope, options);
                 sentry__transport_dump_queue(disk_transport, options->run);
                 sentry_transport_free(disk_transport);

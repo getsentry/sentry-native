@@ -879,6 +879,10 @@ def test_trace_finish_on_crash(cmake, httpserver, backend):
         "/api/123456/envelope/",
         headers={"x-sentry-auth": auth_header},
     ).respond_with_data("OK")
+    httpserver.expect_oneshot_request(
+        "/api/123456/envelope/",
+        headers={"x-sentry-auth": auth_header},
+    ).respond_with_data("OK")
     env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
 
     with httpserver.wait(timeout=10) as waiting:

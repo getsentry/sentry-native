@@ -943,32 +943,6 @@ native_backend_except(sentry_backend_t *backend, const sentry_ucontext_t *uctx)
                     }
                 }
 
-                if (!sentry_value_is_null(transaction) && state
-                    && state->event_path) {
-                    transaction = sentry__prepare_transaction_value(
-                        options, transaction, NULL);
-                    if (!sentry_value_is_null(transaction)) {
-                        char *transaction_json
-                            = sentry_value_to_json(transaction);
-                        sentry_path_t *run_path
-                            = sentry__path_dir(state->event_path);
-                        sentry_path_t *transaction_path = run_path
-                            ? sentry__path_join_str(
-                                  run_path, "__sentry-transaction")
-                            : NULL;
-                        if (transaction_json && transaction_path) {
-                            sentry__path_write_buffer(transaction_path,
-                                transaction_json, strlen(transaction_json));
-                        }
-                        sentry__path_free(transaction_path);
-                        sentry__path_free(run_path);
-                        sentry_free(transaction_json);
-                        sentry_value_decref(transaction);
-                    }
-                } else {
-                    sentry_value_decref(transaction);
-                }
-
                 sentry_value_decref(event);
 
                 // End session with crashed status and write session envelope to
@@ -978,26 +952,33 @@ native_backend_except(sentry_backend_t *backend, const sentry_ucontext_t *uctx)
                     = sentry__end_current_session_with_status(
                         SENTRY_SESSION_STATUS_CRASHED);
 
-                if (session) {
-                    sentry_envelope_t *envelope = sentry__envelope_new();
-                    if (envelope) {
-                        sentry__envelope_add_session(envelope, session);
-
-                        // Write session envelope to disk
-                        sentry_transport_t *disk_transport
-                            = sentry_new_disk_transport(options->run);
-                        if (disk_transport) {
-                            // sentry__capture_envelope takes ownership of
-                            // envelope
-                            sentry__capture_envelope(
-                                disk_transport, envelope, options);
-                            sentry__transport_dump_queue(
-                                disk_transport, options->run);
-                            sentry_transport_free(disk_transport);
-                        } else {
-                            // Failed to create transport, free envelope
-                            sentry_envelope_free(envelope);
+                if (session || !sentry_value_is_null(transaction)) {
+                    sentry_transport_t *disk_transport
+                        = sentry_new_disk_transport(options->run);
+                    if (disk_transport) {
+                        if (!sentry_value_is_null(transaction)) {
+                            sentry_envelope_t *tx_envelope
+                                = sentry__prepare_transaction(
+                                    options, transaction, NULL);
+                            if (tx_envelope) {
+                                sentry__capture_envelope(
+                                    disk_transport, tx_envelope, options);
+                            }
                         }
+                        if (session) {
+                            sentry_envelope_t *envelope
+                                = sentry__envelope_new();
+                            if (envelope) {
+                                sentry__envelope_add_session(envelope, session);
+                                sentry__capture_envelope(
+                                    disk_transport, envelope, options);
+                            }
+                        }
+                        sentry__transport_dump_queue(
+                            disk_transport, options->run);
+                        sentry_transport_free(disk_transport);
+                    } else {
+                        sentry_value_decref(transaction);
                     }
                 }
 

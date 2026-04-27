@@ -748,32 +748,6 @@ sentry__prepare_transaction(const sentry_options_t *options,
 {
     sentry_envelope_t *envelope = NULL;
 
-    transaction
-        = sentry__prepare_transaction_value(options, transaction, event_id);
-    if (sentry_value_is_null(transaction)) {
-        return NULL;
-    }
-
-    envelope = sentry__envelope_new();
-    if (!envelope || !sentry__envelope_add_transaction(envelope, transaction)) {
-        goto fail;
-    }
-
-    // TODO(tracing): Revisit when adding attachment support for transactions.
-
-    return envelope;
-
-fail:
-    SENTRY_WARN("dropping transaction");
-    sentry_envelope_free(envelope);
-    sentry_value_decref(transaction);
-    return NULL;
-}
-
-sentry_value_t
-sentry__prepare_transaction_value(const sentry_options_t *options,
-    sentry_value_t transaction, sentry_uuid_t *event_id)
-{
     SENTRY_WITH_SCOPE (scope) {
         SENTRY_DEBUG("merging scope into transaction");
         // Don't include debugging info
@@ -791,12 +765,25 @@ sentry__prepare_transaction_value(const sentry_options_t *options,
                 "transaction was discarded by the `before_transaction` hook");
             sentry__client_report_discard(SENTRY_DISCARD_REASON_BEFORE_SEND,
                 SENTRY_DATA_CATEGORY_TRANSACTION, 1);
-            return sentry_value_new_null();
+            return NULL;
         }
     }
 
     sentry__ensure_event_id(transaction, event_id);
-    return transaction;
+    envelope = sentry__envelope_new();
+    if (!envelope || !sentry__envelope_add_transaction(envelope, transaction)) {
+        goto fail;
+    }
+
+    // TODO(tracing): Revisit when adding attachment support for transactions.
+
+    return envelope;
+
+fail:
+    SENTRY_WARN("dropping transaction");
+    sentry_envelope_free(envelope);
+    sentry_value_decref(transaction);
+    return NULL;
 }
 
 static sentry_envelope_t *
