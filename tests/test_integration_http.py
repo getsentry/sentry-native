@@ -852,54 +852,7 @@ def test_native_crash_http(cmake, httpserver):
     assert_attachment(envelope)
 
 
-@pytest.mark.parametrize(
-    "backend",
-    [
-        "inproc",
-        pytest.param(
-            "breakpad",
-            marks=pytest.mark.skipif(
-                not has_breakpad or is_qemu, reason="test needs breakpad backend"
-            ),
-        ),
-        pytest.param(
-            "native",
-            marks=pytest.mark.skipif(
-                not has_native or is_qemu or is_kcov,
-                reason="test needs native backend",
-            ),
-        ),
-    ],
-)
-def test_trace_finish_on_crash(cmake, httpserver, backend):
-    """The backend's crash handler calls `sentry__trace_finish`, so an
-    unfinished transaction on the scope ships alongside the crash."""
-    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": backend})
-
-    # Expect the crash envelope + the auto-finalized tx envelope.
-    httpserver.expect_oneshot_request(
-        "/api/123456/envelope/",
-        headers={"x-sentry-auth": auth_header},
-    ).respond_with_data("OK")
-    httpserver.expect_oneshot_request(
-        "/api/123456/envelope/",
-        headers={"x-sentry-auth": auth_header},
-    ).respond_with_data("OK")
-    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
-
-    with httpserver.wait(timeout=10) as waiting:
-        run(
-            tmp_path,
-            "sentry_example",
-            ["log", "open-transaction", "crash"],
-            expect_failure=True,
-            env=env,
-        )
-        if backend != "native":
-            # inproc/breakpad cache to disk; the next launch ships them.
-            run(tmp_path, "sentry_example", ["log", "no-setup"], env=env)
-    assert waiting.result
-
+def assert_trace_finish_on_crash(httpserver):
     tx_items = [
         item
         for req, _ in httpserver.log
@@ -932,6 +885,84 @@ def test_trace_finish_on_crash(cmake, httpserver, backend):
     assert event["contexts"]["trace"]["trace_id"] == tx["contexts"]["trace"]["trace_id"]
     assert event["contexts"]["trace"]["span_id"] == grand["span_id"]
     assert event.get("level") == "fatal"
+
+
+@pytest.mark.parametrize(
+    "backend",
+    [
+        "inproc",
+        pytest.param(
+            "breakpad",
+            marks=pytest.mark.skipif(
+                not has_breakpad or is_qemu, reason="test needs breakpad backend"
+            ),
+        ),
+    ],
+)
+def test_trace_finish_on_crash(cmake, httpserver, backend):
+    """The backend's crash handler calls `sentry__trace_finish`, so an
+    unfinished transaction on the scope ships alongside the crash."""
+    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": backend})
+
+    # crash + auto-finished transaction
+    httpserver.expect_oneshot_request(
+        "/api/123456/envelope/",
+        headers={"x-sentry-auth": auth_header},
+    ).respond_with_data("OK")
+    httpserver.expect_oneshot_request(
+        "/api/123456/envelope/",
+        headers={"x-sentry-auth": auth_header},
+    ).respond_with_data("OK")
+    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
+
+    with httpserver.wait(timeout=10) as waiting:
+        run(
+            tmp_path,
+            "sentry_example",
+            ["log", "open-transaction", "crash"],
+            expect_failure=True,
+            env=env,
+        )
+        # inproc/breakpad cache to disk; the next launch ships them.
+        run(tmp_path, "sentry_example", ["log", "no-setup"], env=env)
+    assert waiting.result
+
+    assert_trace_finish_on_crash(httpserver)
+
+
+@pytest.mark.skipif(
+    not has_native or is_qemu or is_kcov, reason="test needs native backend"
+)
+def test_trace_finish_on_crash_native(cmake, httpserver):
+    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "native"})
+
+    # crash + auto-finished transaction
+    httpserver.expect_oneshot_request(
+        "/api/123456/envelope/",
+        headers={"x-sentry-auth": auth_header},
+    ).respond_with_data("OK")
+    httpserver.expect_oneshot_request(
+        "/api/123456/envelope/",
+        headers={"x-sentry-auth": auth_header},
+    ).respond_with_data("OK")
+    # TODO: fix duplicate tx
+    httpserver.expect_oneshot_request(
+        "/api/123456/envelope/",
+        headers={"x-sentry-auth": auth_header},
+    ).respond_with_data("OK")
+    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
+
+    with httpserver.wait(timeout=10) as waiting:
+        run(
+            tmp_path,
+            "sentry_example",
+            ["log", "open-transaction", "crash"],
+            expect_failure=True,
+            env=env,
+        )
+    assert waiting.result
+
+    assert_trace_finish_on_crash(httpserver)
 
 
 @pytest.mark.skipif(not has_files, reason="test needs a local filesystem")
