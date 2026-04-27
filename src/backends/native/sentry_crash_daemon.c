@@ -2424,16 +2424,6 @@ write_envelope_with_native_stacktrace(const sentry_options_t *options,
 
     sentry_free(event_json);
 
-    if (run_folder) {
-        sentry_path_t *transaction_path
-            = sentry__path_join_str(run_folder, "__sentry-transaction");
-        if (transaction_path) {
-            write_json_item_to_envelope(
-                fd, transaction_path->path, "transaction");
-            sentry__path_free(transaction_path);
-        }
-    }
-
     // Add minidump as attachment if provided
     if (minidump_path && minidump_path[0]) {
 #if defined(SENTRY_PLATFORM_UNIX)
@@ -2686,16 +2676,6 @@ write_envelope_with_minidump(const sentry_options_t *options,
         }
     }
     sentry_free(event_json);
-
-    if (run_folder) {
-        sentry_path_t *transaction_path
-            = sentry__path_join_str(run_folder, "__sentry-transaction");
-        if (transaction_path) {
-            write_json_item_to_envelope(
-                fd, transaction_path->path, "transaction");
-            sentry__path_free(transaction_path);
-        }
-    }
 
     // Add minidump as attachment
 #if defined(SENTRY_PLATFORM_UNIX)
