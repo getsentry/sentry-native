@@ -707,6 +707,9 @@ crashpad_backend_startup(
     }
 
     std::vector<std::string> arguments { "--no-rate-limit" };
+    if (options->enable_large_attachments) {
+        arguments.push_back("--enable-large-attachments");
+    }
 
     // Map sentry's log level to mini_chromium's LogSeverity. They diverge at
     // FATAL (sentry=3, mini_chromium=4); otherwise 1:1.

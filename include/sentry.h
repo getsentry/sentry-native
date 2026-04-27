@@ -2352,6 +2352,21 @@ SENTRY_EXPERIMENTAL_API int sentry_options_get_http_retry(
     const sentry_options_t *opts);
 
 /**
+ * Enables or disables out-of-band upload of large attachments.
+ *
+ * When enabled, attachments above an internal size threshold are uploaded
+ * via a separate request before the envelope is sent, and referenced from
+ * the envelope by location instead of being embedded inline. When disabled,
+ * all attachments are embedded in the envelope regardless of size.
+ *
+ * Disabled by default.
+ */
+SENTRY_EXPERIMENTAL_API void sentry_options_set_enable_large_attachments(
+    sentry_options_t *opts, int enable_large_attachments);
+SENTRY_EXPERIMENTAL_API int sentry_options_get_enable_large_attachments(
+    const sentry_options_t *opts);
+
+/**
  * Enables or disables custom attributes parsing for structured logging.
  *
  * When enabled, all `sentry_log_X()` functions expect a `sentry_value_t` object
