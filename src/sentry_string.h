@@ -34,6 +34,10 @@ static inline int
 sentry__stringbuilder_append_buf(
     sentry_stringbuilder_t *sb, const char *s, size_t len)
 {
+    if (sb->len == SIZE_MAX || len > SIZE_MAX - sb->len - 1) {
+        return 1;
+    }
+
     size_t needed = sb->len + len + 1;
     char *buf = sb->buf;
     if (!sb->buf || needed > sb->allocated) {

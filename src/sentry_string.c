@@ -59,6 +59,10 @@ sentry__stringbuilder_init(sentry_stringbuilder_t *sb)
 char *
 sentry__stringbuilder_reserve(sentry_stringbuilder_t *sb, size_t len)
 {
+    if (len > SIZE_MAX - sb->len) {
+        return NULL;
+    }
+
     const size_t needed = sb->len + len;
     if (!sb->buf || needed > sb->allocated) {
         size_t new_alloc_size = sb->allocated;
@@ -66,6 +70,10 @@ sentry__stringbuilder_reserve(sentry_stringbuilder_t *sb, size_t len)
             new_alloc_size = INITIAL_BUFFER_SIZE;
         }
         while (new_alloc_size < needed) {
+            if (new_alloc_size > SIZE_MAX / 2) {
+                new_alloc_size = needed;
+                break;
+            }
             new_alloc_size = new_alloc_size * 2;
         }
         char *new_buf = sentry_malloc(new_alloc_size);

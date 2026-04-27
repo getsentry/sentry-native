@@ -28,3 +28,44 @@ SENTRY_TEST(string_address_format)
     }
     assert_addr_value_equals_format(0xffffffffffffffff);
 }
+
+SENTRY_TEST(stringbuilder_append_overflow)
+{
+    char storage[8] = "sentry";
+    sentry_stringbuilder_t sb;
+    sentry__stringbuilder_init(&sb);
+    sb.buf = storage;
+    sb.allocated = sizeof(storage);
+    sb.len = SIZE_MAX - 3;
+
+    TEST_CHECK_INT_EQUAL(
+        sentry__stringbuilder_append_buf(&sb, storage, sizeof("sentry") - 1),
+        1);
+    TEST_CHECK_PTR_EQUAL(sb.buf, storage);
+    TEST_CHECK_UINT64_EQUAL(sb.allocated, sizeof(storage));
+    TEST_CHECK_UINT64_EQUAL(sb.len, SIZE_MAX - 3);
+    TEST_CHECK_STRING_EQUAL(storage, "sentry");
+
+    sb.len = SIZE_MAX;
+    TEST_CHECK_INT_EQUAL(sentry__stringbuilder_append_buf(&sb, storage, 0), 1);
+    TEST_CHECK_PTR_EQUAL(sb.buf, storage);
+    TEST_CHECK_UINT64_EQUAL(sb.allocated, sizeof(storage));
+    TEST_CHECK_UINT64_EQUAL(sb.len, SIZE_MAX);
+    TEST_CHECK_STRING_EQUAL(storage, "sentry");
+}
+
+SENTRY_TEST(stringbuilder_reserve_overflow)
+{
+    char storage[8] = "sentry";
+    sentry_stringbuilder_t sb;
+    sentry__stringbuilder_init(&sb);
+    sb.buf = storage;
+    sb.allocated = sizeof(storage);
+    sb.len = SIZE_MAX - 1;
+
+    TEST_CHECK_PTR_EQUAL(sentry__stringbuilder_reserve(&sb, 2), NULL);
+    TEST_CHECK_PTR_EQUAL(sb.buf, storage);
+    TEST_CHECK_UINT64_EQUAL(sb.allocated, sizeof(storage));
+    TEST_CHECK_UINT64_EQUAL(sb.len, SIZE_MAX - 1);
+    TEST_CHECK_STRING_EQUAL(storage, "sentry");
+}
