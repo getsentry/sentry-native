@@ -65,6 +65,7 @@ sentry_options_new(void)
     opts->propagate_traceparent = false;
     opts->crashpad_limit_stack_capture_to_sp = false;
     opts->enable_metrics = true;
+    opts->enable_logs = true;
     opts->cache_keep = false;
     opts->cache_max_age = 0;
     opts->cache_max_size = 0;

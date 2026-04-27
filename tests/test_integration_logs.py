@@ -27,7 +27,7 @@ def test_logs_timer(cmake, httpserver):
     run(
         tmp_path,
         "sentry_example",
-        ["log", "enable-logs", "logs-timer"],
+        ["log", "logs-timer"],
         env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
     )
 
@@ -54,7 +54,7 @@ def test_logs_event(cmake, httpserver):
     run(
         tmp_path,
         "sentry_example",
-        ["log", "enable-logs", "capture-log", "capture-event"],
+        ["log", "capture-log", "capture-event"],
         env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
     )
 
@@ -87,7 +87,6 @@ def test_logs_scoped_transaction(cmake, httpserver):
         "sentry_example",
         [
             "log",
-            "enable-logs",
             "logs-scoped-transaction",
             "capture-transaction",
             "scope-transaction-event",
@@ -130,7 +129,7 @@ def test_logs_threaded(cmake, httpserver):
     run(
         tmp_path,
         "sentry_example",
-        ["log", "enable-logs", "logs-threads"],
+        ["log", "logs-threads"],
         env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
     )
 
@@ -156,7 +155,7 @@ def test_before_send_log(cmake, httpserver):
     run(
         tmp_path,
         "sentry_example",
-        ["log", "enable-logs", "capture-log", "before-send-log"],
+        ["log", "capture-log", "before-send-log"],
         env=env,
     )
 
@@ -194,7 +193,7 @@ def test_before_send_log_discard(cmake, httpserver):
     run(
         tmp_path,
         "sentry_example",
-        ["log", "enable-logs", "capture-log", "discarding-before-send-log"],
+        ["log", "capture-log", "discarding-before-send-log"],
         env=env,
     )
 
@@ -211,7 +210,7 @@ def test_logs_on_crash_none(cmake, httpserver):
     run(
         tmp_path,
         "sentry_example",
-        ["log", "enable-logs", "capture-log", "crash"],
+        ["log", "capture-log", "crash"],
         expect_failure=True,
         env=env,
     )
@@ -242,7 +241,7 @@ def test_logs_on_crash(cmake, httpserver, backend):
     run(
         tmp_path,
         "sentry_example",
-        ["log", "enable-logs", "capture-log", "crash"],
+        ["log", "capture-log", "crash"],
         expect_failure=True,
         env=env,
     )
@@ -281,7 +280,7 @@ def test_logs_on_crash_native(cmake, httpserver, rerun):
         run(
             tmp_path,
             "sentry_example",
-            ["log", "enable-logs", "capture-log", "crash"],
+            ["log", "capture-log", "crash"],
             expect_failure=True,
             env=env,
         )
@@ -318,7 +317,7 @@ def test_logs_with_custom_attributes(cmake, httpserver):
     run(
         tmp_path,
         "sentry_example",
-        ["log", "enable-logs", "log-attributes"],
+        ["log", "log-attributes"],
         env=env,
     )
 
@@ -408,7 +407,7 @@ def test_logs_global_and_local_attributes_merge(cmake, httpserver):
     run(
         tmp_path,
         "sentry_example",
-        ["log", "enable-logs", "set-global-attribute", "log-attributes"],
+        ["log", "set-global-attribute", "log-attributes"],
         env=env,
     )
 

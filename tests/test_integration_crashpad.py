@@ -650,7 +650,7 @@ def test_crashpad_logs_on_crash(cmake, httpserver):
         run(
             tmp_path,
             "sentry_example",
-            ["log", "enable-logs", "capture-log", "crash"],
+            ["log", "capture-log", "crash"],
             expect_failure=True,
             env=env,
         )
@@ -682,7 +682,7 @@ def test_crashpad_logs_and_session_on_crash(cmake, httpserver):
         run(
             tmp_path,
             "sentry_example",
-            ["log", "enable-logs", "capture-log", "crash", "start-session"],
+            ["log", "capture-log", "crash", "start-session"],
             expect_failure=True,
             env=env,
         )
