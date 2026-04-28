@@ -1,6 +1,7 @@
 #include "sentry_path.h"
 #include "sentry_alloc.h"
 
+#include <stdio.h>
 #include <string.h>
 
 sentry_path_t *
@@ -79,6 +80,35 @@ sentry__path_remove_all(const sentry_path_t *path)
         }
     }
     return sentry__path_remove(path);
+}
+
+sentry_path_t *
+sentry__path_unique(const sentry_path_t *dir, const char *basename)
+{
+    if (!dir || !basename || !*basename) {
+        return NULL;
+    }
+
+    const char *dot = strrchr(basename, '.');
+    bool has_ext = dot && dot != basename;
+    size_t stem_len = has_ext ? (size_t)(dot - basename) : strlen(basename);
+    const char *ext = has_ext ? dot : "";
+
+    char buf[512];
+    for (int n = 0; n < 10000; n++) {
+        if (n == 0) {
+            snprintf(buf, sizeof(buf), "%s", basename);
+        } else {
+            snprintf(
+                buf, sizeof(buf), "%.*s-%d%s", (int)stem_len, basename, n, ext);
+        }
+        sentry_path_t *candidate = sentry__path_join_str(dir, buf);
+        if (!candidate || !sentry__path_is_file(candidate)) {
+            return candidate;
+        }
+        sentry__path_free(candidate);
+    }
+    return NULL;
 }
 
 sentry_filelock_t *

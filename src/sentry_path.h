@@ -102,6 +102,16 @@ sentry_path_t *sentry__path_append_str(
     const sentry_path_t *base, const char *suffix);
 
 /**
+ * Return a path under `dir` that does not collide with any existing file.
+ * If `basename` is free, returns a path using it. Otherwise inserts `-1`, `-2`,
+ * … before the extension until a free path is found.
+ * Returns NULL on error or if no free name is found within a reasonable
+ * number of attempts. Caller owns the returned path.
+ */
+sentry_path_t *sentry__path_unique(
+    const sentry_path_t *dir, const char *basename);
+
+/**
  * Creates a copy of the path.
  */
 sentry_path_t *sentry__path_clone(const sentry_path_t *path);
