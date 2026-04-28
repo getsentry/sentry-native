@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1777363609672,
+  "lastUpdate": 1777363861752,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -18496,6 +18496,66 @@ window.BENCHMARK_DATA = {
             "value": 2.0982130000106736,
             "unit": "ms",
             "extra": "Min 2.094ms\nMax 2.148ms\nMean 2.110ms\nStdDev 0.022ms\nMedian 2.098ms\nCPU 0.583ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "60878493+JoshuaMoelans@users.noreply.github.com",
+            "name": "JoshuaMoelans",
+            "username": "JoshuaMoelans"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "69a32dbc6fe7fe192a8cb7415b776bb86d7f302d",
+          "message": "feat: enable `logs` by default (#1673)\n\n* Change `logs` option to be enabled by default\nCo-authored-by: Claude Opus 4.6 (1M context) <noreply@anthropic.com>\n\n* format",
+          "timestamp": "2026-04-28T10:08:12+02:00",
+          "tree_id": "cb091f4092ae81c74cfe4c96a81b438f2066d084",
+          "url": "https://github.com/getsentry/sentry-native/commit/69a32dbc6fe7fe192a8cb7415b776bb86d7f302d"
+        },
+        "date": 1777363857593,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 1.1422780000032162,
+            "unit": "ms",
+            "extra": "Min 1.134ms\nMax 1.186ms\nMean 1.150ms\nStdDev 0.021ms\nMedian 1.142ms\nCPU 1.103ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 1.0205730000052426,
+            "unit": "ms",
+            "extra": "Min 0.988ms\nMax 1.026ms\nMean 1.014ms\nStdDev 0.015ms\nMedian 1.021ms\nCPU 1.012ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 3.2946230000163723,
+            "unit": "ms",
+            "extra": "Min 3.209ms\nMax 3.330ms\nMean 3.289ms\nStdDev 0.048ms\nMedian 3.295ms\nCPU 1.748ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.12722200000325756,
+            "unit": "ms",
+            "extra": "Min 0.124ms\nMax 0.142ms\nMean 0.129ms\nStdDev 0.007ms\nMedian 0.127ms\nCPU 0.077ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.03194799998595954,
+            "unit": "ms",
+            "extra": "Min 0.030ms\nMax 0.035ms\nMean 0.032ms\nStdDev 0.002ms\nMedian 0.032ms\nCPU 0.031ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 1.9314349999888236,
+            "unit": "ms",
+            "extra": "Min 1.915ms\nMax 1.941ms\nMean 1.930ms\nStdDev 0.010ms\nMedian 1.931ms\nCPU 0.547ms"
           }
         ]
       }
