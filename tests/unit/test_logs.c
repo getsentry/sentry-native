@@ -42,7 +42,6 @@ SENTRY_TEST(basic_logging_functionality)
 
     SENTRY_TEST_OPTIONS_NEW(options);
     sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
-    sentry_options_set_enable_logs(options, true);
 
     sentry_transport_t *transport
         = sentry_transport_new(validate_logs_envelope);
@@ -74,26 +73,27 @@ SENTRY_TEST(basic_logging_functionality)
     TEST_CHECK_INT_EQUAL(validation_data.called_count, 2);
 }
 
-SENTRY_TEST(logs_disabled_by_default)
+SENTRY_TEST(logs_disabled)
 {
     transport_validation_data_t validation_data = { 0, false };
 
     SENTRY_TEST_OPTIONS_NEW(options);
     sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
+    sentry_options_set_enable_logs(options, false);
 
     sentry_transport_t *transport
         = sentry_transport_new(validate_logs_envelope);
     sentry_transport_set_state(transport, &validation_data);
     sentry_options_set_transport(options, transport);
 
-    // Don't explicitly enable logs - they should be disabled by default
     sentry_init(options);
 
+    // Should return DISABLED since logs were explicitly disabled
     TEST_CHECK_INT_EQUAL(sentry_log_info("This should not be sent"), 3);
 
     sentry_close();
 
-    // Transport should not be called since logs are disabled
+    // Transport should not be called since logs were explicitly disabled
     TEST_CHECK(!validation_data.has_validation_error);
     TEST_CHECK_INT_EQUAL(validation_data.called_count, 0);
 }
@@ -104,7 +104,6 @@ SENTRY_TEST(formatted_log_messages)
 
     SENTRY_TEST_OPTIONS_NEW(options);
     sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
-    sentry_options_set_enable_logs(options, true);
 
     sentry_transport_t *transport
         = sentry_transport_new(validate_logs_envelope);
@@ -293,7 +292,6 @@ SENTRY_TEST(logs_force_flush)
 
     SENTRY_TEST_OPTIONS_NEW(options);
     sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
-    sentry_options_set_enable_logs(options, true);
 
     sentry_transport_t *transport
         = sentry_transport_new(validate_logs_envelope);
@@ -329,7 +327,6 @@ SENTRY_TEST(logs_custom_attributes_with_format_strings)
 
     SENTRY_TEST_OPTIONS_NEW(options);
     sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
-    sentry_options_set_enable_logs(options, true);
     sentry_options_set_logs_with_attributes(options, true);
 
     sentry_transport_t *transport
@@ -383,7 +380,6 @@ SENTRY_TEST(logs_custom_attributes_not_modified)
 {
     SENTRY_TEST_OPTIONS_NEW(options);
     sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
-    sentry_options_set_enable_logs(options, true);
     sentry_options_set_logs_with_attributes(options, true);
     sentry_init(options);
 
@@ -426,7 +422,6 @@ SENTRY_TEST(logs_plain_string)
 
     SENTRY_TEST_OPTIONS_NEW(options);
     sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
-    sentry_options_set_enable_logs(options, true);
     sentry_options_set_before_send_log(
         options, capture_log_before_send, &captured_log);
 
@@ -505,7 +500,6 @@ SENTRY_TEST(logs_reinit)
 {
     SENTRY_TEST_OPTIONS_NEW(options);
     sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
-    sentry_options_set_enable_logs(options, true);
 
     sentry_init(options);
     sentry__logs_wait_for_thread_startup();
@@ -519,7 +513,6 @@ SENTRY_TEST(logs_reinit)
     // This will deadlock if sentry__batcher_flush holds g_options_lock.
     SENTRY_TEST_OPTIONS_NEW(options2);
     sentry_options_set_dsn(options2, "https://foo@sentry.invalid/42");
-    sentry_options_set_enable_logs(options2, true);
 
     sentry_init(options2);
     sentry_close();
@@ -549,7 +542,6 @@ SENTRY_TEST(logs_reinit_stress)
     for (int i = 0; i < 5; i++) {
         SENTRY_TEST_OPTIONS_NEW(options);
         sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
-        sentry_options_set_enable_logs(options, true);
         sentry_init(options);
 
         if (i == 0) {
