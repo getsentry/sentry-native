@@ -851,6 +851,86 @@ def test_native_crash_http(cmake, httpserver):
     assert_breadcrumb(envelope)
     assert_attachment(envelope)
 
+@pytest.mark.parametrize(
+    "backend",
+    [
+        "inproc",
+        pytest.param(
+            "breakpad",
+            marks=pytest.mark.skipif(
+                not has_breakpad or is_qemu, reason="test needs breakpad backend"
+            ),
+        ),
+        pytest.param(
+            "native",
+            marks=pytest.mark.skipif(
+                not has_native or is_qemu or is_kcov,
+                reason="test needs native backend",
+            ),
+        ),
+    ],
+)
+def test_trace_finish_on_crash(cmake, httpserver, backend):
+    """The backend's crash handler calls `sentry__trace_finish`, so an
+    unfinished transaction on the scope ships alongside the crash."""
+    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": backend})
+
+    httpserver.expect_oneshot_request(
+        "/api/123456/envelope/",
+        headers={"x-sentry-auth": auth_header},
+    ).respond_with_data("OK")
+    httpserver.expect_oneshot_request(
+        "/api/123456/envelope/",
+        headers={"x-sentry-auth": auth_header},
+    ).respond_with_data("OK")
+    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
+
+    with httpserver.wait(timeout=10) as waiting:
+        run(
+            tmp_path,
+            "sentry_example",
+            ["log", "open-transaction", "crash"],
+            expect_failure=True,
+            env=env,
+        )
+        if backend != "native":
+            # inproc/breakpad cache to disk; the next launch ships them.
+            run(tmp_path, "sentry_example", ["log", "no-setup"], env=env)
+    assert waiting.result
+
+    tx_items = [
+        item
+        for req, _ in httpserver.log
+        for item in Envelope.deserialize(req.get_data()).items
+        if item.headers.get("type") == "transaction"
+    ]
+    assert tx_items
+
+    tx = tx_items[0].payload.json
+    assert tx["contexts"]["trace"]["status"] == "aborted"
+    spans = tx.get("spans", [])
+    # Every in-flight child is finished, not just the deepest.
+    for op in ("open.span", "open.grand.span"):
+        span = next((s for s in spans if s.get("op") == op), None)
+        assert span is not None, f"missing {op} in {[s.get('op') for s in spans]}"
+        assert span.get("status") == "aborted"
+        assert span.get("timestamp")
+
+    # The crash event nests under the deepest active span via matching
+    # trace_id + span_id.
+    event_items = [
+        item
+        for req, _ in httpserver.log
+        for item in Envelope.deserialize(req.get_data()).items
+        if item.headers.get("type") == "event"
+    ]
+    assert event_items
+    event = event_items[0].payload.json
+    grand = next(s for s in spans if s.get("op") == "open.grand.span")
+    assert event["contexts"]["trace"]["trace_id"] == tx["contexts"]["trace"]["trace_id"]
+    assert event["contexts"]["trace"]["span_id"] == grand["span_id"]
+    assert event.get("level") == "fatal"
+
 
 @pytest.mark.skipif(not has_files, reason="test needs a local filesystem")
 def test_http_retry_on_network_error(cmake, httpserver, unreachable_dsn):

@@ -570,7 +570,8 @@ main(int argc, char **argv)
             options, sentry_transport_new(print_envelope));
     }
 
-    if (has_arg(argc, argv, "capture-transaction")) {
+    if (has_arg(argc, argv, "capture-transaction")
+        || has_arg(argc, argv, "open-transaction")) {
         sentry_options_set_traces_sample_rate(options, 1.0);
     }
 
@@ -1006,6 +1007,20 @@ main(int argc, char **argv)
         // Output marker directly using printf for test parsing
         printf("pre-crash-log-message\n");
         fflush(stdout);
+    }
+
+    if (has_arg(argc, argv, "open-transaction")) {
+        // Leave a transaction + nested children unfinished; the crash
+        // auto-finalize should close them all.
+        sentry_transaction_context_t *otx_ctx
+            = sentry_transaction_context_new("open.tx", "op");
+        sentry_transaction_t *otx
+            = sentry_transaction_start(otx_ctx, sentry_value_new_null());
+        sentry_set_transaction_object(otx);
+        sentry_span_t *ospan
+            = sentry_transaction_start_child(otx, "open.span", NULL);
+        sentry_set_span(
+            sentry_span_start_child(ospan, "open.grand.span", NULL));
     }
 
     if (has_arg(argc, argv, "crash")) {

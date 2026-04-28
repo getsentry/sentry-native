@@ -18,6 +18,7 @@ extern "C" {
 #include "sentry_screenshot.h"
 #include "sentry_string.h"
 #include "sentry_sync.h"
+#include "sentry_tracing.h"
 #include "sentry_transport.h"
 #include "sentry_unix_pageallocator.h"
 #include "transports/sentry_disk_transport.h"
@@ -129,6 +130,9 @@ breakpad_backend_callback(const google_breakpad::MinidumpDescriptor &descriptor,
     SENTRY_WITH_OPTIONS (options) {
         sentry__write_crash_marker(options);
 
+        sentry_value_t transaction
+            = sentry__trace_finish(SENTRY_SPAN_STATUS_ABORTED);
+
         bool should_handle = true;
 
         if (options->on_crash_func) {
@@ -202,9 +206,17 @@ breakpad_backend_callback(const google_breakpad::MinidumpDescriptor &descriptor,
             }
 
             if (!sentry__launch_external_crash_reporter(options, envelope)) {
-                // capture the envelope with the disk transport
                 sentry_transport_t *disk_transport
                     = sentry_new_disk_transport(options->run);
+                if (!sentry_value_is_null(transaction)) {
+                    sentry_envelope_t *tx_envelope
+                        = sentry__prepare_transaction(
+                            options, transaction, nullptr);
+                    if (tx_envelope) {
+                        sentry__capture_envelope(
+                            disk_transport, tx_envelope, options);
+                    }
+                }
                 sentry__capture_envelope(disk_transport, envelope, options);
                 sentry__transport_dump_queue(disk_transport, options->run);
                 sentry_transport_free(disk_transport);
@@ -218,6 +230,7 @@ breakpad_backend_callback(const google_breakpad::MinidumpDescriptor &descriptor,
             SENTRY_SIGNAL_SAFE_LOG(
                 "DEBUG event was discarded by the `on_crash` hook");
             sentry_value_decref(event);
+            sentry_value_decref(transaction);
         }
 
         // after capturing the crash event, try to dump all the in-flight

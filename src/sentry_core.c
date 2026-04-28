@@ -1303,6 +1303,20 @@ sentry_uuid_t
 sentry_transaction_finish_ts(
     sentry_transaction_t *opaque_tx, uint64_t timestamp)
 {
+    sentry_value_t tx = sentry__transaction_finish_value(opaque_tx, timestamp);
+    if (sentry_value_is_null(tx)) {
+        return sentry_uuid_nil();
+    }
+
+    // This takes ownership of the transaction, generates an event ID, merges
+    // scope
+    return sentry__capture_event(tx, NULL);
+}
+
+sentry_value_t
+sentry__transaction_finish_value(
+    sentry_transaction_t *opaque_tx, uint64_t timestamp)
+{
     if (!opaque_tx || sentry_value_is_null(opaque_tx->inner)) {
         SENTRY_WARN("no transaction available to finish");
         goto fail;
@@ -1382,12 +1396,10 @@ sentry_transaction_finish_ts(
 
     sentry__transaction_decref(opaque_tx);
 
-    // This takes ownership of the transaction, generates an event ID, merges
-    // scope
-    return sentry__capture_event(tx, NULL);
+    return tx;
 fail:
     sentry__transaction_decref(opaque_tx);
-    return sentry_uuid_nil();
+    return sentry_value_new_null();
 }
 
 void
@@ -1541,6 +1553,8 @@ sentry_span_finish_ts(sentry_span_t *opaque_span, uint64_t timestamp)
             "no root transaction to finish span on, aborting span finish");
         goto fail;
     }
+
+    sentry__transaction_remove_child(opaque_root_transaction, opaque_span);
 
     sentry_value_t root_transaction = opaque_root_transaction->inner;
 

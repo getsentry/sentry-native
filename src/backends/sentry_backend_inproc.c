@@ -18,6 +18,7 @@
 #include "sentry_scope.h"
 #include "sentry_screenshot.h"
 #include "sentry_sync.h"
+#include "sentry_tracing.h"
 #include "sentry_transport.h"
 #include "sentry_unix_pageallocator.h"
 #include "transports/sentry_disk_transport.h"
@@ -1156,6 +1157,9 @@ process_ucontext_deferred(const sentry_ucontext_t *uctx,
         bool should_handle = true;
         sentry__write_crash_marker(options);
 
+        sentry_value_t transaction
+            = sentry__trace_finish(SENTRY_SPAN_STATUS_ABORTED);
+
         if (options->on_crash_func && !skip_hooks) {
             SENTRY_DEBUG("invoking `on_crash` hook");
             event = options->on_crash_func(uctx, event, options->on_crash_data);
@@ -1185,9 +1189,6 @@ process_ucontext_deferred(const sentry_ucontext_t *uctx,
 
             sentry_envelope_t *envelope = sentry__prepare_event(options, event,
                 NULL, !options->on_crash_func && !skip_hooks, NULL);
-            // TODO(tracing): Revisit when investigating transaction flushing
-            //                during hard crashes.
-
             sentry_session_t *session = sentry__end_current_session_with_status(
                 SENTRY_SESSION_STATUS_CRASHED);
             sentry__envelope_add_session(envelope, session);
@@ -1203,9 +1204,16 @@ process_ucontext_deferred(const sentry_ucontext_t *uctx,
             }
 
             if (!sentry__launch_external_crash_reporter(options, envelope)) {
-                // capture the envelope with the disk transport
                 sentry_transport_t *disk_transport
                     = sentry_new_disk_transport(options->run);
+                if (!sentry_value_is_null(transaction)) {
+                    sentry_envelope_t *tx_envelope
+                        = sentry__prepare_transaction(options, transaction, NULL);
+                    if (tx_envelope) {
+                        sentry__capture_envelope(
+                            disk_transport, tx_envelope, options);
+                    }
+                }
                 sentry__capture_envelope(disk_transport, envelope, options);
                 sentry__transport_dump_queue(disk_transport, options->run);
                 sentry_transport_free(disk_transport);
@@ -1213,6 +1221,7 @@ process_ucontext_deferred(const sentry_ucontext_t *uctx,
         } else {
             SENTRY_DEBUG("event was discarded by the `on_crash` hook");
             sentry_value_decref(event);
+            sentry_value_decref(transaction);
         }
 
         // after capturing the crash event, dump all the envelopes to disk

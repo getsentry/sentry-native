@@ -776,6 +776,71 @@ check_spans(sentry_envelope_t *envelope, void *data)
     sentry_envelope_free(envelope);
 }
 
+static void
+count_envelope(sentry_envelope_t *envelope, void *data)
+{
+    uint64_t *called = data;
+    *called += 1;
+    sentry_envelope_free(envelope);
+}
+
+SENTRY_TEST(trace_finish)
+{
+    // No active span/tx: no-op, no crash.
+    sentry_value_decref(sentry__trace_finish(SENTRY_SPAN_STATUS_ABORTED));
+
+    uint64_t called = 0;
+    SENTRY_TEST_OPTIONS_NEW(options);
+    sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
+    sentry_options_set_auto_session_tracking(options, 0);
+
+    sentry_transport_t *transport = sentry_transport_new(count_envelope);
+    sentry_transport_set_state(transport, &called);
+    sentry_options_set_transport(options, transport);
+    sentry_options_set_traces_sample_rate(options, 1.0);
+    sentry_init(options);
+
+    sentry_transaction_context_t *ctx
+        = sentry_transaction_context_new("root", "op");
+    sentry_transaction_t *tx
+        = sentry_transaction_start(ctx, sentry_value_new_null());
+    sentry_set_transaction_object(tx);
+
+    sentry_span_t *child
+        = sentry_transaction_start_child(tx, "child-op", "child");
+    sentry_span_t *grand = sentry_span_start_child(child, "grand-op", "grand");
+    sentry_set_span(grand);
+
+    sentry_value_t finished = sentry__trace_finish(SENTRY_SPAN_STATUS_ABORTED);
+    TEST_CHECK(!sentry_value_is_null(finished));
+    CHECK_STRING_PROPERTY(sentry_value_get_by_key(
+                              sentry_value_get_by_key(finished, "contexts"), "trace"),
+        "status", "aborted");
+
+    sentry_value_t spans = sentry_value_get_by_key(finished, "spans");
+    TEST_CHECK_INT_EQUAL(sentry_value_get_length(spans), 2);
+    for (size_t i = 0; i < sentry_value_get_length(spans); i++) {
+        sentry_value_t span = sentry_value_get_by_index(spans, i);
+        CHECK_STRING_PROPERTY(span, "status", "aborted");
+        TEST_CHECK(
+            !sentry_value_is_null(sentry_value_get_by_key(span, "timestamp")));
+    }
+    sentry_value_decref(finished);
+
+    // Scope still points at the (finished) span so a subsequent crash event
+    // inherits its trace context.
+    SENTRY_WITH_SCOPE (scope) {
+        TEST_CHECK(scope->span != NULL);
+    }
+
+    sentry__span_decref(grand);
+    sentry__span_decref(child);
+    sentry__transaction_decref(tx);
+
+    sentry_close();
+    TEST_CHECK_INT_EQUAL(called, 0);
+}
+
 SENTRY_TEST(drop_unfinished_spans)
 {
     uint64_t called_transport = 0;

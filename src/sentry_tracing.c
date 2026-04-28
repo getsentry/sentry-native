@@ -336,6 +336,10 @@ sentry__transaction_new(sentry_value_t inner)
     }
 
     tx->inner = inner;
+    sentry__mutex_init(&tx->children_mutex);
+    tx->children = NULL;
+    tx->children_count = 0;
+    tx->children_cap = 0;
 
     return tx;
 }
@@ -357,10 +361,28 @@ sentry__transaction_decref(sentry_transaction_t *tx)
 
     if (sentry_value_refcount(tx->inner) <= 1) {
         sentry_value_decref(tx->inner);
+        sentry_free(tx->children);
+        sentry__mutex_free(&tx->children_mutex);
         sentry_free(tx);
     } else {
         sentry_value_decref(tx->inner);
     }
+}
+
+void
+sentry__transaction_remove_child(sentry_transaction_t *tx, sentry_span_t *span)
+{
+    if (!tx || !span) {
+        return;
+    }
+    sentry__mutex_lock(&tx->children_mutex);
+    for (size_t i = 0; i < tx->children_count; i++) {
+        if (tx->children[i] == span) {
+            tx->children[i] = tx->children[--tx->children_count];
+            break;
+        }
+    }
+    sentry__mutex_unlock(&tx->children_mutex);
 }
 
 void
@@ -379,6 +401,7 @@ sentry__span_decref(sentry_span_t *span)
     }
 
     if (sentry_value_refcount(span->inner) <= 1) {
+        sentry__transaction_remove_child(span->transaction, span);
         sentry_value_decref(span->inner);
         sentry__transaction_decref(span->transaction);
         sentry_free(span);
@@ -403,6 +426,28 @@ sentry__span_new(sentry_transaction_t *tx, sentry_value_t inner)
 
     sentry__transaction_incref(tx);
     span->transaction = tx;
+
+    sentry__mutex_lock(&tx->children_mutex);
+    if (tx->children_count == tx->children_cap) {
+        size_t new_cap = tx->children_cap ? tx->children_cap * 2 : 4;
+        sentry_span_t **new_children
+            = sentry_malloc(new_cap * sizeof(sentry_span_t *));
+        if (new_children) {
+            if (tx->children) {
+                memcpy(new_children, tx->children,
+                    tx->children_count * sizeof(sentry_span_t *));
+                sentry_free(tx->children);
+            }
+            tx->children = new_children;
+            tx->children_cap = new_cap;
+        } else {
+            SENTRY_WARN("failed to track live span for crash auto-finalize");
+        }
+    }
+    if (tx->children_count < tx->children_cap) {
+        tx->children[tx->children_count++] = span;
+    }
+    sentry__mutex_unlock(&tx->children_mutex);
 
     return span;
 }
@@ -830,4 +875,96 @@ sentry_transaction_iter_headers(sentry_transaction_t *tx,
     if (tx) {
         sentry__span_iter_headers(tx->inner, callback, userdata);
     }
+}
+
+typedef struct {
+    sentry_span_t *saved_span;
+    sentry_transaction_t *saved_tx_obj;
+    sentry_transaction_t *active_tx;
+} saved_trace_t;
+
+static saved_trace_t
+save_active_trace(void)
+{
+    saved_trace_t s = { 0 };
+    SENTRY_WITH_SCOPE (scope) {
+        if (scope->span) {
+            sentry__span_incref(scope->span);
+            s.saved_span = scope->span;
+        }
+        if (scope->transaction_object) {
+            sentry__transaction_incref(scope->transaction_object);
+            s.saved_tx_obj = scope->transaction_object;
+        }
+    }
+    s.active_tx = s.saved_span && s.saved_span->transaction
+        ? s.saved_span->transaction
+        : s.saved_tx_obj;
+    if (s.active_tx) {
+        sentry__transaction_incref(s.active_tx);
+    }
+    return s;
+}
+
+static void
+restore_active_trace(saved_trace_t *s)
+{
+    SENTRY_WITH_SCOPE_MUT (scope) {
+        if (!scope->span && s->saved_span) {
+            scope->span = s->saved_span;
+            s->saved_span = NULL;
+        }
+        if (!scope->transaction_object && s->saved_tx_obj) {
+            scope->transaction_object = s->saved_tx_obj;
+            s->saved_tx_obj = NULL;
+        }
+    }
+    sentry__span_decref(s->saved_span);
+    sentry__transaction_decref(s->saved_tx_obj);
+}
+
+// Atomically swap the live-children list off `tx` and finish each span.
+// The swap ensures `sentry_span_finish_ts`'s per-span remove-scan is a no-op.
+static void
+finish_children(
+    sentry_transaction_t *tx, sentry_span_status_t status, uint64_t end_ts)
+{
+    sentry__mutex_lock(&tx->children_mutex);
+    sentry_span_t **children = tx->children;
+    size_t count = tx->children_count;
+    tx->children = NULL;
+    tx->children_count = 0;
+    tx->children_cap = 0;
+    sentry__mutex_unlock(&tx->children_mutex);
+
+    for (size_t i = count; i-- > 0;) {
+        sentry_span_t *child = children[i];
+        sentry__span_incref(child);
+        sentry_span_set_status(child, status);
+        sentry_span_finish_ts(child, end_ts);
+    }
+    sentry_free(children);
+}
+
+sentry_value_t
+sentry__trace_finish(sentry_span_status_t status)
+{
+    // Save/restore scope around the finish so the crash event captured next
+    // still inherits the active trace context (cf. sentry-cocoa's
+    // `finishTracer:shouldCleanUp:NO`). Finished spans retain their ids; only
+    // `timestamp` is added.
+    saved_trace_t s = save_active_trace();
+    if (!s.active_tx) {
+        restore_active_trace(&s);
+        return sentry_value_new_null();
+    }
+
+    uint64_t end_ts = sentry__usec_time();
+    finish_children(s.active_tx, status, end_ts);
+
+    sentry_transaction_set_status(s.active_tx, status);
+    sentry_value_t tx = sentry__transaction_finish_value(s.active_tx, end_ts);
+
+    restore_active_trace(&s);
+    return tx;
 }
