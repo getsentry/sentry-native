@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1777369194289,
+  "lastUpdate": 1777369198255,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -37354,6 +37354,66 @@ window.BENCHMARK_DATA = {
             "value": 14.700291999986348,
             "unit": "ms",
             "extra": "Min 9.384ms\nMax 20.049ms\nMean 14.830ms\nStdDev 3.864ms\nMedian 14.700ms\nCPU 1.536ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "jpnurmi@gmail.com",
+            "name": "J-P Nurmi",
+            "username": "jpnurmi"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "68c7f5274d4dc751a94ab41f934c2e4f628b7565",
+          "message": "feat(crashpad): wait-for-upload macOS support (#1679)",
+          "timestamp": "2026-04-28T11:35:22+02:00",
+          "tree_id": "80e3c1ea7ccc74e1d476e68a5482b4b95b7e4581",
+          "url": "https://github.com/getsentry/sentry-native/commit/68c7f5274d4dc751a94ab41f934c2e4f628b7565"
+        },
+        "date": 1777369191400,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 5.836416000022382,
+            "unit": "ms",
+            "extra": "Min 3.555ms\nMax 9.954ms\nMean 5.909ms\nStdDev 2.489ms\nMedian 5.836ms\nCPU 2.964ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 3.766958000028353,
+            "unit": "ms",
+            "extra": "Min 3.422ms\nMax 4.455ms\nMean 3.857ms\nStdDev 0.390ms\nMedian 3.767ms\nCPU 2.159ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 22.78441600003589,
+            "unit": "ms",
+            "extra": "Min 11.560ms\nMax 82.196ms\nMean 37.960ms\nStdDev 29.664ms\nMedian 22.784ms\nCPU 6.597ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.08758300003819386,
+            "unit": "ms",
+            "extra": "Min 0.082ms\nMax 0.149ms\nMean 0.104ms\nStdDev 0.029ms\nMedian 0.088ms\nCPU 0.056ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.33958300002723263,
+            "unit": "ms",
+            "extra": "Min 0.246ms\nMax 0.520ms\nMean 0.361ms\nStdDev 0.115ms\nMedian 0.340ms\nCPU 0.360ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 14.684791999968638,
+            "unit": "ms",
+            "extra": "Min 10.704ms\nMax 20.137ms\nMean 15.342ms\nStdDev 3.477ms\nMedian 14.685ms\nCPU 1.728ms"
           }
         ]
       }
