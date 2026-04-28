@@ -2331,6 +2331,8 @@ SENTRY_EXPERIMENTAL_API int sentry_options_get_propagate_traceparent(
 /**
  * Enables or disables the structured logging feature.
  * When disabled, all calls to `sentry_log_X()` are no-ops.
+ *
+ * Enabled by default.
  */
 SENTRY_EXPERIMENTAL_API void sentry_options_set_enable_logs(
     sentry_options_t *opts, int enable_logs);

@@ -182,7 +182,6 @@ def test_client_report_before_send_log(cmake, httpserver):
         "sentry_example",
         [
             "log",
-            "enable-logs",
             "discarding-before-send-log",
             "capture-log",
             "capture-event",
