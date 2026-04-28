@@ -749,8 +749,36 @@ sentry__envelope_add_attachment_ref(sentry_envelope_t *envelope,
             content_type, attachment_type, attachment_length);
         return NULL;
     }
+    size_t payload_len = 0;
+    char *payload = NULL;
+    if (path || location || content_type) {
+        sentry_jsonwriter_t *jw = sentry__jsonwriter_new_sb(NULL);
+        if (!jw) {
+            return NULL;
+        }
+        sentry_value_t obj = sentry_value_new_object();
+        if (path) {
+            sentry_value_set_by_key(obj, "path", sentry_value_new_string(path));
+        }
+        if (location) {
+            sentry_value_set_by_key(
+                obj, "location", sentry_value_new_string(location));
+        }
+        if (content_type) {
+            sentry_value_set_by_key(
+                obj, "content_type", sentry_value_new_string(content_type));
+        }
+        sentry__jsonwriter_write_value(jw, obj);
+        sentry_value_decref(obj);
+        payload = sentry__jsonwriter_into_string(jw, &payload_len);
+        if (!payload) {
+            return NULL;
+        }
+    }
+
     sentry_envelope_item_t *item = envelope_add_item(envelope);
     if (!item) {
+        sentry_free(payload);
         return NULL;
     }
     sentry__envelope_item_set_header(
@@ -768,29 +796,7 @@ sentry__envelope_add_attachment_ref(sentry_envelope_t *envelope,
     sentry__envelope_item_set_header(
         item, "attachment_length", attachment_length);
 
-    if (path || location || content_type) {
-        sentry_value_t obj = sentry_value_new_object();
-        if (path) {
-            sentry_value_set_by_key(obj, "path", sentry_value_new_string(path));
-        }
-        if (location) {
-            sentry_value_set_by_key(
-                obj, "location", sentry_value_new_string(location));
-        }
-        if (content_type) {
-            sentry_value_set_by_key(
-                obj, "content_type", sentry_value_new_string(content_type));
-        }
-        sentry_jsonwriter_t *jw = sentry__jsonwriter_new_sb(NULL);
-        if (!jw) {
-            sentry_value_decref(obj);
-            return NULL;
-        }
-        sentry__jsonwriter_write_value(jw, obj);
-        sentry_value_decref(obj);
-        size_t payload_len = 0;
-        char *payload = sentry__jsonwriter_into_string(jw, &payload_len);
-        sentry_free(item->payload);
+    if (payload) {
         item->payload = payload;
         item->payload_len = payload_len;
         sentry__envelope_item_set_header(
