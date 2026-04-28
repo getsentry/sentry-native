@@ -56,12 +56,14 @@ find_frame(const sentry_frame_info_t *info, void *data)
 
 SENTRY_TEST(unwinder)
 {
-#if defined(SENTRY_PLATFORM_NX) || defined(SENTRY_PLATFORM_XBOX)
+#if defined(SENTRY_PLATFORM_NX) || defined(SENTRY_PLATFORM_XBOX)               \
+    || defined(SENTRY_PLATFORM_PS)
     SKIP_TEST();
-#endif
+#else
     if (getenv("TEST_QEMU")) {
         SKIP_TEST();
     }
+#endif
 
     void *backtrace1[MAX_FRAMES] = { 0 };
     size_t frame_count1 = invoke_unwinder(backtrace1);
