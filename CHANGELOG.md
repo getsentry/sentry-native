@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+**Features**:
+
+- Crashpad: add macOS support for the `crashpad_wait_for_upload` flag. ([#1679](https://github.com/getsentry/sentry-native/pull/1679), [crashpad#152](https://github.com/getsentry/crashpad/pull/152))
+
 **Fixes**:
 
 - Fix event ownership (potential double-decref) in sentry_capture_minidump. ([#1669](https://github.com/getsentry/sentry-native/pull/1669))
