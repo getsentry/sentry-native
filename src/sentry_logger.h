@@ -74,6 +74,8 @@ void sentry__logger_disable(void);
                     NULL);                                                     \
             }                                                                  \
         } while (0)
+#else
+#    define SENTRY_SIGNAL_SAFE_LOG(msg) ((void)0)
 #endif
 
 #endif
