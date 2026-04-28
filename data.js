@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1777388235562,
+  "lastUpdate": 1777388269681,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -37834,6 +37834,66 @@ window.BENCHMARK_DATA = {
             "value": 8.215791999987232,
             "unit": "ms",
             "extra": "Min 6.633ms\nMax 10.985ms\nMean 8.469ms\nStdDev 1.796ms\nMedian 8.216ms\nCPU 0.974ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "jpnurmi@gmail.com",
+            "name": "J-P Nurmi",
+            "username": "jpnurmi"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "e1817be286f5b54ad3fe8c0d356c8490da7a8e9a",
+          "message": "ref(envelope): allow materializing envelopes in-place (#1683)\n\nCo-authored-by: Claude Opus 4.7 (1M context) <noreply@anthropic.com>",
+          "timestamp": "2026-04-28T16:53:15+02:00",
+          "tree_id": "2a88ba720bd7292dad173189cbd80bd7aa459ee2",
+          "url": "https://github.com/getsentry/sentry-native/commit/e1817be286f5b54ad3fe8c0d356c8490da7a8e9a"
+        },
+        "date": 1777388263725,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 6.923249999999825,
+            "unit": "ms",
+            "extra": "Min 3.864ms\nMax 9.497ms\nMean 6.749ms\nStdDev 2.702ms\nMedian 6.923ms\nCPU 3.616ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 5.151791000002959,
+            "unit": "ms",
+            "extra": "Min 4.360ms\nMax 5.556ms\nMean 4.943ms\nStdDev 0.503ms\nMedian 5.152ms\nCPU 2.735ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 18.578959000024042,
+            "unit": "ms",
+            "extra": "Min 12.929ms\nMax 32.001ms\nMean 20.561ms\nStdDev 7.471ms\nMedian 18.579ms\nCPU 5.834ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.10816700000759738,
+            "unit": "ms",
+            "extra": "Min 0.064ms\nMax 0.173ms\nMean 0.111ms\nStdDev 0.041ms\nMedian 0.108ms\nCPU 0.078ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.2554169999484657,
+            "unit": "ms",
+            "extra": "Min 0.196ms\nMax 0.273ms\nMean 0.244ms\nStdDev 0.030ms\nMedian 0.255ms\nCPU 0.244ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 9.357458000010865,
+            "unit": "ms",
+            "extra": "Min 7.560ms\nMax 17.902ms\nMean 10.793ms\nStdDev 4.152ms\nMedian 9.357ms\nCPU 1.042ms"
           }
         ]
       }
