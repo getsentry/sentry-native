@@ -187,4 +187,10 @@ const char *sentry__envelope_item_get_payload(
     const sentry_envelope_item_t *item, size_t *payload_len_out);
 #endif
 
+/**
+ * If `envelope` is raw, parse it in place into a structured envelope.
+ * No-op if already structured. Returns true on success.
+ */
+bool sentry__envelope_materialize(sentry_envelope_t *envelope);
+
 #endif

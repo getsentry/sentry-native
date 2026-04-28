@@ -723,6 +723,37 @@ SENTRY_TEST(deserialize_envelope_empty)
     test_deserialize_envelope_empty(buf, buf_len - 1);
 }
 
+SENTRY_TEST(envelope_materialize)
+{
+    TEST_CHECK(!sentry__envelope_materialize(NULL));
+
+    const char *path_str
+        = SENTRY_TEST_PATH_PREFIX "sentry_test_envelope_materialize";
+    sentry_path_t *path = sentry__path_from_str(path_str);
+
+    sentry_envelope_t *src = sentry__envelope_new();
+    sentry__envelope_add_event(src, sentry_value_new_object());
+    TEST_ASSERT(sentry_envelope_write_to_path(src, path) == 0);
+    sentry_envelope_free(src);
+
+    sentry_envelope_t *raw = sentry__envelope_from_path(path);
+    TEST_ASSERT(!!raw);
+    TEST_CHECK(sentry__envelope_materialize(raw));
+    TEST_CHECK_INT_EQUAL(sentry__envelope_get_item_count(raw), 1);
+    TEST_CHECK(sentry__envelope_materialize(raw));
+    TEST_CHECK_INT_EQUAL(sentry__envelope_get_item_count(raw), 1);
+    sentry_envelope_free(raw);
+
+    TEST_ASSERT(sentry__path_write_buffer(path, "garbage", 7) == 0);
+    sentry_envelope_t *bad = sentry__envelope_from_path(path);
+    TEST_ASSERT(!!bad);
+    TEST_CHECK(!sentry__envelope_materialize(bad));
+    sentry_envelope_free(bad);
+
+    sentry__path_remove(path);
+    sentry__path_free(path);
+}
+
 SENTRY_TEST(deserialize_envelope_invalid)
 {
     TEST_CHECK(!sentry_envelope_deserialize("", 0));
