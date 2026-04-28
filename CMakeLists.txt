@@ -424,6 +424,7 @@ check_type_size("long" CMAKE_SIZEOF_LONG)
 
 if(LINUX)
 	include(CheckSymbolExists)
+	list(APPEND CMAKE_REQUIRED_DEFINITIONS -D_GNU_SOURCE)
 	check_symbol_exists(copy_file_range "unistd.h" HAVE_COPY_FILE_RANGE)
 	if(HAVE_COPY_FILE_RANGE)
 		target_compile_definitions(sentry PRIVATE SENTRY_HAVE_COPY_FILE_RANGE)
