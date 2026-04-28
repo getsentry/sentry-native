@@ -1183,8 +1183,9 @@ process_ucontext_deferred(const sentry_ucontext_t *uctx,
             }
 #endif
 
+            sentry_uuid_t event_id;
             sentry_envelope_t *envelope = sentry__prepare_event(options, event,
-                NULL, !options->on_crash_func && !skip_hooks, NULL);
+                &event_id, !options->on_crash_func && !skip_hooks, NULL);
             // TODO(tracing): Revisit when investigating transaction flushing
             //                during hard crashes.
 

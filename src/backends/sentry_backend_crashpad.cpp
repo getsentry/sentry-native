@@ -541,7 +541,16 @@ report_to_envelope(const crashpad::CrashReportDatabase::Report &report,
             &attachments, minidump_path, MINIDUMP, nullptr);
 
         if (sentry__envelope_add_event(envelope, event)) {
+            for (sentry_attachment_t *it = attachments; it; it = it->next) {
+                sentry__attachment_update_ref(it, options);
+            }
             sentry__envelope_add_attachments(envelope, attachments);
+            sentry_uuid_t event_id = sentry__envelope_get_event_id(envelope);
+            if (options->run) {
+                sentry__cache_ref_attachments(envelope, attachments,
+                    options->run->cache_path, &event_id,
+                    options->run->run_path);
+            }
         } else {
             sentry_value_decref(event);
             sentry_envelope_free(envelope);

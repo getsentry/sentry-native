@@ -5,6 +5,9 @@
 
 #include "sentry_path.h"
 
+#define SENTRY_LARGE_ATTACHMENT_SIZE (100 * 1024 * 1024) // 100 MiB
+#define SENTRY_MAX_ATTACHMENT_SIZE (1024 * 1024 * 1024) // 1 GiB
+
 /**
  * The attachment_type.
  */
@@ -37,8 +40,39 @@ struct sentry_attachment_s {
     sentry_path_t *filename; // Attachment name in envelope (can be NULL)
     sentry_attachment_type_t type;
     char *content_type;
+    bool ref; // Upload via attachment-ref/TUS
     sentry_attachment_t *next; // Linked list pointer
 };
+
+/**
+ * Returns the size in bytes of the attachment's data (buffer length or file
+ * size).
+ */
+size_t sentry__attachment_get_size(const sentry_attachment_t *attachment);
+
+/**
+ * Returns true if the attachment should be represented as an attachment-ref.
+ */
+static inline bool
+sentry__attachment_is_ref(const sentry_attachment_t *att)
+{
+    return att->ref;
+}
+
+/**
+ * Sets whether the attachment should be represented as an attachment-ref.
+ */
+static inline void
+sentry__attachment_set_ref(sentry_attachment_t *att, bool ref)
+{
+    att->ref = ref;
+}
+
+/**
+ * Recomputes the `ref` flag from the given options.
+ */
+void sentry__attachment_update_ref(
+    sentry_attachment_t *att, const sentry_options_t *options);
 
 /**
  *  Creates a new file attachment. Takes ownership of `path`.
@@ -88,5 +122,12 @@ void sentry__attachments_remove(
  */
 void sentry__attachments_extend(
     sentry_attachment_t **attachments_ptr, sentry_attachment_t *attachments);
+
+/**
+ * Returns the filename string for the attachment (basename of `filename` if
+ * set, otherwise basename of `path`).
+ */
+const char *sentry__attachment_get_filename(
+    const sentry_attachment_t *attachment);
 
 #endif

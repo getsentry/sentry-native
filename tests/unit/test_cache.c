@@ -114,6 +114,23 @@ SENTRY_TEST(cache_max_size)
     TEST_ASSERT(sentry__path_remove_all(cache_path) == 0);
     TEST_ASSERT(sentry__path_create_dir_all(cache_path) == 0);
 
+    // Oldest entry is a retry-format envelope with a staged-attachment
+    // sibling. Pruning must remove the sibling too — otherwise the sibling
+    // would survive as an orphan and the cache_count assertion below trips.
+    sentry_uuid_t retry_id = sentry_uuid_new_v4();
+    char retry_uuid[37];
+    sentry_uuid_as_string(&retry_id, retry_uuid);
+    char retry_name[128];
+    snprintf(retry_name, sizeof(retry_name), "1700000000000-00-%.36s.envelope",
+        retry_uuid);
+    sentry_path_t *retry_path = sentry__path_join_str(cache_path, retry_name);
+    TEST_ASSERT(sentry__path_touch(retry_path) == 0);
+    char sib_name[128];
+    snprintf(sib_name, sizeof(sib_name), "%.36s-payload.bin", retry_uuid);
+    sentry_path_t *sib_path = sentry__path_join_str(cache_path, sib_name);
+    TEST_ASSERT(sentry__path_write_buffer(sib_path, "data", 4) == 0);
+    TEST_ASSERT(set_file_mtime(retry_path, time(NULL) - 3600) == 0);
+
     // 10 x 5 kb files
     for (int i = 0; i < 10; i++) {
         sentry_uuid_t event_id = sentry_uuid_new_v4();
@@ -146,7 +163,11 @@ SENTRY_TEST(cache_max_size)
 
     TEST_CHECK_INT_EQUAL(cache_count, 2);
     TEST_CHECK(cache_size <= 10 * 1024);
+    TEST_CHECK(!sentry__path_is_file(retry_path));
+    TEST_CHECK(!sentry__path_is_file(sib_path));
 
+    sentry__path_free(retry_path);
+    sentry__path_free(sib_path);
     sentry__path_free(cache_path);
     sentry_close();
 }

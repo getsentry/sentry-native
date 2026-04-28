@@ -3,6 +3,7 @@
 
 #include "sentry_boot.h"
 
+#include "sentry_attachment.h"
 #include "sentry_path.h"
 #include "sentry_session.h"
 
@@ -67,6 +68,20 @@ bool sentry__run_write_envelope(
     const sentry_run_t *run, const sentry_envelope_t *envelope);
 
 /**
+ * Stage every attachment already marked as a ref to a sibling of the cached
+ * envelope and append an `attachment-ref` item to the envelope whose payload
+ * carries the on-disk basename in the `path` field. Regular attachments are
+ * stored as `<event_id>-<sanitized-basename>`; minidumps keep the legacy
+ * `<event_id>.dmp` shape.
+ *
+ * `run_path` enables a rename (instead of a copy) when the source is inside
+ * that directory; pass NULL to always copy.
+ */
+void sentry__cache_ref_attachments(sentry_envelope_t *envelope,
+    const sentry_attachment_t *attachments, const sentry_path_t *cache_path,
+    const sentry_uuid_t *event_id, const sentry_path_t *run_path);
+
+/**
  * This will serialize and write the given envelope to disk into a file named
  * like so:
  * `<database>/external/<event-uuid>.envelope`
@@ -127,8 +142,12 @@ void sentry__process_old_runs(
     const sentry_options_t *options, uint64_t last_crash);
 
 /**
- * Parses a retry cache filename (`<ts>-<count>-<uuid>.envelope`) or plain
- * cache filename (`<uuid>.envelope`). Plain cache filenames return count -1.
+ * Parses a cache filename in either form:
+ *   - `<uuid>.envelope` sets `*ts_out = 0`, `*count_out = -1`.
+ *   - `<ts>-<count>-<uuid>.envelope` is retry form, count >= 0.
+ * `*uuid_out` points into `filename` at the start of the 36-char UUID.
+ * Callers that want only retry-format entries should additionally check
+ * `count >= 0`.
  */
 bool sentry__parse_cache_filename(const char *filename, uint64_t *ts_out,
     int *count_out, const char **uuid_out);

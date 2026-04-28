@@ -101,13 +101,14 @@ SENTRY_TEST(retry_filename)
         &uuid));
     TEST_CHECK_UINT64_EQUAL(ts, 999);
     TEST_CHECK_INT_EQUAL(count, 4);
+    TEST_CHECK(strncmp(uuid, "abcdefab-1234-5678-9abc-def012345678", 36) == 0);
 
     // negative count
     TEST_CHECK(!sentry__parse_cache_filename(
         "123--01-abcdefab-1234-5678-9abc-def012345678.envelope", &ts, &count,
         &uuid));
 
-    // cache filename (no timestamp/count)
+    // bare cache filename: ts=0, count=-1
     TEST_CHECK(sentry__parse_cache_filename(
         "abcdefab-1234-5678-9abc-def012345678.envelope", &ts, &count, &uuid));
     TEST_CHECK_UINT64_EQUAL(ts, 0);
@@ -117,6 +118,13 @@ SENTRY_TEST(retry_filename)
     // missing .envelope suffix
     TEST_CHECK(!sentry__parse_cache_filename(
         "123-00-abcdefab-1234-5678-9abc-def012345678.txt", &ts, &count, &uuid));
+
+    // NULL input
+    TEST_CHECK(!sentry__parse_cache_filename(NULL, &ts, &count, &uuid));
+
+    // 45-char filename whose suffix at offset 36 is not ".envelope"
+    TEST_CHECK(!sentry__parse_cache_filename(
+        "abcdefab-1234-5678-9abc-def012345678.txt12345", &ts, &count, &uuid));
 }
 
 SENTRY_TEST(retry_make_cache_path)
@@ -342,18 +350,26 @@ SENTRY_TEST(retry_cache)
     TEST_CHECK_INT_EQUAL(count_envelope_files(cache_path), 1);
     TEST_CHECK(sentry__path_is_file(cached));
 
-    // Success on a file at count=5 → removed (successfully delivered)
+    // Success on a file at count=5 → removed (successfully delivered);
+    // staged sibling attachment must be removed alongside the envelope.
     sentry__path_remove_all(cache_path);
     sentry__path_create_dir_all(cache_path);
     write_retry_file(options->run, old_ts, 5, &event_id);
     TEST_CHECK(!sentry__path_is_file(cached));
 
+    char sib_name[128];
+    snprintf(sib_name, sizeof(sib_name), "%.36s-payload.bin", uuid_str);
+    sentry_path_t *sib_path = sentry__path_join_str(cache_path, sib_name);
+    TEST_ASSERT(sentry__path_write_buffer(sib_path, "data", 4) == 0);
+
     ctx = (retry_test_ctx_t) { 200, 0 };
     sentry__retry_send(retry, 0, test_send_cb, &ctx);
     TEST_CHECK_INT_EQUAL(ctx.count, 1);
     TEST_CHECK_INT_EQUAL(count_envelope_files(cache_path), 0);
+    TEST_CHECK(!sentry__path_is_file(sib_path));
 
     sentry__retry_free(retry);
+    sentry__path_free(sib_path);
     sentry__path_free(cached);
     sentry_close();
 }

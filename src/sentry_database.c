@@ -1,5 +1,6 @@
 #include "sentry_database.h"
 #include "sentry_alloc.h"
+#include "sentry_attachment.h"
 #include "sentry_envelope.h"
 #include "sentry_json.h"
 #include "sentry_options.h"
@@ -188,6 +189,126 @@ write_envelope(const sentry_path_t *path, const sentry_envelope_t *envelope)
     }
 
     return true;
+}
+
+// Replace any char outside [A-Za-z0-9._-] with '_', strip leading dots,
+// truncate to at most out_size-1 bytes, NUL-terminate. Empty result becomes
+// "attachment". Used for the on-disk sibling basename only; the original
+// filename is preserved verbatim in the envelope item header.
+static void
+sanitize_basename(const char *src, char *out, size_t out_size)
+{
+    if (out_size == 0) {
+        return;
+    }
+    size_t i = 0;
+    if (src) {
+        while (*src == '.') {
+            src++;
+        }
+        while (*src && i + 1 < out_size) {
+            char c = *src++;
+            bool ok = (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z')
+                || (c >= '0' && c <= '9') || c == '.' || c == '_' || c == '-';
+            out[i++] = ok ? c : '_';
+        }
+    }
+    if (i == 0) {
+        const char *def = "attachment";
+        while (*def && i + 1 < out_size) {
+            out[i++] = *def++;
+        }
+    }
+    out[i] = '\0';
+}
+
+// Build the staged sibling path, delegating collision avoidance to
+// `sentry__path_unique`. Returns a newly-allocated path owned by the caller,
+// or NULL on failure.
+static sentry_path_t *
+build_sibling_path(const sentry_path_t *cache_path, const char *uuid_str,
+    const sentry_attachment_t *att)
+{
+    if (att->type == MINIDUMP) {
+        char buf[41];
+        snprintf(buf, sizeof(buf), "%s.dmp", uuid_str);
+        return sentry__path_unique(cache_path, buf);
+    }
+
+    char sanitized[200];
+    sanitize_basename(
+        sentry__attachment_get_filename(att), sanitized, sizeof(sanitized));
+
+    char buf[256];
+    snprintf(buf, sizeof(buf), "%s-%s", uuid_str, sanitized);
+    return sentry__path_unique(cache_path, buf);
+}
+
+// Stage `att` to a sibling file of the cached envelope and append an
+// attachment-ref item with `path` set. Returns true on success.
+static bool
+stage_ref_attachment(sentry_envelope_t *envelope,
+    const sentry_attachment_t *att, const sentry_path_t *cache_path,
+    const char *uuid_str, const sentry_path_t *run_path)
+{
+    // File-backed attachments must exist on disk.
+    if (!att->buf && !sentry__path_is_file(att->path)) {
+        return false;
+    }
+
+    if (sentry__path_create_dir_all(cache_path) != 0) {
+        return false;
+    }
+
+    const char *raw_filename = sentry__attachment_get_filename(att);
+    sentry_path_t *dst = build_sibling_path(cache_path, uuid_str, att);
+    if (!dst) {
+        return false;
+    }
+
+    int rv;
+    if (att->buf) {
+        rv = sentry__path_write_buffer(dst, att->buf, att->buf_len);
+    } else {
+        sentry_path_t *src_dir = sentry__path_dir(att->path);
+        bool is_run_owned
+            = run_path && src_dir && sentry__path_eq(src_dir, run_path);
+        sentry__path_free(src_dir);
+        rv = is_run_owned ? sentry__path_rename(att->path, dst)
+                          : sentry__path_copy(att->path, dst);
+    }
+    size_t file_size = sentry__path_get_size(dst);
+
+    if (rv != 0) {
+        sentry__path_free(dst);
+        return false;
+    }
+
+    sentry__envelope_add_attachment_ref(envelope, sentry__path_filename(dst),
+        NULL, raw_filename, att->content_type, att->type,
+        sentry_value_new_uint64((uint64_t)file_size));
+    sentry__path_free(dst);
+    return true;
+}
+
+void
+sentry__cache_ref_attachments(sentry_envelope_t *envelope,
+    const sentry_attachment_t *attachments, const sentry_path_t *cache_path,
+    const sentry_uuid_t *event_id, const sentry_path_t *run_path)
+{
+    if (!envelope || !attachments || !cache_path || !event_id) {
+        return;
+    }
+
+    char uuid_str[37];
+    sentry_uuid_as_string(event_id, uuid_str);
+
+    for (const sentry_attachment_t *att = attachments; att; att = att->next) {
+        if (!sentry__attachment_is_ref(att)) {
+            continue;
+        }
+        stage_ref_attachment(envelope, att, cache_path, uuid_str, run_path);
+    }
 }
 
 bool
@@ -543,7 +664,8 @@ is_cache_sibling(const char *name, const char *uuid)
  * Iterate over cache-sibling files for a given .envelope path. A sibling is
  * any file in the same directory whose name starts with `<uuid>.` or
  * `<uuid>-`, where `<uuid>` is the event UUID extracted from the envelope
- * filename.
+ * filename. This works for both `<uuid>.envelope` and retry-renamed
+ * `<ts>-<count>-<uuid>.envelope` files.
  */
 static void
 foreach_cache_sibling(const sentry_path_t *envelope_path,
@@ -562,6 +684,7 @@ foreach_cache_sibling(const sentry_path_t *envelope_path,
         return;
     }
 
+    // Snapshot before invoking callbacks that may remove directory entries.
     cache_sibling_t *siblings = NULL;
     cache_sibling_t *tail = NULL;
     sentry_pathiter_t *it = sentry__path_iter_directory(dir);

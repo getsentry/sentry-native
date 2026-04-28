@@ -33,6 +33,7 @@ typedef struct {
     int status_code;
     char *retry_after;
     char *x_sentry_rate_limits;
+    char *location;
 } sentry_http_response_t;
 
 typedef bool (*sentry_http_send_func_t)(void *client,
@@ -54,6 +55,11 @@ void sentry__http_transport_set_shutdown_client(
 
 #ifdef SENTRY_UNITTEST
 void *sentry__http_transport_get_bgworker(sentry_transport_t *transport);
+sentry_prepared_http_request_t *sentry__prepare_tus_create_request(
+    size_t file_size, const sentry_dsn_t *dsn, const char *user_agent);
+sentry_prepared_http_request_t *sentry__prepare_tus_upload_request(
+    const char *location, const sentry_path_t *path, size_t file_size,
+    const sentry_dsn_t *dsn, const char *user_agent);
 #endif
 
 #endif

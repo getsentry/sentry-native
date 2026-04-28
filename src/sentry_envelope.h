@@ -94,7 +94,25 @@ sentry_envelope_item_t *sentry__envelope_add_attachment(
     sentry_envelope_t *envelope, const sentry_attachment_t *attachment);
 
 /**
- * Add attachments to this envelope.
+ * Add an attachment-ref item to this envelope.
+ *
+ * Builds a JSON payload containing `path` (cache-local basename, set while the
+ * ref is backed by a sibling file in the cache dir), `location` (remote URL
+ * after TUS upload), and/or `content_type` — omitting keys when NULL. Sets the
+ * standard attachment-ref item headers.
+ *
+ * `path` and `location` can coexist: staged → `path` only; after TUS upload →
+ * both; the transport strips `path` from the outbound envelope copy.
+ */
+sentry_envelope_item_t *sentry__envelope_add_attachment_ref(
+    sentry_envelope_t *envelope, const char *path, const char *location,
+    const char *filename, const char *content_type,
+    sentry_attachment_type_t attachment_type, sentry_value_t attachment_length);
+
+/**
+ * Add attachments to this envelope inline. Attachments already marked as refs
+ * are skipped; stage those via `sentry__cache_ref_attachments` in
+ * sentry_database.h instead.
  */
 void sentry__envelope_add_attachments(
     sentry_envelope_t *envelope, const sentry_attachment_t *attachments);
@@ -125,6 +143,14 @@ void sentry__envelope_discard(const sentry_envelope_t *envelope,
  */
 sentry_envelope_item_t *sentry__envelope_add_from_path(
     sentry_envelope_t *envelope, const sentry_path_t *path, const char *type);
+
+/**
+ * Append an attachment item to a raw envelope by reading `path` and
+ * building the item header/payload bytes directly into the raw buffer.
+ */
+bool sentry__envelope_append_raw_attachment(sentry_envelope_t *envelope,
+    const sentry_path_t *path, const char *filename,
+    const char *attachment_type, const char *content_type);
 
 /**
  * This will add the given buffer as a new envelope item of type `type`.
@@ -176,21 +202,58 @@ MUST_USE int sentry_envelope_write_to_path(
 int sentry__envelope_write_to_cache(
     const sentry_envelope_t *envelope, const sentry_path_t *cache_dir);
 
-// these for now are only needed for tests
-#ifdef SENTRY_UNITTEST
+bool sentry__envelope_is_raw(const sentry_envelope_t *envelope);
+
 size_t sentry__envelope_get_item_count(const sentry_envelope_t *envelope);
-const sentry_envelope_item_t *sentry__envelope_get_item(
+sentry_envelope_item_t *sentry__envelope_get_item(
     const sentry_envelope_t *envelope, size_t idx);
 sentry_value_t sentry__envelope_item_get_header(
     const sentry_envelope_item_t *item, const char *key);
 const char *sentry__envelope_item_get_payload(
     const sentry_envelope_item_t *item, size_t *payload_len_out);
-#endif
+
+/**
+ * Returns true if `item` is an attachment-ref (content_type is
+ * application/vnd.sentry.attachment-ref+json).
+ */
+bool sentry__envelope_item_is_attachment_ref(
+    const sentry_envelope_item_t *item);
+
+/**
+ * Parse the JSON payload of an attachment-ref item into a value object. The
+ * caller must decref the returned value. Returns a null value on non-refs.
+ */
+sentry_value_t sentry__envelope_item_get_attachment_ref_payload(
+    const sentry_envelope_item_t *item);
+
+/**
+ * Rewrite the JSON payload of an attachment-ref item from the given fields.
+ * Pass NULL to omit a field. Updates the `length` header to match.
+ */
+void sentry__envelope_item_set_attachment_ref_payload(
+    sentry_envelope_item_t *item, const char *path, const char *location,
+    const char *content_type);
 
 /**
  * If `envelope` is raw, parse it in place into a structured envelope.
  * No-op if already structured. Returns true on success.
  */
 bool sentry__envelope_materialize(sentry_envelope_t *envelope);
+
+/**
+ * Transform an attachment-ref item into an inline `attachment` item by
+ * reading the file at `file_path`. The `filename`, `attachment_type`, and
+ * `content_type` headers are preserved. Returns true on success.
+ */
+bool sentry__envelope_item_inline_from_path(
+    sentry_envelope_item_t *item, const sentry_path_t *file_path);
+
+/**
+ * True if `envelope` contains at least one item with the given `content_type`
+ * header value. For raw envelopes this is a byte-substring scan, so use only
+ * with sufficiently unique `content_type` strings.
+ */
+bool sentry__envelope_has_content_type(
+    const sentry_envelope_t *envelope, const char *content_type);
 
 #endif

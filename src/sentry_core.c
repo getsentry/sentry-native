@@ -82,6 +82,15 @@ sentry__should_skip_upload(void)
 }
 
 static void
+update_attachments_ref(
+    sentry_attachment_t *attachments, const sentry_options_t *options)
+{
+    for (sentry_attachment_t *it = attachments; it; it = it->next) {
+        sentry__attachment_update_ref(it, options);
+    }
+}
+
+static void
 generate_propagation_context(sentry_value_t propagation_context)
 {
     sentry_value_set_by_key(
@@ -187,6 +196,10 @@ sentry_init(sentry_options_t *options)
     options->run->require_user_consent = options->require_user_consent;
 
     sentry__run_load_user_consent(options->run, options->database_path);
+
+    // Finalize the ref flag on attachments added via
+    // `sentry_options_add_attachment` before `sentry_init`.
+    update_attachments_ref(options->attachments, options);
 
     if (!options->dsn || !options->dsn->is_valid) {
         const char *raw_dsn = sentry_options_get_dsn(options);
@@ -722,6 +735,8 @@ sentry__prepare_event(const sentry_options_t *options, sentry_value_t event,
         goto fail;
     }
 
+    update_attachments_ref(all_attachments, options);
+
     SENTRY_WITH_SCOPE (scope) {
         if (all_attachments) {
             // all attachments merged from multiple scopes
@@ -729,6 +744,12 @@ sentry__prepare_event(const sentry_options_t *options, sentry_value_t event,
         } else {
             // only global scope has attachments
             sentry__envelope_add_attachments(envelope, scope->attachments);
+        }
+        if (options->run) {
+            sentry_uuid_t eid = sentry__envelope_get_event_id(envelope);
+            sentry__cache_ref_attachments(envelope,
+                all_attachments ? all_attachments : scope->attachments,
+                options->run->cache_path, &eid, options->run->run_path);
         }
     }
 
@@ -805,7 +826,8 @@ fail:
 }
 
 static sentry_envelope_t *
-prepare_user_feedback(sentry_value_t user_feedback, sentry_hint_t *hint)
+prepare_user_feedback(const sentry_options_t *options,
+    sentry_value_t user_feedback, sentry_hint_t *hint)
 {
     sentry_envelope_t *envelope = NULL;
 
@@ -816,7 +838,13 @@ prepare_user_feedback(sentry_value_t user_feedback, sentry_hint_t *hint)
     }
 
     if (hint && hint->attachments) {
+        update_attachments_ref(hint->attachments, options);
         sentry__envelope_add_attachments(envelope, hint->attachments);
+        if (options->run) {
+            sentry_uuid_t event_id = sentry__envelope_get_event_id(envelope);
+            sentry__cache_ref_attachments(envelope, hint->attachments,
+                options->run->cache_path, &event_id, options->run->run_path);
+        }
     }
 
     return envelope;
@@ -1648,7 +1676,7 @@ sentry_capture_feedback_with_hint(
     sentry_envelope_t *envelope = NULL;
 
     SENTRY_WITH_OPTIONS (options) {
-        envelope = prepare_user_feedback(user_feedback, hint);
+        envelope = prepare_user_feedback(options, user_feedback, hint);
         if (envelope) {
             sentry__capture_envelope(options->transport, envelope, options);
         }
@@ -1749,6 +1777,25 @@ sentry_capture_minidump_n(const char *path, size_t path_len)
         if (!envelope || sentry_uuid_is_nil(&event_id)) {
             sentry_envelope_free(envelope);
         } else {
+            if (options->run
+                && sentry__path_get_size(dump_path)
+                    >= SENTRY_LARGE_ATTACHMENT_SIZE) {
+                sentry_attachment_t tmp;
+                memset(&tmp, 0, sizeof(tmp));
+                tmp.path = dump_path;
+                tmp.type = MINIDUMP;
+                sentry__attachment_set_ref(&tmp, true);
+                tmp.next = NULL;
+                sentry__cache_ref_attachments(
+                    envelope, &tmp, options->run->cache_path, &event_id, NULL);
+                sentry__capture_envelope(options->transport, envelope, options);
+                SENTRY_INFOF(
+                    "Minidump has been captured: \"%s\"", dump_path->path);
+                sentry__path_free(dump_path);
+                sentry_options_free((sentry_options_t *)options);
+                return event_id;
+            }
+
             // the minidump is added as an attachment, with the type
             // `event.minidump`
             sentry_envelope_item_t *item = sentry__envelope_add_from_path(
@@ -1784,15 +1831,18 @@ sentry_capture_minidump_n(const char *path, size_t path_len)
 static sentry_attachment_t *
 add_attachment(sentry_attachment_t *attachment)
 {
-    SENTRY_WITH_OPTIONS (options) {
-        if (options->backend && options->backend->add_attachment_func) {
-            options->backend->add_attachment_func(options->backend, attachment);
-        }
+    const sentry_options_t *options = sentry__options_getref();
+    if (options && options->backend && options->backend->add_attachment_func) {
+        options->backend->add_attachment_func(options->backend, attachment);
     }
     SENTRY_WITH_SCOPE_MUT (scope) {
         attachment = sentry__attachments_add(
             &scope->attachments, attachment, ATTACHMENT, NULL);
+        if (attachment) {
+            sentry__attachment_update_ref(attachment, options);
+        }
     }
+    sentry_options_free((sentry_options_t *)options);
     return attachment;
 }
 

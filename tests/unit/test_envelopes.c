@@ -1,7 +1,11 @@
+#include "sentry_attachment.h"
+#include "sentry_database.h"
 #include "sentry_envelope.h"
 #include "sentry_json.h"
+#include "sentry_options.h"
 #include "sentry_path.h"
 #include "sentry_ratelimiter.h"
+#include "sentry_string.h"
 #include "sentry_testsupport.h"
 #include "sentry_utils.h"
 #include "sentry_value.h"
@@ -754,6 +758,416 @@ SENTRY_TEST(envelope_materialize)
     sentry__path_free(path);
 }
 
+SENTRY_TEST(tus_upload_url)
+{
+    SENTRY_TEST_DSN_NEW_DEFAULT(dsn);
+
+    char *url = sentry__dsn_get_upload_url(dsn);
+    TEST_CHECK_STRING_EQUAL(url, "https://sentry.invalid:443/api/42/upload/");
+    sentry_free(url);
+    sentry__dsn_decref(dsn);
+
+    TEST_CHECK(!sentry__dsn_get_upload_url(NULL));
+}
+
+SENTRY_TEST(tus_request_preparation)
+{
+    SENTRY_TEST_DSN_NEW_DEFAULT(dsn);
+
+    // Test creation request (POST, no body)
+    sentry_prepared_http_request_t *req
+        = sentry__prepare_tus_create_request(9, dsn, NULL);
+    TEST_CHECK(!!req);
+    TEST_CHECK_STRING_EQUAL(req->method, "POST");
+    TEST_CHECK_STRING_EQUAL(
+        req->url, "https://sentry.invalid:443/api/42/upload/");
+    TEST_CHECK(!req->body_path);
+    TEST_CHECK_INT_EQUAL(req->body_len, 0);
+    TEST_CHECK(!req->body);
+
+    bool has_tus_resumable = false;
+    bool has_upload_length = false;
+    bool has_content_type = false;
+    for (size_t i = 0; i < req->headers_len; i++) {
+        if (strcmp(req->headers[i].key, "tus-resumable") == 0) {
+            TEST_CHECK_STRING_EQUAL(req->headers[i].value, "1.0.0");
+            has_tus_resumable = true;
+        }
+        if (strcmp(req->headers[i].key, "upload-length") == 0) {
+            TEST_CHECK_STRING_EQUAL(req->headers[i].value, "9");
+            has_upload_length = true;
+        }
+        if (strcmp(req->headers[i].key, "content-type") == 0) {
+            has_content_type = true;
+        }
+    }
+    TEST_CHECK(has_tus_resumable);
+    TEST_CHECK(has_upload_length);
+    TEST_CHECK(!has_content_type);
+
+    sentry__prepared_http_request_free(req);
+
+    // Test upload request (PATCH with body)
+    const char *test_file_str = SENTRY_TEST_PATH_PREFIX "sentry_test_tus_file";
+    sentry_path_t *test_file_path = sentry__path_from_str(test_file_str);
+    TEST_CHECK_INT_EQUAL(
+        sentry__path_write_buffer(test_file_path, "test-data", 9), 0);
+
+    const char *location = "https://sentry.invalid/api/42/upload/abc123/";
+    req = sentry__prepare_tus_upload_request(
+        location, test_file_path, 9, dsn, NULL);
+    TEST_CHECK(!!req);
+    TEST_CHECK_STRING_EQUAL(req->method, "PATCH");
+    TEST_CHECK_STRING_EQUAL(req->url, location);
+    TEST_CHECK(!!req->body_path);
+    TEST_CHECK_INT_EQUAL(req->body_len, 9);
+    TEST_CHECK(!req->body);
+
+    has_tus_resumable = false;
+    has_content_type = false;
+    bool has_upload_offset = false;
+    for (size_t i = 0; i < req->headers_len; i++) {
+        if (strcmp(req->headers[i].key, "tus-resumable") == 0) {
+            TEST_CHECK_STRING_EQUAL(req->headers[i].value, "1.0.0");
+            has_tus_resumable = true;
+        }
+        if (strcmp(req->headers[i].key, "content-type") == 0) {
+            TEST_CHECK_STRING_EQUAL(
+                req->headers[i].value, "application/offset+octet-stream");
+            has_content_type = true;
+        }
+        if (strcmp(req->headers[i].key, "upload-offset") == 0) {
+            TEST_CHECK_STRING_EQUAL(req->headers[i].value, "0");
+            has_upload_offset = true;
+        }
+    }
+    TEST_CHECK(has_tus_resumable);
+    TEST_CHECK(has_content_type);
+    TEST_CHECK(has_upload_offset);
+
+    sentry__prepared_http_request_free(req);
+    sentry__path_remove(test_file_path);
+    sentry__path_free(test_file_path);
+    sentry__dsn_decref(dsn);
+}
+
+SENTRY_TEST(attachment_ref_creation)
+{
+    const char *test_file_str
+        = SENTRY_TEST_PATH_PREFIX "sentry_test_attachment_ref";
+    sentry_path_t *test_file_path = sentry__path_from_str(test_file_str);
+
+    // Small file: should be added to envelope
+    {
+        sentry_envelope_t *envelope = sentry__envelope_new();
+        char small_data[] = "small";
+        TEST_CHECK_INT_EQUAL(sentry__path_write_buffer(test_file_path,
+                                 small_data, sizeof(small_data) - 1),
+            0);
+
+        sentry_attachment_t *attachment
+            = sentry__attachment_from_path(sentry__path_clone(test_file_path));
+        sentry_envelope_item_t *item
+            = sentry__envelope_add_attachment(envelope, attachment);
+
+        TEST_CHECK(!!item);
+        TEST_CHECK_INT_EQUAL(sentry__envelope_get_item_count(envelope), 1);
+        size_t payload_len = 0;
+        TEST_CHECK_STRING_EQUAL(
+            sentry__envelope_item_get_payload(item, &payload_len), "small");
+
+        sentry__attachment_free(attachment);
+        sentry_envelope_free(envelope);
+    }
+
+    // Ref attachment: should be skipped by envelope
+    {
+        sentry_envelope_t *envelope = sentry__envelope_new();
+        char external_data[] = "external";
+        TEST_CHECK_INT_EQUAL(sentry__path_write_buffer(test_file_path,
+                                 external_data, sizeof(external_data) - 1),
+            0);
+
+        sentry_attachment_t *attachment
+            = sentry__attachment_from_path(sentry__path_clone(test_file_path));
+        sentry__attachment_set_ref(attachment, true);
+        sentry_envelope_item_t *item
+            = sentry__envelope_add_attachment(envelope, attachment);
+
+        TEST_CHECK(!item);
+        TEST_CHECK_INT_EQUAL(sentry__envelope_get_item_count(envelope), 0);
+
+        sentry__attachment_free(attachment);
+        sentry_envelope_free(envelope);
+    }
+
+    sentry__path_remove(test_file_path);
+    sentry__path_free(test_file_path);
+}
+
+SENTRY_TEST(attachment_ref_from_path)
+{
+    const char *test_file_str
+        = SENTRY_TEST_PATH_PREFIX "sentry_test_attachment_ref_from_path";
+    sentry_path_t *test_file_path = sentry__path_from_str(test_file_str);
+
+    // Small file: should be added to envelope
+    {
+        sentry_envelope_t *envelope = sentry__envelope_new();
+        char small_data[] = "small";
+        TEST_CHECK_INT_EQUAL(sentry__path_write_buffer(test_file_path,
+                                 small_data, sizeof(small_data) - 1),
+            0);
+
+        sentry_envelope_item_t *item = sentry__envelope_add_from_path(
+            envelope, test_file_path, "attachment");
+
+        TEST_CHECK(!!item);
+        TEST_CHECK_INT_EQUAL(sentry__envelope_get_item_count(envelope), 1);
+        size_t payload_len = 0;
+        TEST_CHECK_STRING_EQUAL(
+            sentry__envelope_item_get_payload(item, &payload_len), "small");
+
+        sentry_envelope_free(envelope);
+    }
+
+    sentry__path_remove(test_file_path);
+    sentry__path_free(test_file_path);
+}
+
+static void
+check_attachment_ref_item(const sentry_envelope_t *envelope, size_t item_idx,
+    const char *expected_filename, const char *expected_content_type,
+    const char *expected_attachment_type, uint64_t expected_length,
+    const char *expected_path)
+{
+    const sentry_envelope_item_t *item
+        = sentry__envelope_get_item(envelope, item_idx);
+    TEST_ASSERT(!!item);
+
+    TEST_CHECK_STRING_EQUAL(
+        sentry_value_as_string(
+            sentry__envelope_item_get_header(item, "content_type")),
+        "application/vnd.sentry.attachment-ref+json");
+    TEST_CHECK_STRING_EQUAL(
+        sentry_value_as_string(
+            sentry__envelope_item_get_header(item, "filename")),
+        expected_filename);
+    if (expected_attachment_type) {
+        TEST_CHECK_STRING_EQUAL(
+            sentry_value_as_string(
+                sentry__envelope_item_get_header(item, "attachment_type")),
+            expected_attachment_type);
+    }
+    sentry_value_t len_val
+        = sentry__envelope_item_get_header(item, "attachment_length");
+    uint64_t actual_len = (uint64_t)sentry_value_as_uint64(len_val);
+    if (actual_len == 0) {
+        int64_t as_i64 = sentry_value_as_int64(len_val);
+        if (as_i64 == 0) {
+            actual_len = (uint64_t)sentry_value_as_int32(len_val);
+        } else {
+            actual_len = (uint64_t)as_i64;
+        }
+    }
+    TEST_CHECK(actual_len == expected_length);
+
+    size_t payload_len = 0;
+    const char *payload = sentry__envelope_item_get_payload(item, &payload_len);
+    sentry_value_t payload_obj = sentry__value_from_json(payload, payload_len);
+    TEST_CHECK_STRING_EQUAL(
+        sentry_value_as_string(sentry_value_get_by_key(payload_obj, "path")),
+        expected_path);
+    if (expected_content_type) {
+        TEST_CHECK_STRING_EQUAL(sentry_value_as_string(sentry_value_get_by_key(
+                                    payload_obj, "content_type")),
+            expected_content_type);
+    }
+    sentry_value_decref(payload_obj);
+}
+
+SENTRY_TEST(attachment_ref_copy)
+{
+    SENTRY_TEST_OPTIONS_NEW(options);
+    sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
+    sentry_init(options);
+
+    sentry_uuid_t event_id
+        = sentry_uuid_from_string("c993afb6-b4ac-48a6-b61b-2558e601d65d");
+
+    const char *test_file_str
+        = SENTRY_TEST_PATH_PREFIX "sentry_test_minidump.dmp";
+    sentry_path_t *test_file_path = sentry__path_from_str(test_file_str);
+    FILE *f = fopen(test_file_str, "wb");
+    TEST_CHECK(!!f);
+    fputs("minidump_data", f);
+    fclose(f);
+
+    sentry_attachment_t *attachment
+        = sentry__attachment_from_path(sentry__path_clone(test_file_path));
+    attachment->type = MINIDUMP;
+    sentry__attachment_set_ref(attachment, true);
+    sentry_attachment_set_content_type(attachment, "application/x-dmp");
+
+    sentry_envelope_t *envelope = sentry__envelope_new();
+    sentry_path_t *db_path = NULL;
+    SENTRY_WITH_OPTIONS (opts) {
+        db_path = sentry__path_clone(opts->database_path);
+        // no run_path passed → copy, not move
+        sentry__cache_ref_attachments(
+            envelope, attachment, opts->run->cache_path, &event_id, NULL);
+    }
+
+    // original file still exists (copied, not moved)
+    TEST_CHECK(sentry__path_is_file(test_file_path));
+
+    // staged minidumps keep the legacy <uuid>.dmp name
+    sentry_path_t *cache_dir = sentry__path_join_str(db_path, "cache");
+    sentry_path_t *staged = sentry__path_join_str(
+        cache_dir, "c993afb6-b4ac-48a6-b61b-2558e601d65d.dmp");
+    sentry__path_free(cache_dir);
+    TEST_CHECK(sentry__path_is_file(staged));
+
+    // envelope carries an attachment-ref item with the expected headers
+    TEST_ASSERT(sentry__envelope_get_item_count(envelope) == 1);
+    check_attachment_ref_item(envelope, 0, "sentry_test_minidump.dmp",
+        "application/x-dmp", "event.minidump", strlen("minidump_data"),
+        "c993afb6-b4ac-48a6-b61b-2558e601d65d.dmp");
+
+    sentry_envelope_free(envelope);
+    sentry__path_remove(staged);
+    sentry__path_free(staged);
+    sentry__path_free(db_path);
+    sentry__attachment_free(attachment);
+    sentry__path_remove(test_file_path);
+    sentry__path_free(test_file_path);
+    sentry_close();
+}
+
+SENTRY_TEST(attachment_ref_move)
+{
+    SENTRY_TEST_OPTIONS_NEW(options);
+    sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
+    sentry_init(options);
+
+    sentry_uuid_t event_id
+        = sentry_uuid_from_string("c993afb6-b4ac-48a6-b61b-2558e601d65d");
+
+    // create an attachment file inside the run directory (SDK-owned)
+    sentry_path_t *run_path = NULL;
+    sentry_path_t *db_path = NULL;
+    SENTRY_WITH_OPTIONS (opts) {
+        run_path = sentry__path_clone(opts->run->run_path);
+        db_path = sentry__path_clone(opts->database_path);
+    }
+    TEST_CHECK(!!run_path);
+    sentry_path_t *src_path
+        = sentry__path_join_str(run_path, "test_attachment.bin");
+
+#ifdef SENTRY_PLATFORM_WINDOWS
+    FILE *f = _wfopen(src_path->path_w, L"wb");
+#else
+    FILE *f = fopen(src_path->path, "wb");
+#endif
+    TEST_CHECK(!!f);
+    fputs("attachment_data", f);
+    fclose(f);
+
+    sentry_attachment_t *attachment
+        = sentry__attachment_from_path(sentry__path_clone(src_path));
+    attachment->type = ATTACHMENT;
+    sentry__attachment_set_ref(attachment, true);
+
+    sentry_envelope_t *envelope = sentry__envelope_new();
+    SENTRY_WITH_OPTIONS (opts) {
+        // run_path passed → file is renamed (moved)
+        sentry__cache_ref_attachments(
+            envelope, attachment, opts->run->cache_path, &event_id, run_path);
+    }
+
+    // run-dir file is gone (renamed)
+    TEST_CHECK(!sentry__path_is_file(src_path));
+
+    // staged file exists in cache dir as <uuid>-<filename>
+    sentry_path_t *cache_dir = sentry__path_join_str(db_path, "cache");
+    sentry_path_t *staged = sentry__path_join_str(
+        cache_dir, "c993afb6-b4ac-48a6-b61b-2558e601d65d-test_attachment.bin");
+    sentry__path_free(cache_dir);
+    TEST_CHECK(sentry__path_is_file(staged));
+
+    // envelope carries an attachment-ref item
+    TEST_ASSERT(sentry__envelope_get_item_count(envelope) == 1);
+    check_attachment_ref_item(envelope, 0, "test_attachment.bin", NULL, NULL,
+        strlen("attachment_data"),
+        "c993afb6-b4ac-48a6-b61b-2558e601d65d-test_attachment.bin");
+
+    sentry_envelope_free(envelope);
+    sentry__path_remove(staged);
+    sentry__path_free(staged);
+    sentry__path_free(db_path);
+    sentry__attachment_free(attachment);
+    sentry__path_free(src_path);
+    sentry__path_free(run_path);
+    sentry_close();
+}
+
+SENTRY_TEST(attachment_ref_roundtrip)
+{
+    // An envelope with an attachment-ref item carrying `path` survives
+    // a serialize / deserialize round-trip and preserves all headers + path.
+    sentry_envelope_t *envelope = sentry__envelope_new();
+    sentry_value_t event = sentry_value_new_object();
+    sentry__envelope_add_event(envelope, event);
+
+    sentry__envelope_add_attachment_ref(envelope, "abc-crashlog.bin", NULL,
+        "crashlog.bin", "application/octet-stream", ATTACHMENT,
+        sentry_value_new_uint64(12345));
+
+    size_t buf_len = 0;
+    char *buf = sentry_envelope_serialize(envelope, &buf_len);
+    TEST_ASSERT(!!buf);
+    sentry_envelope_free(envelope);
+
+    sentry_envelope_t *parsed = sentry_envelope_deserialize(buf, buf_len);
+    sentry_free(buf);
+    TEST_ASSERT(!!parsed);
+    TEST_ASSERT(sentry__envelope_get_item_count(parsed) == 2);
+
+    check_attachment_ref_item(parsed, 1, "crashlog.bin",
+        "application/octet-stream", NULL, 12345, "abc-crashlog.bin");
+
+    sentry_envelope_free(parsed);
+}
+
+SENTRY_TEST(attachment_ref_raw_content_type)
+{
+    const char *test_file_str = SENTRY_TEST_PATH_PREFIX "sentry_test_raw_ref";
+    sentry_path_t *test_file_path = sentry__path_from_str(test_file_str);
+
+    // write a minimal envelope to disk so we can load it as raw
+    sentry_envelope_t *envelope = sentry__envelope_new();
+    sentry_value_t event = sentry_value_new_object();
+    sentry__envelope_add_event(envelope, event);
+    TEST_ASSERT(sentry_envelope_write_to_path(envelope, test_file_path) == 0);
+    sentry_envelope_free(envelope);
+
+    // load as raw and append an attachment-ref with content_type
+    sentry_envelope_t *raw = sentry__envelope_from_path(test_file_path);
+    TEST_ASSERT(!!raw);
+    sentry__envelope_add_attachment_ref(raw, NULL, "https://up.example.com/abc",
+        "dump.dmp", "application/x-dmp", MINIDUMP, sentry_value_new_int32(42));
+
+    size_t size = 0;
+    char *serialized = sentry_envelope_serialize(raw, &size);
+    TEST_CHECK(!!serialized);
+    TEST_CHECK(!!strstr(serialized, "\"content_type\":\"application/x-dmp\""));
+    sentry_free(serialized);
+
+    sentry_envelope_free(raw);
+    sentry__path_remove(test_file_path);
+    sentry__path_free(test_file_path);
+}
+
 SENTRY_TEST(deserialize_envelope_invalid)
 {
     TEST_CHECK(!sentry_envelope_deserialize("", 0));
@@ -815,4 +1229,160 @@ SENTRY_TEST(envelope_can_add_client_report)
     sentry__path_free(path);
     sentry__rate_limiter_free(rl);
     sentry_close();
+}
+
+static bool
+tus_mock_send(void *client, sentry_prepared_http_request_t *req,
+    sentry_http_response_t *resp)
+{
+    (void)client;
+    (void)req;
+    resp->status_code = 201;
+    resp->location = sentry__string_clone("https://sentry.invalid/upload/abc");
+    return true;
+}
+
+SENTRY_TEST(tus_file_attachment_preserves_original)
+{
+    const char *test_file_str
+        = SENTRY_TEST_PATH_PREFIX "sentry_test_tus_preserve";
+    sentry_path_t *test_file_path = sentry__path_from_str(test_file_str);
+
+    size_t large_size = 100 * 1024 * 1024;
+    FILE *f = fopen(test_file_str, "wb");
+    TEST_CHECK(!!f);
+    fseek(f, (long)(large_size - 1), SEEK_SET);
+    fputc(0, f);
+    fclose(f);
+
+    sentry_transport_t *transport
+        = sentry__http_transport_new(NULL, tus_mock_send);
+    TEST_CHECK(!!transport);
+
+    SENTRY_TEST_OPTIONS_NEW(options);
+    sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
+    sentry_options_set_transport(options, transport);
+    sentry_options_set_enable_large_attachments(options, 1);
+    sentry_options_add_attachment(options, test_file_str);
+    sentry_init(options);
+
+    sentry_capture_event(
+        sentry_value_new_message_event(SENTRY_LEVEL_INFO, NULL, "test"));
+
+    sentry_close();
+
+    TEST_CHECK(sentry__path_is_file(test_file_path));
+
+    sentry__path_remove(test_file_path);
+    sentry__path_free(test_file_path);
+}
+
+// Mock that drives a full TUS round-trip: returns a relative `Location` from
+// the create POST (per spec), 204 from the upload PATCH, and captures the
+// final envelope POST body so the test can inspect the placeholder payload.
+typedef struct {
+    char *captured_body;
+    size_t captured_body_len;
+} tus_capture_state_t;
+
+static const char *TUS_RELATIVE_LOCATION
+    = "/api/42/upload/019db3e0/?length=104857600&signature=test";
+
+static bool
+tus_capture_send(void *client, sentry_prepared_http_request_t *req,
+    sentry_http_response_t *resp)
+{
+    tus_capture_state_t *cap = client;
+
+    // TUS create: POST with no body
+    if (strcmp(req->method, "POST") == 0 && !req->body && !req->body_path) {
+        resp->status_code = 201;
+        resp->location = sentry__string_clone(TUS_RELATIVE_LOCATION);
+        return true;
+    }
+    // TUS upload: PATCH with body_path
+    if (strcmp(req->method, "PATCH") == 0 && req->body_path) {
+        resp->status_code = 204;
+        return true;
+    }
+    // Envelope POST: capture body
+    if (strcmp(req->method, "POST") == 0 && req->body) {
+        sentry_free(cap->captured_body);
+        cap->captured_body = sentry_malloc(req->body_len);
+        memcpy(cap->captured_body, req->body, req->body_len);
+        cap->captured_body_len = req->body_len;
+        resp->status_code = 200;
+        return true;
+    }
+    return false;
+}
+
+SENTRY_TEST(tus_placeholder_uses_raw_location)
+{
+#if defined(SENTRY_PLATFORM_ANDROID) || defined(SENTRY_PLATFORM_NX)            \
+    || defined(SENTRY_PLATFORM_PS) || defined(SENTRY_PLATFORM_XBOX)
+    SKIP_TEST();
+#else
+    // Sparse 100 MiB file forces the attachment through the TUS path.
+    const char *test_file_str
+        = SENTRY_TEST_PATH_PREFIX "sentry_test_tus_raw_location";
+    sentry_path_t *test_file_path = sentry__path_from_str(test_file_str);
+    size_t large_size = 100 * 1024 * 1024;
+    FILE *f = fopen(test_file_str, "wb");
+    TEST_ASSERT(!!f);
+    fseek(f, (long)(large_size - 1), SEEK_SET);
+    fputc(0, f);
+    fclose(f);
+
+    tus_capture_state_t cap = { 0 };
+    sentry_transport_t *transport
+        = sentry__http_transport_new(&cap, tus_capture_send);
+    TEST_ASSERT(!!transport);
+
+    SENTRY_TEST_OPTIONS_NEW(options);
+    sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
+    sentry_options_set_transport(options, transport);
+    sentry_options_set_enable_large_attachments(options, 1);
+    sentry_options_add_attachment(options, test_file_str);
+    sentry_init(options);
+
+    sentry_capture_event(
+        sentry_value_new_message_event(SENTRY_LEVEL_INFO, NULL, "test"));
+
+    sentry_close();
+
+    TEST_ASSERT(!!cap.captured_body);
+    sentry_envelope_t *parsed
+        = sentry_envelope_deserialize(cap.captured_body, cap.captured_body_len);
+    TEST_ASSERT(!!parsed);
+
+    // Spec requires `event_id` on the envelope header for placeholders.
+    sentry_value_t event_id_val
+        = sentry_envelope_get_header(parsed, "event_id");
+    TEST_CHECK(sentry_value_get_type(event_id_val) == SENTRY_VALUE_TYPE_STRING);
+
+    bool found_ref = false;
+    size_t count = sentry__envelope_get_item_count(parsed);
+    for (size_t i = 0; i < count; i++) {
+        sentry_envelope_item_t *item = sentry__envelope_get_item(parsed, i);
+        if (!sentry__envelope_item_is_attachment_ref(item)) {
+            continue;
+        }
+        size_t payload_len = 0;
+        const char *payload
+            = sentry__envelope_item_get_payload(item, &payload_len);
+        sentry_value_t obj = sentry__value_from_json(payload, payload_len);
+        const char *location
+            = sentry_value_as_string(sentry_value_get_by_key(obj, "location"));
+        TEST_CHECK_STRING_EQUAL(location, TUS_RELATIVE_LOCATION);
+        sentry_value_decref(obj);
+        found_ref = true;
+    }
+    TEST_CHECK(found_ref);
+
+    sentry_envelope_free(parsed);
+    sentry_free(cap.captured_body);
+    sentry__path_remove(test_file_path);
+    sentry__path_free(test_file_path);
+#endif
 }
