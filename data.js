@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1777383045959,
+  "lastUpdate": 1777383121838,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -37714,6 +37714,66 @@ window.BENCHMARK_DATA = {
             "value": 9.664583999892784,
             "unit": "ms",
             "extra": "Min 7.950ms\nMax 12.786ms\nMean 10.356ms\nStdDev 2.268ms\nMedian 9.665ms\nCPU 1.144ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "jpnurmi@gmail.com",
+            "name": "J-P Nurmi",
+            "username": "jpnurmi"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "35c98744307cb9d3cf929676ea3fcab31834a373",
+          "message": "ref(path): extract helper for ensuring unique paths (#1681)\n\nCo-authored-by: Claude Opus 4.7 (1M context) <noreply@anthropic.com>",
+          "timestamp": "2026-04-28T15:28:19+02:00",
+          "tree_id": "36c73a0e6892c4580828ee8a5ec8957a4e1d73ae",
+          "url": "https://github.com/getsentry/sentry-native/commit/35c98744307cb9d3cf929676ea3fcab31834a373"
+        },
+        "date": 1777383116598,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 3.2737500000052933,
+            "unit": "ms",
+            "extra": "Min 3.140ms\nMax 4.044ms\nMean 3.392ms\nStdDev 0.371ms\nMedian 3.274ms\nCPU 1.888ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 3.315082999989727,
+            "unit": "ms",
+            "extra": "Min 3.153ms\nMax 3.368ms\nMean 3.285ms\nStdDev 0.089ms\nMedian 3.315ms\nCPU 1.892ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 10.985542000014448,
+            "unit": "ms",
+            "extra": "Min 10.743ms\nMax 11.359ms\nMean 11.032ms\nStdDev 0.231ms\nMedian 10.986ms\nCPU 3.805ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.05104100000608014,
+            "unit": "ms",
+            "extra": "Min 0.047ms\nMax 0.089ms\nMean 0.062ms\nStdDev 0.018ms\nMedian 0.051ms\nCPU 0.044ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.2484579999872949,
+            "unit": "ms",
+            "extra": "Min 0.211ms\nMax 0.275ms\nMean 0.249ms\nStdDev 0.026ms\nMedian 0.248ms\nCPU 0.243ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 8.215791999987232,
+            "unit": "ms",
+            "extra": "Min 6.633ms\nMax 10.985ms\nMean 8.469ms\nStdDev 1.796ms\nMedian 8.216ms\nCPU 0.974ms"
           }
         ]
       }
