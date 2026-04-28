@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1777363501402,
+  "lastUpdate": 1777363609672,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -55552,6 +55552,66 @@ window.BENCHMARK_DATA = {
             "value": 15.17249999994874,
             "unit": "ms",
             "extra": "Min 14.439ms\nMax 16.884ms\nMean 15.341ms\nStdDev 0.983ms\nMedian 15.172ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "tustanivsky@gmail.com",
+            "name": "Ivan Tustanivskyi",
+            "username": "tustanivsky"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "cd2ef9c6abb5e3de9a2a82e3516c651b1173706a",
+          "message": "fix(tests): skip unwinder QEMU getenv probe on PlayStation (#1677)",
+          "timestamp": "2026-04-28T11:01:29+03:00",
+          "tree_id": "8b622969d731c4550a4f37349e7709d6711a045a",
+          "url": "https://github.com/getsentry/sentry-native/commit/cd2ef9c6abb5e3de9a2a82e3516c651b1173706a"
+        },
+        "date": 1777363603492,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 13.852000000042608,
+            "unit": "ms",
+            "extra": "Min 12.025ms\nMax 1938.572ms\nMean 398.314ms\nStdDev 861.031ms\nMedian 13.852ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 26.462000000037733,
+            "unit": "ms",
+            "extra": "Min 14.763ms\nMax 61.491ms\nMean 29.947ms\nStdDev 18.574ms\nMedian 26.462ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 30.337500000086948,
+            "unit": "ms",
+            "extra": "Min 28.851ms\nMax 31.715ms\nMean 30.206ms\nStdDev 1.221ms\nMedian 30.338ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.23190000001704902,
+            "unit": "ms",
+            "extra": "Min 0.186ms\nMax 0.245ms\nMean 0.220ms\nStdDev 0.028ms\nMedian 0.232ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.4393000000391112,
+            "unit": "ms",
+            "extra": "Min 0.419ms\nMax 0.472ms\nMean 0.441ms\nStdDev 0.022ms\nMedian 0.439ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 21.128100000055383,
+            "unit": "ms",
+            "extra": "Min 19.667ms\nMax 25.256ms\nMean 21.645ms\nStdDev 2.223ms\nMedian 21.128ms"
           }
         ]
       }
