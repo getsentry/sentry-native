@@ -591,7 +591,9 @@ retry_send_cb(sentry_envelope_t *envelope, void *_state)
     sentry_value_t ref_paths = collect_ref_paths(envelope);
     int status_code = http_send_envelope(envelope, state, ref_paths);
     sentry_value_decref(ref_paths);
-    if (http_handle_error(status_code) && state->send_client_reports) {
+    if (status_code == 0 && state->send_client_reports) {
+        sentry__client_report_restore(&report);
+    } else if (http_handle_error(status_code) && state->send_client_reports) {
         sentry__client_report_restore(&report);
         if (sentry__envelope_materialize(envelope)) {
             sentry__envelope_discard(
@@ -657,7 +659,9 @@ http_send_task(void *_envelope, void *_state)
     }
     sentry_value_decref(ref_paths);
 
-    if (status_code >= 0 && http_handle_error(status_code)) {
+    if (status_code == 0 && state->send_client_reports) {
+        sentry__client_report_restore(&report);
+    } else if (status_code >= 0 && http_handle_error(status_code)) {
         sentry__client_report_restore(&report);
         sentry__envelope_discard(
             envelope, SENTRY_DISCARD_REASON_SEND_ERROR, state->ratelimiter);
