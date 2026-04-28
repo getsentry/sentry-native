@@ -551,14 +551,10 @@ cleanup_ref_files(const sentry_run_t *run, sentry_value_t paths)
 }
 
 static int
-http_send_envelope(sentry_envelope_t *envelope, void *_state)
+http_send_envelope(
+    sentry_envelope_t *envelope, void *_state, sentry_value_t ref_paths)
 {
     http_transport_state_t *state = _state;
-
-    // Capture staged sibling paths before resolving refs. Inline fallback
-    // rewrites the item content type, so those paths would no longer be
-    // discoverable afterwards.
-    sentry_value_t ref_paths = collect_ref_paths(envelope);
     resolve_ref_items(state, envelope);
     strip_ref_paths(envelope);
 
@@ -566,7 +562,6 @@ http_send_envelope(sentry_envelope_t *envelope, void *_state)
         envelope, state->dsn, state->ratelimiter, state->user_agent);
     if (!req) {
         cleanup_ref_files(state->run, ref_paths);
-        sentry_value_decref(ref_paths);
         return 0;
     }
     sentry_http_response_t resp;
@@ -576,7 +571,6 @@ http_send_envelope(sentry_envelope_t *envelope, void *_state)
         http_update_ratelimiter(state, &resp);
         cleanup_ref_files(state->run, ref_paths);
     }
-    sentry_value_decref(ref_paths);
     return status_code;
 }
 
@@ -594,7 +588,9 @@ retry_send_cb(sentry_envelope_t *envelope, void *_state)
             }
         }
     }
-    int status_code = http_send_envelope(envelope, state);
+    sentry_value_t ref_paths = collect_ref_paths(envelope);
+    int status_code = http_send_envelope(envelope, state, ref_paths);
+    sentry_value_decref(ref_paths);
     if (http_handle_error(status_code) && state->send_client_reports) {
         sentry__client_report_restore(&report);
         if (sentry__envelope_materialize(envelope)) {
@@ -637,20 +633,31 @@ http_send_task(void *_envelope, void *_state)
         }
     }
 
-    int status_code = http_send_envelope(envelope, state);
+    // Capture staged sibling paths before resolving refs. Inline fallback
+    // rewrites the item content type, so those paths would no longer be
+    // discoverable afterwards.
+    sentry_value_t ref_paths = collect_ref_paths(envelope);
+    int status_code = http_send_envelope(envelope, state, ref_paths);
 
     if (status_code < 0) {
+        bool persisted = false;
         if (state->retry) {
-            sentry__retry_enqueue(state->retry, envelope);
+            persisted = sentry__retry_enqueue(state->retry, envelope);
         } else {
             if (state->cache_keep) {
-                sentry__run_write_cache(state->run, envelope, -1);
+                persisted = sentry__run_write_cache(state->run, envelope, -1);
             }
             sentry__client_report_restore(&report);
             sentry__envelope_discard(envelope,
                 SENTRY_DISCARD_REASON_NETWORK_ERROR, state->ratelimiter);
         }
-    } else if (http_handle_error(status_code)) {
+        if (!persisted) {
+            cleanup_ref_files(state->run, ref_paths);
+        }
+    }
+    sentry_value_decref(ref_paths);
+
+    if (status_code >= 0 && http_handle_error(status_code)) {
         sentry__client_report_restore(&report);
         sentry__envelope_discard(
             envelope, SENTRY_DISCARD_REASON_SEND_ERROR, state->ratelimiter);
