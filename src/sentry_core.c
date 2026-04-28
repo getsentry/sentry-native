@@ -1777,7 +1777,7 @@ sentry_capture_minidump_n(const char *path, size_t path_len)
         if (!envelope || sentry_uuid_is_nil(&event_id)) {
             sentry_envelope_free(envelope);
         } else {
-            if (options->run
+            if (options->enable_large_attachments && options->run
                 && sentry__path_get_size(dump_path)
                     >= SENTRY_LARGE_ATTACHMENT_SIZE) {
                 sentry_attachment_t tmp;
