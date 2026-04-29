@@ -644,101 +644,6 @@ str_from_attachment_type(sentry_attachment_type_t attachment_type)
     }
 }
 
-static bool
-append_raw_attachment_ref(sentry_envelope_t *envelope, const char *path,
-    const char *location, const char *filename, const char *content_type,
-    sentry_attachment_type_t attachment_type, size_t attachment_length)
-{
-    if (!envelope || !envelope->is_raw || (!path && !location)) {
-        return false;
-    }
-
-    // Build payload: {"path":"...", "location":"...", "content_type":"..."}
-    sentry_jsonwriter_t *jw = sentry__jsonwriter_new_sb(NULL);
-    if (!jw) {
-        return false;
-    }
-    sentry_value_t payload_obj = sentry_value_new_object();
-    if (path) {
-        sentry_value_set_by_key(
-            payload_obj, "path", sentry_value_new_string(path));
-    }
-    if (location) {
-        sentry_value_set_by_key(
-            payload_obj, "location", sentry_value_new_string(location));
-    }
-    if (content_type) {
-        sentry_value_set_by_key(
-            payload_obj, "content_type", sentry_value_new_string(content_type));
-    }
-    sentry__jsonwriter_write_value(jw, payload_obj);
-    sentry_value_decref(payload_obj);
-    size_t payload_len = 0;
-    char *payload_buf = sentry__jsonwriter_into_string(jw, &payload_len);
-    if (!payload_buf) {
-        return false;
-    }
-
-    // Build item header
-    jw = sentry__jsonwriter_new_sb(NULL);
-    if (!jw) {
-        sentry_free(payload_buf);
-        return false;
-    }
-    sentry_value_t headers = sentry_value_new_object();
-    sentry_value_set_by_key(
-        headers, "type", sentry_value_new_string("attachment"));
-    sentry_value_set_by_key(headers, "content_type",
-        sentry_value_new_string("application/vnd.sentry.attachment-ref+json"));
-    sentry_value_set_by_key(
-        headers, "length", sentry_value_new_int32((int32_t)payload_len));
-    if (filename) {
-        sentry_value_set_by_key(
-            headers, "filename", sentry_value_new_string(filename));
-    }
-    if (attachment_type != ATTACHMENT) {
-        sentry_value_set_by_key(headers, "attachment_type",
-            sentry_value_new_string(str_from_attachment_type(attachment_type)));
-    }
-    sentry_value_set_by_key(headers, "attachment_length",
-        sentry_value_new_uint64((uint64_t)attachment_length));
-    sentry__jsonwriter_write_value(jw, headers);
-    sentry_value_decref(headers);
-    size_t header_len = 0;
-    char *header_buf = sentry__jsonwriter_into_string(jw, &header_len);
-    if (!header_buf) {
-        sentry_free(payload_buf);
-        return false;
-    }
-
-    // Append: \n<header>\n<payload>
-    size_t old_len = envelope->contents.raw.payload_len;
-    size_t new_len = old_len + 1 + header_len + 1 + payload_len;
-    char *new_payload = sentry_malloc(new_len);
-    if (!new_payload) {
-        sentry_free(header_buf);
-        sentry_free(payload_buf);
-        return false;
-    }
-
-    char *p = new_payload;
-    memcpy(p, envelope->contents.raw.payload, old_len);
-    p += old_len;
-    *p++ = '\n';
-    memcpy(p, header_buf, header_len);
-    p += header_len;
-    *p++ = '\n';
-    memcpy(p, payload_buf, payload_len);
-
-    sentry_free(envelope->contents.raw.payload);
-    envelope->contents.raw.payload = new_payload;
-    envelope->contents.raw.payload_len = new_len;
-
-    sentry_free(header_buf);
-    sentry_free(payload_buf);
-    return true;
-}
-
 sentry_envelope_item_t *
 sentry__envelope_add_attachment_ref(sentry_envelope_t *envelope,
     const char *path, const char *location, const char *filename,
@@ -749,8 +654,6 @@ sentry__envelope_add_attachment_ref(sentry_envelope_t *envelope,
         return NULL;
     }
     if (envelope->is_raw) {
-        append_raw_attachment_ref(envelope, path, location, filename,
-            content_type, attachment_type, attachment_length);
         return NULL;
     }
     size_t payload_len = 0;
@@ -888,79 +791,6 @@ sentry__envelope_add_from_path(
     }
     // NOTE: function will free `buf` on error
     return envelope_add_from_owned_buffer(envelope, buf, buf_len, type);
-}
-
-bool
-sentry__envelope_append_raw_attachment(sentry_envelope_t *envelope,
-    const sentry_path_t *path, const char *filename,
-    const char *attachment_type, const char *content_type)
-{
-    if (!envelope || !envelope->is_raw || !path) {
-        return false;
-    }
-
-    size_t file_len;
-    char *file_buf = sentry__path_read_to_buffer(path, &file_len);
-    if (!file_buf) {
-        return false;
-    }
-
-    sentry_jsonwriter_t *jw = sentry__jsonwriter_new_sb(NULL);
-    if (!jw) {
-        sentry_free(file_buf);
-        return false;
-    }
-    sentry_value_t headers = sentry_value_new_object();
-    sentry_value_set_by_key(
-        headers, "type", sentry_value_new_string("attachment"));
-    sentry_value_set_by_key(
-        headers, "length", sentry_value_new_int32((int32_t)file_len));
-    if (filename) {
-        sentry_value_set_by_key(
-            headers, "filename", sentry_value_new_string(filename));
-    }
-    if (attachment_type) {
-        sentry_value_set_by_key(headers, "attachment_type",
-            sentry_value_new_string(attachment_type));
-    }
-    if (content_type) {
-        sentry_value_set_by_key(
-            headers, "content_type", sentry_value_new_string(content_type));
-    }
-    sentry__jsonwriter_write_value(jw, headers);
-    sentry_value_decref(headers);
-    size_t header_len = 0;
-    char *header_buf = sentry__jsonwriter_into_string(jw, &header_len);
-    if (!header_buf) {
-        sentry_free(file_buf);
-        return false;
-    }
-
-    size_t old_len = envelope->contents.raw.payload_len;
-    size_t new_len = old_len + 1 + header_len + 1 + file_len;
-    char *new_payload = sentry_malloc(new_len);
-    if (!new_payload) {
-        sentry_free(header_buf);
-        sentry_free(file_buf);
-        return false;
-    }
-
-    char *p = new_payload;
-    memcpy(p, envelope->contents.raw.payload, old_len);
-    p += old_len;
-    *p++ = '\n';
-    memcpy(p, header_buf, header_len);
-    p += header_len;
-    *p++ = '\n';
-    memcpy(p, file_buf, file_len);
-
-    sentry_free(envelope->contents.raw.payload);
-    envelope->contents.raw.payload = new_payload;
-    envelope->contents.raw.payload_len = new_len;
-
-    sentry_free(header_buf);
-    sentry_free(file_buf);
-    return true;
 }
 
 static void
