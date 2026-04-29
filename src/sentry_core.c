@@ -1767,8 +1767,17 @@ sentry_capture_minidump_n(const char *path, size_t path_len)
                 sentry_attachment_t tmp = { 0 };
                 tmp.path = dump_path;
                 tmp.type = MINIDUMP;
-                sentry__cache_attachment_ref(
-                    envelope, &tmp, options->run->cache_path, NULL);
+                if (!sentry__cache_attachment_ref(
+                        envelope, &tmp, options->run->cache_path, NULL)) {
+                    SENTRY_WARN("failed to cache minidump attachment-ref");
+                    sentry__client_report_discard(
+                        SENTRY_DISCARD_REASON_SEND_ERROR,
+                        SENTRY_DATA_CATEGORY_ATTACHMENT, 1);
+                    sentry_envelope_free(envelope);
+                    sentry__path_free(dump_path);
+                    sentry_options_free((sentry_options_t *)options);
+                    return sentry_uuid_nil();
+                }
                 sentry__capture_envelope(options->transport, envelope, options);
                 SENTRY_INFOF(
                     "Minidump has been captured: \"%s\"", dump_path->path);
