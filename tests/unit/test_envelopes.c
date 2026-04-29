@@ -890,7 +890,7 @@ SENTRY_TEST(attachment_ref_creation)
 
         sentry_attachment_t *attachment
             = sentry__attachment_from_path(sentry__path_clone(test_file_path));
-        attachment->ref = true;
+        attachment->placeholder = true;
         sentry_envelope_item_t *item
             = sentry__envelope_add_attachment(envelope, attachment);
 
@@ -1006,7 +1006,7 @@ SENTRY_TEST(attachment_ref_copy)
     sentry_attachment_t *attachment
         = sentry__attachment_from_path(sentry__path_clone(test_file_path));
     attachment->type = MINIDUMP;
-    attachment->ref = true;
+    attachment->placeholder = true;
     sentry_attachment_set_content_type(attachment, "application/x-dmp");
 
     sentry_envelope_t *envelope = sentry__envelope_new();
@@ -1076,7 +1076,7 @@ SENTRY_TEST(attachment_ref_move)
     sentry_attachment_t *attachment
         = sentry__attachment_from_path(sentry__path_clone(src_path));
     attachment->type = ATTACHMENT;
-    attachment->ref = true;
+    attachment->placeholder = true;
 
     sentry_envelope_t *envelope = sentry__envelope_new();
     SENTRY_WITH_OPTIONS (opts) {

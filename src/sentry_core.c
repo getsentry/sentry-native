@@ -86,7 +86,7 @@ update_attachment_refs(
     sentry_attachment_t *attachments, const sentry_options_t *options)
 {
     for (sentry_attachment_t *it = attachments; it; it = it->next) {
-        sentry__attachment_update_ref(it, options);
+        sentry__attachment_update_placeholder(it, options);
     }
 }
 
@@ -197,7 +197,7 @@ sentry_init(sentry_options_t *options)
 
     sentry__run_load_user_consent(options->run, options->database_path);
 
-    // Finalize the attachment-ref flag on attachments added via
+    // Finalize the attachment-ref placeholder flag on attachments added via
     // `sentry_options_add_attachment` before `sentry_init`.
     update_attachment_refs(options->attachments, options);
 
@@ -1784,7 +1784,7 @@ sentry_capture_minidump_n(const char *path, size_t path_len)
                 memset(&tmp, 0, sizeof(tmp));
                 tmp.path = dump_path;
                 tmp.type = MINIDUMP;
-                tmp.ref = true;
+                tmp.placeholder = true;
                 tmp.next = NULL;
                 sentry__cache_attachment_refs(
                     envelope, &tmp, options->run->cache_path, &event_id, NULL);
@@ -1839,7 +1839,7 @@ add_attachment(sentry_attachment_t *attachment)
         attachment = sentry__attachments_add(
             &scope->attachments, attachment, ATTACHMENT, NULL);
         if (attachment) {
-            sentry__attachment_update_ref(attachment, options);
+            sentry__attachment_update_placeholder(attachment, options);
         }
     }
     sentry_options_free((sentry_options_t *)options);

@@ -721,7 +721,7 @@ sentry__envelope_add_attachment(
         return NULL;
     }
 
-    if (attachment->ref) {
+    if (attachment->placeholder) {
         return NULL;
     }
 
