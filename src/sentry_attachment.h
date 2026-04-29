@@ -40,7 +40,6 @@ struct sentry_attachment_s {
     sentry_path_t *filename; // Attachment name in envelope (can be NULL)
     sentry_attachment_type_t type;
     char *content_type;
-    bool placeholder; // attachment-ref
     sentry_attachment_t *next; // Linked list pointer
 };
 
@@ -51,10 +50,10 @@ struct sentry_attachment_s {
 size_t sentry__attachment_get_size(const sentry_attachment_t *attachment);
 
 /**
- * Recomputes the attachment-ref placeholder flag from the given options.
+ * Returns true if the attachment should be represented as an attachment-ref.
  */
-void sentry__attachment_update_placeholder(
-    sentry_attachment_t *att, const sentry_options_t *options);
+bool sentry__attachment_is_placeholder(
+    const sentry_attachment_t *att, const sentry_options_t *options);
 
 /**
  *  Creates a new file attachment. Takes ownership of `path`.

@@ -110,12 +110,12 @@ sentry_envelope_item_t *sentry__envelope_add_attachment_ref(
     sentry_attachment_type_t attachment_type, size_t attachment_length);
 
 /**
- * Add attachments to this envelope inline. Attachments already marked as
- * attachment-refs are skipped; stage those via
+ * Add attachments to this envelope inline. Attachment-ref placeholders are
+ * skipped; cache those via
  * `sentry__cache_attachment_refs` in sentry_database.h instead.
  */
-void sentry__envelope_add_attachments(
-    sentry_envelope_t *envelope, const sentry_attachment_t *attachments);
+void sentry__envelope_add_attachments(sentry_envelope_t *envelope,
+    const sentry_attachment_t *attachments, const sentry_options_t *options);
 
 /**
  * Returns true if a client report can be added to the envelope, i.e., the

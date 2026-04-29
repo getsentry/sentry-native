@@ -721,10 +721,6 @@ sentry__envelope_add_attachment(
         return NULL;
     }
 
-    if (attachment->placeholder) {
-        return NULL;
-    }
-
     sentry_envelope_item_t *item = NULL;
     if (attachment->buf) {
         item = sentry__envelope_add_from_buffer(
@@ -752,8 +748,8 @@ sentry__envelope_add_attachment(
 }
 
 void
-sentry__envelope_add_attachments(
-    sentry_envelope_t *envelope, const sentry_attachment_t *attachments)
+sentry__envelope_add_attachments(sentry_envelope_t *envelope,
+    const sentry_attachment_t *attachments, const sentry_options_t *options)
 {
     if (!envelope || !attachments) {
         return;
@@ -762,6 +758,9 @@ sentry__envelope_add_attachments(
     SENTRY_DEBUG("adding attachments to envelope");
     for (const sentry_attachment_t *attachment = attachments; attachment;
         attachment = attachment->next) {
+        if (sentry__attachment_is_placeholder(attachment, options)) {
+            continue;
+        }
         sentry__envelope_add_attachment(envelope, attachment);
     }
 }

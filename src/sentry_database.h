@@ -68,18 +68,26 @@ bool sentry__run_write_envelope(
     const sentry_run_t *run, const sentry_envelope_t *envelope);
 
 /**
- * Stage every attachment already marked as a ref to a sibling of the cached
- * envelope and append an `attachment-ref` item to the envelope whose payload
- * carries the on-disk basename in the `path` field. Regular attachments are
- * stored as `<event_id>-<sanitized-basename>`; minidumps keep the legacy
+ * Cache an attachment to a sibling of the cached envelope and append an
+ * `attachment-ref` item whose payload carries the on-disk basename in the
+ * `path` field. Regular attachments are stored as
+ * `<event_id>-<sanitized-basename>`; minidumps keep the legacy
  * `<event_id>.dmp` shape.
  *
  * `run_path` enables a rename (instead of a copy) when the source is inside
  * that directory; pass NULL to always copy.
  */
-void sentry__cache_attachment_refs(sentry_envelope_t *envelope,
-    const sentry_attachment_t *attachments, const sentry_path_t *cache_path,
+bool sentry__cache_attachment_ref(sentry_envelope_t *envelope,
+    const sentry_attachment_t *attachment, const sentry_path_t *cache_path,
     const sentry_uuid_t *event_id, const sentry_path_t *run_path);
+
+/**
+ * Cache every attachment that should be represented as an attachment-ref.
+ */
+void sentry__cache_attachment_refs(sentry_envelope_t *envelope,
+    const sentry_attachment_t *attachments, const sentry_options_t *options,
+    const sentry_path_t *cache_path, const sentry_uuid_t *event_id,
+    const sentry_path_t *run_path);
 
 /**
  * This will serialize and write the given envelope to disk into a file named

@@ -82,15 +82,6 @@ sentry__should_skip_upload(void)
 }
 
 static void
-update_attachment_refs(
-    sentry_attachment_t *attachments, const sentry_options_t *options)
-{
-    for (sentry_attachment_t *it = attachments; it; it = it->next) {
-        sentry__attachment_update_placeholder(it, options);
-    }
-}
-
-static void
 generate_propagation_context(sentry_value_t propagation_context)
 {
     sentry_value_set_by_key(
@@ -196,10 +187,6 @@ sentry_init(sentry_options_t *options)
     options->run->require_user_consent = options->require_user_consent;
 
     sentry__run_load_user_consent(options->run, options->database_path);
-
-    // Finalize the attachment-ref placeholder flag on attachments added via
-    // `sentry_options_add_attachment` before `sentry_init`.
-    update_attachment_refs(options->attachments, options);
 
     if (!options->dsn || !options->dsn->is_valid) {
         const char *raw_dsn = sentry_options_get_dsn(options);
@@ -735,20 +722,20 @@ sentry__prepare_event(const sentry_options_t *options, sentry_value_t event,
         goto fail;
     }
 
-    update_attachment_refs(all_attachments, options);
-
     SENTRY_WITH_SCOPE (scope) {
         if (all_attachments) {
             // all attachments merged from multiple scopes
-            sentry__envelope_add_attachments(envelope, all_attachments);
+            sentry__envelope_add_attachments(
+                envelope, all_attachments, options);
         } else {
             // only global scope has attachments
-            sentry__envelope_add_attachments(envelope, scope->attachments);
+            sentry__envelope_add_attachments(
+                envelope, scope->attachments, options);
         }
         if (options->run) {
             sentry_uuid_t eid = sentry__envelope_get_event_id(envelope);
             sentry__cache_attachment_refs(envelope,
-                all_attachments ? all_attachments : scope->attachments,
+                all_attachments ? all_attachments : scope->attachments, options,
                 options->run->cache_path, &eid, options->run->run_path);
         }
     }
@@ -838,11 +825,10 @@ prepare_user_feedback(const sentry_options_t *options,
     }
 
     if (hint && hint->attachments) {
-        update_attachment_refs(hint->attachments, options);
-        sentry__envelope_add_attachments(envelope, hint->attachments);
+        sentry__envelope_add_attachments(envelope, hint->attachments, options);
         if (options->run) {
             sentry_uuid_t event_id = sentry__envelope_get_event_id(envelope);
-            sentry__cache_attachment_refs(envelope, hint->attachments,
+            sentry__cache_attachment_refs(envelope, hint->attachments, options,
                 options->run->cache_path, &event_id, options->run->run_path);
         }
     }
@@ -1784,9 +1770,7 @@ sentry_capture_minidump_n(const char *path, size_t path_len)
                 memset(&tmp, 0, sizeof(tmp));
                 tmp.path = dump_path;
                 tmp.type = MINIDUMP;
-                tmp.placeholder = true;
-                tmp.next = NULL;
-                sentry__cache_attachment_refs(
+                sentry__cache_attachment_ref(
                     envelope, &tmp, options->run->cache_path, &event_id, NULL);
                 sentry__capture_envelope(options->transport, envelope, options);
                 SENTRY_INFOF(
@@ -1838,9 +1822,6 @@ add_attachment(sentry_attachment_t *attachment)
     SENTRY_WITH_SCOPE_MUT (scope) {
         attachment = sentry__attachments_add(
             &scope->attachments, attachment, ATTACHMENT, NULL);
-        if (attachment) {
-            sentry__attachment_update_placeholder(attachment, options);
-        }
     }
     sentry_options_free((sentry_options_t *)options);
     return attachment;

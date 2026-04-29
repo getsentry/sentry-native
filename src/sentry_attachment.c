@@ -121,11 +121,11 @@ sentry__attachment_free(sentry_attachment_t *attachment)
     sentry_free(attachment);
 }
 
-void
-sentry__attachment_update_placeholder(
-    sentry_attachment_t *att, const sentry_options_t *options)
+bool
+sentry__attachment_is_placeholder(
+    const sentry_attachment_t *att, const sentry_options_t *options)
 {
-    att->placeholder = options && options->enable_large_attachments
+    return options && options->enable_large_attachments
         && att->type == ATTACHMENT
         && sentry__attachment_get_size(att) >= SENTRY_LARGE_ATTACHMENT_SIZE;
 }
@@ -183,7 +183,6 @@ sentry__attachments_add(sentry_attachment_t **attachments_ptr,
     }
     attachment->type = attachment_type;
     attachment->content_type = sentry__string_clone(content_type);
-    attachment->placeholder = false;
 
     sentry_attachment_t **next_ptr = attachments_ptr;
 

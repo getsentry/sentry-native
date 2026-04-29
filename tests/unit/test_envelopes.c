@@ -880,27 +880,6 @@ SENTRY_TEST(attachment_ref_creation)
         sentry_envelope_free(envelope);
     }
 
-    // Ref attachment: should be skipped by envelope
-    {
-        sentry_envelope_t *envelope = sentry__envelope_new();
-        char external_data[] = "external";
-        TEST_CHECK_INT_EQUAL(sentry__path_write_buffer(test_file_path,
-                                 external_data, sizeof(external_data) - 1),
-            0);
-
-        sentry_attachment_t *attachment
-            = sentry__attachment_from_path(sentry__path_clone(test_file_path));
-        attachment->placeholder = true;
-        sentry_envelope_item_t *item
-            = sentry__envelope_add_attachment(envelope, attachment);
-
-        TEST_CHECK(!item);
-        TEST_CHECK_INT_EQUAL(sentry__envelope_get_item_count(envelope), 0);
-
-        sentry__attachment_free(attachment);
-        sentry_envelope_free(envelope);
-    }
-
     sentry__path_remove(test_file_path);
     sentry__path_free(test_file_path);
 }
@@ -1006,7 +985,6 @@ SENTRY_TEST(attachment_ref_copy)
     sentry_attachment_t *attachment
         = sentry__attachment_from_path(sentry__path_clone(test_file_path));
     attachment->type = MINIDUMP;
-    attachment->placeholder = true;
     sentry_attachment_set_content_type(attachment, "application/x-dmp");
 
     sentry_envelope_t *envelope = sentry__envelope_new();
@@ -1014,7 +992,7 @@ SENTRY_TEST(attachment_ref_copy)
     SENTRY_WITH_OPTIONS (opts) {
         db_path = sentry__path_clone(opts->database_path);
         // no run_path passed → copy, not move
-        sentry__cache_attachment_refs(
+        sentry__cache_attachment_ref(
             envelope, attachment, opts->run->cache_path, &event_id, NULL);
     }
 
@@ -1076,12 +1054,11 @@ SENTRY_TEST(attachment_ref_move)
     sentry_attachment_t *attachment
         = sentry__attachment_from_path(sentry__path_clone(src_path));
     attachment->type = ATTACHMENT;
-    attachment->placeholder = true;
 
     sentry_envelope_t *envelope = sentry__envelope_new();
     SENTRY_WITH_OPTIONS (opts) {
         // run_path passed → file is renamed (moved)
-        sentry__cache_attachment_refs(
+        sentry__cache_attachment_ref(
             envelope, attachment, opts->run->cache_path, &event_id, run_path);
     }
 

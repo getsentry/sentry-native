@@ -247,7 +247,7 @@ build_sibling_path(const sentry_path_t *cache_path, const char *uuid_str,
 // Cache `att` to a sibling file of the cached envelope and append an
 // attachment-ref item with `path` set. Returns true on success.
 static bool
-cache_attachment_ref(sentry_envelope_t *envelope,
+cache_attachment_ref_with_uuid(sentry_envelope_t *envelope,
     const sentry_attachment_t *att, const sentry_path_t *cache_path,
     const char *uuid_str, const sentry_path_t *run_path)
 {
@@ -289,10 +289,27 @@ cache_attachment_ref(sentry_envelope_t *envelope,
     return true;
 }
 
+bool
+sentry__cache_attachment_ref(sentry_envelope_t *envelope,
+    const sentry_attachment_t *attachment, const sentry_path_t *cache_path,
+    const sentry_uuid_t *event_id, const sentry_path_t *run_path)
+{
+    if (!envelope || !attachment || !cache_path || !event_id) {
+        return false;
+    }
+
+    char uuid_str[37];
+    sentry_uuid_as_string(event_id, uuid_str);
+
+    return cache_attachment_ref_with_uuid(
+        envelope, attachment, cache_path, uuid_str, run_path);
+}
+
 void
 sentry__cache_attachment_refs(sentry_envelope_t *envelope,
-    const sentry_attachment_t *attachments, const sentry_path_t *cache_path,
-    const sentry_uuid_t *event_id, const sentry_path_t *run_path)
+    const sentry_attachment_t *attachments, const sentry_options_t *options,
+    const sentry_path_t *cache_path, const sentry_uuid_t *event_id,
+    const sentry_path_t *run_path)
 {
     if (!envelope || !attachments || !cache_path || !event_id) {
         return;
@@ -302,10 +319,11 @@ sentry__cache_attachment_refs(sentry_envelope_t *envelope,
     sentry_uuid_as_string(event_id, uuid_str);
 
     for (const sentry_attachment_t *att = attachments; att; att = att->next) {
-        if (!att->placeholder) {
+        if (!sentry__attachment_is_placeholder(att, options)) {
             continue;
         }
-        cache_attachment_ref(envelope, att, cache_path, uuid_str, run_path);
+        cache_attachment_ref_with_uuid(
+            envelope, att, cache_path, uuid_str, run_path);
     }
 }
 
