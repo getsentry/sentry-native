@@ -640,7 +640,15 @@ native_backend_flush_scope(
     sentry_backend_t *backend, const sentry_options_t *UNUSED(options))
 {
     native_backend_state_t *state = (native_backend_state_t *)backend->data;
-    if (!state || !state->event_path || sentry__atomic_fetch(&state->crashed)) {
+    if (!state || !state->event_path) {
+        return;
+    }
+
+    // Manifest writes must continue post-crash so attachments registered
+    // from on_crash/before_send reach the daemon
+    native_backend_write_attachments(state->event_path);
+
+    if (sentry__atomic_fetch(&state->crashed)) {
         return;
     }
 
@@ -710,8 +718,6 @@ native_backend_flush_scope(
         sentry__path_write_buffer(state->event_path, json_str, json_len);
         sentry_free(json_str);
     }
-
-    native_backend_write_attachments(state->event_path);
 }
 
 static void
@@ -931,12 +937,6 @@ native_backend_except(sentry_backend_t *backend, const sentry_ucontext_t *uctx)
                     }
                 }
 #endif
-
-                // Re-emit the attachment manifest so any attachment
-                // registered by on_crash/before_send reaches the daemon.
-                if (state) {
-                    native_backend_write_attachments(state->event_path);
-                }
 
                 // Write event as JSON file
                 // Daemon will read this and create envelope with minidump
