@@ -29,6 +29,11 @@ typedef struct {
 #endif
 } curl_client_t;
 
+typedef struct {
+    FILE *file;
+    const sentry_path_t *path;
+} file_body_t;
+
 static curl_client_t *
 curl_client_new(void)
 {
@@ -173,7 +178,21 @@ header_callback(char *buffer, size_t size, size_t nitems, void *userdata)
 static size_t
 file_read_callback(char *buffer, size_t size, size_t nitems, void *userdata)
 {
-    return fread(buffer, size, nitems, (FILE *)userdata);
+    file_body_t *body = userdata;
+    if (size && nitems > SIZE_MAX / size) {
+        goto fail;
+    }
+    size_t capacity = size * nitems;
+    size_t read = fread(buffer, 1, capacity, body->file);
+    if (read < capacity && ferror(body->file)) {
+        goto fail;
+    }
+    return read;
+
+fail:
+    SENTRY_WARNF("failed to read request body file \"%s\"",
+        sentry__path_filename(body->path));
+    return CURL_READFUNC_ABORT;
 }
 
 static bool
@@ -219,6 +238,7 @@ curl_send_task(void *_client, sentry_prepared_http_request_t *req,
     curl_easy_setopt(curl, CURLOPT_XFERINFODATA, client);
 
     FILE *body_file = NULL;
+    file_body_t file_body = { 0 };
     if (req->body_path) {
 #ifdef SENTRY_PLATFORM_WINDOWS
         body_file = _wfopen(req->body_path->path_w, L"rb");
@@ -231,10 +251,12 @@ curl_send_task(void *_client, sentry_prepared_http_request_t *req,
             curl_slist_free_all(headers);
             return false;
         }
+        file_body.file = body_file;
+        file_body.path = req->body_path;
         curl_easy_setopt(curl, CURLOPT_UPLOAD, 1L);
         curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, req->method);
         curl_easy_setopt(curl, CURLOPT_READFUNCTION, file_read_callback);
-        curl_easy_setopt(curl, CURLOPT_READDATA, body_file);
+        curl_easy_setopt(curl, CURLOPT_READDATA, &file_body);
         curl_easy_setopt(
             curl, CURLOPT_INFILESIZE_LARGE, (curl_off_t)req->body_len);
     } else if (req->body) {
