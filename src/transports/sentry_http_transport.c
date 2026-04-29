@@ -675,6 +675,8 @@ http_send_task(void *_envelope, void *_state)
             if (state->cache_keep) {
                 persisted = sentry__run_write_cache(state->run, envelope, -1);
             }
+        }
+        if (!state->retry || !persisted) {
             sentry__client_report_restore(&report);
             sentry__envelope_discard(envelope,
                 SENTRY_DISCARD_REASON_NETWORK_ERROR, state->ratelimiter);

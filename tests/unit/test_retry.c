@@ -1,3 +1,4 @@
+#include "sentry_client_report.h"
 #include "sentry_core.h"
 #include "sentry_database.h"
 #include "sentry_envelope.h"
@@ -10,6 +11,7 @@
 #include "sentry_transport.h"
 #include "sentry_utils.h"
 #include "sentry_uuid.h"
+#include "transports/sentry_http_transport.h"
 
 #include <string.h>
 
@@ -81,6 +83,16 @@ test_send_cb(sentry_envelope_t *envelope, void *_ctx)
     retry_test_ctx_t *ctx = _ctx;
     ctx->count++;
     return ctx->status_code;
+}
+
+static bool
+test_http_send_fails(void *client, sentry_prepared_http_request_t *req,
+    sentry_http_response_t *resp)
+{
+    (void)client;
+    (void)req;
+    (void)resp;
+    return false;
 }
 
 SENTRY_TEST(retry_filename)
@@ -279,6 +291,45 @@ SENTRY_TEST(retry_result)
     TEST_CHECK_INT_EQUAL(count_envelope_files(cache_path), 0);
 
     sentry__retry_free(retry);
+    sentry_close();
+}
+
+SENTRY_TEST(retry_restore_report)
+{
+    SENTRY_TEST_OPTIONS_NEW(options);
+    sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
+    sentry_options_set_http_retry(options, true);
+    sentry_transport_t *transport
+        = sentry__http_transport_new(NULL, test_http_send_fails);
+    TEST_ASSERT(!!transport);
+    sentry_options_set_transport(options, transport);
+    sentry_init(options);
+
+    sentry__client_report_reset();
+    sentry__client_report_discard(
+        SENTRY_DISCARD_REASON_SAMPLE_RATE, SENTRY_DATA_CATEGORY_ERROR, 1);
+
+    sentry_path_t *cache_path = sentry__path_clone(options->run->cache_path);
+    TEST_ASSERT(!!cache_path);
+    TEST_CHECK_INT_EQUAL(sentry__path_remove_all(cache_path), 0);
+    TEST_CHECK_INT_EQUAL(sentry__path_write_buffer(cache_path, "x", 1), 0);
+
+    sentry_capture_event(
+        sentry_value_new_message_event(SENTRY_LEVEL_INFO, NULL, "test"));
+    sentry_flush(5000);
+
+    sentry_client_report_t report = { { 0 } };
+    TEST_CHECK(sentry__client_report_save(&report));
+    TEST_CHECK_INT_EQUAL(report.counts[SENTRY_DISCARD_REASON_SAMPLE_RATE]
+                                      [SENTRY_DATA_CATEGORY_ERROR],
+        1);
+    TEST_CHECK_INT_EQUAL(report.counts[SENTRY_DISCARD_REASON_NETWORK_ERROR]
+                                      [SENTRY_DATA_CATEGORY_ERROR],
+        1);
+
+    sentry__path_remove(cache_path);
+    sentry__path_free(cache_path);
+    sentry__client_report_reset();
     sentry_close();
 }
 
