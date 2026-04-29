@@ -1815,15 +1815,15 @@ sentry_capture_minidump_n(const char *path, size_t path_len)
 static sentry_attachment_t *
 add_attachment(sentry_attachment_t *attachment)
 {
-    const sentry_options_t *options = sentry__options_getref();
-    if (options && options->backend && options->backend->add_attachment_func) {
-        options->backend->add_attachment_func(options->backend, attachment);
+    SENTRY_WITH_OPTIONS (options) {
+        if (options->backend && options->backend->add_attachment_func) {
+            options->backend->add_attachment_func(options->backend, attachment);
+        }
     }
     SENTRY_WITH_SCOPE_MUT (scope) {
         attachment = sentry__attachments_add(
             &scope->attachments, attachment, ATTACHMENT, NULL);
     }
-    sentry_options_free((sentry_options_t *)options);
     return attachment;
 }
 
