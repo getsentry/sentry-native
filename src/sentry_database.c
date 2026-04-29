@@ -277,13 +277,12 @@ cache_attachment_ref(sentry_envelope_t *envelope,
         rv = is_run_owned ? sentry__path_rename(att->path, dst)
                           : sentry__path_copy(att->path, dst);
     }
-    size_t file_size = sentry__path_get_size(dst);
-
     if (rv != 0) {
         sentry__path_free(dst);
         return false;
     }
 
+    size_t file_size = sentry__path_get_size(dst);
     sentry__envelope_add_attachment_ref(envelope, sentry__path_filename(dst),
         NULL, raw_filename, att->content_type, att->type, file_size);
     sentry__path_free(dst);
