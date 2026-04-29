@@ -705,7 +705,7 @@ sentry__envelope_add_attachment_ref(sentry_envelope_t *envelope,
     sentry__envelope_item_set_header(
         item, "type", sentry_value_new_string("attachment"));
     sentry__envelope_item_set_header(item, "content_type",
-        sentry_value_new_string("application/vnd.sentry.attachment-ref+json"));
+        sentry_value_new_string(SENTRY_ATTACHMENT_REF_MIME));
     if (filename) {
         sentry__envelope_item_set_header(
             item, "filename", sentry_value_new_string(filename));
@@ -1522,7 +1522,7 @@ sentry__envelope_item_is_attachment_ref(const sentry_envelope_item_t *item)
     }
     const char *ct = sentry_value_as_string(
         sentry_value_get_by_key(item->headers, "content_type"));
-    return ct && strcmp(ct, "application/vnd.sentry.attachment-ref+json") == 0;
+    return ct && strcmp(ct, SENTRY_ATTACHMENT_REF_MIME) == 0;
 }
 
 bool
@@ -1600,27 +1600,6 @@ sentry__envelope_item_resolve_attachment_ref(
         resolved.content_type = ref.content_type;
     }
     bool ok = set_attachment_ref_payload(item, &resolved);
-    sentry__attachment_ref_cleanup(&ref);
-    return ok;
-}
-
-bool
-sentry__envelope_item_finalize_attachment_ref(sentry_envelope_item_t *item)
-{
-    sentry_attachment_ref_t ref;
-    if (!sentry__envelope_item_get_attachment_ref(item, &ref)) {
-        return false;
-    }
-    if (!sentry__guarded_strlen(ref.location)) {
-        sentry__attachment_ref_cleanup(&ref);
-        return false;
-    }
-    sentry_attachment_ref_t finalized = { 0 };
-    finalized.location = ref.location;
-    if (sentry__guarded_strlen(ref.content_type)) {
-        finalized.content_type = ref.content_type;
-    }
-    bool ok = set_attachment_ref_payload(item, &finalized);
     sentry__attachment_ref_cleanup(&ref);
     return ok;
 }

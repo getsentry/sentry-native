@@ -14,6 +14,7 @@
 
 // https://develop.sentry.dev/sdk/data-model/envelopes/#size-limits
 #define SENTRY_MAX_ENVELOPE_SESSIONS 100
+#define SENTRY_ATTACHMENT_REF_MIME "application/vnd.sentry.attachment-ref+json"
 
 typedef struct sentry_envelope_item_s sentry_envelope_item_t;
 
@@ -221,12 +222,6 @@ void sentry__attachment_ref_cleanup(sentry_attachment_ref_t *ref);
  */
 bool sentry__envelope_item_resolve_attachment_ref(
     sentry_envelope_item_t *item, const char *location);
-
-/**
- * Finalizes an attachment-ref item for sending by stripping the local path.
- */
-bool sentry__envelope_item_finalize_attachment_ref(
-    sentry_envelope_item_t *item);
 
 /**
  * If `envelope` is raw, parse it in place into a structured envelope.

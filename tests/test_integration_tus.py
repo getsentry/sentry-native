@@ -107,6 +107,7 @@ def test_tus_upload_large_attachment(cmake, httpserver):
 
     assert attachment_ref is not None
     assert attachment_ref.payload.json["location"] == location
+    assert not os.path.isabs(attachment_ref.payload.json["path"])
     assert attachment_ref.headers.get("attachment_length") == 100 * 1024 * 1024
 
     # large attachment files should be cleaned up after send
@@ -363,6 +364,7 @@ def test_tus_crash_restart(cmake, httpserver, backend):
 
     assert attachment_ref is not None
     assert attachment_ref.payload.json["location"] == location
+    assert not os.path.isabs(attachment_ref.payload.json["path"])
     assert attachment_ref.headers.get("attachment_length") == 100 * 1024 * 1024
 
     # Staged sibling files should be cleaned up after successful send.

@@ -436,6 +436,67 @@ collect_attachment_refs(const sentry_envelope_t *envelope)
     return list;
 }
 
+static bool
+materialize_attachment_refs(sentry_envelope_t *envelope)
+{
+    // Raw envelopes with attachment-refs need materialization so the transport
+    // can collect, resolve, and prune those items. Raw envelopes without
+    // attachment-refs stay raw so the serializer can stream them as bytes.
+    if (!sentry__envelope_has_content_type(
+            envelope, SENTRY_ATTACHMENT_REF_MIME)) {
+        return true;
+    }
+    if (sentry__envelope_materialize(envelope)) {
+        return true;
+    }
+    SENTRY_WARN("dropping malformed envelope with attachment-refs");
+    return false;
+}
+
+static bool
+has_attachment_ref_path(const sentry_envelope_t *envelope, const char *path)
+{
+    size_t count = sentry__envelope_get_item_count(envelope);
+    for (size_t i = 0; i < count; i++) {
+        const sentry_envelope_item_t *item
+            = sentry__envelope_get_item(envelope, i);
+        sentry_attachment_ref_t ref;
+        if (!sentry__envelope_item_get_attachment_ref(item, &ref)) {
+            continue;
+        }
+        bool found = ref.path && strcmp(ref.path, path) == 0;
+        sentry__attachment_ref_cleanup(&ref);
+        if (found) {
+            return true;
+        }
+    }
+    return false;
+}
+
+// Delete cache-sibling files referenced by `paths`. If `keep` is set, preserve
+// paths that are still referenced by that envelope.
+static void
+prune_attachment_refs(const sentry_run_t *run, sentry_value_t paths,
+    const sentry_envelope_t *keep)
+{
+    if (!run || sentry_value_get_type(paths) != SENTRY_VALUE_TYPE_LIST) {
+        return;
+    }
+    size_t count = sentry_value_get_length(paths);
+    for (size_t i = 0; i < count; i++) {
+        const char *path
+            = sentry_value_as_string(sentry_value_get_by_index(paths, i));
+        if (!path || !*path || (keep && has_attachment_ref_path(keep, path))) {
+            continue;
+        }
+        sentry_path_t *p = sentry__path_join_str(run->cache_path, path);
+        if (p) {
+            sentry__path_remove(p);
+            sentry__path_free(p);
+        }
+    }
+}
+
 // Walk attachment-ref items: for each one with `path` and no `location`, try
 // TUS upload and set `location`. If TUS is unavailable or fails for a given
 // item, drop it and send the event without the large attachment.
@@ -505,57 +566,6 @@ resolve_attachment_refs(
     return true;
 }
 
-// Before sending to Sentry, strip the local `path` from every resolved
-// attachment-ref. If finalization fails, drop the attachment-ref item.
-static bool
-finalize_attachment_refs(sentry_envelope_t *envelope)
-{
-    if (!envelope || sentry__envelope_is_raw(envelope)) {
-        return true;
-    }
-    size_t i = 0;
-    while (i < sentry__envelope_get_item_count(envelope)) {
-        sentry_envelope_item_t *item = sentry__envelope_get_item(envelope, i);
-        sentry_attachment_ref_t ref;
-        if (!sentry__envelope_item_get_attachment_ref(item, &ref)) {
-            i++;
-            continue;
-        }
-        sentry__attachment_ref_cleanup(&ref);
-        if (sentry__envelope_item_finalize_attachment_ref(item)) {
-            i++;
-            continue;
-        }
-        if (!sentry__envelope_remove_item(envelope, item)) {
-            return false;
-        }
-    }
-    return true;
-}
-
-// Delete every cache-sibling file referenced by `paths` (a list of string
-// values produced by `collect_attachment_refs`).
-static void
-prune_attachment_refs(const sentry_run_t *run, sentry_value_t paths)
-{
-    if (!run || sentry_value_get_type(paths) != SENTRY_VALUE_TYPE_LIST) {
-        return;
-    }
-    size_t count = sentry_value_get_length(paths);
-    for (size_t i = 0; i < count; i++) {
-        const char *path
-            = sentry_value_as_string(sentry_value_get_by_index(paths, i));
-        if (!path || !*path) {
-            continue;
-        }
-        sentry_path_t *p = sentry__path_join_str(run->cache_path, path);
-        if (p) {
-            sentry__path_remove(p);
-            sentry__path_free(p);
-        }
-    }
-}
-
 static bool
 add_client_report(sentry_envelope_t *envelope, http_transport_state_t *state,
     sentry_client_report_t *report)
@@ -573,19 +583,13 @@ add_client_report(sentry_envelope_t *envelope, http_transport_state_t *state,
 }
 
 static int
-http_send_envelope(
-    sentry_envelope_t *envelope, void *_state, sentry_value_t ref_paths)
+http_send_envelope(sentry_envelope_t *envelope, void *_state)
 {
     http_transport_state_t *state = _state;
     if (!resolve_attachment_refs(state, envelope)) {
         SENTRY_WARN("failed to resolve attachment-ref items");
         return -1;
     }
-    if (!finalize_attachment_refs(envelope)) {
-        SENTRY_WARN("failed to finalize attachment-ref items");
-        return -1;
-    }
-    prune_attachment_refs(state->run, ref_paths);
 
     sentry_prepared_http_request_t *req = sentry__prepare_http_request(
         envelope, state->dsn, state->ratelimiter, state->user_agent);
@@ -605,11 +609,18 @@ static int
 retry_send_cb(sentry_envelope_t *envelope, void *_state)
 {
     http_transport_state_t *state = _state;
+    if (!materialize_attachment_refs(envelope)) {
+        return 400;
+    }
     sentry_client_report_t report = { { 0 } };
     bool reported = add_client_report(envelope, state, &report);
     sentry_value_t ref_paths = collect_attachment_refs(envelope);
-    int status_code = http_send_envelope(envelope, state, ref_paths);
-    sentry_value_decref(ref_paths);
+    int status_code = http_send_envelope(envelope, state);
+    if (status_code < 0) {
+        prune_attachment_refs(state->run, ref_paths, envelope);
+    } else {
+        prune_attachment_refs(state->run, ref_paths, NULL);
+    }
     if (status_code == 0 && reported) {
         sentry__client_report_restore(&report);
     } else if (http_handle_error(status_code) && state->send_client_reports) {
@@ -619,6 +630,7 @@ retry_send_cb(sentry_envelope_t *envelope, void *_state)
                 envelope, SENTRY_DISCARD_REASON_SEND_ERROR, state->ratelimiter);
         }
     }
+    sentry_value_decref(ref_paths);
     return status_code;
 }
 
@@ -643,13 +655,17 @@ http_send_task(void *_envelope, void *_state)
     sentry_envelope_t *envelope = _envelope;
     http_transport_state_t *state = _state;
 
+    if (!materialize_attachment_refs(envelope)) {
+        return;
+    }
+
     sentry_client_report_t report = { { 0 } };
     bool reported = add_client_report(envelope, state, &report);
 
-    // Capture cached sibling paths before resolving attachment-refs. Resolved
-    // or dropped attachment-refs no longer carry local paths afterwards.
+    // Capture cached sibling paths before resolving attachment-refs. Dropped
+    // attachment-refs no longer carry local paths afterwards.
     sentry_value_t ref_paths = collect_attachment_refs(envelope);
-    int status_code = http_send_envelope(envelope, state, ref_paths);
+    int status_code = http_send_envelope(envelope, state);
 
     if (status_code < 0) {
         bool persisted = false;
@@ -664,8 +680,12 @@ http_send_task(void *_envelope, void *_state)
                 SENTRY_DISCARD_REASON_NETWORK_ERROR, state->ratelimiter);
         }
         if (!persisted) {
-            prune_attachment_refs(state->run, ref_paths);
+            prune_attachment_refs(state->run, ref_paths, NULL);
+        } else {
+            prune_attachment_refs(state->run, ref_paths, envelope);
         }
+    } else {
+        prune_attachment_refs(state->run, ref_paths, NULL);
     }
     sentry_value_decref(ref_paths);
 
@@ -767,19 +787,6 @@ static void
 http_transport_send_envelope(sentry_envelope_t *envelope, void *transport_state)
 {
     sentry_bgworker_t *bgworker = transport_state;
-    // Raw envelopes that reference TUS cache siblings need materialization
-    // so the worker can walk and rewrite attachment-ref items. Raw envelopes
-    // without attachment-refs go through unchanged — the serializer streams
-    // them as bytes.
-    // (Materialize up-front so the bgworker owns the envelope it will free.)
-    if (sentry__envelope_has_content_type(
-            envelope, "application/vnd.sentry.attachment-ref+json")) {
-        if (!sentry__envelope_materialize(envelope)) {
-            SENTRY_WARN("dropping malformed envelope with attachment-refs");
-            sentry_envelope_free(envelope);
-            return;
-        }
-    }
     sentry__bgworker_submit(bgworker, http_send_task,
         (void (*)(void *))sentry_envelope_free, envelope);
 }
