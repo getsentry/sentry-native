@@ -220,7 +220,11 @@ curl_send_task(void *_client, sentry_prepared_http_request_t *req,
 
     FILE *body_file = NULL;
     if (req->body_path) {
+#ifdef SENTRY_PLATFORM_WINDOWS
+        body_file = _wfopen(req->body_path->path_w, L"rb");
+#else
         body_file = fopen(req->body_path->path, "rb");
+#endif
         if (!body_file) {
             SENTRY_WARNF("failed to open request body file \"%s\"",
                 sentry__path_filename(req->body_path));
