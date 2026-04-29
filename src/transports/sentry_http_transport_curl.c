@@ -11,6 +11,7 @@
 
 #include <curl/curl.h>
 #include <curl/easy.h>
+#include <stdio.h>
 #include <string.h>
 
 #ifdef SENTRY_PLATFORM_NX
@@ -169,6 +170,12 @@ header_callback(char *buffer, size_t size, size_t nitems, void *userdata)
     return bytes;
 }
 
+static size_t
+file_read_callback(char *buffer, size_t size, size_t nitems, void *userdata)
+{
+    return fread(buffer, size, nitems, (FILE *)userdata);
+}
+
 static bool
 curl_send_task(void *_client, sentry_prepared_http_request_t *req,
     sentry_http_response_t *resp)
@@ -204,15 +211,34 @@ curl_send_task(void *_client, sentry_prepared_http_request_t *req,
         curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, swallow_data);
     }
     curl_easy_setopt(curl, CURLOPT_URL, req->url);
-    curl_easy_setopt(curl, CURLOPT_POST, (long)1);
     curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
-    curl_easy_setopt(curl, CURLOPT_POSTFIELDS, req->body);
-    curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE, (long)req->body_len);
     curl_easy_setopt(curl, CURLOPT_USERAGENT, SENTRY_SDK_USER_AGENT);
     curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT_MS, 15000L);
     curl_easy_setopt(curl, CURLOPT_NOPROGRESS, 0L);
     curl_easy_setopt(curl, CURLOPT_XFERINFOFUNCTION, progress_callback);
     curl_easy_setopt(curl, CURLOPT_XFERINFODATA, client);
+
+    FILE *body_file = NULL;
+    if (req->body_path) {
+        body_file = fopen(req->body_path->path, "rb");
+        if (!body_file) {
+            SENTRY_WARN("failed to open body_path for upload");
+            curl_slist_free_all(headers);
+            return false;
+        }
+        curl_easy_setopt(curl, CURLOPT_UPLOAD, 1L);
+        curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, req->method);
+        curl_easy_setopt(curl, CURLOPT_READFUNCTION, file_read_callback);
+        curl_easy_setopt(curl, CURLOPT_READDATA, body_file);
+        curl_easy_setopt(
+            curl, CURLOPT_INFILESIZE_LARGE, (curl_off_t)req->body_len);
+    } else if (req->body) {
+        curl_easy_setopt(curl, CURLOPT_POST, (long)1);
+        curl_easy_setopt(curl, CURLOPT_POSTFIELDS, req->body);
+        curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE, (long)req->body_len);
+    } else {
+        curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, req->method);
+    }
 
     char error_buf[CURL_ERROR_SIZE];
     error_buf[0] = 0;
@@ -256,6 +282,9 @@ curl_send_task(void *_client, sentry_prepared_http_request_t *req,
         }
     }
 
+    if (body_file) {
+        fclose(body_file);
+    }
     curl_slist_free_all(headers);
     return rv == CURLE_OK;
 }
