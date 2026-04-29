@@ -50,6 +50,13 @@ struct sentry_attachment_s {
 size_t sentry__attachment_get_size(const sentry_attachment_t *attachment);
 
 /**
+ * Returns the filename string for the attachment (basename of `filename` if
+ * set, otherwise basename of `path`).
+ */
+const char *sentry__attachment_get_filename(
+    const sentry_attachment_t *attachment);
+
+/**
  * Returns true if the attachment should be represented as an attachment-ref.
  */
 bool sentry__attachment_is_placeholder(
@@ -103,12 +110,5 @@ void sentry__attachments_remove(
  */
 void sentry__attachments_extend(
     sentry_attachment_t **attachments_ptr, sentry_attachment_t *attachments);
-
-/**
- * Returns the filename string for the attachment (basename of `filename` if
- * set, otherwise basename of `path`).
- */
-const char *sentry__attachment_get_filename(
-    const sentry_attachment_t *attachment);
 
 #endif

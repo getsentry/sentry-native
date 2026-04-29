@@ -121,6 +121,20 @@ sentry__attachment_free(sentry_attachment_t *attachment)
     sentry_free(attachment);
 }
 
+size_t
+sentry__attachment_get_size(const sentry_attachment_t *attachment)
+{
+    return attachment->buf ? attachment->buf_len
+                           : sentry__path_get_size(attachment->path);
+}
+
+const char *
+sentry__attachment_get_filename(const sentry_attachment_t *attachment)
+{
+    return sentry__path_filename(
+        attachment->filename ? attachment->filename : attachment->path);
+}
+
 bool
 sentry__attachment_is_placeholder(
     const sentry_attachment_t *att, const sentry_options_t *options)
@@ -277,18 +291,4 @@ sentry__attachments_extend(
         sentry__attachments_add(
             attachments_ptr, attachment_clone(it), it->type, it->content_type);
     }
-}
-
-size_t
-sentry__attachment_get_size(const sentry_attachment_t *attachment)
-{
-    return attachment->buf ? attachment->buf_len
-                           : sentry__path_get_size(attachment->path);
-}
-
-const char *
-sentry__attachment_get_filename(const sentry_attachment_t *attachment)
-{
-    return sentry__path_filename(
-        attachment->filename ? attachment->filename : attachment->path);
 }
