@@ -903,6 +903,7 @@ sentry__http_transport_get_bgworker(sentry_transport_t *transport)
 {
     return sentry__transport_get_state(transport);
 }
+#endif
 
 sentry_prepared_http_request_t *
 sentry__prepare_tus_create_request(
@@ -919,4 +920,3 @@ sentry__prepare_tus_upload_request(const char *location,
     return prepare_tus_upload_request(
         location, path, file_size, dsn, user_agent);
 }
-#endif

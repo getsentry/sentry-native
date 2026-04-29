@@ -26,6 +26,11 @@ typedef struct sentry_prepared_http_request_s {
 sentry_prepared_http_request_t *sentry__prepare_http_request(
     sentry_envelope_t *envelope, const sentry_dsn_t *dsn,
     const sentry_rate_limiter_t *rl, const char *user_agent);
+sentry_prepared_http_request_t *sentry__prepare_tus_create_request(
+    size_t file_size, const sentry_dsn_t *dsn, const char *user_agent);
+sentry_prepared_http_request_t *sentry__prepare_tus_upload_request(
+    const char *location, const sentry_path_t *path, size_t file_size,
+    const sentry_dsn_t *dsn, const char *user_agent);
 
 void sentry__prepared_http_request_free(sentry_prepared_http_request_t *req);
 
@@ -55,11 +60,6 @@ void sentry__http_transport_set_shutdown_client(
 
 #ifdef SENTRY_UNITTEST
 void *sentry__http_transport_get_bgworker(sentry_transport_t *transport);
-sentry_prepared_http_request_t *sentry__prepare_tus_create_request(
-    size_t file_size, const sentry_dsn_t *dsn, const char *user_agent);
-sentry_prepared_http_request_t *sentry__prepare_tus_upload_request(
-    const char *location, const sentry_path_t *path, size_t file_size,
-    const sentry_dsn_t *dsn, const char *user_agent);
 #endif
 
 #endif
