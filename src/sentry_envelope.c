@@ -1426,6 +1426,8 @@ sentry__envelope_get_item(const sentry_envelope_t *envelope, size_t idx)
     return NULL;
 }
 
+// these for now are only needed for tests
+#ifdef SENTRY_UNITTEST
 sentry_value_t
 sentry__envelope_item_get_header(
     const sentry_envelope_item_t *item, const char *key)
@@ -1442,6 +1444,7 @@ sentry__envelope_item_get_payload(
     }
     return item->payload;
 }
+#endif
 
 bool
 sentry__envelope_materialize(sentry_envelope_t *envelope)

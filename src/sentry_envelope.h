@@ -199,10 +199,14 @@ bool sentry__envelope_is_raw(const sentry_envelope_t *envelope);
 size_t sentry__envelope_get_item_count(const sentry_envelope_t *envelope);
 sentry_envelope_item_t *sentry__envelope_get_item(
     const sentry_envelope_t *envelope, size_t idx);
+
+// these for now are only needed for tests
+#ifdef SENTRY_UNITTEST
 sentry_value_t sentry__envelope_item_get_header(
     const sentry_envelope_item_t *item, const char *key);
 const char *sentry__envelope_item_get_payload(
     const sentry_envelope_item_t *item, size_t *payload_len_out);
+#endif
 
 /**
  * Returns true if `item` is an attachment-ref (content_type is
