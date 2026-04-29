@@ -457,6 +457,18 @@ resolve_attachment_refs(
             continue;
         }
 
+        if (sentry__rate_limiter_is_disabled(
+                state->ratelimiter, SENTRY_RL_CATEGORY_ERROR)) {
+            sentry__attachment_ref_cleanup(&ref);
+            sentry__client_report_discard(
+                SENTRY_DISCARD_REASON_RATELIMIT_BACKOFF,
+                SENTRY_DATA_CATEGORY_ATTACHMENT, 1);
+            if (!sentry__envelope_remove_item(envelope, item)) {
+                return false;
+            }
+            continue;
+        }
+
         if (ref.location && *ref.location) {
             // Crash-resume: TUS already done on a prior attempt. Nothing to do.
             sentry__attachment_ref_cleanup(&ref);

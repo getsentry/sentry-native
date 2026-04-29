@@ -167,6 +167,76 @@ def test_tus_upload_404_disables(cmake, httpserver):
         assert leftovers == []
 
 
+def test_tus_skips_rate_limited_attachments(cmake, httpserver):
+    tmp_path = cmake(
+        ["sentry_example"],
+        {"SENTRY_BACKEND": "none"},
+    )
+
+    upload_uri = "/api/123456/upload/abc123def456789/"
+    upload_qs = "length=104857600&signature=xyz"
+    location = httpserver.url_for(upload_uri) + "?" + upload_qs
+
+    httpserver.expect_oneshot_request(
+        "/api/123456/upload/",
+        headers={"tus-resumable": "1.0.0"},
+    ).respond_with_data(
+        "OK",
+        status=201,
+        headers={"Location": location},
+    )
+
+    httpserver.expect_oneshot_request(
+        upload_uri,
+        method="PATCH",
+        headers={"tus-resumable": "1.0.0"},
+        query_string=upload_qs,
+    ).respond_with_data("", status=204)
+
+    httpserver.expect_oneshot_request(
+        "/api/123456/envelope/",
+        headers={"x-sentry-auth": auth_header},
+    ).respond_with_data(
+        "OK",
+        headers={"X-Sentry-Rate-Limits": "60:error:organization"},
+    )
+
+    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
+
+    run(
+        tmp_path,
+        "sentry_example",
+        ["log", "no-setup", "large-attachment", "capture-multiple"],
+        env=env,
+    )
+
+    # The first envelope installs an error rate limit. Later events should
+    # drop their attachment-ref items without starting more TUS uploads.
+    uploads = [
+        req
+        for req, _resp in httpserver.log
+        if req.path == "/api/123456/upload/" and req.method == "POST"
+    ]
+    patches = [
+        req
+        for req, _resp in httpserver.log
+        if req.path == upload_uri and req.method == "PATCH"
+    ]
+    envelopes = [
+        req for req, _resp in httpserver.log if req.path == "/api/123456/envelope/"
+    ]
+
+    assert len(httpserver.log) == 3
+    assert len(uploads) == 1
+    assert len(patches) == 1
+    assert len(envelopes) == 1
+
+    cache_dir = os.path.join(tmp_path, ".sentry-native", "cache")
+    if os.path.isdir(cache_dir):
+        leftovers = [f for f in os.listdir(cache_dir) if not f.endswith(".envelope")]
+        assert leftovers == []
+
+
 @pytest.mark.parametrize(
     "backend",
     [
