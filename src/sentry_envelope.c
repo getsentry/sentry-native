@@ -1538,6 +1538,7 @@ sentry__envelope_item_inline_from_path(
     item->payload_len = buf_len;
     sentry__envelope_item_set_header(item, "content_type",
         sentry_value_new_string("application/octet-stream"));
+    sentry_value_remove_by_key(item->headers, "attachment_length");
     sentry__envelope_item_set_header(
         item, "length", sentry_value_new_int32((int32_t)buf_len));
     return true;

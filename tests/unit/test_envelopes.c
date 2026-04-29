@@ -1138,6 +1138,43 @@ SENTRY_TEST(attachment_ref_roundtrip)
     sentry_envelope_free(parsed);
 }
 
+SENTRY_TEST(attachment_ref_inline_from_path)
+{
+    const char *test_file_str
+        = SENTRY_TEST_PATH_PREFIX "sentry_test_attachment_ref_inline";
+    sentry_path_t *test_file_path = sentry__path_from_str(test_file_str);
+    char data[] = "inline";
+    TEST_CHECK_INT_EQUAL(
+        sentry__path_write_buffer(test_file_path, data, sizeof(data) - 1), 0);
+
+    sentry_envelope_t *envelope = sentry__envelope_new();
+    sentry_envelope_item_t *item = sentry__envelope_add_attachment_ref(envelope,
+        "cached.bin", NULL, "foo.bin", "application/x-test", ATTACHMENT, 12345);
+    TEST_ASSERT(!!item);
+    TEST_CHECK(!sentry_value_is_null(
+        sentry__envelope_item_get_header(item, "attachment_length")));
+
+    TEST_CHECK(sentry__envelope_item_inline_from_path(item, test_file_path));
+    TEST_CHECK_STRING_EQUAL(
+        sentry_value_as_string(
+            sentry__envelope_item_get_header(item, "content_type")),
+        "application/octet-stream");
+    TEST_CHECK(sentry_value_is_null(
+        sentry__envelope_item_get_header(item, "attachment_length")));
+    TEST_CHECK_INT_EQUAL(
+        sentry_value_as_int32(sentry__envelope_item_get_header(item, "length")),
+        sizeof(data) - 1);
+
+    size_t payload_len = 0;
+    TEST_CHECK_STRING_EQUAL(
+        sentry__envelope_item_get_payload(item, &payload_len), data);
+    TEST_CHECK_INT_EQUAL(payload_len, sizeof(data) - 1);
+
+    sentry_envelope_free(envelope);
+    sentry__path_remove(test_file_path);
+    sentry__path_free(test_file_path);
+}
+
 SENTRY_TEST(deserialize_envelope_invalid)
 {
     TEST_CHECK(!sentry_envelope_deserialize("", 0));
