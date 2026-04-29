@@ -94,6 +94,14 @@ sentry_envelope_item_t *sentry__envelope_add_attachment(
     sentry_envelope_t *envelope, const sentry_attachment_t *attachment);
 
 /**
+ * Add attachments to this envelope inline. Attachment-ref placeholders are
+ * skipped; cache those via
+ * `sentry__cache_attachment_refs` in sentry_database.h instead.
+ */
+void sentry__envelope_add_attachments(sentry_envelope_t *envelope,
+    const sentry_attachment_t *attachments, const sentry_options_t *options);
+
+/**
  * Add an attachment-ref item to this envelope.
  *
  * Builds a JSON payload containing `path` (cache-local basename, set while
@@ -108,14 +116,6 @@ sentry_envelope_item_t *sentry__envelope_add_attachment_ref(
     sentry_envelope_t *envelope, const char *path, const char *location,
     const char *filename, const char *content_type,
     sentry_attachment_type_t attachment_type, size_t attachment_length);
-
-/**
- * Add attachments to this envelope inline. Attachment-ref placeholders are
- * skipped; cache those via
- * `sentry__cache_attachment_refs` in sentry_database.h instead.
- */
-void sentry__envelope_add_attachments(sentry_envelope_t *envelope,
-    const sentry_attachment_t *attachments, const sentry_options_t *options);
 
 /**
  * Returns true if a client report can be added to the envelope, i.e., the
