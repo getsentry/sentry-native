@@ -394,8 +394,6 @@ SENTRY_TEST(cache_prune_siblings)
     SKIP_TEST();
 #endif
     SENTRY_TEST_OPTIONS_NEW(options);
-    sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
-    sentry_options_set_cache_keep(options, true);
     sentry_options_set_cache_max_items(options, 1);
     sentry_init(options);
 
