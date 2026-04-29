@@ -1428,6 +1428,7 @@ sentry__envelope_get_item(const sentry_envelope_t *envelope, size_t idx)
         return NULL;
     }
 
+    // Traverse linked list to find item at index
     size_t current_idx = 0;
     for (sentry_envelope_item_t *item = envelope->contents.items.first_item;
         item; item = item->next) {
