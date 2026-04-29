@@ -198,7 +198,7 @@ breakpad_backend_callback(const google_breakpad::MinidumpDescriptor &descriptor,
                 tmp.type = MINIDUMP;
                 sentry__attachment_set_ref(&tmp, true);
                 tmp.next = nullptr;
-                sentry__cache_ref_attachments(envelope, &tmp,
+                sentry__cache_attachment_refs(envelope, &tmp,
                     options->run->cache_path, &event_id, nullptr);
             }
 

@@ -417,7 +417,7 @@ tus_upload_file(http_transport_state_t *state, const sentry_path_t *cache_path,
 // Collect the non-NULL `path` values from every attachment-ref item in the
 // envelope, into a newly-allocated sentry_value_t list (caller decref's).
 static sentry_value_t
-collect_ref_paths(const sentry_envelope_t *envelope)
+collect_attachment_refs(const sentry_envelope_t *envelope)
 {
     sentry_value_t list = sentry_value_new_list();
     size_t count = sentry__envelope_get_item_count(envelope);
@@ -441,10 +441,11 @@ collect_ref_paths(const sentry_envelope_t *envelope)
 
 // Walk attachment-ref items: for each one with `path` and no `location`,
 // try TUS upload and set `location`. If TUS is unavailable or fails for a
-// given item, transform the ref item to an inline attachment item using the
-// bytes at `<cache_path>/<path>`.
+// given item, transform the attachment-ref item to an inline attachment item
+// using the bytes at `<cache_path>/<path>`.
 static void
-resolve_ref_items(http_transport_state_t *state, sentry_envelope_t *envelope)
+resolve_attachment_refs(
+    http_transport_state_t *state, sentry_envelope_t *envelope)
 {
     if (!state->run || !envelope || sentry__envelope_is_raw(envelope)) {
         return;
@@ -502,7 +503,7 @@ resolve_ref_items(http_transport_state_t *state, sentry_envelope_t *envelope)
 // Before sending to Sentry, strip the `path` field from every attachment-ref
 // item payload. Keeps `location` (which the server needs) and `content_type`.
 static void
-strip_ref_paths(sentry_envelope_t *envelope)
+finalize_attachment_refs(sentry_envelope_t *envelope)
 {
     if (!envelope || sentry__envelope_is_raw(envelope)) {
         return;
@@ -528,9 +529,9 @@ strip_ref_paths(sentry_envelope_t *envelope)
 }
 
 // Delete every cache-sibling file referenced by `paths` (a list of string
-// values produced by `collect_ref_paths`).
+// values produced by `collect_attachment_refs`).
 static void
-cleanup_ref_files(const sentry_run_t *run, sentry_value_t paths)
+prune_attachment_refs(const sentry_run_t *run, sentry_value_t paths)
 {
     if (!run || sentry_value_get_type(paths) != SENTRY_VALUE_TYPE_LIST) {
         return;
@@ -555,13 +556,13 @@ http_send_envelope(
     sentry_envelope_t *envelope, void *_state, sentry_value_t ref_paths)
 {
     http_transport_state_t *state = _state;
-    resolve_ref_items(state, envelope);
-    strip_ref_paths(envelope);
+    resolve_attachment_refs(state, envelope);
+    finalize_attachment_refs(envelope);
 
     sentry_prepared_http_request_t *req = sentry__prepare_http_request(
         envelope, state->dsn, state->ratelimiter, state->user_agent);
     if (!req) {
-        cleanup_ref_files(state->run, ref_paths);
+        prune_attachment_refs(state->run, ref_paths);
         return 0;
     }
     sentry_http_response_t resp;
@@ -569,7 +570,7 @@ http_send_envelope(
     sentry__prepared_http_request_free(req);
     if (status_code >= 0) {
         http_update_ratelimiter(state, &resp);
-        cleanup_ref_files(state->run, ref_paths);
+        prune_attachment_refs(state->run, ref_paths);
     }
     return status_code;
 }
@@ -588,7 +589,7 @@ retry_send_cb(sentry_envelope_t *envelope, void *_state)
             }
         }
     }
-    sentry_value_t ref_paths = collect_ref_paths(envelope);
+    sentry_value_t ref_paths = collect_attachment_refs(envelope);
     int status_code = http_send_envelope(envelope, state, ref_paths);
     sentry_value_decref(ref_paths);
     if (status_code == 0 && state->send_client_reports) {
@@ -635,10 +636,10 @@ http_send_task(void *_envelope, void *_state)
         }
     }
 
-    // Capture staged sibling paths before resolving refs. Inline fallback
-    // rewrites the item content type, so those paths would no longer be
-    // discoverable afterwards.
-    sentry_value_t ref_paths = collect_ref_paths(envelope);
+    // Capture staged sibling paths before resolving attachment-refs. Inline
+    // fallback rewrites the item content type, so those paths would no longer
+    // be discoverable afterwards.
+    sentry_value_t ref_paths = collect_attachment_refs(envelope);
     int status_code = http_send_envelope(envelope, state, ref_paths);
 
     if (status_code < 0) {
@@ -654,7 +655,7 @@ http_send_task(void *_envelope, void *_state)
                 SENTRY_DISCARD_REASON_NETWORK_ERROR, state->ratelimiter);
         }
         if (!persisted) {
-            cleanup_ref_files(state->run, ref_paths);
+            prune_attachment_refs(state->run, ref_paths);
         }
     }
     sentry_value_decref(ref_paths);
@@ -758,13 +759,14 @@ http_transport_send_envelope(sentry_envelope_t *envelope, void *transport_state)
 {
     sentry_bgworker_t *bgworker = transport_state;
     // Raw envelopes that reference TUS-staged siblings need materialization
-    // so the worker can walk and rewrite ref items. Raw envelopes without
-    // refs go through unchanged — the serializer streams them as bytes.
+    // so the worker can walk and rewrite attachment-ref items. Raw envelopes
+    // without attachment-refs go through unchanged — the serializer streams
+    // them as bytes.
     // (Materialize up-front so the bgworker owns the envelope it will free.)
     if (sentry__envelope_has_content_type(
             envelope, "application/vnd.sentry.attachment-ref+json")) {
         if (!sentry__envelope_materialize(envelope)) {
-            SENTRY_WARN("dropping malformed envelope with attachment refs");
+            SENTRY_WARN("dropping malformed envelope with attachment-refs");
             sentry_envelope_free(envelope);
             return;
         }

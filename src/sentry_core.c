@@ -82,7 +82,7 @@ sentry__should_skip_upload(void)
 }
 
 static void
-update_attachments_ref(
+update_attachment_refs(
     sentry_attachment_t *attachments, const sentry_options_t *options)
 {
     for (sentry_attachment_t *it = attachments; it; it = it->next) {
@@ -197,9 +197,9 @@ sentry_init(sentry_options_t *options)
 
     sentry__run_load_user_consent(options->run, options->database_path);
 
-    // Finalize the ref flag on attachments added via
+    // Finalize the attachment-ref flag on attachments added via
     // `sentry_options_add_attachment` before `sentry_init`.
-    update_attachments_ref(options->attachments, options);
+    update_attachment_refs(options->attachments, options);
 
     if (!options->dsn || !options->dsn->is_valid) {
         const char *raw_dsn = sentry_options_get_dsn(options);
@@ -735,7 +735,7 @@ sentry__prepare_event(const sentry_options_t *options, sentry_value_t event,
         goto fail;
     }
 
-    update_attachments_ref(all_attachments, options);
+    update_attachment_refs(all_attachments, options);
 
     SENTRY_WITH_SCOPE (scope) {
         if (all_attachments) {
@@ -747,7 +747,7 @@ sentry__prepare_event(const sentry_options_t *options, sentry_value_t event,
         }
         if (options->run) {
             sentry_uuid_t eid = sentry__envelope_get_event_id(envelope);
-            sentry__cache_ref_attachments(envelope,
+            sentry__cache_attachment_refs(envelope,
                 all_attachments ? all_attachments : scope->attachments,
                 options->run->cache_path, &eid, options->run->run_path);
         }
@@ -838,11 +838,11 @@ prepare_user_feedback(const sentry_options_t *options,
     }
 
     if (hint && hint->attachments) {
-        update_attachments_ref(hint->attachments, options);
+        update_attachment_refs(hint->attachments, options);
         sentry__envelope_add_attachments(envelope, hint->attachments);
         if (options->run) {
             sentry_uuid_t event_id = sentry__envelope_get_event_id(envelope);
-            sentry__cache_ref_attachments(envelope, hint->attachments,
+            sentry__cache_attachment_refs(envelope, hint->attachments,
                 options->run->cache_path, &event_id, options->run->run_path);
         }
     }
@@ -1786,7 +1786,7 @@ sentry_capture_minidump_n(const char *path, size_t path_len)
                 tmp.type = MINIDUMP;
                 sentry__attachment_set_ref(&tmp, true);
                 tmp.next = NULL;
-                sentry__cache_ref_attachments(
+                sentry__cache_attachment_refs(
                     envelope, &tmp, options->run->cache_path, &event_id, NULL);
                 sentry__capture_envelope(options->transport, envelope, options);
                 SENTRY_INFOF(

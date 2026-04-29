@@ -77,7 +77,7 @@ bool sentry__run_write_envelope(
  * `run_path` enables a rename (instead of a copy) when the source is inside
  * that directory; pass NULL to always copy.
  */
-void sentry__cache_ref_attachments(sentry_envelope_t *envelope,
+void sentry__cache_attachment_refs(sentry_envelope_t *envelope,
     const sentry_attachment_t *attachments, const sentry_path_t *cache_path,
     const sentry_uuid_t *event_id, const sentry_path_t *run_path);
 

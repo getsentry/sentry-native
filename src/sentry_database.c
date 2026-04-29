@@ -244,10 +244,10 @@ build_sibling_path(const sentry_path_t *cache_path, const char *uuid_str,
     return sentry__path_unique(cache_path, buf);
 }
 
-// Stage `att` to a sibling file of the cached envelope and append an
+// Cache `att` to a sibling file of the cached envelope and append an
 // attachment-ref item with `path` set. Returns true on success.
 static bool
-stage_ref_attachment(sentry_envelope_t *envelope,
+cache_attachment_ref(sentry_envelope_t *envelope,
     const sentry_attachment_t *att, const sentry_path_t *cache_path,
     const char *uuid_str, const sentry_path_t *run_path)
 {
@@ -291,7 +291,7 @@ stage_ref_attachment(sentry_envelope_t *envelope,
 }
 
 void
-sentry__cache_ref_attachments(sentry_envelope_t *envelope,
+sentry__cache_attachment_refs(sentry_envelope_t *envelope,
     const sentry_attachment_t *attachments, const sentry_path_t *cache_path,
     const sentry_uuid_t *event_id, const sentry_path_t *run_path)
 {
@@ -306,7 +306,7 @@ sentry__cache_ref_attachments(sentry_envelope_t *envelope,
         if (!sentry__attachment_is_ref(att)) {
             continue;
         }
-        stage_ref_attachment(envelope, att, cache_path, uuid_str, run_path);
+        cache_attachment_ref(envelope, att, cache_path, uuid_str, run_path);
     }
 }
 

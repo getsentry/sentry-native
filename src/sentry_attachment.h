@@ -69,7 +69,7 @@ sentry__attachment_set_ref(sentry_attachment_t *att, bool ref)
 }
 
 /**
- * Recomputes the `ref` flag from the given options.
+ * Recomputes the attachment-ref flag from the given options.
  */
 void sentry__attachment_update_ref(
     sentry_attachment_t *att, const sentry_options_t *options);

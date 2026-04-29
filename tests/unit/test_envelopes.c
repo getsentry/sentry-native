@@ -1014,7 +1014,7 @@ SENTRY_TEST(attachment_ref_copy)
     SENTRY_WITH_OPTIONS (opts) {
         db_path = sentry__path_clone(opts->database_path);
         // no run_path passed → copy, not move
-        sentry__cache_ref_attachments(
+        sentry__cache_attachment_refs(
             envelope, attachment, opts->run->cache_path, &event_id, NULL);
     }
 
@@ -1081,7 +1081,7 @@ SENTRY_TEST(attachment_ref_move)
     sentry_envelope_t *envelope = sentry__envelope_new();
     SENTRY_WITH_OPTIONS (opts) {
         // run_path passed → file is renamed (moved)
-        sentry__cache_ref_attachments(
+        sentry__cache_attachment_refs(
             envelope, attachment, opts->run->cache_path, &event_id, run_path);
     }
 

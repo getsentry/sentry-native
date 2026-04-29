@@ -96,10 +96,10 @@ sentry_envelope_item_t *sentry__envelope_add_attachment(
 /**
  * Add an attachment-ref item to this envelope.
  *
- * Builds a JSON payload containing `path` (cache-local basename, set while the
- * ref is backed by a sibling file in the cache dir), `location` (remote URL
- * after TUS upload), and/or `content_type` — omitting keys when NULL. Sets the
- * standard attachment-ref item headers.
+ * Builds a JSON payload containing `path` (cache-local basename, set while
+ * the attachment-ref is backed by a sibling file in the cache dir), `location`
+ * (remote URL after TUS upload), and/or `content_type` — omitting keys when
+ * NULL. Sets the standard attachment-ref item headers.
  *
  * `path` and `location` can coexist: staged → `path` only; after TUS upload →
  * both; the transport strips `path` from the outbound envelope copy.
@@ -110,9 +110,9 @@ sentry_envelope_item_t *sentry__envelope_add_attachment_ref(
     sentry_attachment_type_t attachment_type, size_t attachment_length);
 
 /**
- * Add attachments to this envelope inline. Attachments already marked as refs
- * are skipped; stage those via `sentry__cache_ref_attachments` in
- * sentry_database.h instead.
+ * Add attachments to this envelope inline. Attachments already marked as
+ * attachment-refs are skipped; stage those via
+ * `sentry__cache_attachment_refs` in sentry_database.h instead.
  */
 void sentry__envelope_add_attachments(
     sentry_envelope_t *envelope, const sentry_attachment_t *attachments);
@@ -213,7 +213,8 @@ bool sentry__envelope_item_is_attachment_ref(
 
 /**
  * Parse the JSON payload of an attachment-ref item into a value object. The
- * caller must decref the returned value. Returns a null value on non-refs.
+ * caller must decref the returned value. Returns a null value for items that
+ * are not attachment-refs.
  */
 sentry_value_t sentry__envelope_item_get_attachment_ref_payload(
     const sentry_envelope_item_t *item);
