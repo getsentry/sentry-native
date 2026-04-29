@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1777390970657,
+  "lastUpdate": 1777469003359,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -18976,6 +18976,66 @@ window.BENCHMARK_DATA = {
             "value": 2.0026340000072196,
             "unit": "ms",
             "extra": "Min 1.934ms\nMax 2.071ms\nMean 2.010ms\nStdDev 0.055ms\nMedian 2.003ms\nCPU 0.579ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "jpnurmi@gmail.com",
+            "name": "J-P Nurmi",
+            "username": "jpnurmi"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "c12f4a9baeb51d9a809c359a87638d16f7101c25",
+          "message": "feat(cache): add support for cache siblings (#1685)\n\nCo-authored-by: OpenAI Codex <noreply@openai.com>",
+          "timestamp": "2026-04-29T15:20:40+02:00",
+          "tree_id": "b3fd6f857052da88ad7bd7bca0c17a4dc669ff05",
+          "url": "https://github.com/getsentry/sentry-native/commit/c12f4a9baeb51d9a809c359a87638d16f7101c25"
+        },
+        "date": 1777468998263,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 0.9889170000292324,
+            "unit": "ms",
+            "extra": "Min 0.949ms\nMax 1.044ms\nMean 0.993ms\nStdDev 0.034ms\nMedian 0.989ms\nCPU 0.946ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 0.9021770000003926,
+            "unit": "ms",
+            "extra": "Min 0.890ms\nMax 0.940ms\nMean 0.907ms\nStdDev 0.020ms\nMedian 0.902ms\nCPU 0.900ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 3.2654069999580315,
+            "unit": "ms",
+            "extra": "Min 3.205ms\nMax 3.288ms\nMean 3.256ms\nStdDev 0.031ms\nMedian 3.265ms\nCPU 1.720ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.13153700001566904,
+            "unit": "ms",
+            "extra": "Min 0.123ms\nMax 0.132ms\nMean 0.129ms\nStdDev 0.005ms\nMedian 0.132ms\nCPU 0.079ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.03208800001175405,
+            "unit": "ms",
+            "extra": "Min 0.030ms\nMax 0.033ms\nMean 0.032ms\nStdDev 0.001ms\nMedian 0.032ms\nCPU 0.031ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 1.9261369999412636,
+            "unit": "ms",
+            "extra": "Min 1.882ms\nMax 1.966ms\nMean 1.928ms\nStdDev 0.038ms\nMedian 1.926ms\nCPU 0.538ms"
           }
         ]
       }
