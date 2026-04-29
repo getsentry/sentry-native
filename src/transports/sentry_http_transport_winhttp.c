@@ -249,7 +249,8 @@ winhttp_send_task(void *_client, sentry_prepared_http_request_t *req,
         HANDLE hFile = CreateFileW(req->body_path->path_w, GENERIC_READ,
             FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
         if (hFile == INVALID_HANDLE_VALUE) {
-            SENTRY_WARN("failed to open body_path for upload");
+            SENTRY_WARNF("failed to open request body file \"%s\"",
+                sentry__path_filename(req->body_path));
             goto exit;
         }
 
@@ -258,13 +259,30 @@ winhttp_send_task(void *_client, sentry_prepared_http_request_t *req,
         if (result) {
             char chunk[65536];
             DWORD bytes_read = 0;
-            while (ReadFile(hFile, chunk, sizeof(chunk), &bytes_read, NULL)
-                && bytes_read > 0) {
+            while (true) {
+                if (!ReadFile(hFile, chunk, sizeof(chunk), &bytes_read, NULL)) {
+                    SENTRY_WARNF("failed to read request body file \"%s\" "
+                                 "with code `%d`",
+                        sentry__path_filename(req->body_path), GetLastError());
+                    result = false;
+                    break;
+                }
+                if (bytes_read == 0) {
+                    break;
+                }
+
                 DWORD bytes_written = 0;
                 if (!WinHttpWriteData(
                         client->request, chunk, bytes_read, &bytes_written)) {
-                    SENTRY_WARNF("`WinHttpWriteData` failed with code `%d`",
-                        GetLastError());
+                    SENTRY_WARNF("failed to upload request body file \"%s\" "
+                                 "with code `%d`",
+                        sentry__path_filename(req->body_path), GetLastError());
+                    result = false;
+                    break;
+                }
+                if (bytes_written != bytes_read) {
+                    SENTRY_WARNF("failed to upload request body file \"%s\"",
+                        sentry__path_filename(req->body_path));
                     result = false;
                     break;
                 }

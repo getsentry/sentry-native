@@ -222,7 +222,8 @@ curl_send_task(void *_client, sentry_prepared_http_request_t *req,
     if (req->body_path) {
         body_file = fopen(req->body_path->path, "rb");
         if (!body_file) {
-            SENTRY_WARN("failed to open body_path for upload");
+            SENTRY_WARNF("failed to open request body file \"%s\"",
+                sentry__path_filename(req->body_path));
             curl_slist_free_all(headers);
             return false;
         }
