@@ -1,6 +1,7 @@
 #include "sentry_database.h"
 #include "sentry_alloc.h"
 #include "sentry_attachment.h"
+#include "sentry_client_report.h"
 #include "sentry_envelope.h"
 #include "sentry_json.h"
 #include "sentry_options.h"
@@ -339,7 +340,12 @@ sentry__cache_attachment_refs(sentry_envelope_t *envelope,
         if (!sentry__attachment_is_placeholder(att, options)) {
             continue;
         }
-        cache_attachment_ref(envelope, att, cache_path, uuid_str, run_path);
+        if (!cache_attachment_ref(
+                envelope, att, cache_path, uuid_str, run_path)) {
+            SENTRY_WARN("failed to cache attachment-ref");
+            sentry__client_report_discard(SENTRY_DISCARD_REASON_SEND_ERROR,
+                SENTRY_DATA_CATEGORY_ATTACHMENT, 1);
+        }
     }
 }
 

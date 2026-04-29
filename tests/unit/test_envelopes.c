@@ -1,4 +1,5 @@
 #include "sentry_attachment.h"
+#include "sentry_client_report.h"
 #include "sentry_database.h"
 #include "sentry_envelope.h"
 #include "sentry_json.h"
@@ -1147,6 +1148,43 @@ SENTRY_TEST(attachment_ref_cache_cleanup)
     sentry__path_remove(raw_path);
     sentry__path_free(raw_path);
     sentry_close();
+}
+
+SENTRY_TEST(attachment_ref_cache_discard)
+{
+    SENTRY_TEST_OPTIONS_NEW(options);
+    sentry_options_set_enable_large_attachments(options, true);
+    sentry__client_report_reset();
+
+    sentry_uuid_t event_id
+        = sentry_uuid_from_string("c993afb6-b4ac-48a6-b61b-2558e601d65d");
+    sentry_envelope_t *envelope = sentry__envelope_new();
+    sentry__envelope_set_event_id(envelope, &event_id);
+
+    sentry_path_t *cache_path = sentry__path_from_str(
+        SENTRY_TEST_PATH_PREFIX "sentry_test_attachment_ref_cache_file");
+    TEST_CHECK_INT_EQUAL(sentry__path_write_buffer(cache_path, "x", 1), 0);
+
+    sentry_attachment_t *attachment = sentry__attachment_from_buffer(
+        "x", 1, sentry__path_from_str("large.bin"));
+    attachment->buf_len = SENTRY_LARGE_ATTACHMENT_SIZE;
+
+    sentry__cache_attachment_refs(
+        envelope, attachment, options, cache_path, NULL);
+    TEST_CHECK_INT_EQUAL(sentry__envelope_get_item_count(envelope), 0);
+
+    sentry_client_report_t report = { { 0 } };
+    TEST_CHECK(sentry__client_report_save(&report));
+    TEST_CHECK_INT_EQUAL(report.counts[SENTRY_DISCARD_REASON_SEND_ERROR]
+                                      [SENTRY_DATA_CATEGORY_ATTACHMENT],
+        1);
+
+    sentry__attachment_free(attachment);
+    sentry__path_remove(cache_path);
+    sentry__path_free(cache_path);
+    sentry_envelope_free(envelope);
+    sentry_options_free(options);
+    sentry__client_report_reset();
 }
 
 SENTRY_TEST(attachment_ref_roundtrip)

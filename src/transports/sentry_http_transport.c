@@ -621,7 +621,7 @@ retry_send_cb(sentry_envelope_t *envelope, void *_state)
     } else {
         prune_attachment_refs(state->run, ref_paths, NULL);
     }
-    if (status_code == 0 && reported) {
+    if (status_code <= 0 && reported) {
         sentry__client_report_restore(&report);
     } else if (http_handle_error(status_code) && state->send_client_reports) {
         sentry__client_report_restore(&report);
