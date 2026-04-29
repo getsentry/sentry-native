@@ -139,7 +139,7 @@ bool
 sentry__attachment_is_placeholder(
     const sentry_attachment_t *att, const sentry_options_t *options)
 {
-    return options && options->enable_large_attachments
+    return options && options->enable_large_attachments && att
         && att->type == ATTACHMENT
         && sentry__attachment_get_size(att) >= SENTRY_LARGE_ATTACHMENT_SIZE;
 }
