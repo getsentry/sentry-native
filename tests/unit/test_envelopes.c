@@ -1120,8 +1120,7 @@ SENTRY_TEST(attachment_ref_roundtrip)
     sentry__envelope_add_event(envelope, event);
 
     sentry__envelope_add_attachment_ref(envelope, "abc-crashlog.bin", NULL,
-        "crashlog.bin", "application/octet-stream", ATTACHMENT,
-        sentry_value_new_uint64(12345));
+        "crashlog.bin", "application/octet-stream", ATTACHMENT, 12345);
 
     size_t buf_len = 0;
     char *buf = sentry_envelope_serialize(envelope, &buf_len);
@@ -1155,7 +1154,7 @@ SENTRY_TEST(attachment_ref_raw_content_type)
     sentry_envelope_t *raw = sentry__envelope_from_path(test_file_path);
     TEST_ASSERT(!!raw);
     sentry__envelope_add_attachment_ref(raw, NULL, "https://up.example.com/abc",
-        "dump.dmp", "application/x-dmp", MINIDUMP, sentry_value_new_int32(42));
+        "dump.dmp", "application/x-dmp", MINIDUMP, 42);
 
     size_t size = 0;
     char *serialized = sentry_envelope_serialize(raw, &size);

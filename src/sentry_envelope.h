@@ -107,7 +107,7 @@ sentry_envelope_item_t *sentry__envelope_add_attachment(
 sentry_envelope_item_t *sentry__envelope_add_attachment_ref(
     sentry_envelope_t *envelope, const char *path, const char *location,
     const char *filename, const char *content_type,
-    sentry_attachment_type_t attachment_type, sentry_value_t attachment_length);
+    sentry_attachment_type_t attachment_type, size_t attachment_length);
 
 /**
  * Add attachments to this envelope inline. Attachments already marked as refs

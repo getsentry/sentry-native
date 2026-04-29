@@ -285,8 +285,7 @@ stage_ref_attachment(sentry_envelope_t *envelope,
     }
 
     sentry__envelope_add_attachment_ref(envelope, sentry__path_filename(dst),
-        NULL, raw_filename, att->content_type, att->type,
-        sentry_value_new_uint64((uint64_t)file_size));
+        NULL, raw_filename, att->content_type, att->type, file_size);
     sentry__path_free(dst);
     return true;
 }

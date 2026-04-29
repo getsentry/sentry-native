@@ -647,7 +647,7 @@ str_from_attachment_type(sentry_attachment_type_t attachment_type)
 static bool
 append_raw_attachment_ref(sentry_envelope_t *envelope, const char *path,
     const char *location, const char *filename, const char *content_type,
-    sentry_attachment_type_t attachment_type, sentry_value_t attachment_length)
+    sentry_attachment_type_t attachment_type, size_t attachment_length)
 {
     if (!envelope || !envelope->is_raw || (!path && !location)) {
         return false;
@@ -700,7 +700,8 @@ append_raw_attachment_ref(sentry_envelope_t *envelope, const char *path,
         sentry_value_set_by_key(headers, "attachment_type",
             sentry_value_new_string(str_from_attachment_type(attachment_type)));
     }
-    sentry_value_set_by_key(headers, "attachment_length", attachment_length);
+    sentry_value_set_by_key(headers, "attachment_length",
+        sentry_value_new_uint64((uint64_t)attachment_length));
     sentry__jsonwriter_write_value(jw, headers);
     sentry_value_decref(headers);
     size_t header_len = 0;
@@ -742,9 +743,12 @@ sentry_envelope_item_t *
 sentry__envelope_add_attachment_ref(sentry_envelope_t *envelope,
     const char *path, const char *location, const char *filename,
     const char *content_type, sentry_attachment_type_t attachment_type,
-    sentry_value_t attachment_length)
+    size_t attachment_length)
 {
-    if (envelope && envelope->is_raw) {
+    if (!envelope) {
+        return NULL;
+    }
+    if (envelope->is_raw) {
         append_raw_attachment_ref(envelope, path, location, filename,
             content_type, attachment_type, attachment_length);
         return NULL;
@@ -793,8 +797,8 @@ sentry__envelope_add_attachment_ref(sentry_envelope_t *envelope,
         sentry__envelope_item_set_header(item, "attachment_type",
             sentry_value_new_string(str_from_attachment_type(attachment_type)));
     }
-    sentry__envelope_item_set_header(
-        item, "attachment_length", attachment_length);
+    sentry__envelope_item_set_header(item, "attachment_length",
+        sentry_value_new_uint64((uint64_t)attachment_length));
 
     if (payload) {
         item->payload = payload;
