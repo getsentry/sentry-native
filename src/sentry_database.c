@@ -279,6 +279,7 @@ cache_attachment_ref(sentry_envelope_t *envelope,
                           : sentry__path_copy(att->path, dst);
     }
     if (rv != 0) {
+        sentry__path_remove(dst);
         sentry__path_free(dst);
         return false;
     }
