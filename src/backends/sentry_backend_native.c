@@ -614,8 +614,8 @@ native_backend_write_attachments(const sentry_path_t *event_path)
                     sentry_value_new_string(it->path->path));
                 const char *filename = sentry__path_filename(
                     it->filename ? it->filename : it->path);
-                sentry_value_set_by_key(attach_info, "filename",
-                    sentry_value_new_string(filename));
+                sentry_value_set_by_key(
+                    attach_info, "filename", sentry_value_new_string(filename));
                 if (it->content_type) {
                     sentry_value_set_by_key(attach_info, "content_type",
                         sentry_value_new_string(it->content_type));
