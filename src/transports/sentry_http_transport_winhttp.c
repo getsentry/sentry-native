@@ -254,8 +254,12 @@ winhttp_send_task(void *_client, sentry_prepared_http_request_t *req,
             goto exit;
         }
 
-        result = WinHttpSendRequest(client->request, headers, (DWORD)-1, NULL,
-            0, (DWORD)req->body_len, 0);
+        // https://learn.microsoft.com/en-us/windows/win32/api/winhttp/nf-winhttp-winhttpsendrequest#support-for-greater-than-4-gb-upload
+        DWORD total_length = req->body_len > (size_t)(DWORD)-1
+            ? WINHTTP_IGNORE_REQUEST_TOTAL_LENGTH
+            : (DWORD)req->body_len;
+        result = WinHttpSendRequest(client->request, headers, (DWORD)-1,
+            WINHTTP_NO_REQUEST_DATA, 0, total_length, 0);
         if (result) {
             char chunk[65536];
             DWORD bytes_read = 0;
