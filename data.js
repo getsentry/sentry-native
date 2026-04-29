@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1777472866001,
+  "lastUpdate": 1777472978533,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -38194,6 +38194,66 @@ window.BENCHMARK_DATA = {
             "value": 9.301959000026727,
             "unit": "ms",
             "extra": "Min 8.912ms\nMax 13.987ms\nMean 10.706ms\nStdDev 2.292ms\nMedian 9.302ms\nCPU 1.086ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "jpnurmi@gmail.com",
+            "name": "J-P Nurmi",
+            "username": "jpnurmi"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "2f33e59ff760cfc48822941cf57275a949bc77e0",
+          "message": "feat(transport): Support streaming request bodies from disk (#1686)\n\n* feat(transport): Support streaming request bodies from disk\n\nAllow prepared HTTP requests to opt into a file-backed request body in the\ncurl and winhttp transports.\n\nThis keeps future large request bodies out of memory and isolates the\ntransport plumbing needed by later large-upload work from the TUS\nimplementation.\n\nCo-Authored-By: OpenAI Codex <noreply@openai.com>\n\n* fix(transport): Handle WinHTTP file read failures\n\nTreat ReadFile failures and short WinHttpWriteData writes as failed sends\nfor file-backed request bodies.\n\nOtherwise WinHTTP can wait for a response after sending fewer bytes than\nthe declared request body length.\n\nCo-Authored-By: OpenAI Codex <noreply@openai.com>\n\n* fix(transport): Open curl request bodies with wide paths\n\nUse _wfopen for file-backed curl request bodies on Windows.\n\nThe curl transport is not the default there, but forced curl builds should\nstill preserve the SDK's UTF-8 path handling.\n\nCo-Authored-By: OpenAI Codex <noreply@openai.com>\n\n* fix(transport): Abort curl uploads on file read errors\n\nReturn CURL_READFUNC_ABORT when a file-backed request body cannot be read.\n\nThis prevents read errors from being reported to curl as EOF after declaring\na fixed upload size.\n\nCo-Authored-By: OpenAI Codex <noreply@openai.com>\n\n* fix(transport): Support really large WinHTTP streamed uploads :)\n\nUse WINHTTP_IGNORE_REQUEST_TOTAL_LENGTH for file-backed WinHTTP requests when\nthe body is larger than a DWORD. This preserves the full Content-Length header\ninstead of truncating the request length.\n\nCo-Authored-By: OpenAI Codex <noreply@openai.com>\n\n---------\n\nCo-authored-by: OpenAI Codex <noreply@openai.com>",
+          "timestamp": "2026-04-29T16:25:04+02:00",
+          "tree_id": "d726c5993806b3ea5d7fed8c60a75b9218fb0b74",
+          "url": "https://github.com/getsentry/sentry-native/commit/2f33e59ff760cfc48822941cf57275a949bc77e0"
+        },
+        "date": 1777472973013,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 3.926165999928344,
+            "unit": "ms",
+            "extra": "Min 3.672ms\nMax 4.760ms\nMean 4.157ms\nStdDev 0.474ms\nMedian 3.926ms\nCPU 2.339ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 4.099541999948997,
+            "unit": "ms",
+            "extra": "Min 3.850ms\nMax 4.397ms\nMean 4.119ms\nStdDev 0.225ms\nMedian 4.100ms\nCPU 2.368ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 19.394166999973095,
+            "unit": "ms",
+            "extra": "Min 12.654ms\nMax 21.566ms\nMean 17.274ms\nStdDev 4.099ms\nMedian 19.394ms\nCPU 5.133ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.0698750000083237,
+            "unit": "ms",
+            "extra": "Min 0.064ms\nMax 0.112ms\nMean 0.078ms\nStdDev 0.020ms\nMedian 0.070ms\nCPU 0.056ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.2645419999680598,
+            "unit": "ms",
+            "extra": "Min 0.249ms\nMax 0.729ms\nMean 0.365ms\nStdDev 0.205ms\nMedian 0.265ms\nCPU 0.364ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 7.558625000001484,
+            "unit": "ms",
+            "extra": "Min 6.964ms\nMax 8.008ms\nMean 7.490ms\nStdDev 0.422ms\nMedian 7.559ms\nCPU 1.000ms"
           }
         ]
       }
