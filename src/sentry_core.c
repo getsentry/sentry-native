@@ -1766,8 +1766,7 @@ sentry_capture_minidump_n(const char *path, size_t path_len)
             if (options->enable_large_attachments && options->run
                 && sentry__path_get_size(dump_path)
                     >= SENTRY_LARGE_ATTACHMENT_SIZE) {
-                sentry_attachment_t tmp;
-                memset(&tmp, 0, sizeof(tmp));
+                sentry_attachment_t tmp = { 0 };
                 tmp.path = dump_path;
                 tmp.type = MINIDUMP;
                 sentry__cache_attachment_ref(
