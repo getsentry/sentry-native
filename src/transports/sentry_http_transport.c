@@ -544,6 +544,22 @@ prune_attachment_refs(const sentry_run_t *run, sentry_value_t paths)
     }
 }
 
+static bool
+add_client_report(sentry_envelope_t *envelope, http_transport_state_t *state,
+    sentry_client_report_t *report)
+{
+    if (!state->send_client_reports
+        || !sentry__envelope_can_add_client_report(envelope, state->ratelimiter)
+        || !sentry__client_report_save(report)) {
+        return false;
+    }
+    if (sentry__envelope_add_client_report(envelope, report)) {
+        return true;
+    }
+    sentry__client_report_restore(report);
+    return false;
+}
+
 static int
 http_send_envelope(
     sentry_envelope_t *envelope, void *_state, sentry_value_t ref_paths)
@@ -578,19 +594,11 @@ retry_send_cb(sentry_envelope_t *envelope, void *_state)
 {
     http_transport_state_t *state = _state;
     sentry_client_report_t report = { { 0 } };
-    if (state->send_client_reports
-        && sentry__envelope_can_add_client_report(
-            envelope, state->ratelimiter)) {
-        if (sentry__client_report_save(&report)) {
-            if (!sentry__envelope_add_client_report(envelope, &report)) {
-                sentry__client_report_restore(&report);
-            }
-        }
-    }
+    bool reported = add_client_report(envelope, state, &report);
     sentry_value_t ref_paths = collect_attachment_refs(envelope);
     int status_code = http_send_envelope(envelope, state, ref_paths);
     sentry_value_decref(ref_paths);
-    if (status_code == 0 && state->send_client_reports) {
+    if (status_code == 0 && reported) {
         sentry__client_report_restore(&report);
     } else if (http_handle_error(status_code) && state->send_client_reports) {
         sentry__client_report_restore(&report);
@@ -624,15 +632,7 @@ http_send_task(void *_envelope, void *_state)
     http_transport_state_t *state = _state;
 
     sentry_client_report_t report = { { 0 } };
-    if (state->send_client_reports
-        && sentry__envelope_can_add_client_report(
-            envelope, state->ratelimiter)) {
-        if (sentry__client_report_save(&report)) {
-            if (!sentry__envelope_add_client_report(envelope, &report)) {
-                sentry__client_report_restore(&report);
-            }
-        }
-    }
+    bool reported = add_client_report(envelope, state, &report);
 
     // Capture cached sibling paths before resolving attachment-refs. Resolved
     // or dropped attachment-refs no longer carry local paths afterwards.
@@ -657,7 +657,7 @@ http_send_task(void *_envelope, void *_state)
     }
     sentry_value_decref(ref_paths);
 
-    if (status_code == 0 && state->send_client_reports) {
+    if (status_code == 0 && reported) {
         sentry__client_report_restore(&report);
     } else if (status_code >= 0 && http_handle_error(status_code)) {
         sentry__client_report_restore(&report);
