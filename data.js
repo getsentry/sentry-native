@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1777483314816,
+  "lastUpdate": 1777483321504,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -57532,6 +57532,66 @@ window.BENCHMARK_DATA = {
             "value": 16.660000000001673,
             "unit": "ms",
             "extra": "Min 13.696ms\nMax 22.175ms\nMean 17.847ms\nStdDev 3.354ms\nMedian 16.660ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "tustanivsky@gmail.com",
+            "name": "Ivan Tustanivskyi",
+            "username": "tustanivsky"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "8198e04586b43b5e64682ac956a50d9b2aaef995",
+          "message": "fix(native): preserve attachments added during crash handling (#1687)",
+          "timestamp": "2026-04-29T20:16:35+03:00",
+          "tree_id": "85ba8f76b5e54ad9ba94371da005041d498f6e0f",
+          "url": "https://github.com/getsentry/sentry-native/commit/8198e04586b43b5e64682ac956a50d9b2aaef995"
+        },
+        "date": 1777483313959,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 10.85339999997359,
+            "unit": "ms",
+            "extra": "Min 10.582ms\nMax 11.589ms\nMean 10.953ms\nStdDev 0.382ms\nMedian 10.853ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 10.834799999997813,
+            "unit": "ms",
+            "extra": "Min 10.286ms\nMax 12.230ms\nMean 10.975ms\nStdDev 0.738ms\nMedian 10.835ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 28.005300000017996,
+            "unit": "ms",
+            "extra": "Min 27.451ms\nMax 28.496ms\nMean 27.929ms\nStdDev 0.399ms\nMedian 28.005ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.19579999991492514,
+            "unit": "ms",
+            "extra": "Min 0.189ms\nMax 0.212ms\nMean 0.198ms\nStdDev 0.010ms\nMedian 0.196ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.4501000000800559,
+            "unit": "ms",
+            "extra": "Min 0.398ms\nMax 0.500ms\nMean 0.452ms\nStdDev 0.042ms\nMedian 0.450ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 15.205000000037217,
+            "unit": "ms",
+            "extra": "Min 14.481ms\nMax 17.114ms\nMean 15.346ms\nStdDev 1.044ms\nMedian 15.205ms"
           }
         ]
       }
