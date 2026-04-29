@@ -658,6 +658,9 @@ http_send_task(void *_envelope, void *_state)
     http_transport_state_t *state = _state;
 
     if (!materialize_attachment_refs(envelope)) {
+        sentry_value_t ref_paths = collect_attachment_refs(envelope);
+        prune_attachment_refs(state->run, ref_paths, NULL);
+        sentry_value_decref(ref_paths);
         return;
     }
 
@@ -670,24 +673,19 @@ http_send_task(void *_envelope, void *_state)
     int status_code = http_send_envelope(envelope, state);
 
     if (status_code < 0) {
-        bool persisted = false;
-        if (state->retry) {
-            persisted = sentry__retry_enqueue(state->retry, envelope);
+        const sentry_envelope_t *ref_owner = NULL;
+        if (state->retry && sentry__retry_enqueue(state->retry, envelope)) {
+            ref_owner = envelope;
         } else {
-            if (state->cache_keep) {
-                persisted = sentry__run_write_cache(state->run, envelope, -1);
+            if (!state->retry && state->cache_keep
+                && sentry__run_write_cache(state->run, envelope, -1)) {
+                ref_owner = envelope;
             }
-        }
-        if (!state->retry || !persisted) {
             sentry__client_report_restore(&report);
             sentry__envelope_discard(envelope,
                 SENTRY_DISCARD_REASON_NETWORK_ERROR, state->ratelimiter);
         }
-        if (!persisted) {
-            prune_attachment_refs(state->run, ref_paths, NULL);
-        } else {
-            prune_attachment_refs(state->run, ref_paths, envelope);
-        }
+        prune_attachment_refs(state->run, ref_paths, ref_owner);
     } else {
         prune_attachment_refs(state->run, ref_paths, NULL);
     }
