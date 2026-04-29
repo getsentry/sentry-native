@@ -1481,7 +1481,7 @@ sentry__envelope_materialize(sentry_envelope_t *envelope)
     return ok;
 }
 
-bool
+static bool
 sentry__envelope_item_is_attachment_ref(const sentry_envelope_item_t *item)
 {
     if (!item) {
@@ -1500,11 +1500,11 @@ sentry__envelope_item_get_attachment_ref(
         return false;
     }
     memset(ref, 0, sizeof(*ref));
-    ref->_owner = sentry_value_new_null();
     if (!sentry__envelope_item_is_attachment_ref(item)) {
         return false;
     }
     if (!item->payload) {
+        ref->_owner = sentry_value_new_null();
         return true;
     }
     ref->_owner = sentry__value_from_json(item->payload, item->payload_len);

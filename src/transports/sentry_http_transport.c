@@ -440,12 +440,12 @@ collect_attachment_refs(const sentry_envelope_t *envelope)
 // try TUS upload and set `location`. If TUS is unavailable or fails for a
 // given item, transform the attachment-ref item to an inline attachment item
 // using the bytes at `<cache_path>/<path>`.
-static void
+static bool
 resolve_attachment_refs(
     http_transport_state_t *state, sentry_envelope_t *envelope)
 {
     if (!state->run || !envelope || sentry__envelope_is_raw(envelope)) {
-        return;
+        return true;
     }
     const sentry_path_t *cache_path = state->run->cache_path;
 
@@ -471,11 +471,15 @@ resolve_attachment_refs(
         if (state->has_tus) {
             char *new_location = tus_upload_file(state, cache_path, ref.path);
             if (new_location) {
-                sentry__envelope_item_resolve_attachment_ref(
+                bool resolved = sentry__envelope_item_resolve_attachment_ref(
                     item, new_location);
                 sentry_free(new_location);
+                if (resolved) {
+                    sentry__attachment_ref_cleanup(&ref);
+                    continue;
+                }
                 sentry__attachment_ref_cleanup(&ref);
-                continue;
+                return false;
             }
         }
 
@@ -487,21 +491,30 @@ resolve_attachment_refs(
         }
         sentry__attachment_ref_cleanup(&ref);
     }
+    return true;
 }
 
 // Before sending to Sentry, strip the local `path` from every resolved
 // attachment-ref. Keeps `location` (which the server needs) and content type.
-static void
+static bool
 finalize_attachment_refs(sentry_envelope_t *envelope)
 {
     if (!envelope || sentry__envelope_is_raw(envelope)) {
-        return;
+        return true;
     }
     size_t count = sentry__envelope_get_item_count(envelope);
     for (size_t i = 0; i < count; i++) {
         sentry_envelope_item_t *item = sentry__envelope_get_item(envelope, i);
-        sentry__envelope_item_finalize_attachment_ref(item);
+        sentry_attachment_ref_t ref;
+        if (!sentry__envelope_item_get_attachment_ref(item, &ref)) {
+            continue;
+        }
+        sentry__attachment_ref_cleanup(&ref);
+        if (!sentry__envelope_item_finalize_attachment_ref(item)) {
+            return false;
+        }
     }
+    return true;
 }
 
 // Delete every cache-sibling file referenced by `paths` (a list of string
@@ -532,8 +545,14 @@ http_send_envelope(
     sentry_envelope_t *envelope, void *_state, sentry_value_t ref_paths)
 {
     http_transport_state_t *state = _state;
-    resolve_attachment_refs(state, envelope);
-    finalize_attachment_refs(envelope);
+    if (!resolve_attachment_refs(state, envelope)) {
+        SENTRY_WARN("failed to resolve attachment-ref items");
+        return -1;
+    }
+    if (!finalize_attachment_refs(envelope)) {
+        SENTRY_WARN("failed to finalize attachment-ref items");
+        return -1;
+    }
 
     sentry_prepared_http_request_t *req = sentry__prepare_http_request(
         envelope, state->dsn, state->ratelimiter, state->user_agent);

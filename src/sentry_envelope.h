@@ -206,13 +206,6 @@ const char *sentry__envelope_item_get_payload(
 #endif
 
 /**
- * Returns true if `item` is an attachment-ref (content_type is
- * application/vnd.sentry.attachment-ref+json).
- */
-bool sentry__envelope_item_is_attachment_ref(
-    const sentry_envelope_item_t *item);
-
-/**
  * Parses `item` as an attachment-ref. The returned field values are valid
  * until `sentry__attachment_ref_cleanup` is called.
  */
