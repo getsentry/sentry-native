@@ -101,17 +101,13 @@ sentry_envelope_item_t *sentry__envelope_add_attachment(
     sentry_envelope_t *envelope, const sentry_attachment_t *attachment);
 
 /**
- * Add attachments to this envelope inline. Attachment-ref placeholders are
- * skipped; cache those via
- * `sentry__cache_attachment_refs` in sentry_database.h instead.
+ * Add normal (non-attachment-ref) attachments to this envelope.
  */
 void sentry__envelope_add_attachments(sentry_envelope_t *envelope,
     const sentry_attachment_t *attachments, const sentry_options_t *options);
 
 /**
- * Add an attachment-ref item to this envelope.
- *
- * Adds an attachment-ref item with the standard attachment-ref item headers.
+ * Add an attachment-ref item with standard item headers to this envelope.
  */
 sentry_envelope_item_t *sentry__envelope_add_attachment_ref(
     sentry_envelope_t *envelope, const sentry_attachment_ref_t *ref,
