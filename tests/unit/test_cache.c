@@ -114,7 +114,7 @@ SENTRY_TEST(cache_max_size)
     TEST_ASSERT(sentry__path_remove_all(cache_path) == 0);
     TEST_ASSERT(sentry__path_create_dir_all(cache_path) == 0);
 
-    // Oldest entry is a retry-format envelope with a staged-attachment
+    // Oldest entry is a retry-format envelope with a cache-sibling
     // sibling. Pruning must remove the sibling too — otherwise the sibling
     // would survive as an orphan and the cache_count assertion below trips.
     sentry_uuid_t retry_id = sentry_uuid_new_v4();

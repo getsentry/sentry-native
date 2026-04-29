@@ -222,7 +222,7 @@ sanitize_basename(const char *src, char *out, size_t out_size)
     out[i] = '\0';
 }
 
-// Build the staged sibling path, delegating collision avoidance to
+// Build the cache sibling path, delegating collision avoidance to
 // `sentry__path_unique`. Returns a newly-allocated path owned by the caller,
 // or NULL on failure.
 static sentry_path_t *
@@ -247,7 +247,7 @@ build_sibling_path(const sentry_path_t *cache_path, const char *uuid_str,
 // Cache `att` to a sibling file of the cached envelope and append an
 // attachment-ref item with `path` set. Returns true on success.
 static bool
-cache_attachment_ref_with_uuid(sentry_envelope_t *envelope,
+cache_attachment_ref(sentry_envelope_t *envelope,
     const sentry_attachment_t *att, const sentry_path_t *cache_path,
     const char *uuid_str, const sentry_path_t *run_path)
 {
@@ -286,8 +286,13 @@ cache_attachment_ref_with_uuid(sentry_envelope_t *envelope,
     sentry_attachment_ref_t ref = { 0 };
     ref.path = sentry__path_filename(dst);
     ref.content_type = att->content_type;
-    sentry__envelope_add_attachment_ref(
+    sentry_envelope_item_t *item = sentry__envelope_add_attachment_ref(
         envelope, &ref, raw_filename, att->type, file_size);
+    if (!item) {
+        sentry__path_remove(dst);
+        sentry__path_free(dst);
+        return false;
+    }
     sentry__path_free(dst);
     return true;
 }
@@ -309,7 +314,7 @@ sentry__cache_attachment_ref(sentry_envelope_t *envelope,
     char uuid_str[37];
     sentry_uuid_as_string(&event_id, uuid_str);
 
-    return cache_attachment_ref_with_uuid(
+    return cache_attachment_ref(
         envelope, attachment, cache_path, uuid_str, run_path);
 }
 
@@ -334,8 +339,7 @@ sentry__cache_attachment_refs(sentry_envelope_t *envelope,
         if (!sentry__attachment_is_placeholder(att, options)) {
             continue;
         }
-        cache_attachment_ref_with_uuid(
-            envelope, att, cache_path, uuid_str, run_path);
+        cache_attachment_ref(envelope, att, cache_path, uuid_str, run_path);
     }
 }
 

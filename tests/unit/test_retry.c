@@ -351,7 +351,7 @@ SENTRY_TEST(retry_cache)
     TEST_CHECK(sentry__path_is_file(cached));
 
     // Success on a file at count=5 → removed (successfully delivered);
-    // staged sibling attachment must be removed alongside the envelope.
+    // cache sibling attachment must be removed alongside the envelope.
     sentry__path_remove_all(cache_path);
     sentry__path_create_dir_all(cache_path);
     write_retry_file(options->run, old_ts, 5, &event_id);

@@ -1023,12 +1023,12 @@ SENTRY_TEST(attachment_ref_copy)
     // original file still exists (copied, not moved)
     TEST_CHECK(sentry__path_is_file(test_file_path));
 
-    // staged minidumps keep the legacy <uuid>.dmp name
+    // cached minidumps keep the legacy <uuid>.dmp name
     sentry_path_t *cache_dir = sentry__path_join_str(db_path, "cache");
-    sentry_path_t *staged = sentry__path_join_str(
+    sentry_path_t *cached = sentry__path_join_str(
         cache_dir, "c993afb6-b4ac-48a6-b61b-2558e601d65d.dmp");
     sentry__path_free(cache_dir);
-    TEST_CHECK(sentry__path_is_file(staged));
+    TEST_CHECK(sentry__path_is_file(cached));
 
     // envelope carries an attachment-ref item with the expected headers
     TEST_ASSERT(sentry__envelope_get_item_count(envelope) == 1);
@@ -1037,8 +1037,8 @@ SENTRY_TEST(attachment_ref_copy)
         "c993afb6-b4ac-48a6-b61b-2558e601d65d.dmp");
 
     sentry_envelope_free(envelope);
-    sentry__path_remove(staged);
-    sentry__path_free(staged);
+    sentry__path_remove(cached);
+    sentry__path_free(cached);
     sentry__path_free(db_path);
     sentry__attachment_free(attachment);
     sentry__path_remove(test_file_path);
@@ -1090,12 +1090,12 @@ SENTRY_TEST(attachment_ref_move)
     // run-dir file is gone (renamed)
     TEST_CHECK(!sentry__path_is_file(src_path));
 
-    // staged file exists in cache dir as <uuid>-<filename>
+    // cached file exists in cache dir as <uuid>-<filename>
     sentry_path_t *cache_dir = sentry__path_join_str(db_path, "cache");
-    sentry_path_t *staged = sentry__path_join_str(
+    sentry_path_t *cached = sentry__path_join_str(
         cache_dir, "c993afb6-b4ac-48a6-b61b-2558e601d65d-test_attachment.bin");
     sentry__path_free(cache_dir);
-    TEST_CHECK(sentry__path_is_file(staged));
+    TEST_CHECK(sentry__path_is_file(cached));
 
     // envelope carries an attachment-ref item
     TEST_ASSERT(sentry__envelope_get_item_count(envelope) == 1);
@@ -1104,12 +1104,48 @@ SENTRY_TEST(attachment_ref_move)
         "c993afb6-b4ac-48a6-b61b-2558e601d65d-test_attachment.bin");
 
     sentry_envelope_free(envelope);
-    sentry__path_remove(staged);
-    sentry__path_free(staged);
+    sentry__path_remove(cached);
+    sentry__path_free(cached);
     sentry__path_free(db_path);
     sentry__attachment_free(attachment);
     sentry__path_free(src_path);
     sentry__path_free(run_path);
+    sentry_close();
+}
+
+SENTRY_TEST(attachment_ref_cache_cleanup)
+{
+    SENTRY_TEST_OPTIONS_NEW(options);
+    sentry_init(options);
+
+    const char raw_data[]
+        = "{\"event_id\":\"c993afb6-b4ac-48a6-b61b-2558e601d65d\"}\n";
+    sentry_path_t *raw_path
+        = sentry__path_from_str(SENTRY_TEST_PATH_PREFIX "sentry_test_raw_ref");
+    TEST_CHECK_INT_EQUAL(
+        sentry__path_write_buffer(raw_path, raw_data, sizeof(raw_data) - 1), 0);
+    sentry_envelope_t *raw_envelope = sentry__envelope_from_path(raw_path);
+    TEST_ASSERT(!!raw_envelope);
+
+    sentry_attachment_t *attachment = sentry__attachment_from_buffer(
+        "payload", strlen("payload"), sentry__path_from_str("payload.bin"));
+    sentry_path_t *cache_path = NULL;
+    SENTRY_WITH_OPTIONS (opts) {
+        cache_path = sentry__path_clone(opts->run->cache_path);
+        TEST_CHECK(!sentry__cache_attachment_ref(
+            raw_envelope, attachment, opts->run->cache_path, NULL));
+    }
+
+    sentry_path_t *cached = sentry__path_join_str(
+        cache_path, "c993afb6-b4ac-48a6-b61b-2558e601d65d-payload.bin");
+    TEST_CHECK(!sentry__path_is_file(cached));
+
+    sentry__path_free(cached);
+    sentry__path_free(cache_path);
+    sentry__attachment_free(attachment);
+    sentry_envelope_free(raw_envelope);
+    sentry__path_remove(raw_path);
+    sentry__path_free(raw_path);
     sentry_close();
 }
 

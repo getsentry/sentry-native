@@ -634,7 +634,7 @@ http_send_task(void *_envelope, void *_state)
         }
     }
 
-    // Capture staged sibling paths before resolving attachment-refs. Resolved
+    // Capture cached sibling paths before resolving attachment-refs. Resolved
     // or dropped attachment-refs no longer carry local paths afterwards.
     sentry_value_t ref_paths = collect_attachment_refs(envelope);
     int status_code = http_send_envelope(envelope, state, ref_paths);
@@ -755,7 +755,7 @@ static void
 http_transport_send_envelope(sentry_envelope_t *envelope, void *transport_state)
 {
     sentry_bgworker_t *bgworker = transport_state;
-    // Raw envelopes that reference TUS-staged siblings need materialization
+    // Raw envelopes that reference TUS cache siblings need materialization
     // so the worker can walk and rewrite attachment-ref items. Raw envelopes
     // without attachment-refs go through unchanged — the serializer streams
     // them as bytes.

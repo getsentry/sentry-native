@@ -198,7 +198,7 @@ def test_tus_crash_restart(cmake, httpserver, backend):
     )
 
     # After an in-process crash, the disk transport writes the envelope to
-    # the current run directory and the large attachment is staged to
+    # the current run directory and the large attachment is cached to
     # <cache>/<event-uuid>-<filename>.
     db_dir = os.path.join(tmp_path, ".sentry-native")
     cache_dir = os.path.join(db_dir, "cache")
