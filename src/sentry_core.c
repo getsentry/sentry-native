@@ -733,10 +733,9 @@ sentry__prepare_event(const sentry_options_t *options, sentry_value_t event,
                 envelope, scope->attachments, options);
         }
         if (options->run) {
-            sentry_uuid_t eid = sentry__envelope_get_event_id(envelope);
             sentry__cache_attachment_refs(envelope,
                 all_attachments ? all_attachments : scope->attachments, options,
-                options->run->cache_path, &eid, options->run->run_path);
+                options->run->cache_path, options->run->run_path);
         }
     }
 
@@ -827,9 +826,8 @@ prepare_user_feedback(const sentry_options_t *options,
     if (hint && hint->attachments) {
         sentry__envelope_add_attachments(envelope, hint->attachments, options);
         if (options->run) {
-            sentry_uuid_t event_id = sentry__envelope_get_event_id(envelope);
             sentry__cache_attachment_refs(envelope, hint->attachments, options,
-                options->run->cache_path, &event_id, options->run->run_path);
+                options->run->cache_path, options->run->run_path);
         }
     }
 
@@ -1770,7 +1768,7 @@ sentry_capture_minidump_n(const char *path, size_t path_len)
                 tmp.path = dump_path;
                 tmp.type = MINIDUMP;
                 sentry__cache_attachment_ref(
-                    envelope, &tmp, options->run->cache_path, &event_id, NULL);
+                    envelope, &tmp, options->run->cache_path, NULL);
                 sentry__capture_envelope(options->transport, envelope, options);
                 SENTRY_INFOF(
                     "Minidump has been captured: \"%s\"", dump_path->path);

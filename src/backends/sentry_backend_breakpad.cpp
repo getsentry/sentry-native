@@ -190,13 +190,11 @@ breakpad_backend_callback(const google_breakpad::MinidumpDescriptor &descriptor,
                 sentry__envelope_item_set_header(item, "filename",
                     sentry_value_new_string(sentry__path_filename(dump_path)));
             } else {
-                sentry_uuid_t event_id
-                    = sentry__envelope_get_event_id(envelope);
                 sentry_attachment_t tmp = {};
                 tmp.path = dump_path;
                 tmp.type = MINIDUMP;
-                sentry__cache_attachment_ref(envelope, &tmp,
-                    options->run->cache_path, &event_id, nullptr);
+                sentry__cache_attachment_ref(
+                    envelope, &tmp, options->run->cache_path, nullptr);
             }
 
             if (capture_screenshot) {

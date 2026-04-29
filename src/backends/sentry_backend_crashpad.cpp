@@ -542,11 +542,9 @@ report_to_envelope(const crashpad::CrashReportDatabase::Report &report,
 
         if (sentry__envelope_add_event(envelope, event)) {
             sentry__envelope_add_attachments(envelope, attachments, options);
-            sentry_uuid_t event_id = sentry__envelope_get_event_id(envelope);
             if (options->run) {
                 sentry__cache_attachment_refs(envelope, attachments, options,
-                    options->run->cache_path, &event_id,
-                    options->run->run_path);
+                    options->run->cache_path, options->run->run_path);
             }
         } else {
             sentry_value_decref(event);

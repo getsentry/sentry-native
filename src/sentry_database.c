@@ -292,14 +292,19 @@ cache_attachment_ref_with_uuid(sentry_envelope_t *envelope,
 bool
 sentry__cache_attachment_ref(sentry_envelope_t *envelope,
     const sentry_attachment_t *attachment, const sentry_path_t *cache_path,
-    const sentry_uuid_t *event_id, const sentry_path_t *run_path)
+    const sentry_path_t *run_path)
 {
-    if (!envelope || !attachment || !cache_path || !event_id) {
+    if (!envelope || !attachment || !cache_path) {
+        return false;
+    }
+
+    sentry_uuid_t event_id = sentry__envelope_get_event_id(envelope);
+    if (sentry_uuid_is_nil(&event_id)) {
         return false;
     }
 
     char uuid_str[37];
-    sentry_uuid_as_string(event_id, uuid_str);
+    sentry_uuid_as_string(&event_id, uuid_str);
 
     return cache_attachment_ref_with_uuid(
         envelope, attachment, cache_path, uuid_str, run_path);
@@ -308,15 +313,19 @@ sentry__cache_attachment_ref(sentry_envelope_t *envelope,
 void
 sentry__cache_attachment_refs(sentry_envelope_t *envelope,
     const sentry_attachment_t *attachments, const sentry_options_t *options,
-    const sentry_path_t *cache_path, const sentry_uuid_t *event_id,
-    const sentry_path_t *run_path)
+    const sentry_path_t *cache_path, const sentry_path_t *run_path)
 {
-    if (!envelope || !attachments || !cache_path || !event_id) {
+    if (!envelope || !attachments || !cache_path) {
+        return;
+    }
+
+    sentry_uuid_t event_id = sentry__envelope_get_event_id(envelope);
+    if (sentry_uuid_is_nil(&event_id)) {
         return;
     }
 
     char uuid_str[37];
-    sentry_uuid_as_string(event_id, uuid_str);
+    sentry_uuid_as_string(&event_id, uuid_str);
 
     for (const sentry_attachment_t *att = attachments; att; att = att->next) {
         if (!sentry__attachment_is_placeholder(att, options)) {

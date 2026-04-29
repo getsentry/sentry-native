@@ -988,12 +988,13 @@ SENTRY_TEST(attachment_ref_copy)
     sentry_attachment_set_content_type(attachment, "application/x-dmp");
 
     sentry_envelope_t *envelope = sentry__envelope_new();
+    sentry__envelope_set_event_id(envelope, &event_id);
     sentry_path_t *db_path = NULL;
     SENTRY_WITH_OPTIONS (opts) {
         db_path = sentry__path_clone(opts->database_path);
         // no run_path passed → copy, not move
         sentry__cache_attachment_ref(
-            envelope, attachment, opts->run->cache_path, &event_id, NULL);
+            envelope, attachment, opts->run->cache_path, NULL);
     }
 
     // original file still exists (copied, not moved)
@@ -1056,10 +1057,11 @@ SENTRY_TEST(attachment_ref_move)
     attachment->type = ATTACHMENT;
 
     sentry_envelope_t *envelope = sentry__envelope_new();
+    sentry__envelope_set_event_id(envelope, &event_id);
     SENTRY_WITH_OPTIONS (opts) {
         // run_path passed → file is renamed (moved)
         sentry__cache_attachment_ref(
-            envelope, attachment, opts->run->cache_path, &event_id, run_path);
+            envelope, attachment, opts->run->cache_path, run_path);
     }
 
     // run-dir file is gone (renamed)

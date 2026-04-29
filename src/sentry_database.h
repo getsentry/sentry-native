@@ -79,15 +79,14 @@ bool sentry__run_write_envelope(
  */
 bool sentry__cache_attachment_ref(sentry_envelope_t *envelope,
     const sentry_attachment_t *attachment, const sentry_path_t *cache_path,
-    const sentry_uuid_t *event_id, const sentry_path_t *run_path);
+    const sentry_path_t *run_path);
 
 /**
  * Cache every attachment that should be represented as an attachment-ref.
  */
 void sentry__cache_attachment_refs(sentry_envelope_t *envelope,
     const sentry_attachment_t *attachments, const sentry_options_t *options,
-    const sentry_path_t *cache_path, const sentry_uuid_t *event_id,
-    const sentry_path_t *run_path);
+    const sentry_path_t *cache_path, const sentry_path_t *run_path);
 
 /**
  * This will serialize and write the given envelope to disk into a file named
