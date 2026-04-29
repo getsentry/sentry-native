@@ -127,11 +127,16 @@ void sentry__process_old_runs(
     const sentry_options_t *options, uint64_t last_crash);
 
 /**
- * Parses a retry cache filename: `<ts>-<count>-<uuid>.envelope`.
- * Returns false for plain cache filenames (`<uuid>.envelope`).
+ * Parses a retry cache filename (`<ts>-<count>-<uuid>.envelope`) or plain
+ * cache filename (`<uuid>.envelope`). Plain cache filenames return count -1.
  */
 bool sentry__parse_cache_filename(const char *filename, uint64_t *ts_out,
     int *count_out, const char **uuid_out);
+
+/**
+ * Removes an envelope and any cache siblings sharing the same UUID prefix.
+ */
+void sentry__cache_remove_envelope(const sentry_path_t *envelope_path);
 
 /**
  * Cleans up the cache based on options.cache_max_items,

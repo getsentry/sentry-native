@@ -41,7 +41,8 @@ find_envelope_attempt(const sentry_path_t *dir)
         uint64_t ts;
         int attempt;
         const char *uuid;
-        if (sentry__parse_cache_filename(name, &ts, &attempt, &uuid)) {
+        if (sentry__parse_cache_filename(name, &ts, &attempt, &uuid)
+            && attempt >= 0) {
             sentry__pathiter_free(iter);
             return attempt;
         }
@@ -107,8 +108,11 @@ SENTRY_TEST(retry_filename)
         &uuid));
 
     // cache filename (no timestamp/count)
-    TEST_CHECK(!sentry__parse_cache_filename(
+    TEST_CHECK(sentry__parse_cache_filename(
         "abcdefab-1234-5678-9abc-def012345678.envelope", &ts, &count, &uuid));
+    TEST_CHECK_UINT64_EQUAL(ts, 0);
+    TEST_CHECK_INT_EQUAL(count, -1);
+    TEST_CHECK(strncmp(uuid, "abcdefab-1234-5678-9abc-def012345678", 36) == 0);
 
     // missing .envelope suffix
     TEST_CHECK(!sentry__parse_cache_filename(
