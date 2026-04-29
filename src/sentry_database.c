@@ -302,7 +302,7 @@ sentry__cache_attachment_refs(sentry_envelope_t *envelope,
     sentry_uuid_as_string(event_id, uuid_str);
 
     for (const sentry_attachment_t *att = attachments; att; att = att->next) {
-        if (!sentry__attachment_is_ref(att)) {
+        if (!att->ref) {
             continue;
         }
         cache_attachment_ref(envelope, att, cache_path, uuid_str, run_path);

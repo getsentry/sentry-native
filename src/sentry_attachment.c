@@ -125,10 +125,9 @@ void
 sentry__attachment_update_ref(
     sentry_attachment_t *att, const sentry_options_t *options)
 {
-    sentry__attachment_set_ref(att,
-        options && options->enable_large_attachments && att->type == ATTACHMENT
-            && sentry__attachment_get_size(att)
-                >= SENTRY_LARGE_ATTACHMENT_SIZE);
+    att->ref = options && options->enable_large_attachments
+        && att->type == ATTACHMENT
+        && sentry__attachment_get_size(att) >= SENTRY_LARGE_ATTACHMENT_SIZE;
 }
 
 void
@@ -184,7 +183,7 @@ sentry__attachments_add(sentry_attachment_t **attachments_ptr,
     }
     attachment->type = attachment_type;
     attachment->content_type = sentry__string_clone(content_type);
-    sentry__attachment_set_ref(attachment, false);
+    attachment->ref = false;
 
     sentry_attachment_t **next_ptr = attachments_ptr;
 

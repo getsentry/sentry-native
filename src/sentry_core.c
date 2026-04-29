@@ -1784,7 +1784,7 @@ sentry_capture_minidump_n(const char *path, size_t path_len)
                 memset(&tmp, 0, sizeof(tmp));
                 tmp.path = dump_path;
                 tmp.type = MINIDUMP;
-                sentry__attachment_set_ref(&tmp, true);
+                tmp.ref = true;
                 tmp.next = NULL;
                 sentry__cache_attachment_refs(
                     envelope, &tmp, options->run->cache_path, &event_id, NULL);

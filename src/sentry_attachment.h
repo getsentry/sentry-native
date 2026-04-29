@@ -51,24 +51,6 @@ struct sentry_attachment_s {
 size_t sentry__attachment_get_size(const sentry_attachment_t *attachment);
 
 /**
- * Returns true if the attachment should be represented as an attachment-ref.
- */
-static inline bool
-sentry__attachment_is_ref(const sentry_attachment_t *att)
-{
-    return att->ref;
-}
-
-/**
- * Sets whether the attachment should be represented as an attachment-ref.
- */
-static inline void
-sentry__attachment_set_ref(sentry_attachment_t *att, bool ref)
-{
-    att->ref = ref;
-}
-
-/**
  * Recomputes the attachment-ref flag from the given options.
  */
 void sentry__attachment_update_ref(
