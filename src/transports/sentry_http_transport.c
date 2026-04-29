@@ -436,10 +436,9 @@ collect_attachment_refs(const sentry_envelope_t *envelope)
     return list;
 }
 
-// Walk attachment-ref items: for each one with `path` and no `location`,
-// try TUS upload and set `location`. If TUS is unavailable or fails for a
-// given item, transform the attachment-ref item to an inline attachment item
-// using the bytes at `<cache_path>/<path>`.
+// Walk attachment-ref items: for each one with `path` and no `location`, try
+// TUS upload and set `location`. If TUS is unavailable or fails for a given
+// item, drop it and send the event without the large attachment.
 static bool
 resolve_attachment_refs(
     http_transport_state_t *state, sentry_envelope_t *envelope)
@@ -449,22 +448,26 @@ resolve_attachment_refs(
     }
     const sentry_path_t *cache_path = state->run->cache_path;
 
-    size_t count = sentry__envelope_get_item_count(envelope);
-    for (size_t i = 0; i < count; i++) {
+    size_t i = 0;
+    while (i < sentry__envelope_get_item_count(envelope)) {
         sentry_envelope_item_t *item = sentry__envelope_get_item(envelope, i);
         sentry_attachment_ref_t ref;
         if (!sentry__envelope_item_get_attachment_ref(item, &ref)) {
+            i++;
             continue;
         }
 
-        if (!ref.path || !*ref.path) {
-            // Already uploaded (location only) or malformed — leave as-is.
-            sentry__attachment_ref_cleanup(&ref);
-            continue;
-        }
         if (ref.location && *ref.location) {
             // Crash-resume: TUS already done on a prior attempt. Nothing to do.
             sentry__attachment_ref_cleanup(&ref);
+            i++;
+            continue;
+        }
+        if (!ref.path || !*ref.path) {
+            sentry__attachment_ref_cleanup(&ref);
+            if (!sentry__envelope_remove_item(envelope, item)) {
+                return false;
+            }
             continue;
         }
 
@@ -476,41 +479,42 @@ resolve_attachment_refs(
                 sentry_free(new_location);
                 if (resolved) {
                     sentry__attachment_ref_cleanup(&ref);
+                    i++;
                     continue;
                 }
-                sentry__attachment_ref_cleanup(&ref);
-                return false;
             }
         }
 
-        // TUS disabled or failed for this item → transform to inline.
-        sentry_path_t *file_path = sentry__path_join_str(cache_path, ref.path);
-        if (file_path) {
-            sentry__envelope_item_inline_from_path(item, file_path);
-            sentry__path_free(file_path);
-        }
         sentry__attachment_ref_cleanup(&ref);
+        if (!sentry__envelope_remove_item(envelope, item)) {
+            return false;
+        }
     }
     return true;
 }
 
 // Before sending to Sentry, strip the local `path` from every resolved
-// attachment-ref. Keeps `location` (which the server needs) and content type.
+// attachment-ref. If finalization fails, drop the attachment-ref item.
 static bool
 finalize_attachment_refs(sentry_envelope_t *envelope)
 {
     if (!envelope || sentry__envelope_is_raw(envelope)) {
         return true;
     }
-    size_t count = sentry__envelope_get_item_count(envelope);
-    for (size_t i = 0; i < count; i++) {
+    size_t i = 0;
+    while (i < sentry__envelope_get_item_count(envelope)) {
         sentry_envelope_item_t *item = sentry__envelope_get_item(envelope, i);
         sentry_attachment_ref_t ref;
         if (!sentry__envelope_item_get_attachment_ref(item, &ref)) {
+            i++;
             continue;
         }
         sentry__attachment_ref_cleanup(&ref);
-        if (!sentry__envelope_item_finalize_attachment_ref(item)) {
+        if (sentry__envelope_item_finalize_attachment_ref(item)) {
+            i++;
+            continue;
+        }
+        if (!sentry__envelope_remove_item(envelope, item)) {
             return false;
         }
     }
@@ -553,11 +557,11 @@ http_send_envelope(
         SENTRY_WARN("failed to finalize attachment-ref items");
         return -1;
     }
+    prune_attachment_refs(state->run, ref_paths);
 
     sentry_prepared_http_request_t *req = sentry__prepare_http_request(
         envelope, state->dsn, state->ratelimiter, state->user_agent);
     if (!req) {
-        prune_attachment_refs(state->run, ref_paths);
         return 0;
     }
     sentry_http_response_t resp;
@@ -565,7 +569,6 @@ http_send_envelope(
     sentry__prepared_http_request_free(req);
     if (status_code >= 0) {
         http_update_ratelimiter(state, &resp);
-        prune_attachment_refs(state->run, ref_paths);
     }
     return status_code;
 }
@@ -631,9 +634,8 @@ http_send_task(void *_envelope, void *_state)
         }
     }
 
-    // Capture staged sibling paths before resolving attachment-refs. Inline
-    // fallback rewrites the item content type, so those paths would no longer
-    // be discoverable afterwards.
+    // Capture staged sibling paths before resolving attachment-refs. Resolved
+    // or dropped attachment-refs no longer carry local paths afterwards.
     sentry_value_t ref_paths = collect_attachment_refs(envelope);
     int status_code = http_send_envelope(envelope, state, ref_paths);
 

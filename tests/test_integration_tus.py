@@ -151,8 +151,8 @@ def test_tus_upload_404_disables(cmake, httpserver):
 
     assert envelope_req is not None
 
-    # TUS 404: attachment-refs were cached but not resolved, so envelope has
-    # no attachment-ref items
+    # TUS 404: attachment-refs are dropped, so the envelope has no
+    # attachment-ref items
     body = envelope_req.get_data()
     envelope = Envelope.deserialize(body)
     for item in envelope:

@@ -196,6 +196,8 @@ bool sentry__envelope_is_raw(const sentry_envelope_t *envelope);
 size_t sentry__envelope_get_item_count(const sentry_envelope_t *envelope);
 sentry_envelope_item_t *sentry__envelope_get_item(
     const sentry_envelope_t *envelope, size_t idx);
+bool sentry__envelope_remove_item(
+    sentry_envelope_t *envelope, sentry_envelope_item_t *item);
 
 // these for now are only needed for tests
 #ifdef SENTRY_UNITTEST
@@ -231,14 +233,6 @@ bool sentry__envelope_item_finalize_attachment_ref(
  * No-op if already structured. Returns true on success.
  */
 bool sentry__envelope_materialize(sentry_envelope_t *envelope);
-
-/**
- * Transform an attachment-ref item into an inline `attachment` item by
- * reading the file at `file_path`. The `filename`, `attachment_type`, and
- * `content_type` headers are preserved. Returns true on success.
- */
-bool sentry__envelope_item_inline_from_path(
-    sentry_envelope_item_t *item, const sentry_path_t *file_path);
 
 /**
  * True if `envelope` contains at least one item with the given `content_type`

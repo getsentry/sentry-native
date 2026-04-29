@@ -1441,6 +1441,38 @@ sentry__envelope_get_item(const sentry_envelope_t *envelope, size_t idx)
     return NULL;
 }
 
+bool
+sentry__envelope_remove_item(
+    sentry_envelope_t *envelope, sentry_envelope_item_t *item)
+{
+    if (!envelope || envelope->is_raw || !item) {
+        return false;
+    }
+
+    sentry_envelope_item_t *prev = NULL;
+    sentry_envelope_item_t *cur = envelope->contents.items.first_item;
+    while (cur) {
+        if (cur == item) {
+            if (prev) {
+                prev->next = cur->next;
+            } else {
+                envelope->contents.items.first_item = cur->next;
+            }
+            if (envelope->contents.items.last_item == cur) {
+                envelope->contents.items.last_item = prev;
+            }
+            envelope->contents.items.item_count--;
+            envelope_item_cleanup(cur);
+            sentry_free(cur);
+            return true;
+        }
+        prev = cur;
+        cur = cur->next;
+    }
+
+    return false;
+}
+
 // these for now are only needed for tests
 #ifdef SENTRY_UNITTEST
 sentry_value_t
@@ -1591,29 +1623,6 @@ sentry__envelope_item_finalize_attachment_ref(sentry_envelope_item_t *item)
     bool ok = set_attachment_ref_payload(item, &finalized);
     sentry__attachment_ref_cleanup(&ref);
     return ok;
-}
-
-bool
-sentry__envelope_item_inline_from_path(
-    sentry_envelope_item_t *item, const sentry_path_t *file_path)
-{
-    if (!item || !file_path) {
-        return false;
-    }
-    size_t buf_len = 0;
-    char *buf = sentry__path_read_to_buffer(file_path, &buf_len);
-    if (!buf) {
-        return false;
-    }
-    sentry_free(item->payload);
-    item->payload = buf;
-    item->payload_len = buf_len;
-    sentry__envelope_item_set_header(item, "content_type",
-        sentry_value_new_string("application/octet-stream"));
-    sentry_value_remove_by_key(item->headers, "attachment_length");
-    sentry__envelope_item_set_header(
-        item, "length", sentry_value_new_int32((int32_t)buf_len));
-    return true;
 }
 
 bool

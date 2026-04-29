@@ -758,6 +758,34 @@ SENTRY_TEST(envelope_materialize)
     sentry__path_free(path);
 }
 
+SENTRY_TEST(envelope_remove_item)
+{
+    sentry_envelope_t *envelope = sentry__envelope_new();
+    sentry_envelope_item_t *first
+        = sentry__envelope_add_from_buffer(envelope, "one", 3, "attachment");
+    sentry_envelope_item_t *second
+        = sentry__envelope_add_from_buffer(envelope, "two", 3, "attachment");
+
+    TEST_ASSERT(!!first);
+    TEST_ASSERT(!!second);
+    TEST_CHECK_INT_EQUAL(sentry__envelope_get_item_count(envelope), 2);
+
+    TEST_CHECK(sentry__envelope_remove_item(envelope, first));
+    TEST_CHECK_INT_EQUAL(sentry__envelope_get_item_count(envelope), 1);
+    TEST_CHECK(sentry__envelope_get_item(envelope, 0) == second);
+
+    size_t payload_len = 0;
+    TEST_CHECK_STRING_EQUAL(
+        sentry__envelope_item_get_payload(second, &payload_len), "two");
+    TEST_CHECK_INT_EQUAL(payload_len, 3);
+
+    TEST_CHECK(sentry__envelope_remove_item(envelope, second));
+    TEST_CHECK_INT_EQUAL(sentry__envelope_get_item_count(envelope), 0);
+    TEST_CHECK(!sentry__envelope_get_item(envelope, 0));
+
+    sentry_envelope_free(envelope);
+}
+
 SENTRY_TEST(tus_upload_url)
 {
     SENTRY_TEST_DSN_NEW_DEFAULT(dsn);
@@ -1113,46 +1141,6 @@ SENTRY_TEST(attachment_ref_roundtrip)
         "application/octet-stream", NULL, 12345, "abc-crashlog.bin");
 
     sentry_envelope_free(parsed);
-}
-
-SENTRY_TEST(attachment_ref_inline_from_path)
-{
-    const char *test_file_str
-        = SENTRY_TEST_PATH_PREFIX "sentry_test_attachment_ref_inline";
-    sentry_path_t *test_file_path = sentry__path_from_str(test_file_str);
-    char data[] = "inline";
-    TEST_CHECK_INT_EQUAL(
-        sentry__path_write_buffer(test_file_path, data, sizeof(data) - 1), 0);
-
-    sentry_envelope_t *envelope = sentry__envelope_new();
-    sentry_attachment_ref_t ref = { 0 };
-    ref.path = "cached.bin";
-    ref.content_type = "application/x-test";
-    sentry_envelope_item_t *item = sentry__envelope_add_attachment_ref(
-        envelope, &ref, "foo.bin", ATTACHMENT, 12345);
-    TEST_ASSERT(!!item);
-    TEST_CHECK(!sentry_value_is_null(
-        sentry__envelope_item_get_header(item, "attachment_length")));
-
-    TEST_CHECK(sentry__envelope_item_inline_from_path(item, test_file_path));
-    TEST_CHECK_STRING_EQUAL(
-        sentry_value_as_string(
-            sentry__envelope_item_get_header(item, "content_type")),
-        "application/octet-stream");
-    TEST_CHECK(sentry_value_is_null(
-        sentry__envelope_item_get_header(item, "attachment_length")));
-    TEST_CHECK_INT_EQUAL(
-        sentry_value_as_int32(sentry__envelope_item_get_header(item, "length")),
-        sizeof(data) - 1);
-
-    size_t payload_len = 0;
-    TEST_CHECK_STRING_EQUAL(
-        sentry__envelope_item_get_payload(item, &payload_len), data);
-    TEST_CHECK_INT_EQUAL(payload_len, sizeof(data) - 1);
-
-    sentry_envelope_free(envelope);
-    sentry__path_remove(test_file_path);
-    sentry__path_free(test_file_path);
 }
 
 SENTRY_TEST(deserialize_envelope_invalid)
