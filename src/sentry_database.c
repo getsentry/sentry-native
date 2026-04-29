@@ -235,12 +235,12 @@ build_sibling_path(const sentry_path_t *cache_path, const char *uuid_str,
         return sentry__path_unique(cache_path, buf);
     }
 
-    char sanitized[200];
-    sanitize_basename(
-        sentry__attachment_get_filename(att), sanitized, sizeof(sanitized));
-
     char buf[256];
-    snprintf(buf, sizeof(buf), "%s-%s", uuid_str, sanitized);
+    memcpy(buf, uuid_str, 36);
+    buf[36] = '-';
+    sanitize_basename(
+        sentry__attachment_get_filename(att), buf + 37, sizeof(buf) - 37);
+
     return sentry__path_unique(cache_path, buf);
 }
 
