@@ -311,6 +311,115 @@ SENTRY_TEST(cache_max_items_with_retry)
     sentry_close();
 }
 
+SENTRY_TEST(cache_remove_siblings)
+{
+#if defined(SENTRY_PLATFORM_NX) || defined(SENTRY_PLATFORM_PS)
+    SKIP_TEST();
+#endif
+    SENTRY_TEST_OPTIONS_NEW(options);
+    sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
+    sentry_init(options);
+
+    sentry_path_t *cache_path
+        = sentry__path_join_str(options->database_path, "cache");
+    TEST_ASSERT(!!cache_path);
+    TEST_ASSERT(sentry__path_remove_all(cache_path) == 0);
+    TEST_ASSERT(sentry__path_create_dir_all(cache_path) == 0);
+
+    sentry_path_t *retry_env_path = sentry__path_join_str(cache_path,
+        "1234567890-01-c993afb6-b4ac-48a6-b61b-2558e601d65d.envelope");
+    sentry_path_t *bare_env_path = sentry__path_join_str(
+        cache_path, "c993afb6-b4ac-48a6-b61b-2558e601d65d.envelope");
+    sentry_path_t *dmp_path = sentry__path_join_str(
+        cache_path, "c993afb6-b4ac-48a6-b61b-2558e601d65d.dmp");
+    sentry_path_t *sibling_path = sentry__path_join_str(
+        cache_path, "c993afb6-b4ac-48a6-b61b-2558e601d65d-attachment.bin");
+    sentry_path_t *unrelated_path = sentry__path_join_str(
+        cache_path, "c993afb6-b4ac-48a6-b61b-2558e601d65d_attachment.bin");
+    TEST_ASSERT(!!retry_env_path);
+    TEST_ASSERT(!!bare_env_path);
+    TEST_ASSERT(!!dmp_path);
+    TEST_ASSERT(!!sibling_path);
+    TEST_ASSERT(!!unrelated_path);
+
+    TEST_ASSERT(sentry__path_write_buffer(retry_env_path, "retry", 5) == 0);
+    TEST_ASSERT(sentry__path_write_buffer(bare_env_path, "cached", 6) == 0);
+    TEST_ASSERT(sentry__path_write_buffer(dmp_path, "dmp", 3) == 0);
+    TEST_ASSERT(sentry__path_write_buffer(sibling_path, "attachment", 10) == 0);
+    TEST_ASSERT(sentry__path_write_buffer(unrelated_path, "keep", 4) == 0);
+
+    sentry__cache_remove_envelope(retry_env_path);
+
+    TEST_CHECK(!sentry__path_is_file(retry_env_path));
+    TEST_CHECK(sentry__path_is_file(bare_env_path));
+    TEST_CHECK(!sentry__path_is_file(dmp_path));
+    TEST_CHECK(!sentry__path_is_file(sibling_path));
+    TEST_CHECK(sentry__path_is_file(unrelated_path));
+
+    sentry__path_remove(bare_env_path);
+    sentry__path_remove(unrelated_path);
+    sentry__path_free(retry_env_path);
+    sentry__path_free(bare_env_path);
+    sentry__path_free(dmp_path);
+    sentry__path_free(sibling_path);
+    sentry__path_free(unrelated_path);
+    sentry__path_free(cache_path);
+    sentry_close();
+}
+
+SENTRY_TEST(cache_prune_siblings)
+{
+#if defined(SENTRY_PLATFORM_NX) || defined(SENTRY_PLATFORM_PS)
+    SKIP_TEST();
+#endif
+    SENTRY_TEST_OPTIONS_NEW(options);
+    sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
+    sentry_options_set_cache_keep(options, true);
+    sentry_options_set_cache_max_items(options, 1);
+    sentry_init(options);
+
+    sentry_path_t *cache_path
+        = sentry__path_join_str(options->database_path, "cache");
+    TEST_ASSERT(!!cache_path);
+    TEST_ASSERT(sentry__path_remove_all(cache_path) == 0);
+    TEST_ASSERT(sentry__path_create_dir_all(cache_path) == 0);
+
+    time_t now = time(NULL);
+    sentry_path_t *new_env = sentry__path_join_str(
+        cache_path, "c993afb6-b4ac-48a6-b61b-2558e601d65d.envelope");
+    sentry_path_t *old_env = sentry__path_join_str(
+        cache_path, "97e8cc2b-94f6-42ef-ae56-bc67015e7f22.envelope");
+    sentry_path_t *old_dmp = sentry__path_join_str(
+        cache_path, "97e8cc2b-94f6-42ef-ae56-bc67015e7f22.dmp");
+    sentry_path_t *old_sibling = sentry__path_join_str(
+        cache_path, "97e8cc2b-94f6-42ef-ae56-bc67015e7f22-attachment.bin");
+    TEST_ASSERT(!!new_env);
+    TEST_ASSERT(!!old_env);
+    TEST_ASSERT(!!old_dmp);
+    TEST_ASSERT(!!old_sibling);
+
+    TEST_ASSERT(sentry__path_touch(new_env) == 0);
+    TEST_ASSERT(sentry__path_touch(old_env) == 0);
+    TEST_ASSERT(sentry__path_write_buffer(old_dmp, "dmp", 3) == 0);
+    TEST_ASSERT(sentry__path_write_buffer(old_sibling, "attachment", 10) == 0);
+    TEST_ASSERT(set_file_mtime(new_env, now) == 0);
+    TEST_ASSERT(set_file_mtime(old_env, now - 60) == 0);
+
+    sentry__cleanup_cache(options);
+
+    TEST_CHECK(sentry__path_is_file(new_env));
+    TEST_CHECK(!sentry__path_is_file(old_env));
+    TEST_CHECK(!sentry__path_is_file(old_dmp));
+    TEST_CHECK(!sentry__path_is_file(old_sibling));
+
+    sentry__path_free(new_env);
+    sentry__path_free(old_env);
+    sentry__path_free(old_dmp);
+    sentry__path_free(old_sibling);
+    sentry__path_free(cache_path);
+    sentry_close();
+}
+
 SENTRY_TEST(cache_consent_revoked)
 {
 #if defined(SENTRY_PLATFORM_NX) || defined(SENTRY_PLATFORM_PS)
