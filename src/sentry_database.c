@@ -785,6 +785,24 @@ sentry__cache_remove_envelope(const sentry_path_t *envelope_path)
 }
 
 void
+sentry__cache_remove_siblings(
+    const sentry_run_t *run, const sentry_uuid_t *event_id)
+{
+    if (!run || sentry_uuid_is_nil(event_id)) {
+        return;
+    }
+
+    char uuid[37];
+    sentry_uuid_as_string(event_id, uuid);
+    sentry_path_t *path = sentry__run_make_cache_path(run, 0, -1, uuid);
+    if (!path) {
+        return;
+    }
+    foreach_cache_sibling(path, remove_file, NULL);
+    sentry__path_free(path);
+}
+
+void
 sentry__cleanup_cache(const sentry_options_t *options)
 {
     if (!options->database_path) {

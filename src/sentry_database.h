@@ -165,6 +165,12 @@ bool sentry__parse_cache_filename(const char *filename, uint64_t *ts_out,
 void sentry__cache_remove_envelope(const sentry_path_t *envelope_path);
 
 /**
+ * Removes cache siblings sharing the given event UUID prefix.
+ */
+void sentry__cache_remove_siblings(
+    const sentry_run_t *run, const sentry_uuid_t *event_id);
+
+/**
  * Cleans up the cache based on options.cache_max_items,
  * options.cache_max_size and options.cache_max_age.
  */
