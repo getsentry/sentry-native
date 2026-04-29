@@ -559,6 +559,8 @@ resolve_attachment_refs(
         }
 
         sentry__attachment_ref_cleanup(&ref);
+        sentry__client_report_discard(SENTRY_DISCARD_REASON_SEND_ERROR,
+            SENTRY_DATA_CATEGORY_ATTACHMENT, 1);
         if (!sentry__envelope_remove_item(envelope, item)) {
             return false;
         }

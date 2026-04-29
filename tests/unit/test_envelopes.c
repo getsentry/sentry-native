@@ -1307,6 +1307,7 @@ SENTRY_TEST(tus_file_attachment_preserves_original)
     sentry_transport_t *transport
         = sentry__http_transport_new(NULL, tus_mock_send);
     TEST_CHECK(!!transport);
+    sentry__client_report_reset();
 
     SENTRY_TEST_OPTIONS_NEW(options);
     sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
@@ -1321,6 +1322,12 @@ SENTRY_TEST(tus_file_attachment_preserves_original)
     sentry_close();
 
     TEST_CHECK(sentry__path_is_file(test_file_path));
+    sentry_client_report_t report = { { 0 } };
+    TEST_CHECK(sentry__client_report_save(&report));
+    TEST_CHECK_INT_EQUAL(report.counts[SENTRY_DISCARD_REASON_SEND_ERROR]
+                                      [SENTRY_DATA_CATEGORY_ATTACHMENT],
+        1);
+    sentry__client_report_reset();
 
     sentry__path_remove(test_file_path);
     sentry__path_free(test_file_path);
