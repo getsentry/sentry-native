@@ -424,17 +424,14 @@ collect_attachment_refs(const sentry_envelope_t *envelope)
     for (size_t i = 0; i < count; i++) {
         const sentry_envelope_item_t *item
             = sentry__envelope_get_item(envelope, i);
-        if (!sentry__envelope_item_is_attachment_ref(item)) {
+        sentry_attachment_ref_t ref;
+        if (!sentry__envelope_item_get_attachment_ref(item, &ref)) {
             continue;
         }
-        sentry_value_t payload
-            = sentry__envelope_item_get_attachment_ref_payload(item);
-        const char *path
-            = sentry_value_as_string(sentry_value_get_by_key(payload, "path"));
-        if (path && *path) {
-            sentry_value_append(list, sentry_value_new_string(path));
+        if (ref.path && *ref.path) {
+            sentry_value_append(list, sentry_value_new_string(ref.path));
         }
-        sentry_value_decref(payload);
+        sentry__attachment_ref_cleanup(&ref);
     }
     return list;
 }
@@ -455,53 +452,45 @@ resolve_attachment_refs(
     size_t count = sentry__envelope_get_item_count(envelope);
     for (size_t i = 0; i < count; i++) {
         sentry_envelope_item_t *item = sentry__envelope_get_item(envelope, i);
-        if (!sentry__envelope_item_is_attachment_ref(item)) {
+        sentry_attachment_ref_t ref;
+        if (!sentry__envelope_item_get_attachment_ref(item, &ref)) {
             continue;
         }
 
-        sentry_value_t payload
-            = sentry__envelope_item_get_attachment_ref_payload(item);
-        const char *path
-            = sentry_value_as_string(sentry_value_get_by_key(payload, "path"));
-        const char *location = sentry_value_as_string(
-            sentry_value_get_by_key(payload, "location"));
-        const char *content_type = sentry_value_as_string(
-            sentry_value_get_by_key(payload, "content_type"));
-
-        if (!path || !*path) {
+        if (!ref.path || !*ref.path) {
             // Already uploaded (location only) or malformed — leave as-is.
-            sentry_value_decref(payload);
+            sentry__attachment_ref_cleanup(&ref);
             continue;
         }
-        if (location && *location) {
+        if (ref.location && *ref.location) {
             // Crash-resume: TUS already done on a prior attempt. Nothing to do.
-            sentry_value_decref(payload);
+            sentry__attachment_ref_cleanup(&ref);
             continue;
         }
 
         if (state->has_tus) {
-            char *new_location = tus_upload_file(state, cache_path, path);
+            char *new_location = tus_upload_file(state, cache_path, ref.path);
             if (new_location) {
-                sentry__envelope_item_set_attachment_ref_payload(item, path,
-                    new_location, *content_type ? content_type : NULL);
+                sentry__envelope_item_resolve_attachment_ref(
+                    item, new_location);
                 sentry_free(new_location);
-                sentry_value_decref(payload);
+                sentry__attachment_ref_cleanup(&ref);
                 continue;
             }
         }
 
         // TUS disabled or failed for this item → transform to inline.
-        sentry_path_t *file_path = sentry__path_join_str(cache_path, path);
+        sentry_path_t *file_path = sentry__path_join_str(cache_path, ref.path);
         if (file_path) {
             sentry__envelope_item_inline_from_path(item, file_path);
             sentry__path_free(file_path);
         }
-        sentry_value_decref(payload);
+        sentry__attachment_ref_cleanup(&ref);
     }
 }
 
-// Before sending to Sentry, strip the `path` field from every attachment-ref
-// item payload. Keeps `location` (which the server needs) and `content_type`.
+// Before sending to Sentry, strip the local `path` from every resolved
+// attachment-ref. Keeps `location` (which the server needs) and content type.
 static void
 finalize_attachment_refs(sentry_envelope_t *envelope)
 {
@@ -511,20 +500,7 @@ finalize_attachment_refs(sentry_envelope_t *envelope)
     size_t count = sentry__envelope_get_item_count(envelope);
     for (size_t i = 0; i < count; i++) {
         sentry_envelope_item_t *item = sentry__envelope_get_item(envelope, i);
-        if (!sentry__envelope_item_is_attachment_ref(item)) {
-            continue;
-        }
-        sentry_value_t payload
-            = sentry__envelope_item_get_attachment_ref_payload(item);
-        const char *location = sentry_value_as_string(
-            sentry_value_get_by_key(payload, "location"));
-        const char *content_type = sentry_value_as_string(
-            sentry_value_get_by_key(payload, "content_type"));
-        if (location && *location) {
-            sentry__envelope_item_set_attachment_ref_payload(
-                item, NULL, location, *content_type ? content_type : NULL);
-        }
-        sentry_value_decref(payload);
+        sentry__envelope_item_finalize_attachment_ref(item);
     }
 }
 

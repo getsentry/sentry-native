@@ -283,8 +283,11 @@ cache_attachment_ref_with_uuid(sentry_envelope_t *envelope,
     }
 
     size_t file_size = sentry__path_get_size(dst);
-    sentry__envelope_add_attachment_ref(envelope, sentry__path_filename(dst),
-        NULL, raw_filename, att->content_type, att->type, file_size);
+    sentry_attachment_ref_t ref = { 0 };
+    ref.path = sentry__path_filename(dst);
+    ref.content_type = att->content_type;
+    sentry__envelope_add_attachment_ref(
+        envelope, &ref, raw_filename, att->type, file_size);
     sentry__path_free(dst);
     return true;
 }

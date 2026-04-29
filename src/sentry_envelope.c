@@ -644,11 +644,43 @@ str_from_attachment_type(sentry_attachment_type_t attachment_type)
     }
 }
 
+static bool
+attachment_ref_has_payload(const sentry_attachment_ref_t *ref)
+{
+    return ref && (ref->path || ref->location || ref->content_type);
+}
+
+static char *
+attachment_ref_payload_to_string(
+    const sentry_attachment_ref_t *ref, size_t *payload_len)
+{
+    *payload_len = 0;
+    sentry_jsonwriter_t *jw = sentry__jsonwriter_new_sb(NULL);
+    if (!jw) {
+        return NULL;
+    }
+    sentry_value_t obj = sentry_value_new_object();
+    if (ref->path) {
+        sentry_value_set_by_key(
+            obj, "path", sentry_value_new_string(ref->path));
+    }
+    if (ref->location) {
+        sentry_value_set_by_key(
+            obj, "location", sentry_value_new_string(ref->location));
+    }
+    if (ref->content_type) {
+        sentry_value_set_by_key(
+            obj, "content_type", sentry_value_new_string(ref->content_type));
+    }
+    sentry__jsonwriter_write_value(jw, obj);
+    sentry_value_decref(obj);
+    return sentry__jsonwriter_into_string(jw, payload_len);
+}
+
 sentry_envelope_item_t *
 sentry__envelope_add_attachment_ref(sentry_envelope_t *envelope,
-    const char *path, const char *location, const char *filename,
-    const char *content_type, sentry_attachment_type_t attachment_type,
-    size_t attachment_length)
+    const sentry_attachment_ref_t *ref, const char *filename,
+    sentry_attachment_type_t attachment_type, size_t attachment_length)
 {
     if (!envelope) {
         return NULL;
@@ -658,26 +690,8 @@ sentry__envelope_add_attachment_ref(sentry_envelope_t *envelope,
     }
     size_t payload_len = 0;
     char *payload = NULL;
-    if (path || location || content_type) {
-        sentry_jsonwriter_t *jw = sentry__jsonwriter_new_sb(NULL);
-        if (!jw) {
-            return NULL;
-        }
-        sentry_value_t obj = sentry_value_new_object();
-        if (path) {
-            sentry_value_set_by_key(obj, "path", sentry_value_new_string(path));
-        }
-        if (location) {
-            sentry_value_set_by_key(
-                obj, "location", sentry_value_new_string(location));
-        }
-        if (content_type) {
-            sentry_value_set_by_key(
-                obj, "content_type", sentry_value_new_string(content_type));
-        }
-        sentry__jsonwriter_write_value(jw, obj);
-        sentry_value_decref(obj);
-        payload = sentry__jsonwriter_into_string(jw, &payload_len);
+    if (attachment_ref_has_payload(ref)) {
+        payload = attachment_ref_payload_to_string(ref, &payload_len);
         if (!payload) {
             return NULL;
         }
@@ -1478,49 +1492,104 @@ sentry__envelope_item_is_attachment_ref(const sentry_envelope_item_t *item)
     return ct && strcmp(ct, "application/vnd.sentry.attachment-ref+json") == 0;
 }
 
-sentry_value_t
-sentry__envelope_item_get_attachment_ref_payload(
-    const sentry_envelope_item_t *item)
+bool
+sentry__envelope_item_get_attachment_ref(
+    const sentry_envelope_item_t *item, sentry_attachment_ref_t *ref)
 {
-    if (!sentry__envelope_item_is_attachment_ref(item) || !item->payload) {
-        return sentry_value_new_null();
+    if (!ref) {
+        return false;
     }
-    return sentry__value_from_json(item->payload, item->payload_len);
+    memset(ref, 0, sizeof(*ref));
+    ref->_owner = sentry_value_new_null();
+    if (!sentry__envelope_item_is_attachment_ref(item)) {
+        return false;
+    }
+    if (!item->payload) {
+        return true;
+    }
+    ref->_owner = sentry__value_from_json(item->payload, item->payload_len);
+    ref->path
+        = sentry_value_as_string(sentry_value_get_by_key(ref->_owner, "path"));
+    ref->location = sentry_value_as_string(
+        sentry_value_get_by_key(ref->_owner, "location"));
+    ref->content_type = sentry_value_as_string(
+        sentry_value_get_by_key(ref->_owner, "content_type"));
+    return true;
 }
 
 void
-sentry__envelope_item_set_attachment_ref_payload(sentry_envelope_item_t *item,
-    const char *path, const char *location, const char *content_type)
+sentry__attachment_ref_cleanup(sentry_attachment_ref_t *ref)
 {
-    if (!item) {
+    if (!ref) {
         return;
     }
-    sentry_value_t obj = sentry_value_new_object();
-    if (path) {
-        sentry_value_set_by_key(obj, "path", sentry_value_new_string(path));
+    sentry_value_decref(ref->_owner);
+    memset(ref, 0, sizeof(*ref));
+}
+
+static bool
+set_attachment_ref_payload(
+    sentry_envelope_item_t *item, const sentry_attachment_ref_t *ref)
+{
+    if (!item || !attachment_ref_has_payload(ref)) {
+        return false;
     }
-    if (location) {
-        sentry_value_set_by_key(
-            obj, "location", sentry_value_new_string(location));
-    }
-    if (content_type) {
-        sentry_value_set_by_key(
-            obj, "content_type", sentry_value_new_string(content_type));
-    }
-    sentry_jsonwriter_t *jw = sentry__jsonwriter_new_sb(NULL);
-    if (!jw) {
-        sentry_value_decref(obj);
-        return;
-    }
-    sentry__jsonwriter_write_value(jw, obj);
-    sentry_value_decref(obj);
     size_t payload_len = 0;
-    char *payload = sentry__jsonwriter_into_string(jw, &payload_len);
+    char *payload = attachment_ref_payload_to_string(ref, &payload_len);
+    if (!payload) {
+        return false;
+    }
     sentry_free(item->payload);
     item->payload = payload;
     item->payload_len = payload_len;
     sentry__envelope_item_set_header(
         item, "length", sentry_value_new_int32((int32_t)payload_len));
+    return true;
+}
+
+bool
+sentry__envelope_item_resolve_attachment_ref(
+    sentry_envelope_item_t *item, const char *location)
+{
+    if (!sentry__guarded_strlen(location)) {
+        return false;
+    }
+    sentry_attachment_ref_t ref;
+    if (!sentry__envelope_item_get_attachment_ref(item, &ref)) {
+        return false;
+    }
+    sentry_attachment_ref_t resolved = { 0 };
+    if (sentry__guarded_strlen(ref.path)) {
+        resolved.path = ref.path;
+    }
+    resolved.location = location;
+    if (sentry__guarded_strlen(ref.content_type)) {
+        resolved.content_type = ref.content_type;
+    }
+    bool ok = set_attachment_ref_payload(item, &resolved);
+    sentry__attachment_ref_cleanup(&ref);
+    return ok;
+}
+
+bool
+sentry__envelope_item_finalize_attachment_ref(sentry_envelope_item_t *item)
+{
+    sentry_attachment_ref_t ref;
+    if (!sentry__envelope_item_get_attachment_ref(item, &ref)) {
+        return false;
+    }
+    if (!sentry__guarded_strlen(ref.location)) {
+        sentry__attachment_ref_cleanup(&ref);
+        return false;
+    }
+    sentry_attachment_ref_t finalized = { 0 };
+    finalized.location = ref.location;
+    if (sentry__guarded_strlen(ref.content_type)) {
+        finalized.content_type = ref.content_type;
+    }
+    bool ok = set_attachment_ref_payload(item, &finalized);
+    sentry__attachment_ref_cleanup(&ref);
+    return ok;
 }
 
 bool

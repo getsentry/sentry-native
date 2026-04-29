@@ -17,6 +17,13 @@
 
 typedef struct sentry_envelope_item_s sentry_envelope_item_t;
 
+typedef struct {
+    const char *path;
+    const char *location;
+    const char *content_type;
+    sentry_value_t _owner;
+} sentry_attachment_ref_t;
+
 /**
  * Create a new empty envelope.
  */
@@ -104,18 +111,12 @@ void sentry__envelope_add_attachments(sentry_envelope_t *envelope,
 /**
  * Add an attachment-ref item to this envelope.
  *
- * Builds a JSON payload containing `path` (cache-local basename, set while
- * the attachment-ref is backed by a sibling file in the cache dir), `location`
- * (remote URL after TUS upload), and/or `content_type` — omitting keys when
- * NULL. Sets the standard attachment-ref item headers.
- *
- * `path` and `location` can coexist: staged → `path` only; after TUS upload →
- * both; the transport strips `path` from the outbound envelope copy.
+ * Adds an attachment-ref item with the standard attachment-ref item headers.
  */
 sentry_envelope_item_t *sentry__envelope_add_attachment_ref(
-    sentry_envelope_t *envelope, const char *path, const char *location,
-    const char *filename, const char *content_type,
-    sentry_attachment_type_t attachment_type, size_t attachment_length);
+    sentry_envelope_t *envelope, const sentry_attachment_ref_t *ref,
+    const char *filename, sentry_attachment_type_t attachment_type,
+    size_t attachment_length);
 
 /**
  * Returns true if a client report can be added to the envelope, i.e., the
@@ -216,20 +217,25 @@ bool sentry__envelope_item_is_attachment_ref(
     const sentry_envelope_item_t *item);
 
 /**
- * Parse the JSON payload of an attachment-ref item into a value object. The
- * caller must decref the returned value. Returns a null value for items that
- * are not attachment-refs.
+ * Parses `item` as an attachment-ref. The returned field values are valid
+ * until `sentry__attachment_ref_cleanup` is called.
  */
-sentry_value_t sentry__envelope_item_get_attachment_ref_payload(
-    const sentry_envelope_item_t *item);
+bool sentry__envelope_item_get_attachment_ref(
+    const sentry_envelope_item_t *item, sentry_attachment_ref_t *ref);
+
+void sentry__attachment_ref_cleanup(sentry_attachment_ref_t *ref);
 
 /**
- * Rewrite the JSON payload of an attachment-ref item from the given fields.
- * Pass NULL to omit a field. Updates the `length` header to match.
+ * Resolves an attachment-ref item with a remote TUS location.
  */
-void sentry__envelope_item_set_attachment_ref_payload(
-    sentry_envelope_item_t *item, const char *path, const char *location,
-    const char *content_type);
+bool sentry__envelope_item_resolve_attachment_ref(
+    sentry_envelope_item_t *item, const char *location);
+
+/**
+ * Finalizes an attachment-ref item for sending by stripping the local path.
+ */
+bool sentry__envelope_item_finalize_attachment_ref(
+    sentry_envelope_item_t *item);
 
 /**
  * If `envelope` is raw, parse it in place into a structured envelope.

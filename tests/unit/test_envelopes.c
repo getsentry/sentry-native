@@ -951,18 +951,13 @@ check_attachment_ref_item(const sentry_envelope_t *envelope, size_t item_idx,
     }
     TEST_CHECK(actual_len == expected_length);
 
-    size_t payload_len = 0;
-    const char *payload = sentry__envelope_item_get_payload(item, &payload_len);
-    sentry_value_t payload_obj = sentry__value_from_json(payload, payload_len);
-    TEST_CHECK_STRING_EQUAL(
-        sentry_value_as_string(sentry_value_get_by_key(payload_obj, "path")),
-        expected_path);
+    sentry_attachment_ref_t ref;
+    TEST_CHECK(sentry__envelope_item_get_attachment_ref(item, &ref));
+    TEST_CHECK_STRING_EQUAL(ref.path, expected_path);
     if (expected_content_type) {
-        TEST_CHECK_STRING_EQUAL(sentry_value_as_string(sentry_value_get_by_key(
-                                    payload_obj, "content_type")),
-            expected_content_type);
+        TEST_CHECK_STRING_EQUAL(ref.content_type, expected_content_type);
     }
-    sentry_value_decref(payload_obj);
+    sentry__attachment_ref_cleanup(&ref);
 }
 
 SENTRY_TEST(attachment_ref_copy)
@@ -1098,8 +1093,11 @@ SENTRY_TEST(attachment_ref_roundtrip)
     sentry_value_t event = sentry_value_new_object();
     sentry__envelope_add_event(envelope, event);
 
-    sentry__envelope_add_attachment_ref(envelope, "abc-crashlog.bin", NULL,
-        "crashlog.bin", "application/octet-stream", ATTACHMENT, 12345);
+    sentry_attachment_ref_t ref = { 0 };
+    ref.path = "abc-crashlog.bin";
+    ref.content_type = "application/octet-stream";
+    sentry__envelope_add_attachment_ref(
+        envelope, &ref, "crashlog.bin", ATTACHMENT, 12345);
 
     size_t buf_len = 0;
     char *buf = sentry_envelope_serialize(envelope, &buf_len);
@@ -1127,8 +1125,11 @@ SENTRY_TEST(attachment_ref_inline_from_path)
         sentry__path_write_buffer(test_file_path, data, sizeof(data) - 1), 0);
 
     sentry_envelope_t *envelope = sentry__envelope_new();
-    sentry_envelope_item_t *item = sentry__envelope_add_attachment_ref(envelope,
-        "cached.bin", NULL, "foo.bin", "application/x-test", ATTACHMENT, 12345);
+    sentry_attachment_ref_t ref = { 0 };
+    ref.path = "cached.bin";
+    ref.content_type = "application/x-test";
+    sentry_envelope_item_t *item = sentry__envelope_add_attachment_ref(
+        envelope, &ref, "foo.bin", ATTACHMENT, 12345);
     TEST_ASSERT(!!item);
     TEST_CHECK(!sentry_value_is_null(
         sentry__envelope_item_get_header(item, "attachment_length")));
@@ -1351,17 +1352,12 @@ SENTRY_TEST(tus_placeholder_uses_raw_location)
     size_t count = sentry__envelope_get_item_count(parsed);
     for (size_t i = 0; i < count; i++) {
         sentry_envelope_item_t *item = sentry__envelope_get_item(parsed, i);
-        if (!sentry__envelope_item_is_attachment_ref(item)) {
+        sentry_attachment_ref_t ref;
+        if (!sentry__envelope_item_get_attachment_ref(item, &ref)) {
             continue;
         }
-        size_t payload_len = 0;
-        const char *payload
-            = sentry__envelope_item_get_payload(item, &payload_len);
-        sentry_value_t obj = sentry__value_from_json(payload, payload_len);
-        const char *location
-            = sentry_value_as_string(sentry_value_get_by_key(obj, "location"));
-        TEST_CHECK_STRING_EQUAL(location, TUS_RELATIVE_LOCATION);
-        sentry_value_decref(obj);
+        TEST_CHECK_STRING_EQUAL(ref.location, TUS_RELATIVE_LOCATION);
+        sentry__attachment_ref_cleanup(&ref);
         found_ref = true;
     }
     TEST_CHECK(found_ref);
