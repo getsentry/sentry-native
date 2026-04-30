@@ -9,6 +9,7 @@ from . import (
     Envelope,
     SENTRY_VERSION,
 )
+from .assertions import assert_attachment
 from .conditions import has_breakpad, has_http, is_qemu
 
 pytestmark = pytest.mark.skipif(not has_http, reason="tests need http")
@@ -20,7 +21,7 @@ auth_header = (
 # fmt: on
 
 
-def test_tus_upload_large_attachment(cmake, httpserver):
+def test_tus_upload(cmake, httpserver):
     tmp_path = cmake(
         ["sentry_example"],
         {"SENTRY_BACKEND": "none"},
@@ -58,7 +59,7 @@ def test_tus_upload_large_attachment(cmake, httpserver):
     run(
         tmp_path,
         "sentry_example",
-        ["log", "no-setup", "large-attachment", "capture-event"],
+        ["log", "no-setup", "attachment", "large-attachment", "capture-event"],
         env=env,
     )
 
@@ -92,9 +93,12 @@ def test_tus_upload_large_attachment(cmake, httpserver):
     assert upload_req.headers.get("content-type") == "application/offset+octet-stream"
     assert upload_req.headers.get("upload-offset") == "0"
 
-    # The envelope contains the event and the attachment-ref
+    # The envelope contains normal small attachments and the large
+    # attachment-ref.
     body = envelope_req.get_data()
     envelope = Envelope.deserialize(body)
+    assert_attachment(envelope)
+
     attachment_ref = None
     for item in envelope:
         if (
@@ -117,7 +121,7 @@ def test_tus_upload_large_attachment(cmake, httpserver):
         assert leftovers == []
 
 
-def test_tus_upload_404_disables(cmake, httpserver):
+def test_tus_error(cmake, httpserver):
     tmp_path = cmake(
         ["sentry_example"],
         {"SENTRY_BACKEND": "none"},
@@ -152,8 +156,7 @@ def test_tus_upload_404_disables(cmake, httpserver):
 
     assert envelope_req is not None
 
-    # TUS 404: attachment-refs are dropped, so the envelope has no
-    # attachment-ref items
+    # TUS create failure drops attachment-refs but still sends the envelope.
     body = envelope_req.get_data()
     envelope = Envelope.deserialize(body)
     for item in envelope:
@@ -168,7 +171,7 @@ def test_tus_upload_404_disables(cmake, httpserver):
         assert leftovers == []
 
 
-def test_tus_skips_rate_limited_attachments(cmake, httpserver):
+def test_tus_rate_limit(cmake, httpserver):
     tmp_path = cmake(
         ["sentry_example"],
         {"SENTRY_BACKEND": "none"},
@@ -370,29 +373,3 @@ def test_tus_crash_restart(cmake, httpserver, backend):
     # Staged sibling files should be cleaned up after successful send.
     leftover_siblings = [f for f in os.listdir(cache_dir) if f.startswith(base)]
     assert leftover_siblings == []
-
-
-def test_small_attachment_no_tus(cmake, httpserver):
-    tmp_path = cmake(
-        ["sentry_example"],
-        {"SENTRY_BACKEND": "none"},
-    )
-
-    httpserver.expect_oneshot_request(
-        "/api/123456/envelope/",
-        headers={"x-sentry-auth": auth_header},
-    ).respond_with_data("OK")
-
-    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
-
-    run(
-        tmp_path,
-        "sentry_example",
-        ["log", "no-setup", "attachment", "capture-event"],
-        env=env,
-    )
-
-    # Only 1 request - no TUS upload for small attachments
-    assert len(httpserver.log) == 1
-    req = httpserver.log[0][0]
-    assert "/envelope/" in req.path
