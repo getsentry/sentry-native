@@ -6,6 +6,20 @@
 #include "sentry_utils.h"
 #include "transports/sentry_http_transport.h"
 
+#if !defined(SENTRY_PLATFORM_ANDROID) && !defined(SENTRY_PLATFORM_NX)          \
+    && !defined(SENTRY_PLATFORM_PS) && !defined(SENTRY_PLATFORM_XBOX)
+static void
+create_large_test_file(const char *path)
+{
+    FILE *f = fopen(path, "wb");
+    TEST_ASSERT(!!f);
+    TEST_ASSERT_INT_EQUAL(
+        fseek(f, (long)(SENTRY_LARGE_ATTACHMENT_SIZE - 1), SEEK_SET), 0);
+    TEST_ASSERT(fputc(0, f) != EOF);
+    TEST_ASSERT_INT_EQUAL(fclose(f), 0);
+}
+#endif
+
 SENTRY_TEST(tus_upload_url)
 {
     SENTRY_TEST_DSN_NEW_DEFAULT(dsn);
@@ -112,16 +126,14 @@ tus_mock_send(void *client, sentry_prepared_http_request_t *req,
 
 SENTRY_TEST(tus_file_attachment_preserves_original)
 {
+#if defined(SENTRY_PLATFORM_ANDROID) || defined(SENTRY_PLATFORM_NX)            \
+    || defined(SENTRY_PLATFORM_PS) || defined(SENTRY_PLATFORM_XBOX)
+    SKIP_TEST();
+#else
     const char *test_file_str
         = SENTRY_TEST_PATH_PREFIX "sentry_test_tus_preserve";
     sentry_path_t *test_file_path = sentry__path_from_str(test_file_str);
-
-    size_t large_size = 100 * 1024 * 1024;
-    FILE *f = fopen(test_file_str, "wb");
-    TEST_CHECK(!!f);
-    fseek(f, (long)(large_size - 1), SEEK_SET);
-    fputc(0, f);
-    fclose(f);
+    create_large_test_file(test_file_str);
 
     sentry_transport_t *transport
         = sentry__http_transport_new(NULL, tus_mock_send);
@@ -150,6 +162,7 @@ SENTRY_TEST(tus_file_attachment_preserves_original)
 
     sentry__path_remove(test_file_path);
     sentry__path_free(test_file_path);
+#endif
 }
 
 typedef struct {
@@ -178,22 +191,16 @@ tus_create_failure_send(void *client, sentry_prepared_http_request_t *req,
 
 SENTRY_TEST(tus_upload_error)
 {
+#if defined(SENTRY_PLATFORM_ANDROID) || defined(SENTRY_PLATFORM_NX)            \
+    || defined(SENTRY_PLATFORM_PS) || defined(SENTRY_PLATFORM_XBOX)
+    SKIP_TEST();
+#else
     const char *file1_str = SENTRY_TEST_PATH_PREFIX "sentry_test_tus_error_1";
     const char *file2_str = SENTRY_TEST_PATH_PREFIX "sentry_test_tus_error_2";
     sentry_path_t *file1_path = sentry__path_from_str(file1_str);
     sentry_path_t *file2_path = sentry__path_from_str(file2_str);
-
-    size_t large_size = 100 * 1024 * 1024;
-    FILE *f = fopen(file1_str, "wb");
-    TEST_ASSERT(!!f);
-    fseek(f, (long)(large_size - 1), SEEK_SET);
-    fputc(0, f);
-    fclose(f);
-    f = fopen(file2_str, "wb");
-    TEST_ASSERT(!!f);
-    fseek(f, (long)(large_size - 1), SEEK_SET);
-    fputc(0, f);
-    fclose(f);
+    create_large_test_file(file1_str);
+    create_large_test_file(file2_str);
 
     tus_create_failure_state_t state = { 0 };
     sentry_transport_t *transport
@@ -221,6 +228,7 @@ SENTRY_TEST(tus_upload_error)
     sentry__path_remove(file2_path);
     sentry__path_free(file1_path);
     sentry__path_free(file2_path);
+#endif
 }
 
 // Mock that drives a full TUS round-trip: returns a relative `Location` from
@@ -273,12 +281,7 @@ SENTRY_TEST(tus_placeholder_uses_raw_location)
     const char *test_file_str
         = SENTRY_TEST_PATH_PREFIX "sentry_test_tus_raw_location";
     sentry_path_t *test_file_path = sentry__path_from_str(test_file_str);
-    size_t large_size = 100 * 1024 * 1024;
-    FILE *f = fopen(test_file_str, "wb");
-    TEST_ASSERT(!!f);
-    fseek(f, (long)(large_size - 1), SEEK_SET);
-    fputc(0, f);
-    fclose(f);
+    create_large_test_file(test_file_str);
 
     tus_capture_state_t cap = { 0 };
     sentry_transport_t *transport

@@ -13,9 +13,12 @@ from . import (
     SENTRY_VERSION,
 )
 from .assertions import assert_attachment
-from .conditions import has_breakpad, has_http, is_qemu
+from .conditions import has_breakpad, has_files, has_http, is_qemu
 
-pytestmark = pytest.mark.skipif(not has_http, reason="tests need http")
+pytestmark = [
+    pytest.mark.skipif(not has_http, reason="tests need http transport"),
+    pytest.mark.skipif(not has_files, reason="tests need local filesystem"),
+]
 
 # fmt: off
 auth_header = (
