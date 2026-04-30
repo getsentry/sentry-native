@@ -274,6 +274,7 @@ typedef struct {
     bool attach_screenshot; // Screenshot attachment enabled in parent process
     bool cache_keep;
     bool require_user_consent;
+    bool enable_large_attachments;
 
     // Atomic user consent (sentry_user_consent_t), updated whenever user
     // consent changes so the daemon can honor it at crash time.

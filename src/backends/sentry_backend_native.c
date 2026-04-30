@@ -194,6 +194,7 @@ native_backend_startup(
     ctx->attach_screenshot = options->attach_screenshot;
     ctx->cache_keep = options->cache_keep;
     ctx->require_user_consent = options->require_user_consent;
+    ctx->enable_large_attachments = options->enable_large_attachments;
     sentry__atomic_store(
         &ctx->user_consent, sentry__atomic_fetch(&options->run->user_consent));
 

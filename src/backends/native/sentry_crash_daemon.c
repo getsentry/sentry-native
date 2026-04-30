@@ -2,6 +2,7 @@
 
 #include "minidump/sentry_minidump_writer.h"
 #include "sentry_alloc.h"
+#include "sentry_attachment.h"
 #include "sentry_core.h"
 #include "sentry_crash_ipc.h"
 #include "sentry_database.h"
@@ -192,6 +193,102 @@ write_attachment_to_envelope(int fd, const char *file_path,
     _close(attach_fd);
 #endif
     return true;
+}
+
+static bool
+attachment_is_placeholder(const sentry_options_t *options, const char *path)
+{
+    sentry_attachment_t attachment = { 0 };
+    attachment.path = sentry__path_from_str(path);
+    if (!attachment.path) {
+        return false;
+    }
+    attachment.type = ATTACHMENT;
+    bool is_placeholder
+        = sentry__attachment_is_placeholder(&attachment, options);
+    sentry__path_free(attachment.path);
+    return is_placeholder;
+}
+
+// For each large attachment listed in `<run_folder>/__sentry-attachments`,
+// cache it as an attachment-ref item. Small attachments were already inlined
+// during envelope writing.
+static void
+add_attachment_refs(sentry_envelope_t *envelope,
+    const sentry_options_t *options, const sentry_path_t *run_folder)
+{
+    if (!envelope || !options || !options->run
+        || !options->enable_large_attachments || !run_folder) {
+        return;
+    }
+    sentry_path_t *attach_list_path
+        = sentry__path_join_str(run_folder, "__sentry-attachments");
+    if (!attach_list_path) {
+        SENTRY_WARN("Failed to resolve attachment manifest path");
+        return;
+    }
+    size_t attach_json_len = 0;
+    char *attach_json
+        = sentry__path_read_to_buffer(attach_list_path, &attach_json_len);
+    sentry__path_free(attach_list_path);
+    if (!attach_json) {
+        return;
+    }
+    sentry_value_t list = attach_json_len > 0
+        ? sentry__value_from_json(attach_json, attach_json_len)
+        : sentry_value_new_null();
+    sentry_free(attach_json);
+    if (sentry_value_is_null(list)) {
+        SENTRY_WARN("Failed to parse attachment manifest");
+        return;
+    }
+
+    bool materialized = false;
+    size_t len = sentry_value_get_length(list);
+    for (size_t i = 0; i < len; i++) {
+        sentry_value_t info = sentry_value_get_by_index(list, i);
+        const char *path
+            = sentry_value_as_string(sentry_value_get_by_key(info, "path"));
+        const char *filename
+            = sentry_value_as_string(sentry_value_get_by_key(info, "filename"));
+        const char *content_type = sentry_value_as_string(
+            sentry_value_get_by_key(info, "content_type"));
+        if (!path || !*path || !filename || !*filename) {
+            SENTRY_WARN("Skipping malformed attachment manifest entry");
+            continue;
+        }
+        sentry_attachment_t attachment = { 0 };
+        attachment.path = sentry__path_from_str(path);
+        attachment.filename = sentry__path_from_str(filename);
+        if (!attachment.path || !attachment.filename) {
+            SENTRY_WARNF("Failed to allocate attachment paths for: %s", path);
+            sentry__path_free(attachment.path);
+            sentry__path_free(attachment.filename);
+            continue;
+        }
+        attachment.type = ATTACHMENT;
+        attachment.content_type
+            = (char *)((content_type && *content_type) ? content_type : NULL);
+        if (!sentry__attachment_is_placeholder(&attachment, options)) {
+            sentry__path_free(attachment.path);
+            sentry__path_free(attachment.filename);
+            continue;
+        }
+        if (!materialized && !sentry__envelope_materialize(envelope)) {
+            SENTRY_WARN("Failed to materialize envelope for attachment-refs");
+            sentry__path_free(attachment.path);
+            sentry__path_free(attachment.filename);
+            break;
+        }
+        materialized = true;
+        if (!sentry__cache_attachment_ref(
+                envelope, &attachment, options->run->cache_path, NULL)) {
+            SENTRY_WARN("failed to cache attachment-ref");
+        }
+        sentry__path_free(attachment.path);
+        sentry__path_free(attachment.filename);
+    }
+    sentry_value_decref(list);
 }
 
 #if defined(SENTRY_PLATFORM_UNIX)
@@ -2384,7 +2481,8 @@ write_envelope_with_native_stacktrace(const sentry_options_t *options,
                         const char *content_type
                             = sentry_value_as_string(content_type_val);
 
-                        if (path && filename) {
+                        if (path && filename
+                            && !attachment_is_placeholder(options, path)) {
                             write_attachment_to_envelope(
                                 fd, path, filename, content_type);
                         }
@@ -2619,7 +2717,8 @@ write_envelope_with_minidump(const sentry_options_t *options,
                         const char *content_type
                             = sentry_value_as_string(content_type_val);
 
-                        if (path && filename) {
+                        if (path && filename
+                            && !attachment_is_placeholder(options, path)) {
                             write_attachment_to_envelope(
                                 fd, path, filename, content_type);
                         }
@@ -2930,10 +3029,21 @@ sentry__process_crash(const sentry_options_t *options, sentry_crash_ipc_t *ipc)
         goto cleanup;
     }
 
+    add_attachment_refs(envelope, options, run_folder);
+
+    bool has_attachment_refs = sentry__envelope_has_content_type(
+        envelope, SENTRY_ATTACHMENT_REF_MIME);
+
     SENTRY_DEBUG("Envelope loaded, capturing");
 
     // Capture directly, or pass to external crash reporter
     if (!sentry__launch_external_crash_reporter(options, envelope)) {
+        if (has_attachment_refs && options && options->run) {
+            if (!sentry__run_write_envelope(options->run, envelope)) {
+                SENTRY_WARN(
+                    "Failed to dump crash envelope for resend on restart");
+            }
+        }
         if (options && options->transport && options->run) {
             SENTRY_DEBUG("Capturing crash envelope");
             sentry__capture_envelope(options->transport, envelope, options);
@@ -3010,9 +3120,6 @@ cleanup:
     SENTRY_DEBUG("Crash processing completed successfully");
 
 done:
-    // Mark as done
-    SENTRY_DEBUG("Marking crash state as DONE");
-    sentry__atomic_store(&ctx->state, SENTRY_CRASH_STATE_DONE);
     SENTRY_DEBUG("Processing crash - END");
     SENTRY_DEBUG("Crash processing complete");
 }
@@ -3183,6 +3290,7 @@ sentry__crash_daemon_main(pid_t app_pid, uint64_t app_tid, HANDLE event_handle,
     sentry_options_set_debug(options, ipc->shmem->debug_enabled);
     options->attach_screenshot = ipc->shmem->attach_screenshot;
     options->cache_keep = ipc->shmem->cache_keep;
+    options->enable_large_attachments = ipc->shmem->enable_large_attachments;
     options->http_retry = false;
 
     // Set custom logger that writes to file
@@ -3316,13 +3424,27 @@ sentry__crash_daemon_main(pid_t app_pid, uint64_t app_tid, HANDLE event_handle,
 
     // Cleanup
     if (options) {
+        size_t dumped_envelopes = 0;
         if (options->transport) {
             // Wait up to 10 seconds for transport to send pending envelopes
             // (crash envelope + logs envelope, etc.)
-            sentry__transport_shutdown(
+            int rv = sentry__transport_shutdown(
                 options->transport, SENTRY_CRASH_TRANSPORT_SHUTDOWN_TIMEOUT_MS);
+            if (rv != 0) {
+                SENTRY_WARN("transport did not shut down cleanly");
+            }
+            dumped_envelopes = sentry__transport_dump_queue(
+                options->transport, options->run);
+            if (rv == 0 && !dumped_envelopes && options->run) {
+                sentry__run_clean(options->run, true);
+            }
         }
         sentry_options_free(options);
+    }
+    if (crash_processed) {
+        // Mark as done
+        SENTRY_DEBUG("Marking crash state as DONE");
+        sentry__atomic_store(&ipc->shmem->state, SENTRY_CRASH_STATE_DONE);
     }
     if (crash_processed || !is_parent_alive(ipc->parent_handle)) {
         sentry__crash_ipc_unlink(ipc);

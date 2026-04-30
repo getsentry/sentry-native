@@ -12,7 +12,7 @@ from . import (
     SENTRY_VERSION,
 )
 from .assertions import assert_attachment
-from .conditions import has_breakpad, has_files, has_http, is_qemu
+from .conditions import has_breakpad, has_files, has_http, has_native, is_qemu
 
 pytestmark = [
     pytest.mark.skipif(not has_http, reason="tests need http transport"),
@@ -488,3 +488,81 @@ def test_tus_crash_restart(cmake, httpserver, backend):
     # Staged sibling files should be cleaned up after successful send.
     leftover_siblings = [f for f in os.listdir(cache_dir) if f.startswith(base)]
     assert leftover_siblings == []
+
+
+@pytest.mark.skipif(not has_native or is_qemu, reason="native backend not available")
+def test_tus_crash_native(cmake, httpserver):
+    # The native backend's daemon process handles the crash out-of-process: it
+    # caches the large attachment, writes the envelope with attachment-ref
+    # items, and uploads via TUS itself when the server responds within the
+    # crash transport shutdown window.
+    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "native"})
+
+    upload_uri = "/api/123456/upload/abc123def456789/"
+    upload_qs = "length=104857600&signature=xyz"
+    location = httpserver.url_for(upload_uri) + "?" + upload_qs
+
+    httpserver.expect_oneshot_request(
+        "/api/123456/upload/",
+        headers={"tus-resumable": "1.0.0"},
+    ).respond_with_data("OK", status=201, headers={"Location": location})
+
+    httpserver.expect_oneshot_request(
+        upload_uri,
+        method="PATCH",
+        headers={"tus-resumable": "1.0.0"},
+        query_string=upload_qs,
+    ).respond_with_data("", status=204)
+
+    httpserver.expect_oneshot_request(
+        "/api/123456/envelope/",
+        headers={"x-sentry-auth": auth_header},
+    ).respond_with_data("OK")
+
+    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
+
+    with httpserver.wait(timeout=15) as waiting:
+        run(
+            tmp_path,
+            "sentry_example",
+            ["log", "large-attachment", "crash"],
+            expect_failure=True,
+            env=env,
+        )
+    assert waiting.result
+
+    create_req = upload_req = envelope_req = None
+    for entry in httpserver.log:
+        req = entry[0]
+        if req.path == "/api/123456/upload/" and req.method == "POST":
+            create_req = req
+        elif upload_uri in req.path and req.method == "PATCH":
+            upload_req = req
+        elif "/envelope/" in req.path:
+            envelope_req = req
+    assert create_req is not None
+    assert upload_req is not None
+    assert envelope_req is not None
+    assert int(create_req.headers.get("upload-length")) == 100 * 1024 * 1024
+
+    body = envelope_req.get_data()
+    envelope = Envelope.deserialize(body)
+    attachment_ref = None
+    for item in envelope:
+        if (
+            item.headers.get("content_type")
+            == "application/vnd.sentry.attachment-ref+json"
+        ):
+            if hasattr(item.payload, "json") and "location" in item.payload.json:
+                attachment_ref = item
+                break
+    assert attachment_ref is not None
+    assert attachment_ref.payload.json["location"] == location
+
+    db_dir = os.path.join(tmp_path, ".sentry-native")
+    run_dirs = [
+        d
+        for d in os.listdir(db_dir)
+        if d.endswith(".run") and os.path.isdir(os.path.join(db_dir, d))
+    ]
+    assert run_dirs == []

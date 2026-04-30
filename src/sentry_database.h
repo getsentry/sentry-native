@@ -51,7 +51,7 @@ sentry_run_t *sentry__run_incref(sentry_run_t *run);
 /**
  * This will clean up all the files belonging to this run.
  */
-void sentry__run_clean(sentry_run_t *run);
+void sentry__run_clean(sentry_run_t *run, bool force);
 
 /**
  * Free the previously allocated run.

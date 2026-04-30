@@ -369,7 +369,7 @@ sentry_close(void)
         }
         if ((!options->backend
                 || !options->backend->can_capture_after_shutdown)) {
-            sentry__run_clean(options->run);
+            sentry__run_clean(options->run, false);
         }
         sentry_options_free(options);
     } else {

@@ -140,9 +140,9 @@ sentry__run_incref(sentry_run_t *run)
 }
 
 void
-sentry__run_clean(sentry_run_t *run)
+sentry__run_clean(sentry_run_t *run, bool force)
 {
-    if (sentry__atomic_fetch(&run->retain)) {
+    if (!force && sentry__atomic_fetch(&run->retain)) {
         sentry__filelock_unlock(run->lock);
         return;
     }
