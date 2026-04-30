@@ -484,6 +484,7 @@ discard_thread_func(void *data)
         sentry__client_report_discard(
             SENTRY_DISCARD_REASON_SAMPLE_RATE, SENTRY_DATA_CATEGORY_ERROR, 1);
         sentry__atomic_fetch_and_add((long *)&g_produced, 1);
+        sentry__thread_yield();
     }
     return 0;
 }
@@ -495,6 +496,7 @@ flush_thread_func(void *data)
     while (sentry__atomic_fetch((long *)&g_running)) {
         sentry_client_report_t report;
         if (!sentry__client_report_save(&report)) {
+            sentry__thread_yield();
             continue;
         }
         sentry_envelope_t *envelope = sentry__envelope_new();
