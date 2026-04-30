@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1777563566007,
+  "lastUpdate": 1777570519308,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -19396,6 +19396,66 @@ window.BENCHMARK_DATA = {
             "value": 2.0942630000035933,
             "unit": "ms",
             "extra": "Min 2.013ms\nMax 2.171ms\nMean 2.098ms\nStdDev 0.066ms\nMedian 2.094ms\nCPU 0.618ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "jpnurmi@gmail.com",
+            "name": "J-P Nurmi",
+            "username": "jpnurmi"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "a5dccfdfdd9382f0fb2457e37d5529a4bdea8941",
+          "message": "fix(native): Respect shutdown timeout in daemon (#1691)\n\nCo-authored-by: OpenAI Codex <noreply@openai.com>",
+          "timestamp": "2026-04-30T19:32:28+02:00",
+          "tree_id": "27c3ec8b6923c642aaeb10f9ec3b742a416f66cb",
+          "url": "https://github.com/getsentry/sentry-native/commit/a5dccfdfdd9382f0fb2457e37d5529a4bdea8941"
+        },
+        "date": 1777570513811,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 0.9744909999938045,
+            "unit": "ms",
+            "extra": "Min 0.968ms\nMax 1.013ms\nMean 0.988ms\nStdDev 0.022ms\nMedian 0.974ms\nCPU 0.936ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 0.8869799999899897,
+            "unit": "ms",
+            "extra": "Min 0.884ms\nMax 0.902ms\nMean 0.891ms\nStdDev 0.008ms\nMedian 0.887ms\nCPU 0.890ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 3.3825109999838787,
+            "unit": "ms",
+            "extra": "Min 3.259ms\nMax 3.582ms\nMean 3.402ms\nStdDev 0.120ms\nMedian 3.383ms\nCPU 1.777ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.13121800000703843,
+            "unit": "ms",
+            "extra": "Min 0.128ms\nMax 0.134ms\nMean 0.131ms\nStdDev 0.002ms\nMedian 0.131ms\nCPU 0.079ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.03427199999350705,
+            "unit": "ms",
+            "extra": "Min 0.031ms\nMax 0.048ms\nMean 0.037ms\nStdDev 0.007ms\nMedian 0.034ms\nCPU 0.032ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 1.9617820000235042,
+            "unit": "ms",
+            "extra": "Min 1.948ms\nMax 2.058ms\nMean 1.990ms\nStdDev 0.050ms\nMedian 1.962ms\nCPU 0.552ms"
           }
         ]
       }
