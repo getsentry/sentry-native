@@ -49,18 +49,24 @@ jobs:
       - name: Set pending status
         env:
           GH_TOKEN: ${{ steps.token.outputs.token }}
+          REPOSITORY: ${{ github.repository }}
+          SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          CONTEXT: ${{ matrix.context }}
         run: |
-          gh api repos/${{ github.repository }}/statuses/${{ github.event.pull_request.head.sha || github.sha }} \
+          gh api repos/"$REPOSITORY"/statuses/"$SHA" \
             -f state=pending \
-            -f context="${{ matrix.context }}" \
+            -f context="$CONTEXT" \
             -f description="Waiting for build to start..."
 
       - name: Determine mode
         id: mode
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          REF: ${{ github.ref }}
         run: |
-          if [[ "${{ github.event_name }}" == "push" && "${{ github.ref }}" == refs/heads/release/* ]]; then
+          if [[ "$EVENT_NAME" == "push" && "$REF" == refs/heads/release/* ]]; then
             echo "mode=FULL_TEST" >> "$GITHUB_OUTPUT"
-          elif [[ "${{ github.event_name }}" == "push" && "${{ github.ref }}" == "refs/heads/master" ]]; then
+          elif [[ "$EVENT_NAME" == "push" && "$REF" == "refs/heads/master" ]]; then
             echo "mode=UNIT_TEST" >> "$GITHUB_OUTPUT"
           else
             echo "mode=BUILD_ONLY" >> "$GITHUB_OUTPUT"
@@ -72,13 +78,20 @@ jobs:
       - name: Trigger console build
         env:
           GH_TOKEN: ${{ steps.token.outputs.token }}
+          MATRIX_REPO: ${{ matrix.repo }}
+          NATIVE_REF: ${{ github.event.pull_request.head.sha || github.sha }}
+          CALLBACK_REPO: ${{ github.repository }}
+          CALLBACK_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          CALLBACK_CONTEXT: ${{ matrix.context }}
+          MODE: ${{ steps.mode.outputs.mode }}
+          PR_NUMBER: ${{ github.event.pull_request.number || github.ref_name }}
         run: |
           gh workflow run native-compat-check.yml \
-            --repo ${{ matrix.repo }} \
+            --repo "$MATRIX_REPO" \
             --ref main \
-            -f native_ref=${{ github.event.pull_request.head.sha || github.sha }} \
-            -f callback_repo=${{ github.repository }} \
-            -f callback_sha=${{ github.event.pull_request.head.sha || github.sha }} \
-            -f callback_context="${{ matrix.context }}" \
-            -f mode=${{ steps.mode.outputs.mode }} \
-            -f pr_number=${{ github.event.pull_request.number || github.ref_name }}
+            -f native_ref="$NATIVE_REF" \
+            -f callback_repo="$CALLBACK_REPO" \
+            -f callback_sha="$CALLBACK_SHA" \
+            -f callback_context="$CALLBACK_CONTEXT" \
+            -f mode="$MODE" \
+            -f pr_number="$PR_NUMBER"
