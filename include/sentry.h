@@ -2360,6 +2360,9 @@ SENTRY_EXPERIMENTAL_API int sentry_options_get_http_retry(
  * attachments are embedded in the envelope and oversized uploads are rejected
  * by Sentry.
  *
+ * Note: Requires the `projects:relay-upload-endpoint` server feature. See
+ * https://develop.sentry.dev/sdk/telemetry/attachments/#attachment-placeholders
+ *
  * Disabled by default.
  */
 SENTRY_EXPERIMENTAL_API void sentry_options_set_enable_large_attachments(
