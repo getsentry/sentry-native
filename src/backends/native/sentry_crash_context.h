@@ -92,8 +92,6 @@ typedef DWORD pid_t;
     5000 // 5 seconds between daemon health checks
 #define SENTRY_CRASH_HANDLER_POLL_INTERVAL_MS                                  \
     100 // 100ms poll interval in exception handler
-#define SENTRY_CRASH_TRANSPORT_SHUTDOWN_TIMEOUT_MS                             \
-    10000 // 10 seconds for transport shutdown (increased for TSAN/ASAN builds)
 
 // Compatibility macros for arm64e (PAC - Pointer Authentication Codes).
 // On arm64e, __darwin_arm_thread_state64 uses opaque members for pointer
@@ -275,6 +273,7 @@ typedef struct {
     bool cache_keep;
     bool require_user_consent;
     bool enable_large_attachments;
+    uint64_t shutdown_timeout;
 
     // Atomic user consent (sentry_user_consent_t), updated whenever user
     // consent changes so the daemon can honor it at crash time.
