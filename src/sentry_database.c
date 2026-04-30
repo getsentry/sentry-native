@@ -142,6 +142,10 @@ sentry__run_incref(sentry_run_t *run)
 void
 sentry__run_clean(sentry_run_t *run)
 {
+    if (sentry__atomic_fetch(&run->retain)) {
+        sentry__filelock_unlock(run->lock);
+        return;
+    }
     sentry__path_remove_all(run->run_path);
     sentry__filelock_unlock(run->lock);
 }
@@ -354,7 +358,11 @@ bool
 sentry__run_write_envelope(
     const sentry_run_t *run, const sentry_envelope_t *envelope)
 {
-    return write_envelope(run->run_path, envelope);
+    if (!write_envelope(run->run_path, envelope)) {
+        return false;
+    }
+    sentry__atomic_store((long *)&run->retain, 1);
+    return true;
 }
 
 bool

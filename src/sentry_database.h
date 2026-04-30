@@ -15,6 +15,7 @@ typedef struct sentry_run_s {
     sentry_path_t *cache_path;
     sentry_filelock_t *lock;
     long refcount;
+    long retain; // (atomic) bool
     long require_user_consent; // (atomic) bool
     long user_consent; // (atomic) sentry_user_consent_t
 } sentry_run_t;

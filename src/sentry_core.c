@@ -367,8 +367,7 @@ sentry_close(void)
             dumped_envelopes = sentry__transport_dump_queue(
                 options->transport, options->run);
         }
-        if (!dumped_envelopes
-            && (!options->backend
+        if ((!options->backend
                 || !options->backend->can_capture_after_shutdown)) {
             sentry__run_clean(options->run);
         }
