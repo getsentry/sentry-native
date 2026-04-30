@@ -3434,7 +3434,7 @@ sentry__crash_daemon_main(pid_t app_pid, uint64_t app_tid, HANDLE event_handle,
             dumped_envelopes = sentry__transport_dump_queue(
                 options->transport, options->run);
             if (rv == 0 && !dumped_envelopes && options->run) {
-                sentry__run_clean(options->run);
+                sentry__run_clean(options->run, true);
             }
         }
         sentry_options_free(options);

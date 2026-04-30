@@ -558,3 +558,11 @@ def test_tus_crash_native(cmake, httpserver):
                 break
     assert attachment_ref is not None
     assert attachment_ref.payload.json["location"] == location
+
+    db_dir = os.path.join(tmp_path, ".sentry-native")
+    run_dirs = [
+        d
+        for d in os.listdir(db_dir)
+        if d.endswith(".run") and os.path.isdir(os.path.join(db_dir, d))
+    ]
+    assert run_dirs == []
