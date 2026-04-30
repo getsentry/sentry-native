@@ -628,7 +628,7 @@ retry_send_cb(sentry_envelope_t *envelope, void *_state)
     if (!materialize_attachment_refs(envelope)) {
         return 400;
     }
-    sentry_client_report_t report = { { 0 } };
+    sentry_client_report_t report = { 0 };
     bool reported = add_client_report(envelope, state, &report);
     sentry_value_t ref_paths = collect_attachment_refs(envelope);
     int status_code = http_send_envelope(envelope, state);
@@ -677,7 +677,7 @@ http_send_task(void *_envelope, void *_state)
         return;
     }
 
-    sentry_client_report_t report = { { 0 } };
+    sentry_client_report_t report = { 0 };
     bool reported = add_client_report(envelope, state, &report);
 
     // Capture cached sibling paths before resolving attachment-refs. Dropped

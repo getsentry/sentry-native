@@ -544,7 +544,7 @@ write_system_info_stream(minidump_writer_t *writer, minidump_directory_t *dir)
 
     // Populate OS version from uname(), matching Crashpad behavior
     struct utsname uts;
-    char csd_version[256] = "";
+    char csd_version[512] = "";
     if (uname(&uts) == 0) {
         int major = 0, minor = 0, patch = 0;
         sscanf(uts.release, "%d.%d.%d", &major, &minor, &patch);
