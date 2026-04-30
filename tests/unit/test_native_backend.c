@@ -357,11 +357,15 @@ SENTRY_TEST(crash_context_transport_fields)
     ctx.user_agent[sizeof(ctx.user_agent) - 1] = '\0';
     TEST_CHECK_STRING_EQUAL(ctx.user_agent, test_ua);
 
+    ctx.shutdown_timeout = 12345;
+    TEST_CHECK_UINT64_EQUAL(ctx.shutdown_timeout, 12345);
+
     // Verify fields are zero-initialized when memset to 0
     memset(&ctx, 0, sizeof(ctx));
     TEST_CHECK(ctx.ca_certs[0] == '\0');
     TEST_CHECK(ctx.proxy[0] == '\0');
     TEST_CHECK(ctx.user_agent[0] == '\0');
+    TEST_CHECK_UINT64_EQUAL(ctx.shutdown_timeout, 0);
 #else
     SKIP_TEST();
 #endif
@@ -380,6 +384,7 @@ SENTRY_TEST(crash_context_options_propagation)
 
     sentry_options_set_ca_certs(options, "/path/to/ca-bundle.crt");
     sentry_options_set_proxy(options, "http://myproxy:3128");
+    sentry_options_set_shutdown_timeout(options, 12345);
 
     // Verify options were set correctly
     TEST_CHECK_STRING_EQUAL(
@@ -404,12 +409,14 @@ SENTRY_TEST(crash_context_options_propagation)
             ctx.user_agent, options->user_agent, sizeof(ctx.user_agent) - 1);
         ctx.user_agent[sizeof(ctx.user_agent) - 1] = '\0';
     }
+    ctx.shutdown_timeout = options->shutdown_timeout;
 
     // Verify crash context received the values
     TEST_CHECK_STRING_EQUAL(ctx.ca_certs, "/path/to/ca-bundle.crt");
     TEST_CHECK_STRING_EQUAL(ctx.proxy, "http://myproxy:3128");
     // user_agent should have the default SDK user agent
     TEST_CHECK(ctx.user_agent[0] != '\0');
+    TEST_CHECK_UINT64_EQUAL(ctx.shutdown_timeout, 12345);
 
     sentry_options_free(options);
 #else

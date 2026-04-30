@@ -25,12 +25,16 @@ from .assertions import (
     wait_for_file,
     assert_user_feedback,
 )
-from .conditions import has_native, has_oom, is_kcov, is_asan, is_qemu
+from .conditions import has_native, has_oom, is_kcov, is_asan, is_tsan, is_qemu
 
 pytestmark = pytest.mark.skipif(
     not has_native or is_qemu,
     reason="Tests need the native backend enabled",
 )
+
+# Sanitizer builds are slower, so selected native crash tests use the same 10s
+# timeout the native daemon used before it respected the SDK shutdown timeout.
+SANITIZER_ARGS = ["shutdown-timeout", "10000"] if is_asan or is_tsan else []
 
 
 def run_crash(tmp_path, exe, args, env):
@@ -241,7 +245,7 @@ def test_native_multiple_crashes(cmake, httpserver):
             run_crash(
                 tmp_path,
                 "sentry_example",
-                ["log", "stdout", "crash"],
+                ["log", "stdout", "crash"] + SANITIZER_ARGS,
                 env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
             )
     assert waiting.result
@@ -298,7 +302,7 @@ def test_native_multithreaded_crash(cmake, httpserver):
         run_crash(
             tmp_path,
             "sentry_example",
-            ["log", "stdout", "crash"],
+            ["log", "stdout", "crash"] + SANITIZER_ARGS,
             env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
         )
     assert waiting.result

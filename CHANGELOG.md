@@ -14,6 +14,7 @@
 - Guard against internal stringbuilder append and reserve size overflows. ([#1672](https://github.com/getsentry/sentry-native/pull/1672))
 - Preserve attachments added during crash handling ([#1687](https://github.com/getsentry/sentry-native/pull/1687))
 - Fix build-time warnings with C++ builds. ([#1671](https://github.com/getsentry/sentry-native/pull/1671))
+- Native: respect the `shutdown_timeout` option in the daemon. ([#1691](https://github.com/getsentry/sentry-native/pull/1691))
 
 ## 0.13.8
 

@@ -548,6 +548,12 @@ main(int argc, char **argv)
 
     sentry_options_set_auto_session_tracking(options, false);
     sentry_options_set_symbolize_stacktraces(options, true);
+    const char *shutdown_timeout
+        = get_arg_value(argc, argv, "shutdown-timeout");
+    if (shutdown_timeout) {
+        sentry_options_set_shutdown_timeout(
+            options, strtoull(shutdown_timeout, NULL, 10));
+    }
 
     sentry_options_set_environment(options, "development");
     // sentry defaults this to the `SENTRY_RELEASE` env variable

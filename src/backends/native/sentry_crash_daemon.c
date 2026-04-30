@@ -3292,6 +3292,7 @@ sentry__crash_daemon_main(pid_t app_pid, uint64_t app_tid, HANDLE event_handle,
     options->cache_keep = ipc->shmem->cache_keep;
     options->enable_large_attachments = ipc->shmem->enable_large_attachments;
     options->http_retry = false;
+    options->shutdown_timeout = ipc->shmem->shutdown_timeout;
 
     // Set custom logger that writes to file
     if (log_file) {
@@ -3426,10 +3427,10 @@ sentry__crash_daemon_main(pid_t app_pid, uint64_t app_tid, HANDLE event_handle,
     if (options) {
         size_t dumped_envelopes = 0;
         if (options->transport) {
-            // Wait up to 10 seconds for transport to send pending envelopes
-            // (crash envelope + logs envelope, etc.)
+            // Wait for the configured SDK shutdown timeout to send pending
+            // envelopes (crash envelope + logs envelope, etc.).
             int rv = sentry__transport_shutdown(
-                options->transport, SENTRY_CRASH_TRANSPORT_SHUTDOWN_TIMEOUT_MS);
+                options->transport, options->shutdown_timeout);
             if (rv != 0) {
                 SENTRY_WARN("transport did not shut down cleanly");
             }
