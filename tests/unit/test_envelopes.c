@@ -1333,6 +1333,77 @@ SENTRY_TEST(tus_file_attachment_preserves_original)
     sentry__path_free(test_file_path);
 }
 
+typedef struct {
+    int create_count;
+    int envelope_count;
+} tus_create_failure_state_t;
+
+static bool
+tus_create_failure_send(void *client, sentry_prepared_http_request_t *req,
+    sentry_http_response_t *resp)
+{
+    tus_create_failure_state_t *state = client;
+
+    if (strcmp(req->method, "POST") == 0 && !req->body && !req->body_path) {
+        state->create_count++;
+        resp->status_code = 404;
+        return true;
+    }
+    if (strcmp(req->method, "POST") == 0 && req->body) {
+        state->envelope_count++;
+        resp->status_code = 200;
+        return true;
+    }
+    return false;
+}
+
+SENTRY_TEST(tus_upload_error)
+{
+    const char *file1_str = SENTRY_TEST_PATH_PREFIX "sentry_test_tus_error_1";
+    const char *file2_str = SENTRY_TEST_PATH_PREFIX "sentry_test_tus_error_2";
+    sentry_path_t *file1_path = sentry__path_from_str(file1_str);
+    sentry_path_t *file2_path = sentry__path_from_str(file2_str);
+
+    size_t large_size = 100 * 1024 * 1024;
+    FILE *f = fopen(file1_str, "wb");
+    TEST_ASSERT(!!f);
+    fseek(f, (long)(large_size - 1), SEEK_SET);
+    fputc(0, f);
+    fclose(f);
+    f = fopen(file2_str, "wb");
+    TEST_ASSERT(!!f);
+    fseek(f, (long)(large_size - 1), SEEK_SET);
+    fputc(0, f);
+    fclose(f);
+
+    tus_create_failure_state_t state = { 0 };
+    sentry_transport_t *transport
+        = sentry__http_transport_new(&state, tus_create_failure_send);
+    TEST_ASSERT(!!transport);
+
+    SENTRY_TEST_OPTIONS_NEW(options);
+    sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
+    sentry_options_set_transport(options, transport);
+    sentry_options_set_enable_large_attachments(options, 1);
+    sentry_options_add_attachment(options, file1_str);
+    sentry_options_add_attachment(options, file2_str);
+    sentry_init(options);
+
+    sentry_capture_event(
+        sentry_value_new_message_event(SENTRY_LEVEL_INFO, NULL, "test"));
+
+    sentry_close();
+
+    TEST_CHECK_INT_EQUAL(state.create_count, 2);
+    TEST_CHECK_INT_EQUAL(state.envelope_count, 1);
+
+    sentry__client_report_reset();
+    sentry__path_remove(file1_path);
+    sentry__path_remove(file2_path);
+    sentry__path_free(file1_path);
+    sentry__path_free(file2_path);
+}
+
 // Mock that drives a full TUS round-trip: returns a relative `Location` from
 // the create POST (per spec), 204 from the upload PATCH, and captures the
 // final envelope POST body so the test can inspect the placeholder payload.
