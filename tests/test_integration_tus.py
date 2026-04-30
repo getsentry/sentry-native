@@ -1,7 +1,6 @@
 import json
 import os
 import threading
-import time
 
 import pytest
 from werkzeug.wrappers import Response
@@ -259,12 +258,10 @@ def test_tus_shutdown(cmake, httpserver):
     upload_qs = "length=104857600&signature=xyz"
     location = httpserver.url_for(upload_uri) + "?" + upload_qs
 
-    create_started = threading.Event()
     release_create = threading.Event()
 
     def delayed_create(_req):
-        create_started.set()
-        release_create.wait(timeout=10)
+        release_create.wait()
         return Response("OK", status=201, headers={"Location": location})
 
     httpserver.expect_oneshot_request(
@@ -272,23 +269,23 @@ def test_tus_shutdown(cmake, httpserver):
         headers={"tus-resumable": "1.0.0"},
     ).respond_with_handler(delayed_create)
 
-    run(
-        tmp_path,
-        "sentry_example",
-        [
-            "log",
-            "no-setup",
-            "large-attachment",
-            "capture-event",
-            "sleep-after-shutdown",
-        ],
-        env=env,
-    )
-    assert create_started.is_set()
-    release_create.set()
-    deadline = time.time() + 5
-    while len(httpserver.log) < 1 and time.time() < deadline:
-        time.sleep(0.05)
+    with httpserver.wait(timeout=10):
+        try:
+            run(
+                tmp_path,
+                "sentry_example",
+                [
+                    "log",
+                    "no-setup",
+                    "large-attachment",
+                    "capture-event",
+                    "sleep-after-shutdown",
+                ],
+                env=env,
+                timeout=30,
+            )
+        finally:
+            release_create.set()
 
     db_dir = os.path.join(tmp_path, ".sentry-native")
     cache_dir = os.path.join(db_dir, "cache")
@@ -306,7 +303,6 @@ def test_tus_shutdown(cmake, httpserver):
     assert len(siblings) > 0
 
     httpserver.clear_all_handlers()
-    httpserver.clear_log()
 
     httpserver.expect_oneshot_request(
         "/api/123456/upload/",
@@ -324,28 +320,25 @@ def test_tus_shutdown(cmake, httpserver):
         query_string=upload_qs,
     ).respond_with_data("", status=204)
 
-    httpserver.expect_request(
+    httpserver.expect_oneshot_request(
         "/api/123456/envelope/",
         headers={"x-sentry-auth": auth_header},
     ).respond_with_data("OK")
 
-    run(
-        tmp_path,
-        "sentry_example",
-        ["log", "no-setup"],
-        env=env,
-    )
+    with httpserver.wait(timeout=10):
+        run(
+            tmp_path,
+            "sentry_example",
+            ["log", "no-setup"],
+            env=env,
+        )
 
-    assert len(httpserver.log) == 3
+    envelope_reqs = [
+        entry[0] for entry in httpserver.log if "/envelope/" in entry[0].path
+    ]
+    assert len(envelope_reqs) == 1
 
-    envelope_req = None
-    for entry in httpserver.log:
-        req = entry[0]
-        if "/envelope/" in req.path:
-            envelope_req = req
-
-    assert envelope_req is not None
-    envelope = Envelope.deserialize(envelope_req.get_data())
+    envelope = Envelope.deserialize(envelope_reqs[0].get_data())
     attachment_ref = None
     for item in envelope:
         if (
