@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1777537792718,
+  "lastUpdate": 1777537847703,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -38434,6 +38434,66 @@ window.BENCHMARK_DATA = {
             "value": 17.888874999982818,
             "unit": "ms",
             "extra": "Min 10.932ms\nMax 41.296ms\nMean 21.485ms\nStdDev 11.915ms\nMedian 17.889ms\nCPU 1.398ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "amir.mujacic@sentry.io",
+            "name": "Amir Mujacic",
+            "username": "mujacica"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "f701f6fb60cef59834b2945870a985b8fda60ad1",
+          "message": "fix(native): Fix build-time warnings with C++ builds (#1671)\n\n* fix(native): Fix build-time warnings with C++ builds\n\n* Add changelog",
+          "timestamp": "2026-04-30T10:25:26+02:00",
+          "tree_id": "5caaa6f76dd90e9e0236ef0ca2df0cb99e7b2cac",
+          "url": "https://github.com/getsentry/sentry-native/commit/f701f6fb60cef59834b2945870a985b8fda60ad1"
+        },
+        "date": 1777537842694,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 5.824375000031523,
+            "unit": "ms",
+            "extra": "Min 5.151ms\nMax 8.808ms\nMean 6.654ms\nStdDev 1.678ms\nMedian 5.824ms\nCPU 3.655ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 4.172249999953692,
+            "unit": "ms",
+            "extra": "Min 3.488ms\nMax 6.184ms\nMean 4.753ms\nStdDev 1.177ms\nMedian 4.172ms\nCPU 2.658ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 24.043624999990243,
+            "unit": "ms",
+            "extra": "Min 18.869ms\nMax 53.432ms\nMean 29.967ms\nStdDev 13.680ms\nMedian 24.044ms\nCPU 7.557ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.06154099997957019,
+            "unit": "ms",
+            "extra": "Min 0.056ms\nMax 0.686ms\nMean 0.217ms\nStdDev 0.272ms\nMedian 0.062ms\nCPU 0.188ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.2752910000367592,
+            "unit": "ms",
+            "extra": "Min 0.237ms\nMax 0.331ms\nMean 0.279ms\nStdDev 0.034ms\nMedian 0.275ms\nCPU 0.279ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 9.679958999981864,
+            "unit": "ms",
+            "extra": "Min 8.980ms\nMax 11.972ms\nMean 10.032ms\nStdDev 1.154ms\nMedian 9.680ms\nCPU 0.973ms"
           }
         ]
       }
