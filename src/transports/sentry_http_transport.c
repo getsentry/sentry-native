@@ -563,6 +563,8 @@ resolve_attachment_refs(
                 i++;
                 continue;
             }
+            sentry__attachment_ref_cleanup(&ref);
+            return RESULT_ERROR;
         }
 
         if (result == RESULT_SHUTDOWN) {
