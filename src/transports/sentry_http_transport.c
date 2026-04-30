@@ -690,12 +690,10 @@ http_send_task(void *_envelope, void *_state)
     if (status_code < 0) {
         const sentry_envelope_t *ref_owner = NULL;
         if (sentry_value_get_length(ref_paths) > 0
-            && status_code == RESULT_SHUTDOWN) {
-            if (sentry__run_write_envelope(state->run, envelope)) {
-                // Keep attachment-ref cache siblings for the persisted
-                // envelope.
-                ref_owner = envelope;
-            }
+            && status_code == RESULT_SHUTDOWN
+            && sentry__run_write_envelope(state->run, envelope)) {
+            // Keep attachment-ref cache siblings for the persisted envelope.
+            ref_owner = envelope;
         } else if (state->retry
             && sentry__retry_enqueue(state->retry, envelope)) {
             // Keep attachment-ref cache siblings for the queued retry envelope.
