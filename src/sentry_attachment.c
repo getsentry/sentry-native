@@ -1,5 +1,7 @@
 #include "sentry_attachment.h"
 #include "sentry_alloc.h"
+#include "sentry_logger.h"
+#include "sentry_options.h"
 #include "sentry_path.h"
 #include "sentry_string.h"
 
@@ -119,6 +121,30 @@ sentry__attachment_free(sentry_attachment_t *attachment)
     sentry_free(attachment);
 }
 
+size_t
+sentry__attachment_get_size(const sentry_attachment_t *attachment)
+{
+    return attachment->buf ? attachment->buf_len
+                           : sentry__path_get_size(attachment->path);
+}
+
+const char *
+sentry__attachment_get_filename(const sentry_attachment_t *attachment)
+{
+    const sentry_path_t *path
+        = attachment->filename ? attachment->filename : attachment->path;
+    return path ? sentry__path_filename(path) : NULL;
+}
+
+bool
+sentry__attachment_is_placeholder(
+    const sentry_attachment_t *att, const sentry_options_t *options)
+{
+    return options && options->enable_large_attachments && att
+        && att->type == ATTACHMENT
+        && sentry__attachment_get_size(att) >= SENTRY_LARGE_ATTACHMENT_SIZE;
+}
+
 void
 sentry__attachments_free(sentry_attachment_t *attachments)
 {
@@ -157,6 +183,18 @@ sentry__attachments_add(sentry_attachment_t **attachments_ptr,
 {
     if (!attachment) {
         return NULL;
+    }
+    size_t size = sentry__attachment_get_size(attachment);
+    if (size > SENTRY_MAX_ATTACHMENT_SIZE) {
+        SENTRY_WARNF("rejected oversized attachment \"%s\" (%zu > %d MiB)",
+            sentry__attachment_get_filename(attachment), size / (1024 * 1024),
+            SENTRY_MAX_ATTACHMENT_SIZE / (1024 * 1024));
+        sentry__attachment_free(attachment);
+        return NULL;
+    }
+    if (size >= SENTRY_LARGE_ATTACHMENT_SIZE) {
+        SENTRY_INFOF("added large attachment \"%s\" (%zu MiB)",
+            sentry__attachment_get_filename(attachment), size / (1024 * 1024));
     }
     attachment->type = attachment_type;
     attachment->content_type = sentry__string_clone(content_type);

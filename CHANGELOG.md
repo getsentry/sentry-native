@@ -6,6 +6,7 @@
 
 - Enable structured logs by default; logs are now opt-out via `sentry_options_set_enable_logs(options, false)`. ([#1673](https://github.com/getsentry/sentry-native/pull/1673))
 - Crashpad: add macOS support for the `crashpad_wait_for_upload` flag. ([#1679](https://github.com/getsentry/sentry-native/pull/1679), [crashpad#152](https://github.com/getsentry/crashpad/pull/152))
+- Add experimental support for large attachment uploads, opt-in via `sentry_options_set_enable_large_attachments`. ([#1545](https://github.com/getsentry/sentry-native/pull/1545))
 
 **Fixes**:
 

@@ -5,6 +5,9 @@
 
 #include "sentry_path.h"
 
+#define SENTRY_LARGE_ATTACHMENT_SIZE (100 * 1024 * 1024) // 100 MiB
+#define SENTRY_MAX_ATTACHMENT_SIZE (1024 * 1024 * 1024) // 1 GiB
+
 /**
  * The attachment_type.
  */
@@ -39,6 +42,25 @@ struct sentry_attachment_s {
     char *content_type;
     sentry_attachment_t *next; // Linked list pointer
 };
+
+/**
+ * Returns the size in bytes of the attachment's data (buffer length or file
+ * size).
+ */
+size_t sentry__attachment_get_size(const sentry_attachment_t *attachment);
+
+/**
+ * Returns the filename string for the attachment (basename of `filename` if
+ * set, otherwise basename of `path`).
+ */
+const char *sentry__attachment_get_filename(
+    const sentry_attachment_t *attachment);
+
+/**
+ * Returns true if the attachment should be represented as an attachment-ref.
+ */
+bool sentry__attachment_is_placeholder(
+    const sentry_attachment_t *att, const sentry_options_t *options);
 
 /**
  *  Creates a new file attachment. Takes ownership of `path`.

@@ -82,6 +82,7 @@ struct sentry_options_s {
     void *before_send_metric_data;
     bool http_retry;
     bool send_client_reports;
+    bool enable_large_attachments;
 
     /* everything from here on down are options which are stored here but
        not exposed through the options API */

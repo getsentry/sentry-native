@@ -168,6 +168,8 @@ header_callback(char *buffer, size_t size, size_t nitems, void *userdata)
             info->retry_after = sentry__slice_to_owned(value);
         } else if (sentry__string_eq(header, "x-sentry-rate-limits")) {
             info->x_sentry_rate_limits = sentry__slice_to_owned(value);
+        } else if (sentry__string_eq(header, "location")) {
+            info->location = sentry__slice_to_owned(value);
         }
     }
 
@@ -296,6 +298,7 @@ curl_send_task(void *_client, sentry_prepared_http_request_t *req,
         curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &response_code);
         resp->status_code = (int)response_code;
     } else {
+        resp->shutdown = sentry__atomic_fetch(&client->shutdown) != 0;
         size_t len = strlen(error_buf);
         if (len) {
             if (error_buf[len - 1] == '\n') {

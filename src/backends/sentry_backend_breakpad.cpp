@@ -4,6 +4,7 @@ extern "C" {
 #include "sentry_alloc.h"
 #include "sentry_attachment.h"
 #include "sentry_backend.h"
+#include "sentry_client_report.h"
 #include "sentry_core.h"
 #include "sentry_database.h"
 #include "sentry_envelope.h"
@@ -189,6 +190,23 @@ breakpad_backend_callback(const google_breakpad::MinidumpDescriptor &descriptor,
 
                 sentry__envelope_item_set_header(item, "filename",
                     sentry_value_new_string(sentry__path_filename(dump_path)));
+            } else if (options->enable_large_attachments) {
+                sentry_attachment_t tmp = {};
+                tmp.path = dump_path;
+                tmp.type = MINIDUMP;
+                if (!sentry__cache_attachment_ref(
+                        envelope, &tmp, options->run->cache_path, nullptr)) {
+                    SENTRY_SIGNAL_SAFE_LOG(
+                        "WARN failed to cache minidump attachment-ref");
+                    sentry__client_report_discard(
+                        SENTRY_DISCARD_REASON_SEND_ERROR,
+                        SENTRY_DATA_CATEGORY_ATTACHMENT, 1);
+                }
+            } else {
+                SENTRY_SIGNAL_SAFE_LOG(
+                    "WARN failed to add minidump attachment");
+                sentry__client_report_discard(SENTRY_DISCARD_REASON_SEND_ERROR,
+                    SENTRY_DATA_CATEGORY_ATTACHMENT, 1);
             }
 
             if (capture_screenshot) {

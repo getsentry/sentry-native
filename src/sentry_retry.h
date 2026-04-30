@@ -32,7 +32,7 @@ void sentry__retry_seal(sentry_retry_t *retry);
 /**
  * Writes a failed envelope to the retry dir and schedules a delayed poll.
  */
-void sentry__retry_enqueue(
+bool sentry__retry_enqueue(
     sentry_retry_t *retry, const sentry_envelope_t *envelope);
 
 /**

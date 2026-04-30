@@ -324,17 +324,17 @@ sentry__retry_trigger(sentry_retry_t *retry)
     sentry__bgworker_submit(retry->bgworker, retry_trigger_task, NULL, retry);
 }
 
-void
+bool
 sentry__retry_enqueue(sentry_retry_t *retry, const sentry_envelope_t *envelope)
 {
     sentry__mutex_lock(&retry->sealed_lock);
     if (sentry__atomic_fetch(&retry->state) == SENTRY_RETRY_SEALED) {
         sentry__mutex_unlock(&retry->sealed_lock);
-        return;
+        return false;
     }
     if (!sentry__run_write_cache(retry->run, envelope, 0)) {
         sentry__mutex_unlock(&retry->sealed_lock);
-        return;
+        return false;
     }
     sentry__mutex_unlock(&retry->sealed_lock);
 
@@ -345,4 +345,5 @@ sentry__retry_enqueue(sentry_retry_t *retry, const sentry_envelope_t *envelope)
         sentry__bgworker_submit_delayed(retry->bgworker, retry_poll_task, NULL,
             retry, SENTRY_RETRY_INTERVAL);
     }
+    return true;
 }

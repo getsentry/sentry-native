@@ -1,5 +1,6 @@
 #include "sentry_envelope.h"
 #include "sentry_alloc.h"
+#include "sentry_attachment.h"
 #include "sentry_core.h"
 #include "sentry_json.h"
 #include "sentry_options.h"
@@ -643,6 +644,89 @@ str_from_attachment_type(sentry_attachment_type_t attachment_type)
     }
 }
 
+static bool
+attachment_ref_has_payload(const sentry_attachment_ref_t *ref)
+{
+    return ref && (ref->path || ref->location || ref->content_type);
+}
+
+static char *
+attachment_ref_payload_to_string(
+    const sentry_attachment_ref_t *ref, size_t *payload_len)
+{
+    *payload_len = 0;
+    sentry_jsonwriter_t *jw = sentry__jsonwriter_new_sb(NULL);
+    if (!jw) {
+        return NULL;
+    }
+    sentry_value_t obj = sentry_value_new_object();
+    if (ref->path) {
+        sentry_value_set_by_key(
+            obj, "path", sentry_value_new_string(ref->path));
+    }
+    if (ref->location) {
+        sentry_value_set_by_key(
+            obj, "location", sentry_value_new_string(ref->location));
+    }
+    if (ref->content_type) {
+        sentry_value_set_by_key(
+            obj, "content_type", sentry_value_new_string(ref->content_type));
+    }
+    sentry__jsonwriter_write_value(jw, obj);
+    sentry_value_decref(obj);
+    return sentry__jsonwriter_into_string(jw, payload_len);
+}
+
+sentry_envelope_item_t *
+sentry__envelope_add_attachment_ref(sentry_envelope_t *envelope,
+    const sentry_attachment_ref_t *ref, const char *filename,
+    sentry_attachment_type_t attachment_type, size_t attachment_length)
+{
+    if (!envelope) {
+        return NULL;
+    }
+    if (envelope->is_raw) {
+        return NULL;
+    }
+    size_t payload_len = 0;
+    char *payload = NULL;
+    if (attachment_ref_has_payload(ref)) {
+        payload = attachment_ref_payload_to_string(ref, &payload_len);
+        if (!payload) {
+            return NULL;
+        }
+    }
+
+    sentry_envelope_item_t *item = envelope_add_item(envelope);
+    if (!item) {
+        sentry_free(payload);
+        return NULL;
+    }
+    sentry__envelope_item_set_header(
+        item, "type", sentry_value_new_string("attachment"));
+    sentry__envelope_item_set_header(item, "content_type",
+        sentry_value_new_string(SENTRY_ATTACHMENT_REF_MIME));
+    if (filename) {
+        sentry__envelope_item_set_header(
+            item, "filename", sentry_value_new_string(filename));
+    }
+    if (attachment_type != ATTACHMENT) {
+        sentry__envelope_item_set_header(item, "attachment_type",
+            sentry_value_new_string(str_from_attachment_type(attachment_type)));
+    }
+    sentry__envelope_item_set_header(item, "attachment_length",
+        sentry_value_new_uint64((uint64_t)attachment_length));
+
+    if (payload) {
+        item->payload = payload;
+        item->payload_len = payload_len;
+        sentry__envelope_item_set_header(
+            item, "length", sentry_value_new_int32((int32_t)payload_len));
+    }
+
+    return item;
+}
+
 sentry_envelope_item_t *
 sentry__envelope_add_attachment(
     sentry_envelope_t *envelope, const sentry_attachment_t *attachment)
@@ -672,15 +756,14 @@ sentry__envelope_add_attachment(
             sentry_value_new_string(attachment->content_type));
     }
     sentry__envelope_item_set_header(item, "filename",
-        sentry_value_new_string(sentry__path_filename(
-            attachment->filename ? attachment->filename : attachment->path)));
+        sentry_value_new_string(sentry__attachment_get_filename(attachment)));
 
     return item;
 }
 
 void
-sentry__envelope_add_attachments(
-    sentry_envelope_t *envelope, const sentry_attachment_t *attachments)
+sentry__envelope_add_attachments(sentry_envelope_t *envelope,
+    const sentry_attachment_t *attachments, const sentry_options_t *options)
 {
     if (!envelope || !attachments) {
         return;
@@ -689,6 +772,9 @@ sentry__envelope_add_attachments(
     SENTRY_DEBUG("adding attachments to envelope");
     for (const sentry_attachment_t *attachment = attachments; attachment;
         attachment = attachment->next) {
+        if (sentry__attachment_is_placeholder(attachment, options)) {
+            continue;
+        }
         sentry__envelope_add_attachment(envelope, attachment);
     }
 }
@@ -922,7 +1008,11 @@ static bool deserialize_into(
 sentry_envelope_t *
 sentry_envelope_deserialize(const char *buf, size_t buf_len)
 {
-    sentry_envelope_t *envelope = sentry__envelope_new();
+    // Use sentry__envelope_new_with_dsn(NULL) instead of sentry__envelope_new()
+    // because the DSN is part of the serialized headers and will be restored by
+    // deserialization. This avoids acquiring the options lock, which would
+    // deadlock if called from a bgworker thread during shutdown.
+    sentry_envelope_t *envelope = sentry__envelope_new_with_dsn(NULL);
     if (!envelope) {
         return NULL;
     }
@@ -1319,15 +1409,19 @@ sentry__envelope_discard(const sentry_envelope_t *envelope,
     }
 }
 
-// these for now are only needed for tests
-#ifdef SENTRY_UNITTEST
+bool
+sentry__envelope_is_raw(const sentry_envelope_t *envelope)
+{
+    return envelope && envelope->is_raw;
+}
+
 size_t
 sentry__envelope_get_item_count(const sentry_envelope_t *envelope)
 {
     return envelope->is_raw ? 0 : envelope->contents.items.item_count;
 }
 
-const sentry_envelope_item_t *
+sentry_envelope_item_t *
 sentry__envelope_get_item(const sentry_envelope_t *envelope, size_t idx)
 {
     if (envelope->is_raw) {
@@ -1336,8 +1430,7 @@ sentry__envelope_get_item(const sentry_envelope_t *envelope, size_t idx)
 
     // Traverse linked list to find item at index
     size_t current_idx = 0;
-    for (const sentry_envelope_item_t *item
-        = envelope->contents.items.first_item;
+    for (sentry_envelope_item_t *item = envelope->contents.items.first_item;
         item; item = item->next) {
         if (current_idx == idx) {
             return item;
@@ -1348,6 +1441,40 @@ sentry__envelope_get_item(const sentry_envelope_t *envelope, size_t idx)
     return NULL;
 }
 
+bool
+sentry__envelope_remove_item(
+    sentry_envelope_t *envelope, sentry_envelope_item_t *item)
+{
+    if (!envelope || envelope->is_raw || !item) {
+        return false;
+    }
+
+    sentry_envelope_item_t *prev = NULL;
+    sentry_envelope_item_t *cur = envelope->contents.items.first_item;
+    while (cur) {
+        if (cur == item) {
+            if (prev) {
+                prev->next = cur->next;
+            } else {
+                envelope->contents.items.first_item = cur->next;
+            }
+            if (envelope->contents.items.last_item == cur) {
+                envelope->contents.items.last_item = prev;
+            }
+            envelope->contents.items.item_count--;
+            envelope_item_cleanup(cur);
+            sentry_free(cur);
+            return true;
+        }
+        prev = cur;
+        cur = cur->next;
+    }
+
+    return false;
+}
+
+// these for now are only needed for tests
+#ifdef SENTRY_UNITTEST
 sentry_value_t
 sentry__envelope_item_get_header(
     const sentry_envelope_item_t *item, const char *key)
@@ -1385,4 +1512,129 @@ sentry__envelope_materialize(sentry_envelope_t *envelope)
     bool ok = deserialize_into(envelope, payload, payload_len);
     sentry_free(payload);
     return ok;
+}
+
+static bool
+sentry__envelope_item_is_attachment_ref(const sentry_envelope_item_t *item)
+{
+    if (!item) {
+        return false;
+    }
+    const char *ct = sentry_value_as_string(
+        sentry_value_get_by_key(item->headers, "content_type"));
+    return ct && strcmp(ct, SENTRY_ATTACHMENT_REF_MIME) == 0;
+}
+
+bool
+sentry__envelope_item_get_attachment_ref(
+    const sentry_envelope_item_t *item, sentry_attachment_ref_t *ref)
+{
+    if (!ref) {
+        return false;
+    }
+    memset(ref, 0, sizeof(*ref));
+    if (!sentry__envelope_item_is_attachment_ref(item)) {
+        return false;
+    }
+    if (!item->payload) {
+        ref->_owner = sentry_value_new_null();
+        return true;
+    }
+    ref->_owner = sentry__value_from_json(item->payload, item->payload_len);
+    ref->path
+        = sentry_value_as_string(sentry_value_get_by_key(ref->_owner, "path"));
+    ref->location = sentry_value_as_string(
+        sentry_value_get_by_key(ref->_owner, "location"));
+    ref->content_type = sentry_value_as_string(
+        sentry_value_get_by_key(ref->_owner, "content_type"));
+    return true;
+}
+
+void
+sentry__attachment_ref_cleanup(sentry_attachment_ref_t *ref)
+{
+    if (!ref) {
+        return;
+    }
+    sentry_value_decref(ref->_owner);
+    memset(ref, 0, sizeof(*ref));
+}
+
+static bool
+set_attachment_ref_payload(
+    sentry_envelope_item_t *item, const sentry_attachment_ref_t *ref)
+{
+    if (!item || !attachment_ref_has_payload(ref)) {
+        return false;
+    }
+    size_t payload_len = 0;
+    char *payload = attachment_ref_payload_to_string(ref, &payload_len);
+    if (!payload) {
+        return false;
+    }
+    sentry_free(item->payload);
+    item->payload = payload;
+    item->payload_len = payload_len;
+    sentry__envelope_item_set_header(
+        item, "length", sentry_value_new_int32((int32_t)payload_len));
+    return true;
+}
+
+bool
+sentry__envelope_item_resolve_attachment_ref(
+    sentry_envelope_item_t *item, const char *location)
+{
+    if (!sentry__guarded_strlen(location)) {
+        return false;
+    }
+    sentry_attachment_ref_t ref;
+    if (!sentry__envelope_item_get_attachment_ref(item, &ref)) {
+        return false;
+    }
+    sentry_attachment_ref_t resolved = { 0 };
+    if (sentry__guarded_strlen(ref.path)) {
+        resolved.path = ref.path;
+    }
+    resolved.location = location;
+    if (sentry__guarded_strlen(ref.content_type)) {
+        resolved.content_type = ref.content_type;
+    }
+    bool ok = set_attachment_ref_payload(item, &resolved);
+    sentry__attachment_ref_cleanup(&ref);
+    return ok;
+}
+
+bool
+sentry__envelope_has_content_type(
+    const sentry_envelope_t *envelope, const char *content_type)
+{
+    if (!envelope || !content_type) {
+        return false;
+    }
+    if (envelope->is_raw) {
+        size_t ct_len = strlen(content_type);
+        const char *p = envelope->contents.raw.payload;
+        size_t len = envelope->contents.raw.payload_len;
+        if (len < ct_len || ct_len == 0) {
+            return false;
+        }
+        const char *end = p + len - ct_len;
+        while (p <= end) {
+            if (*p == content_type[0] && memcmp(p, content_type, ct_len) == 0) {
+                return true;
+            }
+            p++;
+        }
+        return false;
+    }
+    for (const sentry_envelope_item_t *item
+        = envelope->contents.items.first_item;
+        item; item = item->next) {
+        const char *ct = sentry_value_as_string(
+            sentry_value_get_by_key(item->headers, "content_type"));
+        if (ct && strcmp(ct, content_type) == 0) {
+            return true;
+        }
+    }
+    return false;
 }

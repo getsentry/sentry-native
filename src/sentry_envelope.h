@@ -14,8 +14,16 @@
 
 // https://develop.sentry.dev/sdk/data-model/envelopes/#size-limits
 #define SENTRY_MAX_ENVELOPE_SESSIONS 100
+#define SENTRY_ATTACHMENT_REF_MIME "application/vnd.sentry.attachment-ref+json"
 
 typedef struct sentry_envelope_item_s sentry_envelope_item_t;
+
+typedef struct {
+    const char *path;
+    const char *location;
+    const char *content_type;
+    sentry_value_t _owner;
+} sentry_attachment_ref_t;
 
 /**
  * Create a new empty envelope.
@@ -94,10 +102,18 @@ sentry_envelope_item_t *sentry__envelope_add_attachment(
     sentry_envelope_t *envelope, const sentry_attachment_t *attachment);
 
 /**
- * Add attachments to this envelope.
+ * Add normal (non-attachment-ref) attachments to this envelope.
  */
-void sentry__envelope_add_attachments(
-    sentry_envelope_t *envelope, const sentry_attachment_t *attachments);
+void sentry__envelope_add_attachments(sentry_envelope_t *envelope,
+    const sentry_attachment_t *attachments, const sentry_options_t *options);
+
+/**
+ * Add an attachment-ref item with standard item headers to this envelope.
+ */
+sentry_envelope_item_t *sentry__envelope_add_attachment_ref(
+    sentry_envelope_t *envelope, const sentry_attachment_ref_t *ref,
+    const char *filename, sentry_attachment_type_t attachment_type,
+    size_t attachment_length);
 
 /**
  * Returns true if a client report can be added to the envelope, i.e., the
@@ -176,11 +192,16 @@ MUST_USE int sentry_envelope_write_to_path(
 int sentry__envelope_write_to_cache(
     const sentry_envelope_t *envelope, const sentry_path_t *cache_dir);
 
+bool sentry__envelope_is_raw(const sentry_envelope_t *envelope);
+
+size_t sentry__envelope_get_item_count(const sentry_envelope_t *envelope);
+sentry_envelope_item_t *sentry__envelope_get_item(
+    const sentry_envelope_t *envelope, size_t idx);
+bool sentry__envelope_remove_item(
+    sentry_envelope_t *envelope, sentry_envelope_item_t *item);
+
 // these for now are only needed for tests
 #ifdef SENTRY_UNITTEST
-size_t sentry__envelope_get_item_count(const sentry_envelope_t *envelope);
-const sentry_envelope_item_t *sentry__envelope_get_item(
-    const sentry_envelope_t *envelope, size_t idx);
 sentry_value_t sentry__envelope_item_get_header(
     const sentry_envelope_item_t *item, const char *key);
 const char *sentry__envelope_item_get_payload(
@@ -188,9 +209,32 @@ const char *sentry__envelope_item_get_payload(
 #endif
 
 /**
+ * Parses `item` as an attachment-ref. The returned field values are valid
+ * until `sentry__attachment_ref_cleanup` is called.
+ */
+bool sentry__envelope_item_get_attachment_ref(
+    const sentry_envelope_item_t *item, sentry_attachment_ref_t *ref);
+
+void sentry__attachment_ref_cleanup(sentry_attachment_ref_t *ref);
+
+/**
+ * Resolves an attachment-ref item with a remote TUS location.
+ */
+bool sentry__envelope_item_resolve_attachment_ref(
+    sentry_envelope_item_t *item, const char *location);
+
+/**
  * If `envelope` is raw, parse it in place into a structured envelope.
  * No-op if already structured. Returns true on success.
  */
 bool sentry__envelope_materialize(sentry_envelope_t *envelope);
+
+/**
+ * True if `envelope` contains at least one item with the given `content_type`
+ * header value. For raw envelopes this is a byte-substring scan, so use only
+ * with sufficiently unique `content_type` strings.
+ */
+bool sentry__envelope_has_content_type(
+    const sentry_envelope_t *envelope, const char *content_type);
 
 #endif

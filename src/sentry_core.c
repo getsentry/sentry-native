@@ -367,8 +367,7 @@ sentry_close(void)
             dumped_envelopes = sentry__transport_dump_queue(
                 options->transport, options->run);
         }
-        if (!dumped_envelopes
-            && (!options->backend
+        if ((!options->backend
                 || !options->backend->can_capture_after_shutdown)) {
             sentry__run_clean(options->run);
         }
@@ -725,10 +724,17 @@ sentry__prepare_event(const sentry_options_t *options, sentry_value_t event,
     SENTRY_WITH_SCOPE (scope) {
         if (all_attachments) {
             // all attachments merged from multiple scopes
-            sentry__envelope_add_attachments(envelope, all_attachments);
+            sentry__envelope_add_attachments(
+                envelope, all_attachments, options);
         } else {
             // only global scope has attachments
-            sentry__envelope_add_attachments(envelope, scope->attachments);
+            sentry__envelope_add_attachments(
+                envelope, scope->attachments, options);
+        }
+        if (options->run) {
+            sentry__cache_attachment_refs(envelope,
+                all_attachments ? all_attachments : scope->attachments, options,
+                options->run->cache_path, options->run->run_path);
         }
     }
 
@@ -805,7 +811,8 @@ fail:
 }
 
 static sentry_envelope_t *
-prepare_user_feedback(sentry_value_t user_feedback, sentry_hint_t *hint)
+prepare_user_feedback(const sentry_options_t *options,
+    sentry_value_t user_feedback, sentry_hint_t *hint)
 {
     sentry_envelope_t *envelope = NULL;
 
@@ -816,7 +823,11 @@ prepare_user_feedback(sentry_value_t user_feedback, sentry_hint_t *hint)
     }
 
     if (hint && hint->attachments) {
-        sentry__envelope_add_attachments(envelope, hint->attachments);
+        sentry__envelope_add_attachments(envelope, hint->attachments, options);
+        if (options->run) {
+            sentry__cache_attachment_refs(envelope, hint->attachments, options,
+                options->run->cache_path, options->run->run_path);
+        }
     }
 
     return envelope;
@@ -1648,7 +1659,7 @@ sentry_capture_feedback_with_hint(
     sentry_envelope_t *envelope = NULL;
 
     SENTRY_WITH_OPTIONS (options) {
-        envelope = prepare_user_feedback(user_feedback, hint);
+        envelope = prepare_user_feedback(options, user_feedback, hint);
         if (envelope) {
             sentry__capture_envelope(options->transport, envelope, options);
         }
@@ -1749,6 +1760,31 @@ sentry_capture_minidump_n(const char *path, size_t path_len)
         if (!envelope || sentry_uuid_is_nil(&event_id)) {
             sentry_envelope_free(envelope);
         } else {
+            if (options->enable_large_attachments && options->run
+                && sentry__path_get_size(dump_path)
+                    >= SENTRY_LARGE_ATTACHMENT_SIZE) {
+                sentry_attachment_t tmp = { 0 };
+                tmp.path = dump_path;
+                tmp.type = MINIDUMP;
+                if (!sentry__cache_attachment_ref(
+                        envelope, &tmp, options->run->cache_path, NULL)) {
+                    SENTRY_WARN("failed to cache minidump attachment-ref");
+                    sentry__client_report_discard(
+                        SENTRY_DISCARD_REASON_SEND_ERROR,
+                        SENTRY_DATA_CATEGORY_ATTACHMENT, 1);
+                    sentry_envelope_free(envelope);
+                    sentry__path_free(dump_path);
+                    sentry_options_free((sentry_options_t *)options);
+                    return sentry_uuid_nil();
+                }
+                sentry__capture_envelope(options->transport, envelope, options);
+                SENTRY_INFOF(
+                    "Minidump has been captured: \"%s\"", dump_path->path);
+                sentry__path_free(dump_path);
+                sentry_options_free((sentry_options_t *)options);
+                return event_id;
+            }
+
             // the minidump is added as an attachment, with the type
             // `event.minidump`
             sentry_envelope_item_t *item = sentry__envelope_add_from_path(
