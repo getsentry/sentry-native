@@ -281,8 +281,10 @@ add_attachment_refs(sentry_envelope_t *envelope,
             break;
         }
         materialized = true;
-        sentry__cache_attachment_refs(
-            envelope, &attachment, options, options->run->cache_path, NULL);
+        if (!sentry__cache_attachment_ref(
+                envelope, &attachment, options->run->cache_path, NULL)) {
+            SENTRY_WARN("failed to cache attachment-ref");
+        }
         sentry__path_free(attachment.path);
         sentry__path_free(attachment.filename);
     }
