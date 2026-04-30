@@ -131,8 +131,9 @@ sentry__attachment_get_size(const sentry_attachment_t *attachment)
 const char *
 sentry__attachment_get_filename(const sentry_attachment_t *attachment)
 {
-    return sentry__path_filename(
-        attachment->filename ? attachment->filename : attachment->path);
+    const sentry_path_t *path
+        = attachment->filename ? attachment->filename : attachment->path;
+    return path ? sentry__path_filename(path) : NULL;
 }
 
 bool
