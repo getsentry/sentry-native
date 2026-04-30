@@ -1,7 +1,10 @@
 import json
 import os
+import threading
+import time
 
 import pytest
+from werkzeug.wrappers import Response
 
 from . import (
     make_dsn,
@@ -239,6 +242,122 @@ def test_tus_rate_limit(cmake, httpserver):
     if os.path.isdir(cache_dir):
         leftovers = [f for f in os.listdir(cache_dir) if not f.endswith(".envelope")]
         assert leftovers == []
+
+
+def test_tus_shutdown(cmake, httpserver):
+    tmp_path = cmake(
+        ["sentry_example"],
+        {"SENTRY_BACKEND": "none"},
+    )
+
+    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
+
+    upload_uri = "/api/123456/upload/abc123def456789/"
+    upload_qs = "length=104857600&signature=xyz"
+    location = httpserver.url_for(upload_uri) + "?" + upload_qs
+
+    create_started = threading.Event()
+    release_create = threading.Event()
+
+    def delayed_create(_req):
+        create_started.set()
+        release_create.wait(timeout=10)
+        return Response("OK", status=201, headers={"Location": location})
+
+    httpserver.expect_oneshot_request(
+        "/api/123456/upload/",
+        headers={"tus-resumable": "1.0.0"},
+    ).respond_with_handler(delayed_create)
+
+    run(
+        tmp_path,
+        "sentry_example",
+        [
+            "log",
+            "no-setup",
+            "large-attachment",
+            "capture-event",
+            "sleep-after-shutdown",
+        ],
+        env=env,
+    )
+    assert create_started.is_set()
+    release_create.set()
+    deadline = time.time() + 5
+    while len(httpserver.log) < 1 and time.time() < deadline:
+        time.sleep(0.05)
+
+    db_dir = os.path.join(tmp_path, ".sentry-native")
+    cache_dir = os.path.join(db_dir, "cache")
+    run_dirs = [
+        d
+        for d in os.listdir(db_dir)
+        if d.endswith(".run") and os.path.isdir(os.path.join(db_dir, d))
+    ]
+    assert len(run_dirs) == 1
+    run_dir = os.path.join(db_dir, run_dirs[0])
+    envelope_files = [f for f in os.listdir(run_dir) if f.endswith(".envelope")]
+    assert len(envelope_files) == 1
+    base = envelope_files[0][: -len(".envelope")]
+    siblings = [f for f in os.listdir(cache_dir) if f.startswith(base)]
+    assert len(siblings) > 0
+
+    httpserver.clear_all_handlers()
+    httpserver.clear_log()
+
+    httpserver.expect_oneshot_request(
+        "/api/123456/upload/",
+        headers={"tus-resumable": "1.0.0"},
+    ).respond_with_data(
+        "OK",
+        status=201,
+        headers={"Location": location},
+    )
+
+    httpserver.expect_oneshot_request(
+        upload_uri,
+        method="PATCH",
+        headers={"tus-resumable": "1.0.0"},
+        query_string=upload_qs,
+    ).respond_with_data("", status=204)
+
+    httpserver.expect_request(
+        "/api/123456/envelope/",
+        headers={"x-sentry-auth": auth_header},
+    ).respond_with_data("OK")
+
+    run(
+        tmp_path,
+        "sentry_example",
+        ["log", "no-setup"],
+        env=env,
+    )
+
+    assert len(httpserver.log) == 3
+
+    envelope_req = None
+    for entry in httpserver.log:
+        req = entry[0]
+        if "/envelope/" in req.path:
+            envelope_req = req
+
+    assert envelope_req is not None
+    envelope = Envelope.deserialize(envelope_req.get_data())
+    attachment_ref = None
+    for item in envelope:
+        if (
+            item.headers.get("content_type")
+            == "application/vnd.sentry.attachment-ref+json"
+        ):
+            if hasattr(item.payload, "json") and "location" in item.payload.json:
+                attachment_ref = item
+                break
+
+    assert attachment_ref is not None
+    assert attachment_ref.payload.json["location"] == location
+
+    leftover_siblings = [f for f in os.listdir(cache_dir) if f.startswith(base)]
+    assert leftover_siblings == []
 
 
 @pytest.mark.parametrize(

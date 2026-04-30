@@ -39,6 +39,7 @@ typedef struct {
     char *retry_after;
     char *x_sentry_rate_limits;
     char *location;
+    bool shutdown;
 } sentry_http_response_t;
 
 typedef bool (*sentry_http_send_func_t)(void *client,

@@ -293,14 +293,21 @@ http_response_cleanup(sentry_http_response_t *resp)
     sentry_free(resp->location);
 }
 
+enum {
+    RESULT_OK = 0,
+    RESULT_ERROR = -1,
+    RESULT_SHUTDOWN = -2,
+};
+
 static int
 http_send_request(http_transport_state_t *state,
     sentry_prepared_http_request_t *req, sentry_http_response_t *resp)
 {
     memset(resp, 0, sizeof(*resp));
     if (!state->send_func(state->client, req, resp)) {
+        int result = resp->shutdown ? RESULT_SHUTDOWN : RESULT_ERROR;
         http_response_cleanup(resp);
-        return -1;
+        return result;
     }
     return resp->status_code;
 }
@@ -335,20 +342,21 @@ http_update_ratelimiter(
     http_response_cleanup(resp);
 }
 
-// Perform a TUS upload for the file at <cache>/<basename> and return the
-// resulting remote location URL (caller frees). Returns NULL on failure.
-static char *
+// Perform a TUS upload for the file at <cache>/<basename> and put the
+// resulting remote location URL (caller frees) in `location_out`.
+static int
 tus_upload_file(http_transport_state_t *state, const sentry_path_t *cache_path,
-    const char *basename)
+    const char *basename, char **location_out)
 {
     if (!basename || *basename == '\0') {
-        return NULL;
+        return RESULT_ERROR;
     }
+    *location_out = NULL;
     sentry_path_t *att_file = sentry__path_join_str(cache_path, basename);
     size_t file_size = att_file ? sentry__path_get_size(att_file) : 0;
     if (!att_file || file_size == 0) {
         sentry__path_free(att_file);
-        return NULL;
+        return RESULT_ERROR;
     }
 
     // Step 1: TUS creation (POST, no body)
@@ -356,24 +364,22 @@ tus_upload_file(http_transport_state_t *state, const sentry_path_t *cache_path,
         = prepare_tus_request_common(file_size, state->dsn, state->user_agent);
     if (!req) {
         sentry__path_free(att_file);
-        return NULL;
+        return RESULT_ERROR;
     }
 
     sentry_http_response_t resp;
-    memset(&resp, 0, sizeof(resp));
-    bool ok = state->send_func(state->client, req, &resp);
+    int status_code = http_send_request(state, req, &resp);
     sentry__prepared_http_request_free(req);
 
-    if (!ok) {
+    if (status_code < 0) {
         sentry__path_free(att_file);
-        http_response_cleanup(&resp);
-        return NULL;
+        return status_code;
     }
 
     if (resp.status_code != 201 || !resp.location) {
         sentry__path_free(att_file);
         http_response_cleanup(&resp);
-        return NULL;
+        return RESULT_ERROR;
     }
 
     // Step 2: TUS upload (PATCH with file body). The placeholder needs the
@@ -382,27 +388,37 @@ tus_upload_file(http_transport_state_t *state, const sentry_path_t *cache_path,
     char *patch_url = sentry__dsn_resolve_url(state->dsn, resp.location);
     char *location = sentry__string_clone(resp.location);
     http_response_cleanup(&resp);
+    if (!location) {
+        sentry_free(patch_url);
+        sentry__path_free(att_file);
+        return RESULT_ERROR;
+    }
     req = prepare_tus_upload_request(
         patch_url, att_file, file_size, state->dsn, state->user_agent);
     sentry_free(patch_url);
     sentry__path_free(att_file);
     if (!req) {
         sentry_free(location);
-        return NULL;
+        return RESULT_ERROR;
     }
 
-    memset(&resp, 0, sizeof(resp));
-    ok = state->send_func(state->client, req, &resp);
+    status_code = http_send_request(state, req, &resp);
     sentry__prepared_http_request_free(req);
+    if (status_code < 0) {
+        sentry_free(location);
+        return status_code;
+    }
+
     int status = resp.status_code;
     http_response_cleanup(&resp);
 
-    if (!ok || status != 204) {
+    if (status != 204) {
         sentry_free(location);
-        return NULL;
+        return RESULT_ERROR;
     }
 
-    return location;
+    *location_out = location;
+    return status;
 }
 
 // Collect the non-NULL `path` values from every attachment-ref item in the
@@ -491,12 +507,12 @@ prune_attachment_refs(const sentry_run_t *run, sentry_value_t paths,
 // Walk attachment-ref items: for each one with `path` and no `location`, try
 // TUS upload and set `location`. If TUS is unavailable or fails for a given
 // item, drop it and send the event without the large attachment.
-static bool
+static int
 resolve_attachment_refs(
     http_transport_state_t *state, sentry_envelope_t *envelope)
 {
     if (!state->run || !envelope || sentry__envelope_is_raw(envelope)) {
-        return true;
+        return RESULT_OK;
     }
     const sentry_path_t *cache_path = state->run->cache_path;
 
@@ -516,7 +532,7 @@ resolve_attachment_refs(
                 SENTRY_DISCARD_REASON_RATELIMIT_BACKOFF,
                 SENTRY_DATA_CATEGORY_ATTACHMENT, 1);
             if (!sentry__envelope_remove_item(envelope, item)) {
-                return false;
+                return RESULT_ERROR;
             }
             continue;
         }
@@ -530,12 +546,14 @@ resolve_attachment_refs(
         if (!ref.path || !*ref.path) {
             sentry__attachment_ref_cleanup(&ref);
             if (!sentry__envelope_remove_item(envelope, item)) {
-                return false;
+                return RESULT_ERROR;
             }
             continue;
         }
 
-        char *new_location = tus_upload_file(state, cache_path, ref.path);
+        char *new_location = NULL;
+        int result
+            = tus_upload_file(state, cache_path, ref.path, &new_location);
         if (new_location) {
             bool resolved = sentry__envelope_item_resolve_attachment_ref(
                 item, new_location);
@@ -547,14 +565,18 @@ resolve_attachment_refs(
             }
         }
 
+        if (result == RESULT_SHUTDOWN) {
+            sentry__attachment_ref_cleanup(&ref);
+            return result;
+        }
         sentry__attachment_ref_cleanup(&ref);
         sentry__client_report_discard(SENTRY_DISCARD_REASON_SEND_ERROR,
             SENTRY_DATA_CATEGORY_ATTACHMENT, 1);
         if (!sentry__envelope_remove_item(envelope, item)) {
-            return false;
+            return RESULT_ERROR;
         }
     }
-    return true;
+    return RESULT_OK;
 }
 
 static bool
@@ -577,15 +599,18 @@ static int
 http_send_envelope(sentry_envelope_t *envelope, void *_state)
 {
     http_transport_state_t *state = _state;
-    if (!resolve_attachment_refs(state, envelope)) {
-        SENTRY_WARN("failed to resolve attachment-ref items");
-        return -1;
+    int result = resolve_attachment_refs(state, envelope);
+    if (result < 0) {
+        if (result != RESULT_SHUTDOWN) {
+            SENTRY_WARN("failed to resolve attachment-ref items");
+        }
+        return result;
     }
 
     sentry_prepared_http_request_t *req = sentry__prepare_http_request(
         envelope, state->dsn, state->ratelimiter, state->user_agent);
     if (!req) {
-        return 0;
+        return RESULT_OK;
     }
     sentry_http_response_t resp;
     int status_code = http_send_request(state, req, &resp);
@@ -662,11 +687,18 @@ http_send_task(void *_envelope, void *_state)
 
     if (status_code < 0) {
         const sentry_envelope_t *ref_owner = NULL;
-        if (state->retry && sentry__retry_enqueue(state->retry, envelope)) {
+        if (sentry_value_get_length(ref_paths) > 0
+            && status_code == RESULT_SHUTDOWN) {
+            // Keep attachment-ref cache siblings for the shutdown queue dump.
+            ref_owner = envelope;
+        } else if (state->retry
+            && sentry__retry_enqueue(state->retry, envelope)) {
+            // Keep attachment-ref cache siblings for the queued retry envelope.
             ref_owner = envelope;
         } else {
             if (!state->retry && state->cache_keep
                 && sentry__run_write_cache(state->run, envelope, -1)) {
+                // Keep attachment-ref cache siblings for the cached envelope.
                 ref_owner = envelope;
             }
             sentry__client_report_restore(&report);

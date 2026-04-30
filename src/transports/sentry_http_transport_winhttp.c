@@ -4,6 +4,7 @@
 #include "sentry_http_transport.h"
 #include "sentry_options.h"
 #include "sentry_string.h"
+#include "sentry_sync.h"
 #include "sentry_transport.h"
 #include "sentry_utils.h"
 
@@ -23,6 +24,7 @@ typedef struct {
     HINTERNET connect;
     HINTERNET request;
     bool debug;
+    long shutdown;
 } winhttp_client_t;
 
 static winhttp_client_t *
@@ -143,6 +145,7 @@ static void
 winhttp_client_shutdown(void *_client)
 {
     winhttp_client_t *client = _client;
+    sentry__atomic_store(&client->shutdown, 1);
     // Seems like some requests are taking too long/hanging
     // Just close them to make sure the background thread is exiting.
     if (client->connect) {
@@ -372,6 +375,9 @@ winhttp_send_task(void *_client, sentry_prepared_http_request_t *req,
     SENTRY_DEBUGF("request handled in %llums", now - started);
 
 exit:;
+    if (!result && sentry__atomic_fetch(&client->shutdown)) {
+        resp->shutdown = true;
+    }
     HINTERNET request = InterlockedExchangePointer(&client->request, NULL);
     if (request) {
         WinHttpCloseHandle(request);
