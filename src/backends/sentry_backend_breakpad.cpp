@@ -164,7 +164,7 @@ breakpad_backend_callback(const google_breakpad::MinidumpDescriptor &descriptor,
 
         if (should_handle) {
             bool capture_screenshot = options->attach_screenshot;
-#ifdef SENTRY_PLATFORM_WINDOWS
+#ifndef SENTRY_SCREENSHOT_NONE
             if (capture_screenshot && options->before_screenshot_func) {
                 SENTRY_SIGNAL_SAFE_LOG(
                     "DEBUG invoking `before_screenshot` hook");

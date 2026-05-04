@@ -2905,7 +2905,7 @@ sentry__process_crash(const sentry_options_t *options, sentry_crash_ipc_t *ipc)
     // Capture screenshot if enabled (Windows only)
     // This is done in the daemon process (out-of-process) because
     // screenshot capture is NOT signal-safe (uses LoadLibrary, GDI+, etc.)
-#if defined(SENTRY_PLATFORM_WINDOWS)
+#if !defined(SENTRY_SCREENSHOT_NONE)
     if (ctx->attach_screenshot && run_folder) {
         SENTRY_DEBUG("Capturing screenshot");
         sentry_path_t *screenshot_path
