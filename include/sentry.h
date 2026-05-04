@@ -2341,13 +2341,6 @@ SENTRY_EXPERIMENTAL_API void sentry_options_set_org_id_n(
     sentry_options_t *opts, const char *org_id, size_t org_id_len);
 
 /**
- * Returns the organization ID previously set via `sentry_options_set_org_id`,
- * or NULL if none was set. Does not fall back to the DSN-derived value.
- */
-SENTRY_EXPERIMENTAL_API const char *sentry_options_get_org_id(
-    const sentry_options_t *opts);
-
-/**
  * Enables or disables strict trace continuation.
  *
  * Controls whether to continue an incoming trace when either the trace or the

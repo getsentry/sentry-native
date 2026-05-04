@@ -211,7 +211,7 @@ sentry__scope_rebuild_dsc_from_options(
         sentry_value_set_by_key(dsc, "public_key",
             sentry_value_new_string(options->dsn->public_key));
     }
-    const char *org_id = sentry__options_get_effective_org_id(options);
+    const char *org_id = sentry__options_get_org_id(options);
     if (org_id) {
         sentry_value_set_by_key(dsc, "org_id", sentry_value_new_string(org_id));
     }

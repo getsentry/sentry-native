@@ -1267,8 +1267,7 @@ sentry_transaction_start_ts(sentry_transaction_context_t *opaque_tx_ctx,
     if (!sentry_value_is_null(incoming)) {
         SENTRY_WITH_OPTIONS (options) {
             SENTRY_WITH_SCOPE_MUT (scope) {
-                const char *sdk_org
-                    = sentry__options_get_effective_org_id(options);
+                const char *sdk_org = sentry__options_get_org_id(options);
                 const char *inc_org = sentry_value_as_string(
                     sentry_value_get_by_key(incoming, "org_id"));
                 if (!*inc_org) {

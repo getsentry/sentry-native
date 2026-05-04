@@ -1974,35 +1974,33 @@ SENTRY_TEST(effective_org_id_resolution)
 {
     // No DSN, no option → NULL
     SENTRY_TEST_OPTIONS_NEW(opts1);
-    TEST_CHECK(sentry__options_get_effective_org_id(opts1) == NULL);
+    TEST_CHECK(sentry__options_get_org_id(opts1) == NULL);
     sentry_options_free(opts1);
 
     // DSN with org → DSN value
     SENTRY_TEST_OPTIONS_NEW(opts2);
     sentry_options_set_dsn(opts2, "https://k@o123456.ingest.sentry.io/1");
-    TEST_CHECK_STRING_EQUAL(
-        sentry__options_get_effective_org_id(opts2), "123456");
+    TEST_CHECK_STRING_EQUAL(sentry__options_get_org_id(opts2), "123456");
     sentry_options_free(opts2);
 
     // DSN without org_id-encoded host → NULL
     SENTRY_TEST_OPTIONS_NEW(opts3);
     sentry_options_set_dsn(opts3, "https://k@self-hosted.example.com/1");
-    TEST_CHECK(sentry__options_get_effective_org_id(opts3) == NULL);
+    TEST_CHECK(sentry__options_get_org_id(opts3) == NULL);
     sentry_options_free(opts3);
 
     // Option overrides DSN
     SENTRY_TEST_OPTIONS_NEW(opts4);
     sentry_options_set_dsn(opts4, "https://k@o123456.ingest.sentry.io/1");
     sentry_options_set_org_id(opts4, "999");
-    TEST_CHECK_STRING_EQUAL(sentry__options_get_effective_org_id(opts4), "999");
+    TEST_CHECK_STRING_EQUAL(sentry__options_get_org_id(opts4), "999");
     sentry_options_free(opts4);
 
     // Empty option falls back to DSN
     SENTRY_TEST_OPTIONS_NEW(opts5);
     sentry_options_set_dsn(opts5, "https://k@o123456.ingest.sentry.io/1");
     sentry_options_set_org_id(opts5, "");
-    TEST_CHECK_STRING_EQUAL(
-        sentry__options_get_effective_org_id(opts5), "123456");
+    TEST_CHECK_STRING_EQUAL(sentry__options_get_org_id(opts5), "123456");
     sentry_options_free(opts5);
 }
 

@@ -238,13 +238,7 @@ sentry_options_set_org_id(sentry_options_t *opts, const char *org_id)
 }
 
 const char *
-sentry_options_get_org_id(const sentry_options_t *opts)
-{
-    return opts->org_id;
-}
-
-const char *
-sentry__options_get_effective_org_id(const sentry_options_t *opts)
+sentry__options_get_org_id(const sentry_options_t *opts)
 {
     if (opts->org_id && *opts->org_id) {
         return opts->org_id;
