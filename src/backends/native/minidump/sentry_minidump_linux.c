@@ -2317,8 +2317,7 @@ write_linux_cmd_line_stream(
  * Write /proc/PID/environ as LinuxEnviron stream.
  */
 static int
-write_linux_environ_stream(
-    minidump_writer_t *writer, minidump_directory_t *dir)
+write_linux_environ_stream(minidump_writer_t *writer, minidump_directory_t *dir)
 {
     char path[64];
     snprintf(
@@ -2414,7 +2413,8 @@ write_linux_dso_debug_stream(
     }
 
     // Step 2 + 3: read program headers, locate PT_DYNAMIC and adjust base.
-    // Cap phnum to a sane upper bound so a corrupt auxv can't drive a huge alloc.
+    // Cap phnum to a sane upper bound so a corrupt auxv can't drive a huge
+    // alloc.
     if (at_phnum > 256) {
         SENTRY_WARNF("dso_debug: phnum=%llu exceeds cap, refusing",
             (unsigned long long)at_phnum);
@@ -2458,8 +2458,7 @@ write_linux_dso_debug_stream(
 
     // Step 4: walk PT_DYNAMIC for DT_DEBUG.
     // dyn_filesz can be 0 in rare ELFs; cap iteration with a sane upper bound.
-    size_t max_dyn_entries
-        = dyn_filesz ? dyn_filesz / sizeof(ElfW(Dyn)) : 4096;
+    size_t max_dyn_entries = dyn_filesz ? dyn_filesz / sizeof(ElfW(Dyn)) : 4096;
     if (max_dyn_entries > 4096) {
         max_dyn_entries = 4096;
     }
@@ -2471,8 +2470,7 @@ write_linux_dso_debug_stream(
         uint64_t entry_addr = dynamic_addr + i * sizeof(dyn);
         if (read_process_memory(writer, entry_addr, &dyn, sizeof(dyn))
             != (ssize_t)sizeof(dyn)) {
-            SENTRY_DEBUGF(
-                "dso_debug: failed to read PT_DYNAMIC entry %zu", i);
+            SENTRY_DEBUGF("dso_debug: failed to read PT_DYNAMIC entry %zu", i);
             return -1;
         }
         dynamic_length += sizeof(dyn);
@@ -2488,8 +2486,9 @@ write_linux_dso_debug_stream(
     // explicitly so we don't depend on their exact glibc layout — the
     // ABI for these is stable across glibc/musl: r_version (int) at offset 0,
     // r_map (link_map*) at offset of pointer-aligned 1, then r_brk, r_state,
-    // r_ldbase. struct link_map starts with l_addr, l_name, l_ld, l_next, l_prev.
-    // Using <link.h>'s definition is fine since target and dumper share libc.
+    // r_ldbase. struct link_map starts with l_addr, l_name, l_ld, l_next,
+    // l_prev. Using <link.h>'s definition is fine since target and dumper share
+    // libc.
     struct r_debug rd;
     memset(&rd, 0, sizeof(rd));
     bool have_rdebug = false;
@@ -2507,8 +2506,8 @@ write_linux_dso_debug_stream(
     void *next = have_rdebug ? rd.r_map : NULL;
     while (next && dso_count < SENTRY_CRASH_MAX_MAPPINGS) {
         struct link_map lm;
-        if (read_process_memory(writer, (uint64_t)(uintptr_t)next, &lm,
-                sizeof(lm))
+        if (read_process_memory(
+                writer, (uint64_t)(uintptr_t)next, &lm, sizeof(lm))
             != (ssize_t)sizeof(lm)) {
             SENTRY_DEBUGF("dso_debug: failed to read link_map at %p", next);
             break;
@@ -2536,8 +2535,8 @@ write_linux_dso_debug_stream(
         next = rd.r_map;
         while (next && idx < dso_count) {
             struct link_map lm;
-            if (read_process_memory(writer, (uint64_t)(uintptr_t)next, &lm,
-                    sizeof(lm))
+            if (read_process_memory(
+                    writer, (uint64_t)(uintptr_t)next, &lm, sizeof(lm))
                 != (ssize_t)sizeof(lm)) {
                 break;
             }
@@ -2589,8 +2588,8 @@ write_linux_dso_debug_stream(
     // Best-effort: copy the actual PT_DYNAMIC bytes. Failure here is OK —
     // consumers only need the header for module enumeration.
     if (dynamic_length) {
-        if (read_process_memory(writer, dynamic_addr, blob + header_size,
-                dynamic_length)
+        if (read_process_memory(
+                writer, dynamic_addr, blob + header_size, dynamic_length)
             != (ssize_t)dynamic_length) {
             // Zero out the trailing bytes if we couldn't read; not fatal.
             memset(blob + header_size, 0, dynamic_length);
@@ -2668,9 +2667,10 @@ sentry__write_minidump(
     //  13  LinuxDsoDebug       walked from r_debug      (LLDB needs this)
     //
     // The optional /proc files (lsb-release missing on many distros, environ
-    // unreadable in some sandboxed configs) are wired with NullifyDirectoryEntry
-    // semantics: the slot is reserved, but if the writer fails the directory
-    // entry stays at type/size/rva = 0 (consumers ignore it).
+    // unreadable in some sandboxed configs) are wired with
+    // NullifyDirectoryEntry semantics: the slot is reserved, but if the writer
+    // fails the directory entry stays at type/size/rva = 0 (consumers ignore
+    // it).
     const uint32_t stream_count = 14;
     writer.current_offset = sizeof(minidump_header_t)
         + (stream_count * sizeof(minidump_directory_t));
