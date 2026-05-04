@@ -59,6 +59,8 @@ def get_sentry_api_base():
         pytest.skip(f"SENTRY_E2E_DSN is invalid: {dsn!r}")
 
     netloc = parsed.netloc.rsplit("@", 1)[-1]
+    # Ingest DSNs can be "<org>.ingest.<api-host>"", API calls go to <api-host>
+    netloc = re.sub(r"^[^.]+\.ingest\.", "", netloc)
     prefix = parsed.path.rstrip("/").rsplit("/", 1)[0]
     return urlunsplit((parsed.scheme, netloc, f"{prefix}/api/0", "", ""))
 
