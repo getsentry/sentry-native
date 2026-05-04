@@ -67,7 +67,7 @@ sentry_value_t sentry__value_get_trace_context(sentry_value_t span);
  * See
  * https://develop.sentry.dev/sdk/foundations/trace-propagation/#strict-trace-continuation
  */
-bool sentry__trace_continuation_allowed(
+bool sentry__trace_can_continue(
     const char *sdk_org_id, const char *incoming_org_id, bool strict);
 
 #endif

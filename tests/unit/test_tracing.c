@@ -1952,22 +1952,22 @@ SENTRY_TEST(trace_continuation_truth_table)
     // Per
     // https://develop.sentry.dev/sdk/foundations/trace-propagation/#strict-trace-continuation
     // Both absent or both present-equal: continue regardless of strict.
-    TEST_CHECK(sentry__trace_continuation_allowed(NULL, NULL, false));
-    TEST_CHECK(sentry__trace_continuation_allowed(NULL, NULL, true));
-    TEST_CHECK(sentry__trace_continuation_allowed("1", "1", false));
-    TEST_CHECK(sentry__trace_continuation_allowed("1", "1", true));
+    TEST_CHECK(sentry__trace_can_continue(NULL, NULL, false));
+    TEST_CHECK(sentry__trace_can_continue(NULL, NULL, true));
+    TEST_CHECK(sentry__trace_can_continue("1", "1", false));
+    TEST_CHECK(sentry__trace_can_continue("1", "1", true));
     // Empty string is treated as absent.
-    TEST_CHECK(sentry__trace_continuation_allowed("", "", true));
+    TEST_CHECK(sentry__trace_can_continue("", "", true));
 
     // Both present and differing: never continue.
-    TEST_CHECK(!sentry__trace_continuation_allowed("1", "2", false));
-    TEST_CHECK(!sentry__trace_continuation_allowed("1", "2", true));
+    TEST_CHECK(!sentry__trace_can_continue("1", "2", false));
+    TEST_CHECK(!sentry__trace_can_continue("1", "2", true));
 
     // Exactly one present: continue iff strict is false.
-    TEST_CHECK(sentry__trace_continuation_allowed("1", NULL, false));
-    TEST_CHECK(sentry__trace_continuation_allowed(NULL, "1", false));
-    TEST_CHECK(!sentry__trace_continuation_allowed("1", NULL, true));
-    TEST_CHECK(!sentry__trace_continuation_allowed(NULL, "1", true));
+    TEST_CHECK(sentry__trace_can_continue("1", NULL, false));
+    TEST_CHECK(sentry__trace_can_continue(NULL, "1", false));
+    TEST_CHECK(!sentry__trace_can_continue("1", NULL, true));
+    TEST_CHECK(!sentry__trace_can_continue(NULL, "1", true));
 }
 
 SENTRY_TEST(effective_org_id_resolution)

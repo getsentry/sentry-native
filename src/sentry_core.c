@@ -1274,7 +1274,7 @@ sentry_transaction_start_ts(sentry_transaction_context_t *opaque_tx_ctx,
                     inc_org = NULL;
                 }
 
-                if (sentry__trace_continuation_allowed(
+                if (sentry__trace_can_continue(
                         sdk_org, inc_org, options->strict_trace_continuation)) {
                     // Freeze only when the upstream actually sent DSC values;
                     // a sentry-trace-only signal leaves incoming empty, in

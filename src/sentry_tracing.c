@@ -390,7 +390,7 @@ parse_baggage(
 }
 
 bool
-sentry__trace_continuation_allowed(
+sentry__trace_can_continue(
     const char *sdk_org_id, const char *incoming_org_id, bool strict)
 {
     bool sdk_has = sdk_org_id && *sdk_org_id;
