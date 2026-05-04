@@ -693,7 +693,8 @@ native_backend_flush_scope(
 
         // Also copy other scope data (user, tags, extra, etc.)
         sentry_value_t user = scope->user;
-        if (!sentry_value_is_null(user)) {
+        if (sentry_value_get_type(user) == SENTRY_VALUE_TYPE_OBJECT
+            && sentry_value_get_length(user) > 0) {
             sentry_value_set_by_key(event, "user", user);
             sentry_value_incref(user);
         }

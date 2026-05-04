@@ -407,7 +407,7 @@ def test_abnormal_session(cmake, httpserver):
     session = json.dumps(
         {
             "sid": "00000000-0000-0000-0000-000000000000",
-            "did": "42",
+            "did": "11111111-1111-1111-1111-111111111111",
             "status": "started",
             "errors": 0,
             "started": "2020-06-02T10:04:53.680Z",

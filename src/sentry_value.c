@@ -471,7 +471,7 @@ sentry_value_new_user_n(const char *id, size_t id_len, const char *username,
     const char *ip_address, size_t ip_address_len)
 {
     sentry_value_t rv = sentry_value_new_object();
-    if (id && id_len) {
+    if (id) {
         sentry_value_set_by_key(
             rv, "id", sentry_value_new_string_n(id, id_len));
     }

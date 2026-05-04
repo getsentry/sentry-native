@@ -29,9 +29,10 @@ send_envelope(sentry_envelope_t *envelope, void *data)
     TEST_CHECK_STRING_EQUAL(
         sentry_value_as_string(sentry_value_get_by_key(session, "status")),
         *called == 2 ? "crashed" : "exited");
-    TEST_CHECK_STRING_EQUAL(
-        sentry_value_as_string(sentry_value_get_by_key(session, "did")),
-        *called == 1 ? "foo@blabla.invalid" : "swatinem");
+    // did falls back to the installation ID since neither user sets an `id`
+    TEST_CHECK_INT_EQUAL(
+        strlen(sentry_value_as_string(sentry_value_get_by_key(session, "did"))),
+        36);
     TEST_CHECK_INT_EQUAL(
         sentry_value_as_int32(sentry_value_get_by_key(session, "errors")), 0);
     TEST_CHECK_INT_EQUAL(

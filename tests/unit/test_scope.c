@@ -1,4 +1,6 @@
 #include "sentry.h"
+#include "sentry_database.h"
+#include "sentry_options.h"
 #include "sentry_scope.h"
 #include "sentry_testsupport.h"
 #include "sentry_utils.h"
@@ -414,6 +416,70 @@ SENTRY_TEST(scope_user)
             "{\"id\":\"3\",\"username\":\"event\"}");
 
         sentry__scope_free(local_scope);
+        sentry_value_decref(event);
+    }
+
+    sentry_close();
+}
+
+SENTRY_TEST(scope_user_id)
+{
+    SENTRY_TEST_OPTIONS_NEW(options);
+    sentry_options_set_dsn(options, "http://keya@127.0.0.1/42");
+    sentry_init(options);
+
+    // null user ID -> installation ID
+    TEST_ASSERT(!!options->run->installation_id);
+    TEST_CHECK_INT_EQUAL(strlen(options->run->installation_id), 36);
+    sentry_set_user(sentry_value_new_user(NULL, "alice", NULL, NULL));
+    SENTRY_WITH_SCOPE (scope) {
+        sentry_value_t event = sentry_value_new_object();
+        sentry__scope_apply_to_event(scope, options, event, SENTRY_SCOPE_NONE);
+        sentry_value_t user = sentry_value_get_by_key(event, "user");
+        TEST_CHECK_STRING_EQUAL(
+            sentry_value_as_string(sentry_value_get_by_key(user, "id")),
+            options->run->installation_id);
+        TEST_CHECK_STRING_EQUAL(
+            sentry_value_as_string(sentry_value_get_by_key(user, "username")),
+            "alice");
+        sentry_value_decref(event);
+    }
+
+    // empty user ID
+    sentry_set_user(sentry_value_new_user("", "bob", NULL, NULL));
+    SENTRY_WITH_SCOPE (scope) {
+        sentry_value_t event = sentry_value_new_object();
+        sentry__scope_apply_to_event(scope, options, event, SENTRY_SCOPE_NONE);
+        sentry_value_t user = sentry_value_get_by_key(event, "user");
+        TEST_CHECK_STRING_EQUAL(
+            sentry_value_as_string(sentry_value_get_by_key(user, "id")), "");
+        TEST_CHECK_STRING_EQUAL(
+            sentry_value_as_string(sentry_value_get_by_key(user, "username")),
+            "bob");
+        sentry_value_decref(event);
+    }
+
+    // non-empty user ID
+    sentry_set_user(sentry_value_new_user("42", "carol", NULL, NULL));
+    SENTRY_WITH_SCOPE (scope) {
+        sentry_value_t event = sentry_value_new_object();
+        sentry__scope_apply_to_event(scope, options, event, SENTRY_SCOPE_NONE);
+        sentry_value_t user = sentry_value_get_by_key(event, "user");
+        TEST_CHECK_STRING_EQUAL(
+            sentry_value_as_string(sentry_value_get_by_key(user, "id")), "42");
+        TEST_CHECK_STRING_EQUAL(
+            sentry_value_as_string(sentry_value_get_by_key(user, "username")),
+            "carol");
+        sentry_value_decref(event);
+    }
+
+    // remove_user -> no user on event (installation ID suppressed)
+    sentry_remove_user();
+    SENTRY_WITH_SCOPE (scope) {
+        sentry_value_t event = sentry_value_new_object();
+        sentry__scope_apply_to_event(scope, options, event, SENTRY_SCOPE_NONE);
+        TEST_CHECK(
+            sentry_value_is_null(sentry_value_get_by_key(event, "user")));
         sentry_value_decref(event);
     }
 

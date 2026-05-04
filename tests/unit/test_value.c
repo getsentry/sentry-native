@@ -438,8 +438,17 @@ SENTRY_TEST(value_user)
     TEST_CHECK(sentry_value_is_null(user_null));
     sentry_value_decref(user_null);
 
+    // Test that empty ID is respected
     sentry_value_t user_empty_str = sentry_value_new_user("", "", "", "");
-    TEST_CHECK(sentry_value_is_null(user_empty_str));
+    TEST_CHECK_STRING_EQUAL(
+        sentry_value_as_string(sentry_value_get_by_key(user_empty_str, "id")),
+        "");
+    TEST_CHECK(sentry_value_is_null(
+        sentry_value_get_by_key(user_empty_str, "username")));
+    TEST_CHECK(
+        sentry_value_is_null(sentry_value_get_by_key(user_empty_str, "email")));
+    TEST_CHECK(sentry_value_is_null(
+        sentry_value_get_by_key(user_empty_str, "ip_address")));
     sentry_value_decref(user_empty_str);
 }
 
