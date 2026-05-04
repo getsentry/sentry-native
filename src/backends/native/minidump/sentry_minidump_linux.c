@@ -5,6 +5,7 @@
 #    include <elf.h>
 #    include <errno.h>
 #    include <fcntl.h>
+#    include <link.h> // ElfW, struct r_debug, struct link_map (DSO debug stream)
 #    include <stdbool.h>
 #    include <stdio.h>
 #    include <stdlib.h>
@@ -102,6 +103,16 @@ typedef struct {
     char thread_names[SENTRY_CRASH_MAX_THREADS]
                      [16]; // From /proc/[pid]/task/[tid]/comm
     size_t thread_count;
+
+    // Thread-stack memory descriptors recorded as we write the ThreadList
+    // stream. We replay them into MemoryListStream so consumers (notably
+    // LLDB's ProcessMinidump on Linux) can find stack bytes by virtual
+    // address — without this LLDB knows the stack region exists (from
+    // LinuxMaps) but cannot read its contents and unwinding stops after
+    // frame 0. Breakpad's MinidumpWriter does the equivalent via
+    // memory_blocks_.push_back(thread->stack).
+    minidump_memory_descriptor_t thread_stacks[SENTRY_CRASH_MAX_THREADS];
+    size_t thread_stack_count;
 
     // Ptrace state
     bool ptrace_attached;
@@ -1359,6 +1370,24 @@ write_thread_stack(minidump_writer_t *writer, uint64_t stack_pointer,
 }
 
 /**
+ * Push a thread's stack descriptor onto writer->thread_stacks so the
+ * MemoryListStream writer can replay it. We only record stacks whose
+ * write actually produced bytes — a zero-size or zero-rva descriptor
+ * would point into the minidump header and break parsers.
+ */
+static void
+record_thread_stack(minidump_writer_t *writer, const minidump_thread_t *thread)
+{
+    if (thread->stack.memory.size == 0 || thread->stack.memory.rva == 0) {
+        return;
+    }
+    if (writer->thread_stack_count >= SENTRY_CRASH_MAX_THREADS) {
+        return;
+    }
+    writer->thread_stacks[writer->thread_stack_count++] = thread->stack;
+}
+
+/**
  * Capture a thread's context and stack via ptrace.
  * Writes the thread context and stack memory into the minidump and updates
  * the thread entry accordingly. Returns true on success.
@@ -1406,6 +1435,7 @@ ptrace_capture_thread(
             = write_thread_stack(writer, ptrace_sp, &stack_size, &stack_start);
         thread->stack.memory.size = stack_size;
         thread->stack.start_address = stack_start;
+        record_thread_stack(writer, thread);
 
         SENTRY_DEBUGF("Thread %u: wrote ptrace context at RVA "
                       "0x%x, stack at RVA 0x%x (size %zu)",
@@ -1495,6 +1525,7 @@ write_thread_list_stream(minidump_writer_t *writer, minidump_directory_t *dir)
                     = write_thread_stack(writer, sp, &stack_size, &stack_start);
                 thread->stack.memory.size = stack_size;
                 thread->stack.start_address = stack_start;
+                record_thread_stack(writer, thread);
 
                 SENTRY_DEBUGF("Thread %u: wrote context at RVA 0x%x, stack at "
                               "RVA 0x%x (size %zu)",
@@ -2025,19 +2056,31 @@ write_memory_list_stream(minidump_writer_t *writer, minidump_directory_t *dir)
         }
     }
 
+    // Reserve slots for thread stacks first; their bytes are already on disk
+    // (written by the thread-list writer) so we just emit descriptors
+    // pointing at the same RVA. This is what lets LLDB resolve memory at
+    // stack addresses and walk the FP chain.
+    size_t total_count = region_count + writer->thread_stack_count;
+
     // Allocate memory list
     size_t list_size = sizeof(uint32_t)
-        + (region_count * sizeof(minidump_memory_descriptor_t));
+        + (total_count * sizeof(minidump_memory_descriptor_t));
     minidump_memory_list_t *memory_list = sentry_malloc(list_size);
     if (!memory_list) {
         return -1;
     }
 
-    memory_list->count = region_count;
+    memory_list->count = total_count;
+
+    size_t mem_idx = 0;
+    // Replay thread stacks first so they appear in deterministic order. Each
+    // descriptor was already validated (size>0, rva!=0) by record_thread_stack.
+    for (size_t s = 0; s < writer->thread_stack_count; s++) {
+        memory_list->ranges[mem_idx++] = writer->thread_stacks[s];
+    }
 
     // Write memory regions
-    size_t mem_idx = 0;
-    for (size_t i = 0; i < writer->mapping_count && mem_idx < region_count;
+    for (size_t i = 0; i < writer->mapping_count && mem_idx < total_count;
         i++) {
         if (!should_include_region(&writer->mappings[i],
                 writer->crash_ctx->minidump_mode, crash_addr)) {
@@ -2105,6 +2148,99 @@ write_memory_list_stream(minidump_writer_t *writer, minidump_directory_t *dir)
 }
 
 /**
+ * Slurp a file into a freshly allocated buffer.
+ *
+ * Used for /proc/<pid>/{auxv,cmdline,environ,maps,status}, /proc/cpuinfo,
+ * and /etc/lsb-release. Those are kernel seqfiles or short text files that
+ * cannot be stat()'d for size (st_size is 0), so we read until EOF, doubling
+ * the buffer up to `max_size`. Caller owns the returned pointer.
+ *
+ * Returns the buffer on success and writes its length to *size_out.
+ * Returns NULL on open/read failure or when the file is empty.
+ */
+static void *
+read_proc_file(const char *path, size_t max_size, size_t *size_out)
+{
+    int fd = open(path, O_RDONLY);
+    if (fd < 0) {
+        return NULL;
+    }
+
+    size_t buf_size = 4096;
+    if (buf_size > max_size) {
+        buf_size = max_size;
+    }
+    char *buf = sentry_malloc(buf_size);
+    if (!buf) {
+        close(fd);
+        return NULL;
+    }
+
+    size_t total = 0;
+    ssize_t n;
+    for (;;) {
+        if (total >= buf_size) {
+            if (buf_size >= max_size) {
+                break;
+            }
+            size_t new_size = buf_size * 2;
+            if (new_size > max_size) {
+                new_size = max_size;
+            }
+            char *new_buf = sentry_malloc(new_size);
+            if (!new_buf) {
+                break;
+            }
+            memcpy(new_buf, buf, total);
+            sentry_free(buf);
+            buf = new_buf;
+            buf_size = new_size;
+        }
+
+        n = read(fd, buf + total, buf_size - total);
+        if (n < 0) {
+            if (errno == EINTR) {
+                continue;
+            }
+            break;
+        }
+        if (n == 0) {
+            break;
+        }
+        total += (size_t)n;
+    }
+    close(fd);
+
+    if (total == 0) {
+        sentry_free(buf);
+        return NULL;
+    }
+    *size_out = total;
+    return buf;
+}
+
+/**
+ * Helper: write a /proc file (or any other path) as a single stream.
+ * Returns 0 on success, -1 on any failure (including file unavailable).
+ */
+static int
+write_file_as_stream(minidump_writer_t *writer, minidump_directory_t *dir,
+    uint32_t stream_type, const char *path, size_t max_size)
+{
+    size_t size = 0;
+    void *buf = read_proc_file(path, max_size, &size);
+    if (!buf) {
+        return -1;
+    }
+
+    dir->stream_type = stream_type;
+    dir->rva = write_data(writer, buf, size);
+    dir->data_size = (uint32_t)size;
+    sentry_free(buf);
+    return dir->rva ? 0 : -1;
+}
+
+/**
  * Write /proc/PID/status as LinuxProcStatus stream.
  * lldb reads this to get the process ID (Pid: line).
  */
@@ -2115,24 +2251,80 @@ write_linux_proc_status_stream(
     char path[64];
     snprintf(
         path, sizeof(path), "/proc/%d/status", writer->crash_ctx->crashed_pid);
+    return write_file_as_stream(
+        writer, dir, MINIDUMP_STREAM_LINUX_PROC_STATUS, path, 64 * 1024);
+}
 
-    int fd = open(path, O_RDONLY);
-    if (fd < 0) {
-        return -1;
-    }
+/**
+ * Write /proc/PID/auxv as LinuxAuxv stream.
+ *
+ * The auxiliary vector is a sequence of (Elf{32,64}_auxv_t) entries the
+ * kernel hands the dynamic loader at process start. LLDB's
+ * ProcessMinidump uses AT_PHDR/AT_PHNUM/AT_ENTRY from this stream to
+ * locate the main executable and r_debug; without it, LLDB on Linux
+ * falls back to a degraded unwind path that on AArch64 stops after the
+ * first frame.
+ */
+static int
+write_linux_auxv_stream(minidump_writer_t *writer, minidump_directory_t *dir)
+{
+    char path[64];
+    snprintf(
+        path, sizeof(path), "/proc/%d/auxv", writer->crash_ctx->crashed_pid);
+    return write_file_as_stream(
+        writer, dir, MINIDUMP_STREAM_LINUX_AUXV, path, 16 * 1024);
+}
 
-    char buf[4096];
-    ssize_t n = read(fd, buf, sizeof(buf) - 1);
-    close(fd);
-    if (n <= 0) {
-        return -1;
-    }
-    buf[n] = '\0';
+/**
+ * Write /proc/cpuinfo as LinuxCpuInfo stream. Diagnostic only.
+ */
+static int
+write_linux_cpu_info_stream(
+    minidump_writer_t *writer, minidump_directory_t *dir)
+{
+    return write_file_as_stream(writer, dir, MINIDUMP_STREAM_LINUX_CPU_INFO,
+        "/proc/cpuinfo", 64 * 1024);
+}
 
-    dir->stream_type = MINIDUMP_STREAM_LINUX_PROC_STATUS;
-    dir->rva = write_data(writer, buf, n);
-    dir->data_size = n;
-    return dir->rva ? 0 : -1;
+/**
+ * Write /etc/lsb-release as LinuxLsbRelease stream. Diagnostic only;
+ * /etc/lsb-release is missing on many distros and that's fine.
+ */
+static int
+write_linux_lsb_release_stream(
+    minidump_writer_t *writer, minidump_directory_t *dir)
+{
+    return write_file_as_stream(writer, dir, MINIDUMP_STREAM_LINUX_LSB_RELEASE,
+        "/etc/lsb-release", 4 * 1024);
+}
+
+/**
+ * Write /proc/PID/cmdline as LinuxCmdLine stream.
+ * Argv is NUL-separated; consumers (rust-minidump, LLDB) treat it as a blob.
+ */
+static int
+write_linux_cmd_line_stream(
+    minidump_writer_t *writer, minidump_directory_t *dir)
+{
+    char path[64];
+    snprintf(
+        path, sizeof(path), "/proc/%d/cmdline", writer->crash_ctx->crashed_pid);
+    return write_file_as_stream(
+        writer, dir, MINIDUMP_STREAM_LINUX_CMD_LINE, path, 32 * 1024);
+}
+
+/**
+ * Write /proc/PID/environ as LinuxEnviron stream.
+ */
+static int
+write_linux_environ_stream(
+    minidump_writer_t *writer, minidump_directory_t *dir)
+{
+    char path[64];
+    snprintf(
+        path, sizeof(path), "/proc/%d/environ", writer->crash_ctx->crashed_pid);
+    return write_file_as_stream(
+        writer, dir, MINIDUMP_STREAM_LINUX_ENVIRON, path, 64 * 1024);
 }
 
 /**
@@ -2145,53 +2337,275 @@ write_linux_maps_stream(minidump_writer_t *writer, minidump_directory_t *dir)
     char path[64];
     snprintf(
         path, sizeof(path), "/proc/%d/maps", writer->crash_ctx->crashed_pid);
+    return write_file_as_stream(
+        writer, dir, MINIDUMP_STREAM_LINUX_MAPS, path, 1024 * 1024);
+}
 
-    int fd = open(path, O_RDONLY);
-    if (fd < 0) {
+/**
+ * Walk the dynamic linker's r_debug structure and write it as a
+ * LinuxDsoDebug stream (MD_LINUX_DSO_DEBUG / 0x4767000A).
+ *
+ * Tools that consume Linux minidumps — notably LLDB's ProcessMinidump on
+ * AArch64 — use this stream to enumerate every loaded DSO in load order
+ * with its load address (l_addr) and PT_DYNAMIC pointer (l_ld). When this
+ * stream is missing, LLDB cannot locate eh_frame for the modules and
+ * unwinding stops after the first frame.
+ *
+ * Logic mirrors Breakpad's MinidumpWriter::WriteDSODebugStream:
+ *   1. Read /proc/<pid>/auxv → AT_PHDR (program headers vaddr in target),
+ *      AT_PHNUM (count).
+ *   2. Compute the executable load base (page-align AT_PHDR, subtract
+ *      p_vaddr of the PT_LOAD with file offset 0).
+ *   3. Walk program headers to find PT_DYNAMIC's vaddr.
+ *   4. Walk PT_DYNAMIC entries to find DT_DEBUG → r_debug pointer.
+ *   5. Walk r_debug.r_map (link_map list) and emit one
+ *      minidump_link_map64_t per loaded DSO.
+ *
+ * All target-process reads go through read_process_memory (process_vm_readv
+ * with ptrace fallback); we never dereference target pointers directly.
+ */
+static int
+write_linux_dso_debug_stream(
+    minidump_writer_t *writer, minidump_directory_t *dir)
+{
+    // Step 1: read auxv to find AT_PHDR and AT_PHNUM.
+    char auxv_path[64];
+    snprintf(auxv_path, sizeof(auxv_path), "/proc/%d/auxv",
+        writer->crash_ctx->crashed_pid);
+    size_t auxv_size = 0;
+    void *auxv_buf = read_proc_file(auxv_path, 16 * 1024, &auxv_size);
+    if (!auxv_buf) {
+        SENTRY_DEBUG("dso_debug: could not read auxv");
         return -1;
     }
 
-    // Read in chunks, growing the buffer as needed since /proc/maps can
-    // exceed 32KB for processes with many memory mappings.
-    size_t buf_size = 32768;
-    char *buf = sentry_malloc(buf_size);
-    if (!buf) {
-        close(fd);
-        return -1;
-    }
-
-    size_t total = 0;
-    ssize_t n;
-    while ((n = read(fd, buf + total, buf_size - total - 1)) > 0) {
-        total += n;
-        if (total >= buf_size - 1) {
-            // Double the buffer, capped at 1MB
-            size_t new_size = buf_size * 2;
-            if (new_size > 1024 * 1024) {
-                break;
-            }
-            char *new_buf = sentry_malloc(new_size);
-            if (!new_buf) {
-                break;
-            }
-            memcpy(new_buf, buf, total);
-            sentry_free(buf);
-            buf = new_buf;
-            buf_size = new_size;
+    uint64_t at_phdr = 0;
+    uint64_t at_phnum = 0;
+    uint64_t at_entry = 0;
+    uint64_t at_base = 0; // dynamic linker load address
+    const ElfW(auxv_t) *auxv = (const ElfW(auxv_t) *)auxv_buf;
+    size_t auxv_count = auxv_size / sizeof(ElfW(auxv_t));
+    for (size_t i = 0; i < auxv_count; i++) {
+        if (auxv[i].a_type == AT_NULL) {
+            break;
+        }
+        switch (auxv[i].a_type) {
+        case AT_PHDR:
+            at_phdr = auxv[i].a_un.a_val;
+            break;
+        case AT_PHNUM:
+            at_phnum = auxv[i].a_un.a_val;
+            break;
+        case AT_ENTRY:
+            at_entry = auxv[i].a_un.a_val;
+            break;
+        case AT_BASE:
+            at_base = auxv[i].a_un.a_val;
+            break;
         }
     }
-    close(fd);
+    sentry_free(auxv_buf);
 
-    if (total == 0) {
-        sentry_free(buf);
+    if (!at_phdr || !at_phnum) {
+        SENTRY_DEBUGF(
+            "dso_debug: missing AT_PHDR/AT_PHNUM (phdr=0x%llx, phnum=%llu)",
+            (unsigned long long)at_phdr, (unsigned long long)at_phnum);
         return -1;
     }
 
-    dir->stream_type = MINIDUMP_STREAM_LINUX_MAPS;
-    dir->rva = write_data(writer, buf, total);
-    dir->data_size = total;
+    // Step 2 + 3: read program headers, locate PT_DYNAMIC and adjust base.
+    // Cap phnum to a sane upper bound so a corrupt auxv can't drive a huge alloc.
+    if (at_phnum > 256) {
+        SENTRY_WARNF("dso_debug: phnum=%llu exceeds cap, refusing",
+            (unsigned long long)at_phnum);
+        return -1;
+    }
+    size_t phdr_size = (size_t)at_phnum * sizeof(ElfW(Phdr));
+    ElfW(Phdr) *phdrs = sentry_malloc(phdr_size);
+    if (!phdrs) {
+        return -1;
+    }
+    if (read_process_memory(writer, at_phdr, phdrs, phdr_size)
+        != (ssize_t)phdr_size) {
+        SENTRY_DEBUG("dso_debug: failed to read program headers");
+        sentry_free(phdrs);
+        return -1;
+    }
 
-    sentry_free(buf);
+    // Page-align AT_PHDR for the initial base estimate; the PT_LOAD with
+    // p_offset==0 then tells us the real load offset.
+    uint64_t base = at_phdr & ~((uint64_t)0xfff);
+    uint64_t dyn_vaddr = 0;
+    size_t dyn_filesz = 0;
+    for (uint64_t i = 0; i < at_phnum; i++) {
+        const ElfW(Phdr) *ph = &phdrs[i];
+        if (ph->p_type == PT_LOAD && ph->p_offset == 0) {
+            base -= ph->p_vaddr;
+        }
+        if (ph->p_type == PT_DYNAMIC) {
+            dyn_vaddr = ph->p_vaddr;
+            dyn_filesz = ph->p_filesz;
+        }
+    }
+    sentry_free(phdrs);
+
+    if (!dyn_vaddr) {
+        SENTRY_DEBUG("dso_debug: no PT_DYNAMIC found");
+        return -1;
+    }
+
+    uint64_t dynamic_addr = dyn_vaddr + base;
+
+    // Step 4: walk PT_DYNAMIC for DT_DEBUG.
+    // dyn_filesz can be 0 in rare ELFs; cap iteration with a sane upper bound.
+    size_t max_dyn_entries
+        = dyn_filesz ? dyn_filesz / sizeof(ElfW(Dyn)) : 4096;
+    if (max_dyn_entries > 4096) {
+        max_dyn_entries = 4096;
+    }
+
+    uint64_t r_debug_addr = 0;
+    size_t dynamic_length = 0;
+    ElfW(Dyn) dyn;
+    for (size_t i = 0; i < max_dyn_entries; i++) {
+        uint64_t entry_addr = dynamic_addr + i * sizeof(dyn);
+        if (read_process_memory(writer, entry_addr, &dyn, sizeof(dyn))
+            != (ssize_t)sizeof(dyn)) {
+            SENTRY_DEBUGF(
+                "dso_debug: failed to read PT_DYNAMIC entry %zu", i);
+            return -1;
+        }
+        dynamic_length += sizeof(dyn);
+        if (dyn.d_tag == DT_DEBUG) {
+            r_debug_addr = (uint64_t)dyn.d_un.d_ptr;
+        } else if (dyn.d_tag == DT_NULL) {
+            break;
+        }
+    }
+
+    // Step 5: walk r_debug.r_map (struct link_map list).
+    // We declare local copies of struct r_debug / struct link_map fields
+    // explicitly so we don't depend on their exact glibc layout — the
+    // ABI for these is stable across glibc/musl: r_version (int) at offset 0,
+    // r_map (link_map*) at offset of pointer-aligned 1, then r_brk, r_state,
+    // r_ldbase. struct link_map starts with l_addr, l_name, l_ld, l_next, l_prev.
+    // Using <link.h>'s definition is fine since target and dumper share libc.
+    struct r_debug rd;
+    memset(&rd, 0, sizeof(rd));
+    bool have_rdebug = false;
+    if (r_debug_addr) {
+        if (read_process_memory(writer, r_debug_addr, &rd, sizeof(rd))
+            == (ssize_t)sizeof(rd)) {
+            have_rdebug = true;
+        } else {
+            SENTRY_DEBUG("dso_debug: failed to read r_debug");
+        }
+    }
+
+    // Count and walk DSOs. Cap at SENTRY_CRASH_MAX_MAPPINGS to bound work.
+    size_t dso_count = 0;
+    void *next = have_rdebug ? rd.r_map : NULL;
+    while (next && dso_count < SENTRY_CRASH_MAX_MAPPINGS) {
+        struct link_map lm;
+        if (read_process_memory(writer, (uint64_t)(uintptr_t)next, &lm,
+                sizeof(lm))
+            != (ssize_t)sizeof(lm)) {
+            SENTRY_DEBUGF("dso_debug: failed to read link_map at %p", next);
+            break;
+        }
+        dso_count++;
+        next = lm.l_next;
+    }
+
+    // Pre-emit the link_map array header so we have a stable RVA, then
+    // stream entries. We'll backfill the array.
+    size_t links_size = dso_count * sizeof(minidump_link_map64_t);
+    minidump_link_map64_t *links = NULL;
+    minidump_rva_t links_rva = 0;
+    if (dso_count > 0) {
+        links = sentry_malloc(links_size);
+        if (!links) {
+            return -1;
+        }
+        memset(links, 0, links_size);
+
+        // Walk again, this time emitting strings (which share the same RVA
+        // space as the link_map array — strings get written first, then the
+        // array of fixed-size entries last so its RVA is contiguous).
+        size_t idx = 0;
+        next = rd.r_map;
+        while (next && idx < dso_count) {
+            struct link_map lm;
+            if (read_process_memory(writer, (uint64_t)(uintptr_t)next, &lm,
+                    sizeof(lm))
+                != (ssize_t)sizeof(lm)) {
+                break;
+            }
+
+            char namebuf[257] = { 0 };
+            if (lm.l_name) {
+                ssize_t got = read_process_memory(writer,
+                    (uint64_t)(uintptr_t)lm.l_name, namebuf,
+                    sizeof(namebuf) - 1);
+                if (got <= 0) {
+                    namebuf[0] = '\0';
+                } else {
+                    namebuf[got] = '\0'; // ensure NUL-terminated
+                }
+            }
+
+            links[idx].addr = (uint64_t)lm.l_addr;
+            links[idx].name = write_minidump_string(writer, namebuf);
+            links[idx].ld = (uint64_t)(uintptr_t)lm.l_ld;
+            idx++;
+            next = lm.l_next;
+        }
+
+        links_rva = write_data(writer, links, links_size);
+        sentry_free(links);
+        if (!links_rva) {
+            return -1;
+        }
+    }
+
+    // Now write the MD_LINUX_DSO_DEBUG header followed by a copy of the
+    // PT_DYNAMIC blob (matches Breakpad's layout: header is at the stream
+    // RVA, and the dynamic-section bytes follow contiguously).
+    size_t header_size = sizeof(minidump_debug64_t);
+    size_t total_size = header_size + dynamic_length;
+    uint8_t *blob = sentry_malloc(total_size);
+    if (!blob) {
+        return -1;
+    }
+    memset(blob, 0, total_size);
+    minidump_debug64_t *hdr = (minidump_debug64_t *)blob;
+    hdr->version = have_rdebug ? rd.r_version : 0;
+    hdr->map = links_rva;
+    hdr->dso_count = (uint32_t)dso_count;
+    hdr->brk = have_rdebug ? (uint64_t)rd.r_brk : 0;
+    hdr->ldbase = at_base; // matches Breakpad: AT_BASE from auxv
+    hdr->dynamic = dynamic_addr;
+
+    // Best-effort: copy the actual PT_DYNAMIC bytes. Failure here is OK —
+    // consumers only need the header for module enumeration.
+    if (dynamic_length) {
+        if (read_process_memory(writer, dynamic_addr, blob + header_size,
+                dynamic_length)
+            != (ssize_t)dynamic_length) {
+            // Zero out the trailing bytes if we couldn't read; not fatal.
+            memset(blob + header_size, 0, dynamic_length);
+        }
+    }
+
+    dir->stream_type = MINIDUMP_STREAM_LINUX_DSO_DEBUG;
+    dir->rva = write_data(writer, blob, total_size);
+    dir->data_size = (uint32_t)total_size;
+    sentry_free(blob);
+
+    SENTRY_DEBUGF("dso_debug: wrote %zu DSOs (dynamic@0x%llx, r_debug@0x%llx)",
+        dso_count, (unsigned long long)dynamic_addr,
+        (unsigned long long)r_debug_addr);
+    (void)at_entry; // currently unused; logged via auxv for debugging
     return dir->rva ? 0 : -1;
 }
 
@@ -2234,12 +2648,30 @@ sentry__write_minidump(
         // Continue anyway - we can still write minidump without ptrace
     }
 
-    // Reserve space for header and directory
-    // Write 8 streams: system_info, threads, modules, exception,
-    // memory_list, linux_proc_status, linux_maps, thread_names.
-    // The Linux streams provide PID and memory map info for debuggers.
-    // ThreadNamesStream matches Crashpad format for server-side processing.
-    const uint32_t stream_count = 8;
+    // Reserve space for header and directory.
+    //
+    // Streams written (matches the Breakpad linux minidump_writer set so
+    // LLDB's ProcessMinidump can identify modules and unwind):
+    //   0  SystemInfo
+    //   1  ThreadList
+    //   2  ModuleList
+    //   3  Exception
+    //   4  MemoryList
+    //   5  LinuxProcStatus     /proc/<pid>/status
+    //   6  LinuxMaps           /proc/<pid>/maps
+    //   7  ThreadNames
+    //   8  LinuxAuxv           /proc/<pid>/auxv         (LLDB needs this)
+    //   9  LinuxCpuInfo        /proc/cpuinfo
+    //  10  LinuxLsbRelease     /etc/lsb-release
+    //  11  LinuxCmdLine        /proc/<pid>/cmdline
+    //  12  LinuxEnviron        /proc/<pid>/environ
+    //  13  LinuxDsoDebug       walked from r_debug      (LLDB needs this)
+    //
+    // The optional /proc files (lsb-release missing on many distros, environ
+    // unreadable in some sandboxed configs) are wired with NullifyDirectoryEntry
+    // semantics: the slot is reserved, but if the writer fails the directory
+    // entry stays at type/size/rva = 0 (consumers ignore it).
+    const uint32_t stream_count = 14;
     writer.current_offset = sizeof(minidump_header_t)
         + (stream_count * sizeof(minidump_directory_t));
 
@@ -2257,7 +2689,8 @@ sentry__write_minidump(
     }
 
     // Write streams
-    minidump_directory_t directories[8];
+    minidump_directory_t directories[14];
+    memset(directories, 0, sizeof(directories));
     int result = 0;
 
     SENTRY_DEBUG("writing system info stream");
@@ -2273,21 +2706,18 @@ sentry__write_minidump(
     result |= write_memory_list_stream(&writer, &directories[4]);
 
     // Write Linux-specific streams for debugger compatibility.
-    // These are non-fatal: if they fail, the minidump is still valid.
+    // These are non-fatal: if they fail, the minidump is still valid; the
+    // directory slot ends up zeroed (stream_type=0 = unused).
     SENTRY_DEBUG("writing linux proc status stream");
     if (write_linux_proc_status_stream(&writer, &directories[5]) < 0) {
         SENTRY_WARN("failed to write linux proc status stream");
         directories[5].stream_type = MINIDUMP_STREAM_LINUX_PROC_STATUS;
-        directories[5].data_size = 0;
-        directories[5].rva = 0;
     }
 
     SENTRY_DEBUG("writing linux maps stream");
     if (write_linux_maps_stream(&writer, &directories[6]) < 0) {
         SENTRY_WARN("failed to write linux maps stream");
         directories[6].stream_type = MINIDUMP_STREAM_LINUX_MAPS;
-        directories[6].data_size = 0;
-        directories[6].rva = 0;
     }
 
     // Write thread names stream (matches Crashpad format)
@@ -2295,8 +2725,43 @@ sentry__write_minidump(
     if (write_thread_names_stream(&writer, &directories[7]) < 0) {
         SENTRY_WARN("failed to write thread names stream");
         directories[7].stream_type = MINIDUMP_STREAM_THREAD_NAMES;
-        directories[7].data_size = 0;
-        directories[7].rva = 0;
+    }
+
+    SENTRY_DEBUG("writing linux auxv stream");
+    if (write_linux_auxv_stream(&writer, &directories[8]) < 0) {
+        SENTRY_WARN("failed to write linux auxv stream");
+        directories[8].stream_type = MINIDUMP_STREAM_LINUX_AUXV;
+    }
+
+    SENTRY_DEBUG("writing linux cpu info stream");
+    if (write_linux_cpu_info_stream(&writer, &directories[9]) < 0) {
+        SENTRY_DEBUG("linux cpu info stream unavailable");
+        directories[9].stream_type = MINIDUMP_STREAM_LINUX_CPU_INFO;
+    }
+
+    SENTRY_DEBUG("writing linux lsb release stream");
+    if (write_linux_lsb_release_stream(&writer, &directories[10]) < 0) {
+        // Many distros don't ship /etc/lsb-release; this is expected.
+        SENTRY_DEBUG("linux lsb release stream unavailable");
+        directories[10].stream_type = MINIDUMP_STREAM_LINUX_LSB_RELEASE;
+    }
+
+    SENTRY_DEBUG("writing linux cmd line stream");
+    if (write_linux_cmd_line_stream(&writer, &directories[11]) < 0) {
+        SENTRY_DEBUG("linux cmd line stream unavailable");
+        directories[11].stream_type = MINIDUMP_STREAM_LINUX_CMD_LINE;
+    }
+
+    SENTRY_DEBUG("writing linux environ stream");
+    if (write_linux_environ_stream(&writer, &directories[12]) < 0) {
+        SENTRY_DEBUG("linux environ stream unavailable");
+        directories[12].stream_type = MINIDUMP_STREAM_LINUX_ENVIRON;
+    }
+
+    SENTRY_DEBUG("writing linux dso debug stream");
+    if (write_linux_dso_debug_stream(&writer, &directories[13]) < 0) {
+        SENTRY_WARN("failed to write linux dso debug stream");
+        directories[13].stream_type = MINIDUMP_STREAM_LINUX_DSO_DEBUG;
     }
 
     if (result < 0) {
