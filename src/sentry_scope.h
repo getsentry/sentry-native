@@ -132,7 +132,7 @@ void sentry__scope_remove_attribute_n(
  * Rebuilds the scope's dynamic sampling context (DSC) from the SDK options
  * and the current propagation context. The previous DSC is discarded.
  */
-void sentry__scope_rebuild_dsc_from_options(
+void sentry__scope_update_dsc(
     sentry_scope_t *scope, const sentry_options_t *options);
 
 /**
@@ -141,8 +141,7 @@ void sentry__scope_rebuild_dsc_from_options(
  * trace-propagation spec, the receiving SDK MUST treat the incoming DSC as
  * frozen and propagate its values "as is".
  */
-void sentry__scope_freeze_dsc_from_incoming(
-    sentry_scope_t *scope, sentry_value_t incoming);
+void sentry__scope_freeze_dsc(sentry_scope_t *scope, sentry_value_t incoming);
 
 /**
  * Adds scoped attributes to the telemetry attributes object.

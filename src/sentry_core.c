@@ -217,7 +217,7 @@ sentry_init(sentry_options_t *options)
         sentry__ringbuffer_set_max_size(
             scope->breadcrumbs, options->max_breadcrumbs);
 
-        sentry__scope_rebuild_dsc_from_options(scope, options);
+        sentry__scope_update_dsc(scope, options);
     }
     if (backend && backend->user_consent_changed_func) {
         backend->user_consent_changed_func(backend);
@@ -1176,7 +1176,7 @@ sentry_set_trace_n(const char *trace_id, size_t trace_id_len,
 
         SENTRY_WITH_OPTIONS (options) {
             SENTRY_WITH_SCOPE_MUT (scope) {
-                sentry__scope_rebuild_dsc_from_options(scope, options);
+                sentry__scope_update_dsc(scope, options);
             }
         }
     }
@@ -1189,7 +1189,7 @@ sentry_regenerate_trace(void)
         SENTRY_WITH_SCOPE_MUT (scope) {
             generate_propagation_context(scope->propagation_context);
             scope->trace_managed = false;
-            sentry__scope_rebuild_dsc_from_options(scope, options);
+            sentry__scope_update_dsc(scope, options);
         }
     }
 }
@@ -1280,9 +1280,9 @@ sentry_transaction_start_ts(sentry_transaction_context_t *opaque_tx_ctx,
                     // a sentry-trace-only signal leaves incoming empty, in
                     // which case the SDK builds its own DSC.
                     if (sentry_value_get_length(incoming) > 0) {
-                        sentry__scope_freeze_dsc_from_incoming(scope, incoming);
+                        sentry__scope_freeze_dsc(scope, incoming);
                     } else {
-                        sentry__scope_rebuild_dsc_from_options(scope, options);
+                        sentry__scope_update_dsc(scope, options);
                     }
                 } else {
                     // Fork: ignore upstream trace, become head of a new trace.
@@ -1298,7 +1298,7 @@ sentry_transaction_start_ts(sentry_transaction_context_t *opaque_tx_ctx,
                     sentry_value_set_by_key(tx, "trace_id", scope_trace_id);
                     sentry_value_remove_by_key(tx, "parent_span_id");
                     sentry_value_remove_by_key(tx, "sampled");
-                    sentry__scope_rebuild_dsc_from_options(scope, options);
+                    sentry__scope_update_dsc(scope, options);
                 }
             }
         }
