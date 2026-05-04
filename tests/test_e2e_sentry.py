@@ -27,6 +27,7 @@ from . import run, check_output
 from .conditions import (
     has_breakpad,
     has_crashpad,
+    has_http,
     has_native,
     is_asan,
     is_kcov,
@@ -37,6 +38,10 @@ pytestmark = [
     pytest.mark.skipif(
         not os.environ.get("SENTRY_E2E_DSN"),
         reason="E2E tests require SENTRY_E2E_DSN environment variable",
+    ),
+    pytest.mark.skipif(
+        not has_http,
+        reason="E2E tests require http transport",
     ),
 ]
 
