@@ -1947,27 +1947,50 @@ SENTRY_TEST(traceparent_header_generation)
     sentry_close();
 }
 
+static bool
+trace_can_continue(
+    const char *sdk_org_id, const char *incoming_org_id, bool strict)
+{
+    SENTRY_TEST_OPTIONS_NEW(options);
+    sentry_options_set_strict_trace_continuation(options, strict);
+    if (sdk_org_id) {
+        sentry_options_set_org_id(options, sdk_org_id);
+    }
+
+    sentry_value_t incoming = sentry_value_new_object();
+    if (incoming_org_id) {
+        sentry_value_set_by_key(
+            incoming, "org_id", sentry_value_new_string(incoming_org_id));
+    }
+
+    bool rv = sentry__trace_can_continue(incoming, options);
+
+    sentry_value_decref(incoming);
+    sentry_options_free(options);
+    return rv;
+}
+
 SENTRY_TEST(trace_continuation_truth_table)
 {
     // Per
     // https://develop.sentry.dev/sdk/foundations/trace-propagation/#strict-trace-continuation
     // Both absent or both present-equal: continue regardless of strict.
-    TEST_CHECK(sentry__trace_can_continue(NULL, NULL, false));
-    TEST_CHECK(sentry__trace_can_continue(NULL, NULL, true));
-    TEST_CHECK(sentry__trace_can_continue("1", "1", false));
-    TEST_CHECK(sentry__trace_can_continue("1", "1", true));
+    TEST_CHECK(trace_can_continue(NULL, NULL, false));
+    TEST_CHECK(trace_can_continue(NULL, NULL, true));
+    TEST_CHECK(trace_can_continue("1", "1", false));
+    TEST_CHECK(trace_can_continue("1", "1", true));
     // Empty string is treated as absent.
-    TEST_CHECK(sentry__trace_can_continue("", "", true));
+    TEST_CHECK(trace_can_continue("", "", true));
 
     // Both present and differing: never continue.
-    TEST_CHECK(!sentry__trace_can_continue("1", "2", false));
-    TEST_CHECK(!sentry__trace_can_continue("1", "2", true));
+    TEST_CHECK(!trace_can_continue("1", "2", false));
+    TEST_CHECK(!trace_can_continue("1", "2", true));
 
     // Exactly one present: continue iff strict is false.
-    TEST_CHECK(sentry__trace_can_continue("1", NULL, false));
-    TEST_CHECK(sentry__trace_can_continue(NULL, "1", false));
-    TEST_CHECK(!sentry__trace_can_continue("1", NULL, true));
-    TEST_CHECK(!sentry__trace_can_continue(NULL, "1", true));
+    TEST_CHECK(trace_can_continue("1", NULL, false));
+    TEST_CHECK(trace_can_continue(NULL, "1", false));
+    TEST_CHECK(!trace_can_continue("1", NULL, true));
+    TEST_CHECK(!trace_can_continue(NULL, "1", true));
 }
 
 SENTRY_TEST(effective_org_id_resolution)

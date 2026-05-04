@@ -391,15 +391,18 @@ parse_baggage(
 
 bool
 sentry__trace_can_continue(
-    const char *sdk_org_id, const char *incoming_org_id, bool strict)
+    sentry_value_t incoming, const sentry_options_t *options)
 {
+    const char *sdk_org_id = sentry__options_get_org_id(options);
+    const char *incoming_org_id
+        = sentry_value_as_string(sentry_value_get_by_key(incoming, "org_id"));
     bool sdk_has = sdk_org_id && *sdk_org_id;
     bool inc_has = incoming_org_id && *incoming_org_id;
     if (sdk_has && inc_has) {
         return strcmp(sdk_org_id, incoming_org_id) == 0;
     }
     if (sdk_has != inc_has) {
-        return !strict;
+        return !options->strict_trace_continuation;
     }
     return true;
 }
