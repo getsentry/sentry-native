@@ -857,8 +857,8 @@ write_thread_context(
 
 /**
  * Quickly verify a file is an ELF binary by reading its magic bytes.
- * Used to filter out non-ELF mappings (e.g. /dev/shm/*, deleted files,
- * sentry-native's own IPC shared memory) from the module list — LLDB and
+ * Used to filter out non-ELF mappings (e.g. files under /dev/shm, deleted
+ * files, sentry-native's own IPC shared memory) from the module list — LLDB and
  * other consumers can choke on entries that look like modules but aren't.
  */
 static bool
@@ -1590,7 +1590,7 @@ typedef struct {
  * avoids two pitfalls that confuse downstream consumers (notably LLDB's
  * ModuleList on Windows reading Linux dumps):
  *
- *   1. Non-ELF entries (e.g. /dev/shm/* IPC files, "(deleted)" files) being
+ *   1. Non-ELF entries (e.g. /dev/shm IPC files, "(deleted)" files) being
  *      emitted as modules with bogus zero-id CV records.
  *   2. The same shared library appearing twice when its segments are
  *      separated by an unrelated mapping (e.g. ld-linux-aarch64.so.1 split
