@@ -6,6 +6,13 @@
 
 - Auto-populate `event.user.id` with a persistent per-installation UUID when no explicit user ID is set. ([#1661](https://github.com/getsentry/sentry-native/pull/1661))
 
+## 0.14.0
+
+**Breaking / Important behavior changes**:
+
+- Metrics are enabled by default. This behavior first appeared in `0.13.5` and is now documented as part of the `0.14.0` behavior. Applications that do not want to send metrics must explicitly opt out with `sentry_options_set_enable_metrics(options, false)`. ([#1609](https://github.com/getsentry/sentry-native/pull/1609))
+- Structured logs are enabled by default. This behavior first appeared in `0.13.9` and is now documented as part of the `0.14.0` behavior. Applications that do not want to capture structured logs must explicitly opt out with `sentry_options_set_enable_logs(options, false)`. ([#1673](https://github.com/getsentry/sentry-native/pull/1673))
+
 ## 0.13.9
 
 **Features**:
