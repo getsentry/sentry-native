@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1777988845844,
+  "lastUpdate": 1777991936659,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -19876,6 +19876,66 @@ window.BENCHMARK_DATA = {
             "value": 1.8089289999920766,
             "unit": "ms",
             "extra": "Min 1.748ms\nMax 1.844ms\nMean 1.809ms\nStdDev 0.039ms\nMedian 1.809ms\nCPU 0.521ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "tustanivsky@gmail.com",
+            "name": "Ivan Tustanivskyi",
+            "username": "tustanivsky"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "5893dcea7f9720bd58c5397e255273e33879c962",
+          "message": "feat(screenshot): allow downstream Xbox SDK to supply capture implementation (#1704)\n\n* feat(screenshot): allow downstream Xbox extension to supply capture impl\n\n* Clean up comment",
+          "timestamp": "2026-05-05T17:36:17+03:00",
+          "tree_id": "2b8ccd6130fb0063ed752dd74a446ba71b4c1bdb",
+          "url": "https://github.com/getsentry/sentry-native/commit/5893dcea7f9720bd58c5397e255273e33879c962"
+        },
+        "date": 1777991932391,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 0.9170290000071191,
+            "unit": "ms",
+            "extra": "Min 0.899ms\nMax 0.990ms\nMean 0.936ms\nStdDev 0.038ms\nMedian 0.917ms\nCPU 0.887ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 0.8438909999881616,
+            "unit": "ms",
+            "extra": "Min 0.831ms\nMax 0.916ms\nMean 0.861ms\nStdDev 0.037ms\nMedian 0.844ms\nCPU 0.849ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 3.1987749999871085,
+            "unit": "ms",
+            "extra": "Min 3.022ms\nMax 3.341ms\nMean 3.196ms\nStdDev 0.127ms\nMedian 3.199ms\nCPU 1.668ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.11951400000498325,
+            "unit": "ms",
+            "extra": "Min 0.112ms\nMax 0.155ms\nMean 0.129ms\nStdDev 0.019ms\nMedian 0.120ms\nCPU 0.081ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.02873400001135451,
+            "unit": "ms",
+            "extra": "Min 0.027ms\nMax 0.030ms\nMean 0.029ms\nStdDev 0.001ms\nMedian 0.029ms\nCPU 0.028ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 1.8016620000196326,
+            "unit": "ms",
+            "extra": "Min 1.783ms\nMax 1.848ms\nMean 1.805ms\nStdDev 0.026ms\nMedian 1.802ms\nCPU 0.504ms"
           }
         ]
       }
