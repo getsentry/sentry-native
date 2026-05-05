@@ -253,6 +253,10 @@ flush_external_crash_report(
         sentry__envelope_add_session(envelope, options->session);
     }
 
+    if (options->cache_keep) {
+        sentry__envelope_set_header(envelope, "cache_dir",
+            sentry_value_new_string(options->run->cache_path->path));
+    }
     sentry__run_write_external(options->run, envelope);
     sentry_envelope_free(envelope);
 }
