@@ -41,7 +41,7 @@ sentry_hint_attach_file_n(
         return NULL;
     }
     return sentry__attachments_add_path(&hint->attachments,
-        sentry__path_from_str_n(path, path_len), ATTACHMENT, NULL);
+        sentry__path_from_str_n(path, path_len), NULL, NULL);
 }
 
 sentry_attachment_t *
@@ -62,7 +62,7 @@ sentry_hint_attach_bytes_n(sentry_hint_t *hint, const char *buf, size_t buf_len,
     return sentry__attachments_add(&hint->attachments,
         sentry__attachment_from_buffer(
             buf, buf_len, sentry__path_from_str_n(filename, filename_len)),
-        ATTACHMENT, NULL);
+        NULL, NULL);
 }
 
 #ifdef SENTRY_PLATFORM_WINDOWS
@@ -81,7 +81,7 @@ sentry_hint_attach_filew_n(
         return NULL;
     }
     return sentry__attachments_add_path(&hint->attachments,
-        sentry__path_from_wstr_n(path, path_len), ATTACHMENT, NULL);
+        sentry__path_from_wstr_n(path, path_len), NULL, NULL);
 }
 
 sentry_attachment_t *
@@ -103,6 +103,6 @@ sentry_hint_attach_bytesw_n(sentry_hint_t *hint, const char *buf,
     return sentry__attachments_add(&hint->attachments,
         sentry__attachment_from_buffer(
             buf, buf_len, sentry__path_from_wstr_n(filename, filename_len)),
-        ATTACHMENT, NULL);
+        NULL, NULL);
 }
 #endif

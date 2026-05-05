@@ -2719,6 +2719,24 @@ SENTRY_API sentry_attachment_t *sentry_scope_attach_bytesw_n(
     const wchar_t *filename, size_t filename_len);
 #endif
 
+#define SENTRY_ATTACHMENT_TYPE_GENERIC "event.attachment"
+#define SENTRY_ATTACHMENT_TYPE_MINIDUMP "event.minidump"
+#define SENTRY_ATTACHMENT_TYPE_VIEW_HIERARCHY "event.view_hierarchy"
+
+/**
+ * Sets the attachment type.
+ *
+ * Well-known attachment types are exposed as `SENTRY_ATTACHMENT_TYPE_*`
+ * macros. Pass `NULL` or an empty string to clear the attachment type.
+ *
+ * See:
+ * https://develop.sentry.dev/sdk/telemetry/attachments/#attachment-types
+ */
+SENTRY_API void sentry_attachment_set_type(
+    sentry_attachment_t *attachment, const char *type);
+SENTRY_API void sentry_attachment_set_type_n(
+    sentry_attachment_t *attachment, const char *type, size_t type_len);
+
 /**
  * Sets the content type of attachment.
  */

@@ -628,22 +628,6 @@ sentry__envelope_add_session(
         envelope, payload, payload_len, "session");
 }
 
-static const char *
-str_from_attachment_type(sentry_attachment_type_t attachment_type)
-{
-    switch (attachment_type) {
-    case ATTACHMENT:
-        return "event.attachment";
-    case MINIDUMP:
-        return "event.minidump";
-    case VIEW_HIERARCHY:
-        return "event.view_hierarchy";
-    default:
-        UNREACHABLE("Unknown attachment type");
-        return "event.attachment";
-    }
-}
-
 static bool
 attachment_ref_has_payload(const sentry_attachment_ref_t *ref)
 {
@@ -680,7 +664,7 @@ attachment_ref_payload_to_string(
 sentry_envelope_item_t *
 sentry__envelope_add_attachment_ref(sentry_envelope_t *envelope,
     const sentry_attachment_ref_t *ref, const char *filename,
-    sentry_attachment_type_t attachment_type, size_t attachment_length)
+    const char *attachment_type, size_t attachment_length)
 {
     if (!envelope) {
         return NULL;
@@ -710,9 +694,9 @@ sentry__envelope_add_attachment_ref(sentry_envelope_t *envelope,
         sentry__envelope_item_set_header(
             item, "filename", sentry_value_new_string(filename));
     }
-    if (attachment_type != ATTACHMENT) {
-        sentry__envelope_item_set_header(item, "attachment_type",
-            sentry_value_new_string(str_from_attachment_type(attachment_type)));
+    if (attachment_type && *attachment_type) {
+        sentry__envelope_item_set_header(
+            item, "attachment_type", sentry_value_new_string(attachment_type));
     }
     sentry__envelope_item_set_header(item, "attachment_length",
         sentry_value_new_uint64((uint64_t)attachment_length));
@@ -746,10 +730,9 @@ sentry__envelope_add_attachment(
     if (!item) {
         return NULL;
     }
-    if (attachment->type != ATTACHMENT) { // don't need to set the default
-        sentry__envelope_item_set_header(item, "attachment_type",
-            sentry_value_new_string(
-                str_from_attachment_type(attachment->type)));
+    if (attachment->type && *attachment->type) {
+        sentry__envelope_item_set_header(
+            item, "attachment_type", sentry_value_new_string(attachment->type));
     }
     if (attachment->content_type) {
         sentry__envelope_item_set_header(item, "content_type",

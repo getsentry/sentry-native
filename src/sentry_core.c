@@ -1769,7 +1769,7 @@ sentry_capture_minidump_n(const char *path, size_t path_len)
                     >= SENTRY_LARGE_ATTACHMENT_SIZE) {
                 sentry_attachment_t tmp = { 0 };
                 tmp.path = dump_path;
-                tmp.type = MINIDUMP;
+                tmp.type = (char *)SENTRY_ATTACHMENT_TYPE_MINIDUMP;
                 if (!sentry__cache_attachment_ref(
                         envelope, &tmp, options->run->cache_path, NULL)) {
                     SENTRY_WARN("failed to cache minidump attachment-ref");
@@ -1798,7 +1798,7 @@ sentry_capture_minidump_n(const char *path, size_t path_len)
                 sentry_envelope_free(envelope);
             } else {
                 sentry__envelope_item_set_header(item, "attachment_type",
-                    sentry_value_new_string("event.minidump"));
+                    sentry_value_new_string(SENTRY_ATTACHMENT_TYPE_MINIDUMP));
 
                 sentry__envelope_item_set_header(item, "filename",
                     sentry_value_new_string(sentry__path_filename(dump_path)));
@@ -1831,7 +1831,7 @@ add_attachment(sentry_attachment_t *attachment)
     }
     SENTRY_WITH_SCOPE_MUT (scope) {
         attachment = sentry__attachments_add(
-            &scope->attachments, attachment, ATTACHMENT, NULL);
+            &scope->attachments, attachment, NULL, NULL);
     }
     return attachment;
 }

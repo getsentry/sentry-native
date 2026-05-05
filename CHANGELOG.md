@@ -5,6 +5,7 @@
 **Features**:
 
 - Auto-populate `event.user.id` with a persistent per-installation UUID when no explicit user ID is set. ([#1661](https://github.com/getsentry/sentry-native/pull/1661))
+- Add `sentry_attachment_set_type` and `SENTRY_ATTACHMENT_TYPE_*` macros for standard Sentry attachment types. ([#1700](https://github.com/getsentry/sentry-native/pull/1700))
 
 ## 0.14.0
 

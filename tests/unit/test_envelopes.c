@@ -915,7 +915,7 @@ SENTRY_TEST(attachment_ref_copy)
 
     sentry_attachment_t *attachment
         = sentry__attachment_from_path(sentry__path_clone(test_file_path));
-    attachment->type = MINIDUMP;
+    sentry_attachment_set_type(attachment, SENTRY_ATTACHMENT_TYPE_MINIDUMP);
     sentry_attachment_set_content_type(attachment, "application/x-dmp");
 
     sentry_envelope_t *envelope = sentry__envelope_new();
@@ -941,8 +941,8 @@ SENTRY_TEST(attachment_ref_copy)
     // envelope carries an attachment-ref item with the expected headers
     TEST_ASSERT(sentry__envelope_get_item_count(envelope) == 1);
     check_attachment_ref_item(envelope, 0, "sentry_test_minidump.dmp",
-        "application/x-dmp", "event.minidump", strlen("minidump_data"),
-        "c993afb6-b4ac-48a6-b61b-2558e601d65d.dmp");
+        "application/x-dmp", SENTRY_ATTACHMENT_TYPE_MINIDUMP,
+        strlen("minidump_data"), "c993afb6-b4ac-48a6-b61b-2558e601d65d.dmp");
 
     sentry_envelope_free(envelope);
     sentry__path_remove(cached);
@@ -985,7 +985,6 @@ SENTRY_TEST(attachment_ref_move)
 
     sentry_attachment_t *attachment
         = sentry__attachment_from_path(sentry__path_clone(src_path));
-    attachment->type = ATTACHMENT;
 
     sentry_envelope_t *envelope = sentry__envelope_new();
     sentry__envelope_set_event_id(envelope, &event_id);
@@ -1106,7 +1105,7 @@ SENTRY_TEST(attachment_ref_roundtrip)
     ref.path = "abc-crashlog.bin";
     ref.content_type = "application/octet-stream";
     sentry__envelope_add_attachment_ref(
-        envelope, &ref, "crashlog.bin", ATTACHMENT, 12345);
+        envelope, &ref, "crashlog.bin", NULL, 12345);
 
     size_t buf_len = 0;
     char *buf = sentry_envelope_serialize(envelope, &buf_len);
