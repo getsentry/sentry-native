@@ -9,7 +9,53 @@
 #include "sentry_string.h"
 #include "sentry_utils.h"
 #include "sentry_value.h"
+#include <ctype.h>
+#include <stdio.h>
 #include <string.h>
+
+static inline bool
+isalnum_c(unsigned char c)
+{
+    return (c >= '0' && c <= '9') || (c >= 'A' && c <= 'Z')
+        || (c >= 'a' && c <= 'z');
+}
+
+static void
+percent_encode_append(sentry_stringbuilder_t *sb, const char *value)
+{
+    // Encode every byte that isn't an RFC 3986 unreserved character
+    // (ALPHA / DIGIT / "-" / "." / "_" / "~") as %XX.
+    static const char hex[] = "0123456789ABCDEF";
+    for (const unsigned char *p = (const unsigned char *)value; *p; p++) {
+        unsigned char c = *p;
+        if (isalnum_c(c) || c == '-' || c == '.' || c == '_' || c == '~') {
+            sentry__stringbuilder_append_char(sb, (char)c);
+        } else {
+            char esc[3] = { '%', hex[c >> 4], hex[c & 0xF] };
+            sentry__stringbuilder_append_buf(sb, esc, 3);
+        }
+    }
+}
+
+static void
+append_baggage_member(const char *key, sentry_value_t value, void *userdata)
+{
+    if (!key || strcmp(key, "trace_id") == 0 || sentry_value_is_null(value)) {
+        return;
+    }
+
+    char *value_str = sentry__value_stringify(value);
+    if (!value_str) {
+        return;
+    }
+
+    sentry_stringbuilder_t *sb = userdata;
+    sentry__stringbuilder_append(sb, ",sentry-");
+    sentry__stringbuilder_append(sb, key);
+    sentry__stringbuilder_append_char(sb, '=');
+    percent_encode_append(sb, value_str);
+    sentry_free(value_str);
+}
 
 static sentry_value_t
 new_span_n(sentry_value_t parent, sentry_slice_t operation)
@@ -269,6 +315,15 @@ parse_sentry_trace(
     sentry_value_t trace_id = sentry__value_new_string_owned(s);
     sentry_value_set_by_key(inner, "trace_id", trace_id);
 
+    // Mark that an upstream trace was received. `incoming_dsc` doubles as this
+    // marker so the strict-continuation check fires even when no `baggage`
+    // arrives; baggage parsing merges into the same object regardless of
+    // header order.
+    if (sentry_value_is_null(sentry_value_get_by_key(inner, "incoming_dsc"))) {
+        sentry_value_set_by_key(
+            inner, "incoming_dsc", sentry_value_new_object());
+    }
+
     const char *span_id_start = trace_id_end + 1;
     const char *span_id_end = strchr(span_id_start, '-');
     if (!span_id_end) {
@@ -296,6 +351,62 @@ parse_sentry_trace(
     sentry_value_set_by_key(inner, "sampled", sentry_value_new_bool(sampled));
 }
 
+static void
+parse_baggage(
+    sentry_transaction_context_t *tx_ctx, const char *value, size_t value_len)
+{
+    // https://www.w3.org/TR/baggage/ — Sentry-prefixed members are kept and
+    // percent-decoded; non-sentry members are ignored.
+    static const char sentry_prefix[] = "sentry-";
+    static const size_t sentry_prefix_len = sizeof(sentry_prefix) - 1;
+
+    sentry_value_t inner = tx_ctx->inner;
+    sentry_value_t incoming = sentry_value_get_by_key(inner, "incoming_dsc");
+    if (sentry_value_is_null(incoming)) {
+        incoming = sentry_value_new_object();
+        sentry_value_set_by_key(inner, "incoming_dsc", incoming);
+        incoming = sentry_value_get_by_key(inner, "incoming_dsc");
+    }
+
+    sentry_slice_t remaining = { value, value_len };
+    sentry_slice_t key, val;
+    while (sentry__baggage_iter_next(&remaining, &key, &val)) {
+        if (key.len <= sentry_prefix_len
+            || memcmp(key.ptr, sentry_prefix, sentry_prefix_len) != 0) {
+            continue;
+        }
+        const char *sub_key = key.ptr + sentry_prefix_len;
+        size_t sub_key_len = key.len - sentry_prefix_len;
+
+        char *decoded = sentry__string_clone_n(val.ptr, val.len);
+        if (!decoded) {
+            continue;
+        }
+        size_t decoded_len = sentry__percent_decode_inplace(decoded, val.len);
+        decoded[decoded_len] = '\0';
+        sentry_value_set_by_key_n(incoming, sub_key, sub_key_len,
+            sentry__value_new_string_owned(decoded));
+    }
+}
+
+bool
+sentry__trace_can_continue(
+    sentry_value_t incoming, const sentry_options_t *options)
+{
+    const char *sdk_org_id = sentry__options_get_org_id(options);
+    const char *incoming_org_id
+        = sentry_value_as_string(sentry_value_get_by_key(incoming, "org_id"));
+    bool sdk_has = sdk_org_id && *sdk_org_id;
+    bool inc_has = incoming_org_id && *incoming_org_id;
+    if (sdk_has && inc_has) {
+        return strcmp(sdk_org_id, incoming_org_id) == 0;
+    }
+    if (sdk_has != inc_has) {
+        return !options->strict_trace_continuation;
+    }
+    return true;
+}
+
 void
 sentry_transaction_context_update_from_header_n(
     sentry_transaction_context_t *tx_ctx, const char *key, size_t key_len,
@@ -308,10 +419,16 @@ sentry_transaction_context_update_from_header_n(
     // do case-insensitive header key comparison
     const char sentry_trace[] = "sentry-trace";
     const size_t sentry_trace_len = sizeof(sentry_trace) - 1;
-    bool is_sentry_trace
-        = compare_header_key(key, key_len, sentry_trace, sentry_trace_len);
-    if (is_sentry_trace) {
+    if (compare_header_key(key, key_len, sentry_trace, sentry_trace_len)) {
         parse_sentry_trace(tx_ctx, value, value_len);
+        return;
+    }
+
+    const char baggage[] = "baggage";
+    const size_t baggage_len = sizeof(baggage) - 1;
+    if (compare_header_key(key, key_len, baggage, baggage_len)) {
+        parse_baggage(tx_ctx, value, value_len);
+        return;
     }
 }
 
@@ -796,8 +913,28 @@ sentry__span_iter_headers(sentry_value_t span,
         sentry_value_is_true(sampled) ? "1" : "0");
     callback("sentry-trace", buf, userdata);
 
-    // TODO propagate dsc into outgoing bagage header
-    //  https://develop.sentry.dev/sdk/telemetry/traces/dynamic-sampling-context/#baggage-header
+    // Outgoing baggage: build from the scope DSC (frozen from upstream when
+    // the trace was continued, otherwise from the SDK's own options). The
+    // span's own trace_id is preferred over any DSC trace_id to keep the
+    // baggage trace_id consistent with the `sentry-trace` header above.
+    // https://develop.sentry.dev/sdk/telemetry/traces/dynamic-sampling-context/#baggage-header
+    {
+        sentry_stringbuilder_t sb;
+        sentry__stringbuilder_init(&sb);
+        sentry__stringbuilder_append(&sb, "sentry-trace_id=");
+        sentry__stringbuilder_append(&sb, sentry_value_as_string(trace_id));
+
+        SENTRY_WITH_SCOPE (scope) {
+            sentry__value_foreach_key_value(
+                scope->dynamic_sampling_context, append_baggage_member, &sb);
+        }
+
+        char *baggage = sentry__stringbuilder_into_string(&sb);
+        if (baggage) {
+            callback("baggage", baggage, userdata);
+            sentry_free(baggage);
+        }
+    }
 
     SENTRY_WITH_OPTIONS (options) {
         if (options->propagate_traceparent) {

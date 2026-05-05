@@ -600,6 +600,14 @@ main(int argc, char **argv)
         sentry_options_set_traces_sample_rate(options, 1.0);
     }
 
+    if (has_arg(argc, argv, "org-id")) {
+        sentry_options_set_org_id(options, "123456");
+    }
+
+    if (has_arg(argc, argv, "strict-trace-continuation")) {
+        sentry_options_set_strict_trace_continuation(options, 1);
+    }
+
     if (has_arg(argc, argv, "child-spans")) {
         sentry_options_set_max_spans(options, 5);
     }
@@ -1161,6 +1169,20 @@ main(int argc, char **argv)
                 = "2674eb52d5874b13b560236d6c79ce8a-a0f9fdf04f1a63df";
             sentry_transaction_context_update_from_header(
                 tx_ctx, "sentry-trace", trace_header);
+        }
+        if (has_arg(argc, argv, "incoming-trace")) {
+            sentry_transaction_context_update_from_header(tx_ctx,
+                "sentry-trace",
+                "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-bbbbbbbbbbbbbbbb-1");
+        }
+        if (has_arg(argc, argv, "incoming-baggage")) {
+            sentry_transaction_context_update_from_header(tx_ctx, "baggage",
+                "sentry-org_id=123456,sentry-environment=upstream,"
+                "sentry-release=upstream-app%401.0");
+        }
+        if (has_arg(argc, argv, "incoming-baggage-mismatch")) {
+            sentry_transaction_context_update_from_header(tx_ctx, "baggage",
+                "sentry-org_id=99999,sentry-environment=upstream");
         }
 
         sentry_transaction_t *tx

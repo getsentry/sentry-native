@@ -15,6 +15,25 @@ breadcrumb_with_ts(const char *message, const char *timestamp)
     return breadcrumb;
 }
 
+typedef struct {
+    const char *keys[4];
+    sentry_value_t values[4];
+    size_t count;
+} value_foreach_key_value_collector_t;
+
+static void
+collect_value_pair(const char *key, sentry_value_t value, void *userdata)
+{
+    value_foreach_key_value_collector_t *collector
+        = (value_foreach_key_value_collector_t *)userdata;
+    if (collector->count >= 4) {
+        return;
+    }
+    collector->keys[collector->count] = key;
+    collector->values[collector->count] = value;
+    collector->count++;
+}
+
 SENTRY_TEST(value_null)
 {
     sentry_value_t val = sentry_value_new_null();
@@ -654,6 +673,33 @@ SENTRY_TEST(value_freezing)
     TEST_CHECK_INT_EQUAL(sentry_value_get_length(inner), 0);
 
     sentry_value_decref(val);
+}
+
+SENTRY_TEST(value_foreach_key_value)
+{
+    sentry_value_t value = sentry_value_new_object();
+    sentry_value_set_by_key(value, "first", sentry_value_new_string("one"));
+    sentry_value_set_by_key(value, "second", sentry_value_new_int32(2));
+    sentry_value_set_by_key(value, "third", sentry_value_new_bool(true));
+
+    value_foreach_key_value_collector_t collector = { 0 };
+    sentry__value_foreach_key_value(value, collect_value_pair, &collector);
+
+    TEST_CHECK_INT_EQUAL(collector.count, 3);
+    TEST_CHECK_STRING_EQUAL(collector.keys[0], "first");
+    TEST_CHECK_STRING_EQUAL(sentry_value_as_string(collector.values[0]), "one");
+    TEST_CHECK_STRING_EQUAL(collector.keys[1], "second");
+    TEST_CHECK_INT_EQUAL(sentry_value_as_int32(collector.values[1]), 2);
+    TEST_CHECK_STRING_EQUAL(collector.keys[2], "third");
+    TEST_CHECK(sentry_value_is_true(collector.values[2]));
+
+    value_foreach_key_value_collector_t ignored = { 0 };
+    sentry_value_t not_object = sentry_value_new_string("not-object");
+    sentry__value_foreach_key_value(not_object, collect_value_pair, &ignored);
+    TEST_CHECK_INT_EQUAL(ignored.count, 0);
+    sentry_value_decref(not_object);
+
+    sentry_value_decref(value);
 }
 
 SENTRY_TEST(value_stringify)

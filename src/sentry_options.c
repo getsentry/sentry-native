@@ -63,6 +63,7 @@ sentry_options_new(void)
     opts->enable_logging_when_crashed = true;
 #endif
     opts->propagate_traceparent = false;
+    opts->strict_trace_continuation = false;
     opts->crashpad_limit_stack_capture_to_sp = false;
     opts->enable_metrics = true;
     opts->enable_logs = true;
@@ -124,6 +125,7 @@ sentry_options_free(sentry_options_t *opts)
     sentry_free(opts->dist);
     sentry_free(opts->proxy);
     sentry_free(opts->ca_certs);
+    sentry_free(opts->org_id);
     sentry_free(opts->transport_thread_name);
     sentry__path_free(opts->database_path);
     sentry__path_free(opts->handler_path);
@@ -218,6 +220,33 @@ const char *
 sentry_options_get_dsn(const sentry_options_t *opts)
 {
     return opts->dsn ? opts->dsn->raw : NULL;
+}
+
+void
+sentry_options_set_org_id_n(
+    sentry_options_t *opts, const char *org_id, size_t org_id_len)
+{
+    sentry_free(opts->org_id);
+    opts->org_id = sentry__string_clone_n(org_id, org_id_len);
+}
+
+void
+sentry_options_set_org_id(sentry_options_t *opts, const char *org_id)
+{
+    sentry_free(opts->org_id);
+    opts->org_id = sentry__string_clone(org_id);
+}
+
+const char *
+sentry__options_get_org_id(const sentry_options_t *opts)
+{
+    if (opts->org_id && *opts->org_id) {
+        return opts->org_id;
+    }
+    if (opts->dsn && opts->dsn->org_id && *opts->dsn->org_id) {
+        return opts->dsn->org_id;
+    }
+    return NULL;
 }
 
 void
@@ -935,6 +964,19 @@ int
 sentry_options_get_propagate_traceparent(const sentry_options_t *opts)
 {
     return opts->propagate_traceparent;
+}
+
+void
+sentry_options_set_strict_trace_continuation(
+    sentry_options_t *opts, int strict_trace_continuation)
+{
+    opts->strict_trace_continuation = !!strict_trace_continuation;
+}
+
+int
+sentry_options_get_strict_trace_continuation(const sentry_options_t *opts)
+{
+    return opts->strict_trace_continuation;
 }
 
 void

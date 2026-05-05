@@ -21,6 +21,8 @@ from .conditions import has_http
 pytestmark = pytest.mark.skipif(not has_http, reason="tests need http")
 
 RFC3339_FORMAT = "%Y-%m-%dT%H:%M:%S.%fZ"
+UPSTREAM_TRACE_ID = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+UPSTREAM_PARENT_SPAN_ID = "bbbbbbbbbbbbbbbb"
 
 
 @pytest.mark.parametrize(
@@ -255,7 +257,6 @@ def test_transaction_trace_header(cmake, httpserver):
     del trace_header["sample_rand"]
     assert trace_header == {
         "environment": "development",
-        "org_id": "",
         "public_key": "uiaeosnrtdy",
         "release": "test-example-release",
         "sample_rate": 1,
@@ -301,7 +302,6 @@ def test_event_trace_header(cmake, httpserver):
     del trace_header["sample_rand"]
     assert trace_header == {
         "environment": "development",
-        "org_id": "",
         "public_key": "uiaeosnrtdy",
         "release": "test-example-release",
         "sample_rate": 0,  # since we don't capture-transaction
@@ -466,3 +466,96 @@ def test_set_trace_transaction_update_from_header_event(cmake, httpserver):
     # tx gets parent span_id from update_from_header
     assert trace_context["parent_span_id"]
     assert trace_context["parent_span_id"] == expected_parent_span_id
+
+
+@pytest.mark.parametrize(
+    "strict,incoming_baggage_flag,continues,expected_dsc",
+    [
+        pytest.param(
+            True,
+            "incoming-baggage",
+            True,
+            {
+                "environment": "upstream",
+                "org_id": "123456",
+                "release": "upstream-app@1.0",
+            },
+            id="strict-matching-org-continues",
+        ),
+        pytest.param(
+            False,
+            "incoming-baggage-mismatch",
+            False,
+            {
+                "environment": "development",
+                "org_id": "123456",
+                "release": "test-example-release",
+            },
+            id="lenient-mismatched-org-forks",
+        ),
+        pytest.param(
+            True,
+            None,
+            False,
+            {
+                "environment": "development",
+                "org_id": "123456",
+                "release": "test-example-release",
+            },
+            id="strict-no-baggage-forks",
+        ),
+        pytest.param(
+            False,
+            None,
+            True,
+            {
+                "environment": "development",
+                "org_id": "123456",
+                "release": "test-example-release",
+            },
+            id="lenient-no-baggage-continues",
+        ),
+    ],
+)
+def test_strict_trace_continuation(
+    cmake, httpserver, strict, incoming_baggage_flag, continues, expected_dsc
+):
+    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "none"})
+
+    httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data("OK")
+    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver), SENTRY_RELEASE="🤮🚀")
+
+    args = [
+        "log",
+        "org-id",
+        "capture-transaction",
+        "incoming-trace",
+    ]
+    if strict:
+        args.append("strict-trace-continuation")
+    if incoming_baggage_flag:
+        args.append(incoming_baggage_flag)
+
+    run(tmp_path, "sentry_example", args, env=env)
+
+    assert len(httpserver.log) == 1
+    event_envelope = Envelope.deserialize(httpserver.log[0][0].get_data())
+    event_envelope.print_verbose()
+
+    (event,) = event_envelope.items
+    assert event.headers["type"] == "transaction"
+    payload = event.payload.json
+    trace_context = payload["contexts"]["trace"]
+    trace_header = event_envelope.headers["trace"]
+
+    assert "incoming_dsc" not in payload
+    assert trace_header["trace_id"] == trace_context["trace_id"]
+    for key, value in expected_dsc.items():
+        assert trace_header[key] == value
+
+    if continues:
+        assert trace_context["trace_id"] == UPSTREAM_TRACE_ID
+        assert trace_context["parent_span_id"] == UPSTREAM_PARENT_SPAN_ID
+    else:
+        assert trace_context["trace_id"] != UPSTREAM_TRACE_ID
+        assert "parent_span_id" not in trace_context

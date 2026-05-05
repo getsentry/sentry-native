@@ -98,39 +98,6 @@ generate_propagation_context(sentry_value_t propagation_context)
         sentry_value_get_by_key(propagation_context, "trace"));
 }
 
-static void
-set_dynamic_sampling_context(
-    const sentry_options_t *options, sentry_scope_t *scope)
-{
-    sentry_value_decref(scope->dynamic_sampling_context);
-    // add the Dynamic Sampling Context to the `trace` header
-    sentry_value_t dsc = sentry_value_new_object();
-
-    if (options->dsn) {
-        sentry_value_set_by_key(dsc, "public_key",
-            sentry_value_new_string(options->dsn->public_key));
-        sentry_value_set_by_key(
-            dsc, "org_id", sentry_value_new_string(options->dsn->org_id));
-    }
-    sentry_value_set_by_key(dsc, "sample_rate",
-        sentry_value_new_double(options->traces_sample_rate));
-    if (options->traces_sampler) {
-        sentry_value_set_by_key(
-            dsc, "sample_rate", sentry_value_new_double(1.0));
-    }
-    sentry_value_t sample_rand = sentry_value_get_by_key(
-        sentry_value_get_by_key(scope->propagation_context, "trace"),
-        "sample_rand");
-    sentry_value_set_by_key(dsc, "sample_rand", sample_rand);
-    sentry_value_incref(sample_rand);
-    sentry_value_set_by_key(
-        dsc, "release", sentry_value_new_string(scope->release));
-    sentry_value_set_by_key(
-        dsc, "environment", sentry_value_new_string(scope->environment));
-
-    scope->dynamic_sampling_context = dsc;
-}
-
 #if defined(SENTRY_PLATFORM_NX) || defined(SENTRY_PLATFORM_PS)
 int
 sentry__native_init(sentry_options_t *options)
@@ -250,7 +217,7 @@ sentry_init(sentry_options_t *options)
         sentry__ringbuffer_set_max_size(
             scope->breadcrumbs, options->max_breadcrumbs);
 
-        set_dynamic_sampling_context(options, scope);
+        sentry__scope_update_dsc(scope, options);
     }
     if (backend && backend->user_consent_changed_func) {
         backend->user_consent_changed_func(backend);
@@ -1206,15 +1173,24 @@ sentry_set_trace_n(const char *trace_id, size_t trace_id_len,
         sentry__generate_sample_rand(context);
 
         sentry__set_propagation_context("trace", context);
+
+        SENTRY_WITH_OPTIONS (options) {
+            SENTRY_WITH_SCOPE_MUT (scope) {
+                sentry__scope_update_dsc(scope, options);
+            }
+        }
     }
 }
 
 void
 sentry_regenerate_trace(void)
 {
-    SENTRY_WITH_SCOPE_MUT (scope) {
-        generate_propagation_context(scope->propagation_context);
-        scope->trace_managed = false;
+    SENTRY_WITH_OPTIONS (options) {
+        SENTRY_WITH_SCOPE_MUT (scope) {
+            generate_propagation_context(scope->propagation_context);
+            scope->trace_managed = false;
+            sentry__scope_update_dsc(scope, options);
+        }
     }
 }
 
@@ -1286,6 +1262,41 @@ sentry_transaction_start_ts(sentry_transaction_context_t *opaque_tx_ctx,
     sentry_value_remove_by_key(tx, "timestamp");
 
     sentry__value_merge_objects(tx, tx_ctx);
+
+    sentry_value_t incoming = sentry_value_get_by_key(tx, "incoming_dsc");
+    if (!sentry_value_is_null(incoming)) {
+        SENTRY_WITH_OPTIONS (options) {
+            SENTRY_WITH_SCOPE_MUT (scope) {
+                if (sentry__trace_can_continue(incoming, options)) {
+                    // Freeze only when the upstream actually sent DSC values;
+                    // a sentry-trace-only signal leaves incoming empty, in
+                    // which case the SDK builds its own DSC.
+                    if (sentry_value_get_length(incoming) > 0) {
+                        sentry__scope_freeze_dsc(scope, incoming);
+                    } else {
+                        sentry__scope_update_dsc(scope, options);
+                    }
+                } else {
+                    // Fork: ignore upstream trace, become head of a new trace.
+                    // Regenerate the scope's propagation context so events
+                    // captured outside this transaction also carry the new
+                    // trace_id, and align the tx's trace_id with it.
+                    generate_propagation_context(scope->propagation_context);
+                    sentry_value_t scope_trace_id = sentry_value_get_by_key(
+                        sentry_value_get_by_key(
+                            scope->propagation_context, "trace"),
+                        "trace_id");
+                    sentry_value_incref(scope_trace_id);
+                    sentry_value_set_by_key(tx, "trace_id", scope_trace_id);
+                    sentry_value_remove_by_key(tx, "parent_span_id");
+                    sentry_value_remove_by_key(tx, "sampled");
+                    sentry__scope_update_dsc(scope, options);
+                }
+            }
+        }
+    }
+    sentry_value_remove_by_key(tx, "incoming_dsc");
+
     double sample_rand = 1.0;
     SENTRY_WITH_SCOPE (scope) {
         sample_rand = sentry_value_as_double(sentry_value_get_by_key(
@@ -1295,7 +1306,7 @@ sentry_transaction_start_ts(sentry_transaction_context_t *opaque_tx_ctx,
     sentry_sampling_context_t sampling_ctx
         = { opaque_tx_ctx, custom_sampling_ctx, NULL, sample_rand };
 
-    bool should_sample = sentry__should_send_transaction(tx_ctx, &sampling_ctx);
+    bool should_sample = sentry__should_send_transaction(tx, &sampling_ctx);
     sentry_value_set_by_key(
         tx, "sampled", sentry_value_new_bool(should_sample));
     sentry_value_decref(custom_sampling_ctx);
