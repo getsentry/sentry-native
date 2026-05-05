@@ -1706,7 +1706,7 @@ sentry__launch_external_crash_reporter(
         return false;
     }
     if (options->cache_keep) {
-        if (sentry__envelope_materialize(envelope)) {
+        if (!sentry__envelope_is_raw(envelope)) {
             sentry__envelope_set_header(envelope, "cache_dir",
                 sentry_value_new_string(options->run->cache_path->path));
         } else {
