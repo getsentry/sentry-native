@@ -191,7 +191,7 @@ jobs:
             os: windows-latest
             USE_SCCACHE: 1
           - name: Windows ClangCL (latest)
-            os: windows-latest
+            os: windows-2022
             VS_GENERATOR_TOOLSET: ClangCL
           - name: LLVM-Mingw
             os: windows-latest
