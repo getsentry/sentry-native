@@ -271,12 +271,16 @@ if(SENTRY_INTEGRATION_QT)
 endif()
 
 # screenshot
-if(WIN32)
+if(SENTRY_SCREENSHOT_WINDOWS)
+	target_compile_definitions(sentry PRIVATE SENTRY_SCREENSHOT_WINDOWS)
 	sentry_target_sources_cwd(sentry
 		screenshot/sentry_screenshot_windows.c
 	)
-else()
+elseif(SENTRY_SCREENSHOT_NONE)
+	target_compile_definitions(sentry PRIVATE SENTRY_SCREENSHOT_NONE)
 	sentry_target_sources_cwd(sentry
 		screenshot/sentry_screenshot_none.c
 	)
+elseif(SENTRY_SCREENSHOT_CUSTOM)
+	target_compile_definitions(sentry PRIVATE SENTRY_SCREENSHOT_CUSTOM)
 endif()

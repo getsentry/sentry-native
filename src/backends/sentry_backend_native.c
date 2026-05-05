@@ -922,6 +922,9 @@ native_backend_except(sentry_backend_t *backend, const sentry_ucontext_t *uctx)
 #    endif
                 sentry_value_set_by_key(contexts, "device", device_context);
 
+#endif
+
+#ifndef SENTRY_SCREENSHOT_NONE
                 // The screenshot is captured by the daemon out-of-process, so
                 // we invoke the hook here (in the crashing process, where
                 // user callbacks can run) and communicate the decision to the

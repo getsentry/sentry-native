@@ -1174,7 +1174,7 @@ process_ucontext_deferred(const sentry_ucontext_t *uctx,
         TEST_CRASH_POINT("before_capture");
         if (should_handle) {
             bool capture_screenshot = options->attach_screenshot;
-#ifdef SENTRY_PLATFORM_WINDOWS
+#ifndef SENTRY_SCREENSHOT_NONE
             if (capture_screenshot && options->before_screenshot_func) {
                 SENTRY_DEBUG("invoking `before_screenshot` hook");
                 capture_screenshot = options->before_screenshot_func(

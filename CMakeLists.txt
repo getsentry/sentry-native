@@ -198,6 +198,25 @@ else()
 	message(FATAL_ERROR "SENTRY_TRANSPORT must be one of: ${_SUPPORTED_TRANSPORTS}")
 endif()
 
+if(WIN32)
+	set(_SUPPORTED_SCREENSHOTS "windows, none, or custom")
+	set(SENTRY_SCREENSHOT "windows" CACHE STRING
+		"The screenshot implementation that sentry uses, can be one of: ${_SUPPORTED_SCREENSHOTS}.")
+else()
+	set(_SUPPORTED_SCREENSHOTS "none or custom")
+	set(SENTRY_SCREENSHOT "none" CACHE STRING
+		"The screenshot implementation that sentry uses, can be one of: ${_SUPPORTED_SCREENSHOTS}.")
+endif()
+
+if(SENTRY_SCREENSHOT STREQUAL "windows")
+	set(SENTRY_SCREENSHOT_WINDOWS TRUE)
+elseif(SENTRY_SCREENSHOT STREQUAL "custom")
+	set(SENTRY_SCREENSHOT_CUSTOM TRUE)
+elseif(SENTRY_SCREENSHOT STREQUAL "none")
+	set(SENTRY_SCREENSHOT_NONE TRUE)
+else()
+	message(FATAL_ERROR "SENTRY_SCREENSHOT must be one of: ${_SUPPORTED_SCREENSHOTS}")
+endif()
 
 if(SENTRY_BUILD_TESTS OR SENTRY_BUILD_EXAMPLES)
 	enable_testing()
