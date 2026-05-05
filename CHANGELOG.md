@@ -13,6 +13,20 @@
 - Metrics are enabled by default. This behavior first appeared in `0.13.5` and is now documented as part of the `0.14.0` behavior. Applications that do not want to send metrics must explicitly opt out with `sentry_options_set_enable_metrics(options, false)`. ([#1609](https://github.com/getsentry/sentry-native/pull/1609))
 - Structured logs are enabled by default. This behavior first appeared in `0.13.9` and is now documented as part of the `0.14.0` behavior. Applications that do not want to capture structured logs must explicitly opt out with `sentry_options_set_enable_logs(options, false)`. ([#1673](https://github.com/getsentry/sentry-native/pull/1673))
 
+**Fixes**:
+
+- Native/Linux: correct `MD_LINUX_MAPS` stream type (was tagged as `MD_LINUX_AUXV`). ([#1694](https://github.com/getsentry/sentry-native/pull/1694))
+- Native/Linux: drop non-ELF mappings (e.g. `/dev/shm/*`, `(deleted)` files) from the minidump module list. ([#1694](https://github.com/getsentry/sentry-native/pull/1694))
+- Native/Linux: merge non-contiguous mappings of the same shared library into a single module, and use the offset==0 mapping as `base_of_image`. Fixes duplicate `ld-linux` entries that confused some debuggers (notably Windows LLDB) reading Linux ARM64 minidumps. ([#1694](https://github.com/getsentry/sentry-native/pull/1694))
+- Native/Linux: log when `uname()` is blocked (sandbox/seccomp) and fall back to `/proc/sys/kernel/osrelease` for the OS version. ([#1694](https://github.com/getsentry/sentry-native/pull/1694))
+- Native/Linux: emit `LinuxAuxv`, `LinuxCpuInfo`, `LinuxLsbRelease`, `LinuxCmdLine`, `LinuxEnviron`, and `LinuxDsoDebug` streams alongside the existing set, matching what Breakpad writes. LLDB needs `LinuxAuxv` and `LinuxDsoDebug` to identify the dynamic loader and enumerate loaded shared libraries; without them, opening a minidump in LLDB on Linux would only recover one frame per thread. ([#1694](https://github.com/getsentry/sentry-native/pull/1694))
+- Native/Linux: replay each thread's stack memory descriptor into `MemoryListStream`. Previously stack bytes were only referenced from the per-thread record, so debuggers that look up memory by virtual address (LLDB) could not read the stack and unwinding stopped at frame 0 even when `eh_frame` was available. ([#1694](https://github.com/getsentry/sentry-native/pull/1694))
+- Native/macOS: replay each thread's stack memory descriptor into `MemoryListStream` so LLDB can read stack contents (same fix as Linux above). ([#1694](https://github.com/getsentry/sentry-native/pull/1694))
+
+**Features**:
+
+- Native (Linux, macOS): SMART minidump mode now also captures memory referenced by the registers and stack contents of every captured thread, matching the semantics of `MiniDumpWithIndirectlyReferencedMemory` on Windows (already in effect for the native Windows backend). For each pointer that resolves into a writable heap region, ~1 KiB is captured around it; total budget capped at 4 MiB per dump. Heap-allocated structs reachable from the crashing call stack can now be inspected in LLDB / VS Code. ([#1694](https://github.com/getsentry/sentry-native/pull/1694))
+
 ## 0.13.9
 
 **Features**:
