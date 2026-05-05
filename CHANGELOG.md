@@ -114,6 +114,10 @@
 
 - Add `addAttachment` and `clearAttachments` to the NDK `NativeScope` API for managing file and byte attachments via JNI. ([#1584](https://github.com/getsentry/sentry-native/pull/1584))
 
+**Features**:
+
+- Implement GPU info context gathering for the Native SDK. Supported on Windows, macOS, and Linux via Vulkan. Disabled by default — enable with `-DSENTRY_WITH_GPU_INFO=ON`. ([#1336](https://github.com/getsentry/sentry-native/pull/1336))
+
 **Fixes**:
 
 - inproc: only the handling thread cleans up after the crash. ([#1579](https://github.com/getsentry/sentry-native/pull/1579))
