@@ -190,8 +190,8 @@ jobs:
           - name: Windows (latest, ninja + sccache)
             os: windows-latest
             USE_SCCACHE: 1
-          - name: Windows ClangCL (2022)
-            os: windows-2022
+          - name: Windows ClangCL (2025)
+            os: windows-2025
             VS_GENERATOR_TOOLSET: ClangCL
           - name: LLVM-Mingw
             os: windows-latest
