@@ -16,7 +16,6 @@ SENTRY_TEST(attachment_placeholder)
 
     char data[] = "x";
     sentry_attachment_t attachment = { 0 };
-    attachment.type = ATTACHMENT;
     attachment.buf = data;
     attachment.buf_len = SENTRY_LARGE_ATTACHMENT_SIZE;
 
@@ -29,9 +28,10 @@ SENTRY_TEST(attachment_placeholder)
     attachment.buf_len = SENTRY_LARGE_ATTACHMENT_SIZE;
     TEST_CHECK(sentry__attachment_is_placeholder(&attachment, options));
 
-    attachment.type = MINIDUMP;
-    TEST_CHECK(!sentry__attachment_is_placeholder(&attachment, options));
+    sentry_attachment_set_type(&attachment, SENTRY_ATTACHMENT_TYPE_MINIDUMP);
+    TEST_CHECK(sentry__attachment_is_placeholder(&attachment, options));
 
+    sentry_free(attachment.type);
     sentry_options_free(options);
 }
 
@@ -269,19 +269,19 @@ SENTRY_TEST(attachments_extend)
 
     sentry_attachment_t *attachments_abc = NULL;
     sentry__attachments_add_path(
-        &attachments_abc, sentry__path_clone(path_a), ATTACHMENT, NULL);
+        &attachments_abc, sentry__path_clone(path_a), NULL, NULL);
     sentry__attachments_add_path(
-        &attachments_abc, sentry__path_clone(path_b), ATTACHMENT, NULL);
+        &attachments_abc, sentry__path_clone(path_b), NULL, NULL);
     sentry__attachments_add_path(
-        &attachments_abc, sentry__path_clone(path_c), ATTACHMENT, NULL);
+        &attachments_abc, sentry__path_clone(path_c), NULL, NULL);
 
     sentry_attachment_t *attachments_bcd = NULL;
     sentry__attachments_add_path(
-        &attachments_bcd, sentry__path_clone(path_b), ATTACHMENT, NULL);
+        &attachments_bcd, sentry__path_clone(path_b), NULL, NULL);
     sentry__attachments_add_path(
-        &attachments_bcd, sentry__path_clone(path_c), ATTACHMENT, NULL);
+        &attachments_bcd, sentry__path_clone(path_c), NULL, NULL);
     sentry__attachments_add_path(
-        &attachments_bcd, sentry__path_clone(path_d), ATTACHMENT, NULL);
+        &attachments_bcd, sentry__path_clone(path_d), NULL, NULL);
 
     sentry_attachment_t *all_attachments = NULL;
     sentry__attachments_extend(&all_attachments, attachments_abc);

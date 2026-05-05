@@ -8,6 +8,26 @@
 #include <string.h>
 
 void
+sentry_attachment_set_type(sentry_attachment_t *attachment, const char *type)
+{
+    sentry_attachment_set_type_n(
+        attachment, type, sentry__guarded_strlen(type));
+}
+
+void
+sentry_attachment_set_type_n(
+    sentry_attachment_t *attachment, const char *type, size_t type_len)
+{
+    if (!attachment) {
+        return;
+    }
+
+    sentry_free(attachment->type);
+    attachment->type
+        = type && type_len > 0 ? sentry__string_clone_n(type, type_len) : NULL;
+}
+
+void
 sentry_attachment_set_content_type(
     sentry_attachment_t *attachment, const char *content_type)
 {
@@ -117,6 +137,7 @@ sentry__attachment_free(sentry_attachment_t *attachment)
     sentry__path_free(attachment->path);
     sentry__path_free(attachment->filename);
     sentry_free(attachment->buf);
+    sentry_free(attachment->type);
     sentry_free(attachment->content_type);
     sentry_free(attachment);
 }
@@ -141,7 +162,6 @@ sentry__attachment_is_placeholder(
     const sentry_attachment_t *att, const sentry_options_t *options)
 {
     return options && options->enable_large_attachments && att
-        && att->type == ATTACHMENT
         && sentry__attachment_get_size(att) >= SENTRY_LARGE_ATTACHMENT_SIZE;
 }
 
@@ -170,7 +190,12 @@ attachment_eq(const sentry_attachment_t *a, const sentry_attachment_t *b)
     if (a == b) {
         return true;
     }
-    if (!a || !b || a->buf || b->buf || a->type != b->type) {
+    if (!a || !b || a->buf || b->buf) {
+        return false;
+    }
+    const char *a_type = a->type ? a->type : "";
+    const char *b_type = b->type ? b->type : "";
+    if (!sentry__string_eq(a_type, b_type)) {
         return false;
     }
     return sentry__path_eq(a->path, b->path);
@@ -178,7 +203,7 @@ attachment_eq(const sentry_attachment_t *a, const sentry_attachment_t *b)
 
 sentry_attachment_t *
 sentry__attachments_add(sentry_attachment_t **attachments_ptr,
-    sentry_attachment_t *attachment, sentry_attachment_type_t attachment_type,
+    sentry_attachment_t *attachment, const char *attachment_type,
     const char *content_type)
 {
     if (!attachment) {
@@ -196,8 +221,8 @@ sentry__attachments_add(sentry_attachment_t **attachments_ptr,
         SENTRY_INFOF("added large attachment \"%s\" (%zu MiB)",
             sentry__attachment_get_filename(attachment), size / (1024 * 1024));
     }
-    attachment->type = attachment_type;
-    attachment->content_type = sentry__string_clone(content_type);
+    sentry_attachment_set_type(attachment, attachment_type);
+    sentry_attachment_set_content_type(attachment, content_type);
 
     sentry_attachment_t **next_ptr = attachments_ptr;
 
@@ -216,8 +241,7 @@ sentry__attachments_add(sentry_attachment_t **attachments_ptr,
 
 sentry_attachment_t *
 sentry__attachments_add_path(sentry_attachment_t **attachments_ptr,
-    sentry_path_t *path, sentry_attachment_type_t attachment_type,
-    const char *content_type)
+    sentry_path_t *path, const char *attachment_type, const char *content_type)
 {
     sentry_attachment_t *attachment = sentry__attachment_from_path(path);
     return sentry__attachments_add(

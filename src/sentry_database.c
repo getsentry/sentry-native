@@ -290,7 +290,7 @@ static sentry_path_t *
 build_sibling_path(const sentry_path_t *cache_path, const char *uuid_str,
     const sentry_attachment_t *att)
 {
-    if (att->type == MINIDUMP) {
+    if (att->type && strcmp(att->type, SENTRY_ATTACHMENT_TYPE_MINIDUMP) == 0) {
         char buf[41];
         snprintf(buf, sizeof(buf), "%s.dmp", uuid_str);
         return sentry__path_unique(cache_path, buf);
