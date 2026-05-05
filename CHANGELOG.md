@@ -9,7 +9,7 @@
 - Crashpad: add error log for oversized envelopes (HTTP 413 Content Too Large). ([#1706](https://github.com/getsentry/sentry-native/pull/1706), [crashpad#155](https://github.com/getsentry/crashpad/pull/155))
 - Crashpad: support modifying attachments after `sentry_init` on macOS. ([#1705](https://github.com/getsentry/sentry-native/pull/1705), [crashpad#153](https://github.com/getsentry/crashpad/pull/153))
 - Add `cache_dir` envelope header for external crash reporters. ([#1698](https://github.com/getsentry/sentry-native/pull/1698))
-- Add `sentry_attachment_set_type` and `SENTRY_ATTACHMENT_TYPE_*` for common envelope attachment types. ([#TODO](https://github.com/getsentry/sentry-native/pull/TODO))
+- Add `sentry_attachment_set_type` and `SENTRY_ATTACHMENT_TYPE_*` macros for standard Sentry attachment types. ([#1700](https://github.com/getsentry/sentry-native/pull/1700))
 
 **Fixes**:
 
