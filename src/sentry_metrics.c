@@ -4,6 +4,7 @@
 #include "sentry_envelope.h"
 #include "sentry_options.h"
 #include "sentry_scope.h"
+#include "sentry_string.h"
 #include "sentry_utils.h"
 #include "sentry_value.h"
 
@@ -43,7 +44,7 @@ construct_metric(sentry_metric_type_t type, const char *name,
         metric, "type", sentry_value_new_string(metric_type_string(type)));
     sentry_value_set_by_key(metric, "name", sentry_value_new_string(name));
     sentry_value_set_by_key(metric, "value", value);
-    if (unit && unit[0] != '\0') {
+    if (!sentry__string_empty(unit)) {
         sentry_value_set_by_key(metric, "unit", sentry_value_new_string(unit));
     }
 

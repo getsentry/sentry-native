@@ -140,7 +140,7 @@ spawn_process(char **argv)
 void
 sentry__process_spawn(const sentry_path_t *executable, const char *arg0, ...)
 {
-    if (!executable || !executable->path || strcmp(executable->path, "") == 0) {
+    if (!executable || sentry__string_empty(executable->path)) {
         return;
     }
 

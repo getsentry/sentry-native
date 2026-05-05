@@ -326,7 +326,7 @@ sentry__scope_apply_to_event(const sentry_scope_t *scope,
 #define SET(Key, Value) sentry_value_set_by_key(event, Key, Value)
 #define PLACE_STRING(Key, Source)                                              \
     do {                                                                       \
-        if (IS_NULL(Key) && Source && *Source) {                               \
+        if (IS_NULL(Key) && !sentry__string_empty(Source)) {                   \
             SET(Key, sentry_value_new_string(Source));                         \
         }                                                                      \
     } while (0)
