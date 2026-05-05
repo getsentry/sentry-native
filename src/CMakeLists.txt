@@ -280,4 +280,3 @@ elseif(NOT WIN32)
 		screenshot/sentry_screenshot_none.c
 	)
 endif()
-# Xbox: sentry__screenshot_capture is supplied by the sentry-xbox extension.
