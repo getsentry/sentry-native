@@ -193,7 +193,7 @@ breakpad_backend_callback(const google_breakpad::MinidumpDescriptor &descriptor,
             } else if (options->enable_large_attachments) {
                 sentry_attachment_t tmp = {};
                 tmp.path = dump_path;
-                tmp.type = SENTRY_ATTACHMENT_TYPE_MINIDUMP;
+                tmp.type = (char *)SENTRY_ATTACHMENT_TYPE_MINIDUMP;
                 if (!sentry__cache_attachment_ref(
                         envelope, &tmp, options->run->cache_path, nullptr)) {
                     SENTRY_SIGNAL_SAFE_LOG(

@@ -1769,7 +1769,7 @@ sentry_capture_minidump_n(const char *path, size_t path_len)
                     >= SENTRY_LARGE_ATTACHMENT_SIZE) {
                 sentry_attachment_t tmp = { 0 };
                 tmp.path = dump_path;
-                tmp.type = SENTRY_ATTACHMENT_TYPE_MINIDUMP;
+                tmp.type = (char *)SENTRY_ATTACHMENT_TYPE_MINIDUMP;
                 if (!sentry__cache_attachment_ref(
                         envelope, &tmp, options->run->cache_path, NULL)) {
                     SENTRY_WARN("failed to cache minidump attachment-ref");
