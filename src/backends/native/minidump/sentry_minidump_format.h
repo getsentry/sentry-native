@@ -476,16 +476,19 @@ PACKED_STRUCT_END
 /**
  * Linux DSO debug structures (MD_LINUX_DSO_DEBUG, 0x4767000A)
  *
- * Mirrors Breakpad's MDRawLinkMap64 / MDRawDebug64. LLDB and rust-minidump
- * use this stream to enumerate loaded shared objects when LinuxAuxv alone
- * isn't enough (e.g. modules loaded via dlopen after process startup that
- * aren't in /proc/<pid>/maps in a usable order).
+ * Wire-compatible with Breakpad's MDRawLinkMap64 / MDRawDebug64. Breakpad
+ * builds these under `#pragma pack(push, 4)`, so a uint64_t can sit on a
+ * 4-byte boundary with no padding inserted between the preceding uint32_t
+ * and itself. We use PACKED_ATTR (== __attribute__((packed))) to get the
+ * same byte-exact layout: 20 bytes for link_map64, 36 bytes for debug64.
+ *
+ * Adding explicit _pad fields here would break the layout — LLDB and
+ * rust-minidump compute offsets assuming the Breakpad sizes.
  */
 PACKED_STRUCT_BEGIN
 typedef struct {
     uint64_t addr; // l_addr from struct link_map
     minidump_rva_t name; // RVA to MINIDUMP_STRING with the SO path
-    uint32_t _pad;
     uint64_t ld; // l_ld from struct link_map (PT_DYNAMIC of this DSO)
 } PACKED_ATTR minidump_link_map64_t;
 PACKED_STRUCT_END
@@ -495,7 +498,6 @@ typedef struct {
     uint32_t version; // r_debug.r_version
     minidump_rva_t map; // RVA to array of minidump_link_map64_t
     uint32_t dso_count; // number of entries in map
-    uint32_t _pad;
     uint64_t brk; // r_debug.r_brk
     uint64_t ldbase; // r_debug.r_ldbase
     uint64_t dynamic; // address of the program's _DYNAMIC section

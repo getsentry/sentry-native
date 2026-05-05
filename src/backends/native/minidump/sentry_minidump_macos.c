@@ -1378,9 +1378,11 @@ sentry__write_minidump(
     minidump_writer_t writer = { 0 };
     writer.crash_ctx = ctx;
 
-    // Open output file
+    // Open output file. O_RDWR (not O_WRONLY) because SMART-mode indirect
+    // memory capture pread()'s thread-stack bytes back from the dump after
+    // they're written, so it can scan them for heap pointers.
     SENTRY_DEBUGF("write_minidump: opening file %s", output_path);
-    writer.fd = open(output_path, O_WRONLY | O_CREAT | O_TRUNC, 0600);
+    writer.fd = open(output_path, O_RDWR | O_CREAT | O_TRUNC, 0600);
     if (writer.fd < 0) {
         SENTRY_WARN("write_minidump: failed to open file");
         return -1;
