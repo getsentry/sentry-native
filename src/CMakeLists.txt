@@ -173,11 +173,13 @@ elseif(SENTRY_BACKEND_NATIVE)
 	if(LINUX OR ANDROID)
 		sentry_target_sources_cwd(sentry
 			backends/native/minidump/sentry_minidump_common.c
+			backends/native/minidump/sentry_minidump_indirect.c
 			backends/native/minidump/sentry_minidump_linux.c
 		)
 	elseif(APPLE)
 		sentry_target_sources_cwd(sentry
 			backends/native/minidump/sentry_minidump_common.c
+			backends/native/minidump/sentry_minidump_indirect.c
 			backends/native/minidump/sentry_minidump_macos.c
 		)
 	elseif(WIN32)

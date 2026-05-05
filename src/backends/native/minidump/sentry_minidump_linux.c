@@ -24,6 +24,7 @@
 #    include "sentry_logger.h"
 #    include "sentry_minidump_common.h"
 #    include "sentry_minidump_format.h"
+#    include "sentry_minidump_indirect.h"
 #    include "sentry_minidump_writer.h"
 
 // NT_PRSTATUS is defined in linux/elf.h but we can't include that
@@ -111,7 +112,12 @@ typedef struct {
     // LinuxMaps) but cannot read its contents and unwinding stops after
     // frame 0. Breakpad's MinidumpWriter does the equivalent via
     // memory_blocks_.push_back(thread->stack).
+    //
+    // thread_stack_tids[i] is the thread id whose stack is in
+    // thread_stacks[i] — needed by the SMART-mode indirect-memory walker so
+    // it can find the matching ucontext for register scanning.
     minidump_memory_descriptor_t thread_stacks[SENTRY_CRASH_MAX_THREADS];
+    pid_t thread_stack_tids[SENTRY_CRASH_MAX_THREADS];
     size_t thread_stack_count;
 
     // Ptrace state
@@ -1384,7 +1390,10 @@ record_thread_stack(minidump_writer_t *writer, const minidump_thread_t *thread)
     if (writer->thread_stack_count >= SENTRY_CRASH_MAX_THREADS) {
         return;
     }
-    writer->thread_stacks[writer->thread_stack_count++] = thread->stack;
+    writer->thread_stacks[writer->thread_stack_count] = thread->stack;
+    writer->thread_stack_tids[writer->thread_stack_count]
+        = (pid_t)thread->thread_id;
+    writer->thread_stack_count++;
 }
 
 /**
@@ -1976,14 +1985,18 @@ write_thread_names_stream(minidump_writer_t *writer, minidump_directory_t *dir)
         name_list->thread_names[i].thread_name_rva = name_rvas[i];
     }
 
-    dir->stream_type = MINIDUMP_STREAM_THREAD_NAMES;
-    dir->rva = write_data(writer, name_list, list_size);
-    dir->data_size = list_size;
-
+    // Stage rva first so a write_data failure leaves dir untouched
+    // (data_size > 0 with rva == 0 would point parsers at the header).
+    minidump_rva_t rva = write_data(writer, name_list, list_size);
     sentry_free(name_list);
     sentry_free(name_rvas);
-
-    return dir->rva ? 0 : -1;
+    if (!rva) {
+        return -1;
+    }
+    dir->stream_type = MINIDUMP_STREAM_THREAD_NAMES;
+    dir->rva = rva;
+    dir->data_size = list_size;
+    return 0;
 }
 
 /**
@@ -2038,6 +2051,201 @@ should_include_region(const memory_mapping_t *mapping,
     return false;
 }
 
+// =====================================================================
+// Indirectly-referenced memory capture (SMART mode)
+// =====================================================================
+//
+// Mirrors Windows' MiniDumpWithIndirectlyReferencedMemory: walks every
+// captured thread's stack words and the crashing thread's GPRs and, for
+// each value that lands inside a writable heap mapping, captures a small
+// page-aligned chunk so debuggers can chase pointers held in struct
+// locals at crash time.
+//
+// The algorithm + accumulator + dedup live in sentry_minidump_indirect.c.
+// This block is the Linux platform shim: it provides the two callbacks
+// (is_writable_heap, read_memory) and drives the walker for each thread.
+
+/**
+ * Find the mapping containing addr via binary search over writer->mappings,
+ * which is sorted by /proc/<pid>/maps in ascending start order. Returns NULL
+ * if addr is not mapped.
+ */
+static const memory_mapping_t *
+find_mapping_for_addr(const minidump_writer_t *writer, uint64_t addr)
+{
+    size_t lo = 0;
+    size_t hi = writer->mapping_count;
+    while (lo < hi) {
+        size_t mid = lo + (hi - lo) / 2;
+        const memory_mapping_t *m = &writer->mappings[mid];
+        if (addr < m->start) {
+            hi = mid;
+        } else if (addr >= m->end) {
+            lo = mid + 1;
+        } else {
+            return m;
+        }
+    }
+    return NULL;
+}
+
+static bool
+linux_indirect_is_writable_heap(void *ctx, uint64_t addr)
+{
+    const minidump_writer_t *writer = (const minidump_writer_t *)ctx;
+    const memory_mapping_t *m = find_mapping_for_addr(writer, addr);
+    if (!m) {
+        return false;
+    }
+    // Must be readable+writable, not executable. This admits [heap] and
+    // anonymous rw-p mappings (typical heap allocators); rejects code
+    // pages, rwx JIT pages (rare and risky), and read-only data segments.
+    if (m->permissions[0] != 'r' || m->permissions[1] != 'w') {
+        return false;
+    }
+    if (m->permissions[2] == 'x') {
+        return false;
+    }
+    // Reject kernel-private/special regions: [stack...], [vdso], [vvar],
+    // [vsyscall]. Stacks are already in MemoryListStream via thread_stacks
+    // so visiting them here would just waste budget on dedup work.
+    if (m->name[0] == '[') {
+        // [heap] is the one named-bracket region we DO want.
+        if (strncmp(m->name, "[heap]", 6) == 0) {
+            return true;
+        }
+        return false;
+    }
+    return true;
+}
+
+static ssize_t
+linux_indirect_read_memory(void *ctx, uint64_t addr, void *buf, size_t len)
+{
+    return read_process_memory((minidump_writer_t *)ctx, addr, buf, len);
+}
+
+/**
+ * Walk the registers of the captured ucontext for `tid` (if available)
+ * through sentry__indirect_consider. The crash daemon only stores ucontext
+ * for threads whose context arrived via the signal handler — typically the
+ * crashing thread plus any other thread that hit the same handler. For
+ * threads captured via ptrace the registers are already gone by the time
+ * we get here, so we silently skip them; their stack contents still get
+ * walked below.
+ */
+static void
+walk_indirect_registers_for_tid(minidump_writer_t *writer, pid_t tid,
+    sentry_indirect_accumulator_t *acc, const sentry_indirect_ops_t *ops)
+{
+    const ucontext_t *uctx = NULL;
+    size_t num = writer->crash_ctx->platform.num_threads;
+    if (num > SENTRY_CRASH_MAX_THREADS) {
+        num = SENTRY_CRASH_MAX_THREADS;
+    }
+    for (size_t j = 0; j < num; j++) {
+        if (writer->crash_ctx->platform.threads[j].tid == tid) {
+            uctx = &writer->crash_ctx->platform.threads[j].context;
+            break;
+        }
+    }
+    if (!uctx) {
+        return;
+    }
+
+    minidump_writer_base_t *base = (minidump_writer_base_t *)writer;
+#    if defined(__aarch64__)
+    for (int r = 0; r <= 30; r++) {
+        sentry__indirect_consider(
+            acc, base, (uint64_t)uctx->uc_mcontext.regs[r], ops);
+    }
+    sentry__indirect_consider(acc, base, (uint64_t)uctx->uc_mcontext.sp, ops);
+#    elif defined(__x86_64__)
+    static const int x86_64_gprs[] = { REG_RAX, REG_RBX, REG_RCX, REG_RDX,
+        REG_RSI, REG_RDI, REG_RBP, REG_RSP, REG_R8, REG_R9, REG_R10, REG_R11,
+        REG_R12, REG_R13, REG_R14, REG_R15 };
+    for (size_t i = 0; i < sizeof(x86_64_gprs) / sizeof(x86_64_gprs[0]); i++) {
+        sentry__indirect_consider(
+            acc, base, (uint64_t)uctx->uc_mcontext.gregs[x86_64_gprs[i]], ops);
+    }
+#    elif defined(__i386__)
+    static const int x86_gprs[] = { REG_EAX, REG_EBX, REG_ECX, REG_EDX, REG_ESI,
+        REG_EDI, REG_EBP, REG_ESP };
+    for (size_t i = 0; i < sizeof(x86_gprs) / sizeof(x86_gprs[0]); i++) {
+        sentry__indirect_consider(acc, base,
+            (uint64_t)(uint32_t)uctx->uc_mcontext.gregs[x86_gprs[i]], ops);
+    }
+#    elif defined(__arm__)
+    // ARMv7's mcontext fields are individual struct members rather than
+    // an array; walk them explicitly. Most heap pointers we care about
+    // either come through r0..r3 (call args / return value), r7 (frame
+    // pointer in some calling conventions), sp, or lr.
+    sentry__indirect_consider(
+        acc, base, (uint64_t)uctx->uc_mcontext.arm_r0, ops);
+    sentry__indirect_consider(
+        acc, base, (uint64_t)uctx->uc_mcontext.arm_r1, ops);
+    sentry__indirect_consider(
+        acc, base, (uint64_t)uctx->uc_mcontext.arm_r2, ops);
+    sentry__indirect_consider(
+        acc, base, (uint64_t)uctx->uc_mcontext.arm_r3, ops);
+    sentry__indirect_consider(
+        acc, base, (uint64_t)uctx->uc_mcontext.arm_r7, ops);
+    sentry__indirect_consider(
+        acc, base, (uint64_t)uctx->uc_mcontext.arm_sp, ops);
+    sentry__indirect_consider(
+        acc, base, (uint64_t)uctx->uc_mcontext.arm_lr, ops);
+#    endif
+}
+
+/**
+ * For SMART mode: scan every captured thread's stack and the crashing
+ * thread's registers for heap pointers, capturing a chunk around each.
+ * Stack bytes are pread()'d back from disk (we already wrote them in
+ * write_thread_list_stream) rather than retained in memory, to avoid
+ * doubling crash-time memory pressure.
+ */
+static void
+capture_indirect_memory(
+    minidump_writer_t *writer, sentry_indirect_accumulator_t *acc)
+{
+    sentry_indirect_ops_t ops = {
+        .is_writable_heap = linux_indirect_is_writable_heap,
+        .read_memory = linux_indirect_read_memory,
+        .ctx = writer,
+    };
+    minidump_writer_base_t *base = (minidump_writer_base_t *)writer;
+
+    for (size_t i = 0; i < writer->thread_stack_count; i++) {
+        const minidump_memory_descriptor_t *desc = &writer->thread_stacks[i];
+        size_t stack_size = desc->memory.size;
+        if (stack_size == 0 || desc->memory.rva == 0) {
+            continue;
+        }
+        void *stack_buf = sentry_malloc(stack_size);
+        if (!stack_buf) {
+            continue;
+        }
+        ssize_t got
+            = pread(writer->fd, stack_buf, stack_size, (off_t)desc->memory.rva);
+        if (got > 0) {
+            sentry__indirect_walk_words(
+                acc, base, stack_buf, (size_t)got, &ops);
+        }
+        sentry_free(stack_buf);
+
+        // After scanning this thread's stack, also scan its registers if
+        // we have them. Registers usually point into either the same stack
+        // (already walked) or live heap objects we want to capture.
+        walk_indirect_registers_for_tid(
+            writer, writer->thread_stack_tids[i], acc, &ops);
+
+        if (acc->total_bytes >= SENTRY_INDIRECT_MAX_TOTAL_BYTES
+            || acc->region_count >= SENTRY_INDIRECT_MAX_REGIONS) {
+            break;
+        }
+    }
+}
+
 /**
  * Write memory list stream (heap memory based on minidump mode)
  */
@@ -2046,6 +2254,19 @@ write_memory_list_stream(minidump_writer_t *writer, minidump_directory_t *dir)
 {
     // Get crash address for SMART mode filtering
     uint64_t crash_addr = (uint64_t)writer->crash_ctx->platform.siginfo.si_addr;
+
+    // SMART mode: scan registers + stack words for pointers into writable
+    // heap mappings and capture a chunk around each. Has to run BEFORE the
+    // memory_list allocation below so we know the final region count. The
+    // bytes are written into the dump file as we go; we only collect the
+    // descriptors here and merge them into the unified list at the end.
+    sentry_indirect_accumulator_t indirect_acc;
+    sentry__indirect_init(&indirect_acc);
+    if (writer->crash_ctx->minidump_mode == SENTRY_MINIDUMP_MODE_SMART) {
+        capture_indirect_memory(writer, &indirect_acc);
+        SENTRY_DEBUGF("indirect memory: captured %zu regions, %zu bytes",
+            indirect_acc.region_count, indirect_acc.total_bytes);
+    }
 
     // Count regions to include based on mode
     size_t region_count = 0;
@@ -2060,7 +2281,8 @@ write_memory_list_stream(minidump_writer_t *writer, minidump_directory_t *dir)
     // (written by the thread-list writer) so we just emit descriptors
     // pointing at the same RVA. This is what lets LLDB resolve memory at
     // stack addresses and walk the FP chain.
-    size_t total_count = region_count + writer->thread_stack_count;
+    size_t total_count
+        = region_count + writer->thread_stack_count + indirect_acc.region_count;
 
     // Allocate memory list
     size_t list_size = sizeof(uint32_t)
@@ -2077,6 +2299,15 @@ write_memory_list_stream(minidump_writer_t *writer, minidump_directory_t *dir)
     // descriptor was already validated (size>0, rva!=0) by record_thread_stack.
     for (size_t s = 0; s < writer->thread_stack_count; s++) {
         memory_list->ranges[mem_idx++] = writer->thread_stacks[s];
+    }
+
+    // Append indirectly-referenced regions (heap chunks pointed to by
+    // registers/stack contents). Already deduped + capped by the walker.
+    for (size_t s = 0; s < indirect_acc.region_count; s++) {
+        minidump_memory_descriptor_t *mem = &memory_list->ranges[mem_idx++];
+        mem->start_address = indirect_acc.regions[s].start;
+        mem->memory.rva = indirect_acc.regions[s].rva;
+        mem->memory.size = indirect_acc.regions[s].size;
     }
 
     // Write memory regions
@@ -2222,6 +2453,10 @@ read_proc_file(const char *path, size_t max_size, size_t *size_out)
 /**
  * Helper: write a /proc file (or any other path) as a single stream.
  * Returns 0 on success, -1 on any failure (including file unavailable).
+ *
+ * On failure (read or write_data) the directory entry is fully zeroed —
+ * a non-zero data_size paired with rva=0 would point parsers at the
+ * minidump header.
  */
 static int
 write_file_as_stream(minidump_writer_t *writer, minidump_directory_t *dir,
@@ -2233,11 +2468,15 @@ write_file_as_stream(minidump_writer_t *writer, minidump_directory_t *dir,
         return -1;
     }
 
-    dir->stream_type = stream_type;
-    dir->rva = write_data(writer, buf, size);
-    dir->data_size = (uint32_t)size;
+    minidump_rva_t rva = write_data(writer, buf, size);
     sentry_free(buf);
-    return dir->rva ? 0 : -1;
+    if (!rva) {
+        return -1;
+    }
+    dir->stream_type = stream_type;
+    dir->rva = rva;
+    dir->data_size = (uint32_t)size;
+    return 0;
 }
 
 /**
@@ -2521,6 +2760,7 @@ write_linux_dso_debug_stream(
     size_t links_size = dso_count * sizeof(minidump_link_map64_t);
     minidump_link_map64_t *links = NULL;
     minidump_rva_t links_rva = 0;
+    size_t links_written = 0;
     if (dso_count > 0) {
         links = sentry_malloc(links_size);
         if (!links) {
@@ -2531,9 +2771,8 @@ write_linux_dso_debug_stream(
         // Walk again, this time emitting strings (which share the same RVA
         // space as the link_map array — strings get written first, then the
         // array of fixed-size entries last so its RVA is contiguous).
-        size_t idx = 0;
         next = rd.r_map;
-        while (next && idx < dso_count) {
+        while (next && links_written < dso_count) {
             struct link_map lm;
             if (read_process_memory(
                     writer, (uint64_t)(uintptr_t)next, &lm, sizeof(lm))
@@ -2553,16 +2792,23 @@ write_linux_dso_debug_stream(
                 }
             }
 
-            links[idx].addr = (uint64_t)lm.l_addr;
-            links[idx].name = write_minidump_string(writer, namebuf);
-            links[idx].ld = (uint64_t)(uintptr_t)lm.l_ld;
-            idx++;
+            links[links_written].addr = (uint64_t)lm.l_addr;
+            links[links_written].name = write_minidump_string(writer, namebuf);
+            links[links_written].ld = (uint64_t)(uintptr_t)lm.l_ld;
+            links_written++;
             next = lm.l_next;
         }
 
-        links_rva = write_data(writer, links, links_size);
+        // Only emit the entries we actually populated. Trailing zero entries
+        // (from the initial memset) would point parsers at the minidump
+        // header via name=rva 0, so use links_written rather than dso_count
+        // to size the array on disk and in the header.
+        if (links_written > 0) {
+            links_rva = write_data(
+                writer, links, links_written * sizeof(minidump_link_map64_t));
+        }
         sentry_free(links);
-        if (!links_rva) {
+        if (links_written > 0 && !links_rva) {
             return -1;
         }
     }
@@ -2580,7 +2826,7 @@ write_linux_dso_debug_stream(
     minidump_debug64_t *hdr = (minidump_debug64_t *)blob;
     hdr->version = have_rdebug ? rd.r_version : 0;
     hdr->map = links_rva;
-    hdr->dso_count = (uint32_t)dso_count;
+    hdr->dso_count = (uint32_t)links_written;
     hdr->brk = have_rdebug ? (uint64_t)rd.r_brk : 0;
     hdr->ldbase = at_base; // matches Breakpad: AT_BASE from auxv
     hdr->dynamic = dynamic_addr;
@@ -2596,16 +2842,22 @@ write_linux_dso_debug_stream(
         }
     }
 
-    dir->stream_type = MINIDUMP_STREAM_LINUX_DSO_DEBUG;
-    dir->rva = write_data(writer, blob, total_size);
-    dir->data_size = (uint32_t)total_size;
+    // Stage rva first so a write_data failure leaves dir untouched
+    // (data_size > 0 with rva == 0 would point parsers at the header).
+    minidump_rva_t rva = write_data(writer, blob, total_size);
     sentry_free(blob);
+    if (!rva) {
+        return -1;
+    }
+    dir->stream_type = MINIDUMP_STREAM_LINUX_DSO_DEBUG;
+    dir->rva = rva;
+    dir->data_size = (uint32_t)total_size;
 
     SENTRY_DEBUGF("dso_debug: wrote %zu DSOs (dynamic@0x%llx, r_debug@0x%llx)",
-        dso_count, (unsigned long long)dynamic_addr,
+        links_written, (unsigned long long)dynamic_addr,
         (unsigned long long)r_debug_addr);
     (void)at_entry; // currently unused; logged via auxv for debugging
-    return dir->rva ? 0 : -1;
+    return 0;
 }
 
 /**
@@ -2706,63 +2958,73 @@ sentry__write_minidump(
     result |= write_memory_list_stream(&writer, &directories[4]);
 
     // Write Linux-specific streams for debugger compatibility.
-    // These are non-fatal: if they fail, the minidump is still valid; the
-    // directory slot ends up zeroed (stream_type=0 = unused).
+    // These are non-fatal: if they fail, the minidump is still valid. The
+    // fallback explicitly zeros data_size and rva (in addition to the type)
+    // so a partially-written entry can't end up with data_size > 0 and
+    // rva = 0 — which would point parsers at the minidump header.
+#    define NULLIFY_DIR_ENTRY(idx, type)                                       \
+        do {                                                                   \
+            directories[(idx)].stream_type = (type);                           \
+            directories[(idx)].data_size = 0;                                  \
+            directories[(idx)].rva = 0;                                        \
+        } while (0)
+
     SENTRY_DEBUG("writing linux proc status stream");
     if (write_linux_proc_status_stream(&writer, &directories[5]) < 0) {
         SENTRY_WARN("failed to write linux proc status stream");
-        directories[5].stream_type = MINIDUMP_STREAM_LINUX_PROC_STATUS;
+        NULLIFY_DIR_ENTRY(5, MINIDUMP_STREAM_LINUX_PROC_STATUS);
     }
 
     SENTRY_DEBUG("writing linux maps stream");
     if (write_linux_maps_stream(&writer, &directories[6]) < 0) {
         SENTRY_WARN("failed to write linux maps stream");
-        directories[6].stream_type = MINIDUMP_STREAM_LINUX_MAPS;
+        NULLIFY_DIR_ENTRY(6, MINIDUMP_STREAM_LINUX_MAPS);
     }
 
     // Write thread names stream (matches Crashpad format)
     SENTRY_DEBUG("writing thread names stream");
     if (write_thread_names_stream(&writer, &directories[7]) < 0) {
         SENTRY_WARN("failed to write thread names stream");
-        directories[7].stream_type = MINIDUMP_STREAM_THREAD_NAMES;
+        NULLIFY_DIR_ENTRY(7, MINIDUMP_STREAM_THREAD_NAMES);
     }
 
     SENTRY_DEBUG("writing linux auxv stream");
     if (write_linux_auxv_stream(&writer, &directories[8]) < 0) {
         SENTRY_WARN("failed to write linux auxv stream");
-        directories[8].stream_type = MINIDUMP_STREAM_LINUX_AUXV;
+        NULLIFY_DIR_ENTRY(8, MINIDUMP_STREAM_LINUX_AUXV);
     }
 
     SENTRY_DEBUG("writing linux cpu info stream");
     if (write_linux_cpu_info_stream(&writer, &directories[9]) < 0) {
         SENTRY_DEBUG("linux cpu info stream unavailable");
-        directories[9].stream_type = MINIDUMP_STREAM_LINUX_CPU_INFO;
+        NULLIFY_DIR_ENTRY(9, MINIDUMP_STREAM_LINUX_CPU_INFO);
     }
 
     SENTRY_DEBUG("writing linux lsb release stream");
     if (write_linux_lsb_release_stream(&writer, &directories[10]) < 0) {
         // Many distros don't ship /etc/lsb-release; this is expected.
         SENTRY_DEBUG("linux lsb release stream unavailable");
-        directories[10].stream_type = MINIDUMP_STREAM_LINUX_LSB_RELEASE;
+        NULLIFY_DIR_ENTRY(10, MINIDUMP_STREAM_LINUX_LSB_RELEASE);
     }
 
     SENTRY_DEBUG("writing linux cmd line stream");
     if (write_linux_cmd_line_stream(&writer, &directories[11]) < 0) {
         SENTRY_DEBUG("linux cmd line stream unavailable");
-        directories[11].stream_type = MINIDUMP_STREAM_LINUX_CMD_LINE;
+        NULLIFY_DIR_ENTRY(11, MINIDUMP_STREAM_LINUX_CMD_LINE);
     }
 
     SENTRY_DEBUG("writing linux environ stream");
     if (write_linux_environ_stream(&writer, &directories[12]) < 0) {
         SENTRY_DEBUG("linux environ stream unavailable");
-        directories[12].stream_type = MINIDUMP_STREAM_LINUX_ENVIRON;
+        NULLIFY_DIR_ENTRY(12, MINIDUMP_STREAM_LINUX_ENVIRON);
     }
 
     SENTRY_DEBUG("writing linux dso debug stream");
     if (write_linux_dso_debug_stream(&writer, &directories[13]) < 0) {
         SENTRY_WARN("failed to write linux dso debug stream");
-        directories[13].stream_type = MINIDUMP_STREAM_LINUX_DSO_DEBUG;
+        NULLIFY_DIR_ENTRY(13, MINIDUMP_STREAM_LINUX_DSO_DEBUG);
     }
+#    undef NULLIFY_DIR_ENTRY
 
     if (result < 0) {
         if (writer.ptrace_attached) {
