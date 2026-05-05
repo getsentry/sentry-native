@@ -635,8 +635,7 @@ sentry_options_add_view_hierarchy_n(
 {
     sentry__attachments_add_path(&opts->attachments,
         sentry__path_from_str_n(path, path_len),
-        SENTRY_ATTACHMENT_TYPE_VIEW_HIERARCHY,
-        "application/json");
+        SENTRY_ATTACHMENT_TYPE_VIEW_HIERARCHY, "application/json");
 }
 
 void
@@ -727,8 +726,7 @@ sentry_options_add_view_hierarchyw_n(
 {
     sentry__attachments_add_path(&opts->attachments,
         sentry__path_from_wstr_n(path, path_len),
-        SENTRY_ATTACHMENT_TYPE_VIEW_HIERARCHY,
-        "application/json");
+        SENTRY_ATTACHMENT_TYPE_VIEW_HIERARCHY, "application/json");
 }
 
 void
