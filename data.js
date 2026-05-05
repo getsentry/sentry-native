@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1777976291744,
+  "lastUpdate": 1777976342724,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -59332,6 +59332,66 @@ window.BENCHMARK_DATA = {
             "value": 451.5748999999687,
             "unit": "ms",
             "extra": "Min 89.448ms\nMax 4193.621ms\nMean 1122.555ms\nStdDev 1728.838ms\nMedian 451.575ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "jpnurmi@gmail.com",
+            "name": "J-P Nurmi",
+            "username": "jpnurmi"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "8e70da12d60efc8eaa6ea0a39abe081abc1effb4",
+          "message": "fix(user-id): preserve global user after local scope merge (#1699)\n\nCo-authored-by: OpenAI Codex <noreply@openai.com>",
+          "timestamp": "2026-05-05T12:13:44+02:00",
+          "tree_id": "74a61901c3671dfedfb5513ac0048a802b69b975",
+          "url": "https://github.com/getsentry/sentry-native/commit/8e70da12d60efc8eaa6ea0a39abe081abc1effb4"
+        },
+        "date": 1777976334902,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 11.729400000035639,
+            "unit": "ms",
+            "extra": "Min 10.923ms\nMax 13.327ms\nMean 11.795ms\nStdDev 0.925ms\nMedian 11.729ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 12.269399999922825,
+            "unit": "ms",
+            "extra": "Min 11.904ms\nMax 16.903ms\nMean 13.567ms\nStdDev 2.206ms\nMedian 12.269ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 34.347799999977724,
+            "unit": "ms",
+            "extra": "Min 31.484ms\nMax 49.415ms\nMean 37.244ms\nStdDev 7.460ms\nMedian 34.348ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.18879999993259844,
+            "unit": "ms",
+            "extra": "Min 0.155ms\nMax 0.219ms\nMean 0.189ms\nStdDev 0.028ms\nMedian 0.189ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.431500000104279,
+            "unit": "ms",
+            "extra": "Min 0.422ms\nMax 0.478ms\nMean 0.442ms\nStdDev 0.025ms\nMedian 0.432ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 17.87530000001425,
+            "unit": "ms",
+            "extra": "Min 14.398ms\nMax 21.026ms\nMean 17.355ms\nStdDev 2.559ms\nMedian 17.875ms"
           }
         ]
       }
