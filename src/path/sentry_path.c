@@ -85,7 +85,7 @@ sentry__path_remove_all(const sentry_path_t *path)
 sentry_path_t *
 sentry__path_unique(const sentry_path_t *dir, const char *basename)
 {
-    if (!dir || !basename || !*basename) {
+    if (!dir || sentry__string_empty(basename)) {
         return NULL;
     }
 
