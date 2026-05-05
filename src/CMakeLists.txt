@@ -271,11 +271,11 @@ if(SENTRY_INTEGRATION_QT)
 endif()
 
 # screenshot
-if(WIN32)
+if(WIN32 AND NOT XBOX)
 	sentry_target_sources_cwd(sentry
 		screenshot/sentry_screenshot_windows.c
 	)
-else()
+elseif(NOT WIN32)
 	sentry_target_sources_cwd(sentry
 		screenshot/sentry_screenshot_none.c
 	)
