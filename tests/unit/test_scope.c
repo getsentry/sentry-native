@@ -473,6 +473,24 @@ SENTRY_TEST(scope_user_id)
         sentry_value_decref(event);
     }
 
+    // empty local scope does not shadow global user ID
+    sentry_set_user(sentry_value_new_user("12345", "dave", NULL, NULL));
+    sentry_value_t event = sentry_value_new_object();
+    sentry_scope_t *local_scope = sentry_local_scope_new();
+    sentry__scope_apply_to_event(
+        local_scope, options, event, SENTRY_SCOPE_BREADCRUMBS);
+    sentry__scope_free(local_scope);
+    SENTRY_WITH_SCOPE (scope) {
+        sentry__scope_apply_to_event(scope, options, event, SENTRY_SCOPE_ALL);
+    }
+    sentry_value_t user = sentry_value_get_by_key(event, "user");
+    TEST_CHECK_STRING_EQUAL(
+        sentry_value_as_string(sentry_value_get_by_key(user, "id")), "12345");
+    TEST_CHECK_STRING_EQUAL(
+        sentry_value_as_string(sentry_value_get_by_key(user, "username")),
+        "dave");
+    sentry_value_decref(event);
+
     // remove_user -> no user on event (installation ID suppressed)
     sentry_remove_user();
     SENTRY_WITH_SCOPE (scope) {

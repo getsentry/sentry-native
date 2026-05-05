@@ -72,7 +72,7 @@ init_scope(sentry_scope_t *scope)
     scope->environment = NULL;
     scope->transaction = NULL;
     scope->fingerprint = sentry_value_new_null();
-    scope->user = sentry_value_new_object();
+    scope->user = sentry_value_new_null();
     scope->tags = sentry_value_new_object();
     scope->extra = sentry_value_new_object();
     scope->attributes = sentry_value_new_object();
@@ -97,6 +97,7 @@ get_scope(void)
 
     memset(&g_scope, 0, sizeof(sentry_scope_t));
     init_scope(&g_scope);
+    g_scope.user = sentry_value_new_object();
     sentry_value_set_by_key(g_scope.contexts, "os", sentry__get_os_context());
     g_scope.client_sdk = get_client_sdk();
 
