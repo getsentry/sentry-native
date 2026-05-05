@@ -5,6 +5,7 @@
 **Features**:
 
 - Auto-populate `event.user.id` with a persistent per-installation UUID when no explicit user ID is set. ([#1661](https://github.com/getsentry/sentry-native/pull/1661))
+- Add `cache_dir` envelope header for external crash reporters. ([#1698](https://github.com/getsentry/sentry-native/pull/1698))
 
 ## 0.14.0
 

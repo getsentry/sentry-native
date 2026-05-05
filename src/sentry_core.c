@@ -1705,6 +1705,14 @@ sentry__launch_external_crash_reporter(
         sentry_free(envelope_filename);
         return false;
     }
+    if (options->cache_keep) {
+        if (!sentry__envelope_is_raw(envelope)) {
+            sentry__envelope_set_header(envelope, "cache_dir",
+                sentry_value_new_string(options->run->cache_path->path));
+        } else {
+            SENTRY_WARN("failed to add cache_dir to external crash report");
+        }
+    }
     sentry__transport_send_envelope(disk_transport, envelope);
     sentry__transport_dump_queue(disk_transport, options->run);
     sentry_transport_free(disk_transport);

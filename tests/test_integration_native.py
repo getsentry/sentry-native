@@ -402,6 +402,7 @@ def test_native_external_crash_reporter(cmake, httpserver):
     tmp_path = cmake(
         ["sentry_example", "sentry_crash_reporter"], {"SENTRY_BACKEND": "native"}
     )
+    cache_dir = tmp_path.joinpath(".sentry-native/cache")
 
     env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
     httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data("OK")
@@ -412,7 +413,7 @@ def test_native_external_crash_reporter(cmake, httpserver):
         run_crash(
             tmp_path,
             "sentry_example",
-            ["log", "crash-reporter", "crash"],
+            ["log", "crash-reporter", "cache-keep", "crash"],
             env=env,
         )
     assert waiting.result
@@ -427,6 +428,7 @@ def test_native_external_crash_reporter(cmake, httpserver):
 
     # Verify it's a minidump crash report and user feedback
     envelope = Envelope.deserialize(crash)
+    assert envelope.headers["cache_dir"] == str(cache_dir)
     assert_meta(envelope)
     assert_breadcrumb(envelope)
 

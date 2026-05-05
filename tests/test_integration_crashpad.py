@@ -768,6 +768,7 @@ def test_crashpad_external_crash_reporter(cmake, httpserver, run_args):
     tmp_path = cmake(
         ["sentry_example", "sentry_crash_reporter"], {"SENTRY_BACKEND": "crashpad"}
     )
+    cache_dir = tmp_path.joinpath(".sentry-native/cache")
 
     env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
     httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data("OK")
@@ -777,7 +778,7 @@ def test_crashpad_external_crash_reporter(cmake, httpserver, run_args):
         run(
             tmp_path,
             "sentry_example",
-            ["log", "crash-reporter"] + run_args,
+            ["log", "crash-reporter", "cache-keep"] + run_args,
             expect_failure=True,
             env=env,
         )
@@ -791,6 +792,7 @@ def test_crashpad_external_crash_reporter(cmake, httpserver, run_args):
     crash = crash_request.get_data()
 
     envelope = Envelope.deserialize(crash)
+    assert envelope.headers["cache_dir"] == str(cache_dir)
     assert_meta(envelope, integration="crashpad")
     assert_breadcrumb(envelope)
 
