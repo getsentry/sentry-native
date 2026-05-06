@@ -3039,8 +3039,6 @@ sentry__process_crash(const sentry_options_t *options, sentry_crash_ipc_t *ipc)
     if (options->cache_keep && options->external_crash_reporter
         && !sentry__envelope_materialize(envelope)) {
         SENTRY_WARN("Failed to materialize envelope for external crash report");
-        sentry_envelope_free(envelope);
-        goto cleanup;
     }
 
     // Capture directly, or pass to external crash reporter
