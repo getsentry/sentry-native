@@ -273,6 +273,7 @@ typedef struct {
     sentry_cache_keep_t cache_keep;
     bool require_user_consent;
     bool enable_large_attachments;
+    bool http_retry;
     uint64_t shutdown_timeout;
 
     // Atomic user consent (sentry_user_consent_t), updated whenever user

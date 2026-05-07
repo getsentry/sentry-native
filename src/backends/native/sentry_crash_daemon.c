@@ -3351,6 +3351,10 @@ sentry__crash_daemon_main(pid_t app_pid, uint64_t app_tid, HANDLE event_handle,
     if (options->transport) {
         SENTRY_DEBUG("Starting transport");
         sentry__transport_startup(options->transport, options);
+        // Set http_retry after transport startup to keep daemon-side retry
+        // polling disabled, while letting capture cache consent-revoked
+        // envelopes in retry format for the app to send on restart.
+        options->http_retry = ipc->shmem->http_retry;
     } else {
         SENTRY_WARN("No transport available");
     }
