@@ -122,7 +122,9 @@ write_attachment_to_envelope(int fd, const char *file_path,
             "\"content_type\":\"%s\","
             "\"filename\":\"%s\"}\n",
             file_size,
-            attachment_type ? attachment_type : SENTRY_ATTACHMENT_TYPE_GENERIC,
+            sentry__string_empty(attachment_type)
+                ? SENTRY_ATTACHMENT_TYPE_GENERIC
+                : attachment_type,
             content_type, filename ? filename : "attachment");
     } else {
         header_written = snprintf(header, sizeof(header),
@@ -130,7 +132,9 @@ write_attachment_to_envelope(int fd, const char *file_path,
             "\"attachment_type\":\"%s\","
             "\"filename\":\"%s\"}\n",
             file_size,
-            attachment_type ? attachment_type : SENTRY_ATTACHMENT_TYPE_GENERIC,
+            sentry__string_empty(attachment_type)
+                ? SENTRY_ATTACHMENT_TYPE_GENERIC
+                : attachment_type,
             filename ? filename : "attachment");
     }
 
