@@ -192,7 +192,7 @@ native_backend_startup(
     // Pass debug logging setting to daemon
     ctx->debug_enabled = options->debug;
     ctx->attach_screenshot = options->attach_screenshot;
-    ctx->cache_keep = options->cache_keep;
+    ctx->cache_keep = (int)options->cache_keep;
     ctx->require_user_consent = options->require_user_consent;
     ctx->enable_large_attachments = options->enable_large_attachments;
     ctx->http_retry = options->http_retry;

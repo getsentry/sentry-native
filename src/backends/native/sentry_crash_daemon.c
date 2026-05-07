@@ -3289,7 +3289,7 @@ sentry__crash_daemon_main(pid_t app_pid, uint64_t app_tid, HANDLE event_handle,
     // Use debug logging and screenshot settings from parent process
     sentry_options_set_debug(options, ipc->shmem->debug_enabled);
     options->attach_screenshot = ipc->shmem->attach_screenshot;
-    options->cache_keep = ipc->shmem->cache_keep;
+    options->cache_keep = (sentry_cache_keep_t)ipc->shmem->cache_keep;
     options->enable_large_attachments = ipc->shmem->enable_large_attachments;
     options->http_retry = false;
     options->shutdown_timeout = ipc->shmem->shutdown_timeout;
