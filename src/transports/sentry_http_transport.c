@@ -635,7 +635,7 @@ retry_send_cb(sentry_envelope_t *envelope, void *_state)
     bool reported = add_client_report(envelope, state, &report);
     sentry_value_t ref_paths = collect_attachment_refs(envelope);
     int status_code = http_send_envelope(envelope, state);
-    if (status_code < 0) {
+    if (status_code < 0 || state->cache_keep == SENTRY_CACHE_KEEP_ALWAYS) {
         prune_attachment_refs(state->run, ref_paths, envelope);
     } else {
         prune_attachment_refs(state->run, ref_paths, NULL);
