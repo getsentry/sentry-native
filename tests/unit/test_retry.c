@@ -425,6 +425,49 @@ SENTRY_TEST(retry_cache)
     sentry_close();
 }
 
+SENTRY_TEST(retry_cache_keep_always)
+{
+    SENTRY_TEST_OPTIONS_NEW(options);
+    sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
+    sentry_options_set_http_retry(options, false);
+    sentry_options_set_cache_keep(options, SENTRY_CACHE_KEEP_ALWAYS);
+    sentry_init(options);
+
+    sentry_retry_t *retry = sentry__retry_new(options);
+    TEST_ASSERT(!!retry);
+
+    const sentry_path_t *cache_path = options->run->cache_path;
+    sentry__path_remove_all(cache_path);
+    sentry__path_create_dir_all(cache_path);
+
+    uint64_t old_ts = sentry__usec_time() / 1000 - 2 * sentry__retry_backoff(0);
+    sentry_uuid_t event_id = sentry_uuid_new_v4();
+    write_retry_file(options->run, old_ts, 0, &event_id);
+
+    char uuid_str[37];
+    sentry_uuid_as_string(&event_id, uuid_str);
+    char cache_name[46];
+    snprintf(cache_name, sizeof(cache_name), "%.36s.envelope", uuid_str);
+    sentry_path_t *cached = sentry__path_join_str(cache_path, cache_name);
+
+    char sib_name[128];
+    snprintf(sib_name, sizeof(sib_name), "%.36s-payload.bin", uuid_str);
+    sentry_path_t *sib_path = sentry__path_join_str(cache_path, sib_name);
+    TEST_ASSERT(sentry__path_write_buffer(sib_path, "data", 4) == 0);
+
+    retry_test_ctx_t ctx = { 200, 0 };
+    sentry__retry_send(retry, 0, test_send_cb, &ctx);
+    TEST_CHECK_INT_EQUAL(ctx.count, 1);
+    TEST_CHECK_INT_EQUAL(count_envelope_files(cache_path), 1);
+    TEST_CHECK(sentry__path_is_file(cached));
+    TEST_CHECK(sentry__path_is_file(sib_path));
+
+    sentry__retry_free(retry);
+    sentry__path_free(sib_path);
+    sentry__path_free(cached);
+    sentry_close();
+}
+
 static int retry_func_calls = 0;
 
 static void

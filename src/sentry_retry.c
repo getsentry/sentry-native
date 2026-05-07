@@ -27,7 +27,7 @@ typedef enum {
 
 struct sentry_retry_s {
     sentry_run_t *run;
-    bool cache_keep;
+    sentry_cache_keep_t cache_keep;
     uint64_t startup_time;
     volatile long state;
     volatile long scheduled;
@@ -92,7 +92,8 @@ compare_retry_items(const void *a, const void *b)
 }
 
 static bool
-handle_result(sentry_retry_t *retry, const retry_item_t *item, int status_code)
+handle_result(sentry_retry_t *retry, const retry_item_t *item,
+    const sentry_envelope_t *envelope, int status_code)
 {
     // Only network failures (status_code < 0) trigger retries. HTTP responses
     // including 5xx (500, 502, 503, 504) are discarded:
@@ -127,13 +128,28 @@ handle_result(sentry_retry_t *retry, const retry_item_t *item, int status_code)
 
     // cache on last attempt
     if (exhausted && retry->cache_keep && status_code < 0) {
+        if (retry->cache_keep == SENTRY_CACHE_KEEP_ALWAYS) {
+            sentry_path_t *cached_path
+                = sentry__run_make_cache_path(retry->run, 0, -1, item->uuid);
+            bool cached = cached_path && sentry__path_is_file(cached_path);
+            sentry__path_free(cached_path);
+            if (cached) {
+                sentry__path_remove(item->path);
+                return false;
+            }
+        }
         if (!sentry__run_move_cache(retry->run, item->path, -1)) {
             sentry__cache_remove_envelope(item->path);
         }
         return false;
     }
 
-    sentry__cache_remove_envelope(item->path);
+    if (retry->cache_keep == SENTRY_CACHE_KEEP_ALWAYS
+        && sentry__run_write_cache(retry->run, envelope, -1)) {
+        sentry__path_remove(item->path);
+    } else {
+        sentry__cache_remove_envelope(item->path);
+    }
     return false;
 }
 
@@ -216,8 +232,10 @@ sentry__retry_send(sentry_retry_t *retry, uint64_t before,
             SENTRY_DEBUGF("retrying envelope (%d/%d)", items[i].count + 1,
                 SENTRY_RETRY_ATTEMPTS);
             int status_code = send_cb(envelope, data);
+            bool keep_retry
+                = handle_result(retry, &items[i], envelope, status_code);
             sentry_envelope_free(envelope);
-            if (!handle_result(retry, &items[i], status_code)) {
+            if (!keep_retry) {
                 total--;
             }
             // stop on network failure to avoid wasting time on a dead

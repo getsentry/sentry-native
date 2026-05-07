@@ -37,7 +37,7 @@ typedef struct {
     sentry_http_send_func_t send_func;
     void (*shutdown_client)(void *client);
     sentry_retry_t *retry;
-    bool cache_keep;
+    sentry_cache_keep_t cache_keep;
     sentry_run_t *run;
     bool send_client_reports;
 } http_transport_state_t;
@@ -688,8 +688,8 @@ http_send_task(void *_envelope, void *_state)
     sentry_value_t ref_paths = collect_attachment_refs(envelope);
     int status_code = http_send_envelope(envelope, state);
 
+    const sentry_envelope_t *ref_owner = NULL;
     if (status_code < 0) {
-        const sentry_envelope_t *ref_owner = NULL;
         if (sentry_value_get_length(ref_paths) > 0
             && status_code == RESULT_SHUTDOWN
             && sentry__run_write_envelope(state->run, envelope)) {
@@ -711,7 +711,11 @@ http_send_task(void *_envelope, void *_state)
         }
         prune_attachment_refs(state->run, ref_paths, ref_owner);
     } else {
-        prune_attachment_refs(state->run, ref_paths, NULL);
+        if (state->cache_keep == SENTRY_CACHE_KEEP_ALWAYS
+            && sentry__run_write_cache(state->run, envelope, -1)) {
+            ref_owner = envelope;
+        }
+        prune_attachment_refs(state->run, ref_paths, ref_owner);
     }
     sentry_value_decref(ref_paths);
 
