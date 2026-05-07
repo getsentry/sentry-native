@@ -435,7 +435,7 @@ collect_attachment_refs(const sentry_envelope_t *envelope)
         if (!sentry__envelope_item_get_attachment_ref(item, &ref)) {
             continue;
         }
-        if (ref.path && *ref.path) {
+        if (!sentry__string_empty(ref.path)) {
             sentry_value_append(list, sentry_value_new_string(ref.path));
         }
         sentry__attachment_ref_cleanup(&ref);
@@ -493,7 +493,8 @@ prune_attachment_refs(const sentry_run_t *run, sentry_value_t paths,
     for (size_t i = 0; i < count; i++) {
         const char *path
             = sentry_value_as_string(sentry_value_get_by_index(paths, i));
-        if (!path || !*path || (keep && has_attachment_ref_path(keep, path))) {
+        if (sentry__string_empty(path)
+            || (keep && has_attachment_ref_path(keep, path))) {
             continue;
         }
         sentry_path_t *p = sentry__path_join_str(run->cache_path, path);
@@ -537,13 +538,13 @@ resolve_attachment_refs(
             continue;
         }
 
-        if (ref.location && *ref.location) {
+        if (!sentry__string_empty(ref.location)) {
             // Crash-resume: TUS already done on a prior attempt. Nothing to do.
             sentry__attachment_ref_cleanup(&ref);
             i++;
             continue;
         }
-        if (!ref.path || !*ref.path) {
+        if (sentry__string_empty(ref.path)) {
             sentry__attachment_ref_cleanup(&ref);
             if (!sentry__envelope_remove_item(envelope, item)) {
                 return RESULT_ERROR;

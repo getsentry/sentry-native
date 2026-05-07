@@ -30,7 +30,7 @@ jobs:
           submodules: 'recursive'
 
       - name: Initialize CodeQL
-        uses: github/codeql-action/init@95e58e9a2cdfd71adc6e0353d5c52f41a045d225 # pin@v4.35.2
+        uses: github/codeql-action/init@e46ed2cbd01164d986452f91f178727624ae40d7 # pin@v4.35.3
         with:
           languages: ${{ matrix.language }}
 
@@ -64,4 +64,4 @@ jobs:
           cmake -B build -DCMAKE_BUILD_TYPE=RelWithDebInfo && cmake --build build --parallel
 
       - name: Perform CodeQL Analysis
-        uses: github/codeql-action/analyze@95e58e9a2cdfd71adc6e0353d5c52f41a045d225 # pin@v4.35.2
+        uses: github/codeql-action/analyze@e46ed2cbd01164d986452f91f178727624ae40d7 # pin@v4.35.3
