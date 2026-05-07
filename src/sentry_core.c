@@ -1679,8 +1679,7 @@ sentry__launch_external_crash_reporter(
     const sentry_options_t *options, sentry_envelope_t *envelope)
 {
     if (!options || !options->run || !options->external_crash_reporter
-        || !options->external_crash_reporter->path
-        || options->external_crash_reporter->path[0] == '\0') {
+        || sentry__string_empty(options->external_crash_reporter->path)) {
         return false;
     }
 

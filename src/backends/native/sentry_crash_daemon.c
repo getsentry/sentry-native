@@ -253,7 +253,7 @@ add_attachment_refs(sentry_envelope_t *envelope,
             = sentry_value_as_string(sentry_value_get_by_key(info, "filename"));
         const char *content_type = sentry_value_as_string(
             sentry_value_get_by_key(info, "content_type"));
-        if (!path || !*path || !filename || !*filename) {
+        if (sentry__string_empty(path) || sentry__string_empty(filename)) {
             SENTRY_WARN("Skipping malformed attachment manifest entry");
             continue;
         }
@@ -268,7 +268,7 @@ add_attachment_refs(sentry_envelope_t *envelope,
         }
         attachment.type = ATTACHMENT;
         attachment.content_type
-            = (char *)((content_type && *content_type) ? content_type : NULL);
+            = sentry__string_empty(content_type) ? NULL : (char *)content_type;
         if (!sentry__attachment_is_placeholder(&attachment, options)) {
             sentry__path_free(attachment.path);
             sentry__path_free(attachment.filename);
@@ -2327,13 +2327,13 @@ write_envelope_with_native_stacktrace(const sentry_options_t *options,
         = options && options->dsn ? sentry_options_get_dsn(options) : NULL;
     char header_buf[SENTRY_CRASH_ENVELOPE_HEADER_SIZE];
     int header_len;
-    if (dsn && event_id && event_id[0] != '\0') {
+    if (dsn && !sentry__string_empty(event_id)) {
         header_len = snprintf(header_buf, sizeof(header_buf),
             "{\"dsn\":\"%s\",\"event_id\":\"%s\"}\n", dsn, event_id);
     } else if (dsn) {
         header_len = snprintf(
             header_buf, sizeof(header_buf), "{\"dsn\":\"%s\"}\n", dsn);
-    } else if (event_id && event_id[0] != '\0') {
+    } else if (!sentry__string_empty(event_id)) {
         header_len = snprintf(header_buf, sizeof(header_buf),
             "{\"event_id\":\"%s\"}\n", event_id);
     } else {
@@ -2563,13 +2563,13 @@ write_envelope_with_minidump(const sentry_options_t *options,
         = options && options->dsn ? sentry_options_get_dsn(options) : NULL;
     char header_buf[SENTRY_CRASH_ENVELOPE_HEADER_SIZE];
     int header_len;
-    if (dsn && event_id && event_id[0] != '\0') {
+    if (dsn && !sentry__string_empty(event_id)) {
         header_len = snprintf(header_buf, sizeof(header_buf),
             "{\"dsn\":\"%s\",\"event_id\":\"%s\"}\n", dsn, event_id);
     } else if (dsn) {
         header_len = snprintf(
             header_buf, sizeof(header_buf), "{\"dsn\":\"%s\"}\n", dsn);
-    } else if (event_id && event_id[0] != '\0') {
+    } else if (!sentry__string_empty(event_id)) {
         header_len = snprintf(header_buf, sizeof(header_buf),
             "{\"event_id\":\"%s\"}\n", event_id);
     } else {
@@ -3483,7 +3483,7 @@ sentry__crash_daemon_start(pid_t app_pid, uint64_t app_tid, HANDLE event_handle,
 
     // Resolve daemon path
     char daemon_path[SENTRY_CRASH_MAX_PATH];
-    if (handler_path && handler_path[0] != '\0') {
+    if (!sentry__string_empty(handler_path)) {
         strncpy(daemon_path, handler_path, sizeof(daemon_path) - 1);
         daemon_path[sizeof(daemon_path) - 1] = '\0';
     } else {
@@ -3592,7 +3592,7 @@ sentry__crash_daemon_start(pid_t app_pid, uint64_t app_tid, HANDLE event_handle,
         char *argv[]
             = { "sentry-crash", pid_str, tid_str, notify_str, ready_str, NULL };
 
-        if (handler_path && handler_path[0] != '\0') {
+        if (!sentry__string_empty(handler_path)) {
             execv(handler_path, argv);
         } else {
             char exe_path[SENTRY_CRASH_MAX_PATH];
@@ -3630,7 +3630,7 @@ sentry__crash_daemon_start(pid_t app_pid, uint64_t app_tid, HANDLE event_handle,
     wchar_t daemon_path_w[SENTRY_CRASH_MAX_PATH];
 
     // If handler_path was explicitly set via options, use it directly
-    if (handler_path && handler_path[0] != '\0') {
+    if (!sentry__string_empty(handler_path)) {
         wchar_t *wpath = sentry__string_to_wstr(handler_path);
         if (wpath) {
             wcsncpy(daemon_path_w, wpath, SENTRY_CRASH_MAX_PATH - 1);
