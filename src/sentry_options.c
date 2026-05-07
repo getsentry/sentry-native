@@ -512,9 +512,8 @@ sentry_options_get_symbolize_stacktraces(const sentry_options_t *opts)
 void
 sentry_options_set_cache_keep(sentry_options_t *opts, int enabled)
 {
-    // Clamp to valid range
     if (enabled < SENTRY_CACHE_KEEP_NONE) {
-        enabled = SENTRY_CACHE_KEEP_NONE;
+        enabled = SENTRY_CACHE_KEEP_OFFLINE;
     } else if (enabled > SENTRY_CACHE_KEEP_ALWAYS) {
         enabled = SENTRY_CACHE_KEEP_ALWAYS;
     }
