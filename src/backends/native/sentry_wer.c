@@ -14,12 +14,6 @@
 #    define STATUS_STACK_BUFFER_OVERRUN ((DWORD)0xC0000409)
 #endif
 
-typedef struct {
-    DWORD version;
-    DWORD app_pid;
-    uint64_t app_tid;
-} sentry_native_wer_registration_t;
-
 static BOOL
 is_fatal_wer_exception(const WER_RUNTIME_EXCEPTION_INFORMATION *info)
 {

@@ -66,12 +66,6 @@ static sentry_mutex_t g_ipc_init_mutex = SENTRY__MUTEX_INIT;
 #endif
 
 #if defined(SENTRY_PLATFORM_WINDOWS)
-typedef struct {
-    DWORD version;
-    DWORD app_pid;
-    uint64_t app_tid;
-} sentry_native_wer_registration_t;
-
 static sentry_native_wer_registration_t g_wer_registration = { 0 };
 
 static sentry_path_t *g_wer_path = NULL;
