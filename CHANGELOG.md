@@ -8,7 +8,7 @@
 
 **Fixes**:
 
-- Native/Windows: capture fast-fail and stack buffer overrun crashes via WER.
+- Native/Windows: capture fast-fail and stack buffer overrun crashes via WER. ([#1710](https://github.com/getsentry/sentry-native/pull/1710))
 
 ## 0.14.0
 
