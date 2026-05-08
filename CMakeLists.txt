@@ -783,9 +783,7 @@ elseif(SENTRY_BACKEND_NATIVE)
 		if(SENTRY_BUILD_RUNTIMESTATIC AND MSVC)
 			set_property(TARGET sentry-wer PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 		endif()
-		if(SENTRY_BUILD_SHARED_LIBS)
-			sentry_add_version_resource(sentry-wer "Native WER Module")
-		endif()
+		sentry_add_version_resource(sentry-wer "Native WER Module")
 	endif()
 
 	# Build sentry-crash executable for native backend
