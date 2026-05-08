@@ -204,7 +204,6 @@ OutOfProcessExceptionEventCallback(PVOID context,
     *ownership_claimed = FALSE;
     if (process_wer_exception(context, exception_info)) {
         *ownership_claimed = TRUE;
-        return E_FAIL;
     }
     return S_OK;
 }
