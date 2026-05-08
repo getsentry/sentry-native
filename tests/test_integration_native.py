@@ -89,7 +89,7 @@ def test_native_capture_crash(cmake, httpserver):
 
 
 @pytest.mark.skipif(
-    sys.platform != "win32" or os.environ.get("TEST_MINGW"),
+    sys.platform != "win32" or bool(os.environ.get("TEST_MINGW")),
     reason="WER crash tests are only available in MSVC Windows builds",
 )
 @pytest.mark.with_wer
