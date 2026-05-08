@@ -13,7 +13,7 @@ param (
     [string]$Keyword = "",
     ## Defines the number of parallel runners via pytest-xdist. This is highly experimental since tests remove database paths. (default: 1)
     [int]$Parallelism = 1,
-    ## Disables tests that require the crashpad WER module. (default: false)
+    ## Disables tests that require WER modules. (default: false)
     [switch]$WithoutCrashpadWer = $false,
     ## Disables stdout/stderr capture through pytest (default: false)
     [switch]$DisableCapture = $false,
@@ -46,7 +46,7 @@ if ($Parallelism -gt 1)
 
 if (-not $WithoutCrashpadWer -and -not $Unit)
 {
-    $pytestCommand += " --with_crashpad_wer"
+    $pytestCommand += " --with_wer"
 }
 
 if ($Keyword)
