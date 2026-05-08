@@ -767,6 +767,27 @@ elseif(SENTRY_BACKEND_NATIVE)
 	# Native backend sources and configuration are in src/CMakeLists.txt
 	# The native backend requires C11 for atomics (set in src/CMakeLists.txt)
 
+	if(WIN32)
+		add_library(sentry-wer SHARED
+			src/backends/native/sentry_wer.c
+			src/backends/native/sentry_wer.def
+		)
+		target_include_directories(sentry-wer PRIVATE
+			${PROJECT_SOURCE_DIR}/include
+			${PROJECT_SOURCE_DIR}/src
+			${PROJECT_SOURCE_DIR}/src/backends/native
+		)
+		target_link_libraries(sentry-wer PRIVATE wer)
+		set_property(TARGET sentry-wer PROPERTY PREFIX "") # ensure MINGW doesn't prefix "lib" to dll name
+		set_property(TARGET sentry-wer PROPERTY DEBUG_POSTFIX "") # prevent CMAKE_DEBUG_POSTFIX from being applied
+		if(SENTRY_BUILD_RUNTIMESTATIC AND MSVC)
+			set_property(TARGET sentry-wer PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+		endif()
+		if(SENTRY_BUILD_SHARED_LIBS)
+			sentry_add_version_resource(sentry-wer "Native WER Module")
+		endif()
+	endif()
+
 	# Build sentry-crash executable for native backend
 	# Get all sources that were added to sentry target
 	get_target_property(SENTRY_SOURCES sentry SOURCES)
@@ -837,11 +858,25 @@ elseif(SENTRY_BACKEND_NATIVE)
 
 	# Make sentry library depend on crash daemon so it's always built together
 	add_dependencies(sentry sentry-crash)
+	if(WIN32)
+		add_dependencies(sentry sentry-wer)
+	endif()
 
 	# Install daemon
 	install(TARGETS sentry-crash
 		RUNTIME DESTINATION bin
 	)
+	if(WIN32)
+		install(TARGETS sentry-wer
+			RUNTIME DESTINATION bin
+			LIBRARY DESTINATION "${CMAKE_INSTALL_LIBDIR}"
+			ARCHIVE DESTINATION "${CMAKE_INSTALL_LIBDIR}"
+		)
+		if(MSVC)
+			sentry_install(FILES $<TARGET_PDB_FILE:sentry-wer>
+				DESTINATION "${CMAKE_INSTALL_BINDIR}" OPTIONAL)
+		endif()
+	endif()
 
 	if(DEFINED SENTRY_FOLDER)
 		# Native backend doesn't have separate targets to organize
@@ -928,6 +963,7 @@ if(SENTRY_BUILD_EXAMPLES)
 
 		# to test handling SEH by-passing exceptions we need to enable the control flow guard
 		target_compile_options(sentry_example PRIVATE $<BUILD_INTERFACE:/guard:cf>)
+		target_link_options(sentry_example PRIVATE $<BUILD_INTERFACE:/GUARD:CF>)
 	else()
 		# Disable all optimizations for the `sentry_example` in gcc/clang. This allows us to keep crash triggers simple.
 		# The effects besides reproducible code-gen across compiler versions, will be negligible for build- and runtime.

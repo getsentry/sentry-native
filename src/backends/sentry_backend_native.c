@@ -11,6 +11,8 @@
 #    if defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID)
 #        include <sys/prctl.h>
 #    endif
+#elif defined(SENTRY_PLATFORM_WINDOWS)
+#    include <werapi.h>
 #endif
 
 #include <string.h>
@@ -29,6 +31,7 @@
 #include "sentry_logs.h"
 #include "sentry_metrics.h"
 #include "sentry_options.h"
+#include "sentry_os.h"
 #include "sentry_path.h"
 
 #include "sentry_scope.h"
@@ -60,6 +63,98 @@ SENTRY__MUTEX_INIT_DYN(g_ipc_init_mutex)
 #    else
 static sentry_mutex_t g_ipc_init_mutex = SENTRY__MUTEX_INIT;
 #    endif
+#endif
+
+#if defined(SENTRY_PLATFORM_WINDOWS)
+typedef struct {
+    DWORD version;
+    DWORD app_pid;
+    uint64_t app_tid;
+} sentry_native_wer_registration_t;
+
+static sentry_native_wer_registration_t g_wer_registration = { 0 };
+
+static sentry_path_t *g_wer_path = NULL;
+
+static sentry_path_t *
+wer_default_path(void)
+{
+    sentry_path_t *current_exe = sentry__path_current_exe();
+    if (!current_exe) {
+        return NULL;
+    }
+
+    sentry_path_t *exe_dir = sentry__path_dir(current_exe);
+    sentry__path_free(current_exe);
+    if (!exe_dir) {
+        return NULL;
+    }
+
+    sentry_path_t *wer_path
+        = sentry__path_join_str(exe_dir, "sentry-wer.dll");
+    sentry__path_free(exe_dir);
+    return wer_path;
+}
+
+static void
+wer_unregister_module(void)
+{
+    if (!g_wer_path) {
+        return;
+    }
+
+    WerUnregisterRuntimeExceptionModule(
+        g_wer_path->path_w, &g_wer_registration);
+    sentry__path_free(g_wer_path);
+    g_wer_path = NULL;
+    memset(&g_wer_registration, 0, sizeof(g_wer_registration));
+}
+
+static void
+wer_register_module(uint64_t app_tid)
+{
+    windows_version_t win_ver;
+    if (!sentry__get_windows_version(&win_ver) || win_ver.build < 19041) {
+        SENTRY_WARN("Native WER module not registered, because Windows "
+                    "doesn't meet version requirements (build >= 19041).");
+        return;
+    }
+
+    sentry_path_t *wer_path = wer_default_path();
+    if (!wer_path || !sentry__path_is_file(wer_path)) {
+        SENTRY_WARN("Native WER module not found");
+        sentry__path_free(wer_path);
+        return;
+    }
+
+    const DWORD one = 1;
+    LSTATUS reg_res = RegSetKeyValueW(HKEY_CURRENT_USER,
+        L"Software\\Microsoft\\Windows\\Windows Error Reporting\\"
+        L"RuntimeExceptionHelperModules",
+        wer_path->path_w, REG_DWORD, &one, sizeof(one));
+    if (reg_res != ERROR_SUCCESS) {
+        SENTRY_WARN("registering native WER module in registry failed");
+        sentry__path_free(wer_path);
+        return;
+    }
+
+    g_wer_registration.version = 1;
+    g_wer_registration.app_pid = GetCurrentProcessId();
+    g_wer_registration.app_tid = app_tid;
+
+    HRESULT hr = WerRegisterRuntimeExceptionModule(
+        wer_path->path_w, &g_wer_registration);
+    if (FAILED(hr)) {
+        SENTRY_WARN("registering native WER module failed");
+        sentry__path_free(wer_path);
+        memset(&g_wer_registration, 0, sizeof(g_wer_registration));
+        return;
+    }
+
+    SENTRY_DEBUGF("registered native WER module \"%s\"", wer_path->path);
+    g_wer_path = wer_path;
+}
+
 #endif
 
 /**
@@ -412,6 +507,10 @@ native_backend_startup(
         SENTRY_DEBUG("Daemon signaled ready");
     }
 
+#    if defined(SENTRY_PLATFORM_WINDOWS)
+    wer_register_module(tid);
+#    endif
+
     if (sentry__crash_handler_init(state->ipc) < 0) {
         SENTRY_WARN("failed to initialize crash handler");
 #    if defined(SENTRY_PLATFORM_UNIX)
@@ -445,6 +544,10 @@ native_backend_shutdown(sentry_backend_t *backend)
     if (!state) {
         return;
     }
+
+#if defined(SENTRY_PLATFORM_WINDOWS)
+    wer_unregister_module();
+#endif
 
     // Shutdown crash handlers (signal handlers on Linux/macOS, Mach exception
     // handler on iOS)

@@ -87,6 +87,41 @@ def test_native_capture_crash(cmake, httpserver):
     assert waiting.result
 
 
+@pytest.mark.skipif(
+    sys.platform != "win32" or os.environ.get("TEST_MINGW"),
+    reason="WER crash tests are only available in MSVC Windows builds",
+)
+@pytest.mark.with_wer
+@pytest.mark.parametrize("crash_arg", ["fastfail", "stack-buffer-overrun"])
+def test_native_wer(cmake, httpserver, crash_arg):
+    """Test WER crash capture with native backend"""
+    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "native"})
+
+    httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data("OK")
+
+    with httpserver.wait(timeout=10) as waiting:
+        run_crash(
+            tmp_path,
+            "sentry_example",
+            ["log", "stdout", crash_arg],
+            env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
+        )
+    assert waiting.result
+
+    assert len(httpserver.log) >= 1
+    envelope = Envelope.deserialize(httpserver.log[0][0].get_data())
+    event = envelope.get_event()
+    assert event is not None
+    assert event["level"] == "fatal"
+
+    exc = event["exception"]["values"][0]
+    assert exc["mechanism"]["type"] == "signalhandler"
+    assert exc["mechanism"]["handled"] is False
+    assert exc["mechanism"]["meta"]["signal"]["number"] == 0xC0000409
+    assert "stacktrace" in exc
+    assert len(exc["stacktrace"]["frames"]) > 0
+
+
 @pytest.mark.skipif(not has_oom, reason="OOM test unreliable in this environment")
 def test_native_oom(cmake, httpserver):
     """Test OOM crash capture with native backend"""

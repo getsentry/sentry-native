@@ -271,6 +271,7 @@ def cmake_build(cwd, targets, options):
         from tests.win_utils import check_binary_version
 
         check_binary_version(Path(cwd) / "sentry.dll")
+        check_binary_version(Path(cwd) / "sentry-wer.dll")
         check_binary_version(Path(cwd) / "crashpad_wer.dll")
         check_binary_version(Path(cwd) / "crashpad_handler.exe")
 

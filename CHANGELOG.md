@@ -6,6 +6,10 @@
 
 - Auto-populate `event.user.id` with a persistent per-installation UUID when no explicit user ID is set. ([#1661](https://github.com/getsentry/sentry-native/pull/1661))
 
+**Fixes**:
+
+- Native/Windows: capture fast-fail and stack buffer overrun crashes via WER.
+
 ## 0.14.0
 
 **Breaking / Important behavior changes**:
