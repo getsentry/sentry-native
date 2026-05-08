@@ -70,6 +70,24 @@ static sentry_native_wer_registration_t g_wer_registration = { 0 };
 
 static sentry_path_t *g_wer_path = NULL;
 
+static LSTATUS
+wer_set_registry_value(const sentry_path_t *wer_path, DWORD value)
+{
+    return RegSetKeyValueW(HKEY_CURRENT_USER,
+        L"Software\\Microsoft\\Windows\\Windows Error Reporting\\"
+        L"RuntimeExceptionHelperModules",
+        wer_path->path_w, REG_DWORD, &value, sizeof(value));
+}
+
+static LSTATUS
+wer_delete_registry_value(const sentry_path_t *wer_path)
+{
+    return RegDeleteKeyValueW(HKEY_CURRENT_USER,
+        L"Software\\Microsoft\\Windows\\Windows Error Reporting\\"
+        L"RuntimeExceptionHelperModules",
+        wer_path->path_w);
+}
+
 static sentry_path_t *
 wer_default_path(void)
 {
@@ -98,10 +116,7 @@ wer_unregister_module(void)
 
     WerUnregisterRuntimeExceptionModule(
         g_wer_path->path_w, &g_wer_registration);
-    RegDeleteKeyValueW(HKEY_CURRENT_USER,
-        L"Software\\Microsoft\\Windows\\Windows Error Reporting\\"
-        L"RuntimeExceptionHelperModules",
-        g_wer_path->path_w);
+    wer_delete_registry_value(g_wer_path);
     sentry__path_free(g_wer_path);
     g_wer_path = NULL;
     memset(&g_wer_registration, 0, sizeof(g_wer_registration));
@@ -125,10 +140,7 @@ wer_register_module(uint64_t app_tid)
     }
 
     const DWORD one = 1;
-    LSTATUS reg_res = RegSetKeyValueW(HKEY_CURRENT_USER,
-        L"Software\\Microsoft\\Windows\\Windows Error Reporting\\"
-        L"RuntimeExceptionHelperModules",
-        wer_path->path_w, REG_DWORD, &one, sizeof(one));
+    LSTATUS reg_res = wer_set_registry_value(wer_path, one);
     if (reg_res != ERROR_SUCCESS) {
         SENTRY_WARN("registering native WER module in registry failed");
         sentry__path_free(wer_path);
@@ -143,6 +155,7 @@ wer_register_module(uint64_t app_tid)
         wer_path->path_w, &g_wer_registration);
     if (FAILED(hr)) {
         SENTRY_WARN("registering native WER module failed");
+        wer_delete_registry_value(wer_path);
         sentry__path_free(wer_path);
         memset(&g_wer_registration, 0, sizeof(g_wer_registration));
         return;
