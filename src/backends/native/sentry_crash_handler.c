@@ -25,6 +25,7 @@
 #    include <sys/types.h>
 #    include <unistd.h>
 #elif defined(SENTRY_PLATFORM_WINDOWS)
+#    include <signal.h>
 #    include <tlhelp32.h>
 #    include <windows.h>
 #    include <winnt.h>
@@ -877,6 +878,50 @@ sentry__crash_handler_shutdown(void)
 // Global state for Windows exception handling
 static sentry_crash_ipc_t *g_crash_ipc = NULL;
 static LPTOP_LEVEL_EXCEPTION_FILTER g_previous_filter = NULL;
+static void (*g_previous_sigabrt_handler)(int) = NULL;
+
+static LONG WINAPI crash_exception_filter(EXCEPTION_POINTERS *exception_info);
+
+// SIGABRT handling on Windows: abort() calls the signal handler but doesn't
+// go through the unhandled exception filter. We register a SIGABRT handler
+// that captures context and calls into our exception handler.
+static void
+crash_sigabrt_handler(int signum)
+{
+    (void)signum;
+
+    // Capture the current CPU context
+    CONTEXT context;
+    RtlCaptureContext(&context);
+
+    // Create a synthetic exception record for abort
+    EXCEPTION_RECORD record;
+    memset(&record, 0, sizeof(record));
+    record.ExceptionCode = STATUS_FATAL_APP_EXIT;
+    record.ExceptionFlags = EXCEPTION_NONCONTINUABLE;
+#    if defined(_M_AMD64)
+    record.ExceptionAddress = (PVOID)context.Rip;
+#    elif defined(_M_IX86)
+    record.ExceptionAddress = (PVOID)context.Eip;
+#    elif defined(_M_ARM64)
+    record.ExceptionAddress = (PVOID)context.Pc;
+#    endif
+
+    EXCEPTION_POINTERS exception_pointers;
+    exception_pointers.ContextRecord = &context;
+    exception_pointers.ExceptionRecord = &record;
+
+    crash_exception_filter(&exception_pointers);
+
+    // If we get here, call the previous handler or terminate
+    if (g_previous_sigabrt_handler && g_previous_sigabrt_handler != SIG_DFL
+        && g_previous_sigabrt_handler != SIG_IGN) {
+        g_previous_sigabrt_handler(signum);
+    }
+
+    // Terminate the process - abort() must not return
+    TerminateProcess(GetCurrentProcess(), 3);
+}
 
 /**
  * Windows exception filter (crash handler)
@@ -973,6 +1018,7 @@ sentry__crash_handler_init(sentry_crash_ipc_t *ipc)
 
     // Install exception filter
     g_previous_filter = SetUnhandledExceptionFilter(crash_exception_filter);
+    g_previous_sigabrt_handler = signal(SIGABRT, crash_sigabrt_handler);
 
     SENTRY_DEBUG("crash handler initialized (Windows SEH)");
     return 0;
@@ -986,6 +1032,11 @@ sentry__crash_handler_shutdown(void)
         SetUnhandledExceptionFilter(g_previous_filter);
         g_previous_filter = NULL;
     }
+
+    // Restore previous SIGABRT handler (unconditionally, since SIG_DFL is
+    // typically NULL on MSVC and a conditional check would skip restoration)
+    signal(SIGABRT, g_previous_sigabrt_handler);
+    g_previous_sigabrt_handler = NULL;
 
     g_crash_ipc = NULL;
 
