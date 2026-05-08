@@ -12,6 +12,69 @@
 
 #ifdef SENTRY_PLATFORM_WINDOWS
 
+#        include <signal.h>
+#        include <string.h>
+
+static sentry__win32_abort_handler_t g_sigabrt_handler = NULL;
+static void (*g_previous_sigabrt_handler)(int) = NULL;
+
+static void
+handle_sigabrt(int signum)
+{
+    (void)signum;
+
+    // Capture the current CPU context
+    CONTEXT context;
+    RtlCaptureContext(&context);
+
+    // Create a synthetic exception record for abort
+    EXCEPTION_RECORD record;
+    memset(&record, 0, sizeof(record));
+    record.ExceptionCode = STATUS_FATAL_APP_EXIT;
+    record.ExceptionFlags = EXCEPTION_NONCONTINUABLE;
+#    if defined(_M_AMD64)
+    record.ExceptionAddress = (PVOID)context.Rip;
+#    elif defined(_M_IX86)
+    record.ExceptionAddress = (PVOID)context.Eip;
+#    elif defined(_M_ARM64)
+    record.ExceptionAddress = (PVOID)context.Pc;
+#    endif
+
+    EXCEPTION_POINTERS exception_pointers;
+    exception_pointers.ContextRecord = &context;
+    exception_pointers.ExceptionRecord = &record;
+
+    if (g_sigabrt_handler) {
+        g_sigabrt_handler(&exception_pointers);
+    }
+
+    // If we get here, call the previous handler or terminate
+    if (g_previous_sigabrt_handler && g_previous_sigabrt_handler != SIG_DFL
+        && g_previous_sigabrt_handler != SIG_IGN) {
+        g_previous_sigabrt_handler(signum);
+    }
+
+    // Terminate the process - abort() must not return
+    TerminateProcess(GetCurrentProcess(), 3);
+}
+
+void
+sentry__win32_install_sigabrt_handler(sentry__win32_abort_handler_t handler)
+{
+    g_sigabrt_handler = handler;
+    g_previous_sigabrt_handler = signal(SIGABRT, handle_sigabrt);
+}
+
+void
+sentry__win32_restore_sigabrt_handler(void)
+{
+    // Restore previous SIGABRT handler (unconditionally, since SIG_DFL is
+    // typically NULL on MSVC and a conditional check would skip restoration)
+    signal(SIGABRT, g_previous_sigabrt_handler);
+    g_previous_sigabrt_handler = NULL;
+    g_sigabrt_handler = NULL;
+}
+
 #    if !defined(SENTRY_PLATFORM_XBOX)
 #        include <stdlib.h>
 #        include <windows.h>

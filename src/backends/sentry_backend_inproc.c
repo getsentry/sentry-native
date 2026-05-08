@@ -13,7 +13,6 @@
 #include "sentry_options.h"
 #if defined(SENTRY_PLATFORM_WINDOWS)
 #    include "sentry_os.h"
-#    include <signal.h>
 #endif
 #include "sentry_scope.h"
 #include "sentry_screenshot.h"
@@ -585,47 +584,10 @@ static const struct signal_slot SIGNAL_DEFINITIONS[SIGNAL_COUNT] = {
 
 static LONG WINAPI handle_exception(EXCEPTION_POINTERS *);
 
-// SIGABRT handling on Windows: abort() calls the signal handler but doesn't
-// go through the unhandled exception filter. We register a SIGABRT handler
-// that captures context and calls into our exception handler.
-static void (*g_previous_sigabrt_handler)(int) = NULL;
-
 static void
-handle_sigabrt(int signum)
+handle_sigabrt(EXCEPTION_POINTERS *exception_pointers)
 {
-    (void)signum;
-
-    // Capture the current CPU context
-    CONTEXT context;
-    RtlCaptureContext(&context);
-
-    // Create a synthetic exception record for abort
-    EXCEPTION_RECORD record;
-    memset(&record, 0, sizeof(record));
-    record.ExceptionCode = STATUS_FATAL_APP_EXIT;
-    record.ExceptionFlags = EXCEPTION_NONCONTINUABLE;
-#    if defined(_M_AMD64)
-    record.ExceptionAddress = (PVOID)context.Rip;
-#    elif defined(_M_IX86)
-    record.ExceptionAddress = (PVOID)context.Eip;
-#    elif defined(_M_ARM64)
-    record.ExceptionAddress = (PVOID)context.Pc;
-#    endif
-
-    EXCEPTION_POINTERS exception_pointers;
-    exception_pointers.ContextRecord = &context;
-    exception_pointers.ExceptionRecord = &record;
-
-    handle_exception(&exception_pointers);
-
-    // If we get here, call the previous handler or terminate
-    if (g_previous_sigabrt_handler && g_previous_sigabrt_handler != SIG_DFL
-        && g_previous_sigabrt_handler != SIG_IGN) {
-        g_previous_sigabrt_handler(signum);
-    }
-
-    // Terminate the process - abort() must not return
-    TerminateProcess(GetCurrentProcess(), 3);
+    handle_exception(exception_pointers);
 }
 
 static int
@@ -649,8 +611,7 @@ startup_inproc_backend(
     g_previous_handler = SetUnhandledExceptionFilter(&handle_exception);
     SetErrorMode(SEM_FAILCRITICALERRORS);
 
-    // Register SIGABRT handler - abort() doesn't go through the UEF
-    g_previous_sigabrt_handler = signal(SIGABRT, handle_sigabrt);
+    sentry__win32_install_sigabrt_handler(handle_sigabrt);
 
     return 0;
 }
@@ -666,10 +627,7 @@ shutdown_inproc_backend(sentry_backend_t *backend)
         SetUnhandledExceptionFilter(current_handler);
     }
 
-    // Restore previous SIGABRT handler (unconditionally, since SIG_DFL is
-    // typically NULL on MSVC and a conditional check would skip restoration)
-    signal(SIGABRT, g_previous_sigabrt_handler);
-    g_previous_sigabrt_handler = NULL;
+    sentry__win32_restore_sigabrt_handler();
 
     if (backend) {
         backend->data = NULL;
