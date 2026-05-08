@@ -21,6 +21,7 @@ from . import (
 from .assertions import (
     assert_breadcrumb,
     assert_meta,
+    assert_native_crash,
     assert_session,
     wait_for_file,
     assert_user_feedback,
@@ -110,16 +111,7 @@ def test_native_wer(cmake, httpserver, crash_arg):
 
     assert len(httpserver.log) >= 1
     envelope = Envelope.deserialize(httpserver.log[0][0].get_data())
-    event = envelope.get_event()
-    assert event is not None
-    assert event["level"] == "fatal"
-
-    exc = event["exception"]["values"][0]
-    assert exc["mechanism"]["type"] == "signalhandler"
-    assert exc["mechanism"]["handled"] is False
-    assert exc["mechanism"]["meta"]["signal"]["number"] == 0xC0000409
-    assert "stacktrace" in exc
-    assert len(exc["stacktrace"]["frames"]) > 0
+    assert_native_crash(envelope, exception_code=0xC0000409)
 
 
 @pytest.mark.skipif(not has_oom, reason="OOM test unreliable in this environment")
