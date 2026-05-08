@@ -224,8 +224,8 @@ breakpad_backend_callback(const google_breakpad::MinidumpDescriptor &descriptor,
                 sentry_attachment_t *clip = sentry__attachment_from_path(
                     sentry__replay_clip_get_path(options));
                 if (clip
-                    && sentry__replay_clip_capture(clip->path,
-                        options->replay_clip_duration_ms, 0)) {
+                    && sentry__replay_clip_capture(
+                        clip->path, options->replay_clip_duration_ms, 0)) {
                     sentry__envelope_add_attachment(envelope, clip);
                 } else {
                     sentry__attachment_free(clip);

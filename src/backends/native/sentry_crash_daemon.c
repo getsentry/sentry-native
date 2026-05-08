@@ -2954,8 +2954,7 @@ sentry__process_crash(const sentry_options_t *options, sentry_crash_ipc_t *ipc)
             = sentry__path_join_str(run_folder, "replay-clip.mp4");
         if (clip_path) {
             if (sentry__replay_clip_capture(clip_path,
-                    ctx->replay_clip_duration_ms,
-                    (uint32_t)ctx->crashed_pid)) {
+                    ctx->replay_clip_duration_ms, (uint32_t)ctx->crashed_pid)) {
                 SENTRY_DEBUG("Replay clip captured successfully");
             } else {
                 SENTRY_DEBUG("Replay clip capture failed");
