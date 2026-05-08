@@ -270,6 +270,8 @@ typedef struct {
     int crash_reporting_mode; // sentry_crash_reporting_mode_t
     bool debug_enabled; // Debug logging enabled in parent process
     bool attach_screenshot; // Screenshot attachment enabled in parent process
+    bool attach_replay_clip; // Replay clip attachment enabled in parent process
+    uint32_t replay_clip_duration_ms; // Requested replay clip duration in ms
     bool cache_keep;
     bool require_user_consent;
     bool enable_large_attachments;

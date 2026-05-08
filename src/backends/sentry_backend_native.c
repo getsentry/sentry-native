@@ -192,6 +192,8 @@ native_backend_startup(
     // Pass debug logging setting to daemon
     ctx->debug_enabled = options->debug;
     ctx->attach_screenshot = options->attach_screenshot;
+    ctx->attach_replay_clip = options->attach_replay_clip;
+    ctx->replay_clip_duration_ms = options->replay_clip_duration_ms;
     ctx->cache_keep = options->cache_keep;
     ctx->require_user_consent = options->require_user_consent;
     ctx->enable_large_attachments = options->enable_large_attachments;

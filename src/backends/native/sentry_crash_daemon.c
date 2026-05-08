@@ -12,6 +12,7 @@
 #include "sentry_options.h"
 #include "sentry_path.h"
 #include "sentry_process.h"
+#include "sentry_replay_clip.h"
 #include "sentry_screenshot.h"
 #include "sentry_string.h"
 #include "sentry_symbolizer.h"
@@ -2504,6 +2505,17 @@ write_envelope_with_native_stacktrace(const sentry_options_t *options,
         }
     }
 
+    // Add replay clip attachment if captured by the daemon
+    if (ctx->attach_replay_clip && run_folder) {
+        sentry_path_t *clip_path
+            = sentry__path_join_str(run_folder, "replay-clip.mp4");
+        if (clip_path) {
+            write_attachment_to_envelope(
+                fd, clip_path->path, "replay-clip.mp4", "video/mp4");
+            sentry__path_free(clip_path);
+        }
+    }
+
 #if defined(SENTRY_PLATFORM_UNIX)
     close(fd);
 #elif defined(SENTRY_PLATFORM_WINDOWS)
@@ -2740,6 +2752,17 @@ write_envelope_with_minidump(const sentry_options_t *options,
         }
     }
 
+    // Add replay clip attachment if captured by the daemon
+    if (ctx->attach_replay_clip && run_folder) {
+        sentry_path_t *clip_path
+            = sentry__path_join_str(run_folder, "replay-clip.mp4");
+        if (clip_path) {
+            write_attachment_to_envelope(
+                fd, clip_path->path, "replay-clip.mp4", "video/mp4");
+            sentry__path_free(clip_path);
+        }
+    }
+
 #if defined(SENTRY_PLATFORM_UNIX)
     close(fd);
 #elif defined(SENTRY_PLATFORM_WINDOWS)
@@ -2920,6 +2943,24 @@ sentry__process_crash(const sentry_options_t *options, sentry_crash_ipc_t *ipc)
                 SENTRY_DEBUG("Screenshot capture failed");
             }
             sentry__path_free(screenshot_path);
+        }
+    }
+
+    // Capture replay clip if enabled. Like screenshot, this runs out-of-process
+    // because the underlying OS APIs are not signal-safe.
+    if (ctx->attach_replay_clip && run_folder) {
+        SENTRY_DEBUG("Capturing replay clip");
+        sentry_path_t *clip_path
+            = sentry__path_join_str(run_folder, "replay-clip.mp4");
+        if (clip_path) {
+            if (sentry__replay_clip_capture(clip_path,
+                    ctx->replay_clip_duration_ms,
+                    (uint32_t)ctx->crashed_pid)) {
+                SENTRY_DEBUG("Replay clip captured successfully");
+            } else {
+                SENTRY_DEBUG("Replay clip capture failed");
+            }
+            sentry__path_free(clip_path);
         }
     }
 #endif
@@ -3289,6 +3330,8 @@ sentry__crash_daemon_main(pid_t app_pid, uint64_t app_tid, HANDLE event_handle,
     // Use debug logging and screenshot settings from parent process
     sentry_options_set_debug(options, ipc->shmem->debug_enabled);
     options->attach_screenshot = ipc->shmem->attach_screenshot;
+    options->attach_replay_clip = ipc->shmem->attach_replay_clip;
+    options->replay_clip_duration_ms = ipc->shmem->replay_clip_duration_ms;
     options->cache_keep = ipc->shmem->cache_keep;
     options->enable_large_attachments = ipc->shmem->enable_large_attachments;
     options->http_retry = false;
