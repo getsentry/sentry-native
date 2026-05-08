@@ -98,6 +98,10 @@ wer_unregister_module(void)
 
     WerUnregisterRuntimeExceptionModule(
         g_wer_path->path_w, &g_wer_registration);
+    RegDeleteKeyValueW(HKEY_CURRENT_USER,
+        L"Software\\Microsoft\\Windows\\Windows Error Reporting\\"
+        L"RuntimeExceptionHelperModules",
+        g_wer_path->path_w);
     sentry__path_free(g_wer_path);
     g_wer_path = NULL;
     memset(&g_wer_registration, 0, sizeof(g_wer_registration));
