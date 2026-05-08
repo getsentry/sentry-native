@@ -148,7 +148,8 @@ process_wer_exception(
 
         InterlockedExchange(&ctx->state, SENTRY_CRASH_STATE_CRASHED);
         if (SetEvent(event)) {
-            DWORD wait_result = WAIT_TIMEOUT;
+            claimed = TRUE;
+            BOOL processed = FALSE;
             uint64_t timeout_ms = ctx->shutdown_timeout
                 ? ctx->shutdown_timeout
                 : SENTRY_CRASH_HANDLER_WAIT_TIMEOUT_MS;
@@ -157,13 +158,12 @@ process_wer_exception(
                 if (InterlockedCompareExchange(&ctx->state,
                         SENTRY_CRASH_STATE_DONE, SENTRY_CRASH_STATE_DONE)
                     == SENTRY_CRASH_STATE_DONE) {
-                    wait_result = WAIT_OBJECT_0;
+                    processed = TRUE;
                     break;
                 }
                 Sleep(SENTRY_CRASH_HANDLER_POLL_INTERVAL_MS);
             }
-            claimed = wait_result == WAIT_OBJECT_0;
-            if (claimed) {
+            if (processed) {
                 TerminateProcess(exception_info->hProcess,
                     exception_info->exceptionRecord.ExceptionCode);
             }
