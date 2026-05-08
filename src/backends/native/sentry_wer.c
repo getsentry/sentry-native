@@ -3,8 +3,8 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
-#include <windows.h>
 #include <werapi.h>
+#include <windows.h>
 
 #ifndef STATUS_FAIL_FAST_EXCEPTION
 #    define STATUS_FAIL_FAST_EXCEPTION ((DWORD)0xC0000602)
@@ -37,13 +37,11 @@ is_fatal_wer_exception(const WER_RUNTIME_EXCEPTION_INFORMATION *info)
 
     if (!info
         || info->dwSize
-            <= offsetof(WER_RUNTIME_EXCEPTION_INFORMATION_19041,
-                bIsFatal)) {
+            <= offsetof(WER_RUNTIME_EXCEPTION_INFORMATION_19041, bIsFatal)) {
         return FALSE;
     }
 
-    return ((const WER_RUNTIME_EXCEPTION_INFORMATION_19041 *)info)
-        ->bIsFatal;
+    return ((const WER_RUNTIME_EXCEPTION_INFORMATION_19041 *)info)->bIsFatal;
 }
 
 static BOOL
@@ -76,8 +74,8 @@ open_native_crash_objects(const sentry_native_wer_registration_t *registration,
     wchar_t shm_name[SENTRY_CRASH_IPC_NAME_SIZE];
     wchar_t event_name[SENTRY_CRASH_IPC_NAME_SIZE];
 
-    swprintf(shm_name, SENTRY_CRASH_IPC_NAME_SIZE, L"Local\\SentryCrash-%lu-%llx",
-        (unsigned long)registration->app_pid,
+    swprintf(shm_name, SENTRY_CRASH_IPC_NAME_SIZE,
+        L"Local\\SentryCrash-%lu-%llx", (unsigned long)registration->app_pid,
         (unsigned long long)registration->app_tid);
     swprintf(event_name, SENTRY_CRASH_IPC_NAME_SIZE,
         L"Local\\SentryCrashEvent-%lu-%llx",
@@ -118,8 +116,8 @@ open_native_crash_objects(const sentry_native_wer_registration_t *registration,
 }
 
 static BOOL
-process_wer_exception(PVOID context,
-    const WER_RUNTIME_EXCEPTION_INFORMATION *exception_info)
+process_wer_exception(
+    PVOID context, const WER_RUNTIME_EXCEPTION_INFORMATION *exception_info)
 {
     if (!exception_info || !is_fatal_wer_exception(exception_info)
         || !is_native_wer_exception(
@@ -128,8 +126,7 @@ process_wer_exception(PVOID context,
     }
 
     sentry_native_wer_registration_t registration = { 0 };
-    if (!read_registration(
-            exception_info->hProcess, context, &registration)) {
+    if (!read_registration(exception_info->hProcess, context, &registration)) {
         return FALSE;
     }
 
@@ -159,9 +156,8 @@ process_wer_exception(PVOID context,
         if (SetEvent(event)) {
             DWORD wait_result = WAIT_TIMEOUT;
             for (DWORD waited_ms = 0; waited_ms < 10000; waited_ms += 100) {
-                if (InterlockedCompareExchange(
-                        &ctx->state, SENTRY_CRASH_STATE_DONE,
-                        SENTRY_CRASH_STATE_DONE)
+                if (InterlockedCompareExchange(&ctx->state,
+                        SENTRY_CRASH_STATE_DONE, SENTRY_CRASH_STATE_DONE)
                     == SENTRY_CRASH_STATE_DONE) {
                     wait_result = WAIT_OBJECT_0;
                     break;

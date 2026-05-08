@@ -90,8 +90,7 @@ wer_default_path(void)
         return NULL;
     }
 
-    sentry_path_t *wer_path
-        = sentry__path_join_str(exe_dir, "sentry-wer.dll");
+    sentry_path_t *wer_path = sentry__path_join_str(exe_dir, "sentry-wer.dll");
     sentry__path_free(exe_dir);
     return wer_path;
 }
