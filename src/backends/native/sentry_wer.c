@@ -46,8 +46,8 @@ is_native_wer_exception(DWORD code)
 }
 
 static BOOL
-read_registration(HANDLE process, PVOID context,
-    sentry_native_wer_registration_t *registration)
+read_registration(
+    HANDLE process, PVOID context, sentry_wer_registration_t *registration)
 {
     if (!process || !context || !registration) {
         return FALSE;
@@ -62,7 +62,7 @@ read_registration(HANDLE process, PVOID context,
 }
 
 static BOOL
-open_native_crash_objects(const sentry_native_wer_registration_t *registration,
+open_native_crash_objects(const sentry_wer_registration_t *registration,
     HANDLE *mapping, HANDLE *event, sentry_crash_context_t **ctx)
 {
     wchar_t shm_name[SENTRY_CRASH_IPC_NAME_SIZE];
@@ -119,7 +119,7 @@ process_wer_exception(
         return FALSE;
     }
 
-    sentry_native_wer_registration_t registration = { 0 };
+    sentry_wer_registration_t registration = { 0 };
     if (!read_registration(exception_info->hProcess, context, &registration)) {
         return FALSE;
     }

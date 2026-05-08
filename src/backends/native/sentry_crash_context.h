@@ -246,7 +246,7 @@ typedef struct {
     DWORD version;
     DWORD app_pid;
     uint64_t app_tid;
-} sentry_native_wer_registration_t;
+} sentry_wer_registration_t;
 
 #    ifdef _MSC_VER
 #        pragma warning(pop)
