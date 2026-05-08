@@ -12,11 +12,12 @@
 
 #ifdef SENTRY_PLATFORM_WINDOWS
 
-#        include <signal.h>
-#        include <string.h>
+#    include <signal.h>
+#    include <string.h>
 
 static sentry__win32_abort_handler_t g_sigabrt_handler = NULL;
 static void (*g_previous_sigabrt_handler)(int) = NULL;
+static bool g_sigabrt_installed = false;
 
 static void
 handle_sigabrt(int signum)
@@ -62,15 +63,22 @@ void
 sentry__win32_install_sigabrt_handler(sentry__win32_abort_handler_t handler)
 {
     g_sigabrt_handler = handler;
-    g_previous_sigabrt_handler = signal(SIGABRT, handle_sigabrt);
+    if (!g_sigabrt_installed) {
+        g_previous_sigabrt_handler = signal(SIGABRT, handle_sigabrt);
+        g_sigabrt_installed = true;
+    }
 }
 
 void
 sentry__win32_restore_sigabrt_handler(void)
 {
-    // Restore previous SIGABRT handler (unconditionally, since SIG_DFL is
-    // typically NULL on MSVC and a conditional check would skip restoration)
-    signal(SIGABRT, g_previous_sigabrt_handler);
+    if (g_sigabrt_installed) {
+        // Restore previous SIGABRT handler (unconditionally, since SIG_DFL is
+        // typically NULL on MSVC and a conditional check would skip
+        // restoration)
+        signal(SIGABRT, g_previous_sigabrt_handler);
+        g_sigabrt_installed = false;
+    }
     g_previous_sigabrt_handler = NULL;
     g_sigabrt_handler = NULL;
 }
