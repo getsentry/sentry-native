@@ -526,6 +526,7 @@ native_backend_startup(
 #    if defined(SENTRY_PLATFORM_UNIX)
         kill(state->daemon_pid, SIGTERM);
 #    elif defined(SENTRY_PLATFORM_WINDOWS)
+        wer_unregister_module();
         // On Windows, terminate the daemon process
         HANDLE hDaemon
             = OpenProcess(PROCESS_TERMINATE, FALSE, state->daemon_pid);
