@@ -14,7 +14,7 @@ param (
     ## Defines the number of parallel runners via pytest-xdist. This is highly experimental since tests remove database paths. (default: 1)
     [int]$Parallelism = 1,
     ## Disables tests that require WER modules. (default: false)
-    [switch]$WithoutCrashpadWer = $false,
+    [switch]$WithoutWer = $false,
     ## Disables stdout/stderr capture through pytest (default: false)
     [switch]$DisableCapture = $false,
     ## Defines the maximum number of failing tests before the test session is stopped. 0 means infinite. Will not do what you expect, together with Parallelism > 1 (default: 0)
@@ -44,7 +44,7 @@ if ($Parallelism -gt 1)
     $pytestCommand += " -n $Parallelism"
 }
 
-if (-not $WithoutCrashpadWer -and -not $Unit)
+if (-not $WithoutWer -and -not $Unit)
 {
     $pytestCommand += " --with_wer"
 }
