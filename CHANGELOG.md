@@ -5,6 +5,7 @@
 **Features**:
 
 - Auto-populate `event.user.id` with a persistent per-installation UUID when no explicit user ID is set. ([#1661](https://github.com/getsentry/sentry-native/pull/1661))
+- Native/Windows: added capability to capture abort(). ([#1708](https://github.com/getsentry/sentry-native/pull/1708))
 
 ## 0.14.0
 
