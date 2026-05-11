@@ -3294,7 +3294,7 @@ sentry__crash_daemon_main(pid_t app_pid, uint64_t app_tid, HANDLE event_handle,
     // Use debug logging and screenshot settings from parent process
     sentry_options_set_debug(options, ipc->shmem->debug_enabled);
     options->attach_screenshot = ipc->shmem->attach_screenshot;
-    options->cache_keep = ipc->shmem->cache_keep;
+    options->cache_keep = (sentry_cache_keep_t)ipc->shmem->cache_keep;
     options->enable_large_attachments = ipc->shmem->enable_large_attachments;
     options->http_retry = false;
     options->shutdown_timeout = ipc->shmem->shutdown_timeout;
@@ -3356,6 +3356,10 @@ sentry__crash_daemon_main(pid_t app_pid, uint64_t app_tid, HANDLE event_handle,
     if (options->transport) {
         SENTRY_DEBUG("Starting transport");
         sentry__transport_startup(options->transport, options);
+        // Set http_retry after transport startup to keep daemon-side retry
+        // polling disabled, while letting capture cache consent-revoked
+        // envelopes in retry format for the app to send on restart.
+        options->http_retry = ipc->shmem->http_retry;
     } else {
         SENTRY_WARN("No transport available");
     }

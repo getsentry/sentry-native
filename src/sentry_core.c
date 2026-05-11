@@ -493,7 +493,8 @@ sentry__capture_envelope(sentry_transport_t *transport,
     }
     bool cached = false;
     if (options->cache_keep || options->http_retry) {
-        cached = sentry__run_write_cache(options->run, envelope, 0);
+        int retry_count = options->http_retry ? 0 : -1;
+        cached = sentry__run_write_cache(options->run, envelope, retry_count);
         if (cached && !sentry__run_should_skip_upload(options->run)) {
             // consent given meanwhile -> trigger retry to avoid waiting
             // until the next retry poll
@@ -1681,6 +1682,10 @@ sentry__launch_external_crash_reporter(
     if (!options || !options->run || !options->external_crash_reporter
         || sentry__string_empty(options->external_crash_reporter->path)) {
         return false;
+    }
+
+    if (options->cache_keep == SENTRY_CACHE_KEEP_ALWAYS) {
+        sentry__run_write_cache(options->run, envelope, -1);
     }
 
     sentry_uuid_t event_id = sentry__envelope_get_event_id(envelope);
