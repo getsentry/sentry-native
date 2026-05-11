@@ -21,9 +21,9 @@ SENTRY_TEST(iso_time)
     uint64_t usec;
     char *str;
 
-    usec = sentry__iso8601_to_usec("1970-01-01T00:00:10Z", -1);
+    usec = sentry__iso8601_to_usec("1970-01-01T00:00:10Z", 0);
     TEST_CHECK_INT_EQUAL(usec, 10 * 1000000);
-    usec = sentry__iso8601_to_usec("2020-04-27T11:02:36.050505Z", -1);
+    usec = sentry__iso8601_to_usec("2020-04-27T11:02:36.050505Z", 0);
     TEST_CHECK_INT_EQUAL(usec, 1587985356050505);
     str = sentry__usec_time_to_iso8601(usec);
     TEST_ASSERT(!!str);
@@ -33,7 +33,7 @@ SENTRY_TEST(iso_time)
     usec = sentry__usec_time();
     str = sentry__usec_time_to_iso8601(usec);
     TEST_ASSERT(!!str);
-    uint64_t roundtrip = sentry__iso8601_to_usec(str, -1);
+    uint64_t roundtrip = sentry__iso8601_to_usec(str, 0);
     sentry_free(str);
     TEST_CHECK_INT_EQUAL(roundtrip, usec);
 }
