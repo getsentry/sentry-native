@@ -4,8 +4,13 @@
 
 **Features**:
 
-- Auto-populate `event.user.id` with a persistent per-installation UUID when no explicit user ID is set. ([#1661](https://github.com/getsentry/sentry-native/pull/1661))
 - Add [strict trace continuation](https://develop.sentry.dev/sdk/foundations/trace-propagation/#strict-trace-continuation) via `sentry_options_set_strict_trace_continuation`. ([#1663](https://github.com/getsentry/sentry-native/pull/1663))
+- Auto-populate `event.user.id` with a persistent per-installation UUID when no explicit user ID is set. ([#1661](https://github.com/getsentry/sentry-native/pull/1661))
+- Crashpad: add error log for oversized envelopes (HTTP 413 Content Too Large). ([#1706](https://github.com/getsentry/sentry-native/pull/1706), [crashpad#155](https://github.com/getsentry/crashpad/pull/155))
+
+**Fixes**:
+
+- Native/Breakpad/Windows: fixed capturing abort(). ([#1708](https://github.com/getsentry/sentry-native/pull/1708))
 
 ## 0.14.0
 

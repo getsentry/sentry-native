@@ -1,8 +1,8 @@
 """
-End-to-end integration tests that verify Sentry.io receives crash events.
+End-to-end integration tests that verify Sentry receives crash events.
 
 These tests send real crash events to Sentry and verify they arrive with
-the expected structure for all 3 crash reporting modes.
+the expected structure for all crash backends and native crash reporting modes.
 
 Requires environment variables:
 - SENTRY_E2E_DSN: Sentry test project DSN
@@ -18,11 +18,20 @@ import re
 import subprocess
 import sys
 import time
+from urllib.parse import urlsplit, urlunsplit
+
 import pytest
 import requests
 
 from . import run, check_output
-from .conditions import has_native, is_asan, is_kcov
+from .conditions import (
+    has_breakpad,
+    has_crashpad,
+    has_http,
+    has_native,
+    is_asan,
+    is_kcov,
+)
 
 # Skip all tests if E2E env vars not configured
 pytestmark = [
@@ -31,14 +40,34 @@ pytestmark = [
         reason="E2E tests require SENTRY_E2E_DSN environment variable",
     ),
     pytest.mark.skipif(
-        not has_native,
-        reason="E2E tests require native backend",
+        not has_http,
+        reason="E2E tests require http transport",
     ),
 ]
 
-SENTRY_API_BASE = "https://sentry.io/api/0"
 POLL_MAX_ATTEMPTS = 100
 POLL_INTERVAL = 6  # seconds
+
+
+def get_sentry_api_base():
+    """Build the Sentry API base URL from a project DSN."""
+    dsn = os.environ["SENTRY_E2E_DSN"]
+    try:
+        parsed = urlsplit(dsn)
+        if (
+            not parsed.scheme
+            or not parsed.hostname
+            or (parsed.port is not None and parsed.port < 0)
+        ):
+            raise ValueError
+    except ValueError:
+        pytest.skip(f"SENTRY_E2E_DSN is invalid: {dsn!r}")
+
+    netloc = parsed.netloc.rsplit("@", 1)[-1]
+    # Ingest DSNs can be "<org>.ingest.<api-host>"", API calls go to <api-host>
+    netloc = re.sub(r"^[^.]+\.ingest\.", "", netloc)
+    prefix = parsed.path.rstrip("/").rsplit("/", 1)[0]
+    return urlunsplit((parsed.scheme, netloc, f"{prefix}/api/0", "", ""))
 
 
 def get_sentry_headers():
@@ -78,16 +107,17 @@ def poll_sentry_for_event(test_id, max_attempts=POLL_MAX_ATTEMPTS):
     """
     org, project = get_sentry_org_project()
     headers = get_sentry_headers()
+    api_base = get_sentry_api_base()
 
     last_error = None
 
     print(f"\nWaiting for event with test.id={test_id} to appear in Sentry...")
-    print(f"Using org={org}, project={project}")
+    print(f"Using api_base={api_base}, org={org}, project={project}")
 
     for attempt in range(max_attempts):
         try:
             # Step 1: Search issues by test.id tag
-            issues_url = f"{SENTRY_API_BASE}/projects/{org}/{project}/issues/"
+            issues_url = f"{api_base}/projects/{org}/{project}/issues/"
             response = requests.get(
                 issues_url,
                 headers=headers,
@@ -106,7 +136,7 @@ def poll_sentry_for_event(test_id, max_attempts=POLL_MAX_ATTEMPTS):
                     issue_id = issues[0]["id"]
 
                     # Step 2: Find the exact event within this issue
-                    events_url = f"{SENTRY_API_BASE}/issues/{issue_id}/events/"
+                    events_url = f"{api_base}/issues/{issue_id}/events/"
                     event_response = requests.get(
                         events_url,
                         headers=headers,
@@ -125,7 +155,7 @@ def poll_sentry_for_event(test_id, max_attempts=POLL_MAX_ATTEMPTS):
 
                             # Step 3: Fetch full event detail
                             detail_url = (
-                                f"{SENTRY_API_BASE}/projects/{org}/{project}"
+                                f"{api_base}/projects/{org}/{project}"
                                 f"/events/{event_id}/"
                             )
                             detail_response = requests.get(
@@ -353,7 +383,11 @@ def run_crash_e2e(tmp_path, exe, args, env):
     return output
 
 
-class TestE2ECrashModes:
+@pytest.mark.skipif(
+    not has_native,
+    reason="E2E crash mode tests require native backend",
+)
+class TestE2ENative:
     """E2E tests for all 3 crash reporting modes against real Sentry."""
 
     @pytest.fixture(autouse=True)
@@ -655,3 +689,141 @@ class TestE2ECrashModes:
         verify_no_thread_duplication(
             threads_data, "test_default_mode_is_native_with_minidump_e2e"
         )
+
+
+def test_e2e_inproc(cmake):
+    """Verify that inproc can send a signal-handler crash event to Sentry."""
+    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "inproc"})
+    env = dict(os.environ, SENTRY_DSN=os.environ["SENTRY_E2E_DSN"])
+
+    output = run_crash_e2e(
+        tmp_path,
+        "sentry_example",
+        ["log", "e2e-test", "capture-log", "crash"],
+        env=env,
+    )
+    test_id = extract_test_id(output)
+
+    time.sleep(2)
+    run(tmp_path, "sentry_example", ["no-setup"], env=env)
+
+    event = poll_sentry_for_event(test_id)
+
+    assert (
+        event["platform"] == "native"
+    ), f"Expected platform=native, got {event.get('platform')}"
+
+    exception_data = get_exception_from_event(event)
+    assert exception_data is not None, "Event should have exception data"
+    assert "values" in exception_data, "Exception should have values"
+
+    exc = exception_data["values"][0]
+    assert (
+        exc["mechanism"]["type"] == "signalhandler"
+    ), f"Inproc should use signalhandler mechanism, got {exc['mechanism']['type']}"
+    assert exc["mechanism"]["handled"] is False
+    assert "stacktrace" in exc, "Inproc crash should include a stacktrace"
+    assert "frames" in exc["stacktrace"], "Inproc stacktrace should have frames"
+
+
+@pytest.mark.skipif(
+    not has_breakpad,
+    reason="breakpad backend not available",
+)
+def test_e2e_breakpad(cmake):
+    """Verify that breakpad can send a minidump crash event to Sentry."""
+    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "breakpad"})
+    env = dict(os.environ, SENTRY_DSN=os.environ["SENTRY_E2E_DSN"])
+
+    output = run_crash_e2e(
+        tmp_path,
+        "sentry_example",
+        ["log", "e2e-test", "capture-log", "crash"],
+        env=env,
+    )
+    test_id = extract_test_id(output)
+
+    time.sleep(2)
+    run(tmp_path, "sentry_example", ["no-setup"], env=env)
+
+    event = poll_sentry_for_event(test_id)
+
+    assert (
+        event["platform"] == "native"
+    ), f"Expected platform=native, got {event.get('platform')}"
+
+    exception_data = get_exception_from_event(event)
+    assert exception_data is not None, "Event should have exception data"
+    assert "values" in exception_data, "Exception should have values"
+
+    exc = exception_data["values"][0]
+    assert exc["mechanism"]["type"] in [
+        "minidump",
+        "signalhandler",
+    ], f"Unexpected mechanism type: {exc['mechanism']['type']}"
+
+    assert "stacktrace" in exc, "Breakpad crash should include a stacktrace"
+    frames = exc["stacktrace"]["frames"]
+    assert (
+        len(frames) >= 3
+    ), f"Breakpad crash should have stacktrace (>= 3 frames), got {len(frames)}"
+
+    threads_data = get_threads_from_event(event)
+    assert threads_data is not None, "Breakpad crash should have threads data"
+    assert "values" in threads_data, "Threads should have values"
+    thread_count = len(threads_data["values"])
+    assert (
+        thread_count >= 1
+    ), f"Breakpad crash should capture threads (>= 1), got {thread_count}"
+
+    verify_no_thread_duplication(threads_data, "test_e2e_breakpad")
+
+
+@pytest.mark.skipif(
+    not has_crashpad,
+    reason="crashpad backend not available",
+)
+def test_e2e_crashpad(cmake):
+    """Verify that crashpad can send a minidump crash event to Sentry."""
+    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "crashpad"})
+    env = dict(os.environ, SENTRY_DSN=os.environ["SENTRY_E2E_DSN"])
+
+    output = run_crash_e2e(
+        tmp_path,
+        "sentry_example",
+        ["log", "e2e-test", "capture-log", "crashpad-wait-for-upload", "crash"],
+        env=env,
+    )
+    test_id = extract_test_id(output)
+
+    event = poll_sentry_for_event(test_id)
+
+    assert (
+        event["platform"] == "native"
+    ), f"Expected platform=native, got {event.get('platform')}"
+
+    exception_data = get_exception_from_event(event)
+    assert exception_data is not None, "Event should have exception data"
+    assert "values" in exception_data, "Exception should have values"
+
+    exc = exception_data["values"][0]
+    assert exc["mechanism"]["type"] in [
+        "minidump",
+        "signalhandler",
+    ], f"Unexpected mechanism type: {exc['mechanism']['type']}"
+
+    assert "stacktrace" in exc, "Crashpad crash should include a stacktrace"
+    frames = exc["stacktrace"]["frames"]
+    assert (
+        len(frames) >= 3
+    ), f"Crashpad crash should have stacktrace (>= 3 frames), got {len(frames)}"
+
+    threads_data = get_threads_from_event(event)
+    assert threads_data is not None, "Crashpad crash should have threads data"
+    assert "values" in threads_data, "Threads should have values"
+    thread_count = len(threads_data["values"])
+    assert (
+        thread_count >= 1
+    ), f"Crashpad crash should capture threads (>= 1), got {thread_count}"
+
+    verify_no_thread_duplication(threads_data, "test_e2e_crashpad")

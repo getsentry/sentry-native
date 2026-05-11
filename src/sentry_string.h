@@ -187,6 +187,15 @@ sentry__guarded_strlen(const char *s)
 }
 
 /**
+ * Checks whether a string is NULL or zero-length.
+ */
+static inline bool
+sentry__string_empty(const char *s)
+{
+    return !s || s[0] == '\0';
+}
+
+/**
  * Converts an int64_t into a string.
  */
 static inline char *

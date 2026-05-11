@@ -186,23 +186,41 @@ def test_inproc_crash_stdout(cmake):
     assert_inproc_crash(envelope)
 
 
+@pytest.mark.parametrize(
+    "backend",
+    [
+        "inproc",
+        pytest.param(
+            "breakpad",
+            marks=pytest.mark.skipif(
+                not has_breakpad or is_qemu, reason="test needs breakpad backend"
+            ),
+        ),
+    ],
+)
 @pytest.mark.skipif(is_qemu, reason="unreliable under qemu-user")
-def test_inproc_abort_stdout(cmake):
-    """Test that a normal abort() call is captured by inproc backend.
+def test_abort_stdout(cmake, backend):
+    """Test that a normal abort() call is captured by inproc and breakpad backends.
 
     This verifies that our SIGABRT handling changes (which bail out early
     for abort() on the handler thread or during recursion) don't break
     normal abort() capture from user code.
     """
-    tmp_path, output = run_stdout_for("inproc", cmake, ["attachment", "abort"])
+    tmp_path, output = run_stdout_for(backend, cmake, ["attachment", "abort"])
 
     envelope = Envelope.deserialize(output)
 
     assert_crash_timestamp(has_files, tmp_path)
-    assert_meta(envelope, integration="inproc")
+    assert_meta(envelope, integration=backend)
     assert_breadcrumb(envelope)
     assert_attachment(envelope)
-    assert_inproc_crash(envelope)
+    if backend == "inproc":
+        assert_inproc_crash(envelope)
+    elif backend == "breakpad":
+        assert_minidump(envelope)
+        assert_breakpad_crash(envelope)
+    else:
+        pytest.fail(f"unsupported backend: {backend}")
 
 
 @pytest.mark.skipif(is_qemu, reason="unreliable under qemu-user")

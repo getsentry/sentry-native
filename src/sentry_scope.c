@@ -72,7 +72,7 @@ init_scope(sentry_scope_t *scope)
     scope->environment = NULL;
     scope->transaction = NULL;
     scope->fingerprint = sentry_value_new_null();
-    scope->user = sentry_value_new_object();
+    scope->user = sentry_value_new_null();
     scope->tags = sentry_value_new_object();
     scope->extra = sentry_value_new_object();
     scope->attributes = sentry_value_new_object();
@@ -97,6 +97,7 @@ get_scope(void)
 
     memset(&g_scope, 0, sizeof(sentry_scope_t));
     init_scope(&g_scope);
+    g_scope.user = sentry_value_new_object();
     sentry_value_set_by_key(g_scope.contexts, "os", sentry__get_os_context());
     g_scope.client_sdk = get_client_sdk();
 
@@ -368,7 +369,7 @@ sentry__scope_apply_to_event(const sentry_scope_t *scope,
 #define SET(Key, Value) sentry_value_set_by_key(event, Key, Value)
 #define PLACE_STRING(Key, Source)                                              \
     do {                                                                       \
-        if (IS_NULL(Key) && Source && *Source) {                               \
+        if (IS_NULL(Key) && !sentry__string_empty(Source)) {                   \
             SET(Key, sentry_value_new_string(Source));                         \
         }                                                                      \
     } while (0)
