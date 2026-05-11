@@ -2507,12 +2507,12 @@ write_envelope_with_native_stacktrace(const sentry_options_t *options,
 
     // Add session replay attachment if captured by the daemon
     if (ctx->attach_session_replay && run_folder) {
-        sentry_path_t *clip_path
+        sentry_path_t *replay_path
             = sentry__path_join_str(run_folder, "session-replay.mp4");
-        if (clip_path) {
+        if (replay_path) {
             write_attachment_to_envelope(
-                fd, clip_path->path, "session-replay.mp4", "video/mp4");
-            sentry__path_free(clip_path);
+                fd, replay_path->path, "session-replay.mp4", "video/mp4");
+            sentry__path_free(replay_path);
         }
     }
 
@@ -2754,12 +2754,12 @@ write_envelope_with_minidump(const sentry_options_t *options,
 
     // Add session replay attachment if captured by the daemon
     if (ctx->attach_session_replay && run_folder) {
-        sentry_path_t *clip_path
+        sentry_path_t *replay_path
             = sentry__path_join_str(run_folder, "session-replay.mp4");
-        if (clip_path) {
+        if (replay_path) {
             write_attachment_to_envelope(
-                fd, clip_path->path, "session-replay.mp4", "video/mp4");
-            sentry__path_free(clip_path);
+                fd, replay_path->path, "session-replay.mp4", "video/mp4");
+            sentry__path_free(replay_path);
         }
     }
 
@@ -2950,17 +2950,17 @@ sentry__process_crash(const sentry_options_t *options, sentry_crash_ipc_t *ipc)
     // out-of-process because the underlying OS APIs are not signal-safe.
     if (ctx->attach_session_replay && run_folder) {
         SENTRY_DEBUG("Capturing session replay");
-        sentry_path_t *clip_path
+        sentry_path_t *replay_path
             = sentry__path_join_str(run_folder, "session-replay.mp4");
-        if (clip_path) {
-            if (sentry__session_replay_capture(clip_path,
+        if (replay_path) {
+            if (sentry__session_replay_capture(replay_path,
                     ctx->session_replay_duration_ms,
                     (uint32_t)ctx->crashed_pid)) {
                 SENTRY_DEBUG("Session replay captured successfully");
             } else {
                 SENTRY_DEBUG("Session replay capture failed");
             }
-            sentry__path_free(clip_path);
+            sentry__path_free(replay_path);
         }
     }
 #endif

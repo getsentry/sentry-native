@@ -229,14 +229,15 @@ breakpad_backend_callback(const google_breakpad::MinidumpDescriptor &descriptor,
             }
 
             if (options->attach_session_replay) {
-                sentry_attachment_t *clip = sentry__attachment_from_path(
+                sentry_attachment_t *replay = sentry__attachment_from_path(
                     sentry__session_replay_get_path(options));
-                if (clip
+                if (replay
                     && sentry__session_replay_capture(
-                        clip->path, options->session_replay_duration_ms, 0)) {
-                    sentry__envelope_add_attachment(envelope, clip);
+                        replay->path, options->session_replay_duration_ms,
+                        0)) {
+                    sentry__envelope_add_attachment(envelope, replay);
                 }
-                sentry__attachment_free(clip);
+                sentry__attachment_free(replay);
             }
 
             if (!sentry__launch_external_crash_reporter(options, envelope)) {
