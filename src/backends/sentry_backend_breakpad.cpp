@@ -227,9 +227,8 @@ breakpad_backend_callback(const google_breakpad::MinidumpDescriptor &descriptor,
                     && sentry__replay_clip_capture(
                         clip->path, options->replay_clip_duration_ms, 0)) {
                     sentry__envelope_add_attachment(envelope, clip);
-                } else {
-                    sentry__attachment_free(clip);
                 }
+                sentry__attachment_free(clip);
             }
 
             if (!sentry__launch_external_crash_reporter(options, envelope)) {
