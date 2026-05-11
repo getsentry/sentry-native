@@ -815,8 +815,15 @@ def test_crashpad_external_crash_reporter_wer(cmake, httpserver, run_args):
     test_crashpad_external_crash_reporter(cmake, httpserver, run_args)
 
 
-@pytest.mark.parametrize("cache_keep", [True, False])
-def test_crashpad_cache_keep(cmake, httpserver, cache_keep):
+@pytest.mark.parametrize(
+    "cache_args,expect_cache",
+    [
+        ([], False),
+        (["cache-keep"], True),
+        (["cache-keep-always"], True),
+    ],
+)
+def test_crashpad_cache_keep(cmake, httpserver, cache_args, expect_cache):
     tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "crashpad"})
     cache_dir = tmp_path.joinpath(".sentry-native/cache")
 
@@ -827,7 +834,7 @@ def test_crashpad_cache_keep(cmake, httpserver, cache_keep):
         run(
             tmp_path,
             "sentry_example",
-            ["log", "crash"] + (["cache-keep"] if cache_keep else []),
+            ["log", "crash"] + cache_args,
             expect_failure=True,
             env=env,
         )
@@ -839,7 +846,7 @@ def test_crashpad_cache_keep(cmake, httpserver, cache_keep):
     run(
         tmp_path,
         "sentry_example",
-        ["log", "no-setup"] + (["cache-keep"] if cache_keep else []),
+        ["log", "no-setup"] + cache_args,
         env=env,
     )
 
@@ -847,12 +854,12 @@ def test_crashpad_cache_keep(cmake, httpserver, cache_keep):
     run(
         tmp_path,
         "sentry_example",
-        ["log", "no-setup"] + (["cache-keep"] if cache_keep else []),
+        ["log", "no-setup"] + cache_args,
         env=env,
     )
 
-    assert cache_dir.exists() or cache_keep is False
-    if cache_keep:
+    assert cache_dir.exists() or expect_cache is False
+    if expect_cache:
         cache_files = list(cache_dir.glob("*.envelope"))
         assert len(cache_files) == 1
         with open(cache_files[0], "rb") as f:
@@ -864,6 +871,8 @@ def test_crashpad_cache_keep(cmake, httpserver, cache_keep):
         dmp_files = list(cache_dir.glob("*.dmp"))
         assert len(dmp_files) == 1
         assert cache_files[0].stem == dmp_files[0].stem
+    else:
+        assert not cache_dir.exists() or len(list(cache_dir.glob("*.envelope"))) == 0
 
 
 def test_crashpad_cache_consent(cmake, httpserver):

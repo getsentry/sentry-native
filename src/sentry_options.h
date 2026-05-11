@@ -47,7 +47,7 @@ struct sentry_options_s {
     bool enable_logging_when_crashed;
     bool propagate_traceparent;
     bool crashpad_limit_stack_capture_to_sp;
-    bool cache_keep;
+    sentry_cache_keep_t cache_keep;
 
     time_t cache_max_age;
     size_t cache_max_size;
