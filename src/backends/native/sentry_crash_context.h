@@ -272,9 +272,10 @@ typedef struct {
     bool attach_screenshot; // Screenshot attachment enabled in parent process
     bool attach_replay_clip; // Replay clip attachment enabled in parent process
     uint32_t replay_clip_duration_ms; // Requested replay clip duration in ms
-    bool cache_keep;
+    int cache_keep; // sentry_cache_keep_t
     bool require_user_consent;
     bool enable_large_attachments;
+    bool http_retry;
     uint64_t shutdown_timeout;
 
     // Atomic user consent (sentry_user_consent_t), updated whenever user

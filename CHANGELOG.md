@@ -5,6 +5,12 @@
 **Features**:
 
 - Auto-populate `event.user.id` with a persistent per-installation UUID when no explicit user ID is set. ([#1661](https://github.com/getsentry/sentry-native/pull/1661))
+- Add cache keep modes, including `SENTRY_CACHE_KEEP_ALWAYS` to cache envelopes regardless of upload result. ([#1707](https://github.com/getsentry/sentry-native/pull/1707))
+- Crashpad: add error log for oversized envelopes (HTTP 413 Content Too Large). ([#1706](https://github.com/getsentry/sentry-native/pull/1706), [crashpad#155](https://github.com/getsentry/crashpad/pull/155))
+
+**Fixes**:
+
+- Native/Breakpad/Windows: fixed capturing abort(). ([#1708](https://github.com/getsentry/sentry-native/pull/1708))
 
 ## 0.14.0
 

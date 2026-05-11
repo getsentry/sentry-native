@@ -57,6 +57,14 @@ extern "C" {
 #endif
 
 #ifdef SENTRY_PLATFORM_WINDOWS
+static void
+handle_sigabrt(EXCEPTION_POINTERS *exception_pointers)
+{
+    sentry_ucontext_t uctx = {};
+    uctx.exception_ptrs = *exception_pointers;
+    sentry_handle_exception(&uctx);
+}
+
 static bool
 breakpad_backend_callback(const wchar_t *breakpad_dump_path,
     const wchar_t *minidump_id, void *UNUSED(context),
@@ -311,6 +319,9 @@ breakpad_backend_startup(
     backend->data = new (std::nothrow) google_breakpad::ExceptionHandler(
         current_run_folder->path_w, nullptr, breakpad_backend_callback, nullptr,
         google_breakpad::ExceptionHandler::HANDLER_EXCEPTION);
+    if (backend->data) {
+        sentry__win32_install_sigabrt_handler(handle_sigabrt);
+    }
 #elif defined(SENTRY_PLATFORM_MACOS)
     // If process is being debugged and there are breakpoints set it will cause
     // task_set_exception_ports to crash the whole process and debugger
@@ -332,6 +343,10 @@ breakpad_backend_startup(
 static void
 breakpad_backend_shutdown(sentry_backend_t *backend)
 {
+#ifdef SENTRY_PLATFORM_WINDOWS
+    sentry__win32_restore_sigabrt_handler();
+#endif
+
     const auto *eh
         = static_cast<google_breakpad::ExceptionHandler *>(backend->data);
     backend->data = nullptr;

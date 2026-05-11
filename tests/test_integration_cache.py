@@ -2,7 +2,7 @@ import os
 import time
 import pytest
 
-from . import run
+from . import make_dsn, run
 from .conditions import has_breakpad, has_files, has_http, is_qemu
 
 pytestmark = [
@@ -11,7 +11,14 @@ pytestmark = [
 ]
 
 
-@pytest.mark.parametrize("cache_keep", [True, False])
+@pytest.mark.parametrize(
+    "cache_args,expect_cache",
+    [
+        ([], False),
+        (["cache-keep"], True),
+        (["cache-keep-always"], True),
+    ],
+)
 @pytest.mark.parametrize(
     "backend",
     [
@@ -24,7 +31,7 @@ pytestmark = [
         ),
     ],
 )
-def test_cache_keep(cmake, backend, cache_keep, unreachable_dsn):
+def test_cache_keep(cmake, backend, cache_args, expect_cache, unreachable_dsn):
     tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": backend})
     cache_dir = tmp_path.joinpath(".sentry-native/cache")
     env = dict(os.environ, SENTRY_DSN=unreachable_dsn)
@@ -33,8 +40,7 @@ def test_cache_keep(cmake, backend, cache_keep, unreachable_dsn):
     run(
         tmp_path,
         "sentry_example",
-        ["log", "no-http-retry", "flush", "crash"]
-        + (["cache-keep"] if cache_keep else []),
+        ["log", "no-http-retry", "flush", "crash"] + cache_args,
         expect_failure=True,
         env=env,
     )
@@ -45,19 +51,38 @@ def test_cache_keep(cmake, backend, cache_keep, unreachable_dsn):
     run(
         tmp_path,
         "sentry_example",
-        ["log", "no-http-retry", "flush", "no-setup"]
-        + (["cache-keep"] if cache_keep else []),
+        ["log", "no-http-retry", "flush", "no-setup"] + cache_args,
         env=env,
     )
 
-    assert cache_dir.exists() or cache_keep is False
-    if cache_keep:
+    assert cache_dir.exists() or expect_cache is False
+    if expect_cache:
         cache_files = list(cache_dir.glob("*.envelope"))
         assert len(cache_files) == 1
         if backend != "inproc":
             dmp_files = list(cache_dir.glob("*.dmp"))
             assert len(dmp_files) == 1
             assert cache_files[0].stem == dmp_files[0].stem
+
+
+def test_cache_keep_always(cmake, httpserver):
+    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "inproc"})
+    cache_dir = tmp_path.joinpath(".sentry-native/cache")
+    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
+
+    httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data("OK")
+    with httpserver.wait(timeout=10) as waiting:
+        run(
+            tmp_path,
+            "sentry_example",
+            ["log", "cache-keep-always", "flush", "capture-event"],
+            env=env,
+        )
+    assert waiting.result
+
+    cache_files = list(cache_dir.glob("*.envelope"))
+    assert len(cache_files) == 1
+    assert len(cache_files[0].stem) == 36
 
 
 @pytest.mark.parametrize(
