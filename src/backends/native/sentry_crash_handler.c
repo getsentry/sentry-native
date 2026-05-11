@@ -9,6 +9,7 @@
 #include "sentry_alloc.h"
 #include "sentry_core.h"
 #include "sentry_logger.h"
+#include "sentry_os.h"
 #include "sentry_sync.h"
 
 #include <string.h>
@@ -878,6 +879,14 @@ sentry__crash_handler_shutdown(void)
 static sentry_crash_ipc_t *g_crash_ipc = NULL;
 static LPTOP_LEVEL_EXCEPTION_FILTER g_previous_filter = NULL;
 
+static LONG WINAPI crash_exception_filter(EXCEPTION_POINTERS *exception_info);
+
+static void
+crash_sigabrt_handler(EXCEPTION_POINTERS *exception_pointers)
+{
+    crash_exception_filter(exception_pointers);
+}
+
 /**
  * Windows exception filter (crash handler)
  */
@@ -973,6 +982,7 @@ sentry__crash_handler_init(sentry_crash_ipc_t *ipc)
 
     // Install exception filter
     g_previous_filter = SetUnhandledExceptionFilter(crash_exception_filter);
+    sentry__win32_install_sigabrt_handler(crash_sigabrt_handler);
 
     SENTRY_DEBUG("crash handler initialized (Windows SEH)");
     return 0;
@@ -986,6 +996,8 @@ sentry__crash_handler_shutdown(void)
         SetUnhandledExceptionFilter(g_previous_filter);
         g_previous_filter = NULL;
     }
+
+    sentry__win32_restore_sigabrt_handler();
 
     g_crash_ipc = NULL;
 
