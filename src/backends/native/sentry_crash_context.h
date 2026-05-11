@@ -273,7 +273,7 @@ typedef struct {
     bool attach_session_replay; // Session replay attachment enabled in parent
                                 // process
     uint32_t session_replay_duration; // Requested session replay duration in
-                                         // ms
+                                      // ms
     int cache_keep; // sentry_cache_keep_t
     bool require_user_consent;
     bool enable_large_attachments;
