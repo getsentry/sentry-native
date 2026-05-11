@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1778486287970,
+  "lastUpdate": 1778487183792,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -20116,6 +20116,66 @@ window.BENCHMARK_DATA = {
             "value": 1.9553999999288862,
             "unit": "ms",
             "extra": "Min 1.883ms\nMax 1.986ms\nMean 1.947ms\nStdDev 0.042ms\nMedian 1.955ms\nCPU 0.535ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "jpnurmi@gmail.com",
+            "name": "J-P Nurmi",
+            "username": "jpnurmi"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "aa33fdc5b667d8fa87ca54d0c059d3e4c2230400",
+          "message": "fix(native/breakpad): capture abort() on Windows (#1708)\n\n* feat(native): capture abort() on Windows\n\n* Update CHANGELOG.md\n\n* fix: share Windows abort handling across backends\n\n* Update CHANGELOG.md\n\n* fix: guard Windows abort handler installation",
+          "timestamp": "2026-05-11T10:10:27+02:00",
+          "tree_id": "ff4908101521c1f02b1dd597031398bcf0b278d3",
+          "url": "https://github.com/getsentry/sentry-native/commit/aa33fdc5b667d8fa87ca54d0c059d3e4c2230400"
+        },
+        "date": 1778487179409,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 0.7721759999981259,
+            "unit": "ms",
+            "extra": "Min 0.762ms\nMax 0.789ms\nMean 0.775ms\nStdDev 0.011ms\nMedian 0.772ms\nCPU 0.738ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 0.720788000023731,
+            "unit": "ms",
+            "extra": "Min 0.706ms\nMax 0.766ms\nMean 0.729ms\nStdDev 0.025ms\nMedian 0.721ms\nCPU 0.728ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 2.888912999992499,
+            "unit": "ms",
+            "extra": "Min 2.678ms\nMax 50.140ms\nMean 18.004ms\nStdDev 21.888ms\nMedian 2.889ms\nCPU 1.427ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.1033160000361022,
+            "unit": "ms",
+            "extra": "Min 0.102ms\nMax 0.111ms\nMean 0.106ms\nStdDev 0.004ms\nMedian 0.103ms\nCPU 0.065ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.02466699999104094,
+            "unit": "ms",
+            "extra": "Min 0.024ms\nMax 0.026ms\nMean 0.025ms\nStdDev 0.001ms\nMedian 0.025ms\nCPU 0.024ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 1.510099999961767,
+            "unit": "ms",
+            "extra": "Min 1.493ms\nMax 1.570ms\nMean 1.518ms\nStdDev 0.030ms\nMedian 1.510ms\nCPU 0.420ms"
           }
         ]
       }
