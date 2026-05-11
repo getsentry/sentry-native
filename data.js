@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1778498169150,
+  "lastUpdate": 1778498270809,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -40474,6 +40474,66 @@ window.BENCHMARK_DATA = {
             "value": 7.410750000076405,
             "unit": "ms",
             "extra": "Min 6.737ms\nMax 9.974ms\nMean 7.678ms\nStdDev 1.324ms\nMedian 7.411ms\nCPU 1.218ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "jpnurmi@gmail.com",
+            "name": "J-P Nurmi",
+            "username": "jpnurmi"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "d0db4654e7ca538cf7f6d1a7de727c8a2ef29241",
+          "message": "feat: add cache keep modes (#1707)\n\nCo-authored-by: OpenAI Codex <noreply@openai.com>",
+          "timestamp": "2026-05-11T13:11:54+02:00",
+          "tree_id": "53ed36256c7a02efeedc6516934c3bb36d760f32",
+          "url": "https://github.com/getsentry/sentry-native/commit/d0db4654e7ca538cf7f6d1a7de727c8a2ef29241"
+        },
+        "date": 1778498262293,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 6.79870800001936,
+            "unit": "ms",
+            "extra": "Min 5.006ms\nMax 17.911ms\nMean 9.609ms\nStdDev 5.467ms\nMedian 6.799ms\nCPU 4.352ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 4.5050839999873915,
+            "unit": "ms",
+            "extra": "Min 3.952ms\nMax 5.277ms\nMean 4.549ms\nStdDev 0.499ms\nMedian 4.505ms\nCPU 2.571ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 53.46145900000465,
+            "unit": "ms",
+            "extra": "Min 37.035ms\nMax 98.823ms\nMean 62.293ms\nStdDev 24.402ms\nMedian 53.461ms\nCPU 9.283ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.09037499995656617,
+            "unit": "ms",
+            "extra": "Min 0.062ms\nMax 6.581ms\nMean 1.378ms\nStdDev 2.908ms\nMedian 0.090ms\nCPU 1.344ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.2730420000034428,
+            "unit": "ms",
+            "extra": "Min 0.245ms\nMax 0.564ms\nMean 0.324ms\nStdDev 0.135ms\nMedian 0.273ms\nCPU 0.314ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 17.98991699996577,
+            "unit": "ms",
+            "extra": "Min 10.565ms\nMax 24.054ms\nMean 16.755ms\nStdDev 5.574ms\nMedian 17.990ms\nCPU 2.086ms"
           }
         ]
       }
