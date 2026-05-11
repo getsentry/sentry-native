@@ -386,7 +386,7 @@ crashpad_handler(int signum, siginfo_t *info, ucontext_t *user_context)
 
         if (should_dump) {
             flush_scope_from_handler(options, crash_event);
-            sentry__write_crash_marker(options);
+            sentry__write_crash_marker(options, &state->crash_event_id);
 
             sentry__record_errors_on_current_session(1);
             sentry_session_t *session = sentry__end_current_session_with_status(

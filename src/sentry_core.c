@@ -1,6 +1,7 @@
 #include "sentry_boot.h"
 
 #include <stdarg.h>
+#include <stddef.h>
 #include <string.h>
 
 #include "sentry_attachment.h"
@@ -44,6 +45,13 @@ static sentry_mutex_t g_options_lock = SENTRY__MUTEX_INIT;
 #endif
 /// see sentry_get_crashed_last_run() for the possible values
 static int g_last_crash = -1;
+static sentry_last_crash_t g_last_crash_info;
+
+static inline bool
+last_crash_has_field(size_t struct_size, size_t offset, size_t size)
+{
+    return offset <= struct_size && size <= struct_size - offset;
+}
 
 const sentry_options_t *
 sentry__options_getref(void)
@@ -194,7 +202,7 @@ sentry_init(sentry_options_t *options)
         last_crash = backend->get_last_crash_func(backend);
     }
 
-    g_last_crash = sentry__has_crash_marker(options);
+    g_last_crash = sentry__read_crash_marker(options, &g_last_crash_info);
     g_options = options;
 
     // *after* setting the global options, trigger a scope and consent flush,
@@ -1742,6 +1750,28 @@ sentry__launch_external_crash_reporter(
 int
 sentry_get_crashed_last_run(void)
 {
+    return g_last_crash;
+}
+
+int
+sentry_get_last_crash(sentry_last_crash_t *crash, size_t crash_size)
+{
+    if (crash && crash_size > 0) {
+        memset(crash, 0, crash_size);
+
+        if (g_last_crash == 1
+            && last_crash_has_field(crash_size,
+                offsetof(sentry_last_crash_t, timestamp),
+                sizeof(crash->timestamp))) {
+            crash->timestamp = g_last_crash_info.timestamp;
+        }
+        if (g_last_crash == 1
+            && last_crash_has_field(crash_size,
+                offsetof(sentry_last_crash_t, event_id),
+                sizeof(crash->event_id))) {
+            crash->event_id = g_last_crash_info.event_id;
+        }
+    }
     return g_last_crash;
 }
 

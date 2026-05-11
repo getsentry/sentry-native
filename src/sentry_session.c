@@ -182,7 +182,7 @@ sentry__session_from_json(const char *buf, size_t buflen)
     rv->errors = (uint64_t)sentry_value_as_int32(
         sentry_value_get_by_key(value, "errors"));
     rv->started_us = sentry__iso8601_to_usec(
-        sentry_value_as_string(sentry_value_get_by_key(value, "started")));
+        sentry_value_as_string(sentry_value_get_by_key(value, "started")), -1);
 
     double duration
         = sentry_value_as_double(sentry_value_get_by_key(value, "duration"));

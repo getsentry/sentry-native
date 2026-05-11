@@ -986,10 +986,11 @@ native_backend_except(sentry_backend_t *backend, const sentry_ucontext_t *uctx)
         }
 
         // Write crash marker
-        sentry__write_crash_marker(options);
+        sentry_uuid_t event_id = sentry__new_event_id();
+        sentry__write_crash_marker(options, &event_id);
 
         // Create crash event
-        sentry_value_t event = sentry_value_new_event();
+        sentry_value_t event = sentry__value_new_event_with_id(&event_id);
         sentry_value_set_by_key(
             event, "level", sentry__value_new_level(SENTRY_LEVEL_FATAL));
 

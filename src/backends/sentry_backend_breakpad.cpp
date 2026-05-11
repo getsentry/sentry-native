@@ -132,12 +132,13 @@ breakpad_backend_callback(const google_breakpad::MinidumpDescriptor &descriptor,
 #else
     dump_path = sentry__path_new(descriptor.path());
 #endif
-    sentry_value_t event = sentry_value_new_event();
+    sentry_uuid_t event_id = sentry__new_event_id();
+    sentry_value_t event = sentry__value_new_event_with_id(&event_id);
     sentry_value_set_by_key(
         event, "level", sentry__value_new_level(SENTRY_LEVEL_FATAL));
 
     SENTRY_WITH_OPTIONS (options) {
-        sentry__write_crash_marker(options);
+        sentry__write_crash_marker(options, &event_id);
 
         bool should_handle = true;
 

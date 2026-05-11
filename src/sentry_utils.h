@@ -249,7 +249,7 @@ char *sentry__usec_time_to_iso8601(uint64_t time);
  * This only accepts the format `YYYY-MM-DD'T'hh:mm:ss(.zzzzzz)'Z'`, which is
  * produced by the `sentry__usec_time_to_iso8601` function.
  */
-uint64_t sentry__iso8601_to_usec(const char *iso);
+uint64_t sentry__iso8601_to_usec(const char *iso, size_t iso_len);
 
 /**
  * Locale independent (or rather, using "C" locale) `strtod`.

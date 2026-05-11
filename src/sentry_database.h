@@ -192,7 +192,14 @@ void sentry__cleanup_cache(const sentry_options_t *options);
  * This will write the current ISO8601 formatted timestamp into the
  * `<database>/last_crash` file.
  */
-bool sentry__write_crash_marker(const sentry_options_t *options);
+bool sentry__write_crash_marker(
+    const sentry_options_t *options, const sentry_uuid_t *event_id);
+
+/**
+ * This will read the crash information from the `<database>/last_crash` file.
+ */
+int sentry__read_crash_marker(
+    const sentry_options_t *options, sentry_last_crash_t *crash);
 
 /**
  * This will check whether the `<database>/last_crash` file exists.
