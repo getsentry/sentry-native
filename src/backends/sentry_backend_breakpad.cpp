@@ -233,7 +233,7 @@ breakpad_backend_callback(const google_breakpad::MinidumpDescriptor &descriptor,
                     sentry__session_replay_get_path(options));
                 if (replay
                     && sentry__session_replay_capture(
-                        replay->path, options->session_replay_duration_ms, 0)) {
+                        replay->path, options->session_replay_duration, 0)) {
                     sentry__envelope_add_attachment(envelope, replay);
                 }
                 sentry__attachment_free(replay);

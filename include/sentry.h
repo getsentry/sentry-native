@@ -1661,7 +1661,7 @@ SENTRY_EXPERIMENTAL_API void sentry_options_set_before_screenshot(
  * supported on Xbox via the OS-managed game recording ring. The replay is
  * attached to the crash envelope as `session-replay.mp4`.
  *
- * Set the duration via `sentry_options_set_session_replay_duration_ms`
+ * Set the duration via `sentry_options_set_session_replay_duration`
  * (default 5000 ms). Disabled by default. Must be set before `sentry_init`.
  */
 SENTRY_EXPERIMENTAL_API void sentry_options_set_attach_session_replay(
@@ -1674,7 +1674,7 @@ SENTRY_EXPERIMENTAL_API void sentry_options_set_attach_session_replay(
  * The resulting replay can be shorter than the requested duration if it hasn't
  * accumulated enough buffered frames yet. Defaults to 5000 ms.
  */
-SENTRY_EXPERIMENTAL_API void sentry_options_set_session_replay_duration_ms(
+SENTRY_EXPERIMENTAL_API void sentry_options_set_session_replay_duration(
     sentry_options_t *opts, uint32_t duration_ms);
 
 /**

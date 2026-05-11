@@ -49,7 +49,7 @@ sentry_options_new(void)
     opts->system_crash_reporter_enabled = false;
     opts->attach_screenshot = false;
     opts->attach_session_replay = false;
-    opts->session_replay_duration_ms = 5000;
+    opts->session_replay_duration = 5000;
     opts->crashpad_wait_for_upload = false;
     // On macOS, breakpad suspends all other threads of the process before
     // writing the minidump and invokes our backend callback from inside
@@ -665,10 +665,10 @@ sentry_options_set_attach_session_replay(sentry_options_t *opts, int val)
 }
 
 void
-sentry_options_set_session_replay_duration_ms(
+sentry_options_set_session_replay_duration(
     sentry_options_t *opts, uint32_t duration_ms)
 {
-    opts->session_replay_duration_ms = duration_ms;
+    opts->session_replay_duration = duration_ms;
 }
 
 void

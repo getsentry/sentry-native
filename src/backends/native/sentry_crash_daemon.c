@@ -2954,7 +2954,7 @@ sentry__process_crash(const sentry_options_t *options, sentry_crash_ipc_t *ipc)
             = sentry__path_join_str(run_folder, "session-replay.mp4");
         if (replay_path) {
             if (sentry__session_replay_capture(replay_path,
-                    ctx->session_replay_duration_ms,
+                    ctx->session_replay_duration,
                     (uint32_t)ctx->crashed_pid)) {
                 SENTRY_DEBUG("Session replay captured successfully");
             } else {
@@ -3331,8 +3331,8 @@ sentry__crash_daemon_main(pid_t app_pid, uint64_t app_tid, HANDLE event_handle,
     sentry_options_set_debug(options, ipc->shmem->debug_enabled);
     options->attach_screenshot = ipc->shmem->attach_screenshot;
     options->attach_session_replay = ipc->shmem->attach_session_replay;
-    options->session_replay_duration_ms
-        = ipc->shmem->session_replay_duration_ms;
+    options->session_replay_duration
+        = ipc->shmem->session_replay_duration;
     options->cache_keep = (sentry_cache_keep_t)ipc->shmem->cache_keep;
     options->enable_large_attachments = ipc->shmem->enable_large_attachments;
     options->http_retry = false;
