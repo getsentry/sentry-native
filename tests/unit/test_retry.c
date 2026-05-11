@@ -462,6 +462,27 @@ SENTRY_TEST(retry_cache_keep_always)
     TEST_CHECK(sentry__path_is_file(cached));
     TEST_CHECK(sentry__path_is_file(sib_path));
 
+    sentry__path_remove_all(cache_path);
+    sentry__path_create_dir_all(cache_path);
+    TEST_ASSERT(sentry__path_write_buffer(cached, "cached", 6) == 0);
+
+    old_ts = sentry__usec_time() / 1000 - 2 * sentry__retry_backoff(5);
+    write_retry_file(options->run, old_ts, 5, &event_id);
+    TEST_CHECK_INT_EQUAL(count_envelope_files(cache_path), 2);
+
+    ctx = (retry_test_ctx_t) { -1, 0 };
+    sentry__retry_send(retry, 0, test_send_cb, &ctx);
+    TEST_CHECK_INT_EQUAL(ctx.count, 1);
+    TEST_CHECK_INT_EQUAL(count_envelope_files(cache_path), 1);
+    TEST_CHECK(sentry__path_is_file(cached));
+
+    size_t cached_len = 0;
+    char *cached_buf = sentry__path_read_to_buffer(cached, &cached_len);
+    TEST_ASSERT(!!cached_buf);
+    TEST_CHECK_INT_EQUAL(cached_len, 6);
+    TEST_CHECK_STRING_EQUAL(cached_buf, "cached");
+    sentry_free(cached_buf);
+
     sentry__retry_free(retry);
     sentry__path_free(sib_path);
     sentry__path_free(cached);
