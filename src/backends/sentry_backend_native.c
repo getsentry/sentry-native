@@ -33,14 +33,20 @@
 #include "sentry_options.h"
 #include "sentry_os.h"
 #include "sentry_path.h"
+#include "sentry_string.h"
 
 #include "sentry_scope.h"
 #include "sentry_session.h"
 #include "sentry_sync.h"
 #include "sentry_tracing.h"
 #include "sentry_transport.h"
+#include "sentry_uuid.h"
 #include "sentry_value.h"
 #include "transports/sentry_disk_transport.h"
+
+#if defined(SENTRY_PLATFORM_WINDOWS)
+#    include "sentry_wer_report.h"
+#endif
 
 // Global process-wide synchronization for IPC and shared memory access
 // This lives for the entire backend lifetime and is shared across all threads
@@ -116,6 +122,7 @@ wer_unregister_module(void)
         return;
     }
 
+    WerUnregisterCustomMetadata(SENTRY_WER_EVENT_ID_KEY_W);
     WerUnregisterRuntimeExceptionModule(
         g_wer_path->path_w, &g_wer_registration);
     wer_delete_registry_value(g_wer_path);
@@ -124,21 +131,21 @@ wer_unregister_module(void)
     memset(&g_wer_registration, 0, sizeof(g_wer_registration));
 }
 
-static void
-wer_register_module(uint64_t app_tid)
+static bool
+wer_register_module(uint64_t app_tid, const char *event_id)
 {
     windows_version_t win_ver;
     if (!sentry__get_windows_version(&win_ver) || win_ver.build < 19041) {
         SENTRY_WARN("Native WER module not registered, because Windows "
                     "doesn't meet version requirements (build >= 19041).");
-        return;
+        return false;
     }
 
     sentry_path_t *wer_path = wer_default_path();
     if (!wer_path || !sentry__path_is_file(wer_path)) {
         SENTRY_WARN("Native WER module not found");
         sentry__path_free(wer_path);
-        return;
+        return false;
     }
 
     const DWORD one = 1;
@@ -146,25 +153,54 @@ wer_register_module(uint64_t app_tid)
     if (reg_res != ERROR_SUCCESS) {
         SENTRY_WARN("registering native WER module in registry failed");
         sentry__path_free(wer_path);
-        return;
+        return false;
     }
 
     g_wer_registration.version = 1;
     g_wer_registration.app_pid = GetCurrentProcessId();
     g_wer_registration.app_tid = app_tid;
 
-    HRESULT hr = WerRegisterRuntimeExceptionModule(
-        wer_path->path_w, &g_wer_registration);
-    if (FAILED(hr)) {
-        SENTRY_WARN("registering native WER module failed");
+    if (sentry__string_empty(event_id)) {
         wer_delete_registry_value(wer_path);
         sentry__path_free(wer_path);
         memset(&g_wer_registration, 0, sizeof(g_wer_registration));
-        return;
+        return false;
+    }
+
+    wchar_t *event_id_w = sentry__string_to_wstr(event_id);
+    if (!event_id_w) {
+        wer_delete_registry_value(wer_path);
+        sentry__path_free(wer_path);
+        memset(&g_wer_registration, 0, sizeof(g_wer_registration));
+        return false;
+    }
+
+    HRESULT hr
+        = WerRegisterCustomMetadata(SENTRY_WER_EVENT_ID_KEY_W, event_id_w);
+    sentry_free(event_id_w);
+    if (FAILED(hr)) {
+        SENTRY_WARN("registering native WER event ID failed");
+        wer_delete_registry_value(wer_path);
+        sentry__path_free(wer_path);
+        memset(&g_wer_registration, 0, sizeof(g_wer_registration));
+        return false;
+    }
+    SENTRY_DEBUGF("registered native WER event ID \"%s\"", event_id);
+
+    hr = WerRegisterRuntimeExceptionModule(
+        wer_path->path_w, &g_wer_registration);
+    if (FAILED(hr)) {
+        SENTRY_WARN("registering native WER module failed");
+        WerUnregisterCustomMetadata(SENTRY_WER_EVENT_ID_KEY_W);
+        wer_delete_registry_value(wer_path);
+        sentry__path_free(wer_path);
+        memset(&g_wer_registration, 0, sizeof(g_wer_registration));
+        return false;
     }
 
     SENTRY_DEBUGF("registered native WER module \"%s\"", wer_path->path);
     g_wer_path = wer_path;
+    return true;
 }
 
 #endif
@@ -175,6 +211,7 @@ wer_register_module(uint64_t app_tid)
 typedef struct {
     sentry_crash_ipc_t *ipc;
     pid_t daemon_pid;
+    sentry_uuid_t crash_event_id;
     sentry_path_t *event_path;
     sentry_path_t *breadcrumb1_path;
     sentry_path_t *breadcrumb2_path;
@@ -289,6 +326,9 @@ native_backend_startup(
 #endif
 
     sentry_crash_context_t *ctx = state->ipc->shmem;
+
+    state->crash_event_id = sentry__new_event_id();
+    sentry_uuid_as_string(&state->crash_event_id, ctx->crash_event_id);
 
     // Set minidump mode from options
     ctx->minidump_mode = (sentry_minidump_mode_t)options->minidump_mode;
@@ -526,7 +566,8 @@ native_backend_startup(
     }
 
 #    if defined(SENTRY_PLATFORM_WINDOWS) && !defined(SENTRY_PLATFORM_XBOX)
-    wer_register_module(tid);
+    state->ipc->shmem->platform.wer_enabled
+        = wer_register_module(tid, ctx->crash_event_id);
 #    endif
 
     if (sentry__crash_handler_init(state->ipc) < 0) {
@@ -785,7 +826,8 @@ native_backend_flush_scope(
     }
 
     // Create event with current scope
-    sentry_value_t event = sentry_value_new_object();
+    sentry_value_t event
+        = sentry__value_new_event_with_id(&state->crash_event_id);
     sentry_value_set_by_key(
         event, "level", sentry__value_new_level(SENTRY_LEVEL_FATAL));
 
@@ -999,7 +1041,9 @@ native_backend_except(sentry_backend_t *backend, const sentry_ucontext_t *uctx)
             = sentry__trace_finish(SENTRY_SPAN_STATUS_ABORTED);
 
         // Create crash event
-        sentry_value_t event = sentry_value_new_event();
+        sentry_value_t event = state
+            ? sentry__value_new_event_with_id(&state->crash_event_id)
+            : sentry_value_new_event();
         sentry_value_set_by_key(
             event, "level", sentry__value_new_level(SENTRY_LEVEL_FATAL));
 

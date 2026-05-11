@@ -194,6 +194,8 @@ elseif(SENTRY_BACKEND_NATIVE)
 	elseif(WIN32)
 		sentry_target_sources_cwd(sentry
 			backends/native/minidump/sentry_minidump_windows.c
+			backends/native/sentry_wer_report.c
+			backends/native/sentry_wer_report.h
 		)
 	endif()
 

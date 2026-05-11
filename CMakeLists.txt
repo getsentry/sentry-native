@@ -821,6 +821,7 @@ elseif(SENTRY_BACKEND_NATIVE)
 			${PROJECT_SOURCE_DIR}/src/backends/native
 		)
 		target_link_libraries(sentry-wer PRIVATE wer)
+		target_link_libraries(sentry PRIVATE wer)
 		set_property(TARGET sentry-wer PROPERTY PREFIX "") # ensure MINGW doesn't prefix "lib" to dll name
 		set_property(TARGET sentry-wer PROPERTY DEBUG_POSTFIX "") # prevent CMAKE_DEBUG_POSTFIX from being applied
 		if(SENTRY_BUILD_RUNTIMESTATIC AND MSVC)
@@ -868,6 +869,9 @@ elseif(SENTRY_BACKEND_NATIVE)
 
 	# Link same libraries as sentry
 	target_link_libraries(sentry-crash PRIVATE ${_SENTRY_PLATFORM_LIBS})
+	if(WIN32)
+		target_link_libraries(sentry-crash PRIVATE wer)
+	endif()
 	if(APPLE)
 		find_library(COREFOUNDATION_LIBRARY CoreFoundation REQUIRED)
 		find_library(SECURITY_LIBRARY Security REQUIRED)

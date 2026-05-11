@@ -13,6 +13,9 @@
 // Include native backend headers
 #    include "../../src/backends/native/minidump/sentry_minidump_format.h"
 #    include "../../src/backends/native/sentry_crash_context.h"
+#    if defined(SENTRY_PLATFORM_WINDOWS)
+#        include "../../src/backends/native/sentry_wer_report.h"
+#    endif
 #endif
 
 #if defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID)
@@ -580,5 +583,63 @@ SENTRY_TEST(elf_header_entry_sizes)
     TEST_CHECK(!sentry__elf_is_native_class(e_ident));
     TEST_CHECK(!sentry__elf_has_shdr_size(e_ident, shdr_size));
     TEST_CHECK(!sentry__elf_has_phdr_size(e_ident, phdr_size));
+#endif
+}
+
+SENTRY_TEST(wer_metadata)
+{
+#if defined(SENTRY_BACKEND_NATIVE) && defined(SENTRY_PLATFORM_WINDOWS)
+    const char metadata[]
+        = "<?xml version=\"1.0\" encoding=\"utf-16\"?>\r\n"
+          "<WERReportMetadata>\r\n"
+          "  <ReportInformation>\r\n"
+          "    <Guid>99926ddc-16e9-4b01-a13d-53dce7433e3f</Guid>\r\n"
+          "    <CreationTime>2026-05-12T20:17:11Z</CreationTime>\r\n"
+          "  </ReportInformation>\r\n"
+          "  <ProblemSignatures>\r\n"
+          "    <EventType>APPCRASH</EventType>\r\n"
+          "    <Parameter0>sentry-playground.exe</Parameter0>\r\n"
+          "    <Parameter3>sentry-playground.exe</Parameter3>\r\n"
+          "    <Parameter6>c0000005</Parameter6>\r\n"
+          "    <Parameter7>0000000000012345</Parameter7>\r\n"
+          "  </ProblemSignatures>\r\n"
+          "  <ProcessMetadata>\r\n"
+          "    <baz>zzz</baz>\r\n"
+          "    <bar>aaa</bar>\r\n"
+          "    <foo>ooo</foo>\r\n"
+          "    <SentryEventId>internal-marker</SentryEventId>\r\n"
+          "  </ProcessMetadata>\r\n"
+          "</WERReportMetadata>\r\n";
+
+    sentry_value_t wer_report
+        = sentry__wer_report_from_buffer(metadata, strlen(metadata));
+    TEST_CHECK(!sentry_value_is_null(wer_report));
+    TEST_CHECK(sentry_value_get_type(wer_report) == SENTRY_VALUE_TYPE_OBJECT);
+    TEST_CHECK_STRING_EQUAL(sentry_value_as_string(sentry_value_get_by_key(
+                                wer_report, "report_id")),
+        "99926ddc-16e9-4b01-a13d-53dce7433e3f");
+
+    sentry_value_t custom_metadata
+        = sentry_value_get_by_key(wer_report, "metadata");
+    TEST_CHECK(
+        sentry_value_get_type(custom_metadata) == SENTRY_VALUE_TYPE_OBJECT);
+    TEST_CHECK_STRING_EQUAL(sentry_value_as_string(sentry_value_get_by_key(
+                                custom_metadata, "foo")),
+        "ooo");
+    TEST_CHECK_STRING_EQUAL(sentry_value_as_string(sentry_value_get_by_key(
+                                custom_metadata, "bar")),
+        "aaa");
+    TEST_CHECK_STRING_EQUAL(sentry_value_as_string(sentry_value_get_by_key(
+                                custom_metadata, "baz")),
+        "zzz");
+    TEST_CHECK(sentry_value_is_null(
+        sentry_value_get_by_key(custom_metadata, SENTRY_WER_EVENT_ID_KEY)));
+    TEST_CHECK(
+        sentry_value_is_null(sentry_value_get_by_key(wer_report, "source")));
+    TEST_CHECK(sentry_value_is_null(
+        sentry_value_get_by_key(wer_report, "application_name")));
+    sentry_value_decref(wer_report);
+#else
+    SKIP_TEST();
 #endif
 }

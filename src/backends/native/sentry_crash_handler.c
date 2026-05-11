@@ -1017,6 +1017,12 @@ crash_exception_filter(EXCEPTION_POINTERS *exception_info)
     sentry_uctx.exception_ptrs = *exception_info;
     sentry_handle_exception(&sentry_uctx);
 
+    if (ctx->platform.wer_enabled) {
+        // Use the WER helper notification path so WER metadata is available
+        // before the daemon processes the crash
+        return EXCEPTION_CONTINUE_SEARCH;
+    }
+
     bool swap_result = sentry__atomic_compare_swap(
         &ctx->state, SENTRY_CRASH_STATE_READY, SENTRY_CRASH_STATE_CRASHED);
 

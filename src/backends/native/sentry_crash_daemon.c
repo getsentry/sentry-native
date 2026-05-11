@@ -21,6 +21,9 @@
 #include "sentry_utils.h"
 #include "sentry_uuid.h"
 #include "sentry_value.h"
+#if defined(SENTRY_PLATFORM_WINDOWS)
+#    include "sentry_wer_report.h"
+#endif
 #include "transports/sentry_disk_transport.h"
 
 #include <limits.h>
@@ -2232,6 +2235,38 @@ build_stacktrace_from_ctx(const sentry_crash_context_t *ctx)
     return build_stacktrace_for_thread(ctx, SIZE_MAX);
 }
 
+#if defined(SENTRY_PLATFORM_WINDOWS)
+static void
+add_wer_context(sentry_value_t event, const sentry_crash_context_t *ctx)
+{
+    if (sentry__string_empty(ctx->platform.wer_report_id)) {
+        return;
+    }
+
+    sentry_value_t wer_context = sentry__wer_report_new(ctx->crash_event_id);
+    if (sentry_value_is_null(wer_context)) {
+        wer_context = sentry_value_new_object();
+    }
+
+    sentry_value_set_by_key(
+        wer_context, "type", sentry_value_new_string("wer"));
+    const char *context_report_id = sentry_value_as_string(
+        sentry_value_get_by_key(wer_context, "report_id"));
+    if (sentry__string_empty(context_report_id)) {
+        sentry_value_set_by_key(
+            wer_context, "report_id",
+            sentry_value_new_string(ctx->platform.wer_report_id));
+    }
+
+    sentry_value_t contexts = sentry_value_get_by_key(event, "contexts");
+    if (sentry_value_get_type(contexts) != SENTRY_VALUE_TYPE_OBJECT) {
+        contexts = sentry_value_new_object();
+        sentry_value_set_by_key(event, "contexts", contexts);
+    }
+    sentry_value_set_by_key(contexts, "wer", wer_context);
+}
+#endif
+
 /**
  * Build native crash event with exception, mechanism, and debug_meta
  *
@@ -2260,6 +2295,11 @@ build_native_crash_event(
 
     if (sentry_value_is_null(event)) {
         event = sentry_value_new_event();
+    }
+
+    if (!sentry__string_empty(ctx->crash_event_id)) {
+        sentry_value_set_by_key(
+            event, "event_id", sentry_value_new_string(ctx->crash_event_id));
     }
 
     // Set platform to native
@@ -2582,6 +2622,10 @@ build_native_crash_event(
         SENTRY_WARN("No modules captured - debug_meta.images will be empty!");
     }
 
+#if defined(SENTRY_PLATFORM_WINDOWS)
+    add_wer_context(event, ctx);
+#endif
+
     return event;
 }
 
@@ -2850,7 +2894,7 @@ write_envelope_with_minidump(const sentry_options_t *options,
     // Read event JSON data
     size_t event_size = 0;
     char *event_json = NULL;
-    char *event_id = NULL;
+    const char *event_id = ctx->crash_event_id;
     sentry_path_t *ev_path = sentry__path_from_str(event_msgpack_path);
     if (ev_path) {
         event_json = sentry__path_read_to_buffer(ev_path, &event_size);
@@ -2858,8 +2902,17 @@ write_envelope_with_minidump(const sentry_options_t *options,
         if (event_json && event_size > 0) {
             sentry_value_t event
                 = sentry__value_from_json(event_json, event_size);
-            event_id = sentry__string_clone(sentry_value_as_string(
-                sentry_value_get_by_key(event, "event_id")));
+            if (!sentry_value_is_null(event)) {
+#if defined(SENTRY_PLATFORM_WINDOWS)
+                add_wer_context(event, ctx);
+#endif
+                char *updated_event_json = sentry_value_to_json(event);
+                if (updated_event_json) {
+                    sentry_free(event_json);
+                    event_json = updated_event_json;
+                    event_size = strlen(event_json);
+                }
+            }
             sentry_value_decref(event);
         }
     }
@@ -2878,7 +2931,6 @@ write_envelope_with_minidump(const sentry_options_t *options,
     if (fd < 0) {
         SENTRY_WARN("Failed to open envelope file for writing");
         sentry_free(event_json);
-        sentry_free(event_id);
         return false;
     }
 
@@ -2899,7 +2951,6 @@ write_envelope_with_minidump(const sentry_options_t *options,
     } else {
         header_len = snprintf(header_buf, sizeof(header_buf), "{}\n");
     }
-    sentry_free(event_id);
     if (header_len > 0 && header_len < (int)sizeof(header_buf)) {
 #if defined(SENTRY_PLATFORM_UNIX)
         if (write(fd, header_buf, header_len) != header_len) {

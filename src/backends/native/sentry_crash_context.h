@@ -242,6 +242,9 @@ typedef struct {
     // Additional thread contexts
     DWORD num_threads;
     sentry_thread_context_windows_t threads[SENTRY_CRASH_MAX_THREADS];
+
+    bool wer_enabled;
+    char wer_report_id[64];
 } sentry_crash_platform_windows_t;
 
 typedef struct {
@@ -290,6 +293,8 @@ typedef struct {
     uint64_t shutdown_timeout;
     uint64_t transfer_timeout;
     bool system_crash_reporter_enabled;
+
+    char crash_event_id[37];
 
     // Atomic user consent (sentry_user_consent_t), updated whenever user
     // consent changes so the daemon can honor it at crash time.

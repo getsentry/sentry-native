@@ -6,14 +6,6 @@
 #include <werapi.h>
 #include <windows.h>
 
-#ifndef STATUS_FAIL_FAST_EXCEPTION
-#    define STATUS_FAIL_FAST_EXCEPTION ((DWORD)0xC0000602)
-#endif
-
-#ifndef STATUS_STACK_BUFFER_OVERRUN
-#    define STATUS_STACK_BUFFER_OVERRUN ((DWORD)0xC0000409)
-#endif
-
 static BOOL
 is_fatal_wer_exception(const WER_RUNTIME_EXCEPTION_INFORMATION *info)
 {
@@ -38,11 +30,27 @@ is_fatal_wer_exception(const WER_RUNTIME_EXCEPTION_INFORMATION *info)
     return ((const WER_RUNTIME_EXCEPTION_INFORMATION_19041 *)info)->bIsFatal;
 }
 
-static BOOL
-is_native_wer_exception(DWORD code)
+static PCWSTR
+get_report_id(const WER_RUNTIME_EXCEPTION_INFORMATION *info)
 {
-    return code == STATUS_FAIL_FAST_EXCEPTION
-        || code == STATUS_STACK_BUFFER_OVERRUN;
+    typedef struct {
+        DWORD dwSize;
+        HANDLE hProcess;
+        HANDLE hThread;
+        EXCEPTION_RECORD exceptionRecord;
+        CONTEXT context;
+        PCWSTR pwszReportId;
+    } WER_RUNTIME_EXCEPTION_INFORMATION_WITH_REPORT_ID;
+
+    if (!info
+        || info->dwSize
+            <= offsetof(WER_RUNTIME_EXCEPTION_INFORMATION_WITH_REPORT_ID,
+                pwszReportId)) {
+        return NULL;
+    }
+
+    return ((const WER_RUNTIME_EXCEPTION_INFORMATION_WITH_REPORT_ID *)info)
+        ->pwszReportId;
 }
 
 static BOOL
@@ -113,9 +121,7 @@ static BOOL
 process_wer_exception(
     PVOID context, const WER_RUNTIME_EXCEPTION_INFORMATION *exception_info)
 {
-    if (!exception_info || !is_fatal_wer_exception(exception_info)
-        || !is_native_wer_exception(
-            exception_info->exceptionRecord.ExceptionCode)) {
+    if (!exception_info || !is_fatal_wer_exception(exception_info)) {
         return FALSE;
     }
 
@@ -145,6 +151,13 @@ process_wer_exception(
         ctx->platform.num_threads = 1;
         ctx->platform.threads[0].thread_id = ctx->crashed_tid;
         ctx->platform.threads[0].context = exception_info->context;
+
+        PCWSTR report_id = get_report_id(exception_info);
+        if (report_id) {
+            WideCharToMultiByte(CP_UTF8, 0, report_id, -1,
+                ctx->platform.wer_report_id,
+                (int)sizeof(ctx->platform.wer_report_id), NULL, NULL);
+        }
 
         InterlockedExchange(&ctx->state, SENTRY_CRASH_STATE_CRASHED);
         if (SetEvent(event)) {
@@ -191,10 +204,15 @@ OutOfProcessExceptionEventCallback(PVOID context,
     (void)event_name_size;
     (void)signature_count;
 
-    *ownership_claimed = FALSE;
-    if (process_wer_exception(context, exception_info)) {
-        *ownership_claimed = TRUE;
+    if (ownership_claimed) {
+        *ownership_claimed = FALSE;
     }
+    if (process_wer_exception(context, exception_info)) {
+        if (ownership_claimed) {
+            *ownership_claimed = TRUE;
+        }
+    }
+
     return S_OK;
 }
 
