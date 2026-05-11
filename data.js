@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1778521966388,
+  "lastUpdate": 1778521972079,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -40954,6 +40954,66 @@ window.BENCHMARK_DATA = {
             "value": 7.5659579999864945,
             "unit": "ms",
             "extra": "Min 6.951ms\nMax 13.518ms\nMean 9.295ms\nStdDev 2.923ms\nMedian 7.566ms\nCPU 0.974ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "49699333+dependabot[bot]@users.noreply.github.com",
+            "name": "dependabot[bot]",
+            "username": "dependabot[bot]"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "fe0fb858235b54d78333eee4b84a387b3292a76e",
+          "message": "build(deps): bump pytest from 8.1.1 to 9.0.3 in /tests (#1642)\n\n* build(deps): bump pytest from 8.1.1 to 9.0.3 in /tests\n\nBumps [pytest](https://github.com/pytest-dev/pytest) from 8.1.1 to 9.0.3.\n- [Release notes](https://github.com/pytest-dev/pytest/releases)\n- [Changelog](https://github.com/pytest-dev/pytest/blob/main/CHANGELOG.rst)\n- [Commits](https://github.com/pytest-dev/pytest/compare/8.1.1...9.0.3)\n\n---\nupdated-dependencies:\n- dependency-name: pytest\n  dependency-version: 9.0.3\n  dependency-type: direct:production\n...\n\nSigned-off-by: dependabot[bot] <support@github.com>\n\n* Bump pytest-xdist to 3.8.0\n\n---------\n\nSigned-off-by: dependabot[bot] <support@github.com>\nCo-authored-by: dependabot[bot] <49699333+dependabot[bot]@users.noreply.github.com>\nCo-authored-by: J-P Nurmi <jpnurmi@gmail.com>",
+          "timestamp": "2026-05-11T19:47:49+02:00",
+          "tree_id": "e109693d80afdf41dd60fc9a004104b50e62fb0f",
+          "url": "https://github.com/getsentry/sentry-native/commit/fe0fb858235b54d78333eee4b84a387b3292a76e"
+        },
+        "date": 1778521964908,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 6.466249999959928,
+            "unit": "ms",
+            "extra": "Min 5.215ms\nMax 15.690ms\nMean 8.106ms\nStdDev 4.305ms\nMedian 6.466ms\nCPU 3.692ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 5.118249999952695,
+            "unit": "ms",
+            "extra": "Min 4.525ms\nMax 11.898ms\nMean 7.016ms\nStdDev 3.302ms\nMedian 5.118ms\nCPU 3.887ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 21.70091699997556,
+            "unit": "ms",
+            "extra": "Min 18.978ms\nMax 55.271ms\nMean 28.242ms\nStdDev 15.275ms\nMedian 21.701ms\nCPU 6.603ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.09425000007468043,
+            "unit": "ms",
+            "extra": "Min 0.086ms\nMax 0.131ms\nMean 0.100ms\nStdDev 0.018ms\nMedian 0.094ms\nCPU 0.056ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.3277920000073209,
+            "unit": "ms",
+            "extra": "Min 0.264ms\nMax 0.661ms\nMean 0.381ms\nStdDev 0.160ms\nMedian 0.328ms\nCPU 0.380ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 10.988083000029292,
+            "unit": "ms",
+            "extra": "Min 8.185ms\nMax 12.508ms\nMean 10.322ms\nStdDev 1.811ms\nMedian 10.988ms\nCPU 0.991ms"
           }
         ]
       }
