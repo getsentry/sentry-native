@@ -231,6 +231,22 @@ def test_native_sigabrt(cmake, httpserver):
     assert waiting.result
 
 
+def test_native_abort(cmake, httpserver):
+    """Test abort() handling with native backend"""
+    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "native"})
+
+    httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data("OK")
+
+    with httpserver.wait(timeout=10) as waiting:
+        run_crash(
+            tmp_path,
+            "sentry_example",
+            ["log", "stdout", "abort"],
+            env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
+        )
+    assert waiting.result
+
+
 def test_native_multiple_crashes(cmake, httpserver):
     """Test handling multiple crashes in sequence"""
     tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "native"})
