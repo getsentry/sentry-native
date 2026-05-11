@@ -65,6 +65,46 @@ def test_crashpad_capture(cmake, httpserver):
     assert len(httpserver.log) == 2
 
 
+def test_crashpad_on_crashed_last_run(cmake):
+    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "crashpad"})
+    args = ["log", "on-crashed-last-run"]
+
+    run(
+        tmp_path,
+        "sentry_example",
+        ["log", "crash"],
+        expect_failure=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+
+    assert not list((tmp_path / ".sentry-native").glob("*.run/*.crash"))
+
+    restarted = run(
+        tmp_path,
+        "sentry_example",
+        [*args, "no-setup"],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    callbacks = [
+        line
+        for line in restarted.stdout.splitlines()
+        if line.startswith(b"CRASHED_LAST_RUN:")
+    ]
+    assert len(callbacks) == 1
+    assert len(callbacks[0].partition(b":")[2]) == 36
+
+    restarted_again = run(
+        tmp_path,
+        "sentry_example",
+        [*args, "no-setup"],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    assert b"CRASHED_LAST_RUN:" not in restarted_again.stdout
+
+
 def _setup_crashpad_proxy_test(cmake, httpserver, proxy):
     if proxy:
         proxy_process, port = start_mitmdump(proxy)

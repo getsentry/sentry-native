@@ -41,6 +41,77 @@ set_file_mtime(const sentry_path_t *path, time_t mtime)
 #endif
 }
 
+typedef struct {
+    size_t count;
+    size_t materialized_count;
+    sentry_uuid_t event_ids[4];
+} crashed_last_run_state_t;
+
+static void
+record_crashed_last_run(const sentry_envelope_t *envelope, void *user_data)
+{
+    crashed_last_run_state_t *state = user_data;
+    sentry_value_t event_id = sentry_envelope_get_header(envelope, "event_id");
+    if (state->count < 4) {
+        state->event_ids[state->count]
+            = sentry_uuid_from_string(sentry_value_as_string(event_id));
+    }
+    if (!sentry_value_is_null(event_id)
+        && !sentry_value_is_null(sentry_envelope_get_event(envelope))) {
+        state->materialized_count++;
+    }
+    state->count++;
+}
+
+static sentry_path_t *
+write_event_envelope(const sentry_path_t *dir, const sentry_uuid_t *event_id)
+{
+    if (sentry__path_create_dir_all(dir) != 0) {
+        return NULL;
+    }
+    sentry_envelope_t *envelope = sentry__envelope_new();
+    sentry__envelope_add_event(
+        envelope, sentry__value_new_event_with_id(event_id));
+    char *filename = sentry__uuid_as_filename(event_id, ".envelope");
+    sentry_path_t *path
+        = filename ? sentry__path_join_str(dir, filename) : NULL;
+    sentry_free(filename);
+    int rv = path ? sentry_envelope_write_to_path(envelope, path) : 1;
+    sentry_envelope_free(envelope);
+    if (rv != 0) {
+        sentry__path_free(path);
+        return NULL;
+    }
+    return path;
+}
+
+static sentry_path_t *
+write_run_crash_marker(
+    const sentry_path_t *run_path, const sentry_uuid_t *event_id)
+{
+    char *filename = sentry__uuid_as_filename(event_id, ".crash");
+    sentry_path_t *path
+        = filename ? sentry__path_join_str(run_path, filename) : NULL;
+    sentry_free(filename);
+    if (!path || sentry__path_touch(path) != 0) {
+        sentry__path_free(path);
+        return NULL;
+    }
+    return path;
+}
+
+static bool
+state_has_event_id(
+    const crashed_last_run_state_t *state, const sentry_uuid_t *event_id)
+{
+    for (size_t i = 0; i < state->count && i < 4; i++) {
+        if (memcmp(&state->event_ids[i], event_id, sizeof(*event_id)) == 0) {
+            return true;
+        }
+    }
+    return false;
+}
+
 SENTRY_TEST(cache_keep)
 {
 #if defined(SENTRY_PLATFORM_NX) || defined(SENTRY_PLATFORM_PS)
@@ -95,6 +166,109 @@ SENTRY_TEST(cache_keep)
     sentry__path_free(old_run_path);
     sentry__path_free(cache_path);
     sentry_free(envelope_filename);
+    sentry_close();
+}
+
+SENTRY_TEST(on_crashed_last_run)
+{
+    crashed_last_run_state_t state = { 0 };
+    SENTRY_TEST_OPTIONS_NEW(options);
+    sentry_options_set_transport(options, NULL);
+    sentry_options_set_on_crashed_last_run(
+        options, record_crashed_last_run, &state);
+    TEST_CHECK_INT_EQUAL(sentry_init(options), 0);
+
+    sentry_path_t *old_run1
+        = sentry__path_join_str(options->database_path, "first.run");
+    sentry_path_t *old_run2
+        = sentry__path_join_str(options->database_path, "second.run");
+    TEST_ASSERT(!!old_run1 && !!old_run2);
+    sentry__path_remove_all(old_run1);
+    sentry__path_remove_all(old_run2);
+
+    sentry_uuid_t crash1 = sentry_uuid_new_v4();
+    sentry_uuid_t crash2 = sentry_uuid_new_v4();
+    sentry_uuid_t normal = sentry_uuid_new_v4();
+    sentry_path_t *crash1_envelope = write_event_envelope(old_run1, &crash1);
+    sentry_path_t *normal_envelope = write_event_envelope(old_run1, &normal);
+    sentry_path_t *crash2_envelope = write_event_envelope(old_run2, &crash2);
+    sentry_path_t *crash1_marker = write_run_crash_marker(old_run1, &crash1);
+    sentry_path_t *crash2_marker = write_run_crash_marker(old_run2, &crash2);
+    TEST_ASSERT(!!crash1_envelope && !!normal_envelope && !!crash2_envelope);
+    TEST_ASSERT(!!crash1_marker && !!crash2_marker);
+
+    sentry__process_old_runs(options, 0);
+    TEST_CHECK_INT_EQUAL(state.count, 2);
+    TEST_CHECK_INT_EQUAL(state.materialized_count, 2);
+    TEST_CHECK(state_has_event_id(&state, &crash1));
+    TEST_CHECK(state_has_event_id(&state, &crash2));
+    TEST_CHECK(!state_has_event_id(&state, &normal));
+    TEST_CHECK(!sentry__path_is_dir(old_run1));
+    TEST_CHECK(!sentry__path_is_dir(old_run2));
+
+    sentry__process_old_runs(options, 0);
+    TEST_CHECK_INT_EQUAL(state.count, 2);
+
+    sentry__path_free(crash1_marker);
+    sentry__path_free(crash2_marker);
+    sentry__path_free(crash1_envelope);
+    sentry__path_free(normal_envelope);
+    sentry__path_free(crash2_envelope);
+    sentry__path_free(old_run1);
+    sentry__path_free(old_run2);
+    sentry_close();
+}
+
+SENTRY_TEST(on_crashed_last_run_cache)
+{
+    crashed_last_run_state_t state = { 0 };
+    SENTRY_TEST_OPTIONS_NEW(options);
+    sentry_options_set_transport(options, NULL);
+    sentry_options_set_on_crashed_last_run(
+        options, record_crashed_last_run, &state);
+    TEST_CHECK_INT_EQUAL(sentry_init(options), 0);
+    sentry__path_remove_all(options->run->cache_path);
+
+    sentry_uuid_t event_id = sentry_uuid_new_v4();
+    TEST_CHECK(!sentry__run_write_crash_marker(options->run, &event_id));
+
+    sentry_path_t *old_run
+        = sentry__path_join_str(options->database_path, "old.run");
+    sentry__path_remove_all(old_run);
+    sentry_path_t *crash_path = write_event_envelope(old_run, &event_id);
+    sentry_path_t *marker_path = write_run_crash_marker(old_run, &event_id);
+
+    sentry_envelope_t *envelope = sentry__envelope_new();
+    sentry__envelope_add_event(
+        envelope, sentry__value_new_event_with_id(&event_id));
+    TEST_CHECK(sentry__run_write_cache(options->run, envelope, -1));
+    sentry_envelope_free(envelope);
+
+    char *cache_filename = sentry__uuid_as_filename(&event_id, ".envelope");
+    sentry_path_t *cache_path
+        = sentry__path_join_str(options->run->cache_path, cache_filename);
+    sentry_free(cache_filename);
+    TEST_ASSERT(!!old_run && !!crash_path && !!marker_path && !!cache_path);
+    TEST_CHECK(sentry__path_is_file(crash_path));
+    TEST_CHECK(sentry__path_is_file(marker_path));
+    TEST_CHECK(sentry__path_is_file(cache_path));
+
+    sentry__process_old_runs(options, 0);
+    TEST_CHECK_INT_EQUAL(state.count, 1);
+    TEST_CHECK_INT_EQUAL(state.materialized_count, 1);
+    TEST_CHECK(state_has_event_id(&state, &event_id));
+    TEST_CHECK(!sentry__path_is_file(crash_path));
+    TEST_CHECK(!sentry__path_is_file(marker_path));
+    TEST_CHECK(sentry__path_is_file(cache_path));
+
+    sentry__process_old_runs(options, 0);
+    TEST_CHECK_INT_EQUAL(state.count, 1);
+
+    sentry__path_remove_all(options->run->cache_path);
+    sentry__path_free(old_run);
+    sentry__path_free(crash_path);
+    sentry__path_free(marker_path);
+    sentry__path_free(cache_path);
     sentry_close();
 }
 

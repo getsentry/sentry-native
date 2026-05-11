@@ -66,6 +66,8 @@ struct sentry_options_s {
     void *before_send_data;
     sentry_crash_function_t on_crash_func;
     void *on_crash_data;
+    sentry_crashed_last_run_function_t on_crashed_last_run_func;
+    void *on_crashed_last_run_data;
     sentry_transaction_function_t before_transaction_func;
     void *before_transaction_data;
     sentry_before_send_log_function_t before_send_log_func;

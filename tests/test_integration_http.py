@@ -1058,6 +1058,62 @@ def test_native_crash_http(cmake, httpserver):
                 not has_breakpad or is_qemu, reason="test needs breakpad backend"
             ),
         ),
+    ],
+)
+def test_on_crashed_last_run(cmake, backend):
+    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": backend})
+    args = ["log", "on-crashed-last-run"]
+
+    run(
+        tmp_path,
+        "sentry_example",
+        [*args, "crash"],
+        expect_failure=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+
+    run_dirs = list((tmp_path / ".sentry-native").glob("*.run"))
+    assert len(run_dirs) == 1
+    markers = list(run_dirs[0].glob("*.crash"))
+    assert len(markers) == 1
+    assert (run_dirs[0] / f"{markers[0].stem}.envelope").is_file()
+
+    restarted = run(
+        tmp_path,
+        "sentry_example",
+        [*args, "no-setup"],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    callbacks = [
+        line
+        for line in restarted.stdout.splitlines()
+        if line.startswith(b"CRASHED_LAST_RUN:")
+    ]
+    assert len(callbacks) == 1
+    assert callbacks[0] == f"CRASHED_LAST_RUN:{markers[0].stem}".encode()
+
+    restarted_again = run(
+        tmp_path,
+        "sentry_example",
+        [*args, "no-setup"],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    assert b"CRASHED_LAST_RUN:" not in restarted_again.stdout
+
+
+@pytest.mark.parametrize(
+    "backend",
+    [
+        "inproc",
+        pytest.param(
+            "breakpad",
+            marks=pytest.mark.skipif(
+                not has_breakpad or is_qemu, reason="test needs breakpad backend"
+            ),
+        ),
         pytest.param(
             "native",
             marks=pytest.mark.skipif(

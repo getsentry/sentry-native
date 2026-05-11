@@ -15,6 +15,13 @@
 // Include native backend headers
 #    include "../../src/backends/native/minidump/sentry_minidump_format.h"
 #    include "../../src/backends/native/sentry_crash_context.h"
+
+static void
+noop_crashed_last_run(const sentry_envelope_t *envelope, void *user_data)
+{
+    (void)envelope;
+    (void)user_data;
+}
 #endif
 
 #if defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID)
@@ -520,6 +527,8 @@ SENTRY_TEST(crash_context_options_propagation)
     sentry_options_set_proxy(options, "http://myproxy:3128");
     sentry_options_set_shutdown_timeout(options, 12345);
     sentry_options_set_system_crash_reporter_enabled(options, true);
+    sentry_options_set_on_crashed_last_run(
+        options, noop_crashed_last_run, NULL);
     sentry_options_set_crash_upload_mode(
         options, SENTRY_CRASH_UPLOAD_MODE_ASYNC);
     sentry_options_set_transfer_timeout(options, 45000);
@@ -554,6 +563,7 @@ SENTRY_TEST(crash_context_options_propagation)
     }
     ctx->shutdown_timeout = options->shutdown_timeout;
     ctx->system_crash_reporter_enabled = options->system_crash_reporter_enabled;
+    ctx->has_on_crashed_last_run = options->on_crashed_last_run_func != NULL;
     ctx->crash_upload_mode = options->crash_upload_mode;
     ctx->transfer_timeout = options->transfer_timeout;
 #    ifdef SENTRY_PLATFORM_WINDOWS
@@ -567,6 +577,7 @@ SENTRY_TEST(crash_context_options_propagation)
     TEST_CHECK(ctx->user_agent[0] != '\0');
     TEST_CHECK_UINT64_EQUAL(ctx->shutdown_timeout, 12345);
     TEST_CHECK(ctx->system_crash_reporter_enabled);
+    TEST_CHECK(ctx->has_on_crashed_last_run);
     TEST_CHECK_INT_EQUAL(
         ctx->crash_upload_mode, SENTRY_CRASH_UPLOAD_MODE_ASYNC);
     TEST_CHECK_UINT64_EQUAL(ctx->transfer_timeout, 45000);

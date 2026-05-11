@@ -1258,6 +1258,33 @@ SENTRY_API void sentry_options_set_on_crash(
     sentry_options_t *opts, sentry_crash_function_t func, void *data);
 
 /**
+ * Type of the `on_crashed_last_run` callback.
+ *
+ * The callback is invoked synchronously during `sentry_init` for every
+ * available envelope associated with a crash in a previous run. This can
+ * include multiple crashes in multi-process and early-startup crash scenarios.
+ *
+ * The callback does not take ownership of `envelope`. The envelope is only
+ * valid for the duration of the callback and must not be freed. Since
+ * `sentry_init` has not completed yet, the callback must not call SDK functions
+ * that require an initialized SDK.
+ *
+ * Unlike `on_crash`, this callback runs in a healthy process and does not need
+ * to be signal-safe.
+ */
+typedef void (*sentry_crashed_last_run_function_t)(
+    const sentry_envelope_t *envelope, void *user_data);
+
+/**
+ * Sets the `on_crashed_last_run` callback.
+ *
+ * The native backend requires this option to be configured in the crashed run
+ * so its out-of-process daemon retains the crash envelope for the next launch.
+ */
+SENTRY_API void sentry_options_set_on_crashed_last_run(sentry_options_t *opts,
+    sentry_crashed_last_run_function_t func, void *user_data);
+
+/**
  * Sets the DSN.
  */
 SENTRY_API void sentry_options_set_dsn(sentry_options_t *opts, const char *dsn);

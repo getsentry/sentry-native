@@ -603,8 +603,8 @@ report_attachments_dir(const crashpad::CrashReportDatabase::Report &report,
     return attachments_dir;
 }
 
-// Converts a completed crashpad report into a sentry envelope by reading the
-// event, breadcrumbs, and attachments from the report's attachments directory.
+// Converts a crashpad report into a sentry envelope by reading the event,
+// breadcrumbs, and attachments from the report's attachments directory.
 static sentry_envelope_t *
 report_to_envelope(const crashpad::CrashReportDatabase::Report &report,
     const sentry_options_t *options)
@@ -687,8 +687,75 @@ report_to_envelope(const crashpad::CrashReportDatabase::Report &report,
     return envelope;
 }
 
+static bool
+crashpad_backend_process_old_run(sentry_backend_t *backend,
+    const sentry_options_t *options, const sentry_path_t *run_path)
+{
+    if (!options->on_crashed_last_run_func) {
+        return true;
+    }
+
+    auto *state = static_cast<crashpad_state_t *>(backend->data);
+    if (!state || !state->db) {
+        return false;
+    }
+
+    sentry_path_t *event_path
+        = sentry__path_join_str(run_path, "__sentry-event");
+    if (!event_path) {
+        return false;
+    }
+    sentry_value_t event = read_msgpack_file(event_path);
+    sentry_uuid_t event_id
+        = sentry__value_as_uuid(sentry_value_get_by_key(event, "event_id"));
+    sentry_value_decref(event);
+    if (sentry_uuid_is_nil(&event_id)) {
+        sentry__path_free(event_path);
+        return true;
+    }
+
+    char event_id_str[37];
+    sentry_uuid_as_string(&event_id, event_id_str);
+    crashpad::UUID report_id;
+    if (!report_id.InitializeFromString(event_id_str)) {
+        sentry__path_free(event_path);
+        return true;
+    }
+
+    crashpad::CrashReportDatabase::Report report;
+    crashpad::CrashReportDatabase::OperationStatus status
+        = state->db->LookUpCrashReport(report_id, &report);
+    if (status == crashpad::CrashReportDatabase::kReportNotFound) {
+        sentry__path_free(event_path);
+        return true;
+    }
+    if (status != crashpad::CrashReportDatabase::kNoError) {
+        sentry__path_free(event_path);
+        return false;
+    }
+
+    sentry_envelope_t *envelope = report_to_envelope(report, options);
+    if (!envelope || !sentry__envelope_materialize(envelope)) {
+        sentry_envelope_free(envelope);
+        sentry__path_free(event_path);
+        return false;
+    }
+
+    // remove before invoking to prevent repeated callbacks
+    bool removed = sentry__path_remove(event_path) == 0;
+    sentry__path_free(event_path);
+    if (!removed) {
+        sentry_envelope_free(envelope);
+        return false;
+    }
+    options->on_crashed_last_run_func(
+        envelope, options->on_crashed_last_run_data);
+    sentry_envelope_free(envelope);
+    return true;
+}
+
 // Caches completed crashpad reports as sentry envelopes and removes them from
-// the crashpad database. Called during startup before the handler is started.
+// the crashpad database.
 static void
 process_completed_reports(
     crashpad_state_t *state, const sentry_options_t *options)
@@ -876,7 +943,6 @@ crashpad_backend_startup(
     // Initialize database first, flushing the consent later on as part of
     // `sentry_init` will persist the upload flag.
     data->db = crashpad::CrashReportDatabase::Initialize(database).release();
-    process_completed_reports(data, options);
     data->client = new (std::nothrow) crashpad::CrashpadClient;
     char *minidump_url
         = sentry__dsn_get_minidump_url(options->dsn, options->user_agent);
@@ -1119,6 +1185,7 @@ crashpad_backend_prune_database(sentry_backend_t *backend)
     // When offline caching is enabled, the user has full control over these
     // parameters via the cache_max_* options.
     SENTRY_WITH_OPTIONS (options) {
+        process_completed_reports(data, options);
         if (options->cache_keep) {
             max_age = options->cache_max_age;
             max_size = options->cache_max_size;
@@ -1223,6 +1290,7 @@ sentry__backend_new(void)
     backend->add_breadcrumb_func = crashpad_backend_add_breadcrumb;
     backend->user_consent_changed_func = crashpad_backend_user_consent_changed;
     backend->get_last_crash_func = crashpad_backend_last_crash;
+    backend->process_old_run_func = crashpad_backend_process_old_run;
     backend->prune_database_func = crashpad_backend_prune_database;
 #if defined(SENTRY_PLATFORM_WINDOWS) || defined(SENTRY_PLATFORM_LINUX)         \
     || defined(SENTRY_PLATFORM_MACOS)

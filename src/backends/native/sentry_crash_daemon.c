@@ -4275,17 +4275,18 @@ sentry__process_crash(const sentry_options_t *options, sentry_crash_ipc_t *ipc)
         crash_captured = true;
     }
 
-    // Clean up temporary envelope file (keep minidump for
-    // inspection/debugging)
+    // Keep the original crash envelope for the callback on the next launch.
+    if (!ctx->has_on_crashed_last_run) {
 #if defined(SENTRY_PLATFORM_UNIX)
-    unlink(envelope_path);
+        unlink(envelope_path);
 #elif defined(SENTRY_PLATFORM_WINDOWS)
-    wchar_t *wenvelope_unlink = sentry__string_to_wstr(envelope_path);
-    if (wenvelope_unlink) {
-        _wunlink(wenvelope_unlink);
-        sentry_free(wenvelope_unlink);
-    }
+        wchar_t *wenvelope_unlink = sentry__string_to_wstr(envelope_path);
+        if (wenvelope_unlink) {
+            _wunlink(wenvelope_unlink);
+            sentry_free(wenvelope_unlink);
+        }
 #endif
+    }
 
 cleanup:
     // Send the staged session-replay envelope same-session, enriched from the
@@ -4334,7 +4335,9 @@ remove_pending_run_envelopes(const sentry_path_t *run_path)
     const sentry_path_t *file;
     while (it && (file = sentry__pathiter_next(it)) != NULL) {
         if (sentry__path_is_file(file) && !sentry__path_is_symlink(file)
-            && sentry__path_ends_with(file, ".envelope")) {
+            && sentry__path_ends_with(file, ".envelope")
+            && !sentry__path_filename_matches(
+                file, "__sentry-crash.envelope")) {
             sentry__path_remove(file);
         }
     }

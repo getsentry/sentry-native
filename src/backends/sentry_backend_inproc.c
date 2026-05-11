@@ -1075,6 +1075,7 @@ process_ucontext_deferred(const sentry_ucontext_t *uctx,
 
         sentry_value_t transaction
             = sentry__trace_finish(SENTRY_SPAN_STATUS_ABORTED);
+        sentry_uuid_t event_id = sentry_uuid_nil();
 
         if (options->on_crash_func && !skip_hooks) {
             SENTRY_DEBUG("invoking `on_crash` hook");
@@ -1102,6 +1103,9 @@ process_ucontext_deferred(const sentry_ucontext_t *uctx,
 
             sentry_envelope_t *envelope = sentry__prepare_event(options, event,
                 NULL, !options->on_crash_func && !skip_hooks, NULL);
+            if (envelope) {
+                event_id = sentry__envelope_get_event_id(envelope);
+            }
             sentry_session_t *session = sentry__end_current_session_with_status(
                 SENTRY_SESSION_STATUS_CRASHED);
             sentry__envelope_add_session(envelope, session);
@@ -1156,6 +1160,10 @@ process_ucontext_deferred(const sentry_ucontext_t *uctx,
 
         // after capturing the crash event, dump all the envelopes to disk
         sentry__transport_dump_queue(options->transport, options->run);
+        if (!sentry_uuid_is_nil(&event_id)
+            && !sentry__run_write_crash_marker(options->run, &event_id)) {
+            SENTRY_SIGNAL_SAFE_LOG("WARN writing run crash marker failed");
+        }
 
         // Use signal-safe logging here since this may run in signal handler
         // context (fallback path) where stdio functions are not safe.
