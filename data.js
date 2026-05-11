@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1778501512042,
+  "lastUpdate": 1778501648384,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -40594,6 +40594,66 @@ window.BENCHMARK_DATA = {
             "value": 17.98991699996577,
             "unit": "ms",
             "extra": "Min 10.565ms\nMax 24.054ms\nMean 16.755ms\nStdDev 5.574ms\nMedian 17.990ms\nCPU 2.086ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "jpnurmi@gmail.com",
+            "name": "J-P Nurmi",
+            "username": "jpnurmi"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "2963f60aa8ce0cb34797b9325e0cc5c64f94028d",
+          "message": "feat(crashpad): support modifying attachments after init on macOS (#1705)\n\n* Bump crashpad\n\n* feat(crashpad): support modifying attachments after init on macOS\n\n* Update CHANGELOG.md",
+          "timestamp": "2026-05-11T14:09:07+02:00",
+          "tree_id": "c4a1b2c5875dde5b323d0927226366f2cb080af0",
+          "url": "https://github.com/getsentry/sentry-native/commit/2963f60aa8ce0cb34797b9325e0cc5c64f94028d"
+        },
+        "date": 1778501641256,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 3.683292000005167,
+            "unit": "ms",
+            "extra": "Min 3.219ms\nMax 6.895ms\nMean 4.210ms\nStdDev 1.531ms\nMedian 3.683ms\nCPU 2.494ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 3.66729199998872,
+            "unit": "ms",
+            "extra": "Min 3.545ms\nMax 5.749ms\nMean 4.094ms\nStdDev 0.934ms\nMedian 3.667ms\nCPU 2.438ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 18.970790999958353,
+            "unit": "ms",
+            "extra": "Min 12.296ms\nMax 37.986ms\nMean 20.668ms\nStdDev 10.497ms\nMedian 18.971ms\nCPU 5.308ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.08337499997423947,
+            "unit": "ms",
+            "extra": "Min 0.073ms\nMax 0.094ms\nMean 0.084ms\nStdDev 0.008ms\nMedian 0.083ms\nCPU 0.060ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.26704099997232333,
+            "unit": "ms",
+            "extra": "Min 0.234ms\nMax 0.320ms\nMean 0.271ms\nStdDev 0.031ms\nMedian 0.267ms\nCPU 0.271ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 9.619125000028816,
+            "unit": "ms",
+            "extra": "Min 9.261ms\nMax 21.571ms\nMean 13.516ms\nStdDev 5.718ms\nMedian 9.619ms\nCPU 2.140ms"
           }
         ]
       }
