@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1778504686683,
+  "lastUpdate": 1778504780645,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -61072,6 +61072,66 @@ window.BENCHMARK_DATA = {
             "value": 23.15560000010919,
             "unit": "ms",
             "extra": "Min 12.958ms\nMax 427.614ms\nMean 127.281ms\nStdDev 178.230ms\nMedian 23.156ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "260785270+fix-it-felix-sentry[bot]@users.noreply.github.com",
+            "name": "fix-it-felix-sentry[bot]",
+            "username": "fix-it-felix-sentry[bot]"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "d41441ecdb9121dfaf3afc1ca33a0bf8c789d929",
+          "message": "fix(CI): clean up minor shell injection vulnerability in GitHub Actions workflow (#1690)\n\nMove GitHub context interpolations into environment variables to prevent\npotential shell injection attacks. All untrusted GitHub context data is\nnow passed through environment variables and properly quoted in shell\ncommands.\n\nFixes:\n- Line 60: Determine mode step now uses ENV vars for event_name and ref\n- Line 75: Trigger console build step now uses ENV vars for all GitHub context data\n\nReferences:\n- Parent ticket: https://linear.app/getsentry/issue/VULN-1605\n- Child ticket: https://linear.app/getsentry/issue/ENG-7570\n\nCo-authored-by: fix-it-felix-sentry[bot] <260785270+fix-it-felix-sentry[bot]@users.noreply.github.com>\nCo-authored-by: Claude Sonnet 4.5 <noreply@anthropic.com>",
+          "timestamp": "2026-05-11T15:01:48+02:00",
+          "tree_id": "fe1677d98221dca425ec98cc719890e593a2aef1",
+          "url": "https://github.com/getsentry/sentry-native/commit/d41441ecdb9121dfaf3afc1ca33a0bf8c789d929"
+        },
+        "date": 1778504773875,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 10.505299999749695,
+            "unit": "ms",
+            "extra": "Min 10.437ms\nMax 11.139ms\nMean 10.661ms\nStdDev 0.290ms\nMedian 10.505ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 10.887800000091374,
+            "unit": "ms",
+            "extra": "Min 10.758ms\nMax 11.276ms\nMean 10.960ms\nStdDev 0.221ms\nMedian 10.888ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 25.890800000070158,
+            "unit": "ms",
+            "extra": "Min 25.636ms\nMax 28.162ms\nMean 26.348ms\nStdDev 1.038ms\nMedian 25.891ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.1650999997764302,
+            "unit": "ms",
+            "extra": "Min 0.163ms\nMax 0.209ms\nMean 0.178ms\nStdDev 0.021ms\nMedian 0.165ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.39220000007844646,
+            "unit": "ms",
+            "extra": "Min 0.388ms\nMax 0.444ms\nMean 0.402ms\nStdDev 0.024ms\nMedian 0.392ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 14.470900000105757,
+            "unit": "ms",
+            "extra": "Min 14.293ms\nMax 16.767ms\nMean 15.163ms\nStdDev 1.099ms\nMedian 14.471ms"
           }
         ]
       }
