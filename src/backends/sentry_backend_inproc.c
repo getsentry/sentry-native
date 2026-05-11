@@ -14,9 +14,9 @@
 #if defined(SENTRY_PLATFORM_WINDOWS)
 #    include "sentry_os.h"
 #endif
-#include "sentry_session_replay.h"
 #include "sentry_scope.h"
 #include "sentry_screenshot.h"
+#include "sentry_session_replay.h"
 #include "sentry_sync.h"
 #include "sentry_transport.h"
 #include "sentry_unix_pageallocator.h"
@@ -1165,8 +1165,8 @@ process_ucontext_deferred(const sentry_ucontext_t *uctx,
                 sentry_attachment_t *clip = sentry__attachment_from_path(
                     sentry__session_replay_get_path(options));
                 if (clip
-                    && sentry__session_replay_capture(clip->path,
-                        options->session_replay_duration_ms, 0)) {
+                    && sentry__session_replay_capture(
+                        clip->path, options->session_replay_duration_ms, 0)) {
                     sentry__envelope_add_attachment(envelope, clip);
                 }
                 sentry__attachment_free(clip);

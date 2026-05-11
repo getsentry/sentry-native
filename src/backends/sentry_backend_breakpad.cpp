@@ -16,8 +16,8 @@ extern "C" {
 #    include "sentry_os.h"
 #endif
 #include "sentry_path.h"
-#include "sentry_session_replay.h"
 #include "sentry_screenshot.h"
+#include "sentry_session_replay.h"
 #include "sentry_string.h"
 #include "sentry_sync.h"
 #include "sentry_transport.h"
@@ -232,8 +232,8 @@ breakpad_backend_callback(const google_breakpad::MinidumpDescriptor &descriptor,
                 sentry_attachment_t *clip = sentry__attachment_from_path(
                     sentry__session_replay_get_path(options));
                 if (clip
-                    && sentry__session_replay_capture(clip->path,
-                        options->session_replay_duration_ms, 0)) {
+                    && sentry__session_replay_capture(
+                        clip->path, options->session_replay_duration_ms, 0)) {
                     sentry__envelope_add_attachment(envelope, clip);
                 }
                 sentry__attachment_free(clip);
