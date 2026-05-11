@@ -83,6 +83,25 @@ envelope_item_cleanup(sentry_envelope_item_t *item)
     sentry_free(item->payload);
 }
 
+static void
+envelope_items_cleanup(sentry_envelope_t *envelope)
+{
+    sentry_value_decref(envelope->contents.items.headers);
+
+    // Free all items in the linked list
+    sentry_envelope_item_t *item = envelope->contents.items.first_item;
+    while (item) {
+        sentry_envelope_item_t *next = item->next;
+        envelope_item_cleanup(item);
+        sentry_free(item);
+        item = next;
+    }
+
+    envelope->contents.items.first_item = NULL;
+    envelope->contents.items.last_item = NULL;
+    envelope->contents.items.item_count = 0;
+}
+
 sentry_value_t
 sentry_envelope_get_header(const sentry_envelope_t *envelope, const char *key)
 {
@@ -200,17 +219,7 @@ sentry_envelope_free(sentry_envelope_t *envelope)
         sentry_free(envelope);
         return;
     }
-    sentry_value_decref(envelope->contents.items.headers);
-
-    // Free all items in the linked list
-    sentry_envelope_item_t *item = envelope->contents.items.first_item;
-    while (item) {
-        sentry_envelope_item_t *next = item->next;
-        envelope_item_cleanup(item);
-        sentry_free(item);
-        item = next;
-    }
-
+    envelope_items_cleanup(envelope);
     sentry_free(envelope);
 }
 
@@ -1510,8 +1519,16 @@ sentry__envelope_materialize(sentry_envelope_t *envelope)
     envelope->contents.items.last_item = NULL;
     envelope->contents.items.item_count = 0;
     bool ok = deserialize_into(envelope, payload, payload_len);
+    if (!ok) {
+        envelope_items_cleanup(envelope);
+        envelope->is_raw = true;
+        envelope->contents.raw.payload = payload;
+        envelope->contents.raw.payload_len = payload_len;
+        return false;
+    }
+
     sentry_free(payload);
-    return ok;
+    return true;
 }
 
 static bool
