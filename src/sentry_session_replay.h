@@ -1,5 +1,5 @@
-#ifndef SENTRY_REPLAY_CLIP_H_INCLUDED
-#define SENTRY_REPLAY_CLIP_H_INCLUDED
+#ifndef SENTRY_SESSION_REPLAY_H_INCLUDED
+#define SENTRY_SESSION_REPLAY_H_INCLUDED
 
 #include "sentry_boot.h"
 
@@ -16,12 +16,12 @@
  *
  * Returns true if the clip was successfully captured and saved.
  */
-bool sentry__replay_clip_capture(
+bool sentry__session_replay_capture(
     const sentry_path_t *path, uint32_t duration_ms, uint32_t pid);
 
 /**
- * Returns the path where a replay clip should be saved.
+ * Returns the path where a session replay clip should be saved.
  */
-sentry_path_t *sentry__replay_clip_get_path(const sentry_options_t *options);
+sentry_path_t *sentry__session_replay_get_path(const sentry_options_t *options);
 
 #endif

@@ -1659,21 +1659,22 @@ SENTRY_EXPERIMENTAL_API void sentry_options_set_before_screenshot(
 /**
  * Enables capturing a short retroactive video clip on crash. Currently only
  * supported on Xbox via the OS-managed game recording ring. The clip is
- * attached to the crash envelope as `replay-clip.mp4`.
+ * attached to the crash envelope as `session-replay.mp4`.
  *
- * Set the duration via `sentry_options_set_replay_clip_duration_ms` (default
- * 5000 ms). Disabled by default. Must be set before `sentry_init`.
+ * Set the duration via `sentry_options_set_session_replay_duration_ms`
+ * (default 5000 ms). Disabled by default. Must be set before `sentry_init`.
  */
-SENTRY_EXPERIMENTAL_API void sentry_options_set_attach_replay_clip(
+SENTRY_EXPERIMENTAL_API void sentry_options_set_attach_session_replay(
     sentry_options_t *opts, int val);
 
 /**
- * Sets the requested duration of the retroactive replay clip in milliseconds.
+ * Sets the requested duration of the retroactive session replay in
+ * milliseconds.
  *
  * The resulting clip can be shorter than the requested duration if it hasn't
  * accumulated enough buffered frames yet. Defaults to 5000 ms.
  */
-SENTRY_EXPERIMENTAL_API void sentry_options_set_replay_clip_duration_ms(
+SENTRY_EXPERIMENTAL_API void sentry_options_set_session_replay_duration_ms(
     sentry_options_t *opts, uint32_t duration_ms);
 
 /**

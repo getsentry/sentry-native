@@ -12,7 +12,7 @@
 #include "sentry_options.h"
 #include "sentry_path.h"
 #include "sentry_process.h"
-#include "sentry_replay_clip.h"
+#include "sentry_session_replay.h"
 #include "sentry_screenshot.h"
 #include "sentry_string.h"
 #include "sentry_symbolizer.h"
@@ -2505,13 +2505,13 @@ write_envelope_with_native_stacktrace(const sentry_options_t *options,
         }
     }
 
-    // Add replay clip attachment if captured by the daemon
-    if (ctx->attach_replay_clip && run_folder) {
+    // Add session replay attachment if captured by the daemon
+    if (ctx->attach_session_replay && run_folder) {
         sentry_path_t *clip_path
-            = sentry__path_join_str(run_folder, "replay-clip.mp4");
+            = sentry__path_join_str(run_folder, "session-replay.mp4");
         if (clip_path) {
             write_attachment_to_envelope(
-                fd, clip_path->path, "replay-clip.mp4", "video/mp4");
+                fd, clip_path->path, "session-replay.mp4", "video/mp4");
             sentry__path_free(clip_path);
         }
     }
@@ -2752,13 +2752,13 @@ write_envelope_with_minidump(const sentry_options_t *options,
         }
     }
 
-    // Add replay clip attachment if captured by the daemon
-    if (ctx->attach_replay_clip && run_folder) {
+    // Add session replay attachment if captured by the daemon
+    if (ctx->attach_session_replay && run_folder) {
         sentry_path_t *clip_path
-            = sentry__path_join_str(run_folder, "replay-clip.mp4");
+            = sentry__path_join_str(run_folder, "session-replay.mp4");
         if (clip_path) {
             write_attachment_to_envelope(
-                fd, clip_path->path, "replay-clip.mp4", "video/mp4");
+                fd, clip_path->path, "session-replay.mp4", "video/mp4");
             sentry__path_free(clip_path);
         }
     }
@@ -2946,18 +2946,19 @@ sentry__process_crash(const sentry_options_t *options, sentry_crash_ipc_t *ipc)
         }
     }
 
-    // Capture replay clip if enabled. Like screenshot, this runs out-of-process
-    // because the underlying OS APIs are not signal-safe.
-    if (ctx->attach_replay_clip && run_folder) {
-        SENTRY_DEBUG("Capturing replay clip");
+    // Capture session replay if enabled. Like screenshot, this runs
+    // out-of-process because the underlying OS APIs are not signal-safe.
+    if (ctx->attach_session_replay && run_folder) {
+        SENTRY_DEBUG("Capturing session replay");
         sentry_path_t *clip_path
-            = sentry__path_join_str(run_folder, "replay-clip.mp4");
+            = sentry__path_join_str(run_folder, "session-replay.mp4");
         if (clip_path) {
-            if (sentry__replay_clip_capture(clip_path,
-                    ctx->replay_clip_duration_ms, (uint32_t)ctx->crashed_pid)) {
-                SENTRY_DEBUG("Replay clip captured successfully");
+            if (sentry__session_replay_capture(clip_path,
+                    ctx->session_replay_duration_ms,
+                    (uint32_t)ctx->crashed_pid)) {
+                SENTRY_DEBUG("Session replay captured successfully");
             } else {
-                SENTRY_DEBUG("Replay clip capture failed");
+                SENTRY_DEBUG("Session replay capture failed");
             }
             sentry__path_free(clip_path);
         }
@@ -3329,8 +3330,9 @@ sentry__crash_daemon_main(pid_t app_pid, uint64_t app_tid, HANDLE event_handle,
     // Use debug logging and screenshot settings from parent process
     sentry_options_set_debug(options, ipc->shmem->debug_enabled);
     options->attach_screenshot = ipc->shmem->attach_screenshot;
-    options->attach_replay_clip = ipc->shmem->attach_replay_clip;
-    options->replay_clip_duration_ms = ipc->shmem->replay_clip_duration_ms;
+    options->attach_session_replay = ipc->shmem->attach_session_replay;
+    options->session_replay_duration_ms
+        = ipc->shmem->session_replay_duration_ms;
     options->cache_keep = (sentry_cache_keep_t)ipc->shmem->cache_keep;
     options->enable_large_attachments = ipc->shmem->enable_large_attachments;
     options->http_retry = false;
