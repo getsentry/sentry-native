@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1778504793525,
+  "lastUpdate": 1778508884503,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -20356,6 +20356,66 @@ window.BENCHMARK_DATA = {
             "value": 1.925138999979481,
             "unit": "ms",
             "extra": "Min 1.894ms\nMax 1.982ms\nMean 1.931ms\nStdDev 0.033ms\nMedian 1.925ms\nCPU 0.546ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "jpnurmi@gmail.com",
+            "name": "J-P Nurmi",
+            "username": "jpnurmi"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "c37ee0a66e7b3eeeca39908fa6a807335f8ce3b3",
+          "message": "feat: add `cache_dir` header for external crash reporters (#1698)\n\n* fix: Add cache_dir header for external crash reports\n\nExternal crash reporters only receive the envelope path, so include the cache\ndirectory in envelope headers when cache_keep is enabled. This lets capable\nreporters cache related files without changing the one-argument protocol.\n\nFixes GH-1688\nCo-Authored-By: OpenAI Codex <noreply@openai.com>\n\n* Update CHANGELOG.md\n\n* fix: Materialize native external crash envelopes\n\nThe native crash daemon loads crash envelopes from disk as raw envelopes.\nMaterialize them before launching an external crash reporter when cache_keep\nis enabled, so the shared launcher can add the cache_dir header without\nmutating raw envelopes itself.\n\nRefs GH-1688\nCo-Authored-By: OpenAI Codex <noreply@openai.com>\n\n* fix: Roll back failed envelope materialization\n\nKeep sentry__envelope_materialize in-place, but restore the original raw\npayload when parsing fails. This lets callers warn and continue instead of\nsending or falling back with a corrupted envelope.\n\nCo-Authored-By: OpenAI Codex <noreply@openai.com>\n\n---------\n\nCo-authored-by: OpenAI Codex <noreply@openai.com>",
+          "timestamp": "2026-05-11T16:11:43+02:00",
+          "tree_id": "7cc1dc3868e610a6a543df3c3a60ac4cf2c942dc",
+          "url": "https://github.com/getsentry/sentry-native/commit/c37ee0a66e7b3eeeca39908fa6a807335f8ce3b3"
+        },
+        "date": 1778508878629,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 0.9530059999747209,
+            "unit": "ms",
+            "extra": "Min 0.949ms\nMax 0.968ms\nMean 0.958ms\nStdDev 0.009ms\nMedian 0.953ms\nCPU 0.908ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 0.909501000023738,
+            "unit": "ms",
+            "extra": "Min 0.856ms\nMax 0.933ms\nMean 0.904ms\nStdDev 0.031ms\nMedian 0.910ms\nCPU 0.878ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 3.2354409999584277,
+            "unit": "ms",
+            "extra": "Min 3.061ms\nMax 3.377ms\nMean 3.219ms\nStdDev 0.154ms\nMedian 3.235ms\nCPU 1.494ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.1222109999616805,
+            "unit": "ms",
+            "extra": "Min 0.114ms\nMax 0.148ms\nMean 0.127ms\nStdDev 0.013ms\nMedian 0.122ms\nCPU 0.070ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.021459999970829813,
+            "unit": "ms",
+            "extra": "Min 0.020ms\nMax 0.024ms\nMean 0.022ms\nStdDev 0.001ms\nMedian 0.021ms\nCPU 0.021ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 1.6307480000250507,
+            "unit": "ms",
+            "extra": "Min 1.527ms\nMax 1.651ms\nMean 1.600ms\nStdDev 0.055ms\nMedian 1.631ms\nCPU 0.416ms"
           }
         ]
       }
