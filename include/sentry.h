@@ -1545,8 +1545,7 @@ SENTRY_API int sentry_options_get_symbolize_stacktraces(
  *
  * `SENTRY_CACHE_KEEP_NONE` by default.
  */
-SENTRY_API void sentry_options_set_cache_keep(
-    sentry_options_t *opts, int enabled);
+SENTRY_API void sentry_options_set_cache_keep(sentry_options_t *opts, int mode);
 
 /**
  * Sets the maximum number of items in the cache directory.

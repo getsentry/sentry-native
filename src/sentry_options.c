@@ -510,14 +510,14 @@ sentry_options_get_symbolize_stacktraces(const sentry_options_t *opts)
 }
 
 void
-sentry_options_set_cache_keep(sentry_options_t *opts, int enabled)
+sentry_options_set_cache_keep(sentry_options_t *opts, int mode)
 {
-    if (enabled < SENTRY_CACHE_KEEP_NONE) {
-        enabled = SENTRY_CACHE_KEEP_OFFLINE;
-    } else if (enabled > SENTRY_CACHE_KEEP_ALWAYS) {
-        enabled = SENTRY_CACHE_KEEP_ALWAYS;
+    if (mode < SENTRY_CACHE_KEEP_NONE) {
+        mode = SENTRY_CACHE_KEEP_OFFLINE;
+    } else if (mode > SENTRY_CACHE_KEEP_ALWAYS) {
+        mode = SENTRY_CACHE_KEEP_ALWAYS;
     }
-    opts->cache_keep = (sentry_cache_keep_t)enabled;
+    opts->cache_keep = (sentry_cache_keep_t)mode;
 }
 
 void
