@@ -738,8 +738,11 @@ void
 sentry_options_add_view_hierarchyw(sentry_options_t *opts, const wchar_t *path)
 {
     size_t path_len = path ? wcslen(path) : 0;
-    sentry_options_add_view_hierarchyw_n(opts, path, path_len);
+    sentry__attachments_add_path(&opts->attachments,
+        sentry__path_from_wstr_n(path, path_len),
+        SENTRY_ATTACHMENT_TYPE_VIEW_HIERARCHY, "application/json");
 }
+
 void
 sentry_options_add_view_hierarchyw_n(
     sentry_options_t *opts, const wchar_t *path, size_t path_len)

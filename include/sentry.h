@@ -1603,8 +1603,12 @@ SENTRY_API void sentry_options_add_attachment_n(
  * API Users on windows are encouraged to use
  * `sentry_options_add_view_hierarchyw` instead.
  */
+SENTRY_DEPRECATED("Use `sentry_attach_*` with `sentry_attachment_set_type` and "
+                  "`SENTRY_ATTACHMENT_TYPE_VIEW_HIERARCHY` instead")
 SENTRY_API void sentry_options_add_view_hierarchy(
     sentry_options_t *opts, const char *path);
+SENTRY_DEPRECATED("Use `sentry_attach_*` with `sentry_attachment_set_type` and "
+                  "`SENTRY_ATTACHMENT_TYPE_VIEW_HIERARCHY` instead")
 SENTRY_API void sentry_options_add_view_hierarchy_n(
     sentry_options_t *opts, const char *path, size_t path_len);
 
@@ -1771,8 +1775,12 @@ SENTRY_API void sentry_options_add_attachmentw_n(
 /**
  * Wide char version of `sentry_options_add_view_hierarchy`.
  */
+SENTRY_DEPRECATED("Use `sentry_attach_*` with `sentry_attachment_set_type` and "
+                  "`SENTRY_ATTACHMENT_TYPE_VIEW_HIERARCHY` instead")
 SENTRY_API void sentry_options_add_view_hierarchyw(
     sentry_options_t *opts, const wchar_t *path);
+SENTRY_DEPRECATED("Use `sentry_attach_*` with `sentry_attachment_set_type` and "
+                  "`SENTRY_ATTACHMENT_TYPE_VIEW_HIERARCHY` instead")
 SENTRY_API void sentry_options_add_view_hierarchyw_n(
     sentry_options_t *opts, const wchar_t *path, size_t path_len);
 
