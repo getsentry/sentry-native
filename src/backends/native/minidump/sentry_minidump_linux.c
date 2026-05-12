@@ -2579,6 +2579,21 @@ write_linux_maps_stream(minidump_writer_t *writer, minidump_directory_t *dir)
         writer, dir, MINIDUMP_STREAM_LINUX_MAPS, path, 1024 * 1024);
 }
 
+// Native (host = target) link-map / debug-struct types for the DSO debug
+// stream. We don't support cross-bitness dumps, so picking by host pointer
+// size is correct. The 32-bit variants match Breakpad's MDRawLinkMap32 /
+// MDRawDebug32 (12 / 24 bytes); the 64-bit variants match MDRawLinkMap64
+// / MDRawDebug64 (20 / 36 bytes).
+#    if __SIZEOF_POINTER__ == 4
+#        define DSO_LINK_MAP_T minidump_link_map32_t
+#        define DSO_DEBUG_T minidump_debug32_t
+#        define DSO_UINT_T uint32_t
+#    else
+#        define DSO_LINK_MAP_T minidump_link_map64_t
+#        define DSO_DEBUG_T minidump_debug64_t
+#        define DSO_UINT_T uint64_t
+#    endif
+
 /**
  * Walk the dynamic linker's r_debug structure and write it as a
  * LinuxDsoDebug stream (MD_LINUX_DSO_DEBUG / 0x4767000A).
@@ -2597,7 +2612,8 @@ write_linux_maps_stream(minidump_writer_t *writer, minidump_directory_t *dir)
  *   3. Walk program headers to find PT_DYNAMIC's vaddr.
  *   4. Walk PT_DYNAMIC entries to find DT_DEBUG → r_debug pointer.
  *   5. Walk r_debug.r_map (link_map list) and emit one
- *      minidump_link_map64_t per loaded DSO.
+ *      minidump_link_map{32,64}_t per loaded DSO (depending on host
+ *      bitness — 32-bit Linux ARM / i386 emit the 32-bit variant).
  *
  * All target-process reads go through read_process_memory (process_vm_readv
  * with ptrace fallback); we never dereference target pointers directly.
@@ -2757,8 +2773,8 @@ write_linux_dso_debug_stream(
 
     // Pre-emit the link_map array header so we have a stable RVA, then
     // stream entries. We'll backfill the array.
-    size_t links_size = dso_count * sizeof(minidump_link_map64_t);
-    minidump_link_map64_t *links = NULL;
+    size_t links_size = dso_count * sizeof(DSO_LINK_MAP_T);
+    DSO_LINK_MAP_T *links = NULL;
     minidump_rva_t links_rva = 0;
     size_t links_written = 0;
     if (dso_count > 0) {
@@ -2792,9 +2808,9 @@ write_linux_dso_debug_stream(
                 }
             }
 
-            links[links_written].addr = (uint64_t)lm.l_addr;
+            links[links_written].addr = (DSO_UINT_T)lm.l_addr;
             links[links_written].name = write_minidump_string(writer, namebuf);
-            links[links_written].ld = (uint64_t)(uintptr_t)lm.l_ld;
+            links[links_written].ld = (DSO_UINT_T)(uintptr_t)lm.l_ld;
             links_written++;
             next = lm.l_next;
         }
@@ -2805,7 +2821,7 @@ write_linux_dso_debug_stream(
         // to size the array on disk and in the header.
         if (links_written > 0) {
             links_rva = write_data(
-                writer, links, links_written * sizeof(minidump_link_map64_t));
+                writer, links, links_written * sizeof(DSO_LINK_MAP_T));
         }
         sentry_free(links);
         if (links_written > 0 && !links_rva) {
@@ -2816,20 +2832,20 @@ write_linux_dso_debug_stream(
     // Now write the MD_LINUX_DSO_DEBUG header followed by a copy of the
     // PT_DYNAMIC blob (matches Breakpad's layout: header is at the stream
     // RVA, and the dynamic-section bytes follow contiguously).
-    size_t header_size = sizeof(minidump_debug64_t);
+    size_t header_size = sizeof(DSO_DEBUG_T);
     size_t total_size = header_size + dynamic_length;
     uint8_t *blob = sentry_malloc(total_size);
     if (!blob) {
         return -1;
     }
     memset(blob, 0, total_size);
-    minidump_debug64_t *hdr = (minidump_debug64_t *)blob;
+    DSO_DEBUG_T *hdr = (DSO_DEBUG_T *)blob;
     hdr->version = have_rdebug ? rd.r_version : 0;
     hdr->map = links_rva;
     hdr->dso_count = (uint32_t)links_written;
-    hdr->brk = have_rdebug ? (uint64_t)rd.r_brk : 0;
-    hdr->ldbase = at_base; // matches Breakpad: AT_BASE from auxv
-    hdr->dynamic = dynamic_addr;
+    hdr->brk = have_rdebug ? (DSO_UINT_T)rd.r_brk : 0;
+    hdr->ldbase = (DSO_UINT_T)at_base; // matches Breakpad: AT_BASE from auxv
+    hdr->dynamic = (DSO_UINT_T)dynamic_addr;
 
     // Best-effort: copy the actual PT_DYNAMIC bytes. Failure here is OK —
     // consumers only need the header for module enumeration.

@@ -476,31 +476,57 @@ PACKED_STRUCT_END
 /**
  * Linux DSO debug structures (MD_LINUX_DSO_DEBUG, 0x4767000A)
  *
- * Wire-compatible with Breakpad's MDRawLinkMap64 / MDRawDebug64. Breakpad
- * builds these under `#pragma pack(push, 4)`, so a uint64_t can sit on a
- * 4-byte boundary with no padding inserted between the preceding uint32_t
- * and itself. We use PACKED_ATTR (== __attribute__((packed))) to get the
- * same byte-exact layout: 20 bytes for link_map64, 36 bytes for debug64.
+ * Wire-compatible with Breakpad's MDRawLinkMap{32,64} / MDRawDebug{32,64}.
+ * Breakpad builds these under `#pragma pack(push, 4)`, so a uint64_t can
+ * sit on a 4-byte boundary with no padding inserted between the preceding
+ * uint32_t and itself. We use PACKED_ATTR (== __attribute__((packed))) to
+ * get the same byte-exact layout:
+ *   - link_map32: 12 bytes (4 + 4 + 4)
+ *   - link_map64: 20 bytes (8 + 4 + 8)
+ *   - debug32:    24 bytes (4 * 6)
+ *   - debug64:    36 bytes (4 + 4 + 4 + 8 + 8 + 8)
  *
  * Adding explicit _pad fields here would break the layout — LLDB and
  * rust-minidump compute offsets assuming the Breakpad sizes.
+ *
+ * The writer picks 32 vs 64 based on the target process's pointer size
+ * (which is the host pointer size — we don't support cross-bitness dumps).
  */
 PACKED_STRUCT_BEGIN
 typedef struct {
-    uint64_t addr; // l_addr from struct link_map
+    uint32_t addr; // l_addr from struct link_map
     minidump_rva_t name; // RVA to MINIDUMP_STRING with the SO path
-    uint64_t ld; // l_ld from struct link_map (PT_DYNAMIC of this DSO)
+    uint32_t ld; // l_ld from struct link_map (PT_DYNAMIC of this DSO)
+} PACKED_ATTR minidump_link_map32_t;
+PACKED_STRUCT_END
+
+PACKED_STRUCT_BEGIN
+typedef struct {
+    uint64_t addr;
+    minidump_rva_t name;
+    uint64_t ld;
 } PACKED_ATTR minidump_link_map64_t;
 PACKED_STRUCT_END
 
 PACKED_STRUCT_BEGIN
 typedef struct {
     uint32_t version; // r_debug.r_version
-    minidump_rva_t map; // RVA to array of minidump_link_map64_t
+    minidump_rva_t map; // RVA to array of minidump_link_map32_t
     uint32_t dso_count; // number of entries in map
-    uint64_t brk; // r_debug.r_brk
-    uint64_t ldbase; // r_debug.r_ldbase
-    uint64_t dynamic; // address of the program's _DYNAMIC section
+    uint32_t brk; // r_debug.r_brk
+    uint32_t ldbase; // r_debug.r_ldbase
+    uint32_t dynamic; // address of the program's _DYNAMIC section
+} PACKED_ATTR minidump_debug32_t;
+PACKED_STRUCT_END
+
+PACKED_STRUCT_BEGIN
+typedef struct {
+    uint32_t version;
+    minidump_rva_t map; // RVA to array of minidump_link_map64_t
+    uint32_t dso_count;
+    uint64_t brk;
+    uint64_t ldbase;
+    uint64_t dynamic;
 } PACKED_ATTR minidump_debug64_t;
 PACKED_STRUCT_END
 
