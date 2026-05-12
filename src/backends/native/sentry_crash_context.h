@@ -242,6 +242,12 @@ typedef struct {
     sentry_thread_context_windows_t threads[SENTRY_CRASH_MAX_THREADS];
 } sentry_crash_platform_windows_t;
 
+typedef struct {
+    DWORD version;
+    DWORD app_pid;
+    uint64_t app_tid;
+} sentry_wer_registration_t;
+
 #    ifdef _MSC_VER
 #        pragma warning(pop)
 #    endif

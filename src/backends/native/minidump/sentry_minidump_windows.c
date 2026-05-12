@@ -69,13 +69,27 @@ sentry__write_minidump(
 
     // Prepare exception information using original pointers from crashed
     // process
+    EXCEPTION_POINTERS local_exception_pointers = { 0 };
+    EXCEPTION_RECORD local_exception_record = { 0 };
     MINIDUMP_EXCEPTION_INFORMATION exception_info = { 0 };
     exception_info.ThreadId = ctx->crashed_tid;
-    // Use original exception pointers from crashed process's address space
-    exception_info.ExceptionPointers = ctx->platform.exception_pointers;
-    // ClientPointers=TRUE tells Windows these pointers are in the target
-    // process
-    exception_info.ClientPointers = TRUE;
+    if (ctx->platform.exception_pointers) {
+        // Use original exception pointers from crashed process's address space
+        exception_info.ExceptionPointers = ctx->platform.exception_pointers;
+        // ClientPointers=TRUE tells Windows these pointers are in the target
+        // process
+        exception_info.ClientPointers = TRUE;
+    } else {
+        // WER copies exception data into shared memory, so ClientPointers must
+        // be false when using the copied record/context.
+        local_exception_record = ctx->platform.exception_record;
+        local_exception_record.ExceptionRecord = NULL;
+        local_exception_pointers.ExceptionRecord = &local_exception_record;
+        local_exception_pointers.ContextRecord
+            = (PCONTEXT)&ctx->platform.context;
+        exception_info.ExceptionPointers = &local_exception_pointers;
+        exception_info.ClientPointers = FALSE;
+    }
 
     // Determine minidump type based on configuration
     MINIDUMP_TYPE dump_type;

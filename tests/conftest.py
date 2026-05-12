@@ -104,9 +104,9 @@ def _record_test_start():
 
 def pytest_addoption(parser):
     parser.addoption(
-        "--with_crashpad_wer",
+        "--with_wer",
         action="store_true",
-        help="Enables tests for the crashpad WER module on Windows",
+        help="Enables tests for the native and crashpad WER modules on Windows",
     )
     parser.addoption(
         "--benchmark_out",
@@ -116,16 +116,14 @@ def pytest_addoption(parser):
 
 
 def pytest_runtest_setup(item):
-    if "with_crashpad_wer" in item.keywords and not item.config.getoption(
-        "--with_crashpad_wer"
-    ):
-        pytest.skip("need --with_crashpad_wer to run this test")
+    if "with_wer" in item.keywords and not item.config.getoption("--with_wer"):
+        pytest.skip("need --with_wer to run this test")
 
 
 def pytest_configure(config):
     config.addinivalue_line(
         "markers",
-        "with_crashpad_wer: mark test to only run when WER testing is enabled",
+        "with_wer: mark test to only run when WER testing is enabled",
     )
 
 

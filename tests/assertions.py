@@ -423,6 +423,20 @@ def assert_inproc_crash(envelope):
     assert_stacktrace(envelope, inside_exception=True, check_size=False)
 
 
+def assert_native_crash(envelope, exception_code=None):
+    event = envelope.get_event()
+    assert event is not None
+    assert_matches(event, {"level": "fatal"})
+
+    exc = event["exception"]["values"][0]
+    assert exc["mechanism"]["type"] == "signalhandler"
+    assert exc["mechanism"]["handled"] is False
+    if exception_code is not None:
+        assert exc["mechanism"]["meta"]["signal"]["number"] == exception_code
+    assert "stacktrace" in exc
+    assert len(exc["stacktrace"]["frames"]) > 0
+
+
 def assert_crash_timestamp(has_files, tmp_path):
     # The crash file should survive a `sentry_init` and should still be there
     # even after restarts.
