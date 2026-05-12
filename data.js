@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1778601308606,
+  "lastUpdate": 1778601374881,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -62512,6 +62512,66 @@ window.BENCHMARK_DATA = {
             "value": 45.90439999992668,
             "unit": "ms",
             "extra": "Min 27.007ms\nMax 108.762ms\nMean 61.092ms\nStdDev 37.526ms\nMedian 45.904ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "jpnurmi@gmail.com",
+            "name": "J-P Nurmi",
+            "username": "jpnurmi"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "3b0f1f0cbc3a45e81bc3da335f94006e3cd3dab1",
+          "message": "feat: expose attachment types (#1700)\n\n* feat: expose attachment types\n\nExpose attachment type setters together with well-known type constants\nso downstream SDKs can mark attachments such as view hierarchy payloads\nas \"event.view_hierarchy\".\n\nCo-Authored-By: OpenAI Codex <noreply@openai.com>\n\n* Update CHANGELOG.md\n\n* Fix formatting\n\n* Cast\n\n* Use sentry__string_empty\n\n* Deprecate sentry_options_add_view_hierarchy\n\n* Adapt session replay mp4's\n\n* infer content type from attachment type unless explicitly set\n\n* fix test leak\n\n* ref(attachments): Simplify attachment add helper\n\nKeep sentry__attachments_add focused on inserting already-configured\nattachments. Configure type and content type in the path helper, and preserve\nthose fields when cloning attachments.\n\nCo-Authored-By: OpenAI Codex <noreply@openai.com>\n\n* add note\n\n---------\n\nCo-authored-by: OpenAI Codex <noreply@openai.com>",
+          "timestamp": "2026-05-12T17:51:49+02:00",
+          "tree_id": "bdc5d15a9f0d5c9a395252000763dd4145033140",
+          "url": "https://github.com/getsentry/sentry-native/commit/3b0f1f0cbc3a45e81bc3da335f94006e3cd3dab1"
+        },
+        "date": 1778601368598,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 10.414299999979448,
+            "unit": "ms",
+            "extra": "Min 9.895ms\nMax 13.974ms\nMean 11.158ms\nStdDev 1.648ms\nMedian 10.414ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 13.106199999981527,
+            "unit": "ms",
+            "extra": "Min 11.148ms\nMax 14.959ms\nMean 13.126ms\nStdDev 1.354ms\nMedian 13.106ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 26.77249999999276,
+            "unit": "ms",
+            "extra": "Min 26.521ms\nMax 27.030ms\nMean 26.768ms\nStdDev 0.204ms\nMedian 26.772ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.17609999997603154,
+            "unit": "ms",
+            "extra": "Min 0.165ms\nMax 0.225ms\nMean 0.182ms\nStdDev 0.025ms\nMedian 0.176ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.40880000000242944,
+            "unit": "ms",
+            "extra": "Min 0.395ms\nMax 0.435ms\nMean 0.412ms\nStdDev 0.015ms\nMedian 0.409ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 14.721000000008644,
+            "unit": "ms",
+            "extra": "Min 14.154ms\nMax 15.667ms\nMean 14.865ms\nStdDev 0.556ms\nMedian 14.721ms"
           }
         ]
       }
