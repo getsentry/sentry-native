@@ -21,6 +21,7 @@ from . import (
 from .assertions import (
     assert_breadcrumb,
     assert_meta,
+    assert_native_crash,
     assert_session,
     wait_for_file,
     assert_user_feedback,
@@ -85,6 +86,32 @@ def test_native_capture_crash(cmake, httpserver):
             env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
         )
     assert waiting.result
+
+
+@pytest.mark.skipif(
+    sys.platform != "win32" or bool(os.environ.get("TEST_MINGW")),
+    reason="WER crash tests are only available in MSVC Windows builds",
+)
+@pytest.mark.with_wer
+@pytest.mark.parametrize("crash_arg", ["fastfail", "stack-buffer-overrun"])
+def test_native_wer(cmake, httpserver, crash_arg):
+    """Test WER crash capture with native backend"""
+    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "native"})
+
+    httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data("OK")
+
+    with httpserver.wait(timeout=10) as waiting:
+        run_crash(
+            tmp_path,
+            "sentry_example",
+            ["log", "stdout", crash_arg],
+            env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
+        )
+    assert waiting.result
+
+    assert len(httpserver.log) >= 1
+    envelope = Envelope.deserialize(httpserver.log[0][0].get_data())
+    assert_native_crash(envelope, exception_code=0xC0000409)
 
 
 @pytest.mark.skipif(not has_oom, reason="OOM test unreliable in this environment")
@@ -418,6 +445,7 @@ def test_native_external_crash_reporter(cmake, httpserver):
     tmp_path = cmake(
         ["sentry_example", "sentry_crash_reporter"], {"SENTRY_BACKEND": "native"}
     )
+    cache_dir = tmp_path.joinpath(".sentry-native/cache")
 
     env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
     httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data("OK")
@@ -428,7 +456,7 @@ def test_native_external_crash_reporter(cmake, httpserver):
         run_crash(
             tmp_path,
             "sentry_example",
-            ["log", "crash-reporter", "crash"],
+            ["log", "crash-reporter", "cache-keep", "crash"],
             env=env,
         )
     assert waiting.result
@@ -443,6 +471,7 @@ def test_native_external_crash_reporter(cmake, httpserver):
 
     # Verify it's a minidump crash report and user feedback
     envelope = Envelope.deserialize(crash)
+    assert envelope.headers["cache_dir"] == str(cache_dir)
     assert_meta(envelope)
     assert_breadcrumb(envelope)
 

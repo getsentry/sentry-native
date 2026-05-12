@@ -460,7 +460,8 @@ sentry__capture_envelope(sentry_transport_t *transport,
     }
     bool cached = false;
     if (options->cache_keep || options->http_retry) {
-        cached = sentry__run_write_cache(options->run, envelope, 0);
+        int retry_count = options->http_retry ? 0 : -1;
+        cached = sentry__run_write_cache(options->run, envelope, retry_count);
         if (cached && !sentry__run_should_skip_upload(options->run)) {
             // consent given meanwhile -> trigger retry to avoid waiting
             // until the next retry poll
@@ -1694,6 +1695,10 @@ sentry__launch_external_crash_reporter(
         return false;
     }
 
+    if (options->cache_keep == SENTRY_CACHE_KEEP_ALWAYS) {
+        sentry__run_write_cache(options->run, envelope, -1);
+    }
+
     sentry_uuid_t event_id = sentry__envelope_get_event_id(envelope);
     char *envelope_filename = sentry__uuid_as_filename(&event_id, ".envelope");
     if (!envelope_filename) {
@@ -1714,6 +1719,14 @@ sentry__launch_external_crash_reporter(
         sentry__path_free(report_path);
         sentry_free(envelope_filename);
         return false;
+    }
+    if (options->cache_keep) {
+        if (!sentry__envelope_is_raw(envelope)) {
+            sentry__envelope_set_header(envelope, "cache_dir",
+                sentry_value_new_string(options->run->cache_path->path));
+        } else {
+            SENTRY_WARN("failed to add cache_dir to external crash report");
+        }
     }
     sentry__transport_send_envelope(disk_transport, envelope);
     sentry__transport_dump_queue(disk_transport, options->run);

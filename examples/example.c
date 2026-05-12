@@ -731,11 +731,17 @@ main(int argc, char **argv)
     if (has_arg(argc, argv, "require-user-consent")) {
         sentry_options_set_require_user_consent(options, true);
     }
-    if (has_arg(argc, argv, "cache-keep")) {
+    if (has_arg(argc, argv, "cache-keep")
+        || has_arg(argc, argv, "cache-keep-always")) {
+        // true corresponds to SENTRY_CACHE_KEEP_OFFLINE for backwards
+        // compatibility with older SDK versions that don't have the enum
         sentry_options_set_cache_keep(options, true);
         sentry_options_set_cache_max_size(options, 16 * 1024 * 1024); // 16 MB
         sentry_options_set_cache_max_age(options, 5 * 24 * 60 * 60); // 5 days
         sentry_options_set_cache_max_items(options, 5);
+    }
+    if (has_arg(argc, argv, "cache-keep-always")) {
+        sentry_options_set_cache_keep(options, SENTRY_CACHE_KEEP_ALWAYS);
     }
     if (has_arg(argc, argv, "http-retry")) {
         sentry_options_set_http_retry(options, true);

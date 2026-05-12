@@ -753,6 +753,13 @@ SENTRY_TEST(envelope_materialize)
     sentry_envelope_t *bad = sentry__envelope_from_path(path);
     TEST_ASSERT(!!bad);
     TEST_CHECK(!sentry__envelope_materialize(bad));
+    TEST_CHECK(sentry__envelope_is_raw(bad));
+    size_t serialized_len = 0;
+    char *serialized = sentry_envelope_serialize(bad, &serialized_len);
+    TEST_ASSERT(!!serialized);
+    TEST_CHECK_INT_EQUAL(serialized_len, 7);
+    TEST_CHECK_STRING_EQUAL(serialized, "garbage");
+    sentry_free(serialized);
     sentry_envelope_free(bad);
 
     sentry__path_remove(path);

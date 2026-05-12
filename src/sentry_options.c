@@ -48,6 +48,8 @@ sentry_options_new(void)
     opts->auto_session_tracking = true;
     opts->system_crash_reporter_enabled = false;
     opts->attach_screenshot = false;
+    opts->attach_session_replay = false;
+    opts->session_replay_duration = 5000;
     opts->crashpad_wait_for_upload = false;
     // On macOS, breakpad suspends all other threads of the process before
     // writing the minidump and invokes our backend callback from inside
@@ -67,7 +69,7 @@ sentry_options_new(void)
     opts->crashpad_limit_stack_capture_to_sp = false;
     opts->enable_metrics = true;
     opts->enable_logs = true;
-    opts->cache_keep = false;
+    opts->cache_keep = SENTRY_CACHE_KEEP_NONE;
     opts->cache_max_age = 0;
     opts->cache_max_size = 0;
     opts->cache_max_items = 30;
@@ -539,9 +541,14 @@ sentry_options_get_symbolize_stacktraces(const sentry_options_t *opts)
 }
 
 void
-sentry_options_set_cache_keep(sentry_options_t *opts, int enabled)
+sentry_options_set_cache_keep(sentry_options_t *opts, int mode)
 {
-    opts->cache_keep = !!enabled;
+    if (mode < SENTRY_CACHE_KEEP_NONE) {
+        mode = SENTRY_CACHE_KEEP_OFFLINE;
+    } else if (mode > SENTRY_CACHE_KEEP_ALWAYS) {
+        mode = SENTRY_CACHE_KEEP_ALWAYS;
+    }
+    opts->cache_keep = (sentry_cache_keep_t)mode;
 }
 
 void
@@ -678,6 +685,19 @@ sentry_options_set_before_screenshot(sentry_options_t *opts,
 {
     opts->before_screenshot_func = func;
     opts->before_screenshot_data = user_data;
+}
+
+void
+sentry_options_set_attach_session_replay(sentry_options_t *opts, int val)
+{
+    opts->attach_session_replay = !!val;
+}
+
+void
+sentry_options_set_session_replay_duration(
+    sentry_options_t *opts, uint32_t duration_ms)
+{
+    opts->session_replay_duration = duration_ms;
 }
 
 void

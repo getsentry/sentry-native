@@ -43,12 +43,14 @@ struct sentry_options_s {
     bool attach_screenshot;
     sentry_before_screenshot_function_t before_screenshot_func;
     void *before_screenshot_data;
+    bool attach_session_replay;
+    uint32_t session_replay_duration;
     bool crashpad_wait_for_upload;
     bool enable_logging_when_crashed;
     bool propagate_traceparent;
     bool strict_trace_continuation;
     bool crashpad_limit_stack_capture_to_sp;
-    bool cache_keep;
+    sentry_cache_keep_t cache_keep;
 
     time_t cache_max_age;
     size_t cache_max_size;

@@ -42,9 +42,6 @@
  * attachment paths will be resolved according to the current working directory
  * at the time of envelope creation. When adding and removing attachments, they
  * are matched according to their given `path`. No normalization is performed.
- * When using the `crashpad` backend on macOS, the list of attachments that will
- * be added at the time of a hard crash will be frozen at the time of
- * `sentry_init`, and later modifications will not be reflected.
  */
 
 #ifndef SENTRY_H_INCLUDED
@@ -1077,6 +1074,28 @@ typedef enum {
 } sentry_crash_reporting_mode_t;
 
 /**
+ * Controls if and when envelopes are kept in the persistent cache.
+ */
+typedef enum {
+    /** Do not keep envelopes in the persistent cache. */
+    SENTRY_CACHE_KEEP_NONE = 0,
+
+    /**
+     * Envelopes that cannot be uploaded immediately are written to a `cache/`
+     * subdirectory within the database directory. This includes network
+     * failures and envelopes captured while user consent is revoked.
+     */
+    SENTRY_CACHE_KEEP_OFFLINE = 1,
+
+    /**
+     * Envelopes are written to the cache regardless of the upload result. Kept
+     * entries use non-retry filenames and are not picked up by the
+     * retry queue.
+     */
+    SENTRY_CACHE_KEEP_ALWAYS = 2,
+} sentry_cache_keep_t;
+
+/**
  * Creates a new options struct.
  * Can be freed with `sentry_options_free`.
  */
@@ -1509,12 +1528,11 @@ SENTRY_API int sentry_options_get_symbolize_stacktraces(
     const sentry_options_t *opts);
 
 /**
- * Enables or disables storing envelopes that fail to send in a persistent
- * cache.
+ * Configures if and when envelopes are kept in a persistent cache.
  *
- * When enabled, envelopes that fail to send are written to a `cache/`
- * subdirectory within the database directory. The cache is cleared on startup
- * based on the cache_max_items, cache_max_size, and cache_max_age options.
+ * Kept envelopes are written to a `cache/` subdirectory within the database
+ * directory. The cache is cleared on startup based on the cache_max_items,
+ * cache_max_size, and cache_max_age options.
  *
  * When combined with `sentry_options_set_require_user_consent`, envelopes
  * captured while consent is revoked are also written to the cache. With
@@ -1522,10 +1540,9 @@ SENTRY_API int sentry_options_get_symbolize_stacktraces(
  *
  * Only applicable for HTTP transports.
  *
- * Disabled by default.
+ * `SENTRY_CACHE_KEEP_NONE` by default.
  */
-SENTRY_API void sentry_options_set_cache_keep(
-    sentry_options_t *opts, int enabled);
+SENTRY_API void sentry_options_set_cache_keep(sentry_options_t *opts, int mode);
 
 /**
  * Sets the maximum number of items in the cache directory.
@@ -1635,6 +1652,27 @@ typedef int (*sentry_before_screenshot_function_t)(
 SENTRY_EXPERIMENTAL_API void sentry_options_set_before_screenshot(
     sentry_options_t *opts, sentry_before_screenshot_function_t func,
     void *user_data);
+
+/**
+ * Enables capturing a short retroactive video replay on crash. Currently only
+ * supported on Xbox via the OS-managed game recording ring. The replay is
+ * attached to the crash envelope as `session-replay.mp4`.
+ *
+ * Set the duration via `sentry_options_set_session_replay_duration`
+ * (default 5000 ms). Disabled by default. Must be set before `sentry_init`.
+ */
+SENTRY_EXPERIMENTAL_API void sentry_options_set_attach_session_replay(
+    sentry_options_t *opts, int val);
+
+/**
+ * Sets the requested duration of the retroactive session replay in
+ * milliseconds.
+ *
+ * The resulting replay can be shorter than the requested duration if it hasn't
+ * accumulated enough buffered frames yet. Defaults to 5000 ms.
+ */
+SENTRY_EXPERIMENTAL_API void sentry_options_set_session_replay_duration(
+    sentry_options_t *opts, uint32_t duration_ms);
 
 /**
  * Sets the path to the crashpad handler if the crashpad backend is used.

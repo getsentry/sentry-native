@@ -314,6 +314,7 @@ def test_user_report_http(cmake, httpserver):
 )
 def test_external_crash_reporter_http(cmake, httpserver, build_args):
     tmp_path = cmake(["sentry_example", "sentry_crash_reporter"], build_args)
+    cache_dir = tmp_path.joinpath(".sentry-native/cache")
 
     httpserver.expect_oneshot_request(
         "/api/123456/envelope/",
@@ -329,7 +330,7 @@ def test_external_crash_reporter_http(cmake, httpserver, build_args):
         run(
             tmp_path,
             "sentry_example",
-            ["log", "crash-reporter", "crash"],
+            ["log", "crash-reporter", "cache-keep", "crash"],
             expect_failure=True,
             env=env,
         )
@@ -354,6 +355,7 @@ def test_external_crash_reporter_http(cmake, httpserver, build_args):
     crash = crash_request.get_data()
 
     envelope = Envelope.deserialize(crash)
+    assert envelope.headers["cache_dir"] == str(cache_dir)
     assert_meta(envelope, integration=build_args.get("SENTRY_BACKEND", ""))
 
     envelope = Envelope.deserialize(feedback)

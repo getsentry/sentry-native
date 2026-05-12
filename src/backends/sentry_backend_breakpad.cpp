@@ -17,6 +17,7 @@ extern "C" {
 #endif
 #include "sentry_path.h"
 #include "sentry_screenshot.h"
+#include "sentry_session_replay.h"
 #include "sentry_string.h"
 #include "sentry_sync.h"
 #include "sentry_transport.h"
@@ -225,6 +226,17 @@ breakpad_backend_callback(const google_breakpad::MinidumpDescriptor &descriptor,
                     sentry__envelope_add_attachment(envelope, screenshot);
                 }
                 sentry__attachment_free(screenshot);
+            }
+
+            if (options->attach_session_replay) {
+                sentry_attachment_t *replay = sentry__attachment_from_path(
+                    sentry__session_replay_get_path(options));
+                if (replay
+                    && sentry__session_replay_capture(
+                        replay->path, options->session_replay_duration, 0)) {
+                    sentry__envelope_add_attachment(envelope, replay);
+                }
+                sentry__attachment_free(replay);
             }
 
             if (!sentry__launch_external_crash_reporter(options, envelope)) {
