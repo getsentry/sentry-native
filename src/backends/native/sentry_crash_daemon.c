@@ -13,6 +13,7 @@
 #include "sentry_path.h"
 #include "sentry_process.h"
 #include "sentry_screenshot.h"
+#include "sentry_session_replay.h"
 #include "sentry_string.h"
 #include "sentry_symbolizer.h"
 #include "sentry_sync.h"
@@ -2504,6 +2505,17 @@ write_envelope_with_native_stacktrace(const sentry_options_t *options,
         }
     }
 
+    // Add session replay attachment if captured by the daemon
+    if (ctx->attach_session_replay && run_folder) {
+        sentry_path_t *replay_path
+            = sentry__path_join_str(run_folder, "session-replay.mp4");
+        if (replay_path) {
+            write_attachment_to_envelope(
+                fd, replay_path->path, "session-replay.mp4", "video/mp4");
+            sentry__path_free(replay_path);
+        }
+    }
+
 #if defined(SENTRY_PLATFORM_UNIX)
     close(fd);
 #elif defined(SENTRY_PLATFORM_WINDOWS)
@@ -2740,6 +2752,17 @@ write_envelope_with_minidump(const sentry_options_t *options,
         }
     }
 
+    // Add session replay attachment if captured by the daemon
+    if (ctx->attach_session_replay && run_folder) {
+        sentry_path_t *replay_path
+            = sentry__path_join_str(run_folder, "session-replay.mp4");
+        if (replay_path) {
+            write_attachment_to_envelope(
+                fd, replay_path->path, "session-replay.mp4", "video/mp4");
+            sentry__path_free(replay_path);
+        }
+    }
+
 #if defined(SENTRY_PLATFORM_UNIX)
     close(fd);
 #elif defined(SENTRY_PLATFORM_WINDOWS)
@@ -2920,6 +2943,23 @@ sentry__process_crash(const sentry_options_t *options, sentry_crash_ipc_t *ipc)
                 SENTRY_DEBUG("Screenshot capture failed");
             }
             sentry__path_free(screenshot_path);
+        }
+    }
+
+    // Capture session replay if enabled. Like screenshot, this runs
+    // out-of-process because the underlying OS APIs are not signal-safe.
+    if (ctx->attach_session_replay && run_folder) {
+        SENTRY_DEBUG("Capturing session replay");
+        sentry_path_t *replay_path
+            = sentry__path_join_str(run_folder, "session-replay.mp4");
+        if (replay_path) {
+            if (sentry__session_replay_capture(replay_path,
+                    ctx->session_replay_duration, (uint32_t)ctx->crashed_pid)) {
+                SENTRY_DEBUG("Session replay captured successfully");
+            } else {
+                SENTRY_DEBUG("Session replay capture failed");
+            }
+            sentry__path_free(replay_path);
         }
     }
 #endif
@@ -3294,6 +3334,8 @@ sentry__crash_daemon_main(pid_t app_pid, uint64_t app_tid, HANDLE event_handle,
     // Use debug logging and screenshot settings from parent process
     sentry_options_set_debug(options, ipc->shmem->debug_enabled);
     options->attach_screenshot = ipc->shmem->attach_screenshot;
+    options->attach_session_replay = ipc->shmem->attach_session_replay;
+    options->session_replay_duration = ipc->shmem->session_replay_duration;
     options->cache_keep = (sentry_cache_keep_t)ipc->shmem->cache_keep;
     options->enable_large_attachments = ipc->shmem->enable_large_attachments;
     options->http_retry = false;

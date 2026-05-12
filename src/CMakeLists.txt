@@ -44,6 +44,7 @@ sentry_target_sources_cwd(sentry
 	sentry_scope.c
 	sentry_scope.h
 	sentry_screenshot.h
+	sentry_session_replay.h
 	sentry_session.c
 	sentry_session.h
 	sentry_slice.c
@@ -65,6 +66,7 @@ sentry_target_sources_cwd(sentry
 	sentry_tracing.h
 	path/sentry_path.c
 	screenshot/sentry_screenshot.c
+	session_replay/sentry_session_replay.c
 	transports/sentry_disk_transport.c
 	transports/sentry_disk_transport.h
 	transports/sentry_function_transport.c
@@ -278,5 +280,12 @@ if(WIN32 AND NOT XBOX)
 elseif(NOT WIN32)
 	sentry_target_sources_cwd(sentry
 		screenshot/sentry_screenshot_none.c
+	)
+endif()
+
+# session replay
+if(NOT XBOX)
+	sentry_target_sources_cwd(sentry
+		session_replay/sentry_session_replay_none.c
 	)
 endif()
