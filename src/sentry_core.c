@@ -1842,8 +1842,7 @@ add_attachment(sentry_attachment_t *attachment)
         }
     }
     SENTRY_WITH_SCOPE_MUT (scope) {
-        attachment = sentry__attachments_add(
-            &scope->attachments, attachment, NULL, NULL);
+        attachment = sentry__attachments_add(&scope->attachments, attachment);
     }
     return attachment;
 }

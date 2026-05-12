@@ -79,8 +79,7 @@ void sentry__attachments_free(sentry_attachment_t *attachments);
  * Adds an attachment to the attachments list at `attachments_ptr`.
  */
 sentry_attachment_t *sentry__attachments_add(
-    sentry_attachment_t **attachments_ptr, sentry_attachment_t *attachment,
-    const char *attachment_type, const char *content_type);
+    sentry_attachment_t **attachments_ptr, sentry_attachment_t *attachment);
 
 /**
  * Adds a file attachment to the attachments list at `attachments_ptr`.

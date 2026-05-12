@@ -213,9 +213,8 @@ attachment_eq(const sentry_attachment_t *a, const sentry_attachment_t *b)
 }
 
 sentry_attachment_t *
-sentry__attachments_add(sentry_attachment_t **attachments_ptr,
-    sentry_attachment_t *attachment, const char *attachment_type,
-    const char *content_type)
+sentry__attachments_add(
+    sentry_attachment_t **attachments_ptr, sentry_attachment_t *attachment)
 {
     if (!attachment) {
         return NULL;
@@ -231,10 +230,6 @@ sentry__attachments_add(sentry_attachment_t **attachments_ptr,
     if (size >= SENTRY_LARGE_ATTACHMENT_SIZE) {
         SENTRY_INFOF("added large attachment \"%s\" (%zu MiB)",
             sentry__attachment_get_filename(attachment), size / (1024 * 1024));
-    }
-    sentry_attachment_set_type(attachment, attachment_type);
-    if (content_type || !attachment->content_type) {
-        sentry_attachment_set_content_type(attachment, content_type);
     }
 
     sentry_attachment_t **next_ptr = attachments_ptr;
@@ -257,8 +252,14 @@ sentry__attachments_add_path(sentry_attachment_t **attachments_ptr,
     sentry_path_t *path, const char *attachment_type, const char *content_type)
 {
     sentry_attachment_t *attachment = sentry__attachment_from_path(path);
-    return sentry__attachments_add(
-        attachments_ptr, attachment, attachment_type, content_type);
+    if (!attachment) {
+        return NULL;
+    }
+    sentry_attachment_set_type(attachment, attachment_type);
+    if (content_type || !attachment->content_type) {
+        sentry_attachment_set_content_type(attachment, content_type);
+    }
+    return sentry__attachments_add(attachments_ptr, attachment);
 }
 
 void
@@ -314,6 +315,18 @@ attachment_clone(const sentry_attachment_t *attachment)
         }
         memcpy(clone->buf, attachment->buf, attachment->buf_len * sizeof(char));
     }
+    if (attachment->type) {
+        clone->type = sentry__string_clone(attachment->type);
+        if (!clone->type) {
+            goto fail;
+        }
+    }
+    if (attachment->content_type) {
+        clone->content_type = sentry__string_clone(attachment->content_type);
+        if (!clone->content_type) {
+            goto fail;
+        }
+    }
     return clone;
 
 fail:
@@ -326,7 +339,6 @@ sentry__attachments_extend(
     sentry_attachment_t **attachments_ptr, sentry_attachment_t *attachments)
 {
     for (sentry_attachment_t *it = attachments; it; it = it->next) {
-        sentry__attachments_add(
-            attachments_ptr, attachment_clone(it), it->type, it->content_type);
+        sentry__attachments_add(attachments_ptr, attachment_clone(it));
     }
 }

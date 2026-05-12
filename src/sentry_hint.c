@@ -61,8 +61,7 @@ sentry_hint_attach_bytes_n(sentry_hint_t *hint, const char *buf, size_t buf_len,
     }
     return sentry__attachments_add(&hint->attachments,
         sentry__attachment_from_buffer(
-            buf, buf_len, sentry__path_from_str_n(filename, filename_len)),
-        NULL, NULL);
+            buf, buf_len, sentry__path_from_str_n(filename, filename_len)));
 }
 
 #ifdef SENTRY_PLATFORM_WINDOWS
@@ -102,7 +101,6 @@ sentry_hint_attach_bytesw_n(sentry_hint_t *hint, const char *buf,
     }
     return sentry__attachments_add(&hint->attachments,
         sentry__attachment_from_buffer(
-            buf, buf_len, sentry__path_from_wstr_n(filename, filename_len)),
-        NULL, NULL);
+            buf, buf_len, sentry__path_from_wstr_n(filename, filename_len)));
 }
 #endif

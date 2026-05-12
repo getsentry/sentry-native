@@ -646,8 +646,7 @@ sentry_scope_attach_bytes_n(sentry_scope_t *scope, const char *buf,
 {
     return sentry__attachments_add(&scope->attachments,
         sentry__attachment_from_buffer(
-            buf, buf_len, sentry__path_from_str_n(filename, filename_len)),
-        NULL, NULL);
+            buf, buf_len, sentry__path_from_str_n(filename, filename_len)));
 }
 
 #ifdef SENTRY_PLATFORM_WINDOWS
@@ -681,8 +680,7 @@ sentry_scope_attach_bytesw_n(sentry_scope_t *scope, const char *buf,
 {
     return sentry__attachments_add(&scope->attachments,
         sentry__attachment_from_buffer(
-            buf, buf_len, sentry__path_from_wstr_n(filename, filename_len)),
-        NULL, NULL);
+            buf, buf_len, sentry__path_from_wstr_n(filename, filename_len)));
 }
 #endif
 
