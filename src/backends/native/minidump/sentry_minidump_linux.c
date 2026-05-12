@@ -1660,14 +1660,13 @@ resolve_modules(const minidump_writer_t *writer, resolved_module_t *modules,
             if (mapping->end > mod->end) {
                 mod->end = mapping->end;
             }
-            // base_of_image must be the address of the offset==0 mapping —
-            // the actual ELF load address. Prefer it when found.
-            if (mapping->offset == 0) {
-                mod->base = mapping->start;
-            } else if (mapping->start < mod->base) {
-                // No offset==0 mapping seen yet; track lowest address as a
-                // fallback (will be overridden when the offset==0 mapping
-                // arrives).
+            // base_of_image is the ELF load address — the lowest mapped VA
+            // for this file. In well-formed ELFs that's always the offset==0
+            // PT_LOAD (the linker emits PT_LOADs in ascending p_vaddr order
+            // and p_vaddr for the first one is 0), but never trust an
+            // adversarial or hand-crafted ELF to do that: only move base
+            // downward, never upward.
+            if (mapping->start < mod->base) {
                 mod->base = mapping->start;
             }
             continue;
@@ -2850,12 +2849,16 @@ write_linux_dso_debug_stream(
     // Best-effort: copy the actual PT_DYNAMIC bytes. Failure here is OK —
     // consumers only need the header for module enumeration.
     if (dynamic_length) {
-        if (read_process_memory(
-                writer, dynamic_addr, blob + header_size, dynamic_length)
-            != (ssize_t)dynamic_length) {
-            // Zero out the trailing bytes if we couldn't read; not fatal.
-            memset(blob + header_size, 0, dynamic_length);
+        ssize_t got = read_process_memory(
+            writer, dynamic_addr, blob + header_size, dynamic_length);
+        if (got < 0) {
+            // Whole read failed; keep the zeros from memset above.
+        } else if ((size_t)got < dynamic_length) {
+            // Partial read (ptrace fallback path can return short reads).
+            // Keep what we got and zero only the unread tail.
+            memset(blob + header_size + (size_t)got, 0, dynamic_length - got);
         }
+        // got == dynamic_length: the whole section is in place.
     }
 
     // Stage rva first so a write_data failure leaves dir untouched
