@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1778566525066,
+  "lastUpdate": 1778569584551,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -20536,6 +20536,66 @@ window.BENCHMARK_DATA = {
             "value": 1.8001259999778085,
             "unit": "ms",
             "extra": "Min 1.793ms\nMax 1.833ms\nMean 1.806ms\nStdDev 0.016ms\nMedian 1.800ms\nCPU 0.509ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "jpnurmi@gmail.com",
+            "name": "J-P Nurmi",
+            "username": "jpnurmi"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "d26a5998b147c44ea51ae5c9a8206217c2f9a692",
+          "message": "fix(native): capture WER crash exceptions (#1710)\n\n* fix(native): capture WER crash exceptions\n\n* Update CHANGELOG.md\n\n* fix(native): keep WER callback ownership claim\n\n* Fix style\n\n* sentry_add_version_resource\n\n* sentry_native_wer_registration_t\n\n* ExceptionRecord\n\n* fix(native): clean up WER registry value\n\n* fix(native): clean up failed WER registration\n\n* sentry_wer_registration_t\n\n* unregister\n\n* assert_native_crash\n\n* timeout\n\n* fix(native): claim WER crashes after signaling daemon\n\n* fix(native): terminate claimed WER crashes\n\n* skipif\n\n* script\n\n* WithoutCrashpadWer",
+          "timestamp": "2026-05-12T09:03:41+02:00",
+          "tree_id": "40dc4ac300cf5a17960a7a4921091a4eafecc7ed",
+          "url": "https://github.com/getsentry/sentry-native/commit/d26a5998b147c44ea51ae5c9a8206217c2f9a692"
+        },
+        "date": 1778569578237,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 0.8342719999916426,
+            "unit": "ms",
+            "extra": "Min 0.809ms\nMax 0.859ms\nMean 0.833ms\nStdDev 0.019ms\nMedian 0.834ms\nCPU 0.789ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 0.7329270000013821,
+            "unit": "ms",
+            "extra": "Min 0.711ms\nMax 0.802ms\nMean 0.743ms\nStdDev 0.035ms\nMedian 0.733ms\nCPU 0.742ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 2.894550000007712,
+            "unit": "ms",
+            "extra": "Min 2.866ms\nMax 3.120ms\nMean 2.932ms\nStdDev 0.106ms\nMedian 2.895ms\nCPU 1.385ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.11356800001749434,
+            "unit": "ms",
+            "extra": "Min 0.106ms\nMax 0.160ms\nMean 0.121ms\nStdDev 0.022ms\nMedian 0.114ms\nCPU 0.072ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.021023000044806395,
+            "unit": "ms",
+            "extra": "Min 0.020ms\nMax 0.043ms\nMean 0.026ms\nStdDev 0.010ms\nMedian 0.021ms\nCPU 0.025ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 1.4312150000250767,
+            "unit": "ms",
+            "extra": "Min 1.419ms\nMax 1.480ms\nMean 1.445ms\nStdDev 0.026ms\nMedian 1.431ms\nCPU 0.353ms"
           }
         ]
       }
