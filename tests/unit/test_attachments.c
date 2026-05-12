@@ -32,6 +32,7 @@ SENTRY_TEST(attachment_placeholder)
     TEST_CHECK(sentry__attachment_is_placeholder(&attachment, options));
 
     sentry_free(attachment.type);
+    sentry_free(attachment.content_type);
     sentry_options_free(options);
 }
 
