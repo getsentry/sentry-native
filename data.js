@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1778601068830,
+  "lastUpdate": 1778601167164,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -62332,6 +62332,66 @@ window.BENCHMARK_DATA = {
             "value": 15.796200000067984,
             "unit": "ms",
             "extra": "Min 15.785ms\nMax 16.531ms\nMean 15.989ms\nStdDev 0.321ms\nMedian 15.796ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "jpnurmi@gmail.com",
+            "name": "J-P Nurmi",
+            "username": "jpnurmi"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "c81aecba8b4e0146e017ef90f40bba9d24af4855",
+          "message": "build: Allow custom screenshot impl for downstream SDKs (#1697)\n\nAllow downstream SDKs to select SENTRY_SCREENSHOT=custom so sentry-native\nskips the built-in screenshot capture source and expects an implementation\nfrom the embedding build.\n\nCo-authored-by: OpenAI Codex <noreply@openai.com>",
+          "timestamp": "2026-05-12T17:47:47+02:00",
+          "tree_id": "598b3cc88d7a03a4aae8c2fe6bbe9bdd0666007f",
+          "url": "https://github.com/getsentry/sentry-native/commit/c81aecba8b4e0146e017ef90f40bba9d24af4855"
+        },
+        "date": 1778601158010,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 10.764300000005278,
+            "unit": "ms",
+            "extra": "Min 10.525ms\nMax 11.398ms\nMean 10.834ms\nStdDev 0.341ms\nMedian 10.764ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 11.673100000052727,
+            "unit": "ms",
+            "extra": "Min 11.064ms\nMax 12.025ms\nMean 11.544ms\nStdDev 0.438ms\nMedian 11.673ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 81.80020000008881,
+            "unit": "ms",
+            "extra": "Min 72.300ms\nMax 211.864ms\nMean 113.794ms\nStdDev 58.012ms\nMedian 81.800ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.290400000039881,
+            "unit": "ms",
+            "extra": "Min 0.164ms\nMax 0.305ms\nMean 0.252ms\nStdDev 0.065ms\nMedian 0.290ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.6287999999585736,
+            "unit": "ms",
+            "extra": "Min 0.442ms\nMax 0.655ms\nMean 0.598ms\nStdDev 0.088ms\nMedian 0.629ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 45.90439999992668,
+            "unit": "ms",
+            "extra": "Min 27.007ms\nMax 108.762ms\nMean 61.092ms\nStdDev 37.526ms\nMedian 45.904ms"
           }
         ]
       }
