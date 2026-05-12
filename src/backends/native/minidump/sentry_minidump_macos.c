@@ -22,6 +22,7 @@
 #    include "sentry_logger.h"
 #    include "sentry_minidump_common.h"
 #    include "sentry_minidump_format.h"
+#    include "sentry_minidump_indirect.h"
 #    include "sentry_minidump_writer.h"
 
 // Use shared constants from crash context
@@ -65,6 +66,17 @@ typedef struct {
 
     memory_region_t regions[SENTRY_CRASH_MAX_MAPPINGS];
     size_t region_count;
+
+    // Thread-stack memory descriptors recorded as we write the ThreadList
+    // stream. We replay them into MemoryListStream so debuggers (notably
+    // LLDB's ProcessMinidump) can find stack bytes by virtual address —
+    // without this LLDB knows the stack region exists but cannot read its
+    // contents and unwinding stops after frame 0. thread_stack_tids[i]
+    // identifies the thread for the SMART-mode indirect-memory walker so
+    // it can find the matching thread context for register scanning.
+    minidump_memory_descriptor_t thread_stacks[SENTRY_CRASH_MAX_THREADS];
+    uint32_t thread_stack_tids[SENTRY_CRASH_MAX_THREADS];
+    size_t thread_stack_count;
 } minidump_writer_t;
 
 // Use common minidump functions (cast writer to base type)
@@ -457,6 +469,26 @@ write_thread_context(
 }
 
 /**
+ * Push a thread's stack descriptor onto writer->thread_stacks so the
+ * MemoryListStream writer can replay it. We only record stacks whose
+ * write actually produced bytes — a zero-size or zero-rva descriptor
+ * would point into the minidump header and break parsers.
+ */
+static void
+record_thread_stack(minidump_writer_t *writer, const minidump_thread_t *thread)
+{
+    if (thread->stack.memory.size == 0 || thread->stack.memory.rva == 0) {
+        return;
+    }
+    if (writer->thread_stack_count >= SENTRY_CRASH_MAX_THREADS) {
+        return;
+    }
+    writer->thread_stacks[writer->thread_stack_count] = thread->stack;
+    writer->thread_stack_tids[writer->thread_stack_count] = thread->thread_id;
+    writer->thread_stack_count++;
+}
+
+/**
  * Read and write stack memory for a thread
  */
 static minidump_rva_t
@@ -607,6 +639,7 @@ write_thread_list_stream(minidump_writer_t *writer, minidump_directory_t *dir)
                     = write_thread_stack(writer, sp, &stack_size, &stack_start);
                 thread->stack.memory.size = stack_size;
                 thread->stack.start_address = stack_start;
+                record_thread_stack(writer, thread);
             }
         }
     } else if (writer->crash_ctx
@@ -660,6 +693,7 @@ write_thread_list_stream(minidump_writer_t *writer, minidump_directory_t *dir)
                                 : 0;
                             thread->stack.start_address
                                 = thread->stack.memory.rva ? sp : 0;
+                            record_thread_stack(writer, thread);
                             SENTRY_DEBUGF(
                                 "Thread %zu: wrote stack from file at RVA "
                                 "0x%x, size %llu, start_addr 0x%llx",
@@ -691,6 +725,7 @@ write_thread_list_stream(minidump_writer_t *writer, minidump_directory_t *dir)
                     = write_thread_stack(writer, sp, &stack_size, &stack_start);
                 thread->stack.memory.size = stack_size;
                 thread->stack.start_address = stack_start;
+                record_thread_stack(writer, thread);
                 SENTRY_DEBUGF(
                     "Thread %zu: wrote stack from memory at RVA 0x%x, size %zu",
                     i, thread->stack.memory.rva, stack_size);
@@ -962,6 +997,177 @@ write_module_headers_from_capture(minidump_writer_t *writer,
     return written_count;
 }
 
+// =====================================================================
+// Indirectly-referenced memory capture (SMART mode)
+// =====================================================================
+//
+// Mirrors Windows' MiniDumpWithIndirectlyReferencedMemory: walks every
+// captured thread's stack words and the crashing thread's GPRs and, for
+// each value that lands inside a writable heap mapping, captures a small
+// page-aligned chunk so debuggers can chase pointers held in struct
+// locals at crash time.
+//
+// The algorithm + accumulator + dedup live in sentry_minidump_indirect.c.
+// This block is the macOS platform shim.
+
+/**
+ * Find the VM region containing addr via binary search over writer->regions.
+ * mach_vm_region enumerates in ascending address order so the array is sorted.
+ */
+static const memory_region_t *
+find_region_for_addr(const minidump_writer_t *writer, uint64_t addr)
+{
+    size_t lo = 0;
+    size_t hi = writer->region_count;
+    while (lo < hi) {
+        size_t mid = lo + (hi - lo) / 2;
+        const memory_region_t *r = &writer->regions[mid];
+        if (addr < r->address) {
+            hi = mid;
+        } else if (addr >= r->address + r->size) {
+            lo = mid + 1;
+        } else {
+            return r;
+        }
+    }
+    return NULL;
+}
+
+static bool
+macos_indirect_is_writable_heap(void *ctx, uint64_t addr)
+{
+    const minidump_writer_t *writer = (const minidump_writer_t *)ctx;
+    const memory_region_t *r = find_region_for_addr(writer, addr);
+    if (!r) {
+        return false;
+    }
+    // Must be readable+writable, not executable. macOS regions don't carry
+    // names, so we can't reject thread stacks here cheaply — but the
+    // accumulator's overlap-check against thread stacks already in the
+    // memory list keeps duplicate captures bounded.
+    if ((r->protection & VM_PROT_READ) == 0) {
+        return false;
+    }
+    if ((r->protection & VM_PROT_WRITE) == 0) {
+        return false;
+    }
+    if ((r->protection & VM_PROT_EXECUTE) != 0) {
+        return false;
+    }
+    return true;
+}
+
+static ssize_t
+macos_indirect_read_memory(void *ctx, uint64_t addr, void *buf, size_t len)
+{
+    minidump_writer_t *writer = (minidump_writer_t *)ctx;
+    kern_return_t kr = read_task_memory(
+        writer->task, (mach_vm_address_t)addr, buf, (mach_vm_size_t)len);
+    return kr == KERN_SUCCESS ? (ssize_t)len : -1;
+}
+
+/**
+ * Walk the crashing thread's GPRs through sentry__indirect_consider. We
+ * only have stored mcontexts for threads captured via the signal handler
+ * (typically the crashing one); thread_get_state-derived contexts for
+ * other threads are not retained, so their registers aren't scanned here.
+ * Their stack contents still get walked.
+ */
+static void
+walk_indirect_registers_for_tid(minidump_writer_t *writer, uint32_t tid,
+    sentry_indirect_accumulator_t *acc, const sentry_indirect_ops_t *ops)
+{
+    const _STRUCT_MCONTEXT *state = NULL;
+    size_t num = writer->crash_ctx->platform.num_threads;
+    if (num > SENTRY_CRASH_MAX_THREADS) {
+        num = SENTRY_CRASH_MAX_THREADS;
+    }
+    for (size_t j = 0; j < num; j++) {
+        if (writer->crash_ctx->platform.threads[j].tid == tid) {
+            state = &writer->crash_ctx->platform.threads[j].state;
+            break;
+        }
+    }
+    if (!state) {
+        return;
+    }
+
+    minidump_writer_base_t *base = (minidump_writer_base_t *)writer;
+#    if defined(__x86_64__)
+    sentry__indirect_consider(acc, base, (uint64_t)state->__ss.__rax, ops);
+    sentry__indirect_consider(acc, base, (uint64_t)state->__ss.__rbx, ops);
+    sentry__indirect_consider(acc, base, (uint64_t)state->__ss.__rcx, ops);
+    sentry__indirect_consider(acc, base, (uint64_t)state->__ss.__rdx, ops);
+    sentry__indirect_consider(acc, base, (uint64_t)state->__ss.__rsi, ops);
+    sentry__indirect_consider(acc, base, (uint64_t)state->__ss.__rdi, ops);
+    sentry__indirect_consider(acc, base, (uint64_t)state->__ss.__rbp, ops);
+    sentry__indirect_consider(acc, base, (uint64_t)state->__ss.__rsp, ops);
+    sentry__indirect_consider(acc, base, (uint64_t)state->__ss.__r8, ops);
+    sentry__indirect_consider(acc, base, (uint64_t)state->__ss.__r9, ops);
+    sentry__indirect_consider(acc, base, (uint64_t)state->__ss.__r10, ops);
+    sentry__indirect_consider(acc, base, (uint64_t)state->__ss.__r11, ops);
+    sentry__indirect_consider(acc, base, (uint64_t)state->__ss.__r12, ops);
+    sentry__indirect_consider(acc, base, (uint64_t)state->__ss.__r13, ops);
+    sentry__indirect_consider(acc, base, (uint64_t)state->__ss.__r14, ops);
+    sentry__indirect_consider(acc, base, (uint64_t)state->__ss.__r15, ops);
+#    elif defined(__aarch64__)
+    for (int r = 0; r <= 28; r++) {
+        sentry__indirect_consider(acc, base, (uint64_t)state->__ss.__x[r], ops);
+    }
+    sentry__indirect_consider(
+        acc, base, (uint64_t)SENTRY__ARM64_GET_FP(state->__ss), ops);
+    sentry__indirect_consider(
+        acc, base, (uint64_t)SENTRY__ARM64_GET_LR(state->__ss), ops);
+    sentry__indirect_consider(
+        acc, base, (uint64_t)SENTRY__ARM64_GET_SP(state->__ss), ops);
+#    endif
+}
+
+/**
+ * For SMART mode: scan every captured thread's stack and the crashing
+ * thread's registers for heap pointers, capturing a chunk around each.
+ * Stack bytes are pread()'d back from disk (they were written earlier
+ * when the thread list was emitted) rather than retained in memory.
+ */
+static void
+capture_indirect_memory_macos(
+    minidump_writer_t *writer, sentry_indirect_accumulator_t *acc)
+{
+    sentry_indirect_ops_t ops = {
+        .is_writable_heap = macos_indirect_is_writable_heap,
+        .read_memory = macos_indirect_read_memory,
+        .ctx = writer,
+    };
+    minidump_writer_base_t *base = (minidump_writer_base_t *)writer;
+
+    for (size_t i = 0; i < writer->thread_stack_count; i++) {
+        const minidump_memory_descriptor_t *desc = &writer->thread_stacks[i];
+        size_t stack_size = desc->memory.size;
+        if (stack_size == 0 || desc->memory.rva == 0) {
+            continue;
+        }
+        void *stack_buf = sentry_malloc(stack_size);
+        if (!stack_buf) {
+            continue;
+        }
+        ssize_t got
+            = pread(writer->fd, stack_buf, stack_size, (off_t)desc->memory.rva);
+        if (got > 0) {
+            sentry__indirect_walk_words(
+                acc, base, stack_buf, (size_t)got, &ops);
+        }
+        sentry_free(stack_buf);
+
+        walk_indirect_registers_for_tid(
+            writer, writer->thread_stack_tids[i], acc, &ops);
+
+        if (acc->total_bytes >= SENTRY_INDIRECT_MAX_TOTAL_BYTES
+            || acc->region_count >= SENTRY_INDIRECT_MAX_REGIONS) {
+            break;
+        }
+    }
+}
+
 /**
  * Write memory list stream with memory based on minidump mode.
  *
@@ -987,6 +1193,18 @@ write_memory_list_stream(minidump_writer_t *writer, minidump_directory_t *dir)
 
     // When we have VM regions (task_for_pid succeeded), use them
     if (writer->region_count > 0) {
+        // SMART mode: scan registers + stack words for pointers into
+        // writable heap regions and capture a chunk around each. Has to
+        // run before the memory_list allocation below so we know the
+        // final region count.
+        sentry_indirect_accumulator_t indirect_acc;
+        sentry__indirect_init(&indirect_acc);
+        if (mode == SENTRY_MINIDUMP_MODE_SMART) {
+            capture_indirect_memory_macos(writer, &indirect_acc);
+            SENTRY_DEBUGF("indirect memory: captured %zu regions, %zu bytes",
+                indirect_acc.region_count, indirect_acc.total_bytes);
+        }
+
         // Count regions to include
         size_t region_count = 0;
         for (size_t i = 0; i < writer->region_count; i++) {
@@ -996,17 +1214,38 @@ write_memory_list_stream(minidump_writer_t *writer, minidump_directory_t *dir)
             }
         }
 
+        size_t total_count = region_count + writer->thread_stack_count
+            + indirect_acc.region_count;
+
         size_t list_size = sizeof(uint32_t)
-            + (region_count * sizeof(minidump_memory_descriptor_t));
+            + (total_count * sizeof(minidump_memory_descriptor_t));
         minidump_memory_list_t *memory_list = sentry_malloc(list_size);
         if (!memory_list) {
             goto empty_list;
         }
 
-        memory_list->count = region_count;
+        memory_list->count = total_count;
 
         size_t mem_idx = 0;
-        for (size_t i = 0; i < writer->region_count && mem_idx < region_count;
+
+        // Replay thread stacks first — bytes are already on disk via the
+        // thread-list writer, so this just emits descriptors pointing at
+        // the same RVA. Lets debuggers resolve memory at stack addresses
+        // and walk the FP chain.
+        for (size_t s = 0; s < writer->thread_stack_count; s++) {
+            memory_list->ranges[mem_idx++] = writer->thread_stacks[s];
+        }
+
+        // Append indirectly-referenced regions. Already deduped + capped
+        // by the walker.
+        for (size_t s = 0; s < indirect_acc.region_count; s++) {
+            minidump_memory_descriptor_t *mem = &memory_list->ranges[mem_idx++];
+            mem->start_address = indirect_acc.regions[s].start;
+            mem->memory.rva = indirect_acc.regions[s].rva;
+            mem->memory.size = indirect_acc.regions[s].size;
+        }
+
+        for (size_t i = 0; i < writer->region_count && mem_idx < total_count;
             i++) {
             if (!should_include_region_macos(
                     &writer->regions[i], writer->crash_ctx, crash_addr)) {
@@ -1139,9 +1378,11 @@ sentry__write_minidump(
     minidump_writer_t writer = { 0 };
     writer.crash_ctx = ctx;
 
-    // Open output file
+    // Open output file. O_RDWR (not O_WRONLY) because SMART-mode indirect
+    // memory capture pread()'s thread-stack bytes back from the dump after
+    // they're written, so it can scan them for heap pointers.
     SENTRY_DEBUGF("write_minidump: opening file %s", output_path);
-    writer.fd = open(output_path, O_WRONLY | O_CREAT | O_TRUNC, 0600);
+    writer.fd = open(output_path, O_RDWR | O_CREAT | O_TRUNC, 0600);
     if (writer.fd < 0) {
         SENTRY_WARN("write_minidump: failed to open file");
         return -1;
