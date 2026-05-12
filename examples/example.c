@@ -683,12 +683,6 @@ main(int argc, char **argv)
         sentry_options_set_crashpad_wait_for_upload(options, true);
     }
 
-    if (has_arg(argc, argv, "attach-view-hierarchy")) {
-        // assuming the example / test is run directly from the cmake build
-        // directory
-        sentry_options_add_view_hierarchy(options, "./view-hierarchy.json");
-    }
-
     if (has_arg(argc, argv, "test-logger")) {
         // Set up the test logger for integration tests
         sentry_options_set_logger(options, test_logger_callback, NULL);
@@ -861,6 +855,14 @@ main(int argc, char **argv)
         sentry_attachment_t *bytes
             = sentry_attach_bytes("\xc0\xff\xee", 3, "bytes.bin");
         sentry_attachment_set_content_type(bytes, "application/octet-stream");
+    }
+    if (has_arg(argc, argv, "attach-view-hierarchy")) {
+        // assuming the example / test is run directly from the cmake build
+        // directory
+        sentry_attachment_t *view_hierarchy
+            = sentry_attach_file("./view-hierarchy.json");
+        sentry_attachment_set_type(
+            view_hierarchy, SENTRY_ATTACHMENT_TYPE_VIEW_HIERARCHY);
     }
 
     if (sentry_options_get_enable_logs(options)) {
