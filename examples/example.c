@@ -863,7 +863,6 @@ main(int argc, char **argv)
             = sentry_attach_file("./view-hierarchy.json");
         sentry_attachment_set_type(
             view_hierarchy, SENTRY_ATTACHMENT_TYPE_VIEW_HIERARCHY);
-        sentry_attachment_set_content_type(view_hierarchy, "application/json");
     }
 
     if (sentry_options_get_enable_logs(options)) {

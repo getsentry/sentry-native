@@ -352,6 +352,21 @@ SENTRY_TEST(attachment_properties)
     SENTRY_TEST_OPTIONS_NEW(options);
     sentry_init(options);
 
+    sentry_attachment_t attachment = { 0 };
+    sentry_attachment_set_type(&attachment, SENTRY_ATTACHMENT_TYPE_MINIDUMP);
+    TEST_CHECK_STRING_EQUAL(
+        attachment.content_type, "application/octet-stream");
+    sentry_attachment_set_content_type(&attachment, "application/x-dmp");
+    sentry_attachment_set_type(
+        &attachment, SENTRY_ATTACHMENT_TYPE_VIEW_HIERARCHY);
+    TEST_CHECK_STRING_EQUAL(attachment.content_type, "application/x-dmp");
+    sentry_attachment_set_content_type(&attachment, NULL);
+    sentry_attachment_set_type(
+        &attachment, SENTRY_ATTACHMENT_TYPE_VIEW_HIERARCHY);
+    TEST_CHECK_STRING_EQUAL(attachment.content_type, "application/json");
+    sentry_free(attachment.type);
+    sentry_free(attachment.content_type);
+
     sentry_path_t *path_txt
         = sentry__path_from_str(SENTRY_TEST_PATH_PREFIX ".a.txt");
     sentry_path_t *path_html

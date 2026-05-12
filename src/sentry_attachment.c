@@ -25,6 +25,17 @@ sentry_attachment_set_type_n(
     sentry_free(attachment->type);
     attachment->type
         = type && type_len > 0 ? sentry__string_clone_n(type, type_len) : NULL;
+
+    if (attachment->type && !attachment->content_type) {
+        if (sentry__string_eq(
+                attachment->type, SENTRY_ATTACHMENT_TYPE_MINIDUMP)) {
+            attachment->content_type
+                = sentry__string_clone("application/octet-stream");
+        } else if (sentry__string_eq(attachment->type,
+                       SENTRY_ATTACHMENT_TYPE_VIEW_HIERARCHY)) {
+            attachment->content_type = sentry__string_clone("application/json");
+        }
+    }
 }
 
 void
@@ -222,7 +233,9 @@ sentry__attachments_add(sentry_attachment_t **attachments_ptr,
             sentry__attachment_get_filename(attachment), size / (1024 * 1024));
     }
     sentry_attachment_set_type(attachment, attachment_type);
-    sentry_attachment_set_content_type(attachment, content_type);
+    if (content_type || !attachment->content_type) {
+        sentry_attachment_set_content_type(attachment, content_type);
+    }
 
     sentry_attachment_t **next_ptr = attachments_ptr;
 
