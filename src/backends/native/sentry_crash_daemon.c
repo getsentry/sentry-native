@@ -2527,7 +2527,7 @@ write_envelope_with_native_stacktrace(const sentry_options_t *options,
             = sentry__path_join_str(run_folder, "session-replay.mp4");
         if (replay_path) {
             write_attachment_to_envelope(
-                fd, replay_path->path, "session-replay.mp4", "video/mp4");
+                fd, replay_path->path, "session-replay.mp4", NULL, "video/mp4");
             sentry__path_free(replay_path);
         }
     }
@@ -2779,7 +2779,7 @@ write_envelope_with_minidump(const sentry_options_t *options,
             = sentry__path_join_str(run_folder, "session-replay.mp4");
         if (replay_path) {
             write_attachment_to_envelope(
-                fd, replay_path->path, "session-replay.mp4", "video/mp4");
+                fd, replay_path->path, "session-replay.mp4", NULL, "video/mp4");
             sentry__path_free(replay_path);
         }
     }
