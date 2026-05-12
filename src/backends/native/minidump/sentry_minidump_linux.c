@@ -2121,7 +2121,21 @@ linux_indirect_is_writable_heap(void *ctx, uint64_t addr)
 static ssize_t
 linux_indirect_read_memory(void *ctx, uint64_t addr, void *buf, size_t len)
 {
-    return read_process_memory((minidump_writer_t *)ctx, addr, buf, len);
+    // Pointer-chasing is best-effort: use process_vm_readv only, skip the
+    // ptrace PEEKDATA fallback. Under sanitizers (notably TSAN) the syscall
+    // can return EPERM intermittently; falling back would then issue one
+    // ptrace syscall per word — for ~100 captured regions × 512 words each,
+    // that's 50K instrumented syscalls per dump and minutes of crash-time
+    // latency. If the fast path can't read, just drop the candidate; the
+    // walker treats failed reads as "not capturable" and moves on.
+    minidump_writer_t *writer = (minidump_writer_t *)ctx;
+    if (!ptrace_attach_process(writer)) {
+        return -1;
+    }
+    pid_t tid = writer->crash_ctx->crashed_tid;
+    struct iovec local_iov = { .iov_base = buf, .iov_len = len };
+    struct iovec remote_iov = { .iov_base = (void *)addr, .iov_len = len };
+    return process_vm_readv(tid, &local_iov, 1, &remote_iov, 1, 0);
 }
 
 /**
