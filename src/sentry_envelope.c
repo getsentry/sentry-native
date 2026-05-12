@@ -1199,8 +1199,12 @@ write_minidump(const sentry_envelope_item_t *item, void *data)
 {
     const char *att_type = sentry_value_as_string(
         sentry_value_get_by_key(item->headers, "attachment_type"));
+    const char *content_type = sentry_value_as_string(
+        sentry_value_get_by_key(item->headers, "content_type"));
     if (!sentry__string_eq(att_type, "event.minidump") || !item->payload
-        || item->payload_len == 0) {
+        || item->payload_len == 0
+        || (content_type
+            && sentry__string_eq(content_type, SENTRY_ATTACHMENT_REF_MIME))) {
         return false;
     }
 

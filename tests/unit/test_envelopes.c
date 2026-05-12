@@ -942,7 +942,6 @@ SENTRY_TEST(attachment_ref_copy)
     sentry_path_t *cache_dir = sentry__path_join_str(db_path, "cache");
     sentry_path_t *cached = sentry__path_join_str(
         cache_dir, "c993afb6-b4ac-48a6-b61b-2558e601d65d.dmp");
-    sentry__path_free(cache_dir);
     TEST_CHECK(sentry__path_is_file(cached));
 
     // envelope carries an attachment-ref item with the expected headers
@@ -951,8 +950,24 @@ SENTRY_TEST(attachment_ref_copy)
         "application/x-dmp", SENTRY_ATTACHMENT_TYPE_MINIDUMP,
         strlen("minidump_data"), "c993afb6-b4ac-48a6-b61b-2558e601d65d.dmp");
 
+    sentry_path_t *cached_envelope = sentry__path_join_str(
+        cache_dir, "c993afb6-b4ac-48a6-b61b-2558e601d65d.envelope");
+    sentry__path_remove(cached_envelope);
+
+    TEST_CHECK_INT_EQUAL(
+        sentry__envelope_write_to_cache(envelope, cache_dir), 0);
+    size_t cached_len = 0;
+    char *cached_payload = sentry__path_read_to_buffer(cached, &cached_len);
+    TEST_ASSERT(!!cached_payload);
+    TEST_CHECK_INT_EQUAL(cached_len, strlen("minidump_data"));
+    TEST_CHECK(memcmp(cached_payload, "minidump_data", cached_len) == 0);
+    sentry_free(cached_payload);
+
     sentry_envelope_free(envelope);
+    sentry__path_remove(cached_envelope);
+    sentry__path_free(cached_envelope);
     sentry__path_remove(cached);
+    sentry__path_free(cache_dir);
     sentry__path_free(cached);
     sentry__path_free(db_path);
     sentry__attachment_free(attachment);
