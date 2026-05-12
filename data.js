@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1778566283871,
+  "lastUpdate": 1778566437717,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -61612,6 +61612,66 @@ window.BENCHMARK_DATA = {
             "value": 14.578099999994265,
             "unit": "ms",
             "extra": "Min 13.926ms\nMax 15.086ms\nMean 14.552ms\nStdDev 0.450ms\nMedian 14.578ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "tustanivsky@gmail.com",
+            "name": "Ivan Tustanivskyi",
+            "username": "tustanivsky"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "f95daa754a6104afb8eb27ff0733823494981db2",
+          "message": "feat(session-replay): add `attach_session_replay` option with platform extension point (#1709)\n\n* feat: allow downstream Xbox SDK to supply replay clip capture implementation\n\n* Fix lint errors\n\n* Fix memory leak\n\n* Rename replay clip to session replay\n\n* Fix lint errors\n\n* Rename vars\n\n* Fix lint errors\n\n* Drop ms suffix for replay duration option\n\n* Fix lint errors",
+          "timestamp": "2026-05-12T09:08:35+03:00",
+          "tree_id": "aec7a75021bcff3b805b15ff7e645089feb6ecc1",
+          "url": "https://github.com/getsentry/sentry-native/commit/f95daa754a6104afb8eb27ff0733823494981db2"
+        },
+        "date": 1778566430190,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 14.542200000050798,
+            "unit": "ms",
+            "extra": "Min 13.144ms\nMax 15.909ms\nMean 14.430ms\nStdDev 1.254ms\nMedian 14.542ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 22.832300000118266,
+            "unit": "ms",
+            "extra": "Min 12.027ms\nMax 74.694ms\nMean 30.112ms\nStdDev 25.508ms\nMedian 22.832ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 25.95999999994092,
+            "unit": "ms",
+            "extra": "Min 25.461ms\nMax 53.419ms\nMean 31.533ms\nStdDev 12.246ms\nMedian 25.960ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.1729999999042775,
+            "unit": "ms",
+            "extra": "Min 0.170ms\nMax 0.186ms\nMean 0.175ms\nStdDev 0.006ms\nMedian 0.173ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.39569999989907956,
+            "unit": "ms",
+            "extra": "Min 0.387ms\nMax 0.415ms\nMean 0.398ms\nStdDev 0.010ms\nMedian 0.396ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 14.310299999579001,
+            "unit": "ms",
+            "extra": "Min 14.115ms\nMax 14.792ms\nMean 14.431ms\nStdDev 0.292ms\nMedian 14.310ms"
           }
         ]
       }
