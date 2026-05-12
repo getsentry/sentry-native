@@ -14,6 +14,7 @@
 
 - Native/Breakpad/Windows: fixed capturing abort(). ([#1708](https://github.com/getsentry/sentry-native/pull/1708))
 - Native/Windows: capture fast-fail and stack buffer overrun crashes via WER. ([#1710](https://github.com/getsentry/sentry-native/pull/1710))
+- Preserve cached minidump refs. ([#1715](https://github.com/getsentry/sentry-native/pull/1715))
 
 ## 0.14.0
 
