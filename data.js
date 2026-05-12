@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1778594548714,
+  "lastUpdate": 1778594603097,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -62212,6 +62212,66 @@ window.BENCHMARK_DATA = {
             "value": 14.130099999874801,
             "unit": "ms",
             "extra": "Min 13.921ms\nMax 14.735ms\nMean 14.206ms\nStdDev 0.310ms\nMedian 14.130ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "jpnurmi@gmail.com",
+            "name": "J-P Nurmi",
+            "username": "jpnurmi"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "b94ca43dbdfb14bc9dc19e09d73303f12f8987f6",
+          "message": "fix(cache): Preserve cached minidump refs (#1715)\n\n* fix(cache): Preserve cached minidump refs\n\nSkip minidump extraction for attachment-ref items so the cache writer does not\noverwrite a cached minidump sibling with the reference JSON payload.\n\nCo-Authored-By: OpenAI Codex <noreply@openai.com>\n\n* Update CHANGELOG.md\n\n---------\n\nCo-authored-by: OpenAI Codex <noreply@openai.com>",
+          "timestamp": "2026-05-12T15:58:50+02:00",
+          "tree_id": "786824181c1593596c0cd03597c5be4ca40ea8f7",
+          "url": "https://github.com/getsentry/sentry-native/commit/b94ca43dbdfb14bc9dc19e09d73303f12f8987f6"
+        },
+        "date": 1778594596401,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 10.788499999989654,
+            "unit": "ms",
+            "extra": "Min 10.624ms\nMax 10.889ms\nMean 10.793ms\nStdDev 0.109ms\nMedian 10.788ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 10.896400000092399,
+            "unit": "ms",
+            "extra": "Min 10.749ms\nMax 11.049ms\nMean 10.905ms\nStdDev 0.117ms\nMedian 10.896ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 27.14649999984431,
+            "unit": "ms",
+            "extra": "Min 26.294ms\nMax 27.364ms\nMean 26.986ms\nStdDev 0.417ms\nMedian 27.146ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.22000000012667442,
+            "unit": "ms",
+            "extra": "Min 0.207ms\nMax 0.224ms\nMean 0.218ms\nStdDev 0.007ms\nMedian 0.220ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.43879999998353014,
+            "unit": "ms",
+            "extra": "Min 0.406ms\nMax 0.479ms\nMean 0.442ms\nStdDev 0.032ms\nMedian 0.439ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 15.796200000067984,
+            "unit": "ms",
+            "extra": "Min 15.785ms\nMax 16.531ms\nMean 15.989ms\nStdDev 0.321ms\nMedian 15.796ms"
           }
         ]
       }
