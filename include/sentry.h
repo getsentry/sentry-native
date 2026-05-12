@@ -2775,6 +2775,8 @@ SENTRY_API sentry_attachment_t *sentry_scope_attach_bytesw_n(
  * Well-known attachment types are exposed as `SENTRY_ATTACHMENT_TYPE_*`
  * macros. Pass `NULL` or an empty string to clear the attachment type.
  *
+ * Also sets the content type for known attachment types unless explicitly set.
+ *
  * See:
  * https://develop.sentry.dev/sdk/telemetry/attachments/#attachment-types
  */
