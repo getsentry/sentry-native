@@ -59,4 +59,14 @@ sentry_span_t *sentry__span_new(
  */
 sentry_value_t sentry__value_get_trace_context(sentry_value_t span);
 
+/**
+ * Returns whether to continue an incoming trace given the SDK options and the
+ * incoming dynamic sampling context.
+ *
+ * See
+ * https://develop.sentry.dev/sdk/foundations/trace-propagation/#strict-trace-continuation
+ */
+bool sentry__trace_can_continue(
+    sentry_value_t incoming, const sentry_options_t *options);
+
 #endif

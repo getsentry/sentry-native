@@ -190,6 +190,49 @@ sentry__scope_free(sentry_scope_t *scope)
     sentry_free(scope);
 }
 
+void
+sentry__scope_freeze_dsc(sentry_scope_t *scope, sentry_value_t incoming)
+{
+    sentry_value_decref(scope->dynamic_sampling_context);
+    sentry_value_t dsc = sentry_value_new_object();
+    sentry__value_merge_objects(dsc, incoming);
+    sentry_value_freeze(dsc);
+    scope->dynamic_sampling_context = dsc;
+}
+
+void
+sentry__scope_update_dsc(sentry_scope_t *scope, const sentry_options_t *options)
+{
+    sentry_value_decref(scope->dynamic_sampling_context);
+    sentry_value_t dsc = sentry_value_new_object();
+
+    if (options->dsn) {
+        sentry_value_set_by_key(dsc, "public_key",
+            sentry_value_new_string(options->dsn->public_key));
+    }
+    const char *org_id = sentry__options_get_org_id(options);
+    if (org_id) {
+        sentry_value_set_by_key(dsc, "org_id", sentry_value_new_string(org_id));
+    }
+    sentry_value_set_by_key(dsc, "sample_rate",
+        sentry_value_new_double(options->traces_sample_rate));
+    if (options->traces_sampler) {
+        sentry_value_set_by_key(
+            dsc, "sample_rate", sentry_value_new_double(1.0));
+    }
+    sentry_value_t sample_rand = sentry_value_get_by_key(
+        sentry_value_get_by_key(scope->propagation_context, "trace"),
+        "sample_rand");
+    sentry_value_set_by_key(dsc, "sample_rand", sample_rand);
+    sentry_value_incref(sample_rand);
+    sentry_value_set_by_key(
+        dsc, "release", sentry_value_new_string(scope->release));
+    sentry_value_set_by_key(
+        dsc, "environment", sentry_value_new_string(scope->environment));
+
+    scope->dynamic_sampling_context = dsc;
+}
+
 #if !defined(SENTRY_PLATFORM_NX)
 static void
 sentry__foreach_stacktrace(

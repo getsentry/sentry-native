@@ -48,6 +48,7 @@ struct sentry_options_s {
     bool crashpad_wait_for_upload;
     bool enable_logging_when_crashed;
     bool propagate_traceparent;
+    bool strict_trace_continuation;
     bool crashpad_limit_stack_capture_to_sp;
     sentry_cache_keep_t cache_keep;
 
@@ -74,6 +75,7 @@ struct sentry_options_s {
     double traces_sample_rate;
     sentry_traces_sampler_function traces_sampler;
     void *traces_sampler_data;
+    char *org_id;
     size_t max_spans;
     bool enable_logs;
     // takes the first varg as a `sentry_value_t` object containing attributes
@@ -109,5 +111,12 @@ struct sentry_options_s {
  * Increments the reference count and returns the options.
  */
 sentry_options_t *sentry__options_incref(sentry_options_t *options);
+
+/**
+ * Returns the organization ID used for trace propagation: the `org_id` option
+ * if set and non-empty, otherwise the DSN-derived value if non-empty,
+ * otherwise NULL.
+ */
+const char *sentry__options_get_org_id(const sentry_options_t *options);
 
 #endif
