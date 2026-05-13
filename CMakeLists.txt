@@ -297,6 +297,10 @@ endif()
 
 if(ANDROID)
 	set(SENTRY_WITH_LIBUNWINDSTACK TRUE)
+	# libunwind is also enabled on Android so the cross-thread sampler
+	# (sentry_unwind_thread_stack) has an async-signal-safe unwinder.
+	# libunwindstack allocates and is unsafe from a signal handler.
+	set(SENTRY_WITH_LIBUNWIND TRUE)
 elseif(LINUX)
 	set(SENTRY_WITH_LIBUNWIND TRUE)
 elseif(APPLE)
@@ -669,8 +673,10 @@ if(SENTRY_WITH_LIBUNWINDSTACK)
 endif()
 
 if(SENTRY_WITH_LIBUNWIND)
-	if(LINUX)
-		# Use vendored libunwind
+	if(LINUX OR ANDROID)
+		# Use vendored libunwind (on Android too: matches Linux behaviour and
+		# avoids relying on the NDK toolchain's libunwind, whose API can drift
+		# between NDK versions).
 		add_subdirectory(vendor/libunwind)
 		target_link_libraries(sentry PRIVATE unwind)
 		if(NOT SENTRY_BUILD_SHARED_LIBS)

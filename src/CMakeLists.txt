@@ -240,6 +240,13 @@ if(SENTRY_WITH_LIBUNWIND)
 	)
 endif()
 
+# Cross-thread stack sampler (sentry_unwind_thread_stack). Self-gates to
+# Linux + libunwind at compile time; on other platforms the file compiles to
+# a no-op stub, so we add it unconditionally.
+sentry_target_sources_cwd(sentry
+	sentry_thread_sampler.c
+)
+
 if(SENTRY_WITH_LIBUNWIND_MAC)
 	target_compile_definitions(sentry PRIVATE SENTRY_WITH_UNWINDER_LIBUNWIND_MAC)
 	sentry_target_sources_cwd(sentry

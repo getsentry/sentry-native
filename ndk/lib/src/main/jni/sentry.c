@@ -1,5 +1,6 @@
 #include <string.h>
 #include <stdbool.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <sentry.h>
 #include <jni.h>
@@ -574,4 +575,29 @@ Java_io_sentry_ndk_NativeModuleListLoader_nativeLoadModuleList(JNIEnv *env, jcla
 JNIEXPORT void JNICALL
 Java_io_sentry_ndk_SentryNdk_shutdown(JNIEnv *env, jclass cls) {
     sentry_close();
+}
+
+JNIEXPORT jlongArray JNICALL
+Java_io_sentry_ndk_SentryNdk_captureThreadStackNative(JNIEnv *env, jclass cls, jlong tid) {
+    (void)cls;
+    enum { MAX_FRAMES = 128 };
+    void *frames[MAX_FRAMES];
+
+    size_t count = sentry_unwind_thread_stack((int)tid, frames, MAX_FRAMES);
+
+    jlongArray result = (*env)->NewLongArray(env, (jsize)count);
+    if (!result) {
+        return NULL;
+    }
+    if (count == 0) {
+        return result;
+    }
+
+    // Copy via a small stack buffer so we don't depend on sizeof(void*) == sizeof(jlong)
+    jlong buf[MAX_FRAMES];
+    for (size_t i = 0; i < count; i++) {
+        buf[i] = (jlong)(uintptr_t)frames[i];
+    }
+    (*env)->SetLongArrayRegion(env, result, 0, (jsize)count, buf);
+    return result;
 }

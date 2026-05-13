@@ -22,6 +22,8 @@ public final class SentryNdk {
 
   private static native void shutdown();
 
+  private static native long[] captureThreadStackNative(long tid);
+
   /**
    * Preloads sentry-native into the process signal chain before full
    * initialization.
@@ -61,6 +63,24 @@ public final class SentryNdk {
   public static void close() {
     loadNativeLibraries();
     shutdown();
+  }
+
+  /**
+   * Captures the native stack of another thread by Linux kernel TID.
+   *
+   * Uses signal-based sampling internally. Returns instruction-pointer
+   * addresses as longs; an empty array indicates sampling failure
+   * (invalid TID, signal delivery failure, timeout, or unsupported platform).
+   *
+   * <p>Linux/Android only. Other platforms return an empty array.
+   *
+   * @param tid Linux kernel TID of the target thread (e.g. android.os.Process.myTid()).
+   * @return array of instruction-pointer addresses (up to 128 frames), or empty on failure.
+   */
+  public static long[] captureThreadStack(final long tid) {
+    loadNativeLibraries();
+    final long[] result = captureThreadStackNative(tid);
+    return result != null ? result : new long[0];
   }
 
   /**

@@ -53,6 +53,7 @@ add_executable(sentry_test_unit
 	test_string.c
 	test_symbolizer.c
 	test_sync.c
+	test_thread_sampler.c
 	test_tracing.c
 	test_tus.c
 	test_uninit.c

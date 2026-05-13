@@ -708,6 +708,27 @@ SENTRY_EXPERIMENTAL_API size_t sentry_unwind_stack_from_ucontext(
     const sentry_ucontext_t *uctx, void **stacktrace_out, size_t max_len);
 
 /**
+ * Captures a stacktrace from another thread by Linux kernel thread ID (TID).
+ *
+ * Uses signal-based sampling: a real-time signal is sent to the target thread,
+ * and the thread's stack is unwound from the signal context. The function
+ * blocks until the sample completes or times out (1 second).
+ *
+ * Linux and Android only. Other platforms return 0.
+ *
+ * Concurrent calls are serialized internally; only one sample runs at a time.
+ *
+ * @param tid Linux kernel TID of the target thread (e.g. from gettid() or
+ *            android.os.Process.myTid()).
+ * @param stacktrace_out Caller-provided buffer for instruction pointers.
+ * @param max_len Capacity of stacktrace_out.
+ * @return Number of frames written. 0 on failure (invalid TID, signal delivery
+ *         failure, timeout, or unsupported platform).
+ */
+SENTRY_EXPERIMENTAL_API size_t sentry_unwind_thread_stack(
+    int tid, void **stacktrace_out, size_t max_len);
+
+/**
  * A UUID
  */
 typedef struct sentry_uuid_s {

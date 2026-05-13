@@ -288,4 +288,10 @@ if(CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
     target_compile_options(unwind PRIVATE -w)
 endif()
 
-target_link_libraries(unwind PRIVATE ${CMAKE_DL_LIBS} pthread)
+if(ANDROID)
+    # On Android, pthread is part of libc; there is no separate libpthread.so.
+    # libdl is similarly merged, so ${CMAKE_DL_LIBS} expands to empty.
+    target_link_libraries(unwind PRIVATE ${CMAKE_DL_LIBS})
+else()
+    target_link_libraries(unwind PRIVATE ${CMAKE_DL_LIBS} pthread)
+endif()
