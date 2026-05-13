@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1778601507353,
+  "lastUpdate": 1778656170508,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -20836,6 +20836,66 @@ window.BENCHMARK_DATA = {
             "value": 2.2019550000038635,
             "unit": "ms",
             "extra": "Min 2.059ms\nMax 2.590ms\nMean 2.243ms\nStdDev 0.205ms\nMedian 2.202ms\nCPU 0.612ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "49699333+dependabot[bot]@users.noreply.github.com",
+            "name": "dependabot[bot]",
+            "username": "dependabot[bot]"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "7b17aba1c96c05b9d3eab8e15254cdd6126a70a5",
+          "message": "build(deps): bump github/codeql-action from 4.35.3 to 4.35.4 (#1718)\n\nBumps [github/codeql-action](https://github.com/github/codeql-action) from 4.35.3 to 4.35.4.\n- [Release notes](https://github.com/github/codeql-action/releases)\n- [Changelog](https://github.com/github/codeql-action/blob/main/CHANGELOG.md)\n- [Commits](https://github.com/github/codeql-action/compare/e46ed2cbd01164d986452f91f178727624ae40d7...68bde559dea0fdcac2102bfdf6230c5f70eb485e)\n\n---\nupdated-dependencies:\n- dependency-name: github/codeql-action\n  dependency-version: 4.35.4\n  dependency-type: direct:production\n  update-type: version-update:semver-patch\n...\n\nSigned-off-by: dependabot[bot] <support@github.com>\nCo-authored-by: dependabot[bot] <49699333+dependabot[bot]@users.noreply.github.com>",
+          "timestamp": "2026-05-13T09:06:45+02:00",
+          "tree_id": "5b4b83f459675872db8dde4ff4debc0b79e2d560",
+          "url": "https://github.com/getsentry/sentry-native/commit/7b17aba1c96c05b9d3eab8e15254cdd6126a70a5"
+        },
+        "date": 1778656165646,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 0.9691180000004351,
+            "unit": "ms",
+            "extra": "Min 0.920ms\nMax 1.011ms\nMean 0.966ms\nStdDev 0.035ms\nMedian 0.969ms\nCPU 0.909ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 0.8380649999963907,
+            "unit": "ms",
+            "extra": "Min 0.815ms\nMax 0.900ms\nMean 0.846ms\nStdDev 0.032ms\nMedian 0.838ms\nCPU 0.840ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 3.1783630000177254,
+            "unit": "ms",
+            "extra": "Min 3.115ms\nMax 3.249ms\nMean 3.183ms\nStdDev 0.050ms\nMedian 3.178ms\nCPU 1.694ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.1242820000015854,
+            "unit": "ms",
+            "extra": "Min 0.117ms\nMax 0.126ms\nMean 0.123ms\nStdDev 0.004ms\nMedian 0.124ms\nCPU 0.073ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.029997000012826902,
+            "unit": "ms",
+            "extra": "Min 0.029ms\nMax 0.033ms\nMean 0.030ms\nStdDev 0.001ms\nMedian 0.030ms\nCPU 0.030ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 1.8377940000107174,
+            "unit": "ms",
+            "extra": "Min 1.791ms\nMax 1.911ms\nMean 1.844ms\nStdDev 0.044ms\nMedian 1.838ms\nCPU 0.530ms"
           }
         ]
       }
