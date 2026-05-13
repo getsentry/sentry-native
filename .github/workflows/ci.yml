@@ -142,13 +142,13 @@ jobs:
             RUN_ANALYZER: code-checker,valgrind
           - name: Linux (GCC + musl + libunwind)
             os: ubuntu-latest
-            container: ghcr.io/getsentry/sentry-native-alpine:3.21
+            container: ghcr.io/getsentry/sentry-native-alpine:3.23
             CC: gcc
             CXX: g++
             SYSTEM_PYTHON: 1
           - name: Linux (clang + musl + libunwind)
             os: ubuntu-latest
-            container: ghcr.io/getsentry/sentry-native-alpine:3.21
+            container: ghcr.io/getsentry/sentry-native-alpine:3.23
             CC: clang
             CXX: clang++
             SYSTEM_PYTHON: 1
