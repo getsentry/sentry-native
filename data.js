@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1778680744060,
+  "lastUpdate": 1778680824622,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -63052,6 +63052,66 @@ window.BENCHMARK_DATA = {
             "value": 14.006800000061048,
             "unit": "ms",
             "extra": "Min 13.389ms\nMax 14.627ms\nMean 14.005ms\nStdDev 0.438ms\nMedian 14.007ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "jpnurmi@gmail.com",
+            "name": "J-P Nurmi",
+            "username": "jpnurmi"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "a50efc7ef2aeceda5c2bc56c33b8c5639e131a82",
+          "message": "feat(tracing): strict trace continuation (#1663)\n\n* ref(utils): extract W3C baggage iterator and percent-decode\n\nAdds two reusable helpers — `sentry__baggage_iter_next`, which yields\nthe next W3C baggage member as trimmed slices (with property suffixes\nstripped and malformed members skipped), and\n`sentry__percent_decode_inplace`, which pct-decodes a buffer in place\nwith malformed escapes passed through verbatim. Both are covered by\nfocused unit tests; no production call sites are rewired in this\ncommit.\n\n* ref(value): Add key/value foreach helper\n\nProvide an internal object key/value iteration helper with focused unit coverage\nso later trace propagation code can iterate DSC values without indexed key/value\naccess.\n\nCo-Authored-By: OpenAI Codex <noreply@openai.com>\n\n* feat(options): add strict trace continuation option\n\nAdd `sentry_options_set_strict_trace_continuation` / `_get_` as an\nexperimental API. The option defaults to false and is not wired up to\nany propagation logic yet; subsequent commits will consume it when the\ntrace-continuation decision path is implemented.\n\nPreparation for strict trace continuation:\nhttps://develop.sentry.dev/sdk/foundations/trace-propagation/#strict-trace-continuation\n\nCo-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>\n\n* feat(options): add org_id option\n\nAdd `sentry_options_set_org_id` / `_set_org_id_n` / `_get_org_id` as an\nexperimental API. Overrides the organization ID derived from the DSN\nhost, which is required for self-hosted setups whose ingest hostname\ndoes not encode the org. Nothing consumes the option yet; subsequent\ncommits will route it through the effective-org_id resolver and the\nstrict-trace-continuation decision.\n\nPreparation for strict trace continuation:\nhttps://develop.sentry.dev/sdk/foundations/trace-propagation/#strict-trace-continuation\n\nCo-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>\n\n* fix(scope): rebuild DSC when the propagation trace changes\n\n`sentry_set_trace` and `sentry_regenerate_trace` updated the scope's\npropagation context but left the dynamic sampling context (built once\nat `sentry_init`) untouched. The DSC's `sample_rand` therefore stayed\ntied to the trace generated at init, even after the caller switched\ntraces. Outgoing propagation that consumes the scope DSC would emit\nstale values mismatched against `sentry-trace`.\n\nRefresh the scope DSC after each trace change.\n\nSurfaced while preparing strict trace continuation, where outgoing\nbaggage will draw all DSC fields from the scope DSC.\n\nCo-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>\n\n* feat(tracing): resolve effective org_id for DSC\n\nAdd `sentry__options_get_effective_org_id` (option > DSN > NULL, empty\ntreated as absent) and consume it in the dynamic sampling context\nbuilder. The DSC now only carries `org_id` when the SDK actually has\none — the previous code emitted `\"org_id\":\"\"` for DSNs without an\n`o<digits>.` host prefix, which ran counter to the trace-propagation\nspec.\n\nIntegration and envelope-serialization assertions updated to reflect\nthe absent field.\n\nPreparation for strict trace continuation:\nhttps://develop.sentry.dev/sdk/foundations/trace-propagation/#strict-trace-continuation\n\nCo-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>\n\n* feat(tracing): parse incoming baggage header\n\nHandle `baggage` alongside `sentry-trace` in\n`sentry_transaction_context_update_from_header`. Per W3C baggage /\nRFC 7230 syntax: comma-separated members of the form `key=value`\nwith optional surrounding whitespace. `sentry-*` members are\ncollected (key stripped of the `sentry-` prefix) and their\npercent-encoded values decoded into a new `incoming_dsc` object on\nthe transaction context's inner state. Non-sentry members are\nignored.\n\nThe `incoming_dsc` object is the input to the next step — the strict\ntrace continuation decision. Nothing consumes it yet.\n\nPreparation for strict trace continuation:\nhttps://develop.sentry.dev/sdk/foundations/trace-propagation/#strict-trace-continuation\n\nCo-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>\n\n* ref(scope): extract DSC builder as a scope helper\n\nMove the file-static `set_dynamic_sampling_context` from\n`sentry_core.c` into `sentry_scope.c` as\n`sentry__scope_rebuild_dsc_from_options`. The DSC fundamentally\nbelongs to the scope, and the upcoming strict-trace-continuation\nwork needs to call it from outside `sentry_core.c`. No behavior\nchange.\n\nCo-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>\n\n* feat(tracing): apply strict trace continuation decision\n\nWire incoming-baggage org_id and the SDK's effective org_id through\n`sentry__trace_continuation_allowed` (the spec truth table) when a\ntransaction starts:\n\n- Both present and equal, both absent, or only one with strict off:\n  continue. The scope DSC is frozen verbatim from the incoming DSC\n  and propagated as-is from there on.\n- Both present and differing: never continue.\n- Exactly one present with strict on: do not continue.\n\nWhen not continuing, the transaction takes a fresh `trace_id`,\ndrops `parent_span_id` and any inherited `sampled` flag (the sampler\nre-decides), and the scope DSC is rebuilt from the SDK's own\noptions. The internal `incoming_dsc` carrier is stripped from the\nevent before sampling so it never reaches the envelope.\n\nOutgoing baggage emission still TODO; spec compliance requires it\n(`sentry-org_id` MUST be propagated). Coming next.\n\nhttps://develop.sentry.dev/sdk/foundations/trace-propagation/#strict-trace-continuation\n\nCo-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>\n\n* feat(tracing): Emit outgoing baggage from scope DSC\n\nReplace the long-standing TODO in `sentry__span_iter_headers` with a\nproper `baggage` header emitter. The header is built from the scope\nDSC: when the scope continued an upstream trace, the DSC was frozen\nverbatim and propagation echoes upstream values \"as is\" per the\ntrace-propagation spec; otherwise the DSC was rebuilt from the SDK's\nown options.\n\n`sentry-trace_id` is always taken from the span's own `trace_id` and\nemitted first, so it stays consistent with the `sentry-trace`\nheader. The remaining DSC fields (including `sentry-org_id` when\npresent) are appended with values percent-encoded per RFC 3986.\n\nhttps://develop.sentry.dev/sdk/telemetry/traces/dynamic-sampling-context/#baggage-header\n\nCo-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>\nCo-Authored-By: OpenAI Codex <noreply@openai.com>\n\n* test(tracing): cover strict trace continuation\n\nAdd unit tests for the new continuation pipeline:\n\n- `trace_continuation_truth_table`: pure check of the spec truth\n  table.\n- `effective_org_id_resolution`: option > DSN > NULL precedence,\n  empty option falls back to DSN.\n- `parse_baggage_basic_and_filtering`: percent-decoding, OWS\n  trimming, non-`sentry-` members ignored, malformed members skipped.\n- `strict_continuation_*`: end-to-end via\n  `sentry_transaction_context_update_from_header` →\n  `sentry_transaction_start`, asserting both the resulting trace\n  state (continued vs. forked) and the outgoing baggage emitted via\n  `sentry_transaction_iter_headers` (frozen-from-upstream vs.\n  rebuilt from options, including spec-required `sentry-org_id`\n  propagation).\n- `set_trace_rebuilds_dsc_sample_rand`: regression for the earlier\n  staleness fix.\n\nAlso bumps the unreleased CHANGELOG entry now that the feature is\nobservable end-to-end.\n\nCo-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>\n\n* fix(tracing): freeze DSC from incoming trace\n\nPer the trace-propagation spec, the receiving SDK must treat the\nincoming Dynamic Sampling Context as instantly frozen and propagate\nits values \"as is\". `sentry__scope_freeze_dsc_from_incoming` built\nthe DSC but didn't lock it, so a subsequent `sentry_set_release` /\n`sentry_set_environment` call would overwrite the upstream `release`\n/ `environment` values in the outgoing `baggage` header. Freeze via\n`sentry_value_freeze` after the merge so the setters silently no-op\nagainst the active trace's DSC; the scope's own fields still update\nand feed the next trace's rebuilt DSC.\n\nCo-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>\n\n* fix(tracing): drop upstream sampling decision on fork\n\nWhen the strict-continuation decision forks into a new trace, the\nfork branch cleared `sampled` / `parent_span_id` on `tx` but not on\n`tx_ctx` (which `parse_sentry_trace` still populated from the\nincoming `sentry-trace` header). The subsequent\n`sentry__should_send_transaction(tx_ctx, ...)` call would therefore\nsee the upstream `sampled` flag, treat it as `parent_sampled`, and\nshort-circuit to the upstream decision — bypassing the local\n`traces_sample_rate` / `traces_sampler`.\n\nPass `tx` (already merged from `tx_ctx` and, in the fork branch,\nstripped of `sampled`) to the sampler helper so the fork evaluates\nsampling locally. Non-fork paths are unchanged since `tx` agrees\nwith `tx_ctx` on `sampled` there.\n\nCo-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>\n\n* fix(tracing): use locale-independent isalnum in baggage encoder\n\n`isalnum` from `<ctype.h>` is locale-dependent: in non-\"C\" locales\n(e.g. ISO-8859-1) bytes > 127 — such as UTF-8 continuation bytes in\nrelease / environment values — can be classified as alphanumeric and\nleft unencoded, producing a malformed baggage header. RFC 3986's\n`unreserved` set is strict ASCII by definition, so replace the call\nwith a small locale-independent ASCII-range helper.\n\nCo-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>\n\n* test(tracing): Add strict continuation integration coverage\n\nExercise the transaction example with fixed incoming trace and baggage flags so\nintegration tests cover continuation, mismatched org IDs, and missing baggage.\n\nCo-Authored-By: OpenAI Codex <noreply@openai.com>\n\n* Update CHANGELOG.md\n\n* ref(tracing): Remove unused org ID getter\n\nDrop the unused public org ID getter and use a single internal helper for the\ntrace propagation org ID resolved from options or the DSN.\n\nCo-Authored-By: OpenAI Codex <noreply@openai.com>\n\n* ref(tracing): Rename scope DSC helpers\n\nUse shorter internal names for updating the scope DSC from SDK options and\nfreezing it from incoming trace continuation data.\n\nCo-Authored-By: OpenAI Codex <noreply@openai.com>\n\n* ref(tracing): Rename trace continuation predicate\n\nUse a shorter internal predicate name for deciding whether an incoming trace can\ncontinue under strict trace continuation rules.\n\nCo-Authored-By: OpenAI Codex <noreply@openai.com>\n\n* ref(tracing): Move continuation org lookup into predicate\n\nLet the trace continuation predicate derive SDK and incoming organization IDs\nfrom the options and incoming DSC so transaction startup only asks whether the\nincoming trace can continue.\n\nCo-Authored-By: OpenAI Codex <noreply@openai.com>\n\n* Update src/sentry_tracing.c\n\nCo-authored-by: JoshuaMoelans <60878493+JoshuaMoelans@users.noreply.github.com>\n\n---------\n\nCo-authored-by: OpenAI Codex <noreply@openai.com>\nCo-authored-by: Claude Opus 4.7 (1M context) <noreply@anthropic.com>\nCo-authored-by: JoshuaMoelans <60878493+JoshuaMoelans@users.noreply.github.com>",
+          "timestamp": "2026-05-13T15:56:15+02:00",
+          "tree_id": "db1b9f11e0980434eac3b29f9d756c4aa21bac49",
+          "url": "https://github.com/getsentry/sentry-native/commit/a50efc7ef2aeceda5c2bc56c33b8c5639e131a82"
+        },
+        "date": 1778680819127,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 7.82389999994848,
+            "unit": "ms",
+            "extra": "Min 7.590ms\nMax 8.911ms\nMean 8.015ms\nStdDev 0.528ms\nMedian 7.824ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 7.992600000079619,
+            "unit": "ms",
+            "extra": "Min 7.668ms\nMax 8.078ms\nMean 7.931ms\nStdDev 0.158ms\nMedian 7.993ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 19.017600000097445,
+            "unit": "ms",
+            "extra": "Min 18.927ms\nMax 36.395ms\nMean 22.524ms\nStdDev 7.755ms\nMedian 19.018ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.12880000008408388,
+            "unit": "ms",
+            "extra": "Min 0.123ms\nMax 0.156ms\nMean 0.137ms\nStdDev 0.016ms\nMedian 0.129ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.31149999995250255,
+            "unit": "ms",
+            "extra": "Min 0.305ms\nMax 0.317ms\nMean 0.310ms\nStdDev 0.005ms\nMedian 0.311ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 10.628399999859539,
+            "unit": "ms",
+            "extra": "Min 10.448ms\nMax 10.895ms\nMean 10.636ms\nStdDev 0.163ms\nMedian 10.628ms"
           }
         ]
       }
