@@ -10,7 +10,6 @@
 #include "sentry_utils.h"
 #include "sentry_value.h"
 #include <ctype.h>
-#include <stdio.h>
 #include <string.h>
 
 static inline bool
