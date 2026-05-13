@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1778689796136,
+  "lastUpdate": 1778689838917,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -63412,6 +63412,66 @@ window.BENCHMARK_DATA = {
             "value": 15.448499999820342,
             "unit": "ms",
             "extra": "Min 14.812ms\nMax 16.808ms\nMean 15.650ms\nStdDev 0.765ms\nMedian 15.448ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "jpnurmi@gmail.com",
+            "name": "J-P Nurmi",
+            "username": "jpnurmi"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "e44e8eb6c6cf13e2f165e200c593c826b657bc39",
+          "message": "build(docker): Update Alpine images (3.23 + multi-arch) (#1713)\n\nPublish the Alpine Docker image for both amd64 and arm64 with buildx.\nThis allows testing these Docker images locally on a Silicon Mac. Keep\nthe existing 3.21 tag and add a newer 3.23 image for mitmproxy 12.x\ncompatibility.\n\nAdd Node.js, npm, and OpenSSL headers to the image so JavaScript actions\nand Python packages with OpenSSL extensions can run in the container.\n\nCo-authored-by: OpenAI Codex <noreply@openai.com>",
+          "timestamp": "2026-05-13T18:24:23+02:00",
+          "tree_id": "3479c55a9d548aa92a7722822118b140320151ee",
+          "url": "https://github.com/getsentry/sentry-native/commit/e44e8eb6c6cf13e2f165e200c593c826b657bc39"
+        },
+        "date": 1778689831582,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 223.91340000001492,
+            "unit": "ms",
+            "extra": "Min 98.053ms\nMax 486.499ms\nMean 280.543ms\nStdDev 150.779ms\nMedian 223.913ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 11.035899999910725,
+            "unit": "ms",
+            "extra": "Min 10.762ms\nMax 11.464ms\nMean 11.093ms\nStdDev 0.322ms\nMedian 11.036ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 29.84460000004674,
+            "unit": "ms",
+            "extra": "Min 27.585ms\nMax 31.397ms\nMean 29.514ms\nStdDev 1.534ms\nMedian 29.845ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.17779999996037077,
+            "unit": "ms",
+            "extra": "Min 0.173ms\nMax 0.270ms\nMean 0.198ms\nStdDev 0.041ms\nMedian 0.178ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.39140000001225417,
+            "unit": "ms",
+            "extra": "Min 0.381ms\nMax 0.511ms\nMean 0.429ms\nStdDev 0.062ms\nMedian 0.391ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 15.288899999973182,
+            "unit": "ms",
+            "extra": "Min 14.653ms\nMax 16.285ms\nMean 15.307ms\nStdDev 0.653ms\nMedian 15.289ms"
           }
         ]
       }
