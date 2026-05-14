@@ -11,7 +11,7 @@
 #    if defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID)
 #        include <sys/prctl.h>
 #    endif
-#elif defined(SENTRY_PLATFORM_WINDOWS)
+#elif defined(SENTRY_PLATFORM_WINDOWS) && !defined(SENTRY_PLATFORM_XBOX)
 #    include <werapi.h>
 #endif
 
@@ -65,7 +65,7 @@ static sentry_mutex_t g_ipc_init_mutex = SENTRY__MUTEX_INIT;
 #    endif
 #endif
 
-#if defined(SENTRY_PLATFORM_WINDOWS)
+#if defined(SENTRY_PLATFORM_WINDOWS) && !defined(SENTRY_PLATFORM_XBOX)
 static sentry_wer_registration_t g_wer_registration = { 0 };
 
 static sentry_path_t *g_wer_path = NULL;
@@ -520,7 +520,7 @@ native_backend_startup(
         SENTRY_DEBUG("Daemon signaled ready");
     }
 
-#    if defined(SENTRY_PLATFORM_WINDOWS)
+#    if defined(SENTRY_PLATFORM_WINDOWS) && !defined(SENTRY_PLATFORM_XBOX)
     wer_register_module(tid);
 #    endif
 
@@ -529,7 +529,9 @@ native_backend_startup(
 #    if defined(SENTRY_PLATFORM_UNIX)
         kill(state->daemon_pid, SIGTERM);
 #    elif defined(SENTRY_PLATFORM_WINDOWS)
+#        if !defined(SENTRY_PLATFORM_XBOX)
         wer_unregister_module();
+#        endif
         // On Windows, terminate the daemon process
         HANDLE hDaemon
             = OpenProcess(PROCESS_TERMINATE, FALSE, state->daemon_pid);
@@ -559,7 +561,7 @@ native_backend_shutdown(sentry_backend_t *backend)
         return;
     }
 
-#if defined(SENTRY_PLATFORM_WINDOWS)
+#if defined(SENTRY_PLATFORM_WINDOWS) && !defined(SENTRY_PLATFORM_XBOX)
     wer_unregister_module();
 #endif
 
