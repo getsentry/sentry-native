@@ -41,6 +41,8 @@ RUN if awk -F. '{ exit !($1 > 3 || ($1 == 3 && $2 >= 23)) }' /etc/alpine-release
     rustup toolchain install nightly --profile minimal --component rust-src && \
     ln -s /root/.cargo/bin/rustup /usr/local/bin/rustup; \
     fi
+ENV CARGO_HOME=/root/.cargo
+ENV RUSTUP_HOME=/root/.rustup
 
 RUN curl -sSL --retry 5 https://dot.net/v1/dotnet-install.sh | bash -eo pipefail /dev/stdin --channel 10.0 --install-dir /usr/share/dotnet
 RUN ln -s /usr/share/dotnet/dotnet /usr/local/bin/dotnet
