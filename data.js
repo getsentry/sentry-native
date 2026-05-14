@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1778772981233,
+  "lastUpdate": 1778773012636,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -63832,6 +63832,66 @@ window.BENCHMARK_DATA = {
             "value": 15.55289999987508,
             "unit": "ms",
             "extra": "Min 15.275ms\nMax 16.135ms\nMean 15.667ms\nStdDev 0.340ms\nMedian 15.553ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "tustanivsky@gmail.com",
+            "name": "Ivan Tustanivskyi",
+            "username": "tustanivsky"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "af2abd18cbdaddb2dec6c1a36128089bce3a9826",
+          "message": "fix: exclude WER code from Xbox builds in native backend (#1723)\n\n* fix: exclude WER code from Xbox builds in native backend\n\n* Fix install",
+          "timestamp": "2026-05-14T18:30:39+03:00",
+          "tree_id": "05d40cb40aff1836c36893c9aec1a82647b5133e",
+          "url": "https://github.com/getsentry/sentry-native/commit/af2abd18cbdaddb2dec6c1a36128089bce3a9826"
+        },
+        "date": 1778773002683,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 9.220099999993181,
+            "unit": "ms",
+            "extra": "Min 8.780ms\nMax 9.355ms\nMean 9.114ms\nStdDev 0.236ms\nMedian 9.220ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 17.713700000058452,
+            "unit": "ms",
+            "extra": "Min 13.294ms\nMax 172.159ms\nMean 48.429ms\nStdDev 69.266ms\nMedian 17.714ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 29.133999999885418,
+            "unit": "ms",
+            "extra": "Min 28.772ms\nMax 314.847ms\nMean 86.321ms\nStdDev 127.751ms\nMedian 29.134ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.13569999987339543,
+            "unit": "ms",
+            "extra": "Min 0.128ms\nMax 0.246ms\nMean 0.162ms\nStdDev 0.050ms\nMedian 0.136ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.3464999999778229,
+            "unit": "ms",
+            "extra": "Min 0.321ms\nMax 0.579ms\nMean 0.388ms\nStdDev 0.108ms\nMedian 0.346ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 19.47100000006685,
+            "unit": "ms",
+            "extra": "Min 19.012ms\nMax 31.186ms\nMean 21.936ms\nStdDev 5.226ms\nMedian 19.471ms"
           }
         ]
       }
