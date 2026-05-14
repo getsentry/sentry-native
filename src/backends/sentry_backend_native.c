@@ -735,6 +735,10 @@ native_backend_write_attachments(const sentry_path_t *event_path)
                     it->filename ? it->filename : it->path);
                 sentry_value_set_by_key(
                     attach_info, "filename", sentry_value_new_string(filename));
+                if (it->type && *it->type) {
+                    sentry_value_set_by_key(attach_info, "attachment_type",
+                        sentry_value_new_string(it->type));
+                }
                 if (it->content_type) {
                     sentry_value_set_by_key(attach_info, "content_type",
                         sentry_value_new_string(it->content_type));
@@ -1039,6 +1043,9 @@ native_backend_except(sentry_backend_t *backend, const sentry_ucontext_t *uctx)
 #    endif
                 sentry_value_set_by_key(contexts, "device", device_context);
 
+#endif
+
+#ifndef SENTRY_SCREENSHOT_NONE
                 // The screenshot is captured by the daemon out-of-process, so
                 // we invoke the hook here (in the crashing process, where
                 // user callbacks can run) and communicate the decision to the

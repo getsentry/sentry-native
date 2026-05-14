@@ -175,11 +175,13 @@ elseif(SENTRY_BACKEND_NATIVE)
 	if(LINUX OR ANDROID)
 		sentry_target_sources_cwd(sentry
 			backends/native/minidump/sentry_minidump_common.c
+			backends/native/minidump/sentry_minidump_indirect.c
 			backends/native/minidump/sentry_minidump_linux.c
 		)
 	elseif(APPLE)
 		sentry_target_sources_cwd(sentry
 			backends/native/minidump/sentry_minidump_common.c
+			backends/native/minidump/sentry_minidump_indirect.c
 			backends/native/minidump/sentry_minidump_macos.c
 		)
 	elseif(WIN32)
@@ -273,14 +275,18 @@ if(SENTRY_INTEGRATION_QT)
 endif()
 
 # screenshot
-if(WIN32 AND NOT XBOX)
+if(SENTRY_SCREENSHOT_WINDOWS)
+	target_compile_definitions(sentry PRIVATE SENTRY_SCREENSHOT_WINDOWS)
 	sentry_target_sources_cwd(sentry
 		screenshot/sentry_screenshot_windows.c
 	)
-elseif(NOT WIN32)
+elseif(SENTRY_SCREENSHOT_NONE)
+	target_compile_definitions(sentry PRIVATE SENTRY_SCREENSHOT_NONE)
 	sentry_target_sources_cwd(sentry
 		screenshot/sentry_screenshot_none.c
 	)
+elseif(SENTRY_SCREENSHOT_CUSTOM)
+	target_compile_definitions(sentry PRIVATE SENTRY_SCREENSHOT_CUSTOM)
 endif()
 
 # session replay

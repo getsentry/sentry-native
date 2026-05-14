@@ -934,6 +934,21 @@ sentry_value_get_by_index(sentry_value_t value, size_t index)
     return sentry_value_new_null();
 }
 
+void
+sentry__value_foreach_key_value(sentry_value_t value,
+    void (*callback)(const char *key, sentry_value_t value, void *userdata),
+    void *userdata)
+{
+    const thing_t *thing = value_as_thing(value);
+    if (!thing || thing_get_type(thing) != THING_TYPE_OBJECT) {
+        return;
+    }
+    const obj_t *o = thing->payload._ptr;
+    for (size_t i = 0; i < o->len; i++) {
+        callback(o->pairs[i].k, o->pairs[i].v, userdata);
+    }
+}
+
 sentry_value_t
 sentry_value_get_by_index_owned(sentry_value_t value, size_t index)
 {

@@ -1,8 +1,10 @@
 #include "sentry_testsupport.h"
 
+#include "sentry_options.h"
 #include "sentry_scope.h"
 #include "sentry_string.h"
 #include "sentry_tracing.h"
+#include "sentry_utils.h"
 #include "sentry_uuid.h"
 
 #define IS_NULL(Src, Field)                                                    \
@@ -1944,6 +1946,370 @@ SENTRY_TEST(traceparent_header_generation)
     sentry_transaction_finish(tx);
     sentry_close();
 }
+
+static bool
+trace_can_continue(
+    const char *sdk_org_id, const char *incoming_org_id, bool strict)
+{
+    SENTRY_TEST_OPTIONS_NEW(options);
+    sentry_options_set_strict_trace_continuation(options, strict);
+    if (sdk_org_id) {
+        sentry_options_set_org_id(options, sdk_org_id);
+    }
+
+    sentry_value_t incoming = sentry_value_new_object();
+    if (incoming_org_id) {
+        sentry_value_set_by_key(
+            incoming, "org_id", sentry_value_new_string(incoming_org_id));
+    }
+
+    bool rv = sentry__trace_can_continue(incoming, options);
+
+    sentry_value_decref(incoming);
+    sentry_options_free(options);
+    return rv;
+}
+
+SENTRY_TEST(trace_continuation_truth_table)
+{
+    // Per
+    // https://develop.sentry.dev/sdk/foundations/trace-propagation/#strict-trace-continuation
+    // Both absent or both present-equal: continue regardless of strict.
+    TEST_CHECK(trace_can_continue(NULL, NULL, false));
+    TEST_CHECK(trace_can_continue(NULL, NULL, true));
+    TEST_CHECK(trace_can_continue("1", "1", false));
+    TEST_CHECK(trace_can_continue("1", "1", true));
+    // Empty string is treated as absent.
+    TEST_CHECK(trace_can_continue("", "", true));
+
+    // Both present and differing: never continue.
+    TEST_CHECK(!trace_can_continue("1", "2", false));
+    TEST_CHECK(!trace_can_continue("1", "2", true));
+
+    // Exactly one present: continue iff strict is false.
+    TEST_CHECK(trace_can_continue("1", NULL, false));
+    TEST_CHECK(trace_can_continue(NULL, "1", false));
+    TEST_CHECK(!trace_can_continue("1", NULL, true));
+    TEST_CHECK(!trace_can_continue(NULL, "1", true));
+}
+
+SENTRY_TEST(effective_org_id_resolution)
+{
+    // No DSN, no option → NULL
+    SENTRY_TEST_OPTIONS_NEW(opts1);
+    TEST_CHECK(sentry__options_get_org_id(opts1) == NULL);
+    sentry_options_free(opts1);
+
+    // DSN with org → DSN value
+    SENTRY_TEST_OPTIONS_NEW(opts2);
+    sentry_options_set_dsn(opts2, "https://k@o123456.ingest.sentry.io/1");
+    TEST_CHECK_STRING_EQUAL(sentry__options_get_org_id(opts2), "123456");
+    sentry_options_free(opts2);
+
+    // DSN without org_id-encoded host → NULL
+    SENTRY_TEST_OPTIONS_NEW(opts3);
+    sentry_options_set_dsn(opts3, "https://k@self-hosted.example.com/1");
+    TEST_CHECK(sentry__options_get_org_id(opts3) == NULL);
+    sentry_options_free(opts3);
+
+    // Option overrides DSN
+    SENTRY_TEST_OPTIONS_NEW(opts4);
+    sentry_options_set_dsn(opts4, "https://k@o123456.ingest.sentry.io/1");
+    sentry_options_set_org_id(opts4, "999");
+    TEST_CHECK_STRING_EQUAL(sentry__options_get_org_id(opts4), "999");
+    sentry_options_free(opts4);
+
+    // Empty option falls back to DSN
+    SENTRY_TEST_OPTIONS_NEW(opts5);
+    sentry_options_set_dsn(opts5, "https://k@o123456.ingest.sentry.io/1");
+    sentry_options_set_org_id(opts5, "");
+    TEST_CHECK_STRING_EQUAL(sentry__options_get_org_id(opts5), "123456");
+    sentry_options_free(opts5);
+}
+
+SENTRY_TEST(parse_baggage_basic_and_filtering)
+{
+    sentry_transaction_context_t *tx_ctx
+        = sentry_transaction_context_new("t", "op");
+    sentry_transaction_context_update_from_header(tx_ctx, "baggage",
+        "sentry-org_id=123456 , sentry-environment=upstream,nonsentry=skip,"
+        " sentry-release=app%401.0 ,malformed");
+
+    sentry_value_t inner
+        = sentry_value_get_by_key(tx_ctx->inner, "incoming_dsc");
+    TEST_CHECK(!sentry_value_is_null(inner));
+    TEST_CHECK_STRING_EQUAL(
+        sentry_value_as_string(sentry_value_get_by_key(inner, "org_id")),
+        "123456");
+    TEST_CHECK_STRING_EQUAL(
+        sentry_value_as_string(sentry_value_get_by_key(inner, "environment")),
+        "upstream");
+    // percent-decoded value
+    TEST_CHECK_STRING_EQUAL(
+        sentry_value_as_string(sentry_value_get_by_key(inner, "release")),
+        "app@1.0");
+    // non-sentry member ignored
+    TEST_CHECK(
+        sentry_value_is_null(sentry_value_get_by_key(inner, "nonsentry")));
+
+    sentry__transaction_context_free(tx_ctx);
+}
+
+typedef struct {
+    char sentry_trace[64];
+    char baggage[1024];
+} continuation_collector_t;
+
+static void
+collect_continuation_headers(const char *key, const char *value, void *userdata)
+{
+    continuation_collector_t *c = (continuation_collector_t *)userdata;
+    if (strcmp(key, "sentry-trace") == 0) {
+        snprintf(c->sentry_trace, sizeof(c->sentry_trace), "%s", value);
+    } else if (strcmp(key, "baggage") == 0) {
+        snprintf(c->baggage, sizeof(c->baggage), "%s", value);
+    }
+}
+
+#define UPSTREAM_TRACE_ID "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+#define UPSTREAM_PARENT_SPAN_ID "bbbbbbbbbbbbbbbb"
+#define UPSTREAM_SENTRY_TRACE UPSTREAM_TRACE_ID "-" UPSTREAM_PARENT_SPAN_ID "-1"
+
+static void
+discard_envelope(sentry_envelope_t *envelope, void *state)
+{
+    (void)state;
+    sentry_envelope_free(envelope);
+}
+
+static sentry_transaction_t *
+start_tx_with_upstream(const char *baggage)
+{
+    sentry_transaction_context_t *tx_ctx
+        = sentry_transaction_context_new("t", "op");
+    sentry_transaction_context_update_from_header(
+        tx_ctx, "sentry-trace", UPSTREAM_SENTRY_TRACE);
+    if (baggage) {
+        sentry_transaction_context_update_from_header(
+            tx_ctx, "baggage", baggage);
+    }
+    return sentry_transaction_start(tx_ctx, sentry_value_new_null());
+}
+
+SENTRY_TEST(strict_continuation_matching_org_continues)
+{
+    SENTRY_TEST_OPTIONS_NEW(options);
+    sentry_options_set_dsn(options, "https://k@o123456.ingest.sentry.io/1");
+    sentry_options_set_transport(
+        options, sentry_transport_new(discard_envelope));
+    sentry_options_set_traces_sample_rate(options, 1.0);
+    sentry_options_set_strict_trace_continuation(options, 1);
+    sentry_init(options);
+
+    sentry_transaction_t *tx = start_tx_with_upstream(
+        "sentry-org_id=123456,sentry-environment=upstream,"
+        "sentry-release=upstream-app%401.0");
+
+    // Trace continued: trace_id and parent_span_id preserved.
+    TEST_CHECK_STRING_EQUAL(
+        sentry_value_as_string(sentry_value_get_by_key(tx->inner, "trace_id")),
+        UPSTREAM_TRACE_ID);
+    TEST_CHECK_STRING_EQUAL(sentry_value_as_string(sentry_value_get_by_key(
+                                tx->inner, "parent_span_id")),
+        UPSTREAM_PARENT_SPAN_ID);
+    // incoming_dsc must not leak into the event.
+    TEST_CHECK(sentry_value_is_null(
+        sentry_value_get_by_key(tx->inner, "incoming_dsc")));
+
+    // Late local updates must not mutate the frozen incoming DSC.
+    sentry_set_release("local-app@3.0");
+    sentry_set_environment("local");
+
+    // Outgoing baggage echoes the upstream environment / release verbatim.
+    continuation_collector_t c = { 0 };
+    sentry_transaction_iter_headers(tx, collect_continuation_headers, &c);
+    TEST_CHECK(strstr(c.baggage, "sentry-trace_id=" UPSTREAM_TRACE_ID) != NULL);
+    TEST_CHECK(strstr(c.baggage, "sentry-org_id=123456") != NULL);
+    TEST_CHECK(strstr(c.baggage, "sentry-environment=upstream") != NULL);
+    TEST_CHECK(strstr(c.baggage, "sentry-environment=local") == NULL);
+    // Percent-encoded as it came in.
+    TEST_CHECK(strstr(c.baggage, "sentry-release=upstream-app%401.0") != NULL);
+    TEST_CHECK(strstr(c.baggage, "sentry-release=local-app%403.0") == NULL);
+
+    sentry_transaction_finish(tx);
+    sentry_close();
+}
+
+SENTRY_TEST(strict_continuation_org_mismatch_forks)
+{
+    SENTRY_TEST_OPTIONS_NEW(options);
+    sentry_options_set_dsn(options, "https://k@o123456.ingest.sentry.io/1");
+    sentry_options_set_transport(
+        options, sentry_transport_new(discard_envelope));
+    // sample_rate=0 + upstream sentry-trace ending in `-1`: only the fork
+    // dropping the inherited sampling decision lets the local rate win.
+    sentry_options_set_traces_sample_rate(options, 0.0);
+    // Strict OFF: mismatch must still fork (spec MUST).
+    sentry_init(options);
+
+    sentry_transaction_t *tx
+        = start_tx_with_upstream("sentry-org_id=99999,sentry-environment=up");
+
+    const char *trace_id = sentry_value_as_string(
+        sentry_value_get_by_key(tx->inner, "trace_id"));
+    TEST_CHECK(strcmp(trace_id, UPSTREAM_TRACE_ID) != 0);
+    TEST_CHECK(sentry_value_is_null(
+        sentry_value_get_by_key(tx->inner, "parent_span_id")));
+    TEST_CHECK(
+        !sentry_value_is_true(sentry_value_get_by_key(tx->inner, "sampled")));
+
+    // Outgoing baggage carries the SDK's own org_id, not upstream's.
+    continuation_collector_t c = { 0 };
+    sentry_transaction_iter_headers(tx, collect_continuation_headers, &c);
+    TEST_CHECK(strstr(c.baggage, "sentry-org_id=123456") != NULL);
+    TEST_CHECK(strstr(c.baggage, "sentry-org_id=99999") == NULL);
+    TEST_CHECK(strstr(c.baggage, "sentry-environment=up") == NULL);
+
+    sentry_transaction_finish(tx);
+    sentry_close();
+}
+
+SENTRY_TEST(strict_continuation_asymmetric_with_strict_forks)
+{
+    SENTRY_TEST_OPTIONS_NEW(options);
+    sentry_options_set_dsn(options, "https://k@o123456.ingest.sentry.io/1");
+    sentry_options_set_transport(
+        options, sentry_transport_new(discard_envelope));
+    sentry_options_set_traces_sample_rate(options, 1.0);
+    sentry_options_set_strict_trace_continuation(options, 1);
+    sentry_init(options);
+
+    // Upstream baggage with no org_id, SDK has 123456 → fork.
+    sentry_transaction_t *tx
+        = start_tx_with_upstream("sentry-environment=upstream");
+
+    const char *trace_id = sentry_value_as_string(
+        sentry_value_get_by_key(tx->inner, "trace_id"));
+    TEST_CHECK(strcmp(trace_id, UPSTREAM_TRACE_ID) != 0);
+
+    sentry_transaction_finish(tx);
+    sentry_close();
+}
+
+SENTRY_TEST(strict_continuation_asymmetric_lenient_continues)
+{
+    SENTRY_TEST_OPTIONS_NEW(options);
+    sentry_options_set_dsn(options, "https://k@o123456.ingest.sentry.io/1");
+    sentry_options_set_transport(
+        options, sentry_transport_new(discard_envelope));
+    sentry_options_set_traces_sample_rate(options, 1.0);
+    // Strict OFF.
+    sentry_init(options);
+
+    sentry_transaction_t *tx
+        = start_tx_with_upstream("sentry-environment=upstream");
+
+    TEST_CHECK_STRING_EQUAL(
+        sentry_value_as_string(sentry_value_get_by_key(tx->inner, "trace_id")),
+        UPSTREAM_TRACE_ID);
+
+    sentry_transaction_finish(tx);
+    sentry_close();
+}
+
+SENTRY_TEST(strict_continuation_no_baggage_forks)
+{
+    SENTRY_TEST_OPTIONS_NEW(options);
+    sentry_options_set_dsn(options, "https://k@o123456.ingest.sentry.io/1");
+    sentry_options_set_transport(
+        options, sentry_transport_new(discard_envelope));
+    sentry_options_set_traces_sample_rate(options, 1.0);
+    sentry_options_set_strict_trace_continuation(options, 1);
+    sentry_init(options);
+
+    // Only sentry-trace is received; no baggage at all. SDK has org_id,
+    // incoming has none (baggage absent) → strict MUST fork.
+    sentry_transaction_t *tx = start_tx_with_upstream(NULL);
+
+    const char *trace_id = sentry_value_as_string(
+        sentry_value_get_by_key(tx->inner, "trace_id"));
+    TEST_CHECK(strcmp(trace_id, UPSTREAM_TRACE_ID) != 0);
+    TEST_CHECK(sentry_value_is_null(
+        sentry_value_get_by_key(tx->inner, "parent_span_id")));
+
+    // Scope propagation follows the fork: no lingering upstream trace_id.
+    SENTRY_WITH_SCOPE (scope) {
+        const char *scope_trace_id
+            = sentry_value_as_string(sentry_value_get_by_key(
+                sentry_value_get_by_key(scope->propagation_context, "trace"),
+                "trace_id"));
+        TEST_CHECK(strcmp(scope_trace_id, UPSTREAM_TRACE_ID) != 0);
+        TEST_CHECK_STRING_EQUAL(scope_trace_id, trace_id);
+    }
+
+    sentry_transaction_finish(tx);
+    sentry_close();
+}
+
+SENTRY_TEST(continuation_no_baggage_uses_sdk_dsc)
+{
+    SENTRY_TEST_OPTIONS_NEW(options);
+    sentry_options_set_dsn(options, "https://k@o123456.ingest.sentry.io/1");
+    sentry_options_set_transport(
+        options, sentry_transport_new(discard_envelope));
+    sentry_options_set_release(options, "sdk-app@2.0");
+    sentry_options_set_traces_sample_rate(options, 1.0);
+    // Strict OFF + no baggage + SDK has org → continue; DSC built by SDK.
+    sentry_init(options);
+
+    sentry_transaction_t *tx = start_tx_with_upstream(NULL);
+
+    TEST_CHECK_STRING_EQUAL(
+        sentry_value_as_string(sentry_value_get_by_key(tx->inner, "trace_id")),
+        UPSTREAM_TRACE_ID);
+
+    continuation_collector_t c = { 0 };
+    sentry_transaction_iter_headers(tx, collect_continuation_headers, &c);
+    TEST_CHECK(strstr(c.baggage, "sentry-trace_id=" UPSTREAM_TRACE_ID) != NULL);
+    TEST_CHECK(strstr(c.baggage, "sentry-org_id=123456") != NULL);
+    TEST_CHECK(strstr(c.baggage, "sentry-release=sdk-app%402.0") != NULL);
+
+    sentry_transaction_finish(tx);
+    sentry_close();
+}
+
+SENTRY_TEST(set_trace_rebuilds_dsc_sample_rand)
+{
+    SENTRY_TEST_OPTIONS_NEW(options);
+    sentry_options_set_dsn(options, "https://k@o123456.ingest.sentry.io/1");
+    sentry_options_set_transport(
+        options, sentry_transport_new(discard_envelope));
+    sentry_options_set_traces_sample_rate(options, 1.0);
+    sentry_init(options);
+
+    double init_sample_rand = 0.0;
+    SENTRY_WITH_SCOPE (scope) {
+        init_sample_rand = sentry_value_as_double(sentry_value_get_by_key(
+            scope->dynamic_sampling_context, "sample_rand"));
+    }
+
+    sentry_set_trace("11112222333344445555666677778888", "1234567812345678");
+
+    double new_sample_rand = -1.0;
+    SENTRY_WITH_SCOPE (scope) {
+        new_sample_rand = sentry_value_as_double(sentry_value_get_by_key(
+            scope->dynamic_sampling_context, "sample_rand"));
+    }
+    // sample_rand is regenerated for the new trace, so the DSC must reflect
+    // the fresh value, not the init-time one.
+    TEST_CHECK(new_sample_rand != init_sample_rand);
+
+    sentry_close();
+}
+
+#undef UPSTREAM_SENTRY_TRACE
+#undef UPSTREAM_PARENT_SPAN_ID
+#undef UPSTREAM_TRACE_ID
 
 #undef IS_NULL
 #undef CHECK_STRING_PROPERTY

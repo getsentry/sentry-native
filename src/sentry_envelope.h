@@ -112,7 +112,7 @@ void sentry__envelope_add_attachments(sentry_envelope_t *envelope,
  */
 sentry_envelope_item_t *sentry__envelope_add_attachment_ref(
     sentry_envelope_t *envelope, const sentry_attachment_ref_t *ref,
-    const char *filename, sentry_attachment_type_t attachment_type,
+    const char *filename, const char *attachment_type,
     size_t attachment_length);
 
 /**

@@ -173,7 +173,7 @@ breakpad_backend_callback(const google_breakpad::MinidumpDescriptor &descriptor,
 
         if (should_handle) {
             bool capture_screenshot = options->attach_screenshot;
-#ifdef SENTRY_PLATFORM_WINDOWS
+#ifndef SENTRY_SCREENSHOT_NONE
             if (capture_screenshot && options->before_screenshot_func) {
                 SENTRY_SIGNAL_SAFE_LOG(
                     "DEBUG invoking `before_screenshot` hook");
@@ -195,14 +195,14 @@ breakpad_backend_callback(const google_breakpad::MinidumpDescriptor &descriptor,
                 envelope, dump_path, "attachment");
             if (item) {
                 sentry__envelope_item_set_header(item, "attachment_type",
-                    sentry_value_new_string("event.minidump"));
+                    sentry_value_new_string(SENTRY_ATTACHMENT_TYPE_MINIDUMP));
 
                 sentry__envelope_item_set_header(item, "filename",
                     sentry_value_new_string(sentry__path_filename(dump_path)));
             } else if (options->enable_large_attachments) {
                 sentry_attachment_t tmp = {};
                 tmp.path = dump_path;
-                tmp.type = MINIDUMP;
+                tmp.type = (char *)SENTRY_ATTACHMENT_TYPE_MINIDUMP;
                 if (!sentry__cache_attachment_ref(
                         envelope, &tmp, options->run->cache_path, nullptr)) {
                     SENTRY_SIGNAL_SAFE_LOG(

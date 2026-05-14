@@ -2,8 +2,7 @@
 ARG BASE=alpine:latest
 FROM ${BASE}
 
-RUN apk update
-RUN apk add \
+RUN apk add --no-cache \
     bash \
     build-base \
     cargo \
@@ -17,6 +16,9 @@ RUN apk add \
     lsb-release-minimal \
     mitmproxy \
     moreutils \
+    nodejs \
+    npm \
+    openssl-dev \
     perl \
     powershell \
     python3 \

@@ -101,7 +101,7 @@ extern "C" {
 #    endif
 #endif
 #ifndef SENTRY_SDK_VERSION
-#    define SENTRY_SDK_VERSION "0.14.0"
+#    define SENTRY_SDK_VERSION "0.14.1"
 #endif
 #define SENTRY_SDK_USER_AGENT SENTRY_SDK_NAME "/" SENTRY_SDK_VERSION
 
@@ -1603,8 +1603,12 @@ SENTRY_API void sentry_options_add_attachment_n(
  * API Users on windows are encouraged to use
  * `sentry_options_add_view_hierarchyw` instead.
  */
+SENTRY_DEPRECATED("Use `sentry_attach_*` with `sentry_attachment_set_type` and "
+                  "`SENTRY_ATTACHMENT_TYPE_VIEW_HIERARCHY` instead")
 SENTRY_API void sentry_options_add_view_hierarchy(
     sentry_options_t *opts, const char *path);
+SENTRY_DEPRECATED("Use `sentry_attach_*` with `sentry_attachment_set_type` and "
+                  "`SENTRY_ATTACHMENT_TYPE_VIEW_HIERARCHY` instead")
 SENTRY_API void sentry_options_add_view_hierarchy_n(
     sentry_options_t *opts, const char *path, size_t path_len);
 
@@ -1771,8 +1775,12 @@ SENTRY_API void sentry_options_add_attachmentw_n(
 /**
  * Wide char version of `sentry_options_add_view_hierarchy`.
  */
+SENTRY_DEPRECATED("Use `sentry_attach_*` with `sentry_attachment_set_type` and "
+                  "`SENTRY_ATTACHMENT_TYPE_VIEW_HIERARCHY` instead")
 SENTRY_API void sentry_options_add_view_hierarchyw(
     sentry_options_t *opts, const wchar_t *path);
+SENTRY_DEPRECATED("Use `sentry_attach_*` with `sentry_attachment_set_type` and "
+                  "`SENTRY_ATTACHMENT_TYPE_VIEW_HIERARCHY` instead")
 SENTRY_API void sentry_options_add_view_hierarchyw_n(
     sentry_options_t *opts, const wchar_t *path, size_t path_len);
 
@@ -2367,6 +2375,41 @@ SENTRY_EXPERIMENTAL_API int sentry_options_get_propagate_traceparent(
     const sentry_options_t *opts);
 
 /**
+ * Overrides the organization ID derived from the DSN host
+ * (e.g. `o123456.ingest.sentry.io` → `123456`). Typically only required for
+ * self-hosted setups where the DSN host does not encode the organization ID.
+ *
+ * The value is passed through as a string; no validation is performed.
+ */
+SENTRY_EXPERIMENTAL_API void sentry_options_set_org_id(
+    sentry_options_t *opts, const char *org_id);
+SENTRY_EXPERIMENTAL_API void sentry_options_set_org_id_n(
+    sentry_options_t *opts, const char *org_id, size_t org_id_len);
+
+/**
+ * Enables or disables strict trace continuation.
+ *
+ * Controls whether to continue an incoming trace when either the trace or the
+ * SDK has an organization ID (derived from the DSN), but not both. When set
+ * to true, a new trace is started in that case; when false, the incoming
+ * trace is continued. If both organization IDs are present and differ, the
+ * trace is never continued regardless of this setting.
+ *
+ * See
+ * https://develop.sentry.dev/sdk/foundations/trace-propagation/#strict-trace-continuation
+ *
+ * This is disabled by default.
+ */
+SENTRY_EXPERIMENTAL_API void sentry_options_set_strict_trace_continuation(
+    sentry_options_t *opts, int strict_trace_continuation);
+
+/**
+ * Returns whether strict trace continuation is enabled.
+ */
+SENTRY_EXPERIMENTAL_API int sentry_options_get_strict_trace_continuation(
+    const sentry_options_t *opts);
+
+/**
  * Enables or disables the structured logging feature.
  * When disabled, all calls to `sentry_log_X()` are no-ops.
  *
@@ -2757,6 +2800,26 @@ SENTRY_API sentry_attachment_t *sentry_scope_attach_bytesw_n(
     const wchar_t *filename, size_t filename_len);
 #endif
 
+#define SENTRY_ATTACHMENT_TYPE_GENERIC "event.attachment"
+#define SENTRY_ATTACHMENT_TYPE_MINIDUMP "event.minidump"
+#define SENTRY_ATTACHMENT_TYPE_VIEW_HIERARCHY "event.view_hierarchy"
+
+/**
+ * Sets the attachment type.
+ *
+ * Well-known attachment types are exposed as `SENTRY_ATTACHMENT_TYPE_*`
+ * macros. Pass `NULL` or an empty string to clear the attachment type.
+ *
+ * Also sets the content type for known attachment types unless explicitly set.
+ *
+ * See:
+ * https://develop.sentry.dev/sdk/telemetry/attachments/#attachment-types
+ */
+SENTRY_API void sentry_attachment_set_type(
+    sentry_attachment_t *attachment, const char *type);
+SENTRY_API void sentry_attachment_set_type_n(
+    sentry_attachment_t *attachment, const char *type, size_t type_len);
+
 /**
  * Sets the content type of attachment.
  */
@@ -2942,6 +3005,10 @@ SENTRY_EXPERIMENTAL_API void sentry_transaction_context_remove_sampled(
  * services. Therefore, the headers of incoming requests should be fed into this
  * function so that sentry is able to continue a trace that was started by an
  * upstream service.
+ *
+ * Recognized header keys are `sentry-trace` and `baggage` (case-insensitive);
+ * other keys are ignored. Feed both when available so that strict trace
+ * continuation can consult the incoming `sentry-org_id`.
  */
 SENTRY_EXPERIMENTAL_API void sentry_transaction_context_update_from_header(
     sentry_transaction_context_t *tx_ctx, const char *key, const char *value);
