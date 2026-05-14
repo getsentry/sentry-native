@@ -31,13 +31,16 @@ RUN apk add --no-cache \
     tree \
     wget
 
-# 3.23+
-RUN cargo install --locked bpf-linker --root /usr/local || true
-RUN RUSTUP_INIT_SKIP_PATH_CHECK=yes rustup-init -y --profile minimal --default-toolchain none \
-    && . /root/.cargo/env \
-    && rustup toolchain install nightly --profile minimal --component rust-src \
-    || true
-ENV PATH="/root/.cargo/bin:$PATH"
+# 3.23+ (build mitmproxy)
+RUN if awk -F. '{ exit !($1 > 3 || ($1 == 3 && $2 >= 23)) }' /etc/alpine-release; then \
+    (apk add --no-cache llvm22-libs || \
+    apk add --no-cache --repository=https://dl-cdn.alpinelinux.org/alpine/edge/main llvm22-libs) && \
+    RUSTUP_INIT_SKIP_PATH_CHECK=yes rustup-init -y --profile minimal --default-toolchain none && \
+    . /root/.cargo/env && \
+    rustup toolchain install nightly --profile minimal --component rust-src && \
+    rustup run nightly cargo install --locked --git https://github.com/aya-rs/bpf-linker --root /usr/local bpf-linker && \
+    ln -s /root/.cargo/bin/rustup /usr/local/bin/rustup; \
+    fi
 
 RUN curl -sSL --retry 5 https://dot.net/v1/dotnet-install.sh | bash -eo pipefail /dev/stdin --channel 10.0 --install-dir /usr/share/dotnet
 RUN ln -s /usr/share/dotnet/dotnet /usr/local/bin/dotnet
