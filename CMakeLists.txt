@@ -879,7 +879,7 @@ elseif(SENTRY_BACKEND_NATIVE)
 
 	# Make sentry library depend on crash daemon so it's always built together
 	add_dependencies(sentry sentry-crash)
-	if(WIN32)
+	if(WIN32 AND NOT XBOX)
 		add_dependencies(sentry sentry-wer)
 	endif()
 
@@ -887,7 +887,7 @@ elseif(SENTRY_BACKEND_NATIVE)
 	install(TARGETS sentry-crash
 		RUNTIME DESTINATION bin
 	)
-	if(WIN32)
+	if(WIN32 AND NOT XBOX)
 		install(TARGETS sentry-wer
 			RUNTIME DESTINATION bin
 			LIBRARY DESTINATION "${CMAKE_INSTALL_LIBDIR}"
