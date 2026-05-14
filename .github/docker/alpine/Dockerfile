@@ -35,10 +35,10 @@ RUN apk add --no-cache \
 RUN if awk -F. '{ exit !($1 > 3 || ($1 == 3 && $2 >= 23)) }' /etc/alpine-release; then \
     (apk add --no-cache llvm22-libs || \
     apk add --no-cache --repository=https://dl-cdn.alpinelinux.org/alpine/edge/main llvm22-libs) && \
+    cargo install --locked --git https://github.com/aya-rs/bpf-linker --root /usr/local bpf-linker && \
     RUSTUP_INIT_SKIP_PATH_CHECK=yes rustup-init -y --profile minimal --default-toolchain none && \
     . /root/.cargo/env && \
     rustup toolchain install nightly --profile minimal --component rust-src && \
-    rustup run nightly cargo install --locked --git https://github.com/aya-rs/bpf-linker --root /usr/local bpf-linker && \
     ln -s /root/.cargo/bin/rustup /usr/local/bin/rustup; \
     fi
 
