@@ -693,9 +693,9 @@ daemon_handling:
     // Dump daemon log for debugging (uses stdio, safe after page allocator
     // enabled)
     // Extract the shm identifier for log path construction
-    // macOS: shm_path = "{tmpdir}/.sentry-shm-{id}", Linux: shm_name =
-    // "/s-{id}"
-#    if defined(SENTRY_PLATFORM_MACOS)
+    // macOS/Android: shm_path = "{tmpdir}/.sentry-shm-{id}", Linux:
+    // shm_name = "/s-{id}"
+#    if defined(SENTRY_PLATFORM_MACOS) || defined(SENTRY_PLATFORM_ANDROID)
     const char *shm_id_src = ipc ? ipc->shm_path : "";
 #    else
     const char *shm_id_src = ipc ? ipc->shm_name : "";

@@ -194,7 +194,7 @@ elseif(SENTRY_BACKEND_NATIVE)
 	target_include_directories(sentry PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/backends/native)
 
 	# Platform-specific libraries for native backend
-	if(LINUX OR ANDROID)
+	if(LINUX AND NOT ANDROID)
 		# Linux needs pthread and rt for shared memory
 		target_link_libraries(sentry PRIVATE pthread rt)
 	elseif(APPLE)

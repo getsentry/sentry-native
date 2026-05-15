@@ -44,9 +44,10 @@
 // This lives for the entire backend lifetime and is shared across all threads
 #if defined(SENTRY_PLATFORM_WINDOWS)
 static HANDLE g_ipc_mutex = NULL;
-#elif defined(SENTRY_PLATFORM_MACOS)
-// macOS uses a plain pthread mutex instead of named semaphores (sem_open)
-// because App Sandbox blocks POSIX named semaphores.
+#elif defined(SENTRY_PLATFORM_MACOS) || defined(SENTRY_PLATFORM_ANDROID)
+// macOS/Android use a plain pthread mutex instead of named semaphores
+// (sem_open) because App Sandbox blocks POSIX named semaphores and Android has
+// no shm_open.
 static sentry_mutex_t g_ipc_sync_mutex = SENTRY__MUTEX_INIT;
 #else
 #    include <semaphore.h>
@@ -54,10 +55,12 @@ static sem_t *g_ipc_init_sem = SEM_FAILED;
 static char g_ipc_sem_name[64] = { 0 };
 #endif
 
-// Mutex to protect IPC initialization (Windows and Linux only, not macOS/iOS)
-// macOS uses g_ipc_sync_mutex directly; iOS has no out-of-process daemon.
+// Mutex to protect IPC initialization (Windows and Linux only, not macOS/iOS or
+// Android) macOS/Android use g_ipc_sync_mutex directly; iOS has no
+// out-of-process daemon.
 #if defined(SENTRY_PLATFORM_WINDOWS)                                           \
-    || (!defined(SENTRY_PLATFORM_MACOS) && !defined(SENTRY_PLATFORM_IOS))
+    || (!defined(SENTRY_PLATFORM_MACOS) && !defined(SENTRY_PLATFORM_ANDROID)   \
+        && !defined(SENTRY_PLATFORM_IOS))
 #    ifdef SENTRY__MUTEX_INIT_DYN
 SENTRY__MUTEX_INIT_DYN(g_ipc_init_mutex)
 #    else
@@ -208,9 +211,10 @@ native_backend_startup(
     }
 
     sentry__mutex_unlock(&g_ipc_init_mutex);
-#elif defined(SENTRY_PLATFORM_MACOS)
-    // macOS uses a plain pthread mutex (no sem_open which is blocked by App
-    // Sandbox). The mutex is statically initialized - no setup needed.
+#elif defined(SENTRY_PLATFORM_MACOS) || defined(SENTRY_PLATFORM_ANDROID)
+    // macOS/Android use a plain pthread mutex (no sem_open/shm_open which is
+    // blocked by App Sandbox, or missing on Android). The mutex is statically
+    // initialized - no setup needed.
     (void)0;
 #elif !defined(SENTRY_PLATFORM_IOS)
     // Create process-wide IPC initialization semaphore (singleton pattern)
@@ -247,6 +251,10 @@ native_backend_startup(
     state->ipc = sentry__crash_ipc_init_app(g_ipc_mutex);
 #elif defined(SENTRY_PLATFORM_IOS)
     state->ipc = sentry__crash_ipc_init_app(NULL);
+#elif defined(SENTRY_PLATFORM_ANDROID)
+    state->ipc = sentry__crash_ipc_init_app(
+        options->database_path ? options->database_path->path : NULL,
+        &g_ipc_sync_mutex);
 #elif defined(SENTRY_PLATFORM_MACOS)
     state->ipc = sentry__crash_ipc_init_app(&g_ipc_sync_mutex);
 #else
@@ -273,7 +281,7 @@ native_backend_startup(
             return 1;
         }
     }
-#elif defined(SENTRY_PLATFORM_MACOS)
+#elif defined(SENTRY_PLATFORM_MACOS) || defined(SENTRY_PLATFORM_ANDROID)
     sentry__mutex_lock(&g_ipc_sync_mutex);
 #elif !defined(SENTRY_PLATFORM_IOS)
     if (g_ipc_init_sem && sem_wait(g_ipc_init_sem) < 0) {
@@ -428,7 +436,7 @@ native_backend_startup(
     if (g_ipc_mutex) {
         ReleaseMutex(g_ipc_mutex);
     }
-#elif defined(SENTRY_PLATFORM_MACOS)
+#elif defined(SENTRY_PLATFORM_MACOS) || defined(SENTRY_PLATFORM_ANDROID)
     sentry__mutex_unlock(&g_ipc_sync_mutex);
 #elif !defined(SENTRY_PLATFORM_IOS)
     // Release semaphore after context configuration
@@ -452,7 +460,12 @@ native_backend_startup(
     // Pass the notification handles (eventfd/pipe on Unix, events on Windows)
     const char *daemon_handler_path
         = options->handler_path ? options->handler_path->path : NULL;
-#    if defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID)
+#    if defined(SENTRY_PLATFORM_ANDROID)
+    uint64_t tid = (uint64_t)pthread_self();
+    state->daemon_pid
+        = sentry__crash_daemon_start(getpid(), tid, state->ipc->notify_fd,
+            state->ipc->ready_fd, state->ipc->shm_fd, daemon_handler_path);
+#    elif defined(SENTRY_PLATFORM_LINUX)
     uint64_t tid = (uint64_t)pthread_self();
     state->daemon_pid = sentry__crash_daemon_start(getpid(), tid,
         state->ipc->notify_fd, state->ipc->ready_fd, daemon_handler_path);
@@ -628,10 +641,10 @@ native_backend_shutdown(sentry_backend_t *backend)
             }
         }
 #else
-        // On macOS: shm_path = "{tmpdir}/.sentry-shm-{id}"
+        // On macOS/Android: shm_path = "{tmpdir}/.sentry-shm-{id}"
         // On Linux: shm_name = "/s-{id}"
         // In both cases, the ID follows the last '-'
-#    if defined(SENTRY_PLATFORM_MACOS)
+#    if defined(SENTRY_PLATFORM_MACOS) || defined(SENTRY_PLATFORM_ANDROID)
         const char *shm_id_src = state->ipc->shm_path;
 #    else
         const char *shm_id_src = state->ipc->shm_name;
