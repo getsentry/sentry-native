@@ -151,8 +151,6 @@ sentry__crash_ipc_init_daemon(pid_t app_pid, uint64_t app_tid,
     }
     ipc->is_daemon = true;
     ipc->shm_fd = shm_fd;
-    ipc->notify_fd = notify_eventfd;
-    ipc->ready_fd = ready_eventfd;
 
     ipc->shmem = mmap(NULL, SENTRY_CRASH_SHM_SIZE, PROT_READ | PROT_WRITE,
         MAP_SHARED, ipc->shm_fd, 0);
@@ -179,6 +177,9 @@ sentry__crash_ipc_init_daemon(pid_t app_pid, uint64_t app_tid,
         snprintf(ipc->shm_path, sizeof(ipc->shm_path), "%s/.sentry-shm-%08x",
             ipc->shmem->database_path, id);
     }
+
+    ipc->notify_fd = notify_eventfd;
+    ipc->ready_fd = ready_eventfd;
 
     SENTRY_DEBUGF("daemon: attached to crash IPC (shm_fd=%d, notify_fd=%d, "
                   "ready_notify_fd=%d)",
