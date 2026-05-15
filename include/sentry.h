@@ -1618,8 +1618,8 @@ SENTRY_API void sentry_options_add_view_hierarchy_n(
  *
  * This feature is currently supported by all backends on Windows. The
  * `crashpad` and `native` backends capture screenshots from an out-of-process
- * handler. Only the `crashpad` backend can capture screenshots of fast-fail
- * crashes that bypass SEH (structured exception handling).
+ * handler. Only the `crashpad` and `native` backends can capture screenshots of
+ * fast-fail crashes that bypass SEH (structured exception handling).
  *
  * To decide per-event whether a screenshot should be captured, set a
  * `before_screenshot` callback via `sentry_options_set_before_screenshot`.
