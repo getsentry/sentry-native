@@ -527,6 +527,52 @@ def test_native_minidump_streams(cmake, httpserver):
             f"reader that walks the stack from SP."
         )
 
+    # Exception-stream encoding: per Breakpad/Crashpad convention on macOS
+    # and Linux, MINIDUMP_EXCEPTION::exception_code carries the Mach
+    # exception type (macOS) or matches the Linux/Windows-style code
+    # respectively — *not* the BSD signal number. Putting the signal
+    # there triggers a name collision (e.g. SIGSEGV=11 equals the Mach
+    # enum value for EXC_RESOURCE), causing every minidump reader that
+    # respects the convention (minidump-rs, breakpad processor, the
+    # crashpad tools) to decode the wrong crash reason.
+    if 6 in dump["streams"]:
+        size, rva = dump["streams"][6]
+        data = dump["data"]
+        # MINIDUMP_EXCEPTION_STREAM: thread_id(4) + alignment(4) +
+        # exception_record. exception_record.exception_code is at offset
+        # +8 within the stream.
+        exception_code = struct.unpack_from("<I", data, rva + 8)[0]
+        if sys.platform == "darwin":
+            # Mach exception types: EXC_BAD_ACCESS=1, EXC_BAD_INSTRUCTION=2,
+            # EXC_ARITHMETIC=3, EXC_SOFTWARE=5, EXC_BREAKPOINT=6, EXC_CRASH=10
+            # (full enum runs through 13). The bug to guard against is
+            # writing the BSD signal (11 = SIGSEGV) directly, which lands
+            # on EXC_RESOURCE — a totally different concept.
+            valid_mach_types = {1, 2, 3, 5, 6, 10}
+            assert exception_code in valid_mach_types, (
+                f"exception_code = {exception_code} is not a valid Mach "
+                f"exception type for crash-derived dumps. Per "
+                f"Breakpad/Crashpad convention, this field must carry the "
+                f"Mach exception type (EXC_BAD_ACCESS, EXC_CRASH, etc.), "
+                f"not the BSD signal number — otherwise minidump readers "
+                f"misdecode the crash reason. See "
+                f"src/backends/native/minidump/sentry_minidump_macos.c "
+                f"::bsd_signal_to_mach_exception."
+            )
+            # exception_information[0] should carry the BSD signal so
+            # consumers that want it can still find it.
+            number_parameters = struct.unpack_from("<I", data, rva + 16)[0]
+            if number_parameters >= 1:
+                bsd_signum = struct.unpack_from("<Q", data, rva + 24)[0]
+                # Common crash signals: SIGSEGV=11, SIGBUS=10, SIGABRT=6,
+                # SIGILL=4, SIGFPE=8, SIGTRAP=5.
+                assert bsd_signum in {4, 5, 6, 8, 10, 11}, (
+                    f"exception_information[0] = {bsd_signum} doesn't look "
+                    f"like a BSD signal number for a typical crash. The "
+                    f"writer should put the originating signal there for "
+                    f"consumers that key on it."
+                )
+
 
 def _codesign_for_task_for_pid(*paths):
     """

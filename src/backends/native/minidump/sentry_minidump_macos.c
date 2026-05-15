@@ -830,6 +830,87 @@ write_thread_list_stream(minidump_writer_t *writer, minidump_directory_t *dir)
 }
 
 /**
+ * Translate a BSD (signum, siginfo) pair into the Mach (exception_type,
+ * exception_code) pair that Breakpad / Crashpad write into a macOS
+ * minidump's MINIDUMP_EXCEPTION fields.
+ *
+ * The minidump format on macOS is documented (in code) by Crashpad's
+ * ExceptionSnapshotMac::Exception() → MinidumpExceptionWriter and
+ * Breakpad's MinidumpGenerator::WriteExceptionStream:
+ *
+ *     exception_record.exception_code  = Mach exception type
+ *                                        (EXC_BAD_ACCESS = 1, ...)
+ *     exception_record.exception_flags = Mach exception subtype
+ *                                        (KERN_INVALID_ADDRESS = 1, ...)
+ *     exception_record.exception_information[0..N] = full Mach code vector
+ *
+ * sentry-native sees the *signal*, not the Mach exception. The macOS
+ * kernel did the reverse mapping (Mach → signal) when it translated the
+ * trap into a BSD signal; we reverse that here so downstream minidump
+ * readers (minidump-rs, breakpad processor, Crashpad's minidump tools)
+ * can decode `crash_reason` as a proper `MacBadAccessKern(...)` etc.
+ * instead of misreading `exception_code = 11` as `EXC_RESOURCE` (which
+ * happens to be the Mach enum value at 11, but is also the BSD signal
+ * number for SIGSEGV — a collision that motivated this fix).
+ *
+ * The BSD signal stays available to consumers (lldb, custom tools) via
+ * ``exception_information[0]`` so we don't regress on the "lldb wants
+ * the signal" use case.
+ */
+static void
+bsd_signal_to_mach_exception(
+    int signum, const siginfo_t *info, uint32_t *out_type, uint32_t *out_code)
+{
+    int si_code = info ? info->si_code : 0;
+    switch (signum) {
+    case SIGSEGV:
+        *out_type = 1; // EXC_BAD_ACCESS
+        // SEGV_MAPERR (1) -> KERN_INVALID_ADDRESS (1)
+        // SEGV_ACCERR (2) -> KERN_PROTECTION_FAILURE (2)
+        *out_code = si_code == 2 ? 2 : 1;
+        break;
+    case SIGBUS:
+        *out_type = 1; // EXC_BAD_ACCESS — Mach makes no signum distinction
+        // BUS_ADRALN (1) — non-aligned access: KERN_INVALID_ADDRESS-ish (1)
+        // BUS_ADRERR (2) — non-existent physical: KERN_INVALID_ADDRESS (1)
+        // BUS_OBJERR (3) — object-specific HW error: KERN_PROTECTION_FAILURE
+        // (2)
+        *out_code = si_code == 3 ? 2 : 1;
+        break;
+    case SIGILL:
+        *out_type = 2; // EXC_BAD_INSTRUCTION
+        *out_code = 1; // EXC_I386_INVOP / EXC_ARM_UNDEFINED
+        break;
+    case SIGFPE:
+        *out_type = 3; // EXC_ARITHMETIC
+        *out_code = 0;
+        break;
+    case SIGTRAP:
+        *out_type = 6; // EXC_BREAKPOINT
+        *out_code = 0;
+        break;
+    case SIGABRT:
+        // EXC_CRASH (10) encodes the originating signal in code[0]'s upper
+        // bits per <kern/exc_resource.h>. Most tools just look at the
+        // exception_code field to identify SIGABRT-via-EXC_CRASH.
+        *out_type = 10; // EXC_CRASH
+        *out_code = 0x10000 | signum;
+        break;
+    case SIGSYS:
+        *out_type = 5; // EXC_SOFTWARE
+        *out_code = 0x10000 | signum; // EXC_SOFT_SIGNAL with the BSD signum
+        break;
+    default:
+        // Unknown signal — fall back to EXC_SOFTWARE / EXC_SOFT_SIGNAL so
+        // the dump still validates and downstream tools can find the
+        // BSD signal in exception_information[0].
+        *out_type = 5; // EXC_SOFTWARE
+        *out_code = 0x10000 | signum;
+        break;
+    }
+}
+
+/**
  * Write exception stream
  */
 static int
@@ -838,14 +919,31 @@ write_exception_stream(minidump_writer_t *writer, minidump_directory_t *dir)
     minidump_exception_stream_t exception_stream = { 0 };
 
     exception_stream.thread_id = writer->crash_ctx->crashed_tid;
-    // Use raw signal number as exception code, matching Breakpad/Crashpad
-    // convention. Debuggers (lldb) expect the signal number directly.
-    exception_stream.exception_record.exception_code
-        = writer->crash_ctx->platform.signum;
-    exception_stream.exception_record.exception_flags = 0;
+
+    // Translate BSD (signum, siginfo) → Mach (exception_type,
+    // exception_code) for Breakpad / Crashpad minidump-format
+    // compatibility. The BSD signal is preserved in
+    // ``exception_information[0]`` so debuggers that look there still
+    // get it.
+    uint32_t mach_type = 0;
+    uint32_t mach_code = 0;
+    bsd_signal_to_mach_exception(writer->crash_ctx->platform.signum,
+        &writer->crash_ctx->platform.siginfo, &mach_type, &mach_code);
+    exception_stream.exception_record.exception_code = mach_type;
+    exception_stream.exception_record.exception_flags = mach_code;
     exception_stream.exception_record.exception_address
         = (uint64_t)writer->crash_ctx->platform.siginfo.si_addr;
-    exception_stream.exception_record.number_parameters = 0;
+    // exception_information[0..1] = (BSD signal, faulting address).
+    // Crashpad puts the Mach code vector here; for our BSD-signal-derived
+    // exception that vector is (mach_code, address) — we surface the BSD
+    // signal as #0 instead so consumers (lldb, custom analyzers) that
+    // expect a signal there don't break. number_parameters = 2 matches
+    // the number of slots actually populated.
+    exception_stream.exception_record.number_parameters = 2;
+    exception_stream.exception_record.exception_information[0]
+        = (uint64_t)writer->crash_ctx->platform.signum;
+    exception_stream.exception_record.exception_information[1]
+        = (uint64_t)writer->crash_ctx->platform.siginfo.si_addr;
 
     // Write the crashing thread's context using the dedicated mcontext field
     // (consistent with Linux which uses platform.context)
