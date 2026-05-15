@@ -875,17 +875,22 @@ static void
 bsd_signal_to_mach_exception(
     int signum, const siginfo_t *info, uint32_t *out_type, uint32_t *out_code)
 {
-    int si_code = info ? info->si_code : 0;
+    (void)info;
     switch (signum) {
+    // xnu's forward mapping (ux_exception.c) for EXC_BAD_ACCESS only emits
+    // SIGSEGV when the code is KERN_INVALID_ADDRESS; every other code
+    // (KERN_PROTECTION_FAILURE included) becomes SIGBUS. So to round-trip
+    // the signal we must pick the code purely from the signal, not from
+    // si_code — the SEGV_ACCERR/BUS_OBJERR distinction does not survive
+    // xnu's mapping in either direction anyway. Finer-grained fault info
+    // is preserved in exception_information[0] (the BSD signal itself).
     case SIGSEGV:
         *out_type = EXC_BAD_ACCESS;
-        *out_code = (si_code == SEGV_ACCERR) ? KERN_PROTECTION_FAILURE
-                                             : KERN_INVALID_ADDRESS;
+        *out_code = KERN_INVALID_ADDRESS;
         return;
     case SIGBUS:
         *out_type = EXC_BAD_ACCESS;
-        *out_code = (si_code == BUS_OBJERR) ? KERN_PROTECTION_FAILURE
-                                            : KERN_INVALID_ADDRESS;
+        *out_code = KERN_PROTECTION_FAILURE;
         return;
     case SIGILL:
         *out_type = EXC_BAD_INSTRUCTION;
