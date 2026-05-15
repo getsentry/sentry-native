@@ -609,9 +609,13 @@ sentry__scope_set_fingerprint_nva(sentry_scope_t *scope,
     const char *fingerprint, size_t fingerprint_len, va_list va)
 {
     sentry_value_t fingerprint_value = sentry_value_new_list();
-    for (; fingerprint; fingerprint = va_arg(va, const char *)) {
+    while (fingerprint) {
         sentry_value_append(fingerprint_value,
             sentry_value_new_string_n(fingerprint, fingerprint_len));
+        fingerprint = va_arg(va, const char *);
+        if (fingerprint) {
+            fingerprint_len = va_arg(va, size_t);
+        }
     }
 
     sentry_scope_set_fingerprints(scope, fingerprint_value);

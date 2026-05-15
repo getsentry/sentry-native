@@ -2239,7 +2239,8 @@ SENTRY_API void sentry_remove_context_n(const char *key, size_t key_len);
  * Sets the event fingerprint.
  *
  * This accepts a variable number of arguments and needs to be terminated by a
- * trailing `NULL`.
+ * trailing `NULL`. Each string argument in the `_n` variants must be followed
+ * by its length.
  */
 SENTRY_API void sentry_set_fingerprint(const char *fingerprint, ...);
 SENTRY_API void sentry_set_fingerprint_n(
