@@ -3,7 +3,7 @@ import os
 import shutil
 
 is_aix = sys.platform == "aix" or sys.platform == "os400"
-is_android = os.environ.get("ANDROID_API")
+is_android = int(os.environ.get("ANDROID_API", "0"))
 is_x86 = os.environ.get("TEST_X86")
 is_arm32 = bool(os.environ.get("TEST_ARM32"))
 is_qemu = bool(os.environ.get("TEST_QEMU"))
@@ -51,7 +51,7 @@ has_oom = sys.platform != "linux" and not is_asan and not is_valgrind
 # It's always available - tests explicitly set SENTRY_BACKEND: native in cmake
 # On macOS ASAN, the signal handling conflicts with ASAN's memory interception
 has_native = not (is_asan and sys.platform == "darwin") and (
-    not is_android or int(is_android) >= 23
+    not is_android or is_android >= 23
 )
 
 has_sccache = os.environ.get("USE_SCCACHE") and shutil.which("sccache")
