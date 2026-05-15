@@ -3,7 +3,7 @@ import os
 import shutil
 
 is_aix = sys.platform == "aix" or sys.platform == "os400"
-is_android = int(os.environ.get("ANDROID_API", "0"))
+is_android = int(os.environ.get("ANDROID_API") or "0")
 is_x86 = os.environ.get("TEST_X86")
 is_arm32 = bool(os.environ.get("TEST_ARM32"))
 is_qemu = bool(os.environ.get("TEST_QEMU"))
