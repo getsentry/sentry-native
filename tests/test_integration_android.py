@@ -16,7 +16,7 @@ pytestmark = pytest.mark.skipif(
     reason="Tests need the native backend enabled",
 )
 @pytest.mark.skipif(
-    is_android and int(is_android) < 23,
+    bool(is_android) and int(is_android) < 23,
     reason="Android native backend test needs API 23+ (process_vm_readv)",
 )
 def test_native_android(cmake):
