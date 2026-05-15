@@ -365,7 +365,7 @@ Other important configuration options include:
   process, and can thus not properly terminate sessions or call the registered
   `before_send` or `on_crash` hook. It will also lose any events that have been queued for
   sending at the time of the crash.
-- The crashpad and native backends on Windows support fast-fail crashes, which bypass SEH (Structured
+- On Windows, the crashpad and native backends support fast-fail crashes, which bypass SEH (Structured
   Exception Handling) primarily for security reasons. `sentry-native` registers a WER (Windows Error
   Reporting) module, which signals the out-of-process crash handler when a fast-fail crash occurs.
   Since this bypasses SEH, the application's local exception handler is not invoked, which
