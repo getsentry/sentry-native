@@ -6,6 +6,7 @@ on:
       - master
     paths:
       - '.github/docker/**'
+      - 'tests/requirements.txt'
   workflow_dispatch:
 
 jobs:
@@ -29,6 +30,11 @@ jobs:
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # pin@v6.0.2
 
+      - name: Copy test requirements
+        run: |
+          git update-index --assume-unchanged .github/docker/alpine/requirements.txt
+          cp tests/requirements.txt .github/docker/alpine/requirements.txt
+
       - uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # pin@v4.1.0
         with:
           registry: ghcr.io
@@ -47,3 +53,4 @@ jobs:
           context: .github/docker/alpine
           build-args: |
             BASE=alpine:${{ matrix.version }}
+            PIP_INSTALL=${{ matrix.version == '3.23' && 'mitmproxy' || '' }}
