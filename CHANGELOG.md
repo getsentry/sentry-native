@@ -5,6 +5,7 @@
 **Fixes**:
 
 - Reject overly deep msgpack payloads during deserialization. ([#1727](https://github.com/getsentry/sentry-native/pull/1727))
+- Read lengths for variadic fingerprints. ([#1730](https://github.com/getsentry/sentry-native/pull/1730))
 
 ## 0.14.2
 
