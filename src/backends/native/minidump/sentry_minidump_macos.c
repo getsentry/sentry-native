@@ -10,6 +10,7 @@
 #    include <mach/mach.h>
 #    include <mach/mach_vm.h>
 #    include <pthread.h>
+#    include <signal.h>
 #    include <stdbool.h>
 #    include <stdio.h>
 #    include <string.h>
@@ -829,33 +830,46 @@ write_thread_list_stream(minidump_writer_t *writer, minidump_directory_t *dir)
     return dir->rva ? 0 : -1;
 }
 
+// Apple's BSD ↔ Mach translation uses a set of EXC_SOFTWARE subcodes
+// that aren't in the public SDK headers — they live in xnu's
+// ``bsd/sys/ux_exception.h``. The reverse-direction mapping (BSD signal
+// → Mach exception) used by ``bsd/uxkern/ux_exception.c`` is what every
+// minidump tool's ``CrashReason`` decoder expects to see in
+// ``exception_record.exception_code`` / ``exception_flags``. The codes
+// have been stable since at least 10.5.
+//
+// Source:
+// https://github.com/apple-oss-distributions/xnu/blob/main/bsd/sys/ux_exception.h
+#    define SENTRY_EXC_UNIX_BAD_SYSCALL 0x10000u // raised by SIGSYS
+#    define SENTRY_EXC_UNIX_BAD_PIPE 0x10001u // raised by SIGPIPE
+#    define SENTRY_EXC_UNIX_ABORT 0x10002u // raised by SIGABRT
+
 /**
  * Translate a BSD (signum, siginfo) pair into the Mach (exception_type,
  * exception_code) pair that Breakpad / Crashpad write into a macOS
  * minidump's MINIDUMP_EXCEPTION fields.
  *
- * The minidump format on macOS is documented (in code) by Crashpad's
- * ExceptionSnapshotMac::Exception() → MinidumpExceptionWriter and
- * Breakpad's MinidumpGenerator::WriteExceptionStream:
+ * The minidump-format convention on macOS (documented in code by
+ * Crashpad's ``ExceptionSnapshotMac::Exception()`` →
+ * ``MinidumpExceptionWriter`` and Breakpad's
+ * ``MinidumpGenerator::WriteExceptionStream``) is:
  *
  *     exception_record.exception_code  = Mach exception type
- *                                        (EXC_BAD_ACCESS = 1, ...)
  *     exception_record.exception_flags = Mach exception subtype
- *                                        (KERN_INVALID_ADDRESS = 1, ...)
  *     exception_record.exception_information[0..N] = full Mach code vector
  *
- * sentry-native sees the *signal*, not the Mach exception. The macOS
- * kernel did the reverse mapping (Mach → signal) when it translated the
- * trap into a BSD signal; we reverse that here so downstream minidump
- * readers (minidump-rs, breakpad processor, Crashpad's minidump tools)
- * can decode `crash_reason` as a proper `MacBadAccessKern(...)` etc.
- * instead of misreading `exception_code = 11` as `EXC_RESOURCE` (which
- * happens to be the Mach enum value at 11, but is also the BSD signal
- * number for SIGSEGV — a collision that motivated this fix).
+ * Crashpad gets these straight from a Mach exception port (the kernel
+ * delivers the Mach values directly). Breakpad's primary path does the
+ * same. sentry-native's native backend uses BSD signal handlers, so we
+ * have to mirror the kernel's BSD↔Mach mapping ourselves: this table
+ * matches what xnu's ``ux_exception.c`` does in the *other* direction
+ * when it converts a Mach exception into a BSD signal for delivery to
+ * userspace; we just run it in reverse. Apple's enum constants are
+ * used throughout — no magic numbers or bit shifts.
  *
- * The BSD signal stays available to consumers (lldb, custom tools) via
- * ``exception_information[0]`` so we don't regress on the "lldb wants
- * the signal" use case.
+ * The BSD signal stays available to consumers (lldb, custom analyzers)
+ * via ``exception_information[0]`` so the "lldb wants the signal" use
+ * case isn't regressed.
  */
 static void
 bsd_signal_to_mach_exception(
@@ -864,49 +878,46 @@ bsd_signal_to_mach_exception(
     int si_code = info ? info->si_code : 0;
     switch (signum) {
     case SIGSEGV:
-        *out_type = 1; // EXC_BAD_ACCESS
-        // SEGV_MAPERR (1) -> KERN_INVALID_ADDRESS (1)
-        // SEGV_ACCERR (2) -> KERN_PROTECTION_FAILURE (2)
-        *out_code = si_code == 2 ? 2 : 1;
-        break;
+        *out_type = EXC_BAD_ACCESS;
+        *out_code = (si_code == SEGV_ACCERR) ? KERN_PROTECTION_FAILURE
+                                             : KERN_INVALID_ADDRESS;
+        return;
     case SIGBUS:
-        *out_type = 1; // EXC_BAD_ACCESS — Mach makes no signum distinction
-        // BUS_ADRALN (1) — non-aligned access: KERN_INVALID_ADDRESS-ish (1)
-        // BUS_ADRERR (2) — non-existent physical: KERN_INVALID_ADDRESS (1)
-        // BUS_OBJERR (3) — object-specific HW error: KERN_PROTECTION_FAILURE
-        // (2)
-        *out_code = si_code == 3 ? 2 : 1;
-        break;
+        *out_type = EXC_BAD_ACCESS;
+        *out_code = (si_code == BUS_OBJERR) ? KERN_PROTECTION_FAILURE
+                                            : KERN_INVALID_ADDRESS;
+        return;
     case SIGILL:
-        *out_type = 2; // EXC_BAD_INSTRUCTION
-        *out_code = 1; // EXC_I386_INVOP / EXC_ARM_UNDEFINED
-        break;
+        *out_type = EXC_BAD_INSTRUCTION;
+        *out_code = 0;
+        return;
     case SIGFPE:
-        *out_type = 3; // EXC_ARITHMETIC
+        *out_type = EXC_ARITHMETIC;
         *out_code = 0;
-        break;
+        return;
     case SIGTRAP:
-        *out_type = 6; // EXC_BREAKPOINT
+        *out_type = EXC_BREAKPOINT;
         *out_code = 0;
-        break;
+        return;
     case SIGABRT:
-        // EXC_CRASH (10) encodes the originating signal in code[0]'s upper
-        // bits per <kern/exc_resource.h>. Most tools just look at the
-        // exception_code field to identify SIGABRT-via-EXC_CRASH.
-        *out_type = 10; // EXC_CRASH
-        *out_code = 0x10000 | signum;
-        break;
+        *out_type = EXC_SOFTWARE;
+        *out_code = SENTRY_EXC_UNIX_ABORT;
+        return;
     case SIGSYS:
-        *out_type = 5; // EXC_SOFTWARE
-        *out_code = 0x10000 | signum; // EXC_SOFT_SIGNAL with the BSD signum
-        break;
+        *out_type = EXC_SOFTWARE;
+        *out_code = SENTRY_EXC_UNIX_BAD_SYSCALL;
+        return;
+    case SIGPIPE:
+        *out_type = EXC_SOFTWARE;
+        *out_code = SENTRY_EXC_UNIX_BAD_PIPE;
+        return;
     default:
-        // Unknown signal — fall back to EXC_SOFTWARE / EXC_SOFT_SIGNAL so
-        // the dump still validates and downstream tools can find the
-        // BSD signal in exception_information[0].
-        *out_type = 5; // EXC_SOFTWARE
-        *out_code = 0x10000 | signum;
-        break;
+        // Unknown signal — emit EXC_SOFTWARE so the dump still validates
+        // and downstream tools can find the BSD signal in
+        // exception_information[0].
+        *out_type = EXC_SOFTWARE;
+        *out_code = (uint32_t)signum;
+        return;
     }
 }
 
