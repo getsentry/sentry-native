@@ -365,14 +365,13 @@ Other important configuration options include:
   process, and can thus not properly terminate sessions or call the registered
   `before_send` or `on_crash` hook. It will also lose any events that have been queued for
   sending at the time of the crash.
-- The Crashpad backend on Windows supports fast-fail crashes, which bypass SEH (Structured
-  Exception Handling) primarily for security reasons. `sentry-native` registers a WER (Windows Error
-  Reporting) module, which signals the `crashpad_handler` to send a minidump when a fast-fail crash occurs
-  But since this process bypasses SEH, the application's local exception handler is no longer invoked, which
-  also means that for these kinds of crashes, `before_send` and `on_crash` will not be invoked before
-  sending the minidump, and thus have no effect.
-- When using the crashpad backend on macOS, the list of attachments that will be sent
-  along with crashes is frozen at the time of `sentry_init`.
+- The crashpad and native backends on Windows support fast-fail crashes, which bypass
+  SEH (Structured Exception Handling) primarily for security reasons. `sentry-native`
+  registers a WER (Windows Error Reporting) module, which signals the out-of-process
+  crash handler when a fast-fail crash occurs. Since this bypasses SEH, the
+  application's local exception handler is not invoked, which also means that for
+  these kinds of crashes, `before_send` and `on_crash` will not be invoked before
+  sending the crash report, and thus have no effect.
 
 ## Benchmarks
 
