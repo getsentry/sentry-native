@@ -15,6 +15,7 @@
 **Fixes**:
 
 - Protect CMAKE_SYSTEM_VERSION to avoid empty values when cross-building. ([#1720](https://github.com/getsentry/sentry-native/pull/1720))
+- macOS thread stack descriptor ([#1726](https://github.com/getsentry/sentry-native/pull/1726))
 
 ## 0.14.1
 
