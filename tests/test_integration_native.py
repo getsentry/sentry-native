@@ -368,9 +368,7 @@ def _parse_minidump(path):
     with open(path, "rb") as f:
         data = f.read()
 
-    magic, _version, stream_count, stream_dir_rva = struct.unpack_from(
-        "<IIII", data, 0
-    )
+    magic, _version, stream_count, stream_dir_rva = struct.unpack_from("<IIII", data, 0)
     assert magic == 0x504D444D, f"bad minidump magic {magic:#x}"
 
     streams = {}
@@ -505,10 +503,10 @@ def test_native_minidump_streams(cmake, httpserver):
 
     dump = _parse_minidump(minidump_files[0])
 
-    # Required streams: SystemInfo, ThreadList, ModuleList.
-    assert 3 in dump["streams"], "Should have SystemInfo stream"
-    assert 4 in dump["streams"], "Should have ThreadList stream"
-    assert 7 in dump["streams"], "Should have ModuleList stream"
+    # Required streams: ThreadList (3), ModuleList (4), SystemInfo (7).
+    assert 3 in dump["streams"], "Should have ThreadList stream"
+    assert 4 in dump["streams"], "Should have ModuleList stream"
+    assert 7 in dump["streams"], "Should have SystemInfo stream"
 
     # Per-thread stack descriptor accuracy: every thread that has a CONTEXT
     # block must have a stack descriptor whose range contains the CONTEXT's
@@ -548,8 +546,7 @@ def _codesign_for_task_for_pid(*paths):
     import tempfile
     import textwrap
 
-    ent_xml = textwrap.dedent(
-        """\
+    ent_xml = textwrap.dedent("""\
         <?xml version="1.0" encoding="UTF-8"?>
         <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
         <plist version="1.0">
@@ -560,8 +557,7 @@ def _codesign_for_task_for_pid(*paths):
             <true/>
         </dict>
         </plist>
-        """
-    )
+        """)
     with tempfile.NamedTemporaryFile(
         mode="w", suffix=".entitlements", delete=False
     ) as f:
@@ -681,9 +677,9 @@ def test_native_smart_mode_captures_indirect_heap_memory(cmake, httpserver):
         if not in_any(start, module_ranges) and not in_any(start, stack_ranges)
     ]
 
-    assert (
-        dump["memory_regions"]
-    ), "SMART mode must populate MemoryListStream with at least one region"
+    assert dump[
+        "memory_regions"
+    ], "SMART mode must populate MemoryListStream with at least one region"
     assert heap_candidates, (
         f"SMART mode must capture at least one region outside the loaded "
         f"module image ranges and outside the per-thread stack ranges. "

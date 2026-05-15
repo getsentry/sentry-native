@@ -551,8 +551,8 @@ write_thread_stack(minidump_writer_t *writer, uint64_t stack_pointer,
         // Defensive retry with progressively smaller reads in case the
         // region query was stale (e.g. region was unmapped between
         // enumerate_memory_regions and now).
-        mach_vm_size_t retry_sizes[] = { MAX_STACK_SIZE / 4,
-            MAX_STACK_SIZE / 16, 4096 };
+        mach_vm_size_t retry_sizes[]
+            = { MAX_STACK_SIZE / 4, MAX_STACK_SIZE / 16, 4096 };
         for (size_t i = 0; i < sizeof(retry_sizes) / sizeof(retry_sizes[0]);
             i++) {
             if (retry_sizes[i] > stack_size) {
