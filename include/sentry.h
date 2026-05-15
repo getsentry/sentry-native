@@ -1154,7 +1154,7 @@ SENTRY_API void sentry_options_set_send_default_pii(
  *
  * https://develop.sentry.dev/sdk/sessions/#filter-order
  *
- * On Windows the crashpad and native backends can capture fast-fail crashes
+ * On Windows, the crashpad and native backends can capture fast-fail crashes
  * which bypass SEH. Since the `before_send` callback is called by a local
  * exception-handler, it will not be invoked when such a crash happened, even
  * though a crash report will be sent.
@@ -1215,7 +1215,7 @@ SENTRY_API void sentry_options_set_before_send(
  *
  *  - does not work with crashpad on macOS.
  *  - for breakpad on Linux the `uctx` parameter is always NULL.
- *  - on Windows the crashpad and native backends can capture fast-fail crashes
+ *  - on Windows, the crashpad and native backends can capture fast-fail crashes
  *    which bypass SEH. Since `on_crash` is called by a local
  *    exception-handler, it will not be invoked when such a crash happened, even
  *    though a crash report will be sent.
