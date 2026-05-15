@@ -488,6 +488,15 @@ record_thread_stack(minidump_writer_t *writer, const minidump_thread_t *thread)
     writer->thread_stack_count++;
 }
 
+// Forward declaration: `find_region_for_addr` is defined further down
+// with the rest of the SMART-mode indirect-capture code, but we want to
+// consult it from ``write_thread_stack`` so the read window is clamped
+// to the actual VM region containing SP. Without this clamp, a SP near
+// the top of a small thread stack causes the fixed-size read to spill
+// into the guard page and the entire `read_task_memory` call fails.
+static const memory_region_t *find_region_for_addr(
+    const minidump_writer_t *writer, uint64_t addr);
+
 /**
  * Read and write stack memory for a thread
  */
@@ -501,9 +510,25 @@ write_thread_stack(minidump_writer_t *writer, uint64_t stack_pointer,
     // We need to capture from SP *upward* for stack unwinding to work.
     const size_t MAX_STACK_SIZE = SENTRY_CRASH_MAX_STACK_CAPTURE;
 
-    // Capture from SP upward (where return addresses are stored)
+    // Clamp the read window to the VM region containing SP. Without this,
+    // a SP near the top of a small thread stack causes the fixed-size
+    // read to overshoot into an unmapped guard page and the entire
+    // read_task_memory call fails with KERN_INVALID_ADDRESS, leaving the
+    // descriptor empty.
     mach_vm_address_t stack_start = stack_pointer;
     mach_vm_size_t stack_size = MAX_STACK_SIZE;
+    const memory_region_t *containing_region
+        = find_region_for_addr(writer, stack_pointer);
+    if (containing_region) {
+        uint64_t region_end
+            = containing_region->address + containing_region->size;
+        if (stack_pointer < region_end) {
+            uint64_t available = region_end - stack_pointer;
+            if (available < stack_size) {
+                stack_size = (mach_vm_size_t)available;
+            }
+        }
+    }
 
     // Allocate buffer for stack memory
     void *stack_buffer = sentry_malloc(stack_size);
@@ -523,15 +548,27 @@ write_thread_stack(minidump_writer_t *writer, uint64_t stack_pointer,
         *stack_size_out = rva ? stack_size : 0;
         *stack_start_out = rva ? stack_start : 0;
     } else {
-        // Try with smaller size if full read fails (may hit unmapped memory)
-        stack_size = MAX_STACK_SIZE / 4;
-        kr = read_task_memory(
-            writer->task, stack_start, stack_buffer, stack_size);
-        if (kr == KERN_SUCCESS) {
-            rva = write_data(writer, stack_buffer, stack_size);
-            *stack_size_out = rva ? stack_size : 0;
-            *stack_start_out = rva ? stack_start : 0;
-        } else {
+        // Defensive retry with progressively smaller reads in case the
+        // region query was stale (e.g. region was unmapped between
+        // enumerate_memory_regions and now).
+        mach_vm_size_t retry_sizes[] = { MAX_STACK_SIZE / 4,
+            MAX_STACK_SIZE / 16, 4096 };
+        for (size_t i = 0; i < sizeof(retry_sizes) / sizeof(retry_sizes[0]);
+            i++) {
+            if (retry_sizes[i] > stack_size) {
+                continue;
+            }
+            kr = read_task_memory(
+                writer->task, stack_start, stack_buffer, retry_sizes[i]);
+            if (kr == KERN_SUCCESS) {
+                stack_size = retry_sizes[i];
+                rva = write_data(writer, stack_buffer, stack_size);
+                *stack_size_out = rva ? stack_size : 0;
+                *stack_start_out = rva ? stack_start : 0;
+                break;
+            }
+        }
+        if (rva == 0) {
             *stack_size_out = 0;
             *stack_start_out = 0;
         }
@@ -579,7 +616,23 @@ write_thread_list_stream(minidump_writer_t *writer, minidump_directory_t *dir)
     thread_list->count = thread_count;
 
     if (writer->thread_count > 0) {
-        // Full path: enumerate all threads from task_threads()
+        // Full path: enumerate all threads from task_threads().
+        //
+        // For *register state* and *stack capture* we MUST prefer the
+        // snapshot the signal handler took at crash time (saved into
+        // ``writer->crash_ctx->platform.threads[]``) over a fresh
+        // ``thread_get_state()`` from inside the daemon. By the time the
+        // daemon runs, the crashing thread's signal handler has moved its
+        // SP/PC deep into libsystem code (waiting on the daemon via shm
+        // IPC), so ``thread_get_state`` returns a daemon-time SP that
+        // points inside the daemon-wait frame rather than the crash site.
+        // That made every ``MINIDUMP_THREAD::stack.start_of_memory_range``
+        // for the crashing thread (and any thread whose SP advanced
+        // between signal-time and daemon-time) point at libsystem code
+        // pages instead of the real thread stack VM region. Match by
+        // ``thread_id`` against the captured snapshot and use that;
+        // ``thread_get_state`` only fills the gap if the snapshot is
+        // missing the thread for some reason.
         for (mach_msg_type_number_t i = 0; i < writer->thread_count; i++) {
             minidump_thread_t *thread = &thread_list->threads[i];
             memset(thread, 0, sizeof(*thread));
@@ -609,16 +662,46 @@ write_thread_list_stream(minidump_writer_t *writer, minidump_directory_t *dir)
                 thread->priority_class = extended_info.pth_priority;
             }
 
-            // Get thread state (registers)
-            // Zero-initialize to ensure float/NEON state fields are not garbage
+            // Look up the signal-handler-captured snapshot for this thread.
+            const _STRUCT_MCONTEXT *snapshot_state = NULL;
+            size_t num_captured = writer->crash_ctx
+                ? writer->crash_ctx->platform.num_threads
+                : 0;
+            if (num_captured > SENTRY_CRASH_MAX_THREADS) {
+                num_captured = SENTRY_CRASH_MAX_THREADS;
+            }
+            for (size_t j = 0; j < num_captured; j++) {
+                if (writer->crash_ctx->platform.threads[j].tid
+                    == thread->thread_id) {
+                    snapshot_state
+                        = &writer->crash_ctx->platform.threads[j].state;
+                    break;
+                }
+            }
+
+            // Get thread state (registers): prefer the signal-handler
+            // snapshot, fall back to a fresh thread_get_state() only when
+            // the snapshot is missing the thread.
+            // Zero-initialize so float/NEON state fields are deterministic
             // since MACHINE_THREAD_STATE only populates integer registers
-            // (__ss), we must pass &mcontext.__ss (not &mcontext)
+            // (__ss); we must pass &mcontext.__ss (not &mcontext) when
+            // calling thread_get_state.
             _STRUCT_MCONTEXT mcontext;
             memset(&mcontext, 0, sizeof(mcontext));
-            mach_msg_type_number_t state_count = MACHINE_THREAD_STATE_COUNT;
-            if (thread_get_state(mach_thread, MACHINE_THREAD_STATE,
-                    (thread_state_t)&mcontext.__ss, &state_count)
-                == KERN_SUCCESS) {
+            bool have_state = false;
+            if (snapshot_state) {
+                memcpy(&mcontext, snapshot_state, sizeof(mcontext));
+                have_state = true;
+            } else {
+                mach_msg_type_number_t state_count = MACHINE_THREAD_STATE_COUNT;
+                if (thread_get_state(mach_thread, MACHINE_THREAD_STATE,
+                        (thread_state_t)&mcontext.__ss, &state_count)
+                    == KERN_SUCCESS) {
+                    have_state = true;
+                }
+            }
+
+            if (have_state) {
 
                 // Write thread context (registers)
                 thread->thread_context.rva
