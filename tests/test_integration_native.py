@@ -588,14 +588,6 @@ def _codesign_for_task_for_pid(*paths):
         )
 
 
-@pytest.mark.skipif(
-    sys.platform == "win32",
-    reason=(
-        "SMART-mode indirect-memory capture is implemented for the native "
-        "backend on macOS + Linux. Windows uses MiniDumpWriteDump and has "
-        "its own MINIDUMP_TYPE flags."
-    ),
-)
 def test_native_smart_mode_captures_indirect_heap_memory(cmake, httpserver):
     """
     Verify SMART minidump mode captures memory regions referenced by the
@@ -605,16 +597,28 @@ def test_native_smart_mode_captures_indirect_heap_memory(cmake, httpserver):
     The published behaviour of ``SENTRY_MINIDUMP_MODE_SMART`` (the
     default) is "stack-only dump plus ~1 KiB around every writable-heap
     pointer reachable from the crashing thread's registers or stack
-    words, capped at 4 MiB". The minimal-mode fallback on macOS (when
-    ``task_for_pid`` is blocked by the sandbox) emits *only* module
-    header pages, which silently breaks the SMART-mode contract.
+    words, capped at 4 MiB". All three backends now wire this through:
 
-    This test ad-hoc codesigns the example + daemon on macOS so
-    ``task_for_pid`` succeeds, then asserts MemoryListStream contains
-    at least one region in a typical heap address band (i.e. *not*
-    inside any loaded-module image range and *not* inside any captured
-    thread stack). On Linux ``/proc/self/maps`` is readable in-process
-    so no extra signing is needed.
+      * macOS / Linux: the native backend scans the captured stack
+        words + register file in the daemon, looks up each candidate
+        pointer against ``mach_vm_region`` / ``/proc/self/maps``, and
+        appends a chunk around each writable-heap hit to
+        MemoryListStream.
+      * Windows: the native backend passes
+        ``MiniDumpWithIndirectlyReferencedMemory | MiniDumpWithDataSegs``
+        to ``MiniDumpWriteDump`` so the OS does the equivalent scan.
+
+    The minimal-mode fallback on macOS (when ``task_for_pid`` is
+    blocked by the sandbox) silently breaks the SMART-mode contract by
+    emitting *only* module header pages. This test ad-hoc codesigns the
+    example + daemon on macOS so ``task_for_pid`` succeeds (no Apple
+    Developer cert needed; ad-hoc signing is enough), then asserts
+    MemoryListStream contains at least one region in a typical heap
+    address band (i.e. *not* inside any loaded-module image range and
+    *not* inside any captured thread stack). On Linux ``/proc/self/maps``
+    is readable in-process so no signing is needed; on Windows
+    ``MiniDumpWriteDump`` runs as the same user as the crashing process
+    and likewise needs no extra setup.
     """
     # Static build so the hardened-runtime process can load itself without
     # tripping the dyld "different team IDs" check on ad-hoc-signed dylibs.
