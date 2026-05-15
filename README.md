@@ -368,7 +368,7 @@ Other important configuration options include:
 - On Windows, the crashpad and native backends support fast-fail crashes, which bypass SEH (Structured
   Exception Handling) primarily for security reasons. `sentry-native` registers a WER (Windows Error
   Reporting) module, which signals the out-of-process crash handler when a fast-fail crash occurs.
-  Since this bypasses SEH, the application's local exception handler is not invoked, which
+  But since this process bypasses SEH, the application's local exception handler is no longer invoked, which
   also means that for these kinds of crashes, `before_send` and `on_crash` will not be invoked before
   sending the crash report, and thus have no effect.
 
