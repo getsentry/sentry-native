@@ -20,6 +20,11 @@ sentry_crash_ipc_t *
 sentry__crash_ipc_init_app(
     const char *database_path, sentry_mutex_t *init_mutex)
 {
+    if (!database_path || !database_path[0]) {
+        SENTRY_WARN("Android crash IPC requires a database path");
+        return NULL;
+    }
+
     sentry_crash_ipc_t *ipc = SENTRY_MAKE(sentry_crash_ipc_t);
     if (!ipc) {
         return NULL;
@@ -32,15 +37,8 @@ sentry__crash_ipc_init_app(
 
     uint64_t tid = (uint64_t)pthread_self();
     uint32_t id = (uint32_t)((getpid() ^ (tid & 0xFFFFFFFF)) & 0xFFFFFFFF);
-    const char *shm_dir = database_path;
-    if (!shm_dir || !shm_dir[0]) {
-        shm_dir = getenv("TMPDIR");
-    }
-    if (!shm_dir || !shm_dir[0]) {
-        shm_dir = "/data/local/tmp";
-    }
     snprintf(ipc->shm_path, sizeof(ipc->shm_path), "%s/.sentry-shm-%08x",
-        shm_dir, id);
+        database_path, id);
 
     if (ipc->init_mutex) {
         sentry__mutex_lock(ipc->init_mutex);
