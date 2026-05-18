@@ -718,7 +718,8 @@ sentry__value_from_json(const char *buf, size_t buflen)
 
     jsmn_init(&jsmn_p);
     token_count = jsmn_parse(&jsmn_p, buf, buflen, NULL, 0);
-    if (token_count <= 0) {
+    if (token_count <= 0
+        || (size_t)token_count > SIZE_MAX / sizeof(jsmntok_t)) {
         return sentry_value_new_null();
     }
 
