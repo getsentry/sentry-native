@@ -1643,8 +1643,10 @@ sentry_event_value_add_stacktrace(sentry_value_t event, void **ips, size_t len)
     sentry_event_add_thread(event, thread);
 }
 
+#define SENTRY_MPACK_MAX_DEPTH 32
+
 static sentry_value_t
-value_from_mpack(mpack_node_t node)
+value_from_mpack(mpack_node_t node, size_t depth, bool *ok)
 {
     switch (mpack_node_type(node)) {
     case mpack_type_nil:
@@ -1677,15 +1679,29 @@ value_from_mpack(mpack_node_t node)
         return sentry_value_new_string_n(mpack_node_str(node), str_len);
     }
     case mpack_type_array: {
+        if (depth >= SENTRY_MPACK_MAX_DEPTH) {
+            *ok = false;
+            return sentry_value_new_null();
+        }
         size_t arr_len = mpack_node_array_length(node);
         sentry_value_t arr = sentry_value_new_list();
         for (size_t i = 0; i < arr_len; i++) {
-            sentry_value_append(
-                arr, value_from_mpack(mpack_node_array_at(node, i)));
+            sentry_value_t child
+                = value_from_mpack(mpack_node_array_at(node, i), depth + 1, ok);
+            if (!*ok) {
+                sentry_value_decref(child);
+                sentry_value_decref(arr);
+                return sentry_value_new_null();
+            }
+            sentry_value_append(arr, child);
         }
         return arr;
     }
     case mpack_type_map: {
+        if (depth >= SENTRY_MPACK_MAX_DEPTH) {
+            *ok = false;
+            return sentry_value_new_null();
+        }
         size_t map_len = mpack_node_map_count(node);
         sentry_value_t obj = sentry_value_new_object();
         for (size_t i = 0; i < map_len; i++) {
@@ -1695,8 +1711,14 @@ value_from_mpack(mpack_node_t node)
             }
             mpack_node_t val_node = mpack_node_map_value_at(node, i);
             size_t key_len = mpack_node_strlen(key_node);
-            sentry_value_set_by_key_n(obj, mpack_node_str(key_node), key_len,
-                value_from_mpack(val_node));
+            sentry_value_t child = value_from_mpack(val_node, depth + 1, ok);
+            if (!*ok) {
+                sentry_value_decref(child);
+                sentry_value_decref(obj);
+                return sentry_value_new_null();
+            }
+            sentry_value_set_by_key_n(
+                obj, mpack_node_str(key_node), key_len, child);
         }
         return obj;
     }
@@ -1728,7 +1750,14 @@ sentry__value_from_msgpack(const char *buf, size_t buf_len)
         }
 
         size_t size = mpack_tree_size(&tree);
-        sentry_value_t value = value_from_mpack(mpack_tree_root(&tree));
+        bool ok = true;
+        sentry_value_t value = value_from_mpack(mpack_tree_root(&tree), 0, &ok);
+        if (!ok) {
+            mpack_tree_destroy(&tree);
+            sentry_value_decref(value);
+            sentry_value_decref(result);
+            return sentry_value_new_null();
+        }
         mpack_tree_destroy(&tree);
 
         if (offset == 0 && sentry_value_is_null(result)) {
