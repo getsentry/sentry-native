@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1779091535501,
+  "lastUpdate": 1779091651645,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -64312,6 +64312,66 @@ window.BENCHMARK_DATA = {
             "value": 14.21179999999822,
             "unit": "ms",
             "extra": "Min 13.772ms\nMax 29.574ms\nMean 17.248ms\nStdDev 6.900ms\nMedian 14.212ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "49699333+dependabot[bot]@users.noreply.github.com",
+            "name": "dependabot[bot]",
+            "username": "dependabot[bot]"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "308365be57d93c7b3ac456cdbc82138a5baf237a",
+          "message": "build(deps): bump mitmproxy from 11.0.0 to 12.2.2 in /tests (#1643)\n\nCo-authored-by: J-P Nurmi <jpnurmi@gmail.com>\nSigned-off-by: dependabot[bot] <support@github.com>",
+          "timestamp": "2026-05-18T10:03:08+02:00",
+          "tree_id": "fa1727ecb5a35bc114e006cc6714809486f56e60",
+          "url": "https://github.com/getsentry/sentry-native/commit/308365be57d93c7b3ac456cdbc82138a5baf237a"
+        },
+        "date": 1779091644683,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 10.140300000102798,
+            "unit": "ms",
+            "extra": "Min 9.830ms\nMax 12.231ms\nMean 10.681ms\nStdDev 0.985ms\nMedian 10.140ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 11.557900000070731,
+            "unit": "ms",
+            "extra": "Min 9.998ms\nMax 13.592ms\nMean 11.673ms\nStdDev 1.293ms\nMedian 11.558ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 23.714799999879688,
+            "unit": "ms",
+            "extra": "Min 22.271ms\nMax 24.831ms\nMean 23.587ms\nStdDev 0.980ms\nMedian 23.715ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.16239999990830256,
+            "unit": "ms",
+            "extra": "Min 0.159ms\nMax 0.170ms\nMean 0.164ms\nStdDev 0.004ms\nMedian 0.162ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.3622000001541892,
+            "unit": "ms",
+            "extra": "Min 0.354ms\nMax 0.388ms\nMean 0.366ms\nStdDev 0.013ms\nMedian 0.362ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 15.196500000001834,
+            "unit": "ms",
+            "extra": "Min 12.536ms\nMax 24.246ms\nMean 16.159ms\nStdDev 4.667ms\nMedian 15.197ms"
           }
         ]
       }
