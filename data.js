@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1779097931891,
+  "lastUpdate": 1779112209510,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -21616,6 +21616,66 @@ window.BENCHMARK_DATA = {
             "value": 1.9074420000038117,
             "unit": "ms",
             "extra": "Min 1.880ms\nMax 1.979ms\nMean 1.928ms\nStdDev 0.046ms\nMedian 1.907ms\nCPU 0.561ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "49699333+dependabot[bot]@users.noreply.github.com",
+            "name": "dependabot[bot]",
+            "username": "dependabot[bot]"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "a43155eb7bbc5c05c1a3c2974e7f0ce1075b98c8",
+          "message": "build(deps): bump getsentry/github-workflows from 3.3.0 to 3.4.0 (#1717)\n\nCo-authored-by: J-P Nurmi <jpnurmi@gmail.com>\nSigned-off-by: dependabot[bot] <support@github.com>",
+          "timestamp": "2026-05-18T15:47:30+02:00",
+          "tree_id": "fcf745ed9c7102844e4b2b014f757775c22be240",
+          "url": "https://github.com/getsentry/sentry-native/commit/a43155eb7bbc5c05c1a3c2974e7f0ce1075b98c8"
+        },
+        "date": 1779112203692,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 0.9538249999820891,
+            "unit": "ms",
+            "extra": "Min 0.929ms\nMax 0.992ms\nMean 0.955ms\nStdDev 0.026ms\nMedian 0.954ms\nCPU 0.905ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 0.8479569999906289,
+            "unit": "ms",
+            "extra": "Min 0.812ms\nMax 0.913ms\nMean 0.858ms\nStdDev 0.038ms\nMedian 0.848ms\nCPU 0.845ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 3.8579710000021805,
+            "unit": "ms",
+            "extra": "Min 3.660ms\nMax 4.140ms\nMean 3.868ms\nStdDev 0.208ms\nMedian 3.858ms\nCPU 1.974ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.14191599998980564,
+            "unit": "ms",
+            "extra": "Min 0.132ms\nMax 0.151ms\nMean 0.142ms\nStdDev 0.007ms\nMedian 0.142ms\nCPU 0.086ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.032320999991952704,
+            "unit": "ms",
+            "extra": "Min 0.031ms\nMax 0.040ms\nMean 0.034ms\nStdDev 0.004ms\nMedian 0.032ms\nCPU 0.033ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 1.9544759999803318,
+            "unit": "ms",
+            "extra": "Min 1.889ms\nMax 2.038ms\nMean 1.969ms\nStdDev 0.058ms\nMedian 1.954ms\nCPU 0.568ms"
           }
         ]
       }
