@@ -100,6 +100,44 @@ static sentry_crash_ipc_t *g_crash_ipc = NULL;
 static struct sigaction g_previous_handlers[16];
 static stack_t g_signal_stack = { 0 };
 
+static void
+invoke_previous_signal_handler(int signum, siginfo_t *info, void *context)
+{
+    for (size_t i = 0; i < g_crash_signal_count; i++) {
+        if (g_crash_signals[i] != signum) {
+            continue;
+        }
+
+        struct sigaction *handler = &g_previous_handlers[i];
+        // Re-enable previous signal handler to prevent loops.
+        sigaction(signum, handler, NULL);
+
+        if (handler->sa_handler == SIG_DFL) {
+            raise(signum);
+            return;
+        }
+
+        if (handler->sa_handler == SIG_IGN) {
+            signal(signum, SIG_DFL);
+            raise(signum);
+            return;
+        }
+
+        if (handler->sa_flags & SA_SIGINFO) {
+            handler->sa_sigaction(signum, info, context);
+        } else {
+            handler->sa_handler(signum);
+        }
+
+        signal(signum, SIG_DFL);
+        raise(signum);
+        return;
+    }
+
+    signal(signum, SIG_DFL);
+    raise(signum);
+}
+
 /**
  * Get current thread ID (signal-safe)
  */
@@ -258,13 +296,10 @@ crash_signal_handler(int signum, siginfo_t *info, void *context)
         _exit(1);
     }
 
-    // Re-enable signal to prevent loops
-    signal(signum, SIG_DFL);
-
     sentry_crash_ipc_t *ipc = g_crash_ipc;
     if (!ipc || !ipc->shmem) {
-        // No IPC available, just re-raise
-        raise(signum);
+        // No IPC available, just re-raise through the previous handler.
+        invoke_previous_signal_handler(signum, info, context);
         return;
     }
 
@@ -763,7 +798,8 @@ daemon_handling:
         }
     }
 
-    raise(signum);
+    // Re-raise through the previous handler after daemon processing.
+    invoke_previous_signal_handler(signum, info, context);
 }
 
 int
