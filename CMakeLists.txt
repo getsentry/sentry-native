@@ -628,8 +628,8 @@ elseif(WIN32)
 	# WaitOnAddress/WakeByAddressSingle require Windows 8+
 	# (Synchronization.lib). Older targets fall back to sleep-poll.
 	if(NOT (MSVC AND CMAKE_GENERATOR_TOOLSET MATCHES "_xp$")
-		AND (${CMAKE_SYSTEM_VERSION} MATCHES "^10"
-			OR ${CMAKE_SYSTEM_VERSION} MATCHES "^6\\.[23]"))
+		AND ("${CMAKE_SYSTEM_VERSION}" MATCHES "^10"
+			OR "${CMAKE_SYSTEM_VERSION}" MATCHES "^6\\.[23]"))
 		list(APPEND _SENTRY_PLATFORM_LIBS "synchronization")
 	endif()
 endif()
@@ -796,7 +796,7 @@ elseif(SENTRY_BACKEND_NATIVE)
 	# Native backend sources and configuration are in src/CMakeLists.txt
 	# The native backend requires C11 for atomics (set in src/CMakeLists.txt)
 
-	if(WIN32)
+	if(WIN32 AND NOT XBOX)
 		add_library(sentry-wer SHARED
 			src/backends/native/sentry_wer.c
 			src/backends/native/sentry_wer.def
@@ -885,7 +885,7 @@ elseif(SENTRY_BACKEND_NATIVE)
 
 	# Make sentry library depend on crash daemon so it's always built together
 	add_dependencies(sentry sentry-crash)
-	if(WIN32)
+	if(WIN32 AND NOT XBOX)
 		add_dependencies(sentry sentry-wer)
 	endif()
 
@@ -893,7 +893,7 @@ elseif(SENTRY_BACKEND_NATIVE)
 	install(TARGETS sentry-crash
 		RUNTIME DESTINATION bin
 	)
-	if(WIN32)
+	if(WIN32 AND NOT XBOX)
 		install(TARGETS sentry-wer
 			RUNTIME DESTINATION bin
 			LIBRARY DESTINATION "${CMAKE_INSTALL_LIBDIR}"

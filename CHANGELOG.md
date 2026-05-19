@@ -1,5 +1,18 @@
 # Changelog
 
+## Unreleased
+
+**Fixes**:
+
+- Reject overly deep msgpack payloads during deserialization. ([#1727](https://github.com/getsentry/sentry-native/pull/1727))
+- Windows: fix HTTP rate limit response header parsing. ([#1732](https://github.com/getsentry/sentry-native/pull/1732))
+
+## 0.14.2
+
+**Fixes**:
+
+- Protect CMAKE_SYSTEM_VERSION to avoid empty values when cross-building. ([#1720](https://github.com/getsentry/sentry-native/pull/1720))
+
 ## 0.14.1
 
 **Features**:

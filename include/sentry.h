@@ -101,7 +101,7 @@ extern "C" {
 #    endif
 #endif
 #ifndef SENTRY_SDK_VERSION
-#    define SENTRY_SDK_VERSION "0.14.1"
+#    define SENTRY_SDK_VERSION "0.14.2"
 #endif
 #define SENTRY_SDK_USER_AGENT SENTRY_SDK_NAME "/" SENTRY_SDK_VERSION
 
@@ -1175,10 +1175,10 @@ SENTRY_API void sentry_options_set_send_default_pii(
  *
  * https://develop.sentry.dev/sdk/sessions/#filter-order
  *
- * On Windows the crashpad backend can capture fast-fail crashes which bypass
- * SEH. Since the `before_send` is called by a local exception-handler, it will
- * not be invoked when such a crash happened, even though a minidump will be
- * sent.
+ * On Windows, the crashpad and native backends can capture fast-fail crashes
+ * which bypass SEH. Since the `before_send` callback is called by a local
+ * exception-handler, it will not be invoked when such a crash happened, even
+ * though a crash report will be sent.
  */
 typedef sentry_value_t (*sentry_event_function_t)(
     sentry_value_t event, void *hint, void *user_data);
@@ -1236,10 +1236,10 @@ SENTRY_API void sentry_options_set_before_send(
  *
  *  - does not work with crashpad on macOS.
  *  - for breakpad on Linux the `uctx` parameter is always NULL.
- *  - on Windows the crashpad backend can capture fast-fail crashes which
- *    bypass SEH. Since `on_crash` is called by a local exception-handler, it
- *    will not be invoked when such a crash happened, even though a minidump
- *    will be sent.
+ *  - on Windows, the crashpad and native backends can capture fast-fail crashes
+ *    which bypass SEH. Since `on_crash` is called by a local
+ *    exception-handler, it will not be invoked when such a crash happened, even
+ *    though a crash report will be sent.
  */
 typedef sentry_value_t (*sentry_crash_function_t)(
     const sentry_ucontext_t *uctx, sentry_value_t event, void *user_data);
@@ -1639,8 +1639,8 @@ SENTRY_API void sentry_options_add_view_hierarchy_n(
  *
  * This feature is currently supported by all backends on Windows. The
  * `crashpad` and `native` backends capture screenshots from an out-of-process
- * handler. Only the `crashpad` backend can capture screenshots of fast-fail
- * crashes that bypass SEH (structured exception handling).
+ * handler. Only the `crashpad` and `native` backends can capture screenshots of
+ * fast-fail crashes that bypass SEH (structured exception handling).
  *
  * To decide per-event whether a screenshot should be captured, set a
  * `before_screenshot` callback via `sentry_options_set_before_screenshot`.
