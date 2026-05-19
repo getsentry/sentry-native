@@ -139,8 +139,8 @@ sentry__sampler_signal_handler(int sig, siginfo_t *info, void *ucontext_v)
     size_t written = 0;
     if (g_sampler_out_buf && g_sampler_out_max > 0 && ucontext_v) {
         unw_cursor_t cursor;
-        if (unw_init_local2(&cursor, (unw_context_t *)ucontext_v,
-                UNW_INIT_SIGNAL_FRAME)
+        if (unw_init_local2(
+                &cursor, (unw_context_t *)ucontext_v, UNW_INIT_SIGNAL_FRAME)
             == 0) {
             unw_word_t prev_ip = 0;
             unw_word_t prev_sp = 0;
