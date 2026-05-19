@@ -38,7 +38,6 @@
 #include "sentry_session.h"
 #include "sentry_sync.h"
 #include "sentry_transport.h"
-#include "sentry_utils.h"
 #include "transports/sentry_disk_transport.h"
 
 // Global process-wide synchronization for IPC and shared memory access
@@ -999,10 +998,8 @@ native_backend_except(sentry_backend_t *backend, const sentry_ucontext_t *uctx)
         // Call on_crash hook if configured
         if (options->on_crash_func) {
             SENTRY_DEBUG("invoking `on_crash` hook");
-            sentry_signal_mask_t signal_mask = sentry__unblock_crash_signals();
             sentry_value_t result
                 = options->on_crash_func(uctx, event, options->on_crash_data);
-            sentry__restore_signal_mask(&signal_mask);
             should_handle = !sentry_value_is_null(result);
             event = result;
         }

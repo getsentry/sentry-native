@@ -22,7 +22,6 @@ extern "C" {
 #include "sentry_sync.h"
 #include "sentry_transport.h"
 #include "sentry_unix_pageallocator.h"
-#include "sentry_utils.h"
 #include "transports/sentry_disk_transport.h"
 }
 
@@ -159,10 +158,8 @@ breakpad_backend_callback(const google_breakpad::MinidumpDescriptor &descriptor,
 #endif
 
             SENTRY_SIGNAL_SAFE_LOG("DEBUG invoking `on_crash` hook");
-            sentry_signal_mask_t signal_mask = sentry__unblock_crash_signals();
             sentry_value_t result
                 = options->on_crash_func(uctx, event, options->on_crash_data);
-            sentry__restore_signal_mask(&signal_mask);
             should_handle = !sentry_value_is_null(result);
         }
 

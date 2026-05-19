@@ -165,6 +165,12 @@ restart_on_crash(
     _spawnv(_P_NOWAIT, child_argv[0], (const char *const *)child_argv);
 #else
     if (fork() == 0) {
+        // The crashing signal is blocked while the crash handler runs. Do not
+        // let the restarted child inherit that mask.
+        sigset_t set;
+        sigfillset(&set);
+        sigprocmask(SIG_UNBLOCK, &set, NULL);
+
         execv(child_argv[0], child_argv);
         _exit(127);
     }
