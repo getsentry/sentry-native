@@ -43,6 +43,14 @@
  */
 #    define SENTRY_SAMPLER_SIGNAL (SIGRTMIN + 5)
 
+/*
+ * Memory ordering between the caller (sampler thread) and the signal handler
+ * (target thread) is provided by the kernel: `rt_tgsigqueueinfo` is a syscall,
+ * and the kernel issues full memory barriers across syscall entry/exit and
+ * during signal-frame setup on the target thread. The `volatile` qualifiers
+ * below prevent compiler reordering only — the cross-thread visibility comes
+ * from the kernel. This is Linux/Android-specific and not portable.
+ */
 static pthread_mutex_t g_sampler_lock = PTHREAD_MUTEX_INITIALIZER;
 static sem_t g_sampler_done;
 static void **g_sampler_out_buf;
@@ -52,16 +60,23 @@ static volatile int g_sampler_initialized = 0;
 
 /*
  * TID the currently active sampling request is expecting. Set by the caller
- * before `tgkill` (under `g_sampler_lock`) and consulted inside the signal
- * handler to discard stale signals delivered after a previous sampling request
- * timed out. Real-time signals are queued, not coalesced, so a target thread
- * that was blocked when we sent it the original signal may eventually run our
- * handler at an arbitrarily later time — potentially while another sampling
- * request targeting a different thread is in flight. Without this guard, the
- * stale handler would write the wrong thread's stack into the new request's
- * buffer.
+ * before sending the signal (under `g_sampler_lock`) and consulted inside the
+ * signal handler as a defence-in-depth check; the primary discriminator is the
+ * per-request sequence number below.
  */
 static volatile int g_expected_tid = 0;
+
+/*
+ * Monotonic per-request sequence. Incremented under `g_sampler_lock` on every
+ * call and embedded in the queued signal's `si_value.sival_int` payload via
+ * `rt_tgsigqueueinfo`. The handler compares the payload against the active
+ * sequence and silently discards any signal whose sequence doesn't match — this
+ * is what makes the sampler safe when consecutive requests target the same
+ * TID (the typical ANR-watchdog pattern), where the TID guard alone would let
+ * a stale handler from a previously-timed-out request write its frames into
+ * the new request's buffer. 0 is reserved for "no active request".
+ */
+static volatile unsigned g_current_seq = 0;
 
 /*
  * Signal handler running on the *target* thread's stack. Must be strictly
@@ -77,14 +92,20 @@ static void
 sentry__sampler_signal_handler(int sig, siginfo_t *info, void *ucontext_v)
 {
     (void)sig;
-    (void)info;
 
-    // Stale-signal guard: if our TID doesn't match the request currently in
-    // flight, return silently without posting. Writing into the active
-    // request's buffer here would corrupt the result. Not posting is safe —
-    // the active request's tgkill will produce its own (correctly-targeted)
-    // handler invocation, and `sem_trywait` drains any leftover posts at the
-    // start of each request.
+    // Primary stale-signal guard: compare the per-request sequence the caller
+    // embedded in the signal payload against the currently-active sequence.
+    // Anything older (e.g. a delayed handler from a previously-timed-out
+    // request) is dropped without posting, even if it targets the same TID
+    // that the new request is sampling.
+    if (!info || (unsigned)info->si_value.sival_int != g_current_seq) {
+        return;
+    }
+
+    // Defence-in-depth TID guard. `rt_tgsigqueueinfo` already targets a
+    // specific TID, so this should never trigger in practice; keeping it
+    // means a wrong-thread delivery from a future kernel/libc bug still can't
+    // corrupt the active request's buffer.
     const int my_tid = (int)syscall(SYS_gettid);
     if (my_tid != g_expected_tid) {
         return;
@@ -161,14 +182,12 @@ sentry_unwind_thread_stack(int tid, void **stacktrace_out, size_t max_len)
         sa.sa_flags = SA_SIGINFO | SA_RESTART;
         sigemptyset(&sa.sa_mask);
 
-        // Save any previous disposition. We intentionally overwrite it; this
-        // signal slot is owned by the sampler for the lifetime of the
-        // process. If the slot was already in use by the host application we
-        // would still want to know — but since we have no logger available
-        // here that is async-signal-safe to call later, just proceed.
-        struct sigaction oldact;
-        memset(&oldact, 0, sizeof(oldact));
-        if (sigaction(SENTRY_SAMPLER_SIGNAL, &sa, &oldact) != 0) {
+        // The sampler claims this signal slot for the lifetime of the
+        // process; any prior disposition is silently overwritten. We don't
+        // capture the old handler because we have no async-signal-safe
+        // logger to report a collision and no shutdown path that would
+        // restore it.
+        if (sigaction(SENTRY_SAMPLER_SIGNAL, &sa, NULL) != 0) {
             sem_destroy(&g_sampler_done);
             pthread_mutex_unlock(&g_sampler_lock);
             return 0;
@@ -181,14 +200,35 @@ sentry_unwind_thread_stack(int tid, void **stacktrace_out, size_t max_len)
     g_sampler_out_written = 0;
     g_expected_tid = tid;
 
-    // Drain any spurious posts from a previous timed-out sample, so that the
-    // wait below cannot return prematurely on a stale token.
+    // Pick a fresh per-request sequence under the mutex. The handler reads
+    // this back through the queued signal's si_value payload to discard stale
+    // deliveries. Skip 0 because 0 means "no active request".
+    unsigned my_seq = g_current_seq + 1;
+    if (my_seq == 0) {
+        my_seq = 1;
+    }
+    g_current_seq = my_seq;
+
+    // Drain any leftover posts. With the seq guard a stale handler will not
+    // post, so this is belt-and-suspenders for the case where a future change
+    // introduces a path that does.
     while (sem_trywait(&g_sampler_done) == 0) {
         // discard
     }
 
     pid_t my_pid = getpid();
-    if (syscall(SYS_tgkill, my_pid, tid, SENTRY_SAMPLER_SIGNAL) != 0) {
+
+    // Send via rt_tgsigqueueinfo so we can attach the request sequence in
+    // si_value.sival_int. The kernel preserves these fields verbatim when
+    // si_code is SI_QUEUE.
+    siginfo_t si;
+    memset(&si, 0, sizeof(si));
+    si.si_signo = SENTRY_SAMPLER_SIGNAL;
+    si.si_code = SI_QUEUE;
+    si.si_value.sival_int = (int)my_seq;
+
+    if (syscall(SYS_rt_tgsigqueueinfo, my_pid, tid, SENTRY_SAMPLER_SIGNAL, &si)
+        != 0) {
         g_sampler_out_buf = NULL;
         g_expected_tid = 0;
         pthread_mutex_unlock(&g_sampler_lock);

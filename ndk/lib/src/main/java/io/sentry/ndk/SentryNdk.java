@@ -66,13 +66,20 @@ public final class SentryNdk {
   }
 
   /**
-   * Captures the native stack of another thread by Linux kernel TID.
+   * Captures the native stack of another thread in the current process by Linux kernel TID.
    *
-   * Uses signal-based sampling internally. Returns instruction-pointer
-   * addresses as longs; an empty array indicates sampling failure
-   * (invalid TID, signal delivery failure, timeout, or unsupported platform).
+   * <p>Uses signal-based sampling internally. Returns instruction-pointer addresses as longs; an
+   * empty array indicates sampling failure (invalid TID, signal delivery failure, timeout, or
+   * unsupported platform).
+   *
+   * <p>The TID must belong to the current process. Cross-process TIDs are not supported.
    *
    * <p>Linux/Android only. Other platforms return an empty array.
+   *
+   * <p>The first call on a supported platform permanently installs a signal handler for {@code
+   * SIGRTMIN + 5} in the process. The handler is not removed by {@link #close()} and stays
+   * installed for the lifetime of the process. Host applications that themselves use {@code
+   * SIGRTMIN + 5} should not call this method.
    *
    * @param tid Linux kernel TID of the target thread (e.g. android.os.Process.myTid()).
    * @return array of instruction-pointer addresses (up to 128 frames), or empty on failure.
