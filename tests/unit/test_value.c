@@ -34,6 +34,13 @@ collect_value_pair(const char *key, sentry_value_t value, void *userdata)
     collector->count++;
 }
 
+static void
+write_nested_msgpack_arrays(char *buf, size_t depth)
+{
+    memset(buf, 0x91, depth); // fixarray[1]
+    buf[depth] = (char)0xc0; // nil
+}
+
 SENTRY_TEST(value_null)
 {
     sentry_value_t val = sentry_value_new_null();
@@ -1547,6 +1554,22 @@ SENTRY_TEST(value_from_msgpack_list)
     sentry_free(buf);
     sentry_value_decref(val);
     sentry_value_decref(deserialized);
+}
+
+SENTRY_TEST(value_from_msgpack_deeply_nested)
+{
+    char accepted[32 + 1]; // SENTRY_MPACK_MAX_DEPTH + 1
+    write_nested_msgpack_arrays(accepted, sizeof(accepted) - 1);
+    sentry_value_t value
+        = sentry__value_from_msgpack(accepted, sizeof(accepted));
+    TEST_CHECK(sentry_value_get_type(value) == SENTRY_VALUE_TYPE_LIST);
+    sentry_value_decref(value);
+
+    char too_deep[32 + 2]; // SENTRY_MPACK_MAX_DEPTH + 2
+    write_nested_msgpack_arrays(too_deep, sizeof(too_deep) - 1);
+    value = sentry__value_from_msgpack(too_deep, sizeof(too_deep));
+    TEST_CHECK(sentry_value_is_null(value));
+    sentry_value_decref(value);
 }
 
 SENTRY_TEST(value_from_msgpack_object)

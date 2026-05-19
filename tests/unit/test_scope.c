@@ -277,6 +277,27 @@ SENTRY_TEST(scope_fingerprint)
     sentry_close();
 }
 
+SENTRY_TEST(scope_fingerprint_n)
+{
+    SENTRY_TEST_OPTIONS_NEW(options);
+    sentry_init(options);
+
+    sentry_set_fingerprint_n(
+        "alphabet", (size_t)5, "0123456789", (size_t)8, "xyz", (size_t)1, NULL);
+
+    SENTRY_WITH_SCOPE (scope) {
+        sentry_value_t event = sentry_value_new_object();
+
+        sentry__scope_apply_to_event(scope, options, event, SENTRY_SCOPE_NONE);
+        TEST_CHECK_JSON_VALUE(sentry_value_get_by_key(event, "fingerprint"),
+            "[\"alpha\",\"01234567\",\"x\"]");
+
+        sentry_value_decref(event);
+    }
+
+    sentry_close();
+}
+
 SENTRY_TEST(scope_tags)
 {
     SENTRY_TEST_OPTIONS_NEW(options);

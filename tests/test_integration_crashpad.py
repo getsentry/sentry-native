@@ -393,6 +393,7 @@ def test_crashpad_dumping_crash(cmake, httpserver, run_args, build_args):
                 "start-session",
                 "attach-view-hierarchy",
                 "overflow-breadcrumbs",
+                "crashpad-wait-for-upload",
                 "crash",
             ]
             + run_args,
