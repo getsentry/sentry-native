@@ -479,9 +479,9 @@ sentry__usec_time_to_iso8601(uint64_t time)
 
 #ifndef SENTRY_PLATFORM_PS
 uint64_t
-sentry__iso8601_to_usec(const char *iso)
+sentry__iso8601_to_usec(const char *iso, size_t iso_len)
 {
-    size_t len = sentry__guarded_strlen(iso);
+    size_t len = iso_len ? iso_len : sentry__guarded_strlen(iso);
     if (len != 20 && len != 27) {
         return 0;
     }

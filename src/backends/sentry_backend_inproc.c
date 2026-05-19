@@ -999,9 +999,10 @@ get_instruction_pointer(const sentry_ucontext_t *uctx)
 
 static sentry_value_t
 make_signal_event(const struct signal_slot *sig_slot,
-    const sentry_ucontext_t *uctx, sentry_handler_strategy_t strategy)
+    const sentry_ucontext_t *uctx, sentry_handler_strategy_t strategy,
+    const sentry_uuid_t *event_id)
 {
-    sentry_value_t event = sentry_value_new_event();
+    sentry_value_t event = sentry__value_new_event_with_id(event_id);
     sentry_value_set_by_key(
         event, "level", sentry__value_new_level(SENTRY_LEVEL_FATAL));
 
@@ -1111,9 +1112,11 @@ process_ucontext_deferred(const sentry_ucontext_t *uctx,
             options ? sentry_options_get_handler_strategy(options) :
 #endif
                     SENTRY_HANDLER_STRATEGY_DEFAULT;
-        sentry_value_t event = make_signal_event(sig_slot, uctx, strategy);
+        sentry_uuid_t event_id = sentry__new_event_id();
+        sentry_value_t event
+            = make_signal_event(sig_slot, uctx, strategy, &event_id);
         bool should_handle = true;
-        sentry__write_crash_marker(options);
+        sentry__write_crash_marker(options, &event_id);
 
         if (options->on_crash_func && !skip_hooks) {
             SENTRY_DEBUG("invoking `on_crash` hook");

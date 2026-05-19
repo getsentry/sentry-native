@@ -32,6 +32,7 @@ from .assertions import (
     assert_attachment_view_hierarchy,
     assert_before_breadcrumb,
     assert_no_breadcrumbs,
+    assert_crash_timestamp,
 )
 from .conditions import (
     has_http,
@@ -487,6 +488,8 @@ def test_inproc_crash_http(cmake, httpserver, build_args):
         assert_gzip_file_header(body)
 
     envelope = Envelope.deserialize(body)
+    event = envelope.get_event()
+    assert_crash_timestamp(has_files, tmp_path, event["event_id"])
 
     assert_session(envelope, {"init": True, "status": "crashed", "errors": 1})
 
@@ -589,6 +592,8 @@ def test_breakpad_crash_http(cmake, httpserver, build_args):
         assert_gzip_file_header(body)
 
     envelope = Envelope.deserialize(body)
+    event = envelope.get_event()
+    assert_crash_timestamp(has_files, tmp_path, event["event_id"])
 
     assert_session(envelope, {"init": True, "status": "crashed", "errors": 1})
 
@@ -848,6 +853,8 @@ def test_native_crash_http(cmake, httpserver):
     assert len(httpserver.log) >= 1
     req = httpserver.log[0][0]
     envelope = Envelope.deserialize(req.get_data())
+    event = envelope.get_event()
+    assert_crash_timestamp(has_files, tmp_path, event["event_id"])
 
     assert_minidump(envelope)
     assert_breadcrumb(envelope)

@@ -437,13 +437,17 @@ def assert_native_crash(envelope, exception_code=None):
     assert len(exc["stacktrace"]["frames"]) > 0
 
 
-def assert_crash_timestamp(has_files, tmp_path):
+def assert_crash_timestamp(has_files, tmp_path, event_id=None):
     # The crash file should survive a `sentry_init` and should still be there
     # even after restarts.
     if has_files:
         with open("{}/.sentry-native/last_crash".format(tmp_path)) as f:
-            crash_timestamp = f.read()
+            crash_marker = f.read().split()
+            crash_timestamp = crash_marker[0]
         assert_timestamp(crash_timestamp)
+        if event_id is not None:
+            assert len(crash_marker) > 1
+            assert crash_marker[1] == event_id
 
 
 def assert_before_send(envelope):

@@ -16,6 +16,58 @@
 #include <stdlib.h>
 #include <string.h>
 
+static char *
+read_metadata(
+    const sentry_path_t *path, sentry_slice_t *first, sentry_slice_t *second)
+{
+    size_t size = 0;
+    char *contents_buf = sentry__path_read_to_buffer(path, &size);
+    if (!contents_buf) {
+        return NULL;
+    }
+
+    sentry_slice_t contents
+        = sentry__slice_trim((sentry_slice_t) { contents_buf, size });
+    if (contents.len == 0) {
+        return contents_buf;
+    }
+
+    size_t first_len = 0;
+    while (first_len < contents.len
+        && !isspace((unsigned char)contents.ptr[first_len])) {
+        first_len++;
+    }
+    *first = (sentry_slice_t) { contents.ptr, first_len };
+    *second = sentry__slice_trim((sentry_slice_t) {
+        contents.ptr + first_len, contents.len - first_len });
+
+    return contents_buf;
+}
+
+static int
+write_metadata(const sentry_path_t *path, const char *first, size_t first_len,
+    const char *second, size_t second_len)
+{
+    bool has_second = second != NULL;
+    size_t buf_len = first_len + (has_second ? 1 + second_len + 1 : 0);
+    char *buf = sentry_malloc(buf_len);
+    if (!buf) {
+        return 1;
+    }
+
+    memcpy(buf, first, first_len);
+    if (has_second) {
+        buf[first_len] = '\n';
+        memcpy(buf + first_len + 1, second, second_len);
+        buf[first_len + 1 + second_len] = '\n';
+    }
+
+    int rv = sentry__path_write_buffer(path, buf, buf_len);
+    sentry_free(buf);
+
+    return rv;
+}
+
 sentry_run_t *
 sentry__run_new(const sentry_path_t *database_path)
 {
@@ -149,17 +201,13 @@ sentry__run_load_installation_id(sentry_run_t *run,
 
     const size_t uuid_len = 36;
     char uuid_str[37] = { 0 };
-    size_t size = 0;
-    char *contents = sentry__path_read_to_buffer(id_path, &size);
-    if (contents && size >= uuid_len) {
-        // expect: "<uuid>(\s+<public_key>)?"
-        sentry_slice_t tail = { contents + uuid_len, size - uuid_len };
-        sentry_slice_t key = sentry__slice_trim(tail);
-        if ((tail.len == 0 || isspace((unsigned char)tail.ptr[0]))
-            && sentry__slice_eqs(key, public_key)) {
-            memcpy(uuid_str, contents, uuid_len);
-            uuid_str[uuid_len] = '\0';
-        }
+    sentry_slice_t first = { 0 };
+    sentry_slice_t second = { 0 };
+    char *contents = read_metadata(id_path, &first, &second);
+    // expect: "<uuid>(\s+<public_key>)?"
+    if (first.len == uuid_len && sentry__slice_eqs(second, public_key)) {
+        memcpy(uuid_str, first.ptr, uuid_len);
+        uuid_str[uuid_len] = '\0';
     }
     sentry_free(contents);
 
@@ -167,17 +215,10 @@ sentry__run_load_installation_id(sentry_run_t *run,
         sentry_uuid_t uuid = sentry_uuid_new_v4();
         sentry_uuid_as_string(&uuid, uuid_str);
 
-        const size_t buf_len = uuid_len + 1 + key_len + 1;
-        char *buf = sentry_malloc(buf_len);
-        if (buf) {
-            memcpy(buf, uuid_str, uuid_len);
-            buf[uuid_len] = '\n';
-            memcpy(buf + uuid_len + 1, public_key, key_len);
-            buf[uuid_len + 1 + key_len] = '\n';
-            if (sentry__path_write_buffer(id_path, buf, buf_len) != 0) {
-                SENTRY_WARN("failed to persist installation ID");
-            }
-            sentry_free(buf);
+        int rv
+            = write_metadata(id_path, uuid_str, uuid_len, public_key, key_len);
+        if (rv) {
+            SENTRY_WARN("failed to persist installation ID");
         }
     }
 
@@ -974,7 +1015,8 @@ sentry__cleanup_cache(const sentry_options_t *options)
 static const char *g_last_crash_filename = "last_crash";
 
 bool
-sentry__write_crash_marker(const sentry_options_t *options)
+sentry__write_crash_marker(
+    const sentry_options_t *options, const sentry_uuid_t *event_id)
 {
     char *iso_time = sentry__usec_time_to_iso8601(sentry__usec_time());
     if (!iso_time) {
@@ -989,7 +1031,17 @@ sentry__write_crash_marker(const sentry_options_t *options)
     }
 
     size_t iso_time_len = strlen(iso_time);
-    int rv = sentry__path_write_buffer(marker_path, iso_time, iso_time_len);
+    char event_id_str[37];
+    const char *event_id_value = NULL;
+    size_t event_id_len = 0;
+    if (event_id && !sentry_uuid_is_nil(event_id)) {
+        sentry_uuid_as_string(event_id, event_id_str);
+        event_id_value = event_id_str;
+        event_id_len = strlen(event_id_str);
+    }
+
+    int rv = write_metadata(
+        marker_path, iso_time, iso_time_len, event_id_value, event_id_len);
     sentry_free(iso_time);
     sentry__path_free(marker_path);
 
@@ -997,6 +1049,41 @@ sentry__write_crash_marker(const sentry_options_t *options)
         SENTRY_WARN("writing crash timestamp to file failed");
     }
     return !rv;
+}
+
+int
+sentry__read_crash_marker(
+    const sentry_options_t *options, sentry_last_crash_t *crash)
+{
+    if (crash) {
+        memset(crash, 0, sizeof(*crash));
+    }
+
+    sentry_path_t *marker_path
+        = sentry__path_join_str(options->database_path, g_last_crash_filename);
+    if (!marker_path) {
+        return 0;
+    }
+
+    sentry_slice_t first = { 0 };
+    sentry_slice_t second = { 0 };
+    char *contents = read_metadata(marker_path, &first, &second);
+    int crashed = contents ? 1 : 0;
+    if (crash && first.len > 0) {
+        crash->timestamp = sentry__iso8601_to_usec(first.ptr, first.len);
+    }
+
+    if (crash && (second.len == 32 || second.len == 36)) {
+        sentry_uuid_t parsed
+            = sentry_uuid_from_string_n(second.ptr, second.len);
+        if (!sentry_uuid_is_nil(&parsed)) {
+            crash->event_id = parsed;
+        }
+    }
+
+    sentry_free(contents);
+    sentry__path_free(marker_path);
+    return crashed;
 }
 
 bool

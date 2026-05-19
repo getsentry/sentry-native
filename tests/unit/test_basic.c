@@ -174,9 +174,9 @@ SENTRY_TEST(crash_marker)
     // We can also verify this with has_crash_marker
     TEST_CHECK(!sentry__has_crash_marker(options));
 
-    TEST_CHECK(sentry__write_crash_marker(options));
+    TEST_CHECK(sentry__write_crash_marker(options, NULL));
     TEST_CHECK(sentry__has_crash_marker(options));
-    TEST_CHECK(sentry__write_crash_marker(options));
+    TEST_CHECK(sentry__write_crash_marker(options, NULL));
     TEST_CHECK(sentry__has_crash_marker(options));
 
     TEST_CHECK(sentry__clear_crash_marker(options));
@@ -193,6 +193,11 @@ SENTRY_TEST(crashed_last_run)
 {
     // fails before init() is called
     TEST_CHECK_INT_EQUAL(sentry_clear_crashed_last_run(), 1);
+    sentry_last_crash_t last_crash = { 0 };
+    TEST_CHECK_INT_EQUAL(
+        sentry_get_last_crash(&last_crash, sizeof(last_crash)), -1);
+    TEST_CHECK_INT_EQUAL(last_crash.timestamp, 0);
+    TEST_CHECK(sentry_uuid_is_nil(&last_crash.event_id));
 
     // clear any leftover from previous test runs
     {
@@ -214,18 +219,28 @@ SENTRY_TEST(crashed_last_run)
         sentry_close();
 
         TEST_CHECK_INT_EQUAL(sentry_get_crashed_last_run(), 0);
+        last_crash = (sentry_last_crash_t) { 0 };
+        TEST_CHECK_INT_EQUAL(
+            sentry_get_last_crash(&last_crash, sizeof(last_crash)), 0);
+        TEST_CHECK_INT_EQUAL(last_crash.timestamp, 0);
+        TEST_CHECK(sentry_uuid_is_nil(&last_crash.event_id));
     }
 
     {
         SENTRY_TEST_OPTIONS_NEW(options);
         sentry_options_set_dsn_n(options, dsn, sizeof(dsn));
 
-        // simulate a crash
-        TEST_CHECK(sentry__write_crash_marker(options));
+        // simulate a crash with an old timestamp-only marker
+        TEST_CHECK(sentry__write_crash_marker(options, NULL));
 
         TEST_CHECK_INT_EQUAL(sentry_init(options), 0);
 
         TEST_CHECK_INT_EQUAL(sentry_get_crashed_last_run(), 1);
+        last_crash = (sentry_last_crash_t) { 0 };
+        TEST_CHECK_INT_EQUAL(
+            sentry_get_last_crash(&last_crash, sizeof(last_crash)), 1);
+        TEST_CHECK(last_crash.timestamp > 0);
+        TEST_CHECK(sentry_uuid_is_nil(&last_crash.event_id));
 
         // clear the status and re-init
         TEST_CHECK_INT_EQUAL(sentry_clear_crashed_last_run(), 0);
@@ -237,12 +252,50 @@ SENTRY_TEST(crashed_last_run)
     }
 
     {
+        sentry_uuid_t event_id
+            = sentry_uuid_from_string("4c035723-8638-4c3a-923f-2ab9d08b4018");
+        SENTRY_TEST_OPTIONS_NEW(options);
+        sentry_options_set_dsn_n(options, dsn, sizeof(dsn));
+
+        // simulate a crash with a marker containing the event ID
+        TEST_CHECK(sentry__write_crash_marker(options, &event_id));
+
+        TEST_CHECK_INT_EQUAL(sentry_init(options), 0);
+
+        TEST_CHECK_INT_EQUAL(sentry_get_crashed_last_run(), 1);
+        TEST_CHECK_INT_EQUAL(sentry_get_last_crash(NULL, 0), 1);
+        last_crash = (sentry_last_crash_t) { 0 };
+        TEST_CHECK_INT_EQUAL(
+            sentry_get_last_crash(&last_crash, sizeof(last_crash)), 1);
+        TEST_CHECK(last_crash.timestamp > 0);
+        char last_crash_event_id_str[37];
+        sentry_uuid_as_string(&last_crash.event_id, last_crash_event_id_str);
+        TEST_CHECK_STRING_EQUAL(
+            last_crash_event_id_str, "4c035723-8638-4c3a-923f-2ab9d08b4018");
+
+        last_crash = (sentry_last_crash_t) { 0 };
+        TEST_CHECK_INT_EQUAL(
+            sentry_get_last_crash(&last_crash, sizeof(last_crash.timestamp)),
+            1);
+        TEST_CHECK(last_crash.timestamp > 0);
+        TEST_CHECK(sentry_uuid_is_nil(&last_crash.event_id));
+
+        TEST_CHECK_INT_EQUAL(sentry_clear_crashed_last_run(), 0);
+        sentry_close();
+    }
+
+    {
         SENTRY_TEST_OPTIONS_NEW(options);
         sentry_options_set_dsn_n(options, dsn, sizeof(dsn));
         TEST_CHECK_INT_EQUAL(sentry_init(options), 0);
         sentry_close();
 
         TEST_CHECK_INT_EQUAL(sentry_get_crashed_last_run(), 0);
+        last_crash = (sentry_last_crash_t) { 0 };
+        TEST_CHECK_INT_EQUAL(
+            sentry_get_last_crash(&last_crash, sizeof(last_crash)), 0);
+        TEST_CHECK_INT_EQUAL(last_crash.timestamp, 0);
+        TEST_CHECK(sentry_uuid_is_nil(&last_crash.event_id));
     }
 }
 

@@ -31,6 +31,7 @@ from .assertions import (
     assert_session,
     assert_gzip_file_header,
     assert_logs,
+    assert_crash_timestamp,
     assert_user_feedback,
     wait_for_file,
 )
@@ -425,6 +426,8 @@ def test_crashpad_dumping_crash(cmake, httpserver, run_args, build_args):
         expect_view_hierarchy="clear-attachments" not in run_args,
     )
     event_id = attachments.event["event_id"]
+    if sys.platform != "darwin":
+        assert_crash_timestamp(True, tmp_path, event_id)
     if sys.platform == "win32":
         minidump = tmp_path / ".sentry-native" / "reports" / f"{event_id}.dmp"
     else:

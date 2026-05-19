@@ -3563,6 +3563,39 @@ SENTRY_EXPERIMENTAL_API void sentry_transaction_iter_headers(
 SENTRY_EXPERIMENTAL_API int sentry_get_crashed_last_run(void);
 
 /**
+ * Information about the crash from the last run.
+ */
+typedef struct sentry_last_crash_s {
+    /**
+     * The crash timestamp in microseconds since the Unix epoch, or 0 if it is
+     * unavailable.
+     */
+    uint64_t timestamp;
+    /**
+     * The crash event ID, or a nil UUID if it is unavailable.
+     */
+    sentry_uuid_t event_id;
+} sentry_last_crash_t;
+
+/**
+ * Returns whether the application crashed on the last run, and populates
+ * `crash` with available information.
+ *
+ * Pass `sizeof(sentry_last_crash_t)` as `crash_size` so future SDK versions can
+ * add fields without breaking callers compiled against older headers. Call
+ * `sentry_clear_crashed_last_run()` to reset for the next app run.
+ *
+ * Note: This does not work with crashpad on macOS, similar to `on_crash`.
+ *
+ * Possible return values:
+ *   1 = the last run was a crash
+ *   0 = no crash recognized
+ *  -1 = sentry_init() hasn't been called yet
+ */
+SENTRY_API int sentry_get_last_crash(
+    sentry_last_crash_t *crash, size_t crash_size);
+
+/**
  * Clear the status of the "crashed-last-run". You should explicitly call
  * this after sentry_init() if you're using sentry_get_crashed_last_run().
  * Otherwise, the same information is reported on any subsequent runs.

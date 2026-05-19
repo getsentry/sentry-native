@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+**Features**:
+
+- Add `sentry_get_last_crash` to allow fetching `event_id` from last crash. ([#1711](https://github.com/getsentry/sentry-native/pull/1711))
+
 **Fixes**:
 
 - Reject overly deep msgpack payloads during deserialization. ([#1727](https://github.com/getsentry/sentry-native/pull/1727))
