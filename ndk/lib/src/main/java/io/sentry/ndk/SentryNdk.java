@@ -82,10 +82,11 @@ public final class SentryNdk {
    *
    * <p>Linux/Android only. Other platforms return an empty array.
    *
-   * <p>The first call on a supported platform permanently installs a signal handler for {@code
-   * SIGRTMIN + 5} in the process. The handler is not removed by {@link #close()} and stays
-   * installed for the lifetime of the process. Host applications that themselves use {@code
-   * SIGRTMIN + 5} should not call this method.
+   * <p>The first call on a supported platform installs a signal handler for {@code SIGRTMIN + 5}
+   * in the process. The handler chains to any previously installed handler for the same signal:
+   * deliveries that did not originate from this sampler are forwarded, so host applications or
+   * other libraries using {@code SIGRTMIN + 5} keep working. The handler is not removed by {@link
+   * #close()} and stays installed for the lifetime of the process.
    *
    * @param tid Linux kernel TID of the target thread (e.g. android.os.Process.myTid()).
    * @return array of instruction-pointer addresses (up to 128 frames), or empty on failure.

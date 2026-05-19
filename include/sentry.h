@@ -728,10 +728,12 @@ SENTRY_EXPERIMENTAL_API size_t sentry_unwind_stack_from_ucontext(
  * may receive stale frames. This is acceptable for ANR / frozen-frame capture
  * (one sample per event) but precludes profiler-style continuous sampling.
  *
- * The first call on a supported platform permanently installs a signal handler
- * for `SIGRTMIN + 5`. The handler is not removed by `sentry_close()` and stays
- * installed for the lifetime of the process. Host applications that themselves
- * use `SIGRTMIN + 5` should not call this function.
+ * The first call on a supported platform installs a signal handler for
+ * `SIGRTMIN + 5`. The handler chains to any previously installed handler for
+ * the same signal: deliveries that did not originate from this sampler are
+ * forwarded, so host applications or other libraries using `SIGRTMIN + 5`
+ * keep working. The handler is not removed by `sentry_close()` and stays
+ * installed for the lifetime of the process.
  *
  * @param tid Linux kernel TID of the target thread (e.g. from gettid() or
  *            android.os.Process.myTid()).

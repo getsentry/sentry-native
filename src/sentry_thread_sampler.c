@@ -77,6 +77,39 @@ static volatile int g_sampler_initialized = 0;
 static volatile int g_expected_tid = 0;
 
 /*
+ * Previous disposition of SENTRY_SAMPLER_SIGNAL, captured at install time so we
+ * can forward signals not originating from our sampler (e.g. a host
+ * application or another library that also uses this slot). Written once
+ * under `g_sampler_lock` before the handler can fire; the `sigaction` syscall
+ * provides the memory barrier that publishes it to the handler context.
+ */
+static struct sigaction g_prev_action;
+
+/*
+ * Forward a SENTRY_SAMPLER_SIGNAL delivery to whatever handler was installed
+ * before us. Async-signal-safe by construction: just a function-pointer
+ * dispatch into code the host already deemed safe for this signal.
+ */
+static void
+sentry__sampler_chain_previous(int sig, siginfo_t *info, void *ucontext_v)
+{
+    void *fn = (g_prev_action.sa_flags & SA_SIGINFO)
+        ? (void *)g_prev_action.sa_sigaction
+        : (void *)g_prev_action.sa_handler;
+    if (fn == NULL || fn == (void *)SIG_DFL || fn == (void *)SIG_IGN) {
+        // No-op for SIG_DFL too: the default disposition for a real-time
+        // signal is process termination, which we never want to trigger from
+        // a stale or unrelated delivery.
+        return;
+    }
+    if (g_prev_action.sa_flags & SA_SIGINFO) {
+        g_prev_action.sa_sigaction(sig, info, ucontext_v);
+    } else {
+        g_prev_action.sa_handler(sig);
+    }
+}
+
+/*
  * Signal handler running on the *target* thread's stack. Must be strictly
  * async-signal-safe: no malloc, no logging, no mutex acquisition.
  *
@@ -89,17 +122,17 @@ static volatile int g_expected_tid = 0;
 static void
 sentry__sampler_signal_handler(int sig, siginfo_t *info, void *ucontext_v)
 {
-    (void)sig;
-    (void)info;
-
     // Stale-signal guard: if our TID doesn't match the request currently in
-    // flight, return silently without posting. Writing into the active
-    // request's buffer here would corrupt the result. Not posting is safe —
-    // the active request's tgkill will produce its own (correctly-targeted)
-    // handler invocation, and `sem_trywait` drains any leftover posts at the
-    // start of each request.
+    // flight, this delivery is either (a) a queued stale signal from a
+    // previous timed-out sample targeting some other thread (impossible here,
+    // since tgkill is thread-targeted) or (b) a signal a host application or
+    // unrelated library sent on this slot. Case (a) cannot occur — a stale
+    // queued signal can only land on the thread it was targeted at — so any
+    // mismatch is by definition not ours. Forward to the previously installed
+    // handler so the host's use of this signal keeps working.
     const int my_tid = (int)syscall(SYS_gettid);
     if (my_tid != g_expected_tid) {
+        sentry__sampler_chain_previous(sig, info, ucontext_v);
         return;
     }
 
@@ -174,12 +207,13 @@ sentry_unwind_thread_stack(int tid, void **stacktrace_out, size_t max_len)
         sa.sa_flags = SA_SIGINFO | SA_RESTART;
         sigemptyset(&sa.sa_mask);
 
-        // The sampler claims this signal slot for the lifetime of the
-        // process; any prior disposition is silently overwritten. We don't
-        // capture the old handler because we have no async-signal-safe
-        // logger to report a collision and no shutdown path that would
-        // restore it.
-        if (sigaction(SENTRY_SAMPLER_SIGNAL, &sa, NULL) != 0) {
+        // Capture the previous disposition so the handler can chain to it for
+        // any delivery that isn't our sample (see
+        // `sentry__sampler_chain_previous`). The handler is permanent for the
+        // process lifetime — `sentry_close()` does not restore the previous
+        // action, because doing so races with queued-but-undelivered samples
+        // and could reinstate `SIG_DFL` in time to terminate the process.
+        if (sigaction(SENTRY_SAMPLER_SIGNAL, &sa, &g_prev_action) != 0) {
             sem_destroy(&g_sampler_done);
             pthread_mutex_unlock(&g_sampler_lock);
             return 0;
