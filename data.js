@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1779193239302,
+  "lastUpdate": 1779193254997,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -43894,6 +43894,66 @@ window.BENCHMARK_DATA = {
             "value": 17.10804200001803,
             "unit": "ms",
             "extra": "Min 15.900ms\nMax 21.108ms\nMean 17.741ms\nStdDev 2.013ms\nMedian 17.108ms\nCPU 1.861ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "jpnurmi@gmail.com",
+            "name": "J-P Nurmi",
+            "username": "jpnurmi"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "6c9172fe247e41cccf333c05b863587883ead47c",
+          "message": "fix: Read lengths for variadic fingerprints (#1730)\n\nCo-authored-by: OpenAI Codex <noreply@openai.com>",
+          "timestamp": "2026-05-19T14:15:33+02:00",
+          "tree_id": "25a0072eef638a5787fa4110cea04846abc23882",
+          "url": "https://github.com/getsentry/sentry-native/commit/6c9172fe247e41cccf333c05b863587883ead47c"
+        },
+        "date": 1779193246230,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 5.871916999979021,
+            "unit": "ms",
+            "extra": "Min 3.513ms\nMax 7.240ms\nMean 5.786ms\nStdDev 1.543ms\nMedian 5.872ms\nCPU 3.325ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 4.850207999993472,
+            "unit": "ms",
+            "extra": "Min 4.110ms\nMax 9.486ms\nMean 5.720ms\nStdDev 2.163ms\nMedian 4.850ms\nCPU 3.233ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 58.286207999969974,
+            "unit": "ms",
+            "extra": "Min 12.741ms\nMax 95.868ms\nMean 56.417ms\nStdDev 29.933ms\nMedian 58.286ms\nCPU 7.017ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.07637499999191277,
+            "unit": "ms",
+            "extra": "Min 0.057ms\nMax 0.299ms\nMean 0.121ms\nStdDev 0.101ms\nMedian 0.076ms\nCPU 0.091ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.3904589999592645,
+            "unit": "ms",
+            "extra": "Min 0.276ms\nMax 0.690ms\nMean 0.412ms\nStdDev 0.163ms\nMedian 0.390ms\nCPU 0.412ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 12.712167000017871,
+            "unit": "ms",
+            "extra": "Min 7.773ms\nMax 30.080ms\nMean 14.474ms\nStdDev 9.155ms\nMedian 12.712ms\nCPU 1.568ms"
           }
         ]
       }
