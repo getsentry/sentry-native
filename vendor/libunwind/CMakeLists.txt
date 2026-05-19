@@ -289,8 +289,8 @@ if(CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
 endif()
 
 if(ANDROID)
-    # On Android, pthread is part of libc; there is no separate libpthread.so.
-    # libdl is similarly merged, so ${CMAKE_DL_LIBS} expands to empty.
+    # Bionic merges pthread into libc, so there is no libpthread.so to link.
+    # CMAKE_DL_LIBS is still kept — it may resolve to libdl.so on Android.
     target_link_libraries(unwind PRIVATE ${CMAKE_DL_LIBS})
 else()
     target_link_libraries(unwind PRIVATE ${CMAKE_DL_LIBS} pthread)
