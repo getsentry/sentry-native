@@ -3,3 +3,11 @@
 # the logging itself, but real usage calls sentry_init once per process and does not justify
 # a mutex acquisition on every log
 race:g_logger
+
+# Suppress races between the thread-sampler caller (sentry_unwind_thread_stack) and the
+# async-signal handler running on the target thread. Memory ordering between the two is
+# provided by the kernel: tgkill is a syscall, and signal-frame setup on the target thread
+# carries the full memory barriers required to publish the request globals to the handler.
+# TSan cannot model this kernel-mediated synchronization and flags the accesses as races.
+# See the comment block in src/sentry_thread_sampler.c for details.
+race:sentry__sampler_signal_handler
