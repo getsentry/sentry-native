@@ -124,6 +124,12 @@ static void
 sentry__cross_thread_unwind_signal_handler(
     int sig, siginfo_t *info, void *ucontext_v)
 {
+    // Save and restore errno around any work done in the signal handler.
+    // The handler can interrupt arbitrary user code that may be inspecting
+    // errno after a failed libc call; modifying it here would corrupt that
+    // observation. syscall(), unw_*(), and sem_post() can all touch errno.
+    const int saved_errno = errno;
+
     // Stale-signal guard: if our TID doesn't match the request currently in
     // flight, this delivery is either (a) a queued stale signal from a
     // previous timed-out request targeting some other thread (impossible
@@ -136,6 +142,7 @@ sentry__cross_thread_unwind_signal_handler(
     const int my_tid = (int)syscall(SYS_gettid);
     if (my_tid != g_expected_tid) {
         sentry__cross_thread_unwind_chain_previous(sig, info, ucontext_v);
+        errno = saved_errno;
         return;
     }
 
@@ -179,6 +186,7 @@ sentry__cross_thread_unwind_signal_handler(
     g_unwind_out_written = written;
     // sem_post is in the POSIX async-signal-safe list.
     sem_post(&g_unwind_done);
+    errno = saved_errno;
 }
 
 #endif // SENTRY_CROSS_THREAD_UNWIND_SUPPORTED

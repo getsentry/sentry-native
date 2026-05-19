@@ -121,7 +121,7 @@ def run(cwd, exe, args, expect_failure=False, env=None, **kwargs):
                 # `LD_LIBRARY_PATH` to force the android dynamic loader to
                 # load `libsentry.so` from the correct library.
                 # See https://android.googlesource.com/platform/bionic/+/master/android-changes-for-ndk-developers.md#dt_runpath-support-available-in-api-level-24
-                "cd /data/local/tmp && LD_LIBRARY_PATH=. ./{} {}; echo -n ret:$?".format(
+                "cd /data/local/tmp && TMPDIR=/data/local/tmp LD_LIBRARY_PATH=. ./{} {}; echo -n ret:$?".format(
                     exe, " ".join(args)
                 ),
             ],

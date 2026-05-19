@@ -1,5 +1,7 @@
 #include "sentry_testsupport.h"
 
+#include <stdlib.h>
+
 #if defined(__linux__) || defined(__ANDROID__)
 #    include <pthread.h>
 #    include <sys/syscall.h>
@@ -7,6 +9,12 @@
 
 SENTRY_TEST(cross_thread_unwind_self)
 {
+    // qemu-user does not faithfully emulate tgkill + libunwind from a
+    // real-time signal frame; the unwinder intermittently returns zero
+    // frames. The behaviour is exercised on every native runner in CI.
+    if (getenv("TEST_QEMU")) {
+        SKIP_TEST();
+    }
     void *frames[32];
     pid_t tid = (pid_t)syscall(SYS_gettid);
     size_t n = sentry_unwind_thread_stack((int)tid, frames, 32);
@@ -50,6 +58,9 @@ SENTRY_TEST(cross_thread_unwind_other_thread)
     // This test exercises the cross-thread tgkill path that ANR / frozen-frame
     // callers actually use, where the requesting thread and the unwound
     // thread are distinct.
+    if (getenv("TEST_QEMU")) {
+        SKIP_TEST();
+    }
     struct worker_ctx ctx;
     pthread_mutex_init(&ctx.mutex, NULL);
     pthread_cond_init(&ctx.tid_published, NULL);

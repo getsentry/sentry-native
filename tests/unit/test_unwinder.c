@@ -6,6 +6,7 @@
 #ifdef SENTRY_WITH_UNWINDER_LIBUNWIND
 #    include "unwinder/sentry_unwinder.h"
 #    include <fcntl.h>
+#    include <stdio.h>
 #    include <unistd.h>
 extern bool find_mem_range_from_fd(int fd, uintptr_t ptr, mem_range_t *range);
 #endif
@@ -135,7 +136,17 @@ SENTRY_TEST(find_mem_range)
     // Test that the target range ON an oversized line (> 4096 bytes) is
     // still found.  The lo-hi prefix must be parsed before discarding the
     // remainder of the line.
-    char tmp_path[] = "/tmp/sentry_test_maps_XXXXXX";
+    // Android emulator and sandboxed environments have no writable /tmp,
+    // so prefer $TMPDIR when set.
+    const char *tmpdir = getenv("TMPDIR");
+    if (!tmpdir || !*tmpdir) {
+        tmpdir = "/tmp";
+    }
+    char tmp_path[256];
+    TEST_ASSERT(
+        snprintf(tmp_path, sizeof(tmp_path), "%s/sentry_test_maps_XXXXXX",
+            tmpdir)
+        < (int)sizeof(tmp_path));
     fd = mkstemp(tmp_path);
     TEST_ASSERT(fd >= 0);
     const char *long_prefix = "dead0000-deadf000 r-xp 00000000 08:01 1234 /";
