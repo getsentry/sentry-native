@@ -165,6 +165,21 @@ winhttp_client_shutdown(void *_client)
     }
 }
 
+static char *
+query_header(HINTERNET request, const wchar_t *header)
+{
+    // lets just assume we won't have headers > 2k
+    wchar_t buf[2048];
+    DWORD buf_size = sizeof(buf);
+
+    if (WinHttpQueryHeaders(request, WINHTTP_QUERY_CUSTOM, header, buf,
+            &buf_size, WINHTTP_NO_HEADER_INDEX)) {
+        return sentry__string_from_wstr(buf);
+    }
+
+    return NULL;
+}
+
 static bool
 winhttp_send_task(void *_client, sentry_prepared_http_request_t *req,
     sentry_http_response_t *resp)
@@ -341,10 +356,6 @@ winhttp_send_task(void *_client, sentry_prepared_http_request_t *req,
             }
         }
 
-        // lets just assume we won't have headers > 2k
-        wchar_t buf[2048];
-        DWORD buf_size = sizeof(buf);
-
         DWORD status_code = 0;
         DWORD status_code_size = sizeof(status_code);
 
@@ -354,21 +365,13 @@ winhttp_send_task(void *_client, sentry_prepared_http_request_t *req,
             WINHTTP_NO_HEADER_INDEX);
         resp->status_code = (int)status_code;
 
-        if (WinHttpQueryHeaders(client->request, WINHTTP_QUERY_CUSTOM,
-                L"x-sentry-rate-limits", buf, &buf_size,
-                WINHTTP_NO_HEADER_INDEX)) {
-            resp->x_sentry_rate_limits = sentry__string_from_wstr(buf);
-        } else if (WinHttpQueryHeaders(client->request, WINHTTP_QUERY_CUSTOM,
-                       L"retry-after", buf, &buf_size,
-                       WINHTTP_NO_HEADER_INDEX)) {
-            resp->retry_after = sentry__string_from_wstr(buf);
+        resp->x_sentry_rate_limits
+            = query_header(client->request, L"x-sentry-rate-limits");
+        if (!resp->x_sentry_rate_limits) {
+            resp->retry_after = query_header(client->request, L"retry-after");
         }
 
-        buf_size = sizeof(buf);
-        if (WinHttpQueryHeaders(client->request, WINHTTP_QUERY_CUSTOM,
-                L"location", buf, &buf_size, WINHTTP_NO_HEADER_INDEX)) {
-            resp->location = sentry__string_from_wstr(buf);
-        }
+        resp->location = query_header(client->request, L"location");
     }
 
     uint64_t now = sentry__monotonic_time();

@@ -580,3 +580,26 @@ SENTRY_TEST(bgworker_delayed_shutdown)
 
     sentry__bgworker_decref(bgw);
 }
+
+SENTRY_TEST(cond_wait_timeout_overflow)
+{
+#if !(defined(SENTRY_PLATFORM_MACOS)                                           \
+    || (defined(SENTRY_PLATFORM_LINUX) && !defined(SENTRY_PLATFORM_ANDROID)))
+    SKIP_TEST();
+#else
+    sentry_cond_t cond;
+    sentry_mutex_t mutex;
+    sentry__cond_init(&cond);
+    sentry__mutex_init(&mutex);
+
+    // Opportunistic guard: in the vulnerable time window (tv_usec >= 750000),
+    // old code returned EINVAL immediately and callers could busy-spin.
+    sentry__mutex_lock(&mutex);
+    TEST_CHECK_INT_EQUAL(
+        sentry__cond_wait_timeout(&cond, &mutex, 250), ETIMEDOUT);
+    sentry__mutex_unlock(&mutex);
+
+    sentry__mutex_free(&mutex);
+    pthread_cond_destroy(&cond);
+#endif
+}

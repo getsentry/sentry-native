@@ -362,8 +362,9 @@ sentry__cond_wait_timeout(
     struct timeval now;
     struct timespec lock_time;
     gettimeofday(&now, NULL);
-    lock_time.tv_sec = now.tv_sec + msecs / 1000ULL;
-    lock_time.tv_nsec = (now.tv_usec + 1000ULL * (msecs % 1000)) * 1000ULL;
+    uint64_t usecs = now.tv_usec + 1000ULL * (msecs % 1000);
+    lock_time.tv_sec = now.tv_sec + msecs / 1000ULL + usecs / 1000000ULL;
+    lock_time.tv_nsec = (usecs % 1000000ULL) * 1000ULL;
     return pthread_cond_timedwait(cv, mutex, &lock_time);
 }
 #endif
