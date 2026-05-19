@@ -3169,8 +3169,12 @@ sentry__process_crash(const sentry_options_t *options, sentry_crash_ipc_t *ipc)
 
     add_attachment_refs(envelope, options, run_folder);
 
-    bool has_attachment_refs = sentry__envelope_has_content_type(
+#if defined(SENTRY_PLATFORM_ANDROID)
+    bool write_envelope = true;
+#else
+    bool write_envelope = sentry__envelope_has_content_type(
         envelope, SENTRY_ATTACHMENT_REF_MIME);
+#endif
 
     SENTRY_DEBUG("Envelope loaded, capturing");
 
@@ -3181,19 +3185,28 @@ sentry__process_crash(const sentry_options_t *options, sentry_crash_ipc_t *ipc)
 
     // Capture directly, or pass to external crash reporter
     if (!sentry__launch_external_crash_reporter(options, envelope)) {
-        if (has_attachment_refs && options && options->run) {
-            if (!sentry__run_write_envelope(options->run, envelope)) {
-                SENTRY_WARN(
-                    "Failed to dump crash envelope for resend on restart");
+        if (write_envelope) {
+            if (!options || !options->run
+                || !sentry__run_write_envelope(options->run, envelope)) {
+                SENTRY_WARN("Failed to dump crash envelope to run folder");
+            } else {
+#if defined(SENTRY_PLATFORM_ANDROID)
+                SENTRY_DEBUG(
+                    "Crash envelope written for Android tombstone merging");
+                sentry_envelope_free(envelope);
+                envelope = NULL;
+#endif
             }
         }
-        if (options && options->transport && options->run) {
-            SENTRY_DEBUG("Capturing crash envelope");
-            sentry__capture_envelope(options->transport, envelope, options);
-            SENTRY_DEBUG("Crash envelope captured (queued)");
-        } else {
-            SENTRY_WARN("No transport available for sending envelope");
-            sentry_envelope_free(envelope);
+        if (envelope) {
+            if (options && options->transport && options->run) {
+                SENTRY_DEBUG("Capturing crash envelope");
+                sentry__capture_envelope(options->transport, envelope, options);
+                SENTRY_DEBUG("Crash envelope captured (queued)");
+            } else {
+                SENTRY_WARN("No transport available for sending envelope");
+                sentry_envelope_free(envelope);
+            }
         }
     }
 
@@ -3593,7 +3606,17 @@ sentry__crash_daemon_main(pid_t app_pid, uint64_t app_tid, HANDLE event_handle,
             dumped_envelopes = sentry__transport_dump_queue(
                 options->transport, options->run);
             if (rv == 0 && !dumped_envelopes && options->run) {
+#if defined(SENTRY_PLATFORM_ANDROID)
+                if (!crash_processed) {
+                    sentry__run_clean(options->run, true);
+                } else {
+                    SENTRY_DEBUG(
+                        "Keeping daemon run folder for Android tombstone "
+                        "merging");
+                }
+#else
                 sentry__run_clean(options->run, true);
+#endif
             }
         }
         sentry_options_free(options);
