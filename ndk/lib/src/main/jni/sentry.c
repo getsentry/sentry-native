@@ -386,6 +386,8 @@ Java_io_sentry_ndk_SentryNdk_initSentryNative(
 
 #if defined(SENTRY_BACKEND_NATIVE)
     set_handler_path(options);
+    sentry_options_set_crash_reporting_mode(
+        options, SENTRY_CRASH_REPORTING_MODE_NATIVE);
 #endif
 
     // session tracking is enabled by default, but the Android SDK already handles it
