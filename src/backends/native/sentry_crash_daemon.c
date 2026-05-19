@@ -5,6 +5,7 @@
 #include "sentry_attachment.h"
 #include "sentry_core.h"
 #include "sentry_crash_ipc.h"
+#include "sentry_crash_unwind.h"
 #include "sentry_database.h"
 #include "sentry_envelope.h"
 #include "sentry_json.h"
@@ -792,6 +793,47 @@ build_stacktrace_for_thread(
         }
     }
 #elif defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID)
+#    if defined(SENTRY_PLATFORM_ANDROID)                                       \
+        && defined(SENTRY_WITH_UNWINDER_LIBUNWINDSTACK)
+    if (thread_idx == SIZE_MAX || thread_idx == 0) {
+        uint64_t unwind_ips[MAX_STACK_FRAMES];
+        size_t unwind_count = sentry__crash_unwind_stack_libunwindstack(
+            ctx->crashed_pid, thread_context, unwind_ips, MAX_STACK_FRAMES);
+        if (unwind_count > 0) {
+            sentry_value_t temp_frames[MAX_STACK_FRAMES];
+            int frame_count = 0;
+            for (size_t i = 0;
+                i < unwind_count && frame_count < MAX_STACK_FRAMES; i++) {
+                uint64_t frame_ip = unwind_ips[i];
+                if (frame_ip == 0 || !is_valid_code_addr(frame_ip)) {
+                    continue;
+                }
+                temp_frames[frame_count] = sentry_value_new_object();
+                sentry_value_set_by_key(temp_frames[frame_count],
+                    "instruction_addr", sentry__value_new_addr(frame_ip));
+                sentry_value_set_by_key(temp_frames[frame_count], "trust",
+                    sentry_value_new_string(i == 0 ? "context" : "cfi"));
+                enrich_frame_with_module_info(
+                    ctx, temp_frames[frame_count], frame_ip);
+                frame_count++;
+            }
+
+            if (frame_count > 0) {
+                for (int i = frame_count - 1; i >= 0; i--) {
+                    sentry_value_append(frames, temp_frames[i]);
+                }
+                sentry_value_set_by_key(stacktrace, "frames", frames);
+                sentry_value_set_by_key(stacktrace, "registers",
+                    build_registers_from_ctx(ctx, thread_idx));
+                sentry_value_set_by_key(stacktrace,
+                    "instruction_addr_adjustment",
+                    sentry_value_new_string("none"));
+                return stacktrace;
+            }
+        }
+    }
+#    endif
+
     // On Linux, use process_vm_readv to read stack memory from crashed process
     if (ctx->platform.num_threads > 0) {
         pid_t pid = ctx->crashed_pid;
@@ -1071,6 +1113,24 @@ build_stacktrace_for_thread(
 #    include <elf.h>
 
 /**
+ * Quickly verify a file is an ELF binary by reading its magic bytes.
+ */
+static bool
+is_elf_file(const char *path)
+{
+    int fd = open(path, O_RDONLY);
+    if (fd < 0) {
+        return false;
+    }
+
+    unsigned char magic[SELFMAG];
+    bool is_elf = read(fd, magic, SELFMAG) == (ssize_t)SELFMAG
+        && memcmp(magic, ELFMAG, SELFMAG) == 0;
+    close(fd);
+    return is_elf;
+}
+
+/**
  * Extract Build ID from ELF file (for debug_meta)
  * Returns the Build ID length, or 0 if not found
  */
@@ -1226,6 +1286,13 @@ capture_modules_from_proc_maps(sentry_crash_context_t *ctx)
             continue; // No pathname or special mapping like [stack]
         }
 
+        // Only readable real ELF files are useful as debug images. This skips
+        // device files, ashmem/memfd regions, fonts, APK resources, and other
+        // named mappings that can otherwise create bogus image ranges.
+        if (perms[0] != 'r') {
+            continue;
+        }
+
         const char *pathname = line + pathname_offset;
         // Trim newline
         size_t len = strlen(pathname);
@@ -1235,12 +1302,23 @@ capture_modules_from_proc_maps(sentry_crash_context_t *ctx)
         if (len == 0) {
             continue;
         }
+        ((char *)pathname)[len] = '\0';
+
+        if (offset > start || !is_elf_file(pathname)) {
+            continue;
+        }
+
+        // Calculate base address: for PIE binaries, the file offset tells us
+        // how far into the file this mapping starts, so we subtract it to get
+        // the actual load base address.
+        uint64_t base_address = start - offset;
 
         // Check if this file is already captured - if so, extend size if needed
         sentry_module_info_t *existing_mod = NULL;
         for (uint32_t j = 0; j < ctx->module_count; j++) {
             if (strncmp(ctx->modules[j].name, pathname, len) == 0
-                && ctx->modules[j].name[len] == '\0') {
+                && ctx->modules[j].name[len] == '\0'
+                && ctx->modules[j].base_address == base_address) {
                 existing_mod = &ctx->modules[j];
                 break;
             }
@@ -1261,10 +1339,7 @@ capture_modules_from_proc_maps(sentry_crash_context_t *ctx)
 
         sentry_module_info_t *mod = &ctx->modules[ctx->module_count];
 
-        // Calculate base address: for PIE binaries, the file offset tells us
-        // how far into the file this mapping starts, so we subtract it to get
-        // the actual load base address
-        mod->base_address = start - offset;
+        mod->base_address = base_address;
         // Initial size covers from base to end of this mapping
         mod->size = end - mod->base_address;
 

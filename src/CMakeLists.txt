@@ -167,9 +167,15 @@ elseif(SENTRY_BACKEND_NATIVE)
 		backends/native/sentry_crash_ipc.c
 		backends/native/sentry_crash_daemon.c
 		backends/native/sentry_crash_handler.c
+		backends/native/sentry_crash_unwind.h
 		backends/native/minidump/sentry_minidump_format.h
 		backends/native/minidump/sentry_minidump_writer.h
 	)
+	if(SENTRY_WITH_LIBUNWINDSTACK)
+		sentry_target_sources_cwd(sentry
+			backends/native/sentry_crash_unwind_libunwindstack.cpp
+		)
+	endif()
 
 	# Platform-specific minidump writers
 	if(LINUX OR ANDROID)
