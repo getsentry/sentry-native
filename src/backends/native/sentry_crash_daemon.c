@@ -352,6 +352,7 @@ build_registers_from_ctx(const sentry_crash_context_t *ctx, size_t thread_idx)
         && thread_idx < ctx->platform.num_threads) {
         uctx = &ctx->platform.threads[thread_idx].context;
     }
+    (void)uctx;
 
 #    if defined(__x86_64__)
     uintptr_t *mctx = (uintptr_t *)&uctx->uc_mcontext;
