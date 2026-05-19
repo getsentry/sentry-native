@@ -74,6 +74,12 @@ public final class SentryNdk {
    *
    * <p>The TID must belong to the current process. Cross-process TIDs are not supported.
    *
+   * <p>Callers must not sample the same TID faster than the 1-second timeout: if a previous
+   * request timed out, its signal is still queued for the target, and a follow-up request to the
+   * same TID before the queued signal is delivered may receive stale frames. This is acceptable
+   * for ANR / frozen-frame capture (one sample per event) but precludes profiler-style continuous
+   * sampling.
+   *
    * <p>Linux/Android only. Other platforms return an empty array.
    *
    * <p>The first call on a supported platform permanently installs a signal handler for {@code

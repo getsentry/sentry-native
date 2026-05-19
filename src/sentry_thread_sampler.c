@@ -45,11 +45,11 @@
 
 /*
  * Memory ordering between the caller (sampler thread) and the signal handler
- * (target thread) is provided by the kernel: `rt_tgsigqueueinfo` is a syscall,
- * and the kernel issues full memory barriers across syscall entry/exit and
- * during signal-frame setup on the target thread. The `volatile` qualifiers
- * below prevent compiler reordering only — the cross-thread visibility comes
- * from the kernel. This is Linux/Android-specific and not portable.
+ * (target thread) is provided by the kernel: `tgkill` is a syscall, and the
+ * kernel issues full memory barriers across syscall entry/exit and during
+ * signal-frame setup on the target thread. The `volatile` qualifiers below
+ * prevent compiler reordering only — the cross-thread visibility comes from
+ * the kernel. This is Linux/Android-specific and not portable.
  */
 static pthread_mutex_t g_sampler_lock = PTHREAD_MUTEX_INITIALIZER;
 static sem_t g_sampler_done;
@@ -60,23 +60,21 @@ static volatile int g_sampler_initialized = 0;
 
 /*
  * TID the currently active sampling request is expecting. Set by the caller
- * before sending the signal (under `g_sampler_lock`) and consulted inside the
- * signal handler as a defence-in-depth check; the primary discriminator is the
- * per-request sequence number below.
+ * before `tgkill` (under `g_sampler_lock`) and consulted inside the signal
+ * handler to discard stale signals delivered after a previous sampling request
+ * timed out. Real-time signals are queued, not coalesced, so a target thread
+ * that was blocked when we sent it the original signal may eventually run our
+ * handler at an arbitrarily later time. The TID guard rejects deliveries that
+ * land while a different (or no) request is in flight.
+ *
+ * NOTE: This does NOT discriminate between successive requests targeting the
+ * same TID. A caller that re-samples the same thread within the timeout
+ * window of a previous timed-out request may receive stale frames. The
+ * intended consumer (ANR / frozen-frame capture) samples once per event, so
+ * this is not a concern in practice; callers must not exceed the 1s sampling
+ * cadence per TID.
  */
 static volatile int g_expected_tid = 0;
-
-/*
- * Monotonic per-request sequence. Incremented under `g_sampler_lock` on every
- * call and embedded in the queued signal's `si_value.sival_int` payload via
- * `rt_tgsigqueueinfo`. The handler compares the payload against the active
- * sequence and silently discards any signal whose sequence doesn't match — this
- * is what makes the sampler safe when consecutive requests target the same
- * TID (the typical ANR-watchdog pattern), where the TID guard alone would let
- * a stale handler from a previously-timed-out request write its frames into
- * the new request's buffer. 0 is reserved for "no active request".
- */
-static volatile unsigned g_current_seq = 0;
 
 /*
  * Signal handler running on the *target* thread's stack. Must be strictly
@@ -92,20 +90,14 @@ static void
 sentry__sampler_signal_handler(int sig, siginfo_t *info, void *ucontext_v)
 {
     (void)sig;
+    (void)info;
 
-    // Primary stale-signal guard: compare the per-request sequence the caller
-    // embedded in the signal payload against the currently-active sequence.
-    // Anything older (e.g. a delayed handler from a previously-timed-out
-    // request) is dropped without posting, even if it targets the same TID
-    // that the new request is sampling.
-    if (!info || (unsigned)info->si_value.sival_int != g_current_seq) {
-        return;
-    }
-
-    // Defence-in-depth TID guard. `rt_tgsigqueueinfo` already targets a
-    // specific TID, so this should never trigger in practice; keeping it
-    // means a wrong-thread delivery from a future kernel/libc bug still can't
-    // corrupt the active request's buffer.
+    // Stale-signal guard: if our TID doesn't match the request currently in
+    // flight, return silently without posting. Writing into the active
+    // request's buffer here would corrupt the result. Not posting is safe —
+    // the active request's tgkill will produce its own (correctly-targeted)
+    // handler invocation, and `sem_trywait` drains any leftover posts at the
+    // start of each request.
     const int my_tid = (int)syscall(SYS_gettid);
     if (my_tid != g_expected_tid) {
         return;
@@ -200,35 +192,14 @@ sentry_unwind_thread_stack(int tid, void **stacktrace_out, size_t max_len)
     g_sampler_out_written = 0;
     g_expected_tid = tid;
 
-    // Pick a fresh per-request sequence under the mutex. The handler reads
-    // this back through the queued signal's si_value payload to discard stale
-    // deliveries. Skip 0 because 0 means "no active request".
-    unsigned my_seq = g_current_seq + 1;
-    if (my_seq == 0) {
-        my_seq = 1;
-    }
-    g_current_seq = my_seq;
-
-    // Drain any leftover posts. With the seq guard a stale handler will not
-    // post, so this is belt-and-suspenders for the case where a future change
-    // introduces a path that does.
+    // Drain any spurious posts from a previous timed-out sample, so that the
+    // wait below cannot return prematurely on a stale token.
     while (sem_trywait(&g_sampler_done) == 0) {
         // discard
     }
 
     pid_t my_pid = getpid();
-
-    // Send via rt_tgsigqueueinfo so we can attach the request sequence in
-    // si_value.sival_int. The kernel preserves these fields verbatim when
-    // si_code is SI_QUEUE.
-    siginfo_t si;
-    memset(&si, 0, sizeof(si));
-    si.si_signo = SENTRY_SAMPLER_SIGNAL;
-    si.si_code = SI_QUEUE;
-    si.si_value.sival_int = (int)my_seq;
-
-    if (syscall(SYS_rt_tgsigqueueinfo, my_pid, tid, SENTRY_SAMPLER_SIGNAL, &si)
-        != 0) {
+    if (syscall(SYS_tgkill, my_pid, tid, SENTRY_SAMPLER_SIGNAL) != 0) {
         g_sampler_out_buf = NULL;
         g_expected_tid = 0;
         pthread_mutex_unlock(&g_sampler_lock);

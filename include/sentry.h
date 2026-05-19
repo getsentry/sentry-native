@@ -722,6 +722,12 @@ SENTRY_EXPERIMENTAL_API size_t sentry_unwind_stack_from_ucontext(
  * The TID must belong to the current process. Cross-process TIDs are not
  * supported and will fail.
  *
+ * Callers must not sample the same TID faster than the 1-second timeout: if a
+ * previous request timed out, its signal is still queued for the target, and
+ * a follow-up request to the same TID before the queued signal is delivered
+ * may receive stale frames. This is acceptable for ANR / frozen-frame capture
+ * (one sample per event) but precludes profiler-style continuous sampling.
+ *
  * The first call on a supported platform permanently installs a signal handler
  * for `SIGRTMIN + 5`. The handler is not removed by `sentry_close()` and stays
  * installed for the lifetime of the process. Host applications that themselves

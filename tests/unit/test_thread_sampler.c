@@ -11,7 +11,7 @@ SENTRY_TEST(thread_sampler_samples_self)
     size_t n = sentry_unwind_thread_stack((int)tid, frames, 32);
     // Unit tests run on Linux with the vendored libunwind compiled in, so the
     // sampler must successfully unwind at least one frame from this thread.
-    // A zero result here indicates a regression in signal delivery, the seq
+    // A zero result here indicates a regression in signal delivery, the TID
     // guard, or libunwind initialisation.
     TEST_CHECK(n >= 1);
     TEST_CHECK(n <= 32);
