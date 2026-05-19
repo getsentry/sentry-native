@@ -10,6 +10,7 @@
 #include "sentry_json.h"
 #include "sentry_logger.h"
 #include "sentry_options.h"
+#include "sentry_os.h"
 #include "sentry_path.h"
 #include "sentry_process.h"
 #include "sentry_screenshot.h"
@@ -801,8 +802,8 @@ build_stacktrace_for_thread(
                 = { .iov_base = stack_buf, .iov_len = stack_size };
             struct iovec remote_iov
                 = { .iov_base = (void *)stack_start, .iov_len = stack_size };
-            ssize_t bytes_read
-                = process_vm_readv(pid, &local_iov, 1, &remote_iov, 1, 0);
+            ssize_t bytes_read = sentry__process_vm_readv(
+                pid, &local_iov, 1, &remote_iov, 1, 0);
             if (bytes_read <= 0) {
                 SENTRY_DEBUG(
                     "process_vm_readv failed, falling back to single frame");

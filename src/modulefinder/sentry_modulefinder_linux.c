@@ -4,6 +4,7 @@
 #include "sentry_modulefinder_linux.h"
 
 #include "sentry_core.h"
+#include "sentry_os.h"
 #include "sentry_path.h"
 #include "sentry_string.h"
 #include "sentry_sync.h"
@@ -15,21 +16,9 @@
 #include <string.h>
 #include <sys/mman.h>
 #include <sys/stat.h>
-#include <sys/syscall.h>
 #include <sys/types.h>
 #include <sys/uio.h>
 #include <unistd.h>
-
-#if defined(__ANDROID_API__) && __ANDROID_API__ < 23
-static ssize_t
-process_vm_readv(pid_t __pid, const struct iovec *__local_iov,
-    unsigned long __local_iov_count, const struct iovec *__remote_iov,
-    unsigned long __remote_iov_count, unsigned long __flags)
-{
-    return syscall(__NR_process_vm_readv, __pid, __local_iov, __local_iov_count,
-        __remote_iov, __remote_iov_count, __flags);
-}
-#endif
 
 #define ENSURE(Ptr)                                                            \
     if (!Ptr)                                                                  \
@@ -132,7 +121,7 @@ read_safely(void *dst, void *src, size_t size)
     remote[0].iov_len = size;
 
     errno = 0;
-    ssize_t nread = process_vm_readv(pid, local, 1, remote, 1, 0);
+    ssize_t nread = sentry__process_vm_readv(pid, local, 1, remote, 1, 0);
     bool rv = nread == (ssize_t)size;
 
     // The syscall can fail with `EPERM` if we lack permissions for this syscall

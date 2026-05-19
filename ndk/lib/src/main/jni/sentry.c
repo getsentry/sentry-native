@@ -1,12 +1,16 @@
 #include <string.h>
 #include <stdbool.h>
-#include <stdio.h>
 #include <sentry.h>
 #include <jni.h>
 
-#define ENSURE(Expr) \
-    if (!(Expr))     \
-        return
+#if defined(SENTRY_BACKEND_NATIVE)
+#include <dlfcn.h>
+#include <limits.h>
+
+#ifndef PATH_MAX
+#define PATH_MAX 4096
+#endif
+#endif
 
 #define ENSURE_OR_FAIL(Expr) \
     if (!(Expr))          \
@@ -58,6 +62,31 @@ static char *call_get_string(JNIEnv *env, jobject obj, jmethodID mid) {
     fail:
     return NULL;
 }
+
+#if defined(SENTRY_BACKEND_NATIVE)
+static void set_handler_path(sentry_options_t *options) {
+    Dl_info info;
+    if (dladdr((void *)set_handler_path, &info) == 0 || !info.dli_fname) {
+        return;
+    }
+
+    const char *slash = strrchr(info.dli_fname, '/');
+    if (!slash) {
+        return;
+    }
+
+    const char daemon_name[] = "libsentry-crash.so";
+    size_t dir_len = (size_t)(slash - info.dli_fname + 1);
+    if (dir_len + sizeof(daemon_name) > PATH_MAX) {
+        return;
+    }
+
+    char handler_path[PATH_MAX];
+    memcpy(handler_path, info.dli_fname, dir_len);
+    memcpy(handler_path + dir_len, daemon_name, sizeof(daemon_name));
+    sentry_options_set_handler_path(options, handler_path);
+}
+#endif
 
 JNIEXPORT void JNICALL
 Java_io_sentry_ndk_NativeScope_nativeSetTag(
@@ -282,26 +311,6 @@ Java_io_sentry_ndk_NativeScope_nativeClearAttachments(JNIEnv *env, jclass cls) {
     sentry_clear_attachments();
 }
 
-static void send_envelope(sentry_envelope_t *envelope, void *data) {
-    const char *outbox_path = (const char *) data;
-    char envelope_id_str[40];
-
-    sentry_uuid_t envelope_id = sentry_uuid_new_v4();
-    sentry_uuid_as_string(&envelope_id, envelope_id_str);
-
-    size_t outbox_len = strlen(outbox_path);
-    size_t final_len = outbox_len + 42; // "/" + envelope_id_str + "\0" = 42
-    char *envelope_path = sentry_malloc(final_len);
-    ENSURE(envelope_path);
-    int written = snprintf(envelope_path, final_len, "%s/%s", outbox_path, envelope_id_str);
-    if (written > outbox_len && written < final_len) {
-        sentry_envelope_write_to_file(envelope, envelope_path);
-    }
-
-    sentry_free(envelope_path);
-    sentry_envelope_free(envelope);
-}
-
 // sentry_backend.h
 extern void sentry__backend_preload(void);
 
@@ -337,10 +346,7 @@ Java_io_sentry_ndk_SentryNdk_initSentryNative(
     (*env)->DeleteLocalRef(env, options_cls);
 
     char *outbox_path = NULL;
-    sentry_transport_t *transport = NULL;
-    bool transport_owns_path = false;
     sentry_options_t *options = NULL;
-    bool options_owns_transport = false;
     char *dsn_str = NULL;
     char *release_str = NULL;
     char *environment_str = NULL;
@@ -349,6 +355,10 @@ Java_io_sentry_ndk_SentryNdk_initSentryNative(
 
     options = sentry_options_new();
     ENSURE_OR_FAIL(options);
+
+#if defined(SENTRY_BACKEND_NATIVE)
+    set_handler_path(options);
+#endif
 
     // session tracking is enabled by default, but the Android SDK already handles it
     sentry_options_set_auto_session_tracking(options, 0);
@@ -362,15 +372,6 @@ Java_io_sentry_ndk_SentryNdk_initSentryNative(
     outbox_path = call_get_string(env, sentry_ndk_options, outbox_path_mid);
     ENSURE_OR_FAIL(outbox_path);
 
-    transport = sentry_transport_new(send_envelope);
-    ENSURE_OR_FAIL(transport);
-    sentry_transport_set_state(transport, outbox_path);
-    sentry_transport_set_free_func(transport, sentry_free);
-    transport_owns_path = true;
-
-    sentry_options_set_transport(options, transport);
-    options_owns_transport = true;
-
     // give sentry-native its own database path it can work with, next to the outbox
     size_t outbox_len = strlen(outbox_path);
     size_t final_len = outbox_len + 15; // len(".sentry-native\0") = 15
@@ -383,6 +384,8 @@ Java_io_sentry_ndk_SentryNdk_initSentryNative(
     }
     sentry_options_set_database_path(options, database_path);
     sentry_free(database_path);
+    sentry_free(outbox_path);
+    outbox_path = NULL;
 
     dsn_str = call_get_string(env, sentry_ndk_options, dsn_mid);
     ENSURE_OR_FAIL(dsn_str);
@@ -423,12 +426,7 @@ Java_io_sentry_ndk_SentryNdk_initSentryNative(
     return (jint) rv;
 
     fail:
-    if (!transport_owns_path) {
-        sentry_free(outbox_path);
-    }
-    if (!options_owns_transport) {
-        sentry_transport_free(transport);
-    }
+    sentry_free(outbox_path);
     sentry_options_free(options);
     return (jint) -1;
 }

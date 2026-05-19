@@ -3,6 +3,11 @@
 
 #include "sentry_boot.h"
 
+#if defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID)
+#    include <sys/types.h>
+#    include <sys/uio.h>
+#endif
+
 #ifdef SENTRY_PLATFORM_WINDOWS
 
 typedef struct {
@@ -23,6 +28,12 @@ void sentry__win32_install_sigabrt_handler(
     sentry__win32_abort_handler_t handler);
 void sentry__win32_restore_sigabrt_handler(void);
 
+#endif
+
+#if defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID)
+ssize_t sentry__process_vm_readv(pid_t pid, const struct iovec *local_iov,
+    unsigned long local_iov_count, const struct iovec *remote_iov,
+    unsigned long remote_iov_count, unsigned long flags);
 #endif
 
 sentry_value_t sentry__get_os_context(void);

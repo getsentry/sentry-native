@@ -12,9 +12,27 @@ endif()
 # make sure that we build it as a shared lib instead of a static lib
 set(BUILD_SHARED_LIBS ON)
 set(SENTRY_BUILD_SHARED_LIBS ON)
+set(SENTRY_TRANSPORT "custom" CACHE STRING "" FORCE)
 
 # Adding sentry-native project
 add_subdirectory(${SENTRY_NATIVE_SRC} sentry_build)
+target_sources(sentry PRIVATE
+	${CMAKE_CURRENT_SOURCE_DIR}/src/main/jni/sentry_android_transport.c
+)
+
+if(SENTRY_BACKEND STREQUAL "native")
+	target_sources(sentry-crash PRIVATE
+		${CMAKE_CURRENT_SOURCE_DIR}/src/main/jni/sentry_android_transport.c
+	)
+	target_compile_definitions(sentry-android PRIVATE SENTRY_BACKEND_NATIVE)
+	set_target_properties(sentry-crash PROPERTIES
+		PREFIX "lib"
+		OUTPUT_NAME "sentry-crash"
+		SUFFIX ".so"
+	)
+	target_link_options(sentry-crash PRIVATE "-Wl,-z,max-page-size=16384")
+	target_link_libraries(sentry-android PRIVATE dl)
+endif()
 
 # Android logging library
 find_library(LOG_LIB log)

@@ -3,12 +3,13 @@ plugins {
     kotlin("android")
 }
 
-var sentryNativeSrc: String = "${project.projectDir}/../.."
-
 android {
     compileSdk = 35
     namespace = "io.sentry.ndk.sample"
-    buildFeatures.buildConfig = true
+    buildFeatures {
+        buildConfig = true
+        prefab = true
+    }
 
     defaultConfig {
         applicationId = "io.sentry.ndk.sample"
@@ -20,7 +21,6 @@ android {
         externalNativeBuild {
             cmake {
                 arguments.add(0, "-DANDROID_STL=c++_shared")
-                arguments.add(0, "-DSENTRY_NATIVE_SRC=$sentryNativeSrc")
             }
         }
 

@@ -6,15 +6,15 @@ set(SENTRY_BUILD_SHARED_LIBS ON)
 
 add_library(ndk-sample SHARED src/main/cpp/ndk-sample.cpp)
 
-# Adding sentry-native project
-add_subdirectory(${SENTRY_NATIVE_SRC} sentry_build)
+# Use sentry-native from the NDK library's Prefab package
+find_package(sentry-native-ndk REQUIRED CONFIG)
 
 # Android logging library
 find_library(LOG_LIB log)
 
 target_link_libraries(ndk-sample PRIVATE
 	${LOG_LIB}
-	$<BUILD_INTERFACE:sentry::sentry>
+	sentry-native-ndk::sentry
 )
 # Support 16KB page sizes
 target_link_options(ndk-sample PRIVATE "-Wl,-z,max-page-size=16384")
