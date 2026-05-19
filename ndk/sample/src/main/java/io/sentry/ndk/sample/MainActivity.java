@@ -29,7 +29,7 @@ public class MainActivity extends Activity {
   }
 
   /**
-   * Sample the main thread's native stack from a background thread. Mirrors how an ANR watchdog
+   * Capture the main thread's native stack from a background thread. Mirrors how an ANR watchdog
    * would call into the NDK after detecting that the UI thread is stuck.
    */
   private void captureMainStack() {
@@ -49,7 +49,7 @@ public class MainActivity extends Activity {
                               Toast.LENGTH_SHORT)
                           .show());
             },
-            "ndk-sample-sampler")
+            "ndk-sample-stack-capture")
         .start();
   }
 

@@ -5,13 +5,13 @@
 #    include <sys/syscall.h>
 #    include <unistd.h>
 
-SENTRY_TEST(thread_sampler_samples_self)
+SENTRY_TEST(cross_thread_unwind_self)
 {
     void *frames[32];
     pid_t tid = (pid_t)syscall(SYS_gettid);
     size_t n = sentry_unwind_thread_stack((int)tid, frames, 32);
     // Unit tests run on Linux with the vendored libunwind compiled in, so the
-    // sampler must successfully unwind at least one frame from this thread.
+    // unwinder must successfully unwind at least one frame from this thread.
     // A zero result here indicates a regression in signal delivery, the TID
     // guard, or libunwind initialisation.
     TEST_CHECK(n >= 1);
@@ -19,7 +19,7 @@ SENTRY_TEST(thread_sampler_samples_self)
     TEST_CHECK(frames[0] != NULL);
 }
 
-struct sampler_worker_ctx {
+struct worker_ctx {
     pthread_mutex_t mutex;
     pthread_cond_t tid_published;
     pthread_cond_t exit_requested;
@@ -28,13 +28,13 @@ struct sampler_worker_ctx {
 };
 
 static void *
-sampler_worker_thread(void *arg)
+worker_thread(void *arg)
 {
-    struct sampler_worker_ctx *ctx = (struct sampler_worker_ctx *)arg;
+    struct worker_ctx *ctx = (struct worker_ctx *)arg;
     pthread_mutex_lock(&ctx->mutex);
     ctx->tid = (pid_t)syscall(SYS_gettid);
     pthread_cond_signal(&ctx->tid_published);
-    // Park until the main thread is done sampling. The SIGRTMIN+5 delivery
+    // Park until the main thread is done unwinding. The SIGRTMIN+5 delivery
     // interrupts the futex wait transparently; the while-loop also guards
     // against spurious wakeups.
     while (!ctx->should_exit) {
@@ -44,13 +44,13 @@ sampler_worker_thread(void *arg)
     return NULL;
 }
 
-SENTRY_TEST(thread_sampler_samples_other_thread)
+SENTRY_TEST(cross_thread_unwind_other_thread)
 {
-    // The self-sample test exercises signal delivery from a thread to itself.
+    // The self-unwind test exercises signal delivery from a thread to itself.
     // This test exercises the cross-thread tgkill path that ANR / frozen-frame
-    // callers actually use, where the sampler thread and the sampled thread
-    // are distinct.
-    struct sampler_worker_ctx ctx;
+    // callers actually use, where the requesting thread and the unwound
+    // thread are distinct.
+    struct worker_ctx ctx;
     pthread_mutex_init(&ctx.mutex, NULL);
     pthread_cond_init(&ctx.tid_published, NULL);
     pthread_cond_init(&ctx.exit_requested, NULL);
@@ -58,8 +58,7 @@ SENTRY_TEST(thread_sampler_samples_other_thread)
     ctx.should_exit = 0;
 
     pthread_t worker;
-    TEST_CHECK_INT_EQUAL(
-        pthread_create(&worker, NULL, sampler_worker_thread, &ctx), 0);
+    TEST_CHECK_INT_EQUAL(pthread_create(&worker, NULL, worker_thread, &ctx), 0);
 
     pthread_mutex_lock(&ctx.mutex);
     while (ctx.tid == 0) {
@@ -85,7 +84,7 @@ SENTRY_TEST(thread_sampler_samples_other_thread)
     pthread_mutex_destroy(&ctx.mutex);
 }
 
-SENTRY_TEST(thread_sampler_rejects_invalid_tid)
+SENTRY_TEST(cross_thread_unwind_rejects_invalid_tid)
 {
     void *frames[32];
     size_t n = sentry_unwind_thread_stack(-1, frames, 32);
@@ -95,13 +94,13 @@ SENTRY_TEST(thread_sampler_rejects_invalid_tid)
     TEST_CHECK_INT_EQUAL((int)n, 0);
 }
 
-SENTRY_TEST(thread_sampler_rejects_null_buf)
+SENTRY_TEST(cross_thread_unwind_rejects_null_buf)
 {
     size_t n = sentry_unwind_thread_stack(1, NULL, 32);
     TEST_CHECK_INT_EQUAL((int)n, 0);
 }
 
-SENTRY_TEST(thread_sampler_rejects_zero_max)
+SENTRY_TEST(cross_thread_unwind_rejects_zero_max)
 {
     void *frames[1];
     size_t n = sentry_unwind_thread_stack(1, frames, 0);
@@ -110,21 +109,21 @@ SENTRY_TEST(thread_sampler_rejects_zero_max)
 
 #else // non-Linux/Android: function must be a no-op returning 0.
 
-SENTRY_TEST(thread_sampler_samples_self)
+SENTRY_TEST(cross_thread_unwind_self)
 {
     void *frames[32];
     size_t n = sentry_unwind_thread_stack(1, frames, 32);
     TEST_CHECK_INT_EQUAL((int)n, 0);
 }
 
-SENTRY_TEST(thread_sampler_samples_other_thread)
+SENTRY_TEST(cross_thread_unwind_other_thread)
 {
     void *frames[32];
     size_t n = sentry_unwind_thread_stack(1, frames, 32);
     TEST_CHECK_INT_EQUAL((int)n, 0);
 }
 
-SENTRY_TEST(thread_sampler_rejects_invalid_tid)
+SENTRY_TEST(cross_thread_unwind_rejects_invalid_tid)
 {
     void *frames[32];
     size_t n = sentry_unwind_thread_stack(-1, frames, 32);
@@ -133,13 +132,13 @@ SENTRY_TEST(thread_sampler_rejects_invalid_tid)
     TEST_CHECK_INT_EQUAL((int)n, 0);
 }
 
-SENTRY_TEST(thread_sampler_rejects_null_buf)
+SENTRY_TEST(cross_thread_unwind_rejects_null_buf)
 {
     size_t n = sentry_unwind_thread_stack(1, NULL, 32);
     TEST_CHECK_INT_EQUAL((int)n, 0);
 }
 
-SENTRY_TEST(thread_sampler_rejects_zero_max)
+SENTRY_TEST(cross_thread_unwind_rejects_zero_max)
 {
     void *frames[1];
     size_t n = sentry_unwind_thread_stack(1, frames, 0);

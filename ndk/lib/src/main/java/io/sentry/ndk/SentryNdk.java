@@ -68,23 +68,24 @@ public final class SentryNdk {
   /**
    * Captures the native stack of another thread in the current process by Linux kernel TID.
    *
-   * <p>Uses signal-based sampling internally. Returns instruction-pointer addresses as longs; an
-   * empty array indicates sampling failure (invalid TID, signal delivery failure, timeout, or
-   * unsupported platform).
+   * <p>Uses a real-time signal sent via {@code tgkill} to interrupt the target thread and unwind
+   * its stack from the signal context. Returns instruction-pointer addresses as longs; an empty
+   * array indicates failure (invalid TID, signal delivery failure, timeout, or unsupported
+   * platform).
    *
    * <p>The TID must belong to the current process. Cross-process TIDs are not supported.
    *
-   * <p>Callers must not sample the same TID faster than the 1-second timeout: if a previous
+   * <p>Callers must not re-request the same TID faster than the 1-second timeout: if a previous
    * request timed out, its signal is still queued for the target, and a follow-up request to the
    * same TID before the queued signal is delivered may receive stale frames. This is acceptable
-   * for ANR / frozen-frame capture (one sample per event) but precludes profiler-style continuous
+   * for ANR / frozen-frame capture (one request per event) but precludes profiler-style continuous
    * sampling.
    *
    * <p>Linux/Android only. Other platforms return an empty array.
    *
    * <p>The first call on a supported platform installs a signal handler for {@code SIGRTMIN + 5}
    * in the process. The handler chains to any previously installed handler for the same signal:
-   * deliveries that did not originate from this sampler are forwarded, so host applications or
+   * deliveries that did not originate from this unwinder are forwarded, so host applications or
    * other libraries using {@code SIGRTMIN + 5} keep working. The handler is not removed by {@link
    * #close()} and stays installed for the lifetime of the process.
    *

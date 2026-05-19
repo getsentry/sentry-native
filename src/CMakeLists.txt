@@ -240,10 +240,10 @@ if(SENTRY_WITH_LIBUNWIND)
 	)
 endif()
 
-# Cross-thread stack sampler (sentry_unwind_thread_stack). Linux and Android only,
-# due to signal-based sampling via tgkill + libunwind. No-op stub everywhere else
+# Cross-thread stack unwinder (sentry_unwind_thread_stack). Linux and Android
+# only, via tgkill + signal handler + libunwind. No-op stub everywhere else.
 sentry_target_sources_cwd(sentry
-	sentry_thread_sampler.c
+	sentry_cross_thread_unwind.c
 )
 
 if(SENTRY_WITH_LIBUNWIND_MAC)

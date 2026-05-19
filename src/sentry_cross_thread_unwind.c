@@ -4,12 +4,12 @@
 
 #if (defined(__linux__) || defined(__ANDROID__))                               \
     && defined(SENTRY_WITH_UNWINDER_LIBUNWIND)
-#    define SENTRY_THREAD_SAMPLER_SUPPORTED 1
+#    define SENTRY_CROSS_THREAD_UNWIND_SUPPORTED 1
 #else
-#    define SENTRY_THREAD_SAMPLER_SUPPORTED 0
+#    define SENTRY_CROSS_THREAD_UNWIND_SUPPORTED 0
 #endif
 
-#if SENTRY_THREAD_SAMPLER_SUPPORTED
+#if SENTRY_CROSS_THREAD_UNWIND_SUPPORTED
 
 #    include <errno.h>
 #    include <pthread.h>
@@ -26,7 +26,7 @@
 #    include <libunwind.h>
 
 /*
- * Real-time signal used for asynchronous stack sampling.
+ * Real-time signal used to interrupt a target thread and unwind its stack.
  *
  * `SIGRTMIN + 5` is chosen because:
  *   - real-time signals (>= SIGRTMIN) are queued, not coalesced, and are not
@@ -41,57 +41,58 @@
  * (it is a function call expanding to libc internals), so we cannot use it in
  * a `case` label and must compute it at handler-install time.
  */
-#    define SENTRY_SAMPLER_SIGNAL (SIGRTMIN + 5)
+#    define SENTRY_UNWIND_SIGNAL (SIGRTMIN + 5)
 
 /*
- * Memory ordering between the caller (sampler thread) and the signal handler
- * (target thread) is provided by the kernel: `tgkill` is a syscall, and the
- * kernel issues full memory barriers across syscall entry/exit and during
- * signal-frame setup on the target thread. The `volatile` qualifiers below
- * prevent compiler reordering only — the cross-thread visibility comes from
- * the kernel. This is Linux/Android-specific and not portable.
+ * Memory ordering between the caller (requesting thread) and the signal
+ * handler (target thread) is provided by the kernel: `tgkill` is a syscall,
+ * and the kernel issues full memory barriers across syscall entry/exit and
+ * during signal-frame setup on the target thread. The `volatile` qualifiers
+ * below prevent compiler reordering only — the cross-thread visibility comes
+ * from the kernel. This is Linux/Android-specific and not portable.
  */
-static pthread_mutex_t g_sampler_lock = PTHREAD_MUTEX_INITIALIZER;
-static sem_t g_sampler_done;
-static void **g_sampler_out_buf;
-static size_t g_sampler_out_max;
-static volatile size_t g_sampler_out_written;
-static volatile int g_sampler_initialized = 0;
+static pthread_mutex_t g_unwind_lock = PTHREAD_MUTEX_INITIALIZER;
+static sem_t g_unwind_done;
+static void **g_unwind_out_buf;
+static size_t g_unwind_out_max;
+static volatile size_t g_unwind_out_written;
+static volatile int g_unwind_initialized = 0;
 
 /*
- * TID the currently active sampling request is expecting. Set by the caller
- * before `tgkill` (under `g_sampler_lock`) and consulted inside the signal
- * handler to discard stale signals delivered after a previous sampling request
- * timed out. Real-time signals are queued, not coalesced, so a target thread
- * that was blocked when we sent it the original signal may eventually run our
+ * TID the currently active unwind request is expecting. Set by the caller
+ * before `tgkill` (under `g_unwind_lock`) and consulted inside the signal
+ * handler to discard stale signals delivered after a previous request timed
+ * out. Real-time signals are queued, not coalesced, so a target thread that
+ * was blocked when we sent it the original signal may eventually run our
  * handler at an arbitrarily later time. The TID guard rejects deliveries that
  * land while a different (or no) request is in flight.
  *
  * NOTE: This does NOT discriminate between successive requests targeting the
- * same TID. A caller that re-samples the same thread within the timeout
+ * same TID. A caller that re-requests the same thread within the timeout
  * window of a previous timed-out request may receive stale frames. The
- * intended consumer (ANR / frozen-frame capture) samples once per event, so
- * this is not a concern in practice; callers must not exceed the 1s sampling
- * cadence per TID.
+ * intended consumer (ANR / frozen-frame capture) issues one request per
+ * event, so this is not a concern in practice; callers must not exceed the
+ * 1s request cadence per TID.
  */
 static volatile int g_expected_tid = 0;
 
 /*
- * Previous disposition of SENTRY_SAMPLER_SIGNAL, captured at install time so we
- * can forward signals not originating from our sampler (e.g. a host
+ * Previous disposition of SENTRY_UNWIND_SIGNAL, captured at install time so
+ * we can forward signals not originating from this unwinder (e.g. a host
  * application or another library that also uses this slot). Written once
- * under `g_sampler_lock` before the handler can fire; the `sigaction` syscall
+ * under `g_unwind_lock` before the handler can fire; the `sigaction` syscall
  * provides the memory barrier that publishes it to the handler context.
  */
 static struct sigaction g_prev_action;
 
 /*
- * Forward a SENTRY_SAMPLER_SIGNAL delivery to whatever handler was installed
+ * Forward a SENTRY_UNWIND_SIGNAL delivery to whatever handler was installed
  * before us. Async-signal-safe by construction: just a function-pointer
  * dispatch into code the host already deemed safe for this signal.
  */
 static void
-sentry__sampler_chain_previous(int sig, siginfo_t *info, void *ucontext_v)
+sentry__cross_thread_unwind_chain_previous(
+    int sig, siginfo_t *info, void *ucontext_v)
 {
     void *fn = (g_prev_action.sa_flags & SA_SIGINFO)
         ? (void *)g_prev_action.sa_sigaction
@@ -120,24 +121,26 @@ sentry__sampler_chain_previous(int sig, siginfo_t *info, void *ucontext_v)
  * mandates be async-signal-safe.
  */
 static void
-sentry__sampler_signal_handler(int sig, siginfo_t *info, void *ucontext_v)
+sentry__cross_thread_unwind_signal_handler(
+    int sig, siginfo_t *info, void *ucontext_v)
 {
     // Stale-signal guard: if our TID doesn't match the request currently in
     // flight, this delivery is either (a) a queued stale signal from a
-    // previous timed-out sample targeting some other thread (impossible here,
-    // since tgkill is thread-targeted) or (b) a signal a host application or
-    // unrelated library sent on this slot. Case (a) cannot occur — a stale
-    // queued signal can only land on the thread it was targeted at — so any
-    // mismatch is by definition not ours. Forward to the previously installed
-    // handler so the host's use of this signal keeps working.
+    // previous timed-out request targeting some other thread (impossible
+    // here, since tgkill is thread-targeted) or (b) a signal a host
+    // application or unrelated library sent on this slot. Case (a) cannot
+    // occur — a stale queued signal can only land on the thread it was
+    // targeted at — so any mismatch is by definition not ours. Forward to
+    // the previously installed handler so the host's use of this signal
+    // keeps working.
     const int my_tid = (int)syscall(SYS_gettid);
     if (my_tid != g_expected_tid) {
-        sentry__sampler_chain_previous(sig, info, ucontext_v);
+        sentry__cross_thread_unwind_chain_previous(sig, info, ucontext_v);
         return;
     }
 
     size_t written = 0;
-    if (g_sampler_out_buf && g_sampler_out_max > 0 && ucontext_v) {
+    if (g_unwind_out_buf && g_unwind_out_max > 0 && ucontext_v) {
         unw_cursor_t cursor;
         if (unw_init_local2(
                 &cursor, (unw_context_t *)ucontext_v, UNW_INIT_SIGNAL_FRAME)
@@ -158,8 +161,8 @@ sentry__sampler_signal_handler(int sig, siginfo_t *info, void *ucontext_v)
                     break;
                 }
 
-                g_sampler_out_buf[written++] = (void *)(uintptr_t)ip;
-                if (written >= g_sampler_out_max) {
+                g_unwind_out_buf[written++] = (void *)(uintptr_t)ip;
+                if (written >= g_unwind_out_max) {
                     break;
                 }
 
@@ -173,17 +176,17 @@ sentry__sampler_signal_handler(int sig, siginfo_t *info, void *ucontext_v)
             }
         }
     }
-    g_sampler_out_written = written;
+    g_unwind_out_written = written;
     // sem_post is in the POSIX async-signal-safe list.
-    sem_post(&g_sampler_done);
+    sem_post(&g_unwind_done);
 }
 
-#endif // SENTRY_THREAD_SAMPLER_SUPPORTED
+#endif // SENTRY_CROSS_THREAD_UNWIND_SUPPORTED
 
 size_t
 sentry_unwind_thread_stack(int tid, void **stacktrace_out, size_t max_len)
 {
-#if !SENTRY_THREAD_SAMPLER_SUPPORTED
+#if !SENTRY_CROSS_THREAD_UNWIND_SUPPORTED
     (void)tid;
     (void)stacktrace_out;
     (void)max_len;
@@ -193,50 +196,51 @@ sentry_unwind_thread_stack(int tid, void **stacktrace_out, size_t max_len)
         return 0;
     }
 
-    pthread_mutex_lock(&g_sampler_lock);
+    pthread_mutex_lock(&g_unwind_lock);
 
-    if (!g_sampler_initialized) {
-        if (sem_init(&g_sampler_done, 0, 0) != 0) {
-            pthread_mutex_unlock(&g_sampler_lock);
+    if (!g_unwind_initialized) {
+        if (sem_init(&g_unwind_done, 0, 0) != 0) {
+            pthread_mutex_unlock(&g_unwind_lock);
             return 0;
         }
 
         struct sigaction sa;
         memset(&sa, 0, sizeof(sa));
-        sa.sa_sigaction = sentry__sampler_signal_handler;
+        sa.sa_sigaction = sentry__cross_thread_unwind_signal_handler;
         sa.sa_flags = SA_SIGINFO | SA_RESTART;
         sigemptyset(&sa.sa_mask);
 
         // Capture the previous disposition so the handler can chain to it for
-        // any delivery that isn't our sample (see
-        // `sentry__sampler_chain_previous`). The handler is permanent for the
-        // process lifetime — `sentry_close()` does not restore the previous
-        // action, because doing so races with queued-but-undelivered samples
-        // and could reinstate `SIG_DFL` in time to terminate the process.
-        if (sigaction(SENTRY_SAMPLER_SIGNAL, &sa, &g_prev_action) != 0) {
-            sem_destroy(&g_sampler_done);
-            pthread_mutex_unlock(&g_sampler_lock);
+        // any delivery that isn't our unwind request (see
+        // `sentry__cross_thread_unwind_chain_previous`). The handler is
+        // permanent for the process lifetime — `sentry_close()` does not
+        // restore the previous action, because doing so races with
+        // queued-but-undelivered requests and could reinstate `SIG_DFL` in
+        // time to terminate the process.
+        if (sigaction(SENTRY_UNWIND_SIGNAL, &sa, &g_prev_action) != 0) {
+            sem_destroy(&g_unwind_done);
+            pthread_mutex_unlock(&g_unwind_lock);
             return 0;
         }
-        g_sampler_initialized = 1;
+        g_unwind_initialized = 1;
     }
 
-    g_sampler_out_buf = stacktrace_out;
-    g_sampler_out_max = max_len;
-    g_sampler_out_written = 0;
+    g_unwind_out_buf = stacktrace_out;
+    g_unwind_out_max = max_len;
+    g_unwind_out_written = 0;
     g_expected_tid = tid;
 
-    // Drain any spurious posts from a previous timed-out sample, so that the
+    // Drain any spurious posts from a previous timed-out request, so that the
     // wait below cannot return prematurely on a stale token.
-    while (sem_trywait(&g_sampler_done) == 0) {
+    while (sem_trywait(&g_unwind_done) == 0) {
         // discard
     }
 
     pid_t my_pid = getpid();
-    if (syscall(SYS_tgkill, my_pid, tid, SENTRY_SAMPLER_SIGNAL) != 0) {
-        g_sampler_out_buf = NULL;
+    if (syscall(SYS_tgkill, my_pid, tid, SENTRY_UNWIND_SIGNAL) != 0) {
+        g_unwind_out_buf = NULL;
         g_expected_tid = 0;
-        pthread_mutex_unlock(&g_sampler_lock);
+        pthread_mutex_unlock(&g_unwind_lock);
         return 0;
     }
 
@@ -247,15 +251,15 @@ sentry_unwind_thread_stack(int tid, void **stacktrace_out, size_t max_len)
 
     int rc;
     do {
-        rc = sem_timedwait(&g_sampler_done, &timeout);
+        rc = sem_timedwait(&g_unwind_done, &timeout);
     } while (rc == -1 && errno == EINTR);
 
-    size_t result = (rc == 0) ? g_sampler_out_written : 0;
-    g_sampler_out_buf = NULL;
-    g_sampler_out_max = 0;
+    size_t result = (rc == 0) ? g_unwind_out_written : 0;
+    g_unwind_out_buf = NULL;
+    g_unwind_out_max = 0;
     g_expected_tid = 0;
 
-    pthread_mutex_unlock(&g_sampler_lock);
+    pthread_mutex_unlock(&g_unwind_lock);
     return result;
 #endif
 }
