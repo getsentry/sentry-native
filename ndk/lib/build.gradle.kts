@@ -53,6 +53,7 @@ android {
     }
 
     buildFeatures {
+        prefab = true
         prefabPublishing = true
         buildConfig = true
     }
@@ -102,6 +103,9 @@ android {
 }
 
 dependencies {
+    // TODO: this was the first match on maven central..
+    implementation("io.github.vvb2060.ndk:curl:8.18.0")
+
     compileOnly("org.jetbrains:annotations:23.0.0")
 
     testImplementation("androidx.test.ext:junit:1.3.0")
