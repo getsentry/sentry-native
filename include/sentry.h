@@ -708,6 +708,45 @@ SENTRY_EXPERIMENTAL_API size_t sentry_unwind_stack_from_ucontext(
     const sentry_ucontext_t *uctx, void **stacktrace_out, size_t max_len);
 
 /**
+ * Captures a stacktrace from another thread in the current process by Linux
+ * kernel thread ID (TID).
+ *
+ * A real-time signal is sent to the target thread, and the thread's stack is
+ * unwound from the signal context. The function blocks until the unwind
+ * completes or times out (1 second).
+ *
+ * Linux and Android only. Other platforms return 0.
+ *
+ * Concurrent calls are serialized internally; only one unwind runs at a time.
+ *
+ * The TID must belong to the current process. Cross-process TIDs are not
+ * supported and will fail.
+ *
+ * Callers must not re-request the same TID faster than the 1-second timeout:
+ * if a previous request timed out, its signal is still queued for the target,
+ * and a follow-up request to the same TID before the queued signal is
+ * delivered may receive stale frames. This is acceptable for ANR /
+ * frozen-frame capture (one request per event) but precludes profiler-style
+ * continuous sampling.
+ *
+ * The first call on a supported platform installs a signal handler for
+ * `SIGRTMIN + 5`. The handler chains to any previously installed handler for
+ * the same signal: deliveries that did not originate from this unwinder are
+ * forwarded, so host applications or other libraries using `SIGRTMIN + 5`
+ * keep working. The handler is not removed by `sentry_close()` and stays
+ * installed for the lifetime of the process.
+ *
+ * @param tid Linux kernel TID of the target thread (e.g. from gettid() or
+ *            android.os.Process.myTid()).
+ * @param stacktrace_out Caller-provided buffer for instruction pointers.
+ * @param max_len Capacity of stacktrace_out.
+ * @return Number of frames written. 0 on failure (invalid TID, signal delivery
+ *         failure, timeout, or unsupported platform).
+ */
+SENTRY_EXPERIMENTAL_API size_t sentry_unwind_thread_stack(
+    int tid, void **stacktrace_out, size_t max_len);
+
+/**
  * A UUID
  */
 typedef struct sentry_uuid_s {

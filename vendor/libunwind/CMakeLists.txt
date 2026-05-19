@@ -288,4 +288,10 @@ if(CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
     target_compile_options(unwind PRIVATE -w)
 endif()
 
-target_link_libraries(unwind PRIVATE ${CMAKE_DL_LIBS} pthread)
+if(ANDROID)
+    # Bionic merges pthread into libc, so there is no libpthread.so to link.
+    # CMAKE_DL_LIBS is still kept — it may resolve to libdl.so on Android.
+    target_link_libraries(unwind PRIVATE ${CMAKE_DL_LIBS})
+else()
+    target_link_libraries(unwind PRIVATE ${CMAKE_DL_LIBS} pthread)
+endif()

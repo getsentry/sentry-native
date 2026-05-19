@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+**Features**:
+
+- Add `sentry_unwind_thread_stack` for async-signal-safe cross-thread stack sampling on Linux and Android. ([#1721](https://github.com/getsentry/sentry-native/pull/1721))
+
 **Fixes**:
 
 - Reject overly deep msgpack payloads during deserialization. ([#1727](https://github.com/getsentry/sentry-native/pull/1727))

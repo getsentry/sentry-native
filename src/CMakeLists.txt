@@ -240,6 +240,12 @@ if(SENTRY_WITH_LIBUNWIND)
 	)
 endif()
 
+# Cross-thread stack unwinder (sentry_unwind_thread_stack). Linux and Android
+# only, via tgkill + signal handler + libunwind. No-op stub everywhere else.
+sentry_target_sources_cwd(sentry
+	sentry_cross_thread_unwind.c
+)
+
 if(SENTRY_WITH_LIBUNWIND_MAC)
 	target_compile_definitions(sentry PRIVATE SENTRY_WITH_UNWINDER_LIBUNWIND_MAC)
 	sentry_target_sources_cwd(sentry

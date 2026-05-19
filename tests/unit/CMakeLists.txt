@@ -27,6 +27,7 @@ add_executable(sentry_test_unit
 	test_client_report.c
 	test_consent.c
 	test_concurrency.c
+	test_cross_thread_unwind.c
 	test_embedded_info.c
 	test_envelopes.c
 	test_failures.c
