@@ -1061,3 +1061,31 @@ def test_crashpad_cache_max_age(cmake, httpserver):
     assert len(cache_files) == 3
     for f in cache_files:
         assert time.time() - f.stat().st_mtime <= 5 * 24 * 60 * 60
+
+
+@pytest.mark.skipif(
+    sys.platform == "darwin",
+    reason="crashpad doesn't provide SetFirstChanceExceptionHandler on macOS",
+)
+def test_crashpad_restart_on_crash(cmake, httpserver):
+    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "crashpad"})
+
+    httpserver.expect_oneshot_request("/api/123456/minidump/").respond_with_data("OK")
+    httpserver.expect_oneshot_request("/api/123456/minidump/").respond_with_data("OK")
+
+    with httpserver.wait(timeout=10) as waiting:
+        # The restarted child inherits stdio, so PIPE waits for it without a sleep.
+        run(
+            tmp_path,
+            "sentry_example",
+            ["crash", "restart-on-crash"],
+            expect_failure=True,
+            env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+
+    assert waiting.result
+    assert len(httpserver.log) == 2
+    for req in httpserver.log:
+        assert_crashpad_upload(req[0])

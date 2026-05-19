@@ -20,6 +20,7 @@
 
 #ifdef SENTRY_PLATFORM_WINDOWS
 #    include <malloc.h>
+#    include <process.h>
 #    include <synchapi.h>
 #    define sleep_s(SECONDS) Sleep((SECONDS) * 1000)
 #else
@@ -134,6 +135,41 @@ on_crash_callback(
     (void)user_data;
 
     // tell the backend to retain the event
+    return event;
+}
+
+static sentry_value_t
+restart_on_crash(
+    const sentry_ucontext_t *uctx, sentry_value_t event, void *user_data)
+{
+    (void)uctx;
+
+    int argc = 0;
+    char **argv = user_data;
+    assert(argv);
+    assert(argv[0]);
+    while (argv[argc]) {
+        argc++;
+    }
+
+    int child_argc = 0;
+    char **child_argv = alloca((argc + 1) * sizeof(char *));
+    for (int i = 0; argv[i]; i++) {
+        if (strcmp(argv[i], "restart-on-crash") != 0) {
+            child_argv[child_argc++] = argv[i];
+        }
+    }
+    child_argv[child_argc] = NULL;
+
+#ifdef SENTRY_PLATFORM_WINDOWS
+    _spawnv(_P_NOWAIT, child_argv[0], (const char *const *)child_argv);
+#else
+    if (fork() == 0) {
+        execv(child_argv[0], child_argv);
+        _exit(127);
+    }
+#endif
+
     return event;
 }
 
@@ -628,6 +664,10 @@ main(int argc, char **argv)
     if (has_arg(argc, argv, "discarding-on-crash")) {
         sentry_options_set_on_crash(
             options, discarding_on_crash_callback, NULL);
+    }
+
+    if (has_arg(argc, argv, "restart-on-crash")) {
+        sentry_options_set_on_crash(options, restart_on_crash, argv);
     }
 
     if (has_arg(argc, argv, "before-transaction")) {

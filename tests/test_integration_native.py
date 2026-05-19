@@ -6,6 +6,7 @@ multi-thread capture, and FPU/SIMD register capture on all platforms.
 """
 
 import os
+import subprocess
 import sys
 import time
 import struct
@@ -38,7 +39,7 @@ pytestmark = pytest.mark.skipif(
 SANITIZER_ARGS = ["shutdown-timeout", "10000"] if is_asan or is_tsan else []
 
 
-def run_crash(tmp_path, exe, args, env):
+def run_crash(tmp_path, exe, args, env, **kwargs):
     """
     Run a crash test, handling kcov's quirk of exiting with 0.
     kcov intercepts signals and may exit cleanly even when the program crashes.
@@ -64,12 +65,12 @@ def run_crash(tmp_path, exe, args, env):
 
     if is_kcov:
         try:
-            run(tmp_path, exe, args, expect_failure=True, env=env)
+            run(tmp_path, exe, args, expect_failure=True, env=env, **kwargs)
         except AssertionError:
             # kcov may exit with 0 even on crash, that's acceptable
             pass
     else:
-        run(tmp_path, exe, args, expect_failure=True, env=env)
+        run(tmp_path, exe, args, expect_failure=True, env=env, **kwargs)
 
 
 def test_native_capture_crash(cmake, httpserver):
@@ -674,3 +675,27 @@ def test_native_cache_keep(cmake, cache_keep, unreachable_dsn):
         # of a file.
         time.sleep(2)
         assert len(list(cache_dir.glob("*.envelope"))) == 0
+
+
+def test_native_restart_on_crash(cmake, httpserver):
+    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "native"})
+
+    httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data("OK")
+    httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data("OK")
+
+    with httpserver.wait(timeout=10) as waiting:
+        # The restarted child inherits stdio, so PIPE waits for it without a sleep.
+        run_crash(
+            tmp_path,
+            "sentry_example",
+            ["crash", "restart-on-crash"],
+            env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+
+    assert waiting.result
+    assert len(httpserver.log) == 2
+    for req in httpserver.log:
+        envelope = Envelope.deserialize(req[0].get_data())
+        assert_native_crash(envelope)

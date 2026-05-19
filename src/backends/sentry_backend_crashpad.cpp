@@ -366,8 +366,10 @@ crashpad_handler(int signum, siginfo_t *info, ucontext_t *user_context)
 #    endif
 
             SENTRY_DEBUG("invoking `on_crash` hook");
+            sentry_signal_mask_t signal_mask = sentry__unblock_crash_signals();
             crash_event = options->on_crash_func(
                 &uctx, crash_event, options->on_crash_data);
+            sentry__restore_signal_mask(&signal_mask);
         } else if (options->before_send_func) {
             SENTRY_DEBUG("invoking `before_send` hook");
             crash_event = options->before_send_func(

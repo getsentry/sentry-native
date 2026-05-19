@@ -12,6 +12,7 @@
 #    include "sentry_os.h"
 #    include <winnt.h>
 #else
+#    include <signal.h>
 #    include <sys/time.h>
 #    include <time.h>
 #endif
@@ -51,6 +52,51 @@ sentry__uuid_swap_guid_bytes(void *uuid)
     t = p[6];
     p[6] = p[7];
     p[7] = t;
+}
+
+typedef struct {
+#ifdef SENTRY_PLATFORM_UNIX
+    sigset_t previous;
+    bool active;
+#else
+    int unused;
+#endif
+} sentry_signal_mask_t;
+
+static inline sentry_signal_mask_t
+sentry__unblock_crash_signals(void)
+{
+    sentry_signal_mask_t mask = { 0 };
+#ifdef SENTRY_PLATFORM_UNIX
+    sigset_t crash_signals;
+    sigemptyset(&crash_signals);
+    sigaddset(&crash_signals, SIGABRT);
+    sigaddset(&crash_signals, SIGBUS);
+    sigaddset(&crash_signals, SIGFPE);
+    sigaddset(&crash_signals, SIGILL);
+    sigaddset(&crash_signals, SIGSEGV);
+#    ifdef SIGSYS
+    sigaddset(&crash_signals, SIGSYS);
+#    endif
+#    ifdef SIGTRAP
+    sigaddset(&crash_signals, SIGTRAP);
+#    endif
+    mask.active = sigprocmask(SIG_UNBLOCK, &crash_signals, &mask.previous) == 0;
+#endif
+    return mask;
+}
+
+static inline void
+sentry__restore_signal_mask(sentry_signal_mask_t *mask)
+{
+#ifdef SENTRY_PLATFORM_UNIX
+    if (mask && mask->active) {
+        sigprocmask(SIG_SETMASK, &mask->previous, NULL);
+        mask->active = false;
+    }
+#else
+    (void)mask;
+#endif
 }
 
 #if defined(_MSC_VER) && !defined(__clang__)
