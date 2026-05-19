@@ -674,9 +674,7 @@ endif()
 
 if(SENTRY_WITH_LIBUNWIND)
 	if(LINUX OR ANDROID)
-		# Use vendored libunwind (on Android too: matches Linux behaviour and
-		# avoids relying on the NDK toolchain's libunwind, whose API can drift
-		# between NDK versions).
+		# Use vendored libunwind
 		add_subdirectory(vendor/libunwind)
 		target_link_libraries(sentry PRIVATE unwind)
 		if(NOT SENTRY_BUILD_SHARED_LIBS)
