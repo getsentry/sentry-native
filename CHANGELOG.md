@@ -5,6 +5,7 @@
 **Fixes**:
 
 - Reject overly deep msgpack payloads during deserialization. ([#1727](https://github.com/getsentry/sentry-native/pull/1727))
+- Guard against JSON token allocation overflow on 32-bit platforms. ([#1733](https://github.com/getsentry/sentry-native/pull/1733))
 - Windows: fix HTTP rate limit response header parsing. ([#1732](https://github.com/getsentry/sentry-native/pull/1732))
 
 ## 0.14.2
