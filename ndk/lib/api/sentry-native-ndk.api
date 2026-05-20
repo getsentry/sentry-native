@@ -96,7 +96,9 @@ public final class io/sentry/ndk/NdkOptions {
 	public fun getSdkName ()Ljava/lang/String;
 	public fun getTracesSampleRate ()F
 	public fun isDebug ()Z
+	public fun isTombstoneEnabled ()Z
 	public fun setNdkHandlerStrategy (Lio/sentry/ndk/NdkHandlerStrategy;)V
+	public fun setTombstoneEnabled (Z)V
 	public fun setTracesSampleRate (F)V
 }
 
