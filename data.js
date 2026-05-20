@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1779276405007,
+  "lastUpdate": 1779276409403,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -66352,6 +66352,66 @@ window.BENCHMARK_DATA = {
             "value": 16.045599999984006,
             "unit": "ms",
             "extra": "Min 15.758ms\nMax 19.747ms\nMean 17.258ms\nStdDev 1.886ms\nMedian 16.046ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "jpnurmi@gmail.com",
+            "name": "J-P Nurmi",
+            "username": "jpnurmi"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "82dec4b8518de32586c4a761a3a9df4aed9d7b8d",
+          "message": "test: retry flaky crashpad dumping crash test (#1737)",
+          "timestamp": "2026-05-20T13:22:21+02:00",
+          "tree_id": "0b9664959c6f58ed84ce3bf718953cffbf290f39",
+          "url": "https://github.com/getsentry/sentry-native/commit/82dec4b8518de32586c4a761a3a9df4aed9d7b8d"
+        },
+        "date": 1779276398079,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 10.360499999478634,
+            "unit": "ms",
+            "extra": "Min 10.069ms\nMax 15.788ms\nMean 11.337ms\nStdDev 2.493ms\nMedian 10.360ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 11.34619999993447,
+            "unit": "ms",
+            "extra": "Min 10.879ms\nMax 11.571ms\nMean 11.241ms\nStdDev 0.325ms\nMedian 11.346ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 26.910200000202167,
+            "unit": "ms",
+            "extra": "Min 26.703ms\nMax 27.205ms\nMean 26.923ms\nStdDev 0.185ms\nMedian 26.910ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.193099999705737,
+            "unit": "ms",
+            "extra": "Min 0.158ms\nMax 0.249ms\nMean 0.196ms\nStdDev 0.034ms\nMedian 0.193ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.4192000005787122,
+            "unit": "ms",
+            "extra": "Min 0.397ms\nMax 0.464ms\nMean 0.425ms\nStdDev 0.030ms\nMedian 0.419ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 14.903500000400527,
+            "unit": "ms",
+            "extra": "Min 13.956ms\nMax 16.075ms\nMean 14.902ms\nStdDev 0.763ms\nMedian 14.904ms"
           }
         ]
       }
