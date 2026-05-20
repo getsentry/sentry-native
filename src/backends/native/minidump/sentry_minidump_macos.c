@@ -640,7 +640,11 @@ write_thread_list_stream(minidump_writer_t *writer, minidump_directory_t *dir)
 
             thread_t mach_thread = writer->threads[i];
 
-            // Get thread ID
+            // Get thread ID. Mach's thread_identifier_info.thread_id is
+            // uint64_t; MINIDUMP_THREAD::thread_id is uint32_t. Match against
+            // the captured snapshot (whose tid is also uint64_t) using the
+            // full value, and only narrow when writing the minidump field.
+            uint64_t mach_tid = 0;
             thread_identifier_info_data_t identifier_info;
             mach_msg_type_number_t identifier_info_count
                 = THREAD_IDENTIFIER_INFO_COUNT;
@@ -648,7 +652,8 @@ write_thread_list_stream(minidump_writer_t *writer, minidump_directory_t *dir)
             if (thread_info(mach_thread, THREAD_IDENTIFIER_INFO,
                     (thread_info_t)&identifier_info, &identifier_info_count)
                 == KERN_SUCCESS) {
-                thread->thread_id = identifier_info.thread_id;
+                mach_tid = identifier_info.thread_id;
+                thread->thread_id = (uint32_t)mach_tid;
             }
 
             // Get thread priority
@@ -672,8 +677,7 @@ write_thread_list_stream(minidump_writer_t *writer, minidump_directory_t *dir)
                 num_captured = SENTRY_CRASH_MAX_THREADS;
             }
             for (size_t j = 0; j < num_captured; j++) {
-                if (writer->crash_ctx->platform.threads[j].tid
-                    == thread->thread_id) {
+                if (writer->crash_ctx->platform.threads[j].tid == mach_tid) {
                     snapshot_state
                         = &writer->crash_ctx->platform.threads[j].state;
                     break;
