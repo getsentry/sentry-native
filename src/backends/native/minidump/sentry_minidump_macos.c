@@ -889,7 +889,11 @@ write_thread_names_stream(minidump_writer_t *writer, minidump_directory_t *dir)
     }
 
     // First pass: collect (tid, name) for each thread and write each name as a
-    // UTF-16LE MINIDUMP_STRING; record the RVAs.
+    // UTF-16LE MINIDUMP_STRING; record the RVAs. A 0 RVA from
+    // write_minidump_string means the string write failed; emitting it into
+    // MINIDUMP_THREAD_NAME::thread_name_rva would point parsers at the
+    // header, so we abort the whole stream instead. The caller zeroes the
+    // directory slot on -1 and keeps the rest of the dump.
     if (!use_fallback) {
         for (mach_msg_type_number_t i = 0; i < writer->thread_count; i++) {
             thread_t mach_thread = writer->threads[i];
@@ -918,6 +922,11 @@ write_thread_names_stream(minidump_writer_t *writer, minidump_directory_t *dir)
                 name = extended_info.pth_name;
             }
             name_rvas[i] = write_minidump_string(writer, name);
+            if (!name_rvas[i]) {
+                sentry_free(name_rvas);
+                sentry_free(name_tids);
+                return -1;
+            }
         }
     } else {
         size_t num_captured
@@ -939,6 +948,11 @@ write_thread_names_stream(minidump_writer_t *writer, minidump_directory_t *dir)
             // see the tid list, and the absence of names is consistent with
             // "we couldn't task_for_pid and didn't snapshot names".
             name_rvas[i] = write_minidump_string(writer, "");
+            if (!name_rvas[i]) {
+                sentry_free(name_rvas);
+                sentry_free(name_tids);
+                return -1;
+            }
         }
     }
 
