@@ -351,8 +351,136 @@ def test_native_multithreaded_crash(cmake, httpserver):
     assert waiting.result
 
 
+def _parse_minidump(path):
+    """
+    Lightweight minidump parser. Returns a dict with:
+        ``streams``: {stream_id: (size, rva)} indexed by `MINIDUMP_STREAM_TYPE`
+        ``data``: raw bytes
+        ``crashing_thread_id``: from the Exception stream when present
+        ``threads``: list of dicts: thread_id, stack_start, stack_size, sp (from CONTEXT)
+        ``memory_regions``: list of (start, size) from MemoryListStream
+
+    Used to verify cross-stream invariants the writer must uphold (e.g.
+    each ``MINIDUMP_THREAD::stack`` descriptor must cover the SP held by
+    that thread's CONTEXT). Bypasses any external minidump-parsing library
+    so the tests can run on every CI runner.
+    """
+    with open(path, "rb") as f:
+        data = f.read()
+
+    magic, _version, stream_count, stream_dir_rva = struct.unpack_from("<IIII", data, 0)
+    assert magic == 0x504D444D, f"bad minidump magic {magic:#x}"
+
+    streams = {}
+    for i in range(stream_count):
+        sid, size, rva = struct.unpack_from("<III", data, stream_dir_rva + i * 12)
+        streams[sid] = (size, rva)
+
+    crashing_thread_id = None
+    if 6 in streams:  # Exception stream
+        _size, rva = streams[6]
+        crashing_thread_id = struct.unpack_from("<I", data, rva)[0]
+
+    # SystemInfo (id=7) tells us the CPU architecture, which decides how to
+    # decode the per-thread CONTEXT block (where SP lives).
+    cpu_arch = None
+    if 7 in streams:
+        _size, rva = streams[7]
+        cpu_arch = struct.unpack_from("<H", data, rva)[0]
+    # ProcessorArchitecture: 0=X86, 5=ARM, 9=AMD64, 0x8003=ARM64 (Breakpad)
+    is_arm64 = cpu_arch in (0x8003, 0xC)
+    is_amd64 = cpu_arch == 9
+    is_x86 = cpu_arch == 0
+
+    threads = []
+    if 3 in streams:  # ThreadList
+        _size, rva = streams[3]
+        count = struct.unpack_from("<I", data, rva)[0]
+        for i in range(count):
+            base = rva + 4 + i * 48
+            tid = struct.unpack_from("<I", data, base)[0]
+            stack_start = struct.unpack_from("<Q", data, base + 24)[0]
+            stack_size = struct.unpack_from("<I", data, base + 32)[0]
+            ctx_size = struct.unpack_from("<I", data, base + 40)[0]
+            ctx_rva = struct.unpack_from("<I", data, base + 44)[0]
+
+            sp = None
+            if ctx_size and ctx_rva:
+                # Decode SP from the architecture-specific CONTEXT block.
+                if is_arm64:
+                    # Breakpad CONTEXT_ARM64: context_flags(u32) + cpsr(u32)
+                    # + iregs[31]*u64 + sp(u64). SP at offset 8 + 31*8 = 256.
+                    sp = struct.unpack_from("<Q", data, ctx_rva + 8 + 31 * 8)[0]
+                elif is_amd64:
+                    # CONTEXT_AMD64: rsp at offset 0x98.
+                    sp = struct.unpack_from("<Q", data, ctx_rva + 0x98)[0]
+                elif is_x86:
+                    # CONTEXT_X86: esp at offset 0xC4.
+                    sp = struct.unpack_from("<I", data, ctx_rva + 0xC4)[0]
+
+            threads.append(
+                {
+                    "thread_id": tid,
+                    "stack_start": stack_start,
+                    "stack_size": stack_size,
+                    "sp": sp,
+                }
+            )
+
+    memory_regions = []
+    if 5 in streams:  # MemoryListStream
+        _size, rva = streams[5]
+        count = struct.unpack_from("<I", data, rva)[0]
+        for i in range(count):
+            base = rva + 4 + i * 16
+            start = struct.unpack_from("<Q", data, base)[0]
+            region_size = struct.unpack_from("<I", data, base + 8)[0]
+            memory_regions.append((start, region_size))
+    elif 9 in streams:  # Memory64ListStream (full-memory dumps)
+        _size, rva = streams[9]
+        count = struct.unpack_from("<Q", data, rva)[0]
+        # Memory64 descriptors are 16 bytes: start(8) + size(8). The bytes
+        # themselves are concatenated starting at a base RVA stored after
+        # the count; we don't need them for our assertions.
+        for i in range(count):
+            entry = rva + 16 + i * 16
+            start = struct.unpack_from("<Q", data, entry)[0]
+            region_size = struct.unpack_from("<Q", data, entry + 8)[0]
+            memory_regions.append((start, region_size))
+
+    return {
+        "streams": streams,
+        "data": data,
+        "crashing_thread_id": crashing_thread_id,
+        "threads": threads,
+        "memory_regions": memory_regions,
+        "cpu_arch": cpu_arch,
+    }
+
+
 def test_native_minidump_streams(cmake, httpserver):
-    """Test that minidump contains required streams"""
+    """
+    Test that minidump contains required streams *and* that each
+    per-thread ``MINIDUMP_THREAD::stack`` descriptor's
+    ``start_of_memory_range`` falls inside the captured stack range
+    that the thread's CONTEXT block records as its SP.
+
+    This is the regression guard for an issue where the native macOS
+    backend would populate every thread's stack descriptor with a
+    daemon-time SP (obtained via ``thread_get_state`` long after the
+    signal handler had moved the crashing thread's SP deep into
+    libsystem code waiting on the daemon IPC). The crashing thread's
+    ``CONTEXT`` had the right SP (taken from the signal handler's
+    ucontext snapshot), but the ``stack`` descriptor pointed at
+    libsystem code pages — so the two streams disagreed and downstream
+    minidump tools couldn't follow the stack from SP. The fix matches
+    each Mach thread back to the signal-handler-captured state by
+    ``thread_id`` and uses *that* SP for the stack descriptor.
+
+    The assertion runs on every platform — Linux and Windows already
+    populated the descriptor correctly; this guards against a regression
+    that breaks the cross-stream invariant.
+    """
     tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "native"})
 
     httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data("OK")
@@ -373,35 +501,256 @@ def test_native_minidump_streams(cmake, httpserver):
     minidump_files = list(db_dir.glob("*.dmp"))
     assert len(minidump_files) > 0
 
-    # Parse minidump header and verify streams
-    with open(minidump_files[0], "rb") as f:
-        # Skip signature and version
-        f.seek(8)
+    dump = _parse_minidump(minidump_files[0])
 
-        # Read stream count
-        stream_count = struct.unpack("<I", f.read(4))[0]
-        assert (
-            stream_count >= 3
-        ), "Should have at least SystemInfo, ThreadList, ModuleList"
+    # Required streams: ThreadList (3), ModuleList (4), SystemInfo (7).
+    assert 3 in dump["streams"], "Should have ThreadList stream"
+    assert 4 in dump["streams"], "Should have ModuleList stream"
+    assert 7 in dump["streams"], "Should have SystemInfo stream"
 
-        # Read stream directory RVA
-        stream_dir_rva = struct.unpack("<I", f.read(4))[0]
+    # Per-thread stack descriptor accuracy: every thread that has a CONTEXT
+    # block must have a stack descriptor whose range contains the CONTEXT's
+    # SP. Threads with size=0 (couldn't capture stack) are tolerated.
+    for thread in dump["threads"]:
+        sp = thread["sp"]
+        if sp is None or sp == 0:
+            continue
+        if thread["stack_size"] == 0:
+            continue
+        stack_end = thread["stack_start"] + thread["stack_size"]
+        assert thread["stack_start"] <= sp < stack_end, (
+            f"thread {thread['thread_id']}: SP {sp:#x} is outside the "
+            f"per-thread stack descriptor range "
+            f"[{thread['stack_start']:#x}..{stack_end:#x}). "
+            f"This means MINIDUMP_THREAD::stack and the thread's CONTEXT "
+            f"disagree about where the stack lives, breaking any minidump "
+            f"reader that walks the stack from SP."
+        )
 
-        # Seek to stream directory
-        f.seek(stream_dir_rva)
+    # Exception-stream encoding: per Breakpad/Crashpad convention on macOS
+    # and Linux, MINIDUMP_EXCEPTION::exception_code carries the Mach
+    # exception type (macOS) or matches the Linux/Windows-style code
+    # respectively — *not* the BSD signal number. Putting the signal
+    # there triggers a name collision (e.g. SIGSEGV=11 equals the Mach
+    # enum value for EXC_RESOURCE), causing every minidump reader that
+    # respects the convention (minidump-rs, breakpad processor, the
+    # crashpad tools) to decode the wrong crash reason.
+    #
+    # MINIDUMP_EXCEPTION_STREAM layout (verified against the Microsoft
+    # Minidump SDK headers and Breakpad's md_exception.h):
+    #
+    #     +0   thread_id                u32
+    #     +4   __alignment              u32
+    #     +8   exception_code           u32  ← Mach exception type on macOS
+    #     +12  exception_flags          u32  ← Mach exception subtype
+    #     +16  exception_record         u64  (pointer field, always zero)
+    #     +24  exception_address        u64
+    #     +32  number_parameters        u32
+    #     +36  __unusedAlignment        u32
+    #     +40  exception_information[0] u64
+    #     +48  exception_information[1] u64
+    #     ...
+    if 6 in dump["streams"]:
+        size, rva = dump["streams"][6]
+        data = dump["data"]
+        exception_code = struct.unpack_from("<I", data, rva + 8)[0]
+        if sys.platform == "darwin":
+            # Mach exception types: EXC_BAD_ACCESS=1, EXC_BAD_INSTRUCTION=2,
+            # EXC_ARITHMETIC=3, EXC_SOFTWARE=5, EXC_BREAKPOINT=6, EXC_CRASH=10
+            # (full enum runs through 13). The bug to guard against is
+            # writing the BSD signal (11 = SIGSEGV) directly, which lands
+            # on EXC_RESOURCE — a totally different concept.
+            valid_mach_types = {1, 2, 3, 5, 6, 10}
+            assert exception_code in valid_mach_types, (
+                f"exception_code = {exception_code} is not a valid Mach "
+                f"exception type for crash-derived dumps. Per "
+                f"Breakpad/Crashpad convention, this field must carry the "
+                f"Mach exception type (EXC_BAD_ACCESS, EXC_CRASH, etc.), "
+                f"not the BSD signal number — otherwise minidump readers "
+                f"misdecode the crash reason. See "
+                f"src/backends/native/minidump/sentry_minidump_macos.c "
+                f"::bsd_signal_to_mach_exception."
+            )
+            # exception_information[0] should carry the BSD signal so
+            # consumers that want it can still find it.
+            number_parameters = struct.unpack_from("<I", data, rva + 32)[0]
+            assert number_parameters >= 1, (
+                f"number_parameters = {number_parameters} — the writer "
+                f"should populate exception_information[0] with the BSD "
+                f"signal so consumers that key on it (lldb, custom "
+                f"analyzers) don't lose access to it."
+            )
+            bsd_signum = struct.unpack_from("<Q", data, rva + 40)[0]
+            # Common crash signals: SIGILL=4, SIGTRAP=5, SIGABRT=6,
+            # SIGFPE=8, SIGBUS=10, SIGSEGV=11, SIGSYS=12.
+            assert bsd_signum in {4, 5, 6, 8, 10, 11, 12}, (
+                f"exception_information[0] = {bsd_signum} doesn't look "
+                f"like a BSD signal number for a typical crash. The "
+                f"writer should put the originating signal there for "
+                f"consumers that key on it."
+            )
 
-        # Read stream types
-        stream_types = []
-        for _ in range(stream_count):
-            stream_type = struct.unpack("<I", f.read(4))[0]
-            stream_types.append(stream_type)
-            f.read(8)  # Skip size and RVA
 
-        # Verify required streams
-        # 3 = SystemInfo, 4 = ThreadList, 5 = ModuleList
-        assert 3 in stream_types, "Should have SystemInfo stream"
-        assert 4 in stream_types, "Should have ThreadList stream"
-        assert 5 in stream_types, "Should have ModuleList stream"
+def _codesign_for_task_for_pid(*paths):
+    """
+    Ad-hoc codesign macOS binaries with ``com.apple.security.cs.debugger``
+    + ``com.apple.security.get-task-allow`` + hardened runtime so the
+    sentry-crash daemon can call ``task_for_pid`` on the parent process.
+    Without this, sentry-native's SMART minidump mode falls back to a
+    minimal capture (module headers only — no heap-region scan) because
+    ``mach_vm_region`` requires the task port to enumerate writable VM
+    mappings.
+
+    Real Apple Developer certificates are NOT needed; ad-hoc signing
+    (``codesign --sign -``) is sufficient as long as the binaries get
+    consistent entitlements.
+    """
+    import subprocess
+    import tempfile
+    import textwrap
+
+    ent_xml = textwrap.dedent("""\
+        <?xml version="1.0" encoding="UTF-8"?>
+        <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+        <plist version="1.0">
+        <dict>
+            <key>com.apple.security.cs.debugger</key>
+            <true/>
+            <key>com.apple.security.get-task-allow</key>
+            <true/>
+        </dict>
+        </plist>
+        """)
+    with tempfile.NamedTemporaryFile(
+        mode="w", suffix=".entitlements", delete=False
+    ) as f:
+        f.write(ent_xml)
+        ent_path = f.name
+
+    for path in paths:
+        if not os.path.exists(path):
+            continue
+        subprocess.run(
+            [
+                "codesign",
+                "--force",
+                "--sign",
+                "-",
+                "--options",
+                "runtime",
+                "--entitlements",
+                ent_path,
+                path,
+            ],
+            check=True,
+            capture_output=True,
+        )
+
+
+def test_native_smart_mode_captures_indirect_heap_memory(cmake, httpserver):
+    """
+    Verify SMART minidump mode captures memory regions referenced by the
+    crashing thread's registers + stack contents — not just module
+    headers + thread stacks.
+
+    The published behaviour of ``SENTRY_MINIDUMP_MODE_SMART`` (the
+    default) is "stack-only dump plus ~1 KiB around every writable-heap
+    pointer reachable from the crashing thread's registers or stack
+    words, capped at 4 MiB". All three backends now wire this through:
+
+      * macOS / Linux: the native backend scans the captured stack
+        words + register file in the daemon, looks up each candidate
+        pointer against ``mach_vm_region`` / ``/proc/self/maps``, and
+        appends a chunk around each writable-heap hit to
+        MemoryListStream.
+      * Windows: the native backend passes
+        ``MiniDumpWithIndirectlyReferencedMemory | MiniDumpWithDataSegs``
+        to ``MiniDumpWriteDump`` so the OS does the equivalent scan.
+
+    The minimal-mode fallback on macOS (when ``task_for_pid`` is
+    blocked by the sandbox) silently breaks the SMART-mode contract by
+    emitting *only* module header pages. This test ad-hoc codesigns the
+    example + daemon on macOS so ``task_for_pid`` succeeds (no Apple
+    Developer cert needed; ad-hoc signing is enough), then asserts
+    MemoryListStream contains at least one region in a typical heap
+    address band (i.e. *not* inside any loaded-module image range and
+    *not* inside any captured thread stack). On Linux ``/proc/self/maps``
+    is readable in-process so no signing is needed; on Windows
+    ``MiniDumpWriteDump`` runs as the same user as the crashing process
+    and likewise needs no extra setup.
+    """
+    # Static build so the hardened-runtime process can load itself without
+    # tripping the dyld "different team IDs" check on ad-hoc-signed dylibs.
+    tmp_path = cmake(
+        ["sentry_example"],
+        {"SENTRY_BACKEND": "native", "BUILD_SHARED_LIBS": "OFF"},
+    )
+
+    if sys.platform == "darwin":
+        _codesign_for_task_for_pid(
+            str(tmp_path / "sentry_example"),
+            str(tmp_path / "sentry-crash"),
+        )
+
+    httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data("OK")
+
+    with httpserver.wait(timeout=15) as waiting:
+        run_crash(
+            tmp_path,
+            "sentry_example",
+            ["log", "stdout", "crash"],
+            env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
+        )
+    assert waiting.result
+
+    db_dir = tmp_path / ".sentry-native"
+    assert wait_for_file(db_dir / "*.dmp")
+    minidump_files = list(db_dir.glob("*.dmp"))
+    assert len(minidump_files) > 0
+
+    dump = _parse_minidump(minidump_files[0])
+
+    # Build a quick set of "module image" address ranges so we can spot
+    # captured regions that are *not* in any module (heap candidates).
+    module_ranges = []
+    if 4 in dump["streams"]:
+        size, rva = dump["streams"][4]
+        data = dump["data"]
+        module_count = struct.unpack_from("<I", data, rva)[0]
+        # MINIDUMP_MODULE is 108 bytes on disk
+        for i in range(module_count):
+            entry = rva + 4 + i * 108
+            base = struct.unpack_from("<Q", data, entry)[0]
+            size = struct.unpack_from("<I", data, entry + 8)[0]
+            module_ranges.append((base, base + size))
+
+    # Stack ranges from per-thread descriptors.
+    stack_ranges = [
+        (t["stack_start"], t["stack_start"] + t["stack_size"])
+        for t in dump["threads"]
+        if t["stack_size"] > 0
+    ]
+
+    def in_any(addr, ranges):
+        return any(lo <= addr < hi for lo, hi in ranges)
+
+    heap_candidates = [
+        (start, size)
+        for (start, size) in dump["memory_regions"]
+        if not in_any(start, module_ranges) and not in_any(start, stack_ranges)
+    ]
+
+    assert dump[
+        "memory_regions"
+    ], "SMART mode must populate MemoryListStream with at least one region"
+    assert heap_candidates, (
+        f"SMART mode must capture at least one region outside the loaded "
+        f"module image ranges and outside the per-thread stack ranges. "
+        f"All {len(dump['memory_regions'])} captured regions landed in "
+        f"either module or stack ranges, which means the indirect-memory "
+        f"scan didn't fire (typically because task_for_pid failed on "
+        f"macOS without cs.debugger / get-task-allow entitlements)."
+    )
 
 
 def test_native_cleanup(cmake):

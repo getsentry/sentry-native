@@ -73,16 +73,9 @@ $(GIT_COMMON_DIR)/hooks/pre-commit:
 	@touch $@
 
 format: setup-venv
-	@.venv/bin/clang-format -i \
-		examples/*.c \
-		include/*.h \
-		src/*.c \
-		src/*.h \
-		src/*/*.c \
-		src/*/*.cpp \
-		src/*/*.h \
-		tests/unit/*.c \
-		tests/unit/*.h
+	@find examples include src tests/unit \
+		\( -name '*.c' -o -name '*.cpp' -o -name '*.h' \) -print0 \
+		| xargs -0 .venv/bin/clang-format -i
 	@.venv/bin/black tests
 .PHONY: format
 
