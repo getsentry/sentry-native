@@ -558,9 +558,10 @@ write_thread_stack(minidump_writer_t *writer, uint64_t stack_pointer,
         // region query was stale (e.g. region was unmapped between
         // enumerate_memory_regions and now). Halve from the clamped
         // stack_size so we still make at least one attempt when the
-        // region is smaller than a page — a fixed table like
-        // {1MB, 256KB, 4KB} would skip every entry in that case.
-        for (mach_vm_size_t retry = stack_size / 2; retry >= 256;
+        // region is smaller than a page. Floor at 16 bytes (two 64-bit
+        // pointers — enough for at least a return address and frame
+        // pointer) so very small clamps still get a retry pass.
+        for (mach_vm_size_t retry = stack_size / 2; retry >= 16;
             retry /= 2) {
             kr = read_task_memory(
                 writer->task, stack_start, stack_buffer, retry);
