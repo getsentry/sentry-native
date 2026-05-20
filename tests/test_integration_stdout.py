@@ -40,14 +40,14 @@ def test_capture_stdout(cmake):
         ["sentry_test_integration"],
         {
             "SENTRY_BACKEND": "none",
-            "SENTRY_TRANSPORT": "none",
+            "SENTRY_TRANSPORT": "stdout",
         },
     )
 
     output = check_output(
         tmp_path,
         "sentry_test_integration",
-        ["stdout", "attachment", "capture-event", "add-stacktrace"],
+        ["attachment", "capture-event", "add-stacktrace"],
     )
     envelope = Envelope.deserialize(output)
 
@@ -56,6 +56,29 @@ def test_capture_stdout(cmake):
     assert_attachment(envelope)
     assert_stacktrace(envelope)
 
+    assert_event(envelope)
+
+
+def test_capture_stdout_binary_attachment(cmake):
+    tmp_path = cmake(
+        ["sentry_test_integration"],
+        {
+            "SENTRY_BACKEND": "none",
+            "SENTRY_TRANSPORT": "stdout",
+        },
+    )
+
+    output = run(
+        tmp_path,
+        "sentry_test_integration",
+        ["binary-attachment", "capture-event"],
+        stdout=subprocess.PIPE,
+    ).stdout
+    envelope = Envelope.deserialize(output)
+
+    attachments = [item for item in envelope if item.headers["type"] == "attachment"]
+    assert len(attachments) == 1
+    assert attachments[0].payload.bytes == b"\xc0\x00\xff\n\r\n\xee"
     assert_event(envelope)
 
 
