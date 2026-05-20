@@ -78,6 +78,8 @@ typedef struct {
 #if defined(SENTRY_PLATFORM_ANDROID)
 sentry_crash_ipc_t *sentry__crash_ipc_init_app(
     const char *database_path, sentry_mutex_t *init_mutex);
+sentry_crash_ipc_t *sentry__crash_ipc_init_app_with_fds(const char *shm_path,
+    int notify_fd, int ready_fd, sentry_mutex_t *init_mutex);
 #elif defined(SENTRY_PLATFORM_LINUX)
 sentry_crash_ipc_t *sentry__crash_ipc_init_app(sem_t *init_sem);
 #elif defined(SENTRY_PLATFORM_MACOS)

@@ -58,6 +58,59 @@ static sem_t *g_ipc_init_sem = SEM_FAILED;
 static char g_ipc_sem_name[64] = { 0 };
 #endif
 
+#if defined(SENTRY_PLATFORM_ANDROID)
+typedef struct {
+    bool configured;
+    char shm_path[SENTRY_CRASH_MAX_PATH];
+    int notify_fd;
+    int ready_fd;
+} android_crash_daemon_config_t;
+
+static android_crash_daemon_config_t g_android_crash_daemon_config
+    = { false, { 0 }, -1, -1 };
+
+__attribute__((visibility("default"))) void
+sentry_android_crash_daemon_init(
+    const char *shm_path, int notify_fd, int ready_fd)
+{
+    if (!shm_path || !shm_path[0] || notify_fd < 0 || ready_fd < 0) {
+        return;
+    }
+
+    sentry__mutex_lock(&g_ipc_sync_mutex);
+    strncpy(g_android_crash_daemon_config.shm_path, shm_path,
+        sizeof(g_android_crash_daemon_config.shm_path) - 1);
+    g_android_crash_daemon_config
+        .shm_path[sizeof(g_android_crash_daemon_config.shm_path) - 1]
+        = '\0';
+    g_android_crash_daemon_config.notify_fd = notify_fd;
+    g_android_crash_daemon_config.ready_fd = ready_fd;
+    g_android_crash_daemon_config.configured = true;
+    sentry__mutex_unlock(&g_ipc_sync_mutex);
+}
+
+static bool
+take_android_crash_daemon_config(
+    char *shm_path, size_t shm_path_len, int *notify_fd, int *ready_fd)
+{
+    bool configured = false;
+    sentry__mutex_lock(&g_ipc_sync_mutex);
+    if (g_android_crash_daemon_config.configured) {
+        strncpy(
+            shm_path, g_android_crash_daemon_config.shm_path, shm_path_len - 1);
+        shm_path[shm_path_len - 1] = '\0';
+        *notify_fd = g_android_crash_daemon_config.notify_fd;
+        *ready_fd = g_android_crash_daemon_config.ready_fd;
+        g_android_crash_daemon_config.notify_fd = -1;
+        g_android_crash_daemon_config.ready_fd = -1;
+        g_android_crash_daemon_config.configured = false;
+        configured = true;
+    }
+    sentry__mutex_unlock(&g_ipc_sync_mutex);
+    return configured;
+}
+#endif
+
 static char *
 resolve_handler_path(const sentry_options_t *options)
 {
@@ -232,6 +285,7 @@ typedef struct {
     sentry_path_t *envelope_path;
     size_t num_breadcrumbs;
     volatile long crashed;
+    bool android_service_daemon;
 } native_backend_state_t;
 
 static int
@@ -302,9 +356,20 @@ native_backend_startup(
 #elif defined(SENTRY_PLATFORM_IOS)
     state->ipc = sentry__crash_ipc_init_app(NULL);
 #elif defined(SENTRY_PLATFORM_ANDROID)
-    state->ipc = sentry__crash_ipc_init_app(
-        options->database_path ? options->database_path->path : NULL,
-        &g_ipc_sync_mutex);
+    char service_shm_path[SENTRY_CRASH_MAX_PATH] = { 0 };
+    int service_notify_fd = -1;
+    int service_ready_fd = -1;
+    state->android_service_daemon
+        = take_android_crash_daemon_config(service_shm_path,
+            sizeof(service_shm_path), &service_notify_fd, &service_ready_fd);
+    if (state->android_service_daemon) {
+        state->ipc = sentry__crash_ipc_init_app_with_fds(service_shm_path,
+            service_notify_fd, service_ready_fd, &g_ipc_sync_mutex);
+    } else {
+        state->ipc = sentry__crash_ipc_init_app(
+            options->database_path ? options->database_path->path : NULL,
+            &g_ipc_sync_mutex);
+    }
 #elif defined(SENTRY_PLATFORM_MACOS)
     state->ipc = sentry__crash_ipc_init_app(&g_ipc_sync_mutex);
 #else
@@ -508,22 +573,31 @@ native_backend_startup(
 #else
     // Other platforms: Use out-of-process daemon
     // Pass the notification handles (eventfd/pipe on Unix, events on Windows)
-    char *daemon_handler_path = resolve_handler_path(options);
+    char *daemon_handler_path = NULL;
 #    if defined(SENTRY_PLATFORM_ANDROID)
-    uint64_t tid = (uint64_t)pthread_self();
-    state->daemon_pid
-        = sentry__crash_daemon_start(getpid(), tid, state->ipc->notify_fd,
-            state->ipc->ready_fd, state->ipc->shm_fd, daemon_handler_path);
+    if (state->android_service_daemon) {
+        state->daemon_pid = 0;
+        SENTRY_DEBUG("using Android service-hosted crash daemon");
+    } else {
+        daemon_handler_path = resolve_handler_path(options);
+        uint64_t tid = (uint64_t)pthread_self();
+        state->daemon_pid
+            = sentry__crash_daemon_start(getpid(), tid, state->ipc->notify_fd,
+                state->ipc->ready_fd, state->ipc->shm_fd, daemon_handler_path);
+    }
 #    elif defined(SENTRY_PLATFORM_LINUX)
+    daemon_handler_path = resolve_handler_path(options);
     uint64_t tid = (uint64_t)pthread_self();
     state->daemon_pid = sentry__crash_daemon_start(getpid(), tid,
         state->ipc->notify_fd, state->ipc->ready_fd, daemon_handler_path);
 #    elif defined(SENTRY_PLATFORM_MACOS)
+    daemon_handler_path = resolve_handler_path(options);
     uint64_t tid = (uint64_t)pthread_self();
     state->daemon_pid
         = sentry__crash_daemon_start(getpid(), tid, state->ipc->notify_pipe[0],
             state->ipc->ready_pipe[1], state->ipc->shm_fd, daemon_handler_path);
 #    elif defined(SENTRY_PLATFORM_WINDOWS)
+    daemon_handler_path = resolve_handler_path(options);
     uint64_t tid = (uint64_t)GetCurrentThreadId();
     state->daemon_pid = sentry__crash_daemon_start(GetCurrentProcessId(), tid,
         state->ipc->event_handle, state->ipc->ready_event_handle,
@@ -536,7 +610,7 @@ native_backend_startup(
 #    if defined(SENTRY_PLATFORM_WINDOWS)
     if (state->daemon_pid == (pid_t)-1) {
 #    else
-    if (state->daemon_pid < 0) {
+    if (!state->android_service_daemon && state->daemon_pid < 0) {
 #    endif
         SENTRY_WARN("failed to start crash daemon");
         sentry__crash_ipc_free(state->ipc);
@@ -545,7 +619,9 @@ native_backend_startup(
         return 1;
     }
 
-    SENTRY_DEBUGF("crash daemon started with PID %d", state->daemon_pid);
+    if (!state->android_service_daemon) {
+        SENTRY_DEBUGF("crash daemon started with PID %d", state->daemon_pid);
+    }
 
 #    if defined(SENTRY_PLATFORM_MACOS)
     // Close unused pipe ends in parent process
@@ -565,12 +641,13 @@ native_backend_startup(
 
     // On Linux, allow the daemon to ptrace this process
     // This is required when Yama LSM ptrace_scope is enabled
-    if (prctl(PR_SET_PTRACER, state->daemon_pid, 0, 0, 0) != 0) {
+    if (!state->android_service_daemon
+        && prctl(PR_SET_PTRACER, state->daemon_pid, 0, 0, 0) != 0) {
         SENTRY_WARNF(
             "prctl(PR_SET_PTRACER) failed: %s - daemon may not be able to "
             "read process memory",
             strerror(errno));
-    } else {
+    } else if (!state->android_service_daemon) {
         SENTRY_DEBUGF("Set daemon PID %d as ptracer", state->daemon_pid);
     }
 #    endif
@@ -590,7 +667,9 @@ native_backend_startup(
     if (sentry__crash_handler_init(state->ipc) < 0) {
         SENTRY_WARN("failed to initialize crash handler");
 #    if defined(SENTRY_PLATFORM_UNIX)
-        kill(state->daemon_pid, SIGTERM);
+        if (!state->android_service_daemon && state->daemon_pid > 0) {
+            kill(state->daemon_pid, SIGTERM);
+        }
 #    elif defined(SENTRY_PLATFORM_WINDOWS)
 #        if !defined(SENTRY_PLATFORM_XBOX)
         wer_unregister_module();

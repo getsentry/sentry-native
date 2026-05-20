@@ -16,12 +16,12 @@
 #    include <sys/stat.h>
 #    include <unistd.h>
 
-sentry_crash_ipc_t *
-sentry__crash_ipc_init_app(
-    const char *database_path, sentry_mutex_t *init_mutex)
+static sentry_crash_ipc_t *
+sentry__crash_ipc_init_app_at_path(const char *shm_path, int notify_fd,
+    int ready_fd, sentry_mutex_t *init_mutex)
 {
-    if (!database_path || !database_path[0]) {
-        SENTRY_WARN("Android crash IPC requires a database path");
+    if (!shm_path || !shm_path[0]) {
+        SENTRY_WARN("Android crash IPC requires a shared memory path");
         return NULL;
     }
 
@@ -32,13 +32,10 @@ sentry__crash_ipc_init_app(
     ipc->is_daemon = false;
     ipc->init_mutex = init_mutex;
     ipc->shm_fd = -1;
-    ipc->notify_fd = -1;
-    ipc->ready_fd = -1;
-
-    uint64_t tid = (uint64_t)pthread_self();
-    uint32_t id = (uint32_t)((getpid() ^ (tid & 0xFFFFFFFF)) & 0xFFFFFFFF);
-    snprintf(ipc->shm_path, sizeof(ipc->shm_path), "%s/.sentry-shm-%08x",
-        database_path, id);
+    ipc->notify_fd = notify_fd;
+    ipc->ready_fd = ready_fd;
+    strncpy(ipc->shm_path, shm_path, sizeof(ipc->shm_path) - 1);
+    ipc->shm_path[sizeof(ipc->shm_path) - 1] = '\0';
 
     if (ipc->init_mutex) {
         sentry__mutex_lock(ipc->init_mutex);
@@ -84,16 +81,20 @@ sentry__crash_ipc_init_app(
         goto fail;
     }
 
-    ipc->notify_fd = eventfd(0, EFD_CLOEXEC | EFD_NONBLOCK);
     if (ipc->notify_fd < 0) {
-        SENTRY_WARNF("failed to create eventfd: %s", strerror(errno));
-        goto fail;
+        ipc->notify_fd = eventfd(0, EFD_CLOEXEC | EFD_NONBLOCK);
+        if (ipc->notify_fd < 0) {
+            SENTRY_WARNF("failed to create eventfd: %s", strerror(errno));
+            goto fail;
+        }
     }
 
-    ipc->ready_fd = eventfd(0, EFD_CLOEXEC);
     if (ipc->ready_fd < 0) {
-        SENTRY_WARNF("failed to create ready eventfd: %s", strerror(errno));
-        goto fail;
+        ipc->ready_fd = eventfd(0, EFD_CLOEXEC);
+        if (ipc->ready_fd < 0) {
+            SENTRY_WARNF("failed to create ready eventfd: %s", strerror(errno));
+            goto fail;
+        }
     }
 
     if (!shm_exists) {
@@ -134,6 +135,32 @@ fail:
     }
     sentry_free(ipc);
     return NULL;
+}
+
+sentry_crash_ipc_t *
+sentry__crash_ipc_init_app(
+    const char *database_path, sentry_mutex_t *init_mutex)
+{
+    if (!database_path || !database_path[0]) {
+        SENTRY_WARN("Android crash IPC requires a database path");
+        return NULL;
+    }
+
+    uint64_t tid = (uint64_t)pthread_self();
+    uint32_t id = (uint32_t)((getpid() ^ (tid & 0xFFFFFFFF)) & 0xFFFFFFFF);
+    char shm_path[SENTRY_CRASH_MAX_PATH] = { 0 };
+    snprintf(
+        shm_path, sizeof(shm_path), "%s/.sentry-shm-%08x", database_path, id);
+
+    return sentry__crash_ipc_init_app_at_path(shm_path, -1, -1, init_mutex);
+}
+
+sentry_crash_ipc_t *
+sentry__crash_ipc_init_app_with_fds(const char *shm_path, int notify_fd,
+    int ready_fd, sentry_mutex_t *init_mutex)
+{
+    return sentry__crash_ipc_init_app_at_path(
+        shm_path, notify_fd, ready_fd, init_mutex);
 }
 
 sentry_crash_ipc_t *

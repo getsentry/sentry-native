@@ -73,7 +73,7 @@ int sentry__crash_daemon_main(pid_t app_pid, uint64_t app_tid,
  * @param options Sentry options (DSN, transport, etc.)
  * @param ipc Crash IPC with crash context in shared memory
  */
-void sentry__process_crash(
+bool sentry__process_crash(
     const struct sentry_options_s *options, sentry_crash_ipc_t *ipc);
 
 #endif

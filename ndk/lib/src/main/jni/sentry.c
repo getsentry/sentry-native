@@ -1,8 +1,18 @@
 #include <string.h>
 #include <stdbool.h>
 #include <stdio.h>
+#include <stdint.h>
 #include <sentry.h>
 #include <jni.h>
+
+extern void sentry_android_crash_daemon_init(
+    const char *shm_path, int notify_fd, int ready_fd) __attribute__((weak));
+extern char *sentry_android_crash_daemon_run(int app_pid,
+    uint64_t app_tid, int notify_fd, int ready_fd,
+    const char *shm_path) __attribute__((weak));
+extern bool sentry_android_crash_daemon_send(
+    const char *path, uint64_t timeout) __attribute__((weak));
+extern void sentry_android_crash_daemon_close(void) __attribute__((weak));
 
 #define ENSURE(Expr) \
     if (!(Expr))     \
@@ -441,6 +451,97 @@ Java_io_sentry_ndk_SentryNdk_initSentryNative(
     }
     sentry_options_free(options);
     return (jint) -1;
+}
+
+JNIEXPORT void JNICALL
+Java_io_sentry_ndk_SentryNdk_nativeInitCrashDaemon(
+        JNIEnv *env,
+        jclass cls,
+        jstring shm_path,
+        jint notify_fd,
+        jint ready_fd) {
+    if (!shm_path) {
+        return;
+    }
+
+    const char *shm_path_chars = (*env)->GetStringUTFChars(env, shm_path, 0);
+    if (!shm_path_chars) {
+        return;
+    }
+
+    if (sentry_android_crash_daemon_init) {
+        sentry_android_crash_daemon_init(
+            shm_path_chars, (int) notify_fd, (int) ready_fd);
+    }
+
+    (*env)->ReleaseStringUTFChars(env, shm_path, shm_path_chars);
+}
+
+JNIEXPORT jstring JNICALL
+Java_io_sentry_ndk_SentryNdk_nativeRunCrashDaemon(
+        JNIEnv *env,
+        jclass cls,
+        jint app_pid,
+        jlong app_tid,
+        jint notify_fd,
+        jint ready_fd,
+        jstring shm_path) {
+    if (!shm_path) {
+        return NULL;
+    }
+
+    const char *shm_path_chars = (*env)->GetStringUTFChars(env, shm_path, 0);
+    if (!shm_path_chars) {
+        return NULL;
+    }
+
+    char *envelope_path = NULL;
+    if (sentry_android_crash_daemon_run) {
+        envelope_path = sentry_android_crash_daemon_run((int) app_pid,
+            (uint64_t) app_tid, (int) notify_fd, (int) ready_fd,
+            shm_path_chars);
+    }
+
+    (*env)->ReleaseStringUTFChars(env, shm_path, shm_path_chars);
+    if (!envelope_path) {
+        return NULL;
+    }
+
+    jstring rv = (*env)->NewStringUTF(env, envelope_path);
+    sentry_free(envelope_path);
+    return rv;
+}
+
+JNIEXPORT jboolean JNICALL
+Java_io_sentry_ndk_SentryNdk_nativeSendEnvelope(
+        JNIEnv *env,
+        jclass cls,
+        jstring path,
+        jlong timeout) {
+    if (!path) {
+        return JNI_FALSE;
+    }
+
+    const char *path_chars = (*env)->GetStringUTFChars(env, path, 0);
+    if (!path_chars) {
+        return JNI_FALSE;
+    }
+
+    bool sent = false;
+    if (sentry_android_crash_daemon_send) {
+        sent = sentry_android_crash_daemon_send(
+            path_chars, (uint64_t) timeout);
+    }
+
+    (*env)->ReleaseStringUTFChars(env, path, path_chars);
+    return sent ? JNI_TRUE : JNI_FALSE;
+}
+
+JNIEXPORT void JNICALL
+Java_io_sentry_ndk_SentryNdk_nativeCloseCrashDaemon(JNIEnv *env, jclass cls) {
+    if (sentry_android_crash_daemon_close) {
+        sentry_android_crash_daemon_close();
+    }
 }
 
 JNIEXPORT void JNICALL

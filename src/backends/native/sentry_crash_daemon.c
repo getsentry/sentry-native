@@ -61,6 +61,60 @@ static size_t walk_stack_with_dbghelp(HANDLE hProcess, DWORD crashed_tid,
     const CONTEXT *ctx_record, sentry_frame_info_t *frames, size_t max_frames);
 #endif
 
+#if defined(SENTRY_PLATFORM_ANDROID)
+typedef struct {
+    sentry_options_t *options;
+    sentry_crash_ipc_t *ipc;
+    FILE *log_file;
+    sentry_path_t *run_folder;
+    sentry_filelock_t *run_lock;
+    char envelope_path[SENTRY_CRASH_MAX_PATH];
+    bool transport_shutdown;
+    bool run_folder_cleaned;
+} sentry_android_pending_crash_daemon_t;
+
+static sentry_android_pending_crash_daemon_t g_android_pending_crash_daemon
+    = { 0 };
+static sentry_android_pending_crash_daemon_t *g_android_active_crash_daemon
+    = NULL;
+
+static void android_cleanup_pending_crash_daemon(bool clean_run_folder);
+
+__attribute__((visibility("default"))) char *
+sentry_android_crash_daemon_run(pid_t app_pid, uint64_t app_tid, int notify_fd,
+    int ready_fd, const char *shm_path)
+{
+    if (!shm_path || !shm_path[0]) {
+        return NULL;
+    }
+
+    int shm_fd = open(shm_path, O_RDWR | O_CLOEXEC);
+    if (shm_fd < 0) {
+        return NULL;
+    }
+
+    memset(&g_android_pending_crash_daemon, 0,
+        sizeof(g_android_pending_crash_daemon));
+    g_android_active_crash_daemon = &g_android_pending_crash_daemon;
+
+    int rv = sentry__crash_daemon_main(
+        app_pid, app_tid, notify_fd, ready_fd, shm_fd);
+    g_android_active_crash_daemon = NULL;
+
+    if (rv != 0 || !g_android_pending_crash_daemon.envelope_path[0]) {
+        android_cleanup_pending_crash_daemon(true);
+        return NULL;
+    }
+
+    char *path
+        = sentry__string_clone(g_android_pending_crash_daemon.envelope_path);
+    if (!path) {
+        android_cleanup_pending_crash_daemon(true);
+    }
+    return path;
+}
+#endif
+
 // Provide default ASAN options for sentry-crash daemon executable
 // This suppresses false positives from fork() which ASAN doesn't handle well
 #if defined(__has_feature)
@@ -219,6 +273,77 @@ attachment_is_placeholder(const sentry_options_t *options, const char *path)
     sentry__path_free(attachment.path);
     return is_placeholder;
 }
+
+#if defined(SENTRY_PLATFORM_ANDROID)
+static sentry_path_t *
+make_run_envelope_path(
+    const sentry_run_t *run, const sentry_envelope_t *envelope)
+{
+    if (!run || !envelope || !run->run_path) {
+        return NULL;
+    }
+
+    sentry_uuid_t event_id = sentry__envelope_get_event_id(envelope);
+    if (sentry_uuid_is_nil(&event_id)) {
+        return NULL;
+    }
+
+    char *filename = sentry__uuid_as_filename(&event_id, ".envelope");
+    if (!filename) {
+        return NULL;
+    }
+
+    sentry_path_t *path = sentry__path_join_str(run->run_path, filename);
+    sentry_free(filename);
+    return path;
+}
+
+static sentry_envelope_t *
+wait_for_android_tombstone_envelope(
+    const sentry_path_t *native_envelope_path, sentry_path_t **merged_path_out)
+{
+    if (merged_path_out) {
+        *merged_path_out = NULL;
+    }
+    if (!native_envelope_path) {
+        return NULL;
+    }
+
+    sentry_path_t *merged_path
+        = sentry__path_append_str(native_envelope_path, ".merged");
+    if (!merged_path) {
+        return NULL;
+    }
+
+    const int timeout_ms = 10000;
+    const int interval_ms = 100;
+    int elapsed_ms = 0;
+    while (elapsed_ms < timeout_ms) {
+        if (sentry__path_is_file(merged_path)) {
+            SENTRY_DEBUGF("Found Android tombstone merged envelope: %s",
+                merged_path->path);
+            sentry_envelope_t *envelope
+                = sentry__envelope_from_path(merged_path);
+            if (envelope) {
+                if (merged_path_out) {
+                    *merged_path_out = merged_path;
+                } else {
+                    sentry__path_free(merged_path);
+                }
+                return envelope;
+            }
+            SENTRY_WARN("Failed to read Android tombstone merged envelope");
+            break;
+        }
+        usleep(interval_ms * 1000);
+        elapsed_ms += interval_ms;
+    }
+
+    SENTRY_DEBUG("Timed out waiting for Android tombstone merged envelope");
+    sentry__path_free(merged_path);
+    return NULL;
+}
+#endif
 
 // For each large attachment listed in `<run_folder>/__sentry-attachments`,
 // cache it as an attachment-ref item. Small attachments were already inlined
@@ -2876,10 +3001,11 @@ write_envelope_with_minidump(const sentry_options_t *options,
  *
  * Called by the crash daemon (out-of-process on Linux/macOS).
  */
-void
+bool
 sentry__process_crash(const sentry_options_t *options, sentry_crash_ipc_t *ipc)
 {
     SENTRY_DEBUG("Processing crash - START");
+    bool android_tombstone_sent = false;
 
     sentry_crash_context_t *ctx = ipc->shmem;
 
@@ -3171,6 +3297,9 @@ sentry__process_crash(const sentry_options_t *options, sentry_crash_ipc_t *ipc)
 
 #if defined(SENTRY_PLATFORM_ANDROID)
     bool write_envelope = true;
+    sentry_path_t *android_native_envelope_path
+        = make_run_envelope_path(options ? options->run : NULL, envelope);
+    bool android_defer_envelope = g_android_active_crash_daemon != NULL;
 #else
     bool write_envelope = sentry__envelope_has_content_type(
         envelope, SENTRY_ATTACHMENT_REF_MIME);
@@ -3193,8 +3322,40 @@ sentry__process_crash(const sentry_options_t *options, sentry_crash_ipc_t *ipc)
 #if defined(SENTRY_PLATFORM_ANDROID)
                 SENTRY_DEBUG(
                     "Crash envelope written for Android tombstone merging");
-                sentry_envelope_free(envelope);
-                envelope = NULL;
+                sentry__atomic_store(&ctx->state, SENTRY_CRASH_STATE_DONE);
+                SENTRY_DEBUG("Released crashed process for Android tombstone");
+                if (android_defer_envelope && android_native_envelope_path) {
+                    strncpy(g_android_active_crash_daemon->envelope_path,
+                        android_native_envelope_path->path,
+                        sizeof(g_android_active_crash_daemon->envelope_path)
+                            - 1);
+                    g_android_active_crash_daemon->envelope_path
+                        [sizeof(g_android_active_crash_daemon->envelope_path)
+                            - 1]
+                        = '\0';
+                    g_android_active_crash_daemon->run_folder = run_folder;
+                    g_android_active_crash_daemon->run_lock = run_lock;
+                    run_folder = NULL;
+                    run_lock = NULL;
+                    sentry_envelope_free(envelope);
+                    envelope = NULL;
+                } else {
+                    sentry_path_t *merged_path = NULL;
+                    sentry_envelope_t *merged_envelope
+                        = wait_for_android_tombstone_envelope(
+                            android_native_envelope_path, &merged_path);
+                    if (merged_envelope) {
+                        sentry_envelope_free(envelope);
+                        envelope = merged_envelope;
+                        sentry__path_remove(android_native_envelope_path);
+                        sentry__path_remove(merged_path);
+                        sentry__path_free(merged_path);
+                        android_tombstone_sent = true;
+                    } else {
+                        sentry_envelope_free(envelope);
+                        envelope = NULL;
+                    }
+                }
 #endif
             }
         }
@@ -3209,6 +3370,10 @@ sentry__process_crash(const sentry_options_t *options, sentry_crash_ipc_t *ipc)
             }
         }
     }
+
+#if defined(SENTRY_PLATFORM_ANDROID)
+    sentry__path_free(android_native_envelope_path);
+#endif
 
     // Clean up temporary envelope file (keep minidump for
     // inspection/debugging)
@@ -3278,7 +3443,124 @@ cleanup:
 done:
     SENTRY_DEBUG("Processing crash - END");
     SENTRY_DEBUG("Crash processing complete");
+    return android_tombstone_sent;
 }
+
+#if defined(SENTRY_PLATFORM_ANDROID)
+__attribute__((visibility("default"))) bool
+sentry_android_crash_daemon_send(const char *path, uint64_t timeout)
+{
+    sentry_android_pending_crash_daemon_t *daemon
+        = &g_android_pending_crash_daemon;
+    if (!daemon->options || !daemon->ipc || !path || !path[0]) {
+        android_cleanup_pending_crash_daemon(false);
+        return false;
+    }
+
+    sentry_path_t *envelope_path = sentry__path_from_str(path);
+    sentry_envelope_t *envelope
+        = envelope_path ? sentry__envelope_from_path(envelope_path) : NULL;
+    if (envelope_path) {
+        sentry__path_free(envelope_path);
+    }
+    if (!envelope) {
+        SENTRY_WARN("Failed to read merged Android crash envelope");
+        android_cleanup_pending_crash_daemon(false);
+        return false;
+    }
+
+    bool sent = false;
+    if (daemon->options->transport && daemon->options->run) {
+        SENTRY_DEBUG("Capturing merged Android crash envelope");
+        sentry__capture_envelope(
+            daemon->options->transport, envelope, daemon->options);
+
+        sentry_path_t *raw_path = sentry__path_from_str(daemon->envelope_path);
+        if (raw_path) {
+            sentry__path_remove(raw_path);
+            sentry__path_free(raw_path);
+        }
+        if (strcmp(path, daemon->envelope_path) != 0) {
+            sentry_path_t *merged_path = sentry__path_from_str(path);
+            if (merged_path) {
+                sentry__path_remove(merged_path);
+                sentry__path_free(merged_path);
+            }
+        }
+
+        if (daemon->run_folder) {
+            SENTRY_DEBUG("Cleaning up Android crash run folder");
+            sentry__path_remove_all(daemon->run_folder);
+            daemon->run_folder_cleaned = true;
+        }
+        if (daemon->run_lock) {
+            sentry__filelock_unlock(daemon->run_lock);
+            sentry__filelock_free(daemon->run_lock);
+            daemon->run_lock = NULL;
+        }
+
+        daemon->options->shutdown_timeout = timeout;
+        int rv = sentry__transport_shutdown(
+            daemon->options->transport, daemon->options->shutdown_timeout);
+        daemon->transport_shutdown = true;
+        if (rv != 0) {
+            SENTRY_WARN("transport did not shut down cleanly");
+        }
+        size_t dumped_envelopes = sentry__transport_dump_queue(
+            daemon->options->transport, daemon->options->run);
+        if (rv == 0 && !dumped_envelopes && daemon->options->run) {
+            sentry__run_clean(daemon->options->run, true);
+        }
+        sent = rv == 0 && dumped_envelopes == 0;
+    } else {
+        SENTRY_WARN(
+            "No transport available for sending Android crash envelope");
+        sentry_envelope_free(envelope);
+    }
+
+    android_cleanup_pending_crash_daemon(false);
+    return sent;
+}
+
+__attribute__((visibility("default"))) void
+sentry_android_crash_daemon_close(void)
+{
+    android_cleanup_pending_crash_daemon(true);
+}
+
+static void
+android_cleanup_pending_crash_daemon(bool clean_run_folder)
+{
+    sentry_android_pending_crash_daemon_t *daemon
+        = &g_android_pending_crash_daemon;
+
+    if (daemon->run_folder) {
+        if (clean_run_folder && !daemon->run_folder_cleaned) {
+            sentry__path_remove_all(daemon->run_folder);
+        }
+        sentry__path_free(daemon->run_folder);
+    }
+    if (daemon->run_lock) {
+        sentry__filelock_unlock(daemon->run_lock);
+        sentry__filelock_free(daemon->run_lock);
+    }
+    if (daemon->options) {
+        if (daemon->options->transport && !daemon->transport_shutdown) {
+            sentry__transport_shutdown(daemon->options->transport, 0);
+        }
+        sentry_options_free(daemon->options);
+    }
+    if (daemon->ipc) {
+        sentry__crash_ipc_unlink(daemon->ipc);
+        sentry__crash_ipc_free(daemon->ipc);
+    }
+    if (daemon->log_file) {
+        fclose(daemon->log_file);
+    }
+
+    memset(daemon, 0, sizeof(*daemon));
+}
+#endif
 
 /**
  * Check if parent process is still alive
@@ -3557,6 +3839,7 @@ sentry__crash_daemon_main(pid_t app_pid, uint64_t app_tid, HANDLE event_handle,
 
     // Daemon main loop
     bool crash_processed = false;
+    bool android_tombstone_sent = false;
     while (true) {
         // Wait for crash notification (with timeout to check parent health)
         bool wait_result
@@ -3571,7 +3854,7 @@ sentry__crash_daemon_main(pid_t app_pid, uint64_t app_tid, HANDLE event_handle,
             long state = sentry__atomic_fetch(&ipc->shmem->state);
             if (state == SENTRY_CRASH_STATE_CRASHED && !crash_processed) {
                 SENTRY_DEBUG("Crash notification received, processing");
-                sentry__process_crash(options, ipc);
+                android_tombstone_sent = sentry__process_crash(options, ipc);
                 crash_processed = true;
 
                 // After processing crash, exit regardless of parent state
@@ -3592,6 +3875,16 @@ sentry__crash_daemon_main(pid_t app_pid, uint64_t app_tid, HANDLE event_handle,
 
     SENTRY_DEBUG("Daemon exiting");
 
+#if defined(SENTRY_PLATFORM_ANDROID)
+    if (g_android_active_crash_daemon
+        && g_android_active_crash_daemon->envelope_path[0]) {
+        g_android_active_crash_daemon->options = options;
+        g_android_active_crash_daemon->ipc = ipc;
+        g_android_active_crash_daemon->log_file = log_file;
+        return 0;
+    }
+#endif
+
     // Cleanup
     if (options) {
         size_t dumped_envelopes = 0;
@@ -3607,7 +3900,7 @@ sentry__crash_daemon_main(pid_t app_pid, uint64_t app_tid, HANDLE event_handle,
                 options->transport, options->run);
             if (rv == 0 && !dumped_envelopes && options->run) {
 #if defined(SENTRY_PLATFORM_ANDROID)
-                if (!crash_processed) {
+                if (!crash_processed || android_tombstone_sent) {
                     sentry__run_clean(options->run, true);
                 } else {
                     SENTRY_DEBUG(
