@@ -167,9 +167,15 @@ elseif(SENTRY_BACKEND_NATIVE)
 		backends/native/sentry_crash_ipc.c
 		backends/native/sentry_crash_daemon.c
 		backends/native/sentry_crash_handler.c
+		backends/native/sentry_crash_unwind.h
 		backends/native/minidump/sentry_minidump_format.h
 		backends/native/minidump/sentry_minidump_writer.h
 	)
+	if(SENTRY_WITH_LIBUNWINDSTACK)
+		sentry_target_sources_cwd(sentry
+			backends/native/sentry_crash_unwind_libunwindstack.cpp
+		)
+	endif()
 
 	# Platform-specific minidump writers
 	if(LINUX OR ANDROID)
@@ -194,7 +200,7 @@ elseif(SENTRY_BACKEND_NATIVE)
 	target_include_directories(sentry PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/backends/native)
 
 	# Platform-specific libraries for native backend
-	if(LINUX OR ANDROID)
+	if(LINUX AND NOT ANDROID)
 		# Linux needs pthread and rt for shared memory
 		target_link_libraries(sentry PRIVATE pthread rt)
 	elseif(APPLE)

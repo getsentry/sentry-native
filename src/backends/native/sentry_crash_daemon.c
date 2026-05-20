@@ -5,11 +5,13 @@
 #include "sentry_attachment.h"
 #include "sentry_core.h"
 #include "sentry_crash_ipc.h"
+#include "sentry_crash_unwind.h"
 #include "sentry_database.h"
 #include "sentry_envelope.h"
 #include "sentry_json.h"
 #include "sentry_logger.h"
 #include "sentry_options.h"
+#include "sentry_os.h"
 #include "sentry_path.h"
 #include "sentry_process.h"
 #include "sentry_screenshot.h"
@@ -351,6 +353,7 @@ build_registers_from_ctx(const sentry_crash_context_t *ctx, size_t thread_idx)
         && thread_idx < ctx->platform.num_threads) {
         uctx = &ctx->platform.threads[thread_idx].context;
     }
+    (void)uctx;
 
 #    if defined(__x86_64__)
     uintptr_t *mctx = (uintptr_t *)&uctx->uc_mcontext;
@@ -790,6 +793,47 @@ build_stacktrace_for_thread(
         }
     }
 #elif defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID)
+#    if defined(SENTRY_PLATFORM_ANDROID)                                       \
+        && defined(SENTRY_WITH_UNWINDER_LIBUNWINDSTACK)
+    if (thread_idx == SIZE_MAX || thread_idx == 0) {
+        uint64_t unwind_ips[MAX_STACK_FRAMES];
+        size_t unwind_count = sentry__crash_unwind_stack_libunwindstack(
+            ctx->crashed_pid, thread_context, unwind_ips, MAX_STACK_FRAMES);
+        if (unwind_count > 0) {
+            sentry_value_t temp_frames[MAX_STACK_FRAMES];
+            int frame_count = 0;
+            for (size_t i = 0;
+                i < unwind_count && frame_count < MAX_STACK_FRAMES; i++) {
+                uint64_t frame_ip = unwind_ips[i];
+                if (frame_ip == 0 || !is_valid_code_addr(frame_ip)) {
+                    continue;
+                }
+                temp_frames[frame_count] = sentry_value_new_object();
+                sentry_value_set_by_key(temp_frames[frame_count],
+                    "instruction_addr", sentry__value_new_addr(frame_ip));
+                sentry_value_set_by_key(temp_frames[frame_count], "trust",
+                    sentry_value_new_string(i == 0 ? "context" : "cfi"));
+                enrich_frame_with_module_info(
+                    ctx, temp_frames[frame_count], frame_ip);
+                frame_count++;
+            }
+
+            if (frame_count > 0) {
+                for (int i = frame_count - 1; i >= 0; i--) {
+                    sentry_value_append(frames, temp_frames[i]);
+                }
+                sentry_value_set_by_key(stacktrace, "frames", frames);
+                sentry_value_set_by_key(stacktrace, "registers",
+                    build_registers_from_ctx(ctx, thread_idx));
+                sentry_value_set_by_key(stacktrace,
+                    "instruction_addr_adjustment",
+                    sentry_value_new_string("none"));
+                return stacktrace;
+            }
+        }
+    }
+#    endif
+
     // On Linux, use process_vm_readv to read stack memory from crashed process
     if (ctx->platform.num_threads > 0) {
         pid_t pid = ctx->crashed_pid;
@@ -801,8 +845,8 @@ build_stacktrace_for_thread(
                 = { .iov_base = stack_buf, .iov_len = stack_size };
             struct iovec remote_iov
                 = { .iov_base = (void *)stack_start, .iov_len = stack_size };
-            ssize_t bytes_read
-                = process_vm_readv(pid, &local_iov, 1, &remote_iov, 1, 0);
+            ssize_t bytes_read = sentry__process_vm_readv(
+                pid, &local_iov, 1, &remote_iov, 1, 0);
             if (bytes_read <= 0) {
                 SENTRY_DEBUG(
                     "process_vm_readv failed, falling back to single frame");
@@ -1069,6 +1113,24 @@ build_stacktrace_for_thread(
 #    include <elf.h>
 
 /**
+ * Quickly verify a file is an ELF binary by reading its magic bytes.
+ */
+static bool
+is_elf_file(const char *path)
+{
+    int fd = open(path, O_RDONLY);
+    if (fd < 0) {
+        return false;
+    }
+
+    unsigned char magic[SELFMAG];
+    bool is_elf = read(fd, magic, SELFMAG) == (ssize_t)SELFMAG
+        && memcmp(magic, ELFMAG, SELFMAG) == 0;
+    close(fd);
+    return is_elf;
+}
+
+/**
  * Extract Build ID from ELF file (for debug_meta)
  * Returns the Build ID length, or 0 if not found
  */
@@ -1224,6 +1286,13 @@ capture_modules_from_proc_maps(sentry_crash_context_t *ctx)
             continue; // No pathname or special mapping like [stack]
         }
 
+        // Only readable real ELF files are useful as debug images. This skips
+        // device files, ashmem/memfd regions, fonts, APK resources, and other
+        // named mappings that can otherwise create bogus image ranges.
+        if (perms[0] != 'r') {
+            continue;
+        }
+
         const char *pathname = line + pathname_offset;
         // Trim newline
         size_t len = strlen(pathname);
@@ -1233,12 +1302,23 @@ capture_modules_from_proc_maps(sentry_crash_context_t *ctx)
         if (len == 0) {
             continue;
         }
+        ((char *)pathname)[len] = '\0';
+
+        if (offset > start || !is_elf_file(pathname)) {
+            continue;
+        }
+
+        // Calculate base address: for PIE binaries, the file offset tells us
+        // how far into the file this mapping starts, so we subtract it to get
+        // the actual load base address.
+        uint64_t base_address = start - offset;
 
         // Check if this file is already captured - if so, extend size if needed
         sentry_module_info_t *existing_mod = NULL;
         for (uint32_t j = 0; j < ctx->module_count; j++) {
             if (strncmp(ctx->modules[j].name, pathname, len) == 0
-                && ctx->modules[j].name[len] == '\0') {
+                && ctx->modules[j].name[len] == '\0'
+                && ctx->modules[j].base_address == base_address) {
                 existing_mod = &ctx->modules[j];
                 break;
             }
@@ -1259,10 +1339,7 @@ capture_modules_from_proc_maps(sentry_crash_context_t *ctx)
 
         sentry_module_info_t *mod = &ctx->modules[ctx->module_count];
 
-        // Calculate base address: for PIE binaries, the file offset tells us
-        // how far into the file this mapping starts, so we subtract it to get
-        // the actual load base address
-        mod->base_address = start - offset;
+        mod->base_address = base_address;
         // Initial size covers from base to end of this mapping
         mod->size = end - mod->base_address;
 
@@ -3092,8 +3169,12 @@ sentry__process_crash(const sentry_options_t *options, sentry_crash_ipc_t *ipc)
 
     add_attachment_refs(envelope, options, run_folder);
 
-    bool has_attachment_refs = sentry__envelope_has_content_type(
+#if defined(SENTRY_PLATFORM_ANDROID)
+    bool write_envelope = true;
+#else
+    bool write_envelope = sentry__envelope_has_content_type(
         envelope, SENTRY_ATTACHMENT_REF_MIME);
+#endif
 
     SENTRY_DEBUG("Envelope loaded, capturing");
 
@@ -3104,19 +3185,28 @@ sentry__process_crash(const sentry_options_t *options, sentry_crash_ipc_t *ipc)
 
     // Capture directly, or pass to external crash reporter
     if (!sentry__launch_external_crash_reporter(options, envelope)) {
-        if (has_attachment_refs && options && options->run) {
-            if (!sentry__run_write_envelope(options->run, envelope)) {
-                SENTRY_WARN(
-                    "Failed to dump crash envelope for resend on restart");
+        if (write_envelope) {
+            if (!options || !options->run
+                || !sentry__run_write_envelope(options->run, envelope)) {
+                SENTRY_WARN("Failed to dump crash envelope to run folder");
+            } else {
+#if defined(SENTRY_PLATFORM_ANDROID)
+                SENTRY_DEBUG(
+                    "Crash envelope written for Android tombstone merging");
+                sentry_envelope_free(envelope);
+                envelope = NULL;
+#endif
             }
         }
-        if (options && options->transport && options->run) {
-            SENTRY_DEBUG("Capturing crash envelope");
-            sentry__capture_envelope(options->transport, envelope, options);
-            SENTRY_DEBUG("Crash envelope captured (queued)");
-        } else {
-            SENTRY_WARN("No transport available for sending envelope");
-            sentry_envelope_free(envelope);
+        if (envelope) {
+            if (options && options->transport && options->run) {
+                SENTRY_DEBUG("Capturing crash envelope");
+                sentry__capture_envelope(options->transport, envelope, options);
+                SENTRY_DEBUG("Crash envelope captured (queued)");
+            } else {
+                SENTRY_WARN("No transport available for sending envelope");
+                sentry_envelope_free(envelope);
+            }
         }
     }
 
@@ -3237,7 +3327,11 @@ daemon_file_logger(
     fflush(log_file); // Flush immediately to ensure logs are written
 }
 
-#if defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID)
+#if defined(SENTRY_PLATFORM_ANDROID)
+int
+sentry__crash_daemon_main(pid_t app_pid, uint64_t app_tid, int notify_eventfd,
+    int ready_eventfd, int shm_fd)
+#elif defined(SENTRY_PLATFORM_LINUX)
 int
 sentry__crash_daemon_main(
     pid_t app_pid, uint64_t app_tid, int notify_eventfd, int ready_eventfd)
@@ -3253,7 +3347,10 @@ sentry__crash_daemon_main(pid_t app_pid, uint64_t app_tid, HANDLE event_handle,
 {
     // Initialize IPC first (attach to shared memory created by parent)
     // We need this to get the database path for logging
-#if defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID)
+#if defined(SENTRY_PLATFORM_ANDROID)
+    sentry_crash_ipc_t *ipc = sentry__crash_ipc_init_daemon(
+        app_pid, app_tid, notify_eventfd, ready_eventfd, shm_fd);
+#elif defined(SENTRY_PLATFORM_LINUX)
     sentry_crash_ipc_t *ipc = sentry__crash_ipc_init_daemon(
         app_pid, app_tid, notify_eventfd, ready_eventfd);
 #elif defined(SENTRY_PLATFORM_MACOS)
@@ -3509,7 +3606,17 @@ sentry__crash_daemon_main(pid_t app_pid, uint64_t app_tid, HANDLE event_handle,
             dumped_envelopes = sentry__transport_dump_queue(
                 options->transport, options->run);
             if (rv == 0 && !dumped_envelopes && options->run) {
+#if defined(SENTRY_PLATFORM_ANDROID)
+                if (!crash_processed) {
+                    sentry__run_clean(options->run, true);
+                } else {
+                    SENTRY_DEBUG(
+                        "Keeping daemon run folder for Android tombstone "
+                        "merging");
+                }
+#else
                 sentry__run_clean(options->run, true);
+#endif
             }
         }
         sentry_options_free(options);
@@ -3532,7 +3639,11 @@ sentry__crash_daemon_main(pid_t app_pid, uint64_t app_tid, HANDLE event_handle,
     return 0;
 }
 
-#if defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID)
+#if defined(SENTRY_PLATFORM_ANDROID)
+pid_t
+sentry__crash_daemon_start(pid_t app_pid, uint64_t app_tid, int notify_eventfd,
+    int ready_eventfd, int shm_fd, const char *handler_path)
+#elif defined(SENTRY_PLATFORM_LINUX)
 pid_t
 sentry__crash_daemon_start(pid_t app_pid, uint64_t app_tid, int notify_eventfd,
     int ready_eventfd, const char *handler_path)
@@ -3653,6 +3764,12 @@ sentry__crash_daemon_start(pid_t app_pid, uint64_t app_tid, HANDLE event_handle,
         if (ready_flags != -1) {
             fcntl(ready_eventfd, F_SETFD, ready_flags & ~FD_CLOEXEC);
         }
+#    if defined(SENTRY_PLATFORM_ANDROID)
+        int shm_flags = fcntl(shm_fd, F_GETFD);
+        if (shm_flags != -1) {
+            fcntl(shm_fd, F_SETFD, shm_flags & ~FD_CLOEXEC);
+        }
+#    endif
 
         // Convert arguments to strings for exec
         char pid_str[32], tid_str[32], notify_str[32], ready_str[32];
@@ -3661,8 +3778,15 @@ sentry__crash_daemon_start(pid_t app_pid, uint64_t app_tid, HANDLE event_handle,
         snprintf(notify_str, sizeof(notify_str), "%d", notify_eventfd);
         snprintf(ready_str, sizeof(ready_str), "%d", ready_eventfd);
 
+#    if defined(SENTRY_PLATFORM_ANDROID)
+        char shm_str[32];
+        snprintf(shm_str, sizeof(shm_str), "%d", shm_fd);
+        char *argv[] = { "sentry-crash", pid_str, tid_str, notify_str,
+            ready_str, shm_str, NULL };
+#    else
         char *argv[]
             = { "sentry-crash", pid_str, tid_str, notify_str, ready_str, NULL };
+#    endif
 
         if (!sentry__string_empty(handler_path)) {
             execv(handler_path, argv);
@@ -3830,12 +3954,13 @@ main(int argc, char **argv)
 {
     // Expected arguments:
     //   Linux:  <app_pid> <app_tid> <notify_handle> <ready_handle>
-    //   macOS:  <app_pid> <app_tid> <notify_handle> <ready_handle> <shm_fd>
-#    if defined(SENTRY_PLATFORM_MACOS)
+    //   macOS/Android: <app_pid> <app_tid> <notify_handle> <ready_handle>
+    //   <shm_fd>
+#    if defined(SENTRY_PLATFORM_MACOS) || defined(SENTRY_PLATFORM_ANDROID)
     if (argc < 6) {
         fprintf(stderr,
-            "Usage: sentry-crash <app_pid> <app_tid> <notify_pipe> "
-            "<ready_pipe> <shm_fd>\n");
+            "Usage: sentry-crash <app_pid> <app_tid> <notify_handle> "
+            "<ready_handle> <shm_fd>\n");
         return 1;
     }
 #    else
@@ -3851,7 +3976,13 @@ main(int argc, char **argv)
     pid_t app_pid = (pid_t)strtoul(argv[1], NULL, 10);
     uint64_t app_tid = strtoull(argv[2], NULL, 16);
 
-#    if defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID)
+#    if defined(SENTRY_PLATFORM_ANDROID)
+    int notify_eventfd = atoi(argv[3]);
+    int ready_eventfd = atoi(argv[4]);
+    int shm_fd_arg = atoi(argv[5]);
+    return sentry__crash_daemon_main(
+        app_pid, app_tid, notify_eventfd, ready_eventfd, shm_fd_arg);
+#    elif defined(SENTRY_PLATFORM_LINUX)
     int notify_eventfd = atoi(argv[3]);
     int ready_eventfd = atoi(argv[4]);
     return sentry__crash_daemon_main(

@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+**Features**:
+
+- Native: add Android support. ([#1725](https://github.com/getsentry/sentry-native/pull/1725))
+
 **Fixes**:
 
 - Reject overly deep msgpack payloads during deserialization. ([#1727](https://github.com/getsentry/sentry-native/pull/1727))

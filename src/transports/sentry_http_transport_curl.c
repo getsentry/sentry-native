@@ -225,7 +225,7 @@ curl_send_task(void *_client, sentry_prepared_http_request_t *req,
     CURL *curl = client->curl_handle;
     curl_easy_reset(curl);
     if (client->debug) {
-        curl_easy_setopt(curl, CURLOPT_VERBOSE, 1);
+        curl_easy_setopt(curl, CURLOPT_VERBOSE, 1L);
         curl_easy_setopt(curl, CURLOPT_WRITEDATA, stderr);
         // CURLOPT_WRITEFUNCTION will `fwrite` by default
     } else {

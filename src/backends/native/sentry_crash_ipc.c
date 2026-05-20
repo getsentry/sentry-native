@@ -7,7 +7,263 @@
 #include <stdio.h>
 #include <string.h>
 
-#if defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID)
+#if defined(SENTRY_PLATFORM_ANDROID)
+
+#    include <errno.h>
+#    include <fcntl.h>
+#    include <pthread.h>
+#    include <stdlib.h>
+#    include <sys/stat.h>
+#    include <unistd.h>
+
+sentry_crash_ipc_t *
+sentry__crash_ipc_init_app(
+    const char *database_path, sentry_mutex_t *init_mutex)
+{
+    if (!database_path || !database_path[0]) {
+        SENTRY_WARN("Android crash IPC requires a database path");
+        return NULL;
+    }
+
+    sentry_crash_ipc_t *ipc = SENTRY_MAKE(sentry_crash_ipc_t);
+    if (!ipc) {
+        return NULL;
+    }
+    ipc->is_daemon = false;
+    ipc->init_mutex = init_mutex;
+    ipc->shm_fd = -1;
+    ipc->notify_fd = -1;
+    ipc->ready_fd = -1;
+
+    uint64_t tid = (uint64_t)pthread_self();
+    uint32_t id = (uint32_t)((getpid() ^ (tid & 0xFFFFFFFF)) & 0xFFFFFFFF);
+    snprintf(ipc->shm_path, sizeof(ipc->shm_path), "%s/.sentry-shm-%08x",
+        database_path, id);
+
+    if (ipc->init_mutex) {
+        sentry__mutex_lock(ipc->init_mutex);
+    }
+
+    bool shm_exists = false;
+    ipc->shm_fd
+        = open(ipc->shm_path, O_CREAT | O_RDWR | O_EXCL | O_CLOEXEC, 0600);
+    if (ipc->shm_fd < 0 && errno == EEXIST) {
+        shm_exists = true;
+        ipc->shm_fd = open(ipc->shm_path, O_RDWR | O_CLOEXEC);
+    }
+
+    if (ipc->shm_fd < 0) {
+        SENTRY_WARNF("failed to open shared memory file: %s", strerror(errno));
+        goto fail;
+    }
+
+    if (shm_exists) {
+        struct stat st;
+        if (fstat(ipc->shm_fd, &st) < 0) {
+            SENTRY_WARNF(
+                "failed to stat shared memory file: %s", strerror(errno));
+            goto fail;
+        }
+        if (st.st_size != SENTRY_CRASH_SHM_SIZE
+            && ftruncate(ipc->shm_fd, SENTRY_CRASH_SHM_SIZE) < 0) {
+            SENTRY_WARNF("failed to resize existing shared memory file: %s",
+                strerror(errno));
+            goto fail;
+        }
+    } else if (ftruncate(ipc->shm_fd, SENTRY_CRASH_SHM_SIZE) < 0) {
+        SENTRY_WARNF(
+            "failed to resize shared memory file: %s", strerror(errno));
+        goto fail;
+    }
+
+    ipc->shmem = mmap(NULL, SENTRY_CRASH_SHM_SIZE, PROT_READ | PROT_WRITE,
+        MAP_SHARED, ipc->shm_fd, 0);
+    if (ipc->shmem == MAP_FAILED) {
+        SENTRY_WARNF("failed to map shared memory file: %s", strerror(errno));
+        ipc->shmem = NULL;
+        goto fail;
+    }
+
+    ipc->notify_fd = eventfd(0, EFD_CLOEXEC | EFD_NONBLOCK);
+    if (ipc->notify_fd < 0) {
+        SENTRY_WARNF("failed to create eventfd: %s", strerror(errno));
+        goto fail;
+    }
+
+    ipc->ready_fd = eventfd(0, EFD_CLOEXEC);
+    if (ipc->ready_fd < 0) {
+        SENTRY_WARNF("failed to create ready eventfd: %s", strerror(errno));
+        goto fail;
+    }
+
+    if (!shm_exists) {
+        memset(ipc->shmem, 0, SENTRY_CRASH_SHM_SIZE);
+        ipc->shmem->magic = SENTRY_CRASH_MAGIC;
+        ipc->shmem->version = SENTRY_CRASH_VERSION;
+        sentry__atomic_store(&ipc->shmem->state, SENTRY_CRASH_STATE_READY);
+        sentry__atomic_store(&ipc->shmem->sequence, 0);
+    }
+
+    if (ipc->init_mutex) {
+        sentry__mutex_unlock(ipc->init_mutex);
+    }
+
+    SENTRY_DEBUGF("initialized crash IPC (shm=%s, notify_fd=%d)", ipc->shm_path,
+        ipc->notify_fd);
+
+    return ipc;
+
+fail:
+    if (ipc->init_mutex) {
+        sentry__mutex_unlock(ipc->init_mutex);
+    }
+    if (ipc->shmem) {
+        munmap(ipc->shmem, SENTRY_CRASH_SHM_SIZE);
+    }
+    if (ipc->notify_fd >= 0) {
+        close(ipc->notify_fd);
+    }
+    if (ipc->ready_fd >= 0) {
+        close(ipc->ready_fd);
+    }
+    if (ipc->shm_fd >= 0) {
+        close(ipc->shm_fd);
+    }
+    if (!shm_exists && ipc->shm_path[0]) {
+        unlink(ipc->shm_path);
+    }
+    sentry_free(ipc);
+    return NULL;
+}
+
+sentry_crash_ipc_t *
+sentry__crash_ipc_init_daemon(pid_t app_pid, uint64_t app_tid,
+    int notify_eventfd, int ready_eventfd, int shm_fd)
+{
+    sentry_crash_ipc_t *ipc = SENTRY_MAKE(sentry_crash_ipc_t);
+    if (!ipc) {
+        return NULL;
+    }
+    ipc->is_daemon = true;
+    ipc->shm_fd = shm_fd;
+
+    ipc->shmem = mmap(NULL, SENTRY_CRASH_SHM_SIZE, PROT_READ | PROT_WRITE,
+        MAP_SHARED, ipc->shm_fd, 0);
+    if (ipc->shmem == MAP_FAILED) {
+        SENTRY_WARNF(
+            "daemon: failed to map shared memory file: %s", strerror(errno));
+        ipc->shmem = NULL;
+        close(ipc->shm_fd);
+        sentry_free(ipc);
+        return NULL;
+    }
+
+    if (ipc->shmem->magic != SENTRY_CRASH_MAGIC) {
+        SENTRY_WARN("daemon: invalid shared memory magic");
+        munmap(ipc->shmem, SENTRY_CRASH_SHM_SIZE);
+        close(ipc->shm_fd);
+        sentry_free(ipc);
+        return NULL;
+    }
+
+    if (ipc->shmem->database_path[0]) {
+        uint32_t id
+            = (uint32_t)((app_pid ^ (app_tid & 0xFFFFFFFF)) & 0xFFFFFFFF);
+        snprintf(ipc->shm_path, sizeof(ipc->shm_path), "%s/.sentry-shm-%08x",
+            ipc->shmem->database_path, id);
+    }
+
+    ipc->notify_fd = notify_eventfd;
+    ipc->ready_fd = ready_eventfd;
+
+    SENTRY_DEBUGF("daemon: attached to crash IPC (shm_fd=%d, notify_fd=%d, "
+                  "ready_notify_fd=%d)",
+        shm_fd, notify_eventfd, ready_eventfd);
+
+    return ipc;
+}
+
+void
+sentry__crash_ipc_notify(sentry_crash_ipc_t *ipc)
+{
+    if (!ipc || ipc->notify_fd < 0) {
+        return;
+    }
+
+    uint64_t val = 1;
+    ssize_t written = write(ipc->notify_fd, &val, sizeof(val));
+    (void)written;
+}
+
+bool
+sentry__crash_ipc_wait(sentry_crash_ipc_t *ipc, int timeout_ms)
+{
+    if (!ipc || ipc->notify_fd < 0) {
+        return false;
+    }
+
+    fd_set readfds;
+    FD_ZERO(&readfds);
+    FD_SET(ipc->notify_fd, &readfds);
+
+    struct timeval timeout;
+    timeout.tv_sec = timeout_ms / 1000;
+    timeout.tv_usec = (timeout_ms % 1000) * 1000;
+
+    int ret = select(ipc->notify_fd + 1, &readfds, NULL, NULL,
+        timeout_ms >= 0 ? &timeout : NULL);
+
+    if (ret > 0 && FD_ISSET(ipc->notify_fd, &readfds)) {
+        uint64_t val;
+        ssize_t result = read(ipc->notify_fd, &val, sizeof(val));
+        if (result < 0) {
+            SENTRY_WARN("Failed to read from notify_fd");
+        }
+        return true;
+    }
+
+    return false;
+}
+
+void
+sentry__crash_ipc_unlink(sentry_crash_ipc_t *ipc)
+{
+    if (ipc && ipc->shm_path[0]) {
+        unlink(ipc->shm_path);
+    }
+}
+
+void
+sentry__crash_ipc_free(sentry_crash_ipc_t *ipc)
+{
+    if (!ipc) {
+        return;
+    }
+
+    if (ipc->shmem) {
+        munmap(ipc->shmem, SENTRY_CRASH_SHM_SIZE);
+    }
+
+    if (ipc->shm_fd >= 0) {
+        close(ipc->shm_fd);
+    }
+
+    if (!ipc->is_daemon) {
+        sentry__crash_ipc_unlink(ipc);
+    }
+
+    if (ipc->notify_fd >= 0) {
+        close(ipc->notify_fd);
+    }
+
+    if (ipc->ready_fd >= 0) {
+        close(ipc->ready_fd);
+    }
+
+    sentry_free(ipc);
+}
+
+#elif defined(SENTRY_PLATFORM_LINUX)
 
 #    include <errno.h>
 #    include <fcntl.h>

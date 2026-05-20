@@ -5,6 +5,7 @@ plugins {
 }
 
 var sentryNativeSrc: String = "${project.projectDir}/../.."
+val sentryBackend = providers.gradleProperty("sentryBackend").orElse("inproc").get()
 
 android {
     compileSdk = 35
@@ -18,6 +19,7 @@ android {
         externalNativeBuild {
             cmake {
                 arguments.add(0, "-DANDROID_STL=c++_static")
+                arguments.add(0, "-DSENTRY_BACKEND=$sentryBackend")
                 arguments.add(0, "-DSENTRY_NATIVE_SRC=$sentryNativeSrc")
             }
         }
@@ -51,6 +53,7 @@ android {
     }
 
     buildFeatures {
+        prefab = true
         prefabPublishing = true
         buildConfig = true
     }
@@ -100,6 +103,9 @@ android {
 }
 
 dependencies {
+    // TODO: this was the first match on maven central..
+    implementation("io.github.vvb2060.ndk:curl:8.18.0")
+
     compileOnly("org.jetbrains:annotations:23.0.0")
 
     testImplementation("androidx.test.ext:junit:1.3.0")
@@ -137,10 +143,12 @@ dependencies {
  *
  */
 afterEvaluate {
-    tasks.getByName("prefabReleasePackage") {
+    tasks.matching { it.name.startsWith("prefab") && it.name.endsWith("Package") }.configureEach {
         doLast {
-            project.fileTree("build/intermediates/prefab_package/") {
+            project.fileTree("build/intermediates/") {
                 include("**/abi.json")
+                include("**/prefab_publication.json/debug")
+                include("**/prefab_publication.json/release")
             }.forEach { file ->
                 file.writeText(file.readText().replace("c++_static", "none"))
             }
