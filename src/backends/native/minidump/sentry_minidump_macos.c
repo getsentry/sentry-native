@@ -480,8 +480,8 @@ write_thread_context(
  * would point into the minidump header and break parsers.
  */
 static void
-record_thread_stack(minidump_writer_t *writer,
-    const minidump_thread_t *thread, uint64_t tid)
+record_thread_stack(
+    minidump_writer_t *writer, const minidump_thread_t *thread, uint64_t tid)
 {
     if (thread->stack.memory.size == 0 || thread->stack.memory.rva == 0) {
         return;
@@ -561,8 +561,7 @@ write_thread_stack(minidump_writer_t *writer, uint64_t stack_pointer,
         // region is smaller than a page. Floor at 16 bytes (two 64-bit
         // pointers — enough for at least a return address and frame
         // pointer) so very small clamps still get a retry pass.
-        for (mach_vm_size_t retry = stack_size / 2; retry >= 16;
-            retry /= 2) {
+        for (mach_vm_size_t retry = stack_size / 2; retry >= 16; retry /= 2) {
             kr = read_task_memory(
                 writer->task, stack_start, stack_buffer, retry);
             if (kr == KERN_SUCCESS) {
@@ -818,8 +817,8 @@ write_thread_list_stream(minidump_writer_t *writer, minidump_directory_t *dir)
                     = write_thread_stack(writer, sp, &stack_size, &stack_start);
                 thread->stack.memory.size = stack_size;
                 thread->stack.start_address = stack_start;
-                record_thread_stack(writer, thread,
-                    writer->crash_ctx->platform.threads[i].tid);
+                record_thread_stack(
+                    writer, thread, writer->crash_ctx->platform.threads[i].tid);
                 SENTRY_DEBUGF(
                     "Thread %zu: wrote stack from memory at RVA 0x%x, size %zu",
                     i, thread->stack.memory.rva, stack_size);
