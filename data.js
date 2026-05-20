@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1779273133616,
+  "lastUpdate": 1779273138338,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -66172,6 +66172,66 @@ window.BENCHMARK_DATA = {
             "value": 14.283399999840185,
             "unit": "ms",
             "extra": "Min 13.851ms\nMax 15.272ms\nMean 14.365ms\nStdDev 0.551ms\nMedian 14.283ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "amir.mujacic@sentry.io",
+            "name": "Amir Mujacic",
+            "username": "mujacica"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "82fb40ba3435062bb4fd6c1950afe690ef848430",
+          "message": "fix(native): macOS thread stack descriptor (#1726)\n\n* fix(native/macos): make per-thread stack descriptors match the captured SP\n\nThe macOS native backend's full path (when ``task_for_pid`` succeeds)\nused to call ``thread_get_state()`` from inside the daemon to pick up\neach thread's SP, then wrote that SP into the per-thread\n``MINIDUMP_THREAD::stack.start_of_memory_range`` descriptor. By the\ntime the daemon runs, the crashing thread's signal handler has long\nsince moved its SP deep into libsystem code (waiting on the daemon\nIPC), so every minidump emitted on macOS contained a thread descriptor\nthat pointed at libsystem code pages instead of the real thread stack\nregion. The thread's CONTEXT block (filled from the signal-handler-\ncaptured ucontext) still had the right crash-time SP, so MemoryListStream\nand the per-thread descriptor disagreed about where the stack lives —\nbreaking any reader that walks the stack from SP via the descriptor.\n\nMatch each Mach thread back to the signal-handler snapshot in\n``crash_ctx->platform.threads[]`` by ``thread_id`` and use that saved\nstate for register + stack capture; ``thread_get_state`` only fills the\ngap when the snapshot is missing the thread for some reason. Also clamp\n``write_thread_stack`` to the VM region containing SP — without it, a\ncrashing thread whose SP sits near the top of a small worker stack\ncaused the fixed-size ``read_task_memory`` call to overshoot into the\nguard page and the entire read failed, leaving the descriptor empty.\n\nLinux already matched by ``tid`` so it was unaffected; Windows\ndelegates to ``MiniDumpWriteDump`` which always populates the\ndescriptor correctly.\n\nTests:\n\n  * extend ``test_native_minidump_streams`` (runs on every platform)\n    with a cross-stream assertion: every thread's\n    ``MINIDUMP_THREAD::stack`` descriptor must contain the SP recorded\n    in that thread's CONTEXT. Regression guard against this class of\n    descriptor/context disagreement on any backend.\n\n  * add ``test_native_smart_mode_captures_indirect_heap_memory``\n    (macOS + Linux). The published behaviour of\n    ``SENTRY_MINIDUMP_MODE_SMART`` is \"stack-only dump plus ~1 KiB\n    around every writable-heap pointer reachable from registers + stack\n    words\". The minimal-mode fallback on macOS (when ``task_for_pid``\n    fails) silently breaks that contract by emitting *only* module\n    header pages, with no heap region anywhere in MemoryListStream.\n    The test ad-hoc codesigns the example + ``sentry-crash`` daemon\n    with ``com.apple.security.cs.debugger`` + ``get-task-allow`` +\n    hardened-runtime so ``task_for_pid`` succeeds on macOS (no real\n    Apple Developer cert needed), then asserts at least one captured\n    memory region lands outside both the loaded-module image ranges\n    and the per-thread stack ranges. On Linux ``/proc/self/maps`` is\n    readable in-process so no codesigning is needed. Test skipped on\n    Windows since ``MiniDumpWriteDump`` uses different controls\n    (``MINIDUMP_TYPE`` flags).\n\nVerified on:\n\n  * macOS 26 arm64: ``pytest tests/test_integration_native.py``\n    -> 23 passed, 2 skipped (Windows-only WER tests).\n  * Linux Ubuntu 24.04 arm64 (Docker): ``pytest tests/test_integration_native.py``\n    -> 22 passed, 3 skipped (Windows + OOM).\n\n---------\n\nCo-authored-by: Claude Opus 4.7 (1M context) <noreply@anthropic.com>",
+          "timestamp": "2026-05-20T12:27:22+02:00",
+          "tree_id": "1ef98a8a618237143a9f69651bf3e843065dd808",
+          "url": "https://github.com/getsentry/sentry-native/commit/82fb40ba3435062bb4fd6c1950afe690ef848430"
+        },
+        "date": 1779273122423,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 10.98670000001789,
+            "unit": "ms",
+            "extra": "Min 10.750ms\nMax 12.422ms\nMean 11.212ms\nStdDev 0.685ms\nMedian 10.987ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 11.73289999999838,
+            "unit": "ms",
+            "extra": "Min 11.431ms\nMax 12.184ms\nMean 11.844ms\nStdDev 0.325ms\nMedian 11.733ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 30.99739999998974,
+            "unit": "ms",
+            "extra": "Min 29.137ms\nMax 56.805ms\nMean 35.678ms\nStdDev 11.849ms\nMedian 30.997ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.2527000000327462,
+            "unit": "ms",
+            "extra": "Min 0.204ms\nMax 0.264ms\nMean 0.242ms\nStdDev 0.025ms\nMedian 0.253ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.4766999999787913,
+            "unit": "ms",
+            "extra": "Min 0.430ms\nMax 0.567ms\nMean 0.496ms\nStdDev 0.063ms\nMedian 0.477ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 16.045599999984006,
+            "unit": "ms",
+            "extra": "Min 15.758ms\nMax 19.747ms\nMean 17.258ms\nStdDev 1.886ms\nMedian 16.046ms"
           }
         ]
       }
