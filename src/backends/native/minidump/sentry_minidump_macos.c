@@ -556,18 +556,16 @@ write_thread_stack(minidump_writer_t *writer, uint64_t stack_pointer,
     } else {
         // Defensive retry with progressively smaller reads in case the
         // region query was stale (e.g. region was unmapped between
-        // enumerate_memory_regions and now).
-        mach_vm_size_t retry_sizes[]
-            = { MAX_STACK_SIZE / 4, MAX_STACK_SIZE / 16, 4096 };
-        for (size_t i = 0; i < sizeof(retry_sizes) / sizeof(retry_sizes[0]);
-            i++) {
-            if (retry_sizes[i] > stack_size) {
-                continue;
-            }
+        // enumerate_memory_regions and now). Halve from the clamped
+        // stack_size so we still make at least one attempt when the
+        // region is smaller than a page — a fixed table like
+        // {1MB, 256KB, 4KB} would skip every entry in that case.
+        for (mach_vm_size_t retry = stack_size / 2; retry >= 256;
+            retry /= 2) {
             kr = read_task_memory(
-                writer->task, stack_start, stack_buffer, retry_sizes[i]);
+                writer->task, stack_start, stack_buffer, retry);
             if (kr == KERN_SUCCESS) {
-                stack_size = retry_sizes[i];
+                stack_size = retry;
                 rva = write_data(writer, stack_buffer, stack_size);
                 *stack_size_out = rva ? stack_size : 0;
                 *stack_start_out = rva ? stack_start : 0;
