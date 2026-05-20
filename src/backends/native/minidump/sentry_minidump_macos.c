@@ -75,8 +75,12 @@ typedef struct {
     // contents and unwinding stops after frame 0. thread_stack_tids[i]
     // identifies the thread for the SMART-mode indirect-memory walker so
     // it can find the matching thread context for register scanning.
+    // Stored as full 64-bit Mach thread IDs (matching
+    // sentry_thread_context_darwin_t::tid) so the lookup against
+    // platform.threads[j].tid does not silently miss on values that don't
+    // fit in MINIDUMP_THREAD::thread_id's uint32_t.
     minidump_memory_descriptor_t thread_stacks[SENTRY_CRASH_MAX_THREADS];
-    uint32_t thread_stack_tids[SENTRY_CRASH_MAX_THREADS];
+    uint64_t thread_stack_tids[SENTRY_CRASH_MAX_THREADS];
     size_t thread_stack_count;
 } minidump_writer_t;
 
@@ -476,7 +480,8 @@ write_thread_context(
  * would point into the minidump header and break parsers.
  */
 static void
-record_thread_stack(minidump_writer_t *writer, const minidump_thread_t *thread)
+record_thread_stack(minidump_writer_t *writer,
+    const minidump_thread_t *thread, uint64_t tid)
 {
     if (thread->stack.memory.size == 0 || thread->stack.memory.rva == 0) {
         return;
@@ -485,7 +490,7 @@ record_thread_stack(minidump_writer_t *writer, const minidump_thread_t *thread)
         return;
     }
     writer->thread_stacks[writer->thread_stack_count] = thread->stack;
-    writer->thread_stack_tids[writer->thread_stack_count] = thread->thread_id;
+    writer->thread_stack_tids[writer->thread_stack_count] = tid;
     writer->thread_stack_count++;
 }
 
@@ -727,7 +732,7 @@ write_thread_list_stream(minidump_writer_t *writer, minidump_directory_t *dir)
                     = write_thread_stack(writer, sp, &stack_size, &stack_start);
                 thread->stack.memory.size = stack_size;
                 thread->stack.start_address = stack_start;
-                record_thread_stack(writer, thread);
+                record_thread_stack(writer, thread, mach_tid);
             }
         }
     } else if (writer->crash_ctx
@@ -781,7 +786,8 @@ write_thread_list_stream(minidump_writer_t *writer, minidump_directory_t *dir)
                                 : 0;
                             thread->stack.start_address
                                 = thread->stack.memory.rva ? sp : 0;
-                            record_thread_stack(writer, thread);
+                            record_thread_stack(writer, thread,
+                                writer->crash_ctx->platform.threads[i].tid);
                             SENTRY_DEBUGF(
                                 "Thread %zu: wrote stack from file at RVA "
                                 "0x%x, size %llu, start_addr 0x%llx",
@@ -813,7 +819,8 @@ write_thread_list_stream(minidump_writer_t *writer, minidump_directory_t *dir)
                     = write_thread_stack(writer, sp, &stack_size, &stack_start);
                 thread->stack.memory.size = stack_size;
                 thread->stack.start_address = stack_start;
-                record_thread_stack(writer, thread);
+                record_thread_stack(writer, thread,
+                    writer->crash_ctx->platform.threads[i].tid);
                 SENTRY_DEBUGF(
                     "Thread %zu: wrote stack from memory at RVA 0x%x, size %zu",
                     i, thread->stack.memory.rva, stack_size);
@@ -1428,7 +1435,7 @@ macos_indirect_read_memory(void *ctx, uint64_t addr, void *buf, size_t len)
  * Their stack contents still get walked.
  */
 static void
-walk_indirect_registers_for_tid(minidump_writer_t *writer, uint32_t tid,
+walk_indirect_registers_for_tid(minidump_writer_t *writer, uint64_t tid,
     sentry_indirect_accumulator_t *acc, const sentry_indirect_ops_t *ops)
 {
     const _STRUCT_MCONTEXT *state = NULL;
