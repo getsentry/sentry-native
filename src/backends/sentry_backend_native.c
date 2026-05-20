@@ -11,6 +11,9 @@
 #    if defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID)
 #        include <sys/prctl.h>
 #    endif
+#    if defined(SENTRY_PLATFORM_ANDROID)
+#        include <dlfcn.h>
+#    endif
 #elif defined(SENTRY_PLATFORM_WINDOWS) && !defined(SENTRY_PLATFORM_XBOX)
 #    include <werapi.h>
 #endif
@@ -54,6 +57,53 @@ static sentry_mutex_t g_ipc_sync_mutex = SENTRY__MUTEX_INIT;
 static sem_t *g_ipc_init_sem = SEM_FAILED;
 static char g_ipc_sem_name[64] = { 0 };
 #endif
+
+static char *
+resolve_handler_path(const sentry_options_t *options)
+{
+    if (options->handler_path) {
+        return sentry__string_clone(options->handler_path->path);
+    }
+
+#if defined(SENTRY_PLATFORM_ANDROID)
+    Dl_info info;
+    if (dladdr((void *)resolve_handler_path, &info) == 0 || !info.dli_fname) {
+        SENTRY_WARN("unable to resolve sentry library path for crash daemon");
+        return NULL;
+    }
+
+    sentry_path_t *library_path = sentry__path_from_str(info.dli_fname);
+    if (!library_path) {
+        return NULL;
+    }
+
+    sentry_path_t *library_dir = sentry__path_dir(library_path);
+    sentry__path_free(library_path);
+    if (!library_dir) {
+        return NULL;
+    }
+
+    sentry_path_t *handler_path
+        = sentry__path_join_str(library_dir, "libsentry-crash.so");
+    sentry__path_free(library_dir);
+    if (!handler_path) {
+        return NULL;
+    }
+
+    if (!sentry__path_is_file(handler_path)) {
+        SENTRY_WARNF("Android crash daemon is missing: %s", handler_path->path);
+        sentry__path_free(handler_path);
+        return NULL;
+    }
+
+    SENTRY_DEBUGF("resolved Android crash daemon path: %s", handler_path->path);
+    char *handler_path_str = sentry__string_clone(handler_path->path);
+    sentry__path_free(handler_path);
+    return handler_path_str;
+#else
+    return NULL;
+#endif
+}
 
 // Mutex to protect IPC initialization (Windows and Linux only, not macOS/iOS or
 // Android) macOS/Android use g_ipc_sync_mutex directly; iOS has no
@@ -458,8 +508,7 @@ native_backend_startup(
 #else
     // Other platforms: Use out-of-process daemon
     // Pass the notification handles (eventfd/pipe on Unix, events on Windows)
-    const char *daemon_handler_path
-        = options->handler_path ? options->handler_path->path : NULL;
+    char *daemon_handler_path = resolve_handler_path(options);
 #    if defined(SENTRY_PLATFORM_ANDROID)
     uint64_t tid = (uint64_t)pthread_self();
     state->daemon_pid
@@ -480,6 +529,7 @@ native_backend_startup(
         state->ipc->event_handle, state->ipc->ready_event_handle,
         daemon_handler_path);
 #    endif
+    sentry_free(daemon_handler_path);
 
     // On Windows, pid_t is DWORD (unsigned), so (pid_t)-1 == 0xFFFFFFFF.
     // On Unix, pid_t is signed and fork returns -1 on failure.
@@ -1144,6 +1194,11 @@ native_backend_except(sentry_backend_t *backend, const sentry_ucontext_t *uctx)
 void
 sentry__backend_preload(void)
 {
+#ifdef SENTRY_PLATFORM_ANDROID
+    if (sentry__crash_handler_preload() < 0) {
+        SENTRY_WARN("failed to preload native crash handler");
+    }
+#endif
 }
 
 /**

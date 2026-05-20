@@ -26,14 +26,12 @@ endif()
 add_subdirectory(${SENTRY_NATIVE_SRC} sentry_build)
 
 if(SENTRY_BACKEND STREQUAL "native")
-	target_compile_definitions(sentry-android PRIVATE SENTRY_BACKEND_NATIVE)
 	set_target_properties(sentry-crash PROPERTIES
 		PREFIX "lib"
 		OUTPUT_NAME "sentry-crash"
 		SUFFIX ".so"
 	)
 	target_link_options(sentry-crash PRIVATE "-Wl,-z,max-page-size=16384")
-	target_link_libraries(sentry-android PRIVATE dl)
 endif()
 
 # Android logging library

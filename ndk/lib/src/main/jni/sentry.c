@@ -4,15 +4,6 @@
 #include <sentry.h>
 #include <jni.h>
 
-#if defined(SENTRY_BACKEND_NATIVE)
-#include <dlfcn.h>
-#include <limits.h>
-
-#ifndef PATH_MAX
-#define PATH_MAX 4096
-#endif
-#endif
-
 #define ENSURE(Expr) \
     if (!(Expr))     \
         return
@@ -67,31 +58,6 @@ static char *call_get_string(JNIEnv *env, jobject obj, jmethodID mid) {
     fail:
     return NULL;
 }
-
-#if defined(SENTRY_BACKEND_NATIVE)
-static void set_handler_path(sentry_options_t *options) {
-    Dl_info info;
-    if (dladdr((void *)set_handler_path, &info) == 0 || !info.dli_fname) {
-        return;
-    }
-
-    const char *slash = strrchr(info.dli_fname, '/');
-    if (!slash) {
-        return;
-    }
-
-    const char daemon_name[] = "libsentry-crash.so";
-    size_t dir_len = (size_t)(slash - info.dli_fname + 1);
-    if (dir_len + sizeof(daemon_name) > PATH_MAX) {
-        return;
-    }
-
-    char handler_path[PATH_MAX];
-    memcpy(handler_path, info.dli_fname, dir_len);
-    memcpy(handler_path + dir_len, daemon_name, sizeof(daemon_name));
-    sentry_options_set_handler_path(options, handler_path);
-}
-#endif
 
 JNIEXPORT void JNICALL
 Java_io_sentry_ndk_NativeScope_nativeSetTag(
@@ -383,12 +349,6 @@ Java_io_sentry_ndk_SentryNdk_initSentryNative(
 
     options = sentry_options_new();
     ENSURE_OR_FAIL(options);
-
-#if defined(SENTRY_BACKEND_NATIVE)
-    set_handler_path(options);
-    sentry_options_set_crash_reporting_mode(
-        options, SENTRY_CRASH_REPORTING_MODE_NATIVE);
-#endif
 
     // session tracking is enabled by default, but the Android SDK already handles it
     sentry_options_set_auto_session_tracking(options, 0);

@@ -99,6 +99,8 @@ static const size_t g_crash_signal_count
 static sentry_crash_ipc_t *g_crash_ipc = NULL;
 static struct sigaction g_previous_handlers[16];
 static stack_t g_signal_stack = { 0 };
+static volatile long g_handlers_installed = 0;
+static volatile long g_preloaded = 0;
 
 static void
 invoke_previous_signal_handler(int signum, siginfo_t *info, void *context)
@@ -289,18 +291,19 @@ safe_build_stack_path(
 static void
 crash_signal_handler(int signum, siginfo_t *info, void *context)
 {
+    sentry_crash_ipc_t *ipc = g_crash_ipc;
+    if (!ipc || !ipc->shmem) {
+        // Preload only establishes signal-chain order. Until sentry_init()
+        // activates IPC, fall through to the previous handler.
+        invoke_previous_signal_handler(signum, info, context);
+        return;
+    }
+
     // Only handle crash once - check if already processing
     static volatile long handling_crash = 0;
     if (!sentry__atomic_compare_swap(&handling_crash, 0, 1)) {
         // Already handling a crash, just exit immediately
         _exit(1);
-    }
-
-    sentry_crash_ipc_t *ipc = g_crash_ipc;
-    if (!ipc || !ipc->shmem) {
-        // No IPC available, just re-raise through the previous handler.
-        invoke_previous_signal_handler(signum, info, context);
-        return;
     }
 
     sentry_crash_context_t *ctx = ipc->shmem;
@@ -802,14 +805,19 @@ daemon_handling:
     invoke_previous_signal_handler(signum, info, context);
 }
 
-int
-sentry__crash_handler_init(sentry_crash_ipc_t *ipc)
+static int
+install_signal_handlers(sentry_crash_ipc_t *ipc, bool preload)
 {
-    if (!ipc) {
+    if (!preload && !ipc) {
         return -1;
     }
 
-    g_crash_ipc = ipc;
+    if (sentry__atomic_fetch(&g_handlers_installed)) {
+        if (!preload) {
+            g_crash_ipc = ipc;
+        }
+        return 0;
+    }
 
     // Set up signal stack
     g_signal_stack.ss_sp = sentry_malloc(SENTRY_CRASH_SIGNAL_STACK_SIZE);
@@ -855,6 +863,12 @@ sentry__crash_handler_init(sentry_crash_ipc_t *ipc)
         installed_count++;
     }
 
+    g_crash_ipc = ipc;
+    sentry__atomic_store(&g_handlers_installed, 1);
+    if (preload) {
+        sentry__atomic_store(&g_preloaded, 1);
+    }
+
     // Prime libunwind's internal cache by performing a short unwind.
     // This forces dl_iterate_phdr to be called now (while safe) rather than
     // in the signal handler where it could deadlock if the crash occurs
@@ -888,9 +902,31 @@ sentry__crash_handler_init(sentry_crash_ipc_t *ipc)
     return 0;
 }
 
+int
+sentry__crash_handler_init(sentry_crash_ipc_t *ipc)
+{
+    return install_signal_handlers(ipc, false);
+}
+
+int
+sentry__crash_handler_preload(void)
+{
+    return install_signal_handlers(NULL, true);
+}
+
 void
 sentry__crash_handler_shutdown(void)
 {
+    if (sentry__atomic_fetch(&g_preloaded)) {
+        g_crash_ipc = NULL;
+        SENTRY_DEBUG("crash handler deactivated, keeping preloaded handlers");
+        return;
+    }
+
+    if (!sentry__atomic_fetch(&g_handlers_installed)) {
+        return;
+    }
+
     // Restore previous signal handlers
     for (size_t i = 0; i < g_crash_signal_count; i++) {
         sigaction(g_crash_signals[i], &g_previous_handlers[i], NULL);
@@ -905,6 +941,8 @@ sentry__crash_handler_shutdown(void)
     }
 
     g_crash_ipc = NULL;
+    sentry__atomic_store(&g_handlers_installed, 0);
+    sentry__atomic_store(&g_preloaded, 0);
 
     SENTRY_DEBUG("crash handler shutdown");
 }

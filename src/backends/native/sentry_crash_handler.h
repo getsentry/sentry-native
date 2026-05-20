@@ -10,6 +10,11 @@
 int sentry__crash_handler_init(sentry_crash_ipc_t *ipc);
 
 /**
+ * Preload crash handler before full initialization.
+ */
+int sentry__crash_handler_preload(void);
+
+/**
  * Shutdown crash handler (restore previous handlers)
  */
 void sentry__crash_handler_shutdown(void);
