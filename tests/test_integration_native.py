@@ -1042,3 +1042,46 @@ def test_native_restart_on_crash(cmake, httpserver):
     for req in httpserver.log:
         envelope = Envelope.deserialize(req[0].get_data())
         assert_native_crash(envelope)
+
+
+@pytest.mark.skipif(
+    sys.platform != "win32",
+    reason="app-hang detection is Windows-only in this release",
+)
+def test_native_app_hang(cmake, httpserver):
+    """App hang detection emits exactly one ApplicationNotResponding event."""
+    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "native"})
+
+    httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data(
+        "OK"
+    )
+
+    with httpserver.wait(timeout=20) as waiting:
+        # The example's app-hang mode heartbeats for 500 ms, then freezes for
+        # 3000 ms (3x the 1000 ms timeout). The daemon polls every 500 ms.
+        # `run` (not `run_crash`) because the example exits cleanly after the
+        # hang demonstration — `run_crash` expects abnormal exit.
+        run(
+            tmp_path,
+            "sentry_example",
+            ["log", "app-hang"],
+            env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
+        )
+    assert waiting.result
+
+    envelope = Envelope.deserialize(httpserver.log[0][0].get_data())
+    event = envelope.get_event()
+    assert event is not None
+    exc = event["exception"]["values"][0]
+    assert exc["type"] == "ApplicationNotResponding"
+    assert exc["mechanism"]["type"] == "AppHang"
+    assert exc["mechanism"]["handled"] is True
+    assert exc["mechanism"]["synthetic"] is True
+    assert "stacktrace" in exc
+    frames = exc["stacktrace"]["frames"]
+    assert isinstance(frames, list)
+    assert len(frames) > 0, "stacktrace is empty — capture path may be broken"
+    # At least one frame should have a non-zero instruction address.
+    assert any(
+        int(f.get("instruction_addr", "0"), 16) > 0 for f in frames
+    ), "no frame has a non-zero instruction_addr"

@@ -20,6 +20,7 @@
 #include "sentry_alloc.h"
 #include "sentry_backend.h"
 #include "sentry_core.h"
+#include "sentry_app_hang.h"
 #include "sentry_crash_context.h"
 #include "sentry_crash_daemon.h"
 #include "sentry_crash_handler.h"
@@ -313,6 +314,18 @@ native_backend_startup(
     sentry__atomic_store(
         &ctx->user_consent, sentry__atomic_fetch(&options->run->user_consent));
 
+    /* App-hang detection configuration. Written before the daemon is
+     * signalled ready, so the daemon sees consistent values at startup.
+     *
+     * NOTE: sentry__app_hang_set_shmem(ctx) is intentionally deferred until
+     * just before the function's successful `return 0;` below. If a later
+     * fallible call fails (e.g., daemon spawn) we free the IPC; registering
+     * the global pointer early would leave it dangling. */
+    ctx->app_hang_enabled = options->app_hang_enabled;
+    ctx->app_hang_timeout_ms = options->app_hang_timeout_ms;
+    ctx->app_hang_target_tid = 0;
+    ctx->app_hang_last_heartbeat_ms = 0;
+
     // Set up event and breadcrumb paths
     sentry_path_t *run_path = options->run->run_path;
     sentry_path_t *db_path = options->database_path;
@@ -553,6 +566,14 @@ native_backend_startup(
     }
 #endif
 
+#if defined(SENTRY_PLATFORM_WINDOWS) && !defined(SENTRY_PLATFORM_XBOX)
+    /* Make this shmem block visible to sentry_app_hang_heartbeat now that
+     * all fallible startup steps have succeeded. If any earlier step had
+     * failed we would have freed the IPC and returned without ever
+     * registering — keeping g_app_hang_shmem == NULL. */
+    sentry__app_hang_set_shmem(ctx);
+#endif
+
     SENTRY_DEBUG("native backend started successfully");
     return 0;
 }
@@ -668,6 +689,11 @@ native_backend_shutdown(sentry_backend_t *backend)
 
     // Cleanup IPC
     if (state->ipc) {
+#if defined(SENTRY_PLATFORM_WINDOWS) && !defined(SENTRY_PLATFORM_XBOX)
+        /* Clear the global heartbeat pointer before the shmem backing it goes
+         * away, so sentry_app_hang_heartbeat() cannot write to freed memory. */
+        sentry__app_hang_set_shmem(NULL);
+#endif
         sentry__crash_ipc_free(state->ipc);
         state->ipc = NULL; // Prevent use-after-free
     }

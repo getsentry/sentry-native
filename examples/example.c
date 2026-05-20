@@ -612,6 +612,22 @@ run_threads(thread_func_t func)
 }
 #endif
 
+#if defined(SENTRY_PLATFORM_WINDOWS)
+static unsigned __stdcall
+app_hang_demo_thread(void *arg)
+{
+    (void)arg;
+    /* Heartbeat for 500 ms to latch this thread as the target. */
+    for (int i = 0; i < 10; i++) {
+        sentry_app_hang_heartbeat();
+        Sleep(50);
+    }
+    /* Freeze for 3x the configured timeout (3000 ms). */
+    Sleep(3000);
+    return 0;
+}
+#endif
+
 int
 main(int argc, char **argv)
 {
@@ -879,6 +895,13 @@ main(int argc, char **argv)
             options, SENTRY_CRASH_UPLOAD_MODE_ASYNC);
     }
 
+#if defined(SENTRY_PLATFORM_WINDOWS)
+    if (has_arg(argc, argv, "app-hang")) {
+        sentry_options_set_app_hang_enabled(options, 1);
+        sentry_options_set_app_hang_timeout_ms(options, 1000);
+    }
+#endif
+
     // E2E test mode: generate unique test ID for event correlation
     char e2e_test_id[37] = { 0 };
     if (has_arg(argc, argv, "e2e-test")) {
@@ -889,6 +912,25 @@ main(int argc, char **argv)
     if (0 != sentry_init(options)) {
         return EXIT_FAILURE;
     }
+
+#if defined(SENTRY_PLATFORM_WINDOWS)
+    /* app-hang: spawn the demo thread BEFORE any other post-init work so it
+     * begins heartbeating immediately. The thread freezes for 3x the timeout,
+     * giving the daemon time to detect the hang and ship the envelope. We wait
+     * for it here so main does not exit before the transport has flushed.
+     * NOTE: this mode is intentionally exclusive – do not combine with crash/
+     *       abort/etc. since those would terminate the process first. */
+    if (has_arg(argc, argv, "app-hang")) {
+        HANDLE t = (HANDLE)_beginthreadex(
+            NULL, 0, app_hang_demo_thread, NULL, 0, NULL);
+        if (t) {
+            WaitForSingleObject(t, INFINITE);
+            CloseHandle(t);
+        }
+        sentry_close();
+        return EXIT_SUCCESS;
+    }
+#endif
 
     if (has_arg(argc, argv, "user-consent-revoke")) {
         sentry_user_consent_revoke();

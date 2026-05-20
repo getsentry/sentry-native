@@ -2,6 +2,7 @@
 
 #include "minidump/sentry_minidump_writer.h"
 #include "sentry_alloc.h"
+#include "sentry_app_hang.h"
 #include "sentry_attachment.h"
 #include "sentry_core.h"
 #include "sentry_crash_ipc.h"
@@ -2118,6 +2119,56 @@ build_stacktrace_from_ctx(const sentry_crash_context_t *ctx)
     return build_stacktrace_for_thread(ctx, SIZE_MAX);
 }
 
+/* Describes which kind of native event we are building. `s_crash_kind`
+ * drives the crash path; `s_app_hang_kind` drives the app-hang flow on
+ * Windows.
+ *
+ * Invariant: if `include_signal_meta` is true, `exception_type` must be NULL
+ * (the signal-derived path). Setting an override type AND requesting signal
+ * metadata is incoherent — there is no signal in the override case.
+ */
+typedef struct {
+    /* Override exception `type` string. NULL = derive from the crash signal
+     * (e.g. "SIGSEGV" on Unix, "EXCEPTION" on Windows). */
+    const char *exception_type;
+    /* Override exception `value` string. Used only when `exception_type` is
+     * non-NULL; ignored otherwise. */
+    const char *exception_value;
+    /* `mechanism.type` JSON value, e.g. "signalhandler" or "AppHang". */
+    const char *mechanism_type;
+    /* `mechanism.handled` JSON value. false for fatal crashes, true for
+     * recoverable events like app hangs. */
+    bool mechanism_handled;
+    /* Event `level` JSON value, e.g. "fatal" or "error". */
+    const char *level;
+    /* Attach `mechanism.meta.signal` payload? Must be false when
+     * `exception_type` is non-NULL (see struct invariant). */
+    bool include_signal_meta;
+} sentry_native_event_kind_t;
+
+/* Crash-path event kind: signal-derived type/value, fatal level, unhandled. */
+static const sentry_native_event_kind_t s_crash_kind = {
+    .exception_type = NULL,
+    .exception_value = NULL,
+    .mechanism_type = "signalhandler",
+    .mechanism_handled = false,
+    .level = "fatal",
+    .include_signal_meta = true,
+};
+
+#if defined(SENTRY_PLATFORM_WINDOWS)
+/* App-hang event kind: ANR-style, handled, error level. The per-event
+ * `exception_value` (freeze duration message) is filled in at capture time. */
+static const sentry_native_event_kind_t s_app_hang_kind = {
+    .exception_type = "ApplicationNotResponding",
+    .exception_value = NULL, /* filled in per-event below */
+    .mechanism_type = "AppHang",
+    .mechanism_handled = true,
+    .level = "error",
+    .include_signal_meta = false,
+};
+#endif
+
 /**
  * Reads one breadcrumb ring file the crashing process appended on its hot path
  * into a breadcrumb list. Returns null if the file is absent or empty.
@@ -2186,14 +2237,12 @@ apply_breadcrumbs_from_ring_files(sentry_value_t event,
  * @param ctx Crash context
  * @param event_file_path Path to base event file from parent process
  * @param run_folder Run directory holding the breadcrumb ring files
- * @param level Event level (e.g. "fatal")
- * @param mechanism_type Exception mechanism type (e.g. "signalhandler")
- * @param handled Whether the mechanism was handled
+ * @param kind Event-kind descriptor controlling exception/mechanism/level
  */
 static sentry_value_t
-build_native_event(const sentry_crash_context_t *ctx,
+build_native_crash_event(const sentry_crash_context_t *ctx,
     const char *event_file_path, const sentry_path_t *run_folder,
-    const char *level, const char *mechanism_type, bool handled)
+    const sentry_native_event_kind_t *kind)
 {
     // Read base event from parent's file
     sentry_value_t event = sentry_value_new_null();
@@ -2221,50 +2270,69 @@ build_native_event(const sentry_crash_context_t *ctx,
     sentry_value_set_by_key(
         event, "platform", sentry_value_new_string("native"));
 
-    sentry_value_set_by_key(event, "level", sentry_value_new_string(level));
+    // Set level (varies by event kind: "fatal" for crash, "error" for app hang)
+    sentry_value_set_by_key(
+        event, "level", sentry_value_new_string(kind->level));
 
     // Build exception
-    const char *signal_name = "UNKNOWN";
+    /* Function-scope so exc_value (which may point into this buffer) remains
+     * valid after the `else` block below. Previously declared inside the
+     * else: out of scope by the time exc_value is read -> UB per C99 6.2.4. */
+    char crash_value_buf[128];
+    const char *exc_type;
+    const char *exc_value;
+
+    if (kind->exception_type) {
+        exc_type = kind->exception_type;
+        exc_value = kind->exception_value ? kind->exception_value : "";
+    } else {
+        const char *signal_name;
 #if defined(SENTRY_PLATFORM_UNIX)
-    int signal_number = ctx->platform.signum;
-    signal_name = get_signal_name(signal_number);
+        signal_name = get_signal_name(ctx->platform.signum);
 #elif defined(SENTRY_PLATFORM_WINDOWS)
-    // Exception code is used directly below as unsigned
-    signal_name = "EXCEPTION";
+        signal_name = "EXCEPTION";
+#else
+        signal_name = "UNKNOWN";
 #endif
+        exc_type = signal_name;
+        snprintf(crash_value_buf, sizeof(crash_value_buf), "Fatal crash: %s",
+            signal_name);
+        exc_value = crash_value_buf;
+    }
 
     sentry_value_t exc = sentry_value_new_object();
-    sentry_value_set_by_key(exc, "type", sentry_value_new_string(signal_name));
-
-    char value_buf[128];
-    snprintf(value_buf, sizeof(value_buf), "Fatal crash: %s", signal_name);
-    sentry_value_set_by_key(exc, "value", sentry_value_new_string(value_buf));
+    sentry_value_set_by_key(exc, "type", sentry_value_new_string(exc_type));
+    sentry_value_set_by_key(exc, "value", sentry_value_new_string(exc_value));
 
     // Add mechanism
     sentry_value_t mechanism = sentry_value_new_object();
-    sentry_value_set_by_key(
-        mechanism, "type", sentry_value_new_string(mechanism_type));
+    sentry_value_set_by_key(mechanism, "type",
+        sentry_value_new_string(kind->mechanism_type));
     sentry_value_set_by_key(
         mechanism, "synthetic", sentry_value_new_bool(true));
-    sentry_value_set_by_key(
-        mechanism, "handled", sentry_value_new_bool(handled));
+    sentry_value_set_by_key(mechanism, "handled",
+        sentry_value_new_bool(kind->mechanism_handled));
 
-    // Add signal metadata
-    sentry_value_t meta = sentry_value_new_object();
-    sentry_value_t signal_info = sentry_value_new_object();
+    // Add signal metadata (only relevant for signal-handler/crash events)
+    if (kind->include_signal_meta) {
+        sentry_value_t meta = sentry_value_new_object();
+        sentry_value_t signal_info = sentry_value_new_object();
 #if defined(SENTRY_PLATFORM_WINDOWS)
-    // Windows exception codes are unsigned 32-bit values (e.g., 0xC0000005)
-    // Use uint64 to preserve the unsigned value for the symbolicator
-    sentry_value_set_by_key(signal_info, "number",
-        sentry_value_new_uint64((uint64_t)ctx->platform.exception_code));
+        // Windows exception codes are unsigned 32-bit values (e.g., 0xC0000005)
+        // Use uint64 to preserve the unsigned value for the symbolicator
+        sentry_value_set_by_key(signal_info, "number",
+            sentry_value_new_uint64((uint64_t)ctx->platform.exception_code));
 #else
-    sentry_value_set_by_key(
-        signal_info, "number", sentry_value_new_int32(signal_number));
+        sentry_value_set_by_key(signal_info, "number",
+            sentry_value_new_int32(ctx->platform.signum));
 #endif
-    sentry_value_set_by_key(
-        signal_info, "name", sentry_value_new_string(signal_name));
-    sentry_value_set_by_key(meta, "signal", signal_info);
-    sentry_value_set_by_key(mechanism, "meta", meta);
+        /* By the struct invariant, include_signal_meta is only true when
+         * exception_type is NULL, so exc_type holds the signal name here. */
+        sentry_value_set_by_key(
+            signal_info, "name", sentry_value_new_string(exc_type));
+        sentry_value_set_by_key(meta, "signal", signal_info);
+        sentry_value_set_by_key(mechanism, "meta", meta);
+    }
 
     sentry_value_set_by_key(exc, "mechanism", mechanism);
 
@@ -2541,13 +2609,13 @@ static bool
 write_envelope_with_native_stacktrace(const sentry_options_t *options,
     const char *envelope_path, const sentry_crash_context_t *ctx,
     const char *event_file_path, const char *minidump_path,
-    sentry_path_t *run_folder)
+    sentry_path_t *run_folder, const sentry_native_event_kind_t *kind)
 {
     // Build native crash event (always include threads with names)
     SENTRY_DEBUGF("write_envelope_with_native_stacktrace: minidump_path=%s",
         minidump_path ? minidump_path : "(null)");
-    sentry_value_t event = build_native_event(
-        ctx, event_file_path, run_folder, "fatal", "signalhandler", false);
+    sentry_value_t event = build_native_crash_event(
+        ctx, event_file_path, run_folder, kind);
 
     // Serialize event to JSON
     size_t event_size = 0;
@@ -2785,6 +2853,126 @@ write_envelope_with_native_stacktrace(const sentry_options_t *options,
 
     return true;
 }
+
+#if defined(SENTRY_PLATFORM_WINDOWS)
+/**
+ * App-hang capture path (Windows). Suspends the latched target thread just long
+ * enough to snapshot its CONTEXT, then builds and submits an envelope using the
+ * same native-stacktrace path as crashes (with an AppHang event kind).
+ */
+static void
+capture_and_send_app_hang(const sentry_options_t *options,
+    sentry_crash_ipc_t *ipc, uint64_t freeze_ms)
+{
+    /* NOTE (race, experimental Windows-only first cut): This function reads
+     * and mutates shmem fields (platform.context, threads[0], crashed_tid,
+     * num_threads) that are also written by the host's signal handler on a
+     * real crash. The daemon's main loop is single-threaded and the crash
+     * event has wait-priority 0, so we will not enter this function with a
+     * pending crash notification already signalled. The remaining narrow
+     * window is: the host crashes WHILE this function is running, the host's
+     * signal handler writes to shmem mid-capture, and we then send a
+     * partially-overwritten event. We accept this risk for the initial
+     * Windows-only implementation; mitigation (state check at entry / pause
+     * via an additional shmem flag) is tracked as follow-up work. */
+    sentry_crash_context_t *ctx = ipc->shmem;
+
+    /* Populate modules once per session if not already done. */
+    if (ctx->module_count == 0) {
+        capture_modules_from_process(ctx);
+    }
+
+    DWORD target_tid = (DWORD)ctx->app_hang_target_tid;
+
+    /* Suspend the target thread and capture its CONTEXT. */
+    HANDLE hThread = OpenThread(THREAD_GET_CONTEXT | THREAD_SUSPEND_RESUME
+            | THREAD_QUERY_INFORMATION,
+        FALSE, target_tid);
+    if (!hThread) {
+        SENTRY_DEBUGF("app-hang: OpenThread(%lu) failed: %lu",
+            (unsigned long)target_tid, GetLastError());
+        return;
+    }
+
+    DWORD suspend_count = SuspendThread(hThread);
+    if (suspend_count == (DWORD)-1) {
+        SENTRY_DEBUGF("app-hang: SuspendThread(%lu) failed: %lu",
+            (unsigned long)target_tid, GetLastError());
+        CloseHandle(hThread);
+        return;
+    }
+
+    CONTEXT thread_ctx;
+    memset(&thread_ctx, 0, sizeof(thread_ctx));
+    thread_ctx.ContextFlags = CONTEXT_FULL;
+    if (!GetThreadContext(hThread, &thread_ctx)) {
+        SENTRY_DEBUGF(
+            "app-hang: GetThreadContext failed: %lu", GetLastError());
+        ResumeThread(hThread);
+        CloseHandle(hThread);
+        return;
+    }
+
+    /* Resume immediately; we have the snapshot we need. */
+    ResumeThread(hThread);
+    CloseHandle(hThread);
+
+    /* Place the snapshot in the "crashed thread" slot of the context so the
+     * existing event builder pulls a stacktrace out for the exception
+     * payload and the threads block.
+     *
+     * IMPORTANT: build_stacktrace_from_ctx() calls build_stacktrace_for_thread
+     * with thread_idx == SIZE_MAX, which on Windows reads from
+     * ctx->platform.context (NOT threads[0].context). We must populate both
+     * so the exception stacktrace uses the captured CONTEXT instead of an
+     * all-zero one (PC=0 -> StackWalk64 produces no frames). */
+    ctx->platform.context = thread_ctx;
+    ctx->crashed_tid = target_tid;
+    ctx->platform.num_threads = 1;
+    ctx->platform.threads[0].thread_id = target_tid;
+    ctx->platform.threads[0].context = thread_ctx;
+    ctx->platform.threads[0].name[0] = '\0';
+
+    /* Build the per-event value description with the freeze duration. */
+    char value_buf[128];
+    snprintf(value_buf, sizeof(value_buf),
+        "App hang detected. Main thread blocked for %llu ms.",
+        (unsigned long long)freeze_ms);
+    sentry_native_event_kind_t kind = s_app_hang_kind;
+    kind.exception_value = value_buf;
+
+    /* Build an envelope path next to the crash one. */
+    char envelope_path[SENTRY_CRASH_MAX_PATH];
+    int path_len = snprintf(envelope_path, sizeof(envelope_path),
+        "%s/sentry-app-hang-%lu-%llu.env", ctx->database_path,
+        (unsigned long)ctx->crashed_pid,
+        (unsigned long long)ctx->app_hang_last_heartbeat_ms);
+
+    if (path_len < 0 || path_len >= (int)sizeof(envelope_path)) {
+        SENTRY_WARN("app-hang: envelope path truncated or invalid");
+        return;
+    }
+
+    bool ok = write_envelope_with_native_stacktrace(options, envelope_path,
+        ctx, /*event_file_path=*/NULL, /*minidump_path=*/NULL,
+        /*run_folder=*/NULL, &kind);
+    if (!ok) {
+        SENTRY_WARN("app-hang: failed to write envelope");
+        return;
+    }
+
+    /* Read envelope from disk and hand to transport. */
+    sentry_path_t *env_path = sentry__path_from_str(envelope_path);
+    if (env_path) {
+        sentry_envelope_t *envelope = sentry__envelope_from_path(env_path);
+        if (envelope && options && options->transport) {
+            sentry__capture_envelope(options->transport, envelope, options);
+        }
+        sentry__path_remove(env_path);
+        sentry__path_free(env_path);
+    }
+}
+#endif /* SENTRY_PLATFORM_WINDOWS */
 
 /**
  * Manually write a Sentry envelope with event, minidump, and attachments.
@@ -3278,7 +3466,8 @@ sentry__process_crash(const sentry_options_t *options, sentry_crash_ipc_t *ipc)
             minidump_path[0] ? minidump_path : "NULL");
         envelope_written = write_envelope_with_native_stacktrace(options,
             envelope_path, ctx, event_path,
-            minidump_path[0] ? minidump_path : NULL, run_folder);
+            minidump_path[0] ? minidump_path : NULL, run_folder,
+            &s_crash_kind);
     } else {
         // Mode 0 (MINIDUMP only)
         SENTRY_DEBUG("Writing envelope with minidump");
@@ -3714,8 +3903,109 @@ sentry__crash_daemon_main(pid_t app_pid, uint64_t app_tid, HANDLE event_handle,
 
     SENTRY_DEBUG("Entering main loop");
 
+#if defined(SENTRY_PLATFORM_WINDOWS)
+    /* Pre-populate crashed_pid so the app-hang path can OpenProcess(host).
+     * Both capture_modules_from_process and walk_stack_with_dbghelp use
+     * ctx->crashed_pid, which is otherwise only set by the host's crash
+     * handler. The crash handler will re-set this from the host context if
+     * a real crash occurs; that's a no-op (same value). */
+    ipc->shmem->crashed_pid = (pid_t)app_pid;
+#endif
+
     // Daemon main loop
     bool crash_processed = false;
+
+#if defined(SENTRY_PLATFORM_WINDOWS)
+    /* App-hang detector state. Daemon-local; the daemon caches the timeout
+     * here so it does not race the host on subsequent shmem mutations. */
+    const bool app_hang_enabled = ipc->shmem->app_hang_enabled;
+    const uint64_t app_hang_timeout_ms = ipc->shmem->app_hang_timeout_ms;
+    uint64_t last_fired_hb = 0;
+    int consecutive_stale_ticks = 0;
+
+    HANDLE timer = NULL;
+    if (app_hang_enabled) {
+        timer = CreateWaitableTimer(NULL, FALSE, NULL);
+        if (!timer) {
+            SENTRY_WARNF("app-hang: CreateWaitableTimer failed: %lu",
+                GetLastError());
+        } else {
+            /* Negative dueTime: relative; 100ns units; -5_000_000 = 500 ms.
+             * Period 500 ms. */
+            LARGE_INTEGER due_time;
+            due_time.QuadPart = -5000000LL;
+            if (!SetWaitableTimer(
+                    timer, &due_time, 500, NULL, NULL, FALSE)) {
+                SENTRY_WARNF("app-hang: SetWaitableTimer failed: %lu",
+                    GetLastError());
+                CloseHandle(timer);
+                timer = NULL;
+            }
+        }
+    }
+
+    /* Wait set: index 0 = crash event, index 1 = timer (optional). */
+    HANDLE wait_handles[2];
+    DWORD wait_count = 1;
+    wait_handles[0] = ipc->event_handle;
+    if (timer) {
+        wait_handles[1] = timer;
+        wait_count = 2;
+    }
+
+    while (true) {
+        DWORD result = WaitForMultipleObjects(wait_count, wait_handles,
+            FALSE, SENTRY_CRASH_DAEMON_WAIT_TIMEOUT_MS);
+
+        if (result == WAIT_OBJECT_0) {
+            /* Crash notification — identical logic to the cross-platform
+             * path below. */
+            SENTRY_DEBUG("Event signaled, checking crash state");
+            long state = sentry__atomic_fetch(&ipc->shmem->state);
+            if (state == SENTRY_CRASH_STATE_CRASHED && !crash_processed) {
+                SENTRY_DEBUG("Crash notification received, processing");
+                sentry__process_crash(options, ipc);
+                crash_processed = true;
+                SENTRY_DEBUG("Crash processed, daemon exiting");
+                break;
+            }
+            SENTRY_DEBUG("Spurious notification or already processed");
+        } else if (timer && result == WAIT_OBJECT_0 + 1) {
+            /* Timer tick — evaluate app-hang state with strike accumulation. */
+            sentry_crash_context_t *shctx = ipc->shmem;
+            const uint64_t hb = shctx->app_hang_last_heartbeat_ms;
+            const uint64_t now = sentry__app_hang_now_ms();
+            int new_strikes = 0;
+            sentry_app_hang_decision_t d = sentry__app_hang_decide(
+                app_hang_enabled, hb, now, app_hang_timeout_ms,
+                last_fired_hb, consecutive_stale_ticks, &new_strikes);
+            consecutive_stale_ticks = new_strikes;
+            if (d == SENTRY_APP_HANG_FIRE) {
+                capture_and_send_app_hang(options, ipc, now - hb);
+                /* Always advance last_fired_hb, even if capture failed —
+                 * prevents a retry storm against a wedged thread. The next
+                 * heartbeat advance re-arms detection naturally. */
+                last_fired_hb = hb;
+            }
+        } else if (result == WAIT_TIMEOUT) {
+            /* Fall through to parent-liveness check below. */
+        } else {
+            SENTRY_WARNF("daemon wait failed: %lu err=%lu", result,
+                GetLastError());
+            break;
+        }
+
+        if (!crash_processed && !is_parent_alive(ipc->parent_handle)) {
+            SENTRY_DEBUG("Parent process exited without crash");
+            break;
+        }
+    }
+
+    if (timer) {
+        CancelWaitableTimer(timer);
+        CloseHandle(timer);
+    }
+#else
     while (true) {
         // Wait for crash notification (with timeout to check parent health)
         bool wait_result
@@ -3760,6 +4050,7 @@ sentry__crash_daemon_main(pid_t app_pid, uint64_t app_tid, HANDLE event_handle,
             break;
         }
     }
+#endif
 
     SENTRY_DEBUG("Daemon exiting");
 

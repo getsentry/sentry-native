@@ -1698,6 +1698,48 @@ SENTRY_EXPERIMENTAL_API void sentry_options_set_session_replay_duration(
     sentry_options_t *opts, uint32_t duration_ms);
 
 /**
+ * Enable app-hang detection in the native crash backend.
+ *
+ * When enabled, the out-of-process daemon monitors a designated thread in the
+ * host via a shared-memory heartbeat. If the heartbeat goes stale for longer
+ * than the configured timeout, the daemon walks the thread's stack remotely and
+ * emits an `ApplicationNotResponding` event. The host process keeps running.
+ *
+ * Off by default. This setting only has an effect when using the `native`
+ * backend. In this initial release the feature is Windows-only; the call is a
+ * silent no-op on other platforms.
+ */
+SENTRY_EXPERIMENTAL_API void sentry_options_set_app_hang_enabled(
+    sentry_options_t *opts, int enabled);
+
+/**
+ * Sets the heartbeat-staleness threshold (in milliseconds) used by the
+ * app-hang detector. Default 5000 ms.
+ *
+ * Read by the daemon once at startup; changes after `sentry_init` have no
+ * effect.
+ */
+SENTRY_EXPERIMENTAL_API void sentry_options_set_app_hang_timeout_ms(
+    sentry_options_t *opts, uint64_t timeout_ms);
+
+/**
+ * Signal that the calling thread is alive.
+ *
+ * Call this from the thread you want monitored (typically the main / game
+ * thread). The first call latches the calling thread's id as the target;
+ * subsequent calls from the same thread refresh the heartbeat timestamp. Calls
+ * from any other thread are dropped — so a stray heartbeat from a worker
+ * thread cannot mask a frozen main thread.
+ *
+ * Cost: approximately one system call plus a relaxed 64-bit store. Safe to
+ * call from a per-frame hook in a game engine.
+ *
+ * No-op if app-hang detection is not enabled in options, or if the native
+ * backend is not active, or on non-Windows platforms.
+ */
+SENTRY_EXPERIMENTAL_API void sentry_app_hang_heartbeat(void);
+
+/**
  * Sets the path to the crashpad handler if the crashpad backend is used.
  *
  * The path defaults to the `crashpad_handler`/`crashpad_handler.exe`
