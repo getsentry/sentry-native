@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1779193380869,
+  "lastUpdate": 1779272993544,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -21976,6 +21976,66 @@ window.BENCHMARK_DATA = {
             "value": 2.2003290000043307,
             "unit": "ms",
             "extra": "Min 2.116ms\nMax 2.248ms\nMean 2.186ms\nStdDev 0.052ms\nMedian 2.200ms\nCPU 0.591ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "amir.mujacic@sentry.io",
+            "name": "Amir Mujacic",
+            "username": "mujacica"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "82fb40ba3435062bb4fd6c1950afe690ef848430",
+          "message": "fix(native): macOS thread stack descriptor (#1726)\n\n* fix(native/macos): make per-thread stack descriptors match the captured SP\n\nThe macOS native backend's full path (when ``task_for_pid`` succeeds)\nused to call ``thread_get_state()`` from inside the daemon to pick up\neach thread's SP, then wrote that SP into the per-thread\n``MINIDUMP_THREAD::stack.start_of_memory_range`` descriptor. By the\ntime the daemon runs, the crashing thread's signal handler has long\nsince moved its SP deep into libsystem code (waiting on the daemon\nIPC), so every minidump emitted on macOS contained a thread descriptor\nthat pointed at libsystem code pages instead of the real thread stack\nregion. The thread's CONTEXT block (filled from the signal-handler-\ncaptured ucontext) still had the right crash-time SP, so MemoryListStream\nand the per-thread descriptor disagreed about where the stack lives —\nbreaking any reader that walks the stack from SP via the descriptor.\n\nMatch each Mach thread back to the signal-handler snapshot in\n``crash_ctx->platform.threads[]`` by ``thread_id`` and use that saved\nstate for register + stack capture; ``thread_get_state`` only fills the\ngap when the snapshot is missing the thread for some reason. Also clamp\n``write_thread_stack`` to the VM region containing SP — without it, a\ncrashing thread whose SP sits near the top of a small worker stack\ncaused the fixed-size ``read_task_memory`` call to overshoot into the\nguard page and the entire read failed, leaving the descriptor empty.\n\nLinux already matched by ``tid`` so it was unaffected; Windows\ndelegates to ``MiniDumpWriteDump`` which always populates the\ndescriptor correctly.\n\nTests:\n\n  * extend ``test_native_minidump_streams`` (runs on every platform)\n    with a cross-stream assertion: every thread's\n    ``MINIDUMP_THREAD::stack`` descriptor must contain the SP recorded\n    in that thread's CONTEXT. Regression guard against this class of\n    descriptor/context disagreement on any backend.\n\n  * add ``test_native_smart_mode_captures_indirect_heap_memory``\n    (macOS + Linux). The published behaviour of\n    ``SENTRY_MINIDUMP_MODE_SMART`` is \"stack-only dump plus ~1 KiB\n    around every writable-heap pointer reachable from registers + stack\n    words\". The minimal-mode fallback on macOS (when ``task_for_pid``\n    fails) silently breaks that contract by emitting *only* module\n    header pages, with no heap region anywhere in MemoryListStream.\n    The test ad-hoc codesigns the example + ``sentry-crash`` daemon\n    with ``com.apple.security.cs.debugger`` + ``get-task-allow`` +\n    hardened-runtime so ``task_for_pid`` succeeds on macOS (no real\n    Apple Developer cert needed), then asserts at least one captured\n    memory region lands outside both the loaded-module image ranges\n    and the per-thread stack ranges. On Linux ``/proc/self/maps`` is\n    readable in-process so no codesigning is needed. Test skipped on\n    Windows since ``MiniDumpWriteDump`` uses different controls\n    (``MINIDUMP_TYPE`` flags).\n\nVerified on:\n\n  * macOS 26 arm64: ``pytest tests/test_integration_native.py``\n    -> 23 passed, 2 skipped (Windows-only WER tests).\n  * Linux Ubuntu 24.04 arm64 (Docker): ``pytest tests/test_integration_native.py``\n    -> 22 passed, 3 skipped (Windows + OOM).\n\n---------\n\nCo-authored-by: Claude Opus 4.7 (1M context) <noreply@anthropic.com>",
+          "timestamp": "2026-05-20T12:27:22+02:00",
+          "tree_id": "1ef98a8a618237143a9f69651bf3e843065dd808",
+          "url": "https://github.com/getsentry/sentry-native/commit/82fb40ba3435062bb4fd6c1950afe690ef848430"
+        },
+        "date": 1779272987905,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 1.0120919999963007,
+            "unit": "ms",
+            "extra": "Min 1.002ms\nMax 1.013ms\nMean 1.008ms\nStdDev 0.006ms\nMedian 1.012ms\nCPU 0.962ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 0.9225979999882838,
+            "unit": "ms",
+            "extra": "Min 0.912ms\nMax 0.931ms\nMean 0.922ms\nStdDev 0.007ms\nMedian 0.923ms\nCPU 0.921ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 3.3071839999934127,
+            "unit": "ms",
+            "extra": "Min 3.272ms\nMax 3.330ms\nMean 3.305ms\nStdDev 0.023ms\nMedian 3.307ms\nCPU 1.768ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.13358100000004924,
+            "unit": "ms",
+            "extra": "Min 0.131ms\nMax 0.137ms\nMean 0.133ms\nStdDev 0.002ms\nMedian 0.134ms\nCPU 0.082ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.03290899999797148,
+            "unit": "ms",
+            "extra": "Min 0.031ms\nMax 0.043ms\nMean 0.034ms\nStdDev 0.005ms\nMedian 0.033ms\nCPU 0.034ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 1.9695000000012897,
+            "unit": "ms",
+            "extra": "Min 1.896ms\nMax 2.007ms\nMean 1.957ms\nStdDev 0.042ms\nMedian 1.970ms\nCPU 0.546ms"
           }
         ]
       }
