@@ -137,6 +137,10 @@ elseif(SENTRY_TRANSPORT_NONE)
 	sentry_target_sources_cwd(sentry
 		transports/sentry_transport_none.c
 	)
+elseif(SENTRY_TRANSPORT_STDOUT)
+	sentry_target_sources_cwd(sentry
+		transports/sentry_transport_stdout.c
+	)
 endif()
 
 # backends
