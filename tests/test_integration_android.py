@@ -52,11 +52,14 @@ def test_native_android(cmake):
     adb("shell", f"rm -rf {database_path}", check=True)
     assert find_minidumps(timeout=0) == []
 
-    run(tmp_path, "sentry_example", ["log", "crash"], expect_failure=True)
+    try:
+        run(tmp_path, "sentry_example", ["log", "crash"], expect_failure=True)
 
-    minidumps = find_minidumps()
-    assert minidumps, "native backend should create a minidump on Android"
+        minidumps = find_minidumps()
+        assert minidumps, "native backend should create a minidump on Android"
 
-    local_minidump = tmp_path / "android.dmp"
-    adb("pull", minidumps[0], str(local_minidump), check=True, capture_output=True)
-    assert local_minidump.stat().st_size > 0
+        local_minidump = tmp_path / "android.dmp"
+        adb("pull", minidumps[0], str(local_minidump), check=True, capture_output=True)
+        assert local_minidump.stat().st_size > 0
+    finally:
+        adb("shell", f"rm -rf {database_path}", check=False)
