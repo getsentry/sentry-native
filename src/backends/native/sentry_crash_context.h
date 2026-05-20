@@ -34,7 +34,13 @@ typedef DWORD pid_t;
 
 // Limits for crash context (used in shared memory and minidump writers)
 #define SENTRY_CRASH_MAX_THREADS 256
-#define SENTRY_CRASH_MAX_MODULES 512
+// Real-world Apple processes (especially Unity apps with many subsystems +
+// Metal + system frameworks pulled in via the shared cache) routinely have
+// 600+ loaded images. Hitting the cap silently drops the tail of the dyld
+// image list, so frames into late-loaded modules (e.g. GameAssembly.dylib
+// for IL2CPP) end up unmatched in debug_meta. 2048 is a generous headroom
+// while keeping the per-crash context size bounded.
+#define SENTRY_CRASH_MAX_MODULES 2048
 #define SENTRY_CRASH_MAX_MAPPINGS 4096
 
 // Max path length in crash context

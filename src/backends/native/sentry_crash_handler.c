@@ -570,17 +570,22 @@ crash_signal_handler(int signum, siginfo_t *info, void *context)
                 if (cmd->cmd == LC_SEGMENT_64) {
                     const struct segment_command_64 *seg
                         = (const struct segment_command_64 *)cmd;
-                    // Skip __PAGEZERO which has vmsize=4GB on 64-bit and
-                    // would vastly inflate the module size
-                    if (seg->initprot == 0 && seg->maxprot == 0) {
-                        cmds += cmd->cmdsize;
-                        if (cmd->cmdsize == 0)
-                            break;
-                        continue;
-                    }
-                    uint64_t seg_end = seg->vmaddr + seg->vmsize;
-                    if (seg_end > size) {
-                        size = seg_end;
+                    // Image size on macOS is canonically the __TEXT segment's
+                    // vmsize — see src/modulefinder/sentry_modulefinder_apple.c.
+                    // Using max(seg->vmaddr + seg->vmsize) breaks for shared-
+                    // cache libraries on arm64 where vmaddrs are shared-cache
+                    // absolute addresses; the result is reported as a multi-GB
+                    // image size that overlaps every other system module, so
+                    // Sentry's symbolicator mis-attributes frames to whichever
+                    // image has the lowest image_addr.
+                    if (seg->segname[0] == '_'
+                        && seg->segname[1] == '_'
+                        && seg->segname[2] == 'T'
+                        && seg->segname[3] == 'E'
+                        && seg->segname[4] == 'X'
+                        && seg->segname[5] == 'T'
+                        && seg->segname[6] == '\0') {
+                        size = seg->vmsize;
                     }
                 } else if (cmd->cmd == LC_UUID) {
                     // Extract UUID for symbolication

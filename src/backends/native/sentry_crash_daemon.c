@@ -3499,8 +3499,14 @@ sentry__crash_daemon_main(pid_t app_pid, uint64_t app_tid, HANDLE event_handle,
     if (options) {
         size_t dumped_envelopes = 0;
         if (options->transport) {
-            // Wait for the configured SDK shutdown timeout to send pending
-            // envelopes (crash envelope + logs envelope, etc.).
+            // Drain pending envelopes (crash envelope + logs envelope, etc.)
+            // before initiating transport shutdown. `transport_shutdown`
+            // signals the background worker to stop, which aborts in-flight
+            // requests via its progress callback. Flushing first lets queued
+            // uploads complete naturally within the configured timeout.
+            sentry__transport_flush(
+                options->transport, options->shutdown_timeout);
+
             int rv = sentry__transport_shutdown(
                 options->transport, options->shutdown_timeout);
             if (rv != 0) {
