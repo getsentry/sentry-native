@@ -853,6 +853,7 @@ def test_native_crash_http(cmake, httpserver):
     assert_breadcrumb(envelope)
     assert_attachment(envelope)
 
+
 @pytest.mark.parametrize(
     "backend",
     [
@@ -900,10 +901,7 @@ def test_trace_finish_on_crash(cmake, httpserver, backend):
             run(tmp_path, "sentry_example", ["log", "no-setup"], env=env)
     assert waiting.result
 
-    envelopes = [
-        Envelope.deserialize(req.get_data())
-        for req, _ in httpserver.log
-    ]
+    envelopes = [Envelope.deserialize(req.get_data()) for req, _ in httpserver.log]
     for envelope in envelopes:
         item_types = [item.headers.get("type") for item in envelope.items]
         assert not ("event" in item_types and "transaction" in item_types)
@@ -911,17 +909,12 @@ def test_trace_finish_on_crash(cmake, httpserver, backend):
     tx_envelopes = [
         envelope
         for envelope in envelopes
-        if any(
-            item.headers.get("type") == "transaction"
-            for item in envelope.items
-        )
+        if any(item.headers.get("type") == "transaction" for item in envelope.items)
     ]
     assert tx_envelopes
     tx_envelope = tx_envelopes[0]
     tx_items = [
-        item
-        for item in tx_envelope.items
-        if item.headers.get("type") == "transaction"
+        item for item in tx_envelope.items if item.headers.get("type") == "transaction"
     ]
     assert tx_items
 
@@ -956,9 +949,7 @@ def test_trace_finish_on_crash(cmake, httpserver, backend):
     assert event_envelopes
     event_envelope = event_envelopes[0]
     event_items = [
-        item
-        for item in event_envelope.items
-        if item.headers.get("type") == "event"
+        item for item in event_envelope.items if item.headers.get("type") == "event"
     ]
     assert event_items
     if backend != "native":

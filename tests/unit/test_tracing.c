@@ -807,21 +807,20 @@ SENTRY_TEST(trace_finish)
         = sentry_transaction_context_new("root", "op");
     sentry_transaction_t *tx
         = sentry_transaction_start(ctx, sentry_value_new_null());
-    sentry_transaction_set_data(
-        tx, "tx-data", sentry_value_new_string("root"));
+    sentry_transaction_set_data(tx, "tx-data", sentry_value_new_string("root"));
     sentry_set_transaction_object(tx);
 
     sentry_span_t *child
         = sentry_transaction_start_child(tx, "child-op", "child");
     sentry_span_t *grand = sentry_span_start_child(child, "grand-op", "grand");
-    sentry_span_set_data(
-        grand, "span-data", sentry_value_new_string("child"));
+    sentry_span_set_data(grand, "span-data", sentry_value_new_string("child"));
     sentry_set_span(grand);
 
     sentry_value_t finished = sentry__trace_finish(SENTRY_SPAN_STATUS_ABORTED);
     TEST_CHECK(!sentry_value_is_null(finished));
-    CHECK_STRING_PROPERTY(sentry_value_get_by_key(
-                              sentry_value_get_by_key(finished, "contexts"), "trace"),
+    CHECK_STRING_PROPERTY(
+        sentry_value_get_by_key(
+            sentry_value_get_by_key(finished, "contexts"), "trace"),
         "status", "aborted");
 
     sentry_value_t spans = sentry_value_get_by_key(finished, "spans");
