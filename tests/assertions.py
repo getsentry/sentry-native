@@ -182,10 +182,7 @@ def assert_event_meta(
         )
 
 
-# Largest image_size we accept for any single Mach-O / ELF / PE module.
-# In practice modules are at most a few hundred MB; anything past 1 GiB is a
-# computation bug. Picked generously so a legitimate-but-large module never
-# trips this, but small enough to flag the shared-cache inflation regression.
+# 1 GiB as largest image_size we accept for any single Mach-O / ELF / PE module.
 _MAX_IMAGE_SIZE_BYTES = 1 << 30
 
 
@@ -195,14 +192,6 @@ def assert_debug_meta_images_sane(event):
     Each image must have a plausible ``image_size`` and the half-open ranges
     ``[image_addr, image_addr + image_size)`` must not overlap.
 
-    Regression test for macOS arm64: the native crash handler used to compute
-    module size as ``max(seg->vmaddr + seg->vmsize)`` across all
-    ``LC_SEGMENT_64`` commands. For dyld-shared-cache libraries the segment
-    ``vmaddr`` is a shared-cache-absolute address, so the result was multi-GB
-    and every system image's range overlapped every other. The symbolicator
-    then misattributed every frame to whichever image had the lowest
-    ``image_addr``. The fix uses ``__TEXT.vmsize`` -- matching the non-crash
-    path in ``sentry_modulefinder_apple.c``.
     """
     images = event["debug_meta"]["images"]
     assert len(images) > 0, "debug_meta should contain at least one image"
