@@ -555,8 +555,6 @@ def test_crash_mode_native_only(cmake, httpserver):
     # Should have debug_meta
     assert "debug_meta" in event
     assert len(event["debug_meta"]["images"]) > 0
-    # Regression: macOS arm64 used to report multi-GB image_size for
-    # shared-cache libraries, causing symbolicator mis-attribution.
     assert_debug_meta_images_sane(event)
 
 
