@@ -571,19 +571,10 @@ crash_signal_handler(int signum, siginfo_t *info, void *context)
                     const struct segment_command_64 *seg
                         = (const struct segment_command_64 *)cmd;
                     // Image size on macOS is canonically the __TEXT segment's
-                    // vmsize — see src/modulefinder/sentry_modulefinder_apple.c.
-                    // Using max(seg->vmaddr + seg->vmsize) breaks for shared-
-                    // cache libraries on arm64 where vmaddrs are shared-cache
-                    // absolute addresses; the result is reported as a multi-GB
-                    // image size that overlaps every other system module, so
-                    // Sentry's symbolicator mis-attributes frames to whichever
-                    // image has the lowest image_addr.
-                    if (seg->segname[0] == '_'
-                        && seg->segname[1] == '_'
-                        && seg->segname[2] == 'T'
-                        && seg->segname[3] == 'E'
-                        && seg->segname[4] == 'X'
-                        && seg->segname[5] == 'T'
+                    // vmsize, see src/modulefinder/sentry_modulefinder_apple.c.
+                    if (seg->segname[0] == '_' && seg->segname[1] == '_'
+                        && seg->segname[2] == 'T' && seg->segname[3] == 'E'
+                        && seg->segname[4] == 'X' && seg->segname[5] == 'T'
                         && seg->segname[6] == '\0') {
                         size = seg->vmsize;
                     }
