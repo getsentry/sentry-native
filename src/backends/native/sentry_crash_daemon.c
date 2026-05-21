@@ -2953,9 +2953,32 @@ capture_and_send_app_hang(const sentry_options_t *options,
         return;
     }
 
+    /* Reuse the scope file the host keeps up-to-date via flush_scope so the
+     * app-hang event carries the same scope context as a crash event:
+     * full contexts (os/device/gpu/app/runtime/unity/...), user, tags,
+     * extra, fingerprint, release/dist/env, sdk metadata, and breadcrumbs.
+     * The base event JSON is at ctx->event_path; the sibling run folder
+     * holds the `__sentry-attachments` manifest, scope attachments,
+     * screenshot, and session replay — all pulled in by
+     * write_envelope_with_native_stacktrace when run_folder is non-NULL. */
+    const char *event_file_path
+        = ctx->event_path[0] ? ctx->event_path : NULL;
+    sentry_path_t *run_folder = NULL;
+    if (event_file_path) {
+        sentry_path_t *ev_path = sentry__path_from_str(event_file_path);
+        if (ev_path) {
+            run_folder = sentry__path_dir(ev_path);
+            sentry__path_free(ev_path);
+        }
+    }
+
     bool ok = write_envelope_with_native_stacktrace(options, envelope_path,
-        ctx, /*event_file_path=*/NULL, /*minidump_path=*/NULL,
-        /*run_folder=*/NULL, &kind);
+        ctx, event_file_path, /*minidump_path=*/NULL, run_folder, &kind);
+
+    if (run_folder) {
+        sentry__path_free(run_folder);
+    }
+
     if (!ok) {
         SENTRY_WARN("app-hang: failed to write envelope");
         return;
