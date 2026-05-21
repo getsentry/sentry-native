@@ -683,3 +683,25 @@ def wait_for_file(path, timeout=10.0, interval=0.1):
     return wait_for(
         lambda: bool(glob.glob(str(path))), timeout=timeout, interval=interval
     )
+
+
+def wait_for_daemon(tmp_path, started_at, timeout=10.0):
+    from pathlib import Path
+
+    db_dir = Path(tmp_path) / ".sentry-native"
+
+    def is_done():
+        for log_path in db_dir.glob("sentry-daemon-*.log"):
+            try:
+                if log_path.stat().st_mtime < started_at:
+                    continue
+                log = log_path.read_text(errors="replace")
+            except OSError:
+                continue
+
+            if "Marking crash state as DONE" in log:
+                return True
+
+        return False
+
+    return wait_for(is_done, timeout=timeout)

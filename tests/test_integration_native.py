@@ -25,7 +25,7 @@ from .assertions import (
     assert_native_crash,
     assert_session,
     wait_for_file,
-    wait_for,
+    wait_for_daemon,
     assert_user_feedback,
 )
 from .conditions import has_native, has_oom, is_kcov, is_asan, is_tsan, is_qemu
@@ -38,26 +38,6 @@ pytestmark = pytest.mark.skipif(
 # Sanitizer builds are slower, so selected native crash tests use the same 10s
 # timeout the native daemon used before it respected the SDK shutdown timeout.
 SANITIZER_ARGS = ["shutdown-timeout", "10000"] if is_asan or is_tsan else []
-
-
-def wait_for_daemon(tmp_path, started_at, timeout=10.0):
-    db_dir = tmp_path / ".sentry-native"
-
-    def is_done():
-        for log_path in db_dir.glob("sentry-daemon-*.log"):
-            try:
-                if log_path.stat().st_mtime < started_at:
-                    continue
-                log = log_path.read_text(errors="replace")
-            except OSError:
-                continue
-
-            if "Marking crash state as DONE" in log:
-                return True
-
-        return False
-
-    return wait_for(is_done, timeout=timeout, interval=0.1)
 
 
 def run_crash(tmp_path, exe, args, env):

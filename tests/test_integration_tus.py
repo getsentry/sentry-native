@@ -11,7 +11,7 @@ from . import (
     Envelope,
     SENTRY_VERSION,
 )
-from .assertions import assert_attachment
+from .assertions import assert_attachment, wait_for
 from .conditions import has_breakpad, has_files, has_http, has_native, is_qemu
 
 pytestmark = [
@@ -560,9 +560,12 @@ def test_tus_crash_native(cmake, httpserver):
     assert attachment_ref.payload.json["location"] == location
 
     db_dir = os.path.join(tmp_path, ".sentry-native")
-    run_dirs = [
-        d
-        for d in os.listdir(db_dir)
-        if d.endswith(".run") and os.path.isdir(os.path.join(db_dir, d))
-    ]
-    assert run_dirs == []
+
+    def run_dirs():
+        return [
+            d
+            for d in os.listdir(db_dir)
+            if d.endswith(".run") and os.path.isdir(os.path.join(db_dir, d))
+        ]
+
+    assert wait_for(lambda: run_dirs() == []), run_dirs()
