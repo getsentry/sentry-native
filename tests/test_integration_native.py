@@ -20,6 +20,7 @@ from . import (
 )
 from .assertions import (
     assert_breadcrumb,
+    assert_debug_meta_images_sane,
     assert_meta,
     assert_native_crash,
     assert_session,
@@ -554,6 +555,9 @@ def test_crash_mode_native_only(cmake, httpserver):
     # Should have debug_meta
     assert "debug_meta" in event
     assert len(event["debug_meta"]["images"]) > 0
+    # Regression: macOS arm64 used to report multi-GB image_size for
+    # shared-cache libraries, causing symbolicator mis-attribution.
+    assert_debug_meta_images_sane(event)
 
 
 def test_crash_mode_native_with_minidump(cmake, httpserver):
@@ -598,6 +602,7 @@ def test_crash_mode_native_with_minidump(cmake, httpserver):
 
     # Should have debug_meta
     assert "debug_meta" in event
+    assert_debug_meta_images_sane(event)
 
 
 def test_native_cache_consent(cmake, httpserver):

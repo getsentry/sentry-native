@@ -182,6 +182,51 @@ def assert_event_meta(
         )
 
 
+# Largest image_size we accept for any single Mach-O / ELF / PE module.
+# In practice modules are at most a few hundred MB; anything past 1 GiB is a
+# computation bug. Picked generously so a legitimate-but-large module never
+# trips this, but small enough to flag the shared-cache inflation regression.
+_MAX_IMAGE_SIZE_BYTES = 1 << 30
+
+
+def assert_debug_meta_images_sane(event):
+    """Validate ``event["debug_meta"]["images"]`` shape.
+
+    Each image must have a plausible ``image_size`` and the half-open ranges
+    ``[image_addr, image_addr + image_size)`` must not overlap.
+
+    Regression test for macOS arm64: the native crash handler used to compute
+    module size as ``max(seg->vmaddr + seg->vmsize)`` across all
+    ``LC_SEGMENT_64`` commands. For dyld-shared-cache libraries the segment
+    ``vmaddr`` is a shared-cache-absolute address, so the result was multi-GB
+    and every system image's range overlapped every other. The symbolicator
+    then misattributed every frame to whichever image had the lowest
+    ``image_addr``. The fix uses ``__TEXT.vmsize`` -- matching the non-crash
+    path in ``sentry_modulefinder_apple.c``.
+    """
+    images = event["debug_meta"]["images"]
+    assert len(images) > 0, "debug_meta should contain at least one image"
+
+    ranges = []
+    for image in images:
+        size = image["image_size"]
+        name = image.get("code_file") or image.get("debug_file") or "<unknown>"
+        assert isinstance(size, int) and 0 < size < _MAX_IMAGE_SIZE_BYTES, (
+            f"implausible image_size {size} for {name!r}"
+        )
+        addr = int(image["image_addr"], 16)
+        ranges.append((addr, addr + size, name))
+
+    ranges.sort()
+    for (a_start, a_end, a_name), (b_start, b_end, b_name) in zip(
+        ranges, ranges[1:]
+    ):
+        assert a_end <= b_start, (
+            f"image ranges overlap: {a_name} [{a_start:#x}, {a_end:#x}) "
+            f"vs {b_name} [{b_start:#x}, {b_end:#x})"
+        )
+
+
 def is_valid_hex(s):
     if not s.lower().startswith("0x"):
         return False
