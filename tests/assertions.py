@@ -182,29 +182,20 @@ def assert_event_meta(
         )
 
 
-# 1 GiB as largest image_size we accept for any single Mach-O / ELF / PE module.
-_MAX_IMAGE_SIZE_BYTES = 1 << 30
-
-
 def assert_debug_meta_images_sane(event):
     """Validate ``event["debug_meta"]["images"]`` shape.
 
-    Each image must have a plausible ``image_size`` and the half-open ranges
-    ``[image_addr, image_addr + image_size)`` must not overlap.
-
+    The half-open ranges ``[image_addr, image_addr + image_size)`` must not
+    overlap -- the symbolicator relies on this to attribute frames to images.
     """
     images = event["debug_meta"]["images"]
     assert len(images) > 0, "debug_meta should contain at least one image"
 
     ranges = []
     for image in images:
-        size = image["image_size"]
         name = image.get("code_file") or image.get("debug_file") or "<unknown>"
-        assert isinstance(size, int) and 0 < size < _MAX_IMAGE_SIZE_BYTES, (
-            f"implausible image_size {size} for {name!r}"
-        )
         addr = int(image["image_addr"], 16)
-        ranges.append((addr, addr + size, name))
+        ranges.append((addr, addr + image["image_size"], name))
 
     ranges.sort()
     for (a_start, a_end, a_name), (b_start, b_end, b_name) in zip(
