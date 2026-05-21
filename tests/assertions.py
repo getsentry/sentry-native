@@ -686,9 +686,9 @@ def wait_for_file(path, timeout=10.0, interval=0.1):
 
 
 def wait_for_daemon(tmp_path, started_at, timeout=10.0):
-    from pathlib import Path
-
     db_dir = Path(tmp_path) / ".sentry-native"
+    # Account for filesystems that truncate mtimes below time.time() precision.
+    started_at -= 1.0
 
     def is_done():
         for log_path in db_dir.glob("sentry-daemon-*.log"):
