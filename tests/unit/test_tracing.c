@@ -1,5 +1,6 @@
 #include "sentry_testsupport.h"
 
+#include "sentry_core.h"
 #include "sentry_options.h"
 #include "sentry_scope.h"
 #include "sentry_string.h"
@@ -806,11 +807,15 @@ SENTRY_TEST(trace_finish)
         = sentry_transaction_context_new("root", "op");
     sentry_transaction_t *tx
         = sentry_transaction_start(ctx, sentry_value_new_null());
+    sentry_transaction_set_data(
+        tx, "tx-data", sentry_value_new_string("root"));
     sentry_set_transaction_object(tx);
 
     sentry_span_t *child
         = sentry_transaction_start_child(tx, "child-op", "child");
     sentry_span_t *grand = sentry_span_start_child(child, "grand-op", "grand");
+    sentry_span_set_data(
+        grand, "span-data", sentry_value_new_string("child"));
     sentry_set_span(grand);
 
     sentry_value_t finished = sentry__trace_finish(SENTRY_SPAN_STATUS_ABORTED);
@@ -827,7 +832,23 @@ SENTRY_TEST(trace_finish)
         TEST_CHECK(
             !sentry_value_is_null(sentry_value_get_by_key(span, "timestamp")));
     }
-    sentry_value_decref(finished);
+
+    sentry_envelope_t *envelope = NULL;
+    SENTRY_WITH_OPTIONS (runtime_options) {
+        envelope = sentry__prepare_transaction(runtime_options, finished, NULL);
+    }
+    TEST_ASSERT(envelope != NULL);
+
+    sentry_value_t prepared = sentry_envelope_get_transaction(envelope);
+    sentry_value_t prepared_trace = sentry_value_get_by_key(
+        sentry_value_get_by_key(prepared, "contexts"), "trace");
+    CHECK_STRING_PROPERTY(prepared_trace, "status", "aborted");
+    TEST_CHECK(IS_NULL(prepared_trace, "parent_span_id"));
+
+    sentry_value_t trace_data = sentry_value_get_by_key(prepared_trace, "data");
+    CHECK_STRING_PROPERTY(trace_data, "tx-data", "root");
+    TEST_CHECK(IS_NULL(trace_data, "span-data"));
+    sentry_envelope_free(envelope);
 
     // Scope still points at the (finished) span so a subsequent crash event
     // inherits its trace context.
