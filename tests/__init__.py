@@ -188,9 +188,9 @@ def run(cwd, exe, args, expect_failure=False, env=None, **kwargs):
     try:
         result = subprocess.run([*cmd, *args], cwd=cwd, env=env, check=check, **kwargs)
         if should_wait_for_daemon:
-            assert wait_for_daemon(cwd, started_at), (
-                "native crash daemon did not finish before timeout"
-            )
+            assert wait_for_daemon(
+                cwd, started_at
+            ), "native crash daemon did not finish before timeout"
         if expect_failure:
             assert (
                 result.returncode != 0

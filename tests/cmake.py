@@ -17,7 +17,6 @@ from .build_config import (
     get_tsan_env,
 )
 
-
 _cmake_build_options = {}
 
 
