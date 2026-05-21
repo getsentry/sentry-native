@@ -95,9 +95,9 @@ def run_crash(tmp_path, exe, args, env):
     else:
         run(tmp_path, exe, args, expect_failure=True, env=env)
 
-    assert wait_for_daemon(tmp_path, started_at), (
-        "native crash daemon did not finish before timeout"
-    )
+    assert wait_for_daemon(
+        tmp_path, started_at
+    ), "native crash daemon did not finish before timeout"
 
 
 def test_native_capture_crash(cmake, httpserver):
