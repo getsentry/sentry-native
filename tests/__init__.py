@@ -4,6 +4,7 @@ import os
 import io
 import json
 import sys
+import time
 import urllib
 import pytest
 import pprint
@@ -23,6 +24,9 @@ def adb(*args, **kwargs):
 pytest.register_assert_rewrite("tests.assertions")
 
 SENTRY_VERSION = "0.14.2"
+
+from .assertions import wait_for_daemon
+from .cmake import cmake_option
 
 
 def make_dsn(httpserver, auth="uiaeosnrtdy", id=123456, proxy_host=False):
@@ -99,12 +103,16 @@ def extract_request(httpserver_log, cond):
 def run(cwd, exe, args, expect_failure=False, env=None, **kwargs):
     if env is None:
         env = dict(os.environ)
+    should_wait_for_daemon = (
+        expect_failure and cmake_option(cwd, "SENTRY_BACKEND") == "native"
+    )
     if kwargs.get("check"):
         raise pytest.fail.Exception(
             "`check` is inferred from `expect_failure`, and should not be passed in the kwargs"
         )
     check = expect_failure == False
     __tracebackhide__ = True
+    started_at = time.time() if should_wait_for_daemon else None
     if os.environ.get("ANDROID_API"):
         # older android emulators do not correctly pass down the returncode
         # so we basically echo the return code, and parse it manually
@@ -179,6 +187,10 @@ def run(cwd, exe, args, expect_failure=False, env=None, **kwargs):
         ]
     try:
         result = subprocess.run([*cmd, *args], cwd=cwd, env=env, check=check, **kwargs)
+        if should_wait_for_daemon:
+            assert wait_for_daemon(cwd, started_at), (
+                "native crash daemon did not finish before timeout"
+            )
         if expect_failure:
             assert (
                 result.returncode != 0

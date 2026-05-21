@@ -18,6 +18,18 @@ from .build_config import (
 )
 
 
+_cmake_build_options = {}
+
+
+def cmake_option(cwd, name):
+    options = _cmake_build_options.get(os.fspath(cwd))
+    if options is None:
+        options = _cmake_build_options.get(os.path.realpath(cwd))
+    if options is None:
+        return None
+    return options.get(name)
+
+
 class CMake:
     def __init__(self, factory):
         self.runs = dict()
@@ -54,6 +66,7 @@ class CMake:
 
         # ensure that there are no left-overs from previous runs
         shutil.rmtree(build_tmp_path / ".sentry-native", ignore_errors=True)
+        _cmake_build_options[os.fspath(build_tmp_path)] = dict(options)
 
         # Inject a sub-path into the temporary build directory as the CWD for all tests to verify UTF-8 path handling.
         if os.environ.get("UTF8_TEST_CWD"):
@@ -61,6 +74,7 @@ class CMake:
             utf8_parent = self.factory.mktemp("utf8")
             utf8_subpath = utf8_parent / "นี่คือไดเร็กทอรีทดสอบ"
             utf8_subpath.symlink_to(build_tmp_path, target_is_directory=True)
+            _cmake_build_options[os.fspath(utf8_subpath)] = dict(options)
             return utf8_subpath
 
         return build_tmp_path

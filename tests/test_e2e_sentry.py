@@ -440,9 +440,6 @@ class TestE2ENative:
         output = run_crash_e2e(self.tmp_path, "sentry_example", crash_args, env=env)
         test_id = extract_test_id(output)
 
-        # Wait for crash daemon to process
-        time.sleep(2)
-
         # Print daemon logs for debugging (especially useful for Windows thread duplication investigation)
         self.print_daemon_logs()
 

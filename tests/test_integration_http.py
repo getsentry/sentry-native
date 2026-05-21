@@ -834,9 +834,6 @@ def test_native_crash_http(cmake, httpserver):
         env=get_asan_crash_env(env),
     )
 
-    # Wait for crash to be processed (longer delay for TSAN)
-    time.sleep(2)
-
     # Restart to send the crash
     run(
         tmp_path,

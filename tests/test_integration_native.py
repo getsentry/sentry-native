@@ -25,7 +25,6 @@ from .assertions import (
     assert_native_crash,
     assert_session,
     wait_for_file,
-    wait_for_daemon,
     assert_user_feedback,
 )
 from .conditions import has_native, has_oom, is_kcov, is_asan, is_tsan, is_qemu
@@ -48,8 +47,6 @@ def run_crash(tmp_path, exe, args, env):
     When running under ASAN, we configure it to not intercept crash signals
     so that our native crash handler can run and capture the crash.
     """
-    started_at = time.time()
-
     # When running under ASAN, disable ASAN's signal handling so our crash
     # handler can run. ASAN would otherwise intercept SIGSEGV/SIGABRT/etc
     # and terminate the process before our handler completes.
@@ -74,10 +71,6 @@ def run_crash(tmp_path, exe, args, env):
             pass
     else:
         run(tmp_path, exe, args, expect_failure=True, env=env)
-
-    assert wait_for_daemon(
-        tmp_path, started_at
-    ), "native crash daemon did not finish before timeout"
 
 
 def test_native_capture_crash(cmake, httpserver):
