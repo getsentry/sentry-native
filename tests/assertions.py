@@ -182,7 +182,7 @@ def assert_event_meta(
         )
 
 
-def assert_debug_meta_images_sane(event):
+def assert_debug_meta_images_do_not_overlap(event):
     """Validate ``event["debug_meta"]["images"]`` shape.
 
     The half-open ranges ``[image_addr, image_addr + image_size)`` must not
