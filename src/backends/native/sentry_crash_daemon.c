@@ -3477,6 +3477,12 @@ sentry__crash_daemon_main(pid_t app_pid, uint64_t app_tid, HANDLE event_handle,
                 sentry__process_crash(options, ipc);
                 crash_processed = true;
 
+                // Crash data is durable after processing returns; remaining
+                // daemon work does not require the crashed process.
+                SENTRY_DEBUG("Crash captured, allowing app process to exit");
+                sentry__atomic_store(
+                    &ipc->shmem->state, SENTRY_CRASH_STATE_CAPTURED);
+
                 // After processing crash, exit regardless of parent state
                 // (parent has likely already exited after re-raising signal)
                 SENTRY_DEBUG("Crash processed, daemon exiting");

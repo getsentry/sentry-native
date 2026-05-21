@@ -25,6 +25,7 @@ from .assertions import (
     assert_native_crash,
     assert_session,
     wait_for_file,
+    wait_for,
     assert_user_feedback,
 )
 from .conditions import has_native, has_oom, is_kcov, is_asan, is_tsan, is_qemu
@@ -39,6 +40,26 @@ pytestmark = pytest.mark.skipif(
 SANITIZER_ARGS = ["shutdown-timeout", "10000"] if is_asan or is_tsan else []
 
 
+def wait_for_daemon(tmp_path, started_at, timeout=10.0):
+    db_dir = tmp_path / ".sentry-native"
+
+    def is_done():
+        for log_path in db_dir.glob("sentry-daemon-*.log"):
+            try:
+                if log_path.stat().st_mtime < started_at:
+                    continue
+                log = log_path.read_text(errors="replace")
+            except OSError:
+                continue
+
+            if "Marking crash state as DONE" in log:
+                return True
+
+        return False
+
+    return wait_for(is_done, timeout=timeout, interval=0.1)
+
+
 def run_crash(tmp_path, exe, args, env):
     """
     Run a crash test, handling kcov's quirk of exiting with 0.
@@ -47,6 +68,8 @@ def run_crash(tmp_path, exe, args, env):
     When running under ASAN, we configure it to not intercept crash signals
     so that our native crash handler can run and capture the crash.
     """
+    started_at = time.time()
+
     # When running under ASAN, disable ASAN's signal handling so our crash
     # handler can run. ASAN would otherwise intercept SIGSEGV/SIGABRT/etc
     # and terminate the process before our handler completes.
@@ -71,6 +94,10 @@ def run_crash(tmp_path, exe, args, env):
             pass
     else:
         run(tmp_path, exe, args, expect_failure=True, env=env)
+
+    assert wait_for_daemon(tmp_path, started_at), (
+        "native crash daemon did not finish before timeout"
+    )
 
 
 def test_native_capture_crash(cmake, httpserver):

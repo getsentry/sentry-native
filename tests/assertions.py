@@ -666,13 +666,20 @@ def assert_failed_proxy_auth_request(stdout):
     )
 
 
-def wait_for_file(path, timeout=10.0, poll_interval=0.1):
-    import glob
+def wait_for(condition, timeout=10.0, interval=0.1):
     import time
 
-    deadline = time.time() + timeout
-    while time.time() < deadline:
-        if glob.glob(str(path)):
+    start = time.time()
+    while time.time() - start < timeout:
+        if condition():
             return True
-        time.sleep(poll_interval)
-    return False
+        time.sleep(interval)
+    return condition()
+
+
+def wait_for_file(path, timeout=10.0, interval=0.1):
+    import glob
+
+    return wait_for(
+        lambda: bool(glob.glob(str(path))), timeout=timeout, interval=interval
+    )

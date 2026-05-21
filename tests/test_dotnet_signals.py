@@ -3,11 +3,11 @@ import pathlib
 import shutil
 import subprocess
 import sys
-import time
 
 import pytest
 
 from tests import adb
+from tests.assertions import wait_for as _wait_for
 from tests.conditions import is_android, is_arm32, is_tsan, is_x86, is_asan
 
 project_fixture_path = pathlib.Path("tests/fixtures/dotnet_signal")
@@ -282,12 +282,7 @@ ANDROID_PACKAGE = "io.sentry.ndk.dotnet.signal.test"
 
 
 def wait_for(condition, timeout=10, interval=0.5):
-    start = time.time()
-    while time.time() - start < timeout:
-        if condition():
-            return True
-        time.sleep(interval)
-    return condition()
+    return _wait_for(condition, timeout=timeout, interval=interval)
 
 
 def run_android(args=None, strategy=None, reinit=False, timeout=30):
