@@ -562,8 +562,12 @@ crash_signal_handler(int signum, siginfo_t *info, void *context)
             const struct mach_header_64 *header64
                 = (const struct mach_header_64 *)header;
             const uint8_t *cmds = (const uint8_t *)(header64 + 1);
+            bool has_size = false;
+            bool has_uuid = false;
 
-            for (uint32_t j = 0; j < header64->ncmds && j < 256; j++) {
+            for (uint32_t j = 0;
+                j < header64->ncmds && j < 256 && (!has_size || !has_uuid);
+                j++) {
                 const struct load_command *cmd
                     = (const struct load_command *)cmds;
 
@@ -572,17 +576,16 @@ crash_signal_handler(int signum, siginfo_t *info, void *context)
                         = (const struct segment_command_64 *)cmd;
                     // Image size on macOS is canonically the __TEXT segment's
                     // vmsize, see src/modulefinder/sentry_modulefinder_apple.c.
-                    if (seg->segname[0] == '_' && seg->segname[1] == '_'
-                        && seg->segname[2] == 'T' && seg->segname[3] == 'E'
-                        && seg->segname[4] == 'X' && seg->segname[5] == 'T'
-                        && seg->segname[6] == '\0') {
+                    if (memcmp(seg->segname, "__TEXT", 7) == 0) {
                         size = seg->vmsize;
+                        has_size = true;
                     }
                 } else if (cmd->cmd == LC_UUID) {
                     // Extract UUID for symbolication
                     const struct uuid_command *uuid_cmd
                         = (const struct uuid_command *)cmd;
                     signal_safe_memcpy(module->uuid, uuid_cmd->uuid, 16);
+                    has_uuid = true;
                 }
 
                 cmds += cmd->cmdsize;

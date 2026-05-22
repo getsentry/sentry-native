@@ -198,9 +198,7 @@ def assert_debug_meta_images_do_not_overlap(event):
         ranges.append((addr, addr + image["image_size"], name))
 
     ranges.sort()
-    for (a_start, a_end, a_name), (b_start, b_end, b_name) in zip(
-        ranges, ranges[1:]
-    ):
+    for (a_start, a_end, a_name), (b_start, b_end, b_name) in zip(ranges, ranges[1:]):
         assert a_end <= b_start, (
             f"image ranges overlap: {a_name} [{a_start:#x}, {a_end:#x}) "
             f"vs {b_name} [{b_start:#x}, {b_end:#x})"
