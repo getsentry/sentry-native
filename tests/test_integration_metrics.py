@@ -5,7 +5,6 @@ import pytest
 from . import (
     make_dsn,
     run,
-    run_native_crash,
     Envelope,
     split_log_request_cond,
     is_metrics_envelope,
@@ -432,10 +431,11 @@ def test_metrics_on_crash_native(cmake, httpserver, rerun):
     env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
 
     with httpserver.wait(timeout=10):
-        run_native_crash(
+        run(
             tmp_path,
             "sentry_example",
             ["log", "capture-metric", "crash"],
+            expect_failure=True,
             env=env,
         )
 

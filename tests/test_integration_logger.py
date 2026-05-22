@@ -40,7 +40,6 @@ def _run_logger_crash_test(backend, cmake, logger_option):
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
         expect_failure=True,
-        wait_for_daemon=backend == "native",
     )
 
     # Process should have crashed (non-zero exit code)

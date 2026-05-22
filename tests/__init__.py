@@ -206,18 +206,6 @@ def run(
         ) from None
 
 
-def run_native_crash(cwd, exe, args, env=None, **kwargs):
-    return run(
-        cwd,
-        exe,
-        args,
-        expect_failure=True,
-        env=env,
-        wait_for_daemon=True,
-        **kwargs,
-    )
-
-
 def check_output(*args, **kwargs):
     stdout = run(*args, stdout=subprocess.PIPE, **kwargs).stdout
     # capturing stdout on windows actually encodes "\n" as "\r\n", which we

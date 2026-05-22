@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+**Features**:
+
+- Native: add opt-in async crash upload mode so crashed apps can exit early after crash data is captured, while the crash daemon finishes potentially large uploads in the background. ([#1739](https://github.com/getsentry/sentry-native/pull/1739))
+
 **Fixes**:
 
 - Native/macOS: fix module `image_size` computation, which could have caused the symbolicator to misattribute every frame to the lowest-addressed image (typically `dyld` or `libsystem`). ([#1740](https://github.com/getsentry/sentry-native/pull/1740))
@@ -13,10 +17,6 @@
 - Windows: fix HTTP rate limit response header parsing. ([#1732](https://github.com/getsentry/sentry-native/pull/1732))
 - POSIX: prevent condition-variable timeout overflow from busy-spinning flush and shutdown waits. ([#1731](https://github.com/getsentry/sentry-native/pull/1731))
 - Native/macOS: fix thread stack descriptor. ([#1726](https://github.com/getsentry/sentry-native/pull/1726))
-
-**Improvements**:
-
-- Native: allow crashed processes exit after crash data is captured so crashed apps no longer remain stuck on screen while the crash daemon finishes potentially large uploads. ([#1739](https://github.com/getsentry/sentry-native/pull/1739))
 
 ## 0.14.2
 

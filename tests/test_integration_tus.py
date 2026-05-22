@@ -1,6 +1,7 @@
 import json
 import os
 import threading
+import time
 
 import pytest
 from werkzeug.wrappers import Response
@@ -8,11 +9,10 @@ from werkzeug.wrappers import Response
 from . import (
     make_dsn,
     run,
-    run_native_crash,
     Envelope,
     SENTRY_VERSION,
 )
-from .assertions import assert_attachment
+from .assertions import assert_attachment, wait_for_daemon
 from .conditions import has_breakpad, has_files, has_http, has_native, is_qemu
 
 pytestmark = [
@@ -522,14 +522,22 @@ def test_tus_crash_native(cmake, httpserver):
 
     env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
 
+    started_at = time.time()
     with httpserver.wait(timeout=15) as waiting:
-        run_native_crash(
+        run(
             tmp_path,
             "sentry_example",
-            ["log", "large-attachment", "crash"],
+            [
+                "log",
+                "large-attachment",
+                "async-crash-upload",
+                "crash",
+            ],
+            expect_failure=True,
             env=env,
         )
     assert waiting.result
+    assert wait_for_daemon(tmp_path, started_at)
 
     create_req = upload_req = envelope_req = None
     for entry in httpserver.log:

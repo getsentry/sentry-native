@@ -666,26 +666,21 @@ def assert_failed_proxy_auth_request(stdout):
     )
 
 
-def wait_for(condition, timeout=10.0, interval=0.1):
+def wait_for_file(path, timeout=10.0, poll_interval=0.1):
+    import glob
     import time
 
-    start = time.time()
-    while time.time() - start < timeout:
-        if condition():
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        if glob.glob(str(path)):
             return True
-        time.sleep(interval)
-    return condition()
-
-
-def wait_for_file(path, timeout=10.0, interval=0.1):
-    import glob
-
-    return wait_for(
-        lambda: bool(glob.glob(str(path))), timeout=timeout, interval=interval
-    )
+        time.sleep(poll_interval)
+    return False
 
 
 def wait_for_daemon(tmp_path, started_at, timeout=None):
+    import time
+
     if timeout is None:
         timeout = 30.0 if is_asan or is_tsan else 10.0
 
@@ -693,7 +688,8 @@ def wait_for_daemon(tmp_path, started_at, timeout=None):
     # Account for filesystems that truncate mtimes below time.time() precision.
     started_at -= 1.0
 
-    def is_done():
+    deadline = time.time() + timeout
+    while time.time() < deadline:
         for log_path in db_dir.glob("sentry-daemon-*.log"):
             try:
                 if log_path.stat().st_mtime < started_at:
@@ -705,6 +701,6 @@ def wait_for_daemon(tmp_path, started_at, timeout=None):
             if "Marking crash state as DONE" in log:
                 return True
 
-        return False
+        time.sleep(0.1)
 
-    return wait_for(is_done, timeout=timeout)
+    return False

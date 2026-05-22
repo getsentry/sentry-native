@@ -6,7 +6,7 @@ import sys
 
 import pytest
 
-from . import Envelope, make_dsn, run, run_native_crash
+from . import Envelope, make_dsn, run
 
 
 def assert_screenshot_file(database_path):
@@ -82,12 +82,7 @@ def test_capture_screenshot_native(cmake, httpserver):
     httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data("OK")
 
     with httpserver.wait(timeout=10) as waiting:
-        run_native_crash(
-            tmp_path,
-            "sentry_screenshot",
-            ["crash"],
-            env=env,
-        )
+        run(tmp_path, "sentry_screenshot", ["crash"], expect_failure=True, env=env)
 
     assert waiting.result
 
@@ -177,10 +172,11 @@ def test_before_screenshot_native(cmake, httpserver):
     httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data("OK")
 
     with httpserver.wait(timeout=10) as waiting:
-        run_native_crash(
+        run(
             tmp_path,
             "sentry_screenshot",
             ["crash", "before-screenshot"],
+            expect_failure=True,
             env=env,
         )
 
