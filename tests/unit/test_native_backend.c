@@ -336,36 +336,41 @@ SENTRY_TEST(m128a_size)
 SENTRY_TEST(crash_context_transport_fields)
 {
 #ifdef SENTRY_BACKEND_NATIVE
-    sentry_crash_context_t ctx;
-    memset(&ctx, 0, sizeof(ctx));
+    // Heap-allocate: sentry_crash_context_t is multiple MB due to the inline
+    // modules[] array and would overflow smaller thread stacks.
+    sentry_crash_context_t *ctx = sentry_malloc(sizeof(*ctx));
+    TEST_ASSERT(!!ctx);
+    memset(ctx, 0, sizeof(*ctx));
 
     // Verify ca_certs field exists and can hold a typical path
     const char *test_ca = "/etc/ssl/certs/ca-certificates.crt";
-    strncpy(ctx.ca_certs, test_ca, sizeof(ctx.ca_certs) - 1);
-    ctx.ca_certs[sizeof(ctx.ca_certs) - 1] = '\0';
-    TEST_CHECK_STRING_EQUAL(ctx.ca_certs, test_ca);
+    strncpy(ctx->ca_certs, test_ca, sizeof(ctx->ca_certs) - 1);
+    ctx->ca_certs[sizeof(ctx->ca_certs) - 1] = '\0';
+    TEST_CHECK_STRING_EQUAL(ctx->ca_certs, test_ca);
 
     // Verify proxy field exists and can hold a typical proxy URL
     const char *test_proxy = "http://proxy.example.com:8080";
-    strncpy(ctx.proxy, test_proxy, sizeof(ctx.proxy) - 1);
-    ctx.proxy[sizeof(ctx.proxy) - 1] = '\0';
-    TEST_CHECK_STRING_EQUAL(ctx.proxy, test_proxy);
+    strncpy(ctx->proxy, test_proxy, sizeof(ctx->proxy) - 1);
+    ctx->proxy[sizeof(ctx->proxy) - 1] = '\0';
+    TEST_CHECK_STRING_EQUAL(ctx->proxy, test_proxy);
 
     // Verify user_agent field exists
     const char *test_ua = "sentry.native/0.8.0";
-    strncpy(ctx.user_agent, test_ua, sizeof(ctx.user_agent) - 1);
-    ctx.user_agent[sizeof(ctx.user_agent) - 1] = '\0';
-    TEST_CHECK_STRING_EQUAL(ctx.user_agent, test_ua);
+    strncpy(ctx->user_agent, test_ua, sizeof(ctx->user_agent) - 1);
+    ctx->user_agent[sizeof(ctx->user_agent) - 1] = '\0';
+    TEST_CHECK_STRING_EQUAL(ctx->user_agent, test_ua);
 
-    ctx.shutdown_timeout = 12345;
-    TEST_CHECK_UINT64_EQUAL(ctx.shutdown_timeout, 12345);
+    ctx->shutdown_timeout = 12345;
+    TEST_CHECK_UINT64_EQUAL(ctx->shutdown_timeout, 12345);
 
     // Verify fields are zero-initialized when memset to 0
-    memset(&ctx, 0, sizeof(ctx));
-    TEST_CHECK(ctx.ca_certs[0] == '\0');
-    TEST_CHECK(ctx.proxy[0] == '\0');
-    TEST_CHECK(ctx.user_agent[0] == '\0');
-    TEST_CHECK_UINT64_EQUAL(ctx.shutdown_timeout, 0);
+    memset(ctx, 0, sizeof(*ctx));
+    TEST_CHECK(ctx->ca_certs[0] == '\0');
+    TEST_CHECK(ctx->proxy[0] == '\0');
+    TEST_CHECK(ctx->user_agent[0] == '\0');
+    TEST_CHECK_UINT64_EQUAL(ctx->shutdown_timeout, 0);
+
+    sentry_free(ctx);
 #else
     SKIP_TEST();
 #endif
@@ -392,32 +397,35 @@ SENTRY_TEST(crash_context_options_propagation)
     TEST_CHECK_STRING_EQUAL(
         sentry_options_get_proxy(options), "http://myproxy:3128");
 
-    // Simulate what native_backend_startup does: copy to crash context
-    sentry_crash_context_t ctx;
-    memset(&ctx, 0, sizeof(ctx));
+    // Simulate what native_backend_startup does: copy to crash context.
+    // Heap-allocated to avoid overflowing the stack on the inline modules[].
+    sentry_crash_context_t *ctx = sentry_malloc(sizeof(*ctx));
+    TEST_ASSERT(!!ctx);
+    memset(ctx, 0, sizeof(*ctx));
 
     if (options->ca_certs) {
-        strncpy(ctx.ca_certs, options->ca_certs, sizeof(ctx.ca_certs) - 1);
-        ctx.ca_certs[sizeof(ctx.ca_certs) - 1] = '\0';
+        strncpy(ctx->ca_certs, options->ca_certs, sizeof(ctx->ca_certs) - 1);
+        ctx->ca_certs[sizeof(ctx->ca_certs) - 1] = '\0';
     }
     if (options->proxy) {
-        strncpy(ctx.proxy, options->proxy, sizeof(ctx.proxy) - 1);
-        ctx.proxy[sizeof(ctx.proxy) - 1] = '\0';
+        strncpy(ctx->proxy, options->proxy, sizeof(ctx->proxy) - 1);
+        ctx->proxy[sizeof(ctx->proxy) - 1] = '\0';
     }
     if (options->user_agent) {
         strncpy(
-            ctx.user_agent, options->user_agent, sizeof(ctx.user_agent) - 1);
-        ctx.user_agent[sizeof(ctx.user_agent) - 1] = '\0';
+            ctx->user_agent, options->user_agent, sizeof(ctx->user_agent) - 1);
+        ctx->user_agent[sizeof(ctx->user_agent) - 1] = '\0';
     }
-    ctx.shutdown_timeout = options->shutdown_timeout;
+    ctx->shutdown_timeout = options->shutdown_timeout;
 
     // Verify crash context received the values
-    TEST_CHECK_STRING_EQUAL(ctx.ca_certs, "/path/to/ca-bundle.crt");
-    TEST_CHECK_STRING_EQUAL(ctx.proxy, "http://myproxy:3128");
+    TEST_CHECK_STRING_EQUAL(ctx->ca_certs, "/path/to/ca-bundle.crt");
+    TEST_CHECK_STRING_EQUAL(ctx->proxy, "http://myproxy:3128");
     // user_agent should have the default SDK user agent
-    TEST_CHECK(ctx.user_agent[0] != '\0');
-    TEST_CHECK_UINT64_EQUAL(ctx.shutdown_timeout, 12345);
+    TEST_CHECK(ctx->user_agent[0] != '\0');
+    TEST_CHECK_UINT64_EQUAL(ctx->shutdown_timeout, 12345);
 
+    sentry_free(ctx);
     sentry_options_free(options);
 #else
     SKIP_TEST();
@@ -463,22 +471,25 @@ SENTRY_TEST(crash_context_null_options)
 #ifdef SENTRY_BACKEND_NATIVE
     SENTRY_TEST_OPTIONS_NEW(options);
 
-    // Don't set ca_certs or proxy - leave them as NULL
-    sentry_crash_context_t ctx;
-    memset(&ctx, 0, sizeof(ctx));
+    // Don't set ca_certs or proxy - leave them as NULL.
+    // Heap-allocated to avoid overflowing the stack on the inline modules[].
+    sentry_crash_context_t *ctx = sentry_malloc(sizeof(*ctx));
+    TEST_ASSERT(!!ctx);
+    memset(ctx, 0, sizeof(*ctx));
 
     // Copy like native_backend_startup does (with NULL checks)
     if (options->ca_certs) {
-        strncpy(ctx.ca_certs, options->ca_certs, sizeof(ctx.ca_certs) - 1);
+        strncpy(ctx->ca_certs, options->ca_certs, sizeof(ctx->ca_certs) - 1);
     }
     if (options->proxy) {
-        strncpy(ctx.proxy, options->proxy, sizeof(ctx.proxy) - 1);
+        strncpy(ctx->proxy, options->proxy, sizeof(ctx->proxy) - 1);
     }
 
     // All should remain empty (zero-initialized)
-    TEST_CHECK(ctx.ca_certs[0] == '\0');
-    TEST_CHECK(ctx.proxy[0] == '\0');
+    TEST_CHECK(ctx->ca_certs[0] == '\0');
+    TEST_CHECK(ctx->proxy[0] == '\0');
 
+    sentry_free(ctx);
     sentry_options_free(options);
 #else
     SKIP_TEST();
