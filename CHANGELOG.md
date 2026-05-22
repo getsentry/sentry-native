@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+**Features**:
+
+- Add a `transfer_timeout` option for SDK-managed HTTP transports. ([#1741](https://github.com/getsentry/sentry-native/pull/1741))
+
 **Fixes**:
 
 - Native/macOS: fix module `image_size` computation, which could have caused the symbolicator to misattribute every frame to the lowest-addressed image (typically `dyld` or `libsystem`). ([#1740](https://github.com/getsentry/sentry-native/pull/1740))
