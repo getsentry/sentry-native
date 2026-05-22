@@ -383,7 +383,14 @@ def run_crash_e2e(tmp_path, exe, args, env, wait_for_daemon=False):
     except AssertionError:
         if is_kcov:
             # kcov may exit with 0 even on crash, try without expect_failure
-            output = check_output(tmp_path, exe, args, env=env, expect_failure=False)
+            output = check_output(
+                tmp_path,
+                exe,
+                args,
+                env=env,
+                expect_failure=False,
+                wait_for_daemon=wait_for_daemon,
+            )
         else:
             raise
 
