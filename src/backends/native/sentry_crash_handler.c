@@ -574,8 +574,8 @@ crash_signal_handler(int signum, siginfo_t *info, void *context)
                 if (cmd->cmd == LC_SEGMENT_64) {
                     const struct segment_command_64 *seg
                         = (const struct segment_command_64 *)cmd;
-                    // Image size on macOS is canonically the __TEXT segment's
-                    // vmsize, see src/modulefinder/sentry_modulefinder_apple.c.
+                    // image_size on macOS is the __TEXT segment's vmsize:
+                    // https://github.com/getsentry/sentry-native/blob/82dec4b8518de32586c4a761a3a9df4aed9d7b8d/src/modulefinder/sentry_modulefinder_apple.c#L65-L69
                     if (memcmp(seg->segname, "__TEXT", 7) == 0) {
                         size = seg->vmsize;
                         has_size = true;
