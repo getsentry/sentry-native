@@ -1131,6 +1131,8 @@ native_backend_except(sentry_backend_t *backend, const sentry_ucontext_t *uctx)
 
                 SENTRY_DEBUG("crash event and session written, daemon will "
                              "create and send minidump");
+            } else {
+                sentry_value_decref(transaction);
             }
         } else {
             SENTRY_DEBUG("event was discarded by the `on_crash` hook");

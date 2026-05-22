@@ -259,6 +259,8 @@ breakpad_backend_callback(const google_breakpad::MinidumpDescriptor &descriptor,
                 sentry__capture_envelope(disk_transport, envelope, options);
                 sentry__transport_dump_queue(disk_transport, options->run);
                 sentry_transport_free(disk_transport);
+            } else {
+                sentry_value_decref(transaction);
             }
 
             // now that the envelope was written, we can remove the temporary

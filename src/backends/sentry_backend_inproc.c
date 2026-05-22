@@ -1189,6 +1189,8 @@ process_ucontext_deferred(const sentry_ucontext_t *uctx,
                 sentry__capture_envelope(disk_transport, envelope, options);
                 sentry__transport_dump_queue(disk_transport, options->run);
                 sentry_transport_free(disk_transport);
+            } else {
+                sentry_value_decref(transaction);
             }
         } else {
             SENTRY_DEBUG("event was discarded by the `on_crash` hook");
