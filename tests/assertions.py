@@ -182,6 +182,29 @@ def assert_event_meta(
         )
 
 
+def assert_debug_meta_images_do_not_overlap(event):
+    """Validate ``event["debug_meta"]["images"]`` shape.
+
+    The half-open ranges ``[image_addr, image_addr + image_size)`` must not
+    overlap -- the symbolicator relies on this to attribute frames to images.
+    """
+    images = event["debug_meta"]["images"]
+    assert len(images) > 0, "debug_meta should contain at least one image"
+
+    ranges = []
+    for image in images:
+        name = image.get("code_file") or image.get("debug_file") or "<unknown>"
+        addr = int(image["image_addr"], 16)
+        ranges.append((addr, addr + image["image_size"], name))
+
+    ranges.sort()
+    for (a_start, a_end, a_name), (b_start, b_end, b_name) in zip(ranges, ranges[1:]):
+        assert a_end <= b_start, (
+            f"image ranges overlap: {a_name} [{a_start:#x}, {a_end:#x}) "
+            f"vs {b_name} [{b_start:#x}, {b_end:#x})"
+        )
+
+
 def is_valid_hex(s):
     if not s.lower().startswith("0x"):
         return False
