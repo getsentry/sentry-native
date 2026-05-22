@@ -390,6 +390,7 @@ SENTRY_TEST(crash_context_options_propagation)
     sentry_options_set_ca_certs(options, "/path/to/ca-bundle.crt");
     sentry_options_set_proxy(options, "http://myproxy:3128");
     sentry_options_set_shutdown_timeout(options, 12345);
+    sentry_options_set_system_crash_reporter_enabled(options, true);
 
     // Verify options were set correctly
     TEST_CHECK_STRING_EQUAL(
@@ -417,6 +418,7 @@ SENTRY_TEST(crash_context_options_propagation)
         ctx->user_agent[sizeof(ctx->user_agent) - 1] = '\0';
     }
     ctx->shutdown_timeout = options->shutdown_timeout;
+    ctx->system_crash_reporter_enabled = options->system_crash_reporter_enabled;
 
     // Verify crash context received the values
     TEST_CHECK_STRING_EQUAL(ctx->ca_certs, "/path/to/ca-bundle.crt");
@@ -424,6 +426,7 @@ SENTRY_TEST(crash_context_options_propagation)
     // user_agent should have the default SDK user agent
     TEST_CHECK(ctx->user_agent[0] != '\0');
     TEST_CHECK_UINT64_EQUAL(ctx->shutdown_timeout, 12345);
+    TEST_CHECK(ctx->system_crash_reporter_enabled);
 
     sentry_free(ctx);
     sentry_options_free(options);

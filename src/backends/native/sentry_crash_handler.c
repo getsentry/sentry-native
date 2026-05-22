@@ -804,6 +804,14 @@ daemon_handling:
 
     invoke_previous_signal_handler(signum, info, context);
 
+#    if defined(SENTRY_PLATFORM_MACOS)
+    if (!ctx->system_crash_reporter_enabled) {
+        // By convention, use the 128 + signal exit code without re-raising
+        // and invoking the macOS system crash reporter
+        _exit(128 + signum);
+    }
+#    endif
+
     // The previous handler returned, fall back to default termination
     reraise_signal(signum);
 }
