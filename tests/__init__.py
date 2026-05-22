@@ -102,6 +102,10 @@ def extract_request(httpserver_log, cond):
 def run(
     cwd, exe, args, expect_failure=False, env=None, wait_for_daemon=False, **kwargs
 ):
+    if wait_for_daemon:
+        assert (
+            "log" in args or exe != "sentry_example"
+        ), "sentry_example needs 'log' when waiting for the daemon"
     if env is None:
         env = dict(os.environ)
     if kwargs.get("check"):
