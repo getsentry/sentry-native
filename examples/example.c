@@ -554,6 +554,12 @@ main(int argc, char **argv)
         sentry_options_set_shutdown_timeout(
             options, strtoull(shutdown_timeout, NULL, 10));
     }
+    const char *transfer_timeout
+        = get_arg_value(argc, argv, "transfer-timeout");
+    if (transfer_timeout) {
+        sentry_options_set_transfer_timeout(
+            options, strtoull(transfer_timeout, NULL, 10));
+    }
 
     sentry_options_set_environment(options, "development");
     // sentry defaults this to the `SENTRY_RELEASE` env variable

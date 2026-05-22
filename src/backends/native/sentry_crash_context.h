@@ -285,6 +285,7 @@ typedef struct {
     bool enable_large_attachments;
     bool http_retry;
     uint64_t shutdown_timeout;
+    uint64_t transfer_timeout;
 
     // Atomic user consent (sentry_user_consent_t), updated whenever user
     // consent changes so the daemon can honor it at crash time.

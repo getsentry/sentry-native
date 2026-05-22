@@ -304,6 +304,7 @@ native_backend_startup(
     ctx->enable_large_attachments = options->enable_large_attachments;
     ctx->http_retry = options->http_retry;
     ctx->shutdown_timeout = options->shutdown_timeout;
+    ctx->transfer_timeout = options->transfer_timeout;
     sentry__atomic_store(
         &ctx->user_consent, sentry__atomic_fetch(&options->run->user_consent));
 

@@ -11,6 +11,7 @@
 
 #include <curl/curl.h>
 #include <curl/easy.h>
+#include <limits.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -23,6 +24,7 @@ typedef struct {
     char *proxy;
     char *ca_certs;
     bool debug;
+    uint64_t transfer_timeout;
     long shutdown;
 #ifdef SENTRY_PLATFORM_NX
     void *nx_state;
@@ -108,6 +110,7 @@ curl_client_start(void *_client, const sentry_options_t *options)
     client->ca_certs = sentry__string_clone(options->ca_certs);
     client->curl_handle = curl_easy_init();
     client->debug = options->debug;
+    client->transfer_timeout = options->transfer_timeout;
 
     if (!client->curl_handle) {
         // In this case we don't start the worker at all, which means we can
@@ -123,6 +126,12 @@ curl_client_start(void *_client, const sentry_options_t *options)
 #endif
 
     return 0;
+}
+
+static long
+curl_timeout_ms(uint64_t timeout)
+{
+    return timeout > (uint64_t)LONG_MAX ? LONG_MAX : (long)timeout;
 }
 
 static void
@@ -235,6 +244,8 @@ curl_send_task(void *_client, sentry_prepared_http_request_t *req,
     curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
     curl_easy_setopt(curl, CURLOPT_USERAGENT, SENTRY_SDK_USER_AGENT);
     curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT_MS, 15000L);
+    curl_easy_setopt(
+        curl, CURLOPT_TIMEOUT_MS, curl_timeout_ms(client->transfer_timeout));
     curl_easy_setopt(curl, CURLOPT_NOPROGRESS, 0L);
     curl_easy_setopt(curl, CURLOPT_XFERINFOFUNCTION, progress_callback);
     curl_easy_setopt(curl, CURLOPT_XFERINFODATA, client);

@@ -1922,6 +1922,22 @@ SENTRY_API void sentry_options_set_shutdown_timeout(
 SENTRY_API uint64_t sentry_options_get_shutdown_timeout(sentry_options_t *opts);
 
 /**
+ * Sets the maximum time (in milliseconds) an HTTP request is allowed to take.
+ *
+ * This setting applies to the SDK-managed HTTP transports. It is not supported
+ * by Crashpad's crash report upload.
+ *
+ * The default value is 0, which disables the transfer timeout.
+ */
+SENTRY_API void sentry_options_set_transfer_timeout(
+    sentry_options_t *opts, uint64_t transfer_timeout);
+
+/**
+ * Gets the maximum time (in milliseconds) an HTTP request is allowed to take.
+ */
+SENTRY_API uint64_t sentry_options_get_transfer_timeout(sentry_options_t *opts);
+
+/**
  * Sets a user-defined backend.
  *
  * Since creation and destruction of backends is not exposed in the API, this
