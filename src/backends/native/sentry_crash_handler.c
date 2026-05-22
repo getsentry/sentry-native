@@ -562,31 +562,30 @@ crash_signal_handler(int signum, siginfo_t *info, void *context)
             const struct mach_header_64 *header64
                 = (const struct mach_header_64 *)header;
             const uint8_t *cmds = (const uint8_t *)(header64 + 1);
+            bool has_size = false;
+            bool has_uuid = false;
 
-            for (uint32_t j = 0; j < header64->ncmds && j < 256; j++) {
+            for (uint32_t j = 0;
+                j < header64->ncmds && j < 256 && (!has_size || !has_uuid);
+                j++) {
                 const struct load_command *cmd
                     = (const struct load_command *)cmds;
 
                 if (cmd->cmd == LC_SEGMENT_64) {
                     const struct segment_command_64 *seg
                         = (const struct segment_command_64 *)cmd;
-                    // Skip __PAGEZERO which has vmsize=4GB on 64-bit and
-                    // would vastly inflate the module size
-                    if (seg->initprot == 0 && seg->maxprot == 0) {
-                        cmds += cmd->cmdsize;
-                        if (cmd->cmdsize == 0)
-                            break;
-                        continue;
-                    }
-                    uint64_t seg_end = seg->vmaddr + seg->vmsize;
-                    if (seg_end > size) {
-                        size = seg_end;
+                    // image_size on macOS is the __TEXT segment's vmsize:
+                    // https://github.com/getsentry/sentry-native/blob/82dec4b8518de32586c4a761a3a9df4aed9d7b8d/src/modulefinder/sentry_modulefinder_apple.c#L65-L69
+                    if (memcmp(seg->segname, "__TEXT", 7) == 0) {
+                        size = seg->vmsize;
+                        has_size = true;
                     }
                 } else if (cmd->cmd == LC_UUID) {
                     // Extract UUID for symbolication
                     const struct uuid_command *uuid_cmd
                         = (const struct uuid_command *)cmd;
                     signal_safe_memcpy(module->uuid, uuid_cmd->uuid, 16);
+                    has_uuid = true;
                 }
 
                 cmds += cmd->cmdsize;
