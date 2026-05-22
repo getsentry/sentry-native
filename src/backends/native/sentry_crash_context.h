@@ -34,7 +34,7 @@ typedef DWORD pid_t;
 
 // Limits for crash context (used in shared memory and minidump writers)
 #define SENTRY_CRASH_MAX_THREADS 256
-#define SENTRY_CRASH_MAX_MODULES 512
+#define SENTRY_CRASH_MAX_MODULES 2048
 #define SENTRY_CRASH_MAX_MAPPINGS 4096
 
 // Max path length in crash context
