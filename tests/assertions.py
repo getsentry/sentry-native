@@ -13,7 +13,7 @@ import tests
 import msgpack
 
 from . import SENTRY_VERSION
-from .conditions import is_android
+from .conditions import is_android, is_asan, is_tsan
 
 VERSION_RE = re.compile(r"(\d+\.\d+\.\d+)[-.]?(.*)")
 
@@ -685,7 +685,10 @@ def wait_for_file(path, timeout=10.0, interval=0.1):
     )
 
 
-def wait_for_daemon(tmp_path, started_at, timeout=10.0):
+def wait_for_daemon(tmp_path, started_at, timeout=None):
+    if timeout is None:
+        timeout = 30.0 if is_asan or is_tsan else 10.0
+
     db_dir = Path(tmp_path) / ".sentry-native"
     # Account for filesystems that truncate mtimes below time.time() precision.
     started_at -= 1.0
