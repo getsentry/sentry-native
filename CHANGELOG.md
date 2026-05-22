@@ -14,6 +14,10 @@
 - POSIX: prevent condition-variable timeout overflow from busy-spinning flush and shutdown waits. ([#1731](https://github.com/getsentry/sentry-native/pull/1731))
 - Native/macOS: fix thread stack descriptor. ([#1726](https://github.com/getsentry/sentry-native/pull/1726))
 
+**Improvements**:
+
+- Native: allow crashed processes exit after crash data is captured so crashed apps no longer remain stuck on screen while the crash daemon finishes potentially large uploads. ([#1739](https://github.com/getsentry/sentry-native/pull/1739))
+
 ## 0.14.2
 
 **Fixes**:
