@@ -529,7 +529,7 @@ SENTRY_TEST(minidump_structures_packed)
 
 SENTRY_TEST(elf_header_entry_sizes)
 {
-#if !defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID)
+#if !defined(SENTRY_PLATFORM_LINUX) && !defined(SENTRY_PLATFORM_ANDROID)
     SKIP_TEST();
 #else
     unsigned char e_ident[EI_NIDENT] = { 0 };
