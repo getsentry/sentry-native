@@ -9,6 +9,7 @@ from flaky import flaky
 from . import (
     make_dsn,
     run,
+    run_native_crash,
     Envelope,
     split_log_request_cond,
     is_feedback_envelope,
@@ -826,11 +827,10 @@ def test_native_crash_http(cmake, httpserver):
 
     # Use stdout for initialization delay under TSAN
     # Configure ASAN to not intercept crash signals
-    run(
+    run_native_crash(
         tmp_path,
         "sentry_example",
         ["log", "stdout", "attachment", "crash"],
-        expect_failure=True,
         env=get_asan_crash_env(env),
     )
 

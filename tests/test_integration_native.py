@@ -15,6 +15,7 @@ from . import (
     is_feedback_envelope,
     make_dsn,
     run,
+    run_native_crash,
     Envelope,
     split_log_request_cond,
 )
@@ -65,12 +66,22 @@ def run_crash(tmp_path, exe, args, env):
 
     if is_kcov:
         try:
-            run(tmp_path, exe, args, expect_failure=True, env=env)
+            run_native_crash(
+                tmp_path,
+                exe,
+                args,
+                env=env,
+            )
         except AssertionError:
             # kcov may exit with 0 even on crash, that's acceptable
             pass
     else:
-        run(tmp_path, exe, args, expect_failure=True, env=env)
+        run_native_crash(
+            tmp_path,
+            exe,
+            args,
+            env=env,
+        )
 
 
 def test_native_capture_crash(cmake, httpserver):

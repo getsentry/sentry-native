@@ -25,8 +25,7 @@ pytest.register_assert_rewrite("tests.assertions")
 
 SENTRY_VERSION = "0.14.2"
 
-from .assertions import wait_for_daemon
-from .cmake import cmake_option
+from .assertions import wait_for_daemon as _wait_for_daemon
 
 
 def make_dsn(httpserver, auth="uiaeosnrtdy", id=123456, proxy_host=False):
@@ -100,19 +99,18 @@ def extract_request(httpserver_log, cond):
     return (None, httpserver_log)
 
 
-def run(cwd, exe, args, expect_failure=False, env=None, **kwargs):
+def run(
+    cwd, exe, args, expect_failure=False, env=None, wait_for_daemon=False, **kwargs
+):
     if env is None:
         env = dict(os.environ)
-    should_wait_for_daemon = (
-        expect_failure and cmake_option(cwd, "SENTRY_BACKEND") == "native"
-    )
     if kwargs.get("check"):
         raise pytest.fail.Exception(
             "`check` is inferred from `expect_failure`, and should not be passed in the kwargs"
         )
     check = expect_failure == False
     __tracebackhide__ = True
-    started_at = time.time() if should_wait_for_daemon else None
+    started_at = time.time()
     if os.environ.get("ANDROID_API"):
         # older android emulators do not correctly pass down the returncode
         # so we basically echo the return code, and parse it manually
@@ -187,10 +185,10 @@ def run(cwd, exe, args, expect_failure=False, env=None, **kwargs):
         ]
     try:
         result = subprocess.run([*cmd, *args], cwd=cwd, env=env, check=check, **kwargs)
-        if should_wait_for_daemon:
-            assert wait_for_daemon(
+        if wait_for_daemon:
+            assert _wait_for_daemon(
                 cwd, started_at
-            ), "native crash daemon did not finish before timeout"
+            ), "native crash daemon did not finish within timeout"
         if expect_failure:
             assert (
                 result.returncode != 0
@@ -206,6 +204,18 @@ def run(cwd, exe, args, expect_failure=False, env=None, **kwargs):
                 cmd=" ".join(cmd), args=" ".join(args)
             )
         ) from None
+
+
+def run_native_crash(cwd, exe, args, env=None, **kwargs):
+    return run(
+        cwd,
+        exe,
+        args,
+        expect_failure=True,
+        env=env,
+        wait_for_daemon=True,
+        **kwargs,
+    )
 
 
 def check_output(*args, **kwargs):

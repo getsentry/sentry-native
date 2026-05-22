@@ -8,6 +8,7 @@ from werkzeug.wrappers import Response
 from . import (
     make_dsn,
     run,
+    run_native_crash,
     Envelope,
     SENTRY_VERSION,
 )
@@ -522,11 +523,10 @@ def test_tus_crash_native(cmake, httpserver):
     env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
 
     with httpserver.wait(timeout=15) as waiting:
-        run(
+        run_native_crash(
             tmp_path,
             "sentry_example",
             ["log", "large-attachment", "crash"],
-            expect_failure=True,
             env=env,
         )
     assert waiting.result

@@ -353,7 +353,7 @@ def extract_test_id(output):
     raise ValueError(f"TEST_ID not found in output. Output was:\n{decoded[:500]}")
 
 
-def run_crash_e2e(tmp_path, exe, args, env):
+def run_crash_e2e(tmp_path, exe, args, env, wait_for_daemon=False):
     """
     Run a crash test for E2E, capturing output for test ID extraction.
 
@@ -372,7 +372,14 @@ def run_crash_e2e(tmp_path, exe, args, env):
 
     # Use check_output to capture stdout for test ID extraction
     try:
-        output = check_output(tmp_path, exe, args, env=env, expect_failure=True)
+        output = check_output(
+            tmp_path,
+            exe,
+            args,
+            env=env,
+            expect_failure=True,
+            wait_for_daemon=wait_for_daemon,
+        )
     except AssertionError:
         if is_kcov:
             # kcov may exit with 0 even on crash, try without expect_failure
@@ -437,7 +444,13 @@ class TestE2ENative:
         # Run with crash - capture output for test ID
         # Enable structured logs and capture a log message before crashing
         crash_args = ["log", "e2e-test", "capture-log"] + mode_args + ["crash"]
-        output = run_crash_e2e(self.tmp_path, "sentry_example", crash_args, env=env)
+        output = run_crash_e2e(
+            self.tmp_path,
+            "sentry_example",
+            crash_args,
+            env=env,
+            wait_for_daemon=True,
+        )
         test_id = extract_test_id(output)
 
         # Print daemon logs for debugging (especially useful for Windows thread duplication investigation)
