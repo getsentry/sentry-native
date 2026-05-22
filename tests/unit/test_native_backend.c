@@ -15,6 +15,11 @@
 #    include "../../src/backends/native/sentry_crash_context.h"
 #endif
 
+#if defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID)
+#    include "backends/native/sentry_elf.h"
+#    include <elf.h>
+#endif
+
 /**
  * Test minidump header structure size and alignment
  */
@@ -519,5 +524,43 @@ SENTRY_TEST(minidump_structures_packed)
 #    endif
 #else
     SKIP_TEST();
+#endif
+}
+
+SENTRY_TEST(elf_header_entry_sizes)
+{
+#if !defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID)
+    SKIP_TEST();
+#else
+    unsigned char e_ident[EI_NIDENT] = { 0 };
+    unsigned char other_class;
+    size_t shdr_size;
+    size_t phdr_size;
+
+#    if defined(__x86_64__) || defined(__aarch64__)
+    e_ident[EI_CLASS] = ELFCLASS64;
+    other_class = ELFCLASS32;
+    shdr_size = sizeof(Elf64_Shdr);
+    phdr_size = sizeof(Elf64_Phdr);
+#    else
+    e_ident[EI_CLASS] = ELFCLASS32;
+    other_class = ELFCLASS64;
+    shdr_size = sizeof(Elf32_Shdr);
+    phdr_size = sizeof(Elf32_Phdr);
+#    endif
+
+    TEST_CHECK(sentry__elf_is_native_class(e_ident));
+    TEST_CHECK(sentry__elf_has_shdr_size(e_ident, shdr_size));
+    TEST_CHECK(sentry__elf_has_phdr_size(e_ident, phdr_size));
+
+    TEST_CHECK(!sentry__elf_has_shdr_size(e_ident, shdr_size - 1));
+    TEST_CHECK(!sentry__elf_has_shdr_size(e_ident, shdr_size + 1));
+    TEST_CHECK(!sentry__elf_has_phdr_size(e_ident, phdr_size - 1));
+    TEST_CHECK(!sentry__elf_has_phdr_size(e_ident, phdr_size + 1));
+
+    e_ident[EI_CLASS] = other_class;
+    TEST_CHECK(!sentry__elf_is_native_class(e_ident));
+    TEST_CHECK(!sentry__elf_has_shdr_size(e_ident, shdr_size));
+    TEST_CHECK(!sentry__elf_has_phdr_size(e_ident, phdr_size));
 #endif
 }

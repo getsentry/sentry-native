@@ -1066,6 +1066,7 @@ build_stacktrace_for_thread(
 }
 
 #if defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID)
+#    include "sentry_elf.h"
 #    include <elf.h>
 
 /**
@@ -1099,8 +1100,13 @@ extract_elf_build_id_for_module(
         return 0;
     }
 
+    if (!sentry__elf_has_shdr_size(ehdr.e_ident, ehdr.e_shentsize)) {
+        close(fd);
+        return 0;
+    }
+
     // Read section headers
-    size_t shdr_size = ehdr.e_shentsize * ehdr.e_shnum;
+    size_t shdr_size = (size_t)ehdr.e_shentsize * ehdr.e_shnum;
     void *shdr_buf = sentry_malloc(shdr_size);
     if (!shdr_buf) {
         close(fd);
