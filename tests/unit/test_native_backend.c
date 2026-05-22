@@ -363,7 +363,8 @@ SENTRY_TEST(crash_context_transport_fields)
     ctx->shutdown_timeout = 12345;
     TEST_CHECK_UINT64_EQUAL(ctx->shutdown_timeout, 12345);
     ctx->crash_upload_mode = SENTRY_CRASH_UPLOAD_MODE_ASYNC;
-    TEST_CHECK_INT_EQUAL(ctx->crash_upload_mode, SENTRY_CRASH_UPLOAD_MODE_ASYNC);
+    TEST_CHECK_INT_EQUAL(
+        ctx->crash_upload_mode, SENTRY_CRASH_UPLOAD_MODE_ASYNC);
 
     // Verify fields are zero-initialized when memset to 0
     memset(ctx, 0, sizeof(*ctx));
@@ -430,7 +431,8 @@ SENTRY_TEST(crash_context_options_propagation)
     // user_agent should have the default SDK user agent
     TEST_CHECK(ctx->user_agent[0] != '\0');
     TEST_CHECK_UINT64_EQUAL(ctx->shutdown_timeout, 12345);
-    TEST_CHECK_INT_EQUAL(ctx->crash_upload_mode, SENTRY_CRASH_UPLOAD_MODE_ASYNC);
+    TEST_CHECK_INT_EQUAL(
+        ctx->crash_upload_mode, SENTRY_CRASH_UPLOAD_MODE_ASYNC);
 
     sentry_free(ctx);
     sentry_options_free(options);
