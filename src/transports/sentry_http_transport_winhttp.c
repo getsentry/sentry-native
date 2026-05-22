@@ -144,7 +144,7 @@ winhttp_client_start(void *_client, const sentry_options_t *opts)
         return 1;
     }
 
-    // 15s for resolve/connect, transfer_timeout for send/receive (0 disables)
+    // 15s for resolve/connect, transfer_timeout for send/receive per packet
     int transfer_timeout = winhttp_timeout_ms(client->transfer_timeout);
     WinHttpSetTimeouts(
         client->session, 15000, 15000, transfer_timeout, transfer_timeout);
