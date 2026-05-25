@@ -7,7 +7,7 @@
 - Native/macOS: fix module `image_size` computation, which could have caused the symbolicator to misattribute every frame to the lowest-addressed image (typically `dyld` or `libsystem`). ([#1740](https://github.com/getsentry/sentry-native/pull/1740))
 - Native: raise `SENTRY_CRASH_MAX_MODULES` from `512` to `2048` so processes that load many shared libraries no longer have their minidump module list truncated, which left frames in unrecorded modules without a `debug_id` and unsymbolicatable.
   ([#1738](https://github.com/getsentry/sentry-native/pull/1738))
-- Reject overly deep msgpack payloads during deserialization. ([#1727](https://github.com/getsentry/sentry-native/pull/1727))
+- Reject overly deep JSON and msgpack payloads during deserialization. ([#1727](https://github.com/getsentry/sentry-native/pull/1727), [#1748](https://github.com/getsentry/sentry-native/pull/1748))
 - Read lengths for variadic fingerprints. ([#1730](https://github.com/getsentry/sentry-native/pull/1730))
 - Guard against JSON token allocation overflow on 32-bit platforms. ([#1733](https://github.com/getsentry/sentry-native/pull/1733))
 - Windows: fix HTTP rate limit response header parsing. ([#1732](https://github.com/getsentry/sentry-native/pull/1732))
