@@ -915,9 +915,12 @@ build_stacktrace_for_thread(
         }
 
         if (tid > 0) {
-            sentry_remote_frame_t remote_frames[MAX_STACK_FRAMES];
-            size_t remote_count = sentry__remote_unwind_thread(
-                tid, remote_frames, MAX_STACK_FRAMES);
+            sentry_remote_frame_t *remote_frames
+                = sentry_malloc(sizeof(*remote_frames) * MAX_STACK_FRAMES);
+            size_t remote_count = remote_frames
+                ? sentry__remote_unwind_thread(
+                      tid, remote_frames, MAX_STACK_FRAMES)
+                : 0;
 
             if (remote_count > 0) {
                 SENTRY_DEBUGF("Remote unwound %zu frames for thread %d",
@@ -956,8 +959,13 @@ build_stacktrace_for_thread(
                     sentry_value_set_by_key(stacktrace, "frames", frames);
                     sentry_value_set_by_key(stacktrace, "registers",
                         build_registers_from_ctx(ctx, thread_idx));
+                    sentry_free(remote_frames);
                     return stacktrace;
                 }
+            }
+
+            if (remote_frames) {
+                sentry_free(remote_frames);
             }
         }
     }
