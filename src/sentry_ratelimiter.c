@@ -4,10 +4,20 @@
 #include "sentry_utils.h"
 
 #define MAX_RATE_LIMITS 4
+#define MAX_RETRY_AFTER (24 * 60 * 60) // 24h
 
 struct sentry_rate_limiter_s {
     uint64_t disabled_until[MAX_RATE_LIMITS];
 };
+
+static uint64_t
+calculate_disabled_until(uint64_t retry_after)
+{
+    if (retry_after > MAX_RETRY_AFTER) {
+        retry_after = MAX_RETRY_AFTER;
+    }
+    return sentry__monotonic_time() + retry_after * 1000; // ms
+}
 
 sentry_rate_limiter_t *
 sentry__rate_limiter_new(void)
@@ -34,8 +44,7 @@ sentry__rate_limiter_update_from_header(
         if (!sentry__slice_consume_uint64(&slice, &retry_after)) {
             return false;
         }
-        retry_after *= 1000;
-        retry_after += sentry__monotonic_time();
+        retry_after = calculate_disabled_until(retry_after);
 
         if (!sentry__slice_consume_if(&slice, ':')) {
             return false;
@@ -79,8 +88,7 @@ sentry__rate_limiter_update_from_http_retry_after(
     sentry_slice_t slice = sentry__slice_from_str(retry_after);
     uint64_t eta = 60;
     sentry__slice_consume_uint64(&slice, &eta);
-    rl->disabled_until[SENTRY_RL_CATEGORY_ANY]
-        = sentry__monotonic_time() + eta * 1000;
+    rl->disabled_until[SENTRY_RL_CATEGORY_ANY] = calculate_disabled_until(eta);
     return true;
 }
 
