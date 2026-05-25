@@ -48,7 +48,7 @@
 #        include <spawn.h>
 #    endif
 #    if defined(SENTRY_PLATFORM_LINUX)
-#        include "sentry_remote_unwind.h"
+#        include "unwinder/sentry_unwinder.h"
 #    endif
 #elif defined(SENTRY_PLATFORM_WINDOWS)
 #    include <dbghelp.h>
@@ -918,7 +918,7 @@ build_stacktrace_for_thread(
             sentry_remote_frame_t *remote_frames
                 = sentry_malloc(sizeof(*remote_frames) * MAX_STACK_FRAMES);
             size_t remote_count = remote_frames
-                ? sentry__remote_unwind_thread(
+                ? sentry__unwind_stack_from_thread(
                       tid, remote_frames, MAX_STACK_FRAMES)
                 : 0;
 

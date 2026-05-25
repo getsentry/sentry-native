@@ -174,7 +174,7 @@ elseif(SENTRY_BACKEND_NATIVE)
 	# Remote unwinding (Linux only — uses libunwind ptrace accessors)
 	if(LINUX)
 		sentry_target_sources_cwd(sentry
-			backends/native/sentry_remote_unwind.c
+			unwinder/sentry_unwinder_libunwind_remote.c
 		)
 	endif()
 

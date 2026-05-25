@@ -840,7 +840,7 @@ elseif(SENTRY_BACKEND_NATIVE)
 	)
 
 	if(SENTRY_WITH_LIBUNWIND AND LINUX)
-		target_compile_definitions(sentry-crash PRIVATE SENTRY_WITH_REMOTE_UNWIND)
+		target_compile_definitions(sentry-crash PRIVATE SENTRY_WITH_UNWINDER_LIBUNWIND_REMOTE)
 	endif()
 
 	# Copy include directories from sentry target

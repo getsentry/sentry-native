@@ -2,13 +2,15 @@
 // This file must NOT define UNW_LOCAL_ONLY so that unw_init_remote()
 // and other generic (_U prefix) symbols are used.
 //
-// Only compiled into sentry-crash daemon (SENTRY_WITH_REMOTE_UNWIND).
+// Only compiled into sentry-crash daemon
+// (SENTRY_WITH_UNWINDER_LIBUNWIND_REMOTE).
 // The sentry library compiles this file too (shared sources) but the
 // function body is empty without the define.
 
-#include "sentry_remote_unwind.h"
+#include "sentry_boot.h"
+#include "sentry_unwinder.h"
 
-#ifdef SENTRY_WITH_REMOTE_UNWIND
+#ifdef SENTRY_WITH_UNWINDER_LIBUNWIND_REMOTE
 
 #    include "sentry_logger.h"
 
@@ -21,7 +23,7 @@
 #    include <libunwind.h>
 
 size_t
-sentry__remote_unwind_thread(
+sentry__unwind_stack_from_thread_libunwind_remote(
     pid_t tid, sentry_remote_frame_t *frames, size_t max_frames)
 {
     if (ptrace(PTRACE_ATTACH, tid, NULL, NULL) != 0) {
@@ -96,10 +98,10 @@ detach:
     return n;
 }
 
-#else /* !SENTRY_WITH_REMOTE_UNWIND */
+#else /* !SENTRY_WITH_UNWINDER_LIBUNWIND_REMOTE */
 
 size_t
-sentry__remote_unwind_thread(
+sentry__unwind_stack_from_thread_libunwind_remote(
     pid_t tid, sentry_remote_frame_t *frames, size_t max_frames)
 {
     (void)tid;
@@ -108,4 +110,4 @@ sentry__remote_unwind_thread(
     return 0;
 }
 
-#endif /* SENTRY_WITH_REMOTE_UNWIND */
+#endif /* SENTRY_WITH_UNWINDER_LIBUNWIND_REMOTE */
