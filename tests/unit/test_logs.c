@@ -317,9 +317,8 @@ SENTRY_TEST(logs_param_types)
     const char *e = "test";
     void *f = (void *)0x12345abc;
     uint64_t g = 0xDEADBEEFDEADBEEF;
-    test_param_conversion_types("%" PRIu64 " %" PRId64 " %f %c %s %p %"
-                                PRIx64,
-        a, b, c, d, e, f, g);
+    test_param_conversion_types(
+        "%" PRIu64 " %" PRId64 " %f %c %s %p %" PRIx64, a, b, c, d, e, f, g);
 }
 
 SENTRY_TEST(logs_force_flush)
