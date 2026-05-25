@@ -41,6 +41,15 @@ write_nested_msgpack_arrays(char *buf, size_t depth)
     buf[depth] = (char)0xc0; // nil
 }
 
+static void
+write_nested_json_arrays(char *buf, size_t depth)
+{
+    memset(buf, '[', depth);
+    memcpy(buf + depth, "null", 4);
+    memset(buf + depth + 4, ']', depth);
+    buf[depth * 2 + 4] = '\0';
+}
+
 SENTRY_TEST(value_null)
 {
     sentry_value_t val = sentry_value_new_null();
@@ -881,6 +890,21 @@ SENTRY_TEST(value_json_deeply_nested)
     sentry_value_decref(parsed);
 }
 
+SENTRY_TEST(value_json_max_depth)
+{
+    char accepted[64 * 2 + sizeof("null")]; // SENTRY_JSON_MAX_DEPTH
+    write_nested_json_arrays(accepted, 64);
+    sentry_value_t value = sentry__value_from_json(accepted, strlen(accepted));
+    TEST_CHECK(sentry_value_get_type(value) == SENTRY_VALUE_TYPE_LIST);
+    sentry_value_decref(value);
+
+    char too_deep[65 * 2 + sizeof("null")]; // SENTRY_JSON_MAX_DEPTH + 1
+    write_nested_json_arrays(too_deep, 65);
+    value = sentry__value_from_json(too_deep, strlen(too_deep));
+    TEST_CHECK(sentry_value_is_null(value));
+    sentry_value_decref(value);
+}
+
 SENTRY_TEST(value_json_escaping)
 {
     sentry_value_t rv = sentry__value_from_json(
@@ -1558,14 +1582,14 @@ SENTRY_TEST(value_from_msgpack_list)
 
 SENTRY_TEST(value_from_msgpack_deeply_nested)
 {
-    char accepted[32 + 1]; // SENTRY_MPACK_MAX_DEPTH + 1
+    char accepted[64 + 1]; // SENTRY_MPACK_MAX_DEPTH + 1
     write_nested_msgpack_arrays(accepted, sizeof(accepted) - 1);
     sentry_value_t value
         = sentry__value_from_msgpack(accepted, sizeof(accepted));
     TEST_CHECK(sentry_value_get_type(value) == SENTRY_VALUE_TYPE_LIST);
     sentry_value_decref(value);
 
-    char too_deep[32 + 2]; // SENTRY_MPACK_MAX_DEPTH + 2
+    char too_deep[64 + 2]; // SENTRY_MPACK_MAX_DEPTH + 2
     write_nested_msgpack_arrays(too_deep, sizeof(too_deep) - 1);
     value = sentry__value_from_msgpack(too_deep, sizeof(too_deep));
     TEST_CHECK(sentry_value_is_null(value));

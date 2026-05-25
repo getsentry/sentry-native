@@ -1643,7 +1643,7 @@ sentry_event_value_add_stacktrace(sentry_value_t event, void **ips, size_t len)
     sentry_event_add_thread(event, thread);
 }
 
-#define SENTRY_MPACK_MAX_DEPTH 32
+#define SENTRY_MPACK_MAX_DEPTH 64
 
 static sentry_value_t
 value_from_mpack(mpack_node_t node, size_t depth, bool *ok)
