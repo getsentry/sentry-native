@@ -351,6 +351,18 @@ sentry__path_is_file(const sentry_path_t *path)
     return _wstat(path_w, &buf) == 0 && S_ISREG(buf.st_mode);
 }
 
+bool
+sentry__path_is_symlink(const sentry_path_t *path)
+{
+    wchar_t *path_w = path->path_w;
+    if (!path_w) {
+        return false;
+    }
+    const DWORD attributes = GetFileAttributesW(path_w);
+    return attributes != INVALID_FILE_ATTRIBUTES
+        && (attributes & FILE_ATTRIBUTE_REPARSE_POINT) != 0;
+}
+
 size_t
 sentry__path_get_size(const sentry_path_t *path)
 {

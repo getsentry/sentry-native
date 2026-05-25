@@ -609,7 +609,7 @@ sentry__process_old_runs(const sentry_options_t *options, uint64_t last_crash)
     while ((run_dir = sentry__pathiter_next(db_iter)) != NULL) {
         // skip over other files such as the saved consent or the last_crash
         // timestamp
-        if (!sentry__path_is_dir(run_dir)) {
+        if (!sentry__path_is_dir(run_dir) || sentry__path_is_symlink(run_dir)) {
             continue;
         }
 
