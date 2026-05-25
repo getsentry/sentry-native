@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1779462053184,
+  "lastUpdate": 1779696450283,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -22396,6 +22396,66 @@ window.BENCHMARK_DATA = {
             "value": 2.1098649999942154,
             "unit": "ms",
             "extra": "Min 2.066ms\nMax 2.218ms\nMean 2.125ms\nStdDev 0.056ms\nMedian 2.110ms\nCPU 0.589ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "jpnurmi@gmail.com",
+            "name": "J-P Nurmi",
+            "username": "jpnurmi"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "57e043b9181422fd32af713ba535b5a1db103593",
+          "message": "fix(native): Validate ELF header entry sizes (#1746)\n\n* fix(native): Validate ELF header entry sizes\n\nReject ELF files whose section or program header entry sizes do not match\nthe struct layout used by the native parsers. This avoids reading past short\nallocations when malformed ELF headers advertise smaller strides.\n\nCo-Authored-By: OpenAI Codex <noreply@openai.com>\n\n* android\n\n* Update CHANGELOG.md\n\n* tests.inc\n\n---------\n\nCo-authored-by: OpenAI Codex <noreply@openai.com>",
+          "timestamp": "2026-05-25T10:04:56+02:00",
+          "tree_id": "790ed21391f074b770b3be8f9716a2e58bdaf6f4",
+          "url": "https://github.com/getsentry/sentry-native/commit/57e043b9181422fd32af713ba535b5a1db103593"
+        },
+        "date": 1779696444728,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 1.0635480000047437,
+            "unit": "ms",
+            "extra": "Min 1.045ms\nMax 1.146ms\nMean 1.089ms\nStdDev 0.047ms\nMedian 1.064ms\nCPU 1.028ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 1.0065339999982825,
+            "unit": "ms",
+            "extra": "Min 0.999ms\nMax 1.090ms\nMean 1.023ms\nStdDev 0.038ms\nMedian 1.007ms\nCPU 1.013ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 3.451451000017869,
+            "unit": "ms",
+            "extra": "Min 3.437ms\nMax 3.496ms\nMean 3.459ms\nStdDev 0.024ms\nMedian 3.451ms\nCPU 1.761ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.14117800000690295,
+            "unit": "ms",
+            "extra": "Min 0.128ms\nMax 0.159ms\nMean 0.142ms\nStdDev 0.013ms\nMedian 0.141ms\nCPU 0.090ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.03311899999403067,
+            "unit": "ms",
+            "extra": "Min 0.031ms\nMax 0.036ms\nMean 0.033ms\nStdDev 0.002ms\nMedian 0.033ms\nCPU 0.033ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 2.0692859999940083,
+            "unit": "ms",
+            "extra": "Min 1.961ms\nMax 2.113ms\nMean 2.053ms\nStdDev 0.059ms\nMedian 2.069ms\nCPU 0.576ms"
           }
         ]
       }
