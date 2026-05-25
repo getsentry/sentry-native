@@ -382,6 +382,25 @@ elseif(UNWIND_ARCH STREQUAL "x86")
         ${LIBUNWIND_SRC}/x86/Gresume.c
         ${LIBUNWIND_SRC}/x86/Gstep.c
     )
+elseif(UNWIND_ARCH STREQUAL "arm")
+    set(UNWIND_GENERIC_ARCH_SOURCES
+        ${LIBUNWIND_SRC}/arm/Gos-linux.c
+        ${LIBUNWIND_SRC}/arm/Gapply_reg_state.c
+        ${LIBUNWIND_SRC}/arm/Gcreate_addr_space.c
+        ${LIBUNWIND_SRC}/arm/Gex_tables.c
+        ${LIBUNWIND_SRC}/arm/Gget_proc_info.c
+        ${LIBUNWIND_SRC}/arm/Gget_save_loc.c
+        ${LIBUNWIND_SRC}/arm/Gglobal.c
+        ${LIBUNWIND_SRC}/arm/Ginit.c
+        ${LIBUNWIND_SRC}/arm/Ginit_local.c
+        ${LIBUNWIND_SRC}/arm/Ginit_remote.c
+        ${LIBUNWIND_SRC}/arm/Gregs.c
+        ${LIBUNWIND_SRC}/arm/Greg_states_iterate.c
+        ${LIBUNWIND_SRC}/arm/Gresume.c
+        ${LIBUNWIND_SRC}/arm/Gstash_frame.c
+        ${LIBUNWIND_SRC}/arm/Gstep.c
+        ${LIBUNWIND_SRC}/arm/Gtrace.c
+    )
 endif()
 
 # Ptrace accessor library (_UPT_* functions for remote unwinding via ptrace)
@@ -435,6 +454,9 @@ elseif(UNWIND_ARCH STREQUAL "aarch64")
 elseif(UNWIND_ARCH STREQUAL "x86")
     target_include_directories(unwind_remote PRIVATE ${LIBUNWIND_INC}/tdep-x86)
     target_compile_definitions(unwind_remote PRIVATE UNW_TARGET_X86=1)
+elseif(UNWIND_ARCH STREQUAL "arm")
+    target_include_directories(unwind_remote PRIVATE ${LIBUNWIND_INC}/tdep-arm)
+    target_compile_definitions(unwind_remote PRIVATE UNW_TARGET_ARM=1)
 endif()
 
 target_compile_definitions(unwind_remote PRIVATE
