@@ -904,8 +904,8 @@ build_stacktrace_for_thread(
     int frame_count = 0;
 
 #if defined(SENTRY_PLATFORM_LINUX)
-    // Remote DWARF unwinding via libunwind ptrace accessors.
-    // Works for all threads (including crashing) and resolves symbol names.
+    // Remote DWARF unwinding via libunwind ptrace accessors. For the crashed
+    // thread, prefer the signal-handler backtrace below when available.
     {
         pid_t tid = 0;
         if (thread_idx == SIZE_MAX || thread_idx == 0) {
@@ -914,7 +914,10 @@ build_stacktrace_for_thread(
             tid = ctx->platform.threads[thread_idx].tid;
         }
 
-        if (tid > 0) {
+        bool has_crashed_thread_backtrace = ctx->platform.backtrace_count > 0
+            && (thread_idx == SIZE_MAX || tid == ctx->crashed_tid);
+
+        if (tid > 0 && !has_crashed_thread_backtrace) {
             sentry_remote_frame_t *remote_frames
                 = sentry_malloc(sizeof(*remote_frames) * MAX_STACK_FRAMES);
             size_t remote_count = remote_frames

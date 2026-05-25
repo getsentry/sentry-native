@@ -1,6 +1,10 @@
 #ifndef SENTRY_UNWINDER_H_INCLUDED
 #define SENTRY_UNWINDER_H_INCLUDED
 
+#include "sentry_boot.h"
+
+#include <stdint.h>
+
 typedef struct {
     uintptr_t lo, hi;
 } mem_range_t;
@@ -8,7 +12,6 @@ typedef struct {
 #if defined(SENTRY_PLATFORM_LINUX)
 
 #    include <stddef.h>
-#    include <stdint.h>
 #    include <sys/types.h>
 
 #    define SENTRY_REMOTE_UNWIND_MAX_SYMBOL 256
