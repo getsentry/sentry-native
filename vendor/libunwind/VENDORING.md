@@ -75,15 +75,14 @@ Source and include directories for architectures sentry-native does not target:
 
 ### 4. Unused feature modules
 
-These are separate `libunwind` "accessor" libraries for non-local unwinding use
-cases:
+These are separate `libunwind` "accessor" libraries that are not needed by
+sentry-native:
 
-| Directory       | Purpose                             | Status                                                  |
-|-----------------|-------------------------------------|---------------------------------------------------------|
-| `src/ptrace/`   | Remote unwinding via `ptrace()`     | **Re-added** — used by the native backend's crash daemon |
-| `src/coredump/` | Unwinding from a coredump file      | Removed — not a live-process use case                   |
-| `src/nto/`      | QNX Neutrino ptrace-based unwinding | Removed — QNX is not a sentry-native target             |
-| `src/setjmp/`   | `setjmp`/`longjmp` wrappers         | Removed — not relevant for crash reporting              |
+| Directory       | Purpose                             | Why removed                       |
+|-----------------|-------------------------------------|-----------------------------------|
+| `src/coredump/` | Unwinding from a coredump file      | Not a live-process use case       |
+| `src/nto/`      | QNX Neutrino ptrace-based unwinding | QNX is not a sentry-native target |
+| `src/setjmp/`   | `setjmp`/`longjmp` wrappers         | Not relevant for crash reporting  |
 
 ### What is kept but NOT built
 
@@ -116,7 +115,7 @@ never calls into the C++ exception ABI.
 
 | File                                | Purpose                                                                                                                                           |
 |-------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------|
-| `CMakeLists.txt`                    | Custom CMake build that replaces the upstream autotools + upstream CMake build. Builds `unwind` (local) and optionally `unwind_remote` (local + remote + ptrace) |
+| `CMakeLists.txt`                    | Custom CMake build that replaces the upstream autotools + upstream CMake build. Builds a static `unwind` target for x86, x86_64, and aarch64 only |
 | `cmake/config.h.cmake.in`           | CMake template for `config.h` (replaces autotools `configure`-generated header)                                                                   |
 | `cmake/libunwind-common.h.cmake.in` | CMake template for `libunwind-common.h`                                                                                                           |
 | `VENDORING.md`                      | This file                                                                                                                                         |
