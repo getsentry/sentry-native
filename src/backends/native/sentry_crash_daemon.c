@@ -945,11 +945,11 @@ build_stacktrace_for_thread(
                     frame_count++;
                 }
 
-                if (stack_buf) {
-                    sentry_free(stack_buf);
-                }
-
                 if (frame_count > 0) {
+                    if (stack_buf) {
+                        sentry_free(stack_buf);
+                    }
+
                     for (int i = frame_count - 1; i >= 0; i--) {
                         sentry_value_append(frames, temp_frames[i]);
                     }
