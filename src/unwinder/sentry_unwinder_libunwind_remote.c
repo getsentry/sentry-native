@@ -39,6 +39,13 @@ sentry__unwind_stack_from_thread_libunwind_remote(
         ptrace(PTRACE_DETACH, tid, NULL, NULL);
         return 0;
     }
+    if (!WIFSTOPPED(status)) {
+        SENTRY_WARNF(
+            "remote_unwind: thread %d did not stop after attach: status=%d",
+            tid, status);
+        ptrace(PTRACE_DETACH, tid, NULL, NULL);
+        return 0;
+    }
 
     size_t n = 0;
 
