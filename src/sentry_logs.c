@@ -80,6 +80,9 @@ static
     case 'i': {
         int64_t val;
         switch (length) {
+        case PRINTF_LENGTH_NONE:
+            val = va_arg(*args_copy, int);
+            break;
         case PRINTF_LENGTH_CHAR:
             val = (signed char)va_arg(*args_copy, int);
             break;
@@ -101,6 +104,7 @@ static
         case PRINTF_LENGTH_PTRDIFF:
             val = va_arg(*args_copy, ptrdiff_t);
             break;
+        case PRINTF_LENGTH_LONG_DOUBLE:
         default:
             val = va_arg(*args_copy, int);
             break;
@@ -117,6 +121,9 @@ static
     case 'o': {
         uint64_t val;
         switch (length) {
+        case PRINTF_LENGTH_NONE:
+            val = va_arg(*args_copy, unsigned int);
+            break;
         case PRINTF_LENGTH_CHAR:
             val = (unsigned char)va_arg(*args_copy, int);
             break;
@@ -138,6 +145,7 @@ static
         case PRINTF_LENGTH_PTRDIFF:
             val = va_arg(*args_copy, printf_uptrdiff_t);
             break;
+        case PRINTF_LENGTH_LONG_DOUBLE:
         default:
             val = va_arg(*args_copy, unsigned int);
             break;
