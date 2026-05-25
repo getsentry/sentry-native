@@ -1251,7 +1251,7 @@ main(int argc, char **argv)
     sentry_close();
 
     if (has_arg(argc, argv, "sleep-after-shutdown")) {
-        sleep_s(1);
+        sleep_s(5);
     }
 
     if (has_arg(argc, argv, "crash-after-shutdown")) {
