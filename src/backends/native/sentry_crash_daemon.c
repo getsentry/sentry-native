@@ -963,8 +963,6 @@ build_stacktrace_for_thread(
                         sentry_value_append(frames, temp_frames[i]);
                     }
                     sentry_value_set_by_key(stacktrace, "frames", frames);
-                    sentry_value_set_by_key(stacktrace, "registers",
-                        build_registers_from_ctx(ctx, thread_idx));
                     sentry_free(remote_frames);
                     return stacktrace;
                 }
