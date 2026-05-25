@@ -80,6 +80,9 @@ size_t
 sentry__unwind_stack_from_thread(
     pid_t tid, sentry_remote_frame_t *frames, size_t max_frames)
 {
+    (void)tid;
+    (void)frames;
+    (void)max_frames;
 #    ifdef SENTRY_WITH_UNWINDER_LIBUNWIND_REMOTE
     TRY_THREAD_UNWINDER(libunwind_remote);
 #    endif
