@@ -6,6 +6,7 @@
 #include "sentry_os.h"
 #include "sentry_scope.h"
 #include "sentry_value.h"
+#include <limits.h>
 #include <stdarg.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -24,6 +25,26 @@ typedef enum {
     PRINTF_LENGTH_PTRDIFF,
     PRINTF_LENGTH_LONG_DOUBLE,
 } printf_length_t;
+
+#if SIZE_MAX == UINT_MAX
+typedef int printf_ssize_t;
+#elif SIZE_MAX == ULONG_MAX
+typedef long printf_ssize_t;
+#elif SIZE_MAX == ULLONG_MAX
+typedef long long printf_ssize_t;
+#else
+typedef ptrdiff_t printf_ssize_t;
+#endif
+
+#if PTRDIFF_MAX == INT_MAX
+typedef unsigned int printf_uptrdiff_t;
+#elif PTRDIFF_MAX == LONG_MAX
+typedef unsigned long printf_uptrdiff_t;
+#elif PTRDIFF_MAX == LLONG_MAX
+typedef unsigned long long printf_uptrdiff_t;
+#else
+typedef size_t printf_uptrdiff_t;
+#endif
 
 static const char *
 level_as_string(sentry_level_t level)
@@ -50,8 +71,8 @@ level_as_string(sentry_level_t level)
 static
 #endif
     sentry_value_t
-    construct_param_from_conversion(const char conversion,
-        printf_length_t length, va_list *args_copy)
+    construct_param_from_conversion(
+        const char conversion, printf_length_t length, va_list *args_copy)
 {
     sentry_value_t param_obj = sentry_value_new_object();
     switch (conversion) {
@@ -75,7 +96,7 @@ static
             val = va_arg(*args_copy, intmax_t);
             break;
         case PRINTF_LENGTH_SIZE:
-            val = va_arg(*args_copy, ptrdiff_t);
+            val = va_arg(*args_copy, printf_ssize_t);
             break;
         case PRINTF_LENGTH_PTRDIFF:
             val = va_arg(*args_copy, ptrdiff_t);
@@ -115,7 +136,7 @@ static
             val = va_arg(*args_copy, size_t);
             break;
         case PRINTF_LENGTH_PTRDIFF:
-            val = va_arg(*args_copy, size_t);
+            val = va_arg(*args_copy, printf_uptrdiff_t);
             break;
         default:
             val = va_arg(*args_copy, unsigned int);
@@ -309,9 +330,8 @@ static
                 char key[64];
                 snprintf(key, sizeof(key), "sentry.message.parameter.%d",
                     param_index);
-                sentry_value_t param_obj
-                    = construct_param_from_conversion(
-                        conversion, length, &args_copy);
+                sentry_value_t param_obj = construct_param_from_conversion(
+                    conversion, length, &args_copy);
                 sentry_value_set_by_key(attributes, key, param_obj);
                 param_index++;
                 fmt_ptr++;
