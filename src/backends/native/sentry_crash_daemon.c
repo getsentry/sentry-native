@@ -939,6 +939,9 @@ build_stacktrace_for_thread(
                     sentry_value_set_by_key(temp_frames[frame_count],
                         "instruction_addr",
                         sentry__value_new_addr(remote_frames[i].ip));
+                    // Trust describes the unwind source, not the emitted
+                    // frame index. If the initial cursor frame is filtered
+                    // out, the next emitted frame was still reached via CFI.
                     sentry_value_set_by_key(temp_frames[frame_count], "trust",
                         sentry_value_new_string(i == 0 ? "context" : "cfi"));
                     enrich_frame_with_module_info(
@@ -994,6 +997,9 @@ build_stacktrace_for_thread(
             temp_frames[frame_count] = sentry_value_new_object();
             sentry_value_set_by_key(temp_frames[frame_count],
                 "instruction_addr", sentry__value_new_addr(frame_ip));
+            // Trust describes the unwind source, not the emitted frame index.
+            // If the initial cursor frame is filtered out, the next emitted
+            // frame was still reached via CFI.
             sentry_value_set_by_key(temp_frames[frame_count], "trust",
                 sentry_value_new_string(i == 0 ? "context" : "cfi"));
             enrich_frame_with_module_info(
