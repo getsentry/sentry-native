@@ -547,6 +547,24 @@ build_registers_from_ctx(const sentry_crash_context_t *ctx, size_t thread_idx)
     return registers;
 }
 
+#if defined(SENTRY_PLATFORM_LINUX)
+static sentry_value_t
+build_registers_from_remote_registers(
+    const sentry_remote_registers_t *remote_registers)
+{
+    sentry_value_t registers = sentry_value_new_object();
+
+    for (size_t i = 0; i < remote_registers->count; i++) {
+        const sentry_remote_register_t *remote_register
+            = &remote_registers->values[i];
+        sentry_value_set_by_key(registers, remote_register->name,
+            sentry__value_new_addr(remote_register->value));
+    }
+
+    return registers;
+}
+#endif
+
 /**
  * Maximum number of frames to unwind
  */
@@ -918,11 +936,12 @@ build_stacktrace_for_thread(
             = thread_idx == SIZE_MAX || tid == ctx->crashed_tid;
 
         if (tid > 0 && !is_crashed_thread) {
+            sentry_remote_registers_t registers = { 0 };
             sentry_remote_frame_t *remote_frames
                 = sentry_malloc(sizeof(*remote_frames) * MAX_STACK_FRAMES);
             size_t remote_count = remote_frames
                 ? sentry__unwind_stack_from_thread(
-                      tid, remote_frames, MAX_STACK_FRAMES)
+                      tid, remote_frames, MAX_STACK_FRAMES, &registers)
                 : 0;
 
             if (remote_count > 0) {
@@ -963,6 +982,10 @@ build_stacktrace_for_thread(
                         sentry_value_append(frames, temp_frames[i]);
                     }
                     sentry_value_set_by_key(stacktrace, "frames", frames);
+                    if (registers.count > 0) {
+                        sentry_value_set_by_key(stacktrace, "registers",
+                            build_registers_from_remote_registers(&registers));
+                    }
                     sentry_free(remote_frames);
                     return stacktrace;
                 }
