@@ -341,12 +341,12 @@ sentry_close(void)
                 || !options->backend->can_capture_after_shutdown)) {
             sentry__run_clean(options->run, false);
         }
+        g_options = NULL;
         sentry_options_free(options);
     } else {
         SENTRY_WARN("sentry_close() called, but options was empty");
     }
 
-    g_options = NULL;
     sentry__mutex_unlock(&g_options_lock);
 
     sentry__scope_cleanup();
