@@ -121,7 +121,8 @@ SENTRY_TEST(formatted_log_messages)
         sentry_log_warn("Character: %c, Hex: 0x%x", 'A', 255), 0);
     TEST_CHECK_INT_EQUAL(sentry_log_error("Pointer: %p", (void *)0x1234), 0);
     TEST_CHECK_INT_EQUAL(sentry_log_error("Big number: %zu", UINT64_MAX), 0);
-    TEST_CHECK_INT_EQUAL(sentry_log_error("Small number: %d", INT64_MIN), 0);
+    TEST_CHECK_INT_EQUAL(
+        sentry_log_error("Small number: %" PRId64, INT64_MIN), 0);
 
     sentry_close();
 
@@ -166,21 +167,54 @@ test_param_conversion_helper(const char *format, ...)
     sentry_value_decref(attributes);
 }
 
+static int
+populate_test_params(sentry_value_t attributes, const char *format, ...)
+{
+    va_list args;
+    va_start(args, format);
+    int param_count = populate_message_parameters(attributes, format, args);
+    va_end(args);
+    return param_count;
+}
+
 SENTRY_TEST(logs_param_conversion)
 {
-    // TODO this test shows the current limitation for parsing integers on
-    //  32-bit systems
     int a = 1, b = 2, c = 3;
-#if defined(__i386__) || defined(_M_IX86) || defined(__arm__)
-    // Currently, on 32-bit platforms, we need to cast to a 64-bit integer type
-    // since the parameter conversion expects long long for %d format specifiers
-    test_param_conversion_helper(
-        "%" PRId64 " %" PRId64 " %" PRId64, (int64_t)a, (int64_t)b, (int64_t)c);
-#else
-    // since we read these values as 64-bit, this is still undefined behaviour
-    // but it works because the variadic arguments are passed in 8-byte slots
     test_param_conversion_helper("%d %d %d", a, b, c);
-#endif
+}
+
+SENTRY_TEST(logs_param_sign)
+{
+    sentry_value_t attributes = sentry_value_new_object();
+    int value = -1;
+
+    int param_count = populate_test_params(attributes, "%d", value);
+
+    sentry_value_t param
+        = sentry_value_get_by_key(attributes, "sentry.message.parameter.0");
+    sentry_value_t param_value = sentry_value_get_by_key(param, "value");
+
+    TEST_CHECK_INT_EQUAL(param_count, 1);
+    TEST_CHECK_INT_EQUAL(sentry_value_as_int64(param_value), -1);
+
+    sentry_value_decref(attributes);
+}
+
+SENTRY_TEST(logs_param_width)
+{
+    sentry_value_t attributes = sentry_value_new_object();
+    const char *format = "%*d";
+
+    int param_count = populate_test_params(attributes, format, 6, 42);
+
+    sentry_value_t param
+        = sentry_value_get_by_key(attributes, "sentry.message.parameter.0");
+    sentry_value_t param_value = sentry_value_get_by_key(param, "value");
+
+    TEST_CHECK_INT_EQUAL(param_count, 1);
+    TEST_CHECK_INT_EQUAL(sentry_value_as_int64(param_value), 42);
+
+    sentry_value_decref(attributes);
 }
 
 static void
@@ -283,7 +317,9 @@ SENTRY_TEST(logs_param_types)
     const char *e = "test";
     void *f = (void *)0x12345abc;
     uint64_t g = 0xDEADBEEFDEADBEEF;
-    test_param_conversion_types("%u %d %f %c %s %p %x", a, b, c, d, e, f, g);
+    test_param_conversion_types("%" PRIu64 " %" PRId64 " %f %c %s %p %"
+                                PRIx64,
+        a, b, c, d, e, f, g);
 }
 
 SENTRY_TEST(logs_force_flush)
