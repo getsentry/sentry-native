@@ -87,6 +87,7 @@ sentry_options_new(void)
     opts->transport = sentry__transport_new_default();
     opts->refcount = 1;
     opts->shutdown_timeout = SENTRY_DEFAULT_SHUTDOWN_TIMEOUT;
+    opts->transfer_timeout = SENTRY_DEFAULT_TRANSFER_TIMEOUT;
     sentry_options_set_sample_rate(
         opts, sentry__getenv_double("SENTRY_SAMPLE_RATE", 1.0));
     sentry_options_set_traces_sample_rate(
@@ -660,6 +661,19 @@ uint64_t
 sentry_options_get_shutdown_timeout(sentry_options_t *opts)
 {
     return opts->shutdown_timeout;
+}
+
+void
+sentry_options_set_transfer_timeout(
+    sentry_options_t *opts, uint64_t transfer_timeout)
+{
+    opts->transfer_timeout = transfer_timeout;
+}
+
+uint64_t
+sentry_options_get_transfer_timeout(sentry_options_t *opts)
+{
+    return opts->transfer_timeout;
 }
 
 void

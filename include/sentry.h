@@ -1962,6 +1962,26 @@ SENTRY_API void sentry_options_set_shutdown_timeout(
 SENTRY_API uint64_t sentry_options_get_shutdown_timeout(sentry_options_t *opts);
 
 /**
+ * Sets the timeout (in milliseconds) for HTTP transfer operations.
+ *
+ * On curl, this limits the total time an HTTP request is allowed to take. On
+ * WinHTTP, this is applied to send and receive operations, which WinHTTP
+ * applies to individual packets.
+ *
+ * This setting applies to the SDK-managed HTTP transports. It is not supported
+ * by Crashpad's crash report upload.
+ *
+ * The default value is 0, which disables the transfer timeout.
+ */
+SENTRY_API void sentry_options_set_transfer_timeout(
+    sentry_options_t *opts, uint64_t transfer_timeout);
+
+/**
+ * Gets the timeout (in milliseconds) for HTTP transfer operations.
+ */
+SENTRY_API uint64_t sentry_options_get_transfer_timeout(sentry_options_t *opts);
+
+/**
  * Sets a user-defined backend.
  *
  * Since creation and destruction of backends is not exposed in the API, this
@@ -2931,6 +2951,12 @@ typedef struct sentry_transaction_s sentry_transaction_t;
  * that same transaction. In case the transaction should be discarded, the
  * callback needs to call `sentry_value_decref` on the provided transaction and
  * return a `sentry_value_new_null()` instead.
+ *
+ * This function may be invoked inside a signal handler and must be safe for
+ * that purpose, see https://man7.org/linux/man-pages/man7/signal-safety.7.html.
+ * On Windows, it may be called from inside a `UnhandledExceptionFilter`, see
+ * the documentation on SEH (structured exception handling) for more information
+ * https://docs.microsoft.com/en-us/windows/win32/debug/structured-exception-handling
  */
 typedef sentry_value_t (*sentry_transaction_function_t)(
     sentry_value_t transaction, void *user_data);

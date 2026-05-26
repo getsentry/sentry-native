@@ -20,6 +20,7 @@
 #    include <time.h>
 #    include <unistd.h>
 
+#    include "../sentry_elf.h"
 #    include "sentry_alloc.h"
 #    include "sentry_logger.h"
 #    include "sentry_minidump_common.h"
@@ -911,6 +912,11 @@ extract_elf_build_id(const char *elf_path, uint8_t *build_id, size_t max_len)
         return 0;
     }
 
+    if (!sentry__elf_has_shdr_size(ehdr.e_ident, ehdr.e_shentsize)) {
+        close(fd);
+        return 0;
+    }
+
     // Read section headers
     // Cast to size_t to prevent integer overflow (uint16_t * uint16_t promotes
     // to int, which can overflow)
@@ -1030,6 +1036,11 @@ compute_elf_size_from_phdrs(const char *elf_path)
         return 0;
     }
 
+    if (!sentry__elf_has_phdr_size(ehdr.e_ident, ehdr.e_phentsize)) {
+        close(fd);
+        return 0;
+    }
+
     // Read program headers
     size_t phdr_size = (size_t)ehdr.e_phentsize * ehdr.e_phnum;
     void *phdr_buf = sentry_malloc(phdr_size);
@@ -1107,6 +1118,11 @@ read_elf_soname(const char *elf_path, char *soname_buf, size_t soname_buf_size)
 
     if (read(fd, &ehdr, sizeof(ehdr)) != sizeof(ehdr)
         || memcmp(ehdr.e_ident, ELFMAG, SELFMAG) != 0) {
+        close(fd);
+        return false;
+    }
+
+    if (!sentry__elf_has_shdr_size(ehdr.e_ident, ehdr.e_shentsize)) {
         close(fd);
         return false;
     }
