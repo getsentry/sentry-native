@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1779815570542,
+  "lastUpdate": 1779815606039,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -45274,6 +45274,66 @@ window.BENCHMARK_DATA = {
             "value": 9.893499999975575,
             "unit": "ms",
             "extra": "Min 7.975ms\nMax 12.935ms\nMean 10.077ms\nStdDev 2.175ms\nMedian 9.893ms\nCPU 1.450ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "jpnurmi@gmail.com",
+            "name": "J-P Nurmi",
+            "username": "jpnurmi"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "7d06d7d242ef23169a1f4ed1fa91a2349f114654",
+          "message": "fix(tracing): finish active trace on crash (#1667)\n\n* fix(tracing): finish active trace on crash\n\nCo-authored-by: Claude Opus 4.7 (1M context) <noreply@anthropic.com>\n\n* fix(tracing): finish all in-flight children on crash\n\nThe prior crash-path trace finish only closed `scope->span` (the deepest\nactive span) and its root transaction. Intermediate spans between them —\ne.g. Qt event dispatch handlers nested above a crashing slot — were never\nfinished, never added to `tx.spans`, and ended up orphaning the crash\nevent at the trace root in Sentry's UI.\n\nTrack every span on its root transaction under `children_mutex` at\n`sentry__span_new`, deregister on normal finish, and drain the list in\nleaf-first order inside `sentry__trace_finish`. Matches sentry-cocoa's\n`SentryTracer` `_children` + `finishForCrash` and sentry-java's\n`SentryTracer.forceFinish`.\n\nPreserve `scope->span` / `scope->transaction_object` across the drain so\nthe subsequent crash event inherits the full trace context from scope\n(mirrors cocoa's `finishTracer:shouldCleanUp:NO`). Without this, the\ncrash event fell through to the stale propagation context and Sentry\ncould not nest it under the active span chain.\n\nCo-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>\n\n* ref(tracing): Simplify trace-finish comments and surface alloc failure\n\nTrim WHAT-narration comments in sentry__trace_finish and its tests, keeping\nthe sentry-cocoa alignment anchor and the non-obvious \"detach to skip\nremove-scan\" rationale. Warn on the tracking-list allocation failure so a\nsilent crash-finalize gap is audible. Use the typedef name for the forward\ndeclaration in sentry_sampling_context.h for consistency with the rest of\nthe codebase.\n\nCo-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>\n\n* ref(tracing): Extract save/restore trace and finish_children helpers\n\nSplit sentry__trace_finish into save_active_trace / restore_active_trace\n(as a pair around the scope mutation) and finish_children for the atomic\nchildren swap + finish loop, so the top-level function reads as a short\nnarrative. No behavior change.\n\nCo-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>\n\n* fix(tracing): Don't double-decref active_tx in restore_active_trace\n\nsentry_transaction_finish_ts consumes its argument, so the ref that\nsave_active_trace took for active_tx is released by the finish call.\nrestore_active_trace was decref'ing it again. Harmless in crash context\nwhere the process exits, but a real refcount underflow otherwise.\n\nCo-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>\n\n* fix(tracing): Don't double-decref children in finish_children\n\nsentry_span_finish_ts consumes its argument (decref at sentry_core.c:1607\non success, :1611 on fail), so the explicit sentry__span_decref after the\nfinish call released the children-list ref a second time.\n\nCo-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>\n\n* fix(tracing): Break tx<->span refcount cycle with weak children list\n\nThe transaction's `children` list held an incref'd reference on each live\nspan, while each span holds a ref on its transaction via `span->transaction`.\nAny code path that decref'd a span without going through `sentry_span_finish_ts`\n(e.g. the `span_data` unit test using the low-level `sentry__span_new` /\n`sentry__span_decref` API) left both sides stuck at refcount 1, leaking both.\n\nMake `tx->children` weak: `sentry__span_new` no longer increfs on add, and\n`sentry__span_decref` unlists the span from the children list on its final\ndrop. `sentry__transaction_remove_child` correspondingly no longer decrefs.\nThe drain path in `sentry__trace_finish` continues to work — the spans on\nthe swapped-out list are alive via their other refs (scope / saved_span /\nuser var), and `sentry_span_finish_ts` consumes one of those refs as the\ncaller's, exactly as in the non-crash flow.\n\nCo-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>\n\n* fix(tracing): Incref each span in finish_children drain\n\nAfter the weak-children refactor, `finish_children` handed each span to\n`sentry_span_finish_ts` without a caller ref. `finish_ts` consumes one\nref on its argument, so when the drained span had only the user's own ref\noutstanding, finish_ts would drop it to zero and free the span — leaving\nthe user's pointer dangling.\n\nIncref inside the drain loop so finish_ts consumes \"our\" ref, leaving user\nrefs intact. Also update the `trace_finish` unit test to release the refs\nit held on `tx`/`child`/`grand` (without the children-list strong ref,\nunfinished spans now properly leak if the user forgets to decref).\n\nCo-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>\n\n* fix(tracing): Use NO_FLUSH scope macro in restore_active_trace\n\nSENTRY_WITH_SCOPE_MUT calls sentry__scope_flush_unlock on exit, which\ninvokes the backend's flush_scope_func — file I/O in both crashpad and\nnative backends. sentry__trace_finish runs from signal-handler context\nin the inproc/breakpad/native crash handlers, so the flush is unsafe\nthere. Use the NO_FLUSH variant the codebase provides for this exact\nsituation.\n\nCo-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>\n\n* fix(tracing): Restore cleanup on sentry__trace_finish early return\n\nCall restore_active_trace before the early return so any refs taken by\nsave_active_trace are released even if active_tx is NULL. No-op under\nthe current invariant (saved_span->transaction is always non-NULL), but\ndefensive if the invariant ever changes.\n\nCo-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>\n\n* Revert \"fix(tracing): Use NO_FLUSH scope macro in restore_active_trace\"\n\nThis reverts commit b0c1aca59d7c71c32f7e7e0d14ff9532ff02b880.\n\n* test: isolate native trace crash uploads\n\n* fix: avoid live transport for crash trace finish\n\n* Revert test changes\n\n* fix: dump crash trace transactions separately\n\n* Update CHANGELOG.md\n\n* ref: clean up unused function\n\n* fix: preserve transaction root trace when merging scope\n\n* make format\n\n* decref transactions\n\n* note\n\n---------\n\nCo-authored-by: Claude Opus 4.7 (1M context) <noreply@anthropic.com>",
+          "timestamp": "2026-05-26T19:10:14+02:00",
+          "tree_id": "f20d43ae944688b4a19ed05e4deab5612f1ec1cb",
+          "url": "https://github.com/getsentry/sentry-native/commit/7d06d7d242ef23169a1f4ed1fa91a2349f114654"
+        },
+        "date": 1779815599702,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 3.7763330000188944,
+            "unit": "ms",
+            "extra": "Min 3.424ms\nMax 7.834ms\nMean 4.653ms\nStdDev 1.824ms\nMedian 3.776ms\nCPU 2.713ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 4.021290999986604,
+            "unit": "ms",
+            "extra": "Min 3.503ms\nMax 7.818ms\nMean 4.685ms\nStdDev 1.798ms\nMedian 4.021ms\nCPU 2.906ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 11.456791999989946,
+            "unit": "ms",
+            "extra": "Min 10.716ms\nMax 35.054ms\nMean 15.983ms\nStdDev 10.666ms\nMedian 11.457ms\nCPU 3.990ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.06429199999047341,
+            "unit": "ms",
+            "extra": "Min 0.055ms\nMax 0.243ms\nMean 0.103ms\nStdDev 0.079ms\nMedian 0.064ms\nCPU 0.052ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.26770900001338305,
+            "unit": "ms",
+            "extra": "Min 0.267ms\nMax 0.307ms\nMean 0.277ms\nStdDev 0.017ms\nMedian 0.268ms\nCPU 0.276ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 8.378292000031706,
+            "unit": "ms",
+            "extra": "Min 7.088ms\nMax 11.756ms\nMean 8.862ms\nStdDev 1.800ms\nMedian 8.378ms\nCPU 1.034ms"
           }
         ]
       }
