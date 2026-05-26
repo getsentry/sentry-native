@@ -11,6 +11,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <wchar.h>
 
 #ifdef NDEBUG
 #    undef NDEBUG
@@ -152,6 +153,28 @@ restart_on_crash(
         argc++;
     }
 
+#ifdef SENTRY_PLATFORM_WINDOWS
+    wchar_t module_path[MAX_PATH];
+    if (GetModuleFileNameW(NULL, module_path, MAX_PATH) > 0) {
+        int child_argc = 0;
+        wchar_t **child_argv = alloca((argc + 1) * sizeof(wchar_t *));
+        for (int i = 0; argv[i]; i++) {
+            if (strcmp(argv[i], "restart-on-crash") == 0) {
+                continue;
+            }
+            if (i == 0) {
+                child_argv[child_argc++] = module_path;
+            } else {
+                size_t len = strlen(argv[i]) + 1;
+                child_argv[child_argc] = alloca(len * sizeof(wchar_t));
+                mbstowcs(child_argv[child_argc++], argv[i], len);
+            }
+        }
+        child_argv[child_argc] = NULL;
+
+        _wspawnv(_P_NOWAIT, child_argv[0], (const wchar_t *const *)child_argv);
+    }
+#else
     int child_argc = 0;
     char **child_argv = alloca((argc + 1) * sizeof(char *));
     for (int i = 0; argv[i]; i++) {
@@ -161,9 +184,6 @@ restart_on_crash(
     }
     child_argv[child_argc] = NULL;
 
-#ifdef SENTRY_PLATFORM_WINDOWS
-    _spawnv(_P_NOWAIT, child_argv[0], (const char *const *)child_argv);
-#else
     if (fork() == 0) {
         // The crashing signal is blocked while the crash handler runs. Do not
         // let the restarted child inherit that mask.
