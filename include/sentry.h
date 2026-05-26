@@ -2891,6 +2891,12 @@ typedef struct sentry_transaction_s sentry_transaction_t;
  * that same transaction. In case the transaction should be discarded, the
  * callback needs to call `sentry_value_decref` on the provided transaction and
  * return a `sentry_value_new_null()` instead.
+ *
+ * This function may be invoked inside a signal handler and must be safe for
+ * that purpose, see https://man7.org/linux/man-pages/man7/signal-safety.7.html.
+ * On Windows, it may be called from inside a `UnhandledExceptionFilter`, see
+ * the documentation on SEH (structured exception handling) for more information
+ * https://docs.microsoft.com/en-us/windows/win32/debug/structured-exception-handling
  */
 typedef sentry_value_t (*sentry_transaction_function_t)(
     sentry_value_t transaction, void *user_data);
