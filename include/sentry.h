@@ -1922,6 +1922,26 @@ SENTRY_API void sentry_options_set_shutdown_timeout(
 SENTRY_API uint64_t sentry_options_get_shutdown_timeout(sentry_options_t *opts);
 
 /**
+ * Sets the timeout (in milliseconds) for HTTP transfer operations.
+ *
+ * On curl, this limits the total time an HTTP request is allowed to take. On
+ * WinHTTP, this is applied to send and receive operations, which WinHTTP
+ * applies to individual packets.
+ *
+ * This setting applies to the SDK-managed HTTP transports. It is not supported
+ * by Crashpad's crash report upload.
+ *
+ * The default value is 0, which disables the transfer timeout.
+ */
+SENTRY_API void sentry_options_set_transfer_timeout(
+    sentry_options_t *opts, uint64_t transfer_timeout);
+
+/**
+ * Gets the timeout (in milliseconds) for HTTP transfer operations.
+ */
+SENTRY_API uint64_t sentry_options_get_transfer_timeout(sentry_options_t *opts);
+
+/**
  * Sets a user-defined backend.
  *
  * Since creation and destruction of backends is not exposed in the API, this

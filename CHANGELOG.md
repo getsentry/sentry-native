@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+**Features**:
+
+- Add a `transfer_timeout` option for SDK-managed HTTP transports. ([#1741](https://github.com/getsentry/sentry-native/pull/1741))
+
 **Fixes**:
 
 - Finish active trace on crash. ([#1667](https://github.com/getsentry/sentry-native/pull/1667))

@@ -3367,6 +3367,7 @@ sentry__crash_daemon_main(pid_t app_pid, uint64_t app_tid, HANDLE event_handle,
     options->enable_large_attachments = ipc->shmem->enable_large_attachments;
     options->http_retry = false;
     options->shutdown_timeout = ipc->shmem->shutdown_timeout;
+    options->transfer_timeout = ipc->shmem->transfer_timeout;
 
     // Set custom logger that writes to file
     if (log_file) {
