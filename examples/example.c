@@ -145,45 +145,16 @@ restart_on_crash(
 {
     (void)uctx;
 
-    int argc = 0;
-    char **argv = user_data;
-    assert(argv);
-    assert(argv[0]);
-    while (argv[argc]) {
-        argc++;
-    }
-
 #ifdef SENTRY_PLATFORM_WINDOWS
-    wchar_t module_path[MAX_PATH];
-    if (GetModuleFileNameW(NULL, module_path, MAX_PATH) > 0) {
-        int child_argc = 0;
-        wchar_t **child_argv = alloca((argc + 1) * sizeof(wchar_t *));
-        for (int i = 0; argv[i]; i++) {
-            if (strcmp(argv[i], "restart-on-crash") == 0) {
-                continue;
-            }
-            if (i == 0) {
-                child_argv[child_argc++] = module_path;
-            } else {
-                size_t len = strlen(argv[i]) + 1;
-                child_argv[child_argc] = alloca(len * sizeof(wchar_t));
-                mbstowcs(child_argv[child_argc++], argv[i], len);
-            }
-        }
-        child_argv[child_argc] = NULL;
-
-        _wspawnv(_P_NOWAIT, child_argv[0], (const wchar_t *const *)child_argv);
+    wchar_t **argv = user_data;
+    if (argv && argv[0]) {
+        _wspawnv(_P_NOWAIT, argv[0], (const wchar_t *const *)argv);
     }
 #else
-    int child_argc = 0;
-    char **child_argv = alloca((argc + 1) * sizeof(char *));
-    for (int i = 0; argv[i]; i++) {
-        if (strcmp(argv[i], "restart-on-crash") != 0) {
-            child_argv[child_argc++] = argv[i];
-        }
+    char **argv = user_data;
+    if (!argv || !argv[0]) {
+        return event;
     }
-    child_argv[child_argc] = NULL;
-
     if (fork() == 0) {
         // The crashing signal is blocked while the crash handler runs. Do not
         // let the restarted child inherit that mask.
@@ -191,12 +162,58 @@ restart_on_crash(
         sigfillset(&set);
         sigprocmask(SIG_UNBLOCK, &set, NULL);
 
-        execv(child_argv[0], child_argv);
+        execv(argv[0], argv);
         _exit(127);
     }
 #endif
 
     return event;
+}
+
+// Forward all original arguments except "restart-on-crash"
+static void *
+restart_args(int argc, char **argv)
+{
+#ifdef SENTRY_PLATFORM_WINDOWS
+    wchar_t **child_argv = calloc((size_t)argc + 1, sizeof(wchar_t *));
+    if (!child_argv) {
+        return NULL;
+    }
+
+    child_argv[0] = calloc(MAX_PATH, sizeof(wchar_t));
+    if (!child_argv[0]
+        || GetModuleFileNameW(NULL, child_argv[0], MAX_PATH) == 0) {
+        return child_argv;
+    }
+
+    int child_argc = 1;
+    for (int i = 1; i < argc; i++) {
+        if (strcmp(argv[i], "restart-on-crash") == 0) {
+            continue;
+        }
+
+        size_t len = strlen(argv[i]) + 1;
+        child_argv[child_argc] = calloc(len, sizeof(wchar_t));
+        if (!child_argv[child_argc]) {
+            return child_argv;
+        }
+        mbstowcs(child_argv[child_argc++], argv[i], len);
+    }
+    return child_argv;
+#else
+    char **child_argv = calloc((size_t)argc + 1, sizeof(char *));
+    if (!child_argv) {
+        return NULL;
+    }
+
+    int child_argc = 0;
+    for (int i = 0; i < argc; i++) {
+        if (strcmp(argv[i], "restart-on-crash") != 0) {
+            child_argv[child_argc++] = argv[i];
+        }
+    }
+    return child_argv;
+#endif
 }
 
 static sentry_value_t
@@ -700,7 +717,8 @@ main(int argc, char **argv)
     }
 
     if (has_arg(argc, argv, "restart-on-crash")) {
-        sentry_options_set_on_crash(options, restart_on_crash, argv);
+        sentry_options_set_on_crash(
+            options, restart_on_crash, restart_args(argc, argv));
     }
 
     if (has_arg(argc, argv, "before-transaction")) {
