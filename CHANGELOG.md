@@ -4,6 +4,7 @@
 
 **Fixes**:
 
+- Finish active trace on crash. ([#1667](https://github.com/getsentry/sentry-native/pull/1667))
 - Native/macOS: fix module `image_size` computation, which could have caused the symbolicator to misattribute every frame to the lowest-addressed image (typically `dyld` or `libsystem`). ([#1740](https://github.com/getsentry/sentry-native/pull/1740))
 - Native: raise `SENTRY_CRASH_MAX_MODULES` from `512` to `2048` so processes that load many shared libraries no longer have their minidump module list truncated, which left frames in unrecorded modules without a `debug_id` and unsymbolicatable.
   ([#1738](https://github.com/getsentry/sentry-native/pull/1738))
