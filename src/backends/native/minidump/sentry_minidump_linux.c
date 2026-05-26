@@ -27,6 +27,7 @@
 #    include "sentry_minidump_format.h"
 #    include "sentry_minidump_indirect.h"
 #    include "sentry_minidump_writer.h"
+#    include "sentry_os.h"
 
 // NT_PRSTATUS is defined in linux/elf.h but we can't include that
 // because it conflicts with elf.h. Define it here if not available.
@@ -66,9 +67,6 @@ struct fpsimd_context {
 };
 #        endif
 #    endif
-
-// Use process_vm_readv to read memory from crashed process
-#    include <sys/uio.h>
 
 // Use shared constants from crash context
 #    include "../sentry_crash_context.h"
@@ -347,7 +345,8 @@ read_process_memory(
     struct iovec local_iov = { .iov_base = buf, .iov_len = len };
     struct iovec remote_iov = { .iov_base = (void *)addr, .iov_len = len };
 
-    ssize_t nread = process_vm_readv(tid, &local_iov, 1, &remote_iov, 1, 0);
+    ssize_t nread
+        = sentry__process_vm_readv(tid, &local_iov, 1, &remote_iov, 1, 0);
     if (nread > 0) {
         return nread;
     }
@@ -2151,7 +2150,7 @@ linux_indirect_read_memory(void *ctx, uint64_t addr, void *buf, size_t len)
     pid_t tid = writer->crash_ctx->crashed_tid;
     struct iovec local_iov = { .iov_base = buf, .iov_len = len };
     struct iovec remote_iov = { .iov_base = (void *)addr, .iov_len = len };
-    return process_vm_readv(tid, &local_iov, 1, &remote_iov, 1, 0);
+    return sentry__process_vm_readv(tid, &local_iov, 1, &remote_iov, 1, 0);
 }
 
 /**

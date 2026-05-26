@@ -27,11 +27,19 @@ from .assertions import (
     wait_for_file,
     assert_user_feedback,
 )
-from .conditions import has_native, has_oom, is_kcov, is_asan, is_tsan, is_qemu
+from .conditions import (
+    has_http,
+    has_native,
+    has_oom,
+    is_kcov,
+    is_asan,
+    is_tsan,
+    is_qemu,
+)
 
 pytestmark = pytest.mark.skipif(
-    not has_native or is_qemu,
-    reason="Tests need the native backend enabled",
+    not has_native or not has_http or is_qemu,
+    reason="Tests need the native backend and HTTP support",
 )
 
 # Sanitizer builds are slower, so selected native crash tests use the same 10s

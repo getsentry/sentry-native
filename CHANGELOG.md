@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+**Features**:
+
+- Native: add Android support. ([#1725](https://github.com/getsentry/sentry-native/pull/1725))
+
 **Fixes**:
 
 - Finish active trace on crash. ([#1667](https://github.com/getsentry/sentry-native/pull/1667))

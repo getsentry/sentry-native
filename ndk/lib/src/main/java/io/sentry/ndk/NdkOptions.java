@@ -15,6 +15,7 @@ public final class NdkOptions {
   private NdkHandlerStrategy ndkHandlerStrategy =
       NdkHandlerStrategy.SENTRY_HANDLER_STRATEGY_DEFAULT;
   private float tracesSampleRate = 0;
+  private boolean tombstoneEnabled = false;
 
   public NdkOptions(
       @NotNull String dsn,
@@ -87,5 +88,13 @@ public final class NdkOptions {
 
   public float getTracesSampleRate() {
     return tracesSampleRate;
+  }
+
+  public void setTombstoneEnabled(final boolean tombstoneEnabled) {
+    this.tombstoneEnabled = tombstoneEnabled;
+  }
+
+  public boolean isTombstoneEnabled() {
+    return tombstoneEnabled;
   }
 }

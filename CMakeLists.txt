@@ -187,6 +187,8 @@ elseif(SENTRY_TRANSPORT STREQUAL "curl")
 	set(SENTRY_TRANSPORT_CURL TRUE)
 elseif(SENTRY_TRANSPORT STREQUAL "none")
 	set(SENTRY_TRANSPORT_NONE TRUE)
+elseif(SENTRY_TRANSPORT STREQUAL "stdout")
+	set(SENTRY_TRANSPORT_STDOUT TRUE)
 elseif(SENTRY_TRANSPORT STREQUAL "pshttp")
 	# Not implemented here, but in the downstream SDK
 	if(NOT PROSPERO)
@@ -841,6 +843,11 @@ elseif(SENTRY_BACKEND_NATIVE)
 		${PROJECT_SOURCE_DIR}/src
 		${PROJECT_SOURCE_DIR}/src/backends/native
 	)
+	if(SENTRY_WITH_LIBUNWINDSTACK)
+		target_include_directories(sentry-crash PRIVATE
+			${PROJECT_SOURCE_DIR}/external/libunwindstack-ndk/include
+		)
+	endif()
 
 	# Link same libraries as sentry
 	target_link_libraries(sentry-crash PRIVATE ${_SENTRY_PLATFORM_LIBS})

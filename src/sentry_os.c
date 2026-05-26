@@ -7,7 +7,26 @@
 #    include "sentry_utils.h"
 #endif
 #ifdef SENTRY_PLATFORM_LINUX
+#    include <sys/syscall.h>
+#    include <sys/uio.h>
 #    include <unistd.h>
+#endif
+
+#if defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID)
+ssize_t
+sentry__process_vm_readv(pid_t pid, const struct iovec *local_iov,
+    unsigned long local_iov_count, const struct iovec *remote_iov,
+    unsigned long remote_iov_count, unsigned long flags)
+{
+#    if defined(SENTRY_PLATFORM_ANDROID) && defined(__ANDROID_API__)           \
+        && __ANDROID_API__ < 23
+    return syscall(__NR_process_vm_readv, pid, local_iov, local_iov_count,
+        remote_iov, remote_iov_count, flags);
+#    else
+    return process_vm_readv(
+        pid, local_iov, local_iov_count, remote_iov, remote_iov_count, flags);
+#    endif
+}
 #endif
 
 #ifdef SENTRY_PLATFORM_WINDOWS

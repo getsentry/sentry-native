@@ -31,14 +31,14 @@ def test_capture_stdout(cmake):
         ["sentry_example"],
         {
             "SENTRY_BACKEND": "none",
-            "SENTRY_TRANSPORT": "none",
+            "SENTRY_TRANSPORT": "stdout",
         },
     )
 
     output = check_output(
         tmp_path,
         "sentry_example",
-        ["stdout", "attachment", "capture-event", "add-stacktrace"],
+        ["attachment", "capture-event", "add-stacktrace"],
     )
     envelope = Envelope.deserialize(output)
 
