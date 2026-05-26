@@ -458,8 +458,8 @@ native_backend_startup(
     const char *daemon_handler_path
         = options->handler_path ? options->handler_path->path : NULL;
 #    if defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID)
-    uint64_t tid = (uint64_t)pthread_self();
-    state->daemon_pid = sentry__crash_daemon_start(getpid(), tid,
+    uint64_t ipc_id = (uint64_t)(state->ipc->shm_id ^ (uint32_t)getpid());
+    state->daemon_pid = sentry__crash_daemon_start(getpid(), ipc_id,
         state->ipc->notify_fd, state->ipc->ready_fd, daemon_handler_path);
 #    elif defined(SENTRY_PLATFORM_MACOS)
     uint64_t tid = (uint64_t)pthread_self();

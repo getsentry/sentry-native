@@ -32,6 +32,7 @@ typedef struct {
     int shm_fd;
     int notify_fd; // Eventfd for crash notifications
     int ready_fd; // Eventfd for daemon ready signal
+    uint32_t shm_id;
     char shm_name[SENTRY_CRASH_IPC_NAME_SIZE];
     sem_t *init_sem; // Named semaphore for initialization synchronization
     char sem_name[SENTRY_CRASH_IPC_NAME_SIZE];

@@ -2,6 +2,7 @@
 
 #include "sentry_alloc.h"
 #include "sentry_logger.h"
+#include "sentry_random.h"
 #include "sentry_sync.h"
 
 #include <stdio.h>
@@ -26,14 +27,14 @@ sentry__crash_ipc_init_app(sem_t *init_sem)
     ipc->is_daemon = false;
     ipc->init_sem = init_sem; // Use provided semaphore (managed by backend)
 
-    // Create shared memory with unique name based on PID and thread ID
+    // Create shared memory with a random nonce mixed into PID and thread ID
     // macOS has a 31-character limit for POSIX shared memory names (PSEMNAMLEN)
     // Format: /s-{8_hex_chars} = 11 chars total (well under 31 limit)
     // We mix PID and TID to create a unique 32-bit identifier, allowing
     // multiple sentry_init() calls from different threads in the same process.
     uint64_t tid = (uint64_t)pthread_self();
-    uint32_t id = (uint32_t)((getpid() ^ (tid & 0xFFFFFFFF)) & 0xFFFFFFFF);
-    snprintf(ipc->shm_name, sizeof(ipc->shm_name), "/s-%08x", id);
+    ipc->shm_id = 0;
+    ipc->shm_name[0] = '\0';
 
     // Acquire semaphore for exclusive access during initialization
     if (ipc->init_sem && sem_wait(ipc->init_sem) < 0) {
@@ -43,13 +44,27 @@ sentry__crash_ipc_init_app(sem_t *init_sem)
         return NULL;
     }
 
-    // Try to create or open shared memory
+    // Try to create shared memory. Do not reuse existing names: a pre-created
+    // segment may be attacker-controlled.
     bool shm_exists = false;
-    ipc->shm_fd = shm_open(ipc->shm_name, O_CREAT | O_RDWR | O_EXCL, 0600);
-    if (ipc->shm_fd < 0 && errno == EEXIST) {
-        // Shared memory already exists - reuse it
-        shm_exists = true;
-        ipc->shm_fd = shm_open(ipc->shm_name, O_RDWR, 0600);
+    ipc->shm_fd = -1;
+    for (uint32_t attempt = 0; attempt < 8; attempt++) {
+        uint32_t nonce = 0;
+        if (sentry__getrandom(&nonce, sizeof(nonce)) != 0) {
+            nonce = (uint32_t)(uintptr_t)&nonce ^ attempt;
+        }
+        uint32_t id = (uint32_t)((getpid() ^ (tid & 0xFFFFFFFF) ^ nonce
+                                      ^ attempt)
+            & 0xFFFFFFFF);
+        snprintf(ipc->shm_name, sizeof(ipc->shm_name), "/s-%08x", id);
+        ipc->shm_fd = shm_open(ipc->shm_name, O_CREAT | O_RDWR | O_EXCL, 0600);
+        if (ipc->shm_fd >= 0) {
+            ipc->shm_id = id;
+            break;
+        }
+        if (errno != EEXIST) {
+            break;
+        }
     }
 
     if (ipc->shm_fd < 0) {
