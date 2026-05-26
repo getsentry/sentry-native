@@ -27,7 +27,7 @@ from .assertions import (
     wait_for_file,
     assert_user_feedback,
 )
-from .conditions import has_native, has_oom, is_kcov, is_asan, is_tsan, is_qemu
+from .conditions import has_native, has_oom, is_asan, is_tsan, is_qemu
 
 pytestmark = pytest.mark.skipif(
     not has_native or is_qemu,
@@ -41,8 +41,7 @@ SANITIZER_ARGS = ["shutdown-timeout", "10000"] if is_asan or is_tsan else []
 
 def run_crash(tmp_path, exe, args, env):
     """
-    Run a crash test, handling kcov's quirk of exiting with 0.
-    kcov intercepts signals and may exit cleanly even when the program crashes.
+    Run a crash test.
 
     When running under ASAN, we configure it to not intercept crash signals
     so that our native crash handler can run and capture the crash.
@@ -63,14 +62,7 @@ def run_crash(tmp_path, exe, args, env):
         else:
             env["ASAN_OPTIONS"] = asan_signal_opts
 
-    if is_kcov:
-        try:
-            run(tmp_path, exe, args, expect_failure=True, env=env)
-        except AssertionError:
-            # kcov may exit with 0 even on crash, that's acceptable
-            pass
-    else:
-        run(tmp_path, exe, args, expect_failure=True, env=env)
+    run(tmp_path, exe, args, expect_failure=True, env=env)
 
 
 def test_native_capture_crash(cmake, httpserver):

@@ -38,7 +38,6 @@ from .conditions import (
     has_breakpad,
     has_native,
     has_files,
-    is_kcov,
     is_asan,
     is_qemu,
 )
@@ -299,7 +298,6 @@ def test_user_report_http(cmake, httpserver):
     assert_user_report(envelope)
 
 
-@pytest.mark.skipif(is_kcov, reason="kcov exits with 0 even when the process crashes")
 @pytest.mark.parametrize(
     "build_args",
     [
@@ -812,7 +810,6 @@ def test_discarding_before_breadcrumb_http(cmake, httpserver):
     assert_no_breadcrumbs(envelope)
 
 
-@pytest.mark.skipif(is_kcov, reason="kcov exits with 0 even when the process crashes")
 @pytest.mark.skipif(not has_native or is_qemu, reason="test needs native backend")
 def test_native_crash_http(cmake, httpserver):
     """Test native backend crash handling with HTTP transport"""
@@ -867,7 +864,7 @@ def test_native_crash_http(cmake, httpserver):
         pytest.param(
             "native",
             marks=pytest.mark.skipif(
-                not has_native or is_qemu or is_kcov,
+                not has_native or is_qemu,
                 reason="test needs native backend",
             ),
         ),
