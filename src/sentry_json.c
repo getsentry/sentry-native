@@ -267,8 +267,6 @@ write_json_str(sentry_jsonwriter_t *jw, const char *str)
 {
     // using unsigned here because utf-8 is > 127 :-)
     const unsigned char *ptr = (const unsigned char *)str;
-    write_char(jw, '"');
-
     const unsigned char *start = ptr;
     for (; *ptr; ptr++) {
         if (!needs_escaping[*ptr]) {
@@ -322,8 +320,6 @@ write_json_str(sentry_jsonwriter_t *jw, const char *str)
     if (len) {
         jw->ops->write_buf(jw, (const char *)start, len);
     }
-
-    write_char(jw, '"');
 }
 
 static bool
@@ -416,7 +412,9 @@ sentry__jsonwriter_write_str(sentry_jsonwriter_t *jw, const char *val)
         return;
     }
     if (can_write_item(jw)) {
+        write_char(jw, '"');
         write_json_str(jw, val);
+        write_char(jw, '"');
     }
 }
 
@@ -445,7 +443,9 @@ void
 sentry__jsonwriter_write_key(sentry_jsonwriter_t *jw, const char *val)
 {
     if (can_write_item(jw)) {
+        write_char(jw, '"');
         write_json_str(jw, val);
+        write_char(jw, '"');
         write_char(jw, ':');
         jw->last_was_key = true;
     }
