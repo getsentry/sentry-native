@@ -648,6 +648,7 @@ sentry__process_old_runs(const sentry_options_t *options, uint64_t last_crash)
         }
         // make sure we don't delete ourselves if the lock check fails
         if (strcmp(options->run->run_path->path, run_dir->path) == 0) {
+            sentry__filelock_free(lock);
             continue;
         }
 
