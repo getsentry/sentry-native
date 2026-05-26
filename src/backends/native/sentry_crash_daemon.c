@@ -605,7 +605,8 @@ static void
 enrich_frame_with_module_info(
     const sentry_crash_context_t *ctx, sentry_value_t frame, uint64_t addr)
 {
-    for (uint32_t i = 0; i < ctx->module_count; i++) {
+    uint32_t module_count = MIN(ctx->module_count, SENTRY_CRASH_MAX_MODULES);
+    for (uint32_t i = 0; i < module_count; i++) {
         const sentry_module_info_t *mod = &ctx->modules[i];
         if (addr >= mod->base_address && addr < mod->base_address + mod->size) {
             // Set package to full module path (matches minidump format)
@@ -620,7 +621,7 @@ enrich_frame_with_module_info(
     }
     // No matching module found - log for debugging
     SENTRY_DEBUGF("Frame 0x%llx NOT matched to any module (module_count=%u)",
-        (unsigned long long)addr, ctx->module_count);
+        (unsigned long long)addr, module_count);
 }
 
 #if defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID)
@@ -1210,7 +1211,8 @@ static void
 enrich_frame_with_symbol(
     const sentry_crash_context_t *ctx, sentry_value_t frame, uint64_t addr)
 {
-    for (uint32_t i = 0; i < ctx->module_count; i++) {
+    uint32_t module_count = MIN(ctx->module_count, SENTRY_CRASH_MAX_MODULES);
+    for (uint32_t i = 0; i < module_count; i++) {
         const sentry_module_info_t *mod = &ctx->modules[i];
         if (addr < mod->base_address || addr >= mod->base_address + mod->size) {
             continue;
@@ -2334,11 +2336,12 @@ build_native_crash_event(
     // Add debug_meta with module images from crashed process
     // (ctx->modules[] was captured in the signal handler of the crashed
     // process)
-    SENTRY_DEBUGF("Module count for debug_meta: %u", ctx->module_count);
-    if (ctx->module_count > 0) {
+    uint32_t module_count = MIN(ctx->module_count, SENTRY_CRASH_MAX_MODULES);
+    SENTRY_DEBUGF("Module count for debug_meta: %u", module_count);
+    if (module_count > 0) {
         sentry_value_t images = sentry_value_new_list();
 
-        for (uint32_t i = 0; i < ctx->module_count; i++) {
+        for (uint32_t i = 0; i < module_count; i++) {
             const sentry_module_info_t *mod = &ctx->modules[i];
             sentry_value_t image = sentry_value_new_object();
 
@@ -2456,7 +2459,7 @@ build_native_crash_event(
         sentry_value_set_by_key(debug_meta, "images", images);
         sentry_value_set_by_key(event, "debug_meta", debug_meta);
         SENTRY_DEBUGF("Added %u modules from crashed process to debug_meta",
-            ctx->module_count);
+            module_count);
     } else {
         SENTRY_WARN("No modules captured - debug_meta.images will be empty!");
     }
