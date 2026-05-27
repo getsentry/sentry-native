@@ -2908,11 +2908,13 @@ write_envelope_with_minidump(const sentry_options_t *options,
 #if defined(SENTRY_PLATFORM_WINDOWS)
                 add_wer_context(event, ctx);
 #endif
-                char *updated_event_json = sentry_value_to_json(event);
-                if (updated_event_json) {
+                size_t new_event_size = 0;
+                char *new_event_json
+                    = sentry__value_to_json(event, &new_event_size);
+                if (new_event_json) {
                     sentry_free(event_json);
-                    event_json = updated_event_json;
-                    event_size = strlen(event_json);
+                    event_json = new_event_json;
+                    event_size = new_event_size;
                 }
             }
             sentry_value_decref(event);
