@@ -2310,7 +2310,8 @@ write_envelope_with_native_stacktrace(const sentry_options_t *options,
     sentry_value_t event = build_native_crash_event(ctx, event_file_path);
 
     // Serialize event to JSON
-    char *event_json = sentry_value_to_json(event);
+    size_t event_size = 0;
+    char *event_json = sentry__value_to_json(event, &event_size);
     char *event_id = sentry__string_clone(
         sentry_value_as_string(sentry_value_get_by_key(event, "event_id")));
     sentry_value_decref(event);
@@ -2320,8 +2321,6 @@ write_envelope_with_native_stacktrace(const sentry_options_t *options,
         sentry_free(event_id);
         return false;
     }
-
-    size_t event_size = strlen(event_json);
 
     // Open envelope file for writing
 #if defined(SENTRY_PLATFORM_UNIX)

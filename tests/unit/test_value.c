@@ -881,6 +881,24 @@ SENTRY_TEST(value_json_deeply_nested)
     sentry_value_decref(parsed);
 }
 
+SENTRY_TEST(value_json_len_out)
+{
+    const char expected[] = "{\"message\":\"escaped\\nvalue\"}";
+    sentry_value_t value = sentry_value_new_object();
+    sentry_value_set_by_key(
+        value, "message", sentry_value_new_string("escaped\nvalue"));
+
+    size_t json_len = 0;
+    char *json = sentry__value_to_json(value, &json_len);
+    sentry_value_decref(value);
+
+    TEST_ASSERT(!!json);
+    TEST_CHECK_STRING_EQUAL(json, expected);
+    TEST_CHECK_INT_EQUAL(json_len, sizeof(expected) - 1);
+
+    sentry_free(json);
+}
+
 SENTRY_TEST(value_json_escaping)
 {
     sentry_value_t rv = sentry__value_from_json(
