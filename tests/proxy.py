@@ -2,6 +2,7 @@ import contextlib
 import os
 import socket
 import subprocess
+import threading
 import time
 
 import psutil
@@ -98,8 +99,14 @@ def start_mitmdump(
         if proxy_auth:
             proxy_command += ["-v", "--proxyauth", proxy_auth]
 
+        proxy_env = os.environ.copy()
+        proxy_env["PYTHONUNBUFFERED"] = "1"
+
         proxy_process = subprocess.Popen(
-            proxy_command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT
+            proxy_command,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            env=proxy_env,
         )
 
         try:
@@ -132,15 +139,31 @@ def proxy_test_finally(
         expected_proxy_logsize = expected_httpserver_logsize
 
     if proxy_process:
+        stdout = []
+
+        def read_proxy_stdout():
+            if proxy_process.stdout is None:
+                return
+            for line in iter(proxy_process.stdout.readline, b""):
+                stdout.append(line.decode("utf-8", errors="replace"))
+
+        reader = threading.Thread(target=read_proxy_stdout, daemon=True)
+        reader.start()
+
         # Give mitmdump some time to get a response from the mock server
-        wait_for(lambda: len(httpserver.log) >= expected_httpserver_logsize, timeout)
+        assert wait_for(
+            lambda: len(httpserver.log) >= expected_httpserver_logsize, timeout
+        )
+        if expected_proxy_logsize != 0:
+            # request passed through successfully
+            assert wait_for(
+                lambda: "POST" in "".join(stdout) and "200 OK" in "".join(stdout),
+                timeout,
+            )
         proxy_process.terminate()
-        stdout_bytes, _ = proxy_process.communicate()
-        stdout = stdout_bytes.decode("utf-8", errors="replace")
+        stdout_bytes, _ = proxy_process.communicate(timeout=timeout)
+        stdout = "".join(stdout) + stdout_bytes.decode("utf-8", errors="replace")
         if expected_proxy_logsize == 0:
             # don't expect any incoming requests to make it through the proxy
             proxy_log_assert(stdout)
-        else:
-            # request passed through successfully
-            assert "POST" in stdout and "200 OK" in stdout
     assert len(httpserver.log) == expected_httpserver_logsize
