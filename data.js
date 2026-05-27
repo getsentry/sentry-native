@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1779898022198,
+  "lastUpdate": 1779898054081,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -46594,6 +46594,66 @@ window.BENCHMARK_DATA = {
             "value": 8.635417000050438,
             "unit": "ms",
             "extra": "Min 7.938ms\nMax 13.782ms\nMean 10.305ms\nStdDev 2.880ms\nMedian 8.635ms\nCPU 1.266ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "jpnurmi@gmail.com",
+            "name": "J-P Nurmi",
+            "username": "jpnurmi"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "7708563b341097b001e646bc8b9fc0ec462213ba",
+          "message": "fix(native): Honor the `system_crash_reporter_enabled` option (#1743)\n\n* fix(native): Chain previous signal handlers in crash path\n\nRestore the signal handlers that were installed before Sentry before\nterminating after native crash processing. This lets runtimes and other crash\nhandlers observe the crash after Sentry captures it.\n\nCo-Authored-By: OpenAI Codex <noreply@openai.com>\n\n* fix(native): Honor system crash reporter forwarding\n\nPropagate system_crash_reporter_enabled into the native crash context and use it\non macOS after previous signal handlers have run. When disabled, exit without\nre-raising so the system crash reporter is not invoked by default.\n\nCo-Authored-By: OpenAI Codex <noreply@openai.com>\n\n* Update CHANGELOG.md\n\n---------\n\nCo-authored-by: OpenAI Codex <noreply@openai.com>",
+          "timestamp": "2026-05-27T18:04:27+02:00",
+          "tree_id": "45714e0078545fc38318b7520e9ac94830f7ce4e",
+          "url": "https://github.com/getsentry/sentry-native/commit/7708563b341097b001e646bc8b9fc0ec462213ba"
+        },
+        "date": 1779898047177,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 3.2103329999984,
+            "unit": "ms",
+            "extra": "Min 3.030ms\nMax 3.441ms\nMean 3.217ms\nStdDev 0.160ms\nMedian 3.210ms\nCPU 1.876ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 3.76829100000009,
+            "unit": "ms",
+            "extra": "Min 3.342ms\nMax 4.417ms\nMean 3.786ms\nStdDev 0.457ms\nMedian 3.768ms\nCPU 2.252ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 12.160458000010976,
+            "unit": "ms",
+            "extra": "Min 10.386ms\nMax 18.782ms\nMean 13.141ms\nStdDev 3.356ms\nMedian 12.160ms\nCPU 4.028ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.07045899999980065,
+            "unit": "ms",
+            "extra": "Min 0.040ms\nMax 0.091ms\nMean 0.068ms\nStdDev 0.022ms\nMedian 0.070ms\nCPU 0.038ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.2575419999857331,
+            "unit": "ms",
+            "extra": "Min 0.200ms\nMax 0.294ms\nMean 0.247ms\nStdDev 0.036ms\nMedian 0.258ms\nCPU 0.246ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 9.61066600001459,
+            "unit": "ms",
+            "extra": "Min 8.920ms\nMax 11.186ms\nMean 9.722ms\nStdDev 0.885ms\nMedian 9.611ms\nCPU 0.857ms"
           }
         ]
       }
