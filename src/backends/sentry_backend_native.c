@@ -295,6 +295,7 @@ native_backend_startup(
 
     // Set crash reporting mode from options
     ctx->crash_reporting_mode = options->crash_reporting_mode;
+    ctx->system_crash_reporter_enabled = options->system_crash_reporter_enabled;
     ctx->crash_upload_mode = options->crash_upload_mode;
 
     // Pass debug logging setting to daemon

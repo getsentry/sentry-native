@@ -288,6 +288,7 @@ typedef struct {
     bool http_retry;
     uint64_t shutdown_timeout;
     uint64_t transfer_timeout;
+    bool system_crash_reporter_enabled;
 
     // Atomic user consent (sentry_user_consent_t), updated whenever user
     // consent changes so the daemon can honor it at crash time.
