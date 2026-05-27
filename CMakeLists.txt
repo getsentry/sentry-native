@@ -103,6 +103,12 @@ endif()
 
 option(SENTRY_PIC "Build sentry (and dependent) libraries as position independent libraries" ON)
 
+if(LINUX)
+	option(SENTRY_LIBUNWIND_SYSTEM "Use system libunwind library" OFF)
+else()
+	set(SENTRY_LIBUNWIND_SYSTEM OFF)
+endif()
+
 option(SENTRY_TRANSPORT_COMPRESSION "Enable transport gzip compression" OFF)
 
 option(SENTRY_BUILD_TESTS "Build sentry-native tests" "${SENTRY_MAIN_PROJECT}")
@@ -670,14 +676,24 @@ endif()
 
 if(SENTRY_WITH_LIBUNWIND)
 	if(LINUX)
-		# Use vendored libunwind
-		add_subdirectory(vendor/libunwind)
-		target_link_libraries(sentry PRIVATE unwind)
-		if(NOT SENTRY_BUILD_SHARED_LIBS)
-			sentry_install(TARGETS unwind EXPORT sentry
-				LIBRARY DESTINATION "${CMAKE_INSTALL_LIBDIR}"
-				ARCHIVE DESTINATION "${CMAKE_INSTALL_LIBDIR}"
-			)
+		if(SENTRY_LIBUNWIND_SYSTEM)
+			find_package(PkgConfig REQUIRED)
+			pkg_check_modules(LIBUNWIND REQUIRED IMPORTED_TARGET libunwind)
+			if(SENTRY_BUILD_SHARED_LIBS)
+				target_link_libraries(sentry PRIVATE PkgConfig::LIBUNWIND)
+			else()
+				target_link_libraries(sentry PUBLIC PkgConfig::LIBUNWIND)
+			endif()
+		else()
+			# Use vendored libunwind
+			add_subdirectory(vendor/libunwind)
+			target_link_libraries(sentry PRIVATE unwind)
+			if(NOT SENTRY_BUILD_SHARED_LIBS)
+				sentry_install(TARGETS unwind EXPORT sentry
+					LIBRARY DESTINATION "${CMAKE_INSTALL_LIBDIR}"
+					ARCHIVE DESTINATION "${CMAKE_INSTALL_LIBDIR}"
+				)
+			endif()
 		endif()
 	endif()
 endif()
@@ -874,7 +890,11 @@ elseif(SENTRY_BACKEND_NATIVE)
 	endif()
 
 	if(SENTRY_WITH_LIBUNWIND AND LINUX)
-		target_link_libraries(sentry-crash PRIVATE unwind)
+		if(SENTRY_LIBUNWIND_SYSTEM)
+			target_link_libraries(sentry-crash PRIVATE PkgConfig::LIBUNWIND)
+		else()
+			target_link_libraries(sentry-crash PRIVATE unwind)
+		endif()
 	endif()
 
 	# Make sentry library depend on crash daemon so it's always built together
