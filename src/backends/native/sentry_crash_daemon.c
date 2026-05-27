@@ -2236,17 +2236,17 @@ build_stacktrace_from_ctx(const sentry_crash_context_t *ctx)
 }
 
 #if defined(SENTRY_PLATFORM_WINDOWS)
-static void
+static bool
 add_wer_context(sentry_value_t event, const sentry_crash_context_t *ctx)
 {
     if (!ctx->platform.wer_enabled) {
-        return;
+        return false;
     }
 
     sentry_value_t wer_context = sentry__wer_report_lookup(ctx->crash_event_id);
     if (sentry_value_is_null(wer_context)) {
         if (sentry__string_empty(ctx->platform.wer_report_id)) {
-            return;
+            return false;
         }
         wer_context = sentry_value_new_object();
     }
@@ -2266,6 +2266,7 @@ add_wer_context(sentry_value_t event, const sentry_crash_context_t *ctx)
         sentry_value_set_by_key(event, "contexts", contexts);
     }
     sentry_value_set_by_key(contexts, "wer", wer_context);
+    return true;
 }
 #endif
 
@@ -2901,13 +2902,11 @@ write_envelope_with_minidump(const sentry_options_t *options,
     if (ev_path) {
         event_json = sentry__path_read_to_buffer(ev_path, &event_size);
         sentry__path_free(ev_path);
+#if defined(SENTRY_PLATFORM_WINDOWS)
         if (event_json && event_size > 0) {
             sentry_value_t event
                 = sentry__value_from_json(event_json, event_size);
-            if (!sentry_value_is_null(event)) {
-#if defined(SENTRY_PLATFORM_WINDOWS)
-                add_wer_context(event, ctx);
-#endif
+            if (!sentry_value_is_null(event) && add_wer_context(event, ctx)) {
                 size_t new_event_size = 0;
                 char *new_event_json
                     = sentry__value_to_json(event, &new_event_size);
@@ -2919,6 +2918,7 @@ write_envelope_with_minidump(const sentry_options_t *options,
             }
             sentry_value_decref(event);
         }
+#endif
     }
 
     // Open envelope file for writing
