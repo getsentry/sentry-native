@@ -2256,8 +2256,7 @@ add_wer_context(sentry_value_t event, const sentry_crash_context_t *ctx)
     const char *context_report_id = sentry_value_as_string(
         sentry_value_get_by_key(wer_context, "report_id"));
     if (sentry__string_empty(context_report_id)) {
-        sentry_value_set_by_key(
-            wer_context, "report_id",
+        sentry_value_set_by_key(wer_context, "report_id",
             sentry_value_new_string(ctx->platform.wer_report_id));
     }
 

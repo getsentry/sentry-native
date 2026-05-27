@@ -623,14 +623,14 @@ SENTRY_TEST(wer_metadata)
         = sentry_value_get_by_key(wer_report, "metadata");
     TEST_CHECK(
         sentry_value_get_type(custom_metadata) == SENTRY_VALUE_TYPE_OBJECT);
-    TEST_CHECK_STRING_EQUAL(sentry_value_as_string(sentry_value_get_by_key(
-                                custom_metadata, "foo")),
+    TEST_CHECK_STRING_EQUAL(
+        sentry_value_as_string(sentry_value_get_by_key(custom_metadata, "foo")),
         "ooo");
-    TEST_CHECK_STRING_EQUAL(sentry_value_as_string(sentry_value_get_by_key(
-                                custom_metadata, "bar")),
+    TEST_CHECK_STRING_EQUAL(
+        sentry_value_as_string(sentry_value_get_by_key(custom_metadata, "bar")),
         "aaa");
-    TEST_CHECK_STRING_EQUAL(sentry_value_as_string(sentry_value_get_by_key(
-                                custom_metadata, "baz")),
+    TEST_CHECK_STRING_EQUAL(
+        sentry_value_as_string(sentry_value_get_by_key(custom_metadata, "baz")),
         "zzz");
     TEST_CHECK(sentry_value_is_null(
         sentry_value_get_by_key(custom_metadata, SENTRY_WER_EVENT_ID_KEY)));

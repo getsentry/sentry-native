@@ -189,15 +189,16 @@ copy_xml_tag(const wchar_t *xml, const wchar_t *tag, wchar_t *out, size_t len)
 }
 
 static void
-trim_wstr_range(
-    const wchar_t **start, const wchar_t **end)
+trim_wstr_range(const wchar_t **start, const wchar_t **end)
 {
-    while (*start < *end && (**start == L' ' || **start == L'\t'
-                              || **start == L'\r' || **start == L'\n')) {
+    while (*start < *end
+        && (**start == L' ' || **start == L'\t' || **start == L'\r'
+            || **start == L'\n')) {
         (*start)++;
     }
-    while (*end > *start && ((*end)[-1] == L' ' || (*end)[-1] == L'\t'
-                              || (*end)[-1] == L'\r' || (*end)[-1] == L'\n')) {
+    while (*end > *start
+        && ((*end)[-1] == L' ' || (*end)[-1] == L'\t' || (*end)[-1] == L'\r'
+            || (*end)[-1] == L'\n')) {
         (*end)--;
     }
 }
@@ -206,8 +207,7 @@ static void
 set_wstr_range(sentry_value_t object, const wchar_t *key_start, size_t key_len,
     const wchar_t *value_start, const wchar_t *value_end)
 {
-    if (key_len
-            == (sizeof(SENTRY_WER_EVENT_ID_KEY_W) / sizeof(wchar_t)) - 1
+    if (key_len == (sizeof(SENTRY_WER_EVENT_ID_KEY_W) / sizeof(wchar_t)) - 1
         && wcsncmp(key_start, SENTRY_WER_EVENT_ID_KEY_W, key_len) == 0) {
         return;
     }
