@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1779868092000,
+  "lastUpdate": 1779868132380,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -45634,6 +45634,66 @@ window.BENCHMARK_DATA = {
             "value": 8.866083000043545,
             "unit": "ms",
             "extra": "Min 8.054ms\nMax 17.319ms\nMean 11.559ms\nStdDev 4.186ms\nMedian 8.866ms\nCPU 1.225ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "49699333+dependabot[bot]@users.noreply.github.com",
+            "name": "dependabot[bot]",
+            "username": "dependabot[bot]"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "9fdfd6770bbea4a40b9036a57c14774240ec1e48",
+          "message": "build(deps): bump docker/setup-buildx-action from 4.0.0 to 4.1.0 (#1757)\n\nBumps [docker/setup-buildx-action](https://github.com/docker/setup-buildx-action) from 4.0.0 to 4.1.0.\n- [Release notes](https://github.com/docker/setup-buildx-action/releases)\n- [Commits](https://github.com/docker/setup-buildx-action/compare/4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd...d7f5e7f509e45cec5c76c4d5afdd7de93d0b3df5)\n\n---\nupdated-dependencies:\n- dependency-name: docker/setup-buildx-action\n  dependency-version: 4.1.0\n  dependency-type: direct:production\n  update-type: version-update:semver-minor\n...\n\nSigned-off-by: dependabot[bot] <support@github.com>\nCo-authored-by: dependabot[bot] <49699333+dependabot[bot]@users.noreply.github.com>",
+          "timestamp": "2026-05-27T09:45:42+02:00",
+          "tree_id": "9786ef7e1018b08cf9837b14564c62ddd9c81752",
+          "url": "https://github.com/getsentry/sentry-native/commit/9fdfd6770bbea4a40b9036a57c14774240ec1e48"
+        },
+        "date": 1779868126133,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 3.536707999984401,
+            "unit": "ms",
+            "extra": "Min 3.274ms\nMax 4.642ms\nMean 3.696ms\nStdDev 0.540ms\nMedian 3.537ms\nCPU 2.102ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 3.493125000005648,
+            "unit": "ms",
+            "extra": "Min 3.203ms\nMax 4.102ms\nMean 3.549ms\nStdDev 0.332ms\nMedian 3.493ms\nCPU 2.095ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 15.600000000006276,
+            "unit": "ms",
+            "extra": "Min 14.850ms\nMax 21.291ms\nMean 16.744ms\nStdDev 2.693ms\nMedian 15.600ms\nCPU 5.505ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.0818330000242895,
+            "unit": "ms",
+            "extra": "Min 0.064ms\nMax 0.126ms\nMean 0.087ms\nStdDev 0.023ms\nMedian 0.082ms\nCPU 0.058ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.29070900001215705,
+            "unit": "ms",
+            "extra": "Min 0.231ms\nMax 0.318ms\nMean 0.285ms\nStdDev 0.032ms\nMedian 0.291ms\nCPU 0.284ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 7.58566700000074,
+            "unit": "ms",
+            "extra": "Min 7.183ms\nMax 8.210ms\nMean 7.697ms\nStdDev 0.431ms\nMedian 7.586ms\nCPU 0.973ms"
           }
         ]
       }
