@@ -8,7 +8,7 @@ import psutil
 
 import pytest
 
-from tests.assertions import assert_no_proxy_request
+from tests.assertions import assert_no_proxy_request, wait_for
 
 
 @contextlib.contextmanager
@@ -126,13 +126,14 @@ def proxy_test_finally(
     proxy_process,
     proxy_log_assert=assert_no_proxy_request,
     expected_proxy_logsize=None,
+    timeout=10,
 ):
     if expected_proxy_logsize is None:
         expected_proxy_logsize = expected_httpserver_logsize
 
     if proxy_process:
         # Give mitmdump some time to get a response from the mock server
-        time.sleep(0.5)
+        wait_for(lambda: len(httpserver.log) >= expected_httpserver_logsize, timeout)
         proxy_process.terminate()
         stdout_bytes, _ = proxy_process.communicate()
         stdout = stdout_bytes.decode("utf-8", errors="replace")
