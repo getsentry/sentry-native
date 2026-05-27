@@ -28,7 +28,7 @@ from .assertions import (
     wait_for_file,
     assert_user_feedback,
 )
-from .conditions import has_native, has_oom, is_asan, is_kcov, is_tsan, is_qemu
+from .conditions import has_native, has_oom, is_asan, is_tsan, is_qemu
 
 pytestmark = pytest.mark.skipif(
     not has_native or is_qemu,
@@ -63,14 +63,7 @@ def run_crash(tmp_path, exe, args, env, **kwargs):
         else:
             env["ASAN_OPTIONS"] = asan_signal_opts
 
-    if is_kcov:
-        try:
-            run(tmp_path, exe, args, expect_failure=True, env=env, **kwargs)
-        except AssertionError:
-            # kcov may exit with 0 even on crash, that's acceptable
-            pass
-    else:
-        run(tmp_path, exe, args, expect_failure=True, env=env, **kwargs)
+    run(tmp_path, exe, args, expect_failure=True, env=env, **kwargs)
 
 
 def test_native_capture_crash(cmake, httpserver):
