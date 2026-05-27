@@ -152,11 +152,8 @@ sentry__transaction_context_free(sentry_transaction_context_t *tx_ctx)
     if (!tx_ctx) {
         return;
     }
-    if (sentry_value_refcount(tx_ctx->inner) <= 1) {
-        sentry_value_decref(tx_ctx->inner);
+    if (!sentry_value_decref(tx_ctx->inner)) {
         sentry_free(tx_ctx);
-    } else {
-        sentry_value_decref(tx_ctx->inner);
     }
 }
 
