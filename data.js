@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1779876125971,
+  "lastUpdate": 1779876192747,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -69232,6 +69232,66 @@ window.BENCHMARK_DATA = {
             "value": 15.291899999965608,
             "unit": "ms",
             "extra": "Min 14.652ms\nMax 17.016ms\nMean 15.681ms\nStdDev 0.972ms\nMedian 15.292ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "jpnurmi@gmail.com",
+            "name": "J-P Nurmi",
+            "username": "jpnurmi"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "ed256b013d932b4fbee45663c0e4cb87a2372ac2",
+          "message": "ci: Bump kcov and re-enable crash exit checks (#1755)\n\nPin the CI-built kcov revision to the upstream merge that preserves signal\nexit codes after crashes.\n\nRemove kcov-specific crash exit fallbacks and per-test skips for paths that\ncan run under kcov, while keeping ptrace-based Crashpad and Breakpad tests\ndisabled.\n\nCo-authored-by: OpenAI Codex <noreply@openai.com>",
+          "timestamp": "2026-05-27T11:58:02+02:00",
+          "tree_id": "42ecd980f81066d19d30de1a5aef429bc989bfb9",
+          "url": "https://github.com/getsentry/sentry-native/commit/ed256b013d932b4fbee45663c0e4cb87a2372ac2"
+        },
+        "date": 1779876185239,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 10.694199999988996,
+            "unit": "ms",
+            "extra": "Min 10.253ms\nMax 11.807ms\nMean 10.798ms\nStdDev 0.603ms\nMedian 10.694ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 11.296599999923274,
+            "unit": "ms",
+            "extra": "Min 10.938ms\nMax 12.203ms\nMean 11.448ms\nStdDev 0.477ms\nMedian 11.297ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 28.75769999991462,
+            "unit": "ms",
+            "extra": "Min 27.489ms\nMax 32.346ms\nMean 29.283ms\nStdDev 1.905ms\nMedian 28.758ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.24000000007617928,
+            "unit": "ms",
+            "extra": "Min 0.197ms\nMax 0.296ms\nMean 0.240ms\nStdDev 0.038ms\nMedian 0.240ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.45079999995323305,
+            "unit": "ms",
+            "extra": "Min 0.448ms\nMax 0.491ms\nMean 0.460ms\nStdDev 0.018ms\nMedian 0.451ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 15.93830000001617,
+            "unit": "ms",
+            "extra": "Min 15.420ms\nMax 16.349ms\nMean 15.924ms\nStdDev 0.337ms\nMedian 15.938ms"
           }
         ]
       }
