@@ -2805,10 +2805,11 @@ write_envelope_with_minidump(const sentry_options_t *options,
  *
  * Called by the crash daemon (out-of-process on Linux/macOS).
  */
-void
+bool
 sentry__process_crash(const sentry_options_t *options, sentry_crash_ipc_t *ipc)
 {
     SENTRY_DEBUG("Processing crash - START");
+    bool crash_captured = false;
 
     sentry_crash_context_t *ctx = ipc->shmem;
 
@@ -3119,11 +3120,14 @@ sentry__process_crash(const sentry_options_t *options, sentry_crash_ipc_t *ipc)
         if (options && options->transport && options->run) {
             SENTRY_DEBUG("Capturing crash envelope");
             sentry__capture_envelope(options->transport, envelope, options);
+            crash_captured = true;
             SENTRY_DEBUG("Crash envelope captured (queued)");
         } else {
             SENTRY_WARN("No transport available for sending envelope");
             sentry_envelope_free(envelope);
         }
+    } else {
+        crash_captured = true;
     }
 
     // Clean up temporary envelope file (keep minidump for
@@ -3194,6 +3198,7 @@ cleanup:
 done:
     SENTRY_DEBUG("Processing crash - END");
     SENTRY_DEBUG("Crash processing complete");
+    return crash_captured;
 }
 
 /**
@@ -3481,8 +3486,20 @@ sentry__crash_daemon_main(pid_t app_pid, uint64_t app_tid, HANDLE event_handle,
             long state = sentry__atomic_fetch(&ipc->shmem->state);
             if (state == SENTRY_CRASH_STATE_CRASHED && !crash_processed) {
                 SENTRY_DEBUG("Crash notification received, processing");
-                sentry__process_crash(options, ipc);
+                bool crash_captured = sentry__process_crash(options, ipc);
                 crash_processed = true;
+
+                if (crash_captured
+                    && ipc->shmem->crash_upload_mode
+                        == SENTRY_CRASH_UPLOAD_MODE_ASYNC) {
+                    // Crash data is durable after processing returns;
+                    // remaining daemon work does not require the crashed
+                    // process.
+                    SENTRY_DEBUG(
+                        "Crash captured, allowing app process to exit");
+                    sentry__atomic_store(
+                        &ipc->shmem->state, SENTRY_CRASH_STATE_CAPTURED);
+                }
 
                 // After processing crash, exit regardless of parent state
                 // (parent has likely already exited after re-raising signal)

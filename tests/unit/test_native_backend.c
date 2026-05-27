@@ -367,6 +367,9 @@ SENTRY_TEST(crash_context_transport_fields)
 
     ctx->shutdown_timeout = 12345;
     TEST_CHECK_UINT64_EQUAL(ctx->shutdown_timeout, 12345);
+    ctx->crash_upload_mode = SENTRY_CRASH_UPLOAD_MODE_ASYNC;
+    TEST_CHECK_INT_EQUAL(
+        ctx->crash_upload_mode, SENTRY_CRASH_UPLOAD_MODE_ASYNC);
     ctx->transfer_timeout = 45000;
     TEST_CHECK_UINT64_EQUAL(ctx->transfer_timeout, 45000);
 
@@ -376,6 +379,7 @@ SENTRY_TEST(crash_context_transport_fields)
     TEST_CHECK(ctx->proxy[0] == '\0');
     TEST_CHECK(ctx->user_agent[0] == '\0');
     TEST_CHECK_UINT64_EQUAL(ctx->shutdown_timeout, 0);
+    TEST_CHECK_INT_EQUAL(ctx->crash_upload_mode, SENTRY_CRASH_UPLOAD_MODE_SYNC);
     TEST_CHECK_UINT64_EQUAL(ctx->transfer_timeout, 0);
 
     sentry_free(ctx);
@@ -398,6 +402,8 @@ SENTRY_TEST(crash_context_options_propagation)
     sentry_options_set_ca_certs(options, "/path/to/ca-bundle.crt");
     sentry_options_set_proxy(options, "http://myproxy:3128");
     sentry_options_set_shutdown_timeout(options, 12345);
+    sentry_options_set_crash_upload_mode(
+        options, SENTRY_CRASH_UPLOAD_MODE_ASYNC);
     sentry_options_set_transfer_timeout(options, 45000);
 
     // Verify options were set correctly
@@ -426,6 +432,7 @@ SENTRY_TEST(crash_context_options_propagation)
         ctx->user_agent[sizeof(ctx->user_agent) - 1] = '\0';
     }
     ctx->shutdown_timeout = options->shutdown_timeout;
+    ctx->crash_upload_mode = options->crash_upload_mode;
     ctx->transfer_timeout = options->transfer_timeout;
 
     // Verify crash context received the values
@@ -434,6 +441,8 @@ SENTRY_TEST(crash_context_options_propagation)
     // user_agent should have the default SDK user agent
     TEST_CHECK(ctx->user_agent[0] != '\0');
     TEST_CHECK_UINT64_EQUAL(ctx->shutdown_timeout, 12345);
+    TEST_CHECK_INT_EQUAL(
+        ctx->crash_upload_mode, SENTRY_CRASH_UPLOAD_MODE_ASYNC);
     TEST_CHECK_UINT64_EQUAL(ctx->transfer_timeout, 45000);
 
     sentry_free(ctx);

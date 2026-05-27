@@ -790,6 +790,10 @@ main(int argc, char **argv)
             }
         }
     }
+    if (has_arg(argc, argv, "async-crash-upload")) {
+        sentry_options_set_crash_upload_mode(
+            options, SENTRY_CRASH_UPLOAD_MODE_ASYNC);
+    }
 
     // E2E test mode: generate unique test ID for event correlation
     char e2e_test_id[37] = { 0 };

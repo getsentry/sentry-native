@@ -98,6 +98,7 @@ sentry_options_new(void)
     opts->crash_reporting_mode
         = SENTRY_CRASH_REPORTING_MODE_NATIVE_WITH_MINIDUMP; // Default: best of
                                                             // both worlds
+    opts->crash_upload_mode = SENTRY_CRASH_UPLOAD_MODE_SYNC;
     opts->http_retry = false;
     opts->send_client_reports = true;
     opts->enable_large_attachments = false;
@@ -614,6 +615,25 @@ sentry_crash_reporting_mode_t
 sentry_options_get_crash_reporting_mode(const sentry_options_t *opts)
 {
     return (sentry_crash_reporting_mode_t)opts->crash_reporting_mode;
+}
+
+void
+sentry_options_set_crash_upload_mode(
+    sentry_options_t *opts, sentry_crash_upload_mode_t mode)
+{
+    int imode = (int)mode;
+    if (imode < SENTRY_CRASH_UPLOAD_MODE_SYNC) {
+        imode = SENTRY_CRASH_UPLOAD_MODE_SYNC;
+    } else if (imode > SENTRY_CRASH_UPLOAD_MODE_ASYNC) {
+        imode = SENTRY_CRASH_UPLOAD_MODE_ASYNC;
+    }
+    opts->crash_upload_mode = imode;
+}
+
+sentry_crash_upload_mode_t
+sentry_options_get_crash_upload_mode(const sentry_options_t *opts)
+{
+    return (sentry_crash_upload_mode_t)opts->crash_upload_mode;
 }
 
 void

@@ -39,7 +39,7 @@ pytestmark = pytest.mark.skipif(
 SANITIZER_ARGS = ["shutdown-timeout", "10000"] if is_asan or is_tsan else []
 
 
-def run_crash(tmp_path, exe, args, env):
+def run_crash(tmp_path, exe, args, env, wait_for_daemon=False):
     """
     Run a crash test.
 
@@ -62,7 +62,14 @@ def run_crash(tmp_path, exe, args, env):
         else:
             env["ASAN_OPTIONS"] = asan_signal_opts
 
-    run(tmp_path, exe, args, expect_failure=True, env=env)
+    run(
+        tmp_path,
+        exe,
+        args,
+        expect_failure=True,
+        env=env,
+        wait_for_daemon=wait_for_daemon,
+    )
 
 
 def test_native_capture_crash(cmake, httpserver):
@@ -1005,6 +1012,7 @@ def test_native_cache_keep(cmake, cache_keep, unreachable_dsn):
         "sentry_example",
         ["log", "stdout", "crash"] + (["cache-keep"] if cache_keep else []),
         env=env,
+        wait_for_daemon=not cache_keep,
     )
 
     if cache_keep:
@@ -1015,8 +1023,4 @@ def test_native_cache_keep(cmake, cache_keep, unreachable_dsn):
         assert len(dmp_files) == 1
         assert cache_files[0].stem == dmp_files[0].stem
     else:
-        # Best-effort wait for crash processing to finish. 2s is not
-        # guaranteed to be enough, but we cannot poll for the non-existence
-        # of a file.
-        time.sleep(2)
         assert len(list(cache_dir.glob("*.envelope"))) == 0
