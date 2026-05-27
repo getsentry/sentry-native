@@ -30,7 +30,6 @@ from .conditions import (
     has_http,
     has_native,
     is_asan,
-    is_kcov,
 )
 
 # Skip all tests if E2E env vars not configured
@@ -357,7 +356,7 @@ def run_crash_e2e(tmp_path, exe, args, env, wait_for_daemon=False):
     """
     Run a crash test for E2E, capturing output for test ID extraction.
 
-    Handles ASAN and kcov quirks similar to run_crash in test_integration_native.py.
+    Handles ASAN signal handling similar to run_crash in test_integration_native.py.
     """
     if is_asan:
         asan_opts = env.get("ASAN_OPTIONS", "")
@@ -371,30 +370,14 @@ def run_crash_e2e(tmp_path, exe, args, env, wait_for_daemon=False):
             env["ASAN_OPTIONS"] = asan_signal_opts
 
     # Use check_output to capture stdout for test ID extraction
-    try:
-        output = check_output(
-            tmp_path,
-            exe,
-            args,
-            env=env,
-            expect_failure=True,
-            wait_for_daemon=wait_for_daemon,
-        )
-    except AssertionError:
-        if is_kcov:
-            # kcov may exit with 0 even on crash, try without expect_failure
-            output = check_output(
-                tmp_path,
-                exe,
-                args,
-                env=env,
-                expect_failure=False,
-                wait_for_daemon=wait_for_daemon,
-            )
-        else:
-            raise
-
-    return output
+    return check_output(
+        tmp_path,
+        exe,
+        args,
+        env=env,
+        expect_failure=True,
+        wait_for_daemon=wait_for_daemon,
+    )
 
 
 @pytest.mark.skipif(
