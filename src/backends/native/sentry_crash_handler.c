@@ -1017,7 +1017,13 @@ crash_exception_filter(EXCEPTION_POINTERS *exception_info)
     sentry_uctx.exception_ptrs = *exception_info;
     sentry_handle_exception(&sentry_uctx);
 
-    if (ctx->platform.wer_enabled) {
+    // STATUS_FATAL_APP_EXIT (from SIGABRT/abort()) goes through the signal
+    // handler, not SEH. WER's runtime exception module is never invoked, so
+    // EXCEPTION_CONTINUE_SEARCH would be ignored and the process terminated
+    // without notifying the daemon. Fall through to the direct claim path.
+    if (ctx->platform.wer_enabled
+        && exception_info->ExceptionRecord->ExceptionCode
+            != STATUS_FATAL_APP_EXIT) {
         // Use the WER helper notification path so WER metadata is available
         // before the daemon processes the crash
         return EXCEPTION_CONTINUE_SEARCH;
