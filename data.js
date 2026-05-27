@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1779898054081,
+  "lastUpdate": 1779898166850,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -69952,6 +69952,66 @@ window.BENCHMARK_DATA = {
             "value": 13.160099999822705,
             "unit": "ms",
             "extra": "Min 12.763ms\nMax 13.663ms\nMean 13.192ms\nStdDev 0.337ms\nMedian 13.160ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "jpnurmi@gmail.com",
+            "name": "J-P Nurmi",
+            "username": "jpnurmi"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "7708563b341097b001e646bc8b9fc0ec462213ba",
+          "message": "fix(native): Honor the `system_crash_reporter_enabled` option (#1743)\n\n* fix(native): Chain previous signal handlers in crash path\n\nRestore the signal handlers that were installed before Sentry before\nterminating after native crash processing. This lets runtimes and other crash\nhandlers observe the crash after Sentry captures it.\n\nCo-Authored-By: OpenAI Codex <noreply@openai.com>\n\n* fix(native): Honor system crash reporter forwarding\n\nPropagate system_crash_reporter_enabled into the native crash context and use it\non macOS after previous signal handlers have run. When disabled, exit without\nre-raising so the system crash reporter is not invoked by default.\n\nCo-Authored-By: OpenAI Codex <noreply@openai.com>\n\n* Update CHANGELOG.md\n\n---------\n\nCo-authored-by: OpenAI Codex <noreply@openai.com>",
+          "timestamp": "2026-05-27T18:04:27+02:00",
+          "tree_id": "45714e0078545fc38318b7520e9ac94830f7ce4e",
+          "url": "https://github.com/getsentry/sentry-native/commit/7708563b341097b001e646bc8b9fc0ec462213ba"
+        },
+        "date": 1779898157006,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 13.135400000010122,
+            "unit": "ms",
+            "extra": "Min 10.694ms\nMax 20.906ms\nMean 14.292ms\nStdDev 4.147ms\nMedian 13.135ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 12.040600000091217,
+            "unit": "ms",
+            "extra": "Min 10.398ms\nMax 13.236ms\nMean 11.892ms\nStdDev 1.312ms\nMedian 12.041ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 26.0409999998501,
+            "unit": "ms",
+            "extra": "Min 25.108ms\nMax 26.351ms\nMean 25.806ms\nStdDev 0.505ms\nMedian 26.041ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.19469999983812158,
+            "unit": "ms",
+            "extra": "Min 0.180ms\nMax 1.207ms\nMean 0.397ms\nStdDev 0.453ms\nMedian 0.195ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.42480000001887674,
+            "unit": "ms",
+            "extra": "Min 0.389ms\nMax 0.479ms\nMean 0.422ms\nStdDev 0.036ms\nMedian 0.425ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 15.152199999874938,
+            "unit": "ms",
+            "extra": "Min 13.563ms\nMax 16.043ms\nMean 14.983ms\nStdDev 0.895ms\nMedian 15.152ms"
           }
         ]
       }
