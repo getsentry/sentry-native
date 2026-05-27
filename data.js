@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1779876192747,
+  "lastUpdate": 1779884749497,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -23056,6 +23056,66 @@ window.BENCHMARK_DATA = {
             "value": 1.9194390000052408,
             "unit": "ms",
             "extra": "Min 1.906ms\nMax 1.957ms\nMean 1.924ms\nStdDev 0.020ms\nMedian 1.919ms\nCPU 0.552ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "jpnurmi@gmail.com",
+            "name": "J-P Nurmi",
+            "username": "jpnurmi"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "fca837bf491e3c80d4f3b77cf29cbafc6dbaf23d",
+          "message": "feat(native): add opt-in async crash upload mode (#1739)\n\n* ref(native): let crashed app exit as soon as possible\n\n* make format\n\n* stabilize test_tus_crash_native\n\n* wait for native daemon in run()\n\n* make format\n\n* test: Handle daemon log timestamp truncation\n\nAllow a small timestamp margin when matching daemon logs so filesystem\nmtime precision does not make the wait helper skip the current log.\n\nCo-Authored-By: OpenAI Codex <noreply@openai.com>\n\n* test: add native crash helper for daemon waits\n\n* fix daemon wait timeout with sanitizers\n\n* Update CHANGELOG.md\n\n* kcov\n\n* crash upload mode\n\n* make format\n\n* sentry_example + wait_for_daemon needs \"log\" arg\n\n* fix(native): Gate async crash exit on captured envelope\n\nOnly mark async native crashes as captured after the daemon hands the crash\nenvelope to the external reporter or transport. This keeps failed capture paths\nfrom unblocking the crashed process as if crash data was durable.\n\nCo-Authored-By: OpenAI Codex <noreply@openai.com>\n\n---------\n\nCo-authored-by: OpenAI Codex <noreply@openai.com>",
+          "timestamp": "2026-05-27T14:21:00+02:00",
+          "tree_id": "5274b5392d0abd5d06e18102eebc40e1378ca5c7",
+          "url": "https://github.com/getsentry/sentry-native/commit/fca837bf491e3c80d4f3b77cf29cbafc6dbaf23d"
+        },
+        "date": 1779884743758,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 1.036773999999241,
+            "unit": "ms",
+            "extra": "Min 1.005ms\nMax 1.089ms\nMean 1.041ms\nStdDev 0.035ms\nMedian 1.037ms\nCPU 0.976ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 0.9430359999953453,
+            "unit": "ms",
+            "extra": "Min 0.909ms\nMax 1.006ms\nMean 0.960ms\nStdDev 0.043ms\nMedian 0.943ms\nCPU 0.940ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 3.2928269999956683,
+            "unit": "ms",
+            "extra": "Min 3.265ms\nMax 3.337ms\nMean 3.299ms\nStdDev 0.031ms\nMedian 3.293ms\nCPU 1.745ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.1308930000050168,
+            "unit": "ms",
+            "extra": "Min 0.129ms\nMax 0.147ms\nMean 0.134ms\nStdDev 0.007ms\nMedian 0.131ms\nCPU 0.080ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.03236800000649964,
+            "unit": "ms",
+            "extra": "Min 0.031ms\nMax 0.034ms\nMean 0.032ms\nStdDev 0.001ms\nMedian 0.032ms\nCPU 0.032ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 1.9026900000085334,
+            "unit": "ms",
+            "extra": "Min 1.883ms\nMax 1.987ms\nMean 1.923ms\nStdDev 0.042ms\nMedian 1.903ms\nCPU 0.546ms"
           }
         ]
       }
