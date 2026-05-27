@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1779870252820,
+  "lastUpdate": 1779870315394,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -68812,6 +68812,66 @@ window.BENCHMARK_DATA = {
             "value": 13.766800000098556,
             "unit": "ms",
             "extra": "Min 13.108ms\nMax 14.175ms\nMean 13.765ms\nStdDev 0.413ms\nMedian 13.767ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "49699333+dependabot[bot]@users.noreply.github.com",
+            "name": "dependabot[bot]",
+            "username": "dependabot[bot]"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "775404f956bc2d213090bbf9c7f0a20a6d2c2124",
+          "message": "build(deps): bump docker/build-push-action from 7.1.0 to 7.2.0 (#1759)\n\nBumps [docker/build-push-action](https://github.com/docker/build-push-action) from 7.1.0 to 7.2.0.\n- [Release notes](https://github.com/docker/build-push-action/releases)\n- [Commits](https://github.com/docker/build-push-action/compare/bcafcacb16a39f128d818304e6c9c0c18556b85f...f9f3042f7e2789586610d6e8b85c8f03e5195baf)\n\n---\nupdated-dependencies:\n- dependency-name: docker/build-push-action\n  dependency-version: 7.2.0\n  dependency-type: direct:production\n  update-type: version-update:semver-minor\n...\n\nSigned-off-by: dependabot[bot] <support@github.com>\nCo-authored-by: dependabot[bot] <49699333+dependabot[bot]@users.noreply.github.com>",
+          "timestamp": "2026-05-27T10:20:49+02:00",
+          "tree_id": "07e5637bc935107e9788435a2b1f76dd6fa60e49",
+          "url": "https://github.com/getsentry/sentry-native/commit/775404f956bc2d213090bbf9c7f0a20a6d2c2124"
+        },
+        "date": 1779870307462,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 10.39649999984249,
+            "unit": "ms",
+            "extra": "Min 10.012ms\nMax 10.916ms\nMean 10.418ms\nStdDev 0.374ms\nMedian 10.396ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 10.8156000001145,
+            "unit": "ms",
+            "extra": "Min 10.595ms\nMax 10.892ms\nMean 10.767ms\nStdDev 0.116ms\nMedian 10.816ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 26.51930000001812,
+            "unit": "ms",
+            "extra": "Min 25.492ms\nMax 49.380ms\nMean 30.935ms\nStdDev 10.349ms\nMedian 26.519ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.19810000003417372,
+            "unit": "ms",
+            "extra": "Min 0.194ms\nMax 0.266ms\nMean 0.211ms\nStdDev 0.031ms\nMedian 0.198ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.4102999996575818,
+            "unit": "ms",
+            "extra": "Min 0.405ms\nMax 0.599ms\nMean 0.446ms\nStdDev 0.085ms\nMedian 0.410ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 14.348300000165182,
+            "unit": "ms",
+            "extra": "Min 13.665ms\nMax 15.960ms\nMean 14.580ms\nStdDev 0.927ms\nMedian 14.348ms"
           }
         ]
       }
