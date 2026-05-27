@@ -422,7 +422,7 @@ read_temp_metadata_with_marker(const wchar_t *temp_dir, const char *event_id)
 }
 
 sentry_value_t
-sentry__wer_report_new(const char *event_id)
+sentry__wer_report_lookup(const char *event_id)
 {
     if (sentry__string_empty(event_id)) {
         return sentry_value_new_null();
@@ -443,12 +443,14 @@ sentry__wer_report_new(const char *event_id)
 
     sentry_value_t report = sentry_value_new_null();
     for (int i = 0; i < 20; i++) {
+        if (i > 0) {
+            Sleep(250);
+        }
+
         report = read_temp_metadata_with_marker(temp_dir, event_id);
         if (!sentry_value_is_null(report)) {
             break;
         }
-
-        Sleep(250);
     }
 
     return report;

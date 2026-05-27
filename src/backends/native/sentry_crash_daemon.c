@@ -2239,12 +2239,15 @@ build_stacktrace_from_ctx(const sentry_crash_context_t *ctx)
 static void
 add_wer_context(sentry_value_t event, const sentry_crash_context_t *ctx)
 {
-    if (sentry__string_empty(ctx->platform.wer_report_id)) {
+    if (!ctx->platform.wer_enabled) {
         return;
     }
 
-    sentry_value_t wer_context = sentry__wer_report_new(ctx->crash_event_id);
+    sentry_value_t wer_context = sentry__wer_report_lookup(ctx->crash_event_id);
     if (sentry_value_is_null(wer_context)) {
+        if (sentry__string_empty(ctx->platform.wer_report_id)) {
+            return;
+        }
         wer_context = sentry_value_new_object();
     }
 

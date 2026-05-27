@@ -7,7 +7,7 @@
 #define SENTRY_WER_EVENT_ID_KEY "SentryEventId"
 #define SENTRY_WER_EVENT_ID_KEY_W L"SentryEventId"
 
-sentry_value_t sentry__wer_report_new(const char *event_id);
+sentry_value_t sentry__wer_report_lookup(const char *event_id);
 sentry_value_t sentry__wer_report_from_buffer(const char *buffer, size_t size);
 
 #endif
