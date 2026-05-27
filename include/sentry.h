@@ -1074,6 +1074,25 @@ typedef enum {
 } sentry_crash_reporting_mode_t;
 
 /**
+ * Crash upload mode for the native backend.
+ * Controls whether the crashed application remains blocked while upload and
+ * shutdown work finishes after crash data has been captured.
+ */
+typedef enum {
+    /**
+     * Keep the crashed application blocked until the native crash daemon
+     * finishes upload and shutdown work.
+     */
+    SENTRY_CRASH_UPLOAD_MODE_SYNC = 0,
+
+    /**
+     * Allow the crashed application to terminate after crash data has been
+     * captured. The native crash daemon continues upload and shutdown work.
+     */
+    SENTRY_CRASH_UPLOAD_MODE_ASYNC = 1,
+} sentry_crash_upload_mode_t;
+
+/**
  * Controls if and when envelopes are kept in the persistent cache.
  */
 typedef enum {
@@ -1883,6 +1902,27 @@ SENTRY_API sentry_crash_reporting_mode_t
 sentry_options_get_crash_reporting_mode(const sentry_options_t *opts);
 
 /**
+ * Sets the crash upload mode for the native backend.
+ *
+ * This setting controls what happens after crash data has been captured. In
+ * sync mode, the crashed application remains blocked while the native crash
+ * daemon finishes upload and shutdown work. In async mode, the crashed
+ * application can terminate after crash data has been captured while the daemon
+ * continues upload and shutdown work.
+ *
+ * This setting only has an effect when using the `native` backend.
+ * Default is `SENTRY_CRASH_UPLOAD_MODE_SYNC`.
+ */
+SENTRY_API void sentry_options_set_crash_upload_mode(
+    sentry_options_t *opts, sentry_crash_upload_mode_t mode);
+
+/**
+ * Gets the crash upload mode for the native backend.
+ */
+SENTRY_API sentry_crash_upload_mode_t sentry_options_get_crash_upload_mode(
+    const sentry_options_t *opts);
+
+/**
  * Enables a wait for the crash report upload to be finished before shutting
  * down. This is disabled by default.
  *
@@ -1920,6 +1960,26 @@ SENTRY_API void sentry_options_set_shutdown_timeout(
  * end on shutdown before attempting a forced termination.
  */
 SENTRY_API uint64_t sentry_options_get_shutdown_timeout(sentry_options_t *opts);
+
+/**
+ * Sets the timeout (in milliseconds) for HTTP transfer operations.
+ *
+ * On curl, this limits the total time an HTTP request is allowed to take. On
+ * WinHTTP, this is applied to send and receive operations, which WinHTTP
+ * applies to individual packets.
+ *
+ * This setting applies to the SDK-managed HTTP transports. It is not supported
+ * by Crashpad's crash report upload.
+ *
+ * The default value is 0, which disables the transfer timeout.
+ */
+SENTRY_API void sentry_options_set_transfer_timeout(
+    sentry_options_t *opts, uint64_t transfer_timeout);
+
+/**
+ * Gets the timeout (in milliseconds) for HTTP transfer operations.
+ */
+SENTRY_API uint64_t sentry_options_get_transfer_timeout(sentry_options_t *opts);
 
 /**
  * Sets a user-defined backend.
@@ -2891,6 +2951,12 @@ typedef struct sentry_transaction_s sentry_transaction_t;
  * that same transaction. In case the transaction should be discarded, the
  * callback needs to call `sentry_value_decref` on the provided transaction and
  * return a `sentry_value_new_null()` instead.
+ *
+ * This function may be invoked inside a signal handler and must be safe for
+ * that purpose, see https://man7.org/linux/man-pages/man7/signal-safety.7.html.
+ * On Windows, it may be called from inside a `UnhandledExceptionFilter`, see
+ * the documentation on SEH (structured exception handling) for more information
+ * https://docs.microsoft.com/en-us/windows/win32/debug/structured-exception-handling
  */
 typedef sentry_value_t (*sentry_transaction_function_t)(
     sentry_value_t transaction, void *user_data);

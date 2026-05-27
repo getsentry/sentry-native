@@ -30,7 +30,6 @@ from .conditions import (
     has_http,
     has_native,
     is_asan,
-    is_kcov,
 )
 
 # Skip all tests if E2E env vars not configured
@@ -353,11 +352,11 @@ def extract_test_id(output):
     raise ValueError(f"TEST_ID not found in output. Output was:\n{decoded[:500]}")
 
 
-def run_crash_e2e(tmp_path, exe, args, env):
+def run_crash_e2e(tmp_path, exe, args, env, wait_for_daemon=False):
     """
     Run a crash test for E2E, capturing output for test ID extraction.
 
-    Handles ASAN and kcov quirks similar to run_crash in test_integration_native.py.
+    Handles ASAN signal handling similar to run_crash in test_integration_native.py.
     """
     if is_asan:
         asan_opts = env.get("ASAN_OPTIONS", "")
@@ -371,16 +370,14 @@ def run_crash_e2e(tmp_path, exe, args, env):
             env["ASAN_OPTIONS"] = asan_signal_opts
 
     # Use check_output to capture stdout for test ID extraction
-    try:
-        output = check_output(tmp_path, exe, args, env=env, expect_failure=True)
-    except AssertionError:
-        if is_kcov:
-            # kcov may exit with 0 even on crash, try without expect_failure
-            output = check_output(tmp_path, exe, args, env=env, expect_failure=False)
-        else:
-            raise
-
-    return output
+    return check_output(
+        tmp_path,
+        exe,
+        args,
+        env=env,
+        expect_failure=True,
+        wait_for_daemon=wait_for_daemon,
+    )
 
 
 @pytest.mark.skipif(
@@ -437,11 +434,14 @@ class TestE2ENative:
         # Run with crash - capture output for test ID
         # Enable structured logs and capture a log message before crashing
         crash_args = ["log", "e2e-test", "capture-log"] + mode_args + ["crash"]
-        output = run_crash_e2e(self.tmp_path, "sentry_example", crash_args, env=env)
+        output = run_crash_e2e(
+            self.tmp_path,
+            "sentry_example",
+            crash_args,
+            env=env,
+            wait_for_daemon=True,
+        )
         test_id = extract_test_id(output)
-
-        # Wait for crash daemon to process
-        time.sleep(2)
 
         # Print daemon logs for debugging (especially useful for Windows thread duplication investigation)
         self.print_daemon_logs()

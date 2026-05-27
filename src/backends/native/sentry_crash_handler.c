@@ -710,8 +710,8 @@ crash_signal_handler(int signum, siginfo_t *info, void *context)
             if (state == SENTRY_CRASH_STATE_PROCESSING && !processing_started) {
                 // Daemon started processing (no logging - signal-safe)
                 processing_started = true;
-            } else if (state == SENTRY_CRASH_STATE_DONE) {
-                // Daemon finished processing (no logging - signal-safe)
+            } else if (state >= SENTRY_CRASH_STATE_CAPTURED) {
+                // Daemon captured crash data (no logging - signal-safe)
                 goto daemon_handling;
             }
 
@@ -1003,8 +1003,8 @@ crash_exception_filter(EXCEPTION_POINTERS *exception_info)
                 // Daemon started processing (no logging - exception filter
                 // context)
                 processing_started = true;
-            } else if (state == SENTRY_CRASH_STATE_DONE) {
-                // Daemon finished processing (no logging - exception filter
+            } else if (state >= SENTRY_CRASH_STATE_CAPTURED) {
+                // Daemon captured crash data (no logging - exception filter
                 // context)
                 break;
             }

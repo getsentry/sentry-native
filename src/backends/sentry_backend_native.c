@@ -37,7 +37,9 @@
 #include "sentry_scope.h"
 #include "sentry_session.h"
 #include "sentry_sync.h"
+#include "sentry_tracing.h"
 #include "sentry_transport.h"
+#include "sentry_value.h"
 #include "transports/sentry_disk_transport.h"
 
 // Global process-wide synchronization for IPC and shared memory access
@@ -294,6 +296,7 @@ native_backend_startup(
     // Set crash reporting mode from options
     ctx->crash_reporting_mode = options->crash_reporting_mode;
     ctx->system_crash_reporter_enabled = options->system_crash_reporter_enabled;
+    ctx->crash_upload_mode = options->crash_upload_mode;
 
     // Pass debug logging setting to daemon
     ctx->debug_enabled = options->debug;
@@ -305,6 +308,7 @@ native_backend_startup(
     ctx->enable_large_attachments = options->enable_large_attachments;
     ctx->http_retry = options->http_retry;
     ctx->shutdown_timeout = options->shutdown_timeout;
+    ctx->transfer_timeout = options->transfer_timeout;
     sentry__atomic_store(
         &ctx->user_consent, sentry__atomic_fetch(&options->run->user_consent));
 
@@ -748,11 +752,13 @@ native_backend_write_attachments(const sentry_path_t *event_path)
                 }
                 sentry_value_append(attach_list, attach_info);
             }
-            char *attach_json = sentry_value_to_json(attach_list);
+            size_t attach_json_len = 0;
+            char *attach_json
+                = sentry__value_to_json(attach_list, &attach_json_len);
             sentry_value_decref(attach_list);
             if (attach_json) {
                 sentry__path_write_buffer(
-                    attach_list_path, attach_json, strlen(attach_json));
+                    attach_list_path, attach_json, attach_json_len);
                 sentry_free(attach_json);
             }
             sentry__path_free(attach_list_path);
@@ -837,11 +843,11 @@ native_backend_flush_scope(
     }
 
     // Serialize to JSON (so it can be deserialized on next start)
-    char *json_str = sentry_value_to_json(event);
+    size_t json_len = 0;
+    char *json_str = sentry__value_to_json(event, &json_len);
     sentry_value_decref(event);
 
     if (json_str) {
-        size_t json_len = strlen(json_str);
         sentry__path_write_buffer(state->event_path, json_str, json_len);
         sentry_free(json_str);
     }
@@ -875,12 +881,12 @@ native_backend_add_breadcrumb(sentry_backend_t *backend,
     }
 
     // Serialize to JSON (so it can be deserialized on next start)
-    char *json_str = sentry_value_to_json(breadcrumb);
+    size_t json_len = 0;
+    char *json_str = sentry__value_to_json(breadcrumb, &json_len);
     if (!json_str) {
         return;
     }
 
-    size_t json_len = strlen(json_str);
     int rv = first_breadcrumb
         ? sentry__path_write_buffer(breadcrumb_file, json_str, json_len)
         : sentry__path_append_buffer(breadcrumb_file, json_str, json_len);
@@ -989,6 +995,9 @@ native_backend_except(sentry_backend_t *backend, const sentry_ucontext_t *uctx)
         // Write crash marker
         sentry__write_crash_marker(options);
 
+        sentry_value_t transaction
+            = sentry__trace_finish(SENTRY_SPAN_STATUS_ABORTED);
+
         // Create crash event
         sentry_value_t event = sentry_value_new_event();
         sentry_value_set_by_key(
@@ -1071,10 +1080,12 @@ native_backend_except(sentry_backend_t *backend, const sentry_ucontext_t *uctx)
                 // Write event as JSON file
                 // Daemon will read this and create envelope with minidump
                 if (state && state->event_path) {
-                    char *event_json = sentry_value_to_json(event);
+                    size_t event_json_len = 0;
+                    char *event_json
+                        = sentry__value_to_json(event, &event_json_len);
                     if (event_json) {
                         int rv = sentry__path_write_buffer(
-                            state->event_path, event_json, strlen(event_json));
+                            state->event_path, event_json, event_json_len);
                         sentry_free(event_json);
                         if (rv == 0) {
                             SENTRY_DEBUG("Wrote crash event JSON for daemon");
@@ -1093,26 +1104,33 @@ native_backend_except(sentry_backend_t *backend, const sentry_ucontext_t *uctx)
                     = sentry__end_current_session_with_status(
                         SENTRY_SESSION_STATUS_CRASHED);
 
-                if (session) {
-                    sentry_envelope_t *envelope = sentry__envelope_new();
-                    if (envelope) {
-                        sentry__envelope_add_session(envelope, session);
-
-                        // Write session envelope to disk
-                        sentry_transport_t *disk_transport
-                            = sentry_new_disk_transport(options->run);
-                        if (disk_transport) {
-                            // sentry__capture_envelope takes ownership of
-                            // envelope
-                            sentry__capture_envelope(
-                                disk_transport, envelope, options);
-                            sentry__transport_dump_queue(
-                                disk_transport, options->run);
-                            sentry_transport_free(disk_transport);
-                        } else {
-                            // Failed to create transport, free envelope
-                            sentry_envelope_free(envelope);
+                if (session || !sentry_value_is_null(transaction)) {
+                    sentry_transport_t *disk_transport
+                        = sentry_new_disk_transport(options->run);
+                    if (disk_transport) {
+                        if (!sentry_value_is_null(transaction)) {
+                            sentry_envelope_t *tx_envelope
+                                = sentry__prepare_transaction(
+                                    options, transaction, NULL);
+                            if (tx_envelope) {
+                                sentry__capture_envelope(
+                                    disk_transport, tx_envelope, options);
+                            }
                         }
+                        if (session) {
+                            sentry_envelope_t *envelope
+                                = sentry__envelope_new();
+                            if (envelope) {
+                                sentry__envelope_add_session(envelope, session);
+                                sentry__capture_envelope(
+                                    disk_transport, envelope, options);
+                            }
+                        }
+                        sentry__transport_dump_queue(
+                            disk_transport, options->run);
+                        sentry_transport_free(disk_transport);
+                    } else {
+                        sentry_value_decref(transaction);
                     }
                 }
 
@@ -1121,10 +1139,13 @@ native_backend_except(sentry_backend_t *backend, const sentry_ucontext_t *uctx)
 
                 SENTRY_DEBUG("crash event and session written, daemon will "
                              "create and send minidump");
+            } else {
+                sentry_value_decref(transaction);
             }
         } else {
             SENTRY_DEBUG("event was discarded by the `on_crash` hook");
             sentry_value_decref(event);
+            sentry_value_decref(transaction);
         }
     }
 }
