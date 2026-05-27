@@ -473,7 +473,6 @@ sentry__transaction_decref(sentry_transaction_t *tx)
     }
 
     if (!sentry_value_decref(tx->inner)) {
-        sentry_value_decref(tx->inner);
         sentry_free(tx->children);
         sentry__mutex_free(&tx->children_mutex);
         sentry_free(tx);
@@ -513,7 +512,6 @@ sentry__span_decref(sentry_span_t *span)
 
     if (!sentry_value_decref(span->inner)) {
         sentry__transaction_remove_child(span->transaction, span);
-        sentry_value_decref(span->inner);
         sentry__transaction_decref(span->transaction);
         sentry_free(span);
     }
