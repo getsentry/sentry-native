@@ -87,7 +87,7 @@ sentry__unwind_stack_from_thread_libunwind_remote(pid_t tid,
     // sends SIGSTOP but the thread won't stop until it leaves uninterruptible
     // sleep, which may never happen.
     int status = 0;
-    int retries = 50;
+    int retries = 20;
     do {
         pid_t waited = waitpid(tid, &status, __WALL | WNOHANG);
         if (waited == tid) {
