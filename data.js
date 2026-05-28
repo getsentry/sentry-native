@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1779956850367,
+  "lastUpdate": 1779958714412,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -23476,6 +23476,66 @@ window.BENCHMARK_DATA = {
             "value": 1.7982009999855109,
             "unit": "ms",
             "extra": "Min 1.769ms\nMax 1.839ms\nMean 1.799ms\nStdDev 0.027ms\nMedian 1.798ms\nCPU 0.522ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "jpnurmi@gmail.com",
+            "name": "J-P Nurmi",
+            "username": "jpnurmi"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "b22dd8b58a1f21148e7a693354863d0a7c332a8e",
+          "message": "fix: Avoid following symlinks during recursive cleanups (#1751)\n\n* fix(path): Avoid following symlinks during recursive cleanup\n\nA symlinked .run entry in a shared or pre-existing database directory could\npass the stat-based directory checks used by old-run processing. That allowed\ncleanup to traverse attacker-controlled symlink targets and delete files\noutside the SDK cache.\n\nDetect symlinks explicitly and avoid recursing through them during cleanup, so\nold run processing removes only real cache directories and never follows a\nplanted .run symlink.\n\nCo-Authored-By: OpenAI Codex <noreply@openai.com>\n\n* Update CHANGELOG.md\n\n---------\n\nCo-authored-by: OpenAI Codex <noreply@openai.com>",
+          "timestamp": "2026-05-28T10:55:59+02:00",
+          "tree_id": "d88688b73bfb9a3f94f45da02d3d064df254f4db",
+          "url": "https://github.com/getsentry/sentry-native/commit/b22dd8b58a1f21148e7a693354863d0a7c332a8e"
+        },
+        "date": 1779958707930,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 0.9519719999957488,
+            "unit": "ms",
+            "extra": "Min 0.905ms\nMax 0.967ms\nMean 0.942ms\nStdDev 0.025ms\nMedian 0.952ms\nCPU 0.890ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 0.8575980000102845,
+            "unit": "ms",
+            "extra": "Min 0.816ms\nMax 0.866ms\nMean 0.847ms\nStdDev 0.022ms\nMedian 0.858ms\nCPU 0.847ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 3.3027369999842904,
+            "unit": "ms",
+            "extra": "Min 3.211ms\nMax 3.409ms\nMean 3.309ms\nStdDev 0.082ms\nMedian 3.303ms\nCPU 1.774ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.12001199999644996,
+            "unit": "ms",
+            "extra": "Min 0.116ms\nMax 0.141ms\nMean 0.124ms\nStdDev 0.010ms\nMedian 0.120ms\nCPU 0.076ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.03005599998573416,
+            "unit": "ms",
+            "extra": "Min 0.029ms\nMax 0.034ms\nMean 0.031ms\nStdDev 0.002ms\nMedian 0.030ms\nCPU 0.030ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 1.9224689999930433,
+            "unit": "ms",
+            "extra": "Min 1.885ms\nMax 1.968ms\nMean 1.923ms\nStdDev 0.030ms\nMedian 1.922ms\nCPU 0.557ms"
           }
         ]
       }
