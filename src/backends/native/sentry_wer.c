@@ -138,6 +138,16 @@ process_wer_exception(
     }
 
     BOOL claimed = FALSE;
+
+    // Extract WER report ID regardless of who claims the crash, so the
+    // daemon can include it in the sentry event.
+    PCWSTR report_id = get_report_id(exception_info);
+    if (report_id) {
+        WideCharToMultiByte(CP_UTF8, 0, report_id, -1,
+            ctx->platform.wer_report_id,
+            (int)sizeof(ctx->platform.wer_report_id), NULL, NULL);
+    }
+
     if (InterlockedCompareExchange(&ctx->state, SENTRY_CRASH_STATE_PROCESSING,
             SENTRY_CRASH_STATE_READY)
         == SENTRY_CRASH_STATE_READY) {
@@ -152,17 +162,14 @@ process_wer_exception(
         ctx->platform.threads[0].thread_id = ctx->crashed_tid;
         ctx->platform.threads[0].context = exception_info->context;
 
-        PCWSTR report_id = get_report_id(exception_info);
-        if (report_id) {
-            WideCharToMultiByte(CP_UTF8, 0, report_id, -1,
-                ctx->platform.wer_report_id,
-                (int)sizeof(ctx->platform.wer_report_id), NULL, NULL);
-        }
-
         InterlockedExchange(&ctx->state, SENTRY_CRASH_STATE_CRASHED);
-        if (SetEvent(event)) {
-            claimed = TRUE;
-        }
+    }
+
+    // Always attempt to signal the daemon. If the crash handler claimed
+    // the crash first, it already SetEvent'd via sentry__crash_ipc_notify,
+    // but a redundant SetEvent on an auto-reset event is harmless.
+    if (SetEvent(event)) {
+        claimed = TRUE;
     }
 
     CloseHandle(event);

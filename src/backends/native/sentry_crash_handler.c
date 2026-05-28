@@ -1024,8 +1024,12 @@ crash_exception_filter(EXCEPTION_POINTERS *exception_info)
     if (ctx->platform.wer_enabled
         && exception_info->ExceptionRecord->ExceptionCode
             != STATUS_FATAL_APP_EXIT) {
-        // Use the WER helper notification path so WER metadata is available
-        // before the daemon processes the crash
+        // Claim crash and notify daemon. WER may or may not invoke
+        // the sentry-wer callback (e.g. CI runners without WER), so
+        // we must cover both cases. The sentry-wer callback will
+        // additionally write the WER report ID to shared memory.
+        sentry__atomic_store(&ctx->state, SENTRY_CRASH_STATE_CRASHED);
+        sentry__crash_ipc_notify(ipc);
         return EXCEPTION_CONTINUE_SEARCH;
     }
 
