@@ -930,6 +930,7 @@ build_stacktrace_for_thread(
     // Remote DWARF unwinding via libunwind ptrace accessors. Do not attach to
     // the crashed thread from the daemon; use the saved fault context below.
     {
+#    ifdef SENTRY_WITH_UNWINDER_LIBUNWIND_REMOTE
         pid_t tid = 0;
         if (thread_idx == SIZE_MAX) {
             tid = ctx->crashed_tid;
@@ -940,7 +941,6 @@ build_stacktrace_for_thread(
         bool is_crashed_thread
             = thread_idx == SIZE_MAX || tid == ctx->crashed_tid;
 
-#    ifdef SENTRY_WITH_UNWINDER_LIBUNWIND_REMOTE
         if (tid > 0 && !is_crashed_thread) {
             sentry_remote_registers_t registers = { 0 };
             sentry_remote_frame_t *remote_frames
