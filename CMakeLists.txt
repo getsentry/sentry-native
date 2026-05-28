@@ -899,7 +899,8 @@ elseif(SENTRY_BACKEND_NATIVE)
 
 	if(SENTRY_WITH_LIBUNWIND AND LINUX)
 		if(SENTRY_LIBUNWIND_SYSTEM)
-			target_link_libraries(sentry-crash PRIVATE PkgConfig::LIBUNWIND)
+			pkg_check_modules(LIBUNWIND_PTRACE REQUIRED IMPORTED_TARGET libunwind-ptrace)
+			target_link_libraries(sentry-crash PRIVATE PkgConfig::LIBUNWIND PkgConfig::LIBUNWIND_PTRACE)
 		else()
 			# Use unwind_remote for the daemon (includes ptrace accessors
 			# for remote DWARF unwinding of the crashed process)
