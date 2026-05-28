@@ -19,6 +19,7 @@
 #    include <string.h>
 #    include <sys/ptrace.h>
 #    include <sys/wait.h>
+#    include <unistd.h>
 
 #    include <libunwind-ptrace.h>
 #    include <libunwind.h>
