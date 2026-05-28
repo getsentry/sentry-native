@@ -1284,6 +1284,11 @@ enrich_frame_with_symbol(
             size_t sym_size = sections[symtab_idx].sh_size;
             size_t sym_count = sym_size / sections[symtab_idx].sh_entsize;
             int strtab_idx = sections[symtab_idx].sh_link;
+            if (strtab_idx < 0 || (size_t)strtab_idx >= ehdr.e_shnum) {
+                sentry_free(shdr_buf);
+                close(fd);
+                return;
+            }
 
             void *sym_buf = sentry_malloc(sym_size);
             void *strtab_buf = NULL;
