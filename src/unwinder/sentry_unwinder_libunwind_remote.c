@@ -154,9 +154,12 @@ sentry__unwind_stack_from_thread_libunwind_remote(pid_t tid,
         frames[n].symbol_offset = 0;
 
         unw_word_t off = 0;
-        if (unw_get_proc_name(
-                &cursor, frames[n].symbol, sizeof(frames[n].symbol), &off)
-            == 0) {
+        int name_ret = unw_get_proc_name(
+            &cursor, frames[n].symbol, sizeof(frames[n].symbol), &off);
+        // unw_get_proc_name returns -UNW_ENOMEM when the buffer is
+        // too small, but still fills it with the truncated name and
+        // sets *off to the valid offset.
+        if (name_ret == 0 || name_ret == -UNW_ENOMEM) {
             frames[n].symbol_offset = (uint64_t)off;
         }
 
