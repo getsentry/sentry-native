@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1779953131774,
+  "lastUpdate": 1779956743535,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -23416,6 +23416,66 @@ window.BENCHMARK_DATA = {
             "value": 1.8566450000037094,
             "unit": "ms",
             "extra": "Min 1.794ms\nMax 1.976ms\nMean 1.866ms\nStdDev 0.071ms\nMedian 1.857ms\nCPU 0.552ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "jpnurmi@gmail.com",
+            "name": "J-P Nurmi",
+            "username": "jpnurmi"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "8fb8e8604ef5a7ae4207bb1a3e75bf9a00759f0f",
+          "message": "fix: sentry-trace header parsing (#1749)\n\n* fix: sentry-trace header parsing\n\nparse_sentry_trace receives value_len so\nsentry_transaction_context_update_from_header_n can parse non-NUL-terminated\nheader buffers. The trace ID delimiter search already honored that bound, but\nthe span ID delimiter used strchr and the no-sampled path used\nsentry_value_new_string, which calls strlen.\n\nA header with a valid trace ID, one dash, and no second dash inside value_len\ncould make parsing read past the declared buffer and include adjacent bytes in\nthe parent span ID or sampled flag.\n\nSearch for the second delimiter with memchr, create no-sampled span IDs with\nsentry_value_new_string_n, and guard the sampled flag read. Add regression\ncoverage for a truncated sentry-trace value passed through the _n API.\n\nCo-Authored-By: OpenAI Codex <noreply@openai.com>\n\n* Update CHANGELOG.md\n\n---------\n\nCo-authored-by: OpenAI Codex <noreply@openai.com>",
+          "timestamp": "2026-05-28T10:22:53+02:00",
+          "tree_id": "80c5918ffd732323a1a5f3eced1c9fdee0463e40",
+          "url": "https://github.com/getsentry/sentry-native/commit/8fb8e8604ef5a7ae4207bb1a3e75bf9a00759f0f"
+        },
+        "date": 1779956737053,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 0.9479379999675075,
+            "unit": "ms",
+            "extra": "Min 0.927ms\nMax 1.026ms\nMean 0.966ms\nStdDev 0.040ms\nMedian 0.948ms\nCPU 0.914ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 0.8516629999917313,
+            "unit": "ms",
+            "extra": "Min 0.825ms\nMax 0.862ms\nMean 0.849ms\nStdDev 0.014ms\nMedian 0.852ms\nCPU 0.848ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 3.182713999990483,
+            "unit": "ms",
+            "extra": "Min 3.160ms\nMax 3.229ms\nMean 3.194ms\nStdDev 0.031ms\nMedian 3.183ms\nCPU 1.678ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.12391000001343855,
+            "unit": "ms",
+            "extra": "Min 0.120ms\nMax 0.168ms\nMean 0.137ms\nStdDev 0.022ms\nMedian 0.124ms\nCPU 0.087ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.02995500000224638,
+            "unit": "ms",
+            "extra": "Min 0.028ms\nMax 0.060ms\nMean 0.041ms\nStdDev 0.016ms\nMedian 0.030ms\nCPU 0.040ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 1.7982009999855109,
+            "unit": "ms",
+            "extra": "Min 1.769ms\nMax 1.839ms\nMean 1.799ms\nStdDev 0.027ms\nMedian 1.798ms\nCPU 0.522ms"
           }
         ]
       }
