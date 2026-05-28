@@ -23,6 +23,7 @@
 - Cap rate-limit retry-after values at 24 hours to prevent a MITM-provided response from disabling event delivery for the process lifetime. ([#1744](https://github.com/getsentry/sentry-native/pull/1744))
 - Fix a shutdown-time use-after-free window in `sentry_close()`. ([#1750](https://github.com/getsentry/sentry-native/pull/1750))
 - Native: validate ELF header entry sizes. ([#1746](https://github.com/getsentry/sentry-native/pull/1746))
+- Prevent database cleanup from following symlinks in run and cache directories. ([#1751](https://github.com/getsentry/sentry-native/pull/1751))
 - Structured logs: respect printf argument widths when extracting log parameters to avoid stack-data disclosure and corrupted attributes on 32-bit platforms. ([#1752](https://github.com/getsentry/sentry-native/pull/1752))
 - Fix a potential out-of-bounds read when parsing non-NUL-terminated `sentry-trace` headers. ([#1749](https://github.com/getsentry/sentry-native/pull/1749))
 
