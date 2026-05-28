@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1779972850871,
+  "lastUpdate": 1779972950809,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -71032,6 +71032,66 @@ window.BENCHMARK_DATA = {
             "value": 16.511899999841262,
             "unit": "ms",
             "extra": "Min 16.220ms\nMax 24.341ms\nMean 18.033ms\nStdDev 3.530ms\nMedian 16.512ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "jpnurmi@gmail.com",
+            "name": "J-P Nurmi",
+            "username": "jpnurmi"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "d561d8ff832c39fdd6525a57120df67ea5dc9242",
+          "message": "fix(native): resolve symbol names for crashed thread on Linux (#1764)\n\n* fix(native): resolve symbol names for crashed thread on Linux\n\nResolve function names from on-disk ELF symbol tables (.dynsym/.symtab)\nfor the crashed thread's stacktrace in the crash daemon. The daemon\nalready had module paths and base addresses from ctx->modules[], so\nsymbol resolution is a straightforward ELF section header parse + symbol\ntable lookup — no ptrace needed.\n\nPreviously, the pre-captured backtrace (DWARF-based, signal-frame-aware)\nfrom the signal handler was preferred over remote unwinding for the\ncrashed thread, but only set instruction_addr and module package — never\nfunction names. The FP-walking and single-IP fallback paths had the same\ngap.\n\n* Update CHANGELOG.md\n\n* sentry__elf_has_sym_entsize\n\n* strtab_idx\n\n* st_name\n\n* sym_target",
+          "timestamp": "2026-05-28T14:49:46+02:00",
+          "tree_id": "64df9766125c69abec56c0ef5506da36b7e2ac82",
+          "url": "https://github.com/getsentry/sentry-native/commit/d561d8ff832c39fdd6525a57120df67ea5dc9242"
+        },
+        "date": 1779972942076,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 11.431800000025305,
+            "unit": "ms",
+            "extra": "Min 11.197ms\nMax 11.917ms\nMean 11.499ms\nStdDev 0.265ms\nMedian 11.432ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 10.631499999988137,
+            "unit": "ms",
+            "extra": "Min 10.466ms\nMax 10.769ms\nMean 10.625ms\nStdDev 0.109ms\nMedian 10.631ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 27.054899999995996,
+            "unit": "ms",
+            "extra": "Min 26.611ms\nMax 28.768ms\nMean 27.445ms\nStdDev 0.852ms\nMedian 27.055ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.19119999996064507,
+            "unit": "ms",
+            "extra": "Min 0.178ms\nMax 0.214ms\nMean 0.194ms\nStdDev 0.013ms\nMedian 0.191ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.4543000000012398,
+            "unit": "ms",
+            "extra": "Min 0.427ms\nMax 0.470ms\nMean 0.448ms\nStdDev 0.017ms\nMedian 0.454ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 14.978900000016893,
+            "unit": "ms",
+            "extra": "Min 14.623ms\nMax 15.414ms\nMean 14.966ms\nStdDev 0.310ms\nMedian 14.979ms"
           }
         ]
       }
