@@ -11,6 +11,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <wchar.h>
 
 #ifdef NDEBUG
 #    undef NDEBUG
@@ -20,6 +21,7 @@
 
 #ifdef SENTRY_PLATFORM_WINDOWS
 #    include <malloc.h>
+#    include <process.h>
 #    include <synchapi.h>
 #    define sleep_s(SECONDS) Sleep((SECONDS) * 1000)
 #else
@@ -135,6 +137,83 @@ on_crash_callback(
 
     // tell the backend to retain the event
     return event;
+}
+
+static sentry_value_t
+restart_on_crash(
+    const sentry_ucontext_t *uctx, sentry_value_t event, void *user_data)
+{
+    (void)uctx;
+
+#ifdef SENTRY_PLATFORM_WINDOWS
+    wchar_t **argv = user_data;
+    if (argv && argv[0]) {
+        _wspawnv(_P_NOWAIT, argv[0], (const wchar_t *const *)argv);
+    }
+#else
+    char **argv = user_data;
+    if (!argv || !argv[0]) {
+        return event;
+    }
+    if (fork() == 0) {
+        // The crashing signal is blocked while the crash handler runs. Do not
+        // let the restarted child inherit that mask.
+        sigset_t set;
+        sigfillset(&set);
+        sigprocmask(SIG_UNBLOCK, &set, NULL);
+
+        execv(argv[0], argv);
+        _exit(127);
+    }
+#endif
+
+    return event;
+}
+
+// Forward all original arguments except "restart-on-crash"
+static void *
+restart_args(int argc, char **argv)
+{
+#ifdef SENTRY_PLATFORM_WINDOWS
+    wchar_t **child_argv = calloc((size_t)argc + 1, sizeof(wchar_t *));
+    if (!child_argv) {
+        return NULL;
+    }
+
+    child_argv[0] = calloc(MAX_PATH, sizeof(wchar_t));
+    if (!child_argv[0]
+        || GetModuleFileNameW(NULL, child_argv[0], MAX_PATH) == 0) {
+        return child_argv;
+    }
+
+    int child_argc = 1;
+    for (int i = 1; i < argc; i++) {
+        if (strcmp(argv[i], "restart-on-crash") == 0) {
+            continue;
+        }
+
+        size_t len = strlen(argv[i]) + 1;
+        child_argv[child_argc] = calloc(len, sizeof(wchar_t));
+        if (!child_argv[child_argc]) {
+            return child_argv;
+        }
+        mbstowcs(child_argv[child_argc++], argv[i], len);
+    }
+    return child_argv;
+#else
+    char **child_argv = calloc((size_t)argc + 1, sizeof(char *));
+    if (!child_argv) {
+        return NULL;
+    }
+
+    int child_argc = 0;
+    for (int i = 0; i < argc; i++) {
+        if (strcmp(argv[i], "restart-on-crash") != 0) {
+            child_argv[child_argc++] = argv[i];
+        }
+    }
+    return child_argv;
+#endif
 }
 
 static sentry_value_t
@@ -635,6 +714,11 @@ main(int argc, char **argv)
     if (has_arg(argc, argv, "discarding-on-crash")) {
         sentry_options_set_on_crash(
             options, discarding_on_crash_callback, NULL);
+    }
+
+    if (has_arg(argc, argv, "restart-on-crash")) {
+        sentry_options_set_on_crash(
+            options, restart_on_crash, restart_args(argc, argv));
     }
 
     if (has_arg(argc, argv, "before-transaction")) {
