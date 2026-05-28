@@ -145,7 +145,7 @@ def proxy_test_finally(
 
         if expected_proxy_logsize != 0:
             # request passed through successfully
-            wait_for_stdout(
+            assert wait_for_stdout(
                 proxy_process,
                 lambda text: "POST" in text and "200 OK" in text,
                 timeout,
