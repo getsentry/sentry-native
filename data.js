@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1779980095493,
+  "lastUpdate": 1779980108558,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -47554,6 +47554,66 @@ window.BENCHMARK_DATA = {
             "value": 10.062290999997003,
             "unit": "ms",
             "extra": "Min 5.942ms\nMax 21.876ms\nMean 12.530ms\nStdDev 6.587ms\nMedian 10.062ms\nCPU 0.791ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "mischan@abovevacant.com",
+            "name": "Mischan Toosarani-Hausberger",
+            "username": "supervacuus"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "aa17f526ee897bb11f18c56c3ae2590eb4476b2c",
+          "message": "feat(apple): use `os_sync` for waitable flag on modern Darwin (#1765)",
+          "timestamp": "2026-05-28T16:51:41+02:00",
+          "tree_id": "13b6e0dc3cd7a20290342eb3896fd2fe15d8b284",
+          "url": "https://github.com/getsentry/sentry-native/commit/aa17f526ee897bb11f18c56c3ae2590eb4476b2c"
+        },
+        "date": 1779980101124,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 3.8416659999711555,
+            "unit": "ms",
+            "extra": "Min 3.561ms\nMax 4.648ms\nMean 3.933ms\nStdDev 0.445ms\nMedian 3.842ms\nCPU 2.258ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 4.449208000096405,
+            "unit": "ms",
+            "extra": "Min 3.924ms\nMax 5.081ms\nMean 4.479ms\nStdDev 0.536ms\nMedian 4.449ms\nCPU 2.658ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 13.69079200003398,
+            "unit": "ms",
+            "extra": "Min 13.000ms\nMax 23.833ms\nMean 16.399ms\nStdDev 4.620ms\nMedian 13.691ms\nCPU 5.195ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.07133300005079946,
+            "unit": "ms",
+            "extra": "Min 0.062ms\nMax 0.095ms\nMean 0.077ms\nStdDev 0.014ms\nMedian 0.071ms\nCPU 0.054ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.2896250000503642,
+            "unit": "ms",
+            "extra": "Min 0.253ms\nMax 0.555ms\nMean 0.380ms\nStdDev 0.148ms\nMedian 0.290ms\nCPU 0.379ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 9.312625000006847,
+            "unit": "ms",
+            "extra": "Min 7.276ms\nMax 10.989ms\nMean 9.038ms\nStdDev 1.383ms\nMedian 9.313ms\nCPU 1.093ms"
           }
         ]
       }
