@@ -49,8 +49,6 @@ jobs:
       - if: matrix.language == 'java'
         name: Setup Gradle
         uses: gradle/actions/setup-gradle@50e97c2cd7a37755bbfafc9c5b7cafaece252f6e # pin@v6.1.0
-        with:
-          gradle-home-cache-cleanup: true
 
       - if: matrix.language == 'java'
         name: Build for Android NDK
