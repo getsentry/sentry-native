@@ -28,14 +28,13 @@
 #cmakedefine01 HAVE_DECL_PTRACE_SYSCALL
 #cmakedefine01 HAVE_DECL_PTRACE_TRACEME
 
-/* PT_* BSD-style declarations - not available on Linux */
-#define HAVE_DECL_PT_CONTINUE 0
-#define HAVE_DECL_PT_GETFPREGS 0
-#define HAVE_DECL_PT_GETREGS 0
-#define HAVE_DECL_PT_IO 0
-#define HAVE_DECL_PT_STEP 0
-#define HAVE_DECL_PT_SYSCALL 0
-#define HAVE_DECL_PT_TRACE_ME 0
+#cmakedefine01 HAVE_DECL_PT_CONTINUE
+#cmakedefine01 HAVE_DECL_PT_GETFPREGS
+#cmakedefine01 HAVE_DECL_PT_GETREGS
+#cmakedefine01 HAVE_DECL_PT_IO
+#cmakedefine01 HAVE_DECL_PT_STEP
+#cmakedefine01 HAVE_DECL_PT_SYSCALL
+#cmakedefine01 HAVE_DECL_PT_TRACE_ME
 
 /* #undef HAVE_DLFCN_H */
 /* #undef HAVE_DLMODINFO */

@@ -321,7 +321,7 @@ _UPT_access_reg (UNUSED unw_addr_space_t as, unw_regnum_t reg, unw_word_t *val,
   Debug (1, "bad register %s [%u] (error: %s)\n", unw_regname(reg), reg, strerror (errno));
   return -UNW_EBADREG;
 }
-#elif defined(HAVE_DECL_PT_GETREGS) && defined(__linux__)
+#elif HAVE_DECL_PT_GETREGS && defined(__linux__)
 # include <sys/user.h>
 
 int
@@ -360,7 +360,7 @@ _UPT_access_reg (unw_addr_space_t as, unw_regnum_t reg, unw_word_t *val,
   return -UNW_EBADREG;
 }
 
-#elif defined(HAVE_DECL_PT_GETREGS) && defined(__FreeBSD__)
+#elif HAVE_DECL_PT_GETREGS && defined(__FreeBSD__)
 int
 _UPT_access_reg (unw_addr_space_t as, unw_regnum_t reg, unw_word_t *val,
                 int write, void *arg)

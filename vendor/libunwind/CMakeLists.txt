@@ -238,6 +238,19 @@ foreach(_ptrace_sym PTRACE_CONT PTRACE_POKEDATA PTRACE_POKEUSER PTRACE_SETREGSET
     endif()
 endforeach()
 
+# Check for PT declarations (BSD)
+foreach(_pt_sym PT_CONTINUE PT_GETFPREGS PT_GETREGS PT_IO PT_STEP PT_SYSCALL PT_TRACE_ME)
+    check_c_source_compiles("
+        #include <sys/ptrace.h>
+        int main() { int x = ${_pt_sym}; return x; }
+    " HAVE_DECL_${_pt_sym}_VAL)
+    if(HAVE_DECL_${_pt_sym}_VAL)
+        set(HAVE_DECL_${_pt_sym} 1)
+    else()
+        set(HAVE_DECL_${_pt_sym} 0)
+    endif()
+endforeach()
+
 # Configure config.h
 configure_file(
     "${CMAKE_CURRENT_SOURCE_DIR}/cmake/config.h.cmake.in"
