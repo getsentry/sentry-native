@@ -974,6 +974,12 @@ build_stacktrace_for_thread(
                         sentry_value_set_by_key(temp_frames[frame_count],
                             "function",
                             sentry_value_new_string(remote_frames[i].symbol));
+                        if (remote_frames[i].symbol_offset > 0) {
+                            sentry_value_set_by_key(temp_frames[frame_count],
+                                "symbol_addr",
+                                sentry__value_new_addr(remote_frames[i].ip
+                                    - remote_frames[i].symbol_offset));
+                        }
                     }
                     frame_count++;
                 }
