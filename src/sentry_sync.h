@@ -541,9 +541,24 @@ size_t sentry__bgworker_foreach_matching(sentry_bgworker_t *bgw,
  *   expires, then atomically clears the flag. Returns true if the flag was
  *   set, false on timeout.
  * - On Windows 8+/Xbox uses WaitOnAddress, on Linux and Android a futex to keep
- *   trigger latency low and pass on wait to the OS. Other POSIX, older Windows
- *   fall back on a sleepy atomic poll loop.
+ *   trigger latency low and pass on wait to the OS. On Darwin it uses
+ *   os_sync_wait_on_address when available at runtime. Other POSIX, older
+ *   Windows fall back on a sleepy atomic poll loop.
  */
+
+#ifndef __has_include
+#    define __has_include(x) 0
+#endif
+
+// Compile the Darwin os_sync path only when the SDK has the declarations.
+// Call sites below still use __builtin_available so lower deployment targets
+// weak-link the symbols and keep using the poll fallback on older OS releases.
+#if defined(SENTRY_PLATFORM_DARWIN) && __has_builtin(__builtin_available)      \
+    && __has_include(<os/os_sync_wait_on_address.h>)
+#    define SENTRY_HAS_DARWIN_OS_SYNC_WAIT_ON_ADDRESS 1
+#else
+#    define SENTRY_HAS_DARWIN_OS_SYNC_WAIT_ON_ADDRESS 0
+#endif
 
 #if defined(SENTRY_PLATFORM_WINDOWS) && _WIN32_WINNT >= 0x0602
 
@@ -623,6 +638,87 @@ sentry__waitable_flag_wait(sentry_waitable_flag_t *flag, uint64_t timeout_ms)
         &flag->value, &expected, 0, false, __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST);
 }
 
+#elif defined(SENTRY_PLATFORM_DARWIN)                                          \
+    && SENTRY_HAS_DARWIN_OS_SYNC_WAIT_ON_ADDRESS
+
+#    include <os/os_sync_wait_on_address.h>
+#    include <unistd.h>
+
+#    define SENTRY__DARWIN_OS_SYNC_WAIT_ON_ADDRESS_AVAILABLE()                 \
+        __builtin_available(macOS 14.4, iOS 17.4, tvOS 17.4, watchOS 10.4, *)
+
+typedef struct {
+    int value;
+} sentry_waitable_flag_t;
+
+static inline void
+sentry__waitable_flag_init(sentry_waitable_flag_t *flag)
+{
+    __atomic_store_n(&flag->value, 0, __ATOMIC_SEQ_CST);
+}
+
+static inline bool
+sentry__waitable_flag_poll_wait(
+    sentry_waitable_flag_t *flag, uint64_t timeout_ms)
+{
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    uint64_t deadline_ms = (uint64_t)ts.tv_sec * 1000
+        + (uint64_t)ts.tv_nsec / 1000000 + timeout_ms;
+    int expected = 1;
+    while (!__atomic_compare_exchange_n(&flag->value, &expected, 0, false,
+        __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST)) {
+        expected = 1;
+        clock_gettime(CLOCK_MONOTONIC, &ts);
+        uint64_t now_ms
+            = (uint64_t)ts.tv_sec * 1000 + (uint64_t)ts.tv_nsec / 1000000;
+        if (now_ms >= deadline_ms) {
+            return false;
+        }
+        usleep(10000); // 10ms
+    }
+    return true;
+}
+
+static inline void
+sentry__waitable_flag_set(sentry_waitable_flag_t *flag)
+{
+    __atomic_store_n(&flag->value, 1, __ATOMIC_RELEASE);
+    if (SENTRY__DARWIN_OS_SYNC_WAIT_ON_ADDRESS_AVAILABLE()) {
+        os_sync_wake_by_address_any(
+            &flag->value, sizeof(flag->value), OS_SYNC_WAKE_BY_ADDRESS_NONE);
+    }
+}
+
+static inline bool
+sentry__waitable_flag_wait(sentry_waitable_flag_t *flag, uint64_t timeout_ms)
+{
+    // Fast path: flag already set, atomically consume it
+    int expected = 1;
+    if (__atomic_compare_exchange_n(&flag->value, &expected, 0, false,
+            __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST)) {
+        return true;
+    }
+
+    if (SENTRY__DARWIN_OS_SYNC_WAIT_ON_ADDRESS_AVAILABLE()) {
+        if (timeout_ms > 0) {
+            const uint64_t timeout_ns = timeout_ms > UINT64_MAX / 1000000ULL
+                ? UINT64_MAX
+                : timeout_ms * 1000000ULL;
+            // Block while value == 0
+            os_sync_wait_on_address_with_timeout(&flag->value, 0,
+                sizeof(flag->value), OS_SYNC_WAIT_ON_ADDRESS_NONE,
+                OS_CLOCK_MACH_ABSOLUTE_TIME, timeout_ns);
+        }
+        // Try to consume the flag
+        expected = 1;
+        return __atomic_compare_exchange_n(&flag->value, &expected, 0, false,
+            __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST);
+    }
+
+    return sentry__waitable_flag_poll_wait(flag, timeout_ms);
+}
+
 #elif defined(SENTRY_PLATFORM_WINDOWS)
 /* Fallback for older Windows: sleep-poll with Sleep(). */
 
@@ -656,9 +752,10 @@ sentry__waitable_flag_wait(sentry_waitable_flag_t *flag, uint64_t timeout_ms)
 }
 
 #else
-/* Fallback for other POSIX platforms (Darwin, FreeBSD, AIX, NX, etc.).
- * Uses a simple sleep-poll loop over an atomic flag. Trades up to 10ms of
- * wake latency for zero platform-specific dependencies. */
+/* Fallback for other POSIX platforms (Darwin without os_sync SDK support,
+ * FreeBSD, AIX, NX, etc.). Uses a simple sleep-poll loop over an atomic flag.
+ * Trades up to 10ms of wake latency for zero platform-specific dependencies.
+ */
 
 #    include <unistd.h>
 
