@@ -1329,7 +1329,9 @@ enrich_frame_with_symbol(
                             if (syms[k].st_name < strtab_size) {
                                 const char *name = (const char *)strtab_buf
                                     + syms[k].st_name;
-                                if (name[0]) {
+                                if (name[0]
+                                    && memchr(name, '\0',
+                                        strtab_size - syms[k].st_name)) {
                                     best_name = name;
                                     best_value = syms[k].st_value;
                                 }
