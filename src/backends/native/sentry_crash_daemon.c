@@ -547,7 +547,7 @@ build_registers_from_ctx(const sentry_crash_context_t *ctx, size_t thread_idx)
     return registers;
 }
 
-#if defined(SENTRY_PLATFORM_LINUX)
+#ifdef SENTRY_WITH_UNWINDER_LIBUNWIND_REMOTE
 static sentry_value_t
 build_registers_from_remote_registers(
     const sentry_remote_registers_t *remote_registers)
