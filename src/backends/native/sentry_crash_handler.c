@@ -411,7 +411,7 @@ crash_signal_handler(int signum, siginfo_t *info, void *context)
                     == KERN_SUCCESS) {
                     extended_info.pth_name[sizeof(extended_info.pth_name) - 1]
                         = '\0';
-                    memcpy(ctx->platform.threads[i].name,
+                    signal_safe_memcpy(ctx->platform.threads[i].name,
                         extended_info.pth_name,
                         sizeof(ctx->platform.threads[i].name));
                     ctx->platform.threads[i]
