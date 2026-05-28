@@ -6,7 +6,7 @@
 
 - Native: add opt-in async crash upload mode so crashed apps can exit early after crash data is captured, while the crash daemon finishes potentially large uploads in the background. ([#1739](https://github.com/getsentry/sentry-native/pull/1739))
 - Add a `transfer_timeout` option for SDK-managed HTTP transports. ([#1741](https://github.com/getsentry/sentry-native/pull/1741))
-- Apple: use `os_sync` for the level-triggered waitable flag in the batcher on modern macOS(14.4+)/iOS(17.4+). ([#1764](https://github.com/getsentry/sentry-native/pull/1764))
+- Apple: use `os_sync_wait_on_address` for the level-triggered waitable flag in the batcher on modern macOS(14.4+) and iOS(17.4+). ([#1765](https://github.com/getsentry/sentry-native/pull/1765))
 
 **Fixes**:
 
