@@ -21,6 +21,8 @@
 #include "sentry_utils.h"
 #include "sentry_value.h"
 
+#define SENTRY_JSON_MAX_DEPTH 64
+
 typedef struct {
     void (*free)(sentry_jsonwriter_t *writer);
     void (*write_str)(sentry_jsonwriter_t *writer, const char *str);
@@ -207,7 +209,7 @@ sentry__jsonwriter_into_string(sentry_jsonwriter_t *jw, size_t *len_out)
 static bool
 at_max_depth(const sentry_jsonwriter_t *jw)
 {
-    return jw->depth >= 64;
+    return jw->depth >= SENTRY_JSON_MAX_DEPTH;
 }
 
 static void
@@ -578,7 +580,7 @@ decode_string_inplace(char *buf)
 
 static size_t
 tokens_to_value(jsmntok_t *tokens, size_t token_count, const char *buf,
-    sentry_value_t *value_out)
+    size_t depth, sentry_value_t *value_out)
 {
     size_t offset = 0;
 
@@ -586,7 +588,7 @@ tokens_to_value(jsmntok_t *tokens, size_t token_count, const char *buf,
 #define NESTED_PARSE(Target)                                                   \
     do {                                                                       \
         size_t child_consumed = tokens_to_value(                               \
-            tokens + offset, token_count - offset, buf, Target);               \
+            tokens + offset, token_count - offset, buf, depth + 1, Target);    \
         if (child_consumed == (size_t)-1) {                                    \
             goto error;                                                        \
         }                                                                      \
@@ -665,6 +667,9 @@ tokens_to_value(jsmntok_t *tokens, size_t token_count, const char *buf,
         break;
     }
     case JSMN_OBJECT: {
+        if (depth >= SENTRY_JSON_MAX_DEPTH) {
+            goto error;
+        }
         rv = sentry_value_new_object();
         for (int i = 0; i < root->size; i++) {
             jsmntok_t *token = POP();
@@ -687,6 +692,9 @@ tokens_to_value(jsmntok_t *tokens, size_t token_count, const char *buf,
         break;
     }
     case JSMN_ARRAY: {
+        if (depth >= SENTRY_JSON_MAX_DEPTH) {
+            goto error;
+        }
         rv = sentry_value_new_list();
         for (int i = 0; i < root->size; i++) {
             sentry_value_t child;
@@ -738,7 +746,7 @@ sentry__value_from_json(const char *buf, size_t buflen)
 
     sentry_value_t value_out;
     size_t tokens_consumed
-        = tokens_to_value(tokens, (size_t)token_count, buf, &value_out);
+        = tokens_to_value(tokens, (size_t)token_count, buf, 0, &value_out);
     sentry_free(tokens);
 
     if (tokens_consumed == (size_t)token_count) {
