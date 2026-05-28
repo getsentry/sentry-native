@@ -1278,7 +1278,9 @@ enrich_frame_with_symbol(
             }
         }
 
-        if (symtab_idx >= 0) {
+        if (symtab_idx >= 0
+            && sentry__elf_has_sym_entsize(
+                ehdr.e_ident, sections[symtab_idx].sh_entsize)) {
             size_t sym_size = sections[symtab_idx].sh_size;
             size_t sym_count = sym_size / sections[symtab_idx].sh_entsize;
             int strtab_idx = sections[symtab_idx].sh_link;

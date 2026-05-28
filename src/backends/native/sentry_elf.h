@@ -35,6 +35,21 @@ sentry__elf_has_shdr_size(
 }
 
 static inline bool
+sentry__elf_has_sym_entsize(
+    const unsigned char e_ident[EI_NIDENT], size_t sh_entsize)
+{
+    if (!sentry__elf_is_native_class(e_ident)) {
+        return false;
+    }
+
+#    if defined(__x86_64__) || defined(__aarch64__)
+    return sh_entsize == sizeof(Elf64_Sym);
+#    else
+    return sh_entsize == sizeof(Elf32_Sym);
+#    endif
+}
+
+static inline bool
 sentry__elf_has_phdr_size(
     const unsigned char e_ident[EI_NIDENT], size_t e_phentsize)
 {
