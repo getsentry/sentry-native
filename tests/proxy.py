@@ -138,24 +138,25 @@ def proxy_test_finally(
         expected_proxy_logsize = expected_httpserver_logsize
 
     if proxy_process:
-        # Give mitmdump some time to get a response from the mock server
-        assert wait_for(
-            lambda: len(httpserver.log) >= expected_httpserver_logsize, timeout
-        )
-
-        if expected_proxy_logsize != 0:
-            # request passed through successfully
-            wait_for_stdout(
-                proxy_process,
-                lambda text: "POST" in text and "200 OK" in text,
-                timeout,
+        try:
+            # Give mitmdump some time to get a response from the mock server
+            assert wait_for(
+                lambda: len(httpserver.log) >= expected_httpserver_logsize, timeout
             )
 
+            if expected_proxy_logsize != 0:
+                # request passed through successfully
+                wait_for_stdout(
+                    proxy_process,
+                    lambda text: "POST" in text and "200 OK" in text,
+                    timeout,
+                )
+        finally:
             proxy_process.terminate()
             proxy_process.wait(timeout=timeout)
-        else:
+
+        if expected_proxy_logsize == 0:
             # don't expect any incoming requests to make it through the proxy
-            proxy_process.terminate()
             stdout_bytes, _ = proxy_process.communicate(timeout=timeout)
             stdout = stdout_bytes.decode("utf-8", errors="replace")
             proxy_log_assert(stdout)
