@@ -1,3 +1,5 @@
+#include "sentry_alloc.h"
+#include "sentry_backend.h"
 #include "sentry_core.h"
 #include "sentry_database.h"
 #include "sentry_options.h"
@@ -424,4 +426,31 @@ SENTRY_TEST(installation_id)
     sentry_close();
 
     sentry_free(id_a);
+}
+
+static void
+backend_free_options_ref(sentry_backend_t *backend)
+{
+    const sentry_options_t **options_ref = backend->data;
+    *options_ref = sentry__options_getref();
+}
+
+SENTRY_TEST(clear_options)
+{
+    const sentry_options_t *options_ref = NULL;
+
+    SENTRY_TEST_OPTIONS_NEW(options);
+
+    sentry_backend_t *backend = SENTRY_MAKE(sentry_backend_t);
+    TEST_ASSERT(!!backend);
+    backend->free_func = backend_free_options_ref;
+    backend->data = &options_ref;
+    sentry_options_set_backend(options, backend);
+
+    sentry_init(options);
+    sentry_close();
+
+    // The backend free hook runs from sentry_options_free(). At that point,
+    // sentry__options_getref() must no longer expose the options.
+    TEST_CHECK(options_ref == NULL);
 }
