@@ -709,3 +709,36 @@ def wait_for_daemon(tmp_path, started_at, timeout=None):
         time.sleep(0.1)
 
     return False
+
+
+def wait_for_stdout(process, predicate, timeout=10):
+    """Read a process's stdout in a background thread, polling until
+    *predicate(text)* is satisfied or *timeout* expires.
+
+    Returns the full stdout text collected up to that point.
+    The caller should terminate/kill the process after this returns
+    to close the pipe and let the background thread exit.
+    """
+    import threading
+
+    lines = []
+
+    def reader():
+        try:
+            for line in iter(process.stdout.readline, b""):
+                lines.append(line)
+        except ValueError:
+            pass
+
+    thread = threading.Thread(target=reader, daemon=True)
+    thread.start()
+
+    def stdout_text():
+        return b"".join(lines).decode("utf-8", errors="replace")
+
+    if not wait_for(lambda: predicate(stdout_text()), timeout):
+        raise TimeoutError(
+            f"Predicate not satisfied within {timeout}s.\n"
+            f"Collected output:\n{stdout_text()}"
+        )
+    return stdout_text()

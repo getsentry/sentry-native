@@ -2,14 +2,13 @@ import contextlib
 import os
 import socket
 import subprocess
-import threading
 import time
 
 import psutil
 
 import pytest
 
-from tests.assertions import assert_no_proxy_request, wait_for
+from tests.assertions import assert_no_proxy_request, wait_for, wait_for_stdout
 
 
 @contextlib.contextmanager
@@ -139,31 +138,25 @@ def proxy_test_finally(
         expected_proxy_logsize = expected_httpserver_logsize
 
     if proxy_process:
-        stdout = []
-
-        def read_proxy_stdout():
-            if proxy_process.stdout is None:
-                return
-            for line in iter(proxy_process.stdout.readline, b""):
-                stdout.append(line.decode("utf-8", errors="replace"))
-
-        reader = threading.Thread(target=read_proxy_stdout, daemon=True)
-        reader.start()
-
         # Give mitmdump some time to get a response from the mock server
         assert wait_for(
             lambda: len(httpserver.log) >= expected_httpserver_logsize, timeout
         )
+
         if expected_proxy_logsize != 0:
             # request passed through successfully
-            assert wait_for(
-                lambda: "POST" in "".join(stdout) and "200 OK" in "".join(stdout),
+            wait_for_stdout(
+                proxy_process,
+                lambda text: "POST" in text and "200 OK" in text,
                 timeout,
             )
+
         proxy_process.terminate()
-        stdout_bytes, _ = proxy_process.communicate(timeout=timeout)
-        stdout = "".join(stdout) + stdout_bytes.decode("utf-8", errors="replace")
+        proxy_process.wait(timeout=timeout)
+
         if expected_proxy_logsize == 0:
             # don't expect any incoming requests to make it through the proxy
+            remaining = proxy_process.stdout.read()
+            stdout = remaining.decode("utf-8", errors="replace")
             proxy_log_assert(stdout)
     assert len(httpserver.log) == expected_httpserver_logsize
