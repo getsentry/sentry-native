@@ -940,6 +940,7 @@ build_stacktrace_for_thread(
         bool is_crashed_thread
             = thread_idx == SIZE_MAX || tid == ctx->crashed_tid;
 
+#    ifdef SENTRY_WITH_UNWINDER_LIBUNWIND_REMOTE
         if (tid > 0 && !is_crashed_thread) {
             sentry_remote_registers_t registers = { 0 };
             sentry_remote_frame_t *remote_frames
@@ -1006,6 +1007,7 @@ build_stacktrace_for_thread(
                 sentry_free(remote_frames);
             }
         }
+#    endif
     }
     // Fall through to pre-captured backtrace or FP-walking if remote
     // unwinding failed
