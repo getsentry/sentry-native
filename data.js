@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1779980108558,
+  "lastUpdate": 1779980179801,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -71392,6 +71392,66 @@ window.BENCHMARK_DATA = {
             "value": 12.944800000013856,
             "unit": "ms",
             "extra": "Min 12.355ms\nMax 14.416ms\nMean 13.109ms\nStdDev 0.810ms\nMedian 12.945ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "mischan@abovevacant.com",
+            "name": "Mischan Toosarani-Hausberger",
+            "username": "supervacuus"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "aa17f526ee897bb11f18c56c3ae2590eb4476b2c",
+          "message": "feat(apple): use `os_sync` for waitable flag on modern Darwin (#1765)",
+          "timestamp": "2026-05-28T16:51:41+02:00",
+          "tree_id": "13b6e0dc3cd7a20290342eb3896fd2fe15d8b284",
+          "url": "https://github.com/getsentry/sentry-native/commit/aa17f526ee897bb11f18c56c3ae2590eb4476b2c"
+        },
+        "date": 1779980171787,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 10.703999999805092,
+            "unit": "ms",
+            "extra": "Min 10.532ms\nMax 10.939ms\nMean 10.733ms\nStdDev 0.176ms\nMedian 10.704ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 11.284799999884854,
+            "unit": "ms",
+            "extra": "Min 10.951ms\nMax 11.924ms\nMean 11.296ms\nStdDev 0.386ms\nMedian 11.285ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 27.751200000011522,
+            "unit": "ms",
+            "extra": "Min 26.793ms\nMax 28.643ms\nMean 27.777ms\nStdDev 0.737ms\nMedian 27.751ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.21500000002561137,
+            "unit": "ms",
+            "extra": "Min 0.197ms\nMax 0.224ms\nMean 0.212ms\nStdDev 0.012ms\nMedian 0.215ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.44959999991078803,
+            "unit": "ms",
+            "extra": "Min 0.414ms\nMax 0.520ms\nMean 0.455ms\nStdDev 0.040ms\nMedian 0.450ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 15.4938000000584,
+            "unit": "ms",
+            "extra": "Min 15.148ms\nMax 15.975ms\nMean 15.517ms\nStdDev 0.375ms\nMedian 15.494ms"
           }
         ]
       }
