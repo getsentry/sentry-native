@@ -436,13 +436,20 @@ sentry__scope_apply_to_event(const sentry_scope_t *scope,
         sentry__value_merge_objects(event_extra, scope->extra);
     }
 
+    bool is_transaction = sentry__event_is_transaction(event);
     sentry_value_t contexts = sentry__value_clone(scope->contexts);
+    if (is_transaction && !sentry_value_is_null(contexts)) {
+        sentry_value_remove_by_key(contexts, "trace");
+    }
 
     // prep contexts sourced from scope; data about transaction on scope needs
     // to be extracted and inserted
-    sentry_value_t scoped_txn_or_span = get_span_or_transaction(scope);
-    sentry_value_t scope_trace
-        = sentry__value_get_trace_context(scoped_txn_or_span);
+    sentry_value_t scoped_txn_or_span = sentry_value_new_null();
+    sentry_value_t scope_trace = sentry_value_new_null();
+    if (!is_transaction) {
+        scoped_txn_or_span = get_span_or_transaction(scope);
+        scope_trace = sentry__value_get_trace_context(scoped_txn_or_span);
+    }
     if (!sentry_value_is_null(scope_trace)) {
         if (sentry_value_is_null(contexts)) {
             contexts = sentry_value_new_object();
@@ -461,7 +468,7 @@ sentry__scope_apply_to_event(const sentry_scope_t *scope,
     sentry_value_t event_contexts = sentry_value_get_by_key(event, "contexts");
     if (sentry_value_is_null(event_contexts)) {
         // only merge in propagation context if there is no scoped span
-        if (sentry_value_is_null(scope_trace)) {
+        if (!is_transaction && sentry_value_is_null(scope_trace)) {
             sentry__value_merge_objects(contexts, scope->propagation_context);
         }
         PLACE_VALUE("contexts", contexts);

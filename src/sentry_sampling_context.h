@@ -2,7 +2,8 @@
 #ifndef SENTRY_SAMPLING_CONTEXT_H_INCLUDED
 #define SENTRY_SAMPLING_CONTEXT_H_INCLUDED
 
-#include "sentry_tracing.h"
+#include "sentry_boot.h"
+#include "sentry_value.h"
 
 typedef struct sentry_sampling_context_s {
     sentry_transaction_context_t *transaction_context;

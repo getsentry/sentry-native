@@ -2,8 +2,14 @@
 
 ## Unreleased
 
+**Features**:
+
+- Native: add opt-in async crash upload mode so crashed apps can exit early after crash data is captured, while the crash daemon finishes potentially large uploads in the background. ([#1739](https://github.com/getsentry/sentry-native/pull/1739))
+- Add a `transfer_timeout` option for SDK-managed HTTP transports. ([#1741](https://github.com/getsentry/sentry-native/pull/1741))
+
 **Fixes**:
 
+- Finish active trace on crash. ([#1667](https://github.com/getsentry/sentry-native/pull/1667))
 - Native/macOS: fix module `image_size` computation, which could have caused the symbolicator to misattribute every frame to the lowest-addressed image (typically `dyld` or `libsystem`). ([#1740](https://github.com/getsentry/sentry-native/pull/1740))
 - Native: raise `SENTRY_CRASH_MAX_MODULES` from `512` to `2048` so processes that load many shared libraries no longer have their minidump module list truncated, which left frames in unrecorded modules without a `debug_id` and unsymbolicatable.
   ([#1738](https://github.com/getsentry/sentry-native/pull/1738))
@@ -13,9 +19,11 @@
 - Windows: fix HTTP rate limit response header parsing. ([#1732](https://github.com/getsentry/sentry-native/pull/1732))
 - POSIX: prevent condition-variable timeout overflow from busy-spinning flush and shutdown waits. ([#1731](https://github.com/getsentry/sentry-native/pull/1731))
 - Native/macOS: fix thread stack descriptor. ([#1726](https://github.com/getsentry/sentry-native/pull/1726))
+- Native/macOS: honor the `system_crash_reporter_enabled` option. ([#1743](https://github.com/getsentry/sentry-native/pull/1743))
 - Cap rate-limit retry-after values at 24 hours to prevent a MITM-provided response from disabling event delivery for the process lifetime. ([#1744](https://github.com/getsentry/sentry-native/pull/1744))
-- Native: validate ELF header entry sizes. ([#1746](https://github.com/getsentry/sentry-native/pull/1746))
 - Fix a shutdown-time use-after-free window in `sentry_close()`. ([#1750](https://github.com/getsentry/sentry-native/pull/1750))
+- Native: validate ELF header entry sizes. ([#1746](https://github.com/getsentry/sentry-native/pull/1746))
+- Structured logs: respect printf argument widths when extracting log parameters to avoid stack-data disclosure and corrupted attributes on 32-bit platforms. ([#1752](https://github.com/getsentry/sentry-native/pull/1752))
 
 ## 0.14.2
 

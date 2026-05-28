@@ -13,7 +13,7 @@ import tests
 import msgpack
 
 from . import SENTRY_VERSION
-from .conditions import is_android
+from .conditions import is_android, is_asan, is_tsan
 
 VERSION_RE = re.compile(r"(\d+\.\d+\.\d+)[-.]?(.*)")
 
@@ -675,4 +675,32 @@ def wait_for_file(path, timeout=10.0, poll_interval=0.1):
         if glob.glob(str(path)):
             return True
         time.sleep(poll_interval)
+    return False
+
+
+def wait_for_daemon(tmp_path, started_at, timeout=None):
+    import time
+
+    if timeout is None:
+        timeout = 30.0 if is_asan or is_tsan else 10.0
+
+    db_dir = Path(tmp_path) / ".sentry-native"
+    # Account for filesystems that truncate mtimes below time.time() precision.
+    started_at -= 1.0
+
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        for log_path in db_dir.glob("sentry-daemon-*.log"):
+            try:
+                if log_path.stat().st_mtime < started_at:
+                    continue
+                log = log_path.read_text(errors="replace")
+            except OSError:
+                continue
+
+            if "Marking crash state as DONE" in log:
+                return True
+
+        time.sleep(0.1)
+
     return False
