@@ -401,6 +401,25 @@ crash_signal_handler(int signum, siginfo_t *info, void *context)
                 ctx->platform.threads[i].tid = 0;
             }
 
+            // Get thread name from THREAD_EXTENDED_INFO
+            ctx->platform.threads[i].name[0] = '\0';
+            {
+                thread_extended_info_data_t extended_info;
+                mach_msg_type_number_t ext_count = THREAD_EXTENDED_INFO_COUNT;
+                if (thread_info(threads[i], THREAD_EXTENDED_INFO,
+                        (thread_info_t)&extended_info, &ext_count)
+                    == KERN_SUCCESS) {
+                    extended_info.pth_name[sizeof(extended_info.pth_name) - 1]
+                        = '\0';
+                    memcpy(ctx->platform.threads[i].name,
+                        extended_info.pth_name,
+                        sizeof(ctx->platform.threads[i].name));
+                    ctx->platform.threads[i]
+                        .name[sizeof(ctx->platform.threads[i].name) - 1]
+                        = '\0';
+                }
+            }
+
             // For the crashing thread, use the context from the signal handler
             // For other threads, use thread_get_state()
             bool is_crashing_thread = (threads[i] == crashing_thread);

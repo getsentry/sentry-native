@@ -2224,6 +2224,12 @@ build_native_crash_event(
             sentry_value_set_by_key(
                 thread, "id", sentry_value_new_int32((int32_t)tctx->tid));
 
+            // Set thread name if available
+            if (tctx->name[0] != '\0') {
+                sentry_value_set_by_key(
+                    thread, "name", sentry_value_new_string(tctx->name));
+            }
+
             bool is_crashed = (tctx->tid == (uint64_t)ctx->crashed_tid);
             sentry_value_set_by_key(
                 thread, "crashed", sentry_value_new_bool(is_crashed));
