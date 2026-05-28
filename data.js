@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1779947906334,
+  "lastUpdate": 1779948024776,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -70132,6 +70132,66 @@ window.BENCHMARK_DATA = {
             "value": 15.152199999874938,
             "unit": "ms",
             "extra": "Min 13.563ms\nMax 16.043ms\nMean 14.983ms\nStdDev 0.895ms\nMedian 15.152ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "jpnurmi@gmail.com",
+            "name": "J-P Nurmi",
+            "username": "jpnurmi"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "d171b2e847fc56a81b96205fe7f6b495f4a7a8a1",
+          "message": "fix: Cap JSON parser depth (#1748)\n\n* fix: Cap JSON parser depth\n\nReject JSON inputs whose object or array nesting exceeds 64 levels. The parser\npreviously recursed once per nested container with no limit, so crafted cached\nJSON could exhaust the C call stack during SDK startup or envelope/session\nprocessing.\n\nUse 64 because the JSON writer already uses that maximum depth. Matching the\nwriter preserves the SDK's existing JSON depth policy: JSON the SDK can emit\nremains accepted, while deeper untrusted input is rejected.\n\nMsgpack deserialization was already capped. Raise that existing cap from 32 to\n64 because msgpack uses the same recursive value conversion shape, and 64 is\nthe stack-safe bound chosen for JSON.\n\nCo-Authored-By: OpenAI Codex <noreply@openai.com>\n\n* Update CHANGELOG.md\n\n---------\n\nCo-authored-by: OpenAI Codex <noreply@openai.com>",
+          "timestamp": "2026-05-28T07:55:25+02:00",
+          "tree_id": "a476598c5c323ae71d5fde40930a31b29bb4048b",
+          "url": "https://github.com/getsentry/sentry-native/commit/d171b2e847fc56a81b96205fe7f6b495f4a7a8a1"
+        },
+        "date": 1779948017094,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 12.837799999942945,
+            "unit": "ms",
+            "extra": "Min 12.616ms\nMax 15.289ms\nMean 13.560ms\nStdDev 1.215ms\nMedian 12.838ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 11.992500000133077,
+            "unit": "ms",
+            "extra": "Min 11.640ms\nMax 16.649ms\nMean 13.242ms\nStdDev 2.190ms\nMedian 11.993ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 30.377199999975346,
+            "unit": "ms",
+            "extra": "Min 29.293ms\nMax 37.009ms\nMean 32.027ms\nStdDev 3.231ms\nMedian 30.377ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.2339000000119995,
+            "unit": "ms",
+            "extra": "Min 0.215ms\nMax 0.244ms\nMean 0.231ms\nStdDev 0.011ms\nMedian 0.234ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.4926999999952386,
+            "unit": "ms",
+            "extra": "Min 0.457ms\nMax 0.585ms\nMean 0.508ms\nStdDev 0.048ms\nMedian 0.493ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 16.478700000106983,
+            "unit": "ms",
+            "extra": "Min 16.240ms\nMax 17.068ms\nMean 16.542ms\nStdDev 0.332ms\nMedian 16.479ms"
           }
         ]
       }
