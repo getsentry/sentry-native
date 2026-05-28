@@ -156,7 +156,7 @@ process_wer_exception(
                 waited_ms += SENTRY_CRASH_HANDLER_POLL_INTERVAL_MS) {
                 if (InterlockedCompareExchange(&ctx->state,
                         SENTRY_CRASH_STATE_DONE, SENTRY_CRASH_STATE_DONE)
-                    == SENTRY_CRASH_STATE_DONE) {
+                    >= SENTRY_CRASH_STATE_CAPTURED) {
                     break;
                 }
                 Sleep(SENTRY_CRASH_HANDLER_POLL_INTERVAL_MS);

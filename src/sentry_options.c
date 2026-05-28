@@ -87,6 +87,7 @@ sentry_options_new(void)
     opts->transport = sentry__transport_new_default();
     opts->refcount = 1;
     opts->shutdown_timeout = SENTRY_DEFAULT_SHUTDOWN_TIMEOUT;
+    opts->transfer_timeout = SENTRY_DEFAULT_TRANSFER_TIMEOUT;
     sentry_options_set_sample_rate(
         opts, sentry__getenv_double("SENTRY_SAMPLE_RATE", 1.0));
     sentry_options_set_traces_sample_rate(
@@ -97,6 +98,7 @@ sentry_options_new(void)
     opts->crash_reporting_mode
         = SENTRY_CRASH_REPORTING_MODE_NATIVE_WITH_MINIDUMP; // Default: best of
                                                             // both worlds
+    opts->crash_upload_mode = SENTRY_CRASH_UPLOAD_MODE_SYNC;
     opts->http_retry = false;
     opts->send_client_reports = true;
     opts->enable_large_attachments = false;
@@ -616,6 +618,25 @@ sentry_options_get_crash_reporting_mode(const sentry_options_t *opts)
 }
 
 void
+sentry_options_set_crash_upload_mode(
+    sentry_options_t *opts, sentry_crash_upload_mode_t mode)
+{
+    int imode = (int)mode;
+    if (imode < SENTRY_CRASH_UPLOAD_MODE_SYNC) {
+        imode = SENTRY_CRASH_UPLOAD_MODE_SYNC;
+    } else if (imode > SENTRY_CRASH_UPLOAD_MODE_ASYNC) {
+        imode = SENTRY_CRASH_UPLOAD_MODE_ASYNC;
+    }
+    opts->crash_upload_mode = imode;
+}
+
+sentry_crash_upload_mode_t
+sentry_options_get_crash_upload_mode(const sentry_options_t *opts)
+{
+    return (sentry_crash_upload_mode_t)opts->crash_upload_mode;
+}
+
+void
 sentry_options_set_crashpad_wait_for_upload(
     sentry_options_t *opts, int wait_for_upload)
 {
@@ -640,6 +661,19 @@ uint64_t
 sentry_options_get_shutdown_timeout(sentry_options_t *opts)
 {
     return opts->shutdown_timeout;
+}
+
+void
+sentry_options_set_transfer_timeout(
+    sentry_options_t *opts, uint64_t transfer_timeout)
+{
+    opts->transfer_timeout = transfer_timeout;
+}
+
+uint64_t
+sentry_options_get_transfer_timeout(sentry_options_t *opts)
+{
+    return opts->transfer_timeout;
 }
 
 void

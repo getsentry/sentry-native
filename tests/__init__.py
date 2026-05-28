@@ -4,6 +4,7 @@ import os
 import io
 import json
 import sys
+import time
 import urllib
 import pytest
 import pprint
@@ -23,6 +24,8 @@ def adb(*args, **kwargs):
 pytest.register_assert_rewrite("tests.assertions")
 
 SENTRY_VERSION = "0.14.2"
+
+from .assertions import wait_for_daemon as _wait_for_daemon
 
 
 def make_dsn(httpserver, auth="uiaeosnrtdy", id=123456, proxy_host=False):
@@ -96,7 +99,13 @@ def extract_request(httpserver_log, cond):
     return (None, httpserver_log)
 
 
-def run(cwd, exe, args, expect_failure=False, env=None, **kwargs):
+def run(
+    cwd, exe, args, expect_failure=False, env=None, wait_for_daemon=False, **kwargs
+):
+    if wait_for_daemon:
+        assert (
+            "log" in args or exe != "sentry_example"
+        ), "sentry_example needs 'log' when waiting for the daemon"
     if env is None:
         env = dict(os.environ)
     if kwargs.get("check"):
@@ -105,6 +114,7 @@ def run(cwd, exe, args, expect_failure=False, env=None, **kwargs):
         )
     check = expect_failure == False
     __tracebackhide__ = True
+    started_at = time.time()
     if os.environ.get("ANDROID_API"):
         # older android emulators do not correctly pass down the returncode
         # so we basically echo the return code, and parse it manually
@@ -179,6 +189,10 @@ def run(cwd, exe, args, expect_failure=False, env=None, **kwargs):
         ]
     try:
         result = subprocess.run([*cmd, *args], cwd=cwd, env=env, check=check, **kwargs)
+        if wait_for_daemon:
+            assert _wait_for_daemon(
+                cwd, started_at
+            ), "native crash daemon did not finish within timeout"
         if expect_failure:
             assert (
                 result.returncode != 0
