@@ -149,6 +149,11 @@ bool sentry__path_ends_with(const sentry_path_t *path, const char *suffix);
 bool sentry__path_is_dir(const sentry_path_t *path);
 
 /**
+ * Return whether the path refers to a symlink.
+ */
+bool sentry__path_is_symlink(const sentry_path_t *path);
+
+/**
  * Return whether the path refers to a regular file.
  */
 bool sentry__path_is_file(const sentry_path_t *path);

@@ -6,6 +6,7 @@ multi-thread capture, and FPU/SIMD register capture on all platforms.
 """
 
 import os
+import subprocess
 import sys
 import time
 import struct
@@ -39,7 +40,7 @@ pytestmark = pytest.mark.skipif(
 SANITIZER_ARGS = ["shutdown-timeout", "10000"] if is_asan or is_tsan else []
 
 
-def run_crash(tmp_path, exe, args, env, wait_for_daemon=False):
+def run_crash(tmp_path, exe, args, env, **kwargs):
     """
     Run a crash test.
 
@@ -62,14 +63,7 @@ def run_crash(tmp_path, exe, args, env, wait_for_daemon=False):
         else:
             env["ASAN_OPTIONS"] = asan_signal_opts
 
-    run(
-        tmp_path,
-        exe,
-        args,
-        expect_failure=True,
-        env=env,
-        wait_for_daemon=wait_for_daemon,
-    )
+    run(tmp_path, exe, args, expect_failure=True, env=env, **kwargs)
 
 
 def test_native_capture_crash(cmake, httpserver):
@@ -894,7 +888,7 @@ def test_crash_mode_native_only(cmake, httpserver):
     for frame in exc["stacktrace"]["frames"]:
         assert "instruction_addr" in frame
 
-    if sys.platform == "win32":
+    if sys.platform == "win32" or sys.platform == "linux":
         # At least some frames should have symbolicated function names
         assert any(
             frame.get("function") is not None for frame in exc["stacktrace"]["frames"]
@@ -941,7 +935,7 @@ def test_crash_mode_native_with_minidump(cmake, httpserver):
     assert exc["mechanism"]["type"] == "signalhandler"
     assert "stacktrace" in exc
     assert len(exc["stacktrace"]["frames"]) > 0
-    if sys.platform == "win32":
+    if sys.platform == "win32" or sys.platform == "linux":
         # At least some frames should have symbolicated function names
         assert any(
             frame.get("function") is not None for frame in exc["stacktrace"]["frames"]
@@ -1024,3 +1018,27 @@ def test_native_cache_keep(cmake, cache_keep, unreachable_dsn):
         assert cache_files[0].stem == dmp_files[0].stem
     else:
         assert len(list(cache_dir.glob("*.envelope"))) == 0
+
+
+def test_native_restart_on_crash(cmake, httpserver):
+    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "native"})
+
+    httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data("OK")
+    httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data("OK")
+
+    with httpserver.wait(timeout=10) as waiting:
+        # The restarted child inherits stdio, so PIPE waits for it without a sleep.
+        run_crash(
+            tmp_path,
+            "sentry_example",
+            ["crash", "restart-on-crash"],
+            env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+
+    assert waiting.result
+    assert len(httpserver.log) == 2
+    for req in httpserver.log:
+        envelope = Envelope.deserialize(req[0].get_data())
+        assert_native_crash(envelope)

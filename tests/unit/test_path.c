@@ -2,6 +2,11 @@
 #include "sentry_string.h"
 #include "sentry_testsupport.h"
 
+#if defined(SENTRY_PLATFORM_UNIX) && !defined(SENTRY_PLATFORM_NX)              \
+    && !defined(SENTRY_PLATFORM_PS)
+#    include <unistd.h>
+#endif
+
 SENTRY_TEST(recursive_paths)
 {
     sentry_path_t *base = sentry__path_from_str(SENTRY_TEST_PATH_PREFIX ".foo");
@@ -245,6 +250,47 @@ SENTRY_TEST(path_directory)
     sentry__path_remove_all(path_1);
     sentry__path_free(path_1);
     sentry__path_free(path_2);
+}
+
+SENTRY_TEST(path_remove_all_symlink)
+{
+#if !defined(SENTRY_PLATFORM_UNIX) || defined(SENTRY_PLATFORM_NX)              \
+    || defined(SENTRY_PLATFORM_PS)
+    SKIP_TEST();
+#else
+    sentry_path_t *base
+        = sentry__path_from_str(SENTRY_TEST_PATH_PREFIX ".remove-all");
+    TEST_ASSERT(!!base);
+    sentry_path_t *target = sentry__path_join_str(base, "target");
+    TEST_ASSERT(!!target);
+    sentry_path_t *target_file = sentry__path_join_str(target, "important");
+    TEST_ASSERT(!!target_file);
+    sentry_path_t *link = sentry__path_join_str(base, "link");
+    TEST_ASSERT(!!link);
+
+    // Model a recursive deletion target like:
+    //   .remove-all/link -> .remove-all/target
+    // Removing the link must not recurse into the target directory.
+    TEST_ASSERT(sentry__path_remove_all(base) == 0);
+    TEST_ASSERT(sentry__path_create_dir_all(target) == 0);
+    TEST_ASSERT(sentry__path_write_buffer(target_file, "keep", 4) == 0);
+    sentry_path_t *target_abs = sentry__path_absolute(target);
+    TEST_ASSERT(!!target_abs);
+    TEST_ASSERT(symlink(target_abs->path, link->path) == 0);
+    TEST_CHECK(sentry__path_is_symlink(link));
+
+    TEST_ASSERT(sentry__path_remove_all(link) == 0);
+
+    TEST_CHECK(sentry__path_is_file(target_file));
+    TEST_CHECK(!sentry__path_is_dir(link));
+
+    sentry__path_remove_all(base);
+    sentry__path_free(link);
+    sentry__path_free(target_file);
+    sentry__path_free(target_abs);
+    sentry__path_free(target);
+    sentry__path_free(base);
+#endif
 }
 
 SENTRY_TEST(path_mtime)

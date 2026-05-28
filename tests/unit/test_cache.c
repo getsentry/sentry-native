@@ -12,6 +12,7 @@
 #ifdef SENTRY_PLATFORM_WINDOWS
 #    include <windows.h>
 #elif !defined(SENTRY_PLATFORM_NX) && !defined(SENTRY_PLATFORM_PS)
+#    include <unistd.h>
 #    include <utime.h>
 #endif
 
@@ -437,6 +438,57 @@ SENTRY_TEST(cache_prune_siblings)
     sentry__path_free(old_sibling);
     sentry__path_free(cache_path);
     sentry_close();
+}
+
+SENTRY_TEST(cache_symlink_run)
+{
+#if !defined(SENTRY_PLATFORM_UNIX) || defined(SENTRY_PLATFORM_NX)              \
+    || defined(SENTRY_PLATFORM_PS)
+    SKIP_TEST();
+#else
+    SENTRY_TEST_OPTIONS_NEW(options);
+    sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
+    sentry_init(options);
+
+    sentry_path_t *target_dir
+        = sentry__path_from_str(SENTRY_TEST_PATH_PREFIX ".old-run-target");
+    TEST_ASSERT(!!target_dir);
+    sentry_path_t *target_file = sentry__path_join_str(target_dir, "important");
+    TEST_ASSERT(!!target_file);
+    sentry_path_t *linked_run_dir
+        = sentry__path_join_str(options->database_path, "malicious.run");
+    TEST_ASSERT(!!linked_run_dir);
+    sentry_path_t *linked_run_lock
+        = sentry__path_append_str(linked_run_dir, ".lock");
+    TEST_ASSERT(!!linked_run_lock);
+
+    // Model an old run entry like:
+    //   <database>/malicious.run -> <cwd>/.old-run-target
+    // The target stays outside the database so following the link would remove
+    // files outside SDK-owned cache directories.
+    sentry__path_remove(linked_run_dir);
+    sentry__path_remove(linked_run_lock);
+    TEST_ASSERT(sentry__path_remove_all(target_dir) == 0);
+    TEST_ASSERT(sentry__path_create_dir_all(target_dir) == 0);
+    TEST_ASSERT(sentry__path_write_buffer(target_file, "keep", 4) == 0);
+    sentry_path_t *target_dir_abs = sentry__path_absolute(target_dir);
+    TEST_ASSERT(!!target_dir_abs);
+    TEST_ASSERT(symlink(target_dir_abs->path, linked_run_dir->path) == 0);
+
+    sentry__process_old_runs(options, 0);
+
+    TEST_CHECK(sentry__path_is_file(target_file));
+
+    sentry__path_remove(linked_run_dir);
+    sentry__path_remove(linked_run_lock);
+    sentry__path_remove_all(target_dir);
+    sentry__path_free(linked_run_lock);
+    sentry__path_free(linked_run_dir);
+    sentry__path_free(target_dir_abs);
+    sentry__path_free(target_file);
+    sentry__path_free(target_dir);
+    sentry_close();
+#endif
 }
 
 SENTRY_TEST(cache_consent_revoked)

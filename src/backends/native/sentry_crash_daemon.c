@@ -644,6 +644,11 @@ enrich_frame_with_module_info(
         (unsigned long long)addr, ctx->module_count);
 }
 
+#if defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID)
+static void enrich_frame_with_symbol(
+    const sentry_crash_context_t *ctx, sentry_value_t frame, uint64_t addr);
+#endif
+
 /**
  * Build stacktrace frames for a specific thread using frame pointer-based
  * unwinding. Reads the captured stack memory and walks the frame chain.
@@ -1025,6 +1030,7 @@ build_stacktrace_for_thread(
                 sentry_value_new_string(i == 0 ? "context" : "cfi"));
             enrich_frame_with_module_info(
                 ctx, temp_frames[frame_count], frame_ip);
+            enrich_frame_with_symbol(ctx, temp_frames[frame_count], frame_ip);
             frame_count++;
         }
 
@@ -1059,6 +1065,9 @@ build_stacktrace_for_thread(
         sentry_value_set_by_key(temp_frames[frame_count], "trust",
             sentry_value_new_string("context"));
         enrich_frame_with_module_info(ctx, temp_frames[frame_count], ip);
+#if defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID)
+        enrich_frame_with_symbol(ctx, temp_frames[frame_count], ip);
+#endif
         frame_count++;
     }
 
@@ -1117,6 +1126,10 @@ build_stacktrace_for_thread(
                 sentry_value_new_string("fp"));
             enrich_frame_with_module_info(
                 ctx, temp_frames[frame_count], return_addr);
+#if defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID)
+            enrich_frame_with_symbol(
+                ctx, temp_frames[frame_count], return_addr);
+#endif
             frame_count++;
             walk_count++;
 
@@ -1289,6 +1302,163 @@ done:
     sentry_free(shdr_buf);
     close(fd);
     return build_id_len;
+}
+
+/**
+ * Resolve the symbol name for a given instruction address from an ELF symbol
+ * table and set the "function" key on the frame value.
+ */
+static void
+enrich_frame_with_symbol(
+    const sentry_crash_context_t *ctx, sentry_value_t frame, uint64_t addr)
+{
+    for (uint32_t i = 0; i < ctx->module_count; i++) {
+        const sentry_module_info_t *mod = &ctx->modules[i];
+        if (addr < mod->base_address || addr >= mod->base_address + mod->size) {
+            continue;
+        }
+
+        uint64_t offset = addr - mod->base_address;
+
+        int fd = open(mod->name, O_RDONLY);
+        if (fd < 0) {
+            return;
+        }
+
+#    if defined(__x86_64__) || defined(__aarch64__)
+        Elf64_Ehdr ehdr;
+#    else
+        Elf32_Ehdr ehdr;
+#    endif
+        if (read(fd, &ehdr, sizeof(ehdr)) != sizeof(ehdr)) {
+            close(fd);
+            return;
+        }
+
+        if (memcmp(ehdr.e_ident, ELFMAG, SELFMAG) != 0
+            || !sentry__elf_is_native_class(ehdr.e_ident)
+            || !sentry__elf_has_shdr_size(ehdr.e_ident, ehdr.e_shentsize)) {
+            close(fd);
+            return;
+        }
+
+        size_t shdr_size = (size_t)ehdr.e_shentsize * ehdr.e_shnum;
+        void *shdr_buf = sentry_malloc(shdr_size);
+        if (!shdr_buf) {
+            close(fd);
+            return;
+        }
+
+        if (lseek(fd, ehdr.e_shoff, SEEK_SET) != (off_t)ehdr.e_shoff
+            || read(fd, shdr_buf, shdr_size) != (ssize_t)shdr_size) {
+            sentry_free(shdr_buf);
+            close(fd);
+            return;
+        }
+
+#    if defined(__x86_64__) || defined(__aarch64__)
+        Elf64_Shdr *sections = (Elf64_Shdr *)shdr_buf;
+#    else
+        Elf32_Shdr *sections = (Elf32_Shdr *)shdr_buf;
+#    endif
+
+        // Find symbol table section - prefer .dynsym (always present in .so),
+        // fall back to .symtab
+        int symtab_idx = -1;
+        for (int j = 0; j < ehdr.e_shnum; j++) {
+            if (sections[j].sh_type == SHT_DYNSYM) {
+                symtab_idx = j;
+                break;
+            }
+        }
+        if (symtab_idx < 0) {
+            for (int j = 0; j < ehdr.e_shnum; j++) {
+                if (sections[j].sh_type == SHT_SYMTAB) {
+                    symtab_idx = j;
+                    break;
+                }
+            }
+        }
+
+        if (symtab_idx >= 0
+            && sentry__elf_has_sym_entsize(
+                ehdr.e_ident, sections[symtab_idx].sh_entsize)) {
+            // For ET_DYN (shared libs, PIE) st_value is base-relative; for
+            // ET_EXEC (non-PIE) st_value is an absolute virtual address.
+            uint64_t sym_target = ehdr.e_type == ET_EXEC ? addr : offset;
+            size_t sym_size = sections[symtab_idx].sh_size;
+            size_t sym_count = sym_size / sections[symtab_idx].sh_entsize;
+            int strtab_idx = sections[symtab_idx].sh_link;
+            if (strtab_idx < 0 || (size_t)strtab_idx >= ehdr.e_shnum) {
+                sentry_free(shdr_buf);
+                close(fd);
+                return;
+            }
+
+            void *sym_buf = sentry_malloc(sym_size);
+            void *strtab_buf = NULL;
+
+            if (sym_buf
+                && lseek(fd, sections[symtab_idx].sh_offset, SEEK_SET)
+                    == (off_t)sections[symtab_idx].sh_offset
+                && read(fd, sym_buf, sym_size) == (ssize_t)sym_size) {
+
+                size_t strtab_size = sections[strtab_idx].sh_size;
+                strtab_buf = sentry_malloc(strtab_size);
+                if (strtab_buf
+                    && lseek(fd, sections[strtab_idx].sh_offset, SEEK_SET)
+                        == (off_t)sections[strtab_idx].sh_offset
+                    && read(fd, strtab_buf, strtab_size)
+                        == (ssize_t)strtab_size) {
+
+                    const char *best_name = NULL;
+                    uint64_t best_value = 0;
+
+#    if defined(__x86_64__) || defined(__aarch64__)
+                    Elf64_Sym *syms = (Elf64_Sym *)sym_buf;
+                    for (size_t k = 1; k < sym_count; k++) {
+                        unsigned char sym_type = ELF64_ST_TYPE(syms[k].st_info);
+#    else
+                    Elf32_Sym *syms = (Elf32_Sym *)sym_buf;
+                    for (size_t k = 1; k < sym_count; k++) {
+                        unsigned char sym_type = ELF32_ST_TYPE(syms[k].st_info);
+#    endif
+                        if (syms[k].st_value == 0
+                            || syms[k].st_value > sym_target) {
+                            continue;
+                        }
+                        if (sym_type != STT_FUNC && sym_type != STT_NOTYPE) {
+                            continue;
+                        }
+                        if (!best_name || syms[k].st_value > best_value) {
+                            if (syms[k].st_name < strtab_size) {
+                                const char *name = (const char *)strtab_buf
+                                    + syms[k].st_name;
+                                if (name[0]
+                                    && memchr(name, '\0',
+                                        strtab_size - syms[k].st_name)) {
+                                    best_name = name;
+                                    best_value = syms[k].st_value;
+                                }
+                            }
+                        }
+                    }
+
+                    if (best_name) {
+                        sentry_value_set_by_key(frame, "function",
+                            sentry_value_new_string(best_name));
+                    }
+                }
+            }
+
+            sentry_free(sym_buf);
+            sentry_free(strtab_buf);
+        }
+
+        sentry_free(shdr_buf);
+        close(fd);
+        return;
+    }
 }
 
 /**

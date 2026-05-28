@@ -69,7 +69,7 @@ sentry__path_eq(const sentry_path_t *path_a, const sentry_path_t *path_b)
 int
 sentry__path_remove_all(const sentry_path_t *path)
 {
-    if (sentry__path_is_dir(path)) {
+    if (sentry__path_is_dir(path) && !sentry__path_is_symlink(path)) {
         sentry_pathiter_t *piter = sentry__path_iter_directory(path);
         if (piter) {
             const sentry_path_t *p;

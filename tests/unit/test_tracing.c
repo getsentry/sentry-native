@@ -1190,6 +1190,31 @@ SENTRY_TEST(distributed_headers)
     sentry_close();
 }
 
+SENTRY_TEST(distributed_headers_invalid_len)
+{
+    SENTRY_TEST_OPTIONS_NEW(options);
+    sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
+
+    sentry_init(options);
+
+    sentry_transaction_context_t *tx_ctx
+        = sentry_transaction_context_new("wow!", NULL);
+    const char trace_header[]
+        = "2674eb52d5874b13b560236d6c79ce8a-a0f9fdf04f1a63df-1";
+    const size_t trace_header_len = 32 + 1 + 8;
+
+    sentry_transaction_context_update_from_header_n(tx_ctx, "sentry-trace",
+        strlen("sentry-trace"), trace_header, trace_header_len);
+
+    TEST_CHECK(sentry_value_is_null(
+        sentry_value_get_by_key(tx_ctx->inner, "parent_span_id")));
+    TEST_CHECK(sentry_value_is_null(
+        sentry_value_get_by_key(tx_ctx->inner, "sampled")));
+
+    sentry__transaction_context_free(tx_ctx);
+    sentry_close();
+}
+
 void
 check_after_set(sentry_value_t inner, const char *inner_key,
     const char *item_key, const char *expected)
