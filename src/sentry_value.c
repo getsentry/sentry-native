@@ -1192,14 +1192,23 @@ sentry__jsonwriter_write_value(sentry_jsonwriter_t *jw, sentry_value_t value)
 }
 
 char *
-sentry_value_to_json(sentry_value_t value)
+sentry__value_to_json(sentry_value_t value, size_t *len_out)
 {
     sentry_jsonwriter_t *jw = sentry__jsonwriter_new_sb(NULL);
     if (!jw) {
+        if (len_out) {
+            *len_out = 0;
+        }
         return NULL;
     }
     sentry__jsonwriter_write_value(jw, value);
-    return sentry__jsonwriter_into_string(jw, NULL);
+    return sentry__jsonwriter_into_string(jw, len_out);
+}
+
+char *
+sentry_value_to_json(sentry_value_t value)
+{
+    return sentry__value_to_json(value, NULL);
 }
 
 static void
@@ -1643,7 +1652,7 @@ sentry_event_value_add_stacktrace(sentry_value_t event, void **ips, size_t len)
     sentry_event_add_thread(event, thread);
 }
 
-#define SENTRY_MPACK_MAX_DEPTH 32
+#define SENTRY_MPACK_MAX_DEPTH 64
 
 static sentry_value_t
 value_from_mpack(mpack_node_t node, size_t depth, bool *ok)

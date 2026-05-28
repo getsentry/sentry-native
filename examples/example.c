@@ -554,6 +554,12 @@ main(int argc, char **argv)
         sentry_options_set_shutdown_timeout(
             options, strtoull(shutdown_timeout, NULL, 10));
     }
+    const char *transfer_timeout
+        = get_arg_value(argc, argv, "transfer-timeout");
+    if (transfer_timeout) {
+        sentry_options_set_transfer_timeout(
+            options, strtoull(transfer_timeout, NULL, 10));
+    }
 
     sentry_options_set_environment(options, "development");
     // sentry defaults this to the `SENTRY_RELEASE` env variable
@@ -596,7 +602,8 @@ main(int argc, char **argv)
             options, sentry_transport_new(print_envelope));
     }
 
-    if (has_arg(argc, argv, "capture-transaction")) {
+    if (has_arg(argc, argv, "capture-transaction")
+        || has_arg(argc, argv, "open-transaction")) {
         sentry_options_set_traces_sample_rate(options, 1.0);
     }
 
@@ -782,6 +789,10 @@ main(int argc, char **argv)
                     options, SENTRY_CRASH_REPORTING_MODE_NATIVE_WITH_MINIDUMP);
             }
         }
+    }
+    if (has_arg(argc, argv, "async-crash-upload")) {
+        sentry_options_set_crash_upload_mode(
+            options, SENTRY_CRASH_UPLOAD_MODE_ASYNC);
     }
 
     // E2E test mode: generate unique test ID for event correlation
@@ -1048,6 +1059,20 @@ main(int argc, char **argv)
         fflush(stdout);
     }
 
+    if (has_arg(argc, argv, "open-transaction")) {
+        // Leave a transaction + nested children unfinished; the crash
+        // auto-finalize should close them all.
+        sentry_transaction_context_t *otx_ctx
+            = sentry_transaction_context_new("open.tx", "op");
+        sentry_transaction_t *otx
+            = sentry_transaction_start(otx_ctx, sentry_value_new_null());
+        sentry_set_transaction_object(otx);
+        sentry_span_t *ospan
+            = sentry_transaction_start_child(otx, "open.span", NULL);
+        sentry_set_span(
+            sentry_span_start_child(ospan, "open.grand.span", NULL));
+    }
+
     if (has_arg(argc, argv, "crash")) {
         trigger_crash();
     }
@@ -1251,7 +1276,7 @@ main(int argc, char **argv)
     sentry_close();
 
     if (has_arg(argc, argv, "sleep-after-shutdown")) {
-        sleep_s(1);
+        sleep_s(5);
     }
 
     if (has_arg(argc, argv, "crash-after-shutdown")) {
