@@ -931,7 +931,7 @@ build_stacktrace_for_thread(
     // the crashed thread from the daemon; use the saved fault context below.
     {
         pid_t tid = 0;
-        if (thread_idx == SIZE_MAX || thread_idx == 0) {
+        if (thread_idx == SIZE_MAX) {
             tid = ctx->crashed_tid;
         } else if (thread_idx < ctx->platform.num_threads) {
             tid = ctx->platform.threads[thread_idx].tid;
