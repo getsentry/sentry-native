@@ -89,7 +89,7 @@ sentry__unwind_stack_from_thread_libunwind_remote(pid_t tid,
     // sleep, which may never happen.
     int status = 0;
     int retries = 20;
-    do {
+    for (;;) {
         pid_t waited = waitpid(tid, &status, __WALL | WNOHANG);
         if (waited == tid) {
             break;
@@ -100,13 +100,12 @@ sentry__unwind_stack_from_thread_libunwind_remote(pid_t tid,
             ptrace(PTRACE_DETACH, tid, NULL, NULL);
             return 0;
         }
+        if (--retries <= 0) {
+            SENTRY_WARNF("remote_unwind: waitpid timed out for %d", tid);
+            ptrace(PTRACE_DETACH, tid, NULL, NULL);
+            return 0;
+        }
         usleep(100000);
-    } while (--retries > 0);
-
-    if (retries == 0) {
-        SENTRY_WARNF("remote_unwind: waitpid timed out for %d", tid);
-        ptrace(PTRACE_DETACH, tid, NULL, NULL);
-        return 0;
     }
 
     if (!WIFSTOPPED(status)) {
