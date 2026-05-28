@@ -83,13 +83,31 @@ sentry__unwind_stack_from_thread_libunwind_remote(pid_t tid,
         return 0;
     }
 
-    int status;
-    if (waitpid(tid, &status, __WALL) < 0) {
-        SENTRY_WARNF(
-            "remote_unwind: waitpid failed for %d: %s", tid, strerror(errno));
+    // Poll with WNOHANG to avoid hanging on threads in D state. PTRACE_ATTACH
+    // sends SIGSTOP but the thread won't stop until it leaves uninterruptible
+    // sleep, which may never happen.
+    int status = 0;
+    int retries = 50;
+    do {
+        pid_t waited = waitpid(tid, &status, __WALL | WNOHANG);
+        if (waited == tid) {
+            break;
+        }
+        if (waited < 0) {
+            SENTRY_WARNF("remote_unwind: waitpid failed for %d: %s", tid,
+                strerror(errno));
+            ptrace(PTRACE_DETACH, tid, NULL, NULL);
+            return 0;
+        }
+        usleep(100000);
+    } while (--retries > 0);
+
+    if (retries == 0) {
+        SENTRY_WARNF("remote_unwind: waitpid timed out for %d", tid);
         ptrace(PTRACE_DETACH, tid, NULL, NULL);
         return 0;
     }
+
     if (!WIFSTOPPED(status)) {
         SENTRY_WARNF(
             "remote_unwind: thread %d did not stop after attach: status=%d",
