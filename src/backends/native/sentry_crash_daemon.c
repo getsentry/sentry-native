@@ -1281,6 +1281,9 @@ enrich_frame_with_symbol(
         if (symtab_idx >= 0
             && sentry__elf_has_sym_entsize(
                 ehdr.e_ident, sections[symtab_idx].sh_entsize)) {
+            // For ET_DYN (shared libs, PIE) st_value is base-relative; for
+            // ET_EXEC (non-PIE) st_value is an absolute virtual address.
+            uint64_t sym_target = ehdr.e_type == ET_EXEC ? addr : offset;
             size_t sym_size = sections[symtab_idx].sh_size;
             size_t sym_count = sym_size / sections[symtab_idx].sh_entsize;
             int strtab_idx = sections[symtab_idx].sh_link;
@@ -1319,7 +1322,7 @@ enrich_frame_with_symbol(
                         unsigned char sym_type = ELF32_ST_TYPE(syms[k].st_info);
 #    endif
                         if (syms[k].st_value == 0
-                            || syms[k].st_value > offset) {
+                            || syms[k].st_value > sym_target) {
                             continue;
                         }
                         if (sym_type != STT_FUNC && sym_type != STT_NOTYPE) {
