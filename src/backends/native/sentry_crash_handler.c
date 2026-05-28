@@ -100,6 +100,47 @@ static sentry_crash_ipc_t *g_crash_ipc = NULL;
 static struct sigaction g_previous_handlers[16];
 static stack_t g_signal_stack = { 0 };
 
+static void
+reset_signal_handlers(void)
+{
+    for (size_t i = 0; i < g_crash_signal_count; i++) {
+        sigaction(g_crash_signals[i], &g_previous_handlers[i], NULL);
+    }
+}
+
+static void
+reraise_signal(int signum)
+{
+    signal(signum, SIG_DFL);
+    raise(signum);
+}
+
+static void
+invoke_previous_signal_handler(int signum, siginfo_t *info, void *context)
+{
+    // Re-enable previous signal handlers before re-raising to prevent loops
+    reset_signal_handlers();
+
+    for (size_t i = 0; i < g_crash_signal_count; i++) {
+        if (g_crash_signals[i] != signum) {
+            continue;
+        }
+
+        struct sigaction *handler = &g_previous_handlers[i];
+        if (handler->sa_handler == SIG_DFL || handler->sa_handler == SIG_IGN) {
+            return;
+        }
+
+        if (handler->sa_flags & SA_SIGINFO) {
+            handler->sa_sigaction(signum, info, context);
+        } else {
+            handler->sa_handler(signum);
+        }
+
+        return;
+    }
+}
+
 /**
  * Get current thread ID (signal-safe)
  */
@@ -251,21 +292,20 @@ safe_build_stack_path(
 static void
 crash_signal_handler(int signum, siginfo_t *info, void *context)
 {
+    sentry_crash_ipc_t *ipc = g_crash_ipc;
+    if (!ipc || !ipc->shmem) {
+        // No IPC available, forward to the previous handler
+        invoke_previous_signal_handler(signum, info, context);
+        // The previous handler returned, fall back to default termination
+        reraise_signal(signum);
+        return;
+    }
+
     // Only handle crash once - check if already processing
     static volatile long handling_crash = 0;
     if (!sentry__atomic_compare_swap(&handling_crash, 0, 1)) {
         // Already handling a crash, just exit immediately
         _exit(1);
-    }
-
-    // Re-enable signal to prevent loops
-    signal(signum, SIG_DFL);
-
-    sentry_crash_ipc_t *ipc = g_crash_ipc;
-    if (!ipc || !ipc->shmem) {
-        // No IPC available, just re-raise
-        raise(signum);
-        return;
     }
 
     sentry_crash_context_t *ctx = ipc->shmem;
@@ -670,8 +710,8 @@ crash_signal_handler(int signum, siginfo_t *info, void *context)
             if (state == SENTRY_CRASH_STATE_PROCESSING && !processing_started) {
                 // Daemon started processing (no logging - signal-safe)
                 processing_started = true;
-            } else if (state == SENTRY_CRASH_STATE_DONE) {
-                // Daemon finished processing (no logging - signal-safe)
+            } else if (state >= SENTRY_CRASH_STATE_CAPTURED) {
+                // Daemon captured crash data (no logging - signal-safe)
                 goto daemon_handling;
             }
 
@@ -762,7 +802,18 @@ daemon_handling:
         }
     }
 
-    raise(signum);
+    invoke_previous_signal_handler(signum, info, context);
+
+#    if defined(SENTRY_PLATFORM_MACOS)
+    if (!ctx->system_crash_reporter_enabled) {
+        // By convention, use the 128 + signal exit code without re-raising
+        // and invoking the macOS system crash reporter
+        _exit(128 + signum);
+    }
+#    endif
+
+    // The previous handler returned, fall back to default termination
+    reraise_signal(signum);
 }
 
 int
@@ -855,9 +906,7 @@ void
 sentry__crash_handler_shutdown(void)
 {
     // Restore previous signal handlers
-    for (size_t i = 0; i < g_crash_signal_count; i++) {
-        sigaction(g_crash_signals[i], &g_previous_handlers[i], NULL);
-    }
+    reset_signal_handlers();
 
     // Clean up signal stack
     if (g_signal_stack.ss_sp) {
@@ -954,8 +1003,8 @@ crash_exception_filter(EXCEPTION_POINTERS *exception_info)
                 // Daemon started processing (no logging - exception filter
                 // context)
                 processing_started = true;
-            } else if (state == SENTRY_CRASH_STATE_DONE) {
-                // Daemon finished processing (no logging - exception filter
+            } else if (state >= SENTRY_CRASH_STATE_CAPTURED) {
+                // Daemon captured crash data (no logging - exception filter
                 // context)
                 break;
             }

@@ -12,6 +12,7 @@
 #    include "sentry_transport_xbox.h"
 #endif
 
+#include <limits.h>
 #include <stdlib.h>
 #include <string.h>
 #include <winhttp.h>
@@ -24,6 +25,7 @@ typedef struct {
     HINTERNET connect;
     HINTERNET request;
     bool debug;
+    uint64_t transfer_timeout;
     long shutdown;
 } winhttp_client_t;
 
@@ -80,12 +82,19 @@ set_proxy_credentials(winhttp_client_t *state, const char *proxy)
 }
 
 static int
+winhttp_timeout_ms(uint64_t timeout)
+{
+    return timeout > (uint64_t)INT_MAX ? INT_MAX : (int)timeout;
+}
+
+static int
 winhttp_client_start(void *_client, const sentry_options_t *opts)
 {
     winhttp_client_t *client = _client;
 
     wchar_t *user_agent = sentry__string_to_wstr(opts->user_agent);
     client->debug = opts->debug;
+    client->transfer_timeout = opts->transfer_timeout;
 
     const char *env_proxy = opts->dsn
         ? getenv(opts->dsn->is_secure ? "https_proxy" : "http_proxy")
@@ -135,8 +144,10 @@ winhttp_client_start(void *_client, const sentry_options_t *opts)
         return 1;
     }
 
-    // 15s resolve/connect, 30s send/receive (WinHTTP defaults)
-    WinHttpSetTimeouts(client->session, 15000, 15000, 30000, 30000);
+    // 15s for resolve/connect, transfer_timeout for send/receive per packet
+    int transfer_timeout = winhttp_timeout_ms(client->transfer_timeout);
+    WinHttpSetTimeouts(
+        client->session, 15000, 15000, transfer_timeout, transfer_timeout);
 
     return 0;
 }

@@ -6,10 +6,45 @@
 #include "sentry_os.h"
 #include "sentry_scope.h"
 #include "sentry_value.h"
+#include <limits.h>
 #include <stdarg.h>
+#include <stddef.h>
+#include <stdint.h>
 #include <string.h>
 
 static sentry_batcher_ref_t g_batcher = SENTRY_BATCHER_REF_INIT;
+
+typedef enum {
+    PRINTF_LENGTH_NONE,
+    PRINTF_LENGTH_CHAR,
+    PRINTF_LENGTH_SHORT,
+    PRINTF_LENGTH_LONG,
+    PRINTF_LENGTH_LONG_LONG,
+    PRINTF_LENGTH_INTMAX,
+    PRINTF_LENGTH_SIZE,
+    PRINTF_LENGTH_PTRDIFF,
+    PRINTF_LENGTH_LONG_DOUBLE,
+} printf_length_t;
+
+#if SIZE_MAX == UINT_MAX
+typedef int printf_ssize_t;
+#elif SIZE_MAX == ULONG_MAX
+typedef long printf_ssize_t;
+#elif SIZE_MAX == ULLONG_MAX
+typedef long long printf_ssize_t;
+#else
+typedef ptrdiff_t printf_ssize_t;
+#endif
+
+#if PTRDIFF_MAX == INT_MAX
+typedef unsigned int printf_uptrdiff_t;
+#elif PTRDIFF_MAX == LONG_MAX
+typedef unsigned long printf_uptrdiff_t;
+#elif PTRDIFF_MAX == LLONG_MAX
+typedef unsigned long long printf_uptrdiff_t;
+#else
+typedef size_t printf_uptrdiff_t;
+#endif
 
 static const char *
 level_as_string(sentry_level_t level)
@@ -32,18 +67,48 @@ level_as_string(sentry_level_t level)
     }
 }
 
-// TODO to be portable, pass in the length format specifier
 #ifndef SENTRY_UNITTEST
 static
 #endif
     sentry_value_t
-    construct_param_from_conversion(const char conversion, va_list *args_copy)
+    construct_param_from_conversion(
+        const char conversion, printf_length_t length, va_list *args_copy)
 {
     sentry_value_t param_obj = sentry_value_new_object();
     switch (conversion) {
     case 'd':
     case 'i': {
-        long long val = va_arg(*args_copy, long long);
+        int64_t val;
+        switch (length) {
+        case PRINTF_LENGTH_NONE:
+            val = va_arg(*args_copy, int);
+            break;
+        case PRINTF_LENGTH_CHAR:
+            val = (signed char)va_arg(*args_copy, int);
+            break;
+        case PRINTF_LENGTH_SHORT:
+            val = (short)va_arg(*args_copy, int);
+            break;
+        case PRINTF_LENGTH_LONG:
+            val = va_arg(*args_copy, long);
+            break;
+        case PRINTF_LENGTH_LONG_LONG:
+            val = va_arg(*args_copy, long long);
+            break;
+        case PRINTF_LENGTH_INTMAX:
+            val = va_arg(*args_copy, intmax_t);
+            break;
+        case PRINTF_LENGTH_SIZE:
+            val = va_arg(*args_copy, printf_ssize_t);
+            break;
+        case PRINTF_LENGTH_PTRDIFF:
+            val = va_arg(*args_copy, ptrdiff_t);
+            break;
+        case PRINTF_LENGTH_LONG_DOUBLE:
+        default:
+            val = va_arg(*args_copy, int);
+            break;
+        }
         sentry_value_set_by_key(
             param_obj, "value", sentry_value_new_int64(val));
         sentry_value_set_by_key(
@@ -54,12 +119,42 @@ static
     case 'x':
     case 'X':
     case 'o': {
-        unsigned long long int val = va_arg(*args_copy, unsigned long long int);
+        uint64_t val;
+        switch (length) {
+        case PRINTF_LENGTH_NONE:
+            val = va_arg(*args_copy, unsigned int);
+            break;
+        case PRINTF_LENGTH_CHAR:
+            val = (unsigned char)va_arg(*args_copy, int);
+            break;
+        case PRINTF_LENGTH_SHORT:
+            val = (unsigned short)va_arg(*args_copy, int);
+            break;
+        case PRINTF_LENGTH_LONG:
+            val = va_arg(*args_copy, unsigned long);
+            break;
+        case PRINTF_LENGTH_LONG_LONG:
+            val = va_arg(*args_copy, unsigned long long);
+            break;
+        case PRINTF_LENGTH_INTMAX:
+            val = va_arg(*args_copy, uintmax_t);
+            break;
+        case PRINTF_LENGTH_SIZE:
+            val = va_arg(*args_copy, size_t);
+            break;
+        case PRINTF_LENGTH_PTRDIFF:
+            val = va_arg(*args_copy, printf_uptrdiff_t);
+            break;
+        case PRINTF_LENGTH_LONG_DOUBLE:
+        default:
+            val = va_arg(*args_copy, unsigned int);
+            break;
+        }
         // TODO update once unsigned 64-bit can be sent as non-string
         char buf[26];
         char format[8];
         snprintf(format, sizeof(format), "%%ll%c", conversion);
-        snprintf(buf, sizeof(buf), format, val);
+        snprintf(buf, sizeof(buf), format, (unsigned long long)val);
         sentry_value_set_by_key(
             param_obj, "value", sentry_value_new_string(buf));
         sentry_value_set_by_key(
@@ -72,7 +167,9 @@ static
     case 'E':
     case 'g':
     case 'G': {
-        double val = va_arg(*args_copy, double);
+        double val = length == PRINTF_LENGTH_LONG_DOUBLE
+            ? (double)va_arg(*args_copy, long double)
+            : va_arg(*args_copy, double);
         sentry_value_set_by_key(
             param_obj, "value", sentry_value_new_double(val));
         sentry_value_set_by_key(
@@ -136,8 +233,12 @@ skip_flags(const char *fmt_ptr)
 }
 
 static const char *
-skip_width(const char *fmt_ptr)
+skip_width(const char *fmt_ptr, va_list *args_copy)
 {
+    if (*fmt_ptr == '*') {
+        (void)va_arg(*args_copy, int);
+        return fmt_ptr + 1;
+    }
     while (*fmt_ptr && (*fmt_ptr >= '0' && *fmt_ptr <= '9')) {
         fmt_ptr++;
     }
@@ -145,11 +246,15 @@ skip_width(const char *fmt_ptr)
 }
 
 static const char *
-skip_precision(const char *fmt_ptr)
+skip_precision(const char *fmt_ptr, va_list *args_copy)
 {
 
     if (*fmt_ptr == '.') {
         fmt_ptr++;
+        if (*fmt_ptr == '*') {
+            (void)va_arg(*args_copy, int);
+            return fmt_ptr + 1;
+        }
         while (*fmt_ptr && (*fmt_ptr >= '0' && *fmt_ptr <= '9')) {
             fmt_ptr++;
         }
@@ -158,14 +263,39 @@ skip_precision(const char *fmt_ptr)
 }
 
 static const char *
-skip_length(const char *fmt_ptr)
+parse_length(const char *fmt_ptr, printf_length_t *length)
 {
-    while (*fmt_ptr
-        && (*fmt_ptr == 'h' || *fmt_ptr == 'l' || *fmt_ptr == 'L'
-            || *fmt_ptr == 'z' || *fmt_ptr == 'j' || *fmt_ptr == 't')) {
-        fmt_ptr++;
+    *length = PRINTF_LENGTH_NONE;
+    switch (*fmt_ptr) {
+    case 'h':
+        if (*(fmt_ptr + 1) == 'h') {
+            *length = PRINTF_LENGTH_CHAR;
+            return fmt_ptr + 2;
+        }
+        *length = PRINTF_LENGTH_SHORT;
+        return fmt_ptr + 1;
+    case 'l':
+        if (*(fmt_ptr + 1) == 'l') {
+            *length = PRINTF_LENGTH_LONG_LONG;
+            return fmt_ptr + 2;
+        }
+        *length = PRINTF_LENGTH_LONG;
+        return fmt_ptr + 1;
+    case 'L':
+        *length = PRINTF_LENGTH_LONG_DOUBLE;
+        return fmt_ptr + 1;
+    case 'j':
+        *length = PRINTF_LENGTH_INTMAX;
+        return fmt_ptr + 1;
+    case 'z':
+        *length = PRINTF_LENGTH_SIZE;
+        return fmt_ptr + 1;
+    case 't':
+        *length = PRINTF_LENGTH_PTRDIFF;
+        return fmt_ptr + 1;
+    default:
+        return fmt_ptr;
     }
-    return fmt_ptr;
 }
 
 // returns how many parameters were added to the attributes object
@@ -197,9 +327,10 @@ static
             }
 
             fmt_ptr = skip_flags(fmt_ptr);
-            fmt_ptr = skip_width(fmt_ptr);
-            fmt_ptr = skip_precision(fmt_ptr);
-            fmt_ptr = skip_length(fmt_ptr);
+            fmt_ptr = skip_width(fmt_ptr, &args_copy);
+            fmt_ptr = skip_precision(fmt_ptr, &args_copy);
+            printf_length_t length;
+            fmt_ptr = parse_length(fmt_ptr, &length);
 
             // Get the conversion specifier
             char conversion = *fmt_ptr;
@@ -207,8 +338,8 @@ static
                 char key[64];
                 snprintf(key, sizeof(key), "sentry.message.parameter.%d",
                     param_index);
-                sentry_value_t param_obj
-                    = construct_param_from_conversion(conversion, &args_copy);
+                sentry_value_t param_obj = construct_param_from_conversion(
+                    conversion, length, &args_copy);
                 sentry_value_set_by_key(attributes, key, param_obj);
                 param_index++;
                 fmt_ptr++;

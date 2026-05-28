@@ -525,9 +525,15 @@ def test_tus_crash_native(cmake, httpserver):
         run(
             tmp_path,
             "sentry_example",
-            ["log", "large-attachment", "crash"],
+            [
+                "log",
+                "large-attachment",
+                "async-crash-upload",
+                "crash",
+            ],
             expect_failure=True,
             env=env,
+            wait_for_daemon=True,
         )
     assert waiting.result
 
