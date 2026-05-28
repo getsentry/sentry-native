@@ -85,6 +85,24 @@ sentry__app_hang_set_shmem(sentry_crash_context_t *ctx)
 }
 
 void
+sentry_app_hang_set_target_thread(void)
+{
+    sentry_crash_context_t *ctx = g_app_hang_shmem;
+    if (!ctx || !ctx->app_hang_enabled) {
+        return;
+    }
+
+    /* CAS the current TID into the latch slot iff still unset. If another
+     * thread races and wins, our call is silently dropped — the API contract
+     * is "first caller wins, idempotent for that caller". CAS (rather than a
+     * plain store) prevents a late call from a different thread from
+     * silently overwriting a prior latch. */
+    DWORD current_tid = GetCurrentThreadId();
+    InterlockedCompareExchange64((LONG64 volatile *)&ctx->app_hang_target_tid,
+        (LONG64)(uint64_t)current_tid, 0);
+}
+
+void
 sentry_app_hang_heartbeat(void)
 {
     sentry_crash_context_t *ctx = g_app_hang_shmem;
@@ -92,18 +110,14 @@ sentry_app_hang_heartbeat(void)
         return;
     }
 
+    /* Refresh-only: requires a prior sentry_app_hang_set_target_thread()
+     * call from this thread. Drops the heartbeat if no target is latched,
+     * or if the latched thread is not us. The non-atomic read can tear on
+     * x86; in that case the compare fails and we drop a heartbeat, which
+     * the daemon's strike counter absorbs. */
     DWORD current_tid = GetCurrentThreadId();
-    LONG64 latched = (LONG64)ctx->app_hang_target_tid;
-    if (latched == 0) {
-        /* Try to latch this thread as the target. If another thread races
-         * us, the loser is dropped. */
-        LONG64 prev = InterlockedCompareExchange64(
-            (LONG64 volatile *)&ctx->app_hang_target_tid,
-            (LONG64)(uint64_t)current_tid, 0);
-        if (prev != 0 && prev != (LONG64)(uint64_t)current_tid) {
-            return;
-        }
-    } else if ((DWORD)latched != current_tid) {
+    uint64_t latched = ctx->app_hang_target_tid;
+    if (latched == 0 || (DWORD)latched != current_tid) {
         return;
     }
 
@@ -113,6 +127,12 @@ sentry_app_hang_heartbeat(void)
 }
 
 #else /* non-Windows or Xbox */
+
+void
+sentry_app_hang_set_target_thread(void)
+{
+    /* No-op on non-Windows targets in this initial cut. */
+}
 
 void
 sentry_app_hang_heartbeat(void)

@@ -1723,13 +1723,30 @@ SENTRY_EXPERIMENTAL_API void sentry_options_set_app_hang_timeout_ms(
     sentry_options_t *opts, uint64_t timeout_ms);
 
 /**
- * Signal that the calling thread is alive.
+ * Designate the calling thread as the one monitored by the app-hang detector.
  *
- * Call this from the thread you want monitored (typically the main / game
- * thread). The first call latches the calling thread's id as the target;
- * subsequent calls from the same thread refresh the heartbeat timestamp. Calls
- * from any other thread are dropped — so a stray heartbeat from a worker
- * thread cannot mask a frozen main thread.
+ * Call this once, from the thread you want monitored (typically the main /
+ * game thread), before the first heartbeat. The latch is sticky for the
+ * lifetime of the SDK session: subsequent calls from any other thread are
+ * dropped. Calling again from the same thread is a harmless no-op.
+ *
+ * Until this is called, `sentry_app_hang_heartbeat()` is a no-op — there is
+ * no implicit "first caller wins" latch, so a stray heartbeat from a worker
+ * thread during startup cannot accidentally claim the role and silently
+ * disable monitoring of the real main thread.
+ *
+ * No-op if app-hang detection is not enabled in options, or if the native
+ * backend is not active, or on non-Windows platforms.
+ */
+SENTRY_EXPERIMENTAL_API void sentry_app_hang_set_target_thread(void);
+
+/**
+ * Refresh the heartbeat for the monitored thread.
+ *
+ * Call this from the thread previously designated via
+ * `sentry_app_hang_set_target_thread()`. Calls from any other thread, or
+ * before a target has been set, are dropped — so a stray heartbeat from a
+ * worker thread cannot mask a frozen main thread.
  *
  * Cost: approximately one system call plus a relaxed 64-bit store. Safe to
  * call from a per-frame hook in a game engine.

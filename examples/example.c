@@ -617,7 +617,9 @@ static unsigned __stdcall
 app_hang_demo_thread(void *arg)
 {
     (void)arg;
-    /* Heartbeat for 500 ms to latch this thread as the target. */
+    /* Latch this thread as the target once, then heartbeat for 500 ms so the
+     * daemon sees a healthy baseline before the freeze. */
+    sentry_app_hang_set_target_thread();
     for (int i = 0; i < 10; i++) {
         sentry_app_hang_heartbeat();
         Sleep(50);
