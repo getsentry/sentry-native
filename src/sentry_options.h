@@ -12,6 +12,7 @@
 // Defaults to 2s as per
 // https://docs.sentry.io/error-reporting/configuration/?platform=native#shutdown-timeout
 #define SENTRY_DEFAULT_SHUTDOWN_TIMEOUT 2000
+#define SENTRY_DEFAULT_TRANSFER_TIMEOUT 0
 
 struct sentry_backend_s;
 
@@ -95,11 +96,13 @@ struct sentry_options_s {
 
     long refcount;
     uint64_t shutdown_timeout;
+    uint64_t transfer_timeout;
     sentry_handler_strategy_t handler_strategy;
     int minidump_mode; // 0=stack_only, 1=smart, 2=full (see
                        // sentry_crash_context.h)
     int crash_reporting_mode; // 0=minidump, 1=native, 2=native_with_minidump
                               // (see sentry_crash_reporting_mode_t)
+    int crash_upload_mode; // 0=sync, 1=async (see sentry_crash_upload_mode_t)
 
 #ifdef SENTRY_PLATFORM_NX
     void (*network_connect_func)(void);

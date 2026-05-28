@@ -146,12 +146,14 @@ jobs:
             CC: gcc
             CXX: g++
             SYSTEM_PYTHON: 1
+            CMAKE_DEFINES: -DSENTRY_LIBUNWIND_SYSTEM=ON
           - name: Linux (clang + musl + libunwind)
             os: ubuntu-latest
             container: ghcr.io/getsentry/sentry-native-alpine:3.23
             CC: clang
             CXX: clang++
             SYSTEM_PYTHON: 1
+            CMAKE_DEFINES: -DSENTRY_LIBUNWIND_SYSTEM=ON
           - name: macOS 14 (xcode llvm)
             os: macos-14
             ERROR_ON_WARNINGS: 1
@@ -288,8 +290,9 @@ jobs:
           sudo apt-get install binutils-dev libssl-dev libelf-dev libstdc++-14-dev libdw-dev libiberty-dev
           git clone https://github.com/SimonKagstrom/kcov.git
           cd kcov
-          # pin to a known good version with the coveralls git integration and performance bottlenecks fixed
-          git checkout b370df05ccc96facfd83a9e101e35263457b8035
+          # pin to a known good version with the coveralls git integration, performance bottlenecks,
+          # and signal exit code handling fixed
+          git checkout f65e1145b7f1c42872f37d03edcc29264fccf26a
           mkdir build
           cd build
           cmake ..
@@ -327,7 +330,7 @@ jobs:
         if: ${{ contains(matrix.container, 'alpine') }}
         run: |
           apk update
-          apk add curl-dev xz-dev
+          apk add curl-dev libunwind-dev xz-dev
       # install manually until available by default (also for future .NET updates)
       - name: Install .NET 10 SDK for ARM64 runners
         if: ${{ runner.os == 'Linux' && runner.arch == 'ARM64' && !matrix.container }}

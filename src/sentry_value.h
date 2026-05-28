@@ -116,6 +116,11 @@ void sentry__jsonwriter_write_value(
     sentry_jsonwriter_t *jw, sentry_value_t value);
 
 /**
+ * Serializes `value` into JSON and optionally returns the byte length.
+ */
+char *sentry__value_to_json(sentry_value_t value, size_t *len_out);
+
+/**
  * Adds a typed attribute to the attributes object.
  * No-op if the attribute already exists (preserves user precedence).
  * Takes ownership of `value`.
