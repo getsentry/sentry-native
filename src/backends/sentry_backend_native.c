@@ -767,9 +767,61 @@ native_backend_write_attachments(const sentry_path_t *event_path)
     }
 }
 
+#if defined(SENTRY_PLATFORM_WINDOWS)
+// Sentry's symbolicator needs `contexts.device.arch` to process PE modules. If
+// the scope already carries a device context with arch (host SDKs like Unity
+// provide one), leave it; otherwise synthesize a minimal one so native-only
+// consumers still symbolicate.
+static void
+native_backend_ensure_device_arch(sentry_value_t event)
+{
+    sentry_value_t contexts = sentry_value_get_by_key(event, "contexts");
+    if (sentry_value_is_null(contexts)) {
+        contexts = sentry_value_new_object();
+        sentry_value_set_by_key(event, "contexts", contexts);
+    }
+    sentry_value_t device = sentry_value_get_by_key(contexts, "device");
+    if (sentry_value_is_null(device)) {
+        device = sentry_value_new_object();
+        sentry_value_set_by_key(
+            device, "type", sentry_value_new_string("device"));
+        sentry_value_set_by_key(contexts, "device", device);
+    }
+    if (!sentry_value_is_null(sentry_value_get_by_key(device, "arch"))) {
+        return;
+    }
+#    if defined(_M_AMD64)
+    sentry_value_set_by_key(device, "arch", sentry_value_new_string("x86_64"));
+#    elif defined(_M_IX86)
+    sentry_value_set_by_key(device, "arch", sentry_value_new_string("x86"));
+#    elif defined(_M_ARM64)
+    sentry_value_set_by_key(device, "arch", sentry_value_new_string("arm64"));
+#    endif
+}
+#endif
+
+// Applies the full scope to `event`: contexts (os, device, gpu, app, runtime,
+// plus SDK-specific entries such as the Unity context), user, tags, extra,
+// fingerprint, release/dist/env, sdk metadata, and breadcrumbs - plus the
+// Windows device.arch fallback. Single source of truth for the base event the
+// daemon reads, shared by the continuous scope flush and the crash handler so
+// both write an identical base regardless of which one wins the race.
+static void
+native_backend_apply_scope(
+    sentry_value_t event, const sentry_options_t *options)
+{
+    SENTRY_WITH_SCOPE (scope) {
+        sentry__scope_apply_to_event(
+            scope, options, event, SENTRY_SCOPE_BREADCRUMBS);
+    }
+#if defined(SENTRY_PLATFORM_WINDOWS)
+    native_backend_ensure_device_arch(event);
+#endif
+}
+
 static void
 native_backend_flush_scope(
-    sentry_backend_t *backend, const sentry_options_t *UNUSED(options))
+    sentry_backend_t *backend, const sentry_options_t *options)
 {
     native_backend_state_t *state = (native_backend_state_t *)backend->data;
     if (!state || !state->event_path) {
@@ -784,65 +836,11 @@ native_backend_flush_scope(
         return;
     }
 
-    // Create event with current scope
+    // Keep the on-disk base event complete and current, so the daemon has the
+    // full scope even if a crash beats the in-process handler to the file.
     sentry_value_t event = sentry_value_new_object();
-    sentry_value_set_by_key(
-        event, "level", sentry__value_new_level(SENTRY_LEVEL_FATAL));
+    native_backend_apply_scope(event, options);
 
-    // Apply scope with contexts (includes OS, device info from Sentry)
-    SENTRY_WITH_SCOPE (scope) {
-        // Get contexts from scope (includes OS info)
-        sentry_value_t os_context
-            = sentry_value_get_by_key(scope->contexts, "os");
-        if (!sentry_value_is_null(os_context)) {
-            sentry_value_t event_contexts = sentry_value_new_object();
-            sentry_value_set_by_key(event_contexts, "os", os_context);
-            sentry_value_incref(os_context);
-
-#if defined(SENTRY_PLATFORM_WINDOWS)
-            // Add device context with arch for Windows native events
-            // This is required for Sentry's symbolicator to process PE modules
-            sentry_value_t device_context = sentry_value_new_object();
-            sentry_value_set_by_key(
-                device_context, "type", sentry_value_new_string("device"));
-#    if defined(_M_AMD64)
-            sentry_value_set_by_key(
-                device_context, "arch", sentry_value_new_string("x86_64"));
-#    elif defined(_M_IX86)
-            sentry_value_set_by_key(
-                device_context, "arch", sentry_value_new_string("x86"));
-#    elif defined(_M_ARM64)
-            sentry_value_set_by_key(
-                device_context, "arch", sentry_value_new_string("arm64"));
-#    endif
-            sentry_value_set_by_key(event_contexts, "device", device_context);
-#endif
-
-            sentry_value_set_by_key(event, "contexts", event_contexts);
-        }
-
-        // Also copy other scope data (user, tags, extra, etc.)
-        sentry_value_t user = scope->user;
-        if (sentry_value_get_type(user) == SENTRY_VALUE_TYPE_OBJECT
-            && sentry_value_get_length(user) > 0) {
-            sentry_value_set_by_key(event, "user", user);
-            sentry_value_incref(user);
-        }
-
-        sentry_value_t tags = scope->tags;
-        if (!sentry_value_is_null(tags)) {
-            sentry_value_set_by_key(event, "tags", tags);
-            sentry_value_incref(tags);
-        }
-
-        sentry_value_t extra = scope->extra;
-        if (!sentry_value_is_null(extra)) {
-            sentry_value_set_by_key(event, "extra", extra);
-            sentry_value_incref(extra);
-        }
-    }
-
-    // Serialize to JSON (so it can be deserialized on next start)
     size_t json_len = 0;
     char *json_str = sentry__value_to_json(event, &json_len);
     sentry_value_decref(event);
@@ -1024,38 +1022,7 @@ native_backend_except(sentry_backend_t *backend, const sentry_ucontext_t *uctx)
             }
 
             if (should_handle) {
-                // Apply scope to event including breadcrumbs
-                SENTRY_WITH_SCOPE (scope) {
-                    sentry__scope_apply_to_event(
-                        scope, options, event, SENTRY_SCOPE_BREADCRUMBS);
-                }
-
-#if defined(SENTRY_PLATFORM_WINDOWS)
-                // Add device context with arch for Windows native events
-                // This is required for Sentry's symbolicator to process PE
-                // modules
-                sentry_value_t contexts
-                    = sentry_value_get_by_key(event, "contexts");
-                if (sentry_value_is_null(contexts)) {
-                    contexts = sentry_value_new_object();
-                    sentry_value_set_by_key(event, "contexts", contexts);
-                }
-                sentry_value_t device_context = sentry_value_new_object();
-                sentry_value_set_by_key(
-                    device_context, "type", sentry_value_new_string("device"));
-#    if defined(_M_AMD64)
-                sentry_value_set_by_key(
-                    device_context, "arch", sentry_value_new_string("x86_64"));
-#    elif defined(_M_IX86)
-                sentry_value_set_by_key(
-                    device_context, "arch", sentry_value_new_string("x86"));
-#    elif defined(_M_ARM64)
-                sentry_value_set_by_key(
-                    device_context, "arch", sentry_value_new_string("arm64"));
-#    endif
-                sentry_value_set_by_key(contexts, "device", device_context);
-
-#endif
+                native_backend_apply_scope(event, options);
 
 #ifndef SENTRY_SCREENSHOT_NONE
                 // The screenshot is captured by the daemon out-of-process, so
