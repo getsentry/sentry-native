@@ -2906,8 +2906,7 @@ write_envelope_with_minidump(const sentry_options_t *options,
         if (event_json && event_size > 0) {
             sentry_value_t event
                 = sentry__value_from_json(event_json, event_size);
-            if (!sentry_value_is_null(event)) {
-                add_wer_context(event, ctx);
+            if (!sentry_value_is_null(event) && add_wer_context(event, ctx)) {
                 size_t new_event_size = 0;
                 char *new_event_json
                     = sentry__value_to_json(event, &new_event_size);
