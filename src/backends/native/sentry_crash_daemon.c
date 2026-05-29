@@ -2283,11 +2283,14 @@ add_windows_crash_debug_context(
     sentry_value_set_by_key(debug_context, "wer_callback_claimed",
         sentry_value_new_bool(ctx->platform.wer_callback_claimed));
     sentry_value_set_by_key(debug_context, "wer_callback_state_before",
-        sentry_value_new_int32((int32_t)ctx->platform.wer_callback_state_before));
+        sentry_value_new_int32(
+            (int32_t)ctx->platform.wer_callback_state_before));
     sentry_value_set_by_key(debug_context, "wer_callback_exception_code",
-        sentry_value_new_int32((int32_t)ctx->platform.wer_callback_exception_code));
+        sentry_value_new_int32(
+            (int32_t)ctx->platform.wer_callback_exception_code));
     sentry_value_set_by_key(debug_context, "wer_callback_setevent_error",
-        sentry_value_new_int32((int32_t)ctx->platform.wer_callback_setevent_error));
+        sentry_value_new_int32(
+            (int32_t)ctx->platform.wer_callback_setevent_error));
     sentry_value_set_by_key(debug_context, "minidump_attempted",
         sentry_value_new_bool(ctx->platform.dbg_minidump_attempted));
     sentry_value_set_by_key(debug_context, "minidump_client_pointers",

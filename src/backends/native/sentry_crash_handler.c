@@ -961,6 +961,23 @@ static LPTOP_LEVEL_EXCEPTION_FILTER g_previous_filter = NULL;
 static LONG WINAPI crash_exception_filter(EXCEPTION_POINTERS *exception_info);
 
 static void
+wait_for_daemon_capture(sentry_crash_context_t *ctx)
+{
+    bool processing_started = false;
+    int elapsed_ms = 0;
+    while (elapsed_ms < SENTRY_CRASH_HANDLER_WAIT_TIMEOUT_MS) {
+        long state = sentry__atomic_fetch(&ctx->state);
+        if (state == SENTRY_CRASH_STATE_PROCESSING && !processing_started) {
+            processing_started = true;
+        } else if (state >= SENTRY_CRASH_STATE_CAPTURED) {
+            break;
+        }
+        Sleep(SENTRY_CRASH_HANDLER_POLL_INTERVAL_MS);
+        elapsed_ms += SENTRY_CRASH_HANDLER_POLL_INTERVAL_MS;
+    }
+}
+
+static void
 crash_sigabrt_handler(EXCEPTION_POINTERS *exception_pointers)
 {
     crash_exception_filter(exception_pointers);
@@ -1035,6 +1052,7 @@ crash_exception_filter(EXCEPTION_POINTERS *exception_info)
         ctx->platform.exception_pointers = NULL;
         sentry__atomic_store(&ctx->state, SENTRY_CRASH_STATE_CRASHED);
         sentry__crash_ipc_notify(ipc);
+        wait_for_daemon_capture(ctx);
         return EXCEPTION_CONTINUE_SEARCH;
     }
 
@@ -1047,24 +1065,7 @@ crash_exception_filter(EXCEPTION_POINTERS *exception_info)
 
         // Wait for daemon to finish processing (keep process alive for
         // minidump)
-        bool processing_started = false;
-        int elapsed_ms = 0;
-        while (elapsed_ms < SENTRY_CRASH_HANDLER_WAIT_TIMEOUT_MS) {
-            long state = sentry__atomic_fetch(&ctx->state);
-            if (state == SENTRY_CRASH_STATE_PROCESSING && !processing_started) {
-                // Daemon started processing (no logging - exception filter
-                // context)
-                processing_started = true;
-            } else if (state >= SENTRY_CRASH_STATE_CAPTURED) {
-                // Daemon captured crash data (no logging - exception filter
-                // context)
-                break;
-            }
-            Sleep(SENTRY_CRASH_HANDLER_POLL_INTERVAL_MS);
-            elapsed_ms += SENTRY_CRASH_HANDLER_POLL_INTERVAL_MS;
-        }
-
-        // Timeout or completion (no logging - exception filter context)
+        wait_for_daemon_capture(ctx);
     }
 
     // Continue to default handler (which will terminate the process)
