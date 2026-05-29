@@ -1028,6 +1028,11 @@ crash_exception_filter(EXCEPTION_POINTERS *exception_info)
         // the sentry-wer callback (e.g. CI runners without WER), so
         // we must cover both cases. The sentry-wer callback will
         // additionally write the WER report ID to shared memory.
+        // Set exception_pointers to NULL so the daemon uses the
+        // already-copied exception_record/context from shared memory
+        // (ClientPointers=FALSE), since the crashing process will be
+        // terminated before the daemon can read its address space.
+        ctx->platform.exception_pointers = NULL;
         sentry__atomic_store(&ctx->state, SENTRY_CRASH_STATE_CRASHED);
         sentry__crash_ipc_notify(ipc);
         return EXCEPTION_CONTINUE_SEARCH;
