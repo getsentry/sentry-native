@@ -137,13 +137,6 @@ process_wer_exception(
         return FALSE;
     }
 
-    ctx->platform.wer_callback_seen = true;
-    ctx->platform.wer_callback_exception_code
-        = exception_info->exceptionRecord.ExceptionCode;
-    ctx->platform.wer_callback_state_before
-        = InterlockedCompareExchange(&ctx->state, 0, 0);
-    ctx->platform.wer_callback_setevent_error = 0;
-
     BOOL claimed = FALSE;
 
     // Extract WER report ID regardless of who claims the crash, so the
@@ -170,9 +163,6 @@ process_wer_exception(
         ctx->platform.threads[0].context = exception_info->context;
 
         InterlockedExchange(&ctx->state, SENTRY_CRASH_STATE_CRASHED);
-        ctx->platform.wer_callback_claimed = true;
-    } else {
-        ctx->platform.wer_callback_claimed = false;
     }
 
     // Always attempt to signal the daemon. If the crash handler claimed
@@ -180,8 +170,6 @@ process_wer_exception(
     // but a redundant SetEvent on an auto-reset event is harmless.
     if (SetEvent(event)) {
         claimed = TRUE;
-    } else {
-        ctx->platform.wer_callback_setevent_error = GetLastError();
     }
 
     CloseHandle(event);

@@ -27,11 +27,6 @@ int
 sentry__write_minidump(
     const sentry_crash_context_t *ctx, const char *output_path)
 {
-    sentry_crash_context_t *mutable_ctx = (sentry_crash_context_t *)ctx;
-    mutable_ctx->platform.dbg_minidump_attempted = true;
-    mutable_ctx->platform.dbg_minidump_error = 0;
-    mutable_ctx->platform.dbg_minidump_result = -1;
-
     SENTRY_DEBUGF("writing minidump to %s", output_path);
 
     // Open output file - use wide character API for proper UTF-8 path support
@@ -84,9 +79,6 @@ sentry__write_minidump(
         // ClientPointers=TRUE tells Windows these pointers are in the target
         // process
         exception_info.ClientPointers = TRUE;
-        mutable_ctx->platform.dbg_minidump_client_pointers = true;
-        SENTRY_WARN(
-            "### minidump: using ClientPointers=TRUE (live process pointers)");
     } else {
         // WER copies exception data into shared memory, so ClientPointers must
         // be false when using the copied record/context.
@@ -97,9 +89,6 @@ sentry__write_minidump(
             = (PCONTEXT)&ctx->platform.context;
         exception_info.ExceptionPointers = &local_exception_pointers;
         exception_info.ClientPointers = FALSE;
-        mutable_ctx->platform.dbg_minidump_client_pointers = false;
-        SENTRY_WARN(
-            "### minidump: using ClientPointers=FALSE (shared-memory copy)");
     }
 
     // Determine minidump type based on configuration
@@ -135,12 +124,6 @@ sentry__write_minidump(
 
     if (!success) {
         SENTRY_WARNF("MiniDumpWriteDump failed: %lu", error);
-        mutable_ctx->platform.dbg_minidump_error = error;
-        mutable_ctx->platform.dbg_minidump_result = -1;
-        SENTRY_WARNF("### minidump: write failed pid=%lu tid=%lu "
-                     "client_ptrs=%d dump_type=0x%lx",
-            (unsigned long)ctx->crashed_pid, (unsigned long)ctx->crashed_tid,
-            exception_info.ClientPointers ? 1 : 0, (unsigned long)dump_type);
         wchar_t *wdelete_path2 = sentry__string_to_wstr(output_path);
         if (wdelete_path2) {
             DeleteFileW(wdelete_path2);
@@ -150,11 +133,6 @@ sentry__write_minidump(
     }
 
     SENTRY_DEBUG("successfully wrote minidump");
-    mutable_ctx->platform.dbg_minidump_result = 0;
-    SENTRY_WARNF(
-        "### minidump: write succeeded pid=%lu tid=%lu dump_type=0x%lx",
-        (unsigned long)ctx->crashed_pid, (unsigned long)ctx->crashed_tid,
-        (unsigned long)dump_type);
     return 0;
 }
 

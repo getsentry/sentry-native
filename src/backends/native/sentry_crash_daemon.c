@@ -2268,47 +2268,6 @@ add_wer_context(sentry_value_t event, const sentry_crash_context_t *ctx)
     sentry_value_set_by_key(contexts, "wer", wer_context);
     return true;
 }
-
-static void
-add_windows_crash_debug_context(
-    sentry_value_t event, const sentry_crash_context_t *ctx)
-{
-    sentry_value_t debug_context = sentry_value_new_object();
-    sentry_value_set_by_key(
-        debug_context, "marker", sentry_value_new_string("###"));
-    sentry_value_set_by_key(debug_context, "wer_enabled",
-        sentry_value_new_bool(ctx->platform.wer_enabled));
-    sentry_value_set_by_key(debug_context, "wer_callback_seen",
-        sentry_value_new_bool(ctx->platform.wer_callback_seen));
-    sentry_value_set_by_key(debug_context, "wer_callback_claimed",
-        sentry_value_new_bool(ctx->platform.wer_callback_claimed));
-    sentry_value_set_by_key(debug_context, "wer_callback_state_before",
-        sentry_value_new_int32(
-            (int32_t)ctx->platform.wer_callback_state_before));
-    sentry_value_set_by_key(debug_context, "wer_callback_exception_code",
-        sentry_value_new_int32(
-            (int32_t)ctx->platform.wer_callback_exception_code));
-    sentry_value_set_by_key(debug_context, "wer_callback_setevent_error",
-        sentry_value_new_int32(
-            (int32_t)ctx->platform.wer_callback_setevent_error));
-    sentry_value_set_by_key(debug_context, "minidump_attempted",
-        sentry_value_new_bool(ctx->platform.dbg_minidump_attempted));
-    sentry_value_set_by_key(debug_context, "minidump_client_pointers",
-        sentry_value_new_bool(ctx->platform.dbg_minidump_client_pointers));
-    sentry_value_set_by_key(debug_context, "minidump_result",
-        sentry_value_new_int32(ctx->platform.dbg_minidump_result));
-    sentry_value_set_by_key(debug_context, "minidump_error",
-        sentry_value_new_int32((int32_t)ctx->platform.dbg_minidump_error));
-    sentry_value_set_by_key(debug_context, "minidump_path",
-        sentry_value_new_string(ctx->minidump_path));
-
-    sentry_value_t contexts = sentry_value_get_by_key(event, "contexts");
-    if (sentry_value_get_type(contexts) != SENTRY_VALUE_TYPE_OBJECT) {
-        contexts = sentry_value_new_object();
-        sentry_value_set_by_key(event, "contexts", contexts);
-    }
-    sentry_value_set_by_key(contexts, "windows_crash_debug", debug_context);
-}
 #endif
 
 /**
@@ -2667,7 +2626,6 @@ build_native_crash_event(
     }
 
 #if defined(SENTRY_PLATFORM_WINDOWS)
-    add_windows_crash_debug_context(event, ctx);
     add_wer_context(event, ctx);
 #endif
 
@@ -2949,7 +2907,6 @@ write_envelope_with_minidump(const sentry_options_t *options,
             sentry_value_t event
                 = sentry__value_from_json(event_json, event_size);
             if (!sentry_value_is_null(event)) {
-                add_windows_crash_debug_context(event, ctx);
                 add_wer_context(event, ctx);
                 size_t new_event_size = 0;
                 char *new_event_json
@@ -3206,19 +3163,10 @@ sentry__process_crash(const sentry_options_t *options, sentry_crash_ipc_t *ipc)
     sentry__atomic_store(&ctx->state, SENTRY_CRASH_STATE_PROCESSING);
     SENTRY_DEBUG("Marked state as PROCESSING");
 #if defined(SENTRY_PLATFORM_WINDOWS)
-    SENTRY_WARNF(
-        "### crash-daemon: processing crash pid=%lu tid=%lu mode=%d wer=%d",
+    SENTRY_DEBUGF(
+        "crash-daemon: processing crash pid=%lu tid=%lu mode=%d wer=%d",
         (unsigned long)ctx->crashed_pid, (unsigned long)ctx->crashed_tid,
         ctx->crash_reporting_mode, ctx->platform.wer_enabled ? 1 : 0);
-    if (ctx->platform.wer_enabled) {
-        SENTRY_WARNF("### crash-daemon: wer-callback seen=%d claimed=%d "
-                     "state_before=%ld code=0x%08lx setevent_err=%lu",
-            ctx->platform.wer_callback_seen ? 1 : 0,
-            ctx->platform.wer_callback_claimed ? 1 : 0,
-            ctx->platform.wer_callback_state_before,
-            (unsigned long)ctx->platform.wer_callback_exception_code,
-            (unsigned long)ctx->platform.wer_callback_setevent_error);
-    }
 #endif
 
     // Check crash reporting mode
@@ -3231,7 +3179,7 @@ sentry__process_crash(const sentry_options_t *options, sentry_crash_ipc_t *ipc)
     // Mode 2 (NATIVE_WITH_MINIDUMP): Write minidump
     bool need_minidump = (mode == SENTRY_CRASH_REPORTING_MODE_MINIDUMP
         || mode == SENTRY_CRASH_REPORTING_MODE_NATIVE_WITH_MINIDUMP);
-    SENTRY_WARNF("### crash-daemon: need_minidump=%d minidump_mode=%d",
+    SENTRY_DEBUGF("crash-daemon: need_minidump=%d minidump_mode=%d",
         need_minidump ? 1 : 0, ctx->minidump_mode);
 
     // Determine if we use native stacktrace mode
@@ -3255,8 +3203,6 @@ sentry__process_crash(const sentry_options_t *options, sentry_crash_ipc_t *ipc)
         }
 
         SENTRY_DEBUGF("Writing minidump to: %s", minidump_path);
-        SENTRY_WARNF("### crash-daemon: attempting minidump write path=%s",
-            minidump_path);
         SENTRY_DEBUGF(
             "About to call sentry__write_minidump, ctx=%p, crashed_pid=%d",
             (void *)ctx, ctx->crashed_pid);
@@ -3270,7 +3216,6 @@ sentry__process_crash(const sentry_options_t *options, sentry_crash_ipc_t *ipc)
             minidump_path[0] = '\0'; // Clear path on failure
         } else {
             SENTRY_DEBUG("Minidump written successfully");
-            SENTRY_WARN("### crash-daemon: minidump write succeeded");
 
             // Copy minidump path back to shared memory
 #ifdef _WIN32
@@ -3341,11 +3286,6 @@ sentry__process_crash(const sentry_options_t *options, sentry_crash_ipc_t *ipc)
                 }
             }
         }
-    }
-
-    if (need_minidump && !ctx->minidump_path[0] && !minidump_path[0]) {
-        SENTRY_WARN(
-            "### crash-daemon: no minidump path recorded after write attempt");
     }
 
     // Create envelope file in database directory
@@ -3922,9 +3862,6 @@ sentry__crash_daemon_main(pid_t app_pid, uint64_t app_tid, HANDLE event_handle,
             }
             // If crash already processed, just ignore spurious notifications
             SENTRY_DEBUG("Spurious notification or already processed");
-            SENTRY_WARNF("### crash-daemon: notified with unexpected state=%ld "
-                         "processed=%d",
-                state, crash_processed ? 1 : 0);
         }
 
         // Check if parent is still alive (only if no crash processed yet)
