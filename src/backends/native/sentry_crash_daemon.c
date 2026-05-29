@@ -2243,9 +2243,14 @@ add_wer_context(sentry_value_t event, const sentry_crash_context_t *ctx)
         return false;
     }
 
+    char wer_report_id[sizeof(ctx->platform.wer_report_id)];
+    memcpy(
+        wer_report_id, ctx->platform.wer_report_id, sizeof(wer_report_id) - 1);
+    wer_report_id[sizeof(wer_report_id) - 1] = '\0';
+
     sentry_value_t wer_context = sentry__wer_report_lookup(ctx->crash_event_id);
     if (sentry_value_is_null(wer_context)) {
-        if (sentry__string_empty(ctx->platform.wer_report_id)) {
+        if (sentry__string_empty(wer_report_id)) {
             return false;
         }
         wer_context = sentry_value_new_object();
@@ -2256,8 +2261,8 @@ add_wer_context(sentry_value_t event, const sentry_crash_context_t *ctx)
     const char *context_report_id = sentry_value_as_string(
         sentry_value_get_by_key(wer_context, "report_id"));
     if (sentry__string_empty(context_report_id)) {
-        sentry_value_set_by_key(wer_context, "report_id",
-            sentry_value_new_string(ctx->platform.wer_report_id));
+        sentry_value_set_by_key(
+            wer_context, "report_id", sentry_value_new_string(wer_report_id));
     }
 
     sentry_value_t contexts = sentry_value_get_by_key(event, "contexts");
