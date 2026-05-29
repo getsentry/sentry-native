@@ -99,7 +99,7 @@ def test_native_wer(cmake, httpserver, crash_arg):
         run_crash(
             tmp_path,
             "sentry_example",
-            ["log", "stdout", crash_arg],
+            ["log", "stdout", "wer-metadata", crash_arg],
             env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
         )
     assert waiting.result
@@ -107,6 +107,14 @@ def test_native_wer(cmake, httpserver, crash_arg):
     assert len(httpserver.log) >= 1
     envelope = Envelope.deserialize(httpserver.log[0][0].get_data())
     assert_native_crash(envelope, exception_code=0xC0000409)
+
+    event = envelope.get_event()
+    assert event is not None
+    contexts = event.get("contexts", {})
+    assert "wer" in contexts
+    assert contexts["wer"].get("type") == "wer"
+    assert contexts["wer"].get("report_id")
+    assert contexts["wer"].get("metadata", {}).get("sentry-native") == "some value"
 
 
 @pytest.mark.skipif(not has_oom, reason="OOM test unreliable in this environment")

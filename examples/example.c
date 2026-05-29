@@ -376,6 +376,7 @@ get_arg_value(int argc, char **argv, const char *arg)
 
 #if defined(SENTRY_PLATFORM_WINDOWS) && !defined(__MINGW32__)                  \
     && !defined(__MINGW64__)
+#    include <werapi.h>
 
 int
 call_rffe_many_times()
@@ -1168,6 +1169,9 @@ main(int argc, char **argv)
     }
 #if defined(SENTRY_PLATFORM_WINDOWS) && !defined(__MINGW32__)                  \
     && !defined(__MINGW64__)
+    if (has_arg(argc, argv, "wer-metadata")) {
+        WerRegisterCustomMetadata(L"sentry-native", L"some value");
+    }
     if (has_arg(argc, argv, "fastfail")) {
         trigger_fastfail_crash();
     }
