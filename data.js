@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1780060966681,
+  "lastUpdate": 1780061039097,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -47674,6 +47674,66 @@ window.BENCHMARK_DATA = {
             "value": 9.312625000006847,
             "unit": "ms",
             "extra": "Min 7.276ms\nMax 10.989ms\nMean 9.038ms\nStdDev 1.383ms\nMedian 9.313ms\nCPU 1.093ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "jpnurmi@gmail.com",
+            "name": "J-P Nurmi",
+            "username": "jpnurmi"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "c295eb890edfc8d02d3cf7dafaf97170f7686471",
+          "message": "fix(ringbuffer): fix division by zero (#1767)\n\n* fix(ringbuffer): fix division by zero\n\nTreat zero capacity as no-op. Drop appended values when a ringbuffer\nhas zero capacity so disabling breadcrumbs does not result in invalid\nstate.\n\nCo-Authored-By: OpenAI Codex <noreply@openai.com>\n\n* Update CHANGELOG.md\n\n---------\n\nCo-authored-by: OpenAI Codex <noreply@openai.com>",
+          "timestamp": "2026-05-29T15:20:08+02:00",
+          "tree_id": "9a9163cb170fda165a233f0b17cd9c91da382535",
+          "url": "https://github.com/getsentry/sentry-native/commit/c295eb890edfc8d02d3cf7dafaf97170f7686471"
+        },
+        "date": 1780061031867,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 4.54158400009419,
+            "unit": "ms",
+            "extra": "Min 4.257ms\nMax 10.748ms\nMean 6.380ms\nStdDev 2.886ms\nMedian 4.542ms\nCPU 3.312ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 4.6448750000536165,
+            "unit": "ms",
+            "extra": "Min 4.547ms\nMax 12.100ms\nMean 7.383ms\nStdDev 3.841ms\nMedian 4.645ms\nCPU 3.673ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 13.689791999922818,
+            "unit": "ms",
+            "extra": "Min 11.531ms\nMax 18.311ms\nMean 14.754ms\nStdDev 3.327ms\nMedian 13.690ms\nCPU 5.240ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.07404200005112216,
+            "unit": "ms",
+            "extra": "Min 0.054ms\nMax 0.204ms\nMean 0.097ms\nStdDev 0.061ms\nMedian 0.074ms\nCPU 0.063ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.30879199994160444,
+            "unit": "ms",
+            "extra": "Min 0.247ms\nMax 0.570ms\nMean 0.347ms\nStdDev 0.133ms\nMedian 0.309ms\nCPU 0.347ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 7.168999999976222,
+            "unit": "ms",
+            "extra": "Min 6.830ms\nMax 7.384ms\nMean 7.139ms\nStdDev 0.204ms\nMedian 7.169ms\nCPU 1.002ms"
           }
         ]
       }
