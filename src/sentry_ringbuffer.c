@@ -31,7 +31,7 @@ sentry__ringbuffer_free(sentry_ringbuffer_t *rb)
 int
 sentry__ringbuffer_append(sentry_ringbuffer_t *rb, sentry_value_t value)
 {
-    if (!rb) {
+    if (!rb || rb->max_size == 0) {
         sentry_value_decref(value);
         return -1;
     }
