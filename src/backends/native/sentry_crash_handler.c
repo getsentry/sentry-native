@@ -460,7 +460,8 @@ crash_signal_handler(int signum, siginfo_t *info, void *context)
                 // Note: thread_get_state writes to thread_state_t, which is
                 // __ss (not the full mcontext), so we must pass &state.__ss.
                 // Use the explicit 64-bit flavor; MACHINE_THREAD_STATE is the
-                // unified flavor whose 8-byte header would shift every register.
+                // unified flavor whose 8-byte header would shift every
+                // register.
 #        if defined(__aarch64__)
                 const thread_state_flavor_t state_flavor = ARM_THREAD_STATE64;
                 mach_msg_type_number_t state_count = ARM_THREAD_STATE64_COUNT;
