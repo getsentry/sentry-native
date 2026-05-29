@@ -10,6 +10,7 @@
 
 **Fixes**:
 
+- Native/macOS: crash reports now include full stack traces for all threads. Previously, non-crashing threads showed only a single frame. ([#1768](https://github.com/getsentry/sentry-native/pull/1768))
 - Native/Linux: resolve function names for the crashed thread's stacktrace from on-disk ELF symbol tables in the crash daemon, so the most important thread gets symbolicated without ptrace. ([#1764](https://github.com/getsentry/sentry-native/pull/1764))
 
 - Finish active trace on crash. ([#1667](https://github.com/getsentry/sentry-native/pull/1667))
