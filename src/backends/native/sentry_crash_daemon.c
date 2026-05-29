@@ -2268,6 +2268,44 @@ add_wer_context(sentry_value_t event, const sentry_crash_context_t *ctx)
     sentry_value_set_by_key(contexts, "wer", wer_context);
     return true;
 }
+
+static void
+add_windows_crash_debug_context(
+    sentry_value_t event, const sentry_crash_context_t *ctx)
+{
+    sentry_value_t debug_context = sentry_value_new_object();
+    sentry_value_set_by_key(
+        debug_context, "marker", sentry_value_new_string("###"));
+    sentry_value_set_by_key(debug_context, "wer_enabled",
+        sentry_value_new_bool(ctx->platform.wer_enabled));
+    sentry_value_set_by_key(debug_context, "wer_callback_seen",
+        sentry_value_new_bool(ctx->platform.wer_callback_seen));
+    sentry_value_set_by_key(debug_context, "wer_callback_claimed",
+        sentry_value_new_bool(ctx->platform.wer_callback_claimed));
+    sentry_value_set_by_key(debug_context, "wer_callback_state_before",
+        sentry_value_new_int32((int32_t)ctx->platform.wer_callback_state_before));
+    sentry_value_set_by_key(debug_context, "wer_callback_exception_code",
+        sentry_value_new_int32((int32_t)ctx->platform.wer_callback_exception_code));
+    sentry_value_set_by_key(debug_context, "wer_callback_setevent_error",
+        sentry_value_new_int32((int32_t)ctx->platform.wer_callback_setevent_error));
+    sentry_value_set_by_key(debug_context, "minidump_attempted",
+        sentry_value_new_bool(ctx->platform.dbg_minidump_attempted));
+    sentry_value_set_by_key(debug_context, "minidump_client_pointers",
+        sentry_value_new_bool(ctx->platform.dbg_minidump_client_pointers));
+    sentry_value_set_by_key(debug_context, "minidump_result",
+        sentry_value_new_int32(ctx->platform.dbg_minidump_result));
+    sentry_value_set_by_key(debug_context, "minidump_error",
+        sentry_value_new_int32((int32_t)ctx->platform.dbg_minidump_error));
+    sentry_value_set_by_key(debug_context, "minidump_path",
+        sentry_value_new_string(ctx->minidump_path));
+
+    sentry_value_t contexts = sentry_value_get_by_key(event, "contexts");
+    if (sentry_value_get_type(contexts) != SENTRY_VALUE_TYPE_OBJECT) {
+        contexts = sentry_value_new_object();
+        sentry_value_set_by_key(event, "contexts", contexts);
+    }
+    sentry_value_set_by_key(contexts, "windows_crash_debug", debug_context);
+}
 #endif
 
 /**
@@ -2626,6 +2664,7 @@ build_native_crash_event(
     }
 
 #if defined(SENTRY_PLATFORM_WINDOWS)
+    add_windows_crash_debug_context(event, ctx);
     add_wer_context(event, ctx);
 #endif
 
@@ -2906,7 +2945,9 @@ write_envelope_with_minidump(const sentry_options_t *options,
         if (event_json && event_size > 0) {
             sentry_value_t event
                 = sentry__value_from_json(event_json, event_size);
-            if (!sentry_value_is_null(event) && add_wer_context(event, ctx)) {
+            if (!sentry_value_is_null(event)) {
+                add_windows_crash_debug_context(event, ctx);
+                add_wer_context(event, ctx);
                 size_t new_event_size = 0;
                 char *new_event_json
                     = sentry__value_to_json(event, &new_event_size);

@@ -252,6 +252,12 @@ typedef struct {
     long wer_callback_state_before;
     DWORD wer_callback_exception_code;
     DWORD wer_callback_setevent_error;
+
+    // Temporary minidump diagnostics for CI investigation.
+    bool dbg_minidump_attempted;
+    bool dbg_minidump_client_pointers;
+    int dbg_minidump_result;
+    DWORD dbg_minidump_error;
 } sentry_crash_platform_windows_t;
 
 typedef struct {
