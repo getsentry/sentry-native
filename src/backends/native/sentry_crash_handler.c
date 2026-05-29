@@ -1052,7 +1052,6 @@ crash_exception_filter(EXCEPTION_POINTERS *exception_info)
         ctx->platform.exception_pointers = NULL;
         sentry__atomic_store(&ctx->state, SENTRY_CRASH_STATE_CRASHED);
         sentry__crash_ipc_notify(ipc);
-        wait_for_daemon_capture(ctx);
         return EXCEPTION_CONTINUE_SEARCH;
     }
 
