@@ -94,12 +94,15 @@ sentry__elf_find_note(const void *buf, size_t buf_size, size_t alignment,
         size_t name_size = note->n_namesz;
         size_t desc_size = note->n_descsz;
         size_t mask = alignment - 1;
-
         if (name_size > SIZE_MAX - mask || desc_size > SIZE_MAX - mask) {
             return NULL;
         }
+
         size_t name_aligned = (name_size + mask) & ~mask;
         size_t desc_aligned = (desc_size + mask) & ~mask;
+        if (name_aligned == 0 && desc_aligned == 0) {
+            continue;
+        }
 
         size_t remaining = (size_t)(end - ptr);
         if (remaining < name_aligned) {
