@@ -84,47 +84,52 @@ sentry__elf_find_note(const void *buf, size_t buf_size, size_t alignment,
         return NULL;
     }
 
-    const uint8_t *ptr = (const uint8_t *)buf;
-    const uint8_t *end = ptr + buf_size;
+    const uint8_t *start = (const uint8_t *)buf;
+    size_t offset = 0;
 
-    while ((size_t)(end - ptr) >= sizeof(Elf64_Nhdr)) {
-        const Elf64_Nhdr *note = (const Elf64_Nhdr *)ptr;
-        ptr += sizeof(Elf64_Nhdr);
-
+    while (buf_size - offset >= sizeof(Elf64_Nhdr)) {
+        const Elf64_Nhdr *note = (const Elf64_Nhdr *)(start + offset);
         size_t name_size = note->n_namesz;
         size_t desc_size = note->n_descsz;
         size_t mask = alignment - 1;
+
         if (name_size > SIZE_MAX - mask || desc_size > SIZE_MAX - mask) {
             return NULL;
         }
 
         size_t name_aligned = (name_size + mask) & ~mask;
         size_t desc_aligned = (desc_size + mask) & ~mask;
+
+        offset += sizeof(Elf64_Nhdr);
+
         if (name_aligned == 0 && desc_aligned == 0) {
             continue;
         }
 
-        size_t remaining = (size_t)(end - ptr);
-        if (remaining < name_aligned) {
+        if (name_size > buf_size - offset) {
             return NULL;
         }
 
-        const uint8_t *desc = ptr + name_aligned;
-        remaining = (size_t)(end - desc);
-        if (remaining < desc_size) {
+        size_t name_end = offset + name_size;
+        size_t desc_start = (name_end + mask) & ~mask;
+
+        if (desc_start > buf_size) {
             return NULL;
         }
+
+        if (desc_size > buf_size - desc_start) {
+            return NULL;
+        }
+
+        const uint8_t *desc = start + desc_start;
 
         if (note->n_type == type && name_size == name_len
-            && memcmp(ptr, name, name_len) == 0) {
+            && memcmp(start + offset, name, name_len) == 0) {
             *desc_size_out = desc_size;
             return desc;
         }
 
-        if (remaining < desc_aligned) {
-            return NULL;
-        }
-        ptr = desc + desc_aligned;
+        offset = (desc_start + desc_size + mask) & ~mask;
     }
 
     return NULL;
