@@ -5,11 +5,14 @@ Tests crash handling, minidump generation, Build ID/UUID extraction,
 multi-thread capture, and FPU/SIMD register capture on all platforms.
 """
 
+from ast import pattern
 import os
+from pydoc import text
 import subprocess
 import sys
 import time
 import struct
+from pathlib import Path
 import pytest
 
 from . import (
@@ -26,6 +29,7 @@ from .assertions import (
     assert_native_crash,
     assert_session,
     is_valid_hex,
+    wait_for,
     wait_for_file,
     assert_user_feedback,
 )
@@ -83,13 +87,37 @@ def test_native_capture_crash(cmake, httpserver):
     assert waiting.result
 
 
+def wait_for_wer(event_id, timeout=10.0, interval=0.1):
+    program_data = os.environ.get("ProgramData")
+    if not program_data:
+        return False
+
+    wer_dir = Path(program_data) / "Microsoft" / "Windows" / "WER" / "Temp"
+
+    def find_wer_file():
+        for path in wer_dir.glob("*.WERInternalMetadata.xml"):
+            try:
+                text = path.read_bytes().decode("utf-8", errors="replace")
+                if (
+                    f"<SentryEventId>{event_id}</SentryEventId>" in text
+                    and "<SentryWer>Sentry -> WER</SentryWer>" in text
+                ):
+                    return True
+            except:
+                continue
+        return False
+
+    assert wait_for(find_wer_file, timeout=timeout, interval=interval)
+
+
 @pytest.mark.skipif(
     sys.platform != "win32" or bool(os.environ.get("TEST_MINGW")),
     reason="WER crash tests are only available in MSVC Windows builds",
 )
 @pytest.mark.with_wer
 @pytest.mark.parametrize("crash_arg", ["fastfail", "stack-buffer-overrun"])
-def test_native_wer(cmake, httpserver, crash_arg):
+@pytest.mark.parametrize("wer_sync_mode", ["none", "from", "to", "from-to"])
+def test_native_wer(cmake, httpserver, crash_arg, wer_sync_mode):
     """Test WER crash capture with native backend"""
     tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "native"})
 
@@ -99,7 +127,7 @@ def test_native_wer(cmake, httpserver, crash_arg):
         run_crash(
             tmp_path,
             "sentry_example",
-            ["log", "stdout", "wer-metadata", crash_arg],
+            ["log", "stdout", "wer-sync-mode", wer_sync_mode, crash_arg],
             env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
         )
     assert waiting.result
@@ -111,10 +139,19 @@ def test_native_wer(cmake, httpserver, crash_arg):
     event = envelope.get_event()
     assert event is not None
     contexts = event.get("contexts", {})
-    assert "wer" in contexts
-    assert contexts["wer"].get("type") == "wer"
-    assert contexts["wer"].get("report_id")
-    assert contexts["wer"].get("metadata", {}).get("sentry-native") == "some value"
+
+    if "from" in wer_sync_mode:
+        assert "wer" in contexts
+        assert contexts["wer"].get("type") == "wer"
+        assert contexts["wer"].get("report_id")
+        assert contexts["wer"].get("metadata", {}).get("SentryWer") == "WER -> Sentry"
+    else:
+        assert "wer" not in contexts
+
+    if "to" in wer_sync_mode:
+        event_id = event.get("event_id")
+        assert event_id
+        assert wait_for_wer(event_id)
 
 
 @pytest.mark.skipif(not has_oom, reason="OOM test unreliable in this environment")

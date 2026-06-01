@@ -880,6 +880,30 @@ main(int argc, char **argv)
             options, SENTRY_CRASH_UPLOAD_MODE_ASYNC);
     }
 
+    if (has_arg(argc, argv, "wer-sync-mode")) {
+        const char *arg = get_arg_value(argc, argv, "wer-sync-mode");
+        if (arg != NULL) {
+            sentry_wer_sync_mode_t mode = SENTRY_WER_SYNC_MODE_NONE;
+            if (strcmp(arg, "from") == 0) {
+                mode = SENTRY_WER_SYNC_MODE_FROM_WER;
+            } else if (strcmp(arg, "to") == 0) {
+                mode = SENTRY_WER_SYNC_MODE_TO_WER;
+            } else if (strcmp(arg, "from-to") == 0) {
+                mode = (sentry_wer_sync_mode_t)(SENTRY_WER_SYNC_MODE_FROM_WER
+                    | SENTRY_WER_SYNC_MODE_TO_WER);
+            }
+
+            if (mode & SENTRY_WER_SYNC_MODE_FROM_WER) {
+                WerRegisterCustomMetadata(L"SentryWer", L"WER -> Sentry");
+            }
+            if (mode & SENTRY_WER_SYNC_MODE_TO_WER) {
+                sentry_set_tag("SentryWer", "Sentry -> WER");
+            }
+
+            sentry_options_set_wer_sync_mode(options, mode);
+        }
+    }
+
     // E2E test mode: generate unique test ID for event correlation
     char e2e_test_id[37] = { 0 };
     if (has_arg(argc, argv, "e2e-test")) {
@@ -1169,9 +1193,6 @@ main(int argc, char **argv)
     }
 #if defined(SENTRY_PLATFORM_WINDOWS) && !defined(__MINGW32__)                  \
     && !defined(__MINGW64__)
-    if (has_arg(argc, argv, "wer-metadata")) {
-        WerRegisterCustomMetadata(L"sentry-native", L"some value");
-    }
     if (has_arg(argc, argv, "fastfail")) {
         trigger_fastfail_crash();
     }
