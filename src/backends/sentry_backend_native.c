@@ -839,6 +839,9 @@ native_backend_flush_scope(
     // Keep the on-disk base event complete and current, so the daemon has the
     // full scope even if a crash beats the in-process handler to the file.
     sentry_value_t event = sentry_value_new_object();
+    // Default to `FATAL` for all paths, i.e. minidump mode.
+    sentry_value_set_by_key(
+        event, "level", sentry__value_new_level(SENTRY_LEVEL_FATAL));
     native_backend_apply_scope(event, options);
 
     size_t json_len = 0;
