@@ -34,6 +34,7 @@
 - Fix a potential out-of-bounds read when parsing non-NUL-terminated `sentry-trace` headers. ([#1749](https://github.com/getsentry/sentry-native/pull/1749))
 - Fix division by zero when breadcrumbs are disabled. ([#1767](https://github.com/getsentry/sentry-native/pull/1767))
 - Handle memory allocation failures during JSON serialization to prevent truncated output. ([#1772](https://github.com/getsentry/sentry-native/pull/1772))
+- Native/Linux: prevent IPC shared memory spoofing. ([#1774](https://github.com/getsentry/sentry-native/pull/1774))
 
 ## 0.14.2
 
