@@ -800,30 +800,6 @@ ensure_device_arch(sentry_value_t event)
 }
 #endif
 
-// Applies the scope to `event`: contexts (os, device, gpu, app, runtime, plus
-// SDK-specific entries such as the Unity context), user, tags, extra,
-// fingerprint, release/dist/env, sdk metadata - plus the Windows device.arch
-// fallback. Shared by the continuous scope flush and the crash handler so both
-// write an identical base regardless of which one wins the race.
-//
-// `mode` controls the expensive, list-shaped parts. The crash handler passes
-// SENTRY_SCOPE_BREADCRUMBS to capture them at crash time, but the continuous
-// flush passes SENTRY_SCOPE_NONE: it runs on *every* scope mutation, so folding
-// the breadcrumb buffer in there would re-serialize the whole ring on every
-// set_tag/set_context/... - prohibitive on a hot path such as a 60fps main
-// thread.
-static void
-apply_scope(sentry_value_t event, const sentry_options_t *options,
-    sentry_scope_mode_t mode)
-{
-    SENTRY_WITH_SCOPE (scope) {
-        sentry__scope_apply_to_event(scope, options, event, mode);
-    }
-#if defined(SENTRY_PLATFORM_WINDOWS)
-    ensure_device_arch(event);
-#endif
-}
-
 static void
 native_backend_flush_scope(
     sentry_backend_t *backend, const sentry_options_t *options)
@@ -841,17 +817,18 @@ native_backend_flush_scope(
         return;
     }
 
-    // Keep the on-disk base event current, so the daemon has the full scope
-    // even if a crash beats the in-process handler to the file. Breadcrumbs are
-    // deliberately excluded here (SENTRY_SCOPE_NONE): they are flushed
-    // incrementally to the breadcrumb ring files and the crash handler captures
-    // them at crash time. This keeps the per-mutation flush off the breadcrumb
-    // serialization cost.
+    // Create event with current scope
     sentry_value_t event = sentry_value_new_object();
-    // Default to `FATAL` for all paths, i.e. minidump mode.
     sentry_value_set_by_key(
         event, "level", sentry__value_new_level(SENTRY_LEVEL_FATAL));
-    apply_scope(event, options, SENTRY_SCOPE_NONE);
+
+    // Apply scope with contexts
+    SENTRY_WITH_SCOPE (scope) {
+        sentry__scope_apply_to_event(scope, options, event, SENTRY_SCOPE_NONE);
+    }
+#if defined(SENTRY_PLATFORM_WINDOWS)
+    ensure_device_arch(event);
+#endif
 
     size_t json_len = 0;
     char *json_str = sentry__value_to_json(event, &json_len);
@@ -1034,9 +1011,14 @@ native_backend_except(sentry_backend_t *backend, const sentry_ucontext_t *uctx)
             }
 
             if (should_handle) {
-                // At crash time we capture breadcrumbs (unlike the continuous
-                // flush) - this is the process's last chance to record them.
-                apply_scope(event, options, SENTRY_SCOPE_BREADCRUMBS);
+                // Apply scope to event including breadcrumbs
+                SENTRY_WITH_SCOPE (scope) {
+                    sentry__scope_apply_to_event(
+                        scope, options, event, SENTRY_SCOPE_BREADCRUMBS);
+                }
+#if defined(SENTRY_PLATFORM_WINDOWS)
+                ensure_device_arch(event);
+#endif
 
 #ifndef SENTRY_SCREENSHOT_NONE
                 // The screenshot is captured by the daemon out-of-process, so

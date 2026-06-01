@@ -2119,10 +2119,7 @@ build_stacktrace_from_ctx(const sentry_crash_context_t *ctx)
 }
 
 /**
- * Build a native event from the scope-complete base event, adding the
- * caller-specified framing (level, mechanism) plus threads and debug_meta.
- * The base event (contexts, tags, user, breadcrumbs, ...) is identical
- * regardless of event type; the caller states what this event is.
+ * Build a native event and set the level, mechanism, and handled state
  *
  * @param ctx Crash context
  * @param event_file_path Path to base event file from parent process
