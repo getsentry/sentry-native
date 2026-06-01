@@ -25,6 +25,7 @@ from .assertions import (
     assert_meta,
     assert_native_crash,
     assert_session,
+    is_valid_hex,
     wait_for_file,
     assert_user_feedback,
 )
@@ -343,6 +344,45 @@ def test_native_multithreaded_crash(cmake, httpserver):
             env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
         )
     assert waiting.result
+
+
+@pytest.mark.skipif(
+    sys.platform != "darwin",
+    reason="Exercises the macOS thread_get_state register capture path",
+)
+def test_native_noncrashing_thread_unwind(cmake, httpserver):
+    """Test that non-crashing threads capture unwindable stacktraces"""
+    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "native"})
+
+    httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data("OK")
+
+    with httpserver.wait(timeout=10) as waiting:
+        run_crash(
+            tmp_path,
+            "sentry_example",
+            ["log", "stdout", "crash"] + SANITIZER_ARGS,
+            env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
+        )
+    assert waiting.result
+
+    assert len(httpserver.log) >= 1
+    envelope = Envelope.deserialize(httpserver.log[0][0].get_data())
+    event = envelope.get_event()
+
+    noncrashing = [t for t in event["threads"]["values"] if not t.get("crashed")]
+    assert noncrashing
+
+    frame_counts = []
+    for thread in noncrashing:
+        stacktrace = thread.get("stacktrace")
+        if not stacktrace:
+            continue
+        frames = stacktrace["frames"]
+        assert all(is_valid_hex(frame["instruction_addr"]) for frame in frames)
+        frame_counts.append(len(frames))
+
+    # A buggy register capture leaves each thread with only its top frame.
+    assert frame_counts and max(frame_counts) >= 2
 
 
 def _parse_minidump(path):
