@@ -773,7 +773,7 @@ native_backend_write_attachments(const sentry_path_t *event_path)
 // provide one), leave it; otherwise synthesize a minimal one so native-only
 // consumers still symbolicate.
 static void
-native_backend_ensure_device_arch(sentry_value_t event)
+ensure_device_arch(sentry_value_t event)
 {
     sentry_value_t contexts = sentry_value_get_by_key(event, "contexts");
     if (sentry_value_is_null(contexts)) {
@@ -807,7 +807,7 @@ native_backend_ensure_device_arch(sentry_value_t event)
 // daemon reads, shared by the continuous scope flush and the crash handler so
 // both write an identical base regardless of which one wins the race.
 static void
-native_backend_apply_scope(
+apply_scope(
     sentry_value_t event, const sentry_options_t *options)
 {
     SENTRY_WITH_SCOPE (scope) {
@@ -815,7 +815,7 @@ native_backend_apply_scope(
             scope, options, event, SENTRY_SCOPE_BREADCRUMBS);
     }
 #if defined(SENTRY_PLATFORM_WINDOWS)
-    native_backend_ensure_device_arch(event);
+    ensure_device_arch(event);
 #endif
 }
 
@@ -842,7 +842,7 @@ native_backend_flush_scope(
     // Default to `FATAL` for all paths, i.e. minidump mode.
     sentry_value_set_by_key(
         event, "level", sentry__value_new_level(SENTRY_LEVEL_FATAL));
-    native_backend_apply_scope(event, options);
+    apply_scope(event, options);
 
     size_t json_len = 0;
     char *json_str = sentry__value_to_json(event, &json_len);
@@ -1025,7 +1025,7 @@ native_backend_except(sentry_backend_t *backend, const sentry_ucontext_t *uctx)
             }
 
             if (should_handle) {
-                native_backend_apply_scope(event, options);
+                apply_scope(event, options);
 
 #ifndef SENTRY_SCREENSHOT_NONE
                 // The screenshot is captured by the daemon out-of-process, so
