@@ -8,6 +8,7 @@
 - Native/Linux: symbolicate stack frames in the crash daemon. ([#1747](https://github.com/getsentry/sentry-native/pull/1747), [#1764](https://github.com/getsentry/sentry-native/pull/1764))
 - Add a `transfer_timeout` option for SDK-managed HTTP transports. ([#1741](https://github.com/getsentry/sentry-native/pull/1741))
 - Apple: use `os_sync_wait_on_address` for the level-triggered waitable flag in the batcher on modern macOS(14.4+) and iOS(17.4+). ([#1765](https://github.com/getsentry/sentry-native/pull/1765))
+- Native/macOS: add thread names. ([#1766](https://github.com/getsentry/sentry-native/pull/1766))
 
 **Fixes**:
 
