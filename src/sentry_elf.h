@@ -8,6 +8,7 @@
 #    include <elf.h>
 #    include <stdbool.h>
 #    include <stddef.h>
+#    include <string.h>
 
 static inline bool
 sentry__elf_is_native_class(const unsigned char e_ident[EI_NIDENT])
