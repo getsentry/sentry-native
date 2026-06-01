@@ -2254,6 +2254,11 @@ build_stacktrace_from_ctx(const sentry_crash_context_t *ctx)
 static bool
 add_wer_context(sentry_value_t event, const sentry_crash_context_t *ctx)
 {
+    if ((ctx->wer_sync_mode & SENTRY_WER_SYNC_MODE_FROM_WER) == 0) {
+        daemon_debugf("### DAEMON: add_wer_context skipped sync_from_wer=0\n");
+        return false;
+    }
+
     if (!ctx->platform.wer_enabled) {
         daemon_debugf("### DAEMON: add_wer_context skipped wer_enabled=0\n");
         return false;

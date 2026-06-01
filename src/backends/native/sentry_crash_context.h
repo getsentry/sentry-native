@@ -293,6 +293,7 @@ typedef struct {
     uint64_t shutdown_timeout;
     uint64_t transfer_timeout;
     bool system_crash_reporter_enabled;
+    int wer_sync_mode; // sentry_wer_sync_mode_t
 
     char crash_event_id[37];
 

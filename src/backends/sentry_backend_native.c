@@ -337,6 +337,7 @@ native_backend_startup(
     ctx->crash_reporting_mode = options->crash_reporting_mode;
     ctx->system_crash_reporter_enabled = options->system_crash_reporter_enabled;
     ctx->crash_upload_mode = options->crash_upload_mode;
+    ctx->wer_sync_mode = options->wer_sync_mode;
 
     // Pass debug logging setting to daemon
     ctx->debug_enabled = options->debug;
@@ -566,8 +567,8 @@ native_backend_startup(
     }
 
 #    if defined(SENTRY_PLATFORM_WINDOWS) && !defined(SENTRY_PLATFORM_XBOX)
-    state->ipc->shmem->platform.wer_enabled
-        = wer_register_module(tid, ctx->crash_event_id);
+    bool module_registered = wer_register_module(tid, ctx->crash_event_id);
+    state->ipc->shmem->platform.wer_enabled = module_registered;
 #    endif
 
     if (sentry__crash_handler_init(state->ipc) < 0) {

@@ -1093,6 +1093,15 @@ typedef enum {
 } sentry_crash_upload_mode_t;
 
 /**
+ * Synchronization mode for Windows Error Reporting (WER) interop.
+ */
+typedef enum sentry_wer_sync_mode_t {
+    SENTRY_WER_SYNC_MODE_NONE = 0,
+    SENTRY_WER_SYNC_MODE_FROM_WER = 1 << 0,
+    SENTRY_WER_SYNC_MODE_TO_WER = 1 << 1,
+} sentry_wer_sync_mode_t;
+
+/**
  * Controls if and when envelopes are kept in the persistent cache.
  */
 typedef enum {
@@ -1921,6 +1930,18 @@ SENTRY_API void sentry_options_set_crash_upload_mode(
  */
 SENTRY_API sentry_crash_upload_mode_t sentry_options_get_crash_upload_mode(
     const sentry_options_t *opts);
+
+/**
+ * Sets the Windows Error Reporting (WER) synchronization mode.
+ *
+ * This setting controls how data is synced between WER and Sentry. The value is
+ * bitmask and can combine flags from `sentry_wer_sync_mode_t`.
+ *
+ * This setting only has an effect when using the `native` backend on Windows.
+ * Default is `SENTRY_WER_SYNC_MODE_NONE`.
+ */
+SENTRY_API void sentry_options_set_wer_sync_mode(
+    sentry_options_t *opts, sentry_wer_sync_mode_t mode);
 
 /**
  * Enables a wait for the crash report upload to be finished before shutting
