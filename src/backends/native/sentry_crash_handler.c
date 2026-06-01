@@ -1004,6 +1004,17 @@ crash_exception_filter(EXCEPTION_POINTERS *exception_info)
 
     sentry_crash_context_t *ctx = ipc->shmem;
 
+    bool use_wer = ctx->platform.wer_enabled
+        && exception_info->ExceptionRecord->ExceptionCode
+            != STATUS_FATAL_APP_EXIT;
+
+    // In WER mode, move out of READY as early as possible so the
+    // out-of-process WER callback cannot claim and wake the daemon before
+    // sentry_handle_exception writes the crash event.
+    if (use_wer) {
+        sentry__atomic_store(&ctx->state, SENTRY_CRASH_STATE_PROCESSING);
+    }
+
     // Fill crash context
     ctx->crashed_pid = GetCurrentProcessId();
     ctx->crashed_tid = GetCurrentThreadId();
@@ -1028,17 +1039,6 @@ crash_exception_filter(EXCEPTION_POINTERS *exception_info)
     ctx->platform.num_threads = 1;
     ctx->platform.threads[0].thread_id = GetCurrentThreadId();
     ctx->platform.threads[0].context = *exception_info->ContextRecord;
-
-    bool use_wer = ctx->platform.wer_enabled
-        && exception_info->ExceptionRecord->ExceptionCode
-            != STATUS_FATAL_APP_EXIT;
-
-    // In WER mode, mark state as PROCESSING before sentry_handle_exception
-    // writes the crash event so the out-of-process WER callback cannot
-    // claim the crash and wake the daemon prematurely.
-    if (use_wer) {
-        sentry__atomic_store(&ctx->state, SENTRY_CRASH_STATE_PROCESSING);
-    }
 
     // Call Sentry's exception handler
     sentry_ucontext_t sentry_uctx = { 0 };
