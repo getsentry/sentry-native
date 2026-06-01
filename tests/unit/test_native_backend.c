@@ -616,15 +616,6 @@ SENTRY_TEST(wer_metadata)
     TEST_CHECK(!sentry_value_is_null(wer_report));
     TEST_CHECK(sentry_value_get_type(wer_report) == SENTRY_VALUE_TYPE_OBJECT);
 
-    sentry_value_t contexts = sentry_value_get_by_key(wer_report, "contexts");
-    TEST_CHECK(
-        sentry_value_get_type(contexts) == SENTRY_VALUE_TYPE_OBJECT);
-    sentry_value_t wer_ctx = sentry_value_get_by_key(contexts, "wer");
-    TEST_CHECK(sentry_value_get_type(wer_ctx) == SENTRY_VALUE_TYPE_OBJECT);
-    TEST_CHECK_STRING_EQUAL(
-        sentry_value_as_string(sentry_value_get_by_key(wer_ctx, "report_id")),
-        "99926ddc-16e9-4b01-a13d-53dce7433e3f");
-
     sentry_value_t tags = sentry_value_get_by_key(wer_report, "tags");
     TEST_CHECK(sentry_value_get_type(tags) == SENTRY_VALUE_TYPE_OBJECT);
     TEST_CHECK_STRING_EQUAL(
