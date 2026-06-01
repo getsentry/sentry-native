@@ -46,18 +46,18 @@ sentry__crash_ipc_init_app(sem_t *init_sem)
 
     // Try to create shared memory. Do not reuse existing names: a pre-created
     // segment may be attacker-controlled.
-    bool shm_exists = false;
     ipc->shm_fd = -1;
     for (uint32_t attempt = 0; attempt < 8; attempt++) {
         uint32_t nonce = 0;
         if (sentry__getrandom(&nonce, sizeof(nonce)) != 0) {
             nonce = (uint32_t)(uintptr_t)&nonce ^ attempt;
         }
-        uint32_t id = (uint32_t)((getpid() ^ (tid & 0xFFFFFFFF) ^ nonce
-                                      ^ attempt)
-            & 0xFFFFFFFF);
+        uint32_t id
+            = (uint32_t)((getpid() ^ (tid & 0xFFFFFFFF) ^ nonce ^ attempt)
+                & 0xFFFFFFFF);
         snprintf(ipc->shm_name, sizeof(ipc->shm_name), "/s-%08x", id);
-        ipc->shm_fd = shm_open(ipc->shm_name, O_CREAT | O_RDWR | O_EXCL, 0600);
+        ipc->shm_fd = shm_open(
+            ipc->shm_name, O_CREAT | O_RDWR | O_EXCL | O_CLOEXEC, 0600);
         if (ipc->shm_fd >= 0) {
             ipc->shm_id = id;
             break;
@@ -76,44 +76,15 @@ sentry__crash_ipc_init_app(sem_t *init_sem)
         return NULL;
     }
 
-    // Verify and resize shared memory (both new and existing)
-    if (shm_exists) {
-        // Check if existing shared memory has correct size
-        struct stat st;
-        if (fstat(ipc->shm_fd, &st) < 0) {
-            SENTRY_WARNF("failed to stat shared memory: %s", strerror(errno));
-            close(ipc->shm_fd);
-            if (ipc->init_sem) {
-                sem_post(ipc->init_sem);
-            }
-            sentry_free(ipc);
-            return NULL;
+    if (ftruncate(ipc->shm_fd, SENTRY_CRASH_SHM_SIZE) < 0) {
+        SENTRY_WARNF("failed to resize shared memory: %s", strerror(errno));
+        close(ipc->shm_fd);
+        shm_unlink(ipc->shm_name);
+        if (ipc->init_sem) {
+            sem_post(ipc->init_sem);
         }
-        if (st.st_size != SENTRY_CRASH_SHM_SIZE) {
-            // Existing shm has wrong size, resize it
-            if (ftruncate(ipc->shm_fd, SENTRY_CRASH_SHM_SIZE) < 0) {
-                SENTRY_WARNF("failed to resize existing shared memory: %s",
-                    strerror(errno));
-                close(ipc->shm_fd);
-                if (ipc->init_sem) {
-                    sem_post(ipc->init_sem);
-                }
-                sentry_free(ipc);
-                return NULL;
-            }
-        }
-    } else {
-        // New shared memory, set size
-        if (ftruncate(ipc->shm_fd, SENTRY_CRASH_SHM_SIZE) < 0) {
-            SENTRY_WARNF("failed to resize shared memory: %s", strerror(errno));
-            close(ipc->shm_fd);
-            shm_unlink(ipc->shm_name);
-            if (ipc->init_sem) {
-                sem_post(ipc->init_sem);
-            }
-            sentry_free(ipc);
-            return NULL;
-        }
+        sentry_free(ipc);
+        return NULL;
     }
 
     // Map shared memory
@@ -122,9 +93,7 @@ sentry__crash_ipc_init_app(sem_t *init_sem)
     if (ipc->shmem == MAP_FAILED) {
         SENTRY_WARNF("failed to map shared memory: %s", strerror(errno));
         close(ipc->shm_fd);
-        if (!shm_exists) {
-            shm_unlink(ipc->shm_name);
-        }
+        shm_unlink(ipc->shm_name);
         if (ipc->init_sem) {
             sem_post(ipc->init_sem);
         }
@@ -138,9 +107,7 @@ sentry__crash_ipc_init_app(sem_t *init_sem)
         SENTRY_WARNF("failed to create eventfd: %s", strerror(errno));
         munmap(ipc->shmem, SENTRY_CRASH_SHM_SIZE);
         close(ipc->shm_fd);
-        if (!shm_exists) {
-            shm_unlink(ipc->shm_name);
-        }
+        shm_unlink(ipc->shm_name);
         if (ipc->init_sem) {
             sem_post(ipc->init_sem);
         }
@@ -155,9 +122,7 @@ sentry__crash_ipc_init_app(sem_t *init_sem)
         close(ipc->notify_fd);
         munmap(ipc->shmem, SENTRY_CRASH_SHM_SIZE);
         close(ipc->shm_fd);
-        if (!shm_exists) {
-            shm_unlink(ipc->shm_name);
-        }
+        shm_unlink(ipc->shm_name);
         if (ipc->init_sem) {
             sem_post(ipc->init_sem);
         }
@@ -165,14 +130,11 @@ sentry__crash_ipc_init_app(sem_t *init_sem)
         return NULL;
     }
 
-    // Initialize shared memory only if newly created
-    if (!shm_exists) {
-        memset(ipc->shmem, 0, SENTRY_CRASH_SHM_SIZE);
-        ipc->shmem->magic = SENTRY_CRASH_MAGIC;
-        ipc->shmem->version = SENTRY_CRASH_VERSION;
-        sentry__atomic_store(&ipc->shmem->state, SENTRY_CRASH_STATE_READY);
-        sentry__atomic_store(&ipc->shmem->sequence, 0);
-    }
+    memset(ipc->shmem, 0, SENTRY_CRASH_SHM_SIZE);
+    ipc->shmem->magic = SENTRY_CRASH_MAGIC;
+    ipc->shmem->version = SENTRY_CRASH_VERSION;
+    sentry__atomic_store(&ipc->shmem->state, SENTRY_CRASH_STATE_READY);
+    sentry__atomic_store(&ipc->shmem->sequence, 0);
 
     // Release semaphore after initialization
     if (ipc->init_sem) {
@@ -186,21 +148,19 @@ sentry__crash_ipc_init_app(sem_t *init_sem)
 }
 
 sentry_crash_ipc_t *
-sentry__crash_ipc_init_daemon(
-    pid_t app_pid, uint64_t app_tid, int notify_eventfd, int ready_eventfd)
+sentry__crash_ipc_init_daemon(pid_t app_pid, uint64_t app_tid,
+    int notify_eventfd, int ready_eventfd, int shm_fd)
 {
     sentry_crash_ipc_t *ipc = SENTRY_MAKE(sentry_crash_ipc_t);
     if (!ipc) {
         return NULL;
     }
     ipc->is_daemon = true;
+    (void)app_pid;
+    (void)app_tid;
 
-    // Open existing shared memory created by app (using PID and thread ID)
-    // Must match the format in sentry__crash_ipc_init_app
-    uint32_t id = (uint32_t)((app_pid ^ (app_tid & 0xFFFFFFFF)) & 0xFFFFFFFF);
-    snprintf(ipc->shm_name, sizeof(ipc->shm_name), "/s-%08x", id);
-
-    ipc->shm_fd = shm_open(ipc->shm_name, O_RDWR, 0600);
+    ipc->shm_name[0] = '\0';
+    ipc->shm_fd = shm_fd;
     if (ipc->shm_fd < 0) {
         SENTRY_WARNF(
             "daemon: failed to open shared memory: %s", strerror(errno));
@@ -232,9 +192,9 @@ sentry__crash_ipc_init_daemon(
     ipc->notify_fd = notify_eventfd;
     ipc->ready_fd = ready_eventfd;
 
-    SENTRY_DEBUGF("daemon: attached to crash IPC (shm=%s, notify_fd=%d, "
+    SENTRY_DEBUGF("daemon: attached to crash IPC (shm_fd=%d, notify_fd=%d, "
                   "ready_notify_fd=%d)",
-        ipc->shm_name, notify_eventfd, ready_eventfd);
+        ipc->shm_fd, notify_eventfd, ready_eventfd);
 
     return ipc;
 }

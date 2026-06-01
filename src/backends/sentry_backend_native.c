@@ -458,9 +458,10 @@ native_backend_startup(
     const char *daemon_handler_path
         = options->handler_path ? options->handler_path->path : NULL;
 #    if defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID)
-    uint64_t ipc_id = (uint64_t)(state->ipc->shm_id ^ (uint32_t)getpid());
-    state->daemon_pid = sentry__crash_daemon_start(getpid(), ipc_id,
-        state->ipc->notify_fd, state->ipc->ready_fd, daemon_handler_path);
+    uint64_t tid = (uint64_t)pthread_self();
+    state->daemon_pid
+        = sentry__crash_daemon_start(getpid(), tid, state->ipc->notify_fd,
+            state->ipc->ready_fd, state->ipc->shm_fd, daemon_handler_path);
 #    elif defined(SENTRY_PLATFORM_MACOS)
     uint64_t tid = (uint64_t)pthread_self();
     state->daemon_pid
@@ -498,6 +499,8 @@ native_backend_startup(
 #    endif
 
 #    if defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID)
+    sentry__crash_ipc_unlink(state->ipc);
+
     // Close unused eventfd ends in parent process
     // (eventfds are bidirectional, but we only use one direction per fd)
     // Parent writes to notify_fd, daemon reads from it - parent can close for
