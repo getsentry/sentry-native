@@ -25,9 +25,9 @@
 
 typedef struct {
     void (*free)(sentry_jsonwriter_t *writer);
-    int (*write_str)(sentry_jsonwriter_t *writer, const char *str);
-    int (*write_buf)(sentry_jsonwriter_t *writer, const char *buf, size_t len);
-    int (*write_char)(sentry_jsonwriter_t *writer, char c);
+    bool (*write_str)(sentry_jsonwriter_t *writer, const char *str);
+    bool (*write_buf)(sentry_jsonwriter_t *writer, const char *buf, size_t len);
+    bool (*write_char)(sentry_jsonwriter_t *writer, char c);
     char *(*into_string)(sentry_jsonwriter_t *jw, size_t *len_out);
 } sentry_jsonwriter_ops_t;
 
@@ -66,41 +66,42 @@ jsonwriter_free_file(sentry_jsonwriter_t *jw)
     sentry_free(jw);
 }
 
-static int
+static bool
 write_char_sb(sentry_jsonwriter_t *jw, char c)
 {
-    return sentry__stringbuilder_append_char(jw->output.sb, c);
+    return sentry__stringbuilder_append_char(jw->output.sb, c) == 0;
 }
 
-static int
+static bool
 write_str_sb(sentry_jsonwriter_t *jw, const char *str)
 {
-    return sentry__stringbuilder_append(jw->output.sb, str);
+    return sentry__stringbuilder_append(jw->output.sb, str) == 0;
 }
 
-static int
+static bool
 write_buf_sb(sentry_jsonwriter_t *jw, const char *buf, size_t len)
 {
-    return sentry__stringbuilder_append_buf(jw->output.sb, buf, len);
+    return sentry__stringbuilder_append_buf(jw->output.sb, buf, len) == 0;
 }
 
-static int
+static bool
 write_char_file(sentry_jsonwriter_t *jw, char c)
 {
-    return sentry__filewriter_write(jw->output.fw, &c, sizeof(char));
+    return sentry__filewriter_write(jw->output.fw, &c, sizeof(char)) == 0;
 }
 
-static int
+static bool
 write_str_file(sentry_jsonwriter_t *jw, const char *str)
 {
     return sentry__filewriter_write(
-        jw->output.fw, str, sizeof(char) * strlen(str));
+               jw->output.fw, str, sizeof(char) * strlen(str))
+        == 0;
 }
 
-static int
+static bool
 write_buf_file(sentry_jsonwriter_t *jw, const char *buf, size_t len)
 {
-    return sentry__filewriter_write(jw->output.fw, buf, len);
+    return sentry__filewriter_write(jw->output.fw, buf, len) == 0;
 }
 
 static char *
@@ -235,7 +236,7 @@ set_comma(sentry_jsonwriter_t *jw, bool val)
 static void
 write_char(sentry_jsonwriter_t *jw, char c)
 {
-    if (jw->ops->write_char(jw, c) != 0) {
+    if (!jw->ops->write_char(jw, c)) {
         jw->failed = true;
     }
 }
@@ -243,7 +244,7 @@ write_char(sentry_jsonwriter_t *jw, char c)
 static void
 write_str(sentry_jsonwriter_t *jw, const char *str)
 {
-    if (jw->ops->write_str(jw, str) != 0) {
+    if (!jw->ops->write_str(jw, str)) {
         jw->failed = true;
     }
 }
@@ -251,7 +252,7 @@ write_str(sentry_jsonwriter_t *jw, const char *str)
 static void
 write_buf(sentry_jsonwriter_t *jw, const char *buf, size_t len)
 {
-    if (jw->ops->write_buf(jw, buf, len) != 0) {
+    if (!jw->ops->write_buf(jw, buf, len)) {
         jw->failed = true;
     }
 }
