@@ -139,14 +139,15 @@ def test_native_wer(cmake, httpserver, crash_arg, wer_sync_mode):
     event = envelope.get_event()
     assert event is not None
     contexts = event.get("contexts", {})
+    tags = event.get("tags", {})
 
     if "from" in wer_sync_mode:
         assert "wer" in contexts
-        assert contexts["wer"].get("type") == "wer"
         assert contexts["wer"].get("report_id")
-        assert contexts["wer"].get("metadata", {}).get("SentryWer") == "value from WER"
+        assert tags.get("SentryWer") == "value from WER"
     else:
         assert "wer" not in contexts
+        assert "SentryWer" not in tags
 
     if "to" in wer_sync_mode:
         event_id = event.get("event_id")

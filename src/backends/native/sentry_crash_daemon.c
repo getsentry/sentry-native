@@ -2237,13 +2237,11 @@ build_stacktrace_from_ctx(const sentry_crash_context_t *ctx)
 
 #if defined(SENTRY_PLATFORM_WINDOWS)
 static bool
-add_wer_context(sentry_value_t event, const sentry_crash_context_t *ctx)
+sync_wer_data(sentry_value_t event, const sentry_crash_context_t *ctx)
 {
-    if ((ctx->wer_sync_mode & SENTRY_WER_SYNC_MODE_FROM_WER) == 0) {
-        return false;
-    }
-
-    if (!ctx->platform.wer_enabled) {
+    if (!ctx->platform.wer_enabled
+        || sentry__string_empty(ctx->platform.wer_report_id)
+        || (ctx->wer_sync_mode & SENTRY_WER_SYNC_MODE_FROM_WER) == 0) {
         return false;
     }
 
@@ -2252,22 +2250,15 @@ add_wer_context(sentry_value_t event, const sentry_crash_context_t *ctx)
         wer_report_id, ctx->platform.wer_report_id, sizeof(wer_report_id) - 1);
     wer_report_id[sizeof(wer_report_id) - 1] = '\0';
 
-    sentry_value_t wer_context = sentry__wer_report_lookup(ctx->crash_event_id);
-    if (sentry_value_is_null(wer_context)) {
-        if (sentry__string_empty(wer_report_id)) {
-            return false;
-        }
-        wer_context = sentry_value_new_object();
+    sentry_value_t wer_report = sentry__wer_report_lookup(ctx->crash_event_id);
+    if (!sentry_value_is_null(wer_report)) {
+        sentry__value_merge_objects(event, wer_report);
+        sentry_value_decref(wer_report);
     }
 
+    sentry_value_t wer_context = sentry_value_new_object();
     sentry_value_set_by_key(
-        wer_context, "type", sentry_value_new_string("wer"));
-    const char *context_report_id = sentry_value_as_string(
-        sentry_value_get_by_key(wer_context, "report_id"));
-    if (sentry__string_empty(context_report_id)) {
-        sentry_value_set_by_key(
-            wer_context, "report_id", sentry_value_new_string(wer_report_id));
-    }
+        wer_context, "report_id", sentry_value_new_string(wer_report_id));
 
     sentry_value_t contexts = sentry_value_get_by_key(event, "contexts");
     if (sentry_value_get_type(contexts) != SENTRY_VALUE_TYPE_OBJECT) {
@@ -2635,7 +2626,7 @@ build_native_crash_event(
     }
 
 #if defined(SENTRY_PLATFORM_WINDOWS)
-    add_wer_context(event, ctx);
+    sync_wer_data(event, ctx);
 #endif
 
     return event;
@@ -2915,7 +2906,7 @@ write_envelope_with_minidump(const sentry_options_t *options,
         if (event_json && event_size > 0) {
             sentry_value_t event
                 = sentry__value_from_json(event_json, event_size);
-            if (!sentry_value_is_null(event) && add_wer_context(event, ctx)) {
+            if (!sentry_value_is_null(event) && sync_wer_data(event, ctx)) {
                 size_t new_event_size = 0;
                 char *new_event_json
                     = sentry__value_to_json(event, &new_event_size);

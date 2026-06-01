@@ -309,20 +309,6 @@ extract_xml_metadata_section(
     }
 }
 
-static void
-set_custom_metadata(sentry_value_t context, const wchar_t *text)
-{
-    sentry_value_t metadata = sentry_value_new_object();
-
-    extract_xml_metadata_section(metadata, text, L"ProcessMetadata");
-
-    if (sentry_value_get_length(metadata) > 0) {
-        sentry_value_set_by_key(context, "metadata", metadata);
-    } else {
-        sentry_value_decref(metadata);
-    }
-}
-
 static sentry_value_t
 parse_internal_metadata(const wchar_t *text)
 {
@@ -330,20 +316,16 @@ parse_internal_metadata(const wchar_t *text)
         return sentry_value_new_null();
     }
 
-    sentry_value_t context = sentry_value_new_object();
-    wchar_t report_id[64];
-    if (copy_xml_tag(
-            text, L"Guid", report_id, sizeof(report_id) / sizeof(wchar_t))) {
-        set_wstring(context, "report_id", report_id);
-    }
-    set_custom_metadata(context, text);
-
-    if (sentry_value_get_length(context) == 0) {
-        sentry_value_decref(context);
-        return sentry_value_new_null();
+    sentry_value_t event = sentry_value_new_object();
+    sentry_value_t tags = sentry_value_new_object();
+    extract_xml_metadata_section(tags, text, L"ProcessMetadata");
+    if (sentry_value_get_length(tags) > 0) {
+        sentry_value_set_by_key(event, "tags", tags);
+    } else {
+        sentry_value_decref(tags);
     }
 
-    return context;
+    return event;
 }
 
 static sentry_value_t
