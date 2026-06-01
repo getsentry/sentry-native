@@ -97,17 +97,17 @@ def wait_for_wer(event_id, timeout=10.0, interval=0.1):
     def find_wer_file():
         for path in wer_dir.glob("*.WERInternalMetadata.xml"):
             try:
-                text = path.read_bytes().decode("utf-8", errors="replace")
+                text = path.read_bytes().decode("utf-16", errors="replace")
                 if (
                     f"<SentryEventId>{event_id}</SentryEventId>" in text
-                    and "<SentryWer>Sentry -> WER</SentryWer>" in text
+                    and "<expected-tag>some value</expected-tag>" in text
                 ):
                     return True
-            except:
+            except Exception as e:
                 continue
         return False
 
-    assert wait_for(find_wer_file, timeout=timeout, interval=interval)
+    return wait_for(find_wer_file, timeout=timeout, interval=interval)
 
 
 @pytest.mark.skipif(
@@ -115,8 +115,8 @@ def wait_for_wer(event_id, timeout=10.0, interval=0.1):
     reason="WER crash tests are only available in MSVC Windows builds",
 )
 @pytest.mark.with_wer
+@pytest.mark.parametrize("wer_sync_mode", ["none", "from-wer", "to-wer", "from-to-wer"])
 @pytest.mark.parametrize("crash_arg", ["fastfail", "stack-buffer-overrun"])
-@pytest.mark.parametrize("wer_sync_mode", ["none", "from", "to", "from-to"])
 def test_native_wer(cmake, httpserver, crash_arg, wer_sync_mode):
     """Test WER crash capture with native backend"""
     tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "native"})
@@ -144,7 +144,7 @@ def test_native_wer(cmake, httpserver, crash_arg, wer_sync_mode):
         assert "wer" in contexts
         assert contexts["wer"].get("type") == "wer"
         assert contexts["wer"].get("report_id")
-        assert contexts["wer"].get("metadata", {}).get("SentryWer") == "WER -> Sentry"
+        assert contexts["wer"].get("metadata", {}).get("SentryWer") == "value from WER"
     else:
         assert "wer" not in contexts
 

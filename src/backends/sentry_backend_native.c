@@ -203,6 +203,21 @@ wer_register_module(uint64_t app_tid, const char *event_id)
     return true;
 }
 
+static void
+wer_sync_tag(const char *key, sentry_value_t value, void *UNUSED(user_data))
+{
+    wchar_t *wkey = sentry__string_to_wstr(key);
+    wchar_t *wvalue = sentry__string_to_wstr(sentry_value_as_string(value));
+    if (WerRegisterCustomMetadata(wkey, wvalue) != S_OK) {
+        SENTRY_WARNF("failed to sync tag \"%s\" to WER", key);
+    } else {
+        SENTRY_DEBUGF("synced tag \"%s\" to WER with value \"%s\"", key,
+            sentry_value_as_string(value));
+    }
+    sentry_free(wkey);
+    sentry_free(wvalue);
+}
+
 #endif
 
 /**
@@ -811,7 +826,7 @@ native_backend_write_attachments(const sentry_path_t *event_path)
 
 static void
 native_backend_flush_scope(
-    sentry_backend_t *backend, const sentry_options_t *UNUSED(options))
+    sentry_backend_t *backend, const sentry_options_t *options)
 {
     native_backend_state_t *state = (native_backend_state_t *)backend->data;
     if (!state || !state->event_path) {
@@ -876,6 +891,12 @@ native_backend_flush_scope(
         if (!sentry_value_is_null(tags)) {
             sentry_value_set_by_key(event, "tags", tags);
             sentry_value_incref(tags);
+
+#if defined(SENTRY_PLATFORM_WINDOWS)
+            if (options->wer_sync_mode & SENTRY_WER_SYNC_MODE_TO_WER) {
+                sentry__value_foreach_key_value(tags, wer_sync_tag, NULL);
+            }
+#endif
         }
 
         sentry_value_t extra = scope->extra;

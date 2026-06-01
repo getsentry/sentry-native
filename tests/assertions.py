@@ -674,7 +674,7 @@ def wait_for(condition, timeout=10.0, interval=0.1):
         if condition():
             return True
         time.sleep(interval)
-    return False
+    return condition()
 
 
 def wait_for_file(path, timeout=10.0, interval=0.1):

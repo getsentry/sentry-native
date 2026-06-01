@@ -880,29 +880,24 @@ main(int argc, char **argv)
             options, SENTRY_CRASH_UPLOAD_MODE_ASYNC);
     }
 
+#ifdef SENTRY_PLATFORM_WINDOWS
     if (has_arg(argc, argv, "wer-sync-mode")) {
         const char *arg = get_arg_value(argc, argv, "wer-sync-mode");
         if (arg != NULL) {
             sentry_wer_sync_mode_t mode = SENTRY_WER_SYNC_MODE_NONE;
-            if (strcmp(arg, "from") == 0) {
+            if (strcmp(arg, "from-wer") == 0) {
                 mode = SENTRY_WER_SYNC_MODE_FROM_WER;
-            } else if (strcmp(arg, "to") == 0) {
+            } else if (strcmp(arg, "to-wer") == 0) {
                 mode = SENTRY_WER_SYNC_MODE_TO_WER;
-            } else if (strcmp(arg, "from-to") == 0) {
+            } else if (strcmp(arg, "from-to-wer") == 0) {
                 mode = (sentry_wer_sync_mode_t)(SENTRY_WER_SYNC_MODE_FROM_WER
                     | SENTRY_WER_SYNC_MODE_TO_WER);
             }
-
-            if (mode & SENTRY_WER_SYNC_MODE_FROM_WER) {
-                WerRegisterCustomMetadata(L"SentryWer", L"WER -> Sentry");
-            }
-            if (mode & SENTRY_WER_SYNC_MODE_TO_WER) {
-                sentry_set_tag("SentryWer", "Sentry -> WER");
-            }
-
             sentry_options_set_wer_sync_mode(options, mode);
+            WerRegisterCustomMetadata(L"SentryWer", L"value from WER");
         }
     }
+#endif
 
     // E2E test mode: generate unique test ID for event correlation
     char e2e_test_id[37] = { 0 };
