@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1780313559851,
+  "lastUpdate": 1780313655589,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -72232,6 +72232,66 @@ window.BENCHMARK_DATA = {
             "value": 8.886100000381703,
             "unit": "ms",
             "extra": "Min 8.593ms\nMax 9.952ms\nMean 9.185ms\nStdDev 0.615ms\nMedian 8.886ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "reg@bitfox.at",
+            "name": "Stefan Jandl",
+            "username": "bitsandfoxes"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "631f1f1d504b632d3b8a169e09aac7dc0074008f",
+          "message": "fix(native): use thread state flavor on macOS (#1768)",
+          "timestamp": "2026-06-01T13:29:55+02:00",
+          "tree_id": "61f4e3548cbc12c0258701951c00e562057348a2",
+          "url": "https://github.com/getsentry/sentry-native/commit/631f1f1d504b632d3b8a169e09aac7dc0074008f"
+        },
+        "date": 1780313647820,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 10.570800000095915,
+            "unit": "ms",
+            "extra": "Min 10.525ms\nMax 10.785ms\nMean 10.616ms\nStdDev 0.102ms\nMedian 10.571ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 11.265999999523046,
+            "unit": "ms",
+            "extra": "Min 11.160ms\nMax 11.345ms\nMean 11.249ms\nStdDev 0.081ms\nMedian 11.266ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 26.280799999767623,
+            "unit": "ms",
+            "extra": "Min 26.039ms\nMax 45.113ms\nMean 30.643ms\nStdDev 8.224ms\nMedian 26.281ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.17320000006293412,
+            "unit": "ms",
+            "extra": "Min 0.169ms\nMax 0.209ms\nMean 0.180ms\nStdDev 0.017ms\nMedian 0.173ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.3954999992856756,
+            "unit": "ms",
+            "extra": "Min 0.379ms\nMax 0.443ms\nMean 0.403ms\nStdDev 0.026ms\nMedian 0.395ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 14.398000000255706,
+            "unit": "ms",
+            "extra": "Min 13.834ms\nMax 14.559ms\nMean 14.286ms\nStdDev 0.311ms\nMedian 14.398ms"
           }
         ]
       }
