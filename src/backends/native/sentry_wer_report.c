@@ -10,6 +10,21 @@
 #include <wchar.h>
 #include <windows.h>
 
+static void
+wer_report_debugf(const char *fmt, ...)
+{
+    char msg[1024];
+    va_list args;
+    va_start(args, fmt);
+    int n = vsnprintf(msg, sizeof(msg), fmt, args);
+    va_end(args);
+    if (n < 0) {
+        return;
+    }
+    msg[sizeof(msg) - 1] = '\0';
+    OutputDebugStringA(msg);
+}
+
 static bool
 format_wstring(wchar_t *buffer, size_t size, const wchar_t *format, ...)
 {
@@ -443,12 +458,17 @@ sentry__wer_report_lookup(const char *event_id)
 
     sentry_value_t report = sentry_value_new_null();
     for (int i = 0; i < 20; i++) {
+        wer_report_debugf(
+            "### DAEMON: WER wait round=%d event_id=%s\n", i + 1, event_id);
         if (i > 0) {
             Sleep(250);
         }
 
         report = read_temp_metadata_with_marker(temp_dir, event_id);
         if (!sentry_value_is_null(report)) {
+            wer_report_debugf("### DAEMON: WER metadata became available "
+                              "round=%d event_id=%s\n",
+                i + 1, event_id);
             break;
         }
     }
