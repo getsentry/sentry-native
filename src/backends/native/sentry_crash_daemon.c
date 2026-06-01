@@ -47,6 +47,9 @@
 #        include <mach-o/dyld.h>
 #        include <spawn.h>
 #    endif
+#    if defined(SENTRY_PLATFORM_LINUX)
+#        include "unwinder/sentry_unwinder.h"
+#    endif
 #elif defined(SENTRY_PLATFORM_WINDOWS)
 #    include <dbghelp.h>
 #    include <fcntl.h>
@@ -544,6 +547,24 @@ build_registers_from_ctx(const sentry_crash_context_t *ctx, size_t thread_idx)
     return registers;
 }
 
+#ifdef SENTRY_WITH_UNWINDER_LIBUNWIND_REMOTE
+static sentry_value_t
+build_registers_from_remote_registers(
+    const sentry_remote_registers_t *remote_registers)
+{
+    sentry_value_t registers = sentry_value_new_object();
+
+    for (size_t i = 0; i < remote_registers->count; i++) {
+        const sentry_remote_register_t *remote_register
+            = &remote_registers->values[i];
+        sentry_value_set_by_key(registers, remote_register->name,
+            sentry__value_new_addr(remote_register->value));
+    }
+
+    return registers;
+}
+#endif
+
 /**
  * Maximum number of frames to unwind
  */
@@ -906,10 +927,98 @@ build_stacktrace_for_thread(
     sentry_value_t temp_frames[MAX_STACK_FRAMES];
     int frame_count = 0;
 
+#if defined(SENTRY_PLATFORM_LINUX)
+    // Remote DWARF unwinding via libunwind ptrace accessors. Do not attach to
+    // the crashed thread from the daemon; use the saved fault context below.
+    {
+#    ifdef SENTRY_WITH_UNWINDER_LIBUNWIND_REMOTE
+        pid_t tid = 0;
+        if (thread_idx == SIZE_MAX) {
+            tid = ctx->crashed_tid;
+        } else if (thread_idx < ctx->platform.num_threads) {
+            tid = ctx->platform.threads[thread_idx].tid;
+        }
+
+        bool is_crashed_thread
+            = thread_idx == SIZE_MAX || tid == ctx->crashed_tid;
+
+        if (tid > 0 && !is_crashed_thread) {
+            sentry_remote_registers_t registers = { 0 };
+            sentry_remote_frame_t *remote_frames
+                = sentry_malloc(sizeof(*remote_frames) * MAX_STACK_FRAMES);
+            size_t remote_count = remote_frames
+                ? sentry__unwind_stack_from_thread(
+                      tid, remote_frames, MAX_STACK_FRAMES, &registers)
+                : 0;
+
+            if (remote_count > 0) {
+                SENTRY_DEBUGF("Remote unwound %zu frames for thread %d",
+                    remote_count, tid);
+
+                for (size_t i = 0;
+                    i < remote_count && frame_count < MAX_STACK_FRAMES; i++) {
+                    if (remote_frames[i].ip == 0
+                        || !is_valid_code_addr(remote_frames[i].ip)) {
+                        continue;
+                    }
+                    temp_frames[frame_count] = sentry_value_new_object();
+                    sentry_value_set_by_key(temp_frames[frame_count],
+                        "instruction_addr",
+                        sentry__value_new_addr(remote_frames[i].ip));
+                    // Trust describes the unwind source, not the emitted
+                    // frame index. If the initial cursor frame is filtered
+                    // out, the next emitted frame was still reached via CFI.
+                    sentry_value_set_by_key(temp_frames[frame_count], "trust",
+                        sentry_value_new_string(i == 0 ? "context" : "cfi"));
+                    enrich_frame_with_module_info(
+                        ctx, temp_frames[frame_count], remote_frames[i].ip);
+                    if (remote_frames[i].symbol[0]) {
+                        sentry_value_set_by_key(temp_frames[frame_count],
+                            "function",
+                            sentry_value_new_string(remote_frames[i].symbol));
+                        if (remote_frames[i].symbol_offset > 0
+                            && remote_frames[i].symbol_offset
+                                <= remote_frames[i].ip) {
+                            sentry_value_set_by_key(temp_frames[frame_count],
+                                "symbol_addr",
+                                sentry__value_new_addr(remote_frames[i].ip
+                                    - remote_frames[i].symbol_offset));
+                        }
+                    }
+                    frame_count++;
+                }
+
+                if (frame_count > 0) {
+                    if (stack_buf) {
+                        sentry_free(stack_buf);
+                    }
+
+                    for (int i = frame_count - 1; i >= 0; i--) {
+                        sentry_value_append(frames, temp_frames[i]);
+                    }
+                    sentry_value_set_by_key(stacktrace, "frames", frames);
+                    if (registers.count > 0) {
+                        sentry_value_set_by_key(stacktrace, "registers",
+                            build_registers_from_remote_registers(&registers));
+                    }
+                    sentry_free(remote_frames);
+                    return stacktrace;
+                }
+            }
+
+            if (remote_frames) {
+                sentry_free(remote_frames);
+            }
+        }
+#    endif
+    }
+    // Fall through to pre-captured backtrace or FP-walking if remote
+    // unwinding failed
+#endif
+
 #if defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID)
-    // Use pre-captured libunwind backtrace if available (DWARF-based, works
-    // without frame pointers). This is preferred over FP-based walking for
-    // the crashed thread.
+    // Fallback: use pre-captured libunwind backtrace if available
+    // (DWARF-based, works without frame pointers).
     if (ctx->platform.backtrace_count > 0
         && (thread_idx == SIZE_MAX || thread_idx == 0)) {
         SENTRY_DEBUGF("Using pre-captured libunwind backtrace (%zu frames)",
@@ -925,6 +1034,9 @@ build_stacktrace_for_thread(
             temp_frames[frame_count] = sentry_value_new_object();
             sentry_value_set_by_key(temp_frames[frame_count],
                 "instruction_addr", sentry__value_new_addr(frame_ip));
+            // Trust describes the unwind source, not the emitted frame index.
+            // If the initial cursor frame is filtered out, the next emitted
+            // frame was still reached via CFI.
             sentry_value_set_by_key(temp_frames[frame_count], "trust",
                 sentry_value_new_string(i == 0 ? "context" : "cfi"));
             enrich_frame_with_module_info(
