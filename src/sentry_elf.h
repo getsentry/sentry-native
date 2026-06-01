@@ -97,14 +97,7 @@ sentry__elf_find_note(const void *buf, size_t buf_size, size_t alignment,
             return NULL;
         }
 
-        size_t name_aligned = (name_size + mask) & ~mask;
-        size_t desc_aligned = (desc_size + mask) & ~mask;
-
         offset += sizeof(Elf64_Nhdr);
-
-        if (name_aligned == 0 && desc_aligned == 0) {
-            continue;
-        }
 
         if (name_size > buf_size - offset) {
             return NULL;
