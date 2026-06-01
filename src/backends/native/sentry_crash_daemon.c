@@ -60,21 +60,6 @@
 #    include <sys/stat.h>
 #    include <windows.h>
 
-static void
-daemon_debugf(const char *fmt, ...)
-{
-    char msg[1024];
-    va_list args;
-    va_start(args, fmt);
-    int n = vsnprintf(msg, sizeof(msg), fmt, args);
-    va_end(args);
-    if (n < 0) {
-        return;
-    }
-    msg[sizeof(msg) - 1] = '\0';
-    OutputDebugStringA(msg);
-}
-
 // Forward declaration for StackWalk64-based stack unwinding (defined later)
 static size_t walk_stack_with_dbghelp(HANDLE hProcess, DWORD crashed_tid,
     const CONTEXT *ctx_record, sentry_frame_info_t *frames, size_t max_frames);
@@ -2255,12 +2240,10 @@ static bool
 add_wer_context(sentry_value_t event, const sentry_crash_context_t *ctx)
 {
     if ((ctx->wer_sync_mode & SENTRY_WER_SYNC_MODE_FROM_WER) == 0) {
-        daemon_debugf("### DAEMON: add_wer_context skipped sync_from_wer=0\n");
         return false;
     }
 
     if (!ctx->platform.wer_enabled) {
-        daemon_debugf("### DAEMON: add_wer_context skipped wer_enabled=0\n");
         return false;
     }
 
@@ -2269,23 +2252,12 @@ add_wer_context(sentry_value_t event, const sentry_crash_context_t *ctx)
         wer_report_id, ctx->platform.wer_report_id, sizeof(wer_report_id) - 1);
     wer_report_id[sizeof(wer_report_id) - 1] = '\0';
 
-    daemon_debugf(
-        "### DAEMON: add_wer_context start event_id=%s report_id=%s\n",
-        ctx->crash_event_id,
-        sentry__string_empty(wer_report_id) ? "(empty)" : wer_report_id);
-
     sentry_value_t wer_context = sentry__wer_report_lookup(ctx->crash_event_id);
     if (sentry_value_is_null(wer_context)) {
-        daemon_debugf("### DAEMON: WER metadata xml not found yet\n");
         if (sentry__string_empty(wer_report_id)) {
-            daemon_debugf(
-                "### DAEMON: no fallback report_id, skipping wer context\n");
             return false;
         }
-        daemon_debugf("### DAEMON: using fallback report_id from callback\n");
         wer_context = sentry_value_new_object();
-    } else {
-        daemon_debugf("### DAEMON: WER metadata xml found\n");
     }
 
     sentry_value_set_by_key(
@@ -2303,7 +2275,6 @@ add_wer_context(sentry_value_t event, const sentry_crash_context_t *ctx)
         sentry_value_set_by_key(event, "contexts", contexts);
     }
     sentry_value_set_by_key(contexts, "wer", wer_context);
-    daemon_debugf("### DAEMON: add_wer_context attached wer context\n");
     return true;
 }
 #endif
