@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1780319122516,
+  "lastUpdate": 1780319148006,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -72472,6 +72472,66 @@ window.BENCHMARK_DATA = {
             "value": 14.398000000255706,
             "unit": "ms",
             "extra": "Min 13.834ms\nMax 14.559ms\nMean 14.286ms\nStdDev 0.311ms\nMedian 14.398ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "jpnurmi@gmail.com",
+            "name": "J-P Nurmi",
+            "username": "jpnurmi"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "9f49cbbb20bdfd3fcb5e1c662eed599864e86b82",
+          "message": "fix(jsonwriter): return NULL on allocation failures (#1772)\n\n* fix(jsonwriter): Return NULL on allocation failures\n\nTrack write failures in the jsonwriter so that `into_string` returns\n`NULL` instead of producing truncated output when allocations fail.\n\nChange the ops function pointers to return `int` (0 on success) so\nthat the callers can detect failures. Add a `write_buf` wrapper\nmatching the existing `write_char`/`write_str` helpers and update\n`write_json_str` to use it instead of calling the ops directly.\n\nCheck the `failed` flag in `can_write_item` and `into_string_sb`\nto short-circuit writes and return `NULL` respectively.\n\n* Update CHANGELOG.md\n\n* bool ops",
+          "timestamp": "2026-06-01T15:00:31+02:00",
+          "tree_id": "c3a2802d9610696ad610bbe4607b171dd69a5a04",
+          "url": "https://github.com/getsentry/sentry-native/commit/9f49cbbb20bdfd3fcb5e1c662eed599864e86b82"
+        },
+        "date": 1780319139622,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 10.728799999924377,
+            "unit": "ms",
+            "extra": "Min 10.617ms\nMax 13.753ms\nMean 11.454ms\nStdDev 1.332ms\nMedian 10.729ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 24.58230000002004,
+            "unit": "ms",
+            "extra": "Min 10.949ms\nMax 37.212ms\nMean 23.590ms\nStdDev 12.347ms\nMedian 24.582ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 26.398200000016914,
+            "unit": "ms",
+            "extra": "Min 24.752ms\nMax 26.574ms\nMean 25.960ms\nStdDev 0.786ms\nMedian 26.398ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.18310000007204508,
+            "unit": "ms",
+            "extra": "Min 0.173ms\nMax 0.194ms\nMean 0.185ms\nStdDev 0.008ms\nMedian 0.183ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.4070999999612468,
+            "unit": "ms",
+            "extra": "Min 0.393ms\nMax 0.457ms\nMean 0.415ms\nStdDev 0.025ms\nMedian 0.407ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 14.49030000003404,
+            "unit": "ms",
+            "extra": "Min 13.981ms\nMax 15.961ms\nMean 14.788ms\nStdDev 0.812ms\nMedian 14.490ms"
           }
         ]
       }
