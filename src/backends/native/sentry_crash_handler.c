@@ -1029,8 +1029,11 @@ crash_exception_filter(EXCEPTION_POINTERS *exception_info)
     // In WER mode, move out of READY as early as possible so the
     // out-of-process WER callback cannot claim and wake the daemon before
     // sentry_handle_exception writes the crash event.
+    // Use compare-and-swap to avoid overwriting CRASHED if the WER callback
+    // already claimed the crash.
     if (use_wer) {
-        sentry__atomic_store(&ctx->state, SENTRY_CRASH_STATE_PROCESSING);
+        sentry__atomic_compare_swap(
+            &ctx->state, SENTRY_CRASH_STATE_READY, SENTRY_CRASH_STATE_PROCESSING);
     }
 
     // Fill crash context
