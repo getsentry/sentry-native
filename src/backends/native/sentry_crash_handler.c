@@ -401,6 +401,25 @@ crash_signal_handler(int signum, siginfo_t *info, void *context)
                 ctx->platform.threads[i].tid = 0;
             }
 
+            // Get thread name from THREAD_EXTENDED_INFO
+            ctx->platform.threads[i].name[0] = '\0';
+            {
+                thread_extended_info_data_t extended_info;
+                mach_msg_type_number_t ext_count = THREAD_EXTENDED_INFO_COUNT;
+                if (thread_info(threads[i], THREAD_EXTENDED_INFO,
+                        (thread_info_t)&extended_info, &ext_count)
+                    == KERN_SUCCESS) {
+                    extended_info.pth_name[sizeof(extended_info.pth_name) - 1]
+                        = '\0';
+                    signal_safe_memcpy(ctx->platform.threads[i].name,
+                        extended_info.pth_name,
+                        sizeof(ctx->platform.threads[i].name));
+                    ctx->platform.threads[i]
+                        .name[sizeof(ctx->platform.threads[i].name) - 1]
+                        = '\0';
+                }
+            }
+
             // For the crashing thread, use the context from the signal handler
             // For other threads, use thread_get_state()
             bool is_crashing_thread = (threads[i] == crashing_thread);
@@ -458,10 +477,22 @@ crash_signal_handler(int signum, siginfo_t *info, void *context)
             } else {
                 // Capture thread state from thread_get_state for other threads
                 // Note: thread_get_state writes to thread_state_t, which is
-                // __ss (not the full mcontext), so we must pass &state.__ss
+                // __ss (not the full mcontext), so we must pass &state.__ss.
+                // Use the explicit 64-bit flavor; MACHINE_THREAD_STATE is the
+                // unified flavor whose 8-byte header would shift every
+                // register.
+#        if defined(__aarch64__)
+                const thread_state_flavor_t state_flavor = ARM_THREAD_STATE64;
+                mach_msg_type_number_t state_count = ARM_THREAD_STATE64_COUNT;
+#        elif defined(__x86_64__)
+                const thread_state_flavor_t state_flavor = x86_THREAD_STATE64;
+                mach_msg_type_number_t state_count = x86_THREAD_STATE64_COUNT;
+#        else
+                const thread_state_flavor_t state_flavor = MACHINE_THREAD_STATE;
                 mach_msg_type_number_t state_count = MACHINE_THREAD_STATE_COUNT;
+#        endif
                 kern_return_t state_kr
-                    = thread_get_state(threads[i], MACHINE_THREAD_STATE,
+                    = thread_get_state(threads[i], state_flavor,
                         (thread_state_t)&ctx->platform.threads[i].state.__ss,
                         &state_count);
                 if (state_kr != KERN_SUCCESS) {
