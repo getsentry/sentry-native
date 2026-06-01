@@ -55,6 +55,7 @@ typedef struct {
 #endif
 
     sentry_process_handle_t parent_handle;
+    uint64_t app_tid; // Thread ID used to spawn the daemon (for log path)
     bool is_daemon; // true if this is the daemon side of IPC
 } sentry_crash_ipc_t;
 

@@ -459,16 +459,19 @@ native_backend_startup(
         = options->handler_path ? options->handler_path->path : NULL;
 #    if defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID)
     uint64_t tid = (uint64_t)pthread_self();
+    state->ipc->app_tid = tid;
     state->daemon_pid
         = sentry__crash_daemon_start(getpid(), tid, state->ipc->notify_fd,
             state->ipc->ready_fd, state->ipc->shm_fd, daemon_handler_path);
 #    elif defined(SENTRY_PLATFORM_MACOS)
     uint64_t tid = (uint64_t)pthread_self();
+    state->ipc->app_tid = tid;
     state->daemon_pid
         = sentry__crash_daemon_start(getpid(), tid, state->ipc->notify_pipe[0],
             state->ipc->ready_pipe[1], state->ipc->shm_fd, daemon_handler_path);
 #    elif defined(SENTRY_PLATFORM_WINDOWS)
     uint64_t tid = (uint64_t)GetCurrentThreadId();
+    state->ipc->app_tid = tid;
     state->daemon_pid = sentry__crash_daemon_start(GetCurrentProcessId(), tid,
         state->ipc->event_handle, state->ipc->ready_event_handle,
         daemon_handler_path);
@@ -636,17 +639,26 @@ native_backend_shutdown(sentry_backend_t *backend)
             }
         }
 #else
-        // On macOS: shm_path = "{tmpdir}/.sentry-shm-{id}"
-        // On Linux: shm_name = "/s-{id}"
-        // In both cases, the ID follows the last '-'
 #    if defined(SENTRY_PLATFORM_MACOS)
+        // macOS: shm_path = "{tmpdir}/.sentry-shm-{id}"
         const char *shm_id_src = state->ipc->shm_path;
-#    else
-        const char *shm_id_src = state->ipc->shm_name;
-#    endif
         const char *shm_id = shm_id_src[0] ? strrchr(shm_id_src, '-') : NULL;
         if (shm_id) {
             shm_id++; // Skip the '-'
+        }
+#    else
+        // Linux: use PID ^ TID to match daemon's log file naming
+        const char *shm_id = NULL;
+        char log_id_buf[9];
+        if (state->ipc->app_tid != 0) {
+            uint32_t log_id
+                = (uint32_t)((getpid() ^ (state->ipc->app_tid & 0xFFFFFFFF))
+                    & 0xFFFFFFFF);
+            snprintf(log_id_buf, sizeof(log_id_buf), "%08x", log_id);
+            shm_id = log_id_buf;
+        }
+#    endif
+        if (shm_id) {
             log_path_len = snprintf(log_path, sizeof(log_path),
                 "%s/sentry-daemon-%s.log", state->ipc->shmem->database_path,
                 shm_id);

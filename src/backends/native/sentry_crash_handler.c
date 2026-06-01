@@ -763,12 +763,23 @@ daemon_handling:
     // Dump daemon log for debugging (uses stdio, safe after page allocator
     // enabled)
     // Extract the shm identifier for log path construction
-    // macOS: shm_path = "{tmpdir}/.sentry-shm-{id}", Linux: shm_name =
-    // "/s-{id}"
+    // macOS: shm_path = "{tmpdir}/.sentry-shm-{id}",
+    // Linux:   compute PID ^ TID hex string
 #    if defined(SENTRY_PLATFORM_MACOS)
     const char *shm_id_src = ipc ? ipc->shm_path : "";
 #    else
-    const char *shm_id_src = ipc ? ipc->shm_name : "";
+    char shm_id_buf[10] = "-";
+    const char *shm_id_src = "";
+    if (ipc && ipc->app_tid != 0) {
+        uint32_t log_id
+            = (uint32_t)((getpid() ^ (ipc->app_tid & 0xFFFFFFFF)) & 0xFFFFFFFF);
+        for (int shift = 28, i = 1; shift >= 0; shift -= 4, i++) {
+            int nibble = (log_id >> shift) & 0xf;
+            shm_id_buf[i] = nibble < 10 ? '0' + nibble : 'a' + nibble - 10;
+        }
+        shm_id_buf[9] = '\0';
+        shm_id_src = shm_id_buf;
+    }
 #    endif
     if (shm_id_src[0] != '\0' && ctx && ctx->database_path[0] != '\0') {
         // Extract hex ID after last '-' in shm name/path
