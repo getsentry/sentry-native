@@ -801,31 +801,6 @@ ensure_device_arch(sentry_value_t event)
 }
 #endif
 
-// Applies the scope to `event`: contexts (os, device, gpu, app, runtime, plus
-// SDK-specific entries such as the Unity context), user, tags, extra,
-// fingerprint, release/dist/env, sdk metadata - plus the Windows device.arch
-// fallback. Shared by the continuous scope flush and the crash handler so both
-// write an identical base regardless of which one wins the race.
-//
-// Breadcrumbs are deliberately excluded (SENTRY_SCOPE_NONE): they are persisted
-// incrementally to the breadcrumb ring files via `add_breadcrumb_func` and
-// assembled by the daemon at crash time (see the daemon's
-// `apply_breadcrumbs_from_ring_files`). Folding them in here would re-serialize
-// the whole breadcrumb buffer on every scope mutation - prohibitive on a hot
-// path such as a 60fps main thread. This mirrors the crashpad backend's
-// `flush_scope_to_event`.
-static void
-apply_scope(sentry_value_t event, const sentry_options_t *options)
-{
-    SENTRY_WITH_SCOPE (scope) {
-        sentry__scope_apply_to_event(
-            scope, options, event, SENTRY_SCOPE_NONE);
-    }
-#if defined(SENTRY_PLATFORM_WINDOWS)
-    ensure_device_arch(event);
-#endif
-}
-
 static void
 native_backend_flush_scope(
     sentry_backend_t *backend, const sentry_options_t *options)
@@ -843,15 +818,18 @@ native_backend_flush_scope(
         return;
     }
 
-    // Keep the on-disk base event current, so the daemon has the full scope
-    // even if a crash beats the in-process handler to the file. Breadcrumbs are
-    // not part of this (see apply_scope) - the daemon merges them from the ring
-    // files at crash time.
+    // Create event with current scope
     sentry_value_t event = sentry_value_new_object();
-    // Default to `FATAL` for all paths, i.e. minidump mode.
     sentry_value_set_by_key(
         event, "level", sentry__value_new_level(SENTRY_LEVEL_FATAL));
-    apply_scope(event, options);
+
+    // Apply scope with contexts
+    SENTRY_WITH_SCOPE (scope) {
+        sentry__scope_apply_to_event(scope, options, event, SENTRY_SCOPE_NONE);
+    }
+#if defined(SENTRY_PLATFORM_WINDOWS)
+    ensure_device_arch(event);
+#endif
 
     size_t json_len = 0;
     char *json_str = sentry__value_to_json(event, &json_len);
@@ -1038,7 +1016,14 @@ native_backend_except(sentry_backend_t *backend, const sentry_ucontext_t *uctx)
             }
 
             if (should_handle) {
-                apply_scope(event, options);
+                // Apply scope to event including breadcrumbs
+                SENTRY_WITH_SCOPE (scope) {
+                    sentry__scope_apply_to_event(
+                        scope, options, event, SENTRY_SCOPE_BREADCRUMBS);
+                }
+#if defined(SENTRY_PLATFORM_WINDOWS)
+                ensure_device_arch(event);
+#endif
 
 #ifndef SENTRY_SCREENSHOT_NONE
                 // The screenshot is captured by the daemon out-of-process, so

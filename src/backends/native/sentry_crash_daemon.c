@@ -2170,12 +2170,12 @@ apply_breadcrumbs_from_ring_files(sentry_value_t event,
     sentry_value_t b2
         = read_breadcrumb_ring_file(run_folder, "__sentry-breadcrumb2");
     size_t max = ctx && ctx->max_breadcrumbs ? ctx->max_breadcrumbs
-                                              : SENTRY_BREADCRUMBS_MAX;
+                                             : SENTRY_BREADCRUMBS_MAX;
     sentry_value_t merged = sentry__value_merge_breadcrumbs(b1, b2, max);
     sentry_value_decref(b1);
     sentry_value_decref(b2);
-    // Overwrite any breadcrumbs the base event may carry: the ring files are the
-    // single source of truth, so this is idempotent and never duplicates.
+    // Overwrite any breadcrumbs the base event may carry: the ring files are
+    // the single source of truth, so this is idempotent and never duplicates.
     if (sentry_value_get_type(merged) == SENTRY_VALUE_TYPE_LIST) {
         sentry_value_set_by_key(event, "breadcrumbs", merged);
     } else {
@@ -2189,6 +2189,7 @@ apply_breadcrumbs_from_ring_files(sentry_value_t event,
  * from the ring files), and debug_meta. The base event (contexts, tags, user,
  * ...) is identical regardless of event type; the caller states what this
  * event is.
+ * Build a native event and set the level, mechanism, and handled state
  *
  * @param ctx Crash context
  * @param event_file_path Path to base event file from parent process
