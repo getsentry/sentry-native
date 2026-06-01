@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1780305277635,
+  "lastUpdate": 1780305330102,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -71932,6 +71932,66 @@ window.BENCHMARK_DATA = {
             "value": 16.05199999994511,
             "unit": "ms",
             "extra": "Min 15.974ms\nMax 16.600ms\nMean 16.197ms\nStdDev 0.281ms\nMedian 16.052ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "jpnurmi@gmail.com",
+            "name": "J-P Nurmi",
+            "username": "jpnurmi"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "085e144a13b4a25a832e46a382aca0d671bed832",
+          "message": "feat(native): symbolicated stacktraces for non-crashed threads on Linux (#1747)\n\n* feat(native): add remote DWARF unwinding + symbol names for Linux\n\nAdd libunwind remote unwinding support to the native backend's crash\ndaemon, enabling DWARF-based stack walking and symbol name resolution\nfor all threads (not just the crashing thread) on Linux.\n\n- Re-add upstream libunwind src/ptrace/ (_UPT_* accessors)\n- Add `unwind_remote` CMake target with G-prefix + ptrace sources,\n  only built when SENTRY_BACKEND=native on Linux\n- New sentry_remote_unwind.c using unw_init_remote() + unw_get_proc_name()\n- Integrate into daemon's build_stacktrace_for_thread() with fallback\n  to pre-captured backtrace and FP-walking\n\nCo-Authored-By: Claude Opus 4.6 (1M context) <noreply@anthropic.com>\n\n* fix(native): keep crash stack buffer for unwind fallback\n\nOnly free the captured stack buffer once a remote-unwind stacktrace is\nactually returned. If remote unwinding yields frames but all are filtered,\nthe fallback stacktrace paths still need to own and clean up the buffer.\n\n* fix(native): heap allocate remote unwind frames\n\nAvoid reserving the remote unwind frame buffer on the daemon stack. If the\nallocation fails, remote unwinding is skipped and the existing fallback\nstacktrace paths continue to run.\n\n* Update VENDORING.md\n\n* ref(native): align remote unwinder with unwinder dispatch\n\nMove the Linux remote libunwind implementation under src/unwinder and route it\nthrough sentry_unwinder.c, matching the existing local unwinder backend\nselection pattern.\n\nExpose a backend-neutral sentry__unwind_stack_from_thread() entry point for the\ndaemon while keeping the libunwind-specific implementation private to the\nbackend file.\n\n* fix(native): prefer signal backtrace for crashed thread\n\nSkip remote thread unwinding for the crashed Linux thread when the signal\nhandler already captured a backtrace. This keeps the signal-frame-aware\nucontext unwind as the primary stacktrace and avoids replacing it with a\npotentially partial remote unwind from the handler wait state.\n\nMake sentry_unwinder.h self-contained now that sentry_unwinder.c includes it\nfor remote unwinder dispatch.\n\n* Update CHANGELOG.md\n\n* docs(native): clarify stack frame trust assignment\n\nDocument that frame trust tracks the unwind source rather than the emitted\nframe index, so filtered initial frames do not cause subsequent CFI frames to\nbe labeled as context frames.\n\n* fix(native): avoid ptrace unwind of crashed thread\n\nSkip daemon-side ptrace unwinding for the crashed Linux thread so\nPTRACE_DETACH cannot resume it while crash processing is still running.\nThe crashed thread continues to use the saved fault context and any\npre-captured backtrace.\n\n* fix(native): verify ptrace stop before remote unwind\n\nAfter attaching to a thread, require waitpid() to report a stopped\ntracee before entering libunwind's remote unwinder. This avoids calling\nunw_init_remote() when the attach/wait race reports a non-stopped thread.\n\n* fix(native): wire arm32 remote libunwind build\n\nAdd the arm32 generic libunwind sources and target definitions to the\nvendored unwind_remote target so daemon-side remote unwinding is built\nconsistently with the local arm32 unwinder.\n\n* fix(native): silence remote unwinder dispatcher warnings\n\nThe regular sentry target compiles the Linux thread-unwind dispatcher\nwithout the daemon-only remote unwinder backend enabled. Mark the\ndispatcher arguments as intentionally unused so Clang -Werror builds do\nnot fail in that configuration.\n\n* fix(native): omit bogus registers from remote stacks\n\nNon-crashed Linux threads discovered by the daemon only have a TID and a\nzero-filled ucontext. Do not attach a registers object to successfully\nremote-unwound stacktraces for those threads.\n\n* fix(native): attach registers to remote unwind stacks\n\nCapture register values from the initial libunwind cursor for remote\nLinux stack walking and attach them to the produced stacktrace.\n\nKeep the remote thread unwinder API aligned with sentry_unwind_stack by\nreturning the frame count directly, with registers passed as optional\nside metadata.\n\n* fix(native): don't map thread index 0 to crashed_tid in remote unwinding\n\nWhen thread_idx == 0, tid was unconditionally set to ctx->crashed_tid,\ncausing is_crashed_thread to be true. But the caller only invokes\nbuild_stacktrace_for_thread(ctx, 0) for non-crashed threads, so remote\nDWARF unwinding was incorrectly skipped for the first thread in the\nlist whenever it wasn't the crashing thread. Remove the || thread_idx == 0\ncondition so thread 0 resolves its own tid from platform.threads[0].tid\nlike every other non-crashed thread.\n\n* fix(build): link libunwind-ptrace for sentry-crash with system libunwind\n\nWhen SENTRY_LIBUNWIND_SYSTEM is used, the daemon's remote DWARF\nunwinding code needs _UPT_* ptrace accessor symbols from the separate\nlibunwind-ptrace library, but only the core libunwind was linked.\nAdd a pkg_check_modules for libunwind-ptrace and link it alongside\nPkgConfig::LIBUNWIND.\n\n* fix(vendor/libunwind): detect PT_* declarations via cmake instead of hardcoding\n\nThe vendored libunwind's config.h.cmake.in hardcoded all HAVE_DECL_PT_*\nsymbols to 0 and added a comment claiming they were \"not available on\nLinux\". On modern Linux kernels with CONFIG_COMPAT, PT_GETREGS is in\nfact available via <sys/ptrace.h>, so the cmake build should detect it.\n\n- Replace hardcoded `#define ... 0` with `#cmakedefine01` in\n  config.h.cmake.in so the values come from cmake detection\n- Add a check_c_source_compiles loop in CMakeLists.txt for the PT_*\n  declarations, matching the existing PTRACE_* pattern\n- Switch _UPT_access_reg.c from `#if defined(HAVE_DECL_PT_GETREGS)`\n  to `#if HAVE_DECL_PT_GETREGS` so that a value of 0 correctly\n  disables the code path (defined() treats any definition, even 0,\n  as true)\n\n* fix(unwinder): guard waitpid with WNOHANG poll loop to avoid daemon hang\n\nThe blocking waitpid(tid, ..., __WALL) after PTRACE_ATTACH can hang\nindefinitely if the target thread is in uninterruptible sleep (D state).\nReplace it with a WNOHANG-based polling loop (50 × 100ms = 5s timeout)\nso the daemon logs a warning and continues instead of blocking forever.\n\n* Update CHANGELOG.md\n\n* fix(unwinder): reduce waitpid timeout from 5s to 2s\n\n- **Normal case**: waitpid returns on the first iteration (microseconds),\n  so 20 retries add zero overhead vs 50.\n- **Transient D state**: I/O or page-fault wait usually resolves in\n  well under 1s. 2s covers pathological cases without compounding\n  latency for the user.\n- **Crash report latency**: The daemon holds all other threads in\n  SIGSTOP while unwinding. Every extra second frozen delays the crash\n  report and makes the perceived hang worse.\n\n* unistd\n\n* symbol_addr\n\n* missing SENTRY_WITH_UNWINDER_LIBUNWIND_REMOTE guard\n\n* fix guard\n\n* guard build_registers_from_remote_registers\n\n* UNW_ENOMEM\n\n* symbol_offset\n\n* for (;;)\n\n---------\n\nCo-authored-by: Claude Opus 4.6 (1M context) <noreply@anthropic.com>",
+          "timestamp": "2026-06-01T11:10:51+02:00",
+          "tree_id": "a6b96136da42da46cd5bf6ba43b3429fb4d9ed61",
+          "url": "https://github.com/getsentry/sentry-native/commit/085e144a13b4a25a832e46a382aca0d671bed832"
+        },
+        "date": 1780305322138,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 10.027499999978318,
+            "unit": "ms",
+            "extra": "Min 9.921ms\nMax 10.186ms\nMean 10.044ms\nStdDev 0.104ms\nMedian 10.027ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 10.568500000090353,
+            "unit": "ms",
+            "extra": "Min 10.240ms\nMax 11.249ms\nMean 10.696ms\nStdDev 0.433ms\nMedian 10.569ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 25.136500000144224,
+            "unit": "ms",
+            "extra": "Min 24.894ms\nMax 26.728ms\nMean 25.539ms\nStdDev 0.804ms\nMedian 25.137ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.17230000003110035,
+            "unit": "ms",
+            "extra": "Min 0.156ms\nMax 0.203ms\nMean 0.180ms\nStdDev 0.021ms\nMedian 0.172ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.41850000002341403,
+            "unit": "ms",
+            "extra": "Min 0.397ms\nMax 0.484ms\nMean 0.428ms\nStdDev 0.034ms\nMedian 0.419ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 14.170599999943079,
+            "unit": "ms",
+            "extra": "Min 13.785ms\nMax 14.462ms\nMean 14.136ms\nStdDev 0.327ms\nMedian 14.171ms"
           }
         ]
       }
