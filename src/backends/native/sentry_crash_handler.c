@@ -960,6 +960,23 @@ static LPTOP_LEVEL_EXCEPTION_FILTER g_previous_filter = NULL;
 
 static LONG WINAPI crash_exception_filter(EXCEPTION_POINTERS *exception_info);
 
+static bool
+should_use_wer(DWORD exception_code)
+{
+    // WER callback path is primarily needed for fail-fast style crashes.
+    // Regular SEH crashes should stay on the direct path so the daemon can
+    // use live exception pointers for minidump capture.
+    if (exception_code == STATUS_STACK_BUFFER_OVERRUN) {
+        return true;
+    }
+#    ifdef STATUS_FAIL_FAST_EXCEPTION
+    if (exception_code == STATUS_FAIL_FAST_EXCEPTION) {
+        return true;
+    }
+#    endif
+    return false;
+}
+
 static void
 wait_for_daemon_capture(sentry_crash_context_t *ctx)
 {
@@ -1004,9 +1021,10 @@ crash_exception_filter(EXCEPTION_POINTERS *exception_info)
 
     sentry_crash_context_t *ctx = ipc->shmem;
 
+    DWORD exception_code = exception_info->ExceptionRecord->ExceptionCode;
     bool use_wer = ctx->platform.wer_enabled
-        && exception_info->ExceptionRecord->ExceptionCode
-            != STATUS_FATAL_APP_EXIT;
+        && exception_code != STATUS_FATAL_APP_EXIT
+        && should_use_wer(exception_code);
 
     // In WER mode, move out of READY as early as possible so the
     // out-of-process WER callback cannot claim and wake the daemon before
