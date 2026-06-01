@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1780331190827,
+  "lastUpdate": 1780331314683,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -48514,6 +48514,66 @@ window.BENCHMARK_DATA = {
             "value": 7.204958000045281,
             "unit": "ms",
             "extra": "Min 6.122ms\nMax 7.781ms\nMean 6.944ms\nStdDev 0.716ms\nMedian 7.205ms\nCPU 0.852ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "jpnurmi@gmail.com",
+            "name": "J-P Nurmi",
+            "username": "jpnurmi"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "6d0c24d1afbbad2d877e603d9cfd8aaf9bac3075",
+          "message": "fix: harden ELF note parsing against overflow and OOB reads (#1773)\n\n* fix: harden ELF note parsing against overflow and OOB reads\n\nPromote `sentry_elf.h` from `src/backends/native/` to `src/` and add\n`sentry__elf_find_note()`, a safe bounds-checked ELF note iterator.\n\nThis replaces two vulnerable inline implementations:\n\n- Integer overflow in `extract_elf_build_id_for_module` (crash daemon):\n  the bounds check at line 1045 used raw `uint32_t` fields from a\n  crafted ELF note header. On 32-bit systems, `n_namesz=0x80000000`\n  and `n_descsz=0x80000000` overflow the sum to 0, bypassing the\n  check. Additionally, the check used unaligned sizes while pointer\n  advancement used aligned sizes, creating a mismatch.\n\n- Out-of-bounds read in `get_code_id_from_notes` (module finder): the\n  loop checked `offset < end` but never verified that at least\n  `sizeof(Elf64_Nhdr)` bytes remained before dereferencing the header.\n  `n_descsz` was also returned without verifying the descriptor fit\n  within the segment, causing heap over-read in the hex string builder.\n\nThe shared function uses overflow-safe arithmetic and consistent\naligned bounds checks throughout.\n\n* Update CHANGELOG.md\n\n* name/desc_aligned == 0\n\n* fix(elf): Compute ELF note descriptor offset correctly for 8-byte alignment\n\nThe note iterator computed the descriptor offset as\nsizeof(Elf64_Nhdr) + align_up(n_namesz, alignment), but the\ncorrect formula per ELF spec is align_up(sizeof(Elf64_Nhdr) +\nn_namesz, alignment). These are equivalent only when\nsizeof(Elf64_Nhdr) is a multiple of alignment (true for 4,\nfalse for 8), so p_align=8 segments returned descriptors at the\nwrong offset.\n\nRewrite the function to track cumulative aligned offsets from the\nbuffer start, matching the iteration pattern of the replaced\nget_code_id_from_notes. Also add the missing bounds check for\nthe name field itself.\n\n* offset > buf_size\n\n* xxx_aligned\n\n* test\n\n* string.h",
+          "timestamp": "2026-06-01T18:23:37+02:00",
+          "tree_id": "cb390b783028eb06bd6b46c62bf3ed1d3b0d66d5",
+          "url": "https://github.com/getsentry/sentry-native/commit/6d0c24d1afbbad2d877e603d9cfd8aaf9bac3075"
+        },
+        "date": 1780331307201,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 6.678375000007009,
+            "unit": "ms",
+            "extra": "Min 4.170ms\nMax 9.685ms\nMean 6.786ms\nStdDev 2.523ms\nMedian 6.678ms\nCPU 3.860ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 5.866249999996853,
+            "unit": "ms",
+            "extra": "Min 5.167ms\nMax 7.126ms\nMean 6.086ms\nStdDev 0.822ms\nMedian 5.866ms\nCPU 3.486ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 21.29899999999907,
+            "unit": "ms",
+            "extra": "Min 13.379ms\nMax 61.336ms\nMean 32.685ms\nStdDev 20.557ms\nMedian 21.299ms\nCPU 8.866ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.08091699999113189,
+            "unit": "ms",
+            "extra": "Min 0.046ms\nMax 0.086ms\nMean 0.074ms\nStdDev 0.016ms\nMedian 0.081ms\nCPU 0.048ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.3441249999696083,
+            "unit": "ms",
+            "extra": "Min 0.219ms\nMax 0.697ms\nMean 0.455ms\nStdDev 0.219ms\nMedian 0.344ms\nCPU 0.452ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 9.131041999978606,
+            "unit": "ms",
+            "extra": "Min 7.168ms\nMax 14.689ms\nMean 10.187ms\nStdDev 3.177ms\nMedian 9.131ms\nCPU 0.944ms"
           }
         ]
       }
