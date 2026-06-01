@@ -1029,6 +1029,17 @@ crash_exception_filter(EXCEPTION_POINTERS *exception_info)
     ctx->platform.threads[0].thread_id = GetCurrentThreadId();
     ctx->platform.threads[0].context = *exception_info->ContextRecord;
 
+    bool use_wer = ctx->platform.wer_enabled
+        && exception_info->ExceptionRecord->ExceptionCode
+            != STATUS_FATAL_APP_EXIT;
+
+    // In WER mode, mark state as PROCESSING before sentry_handle_exception
+    // writes the crash event so the out-of-process WER callback cannot
+    // claim the crash and wake the daemon prematurely.
+    if (use_wer) {
+        sentry__atomic_store(&ctx->state, SENTRY_CRASH_STATE_PROCESSING);
+    }
+
     // Call Sentry's exception handler
     sentry_ucontext_t sentry_uctx = { 0 };
     sentry_uctx.exception_ptrs = *exception_info;
@@ -1038,9 +1049,7 @@ crash_exception_filter(EXCEPTION_POINTERS *exception_info)
     // handler, not SEH. WER's runtime exception module is never invoked, so
     // EXCEPTION_CONTINUE_SEARCH would be ignored and the process terminated
     // without notifying the daemon. Fall through to the direct claim path.
-    if (ctx->platform.wer_enabled
-        && exception_info->ExceptionRecord->ExceptionCode
-            != STATUS_FATAL_APP_EXIT) {
+    if (use_wer) {
         // Claim crash and notify daemon. WER may or may not invoke
         // the sentry-wer callback (e.g. CI runners without WER), so
         // we must cover both cases. The sentry-wer callback will
