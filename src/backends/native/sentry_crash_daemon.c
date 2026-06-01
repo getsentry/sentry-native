@@ -116,32 +116,37 @@ write_attachment_to_envelope(int fd, const char *file_path,
 #endif
 
     // Write attachment item header
-    char header[SENTRY_CRASH_ENVELOPE_HEADER_SIZE];
-    int header_written;
-    if (content_type) {
-        header_written = snprintf(header, sizeof(header),
-            "{\"type\":\"attachment\",\"length\":%lld,"
-            "\"attachment_type\":\"%s\","
-            "\"content_type\":\"%s\","
-            "\"filename\":\"%s\"}\n",
-            file_size,
-            sentry__string_empty(attachment_type)
-                ? SENTRY_ATTACHMENT_TYPE_GENERIC
-                : attachment_type,
-            content_type, filename ? filename : "attachment");
-    } else {
-        header_written = snprintf(header, sizeof(header),
-            "{\"type\":\"attachment\",\"length\":%lld,"
-            "\"attachment_type\":\"%s\","
-            "\"filename\":\"%s\"}\n",
-            file_size,
-            sentry__string_empty(attachment_type)
-                ? SENTRY_ATTACHMENT_TYPE_GENERIC
-                : attachment_type,
-            filename ? filename : "attachment");
+    sentry_jsonwriter_t *jw = sentry__jsonwriter_new_sb(NULL);
+    if (!jw) {
+        SENTRY_WARN("Failed to create attachment header writer");
+#if defined(SENTRY_PLATFORM_UNIX)
+        close(attach_fd);
+#elif defined(SENTRY_PLATFORM_WINDOWS)
+        _close(attach_fd);
+#endif
+        return false;
     }
 
-    if (header_written < 0 || header_written >= (int)sizeof(header)) {
+    sentry__jsonwriter_write_object_start(jw);
+    sentry__jsonwriter_write_key(jw, "type");
+    sentry__jsonwriter_write_str(jw, "attachment");
+    sentry__jsonwriter_write_key(jw, "length");
+    sentry__jsonwriter_write_int64(jw, file_size);
+    sentry__jsonwriter_write_key(jw, "attachment_type");
+    sentry__jsonwriter_write_str(jw,
+        sentry__string_empty(attachment_type) ? SENTRY_ATTACHMENT_TYPE_GENERIC
+                                              : attachment_type);
+    if (content_type) {
+        sentry__jsonwriter_write_key(jw, "content_type");
+        sentry__jsonwriter_write_str(jw, content_type);
+    }
+    sentry__jsonwriter_write_key(jw, "filename");
+    sentry__jsonwriter_write_str(jw, filename ? filename : "attachment");
+    sentry__jsonwriter_write_object_end(jw);
+
+    size_t header_written = 0;
+    char *header = sentry__jsonwriter_into_string(jw, &header_written);
+    if (!header) {
         SENTRY_WARN("Failed to write attachment header");
 #if defined(SENTRY_PLATFORM_UNIX)
         close(attach_fd);
@@ -152,12 +157,15 @@ write_attachment_to_envelope(int fd, const char *file_path,
     }
 
 #if defined(SENTRY_PLATFORM_UNIX)
-    if (write(fd, header, header_written) != (ssize_t)header_written) {
+    if (write(fd, header, header_written) != (ssize_t)header_written
+        || write(fd, "\n", 1) != 1) {
         SENTRY_WARN("Failed to write attachment header to envelope");
     }
 #elif defined(SENTRY_PLATFORM_WINDOWS)
     _write(fd, header, (unsigned int)header_written);
+    _write(fd, "\n", 1);
 #endif
+    sentry_free(header);
 
     // Copy attachment content
     char buf[SENTRY_CRASH_FILE_BUFFER_SIZE];
