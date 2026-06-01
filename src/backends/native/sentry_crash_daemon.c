@@ -2132,8 +2132,8 @@ build_stacktrace_from_ctx(const sentry_crash_context_t *ctx)
  */
 static sentry_value_t
 build_native_event(const sentry_crash_context_t *ctx,
-    const char *event_file_path, const char *level,
-    const char *mechanism_type, bool handled)
+    const char *event_file_path, const char *level, const char *mechanism_type,
+    bool handled)
 {
     // Read base event from parent's file
     sentry_value_t event = sentry_value_new_null();
