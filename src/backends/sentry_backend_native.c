@@ -208,7 +208,7 @@ wer_sync_tag(const char *key, sentry_value_t value, void *UNUSED(user_data))
 {
     wchar_t *wkey = sentry__string_to_wstr(key);
     wchar_t *wvalue = sentry__string_to_wstr(sentry_value_as_string(value));
-    if (WerRegisterCustomMetadata(wkey, wvalue) != S_OK) {
+    if (!wkey || !wvalue || WerRegisterCustomMetadata(wkey, wvalue) != S_OK) {
         SENTRY_WARNF("failed to sync tag \"%s\" to WER", key);
     }
     sentry_free(wkey);
