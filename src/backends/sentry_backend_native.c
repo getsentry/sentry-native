@@ -870,9 +870,7 @@ native_backend_add_breadcrumb(sentry_backend_t *backend,
 
     // Append as msgpack, matching the crashpad backend. msgpack values are
     // self-delimiting, so the daemon can read the concatenated ring file back
-    // into a list via `sentry__value_from_msgpack`. This is the only breadcrumb
-    // persistence on the hot path: one serialize + one append per breadcrumb,
-    // never a full scope re-serialization.
+    // into a list via `sentry__value_from_msgpack`.
     size_t mpack_size = 0;
     char *mpack = sentry_value_to_msgpack(breadcrumb, &mpack_size);
     if (!mpack) {

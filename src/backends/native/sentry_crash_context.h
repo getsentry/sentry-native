@@ -289,8 +289,7 @@ typedef struct {
     uint64_t shutdown_timeout;
     uint64_t transfer_timeout;
     bool system_crash_reporter_enabled;
-    uint32_t max_breadcrumbs; // Breadcrumb cap, so the daemon merges the ring
-                              // files with the same limit the app enforced
+    uint32_t max_breadcrumbs;
 
     // Atomic user consent (sentry_user_consent_t), updated whenever user
     // consent changes so the daemon can honor it at crash time.

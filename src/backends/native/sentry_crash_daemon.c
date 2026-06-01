@@ -2120,8 +2120,7 @@ build_stacktrace_from_ctx(const sentry_crash_context_t *ctx)
 
 /**
  * Reads one breadcrumb ring file the crashing process appended on its hot path
- * (concatenated msgpack values) into a breadcrumb list. Returns null if the
- * file is absent or empty.
+ * into a breadcrumb list. Returns null if the file is absent or empty.
  */
 static sentry_value_t
 read_breadcrumb_ring_file(const sentry_path_t *run_folder, const char *name)
@@ -2156,9 +2155,7 @@ read_breadcrumb_ring_file(const sentry_path_t *run_folder, const char *name)
 /**
  * Assembles the crash event's breadcrumbs from the two ring files the crashing
  * process appended one-at-a-time, merges them in timestamp order, keeps the
- * newest `max_breadcrumbs`, and attaches them to `event`. This is what keeps
- * breadcrumb persistence off the per-mutation scope-flush path - the app only
- * ever appends a single breadcrumb, and the daemon does the assembly here.
+ * newest `max_breadcrumbs`, and attaches them to `event`.
  * Mirrors the crashpad backend's `report_to_envelope`.
  */
 static void
@@ -2184,11 +2181,6 @@ apply_breadcrumbs_from_ring_files(sentry_value_t event,
 }
 
 /**
- * Build a native event from the scope-complete base event, adding the
- * caller-specified framing (level, mechanism) plus threads, breadcrumbs (read
- * from the ring files), and debug_meta. The base event (contexts, tags, user,
- * ...) is identical regardless of event type; the caller states what this
- * event is.
  * Build a native event and set the level, mechanism, and handled state
  *
  * @param ctx Crash context
@@ -2223,8 +2215,6 @@ build_native_event(const sentry_crash_context_t *ctx,
         event = sentry_value_new_event();
     }
 
-    // Assemble breadcrumbs from the ring files (the base event carries none -
-    // the app keeps them off the scope-flush hot path).
     apply_breadcrumbs_from_ring_files(event, run_folder, ctx);
 
     // Set platform to native
@@ -2806,10 +2796,8 @@ write_envelope_with_minidump(const sentry_options_t *options,
     const char *event_msgpack_path, const char *minidump_path,
     sentry_path_t *run_folder)
 {
-    // Read the base event, merge in the breadcrumbs from the ring files (the
-    // base event carries none), and re-serialize. Unlike the native-stacktrace
-    // path this mode otherwise streams the event verbatim, so we have to
-    // round-trip through a value to attach breadcrumbs.
+    // Read the base event, merge in the breadcrumbs from the ring files,
+    // re-serialize.
     size_t event_size = 0;
     char *event_json = NULL;
     char *event_id = NULL;
