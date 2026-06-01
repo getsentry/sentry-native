@@ -2119,21 +2119,88 @@ build_stacktrace_from_ctx(const sentry_crash_context_t *ctx)
 }
 
 /**
+ * Reads one breadcrumb ring file the crashing process appended on its hot path
+ * (concatenated msgpack values) into a breadcrumb list. Returns null if the
+ * file is absent or empty.
+ */
+static sentry_value_t
+read_breadcrumb_ring_file(const sentry_path_t *run_folder, const char *name)
+{
+    if (!run_folder) {
+        return sentry_value_new_null();
+    }
+    sentry_path_t *path = sentry__path_join_str(run_folder, name);
+    if (!path) {
+        return sentry_value_new_null();
+    }
+    size_t size = 0;
+    char *buf = sentry__path_read_to_buffer(path, &size);
+    sentry__path_free(path);
+    if (!buf || size == 0) {
+        sentry_free(buf);
+        return sentry_value_new_null();
+    }
+    sentry_value_t list = sentry__value_from_msgpack(buf, size);
+    sentry_free(buf);
+    // `sentry__value_from_msgpack` only builds a list when the file holds 2+
+    // concatenated values; a file with a single breadcrumb decodes to a bare
+    // object. Wrap it so the merge step (which ignores non-lists) keeps it.
+    if (sentry_value_get_type(list) == SENTRY_VALUE_TYPE_OBJECT) {
+        sentry_value_t wrapper = sentry_value_new_list();
+        sentry_value_append(wrapper, list);
+        return wrapper;
+    }
+    return list;
+}
+
+/**
+ * Assembles the crash event's breadcrumbs from the two ring files the crashing
+ * process appended one-at-a-time, merges them in timestamp order, keeps the
+ * newest `max_breadcrumbs`, and attaches them to `event`. This is what keeps
+ * breadcrumb persistence off the per-mutation scope-flush path - the app only
+ * ever appends a single breadcrumb, and the daemon does the assembly here.
+ * Mirrors the crashpad backend's `report_to_envelope`.
+ */
+static void
+apply_breadcrumbs_from_ring_files(sentry_value_t event,
+    const sentry_path_t *run_folder, const sentry_crash_context_t *ctx)
+{
+    sentry_value_t b1
+        = read_breadcrumb_ring_file(run_folder, "__sentry-breadcrumb1");
+    sentry_value_t b2
+        = read_breadcrumb_ring_file(run_folder, "__sentry-breadcrumb2");
+    size_t max = ctx && ctx->max_breadcrumbs ? ctx->max_breadcrumbs
+                                              : SENTRY_BREADCRUMBS_MAX;
+    sentry_value_t merged = sentry__value_merge_breadcrumbs(b1, b2, max);
+    sentry_value_decref(b1);
+    sentry_value_decref(b2);
+    // Overwrite any breadcrumbs the base event may carry: the ring files are the
+    // single source of truth, so this is idempotent and never duplicates.
+    if (sentry_value_get_type(merged) == SENTRY_VALUE_TYPE_LIST) {
+        sentry_value_set_by_key(event, "breadcrumbs", merged);
+    } else {
+        sentry_value_decref(merged);
+    }
+}
+
+/**
  * Build a native event from the scope-complete base event, adding the
- * caller-specified framing (level, mechanism) plus threads and debug_meta.
- * The base event (contexts, tags, user, breadcrumbs, ...) is identical
- * regardless of event type; the caller states what this event is.
+ * caller-specified framing (level, mechanism) plus threads, breadcrumbs (read
+ * from the ring files), and debug_meta. The base event (contexts, tags, user,
+ * ...) is identical regardless of event type; the caller states what this
+ * event is.
  *
  * @param ctx Crash context
  * @param event_file_path Path to base event file from parent process
+ * @param run_folder Run directory holding the breadcrumb ring files
  * @param level Event level (e.g. "fatal")
  * @param mechanism_type Exception mechanism type (e.g. "signalhandler")
  * @param handled Whether the mechanism was handled
  */
 static sentry_value_t
 build_native_event(const sentry_crash_context_t *ctx,
-    const char *event_file_path, const char *level, const char *mechanism_type,
-    bool handled)
+    const char *event_file_path, const sentry_path_t *run_folder,
+    const char *level, const char *mechanism_type, bool handled)
 {
     // Read base event from parent's file
     sentry_value_t event = sentry_value_new_null();
@@ -2154,6 +2221,10 @@ build_native_event(const sentry_crash_context_t *ctx,
     if (sentry_value_is_null(event)) {
         event = sentry_value_new_event();
     }
+
+    // Assemble breadcrumbs from the ring files (the base event carries none -
+    // the app keeps them off the scope-flush hot path).
+    apply_breadcrumbs_from_ring_files(event, run_folder, ctx);
 
     // Set platform to native
     sentry_value_set_by_key(
@@ -2485,7 +2556,7 @@ write_envelope_with_native_stacktrace(const sentry_options_t *options,
     SENTRY_DEBUGF("write_envelope_with_native_stacktrace: minidump_path=%s",
         minidump_path ? minidump_path : "(null)");
     sentry_value_t event = build_native_event(
-        ctx, event_file_path, "fatal", "signalhandler", false);
+        ctx, event_file_path, run_folder, "fatal", "signalhandler", false);
 
     // Serialize event to JSON
     size_t event_size = 0;
@@ -2734,21 +2805,28 @@ write_envelope_with_minidump(const sentry_options_t *options,
     const char *event_msgpack_path, const char *minidump_path,
     sentry_path_t *run_folder)
 {
-    // Read event JSON data
+    // Read the base event, merge in the breadcrumbs from the ring files (the
+    // base event carries none), and re-serialize. Unlike the native-stacktrace
+    // path this mode otherwise streams the event verbatim, so we have to
+    // round-trip through a value to attach breadcrumbs.
     size_t event_size = 0;
     char *event_json = NULL;
     char *event_id = NULL;
     sentry_path_t *ev_path = sentry__path_from_str(event_msgpack_path);
     if (ev_path) {
-        event_json = sentry__path_read_to_buffer(ev_path, &event_size);
+        size_t base_size = 0;
+        char *base_json = sentry__path_read_to_buffer(ev_path, &base_size);
         sentry__path_free(ev_path);
-        if (event_json && event_size > 0) {
+        if (base_json && base_size > 0) {
             sentry_value_t event
-                = sentry__value_from_json(event_json, event_size);
+                = sentry__value_from_json(base_json, base_size);
+            apply_breadcrumbs_from_ring_files(event, run_folder, ctx);
             event_id = sentry__string_clone(sentry_value_as_string(
                 sentry_value_get_by_key(event, "event_id")));
+            event_json = sentry__value_to_json(event, &event_size);
             sentry_value_decref(event);
         }
+        sentry_free(base_json);
     }
 
     // Open envelope file for writing

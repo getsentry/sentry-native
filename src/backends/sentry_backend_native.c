@@ -309,6 +309,7 @@ native_backend_startup(
     ctx->http_retry = options->http_retry;
     ctx->shutdown_timeout = options->shutdown_timeout;
     ctx->transfer_timeout = options->transfer_timeout;
+    ctx->max_breadcrumbs = (uint32_t)options->max_breadcrumbs;
     sentry__atomic_store(
         &ctx->user_consent, sentry__atomic_fetch(&options->run->user_consent));
 
@@ -806,18 +807,19 @@ ensure_device_arch(sentry_value_t event)
 // fallback. Shared by the continuous scope flush and the crash handler so both
 // write an identical base regardless of which one wins the race.
 //
-// `mode` controls the expensive, list-shaped parts. The crash handler passes
-// SENTRY_SCOPE_BREADCRUMBS to capture them at crash time, but the continuous
-// flush passes SENTRY_SCOPE_NONE: it runs on *every* scope mutation, so folding
-// the breadcrumb buffer in there would re-serialize the whole ring on every
-// set_tag/set_context/... - prohibitive on a hot path such as a 60fps main
-// thread.
+// Breadcrumbs are deliberately excluded (SENTRY_SCOPE_NONE): they are persisted
+// incrementally to the breadcrumb ring files via `add_breadcrumb_func` and
+// assembled by the daemon at crash time (see the daemon's
+// `apply_breadcrumbs_from_ring_files`). Folding them in here would re-serialize
+// the whole breadcrumb buffer on every scope mutation - prohibitive on a hot
+// path such as a 60fps main thread. This mirrors the crashpad backend's
+// `flush_scope_to_event`.
 static void
-apply_scope(sentry_value_t event, const sentry_options_t *options,
-    sentry_scope_mode_t mode)
+apply_scope(sentry_value_t event, const sentry_options_t *options)
 {
     SENTRY_WITH_SCOPE (scope) {
-        sentry__scope_apply_to_event(scope, options, event, mode);
+        sentry__scope_apply_to_event(
+            scope, options, event, SENTRY_SCOPE_NONE);
     }
 #if defined(SENTRY_PLATFORM_WINDOWS)
     ensure_device_arch(event);
@@ -843,15 +845,13 @@ native_backend_flush_scope(
 
     // Keep the on-disk base event current, so the daemon has the full scope
     // even if a crash beats the in-process handler to the file. Breadcrumbs are
-    // deliberately excluded here (SENTRY_SCOPE_NONE): they are flushed
-    // incrementally to the breadcrumb ring files and the crash handler captures
-    // them at crash time. This keeps the per-mutation flush off the breadcrumb
-    // serialization cost.
+    // not part of this (see apply_scope) - the daemon merges them from the ring
+    // files at crash time.
     sentry_value_t event = sentry_value_new_object();
     // Default to `FATAL` for all paths, i.e. minidump mode.
     sentry_value_set_by_key(
         event, "level", sentry__value_new_level(SENTRY_LEVEL_FATAL));
-    apply_scope(event, options, SENTRY_SCOPE_NONE);
+    apply_scope(event, options);
 
     size_t json_len = 0;
     char *json_str = sentry__value_to_json(event, &json_len);
@@ -890,18 +890,22 @@ native_backend_add_breadcrumb(sentry_backend_t *backend,
         return;
     }
 
-    // Serialize to JSON (so it can be deserialized on next start)
-    size_t json_len = 0;
-    char *json_str = sentry__value_to_json(breadcrumb, &json_len);
-    if (!json_str) {
+    // Append as msgpack, matching the crashpad backend. msgpack values are
+    // self-delimiting, so the daemon can read the concatenated ring file back
+    // into a list via `sentry__value_from_msgpack`. This is the only breadcrumb
+    // persistence on the hot path: one serialize + one append per breadcrumb,
+    // never a full scope re-serialization.
+    size_t mpack_size = 0;
+    char *mpack = sentry_value_to_msgpack(breadcrumb, &mpack_size);
+    if (!mpack) {
         return;
     }
 
     int rv = first_breadcrumb
-        ? sentry__path_write_buffer(breadcrumb_file, json_str, json_len)
-        : sentry__path_append_buffer(breadcrumb_file, json_str, json_len);
+        ? sentry__path_write_buffer(breadcrumb_file, mpack, mpack_size)
+        : sentry__path_append_buffer(breadcrumb_file, mpack, mpack_size);
 
-    sentry_free(json_str);
+    sentry_free(mpack);
 
     if (rv != 0) {
         SENTRY_WARN("failed to write breadcrumb");
@@ -1034,9 +1038,7 @@ native_backend_except(sentry_backend_t *backend, const sentry_ucontext_t *uctx)
             }
 
             if (should_handle) {
-                // At crash time we capture breadcrumbs (unlike the continuous
-                // flush) - this is the process's last chance to record them.
-                apply_scope(event, options, SENTRY_SCOPE_BREADCRUMBS);
+                apply_scope(event, options);
 
 #ifndef SENTRY_SCREENSHOT_NONE
                 // The screenshot is captured by the daemon out-of-process, so
