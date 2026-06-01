@@ -130,6 +130,9 @@ sentry__elf_find_note(const void *buf, size_t buf_size, size_t alignment,
         }
 
         offset = (desc_start + desc_size + mask) & ~mask;
+        if (offset > buf_size) {
+            break;
+        }
     }
 
     return NULL;
