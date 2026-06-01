@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1780325538711,
+  "lastUpdate": 1780325607888,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -48394,6 +48394,66 @@ window.BENCHMARK_DATA = {
             "value": 11.191666000001987,
             "unit": "ms",
             "extra": "Min 9.274ms\nMax 17.452ms\nMean 12.658ms\nStdDev 3.263ms\nMedian 11.192ms\nCPU 1.310ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "jpnurmi@gmail.com",
+            "name": "J-P Nurmi",
+            "username": "jpnurmi"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "e8a1e65b5f296c527ff752c22e9f65d96d5caa2c",
+          "message": "fix(native): escape JSON attachments (#1771)\n\n* fix(native): escape JSON attachments\n\nFile names and content types are arbitrary user-supplied strings that\ncan contain characters that must be escaped in JSON.\n\n* Update CHANGELOG.md",
+          "timestamp": "2026-06-01T16:49:23+02:00",
+          "tree_id": "3365b58faa65cd41704da1a03c905a8c4fb62c8a",
+          "url": "https://github.com/getsentry/sentry-native/commit/e8a1e65b5f296c527ff752c22e9f65d96d5caa2c"
+        },
+        "date": 1780325600748,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 3.1601670000043214,
+            "unit": "ms",
+            "extra": "Min 3.099ms\nMax 24.230ms\nMean 7.750ms\nStdDev 9.255ms\nMedian 3.160ms\nCPU 2.230ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 5.333624999991571,
+            "unit": "ms",
+            "extra": "Min 3.356ms\nMax 7.060ms\nMean 5.076ms\nStdDev 1.388ms\nMedian 5.334ms\nCPU 3.120ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 13.2114589999901,
+            "unit": "ms",
+            "extra": "Min 10.118ms\nMax 50.773ms\nMean 20.322ms\nStdDev 17.195ms\nMedian 13.211ms\nCPU 4.507ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.0696669999911137,
+            "unit": "ms",
+            "extra": "Min 0.063ms\nMax 0.097ms\nMean 0.075ms\nStdDev 0.014ms\nMedian 0.070ms\nCPU 0.048ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.1909580000187816,
+            "unit": "ms",
+            "extra": "Min 0.154ms\nMax 0.307ms\nMean 0.213ms\nStdDev 0.059ms\nMedian 0.191ms\nCPU 0.214ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 7.204958000045281,
+            "unit": "ms",
+            "extra": "Min 6.122ms\nMax 7.781ms\nMean 6.944ms\nStdDev 0.716ms\nMedian 7.205ms\nCPU 0.852ms"
           }
         ]
       }
