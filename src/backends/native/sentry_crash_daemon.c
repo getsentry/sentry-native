@@ -6,6 +6,7 @@
 #include "sentry_core.h"
 #include "sentry_crash_ipc.h"
 #include "sentry_database.h"
+#include "sentry_elf.h"
 #include "sentry_envelope.h"
 #include "sentry_json.h"
 #include "sentry_logger.h"
@@ -1263,58 +1264,40 @@ extract_elf_build_id_for_module(
     // Look for .note.gnu.build-id section
     size_t build_id_len = 0;
     for (int i = 0; i < ehdr.e_shnum; i++) {
-        if (sections[i].sh_type == SHT_NOTE) {
-            // Read note section
-            size_t note_size = sections[i].sh_size;
-            if (note_size > 4096) {
-                continue; // Sanity check
-            }
-
-            void *note_buf = sentry_malloc(note_size);
-            if (!note_buf) {
-                continue;
-            }
-
-            if (lseek(fd, sections[i].sh_offset, SEEK_SET)
-                    == (off_t)sections[i].sh_offset
-                && read(fd, note_buf, note_size) == (ssize_t)note_size) {
-
-                // Parse notes
-                uint8_t *ptr = (uint8_t *)note_buf;
-                uint8_t *end = ptr + note_size;
-
-                while (ptr + 12 <= end) {
-#    if defined(__x86_64__) || defined(__aarch64__)
-                    Elf64_Nhdr *nhdr = (Elf64_Nhdr *)ptr;
-#    else
-                    Elf32_Nhdr *nhdr = (Elf32_Nhdr *)ptr;
-#    endif
-                    ptr += sizeof(*nhdr);
-
-                    if (ptr + nhdr->n_namesz + nhdr->n_descsz > end) {
-                        break;
-                    }
-
-                    // Check if this is GNU Build ID (type 3, name "GNU\0")
-                    if (nhdr->n_type == 3 && nhdr->n_namesz == 4
-                        && memcmp(ptr, "GNU", 4) == 0) {
-
-                        ptr += ((nhdr->n_namesz + 3) & ~3); // Align to 4 bytes
-                        size_t len = nhdr->n_descsz < max_len ? nhdr->n_descsz
-                                                              : max_len;
-                        memcpy(build_id, ptr, len);
-                        build_id_len = len;
-                        sentry_free(note_buf);
-                        goto done;
-                    }
-
-                    ptr += ((nhdr->n_namesz + 3) & ~3);
-                    ptr += ((nhdr->n_descsz + 3) & ~3);
-                }
-            }
-
-            sentry_free(note_buf);
+        if (sections[i].sh_type != SHT_NOTE) {
+            continue;
         }
+
+        size_t note_size = sections[i].sh_size;
+        if (note_size > 4096) {
+            continue; // Sanity check
+        }
+
+        void *note_buf = sentry_malloc(note_size);
+        if (!note_buf) {
+            continue;
+        }
+
+        if (lseek(fd, sections[i].sh_offset, SEEK_SET)
+                != (off_t)sections[i].sh_offset
+            || read(fd, note_buf, note_size) != (ssize_t)note_size) {
+            sentry_free(note_buf);
+            continue;
+        }
+
+        size_t desc_size;
+        const void *desc = sentry__elf_find_note(
+            note_buf, note_size, 4, NT_GNU_BUILD_ID, "GNU", 4, &desc_size);
+
+        if (desc) {
+            size_t len = desc_size < max_len ? desc_size : max_len;
+            memcpy(build_id, desc, len);
+            build_id_len = len;
+            sentry_free(note_buf);
+            goto done;
+        }
+
+        sentry_free(note_buf);
     }
 
 done:

@@ -16,8 +16,7 @@
 #endif
 
 #if defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID)
-#    include "backends/native/sentry_elf.h"
-#    include <elf.h>
+#    include "sentry_elf.h"
 #endif
 
 /**
