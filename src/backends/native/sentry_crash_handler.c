@@ -1026,17 +1026,12 @@ crash_exception_filter(EXCEPTION_POINTERS *exception_info)
 
         // Wait for daemon to finish processing (keep process alive for
         // minidump)
-        bool processing_started = false;
         int elapsed_ms = 0;
         while (elapsed_ms < SENTRY_CRASH_HANDLER_WAIT_TIMEOUT_MS) {
             long state = sentry__atomic_fetch(&ctx->state);
-            if (state == SENTRY_CRASH_STATE_PROCESSING && !processing_started) {
-                // Daemon started processing (no logging - exception filter
-                // context)
-                processing_started = true;
-            } else if (state >= SENTRY_CRASH_STATE_CAPTURED) {
-                // Daemon captured crash data (no logging - exception filter
-                // context)
+            if (state >= SENTRY_CRASH_STATE_POSTPROCESSING) {
+                // Either WER is post-processing, or daemon already captured
+                // crash data (no logging - exception filter context)
                 break;
             }
             Sleep(SENTRY_CRASH_HANDLER_POLL_INTERVAL_MS);

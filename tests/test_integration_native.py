@@ -89,7 +89,7 @@ def test_native_capture_crash(cmake, httpserver):
 )
 @pytest.mark.with_wer
 @pytest.mark.parametrize("crash_arg", ["fastfail", "stack-buffer-overrun"])
-def test_native_wer(cmake, httpserver, crash_arg):
+def test_native_wer_crash(cmake, httpserver, crash_arg):
     """Test WER crash capture with native backend"""
     tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "native"})
 
@@ -107,6 +107,41 @@ def test_native_wer(cmake, httpserver, crash_arg):
     assert len(httpserver.log) >= 1
     envelope = Envelope.deserialize(httpserver.log[0][0].get_data())
     assert_native_crash(envelope, exception_code=0xC0000409)
+
+    has_wer_report = any(
+        item.headers.get("type") == "attachment"
+        and item.headers.get("filename") == "Report.wer"
+        for item in envelope.items
+    )
+    assert has_wer_report, "Should include WER report"
+
+
+@pytest.mark.with_wer
+def test_native_wer_report(cmake, httpserver):
+    """Test WER report capture with native backend"""
+    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "native"})
+
+    httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data("OK")
+
+    with httpserver.wait(timeout=10) as waiting:
+        run_crash(
+            tmp_path,
+            "sentry_example",
+            ["log", "stdout", "crash"],
+            env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
+        )
+    assert waiting.result
+
+    assert len(httpserver.log) >= 1
+    envelope = Envelope.deserialize(httpserver.log[0][0].get_data())
+    assert_native_crash(envelope)
+
+    has_wer_report = any(
+        item.headers.get("type") == "attachment"
+        and item.headers.get("filename") == "Report.wer"
+        for item in envelope.items
+    )
+    assert has_wer_report, "Should include WER report"
 
 
 @pytest.mark.skipif(not has_oom, reason="OOM test unreliable in this environment")

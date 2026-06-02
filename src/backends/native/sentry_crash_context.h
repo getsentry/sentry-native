@@ -122,8 +122,10 @@ typedef enum {
     SENTRY_CRASH_STATE_READY = 0,
     SENTRY_CRASH_STATE_CRASHED = 1,
     SENTRY_CRASH_STATE_PROCESSING = 2,
-    SENTRY_CRASH_STATE_CAPTURED = 3,
-    SENTRY_CRASH_STATE_DONE = 4
+    SENTRY_CRASH_STATE_POSTPROCESSING = 3,
+    SENTRY_CRASH_STATE_POSTPROCESSED = 4,
+    SENTRY_CRASH_STATE_CAPTURED = 5,
+    SENTRY_CRASH_STATE_DONE = 6
 } sentry_crash_state_t;
 
 /**
@@ -242,6 +244,9 @@ typedef struct {
     // Additional thread contexts
     DWORD num_threads;
     sentry_thread_context_windows_t threads[SENTRY_CRASH_MAX_THREADS];
+
+    bool wer_enabled;
+    char wer_report_id[64];
 } sentry_crash_platform_windows_t;
 
 typedef struct {

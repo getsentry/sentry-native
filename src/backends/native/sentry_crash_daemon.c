@@ -56,6 +56,7 @@
 #    include <fcntl.h>
 #    include <io.h>
 #    include <sys/stat.h>
+#    include <werapi.h>
 #    include <windows.h>
 
 // Forward declaration for StackWalk64-based stack unwinding (defined later)
@@ -2211,6 +2212,43 @@ enumerate_threads_from_process(sentry_crash_context_t *ctx)
         ctx->crashed_pid);
 #    endif // SENTRY_PLATFORM_XBOX
 }
+
+static sentry_path_t *
+find_wer_report(sentry_uuid_t *report_id)
+{
+    HREPORTSTORE report_store;
+    if (WerStoreOpen(E_STORE_MACHINE_ARCHIVE, &report_store) != S_OK) {
+        return NULL;
+    }
+
+    PCWSTR report_key = NULL;
+    sentry_path_t *report_path = NULL;
+    WER_REPORT_METADATA_V3 report_data = { 0 };
+
+    HRESULT hr = WerStoreGetFirstReportKey(report_store, &report_key);
+    while (SUCCEEDED(hr) && report_key && !report_path) {
+        if (WerStoreQueryReportMetadataV3(
+                report_store, report_key, &report_data)
+            == S_OK) {
+            sentry_uuid_t integrator_id
+                = sentry__uuid_from_native(&report_data.ReportIntegratorId);
+            if (memcmp(&integrator_id, report_id, sizeof(sentry_uuid_t)) == 0) {
+                sentry_path_t *report_dir = sentry__path_from_wstr(report_key);
+                if (report_dir) {
+                    report_path
+                        = sentry__path_join_str(report_dir, "Report.wer");
+                    sentry__path_free(report_dir);
+                }
+            }
+        }
+        WerFreeString(report_key);
+        hr = WerStoreGetNextReportKey(report_store, &report_key);
+    }
+
+    WerStoreClose(report_store);
+
+    return report_path;
+}
 #endif // SENTRY_PLATFORM_WINDOWS
 
 /**
@@ -2819,6 +2857,16 @@ write_envelope_with_native_stacktrace(const sentry_options_t *options,
         }
     }
 
+    if (/*ctx->attach_wer_report &&*/ run_folder) {
+        sentry_path_t *report_path
+            = sentry__path_join_str(run_folder, "Report.wer");
+        if (report_path) {
+            write_attachment_to_envelope(fd, report_path->path, "Report.wer",
+                NULL, "application/octet-stream");
+            sentry__path_free(report_path);
+        }
+    }
+
 #if defined(SENTRY_PLATFORM_UNIX)
     close(fd);
 #elif defined(SENTRY_PLATFORM_WINDOWS)
@@ -3288,7 +3336,8 @@ sentry__process_crash(const sentry_options_t *options, sentry_crash_ipc_t *ipc)
     }
 #endif
 
-    // On Windows, capture modules and threads from the crashed process
+    // On Windows, capture modules, threads, and WER report for the crashed
+    // process
 #if defined(SENTRY_PLATFORM_WINDOWS)
     if (use_native_mode) {
         if (ctx->module_count == 0) {
@@ -3298,6 +3347,45 @@ sentry__process_crash(const sentry_options_t *options, sentry_crash_ipc_t *ipc)
         if (ctx->platform.num_threads <= 1) {
             SENTRY_DEBUG("Enumerating threads from crashed process");
             enumerate_threads_from_process(ctx);
+        }
+    }
+
+    if (ctx->platform.wer_enabled) {
+        SENTRY_DEBUG("Waiting for WER");
+        sentry__atomic_store(&ctx->state, SENTRY_CRASH_STATE_POSTPROCESSING);
+
+        int elapsed_ms = 0;
+        while (elapsed_ms < SENTRY_CRASH_HANDLER_WAIT_TIMEOUT_MS) {
+            long state = sentry__atomic_fetch(&ctx->state);
+            if (state == SENTRY_CRASH_STATE_POSTPROCESSED) {
+                break;
+            }
+            Sleep(SENTRY_CRASH_HANDLER_POLL_INTERVAL_MS);
+            elapsed_ms += SENTRY_CRASH_HANDLER_POLL_INTERVAL_MS;
+        }
+        SENTRY_DEBUGF("WER report ID: %s", ctx->platform.wer_report_id);
+
+        sentry_uuid_t report_id
+            = sentry_uuid_from_string(ctx->platform.wer_report_id);
+
+        elapsed_ms = 0;
+        while (elapsed_ms < SENTRY_CRASH_HANDLER_WAIT_TIMEOUT_MS) {
+            sentry_path_t *wer_report_path = find_wer_report(&report_id);
+            if (wer_report_path) {
+                SENTRY_DEBUGF("Found WER report: %s", wer_report_path->path);
+                sentry_path_t *run_report_path
+                    = sentry__path_join_str(run_folder, "Report.wer");
+                if (!run_report_path
+                    || !sentry__path_copy(wer_report_path, run_report_path)) {
+                    SENTRY_WARN("Failed to copy WER report");
+                }
+                sentry__path_free(run_report_path);
+                sentry__path_free(wer_report_path);
+                break;
+            }
+
+            Sleep(SENTRY_CRASH_HANDLER_POLL_INTERVAL_MS);
+            elapsed_ms += SENTRY_CRASH_HANDLER_POLL_INTERVAL_MS;
         }
     }
 #endif
