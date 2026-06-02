@@ -1804,3 +1804,33 @@ SENTRY_TEST(value_merge_breadcrumbs_max_limit)
     sentry_value_decref(list_a);
     sentry_value_decref(list_b);
 }
+
+SENTRY_TEST(value_refcount)
+{
+    // primitive values always report refcount 1, and decref is a no-op
+    sentry_value_t null_val = sentry_value_new_null();
+    TEST_CHECK_INT_EQUAL(1, sentry_value_refcount(null_val));
+    TEST_CHECK(!sentry_value_decref(null_val));
+    TEST_CHECK_INT_EQUAL(1, sentry_value_refcount(null_val));
+
+    sentry_value_t bool_val = sentry_value_new_bool(true);
+    TEST_CHECK_INT_EQUAL(1, sentry_value_refcount(bool_val));
+    TEST_CHECK(!sentry_value_decref(bool_val));
+    TEST_CHECK_INT_EQUAL(1, sentry_value_refcount(bool_val));
+
+    sentry_value_t int_val = sentry_value_new_int32(42);
+    TEST_CHECK_INT_EQUAL(1, sentry_value_refcount(int_val));
+    TEST_CHECK(!sentry_value_decref(int_val));
+    TEST_CHECK_INT_EQUAL(1, sentry_value_refcount(int_val));
+
+    // thing-allocated values track refcount through incref/decref
+    sentry_value_t obj = sentry_value_new_object();
+    TEST_CHECK_INT_EQUAL(1, sentry_value_refcount(obj));
+    TEST_CHECK_INT_EQUAL(2, sentry_value_refcount(sentry_value_incref(obj)));
+    TEST_CHECK_INT_EQUAL(3, sentry_value_refcount(sentry_value_incref(obj)));
+    TEST_CHECK(!!sentry_value_decref(obj));
+    TEST_CHECK_INT_EQUAL(2, sentry_value_refcount(obj));
+    TEST_CHECK(!!sentry_value_decref(obj));
+    TEST_CHECK_INT_EQUAL(1, sentry_value_refcount(obj));
+    TEST_CHECK(!sentry_value_decref(obj));
+}

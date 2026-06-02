@@ -152,11 +152,8 @@ sentry__transaction_context_free(sentry_transaction_context_t *tx_ctx)
     if (!tx_ctx) {
         return;
     }
-    if (sentry_value_refcount(tx_ctx->inner) <= 1) {
-        sentry_value_decref(tx_ctx->inner);
+    if (!sentry_value_decref(tx_ctx->inner)) {
         sentry_free(tx_ctx);
-    } else {
-        sentry_value_decref(tx_ctx->inner);
     }
 }
 
@@ -479,13 +476,10 @@ sentry__transaction_decref(sentry_transaction_t *tx)
         return;
     }
 
-    if (sentry_value_refcount(tx->inner) <= 1) {
-        sentry_value_decref(tx->inner);
+    if (!sentry_value_decref(tx->inner)) {
         sentry_free(tx->children);
         sentry__mutex_free(&tx->children_mutex);
         sentry_free(tx);
-    } else {
-        sentry_value_decref(tx->inner);
     }
 }
 
@@ -520,13 +514,10 @@ sentry__span_decref(sentry_span_t *span)
         return;
     }
 
-    if (sentry_value_refcount(span->inner) <= 1) {
+    if (!sentry_value_decref(span->inner)) {
         sentry__transaction_remove_child(span->transaction, span);
-        sentry_value_decref(span->inner);
         sentry__transaction_decref(span->transaction);
         sentry_free(span);
-    } else {
-        sentry_value_decref(span->inner);
     }
 }
 
