@@ -1,6 +1,7 @@
 import itertools
 import json
 import os
+import subprocess
 import time
 
 import pytest
@@ -1317,3 +1318,58 @@ def test_http_retry_session_on_network_error(cmake, httpserver, unreachable_dsn)
 
     cache_files = list(cache_dir.glob("*.envelope"))
     assert len(cache_files) == 0
+
+
+@pytest.mark.parametrize(
+    "backend",
+    [
+        "inproc",
+        pytest.param(
+            "breakpad",
+            marks=pytest.mark.skipif(
+                not has_breakpad or is_qemu, reason="test needs breakpad backend"
+            ),
+        ),
+    ],
+)
+@pytest.mark.skipif(is_qemu, reason="unreliable under qemu-user")
+def test_restart_on_crash(cmake, httpserver, backend):
+    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": backend})
+
+    httpserver.expect_oneshot_request(
+        "/api/123456/envelope/",
+        headers={"x-sentry-auth": auth_header},
+    ).respond_with_data("OK")
+    httpserver.expect_oneshot_request(
+        "/api/123456/envelope/",
+        headers={"x-sentry-auth": auth_header},
+    ).respond_with_data("OK")
+
+    with httpserver.wait(timeout=10) as waiting:
+        # The restarted child inherits stdio, so PIPE waits for it without a sleep.
+        run(
+            tmp_path,
+            "sentry_example",
+            ["crash", "restart-on-crash"],
+            expect_failure=True,
+            env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+        run(
+            tmp_path,
+            "sentry_example",
+            ["log", "no-setup"],
+            env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
+        )
+
+    assert waiting.result
+    assert len(httpserver.log) == 2
+    for req in httpserver.log:
+        envelope = Envelope.deserialize(req[0].get_data())
+        if backend == "inproc":
+            assert_inproc_crash(envelope)
+        elif backend == "breakpad":
+            assert_breakpad_crash(envelope)
+        else:
+            assert False

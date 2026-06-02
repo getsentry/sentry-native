@@ -146,12 +146,14 @@ jobs:
             CC: gcc
             CXX: g++
             SYSTEM_PYTHON: 1
+            CMAKE_DEFINES: -DSENTRY_LIBUNWIND_SYSTEM=ON
           - name: Linux (clang + musl + libunwind)
             os: ubuntu-latest
             container: ghcr.io/getsentry/sentry-native-alpine:3.23
             CC: clang
             CXX: clang++
             SYSTEM_PYTHON: 1
+            CMAKE_DEFINES: -DSENTRY_LIBUNWIND_SYSTEM=ON
           - name: macOS 14 (xcode llvm)
             os: macos-14
             ERROR_ON_WARNINGS: 1
@@ -328,7 +330,7 @@ jobs:
         if: ${{ contains(matrix.container, 'alpine') }}
         run: |
           apk update
-          apk add curl-dev xz-dev
+          apk add curl-dev libunwind-dev xz-dev
       # install manually until available by default (also for future .NET updates)
       - name: Install .NET 10 SDK for ARM64 runners
         if: ${{ runner.os == 'Linux' && runner.arch == 'ARM64' && !matrix.container }}
@@ -405,9 +407,7 @@ jobs:
 
       - name: Setup Gradle
         if: ${{ env['ANDROID_API'] }}
-        uses: gradle/actions/setup-gradle@0723195856401067f7a2779048b490ace7a47d7c # pin@v5.0.2
-        with:
-          gradle-home-cache-cleanup: true
+        uses: gradle/actions/setup-gradle@50e97c2cd7a37755bbfafc9c5b7cafaece252f6e # pin@v6.1.0
 
       - name: Setup .NET for Android
         if: ${{ env['ANDROID_API'] }}
@@ -502,9 +502,7 @@ jobs:
           java-version: "17"
 
       - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@0723195856401067f7a2779048b490ace7a47d7c # pin@v5.0.2
-        with:
-          gradle-home-cache-cleanup: true
+        uses: gradle/actions/setup-gradle@50e97c2cd7a37755bbfafc9c5b7cafaece252f6e # pin@v6.1.0
 
       - name: Create source archive
         run: |

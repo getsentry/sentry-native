@@ -259,6 +259,16 @@ using `cmake -D BUILD_SHARED_LIBS=OFF ..`.
 - `SENTRY_BREAKPAD_SYSTEM` (Default: `OFF`):
   This instructs the build system to use system-installed breakpad libraries instead of the in-tree version.
 
+- `SENTRY_LIBUNWIND_SYSTEM` (Default: `OFF`, only for Linux):
+  This instructs the build system to use a system-installed `libunwind` (found via `pkg-config`) instead of the
+  vendored copy in `vendor/libunwind`.
+
+  In contrast to the vendored `libunwind` which is always built as a static archive and either linked into the
+  resulting shared library or colocated with the other static artifacts, with `SENTRY_LIBUNWIND_SYSTEM=ON`, the library
+  type (shared or static) is determined by the host distribution's package. The `SENTRY_BUILD_SHARED_LIBS` option only
+  controls how the dependency is exposed to consuming CMake projects, not the library type of the system `libunwind`
+  itself. Ensure matching build and target environments when using system packages.
+
 - `SENTRY_TRANSPORT_COMPRESSION` (Default: `OFF`):
   Adds Gzip transport compression. Requires `zlib`.
 

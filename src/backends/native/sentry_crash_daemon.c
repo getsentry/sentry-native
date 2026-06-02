@@ -6,6 +6,7 @@
 #include "sentry_core.h"
 #include "sentry_crash_ipc.h"
 #include "sentry_database.h"
+#include "sentry_elf.h"
 #include "sentry_envelope.h"
 #include "sentry_json.h"
 #include "sentry_logger.h"
@@ -46,6 +47,9 @@
 #        include <crt_externs.h>
 #        include <mach-o/dyld.h>
 #        include <spawn.h>
+#    endif
+#    if defined(SENTRY_PLATFORM_LINUX)
+#        include "unwinder/sentry_unwinder.h"
 #    endif
 #elif defined(SENTRY_PLATFORM_WINDOWS)
 #    include <dbghelp.h>
@@ -113,32 +117,37 @@ write_attachment_to_envelope(int fd, const char *file_path,
 #endif
 
     // Write attachment item header
-    char header[SENTRY_CRASH_ENVELOPE_HEADER_SIZE];
-    int header_written;
-    if (content_type) {
-        header_written = snprintf(header, sizeof(header),
-            "{\"type\":\"attachment\",\"length\":%lld,"
-            "\"attachment_type\":\"%s\","
-            "\"content_type\":\"%s\","
-            "\"filename\":\"%s\"}\n",
-            file_size,
-            sentry__string_empty(attachment_type)
-                ? SENTRY_ATTACHMENT_TYPE_GENERIC
-                : attachment_type,
-            content_type, filename ? filename : "attachment");
-    } else {
-        header_written = snprintf(header, sizeof(header),
-            "{\"type\":\"attachment\",\"length\":%lld,"
-            "\"attachment_type\":\"%s\","
-            "\"filename\":\"%s\"}\n",
-            file_size,
-            sentry__string_empty(attachment_type)
-                ? SENTRY_ATTACHMENT_TYPE_GENERIC
-                : attachment_type,
-            filename ? filename : "attachment");
+    sentry_jsonwriter_t *jw = sentry__jsonwriter_new_sb(NULL);
+    if (!jw) {
+        SENTRY_WARN("Failed to create attachment header writer");
+#if defined(SENTRY_PLATFORM_UNIX)
+        close(attach_fd);
+#elif defined(SENTRY_PLATFORM_WINDOWS)
+        _close(attach_fd);
+#endif
+        return false;
     }
 
-    if (header_written < 0 || header_written >= (int)sizeof(header)) {
+    sentry__jsonwriter_write_object_start(jw);
+    sentry__jsonwriter_write_key(jw, "type");
+    sentry__jsonwriter_write_str(jw, "attachment");
+    sentry__jsonwriter_write_key(jw, "length");
+    sentry__jsonwriter_write_int64(jw, file_size);
+    sentry__jsonwriter_write_key(jw, "attachment_type");
+    sentry__jsonwriter_write_str(jw,
+        sentry__string_empty(attachment_type) ? SENTRY_ATTACHMENT_TYPE_GENERIC
+                                              : attachment_type);
+    if (content_type) {
+        sentry__jsonwriter_write_key(jw, "content_type");
+        sentry__jsonwriter_write_str(jw, content_type);
+    }
+    sentry__jsonwriter_write_key(jw, "filename");
+    sentry__jsonwriter_write_str(jw, filename ? filename : "attachment");
+    sentry__jsonwriter_write_object_end(jw);
+
+    size_t header_written = 0;
+    char *header = sentry__jsonwriter_into_string(jw, &header_written);
+    if (!header) {
         SENTRY_WARN("Failed to write attachment header");
 #if defined(SENTRY_PLATFORM_UNIX)
         close(attach_fd);
@@ -149,12 +158,15 @@ write_attachment_to_envelope(int fd, const char *file_path,
     }
 
 #if defined(SENTRY_PLATFORM_UNIX)
-    if (write(fd, header, header_written) != (ssize_t)header_written) {
+    if (write(fd, header, header_written) != (ssize_t)header_written
+        || write(fd, "\n", 1) != 1) {
         SENTRY_WARN("Failed to write attachment header to envelope");
     }
 #elif defined(SENTRY_PLATFORM_WINDOWS)
     _write(fd, header, (unsigned int)header_written);
+    _write(fd, "\n", 1);
 #endif
+    sentry_free(header);
 
     // Copy attachment content
     char buf[SENTRY_CRASH_FILE_BUFFER_SIZE];
@@ -544,6 +556,24 @@ build_registers_from_ctx(const sentry_crash_context_t *ctx, size_t thread_idx)
     return registers;
 }
 
+#ifdef SENTRY_WITH_UNWINDER_LIBUNWIND_REMOTE
+static sentry_value_t
+build_registers_from_remote_registers(
+    const sentry_remote_registers_t *remote_registers)
+{
+    sentry_value_t registers = sentry_value_new_object();
+
+    for (size_t i = 0; i < remote_registers->count; i++) {
+        const sentry_remote_register_t *remote_register
+            = &remote_registers->values[i];
+        sentry_value_set_by_key(registers, remote_register->name,
+            sentry__value_new_addr(remote_register->value));
+    }
+
+    return registers;
+}
+#endif
+
 /**
  * Maximum number of frames to unwind
  */
@@ -605,7 +635,8 @@ static void
 enrich_frame_with_module_info(
     const sentry_crash_context_t *ctx, sentry_value_t frame, uint64_t addr)
 {
-    for (uint32_t i = 0; i < ctx->module_count; i++) {
+    uint32_t module_count = MIN(ctx->module_count, SENTRY_CRASH_MAX_MODULES);
+    for (uint32_t i = 0; i < module_count; i++) {
         const sentry_module_info_t *mod = &ctx->modules[i];
         if (addr >= mod->base_address && addr < mod->base_address + mod->size) {
             // Set package to full module path (matches minidump format)
@@ -620,8 +651,13 @@ enrich_frame_with_module_info(
     }
     // No matching module found - log for debugging
     SENTRY_DEBUGF("Frame 0x%llx NOT matched to any module (module_count=%u)",
-        (unsigned long long)addr, ctx->module_count);
+        (unsigned long long)addr, module_count);
 }
+
+#if defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID)
+static void enrich_frame_with_symbol(
+    const sentry_crash_context_t *ctx, sentry_value_t frame, uint64_t addr);
+#endif
 
 /**
  * Build stacktrace frames for a specific thread using frame pointer-based
@@ -900,10 +936,98 @@ build_stacktrace_for_thread(
     sentry_value_t temp_frames[MAX_STACK_FRAMES];
     int frame_count = 0;
 
+#if defined(SENTRY_PLATFORM_LINUX)
+    // Remote DWARF unwinding via libunwind ptrace accessors. Do not attach to
+    // the crashed thread from the daemon; use the saved fault context below.
+    {
+#    ifdef SENTRY_WITH_UNWINDER_LIBUNWIND_REMOTE
+        pid_t tid = 0;
+        if (thread_idx == SIZE_MAX) {
+            tid = ctx->crashed_tid;
+        } else if (thread_idx < ctx->platform.num_threads) {
+            tid = ctx->platform.threads[thread_idx].tid;
+        }
+
+        bool is_crashed_thread
+            = thread_idx == SIZE_MAX || tid == ctx->crashed_tid;
+
+        if (tid > 0 && !is_crashed_thread) {
+            sentry_remote_registers_t registers = { 0 };
+            sentry_remote_frame_t *remote_frames
+                = sentry_malloc(sizeof(*remote_frames) * MAX_STACK_FRAMES);
+            size_t remote_count = remote_frames
+                ? sentry__unwind_stack_from_thread(
+                      tid, remote_frames, MAX_STACK_FRAMES, &registers)
+                : 0;
+
+            if (remote_count > 0) {
+                SENTRY_DEBUGF("Remote unwound %zu frames for thread %d",
+                    remote_count, tid);
+
+                for (size_t i = 0;
+                    i < remote_count && frame_count < MAX_STACK_FRAMES; i++) {
+                    if (remote_frames[i].ip == 0
+                        || !is_valid_code_addr(remote_frames[i].ip)) {
+                        continue;
+                    }
+                    temp_frames[frame_count] = sentry_value_new_object();
+                    sentry_value_set_by_key(temp_frames[frame_count],
+                        "instruction_addr",
+                        sentry__value_new_addr(remote_frames[i].ip));
+                    // Trust describes the unwind source, not the emitted
+                    // frame index. If the initial cursor frame is filtered
+                    // out, the next emitted frame was still reached via CFI.
+                    sentry_value_set_by_key(temp_frames[frame_count], "trust",
+                        sentry_value_new_string(i == 0 ? "context" : "cfi"));
+                    enrich_frame_with_module_info(
+                        ctx, temp_frames[frame_count], remote_frames[i].ip);
+                    if (remote_frames[i].symbol[0]) {
+                        sentry_value_set_by_key(temp_frames[frame_count],
+                            "function",
+                            sentry_value_new_string(remote_frames[i].symbol));
+                        if (remote_frames[i].symbol_offset > 0
+                            && remote_frames[i].symbol_offset
+                                <= remote_frames[i].ip) {
+                            sentry_value_set_by_key(temp_frames[frame_count],
+                                "symbol_addr",
+                                sentry__value_new_addr(remote_frames[i].ip
+                                    - remote_frames[i].symbol_offset));
+                        }
+                    }
+                    frame_count++;
+                }
+
+                if (frame_count > 0) {
+                    if (stack_buf) {
+                        sentry_free(stack_buf);
+                    }
+
+                    for (int i = frame_count - 1; i >= 0; i--) {
+                        sentry_value_append(frames, temp_frames[i]);
+                    }
+                    sentry_value_set_by_key(stacktrace, "frames", frames);
+                    if (registers.count > 0) {
+                        sentry_value_set_by_key(stacktrace, "registers",
+                            build_registers_from_remote_registers(&registers));
+                    }
+                    sentry_free(remote_frames);
+                    return stacktrace;
+                }
+            }
+
+            if (remote_frames) {
+                sentry_free(remote_frames);
+            }
+        }
+#    endif
+    }
+    // Fall through to pre-captured backtrace or FP-walking if remote
+    // unwinding failed
+#endif
+
 #if defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID)
-    // Use pre-captured libunwind backtrace if available (DWARF-based, works
-    // without frame pointers). This is preferred over FP-based walking for
-    // the crashed thread.
+    // Fallback: use pre-captured libunwind backtrace if available
+    // (DWARF-based, works without frame pointers).
     if (ctx->platform.backtrace_count > 0
         && (thread_idx == SIZE_MAX || thread_idx == 0)) {
         SENTRY_DEBUGF("Using pre-captured libunwind backtrace (%zu frames)",
@@ -919,10 +1043,14 @@ build_stacktrace_for_thread(
             temp_frames[frame_count] = sentry_value_new_object();
             sentry_value_set_by_key(temp_frames[frame_count],
                 "instruction_addr", sentry__value_new_addr(frame_ip));
+            // Trust describes the unwind source, not the emitted frame index.
+            // If the initial cursor frame is filtered out, the next emitted
+            // frame was still reached via CFI.
             sentry_value_set_by_key(temp_frames[frame_count], "trust",
                 sentry_value_new_string(i == 0 ? "context" : "cfi"));
             enrich_frame_with_module_info(
                 ctx, temp_frames[frame_count], frame_ip);
+            enrich_frame_with_symbol(ctx, temp_frames[frame_count], frame_ip);
             frame_count++;
         }
 
@@ -957,6 +1085,9 @@ build_stacktrace_for_thread(
         sentry_value_set_by_key(temp_frames[frame_count], "trust",
             sentry_value_new_string("context"));
         enrich_frame_with_module_info(ctx, temp_frames[frame_count], ip);
+#if defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID)
+        enrich_frame_with_symbol(ctx, temp_frames[frame_count], ip);
+#endif
         frame_count++;
     }
 
@@ -1015,6 +1146,10 @@ build_stacktrace_for_thread(
                 sentry_value_new_string("fp"));
             enrich_frame_with_module_info(
                 ctx, temp_frames[frame_count], return_addr);
+#if defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID)
+            enrich_frame_with_symbol(
+                ctx, temp_frames[frame_count], return_addr);
+#endif
             frame_count++;
             walk_count++;
 
@@ -1129,64 +1264,204 @@ extract_elf_build_id_for_module(
     // Look for .note.gnu.build-id section
     size_t build_id_len = 0;
     for (int i = 0; i < ehdr.e_shnum; i++) {
-        if (sections[i].sh_type == SHT_NOTE) {
-            // Read note section
-            size_t note_size = sections[i].sh_size;
-            if (note_size > 4096) {
-                continue; // Sanity check
-            }
-
-            void *note_buf = sentry_malloc(note_size);
-            if (!note_buf) {
-                continue;
-            }
-
-            if (lseek(fd, sections[i].sh_offset, SEEK_SET)
-                    == (off_t)sections[i].sh_offset
-                && read(fd, note_buf, note_size) == (ssize_t)note_size) {
-
-                // Parse notes
-                uint8_t *ptr = (uint8_t *)note_buf;
-                uint8_t *end = ptr + note_size;
-
-                while (ptr + 12 <= end) {
-#    if defined(__x86_64__) || defined(__aarch64__)
-                    Elf64_Nhdr *nhdr = (Elf64_Nhdr *)ptr;
-#    else
-                    Elf32_Nhdr *nhdr = (Elf32_Nhdr *)ptr;
-#    endif
-                    ptr += sizeof(*nhdr);
-
-                    if (ptr + nhdr->n_namesz + nhdr->n_descsz > end) {
-                        break;
-                    }
-
-                    // Check if this is GNU Build ID (type 3, name "GNU\0")
-                    if (nhdr->n_type == 3 && nhdr->n_namesz == 4
-                        && memcmp(ptr, "GNU", 4) == 0) {
-
-                        ptr += ((nhdr->n_namesz + 3) & ~3); // Align to 4 bytes
-                        size_t len = nhdr->n_descsz < max_len ? nhdr->n_descsz
-                                                              : max_len;
-                        memcpy(build_id, ptr, len);
-                        build_id_len = len;
-                        sentry_free(note_buf);
-                        goto done;
-                    }
-
-                    ptr += ((nhdr->n_namesz + 3) & ~3);
-                    ptr += ((nhdr->n_descsz + 3) & ~3);
-                }
-            }
-
-            sentry_free(note_buf);
+        if (sections[i].sh_type != SHT_NOTE) {
+            continue;
         }
+
+        size_t note_size = sections[i].sh_size;
+        if (note_size > 4096) {
+            continue; // Sanity check
+        }
+
+        void *note_buf = sentry_malloc(note_size);
+        if (!note_buf) {
+            continue;
+        }
+
+        if (lseek(fd, sections[i].sh_offset, SEEK_SET)
+                != (off_t)sections[i].sh_offset
+            || read(fd, note_buf, note_size) != (ssize_t)note_size) {
+            sentry_free(note_buf);
+            continue;
+        }
+
+        size_t desc_size;
+        const void *desc = sentry__elf_find_note(
+            note_buf, note_size, 4, NT_GNU_BUILD_ID, "GNU", 4, &desc_size);
+
+        if (desc) {
+            size_t len = desc_size < max_len ? desc_size : max_len;
+            memcpy(build_id, desc, len);
+            build_id_len = len;
+            sentry_free(note_buf);
+            goto done;
+        }
+
+        sentry_free(note_buf);
     }
 
 done:
     sentry_free(shdr_buf);
     close(fd);
     return build_id_len;
+}
+
+/**
+ * Resolve the symbol name for a given instruction address from an ELF symbol
+ * table and set the "function" key on the frame value.
+ */
+static void
+enrich_frame_with_symbol(
+    const sentry_crash_context_t *ctx, sentry_value_t frame, uint64_t addr)
+{
+    uint32_t module_count = MIN(ctx->module_count, SENTRY_CRASH_MAX_MODULES);
+    for (uint32_t i = 0; i < module_count; i++) {
+        const sentry_module_info_t *mod = &ctx->modules[i];
+        if (addr < mod->base_address || addr >= mod->base_address + mod->size) {
+            continue;
+        }
+
+        uint64_t offset = addr - mod->base_address;
+
+        int fd = open(mod->name, O_RDONLY);
+        if (fd < 0) {
+            return;
+        }
+
+#    if defined(__x86_64__) || defined(__aarch64__)
+        Elf64_Ehdr ehdr;
+#    else
+        Elf32_Ehdr ehdr;
+#    endif
+        if (read(fd, &ehdr, sizeof(ehdr)) != sizeof(ehdr)) {
+            close(fd);
+            return;
+        }
+
+        if (memcmp(ehdr.e_ident, ELFMAG, SELFMAG) != 0
+            || !sentry__elf_is_native_class(ehdr.e_ident)
+            || !sentry__elf_has_shdr_size(ehdr.e_ident, ehdr.e_shentsize)) {
+            close(fd);
+            return;
+        }
+
+        size_t shdr_size = (size_t)ehdr.e_shentsize * ehdr.e_shnum;
+        void *shdr_buf = sentry_malloc(shdr_size);
+        if (!shdr_buf) {
+            close(fd);
+            return;
+        }
+
+        if (lseek(fd, ehdr.e_shoff, SEEK_SET) != (off_t)ehdr.e_shoff
+            || read(fd, shdr_buf, shdr_size) != (ssize_t)shdr_size) {
+            sentry_free(shdr_buf);
+            close(fd);
+            return;
+        }
+
+#    if defined(__x86_64__) || defined(__aarch64__)
+        Elf64_Shdr *sections = (Elf64_Shdr *)shdr_buf;
+#    else
+        Elf32_Shdr *sections = (Elf32_Shdr *)shdr_buf;
+#    endif
+
+        // Find symbol table section - prefer .dynsym (always present in .so),
+        // fall back to .symtab
+        int symtab_idx = -1;
+        for (int j = 0; j < ehdr.e_shnum; j++) {
+            if (sections[j].sh_type == SHT_DYNSYM) {
+                symtab_idx = j;
+                break;
+            }
+        }
+        if (symtab_idx < 0) {
+            for (int j = 0; j < ehdr.e_shnum; j++) {
+                if (sections[j].sh_type == SHT_SYMTAB) {
+                    symtab_idx = j;
+                    break;
+                }
+            }
+        }
+
+        if (symtab_idx >= 0
+            && sentry__elf_has_sym_entsize(
+                ehdr.e_ident, sections[symtab_idx].sh_entsize)) {
+            // For ET_DYN (shared libs, PIE) st_value is base-relative; for
+            // ET_EXEC (non-PIE) st_value is an absolute virtual address.
+            uint64_t sym_target = ehdr.e_type == ET_EXEC ? addr : offset;
+            size_t sym_size = sections[symtab_idx].sh_size;
+            size_t sym_count = sym_size / sections[symtab_idx].sh_entsize;
+            int strtab_idx = sections[symtab_idx].sh_link;
+            if (strtab_idx < 0 || (size_t)strtab_idx >= ehdr.e_shnum) {
+                sentry_free(shdr_buf);
+                close(fd);
+                return;
+            }
+
+            void *sym_buf = sentry_malloc(sym_size);
+            void *strtab_buf = NULL;
+
+            if (sym_buf
+                && lseek(fd, sections[symtab_idx].sh_offset, SEEK_SET)
+                    == (off_t)sections[symtab_idx].sh_offset
+                && read(fd, sym_buf, sym_size) == (ssize_t)sym_size) {
+
+                size_t strtab_size = sections[strtab_idx].sh_size;
+                strtab_buf = sentry_malloc(strtab_size);
+                if (strtab_buf
+                    && lseek(fd, sections[strtab_idx].sh_offset, SEEK_SET)
+                        == (off_t)sections[strtab_idx].sh_offset
+                    && read(fd, strtab_buf, strtab_size)
+                        == (ssize_t)strtab_size) {
+
+                    const char *best_name = NULL;
+                    uint64_t best_value = 0;
+
+#    if defined(__x86_64__) || defined(__aarch64__)
+                    Elf64_Sym *syms = (Elf64_Sym *)sym_buf;
+                    for (size_t k = 1; k < sym_count; k++) {
+                        unsigned char sym_type = ELF64_ST_TYPE(syms[k].st_info);
+#    else
+                    Elf32_Sym *syms = (Elf32_Sym *)sym_buf;
+                    for (size_t k = 1; k < sym_count; k++) {
+                        unsigned char sym_type = ELF32_ST_TYPE(syms[k].st_info);
+#    endif
+                        if (syms[k].st_value == 0
+                            || syms[k].st_value > sym_target) {
+                            continue;
+                        }
+                        if (sym_type != STT_FUNC && sym_type != STT_NOTYPE) {
+                            continue;
+                        }
+                        if (!best_name || syms[k].st_value > best_value) {
+                            if (syms[k].st_name < strtab_size) {
+                                const char *name = (const char *)strtab_buf
+                                    + syms[k].st_name;
+                                if (name[0]
+                                    && memchr(name, '\0',
+                                        strtab_size - syms[k].st_name)) {
+                                    best_name = name;
+                                    best_value = syms[k].st_value;
+                                }
+                            }
+                        }
+                    }
+
+                    if (best_name) {
+                        sentry_value_set_by_key(frame, "function",
+                            sentry_value_new_string(best_name));
+                    }
+                }
+            }
+
+            sentry_free(sym_buf);
+            sentry_free(strtab_buf);
+        }
+
+        sentry_free(shdr_buf);
+        close(fd);
+        return;
+    }
 }
 
 /**
@@ -2054,6 +2329,12 @@ build_native_crash_event(
             sentry_value_set_by_key(
                 thread, "id", sentry_value_new_int32((int32_t)tctx->tid));
 
+            // Set thread name if available
+            if (tctx->name[0] != '\0') {
+                sentry_value_set_by_key(
+                    thread, "name", sentry_value_new_string(tctx->name));
+            }
+
             bool is_crashed = (tctx->tid == (uint64_t)ctx->crashed_tid);
             sentry_value_set_by_key(
                 thread, "crashed", sentry_value_new_bool(is_crashed));
@@ -2164,11 +2445,12 @@ build_native_crash_event(
     // Add debug_meta with module images from crashed process
     // (ctx->modules[] was captured in the signal handler of the crashed
     // process)
-    SENTRY_DEBUGF("Module count for debug_meta: %u", ctx->module_count);
-    if (ctx->module_count > 0) {
+    uint32_t module_count = MIN(ctx->module_count, SENTRY_CRASH_MAX_MODULES);
+    SENTRY_DEBUGF("Module count for debug_meta: %u", module_count);
+    if (module_count > 0) {
         sentry_value_t images = sentry_value_new_list();
 
-        for (uint32_t i = 0; i < ctx->module_count; i++) {
+        for (uint32_t i = 0; i < module_count; i++) {
             const sentry_module_info_t *mod = &ctx->modules[i];
             sentry_value_t image = sentry_value_new_object();
 
@@ -2286,7 +2568,7 @@ build_native_crash_event(
         sentry_value_set_by_key(debug_meta, "images", images);
         sentry_value_set_by_key(event, "debug_meta", debug_meta);
         SENTRY_DEBUGF("Added %u modules from crashed process to debug_meta",
-            ctx->module_count);
+            module_count);
     } else {
         SENTRY_WARN("No modules captured - debug_meta.images will be empty!");
     }
@@ -2310,7 +2592,8 @@ write_envelope_with_native_stacktrace(const sentry_options_t *options,
     sentry_value_t event = build_native_crash_event(ctx, event_file_path);
 
     // Serialize event to JSON
-    char *event_json = sentry_value_to_json(event);
+    size_t event_size = 0;
+    char *event_json = sentry__value_to_json(event, &event_size);
     char *event_id = sentry__string_clone(
         sentry_value_as_string(sentry_value_get_by_key(event, "event_id")));
     sentry_value_decref(event);
@@ -2320,8 +2603,6 @@ write_envelope_with_native_stacktrace(const sentry_options_t *options,
         sentry_free(event_id);
         return false;
     }
-
-    size_t event_size = strlen(event_json);
 
     // Open envelope file for writing
 #if defined(SENTRY_PLATFORM_UNIX)
@@ -2805,10 +3086,11 @@ write_envelope_with_minidump(const sentry_options_t *options,
  *
  * Called by the crash daemon (out-of-process on Linux/macOS).
  */
-void
+bool
 sentry__process_crash(const sentry_options_t *options, sentry_crash_ipc_t *ipc)
 {
     SENTRY_DEBUG("Processing crash - START");
+    bool crash_captured = false;
 
     sentry_crash_context_t *ctx = ipc->shmem;
 
@@ -3119,11 +3401,14 @@ sentry__process_crash(const sentry_options_t *options, sentry_crash_ipc_t *ipc)
         if (options && options->transport && options->run) {
             SENTRY_DEBUG("Capturing crash envelope");
             sentry__capture_envelope(options->transport, envelope, options);
+            crash_captured = true;
             SENTRY_DEBUG("Crash envelope captured (queued)");
         } else {
             SENTRY_WARN("No transport available for sending envelope");
             sentry_envelope_free(envelope);
         }
+    } else {
+        crash_captured = true;
     }
 
     // Clean up temporary envelope file (keep minidump for
@@ -3194,6 +3479,7 @@ cleanup:
 done:
     SENTRY_DEBUG("Processing crash - END");
     SENTRY_DEBUG("Crash processing complete");
+    return crash_captured;
 }
 
 /**
@@ -3481,8 +3767,20 @@ sentry__crash_daemon_main(pid_t app_pid, uint64_t app_tid, HANDLE event_handle,
             long state = sentry__atomic_fetch(&ipc->shmem->state);
             if (state == SENTRY_CRASH_STATE_CRASHED && !crash_processed) {
                 SENTRY_DEBUG("Crash notification received, processing");
-                sentry__process_crash(options, ipc);
+                bool crash_captured = sentry__process_crash(options, ipc);
                 crash_processed = true;
+
+                if (crash_captured
+                    && ipc->shmem->crash_upload_mode
+                        == SENTRY_CRASH_UPLOAD_MODE_ASYNC) {
+                    // Crash data is durable after processing returns;
+                    // remaining daemon work does not require the crashed
+                    // process.
+                    SENTRY_DEBUG(
+                        "Crash captured, allowing app process to exit");
+                    sentry__atomic_store(
+                        &ipc->shmem->state, SENTRY_CRASH_STATE_CAPTURED);
+                }
 
                 // After processing crash, exit regardless of parent state
                 // (parent has likely already exited after re-raising signal)

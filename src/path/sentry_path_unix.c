@@ -229,6 +229,18 @@ sentry__path_is_file(const sentry_path_t *path)
     return stat(path->path, &buf) == 0 && S_ISREG(buf.st_mode);
 }
 
+bool
+sentry__path_is_symlink(const sentry_path_t *path)
+{
+#if defined(SENTRY_PLATFORM_NX) || defined(SENTRY_PLATFORM_PS)
+    (void)path;
+    return false;
+#else
+    struct stat buf;
+    return lstat(path->path, &buf) == 0 && S_ISLNK(buf.st_mode);
+#endif
+}
+
 size_t
 sentry__path_get_size(const sentry_path_t *path)
 {
@@ -309,7 +321,7 @@ int
 sentry__path_remove(const sentry_path_t *path)
 {
     int status;
-    if (!sentry__path_is_dir(path)) {
+    if (!sentry__path_is_dir(path) || sentry__path_is_symlink(path)) {
         EINTR_RETRY(unlink(path->path), &status);
         if (status == 0) {
             return 0;

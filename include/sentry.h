@@ -1076,6 +1076,25 @@ typedef enum {
 } sentry_crash_reporting_mode_t;
 
 /**
+ * Crash upload mode for the native backend.
+ * Controls whether the crashed application remains blocked while upload and
+ * shutdown work finishes after crash data has been captured.
+ */
+typedef enum {
+    /**
+     * Keep the crashed application blocked until the native crash daemon
+     * finishes upload and shutdown work.
+     */
+    SENTRY_CRASH_UPLOAD_MODE_SYNC = 0,
+
+    /**
+     * Allow the crashed application to terminate after crash data has been
+     * captured. The native crash daemon continues upload and shutdown work.
+     */
+    SENTRY_CRASH_UPLOAD_MODE_ASYNC = 1,
+} sentry_crash_upload_mode_t;
+
+/**
  * Controls if and when envelopes are kept in the persistent cache.
  */
 typedef enum {
@@ -1838,10 +1857,10 @@ SENTRY_EXPERIMENTAL_API int sentry_set_thread_stack_guarantee(
 /**
  * Enables forwarding to the system crash reporter. Disabled by default.
  *
- * This setting only has an effect when using Crashpad on macOS. If enabled,
- * Crashpad forwards crashes to the macOS system crash reporter. Depending
- * on the crash, this may impact the crash time. Even if enabled, Crashpad
- * may choose not to forward certain crashes.
+ * This setting only has an effect when using the crashpad or native backend on
+ * macOS. If enabled, the crash handler forwards crashes to the macOS system
+ * crash reporter. Depending on the crash, this may impact the crash time. Even
+ * if enabled, the crash handler may choose not to forward certain crashes.
  */
 SENTRY_API void sentry_options_set_system_crash_reporter_enabled(
     sentry_options_t *opts, int enabled);
@@ -1883,6 +1902,27 @@ SENTRY_API void sentry_options_set_crash_reporting_mode(
  */
 SENTRY_API sentry_crash_reporting_mode_t
 sentry_options_get_crash_reporting_mode(const sentry_options_t *opts);
+
+/**
+ * Sets the crash upload mode for the native backend.
+ *
+ * This setting controls what happens after crash data has been captured. In
+ * sync mode, the crashed application remains blocked while the native crash
+ * daemon finishes upload and shutdown work. In async mode, the crashed
+ * application can terminate after crash data has been captured while the daemon
+ * continues upload and shutdown work.
+ *
+ * This setting only has an effect when using the `native` backend.
+ * Default is `SENTRY_CRASH_UPLOAD_MODE_SYNC`.
+ */
+SENTRY_API void sentry_options_set_crash_upload_mode(
+    sentry_options_t *opts, sentry_crash_upload_mode_t mode);
+
+/**
+ * Gets the crash upload mode for the native backend.
+ */
+SENTRY_API sentry_crash_upload_mode_t sentry_options_get_crash_upload_mode(
+    const sentry_options_t *opts);
 
 /**
  * Enables a wait for the crash report upload to be finished before shutting

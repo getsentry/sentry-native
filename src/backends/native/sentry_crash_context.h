@@ -122,7 +122,8 @@ typedef enum {
     SENTRY_CRASH_STATE_READY = 0,
     SENTRY_CRASH_STATE_CRASHED = 1,
     SENTRY_CRASH_STATE_PROCESSING = 2,
-    SENTRY_CRASH_STATE_DONE = 3
+    SENTRY_CRASH_STATE_CAPTURED = 3,
+    SENTRY_CRASH_STATE_DONE = 4
 } sentry_crash_state_t;
 
 /**
@@ -186,6 +187,7 @@ typedef struct {
     _STRUCT_MCONTEXT state;
     char stack_path[SENTRY_CRASH_MAX_PATH]; // Path to saved stack memory file
     uint64_t stack_size; // Size of captured stack
+    char name[64]; // Thread name from pthread_setname_np
 } sentry_thread_context_darwin_t;
 
 /**
@@ -274,6 +276,7 @@ typedef struct {
     // Configuration (set by app during init)
     sentry_minidump_mode_t minidump_mode;
     int crash_reporting_mode; // sentry_crash_reporting_mode_t
+    int crash_upload_mode; // sentry_crash_upload_mode_t
     bool debug_enabled; // Debug logging enabled in parent process
     bool attach_screenshot; // Screenshot attachment enabled in parent process
     bool attach_session_replay; // Session replay attachment enabled in parent
@@ -286,6 +289,7 @@ typedef struct {
     bool http_retry;
     uint64_t shutdown_timeout;
     uint64_t transfer_timeout;
+    bool system_crash_reporter_enabled;
 
     // Atomic user consent (sentry_user_consent_t), updated whenever user
     // consent changes so the daemon can honor it at crash time.

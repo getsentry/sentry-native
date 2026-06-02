@@ -321,10 +321,15 @@ parse_sentry_trace(
     }
 
     const char *span_id_start = trace_id_end + 1;
-    const char *span_id_end = strchr(span_id_start, '-');
+    const char *value_end = value + value_len;
+    const char *span_id_end
+        = memchr(span_id_start, '-', (size_t)(value_end - span_id_start));
+    const size_t span_id_len
+        = (size_t)((span_id_end ? span_id_end : value_end) - span_id_start);
     if (!span_id_end) {
         // no sampled flag
-        sentry_value_t parent_span_id = sentry_value_new_string(span_id_start);
+        sentry_value_t parent_span_id
+            = sentry_value_new_string_n(span_id_start, span_id_len);
         if (!is_valid_span_id(sentry_value_as_string(parent_span_id))) {
             sentry_value_decref(parent_span_id);
             return;
@@ -334,8 +339,7 @@ parse_sentry_trace(
     }
     // else: we have a sampled flag
 
-    s = sentry__string_clone_n(
-        span_id_start, (size_t)(span_id_end - span_id_start));
+    s = sentry__string_clone_n(span_id_start, span_id_len);
     if (!is_valid_span_id(s)) {
         sentry_free(s);
         return;
@@ -343,7 +347,7 @@ parse_sentry_trace(
     sentry_value_t parent_span_id = sentry__value_new_string_owned(s);
     sentry_value_set_by_key(inner, "parent_span_id", parent_span_id);
 
-    bool sampled = *(span_id_end + 1) == '1';
+    bool sampled = span_id_end + 1 < value_end && *(span_id_end + 1) == '1';
     sentry_value_set_by_key(inner, "sampled", sentry_value_new_bool(sampled));
 }
 

@@ -102,6 +102,7 @@ struct sentry_options_s {
                        // sentry_crash_context.h)
     int crash_reporting_mode; // 0=minidump, 1=native, 2=native_with_minidump
                               // (see sentry_crash_reporting_mode_t)
+    int crash_upload_mode; // 0=sync, 1=async (see sentry_crash_upload_mode_t)
 
 #ifdef SENTRY_PLATFORM_NX
     void (*network_connect_func)(void);
