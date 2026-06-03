@@ -3120,6 +3120,17 @@ write_envelope_with_minidump(const sentry_options_t *options,
         }
     }
 
+    // Add Report.wer if captured by WER
+    if (ctx->attach_wer_report && run_folder) {
+        sentry_path_t *report_path
+            = sentry__path_join_str(run_folder, "Report.wer");
+        if (report_path) {
+            write_attachment_to_envelope(
+                fd, report_path->path, "Report.wer", NULL, "text/plain");
+            sentry__path_free(report_path);
+        }
+    }
+
 #if defined(SENTRY_PLATFORM_UNIX)
     close(fd);
 #elif defined(SENTRY_PLATFORM_WINDOWS)
@@ -3351,8 +3362,7 @@ sentry__process_crash(const sentry_options_t *options, sentry_crash_ipc_t *ipc)
         }
     }
 
-    if (ctx->platform.wer_enabled && ctx->attach_wer_report
-        && !sentry__string_empty(ctx->platform.wer_report_id) && run_folder) {
+    if (ctx->platform.wer_enabled && ctx->attach_wer_report && run_folder) {
         SENTRY_DEBUG("Waiting for WER");
         sentry__atomic_store(&ctx->state, SENTRY_CRASH_STATE_POSTPROCESSING);
 
