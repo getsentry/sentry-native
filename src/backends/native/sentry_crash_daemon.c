@@ -2213,6 +2213,7 @@ enumerate_threads_from_process(sentry_crash_context_t *ctx)
 #    endif // SENTRY_PLATFORM_XBOX
 }
 
+#    if !defined(SENTRY_PLATFORM_XBOX)
 typedef HRESULT(WINAPI *WerStoreOpen_t)(REPORT_STORE_TYPES, HREPORTSTORE *);
 typedef void(WINAPI *WerStoreClose_t)(HREPORTSTORE);
 typedef HRESULT(WINAPI *WerStoreGetFirstReportKey_t)(HREPORTSTORE, PCWSTR *);
@@ -2231,7 +2232,7 @@ static struct {
     WerFreeString_t WerFreeString;
 } g_wer = { NULL, NULL, NULL, NULL, NULL, NULL, NULL };
 
-#    define WER_FAILED ((HMODULE)(intptr_t)-1)
+#        define WER_FAILED ((HMODULE)(intptr_t)-1)
 
 static bool
 resolve_wer(void)
@@ -2365,6 +2366,7 @@ cleanup:
     sentry__path_free(run_path);
     return rv == 0;
 }
+#    endif // !SENTRY_PLATFORM_XBOX
 #endif // SENTRY_PLATFORM_WINDOWS
 
 /**
@@ -3478,6 +3480,7 @@ sentry__process_crash(const sentry_options_t *options, sentry_crash_ipc_t *ipc)
         }
     }
 
+#    if !defined(SENTRY_PLATFORM_XBOX)
     if (ctx->platform.wer_enabled && ctx->attach_wer_report && run_folder) {
         SENTRY_DEBUG("Waiting for WER, allowing app process to exit");
         sentry__atomic_store(&ctx->state, SENTRY_CRASH_STATE_PROCESSED);
@@ -3503,6 +3506,7 @@ sentry__process_crash(const sentry_options_t *options, sentry_crash_ipc_t *ipc)
             elapsed_ms += SENTRY_CRASH_HANDLER_POLL_INTERVAL_MS;
         }
     }
+#    endif
 #endif
 
     // Write envelope based on mode
