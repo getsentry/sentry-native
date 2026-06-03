@@ -12,9 +12,13 @@
 #if defined(SENTRY_APP_HANG_HOST_SUPPORTED)
 #    include "sentry_sync.h"
 
-#    include <pthread.h>
-#    include <stdatomic.h>
-#    include <time.h>
+#    if defined(SENTRY_PLATFORM_WINDOWS)
+#        include <windows.h>
+#    elif defined(SENTRY_PLATFORM_MACOS)
+#        include <pthread.h>
+#        include <stdatomic.h>
+#        include <time.h>
+#    endif
 #endif
 
 sentry_app_hang_decision_t
@@ -89,6 +93,48 @@ sentry__app_hang_set_shmem(sentry_crash_context_t *ctx)
     sentry__mutex_unlock(&g_app_hang_lock);
 }
 
+#    if defined(SENTRY_PLATFORM_WINDOWS)
+
+uint64_t
+sentry__app_hang_now_ms(void)
+{
+    ULONGLONG ticks_100ns = 0;
+    /* QueryUnbiasedInterruptTime is documented signal/SEH/wait-free; the
+     * same source is read on both sides of the IPC. */
+    if (!QueryUnbiasedInterruptTime(&ticks_100ns)) {
+        return 0;
+    }
+    return (uint64_t)(ticks_100ns / 10000ULL);
+}
+
+static void
+app_hang_record_heartbeat(sentry_crash_context_t *ctx)
+{
+    DWORD current_tid = GetCurrentThreadId();
+
+    /* Self-register on the first heartbeat: CAS the current TID into the latch
+     * slot iff still unset — the first thread to heartbeat wins and becomes the
+     * monitored target. CAS (rather than a plain store) prevents a late call
+     * from a different thread from silently overwriting a prior latch. */
+    InterlockedCompareExchange64((LONG64 volatile *)&ctx->app_hang_target_tid,
+        (LONG64)(uint64_t)current_tid, 0);
+
+    /* Drop the heartbeat unless the latched thread is us, so a stray heartbeat
+     * from another thread cannot mask a frozen monitored thread. The non-atomic
+     * read can tear on x86; in that case the compare fails and we drop a
+     * heartbeat, which the daemon absorbs. */
+    uint64_t latched = ctx->app_hang_target_tid;
+    if (latched == 0 || (DWORD)latched != current_tid) {
+        return;
+    }
+
+    /* Relaxed 64-bit store. On x64 this is a single mov. On x86 the value
+     * may tear, but that is OK — see the comment in sentry_crash_context.h. */
+    ctx->app_hang_last_heartbeat_ms = sentry__app_hang_now_ms();
+}
+
+#    elif defined(SENTRY_PLATFORM_MACOS)
+
 uint64_t
 sentry__app_hang_now_ms(void)
 {
@@ -132,6 +178,8 @@ app_hang_record_heartbeat(sentry_crash_context_t *ctx)
     ctx->app_hang_last_heartbeat_ms = sentry__app_hang_now_ms();
 }
 
+#    endif
+
 void
 sentry_app_hang_heartbeat(void)
 {
@@ -152,7 +200,7 @@ sentry_app_hang_heartbeat(void)
 void
 sentry_app_hang_heartbeat(void)
 {
-    /* No-op on non-macOS targets in this initial cut. */
+    /* No-op on unsupported targets in this initial cut. */
 }
 
 #endif

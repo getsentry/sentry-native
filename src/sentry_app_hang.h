@@ -7,9 +7,11 @@
 #include <stdint.h>
 
 /* The host-side heartbeat machinery (clock, latch, shmem registration) is
- * available on the native backend on macOS. Windows, Linux, and other targets
- * fall back to no-op stubs. */
-#if defined(SENTRY_PLATFORM_MACOS) && defined(SENTRY_BACKEND_NATIVE)
+ * available on the native backend on Windows (non-Xbox) and macOS. Linux and
+ * other targets fall back to no-op stubs. */
+#if (((defined(SENTRY_PLATFORM_WINDOWS) && !defined(SENTRY_PLATFORM_XBOX))        \
+         || defined(SENTRY_PLATFORM_MACOS)))                                      \
+    && defined(SENTRY_BACKEND_NATIVE)
 #    define SENTRY_APP_HANG_HOST_SUPPORTED 1
 #endif
 
