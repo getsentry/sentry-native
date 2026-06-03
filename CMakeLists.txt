@@ -912,9 +912,6 @@ elseif(SENTRY_BACKEND_NATIVE)
 	add_dependencies(sentry sentry-crash)
 	if(WIN32 AND NOT XBOX)
 		add_dependencies(sentry sentry-wer)
-		# TODO: resolve symbols at run-time
-		target_link_libraries(sentry PRIVATE wer)
-		target_link_libraries(sentry-crash PRIVATE wer)
 	endif()
 
 	# Install daemon

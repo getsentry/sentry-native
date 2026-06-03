@@ -2213,21 +2213,84 @@ enumerate_threads_from_process(sentry_crash_context_t *ctx)
 #    endif // SENTRY_PLATFORM_XBOX
 }
 
+typedef HRESULT(WINAPI *WerStoreOpen_t)(REPORT_STORE_TYPES, HREPORTSTORE *);
+typedef void(WINAPI *WerStoreClose_t)(HREPORTSTORE);
+typedef HRESULT(WINAPI *WerStoreGetFirstReportKey_t)(HREPORTSTORE, PCWSTR *);
+typedef HRESULT(WINAPI *WerStoreGetNextReportKey_t)(HREPORTSTORE, PCWSTR *);
+typedef HRESULT(WINAPI *WerStoreQueryReportMetadataV2_t)(
+    HREPORTSTORE, PCWSTR, PWER_REPORT_METADATA_V2);
+typedef void(WINAPI *WerFreeString_t)(PCWSTR);
+
+static struct {
+    HMODULE module;
+    WerStoreOpen_t WerStoreOpen;
+    WerStoreClose_t WerStoreClose;
+    WerStoreGetFirstReportKey_t WerStoreGetFirstReportKey;
+    WerStoreGetNextReportKey_t WerStoreGetNextReportKey;
+    WerStoreQueryReportMetadataV2_t WerStoreQueryReportMetadataV2;
+    WerFreeString_t WerFreeString;
+} g_wer = { NULL, NULL, NULL, NULL, NULL, NULL, NULL };
+
+#    define WER_FAILED ((HMODULE)(intptr_t)-1)
+
+static bool
+resolve_wer(void)
+{
+    if (g_wer.module) {
+        return g_wer.module != WER_FAILED;
+    }
+
+    g_wer.module = LoadLibraryW(L"wer.dll");
+    if (!g_wer.module) {
+        g_wer.module = WER_FAILED;
+        return false;
+    }
+
+    g_wer.WerStoreOpen
+        = (WerStoreOpen_t)GetProcAddress(g_wer.module, "WerStoreOpen");
+    g_wer.WerStoreClose
+        = (WerStoreClose_t)GetProcAddress(g_wer.module, "WerStoreClose");
+    g_wer.WerStoreGetFirstReportKey
+        = (WerStoreGetFirstReportKey_t)GetProcAddress(
+            g_wer.module, "WerStoreGetFirstReportKey");
+    g_wer.WerStoreGetNextReportKey = (WerStoreGetNextReportKey_t)GetProcAddress(
+        g_wer.module, "WerStoreGetNextReportKey");
+    g_wer.WerStoreQueryReportMetadataV2
+        = (WerStoreQueryReportMetadataV2_t)GetProcAddress(
+            g_wer.module, "WerStoreQueryReportMetadataV2");
+    g_wer.WerFreeString
+        = (WerFreeString_t)GetProcAddress(g_wer.module, "WerFreeString");
+
+    if (!g_wer.WerStoreOpen || !g_wer.WerStoreClose
+        || !g_wer.WerStoreGetFirstReportKey || !g_wer.WerStoreGetNextReportKey
+        || !g_wer.WerStoreQueryReportMetadataV2 || !g_wer.WerFreeString) {
+        FreeLibrary(g_wer.module);
+        g_wer.module = WER_FAILED;
+        return false;
+    }
+
+    return true;
+}
+
 static sentry_path_t *
 find_wer_report(sentry_uuid_t *report_id)
 {
+    if (!resolve_wer()) {
+        return NULL;
+    }
+
     HREPORTSTORE report_store;
-    if (WerStoreOpen(E_STORE_MACHINE_ARCHIVE, &report_store) != S_OK) {
+    if (g_wer.WerStoreOpen(E_STORE_MACHINE_ARCHIVE, &report_store) != S_OK) {
         return NULL;
     }
 
     PCWSTR report_key = NULL;
     sentry_path_t *report_path = NULL;
-    WER_REPORT_METADATA_V3 report_data = { 0 };
+    WER_REPORT_METADATA_V2 report_data = { 0 };
 
-    HRESULT hr = WerStoreGetFirstReportKey(report_store, &report_key);
+    HRESULT hr = g_wer.WerStoreGetFirstReportKey(report_store, &report_key);
     while (SUCCEEDED(hr) && report_key && !report_path) {
-        if (WerStoreQueryReportMetadataV3(
+        if (g_wer.WerStoreQueryReportMetadataV2(
                 report_store, report_key, &report_data)
             == S_OK) {
             if (sentry__uuid_equal_native(report_id, &report_data.ReportId)
@@ -2241,11 +2304,11 @@ find_wer_report(sentry_uuid_t *report_id)
                 }
             }
         }
-        WerFreeString(report_key);
-        hr = WerStoreGetNextReportKey(report_store, &report_key);
+        g_wer.WerFreeString(report_key);
+        hr = g_wer.WerStoreGetNextReportKey(report_store, &report_key);
     }
 
-    WerStoreClose(report_store);
+    g_wer.WerStoreClose(report_store);
 
     return report_path;
 }
