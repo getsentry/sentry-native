@@ -6,20 +6,33 @@
 #include <werapi.h>
 #include <windows.h>
 
+typedef struct {
+    DWORD dwSize;
+    HANDLE hProcess;
+    HANDLE hThread;
+    EXCEPTION_RECORD exceptionRecord;
+    CONTEXT context;
+    PCWSTR pwszReportId;
+    BOOL bIsFatal;
+    DWORD dwReserved;
+} WER_RUNTIME_EXCEPTION_INFORMATION_19041;
+
+static BOOL
+is_fatal_wer_exception(const WER_RUNTIME_EXCEPTION_INFORMATION *info)
+{
+    // bIsFatal is missing in older SDKs; guard access with dwSize.
+    if (!info
+        || info->dwSize
+            <= offsetof(WER_RUNTIME_EXCEPTION_INFORMATION_19041, bIsFatal)) {
+        return FALSE;
+    }
+
+    return ((const WER_RUNTIME_EXCEPTION_INFORMATION_19041 *)info)->bIsFatal;
+}
+
 static PCWSTR
 get_report_id(const WER_RUNTIME_EXCEPTION_INFORMATION *info)
 {
-    typedef struct {
-        DWORD dwSize;
-        HANDLE hProcess;
-        HANDLE hThread;
-        EXCEPTION_RECORD exceptionRecord;
-        CONTEXT context;
-        PCWSTR pwszReportId;
-        BOOL bIsFatal;
-        DWORD dwReserved;
-    } WER_RUNTIME_EXCEPTION_INFORMATION_19041;
-
     // pwszReportId is missing in older SDKs; guard access with dwSize.
     if (!info
         || info->dwSize <= offsetof(
@@ -99,10 +112,12 @@ static BOOL
 process_wer_exception(
     PVOID context, const WER_RUNTIME_EXCEPTION_INFORMATION *exception_info)
 {
+    if (!exception_info || !is_fatal_wer_exception(exception_info)) {
+        return FALSE;
+    }
+
     sentry_wer_registration_t registration = { 0 };
-    if (!exception_info
-        || !read_registration(
-            exception_info->hProcess, context, &registration)) {
+    if (!read_registration(exception_info->hProcess, context, &registration)) {
         return FALSE;
     }
 
