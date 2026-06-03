@@ -3363,37 +3363,29 @@ sentry__process_crash(const sentry_options_t *options, sentry_crash_ipc_t *ipc)
     }
 
     if (ctx->platform.wer_enabled && ctx->attach_wer_report && run_folder) {
-        SENTRY_DEBUG("Waiting for WER");
-        sentry__atomic_store(&ctx->state, SENTRY_CRASH_STATE_POSTPROCESSING);
+        SENTRY_DEBUG("Waiting for WER, allowing app process to exit");
+        sentry__atomic_store(&ctx->state, SENTRY_CRASH_STATE_PROCESSED);
 
         int elapsed_ms = 0;
         while (elapsed_ms < SENTRY_CRASH_HANDLER_WAIT_TIMEOUT_MS) {
-            long state = sentry__atomic_fetch(&ctx->state);
-            if (state == SENTRY_CRASH_STATE_POSTPROCESSED) {
-                break;
-            }
-            Sleep(SENTRY_CRASH_HANDLER_POLL_INTERVAL_MS);
-            elapsed_ms += SENTRY_CRASH_HANDLER_POLL_INTERVAL_MS;
-        }
-        SENTRY_DEBUGF("WER report ID: %s", ctx->platform.wer_report_id);
-
-        sentry_uuid_t report_id
-            = sentry_uuid_from_string(ctx->platform.wer_report_id);
-
-        elapsed_ms = 0;
-        while (elapsed_ms < SENTRY_CRASH_HANDLER_WAIT_TIMEOUT_MS) {
-            sentry_path_t *wer_report_path = find_wer_report(&report_id);
-            if (wer_report_path) {
-                SENTRY_DEBUGF("Found WER report: %s", wer_report_path->path);
-                sentry_path_t *run_report_path
-                    = sentry__path_join_str(run_folder, "Report.wer");
-                if (!run_report_path
-                    || sentry__path_copy(wer_report_path, run_report_path)) {
-                    SENTRY_WARN("Failed to copy WER report");
+            if (!sentry__string_empty(ctx->platform.wer_report_id)) {
+                sentry_uuid_t report_id
+                    = sentry_uuid_from_string(ctx->platform.wer_report_id);
+                sentry_path_t *wer_report_path = find_wer_report(&report_id);
+                if (wer_report_path) {
+                    SENTRY_DEBUGF("Found WER report %s: %s",
+                        ctx->platform.wer_report_id, wer_report_path->path);
+                    sentry_path_t *run_report_path
+                        = sentry__path_join_str(run_folder, "Report.wer");
+                    if (!run_report_path
+                        || sentry__path_copy(
+                            wer_report_path, run_report_path)) {
+                        SENTRY_WARN("Failed to copy WER report");
+                    }
+                    sentry__path_free(run_report_path);
+                    sentry__path_free(wer_report_path);
+                    break;
                 }
-                sentry__path_free(run_report_path);
-                sentry__path_free(wer_report_path);
-                break;
             }
 
             Sleep(SENTRY_CRASH_HANDLER_POLL_INTERVAL_MS);

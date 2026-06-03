@@ -6,41 +6,20 @@
 #include <werapi.h>
 #include <windows.h>
 
-#ifndef STATUS_FAIL_FAST_EXCEPTION
-#    define STATUS_FAIL_FAST_EXCEPTION ((DWORD)0xC0000602)
-#endif
-
-#ifndef STATUS_STACK_BUFFER_OVERRUN
-#    define STATUS_STACK_BUFFER_OVERRUN ((DWORD)0xC0000409)
-#endif
-
-typedef struct {
-    DWORD dwSize;
-    HANDLE hProcess;
-    HANDLE hThread;
-    EXCEPTION_RECORD exceptionRecord;
-    CONTEXT context;
-    PCWSTR pwszReportId;
-    BOOL bIsFatal;
-    DWORD dwReserved;
-} WER_RUNTIME_EXCEPTION_INFORMATION_19041;
-
-static BOOL
-is_fatal_wer_exception(const WER_RUNTIME_EXCEPTION_INFORMATION *info)
-{
-    // bIsFatal is missing in older SDKs; guard access with dwSize.
-    if (!info
-        || info->dwSize
-            <= offsetof(WER_RUNTIME_EXCEPTION_INFORMATION_19041, bIsFatal)) {
-        return FALSE;
-    }
-
-    return ((const WER_RUNTIME_EXCEPTION_INFORMATION_19041 *)info)->bIsFatal;
-}
-
 static PCWSTR
 get_report_id(const WER_RUNTIME_EXCEPTION_INFORMATION *info)
 {
+    typedef struct {
+        DWORD dwSize;
+        HANDLE hProcess;
+        HANDLE hThread;
+        EXCEPTION_RECORD exceptionRecord;
+        CONTEXT context;
+        PCWSTR pwszReportId;
+        BOOL bIsFatal;
+        DWORD dwReserved;
+    } WER_RUNTIME_EXCEPTION_INFORMATION_19041;
+
     // pwszReportId is missing in older SDKs; guard access with dwSize.
     if (!info
         || info->dwSize <= offsetof(
@@ -50,13 +29,6 @@ get_report_id(const WER_RUNTIME_EXCEPTION_INFORMATION *info)
 
     return ((const WER_RUNTIME_EXCEPTION_INFORMATION_19041 *)info)
         ->pwszReportId;
-}
-
-static BOOL
-is_native_wer_exception(DWORD code)
-{
-    return code == STATUS_FAIL_FAST_EXCEPTION
-        || code == STATUS_STACK_BUFFER_OVERRUN;
 }
 
 static BOOL
@@ -149,19 +121,7 @@ process_wer_exception(
             (int)sizeof(ctx->platform.wer_report_id), NULL, NULL);
     }
 
-    // advance POSTPROCESSING -> POSTPROCESSED
-    if (InterlockedCompareExchange(&ctx->state,
-            SENTRY_CRASH_STATE_POSTPROCESSED, SENTRY_CRASH_STATE_POSTPROCESSING)
-        == SENTRY_CRASH_STATE_POSTPROCESSING) {
-        goto done;
-    }
-
-    if (!is_fatal_wer_exception(exception_info)
-        || !is_native_wer_exception(
-            exception_info->exceptionRecord.ExceptionCode)) {
-        goto done;
-    }
-
+    // SENTRY_CRASH_STATE_READY: hard WER crash that bypassed the crash handler
     if (InterlockedCompareExchange(&ctx->state, SENTRY_CRASH_STATE_PROCESSING,
             SENTRY_CRASH_STATE_READY)
         == SENTRY_CRASH_STATE_READY) {
