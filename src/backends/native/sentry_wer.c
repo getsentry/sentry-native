@@ -132,6 +132,7 @@ process_wer_exception(
         return FALSE;
     }
 
+    BOOL claimed = FALSE;
     HANDLE mapping = NULL;
     HANDLE event = NULL;
     sentry_crash_context_t *ctx = NULL;
@@ -150,16 +151,15 @@ process_wer_exception(
     if (InterlockedCompareExchange(&ctx->state,
             SENTRY_CRASH_STATE_POSTPROCESSED, SENTRY_CRASH_STATE_POSTPROCESSING)
         == SENTRY_CRASH_STATE_POSTPROCESSING) {
-        return FALSE;
+        goto done;
     }
 
     if (!exception_info || !is_fatal_wer_exception(exception_info)
         || !is_native_wer_exception(
             exception_info->exceptionRecord.ExceptionCode)) {
-        return FALSE;
+        goto done;
     }
 
-    BOOL claimed = FALSE;
     if (InterlockedCompareExchange(&ctx->state, SENTRY_CRASH_STATE_PROCESSING,
             SENTRY_CRASH_STATE_READY)
         == SENTRY_CRASH_STATE_READY) {
@@ -194,6 +194,7 @@ process_wer_exception(
         }
     }
 
+done:
     CloseHandle(event);
     UnmapViewOfFile(ctx);
     CloseHandle(mapping);
