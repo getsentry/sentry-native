@@ -1014,10 +1014,11 @@ native_backend_except(sentry_backend_t *backend, const sentry_ucontext_t *uctx)
             }
 
             if (should_handle) {
-                // Apply scope to event including breadcrumbs
+                // Apply scope to the event. The daemon assembles breadcrumbs
+                // from the ring files
                 SENTRY_WITH_SCOPE (scope) {
                     sentry__scope_apply_to_event(
-                        scope, options, event, SENTRY_SCOPE_BREADCRUMBS);
+                        scope, options, event, SENTRY_SCOPE_NONE);
                 }
 #if defined(SENTRY_PLATFORM_WINDOWS)
                 ensure_device_arch(event);
