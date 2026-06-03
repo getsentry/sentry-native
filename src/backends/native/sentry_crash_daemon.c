@@ -2330,36 +2330,39 @@ find_wer_report(sentry_uuid_t *report_id)
 static bool
 write_wer_report(sentry_path_t *report_path, sentry_path_t *run_folder)
 {
+    int rv = -1;
+    char *utf8 = NULL;
+    char *utf16 = NULL;
+    size_t utf16_size = 0;
+
     sentry_path_t *run_path = sentry__path_join_str(run_folder, "Report.wer");
     if (!run_path) {
-        return false;
+        goto cleanup;
     }
 
-    size_t utf16_size = 0;
-    char *utf16 = sentry__path_read_to_buffer(report_path, &utf16_size);
+    utf16 = sentry__path_read_to_buffer(report_path, &utf16_size);
     if (!utf16) {
         SENTRY_WARN("Failed to read WER report");
-        return false;
+        goto cleanup;
     }
 
-    char *utf8 = sentry__string_from_wstr_n(
+    utf8 = sentry__string_from_wstr_n(
         (const wchar_t *)utf16, utf16_size / sizeof(wchar_t));
     if (!utf8) {
         SENTRY_WARN("Failed to convert WER report to UTF-8");
-        return false;
+        goto cleanup;
     }
 
-    int rv = sentry__path_write_buffer(run_path, utf8, strlen(utf8));
+    if ((rv = sentry__path_write_buffer(run_path, utf8, strlen(utf8))) != 0) {
+        SENTRY_WARN("Failed to write WER report");
+        goto cleanup;
+    }
 
+cleanup:
     sentry_free(utf8);
     sentry_free(utf16);
     sentry__path_free(run_path);
-
-    if (rv != 0) {
-        SENTRY_WARN("Failed to write WER report");
-        return false;
-    }
-    return true;
+    return rv == 0;
 }
 #endif // SENTRY_PLATFORM_WINDOWS
 
@@ -3488,8 +3491,10 @@ sentry__process_crash(const sentry_options_t *options, sentry_crash_ipc_t *ipc)
                     SENTRY_DEBUGF("Found WER report %s: %s",
                         ctx->platform.wer_report_id, wer_report_path->path);
                     if (write_wer_report(wer_report_path, run_folder)) {
+                        sentry_path_free(wer_report_path);
                         break;
                     }
+                    sentry_path_free(wer_report_path);
                 }
             }
 
