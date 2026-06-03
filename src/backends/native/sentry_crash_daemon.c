@@ -2813,11 +2813,28 @@ write_envelope_with_minidump(const sentry_options_t *options,
         if (base_json && base_size > 0) {
             sentry_value_t event
                 = sentry__value_from_json(base_json, base_size);
-            apply_breadcrumbs_from_ring_files(event, run_folder, ctx);
-            event_id = sentry__string_clone(sentry_value_as_string(
-                sentry_value_get_by_key(event, "event_id")));
-            event_json = sentry__value_to_json(event, &event_size);
-            sentry_value_decref(event);
+            if (sentry_value_is_null(event)) {
+                // Parsing the base event failed (e.g. truncated buffer or
+                // OOM). Don't serialize the null into "null" and ship an
+                // invalid payload - fall back to streaming the raw event
+                // bytes verbatim so the crash report is preserved.
+                sentry_value_decref(event);
+                event_json = sentry__string_clone_n(base_json, base_size);
+                event_size = event_json ? base_size : 0;
+            } else {
+                apply_breadcrumbs_from_ring_files(event, run_folder, ctx);
+                event_id = sentry__string_clone(sentry_value_as_string(
+                    sentry_value_get_by_key(event, "event_id")));
+                event_json = sentry__value_to_json(event, &event_size);
+                sentry_value_decref(event);
+                if (!event_json) {
+                    // Re-serialization failed (e.g. OOM). Fall back to the raw
+                    // event bytes so the crash report is preserved, losing only
+                    // the merged breadcrumbs rather than the whole event.
+                    event_json = sentry__string_clone_n(base_json, base_size);
+                    event_size = event_json ? base_size : 0;
+                }
+            }
         }
         sentry_free(base_json);
     }
