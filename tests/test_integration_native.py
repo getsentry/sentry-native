@@ -116,6 +116,10 @@ def test_native_wer_crash(cmake, httpserver, crash_arg):
     assert has_wer_report, "Should include WER report"
 
 
+@pytest.mark.skipif(
+    sys.platform != "win32",
+    reason="WER reports are only available on Windows",
+)
 @pytest.mark.with_wer
 @pytest.mark.parametrize("crash_mode", ["native", "minidump", "native-with-minidump"])
 def test_native_wer_report(cmake, httpserver, crash_mode):
