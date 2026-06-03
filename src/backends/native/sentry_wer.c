@@ -146,6 +146,14 @@ process_wer_exception(
         ctx->platform.threads[0].thread_id = ctx->crashed_tid;
         ctx->platform.threads[0].context = exception_info->context;
 
+        char buf[4096];
+        snprintf(buf, sizeof(buf),
+            "### SENTRY_WER: crashed_pid=%lu crashed_tid=%llu "
+            "exception_code=0x%08X",
+            (unsigned long)ctx->crashed_pid,
+            (unsigned long long)ctx->crashed_tid, ctx->platform.exception_code);
+        OutputDebugStringA(buf);
+
         InterlockedExchange(&ctx->state, SENTRY_CRASH_STATE_CRASHED);
         if (SetEvent(event)) {
             claimed = TRUE;
