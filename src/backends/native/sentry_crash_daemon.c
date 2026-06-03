@@ -2240,7 +2240,8 @@ resolve_wer(void)
         return g_wer.module != WER_FAILED;
     }
 
-    g_wer.module = LoadLibraryW(L"wer.dll");
+    g_wer.module
+        = LoadLibraryExW(L"wer.dll", NULL, LOAD_LIBRARY_SEARCH_SYSTEM32);
     if (!g_wer.module) {
         g_wer.module = WER_FAILED;
         return false;
@@ -3491,10 +3492,10 @@ sentry__process_crash(const sentry_options_t *options, sentry_crash_ipc_t *ipc)
                     SENTRY_DEBUGF("Found WER report %s: %s",
                         ctx->platform.wer_report_id, wer_report_path->path);
                     if (write_wer_report(wer_report_path, run_folder)) {
-                        sentry_path_free(wer_report_path);
+                        sentry__path_free(wer_report_path);
                         break;
                     }
-                    sentry_path_free(wer_report_path);
+                    sentry__path_free(wer_report_path);
                 }
             }
 
