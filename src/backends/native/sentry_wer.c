@@ -121,7 +121,6 @@ process_wer_exception(
         return FALSE;
     }
 
-    BOOL claimed = FALSE;
     HANDLE mapping = NULL;
     HANDLE event = NULL;
     sentry_crash_context_t *ctx = NULL;
@@ -129,6 +128,7 @@ process_wer_exception(
         return FALSE;
     }
 
+    BOOL claimed = FALSE;
     PCWSTR report_id = get_report_id(exception_info);
     if (report_id) {
         WideCharToMultiByte(CP_UTF8, 0, report_id, -1,
@@ -171,7 +171,6 @@ process_wer_exception(
         }
     }
 
-done:
     CloseHandle(event);
     UnmapViewOfFile(ctx);
     CloseHandle(mapping);
