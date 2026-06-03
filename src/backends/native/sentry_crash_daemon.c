@@ -2279,36 +2279,42 @@ find_wer_report(sentry_uuid_t *report_id)
         return NULL;
     }
 
-    HREPORTSTORE report_store;
-    if (g_wer.WerStoreOpen(E_STORE_MACHINE_ARCHIVE, &report_store) != S_OK) {
-        return NULL;
-    }
-
-    PCWSTR report_key = NULL;
     sentry_path_t *report_path = NULL;
-    WER_REPORT_METADATA_V2 report_data = { 0 };
+    REPORT_STORE_TYPES store_types[]
+        = { E_STORE_USER_ARCHIVE, E_STORE_MACHINE_ARCHIVE };
+    for (size_t i = 0;
+        !report_path && i < sizeof(store_types) / sizeof(store_types[0]); i++) {
+        HREPORTSTORE report_store;
+        if (g_wer.WerStoreOpen(store_types[i], &report_store) != S_OK) {
+            continue;
+        }
 
-    HRESULT hr = g_wer.WerStoreGetFirstReportKey(report_store, &report_key);
-    while (SUCCEEDED(hr) && report_key && !report_path) {
-        if (g_wer.WerStoreQueryReportMetadataV2(
-                report_store, report_key, &report_data)
-            == S_OK) {
-            if (sentry__uuid_equal_native(report_id, &report_data.ReportId)
-                || sentry__uuid_equal_native(
-                    report_id, &report_data.ReportIntegratorId)) {
-                sentry_path_t *report_dir = sentry__path_from_wstr(report_key);
-                if (report_dir) {
-                    report_path
-                        = sentry__path_join_str(report_dir, "Report.wer");
-                    sentry__path_free(report_dir);
+        PCWSTR report_key = NULL;
+        WER_REPORT_METADATA_V2 report_data = { 0 };
+
+        HRESULT hr = g_wer.WerStoreGetFirstReportKey(report_store, &report_key);
+        while (SUCCEEDED(hr) && report_key && !report_path) {
+            if (g_wer.WerStoreQueryReportMetadataV2(
+                    report_store, report_key, &report_data)
+                == S_OK) {
+                if (sentry__uuid_equal_native(report_id, &report_data.ReportId)
+                    || sentry__uuid_equal_native(
+                        report_id, &report_data.ReportIntegratorId)) {
+                    sentry_path_t *report_dir
+                        = sentry__path_from_wstr(report_key);
+                    if (report_dir) {
+                        report_path
+                            = sentry__path_join_str(report_dir, "Report.wer");
+                        sentry__path_free(report_dir);
+                    }
                 }
             }
+            g_wer.WerFreeString(report_key);
+            hr = g_wer.WerStoreGetNextReportKey(report_store, &report_key);
         }
-        g_wer.WerFreeString(report_key);
-        hr = g_wer.WerStoreGetNextReportKey(report_store, &report_key);
-    }
 
-    g_wer.WerStoreClose(report_store);
+        g_wer.WerStoreClose(report_store);
+    }
 
     return report_path;
 }
