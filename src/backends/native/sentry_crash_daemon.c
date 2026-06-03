@@ -3351,7 +3351,8 @@ sentry__process_crash(const sentry_options_t *options, sentry_crash_ipc_t *ipc)
         }
     }
 
-    if (ctx->platform.wer_enabled && ctx->attach_wer_report && run_folder) {
+    if (ctx->platform.wer_enabled && ctx->attach_wer_report
+        && !sentry__string_empty(ctx->platform.wer_report_id) && run_folder) {
         SENTRY_DEBUG("Waiting for WER");
         sentry__atomic_store(&ctx->state, SENTRY_CRASH_STATE_POSTPROCESSING);
 
