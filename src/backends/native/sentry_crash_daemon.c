@@ -2162,6 +2162,10 @@ static void
 apply_breadcrumbs_from_ring_files(sentry_value_t event,
     const sentry_path_t *run_folder, const sentry_crash_context_t *ctx)
 {
+    if (ctx && ctx->max_breadcrumbs == 0) {
+        return;
+    }
+
     sentry_value_t b1
         = read_breadcrumb_ring_file(run_folder, "__sentry-breadcrumb1");
     sentry_value_t b2
