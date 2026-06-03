@@ -1105,8 +1105,8 @@ main(int argc, char **argv)
         sentry_scope_add_breadcrumb(scope, debug_crumb);
 
         if (has_arg(argc, argv, "attach-to-scope")) {
-            // assuming the example / test is run directly from the cmake
-            // build directory
+            // assuming the example / test is run directly from the cmake build
+            // directory
             sentry_scope_attach_file(scope, "./CMakeCache.txt");
             sentry_attachment_t *bytes = sentry_scope_attach_bytes(
                 scope, "\xc0\xff\xee", 3, "bytes.bin");
