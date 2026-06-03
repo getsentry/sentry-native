@@ -46,6 +46,9 @@
 #    if defined(SENTRY_PLATFORM_MACOS)
 #        include <crt_externs.h>
 #        include <mach-o/dyld.h>
+#        include <mach-o/dyld_images.h>
+#        include <mach-o/loader.h>
+#        include <mach/mach_vm.h>
 #        include <spawn.h>
 #    endif
 #elif defined(SENTRY_PLATFORM_WINDOWS)
@@ -2121,7 +2124,7 @@ build_stacktrace_from_ctx(const sentry_crash_context_t *ctx)
 
 /* Describes which kind of native event we are building. `s_crash_kind`
  * drives the crash path; `s_app_hang_kind` drives the app-hang flow on
- * Windows.
+ * Windows and macOS.
  *
  * Invariant: if `include_signal_meta` is true, `exception_type` must be NULL
  * (the signal-derived path). Setting an override type AND requesting signal
@@ -2156,7 +2159,7 @@ static const sentry_native_event_kind_t s_crash_kind = {
     .include_signal_meta = true,
 };
 
-#if defined(SENTRY_PLATFORM_WINDOWS)
+#if defined(SENTRY_APP_HANG_HOST_SUPPORTED)
 /* App-hang event kind: ANR-style, handled, error level. The per-event
  * `exception_value` (freeze duration message) is filled in at capture time. */
 static const sentry_native_event_kind_t s_app_hang_kind = {
@@ -2995,7 +2998,444 @@ capture_and_send_app_hang(const sentry_options_t *options,
         sentry__path_free(env_path);
     }
 }
-#endif /* SENTRY_PLATFORM_WINDOWS */
+
+#elif defined(SENTRY_PLATFORM_MACOS)
+
+/* Read `size` bytes at `addr` from another task into `buf`. Mirrors the
+ * minidump writer's read_task_memory (mach_vm_read_overwrite). */
+static kern_return_t
+app_hang_read_task_memory(
+    task_t task, mach_vm_address_t addr, void *buf, mach_vm_size_t size)
+{
+    mach_vm_size_t got = 0;
+    kern_return_t kr
+        = mach_vm_read_overwrite(task, addr, size, (mach_vm_address_t)buf, &got);
+    if (kr == KERN_SUCCESS && got != size) {
+        return KERN_FAILURE;
+    }
+    return kr;
+}
+
+/* Enumerate the host's loaded dyld images out-of-process via the donated/
+ * task_for_pid task port and populate ctx->modules[] (base, __TEXT vmsize,
+ * UUID, name). This is the out-of-process analogue of the in-process
+ * _dyld_image_count() loop the crash signal handler runs — needed for app
+ * hangs because no signal handler runs to capture modules, and the daemon's
+ * own dyld images are unrelated to the host's. Best-effort: on any read
+ * failure we stop and keep whatever was gathered. */
+static void
+app_hang_capture_modules(task_t task, sentry_crash_context_t *ctx)
+{
+    ctx->module_count = 0;
+
+    /* Locate dyld_all_image_infos in the target task. */
+    struct task_dyld_info dyld_info;
+    mach_msg_type_number_t count = TASK_DYLD_INFO_COUNT;
+    if (task_info(task, TASK_DYLD_INFO, (task_info_t)&dyld_info, &count)
+        != KERN_SUCCESS) {
+        SENTRY_DEBUG("app-hang: task_info(TASK_DYLD_INFO) failed");
+        return;
+    }
+
+    struct dyld_all_image_infos all_infos;
+    if (app_hang_read_task_memory(task,
+            (mach_vm_address_t)dyld_info.all_image_info_addr, &all_infos,
+            sizeof(all_infos))
+        != KERN_SUCCESS) {
+        SENTRY_DEBUG("app-hang: failed to read dyld_all_image_infos");
+        return;
+    }
+
+    uint32_t image_count = all_infos.infoArrayCount;
+    if (image_count > SENTRY_CRASH_MAX_MODULES) {
+        image_count = SENTRY_CRASH_MAX_MODULES;
+    }
+
+    for (uint32_t i = 0;
+        i < image_count && ctx->module_count < SENTRY_CRASH_MAX_MODULES; i++) {
+        /* Read one dyld_image_info entry from the remote infoArray. */
+        struct dyld_image_info info;
+        mach_vm_address_t entry_addr = (mach_vm_address_t)all_infos.infoArray
+            + (mach_vm_address_t)i * sizeof(struct dyld_image_info);
+        if (app_hang_read_task_memory(task, entry_addr, &info, sizeof(info))
+            != KERN_SUCCESS) {
+            break;
+        }
+
+        uint64_t base = (uint64_t)info.imageLoadAddress;
+        if (base == 0) {
+            continue;
+        }
+
+        sentry_module_info_t *module = &ctx->modules[ctx->module_count];
+        memset(module, 0, sizeof(*module));
+        module->base_address = base;
+
+        /* Read the image path from the remote address. */
+        if (info.imageFilePath) {
+            char namebuf[SENTRY_CRASH_MAX_PATH];
+            memset(namebuf, 0, sizeof(namebuf));
+            /* Read in a bounded chunk; tolerate a short read at the tail. */
+            for (size_t off = 0; off < sizeof(namebuf) - 1; off += 256) {
+                size_t chunk = sizeof(namebuf) - 1 - off;
+                if (chunk > 256) {
+                    chunk = 256;
+                }
+                if (app_hang_read_task_memory(task,
+                        (mach_vm_address_t)info.imageFilePath + off,
+                        namebuf + off, chunk)
+                    != KERN_SUCCESS) {
+                    break;
+                }
+                if (memchr(namebuf + off, '\0', chunk)) {
+                    break;
+                }
+            }
+            namebuf[sizeof(namebuf) - 1] = '\0';
+            strncpy(module->name, namebuf, sizeof(module->name) - 1);
+        }
+
+        /* Read the Mach-O header + load commands to get __TEXT vmsize and
+         * UUID, mirroring the in-process loop in the signal handler. */
+        struct mach_header_64 header;
+        if (app_hang_read_task_memory(
+                task, (mach_vm_address_t)base, &header, sizeof(header))
+                == KERN_SUCCESS
+            && (header.magic == MH_MAGIC_64 || header.magic == MH_CIGAM_64)) {
+            uint32_t ncmds = header.ncmds;
+            if (ncmds > 256) {
+                ncmds = 256;
+            }
+            /* Read the load-command region in one shot (capped). */
+            uint32_t cmds_size = header.sizeofcmds;
+            if (cmds_size > 0 && cmds_size <= 64 * 1024) {
+                uint8_t *cmds = sentry_malloc(cmds_size);
+                if (cmds
+                    && app_hang_read_task_memory(task,
+                           (mach_vm_address_t)base + sizeof(header), cmds,
+                           cmds_size)
+                        == KERN_SUCCESS) {
+                    const uint8_t *p = cmds;
+                    const uint8_t *end = cmds + cmds_size;
+                    bool has_size = false, has_uuid = false;
+                    for (uint32_t j = 0;
+                        j < ncmds && (!has_size || !has_uuid)
+                        && p + sizeof(struct load_command) <= end;
+                        j++) {
+                        const struct load_command *lc
+                            = (const struct load_command *)p;
+                        if (lc->cmdsize == 0
+                            || p + lc->cmdsize > end) {
+                            break;
+                        }
+                        if (lc->cmd == LC_SEGMENT_64
+                            && lc->cmdsize >= sizeof(struct segment_command_64)) {
+                            const struct segment_command_64 *seg
+                                = (const struct segment_command_64 *)lc;
+                            if (memcmp(seg->segname, "__TEXT", 7) == 0) {
+                                module->size = seg->vmsize;
+                                has_size = true;
+                            }
+                        } else if (lc->cmd == LC_UUID
+                            && lc->cmdsize >= sizeof(struct uuid_command)) {
+                            const struct uuid_command *uc
+                                = (const struct uuid_command *)lc;
+                            memcpy(module->uuid, uc->uuid, 16);
+                            has_uuid = true;
+                        }
+                        p += lc->cmdsize;
+                    }
+                }
+                sentry_free(cmds);
+            }
+        }
+
+        ctx->module_count++;
+    }
+
+    SENTRY_DEBUGF(
+        "app-hang: captured %u modules out-of-process", ctx->module_count);
+}
+
+/* Read the hung thread's stack memory (from SP upward) out-of-process and save
+ * it to a file, populating threads[0].stack_path / stack_size so the existing
+ * FP-unwinder in build_stacktrace_for_thread can walk real frames — the same
+ * file-backed mechanism the signal handler uses for crashes. Best-effort. */
+static void
+app_hang_capture_stack(
+    task_t task, sentry_crash_context_t *ctx, uint64_t sp)
+{
+    ctx->platform.threads[0].stack_path[0] = '\0';
+    ctx->platform.threads[0].stack_size = 0;
+    if (sp == 0) {
+        return;
+    }
+
+    mach_vm_size_t want = SENTRY_CRASH_MAX_STACK_CAPTURE;
+    uint8_t *buf = sentry_malloc(want);
+    if (!buf) {
+        return;
+    }
+
+    /* Shrink the read until it succeeds — the top of stack may be near a guard
+     * page, so a full-size read can straddle unmapped memory and fail. */
+    mach_vm_size_t got = 0;
+    while (want >= 4096) {
+        if (app_hang_read_task_memory(task, (mach_vm_address_t)sp, buf, want)
+            == KERN_SUCCESS) {
+            got = want;
+            break;
+        }
+        want /= 2;
+    }
+    if (got == 0) {
+        SENTRY_DEBUG("app-hang: failed to read hung thread stack");
+        sentry_free(buf);
+        return;
+    }
+
+    char stack_path[SENTRY_CRASH_MAX_PATH];
+    int n = snprintf(stack_path, sizeof(stack_path),
+        "%s/sentry-app-hang-stack-%lu.bin", ctx->database_path,
+        (unsigned long)ctx->crashed_pid);
+    if (n < 0 || n >= (int)sizeof(stack_path)) {
+        sentry_free(buf);
+        return;
+    }
+    int fd = open(stack_path, O_WRONLY | O_CREAT | O_TRUNC, 0600);
+    if (fd >= 0) {
+        if (write(fd, buf, (size_t)got) == (ssize_t)got) {
+            strncpy(ctx->platform.threads[0].stack_path, stack_path,
+                sizeof(ctx->platform.threads[0].stack_path) - 1);
+            ctx->platform.threads[0].stack_size = got;
+            SENTRY_DEBUGF("app-hang: captured %llu bytes of stack",
+                (unsigned long long)got);
+        }
+        close(fd);
+    }
+    sentry_free(buf);
+}
+
+/**
+ * App-hang capture path (macOS). The host is alive but frozen, so unlike a
+ * crash there is no in-process signal-handler snapshot to fall back on — the
+ * daemon must sample the hung thread itself. It does so out-of-process via
+ * `task_for_pid` (the same mechanism the crash "full path" minidump writer
+ * relies on): locate the Mach thread whose THREAD_IDENTIFIER_INFO.thread_id
+ * matches the latched target tid, suspend it just long enough to read its
+ * register state, then resume and build/submit an AppHang envelope using the
+ * same native-stacktrace path as crashes.
+ *
+ * Requires `task_for_pid` to be permitted (same-user, non-hardened local/dev
+ * builds). On a hardened release runtime without the debugger entitlement it
+ * is denied; the entitlement-free port-donation replacement is a separate
+ * follow-up.
+ */
+static void
+capture_and_send_app_hang(const sentry_options_t *options,
+    sentry_crash_ipc_t *ipc, uint64_t freeze_ms)
+{
+    /* NOTE (race, same as the Windows variant): this function reads and
+     * mutates shmem fields (platform.mcontext, threads[0], crashed_tid,
+     * num_threads) that the host's signal handler also writes on a real
+     * crash. The daemon loop is single-threaded and processes a pending crash
+     * before reaching here, so the only remaining window is the host crashing
+     * mid-capture. Accepted for the spike, same as Windows. */
+    sentry_crash_context_t *ctx = ipc->shmem;
+
+    const uint64_t target_tid = ctx->app_hang_target_tid;
+
+    /* Acquire the host task. No in-process snapshot exists for a hang, so a
+     * failure here means we simply cannot capture this hang. */
+    task_t task = MACH_PORT_NULL;
+    kern_return_t kr
+        = task_for_pid(mach_task_self(), (int)ctx->crashed_pid, &task);
+    if (kr != KERN_SUCCESS) {
+        SENTRY_DEBUGF("app-hang: task_for_pid(%d) failed: %d (%s) — no "
+                      "snapshot available for a hang",
+            (int)ctx->crashed_pid, kr, mach_error_string(kr));
+        return;
+    }
+
+    /* Enumerate the host's dyld modules out-of-process so debug_meta is
+     * populated and frames symbolicate server-side (the in-process signal
+     * handler that normally does this never runs for a hang). */
+    app_hang_capture_modules(task, ctx);
+
+    /* Enumerate threads and find the latched target by its portable tid. */
+    thread_act_array_t threads = NULL;
+    mach_msg_type_number_t thread_count = 0;
+    kr = task_threads(task, &threads, &thread_count);
+    if (kr != KERN_SUCCESS) {
+        SENTRY_DEBUGF("app-hang: task_threads failed: %d (%s)", kr,
+            mach_error_string(kr));
+        mach_port_deallocate(mach_task_self(), task);
+        return;
+    }
+
+    thread_t target = MACH_PORT_NULL;
+    for (mach_msg_type_number_t i = 0; i < thread_count; i++) {
+        thread_identifier_info_data_t id_info;
+        mach_msg_type_number_t id_count = THREAD_IDENTIFIER_INFO_COUNT;
+        if (thread_info(threads[i], THREAD_IDENTIFIER_INFO,
+                (thread_info_t)&id_info, &id_count)
+                == KERN_SUCCESS
+            && id_info.thread_id == target_tid) {
+            target = threads[i];
+        } else {
+            /* Deallocate the ports we are not keeping. */
+            mach_port_deallocate(mach_task_self(), threads[i]);
+        }
+    }
+
+    if (target == MACH_PORT_NULL) {
+        SENTRY_DEBUGF("app-hang: target thread tid=%llu not found among %u "
+                      "threads",
+            (unsigned long long)target_tid, thread_count);
+        vm_deallocate(mach_task_self(), (vm_address_t)threads,
+            thread_count * sizeof(thread_t));
+        mach_port_deallocate(mach_task_self(), task);
+        return;
+    }
+
+    /* Suspend the target just long enough to read its register state. */
+    kr = thread_suspend(target);
+    if (kr != KERN_SUCCESS) {
+        SENTRY_DEBUGF("app-hang: thread_suspend failed: %d (%s)", kr,
+            mach_error_string(kr));
+        mach_port_deallocate(mach_task_self(), target);
+        vm_deallocate(mach_task_self(), (vm_address_t)threads,
+            thread_count * sizeof(thread_t));
+        mach_port_deallocate(mach_task_self(), task);
+        return;
+    }
+
+    /* Read the integer register set directly into mcontext.__ss. Use the
+     * arch-specific flavor (ARM_THREAD_STATE64 / x86_THREAD_STATE64) that
+     * matches __ss's layout — NOT MACHINE_THREAD_STATE, which is the tagged
+     * *unified* state (arm_unified_thread_state_t) and would land with the
+     * wrong layout, yielding garbage IP/FP/SP. */
+    _STRUCT_MCONTEXT mcontext;
+    memset(&mcontext, 0, sizeof(mcontext));
+#    if defined(__x86_64__)
+    mach_msg_type_number_t state_count = x86_THREAD_STATE64_COUNT;
+    kr = thread_get_state(target, x86_THREAD_STATE64,
+        (thread_state_t)&mcontext.__ss, &state_count);
+#    elif defined(__aarch64__)
+    mach_msg_type_number_t state_count = ARM_THREAD_STATE64_COUNT;
+    kr = thread_get_state(target, ARM_THREAD_STATE64,
+        (thread_state_t)&mcontext.__ss, &state_count);
+#    else
+    mach_msg_type_number_t state_count = MACHINE_THREAD_STATE_COUNT;
+    kr = thread_get_state(
+        target, MACHINE_THREAD_STATE, (thread_state_t)&mcontext.__ss,
+        &state_count);
+#    endif
+
+    thread_resume(target);
+
+    if (kr != KERN_SUCCESS) {
+        SENTRY_DEBUGF("app-hang: thread_get_state failed: %d (%s)", kr,
+            mach_error_string(kr));
+        mach_port_deallocate(mach_task_self(), target);
+        vm_deallocate(mach_task_self(), (vm_address_t)threads,
+            thread_count * sizeof(thread_t));
+        mach_port_deallocate(mach_task_self(), task);
+        return;
+    }
+
+    /* Place the snapshot in the "crashed thread" slot of the context so the
+     * existing event builder pulls a stacktrace and register block out for the
+     * exception payload and the threads block.
+     *
+     * build_stacktrace_from_ctx() (thread_idx == SIZE_MAX) reads from
+     * ctx->platform.mcontext, while the per-thread register block reads from
+     * threads[0].state — populate both so the captured registers are used and
+     * not an all-zero context (PC=0 -> no frames). */
+    ctx->platform.mcontext = mcontext;
+    ctx->crashed_tid = (pid_t)target_tid;
+    ctx->platform.num_threads = 1;
+    ctx->platform.threads[0].thread = target; /* port; valid only here */
+    ctx->platform.threads[0].tid = target_tid;
+    ctx->platform.threads[0].state = mcontext;
+    ctx->platform.threads[0].stack_path[0] = '\0';
+    ctx->platform.threads[0].stack_size = 0;
+
+    /* Capture the hung thread's stack (from SP upward) out-of-process so the
+     * FP-unwinder can walk real frames instead of just the top PC. Must happen
+     * while we still hold the task port. */
+    uint64_t target_sp = 0;
+#    if defined(__x86_64__)
+    target_sp = mcontext.__ss.__rsp;
+#    elif defined(__aarch64__)
+    target_sp = SENTRY__ARM64_GET_SP(mcontext.__ss);
+#    endif
+    app_hang_capture_stack(task, ctx, target_sp);
+
+    /* Done reading from the host task; release the Mach ports. */
+    mach_port_deallocate(mach_task_self(), target);
+    vm_deallocate(mach_task_self(), (vm_address_t)threads,
+        thread_count * sizeof(thread_t));
+    mach_port_deallocate(mach_task_self(), task);
+
+    /* Build the per-event value description with the freeze duration. */
+    char value_buf[128];
+    snprintf(value_buf, sizeof(value_buf),
+        "App hang detected. Main thread blocked for %llu ms.",
+        (unsigned long long)freeze_ms);
+    sentry_native_event_kind_t kind = s_app_hang_kind;
+    kind.exception_value = value_buf;
+
+    /* Build an envelope path next to the crash one. */
+    char envelope_path[SENTRY_CRASH_MAX_PATH];
+    int path_len = snprintf(envelope_path, sizeof(envelope_path),
+        "%s/sentry-app-hang-%lu-%llu.env", ctx->database_path,
+        (unsigned long)ctx->crashed_pid,
+        (unsigned long long)ctx->app_hang_last_heartbeat_ms);
+
+    if (path_len < 0 || path_len >= (int)sizeof(envelope_path)) {
+        SENTRY_WARN("app-hang: envelope path truncated or invalid");
+        return;
+    }
+
+    /* Reuse the host-maintained scope file and run folder so the app-hang
+     * event carries the same scope context as a crash event (see the Windows
+     * variant for the detailed rationale). */
+    const char *event_file_path
+        = ctx->event_path[0] ? ctx->event_path : NULL;
+    sentry_path_t *run_folder = NULL;
+    if (event_file_path) {
+        sentry_path_t *ev_path = sentry__path_from_str(event_file_path);
+        if (ev_path) {
+            run_folder = sentry__path_dir(ev_path);
+            sentry__path_free(ev_path);
+        }
+    }
+
+    bool ok = write_envelope_with_native_stacktrace(options, envelope_path,
+        ctx, event_file_path, /*minidump_path=*/NULL, run_folder, &kind);
+
+    if (run_folder) {
+        sentry__path_free(run_folder);
+    }
+
+    if (!ok) {
+        SENTRY_WARN("app-hang: failed to write envelope");
+        return;
+    }
+
+    /* Read envelope from disk and hand to transport. */
+    sentry_path_t *env_path = sentry__path_from_str(envelope_path);
+    if (env_path) {
+        sentry_envelope_t *envelope = sentry__envelope_from_path(env_path);
+        if (envelope && options && options->transport) {
+            sentry__capture_envelope(options->transport, envelope, options);
+        }
+        sentry__path_remove(env_path);
+        sentry__path_free(env_path);
+    }
+}
+#endif /* SENTRY_PLATFORM_WINDOWS / SENTRY_PLATFORM_MACOS */
 
 /**
  * Manually write a Sentry envelope with event, minidump, and attachments.
@@ -3926,12 +4366,13 @@ sentry__crash_daemon_main(pid_t app_pid, uint64_t app_tid, HANDLE event_handle,
 
     SENTRY_DEBUG("Entering main loop");
 
-#if defined(SENTRY_PLATFORM_WINDOWS)
-    /* Pre-populate crashed_pid so the app-hang path can OpenProcess(host).
-     * Both capture_modules_from_process and walk_stack_with_dbghelp use
-     * ctx->crashed_pid, which is otherwise only set by the host's crash
-     * handler. The crash handler will re-set this from the host context if
-     * a real crash occurs; that's a no-op (same value). */
+#if defined(SENTRY_APP_HANG_HOST_SUPPORTED)
+    /* Pre-populate crashed_pid so the app-hang path can reach the host
+     * out-of-process (OpenProcess on Windows, task_for_pid on macOS). On
+     * Windows this also feeds capture_modules_from_process and
+     * walk_stack_with_dbghelp. ctx->crashed_pid is otherwise only set by the
+     * host's crash handler; the crash handler re-sets it from the host context
+     * on a real crash — a no-op (same value). */
     ipc->shmem->crashed_pid = (pid_t)app_pid;
 #endif
 
@@ -4029,10 +4470,25 @@ sentry__crash_daemon_main(pid_t app_pid, uint64_t app_tid, HANDLE event_handle,
         CloseHandle(timer);
     }
 #else
+#    if defined(SENTRY_PLATFORM_MACOS)
+    /* App-hang detector state. Daemon-local; the timeout is cached here so it
+     * does not race the host on subsequent shmem mutations. When enabled, the
+     * loop polls on a short cadence (so it can evaluate the heartbeat each
+     * tick) instead of the longer health-check interval. */
+    const bool app_hang_enabled = ipc->shmem->app_hang_enabled;
+    const uint64_t app_hang_timeout_ms = ipc->shmem->app_hang_timeout_ms;
+    uint64_t last_fired_hb = 0;
+    int consecutive_stale_ticks = 0;
+    const int wait_timeout_ms = app_hang_enabled
+        ? 500
+        : SENTRY_CRASH_DAEMON_WAIT_TIMEOUT_MS;
+#    else
+    const int wait_timeout_ms = SENTRY_CRASH_DAEMON_WAIT_TIMEOUT_MS;
+#    endif
+
     while (true) {
         // Wait for crash notification (with timeout to check parent health)
-        bool wait_result
-            = sentry__crash_ipc_wait(ipc, SENTRY_CRASH_DAEMON_WAIT_TIMEOUT_MS);
+        bool wait_result = sentry__crash_ipc_wait(ipc, wait_timeout_ms);
         if (wait_result) {
             // Crash occurred!
             SENTRY_DEBUG("Event signaled, checking crash state");
@@ -4066,6 +4522,28 @@ sentry__crash_daemon_main(pid_t app_pid, uint64_t app_tid, HANDLE event_handle,
             // If crash already processed, just ignore spurious notifications
             SENTRY_DEBUG("Spurious notification or already processed");
         }
+#    if defined(SENTRY_PLATFORM_MACOS)
+        else if (app_hang_enabled && !crash_processed) {
+            /* No crash notification this wake (timeout or spurious) — evaluate
+             * the app-hang heartbeat with strike accumulation, mirroring the
+             * Windows timer tick. */
+            sentry_crash_context_t *shctx = ipc->shmem;
+            const uint64_t hb = shctx->app_hang_last_heartbeat_ms;
+            const uint64_t now = sentry__app_hang_now_ms();
+            int new_strikes = 0;
+            sentry_app_hang_decision_t d = sentry__app_hang_decide(
+                app_hang_enabled, hb, now, app_hang_timeout_ms,
+                last_fired_hb, consecutive_stale_ticks, &new_strikes);
+            consecutive_stale_ticks = new_strikes;
+            if (d == SENTRY_APP_HANG_FIRE) {
+                capture_and_send_app_hang(options, ipc, now - hb);
+                /* Always advance last_fired_hb, even if capture failed —
+                 * prevents a retry storm against a wedged thread. The next
+                 * heartbeat advance re-arms detection naturally. */
+                last_fired_hb = hb;
+            }
+        }
+#    endif
 
         // Check if parent is still alive (only if no crash processed yet)
         if (!crash_processed && !is_parent_alive(ipc->parent_handle)) {

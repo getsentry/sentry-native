@@ -6,8 +6,16 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-#if defined(SENTRY_PLATFORM_WINDOWS) && !defined(SENTRY_PLATFORM_XBOX)            \
+/* The host-side heartbeat machinery (clock, latch, shmem registration) is
+ * available on the native backend on Windows (non-Xbox) and macOS. Linux and
+ * other targets fall back to no-op stubs. */
+#if (((defined(SENTRY_PLATFORM_WINDOWS) && !defined(SENTRY_PLATFORM_XBOX))        \
+         || defined(SENTRY_PLATFORM_MACOS)))                                      \
     && defined(SENTRY_BACKEND_NATIVE)
+#    define SENTRY_APP_HANG_HOST_SUPPORTED 1
+#endif
+
+#if defined(SENTRY_APP_HANG_HOST_SUPPORTED)
 #    include "sentry_crash_context.h"
 #endif
 
@@ -49,8 +57,7 @@ sentry_app_hang_decision_t sentry__app_hang_decide(bool enabled, uint64_t hb,
     uint64_t now, uint64_t timeout_ms, uint64_t last_fired_hb,
     int consecutive_stale_ticks, int *out_consecutive_stale_ticks);
 
-#if defined(SENTRY_PLATFORM_WINDOWS) && !defined(SENTRY_PLATFORM_XBOX)            \
-    && defined(SENTRY_BACKEND_NATIVE)
+#if defined(SENTRY_APP_HANG_HOST_SUPPORTED)
 /**
  * Called from the native backend startup path. Stores `ctx` so that
  * subsequent `sentry_app_hang_heartbeat()` calls have somewhere to write.
