@@ -51,6 +51,8 @@ struct sentry_options_s {
     bool propagate_traceparent;
     bool strict_trace_continuation;
     bool crashpad_limit_stack_capture_to_sp;
+    bool app_hang_enabled;
+    uint64_t app_hang_timeout_ms;
     sentry_cache_keep_t cache_keep;
 
     time_t cache_max_age;

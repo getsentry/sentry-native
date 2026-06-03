@@ -67,6 +67,8 @@ sentry_options_new(void)
     opts->propagate_traceparent = false;
     opts->strict_trace_continuation = false;
     opts->crashpad_limit_stack_capture_to_sp = false;
+    opts->app_hang_enabled = false;
+    opts->app_hang_timeout_ms = 5000;
     opts->enable_metrics = true;
     opts->enable_logs = true;
     opts->cache_keep = SENTRY_CACHE_KEEP_NONE;

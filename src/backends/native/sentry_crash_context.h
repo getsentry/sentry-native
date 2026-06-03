@@ -326,6 +326,24 @@ typedef struct {
     uint32_t module_count;
     sentry_module_info_t modules[SENTRY_CRASH_MAX_MODULES];
 
+    /* App-hang detection (macOS, native backend only).
+     *
+     * Sync model:
+     *  - app_hang_enabled, app_hang_timeout_ms: written by host before daemon
+     *    is signalled ready; read by daemon at startup. No further mutation.
+     *  - app_hang_target_tid: latched once by host on first heartbeat via a
+     *    compare-exchange (atomic_compare_exchange_strong). Daemon reads, never
+     *    writes.
+     *  - app_hang_last_heartbeat_ms: written on every heartbeat with a relaxed
+     *    64-bit store. Daemon reads with a relaxed load. Torn reads are not a
+     *    correctness issue — the daemon compares against its remembered value
+     *    from the previous tick. (On 64-bit macOS the aligned store is atomic.)
+     */
+    bool app_hang_enabled;
+    uint64_t app_hang_timeout_ms;
+    volatile uint64_t app_hang_target_tid;
+    volatile uint64_t app_hang_last_heartbeat_ms;
+
 } sentry_crash_context_t;
 
 // Shared memory size: calculated at compile-time based on actual struct size
