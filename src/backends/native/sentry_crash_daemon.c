@@ -3440,14 +3440,16 @@ sentry__process_crash(const sentry_options_t *options, sentry_crash_ipc_t *ipc)
                         ctx->platform.wer_report_id, wer_report_path->path);
                     sentry_path_t *run_report_path
                         = sentry__path_join_str(run_folder, "Report.wer");
-                    if (!run_report_path
-                        || sentry__path_copy(
-                            wer_report_path, run_report_path)) {
-                        SENTRY_WARN("Failed to copy WER report");
-                    }
+                    int rv = run_report_path
+                        ? sentry__path_copy(wer_report_path, run_report_path)
+                        : -1;
                     sentry__path_free(run_report_path);
                     sentry__path_free(wer_report_path);
-                    break;
+                    if (rv != 0) {
+                        SENTRY_WARN("Failed to copy WER report");
+                    } else {
+                        break;
+                    }
                 }
             }
 
