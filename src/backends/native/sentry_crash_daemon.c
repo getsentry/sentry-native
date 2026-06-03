@@ -2334,7 +2334,7 @@ write_wer_report(sentry_path_t *report_path, sentry_path_t *run_folder)
 {
     int rv = -1;
     char *utf8 = NULL;
-    char *utf16 = NULL;
+    void *utf16 = NULL;
     size_t utf16_size = 0;
 
     sentry_path_t *run_path = sentry__path_join_str(run_folder, "Report.wer");
