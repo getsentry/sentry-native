@@ -2857,12 +2857,13 @@ write_envelope_with_native_stacktrace(const sentry_options_t *options,
         }
     }
 
-    if (/*ctx->attach_wer_report &&*/ run_folder) {
+    // Add Report.wer if captured by WER
+    if (ctx->attach_wer_report && run_folder) {
         sentry_path_t *report_path
             = sentry__path_join_str(run_folder, "Report.wer");
         if (report_path) {
-            write_attachment_to_envelope(fd, report_path->path, "Report.wer",
-                NULL, "application/octet-stream");
+            write_attachment_to_envelope(
+                fd, report_path->path, "Report.wer", NULL, "text/plain");
             sentry__path_free(report_path);
         }
     }

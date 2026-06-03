@@ -99,7 +99,7 @@ def test_native_wer_crash(cmake, httpserver, crash_arg):
         run_crash(
             tmp_path,
             "sentry_example",
-            ["log", "stdout", crash_arg],
+            ["log", "stdout", crash_arg, "attach-wer-report"],
             env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
         )
     assert waiting.result
@@ -127,7 +127,7 @@ def test_native_wer_report(cmake, httpserver):
         run_crash(
             tmp_path,
             "sentry_example",
-            ["log", "stdout", "crash"],
+            ["log", "stdout", "crash", "attach-wer-report"],
             env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
         )
     assert waiting.result
