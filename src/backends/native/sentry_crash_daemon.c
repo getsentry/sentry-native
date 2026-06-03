@@ -3388,7 +3388,7 @@ sentry__process_crash(const sentry_options_t *options, sentry_crash_ipc_t *ipc)
                 sentry_path_t *run_report_path
                     = sentry__path_join_str(run_folder, "Report.wer");
                 if (!run_report_path
-                    || !sentry__path_copy(wer_report_path, run_report_path)) {
+                    || sentry__path_copy(wer_report_path, run_report_path)) {
                     SENTRY_WARN("Failed to copy WER report");
                 }
                 sentry__path_free(run_report_path);
