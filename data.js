@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1780501659148,
+  "lastUpdate": 1780501696199,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -48754,6 +48754,66 @@ window.BENCHMARK_DATA = {
             "value": 6.937625000034586,
             "unit": "ms",
             "extra": "Min 5.585ms\nMax 8.820ms\nMean 7.140ms\nStdDev 1.491ms\nMedian 6.938ms\nCPU 0.784ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "jpnurmi@gmail.com",
+            "name": "J-P Nurmi",
+            "username": "jpnurmi"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "73a75aea0cde1e668425a38d69e5ab51eb2adcfa",
+          "message": "test: trigger crashes with correct WER exception codes (#1779)\n\n* test: trigger crashes with correct WER exception codes\n\nFor stack-buffer-overruns, the example uses `RaiseFailFastException` as\nappropriate, but for fastfails, it used `__fastfail(77)` that made WER\ndeliver `STATUS_STACK_BUFFER_OVERRUN (0xC0000409)`.\n\n- `__fastfail(77)` → `kernel int 0x29` → WER always normalizes to\n  `STATUS_STACK_BUFFER_OVERRUN (0xC0000409)`\n  https://learn.microsoft.com/en-us/cpp/intrinsics/fastfail\n\nvs.\n\n- `RaiseFailFastException(NULL, NULL, 0)` → WER preserves the original\n  exception code `(STATUS_FAIL_FAST_EXCEPTION = 0xC0000602)`\n  https://learn.microsoft.com/en-us/windows/win32/api/errhandlingapi/nf-errhandlingapi-raisefailfastexception\n\n* clean up debug output",
+          "timestamp": "2026-06-03T17:44:44+02:00",
+          "tree_id": "01b420af086eed2c21111a3b987f7b05a5339cd9",
+          "url": "https://github.com/getsentry/sentry-native/commit/73a75aea0cde1e668425a38d69e5ab51eb2adcfa"
+        },
+        "date": 1780501688340,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 3.004374999989068,
+            "unit": "ms",
+            "extra": "Min 2.742ms\nMax 3.277ms\nMean 2.991ms\nStdDev 0.194ms\nMedian 3.004ms\nCPU 1.748ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 3.524249999998119,
+            "unit": "ms",
+            "extra": "Min 3.044ms\nMax 9.072ms\nMean 4.509ms\nStdDev 2.572ms\nMedian 3.524ms\nCPU 1.977ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 10.39216600000259,
+            "unit": "ms",
+            "extra": "Min 9.786ms\nMax 11.930ms\nMean 10.519ms\nStdDev 0.834ms\nMedian 10.392ms\nCPU 3.728ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.04883299999391966,
+            "unit": "ms",
+            "extra": "Min 0.038ms\nMax 0.062ms\nMean 0.051ms\nStdDev 0.009ms\nMedian 0.049ms\nCPU 0.034ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.2207499999826723,
+            "unit": "ms",
+            "extra": "Min 0.183ms\nMax 0.236ms\nMean 0.213ms\nStdDev 0.022ms\nMedian 0.221ms\nCPU 0.213ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 6.267124999993712,
+            "unit": "ms",
+            "extra": "Min 5.395ms\nMax 6.718ms\nMean 6.184ms\nStdDev 0.483ms\nMedian 6.267ms\nCPU 0.759ms"
           }
         ]
       }
