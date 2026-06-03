@@ -117,7 +117,8 @@ def test_native_wer_crash(cmake, httpserver, crash_arg):
 
 
 @pytest.mark.with_wer
-def test_native_wer_report(cmake, httpserver):
+@pytest.mark.parametrize("crash_mode", ["native", "minidump", "native-with-minidump"])
+def test_native_wer_report(cmake, httpserver, crash_mode):
     """Test WER report capture with native backend"""
     tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "native"})
 
@@ -127,14 +128,15 @@ def test_native_wer_report(cmake, httpserver):
         run_crash(
             tmp_path,
             "sentry_example",
-            ["log", "stdout", "crash", "attach-wer-report"],
+            ["log", "stdout", "crash", "crash-mode", crash_mode, "attach-wer-report"],
             env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
         )
     assert waiting.result
 
     assert len(httpserver.log) >= 1
     envelope = Envelope.deserialize(httpserver.log[0][0].get_data())
-    assert_native_crash(envelope)
+    if "native" in crash_mode:
+        assert_native_crash(envelope)
 
     has_wer_report = any(
         item.headers.get("type") == "attachment"
