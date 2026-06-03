@@ -130,10 +130,12 @@ process_wer_exception(
 
     BOOL claimed = FALSE;
     PCWSTR report_id = get_report_id(exception_info);
-    if (report_id) {
-        WideCharToMultiByte(CP_UTF8, 0, report_id, -1,
-            ctx->platform.wer_report_id,
-            (int)sizeof(ctx->platform.wer_report_id), NULL, NULL);
+    if (report_id
+        && WideCharToMultiByte(CP_UTF8, 0, report_id, -1,
+               ctx->platform.wer_report_id,
+               (int)sizeof(ctx->platform.wer_report_id), NULL, NULL)
+            <= 0) {
+        ctx->platform.wer_report_id[0] = '\0';
     }
 
     // SENTRY_CRASH_STATE_READY: hard WER crash that bypassed the crash handler
