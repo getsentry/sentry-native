@@ -128,7 +128,9 @@ process_wer_exception(
     PVOID context, const WER_RUNTIME_EXCEPTION_INFORMATION *exception_info)
 {
     sentry_wer_registration_t registration = { 0 };
-    if (!read_registration(exception_info->hProcess, context, &registration)) {
+    if (!exception_info
+        || !read_registration(
+            exception_info->hProcess, context, &registration)) {
         return FALSE;
     }
 
@@ -154,7 +156,7 @@ process_wer_exception(
         goto done;
     }
 
-    if (!exception_info || !is_fatal_wer_exception(exception_info)
+    if (!is_fatal_wer_exception(exception_info)
         || !is_native_wer_exception(
             exception_info->exceptionRecord.ExceptionCode)) {
         goto done;
