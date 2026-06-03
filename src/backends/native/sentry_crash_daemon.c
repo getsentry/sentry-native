@@ -2230,9 +2230,9 @@ find_wer_report(sentry_uuid_t *report_id)
         if (WerStoreQueryReportMetadataV3(
                 report_store, report_key, &report_data)
             == S_OK) {
-            sentry_uuid_t integrator_id
-                = sentry__uuid_from_native(&report_data.ReportIntegratorId);
-            if (memcmp(&integrator_id, report_id, sizeof(sentry_uuid_t)) == 0) {
+            if (sentry__uuid_equal_native(report_id, &report_data.ReportId)
+                || sentry__uuid_equal_native(
+                    report_id, &report_data.ReportIntegratorId)) {
                 sentry_path_t *report_dir = sentry__path_from_wstr(report_key);
                 if (report_dir) {
                     report_path
