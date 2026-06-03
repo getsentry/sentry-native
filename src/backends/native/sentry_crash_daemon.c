@@ -2310,7 +2310,9 @@ find_wer_report(sentry_uuid_t *report_id)
                 }
             }
             g_wer.WerFreeString(report_key);
-            hr = g_wer.WerStoreGetNextReportKey(report_store, &report_key);
+            if (!report_path) {
+                hr = g_wer.WerStoreGetNextReportKey(report_store, &report_key);
+            }
         }
 
         g_wer.WerStoreClose(report_store);
