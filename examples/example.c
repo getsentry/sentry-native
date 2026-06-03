@@ -416,9 +416,9 @@ trigger_stack_buffer_overrun()
 static void
 trigger_fastfail_crash()
 {
-    // this bypasses WINDOWS SEH and will only be caught with the crashpad WER
-    // module enabled
-    __fastfail(77);
+    // this bypasses WINDOWS SEH and will only be caught with the
+    // crashpad/native WER module enabled
+    RaiseFailFastException(NULL, NULL, 0);
 }
 
 #endif
