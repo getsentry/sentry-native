@@ -88,8 +88,14 @@ def test_native_capture_crash(cmake, httpserver):
     reason="WER crash tests are only available in MSVC Windows builds",
 )
 @pytest.mark.with_wer
-@pytest.mark.parametrize("crash_arg", ["fastfail", "stack-buffer-overrun"])
-def test_native_wer(cmake, httpserver, crash_arg):
+@pytest.mark.parametrize(
+    "crash_arg,exception_code",
+    [
+        pytest.param("fastfail", 0xC0000602, id="fastfail"),
+        pytest.param("stack-buffer-overrun", 0xC0000409, id="stack-buffer-overrun"),
+    ],
+)
+def test_native_wer_crash(cmake, httpserver, crash_arg, exception_code):
     """Test WER crash capture with native backend"""
     tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "native"})
 
@@ -106,7 +112,7 @@ def test_native_wer(cmake, httpserver, crash_arg):
 
     assert len(httpserver.log) >= 1
     envelope = Envelope.deserialize(httpserver.log[0][0].get_data())
-    assert_native_crash(envelope, exception_code=0xC0000409)
+    assert_native_crash(envelope, exception_code=exception_code)
 
 
 @pytest.mark.skipif(not has_oom, reason="OOM test unreliable in this environment")
