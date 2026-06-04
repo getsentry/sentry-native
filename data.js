@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1780571632377,
+  "lastUpdate": 1780571728641,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -73852,6 +73852,66 @@ window.BENCHMARK_DATA = {
             "value": 16.517199999725563,
             "unit": "ms",
             "extra": "Min 15.354ms\nMax 17.805ms\nMean 16.376ms\nStdDev 0.953ms\nMedian 16.517ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "49699333+dependabot[bot]@users.noreply.github.com",
+            "name": "dependabot[bot]",
+            "username": "dependabot[bot]"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "de1239881337aaa39538031a2ee11cb9685ce928",
+          "message": "build(deps): bump docker/setup-qemu-action from 4.0.0 to 4.1.0 (#1784)\n\nBumps [docker/setup-qemu-action](https://github.com/docker/setup-qemu-action) from 4.0.0 to 4.1.0.\n- [Release notes](https://github.com/docker/setup-qemu-action/releases)\n- [Commits](https://github.com/docker/setup-qemu-action/compare/ce360397dd3f832beb865e1373c09c0e9f86d70a...06116385d9baf250c9f4dcb4858b16962ea869c3)\n\n---\nupdated-dependencies:\n- dependency-name: docker/setup-qemu-action\n  dependency-version: 4.1.0\n  dependency-type: direct:production\n  update-type: version-update:semver-minor\n...\n\nSigned-off-by: dependabot[bot] <support@github.com>\nCo-authored-by: dependabot[bot] <49699333+dependabot[bot]@users.noreply.github.com>",
+          "timestamp": "2026-06-04T13:11:08+02:00",
+          "tree_id": "9361570338729b1363b566708c2e8890374c01de",
+          "url": "https://github.com/getsentry/sentry-native/commit/de1239881337aaa39538031a2ee11cb9685ce928"
+        },
+        "date": 1780571720755,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 10.526199999731034,
+            "unit": "ms",
+            "extra": "Min 10.190ms\nMax 11.466ms\nMean 10.636ms\nStdDev 0.494ms\nMedian 10.526ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 10.57970000010755,
+            "unit": "ms",
+            "extra": "Min 10.371ms\nMax 10.923ms\nMean 10.645ms\nStdDev 0.211ms\nMedian 10.580ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 26.81239999992613,
+            "unit": "ms",
+            "extra": "Min 26.497ms\nMax 27.583ms\nMean 26.937ms\nStdDev 0.456ms\nMedian 26.812ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.17180000031657983,
+            "unit": "ms",
+            "extra": "Min 0.170ms\nMax 0.183ms\nMean 0.175ms\nStdDev 0.006ms\nMedian 0.172ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.41019999980562716,
+            "unit": "ms",
+            "extra": "Min 0.406ms\nMax 0.417ms\nMean 0.411ms\nStdDev 0.005ms\nMedian 0.410ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 14.41209999984494,
+            "unit": "ms",
+            "extra": "Min 14.095ms\nMax 14.708ms\nMean 14.408ms\nStdDev 0.229ms\nMedian 14.412ms"
           }
         ]
       }
