@@ -37,7 +37,12 @@ sentry_uuid_from_string_n(const char *str, size_t str_len)
     bool is_nibble = true;
     char nibble = 0;
 
-    for (i = 0; i < len && pos < 16; i++) {
+    if (len > 1 && str[0] == '{' && str[len - 1] == '}') {
+        i = 1;
+        len--;
+    }
+
+    for (; i < len && pos < 16; i++) {
         char c = str[i];
         if (!c || c == '-') {
             continue;
