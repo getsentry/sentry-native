@@ -941,6 +941,9 @@ thing_clone_children(thing_t *thing, size_t len)
             detached = true;
         }
         sentry_value_t cloned = sentry__value_clone(child);
+        if (sentry_value_is_null(cloned)) {
+            return false;
+        }
         sentry_value_decref(child);
         thing_set_child(thing, i, cloned);
     }
