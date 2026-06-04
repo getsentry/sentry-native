@@ -41,6 +41,7 @@
 - Fix division by zero when breadcrumbs are disabled. ([#1767](https://github.com/getsentry/sentry-native/pull/1767))
 - Native: escape JSON attachments. ([#1771](https://github.com/getsentry/sentry-native/pull/1771))
 - Handle memory allocation failures during JSON serialization to prevent truncated output. ([#1772](https://github.com/getsentry/sentry-native/pull/1772))
+- Free the acquired filelock before skipping the current run directory during old-run processing. ([#1792](https://github.com/getsentry/sentry-native/pull/1792))
 
 ## 0.14.2
 
