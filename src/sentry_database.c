@@ -632,6 +632,11 @@ sentry__process_old_runs(const sentry_options_t *options, uint64_t last_crash)
             continue;
         }
 
+        // our own run directory is protected by options->run->lock
+        if (sentry__path_eq(run_dir, options->run->run_path)) {
+            continue;
+        }
+
         sentry_path_t *lockfile = sentry__path_append_str(run_dir, ".lock");
         if (!lockfile) {
             continue;
@@ -643,11 +648,6 @@ sentry__process_old_runs(const sentry_options_t *options, uint64_t last_crash)
         bool did_lock = sentry__filelock_try_lock(lock);
         // the file is locked by another process
         if (!did_lock) {
-            sentry__filelock_free(lock);
-            continue;
-        }
-        // make sure we don't delete ourselves if the lock check fails
-        if (strcmp(options->run->run_path->path, run_dir->path) == 0) {
             sentry__filelock_free(lock);
             continue;
         }
