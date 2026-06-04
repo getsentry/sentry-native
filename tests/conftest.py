@@ -131,7 +131,12 @@ def pytest_configure(config):
 def gbenchmark():
     def _load(json_path, label, test_name=None):
         if test_name is None:
-            test_name = os.environ.get("PYTEST_CURRENT_TEST").split(" ")[0]
+            test_name = (
+                os.environ.get("PYTEST_CURRENT_TEST")
+                .split(" ")[0]
+                .replace("[", "_")
+                .replace("]", "")
+            )
 
         with open(json_path, "r") as f:
             data = json.load(f)
@@ -168,7 +173,10 @@ def _get_benchmark(name, separator):
         f"Min {min(real_time):.3f}{unit}",
         f"Max {max(real_time):.3f}{unit}",
         f"Mean {statistics.mean(real_time):.3f}{unit}",
-        f"StdDev {statistics.stdev(real_time):.3f}{unit}",
+    ]
+    if len(real_time) > 1:
+        extra += [f"StdDev {statistics.stdev(real_time):.3f}{unit}"]
+    extra += [
         f"Median {statistics.median(real_time):.3f}{unit}",
         f"CPU {statistics.mean(cpu_time):.3f}{unit}" if sys.platform != "win32" else "",
     ]
@@ -183,7 +191,8 @@ def _get_benchmark(name, separator):
 
 def pytest_report_teststatus(report, config):
     if report.when == "call" and report.passed:
-        benchmark = _get_benchmark(report.nodeid, ", ")
+        test_name = report.nodeid.replace("[", "_").replace("]", "")
+        benchmark = _get_benchmark(test_name, ", ")
         if benchmark:
             return (
                 "passed",
