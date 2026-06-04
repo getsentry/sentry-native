@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1780552629145,
+  "lastUpdate": 1780565781585,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -24436,6 +24436,66 @@ window.BENCHMARK_DATA = {
             "value": 1.9711770000014894,
             "unit": "ms",
             "extra": "Min 1.922ms\nMax 2.005ms\nMean 1.965ms\nStdDev 0.031ms\nMedian 1.971ms\nCPU 0.558ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "49699333+dependabot[bot]@users.noreply.github.com",
+            "name": "dependabot[bot]",
+            "username": "dependabot[bot]"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "cc9d820a620f88840a6ac34feebab43f91d5236b",
+          "message": "build(deps): bump actions/setup-dotnet from 5.2.0 to 5.3.0 (#1782)\n\nBumps [actions/setup-dotnet](https://github.com/actions/setup-dotnet) from 5.2.0 to 5.3.0.\n- [Release notes](https://github.com/actions/setup-dotnet/releases)\n- [Commits](https://github.com/actions/setup-dotnet/compare/c2fa09f4bde5ebb9d1777cf28262a3eb3db3ced7...9a946fdbd5fb07b82b2f5a4466058b876ab72bb2)\n\n---\nupdated-dependencies:\n- dependency-name: actions/setup-dotnet\n  dependency-version: 5.3.0\n  dependency-type: direct:production\n  update-type: version-update:semver-minor\n...\n\nSigned-off-by: dependabot[bot] <support@github.com>\nCo-authored-by: dependabot[bot] <49699333+dependabot[bot]@users.noreply.github.com>",
+          "timestamp": "2026-06-04T11:33:21+02:00",
+          "tree_id": "8fa15d696d4885df4e266cb4589d4fe18d47cd60",
+          "url": "https://github.com/getsentry/sentry-native/commit/cc9d820a620f88840a6ac34feebab43f91d5236b"
+        },
+        "date": 1780565773890,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 0.9319079999841051,
+            "unit": "ms",
+            "extra": "Min 0.919ms\nMax 0.954ms\nMean 0.935ms\nStdDev 0.013ms\nMedian 0.932ms\nCPU 0.888ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 0.8580269999924894,
+            "unit": "ms",
+            "extra": "Min 0.830ms\nMax 0.870ms\nMean 0.855ms\nStdDev 0.015ms\nMedian 0.858ms\nCPU 0.855ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 3.3228450000137855,
+            "unit": "ms",
+            "extra": "Min 3.234ms\nMax 3.393ms\nMean 3.316ms\nStdDev 0.069ms\nMedian 3.323ms\nCPU 1.681ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.11602699999002652,
+            "unit": "ms",
+            "extra": "Min 0.115ms\nMax 0.119ms\nMean 0.117ms\nStdDev 0.002ms\nMedian 0.116ms\nCPU 0.072ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.03012600001284227,
+            "unit": "ms",
+            "extra": "Min 0.029ms\nMax 0.034ms\nMean 0.031ms\nStdDev 0.002ms\nMedian 0.030ms\nCPU 0.030ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 1.8291480000129923,
+            "unit": "ms",
+            "extra": "Min 1.800ms\nMax 1.856ms\nMean 1.828ms\nStdDev 0.021ms\nMedian 1.829ms\nCPU 0.526ms"
           }
         ]
       }
