@@ -4,6 +4,7 @@
 #include "sentry_client_report.h"
 #include "sentry_database.h"
 #include "sentry_envelope.h"
+#include "sentry_json.h"
 #include "sentry_options.h"
 #include "sentry_ratelimiter.h"
 #include "sentry_retry.h"
@@ -20,7 +21,7 @@
 
 #define ENVELOPE_MIME "application/x-sentry-envelope"
 #define TUS_MIME "application/offset+octet-stream"
-#define TUS_MAX_HTTP_HEADERS 4
+#define TUS_MAX_HTTP_HEADERS 5
 #ifdef SENTRY_TRANSPORT_COMPRESSION
 #    define MAX_HTTP_HEADERS 4
 #else
@@ -195,9 +196,39 @@ sentry__prepared_http_request_free(sentry_prepared_http_request_t *req)
     sentry_free(req);
 }
 
+static char *
+tus_build_upload_metadata(const char *attachment_type)
+{
+    sentry_jsonwriter_t *jw = sentry__jsonwriter_new_sb(NULL);
+    sentry__jsonwriter_write_object_start(jw);
+    sentry__jsonwriter_write_key(jw, "attachment_type");
+    sentry__jsonwriter_write_str(jw, attachment_type);
+    sentry__jsonwriter_write_object_end(jw);
+
+    size_t json_len;
+    char *json = sentry__jsonwriter_into_string(jw, &json_len);
+    if (!json) {
+        return NULL;
+    }
+
+    char *encoded = sentry__base64_encode(json, json_len);
+    sentry_free(json);
+    if (!encoded) {
+        return NULL;
+    }
+
+    sentry_stringbuilder_t sb;
+    sentry__stringbuilder_init(&sb);
+    sentry__stringbuilder_append(&sb, "sentry ");
+    sentry__stringbuilder_append(&sb, encoded);
+    sentry_free(encoded);
+
+    return sentry__stringbuilder_into_string(&sb);
+}
+
 static sentry_prepared_http_request_t *
-prepare_tus_request_common(
-    size_t upload_size, const sentry_dsn_t *dsn, const char *user_agent)
+prepare_tus_request_common(size_t upload_size, const char *attachment_type,
+    const sentry_dsn_t *dsn, const char *user_agent)
 {
     if (!dsn || !dsn->is_valid) {
         return NULL;
@@ -234,12 +265,19 @@ prepare_tus_request_common(
     h->key = "upload-length";
     h->value = sentry__uint64_to_string((uint64_t)upload_size);
 
+    if (!sentry__string_empty(attachment_type)) {
+        h = &req->headers[req->headers_len++];
+        h->key = "upload-metadata";
+        h->value = tus_build_upload_metadata(attachment_type);
+    }
+
     return req;
 }
 
 static sentry_prepared_http_request_t *
 prepare_tus_upload_request(const char *location, const sentry_path_t *path,
-    size_t file_size, const sentry_dsn_t *dsn, const char *user_agent)
+    size_t file_size, const char *attachment_type, const sentry_dsn_t *dsn,
+    const char *user_agent)
 {
     if (!location || !path) {
         return NULL;
@@ -281,6 +319,12 @@ prepare_tus_upload_request(const char *location, const sentry_path_t *path,
     h = &req->headers[req->headers_len++];
     h->key = "upload-offset";
     h->value = sentry__string_clone("0");
+
+    if (!sentry__string_empty(attachment_type)) {
+        h = &req->headers[req->headers_len++];
+        h->key = "upload-metadata";
+        h->value = tus_build_upload_metadata(attachment_type);
+    }
 
     return req;
 }
@@ -346,13 +390,13 @@ http_update_ratelimiter(
 // resulting remote location URL (caller frees) in `location_out`.
 static int
 tus_upload_file(http_transport_state_t *state, const sentry_path_t *cache_path,
-    const char *basename, char **location_out)
+    const sentry_attachment_ref_t *ref, char **location_out)
 {
-    if (!basename || *basename == '\0') {
+    if (sentry__string_empty(ref->path)) {
         return RESULT_ERROR;
     }
     *location_out = NULL;
-    sentry_path_t *att_file = sentry__path_join_str(cache_path, basename);
+    sentry_path_t *att_file = sentry__path_join_str(cache_path, ref->path);
     size_t file_size = att_file ? sentry__path_get_size(att_file) : 0;
     if (!att_file || file_size == 0) {
         sentry__path_free(att_file);
@@ -360,8 +404,8 @@ tus_upload_file(http_transport_state_t *state, const sentry_path_t *cache_path,
     }
 
     // Step 1: TUS creation (POST, no body)
-    sentry_prepared_http_request_t *req
-        = prepare_tus_request_common(file_size, state->dsn, state->user_agent);
+    sentry_prepared_http_request_t *req = prepare_tus_request_common(
+        file_size, ref->attachment_type, state->dsn, state->user_agent);
     if (!req) {
         sentry__path_free(att_file);
         return RESULT_ERROR;
@@ -393,8 +437,8 @@ tus_upload_file(http_transport_state_t *state, const sentry_path_t *cache_path,
         sentry__path_free(att_file);
         return RESULT_ERROR;
     }
-    req = prepare_tus_upload_request(
-        patch_url, att_file, file_size, state->dsn, state->user_agent);
+    req = prepare_tus_upload_request(patch_url, att_file, file_size,
+        ref->attachment_type, state->dsn, state->user_agent);
     sentry_free(patch_url);
     sentry__path_free(att_file);
     if (!req) {
@@ -553,8 +597,7 @@ resolve_attachment_refs(
         }
 
         char *new_location = NULL;
-        int result
-            = tus_upload_file(state, cache_path, ref.path, &new_location);
+        int result = tus_upload_file(state, cache_path, &ref, &new_location);
         if (new_location) {
             bool resolved = sentry__envelope_item_resolve_attachment_ref(
                 item, new_location);
@@ -933,17 +976,19 @@ sentry__http_transport_get_bgworker(sentry_transport_t *transport)
 #endif
 
 sentry_prepared_http_request_t *
-sentry__prepare_tus_create_request(
-    size_t file_size, const sentry_dsn_t *dsn, const char *user_agent)
+sentry__prepare_tus_create_request(size_t file_size,
+    const char *attachment_type, const sentry_dsn_t *dsn,
+    const char *user_agent)
 {
-    return prepare_tus_request_common(file_size, dsn, user_agent);
+    return prepare_tus_request_common(
+        file_size, attachment_type, dsn, user_agent);
 }
 
 sentry_prepared_http_request_t *
 sentry__prepare_tus_upload_request(const char *location,
-    const sentry_path_t *path, size_t file_size, const sentry_dsn_t *dsn,
-    const char *user_agent)
+    const sentry_path_t *path, size_t file_size, const char *attachment_type,
+    const sentry_dsn_t *dsn, const char *user_agent)
 {
     return prepare_tus_upload_request(
-        location, path, file_size, dsn, user_agent);
+        location, path, file_size, attachment_type, dsn, user_agent);
 }

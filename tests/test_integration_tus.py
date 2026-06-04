@@ -23,6 +23,8 @@ pytestmark = [
 auth_header = (
     f"Sentry sentry_key=uiaeosnrtdy, sentry_version=7, sentry_client=sentry.native/{SENTRY_VERSION}"
 )
+# sentry <base64({"attachment_type":"event.minidump"})>
+upload_metadata = "sentry eyJhdHRhY2htZW50X3R5cGUiOiJldmVudC5taW5pZHVtcCJ9"
 # fmt: on
 
 
@@ -39,6 +41,7 @@ def test_tus_upload(cmake, httpserver):
     # TUS creation request (POST, no body) -> 201 + Location
     httpserver.expect_oneshot_request(
         "/api/123456/upload/",
+        method="POST",
         headers={"tus-resumable": "1.0.0"},
     ).respond_with_data(
         "OK",
@@ -92,6 +95,7 @@ def test_tus_upload(cmake, httpserver):
     upload_length = create_req.headers.get("upload-length")
     assert upload_length is not None
     assert int(upload_length) == 100 * 1024 * 1024
+    assert create_req.headers.get("upload-metadata") == upload_metadata
 
     # Verify TUS upload request headers
     assert upload_req.headers.get("tus-resumable") == "1.0.0"
@@ -118,6 +122,7 @@ def test_tus_upload(cmake, httpserver):
     assert attachment_ref.payload.json["location"] == location
     assert not os.path.isabs(attachment_ref.payload.json["path"])
     assert attachment_ref.headers.get("attachment_length") == 100 * 1024 * 1024
+    assert attachment_ref.headers.get("attachment_type") == "event.minidump"
 
     # large attachment files should be cleaned up after send
     cache_dir = os.path.join(tmp_path, ".sentry-native", "cache")
@@ -461,6 +466,7 @@ def test_tus_crash_restart(cmake, httpserver, backend):
     # Verify TUS creation request headers
     assert create_req.headers.get("tus-resumable") == "1.0.0"
     assert int(create_req.headers.get("upload-length")) == 100 * 1024 * 1024
+    assert create_req.headers.get("upload-metadata") == upload_metadata
 
     # Verify TUS upload request headers
     assert upload_req.headers.get("tus-resumable") == "1.0.0"
@@ -550,6 +556,7 @@ def test_tus_crash_native(cmake, httpserver):
     assert upload_req is not None
     assert envelope_req is not None
     assert int(create_req.headers.get("upload-length")) == 100 * 1024 * 1024
+    assert create_req.headers.get("upload-metadata") == upload_metadata
 
     body = envelope_req.get_data()
     envelope = Envelope.deserialize(body)

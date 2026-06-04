@@ -36,9 +36,9 @@ SENTRY_TEST(tus_request_preparation)
 {
     SENTRY_TEST_DSN_NEW_DEFAULT(dsn);
 
-    // Test creation request (POST, no body)
+    // Test creation request (POST, no body) without attachment_type
     sentry_prepared_http_request_t *req
-        = sentry__prepare_tus_create_request(9, dsn, NULL);
+        = sentry__prepare_tus_create_request(9, NULL, dsn, NULL);
     TEST_CHECK(!!req);
     TEST_CHECK_STRING_EQUAL(req->method, "POST");
     TEST_CHECK_STRING_EQUAL(
@@ -50,6 +50,7 @@ SENTRY_TEST(tus_request_preparation)
     bool has_tus_resumable = false;
     bool has_upload_length = false;
     bool has_content_type = false;
+    bool has_upload_metadata = false;
     for (size_t i = 0; i < req->headers_len; i++) {
         if (strcmp(req->headers[i].key, "tus-resumable") == 0) {
             TEST_CHECK_STRING_EQUAL(req->headers[i].value, "1.0.0");
@@ -62,11 +63,29 @@ SENTRY_TEST(tus_request_preparation)
         if (strcmp(req->headers[i].key, "content-type") == 0) {
             has_content_type = true;
         }
+        if (strcmp(req->headers[i].key, "upload-metadata") == 0) {
+            has_upload_metadata = true;
+        }
     }
     TEST_CHECK(has_tus_resumable);
     TEST_CHECK(has_upload_length);
     TEST_CHECK(!has_content_type);
+    TEST_CHECK(!has_upload_metadata);
 
+    sentry__prepared_http_request_free(req);
+
+    // Test creation request with attachment_type
+    req = sentry__prepare_tus_create_request(9, "event.minidump", dsn, NULL);
+    TEST_CHECK(!!req);
+    has_upload_metadata = false;
+    for (size_t i = 0; i < req->headers_len; i++) {
+        if (strcmp(req->headers[i].key, "upload-metadata") == 0) {
+            has_upload_metadata = true;
+            TEST_CHECK(strncmp(req->headers[i].value, "sentry ", 7) == 0);
+            TEST_CHECK(strlen(req->headers[i].value) > 7);
+        }
+    }
+    TEST_CHECK(has_upload_metadata);
     sentry__prepared_http_request_free(req);
 
     // Test upload request (PATCH with body)
@@ -77,7 +96,7 @@ SENTRY_TEST(tus_request_preparation)
 
     const char *location = "https://sentry.invalid/api/42/upload/abc123/";
     req = sentry__prepare_tus_upload_request(
-        location, test_file_path, 9, dsn, NULL);
+        location, test_file_path, 9, NULL, dsn, NULL);
     TEST_CHECK(!!req);
     TEST_CHECK_STRING_EQUAL(req->method, "PATCH");
     TEST_CHECK_STRING_EQUAL(req->url, location);
