@@ -105,7 +105,7 @@ def test_native_wer_crash(cmake, httpserver, crash_arg, exception_code):
         run_crash(
             tmp_path,
             "sentry_example",
-            ["log", "stdout", crash_arg],
+            ["log", "stdout", crash_arg, "attach-wer-report"],
             env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
         )
     assert waiting.result
@@ -113,6 +113,47 @@ def test_native_wer_crash(cmake, httpserver, crash_arg, exception_code):
     assert len(httpserver.log) >= 1
     envelope = Envelope.deserialize(httpserver.log[0][0].get_data())
     assert_native_crash(envelope, exception_code=exception_code)
+
+    has_wer_report = any(
+        item.headers.get("type") == "attachment"
+        and item.headers.get("filename") == "Report.wer"
+        for item in envelope.items
+    )
+    assert has_wer_report, "Should include WER report"
+
+
+@pytest.mark.skipif(
+    sys.platform != "win32",
+    reason="WER reports are only available on Windows",
+)
+@pytest.mark.with_wer
+@pytest.mark.parametrize("crash_mode", ["native", "minidump", "native-with-minidump"])
+def test_native_wer_report(cmake, httpserver, crash_mode):
+    """Test WER report capture with native backend"""
+    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "native"})
+
+    httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data("OK")
+
+    with httpserver.wait(timeout=10) as waiting:
+        run_crash(
+            tmp_path,
+            "sentry_example",
+            ["log", "stdout", "crash", "crash-mode", crash_mode, "attach-wer-report"],
+            env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
+        )
+    assert waiting.result
+
+    assert len(httpserver.log) >= 1
+    envelope = Envelope.deserialize(httpserver.log[0][0].get_data())
+    if "native" in crash_mode:
+        assert_native_crash(envelope)
+
+    has_wer_report = any(
+        item.headers.get("type") == "attachment"
+        and item.headers.get("filename") == "Report.wer"
+        for item in envelope.items
+    )
+    assert has_wer_report, "Should include WER report"
 
 
 @pytest.mark.skipif(not has_oom, reason="OOM test unreliable in this environment")

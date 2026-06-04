@@ -122,8 +122,9 @@ typedef enum {
     SENTRY_CRASH_STATE_READY = 0,
     SENTRY_CRASH_STATE_CRASHED = 1,
     SENTRY_CRASH_STATE_PROCESSING = 2,
-    SENTRY_CRASH_STATE_CAPTURED = 3,
-    SENTRY_CRASH_STATE_DONE = 4
+    SENTRY_CRASH_STATE_PROCESSED = 3,
+    SENTRY_CRASH_STATE_CAPTURED = 4,
+    SENTRY_CRASH_STATE_DONE = 5
 } sentry_crash_state_t;
 
 /**
@@ -242,6 +243,9 @@ typedef struct {
     // Additional thread contexts
     DWORD num_threads;
     sentry_thread_context_windows_t threads[SENTRY_CRASH_MAX_THREADS];
+
+    bool wer_enabled;
+    char wer_report_id[64];
 } sentry_crash_platform_windows_t;
 
 typedef struct {
@@ -281,6 +285,7 @@ typedef struct {
     bool attach_screenshot; // Screenshot attachment enabled in parent process
     bool attach_session_replay; // Session replay attachment enabled in parent
                                 // process
+    bool attach_wer_report; // WER report attachment enabled in parent process
     uint32_t session_replay_duration; // Requested session replay duration in
                                       // ms
     int cache_keep; // sentry_cache_keep_t

@@ -37,7 +37,12 @@ sentry_uuid_from_string_n(const char *str, size_t str_len)
     bool is_nibble = true;
     char nibble = 0;
 
-    for (i = 0; i < len && pos < 16; i++) {
+    if (len > 1 && str[0] == '{' && str[len - 1] == '}') {
+        i = 1;
+        len--;
+    }
+
+    for (; i < len && pos < 16; i++) {
         char c = str[i];
         if (!c || c == '-') {
             continue;
@@ -148,6 +153,12 @@ sentry__uuid_as_filename(const sentry_uuid_t *uuid, const char *suffix)
     return buf;
 }
 
+bool
+sentry__uuid_equal(const sentry_uuid_t *a, const sentry_uuid_t *b)
+{
+    return memcmp(a->bytes, b->bytes, 16) == 0;
+}
+
 #ifdef SENTRY_PLATFORM_WINDOWS
 sentry_uuid_t
 sentry__uuid_from_native(const GUID *guid)
@@ -170,5 +181,12 @@ sentry__uuid_from_native(const GUID *guid)
     rv.bytes[14] = (char)guid->Data4[6];
     rv.bytes[15] = (char)guid->Data4[7];
     return rv;
+}
+
+bool
+sentry__uuid_equal_native(const sentry_uuid_t *uuid, const GUID *guid)
+{
+    sentry_uuid_t guid_uuid = sentry__uuid_from_native(guid);
+    return sentry__uuid_equal(uuid, &guid_uuid);
 }
 #endif

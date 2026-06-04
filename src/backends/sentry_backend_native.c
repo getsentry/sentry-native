@@ -124,21 +124,21 @@ wer_unregister_module(void)
     memset(&g_wer_registration, 0, sizeof(g_wer_registration));
 }
 
-static void
+static bool
 wer_register_module(uint64_t app_tid)
 {
     windows_version_t win_ver;
     if (!sentry__get_windows_version(&win_ver) || win_ver.build < 19041) {
         SENTRY_WARN("Native WER module not registered, because Windows "
                     "doesn't meet version requirements (build >= 19041).");
-        return;
+        return false;
     }
 
     sentry_path_t *wer_path = wer_default_path();
     if (!wer_path || !sentry__path_is_file(wer_path)) {
         SENTRY_WARN("Native WER module not found");
         sentry__path_free(wer_path);
-        return;
+        return false;
     }
 
     const DWORD one = 1;
@@ -146,7 +146,7 @@ wer_register_module(uint64_t app_tid)
     if (reg_res != ERROR_SUCCESS) {
         SENTRY_WARN("registering native WER module in registry failed");
         sentry__path_free(wer_path);
-        return;
+        return false;
     }
 
     g_wer_registration.version = 1;
@@ -160,11 +160,12 @@ wer_register_module(uint64_t app_tid)
         wer_delete_registry_value(wer_path);
         sentry__path_free(wer_path);
         memset(&g_wer_registration, 0, sizeof(g_wer_registration));
-        return;
+        return false;
     }
 
     SENTRY_DEBUGF("registered native WER module \"%s\"", wer_path->path);
     g_wer_path = wer_path;
+    return true;
 }
 
 #endif
@@ -297,6 +298,7 @@ native_backend_startup(
     ctx->crash_reporting_mode = options->crash_reporting_mode;
     ctx->system_crash_reporter_enabled = options->system_crash_reporter_enabled;
     ctx->crash_upload_mode = options->crash_upload_mode;
+    ctx->attach_wer_report = options->attach_wer_report;
 
     // Pass debug logging setting to daemon
     ctx->debug_enabled = options->debug;
@@ -526,7 +528,7 @@ native_backend_startup(
     }
 
 #    if defined(SENTRY_PLATFORM_WINDOWS) && !defined(SENTRY_PLATFORM_XBOX)
-    wer_register_module(tid);
+    state->ipc->shmem->platform.wer_enabled = wer_register_module(tid);
 #    endif
 
     if (sentry__crash_handler_init(state->ipc) < 0) {

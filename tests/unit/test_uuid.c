@@ -46,3 +46,13 @@ SENTRY_TEST(internal_uuid_api)
     sentry__span_uuid_as_string(&span_id, sbuf);
     TEST_CHECK_STRING_EQUAL(sbuf, "f391fdc0bb2743b1");
 }
+
+SENTRY_TEST(uuid_braces)
+{
+    sentry_uuid_t uuid
+        = sentry_uuid_from_string("{f391fdc0-bb27-43b1-8c0c-183bc217d42b}");
+    TEST_CHECK(!sentry_uuid_is_nil(&uuid));
+    char buf[37];
+    sentry_uuid_as_string(&uuid, buf);
+    TEST_CHECK_STRING_EQUAL(buf, "f391fdc0-bb27-43b1-8c0c-183bc217d42b");
+}

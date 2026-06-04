@@ -20,11 +20,21 @@ void sentry__span_uuid_as_string(const sentry_uuid_t *uuid, char str[17]);
  */
 char *sentry__uuid_as_filename(const sentry_uuid_t *uuid, const char *suffix);
 
+/**
+ * Compares two sentry UUIDs for equality.
+ */
+bool sentry__uuid_equal(const sentry_uuid_t *a, const sentry_uuid_t *b);
+
 #ifdef SENTRY_PLATFORM_WINDOWS
 /**
  * Create a new UUID from the windows-native GUID type.
  */
 sentry_uuid_t sentry__uuid_from_native(const GUID *guid);
+
+/**
+ * Compares a sentry UUID with a windows-native GUID for equality.
+ */
+bool sentry__uuid_equal_native(const sentry_uuid_t *uuid, const GUID *guid);
 #endif
 
 #endif

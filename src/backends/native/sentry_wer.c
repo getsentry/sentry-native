@@ -6,29 +6,21 @@
 #include <werapi.h>
 #include <windows.h>
 
-#ifndef STATUS_FAIL_FAST_EXCEPTION
-#    define STATUS_FAIL_FAST_EXCEPTION ((DWORD)0xC0000602)
-#endif
-
-#ifndef STATUS_STACK_BUFFER_OVERRUN
-#    define STATUS_STACK_BUFFER_OVERRUN ((DWORD)0xC0000409)
-#endif
+typedef struct {
+    DWORD dwSize;
+    HANDLE hProcess;
+    HANDLE hThread;
+    EXCEPTION_RECORD exceptionRecord;
+    CONTEXT context;
+    PCWSTR pwszReportId;
+    BOOL bIsFatal;
+    DWORD dwReserved;
+} WER_RUNTIME_EXCEPTION_INFORMATION_19041;
 
 static BOOL
 is_fatal_wer_exception(const WER_RUNTIME_EXCEPTION_INFORMATION *info)
 {
     // bIsFatal is missing in older SDKs; guard access with dwSize.
-    typedef struct {
-        DWORD dwSize;
-        HANDLE hProcess;
-        HANDLE hThread;
-        EXCEPTION_RECORD exceptionRecord;
-        CONTEXT context;
-        PCWSTR pwszReportId;
-        BOOL bIsFatal;
-        DWORD dwReserved;
-    } WER_RUNTIME_EXCEPTION_INFORMATION_19041;
-
     if (!info
         || info->dwSize
             <= offsetof(WER_RUNTIME_EXCEPTION_INFORMATION_19041, bIsFatal)) {
@@ -38,11 +30,18 @@ is_fatal_wer_exception(const WER_RUNTIME_EXCEPTION_INFORMATION *info)
     return ((const WER_RUNTIME_EXCEPTION_INFORMATION_19041 *)info)->bIsFatal;
 }
 
-static BOOL
-is_native_wer_exception(DWORD code)
+static PCWSTR
+get_report_id(const WER_RUNTIME_EXCEPTION_INFORMATION *info)
 {
-    return code == STATUS_FAIL_FAST_EXCEPTION
-        || code == STATUS_STACK_BUFFER_OVERRUN;
+    // pwszReportId is missing in older SDKs; guard access with dwSize.
+    if (!info
+        || info->dwSize <= offsetof(
+               WER_RUNTIME_EXCEPTION_INFORMATION_19041, pwszReportId)) {
+        return NULL;
+    }
+
+    return ((const WER_RUNTIME_EXCEPTION_INFORMATION_19041 *)info)
+        ->pwszReportId;
 }
 
 static BOOL
@@ -113,9 +112,7 @@ static BOOL
 process_wer_exception(
     PVOID context, const WER_RUNTIME_EXCEPTION_INFORMATION *exception_info)
 {
-    if (!exception_info || !is_fatal_wer_exception(exception_info)
-        || !is_native_wer_exception(
-            exception_info->exceptionRecord.ExceptionCode)) {
+    if (!exception_info || !is_fatal_wer_exception(exception_info)) {
         return FALSE;
     }
 
@@ -132,6 +129,16 @@ process_wer_exception(
     }
 
     BOOL claimed = FALSE;
+    PCWSTR report_id = get_report_id(exception_info);
+    if (report_id
+        && WideCharToMultiByte(CP_UTF8, 0, report_id, -1,
+               ctx->platform.wer_report_id,
+               (int)sizeof(ctx->platform.wer_report_id), NULL, NULL)
+            <= 0) {
+        ctx->platform.wer_report_id[0] = '\0';
+    }
+
+    // SENTRY_CRASH_STATE_READY: hard WER crash that bypassed the crash handler
     if (InterlockedCompareExchange(&ctx->state, SENTRY_CRASH_STATE_PROCESSING,
             SENTRY_CRASH_STATE_READY)
         == SENTRY_CRASH_STATE_READY) {

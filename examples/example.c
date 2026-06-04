@@ -878,6 +878,9 @@ main(int argc, char **argv)
         sentry_options_set_crash_upload_mode(
             options, SENTRY_CRASH_UPLOAD_MODE_ASYNC);
     }
+    if (has_arg(argc, argv, "attach-wer-report")) {
+        sentry_options_set_attach_wer_report(options, true);
+    }
 
     // E2E test mode: generate unique test ID for event correlation
     char e2e_test_id[37] = { 0 };
