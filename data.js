@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1780670515388,
+  "lastUpdate": 1780670581753,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -49474,6 +49474,66 @@ window.BENCHMARK_DATA = {
             "value": 14.257041000064419,
             "unit": "ms",
             "extra": "Min 10.593ms\nMax 18.808ms\nMean 14.547ms\nStdDev 3.348ms\nMedian 14.257ms\nCPU 1.453ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "60878493+JoshuaMoelans@users.noreply.github.com",
+            "name": "JoshuaMoelans",
+            "username": "JoshuaMoelans"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "7d8ab5ee1da0d8028f015dc073c0fce2ac7ea5af",
+          "message": "fix(tus): remove redundant Upload-Metadata header from PATCH request (#1796)\n\nThe TUS spec only defines Upload-Metadata on the creation request (POST),\nnot on the upload request (PATCH). Remove the duplicate header from the\nPATCH path and drop the now-unused attachment_type parameter from\nprepare_tus_upload_request.\n\nCo-authored-by: Claude Opus 4.6 (1M context) <noreply@anthropic.com>",
+          "timestamp": "2026-06-05T16:39:15+02:00",
+          "tree_id": "35558a61b6070fb33d9940df27f63f98c0878488",
+          "url": "https://github.com/getsentry/sentry-native/commit/7d8ab5ee1da0d8028f015dc073c0fce2ac7ea5af"
+        },
+        "date": 1780670574724,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 3.27025000001413,
+            "unit": "ms",
+            "extra": "Min 3.038ms\nMax 3.318ms\nMean 3.196ms\nStdDev 0.133ms\nMedian 3.270ms\nCPU 1.897ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 3.3901669999920614,
+            "unit": "ms",
+            "extra": "Min 3.126ms\nMax 3.767ms\nMean 3.430ms\nStdDev 0.231ms\nMedian 3.390ms\nCPU 2.044ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 12.677957999983391,
+            "unit": "ms",
+            "extra": "Min 11.037ms\nMax 42.286ms\nMean 18.100ms\nStdDev 13.543ms\nMedian 12.678ms\nCPU 4.251ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.06679100005158034,
+            "unit": "ms",
+            "extra": "Min 0.052ms\nMax 0.075ms\nMean 0.066ms\nStdDev 0.009ms\nMedian 0.067ms\nCPU 0.046ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.25083399998493405,
+            "unit": "ms",
+            "extra": "Min 0.223ms\nMax 0.292ms\nMean 0.254ms\nStdDev 0.025ms\nMedian 0.251ms\nCPU 0.254ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 6.783124999969914,
+            "unit": "ms",
+            "extra": "Min 6.598ms\nMax 10.191ms\nMean 7.490ms\nStdDev 1.523ms\nMedian 6.783ms\nCPU 0.829ms"
           }
         ]
       }
