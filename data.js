@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1780665841816,
+  "lastUpdate": 1780665944784,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -74092,6 +74092,66 @@ window.BENCHMARK_DATA = {
             "value": 14.41209999984494,
             "unit": "ms",
             "extra": "Min 14.095ms\nMax 14.708ms\nMean 14.408ms\nStdDev 0.229ms\nMedian 14.412ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "jpnurmi@gmail.com",
+            "name": "J-P Nurmi",
+            "username": "jpnurmi"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "065d61051421358df5819c58c3ccc066b2fc7f3b",
+          "message": "feat(tus): add Upload-Metadata header to TUS requests (#1795)\n\n* feat(tus): add Upload-Metadata header to TUS requests\n\nAdd the `Upload-Metadata` header to TUS creation (POST) and upload\n(PATCH) requests in the `sentry <base64({\"attachment_type\":\"<type>\"})>`\nformat that the relay server expects for preliminary quota checks.\n\n* Update CHANGELOG.md",
+          "timestamp": "2026-06-05T15:20:00+02:00",
+          "tree_id": "bf82db88b950079fb8bbe2677f4b65625421d4fa",
+          "url": "https://github.com/getsentry/sentry-native/commit/065d61051421358df5819c58c3ccc066b2fc7f3b"
+        },
+        "date": 1780665936159,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 11.099300000068979,
+            "unit": "ms",
+            "extra": "Min 9.894ms\nMax 33.225ms\nMean 15.158ms\nStdDev 10.124ms\nMedian 11.099ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 61.68560000003254,
+            "unit": "ms",
+            "extra": "Min 10.820ms\nMax 186.912ms\nMean 79.418ms\nStdDev 70.469ms\nMedian 61.686ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 26.38299999989613,
+            "unit": "ms",
+            "extra": "Min 25.325ms\nMax 28.106ms\nMean 26.473ms\nStdDev 1.029ms\nMedian 26.383ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.15629999995780963,
+            "unit": "ms",
+            "extra": "Min 0.147ms\nMax 0.193ms\nMean 0.163ms\nStdDev 0.018ms\nMedian 0.156ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.39449999997032137,
+            "unit": "ms",
+            "extra": "Min 0.373ms\nMax 0.436ms\nMean 0.404ms\nStdDev 0.025ms\nMedian 0.394ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 14.24459999998362,
+            "unit": "ms",
+            "extra": "Min 14.130ms\nMax 14.986ms\nMean 14.448ms\nStdDev 0.361ms\nMedian 14.245ms"
           }
         ]
       }
