@@ -159,6 +159,12 @@ char *sentry__dsn_get_minidump_url(
     const sentry_dsn_t *dsn, const char *user_agent);
 
 /**
+ * RFC 4648 base64-encodes `len` bytes from `data` and returns a newly
+ * allocated NUL-terminated string (caller frees).
+ */
+char *sentry__base64_encode(const char *data, size_t len);
+
+/**
  * Returns the number of microseconds since the unix epoch.
  */
 static inline uint64_t
