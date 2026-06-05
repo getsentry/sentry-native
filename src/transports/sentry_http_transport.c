@@ -21,7 +21,7 @@
 
 #define ENVELOPE_MIME "application/x-sentry-envelope"
 #define TUS_MIME "application/offset+octet-stream"
-#define TUS_MAX_HTTP_HEADERS 5
+#define TUS_MAX_HTTP_HEADERS 4
 #ifdef SENTRY_TRANSPORT_COMPRESSION
 #    define MAX_HTTP_HEADERS 4
 #else
@@ -276,8 +276,7 @@ prepare_tus_request_common(size_t upload_size, const char *attachment_type,
 
 static sentry_prepared_http_request_t *
 prepare_tus_upload_request(const char *location, const sentry_path_t *path,
-    size_t file_size, const char *attachment_type, const sentry_dsn_t *dsn,
-    const char *user_agent)
+    size_t file_size, const sentry_dsn_t *dsn, const char *user_agent)
 {
     if (!location || !path) {
         return NULL;
@@ -319,12 +318,6 @@ prepare_tus_upload_request(const char *location, const sentry_path_t *path,
     h = &req->headers[req->headers_len++];
     h->key = "upload-offset";
     h->value = sentry__string_clone("0");
-
-    if (!sentry__string_empty(attachment_type)) {
-        h = &req->headers[req->headers_len++];
-        h->key = "upload-metadata";
-        h->value = tus_build_upload_metadata(attachment_type);
-    }
 
     return req;
 }
@@ -437,8 +430,8 @@ tus_upload_file(http_transport_state_t *state, const sentry_path_t *cache_path,
         sentry__path_free(att_file);
         return RESULT_ERROR;
     }
-    req = prepare_tus_upload_request(patch_url, att_file, file_size,
-        ref->attachment_type, state->dsn, state->user_agent);
+    req = prepare_tus_upload_request(
+        patch_url, att_file, file_size, state->dsn, state->user_agent);
     sentry_free(patch_url);
     sentry__path_free(att_file);
     if (!req) {
@@ -986,9 +979,9 @@ sentry__prepare_tus_create_request(size_t file_size,
 
 sentry_prepared_http_request_t *
 sentry__prepare_tus_upload_request(const char *location,
-    const sentry_path_t *path, size_t file_size, const char *attachment_type,
-    const sentry_dsn_t *dsn, const char *user_agent)
+    const sentry_path_t *path, size_t file_size, const sentry_dsn_t *dsn,
+    const char *user_agent)
 {
     return prepare_tus_upload_request(
-        location, path, file_size, attachment_type, dsn, user_agent);
+        location, path, file_size, dsn, user_agent);
 }
