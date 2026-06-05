@@ -31,8 +31,7 @@ sentry_prepared_http_request_t *sentry__prepare_tus_create_request(
     const char *user_agent);
 sentry_prepared_http_request_t *sentry__prepare_tus_upload_request(
     const char *location, const sentry_path_t *path, size_t file_size,
-    const char *attachment_type, const sentry_dsn_t *dsn,
-    const char *user_agent);
+    const sentry_dsn_t *dsn, const char *user_agent);
 
 void sentry__prepared_http_request_free(sentry_prepared_http_request_t *req);
 
