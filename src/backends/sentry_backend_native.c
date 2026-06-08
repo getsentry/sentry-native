@@ -689,12 +689,19 @@ native_backend_shutdown(sentry_backend_t *backend)
     // Cleanup IPC
     if (state->ipc) {
 #if defined(SENTRY_APP_HANG_HOST_SUPPORTED)
-        /* Clear the global heartbeat pointer before the shmem backing it goes
-         * away, so sentry_app_hang_heartbeat() cannot write to freed memory. */
+        /* Hold the app-hang lock across BOTH clearing the registration and
+         * freeing the shmem mapping, so an in-flight sentry_app_hang_heartbeat()
+         * on another thread cannot write to memory that crash_ipc_free unmaps.
+         * The lock is recursive, so set_shmem may re-acquire it safely. */
+        sentry__app_hang_lock();
         sentry__app_hang_set_shmem(NULL);
-#endif
         sentry__crash_ipc_free(state->ipc);
         state->ipc = NULL; // Prevent use-after-free
+        sentry__app_hang_unlock();
+#else
+        sentry__crash_ipc_free(state->ipc);
+        state->ipc = NULL; // Prevent use-after-free
+#endif
     }
 
 #if !defined(SENTRY_PLATFORM_WINDOWS) && !defined(SENTRY_PLATFORM_IOS)

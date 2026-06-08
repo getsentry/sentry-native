@@ -48,11 +48,22 @@ sentry_app_hang_decision_t sentry__app_hang_decide(bool enabled, uint64_t hb,
  * subsequent `sentry_app_hang_heartbeat()` calls have somewhere to write.
  * Passing NULL clears the registration on backend shutdown.
  *
- * The pointer is stored in a `volatile` global; ordering with shmem field
- * initialization is the caller's responsibility (the backend writes options
- * into shmem before calling this).
+ * Access to the stored pointer is serialized by the app-hang lock (see
+ * `sentry__app_hang_lock`); ordering with shmem field initialization is the
+ * caller's responsibility (the backend writes options into shmem before
+ * calling this).
  */
 void sentry__app_hang_set_shmem(sentry_crash_context_t *ctx);
+
+/**
+ * Serialize heartbeat access against teardown. The backend must hold this lock
+ * across BOTH clearing the shmem registration (`sentry__app_hang_set_shmem(
+ * NULL)`) AND freeing the underlying mapping, so that an in-flight
+ * `sentry_app_hang_heartbeat()` on another thread cannot write to memory that
+ * is about to be unmapped. The lock is recursive.
+ */
+void sentry__app_hang_lock(void);
+void sentry__app_hang_unlock(void);
 
 /**
  * Return a millisecond-resolution unbiased timestamp shared between host and

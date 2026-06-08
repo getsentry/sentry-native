@@ -10,6 +10,8 @@
 #include "sentry_options.h"
 
 #if defined(SENTRY_APP_HANG_HOST_SUPPORTED)
+#    include "sentry_sync.h"
+
 #    include <pthread.h>
 #    include <stdatomic.h>
 #    include <time.h>
@@ -58,12 +60,29 @@ sentry_options_set_app_hang_timeout_ms(
 
 #if defined(SENTRY_APP_HANG_HOST_SUPPORTED)
 
-static sentry_crash_context_t *volatile g_app_hang_shmem = NULL;
+/* Recursive (see SENTRY__MUTEX_INIT). Serializes the heartbeat body against
+ * shutdown clearing the registration and unmapping the shmem behind it. */
+static sentry_mutex_t g_app_hang_lock = SENTRY__MUTEX_INIT;
+static sentry_crash_context_t *g_app_hang_shmem = NULL;
+
+void
+sentry__app_hang_lock(void)
+{
+    sentry__mutex_lock(&g_app_hang_lock);
+}
+
+void
+sentry__app_hang_unlock(void)
+{
+    sentry__mutex_unlock(&g_app_hang_lock);
+}
 
 void
 sentry__app_hang_set_shmem(sentry_crash_context_t *ctx)
 {
+    sentry__mutex_lock(&g_app_hang_lock);
     g_app_hang_shmem = ctx;
+    sentry__mutex_unlock(&g_app_hang_lock);
 }
 
 uint64_t
@@ -78,14 +97,9 @@ sentry__app_hang_now_ms(void)
     return (uint64_t)ts.tv_sec * 1000ULL + (uint64_t)ts.tv_nsec / 1000000ULL;
 }
 
-void
-sentry_app_hang_heartbeat(void)
+static void
+app_hang_record_heartbeat(sentry_crash_context_t *ctx)
 {
-    sentry_crash_context_t *ctx = g_app_hang_shmem;
-    if (!ctx || !ctx->app_hang_enabled) {
-        return;
-    }
-
     /* Obtain the portable 64-bit Mach thread id of the current thread; this
      * is the same value the daemon matches against via
      * thread_info(THREAD_IDENTIFIER_INFO). */
@@ -112,6 +126,21 @@ sentry_app_hang_heartbeat(void)
     /* Relaxed 64-bit store; aligned on a 64-bit target so it is atomic and
      * cannot tear. The daemon reads it with a relaxed load. */
     ctx->app_hang_last_heartbeat_ms = sentry__app_hang_now_ms();
+}
+
+void
+sentry_app_hang_heartbeat(void)
+{
+    /* Hold the lock across the whole body: it pins the shmem mapping so backend
+     * shutdown cannot unmap it (in sentry__crash_ipc_free) while we dereference
+     * `ctx`. The body is bounded and non-blocking, so shutdown waits at most
+     * for one in-flight heartbeat. */
+    sentry__app_hang_lock();
+    sentry_crash_context_t *ctx = g_app_hang_shmem;
+    if (ctx && ctx->app_hang_enabled) {
+        app_hang_record_heartbeat(ctx);
+    }
+    sentry__app_hang_unlock();
 }
 
 #else /* host heartbeat not supported on this target */
