@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1780906497492,
+  "lastUpdate": 1780906536031,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -75352,6 +75352,66 @@ window.BENCHMARK_DATA = {
             "value": 13.431100000161678,
             "unit": "ms",
             "extra": "Min 13.125ms\nMax 13.592ms\nMean 13.361ms\nStdDev 0.190ms\nMedian 13.431ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "jpnurmi@gmail.com",
+            "name": "J-P Nurmi",
+            "username": "jpnurmi"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "db4242cf2b200de9dae0f534492d7166d15bdb11",
+          "message": "fix: reject NaN sample rates (#1788)\n\n* fix: reject NaN sample rates\n\nNormalize NaN sample rates back to the default rate so invalid configuration\ndoes not silently drop all events.\n\nCo-Authored-By: OpenAI Codex <noreply@openai.com>\n\n* Update CHANGELOG.md\n\n---------\n\nCo-authored-by: OpenAI Codex <noreply@openai.com>",
+          "timestamp": "2026-06-08T10:10:31+02:00",
+          "tree_id": "af24929db4cf0b87d0719ef035c3ca2754568e19",
+          "url": "https://github.com/getsentry/sentry-native/commit/db4242cf2b200de9dae0f534492d7166d15bdb11"
+        },
+        "date": 1780906527361,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 10.437899999999445,
+            "unit": "ms",
+            "extra": "Min 10.207ms\nMax 12.575ms\nMean 10.811ms\nStdDev 0.992ms\nMedian 10.438ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 10.840100000052644,
+            "unit": "ms",
+            "extra": "Min 10.777ms\nMax 11.099ms\nMean 10.885ms\nStdDev 0.132ms\nMedian 10.840ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 27.734300000020085,
+            "unit": "ms",
+            "extra": "Min 27.433ms\nMax 28.394ms\nMean 27.810ms\nStdDev 0.414ms\nMedian 27.734ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.2082999999402091,
+            "unit": "ms",
+            "extra": "Min 0.197ms\nMax 0.246ms\nMean 0.214ms\nStdDev 0.019ms\nMedian 0.208ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.42199999995773396,
+            "unit": "ms",
+            "extra": "Min 0.407ms\nMax 0.445ms\nMean 0.421ms\nStdDev 0.015ms\nMedian 0.422ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 15.425400000026457,
+            "unit": "ms",
+            "extra": "Min 15.219ms\nMax 17.284ms\nMean 15.785ms\nStdDev 0.862ms\nMedian 15.425ms"
           }
         ]
       }
