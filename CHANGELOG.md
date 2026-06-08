@@ -46,6 +46,7 @@
 - Native: escape JSON attachments. ([#1771](https://github.com/getsentry/sentry-native/pull/1771))
 - Reject NaN sample rates. ([#1788](https://github.com/getsentry/sentry-native/pull/1788))
 - Handle memory allocation failures during JSON serialization to prevent truncated output. ([#1772](https://github.com/getsentry/sentry-native/pull/1772))
+- Guard against overflow in string cloning in internal string utilities. ([#1787](https://github.com/getsentry/sentry-native/pull/1787))
 - Fix a file descriptor leak in old-run processing. ([#1792](https://github.com/getsentry/sentry-native/pull/1792))
 
 ## 0.14.2

@@ -120,6 +120,9 @@ void sentry__stringbuilder_set_len(sentry_stringbuilder_t *sb, size_t len);
 static inline char *
 sentry__string_clone_n_unchecked(const char *str, size_t n)
 {
+    if (n == SIZE_MAX) {
+        return NULL;
+    }
     size_t len = n + 1;
     char *rv = (char *)sentry_malloc(len);
     if (rv) {
