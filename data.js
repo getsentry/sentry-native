@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1780906428374,
+  "lastUpdate": 1780906446160,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -74872,6 +74872,66 @@ window.BENCHMARK_DATA = {
             "value": 15.607799999997951,
             "unit": "ms",
             "extra": "Min 15.180ms\nMax 17.419ms\nMean 15.921ms\nStdDev 0.920ms\nMedian 15.608ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "jpnurmi@gmail.com",
+            "name": "J-P Nurmi",
+            "username": "jpnurmi"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "7a7af4dab07f7b650162e11e1d865f60b9e20230",
+          "message": "fix: `sentry__slice_consume_uint64` (#1790)\n\n* fix: `sentry__slice_consume_uint64`\n\nUse strtoull instead of strtoll to correctly parse the full uint64_t\nrange (up to UINT64_MAX). Reject negative numbers by scanning for a\nminus sign within the consumed character range via memchr, since\nstrtoull silently wraps negative values on macOS without setting errno.\n\n* Update CHANGELOG.md\n\n* size_t diff",
+          "timestamp": "2026-06-08T10:09:33+02:00",
+          "tree_id": "7d325940f3f636e4e6180257c4a2d2140bcd4c4a",
+          "url": "https://github.com/getsentry/sentry-native/commit/7a7af4dab07f7b650162e11e1d865f60b9e20230"
+        },
+        "date": 1780906437807,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 11.905599999863625,
+            "unit": "ms",
+            "extra": "Min 11.828ms\nMax 12.025ms\nMean 11.933ms\nStdDev 0.083ms\nMedian 11.906ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 11.441699999977573,
+            "unit": "ms",
+            "extra": "Min 11.307ms\nMax 11.949ms\nMean 11.510ms\nStdDev 0.254ms\nMedian 11.442ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 28.284400000302412,
+            "unit": "ms",
+            "extra": "Min 28.212ms\nMax 31.917ms\nMean 29.085ms\nStdDev 1.600ms\nMedian 28.284ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.1758000003064808,
+            "unit": "ms",
+            "extra": "Min 0.154ms\nMax 0.235ms\nMean 0.188ms\nStdDev 0.031ms\nMedian 0.176ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.4718000000139,
+            "unit": "ms",
+            "extra": "Min 0.415ms\nMax 0.514ms\nMean 0.460ms\nStdDev 0.042ms\nMedian 0.472ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 15.906399999948917,
+            "unit": "ms",
+            "extra": "Min 15.535ms\nMax 16.165ms\nMean 15.853ms\nStdDev 0.243ms\nMedian 15.906ms"
           }
         ]
       }
