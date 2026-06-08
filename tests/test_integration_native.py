@@ -167,18 +167,33 @@ def test_native_capture_minidump_generated(cmake, httpserver):
             assert version != 0, "Minidump should have non-zero version"
 
 
-def test_native_breadcrumbs(cmake, httpserver):
-    """Test that breadcrumbs are captured before crash"""
+# Both daemon envelope writers merge the breadcrumb ring files: the native
+# stacktrace writer builds the event from scratch, while the minidump-only
+# writer re-parses the parent's event JSON, merges, and re-serializes. Exercise
+# both so the minidump path's extra parse/serialize roundtrip is covered too.
+BREADCRUMB_CRASH_MODES = ["native", "minidump"]
+
+
+@pytest.mark.parametrize("crash_mode", BREADCRUMB_CRASH_MODES)
+def test_native_breadcrumbs(cmake, httpserver, crash_mode):
+    """Test that breadcrumbs survive the daemon's ring-file merge.
+
+    The crashing process appends breadcrumbs as msgpack to the ring files; the
+    daemon reads, merges, and attaches them to the event. Asserting on the
+    default `debug crumb` verifies that whole roundtrip, not just that an event
+    arrived.
+    """
     tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "native"})
 
     httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data("OK")
 
-    # Add breadcrumbs then crash (use stdout for initialization delay under sanitizers)
+    # The default setup block adds the `debug crumb`; crash so the daemon emits
+    # the event (use stdout for initialization delay under sanitizers).
     with httpserver.wait(timeout=10) as waiting:
         run_crash(
             tmp_path,
             "sentry_example",
-            ["log", "stdout", "breadcrumb-log", "crash"],
+            ["log", "stdout", "crash-mode", crash_mode, "crash"],
             env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
         )
     assert waiting.result
@@ -186,7 +201,43 @@ def test_native_breadcrumbs(cmake, httpserver):
     # Verify breadcrumbs in envelope
     assert len(httpserver.log) >= 1
     envelope = Envelope.deserialize(httpserver.log[0][0].get_data())
-    assert envelope.get_event()
+    assert_breadcrumb(envelope)
+
+
+@pytest.mark.parametrize("crash_mode", BREADCRUMB_CRASH_MODES)
+def test_native_overflow_breadcrumbs(cmake, httpserver, crash_mode):
+    """Test that the daemon caps merged breadcrumbs at max_breadcrumbs.
+
+    The example adds 3 default crumbs plus 101 numbered crumbs ("0".."100").
+    With the default max_breadcrumbs (100), the daemon keeps the newest 100,
+    so the count is capped and the most-recent crumb ("100") is retained.
+    """
+    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "native"})
+
+    httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data("OK")
+
+    with httpserver.wait(timeout=10) as waiting:
+        run_crash(
+            tmp_path,
+            "sentry_example",
+            [
+                "log",
+                "stdout",
+                "overflow-breadcrumbs",
+                "crash-mode",
+                crash_mode,
+                "crash",
+            ],
+            env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
+        )
+    assert waiting.result
+
+    assert len(httpserver.log) >= 1
+    envelope = Envelope.deserialize(httpserver.log[0][0].get_data())
+    breadcrumbs = envelope.get_event()["breadcrumbs"]
+
+    assert len(breadcrumbs) == 100
+    assert any(b.get("message") == "100" for b in breadcrumbs)
 
 
 def test_native_session_tracking(cmake, httpserver):
