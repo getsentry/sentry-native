@@ -712,4 +712,41 @@ SENTRY_TEST(percent_decode_does_not_read_past_len)
     TEST_CHECK_STRING_EQUAL(buf + 3, "0b%41");
 }
 
+SENTRY_TEST(base64_encode)
+{
+    // Standard vectors from RFC 4648
+    char *out = sentry__base64_encode("", 0);
+    TEST_CHECK_STRING_EQUAL(out, "");
+    sentry_free(out);
+
+    out = sentry__base64_encode("f", 1);
+    TEST_CHECK_STRING_EQUAL(out, "Zg==");
+    sentry_free(out);
+
+    out = sentry__base64_encode("fo", 2);
+    TEST_CHECK_STRING_EQUAL(out, "Zm8=");
+    sentry_free(out);
+
+    out = sentry__base64_encode("foo", 3);
+    TEST_CHECK_STRING_EQUAL(out, "Zm9v");
+    sentry_free(out);
+
+    out = sentry__base64_encode("foob", 4);
+    TEST_CHECK_STRING_EQUAL(out, "Zm9vYg==");
+    sentry_free(out);
+
+    out = sentry__base64_encode("fooba", 5);
+    TEST_CHECK_STRING_EQUAL(out, "Zm9vYmE=");
+    sentry_free(out);
+
+    out = sentry__base64_encode("foobar", 6);
+    TEST_CHECK_STRING_EQUAL(out, "Zm9vYmFy");
+    sentry_free(out);
+
+    // Null output on allocation failure is handled (malloc mock not needed)
+    out = sentry__base64_encode(NULL, 0);
+    TEST_CHECK_STRING_EQUAL(out, "");
+    sentry_free(out);
+}
+
 #undef CHECK_SLICE_EQ

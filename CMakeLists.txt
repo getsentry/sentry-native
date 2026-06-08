@@ -686,6 +686,10 @@ if(SENTRY_WITH_LIBUNWIND)
 			endif()
 		else()
 			# Use vendored libunwind
+			if(SENTRY_BACKEND_NATIVE)
+				# Build remote unwinding support for the native backend's crash daemon
+				set(LIBUNWIND_BUILD_REMOTE TRUE)
+			endif()
 			add_subdirectory(vendor/libunwind)
 			target_link_libraries(sentry PRIVATE unwind)
 			if(NOT SENTRY_BUILD_SHARED_LIBS)
@@ -851,6 +855,10 @@ elseif(SENTRY_BACKEND_NATIVE)
 		SENTRY_BUILD_STATIC
 	)
 
+	if(SENTRY_WITH_LIBUNWIND AND LINUX)
+		target_compile_definitions(sentry-crash PRIVATE SENTRY_WITH_UNWINDER_LIBUNWIND_REMOTE)
+	endif()
+
 	# Copy include directories from sentry target
 	target_include_directories(sentry-crash PRIVATE
 		${PROJECT_SOURCE_DIR}/include
@@ -891,9 +899,12 @@ elseif(SENTRY_BACKEND_NATIVE)
 
 	if(SENTRY_WITH_LIBUNWIND AND LINUX)
 		if(SENTRY_LIBUNWIND_SYSTEM)
-			target_link_libraries(sentry-crash PRIVATE PkgConfig::LIBUNWIND)
+			pkg_check_modules(LIBUNWIND_PTRACE REQUIRED IMPORTED_TARGET libunwind-ptrace)
+			target_link_libraries(sentry-crash PRIVATE PkgConfig::LIBUNWIND PkgConfig::LIBUNWIND_PTRACE)
 		else()
-			target_link_libraries(sentry-crash PRIVATE unwind)
+			# Use unwind_remote for the daemon (includes ptrace accessors
+			# for remote DWARF unwinding of the crashed process)
+			target_link_libraries(sentry-crash PRIVATE unwind_remote)
 		endif()
 	endif()
 

@@ -173,6 +173,13 @@ elseif(SENTRY_BACKEND_NATIVE)
 		backends/native/minidump/sentry_minidump_writer.h
 	)
 
+	# Remote unwinding (Linux only — uses libunwind ptrace accessors)
+	if(LINUX)
+		sentry_target_sources_cwd(sentry
+			unwinder/sentry_unwinder_libunwind_remote.c
+		)
+	endif()
+
 	# Platform-specific minidump writers
 	if(LINUX OR ANDROID)
 		sentry_target_sources_cwd(sentry

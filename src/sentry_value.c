@@ -257,22 +257,25 @@ value_as_unfrozen_thing(sentry_value_t value)
 
 /* public api implementations */
 
-void
+sentry_value_t
 sentry_value_incref(sentry_value_t value)
 {
     thing_t *thing = value_as_thing(value);
     if (thing) {
         sentry__atomic_fetch_and_add(&thing->refcount, 1);
     }
+    return value;
 }
 
-void
+int
 sentry_value_decref(sentry_value_t value)
 {
     thing_t *thing = value_as_thing(value);
     if (thing && sentry__atomic_fetch_and_add(&thing->refcount, -1) == 1) {
         thing_free(thing);
+        return 0;
     }
+    return thing ? 1 : 0;
 }
 
 size_t

@@ -22,6 +22,7 @@ typedef struct {
     const char *path;
     const char *location;
     const char *content_type;
+    const char *attachment_type;
     sentry_value_t _owner;
 } sentry_attachment_ref_t;
 
