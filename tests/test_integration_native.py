@@ -1072,9 +1072,7 @@ def test_native_app_hang(cmake, httpserver):
             str(tmp_path / "sentry-crash"),
         )
 
-    httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data(
-        "OK"
-    )
+    httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data("OK")
 
     with httpserver.wait(timeout=20) as waiting:
         # The example's app-hang mode heartbeats for 500 ms, then freezes for

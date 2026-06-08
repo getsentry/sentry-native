@@ -17,8 +17,8 @@
 
 sentry_app_hang_decision_t
 sentry__app_hang_decide(bool enabled, uint64_t hb, uint64_t now,
-    uint64_t timeout_ms, uint64_t last_fired_hb,
-    int consecutive_stale_ticks, int *out_consecutive_stale_ticks)
+    uint64_t timeout_ms, uint64_t last_fired_hb, int consecutive_stale_ticks,
+    int *out_consecutive_stale_ticks)
 {
     /* Fresh or disabled paths reset the counter. */
     if (!enabled || hb == 0) {

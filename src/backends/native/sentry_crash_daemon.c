@@ -2312,12 +2312,12 @@ build_native_crash_event(const sentry_crash_context_t *ctx,
 
     // Add mechanism
     sentry_value_t mechanism = sentry_value_new_object();
-    sentry_value_set_by_key(mechanism, "type",
-        sentry_value_new_string(kind->mechanism_type));
+    sentry_value_set_by_key(
+        mechanism, "type", sentry_value_new_string(kind->mechanism_type));
     sentry_value_set_by_key(
         mechanism, "synthetic", sentry_value_new_bool(true));
-    sentry_value_set_by_key(mechanism, "handled",
-        sentry_value_new_bool(kind->mechanism_handled));
+    sentry_value_set_by_key(
+        mechanism, "handled", sentry_value_new_bool(kind->mechanism_handled));
 
     // Add signal metadata (only relevant for signal-handler/crash events)
     if (kind->include_signal_meta) {
@@ -2620,8 +2620,8 @@ write_envelope_with_native_stacktrace(const sentry_options_t *options,
     // Build native crash event (always include threads with names)
     SENTRY_DEBUGF("write_envelope_with_native_stacktrace: minidump_path=%s",
         minidump_path ? minidump_path : "(null)");
-    sentry_value_t event = build_native_crash_event(
-        ctx, event_file_path, run_folder, kind);
+    sentry_value_t event
+        = build_native_crash_event(ctx, event_file_path, run_folder, kind);
 
     // Serialize event to JSON
     size_t event_size = 0;
@@ -2869,8 +2869,8 @@ app_hang_read_task_memory(
     task_t task, mach_vm_address_t addr, void *buf, mach_vm_size_t size)
 {
     mach_vm_size_t got = 0;
-    kern_return_t kr
-        = mach_vm_read_overwrite(task, addr, size, (mach_vm_address_t)buf, &got);
+    kern_return_t kr = mach_vm_read_overwrite(
+        task, addr, size, (mach_vm_address_t)buf, &got);
     if (kr == KERN_SUCCESS && got != size) {
         return KERN_FAILURE;
     }
@@ -2979,18 +2979,17 @@ app_hang_capture_modules(task_t task, sentry_crash_context_t *ctx)
                     const uint8_t *p = cmds;
                     const uint8_t *end = cmds + cmds_size;
                     bool has_size = false, has_uuid = false;
-                    for (uint32_t j = 0;
-                        j < ncmds && (!has_size || !has_uuid)
+                    for (uint32_t j = 0; j < ncmds && (!has_size || !has_uuid)
                         && p + sizeof(struct load_command) <= end;
                         j++) {
                         const struct load_command *lc
                             = (const struct load_command *)p;
-                        if (lc->cmdsize == 0
-                            || p + lc->cmdsize > end) {
+                        if (lc->cmdsize == 0 || p + lc->cmdsize > end) {
                             break;
                         }
                         if (lc->cmd == LC_SEGMENT_64
-                            && lc->cmdsize >= sizeof(struct segment_command_64)) {
+                            && lc->cmdsize
+                                >= sizeof(struct segment_command_64)) {
                             const struct segment_command_64 *seg
                                 = (const struct segment_command_64 *)lc;
                             if (memcmp(seg->segname, "__TEXT", 7) == 0) {
@@ -3023,8 +3022,7 @@ app_hang_capture_modules(task_t task, sentry_crash_context_t *ctx)
  * FP-unwinder in build_stacktrace_for_thread can walk real frames — the same
  * file-backed mechanism the signal handler uses for crashes. Best-effort. */
 static void
-app_hang_capture_stack(
-    task_t task, sentry_crash_context_t *ctx, uint64_t sp)
+app_hang_capture_stack(task_t task, sentry_crash_context_t *ctx, uint64_t sp)
 {
     ctx->platform.threads[0].stack_path[0] = '\0';
     ctx->platform.threads[0].stack_size = 0;
@@ -3188,9 +3186,8 @@ capture_and_send_app_hang(const sentry_options_t *options,
         (thread_state_t)&mcontext.__ss, &state_count);
 #    else
     mach_msg_type_number_t state_count = MACHINE_THREAD_STATE_COUNT;
-    kr = thread_get_state(
-        target, MACHINE_THREAD_STATE, (thread_state_t)&mcontext.__ss,
-        &state_count);
+    kr = thread_get_state(target, MACHINE_THREAD_STATE,
+        (thread_state_t)&mcontext.__ss, &state_count);
 #    endif
 
     thread_resume(target);
@@ -3267,8 +3264,7 @@ capture_and_send_app_hang(const sentry_options_t *options,
      * manifest, scope attachments, screenshot, and session replay — all pulled
      * in by write_envelope_with_native_stacktrace when run_folder is
      * non-NULL. */
-    const char *event_file_path
-        = ctx->event_path[0] ? ctx->event_path : NULL;
+    const char *event_file_path = ctx->event_path[0] ? ctx->event_path : NULL;
     sentry_path_t *run_folder = NULL;
     if (event_file_path) {
         sentry_path_t *ev_path = sentry__path_from_str(event_file_path);
@@ -3278,8 +3274,8 @@ capture_and_send_app_hang(const sentry_options_t *options,
         }
     }
 
-    bool ok = write_envelope_with_native_stacktrace(options, envelope_path,
-        ctx, event_file_path, /*minidump_path=*/NULL, run_folder, &kind);
+    bool ok = write_envelope_with_native_stacktrace(options, envelope_path, ctx,
+        event_file_path, /*minidump_path=*/NULL, run_folder, &kind);
 
     if (run_folder) {
         sentry__path_free(run_folder);
@@ -3812,8 +3808,7 @@ sentry__process_crash(const sentry_options_t *options, sentry_crash_ipc_t *ipc)
             minidump_path[0] ? minidump_path : "NULL");
         envelope_written = write_envelope_with_native_stacktrace(options,
             envelope_path, ctx, event_path,
-            minidump_path[0] ? minidump_path : NULL, run_folder,
-            &s_crash_kind);
+            minidump_path[0] ? minidump_path : NULL, run_folder, &s_crash_kind);
     } else {
         // Mode 0 (MINIDUMP only)
         SENTRY_DEBUG("Writing envelope with minidump");
@@ -4269,9 +4264,8 @@ sentry__crash_daemon_main(pid_t app_pid, uint64_t app_tid, HANDLE event_handle,
     const uint64_t app_hang_timeout_ms = ipc->shmem->app_hang_timeout_ms;
     uint64_t last_fired_hb = 0;
     int consecutive_stale_ticks = 0;
-    const int wait_timeout_ms = app_hang_enabled
-        ? 500
-        : SENTRY_CRASH_DAEMON_WAIT_TIMEOUT_MS;
+    const int wait_timeout_ms
+        = app_hang_enabled ? 500 : SENTRY_CRASH_DAEMON_WAIT_TIMEOUT_MS;
 #else
     const int wait_timeout_ms = SENTRY_CRASH_DAEMON_WAIT_TIMEOUT_MS;
 #endif
@@ -4321,8 +4315,8 @@ sentry__crash_daemon_main(pid_t app_pid, uint64_t app_tid, HANDLE event_handle,
             const uint64_t now = sentry__app_hang_now_ms();
             int new_strikes = 0;
             sentry_app_hang_decision_t d = sentry__app_hang_decide(
-                app_hang_enabled, hb, now, app_hang_timeout_ms,
-                last_fired_hb, consecutive_stale_ticks, &new_strikes);
+                app_hang_enabled, hb, now, app_hang_timeout_ms, last_fired_hb,
+                consecutive_stale_ticks, &new_strikes);
             consecutive_stale_ticks = new_strikes;
             if (d == SENTRY_APP_HANG_FIRE) {
                 capture_and_send_app_hang(options, ipc, now - hb);

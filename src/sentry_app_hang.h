@@ -38,7 +38,8 @@ typedef enum {
  *  - `enabled`:                  the host has app-hang detection turned on.
  *  - `hb`:                       last heartbeat timestamp (host clock; 0 means
  *                                "never heartbeated yet").
- *  - `now`:                      daemon's current observation of the same clock.
+ *  - `now`:                      daemon's current observation of the same
+ * clock.
  *  - `timeout_ms`:               staleness threshold.
  *  - `last_fired_hb`:            the `hb` value the daemon last fired for; used
  *                                as cooldown so a sustained freeze fires once.
