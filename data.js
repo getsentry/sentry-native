@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1780670643851,
+  "lastUpdate": 1780906302487,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -24736,6 +24736,66 @@ window.BENCHMARK_DATA = {
             "value": 1.993091000002778,
             "unit": "ms",
             "extra": "Min 1.974ms\nMax 2.028ms\nMean 2.001ms\nStdDev 0.024ms\nMedian 1.993ms\nCPU 0.563ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "jpnurmi@gmail.com",
+            "name": "J-P Nurmi",
+            "username": "jpnurmi"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "1ec9755739a1770c635b165407d2169102c3b765",
+          "message": "fix: file descriptor leak in old-run processing (#1792)\n\n* fix: release own run filelock\n\nFree the acquired filelock before skipping the current run directory during\nold-run processing.\n\nCo-Authored-By: OpenAI Codex <noreply@openai.com>\n\n* Update CHANGELOG.md\n\n* fix(native): skip own run dir before acquiring .lock in old-run processing\n\nThe earlier fix correctly identified that the per-iteration filelock was\nleaked when skipping the current process's own run directory, but\nsentry__filelock_free calls sentry__filelock_unlock which unlinks the\n.lock file from disk. Since options->run->lock already holds the\nauthoritative flock on the same file, removing the directory entry\ncreates a race: another process can create a new .lock file, acquire a\nlock on it, and process/delete the still-alive process's run directory.\n\nAvoid this entirely by comparing paths before any lock file operations.\nThe run directory is already protected by options->run->lock, so no lock\nacquisition is needed.\n\n* Update CHANGELOG.md\n\n---------\n\nCo-authored-by: OpenAI Codex <noreply@openai.com>",
+          "timestamp": "2026-06-08T10:08:49+02:00",
+          "tree_id": "ceb2d59740af9b02b48663151821698efc510432",
+          "url": "https://github.com/getsentry/sentry-native/commit/1ec9755739a1770c635b165407d2169102c3b765"
+        },
+        "date": 1780906295032,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 0.9146620000137773,
+            "unit": "ms",
+            "extra": "Min 0.906ms\nMax 0.942ms\nMean 0.921ms\nStdDev 0.015ms\nMedian 0.915ms\nCPU 0.866ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 0.8648299999549636,
+            "unit": "ms",
+            "extra": "Min 0.838ms\nMax 0.930ms\nMean 0.879ms\nStdDev 0.037ms\nMedian 0.865ms\nCPU 0.863ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 3.2172490000448306,
+            "unit": "ms",
+            "extra": "Min 3.148ms\nMax 3.289ms\nMean 3.219ms\nStdDev 0.057ms\nMedian 3.217ms\nCPU 1.702ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.11941200000364915,
+            "unit": "ms",
+            "extra": "Min 0.116ms\nMax 0.137ms\nMean 0.125ms\nStdDev 0.010ms\nMedian 0.119ms\nCPU 0.075ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.029345000029934454,
+            "unit": "ms",
+            "extra": "Min 0.028ms\nMax 0.030ms\nMean 0.029ms\nStdDev 0.001ms\nMedian 0.029ms\nCPU 0.028ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 1.8147810001210019,
+            "unit": "ms",
+            "extra": "Min 1.780ms\nMax 1.847ms\nMean 1.819ms\nStdDev 0.027ms\nMedian 1.815ms\nCPU 0.540ms"
           }
         ]
       }
