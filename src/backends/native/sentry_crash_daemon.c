@@ -3370,12 +3370,23 @@ capture_and_send_app_hang(const sentry_options_t *options,
         return;
     }
 
+    /* Sync the latest user consent from shmem (the host updates it on consent
+     * changes) into the run state before sending, mirroring the crash path, so
+     * sentry__capture_envelope honors a revoke/grant for app-hang events too. */
+    if (options->run) {
+        sentry__atomic_store(&options->run->user_consent,
+            sentry__atomic_fetch(&ctx->user_consent));
+    }
+
     /* Read envelope from disk and hand to transport. */
     sentry_path_t *env_path = sentry__path_from_str(envelope_path);
     if (env_path) {
         sentry_envelope_t *envelope = sentry__envelope_from_path(env_path);
-        if (envelope && options && options->transport) {
+        if (envelope && options && options->transport && options->run) {
             sentry__capture_envelope(options->transport, envelope, options);
+        } else if (envelope) {
+            /* No transport/run available: capture would not free it. */
+            sentry_envelope_free(envelope);
         }
         sentry__path_remove(env_path);
         sentry__path_free(env_path);
