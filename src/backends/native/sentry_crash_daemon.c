@@ -2306,18 +2306,19 @@ apply_breadcrumbs_from_ring_files(sentry_value_t event,
  * @param ctx Crash context
  * @param event_file_path Path to base event file from parent process
  * @param run_folder Run directory holding the breadcrumb ring files
- * @param exception_type Override exception `type`, or NULL to derive from signal
+ * @param exception_type Override exception `type`, or NULL to derive from
+ * signal
  * @param exception_value Override exception `value` (used only when
  *                        `exception_type` is non-NULL)
+ * @param level Event level (e.g. "fatal")
  * @param mechanism_type `mechanism.type`, e.g. "signalhandler" or "AppHang"
- * @param mechanism_handled `mechanism.handled` (false for fatal crashes)
- * @param level Event `level`, e.g. "fatal" or "error"
+ * @param handled Whether the mechanism was handled
  */
 static sentry_value_t
 build_native_event(const sentry_crash_context_t *ctx,
     const char *event_file_path, const sentry_path_t *run_folder,
-    const char *exception_type, const char *exception_value,
-    const char *mechanism_type, bool mechanism_handled, const char *level)
+    const char *exception_type, const char *exception_value, const char *level,
+    const char *mechanism_type, bool handled)
 {
     // Read base event from parent's file
     sentry_value_t event = sentry_value_new_null();
@@ -2345,13 +2346,9 @@ build_native_event(const sentry_crash_context_t *ctx,
     sentry_value_set_by_key(
         event, "platform", sentry_value_new_string("native"));
 
-    // Set level (varies by event kind: "fatal" for crash, "error" for app hang)
     sentry_value_set_by_key(event, "level", sentry_value_new_string(level));
 
     // Build exception
-    /* Function-scope so exc_value (which may point into this buffer) remains
-     * valid after the `else` block below. Previously declared inside the
-     * else: out of scope by the time exc_value is read -> UB per C99 6.2.4. */
     char crash_value_buf[128];
     const char *exc_type;
     const char *exc_value;
@@ -2382,13 +2379,16 @@ build_native_event(const sentry_crash_context_t *ctx,
     sentry_value_t mechanism = sentry_value_new_object();
     sentry_value_set_by_key(
         mechanism, "type", sentry_value_new_string(mechanism_type));
+    // The override path (exception_type != NULL, e.g. app hang) fabricates the
+    // exception, so it is synthetic. A signal-derived crash is a real
+    // exception and must not be marked synthetic.
     sentry_value_set_by_key(
-        mechanism, "synthetic", sentry_value_new_bool(true));
+        mechanism, "synthetic", sentry_value_new_bool(exception_type != NULL));
     sentry_value_set_by_key(
-        mechanism, "handled", sentry_value_new_bool(mechanism_handled));
+        mechanism, "handled", sentry_value_new_bool(handled));
 
-    // Add signal metadata only for the signal-derived crash path (no override
-    // type). There is no signal in the override case (e.g. app hang).
+    // Add signal metadata only for the signal-derived crash path.
+    // There is no signal for e.g. app hang.
     if (!exception_type) {
         sentry_value_t meta = sentry_value_new_object();
         sentry_value_t signal_info = sentry_value_new_object();
@@ -2401,8 +2401,8 @@ build_native_event(const sentry_crash_context_t *ctx,
         sentry_value_set_by_key(signal_info, "number",
             sentry_value_new_int32(ctx->platform.signum));
 #endif
-        /* By the struct invariant, include_signal_meta is only true when
-         * exception_type is NULL, so exc_type holds the signal name here. */
+        // Include_signal_meta is only true when exception_type is NULL, so
+        // `exc_type` holds the signal name here.
         sentry_value_set_by_key(
             signal_info, "name", sentry_value_new_string(exc_type));
         sentry_value_set_by_key(meta, "signal", signal_info);
@@ -2688,8 +2688,9 @@ build_native_event(const sentry_crash_context_t *ctx,
  *
  * The caller constructs the event at the point of capture (a crash event or an
  * app-hang event) via build_native_event() and hands it to us; we take
- * ownership and decref it once serialized. If minidump_path is provided, it is
- * also attached as an attachment.
+ * ownership and decref it once serialized.
+ *
+ * If minidump_path is provided, it is also attached as an attachment.
  */
 static bool
 write_envelope_with_native_stacktrace(const sentry_options_t *options,
@@ -3162,9 +3163,7 @@ app_hang_capture_stack(task_t task, sentry_crash_context_t *ctx, uint64_t sp)
  * same native-stacktrace path as crashes.
  *
  * Requires `task_for_pid` to be permitted (same-user, non-hardened local/dev
- * builds). On a hardened release runtime without the debugger entitlement it
- * is denied; the entitlement-free port-donation replacement is a separate
- * follow-up.
+ * builds).
  */
 static void
 capture_and_send_app_hang(const sentry_options_t *options,
@@ -3174,8 +3173,7 @@ capture_and_send_app_hang(const sentry_options_t *options,
      * shmem fields (platform.mcontext, threads[0], crashed_tid, num_threads)
      * that the host's signal handler also writes on a real crash. The daemon
      * loop is single-threaded and processes a pending crash before reaching
-     * here, so the only remaining window is the host crashing mid-capture.
-     * Accepted for this initial cut; mitigation is tracked as follow-up. */
+     * here. The remaining window is the host crashing mid-capture. */
     sentry_crash_context_t *ctx = ipc->shmem;
 
     const uint64_t target_tid = ctx->app_hang_target_tid;
@@ -3331,13 +3329,11 @@ capture_and_send_app_hang(const sentry_options_t *options,
     }
 
     /* Reuse the scope file the host keeps up-to-date via flush_scope so the
-     * app-hang event carries the same scope context as a crash event: full
-     * contexts (os/device/gpu/app/runtime/...), user, tags, extra, fingerprint,
-     * release/dist/env, sdk metadata, and breadcrumbs. The base event JSON is
-     * at ctx->event_path; the sibling run folder holds the attachments
-     * manifest, scope attachments, screenshot, and session replay — all pulled
-     * in by write_envelope_with_native_stacktrace when run_folder is
-     * non-NULL. */
+     * app-hang event carries the same scope context as a crash event. The
+     * base event JSON is at ctx->event_path; the sibling run folder holds
+     * the attachments manifest, scope attachments, screenshot, and
+     * session replay — all pulled in by write_envelope_with_native_stacktrace
+     * when run_folder is non-NULL. */
     const char *event_file_path = ctx->event_path[0] ? ctx->event_path : NULL;
     sentry_path_t *run_folder = NULL;
     if (event_file_path) {
@@ -3348,15 +3344,15 @@ capture_and_send_app_hang(const sentry_options_t *options,
         }
     }
 
-    /* App-hang event: ANR-style override (no signal), handled, error level.
+    /* App-hang event: overriding the exception type, handled, error level.
      * The per-event value carries the freeze duration computed above. */
-    sentry_value_t event = build_native_event(ctx, event_file_path,
-        run_folder, /*exception_type=*/"ApplicationNotResponding",
-        /*exception_value=*/value_buf, /*mechanism_type=*/"AppHang",
-        /*mechanism_handled=*/true, /*level=*/"error");
+    sentry_value_t event = build_native_event(ctx, event_file_path, run_folder,
+        /*exception_type=*/"AppHang",
+        /*exception_value=*/value_buf, /*level=*/"error",
+        /*mechanism_type=*/"AppHang", /*handled=*/true);
 
-    bool ok = write_envelope_with_native_stacktrace(options, envelope_path, ctx,
-        event, /*minidump_path=*/NULL, run_folder);
+    bool ok = write_envelope_with_native_stacktrace(
+        options, envelope_path, ctx, event, /*minidump_path=*/NULL, run_folder);
 
     if (run_folder) {
         sentry__path_free(run_folder);
@@ -3889,13 +3885,13 @@ sentry__process_crash(const sentry_options_t *options, sentry_crash_ipc_t *ipc)
             minidump_path[0] ? minidump_path : "NULL");
         // Crash event: signal-derived type/value (with signal meta), fatal
         // level, unhandled.
-        sentry_value_t event = build_native_event(ctx, event_path,
-            run_folder, /*exception_type=*/NULL, /*exception_value=*/NULL,
-            /*mechanism_type=*/"signalhandler", /*mechanism_handled=*/false,
-            /*level=*/"fatal");
-        envelope_written = write_envelope_with_native_stacktrace(options,
-            envelope_path, ctx, event,
-            minidump_path[0] ? minidump_path : NULL, run_folder);
+        sentry_value_t event = build_native_event(ctx, event_path, run_folder,
+            /*exception_type=*/NULL, /*exception_value=*/NULL,
+            /*level=*/"fatal", /*mechanism_type=*/"signalhandler",
+            /*handled=*/false);
+        envelope_written
+            = write_envelope_with_native_stacktrace(options, envelope_path, ctx,
+                event, minidump_path[0] ? minidump_path : NULL, run_folder);
     } else {
         // Mode 0 (MINIDUMP only)
         SENTRY_DEBUG("Writing envelope with minidump");

@@ -843,8 +843,7 @@ native_backend_flush_scope(
         return;
     }
 
-    // Create event with current scope. The daemon also reads this base event
-    // at app-hang time on macOS, so keep it current.
+    // Create event with current scope
     sentry_value_t event = sentry_value_new_object();
     sentry_value_set_by_key(
         event, "level", sentry__value_new_level(SENTRY_LEVEL_FATAL));

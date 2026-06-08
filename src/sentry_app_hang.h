@@ -18,8 +18,7 @@
 #endif
 
 /**
- * Decision returned by the pure decision function. Kept tiny so it can be
- * exercised in unit tests without involving the daemon or shared memory.
+ * Decision returned by the pure decision function.
  */
 typedef enum {
     SENTRY_APP_HANG_NO_ACTION = 0,
@@ -48,7 +47,7 @@ typedef enum {
  *  - `out_consecutive_stale_ticks` (out): updated counter the caller should
  *                                store. 0 if reset, otherwise incremented.
  *
- * Returns SENTRY_APP_HANG_FIRE iff: enabled, hb != 0, (now - hb) >= timeout_ms,
+ * Returns SENTRY_APP_HANG_FIRE if: enabled, hb != 0, (now - hb) >= timeout_ms,
  * hb != last_fired_hb, AND the updated stale-tick counter reaches
  * SENTRY_APP_HANG_STRIKES_REQUIRED.
  */

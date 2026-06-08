@@ -1146,7 +1146,7 @@ def test_native_restart_on_crash(cmake, httpserver):
     reason="app-hang detection is implemented on macOS",
 )
 def test_native_app_hang(cmake, httpserver):
-    """App hang detection emits exactly one ApplicationNotResponding event.
+    """App hang detection emits exactly one AppHang event.
 
     On macOS the daemon samples the hung thread out-of-process via
     ``task_for_pid``, which requires the example + daemon to be ad-hoc
@@ -1195,7 +1195,7 @@ def test_native_app_hang(cmake, httpserver):
     event = envelope.get_event()
     assert event is not None
     exc = event["exception"]["values"][0]
-    assert exc["type"] == "ApplicationNotResponding"
+    assert exc["type"] == "AppHang"
     assert exc["mechanism"]["type"] == "AppHang"
     assert exc["mechanism"]["handled"] is True
     assert exc["mechanism"]["synthetic"] is True

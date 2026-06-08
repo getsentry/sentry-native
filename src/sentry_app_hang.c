@@ -50,8 +50,7 @@ sentry__app_hang_decide(bool enabled, uint64_t hb, uint64_t now,
     return SENTRY_APP_HANG_NO_ACTION;
 }
 
-/* Public setters (always compiled, no platform guard — they only mutate the
- * options struct). */
+// Public setters
 void
 sentry_options_set_app_hang_enabled(sentry_options_t *opts, int enabled)
 {
@@ -82,9 +81,8 @@ sentry__app_hang_set_shmem(sentry_crash_context_t *ctx)
 uint64_t
 sentry__app_hang_now_ms(void)
 {
-    /* CLOCK_UPTIME_RAW is the macOS analogue of Windows'
-     * QueryUnbiasedInterruptTime: a monotonic clock that excludes time the
-     * system was asleep, read identically by host and daemon. */
+    /* CLOCK_UPTIME_RAW is a monotonic clock that excludes time the system
+     * was asleep. */
     struct timespec ts;
     if (clock_gettime(CLOCK_UPTIME_RAW, &ts) != 0) {
         return 0;
