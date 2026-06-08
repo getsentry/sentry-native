@@ -617,9 +617,9 @@ static void *
 app_hang_demo_thread(void *arg)
 {
     (void)arg;
-    /* Latch this thread as the target once, then heartbeat for 500 ms so the
-     * daemon sees a healthy baseline before the freeze. */
-    sentry_app_hang_set_target_thread();
+    /* The first heartbeat latches this thread as the monitored target; keep
+     * heartbeating for 500 ms so the daemon sees a healthy baseline before the
+     * freeze. */
     for (int i = 0; i < 10; i++) {
         sentry_app_hang_heartbeat();
         usleep(50 * 1000);

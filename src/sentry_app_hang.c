@@ -93,7 +93,7 @@ sentry__app_hang_now_ms(void)
 }
 
 void
-sentry_app_hang_set_target_thread(void)
+sentry_app_hang_heartbeat(void)
 {
     sentry_crash_context_t *ctx = g_app_hang_shmem;
     if (!ctx || !ctx->app_hang_enabled) {
@@ -108,32 +108,18 @@ sentry_app_hang_set_target_thread(void)
         return;
     }
 
-    /* CAS the current TID into the latch slot iff still unset — first caller
-     * wins, idempotent for that caller. The shmem field is declared
-     * `volatile uint64_t`; view it as an atomic for the compare-exchange. */
+    /* Self-register on the first heartbeat: CAS the current TID into the latch
+     * slot iff still unset — the first thread to heartbeat wins and becomes the
+     * monitored target. The shmem field is declared `volatile uint64_t`; view
+     * it as an atomic for the compare-exchange. */
     _Atomic uint64_t *slot
         = (_Atomic uint64_t *)(void *)&ctx->app_hang_target_tid;
     uint64_t expected = 0;
     atomic_compare_exchange_strong(slot, &expected, current_tid);
-}
 
-void
-sentry_app_hang_heartbeat(void)
-{
-    sentry_crash_context_t *ctx = g_app_hang_shmem;
-    if (!ctx || !ctx->app_hang_enabled) {
-        return;
-    }
-
-    /* Refresh-only: requires a prior sentry_app_hang_set_target_thread()
-     * call from this thread. Drops the heartbeat if no target is latched, or
-     * if the latched thread is not us. */
-    uint64_t current_tid = 0;
-    if (pthread_threadid_np(NULL, &current_tid) != 0 || current_tid == 0) {
-        return;
-    }
-    uint64_t latched = ctx->app_hang_target_tid;
-    if (latched == 0 || latched != current_tid) {
+    /* Drop the heartbeat unless the latched thread is us, so a stray heartbeat
+     * from another thread cannot mask a frozen monitored thread. */
+    if (ctx->app_hang_target_tid != current_tid) {
         return;
     }
 
@@ -143,12 +129,6 @@ sentry_app_hang_heartbeat(void)
 }
 
 #else /* host heartbeat not supported on this target */
-
-void
-sentry_app_hang_set_target_thread(void)
-{
-    /* No-op on non-macOS targets in this initial cut. */
-}
 
 void
 sentry_app_hang_heartbeat(void)
