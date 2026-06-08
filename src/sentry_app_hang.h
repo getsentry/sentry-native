@@ -25,35 +25,22 @@ typedef enum {
     SENTRY_APP_HANG_FIRE = 1,
 } sentry_app_hang_decision_t;
 
-/* Number of consecutive timer ticks the daemon must observe a stale
- * heartbeat before firing. Smooths over brief hiccups (GC pauses, swap, OS
- * scheduler quanta) at the cost of ~SENTRY_APP_HANG_STRIKES_REQUIRED-1
- * extra poll periods of detection latency. */
-#define SENTRY_APP_HANG_STRIKES_REQUIRED 3
-
 /**
  * Pure function: should we fire an app-hang event right now?
  *
- *  - `enabled`:                  the host has app-hang detection turned on.
- *  - `hb`:                       last heartbeat timestamp (host clock; 0 means
- *                                "never heartbeated yet").
- *  - `now`:                      daemon's current observation of the same
- * clock.
- *  - `timeout_ms`:               staleness threshold.
- *  - `last_fired_hb`:            the `hb` value the daemon last fired for; used
- *                                as cooldown so a sustained freeze fires once.
- *  - `consecutive_stale_ticks`:  caller-tracked count of consecutive ticks on
- *                                which the heartbeat was observed stale.
- *  - `out_consecutive_stale_ticks` (out): updated counter the caller should
- *                                store. 0 if reset, otherwise incremented.
+ *  - `enabled`:        the host has app-hang detection turned on.
+ *  - `hb`:             last heartbeat timestamp (host clock; 0 means
+ *                      "never heartbeated yet").
+ *  - `now`:            daemon's current observation of the same clock.
+ *  - `timeout_ms`:     staleness threshold.
+ *  - `last_fired_hb`:  the `hb` value the daemon last fired for; used as
+ *                      cooldown so a sustained freeze fires once.
  *
  * Returns SENTRY_APP_HANG_FIRE if: enabled, hb != 0, (now - hb) >= timeout_ms,
- * hb != last_fired_hb, AND the updated stale-tick counter reaches
- * SENTRY_APP_HANG_STRIKES_REQUIRED.
+ * and hb != last_fired_hb.
  */
 sentry_app_hang_decision_t sentry__app_hang_decide(bool enabled, uint64_t hb,
-    uint64_t now, uint64_t timeout_ms, uint64_t last_fired_hb,
-    int consecutive_stale_ticks, int *out_consecutive_stale_ticks);
+    uint64_t now, uint64_t timeout_ms, uint64_t last_fired_hb);
 
 #if defined(SENTRY_APP_HANG_HOST_SUPPORTED)
 /**

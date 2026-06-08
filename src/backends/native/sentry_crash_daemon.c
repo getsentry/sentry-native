@@ -3310,10 +3310,11 @@ capture_and_send_app_hang(const sentry_options_t *options,
         thread_count * sizeof(thread_t));
     mach_port_deallocate(mach_task_self(), task);
 
-    /* Build the per-event value description with the freeze duration. */
+    /* Build the per-event description with the freeze duration. `freeze_ms` is
+     * the time since the last heartbeat at detection, which is necessarily at
+     * least the configured timeout — hence "at least". */
     char value_buf[128];
-    snprintf(value_buf, sizeof(value_buf),
-        "App hang detected. Main thread blocked for %llu ms.",
+    snprintf(value_buf, sizeof(value_buf), "App hung for at least %llu ms.",
         (unsigned long long)freeze_ms);
 
     /* Build an envelope path next to the crash one. */
@@ -3350,6 +3351,12 @@ capture_and_send_app_hang(const sentry_options_t *options,
         /*exception_type=*/"AppHang",
         /*exception_value=*/value_buf, /*level=*/"error",
         /*mechanism_type=*/"AppHang", /*handled=*/true);
+
+    /* Surface the freeze duration as the event message too, so the issue
+     * title/summary reads "App hung for at least X ms." rather than the
+     * exception type alone. */
+    sentry_value_set_by_key(
+        event, "message", sentry_value_new_string(value_buf));
 
     bool ok = write_envelope_with_native_stacktrace(
         options, envelope_path, ctx, event, /*minidump_path=*/NULL, run_folder);
@@ -4346,7 +4353,6 @@ sentry__crash_daemon_main(pid_t app_pid, uint64_t app_tid, HANDLE event_handle,
     const bool app_hang_enabled = ipc->shmem->app_hang_enabled;
     const uint64_t app_hang_timeout_ms = ipc->shmem->app_hang_timeout_ms;
     uint64_t last_fired_hb = 0;
-    int consecutive_stale_ticks = 0;
     const int wait_timeout_ms
         = app_hang_enabled ? 500 : SENTRY_CRASH_DAEMON_WAIT_TIMEOUT_MS;
 #else
@@ -4392,15 +4398,12 @@ sentry__crash_daemon_main(pid_t app_pid, uint64_t app_tid, HANDLE event_handle,
 #if defined(SENTRY_PLATFORM_MACOS)
         else if (app_hang_enabled && !crash_processed) {
             /* No crash notification this wake (timeout or spurious) — evaluate
-             * the app-hang heartbeat with strike accumulation. */
+             * the app-hang heartbeat. */
             sentry_crash_context_t *shctx = ipc->shmem;
             const uint64_t hb = shctx->app_hang_last_heartbeat_ms;
             const uint64_t now = sentry__app_hang_now_ms();
-            int new_strikes = 0;
             sentry_app_hang_decision_t d = sentry__app_hang_decide(
-                app_hang_enabled, hb, now, app_hang_timeout_ms, last_fired_hb,
-                consecutive_stale_ticks, &new_strikes);
-            consecutive_stale_ticks = new_strikes;
+                app_hang_enabled, hb, now, app_hang_timeout_ms, last_fired_hb);
             if (d == SENTRY_APP_HANG_FIRE) {
                 capture_and_send_app_hang(options, ipc, now - hb);
                 /* Always advance last_fired_hb, even if capture failed —

@@ -17,37 +17,25 @@
 
 sentry_app_hang_decision_t
 sentry__app_hang_decide(bool enabled, uint64_t hb, uint64_t now,
-    uint64_t timeout_ms, uint64_t last_fired_hb, int consecutive_stale_ticks,
-    int *out_consecutive_stale_ticks)
+    uint64_t timeout_ms, uint64_t last_fired_hb)
 {
-    /* Fresh or disabled paths reset the counter. */
     if (!enabled || hb == 0) {
-        *out_consecutive_stale_ticks = 0;
         return SENTRY_APP_HANG_NO_ACTION;
     }
     if (now < hb) {
         /* Torn shmem read (possible on x86 for a non-atomic 64-bit load).
          * Treat as fresh — daemon will see the real value on the next tick. */
-        *out_consecutive_stale_ticks = 0;
         return SENTRY_APP_HANG_NO_ACTION;
     }
     if ((now - hb) < timeout_ms) {
-        *out_consecutive_stale_ticks = 0;
         return SENTRY_APP_HANG_NO_ACTION;
     }
     if (hb == last_fired_hb) {
-        /* Already fired for this freeze. Stay quiet and hold the counter at
-         * zero so we re-arm cleanly once the host heartbeats again. */
-        *out_consecutive_stale_ticks = 0;
+        /* Already fired for this freeze. Stay quiet until the host heartbeats
+         * again, which advances `hb` and re-arms detection. */
         return SENTRY_APP_HANG_NO_ACTION;
     }
-    /* Stale and not in cooldown — accumulate a strike. */
-    int new_count = consecutive_stale_ticks + 1;
-    *out_consecutive_stale_ticks = new_count;
-    if (new_count >= SENTRY_APP_HANG_STRIKES_REQUIRED) {
-        return SENTRY_APP_HANG_FIRE;
-    }
-    return SENTRY_APP_HANG_NO_ACTION;
+    return SENTRY_APP_HANG_FIRE;
 }
 
 // Public setters
