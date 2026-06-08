@@ -666,16 +666,21 @@ def assert_failed_proxy_auth_request(stdout):
     )
 
 
-def wait_for_file(path, timeout=10.0, poll_interval=0.1):
-    import glob
+def wait_for(condition, timeout=10.0, interval=0.1):
     import time
 
     deadline = time.time() + timeout
     while time.time() < deadline:
-        if glob.glob(str(path)):
+        if condition():
             return True
-        time.sleep(poll_interval)
+        time.sleep(interval)
     return False
+
+
+def wait_for_file(path, timeout=10.0, interval=0.1):
+    import glob
+
+    return wait_for(lambda: glob.glob(str(path)), timeout, interval)
 
 
 def wait_for_daemon(tmp_path, started_at, timeout=None):
@@ -704,3 +709,36 @@ def wait_for_daemon(tmp_path, started_at, timeout=None):
         time.sleep(0.1)
 
     return False
+
+
+def wait_for_stdout(process, predicate, timeout=10):
+    """Read a process's stdout in a background thread, polling until
+    *predicate(text)* is satisfied or *timeout* expires.
+
+    Returns the full stdout text collected up to that point.
+    The caller should terminate/kill the process after this returns
+    to close the pipe and let the background thread exit.
+    """
+    import threading
+
+    lines = []
+
+    def reader():
+        try:
+            for line in iter(process.stdout.readline, b""):
+                lines.append(line)
+        except ValueError:
+            pass
+
+    thread = threading.Thread(target=reader, daemon=True)
+    thread.start()
+
+    def stdout_text():
+        return b"".join(lines).decode("utf-8", errors="replace")
+
+    if not wait_for(lambda: predicate(stdout_text()), timeout):
+        raise TimeoutError(
+            f"Predicate not satisfied within {timeout}s.\n"
+            f"Collected output:\n{stdout_text()}"
+        )
+    return stdout_text()
