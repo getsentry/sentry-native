@@ -44,6 +44,7 @@
 - Fix memory leak in session deserialization on malformed cached files. ([#1789](https://github.com/getsentry/sentry-native/pull/1789))
 - Fix division by zero when breadcrumbs are disabled. ([#1767](https://github.com/getsentry/sentry-native/pull/1767))
 - Native: escape JSON attachments. ([#1771](https://github.com/getsentry/sentry-native/pull/1771))
+- Reject NaN sample rates. ([#1788](https://github.com/getsentry/sentry-native/pull/1788))
 - Handle memory allocation failures during JSON serialization to prevent truncated output. ([#1772](https://github.com/getsentry/sentry-native/pull/1772))
 - Fix a file descriptor leak in old-run processing. ([#1792](https://github.com/getsentry/sentry-native/pull/1792))
 
