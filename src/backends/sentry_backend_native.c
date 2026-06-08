@@ -309,6 +309,7 @@ native_backend_startup(
     ctx->http_retry = options->http_retry;
     ctx->shutdown_timeout = options->shutdown_timeout;
     ctx->transfer_timeout = options->transfer_timeout;
+    ctx->max_breadcrumbs = (uint32_t)options->max_breadcrumbs;
     sentry__atomic_store(
         &ctx->user_consent, sentry__atomic_fetch(&options->run->user_consent));
 
@@ -867,18 +868,20 @@ native_backend_add_breadcrumb(sentry_backend_t *backend,
         return;
     }
 
-    // Serialize to JSON (so it can be deserialized on next start)
-    size_t json_len = 0;
-    char *json_str = sentry__value_to_json(breadcrumb, &json_len);
-    if (!json_str) {
+    // Append as msgpack, matching the crashpad backend. msgpack values are
+    // self-delimiting, so the daemon can read the concatenated ring file back
+    // into a list via `sentry__value_from_msgpack`.
+    size_t mpack_size = 0;
+    char *mpack = sentry_value_to_msgpack(breadcrumb, &mpack_size);
+    if (!mpack) {
         return;
     }
 
     int rv = first_breadcrumb
-        ? sentry__path_write_buffer(breadcrumb_file, json_str, json_len)
-        : sentry__path_append_buffer(breadcrumb_file, json_str, json_len);
+        ? sentry__path_write_buffer(breadcrumb_file, mpack, mpack_size)
+        : sentry__path_append_buffer(breadcrumb_file, mpack, mpack_size);
 
-    sentry_free(json_str);
+    sentry_free(mpack);
 
     if (rv != 0) {
         SENTRY_WARN("failed to write breadcrumb");
@@ -1011,10 +1014,11 @@ native_backend_except(sentry_backend_t *backend, const sentry_ucontext_t *uctx)
             }
 
             if (should_handle) {
-                // Apply scope to event including breadcrumbs
+                // Apply scope to the event. The daemon assembles breadcrumbs
+                // from the ring files
                 SENTRY_WITH_SCOPE (scope) {
                     sentry__scope_apply_to_event(
-                        scope, options, event, SENTRY_SCOPE_BREADCRUMBS);
+                        scope, options, event, SENTRY_SCOPE_NONE);
                 }
 #if defined(SENTRY_PLATFORM_WINDOWS)
                 ensure_device_arch(event);
