@@ -9,7 +9,21 @@
 #include "sentry_sync.h"
 #include "sentry_transport.h"
 #include "sentry_utils.h"
+#include <math.h>
 #include <stdlib.h>
+
+static double
+normalize_sample_rate(double sample_rate, double default_value)
+{
+    if (isnan(sample_rate)) {
+        return default_value;
+    } else if (sample_rate < 0.0) {
+        return 0.0;
+    } else if (sample_rate > 1.0) {
+        return 1.0;
+    }
+    return sample_rate;
+}
 
 sentry_options_t *
 sentry_options_new(void)
@@ -256,12 +270,7 @@ sentry__options_get_org_id(const sentry_options_t *opts)
 void
 sentry_options_set_sample_rate(sentry_options_t *opts, double sample_rate)
 {
-    if (sample_rate < 0.0) {
-        sample_rate = 0.0;
-    } else if (sample_rate > 1.0) {
-        sample_rate = 1.0;
-    }
-    opts->sample_rate = sample_rate;
+    opts->sample_rate = normalize_sample_rate(sample_rate, 1.0);
 }
 
 double
@@ -891,13 +900,7 @@ void
 sentry_options_set_traces_sample_rate(
     sentry_options_t *opts, double sample_rate)
 {
-
-    if (sample_rate < 0.0) {
-        sample_rate = 0.0;
-    } else if (sample_rate > 1.0) {
-        sample_rate = 1.0;
-    }
-    opts->traces_sample_rate = sample_rate;
+    opts->traces_sample_rate = normalize_sample_rate(sample_rate, 0.0);
 }
 
 /**

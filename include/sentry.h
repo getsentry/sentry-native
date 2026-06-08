@@ -245,12 +245,14 @@ typedef union sentry_value_u sentry_value_t;
 /**
  * Increments the reference count on the value.
  */
-SENTRY_API void sentry_value_incref(sentry_value_t value);
+SENTRY_API sentry_value_t sentry_value_incref(sentry_value_t value);
 
 /**
  * Decrements the reference count on the value.
+ * Returns 0 if the value was freed or is a primitive (no tracking needed),
+ * or non-zero if it still has references.
  */
-SENTRY_API void sentry_value_decref(sentry_value_t value);
+SENTRY_API int sentry_value_decref(sentry_value_t value);
 
 /**
  * Returns the refcount of a value.

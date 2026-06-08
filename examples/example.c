@@ -416,9 +416,9 @@ trigger_stack_buffer_overrun()
 static void
 trigger_fastfail_crash()
 {
-    // this bypasses WINDOWS SEH and will only be caught with the crashpad WER
-    // module enabled
-    __fastfail(77);
+    // this bypasses WINDOWS SEH and will only be caught with the
+    // crashpad/native WER module enabled
+    RaiseFailFastException(NULL, NULL, 0);
 }
 
 #endif
@@ -658,22 +658,6 @@ main(int argc, char **argv)
 
     if (has_arg(argc, argv, "large-attachment")) {
         sentry_options_set_enable_large_attachments(options, 1);
-        const char *large_file = ".sentry-large-attachment";
-        FILE *f = fopen(large_file, "wb");
-        if (f) {
-            // 100 MB = TUS upload threshold
-            char zeros[4096];
-            memset(zeros, 0, sizeof(zeros));
-            size_t remaining = 100 * 1024 * 1024;
-            while (remaining > 0) {
-                size_t chunk
-                    = remaining < sizeof(zeros) ? remaining : sizeof(zeros);
-                fwrite(zeros, 1, chunk, f);
-                remaining -= chunk;
-            }
-            fclose(f);
-            sentry_options_add_attachment(options, large_file);
-        }
     }
 
     if (has_arg(argc, argv, "stdout")) {
@@ -966,6 +950,29 @@ main(int argc, char **argv)
             = sentry_attach_file("./view-hierarchy.json");
         sentry_attachment_set_type(
             view_hierarchy, SENTRY_ATTACHMENT_TYPE_VIEW_HIERARCHY);
+    }
+
+    if (has_arg(argc, argv, "large-attachment")) {
+        const char *large_file = ".sentry-large-attachment";
+        FILE *f = fopen(large_file, "wb");
+        if (f) {
+            // 100 MB = TUS upload threshold
+            char zeros[4096];
+            memset(zeros, 0, sizeof(zeros));
+            size_t remaining = 100 * 1024 * 1024;
+            while (remaining > 0) {
+                size_t chunk
+                    = remaining < sizeof(zeros) ? remaining : sizeof(zeros);
+                fwrite(zeros, 1, chunk, f);
+                remaining -= chunk;
+            }
+            fclose(f);
+            sentry_attachment_t *attachment = sentry_attach_file(large_file);
+            if (attachment) {
+                sentry_attachment_set_type(
+                    attachment, SENTRY_ATTACHMENT_TYPE_MINIDUMP);
+            }
+        }
     }
 
     if (sentry_options_get_enable_logs(options)) {

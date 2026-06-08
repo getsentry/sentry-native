@@ -1551,6 +1551,8 @@ sentry__envelope_item_get_attachment_ref(
         sentry_value_get_by_key(ref->_owner, "location"));
     ref->content_type = sentry_value_as_string(
         sentry_value_get_by_key(ref->_owner, "content_type"));
+    ref->attachment_type = sentry_value_as_string(
+        sentry_value_get_by_key(item->headers, "attachment_type"));
     return true;
 }
 
@@ -1598,6 +1600,9 @@ sentry__envelope_item_resolve_attachment_ref(
     sentry_attachment_ref_t resolved = { 0 };
     if (sentry__guarded_strlen(ref.path)) {
         resolved.path = ref.path;
+    }
+    if (sentry__guarded_strlen(ref.attachment_type)) {
+        resolved.attachment_type = ref.attachment_type;
     }
     resolved.location = location;
     if (sentry__guarded_strlen(ref.content_type)) {

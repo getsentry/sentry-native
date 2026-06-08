@@ -20,8 +20,8 @@
 #    include <time.h>
 #    include <unistd.h>
 
-#    include "../sentry_elf.h"
 #    include "sentry_alloc.h"
+#    include "sentry_elf.h"
 #    include "sentry_logger.h"
 #    include "sentry_minidump_common.h"
 #    include "sentry_minidump_format.h"

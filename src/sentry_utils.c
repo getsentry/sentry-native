@@ -14,6 +14,7 @@
 #include <locale.h>
 #include <math.h>
 #include <stdarg.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -433,6 +434,37 @@ sentry__dsn_get_minidump_url(const sentry_dsn_t *dsn, const char *user_agent)
     sentry__stringbuilder_append(&sb, "&sentry_key=");
     sentry__stringbuilder_append(&sb, dsn->public_key);
     return sentry__stringbuilder_into_string(&sb);
+}
+
+char *
+sentry__base64_encode(const char *data, size_t len)
+{
+    static const char b64[]
+        = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    size_t output_len = 4 * ((len + 2) / 3);
+    char *out = sentry_malloc(output_len + 1);
+    if (!out) {
+        return NULL;
+    }
+
+    size_t i, j;
+    for (i = 0, j = 0; i < len; i += 3) {
+        uint32_t triple = (uint32_t)(unsigned char)data[i] << 16;
+        if (i + 1 < len) {
+            triple |= (uint32_t)(unsigned char)data[i + 1] << 8;
+        }
+        if (i + 2 < len) {
+            triple |= (uint32_t)(unsigned char)data[i + 2];
+        }
+
+        out[j++] = b64[(triple >> 18) & 0x3F];
+        out[j++] = b64[(triple >> 12) & 0x3F];
+        out[j++] = i + 1 < len ? b64[(triple >> 6) & 0x3F] : '=';
+        out[j++] = i + 2 < len ? b64[triple & 0x3F] : '=';
+    }
+
+    out[j] = '\0';
+    return out;
 }
 
 char *

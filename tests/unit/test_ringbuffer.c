@@ -85,6 +85,21 @@ SENTRY_TEST(ringbuffer_append_null_decref_value)
     sentry_value_decref(v);
 }
 
+SENTRY_TEST(ringbuffer_zero_noop)
+{
+    sentry_ringbuffer_t *rb = sentry__ringbuffer_new(0);
+    sentry_value_t v = sentry_value_new_object();
+    sentry_value_incref(v);
+
+    int rv = sentry__ringbuffer_append(rb, v);
+    TEST_CHECK_INT_EQUAL(rv, -1);
+    TEST_CHECK_INT_EQUAL(sentry_value_refcount(v), 1);
+    TEST_CHECK_INT_EQUAL(sentry_value_get_length(rb->list), 0);
+
+    sentry_value_decref(v);
+    sentry__ringbuffer_free(rb);
+}
+
 SENTRY_TEST(ringbuffer_append_invalid_decref_value)
 {
     // A ringbuffer in an invalid state, also decrefs the to-append value

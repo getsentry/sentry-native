@@ -187,6 +187,7 @@ typedef struct {
     _STRUCT_MCONTEXT state;
     char stack_path[SENTRY_CRASH_MAX_PATH]; // Path to saved stack memory file
     uint64_t stack_size; // Size of captured stack
+    char name[64]; // Thread name from pthread_setname_np
 } sentry_thread_context_darwin_t;
 
 /**

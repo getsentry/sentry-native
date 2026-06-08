@@ -174,10 +174,13 @@ header_callback(char *buffer, size_t size, size_t nitems, void *userdata)
         sentry_slice_t value
             = sentry__slice_trim(sentry__slice_from_str(sep + 1));
         if (sentry__string_eq(header, "retry-after")) {
+            sentry_free(info->retry_after);
             info->retry_after = sentry__slice_to_owned(value);
         } else if (sentry__string_eq(header, "x-sentry-rate-limits")) {
+            sentry_free(info->x_sentry_rate_limits);
             info->x_sentry_rate_limits = sentry__slice_to_owned(value);
         } else if (sentry__string_eq(header, "location")) {
+            sentry_free(info->location);
             info->location = sentry__slice_to_owned(value);
         }
     }

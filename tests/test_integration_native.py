@@ -25,6 +25,7 @@ from .assertions import (
     assert_meta,
     assert_native_crash,
     assert_session,
+    is_valid_hex,
     wait_for_file,
     assert_user_feedback,
 )
@@ -87,8 +88,14 @@ def test_native_capture_crash(cmake, httpserver):
     reason="WER crash tests are only available in MSVC Windows builds",
 )
 @pytest.mark.with_wer
-@pytest.mark.parametrize("crash_arg", ["fastfail", "stack-buffer-overrun"])
-def test_native_wer(cmake, httpserver, crash_arg):
+@pytest.mark.parametrize(
+    "crash_arg,exception_code",
+    [
+        pytest.param("fastfail", 0xC0000602, id="fastfail"),
+        pytest.param("stack-buffer-overrun", 0xC0000409, id="stack-buffer-overrun"),
+    ],
+)
+def test_native_wer_crash(cmake, httpserver, crash_arg, exception_code):
     """Test WER crash capture with native backend"""
     tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "native"})
 
@@ -105,7 +112,7 @@ def test_native_wer(cmake, httpserver, crash_arg):
 
     assert len(httpserver.log) >= 1
     envelope = Envelope.deserialize(httpserver.log[0][0].get_data())
-    assert_native_crash(envelope, exception_code=0xC0000409)
+    assert_native_crash(envelope, exception_code=exception_code)
 
 
 @pytest.mark.skipif(not has_oom, reason="OOM test unreliable in this environment")
@@ -394,6 +401,45 @@ def test_native_multithreaded_crash(cmake, httpserver):
             env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
         )
     assert waiting.result
+
+
+@pytest.mark.skipif(
+    sys.platform != "darwin",
+    reason="Exercises the macOS thread_get_state register capture path",
+)
+def test_native_noncrashing_thread_unwind(cmake, httpserver):
+    """Test that non-crashing threads capture unwindable stacktraces"""
+    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "native"})
+
+    httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data("OK")
+
+    with httpserver.wait(timeout=10) as waiting:
+        run_crash(
+            tmp_path,
+            "sentry_example",
+            ["log", "stdout", "crash"] + SANITIZER_ARGS,
+            env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
+        )
+    assert waiting.result
+
+    assert len(httpserver.log) >= 1
+    envelope = Envelope.deserialize(httpserver.log[0][0].get_data())
+    event = envelope.get_event()
+
+    noncrashing = [t for t in event["threads"]["values"] if not t.get("crashed")]
+    assert noncrashing
+
+    frame_counts = []
+    for thread in noncrashing:
+        stacktrace = thread.get("stacktrace")
+        if not stacktrace:
+            continue
+        frames = stacktrace["frames"]
+        assert all(is_valid_hex(frame["instruction_addr"]) for frame in frames)
+        frame_counts.append(len(frames))
+
+    # A buggy register capture leaves each thread with only its top frame.
+    assert frame_counts and max(frame_counts) >= 2
 
 
 def _parse_minidump(path):
