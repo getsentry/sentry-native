@@ -2122,55 +2122,6 @@ build_stacktrace_from_ctx(const sentry_crash_context_t *ctx)
     return build_stacktrace_for_thread(ctx, SIZE_MAX);
 }
 
-/* Describes which kind of native event we are building. `s_crash_kind`
- * drives the crash path; `s_app_hang_kind` drives the app-hang flow on macOS.
- *
- * Invariant: if `include_signal_meta` is true, `exception_type` must be NULL
- * (the signal-derived path). Setting an override type AND requesting signal
- * metadata is incoherent — there is no signal in the override case.
- */
-typedef struct {
-    /* Override exception `type` string. NULL = derive from the crash signal
-     * (e.g. "SIGSEGV" on Unix, "EXCEPTION" on Windows). */
-    const char *exception_type;
-    /* Override exception `value` string. Used only when `exception_type` is
-     * non-NULL; ignored otherwise. */
-    const char *exception_value;
-    /* `mechanism.type` JSON value, e.g. "signalhandler" or "AppHang". */
-    const char *mechanism_type;
-    /* `mechanism.handled` JSON value. false for fatal crashes, true for
-     * recoverable events like app hangs. */
-    bool mechanism_handled;
-    /* Event `level` JSON value, e.g. "fatal" or "error". */
-    const char *level;
-    /* Attach `mechanism.meta.signal` payload? Must be false when
-     * `exception_type` is non-NULL (see struct invariant). */
-    bool include_signal_meta;
-} sentry_native_event_kind_t;
-
-/* Crash-path event kind: signal-derived type/value, fatal level, unhandled. */
-static const sentry_native_event_kind_t s_crash_kind = {
-    .exception_type = NULL,
-    .exception_value = NULL,
-    .mechanism_type = "signalhandler",
-    .mechanism_handled = false,
-    .level = "fatal",
-    .include_signal_meta = true,
-};
-
-#if defined(SENTRY_APP_HANG_HOST_SUPPORTED)
-/* App-hang event kind: ANR-style, handled, error level. The per-event
- * `exception_value` (freeze duration message) is filled in at capture time. */
-static const sentry_native_event_kind_t s_app_hang_kind = {
-    .exception_type = "ApplicationNotResponding",
-    .exception_value = NULL, /* filled in per-event below */
-    .mechanism_type = "AppHang",
-    .mechanism_handled = true,
-    .level = "error",
-    .include_signal_meta = false,
-};
-#endif
-
 /**
  * Reads one breadcrumb ring file the crashing process appended on its hot path
  * into a breadcrumb list. Returns null if the file is absent or empty.
@@ -2238,17 +2189,30 @@ apply_breadcrumbs_from_ring_files(sentry_value_t event,
 }
 
 /**
- * Build a native event and set the level, mechanism, and handled state
+ * Build a native event and set the level, mechanism, and handled state.
+ *
+ * `exception_type` selects the path:
+ *  - NULL: signal-derived crash. The exception type/value are taken from the
+ *    crash signal (e.g. "SIGSEGV"/"Fatal crash: SIGSEGV"), and the
+ *    `mechanism.meta.signal` payload is attached. `exception_value` is ignored.
+ *  - non-NULL: override event (e.g. app hang). The given type/value are used
+ *    verbatim and no signal metadata is attached (there is no signal).
  *
  * @param ctx Crash context
  * @param event_file_path Path to base event file from parent process
  * @param run_folder Run directory holding the breadcrumb ring files
- * @param kind Event-kind descriptor controlling exception/mechanism/level
+ * @param exception_type Override exception `type`, or NULL to derive from signal
+ * @param exception_value Override exception `value` (used only when
+ *                        `exception_type` is non-NULL)
+ * @param mechanism_type `mechanism.type`, e.g. "signalhandler" or "AppHang"
+ * @param mechanism_handled `mechanism.handled` (false for fatal crashes)
+ * @param level Event `level`, e.g. "fatal" or "error"
  */
 static sentry_value_t
 build_native_crash_event(const sentry_crash_context_t *ctx,
     const char *event_file_path, const sentry_path_t *run_folder,
-    const sentry_native_event_kind_t *kind)
+    const char *exception_type, const char *exception_value,
+    const char *mechanism_type, bool mechanism_handled, const char *level)
 {
     // Read base event from parent's file
     sentry_value_t event = sentry_value_new_null();
@@ -2277,8 +2241,7 @@ build_native_crash_event(const sentry_crash_context_t *ctx,
         event, "platform", sentry_value_new_string("native"));
 
     // Set level (varies by event kind: "fatal" for crash, "error" for app hang)
-    sentry_value_set_by_key(
-        event, "level", sentry_value_new_string(kind->level));
+    sentry_value_set_by_key(event, "level", sentry_value_new_string(level));
 
     // Build exception
     /* Function-scope so exc_value (which may point into this buffer) remains
@@ -2288,9 +2251,9 @@ build_native_crash_event(const sentry_crash_context_t *ctx,
     const char *exc_type;
     const char *exc_value;
 
-    if (kind->exception_type) {
-        exc_type = kind->exception_type;
-        exc_value = kind->exception_value ? kind->exception_value : "";
+    if (exception_type) {
+        exc_type = exception_type;
+        exc_value = exception_value ? exception_value : "";
     } else {
         const char *signal_name;
 #if defined(SENTRY_PLATFORM_UNIX)
@@ -2313,14 +2276,15 @@ build_native_crash_event(const sentry_crash_context_t *ctx,
     // Add mechanism
     sentry_value_t mechanism = sentry_value_new_object();
     sentry_value_set_by_key(
-        mechanism, "type", sentry_value_new_string(kind->mechanism_type));
+        mechanism, "type", sentry_value_new_string(mechanism_type));
     sentry_value_set_by_key(
         mechanism, "synthetic", sentry_value_new_bool(true));
     sentry_value_set_by_key(
-        mechanism, "handled", sentry_value_new_bool(kind->mechanism_handled));
+        mechanism, "handled", sentry_value_new_bool(mechanism_handled));
 
-    // Add signal metadata (only relevant for signal-handler/crash events)
-    if (kind->include_signal_meta) {
+    // Add signal metadata only for the signal-derived crash path (no override
+    // type). There is no signal in the override case (e.g. app hang).
+    if (!exception_type) {
         sentry_value_t meta = sentry_value_new_object();
         sentry_value_t signal_info = sentry_value_new_object();
 #if defined(SENTRY_PLATFORM_WINDOWS)

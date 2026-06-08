@@ -617,16 +617,12 @@ static void *
 app_hang_demo_thread(void *arg)
 {
     (void)arg;
-    /* The first heartbeat latches this thread as the monitored target; keep
-     * heartbeating for 500 ms so the daemon sees a healthy baseline before the
-     * freeze. */
+    /* The first heartbeat latches this thread as the monitored target */
     for (int i = 0; i < 10; i++) {
         sentry_app_hang_heartbeat();
         usleep(50 * 1000);
     }
-    /* Add a couple of breadcrumbs before freezing so the captured app-hang
-     * event carries them (the daemon reads the breadcrumb ring files the host
-     * writes on each sentry_add_breadcrumb). */
+
     sentry_add_breadcrumb(
         sentry_value_new_breadcrumb(NULL, "app-hang demo: about to freeze"));
     sentry_add_breadcrumb(create_debug_crumb("app-hang demo breadcrumb"));

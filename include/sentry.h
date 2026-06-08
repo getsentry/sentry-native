@@ -1698,12 +1698,13 @@ SENTRY_EXPERIMENTAL_API void sentry_options_set_session_replay_duration(
     sentry_options_t *opts, uint32_t duration_ms);
 
 /**
- * Enable app-hang detection in the native crash backend.
+ * Enable app-hang detection via the native crash backend.
  *
- * When enabled, the out-of-process daemon monitors a designated thread in the
- * host via a shared-memory heartbeat. If the heartbeat goes stale for longer
- * than the configured timeout, the daemon walks the thread's stack remotely and
- * emits an `ApplicationNotResponding` event. The host process keeps running.
+ * When enabled, the out-of-process daemon monitors the thread first emitting
+ * a heatbeat through `sentry_app_hang_heartbeat`.
+ * If the heartbeat goes stale for longer than the configured timeout, the
+ * daemon walks the thread's stack remotely and emits an `AppHang` event.
+ * The host process keeps running.
  *
  * Off by default. This setting only has an effect when using the `native`
  * backend. In this initial release the feature is macOS-only; the call is a
@@ -1723,20 +1724,18 @@ SENTRY_EXPERIMENTAL_API void sentry_options_set_app_hang_timeout_ms(
     sentry_options_t *opts, uint64_t timeout_ms);
 
 /**
- * Refresh the heartbeat for the monitored thread.
+ * Refresh the heartbeat.
  *
  * The first thread to call this becomes the monitored target for the lifetime
  * of the SDK session (first caller wins, latched atomically). Call it from the
  * thread you want monitored (typically the main / game thread) and ensure that
  * thread issues the first heartbeat. Subsequent calls from any other thread are
- * dropped, so a stray heartbeat from a worker thread cannot mask a frozen
- * monitored thread.
+ * dropped.
  *
- * Cost: approximately one system call plus a relaxed 64-bit store. Safe to
- * call from a per-frame hook in a game engine.
- *
- * No-op if app-hang detection is not enabled in options, or if the native
- * backend is not active, or on non-macOS platforms.
+ * No-op if
+ * - app-hang detection is not enabled
+ * - the native backend is not active
+ * - the platform is not macOS
  */
 SENTRY_EXPERIMENTAL_API void sentry_app_hang_heartbeat(void);
 
