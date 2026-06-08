@@ -38,6 +38,7 @@
 - Prevent database cleanup from following symlinks in run and cache directories. ([#1751](https://github.com/getsentry/sentry-native/pull/1751))
 - Structured logs: respect printf argument widths when extracting log parameters to avoid stack-data disclosure and corrupted attributes on 32-bit platforms. ([#1752](https://github.com/getsentry/sentry-native/pull/1752))
 - Fix TOCTOU races in transaction/span refcounting by switching to the atomic decref return value. ([#1763](https://github.com/getsentry/sentry-native/pull/1763))
+- Fix signed-to-unsigned cast in rate-limit parsing to prevent permanent event suppression. ([#1790](https://github.com/getsentry/sentry-native/pull/1790))
 - Fix a potential out-of-bounds read when parsing non-NUL-terminated `sentry-trace` headers. ([#1749](https://github.com/getsentry/sentry-native/pull/1749))
 - Harden ELF note parsing against overflow and OOB reads. ([#1773](https://github.com/getsentry/sentry-native/pull/1773))
 - Fix division by zero when breadcrumbs are disabled. ([#1767](https://github.com/getsentry/sentry-native/pull/1767))
