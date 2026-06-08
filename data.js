@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1780912100694,
+  "lastUpdate": 1780912187433,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -75892,6 +75892,66 @@ window.BENCHMARK_DATA = {
             "value": 15.598399999817048,
             "unit": "ms",
             "extra": "Min 14.836ms\nMax 15.899ms\nMean 15.501ms\nStdDev 0.439ms\nMedian 15.598ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "jpnurmi@gmail.com",
+            "name": "J-P Nurmi",
+            "username": "jpnurmi"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "0dfbd23c333facf22581521fcbf1a16ce2daf3d4",
+          "message": "fix: overflow in `sentry__string_clone` (#1787)\n\n* fix(string): Guard length-limited clone overflow\n\nReject SIZE_MAX string lengths before adding the trailing terminator byte.\n\nCo-Authored-By: OpenAI Codex <noreply@openai.com>\n\n* Update CHANGELOG.md\n\n---------\n\nCo-authored-by: OpenAI Codex <noreply@openai.com>\nCo-authored-by: Amir Mujacic <amir.mujacic@sentry.io>",
+          "timestamp": "2026-06-08T11:44:23+02:00",
+          "tree_id": "a8cf10b4cfe8943284d4b9f99b0c8ebe7f59cc39",
+          "url": "https://github.com/getsentry/sentry-native/commit/0dfbd23c333facf22581521fcbf1a16ce2daf3d4"
+        },
+        "date": 1780912179109,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 14.545600000019476,
+            "unit": "ms",
+            "extra": "Min 13.502ms\nMax 18.134ms\nMean 15.471ms\nStdDev 2.082ms\nMedian 14.546ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 24.913200000014513,
+            "unit": "ms",
+            "extra": "Min 20.166ms\nMax 73.150ms\nMean 34.271ms\nStdDev 22.069ms\nMedian 24.913ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 28.1336000000465,
+            "unit": "ms",
+            "extra": "Min 27.650ms\nMax 29.188ms\nMean 28.221ms\nStdDev 0.621ms\nMedian 28.134ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.20189999986541807,
+            "unit": "ms",
+            "extra": "Min 0.175ms\nMax 0.217ms\nMean 0.198ms\nStdDev 0.019ms\nMedian 0.202ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.4395999999360356,
+            "unit": "ms",
+            "extra": "Min 0.390ms\nMax 0.494ms\nMean 0.435ms\nStdDev 0.043ms\nMedian 0.440ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 15.69870000002993,
+            "unit": "ms",
+            "extra": "Min 15.040ms\nMax 16.409ms\nMean 15.721ms\nStdDev 0.517ms\nMedian 15.699ms"
           }
         ]
       }
