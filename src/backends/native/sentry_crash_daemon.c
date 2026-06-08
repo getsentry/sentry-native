@@ -2314,7 +2314,7 @@ apply_breadcrumbs_from_ring_files(sentry_value_t event,
  * @param level Event `level`, e.g. "fatal" or "error"
  */
 static sentry_value_t
-build_native_crash_event(const sentry_crash_context_t *ctx,
+build_native_event(const sentry_crash_context_t *ctx,
     const char *event_file_path, const sentry_path_t *run_folder,
     const char *exception_type, const char *exception_value,
     const char *mechanism_type, bool mechanism_handled, const char *level)
@@ -2684,20 +2684,20 @@ build_native_crash_event(const sentry_crash_context_t *ctx,
 }
 
 /**
- * Write envelope with native stacktrace event
- * If minidump_path is provided, also attach it as an attachment
+ * Write envelope with a native stacktrace event built by the caller.
+ *
+ * The caller constructs the event at the point of capture (a crash event or an
+ * app-hang event) via build_native_event() and hands it to us; we take
+ * ownership and decref it once serialized. If minidump_path is provided, it is
+ * also attached as an attachment.
  */
 static bool
 write_envelope_with_native_stacktrace(const sentry_options_t *options,
     const char *envelope_path, const sentry_crash_context_t *ctx,
-    const char *event_file_path, const char *minidump_path,
-    sentry_path_t *run_folder, const sentry_native_event_kind_t *kind)
+    sentry_value_t event, const char *minidump_path, sentry_path_t *run_folder)
 {
-    // Build native crash event (always include threads with names)
     SENTRY_DEBUGF("write_envelope_with_native_stacktrace: minidump_path=%s",
         minidump_path ? minidump_path : "(null)");
-    sentry_value_t event
-        = build_native_crash_event(ctx, event_file_path, run_folder, kind);
 
     // Serialize event to JSON
     size_t event_size = 0;
@@ -3317,8 +3317,6 @@ capture_and_send_app_hang(const sentry_options_t *options,
     snprintf(value_buf, sizeof(value_buf),
         "App hang detected. Main thread blocked for %llu ms.",
         (unsigned long long)freeze_ms);
-    sentry_native_event_kind_t kind = s_app_hang_kind;
-    kind.exception_value = value_buf;
 
     /* Build an envelope path next to the crash one. */
     char envelope_path[SENTRY_CRASH_MAX_PATH];
@@ -3350,8 +3348,15 @@ capture_and_send_app_hang(const sentry_options_t *options,
         }
     }
 
+    /* App-hang event: ANR-style override (no signal), handled, error level.
+     * The per-event value carries the freeze duration computed above. */
+    sentry_value_t event = build_native_event(ctx, event_file_path,
+        run_folder, /*exception_type=*/"ApplicationNotResponding",
+        /*exception_value=*/value_buf, /*mechanism_type=*/"AppHang",
+        /*mechanism_handled=*/true, /*level=*/"error");
+
     bool ok = write_envelope_with_native_stacktrace(options, envelope_path, ctx,
-        event_file_path, /*minidump_path=*/NULL, run_folder, &kind);
+        event, /*minidump_path=*/NULL, run_folder);
 
     if (run_folder) {
         sentry__path_free(run_folder);
@@ -3882,9 +3887,15 @@ sentry__process_crash(const sentry_options_t *options, sentry_crash_ipc_t *ipc)
         SENTRY_DEBUGF("Writing envelope with native stacktrace, passing "
                       "minidump_path=%s",
             minidump_path[0] ? minidump_path : "NULL");
+        // Crash event: signal-derived type/value (with signal meta), fatal
+        // level, unhandled.
+        sentry_value_t event = build_native_event(ctx, event_path,
+            run_folder, /*exception_type=*/NULL, /*exception_value=*/NULL,
+            /*mechanism_type=*/"signalhandler", /*mechanism_handled=*/false,
+            /*level=*/"fatal");
         envelope_written = write_envelope_with_native_stacktrace(options,
-            envelope_path, ctx, event_path,
-            minidump_path[0] ? minidump_path : NULL, run_folder, &s_crash_kind);
+            envelope_path, ctx, event,
+            minidump_path[0] ? minidump_path : NULL, run_folder);
     } else {
         // Mode 0 (MINIDUMP only)
         SENTRY_DEBUG("Writing envelope with minidump");
