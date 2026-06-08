@@ -2224,14 +2224,18 @@ build_stacktrace_from_ctx(const sentry_crash_context_t *ctx)
 }
 
 /**
- * Build native crash event with exception, mechanism, and debug_meta
+ * Build a native event and set the level, mechanism, and handled state
  *
  * @param ctx Crash context
- * @param event_file_path Path to event file from parent process
+ * @param event_file_path Path to base event file from parent process
+ * @param level Event level (e.g. "fatal")
+ * @param mechanism_type Exception mechanism type (e.g. "signalhandler")
+ * @param handled Whether the mechanism was handled
  */
 static sentry_value_t
-build_native_crash_event(
-    const sentry_crash_context_t *ctx, const char *event_file_path)
+build_native_event(const sentry_crash_context_t *ctx,
+    const char *event_file_path, const char *level, const char *mechanism_type,
+    bool handled)
 {
     // Read base event from parent's file
     sentry_value_t event = sentry_value_new_null();
@@ -2257,8 +2261,7 @@ build_native_crash_event(
     sentry_value_set_by_key(
         event, "platform", sentry_value_new_string("native"));
 
-    // Set level to fatal
-    sentry_value_set_by_key(event, "level", sentry_value_new_string("fatal"));
+    sentry_value_set_by_key(event, "level", sentry_value_new_string(level));
 
     // Build exception
     const char *signal_name = "UNKNOWN";
@@ -2280,10 +2283,11 @@ build_native_crash_event(
     // Add mechanism
     sentry_value_t mechanism = sentry_value_new_object();
     sentry_value_set_by_key(
-        mechanism, "type", sentry_value_new_string("signalhandler"));
+        mechanism, "type", sentry_value_new_string(mechanism_type));
     sentry_value_set_by_key(
         mechanism, "synthetic", sentry_value_new_bool(true));
-    sentry_value_set_by_key(mechanism, "handled", sentry_value_new_bool(false));
+    sentry_value_set_by_key(
+        mechanism, "handled", sentry_value_new_bool(handled));
 
     // Add signal metadata
     sentry_value_t meta = sentry_value_new_object();
@@ -2589,7 +2593,8 @@ write_envelope_with_native_stacktrace(const sentry_options_t *options,
     // Build native crash event (always include threads with names)
     SENTRY_DEBUGF("write_envelope_with_native_stacktrace: minidump_path=%s",
         minidump_path ? minidump_path : "(null)");
-    sentry_value_t event = build_native_crash_event(ctx, event_file_path);
+    sentry_value_t event = build_native_event(
+        ctx, event_file_path, "fatal", "signalhandler", false);
 
     // Serialize event to JSON
     size_t event_size = 0;
