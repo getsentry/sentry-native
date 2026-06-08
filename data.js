@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1780906344054,
+  "lastUpdate": 1780906363815,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -24916,6 +24916,66 @@ window.BENCHMARK_DATA = {
             "value": 2.1337549999884686,
             "unit": "ms",
             "extra": "Min 1.993ms\nMax 2.313ms\nMean 2.127ms\nStdDev 0.120ms\nMedian 2.134ms\nCPU 0.628ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "jpnurmi@gmail.com",
+            "name": "J-P Nurmi",
+            "username": "jpnurmi"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "649cd94e14e3810cffcb85e66b1446215e3a3e62",
+          "message": "fix: leak in `sentry__session_from_json` (#1789)\n\n* fix: leak in `sentry__session_from_json`\n\nRelease parsed session JSON values on early parse failures to avoid leaking\nmalformed cached session files.\n\nCo-Authored-By: OpenAI Codex <noreply@openai.com>\n\n* Update CHANGELOG.md\n\n---------\n\nCo-authored-by: OpenAI Codex <noreply@openai.com>",
+          "timestamp": "2026-06-08T10:09:59+02:00",
+          "tree_id": "85e15a5eadac63df6d2da500532a089048804b6b",
+          "url": "https://github.com/getsentry/sentry-native/commit/649cd94e14e3810cffcb85e66b1446215e3a3e62"
+        },
+        "date": 1780906355393,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 0.7732959999913191,
+            "unit": "ms",
+            "extra": "Min 0.764ms\nMax 0.799ms\nMean 0.781ms\nStdDev 0.016ms\nMedian 0.773ms\nCPU 0.737ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 0.7077640000119345,
+            "unit": "ms",
+            "extra": "Min 0.684ms\nMax 0.718ms\nMean 0.705ms\nStdDev 0.013ms\nMedian 0.708ms\nCPU 0.705ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 2.6722320000089894,
+            "unit": "ms",
+            "extra": "Min 2.604ms\nMax 2.816ms\nMean 2.696ms\nStdDev 0.085ms\nMedian 2.672ms\nCPU 1.297ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.10713099999293263,
+            "unit": "ms",
+            "extra": "Min 0.100ms\nMax 0.109ms\nMean 0.106ms\nStdDev 0.004ms\nMedian 0.107ms\nCPU 0.059ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.02002600001560495,
+            "unit": "ms",
+            "extra": "Min 0.019ms\nMax 0.021ms\nMean 0.020ms\nStdDev 0.001ms\nMedian 0.020ms\nCPU 0.019ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 1.4373250000119242,
+            "unit": "ms",
+            "extra": "Min 1.367ms\nMax 1.471ms\nMean 1.434ms\nStdDev 0.040ms\nMedian 1.437ms\nCPU 0.342ms"
           }
         ]
       }
