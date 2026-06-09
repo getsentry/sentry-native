@@ -3152,6 +3152,25 @@ app_hang_capture_stack(task_t task, sentry_crash_context_t *ctx, uint64_t sp)
     sentry_free(buf);
 }
 
+/* Remove the temporary stack snapshot written by app_hang_capture_stack once it
+ * has been consumed, so it does not accumulate (up to SENTRY_CRASH_MAX_STACK_-
+ * CAPTURE each) in the database dir across hangs. No-op if no file was written
+ * (capture skipped or failed — stack_path stays empty). */
+static void
+app_hang_remove_stack_file(sentry_crash_context_t *ctx)
+{
+    if (!ctx->platform.threads[0].stack_path[0]) {
+        return;
+    }
+    sentry_path_t *p
+        = sentry__path_from_str(ctx->platform.threads[0].stack_path);
+    if (p) {
+        sentry__path_remove(p);
+        sentry__path_free(p);
+    }
+    ctx->platform.threads[0].stack_path[0] = '\0';
+}
+
 /**
  * App-hang capture path (macOS). The host is alive but frozen, so unlike a
  * crash there is no in-process signal-handler snapshot to fall back on — the
@@ -3210,10 +3229,15 @@ capture_and_send_app_hang(const sentry_options_t *options,
     for (mach_msg_type_number_t i = 0; i < thread_count; i++) {
         thread_identifier_info_data_t id_info;
         mach_msg_type_number_t id_count = THREAD_IDENTIFIER_INFO_COUNT;
-        if (thread_info(threads[i], THREAD_IDENTIFIER_INFO,
-                (thread_info_t)&id_info, &id_count)
+        if (target == MACH_PORT_NULL
+            && thread_info(threads[i], THREAD_IDENTIFIER_INFO,
+                   (thread_info_t)&id_info, &id_count)
                 == KERN_SUCCESS
             && id_info.thread_id == target_tid) {
+            /* First match wins; keep its port. The `target == MACH_PORT_NULL`
+             * guard means any later duplicate match falls through to the
+             * deallocate branch instead of overwriting (and leaking) the kept
+             * port. */
             target = threads[i];
         } else {
             /* Deallocate the ports we are not keeping. */
@@ -3326,6 +3350,7 @@ capture_and_send_app_hang(const sentry_options_t *options,
 
     if (path_len < 0 || path_len >= (int)sizeof(envelope_path)) {
         SENTRY_WARN("app-hang: envelope path truncated or invalid");
+        app_hang_remove_stack_file(ctx);
         return;
     }
 
@@ -3364,6 +3389,9 @@ capture_and_send_app_hang(const sentry_options_t *options,
     if (run_folder) {
         sentry__path_free(run_folder);
     }
+
+    /* The envelope writer has consumed the stack snapshot. */
+    app_hang_remove_stack_file(ctx);
 
     if (!ok) {
         SENTRY_WARN("app-hang: failed to write envelope");
