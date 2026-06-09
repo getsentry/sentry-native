@@ -3372,7 +3372,8 @@ capture_and_send_app_hang(const sentry_options_t *options,
 
     /* Sync the latest user consent from shmem (the host updates it on consent
      * changes) into the run state before sending, mirroring the crash path, so
-     * sentry__capture_envelope honors a revoke/grant for app-hang events too. */
+     * sentry__capture_envelope honors a revoke/grant for app-hang events too.
+     */
     if (options->run) {
         sentry__atomic_store(&options->run->user_consent,
             sentry__atomic_fetch(&ctx->user_consent));

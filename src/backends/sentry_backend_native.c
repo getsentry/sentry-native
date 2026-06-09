@@ -690,9 +690,10 @@ native_backend_shutdown(sentry_backend_t *backend)
     if (state->ipc) {
 #if defined(SENTRY_APP_HANG_HOST_SUPPORTED)
         /* Hold the app-hang lock across BOTH clearing the registration and
-         * freeing the shmem mapping, so an in-flight sentry_app_hang_heartbeat()
-         * on another thread cannot write to memory that crash_ipc_free unmaps.
-         * The lock is recursive, so set_shmem may re-acquire it safely. */
+         * freeing the shmem mapping, so an in-flight
+         * sentry_app_hang_heartbeat() on another thread cannot write to memory
+         * that crash_ipc_free unmaps. The lock is recursive, so set_shmem may
+         * re-acquire it safely. */
         sentry__app_hang_lock();
         sentry__app_hang_set_shmem(NULL);
         sentry__crash_ipc_free(state->ipc);
