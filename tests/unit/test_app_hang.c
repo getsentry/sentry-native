@@ -64,6 +64,16 @@ SENTRY_TEST(app_hang_decide_re_arms_after_advance_then_stall)
     TEST_CHECK_INT_EQUAL(d, SENTRY_APP_HANG_FIRE);
 }
 
+SENTRY_TEST(app_hang_decide_zero_timeout_returns_no_action)
+{
+    /* A zero timeout must not turn a healthy, heartbeating app into a stream of
+     * spurious AppHang events — it is treated as "detection off". */
+    sentry_app_hang_decision_t d = sentry__app_hang_decide(
+        /*enabled=*/true, /*hb=*/9999, /*now=*/10000,
+        /*timeout_ms=*/0, /*last_fired_hb=*/0);
+    TEST_CHECK_INT_EQUAL(d, SENTRY_APP_HANG_NO_ACTION);
+}
+
 SENTRY_TEST(app_hang_decide_torn_read_now_less_than_hb_returns_no_action)
 {
     /* On x86 a non-atomic 64-bit load can tear, producing now < hb. The

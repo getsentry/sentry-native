@@ -21,7 +21,11 @@ sentry_app_hang_decision_t
 sentry__app_hang_decide(bool enabled, uint64_t hb, uint64_t now,
     uint64_t timeout_ms, uint64_t last_fired_hb)
 {
-    if (!enabled || hb == 0) {
+    if (!enabled || hb == 0 || timeout_ms == 0) {
+        /* A zero timeout would treat every poll as stale (now - hb is always
+         * >= 0 once we pass the torn-read guard below), firing a fresh AppHang
+         * on each heartbeat advance of a perfectly healthy app. Treat it as
+         * "no detection" rather than a hang storm. */
         return SENTRY_APP_HANG_NO_ACTION;
     }
     if (now < hb) {
