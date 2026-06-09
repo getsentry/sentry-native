@@ -4124,6 +4124,22 @@ daemon_file_logger(
     fflush(log_file); // Flush immediately to ensure logs are written
 }
 
+#if defined(SENTRY_PLATFORM_UNIX)
+/* Set when the host asks the daemon to stop (sentry_close sends SIGTERM, then
+ * waitpid()s — see native_backend_shutdown). Without this the default SIGTERM
+ * disposition kills the daemon outright, skipping the loop-exit transport flush
+ * below. This is fine for crashes, but it silently drops any envelope that was
+ * queued while the host kept running (e.g. an app-hang upload). */
+static volatile sig_atomic_t g_daemon_terminate = 0;
+
+static void
+daemon_sigterm_handler(int signum)
+{
+    (void)signum;
+    g_daemon_terminate = 1;
+}
+#endif
+
 #if defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID)
 int
 sentry__crash_daemon_main(
@@ -4371,6 +4387,22 @@ sentry__crash_daemon_main(pid_t app_pid, uint64_t app_tid, HANDLE event_handle,
     const int wait_timeout_ms = SENTRY_CRASH_DAEMON_WAIT_TIMEOUT_MS;
 #endif
 
+#if defined(SENTRY_PLATFORM_UNIX)
+    /* Catch the SIGTERM that sentry_close sends on clean shutdown so the daemon
+     * exits through the cleanup below and flushes any queued upload instead of
+     * dying instantly (see g_daemon_terminate). Deliberately no SA_RESTART: we
+     * want the signal to interrupt the blocking IPC wait so the loop observes
+     * the flag and breaks immediately, rather than stalling shutdown until the
+     * next wait timeout. An interrupted wait simply returns "no event" and the
+     * loop re-checks; when nothing is queued this just turns an instant kill
+     * into an equally quick clean exit. */
+    struct sigaction sa;
+    memset(&sa, 0, sizeof(sa));
+    sa.sa_handler = daemon_sigterm_handler;
+    sigemptyset(&sa.sa_mask);
+    sigaction(SIGTERM, &sa, NULL);
+#endif
+
     while (true) {
         // Wait for crash notification (with timeout to check parent health)
         bool wait_result = sentry__crash_ipc_wait(ipc, wait_timeout_ms);
@@ -4431,6 +4463,14 @@ sentry__crash_daemon_main(pid_t app_pid, uint64_t app_tid, HANDLE event_handle,
             SENTRY_DEBUG("Parent process exited without crash");
             break;
         }
+
+#if defined(SENTRY_PLATFORM_UNIX)
+        // Host asked us to stop (sentry_close). Allow for cleanup.
+        if (g_daemon_terminate) {
+            SENTRY_DEBUG("SIGTERM received, daemon exiting cleanly");
+            break;
+        }
+#endif
     }
 
     SENTRY_DEBUG("Daemon exiting");
