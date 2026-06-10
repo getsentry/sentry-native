@@ -904,7 +904,8 @@ main(int argc, char **argv)
             options, SENTRY_CRASH_UPLOAD_MODE_ASYNC);
     }
 
-#if defined(SENTRY_PLATFORM_WINDOWS) || defined(SENTRY_PLATFORM_MACOS)
+#if defined(SENTRY_PLATFORM_WINDOWS) || defined(SENTRY_PLATFORM_MACOS)             \
+    || defined(SENTRY_PLATFORM_LINUX)
     if (has_arg(argc, argv, "app-hang")) {
         sentry_options_set_app_hang_enabled(options, 1);
         sentry_options_set_app_hang_timeout_ms(options, 1000);
@@ -922,7 +923,8 @@ main(int argc, char **argv)
         return EXIT_FAILURE;
     }
 
-#if defined(SENTRY_PLATFORM_WINDOWS) || defined(SENTRY_PLATFORM_MACOS)
+#if defined(SENTRY_PLATFORM_WINDOWS) || defined(SENTRY_PLATFORM_MACOS)             \
+    || defined(SENTRY_PLATFORM_LINUX)
     /* app-hang: spawn the demo thread BEFORE any other post-init work so it
      * begins heartbeating immediately. The thread freezes for 3x the timeout,
      * giving the daemon time to detect the hang and ship the envelope. We wait
