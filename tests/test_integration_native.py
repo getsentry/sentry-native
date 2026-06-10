@@ -1142,8 +1142,8 @@ def test_native_restart_on_crash(cmake, httpserver):
 
 
 @pytest.mark.skipif(
-    sys.platform != "darwin",
-    reason="app-hang detection is implemented on macOS",
+    sys.platform not in ("win32", "darwin"),
+    reason="app-hang detection is implemented on Windows and macOS",
 )
 def test_native_app_hang(cmake, httpserver):
     """App hang detection emits exactly one AppHang event.

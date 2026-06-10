@@ -1709,8 +1709,8 @@ SENTRY_EXPERIMENTAL_API void sentry_options_set_session_replay_duration(
  * The host process keeps running.
  *
  * Off by default. This setting only has an effect when using the `native`
- * backend. In this initial release the feature is macOS-only; the call is a
- * silent no-op on other platforms.
+ * backend. The feature is supported on macOS and Windows; the call is a silent
+ * no-op on other platforms.
  */
 SENTRY_EXPERIMENTAL_API void sentry_options_set_app_hang_enabled(
     sentry_options_t *opts, int enabled);
@@ -1737,7 +1737,7 @@ SENTRY_EXPERIMENTAL_API void sentry_options_set_app_hang_timeout_ms(
  * No-op if
  * - app-hang detection is not enabled
  * - the native backend is not active
- * - the platform is not macOS
+ * - the platform is neither macOS nor Windows
  */
 SENTRY_EXPERIMENTAL_API void sentry_app_hang_heartbeat(void);
 

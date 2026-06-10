@@ -612,7 +612,28 @@ run_threads(thread_func_t func)
 }
 #endif
 
-#if defined(SENTRY_PLATFORM_MACOS)
+#if defined(SENTRY_PLATFORM_WINDOWS)
+static unsigned __stdcall
+app_hang_demo_thread(void *arg)
+{
+    (void)arg;
+    /* The first heartbeat latches this thread as the monitored target. Beat for
+     * 500 ms so the daemon sees a healthy baseline before the freeze. */
+    for (int i = 0; i < 10; i++) {
+        sentry_app_hang_heartbeat();
+        Sleep(50);
+    }
+    /* Add a couple of breadcrumbs before freezing so the captured app-hang
+     * event carries them (the daemon reads the breadcrumb ring files the host
+     * writes on each sentry_add_breadcrumb). */
+    sentry_add_breadcrumb(
+        sentry_value_new_breadcrumb(NULL, "app-hang demo: about to freeze"));
+    sentry_add_breadcrumb(create_debug_crumb("app-hang demo breadcrumb"));
+    /* Freeze for 3x the configured timeout (3000 ms). */
+    Sleep(3000);
+    return 0;
+}
+#elif defined(SENTRY_PLATFORM_MACOS)
 static void *
 app_hang_demo_thread(void *arg)
 {
@@ -883,7 +904,7 @@ main(int argc, char **argv)
             options, SENTRY_CRASH_UPLOAD_MODE_ASYNC);
     }
 
-#if defined(SENTRY_PLATFORM_MACOS)
+#if defined(SENTRY_PLATFORM_WINDOWS) || defined(SENTRY_PLATFORM_MACOS)
     if (has_arg(argc, argv, "app-hang")) {
         sentry_options_set_app_hang_enabled(options, 1);
         sentry_options_set_app_hang_timeout_ms(options, 1000);
@@ -901,7 +922,7 @@ main(int argc, char **argv)
         return EXIT_FAILURE;
     }
 
-#if defined(SENTRY_PLATFORM_MACOS)
+#if defined(SENTRY_PLATFORM_WINDOWS) || defined(SENTRY_PLATFORM_MACOS)
     /* app-hang: spawn the demo thread BEFORE any other post-init work so it
      * begins heartbeating immediately. The thread freezes for 3x the timeout,
      * giving the daemon time to detect the hang and ship the envelope. We wait
@@ -909,10 +930,19 @@ main(int argc, char **argv)
      * NOTE: this mode is intentionally exclusive – do not combine with crash/
      *       abort/etc. since those would terminate the process first. */
     if (has_arg(argc, argv, "app-hang")) {
+#    if defined(SENTRY_PLATFORM_WINDOWS)
+        HANDLE t = (HANDLE)_beginthreadex(
+            NULL, 0, app_hang_demo_thread, NULL, 0, NULL);
+        if (t) {
+            WaitForSingleObject(t, INFINITE);
+            CloseHandle(t);
+        }
+#    else
         pthread_t t;
         if (0 == pthread_create(&t, NULL, app_hang_demo_thread, NULL)) {
             pthread_join(t, NULL);
         }
+#    endif
         sentry_close();
         return EXIT_SUCCESS;
     }
