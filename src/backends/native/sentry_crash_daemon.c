@@ -3616,6 +3616,10 @@ capture_and_send_app_hang(const sentry_options_t *options,
     ctx->platform.threads[0].tid = (pid_t)target_tid;
     memset(&ctx->platform.threads[0].context, 0,
         sizeof(ctx->platform.threads[0].context));
+    /* Zero the process-level context too: it is what the exception stacktrace
+     * (thread_idx == SIZE_MAX) reads. If the remote unwind fails, ip stays 0 so
+     * build_stacktrace_for_thread returns null and the event is skipped. */
+    memset(&ctx->platform.context, 0, sizeof(ctx->platform.context));
 
     /* Thread name from /proc/<pid>/task/<tid>/comm. */
     ctx->platform.threads[0].name[0] = '\0';

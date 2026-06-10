@@ -327,7 +327,7 @@ typedef struct {
     uint32_t module_count;
     sentry_module_info_t modules[SENTRY_CRASH_MAX_MODULES];
 
-    /* App-hang detection (Windows + macOS, native backend only).
+    /* App-hang detection (Windows + macOS + Linux, native backend only).
      *
      * Sync model:
      *  - app_hang_enabled, app_hang_timeout_ms: written by host before daemon
