@@ -2442,7 +2442,12 @@ build_native_event(const sentry_crash_context_t *ctx,
                     thread, "name", sentry_value_new_string(tctx->name));
             }
 
-            bool is_crashed = (tctx->tid == (uint64_t)ctx->crashed_tid);
+            // `crashed_tid` holds the (pid_t)-truncated id of the crashed/hung
+            // thread, while `tctx->tid` is the full 64-bit Mach thread id.
+            // macOS thread ids exceed 32 bits, so widening the truncated
+            // `crashed_tid` back to uint64 sign-extends and never matches —
+            // compare at the same 32-bit width instead.
+            bool is_crashed = ((pid_t)tctx->tid == ctx->crashed_tid);
             sentry_value_set_by_key(
                 thread, "crashed", sentry_value_new_bool(is_crashed));
             sentry_value_set_by_key(
