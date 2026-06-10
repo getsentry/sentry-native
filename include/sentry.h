@@ -1703,14 +1703,14 @@ SENTRY_EXPERIMENTAL_API void sentry_options_set_session_replay_duration(
  * Enable app-hang detection via the native crash backend.
  *
  * When enabled, the out-of-process daemon monitors the thread first emitting
- * a heatbeat through `sentry_app_hang_heartbeat`.
+ * a heartbeat through `sentry_app_hang_heartbeat`.
  * If the heartbeat goes stale for longer than the configured timeout, the
  * daemon walks the thread's stack remotely and emits an `AppHang` event.
  * The host process keeps running.
  *
  * Off by default. This setting only has an effect when using the `native`
- * backend. The feature is supported on macOS and Windows; the call is a silent
- * no-op on other platforms.
+ * backend. The feature is supported on Windows, macOS, and Linux; the call is a
+ * silent no-op on other platforms.
  */
 SENTRY_EXPERIMENTAL_API void sentry_options_set_app_hang_enabled(
     sentry_options_t *opts, int enabled);
@@ -1737,7 +1737,7 @@ SENTRY_EXPERIMENTAL_API void sentry_options_set_app_hang_timeout_ms(
  * No-op if
  * - app-hang detection is not enabled
  * - the native backend is not active
- * - the platform is neither macOS nor Windows
+ * - the platform is not Windows, macOS, or Linux
  */
 SENTRY_EXPERIMENTAL_API void sentry_app_hang_heartbeat(void);
 

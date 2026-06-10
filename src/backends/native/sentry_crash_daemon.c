@@ -955,7 +955,10 @@ build_stacktrace_for_thread(
         bool is_crashed_thread
             = thread_idx == SIZE_MAX || tid == ctx->crashed_tid;
 
-        if (tid > 0 && !is_crashed_thread) {
+        /* For a real crash we must not ptrace-attach the crashed thread. During
+         * an app hang the "crashed" thread is the live, attachable hung thread,
+         * so allow remote unwinding of it. */
+        if (tid > 0 && (!is_crashed_thread || ctx->app_hang_in_progress)) {
             sentry_remote_registers_t registers = { 0 };
             sentry_remote_frame_t *remote_frames
                 = sentry_malloc(sizeof(*remote_frames) * MAX_STACK_FRAMES);
@@ -3573,7 +3576,177 @@ capture_and_send_app_hang(const sentry_options_t *options,
         sentry__path_free(env_path);
     }
 }
-#endif /* SENTRY_PLATFORM_WINDOWS / SENTRY_PLATFORM_MACOS */
+
+#elif defined(SENTRY_PLATFORM_LINUX)
+
+/**
+ * App-hang capture path (Linux). The host is alive but frozen. The daemon
+ * samples the hung thread out-of-process using the same ptrace-based remote
+ * DWARF unwinder the crash path uses for non-crashed threads. We make the hung
+ * thread look like the "crashed" thread so the existing event/envelope builders
+ * produce the AppHang payload, and set app_hang_in_progress so the stacktrace
+ * builder will remote-unwind it (the crashed thread is otherwise excluded).
+ *
+ * Requires the daemon to be permitted to ptrace the host; the host already
+ * issues prctl(PR_SET_PTRACER, daemon_pid) at startup. If the daemon was built
+ * without remote libunwind (or the attach fails), no frames are captured and we
+ * send nothing.
+ */
+static void
+capture_and_send_app_hang(const sentry_options_t *options,
+    sentry_crash_ipc_t *ipc, uint64_t freeze_ms)
+{
+    /* NOTE (race, experimental first cut): mirrors the macOS/Windows note —
+     * this mutates shmem fields the host's signal handler also writes on a real
+     * crash. The daemon loop is single-threaded and processes a pending crash
+     * before reaching here; the remaining window is the host crashing
+     * mid-capture. */
+    sentry_crash_context_t *ctx = ipc->shmem;
+
+    const uint64_t target_tid = ctx->app_hang_target_tid;
+
+    /* Populate modules from /proc/<pid>/maps so debug_meta is filled and frames
+     * enrich/symbolicate (no signal handler runs for a hang). */
+    capture_modules_from_proc_maps(ctx);
+
+    /* Make the hung thread look like the crashed thread: a single-thread report
+     * (matching macOS/Windows). */
+    ctx->crashed_tid = (pid_t)target_tid;
+    ctx->platform.num_threads = 1;
+    ctx->platform.threads[0].tid = (pid_t)target_tid;
+    memset(&ctx->platform.threads[0].context, 0,
+        sizeof(ctx->platform.threads[0].context));
+    /* Zero the process-level context too: it is what the exception stacktrace
+     * (thread_idx == SIZE_MAX) reads. If the remote unwind fails, ip stays 0 so
+     * build_stacktrace_for_thread returns null and the event is skipped. */
+    memset(&ctx->platform.context, 0, sizeof(ctx->platform.context));
+
+    /* Thread name from /proc/<pid>/task/<tid>/comm. */
+    ctx->platform.threads[0].name[0] = '\0';
+    {
+        char comm_path[64];
+        snprintf(comm_path, sizeof(comm_path), "/proc/%d/task/%d/comm",
+            (int)ctx->crashed_pid, (int)target_tid);
+        FILE *comm_file = fopen(comm_path, "r");
+        if (comm_file) {
+            if (fgets(ctx->platform.threads[0].name,
+                    sizeof(ctx->platform.threads[0].name), comm_file)) {
+                size_t len = strlen(ctx->platform.threads[0].name);
+                if (len > 0
+                    && ctx->platform.threads[0].name[len - 1] == '\n') {
+                    ctx->platform.threads[0].name[len - 1] = '\0';
+                }
+            }
+            fclose(comm_file);
+        }
+    }
+
+    /* Let the Linux stacktrace builder remote-unwind the (live) hung thread. */
+    ctx->app_hang_in_progress = true;
+
+    /* Build the per-event description with the freeze duration. `freeze_ms` is
+     * the time since the last heartbeat at detection, necessarily at least the
+     * configured timeout — hence "at least". */
+    char value_buf[128];
+    snprintf(value_buf, sizeof(value_buf), "App hung for at least %llu ms.",
+        (unsigned long long)freeze_ms);
+
+    /* Reuse the scope file the host keeps up-to-date so the app-hang event
+     * carries the same scope/breadcrumbs/attachments as a crash event. */
+    const char *event_file_path = ctx->event_path[0] ? ctx->event_path : NULL;
+    sentry_path_t *run_folder = NULL;
+    if (event_file_path) {
+        sentry_path_t *ev_path = sentry__path_from_str(event_file_path);
+        if (ev_path) {
+            run_folder = sentry__path_dir(ev_path);
+            sentry__path_free(ev_path);
+        }
+    }
+
+    /* App-hang event: override exception type/value/level, handled, synthetic.
+     * The exception stacktrace path remote-unwinds the hung thread. */
+    sentry_value_t event = build_native_event(ctx, event_file_path, run_folder,
+        /*exception_type=*/"AppHang",
+        /*exception_value=*/value_buf, /*level=*/"error",
+        /*mechanism_type=*/"AppHang", /*handled=*/true);
+
+    /* Skip entirely if no frames were captured (daemon built without remote
+     * libunwind, or the ptrace attach failed): the exception stacktrace is null
+     * in that case. build_native_event has NOT yet been handed to the envelope
+     * writer, so we own `event` and must decref it on every early return here.
+     * (get_by_key / get_by_index return borrowed refs — do not decref those.) */
+    sentry_value_t exc_values = sentry_value_get_by_key(
+        sentry_value_get_by_key(event, "exception"), "values");
+    sentry_value_t exc0 = sentry_value_get_by_index(exc_values, 0);
+    sentry_value_t stacktrace = sentry_value_get_by_key(exc0, "stacktrace");
+    if (sentry_value_is_null(stacktrace)) {
+        SENTRY_DEBUG("app-hang: no frames captured, skipping event");
+        sentry_value_decref(event);
+        ctx->app_hang_in_progress = false;
+        if (run_folder) {
+            sentry__path_free(run_folder);
+        }
+        return;
+    }
+
+    /* Surface the freeze duration as the event message too, so the issue
+     * title reads "App hung for at least X ms." rather than the type alone. */
+    sentry_value_set_by_key(
+        event, "message", sentry_value_new_string(value_buf));
+
+    char envelope_path[SENTRY_CRASH_MAX_PATH];
+    int path_len = snprintf(envelope_path, sizeof(envelope_path),
+        "%s/sentry-app-hang-%lu-%llu.env", ctx->database_path,
+        (unsigned long)ctx->crashed_pid,
+        (unsigned long long)ctx->app_hang_last_heartbeat_ms);
+    if (path_len < 0 || path_len >= (int)sizeof(envelope_path)) {
+        SENTRY_WARN("app-hang: envelope path truncated or invalid");
+        sentry_value_decref(event);
+        ctx->app_hang_in_progress = false;
+        if (run_folder) {
+            sentry__path_free(run_folder);
+        }
+        return;
+    }
+
+    /* write_envelope_with_native_stacktrace takes ownership of `event` and
+     * decrefs it internally — do not decref it after this call. */
+    bool ok = write_envelope_with_native_stacktrace(
+        options, envelope_path, ctx, event, /*minidump_path=*/NULL, run_folder);
+
+    if (run_folder) {
+        sentry__path_free(run_folder);
+    }
+    ctx->app_hang_in_progress = false;
+
+    if (!ok) {
+        SENTRY_WARN("app-hang: failed to write envelope");
+        return;
+    }
+
+    /* Sync the latest user consent from shmem into the run state before sending,
+     * mirroring the crash + macOS app-hang paths, so a revoke/grant is honored.
+     */
+    if (options->run) {
+        sentry__atomic_store(&options->run->user_consent,
+            sentry__atomic_fetch(&ctx->user_consent));
+    }
+
+    /* Read envelope from disk and hand to transport. */
+    sentry_path_t *env_path = sentry__path_from_str(envelope_path);
+    if (env_path) {
+        sentry_envelope_t *envelope = sentry__envelope_from_path(env_path);
+        if (envelope && options && options->transport && options->run) {
+            sentry__capture_envelope(options->transport, envelope, options);
+        } else if (envelope) {
+            /* No transport/run available: capture would not free it. */
+            sentry_envelope_free(envelope);
+        }
+        sentry__path_remove(env_path);
+        sentry__path_free(env_path);
+    }
+}
+#endif /* SENTRY_PLATFORM_WINDOWS / SENTRY_PLATFORM_MACOS / SENTRY_PLATFORM_LINUX */
 
 /**
  * Manually write a Sentry envelope with event, minidump, and attachments.
@@ -4642,7 +4815,7 @@ sentry__crash_daemon_main(pid_t app_pid, uint64_t app_tid, HANDLE event_handle,
         CloseHandle(timer);
     }
 #else
-#    if defined(SENTRY_PLATFORM_MACOS)
+#    if defined(SENTRY_PLATFORM_MACOS) || defined(SENTRY_PLATFORM_LINUX)
     /* App-hang detector state. Daemon-local; the timeout is cached here so it
      * does not race the host on subsequent shmem mutations. When enabled, the
      * loop polls on a short cadence (so it can evaluate the heartbeat each
@@ -4708,7 +4881,7 @@ sentry__crash_daemon_main(pid_t app_pid, uint64_t app_tid, HANDLE event_handle,
             // If crash already processed, just ignore spurious notifications
             SENTRY_DEBUG("Spurious notification or already processed");
         }
-#    if defined(SENTRY_PLATFORM_MACOS)
+#    if defined(SENTRY_PLATFORM_MACOS) || defined(SENTRY_PLATFORM_LINUX)
         else if (app_hang_enabled && !crash_processed) {
             /* No crash notification this wake (timeout or spurious) — evaluate
              * the app-hang heartbeat. */

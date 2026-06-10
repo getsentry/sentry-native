@@ -18,6 +18,11 @@
 #        include <pthread.h>
 #        include <stdatomic.h>
 #        include <time.h>
+#    elif defined(SENTRY_PLATFORM_LINUX)
+#        include <stdatomic.h>
+#        include <sys/syscall.h>
+#        include <time.h>
+#        include <unistd.h>
 #    endif
 #endif
 
@@ -155,6 +160,52 @@ app_hang_record_heartbeat(sentry_crash_context_t *ctx)
      * thread_info(THREAD_IDENTIFIER_INFO). */
     uint64_t current_tid = 0;
     if (pthread_threadid_np(NULL, &current_tid) != 0 || current_tid == 0) {
+        return;
+    }
+
+    /* Self-register on the first heartbeat: CAS the current TID into the latch
+     * slot iff still unset — the first thread to heartbeat wins and becomes the
+     * monitored target. The shmem field is declared `volatile uint64_t`; view
+     * it as an atomic for the compare-exchange. */
+    _Atomic uint64_t *slot
+        = (_Atomic uint64_t *)(void *)&ctx->app_hang_target_tid;
+    uint64_t expected = 0;
+    atomic_compare_exchange_strong(slot, &expected, current_tid);
+
+    /* Drop the heartbeat unless the latched thread is us, so a stray heartbeat
+     * from another thread cannot mask a frozen monitored thread. */
+    if (ctx->app_hang_target_tid != current_tid) {
+        return;
+    }
+
+    /* Relaxed 64-bit store; aligned on a 64-bit target so it is atomic and
+     * cannot tear. The daemon reads it with a relaxed load. */
+    ctx->app_hang_last_heartbeat_ms = sentry__app_hang_now_ms();
+}
+
+#    elif defined(SENTRY_PLATFORM_LINUX)
+
+uint64_t
+sentry__app_hang_now_ms(void)
+{
+    /* CLOCK_MONOTONIC excludes time the system spent suspended (matching macOS
+     * CLOCK_UPTIME_RAW and the Windows unbiased clock) and is consistent across
+     * the host and daemon processes, which share the same machine. */
+    struct timespec ts;
+    if (clock_gettime(CLOCK_MONOTONIC, &ts) != 0) {
+        return 0;
+    }
+    return (uint64_t)ts.tv_sec * 1000ULL + (uint64_t)ts.tv_nsec / 1000000ULL;
+}
+
+static void
+app_hang_record_heartbeat(sentry_crash_context_t *ctx)
+{
+    /* The kernel thread id (gettid). This is the value the daemon matches
+     * against when it enumerates /proc/<pid>/task and ptrace-attaches. Use the
+     * raw syscall so we do not depend on a libc gettid() wrapper. */
+    uint64_t current_tid = (uint64_t)syscall(SYS_gettid);
+    if (current_tid == 0) {
         return;
     }
 

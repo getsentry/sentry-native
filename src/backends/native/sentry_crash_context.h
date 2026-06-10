@@ -327,7 +327,7 @@ typedef struct {
     uint32_t module_count;
     sentry_module_info_t modules[SENTRY_CRASH_MAX_MODULES];
 
-    /* App-hang detection (Windows + macOS, native backend only).
+    /* App-hang detection (Windows + macOS + Linux, native backend only).
      *
      * Sync model:
      *  - app_hang_enabled, app_hang_timeout_ms: written by host before daemon
@@ -344,6 +344,13 @@ typedef struct {
     uint64_t app_hang_timeout_ms;
     volatile uint64_t app_hang_target_tid;
     volatile uint64_t app_hang_last_heartbeat_ms;
+
+    /* Daemon-only (Linux): set true for the duration of capture_and_send_app_-
+     * hang so the stacktrace builder will remote-unwind the (live, attachable)
+     * hung thread, which is otherwise excluded as the "crashed" thread. Written
+     * and read only by the daemon process; it lives in shmem but the host never
+     * touches it. */
+    bool app_hang_in_progress;
 
 } sentry_crash_context_t;
 
