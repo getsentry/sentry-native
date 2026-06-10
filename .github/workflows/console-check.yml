@@ -65,9 +65,9 @@ jobs:
           REF: ${{ github.ref }}
         run: |
           if [[ "$EVENT_NAME" == "push" && "$REF" == refs/heads/release/* ]]; then
-            echo "mode=BUILD_ONLY" >> "$GITHUB_OUTPUT"
+            echo "mode=FULL_TEST" >> "$GITHUB_OUTPUT"
           elif [[ "$EVENT_NAME" == "push" && "$REF" == "refs/heads/master" ]]; then
-            echo "mode=BUILD_ONLY" >> "$GITHUB_OUTPUT"
+            echo "mode=UNIT_TEST" >> "$GITHUB_OUTPUT"
           else
             echo "mode=BUILD_ONLY" >> "$GITHUB_OUTPUT"
           fi
