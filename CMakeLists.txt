@@ -111,6 +111,13 @@ endif()
 
 option(SENTRY_TRANSPORT_COMPRESSION "Enable transport gzip compression" OFF)
 
+option(SENTRY_WITH_GPU_INFO "Build with GPU information gathering support (supported on Windows, macOS, Linux)" OFF)
+
+# GPU info enabled - no longer requires Vulkan SDK (uses headers submodule + dynamic linking)
+if(SENTRY_WITH_GPU_INFO)
+	message(STATUS "GPU information gathering enabled (using vulkan-headers submodule)")
+endif()
+
 option(SENTRY_BUILD_TESTS "Build sentry-native tests" "${SENTRY_MAIN_PROJECT}")
 option(SENTRY_BUILD_EXAMPLES "Build sentry-native example(s)" "${SENTRY_MAIN_PROJECT}")
 option(SENTRY_BUILD_BENCHMARKS "Build sentry-native benchmarks" OFF)
@@ -645,6 +652,12 @@ if(NOT XBOX AND NOT WINGDK)
 	if(SENTRY_LINK_PTHREAD)
 		list(APPEND _SENTRY_PLATFORM_LIBS "Threads::Threads")
 	endif()
+endif()
+
+# handle Vulkan headers for GPU info  
+if(SENTRY_WITH_GPU_INFO)
+	target_include_directories(sentry PRIVATE 
+		"$<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/external/vulkan-headers/include>")
 endif()
 
 # apply platform libraries to sentry library
