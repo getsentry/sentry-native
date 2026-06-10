@@ -1,0 +1,278 @@
+# CMake Build System
+
+## Project Structure
+
+The SDK uses CMake as the primary build system with the following structure:
+
+**Root Configuration ([CMakeLists.txt](mdc:CMakeLists.txt)):**
+- Project definition and version extraction from [include/sentry.h](mdc:include/sentry.h)
+- Cross-platform toolchain detection
+- Top-level build options and feature detection
+
+**Source Configuration ([src/CMakeLists.txt](mdc:src/CMakeLists.txt)):**
+- Platform-specific source file selection
+- Backend and transport configuration
+- Module and symbolizer selection
+
+**Test Configuration ([tests/unit/CMakeLists.txt](mdc:tests/unit/CMakeLists.txt)):**
+- Unit test compilation with same build settings as main library
+- Test source aggregation and linking
+
+## Configuration Options
+
+**Core Build Options:**
+```cmake
+# Library type selection
+option(SENTRY_BUILD_SHARED_LIBS "Build shared library" ON)
+option(SENTRY_BUILD_RUNTIMESTATIC "Link with static runtime (MSVC)" OFF)
+option(SENTRY_PIC "Position independent code" ON)
+
+# Feature selection
+set(SENTRY_BACKEND "crashpad" CACHE STRING "Backend: crashpad|breakpad|inproc|none")
+set(SENTRY_TRANSPORT "curl" CACHE STRING "Transport: curl|winhttp|none")
+
+# Development options
+option(SENTRY_BUILD_TESTS "Build test suite" ${SENTRY_MAIN_PROJECT})
+option(SENTRY_BUILD_EXAMPLES "Build examples" ${SENTRY_MAIN_PROJECT})
+```
+
+**Platform-Specific Options:**
+```cmake
+# Windows-specific
+option(SENTRY_THREAD_STACK_GUARANTEE_AUTO_INIT "Auto thread stack guarantee" ON)
+set(SENTRY_HANDLER_STACK_SIZE "64" CACHE STRING "Handler stack size in KiB")
+
+# Cross-compilation
+option(SENTRY_BUILD_FORCE32 "Force 32-bit build" OFF)
+set(CMAKE_SYSTEM_VERSION "10" CACHE STRING "Minimum Windows version")
+```
+
+## Source File Organization
+
+**Conditional Source Selection Pattern:**
+```cmake
+# Platform-specific implementations
+if(WIN32)
+    sentry_target_sources_cwd(sentry
+        sentry_windows_dbghelp.c
+        path/sentry_path_windows.c
+        symbolizer/sentry_symbolizer_windows.c
+    )
+elseif(APPLE)
+    sentry_target_sources_cwd(sentry
+        modulefinder/sentry_modulefinder_apple.c
+    )
+elseif(LINUX OR ANDROID)
+    sentry_target_sources_cwd(sentry
+        modulefinder/sentry_modulefinder_linux.c
+    )
+endif()
+
+# Backend selection
+if(SENTRY_BACKEND STREQUAL "crashpad")
+    target_sources(sentry PRIVATE
+        backends/sentry_backend_crashpad.cpp
+    )
+    target_compile_definitions(sentry PRIVATE SENTRY_BACKEND_CRASHPAD)
+endif()
+```
+
+**Helper Macro for Source Management:**
+```cmake
+# Custom macro for adding sources with current directory prefix
+macro(sentry_target_sources_cwd target)
+    foreach(source ${ARGN})
+        target_sources(${target} PRIVATE ${CMAKE_CURRENT_LIST_DIR}/${source})
+    endforeach()
+endmacro()
+```
+
+## Dependency Management
+
+**External Dependencies:**
+```cmake
+# Git submodules in external/ directory
+if(SENTRY_BACKEND STREQUAL "crashpad")
+    add_subdirectory(external/crashpad)
+    target_link_libraries(sentry PRIVATE
+        crashpad::client
+        crashpad::util
+    )
+endif()
+
+# System dependencies
+find_package(CURL QUIET)
+if(CURL_FOUND AND SENTRY_TRANSPORT STREQUAL "curl")
+    target_link_libraries(sentry PRIVATE ${CURL_LIBRARIES})
+    target_include_directories(sentry PRIVATE ${CURL_INCLUDE_DIRS})
+endif()
+```
+
+**Platform Libraries:**
+```cmake
+# Windows-specific libraries
+if(WIN32)
+    target_link_libraries(sentry PRIVATE
+        dbghelp
+        winhttp
+        version
+    )
+endif()
+
+# Unix-specific libraries
+if(UNIX AND NOT APPLE)
+    target_link_libraries(sentry PRIVATE
+        ${CMAKE_DL_LIBS}
+        $<$<PLATFORM_ID:Linux>:rt>
+    )
+endif()
+```
+
+## Cross-Platform Toolchain Support
+
+**Compiler Detection and Configuration:**
+```cmake
+# C/C++ standard requirements
+if(NOT CMAKE_C_STANDARD)
+    set(CMAKE_C_STANDARD 99)
+endif()
+if(NOT CMAKE_CXX_STANDARD)
+    set(CMAKE_CXX_STANDARD 17)  # Required for crashpad/breakpad
+endif()
+
+# Compiler-specific flags
+if(MSVC)
+    target_compile_definitions(sentry PRIVATE _CRT_SECURE_NO_WARNINGS)
+    if(SENTRY_BUILD_RUNTIMESTATIC)
+        set_property(TARGET sentry PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+    endif()
+endif()
+```
+
+**Cross-Compilation Support:**
+```cmake
+# Android NDK integration
+if(ANDROID)
+    target_compile_definitions(sentry PRIVATE SENTRY_PLATFORM_ANDROID)
+    set(SENTRY_BACKEND "inproc" CACHE STRING "Android uses inproc backend" FORCE)
+endif()
+
+# MinGW configuration
+if(MINGW)
+    target_link_libraries(sentry PRIVATE
+        -static-libgcc
+        -static-libstdc++
+    )
+endif()
+```
+
+## Installation Configuration
+
+**Install Targets:**
+```cmake
+include(GNUInstallDirs)
+set(CMAKE_INSTALL_CMAKEDIR "${CMAKE_INSTALL_LIBDIR}/cmake/sentry")
+
+# Library installation
+install(TARGETS sentry
+    EXPORT sentry-targets
+    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+)
+
+# Header installation
+install(FILES include/sentry.h
+    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+)
+
+# CMake package files
+install(EXPORT sentry-targets
+    FILE sentry-targets.cmake
+    NAMESPACE sentry::
+    DESTINATION ${CMAKE_INSTALL_CMAKEDIR}
+)
+```
+
+## Testing Integration
+
+**Test Target Configuration:**
+```cmake
+# Copy sentry properties to test executable
+sentry_get_property(SOURCES)
+sentry_get_property(COMPILE_DEFINITIONS)
+sentry_get_property(LINK_LIBRARIES)
+
+# Create test executable with same configuration
+add_executable(sentry_test_unit
+    ${SENTRY_SOURCES}
+    main.c
+    test_*.c
+)
+target_compile_definitions(sentry_test_unit PRIVATE ${SENTRY_COMPILE_DEFINITIONS})
+target_link_libraries(sentry_test_unit PRIVATE ${SENTRY_LINK_LIBRARIES})
+```
+
+## Gaming Platform Support
+
+**Xbox/PlayStation Integration:**
+```cmake
+# Xbox toolchain detection
+if("${CMAKE_GENERATOR_PLATFORM}" STREQUAL "Gaming.Xbox.Scarlett.x64")
+    include("${SENTRY_TOOLCHAINS_DIR}/xbox/CMakeGDKScarlett.cmake")
+    set(XBOX TRUE)
+endif()
+
+# Platform-specific definitions
+if(XBOX)
+    target_compile_definitions(sentry PRIVATE SENTRY_PLATFORM_XBOX)
+endif()
+```
+
+## Build Performance Optimizations
+
+**Parallel Build Support:**
+```cmake
+# Enable parallel builds where supported
+if(CMAKE_VERSION VERSION_GREATER_EQUAL "3.12")
+    cmake_policy(SET CMP0074 NEW)  # Use <PackageName>_ROOT variables
+endif()
+
+# Pre-compiled headers for large codebases (optional)
+if(CMAKE_VERSION VERSION_GREATER_EQUAL "3.16")
+    target_precompile_headers(sentry PRIVATE sentry_boot.h)
+endif()
+```
+
+**Debug Configuration:**
+```cmake
+# Debug symbols and optimization
+if(CMAKE_BUILD_TYPE STREQUAL "RelWithDebInfo")
+    target_compile_options(sentry PRIVATE
+        $<$<COMPILE_LANGUAGE:C>:-g -O2>
+        $<$<COMPILE_LANGUAGE:CXX>:-g -O2>
+    )
+endif()
+```
+
+## Package Configuration
+
+**CMake Package Support:**
+```cmake
+# Generate package configuration files for downstream consumption
+include(CMakePackageConfigHelpers)
+
+configure_package_config_file(
+    "${CMAKE_CURRENT_SOURCE_DIR}/cmake/sentry-config.cmake.in"
+    "${CMAKE_CURRENT_BINARY_DIR}/sentry-config.cmake"
+    INSTALL_DESTINATION ${CMAKE_INSTALL_CMAKEDIR}
+)
+
+write_basic_package_version_file(
+    "${CMAKE_CURRENT_BINARY_DIR}/sentry-config-version.cmake"
+    VERSION ${PROJECT_VERSION}
+    COMPATIBILITY SameMajorVersion
+)
+```
+
+Reference [CMakeLists.txt](mdc:CMakeLists.txt) for complete configuration and [README.md build section](mdc:README.md#building-and-installation) for usage examples.
