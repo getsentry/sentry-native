@@ -345,6 +345,13 @@ typedef struct {
     volatile uint64_t app_hang_target_tid;
     volatile uint64_t app_hang_last_heartbeat_ms;
 
+    /* Daemon-only (Linux): set true for the duration of capture_and_send_app_-
+     * hang so the stacktrace builder will remote-unwind the (live, attachable)
+     * hung thread, which is otherwise excluded as the "crashed" thread. Written
+     * and read only by the daemon process; it lives in shmem but the host never
+     * touches it. */
+    bool app_hang_in_progress;
+
 } sentry_crash_context_t;
 
 // Shared memory size: calculated at compile-time based on actual struct size
