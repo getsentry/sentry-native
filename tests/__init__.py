@@ -23,7 +23,7 @@ def adb(*args, **kwargs):
 # https://docs.pytest.org/en/latest/assert.html#assert-details
 pytest.register_assert_rewrite("tests.assertions")
 
-SENTRY_VERSION = "0.14.2"
+SENTRY_VERSION = "0.15.0"
 
 from .assertions import wait_for_daemon as _wait_for_daemon
 
