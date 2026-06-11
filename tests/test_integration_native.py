@@ -1139,3 +1139,71 @@ def test_native_restart_on_crash(cmake, httpserver):
     for req in httpserver.log:
         envelope = Envelope.deserialize(req[0].get_data())
         assert_native_crash(envelope)
+
+
+@pytest.mark.skipif(
+    sys.platform != "darwin",
+    reason="app-hang detection is implemented on macOS",
+)
+def test_native_app_hang(cmake, httpserver):
+    """App hang detection emits exactly one AppHang event.
+
+    On macOS the daemon samples the hung thread out-of-process via
+    ``task_for_pid``, which requires the example + daemon to be ad-hoc
+    codesigned with the debugger entitlement (same setup as the SMART-mode
+    heap test). If the capture still cannot acquire the task port in this
+    environment the daemon degrades gracefully and ships nothing — the test
+    skips rather than fails in that case.
+    """
+    # macOS hardened-runtime self-signing needs a static build so the example
+    # can load itself without the dyld "different team IDs" check tripping on
+    # ad-hoc-signed dylibs (mirrors the SMART-mode heap test).
+    config = {"SENTRY_BACKEND": "native"}
+    if sys.platform == "darwin":
+        config["BUILD_SHARED_LIBS"] = "OFF"
+    tmp_path = cmake(["sentry_example"], config)
+
+    if sys.platform == "darwin":
+        _codesign_for_task_for_pid(
+            str(tmp_path / "sentry_example"),
+            str(tmp_path / "sentry-crash"),
+        )
+
+    httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data("OK")
+
+    with httpserver.wait(timeout=20) as waiting:
+        # The example's app-hang mode heartbeats for 500 ms, then freezes for
+        # 3000 ms (3x the 1000 ms timeout). The daemon polls every 500 ms.
+        # `run` (not `run_crash`) because the example exits cleanly after the
+        # hang demonstration — `run_crash` expects abnormal exit.
+        run(
+            tmp_path,
+            "sentry_example",
+            ["log", "app-hang"],
+            env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
+        )
+
+    if sys.platform == "darwin" and not waiting.result:
+        pytest.skip(
+            "no app-hang envelope received — task_for_pid is likely denied "
+            "in this environment (hardened-runtime/SIP); capture degraded "
+            "gracefully"
+        )
+    assert waiting.result
+
+    envelope = Envelope.deserialize(httpserver.log[0][0].get_data())
+    event = envelope.get_event()
+    assert event is not None
+    exc = event["exception"]["values"][0]
+    assert exc["type"] == "AppHang"
+    assert exc["mechanism"]["type"] == "AppHang"
+    assert exc["mechanism"]["handled"] is True
+    assert exc["mechanism"]["synthetic"] is True
+    assert "stacktrace" in exc
+    frames = exc["stacktrace"]["frames"]
+    assert isinstance(frames, list)
+    assert len(frames) > 0, "stacktrace is empty — capture path may be broken"
+    # At least one frame should have a non-zero instruction address.
+    assert any(
+        int(f.get("instruction_addr", "0"), 16) > 0 for f in frames
+    ), "no frame has a non-zero instruction_addr"

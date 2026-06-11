@@ -1700,6 +1700,48 @@ SENTRY_EXPERIMENTAL_API void sentry_options_set_session_replay_duration(
     sentry_options_t *opts, uint32_t duration_ms);
 
 /**
+ * Enable app-hang detection via the native crash backend.
+ *
+ * When enabled, the out-of-process daemon monitors the thread first emitting
+ * a heatbeat through `sentry_app_hang_heartbeat`.
+ * If the heartbeat goes stale for longer than the configured timeout, the
+ * daemon walks the thread's stack remotely and emits an `AppHang` event.
+ * The host process keeps running.
+ *
+ * Off by default. This setting only has an effect when using the `native`
+ * backend. In this initial release the feature is macOS-only; the call is a
+ * silent no-op on other platforms.
+ */
+SENTRY_EXPERIMENTAL_API void sentry_options_set_app_hang_enabled(
+    sentry_options_t *opts, int enabled);
+
+/**
+ * Sets the heartbeat-staleness threshold (in milliseconds) used by the
+ * app-hang detector. Default 5000 ms.
+ *
+ * Read by the daemon once at startup; changes after `sentry_init` have no
+ * effect.
+ */
+SENTRY_EXPERIMENTAL_API void sentry_options_set_app_hang_timeout_ms(
+    sentry_options_t *opts, uint64_t timeout_ms);
+
+/**
+ * Refresh the heartbeat.
+ *
+ * The first thread to call this becomes the monitored target for the lifetime
+ * of the SDK session (first caller wins, latched atomically). Call it from the
+ * thread you want monitored (typically the main / game thread) and ensure that
+ * thread issues the first heartbeat. Subsequent calls from any other thread are
+ * dropped.
+ *
+ * No-op if
+ * - app-hang detection is not enabled
+ * - the native backend is not active
+ * - the platform is not macOS
+ */
+SENTRY_EXPERIMENTAL_API void sentry_app_hang_heartbeat(void);
+
+/**
  * Sets the path to the crashpad handler if the crashpad backend is used.
  *
  * The path defaults to the `crashpad_handler`/`crashpad_handler.exe`

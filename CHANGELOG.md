@@ -14,6 +14,7 @@
 - Apple: use `os_sync_wait_on_address` for the level-triggered waitable flag in the batcher on modern macOS(14.4+) and iOS(17.4+). ([#1765](https://github.com/getsentry/sentry-native/pull/1765))
 - Native/macOS: add thread names. ([#1766](https://github.com/getsentry/sentry-native/pull/1766))
 - Add Upload-Metadata header to TUS requests. ([#1795](https://github.com/getsentry/sentry-native/pull/1795))
+- Native/macOS: add opt-in app-hang detection. When enabled, the out-of-process crash daemon monitors a heartbeat emitted via `sentry_app_hang_heartbeat()` and captures an `AppHang` event with a full stack trace if the monitored thread stops responding for longer than the configured timeout. Configure with `sentry_options_set_app_hang_enabled()` and `sentry_options_set_app_hang_timeout_ms()`. ([#1780](https://github.com/getsentry/sentry-native/pull/1780))
 
 **Fixes**:
 
