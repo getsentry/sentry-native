@@ -196,7 +196,9 @@ sentry__jsonwriter_new_fw(sentry_filewriter_t *fw)
 void
 sentry__jsonwriter_free(sentry_jsonwriter_t *jw)
 {
-    jw->ops->free(jw);
+    if (jw) {
+        jw->ops->free(jw);
+    }
 }
 
 void

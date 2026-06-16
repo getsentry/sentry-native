@@ -970,7 +970,7 @@ envelope_write_to_path(const sentry_envelope_t *envelope,
 
 done:
     if (failed) {
-        SENTRY_WARN("envelope write failed: partial disk write");
+        SENTRY_WARN("envelope write failed");
     }
     sentry__jsonwriter_free(jw);
     sentry__filewriter_free(fw);
