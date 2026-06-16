@@ -12,6 +12,12 @@
 #include "sentry_value.h"
 #include "transports/sentry_http_transport.h"
 
+#if defined(SENTRY_PLATFORM_UNIX) && !defined(SENTRY_PLATFORM_ANDROID)
+#    include <signal.h>
+#    include <sys/resource.h>
+#    include <sys/wait.h>
+#endif
+
 static char *const SERIALIZED_ENVELOPE_STR
     = "{\"dsn\":\"https://foo@sentry.invalid/42\","
       "\"event_id\":\"c993afb6-b4ac-48a6-b61b-2558e601d65d\",\"trace\":{"
@@ -1206,4 +1212,72 @@ SENTRY_TEST(envelope_can_add_client_report)
     sentry__path_free(path);
     sentry__rate_limiter_free(rl);
     sentry_close();
+}
+
+#if defined(SENTRY_PLATFORM_UNIX) && !defined(SENTRY_PLATFORM_ANDROID)
+static void
+sigxfsz_noop(int sig)
+{
+    (void)sig;
+}
+#endif
+
+SENTRY_TEST(write_envelope_partial_write_fails)
+{
+#if !defined(SENTRY_PLATFORM_UNIX) || defined(SENTRY_PLATFORM_ANDROID)
+    SKIP_TEST();
+#else
+    sentry_options_t *options = sentry_options_new();
+    TEST_CHECK(options != NULL);
+    sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
+    sentry_options_set_backend(options, NULL);
+    sentry_init(options);
+
+    sentry_envelope_t *envelope = sentry__envelope_new();
+    TEST_CHECK(envelope != NULL);
+
+    size_t big_len = 40000;
+    char *big_buf = sentry_malloc(big_len);
+    TEST_CHECK(big_buf != NULL);
+    memset(big_buf, 'X', big_len);
+    sentry__envelope_add_from_buffer(envelope, big_buf, big_len, "attachment");
+    sentry_free(big_buf);
+
+    const char *test_file_str
+        = SENTRY_TEST_PATH_PREFIX "sentry_test_partial_write";
+
+    // fork() isolates the RLIMIT_FSIZE setting from the test suite
+    pid_t pid = fork();
+    TEST_CHECK(pid >= 0);
+
+    if (pid == 0) {
+        struct sigaction sa;
+        memset(&sa, 0, sizeof(sa));
+        sa.sa_handler = sigxfsz_noop;
+        sigaction(SIGXFSZ, &sa, NULL);
+
+        struct rlimit rl;
+        rl.rlim_cur = 512;
+        rl.rlim_max = 512;
+        if (setrlimit(RLIMIT_FSIZE, &rl) != 0) {
+            _exit(2);
+        }
+
+        int rv = sentry_envelope_write_to_file(envelope, test_file_str);
+        _exit(rv != 0 ? 0 : 1);
+    }
+
+    int status = 0;
+    waitpid(pid, &status, 0);
+    TEST_CHECK(WIFEXITED(status));
+    int child_exit = WEXITSTATUS(status);
+    TEST_CHECK_INT_EQUAL(child_exit, 0);
+
+    sentry_path_t *test_path = sentry__path_from_str(test_file_str);
+    sentry__path_remove(test_path);
+    sentry__path_free(test_path);
+
+    sentry_envelope_free(envelope);
+    sentry_close();
+#endif
 }
