@@ -1267,6 +1267,7 @@ SENTRY_TEST(write_envelope_partial_write_fails)
         }
 
         int rv = sentry_envelope_write_to_file(envelope, test_file_str);
+        sentry_envelope_free(envelope);
         _exit(rv != 0 ? 0 : 1);
     }
 
