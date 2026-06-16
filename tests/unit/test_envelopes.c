@@ -12,7 +12,8 @@
 #include "sentry_value.h"
 #include "transports/sentry_http_transport.h"
 
-#if defined(SENTRY_PLATFORM_UNIX) && !defined(SENTRY_PLATFORM_ANDROID)
+#if defined(SENTRY_PLATFORM_UNIX) && !defined(SENTRY_PLATFORM_ANDROID)         \
+    && !defined(SENTRY_PLATFORM_PS) && !defined(SENTRY_PLATFORM_NX)
 #    include <signal.h>
 #    include <sys/resource.h>
 #    include <sys/wait.h>
@@ -1214,7 +1215,8 @@ SENTRY_TEST(envelope_can_add_client_report)
     sentry_close();
 }
 
-#if defined(SENTRY_PLATFORM_UNIX) && !defined(SENTRY_PLATFORM_ANDROID)
+#if defined(SENTRY_PLATFORM_UNIX) && !defined(SENTRY_PLATFORM_ANDROID)         \
+    && !defined(SENTRY_PLATFORM_PS) && !defined(SENTRY_PLATFORM_NX)
 static void
 sigxfsz_noop(int sig)
 {
@@ -1224,7 +1226,8 @@ sigxfsz_noop(int sig)
 
 SENTRY_TEST(write_envelope_partial_write_fails)
 {
-#if !defined(SENTRY_PLATFORM_UNIX) || defined(SENTRY_PLATFORM_ANDROID)
+#if !defined(SENTRY_PLATFORM_UNIX) || defined(SENTRY_PLATFORM_ANDROID)         \
+    || defined(SENTRY_PLATFORM_PS) || defined(SENTRY_PLATFORM_NX)
     SKIP_TEST();
 #else
     sentry_options_t *options = sentry_options_new();
