@@ -1,6 +1,11 @@
 sentry_target_sources_cwd(sentry
 	sentry_alloc.c
 	sentry_alloc.h
+	sentry_app_hang_latch.c
+	sentry_app_hang_latch.h
+	sentry_app_hang_monitor.c
+	sentry_app_hang_monitor.h
+	sentry_app_hang_sampler.h
 	sentry_attachment.c
 	sentry_attachment.h
 	sentry_backend.c
@@ -251,6 +256,25 @@ if(SENTRY_WITH_LIBUNWIND_MAC)
 	target_compile_definitions(sentry PRIVATE SENTRY_WITH_UNWINDER_LIBUNWIND_MAC)
 	sentry_target_sources_cwd(sentry
 			unwinder/sentry_unwinder_libunwind_mac.c
+	)
+endif()
+
+# app-hang platform sampler
+if(APPLE)
+	sentry_target_sources_cwd(sentry
+		sentry_app_hang_sampler_mach.c
+	)
+endif()
+
+if(WIN32)
+	sentry_target_sources_cwd(sentry
+		sentry_app_hang_sampler_windows.c
+	)
+endif()
+
+if(LINUX OR ANDROID)
+	sentry_target_sources_cwd(sentry
+		sentry_app_hang_sampler_posix.c
 	)
 endif()
 

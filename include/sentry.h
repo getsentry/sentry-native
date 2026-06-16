@@ -2652,6 +2652,46 @@ SENTRY_EXPERIMENTAL_API int sentry_options_get_enable_metrics(
     const sentry_options_t *opts);
 
 /**
+ * Enables or disables in-process app-hang detection. When enabled, a
+ * background watchdog thread monitors heartbeats from the watched thread. If
+ * no heartbeat is received within the configured timeout, an app-hang event is
+ * captured and sent to Sentry.
+ *
+ * Disabled by default. Must be combined with regular calls to
+ * `sentry_app_hang_heartbeat()` from the thread you want monitored.
+ */
+SENTRY_EXPERIMENTAL_API void sentry_options_set_enable_app_hang_tracking(
+    sentry_options_t *opts, int enable);
+SENTRY_EXPERIMENTAL_API int sentry_options_get_enable_app_hang_tracking(
+    const sentry_options_t *opts);
+
+/**
+ * Sets the app-hang detection timeout in milliseconds. Defaults to 2000 ms.
+ * If `enable_app_hang_tracking` is true and no heartbeat is received within
+ * this window, an app-hang event is captured.
+ *
+ * Setting this to 0 while `enable_app_hang_tracking` is true is a
+ * configuration error: the watchdog will log a warning and skip detection.
+ */
+SENTRY_EXPERIMENTAL_API void sentry_options_set_app_hang_timeout_ms(
+    sentry_options_t *opts, uint64_t millis);
+SENTRY_EXPERIMENTAL_API uint64_t sentry_options_get_app_hang_timeout_ms(
+    const sentry_options_t *opts);
+
+/**
+ * Records a heartbeat from the calling thread.
+ *
+ * The first call latches the calling thread as the monitored thread.
+ * Call this regularly from the thread you want watched for hangs. If the
+ * watchdog does not receive a heartbeat within the configured timeout, it
+ * captures an app-hang event.
+ *
+ * This function is a no-op unless app-hang detection is enabled via
+ * `sentry_options_set_enable_app_hang_tracking`.
+ */
+SENTRY_EXPERIMENTAL_API void sentry_app_hang_heartbeat(void);
+
+/**
  * Type of the `before_send_metric` callback.
  *
  * The callback takes ownership of the `metric` and should usually return

@@ -113,6 +113,8 @@ sentry_options_new(void)
         = SENTRY_CRASH_REPORTING_MODE_NATIVE_WITH_MINIDUMP; // Default: best of
                                                             // both worlds
     opts->crash_upload_mode = SENTRY_CRASH_UPLOAD_MODE_SYNC;
+    opts->enable_app_hang_tracking = false;
+    opts->app_hang_timeout_ms = 5000;
     opts->http_retry = false;
     opts->send_client_reports = true;
     opts->enable_large_attachments = false;
@@ -962,6 +964,30 @@ int
 sentry_options_get_enable_metrics(const sentry_options_t *opts)
 {
     return opts->enable_metrics;
+}
+
+void
+sentry_options_set_enable_app_hang_tracking(sentry_options_t *opts, int enable)
+{
+    opts->enable_app_hang_tracking = !!enable;
+}
+
+int
+sentry_options_get_enable_app_hang_tracking(const sentry_options_t *opts)
+{
+    return opts->enable_app_hang_tracking;
+}
+
+void
+sentry_options_set_app_hang_timeout_ms(sentry_options_t *opts, uint64_t millis)
+{
+    opts->app_hang_timeout_ms = millis;
+}
+
+uint64_t
+sentry_options_get_app_hang_timeout_ms(const sentry_options_t *opts)
+{
+    return opts->app_hang_timeout_ms;
 }
 
 void

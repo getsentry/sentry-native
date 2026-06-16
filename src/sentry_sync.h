@@ -431,6 +431,32 @@ sentry__atomic_compare_swap(volatile long *val, long expected, long desired)
 #endif
 }
 
+/**
+ * 64-bit variants of the atomic helpers above. The `long`-based helpers are
+ * only 32 bits wide on Windows and 32-bit POSIX targets, so callers that need
+ * a full 64-bit atomic (e.g. a monotonic timestamp that must not tear on a
+ * 32-bit platform) use these instead.
+ */
+static inline void
+sentry__atomic_store_u64(uint64_t *val, uint64_t value)
+{
+#ifdef SENTRY_PLATFORM_WINDOWS
+    InterlockedExchange64((volatile LONG64 *)val, (LONG64)value);
+#else
+    __atomic_store_n(val, value, __ATOMIC_SEQ_CST);
+#endif
+}
+
+static inline uint64_t
+sentry__atomic_fetch_u64(uint64_t *val)
+{
+#ifdef SENTRY_PLATFORM_WINDOWS
+    return (uint64_t)InterlockedCompareExchange64((volatile LONG64 *)val, 0, 0);
+#else
+    return __atomic_load_n(val, __ATOMIC_SEQ_CST);
+#endif
+}
+
 struct sentry_bgworker_s;
 typedef struct sentry_bgworker_s sentry_bgworker_t;
 

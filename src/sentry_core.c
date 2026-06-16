@@ -3,6 +3,7 @@
 #include <stdarg.h>
 #include <string.h>
 
+#include "sentry_app_hang_monitor.h"
 #include "sentry_attachment.h"
 #include "sentry_backend.h"
 #include "sentry_client_report.h"
@@ -261,6 +262,10 @@ sentry_init(sentry_options_t *options)
         sentry__metrics_startup(options);
     }
 
+    if (options->enable_app_hang_tracking) {
+        sentry__app_hang_monitor_start(options);
+    }
+
     sentry__mutex_unlock(&g_options_lock);
     return 0;
 
@@ -313,6 +318,12 @@ sentry_close(void)
             sentry__metrics_shutdown(options->shutdown_timeout);
         }
     }
+
+    // Stop the app hang watchdog before locking options. The watchdog thread
+    // calls sentry__capture_event which acquires g_options_lock; joining it
+    // while holding the lock would deadlock. monitor_stop() is a safe no-op
+    // when the watchdog was never started.
+    sentry__app_hang_monitor_stop();
 
     SENTRY__MUTEX_INIT_DYN_ONCE(g_options_lock);
     // this function is to be called only once, so we do not allow more than one

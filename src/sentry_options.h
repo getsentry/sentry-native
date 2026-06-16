@@ -85,6 +85,8 @@ struct sentry_options_s {
     bool enable_metrics;
     sentry_before_send_metric_function_t before_send_metric_func;
     void *before_send_metric_data;
+    bool enable_app_hang_tracking;
+    uint64_t app_hang_timeout_ms;
     bool http_retry;
     bool send_client_reports;
     bool enable_large_attachments;
