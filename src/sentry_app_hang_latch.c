@@ -1,7 +1,9 @@
-// In-process app-hang detection, thread-side state: the lock-free latch,
-// heartbeat API, capture predicate, monotonic clock, and event assembly. These
-// run on app threads (the heartbeat hot path) and are read by the watchdog
-// worker in sentry_app_hang_monitor.c.
+// In-process app-hang detection, shared state and helpers. The lock-free latch,
+// heartbeat API, capture predicate, and monotonic clock are the app-thread hot
+// path: app threads write the latch via the heartbeat, the watchdog worker in
+// sentry_app_hang_monitor.c reads it. Event assembly
+// (sentry__app_hang_make_event) lives here too but runs on the watchdog worker,
+// not on app threads.
 #include "sentry_app_hang_latch.h"
 #include "sentry_sync.h"
 
