@@ -208,6 +208,12 @@ sentry__jsonwriter_reset(sentry_jsonwriter_t *jw)
     jw->failed = false;
 }
 
+bool
+sentry__jsonwriter_has_failed(const sentry_jsonwriter_t *jw)
+{
+    return jw && jw->failed;
+}
+
 char *
 sentry__jsonwriter_into_string(sentry_jsonwriter_t *jw, size_t *len_out)
 {

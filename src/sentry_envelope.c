@@ -930,9 +930,13 @@ envelope_write_to_path(const sentry_envelope_t *envelope,
         return rv != 0;
     }
 
+    int failed = 1;
     sentry_jsonwriter_t *jw = sentry__jsonwriter_new_fw(fw);
     if (jw) {
         sentry__jsonwriter_write_value(jw, envelope->contents.items.headers);
+        if (sentry__jsonwriter_has_failed(jw)) {
+            goto done;
+        }
         sentry__jsonwriter_reset(jw);
 
         for (const sentry_envelope_item_t *item
@@ -942,22 +946,36 @@ envelope_write_to_path(const sentry_envelope_t *envelope,
                 continue;
             }
             const char newline = '\n';
-            sentry__filewriter_write(fw, &newline, sizeof(char));
+            if (sentry__filewriter_write(fw, &newline, sizeof(char)) != 0) {
+                goto done;
+            }
 
             sentry__jsonwriter_write_value(jw, item->headers);
+            if (sentry__jsonwriter_has_failed(jw)) {
+                goto done;
+            }
             sentry__jsonwriter_reset(jw);
 
-            sentry__filewriter_write(fw, &newline, sizeof(char));
+            if (sentry__filewriter_write(fw, &newline, sizeof(char)) != 0) {
+                goto done;
+            }
 
-            sentry__filewriter_write(fw, item->payload, item->payload_len);
+            if (sentry__filewriter_write(fw, item->payload, item->payload_len)
+                != 0) {
+                goto done;
+            }
         }
-        sentry__jsonwriter_free(jw);
+        failed = sentry__filewriter_byte_count(fw) == 0;
     }
 
-    size_t rv = sentry__filewriter_byte_count(fw);
+done:
+    if (failed) {
+        SENTRY_WARN("envelope write failed: partial disk write");
+    }
+    sentry__jsonwriter_free(jw);
     sentry__filewriter_free(fw);
 
-    return rv == 0;
+    return failed;
 }
 
 MUST_USE int
