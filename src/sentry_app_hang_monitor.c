@@ -1,13 +1,42 @@
 #include "sentry_app_hang_monitor.h"
 
 #include "sentry_app_hang_latch.h"
-#include "sentry_thread_stackwalk.h"
 #include "sentry_core.h"
 #include "sentry_logger.h"
 #include "sentry_options.h"
 #include "sentry_sync.h"
+#include "sentry_thread_stackwalk.h"
 
+#include <stdio.h>
 #include <string.h>
+
+sentry_value_t
+sentry__app_hang_make_event(void **ips, size_t frame_count, uint64_t freeze_ms)
+{
+    char value_buf[128];
+    snprintf(value_buf, sizeof(value_buf), "App hung for at least %llu ms.",
+        (unsigned long long)freeze_ms);
+
+    sentry_value_t event = sentry_value_new_event();
+    sentry_value_set_by_key(event, "level", sentry_value_new_string("error"));
+    sentry_value_set_by_key(
+        event, "message", sentry_value_new_string(value_buf));
+
+    sentry_value_t exc = sentry_value_new_exception("AppHang", value_buf);
+
+    sentry_value_t mechanism = sentry_value_new_object();
+    sentry_value_set_by_key(
+        mechanism, "type", sentry_value_new_string("AppHang"));
+    sentry_value_set_by_key(mechanism, "handled", sentry_value_new_bool(true));
+    sentry_value_set_by_key(
+        mechanism, "synthetic", sentry_value_new_bool(true));
+    sentry_value_set_by_key(exc, "mechanism", mechanism);
+
+    sentry_value_set_stacktrace(exc, ips, frame_count);
+
+    sentry_event_add_exception(event, exc);
+    return event;
+}
 
 static sentry__app_hang_stackwalk_fn g_stackwalk_override = NULL;
 
@@ -35,8 +64,7 @@ static uint64_t g_timeout_ms = 0;
 static size_t
 stackwalk_thread(uint64_t tid, void **ips, size_t max)
 {
-    // A test may install an override; otherwise use the real platform
-    // stackwalker.
+    // A test installs an override.
     return g_stackwalk_override != NULL
         ? g_stackwalk_override(tid, ips, max)
         : sentry__thread_stackwalk(tid, ips, max);
@@ -119,7 +147,7 @@ sentry__app_hang_monitor_stop(void)
     g_running = false;
     // g_timeout_ms are intentionally NOT cleared here: the worker
     // (now joined) is their only reader, and start() always re-sets them, so
-    // clearing would just introduce a data race for no benefit.
+    // clearing would just introduce a data race.
     SENTRY_DEBUG("app-hang watchdog stopped");
 }
 

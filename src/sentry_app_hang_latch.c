@@ -1,14 +1,11 @@
 // In-process app-hang detection, shared state and helpers. The lock-free latch,
 // heartbeat API, capture predicate, and monotonic clock are the app-thread hot
 // path: app threads write the latch via the heartbeat, the watchdog worker in
-// sentry_app_hang_monitor.c reads it. Event assembly
-// (sentry__app_hang_make_event) lives here too but runs on the watchdog worker,
-// not on app threads.
+// sentry_app_hang_monitor.c reads it.
 #include "sentry_app_hang_latch.h"
 #include "sentry_sync.h"
 
 #include <stdint.h>
-#include <stdio.h>
 
 #if defined(SENTRY_PLATFORM_WINDOWS)
 #    include <windows.h>
@@ -52,16 +49,15 @@ sentry__app_hang_now_ms(void)
 }
 
 // The latch is touched by app threads (writers, via the heartbeat) and the
-// single watchdog worker (reader). Rather than a mutex -- which would put a
-// lock on the heartbeat hot path, the very thing we're trying to detect
-// stalling -- the two fields are accessed with 64-bit atomics:
+// single watchdog worker (reader). A mutex would put a lock on the heartbeat
+// hot path, not ideal.
+// The two fields are accessed with 64-bit atomics:
 //
 //   - last_heartbeat_ms: written on every heartbeat, read by the worker.
 //     Needs 64-bit-atomic access so a 32-bit platform can't observe a torn
 //     half-updated timestamp.
 //   - target_tid: write-once (0 -> first heartbeating tid). The worker only
-//     uses it as the sampler argument, and the lone transition is benign, so a
-//     relaxed read is sufficient; we use the same atomic helpers for clarity.
+//     uses it as a stackwalker argument so a relaxed read is sufficient.
 //
 // Both fields use the sentry__atomic_*_u64 helpers, which provide full 64-bit
 // atomic access even on 32-bit platforms
@@ -124,32 +120,4 @@ sentry_app_hang_heartbeat(void)
         sentry__atomic_store_u64(
             &g_last_heartbeat_ms, sentry__app_hang_now_ms());
     }
-}
-
-sentry_value_t
-sentry__app_hang_make_event(void **ips, size_t frame_count, uint64_t freeze_ms)
-{
-    char value_buf[128];
-    snprintf(value_buf, sizeof(value_buf), "App hung for at least %llu ms.",
-        (unsigned long long)freeze_ms);
-
-    sentry_value_t event = sentry_value_new_event();
-    sentry_value_set_by_key(event, "level", sentry_value_new_string("error"));
-    sentry_value_set_by_key(
-        event, "message", sentry_value_new_string(value_buf));
-
-    sentry_value_t exc = sentry_value_new_exception("AppHang", value_buf);
-
-    sentry_value_t mechanism = sentry_value_new_object();
-    sentry_value_set_by_key(
-        mechanism, "type", sentry_value_new_string("AppHang"));
-    sentry_value_set_by_key(mechanism, "handled", sentry_value_new_bool(true));
-    sentry_value_set_by_key(
-        mechanism, "synthetic", sentry_value_new_bool(true));
-    sentry_value_set_by_key(exc, "mechanism", mechanism);
-
-    sentry_value_set_stacktrace(exc, ips, frame_count);
-
-    sentry_event_add_exception(event, exc);
-    return event;
 }

@@ -661,9 +661,6 @@ main(int argc, char **argv)
     }
 
     if (has_arg(argc, argv, "app-hang")) {
-        // Enable in-process app-hang detection with a short timeout so the
-        // demo triggers quickly. The monitored thread is whichever thread
-        // first calls sentry_app_hang_heartbeat() (the main thread below).
         sentry_options_set_enable_app_hang_tracking(options, 1);
         sentry_options_set_app_hang_timeout_ms(options, 1000);
     }
