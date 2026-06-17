@@ -45,7 +45,10 @@ handler(int sig, siginfo_t *info, void *ucontext)
 {
     (void)sig;
     (void)info;
-    if (!g_active) {
+    // The handler interrupts arbitrary code on the target thread; preserve its
+    // errno so the calls below (sem_*, unw_*) don't leak a value back to it.
+    const int saved_errno = errno;
+    if (!__atomic_load_n(&g_active, __ATOMIC_ACQUIRE)) {
         return; // stray/late delivery; ignore
     }
     size_t n = 0;
@@ -54,7 +57,7 @@ handler(int sig, siginfo_t *info, void *ucontext)
     if (unw_init_local2(
             &cursor, (unw_context_t *)ucontext, UNW_INIT_SIGNAL_FRAME)
         == 0) {
-        while (n < (size_t)g_want) {
+        while (n < (size_t)__atomic_load_n(&g_want, __ATOMIC_RELAXED)) {
             unw_word_t ip = 0;
             if (unw_get_reg(&cursor, UNW_REG_IP, &ip) < 0 || ip == 0) {
                 break;
@@ -77,13 +80,15 @@ handler(int sig, siginfo_t *info, void *ucontext)
         }
     }
     g_park_uctx = NULL;
-    n = (size_t)g_count; // watchdog wrote g_ips/g_count before releasing us
+    // watchdog wrote g_ips/g_count before releasing us
+    n = (size_t)__atomic_load_n(&g_count, __ATOMIC_RELAXED);
 #    else
     (void)ucontext;
 #    endif
-    g_count = (sig_atomic_t)n;
-    g_active = 0;
+    __atomic_store_n(&g_count, (sig_atomic_t)n, __ATOMIC_RELAXED);
+    __atomic_store_n(&g_active, 0, __ATOMIC_RELEASE);
     sem_post(&g_done);
+    errno = saved_errno;
 }
 
 static bool g_installed = false;
@@ -155,17 +160,21 @@ sentry__app_hang_sample_thread(uint64_t target_tid, void **ips, size_t max)
     g_abort_park = 0;
 #    endif
 
-    g_want = (sig_atomic_t)(max < SENTRY_APP_HANG_MAX_FRAMES
-            ? max
-            : SENTRY_APP_HANG_MAX_FRAMES);
-    g_count = 0;
-    g_active = 1;
+    __atomic_store_n(&g_want,
+        (sig_atomic_t)(max < SENTRY_APP_HANG_MAX_FRAMES
+                ? max
+                : SENTRY_APP_HANG_MAX_FRAMES),
+        __ATOMIC_RELAXED);
+    __atomic_store_n(&g_count, 0, __ATOMIC_RELAXED);
+    // Release: publishes the g_want/g_count writes above to the handler, which
+    // observes them via the acquire-load of g_active on signal entry.
+    __atomic_store_n(&g_active, 1, __ATOMIC_RELEASE);
 
     if (syscall(SYS_tgkill, getpid(), (pid_t)target_tid, SENTRY_APP_HANG_SIGNAL)
         != 0) {
         SENTRY_DEBUGF("app-hang: tgkill(%d) failed: %s", (int)target_tid,
             strerror(errno));
-        g_active = 0;
+        __atomic_store_n(&g_active, 0, __ATOMIC_RELEASE);
         return 0;
     }
 
@@ -176,14 +185,14 @@ sentry__app_hang_sample_thread(uint64_t target_tid, void **ips, size_t max)
     if (sem_timedwait(&g_uctx_ready, &ts) != 0) {
         g_abort_park = 1;
         sem_post(&g_unwind_done); // release a handler that parks late
-        g_active = 0;
+        __atomic_store_n(&g_active, 0, __ATOMIC_RELEASE);
         return 0;
     }
     sentry_ucontext_t s;
     memset(&s, 0, sizeof(s));
     s.user_context = g_park_uctx;
     size_t n = sentry_unwind_stack_from_ucontext(&s, ips, max);
-    g_count = (sig_atomic_t)n;
+    __atomic_store_n(&g_count, (sig_atomic_t)n, __ATOMIC_RELAXED);
     sem_post(&g_unwind_done); // release the parked handler
     struct timespec ts2;
     clock_gettime(CLOCK_REALTIME, &ts2);
@@ -198,11 +207,12 @@ sentry__app_hang_sample_thread(uint64_t target_tid, void **ips, size_t max)
         if (errno == EINTR) {
             continue;
         }
-        g_active = 0; // timed out (e.g. thread in uninterruptible sleep)
+        // timed out (e.g. thread in uninterruptible sleep)
+        __atomic_store_n(&g_active, 0, __ATOMIC_RELEASE);
         return 0;
     }
 
-    size_t n = g_count;
+    size_t n = (size_t)__atomic_load_n(&g_count, __ATOMIC_RELAXED);
     for (size_t i = 0; i < n && i < max; i++) {
         ips[i] = g_ips[i];
     }
