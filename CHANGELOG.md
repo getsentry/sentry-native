@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+**Fixes**:
+
+- Report on partial disk writes when streaming envelopes to file, which previously left truncated envelopes on disk and reported success. ([#1804](https://github.com/getsentry/sentry-native/pull/1804))
+
 ## 0.15.0
 
 **Breaking**:

@@ -33,6 +33,11 @@ void sentry__jsonwriter_free(sentry_jsonwriter_t *jw);
 void sentry__jsonwriter_reset(sentry_jsonwriter_t *jw);
 
 /**
+ * Returns true if any write operation on this JSON writer has failed.
+ */
+bool sentry__jsonwriter_has_failed(const sentry_jsonwriter_t *jw);
+
+/**
  * This will consume and deallocate the JSON writer, returning the generated
  * JSON string, and writing its length into `len_out`.
  */
