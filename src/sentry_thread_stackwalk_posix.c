@@ -117,10 +117,16 @@ ensure_installed(void)
 #    if defined(SENTRY_WITH_UNWINDER_LIBUNWINDSTACK)
         if (sem_init(&g_uctx_ready, 0, 0) != 0) {
             SENTRY_DEBUG("app-hang: sem_init(g_uctx_ready) failed");
+            // Tear down the semaphores already initialized so a later retry
+            // starts from a clean slate instead of re-initializing g_done
+            // (re-init of a live semaphore is undefined behavior).
+            sem_destroy(&g_done);
             return false;
         }
         if (sem_init(&g_unwind_done, 0, 0) != 0) {
             SENTRY_DEBUG("app-hang: sem_init(g_unwind_done) failed");
+            sem_destroy(&g_done);
+            sem_destroy(&g_uctx_ready);
             return false;
         }
 #    endif

@@ -70,17 +70,18 @@ stackwalk_thread(uint64_t tid, void **ips, size_t max)
         : sentry__thread_stackwalk(tid, ips, max);
 }
 
-static void
+static bool
 app_hang_capture(uint64_t hang_time_ms, uint64_t tid)
 {
     void *ips[SENTRY_APP_HANG_MAX_FRAMES];
     size_t n = stackwalk_thread(tid, ips, SENTRY_APP_HANG_MAX_FRAMES);
     if (n == 0) {
         SENTRY_DEBUG("app-hang: no frames sampled, skipping event");
-        return;
+        return false;
     }
     sentry_value_t event = sentry__app_hang_make_event(ips, n, hang_time_ms);
     sentry__capture_event(event, NULL);
+    return true;
 }
 
 SENTRY_THREAD_FN
@@ -103,8 +104,13 @@ worker(void *arg)
         uint64_t now = sentry__app_hang_now_ms();
         if (sentry__app_hang_should_capture(
                 latch.last_heartbeat_ms, now, g_timeout_ms, last_fired_hb)) {
-            app_hang_capture(now - latch.last_heartbeat_ms, latch.target_tid);
-            last_fired_hb = latch.last_heartbeat_ms;
+            // Only mark this freeze as fired when an event was actually
+            // captured. A transient stackwalk failure (0 frames) must not
+            // suppress retries while the thread remains stuck.
+            if (app_hang_capture(
+                    now - latch.last_heartbeat_ms, latch.target_tid)) {
+                last_fired_hb = latch.last_heartbeat_ms;
+            }
         }
     }
     return 0;
@@ -118,6 +124,10 @@ sentry__app_hang_monitor_start(const sentry_options_t *options)
     }
 
     g_timeout_ms = options->app_hang_timeout_ms;
+    if (g_timeout_ms == 0) {
+        SENTRY_WARN("app-hang: `app_hang_timeout_ms` is 0, hang detection is "
+                    "disabled");
+    }
     sentry__atomic_store(&g_stop, 0);
     sentry__cond_init(&g_wait_cond);
     if (sentry__thread_spawn(&g_thread, worker, NULL) != 0) {
