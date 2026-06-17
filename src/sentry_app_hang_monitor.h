@@ -11,9 +11,11 @@ struct sentry_options_s;
 int sentry__app_hang_monitor_start(const struct sentry_options_s *options);
 void sentry__app_hang_monitor_stop(void);
 
-typedef size_t (*sentry__app_hang_thread_sampler_fn)(
+// Test hook: overrides the platform thread stackwalker used by the watchdog.
+// Pass NULL to restore the real `sentry__thread_stackwalk`.
+typedef size_t (*sentry__app_hang_stackwalk_fn)(
     uint64_t target_tid, void **ips_out, size_t max_frames);
-void sentry__app_hang_monitor_set_thread_sampler(
-    sentry__app_hang_thread_sampler_fn fn);
+void sentry__app_hang_monitor_set_stackwalk_fn(
+    sentry__app_hang_stackwalk_fn fn);
 
 #endif

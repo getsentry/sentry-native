@@ -1,4 +1,4 @@
-#include "sentry_app_hang_sampler.h"
+#include "sentry_thread_stackwalk.h"
 
 #include "sentry_boot.h"
 
@@ -11,7 +11,7 @@
 #    include <windows.h>
 
 size_t
-sentry__app_hang_sample_thread(uint64_t target_tid, void **ips, size_t max)
+sentry__thread_stackwalk(uint64_t target_tid, void **ips, size_t max)
 {
     HANDLE h = OpenThread(
         THREAD_SUSPEND_RESUME | THREAD_GET_CONTEXT | THREAD_QUERY_INFORMATION,

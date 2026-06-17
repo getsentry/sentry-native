@@ -321,8 +321,7 @@ sentry_close(void)
 
     // Stop the app hang watchdog before locking options. The watchdog thread
     // calls sentry__capture_event which acquires g_options_lock; joining it
-    // while holding the lock would deadlock. monitor_stop() is a safe no-op
-    // when the watchdog was never started.
+    // while holding the lock would deadlock. It's a no-op when disabled.
     sentry__app_hang_monitor_stop();
 
     SENTRY__MUTEX_INIT_DYN_ONCE(g_options_lock);

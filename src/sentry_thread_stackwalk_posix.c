@@ -1,4 +1,4 @@
-#include "sentry_app_hang_sampler.h"
+#include "sentry_thread_stackwalk.h"
 
 #include "sentry_boot.h"
 
@@ -53,6 +53,14 @@ handler(int sig, siginfo_t *info, void *ucontext)
     }
     size_t n = 0;
 #    if defined(SENTRY_WITH_UNWINDER_LIBUNWIND)
+    // This duplicates the unwind loop in sentry__unwind_stack_libunwind rather
+    // than calling it, because we are inside a signal handler on the target
+    // thread: the shared unwinder is not async-signal-safe (it calls
+    // SENTRY_WARN and open("/proc/self/maps") for SP validation). libunwind has
+    // no API to local-unwind another thread off-thread, so we must walk in the
+    // handler with this trimmed, signal-safe loop. The libunwindstack path
+    // below sidesteps this by parking the handler and unwinding on the watchdog
+    // thread, which is why it can reuse sentry_unwind_stack_from_ucontext.
     unw_cursor_t cursor;
     if (unw_init_local2(
             &cursor, (unw_context_t *)ucontext, UNW_INIT_SIGNAL_FRAME)
@@ -151,7 +159,7 @@ ensure_installed(void)
 }
 
 size_t
-sentry__app_hang_sample_thread(uint64_t target_tid, void **ips, size_t max)
+sentry__thread_stackwalk(uint64_t target_tid, void **ips, size_t max)
 {
     if (!ensure_installed()) {
         return 0;

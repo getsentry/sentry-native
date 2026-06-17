@@ -1,7 +1,7 @@
 #include "sentry_app_hang_monitor.h"
 
 #include "sentry_app_hang_latch.h"
-#include "sentry_app_hang_sampler.h"
+#include "sentry_thread_stackwalk.h"
 #include "sentry_core.h"
 #include "sentry_logger.h"
 #include "sentry_options.h"
@@ -9,20 +9,19 @@
 
 #include <string.h>
 
-static sentry__app_hang_thread_sampler_fn g_thread_sampler = NULL;
+static sentry__app_hang_stackwalk_fn g_stackwalk_override = NULL;
 
 void
-sentry__app_hang_monitor_set_thread_sampler(
-    sentry__app_hang_thread_sampler_fn fn)
+sentry__app_hang_monitor_set_stackwalk_fn(sentry__app_hang_stackwalk_fn fn)
 {
-    g_thread_sampler = fn;
+    g_stackwalk_override = fn;
 }
 
 // Everything below is the watchdog machinery, which only makes sense where a
-// platform thread sampler exists. On other platforms the public start/stop are
-// no-ops (see below) and these would be unused (which -Werror rejects), so they
-// are compiled out entirely.
-#if SENTRY_HAS_APP_HANG_SAMPLER
+// platform thread stackwalker exists. On other platforms the public start/stop
+// are no-ops (see below) and these would be unused (which -Werror rejects), so
+// they are compiled out entirely.
+#if SENTRY_HAS_THREAD_STACKWALK
 
 static bool g_running = false;
 static volatile long g_stop = 0;
@@ -34,19 +33,20 @@ static uint64_t g_timeout_ms = 0;
 #    define SENTRY_APP_HANG_POLL_MS 500
 
 static size_t
-sample_thread(uint64_t tid, void **ips, size_t max)
+stackwalk_thread(uint64_t tid, void **ips, size_t max)
 {
-    // A test may install an override; otherwise use the real platform sampler.
-    return g_thread_sampler != NULL
-        ? g_thread_sampler(tid, ips, max)
-        : sentry__app_hang_sample_thread(tid, ips, max);
+    // A test may install an override; otherwise use the real platform
+    // stackwalker.
+    return g_stackwalk_override != NULL
+        ? g_stackwalk_override(tid, ips, max)
+        : sentry__thread_stackwalk(tid, ips, max);
 }
 
 static void
 app_hang_capture(uint64_t hang_time_ms, uint64_t tid)
 {
     void *ips[SENTRY_APP_HANG_MAX_FRAMES];
-    size_t n = sample_thread(tid, ips, SENTRY_APP_HANG_MAX_FRAMES);
+    size_t n = stackwalk_thread(tid, ips, SENTRY_APP_HANG_MAX_FRAMES);
     if (n == 0) {
         SENTRY_DEBUG("app-hang: no frames sampled, skipping event");
         return;
@@ -123,15 +123,16 @@ sentry__app_hang_monitor_stop(void)
     SENTRY_DEBUG("app-hang watchdog stopped");
 }
 
-#else // !SENTRY_HAS_APP_HANG_SAMPLER
+#else // !SENTRY_HAS_THREAD_STACKWALK
 
-// No thread sampler on this platform: a fired hang could only produce frameless
-// events, so the watchdog is never started and stop is a no-op.
+// No thread stackwalker on this platform: a fired hang could only produce
+// frameless events, so the watchdog is never started and stop is a no-op.
 int
 sentry__app_hang_monitor_start(const sentry_options_t *options)
 {
     (void)options;
-    SENTRY_DEBUG("app-hang: no thread sampler for this platform, not starting");
+    SENTRY_DEBUG(
+        "app-hang: no thread stackwalker for this platform, not starting");
     return 0;
 }
 
@@ -140,4 +141,4 @@ sentry__app_hang_monitor_stop(void)
 {
 }
 
-#endif // SENTRY_HAS_APP_HANG_SAMPLER
+#endif // SENTRY_HAS_THREAD_STACKWALK

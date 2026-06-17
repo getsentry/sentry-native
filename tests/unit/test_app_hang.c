@@ -77,7 +77,7 @@ static long g_app_hang_seen;
 static char g_app_hang_type[32];
 
 static size_t
-fake_sampler(uint64_t tid, void **ips, size_t max)
+fake_stackwalk(uint64_t tid, void **ips, size_t max)
 {
     (void)tid;
     if (max < 2) {
@@ -112,7 +112,7 @@ SENTRY_TEST(app_hang_monitor_fires)
     g_app_hang_seen = 0;
     g_app_hang_type[0] = '\0';
     sentry__app_hang_latch_reset();
-    sentry__app_hang_monitor_set_thread_sampler(fake_sampler);
+    sentry__app_hang_monitor_set_stackwalk_fn(fake_stackwalk);
 
     sentry_options_t *options = sentry_options_new();
     sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
@@ -131,7 +131,7 @@ SENTRY_TEST(app_hang_monitor_fires)
     TEST_CHECK_STRING_EQUAL(g_app_hang_type, "AppHang");
 
     sentry_close();
-    sentry__app_hang_monitor_set_thread_sampler(NULL);
+    sentry__app_hang_monitor_set_stackwalk_fn(NULL);
 }
 
 static long g_real_seen;
@@ -176,7 +176,7 @@ SENTRY_TEST(app_hang_end_to_end)
     g_real_frames = 0;
     sentry__atomic_store(&g_keep_spinning, 1);
     sentry__app_hang_latch_reset();
-    sentry__app_hang_monitor_set_thread_sampler(NULL); // use the REAL sampler
+    sentry__app_hang_monitor_set_stackwalk_fn(NULL); // use the REAL stackwalker
 
     sentry_options_t *options = sentry_options_new();
     sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
@@ -199,5 +199,5 @@ SENTRY_TEST(app_hang_end_to_end)
     TEST_CHECK(sentry__atomic_fetch(&g_real_frames) > 0);
 
     sentry_close();
-    sentry__app_hang_monitor_set_thread_sampler(NULL);
+    sentry__app_hang_monitor_set_stackwalk_fn(NULL);
 }
