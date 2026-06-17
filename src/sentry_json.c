@@ -196,7 +196,9 @@ sentry__jsonwriter_new_fw(sentry_filewriter_t *fw)
 void
 sentry__jsonwriter_free(sentry_jsonwriter_t *jw)
 {
-    jw->ops->free(jw);
+    if (jw) {
+        jw->ops->free(jw);
+    }
 }
 
 void
@@ -206,6 +208,12 @@ sentry__jsonwriter_reset(sentry_jsonwriter_t *jw)
     jw->depth = 0;
     jw->last_was_key = 0;
     jw->failed = false;
+}
+
+bool
+sentry__jsonwriter_has_failed(const sentry_jsonwriter_t *jw)
+{
+    return jw && jw->failed;
 }
 
 char *

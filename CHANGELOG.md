@@ -6,6 +6,10 @@
 
 - Added an in-process app-hang detection. When enabled via `sentry_options_set_enable_app_hang_tracking`, a background thread monitors the application and captures an app-hang event if no heartbeat is received within `app_hang_timeout_ms` (default `5000` ms). Call `sentry_app_hang_heartbeat()` regularly from the thread you want watched. ([#1806](https://github.com/getsentry/sentry-native/pull/1806))
 
+**Fixes**:
+
+- Report on partial disk writes when streaming envelopes to file, which previously left truncated envelopes on disk and reported success. ([#1804](https://github.com/getsentry/sentry-native/pull/1804))
+
 ## 0.15.0
 
 **Breaking**:
