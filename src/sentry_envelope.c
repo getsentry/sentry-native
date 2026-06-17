@@ -916,64 +916,70 @@ typedef bool (*envelope_item_writer_fn)(
 
 static int
 envelope_write_to_path(const sentry_envelope_t *envelope,
-    const sentry_path_t *path, envelope_item_writer_fn writer, void *data)
+    const sentry_path_t *path, envelope_item_writer_fn item_writer, void *data)
 {
-    sentry_filewriter_t *fw = sentry__filewriter_new(path);
-    if (!fw) {
+    sentry_writer_t *output = sentry__writer_new_file(path);
+    if (!output) {
         return 1;
     }
 
-    if (envelope->is_raw) {
-        size_t rv = sentry__filewriter_write(fw, envelope->contents.raw.payload,
-            envelope->contents.raw.payload_len);
-        sentry__filewriter_free(fw);
-        return rv != 0;
-    }
+    int failed = 0;
+    sentry_jsonwriter_t *jw = NULL;
 
-    int failed = 1;
-    sentry_jsonwriter_t *jw = sentry__jsonwriter_new_fw(fw);
-    if (jw) {
+    if (envelope->is_raw) {
+        sentry__writer_write(output, envelope->contents.raw.payload,
+            envelope->contents.raw.payload_len);
+    } else {
+        jw = sentry__jsonwriter_new_writer(output);
+        if (!jw) {
+            failed = 1;
+            goto done;
+        }
+
         sentry__jsonwriter_write_value(jw, envelope->contents.items.headers);
+        sentry__jsonwriter_reset(jw);
         if (sentry__jsonwriter_has_failed(jw)) {
             goto done;
         }
-        sentry__jsonwriter_reset(jw);
 
         for (const sentry_envelope_item_t *item
             = envelope->contents.items.first_item;
             item; item = item->next) {
-            if (writer && writer(item, data)) {
+            if (item_writer && item_writer(item, data)) {
                 continue;
             }
-            const char newline = '\n';
-            if (sentry__filewriter_write(fw, &newline, sizeof(char)) != 0) {
-                goto done;
-            }
 
+            sentry__writer_write_char(output, '\n');
             sentry__jsonwriter_write_value(jw, item->headers);
+            sentry__jsonwriter_reset(jw);
             if (sentry__jsonwriter_has_failed(jw)) {
                 goto done;
             }
-            sentry__jsonwriter_reset(jw);
 
-            if (sentry__filewriter_write(fw, &newline, sizeof(char)) != 0) {
-                goto done;
-            }
-
-            if (sentry__filewriter_write(fw, item->payload, item->payload_len)
-                != 0) {
+            sentry__writer_write_char(output, '\n');
+            sentry__writer_write(output, item->payload, item->payload_len);
+            if (sentry__writer_has_failed(output)) {
                 goto done;
             }
         }
-        failed = sentry__filewriter_byte_count(fw) == 0;
     }
 
 done:
+    if (!sentry__writer_close(output)) {
+        failed = 1;
+    }
+    if (jw && sentry__jsonwriter_has_failed(jw)) {
+        failed = 1;
+    }
+    if (sentry__writer_has_failed(output)) {
+        failed = 1;
+    }
+
     if (failed) {
         SENTRY_WARN("envelope write failed");
     }
     sentry__jsonwriter_free(jw);
-    sentry__filewriter_free(fw);
+    sentry__writer_free(output);
 
     return failed;
 }
