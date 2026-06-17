@@ -13,8 +13,8 @@
 size_t
 sentry__app_hang_sample_thread(uint64_t target_tid, void **ips, size_t max)
 {
-    HANDLE h = OpenThread(THREAD_SUSPEND_RESUME | THREAD_GET_CONTEXT
-            | THREAD_QUERY_INFORMATION,
+    HANDLE h = OpenThread(
+        THREAD_SUSPEND_RESUME | THREAD_GET_CONTEXT | THREAD_QUERY_INFORMATION,
         FALSE, (DWORD)target_tid);
     if (!h) {
         return 0;
@@ -45,8 +45,8 @@ sentry__app_hang_sample_thread(uint64_t target_tid, void **ips, size_t max)
             // validated path for this experimental feature.
             n = sentry_unwind_stack_from_ucontext(&s, ips, max);
         } else {
-            SENTRY_DEBUGF("app-hang: GetThreadContext failed: %lu",
-                GetLastError());
+            SENTRY_DEBUGF(
+                "app-hang: GetThreadContext failed: %lu", GetLastError());
         }
         ResumeThread(h); // ALWAYS resume
     }

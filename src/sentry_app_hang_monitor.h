@@ -1,6 +1,8 @@
 #ifndef SENTRY_APP_HANG_MONITOR_H_INCLUDED
 #define SENTRY_APP_HANG_MONITOR_H_INCLUDED
 
+#include "sentry_boot.h"
+
 #include <stddef.h>
 #include <stdint.h>
 

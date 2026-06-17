@@ -53,7 +53,7 @@ handler(int sig, siginfo_t *info, void *ucontext)
     if (unw_init_local2(&cursor, (unw_context_t *)ucontext,
             UNW_INIT_SIGNAL_FRAME)
         == 0) {
-        while (n < g_want) {
+        while (n < (size_t)g_want) {
             unw_word_t ip = 0;
             if (unw_get_reg(&cursor, UNW_REG_IP, &ip) < 0 || ip == 0) {
                 break;
