@@ -127,9 +127,8 @@ public class SentryNdkTest {
     assertTrue(content.contains("It works!")); // expected message content from
     // Java_io_sentry_ndk_NdkTestHelper_message(..) in ndk-test.cpp
 
-    // and the breadcrumb data round-trips as a structured object ...
+    // and the breadcrumb data is well formed.
     assertTrue(content.contains("\"some_key\":\"some_value\""));
-    // ... not double-wrapped as a raw string under a literal "data" key
     assertFalse(content.contains("\"data\":\"{"));
   }
 
