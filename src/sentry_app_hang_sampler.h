@@ -10,8 +10,9 @@
 // `app-hang platform sampler` block in src/CMakeLists.txt). On any other target
 // `sentry__app_hang_sample_thread` has no definition, so the monitor must not
 // reference it there. Note that on Apple this is macOS-only: the mach sampler
-// guards its implementation with `SENTRY_PLATFORM_MACOS`, so iOS et al. must not
-// advertise the capability or the monitor would reference an undefined symbol.
+// guards its implementation with `SENTRY_PLATFORM_MACOS`, so iOS et al. must
+// not advertise the capability or the monitor would reference an undefined
+// symbol.
 #if defined(SENTRY_PLATFORM_MACOS) || defined(SENTRY_PLATFORM_WINDOWS)         \
     || defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID)
 #    define SENTRY_HAS_APP_HANG_SAMPLER 1

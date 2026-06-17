@@ -33,8 +33,9 @@ static volatile sig_atomic_t g_count = 0;
 static volatile sig_atomic_t g_want = 0;
 
 #    if defined(SENTRY_WITH_UNWINDER_LIBUNWINDSTACK)
-static sem_t g_uctx_ready;  // handler -> watchdog: parked, uctx valid
-static sem_t g_unwind_done; // watchdog -> handler: unwind complete, you may return
+static sem_t g_uctx_ready; // handler -> watchdog: parked, uctx valid
+static sem_t
+    g_unwind_done; // watchdog -> handler: unwind complete, you may return
 static volatile sig_atomic_t g_abort_park = 0;
 static ucontext_t *volatile g_park_uctx = NULL;
 #    endif
@@ -50,8 +51,8 @@ handler(int sig, siginfo_t *info, void *ucontext)
     size_t n = 0;
 #    if defined(SENTRY_WITH_UNWINDER_LIBUNWIND)
     unw_cursor_t cursor;
-    if (unw_init_local2(&cursor, (unw_context_t *)ucontext,
-            UNW_INIT_SIGNAL_FRAME)
+    if (unw_init_local2(
+            &cursor, (unw_context_t *)ucontext, UNW_INIT_SIGNAL_FRAME)
         == 0) {
         while (n < (size_t)g_want) {
             unw_word_t ip = 0;
@@ -154,12 +155,13 @@ sentry__app_hang_sample_thread(uint64_t target_tid, void **ips, size_t max)
     g_abort_park = 0;
 #    endif
 
-    g_want = (sig_atomic_t)(max < SENTRY_APP_HANG_MAX_FRAMES ? max : SENTRY_APP_HANG_MAX_FRAMES);
+    g_want = (sig_atomic_t)(max < SENTRY_APP_HANG_MAX_FRAMES
+            ? max
+            : SENTRY_APP_HANG_MAX_FRAMES);
     g_count = 0;
     g_active = 1;
 
-    if (syscall(SYS_tgkill, getpid(), (pid_t)target_tid,
-            SENTRY_APP_HANG_SIGNAL)
+    if (syscall(SYS_tgkill, getpid(), (pid_t)target_tid, SENTRY_APP_HANG_SIGNAL)
         != 0) {
         SENTRY_DEBUGF("app-hang: tgkill(%d) failed: %s", (int)target_tid,
             strerror(errno));
@@ -186,8 +188,7 @@ sentry__app_hang_sample_thread(uint64_t target_tid, void **ips, size_t max)
     struct timespec ts2;
     clock_gettime(CLOCK_REALTIME, &ts2);
     ts2.tv_sec += 1;
-    while (sem_timedwait(&g_done, &ts2) != 0 && errno == EINTR) {
-    }
+    while (sem_timedwait(&g_done, &ts2) != 0 && errno == EINTR) { }
     return n; // ips already filled by sentry_unwind_stack_from_ucontext
 #    else
     struct timespec ts;
