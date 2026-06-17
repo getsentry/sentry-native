@@ -5,6 +5,7 @@
 **Fixes**:
 
 - Report on partial disk writes when streaming envelopes to file, which previously left truncated envelopes on disk and reported success. ([#1804](https://github.com/getsentry/sentry-native/pull/1804))
+- Android: breadcrumb `data` is now sent as a structured object instead of a raw JSON string. ([#1808](https://github.com/getsentry/sentry-native/pull/1808))
 
 ## 0.15.0
 
