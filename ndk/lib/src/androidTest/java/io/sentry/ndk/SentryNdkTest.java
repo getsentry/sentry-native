@@ -1,6 +1,7 @@
 package io.sentry.ndk;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
@@ -109,7 +110,12 @@ public class SentryNdkTest {
     // when initialized
     SentryNdk.init(options);
 
-    // and a message is captured
+    // and a breadcrumb whose data was serialized to a JSON object string is added
+    new NativeScope()
+        .addBreadcrumb(
+            "info", "test crumb", "test", "default", null, "{\"some_key\":\"some_value\"}");
+
+    // and a message is captured (which merges the scope's breadcrumbs into it)
     NdkTestHelper.message();
 
     // then the message should be stored on disk
@@ -120,6 +126,11 @@ public class SentryNdkTest {
     String content = new String(Files.readAllBytes(firstFile.toPath()), StandardCharsets.UTF_8);
     assertTrue(content.contains("It works!")); // expected message content from
     // Java_io_sentry_ndk_NdkTestHelper_message(..) in ndk-test.cpp
+
+    // and the breadcrumb data round-trips as a structured object ...
+    assertTrue(content.contains("\"some_key\":\"some_value\""));
+    // ... not double-wrapped as a raw string under a literal "data" key
+    assertFalse(content.contains("\"data\":\"{"));
   }
 
   @Test

@@ -122,7 +122,11 @@ void sentry__jsonwriter_write_object_end(sentry_jsonwriter_t *jw);
 
 /**
  * Parse the given JSON string into a new Value.
+ *
+ * Exported via `SENTRY_API` so the Android JNI bridge
+ * (`libsentry-android.so`, a separate shared object) can link against it to
+ * deserialize breadcrumb data.
  */
-sentry_value_t sentry__value_from_json(const char *buf, size_t buflen);
+SENTRY_API sentry_value_t sentry__value_from_json(const char *buf, size_t buflen);
 
 #endif

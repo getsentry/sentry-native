@@ -161,6 +161,9 @@ Java_io_sentry_ndk_NativeScope_nativeSetTrace(
     (*env)->ReleaseStringUTFChars(env, parent_span_id, charParentSpanId);
 }
 
+// sentry_json.h
+extern sentry_value_t sentry__value_from_json(const char *buf, size_t buflen);
+
 JNIEXPORT void JNICALL
 Java_io_sentry_ndk_NativeScope_nativeAddBreadcrumb(
         JNIEnv *env,
@@ -215,11 +218,14 @@ Java_io_sentry_ndk_NativeScope_nativeAddBreadcrumb(
     if (data) {
         const char *charData = (*env)->GetStringUTFChars(env, data, 0);
 
-        // we create an object because the Java layer parses it as a Map
-        sentry_value_t dataObject = sentry_value_new_object();
-        sentry_value_set_by_key(dataObject, "data", sentry_value_new_string(charData));
-
-        sentry_value_set_by_key(crumb, "data", dataObject);
+        // The Java layer hands the breadcrumb's data map over as a serialized
+        // JSON object string. Parse it back into a value so it round-trips as
+        // structured data instead of a raw string.
+        sentry_value_t dataObject
+                = sentry__value_from_json(charData, strlen(charData));
+        if (!sentry_value_is_null(dataObject)) {
+            sentry_value_set_by_key(crumb, "data", dataObject);
+        }
 
         (*env)->ReleaseStringUTFChars(env, data, charData);
     }
