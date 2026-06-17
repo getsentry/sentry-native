@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1781616840236,
+  "lastUpdate": 1781695240633,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -25636,6 +25636,66 @@ window.BENCHMARK_DATA = {
             "value": 1.7543680000073891,
             "unit": "ms",
             "extra": "Min 1.705ms\nMax 1.950ms\nMean 1.796ms\nStdDev 0.098ms\nMedian 1.754ms\nCPU 0.484ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "60878493+JoshuaMoelans@users.noreply.github.com",
+            "name": "JoshuaMoelans",
+            "username": "JoshuaMoelans"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "fd19f353875b7043613b7c08f565aebbf8490e16",
+          "message": "fix: return failure for partial envelope write (#1804)\n\n* add reproducer for partial write fail\n\nCo-authored-by: Claude Opus 4.6 (1M context) <noreply@anthropic.com>\n\n* fix(envelope): detect partial disk writes in envelope_write_to_path\n\nThe streaming envelope writer (introduced in #1021) did not check\nindividual write results, so a truncated write (e.g. ENOSPC) was\nreported as success as long as any bytes were written. The jsonwriter's\nfailed flag was also cleared by reset() between items, masking earlier\nfailures.\n\nCheck every filewriter_write and jsonwriter write result, early-exit on\nfailure, and log a single warning. Also adds a\nsentry__jsonwriter_has_failed() accessor so envelope code does not need\nto reach into the opaque jsonwriter struct.\n\nCo-Authored-By: Claude Opus 4.6 (1M context) <noreply@anthropic.com>\n\n* update changelog\n\n* exclude test on consoles\n\n* free envelope\n\n* minor cleanup\n\n---------\n\nCo-authored-by: Claude Opus 4.6 (1M context) <noreply@anthropic.com>",
+          "timestamp": "2026-06-17T13:18:02+02:00",
+          "tree_id": "88df81cdf6b7a98a17c897e660915eb448130826",
+          "url": "https://github.com/getsentry/sentry-native/commit/fd19f353875b7043613b7c08f565aebbf8490e16"
+        },
+        "date": 1781695233458,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 0.9138040000209458,
+            "unit": "ms",
+            "extra": "Min 0.880ms\nMax 0.948ms\nMean 0.916ms\nStdDev 0.029ms\nMedian 0.914ms\nCPU 0.870ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 0.82452800000965,
+            "unit": "ms",
+            "extra": "Min 0.794ms\nMax 0.840ms\nMean 0.818ms\nStdDev 0.022ms\nMedian 0.825ms\nCPU 0.822ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 3.118185000005269,
+            "unit": "ms",
+            "extra": "Min 2.995ms\nMax 3.214ms\nMean 3.098ms\nStdDev 0.089ms\nMedian 3.118ms\nCPU 1.599ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.11735900000076072,
+            "unit": "ms",
+            "extra": "Min 0.111ms\nMax 0.140ms\nMean 0.124ms\nStdDev 0.014ms\nMedian 0.117ms\nCPU 0.073ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.027271000021755754,
+            "unit": "ms",
+            "extra": "Min 0.027ms\nMax 0.029ms\nMean 0.028ms\nStdDev 0.001ms\nMedian 0.027ms\nCPU 0.027ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 1.7481820000284642,
+            "unit": "ms",
+            "extra": "Min 1.733ms\nMax 1.807ms\nMean 1.757ms\nStdDev 0.030ms\nMedian 1.748ms\nCPU 0.527ms"
           }
         ]
       }
