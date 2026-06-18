@@ -222,6 +222,7 @@ sentry__thread_stackwalk(uint64_t target_tid, void **ips, size_t max)
     clock_gettime(CLOCK_REALTIME, &ts2);
     ts2.tv_sec += 1;
     while (sem_timedwait(&g_done, &ts2) != 0 && errno == EINTR) { }
+    __atomic_store_n(&g_active, 0, __ATOMIC_RELEASE);
     return n; // ips already filled by sentry_unwind_stack_from_ucontext
 #    else
     struct timespec ts;

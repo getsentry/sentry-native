@@ -1,5 +1,5 @@
-#include "sentry_thread_stackwalk.h"
 #include "sentry_boot.h"
+#include "sentry_thread_stackwalk.h"
 
 #if defined(SENTRY_PLATFORM_MACOS)
 
