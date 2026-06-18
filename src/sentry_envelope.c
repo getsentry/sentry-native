@@ -974,6 +974,10 @@ done:
 
     if (failed) {
         SENTRY_WARN("envelope write failed");
+        // Best-effort cleanup for detected partial writes. This is not an
+        // atomic publication guarantee; a process crash during writing can
+        // still leave a partial file behind.
+        sentry__path_remove(path);
     }
     sentry__jsonwriter_free(jw);
     sentry__writer_free(output);
