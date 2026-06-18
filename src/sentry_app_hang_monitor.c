@@ -156,8 +156,7 @@ sentry__app_hang_monitor_stop(void)
     sentry__app_hang_latch_reset();
     g_running = false;
     // g_timeout_ms are intentionally NOT cleared here: the worker
-    // (now joined) is their only reader, and start() always re-sets them, so
-    // clearing would just introduce a data race.
+    // (now joined) is their only reader, and start() always re-sets them.
     SENTRY_DEBUG("app-hang watchdog stopped");
 }
 
