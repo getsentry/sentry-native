@@ -117,6 +117,8 @@ file_writer_free(void *state)
 static char *
 file_writer_into_string(void *state, bool UNUSED(failed), size_t *len_out)
 {
+    // `sentry__writer_into_string` is defined for all writer kinds and
+    // according to the module header must return NULL for non-string sinks.
     if (len_out) {
         *len_out = 0;
     }
