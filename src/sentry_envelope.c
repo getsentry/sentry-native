@@ -971,9 +971,6 @@ done:
     if (jw && sentry__jsonwriter_has_failed(jw)) {
         failed = 1;
     }
-    if (sentry__writer_has_failed(output)) {
-        failed = 1;
-    }
 
     if (failed) {
         SENTRY_WARN("envelope write failed");
