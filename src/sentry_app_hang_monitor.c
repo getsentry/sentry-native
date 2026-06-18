@@ -153,6 +153,7 @@ sentry__app_hang_monitor_stop(void)
     sentry__cond_wake(&g_wait_cond);
     sentry__mutex_unlock(&g_wait_mutex);
     sentry__thread_join(g_thread);
+    sentry__thread_free(&g_thread);
     sentry__app_hang_latch_reset();
     g_running = false;
     // g_timeout_ms are intentionally NOT cleared here: the worker
