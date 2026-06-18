@@ -1700,6 +1700,17 @@ SENTRY_EXPERIMENTAL_API void sentry_options_set_session_replay_duration(
     sentry_options_t *opts, uint32_t duration_ms);
 
 /**
+ * Captures a Session Replay for a caller-recorded video.
+ *
+ * The caller is responsible for building the inputs.
+ *
+ * See https://develop.sentry.dev/sdk/telemetry/replays/ for the payload format.
+ */
+SENTRY_EXPERIMENTAL_API void sentry_capture_session_replay(
+    const char *video_path, sentry_value_t replay_event,
+    sentry_value_t recording);
+
+/**
  * Sets the path to the crashpad handler if the crashpad backend is used.
  *
  * The path defaults to the `crashpad_handler`/`crashpad_handler.exe`
