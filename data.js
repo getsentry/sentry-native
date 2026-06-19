@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1781845656710,
+  "lastUpdate": 1781845695250,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -77692,6 +77692,66 @@ window.BENCHMARK_DATA = {
             "value": 14.76380000002564,
             "unit": "ms",
             "extra": "Min 13.831ms\nMax 16.672ms\nMean 14.988ms\nStdDev 1.053ms\nMedian 14.764ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "mischan@abovevacant.com",
+            "name": "Mischan Toosarani-Hausberger",
+            "username": "supervacuus"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "318b5944d57b2cd378ce1ba8455376613a305386",
+          "message": "ref(envelope): track streaming write failures in shared writer (#1807)",
+          "timestamp": "2026-06-19T07:03:54+02:00",
+          "tree_id": "97f8179e81d174f87a6aa002902a3da445b98caf",
+          "url": "https://github.com/getsentry/sentry-native/commit/318b5944d57b2cd378ce1ba8455376613a305386"
+        },
+        "date": 1781845688314,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 10.084100000028684,
+            "unit": "ms",
+            "extra": "Min 9.651ms\nMax 10.580ms\nMean 10.107ms\nStdDev 0.372ms\nMedian 10.084ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 10.178600000017468,
+            "unit": "ms",
+            "extra": "Min 9.951ms\nMax 10.959ms\nMean 10.337ms\nStdDev 0.423ms\nMedian 10.179ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 25.783400000022993,
+            "unit": "ms",
+            "extra": "Min 24.940ms\nMax 26.698ms\nMean 25.795ms\nStdDev 0.639ms\nMedian 25.783ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.182099999960883,
+            "unit": "ms",
+            "extra": "Min 0.168ms\nMax 0.190ms\nMean 0.179ms\nStdDev 0.008ms\nMedian 0.182ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.4370999999991909,
+            "unit": "ms",
+            "extra": "Min 0.390ms\nMax 0.472ms\nMean 0.432ms\nStdDev 0.030ms\nMedian 0.437ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 14.484899999956724,
+            "unit": "ms",
+            "extra": "Min 13.518ms\nMax 19.224ms\nMean 15.310ms\nStdDev 2.290ms\nMedian 14.485ms"
           }
         ]
       }
