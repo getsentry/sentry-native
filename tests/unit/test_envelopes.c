@@ -1248,6 +1248,9 @@ SENTRY_TEST(write_envelope_partial_write_fails)
 
     const char *test_file_str
         = SENTRY_TEST_PATH_PREFIX "sentry_test_partial_write";
+    sentry_path_t *test_path = sentry__path_from_str(test_file_str);
+    TEST_CHECK(test_path != NULL);
+    sentry__path_remove(test_path);
 
     // fork() isolates the RLIMIT_FSIZE setting from the test suite
     pid_t pid = fork();
@@ -1268,6 +1271,7 @@ SENTRY_TEST(write_envelope_partial_write_fails)
 
         int rv = sentry_envelope_write_to_file(envelope, test_file_str);
         sentry_envelope_free(envelope);
+        sentry__path_free(test_path);
         _exit(rv != 0 ? 0 : 1);
     }
 
@@ -1277,7 +1281,7 @@ SENTRY_TEST(write_envelope_partial_write_fails)
     int child_exit = WEXITSTATUS(status);
     TEST_CHECK_INT_EQUAL(child_exit, 0);
 
-    sentry_path_t *test_path = sentry__path_from_str(test_file_str);
+    TEST_CHECK(!sentry__path_is_file(test_path));
     sentry__path_remove(test_path);
     sentry__path_free(test_path);
 

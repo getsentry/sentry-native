@@ -4,8 +4,15 @@
 #include "sentry_boot.h"
 #include "sentry_path.h"
 #include "sentry_string.h"
+#include "sentry_writer.h"
 
 typedef struct sentry_jsonwriter_s sentry_jsonwriter_t;
+
+/**
+ * This creates a JSON writer on top of an existing generic byte writer. The
+ * JSON writer does not own `writer` and will not close or free it.
+ */
+sentry_jsonwriter_t *sentry__jsonwriter_new_writer(sentry_writer_t *writer);
 
 /**
  * This creates a new JSON writer.
@@ -28,7 +35,10 @@ sentry_jsonwriter_t *sentry__jsonwriter_new_fw(sentry_filewriter_t *fw);
 void sentry__jsonwriter_free(sentry_jsonwriter_t *jw);
 
 /**
- * Resets the internal state of a JSON writer.
+ * Resets the JSON grammar state of a JSON writer.
+ *
+ * This intentionally does not clear the sticky failure state of either the
+ * JSON writer or its underlying byte writer.
  */
 void sentry__jsonwriter_reset(sentry_jsonwriter_t *jw);
 
