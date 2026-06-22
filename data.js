@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1782127482502,
+  "lastUpdate": 1782136136873,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -25936,6 +25936,66 @@ window.BENCHMARK_DATA = {
             "value": 1.809385999990809,
             "unit": "ms",
             "extra": "Min 1.765ms\nMax 1.892ms\nMean 1.815ms\nStdDev 0.047ms\nMedian 1.809ms\nCPU 0.536ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "tustanivsky@gmail.com",
+            "name": "Ivan Tustanivskyi",
+            "username": "tustanivsky"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "8bb4ca57c96d511d30269f02fa8971be4d51066f",
+          "message": "fix(crashpad): resolve correct symbol names in client-side stack traces for multi-module apps (#1813)\n\n* fix(crashpad): resolve correct symbol names in client-side stack traces for multi-module apps\n\n* Update changelog\n\n* Update CHANGELOG.md\n\nCo-authored-by: JoshuaMoelans <60878493+JoshuaMoelans@users.noreply.github.com>\n\n---------\n\nCo-authored-by: JoshuaMoelans <60878493+JoshuaMoelans@users.noreply.github.com>",
+          "timestamp": "2026-06-22T16:46:11+03:00",
+          "tree_id": "543ccfb912ec13c0740ce7cf70cb5678e58ba347",
+          "url": "https://github.com/getsentry/sentry-native/commit/8bb4ca57c96d511d30269f02fa8971be4d51066f"
+        },
+        "date": 1782136132228,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 0.9283419999945863,
+            "unit": "ms",
+            "extra": "Min 0.905ms\nMax 0.988ms\nMean 0.936ms\nStdDev 0.031ms\nMedian 0.928ms\nCPU 0.880ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 0.8959509999897364,
+            "unit": "ms",
+            "extra": "Min 0.823ms\nMax 1.008ms\nMean 0.891ms\nStdDev 0.076ms\nMedian 0.896ms\nCPU 0.882ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 3.1492330000162383,
+            "unit": "ms",
+            "extra": "Min 3.079ms\nMax 3.174ms\nMean 3.144ms\nStdDev 0.039ms\nMedian 3.149ms\nCPU 1.700ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.12157700001580451,
+            "unit": "ms",
+            "extra": "Min 0.117ms\nMax 0.134ms\nMean 0.123ms\nStdDev 0.007ms\nMedian 0.122ms\nCPU 0.071ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.029425000008131974,
+            "unit": "ms",
+            "extra": "Min 0.028ms\nMax 0.030ms\nMean 0.029ms\nStdDev 0.001ms\nMedian 0.029ms\nCPU 0.028ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 1.8102869999836457,
+            "unit": "ms",
+            "extra": "Min 1.786ms\nMax 1.848ms\nMean 1.814ms\nStdDev 0.023ms\nMedian 1.810ms\nCPU 0.520ms"
           }
         ]
       }
