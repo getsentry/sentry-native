@@ -660,6 +660,11 @@ main(int argc, char **argv)
         sentry_options_set_enable_large_attachments(options, 1);
     }
 
+    if (has_arg(argc, argv, "app-hang")) {
+        sentry_options_set_enable_app_hang_tracking(options, 1);
+        sentry_options_set_app_hang_timeout_ms(options, 1000);
+    }
+
     if (has_arg(argc, argv, "stdout")) {
         sentry_options_set_transport(
             options, sentry_transport_new(print_envelope));
@@ -1142,6 +1147,28 @@ main(int argc, char **argv)
 
     if (has_arg(argc, argv, "sleep")) {
         sleep_s(10);
+    }
+
+    if (has_arg(argc, argv, "app-hang")) {
+        printf("app-hang: start\n");
+        fflush(stdout);
+
+        // A couple of heartbeats to latch this (main) thread as the monitored
+        // thread and keep it fresh.
+        for (int i = 0; i < 3; i++) {
+            sentry_app_hang_heartbeat();
+            sleep_ms(100);
+        }
+
+        printf("app-hang: doing some heavy work now (going to sleep)\n");
+        fflush(stdout);
+
+        // Block the monitored thread past the configured timeout so the
+        // watchdog samples this hung thread and captures an AppHang event.
+        sleep_s(3);
+
+        printf("app-hang: finishing\n");
+        fflush(stdout);
     }
 
     if (has_arg(argc, argv, "test-logger-before-crash")) {

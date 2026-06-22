@@ -7,6 +7,10 @@
 - Native/Windows: Resolve correct symbol names for crashes in multi-module apps ([#1811](https://github.com/getsentry/sentry-native/pull/1811))
 - Crashpad: Resolve correct symbol names for crashes in multi-module apps ([#1813](https://github.com/getsentry/sentry-native/pull/1813), [crashpad#156](https://github.com/getsentry/crashpad/pull/156))
 
+**Features**:
+
+- Added an in-process app-hang detection. When enabled via `sentry_options_set_enable_app_hang_tracking`, a background thread monitors the application and captures an app-hang event if no heartbeat is received within `app_hang_timeout_ms` (default `5000` ms). Call `sentry_app_hang_heartbeat()` regularly from the thread you want monitored. ([#1806](https://github.com/getsentry/sentry-native/pull/1806))
+
 ## 0.15.1
 
 **Fixes**:
@@ -16,7 +20,7 @@
 
 **Internal**:
 
-- Refactor envelope writers to better support failure tracking on each layer and not push check responsibility to client code.  ([#1807](https://github.com/getsentry/sentry-native/pull/1807))
+- Refactor envelope writers to better support failure tracking on each layer and not push check responsibility to client code. ([#1807](https://github.com/getsentry/sentry-native/pull/1807))
 
 ## 0.15.0
 
