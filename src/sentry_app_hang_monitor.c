@@ -99,8 +99,7 @@ worker(void *arg)
             break;
         }
 
-        sentry_app_hang_latch_t latch;
-        sentry__app_hang_latch_read(&latch);
+        const sentry_app_hang_latch_t latch = sentry__app_hang_current_latch();
         uint64_t now = sentry__app_hang_now_ms();
         if (sentry__app_hang_should_capture(
                 latch.last_heartbeat_ms, now, g_timeout_ms, last_fired_hb)) {

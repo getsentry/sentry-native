@@ -17,7 +17,7 @@ typedef struct {
 } sentry_app_hang_latch_t;
 
 uint64_t sentry__app_hang_current_tid(void);
-void sentry__app_hang_latch_read(sentry_app_hang_latch_t *out);
+sentry_app_hang_latch_t sentry__app_hang_current_latch(void);
 void sentry__app_hang_latch_reset(void);
 
 // Enables/disables the heartbeat fast-path. The watchdog monitor sets this on

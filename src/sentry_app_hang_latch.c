@@ -87,11 +87,13 @@ sentry__app_hang_current_tid(void)
 #endif
 }
 
-void
-sentry__app_hang_latch_read(sentry_app_hang_latch_t *out)
+sentry_app_hang_latch_t
+sentry__app_hang_current_latch(void)
 {
-    out->target_tid = sentry__atomic_fetch_u64(&g_target_tid);
-    out->last_heartbeat_ms = sentry__atomic_fetch_u64(&g_last_heartbeat_ms);
+    sentry_app_hang_latch_t latch;
+    latch.target_tid = sentry__atomic_fetch_u64(&g_target_tid);
+    latch.last_heartbeat_ms = sentry__atomic_fetch_u64(&g_last_heartbeat_ms);
+    return latch;
 }
 
 void
