@@ -5,6 +5,7 @@
 **Fixes**:
 
 - Native/Windows: Resolve correct symbol names for crashes in multi-module apps ([#1811](https://github.com/getsentry/sentry-native/pull/1811))
+- Crashpad: Resolve correct symbol names for crashes in multi-module apps ([#1813](https://github.com/getsentry/sentry-native/pull/1813), [crashpad#156](https://github.com/getsentry/crashpad/pull/156))
 
 ## 0.15.1
 
