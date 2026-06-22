@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1782127426416,
+  "lastUpdate": 1782127482502,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -77872,6 +77872,66 @@ window.BENCHMARK_DATA = {
             "value": 14.484899999956724,
             "unit": "ms",
             "extra": "Min 13.518ms\nMax 19.224ms\nMean 15.310ms\nStdDev 2.290ms\nMedian 14.485ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "tustanivsky@gmail.com",
+            "name": "Ivan Tustanivskyi",
+            "username": "tustanivsky"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "f09a0ad680d835e32fbf7fb543c56be3ba261694",
+          "message": "fix(native): resolve correct symbol names for crashes in multi-module apps on Windows (#1811)\n\n* fix(native): resolve correct symbol names for crashes in multi-module apps on Windows\n\n* Update changelog\n\n* Cap module count to SENTRY_CRASH_MAX_MODULES",
+          "timestamp": "2026-06-22T14:19:28+03:00",
+          "tree_id": "be1ed44bc838f162425aa538fdf321c15341bf55",
+          "url": "https://github.com/getsentry/sentry-native/commit/f09a0ad680d835e32fbf7fb543c56be3ba261694"
+        },
+        "date": 1782127476668,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 10.044799999946008,
+            "unit": "ms",
+            "extra": "Min 9.523ms\nMax 11.574ms\nMean 10.303ms\nStdDev 0.778ms\nMedian 10.045ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 11.695499999973435,
+            "unit": "ms",
+            "extra": "Min 10.545ms\nMax 17.474ms\nMean 12.987ms\nStdDev 2.760ms\nMedian 11.695ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 26.077900000018417,
+            "unit": "ms",
+            "extra": "Min 24.977ms\nMax 26.371ms\nMean 25.812ms\nStdDev 0.617ms\nMedian 26.078ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.16879999998309358,
+            "unit": "ms",
+            "extra": "Min 0.161ms\nMax 0.186ms\nMean 0.172ms\nStdDev 0.010ms\nMedian 0.169ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.3891000000066924,
+            "unit": "ms",
+            "extra": "Min 0.377ms\nMax 0.432ms\nMean 0.402ms\nStdDev 0.025ms\nMedian 0.389ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 13.933899999983623,
+            "unit": "ms",
+            "extra": "Min 13.756ms\nMax 14.007ms\nMean 13.907ms\nStdDev 0.109ms\nMedian 13.934ms"
           }
         ]
       }
