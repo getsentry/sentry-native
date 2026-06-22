@@ -373,7 +373,7 @@ static inline long
 sentry__atomic_fetch_and_add(volatile long *val, long diff)
 {
 #ifdef SENTRY_PLATFORM_WINDOWS
-#    if SIZEOF_LONG == 8
+#    if SENTRY_SIZEOF_LONG == 8
     return InterlockedExchangeAdd64((LONG64 *)val, diff);
 #    else
     return InterlockedExchangeAdd((LONG *)val, diff);
@@ -387,7 +387,7 @@ static inline long
 sentry__atomic_store(volatile long *val, long value)
 {
 #ifdef SENTRY_PLATFORM_WINDOWS
-#    if SIZEOF_LONG == 8
+#    if SENTRY_SIZEOF_LONG == 8
     return InterlockedExchange64((LONG64 *)val, value);
 #    else
     return InterlockedExchange((LONG *)val, value);
@@ -418,7 +418,7 @@ static inline bool
 sentry__atomic_compare_swap(volatile long *val, long expected, long desired)
 {
 #ifdef SENTRY_PLATFORM_WINDOWS
-#    if SIZEOF_LONG == 8
+#    if SENTRY_SIZEOF_LONG == 8
     return InterlockedCompareExchange64((LONG64 *)val, desired, expected)
         == expected;
 #    else
