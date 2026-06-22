@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1781845695250,
+  "lastUpdate": 1782127332120,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -25876,6 +25876,66 @@ window.BENCHMARK_DATA = {
             "value": 1.8311540000013338,
             "unit": "ms",
             "extra": "Min 1.814ms\nMax 1.834ms\nMean 1.826ms\nStdDev 0.009ms\nMedian 1.831ms\nCPU 0.534ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "tustanivsky@gmail.com",
+            "name": "Ivan Tustanivskyi",
+            "username": "tustanivsky"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "f09a0ad680d835e32fbf7fb543c56be3ba261694",
+          "message": "fix(native): resolve correct symbol names for crashes in multi-module apps on Windows (#1811)\n\n* fix(native): resolve correct symbol names for crashes in multi-module apps on Windows\n\n* Update changelog\n\n* Cap module count to SENTRY_CRASH_MAX_MODULES",
+          "timestamp": "2026-06-22T14:19:28+03:00",
+          "tree_id": "be1ed44bc838f162425aa538fdf321c15341bf55",
+          "url": "https://github.com/getsentry/sentry-native/commit/f09a0ad680d835e32fbf7fb543c56be3ba261694"
+        },
+        "date": 1782127327268,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 0.9233359999996082,
+            "unit": "ms",
+            "extra": "Min 0.914ms\nMax 0.931ms\nMean 0.922ms\nStdDev 0.007ms\nMedian 0.923ms\nCPU 0.881ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 0.8592160000091553,
+            "unit": "ms",
+            "extra": "Min 0.844ms\nMax 0.881ms\nMean 0.860ms\nStdDev 0.014ms\nMedian 0.859ms\nCPU 0.859ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 3.118352000001323,
+            "unit": "ms",
+            "extra": "Min 3.093ms\nMax 3.235ms\nMean 3.134ms\nStdDev 0.058ms\nMedian 3.118ms\nCPU 1.677ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.12326999998890642,
+            "unit": "ms",
+            "extra": "Min 0.119ms\nMax 0.139ms\nMean 0.126ms\nStdDev 0.008ms\nMedian 0.123ms\nCPU 0.075ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.02956500000550477,
+            "unit": "ms",
+            "extra": "Min 0.027ms\nMax 0.030ms\nMean 0.029ms\nStdDev 0.001ms\nMedian 0.030ms\nCPU 0.028ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 1.809385999990809,
+            "unit": "ms",
+            "extra": "Min 1.765ms\nMax 1.892ms\nMean 1.815ms\nStdDev 0.047ms\nMedian 1.809ms\nCPU 0.536ms"
           }
         ]
       }
