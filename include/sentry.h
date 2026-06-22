@@ -2686,6 +2686,11 @@ SENTRY_EXPERIMENTAL_API uint64_t sentry_options_get_app_hang_timeout_ms(
  * watchdog does not receive a heartbeat within the configured timeout, it
  * captures an app-hang event.
  *
+ * Only a single thread is monitored: the watchdog tracks exactly the one
+ * thread latched by the first heartbeat. Calls from any other thread are
+ * ignored. To watch the thread most representative of responsiveness (e.g.
+ * a UI or main loop), call this from that thread first.
+ *
  * This function is a no-op unless app-hang detection is enabled via
  * `sentry_options_set_enable_app_hang_tracking`.
  */
