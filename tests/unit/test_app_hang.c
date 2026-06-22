@@ -17,33 +17,24 @@ SENTRY_TEST(app_hang_should_capture)
     TEST_CHECK(!sentry__app_hang_should_capture(98000, 100000, 2000, 98000));
 }
 
-SENTRY_TEST(app_hang_now_ms_monotonic)
-{
-    uint64_t a = sentry__app_hang_now_ms();
-    uint64_t b = sentry__app_hang_now_ms();
-    TEST_CHECK(b >= a);
-    TEST_CHECK(a != 0);
-}
-
 SENTRY_TEST(app_hang_latch)
 {
     sentry__app_hang_latch_reset();
     sentry__app_hang_set_active(true);
-    sentry_app_hang_latch_t l = { 0 };
-    sentry__app_hang_latch_read(&l);
+    sentry_app_hang_latch_t l = sentry__app_hang_current_latch();
     TEST_CHECK(l.target_tid == 0);
     TEST_CHECK(l.last_heartbeat_ms == 0);
 
     // first heartbeat latches the calling thread + records a timestamp
     sentry_app_hang_heartbeat();
-    sentry__app_hang_latch_read(&l);
+    l = sentry__app_hang_current_latch();
     TEST_CHECK(l.target_tid == sentry__app_hang_current_tid());
     TEST_CHECK(l.target_tid != 0);
     uint64_t first = l.last_heartbeat_ms;
     TEST_CHECK(first != 0);
 
     sentry__app_hang_latch_reset();
-    sentry__app_hang_latch_read(&l);
+    l = sentry__app_hang_current_latch();
     TEST_CHECK(l.target_tid == 0);
     sentry__app_hang_set_active(false);
 }

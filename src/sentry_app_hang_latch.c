@@ -1,9 +1,10 @@
-// In-process app-hang detection, shared state and helpers. The lock-free latch,
-// heartbeat API, capture predicate, and monotonic clock are the app-thread hot
-// path: app threads write the latch via the heartbeat, the watchdog worker in
-// sentry_app_hang_monitor.c reads it.
+// In-process app-hang detection, shared state and helpers. The latch, heartbeat
+// API, and capture predicate are the app-thread hot path: app threads write the
+// latch via the heartbeat (timestamped with sentry__monotonic_time), the
+// watchdog worker in sentry_app_hang_monitor.c reads it.
 #include "sentry_app_hang_latch.h"
 #include "sentry_sync.h"
+#include "sentry_utils.h"
 
 #include <stdint.h>
 
@@ -11,11 +12,9 @@
 #    include <windows.h>
 #elif defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID)
 #    include <sys/syscall.h>
-#    include <time.h>
 #    include <unistd.h>
 #else // SENTRY_PLATFORM_MACOS and other POSIX
 #    include <pthread.h>
-#    include <time.h>
 #endif
 
 bool
@@ -34,23 +33,9 @@ sentry__app_hang_should_capture(
     return true;
 }
 
-uint64_t
-sentry__app_hang_now_ms(void)
-{
-#if defined(SENTRY_PLATFORM_WINDOWS)
-    return (uint64_t)GetTickCount64();
-#else
-    struct timespec ts;
-    if (clock_gettime(CLOCK_MONOTONIC, &ts) != 0) {
-        return 0;
-    }
-    return (uint64_t)ts.tv_sec * 1000ULL + (uint64_t)ts.tv_nsec / 1000000ULL;
-#endif
-}
-
 // The latch is touched by app threads (writers, via the heartbeat) and the
-// single watchdog worker (reader). A mutex would put a lock on the heartbeat
-// hot path, not ideal.
+// single watchdog worker (reader). An explicit mutex would put a lock on the
+// heartbeat hot path, not ideal.
 // The two fields are accessed with 64-bit atomics:
 //
 //   - last_heartbeat_ms: written on every heartbeat, read by the worker.
@@ -60,7 +45,12 @@ sentry__app_hang_now_ms(void)
 //     uses it as a stackwalker argument so a relaxed read is sufficient.
 //
 // Both fields use the sentry__atomic_*_u64 helpers, which provide full 64-bit
-// atomic access even on 32-bit platforms
+// atomic (tear-free) access on every platform. Where the target has native
+// 64-bit atomics (AArch64, x86-64, ...) this is lock-free; on ARMv7 the
+// compiler lowers it to a libatomic call backed by a lock pool. That is fine
+// here: the access is off any signal handler (both writer and worker run in
+// normal thread context) and the heartbeat cadence dwarfs the few-ns lock, so
+// the lock only delivers the tear-free guarantee we already need.
 static uint64_t g_target_tid = 0;
 static uint64_t g_last_heartbeat_ms = 0;
 static volatile long g_app_hang_active = 0;
@@ -120,6 +110,6 @@ sentry_app_hang_heartbeat(void)
     if (target == tid) {
         // ignore heartbeats from other threads
         sentry__atomic_store_u64(
-            &g_last_heartbeat_ms, sentry__app_hang_now_ms());
+            &g_last_heartbeat_ms, sentry__monotonic_time());
     }
 }

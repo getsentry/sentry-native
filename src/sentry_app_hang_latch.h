@@ -9,8 +9,6 @@
 bool sentry__app_hang_should_capture(
     uint64_t hb, uint64_t now, uint64_t timeout_ms, uint64_t last_fired_hb);
 
-uint64_t sentry__app_hang_now_ms(void);
-
 typedef struct {
     uint64_t target_tid;
     uint64_t last_heartbeat_ms;

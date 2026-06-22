@@ -6,6 +6,7 @@
 #include "sentry_options.h"
 #include "sentry_sync.h"
 #include "sentry_thread_stackwalk.h"
+#include "sentry_utils.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -100,7 +101,7 @@ worker(void *arg)
         }
 
         const sentry_app_hang_latch_t latch = sentry__app_hang_current_latch();
-        uint64_t now = sentry__app_hang_now_ms();
+        uint64_t now = sentry__monotonic_time();
         if (sentry__app_hang_should_capture(
                 latch.last_heartbeat_ms, now, g_timeout_ms, last_fired_hb)) {
             // Only mark this freeze as fired when an event was actually
