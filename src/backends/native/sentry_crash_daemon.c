@@ -1715,10 +1715,12 @@ walk_stack_with_dbghelp(HANDLE hProcess, DWORD crashed_tid,
     static BOOL s_sym_search_path_built = FALSE;
     if (!s_sym_search_path_built && crash_ctx && crash_ctx->module_count > 0) {
         s_sym_search_path_built = TRUE;
+        uint32_t module_count
+            = MIN(crash_ctx->module_count, SENTRY_CRASH_MAX_MODULES);
         sentry_stringbuilder_t sb;
         sentry__stringbuilder_init(&sb);
         size_t appended = 0;
-        for (uint32_t mi = 0; mi < crash_ctx->module_count; mi++) {
+        for (uint32_t mi = 0; mi < module_count; mi++) {
             const char *path = crash_ctx->modules[mi].name;
             size_t dir_len = 0;
             for (size_t k = 0; path[k]; k++) {
