@@ -60,7 +60,8 @@
 
 // Forward declaration for StackWalk64-based stack unwinding (defined later)
 static size_t walk_stack_with_dbghelp(HANDLE hProcess, DWORD crashed_tid,
-    const CONTEXT *ctx_record, sentry_frame_info_t *frames, size_t max_frames);
+    const CONTEXT *ctx_record, const sentry_crash_context_t *crash_ctx,
+    sentry_frame_info_t *frames, size_t max_frames);
 #endif
 
 // Provide default ASAN options for sentry-crash daemon executable
@@ -873,7 +874,7 @@ build_stacktrace_for_thread(
         // Make a copy since StackWalk64 may modify the context
         CONTEXT ctx_copy = *walk_context;
         size_t dbghelp_frame_count = walk_stack_with_dbghelp(hProcess,
-            walk_thread_id, &ctx_copy, stack_frames, MAX_STACK_FRAMES);
+            walk_thread_id, &ctx_copy, ctx, stack_frames, MAX_STACK_FRAMES);
 
         if (dbghelp_frame_count > 0) {
             // Build sentry frames from StackWalk64 results
@@ -1693,7 +1694,8 @@ stack_walk_read_memory(HANDLE hProcess, DWORD64 lpBaseAddress, PVOID lpBuffer,
  */
 static size_t
 walk_stack_with_dbghelp(HANDLE hProcess, DWORD crashed_tid,
-    const CONTEXT *ctx_record, sentry_frame_info_t *frames, size_t max_frames)
+    const CONTEXT *ctx_record, const sentry_crash_context_t *crash_ctx,
+    sentry_frame_info_t *frames, size_t max_frames)
 {
     // Open thread handle for the crashed thread
     HANDLE hThread = OpenThread(
@@ -1707,9 +1709,58 @@ walk_stack_with_dbghelp(HANDLE hProcess, DWORD crashed_tid,
     // Set up global handle for read callback
     g_stack_walk_process = hProcess;
 
-    // Initialize dbghelp for the target process
-    SymSetOptions(SYMOPT_UNDNAME | SYMOPT_DEFERRED_LOADS);
-    if (!SymInitialize(hProcess, NULL, TRUE)) {
+    // Build a dbghelp search path from every loaded module's directory so it
+    // can find each module's PDB next to its DLL and resolve symbols
+    static wchar_t *s_sym_search_path = NULL;
+    static BOOL s_sym_search_path_built = FALSE;
+    if (!s_sym_search_path_built && crash_ctx && crash_ctx->module_count > 0) {
+        s_sym_search_path_built = TRUE;
+        uint32_t module_count
+            = MIN(crash_ctx->module_count, SENTRY_CRASH_MAX_MODULES);
+        sentry_stringbuilder_t sb;
+        sentry__stringbuilder_init(&sb);
+        size_t appended = 0;
+        for (uint32_t mi = 0; mi < module_count; mi++) {
+            const char *path = crash_ctx->modules[mi].name;
+            size_t dir_len = 0;
+            for (size_t k = 0; path[k]; k++) {
+                if (path[k] == '\\' || path[k] == '/') {
+                    dir_len = k;
+                }
+            }
+            if (dir_len == 0) {
+                continue;
+            }
+            // de-duplicate the directory against earlier modules
+            BOOL dup = FALSE;
+            for (uint32_t pj = 0; pj < mi && !dup; pj++) {
+                const char *pp = crash_ctx->modules[pj].name;
+                size_t pj_len = 0;
+                for (size_t k = 0; pp[k]; k++) {
+                    if (pp[k] == '\\' || pp[k] == '/') {
+                        pj_len = k;
+                    }
+                }
+                dup = (pj_len == dir_len && _strnicmp(pp, path, dir_len) == 0);
+            }
+            if (dup) {
+                continue;
+            }
+            if (appended++) {
+                sentry__stringbuilder_append_char(&sb, ';');
+            }
+            sentry__stringbuilder_append_buf(&sb, path, dir_len);
+        }
+        char *path_utf8 = sentry__stringbuilder_into_string(&sb);
+        if (path_utf8 && path_utf8[0]) {
+            s_sym_search_path = sentry__string_to_wstr(path_utf8);
+        }
+        sentry_free(path_utf8);
+    }
+
+    SymSetOptions(SYMOPT_UNDNAME | SYMOPT_DEFERRED_LOADS
+        | SYMOPT_FAIL_CRITICAL_ERRORS | SYMOPT_NO_PROMPTS);
+    if (!SymInitializeW(hProcess, s_sym_search_path, TRUE)) {
         SENTRY_WARNF("SymInitialize failed: %lu", GetLastError());
         CloseHandle(hThread);
         return 0;
