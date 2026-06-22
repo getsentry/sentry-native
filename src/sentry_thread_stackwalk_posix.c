@@ -49,6 +49,7 @@ handler(int sig, siginfo_t *info, void *ucontext)
     // errno so the calls below (sem_*, unw_*) don't leak a value back to it.
     const int saved_errno = errno;
     if (!__atomic_load_n(&g_active, __ATOMIC_ACQUIRE)) {
+        errno = saved_errno;
         return; // stray/late delivery; ignore
     }
     size_t n = 0;
