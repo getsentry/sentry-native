@@ -67,6 +67,8 @@ sentry_target_sources_cwd(sentry
 	sentry_uuid.h
 	sentry_value.c
 	sentry_value.h
+	sentry_writer.c
+	sentry_writer.h
 	sentry_tracing.c
 	sentry_tracing.h
 	path/sentry_path.c

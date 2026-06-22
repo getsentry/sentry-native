@@ -61,6 +61,7 @@ add_executable(sentry_test_unit
 	test_utils.c
 	test_uuid.c
 	test_value.c
+	test_writer.c
 	tests.inc
 )
 
