@@ -112,7 +112,7 @@ SENTRY_TEST(app_hang_monitor_fires)
     sentry__app_hang_latch_reset();
     sentry__app_hang_monitor_set_stackwalk_fn(fake_stackwalk);
 
-    sentry_options_t *options = sentry_options_new();
+    SENTRY_TEST_OPTIONS_NEW(options);
     sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
     sentry_options_set_before_send(options, capture_before_send, NULL);
     sentry_options_set_enable_app_hang_tracking(options, 1);
@@ -179,7 +179,7 @@ SENTRY_TEST(app_hang_end_to_end)
     sentry__app_hang_latch_reset();
     sentry__app_hang_monitor_set_stackwalk_fn(NULL); // use the REAL stackwalker
 
-    sentry_options_t *options = sentry_options_new();
+    SENTRY_TEST_OPTIONS_NEW(options);
     sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
     sentry_options_set_before_send(options, real_before_send, NULL);
     sentry_options_set_enable_app_hang_tracking(options, 1);
