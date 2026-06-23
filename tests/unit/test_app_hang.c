@@ -2,6 +2,7 @@
 #include "sentry_app_hang_monitor.h"
 #include "sentry_sync.h"
 #include "sentry_testsupport.h"
+#include "sentry_thread_stackwalk.h"
 
 SENTRY_TEST(app_hang_should_capture)
 {
@@ -19,6 +20,9 @@ SENTRY_TEST(app_hang_should_capture)
 
 SENTRY_TEST(app_hang_latch)
 {
+#if !SENTRY_HAS_THREAD_STACKWALK
+    SKIP_TEST();
+#endif
     sentry__app_hang_latch_reset();
     sentry__app_hang_set_active(true);
     sentry_app_hang_latch_t l = sentry__app_hang_current_latch();
@@ -100,6 +104,9 @@ capture_before_send(sentry_value_t event, void *hint, void *data)
 
 SENTRY_TEST(app_hang_monitor_fires)
 {
+#if !SENTRY_HAS_THREAD_STACKWALK
+    SKIP_TEST();
+#endif
     g_app_hang_seen = 0;
     g_app_hang_type[0] = '\0';
     sentry__app_hang_latch_reset();
@@ -163,6 +170,9 @@ spinner(void *arg)
 
 SENTRY_TEST(app_hang_end_to_end)
 {
+#if !SENTRY_HAS_THREAD_STACKWALK
+    SKIP_TEST();
+#endif
     g_real_seen = 0;
     g_real_frames = 0;
     sentry__atomic_store(&g_keep_spinning, 1);
