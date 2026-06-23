@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1782207768739,
+  "lastUpdate": 1782207811675,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -52354,6 +52354,66 @@ window.BENCHMARK_DATA = {
             "value": 7.4337909999258045,
             "unit": "ms",
             "extra": "Min 6.779ms\nMax 11.329ms\nMean 8.020ms\nStdDev 1.873ms\nMedian 7.434ms\nCPU 1.210ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "60878493+JoshuaMoelans@users.noreply.github.com",
+            "name": "JoshuaMoelans",
+            "username": "JoshuaMoelans"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "fb49aa63cad032acb38c169ab29fc5c639c9b185",
+          "message": "fix: add `SENTRY_BACKEND` define for native backend (#1815)",
+          "timestamp": "2026-06-23T11:38:00+02:00",
+          "tree_id": "223d864c66c7f69f2756140e71fd9c11cf55ab63",
+          "url": "https://github.com/getsentry/sentry-native/commit/fb49aa63cad032acb38c169ab29fc5c639c9b185"
+        },
+        "date": 1782207799377,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 6.398208999996768,
+            "unit": "ms",
+            "extra": "Min 5.821ms\nMax 12.261ms\nMean 7.642ms\nStdDev 2.641ms\nMedian 6.398ms\nCPU 4.068ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 5.413625000016964,
+            "unit": "ms",
+            "extra": "Min 4.467ms\nMax 8.093ms\nMean 5.996ms\nStdDev 1.550ms\nMedian 5.414ms\nCPU 3.384ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 25.738082999964718,
+            "unit": "ms",
+            "extra": "Min 18.549ms\nMax 63.665ms\nMean 38.746ms\nStdDev 21.596ms\nMedian 25.738ms\nCPU 8.405ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.08641599998782112,
+            "unit": "ms",
+            "extra": "Min 0.057ms\nMax 0.323ms\nMean 0.149ms\nStdDev 0.112ms\nMedian 0.086ms\nCPU 0.115ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.6371669999793994,
+            "unit": "ms",
+            "extra": "Min 0.335ms\nMax 0.647ms\nMean 0.530ms\nStdDev 0.156ms\nMedian 0.637ms\nCPU 0.517ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 11.084583000013026,
+            "unit": "ms",
+            "extra": "Min 9.750ms\nMax 16.881ms\nMean 12.813ms\nStdDev 3.308ms\nMedian 11.085ms\nCPU 1.563ms"
           }
         ]
       }
