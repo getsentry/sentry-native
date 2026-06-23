@@ -144,8 +144,8 @@ SENTRY_TEST(app_hang_disarm_prevents_capture)
     sentry_init(options);
 
     sentry_app_hang_heartbeat();
-    // Simulate entering the crash handler: disarm -> never heartbeat again.
-    sentry__app_hang_disarm();
+    // Simulate entering the crash handler: disable -> never heartbeat again.
+    sentry__app_hang_set_active(false);
 
     // Wait well past several timeout/poll cycles to be sure nothing fires.
     for (int i = 0; i < 50; i++) {
