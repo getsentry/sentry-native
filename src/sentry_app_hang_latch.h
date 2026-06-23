@@ -23,6 +23,9 @@ void sentry__app_hang_latch_reset(void);
 // when detection is not running.
 void sentry__app_hang_set_active(bool active);
 
+// Whether app-hang detection is currently armed.
+bool sentry__app_hang_is_active(void);
+
 sentry_value_t sentry__app_hang_make_event(
     void **ips, size_t frame_count, uint64_t freeze_ms);
 

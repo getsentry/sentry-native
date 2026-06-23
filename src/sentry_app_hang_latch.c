@@ -61,6 +61,12 @@ sentry__app_hang_set_active(bool active)
     sentry__atomic_store(&g_app_hang_active, active ? 1 : 0);
 }
 
+bool
+sentry__app_hang_is_active(void)
+{
+    return sentry__atomic_fetch(&g_app_hang_active) != 0;
+}
+
 uint64_t
 sentry__app_hang_current_tid(void)
 {

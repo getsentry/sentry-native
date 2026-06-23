@@ -54,7 +54,6 @@ sentry__app_hang_monitor_set_stackwalk_fn(sentry__app_hang_stackwalk_fn fn)
 #if SENTRY_HAS_THREAD_STACKWALK
 
 static bool g_running = false;
-static volatile long g_stop = 0;
 static sentry_threadid_t g_thread;
 static sentry_mutex_t g_wait_mutex = SENTRY__MUTEX_INIT;
 static sentry_cond_t g_wait_cond;
@@ -90,13 +89,13 @@ worker(void *arg)
 {
     (void)arg;
     uint64_t last_fired_hb = 0;
-    while (!sentry__atomic_fetch(&g_stop)) {
+    while (sentry__app_hang_is_active()) {
         sentry__mutex_lock(&g_wait_mutex);
         sentry__cond_wait_timeout(
             &g_wait_cond, &g_wait_mutex, SENTRY_APP_HANG_POLL_MS);
         sentry__mutex_unlock(&g_wait_mutex);
 
-        if (sentry__atomic_fetch(&g_stop)) {
+        if (!sentry__app_hang_is_active()) {
             break;
         }
 
@@ -104,6 +103,10 @@ worker(void *arg)
         uint64_t now = sentry__monotonic_time();
         if (sentry__app_hang_should_capture(
                 latch.last_heartbeat_ms, now, g_timeout_ms, last_fired_hb)) {
+            // Bail if disarmed. Keeps duplicate reporting window minimal
+            if (!sentry__app_hang_is_active()) {
+                break;
+            }
             // Only mark this freeze as fired when an event was actually
             // captured. A transient stackwalk failure (0 frames) must not
             // suppress retries while the thread remains stuck.
@@ -128,15 +131,17 @@ sentry__app_hang_monitor_start(const sentry_options_t *options)
         SENTRY_WARN("app-hang: `app_hang_timeout` is 0, hang detection is "
                     "disabled");
     }
-    sentry__atomic_store(&g_stop, 0);
     sentry__cond_init(&g_wait_cond);
+    // Arm before spawning: the worker uses is_active() as its run condition, so
+    // it must already be true when the new thread first evaluates the loop.
+    sentry__app_hang_set_active(true);
     if (sentry__thread_spawn(&g_thread, worker, NULL) != 0) {
+        sentry__app_hang_set_active(false);
         SENTRY_WARN("app-hang: failed to spawn watchdog thread");
         return 1;
     }
 
     g_running = true;
-    sentry__app_hang_set_active(true);
     SENTRY_DEBUG("app-hang watchdog started");
     return 0;
 }
@@ -148,7 +153,6 @@ sentry__app_hang_monitor_stop(void)
         return;
     }
     sentry__app_hang_set_active(false);
-    sentry__atomic_store(&g_stop, 1);
     sentry__mutex_lock(&g_wait_mutex);
     sentry__cond_wake(&g_wait_cond);
     sentry__mutex_unlock(&g_wait_mutex);

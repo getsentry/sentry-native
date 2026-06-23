@@ -125,6 +125,39 @@ SENTRY_TEST(app_hang_monitor_fires)
     sentry__app_hang_monitor_set_stackwalk_fn(NULL);
 }
 
+SENTRY_TEST(app_hang_disarm_prevents_capture)
+{
+    // Mirrors app_hang_monitor_fires, but disarms after latching. This is the
+    // crash-handler path: once disarmed, the watchdog must not capture an
+    // app-hang even though the latched thread stops heart-beating (so a crash
+    // is never also reported as an app-hang).
+    g_app_hang_seen = 0;
+    g_app_hang_type[0] = '\0';
+    sentry__app_hang_latch_reset();
+    sentry__app_hang_monitor_set_stackwalk_fn(fake_stackwalk);
+
+    sentry_options_t *options = sentry_options_new();
+    sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
+    sentry_options_set_before_send(options, capture_before_send, NULL);
+    sentry_options_set_enable_app_hang_tracking(options, 1);
+    sentry_options_set_app_hang_timeout(options, 50);
+    sentry_init(options);
+
+    sentry_app_hang_heartbeat();
+    // Simulate entering the crash handler: disable -> never heartbeat again.
+    sentry__app_hang_set_active(false);
+
+    // Wait well past several timeout/poll cycles to be sure nothing fires.
+    for (int i = 0; i < 50; i++) {
+        sleep_ms(10);
+    }
+
+    TEST_CHECK(sentry__atomic_fetch(&g_app_hang_seen) == 0);
+
+    sentry_close();
+    sentry__app_hang_monitor_set_stackwalk_fn(NULL);
+}
+
 static long g_real_seen;
 static long g_real_frames;
 static volatile long g_keep_spinning;

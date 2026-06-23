@@ -3,6 +3,7 @@
 #include <stdarg.h>
 #include <string.h>
 
+#include "sentry_app_hang_latch.h"
 #include "sentry_app_hang_monitor.h"
 #include "sentry_attachment.h"
 #include "sentry_backend.h"
@@ -830,6 +831,9 @@ fail:
 void
 sentry_handle_exception(const sentry_ucontext_t *uctx)
 {
+    // Disarm the app-hang monitor to avoid duplicate capture.
+    sentry__app_hang_set_active(false);
+
     SENTRY_WITH_OPTIONS (options) {
         if (options->backend && options->backend->except_func) {
             options->backend->except_func(options->backend, uctx);
