@@ -662,7 +662,7 @@ main(int argc, char **argv)
 
     if (has_arg(argc, argv, "app-hang")) {
         sentry_options_set_enable_app_hang_tracking(options, 1);
-        sentry_options_set_app_hang_timeout_ms(options, 1000);
+        sentry_options_set_app_hang_timeout(options, 1000);
     }
 
     if (has_arg(argc, argv, "stdout")) {

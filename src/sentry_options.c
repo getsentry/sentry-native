@@ -114,7 +114,7 @@ sentry_options_new(void)
                                                             // both worlds
     opts->crash_upload_mode = SENTRY_CRASH_UPLOAD_MODE_SYNC;
     opts->enable_app_hang_tracking = false;
-    opts->app_hang_timeout_ms = 5000;
+    opts->app_hang_timeout = 5000;
     opts->http_retry = false;
     opts->send_client_reports = true;
     opts->enable_large_attachments = false;
@@ -979,15 +979,16 @@ sentry_options_get_enable_app_hang_tracking(const sentry_options_t *opts)
 }
 
 void
-sentry_options_set_app_hang_timeout_ms(sentry_options_t *opts, uint64_t millis)
+sentry_options_set_app_hang_timeout(
+    sentry_options_t *opts, uint64_t app_hang_timeout)
 {
-    opts->app_hang_timeout_ms = millis;
+    opts->app_hang_timeout = app_hang_timeout;
 }
 
 uint64_t
-sentry_options_get_app_hang_timeout_ms(const sentry_options_t *opts)
+sentry_options_get_app_hang_timeout(const sentry_options_t *opts)
 {
-    return opts->app_hang_timeout_ms;
+    return opts->app_hang_timeout;
 }
 
 void

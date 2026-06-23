@@ -123,9 +123,9 @@ sentry__app_hang_monitor_start(const sentry_options_t *options)
         return 0;
     }
 
-    g_timeout_ms = options->app_hang_timeout_ms;
+    g_timeout_ms = options->app_hang_timeout;
     if (g_timeout_ms == 0) {
-        SENTRY_WARN("app-hang: `app_hang_timeout_ms` is 0, hang detection is "
+        SENTRY_WARN("app-hang: `app_hang_timeout` is 0, hang detection is "
                     "disabled");
     }
     sentry__atomic_store(&g_stop, 0);
