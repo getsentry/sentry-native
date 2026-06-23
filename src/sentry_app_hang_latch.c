@@ -61,14 +61,17 @@ sentry__app_hang_set_active(bool active)
     sentry__atomic_store(&g_app_hang_active, active ? 1 : 0);
 }
 
+bool
+sentry__app_hang_is_active(void)
+{
+    return sentry__atomic_fetch(&g_app_hang_active) != 0;
+}
+
 void
 sentry__app_hang_disarm(void)
 {
-    // Called from the crash handler. This must stay async-signal-safe.
-    // Zeroing causes the watchdog's 'should_capture' to skip capture.
+    // Called from the crash handler, so this must stay async-signal-safe.
     sentry__atomic_store(&g_app_hang_active, 0);
-    sentry__atomic_store_u64(&g_target_tid, 0);
-    sentry__atomic_store_u64(&g_last_heartbeat_ms, 0);
 }
 
 uint64_t

@@ -23,6 +23,9 @@ void sentry__app_hang_latch_reset(void);
 // when detection is not running.
 void sentry__app_hang_set_active(bool active);
 
+// Whether app-hang detection is currently armed.
+bool sentry__app_hang_is_active(void);
+
 // Async-signal-safe disarm, called from the crash handler so a crash is not
 // also reported as an app-hang.
 void sentry__app_hang_disarm(void);

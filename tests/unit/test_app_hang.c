@@ -144,12 +144,10 @@ SENTRY_TEST(app_hang_disarm_prevents_capture)
     sentry_init(options);
 
     sentry_app_hang_heartbeat();
-    // Simulate entering the crash handler: disarm, then never heartbeat again.
+    // Simulate entering the crash handler: disarm -> never heartbeat again.
     sentry__app_hang_disarm();
 
-    // The latch is cleared, so the watchdog's should_capture predicate keeps
-    // returning false. Wait well past several timeout/poll cycles to be sure
-    // nothing fires.
+    // Wait well past several timeout/poll cycles to be sure nothing fires.
     for (int i = 0; i < 50; i++) {
         sleep_ms(10);
     }
