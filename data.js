@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1782223997886,
+  "lastUpdate": 1782224035818,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -26296,6 +26296,66 @@ window.BENCHMARK_DATA = {
             "value": 1.8994519999750992,
             "unit": "ms",
             "extra": "Min 1.851ms\nMax 1.994ms\nMean 1.911ms\nStdDev 0.054ms\nMedian 1.899ms\nCPU 0.551ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "49699333+dependabot[bot]@users.noreply.github.com",
+            "name": "dependabot[bot]",
+            "username": "dependabot[bot]"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "dbda270faaaf95db8f66ffc9269b05062d7aa04e",
+          "message": "build(deps): bump actions/setup-java from 5.2.0 to 5.3.0 (#1818)\n\nBumps [actions/setup-java](https://github.com/actions/setup-java) from 5.2.0 to 5.3.0.\n- [Release notes](https://github.com/actions/setup-java/releases)\n- [Commits](https://github.com/actions/setup-java/compare/be666c2fcd27ec809703dec50e508c2fdc7f6654...ad2b38190b15e4d6bdf0c97fb4fca8412226d287)\n\n---\nupdated-dependencies:\n- dependency-name: actions/setup-java\n  dependency-version: 5.3.0\n  dependency-type: direct:production\n  update-type: version-update:semver-minor\n...\n\nSigned-off-by: dependabot[bot] <support@github.com>\nCo-authored-by: dependabot[bot] <49699333+dependabot[bot]@users.noreply.github.com>",
+          "timestamp": "2026-06-23T16:10:40+02:00",
+          "tree_id": "772c13c231a8da0b843b6ed175f89e4c78d09554",
+          "url": "https://github.com/getsentry/sentry-native/commit/dbda270faaaf95db8f66ffc9269b05062d7aa04e"
+        },
+        "date": 1782224027494,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 0.9440790000070365,
+            "unit": "ms",
+            "extra": "Min 0.923ms\nMax 0.967ms\nMean 0.945ms\nStdDev 0.016ms\nMedian 0.944ms\nCPU 0.902ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 0.9283700000253248,
+            "unit": "ms",
+            "extra": "Min 0.905ms\nMax 1.006ms\nMean 0.936ms\nStdDev 0.041ms\nMedian 0.928ms\nCPU 0.921ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 3.2313540000075136,
+            "unit": "ms",
+            "extra": "Min 3.124ms\nMax 3.326ms\nMean 3.224ms\nStdDev 0.081ms\nMedian 3.231ms\nCPU 1.706ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.11714800001527692,
+            "unit": "ms",
+            "extra": "Min 0.114ms\nMax 0.127ms\nMean 0.119ms\nStdDev 0.005ms\nMedian 0.117ms\nCPU 0.071ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.028764000006731294,
+            "unit": "ms",
+            "extra": "Min 0.028ms\nMax 0.030ms\nMean 0.029ms\nStdDev 0.001ms\nMedian 0.029ms\nCPU 0.028ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 1.8664389999969444,
+            "unit": "ms",
+            "extra": "Min 1.833ms\nMax 1.932ms\nMean 1.880ms\nStdDev 0.040ms\nMedian 1.866ms\nCPU 0.545ms"
           }
         ]
       }
