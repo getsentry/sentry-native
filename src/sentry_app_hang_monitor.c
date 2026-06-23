@@ -103,6 +103,10 @@ worker(void *arg)
         uint64_t now = sentry__monotonic_time();
         if (sentry__app_hang_should_capture(
                 latch.last_heartbeat_ms, now, g_timeout_ms, last_fired_hb)) {
+            // Bail if disarmed. Keeps duplicate reporting window minimal
+            if (!sentry__app_hang_is_active()) {
+                break;
+            }
             // Only mark this freeze as fired when an event was actually
             // captured. A transient stackwalk failure (0 frames) must not
             // suppress retries while the thread remains stuck.
