@@ -2668,10 +2668,12 @@ SENTRY_EXPERIMENTAL_API int sentry_options_get_enable_app_hang_tracking(
 /**
  * Sets the app-hang detection timeout (in milliseconds). Defaults to 5000 ms.
  * If `enable_app_hang_tracking` is true and no heartbeat is received within
- * this window, an app-hang event is captured.
+ * this window, an app-hang event is captured. Detection is enabled/disabled via
+ * `enable_app_hang_tracking`, not via this timeout.
  *
- * Setting this to 0 while `enable_app_hang_tracking` is true is a
- * configuration error: the watchdog will log a warning and skip detection.
+ * The watchdog samples the heartbeat on a fixed internal interval, so timeouts
+ * shorter than 1000 ms cannot be resolved reliably. Values below that minimum
+ * are clamped up to it (with a warning).
  */
 SENTRY_EXPERIMENTAL_API void sentry_options_set_app_hang_timeout(
     sentry_options_t *opts, uint64_t app_hang_timeout);
