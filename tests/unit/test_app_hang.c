@@ -109,7 +109,7 @@ SENTRY_TEST(app_hang_monitor_fires)
     sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
     sentry_options_set_before_send(options, capture_before_send, NULL);
     sentry_options_set_enable_app_hang_tracking(options, 1);
-    sentry_options_set_app_hang_timeout_ms(options, 50);
+    sentry_options_set_app_hang_timeout(options, 50);
     sentry_init(options);
 
     sentry_app_hang_heartbeat();
@@ -173,7 +173,7 @@ SENTRY_TEST(app_hang_end_to_end)
     sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
     sentry_options_set_before_send(options, real_before_send, NULL);
     sentry_options_set_enable_app_hang_tracking(options, 1);
-    sentry_options_set_app_hang_timeout_ms(options, 50);
+    sentry_options_set_app_hang_timeout(options, 50);
     sentry_init(options);
 
     sentry_threadid_t t;
