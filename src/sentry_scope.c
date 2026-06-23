@@ -21,6 +21,8 @@
 #    define SENTRY_BACKEND "breakpad"
 #elif defined(SENTRY_BACKEND_INPROC)
 #    define SENTRY_BACKEND "inproc"
+#elif defined(SENTRY_BACKEND_NATIVE)
+#    define SENTRY_BACKEND "native"
 #endif
 
 static bool g_scope_initialized = false;
