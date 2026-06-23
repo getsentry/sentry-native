@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1782141220522,
+  "lastUpdate": 1782205407651,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -26056,6 +26056,66 @@ window.BENCHMARK_DATA = {
             "value": 1.8729529999745864,
             "unit": "ms",
             "extra": "Min 1.819ms\nMax 1.879ms\nMean 1.857ms\nStdDev 0.027ms\nMedian 1.873ms\nCPU 0.549ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "reg@bitfox.at",
+            "name": "Stefan Jandl",
+            "username": "bitsandfoxes"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "8c0a2b597b0951ba5577730b3fc3735c3da5e770",
+          "message": "fix: app hang option name convention (#1814)",
+          "timestamp": "2026-06-23T11:00:51+02:00",
+          "tree_id": "3d2e777b7740a6e9e2995022617dab35a52e2b6c",
+          "url": "https://github.com/getsentry/sentry-native/commit/8c0a2b597b0951ba5577730b3fc3735c3da5e770"
+        },
+        "date": 1782205400239,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 0.8855639999865161,
+            "unit": "ms",
+            "extra": "Min 0.863ms\nMax 0.978ms\nMean 0.901ms\nStdDev 0.044ms\nMedian 0.886ms\nCPU 0.857ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 0.8420020000130535,
+            "unit": "ms",
+            "extra": "Min 0.788ms\nMax 0.874ms\nMean 0.837ms\nStdDev 0.034ms\nMedian 0.842ms\nCPU 0.822ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 3.160390000005009,
+            "unit": "ms",
+            "extra": "Min 3.116ms\nMax 3.452ms\nMean 3.235ms\nStdDev 0.141ms\nMedian 3.160ms\nCPU 1.682ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.1319780000130777,
+            "unit": "ms",
+            "extra": "Min 0.118ms\nMax 0.230ms\nMean 0.147ms\nStdDev 0.047ms\nMedian 0.132ms\nCPU 0.073ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.027722000027097238,
+            "unit": "ms",
+            "extra": "Min 0.027ms\nMax 0.029ms\nMean 0.028ms\nStdDev 0.001ms\nMedian 0.028ms\nCPU 0.027ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 1.813421000008475,
+            "unit": "ms",
+            "extra": "Min 1.767ms\nMax 1.912ms\nMean 1.827ms\nStdDev 0.054ms\nMedian 1.813ms\nCPU 0.537ms"
           }
         ]
       }
