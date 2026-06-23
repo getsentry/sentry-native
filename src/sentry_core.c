@@ -831,7 +831,7 @@ fail:
 void
 sentry_handle_exception(const sentry_ucontext_t *uctx)
 {
-    // Disarm the app-hang monitor to avoid dupliace capture.
+    // Disarm the app-hang monitor to avoid duplicate capture.
     sentry__app_hang_set_active(false);
 
     SENTRY_WITH_OPTIONS (options) {
