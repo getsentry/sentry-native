@@ -912,7 +912,7 @@ def test_native_external_crash_reporter(cmake, httpserver):
     # Verify it's a minidump crash report and user feedback
     envelope = Envelope.deserialize(crash)
     assert envelope.headers["cache_dir"] == str(cache_dir)
-    assert_meta(envelope)
+    assert_meta(envelope, integration="native")
     assert_breadcrumb(envelope)
 
     envelope = Envelope.deserialize(feedback)
