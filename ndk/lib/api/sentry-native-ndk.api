@@ -86,6 +86,7 @@ public final class io/sentry/ndk/NdkHandlerStrategy : java/lang/Enum {
 
 public final class io/sentry/ndk/NdkOptions {
 	public fun <init> (Ljava/lang/String;ZLjava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;ILjava/lang/String;)V
+	public fun getAppHangTimeoutMillis ()J
 	public fun getDist ()Ljava/lang/String;
 	public fun getDsn ()Ljava/lang/String;
 	public fun getEnvironment ()Ljava/lang/String;
@@ -96,6 +97,9 @@ public final class io/sentry/ndk/NdkOptions {
 	public fun getSdkName ()Ljava/lang/String;
 	public fun getTracesSampleRate ()F
 	public fun isDebug ()Z
+	public fun isEnableAppHangTracking ()Z
+	public fun setAppHangTimeoutMillis (J)V
+	public fun setEnableAppHangTracking (Z)V
 	public fun setNdkHandlerStrategy (Lio/sentry/ndk/NdkHandlerStrategy;)V
 	public fun setTracesSampleRate (F)V
 }
