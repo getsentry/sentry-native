@@ -59,8 +59,6 @@ static sentry_mutex_t g_wait_mutex = SENTRY__MUTEX_INIT;
 static sentry_cond_t g_wait_cond;
 static uint64_t g_timeout_ms = 0;
 
-#    define SENTRY_APP_HANG_POLL_MS 500
-
 static size_t
 stackwalk_thread(uint64_t tid, void **ips, size_t max)
 {
@@ -127,10 +125,6 @@ sentry__app_hang_monitor_start(const sentry_options_t *options)
     }
 
     g_timeout_ms = options->app_hang_timeout;
-    if (g_timeout_ms == 0) {
-        SENTRY_WARN("app-hang: `app_hang_timeout` is 0, hang detection is "
-                    "disabled");
-    }
     sentry__cond_init(&g_wait_cond);
     // Arm before spawning: the worker uses is_active() as its run condition, so
     // it must already be true when the new thread first evaluates the loop.

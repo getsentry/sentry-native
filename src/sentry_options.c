@@ -1,5 +1,6 @@
 #include "sentry_options.h"
 #include "sentry_alloc.h"
+#include "sentry_app_hang_monitor.h"
 #include "sentry_attachment.h"
 #include "sentry_backend.h"
 #include "sentry_database.h"
@@ -982,6 +983,14 @@ void
 sentry_options_set_app_hang_timeout(
     sentry_options_t *opts, uint64_t app_hang_timeout)
 {
+    // Clamp up to the smallest timeout the watchdog can resolve (see
+    // SENTRY_APP_HANG_MIN_TIMEOUT_MS).
+    if (app_hang_timeout < SENTRY_APP_HANG_MIN_TIMEOUT_MS) {
+        SENTRY_WARNF("app-hang: `app_hang_timeout` of %" PRIu64
+                     "ms is below the minimum of %dms, clamping",
+            app_hang_timeout, SENTRY_APP_HANG_MIN_TIMEOUT_MS);
+        app_hang_timeout = SENTRY_APP_HANG_MIN_TIMEOUT_MS;
+    }
     opts->app_hang_timeout = app_hang_timeout;
 }
 
