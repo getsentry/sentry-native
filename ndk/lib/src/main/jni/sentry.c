@@ -348,6 +348,12 @@ Java_io_sentry_ndk_SentryNdk_initSentryNative(
     jmethodID traces_sample_rate_mid
         = (*env)->GetMethodID(env, options_cls, "getTracesSampleRate", "()F");
 
+    jmethodID enable_app_hang_tracking_mid = (*env)->GetMethodID(
+        env, options_cls, "isEnableAppHangTracking", "()Z");
+
+    jmethodID app_hang_timeout_mid = (*env)->GetMethodID(
+        env, options_cls, "getAppHangTimeoutMillis", "()J");
+
     (*env)->DeleteLocalRef(env, options_cls);
 
     char *outbox_path = NULL;
@@ -440,6 +446,18 @@ Java_io_sentry_ndk_SentryNdk_initSentryNative(
     jfloat traces_sample_rate = (jfloat)(*env)->CallFloatMethod(
         env, sentry_ndk_options, traces_sample_rate_mid);
     sentry_options_set_traces_sample_rate(options, traces_sample_rate);
+
+    jboolean enable_app_hang_tracking = (jboolean)(*env)->CallBooleanMethod(
+        env, sentry_ndk_options, enable_app_hang_tracking_mid);
+    sentry_options_set_enable_app_hang_tracking(
+        options, enable_app_hang_tracking);
+
+    jlong app_hang_timeout = (jlong)(*env)->CallLongMethod(
+        env, sentry_ndk_options, app_hang_timeout_mid);
+    if (app_hang_timeout < 0) {
+        app_hang_timeout = 0;
+    }
+    sentry_options_set_app_hang_timeout(options, (uint64_t)app_hang_timeout);
 
     int rv = sentry_init(options);
     return (jint)rv;
