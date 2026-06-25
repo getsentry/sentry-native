@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1782388915090,
+  "lastUpdate": 1782388947248,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -53254,6 +53254,66 @@ window.BENCHMARK_DATA = {
             "value": 7.335458000000017,
             "unit": "ms",
             "extra": "Min 7.274ms\nMax 10.553ms\nMean 8.338ms\nStdDev 1.501ms\nMedian 7.335ms\nCPU 1.022ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "mischan@abovevacant.com",
+            "name": "Mischan Toosarani-Hausberger",
+            "username": "supervacuus"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "4ab090e31b93980f63ea1bb26edfe91ed579efeb",
+          "message": "test(ndk): cover Android debug image loading with instrumentation tests (#1824)\n\n* test(ndk): cover Android debug image loading with instrumentation tests\n\n* make instrumentation test compatible with API 21\n\n* spotless",
+          "timestamp": "2026-06-25T13:57:23+02:00",
+          "tree_id": "f340e2f1288042adbd55ee3af013b571af9b8502",
+          "url": "https://github.com/getsentry/sentry-native/commit/4ab090e31b93980f63ea1bb26edfe91ed579efeb"
+        },
+        "date": 1782388938221,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 5.191416999991816,
+            "unit": "ms",
+            "extra": "Min 3.244ms\nMax 8.785ms\nMean 5.765ms\nStdDev 2.528ms\nMedian 5.191ms\nCPU 2.643ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 4.781124999965414,
+            "unit": "ms",
+            "extra": "Min 3.642ms\nMax 5.335ms\nMean 4.650ms\nStdDev 0.665ms\nMedian 4.781ms\nCPU 2.591ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 18.10050000000274,
+            "unit": "ms",
+            "extra": "Min 17.600ms\nMax 21.686ms\nMean 18.816ms\nStdDev 1.695ms\nMedian 18.101ms\nCPU 6.647ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.068999999996322,
+            "unit": "ms",
+            "extra": "Min 0.057ms\nMax 0.279ms\nMean 0.120ms\nStdDev 0.094ms\nMedian 0.069ms\nCPU 0.096ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.2852089999123564,
+            "unit": "ms",
+            "extra": "Min 0.229ms\nMax 0.483ms\nMean 0.317ms\nStdDev 0.097ms\nMedian 0.285ms\nCPU 0.317ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 10.909624999953849,
+            "unit": "ms",
+            "extra": "Min 9.634ms\nMax 13.285ms\nMean 11.023ms\nStdDev 1.431ms\nMedian 10.910ms\nCPU 1.701ms"
           }
         ]
       }
