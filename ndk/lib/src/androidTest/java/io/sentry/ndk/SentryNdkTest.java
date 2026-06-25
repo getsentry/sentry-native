@@ -6,10 +6,12 @@ import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
 import androidx.test.ext.junit.runners.AndroidJUnit4;
+import java.io.BufferedReader;
+import java.io.ByteArrayOutputStream;
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
+import java.io.InputStreamReader;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 import org.junit.runner.RunWith;
@@ -29,25 +31,66 @@ public class SentryNdkTest {
     }
   }
 
+  private static int compareUnsignedLong(final long left, final long right) {
+    final long biasedLeft = left ^ Long.MIN_VALUE;
+    final long biasedRight = right ^ Long.MIN_VALUE;
+    if (biasedLeft == biasedRight) {
+      return 0;
+    }
+    return biasedLeft < biasedRight ? -1 : 1;
+  }
+
+  private static long parseHexLong(final String hex) {
+    long result = 0;
+    for (int i = 0; i < hex.length(); i++) {
+      final int digit = Character.digit(hex.charAt(i), 16);
+      if (digit < 0) {
+        throw new NumberFormatException(hex);
+      }
+      result = (result << 4) | digit;
+    }
+    return result;
+  }
+
   private static boolean containsAddress(final long address, final long start, final long end) {
-    return Long.compareUnsigned(address, start) >= 0
-        && Long.compareUnsigned(address, end) < 0;
+    return compareUnsignedLong(address, start) >= 0 && compareUnsignedLong(address, end) < 0;
+  }
+
+  private static String readFile(final File file) throws IOException {
+    final ByteArrayOutputStream out = new ByteArrayOutputStream();
+    final byte[] buf = new byte[4096];
+    final FileInputStream in = new FileInputStream(file);
+    try {
+      int read;
+      while ((read = in.read(buf)) != -1) {
+        out.write(buf, 0, read);
+      }
+    } finally {
+      in.close();
+    }
+    return out.toString("UTF-8");
   }
 
   private static ProcMapEntry findProcMapEntryContaining(final long address) throws IOException {
-    for (String line : Files.readAllLines(new File("/proc/self/maps").toPath())) {
-      final int dash = line.indexOf('-');
-      final int space = line.indexOf(' ', dash + 1);
-      if (dash < 1 || space < 0) {
-        continue;
-      }
+    final BufferedReader reader =
+        new BufferedReader(new InputStreamReader(new FileInputStream("/proc/self/maps"), "UTF-8"));
+    try {
+      String line;
+      while ((line = reader.readLine()) != null) {
+        final int dash = line.indexOf('-');
+        final int space = line.indexOf(' ', dash + 1);
+        if (dash < 1 || space < 0) {
+          continue;
+        }
 
-      final long start = Long.parseUnsignedLong(line.substring(0, dash), 16);
-      final long end =
-          Long.parseUnsignedLong(line.substring(dash + 1, space), 16);
-      if (containsAddress(address, start, end)) {
-        return new ProcMapEntry(start, end, line);
+        final long start = parseHexLong(line.substring(0, dash));
+        final long end = parseHexLong(line.substring(dash + 1, space));
+        if (containsAddress(address, start, end)) {
+          return new ProcMapEntry(start, end, line);
+        }
       }
+    } finally {
+      reader.close();
     }
     return null;
   }
@@ -158,7 +201,7 @@ public class SentryNdkTest {
     assertNotNull(files);
     assertEquals(1, files.length);
     File firstFile = files[0];
-    String content = new String(Files.readAllBytes(firstFile.toPath()), StandardCharsets.UTF_8);
+    String content = readFile(firstFile);
     assertTrue(content.contains("It works!")); // expected message content from
     // Java_io_sentry_ndk_NdkTestHelper_message(..) in ndk-test.cpp
 
@@ -196,7 +239,7 @@ public class SentryNdkTest {
       if (imageAddr == null || imageSize == null || imageSize <= 0) {
         continue;
       }
-      final long start = Long.parseUnsignedLong(imageAddr.replace("0x", ""), 16);
+      final long start = parseHexLong(imageAddr.replace("0x", ""));
       final long end = start + imageSize;
       if (containsAddress(sentryAddress, start, end)) {
         sentryImage = image;
@@ -213,8 +256,8 @@ public class SentryNdkTest {
     assertNotNull(sentryImage.getCodeFile());
     assertNotNull(sentryImage.getDebugId());
     assertNotNull(sentryImage.getCodeId());
-    assertTrue(Long.compareUnsigned(sentryImageStart, sentryProcMapEntry.start) <= 0);
-    assertTrue(Long.compareUnsigned(sentryImageEnd, sentryProcMapEntry.end) >= 0);
+    assertTrue(compareUnsignedLong(sentryImageStart, sentryProcMapEntry.start) <= 0);
+    assertTrue(compareUnsignedLong(sentryImageEnd, sentryProcMapEntry.end) >= 0);
   }
 
   @Test
@@ -247,7 +290,7 @@ public class SentryNdkTest {
     assertNotNull(files);
     assertEquals(1, files.length);
     File firstFile = files[0];
-    String content = new String(Files.readAllBytes(firstFile.toPath()), StandardCharsets.UTF_8);
+    String content = readFile(firstFile);
     assertTrue(content.contains("\"type\":\"transaction\""));
   }
 
