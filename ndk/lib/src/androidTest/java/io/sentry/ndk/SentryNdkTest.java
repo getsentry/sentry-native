@@ -17,6 +17,41 @@ import org.junit.runner.RunWith;
 @RunWith(AndroidJUnit4.class)
 public class SentryNdkTest {
 
+  private static final class ProcMapEntry {
+    private final long start;
+    private final long end;
+    private final String line;
+
+    private ProcMapEntry(final long start, final long end, final String line) {
+      this.start = start;
+      this.end = end;
+      this.line = line;
+    }
+  }
+
+  private static boolean containsAddress(final long address, final long start, final long end) {
+    return Long.compareUnsigned(address, start) >= 0
+        && Long.compareUnsigned(address, end) < 0;
+  }
+
+  private static ProcMapEntry findProcMapEntryContaining(final long address) throws IOException {
+    for (String line : Files.readAllLines(new File("/proc/self/maps").toPath())) {
+      final int dash = line.indexOf('-');
+      final int space = line.indexOf(' ', dash + 1);
+      if (dash < 1 || space < 0) {
+        continue;
+      }
+
+      final long start = Long.parseUnsignedLong(line.substring(0, dash), 16);
+      final long end =
+          Long.parseUnsignedLong(line.substring(dash + 1, space), 16);
+      if (containsAddress(address, start, end)) {
+        return new ProcMapEntry(start, end, line);
+      }
+    }
+    return null;
+  }
+
   @Test
   public void initDoesNotFail() throws IOException {
     final TemporaryFolder temporaryFolder = TemporaryFolder.builder().build();
@@ -130,6 +165,56 @@ public class SentryNdkTest {
     // and the breadcrumb data is well formed.
     assertTrue(content.contains("\"some_key\":\"some_value\""));
     assertFalse(content.contains("\"data\":\"{"));
+
+    // and native events carry module debug images.
+    assertTrue(content.contains("\"debug_meta\""));
+    assertTrue(content.contains("\"images\":[{"));
+  }
+
+  @Test
+  public void nativeModuleListLoadsDebugImages() throws IOException {
+    SentryNdk.loadNativeLibraries();
+
+    final long sentryAddress = NdkTestHelper.sentryGetModulesListAddress();
+    final ProcMapEntry sentryProcMapEntry = findProcMapEntryContaining(sentryAddress);
+    assertNotNull("/proc/self/maps should contain the loaded libsentry symbol", sentryProcMapEntry);
+
+    final NativeModuleListLoader loader = new NativeModuleListLoader();
+    loader.clearModuleList();
+
+    final DebugImage[] images = loader.loadModuleList();
+
+    assertNotNull(images);
+    assertTrue(images.length > 0);
+
+    DebugImage sentryImage = null;
+    long sentryImageStart = 0;
+    long sentryImageEnd = 0;
+    for (DebugImage image : images) {
+      final String imageAddr = image.getImageAddr();
+      final Long imageSize = image.getImageSize();
+      if (imageAddr == null || imageSize == null || imageSize <= 0) {
+        continue;
+      }
+      final long start = Long.parseUnsignedLong(imageAddr.replace("0x", ""), 16);
+      final long end = start + imageSize;
+      if (containsAddress(sentryAddress, start, end)) {
+        sentryImage = image;
+        sentryImageStart = start;
+        sentryImageEnd = end;
+        break;
+      }
+    }
+
+    assertNotNull(
+        "module list should contain the loaded libsentry image from " + sentryProcMapEntry.line,
+        sentryImage);
+    assertEquals("elf", sentryImage.getType());
+    assertNotNull(sentryImage.getCodeFile());
+    assertNotNull(sentryImage.getDebugId());
+    assertNotNull(sentryImage.getCodeId());
+    assertTrue(Long.compareUnsigned(sentryImageStart, sentryProcMapEntry.start) <= 0);
+    assertTrue(Long.compareUnsigned(sentryImageEnd, sentryProcMapEntry.end) >= 0);
   }
 
   @Test

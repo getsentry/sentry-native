@@ -461,6 +461,7 @@ jobs:
             adb shell cmd alarm set-time $(date +%s000) || adb shell su root date $(date -u +%m%d%H%M%Y.%S)
             pip install --upgrade --requirement tests/requirements.txt
             pytest --capture=no --verbose tests
+            (cd ndk && ./gradlew :sentry-native-ndk:connectedDebugAndroidTest --stacktrace)
 
       - name: Test
         if: ${{ !env['ANDROID_API'] }}
