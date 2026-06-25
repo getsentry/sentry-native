@@ -14,18 +14,17 @@ import org.jetbrains.annotations.Nullable;
 /**
  * Preloads the NDK integration before the .NET runtime provider on Android.
  *
- * <p>This is intended for downstream SDK integrations that run with CoreCLR on
- * Android. By installing sentry-native before the managed runtime registers
- * its own signal handlers, native crash signals can chain from the runtime
- * back to the Native SDK, while runtime-generated fault signals can still be
- * consumed by the runtime for managed exception handling.
+ * <p>This is intended for downstream SDK integrations that run with CoreCLR on Android. By
+ * installing sentry-native before the managed runtime registers its own signal handlers, native
+ * crash signals can chain from the runtime back to the Native SDK, while runtime-generated fault
+ * signals can still be consumed by the runtime for managed exception handling.
  *
- * <p>This is the preload alternative to CHAIN_AT_START. Mono on Android
- * continues to use CHAIN_AT_START.
+ * <p>This is the preload alternative to CHAIN_AT_START. Mono on Android continues to use
+ * CHAIN_AT_START.
  *
- * <p>Enabled by setting {@code io.sentry.ndk.preload} to {@code true} in the
- * app manifest metadata. The high {@code initOrder} ensures this runs before
- * the runtime provider emitted by dotnet/android.
+ * <p>Enabled by setting {@code io.sentry.ndk.preload} to {@code true} in the app manifest metadata.
+ * The high {@code initOrder} ensures this runs before the runtime provider emitted by
+ * dotnet/android.
  */
 public final class SentryNdkPreloadProvider extends ContentProvider {
 
@@ -73,7 +72,8 @@ public final class SentryNdkPreloadProvider extends ContentProvider {
   }
 
   @Override
-  public int delete(@NotNull Uri uri, @Nullable String selection, @Nullable String[] selectionArgs) {
+  public int delete(
+      @NotNull Uri uri, @Nullable String selection, @Nullable String[] selectionArgs) {
     return 0;
   }
 
