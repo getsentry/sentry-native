@@ -454,8 +454,10 @@ Java_io_sentry_ndk_SentryNdk_initSentryNative(
 
     jlong app_hang_timeout = (jlong)(*env)->CallLongMethod(
         env, sentry_ndk_options, app_hang_timeout_mid);
-    sentry_options_set_app_hang_timeout(
-        options, (uint64_t)app_hang_timeout);
+    if (app_hang_timeout < 0) {
+        app_hang_timeout = 0;
+    }
+    sentry_options_set_app_hang_timeout(options, (uint64_t)app_hang_timeout);
 
     int rv = sentry_init(options);
     return (jint)rv;
