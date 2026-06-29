@@ -24,4 +24,21 @@ bool sentry__session_replay_capture(
  */
 sentry_path_t *sentry__session_replay_get_path(const sentry_options_t *options);
 
+/**
+ * Build and send any pending session-replay envelopes staged by an embedder in
+ * `<database>/replays/` (a `replay-<id>.json` metadata sidecar next to its mp4).
+ *
+ * For each pending replay this parses the sidecar, reads the mp4, constructs the
+ * `replay_video` envelope and hands it to `transport`, then deletes the sources
+ * so it is not re-sent. `end_timestamp_sec` is the authoritative end-of-window
+ * (crash) time; when <= 0 the `<database>/last_crash` marker is consulted, and
+ * failing that the sidecar's own end timestamp is used.
+ *
+ * Called out-of-process by the daemon at crash time (same-session delivery) and
+ * at `sentry_init` for the other backends (next-launch delivery, gated on a
+ * crash having occurred).
+ */
+void sentry__session_replay_flush_pending(const sentry_options_t *options,
+    sentry_transport_t *transport, double end_timestamp_sec);
+
 #endif

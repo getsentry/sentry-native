@@ -3571,6 +3571,14 @@ sentry__process_crash(const sentry_options_t *options, sentry_crash_ipc_t *ipc)
 #endif
 
 cleanup:
+    // Build and send any session-replay envelope the embedder staged in
+    // `<database>/replays/`, out-of-process and same-session. Sources are
+    // deleted on send so the next launch does not resend them. `end == 0`
+    // makes it read the crash time from the `last_crash` marker.
+    if (options && options->transport) {
+        sentry__session_replay_flush_pending(options, options->transport, 0.0);
+    }
+
     // Send all other envelopes from run folder (logs, etc.) before cleanup
     if (run_folder && options && options->transport && options->run) {
         SENTRY_DEBUG("Checking for additional envelopes in run folder");
