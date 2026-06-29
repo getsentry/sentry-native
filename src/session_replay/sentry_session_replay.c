@@ -20,9 +20,9 @@ sentry__session_replay_get_path(const sentry_options_t *options)
 }
 
 // Resolve the database dir. Prefer the run path's parent: it is always the
-// absolute run location. `options->database_path` is unreliable here because the
-// crash daemon never overrides the default relative ".sentry-native" (set in
-// sentry_options_new) with the app's absolute path, so it must only be a
+// absolute run location. `options->database_path` is unreliable here because
+// the crash daemon never overrides the default relative ".sentry-native" (set
+// in sentry_options_new) with the app's absolute path, so it must only be a
 // fallback. Caller owns the returned path.
 static sentry_path_t *
 session_replay_database_dir(const sentry_options_t *options)
@@ -104,7 +104,7 @@ build_replay_event(sentry_value_t meta, const char *replay_id, double start_sec,
     double end_sec, int32_t segment_id)
 {
     const char *replay_type
-        = sentry_value_as_string(sentry_value_get_by_key(meta, "replay_type"));
+        = sentry_value_as_string(sentry_value_get_by_key(meta, "replayType"));
 
     sentry_value_t event = sentry_value_new_object();
     sentry_value_set_by_key(
@@ -165,9 +165,9 @@ build_replay_recording(sentry_value_t meta, double start_sec,
     sentry_value_set_by_key(payload, "left", sentry_value_new_int32(0));
     sentry_value_set_by_key(payload, "top", sentry_value_new_int32(0));
     sentry_value_set_by_key(payload, "frameCount",
-        sentry_value_new_int32(meta_int32(meta, "frame_count")));
+        sentry_value_new_int32(meta_int32(meta, "frameCount")));
     sentry_value_set_by_key(payload, "frameRate",
-        sentry_value_new_int32(meta_int32(meta, "frame_rate")));
+        sentry_value_new_int32(meta_int32(meta, "frameRate")));
     sentry_value_set_by_key(
         payload, "frameRateType", sentry_value_new_string("variable"));
     sentry_value_t video_data = sentry_value_new_object();
@@ -198,7 +198,7 @@ build_replay_envelope(const sentry_options_t *options, sentry_value_t meta,
     }
 
     const char *replay_id
-        = sentry_value_as_string(sentry_value_get_by_key(meta, "replay_id"));
+        = sentry_value_as_string(sentry_value_get_by_key(meta, "replayId"));
     if (!replay_id || !replay_id[0]) {
         return NULL;
     }
@@ -210,12 +210,12 @@ build_replay_envelope(const sentry_options_t *options, sentry_value_t meta,
         return NULL;
     }
 
-    const double duration_ms = meta_double(meta, "duration_ms");
+    const double duration_ms = meta_double(meta, "durationMs");
     if (end_sec <= 0.0) {
-        end_sec = meta_double(meta, "end_timestamp_sec");
+        end_sec = meta_double(meta, "endTimestampSec");
     }
     const double start_sec = end_sec - duration_ms / 1000.0;
-    const int32_t segment_id = meta_int32(meta, "segment_id");
+    const int32_t segment_id = meta_int32(meta, "segmentId");
 
     sentry_value_t event
         = build_replay_event(meta, replay_id, start_sec, end_sec, segment_id);
@@ -326,7 +326,7 @@ sentry__session_replay_flush_pending(const sentry_options_t *options,
         sentry_free(json);
 
         const char *video_filename = sentry_value_as_string(
-            sentry_value_get_by_key(meta, "video_filename"));
+            sentry_value_get_by_key(meta, "videoFilename"));
         sentry_path_t *mp4_path = (video_filename && video_filename[0])
             ? sentry__path_join_str(dir, video_filename)
             : NULL;
