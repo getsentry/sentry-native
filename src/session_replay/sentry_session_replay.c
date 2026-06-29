@@ -151,8 +151,8 @@ build_replay_recording(sentry_value_t meta, double start_sec,
     sentry_value_set_by_key(payload, "left", sentry_value_new_int32(0));
     sentry_value_set_by_key(payload, "top", sentry_value_new_int32(0));
     sentry_value_set_by_key(payload, "frameCount",
-        sentry_value_new_int32(
-            sentry_value_as_int32(sentry_value_get_by_key(meta, "frameCount"))));
+        sentry_value_new_int32(sentry_value_as_int32(
+            sentry_value_get_by_key(meta, "frameCount"))));
     sentry_value_set_by_key(payload, "frameRate",
         sentry_value_new_int32(
             sentry_value_as_int32(sentry_value_get_by_key(meta, "frameRate"))));
