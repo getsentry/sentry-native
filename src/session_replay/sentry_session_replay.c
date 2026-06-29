@@ -57,18 +57,6 @@ session_replay_dir(const sentry_options_t *options)
     return replays;
 }
 
-static int32_t
-meta_int32(sentry_value_t meta, const char *key)
-{
-    return sentry_value_as_int32(sentry_value_get_by_key(meta, key));
-}
-
-static double
-meta_double(sentry_value_t meta, const char *key)
-{
-    return sentry_value_as_double(sentry_value_get_by_key(meta, key));
-}
-
 // Build the replay_event from the recorder's metadata. When `scope_source` (the
 // crash event) is non-null, its scope fields and trace id are copied onto the
 // replay so it shares the crash's context. `error_ids` is omitted (deprecated).
@@ -134,8 +122,10 @@ static sentry_value_t
 build_replay_recording(sentry_value_t meta, double start_sec,
     int32_t segment_id, double size_bytes, double duration_ms)
 {
-    const int32_t width = meta_int32(meta, "width");
-    const int32_t height = meta_int32(meta, "height");
+    const int32_t width
+        = sentry_value_as_int32(sentry_value_get_by_key(meta, "width"));
+    const int32_t height
+        = sentry_value_as_int32(sentry_value_get_by_key(meta, "height"));
     const double ts_ms = start_sec * 1000.0;
 
     sentry_value_t meta_data = sentry_value_new_object();
@@ -165,9 +155,11 @@ build_replay_recording(sentry_value_t meta, double start_sec,
     sentry_value_set_by_key(payload, "left", sentry_value_new_int32(0));
     sentry_value_set_by_key(payload, "top", sentry_value_new_int32(0));
     sentry_value_set_by_key(payload, "frameCount",
-        sentry_value_new_int32(meta_int32(meta, "frameCount")));
+        sentry_value_new_int32(
+            sentry_value_as_int32(sentry_value_get_by_key(meta, "frameCount"))));
     sentry_value_set_by_key(payload, "frameRate",
-        sentry_value_new_int32(meta_int32(meta, "frameRate")));
+        sentry_value_new_int32(
+            sentry_value_as_int32(sentry_value_get_by_key(meta, "frameRate"))));
     sentry_value_set_by_key(
         payload, "frameRateType", sentry_value_new_string("variable"));
     sentry_value_t video_data = sentry_value_new_object();
@@ -210,12 +202,15 @@ build_replay_envelope(const sentry_options_t *options, sentry_value_t meta,
         return NULL;
     }
 
-    const double duration_ms = meta_double(meta, "durationMs");
+    const double duration_ms
+        = sentry_value_as_double(sentry_value_get_by_key(meta, "durationMs"));
     if (end_sec <= 0.0) {
-        end_sec = meta_double(meta, "endTimestampSec");
+        end_sec = sentry_value_as_double(
+            sentry_value_get_by_key(meta, "endTimestampSec"));
     }
     const double start_sec = end_sec - duration_ms / 1000.0;
-    const int32_t segment_id = meta_int32(meta, "segmentId");
+    const int32_t segment_id
+        = sentry_value_as_int32(sentry_value_get_by_key(meta, "segmentId"));
 
     sentry_value_t event = build_replay_event(
         meta, replay_id, start_sec, end_sec, segment_id, scope_source);
