@@ -19,18 +19,28 @@ sentry__session_replay_get_path(const sentry_options_t *options)
     return sentry__path_join_str(options->run->run_path, "session-replay.mp4");
 }
 
-// Resolve `<database>/replays`. The daemon only populates `options->run`, not
-// `options->database_path`, so derive the database dir from the run path's
-// parent (works for both the daemon and a regular init). Caller owns the path.
+// Resolve the database dir. Prefer the run path's parent: it is always the
+// absolute run location. `options->database_path` is unreliable here because the
+// crash daemon never overrides the default relative ".sentry-native" (set in
+// sentry_options_new) with the app's absolute path, so it must only be a
+// fallback. Caller owns the returned path.
+static sentry_path_t *
+session_replay_database_dir(const sentry_options_t *options)
+{
+    if (options->run && options->run->run_path) {
+        return sentry__path_dir(options->run->run_path);
+    }
+    if (options->database_path) {
+        return sentry__path_clone(options->database_path);
+    }
+    return NULL;
+}
+
+// Resolve `<database>/replays`. Caller owns the path.
 static sentry_path_t *
 session_replay_dir(const sentry_options_t *options)
 {
-    sentry_path_t *db_dir = NULL;
-    if (options->database_path) {
-        db_dir = sentry__path_clone(options->database_path);
-    } else if (options->run && options->run->run_path) {
-        db_dir = sentry__path_dir(options->run->run_path);
-    }
+    sentry_path_t *db_dir = session_replay_database_dir(options);
     if (!db_dir) {
         return NULL;
     }
@@ -44,12 +54,7 @@ session_replay_dir(const sentry_options_t *options)
 static double
 session_replay_marker_time_sec(const sentry_options_t *options)
 {
-    sentry_path_t *db_dir = NULL;
-    if (options->database_path) {
-        db_dir = sentry__path_clone(options->database_path);
-    } else if (options->run && options->run->run_path) {
-        db_dir = sentry__path_dir(options->run->run_path);
-    }
+    sentry_path_t *db_dir = session_replay_database_dir(options);
     if (!db_dir) {
         return 0.0;
     }
