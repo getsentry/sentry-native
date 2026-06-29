@@ -82,7 +82,7 @@ build_replay_event(sentry_value_t meta, const char *replay_id, double start_sec,
         static const char *const scope_keys[] = { "tags", "contexts", "release",
             "environment", "dist", "user", "sdk" };
         for (size_t i = 0; i < sizeof(scope_keys) / sizeof(scope_keys[0]);
-             i++) {
+            i++) {
             sentry_value_t v
                 = sentry_value_get_by_key(scope_source, scope_keys[i]);
             if (!sentry_value_is_null(v)) {
@@ -280,8 +280,8 @@ sentry__session_replay_flush_pending(const sentry_options_t *options,
         return;
     }
 
-    // End the replay window at the crash time (from the crash event); falls back
-    // to the sidecar's own end timestamp in build_replay_envelope.
+    // End the replay window at the crash time (from the crash event); falls
+    // back to the sidecar's own end timestamp in build_replay_envelope.
     double end_sec = 0.0;
     if (!sentry_value_is_null(scope_source)) {
         const char *ts = sentry_value_as_string(
