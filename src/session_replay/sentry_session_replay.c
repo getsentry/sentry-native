@@ -8,7 +8,29 @@
 #include "sentry_utils.h"
 #include "sentry_value.h"
 
+#if defined(_MSC_VER)
+#    pragma warning(push)
+#    pragma warning(disable : 4127) // conditional expression is constant
+#    if defined(__clang__) // clang-cl
+#        pragma clang diagnostic push
+#        pragma clang diagnostic ignored "-Wdocumentation"
+#        pragma clang diagnostic ignored "-Wpre-c11-compat"
+#    endif
+#elif defined(__clang__)
+#    pragma clang diagnostic push
+#    pragma clang diagnostic ignored "-Wstatic-in-inline"
+#endif
+
 #include "../vendor/mpack.h"
+
+#if defined(_MSC_VER)
+#    pragma warning(pop)
+#    ifdef __clang__ // clang-cl
+#        pragma clang diagnostic pop
+#    endif
+#elif defined(__clang__)
+#    pragma clang diagnostic pop
+#endif
 
 #include <stdio.h>
 
