@@ -40,8 +40,6 @@ sentry__session_replay_get_path(const sentry_options_t *options)
     return sentry__path_join_str(options->run->run_path, "session-replay.mp4");
 }
 
-// Resolve `<database>/replays` from the run path's parent (the daemon's
-// `options->database_path` is an unusable relative default). Caller owns it.
 static sentry_path_t *
 session_replay_dir(const sentry_options_t *options)
 {
@@ -88,7 +86,6 @@ build_replay_event(sentry_value_t meta, const char *replay_id, double start_sec,
     sentry_value_set_by_key(event, "urls", sentry_value_new_list());
 
     if (!sentry_value_is_null(scope_source)) {
-        // Scope fields only, not the crash's exception/threads.
         static const char *const scope_keys[] = { "tags", "contexts", "release",
             "environment", "dist", "user", "sdk" };
         for (size_t i = 0; i < sizeof(scope_keys) / sizeof(scope_keys[0]);
@@ -101,7 +98,6 @@ build_replay_event(sentry_value_t meta, const char *replay_id, double start_sec,
             }
         }
 
-        // trace_ids <- contexts.trace.trace_id
         sentry_value_t trace_id = sentry_value_get_by_key(
             sentry_value_get_by_key(
                 sentry_value_get_by_key(scope_source, "contexts"), "trace"),
@@ -257,7 +253,6 @@ build_replay_envelope(const sentry_options_t *options, sentry_value_t meta,
         if (body_ok && body) {
             envelope = sentry__envelope_new();
             if (envelope) {
-                // Relay keys the replay on the envelope event_id.
                 sentry__envelope_set_header(
                     envelope, "event_id", sentry_value_new_string(replay_id));
                 const char *dsn = sentry_options_get_dsn(options);
@@ -338,8 +333,6 @@ sentry__session_replay_flush_pending(const sentry_options_t *options,
             sentry__capture_envelope(transport, envelope, options);
         }
 
-        // Leave the sources on disk: the embedder owns `<database>/replays` and
-        // clears it next launch, and the mp4 may still back a crash attachment.
         sentry__path_free(mp4_path);
         sentry_value_decref(meta);
     }
