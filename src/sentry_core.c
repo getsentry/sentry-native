@@ -10,7 +10,6 @@
 #include "sentry_client_report.h"
 #include "sentry_core.h"
 #include "sentry_database.h"
-#include "sentry_session_replay.h"
 #include "sentry_envelope.h"
 #include "sentry_hint.h"
 #include "sentry_logs.h"
@@ -250,17 +249,9 @@ sentry_init(sentry_options_t *options)
     SENTRY_DEBUG("processing and pruning old runs");
     sentry__process_old_runs(options, last_crash);
 
-    // Build and send any session-replay envelope the embedder staged in
-    // `<database>/replays/`. Gating is by file presence: the embedder removes the
-    // staged files on a clean shutdown, so anything left here belongs to a session
-    // that terminated abnormally (a crash, including the WER/stack-overflow path).
-    // This runs in the healthy newly-started process for the crashpad/breakpad/
-    // inproc backends; the daemon backend already handled its own out-of-process,
-    // same-session. Passing 0 lets it read the crash time from the `last_crash`
-    // marker, falling back to the sidecar's own end timestamp.
-    if (options->transport) {
-        sentry__session_replay_flush_pending(options, options->transport, 0.0);
-    }
+    // Session replay is a native-daemon-only feature: its envelope is built and
+    // sent out-of-process by the crash daemon, same-session, so there is no
+    // next-launch handling here.
     if (backend && backend->prune_database_func) {
         backend->prune_database_func(backend);
     }

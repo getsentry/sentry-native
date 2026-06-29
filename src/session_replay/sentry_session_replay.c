@@ -49,41 +49,6 @@ session_replay_dir(const sentry_options_t *options)
     return replays;
 }
 
-// Read the `<database>/last_crash` marker (ISO8601, written by the in-process
-// crash handlers) and return the crash time in seconds, or 0 if unavailable.
-static double
-session_replay_marker_time_sec(const sentry_options_t *options)
-{
-    sentry_path_t *db_dir = session_replay_database_dir(options);
-    if (!db_dir) {
-        return 0.0;
-    }
-    sentry_path_t *marker = sentry__path_join_str(db_dir, "last_crash");
-    sentry__path_free(db_dir);
-    if (!marker) {
-        return 0.0;
-    }
-
-    size_t len = 0;
-    char *buf = sentry__path_read_to_buffer(marker, &len);
-    sentry__path_free(marker);
-    if (!buf || len == 0) {
-        sentry_free(buf);
-        return 0.0;
-    }
-
-    char iso[40];
-    if (len >= sizeof(iso)) {
-        len = sizeof(iso) - 1;
-    }
-    memcpy(iso, buf, len);
-    iso[len] = '\0';
-    sentry_free(buf);
-
-    uint64_t usec = sentry__iso8601_to_usec(iso);
-    return usec ? (double)usec / 1000000.0 : 0.0;
-}
-
 static int32_t
 meta_int32(sentry_value_t meta, const char *key)
 {
@@ -96,12 +61,18 @@ meta_double(sentry_value_t meta, const char *key)
     return sentry_value_as_double(sentry_value_get_by_key(meta, key));
 }
 
-// Build the replay_event payload from the recorder's metadata. The replay is
-// associated with the error via the `replay` context on the event, so no
-// `error_ids`/`trace_ids` are needed here (the former is deprecated).
+// Build the replay_event payload from the recorder's metadata, enriched with
+// the crashed session's scope when `scope_source` is provided. `scope_source`
+// is the crash event the daemon read from `<run>/__sentry-event`, which the
+// in-process handler already ran `sentry__scope_apply_to_event` on; we reuse
+// that here so the replay carries the same
+// tags/contexts/release/environment/user/sdk/trace as the crash without
+// re-applying the scope. Pass a null value to skip enrichment. The replay is
+// associated with the error via the `replay` context on the event, so
+// `error_ids` is intentionally omitted (it is deprecated).
 static sentry_value_t
 build_replay_event(sentry_value_t meta, const char *replay_id, double start_sec,
-    double end_sec, int32_t segment_id)
+    double end_sec, int32_t segment_id, sentry_value_t scope_source)
 {
     const char *replay_type
         = sentry_value_as_string(sentry_value_get_by_key(meta, "replayType"));
@@ -125,6 +96,34 @@ build_replay_event(sentry_value_t meta, const char *replay_id, double start_sec,
     sentry_value_set_by_key(
         event, "replay_start_timestamp", sentry_value_new_double(start_sec));
     sentry_value_set_by_key(event, "urls", sentry_value_new_list());
+
+    if (!sentry_value_is_null(scope_source)) {
+        // Copy the scope-derived fields (not exception/threads) from the crash
+        // event so the replay reflects the same session context.
+        static const char *const scope_keys[] = { "tags", "contexts", "release",
+            "environment", "dist", "user", "sdk" };
+        for (size_t i = 0; i < sizeof(scope_keys) / sizeof(scope_keys[0]);
+             i++) {
+            sentry_value_t v
+                = sentry_value_get_by_key(scope_source, scope_keys[i]);
+            if (!sentry_value_is_null(v)) {
+                sentry_value_incref(v);
+                sentry_value_set_by_key(event, scope_keys[i], v);
+            }
+        }
+
+        // trace_ids <- contexts.trace.trace_id
+        sentry_value_t trace_id = sentry_value_get_by_key(
+            sentry_value_get_by_key(
+                sentry_value_get_by_key(scope_source, "contexts"), "trace"),
+            "trace_id");
+        sentry_value_t trace_ids = sentry_value_new_list();
+        if (!sentry_value_is_null(trace_id)) {
+            sentry_value_incref(trace_id);
+            sentry_value_append(trace_ids, trace_id);
+        }
+        sentry_value_set_by_key(event, "trace_ids", trace_ids);
+    }
     return event;
 }
 
@@ -191,7 +190,7 @@ build_replay_recording(sentry_value_t meta, double start_sec,
 // sidecar's own end timestamp is used. Returns NULL on failure.
 static sentry_envelope_t *
 build_replay_envelope(const sentry_options_t *options, sentry_value_t meta,
-    const sentry_path_t *mp4_path, double end_sec)
+    const sentry_path_t *mp4_path, double end_sec, sentry_value_t scope_source)
 {
     if (sentry_value_is_null(meta) || !mp4_path) {
         return NULL;
@@ -217,8 +216,8 @@ build_replay_envelope(const sentry_options_t *options, sentry_value_t meta,
     const double start_sec = end_sec - duration_ms / 1000.0;
     const int32_t segment_id = meta_int32(meta, "segmentId");
 
-    sentry_value_t event
-        = build_replay_event(meta, replay_id, start_sec, end_sec, segment_id);
+    sentry_value_t event = build_replay_event(
+        meta, replay_id, start_sec, end_sec, segment_id, scope_source);
     sentry_value_t recording = build_replay_recording(
         meta, start_sec, segment_id, (double)video_len, duration_ms);
 
@@ -287,7 +286,7 @@ build_replay_envelope(const sentry_options_t *options, sentry_value_t meta,
 
 void
 sentry__session_replay_flush_pending(const sentry_options_t *options,
-    sentry_transport_t *transport, double end_timestamp_sec)
+    sentry_transport_t *transport, sentry_value_t scope_source)
 {
     if (!options || !transport) {
         return;
@@ -302,12 +301,20 @@ sentry__session_replay_flush_pending(const sentry_options_t *options,
         return;
     }
 
-    // Resolve the end-of-window (crash) time once. The caller may pass it
-    // explicitly (e.g. crashpad's completed-report time for the WER path);
-    // otherwise fall back to the on-disk crash marker.
-    double end_sec = end_timestamp_sec;
-    if (end_sec <= 0.0) {
-        end_sec = session_replay_marker_time_sec(options);
+    // End-of-window time: the crash event's timestamp, so the replay window
+    // ends at the crash and the error falls inside it. Falls back to the
+    // sidecar's own end timestamp (in build_replay_envelope) when the event is
+    // unavailable.
+    double end_sec = 0.0;
+    if (!sentry_value_is_null(scope_source)) {
+        const char *ts = sentry_value_as_string(
+            sentry_value_get_by_key(scope_source, "timestamp"));
+        if (ts && ts[0]) {
+            uint64_t usec = sentry__iso8601_to_usec(ts);
+            if (usec) {
+                end_sec = (double)usec / 1000000.0;
+            }
+        }
     }
 
     sentry_pathiter_t *iter = sentry__path_iter_directory(dir);
@@ -331,8 +338,8 @@ sentry__session_replay_flush_pending(const sentry_options_t *options,
             ? sentry__path_join_str(dir, video_filename)
             : NULL;
 
-        sentry_envelope_t *envelope
-            = build_replay_envelope(options, meta, mp4_path, end_sec);
+        sentry_envelope_t *envelope = build_replay_envelope(
+            options, meta, mp4_path, end_sec, scope_source);
         if (envelope) {
             // Hands ownership to the transport (queued for async send); the
             // transport re-persists any unsent envelope to the run folder on

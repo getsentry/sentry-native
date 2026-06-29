@@ -30,15 +30,19 @@ sentry_path_t *sentry__session_replay_get_path(const sentry_options_t *options);
  *
  * For each pending replay this parses the sidecar, reads the mp4, constructs the
  * `replay_video` envelope and hands it to `transport`, then deletes the sources
- * so it is not re-sent. `end_timestamp_sec` is the authoritative end-of-window
- * (crash) time; when <= 0 the `<database>/last_crash` marker is consulted, and
- * failing that the sidecar's own end timestamp is used.
+ * so it is not re-sent.
  *
- * Called out-of-process by the daemon at crash time (same-session delivery) and
- * at `sentry_init` for the other backends (next-launch delivery, gated on a
- * crash having occurred).
+ * Session replay is a native-daemon-only feature: this is called out-of-process
+ * by the crash daemon, so it runs only when a crash occurred (delivery is
+ * same-session and gating is inherent — no next-launch path).
+ *
+ * `scope_source` is the crashed session's event read from `<run>/__sentry-event`,
+ * already enriched in-process via `sentry__scope_apply_to_event`. Its
+ * tags/contexts/release/environment/user/sdk are copied onto the replay_event,
+ * `contexts.trace.trace_id` is lifted into `trace_ids`, and its `timestamp` marks
+ * the end of the replay window. Pass a null value to skip enrichment.
  */
 void sentry__session_replay_flush_pending(const sentry_options_t *options,
-    sentry_transport_t *transport, double end_timestamp_sec);
+    sentry_transport_t *transport, sentry_value_t scope_source);
 
 #endif

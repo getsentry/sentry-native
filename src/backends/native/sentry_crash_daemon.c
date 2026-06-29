@@ -3572,11 +3572,29 @@ sentry__process_crash(const sentry_options_t *options, sentry_crash_ipc_t *ipc)
 
 cleanup:
     // Build and send any session-replay envelope the embedder staged in
-    // `<database>/replays/`, out-of-process and same-session. Sources are
-    // deleted on send so the next launch does not resend them. `end == 0`
-    // makes it read the crash time from the `last_crash` marker.
+    // `<database>/replays/`, out-of-process and same-session. Sources are deleted
+    // on send. The crash event (already scope-applied in-process) is read back
+    // from `<run>/__sentry-event` so the replay carries the same tags/contexts/
+    // trace as the crash report and its window ends at the crash time.
     if (options && options->transport) {
-        sentry__session_replay_flush_pending(options, options->transport, 0.0);
+        sentry_value_t crash_event = sentry_value_new_null();
+        if (run_folder) {
+            sentry_path_t *sentry_event_path
+                = sentry__path_join_str(run_folder, "__sentry-event");
+            if (sentry_event_path) {
+                size_t ev_len = 0;
+                char *ev_json
+                    = sentry__path_read_to_buffer(sentry_event_path, &ev_len);
+                if (ev_json) {
+                    crash_event = sentry__value_from_json(ev_json, ev_len);
+                    sentry_free(ev_json);
+                }
+                sentry__path_free(sentry_event_path);
+            }
+        }
+        sentry__session_replay_flush_pending(
+            options, options->transport, crash_event);
+        sentry_value_decref(crash_event);
     }
 
     // Send all other envelopes from run folder (logs, etc.) before cleanup
