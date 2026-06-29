@@ -25,22 +25,15 @@ bool sentry__session_replay_capture(
 sentry_path_t *sentry__session_replay_get_path(const sentry_options_t *options);
 
 /**
- * Build and send any pending session-replay envelopes staged by an embedder in
- * `<database>/replays/` (a `replay-<id>.json` metadata sidecar next to its mp4).
+ * Build and send the session-replay envelope(s) the embedder staged in
+ * `<database>/replays/` (a `replay-<id>.json` sidecar next to its mp4). Native-
+ * daemon-only: called out-of-process by the crash daemon, so it runs only on a
+ * crash and delivers same-session. Sources are left on disk for the embedder to
+ * clear.
  *
- * For each pending replay this parses the sidecar, reads the mp4, constructs the
- * `replay_video` envelope and hands it to `transport`, then deletes the sources
- * so it is not re-sent.
- *
- * Session replay is a native-daemon-only feature: this is called out-of-process
- * by the crash daemon, so it runs only when a crash occurred (delivery is
- * same-session and gating is inherent — no next-launch path).
- *
- * `scope_source` is the crashed session's event read from `<run>/__sentry-event`,
- * already enriched in-process via `sentry__scope_apply_to_event`. Its
- * tags/contexts/release/environment/user/sdk are copied onto the replay_event,
- * `contexts.trace.trace_id` is lifted into `trace_ids`, and its `timestamp` marks
- * the end of the replay window. Pass a null value to skip enrichment.
+ * `scope_source` is the crash event (`<run>/__sentry-event`); its scope fields
+ * and trace id are copied onto the replay, and its timestamp ends the replay
+ * window. Null skips enrichment.
  */
 void sentry__session_replay_flush_pending(const sentry_options_t *options,
     sentry_transport_t *transport, sentry_value_t scope_source);

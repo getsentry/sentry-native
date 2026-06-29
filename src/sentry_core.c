@@ -248,10 +248,6 @@ sentry_init(sentry_options_t *options)
     // and handle remaining sessions.
     SENTRY_DEBUG("processing and pruning old runs");
     sentry__process_old_runs(options, last_crash);
-
-    // Session replay is a native-daemon-only feature: its envelope is built and
-    // sent out-of-process by the crash daemon, same-session, so there is no
-    // next-launch handling here.
     if (backend && backend->prune_database_func) {
         backend->prune_database_func(backend);
     }

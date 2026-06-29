@@ -3571,11 +3571,9 @@ sentry__process_crash(const sentry_options_t *options, sentry_crash_ipc_t *ipc)
 #endif
 
 cleanup:
-    // Build and send any session-replay envelope the embedder staged in
-    // `<database>/replays/`, out-of-process and same-session. Sources are deleted
-    // on send. The crash event (already scope-applied in-process) is read back
-    // from `<run>/__sentry-event` so the replay carries the same tags/contexts/
-    // trace as the crash report and its window ends at the crash time.
+    // Send the staged session-replay envelope same-session, enriched from the
+    // crash event (`<run>/__sentry-event`) so it shares the crash's
+    // tags/contexts/trace.
     if (options && options->transport) {
         sentry_value_t crash_event = sentry_value_new_null();
         if (run_folder) {

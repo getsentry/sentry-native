@@ -4,7 +4,6 @@
 #include "sentry_database.h"
 #include "sentry_envelope.h"
 #include "sentry_json.h"
-#include "sentry_scope.h"
 #include "sentry_string.h"
 #include "sentry_utils.h"
 #include "sentry_value.h"
@@ -19,28 +18,15 @@ sentry__session_replay_get_path(const sentry_options_t *options)
     return sentry__path_join_str(options->run->run_path, "session-replay.mp4");
 }
 
-// Resolve the database dir. Prefer the run path's parent: it is always the
-// absolute run location. `options->database_path` is unreliable here because
-// the crash daemon never overrides the default relative ".sentry-native" (set
-// in sentry_options_new) with the app's absolute path, so it must only be a
-// fallback. Caller owns the returned path.
-static sentry_path_t *
-session_replay_database_dir(const sentry_options_t *options)
-{
-    if (options->run && options->run->run_path) {
-        return sentry__path_dir(options->run->run_path);
-    }
-    if (options->database_path) {
-        return sentry__path_clone(options->database_path);
-    }
-    return NULL;
-}
-
-// Resolve `<database>/replays`. Caller owns the path.
+// Resolve `<database>/replays` from the run path's parent (the daemon's
+// `options->database_path` is an unusable relative default). Caller owns it.
 static sentry_path_t *
 session_replay_dir(const sentry_options_t *options)
 {
-    sentry_path_t *db_dir = session_replay_database_dir(options);
+    if (!options->run || !options->run->run_path) {
+        return NULL;
+    }
+    sentry_path_t *db_dir = sentry__path_dir(options->run->run_path);
     if (!db_dir) {
         return NULL;
     }
@@ -61,15 +47,9 @@ meta_double(sentry_value_t meta, const char *key)
     return sentry_value_as_double(sentry_value_get_by_key(meta, key));
 }
 
-// Build the replay_event payload from the recorder's metadata, enriched with
-// the crashed session's scope when `scope_source` is provided. `scope_source`
-// is the crash event the daemon read from `<run>/__sentry-event`, which the
-// in-process handler already ran `sentry__scope_apply_to_event` on; we reuse
-// that here so the replay carries the same
-// tags/contexts/release/environment/user/sdk/trace as the crash without
-// re-applying the scope. Pass a null value to skip enrichment. The replay is
-// associated with the error via the `replay` context on the event, so
-// `error_ids` is intentionally omitted (it is deprecated).
+// Build the replay_event from the recorder's metadata. When `scope_source` (the
+// crash event) is non-null, its scope fields and trace id are copied onto the
+// replay so it shares the crash's context. `error_ids` is omitted (deprecated).
 static sentry_value_t
 build_replay_event(sentry_value_t meta, const char *replay_id, double start_sec,
     double end_sec, int32_t segment_id, sentry_value_t scope_source)
@@ -98,8 +78,7 @@ build_replay_event(sentry_value_t meta, const char *replay_id, double start_sec,
     sentry_value_set_by_key(event, "urls", sentry_value_new_list());
 
     if (!sentry_value_is_null(scope_source)) {
-        // Copy the scope-derived fields (not exception/threads) from the crash
-        // event so the replay reflects the same session context.
+        // Scope fields only, not the crash's exception/threads.
         static const char *const scope_keys[] = { "tags", "contexts", "release",
             "environment", "dist", "user", "sdk" };
         for (size_t i = 0; i < sizeof(scope_keys) / sizeof(scope_keys[0]);
@@ -185,9 +164,9 @@ build_replay_recording(sentry_value_t meta, double start_sec,
     return recording;
 }
 
-// Build the replay_video envelope from a parsed metadata sidecar + its mp4.
-// `end_sec` is the authoritative end-of-window (the crash time); when <= 0 the
-// sidecar's own end timestamp is used. Returns NULL on failure.
+// Build the replay_video envelope from the parsed sidecar + its mp4. `end_sec`
+// is the window end (crash time); <= 0 falls back to the sidecar's. NULL on
+// failure.
 static sentry_envelope_t *
 build_replay_envelope(const sentry_options_t *options, sentry_value_t meta,
     const sentry_path_t *mp4_path, double end_sec, sentry_value_t scope_source)
@@ -301,10 +280,8 @@ sentry__session_replay_flush_pending(const sentry_options_t *options,
         return;
     }
 
-    // End-of-window time: the crash event's timestamp, so the replay window
-    // ends at the crash and the error falls inside it. Falls back to the
-    // sidecar's own end timestamp (in build_replay_envelope) when the event is
-    // unavailable.
+    // End the replay window at the crash time (from the crash event); falls back
+    // to the sidecar's own end timestamp in build_replay_envelope.
     double end_sec = 0.0;
     if (!sentry_value_is_null(scope_source)) {
         const char *ts = sentry_value_as_string(
@@ -341,19 +318,12 @@ sentry__session_replay_flush_pending(const sentry_options_t *options,
         sentry_envelope_t *envelope = build_replay_envelope(
             options, meta, mp4_path, end_sec, scope_source);
         if (envelope) {
-            // Hands ownership to the transport (queued for async send); the
-            // transport re-persists any unsent envelope to the run folder on
-            // shutdown, so removing the sources below is safe.
             sentry__capture_envelope(transport, envelope, options);
         }
 
-        // Delete sources right after capture so the same replay is not re-sent
-        // on the next launch (where `last_crash` would still be set).
-        if (mp4_path) {
-            sentry__path_remove(mp4_path);
-            sentry__path_free(mp4_path);
-        }
-        sentry__path_remove(file);
+        // Leave the sources on disk: the embedder owns `<database>/replays` and
+        // clears it next launch, and the mp4 may still back a crash attachment.
+        sentry__path_free(mp4_path);
         sentry_value_decref(meta);
     }
     sentry__pathiter_free(iter);
