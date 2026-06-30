@@ -5,6 +5,7 @@
 **Features**
 
 - Android: Expose app-hang detection through the NDK bindings via `NdkOptions.setEnableAppHangTracking()` and `NdkOptions.setAppHangTimeoutMillis()`. ([#1823](https://github.com/getsentry/sentry-native/pull/1823))
+- Windows: add wide-char versions of `sentry_capture_minidump` and `sentry_capture_minidump_n`. ([#1827](https://github.com/getsentry/sentry-native/pull/1827))
 
 ## 0.15.2
 
