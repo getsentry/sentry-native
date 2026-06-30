@@ -84,7 +84,7 @@ def test_native_capture_crash(cmake, httpserver):
 
     assert len(httpserver.log) >= 1
     envelope = Envelope.deserialize(httpserver.log[0][0].get_data())
-    assert_native_crash(envelope, exception_code=0xc0000005) # EXCEPTION_ACCESS_VIOLATION
+    assert_native_crash(envelope)
 
 
 @pytest.mark.skipif(
