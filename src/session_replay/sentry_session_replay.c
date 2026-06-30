@@ -307,14 +307,14 @@ sentry__session_replay_flush_pending(const sentry_options_t *options,
     }
 
     sentry_pathiter_t *iter = sentry__path_iter_directory(dir);
-    const sentry_path_t *file;
-    while (iter && (file = sentry__pathiter_next(iter)) != NULL) {
-        if (!sentry__path_ends_with(file, ".json")) {
+    const sentry_path_t *sidecar_path;
+    while (iter && (sidecar_path = sentry__pathiter_next(iter)) != NULL) {
+        if (!sentry__path_ends_with(sidecar_path, ".json")) {
             continue;
         }
 
         size_t json_len = 0;
-        char *json = sentry__path_read_to_buffer(file, &json_len);
+        char *json = sentry__path_read_to_buffer(sidecar_path, &json_len);
         if (!json) {
             continue;
         }
@@ -332,6 +332,11 @@ sentry__session_replay_flush_pending(const sentry_options_t *options,
         if (envelope) {
             sentry__capture_envelope(transport, envelope, options);
         }
+
+        if (mp4_path) {
+            sentry__path_remove(mp4_path);
+        }
+        sentry__path_remove(sidecar_path);
 
         sentry__path_free(mp4_path);
         sentry_value_decref(meta);
