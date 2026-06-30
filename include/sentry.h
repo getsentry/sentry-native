@@ -2158,6 +2158,16 @@ SENTRY_API sentry_uuid_t sentry_capture_minidump(const char *path);
 SENTRY_API sentry_uuid_t sentry_capture_minidump_n(
     const char *path, size_t path_len);
 
+#ifdef SENTRY_PLATFORM_WINDOWS
+/**
+ * Wide char versions of `sentry_capture_minidump` and
+ * `sentry_capture_minidump_n`.
+ */
+SENTRY_API sentry_uuid_t sentry_capture_minidumpw(const wchar_t *path);
+SENTRY_API sentry_uuid_t sentry_capture_minidumpw_n(
+    const wchar_t *path, size_t path_len);
+#endif
+
 /**
  * Captures a system-native exception that you retrieve when you manually handle
  * `POSIX` signals or `SEH` exceptions and want to keep using that handling
