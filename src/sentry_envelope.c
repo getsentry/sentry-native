@@ -136,6 +136,8 @@ envelope_item_get_ratelimiter_category(const sentry_envelope_item_t *item)
         return SENTRY_RL_CATEGORY_SESSION;
     } else if (sentry__string_eq(ty, "transaction")) {
         return SENTRY_RL_CATEGORY_TRANSACTION;
+    } else if (sentry__string_eq(ty, "replay_video")) {
+        return SENTRY_RL_CATEGORY_REPLAY;
     } else if (sentry__string_eq(ty, "client_report")) {
         // internal telemetry, bypass rate limiting
         return -1;
@@ -160,6 +162,8 @@ item_type_to_data_category(const char *ty)
         return SENTRY_DATA_CATEGORY_FEEDBACK;
     } else if (sentry__string_eq(ty, "trace_metric")) {
         return SENTRY_DATA_CATEGORY_TRACE_METRIC;
+    } else if (sentry__string_eq(ty, "replay_video")) {
+        return SENTRY_DATA_CATEGORY_REPLAY;
     }
     return SENTRY_DATA_CATEGORY_ERROR;
 }
@@ -1347,6 +1351,8 @@ data_category_to_string(sentry_data_category_t category)
         return "feedback";
     case SENTRY_DATA_CATEGORY_TRACE_METRIC:
         return "trace_metric";
+    case SENTRY_DATA_CATEGORY_REPLAY:
+        return "replay";
     case SENTRY_DATA_CATEGORY_MAX:
     default:
         return "unknown";
