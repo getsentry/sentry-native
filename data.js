@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1782830773072,
+  "lastUpdate": 1782830815350,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -80092,6 +80092,66 @@ window.BENCHMARK_DATA = {
             "value": 16.323600000021088,
             "unit": "ms",
             "extra": "Min 15.737ms\nMax 20.252ms\nMean 17.012ms\nStdDev 1.835ms\nMedian 16.324ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "reg@bitfox.at",
+            "name": "Stefan Jandl",
+            "username": "bitsandfoxes"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "a6111d22256deed532939f1834639eb4ccfe70a7",
+          "message": "fix: message now as structured object when reporting app hang (#1831)",
+          "timestamp": "2026-06-30T16:43:37+02:00",
+          "tree_id": "33c59c8b29804673a44cdf39852f306bb4ca6fd2",
+          "url": "https://github.com/getsentry/sentry-native/commit/a6111d22256deed532939f1834639eb4ccfe70a7"
+        },
+        "date": 1782830809249,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 6.8490000001020235,
+            "unit": "ms",
+            "extra": "Min 6.844ms\nMax 8.014ms\nMean 7.237ms\nStdDev 0.552ms\nMedian 6.849ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 6.630000000086511,
+            "unit": "ms",
+            "extra": "Min 6.611ms\nMax 6.807ms\nMean 6.682ms\nStdDev 0.087ms\nMedian 6.630ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 16.894000000093,
+            "unit": "ms",
+            "extra": "Min 16.454ms\nMax 26.117ms\nMean 19.508ms\nStdDev 4.264ms\nMedian 16.894ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.10180000003856549,
+            "unit": "ms",
+            "extra": "Min 0.101ms\nMax 0.105ms\nMean 0.102ms\nStdDev 0.001ms\nMedian 0.102ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.24560000019846484,
+            "unit": "ms",
+            "extra": "Min 0.237ms\nMax 0.256ms\nMean 0.246ms\nStdDev 0.007ms\nMedian 0.246ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 8.83390000012696,
+            "unit": "ms",
+            "extra": "Min 8.644ms\nMax 8.955ms\nMean 8.796ms\nStdDev 0.121ms\nMedian 8.834ms"
           }
         ]
       }
