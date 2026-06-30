@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1782388947248,
+  "lastUpdate": 1782830773072,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -26596,6 +26596,66 @@ window.BENCHMARK_DATA = {
             "value": 2.195676999974694,
             "unit": "ms",
             "extra": "Min 2.127ms\nMax 2.357ms\nMean 2.205ms\nStdDev 0.094ms\nMedian 2.196ms\nCPU 0.592ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "reg@bitfox.at",
+            "name": "Stefan Jandl",
+            "username": "bitsandfoxes"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "a6111d22256deed532939f1834639eb4ccfe70a7",
+          "message": "fix: message now as structured object when reporting app hang (#1831)",
+          "timestamp": "2026-06-30T16:43:37+02:00",
+          "tree_id": "33c59c8b29804673a44cdf39852f306bb4ca6fd2",
+          "url": "https://github.com/getsentry/sentry-native/commit/a6111d22256deed532939f1834639eb4ccfe70a7"
+        },
+        "date": 1782830765568,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 1.0342870000101811,
+            "unit": "ms",
+            "extra": "Min 0.999ms\nMax 1.174ms\nMean 1.057ms\nStdDev 0.070ms\nMedian 1.034ms\nCPU 1.003ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 0.9040130000101954,
+            "unit": "ms",
+            "extra": "Min 0.886ms\nMax 0.920ms\nMean 0.904ms\nStdDev 0.013ms\nMedian 0.904ms\nCPU 0.904ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 3.2862129999955414,
+            "unit": "ms",
+            "extra": "Min 3.265ms\nMax 3.319ms\nMean 3.294ms\nStdDev 0.023ms\nMedian 3.286ms\nCPU 1.738ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.13221599999724276,
+            "unit": "ms",
+            "extra": "Min 0.126ms\nMax 0.137ms\nMean 0.132ms\nStdDev 0.005ms\nMedian 0.132ms\nCPU 0.079ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.029764000004206537,
+            "unit": "ms",
+            "extra": "Min 0.028ms\nMax 0.032ms\nMean 0.030ms\nStdDev 0.001ms\nMedian 0.030ms\nCPU 0.029ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 1.9346950000169727,
+            "unit": "ms",
+            "extra": "Min 1.911ms\nMax 1.990ms\nMean 1.947ms\nStdDev 0.040ms\nMedian 1.935ms\nCPU 0.538ms"
           }
         ]
       }
