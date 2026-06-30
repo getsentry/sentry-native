@@ -1117,6 +1117,36 @@ typedef enum {
 } sentry_cache_keep_t;
 
 /**
+ * Windows Error Reporting (WER) mode.
+ */
+typedef enum {
+    /**
+     * SEH crashes: the SDK's unhandled exception filter returns
+     * `EXCEPTION_EXECUTE_HANDLER`, the process is terminated, and the crash is
+     * not propagated to WER.
+     * Fast-fail crashes: no WER module is registered, so fast-fail crashes are
+     * not captured by Sentry, and are handled by WER instead.
+     */
+    SENTRY_WER_MODE_NONE = 0,
+    /**
+     * SEH crashes: the SDK's unhandled exception filter returns
+     * `EXCEPTION_EXECUTE_HANDLER`, the process is terminated, and the crash is
+     * not propagated to WER.
+     * Fast-fail crashes: the WER module claims ownership and terminates the
+     * process, preventing WER to also process them.
+     */
+    SENTRY_WER_MODE_EXCLUSIVE = 1,
+    /**
+     * SEH crashes: the SDK's unhandled exception filter returns
+     * `EXCEPTION_CONTINUE_SEARCH`, which proceeds with normal exception
+     * handling and lets WER also process the crash.
+     * Fast-fail crashes: the WER module does not claim ownership, allowing WER
+     * to also process them.
+     */
+    SENTRY_WER_MODE_SHARED = 2,
+} sentry_wer_mode_t;
+
+/**
  * Creates a new options struct.
  * Can be freed with `sentry_options_free`.
  */
@@ -1922,6 +1952,21 @@ SENTRY_API void sentry_options_set_crash_upload_mode(
  * Gets the crash upload mode for the native backend.
  */
 SENTRY_API sentry_crash_upload_mode_t sentry_options_get_crash_upload_mode(
+    const sentry_options_t *opts);
+
+/**
+ * Sets the WER (Windows Error Reporting) mode for the native backend.
+ *
+ * This setting only has an effect when using the `native` backend.
+ * Default is `SENTRY_WER_MODE_SHARED`.
+ */
+SENTRY_EXPERIMENTAL_API void sentry_options_set_wer_mode(
+    sentry_options_t *opts, sentry_wer_mode_t mode);
+
+/**
+ * Gets the WER (Windows Error Reporting) mode.
+ */
+SENTRY_EXPERIMENTAL_API sentry_wer_mode_t sentry_options_get_wer_mode(
     const sentry_options_t *opts);
 
 /**

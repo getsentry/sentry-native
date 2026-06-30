@@ -148,7 +148,16 @@ process_wer_exception(
 
         InterlockedExchange(&ctx->state, SENTRY_CRASH_STATE_CRASHED);
         if (SetEvent(event)) {
-            claimed = TRUE;
+            BOOL shared = ctx->wer_mode == SENTRY_WER_MODE_SHARED;
+            if (shared) {
+                // SHARED: signal the daemon asynchronously, but don't claim
+                // ownership so WER can also process the crash.
+                claimed = FALSE;
+            } else {
+                // EXCLUSIVE: wait for daemon and terminate process, claiming
+                // exclusive ownership of the crash.
+                claimed = TRUE;
+            }
             uint64_t timeout_ms = ctx->shutdown_timeout
                 ? ctx->shutdown_timeout
                 : SENTRY_CRASH_HANDLER_WAIT_TIMEOUT_MS;
@@ -161,8 +170,10 @@ process_wer_exception(
                 }
                 Sleep(SENTRY_CRASH_HANDLER_POLL_INTERVAL_MS);
             }
-            TerminateProcess(exception_info->hProcess,
-                exception_info->exceptionRecord.ExceptionCode);
+            if (!shared) {
+                TerminateProcess(exception_info->hProcess,
+                    exception_info->exceptionRecord.ExceptionCode);
+            }
         }
     }
 

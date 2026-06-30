@@ -114,6 +114,7 @@ sentry_options_new(void)
         = SENTRY_CRASH_REPORTING_MODE_NATIVE_WITH_MINIDUMP; // Default: best of
                                                             // both worlds
     opts->crash_upload_mode = SENTRY_CRASH_UPLOAD_MODE_SYNC;
+    opts->wer_mode = SENTRY_WER_MODE_SHARED;
     opts->enable_app_hang_tracking = false;
     opts->app_hang_timeout = 5000;
     opts->http_retry = false;
@@ -1037,6 +1038,24 @@ sentry_options_set_handler_strategy(
 }
 
 #endif // SENTRY_PLATFORM_LINUX
+
+void
+sentry_options_set_wer_mode(sentry_options_t *opts, sentry_wer_mode_t mode)
+{
+    int imode = (int)mode;
+    if (imode < SENTRY_WER_MODE_NONE) {
+        imode = SENTRY_WER_MODE_NONE;
+    } else if (imode > SENTRY_WER_MODE_SHARED) {
+        imode = SENTRY_WER_MODE_SHARED;
+    }
+    opts->wer_mode = imode;
+}
+
+sentry_wer_mode_t
+sentry_options_get_wer_mode(const sentry_options_t *opts)
+{
+    return (sentry_wer_mode_t)opts->wer_mode;
+}
 
 void
 sentry_options_set_http_retry(sentry_options_t *opts, int enabled)

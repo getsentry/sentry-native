@@ -290,6 +290,7 @@ typedef struct {
     uint64_t shutdown_timeout;
     uint64_t transfer_timeout;
     bool system_crash_reporter_enabled;
+    int wer_mode; // 0=none, 1=exclusive, 2=shared (see sentry_wer_mode_t)
     uint32_t max_breadcrumbs;
 
     // Atomic user consent (sentry_user_consent_t), updated whenever user
