@@ -5,6 +5,7 @@
 **Features**
 
 - Android: Expose app-hang detection through the NDK bindings via `NdkOptions.setEnableAppHangTracking()` and `NdkOptions.setAppHangTimeoutMillis()`. ([#1823](https://github.com/getsentry/sentry-native/pull/1823))
+- Native/Windows: Allow configuring whether SEH and fast-fail crashes propagate to WER via `sentry_options_set_wer_mode`. ([#1833](https://github.com/getsentry/sentry-native/pull/1833))
 
 ## 0.15.2
 
