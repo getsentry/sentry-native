@@ -447,8 +447,10 @@ def assert_inproc_crash(envelope):
 
 
 def assert_native_crash(envelope, exception_code=None):
+    assert envelope.headers["event_id"]
     event = envelope.get_event()
     assert event is not None
+    assert event["event_id"]
     assert_matches(event, {"level": "fatal"})
 
     exc = event["exception"]["values"][0]
