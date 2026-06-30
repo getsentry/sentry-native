@@ -48,6 +48,12 @@ SENTRY_TEST(app_hang_make_event)
     void *ips[2] = { (void *)0x1000, (void *)0x2000 };
     sentry_value_t ev = sentry__app_hang_make_event(ips, 2, 5000);
 
+    sentry_value_t message = sentry_value_get_by_key(ev, "message");
+    TEST_CHECK(sentry_value_get_type(message) == SENTRY_VALUE_TYPE_OBJECT);
+    TEST_CHECK_STRING_EQUAL(
+        sentry_value_as_string(sentry_value_get_by_key(message, "formatted")),
+        "App hung for at least 5000 ms.");
+
     sentry_value_t exc = sentry_value_get_by_index(
         sentry_value_get_by_key(
             sentry_value_get_by_key(ev, "exception"), "values"),

@@ -20,8 +20,11 @@ sentry__app_hang_make_event(void **ips, size_t frame_count, uint64_t freeze_ms)
 
     sentry_value_t event = sentry_value_new_event();
     sentry_value_set_by_key(event, "level", sentry_value_new_string("error"));
+
+    sentry_value_t message = sentry_value_new_object();
     sentry_value_set_by_key(
-        event, "message", sentry_value_new_string(value_buf));
+        message, "formatted", sentry_value_new_string(value_buf));
+    sentry_value_set_by_key(event, "message", message);
 
     sentry_value_t exc = sentry_value_new_exception("AppHang", value_buf);
 
