@@ -1900,11 +1900,6 @@ sentry_capture_minidump_n(const char *path, size_t path_len)
 static sentry_attachment_t *
 add_attachment(sentry_attachment_t *attachment)
 {
-    SENTRY_WITH_OPTIONS (options) {
-        if (options->backend && options->backend->add_attachment_func) {
-            options->backend->add_attachment_func(options->backend, attachment);
-        }
-    }
     SENTRY_WITH_SCOPE_MUT (scope) {
         attachment = sentry__attachments_add(&scope->attachments, attachment);
         if (attachment) {
@@ -1945,32 +1940,18 @@ sentry_attach_bytes_n(
 void
 sentry_clear_attachments(void)
 {
-    SENTRY_WITH_OPTIONS (options) {
-        SENTRY_WITH_SCOPE_MUT (scope) {
-            for (sentry_attachment_t *it = scope->attachments; it;
-                it = it->next) {
-                if (options->backend
-                    && options->backend->remove_attachment_func) {
-                    options->backend->remove_attachment_func(
-                        options->backend, it);
-                }
-                SENTRY_NOTIFY_OBSERVERS(scope, remove_attachment, it);
-            }
-            sentry__attachments_free(scope->attachments);
-            scope->attachments = NULL;
+    SENTRY_WITH_SCOPE_MUT (scope) {
+        for (sentry_attachment_t *it = scope->attachments; it; it = it->next) {
+            SENTRY_NOTIFY_OBSERVERS(scope, remove_attachment, it);
         }
+        sentry__attachments_free(scope->attachments);
+        scope->attachments = NULL;
     }
 }
 
 void
 sentry_remove_attachment(sentry_attachment_t *attachment)
 {
-    SENTRY_WITH_OPTIONS (options) {
-        if (options->backend && options->backend->remove_attachment_func) {
-            options->backend->remove_attachment_func(
-                options->backend, attachment);
-        }
-    }
     SENTRY_WITH_SCOPE_MUT (scope) {
         SENTRY_NOTIFY_OBSERVERS(scope, remove_attachment, attachment);
         sentry__attachments_remove(&scope->attachments, attachment);

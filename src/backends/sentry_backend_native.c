@@ -183,6 +183,71 @@ typedef struct {
     volatile long crashed;
 } native_backend_state_t;
 
+/**
+ * Ensures that buffer attachments have a unique path in the run directory.
+ * Similar to Crashpad's ensure_unique_path function.
+ */
+static bool
+ensure_attachment_path(sentry_attachment_t *attachment)
+{
+    if (!attachment || !attachment->filename) {
+        return false;
+    }
+
+    // Generate UUID for unique path
+    sentry_uuid_t uuid = sentry_uuid_new_v4();
+    char uuid_str[37];
+    sentry_uuid_as_string(&uuid, uuid_str);
+
+    sentry_path_t *base_path = NULL;
+    SENTRY_WITH_OPTIONS (options) {
+        if (options->run && options->run->run_path) {
+            base_path = sentry__path_join_str(options->run->run_path, uuid_str);
+        }
+    }
+
+    if (!base_path || sentry__path_create_dir_all(base_path) != 0) {
+        sentry__path_free(base_path);
+        return false;
+    }
+
+    sentry_path_t *old_path = attachment->path;
+    attachment->path = sentry__path_join_str(
+        base_path, sentry__path_filename(attachment->filename));
+
+    sentry__path_free(base_path);
+    sentry__path_free(old_path);
+    return attachment->path != NULL;
+}
+
+static void
+add_attachment(void *data, sentry_attachment_t *attachment)
+{
+    (void)data; // Unused
+
+    // For buffer attachments, assign a path in the run directory and write to
+    // disk
+    if (attachment->buf) {
+        if (!attachment->path) {
+            if (!ensure_attachment_path(attachment)) {
+                SENTRY_WARN("failed to assign path for buffer attachment");
+                return;
+            }
+        }
+
+        // Write buffer to disk
+        if (sentry__path_write_buffer(
+                attachment->path, attachment->buf, attachment->buf_len)
+            != 0) {
+            SENTRY_WARNF("failed to write native backend attachment \"%s\"",
+                attachment->path->path);
+        }
+    }
+    // For file attachments, the path is already set and points to the actual
+    // file. The crash daemon will read these files from their original
+    // locations.
+}
+
 static int
 native_backend_startup(
     sentry_backend_t *backend, const sentry_options_t *options)
@@ -554,6 +619,16 @@ native_backend_startup(
 #endif
 
     SENTRY_DEBUG("native backend started successfully");
+
+    {
+        sentry_scope_observer_t *observer = sentry__scope_observer_new();
+        observer->data = state;
+        observer->add_attachment = add_attachment;
+        SENTRY_WITH_SCOPE_MUT (scope) {
+            sentry__scope_add_observer(scope, observer);
+        }
+    }
+
     return 0;
 }
 
@@ -889,72 +964,6 @@ native_backend_add_breadcrumb(sentry_backend_t *backend,
 }
 
 /**
- * Ensures that buffer attachments have a unique path in the run directory.
- * Similar to Crashpad's ensure_unique_path function.
- */
-static bool
-ensure_attachment_path(sentry_attachment_t *attachment)
-{
-    if (!attachment || !attachment->filename) {
-        return false;
-    }
-
-    // Generate UUID for unique path
-    sentry_uuid_t uuid = sentry_uuid_new_v4();
-    char uuid_str[37];
-    sentry_uuid_as_string(&uuid, uuid_str);
-
-    sentry_path_t *base_path = NULL;
-    SENTRY_WITH_OPTIONS (options) {
-        if (options->run && options->run->run_path) {
-            base_path = sentry__path_join_str(options->run->run_path, uuid_str);
-        }
-    }
-
-    if (!base_path || sentry__path_create_dir_all(base_path) != 0) {
-        sentry__path_free(base_path);
-        return false;
-    }
-
-    sentry_path_t *old_path = attachment->path;
-    attachment->path = sentry__path_join_str(
-        base_path, sentry__path_filename(attachment->filename));
-
-    sentry__path_free(base_path);
-    sentry__path_free(old_path);
-    return attachment->path != NULL;
-}
-
-static void
-native_backend_add_attachment(
-    sentry_backend_t *backend, sentry_attachment_t *attachment)
-{
-    (void)backend; // Unused
-
-    // For buffer attachments, assign a path in the run directory and write to
-    // disk
-    if (attachment->buf) {
-        if (!attachment->path) {
-            if (!ensure_attachment_path(attachment)) {
-                SENTRY_WARN("failed to assign path for buffer attachment");
-                return;
-            }
-        }
-
-        // Write buffer to disk
-        if (sentry__path_write_buffer(
-                attachment->path, attachment->buf, attachment->buf_len)
-            != 0) {
-            SENTRY_WARNF("failed to write native backend attachment \"%s\"",
-                attachment->path->path);
-        }
-    }
-    // For file attachments, the path is already set and points to the actual
-    // file. The crash daemon will read these files from their original
-    // locations.
-}
-
-/**
  * Handle exception - called from signal handler via sentry_handle_exception
  * This processes the event with on_crash/before_send hooks and ends the session
  */
@@ -1139,7 +1148,6 @@ sentry__backend_new(void)
     backend->except_func = native_backend_except;
     backend->flush_scope_func = native_backend_flush_scope;
     backend->add_breadcrumb_func = native_backend_add_breadcrumb;
-    backend->add_attachment_func = native_backend_add_attachment;
     backend->user_consent_changed_func = native_backend_user_consent_changed;
     backend->can_capture_after_shutdown = false;
 
