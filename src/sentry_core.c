@@ -900,6 +900,7 @@ sentry_set_release_n(const char *release, size_t release_len)
         scope->release = sentry__string_clone_n(release, release_len);
         sentry_value_set_by_key(scope->dynamic_sampling_context, "release",
             sentry_value_new_string(scope->release));
+        SENTRY_SCOPE_NOTIFY(scope, set_release, release, release_len);
     }
 }
 
@@ -918,6 +919,8 @@ sentry_set_environment_n(const char *environment, size_t environment_len)
             = sentry__string_clone_n(environment, environment_len);
         sentry_value_set_by_key(scope->dynamic_sampling_context, "environment",
             sentry_value_new_string(scope->environment));
+        SENTRY_SCOPE_NOTIFY(
+            scope, set_environment, environment, environment_len);
     }
 }
 
@@ -982,9 +985,7 @@ sentry_set_tag_n(
 void
 sentry_remove_tag(const char *key)
 {
-    SENTRY_WITH_SCOPE_MUT (scope) {
-        sentry_value_remove_by_key(scope->tags, key);
-    }
+    sentry_remove_tag_n(key, sentry__guarded_strlen(key));
 }
 
 void
@@ -992,6 +993,7 @@ sentry_remove_tag_n(const char *key, size_t key_len)
 {
     SENTRY_WITH_SCOPE_MUT (scope) {
         sentry_value_remove_by_key_n(scope->tags, key, key_len);
+        SENTRY_SCOPE_NOTIFY(scope, remove_tag, key, key_len);
     }
 }
 
@@ -1016,6 +1018,8 @@ sentry_remove_extra(const char *key)
 {
     SENTRY_WITH_SCOPE_MUT (scope) {
         sentry_value_remove_by_key(scope->extra, key);
+        SENTRY_SCOPE_NOTIFY(
+            scope, remove_extra, key, sentry__guarded_strlen(key));
     }
 }
 
@@ -1024,6 +1028,7 @@ sentry_remove_extra_n(const char *key, size_t key_len)
 {
     SENTRY_WITH_SCOPE_MUT (scope) {
         sentry_value_remove_by_key_n(scope->extra, key, key_len);
+        SENTRY_SCOPE_NOTIFY(scope, remove_extra, key, key_len);
     }
 }
 
@@ -1097,6 +1102,8 @@ sentry__set_propagation_context(const char *key, sentry_value_t value)
 {
     SENTRY_WITH_SCOPE_MUT (scope) {
         sentry_value_set_by_key(scope->propagation_context, key, value);
+        SENTRY_SCOPE_NOTIFY(
+            scope, set_context, key, sentry__guarded_strlen(key), value);
     }
 }
 
@@ -1131,6 +1138,8 @@ sentry_remove_context(const char *key)
 {
     SENTRY_WITH_SCOPE_MUT (scope) {
         sentry_value_remove_by_key(scope->contexts, key);
+        SENTRY_SCOPE_NOTIFY(
+            scope, remove_context, key, sentry__guarded_strlen(key));
     }
 }
 
@@ -1139,6 +1148,7 @@ sentry_remove_context_n(const char *key, size_t key_len)
 {
     SENTRY_WITH_SCOPE_MUT (scope) {
         sentry_value_remove_by_key_n(scope->contexts, key, key_len);
+        SENTRY_SCOPE_NOTIFY(scope, remove_context, key, key_len);
     }
 }
 
@@ -1175,6 +1185,7 @@ sentry_remove_fingerprint(void)
     SENTRY_WITH_SCOPE_MUT (scope) {
         sentry_value_decref(scope->fingerprint);
         scope->fingerprint = sentry_value_new_null();
+        SENTRY_SCOPE_NOTIFY(scope, set_fingerprint, scope->fingerprint);
     }
 }
 
@@ -1229,6 +1240,9 @@ sentry_regenerate_trace(void)
             generate_propagation_context(scope->propagation_context);
             scope->trace_managed = false;
             sentry__scope_update_dsc(scope, options);
+            SENTRY_SCOPE_NOTIFY(scope, set_context, "trace",
+                sentry__guarded_strlen("trace"),
+                sentry_value_get_by_key(scope->propagation_context, "trace"));
         }
     }
 }
@@ -1243,6 +1257,8 @@ sentry_set_transaction(const char *transaction)
         if (scope->transaction_object) {
             sentry_transaction_set_name(scope->transaction_object, transaction);
         }
+        SENTRY_SCOPE_NOTIFY(scope, set_transaction, transaction,
+            sentry__guarded_strlen(transaction));
     }
 }
 
@@ -1258,6 +1274,8 @@ sentry_set_transaction_n(const char *transaction, size_t transaction_len)
             sentry_transaction_set_name_n(
                 scope->transaction_object, transaction, transaction_len);
         }
+        SENTRY_SCOPE_NOTIFY(
+            scope, set_transaction, transaction, transaction_len);
     }
 }
 
@@ -1911,6 +1929,9 @@ add_attachment(sentry_attachment_t *attachment)
     }
     SENTRY_WITH_SCOPE_MUT (scope) {
         attachment = sentry__attachments_add(&scope->attachments, attachment);
+        if (attachment) {
+            SENTRY_SCOPE_NOTIFY(scope, add_attachment, attachment);
+        }
     }
     return attachment;
 }
@@ -1948,12 +1969,14 @@ sentry_clear_attachments(void)
 {
     SENTRY_WITH_OPTIONS (options) {
         SENTRY_WITH_SCOPE_MUT (scope) {
-            if (options->backend && options->backend->remove_attachment_func) {
-                for (sentry_attachment_t *it = scope->attachments; it;
-                    it = it->next) {
+            for (sentry_attachment_t *it = scope->attachments; it;
+                it = it->next) {
+                if (options->backend
+                    && options->backend->remove_attachment_func) {
                     options->backend->remove_attachment_func(
                         options->backend, it);
                 }
+                SENTRY_SCOPE_NOTIFY(scope, remove_attachment, it);
             }
             sentry__attachments_free(scope->attachments);
             scope->attachments = NULL;
@@ -1971,6 +1994,7 @@ sentry_remove_attachment(sentry_attachment_t *attachment)
         }
     }
     SENTRY_WITH_SCOPE_MUT (scope) {
+        SENTRY_SCOPE_NOTIFY(scope, remove_attachment, attachment);
         sentry__attachments_remove(&scope->attachments, attachment);
     }
 }

@@ -9,6 +9,45 @@
 #include "sentry_value.h"
 
 /**
+ * Scope observer — one callback per scope property.
+ *
+ * Implementors set the function pointers they care about. NULL pointers are
+ * skipped. Callbacks are invoked while the scope lock is held.
+ *
+ * Ownership: the scope takes ownership of the observer pointer on
+ * registration; the caller must not free it after that point.
+ */
+typedef struct sentry_scope_observer_s {
+    void *data;
+
+    void (*set_release)(void *data, const char *release, size_t release_len);
+    void (*set_environment)(
+        void *data, const char *environment, size_t environment_len);
+    void (*set_transaction)(
+        void *data, const char *transaction, size_t transaction_len);
+    void (*set_fingerprint)(void *data, sentry_value_t fingerprint);
+    void (*set_level)(void *data, sentry_level_t level);
+    void (*set_user)(void *data, sentry_value_t user);
+
+    void (*add_breadcrumb)(void *data, sentry_value_t breadcrumb);
+
+    void (*set_tag)(void *data, const char *key, size_t key_len,
+        const char *value, size_t value_len);
+    void (*remove_tag)(void *data, const char *key, size_t key_len);
+
+    void (*set_extra)(
+        void *data, const char *key, size_t key_len, sentry_value_t value);
+    void (*remove_extra)(void *data, const char *key, size_t key_len);
+
+    void (*set_context)(
+        void *data, const char *key, size_t key_len, sentry_value_t value);
+    void (*remove_context)(void *data, const char *key, size_t key_len);
+
+    void (*add_attachment)(void *data, sentry_attachment_t *attachment);
+    void (*remove_attachment)(void *data, sentry_attachment_t *attachment);
+} sentry_scope_observer_t;
+
+/**
  * This represents the current scope.
  */
 struct sentry_scope_s {
@@ -39,6 +78,10 @@ struct sentry_scope_s {
     sentry_transaction_t *transaction_object;
     sentry_span_t *span;
     bool trace_managed;
+
+    sentry_scope_observer_t **observers;
+    size_t num_observers;
+    bool is_notifying;
 };
 
 /**
@@ -127,6 +170,41 @@ void sentry__scope_remove_attribute_n(
 #define SENTRY_WITH_SCOPE_MUT_NO_FLUSH(Scope)                                  \
     for (sentry_scope_t *Scope = sentry__scope_lock(); Scope;                  \
         sentry__scope_unlock(), Scope = NULL)
+
+/**
+ * Allocate and zero-initialize a scope observer.
+ *
+ * Returns NULL on allocation failure. The caller sets whichever callback
+ * function pointers and the `data` pointer they need, then registers the
+ * observer with `sentry__scope_add_observer`, which takes ownership.
+ */
+sentry_scope_observer_t *sentry__scope_observer_new(void);
+
+/**
+ * Register a scope observer.
+ *
+ * Takes ownership of `observer`; the caller must not use or free it after
+ * this call. Must be called while holding the scope lock (i.e., inside
+ * SENTRY_WITH_SCOPE_MUT). Registration order is respected — observers are
+ * notified in registration order.
+ */
+void sentry__scope_add_observer(
+    sentry_scope_t *scope, sentry_scope_observer_t *observer);
+
+/** Re-entrancy guard: set while notifying observers. */
+#define SENTRY_SCOPE_NOTIFY(scope, callback, ...)                              \
+    do {                                                                       \
+        if ((scope)->is_notifying)                                             \
+            break;                                                             \
+        (scope)->is_notifying = true;                                          \
+        for (size_t _i = 0; _i < (scope)->num_observers; _i++) {               \
+            sentry_scope_observer_t *_observer = (scope)->observers[_i];       \
+            if (_observer->callback) {                                         \
+                _observer->callback(_observer->data, __VA_ARGS__);             \
+            }                                                                  \
+        }                                                                      \
+        (scope)->is_notifying = false;                                         \
+    } while (0)
 
 /**
  * Rebuilds the scope's dynamic sampling context (DSC) from the SDK options
