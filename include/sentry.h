@@ -2300,6 +2300,18 @@ SENTRY_API void sentry_scope_set_context(
     sentry_scope_t *scope, const char *key, sentry_value_t value);
 SENTRY_API void sentry_scope_set_context_n(sentry_scope_t *scope,
     const char *key, size_t key_len, sentry_value_t value);
+/**
+ * Merges a context object with the existing context object.
+ * Existing keys within the context object will not be overwritten.
+ * If the context object does not exist yet, it will be created.
+ */
+SENTRY_API void sentry_merge_context(const char *key, sentry_value_t value);
+SENTRY_API void sentry_merge_context_n(
+    const char *key, size_t key_len, sentry_value_t value);
+SENTRY_API void sentry_scope_merge_context(
+    sentry_scope_t *scope, const char *key, sentry_value_t value);
+SENTRY_API void sentry_scope_merge_context_n(sentry_scope_t *scope,
+    const char *key, size_t key_len, sentry_value_t value);
 
 /**
  * Removes the context object with the specified key.
