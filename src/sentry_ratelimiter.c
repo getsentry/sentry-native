@@ -3,7 +3,7 @@
 #include "sentry_slice.h"
 #include "sentry_utils.h"
 
-#define MAX_RATE_LIMITS 4
+#define MAX_RATE_LIMITS 5
 #define MAX_RETRY_AFTER (24 * 60 * 60) // 24h
 
 struct sentry_rate_limiter_s {
@@ -28,6 +28,7 @@ sentry__rate_limiter_new(void)
         rl->disabled_until[SENTRY_RL_CATEGORY_ERROR] = 0;
         rl->disabled_until[SENTRY_RL_CATEGORY_SESSION] = 0;
         rl->disabled_until[SENTRY_RL_CATEGORY_TRANSACTION] = 0;
+        rl->disabled_until[SENTRY_RL_CATEGORY_REPLAY] = 0;
     }
     return rl;
 }
@@ -64,6 +65,8 @@ sentry__rate_limiter_update_from_header(
             } else if (sentry__slice_eqs(category, "transaction")) {
                 rl->disabled_until[SENTRY_RL_CATEGORY_TRANSACTION]
                     = retry_after;
+            } else if (sentry__slice_eqs(category, "replay")) {
+                rl->disabled_until[SENTRY_RL_CATEGORY_REPLAY] = retry_after;
             }
 
             categories = sentry__slice_advance(categories, category.len);

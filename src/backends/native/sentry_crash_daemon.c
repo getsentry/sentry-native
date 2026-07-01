@@ -3573,6 +3573,33 @@ sentry__process_crash(const sentry_options_t *options, sentry_crash_ipc_t *ipc)
 #endif
 
 cleanup:
+    // Send the staged session-replay envelope same-session, enriched from the
+    // crash event (`<run>/__sentry-event`) so it shares the crash's
+    // tags/contexts/trace. Only flush when the crash itself was delivered:
+    // `cleanup` is also reached via `goto` on error paths where the crash was
+    // never captured, and flushing there would consume (and delete) the staged
+    // replay for a crash that never arrived.
+    if (crash_captured && options && options->transport) {
+        sentry_value_t crash_event = sentry_value_new_null();
+        if (run_folder) {
+            sentry_path_t *sentry_event_path
+                = sentry__path_join_str(run_folder, "__sentry-event");
+            if (sentry_event_path) {
+                size_t ev_len = 0;
+                char *ev_json
+                    = sentry__path_read_to_buffer(sentry_event_path, &ev_len);
+                if (ev_json) {
+                    crash_event = sentry__value_from_json(ev_json, ev_len);
+                    sentry_free(ev_json);
+                }
+                sentry__path_free(sentry_event_path);
+            }
+        }
+        sentry__session_replay_flush_pending(
+            options, options->transport, crash_event);
+        sentry_value_decref(crash_event);
+    }
+
     // Send all other envelopes from run folder (logs, etc.) before cleanup
     if (run_folder && options && options->transport && options->run) {
         SENTRY_DEBUG("Checking for additional envelopes in run folder");
