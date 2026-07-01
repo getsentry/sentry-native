@@ -100,7 +100,8 @@ generate_propagation_context(sentry_value_t propagation_context)
         sentry_value_get_by_key(propagation_context, "trace"));
 }
 
-#if defined(SENTRY_PLATFORM_NX) || defined(SENTRY_PLATFORM_PS)
+#if defined(SENTRY_PLATFORM_NX) || defined(SENTRY_PLATFORM_PS)                 \
+    || defined(SENTRY_PLATFORM_XBOX)
 int
 sentry__native_init(sentry_options_t *options)
 #else
