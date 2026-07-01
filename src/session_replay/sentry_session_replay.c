@@ -228,38 +228,39 @@ build_replay_envelope(const sentry_options_t *options, sentry_value_t meta,
 
         sentry_stringbuilder_t rb;
         sentry__stringbuilder_init(&rb);
-        sentry__stringbuilder_append_buf(&rb, hdr, (size_t)hdr_len);
-        sentry__stringbuilder_append_buf(&rb, rrweb_json, rrweb_len);
+        int rb_rv = sentry__stringbuilder_append_buf(&rb, hdr, (size_t)hdr_len);
+        rb_rv |= sentry__stringbuilder_append_buf(&rb, rrweb_json, rrweb_len);
         size_t recording_len = sentry__stringbuilder_len(&rb);
         char *recording_buf = sentry__stringbuilder_into_string(&rb);
 
-        // replay_video item body: msgpack map of three raw blobs.
-        mpack_writer_t writer;
-        char *body = NULL;
-        size_t body_len = 0;
-        mpack_writer_init_growable(&writer, &body, &body_len);
-        mpack_start_map(&writer, 3);
-        mpack_write_cstr(&writer, "replay_event");
-        mpack_write_bin(&writer, event_json, (uint32_t)event_len);
-        mpack_write_cstr(&writer, "replay_recording");
-        mpack_write_bin(&writer, recording_buf, (uint32_t)recording_len);
-        mpack_write_cstr(&writer, "replay_video");
-        mpack_write_bin(&writer, video, (uint32_t)video_len);
-        mpack_finish_map(&writer);
-        bool body_ok = mpack_writer_destroy(&writer) == mpack_ok;
+        if (rb_rv == 0) {
+            mpack_writer_t writer;
+            char *body = NULL;
+            size_t body_len = 0;
+            mpack_writer_init_growable(&writer, &body, &body_len);
+            mpack_start_map(&writer, 3);
+            mpack_write_cstr(&writer, "replay_event");
+            mpack_write_bin(&writer, event_json, (uint32_t)event_len);
+            mpack_write_cstr(&writer, "replay_recording");
+            mpack_write_bin(&writer, recording_buf, (uint32_t)recording_len);
+            mpack_write_cstr(&writer, "replay_video");
+            mpack_write_bin(&writer, video, (uint32_t)video_len);
+            mpack_finish_map(&writer);
+            bool body_ok = mpack_writer_destroy(&writer) == mpack_ok;
+
+            if (body_ok && body) {
+                envelope = sentry__envelope_new_with_dsn(options->dsn);
+                if (envelope) {
+                    sentry__envelope_set_header(envelope, "event_id",
+                        sentry_value_new_string(replay_id));
+                    sentry__envelope_add_from_buffer(
+                        envelope, body, body_len, "replay_video");
+                }
+            }
+            sentry_free(body);
+        }
 
         sentry_free(recording_buf);
-
-        if (body_ok && body) {
-            envelope = sentry__envelope_new_with_dsn(options->dsn);
-            if (envelope) {
-                sentry__envelope_set_header(
-                    envelope, "event_id", sentry_value_new_string(replay_id));
-                sentry__envelope_add_from_buffer(
-                    envelope, body, body_len, "replay_video");
-            }
-        }
-        sentry_free(body);
     }
 
     sentry_free(rrweb_json);
