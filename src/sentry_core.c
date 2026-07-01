@@ -1078,21 +1078,16 @@ sentry_set_context_n(const char *key, size_t key_len, sentry_value_t value)
 void
 sentry_merge_context(const char *key, sentry_value_t value)
 {
-    sentry_merge_context_n(key, sentry__guarded_strlen(key), value);
+    SENTRY_WITH_SCOPE_MUT (scope) {
+        sentry_scope_merge_context(scope, key, value);
+    }
 }
 
 void
 sentry_merge_context_n(const char *key, size_t key_len, sentry_value_t value)
 {
     SENTRY_WITH_SCOPE_MUT (scope) {
-        sentry_value_t context
-            = sentry_value_get_by_key_n(scope->contexts, key, key_len);
-        if (sentry_value_is_null(context)) {
-            sentry_value_set_by_key_n(scope->contexts, key, key_len, value);
-        } else {
-            sentry__value_merge_objects(context, value);
-            sentry_value_decref(value);
-        }
+        sentry_scope_merge_context_n(scope, key, key_len, value);
     }
 }
 

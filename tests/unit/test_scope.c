@@ -150,6 +150,37 @@ SENTRY_TEST(scope_merge_context)
         }
     }
 
+    // scoped merge into empty
+    {
+        sentry_scope_t *local_scope = sentry_local_scope_new();
+
+        sentry_value_t os = sentry_value_new_object();
+        sentry_value_set_by_key(os, "name", sentry_value_new_string("SteamOS"));
+        sentry_scope_merge_context(local_scope, "os", os);
+
+        sentry_value_t ctx
+            = sentry_value_get_by_key(local_scope->contexts, "os");
+        TEST_CHECK_STRING_EQUAL(
+            sentry_value_as_string(sentry_value_get_by_key(ctx, "name")),
+            "SteamOS");
+
+        // scoped merge does not overwrite existing keys
+        sentry_value_t os2 = sentry_value_new_object();
+        sentry_value_set_by_key(os2, "name", sentry_value_new_string("Linux"));
+        sentry_value_set_by_key(os2, "version", sentry_value_new_string("6.1"));
+        sentry_scope_merge_context(local_scope, "os", os2);
+
+        ctx = sentry_value_get_by_key(local_scope->contexts, "os");
+        TEST_CHECK_STRING_EQUAL(
+            sentry_value_as_string(sentry_value_get_by_key(ctx, "name")),
+            "SteamOS");
+        TEST_CHECK_STRING_EQUAL(
+            sentry_value_as_string(sentry_value_get_by_key(ctx, "version")),
+            "6.1");
+
+        sentry__scope_free(local_scope);
+    }
+
     sentry_close();
 }
 
