@@ -82,6 +82,10 @@ def test_native_capture_crash(cmake, httpserver):
         )
     assert waiting.result
 
+    assert len(httpserver.log) >= 1
+    envelope = Envelope.deserialize(httpserver.log[0][0].get_data())
+    assert_native_crash(envelope)
+
 
 @pytest.mark.skipif(
     sys.platform != "win32" or bool(os.environ.get("TEST_MINGW")),

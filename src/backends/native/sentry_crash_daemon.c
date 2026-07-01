@@ -2373,6 +2373,8 @@ build_native_event(const sentry_crash_context_t *ctx,
 
     if (sentry_value_is_null(event)) {
         event = sentry_value_new_event();
+    } else {
+        sentry__ensure_event_id(event, NULL);
     }
 
     apply_breadcrumbs_from_ring_files(event, run_folder, ctx);
