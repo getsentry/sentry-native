@@ -31,9 +31,9 @@ sentry_path_t *sentry__session_replay_get_path(const sentry_options_t *options);
  * `<database>/replays/replay-<id>.{json,mp4}`.
  *
  * Native-daemon-only: called out-of-process by the crash
- * daemon, so it runs only on a crash and delivers same-session. The consumed
- * sidecar and mp4 are removed once the envelope has been captured, so the flush
- * is idempotent.
+ * daemon, so it runs only on a crash and delivers same-session. The sidecar and
+ * mp4 are consumed once and removed after the flush attempt, regardless of
+ * whether the envelope was built or sent, so a failed flush is not retried.
  *
  * `scope_source` is the crash event (`<run>/__sentry-event`); its scope fields
  * and trace id are copied onto the replay, and its timestamp ends the replay
