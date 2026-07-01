@@ -1132,3 +1132,588 @@ SENTRY_TEST(scope_local_attributes)
 
     sentry_close();
 }
+
+typedef struct {
+    sentry_value_t release;
+    sentry_value_t environment;
+    sentry_value_t transaction;
+    sentry_value_t fingerprint;
+    sentry_level_t level;
+    sentry_value_t user;
+    sentry_value_t breadcrumbs;
+    sentry_value_t tags;
+    sentry_value_t extras;
+    sentry_value_t contexts;
+    sentry_value_t attachments;
+    bool was_called;
+} test_observer_data_t;
+
+static void
+observe_set_release(void *data, const char *release, size_t release_len)
+{
+    test_observer_data_t *d = (test_observer_data_t *)data;
+    d->release = sentry_value_new_string_n(release, release_len);
+    d->was_called = true;
+}
+
+static void
+observe_set_environment(
+    void *data, const char *environment, size_t environment_len)
+{
+    test_observer_data_t *d = (test_observer_data_t *)data;
+    d->environment = sentry_value_new_string_n(environment, environment_len);
+    d->was_called = true;
+}
+
+static void
+observe_set_transaction(
+    void *data, const char *transaction, size_t transaction_len)
+{
+    test_observer_data_t *d = (test_observer_data_t *)data;
+    d->transaction = sentry_value_new_string_n(transaction, transaction_len);
+    d->was_called = true;
+}
+
+static void
+observe_set_fingerprint(void *data, sentry_value_t fingerprint)
+{
+    test_observer_data_t *d = (test_observer_data_t *)data;
+    if (!sentry_value_is_null(d->fingerprint)) {
+        sentry_value_decref(d->fingerprint);
+    }
+    sentry_value_incref(fingerprint);
+    d->fingerprint = fingerprint;
+    d->was_called = true;
+}
+
+static void
+observe_set_level(void *data, sentry_level_t level)
+{
+    test_observer_data_t *d = (test_observer_data_t *)data;
+    d->level = level;
+    d->was_called = true;
+}
+
+static void
+observe_add_attachment(void *data, sentry_attachment_t *attachment)
+{
+    test_observer_data_t *d = (test_observer_data_t *)data;
+    if (sentry_value_is_null(d->attachments)) {
+        d->attachments = sentry_value_new_list();
+    }
+    sentry_value_t obj = sentry_value_new_object();
+    const char *filename = sentry__attachment_get_filename(attachment);
+    if (filename) {
+        sentry_value_set_by_key(
+            obj, "filename", sentry_value_new_string(filename));
+    }
+    if (attachment->buf) {
+        sentry_value_set_by_key(obj, "buf",
+            sentry_value_new_string_n(attachment->buf, attachment->buf_len));
+    }
+    sentry_value_append(d->attachments, obj);
+    d->was_called = true;
+}
+
+static void
+observe_remove_attachment(void *data, sentry_attachment_t *attachment)
+{
+    test_observer_data_t *d = (test_observer_data_t *)data;
+    if (sentry_value_is_null(d->attachments)) {
+        d->attachments = sentry_value_new_list();
+    }
+    sentry_value_t obj = sentry_value_new_object();
+    const char *filename = sentry__attachment_get_filename(attachment);
+    if (filename) {
+        sentry_value_set_by_key(
+            obj, "filename", sentry_value_new_string(filename));
+    }
+    sentry_value_set_by_key(obj, "removed", sentry_value_new_bool(true));
+    sentry_value_append(d->attachments, obj);
+    d->was_called = true;
+}
+
+static void
+observe_set_user(void *data, sentry_value_t user)
+{
+    test_observer_data_t *d = (test_observer_data_t *)data;
+    d->user = user;
+    d->was_called = true;
+}
+
+static void
+observe_add_breadcrumb(void *data, sentry_value_t breadcrumb)
+{
+    test_observer_data_t *d = (test_observer_data_t *)data;
+    if (sentry_value_is_null(d->breadcrumbs)) {
+        d->breadcrumbs = sentry_value_new_list();
+    }
+    sentry_value_incref(breadcrumb);
+    sentry_value_append(d->breadcrumbs, breadcrumb);
+    d->was_called = true;
+}
+
+static void
+observe_set_tag(void *data, const char *key, size_t key_len, const char *value,
+    size_t value_len)
+{
+    test_observer_data_t *d = (test_observer_data_t *)data;
+    if (sentry_value_is_null(d->tags)) {
+        d->tags = sentry_value_new_object();
+    }
+    sentry_value_set_by_key_n(
+        d->tags, key, key_len, sentry_value_new_string_n(value, value_len));
+    d->was_called = true;
+}
+
+static void
+observe_remove_tag(void *data, const char *key, size_t key_len)
+{
+    test_observer_data_t *d = (test_observer_data_t *)data;
+    if (sentry_value_is_null(d->tags)) {
+        d->tags = sentry_value_new_object();
+    }
+    sentry_value_set_by_key_n(
+        d->tags, key, key_len, sentry_value_new_string("(removed)"));
+    d->was_called = true;
+}
+
+static void
+observe_set_extra(
+    void *data, const char *key, size_t key_len, sentry_value_t value)
+{
+    test_observer_data_t *d = (test_observer_data_t *)data;
+    if (sentry_value_is_null(d->extras)) {
+        d->extras = sentry_value_new_object();
+    }
+    sentry_value_incref(value);
+    sentry_value_set_by_key_n(d->extras, key, key_len, value);
+    d->was_called = true;
+}
+
+static void
+observe_remove_extra(void *data, const char *key, size_t key_len)
+{
+    test_observer_data_t *d = (test_observer_data_t *)data;
+    if (sentry_value_is_null(d->extras)) {
+        d->extras = sentry_value_new_object();
+    }
+    sentry_value_set_by_key_n(
+        d->extras, key, key_len, sentry_value_new_string("(removed)"));
+    d->was_called = true;
+}
+
+static void
+observe_set_context(
+    void *data, const char *key, size_t key_len, sentry_value_t value)
+{
+    test_observer_data_t *d = (test_observer_data_t *)data;
+    if (sentry_value_is_null(d->contexts)) {
+        d->contexts = sentry_value_new_object();
+    }
+    sentry_value_incref(value);
+    sentry_value_set_by_key_n(d->contexts, key, key_len, value);
+    d->was_called = true;
+}
+
+static void
+observe_remove_context(void *data, const char *key, size_t key_len)
+{
+    test_observer_data_t *d = (test_observer_data_t *)data;
+    if (sentry_value_is_null(d->contexts)) {
+        d->contexts = sentry_value_new_object();
+    }
+    sentry_value_set_by_key_n(
+        d->contexts, key, key_len, sentry_value_new_string("(removed)"));
+    d->was_called = true;
+}
+
+SENTRY_TEST(scope_observer_null)
+{
+    SENTRY_TEST_OPTIONS_NEW(options);
+    sentry_init(options);
+
+    test_observer_data_t d = { .tags = sentry_value_new_null() };
+    sentry_scope_observer_t *observer = sentry__scope_observer_new();
+    observer->data = &d;
+    observer->set_tag = observe_set_tag;
+
+    SENTRY_WITH_SCOPE_MUT (scope) {
+        sentry__scope_add_observer(scope, observer);
+    }
+
+    sentry_set_tag("my-tag", "my-value");
+    TEST_CHECK(d.was_called);
+
+    d.was_called = false;
+    sentry_remove_tag("my-tag");
+    TEST_CHECK(!d.was_called);
+
+    sentry_value_decref(d.tags);
+
+    sentry_close();
+}
+
+SENTRY_TEST(scope_observer_multiple)
+{
+    SENTRY_TEST_OPTIONS_NEW(options);
+    sentry_init(options);
+
+    test_observer_data_t d1 = { .tags = sentry_value_new_null() };
+    test_observer_data_t d2 = { .tags = sentry_value_new_null() };
+    sentry_scope_observer_t *observer1 = sentry__scope_observer_new();
+    observer1->data = &d1;
+    observer1->set_tag = observe_set_tag;
+
+    sentry_scope_observer_t *observer2 = sentry__scope_observer_new();
+    observer2->data = &d2;
+    observer2->set_tag = observe_set_tag;
+
+    SENTRY_WITH_SCOPE_MUT (scope) {
+        sentry__scope_add_observer(scope, observer1);
+        sentry__scope_add_observer(scope, observer2);
+    }
+
+    sentry_set_tag("multi", "test");
+    TEST_CHECK(d1.was_called);
+    TEST_CHECK(d2.was_called);
+    TEST_CHECK_STRING_EQUAL(
+        sentry_value_as_string(sentry_value_get_by_key(d1.tags, "multi")),
+        "test");
+    TEST_CHECK_STRING_EQUAL(
+        sentry_value_as_string(sentry_value_get_by_key(d2.tags, "multi")),
+        "test");
+
+    sentry_value_decref(d1.tags);
+    sentry_value_decref(d2.tags);
+    sentry_close();
+}
+
+SENTRY_TEST(scope_observer_release)
+{
+    SENTRY_TEST_OPTIONS_NEW(options);
+    sentry_init(options);
+
+    test_observer_data_t d = { 0 };
+    sentry_scope_observer_t *observer = sentry__scope_observer_new();
+    observer->data = &d;
+    observer->set_release = observe_set_release;
+
+    SENTRY_WITH_SCOPE_MUT (scope) {
+        sentry__scope_add_observer(scope, observer);
+    }
+
+    sentry_set_release("my-release");
+    TEST_CHECK(d.was_called);
+    TEST_CHECK_STRING_EQUAL(sentry_value_as_string(d.release), "my-release");
+
+    sentry_value_decref(d.release);
+    sentry_close();
+}
+
+SENTRY_TEST(scope_observer_environment)
+{
+    SENTRY_TEST_OPTIONS_NEW(options);
+    sentry_init(options);
+
+    test_observer_data_t d = { 0 };
+    sentry_scope_observer_t *observer = sentry__scope_observer_new();
+    observer->data = &d;
+    observer->set_environment = observe_set_environment;
+
+    SENTRY_WITH_SCOPE_MUT (scope) {
+        sentry__scope_add_observer(scope, observer);
+    }
+
+    sentry_set_environment("my-env");
+    TEST_CHECK(d.was_called);
+    TEST_CHECK_STRING_EQUAL(sentry_value_as_string(d.environment), "my-env");
+
+    sentry_value_decref(d.environment);
+    sentry_close();
+}
+
+SENTRY_TEST(scope_observer_transaction)
+{
+    SENTRY_TEST_OPTIONS_NEW(options);
+    sentry_init(options);
+
+    test_observer_data_t d = { 0 };
+    sentry_scope_observer_t *observer = sentry__scope_observer_new();
+    observer->data = &d;
+    observer->set_transaction = observe_set_transaction;
+
+    SENTRY_WITH_SCOPE_MUT (scope) {
+        sentry__scope_add_observer(scope, observer);
+    }
+
+    sentry_set_transaction("my-transaction");
+    TEST_CHECK(d.was_called);
+    TEST_CHECK_STRING_EQUAL(
+        sentry_value_as_string(d.transaction), "my-transaction");
+
+    sentry_value_decref(d.transaction);
+    sentry_close();
+}
+
+SENTRY_TEST(scope_observer_fingerprint)
+{
+    SENTRY_TEST_OPTIONS_NEW(options);
+    sentry_init(options);
+
+    test_observer_data_t d = { 0 };
+    sentry_scope_observer_t *observer = sentry__scope_observer_new();
+    observer->data = &d;
+    observer->set_fingerprint = observe_set_fingerprint;
+
+    SENTRY_WITH_SCOPE_MUT (scope) {
+        sentry__scope_add_observer(scope, observer);
+    }
+
+    sentry_set_fingerprint("my-fingerprint", NULL);
+    TEST_CHECK(d.was_called);
+    TEST_CHECK(!sentry_value_is_null(d.fingerprint));
+    TEST_CHECK_JSON_VALUE(d.fingerprint, "[\"my-fingerprint\"]");
+
+    d.was_called = false;
+    sentry_remove_fingerprint();
+    TEST_CHECK(d.was_called);
+    TEST_CHECK(sentry_value_is_null(d.fingerprint));
+
+    sentry_close();
+}
+
+SENTRY_TEST(scope_observer_level)
+{
+    SENTRY_TEST_OPTIONS_NEW(options);
+    sentry_init(options);
+
+    test_observer_data_t d = { 0 };
+    sentry_scope_observer_t *observer = sentry__scope_observer_new();
+    observer->data = &d;
+    observer->set_level = observe_set_level;
+
+    SENTRY_WITH_SCOPE_MUT (scope) {
+        sentry__scope_add_observer(scope, observer);
+    }
+
+    sentry_set_level(SENTRY_LEVEL_WARNING);
+    TEST_CHECK(d.was_called);
+    TEST_CHECK(d.level == SENTRY_LEVEL_WARNING);
+
+    sentry_close();
+}
+
+SENTRY_TEST(scope_observer_user)
+{
+    SENTRY_TEST_OPTIONS_NEW(options);
+    sentry_init(options);
+
+    test_observer_data_t d = { 0 };
+    sentry_scope_observer_t *observer = sentry__scope_observer_new();
+    observer->data = &d;
+    observer->set_user = observe_set_user;
+
+    SENTRY_WITH_SCOPE_MUT (scope) {
+        sentry__scope_add_observer(scope, observer);
+    }
+
+    sentry_value_t user = sentry_value_new_object();
+    sentry_value_set_by_key(user, "id", sentry_value_new_string("user123"));
+    sentry_set_user(user);
+    TEST_CHECK(d.was_called);
+    TEST_CHECK(!sentry_value_is_null(d.user));
+    TEST_CHECK_STRING_EQUAL(
+        sentry_value_as_string(sentry_value_get_by_key(d.user, "id")),
+        "user123");
+
+    d.was_called = false;
+    sentry_remove_user();
+    TEST_CHECK(d.was_called);
+    TEST_CHECK(sentry_value_is_null(d.user));
+
+    sentry_close();
+}
+
+SENTRY_TEST(scope_observer_breadcrumbs)
+{
+    SENTRY_TEST_OPTIONS_NEW(options);
+    sentry_init(options);
+
+    test_observer_data_t d = { .breadcrumbs = sentry_value_new_null() };
+    sentry_scope_observer_t *observer = sentry__scope_observer_new();
+    observer->data = &d;
+    observer->add_breadcrumb = observe_add_breadcrumb;
+
+    SENTRY_WITH_SCOPE_MUT (scope) {
+        sentry__scope_add_observer(scope, observer);
+    }
+
+    sentry_add_breadcrumb(
+        sentry_value_new_breadcrumb(NULL, "first breadcrumb"));
+    TEST_CHECK(d.was_called);
+    TEST_CHECK_INT_EQUAL(sentry_value_get_length(d.breadcrumbs), 1);
+    TEST_CHECK_STRING_EQUAL(
+        sentry_value_as_string(sentry_value_get_by_key(
+            sentry_value_get_by_index(d.breadcrumbs, 0), "message")),
+        "first breadcrumb");
+
+    sentry_add_breadcrumb(
+        sentry_value_new_breadcrumb("warning", "second breadcrumb"));
+    TEST_CHECK_INT_EQUAL(sentry_value_get_length(d.breadcrumbs), 2);
+    TEST_CHECK_STRING_EQUAL(
+        sentry_value_as_string(sentry_value_get_by_key(
+            sentry_value_get_by_index(d.breadcrumbs, 1), "message")),
+        "second breadcrumb");
+    TEST_CHECK_STRING_EQUAL(
+        sentry_value_as_string(sentry_value_get_by_key(
+            sentry_value_get_by_index(d.breadcrumbs, 1), "type")),
+        "warning");
+
+    sentry_value_decref(d.breadcrumbs);
+    sentry_close();
+}
+
+SENTRY_TEST(scope_observer_tags)
+{
+    SENTRY_TEST_OPTIONS_NEW(options);
+    sentry_init(options);
+
+    test_observer_data_t d = { .tags = sentry_value_new_null() };
+    sentry_scope_observer_t *observer = sentry__scope_observer_new();
+    observer->data = &d;
+    observer->set_tag = observe_set_tag;
+    observer->remove_tag = observe_remove_tag;
+
+    SENTRY_WITH_SCOPE_MUT (scope) {
+        sentry__scope_add_observer(scope, observer);
+    }
+
+    sentry_set_tag("my-tag", "my-value");
+    TEST_CHECK(d.was_called);
+    TEST_CHECK_STRING_EQUAL(
+        sentry_value_as_string(sentry_value_get_by_key(d.tags, "my-tag")),
+        "my-value");
+    TEST_CHECK_INT_EQUAL(
+        sentry_value_get_length(sentry_value_get_by_key(d.tags, "my-tag")), 8);
+
+    d.was_called = false;
+    sentry_remove_tag("my-tag");
+    TEST_CHECK(d.was_called);
+    TEST_CHECK_STRING_EQUAL(
+        sentry_value_as_string(sentry_value_get_by_key(d.tags, "my-tag")),
+        "(removed)");
+
+    sentry_value_decref(d.tags);
+    sentry_close();
+}
+
+SENTRY_TEST(scope_observer_extras)
+{
+    SENTRY_TEST_OPTIONS_NEW(options);
+    sentry_init(options);
+
+    test_observer_data_t d = { .extras = sentry_value_new_null() };
+    sentry_scope_observer_t *observer = sentry__scope_observer_new();
+    observer->data = &d;
+    observer->set_extra = observe_set_extra;
+    observer->remove_extra = observe_remove_extra;
+
+    SENTRY_WITH_SCOPE_MUT (scope) {
+        sentry__scope_add_observer(scope, observer);
+    }
+
+    sentry_value_t val = sentry_value_new_string("extra-value");
+    sentry_set_extra("my-extra", val);
+    TEST_CHECK(d.was_called);
+    TEST_CHECK_STRING_EQUAL(
+        sentry_value_as_string(sentry_value_get_by_key(d.extras, "my-extra")),
+        "extra-value");
+
+    d.was_called = false;
+    sentry_remove_extra("my-extra");
+    TEST_CHECK(d.was_called);
+    TEST_CHECK_STRING_EQUAL(
+        sentry_value_as_string(sentry_value_get_by_key(d.extras, "my-extra")),
+        "(removed)");
+
+    sentry_value_decref(d.extras);
+    sentry_close();
+}
+
+SENTRY_TEST(scope_observer_contexts)
+{
+    SENTRY_TEST_OPTIONS_NEW(options);
+    sentry_init(options);
+
+    test_observer_data_t d = { .contexts = sentry_value_new_null() };
+    sentry_scope_observer_t *observer = sentry__scope_observer_new();
+    observer->data = &d;
+    observer->set_context = observe_set_context;
+    observer->remove_context = observe_remove_context;
+
+    SENTRY_WITH_SCOPE_MUT (scope) {
+        sentry__scope_add_observer(scope, observer);
+    }
+
+    sentry_value_t ctx = sentry_value_new_object();
+    sentry_value_set_by_key(ctx, "type", sentry_value_new_string("device"));
+    sentry_set_context("my-context", ctx);
+    TEST_CHECK(d.was_called);
+    sentry_value_t received = sentry_value_get_by_key(d.contexts, "my-context");
+    TEST_CHECK(!sentry_value_is_null(received));
+    TEST_CHECK_STRING_EQUAL(
+        sentry_value_as_string(sentry_value_get_by_key(received, "type")),
+        "device");
+
+    d.was_called = false;
+    sentry_remove_context("my-context");
+    TEST_CHECK(d.was_called);
+    TEST_CHECK_STRING_EQUAL(sentry_value_as_string(sentry_value_get_by_key(
+                                d.contexts, "my-context")),
+        "(removed)");
+
+    sentry_value_decref(d.contexts);
+    sentry_close();
+}
+
+SENTRY_TEST(scope_observer_attachments)
+{
+    SENTRY_TEST_OPTIONS_NEW(options);
+    sentry_init(options);
+
+    test_observer_data_t d = { .attachments = sentry_value_new_null() };
+    sentry_scope_observer_t *observer = sentry__scope_observer_new();
+    observer->data = &d;
+    observer->add_attachment = observe_add_attachment;
+    observer->remove_attachment = observe_remove_attachment;
+
+    SENTRY_WITH_SCOPE_MUT (scope) {
+        sentry__scope_add_observer(scope, observer);
+    }
+
+    sentry_attachment_t *attachment = sentry_attach_bytes("buf", 3, "test.txt");
+    TEST_CHECK(d.was_called);
+    TEST_CHECK(attachment != NULL);
+    TEST_CHECK_INT_EQUAL(sentry_value_get_length(d.attachments), 1);
+    sentry_value_t added = sentry_value_get_by_index(d.attachments, 0);
+    TEST_CHECK_STRING_EQUAL(
+        sentry_value_as_string(sentry_value_get_by_key(added, "buf")), "buf");
+    TEST_CHECK_STRING_EQUAL(
+        sentry_value_as_string(sentry_value_get_by_key(added, "filename")),
+        "test.txt");
+
+    d.was_called = false;
+    sentry_remove_attachment(attachment);
+    TEST_CHECK(d.was_called);
+    TEST_CHECK_INT_EQUAL(sentry_value_get_length(d.attachments), 2);
+    sentry_value_t removed = sentry_value_get_by_index(d.attachments, 1);
+    TEST_CHECK_STRING_EQUAL(
+        sentry_value_as_string(sentry_value_get_by_key(removed, "filename")),
+        "test.txt");
+    TEST_CHECK(
+        sentry_value_is_true(sentry_value_get_by_key(removed, "removed")));
+
+    sentry_value_decref(d.attachments);
+    sentry_close();
+}

@@ -88,6 +88,9 @@ init_scope(sentry_scope_t *scope)
     scope->transaction_object = NULL;
     scope->span = NULL;
     scope->trace_managed = true;
+    scope->observers = NULL;
+    scope->num_observers = 0;
+    scope->is_notifying = false;
 }
 
 static sentry_scope_t *
@@ -127,6 +130,12 @@ cleanup_scope(sentry_scope_t *scope)
     sentry__attachments_free(scope->attachments);
     sentry__transaction_decref(scope->transaction_object);
     sentry__span_decref(scope->span);
+    for (size_t i = 0; i < scope->num_observers; i++) {
+        sentry_free(scope->observers[i]);
+    }
+    sentry_free(scope->observers);
+    scope->observers = NULL;
+    scope->num_observers = 0;
 }
 
 void
@@ -167,6 +176,37 @@ sentry__scope_flush_unlock(void)
             options->backend->flush_scope_func(options->backend, options);
         }
     }
+}
+
+sentry_scope_observer_t *
+sentry__scope_observer_new(void)
+{
+    return SENTRY_MAKE(sentry_scope_observer_t);
+}
+
+void
+sentry__scope_add_observer(
+    sentry_scope_t *scope, sentry_scope_observer_t *observer)
+{
+    if (!observer) {
+        return;
+    }
+
+    size_t new_count = scope->num_observers + 1;
+    sentry_scope_observer_t **new_array
+        = sentry__calloc(new_count, sizeof(sentry_scope_observer_t *));
+    if (!new_array) {
+        sentry_free(observer);
+        return;
+    }
+    if (scope->observers) {
+        memcpy(new_array, scope->observers,
+            scope->num_observers * sizeof(sentry_scope_observer_t *));
+        sentry_free(scope->observers);
+    }
+    new_array[scope->num_observers] = observer;
+    scope->observers = new_array;
+    scope->num_observers = new_count;
 }
 
 sentry_scope_t *
@@ -516,6 +556,7 @@ void
 sentry_scope_add_breadcrumb(sentry_scope_t *scope, sentry_value_t breadcrumb)
 {
     sentry__ringbuffer_append(scope->breadcrumbs, breadcrumb);
+    SENTRY_SCOPE_NOTIFY(scope, add_breadcrumb, breadcrumb);
 }
 
 void
@@ -523,12 +564,14 @@ sentry_scope_set_user(sentry_scope_t *scope, sentry_value_t user)
 {
     sentry_value_decref(scope->user);
     scope->user = user;
+    SENTRY_SCOPE_NOTIFY(scope, set_user, user);
 }
 
 void
 sentry_scope_set_tag(sentry_scope_t *scope, const char *key, const char *value)
 {
-    sentry_value_set_by_key(scope->tags, key, sentry_value_new_string(value));
+    sentry_scope_set_tag_n(scope, key, sentry__guarded_strlen(key), value,
+        sentry__guarded_strlen(value));
 }
 
 void
@@ -537,13 +580,14 @@ sentry_scope_set_tag_n(sentry_scope_t *scope, const char *key, size_t key_len,
 {
     sentry_value_set_by_key_n(
         scope->tags, key, key_len, sentry_value_new_string_n(value, value_len));
+    SENTRY_SCOPE_NOTIFY(scope, set_tag, key, key_len, value, value_len);
 }
 
 void
 sentry_scope_set_extra(
     sentry_scope_t *scope, const char *key, sentry_value_t value)
 {
-    sentry_value_set_by_key(scope->extra, key, value);
+    sentry_scope_set_extra_n(scope, key, sentry__guarded_strlen(key), value);
 }
 
 void
@@ -551,6 +595,7 @@ sentry_scope_set_extra_n(sentry_scope_t *scope, const char *key, size_t key_len,
     sentry_value_t value)
 {
     sentry_value_set_by_key_n(scope->extra, key, key_len, value);
+    SENTRY_SCOPE_NOTIFY(scope, set_extra, key, key_len, value);
 }
 
 void
@@ -590,6 +635,8 @@ sentry_scope_set_context(
     sentry_scope_t *scope, const char *key, sentry_value_t value)
 {
     sentry_value_set_by_key(scope->contexts, key, value);
+    SENTRY_SCOPE_NOTIFY(
+        scope, set_context, key, sentry__guarded_strlen(key), value);
 }
 
 void
@@ -597,6 +644,7 @@ sentry_scope_set_context_n(sentry_scope_t *scope, const char *key,
     size_t key_len, sentry_value_t value)
 {
     sentry_value_set_by_key_n(scope->contexts, key, key_len, value);
+    SENTRY_SCOPE_NOTIFY(scope, set_context, key, key_len, value);
 }
 
 void
@@ -633,6 +681,7 @@ sentry__scope_set_fingerprint_va(
 
     sentry_value_decref(scope->fingerprint);
     scope->fingerprint = fingerprint_value;
+    SENTRY_SCOPE_NOTIFY(scope, set_fingerprint, fingerprint_value);
 }
 
 void
@@ -687,12 +736,14 @@ sentry_scope_set_fingerprints(
 
     sentry_value_decref(scope->fingerprint);
     scope->fingerprint = fingerprints;
+    SENTRY_SCOPE_NOTIFY(scope, set_fingerprint, fingerprints);
 }
 
 void
 sentry_scope_set_level(sentry_scope_t *scope, sentry_level_t level)
 {
     scope->level = level;
+    SENTRY_SCOPE_NOTIFY(scope, set_level, level);
 }
 
 sentry_attachment_t *
