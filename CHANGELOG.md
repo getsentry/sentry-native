@@ -5,6 +5,7 @@
 **Features**
 
 - Android: Expose app-hang detection through the NDK bindings via `NdkOptions.setEnableAppHangTracking()` and `NdkOptions.setAppHangTimeoutMillis()`. ([#1823](https://github.com/getsentry/sentry-native/pull/1823))
+- Add `sentry_merge_context` to avoid overwriting existing keys in already set context objects. ([#1835](https://github.com/getsentry/sentry-native/pull/1835))
 
 **Fixes**:
 
