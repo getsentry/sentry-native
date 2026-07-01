@@ -251,15 +251,10 @@ build_replay_envelope(const sentry_options_t *options, sentry_value_t meta,
         sentry_free(recording_buf);
 
         if (body_ok && body) {
-            envelope = sentry__envelope_new();
+            envelope = sentry__envelope_new_with_dsn(options->dsn);
             if (envelope) {
                 sentry__envelope_set_header(
                     envelope, "event_id", sentry_value_new_string(replay_id));
-                const char *dsn = sentry_options_get_dsn(options);
-                if (dsn && dsn[0]) {
-                    sentry__envelope_set_header(
-                        envelope, "dsn", sentry_value_new_string(dsn));
-                }
                 sentry__envelope_add_from_buffer(
                     envelope, body, body_len, "replay_video");
             }
