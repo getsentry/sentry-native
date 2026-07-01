@@ -1827,11 +1827,9 @@ sentry_capture_minidump(const char *path)
     return sentry_capture_minidump_n(path, sentry__guarded_strlen(path));
 }
 
-sentry_uuid_t
-sentry_capture_minidump_n(const char *path, size_t path_len)
+static sentry_uuid_t
+capture_minidump(sentry_path_t *dump_path)
 {
-    sentry_path_t *dump_path = sentry__path_from_str_n(path, path_len);
-
     if (!dump_path) {
         SENTRY_WARN(
             "sentry_capture_minidump() failed due to null path to minidump");
@@ -1906,6 +1904,13 @@ sentry_capture_minidump_n(const char *path, size_t path_len)
     sentry__path_free(dump_path);
 
     return sentry_uuid_nil();
+}
+
+sentry_uuid_t
+sentry_capture_minidump_n(const char *path, size_t path_len)
+{
+    sentry_path_t *dump_path = sentry__path_from_str_n(path, path_len);
+    return capture_minidump(dump_path);
 }
 
 static sentry_attachment_t *
@@ -2010,5 +2015,19 @@ sentry_attach_bytesw_n(const char *buf, size_t buf_len, const wchar_t *filename,
 {
     return add_attachment(sentry__attachment_from_buffer(
         buf, buf_len, sentry__path_from_wstr_n(filename, filename_len)));
+}
+
+sentry_uuid_t
+sentry_capture_minidumpw(const wchar_t *path)
+{
+    size_t path_len = path ? wcslen(path) : 0;
+    return sentry_capture_minidumpw_n(path, path_len);
+}
+
+sentry_uuid_t
+sentry_capture_minidumpw_n(const wchar_t *path, size_t path_len)
+{
+    sentry_path_t *dump_path = sentry__path_from_wstr_n(path, path_len);
+    return capture_minidump(dump_path);
 }
 #endif
