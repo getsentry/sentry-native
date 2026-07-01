@@ -477,7 +477,7 @@ if(SENTRY_BUILD_SHARED_LIBS)
 else()
 	target_compile_definitions(sentry PUBLIC SENTRY_BUILD_STATIC)
 endif()
-target_compile_definitions(sentry PRIVATE SIZEOF_LONG=${CMAKE_SIZEOF_LONG})
+target_compile_definitions(sentry PRIVATE SENTRY_SIZEOF_LONG=${CMAKE_SIZEOF_LONG})
 
 # AIX needs libm for isnan used in test suite
 if(CMAKE_SYSTEM_NAME STREQUAL "AIX" OR CMAKE_SYSTEM_NAME STREQUAL "OS400")
