@@ -275,6 +275,22 @@ build_replay_envelope(const sentry_options_t *options, sentry_value_t meta,
     return envelope;
 }
 
+// Build `<dir>/replay-<replay_id><ext>`, matching the embedder's staged name.
+static sentry_path_t *
+replay_file_path(
+    const sentry_path_t *dir, const char *replay_id, const char *ext)
+{
+    size_t len = strlen("replay-") + strlen(replay_id) + strlen(ext);
+    char *name = sentry_malloc(len + 1);
+    if (!name) {
+        return NULL;
+    }
+    snprintf(name, len + 1, "replay-%s%s", replay_id, ext);
+    sentry_path_t *path = sentry__path_join_str(dir, name);
+    sentry_free(name);
+    return path;
+}
+
 void
 sentry__session_replay_flush_pending(const sentry_options_t *options,
     sentry_transport_t *transport, sentry_value_t scope_source)
@@ -283,19 +299,42 @@ sentry__session_replay_flush_pending(const sentry_options_t *options,
         return;
     }
 
+    const char *replay_id = NULL;
+    if (!sentry_value_is_null(scope_source)) {
+        sentry_value_t replay_ctx = sentry_value_get_by_key(
+            sentry_value_get_by_key(scope_source, "contexts"), "replay");
+        const char *rid = sentry_value_as_string(
+            sentry_value_get_by_key(replay_ctx, "replay_id"));
+        if (rid && rid[0]) {
+            replay_id = rid;
+        }
+    }
+    if (!replay_id) {
+        return;
+    }
+
     sentry_path_t *dir = session_replay_dir(options);
     if (!dir) {
         return;
     }
-    if (!sentry__path_is_dir(dir)) {
-        sentry__path_free(dir);
+
+    sentry_path_t *sidecar_path = replay_file_path(dir, replay_id, ".json");
+    sentry_path_t *mp4_path = replay_file_path(dir, replay_id, ".mp4");
+    sentry__path_free(dir);
+    if (!sidecar_path || !mp4_path) {
+        sentry__path_free(sidecar_path);
+        sentry__path_free(mp4_path);
         return;
     }
 
-    // End the replay window at the crash time (from the crash event); falls
-    // back to the sidecar's own end timestamp in build_replay_envelope.
-    double end_sec = 0.0;
-    if (!sentry_value_is_null(scope_source)) {
+    size_t json_len = 0;
+    char *json = sentry__path_read_to_buffer(sidecar_path, &json_len);
+    if (json) {
+        sentry_value_t meta = sentry__value_from_json(json, json_len);
+        sentry_free(json);
+
+        // build_replay_envelope falls back to the sidecar's end timestamp if 0.
+        double end_sec = 0.0;
         const char *ts = sentry_value_as_string(
             sentry_value_get_by_key(scope_source, "timestamp"));
         if (ts && ts[0]) {
@@ -304,43 +343,18 @@ sentry__session_replay_flush_pending(const sentry_options_t *options,
                 end_sec = (double)usec / 1000000.0;
             }
         }
-    }
-
-    sentry_pathiter_t *iter = sentry__path_iter_directory(dir);
-    const sentry_path_t *sidecar_path;
-    while (iter && (sidecar_path = sentry__pathiter_next(iter)) != NULL) {
-        if (!sentry__path_ends_with(sidecar_path, ".json")) {
-            continue;
-        }
-
-        size_t json_len = 0;
-        char *json = sentry__path_read_to_buffer(sidecar_path, &json_len);
-        if (!json) {
-            continue;
-        }
-        sentry_value_t meta = sentry__value_from_json(json, json_len);
-        sentry_free(json);
-
-        const char *video_filename = sentry_value_as_string(
-            sentry_value_get_by_key(meta, "videoFilename"));
-        sentry_path_t *mp4_path = (video_filename && video_filename[0])
-            ? sentry__path_join_str(dir, video_filename)
-            : NULL;
 
         sentry_envelope_t *envelope = build_replay_envelope(
             options, meta, mp4_path, end_sec, scope_source);
         if (envelope) {
             sentry__capture_envelope(transport, envelope, options);
         }
-
-        if (mp4_path) {
-            sentry__path_remove(mp4_path);
-        }
-        sentry__path_remove(sidecar_path);
-
-        sentry__path_free(mp4_path);
         sentry_value_decref(meta);
+
+        sentry__path_remove(mp4_path);
+        sentry__path_remove(sidecar_path);
     }
-    sentry__pathiter_free(iter);
-    sentry__path_free(dir);
+
+    sentry__path_free(mp4_path);
+    sentry__path_free(sidecar_path);
 }

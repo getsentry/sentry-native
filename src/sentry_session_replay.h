@@ -25,17 +25,20 @@ bool sentry__session_replay_capture(
 sentry_path_t *sentry__session_replay_get_path(const sentry_options_t *options);
 
 /**
- * Build and send the session-replay envelope(s) the embedder staged in
- * `<database>/replays/` (a `replay-<id>.json` sidecar next to its mp4). Native-
- * daemon-only: called out-of-process by the crash daemon, so it runs only on a
- * crash and delivers same-session. Each consumed sidecar and its mp4 are
- * removed once the envelope has been captured (malformed sidecars are removed
- * too), so the flush is idempotent. The SDK owns this cleanup -- the embedder
- * doesn't have to clear the `replays/` folder itself.
+ * Build and send the session-replay envelope for the crash described by
+ * `scope_source`. The replay is identified by the crash event's
+ * `contexts.replay.replay_id` and staged by the embedder as
+ * `<database>/replays/replay-<id>.{json,mp4}`.
+ *
+ * Native-daemon-only: called out-of-process by the crash
+ * daemon, so it runs only on a crash and delivers same-session. The consumed
+ * sidecar and mp4 are removed once the envelope has been captured, so the flush
+ * is idempotent.
  *
  * `scope_source` is the crash event (`<run>/__sentry-event`); its scope fields
  * and trace id are copied onto the replay, and its timestamp ends the replay
- * window. Null skips enrichment.
+ * window. If it is NULL or carries no `contexts.replay.replay_id`, nothing is
+ * flushed.
  */
 void sentry__session_replay_flush_pending(const sentry_options_t *options,
     sentry_transport_t *transport, sentry_value_t scope_source);
