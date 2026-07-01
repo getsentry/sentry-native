@@ -3573,8 +3573,11 @@ sentry__process_crash(const sentry_options_t *options, sentry_crash_ipc_t *ipc)
 cleanup:
     // Send the staged session-replay envelope same-session, enriched from the
     // crash event (`<run>/__sentry-event`) so it shares the crash's
-    // tags/contexts/trace.
-    if (options && options->transport) {
+    // tags/contexts/trace. Only flush when the crash itself was delivered:
+    // `cleanup` is also reached via `goto` on error paths where the crash was
+    // never captured, and flushing there would consume (and delete) the staged
+    // replay for a crash that never arrived.
+    if (crash_captured && options && options->transport) {
         sentry_value_t crash_event = sentry_value_new_null();
         if (run_folder) {
             sentry_path_t *sentry_event_path
