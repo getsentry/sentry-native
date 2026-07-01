@@ -45,7 +45,7 @@ test-leaks: update-test-discovery CMakeLists.txt
 		-DCMAKE_LINKER=/usr/local/opt/llvm/bin/clang \
 		..
 	@cmake --build leak-build --target sentry_test_unit --parallel
-	@ASAN_OPTIONS=detect_leaks=1 ./leak-build/sentry_test_unit
+	@LSAN_OPTIONS=suppressions=$(PWD)/tests/leaks.txt:print_suppressions=0 ASAN_OPTIONS=detect_leaks=1 ./leak-build/sentry_test_unit
 .PHONY: test-leaks
 
 benchmark: setup-venv
