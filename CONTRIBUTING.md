@@ -188,7 +188,7 @@ The example currently supports the following commands:
 - `discarding-before-transaction`: Installs a `before_transaction()` callback that discards the transaction.
 - `traces-sampler`: Installs a traces sampler callback function when used alongside `capture-transaction`.
 - `attach-view-hierarchy`: Adds a `view-hierarchy.json` attachment file, giving it the proper `attachment_type` and `content_type`.
- This file can be found in `./tests/fixtures/view-hierachy.json`.
+  This file can be found in `./tests/fixtures/view-hierachy.json`.
 - `set-trace`: Sets the scope `propagation_context`'s trace data to the given `trace_id="aaaabbbbccccddddeeeeffff00001111"` and `parent_span_id=""f0f0f0f0f0f0f0f0"`.
 - `capture-with-scope`: Captures an event with a local scope.
 - `attach-to-scope`: Same as `attachment` but attaches the file to the local scope.
@@ -200,6 +200,7 @@ The example currently supports the following commands:
 - `test-logger-before-crash`: Outputs marker directly using printf for test parsing before crash.
 
 Only on Linux using crashpad:
+
 - `crashpad-wait-for-upload`: Couples application shutdown to complete the upload in the `crashpad_handler`.
 
 Only on Windows using crashpad with its WER handler module:
@@ -222,15 +223,15 @@ invoked directly.
 
 ## Handling locks
 
-There are a couple of rules based on the current usage of mutexes in the Native SDK that should always be 
+There are a couple of rules based on the current usage of mutexes in the Native SDK that should always be
 applied in order not to have to fight boring concurrency bugs:
 
 * we use recursive mutexes throughout the code-base
 * these primarily allow us to call public interfaces from internal code instead of having a layer in-between
-* but they come at the risk of less clarity whether a lock release still leaves a live lock 
+* but they come at the risk of less clarity whether a lock release still leaves a live lock
 * they should not be considered as convenience:
   * reduce the amount of recursive locking to an absolute minimum
-  * instead of retrieval via global locks, pass shared state like `options` or `scope` around in internal helpers 
+  * instead of retrieval via global locks, pass shared state like `options` or `scope` around in internal helpers
   * or better yet: extract what you need into locals, then release the lock early
 * we provide lexical scope macros `SENTRY_WITH_OPTIONS` and `SENTRY_WITH_SCOPE` (and variants) as convenience wrappers
 * if you use them be aware of the following:
@@ -240,3 +241,7 @@ applied in order not to have to fight boring concurrency bugs:
   * never early-return or jump (via `goto` or `return`) from within a `SENTRY_WITH_*` block: doing so skips the corresponding release or cleanup
   * in particular, since `options` are readonly after `sentry_init()` the lock is only acquired to increment the refcount for the duration of `SENTRY_WITH_OPTIONS`
   * however, `SENTRY_WITH_SCOPE` (and variants) always hold the lock for the entirety of their lexical scope
+
+## Runtime Library Requirements
+
+**Vulkan** (optional): When GPU info gathering is enabled (`-DSENTRY_WITH_GPU_INFO=ON`), a Vulkan runtime library (e.g. `libvulkan.so`, `vulkan-1.dll`, or `libvulkan.dylib` via MoltenVK) must be available at runtime. The SDK dynamically loads the library — no Vulkan SDK is needed at build time (headers are vendored). If the library is not found at runtime, GPU info is silently skipped.
