@@ -5,7 +5,6 @@ extern "C" {
 #include "sentry_attachment.h"
 #include "sentry_backend.h"
 #include "sentry_core.h"
-#include "sentry_cpu_relax.h"
 #include "sentry_database.h"
 #include "sentry_envelope.h"
 #include "sentry_logger.h"
@@ -128,12 +127,9 @@ typedef struct {
     crashpad::CrashReportDatabase *db;
     crashpad::CrashpadClient *client;
     sentry_path_t *event_path;
-    sentry_path_t *breadcrumb1_path;
-    sentry_path_t *breadcrumb2_path;
     sentry_path_t *external_report_path;
-    size_t num_breadcrumbs;
-    std::atomic<bool> crashed;
-    std::atomic<bool> scope_flush;
+    char *installation_id;
+    size_t max_breadcrumbs;
     sentry_uuid_t crash_event_id;
 } crashpad_state_t;
 
@@ -145,6 +141,7 @@ crashpad_state_dtor(crashpad_state_t *state)
 {
     safe_delete(state->client);
     safe_delete(state->db);
+    sentry_free(state->installation_id);
 }
 
 static void
@@ -249,6 +246,10 @@ flush_external_crash_report(
         return;
     }
     sentry__envelope_set_event_id(envelope, crash_event_id);
+    if (options->dsn && options->dsn->is_valid) {
+        sentry__envelope_set_header(envelope, "dsn",
+            sentry_value_new_string(sentry_options_get_dsn(options)));
+    }
     if (options->session) {
         sentry__envelope_add_session(envelope, options->session);
     }
@@ -261,71 +262,7 @@ flush_external_crash_report(
     sentry_envelope_free(envelope);
 }
 
-// This function is necessary for macOS since it has no `FirstChanceHandler`.
-// but it is also necessary on Windows if the WER handler is enabled.
-// This means we have to continuously flush the scope on
-// every change so that `__sentry_event` is ready to upload when the crash
-// happens. With platforms that have a `FirstChanceHandler` we can do that
-// once in the handler. No need to share event- or crashpad-state mutation.
-static void
-crashpad_backend_flush_scope(
-    sentry_backend_t *backend, const sentry_options_t *options)
-{
-#if defined(SENTRY_PLATFORM_LINUX)
-    (void)backend;
-    (void)options;
-#else
-    auto *data = static_cast<crashpad_state_t *>(backend->data);
-    bool expected = false;
-
-    //
-    if (!data->event_path || data->crashed.load(std::memory_order_relaxed)
-        || !data->scope_flush.compare_exchange_strong(
-            expected, true, std::memory_order_acquire)) {
-        return;
-    }
-
-    sentry_value_t event = sentry_value_new_object();
-    sentry_value_set_by_key(
-        event, "event_id", sentry__value_new_uuid(&data->crash_event_id));
-    // Since this will only be uploaded in case of a crash we must make this
-    // event fatal.
-    sentry_value_set_by_key(
-        event, "level", sentry__value_new_level(SENTRY_LEVEL_FATAL));
-
-    flush_scope_to_event(data->event_path, options, event);
-    if (data->external_report_path) {
-        flush_external_crash_report(options, &data->crash_event_id);
-    }
-    data->scope_flush.store(false, std::memory_order_release);
-#endif
-}
-
 #if defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_WINDOWS)
-static void
-flush_scope_from_handler(
-    const sentry_options_t *options, sentry_value_t crash_event)
-{
-    auto state = static_cast<crashpad_state_t *>(options->backend->data);
-
-    // this blocks any further calls to `crashpad_backend_flush_scope`
-    state->crashed.store(true, std::memory_order_relaxed);
-
-    // busy-wait until any in-progress scope flushes are finished
-    bool expected = false;
-    while (!state->scope_flush.compare_exchange_strong(
-        expected, true, std::memory_order_acquire)) {
-        expected = false;
-        sentry__cpu_relax();
-    }
-
-    // now we are the sole flusher and can flush into the crash event
-    flush_scope_to_event(state->event_path, options, crash_event);
-    if (state->external_report_path) {
-        flush_external_crash_report(options, &state->crash_event_id);
-    }
-}
-
 #    ifdef SENTRY_PLATFORM_WINDOWS
 static bool
 crashpad_handler(EXCEPTION_POINTERS *ExceptionInfo)
@@ -385,7 +322,7 @@ crashpad_handler(int signum, siginfo_t *info, ucontext_t *user_context)
         should_dump = !sentry_value_is_null(crash_event);
 
         if (should_dump) {
-            flush_scope_from_handler(options, crash_event);
+            sentry_value_decref(crash_event);
             sentry__write_crash_marker(options);
 
             sentry__record_errors_on_current_session(1);
@@ -609,6 +546,239 @@ process_completed_reports(
     }
 }
 
+#if defined(SENTRY_PLATFORM_WINDOWS) || defined(SENTRY_PLATFORM_LINUX)         \
+    || defined(SENTRY_PLATFORM_MACOS)
+
+static void
+send_scope_update(crashpad_state_t *data, sentry_value_t update)
+{
+    if (!data || !data->client) {
+        sentry_value_decref(update);
+        return;
+    }
+
+    size_t mpack_size = 0;
+    char *mpack = sentry_value_to_msgpack(update, &mpack_size);
+    sentry_value_decref(update);
+    if (!mpack) {
+        return;
+    }
+
+    data->client->UpdateScope(std::string(mpack, mpack_size));
+    sentry_free(mpack);
+}
+
+static sentry_value_t
+scope_update_new(const char *op, const char *field)
+{
+    sentry_value_t update = sentry_value_new_object();
+    sentry_value_set_by_key(update, "op", sentry_value_new_string(op));
+    sentry_value_set_by_key(update, "field", sentry_value_new_string(field));
+    return update;
+}
+
+static void
+send_scope_value_update(void *state, const char *field, sentry_value_t value)
+{
+    sentry_value_t update = scope_update_new("set", field);
+    sentry_value_set_by_key(update, "value", sentry__value_clone(value));
+    send_scope_update(static_cast<crashpad_state_t *>(state), update);
+}
+
+static void
+send_scope_string_update(
+    void *state, const char *field, const char *value, size_t value_len)
+{
+    sentry_value_t update = scope_update_new("set", field);
+    sentry_value_set_by_key(
+        update, "value", sentry_value_new_string_n(value, value_len));
+    send_scope_update(static_cast<crashpad_state_t *>(state), update);
+}
+
+static void
+send_scope_item_update(void *state, const char *field, const char *key,
+    size_t key_len, sentry_value_t value)
+{
+    sentry_value_t update = scope_update_new("set_item", field);
+    sentry_value_set_by_key(
+        update, "key", sentry_value_new_string_n(key, key_len));
+    sentry_value_set_by_key(update, "value", sentry__value_clone(value));
+    send_scope_update(static_cast<crashpad_state_t *>(state), update);
+}
+
+static void
+send_scope_remove_item_update(
+    void *state, const char *field, const char *key, size_t key_len)
+{
+    sentry_value_t update = scope_update_new("remove_item", field);
+    sentry_value_set_by_key(
+        update, "key", sentry_value_new_string_n(key, key_len));
+    send_scope_update(static_cast<crashpad_state_t *>(state), update);
+}
+
+static void
+set_release(void *state, const char *release, size_t release_len)
+{
+    send_scope_string_update(state, "release", release, release_len);
+}
+
+static void
+set_environment(void *state, const char *environment, size_t environment_len)
+{
+    send_scope_string_update(
+        state, "environment", environment, environment_len);
+}
+
+static void
+set_transaction(void *state, const char *transaction, size_t transaction_len)
+{
+    send_scope_string_update(
+        state, "transaction", transaction, transaction_len);
+}
+
+static void
+set_fingerprint(void *state, sentry_value_t fingerprint)
+{
+    send_scope_value_update(state, "fingerprint", fingerprint);
+}
+
+static void
+set_level(void *state, sentry_level_t level)
+{
+    sentry_value_t update = scope_update_new("set", "level");
+    sentry_value_set_by_key(update, "value", sentry__value_new_level(level));
+    send_scope_update(static_cast<crashpad_state_t *>(state), update);
+}
+
+static void
+set_user(void *state, sentry_value_t user)
+{
+    sentry_value_t update = scope_update_new("set", "user");
+    sentry_value_t value = sentry__value_clone(user);
+    auto *data = static_cast<crashpad_state_t *>(state);
+    if (data->installation_id
+        && sentry_value_get_type(value) == SENTRY_VALUE_TYPE_OBJECT
+        && sentry_value_is_null(sentry_value_get_by_key(value, "id"))) {
+        sentry_value_set_by_key(
+            value, "id", sentry_value_new_string(data->installation_id));
+    }
+    sentry_value_set_by_key(update, "value", value);
+    send_scope_update(data, update);
+}
+
+static void
+set_tag(void *state, const char *key, size_t key_len, const char *value,
+    size_t value_len)
+{
+    sentry_value_t update = scope_update_new("set_item", "tags");
+    sentry_value_set_by_key(
+        update, "key", sentry_value_new_string_n(key, key_len));
+    sentry_value_set_by_key(
+        update, "value", sentry_value_new_string_n(value, value_len));
+    send_scope_update(static_cast<crashpad_state_t *>(state), update);
+}
+
+static void
+remove_tag(void *state, const char *key, size_t key_len)
+{
+    send_scope_remove_item_update(state, "tags", key, key_len);
+}
+
+static void
+set_extra(void *state, const char *key, size_t key_len, sentry_value_t value)
+{
+    send_scope_item_update(state, "extra", key, key_len, value);
+}
+
+static void
+remove_extra(void *state, const char *key, size_t key_len)
+{
+    send_scope_remove_item_update(state, "extra", key, key_len);
+}
+
+static void
+set_context(void *state, const char *key, size_t key_len, sentry_value_t value)
+{
+    send_scope_item_update(state, "contexts", key, key_len, value);
+}
+
+static void
+remove_context(void *state, const char *key, size_t key_len)
+{
+    send_scope_remove_item_update(state, "contexts", key, key_len);
+}
+
+static void
+add_breadcrumb(void *state, sentry_value_t breadcrumb)
+{
+    auto *data = static_cast<crashpad_state_t *>(state);
+    if (!data->max_breadcrumbs) {
+        return;
+    }
+
+    sentry_value_t update = scope_update_new("add_breadcrumb", "breadcrumbs");
+    sentry_value_set_by_key(update, "value", sentry__value_clone(breadcrumb));
+    sentry_value_set_by_key(update, "max",
+        sentry_value_new_uint64(static_cast<uint64_t>(data->max_breadcrumbs)));
+    send_scope_update(data, update);
+}
+
+static bool
+ensure_unique_path(sentry_attachment_t *attachment)
+{
+    sentry_path_t *path = nullptr;
+    SENTRY_WITH_OPTIONS (options) {
+        path = sentry__path_unique(options->run->run_path,
+            sentry__path_filename(attachment->filename));
+    }
+    if (!path) {
+        return false;
+    }
+
+    sentry__path_free(attachment->path);
+    attachment->path = path;
+    return true;
+}
+
+static void
+add_attachment(void *state, sentry_attachment_t *attachment)
+{
+    auto *data = static_cast<crashpad_state_t *>(state);
+    if (!data || !data->client) {
+        return;
+    }
+
+    if (attachment->buf) {
+        if (!ensure_unique_path(attachment)
+            || sentry__path_write_buffer(
+                   attachment->path, attachment->buf, attachment->buf_len)
+                != 0) {
+            SENTRY_WARNF("failed to write crashpad attachment \"%s\"",
+                attachment->path->path);
+        }
+    }
+
+    data->client->AddAttachment(
+        base::FilePath(SENTRY_PATH_PLATFORM_STR(attachment->path)));
+}
+
+static void
+remove_attachment(void *state, sentry_attachment_t *attachment)
+{
+    auto *data = static_cast<crashpad_state_t *>(state);
+    if (!data || !data->client) {
+        return;
+    }
+    data->client->RemoveAttachment(
+        base::FilePath(SENTRY_PATH_PLATFORM_STR(attachment->path)));
+
+    if (attachment->buf && sentry__path_remove(attachment->path) != 0) {
+        SENTRY_WARNF("failed to remove crashpad attachment \"%s\"",
+            attachment->path->path);
+    }
+}
+#endif
+
 static int
 crashpad_backend_startup(
     sentry_backend_t *backend, const sentry_options_t *options)
@@ -655,6 +825,7 @@ crashpad_backend_startup(
         absolute_handler_path->path);
     sentry_path_t *current_run_folder = options->run->run_path;
     auto *data = static_cast<crashpad_state_t *>(backend->data);
+    data->max_breadcrumbs = options->max_breadcrumbs;
 
     // pre-generate event ID for a potential future crash to be able to
     // associate feedback with the crash event.
@@ -672,23 +843,14 @@ crashpad_backend_startup(
         attachments.emplace_back(SENTRY_PATH_PLATFORM_STR(attachment->path));
     }
 
-    // and add the serialized event, and two rotating breadcrumb files
-    // as attachments and make sure the files exist
+    // and add the serialized event as an attachment and make sure it exists
     data->event_path
         = sentry__path_join_str(current_run_folder, "__sentry-event");
-    data->breadcrumb1_path
-        = sentry__path_join_str(current_run_folder, "__sentry-breadcrumb1");
-    data->breadcrumb2_path
-        = sentry__path_join_str(current_run_folder, "__sentry-breadcrumb2");
 
     sentry__path_touch(data->event_path);
-    sentry__path_touch(data->breadcrumb1_path);
-    sentry__path_touch(data->breadcrumb2_path);
 
-    attachments.insert(attachments.end(),
-        { base::FilePath(SENTRY_PATH_PLATFORM_STR(data->event_path)),
-            base::FilePath(SENTRY_PATH_PLATFORM_STR(data->breadcrumb1_path)),
-            base::FilePath(SENTRY_PATH_PLATFORM_STR(data->breadcrumb2_path)) });
+    attachments.push_back(
+        base::FilePath(SENTRY_PATH_PLATFORM_STR(data->event_path)));
 
     base::FilePath screenshot;
     if (options->attach_screenshot) {
@@ -712,6 +874,31 @@ crashpad_backend_startup(
             crash_envelope = base::FilePath(
                 SENTRY_PATH_PLATFORM_STR(data->external_report_path));
         }
+    }
+
+    sentry_value_t initial_event
+        = sentry__value_new_event_with_id(&data->crash_event_id);
+    sentry_value_set_by_key(
+        initial_event, "level", sentry__value_new_level(SENTRY_LEVEL_FATAL));
+    if (options->release) {
+        sentry_value_set_by_key(initial_event, "release",
+            sentry_value_new_string(options->release));
+    }
+    if (options->dist) {
+        sentry_value_set_by_key(
+            initial_event, "dist", sentry_value_new_string(options->dist));
+    }
+    if (options->environment) {
+        sentry_value_set_by_key(initial_event, "environment",
+            sentry_value_new_string(options->environment));
+    }
+    flush_scope_to_event(data->event_path, options, initial_event);
+    if (data->external_report_path) {
+        flush_external_crash_report(options, &data->crash_event_id);
+    }
+    if (options->run && options->run->installation_id) {
+        data->installation_id
+            = sentry__string_clone(options->run->installation_id);
     }
 
     std::vector<std::string> arguments { "--no-rate-limit" };
@@ -828,6 +1015,32 @@ crashpad_backend_startup(
             crashpad::TriState::kEnabled);
     }
 
+#if defined(SENTRY_PLATFORM_WINDOWS) || defined(SENTRY_PLATFORM_LINUX)         \
+    || defined(SENTRY_PLATFORM_MACOS)
+    {
+        sentry_scope_observer_t *observer = sentry__scope_observer_new();
+        observer->data = data;
+        observer->set_release = set_release;
+        observer->set_environment = set_environment;
+        observer->set_transaction = set_transaction;
+        observer->set_fingerprint = set_fingerprint;
+        observer->set_level = set_level;
+        observer->set_user = set_user;
+        observer->set_tag = set_tag;
+        observer->remove_tag = remove_tag;
+        observer->set_extra = set_extra;
+        observer->remove_extra = remove_extra;
+        observer->set_context = set_context;
+        observer->remove_context = remove_context;
+        observer->add_breadcrumb = add_breadcrumb;
+        observer->add_attachment = add_attachment;
+        observer->remove_attachment = remove_attachment;
+        SENTRY_WITH_SCOPE_MUT (scope) {
+            sentry__scope_add_observer(scope, observer);
+        }
+    }
+#endif
+
     return 0;
 }
 
@@ -854,50 +1067,10 @@ crashpad_backend_shutdown(sentry_backend_t *backend)
 }
 
 static void
-crashpad_backend_add_breadcrumb(sentry_backend_t *backend,
-    sentry_value_t breadcrumb, const sentry_options_t *options)
-{
-    auto *data = static_cast<crashpad_state_t *>(backend->data);
-
-    size_t max_breadcrumbs = options->max_breadcrumbs;
-    if (!max_breadcrumbs) {
-        return;
-    }
-
-    bool first_breadcrumb = data->num_breadcrumbs % max_breadcrumbs == 0;
-
-    const sentry_path_t *breadcrumb_file
-        = data->num_breadcrumbs % (max_breadcrumbs * 2) < max_breadcrumbs
-        ? data->breadcrumb1_path
-        : data->breadcrumb2_path;
-    data->num_breadcrumbs++;
-    if (!breadcrumb_file) {
-        return;
-    }
-
-    size_t mpack_size;
-    char *mpack = sentry_value_to_msgpack(breadcrumb, &mpack_size);
-    if (!mpack) {
-        return;
-    }
-
-    int rv = first_breadcrumb
-        ? sentry__path_write_buffer(breadcrumb_file, mpack, mpack_size)
-        : sentry__path_append_buffer(breadcrumb_file, mpack, mpack_size);
-    sentry_free(mpack);
-
-    if (rv != 0) {
-        SENTRY_WARN("flushing breadcrumb to msgpack failed");
-    }
-}
-
-static void
 crashpad_backend_free(sentry_backend_t *backend)
 {
     auto *data = static_cast<crashpad_state_t *>(backend->data);
     sentry__path_free(data->event_path);
-    sentry__path_free(data->breadcrumb1_path);
-    sentry__path_free(data->breadcrumb2_path);
     sentry__path_free(data->external_report_path);
     delete data;
 }
@@ -1016,66 +1189,6 @@ crashpad_backend_prune_database(sentry_backend_t *backend)
     crashpad::PruneCrashReportDatabase(data->db, &condition);
 }
 
-#if defined(SENTRY_PLATFORM_WINDOWS) || defined(SENTRY_PLATFORM_LINUX)         \
-    || defined(SENTRY_PLATFORM_MACOS)
-static bool
-ensure_unique_path(sentry_attachment_t *attachment)
-{
-    sentry_path_t *path = nullptr;
-    SENTRY_WITH_OPTIONS (options) {
-        path = sentry__path_unique(options->run->run_path,
-            sentry__path_filename(attachment->filename));
-    }
-    if (!path) {
-        return false;
-    }
-
-    sentry__path_free(attachment->path);
-    attachment->path = path;
-    return true;
-}
-
-static void
-crashpad_backend_add_attachment(
-    sentry_backend_t *backend, sentry_attachment_t *attachment)
-{
-    auto *data = static_cast<crashpad_state_t *>(backend->data);
-    if (!data || !data->client) {
-        return;
-    }
-
-    if (attachment->buf) {
-        if (!ensure_unique_path(attachment)
-            || sentry__path_write_buffer(
-                   attachment->path, attachment->buf, attachment->buf_len)
-                != 0) {
-            SENTRY_WARNF("failed to write crashpad attachment \"%s\"",
-                attachment->path->path);
-        }
-    }
-
-    data->client->AddAttachment(
-        base::FilePath(SENTRY_PATH_PLATFORM_STR(attachment->path)));
-}
-
-static void
-crashpad_backend_remove_attachment(
-    sentry_backend_t *backend, sentry_attachment_t *attachment)
-{
-    auto *data = static_cast<crashpad_state_t *>(backend->data);
-    if (!data || !data->client) {
-        return;
-    }
-    data->client->RemoveAttachment(
-        base::FilePath(SENTRY_PATH_PLATFORM_STR(attachment->path)));
-
-    if (attachment->buf && sentry__path_remove(attachment->path) != 0) {
-        SENTRY_WARNF("failed to remove crashpad attachment \"%s\"",
-            attachment->path->path);
-    }
-}
-#endif
-
 void
 sentry__backend_preload(void)
 {
@@ -1094,23 +1207,13 @@ sentry__backend_new(void)
         sentry_free(backend);
         return nullptr;
     }
-    data->scope_flush = false;
-    data->crashed = false;
-
     backend->startup_func = crashpad_backend_startup;
     backend->shutdown_func = crashpad_backend_shutdown;
     backend->except_func = crashpad_backend_except;
     backend->free_func = crashpad_backend_free;
-    backend->flush_scope_func = crashpad_backend_flush_scope;
-    backend->add_breadcrumb_func = crashpad_backend_add_breadcrumb;
     backend->user_consent_changed_func = crashpad_backend_user_consent_changed;
     backend->get_last_crash_func = crashpad_backend_last_crash;
     backend->prune_database_func = crashpad_backend_prune_database;
-#if defined(SENTRY_PLATFORM_WINDOWS) || defined(SENTRY_PLATFORM_LINUX)         \
-    || defined(SENTRY_PLATFORM_MACOS)
-    backend->add_attachment_func = crashpad_backend_add_attachment;
-    backend->remove_attachment_func = crashpad_backend_remove_attachment;
-#endif
     backend->data = data;
     backend->can_capture_after_shutdown = true;
 
