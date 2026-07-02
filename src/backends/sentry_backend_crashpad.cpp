@@ -127,6 +127,7 @@ typedef struct {
     crashpad::CrashReportDatabase *db;
     crashpad::CrashpadClient *client;
     sentry_path_t *external_report_path;
+    char *installation_id;
     sentry_uuid_t crash_event_id;
 } crashpad_state_t;
 
@@ -138,6 +139,8 @@ crashpad_state_dtor(crashpad_state_t *state)
 {
     safe_delete(state->client);
     safe_delete(state->db);
+    sentry_free(state->installation_id);
+    state->installation_id = nullptr;
 }
 
 static void
@@ -320,8 +323,18 @@ scope_sync_set_user(void *state, sentry_value_t user)
     if (!data->client) {
         return;
     }
+
+    sentry_value_t patched_user = sentry__value_clone(user);
+    if (data->installation_id
+        && sentry_value_get_type(patched_user) == SENTRY_VALUE_TYPE_OBJECT
+        && sentry_value_is_null(sentry_value_get_by_key(patched_user, "id"))) {
+        sentry_value_set_by_key(
+            patched_user, "id", sentry_value_new_string(data->installation_id));
+    }
+
     scope_sync_msgpack(
-        data, crashpad::CrashpadClient::ScopeUpdate::kSetUser, user);
+        data, crashpad::CrashpadClient::ScopeUpdate::kSetUser, patched_user);
+    sentry_value_decref(patched_user);
 }
 
 static void
@@ -815,6 +828,9 @@ crashpad_backend_startup(
     // pre-generate event ID for a potential future crash to be able to
     // associate feedback with the crash event.
     data->crash_event_id = sentry__new_event_id();
+    data->installation_id = options->run && options->run->installation_id
+        ? sentry__string_clone(options->run->installation_id)
+        : nullptr;
 
     base::FilePath database(SENTRY_PATH_PLATFORM_STR(options->database_path));
     base::FilePath handler(SENTRY_PATH_PLATFORM_STR(absolute_handler_path));
@@ -827,15 +843,6 @@ crashpad_backend_startup(
         attachment = attachment->next) {
         attachments.emplace_back(SENTRY_PATH_PLATFORM_STR(attachment->path));
     }
-
-    // Register __sentry-event as an attachment so crashpad copies it
-    // into the report at crash time. Written once at startup and updated
-    // by the initial scope flush after scope setup is complete.
-    sentry_path_t *event_path
-        = sentry__path_join_str(current_run_folder, "__sentry-event");
-    sentry__path_touch(event_path);
-    attachments.emplace_back(SENTRY_PATH_PLATFORM_STR(event_path));
-    sentry__path_free(event_path);
 
     base::FilePath screenshot;
     if (options->attach_screenshot) {
@@ -866,17 +873,6 @@ crashpad_backend_startup(
     }
 
     std::vector<std::string> arguments { "--no-rate-limit" };
-
-    // Pass the __sentry-event path so the handler can use it as a fallback
-    // for fields not yet received via IPC scope observer.
-    {
-        sentry_path_t *p
-            = sentry__path_join_str(current_run_folder, "__sentry-event");
-        if (p) {
-            arguments.push_back(std::string("--initial-scope=") + p->path);
-            sentry__path_free(p);
-        }
-    }
 
     // Pass max_breadcrumbs to the handler so it can cap the breadcrumb buffer.
     arguments.push_back(std::string("--max-breadcrumbs=")
@@ -1172,66 +1168,11 @@ sentry__backend_preload(void)
 {
 }
 
-#if !defined(SENTRY_PLATFORM_LINUX)
-static void
-crashpad_backend_flush_scope(
-    sentry_backend_t *backend, const sentry_options_t *options)
-{
-    auto *data = static_cast<crashpad_state_t *>(backend->data);
-
-    sentry_path_t *event_path
-        = sentry__path_join_str(options->run->run_path, "__sentry-event");
-    if (!event_path)
-        return;
-
-    sentry_value_t event = sentry_value_new_object();
-    sentry_value_set_by_key(
-        event, "event_id", sentry__value_new_uuid(&data->crash_event_id));
-    sentry_value_set_by_key(
-        event, "level", sentry__value_new_level(SENTRY_LEVEL_FATAL));
-    SENTRY_WITH_SCOPE (scope) {
-        sentry__scope_apply_to_event(scope, options, event, SENTRY_SCOPE_NONE);
-    }
-    size_t mpack_size;
-    char *mpack = sentry_value_to_msgpack(event, &mpack_size);
-    sentry_value_decref(event);
-    if (mpack) {
-        sentry__path_write_buffer(event_path, mpack, mpack_size);
-        sentry_free(mpack);
-    }
-    sentry__path_free(event_path);
-}
-#endif
-
 static void
 crashpad_backend_initial_scope_flush(
     sentry_backend_t *backend, const sentry_options_t *options)
 {
     auto *data = static_cast<crashpad_state_t *>(backend->data);
-
-    // Write the full scope to __sentry-event now that release,
-    // environment, etc. have been applied after backend startup.
-    sentry_path_t *event_path
-        = sentry__path_join_str(options->run->run_path, "__sentry-event");
-    if (event_path) {
-        SENTRY_WITH_SCOPE (scope) {
-            sentry_value_t event = sentry_value_new_object();
-            sentry_value_set_by_key(event, "event_id",
-                sentry__value_new_uuid(&data->crash_event_id));
-            sentry_value_set_by_key(
-                event, "level", sentry__value_new_level(SENTRY_LEVEL_FATAL));
-            sentry__scope_apply_to_event(
-                scope, options, event, SENTRY_SCOPE_NONE);
-            size_t mpack_size;
-            char *mpack = sentry_value_to_msgpack(event, &mpack_size);
-            sentry_value_decref(event);
-            if (mpack) {
-                sentry__path_write_buffer(event_path, mpack, mpack_size);
-                sentry_free(mpack);
-            }
-        }
-        sentry__path_free(event_path);
-    }
 
     // Send the full initial scope state to the handler via IPC.
     if (data->client) {
