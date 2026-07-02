@@ -25,6 +25,12 @@ bool sentry__session_replay_capture(
 sentry_path_t *sentry__session_replay_get_path(const sentry_options_t *options);
 
 /**
+ * Returns whether the embedder's `<database>/replays/` staging directory
+ * exists.
+ */
+bool sentry__session_replay_has_pending(const sentry_options_t *options);
+
+/**
  * Build and send the session-replay envelope for the crash described by
  * `scope_source`. The replay is identified by the crash event's
  * `contexts.replay.replay_id` and staged by the embedder as

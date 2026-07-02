@@ -287,6 +287,15 @@ replay_file_path(
     return path;
 }
 
+bool
+sentry__session_replay_has_pending(const sentry_options_t *options)
+{
+    sentry_path_t *dir = session_replay_dir(options);
+    bool pending = dir && sentry__path_is_dir(dir);
+    sentry__path_free(dir);
+    return pending;
+}
+
 void
 sentry__session_replay_flush_pending(const sentry_options_t *options,
     sentry_transport_t *transport, sentry_value_t scope_source)
