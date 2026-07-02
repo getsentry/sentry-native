@@ -1070,6 +1070,15 @@ main(int argc, char **argv)
         sentry_set_trace(direct_trace_id, direct_parent_span_id);
     }
 
+    if (has_arg(argc, argv, "replay-context")) {
+        // mimics an embedder (e.g. sentry-unreal) that stages replay clips in
+        // `<database>/replays/` and announces the active replay on the scope
+        sentry_value_t replay = sentry_value_new_object();
+        sentry_value_set_by_key(replay, "replay_id",
+            sentry_value_new_string("deadbeefdeadbeefdeadbeefdeadbeef"));
+        sentry_set_context("replay", replay);
+    }
+
     if (has_arg(argc, argv, "attach-after-init")) {
         // assuming the example / test is run directly from the cmake build
         // directory
