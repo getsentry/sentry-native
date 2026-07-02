@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1782996763634,
+  "lastUpdate": 1782996902445,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -80812,6 +80812,66 @@ window.BENCHMARK_DATA = {
             "value": 14.065300000311254,
             "unit": "ms",
             "extra": "Min 13.850ms\nMax 14.330ms\nMean 14.053ms\nStdDev 0.201ms\nMedian 14.065ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "tustanivsky@gmail.com",
+            "name": "Ivan Tustanivskyi",
+            "username": "tustanivsky"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "1d73ae8932f672a1a64d929ebac7eb8ca8922c50",
+          "message": "feat(session-replay): upload replay envelope from the native crash daemon (#1809)\n\n* Add session replay capturing\n\n* Handle replay envelope upload internally without public interface\n\n* Fix replay dir path\n\n* Fix json property names\n\n* Limit replay envelope to native daemon\n\n* Clean up\n\n* Fix lint\n\n* Fix tests\n\n* Inline helper functions\n\n* Clean up\n\n* Fix lint\n\n* Add replay files cleanup upon successfull envelope creation\n\n* Classify `replay_video` under the replay data/rate-limit category\n\n* Remove redundant videoFilename check\n\n* Fix comment\n\n* Fix issue with uploading orphan replays if crash wasn't captured\n\n* Clean up\n\n* Guard replay_recording assembly against string-builder failure\n\n* Add helper allowing to check if there's staged replay\n\n* Reuse crash envelope path var and check if replay is staged during daemon cleanup\n\n* Check replay dir content\n\n* Check if replay dir hold mp4 clip\n\n* Add integration tests\n\n* Guard buffer add",
+          "timestamp": "2026-07-02T15:49:49+03:00",
+          "tree_id": "2c705669f6e05036cf1b6e589206d044b28f09de",
+          "url": "https://github.com/getsentry/sentry-native/commit/1d73ae8932f672a1a64d929ebac7eb8ca8922c50"
+        },
+        "date": 1782996892751,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 12.517500000058135,
+            "unit": "ms",
+            "extra": "Min 11.495ms\nMax 14.167ms\nMean 12.600ms\nStdDev 1.027ms\nMedian 12.518ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 11.340700000118886,
+            "unit": "ms",
+            "extra": "Min 10.809ms\nMax 15.985ms\nMean 12.761ms\nStdDev 2.291ms\nMedian 11.341ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 30.83080000010341,
+            "unit": "ms",
+            "extra": "Min 29.891ms\nMax 77.252ms\nMean 40.738ms\nStdDev 20.551ms\nMedian 30.831ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.1615999999557971,
+            "unit": "ms",
+            "extra": "Min 0.153ms\nMax 0.207ms\nMean 0.172ms\nStdDev 0.022ms\nMedian 0.162ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.38850000009915675,
+            "unit": "ms",
+            "extra": "Min 0.378ms\nMax 0.468ms\nMean 0.416ms\nStdDev 0.047ms\nMedian 0.389ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 17.213399999945977,
+            "unit": "ms",
+            "extra": "Min 17.010ms\nMax 18.035ms\nMean 17.377ms\nStdDev 0.434ms\nMedian 17.213ms"
           }
         ]
       }
