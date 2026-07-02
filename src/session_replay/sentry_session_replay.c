@@ -253,8 +253,11 @@ build_replay_envelope(const sentry_options_t *options, sentry_value_t meta,
                 if (envelope) {
                     sentry__envelope_set_header(envelope, "event_id",
                         sentry_value_new_string(replay_id));
-                    sentry__envelope_add_from_buffer(
-                        envelope, body, body_len, "replay_video");
+                    if (!sentry__envelope_add_from_buffer(
+                            envelope, body, body_len, "replay_video")) {
+                        sentry_envelope_free(envelope);
+                        envelope = NULL;
+                    }
                 }
             }
             sentry_free(body);
