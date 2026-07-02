@@ -963,6 +963,14 @@ if(SENTRY_INTEGRATION_QT)
 	target_link_libraries(sentry PRIVATE Qt${Qt_VERSION_MAJOR}::Core)
 endif()
 
+option(SENTRY_INTEGRATION_WER "Build WER (Windows Error Reporting) integration")
+if(SENTRY_INTEGRATION_WER AND WIN32
+		AND (SENTRY_BACKEND_BREAKPAD OR SENTRY_BACKEND_CRASHPAD))
+	message(WARNING
+		"SENTRY_BACKEND=${SENTRY_BACKEND} is not compatible with WER. "
+		"Use SENTRY_BACKEND=none, inproc, or native with SENTRY_INTEGRATION_WER.")
+endif()
+
 include(CMakePackageConfigHelpers)
 configure_package_config_file(sentry-config.cmake.in sentry-config.cmake
 	INSTALL_DESTINATION "${CMAKE_INSTALL_CMAKEDIR}")

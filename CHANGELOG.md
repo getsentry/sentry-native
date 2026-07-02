@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+**Features**
+
+- Windows: add WER integration for syncing tags and attachments to WER. ([#1837](https://github.com/getsentry/sentry-native/pull/1837))
+
 **Fixes**:
 
 - Crashpad: wait reliably for crash report uploads. ([#1885](https://github.com/getsentry/sentry-native/pull/1885))
