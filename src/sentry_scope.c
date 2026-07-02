@@ -600,6 +600,28 @@ sentry_scope_set_context_n(sentry_scope_t *scope, const char *key,
 }
 
 void
+sentry_scope_update_context(
+    sentry_scope_t *scope, const char *key, sentry_value_t value)
+{
+    sentry_scope_update_context_n(
+        scope, key, sentry__guarded_strlen(key), value);
+}
+
+void
+sentry_scope_update_context_n(sentry_scope_t *scope, const char *key,
+    size_t key_len, sentry_value_t value)
+{
+    sentry_value_t context
+        = sentry_value_get_by_key_n(scope->contexts, key, key_len);
+    if (sentry_value_is_null(context)) {
+        sentry_value_set_by_key_n(scope->contexts, key, key_len, value);
+    } else {
+        sentry__value_merge_objects(value, context);
+        sentry_value_set_by_key_n(scope->contexts, key, key_len, value);
+    }
+}
+
+void
 sentry__scope_set_fingerprint_va(
     sentry_scope_t *scope, const char *fingerprint, va_list va)
 {
