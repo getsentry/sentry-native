@@ -1440,8 +1440,8 @@ elf_locate_symtab(const char *path, int allow_dynsym, sym_source_t *src,
         }
     }
 
-    int chosen = symtab_idx >= 0 ? symtab_idx
-                                 : (allow_dynsym ? dynsym_idx : -1);
+    int chosen
+        = symtab_idx >= 0 ? symtab_idx : (allow_dynsym ? dynsym_idx : -1);
     int found = 0;
     if (chosen >= 0
         && sentry__elf_has_sym_entsize(
@@ -1449,8 +1449,8 @@ elf_locate_symtab(const char *path, int allow_dynsym, sym_source_t *src,
         uint32_t strtab_idx = sections[chosen].sh_link;
         if (strtab_idx > 0 && strtab_idx < ehdr.e_shnum
             && sections[strtab_idx].sh_size > 0
-            && (size_t)snprintf(src->sym_path, sizeof(src->sym_path), "%s",
-                   path)
+            && (size_t)snprintf(
+                   src->sym_path, sizeof(src->sym_path), "%s", path)
                 < sizeof(src->sym_path)) {
             src->symtab_off = sections[chosen].sh_offset;
             src->symtab_size = sections[chosen].sh_size;
@@ -1554,8 +1554,7 @@ get_sym_source(const sentry_module_info_t *mod)
                 continue;
             }
 
-            SENTRY_DEBUGF(
-                "Using split-debug file %s for module %s", candidate,
+            SENTRY_DEBUGF("Using split-debug file %s for module %s", candidate,
                 mod->name);
             slot->e_type = e_type;
             slot->state = 1;
@@ -1584,8 +1583,8 @@ get_sym_source(const sentry_module_info_t *mod)
  * Returns 1 when a name was resolved.
  */
 static int
-sym_source_lookup(const sym_source_t *src, uint64_t sym_target,
-    char *name_out, size_t name_out_size)
+sym_source_lookup(const sym_source_t *src, uint64_t sym_target, char *name_out,
+    size_t name_out_size)
 {
     int fd = open(src->sym_path, O_RDONLY);
     if (fd < 0) {
