@@ -298,7 +298,13 @@ sentry__session_replay_has_pending(const sentry_options_t *options)
     bool pending = false;
     sentry_pathiter_t *iter = sentry__path_iter_directory(dir);
     if (iter) {
-        pending = sentry__pathiter_next(iter) != NULL;
+        const sentry_path_t *entry;
+        while ((entry = sentry__pathiter_next(iter)) != NULL) {
+            if (sentry__path_ends_with(entry, ".mp4")) {
+                pending = true;
+                break;
+            }
+        }
         sentry__pathiter_free(iter);
     }
     sentry__path_free(dir);
