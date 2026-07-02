@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1782996428053,
+  "lastUpdate": 1782996549739,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -80632,6 +80632,66 @@ window.BENCHMARK_DATA = {
             "value": 15.078599999924336,
             "unit": "ms",
             "extra": "Min 14.557ms\nMax 16.106ms\nMean 15.215ms\nStdDev 0.572ms\nMedian 15.079ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "60878493+JoshuaMoelans@users.noreply.github.com",
+            "name": "JoshuaMoelans",
+            "username": "JoshuaMoelans"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "8ae66762f1e5f3478d7f682e1b54041247f7dfb2",
+          "message": "feat: add `sentry_update_context` (#1835)\n\n* add sentry_merge_context\n\n* add changelog entry\n\n* avoid unnecessary repeated code\n\n* add scoped variants\n\n* change `merge_context` to `update_context`\n- does the same but different, updating overwrites values of keys that collide & adds the new passed-in-value's keys to the context too. (before, it would NOT overwrite, only add)\n\n* update changelog",
+          "timestamp": "2026-07-02T14:44:36+02:00",
+          "tree_id": "5c6971cb1003bcc15f6ff6313e3172a998552b57",
+          "url": "https://github.com/getsentry/sentry-native/commit/8ae66762f1e5f3478d7f682e1b54041247f7dfb2"
+        },
+        "date": 1782996540055,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 10.104800000135583,
+            "unit": "ms",
+            "extra": "Min 9.879ms\nMax 10.283ms\nMean 10.089ms\nStdDev 0.144ms\nMedian 10.105ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 10.420899999644462,
+            "unit": "ms",
+            "extra": "Min 10.133ms\nMax 36.489ms\nMean 15.606ms\nStdDev 11.677ms\nMedian 10.421ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 27.04700000003868,
+            "unit": "ms",
+            "extra": "Min 26.069ms\nMax 30.945ms\nMean 27.638ms\nStdDev 1.900ms\nMedian 27.047ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.16390000018873252,
+            "unit": "ms",
+            "extra": "Min 0.160ms\nMax 0.220ms\nMean 0.180ms\nStdDev 0.027ms\nMedian 0.164ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.38109999968582997,
+            "unit": "ms",
+            "extra": "Min 0.371ms\nMax 0.469ms\nMean 0.409ms\nStdDev 0.048ms\nMedian 0.381ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 14.065300000311254,
+            "unit": "ms",
+            "extra": "Min 13.850ms\nMax 14.330ms\nMean 14.053ms\nStdDev 0.201ms\nMedian 14.065ms"
           }
         ]
       }
