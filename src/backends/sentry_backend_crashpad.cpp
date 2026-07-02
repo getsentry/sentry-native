@@ -222,6 +222,10 @@ flush_external_crash_report(
         return;
     }
     sentry__envelope_set_event_id(envelope, crash_event_id);
+    if (options->dsn && options->dsn->is_valid) {
+        sentry__envelope_set_header(envelope, "dsn",
+            sentry_value_new_string(sentry_options_get_dsn(options)));
+    }
     if (options->session) {
         sentry__envelope_add_session(envelope, options->session);
     }
@@ -874,6 +878,16 @@ crashpad_backend_startup(
 
     std::vector<std::string> arguments { "--no-rate-limit" };
 
+    {
+        sentry_path_t *event_path
+            = sentry__path_join_str(current_run_folder, "__sentry-event");
+        if (event_path) {
+            arguments.push_back(
+                std::string("--initial-scope=") + event_path->path);
+            sentry__path_free(event_path);
+        }
+    }
+
     // Pass max_breadcrumbs to the handler so it can cap the breadcrumb buffer.
     arguments.push_back(std::string("--max-breadcrumbs=")
         + std::to_string(options->max_breadcrumbs));
@@ -1173,6 +1187,28 @@ crashpad_backend_initial_scope_flush(
     sentry_backend_t *backend, const sentry_options_t *options)
 {
     auto *data = static_cast<crashpad_state_t *>(backend->data);
+
+    sentry_path_t *event_path
+        = sentry__path_join_str(options->run->run_path, "__sentry-event");
+    if (event_path) {
+        SENTRY_WITH_SCOPE (scope) {
+            sentry_value_t event = sentry_value_new_object();
+            sentry_value_set_by_key(event, "event_id",
+                sentry__value_new_uuid(&data->crash_event_id));
+            sentry_value_set_by_key(
+                event, "level", sentry__value_new_level(SENTRY_LEVEL_FATAL));
+            sentry__scope_apply_to_event(
+                scope, options, event, SENTRY_SCOPE_NONE);
+            size_t mpack_size = 0;
+            char *mpack = sentry_value_to_msgpack(event, &mpack_size);
+            sentry_value_decref(event);
+            if (mpack) {
+                sentry__path_write_buffer(event_path, mpack, mpack_size);
+                sentry_free(mpack);
+            }
+        }
+        sentry__path_free(event_path);
+    }
 
     // Send the full initial scope state to the handler via IPC.
     if (data->client) {
