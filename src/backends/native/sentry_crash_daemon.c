@@ -1326,6 +1326,9 @@ typedef struct {
 
 #    define SYM_SOURCE_CACHE_SIZE 64
 
+// Upper bound on a resolved symbol name; mirrors dbghelp's MAX_SYM_NAME.
+#    define SENTRY_MAX_SYM_NAME 2000
+
 static sym_source_t g_sym_sources[SYM_SOURCE_CACHE_SIZE];
 
 /**
@@ -1683,7 +1686,7 @@ enrich_frame_with_symbol(
         uint64_t sym_target
             = src->e_type == ET_EXEC ? addr : addr - mod->base_address;
 
-        char name[512];
+        char name[SENTRY_MAX_SYM_NAME];
         if (sym_source_lookup(src, sym_target, name, sizeof(name))) {
             sentry_value_set_by_key(
                 frame, "function", sentry_value_new_string(name));
