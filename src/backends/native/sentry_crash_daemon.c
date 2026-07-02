@@ -3340,8 +3340,6 @@ sentry__process_crash(const sentry_options_t *options, sentry_crash_ipc_t *ipc)
     SENTRY_DEBUG("Extracting run folder from event path");
     sentry_path_t *ev_path = sentry__path_from_str(event_path);
     sentry_path_t *run_folder = ev_path ? sentry__path_dir(ev_path) : NULL;
-    if (ev_path)
-        sentry__path_free(ev_path);
 
     // Acquire the run directory lock file so that process_old_runs() in a
     // new SDK run will skip this directory while the daemon is still
@@ -3369,6 +3367,7 @@ sentry__process_crash(const sentry_options_t *options, sentry_crash_ipc_t *ipc)
 
     if (path_len < 0 || path_len >= (int)sizeof(envelope_path)) {
         SENTRY_WARN("Envelope path truncated or invalid");
+        sentry__path_free(ev_path);
         if (run_folder) {
             sentry__path_free(run_folder);
         }
@@ -3472,6 +3471,7 @@ sentry__process_crash(const sentry_options_t *options, sentry_crash_ipc_t *ipc)
 
     if (!envelope_written) {
         SENTRY_WARN("Failed to write envelope");
+        sentry__path_free(ev_path);
         if (run_folder) {
             sentry__path_free(run_folder);
         }
@@ -3577,20 +3577,15 @@ cleanup:
     // `cleanup` is also reached via `goto` on error paths where the crash was
     // never captured, and flushing there would consume (and delete) the staged
     // replay for a crash that never arrived.
-    if (crash_captured && options && options->transport) {
+    if (crash_captured && options && options->transport
+        && sentry__session_replay_has_pending(options)) {
         sentry_value_t crash_event = sentry_value_new_null();
-        if (run_folder) {
-            sentry_path_t *sentry_event_path
-                = sentry__path_join_str(run_folder, "__sentry-event");
-            if (sentry_event_path) {
-                size_t ev_len = 0;
-                char *ev_json
-                    = sentry__path_read_to_buffer(sentry_event_path, &ev_len);
-                if (ev_json) {
-                    crash_event = sentry__value_from_json(ev_json, ev_len);
-                    sentry_free(ev_json);
-                }
-                sentry__path_free(sentry_event_path);
+        if (ev_path) {
+            size_t ev_len = 0;
+            char *ev_json = sentry__path_read_to_buffer(ev_path, &ev_len);
+            if (ev_json) {
+                crash_event = sentry__value_from_json(ev_json, ev_len);
+                sentry_free(ev_json);
             }
         }
         sentry__session_replay_flush_pending(
@@ -3640,6 +3635,7 @@ cleanup:
         sentry__path_remove_all(run_folder);
         sentry__path_free(run_folder);
     }
+    sentry__path_free(ev_path);
 
     // Release and clean up the lock file
     if (run_lock) {
