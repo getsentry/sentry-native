@@ -1076,18 +1076,18 @@ sentry_set_context_n(const char *key, size_t key_len, sentry_value_t value)
 }
 
 void
-sentry_merge_context(const char *key, sentry_value_t value)
+sentry_update_context(const char *key, sentry_value_t value)
 {
     SENTRY_WITH_SCOPE_MUT (scope) {
-        sentry_scope_merge_context(scope, key, value);
+        sentry_scope_update_context(scope, key, value);
     }
 }
 
 void
-sentry_merge_context_n(const char *key, size_t key_len, sentry_value_t value)
+sentry_update_context_n(const char *key, size_t key_len, sentry_value_t value)
 {
     SENTRY_WITH_SCOPE_MUT (scope) {
-        sentry_scope_merge_context_n(scope, key, key_len, value);
+        sentry_scope_update_context_n(scope, key, key_len, value);
     }
 }
 
