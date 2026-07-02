@@ -25,8 +25,8 @@ bool sentry__session_replay_capture(
 sentry_path_t *sentry__session_replay_get_path(const sentry_options_t *options);
 
 /**
- * Returns whether the embedder's `<database>/replays/` staging directory
- * exists.
+ * Returns whether the embedder's `<database>/replays/` staging directory holds
+ * any entry, so callers can skip crash-event work when nothing is staged.
  */
 bool sentry__session_replay_has_pending(const sentry_options_t *options);
 

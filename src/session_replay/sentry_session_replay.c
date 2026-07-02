@@ -291,7 +291,16 @@ bool
 sentry__session_replay_has_pending(const sentry_options_t *options)
 {
     sentry_path_t *dir = session_replay_dir(options);
-    bool pending = dir && sentry__path_is_dir(dir);
+    if (!dir) {
+        return false;
+    }
+
+    bool pending = false;
+    sentry_pathiter_t *iter = sentry__path_iter_directory(dir);
+    if (iter) {
+        pending = sentry__pathiter_next(iter) != NULL;
+        sentry__pathiter_free(iter);
+    }
     sentry__path_free(dir);
     return pending;
 }
