@@ -5,7 +5,6 @@ extern "C" {
 #include "sentry_attachment.h"
 #include "sentry_backend.h"
 #include "sentry_core.h"
-#include "sentry_cpu_relax.h"
 #include "sentry_database.h"
 #include "sentry_envelope.h"
 #include "sentry_logger.h"
@@ -127,13 +126,7 @@ static_assert(std::atomic<bool>::is_always_lock_free,
 typedef struct {
     crashpad::CrashReportDatabase *db;
     crashpad::CrashpadClient *client;
-    sentry_path_t *event_path;
-    sentry_path_t *breadcrumb1_path;
-    sentry_path_t *breadcrumb2_path;
     sentry_path_t *external_report_path;
-    size_t num_breadcrumbs;
-    std::atomic<bool> crashed;
-    std::atomic<bool> scope_flush;
     sentry_uuid_t crash_event_id;
 } crashpad_state_t;
 
@@ -213,33 +206,10 @@ crashpad_register_wer_module(
 }
 #endif
 
-static void
-flush_scope_to_event(const sentry_path_t *event_path,
-    const sentry_options_t *options, sentry_value_t crash_event)
-{
-    SENTRY_WITH_SCOPE (scope) {
-        // we want the scope without any modules or breadcrumbs
-        sentry__scope_apply_to_event(
-            scope, options, crash_event, SENTRY_SCOPE_NONE);
-    }
-
-    size_t mpack_size;
-    char *mpack = sentry_value_to_msgpack(crash_event, &mpack_size);
-    sentry_value_decref(crash_event);
-    if (!mpack) {
-        return;
-    }
-
-    int rv = sentry__path_write_buffer(event_path, mpack, mpack_size);
-    sentry_free(mpack);
-
-    if (rv != 0) {
-        SENTRY_WARN("flushing scope to msgpack failed");
-    }
-}
-
 // Prepares an envelope with DSN, event ID, and session if available, for an
-// external crash reporter.
+// external crash reporter. Written once at startup and when the session
+// changes; the handler reads this template file at crash time to produce the
+// final envelope (independent of scope data and first-chance handler).
 static void
 flush_external_crash_report(
     const sentry_options_t *options, const sentry_uuid_t *crash_event_id)
@@ -261,71 +231,200 @@ flush_external_crash_report(
     sentry_envelope_free(envelope);
 }
 
-// This function is necessary for macOS since it has no `FirstChanceHandler`.
-// but it is also necessary on Windows if the WER handler is enabled.
-// This means we have to continuously flush the scope on
-// every change so that `__sentry_event` is ready to upload when the crash
-// happens. With platforms that have a `FirstChanceHandler` we can do that
-// once in the handler. No need to share event- or crashpad-state mutation.
-static void
-crashpad_backend_flush_scope(
-    sentry_backend_t *backend, const sentry_options_t *options)
-{
-#if defined(SENTRY_PLATFORM_LINUX)
-    (void)backend;
-    (void)options;
-#else
-    auto *data = static_cast<crashpad_state_t *>(backend->data);
-    bool expected = false;
+#if defined(SENTRY_PLATFORM_WINDOWS) || defined(SENTRY_PLATFORM_LINUX)         \
+    || defined(SENTRY_PLATFORM_MACOS)
 
-    //
-    if (!data->event_path || data->crashed.load(std::memory_order_relaxed)
-        || !data->scope_flush.compare_exchange_strong(
-            expected, true, std::memory_order_acquire)) {
+// ---- Scope observer callbacks --------------------------------------------
+
+// Helper: serializes a sentry_value_t to msgpack and sends it as a scope
+// update of the given type to the handler.
+static void
+scope_sync_msgpack(crashpad_state_t *data,
+    crashpad::CrashpadClient::ScopeUpdate type, sentry_value_t value)
+{
+    size_t size;
+    char *mpack = sentry_value_to_msgpack(value, &size);
+    if (!mpack) {
         return;
     }
-
-    sentry_value_t event = sentry_value_new_object();
-    sentry_value_set_by_key(
-        event, "event_id", sentry__value_new_uuid(&data->crash_event_id));
-    // Since this will only be uploaded in case of a crash we must make this
-    // event fatal.
-    sentry_value_set_by_key(
-        event, "level", sentry__value_new_level(SENTRY_LEVEL_FATAL));
-
-    flush_scope_to_event(data->event_path, options, event);
-    if (data->external_report_path) {
-        flush_external_crash_report(options, &data->crash_event_id);
-    }
-    data->scope_flush.store(false, std::memory_order_release);
-#endif
+    data->client->SendScopeUpdate(type, "", std::string(mpack, size));
+    sentry_free(mpack);
 }
+
+static void
+scope_sync_set_release(void *state, const char *release, size_t release_len)
+{
+    auto *data = static_cast<crashpad_state_t *>(state);
+    if (!data->client) {
+        return;
+    }
+    data->client->SendScopeUpdate(
+        crashpad::CrashpadClient::ScopeUpdate::kSetRelease, "",
+        std::string(release, release_len));
+}
+
+static void
+scope_sync_set_environment(
+    void *state, const char *environment, size_t environment_len)
+{
+    auto *data = static_cast<crashpad_state_t *>(state);
+    if (!data->client) {
+        return;
+    }
+    data->client->SendScopeUpdate(
+        crashpad::CrashpadClient::ScopeUpdate::kSetEnvironment, "",
+        std::string(environment, environment_len));
+}
+
+static void
+scope_sync_set_transaction(
+    void *state, const char *transaction, size_t transaction_len)
+{
+    auto *data = static_cast<crashpad_state_t *>(state);
+    if (!data->client) {
+        return;
+    }
+    data->client->SendScopeUpdate(
+        crashpad::CrashpadClient::ScopeUpdate::kSetTransaction, "",
+        std::string(transaction, transaction_len));
+}
+
+static void
+scope_sync_set_fingerprint(void *state, sentry_value_t fingerprint)
+{
+    auto *data = static_cast<crashpad_state_t *>(state);
+    if (!data->client) {
+        return;
+    }
+    scope_sync_msgpack(data,
+        crashpad::CrashpadClient::ScopeUpdate::kSetFingerprint, fingerprint);
+}
+
+static void
+scope_sync_set_level(void *state, sentry_level_t level)
+{
+    auto *data = static_cast<crashpad_state_t *>(state);
+    if (!data->client) {
+        return;
+    }
+    int32_t l = static_cast<int32_t>(level);
+    data->client->SendScopeUpdate(
+        crashpad::CrashpadClient::ScopeUpdate::kSetLevel, "",
+        std::string(reinterpret_cast<const char *>(&l), sizeof(l)));
+}
+
+static void
+scope_sync_set_user(void *state, sentry_value_t user)
+{
+    auto *data = static_cast<crashpad_state_t *>(state);
+    if (!data->client) {
+        return;
+    }
+    scope_sync_msgpack(
+        data, crashpad::CrashpadClient::ScopeUpdate::kSetUser, user);
+}
+
+static void
+scope_sync_add_breadcrumb(void *state, sentry_value_t breadcrumb)
+{
+    auto *data = static_cast<crashpad_state_t *>(state);
+    if (!data->client) {
+        return;
+    }
+    scope_sync_msgpack(data,
+        crashpad::CrashpadClient::ScopeUpdate::kAddBreadcrumb, breadcrumb);
+}
+
+static void
+scope_sync_set_tag(void *state, const char *key, size_t key_len,
+    const char *value, size_t value_len)
+{
+    auto *data = static_cast<crashpad_state_t *>(state);
+    if (!data->client) {
+        return;
+    }
+    data->client->SendScopeUpdate(
+        crashpad::CrashpadClient::ScopeUpdate::kSetTag,
+        std::string(key, key_len), std::string(value, value_len));
+}
+
+static void
+scope_sync_remove_tag(void *state, const char *key, size_t key_len)
+{
+    auto *data = static_cast<crashpad_state_t *>(state);
+    if (!data->client) {
+        return;
+    }
+    data->client->SendScopeUpdate(
+        crashpad::CrashpadClient::ScopeUpdate::kRemoveTag,
+        std::string(key, key_len), "");
+}
+
+static void
+scope_sync_set_extra(
+    void *state, const char *key, size_t key_len, sentry_value_t value)
+{
+    auto *data = static_cast<crashpad_state_t *>(state);
+    if (!data->client) {
+        return;
+    }
+    size_t size;
+    char *mpack = sentry_value_to_msgpack(value, &size);
+    if (!mpack) {
+        return;
+    }
+    data->client->SendScopeUpdate(
+        crashpad::CrashpadClient::ScopeUpdate::kSetExtra,
+        std::string(key, key_len), std::string(mpack, size));
+    sentry_free(mpack);
+}
+
+static void
+scope_sync_remove_extra(void *state, const char *key, size_t key_len)
+{
+    auto *data = static_cast<crashpad_state_t *>(state);
+    if (!data->client) {
+        return;
+    }
+    data->client->SendScopeUpdate(
+        crashpad::CrashpadClient::ScopeUpdate::kRemoveExtra,
+        std::string(key, key_len), "");
+}
+
+static void
+scope_sync_set_context(
+    void *state, const char *key, size_t key_len, sentry_value_t value)
+{
+    auto *data = static_cast<crashpad_state_t *>(state);
+    if (!data->client) {
+        return;
+    }
+    size_t size;
+    char *mpack = sentry_value_to_msgpack(value, &size);
+    if (!mpack) {
+        return;
+    }
+    data->client->SendScopeUpdate(
+        crashpad::CrashpadClient::ScopeUpdate::kSetContext,
+        std::string(key, key_len), std::string(mpack, size));
+    sentry_free(mpack);
+}
+
+static void
+scope_sync_remove_context(void *state, const char *key, size_t key_len)
+{
+    auto *data = static_cast<crashpad_state_t *>(state);
+    if (!data->client) {
+        return;
+    }
+    data->client->SendScopeUpdate(
+        crashpad::CrashpadClient::ScopeUpdate::kRemoveContext,
+        std::string(key, key_len), "");
+}
+
+#endif
 
 #if defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_WINDOWS)
-static void
-flush_scope_from_handler(
-    const sentry_options_t *options, sentry_value_t crash_event)
-{
-    auto state = static_cast<crashpad_state_t *>(options->backend->data);
-
-    // this blocks any further calls to `crashpad_backend_flush_scope`
-    state->crashed.store(true, std::memory_order_relaxed);
-
-    // busy-wait until any in-progress scope flushes are finished
-    bool expected = false;
-    while (!state->scope_flush.compare_exchange_strong(
-        expected, true, std::memory_order_acquire)) {
-        expected = false;
-        sentry__cpu_relax();
-    }
-
-    // now we are the sole flusher and can flush into the crash event
-    flush_scope_to_event(state->event_path, options, crash_event);
-    if (state->external_report_path) {
-        flush_external_crash_report(options, &state->crash_event_id);
-    }
-}
-
 #    ifdef SENTRY_PLATFORM_WINDOWS
 static bool
 crashpad_handler(EXCEPTION_POINTERS *ExceptionInfo)
@@ -385,7 +484,6 @@ crashpad_handler(int signum, siginfo_t *info, ucontext_t *user_context)
         should_dump = !sentry_value_is_null(crash_event);
 
         if (should_dump) {
-            flush_scope_from_handler(options, crash_event);
             sentry__write_crash_marker(options);
 
             sentry__record_errors_on_current_session(1);
@@ -730,23 +828,14 @@ crashpad_backend_startup(
         attachments.emplace_back(SENTRY_PATH_PLATFORM_STR(attachment->path));
     }
 
-    // and add the serialized event, and two rotating breadcrumb files
-    // as attachments and make sure the files exist
-    data->event_path
+    // Register __sentry-event as an attachment so crashpad copies it
+    // into the report at crash time. Written once at startup and updated
+    // by the initial scope flush after scope setup is complete.
+    sentry_path_t *event_path
         = sentry__path_join_str(current_run_folder, "__sentry-event");
-    data->breadcrumb1_path
-        = sentry__path_join_str(current_run_folder, "__sentry-breadcrumb1");
-    data->breadcrumb2_path
-        = sentry__path_join_str(current_run_folder, "__sentry-breadcrumb2");
-
-    sentry__path_touch(data->event_path);
-    sentry__path_touch(data->breadcrumb1_path);
-    sentry__path_touch(data->breadcrumb2_path);
-
-    attachments.insert(attachments.end(),
-        { base::FilePath(SENTRY_PATH_PLATFORM_STR(data->event_path)),
-            base::FilePath(SENTRY_PATH_PLATFORM_STR(data->breadcrumb1_path)),
-            base::FilePath(SENTRY_PATH_PLATFORM_STR(data->breadcrumb2_path)) });
+    sentry__path_touch(event_path);
+    attachments.emplace_back(SENTRY_PATH_PLATFORM_STR(event_path));
+    sentry__path_free(event_path);
 
     base::FilePath screenshot;
     if (options->attach_screenshot) {
@@ -769,10 +858,29 @@ crashpad_backend_startup(
                 SENTRY_PATH_PLATFORM_STR(options->external_crash_reporter));
             crash_envelope = base::FilePath(
                 SENTRY_PATH_PLATFORM_STR(data->external_report_path));
+
+            // Write the template envelope now so the handler can read it at
+            // crash time, regardless of whether the first-chance handler fires.
+            flush_external_crash_report(options, &data->crash_event_id);
         }
     }
 
     std::vector<std::string> arguments { "--no-rate-limit" };
+
+    // Pass the __sentry-event path so the handler can use it as a fallback
+    // for fields not yet received via IPC scope observer.
+    {
+        sentry_path_t *p
+            = sentry__path_join_str(current_run_folder, "__sentry-event");
+        if (p) {
+            arguments.push_back(std::string("--initial-scope=") + p->path);
+            sentry__path_free(p);
+        }
+    }
+
+    // Pass max_breadcrumbs to the handler so it can cap the breadcrumb buffer.
+    arguments.push_back(std::string("--max-breadcrumbs=")
+        + std::to_string(options->max_breadcrumbs));
 
     // Map sentry's log level to mini_chromium's LogSeverity. They diverge at
     // FATAL (sentry=3, mini_chromium=4); otherwise 1:1.
@@ -891,6 +999,19 @@ crashpad_backend_startup(
     {
         sentry_scope_observer_t *observer = sentry__scope_observer_new();
         observer->data = data;
+        observer->set_release = scope_sync_set_release;
+        observer->set_environment = scope_sync_set_environment;
+        observer->set_transaction = scope_sync_set_transaction;
+        observer->set_fingerprint = scope_sync_set_fingerprint;
+        observer->set_level = scope_sync_set_level;
+        observer->set_user = scope_sync_set_user;
+        observer->add_breadcrumb = scope_sync_add_breadcrumb;
+        observer->set_tag = scope_sync_set_tag;
+        observer->remove_tag = scope_sync_remove_tag;
+        observer->set_extra = scope_sync_set_extra;
+        observer->remove_extra = scope_sync_remove_extra;
+        observer->set_context = scope_sync_set_context;
+        observer->remove_context = scope_sync_remove_context;
         observer->add_attachment = add_attachment;
         observer->remove_attachment = remove_attachment;
         SENTRY_WITH_SCOPE_MUT (scope) {
@@ -925,50 +1046,9 @@ crashpad_backend_shutdown(sentry_backend_t *backend)
 }
 
 static void
-crashpad_backend_add_breadcrumb(sentry_backend_t *backend,
-    sentry_value_t breadcrumb, const sentry_options_t *options)
-{
-    auto *data = static_cast<crashpad_state_t *>(backend->data);
-
-    size_t max_breadcrumbs = options->max_breadcrumbs;
-    if (!max_breadcrumbs) {
-        return;
-    }
-
-    bool first_breadcrumb = data->num_breadcrumbs % max_breadcrumbs == 0;
-
-    const sentry_path_t *breadcrumb_file
-        = data->num_breadcrumbs % (max_breadcrumbs * 2) < max_breadcrumbs
-        ? data->breadcrumb1_path
-        : data->breadcrumb2_path;
-    data->num_breadcrumbs++;
-    if (!breadcrumb_file) {
-        return;
-    }
-
-    size_t mpack_size;
-    char *mpack = sentry_value_to_msgpack(breadcrumb, &mpack_size);
-    if (!mpack) {
-        return;
-    }
-
-    int rv = first_breadcrumb
-        ? sentry__path_write_buffer(breadcrumb_file, mpack, mpack_size)
-        : sentry__path_append_buffer(breadcrumb_file, mpack, mpack_size);
-    sentry_free(mpack);
-
-    if (rv != 0) {
-        SENTRY_WARN("flushing breadcrumb to msgpack failed");
-    }
-}
-
-static void
 crashpad_backend_free(sentry_backend_t *backend)
 {
     auto *data = static_cast<crashpad_state_t *>(backend->data);
-    sentry__path_free(data->event_path);
-    sentry__path_free(data->breadcrumb1_path);
-    sentry__path_free(data->breadcrumb2_path);
     sentry__path_free(data->external_report_path);
     delete data;
 }
@@ -1092,6 +1172,113 @@ sentry__backend_preload(void)
 {
 }
 
+#if !defined(SENTRY_PLATFORM_LINUX)
+static void
+crashpad_backend_flush_scope(
+    sentry_backend_t *backend, const sentry_options_t *options)
+{
+    auto *data = static_cast<crashpad_state_t *>(backend->data);
+
+    sentry_path_t *event_path
+        = sentry__path_join_str(options->run->run_path, "__sentry-event");
+    if (!event_path)
+        return;
+
+    sentry_value_t event = sentry_value_new_object();
+    sentry_value_set_by_key(
+        event, "event_id", sentry__value_new_uuid(&data->crash_event_id));
+    sentry_value_set_by_key(
+        event, "level", sentry__value_new_level(SENTRY_LEVEL_FATAL));
+    SENTRY_WITH_SCOPE (scope) {
+        sentry__scope_apply_to_event(scope, options, event, SENTRY_SCOPE_NONE);
+    }
+    size_t mpack_size;
+    char *mpack = sentry_value_to_msgpack(event, &mpack_size);
+    sentry_value_decref(event);
+    if (mpack) {
+        sentry__path_write_buffer(event_path, mpack, mpack_size);
+        sentry_free(mpack);
+    }
+    sentry__path_free(event_path);
+}
+#endif
+
+static void
+crashpad_backend_initial_scope_flush(
+    sentry_backend_t *backend, const sentry_options_t *options)
+{
+    auto *data = static_cast<crashpad_state_t *>(backend->data);
+
+    // Write the full scope to __sentry-event now that release,
+    // environment, etc. have been applied after backend startup.
+    sentry_path_t *event_path
+        = sentry__path_join_str(options->run->run_path, "__sentry-event");
+    if (event_path) {
+        SENTRY_WITH_SCOPE (scope) {
+            sentry_value_t event = sentry_value_new_object();
+            sentry_value_set_by_key(event, "event_id",
+                sentry__value_new_uuid(&data->crash_event_id));
+            sentry_value_set_by_key(
+                event, "level", sentry__value_new_level(SENTRY_LEVEL_FATAL));
+            sentry__scope_apply_to_event(
+                scope, options, event, SENTRY_SCOPE_NONE);
+            size_t mpack_size;
+            char *mpack = sentry_value_to_msgpack(event, &mpack_size);
+            sentry_value_decref(event);
+            if (mpack) {
+                sentry__path_write_buffer(event_path, mpack, mpack_size);
+                sentry_free(mpack);
+            }
+        }
+        sentry__path_free(event_path);
+    }
+
+    // Send the full initial scope state to the handler via IPC.
+    if (data->client) {
+        SENTRY_WITH_SCOPE (scope) {
+            if (scope->release)
+                scope_sync_set_release(
+                    data, scope->release, strlen(scope->release));
+            if (scope->environment)
+                scope_sync_set_environment(
+                    data, scope->environment, strlen(scope->environment));
+            if (scope->transaction)
+                scope_sync_set_transaction(
+                    data, scope->transaction, strlen(scope->transaction));
+            scope_sync_set_fingerprint(data, scope->fingerprint);
+            scope_sync_set_level(data, scope->level);
+            if (!sentry_value_is_null(scope->user))
+                scope_sync_set_user(data, scope->user);
+            sentry__value_foreach_key_value(
+                scope->contexts,
+                [](const char *k, sentry_value_t v, void *d) {
+                    scope_sync_set_context(
+                        (crashpad_state_t *)d, k, strlen(k), v);
+                },
+                data);
+            sentry__value_foreach_key_value(
+                scope->tags,
+                [](const char *k, sentry_value_t v, void *d) {
+                    const char *s = sentry_value_as_string(v);
+                    if (s)
+                        scope_sync_set_tag(
+                            (crashpad_state_t *)d, k, strlen(k), s, strlen(s));
+                },
+                data);
+            sentry__value_foreach_key_value(
+                scope->extra,
+                [](const char *k, sentry_value_t v, void *d) {
+                    scope_sync_set_extra(
+                        (crashpad_state_t *)d, k, strlen(k), v);
+                },
+                data);
+        }
+    }
+
+    // One-shot — disable after the first flush.
+    backend->flush_scope_func = nullptr;
+}
+
 sentry_backend_t *
 sentry__backend_new(void)
 {
@@ -1105,15 +1292,13 @@ sentry__backend_new(void)
         sentry_free(backend);
         return nullptr;
     }
-    data->scope_flush = false;
-    data->crashed = false;
 
     backend->startup_func = crashpad_backend_startup;
     backend->shutdown_func = crashpad_backend_shutdown;
     backend->except_func = crashpad_backend_except;
     backend->free_func = crashpad_backend_free;
-    backend->flush_scope_func = crashpad_backend_flush_scope;
-    backend->add_breadcrumb_func = crashpad_backend_add_breadcrumb;
+    backend->flush_scope_func = crashpad_backend_initial_scope_flush;
+    backend->add_breadcrumb_func = nullptr;
     backend->user_consent_changed_func = crashpad_backend_user_consent_changed;
     backend->get_last_crash_func = crashpad_backend_last_crash;
     backend->prune_database_func = crashpad_backend_prune_database;
