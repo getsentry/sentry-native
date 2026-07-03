@@ -130,6 +130,7 @@ typedef struct {
     sentry_path_t *external_report_path;
     char *installation_id;
     size_t max_breadcrumbs;
+    std::atomic<bool> crashed;
     sentry_uuid_t crash_event_id;
 } crashpad_state_t;
 
@@ -322,6 +323,7 @@ crashpad_handler(int signum, siginfo_t *info, ucontext_t *user_context)
         should_dump = !sentry_value_is_null(crash_event);
 
         if (should_dump) {
+            state->crashed.store(true, std::memory_order_relaxed);
             flush_scope_to_event(state->event_path, options, crash_event);
             if (state->external_report_path) {
                 flush_external_crash_report(options, &state->crash_event_id);
@@ -559,7 +561,8 @@ process_completed_reports(
 static void
 send_scope_update(crashpad_state_t *data, sentry_value_t update)
 {
-    if (!data || !data->client) {
+    if (!data || !data->client
+        || data->crashed.load(std::memory_order_relaxed)) {
         sentry_value_decref(update);
         return;
     }
@@ -571,7 +574,9 @@ send_scope_update(crashpad_state_t *data, sentry_value_t update)
         return;
     }
 
-    data->client->UpdateScope(std::string(mpack, mpack_size));
+    if (!data->crashed.load(std::memory_order_relaxed)) {
+        data->client->UpdateScope(std::string(mpack, mpack_size));
+    }
     sentry_free(mpack);
 }
 
