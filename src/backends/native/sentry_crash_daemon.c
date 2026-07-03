@@ -1314,7 +1314,6 @@ done:
  * run once per module rather than once per frame.
  */
 typedef struct {
-    char module_name[SENTRY_CRASH_MAX_PATH];
     char sym_path[SENTRY_CRASH_MAX_PATH];
     int state; // 0 = unused, 1 = usable, -1 = no symbol table found
     uint16_t e_type; // e_type of the loaded module (st_value semantics)
@@ -1324,12 +1323,12 @@ typedef struct {
     uint64_t strtab_size;
 } sym_source_t;
 
-#    define SYM_SOURCE_CACHE_SIZE 64
-
 // Upper bound on a resolved symbol name; mirrors dbghelp's MAX_SYM_NAME.
 #    define SENTRY_MAX_SYM_NAME 2000
 
-static sym_source_t g_sym_sources[SYM_SOURCE_CACHE_SIZE];
+// Direct-mapped by module index; see get_sym_source. Being BSS, only the
+// slots touched during resolution are committed to physical memory.
+static sym_source_t g_sym_sources[SENTRY_CRASH_MAX_MODULES];
 
 /**
  * Parse the ELF file at `path` and record the location of its symbol table
@@ -1477,23 +1476,16 @@ elf_locate_symtab(const char *path, int allow_dynsym, sym_source_t *src,
  * Returns NULL when the module has no usable symbol table.
  */
 static const sym_source_t *
-get_sym_source(const sentry_module_info_t *mod)
+get_sym_source(const sentry_module_info_t *mod, uint32_t mod_idx)
 {
-    sym_source_t *slot = NULL;
-    for (size_t i = 0; i < SYM_SOURCE_CACHE_SIZE; i++) {
-        if (g_sym_sources[i].state == 0) {
-            slot = &g_sym_sources[i];
-            break;
-        }
-        if (strcmp(g_sym_sources[i].module_name, mod->name) == 0) {
-            return g_sym_sources[i].state > 0 ? &g_sym_sources[i] : NULL;
-        }
-    }
-    if (!slot
-        || (size_t)snprintf(
-               slot->module_name, sizeof(slot->module_name), "%s", mod->name)
-            >= sizeof(slot->module_name)) {
-        return NULL;
+    // The cache is direct-mapped by module index: within a frozen crash
+    // context each index maps to exactly one module, so a slot is resolved at
+    // most once and reused for every frame in that module. This covers all
+    // modules the context can hold, so no frame is left unsymbolicated for
+    // want of a cache slot.
+    sym_source_t *slot = &g_sym_sources[mod_idx];
+    if (slot->state != 0) {
+        return slot->state > 0 ? slot : NULL;
     }
     slot->state = -1;
 
@@ -1676,7 +1668,7 @@ enrich_frame_with_symbol(
             continue;
         }
 
-        const sym_source_t *src = get_sym_source(mod);
+        const sym_source_t *src = get_sym_source(mod, i);
         if (!src) {
             return;
         }
