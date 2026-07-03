@@ -557,8 +557,9 @@ sentry__scope_apply_to_event(const sentry_scope_t *scope,
 void
 sentry_scope_add_breadcrumb(sentry_scope_t *scope, sentry_value_t breadcrumb)
 {
-    sentry__ringbuffer_append(scope->breadcrumbs, breadcrumb);
-    SENTRY_SCOPE_NOTIFY(scope, add_breadcrumb, breadcrumb);
+    if (sentry__ringbuffer_append(scope->breadcrumbs, breadcrumb) == 0) {
+        SENTRY_SCOPE_NOTIFY(scope, add_breadcrumb, breadcrumb);
+    }
 }
 
 void
