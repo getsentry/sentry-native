@@ -1973,8 +1973,9 @@ sentry_clear_attachments(void)
 {
     SENTRY_WITH_OPTIONS (options) {
         SENTRY_WITH_SCOPE_MUT (scope) {
-            for (sentry_attachment_t *it = scope->attachments; it;
-                it = it->next) {
+            sentry_attachment_t *attachments = scope->attachments;
+            scope->attachments = NULL;
+            for (sentry_attachment_t *it = attachments; it; it = it->next) {
                 if (options->backend
                     && options->backend->remove_attachment_func) {
                     options->backend->remove_attachment_func(
@@ -1982,8 +1983,7 @@ sentry_clear_attachments(void)
                 }
                 SENTRY_SCOPE_NOTIFY(scope, remove_attachment, it);
             }
-            sentry__attachments_free(scope->attachments);
-            scope->attachments = NULL;
+            sentry__attachments_free(attachments);
         }
     }
 }
