@@ -475,9 +475,13 @@ report_to_envelope(const crashpad::CrashReportDatabase::Report &report,
         }
     }
     if (envelope) {
-        sentry_value_set_by_key(event, "breadcrumbs",
-            sentry__value_merge_breadcrumbs(
-                breadcrumbs1, breadcrumbs2, options->max_breadcrumbs));
+        sentry_value_t breadcrumbs = sentry__value_merge_breadcrumbs(
+            breadcrumbs1, breadcrumbs2, options->max_breadcrumbs);
+        if (!sentry_value_is_null(breadcrumbs)) {
+            sentry_value_set_by_key(event, "breadcrumbs", breadcrumbs);
+        } else {
+            sentry_value_decref(breadcrumbs);
+        }
         sentry__attachments_add_path(&attachments, minidump_path,
             SENTRY_ATTACHMENT_TYPE_MINIDUMP, nullptr);
 
