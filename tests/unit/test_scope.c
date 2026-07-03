@@ -1727,6 +1727,27 @@ SENTRY_TEST(scope_observer_attachments)
     TEST_CHECK(
         sentry_value_is_true(sentry_value_get_by_key(removed, "removed")));
 
+    attachment = sentry_attach_file("test.txt");
+    TEST_CHECK(d.was_called);
+    TEST_CHECK(attachment != NULL);
+    TEST_CHECK_INT_EQUAL(sentry_value_get_length(d.attachments), 3);
+
+    d.was_called = false;
+    sentry_attachment_t *duplicate = sentry_attach_file("test.txt");
+    TEST_CHECK(duplicate == attachment);
+    TEST_CHECK(!d.was_called);
+    TEST_CHECK_INT_EQUAL(sentry_value_get_length(d.attachments), 3);
+
+    d.was_called = false;
+    sentry_remove_attachment(attachment);
+    TEST_CHECK(d.was_called);
+    TEST_CHECK_INT_EQUAL(sentry_value_get_length(d.attachments), 4);
+
+    d.was_called = false;
+    sentry_remove_attachment(duplicate);
+    TEST_CHECK(!d.was_called);
+    TEST_CHECK_INT_EQUAL(sentry_value_get_length(d.attachments), 4);
+
     sentry_value_decref(d.attachments);
     sentry_close();
 }
