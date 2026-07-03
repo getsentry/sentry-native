@@ -323,6 +323,9 @@ crashpad_handler(int signum, siginfo_t *info, ucontext_t *user_context)
 
         if (should_dump) {
             flush_scope_to_event(state->event_path, options, crash_event);
+            if (state->external_report_path) {
+                flush_external_crash_report(options, &state->crash_event_id);
+            }
             sentry__write_crash_marker(options);
 
             sentry__record_errors_on_current_session(1);
