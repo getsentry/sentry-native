@@ -667,6 +667,7 @@ sentry_scope_update_context_n(sentry_scope_t *scope, const char *key,
         sentry__value_merge_objects(value, context);
         sentry_value_set_by_key_n(scope->contexts, key, key_len, value);
     }
+    SENTRY_SCOPE_NOTIFY(scope, set_context, key, key_len, value);
 }
 
 void

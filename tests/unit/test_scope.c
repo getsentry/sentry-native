@@ -1666,6 +1666,19 @@ SENTRY_TEST(scope_observer_contexts)
         sentry_value_as_string(sentry_value_get_by_key(received, "type")),
         "device");
 
+    sentry_value_t update = sentry_value_new_object();
+    sentry_value_set_by_key(update, "version", sentry_value_new_string("1.0"));
+    d.was_called = false;
+    sentry_update_context("my-context", update);
+    TEST_CHECK(d.was_called);
+    received = sentry_value_get_by_key(d.contexts, "my-context");
+    TEST_CHECK_STRING_EQUAL(
+        sentry_value_as_string(sentry_value_get_by_key(received, "type")),
+        "device");
+    TEST_CHECK_STRING_EQUAL(
+        sentry_value_as_string(sentry_value_get_by_key(received, "version")),
+        "1.0");
+
     d.was_called = false;
     sentry_remove_context("my-context");
     TEST_CHECK(d.was_called);
