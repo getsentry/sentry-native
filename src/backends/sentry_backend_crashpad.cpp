@@ -322,7 +322,7 @@ crashpad_handler(int signum, siginfo_t *info, ucontext_t *user_context)
         should_dump = !sentry_value_is_null(crash_event);
 
         if (should_dump) {
-            sentry_value_decref(crash_event);
+            flush_scope_to_event(state->event_path, options, crash_event);
             sentry__write_crash_marker(options);
 
             sentry__record_errors_on_current_session(1);
