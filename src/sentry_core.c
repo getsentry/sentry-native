@@ -1922,15 +1922,22 @@ sentry_capture_minidump_n(const char *path, size_t path_len)
 static sentry_attachment_t *
 add_attachment(sentry_attachment_t *attachment)
 {
+    if (!attachment) {
+        return NULL;
+    }
+
     SENTRY_WITH_OPTIONS (options) {
         if (options->backend && options->backend->add_attachment_func) {
             options->backend->add_attachment_func(options->backend, attachment);
         }
     }
     SENTRY_WITH_SCOPE_MUT (scope) {
-        attachment = sentry__attachments_add(&scope->attachments, attachment);
-        if (attachment) {
+        sentry_attachment_t *new_attachment
+            = sentry__attachments_add(&scope->attachments, attachment);
+        if (attachment == new_attachment) {
             SENTRY_SCOPE_NOTIFY(scope, add_attachment, attachment);
+        } else {
+            attachment = new_attachment; // existing/duplicate
         }
     }
     return attachment;
@@ -1987,15 +1994,22 @@ sentry_clear_attachments(void)
 void
 sentry_remove_attachment(sentry_attachment_t *attachment)
 {
-    SENTRY_WITH_OPTIONS (options) {
-        if (options->backend && options->backend->remove_attachment_func) {
-            options->backend->remove_attachment_func(
-                options->backend, attachment);
-        }
+    if (!attachment) {
+        return;
     }
-    SENTRY_WITH_SCOPE_MUT (scope) {
-        SENTRY_SCOPE_NOTIFY(scope, remove_attachment, attachment);
-        sentry__attachments_remove(&scope->attachments, attachment);
+
+    SENTRY_WITH_OPTIONS (options) {
+        SENTRY_WITH_SCOPE_MUT (scope) {
+            if (sentry__attachments_remove(&scope->attachments, attachment)) {
+                if (options->backend
+                    && options->backend->remove_attachment_func) {
+                    options->backend->remove_attachment_func(
+                        options->backend, attachment);
+                }
+                SENTRY_SCOPE_NOTIFY(scope, remove_attachment, attachment);
+                sentry__attachment_free(attachment);
+            }
+        }
     }
 }
 
