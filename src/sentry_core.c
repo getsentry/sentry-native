@@ -1348,6 +1348,10 @@ sentry_transaction_start_ts(sentry_transaction_context_t *opaque_tx_ctx,
                     sentry_value_remove_by_key(tx, "parent_span_id");
                     sentry_value_remove_by_key(tx, "sampled");
                     sentry__scope_update_dsc(scope, options);
+                    SENTRY_SCOPE_NOTIFY(scope, set_context, "trace",
+                        sentry__guarded_strlen("trace"),
+                        sentry_value_get_by_key(
+                            scope->propagation_context, "trace"));
                 }
             }
         }
