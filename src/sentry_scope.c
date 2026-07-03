@@ -749,6 +749,22 @@ sentry_scope_set_level(sentry_scope_t *scope, sentry_level_t level)
 }
 
 sentry_attachment_t *
+sentry__scope_add_attachment(
+    sentry_scope_t *scope, sentry_attachment_t *attachment)
+{
+    if (!attachment) {
+        return NULL;
+    }
+
+    sentry_attachment_t *added
+        = sentry__attachments_add(&scope->attachments, attachment);
+    if (added == attachment) {
+        SENTRY_SCOPE_NOTIFY(scope, add_attachment, attachment);
+    }
+    return added;
+}
+
+sentry_attachment_t *
 sentry_scope_attach_file(sentry_scope_t *scope, const char *path)
 {
     return sentry_scope_attach_file_n(
@@ -759,8 +775,8 @@ sentry_attachment_t *
 sentry_scope_attach_file_n(
     sentry_scope_t *scope, const char *path, size_t path_len)
 {
-    return sentry__attachments_add_path(&scope->attachments,
-        sentry__path_from_str_n(path, path_len), NULL, NULL);
+    return sentry__scope_add_attachment(scope,
+        sentry__attachment_from_path(sentry__path_from_str_n(path, path_len)));
 }
 
 sentry_attachment_t *
@@ -775,7 +791,7 @@ sentry_attachment_t *
 sentry_scope_attach_bytes_n(sentry_scope_t *scope, const char *buf,
     size_t buf_len, const char *filename, size_t filename_len)
 {
-    return sentry__attachments_add(&scope->attachments,
+    return sentry__scope_add_attachment(scope,
         sentry__attachment_from_buffer(
             buf, buf_len, sentry__path_from_str_n(filename, filename_len)));
 }
@@ -792,8 +808,8 @@ sentry_attachment_t *
 sentry_scope_attach_filew_n(
     sentry_scope_t *scope, const wchar_t *path, size_t path_len)
 {
-    return sentry__attachments_add_path(&scope->attachments,
-        sentry__path_from_wstr_n(path, path_len), NULL, NULL);
+    return sentry__scope_add_attachment(scope,
+        sentry__attachment_from_path(sentry__path_from_wstr_n(path, path_len)));
 }
 
 sentry_attachment_t *
@@ -809,7 +825,7 @@ sentry_attachment_t *
 sentry_scope_attach_bytesw_n(sentry_scope_t *scope, const char *buf,
     size_t buf_len, const wchar_t *filename, size_t filename_len)
 {
-    return sentry__attachments_add(&scope->attachments,
+    return sentry__scope_add_attachment(scope,
         sentry__attachment_from_buffer(
             buf, buf_len, sentry__path_from_wstr_n(filename, filename_len)));
 }

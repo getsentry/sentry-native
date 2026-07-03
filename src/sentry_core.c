@@ -1935,13 +1935,7 @@ add_attachment(sentry_attachment_t *attachment)
         }
     }
     SENTRY_WITH_SCOPE_MUT (scope) {
-        sentry_attachment_t *new_attachment
-            = sentry__attachments_add(&scope->attachments, attachment);
-        if (attachment == new_attachment) {
-            SENTRY_SCOPE_NOTIFY(scope, add_attachment, attachment);
-        } else {
-            attachment = new_attachment; // existing/duplicate
-        }
+        attachment = sentry__scope_add_attachment(scope, attachment);
     }
     return attachment;
 }

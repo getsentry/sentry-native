@@ -157,6 +157,9 @@ void sentry__scope_remove_attribute(sentry_scope_t *scope, const char *key);
 void sentry__scope_remove_attribute_n(
     sentry_scope_t *scope, const char *key, size_t key_len);
 
+sentry_attachment_t *sentry__scope_add_attachment(
+    sentry_scope_t *scope, sentry_attachment_t *attachment);
+
 /**
  * These are convenience macros to automatically lock/unlock the global scope
  * inside a code block.
