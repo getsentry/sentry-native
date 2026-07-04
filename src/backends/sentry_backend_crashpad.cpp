@@ -331,11 +331,13 @@ crashpad_backend_post_init(
     }
 
     // Seed __sentry-event with event data that is not sent as scope updates,
-    // such as the event ID and option-level metadata. Mutable scope state is
-    // sent via IPC and merged when Crashpad writes the report.
+    // such as the event ID and option-level metadata. Existing breadcrumbs
+    // are included so they survive backend reinstall; later mutable scope
+    // state is sent via IPC and merged when Crashpad writes the report.
     SENTRY_WITH_SCOPE (scope) {
-        // we want the scope without any modules or breadcrumbs
-        sentry__scope_apply_to_event(scope, options, event, SENTRY_SCOPE_NONE);
+        // we want the scope without any modules
+        sentry__scope_apply_to_event(
+            scope, options, event, SENTRY_SCOPE_BREADCRUMBS);
     }
 
     if (!begin_scope_flush(data)) {
