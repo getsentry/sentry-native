@@ -168,7 +168,11 @@ sentry__scope_unlock(void)
 void
 sentry__scope_flush_unlock(void)
 {
+    bool was_notifying = g_scope.is_notifying > 0;
     sentry__scope_unlock();
+    if (was_notifying) {
+        return;
+    }
     SENTRY_WITH_OPTIONS (options) {
         // we try to unlock the scope as soon as possible. The
         // backend will do its own `WITH_SCOPE` internally.
