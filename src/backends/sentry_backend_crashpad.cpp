@@ -264,6 +264,37 @@ flush_external_crash_report(
     sentry_envelope_free(envelope);
 }
 
+static bool
+begin_scope_flush(crashpad_state_t *data)
+{
+    if (data->crashed.load(std::memory_order_relaxed)) {
+        return false;
+    }
+
+    bool expected = false;
+    while (!data->scope_flush.compare_exchange_strong(
+        expected, true, std::memory_order_acquire)) {
+        if (data->crashed.load(std::memory_order_relaxed)) {
+            return false;
+        }
+        expected = false;
+        sentry__cpu_relax();
+    }
+
+    if (data->crashed.load(std::memory_order_relaxed)) {
+        data->scope_flush.store(false, std::memory_order_release);
+        return false;
+    }
+
+    return true;
+}
+
+static void
+end_scope_flush(crashpad_state_t *data)
+{
+    data->scope_flush.store(false, std::memory_order_release);
+}
+
 // This hook seeds __sentry-event after sentry_init() has initialized derived
 // scope state. macOS has no FirstChanceHandler, and Windows WER can capture
 // outside the normal first-chance path, so the attachment must already contain
@@ -274,11 +305,8 @@ crashpad_backend_post_init(
     sentry_backend_t *backend, const sentry_options_t *options)
 {
     auto *data = static_cast<crashpad_state_t *>(backend->data);
-    bool expected = false;
 
-    if (!data->event_path || data->crashed.load(std::memory_order_relaxed)
-        || !data->scope_flush.compare_exchange_strong(
-            expected, true, std::memory_order_acquire)) {
+    if (!data->event_path || data->crashed.load(std::memory_order_relaxed)) {
         return;
     }
 
@@ -305,11 +333,35 @@ crashpad_backend_post_init(
     // Seed __sentry-event with event data that is not sent as scope updates,
     // such as the event ID and option-level metadata. Mutable scope state is
     // sent via IPC and merged when Crashpad writes the report.
-    flush_scope_to_event(data->event_path, options, event);
+    SENTRY_WITH_SCOPE (scope) {
+        // we want the scope without any modules or breadcrumbs
+        sentry__scope_apply_to_event(scope, options, event, SENTRY_SCOPE_NONE);
+    }
+
+    if (!begin_scope_flush(data)) {
+        sentry_value_decref(event);
+        return;
+    }
+
+    size_t mpack_size;
+    char *mpack = sentry_value_to_msgpack(event, &mpack_size);
+    sentry_value_decref(event);
+    if (!mpack) {
+        end_scope_flush(data);
+        return;
+    }
+
+    int rv = sentry__path_write_buffer(data->event_path, mpack, mpack_size);
+    sentry_free(mpack);
+
+    if (rv != 0) {
+        SENTRY_WARN("flushing scope to msgpack failed");
+    }
+    end_scope_flush(data);
+
     if (data->external_report_path) {
         flush_external_crash_report(options, &data->crash_event_id);
     }
-    data->scope_flush.store(false, std::memory_order_release);
 }
 
 #if defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_WINDOWS)
@@ -636,15 +688,7 @@ send_scope_update(crashpad_state_t *data, sentry_value_t update)
         return;
     }
 
-    bool expected = false;
-    if (!data->scope_flush.compare_exchange_strong(
-            expected, true, std::memory_order_acquire)) {
-        sentry_value_decref(update);
-        return;
-    }
-
-    if (data->crashed.load(std::memory_order_relaxed)) {
-        data->scope_flush.store(false, std::memory_order_release);
+    if (!begin_scope_flush(data)) {
         sentry_value_decref(update);
         return;
     }
@@ -653,7 +697,7 @@ send_scope_update(crashpad_state_t *data, sentry_value_t update)
     char *mpack = sentry_value_to_msgpack(update, &mpack_size);
     sentry_value_decref(update);
     if (!mpack) {
-        data->scope_flush.store(false, std::memory_order_release);
+        end_scope_flush(data);
         return;
     }
 
@@ -661,7 +705,7 @@ send_scope_update(crashpad_state_t *data, sentry_value_t update)
         data->client->UpdateScope(std::string(mpack, mpack_size));
     }
     sentry_free(mpack);
-    data->scope_flush.store(false, std::memory_order_release);
+    end_scope_flush(data);
 }
 
 static sentry_value_t
