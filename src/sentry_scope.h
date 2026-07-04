@@ -193,6 +193,15 @@ sentry_scope_observer_t *sentry__scope_observer_new(void);
 bool sentry__scope_add_observer(
     sentry_scope_t *scope, sentry_scope_observer_t *observer);
 
+/**
+ * Remove a scope observer.
+ *
+ * Frees `observer` if it is registered. Must be called while holding the scope
+ * lock. Does nothing if `observer` is NULL or not registered.
+ */
+void sentry__scope_remove_observer(
+    sentry_scope_t *scope, sentry_scope_observer_t *observer);
+
 /** Re-entrancy guard: set while notifying observers. */
 #define SENTRY_SCOPE_NOTIFY(scope, callback, ...)                              \
     do {                                                                       \
