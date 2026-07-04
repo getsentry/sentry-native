@@ -925,6 +925,9 @@ crashpad_backend_startup(
         }
     }
 
+    // Seed __sentry-event with event data that is not sent as scope updates,
+    // such as the event ID and option-level metadata. Mutable scope state is
+    // sent via IPC and merged when Crashpad writes the report.
     sentry_value_t initial_event
         = sentry__value_new_event_with_id(&data->crash_event_id);
     sentry_value_set_by_key(
