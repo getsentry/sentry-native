@@ -206,10 +206,9 @@ sentry_init(sentry_options_t *options)
     g_last_crash = sentry__has_crash_marker(options);
     g_options = options;
 
-    // *after* setting the global options, trigger a scope and consent flush,
-    // since at least crashpad needs that. At this point we also freeze the
-    // `client_sdk` in the `scope` because some downstream SDKs want to override
-    // it at runtime via the options interface.
+    // *after* setting the global options, initialize derived scope state. At
+    // this point we also freeze the `client_sdk` in the `scope` because some
+    // downstream SDKs want to override it at runtime via the options interface.
     SENTRY_WITH_SCOPE_MUT (scope) {
         if (options->sdk_name) {
             sentry_value_t sdk_name
@@ -227,6 +226,9 @@ sentry_init(sentry_options_t *options)
             scope->breadcrumbs, options->max_breadcrumbs);
 
         sentry__scope_update_dsc(scope, options);
+    }
+    if (backend && backend->post_init_func) {
+        backend->post_init_func(backend, options);
     }
     if (backend && backend->user_consent_changed_func) {
         backend->user_consent_changed_func(backend);
@@ -392,6 +394,8 @@ sentry_reinstall_backend(void)
         if (backend && backend->startup_func) {
             if (backend->startup_func(backend, options)) {
                 rv = 1;
+            } else if (backend->post_init_func) {
+                backend->post_init_func(backend, options);
             }
         }
     }

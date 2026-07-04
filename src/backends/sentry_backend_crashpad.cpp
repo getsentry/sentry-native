@@ -265,6 +265,54 @@ flush_external_crash_report(
     sentry_envelope_free(envelope);
 }
 
+// This hook seeds __sentry-event after sentry_init() has initialized derived
+// scope state. macOS has no FirstChanceHandler, and Windows WER can capture
+// outside the normal first-chance path, so the attachment must already contain
+// static event data. Mutable scope changes are sent to Crashpad via IPC and
+// merged when the report is written.
+static void
+crashpad_backend_post_init(
+    sentry_backend_t *backend, const sentry_options_t *options)
+{
+    auto *data = static_cast<crashpad_state_t *>(backend->data);
+    bool expected = false;
+
+    if (!data->event_path || data->crashed.load(std::memory_order_relaxed)
+        || !data->scope_flush.compare_exchange_strong(
+            expected, true, std::memory_order_acquire)) {
+        return;
+    }
+
+    sentry_value_t event = sentry_value_new_object();
+    sentry_value_set_by_key(
+        event, "event_id", sentry__value_new_uuid(&data->crash_event_id));
+    // Since this will only be uploaded in case of a crash we must make this
+    // event fatal.
+    sentry_value_set_by_key(
+        event, "level", sentry__value_new_level(SENTRY_LEVEL_FATAL));
+    if (options->release) {
+        sentry_value_set_by_key(
+            event, "release", sentry_value_new_string(options->release));
+    }
+    if (options->dist) {
+        sentry_value_set_by_key(
+            event, "dist", sentry_value_new_string(options->dist));
+    }
+    if (options->environment) {
+        sentry_value_set_by_key(event, "environment",
+            sentry_value_new_string(options->environment));
+    }
+
+    // Seed __sentry-event with event data that is not sent as scope updates,
+    // such as the event ID and option-level metadata. Mutable scope state is
+    // sent via IPC and merged when Crashpad writes the report.
+    flush_scope_to_event(data->event_path, options, event);
+    if (data->external_report_path) {
+        flush_external_crash_report(options, &data->crash_event_id);
+    }
+    data->scope_flush.store(false, std::memory_order_release);
+}
+
 #if defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_WINDOWS)
 static void
 flush_scope_from_handler(
@@ -925,29 +973,6 @@ crashpad_backend_startup(
         }
     }
 
-    // Seed __sentry-event with event data that is not sent as scope updates,
-    // such as the event ID and option-level metadata. Mutable scope state is
-    // sent via IPC and merged when Crashpad writes the report.
-    sentry_value_t initial_event
-        = sentry__value_new_event_with_id(&data->crash_event_id);
-    sentry_value_set_by_key(
-        initial_event, "level", sentry__value_new_level(SENTRY_LEVEL_FATAL));
-    if (options->release) {
-        sentry_value_set_by_key(initial_event, "release",
-            sentry_value_new_string(options->release));
-    }
-    if (options->dist) {
-        sentry_value_set_by_key(
-            initial_event, "dist", sentry_value_new_string(options->dist));
-    }
-    if (options->environment) {
-        sentry_value_set_by_key(initial_event, "environment",
-            sentry_value_new_string(options->environment));
-    }
-    flush_scope_to_event(data->event_path, options, initial_event);
-    if (data->external_report_path) {
-        flush_external_crash_report(options, &data->crash_event_id);
-    }
     if (options->run && options->run->installation_id) {
         data->installation_id
             = sentry__string_clone(options->run->installation_id);
@@ -1263,6 +1288,7 @@ sentry__backend_new(void)
     data->crashed = false;
 
     backend->startup_func = crashpad_backend_startup;
+    backend->post_init_func = crashpad_backend_post_init;
     backend->shutdown_func = crashpad_backend_shutdown;
     backend->except_func = crashpad_backend_except;
     backend->free_func = crashpad_backend_free;

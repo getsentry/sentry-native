@@ -13,6 +13,7 @@
  */
 struct sentry_backend_s {
     int (*startup_func)(sentry_backend_t *, const sentry_options_t *options);
+    void (*post_init_func)(sentry_backend_t *, const sentry_options_t *options);
     void (*shutdown_func)(sentry_backend_t *);
     void (*free_func)(sentry_backend_t *);
     void (*except_func)(sentry_backend_t *, const struct sentry_ucontext_s *);
