@@ -1144,6 +1144,7 @@ typedef struct {
     sentry_value_t tags;
     sentry_value_t extras;
     sentry_value_t contexts;
+    sentry_value_t trace_contexts;
     sentry_value_t attachments;
     bool was_called;
 } test_observer_data_t;
@@ -1347,6 +1348,18 @@ observe_remove_context(void *data, const char *key, size_t key_len)
     }
     sentry_value_set_by_key_n(
         d->contexts, key, key_len, sentry_value_new_string("(removed)"));
+    d->was_called = true;
+}
+
+static void
+observe_set_trace_context(void *data, sentry_value_t trace_context)
+{
+    test_observer_data_t *d = (test_observer_data_t *)data;
+    if (sentry_value_is_null(d->trace_contexts)) {
+        d->trace_contexts = sentry_value_new_list();
+    }
+    sentry_value_incref(trace_context);
+    sentry_value_append(d->trace_contexts, trace_context);
     d->was_called = true;
 }
 
@@ -1771,6 +1784,59 @@ SENTRY_TEST(scope_observer_contexts)
         "(removed)");
 
     sentry_value_decref(d.contexts);
+    sentry_close();
+}
+
+SENTRY_TEST(scope_observer_trace_context)
+{
+    SENTRY_TEST_OPTIONS_NEW(options);
+    sentry_options_set_traces_sample_rate(options, 1.0);
+    sentry_init(options);
+
+    test_observer_data_t d = { .trace_contexts = sentry_value_new_null() };
+    sentry_scope_observer_t *observer = sentry__scope_observer_new();
+    observer->data = &d;
+    observer->set_trace_context = observe_set_trace_context;
+
+    SENTRY_WITH_SCOPE_MUT (scope) {
+        TEST_CHECK(sentry__scope_add_observer(scope, observer));
+    }
+
+    sentry_transaction_context_t *tx_ctx
+        = sentry_transaction_context_new("root", "op");
+    sentry_transaction_t *tx
+        = sentry_transaction_start(tx_ctx, sentry_value_new_null());
+    sentry_transaction_set_data(tx, "tx-data", sentry_value_new_string("root"));
+    sentry_set_transaction_object(tx);
+
+    TEST_CHECK(d.was_called);
+    TEST_CHECK_INT_EQUAL(sentry_value_get_length(d.trace_contexts), 1);
+    sentry_value_t trace = sentry_value_get_by_index(d.trace_contexts, 0);
+    TEST_CHECK(
+        !sentry_value_is_null(sentry_value_get_by_key(trace, "trace_id")));
+    TEST_CHECK(
+        !sentry_value_is_null(sentry_value_get_by_key(trace, "span_id")));
+    sentry_value_t data = sentry_value_get_by_key(trace, "data");
+    TEST_CHECK_STRING_EQUAL(
+        sentry_value_as_string(sentry_value_get_by_key(data, "tx-data")),
+        "root");
+
+    sentry_span_t *child = sentry_transaction_start_child(tx, "child", "desc");
+    sentry_span_set_data(child, "span-data", sentry_value_new_string("child"));
+    sentry_set_span(child);
+
+    TEST_CHECK_INT_EQUAL(sentry_value_get_length(d.trace_contexts), 2);
+    trace = sentry_value_get_by_index(d.trace_contexts, 1);
+    data = sentry_value_get_by_key(trace, "data");
+    TEST_CHECK_STRING_EQUAL(
+        sentry_value_as_string(sentry_value_get_by_key(data, "span-data")),
+        "child");
+
+    sentry_span_finish(child);
+    TEST_CHECK_INT_EQUAL(sentry_value_get_length(d.trace_contexts), 3);
+
+    sentry_transaction_finish(tx);
+    sentry_value_decref(d.trace_contexts);
     sentry_close();
 }
 
