@@ -210,6 +210,32 @@ sentry__scope_add_observer(
     return true;
 }
 
+void
+sentry__scope_remove_observer(
+    sentry_scope_t *scope, sentry_scope_observer_t *observer)
+{
+    if (!observer || !scope->observers) {
+        return;
+    }
+
+    for (size_t i = 0; i < scope->num_observers; i++) {
+        if (scope->observers[i] != observer) {
+            continue;
+        }
+
+        sentry_free(observer);
+        for (size_t j = i + 1; j < scope->num_observers; j++) {
+            scope->observers[j - 1] = scope->observers[j];
+        }
+        scope->num_observers--;
+        if (scope->num_observers == 0) {
+            sentry_free(scope->observers);
+            scope->observers = NULL;
+        }
+        return;
+    }
+}
+
 sentry_scope_t *
 sentry_local_scope_new(void)
 {
