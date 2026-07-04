@@ -266,6 +266,30 @@ flush_external_crash_report(
 }
 
 #if defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_WINDOWS)
+static void
+flush_scope_from_handler(
+    const sentry_options_t *options, sentry_value_t crash_event)
+{
+    auto state = static_cast<crashpad_state_t *>(options->backend->data);
+
+    // this blocks any further calls to `send_scope_update`
+    state->crashed.store(true, std::memory_order_relaxed);
+
+    // busy-wait until any in-progress scope updates are finished
+    bool expected = false;
+    while (!state->scope_flush.compare_exchange_strong(
+        expected, true, std::memory_order_acquire)) {
+        expected = false;
+        sentry__cpu_relax();
+    }
+
+    // now we are the sole flusher and can flush into the crash event
+    flush_scope_to_event(state->event_path, options, crash_event);
+    if (state->external_report_path) {
+        flush_external_crash_report(options, &state->crash_event_id);
+    }
+}
+
 #    ifdef SENTRY_PLATFORM_WINDOWS
 static bool
 crashpad_handler(EXCEPTION_POINTERS *ExceptionInfo)
@@ -325,17 +349,7 @@ crashpad_handler(int signum, siginfo_t *info, ucontext_t *user_context)
         should_dump = !sentry_value_is_null(crash_event);
 
         if (should_dump) {
-            state->crashed.store(true, std::memory_order_relaxed);
-            bool expected = false;
-            while (!state->scope_flush.compare_exchange_strong(
-                expected, true, std::memory_order_acquire)) {
-                expected = false;
-                sentry__cpu_relax();
-            }
-            flush_scope_to_event(state->event_path, options, crash_event);
-            if (state->external_report_path) {
-                flush_external_crash_report(options, &state->crash_event_id);
-            }
+            flush_scope_from_handler(options, crash_event);
             sentry__write_crash_marker(options);
 
             sentry__record_errors_on_current_session(1);
@@ -1242,6 +1256,9 @@ sentry__backend_new(void)
         sentry_free(backend);
         return nullptr;
     }
+    data->scope_flush = false;
+    data->crashed = false;
+
     backend->startup_func = crashpad_backend_startup;
     backend->shutdown_func = crashpad_backend_shutdown;
     backend->except_func = crashpad_backend_except;
