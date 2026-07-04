@@ -853,6 +853,20 @@ remove_context(void *state, const char *key, size_t key_len)
 }
 
 static void
+set_trace_context(void *state, sentry_value_t trace_context)
+{
+    sentry_value_t update;
+    if (sentry_value_is_null(trace_context)) {
+        update = scope_update_new("remove", "trace_context");
+    } else {
+        update = scope_update_new("set", "trace_context");
+        sentry_value_set_by_key(
+            update, "value", sentry__value_clone(trace_context));
+    }
+    send_scope_update(static_cast<crashpad_state_t *>(state), update);
+}
+
+static void
 add_breadcrumb(void *state, sentry_value_t breadcrumb)
 {
     auto *data = static_cast<crashpad_state_t *>(state);
@@ -947,6 +961,7 @@ add_scope_observer(crashpad_state_t *data)
     observer->remove_extra = remove_extra;
     observer->set_context = set_context;
     observer->remove_context = remove_context;
+    observer->set_trace_context = set_trace_context;
     observer->add_breadcrumb = add_breadcrumb;
     observer->add_attachment = add_attachment;
     observer->remove_attachment = remove_attachment;
