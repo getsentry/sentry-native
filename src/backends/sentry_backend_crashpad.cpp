@@ -5,6 +5,7 @@ extern "C" {
 #include "sentry_attachment.h"
 #include "sentry_backend.h"
 #include "sentry_core.h"
+#include "sentry_cpu_relax.h"
 #include "sentry_database.h"
 #include "sentry_envelope.h"
 #include "sentry_logger.h"
@@ -131,6 +132,7 @@ typedef struct {
     char *installation_id;
     size_t max_breadcrumbs;
     std::atomic<bool> crashed;
+    std::atomic<bool> scope_flush;
     sentry_uuid_t crash_event_id;
 } crashpad_state_t;
 
@@ -324,6 +326,12 @@ crashpad_handler(int signum, siginfo_t *info, ucontext_t *user_context)
 
         if (should_dump) {
             state->crashed.store(true, std::memory_order_relaxed);
+            bool expected = false;
+            while (!state->scope_flush.compare_exchange_strong(
+                expected, true, std::memory_order_acquire)) {
+                expected = false;
+                sentry__cpu_relax();
+            }
             flush_scope_to_event(state->event_path, options, crash_event);
             if (state->external_report_path) {
                 flush_external_crash_report(options, &state->crash_event_id);
@@ -567,10 +575,24 @@ send_scope_update(crashpad_state_t *data, sentry_value_t update)
         return;
     }
 
+    bool expected = false;
+    if (!data->scope_flush.compare_exchange_strong(
+            expected, true, std::memory_order_acquire)) {
+        sentry_value_decref(update);
+        return;
+    }
+
+    if (data->crashed.load(std::memory_order_relaxed)) {
+        data->scope_flush.store(false, std::memory_order_release);
+        sentry_value_decref(update);
+        return;
+    }
+
     size_t mpack_size = 0;
     char *mpack = sentry_value_to_msgpack(update, &mpack_size);
     sentry_value_decref(update);
     if (!mpack) {
+        data->scope_flush.store(false, std::memory_order_release);
         return;
     }
 
@@ -578,6 +600,7 @@ send_scope_update(crashpad_state_t *data, sentry_value_t update)
         data->client->UpdateScope(std::string(mpack, mpack_size));
     }
     sentry_free(mpack);
+    data->scope_flush.store(false, std::memory_order_release);
 }
 
 static sentry_value_t
