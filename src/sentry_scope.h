@@ -186,12 +186,11 @@ sentry_scope_observer_t *sentry__scope_observer_new(void);
 /**
  * Register a scope observer.
  *
- * Takes ownership of `observer`; the caller must not use or free it after
- * this call. Must be called while holding the scope lock (i.e., inside
- * SENTRY_WITH_SCOPE_MUT). Registration order is respected — observers are
- * notified in registration order.
+ * Takes ownership of `observer`; the caller must not free it after this call.
+ * Must be called while holding the scope lock. Registration order is respected
+ * — observers are notified in registration order.
  */
-void sentry__scope_add_observer(
+bool sentry__scope_add_observer(
     sentry_scope_t *scope, sentry_scope_observer_t *observer);
 
 /** Re-entrancy guard: set while notifying observers. */
