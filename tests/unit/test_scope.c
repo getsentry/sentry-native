@@ -1150,6 +1150,7 @@ typedef struct {
 
 typedef struct {
     test_observer_data_t *self_data;
+    test_observer_data_t *nested_data;
     sentry_scope_observer_t *self;
     sentry_scope_observer_t *added;
 } reentrant_observer_data_t;
@@ -1282,6 +1283,9 @@ observe_set_tag_remove_self_and_add(void *data, const char *key, size_t key_len,
         sentry__scope_remove_observer(scope, d->self);
         TEST_CHECK(sentry__scope_add_observer(scope, d->added));
     }
+    d->nested_data->was_called = false;
+    sentry_set_extra("nested", sentry_value_new_string("notify"));
+    TEST_CHECK(d->nested_data->was_called);
 }
 
 static void
@@ -1428,7 +1432,8 @@ SENTRY_TEST(scope_observer_mutate)
     test_observer_data_t d1 = { .tags = sentry_value_new_null() };
     test_observer_data_t d2 = { .tags = sentry_value_new_null() };
     test_observer_data_t d3 = { .tags = sentry_value_new_null() };
-    reentrant_observer_data_t reentrant = { .self_data = &d1 };
+    reentrant_observer_data_t reentrant
+        = { .self_data = &d1, .nested_data = &d2 };
 
     sentry_scope_observer_t *observer1 = sentry__scope_observer_new();
     reentrant.self = observer1;
@@ -1438,6 +1443,7 @@ SENTRY_TEST(scope_observer_mutate)
     sentry_scope_observer_t *observer2 = sentry__scope_observer_new();
     observer2->data = &d2;
     observer2->set_tag = observe_set_tag;
+    observer2->set_extra = observe_set_extra;
 
     sentry_scope_observer_t *observer3 = sentry__scope_observer_new();
     reentrant.added = observer3;
