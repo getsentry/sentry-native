@@ -1229,6 +1229,12 @@ typedef struct {
     bool was_called;
 } test_observer_data_t;
 
+typedef struct {
+    test_observer_data_t *self_data;
+    sentry_scope_observer_t *self;
+    sentry_scope_observer_t *added;
+} reentrant_observer_data_t;
+
 static void
 observe_set_release(void *data, const char *release, size_t release_len)
 {
@@ -1345,6 +1351,18 @@ observe_set_tag(void *data, const char *key, size_t key_len, const char *value,
     sentry_value_set_by_key_n(
         d->tags, key, key_len, sentry_value_new_string_n(value, value_len));
     d->was_called = true;
+}
+
+static void
+observe_set_tag_remove_self_and_add(void *data, const char *key, size_t key_len,
+    const char *value, size_t value_len)
+{
+    reentrant_observer_data_t *d = (reentrant_observer_data_t *)data;
+    observe_set_tag(d->self_data, key, key_len, value, value_len);
+    SENTRY_WITH_SCOPE_MUT (scope) {
+        sentry__scope_remove_observer(scope, d->self);
+        TEST_CHECK(sentry__scope_add_observer(scope, d->added));
+    }
 }
 
 static void
@@ -1480,6 +1498,53 @@ SENTRY_TEST(scope_observer_multiple)
 
     sentry_value_decref(d1.tags);
     sentry_value_decref(d2.tags);
+    sentry_close();
+}
+
+SENTRY_TEST(scope_observer_mutate)
+{
+    SENTRY_TEST_OPTIONS_NEW(options);
+    sentry_init(options);
+
+    test_observer_data_t d1 = { .tags = sentry_value_new_null() };
+    test_observer_data_t d2 = { .tags = sentry_value_new_null() };
+    test_observer_data_t d3 = { .tags = sentry_value_new_null() };
+    reentrant_observer_data_t reentrant = { .self_data = &d1 };
+
+    sentry_scope_observer_t *observer1 = sentry__scope_observer_new();
+    reentrant.self = observer1;
+    observer1->data = &reentrant;
+    observer1->set_tag = observe_set_tag_remove_self_and_add;
+
+    sentry_scope_observer_t *observer2 = sentry__scope_observer_new();
+    observer2->data = &d2;
+    observer2->set_tag = observe_set_tag;
+
+    sentry_scope_observer_t *observer3 = sentry__scope_observer_new();
+    reentrant.added = observer3;
+    observer3->data = &d3;
+    observer3->set_tag = observe_set_tag;
+
+    SENTRY_WITH_SCOPE_MUT (scope) {
+        TEST_CHECK(sentry__scope_add_observer(scope, observer1));
+        TEST_CHECK(sentry__scope_add_observer(scope, observer2));
+    }
+
+    sentry_set_tag("reentrant", "first");
+    TEST_CHECK(d1.was_called);
+    TEST_CHECK(d2.was_called);
+    TEST_CHECK(!d3.was_called);
+
+    d1.was_called = false;
+    d2.was_called = false;
+    sentry_set_tag("reentrant", "second");
+    TEST_CHECK(!d1.was_called);
+    TEST_CHECK(d2.was_called);
+    TEST_CHECK(d3.was_called);
+
+    sentry_value_decref(d1.tags);
+    sentry_value_decref(d2.tags);
+    sentry_value_decref(d3.tags);
     sentry_close();
 }
 
