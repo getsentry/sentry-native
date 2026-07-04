@@ -1422,6 +1422,9 @@ sentry__transaction_finish_value(
             if (sentry__string_eq(tx_id, scope_tx_id)) {
                 sentry__transaction_decref(scope->transaction_object);
                 scope->transaction_object = NULL;
+                if (!scope->trace_managed) {
+                    sentry__scope_notify_trace_context(scope);
+                }
             }
         }
         // if the SDK manages the trace (rather than the user or a downstream
@@ -1434,6 +1437,7 @@ sentry__transaction_finish_value(
             sentry_value_set_by_key(
                 sentry_value_get_by_key(scope->propagation_context, "trace"),
                 "trace_id", txn_trace_id);
+            sentry__scope_notify_trace_context(scope);
         }
     }
     // The sampling decision should already be made for transactions
@@ -1498,6 +1502,7 @@ sentry_set_transaction_object(sentry_transaction_t *tx)
         sentry__transaction_decref(scope->transaction_object);
         sentry__transaction_incref(tx);
         scope->transaction_object = tx;
+        sentry__scope_notify_trace_context(scope);
     }
 }
 
@@ -1510,6 +1515,7 @@ sentry_set_span(sentry_span_t *span)
         sentry__span_decref(scope->span);
         sentry__span_incref(span);
         scope->span = span;
+        sentry__scope_notify_trace_context(scope);
     }
 }
 
@@ -1671,6 +1677,7 @@ sentry_span_finish_ts(sentry_span_t *opaque_span, uint64_t timestamp)
             if (sentry__string_eq(span_id, scope_span_id)) {
                 sentry__span_decref(scope->span);
                 scope->span = NULL;
+                sentry__scope_notify_trace_context(scope);
             }
         }
     }
