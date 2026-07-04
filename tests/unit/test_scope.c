@@ -1360,12 +1360,15 @@ observe_set_tag_remove_self_and_add(void *data, const char *key, size_t key_len,
 {
     reentrant_observer_data_t *d = (reentrant_observer_data_t *)data;
     observe_set_tag(d->self_data, key, key_len, value, value_len);
-    SENTRY_WITH_SCOPE_MUT (scope) {
+    SENTRY_WITH_SCOPE_MUT_NO_FLUSH (scope) {
         sentry__scope_remove_observer(scope, d->self);
         TEST_CHECK(sentry__scope_add_observer(scope, d->added));
     }
     d->nested_data->was_called = false;
-    sentry_set_extra("nested", sentry_value_new_string("notify"));
+    SENTRY_WITH_SCOPE_MUT_NO_FLUSH (scope) {
+        sentry_scope_set_extra(
+            scope, "nested", sentry_value_new_string("notify"));
+    }
     TEST_CHECK(d->nested_data->was_called);
 }
 
