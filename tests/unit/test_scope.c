@@ -1451,8 +1451,8 @@ SENTRY_TEST(scope_observer_multiple)
     observer2->set_tag = observe_set_tag;
 
     SENTRY_WITH_SCOPE_MUT (scope) {
-        sentry__scope_add_observer(scope, observer1);
-        sentry__scope_add_observer(scope, observer2);
+        TEST_CHECK(sentry__scope_add_observer(scope, observer1));
+        TEST_CHECK(sentry__scope_add_observer(scope, observer2));
     }
 
     sentry_set_tag("multi", "test");
@@ -1464,6 +1464,19 @@ SENTRY_TEST(scope_observer_multiple)
     TEST_CHECK_STRING_EQUAL(
         sentry_value_as_string(sentry_value_get_by_key(d2.tags, "multi")),
         "test");
+
+    d1.was_called = false;
+    d2.was_called = false;
+    SENTRY_WITH_SCOPE_MUT (scope) {
+        sentry__scope_remove_observer(scope, observer1);
+    }
+
+    sentry_set_tag("multi", "again");
+    TEST_CHECK(!d1.was_called);
+    TEST_CHECK(d2.was_called);
+    TEST_CHECK_STRING_EQUAL(
+        sentry_value_as_string(sentry_value_get_by_key(d2.tags, "multi")),
+        "again");
 
     sentry_value_decref(d1.tags);
     sentry_value_decref(d2.tags);
