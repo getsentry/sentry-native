@@ -184,12 +184,12 @@ sentry__scope_observer_new(void)
     return SENTRY_MAKE(sentry_scope_observer_t);
 }
 
-void
+bool
 sentry__scope_add_observer(
     sentry_scope_t *scope, sentry_scope_observer_t *observer)
 {
     if (!observer) {
-        return;
+        return false;
     }
 
     size_t new_count = scope->num_observers + 1;
@@ -197,7 +197,7 @@ sentry__scope_add_observer(
         = sentry__calloc(new_count, sizeof(sentry_scope_observer_t *));
     if (!new_array) {
         sentry_free(observer);
-        return;
+        return false;
     }
     if (scope->observers) {
         memcpy(new_array, scope->observers,
@@ -207,6 +207,7 @@ sentry__scope_add_observer(
     new_array[scope->num_observers] = observer;
     scope->observers = new_array;
     scope->num_observers = new_count;
+    return true;
 }
 
 sentry_scope_t *
