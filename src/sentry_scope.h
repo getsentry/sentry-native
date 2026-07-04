@@ -81,7 +81,7 @@ struct sentry_scope_s {
 
     sentry_scope_observer_t **observers;
     size_t num_observers;
-    bool is_notifying;
+    size_t is_notifying;
 };
 
 /**

@@ -90,7 +90,7 @@ init_scope(sentry_scope_t *scope)
     scope->trace_managed = true;
     scope->observers = NULL;
     scope->num_observers = 0;
-    scope->is_notifying = false;
+    scope->is_notifying = 0;
 }
 
 static sentry_scope_t *
@@ -244,17 +244,16 @@ sentry__scope_remove_observer(
 size_t
 sentry__scope_begin_notify(sentry_scope_t *scope)
 {
-    if (scope->is_notifying) {
-        return 0;
-    }
-    scope->is_notifying = true;
+    scope->is_notifying++;
     return scope->num_observers;
 }
 
 void
 sentry__scope_end_notify(sentry_scope_t *scope)
 {
-    scope->is_notifying = false;
+    if (--scope->is_notifying > 0) {
+        return;
+    }
     if (!scope->observers) {
         return;
     }
