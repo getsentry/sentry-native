@@ -129,8 +129,8 @@ typedef struct {
     crashpad::CrashpadClient *client;
     sentry_path_t *event_path;
     sentry_path_t *external_report_path;
-    char *installation_id;
     size_t max_breadcrumbs;
+    sentry_scope_observer_t *scope_observer;
     std::atomic<bool> crashed;
     std::atomic<bool> scope_flush;
     sentry_uuid_t crash_event_id;
@@ -144,7 +144,6 @@ crashpad_state_dtor(crashpad_state_t *state)
 {
     safe_delete(state->client);
     safe_delete(state->db);
-    sentry_free(state->installation_id);
 }
 
 static void
@@ -752,15 +751,17 @@ set_user(void *state, sentry_value_t user)
 {
     sentry_value_t update = scope_update_new("set", "user");
     sentry_value_t value = sentry__value_clone(user);
-    auto *data = static_cast<crashpad_state_t *>(state);
-    if (data->installation_id
-        && sentry_value_get_type(value) == SENTRY_VALUE_TYPE_OBJECT
+    if (sentry_value_get_type(value) == SENTRY_VALUE_TYPE_OBJECT
         && sentry_value_is_null(sentry_value_get_by_key(value, "id"))) {
-        sentry_value_set_by_key(
-            value, "id", sentry_value_new_string(data->installation_id));
+        SENTRY_WITH_OPTIONS (options) {
+            if (options->run && options->run->installation_id) {
+                sentry_value_set_by_key(value, "id",
+                    sentry_value_new_string(options->run->installation_id));
+            }
+        }
     }
     sentry_value_set_by_key(update, "value", value);
-    send_scope_update(data, update);
+    send_scope_update(static_cast<crashpad_state_t *>(state), update);
 }
 
 static void
@@ -874,6 +875,55 @@ remove_attachment(void *state, sentry_attachment_t *attachment)
             attachment->path->path);
     }
 }
+
+static void
+add_scope_observer(crashpad_state_t *data)
+{
+    if (data->scope_observer) {
+        return;
+    }
+
+    sentry_scope_observer_t *observer = sentry__scope_observer_new();
+    if (!observer) {
+        return;
+    }
+
+    observer->data = data;
+    observer->set_release = set_release;
+    observer->set_environment = set_environment;
+    observer->set_transaction = set_transaction;
+    observer->set_fingerprint = set_fingerprint;
+    observer->set_level = set_level;
+    observer->set_user = set_user;
+    observer->set_tag = set_tag;
+    observer->remove_tag = remove_tag;
+    observer->set_extra = set_extra;
+    observer->remove_extra = remove_extra;
+    observer->set_context = set_context;
+    observer->remove_context = remove_context;
+    observer->add_breadcrumb = add_breadcrumb;
+    observer->add_attachment = add_attachment;
+    observer->remove_attachment = remove_attachment;
+
+    SENTRY_WITH_SCOPE_MUT_NO_FLUSH (scope) {
+        if (sentry__scope_add_observer(scope, observer)) {
+            data->scope_observer = observer;
+        }
+    }
+}
+
+static void
+remove_scope_observer(crashpad_state_t *data)
+{
+    if (!data->scope_observer) {
+        return;
+    }
+
+    SENTRY_WITH_SCOPE_MUT_NO_FLUSH (scope) {
+        sentry__scope_remove_observer(scope, data->scope_observer);
+    }
+    data->scope_observer = nullptr;
+}
 #endif
 
 static int
@@ -971,11 +1021,6 @@ crashpad_backend_startup(
             crash_envelope = base::FilePath(
                 SENTRY_PATH_PLATFORM_STR(data->external_report_path));
         }
-    }
-
-    if (options->run && options->run->installation_id) {
-        data->installation_id
-            = sentry__string_clone(options->run->installation_id);
     }
 
     std::vector<std::string> arguments { "--no-rate-limit" };
@@ -1094,28 +1139,7 @@ crashpad_backend_startup(
 
 #if defined(SENTRY_PLATFORM_WINDOWS) || defined(SENTRY_PLATFORM_LINUX)         \
     || defined(SENTRY_PLATFORM_MACOS)
-    {
-        sentry_scope_observer_t *observer = sentry__scope_observer_new();
-        observer->data = data;
-        observer->set_release = set_release;
-        observer->set_environment = set_environment;
-        observer->set_transaction = set_transaction;
-        observer->set_fingerprint = set_fingerprint;
-        observer->set_level = set_level;
-        observer->set_user = set_user;
-        observer->set_tag = set_tag;
-        observer->remove_tag = remove_tag;
-        observer->set_extra = set_extra;
-        observer->remove_extra = remove_extra;
-        observer->set_context = set_context;
-        observer->remove_context = remove_context;
-        observer->add_breadcrumb = add_breadcrumb;
-        observer->add_attachment = add_attachment;
-        observer->remove_attachment = remove_attachment;
-        SENTRY_WITH_SCOPE_MUT (scope) {
-            sentry__scope_add_observer(scope, observer);
-        }
-    }
+    add_scope_observer(data);
 #endif
 
     return 0;
@@ -1147,6 +1171,10 @@ static void
 crashpad_backend_free(sentry_backend_t *backend)
 {
     auto *data = static_cast<crashpad_state_t *>(backend->data);
+#if defined(SENTRY_PLATFORM_WINDOWS) || defined(SENTRY_PLATFORM_LINUX)         \
+    || defined(SENTRY_PLATFORM_MACOS)
+    remove_scope_observer(data);
+#endif
     sentry__path_free(data->event_path);
     sentry__path_free(data->external_report_path);
     delete data;
