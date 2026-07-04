@@ -434,6 +434,37 @@ def test_crashpad_dumping_crash(cmake, httpserver, run_args, build_args):
     assert wait_for_file(minidump)
 
 
+@pytest.mark.skipif(
+    sys.platform == "darwin",
+    reason="crashpad doesn't provide SetFirstChanceExceptionHandler on macOS",
+)
+def test_crashpad_crash_before_send(cmake, httpserver):
+    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "crashpad"})
+
+    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
+    httpserver.expect_oneshot_request("/api/123456/minidump/").respond_with_data("OK")
+
+    with httpserver.wait(timeout=10) as waiting:
+        run(
+            tmp_path,
+            "sentry_example",
+            [
+                "log",
+                "overflow-breadcrumbs",
+                "crashpad-wait-for-upload",
+                "crash",
+                "before-send",
+            ],
+            expect_failure=True,
+            env=env,
+        )
+
+    assert waiting.result
+
+    attachments = assert_crashpad_upload(httpserver.log[0][0])
+    assert attachments.event["adapted_by"] == "before_send"
+
+
 @pytest.mark.parametrize(
     "stack_size",
     [
