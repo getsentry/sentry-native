@@ -202,19 +202,20 @@ bool sentry__scope_add_observer(
 void sentry__scope_remove_observer(
     sentry_scope_t *scope, sentry_scope_observer_t *observer);
 
-/** Re-entrancy guard: set while notifying observers. */
+size_t sentry__scope_begin_notify(sentry_scope_t *scope);
+void sentry__scope_end_notify(sentry_scope_t *scope);
+
+/** Notify observers registered before this notification started. */
 #define SENTRY_SCOPE_NOTIFY(scope, callback, ...)                              \
     do {                                                                       \
-        if ((scope)->is_notifying)                                             \
-            break;                                                             \
-        (scope)->is_notifying = true;                                          \
-        for (size_t _i = 0; _i < (scope)->num_observers; _i++) {               \
+        size_t _end = sentry__scope_begin_notify(scope);                       \
+        for (size_t _i = 0; _i < _end && _i < (scope)->num_observers; _i++) {  \
             sentry_scope_observer_t *_observer = (scope)->observers[_i];       \
-            if (_observer->callback) {                                         \
+            if (_observer && _observer->callback) {                            \
                 _observer->callback(_observer->data, __VA_ARGS__);             \
             }                                                                  \
         }                                                                      \
-        (scope)->is_notifying = false;                                         \
+        sentry__scope_end_notify(scope);                                       \
     } while (0)
 
 /**

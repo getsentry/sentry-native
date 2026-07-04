@@ -224,6 +224,11 @@ sentry__scope_remove_observer(
         }
 
         sentry_free(observer);
+        if (scope->is_notifying) {
+            // avoid shifting the array while SENTRY_SCOPE_NOTIFY is iterating
+            scope->observers[i] = NULL;
+            return;
+        }
         for (size_t j = i + 1; j < scope->num_observers; j++) {
             scope->observers[j - 1] = scope->observers[j];
         }
@@ -233,6 +238,39 @@ sentry__scope_remove_observer(
             scope->observers = NULL;
         }
         return;
+    }
+}
+
+size_t
+sentry__scope_begin_notify(sentry_scope_t *scope)
+{
+    if (scope->is_notifying) {
+        return 0;
+    }
+    scope->is_notifying = true;
+    return scope->num_observers;
+}
+
+void
+sentry__scope_end_notify(sentry_scope_t *scope)
+{
+    scope->is_notifying = false;
+    if (!scope->observers) {
+        return;
+    }
+
+    // removals during notification leave tombstones to avoid shifting the array
+    // while it is being iterated
+    size_t j = 0;
+    for (size_t i = 0; i < scope->num_observers; i++) {
+        if (scope->observers[i]) {
+            scope->observers[j++] = scope->observers[i];
+        }
+    }
+    scope->num_observers = j;
+    if (scope->num_observers == 0) {
+        sentry_free(scope->observers);
+        scope->observers = NULL;
     }
 }
 
