@@ -1284,10 +1284,7 @@ observe_set_tag_remove_self_and_add(void *data, const char *key, size_t key_len,
         TEST_CHECK(sentry__scope_add_observer(scope, d->added));
     }
     d->nested_data->was_called = false;
-    SENTRY_WITH_SCOPE_MUT_NO_FLUSH (scope) {
-        sentry_scope_set_extra(
-            scope, "nested", sentry_value_new_string("notify"));
-    }
+    sentry_set_extra("nested", sentry_value_new_string("notify"));
     TEST_CHECK(d->nested_data->was_called);
 }
 
