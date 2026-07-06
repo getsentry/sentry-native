@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1782996951465,
+  "lastUpdate": 1783326640786,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -26896,6 +26896,66 @@ window.BENCHMARK_DATA = {
             "value": 1.9273249999969266,
             "unit": "ms",
             "extra": "Min 1.869ms\nMax 2.058ms\nMean 1.940ms\nStdDev 0.076ms\nMedian 1.927ms\nCPU 0.567ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "tustanivsky@gmail.com",
+            "name": "Ivan Tustanivskyi",
+            "username": "tustanivsky"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "01ca55067e53cd686d3bc29ac5e48968ab5e772c",
+          "message": "fix(native): resolve symbols from split-debug files on Linux (#1836)\n\n* fix(native): resolve symbols from split-debug files on Linux\n\nThe crash daemon resolved frame symbols by picking the nearest preceding\nentry from the module's .dynsym without bounding the match by st_size.\nFor binaries stripped of their .symtab (the norm for release builds that\nship a split-debug companion), most addresses fall into gaps between\nexported symbols and got attributed to unrelated neighboring functions,\nproducing plausible-looking but wrong stacktraces.\n\n- Require the target address to lie within [st_value, st_value + st_size)\n  instead of accepting the nearest preceding symbol; an unresolved frame\n  beats a wrong name.\n- Prefer .symtab over .dynsym (it is a superset when present).\n- When the module has no .symtab, follow the .gnu_debuglink section per\n  the GDB split-debug conventions (<dir>/<name>, <dir>/.debug/<name>,\n  /usr/lib/debug/<dir>/<name>), validating candidates by GNU build-id\n  equality, and read the full symbol table from the companion file.\n- Cache the resolved symbol-table source per module and scan the table in\n  fixed-size chunks, reading only the winning name from the string table,\n  so large debug companions are never loaded into memory wholesale.\n\n* Update changelog\n\n* Fix formatting\n\n* Increase sym name length\n\n* Fix changelog\n\n* fix(native): direct-map symbol-source cache by module index\n\nThe symbol-source cache was a bounded 64-slot table keyed by module\nname; once full, further modules got no symbolication. Direct-map it by\nmodule index instead, sized to the module cap. Being BSS, only touched\nslots are committed, and the name key (now redundant) is dropped.",
+          "timestamp": "2026-07-06T11:28:01+03:00",
+          "tree_id": "ce80157de55250f88ed19b2f1b1af813fe9b96be",
+          "url": "https://github.com/getsentry/sentry-native/commit/01ca55067e53cd686d3bc29ac5e48968ab5e772c"
+        },
+        "date": 1783326632835,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 1.009386999996309,
+            "unit": "ms",
+            "extra": "Min 0.999ms\nMax 1.074ms\nMean 1.024ms\nStdDev 0.030ms\nMedian 1.009ms\nCPU 0.970ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 0.9369700000121384,
+            "unit": "ms",
+            "extra": "Min 0.900ms\nMax 0.970ms\nMean 0.932ms\nStdDev 0.027ms\nMedian 0.937ms\nCPU 0.923ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 3.2435870000142586,
+            "unit": "ms",
+            "extra": "Min 3.201ms\nMax 3.270ms\nMean 3.238ms\nStdDev 0.030ms\nMedian 3.244ms\nCPU 1.734ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.13153500000839813,
+            "unit": "ms",
+            "extra": "Min 0.129ms\nMax 0.144ms\nMean 0.134ms\nStdDev 0.006ms\nMedian 0.132ms\nCPU 0.079ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.030334999991055156,
+            "unit": "ms",
+            "extra": "Min 0.030ms\nMax 0.060ms\nMean 0.037ms\nStdDev 0.013ms\nMedian 0.030ms\nCPU 0.036ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 1.8980529999907958,
+            "unit": "ms",
+            "extra": "Min 1.880ms\nMax 1.914ms\nMean 1.897ms\nStdDev 0.015ms\nMedian 1.898ms\nCPU 0.531ms"
           }
         ]
       }
