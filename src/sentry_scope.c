@@ -458,39 +458,6 @@ get_span_or_transaction(const sentry_scope_t *scope)
     }
 }
 
-static sentry_value_t
-get_scope_trace_context(const sentry_scope_t *scope)
-{
-    sentry_value_t scoped_txn_or_span = get_span_or_transaction(scope);
-    sentry_value_t trace_context
-        = sentry__value_get_trace_context(scoped_txn_or_span);
-    if (sentry_value_is_null(trace_context)) {
-        return trace_context;
-    }
-
-    sentry_value_t data = sentry_value_get_by_key(scoped_txn_or_span, "data");
-    if (!sentry_value_is_null(data)) {
-        sentry_value_incref(data);
-        sentry_value_set_by_key(trace_context, "data", data);
-    }
-    return trace_context;
-}
-
-void
-sentry__scope_notify_trace_context(sentry_scope_t *scope)
-{
-    sentry_value_t trace_context = get_scope_trace_context(scope);
-    if (sentry_value_is_null(trace_context)) {
-        // Fall back to the propagation trace so observers see the same trace
-        // context as an event with scope applied.
-        trace_context
-            = sentry_value_get_by_key(scope->propagation_context, "trace");
-        sentry_value_incref(trace_context);
-    }
-    SENTRY_SCOPE_NOTIFY(scope, set_trace_context, trace_context);
-    sentry_value_decref(trace_context);
-}
-
 #ifdef SENTRY_UNITTEST
 sentry_value_t
 sentry__scope_get_span_or_transaction(void)
@@ -587,13 +554,22 @@ sentry__scope_apply_to_event(const sentry_scope_t *scope,
 
     // prep contexts sourced from scope; data about transaction on scope needs
     // to be extracted and inserted
+    sentry_value_t scoped_txn_or_span = sentry_value_new_null();
     sentry_value_t scope_trace = sentry_value_new_null();
     if (!is_transaction) {
-        scope_trace = get_scope_trace_context(scope);
+        scoped_txn_or_span = get_span_or_transaction(scope);
+        scope_trace = sentry__value_get_trace_context(scoped_txn_or_span);
     }
     if (!sentry_value_is_null(scope_trace)) {
         if (sentry_value_is_null(contexts)) {
             contexts = sentry_value_new_object();
+        }
+        sentry_value_t scoped_txn_or_span_data
+            = sentry_value_get_by_key(scoped_txn_or_span, "data");
+        if (!sentry_value_is_null(scoped_txn_or_span_data)) {
+            sentry_value_incref(scoped_txn_or_span_data);
+            sentry_value_set_by_key(
+                scope_trace, "data", scoped_txn_or_span_data);
         }
         sentry_value_set_by_key(contexts, "trace", scope_trace);
     }

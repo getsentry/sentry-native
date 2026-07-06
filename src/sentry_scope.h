@@ -42,7 +42,6 @@ typedef struct sentry_scope_observer_s {
     void (*set_context)(
         void *data, const char *key, size_t key_len, sentry_value_t value);
     void (*remove_context)(void *data, const char *key, size_t key_len);
-    void (*set_trace_context)(void *data, sentry_value_t value);
 
     void (*add_attachment)(void *data, sentry_attachment_t *attachment);
     void (*remove_attachment)(void *data, sentry_attachment_t *attachment);
@@ -225,12 +224,6 @@ void sentry__scope_end_notify(sentry_scope_t *scope);
  */
 void sentry__scope_update_dsc(
     sentry_scope_t *scope, const sentry_options_t *options);
-
-/**
- * Notifies observers with the trace context derived from the active scoped span
- * or transaction, falling back to the propagation context when neither is set.
- */
-void sentry__scope_notify_trace_context(sentry_scope_t *scope);
 
 /**
  * Replaces the scope's dynamic sampling context (DSC) with a verbatim copy
