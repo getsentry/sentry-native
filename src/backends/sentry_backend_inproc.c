@@ -1173,6 +1173,20 @@ process_ucontext_deferred(const sentry_ucontext_t *uctx,
                 sentry__attachment_free(replay);
             }
 
+            if (envelope && sentry__session_replay_has_pending(options)) {
+                sentry_value_t crash_event
+                    = sentry_envelope_get_event(envelope);
+                sentry_transport_t *replay_transport
+                    = sentry_new_disk_transport(options->run);
+                if (replay_transport) {
+                    sentry__session_replay_flush_pending(
+                        options, replay_transport, crash_event);
+                    sentry__transport_dump_queue(
+                        replay_transport, options->run);
+                    sentry_transport_free(replay_transport);
+                }
+            }
+
             if (!sentry__launch_external_crash_reporter(options, envelope)) {
                 // capture the envelopes with the disk transport
                 sentry_transport_t *disk_transport

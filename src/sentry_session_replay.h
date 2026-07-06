@@ -36,10 +36,13 @@ bool sentry__session_replay_has_pending(const sentry_options_t *options);
  * `contexts.replay.replay_id` and staged by the embedder as
  * `<database>/replays/replay-<id>.{json,mp4}`.
  *
- * Native-daemon-only: called out-of-process by the crash
- * daemon, so it runs only on a crash and delivers same-session. The sidecar and
- * mp4 are consumed once and removed after the flush attempt, regardless of
- * whether the envelope was built or sent, so a failed flush is not retried.
+ * Runs only on a crash. The native crash daemon calls it out-of-process with
+ * the live transport, delivering the replay same-session. The crashpad,
+ * breakpad and inproc backends call it from their crash handlers with a
+ * run-dir disk transport, so the replay envelope is persisted next to the
+ * crash envelope and delivered on the next launch. The sidecar and mp4 are
+ * consumed once and removed after the flush attempt, regardless of whether
+ * the envelope was built or sent, so a failed flush is not retried.
  *
  * `scope_source` is the crash event (`<run>/__sentry-event`); its scope fields
  * and trace id are copied onto the replay, and its timestamp ends the replay

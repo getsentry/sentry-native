@@ -17,6 +17,7 @@ extern "C" {
 #endif
 #include "sentry_path.h"
 #include "sentry_screenshot.h"
+#include "sentry_session_replay.h"
 #include "sentry_sync.h"
 #include "sentry_transport.h"
 #include "sentry_value.h"
@@ -385,6 +386,7 @@ crashpad_handler(int signum, siginfo_t *info, ucontext_t *user_context)
         should_dump = !sentry_value_is_null(crash_event);
 
         if (should_dump) {
+            sentry_value_incref(crash_event);
             flush_scope_from_handler(options, crash_event);
             sentry__write_crash_marker(options);
 
@@ -402,6 +404,19 @@ crashpad_handler(int signum, siginfo_t *info, ucontext_t *user_context)
                 sentry__transport_dump_queue(disk_transport, options->run);
                 sentry_transport_free(disk_transport);
             }
+
+            if (sentry__session_replay_has_pending(options)) {
+                sentry_transport_t *replay_transport
+                    = sentry_new_disk_transport(options->run);
+                if (replay_transport) {
+                    sentry__session_replay_flush_pending(
+                        options, replay_transport, crash_event);
+                    sentry__transport_dump_queue(
+                        replay_transport, options->run);
+                    sentry_transport_free(replay_transport);
+                }
+            }
+            sentry_value_decref(crash_event);
         } else {
             SENTRY_DEBUG("event was discarded");
         }
