@@ -184,6 +184,87 @@ SENTRY_TEST(scope_update_context)
     sentry_close();
 }
 
+SENTRY_TEST(scope_propagation_context)
+{
+    SENTRY_TEST_OPTIONS_NEW(options);
+    sentry_init(options);
+
+    sentry_set_trace("aaaabbbbccccddddeeeeffff00001111", "9c2a92b49b7c4d1e");
+
+#define TEST_CHECK_EVENT_TRACE_ID_EQUAL(event, value)                          \
+    do {                                                                       \
+        sentry_value_t trace = sentry_value_get_by_key(                        \
+            sentry_value_get_by_key(event, "contexts"), "trace");              \
+        TEST_CHECK_STRING_EQUAL(                                               \
+            sentry_value_as_string(                                            \
+                sentry_value_get_by_key(trace, "trace_id")),                   \
+            value);                                                            \
+    } while (0)
+
+    SENTRY_WITH_SCOPE (global_scope) {
+        // event without contexts receives the trace from propagation
+        sentry_value_t event = sentry_value_new_object();
+        sentry__scope_apply_to_event(
+            global_scope, options, event, SENTRY_SCOPE_NONE);
+        TEST_CHECK_EVENT_TRACE_ID_EQUAL(
+            event, "aaaabbbbccccddddeeeeffff00001111");
+        sentry_value_decref(event);
+    }
+
+    SENTRY_WITH_SCOPE (global_scope) {
+        // event with pre-existing contexts still receives the trace
+        sentry_value_t event = sentry_value_new_object();
+        {
+            sentry_value_t contexts = sentry_value_new_object();
+            sentry_value_set_by_key(
+                contexts, "custom", sentry_value_new_string("event"));
+            sentry_value_set_by_key(event, "contexts", contexts);
+        }
+        sentry__scope_apply_to_event(
+            global_scope, options, event, SENTRY_SCOPE_NONE);
+        TEST_CHECK_EVENT_TRACE_ID_EQUAL(
+            event, "aaaabbbbccccddddeeeeffff00001111");
+        sentry_value_decref(event);
+    }
+
+    SENTRY_WITH_SCOPE (global_scope) {
+        // local scope applied first must not prevent the global scope
+        // from adding the trace context afterwards
+        sentry_scope_t *local_scope = sentry_local_scope_new();
+        sentry_value_t event = sentry_value_new_object();
+        sentry__scope_apply_to_event(
+            local_scope, options, event, SENTRY_SCOPE_NONE);
+        sentry__scope_apply_to_event(
+            global_scope, options, event, SENTRY_SCOPE_NONE);
+        TEST_CHECK_EVENT_TRACE_ID_EQUAL(
+            event, "aaaabbbbccccddddeeeeffff00001111");
+        sentry__scope_free(local_scope);
+        sentry_value_decref(event);
+    }
+
+    SENTRY_WITH_SCOPE (global_scope) {
+        // event that carries its own trace context keeps it
+        sentry_value_t event = sentry_value_new_object();
+        {
+            sentry_value_t trace = sentry_value_new_object();
+            sentry_value_set_by_key(trace, "trace_id",
+                sentry_value_new_string("11112222333344445555666677778888"));
+            sentry_value_t contexts = sentry_value_new_object();
+            sentry_value_set_by_key(contexts, "trace", trace);
+            sentry_value_set_by_key(event, "contexts", contexts);
+        }
+        sentry__scope_apply_to_event(
+            global_scope, options, event, SENTRY_SCOPE_NONE);
+        TEST_CHECK_EVENT_TRACE_ID_EQUAL(
+            event, "11112222333344445555666677778888");
+        sentry_value_decref(event);
+    }
+
+#undef TEST_CHECK_EVENT_TRACE_ID_EQUAL
+
+    sentry_close();
+}
+
 SENTRY_TEST(scope_extra)
 {
     SENTRY_TEST_OPTIONS_NEW(options);
