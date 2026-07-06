@@ -224,6 +224,8 @@ write_attachment(crashpad_state_t *state, const sentry_path_t *path,
     if (!state || !state->client) {
         return sentry__path_write_buffer(path, data, size);
     }
+    // Do not fall back to direct writes on failed IPC updates; they would race
+    // queued IPC updates.
     return state->client->WriteAttachment(
                base::FilePath(SENTRY_PATH_PLATFORM_STR(path)),
                std::string(data, size))
@@ -241,6 +243,8 @@ append_attachment(crashpad_state_t *state, const sentry_path_t *path,
     if (!state || !state->client) {
         return sentry__path_append_buffer(path, data, size);
     }
+    // Do not fall back to direct writes on failed IPC updates; they would race
+    // queued IPC updates.
     return state->client->AppendAttachment(
                base::FilePath(SENTRY_PATH_PLATFORM_STR(path)),
                std::string(data, size))
