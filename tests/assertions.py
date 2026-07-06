@@ -12,7 +12,7 @@ import tests
 
 import msgpack
 
-from . import SENTRY_VERSION
+from . import REPLAY_ID, SENTRY_VERSION
 from .conditions import is_android, is_asan, is_tsan
 
 VERSION_RE = re.compile(r"(\d+\.\d+\.\d+)[-.]?(.*)")
@@ -744,3 +744,45 @@ def wait_for_stdout(process, predicate, timeout=10):
             f"Collected output:\n{stdout_text()}"
         )
     return stdout_text()
+
+
+def assert_replay_envelope(envelope, video, replay_id=REPLAY_ID):
+    """Validate a `replay_video` envelope built from the fixture staged by
+    `tests.stage_replay` (the sidecar values below match that fixture)."""
+    assert envelope.headers["event_id"] == replay_id
+
+    (item,) = envelope.items
+    assert item.headers["type"] == "replay_video"
+    body = msgpack.unpackb(item.payload.bytes)
+    assert set(body) == {"replay_event", "replay_recording", "replay_video"}
+
+    event = json.loads(body["replay_event"])
+    assert event["type"] == "replay_event"
+    assert event["replay_id"] == replay_id
+    assert event["event_id"] == replay_id
+    assert event["segment_id"] == 0
+    assert event["replay_type"] == "buffer"
+    assert event["platform"] == "native"
+
+    # scope fields are copied over from the crash event
+    assert event["tags"]["expected-tag"] == "some value"
+    assert isinstance(event["trace_ids"], list)
+
+    header, _, rrweb = body["replay_recording"].partition(b"\n")
+    assert json.loads(header) == {"segment_id": 0}
+    meta_event, video_event = json.loads(rrweb)
+    assert meta_event["type"] == 4
+    assert meta_event["data"]["width"] == 3864
+    assert meta_event["data"]["height"] == 2100
+    assert video_event["type"] == 5
+    assert video_event["data"]["tag"] == "video"
+    payload = video_event["data"]["payload"]
+    assert payload["segmentId"] == 0
+    assert payload["size"] == len(video)
+    assert payload["duration"] == 15077
+    assert payload["encoding"] == "h264"
+    assert payload["container"] == "mp4"
+    assert payload["frameCount"] == 58
+    assert payload["frameRate"] == 30
+
+    assert body["replay_video"] == video

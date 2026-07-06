@@ -10,9 +10,13 @@ from flaky import flaky
 from . import (
     make_dsn,
     run,
+    stage_replay,
     Envelope,
     split_log_request_cond,
+    extract_request,
     is_feedback_envelope,
+    is_replay_envelope,
+    REPLAY_ID,
     SENTRY_VERSION,
 )
 from .assertions import (
@@ -23,6 +27,7 @@ from .assertions import (
     assert_event,
     assert_exception,
     assert_inproc_crash,
+    assert_replay_envelope,
     assert_session,
     assert_user_feedback,
     assert_user_report,
@@ -598,6 +603,59 @@ def test_breakpad_crash_http(cmake, httpserver, build_args):
 
     assert_breakpad_crash(envelope)
     assert_minidump(envelope)
+
+
+@pytest.mark.parametrize(
+    "backend",
+    [
+        "inproc",
+        pytest.param(
+            "breakpad",
+            marks=pytest.mark.skipif(
+                not has_breakpad or is_qemu, reason="test needs breakpad backend"
+            ),
+        ),
+    ],
+)
+def test_crash_replay_envelope_http(cmake, httpserver, backend):
+    """A staged replay referenced by the crash event's `contexts.replay` is
+    consumed at crash time, persisted to the run folder as its own
+    `replay_video` envelope, and sent on the next launch."""
+    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": backend})
+
+    replays, video = stage_replay(tmp_path)
+
+    httpserver.expect_request("/api/123456/envelope/").respond_with_data("OK")
+    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
+
+    run(
+        tmp_path,
+        "sentry_example",
+        ["log", "replay-context", "crash"],
+        expect_failure=True,
+        env=env,
+    )
+
+    # the staged replay is consumed at crash time
+    assert not (replays / f"replay-{REPLAY_ID}.mp4").exists()
+    assert not (replays / f"replay-{REPLAY_ID}.json").exists()
+
+    run(
+        tmp_path,
+        "sentry_example",
+        ["log", "no-setup"],
+        env=env,
+    )
+
+    # crash envelope + replay envelope
+    assert len(httpserver.log) == 2
+    replay_request, others = extract_request(httpserver.log, is_replay_envelope)
+    assert replay_request is not None, "expected a replay_video envelope"
+    assert_replay_envelope(Envelope.deserialize(replay_request.get_data()), video)
+
+    crash_envelope = Envelope.deserialize(others[0][0].get_data())
+    event = crash_envelope.get_event()
+    assert event["contexts"]["replay"]["replay_id"] == REPLAY_ID
 
 
 @pytest.mark.skipif(not has_breakpad or is_qemu, reason="test needs breakpad backend")

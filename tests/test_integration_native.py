@@ -5,28 +5,30 @@ Tests crash handling, minidump generation, Build ID/UUID extraction,
 multi-thread capture, and FPU/SIMD register capture on all platforms.
 """
 
-import json
 import os
 import subprocess
 import sys
 import time
 import struct
 
-import msgpack
 import pytest
 
 from . import (
     is_feedback_envelope,
+    is_replay_envelope,
     make_dsn,
     run,
+    stage_replay,
     Envelope,
     split_log_request_cond,
+    REPLAY_ID,
 )
 from .assertions import (
     assert_breadcrumb,
     assert_debug_meta_images_do_not_overlap,
     assert_meta,
     assert_native_crash,
+    assert_replay_envelope,
     assert_session,
     is_valid_hex,
     wait_for_file,
@@ -1148,40 +1150,6 @@ def test_native_restart_on_crash(cmake, httpserver):
         assert_native_crash(envelope)
 
 
-# must match the fixed id set by the example's "replay-context" arg
-REPLAY_ID = "deadbeefdeadbeefdeadbeefdeadbeef"
-
-
-def stage_replay(tmp_path, replay_id=REPLAY_ID):
-    """Stage a dummy replay clip + sidecar in `<database>/replays/` the way an
-    embedder (e.g. sentry-unreal) would. The daemon treats the mp4 as opaque
-    bytes, so no valid video container is needed."""
-    replays = tmp_path / ".sentry-native" / "replays"
-    replays.mkdir(parents=True)
-    video = b"\x00\x00\x00\x1cftyp-dummy-mp4-payload-" * 64
-    (replays / f"replay-{replay_id}.mp4").write_bytes(video)
-    sidecar = {
-        "replayId": replay_id,
-        "videoFilename": f"replay-{replay_id}.mp4",
-        "replayType": "buffer",
-        "segmentId": 0,
-        "startTimestampSec": 1782892813.261,
-        "endTimestampSec": 1782892828.338,
-        "width": 3864,
-        "height": 2100,
-        "durationMs": 15077,
-        "sizeBytes": len(video),
-        "frameCount": 58,
-        "frameRate": 30,
-    }
-    (replays / f"replay-{replay_id}.json").write_text(json.dumps(sidecar))
-    return replays, video
-
-
-def is_replay_envelope(envelope):
-    return any(item.headers.get("type") == "replay_video" for item in envelope.items)
-
-
 def test_native_replay_envelope(cmake, httpserver):
     """A staged replay referenced by the crash event's `contexts.replay` is
     sent as a correctly structured `replay_video` envelope by the daemon."""
@@ -1203,47 +1171,12 @@ def test_native_replay_envelope(cmake, httpserver):
         )
     assert waiting.result
 
-    envelopes = [Envelope.deserialize(req.get_data()) for req, _ in httpserver.log]
-    replay_envelopes = [e for e in envelopes if is_replay_envelope(e)]
-    assert len(replay_envelopes) == 1, "expected exactly one replay_video envelope"
-    envelope = replay_envelopes[0]
-    assert envelope.headers["event_id"] == REPLAY_ID
-
-    (item,) = envelope.items
-    assert item.headers["type"] == "replay_video"
-    body = msgpack.unpackb(item.payload.bytes)
-    assert set(body) == {"replay_event", "replay_recording", "replay_video"}
-
-    event = json.loads(body["replay_event"])
-    assert event["type"] == "replay_event"
-    assert event["replay_id"] == REPLAY_ID
-    assert event["event_id"] == REPLAY_ID
-    assert event["segment_id"] == 0
-    assert event["replay_type"] == "buffer"
-    assert event["platform"] == "native"
-
-    # scope fields are copied over from the crash event
-    assert event["tags"]["expected-tag"] == "some value"
-    assert isinstance(event["trace_ids"], list)
-
-    header, _, rrweb = body["replay_recording"].partition(b"\n")
-    assert json.loads(header) == {"segment_id": 0}
-    meta_event, video_event = json.loads(rrweb)
-    assert meta_event["type"] == 4
-    assert meta_event["data"]["width"] == 3864
-    assert meta_event["data"]["height"] == 2100
-    assert video_event["type"] == 5
-    assert video_event["data"]["tag"] == "video"
-    payload = video_event["data"]["payload"]
-    assert payload["segmentId"] == 0
-    assert payload["size"] == len(video)
-    assert payload["duration"] == 15077
-    assert payload["encoding"] == "h264"
-    assert payload["container"] == "mp4"
-    assert payload["frameCount"] == 58
-    assert payload["frameRate"] == 30
-
-    assert body["replay_video"] == video
+    replay_requests = [
+        req for req, _ in httpserver.log if is_replay_envelope(req.get_data())
+    ]
+    assert len(replay_requests) == 1, "expected exactly one replay_video envelope"
+    envelope = Envelope.deserialize(replay_requests[0].get_data())
+    assert_replay_envelope(envelope, video)
 
     # the staged replay is consumed exactly once
     assert not (replays / f"replay-{REPLAY_ID}.mp4").exists()
@@ -1270,6 +1203,6 @@ def test_native_replay_orphan_not_flushed(cmake, httpserver):
     assert waiting.result
 
     for req, _ in httpserver.log:
-        assert not is_replay_envelope(Envelope.deserialize(req.get_data()))
+        assert not is_replay_envelope(req.get_data())
     assert (replays / f"replay-{REPLAY_ID}.mp4").exists()
     assert (replays / f"replay-{REPLAY_ID}.json").exists()
