@@ -25,6 +25,9 @@ pytest.register_assert_rewrite("tests.assertions")
 
 SENTRY_VERSION = "0.15.2"
 
+# must match the fixed id set by the example's "replay-context" arg
+REPLAY_ID = "deadbeefdeadbeefdeadbeefdeadbeef"
+
 from .assertions import wait_for_daemon as _wait_for_daemon
 
 
@@ -74,6 +77,36 @@ def is_metrics_envelope(data):
 
 def is_feedback_envelope(data):
     return b'"type":"feedback"' in data
+
+
+def is_replay_envelope(data):
+    return b'"type":"replay_video"' in data
+
+
+def stage_replay(tmp_path, replay_id=REPLAY_ID):
+    """Stage a dummy replay clip + sidecar in `<database>/replays/` the way an
+    embedder (e.g. sentry-unreal) would. The SDK treats the mp4 as opaque
+    bytes, so no valid video container is needed."""
+    replays = tmp_path / ".sentry-native" / "replays"
+    replays.mkdir(parents=True)
+    video = b"\x00\x00\x00\x1cftyp-dummy-mp4-payload-" * 64
+    (replays / f"replay-{replay_id}.mp4").write_bytes(video)
+    sidecar = {
+        "replayId": replay_id,
+        "videoFilename": f"replay-{replay_id}.mp4",
+        "replayType": "buffer",
+        "segmentId": 0,
+        "startTimestampSec": 1782892813.261,
+        "endTimestampSec": 1782892828.338,
+        "width": 3864,
+        "height": 2100,
+        "durationMs": 15077,
+        "sizeBytes": len(video),
+        "frameCount": 58,
+        "frameRate": 30,
+    }
+    (replays / f"replay-{replay_id}.json").write_text(json.dumps(sidecar))
+    return replays, video
 
 
 def split_log_request_cond(httpserver_log, cond):
