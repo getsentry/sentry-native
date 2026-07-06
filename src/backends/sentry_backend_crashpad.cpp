@@ -306,6 +306,9 @@ flush_external_crash_report(crashpad_state_t *state,
     } else {
         rv = write_attachment(
             state, external_report_path, serialized, envelope_size);
+        if (rv != 0) {
+            rv = sentry__run_write_external(options->run, envelope) ? 0 : 1;
+        }
     }
     sentry_free(serialized);
     sentry_envelope_free(envelope);
