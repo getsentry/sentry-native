@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1783329985785,
+  "lastUpdate": 1783330131180,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -81172,6 +81172,66 @@ window.BENCHMARK_DATA = {
             "value": 18.099200000051496,
             "unit": "ms",
             "extra": "Min 17.242ms\nMax 19.218ms\nMean 18.293ms\nStdDev 0.760ms\nMedian 18.099ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "60878493+JoshuaMoelans@users.noreply.github.com",
+            "name": "JoshuaMoelans",
+            "username": "JoshuaMoelans"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "0ab30bc16f99ea1a1e05221066a0fc9cc42b4a10",
+          "message": "feat: allow Xbox to override `sentry_init` for custom device context (#1825)\n\nAdd SENTRY_PLATFORM_XBOX to the preprocessor guard that exposes\nsentry__native_init, enabling the Xbox console SDK to provide its own\nsentry_init with device model detection.\n\nCo-authored-by: Claude Opus 4.6 (1M context) <noreply@anthropic.com>",
+          "timestamp": "2026-07-06T11:23:45+02:00",
+          "tree_id": "a8fa10be84a0f3d4bf3a22411389b50776b2a8af",
+          "url": "https://github.com/getsentry/sentry-native/commit/0ab30bc16f99ea1a1e05221066a0fc9cc42b4a10"
+        },
+        "date": 1783330121862,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 9.456199999931414,
+            "unit": "ms",
+            "extra": "Min 9.340ms\nMax 10.109ms\nMean 9.641ms\nStdDev 0.363ms\nMedian 9.456ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 10.45729999998457,
+            "unit": "ms",
+            "extra": "Min 9.790ms\nMax 11.223ms\nMean 10.464ms\nStdDev 0.551ms\nMedian 10.457ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 26.162999999996828,
+            "unit": "ms",
+            "extra": "Min 24.054ms\nMax 682.734ms\nMean 157.916ms\nStdDev 293.401ms\nMedian 26.163ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.16249999998763087,
+            "unit": "ms",
+            "extra": "Min 0.154ms\nMax 0.170ms\nMean 0.161ms\nStdDev 0.007ms\nMedian 0.162ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.40979999994306127,
+            "unit": "ms",
+            "extra": "Min 0.377ms\nMax 0.431ms\nMean 0.404ms\nStdDev 0.021ms\nMedian 0.410ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 14.39940000000206,
+            "unit": "ms",
+            "extra": "Min 14.152ms\nMax 15.587ms\nMean 14.632ms\nStdDev 0.566ms\nMedian 14.399ms"
           }
         ]
       }
