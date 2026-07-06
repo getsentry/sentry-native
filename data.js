@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1783330148011,
+  "lastUpdate": 1783344520913,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -27016,6 +27016,66 @@ window.BENCHMARK_DATA = {
             "value": 1.9958670000050915,
             "unit": "ms",
             "extra": "Min 1.935ms\nMax 2.005ms\nMean 1.982ms\nStdDev 0.028ms\nMedian 1.996ms\nCPU 0.561ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "tustanivsky@gmail.com",
+            "name": "Ivan Tustanivskyi",
+            "username": "tustanivsky"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "b84164bb163a99608af3831da80648dbca74f3d4",
+          "message": "feat(session-replay): upload replay envelope on crash with crashpad, breakpad and inproc backends (#1842)\n\n* Add session replay envelope construction support for crashpad/breakpad/inproc\n\n* Add/refactor integration tests for replay capturing",
+          "timestamp": "2026-07-06T16:25:57+03:00",
+          "tree_id": "77d60c474236c65e3c359c57a4b0cf50aca19820",
+          "url": "https://github.com/getsentry/sentry-native/commit/b84164bb163a99608af3831da80648dbca74f3d4"
+        },
+        "date": 1783344513044,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 0.9191199999918354,
+            "unit": "ms",
+            "extra": "Min 0.907ms\nMax 0.940ms\nMean 0.924ms\nStdDev 0.015ms\nMedian 0.919ms\nCPU 0.880ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 0.834571999988043,
+            "unit": "ms",
+            "extra": "Min 0.816ms\nMax 0.884ms\nMean 0.843ms\nStdDev 0.030ms\nMedian 0.835ms\nCPU 0.842ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 3.1503299999826595,
+            "unit": "ms",
+            "extra": "Min 3.094ms\nMax 3.210ms\nMean 3.153ms\nStdDev 0.042ms\nMedian 3.150ms\nCPU 1.671ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.12228900001787224,
+            "unit": "ms",
+            "extra": "Min 0.119ms\nMax 0.147ms\nMean 0.130ms\nStdDev 0.014ms\nMedian 0.122ms\nCPU 0.073ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.026940999987346004,
+            "unit": "ms",
+            "extra": "Min 0.026ms\nMax 0.034ms\nMean 0.028ms\nStdDev 0.003ms\nMedian 0.027ms\nCPU 0.028ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 1.78256099999885,
+            "unit": "ms",
+            "extra": "Min 1.768ms\nMax 1.874ms\nMean 1.809ms\nStdDev 0.046ms\nMedian 1.783ms\nCPU 0.536ms"
           }
         ]
       }
