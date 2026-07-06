@@ -232,7 +232,7 @@ thing_detach(thing_t *thing)
         if (!new_obj) {
             return false;
         }
-        new_obj->len = old->len;
+        new_obj->len = 0;
         new_obj->allocated = old->len;
         new_obj->refcount = 1;
         if (old->len) {
@@ -243,8 +243,13 @@ thing_detach(thing_t *thing)
             }
             for (size_t i = 0; i < old->len; i++) {
                 new_obj->pairs[i].k = sentry__string_clone(old->pairs[i].k);
+                if (!new_obj->pairs[i].k) {
+                    obj_free(new_obj);
+                    return false;
+                }
                 new_obj->pairs[i].v = old->pairs[i].v;
                 sentry_value_incref(new_obj->pairs[i].v);
+                new_obj->len++;
             }
         } else {
             new_obj->pairs = NULL;
