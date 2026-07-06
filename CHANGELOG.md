@@ -5,6 +5,7 @@
 **Fixes**:
 
 - Apply the propagation context to events that already have contexts set, so that events captured with a local scope or with event-level contexts keep their trace. ([#1843](https://github.com/getsentry/sentry-native/pull/1843))
+- Fix scope data loss from shared `sentry_value_t` containers while significantly improving scope merge performance with copy-on-write cloning. ([#1794](https://github.com/getsentry/sentry-native/pull/1794))
 
 ## 0.15.3
 
