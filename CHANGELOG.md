@@ -11,6 +11,7 @@
 **Fixes**:
 
 - Native/Windows: ensure valid event IDs for fast-fail crash envelopes to fix launching of the external crash reporter for fast-fail crashes. ([#1832](https://github.com/getsentry/sentry-native/pull/1832))
+- Native/Linux: resolve symbols from split-debug files on Linux. ([#1836](https://github.com/getsentry/sentry-native/pull/1836))
 
 ## 0.15.2
 

@@ -1308,8 +1308,354 @@ done:
 }
 
 /**
- * Resolve the symbol name for a given instruction address from an ELF symbol
- * table and set the "function" key on the frame value.
+ * A symbol-table source for a module: either the module's own ELF file or
+ * its split-debug companion located via the `.gnu_debuglink` section.
+ * Cached per module so the section-header parse and the debug-file search
+ * run once per module rather than once per frame.
+ */
+typedef struct {
+    char sym_path[SENTRY_CRASH_MAX_PATH];
+    int state; // 0 = unused, 1 = usable, -1 = no symbol table found
+    uint16_t e_type; // e_type of the loaded module (st_value semantics)
+    uint64_t symtab_off;
+    uint64_t symtab_size;
+    uint64_t strtab_off;
+    uint64_t strtab_size;
+} sym_source_t;
+
+// Upper bound on a resolved symbol name; mirrors dbghelp's MAX_SYM_NAME.
+#    define SENTRY_MAX_SYM_NAME 2000
+
+// Direct-mapped by module index; see get_sym_source. Being BSS, only the
+// slots touched during resolution are committed to physical memory.
+static sym_source_t g_sym_sources[SENTRY_CRASH_MAX_MODULES];
+
+/**
+ * Parse the ELF file at `path` and record the location of its symbol table
+ * in `src`. Prefers the full `.symtab` and only falls back to `.dynsym`
+ * when `allow_dynsym` is set: the dynamic table covers exported symbols
+ * only, so lookups against it are unreliable for binaries whose `.symtab`
+ * was stripped. When `debuglink_out` is non-NULL, also extracts the file
+ * name stored in a `.gnu_debuglink` section, if present.
+ * Returns 1 when a usable symbol table was found, 0 otherwise.
+ */
+static int
+elf_locate_symtab(const char *path, int allow_dynsym, sym_source_t *src,
+    char *debuglink_out, size_t debuglink_out_size, uint16_t *e_type_out)
+{
+    if (debuglink_out && debuglink_out_size > 0) {
+        debuglink_out[0] = '\0';
+    }
+
+    int fd = open(path, O_RDONLY);
+    if (fd < 0) {
+        return 0;
+    }
+
+#    if defined(__x86_64__) || defined(__aarch64__)
+    Elf64_Ehdr ehdr;
+#    else
+    Elf32_Ehdr ehdr;
+#    endif
+    if (read(fd, &ehdr, sizeof(ehdr)) != sizeof(ehdr)
+        || memcmp(ehdr.e_ident, ELFMAG, SELFMAG) != 0
+        || !sentry__elf_is_native_class(ehdr.e_ident)
+        || !sentry__elf_has_shdr_size(ehdr.e_ident, ehdr.e_shentsize)) {
+        close(fd);
+        return 0;
+    }
+
+    if (e_type_out) {
+        *e_type_out = ehdr.e_type;
+    }
+
+    size_t shdr_size = (size_t)ehdr.e_shentsize * ehdr.e_shnum;
+    void *shdr_buf = sentry_malloc(shdr_size);
+    if (!shdr_buf) {
+        close(fd);
+        return 0;
+    }
+
+    if (lseek(fd, ehdr.e_shoff, SEEK_SET) != (off_t)ehdr.e_shoff
+        || read(fd, shdr_buf, shdr_size) != (ssize_t)shdr_size) {
+        sentry_free(shdr_buf);
+        close(fd);
+        return 0;
+    }
+
+#    if defined(__x86_64__) || defined(__aarch64__)
+    Elf64_Shdr *sections = (Elf64_Shdr *)shdr_buf;
+#    else
+    Elf32_Shdr *sections = (Elf32_Shdr *)shdr_buf;
+#    endif
+
+    int symtab_idx = -1;
+    int dynsym_idx = -1;
+    for (int j = 0; j < ehdr.e_shnum; j++) {
+        if (sections[j].sh_type == SHT_SYMTAB && symtab_idx < 0) {
+            symtab_idx = j;
+        } else if (sections[j].sh_type == SHT_DYNSYM && dynsym_idx < 0) {
+            dynsym_idx = j;
+        }
+    }
+
+    // Extract the .gnu_debuglink file name, identified via the section name
+    // string table (the section has no dedicated sh_type).
+    if (debuglink_out && ehdr.e_shstrndx < ehdr.e_shnum) {
+        size_t shstr_size = sections[ehdr.e_shstrndx].sh_size;
+        if (shstr_size > 0 && shstr_size <= 1024 * 1024) {
+            char *shstr_buf = sentry_malloc(shstr_size);
+            if (shstr_buf
+                && lseek(fd, sections[ehdr.e_shstrndx].sh_offset, SEEK_SET)
+                    == (off_t)sections[ehdr.e_shstrndx].sh_offset
+                && read(fd, shstr_buf, shstr_size) == (ssize_t)shstr_size) {
+                for (int j = 0; j < ehdr.e_shnum; j++) {
+                    size_t name_off = sections[j].sh_name;
+                    if (name_off >= shstr_size
+                        || strnlen(shstr_buf + name_off, shstr_size - name_off)
+                            == shstr_size - name_off
+                        || strcmp(shstr_buf + name_off, ".gnu_debuglink")
+                            != 0) {
+                        continue;
+                    }
+                    // Content: NUL-terminated file name, padding, CRC32.
+                    size_t link_size = sections[j].sh_size;
+                    if (link_size < 5 || link_size > 4096 + 4) {
+                        break;
+                    }
+                    char link_buf[4096 + 4];
+                    if (lseek(fd, sections[j].sh_offset, SEEK_SET)
+                            == (off_t)sections[j].sh_offset
+                        && read(fd, link_buf, link_size)
+                            == (ssize_t)link_size) {
+                        size_t name_max = link_size - 4;
+                        size_t name_len = strnlen(link_buf, name_max);
+                        if (name_len > 0 && name_len < name_max
+                            && name_len < debuglink_out_size) {
+                            memcpy(debuglink_out, link_buf, name_len + 1);
+                        }
+                    }
+                    break;
+                }
+            }
+            sentry_free(shstr_buf);
+        }
+    }
+
+    int chosen
+        = symtab_idx >= 0 ? symtab_idx : (allow_dynsym ? dynsym_idx : -1);
+    int found = 0;
+    if (chosen >= 0
+        && sentry__elf_has_sym_entsize(
+            ehdr.e_ident, sections[chosen].sh_entsize)) {
+        uint32_t strtab_idx = sections[chosen].sh_link;
+        if (strtab_idx > 0 && strtab_idx < ehdr.e_shnum
+            && sections[strtab_idx].sh_size > 0
+            && (size_t)snprintf(
+                   src->sym_path, sizeof(src->sym_path), "%s", path)
+                < sizeof(src->sym_path)) {
+            src->symtab_off = sections[chosen].sh_offset;
+            src->symtab_size = sections[chosen].sh_size;
+            src->strtab_off = sections[strtab_idx].sh_offset;
+            src->strtab_size = sections[strtab_idx].sh_size;
+            found = 1;
+        }
+    }
+
+    sentry_free(shdr_buf);
+    close(fd);
+    return found;
+}
+
+/**
+ * Resolve the symbol-table source for a module. If the module's own ELF was
+ * stripped of its `.symtab`, follow the GDB split-debug conventions to find
+ * the debug companion (`<dir>/<debuglink>`, `<dir>/.debug/<debuglink>`,
+ * `/usr/lib/debug/<dir>/<debuglink>`), validated by GNU build-id equality.
+ * Falls back to the module's `.dynsym` when no companion is found.
+ * Returns NULL when the module has no usable symbol table.
+ */
+static const sym_source_t *
+get_sym_source(const sentry_module_info_t *mod, uint32_t mod_idx)
+{
+    // The cache is direct-mapped by module index: within a frozen crash
+    // context each index maps to exactly one module, so a slot is resolved at
+    // most once and reused for every frame in that module. This covers all
+    // modules the context can hold, so no frame is left unsymbolicated for
+    // want of a cache slot.
+    sym_source_t *slot = &g_sym_sources[mod_idx];
+    if (slot->state != 0) {
+        return slot->state > 0 ? slot : NULL;
+    }
+    slot->state = -1;
+
+    // 1) The module's own .symtab (also picks up the .gnu_debuglink name).
+    char debuglink[4096];
+    uint16_t e_type = ET_DYN;
+    if (elf_locate_symtab(
+            mod->name, 0, slot, debuglink, sizeof(debuglink), &e_type)) {
+        slot->e_type = e_type;
+        slot->state = 1;
+        return slot;
+    }
+
+    // 2) The split-debug companion. Candidates are validated by comparing
+    // GNU build-ids; when either file lacks one, the candidate is accepted
+    // as-is (the CRC32 stored in .gnu_debuglink is not verified here).
+    if (debuglink[0]) {
+        uint8_t mod_bid[16];
+        size_t mod_bid_len = extract_elf_build_id_for_module(
+            mod->name, mod_bid, sizeof(mod_bid));
+
+        const char *slash = strrchr(mod->name, '/');
+        int dir_len = slash ? (int)(slash - mod->name) : 0;
+
+        char candidate[SENTRY_CRASH_MAX_PATH];
+        for (int c = 0; slash && c < 3; c++) {
+            int n;
+            switch (c) {
+            case 0:
+                n = snprintf(candidate, sizeof(candidate), "%.*s/%s", dir_len,
+                    mod->name, debuglink);
+                break;
+            case 1:
+                n = snprintf(candidate, sizeof(candidate), "%.*s/.debug/%s",
+                    dir_len, mod->name, debuglink);
+                break;
+            default:
+                n = snprintf(candidate, sizeof(candidate),
+                    "/usr/lib/debug%.*s/%s", dir_len, mod->name, debuglink);
+                break;
+            }
+            if (n < 0 || (size_t)n >= sizeof(candidate)) {
+                continue;
+            }
+
+            // The companion must carry a real .symtab; its .dynsym (if any)
+            // adds nothing over the module's own.
+            if (!elf_locate_symtab(candidate, 0, slot, NULL, 0, NULL)) {
+                continue;
+            }
+
+            uint8_t dbg_bid[16];
+            size_t dbg_bid_len = extract_elf_build_id_for_module(
+                candidate, dbg_bid, sizeof(dbg_bid));
+            if (mod_bid_len && dbg_bid_len
+                && (mod_bid_len != dbg_bid_len
+                    || memcmp(mod_bid, dbg_bid, mod_bid_len) != 0)) {
+                SENTRY_DEBUGF(
+                    "Split-debug candidate %s rejected: build-id mismatch",
+                    candidate);
+                continue;
+            }
+
+            SENTRY_DEBUGF("Using split-debug file %s for module %s", candidate,
+                mod->name);
+            slot->e_type = e_type;
+            slot->state = 1;
+            return slot;
+        }
+    }
+
+    // 3) Fall back to the module's .dynsym.
+    if (elf_locate_symtab(mod->name, 1, slot, NULL, 0, &e_type)) {
+        slot->e_type = e_type;
+        slot->state = 1;
+        return slot;
+    }
+
+    return NULL;
+}
+
+/**
+ * Find the symbol covering `sym_target` in the source's symbol table and
+ * copy its name into `name_out`. The table is scanned in fixed-size chunks
+ * and only the winning name is read from the string table, so large tables
+ * (debug companions of big binaries) are never loaded wholesale. A symbol
+ * only matches when the target lies within [st_value, st_value + st_size):
+ * a nearest-preceding fallback without the size bound would attribute
+ * addresses in symbol-table gaps to unrelated neighboring functions.
+ * Returns 1 when a name was resolved.
+ */
+static int
+sym_source_lookup(const sym_source_t *src, uint64_t sym_target, char *name_out,
+    size_t name_out_size)
+{
+    int fd = open(src->sym_path, O_RDONLY);
+    if (fd < 0) {
+        return 0;
+    }
+
+#    if defined(__x86_64__) || defined(__aarch64__)
+    Elf64_Sym chunk[256];
+#    else
+    Elf32_Sym chunk[256];
+#    endif
+
+    uint64_t best_value = 0;
+    uint64_t best_name_off = 0;
+    int have_best = 0;
+
+    uint64_t sym_count = src->symtab_size / sizeof(chunk[0]);
+    for (uint64_t idx = 1; idx < sym_count;) {
+        size_t n = sym_count - idx;
+        if (n > sizeof(chunk) / sizeof(chunk[0])) {
+            n = sizeof(chunk) / sizeof(chunk[0]);
+        }
+        ssize_t want = (ssize_t)(n * sizeof(chunk[0]));
+        if (pread(fd, chunk, (size_t)want,
+                (off_t)(src->symtab_off + idx * sizeof(chunk[0])))
+            != want) {
+            break;
+        }
+
+        for (size_t k = 0; k < n; k++) {
+#    if defined(__x86_64__) || defined(__aarch64__)
+            unsigned char sym_type = ELF64_ST_TYPE(chunk[k].st_info);
+#    else
+            unsigned char sym_type = ELF32_ST_TYPE(chunk[k].st_info);
+#    endif
+            if (sym_type != STT_FUNC && sym_type != STT_NOTYPE) {
+                continue;
+            }
+            if (chunk[k].st_value == 0 || sym_target < chunk[k].st_value
+                || sym_target - chunk[k].st_value >= chunk[k].st_size) {
+                continue;
+            }
+            if ((!have_best || chunk[k].st_value > best_value)
+                && chunk[k].st_name != 0
+                && chunk[k].st_name < src->strtab_size) {
+                best_value = chunk[k].st_value;
+                best_name_off = chunk[k].st_name;
+                have_best = 1;
+            }
+        }
+
+        idx += n;
+    }
+
+    int resolved = 0;
+    if (have_best) {
+        size_t max_read = src->strtab_size - best_name_off;
+        if (max_read > name_out_size - 1) {
+            max_read = name_out_size - 1;
+        }
+        ssize_t got = pread(
+            fd, name_out, max_read, (off_t)(src->strtab_off + best_name_off));
+        if (got > 0) {
+            name_out[got] = '\0';
+            resolved = name_out[0] != '\0';
+        }
+    }
+
+    close(fd);
+    return resolved;
+}
+
+/**
+ * Resolve the symbol name for a given instruction address from the ELF
+ * symbol table of the containing module (or its split-debug companion) and
+ * set the "function" key on the frame value.
  */
 static void
 enrich_frame_with_symbol(
@@ -1322,145 +1668,21 @@ enrich_frame_with_symbol(
             continue;
         }
 
-        uint64_t offset = addr - mod->base_address;
-
-        int fd = open(mod->name, O_RDONLY);
-        if (fd < 0) {
+        const sym_source_t *src = get_sym_source(mod, i);
+        if (!src) {
             return;
         }
 
-#    if defined(__x86_64__) || defined(__aarch64__)
-        Elf64_Ehdr ehdr;
-#    else
-        Elf32_Ehdr ehdr;
-#    endif
-        if (read(fd, &ehdr, sizeof(ehdr)) != sizeof(ehdr)) {
-            close(fd);
-            return;
+        // For ET_DYN (shared libs, PIE) st_value is base-relative; for
+        // ET_EXEC (non-PIE) st_value is an absolute virtual address.
+        uint64_t sym_target
+            = src->e_type == ET_EXEC ? addr : addr - mod->base_address;
+
+        char name[SENTRY_MAX_SYM_NAME];
+        if (sym_source_lookup(src, sym_target, name, sizeof(name))) {
+            sentry_value_set_by_key(
+                frame, "function", sentry_value_new_string(name));
         }
-
-        if (memcmp(ehdr.e_ident, ELFMAG, SELFMAG) != 0
-            || !sentry__elf_is_native_class(ehdr.e_ident)
-            || !sentry__elf_has_shdr_size(ehdr.e_ident, ehdr.e_shentsize)) {
-            close(fd);
-            return;
-        }
-
-        size_t shdr_size = (size_t)ehdr.e_shentsize * ehdr.e_shnum;
-        void *shdr_buf = sentry_malloc(shdr_size);
-        if (!shdr_buf) {
-            close(fd);
-            return;
-        }
-
-        if (lseek(fd, ehdr.e_shoff, SEEK_SET) != (off_t)ehdr.e_shoff
-            || read(fd, shdr_buf, shdr_size) != (ssize_t)shdr_size) {
-            sentry_free(shdr_buf);
-            close(fd);
-            return;
-        }
-
-#    if defined(__x86_64__) || defined(__aarch64__)
-        Elf64_Shdr *sections = (Elf64_Shdr *)shdr_buf;
-#    else
-        Elf32_Shdr *sections = (Elf32_Shdr *)shdr_buf;
-#    endif
-
-        // Find symbol table section - prefer .dynsym (always present in .so),
-        // fall back to .symtab
-        int symtab_idx = -1;
-        for (int j = 0; j < ehdr.e_shnum; j++) {
-            if (sections[j].sh_type == SHT_DYNSYM) {
-                symtab_idx = j;
-                break;
-            }
-        }
-        if (symtab_idx < 0) {
-            for (int j = 0; j < ehdr.e_shnum; j++) {
-                if (sections[j].sh_type == SHT_SYMTAB) {
-                    symtab_idx = j;
-                    break;
-                }
-            }
-        }
-
-        if (symtab_idx >= 0
-            && sentry__elf_has_sym_entsize(
-                ehdr.e_ident, sections[symtab_idx].sh_entsize)) {
-            // For ET_DYN (shared libs, PIE) st_value is base-relative; for
-            // ET_EXEC (non-PIE) st_value is an absolute virtual address.
-            uint64_t sym_target = ehdr.e_type == ET_EXEC ? addr : offset;
-            size_t sym_size = sections[symtab_idx].sh_size;
-            size_t sym_count = sym_size / sections[symtab_idx].sh_entsize;
-            int strtab_idx = sections[symtab_idx].sh_link;
-            if (strtab_idx < 0 || (size_t)strtab_idx >= ehdr.e_shnum) {
-                sentry_free(shdr_buf);
-                close(fd);
-                return;
-            }
-
-            void *sym_buf = sentry_malloc(sym_size);
-            void *strtab_buf = NULL;
-
-            if (sym_buf
-                && lseek(fd, sections[symtab_idx].sh_offset, SEEK_SET)
-                    == (off_t)sections[symtab_idx].sh_offset
-                && read(fd, sym_buf, sym_size) == (ssize_t)sym_size) {
-
-                size_t strtab_size = sections[strtab_idx].sh_size;
-                strtab_buf = sentry_malloc(strtab_size);
-                if (strtab_buf
-                    && lseek(fd, sections[strtab_idx].sh_offset, SEEK_SET)
-                        == (off_t)sections[strtab_idx].sh_offset
-                    && read(fd, strtab_buf, strtab_size)
-                        == (ssize_t)strtab_size) {
-
-                    const char *best_name = NULL;
-                    uint64_t best_value = 0;
-
-#    if defined(__x86_64__) || defined(__aarch64__)
-                    Elf64_Sym *syms = (Elf64_Sym *)sym_buf;
-                    for (size_t k = 1; k < sym_count; k++) {
-                        unsigned char sym_type = ELF64_ST_TYPE(syms[k].st_info);
-#    else
-                    Elf32_Sym *syms = (Elf32_Sym *)sym_buf;
-                    for (size_t k = 1; k < sym_count; k++) {
-                        unsigned char sym_type = ELF32_ST_TYPE(syms[k].st_info);
-#    endif
-                        if (syms[k].st_value == 0
-                            || syms[k].st_value > sym_target) {
-                            continue;
-                        }
-                        if (sym_type != STT_FUNC && sym_type != STT_NOTYPE) {
-                            continue;
-                        }
-                        if (!best_name || syms[k].st_value > best_value) {
-                            if (syms[k].st_name < strtab_size) {
-                                const char *name = (const char *)strtab_buf
-                                    + syms[k].st_name;
-                                if (name[0]
-                                    && memchr(name, '\0',
-                                        strtab_size - syms[k].st_name)) {
-                                    best_name = name;
-                                    best_value = syms[k].st_value;
-                                }
-                            }
-                        }
-                    }
-
-                    if (best_name) {
-                        sentry_value_set_by_key(frame, "function",
-                            sentry_value_new_string(best_name));
-                    }
-                }
-            }
-
-            sentry_free(sym_buf);
-            sentry_free(strtab_buf);
-        }
-
-        sentry_free(shdr_buf);
-        close(fd);
         return;
     }
 }
