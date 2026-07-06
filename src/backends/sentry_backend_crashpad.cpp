@@ -214,28 +214,38 @@ crashpad_register_wer_module(
 }
 #endif
 
-static bool
-write_crashpad_attachment(crashpad_state_t *state, const sentry_path_t *path,
+static int
+write_attachment(crashpad_state_t *state, const sentry_path_t *path,
     const char *data, size_t size)
 {
-    if (!state || !state->client || !path) {
-        return false;
+    if (!path) {
+        return 1;
+    }
+    if (!state || !state->client) {
+        return sentry__path_write_buffer(path, data, size);
     }
     return state->client->WriteAttachment(
-        base::FilePath(SENTRY_PATH_PLATFORM_STR(path)),
-        std::string(data, size));
+               base::FilePath(SENTRY_PATH_PLATFORM_STR(path)),
+               std::string(data, size))
+        ? 0
+        : 1;
 }
 
-static bool
-append_crashpad_attachment(crashpad_state_t *state, const sentry_path_t *path,
+static int
+append_attachment(crashpad_state_t *state, const sentry_path_t *path,
     const char *data, size_t size)
 {
-    if (!state || !state->client || !path) {
-        return false;
+    if (!path) {
+        return 1;
+    }
+    if (!state || !state->client) {
+        return sentry__path_append_buffer(path, data, size);
     }
     return state->client->AppendAttachment(
-        base::FilePath(SENTRY_PATH_PLATFORM_STR(path)),
-        std::string(data, size));
+               base::FilePath(SENTRY_PATH_PLATFORM_STR(path)),
+               std::string(data, size))
+        ? 0
+        : 1;
 }
 
 static void
@@ -255,10 +265,7 @@ flush_scope_to_event(crashpad_state_t *state, const sentry_path_t *event_path,
         return;
     }
 
-    int rv = 0;
-    if (!write_crashpad_attachment(state, event_path, mpack, mpack_size)) {
-        rv = sentry__path_write_buffer(event_path, mpack, mpack_size);
-    }
+    int rv = write_attachment(state, event_path, mpack, mpack_size);
     sentry_free(mpack);
 
     if (rv != 0) {
@@ -290,10 +297,11 @@ flush_external_crash_report(crashpad_state_t *state,
     size_t envelope_size = 0;
     char *serialized = sentry_envelope_serialize(envelope, &envelope_size);
     int rv = 0;
-    if (!serialized
-        || !write_crashpad_attachment(
-            state, external_report_path, serialized, envelope_size)) {
+    if (!serialized) {
         rv = sentry__run_write_external(options->run, envelope) ? 0 : 1;
+    } else {
+        rv = write_attachment(
+            state, external_report_path, serialized, envelope_size);
     }
     sentry_free(serialized);
     sentry_envelope_free(envelope);
@@ -942,13 +950,9 @@ crashpad_backend_add_breadcrumb(sentry_backend_t *backend,
 
     int rv = 0;
     if (first_breadcrumb) {
-        if (!write_crashpad_attachment(
-                data, breadcrumb_file, mpack, mpack_size)) {
-            rv = sentry__path_write_buffer(breadcrumb_file, mpack, mpack_size);
-        }
-    } else if (!append_crashpad_attachment(
-                   data, breadcrumb_file, mpack, mpack_size)) {
-        rv = sentry__path_append_buffer(breadcrumb_file, mpack, mpack_size);
+        rv = write_attachment(data, breadcrumb_file, mpack, mpack_size);
+    } else {
+        rv = append_attachment(data, breadcrumb_file, mpack, mpack_size);
     }
     sentry_free(mpack);
 
