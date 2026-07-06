@@ -218,14 +218,9 @@ static int
 write_attachment(crashpad_state_t *state, const sentry_path_t *path,
     const char *data, size_t size)
 {
-    if (!path) {
+    if (!path || !state || !state->client) {
         return 1;
     }
-    if (!state || !state->client) {
-        return sentry__path_write_buffer(path, data, size);
-    }
-    // Do not fall back to direct writes on failed IPC updates; they would race
-    // queued IPC updates.
     return state->client->WriteAttachment(
                base::FilePath(SENTRY_PATH_PLATFORM_STR(path)),
                std::string(data, size))
@@ -237,14 +232,9 @@ static int
 append_attachment(crashpad_state_t *state, const sentry_path_t *path,
     const char *data, size_t size)
 {
-    if (!path) {
+    if (!path || !state || !state->client) {
         return 1;
     }
-    if (!state || !state->client) {
-        return sentry__path_append_buffer(path, data, size);
-    }
-    // Do not fall back to direct writes on failed IPC updates; they would race
-    // queued IPC updates.
     return state->client->AppendAttachment(
                base::FilePath(SENTRY_PATH_PLATFORM_STR(path)),
                std::string(data, size))
@@ -298,24 +288,13 @@ flush_external_crash_report(crashpad_state_t *state,
             sentry_value_new_string(options->run->cache_path->path));
     }
 
-    size_t envelope_size = 0;
-    char *serialized = sentry_envelope_serialize(envelope, &envelope_size);
-    int rv = 0;
-    if (!serialized) {
-        rv = sentry__run_write_external(options->run, envelope) ? 0 : 1;
-    } else {
-        rv = write_attachment(
-            state, external_report_path, serialized, envelope_size);
-        if (rv != 0) {
-            rv = sentry__run_write_external(options->run, envelope) ? 0 : 1;
-        }
+    size_t size = 0;
+    char *serialized = sentry_envelope_serialize(envelope, &size);
+    if (serialized) {
+        write_attachment(state, external_report_path, serialized, size);
+        sentry_free(serialized);
     }
-    sentry_free(serialized);
     sentry_envelope_free(envelope);
-
-    if (rv != 0) {
-        SENTRY_WARN("flushing external crash report failed");
-    }
 }
 
 // This function is necessary for macOS since it has no `FirstChanceHandler`.
@@ -955,12 +934,9 @@ crashpad_backend_add_breadcrumb(sentry_backend_t *backend,
         return;
     }
 
-    int rv = 0;
-    if (first_breadcrumb) {
-        rv = write_attachment(data, breadcrumb_file, mpack, mpack_size);
-    } else {
-        rv = append_attachment(data, breadcrumb_file, mpack, mpack_size);
-    }
+    int rv = first_breadcrumb
+        ? write_attachment(data, breadcrumb_file, mpack, mpack_size)
+        : append_attachment(data, breadcrumb_file, mpack, mpack_size);
     sentry_free(mpack);
 
     if (rv != 0) {
