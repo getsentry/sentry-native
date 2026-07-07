@@ -34,10 +34,6 @@
 #    include "sentry_screenshot.h"
 #endif
 
-#ifdef SENTRY_INTEGRATION_QT
-#    include "integrations/sentry_integration_qt.h"
-#endif
-
 static sentry_options_t *g_options = NULL;
 #ifdef SENTRY__MUTEX_INIT_DYN
 SENTRY__MUTEX_INIT_DYN(g_options_lock)
@@ -98,6 +94,28 @@ generate_propagation_context(sentry_value_t propagation_context)
         sentry__value_new_span_uuid(&span_id));
     sentry__generate_sample_rand(
         sentry_value_get_by_key(propagation_context, "trace"));
+}
+
+static void
+register_integrations(sentry_scope_t *scope, const sentry_options_t *options)
+{
+    for (size_t i = 0; i < options->num_integrations; i++) {
+        sentry_integration_t *integration = options->integrations[i];
+        if (integration->register_func) {
+            integration->register_func(integration->data, scope, options);
+        }
+    }
+}
+
+static void
+unregister_integrations(sentry_scope_t *scope, const sentry_options_t *options)
+{
+    for (size_t i = 0; i < options->num_integrations; i++) {
+        sentry_integration_t *integration = options->integrations[i];
+        if (integration->unregister_func) {
+            integration->unregister_func(integration->data, scope, options);
+        }
+    }
 }
 
 #if defined(SENTRY_PLATFORM_NX) || defined(SENTRY_PLATFORM_PS)                 \
@@ -228,15 +246,12 @@ sentry_init(sentry_options_t *options)
             scope->breadcrumbs, options->max_breadcrumbs);
 
         sentry__scope_update_dsc(scope, options);
+
+        register_integrations(scope, options);
     }
     if (backend && backend->user_consent_changed_func) {
         backend->user_consent_changed_func(backend);
     }
-
-#ifdef SENTRY_INTEGRATION_QT
-    SENTRY_DEBUG("setting up Qt integration");
-    sentry_integration_setup_qt();
-#endif
 
 #if defined(SENTRY_PLATFORM_WINDOWS)                                           \
     && (!defined(SENTRY_BUILD_SHARED) || defined(SENTRY_PLATFORM_XBOX))
@@ -320,6 +335,12 @@ sentry_close(void)
     // flushed. This prevents a potential deadlock on the options during
     // envelope creation.
     SENTRY_WITH_OPTIONS (options) {
+        if (options->num_integrations) {
+            SENTRY_WITH_SCOPE_MUT_NO_FLUSH (scope) {
+                unregister_integrations(scope, options);
+            }
+        }
+
         if (options->enable_logs) {
             sentry__logs_shutdown(options->shutdown_timeout);
         }

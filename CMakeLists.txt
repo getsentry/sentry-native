@@ -832,6 +832,8 @@ elseif(SENTRY_BACKEND_NATIVE)
 	# Build sentry-crash executable for native backend
 	# Get all sources that were added to sentry target
 	get_target_property(SENTRY_SOURCES sentry SOURCES)
+	# Exclude integrations that are not needed in the daemon
+	list(FILTER SENTRY_SOURCES EXCLUDE REGEX "[/\\\\]integrations[/\\\\]")
 
 	# Create daemon executable with same sources (already includes
 	# sentry_crash_daemon.c and sentry_crash_ipc.c from src/CMakeLists.txt)
@@ -846,6 +848,7 @@ elseif(SENTRY_BACKEND_NATIVE)
 	if(SENTRY_COMPILE_DEFS)
 		# The daemon is always a static executable, never a shared library
 		list(REMOVE_ITEM SENTRY_COMPILE_DEFS "SENTRY_BUILD_SHARED")
+		list(FILTER SENTRY_COMPILE_DEFS EXCLUDE REGEX "^SENTRY_INTEGRATION_")
 		target_compile_definitions(sentry-crash PRIVATE ${SENTRY_COMPILE_DEFS})
 	endif()
 

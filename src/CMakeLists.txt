@@ -24,6 +24,7 @@ sentry_target_sources_cwd(sentry
 	sentry_hint.c
 	sentry_hint.h
 	sentry_info.c
+	sentry_integration.h
 	sentry_json.c
 	sentry_json.h
 	sentry_logger.c

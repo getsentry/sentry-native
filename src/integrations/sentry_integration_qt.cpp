@@ -1,5 +1,9 @@
 #include "sentry_integration_qt.h"
-#include "sentry_boot.h"
+
+extern "C" {
+#include "sentry_alloc.h"
+#include "sentry_core.h"
+}
 
 #include <QtCore/qglobal.h>
 #include <QtCore/qstring.h>
@@ -52,8 +56,32 @@ sentry_qt_messsage_handler(
         originalMessageHandler(type, context, message);
 }
 
-void
-sentry_integration_setup_qt(void)
+static void
+register_qt(void *UNUSED(data), sentry_scope_t *UNUSED(scope),
+    const sentry_options_t *UNUSED(options))
 {
+    SENTRY_DEBUG("registering Qt integration");
     originalMessageHandler = qInstallMessageHandler(sentry_qt_messsage_handler);
+}
+
+static void
+unregister_qt(void *UNUSED(data), sentry_scope_t *UNUSED(scope),
+    const sentry_options_t *UNUSED(options))
+{
+    qInstallMessageHandler(originalMessageHandler);
+    originalMessageHandler = nullptr;
+}
+
+sentry_integration_t *
+sentry_integration_qt_new(void)
+{
+    sentry_integration_t *integration = SENTRY_MAKE(sentry_integration_t);
+    if (!integration) {
+        return nullptr;
+    }
+
+    integration->register_func = register_qt;
+    integration->unregister_func = unregister_qt;
+
+    return integration;
 }
