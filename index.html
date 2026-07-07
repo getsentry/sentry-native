@@ -256,12 +256,12 @@
             return undefined;
           }
 
-          function seriesForTooltip(chartData, item) {
-            return Array.from(chartData.series.values())[item.datasetIndex];
+          function seriesForTooltip(renderSeriesData, item) {
+            return renderSeriesData[item.datasetIndex];
           }
 
-          function pointForTooltip(chartData, item) {
-            const series = seriesForTooltip(chartData, item);
+          function pointForTooltip(renderSeriesData, item) {
+            const series = seriesForTooltip(renderSeriesData, item);
             return series ? series.renderPoints[item.index] : undefined;
           }
 
@@ -351,32 +351,56 @@
             parent.appendChild(canvas);
 
             const visibleData = lastVisibleChartData(chartData);
-            const labels = visibleData.points.map(d => d.commit.id.slice(0, 7));
+            const labels = visibleData.points.map(d => d.commit.id + ':' + d.date);
+            const tickLabels = visibleData.points.map(d => d.commit.id.slice(0, 7));
             const seriesData = Array.from(visibleData.series.values());
-            const data = {
-              labels,
-              datasets: seriesData.map((series, index) => {
-                const color = colorForSeries(series.name, index);
-                series.renderData = [];
-                series.renderPoints = [];
-                for (let pointIndex = 0; pointIndex < series.values.length; pointIndex++) {
-                  const value = series.values[pointIndex];
-                  if (typeof value !== 'number' || !isFinite(value)) {
-                    continue;
-                  }
+            const renderSeriesData = [];
+            const datasets = [];
+            for (const [seriesIndex, series] of seriesData.entries()) {
+              const color = colorForSeries(series.name, seriesIndex);
+              let segmentData = [];
+              let segmentPoints = [];
+              let segmentIndex = 0;
 
-                  series.renderData.push({ x: labels[pointIndex], y: value });
-                  series.renderPoints.push(series.points[pointIndex]);
+              const flushSegment = () => {
+                if (segmentData.length === 0) {
+                  return;
                 }
-                return {
+
+                renderSeriesData.push({
+                  name: series.name,
+                  renderPoints: segmentPoints,
+                });
+                datasets.push({
                   label: series.name,
-                  data: series.renderData,
+                  data: segmentData,
                   borderColor: color,
                   backgroundColor: color + '60', // Add alpha for #rrggbbaa
                   fill: false,
                   spanGaps: false,
-                };
-              }),
+                  _hideLegend: segmentIndex > 0,
+                  _seriesName: series.name,
+                });
+                segmentData = [];
+                segmentPoints = [];
+                segmentIndex++;
+              };
+
+              for (let pointIndex = 0; pointIndex < series.values.length; pointIndex++) {
+                const value = series.values[pointIndex];
+                if (typeof value !== 'number' || !isFinite(value)) {
+                  flushSegment();
+                  continue;
+                }
+
+                segmentData.push({ x: labels[pointIndex], y: value });
+                segmentPoints.push(series.points[pointIndex]);
+              }
+              flushSegment();
+            }
+            const data = {
+              labels,
+              datasets,
             };
             const bench = firstBench(visibleData);
             const unit = bench ? bench.unit : '';
@@ -402,6 +426,20 @@
               },
               legend: {
                 display: true,
+                labels: {
+                  filter: (legendItem, chartData) => !chartData.datasets[legendItem.datasetIndex]._hideLegend,
+                },
+                onClick: function(_mouseEvent, legendItem) {
+                  const chart = this.chart;
+                  const seriesName = chart.data.datasets[legendItem.datasetIndex]._seriesName;
+                  const hidden = chart.isDatasetVisible(legendItem.datasetIndex);
+                  for (let index = 0; index < chart.data.datasets.length; index++) {
+                    if (chart.data.datasets[index]._seriesName === seriesName) {
+                      chart.getDatasetMeta(index).hidden = hidden;
+                    }
+                  }
+                  chart.update();
+                },
               },
               scales: {
                 xAxes: [
@@ -410,6 +448,9 @@
                       display: true,
                       labelString: 'commit',
                     },
+                    ticks: {
+                      callback: (_value, index) => tickLabels[index],
+                    },
                   }
                 ],
                 yAxes: [yAxis],
@@ -417,14 +458,14 @@
               tooltips: {
                 callbacks: {
                   afterTitle: items => {
-                    const data = pointForTooltip(visibleData, items[0]);
+                    const data = pointForTooltip(renderSeriesData, items[0]);
                     if (!data) {
                       return '';
                     }
                     return '\n' + firstLine(data.commit.message) + '\n\n' + data.commit.timestamp + ' by @' + data.commit.author.username + '\n';
                   },
                   label: item => {
-                    const data = pointForTooltip(visibleData, item);
+                    const data = pointForTooltip(renderSeriesData, item);
                     if (!data) {
                       return '';
                     }
@@ -433,11 +474,11 @@
                     if (range) {
                       label += ' (' + range + ')';
                     }
-                    const series = seriesForTooltip(visibleData, item);
+                    const series = seriesForTooltip(renderSeriesData, item);
                     return (series ? series.name : data.bench.name) + ': ' + label;
                   },
                   afterLabel: item => {
-                    const data = pointForTooltip(visibleData, item);
+                    const data = pointForTooltip(renderSeriesData, item);
                     if (!data) {
                       return '';
                     }
@@ -453,7 +494,7 @@
                 // XXX: Undocumented. How can we know the index?
                 const index = activeElems[0]._index;
                 const datasetIndex = activeElems[0]._datasetIndex;
-                const series = seriesData[datasetIndex];
+                const series = renderSeriesData[datasetIndex];
                 const data = series ? series.renderPoints[index] : undefined;
                 if (data) {
                   window.open(data.commit.url, '_blank');
