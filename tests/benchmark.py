@@ -64,5 +64,5 @@ def test_benchmark_scope(test_name, backend, cmake, httpserver, gbenchmark):
         cmake,
         httpserver,
         gbenchmark,
-        f"Scope ({test_name})",
+        f"Scope {test_name} ({backend})",
     )

@@ -41,7 +41,9 @@ benchmark_scope_add_breadcrumb(benchmark::State &state)
 
     int i = 0;
     for (auto _ : state) {
-        sentry_add_breadcrumb(sentry_value_new_breadcrumb(NULL, "message"));
+        char msg[32];
+        snprintf(msg, sizeof(msg), "message%d", i);
+        sentry_add_breadcrumb(sentry_value_new_breadcrumb(NULL, msg));
         i++;
     }
 
