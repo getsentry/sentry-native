@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1783424553847,
+  "lastUpdate": 1783437419514,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -27314,6 +27314,126 @@ window.BENCHMARK_DATA = {
           {
             "name": "Scope add_breadcrumb (native)",
             "value": 0.007298358999946686,
+            "unit": "ms",
+            "extra": "Min 0.007ms\nMax 0.007ms\nMean 0.007ms\nMedian 0.007ms\nCPU 0.007ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "49699333+dependabot[bot]@users.noreply.github.com",
+            "name": "dependabot[bot]",
+            "username": "dependabot[bot]"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "22fbd7a2492443d89159ccf4fbd1ecade16ea169",
+          "message": "build(deps): bump reactivecircus/android-emulator-runner from 2.37.0 to 2.38.0 (#1846)\n\nBumps [reactivecircus/android-emulator-runner](https://github.com/reactivecircus/android-emulator-runner) from 2.37.0 to 2.38.0.\n- [Release notes](https://github.com/reactivecircus/android-emulator-runner/releases)\n- [Changelog](https://github.com/ReactiveCircus/android-emulator-runner/blob/main/CHANGELOG.md)\n- [Commits](https://github.com/reactivecircus/android-emulator-runner/compare/e89f39f1abbbd05b1113a29cf4db69e7540cae5a...a421e43855164a8197daf9d8d40fe71c6996bb0d)\n\n---\nupdated-dependencies:\n- dependency-name: reactivecircus/android-emulator-runner\n  dependency-version: 2.38.0\n  dependency-type: direct:production\n  update-type: version-update:semver-minor\n...\n\nSigned-off-by: dependabot[bot] <support@github.com>\nCo-authored-by: dependabot[bot] <49699333+dependabot[bot]@users.noreply.github.com>",
+          "timestamp": "2026-07-07T17:11:23+02:00",
+          "tree_id": "466d2c2e30a2057d0929b7784018ee25bbb2a5b7",
+          "url": "https://github.com/getsentry/sentry-native/commit/22fbd7a2492443d89159ccf4fbd1ecade16ea169"
+        },
+        "date": 1783437411405,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 1.0125360000188266,
+            "unit": "ms",
+            "extra": "Min 0.991ms\nMax 1.093ms\nMean 1.034ms\nStdDev 0.045ms\nMedian 1.013ms\nCPU 0.986ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 0.9446889999935593,
+            "unit": "ms",
+            "extra": "Min 0.926ms\nMax 1.035ms\nMean 0.959ms\nStdDev 0.044ms\nMedian 0.945ms\nCPU 0.948ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 3.850548999992043,
+            "unit": "ms",
+            "extra": "Min 3.750ms\nMax 5.790ms\nMean 4.211ms\nStdDev 0.885ms\nMedian 3.851ms\nCPU 2.012ms"
+          },
+          {
+            "name": "SDK init (native)",
+            "value": 10018.20238600004,
+            "unit": "ms",
+            "extra": "Min 10018.071ms\nMax 10018.483ms\nMean 10018.233ms\nStdDev 0.152ms\nMedian 10018.202ms\nCPU 8.161ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.13415000000804866,
+            "unit": "ms",
+            "extra": "Min 0.132ms\nMax 0.164ms\nMean 0.141ms\nStdDev 0.013ms\nMedian 0.134ms\nCPU 0.087ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.03213000002233457,
+            "unit": "ms",
+            "extra": "Min 0.031ms\nMax 0.040ms\nMean 0.033ms\nStdDev 0.004ms\nMedian 0.032ms\nCPU 0.032ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 2.151061999995818,
+            "unit": "ms",
+            "extra": "Min 2.048ms\nMax 2.236ms\nMean 2.137ms\nStdDev 0.081ms\nMedian 2.151ms\nCPU 0.616ms"
+          },
+          {
+            "name": "Backend startup (native)",
+            "value": 10016.892076999966,
+            "unit": "ms",
+            "extra": "Min 10011.066ms\nMax 10017.057ms\nMean 10015.739ms\nStdDev 2.618ms\nMedian 10016.892ms\nCPU 6.819ms"
+          },
+          {
+            "name": "Scope set_tag (inproc)",
+            "value": 0.004862840000100732,
+            "unit": "ms",
+            "extra": "Min 0.005ms\nMax 0.005ms\nMean 0.005ms\nMedian 0.005ms\nCPU 0.005ms"
+          },
+          {
+            "name": "Scope add_breadcrumb (inproc)",
+            "value": 0.0005054119999385875,
+            "unit": "ms",
+            "extra": "Min 0.001ms\nMax 0.001ms\nMean 0.001ms\nMedian 0.001ms\nCPU 0.001ms"
+          },
+          {
+            "name": "Scope set_tag (breakpad)",
+            "value": 0.004443158999947627,
+            "unit": "ms",
+            "extra": "Min 0.004ms\nMax 0.004ms\nMean 0.004ms\nMedian 0.004ms\nCPU 0.004ms"
+          },
+          {
+            "name": "Scope add_breadcrumb (breakpad)",
+            "value": 0.0005190370000036637,
+            "unit": "ms",
+            "extra": "Min 0.001ms\nMax 0.001ms\nMean 0.001ms\nMedian 0.001ms\nCPU 0.001ms"
+          },
+          {
+            "name": "Scope set_tag (crashpad)",
+            "value": 0.005103609000002507,
+            "unit": "ms",
+            "extra": "Min 0.005ms\nMax 0.005ms\nMean 0.005ms\nMedian 0.005ms\nCPU 0.005ms"
+          },
+          {
+            "name": "Scope add_breadcrumb (crashpad)",
+            "value": 0.007200275000059264,
+            "unit": "ms",
+            "extra": "Min 0.007ms\nMax 0.007ms\nMean 0.007ms\nMedian 0.007ms\nCPU 0.007ms"
+          },
+          {
+            "name": "Scope set_tag (native)",
+            "value": 1.66397004199996,
+            "unit": "ms",
+            "extra": "Min 1.664ms\nMax 1.664ms\nMean 1.664ms\nMedian 1.664ms\nCPU 1.639ms"
+          },
+          {
+            "name": "Scope add_breadcrumb (native)",
+            "value": 0.0070623440000190385,
             "unit": "ms",
             "extra": "Min 0.007ms\nMax 0.007ms\nMean 0.007ms\nMedian 0.007ms\nCPU 0.007ms"
           }
