@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1783437423105,
+  "lastUpdate": 1783437430724,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -82432,6 +82432,126 @@ window.BENCHMARK_DATA = {
             "value": 0.0015389000000141095,
             "unit": "ms",
             "extra": "Min 0.002ms\nMax 0.002ms\nMean 0.002ms\nMedian 0.002ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "49699333+dependabot[bot]@users.noreply.github.com",
+            "name": "dependabot[bot]",
+            "username": "dependabot[bot]"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "22fbd7a2492443d89159ccf4fbd1ecade16ea169",
+          "message": "build(deps): bump reactivecircus/android-emulator-runner from 2.37.0 to 2.38.0 (#1846)\n\nBumps [reactivecircus/android-emulator-runner](https://github.com/reactivecircus/android-emulator-runner) from 2.37.0 to 2.38.0.\n- [Release notes](https://github.com/reactivecircus/android-emulator-runner/releases)\n- [Changelog](https://github.com/ReactiveCircus/android-emulator-runner/blob/main/CHANGELOG.md)\n- [Commits](https://github.com/reactivecircus/android-emulator-runner/compare/e89f39f1abbbd05b1113a29cf4db69e7540cae5a...a421e43855164a8197daf9d8d40fe71c6996bb0d)\n\n---\nupdated-dependencies:\n- dependency-name: reactivecircus/android-emulator-runner\n  dependency-version: 2.38.0\n  dependency-type: direct:production\n  update-type: version-update:semver-minor\n...\n\nSigned-off-by: dependabot[bot] <support@github.com>\nCo-authored-by: dependabot[bot] <49699333+dependabot[bot]@users.noreply.github.com>",
+          "timestamp": "2026-07-07T17:11:23+02:00",
+          "tree_id": "466d2c2e30a2057d0929b7784018ee25bbb2a5b7",
+          "url": "https://github.com/getsentry/sentry-native/commit/22fbd7a2492443d89159ccf4fbd1ecade16ea169"
+        },
+        "date": 1783437415749,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 10.846799999967516,
+            "unit": "ms",
+            "extra": "Min 10.741ms\nMax 33.826ms\nMean 15.435ms\nStdDev 10.281ms\nMedian 10.847ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 11.181100000044353,
+            "unit": "ms",
+            "extra": "Min 10.989ms\nMax 11.321ms\nMean 11.161ms\nStdDev 0.149ms\nMedian 11.181ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 28.631599999982882,
+            "unit": "ms",
+            "extra": "Min 27.927ms\nMax 34.180ms\nMean 30.117ms\nStdDev 2.685ms\nMedian 28.632ms"
+          },
+          {
+            "name": "SDK init (native)",
+            "value": 14.571699999976317,
+            "unit": "ms",
+            "extra": "Min 14.201ms\nMax 14.979ms\nMean 14.598ms\nStdDev 0.329ms\nMedian 14.572ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.2553000000489192,
+            "unit": "ms",
+            "extra": "Min 0.239ms\nMax 0.304ms\nMean 0.260ms\nStdDev 0.026ms\nMedian 0.255ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.5446999999776381,
+            "unit": "ms",
+            "extra": "Min 0.501ms\nMax 0.596ms\nMean 0.552ms\nStdDev 0.042ms\nMedian 0.545ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 16.58839999998918,
+            "unit": "ms",
+            "extra": "Min 15.859ms\nMax 16.728ms\nMean 16.405ms\nStdDev 0.368ms\nMedian 16.588ms"
+          },
+          {
+            "name": "Backend startup (native)",
+            "value": 3.6073999999644,
+            "unit": "ms",
+            "extra": "Min 3.486ms\nMax 4.620ms\nMean 3.769ms\nStdDev 0.479ms\nMedian 3.607ms"
+          },
+          {
+            "name": "Scope set_tag (inproc)",
+            "value": 0.00839539999998351,
+            "unit": "ms",
+            "extra": "Min 0.008ms\nMax 0.008ms\nMean 0.008ms\nMedian 0.008ms"
+          },
+          {
+            "name": "Scope add_breadcrumb (inproc)",
+            "value": 0.0010176000000114982,
+            "unit": "ms",
+            "extra": "Min 0.001ms\nMax 0.001ms\nMean 0.001ms\nMedian 0.001ms"
+          },
+          {
+            "name": "Scope set_tag (breakpad)",
+            "value": 0.008289000000047508,
+            "unit": "ms",
+            "extra": "Min 0.008ms\nMax 0.008ms\nMean 0.008ms\nMedian 0.008ms"
+          },
+          {
+            "name": "Scope add_breadcrumb (breakpad)",
+            "value": 0.000995699999975841,
+            "unit": "ms",
+            "extra": "Min 0.001ms\nMax 0.001ms\nMean 0.001ms\nMedian 0.001ms"
+          },
+          {
+            "name": "Scope set_tag (crashpad)",
+            "value": 3.7640408999999977,
+            "unit": "ms",
+            "extra": "Min 3.764ms\nMax 3.764ms\nMean 3.764ms\nMedian 3.764ms"
+          },
+          {
+            "name": "Scope add_breadcrumb (crashpad)",
+            "value": 0.12483790000004547,
+            "unit": "ms",
+            "extra": "Min 0.125ms\nMax 0.125ms\nMean 0.125ms\nMedian 0.125ms"
+          },
+          {
+            "name": "Scope set_tag (native)",
+            "value": 0.008708500000011554,
+            "unit": "ms",
+            "extra": "Min 0.009ms\nMax 0.009ms\nMean 0.009ms\nMedian 0.009ms"
+          },
+          {
+            "name": "Scope add_breadcrumb (native)",
+            "value": 0.0013756999999827713,
+            "unit": "ms",
+            "extra": "Min 0.001ms\nMax 0.001ms\nMean 0.001ms\nMedian 0.001ms"
           }
         ]
       }
