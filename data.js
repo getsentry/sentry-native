@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1783447535108,
+  "lastUpdate": 1783447547245,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -82670,6 +82670,126 @@ window.BENCHMARK_DATA = {
           {
             "name": "Scope add_breadcrumb (native)",
             "value": 0.0013756999999827713,
+            "unit": "ms",
+            "extra": "Min 0.001ms\nMax 0.001ms\nMean 0.001ms\nMedian 0.001ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "49699333+dependabot[bot]@users.noreply.github.com",
+            "name": "dependabot[bot]",
+            "username": "dependabot[bot]"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "00c9631bdbc6ddec966cf395a265ca97c94ca485",
+          "message": "build(deps): bump docker/setup-buildx-action from 4.1.0 to 4.2.0 (#1847)\n\nBumps [docker/setup-buildx-action](https://github.com/docker/setup-buildx-action) from 4.1.0 to 4.2.0.\n- [Release notes](https://github.com/docker/setup-buildx-action/releases)\n- [Commits](https://github.com/docker/setup-buildx-action/compare/d7f5e7f509e45cec5c76c4d5afdd7de93d0b3df5...bb05f3f5519dd87d3ba754cc423b652a5edd6d2c)\n\n---\nupdated-dependencies:\n- dependency-name: docker/setup-buildx-action\n  dependency-version: 4.2.0\n  dependency-type: direct:production\n  update-type: version-update:semver-minor\n...\n\nSigned-off-by: dependabot[bot] <support@github.com>\nCo-authored-by: dependabot[bot] <49699333+dependabot[bot]@users.noreply.github.com>",
+          "timestamp": "2026-07-07T20:00:28+02:00",
+          "tree_id": "e5a5fec1043a3378017489bb03f062aa37991248",
+          "url": "https://github.com/getsentry/sentry-native/commit/00c9631bdbc6ddec966cf395a265ca97c94ca485"
+        },
+        "date": 1783447537730,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 10.028400000010151,
+            "unit": "ms",
+            "extra": "Min 9.803ms\nMax 10.402ms\nMean 10.063ms\nStdDev 0.224ms\nMedian 10.028ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 10.9970999997131,
+            "unit": "ms",
+            "extra": "Min 10.366ms\nMax 12.076ms\nMean 11.034ms\nStdDev 0.659ms\nMedian 10.997ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 26.624600000104692,
+            "unit": "ms",
+            "extra": "Min 26.024ms\nMax 27.699ms\nMean 26.745ms\nStdDev 0.642ms\nMedian 26.625ms"
+          },
+          {
+            "name": "SDK init (native)",
+            "value": 13.33359999989625,
+            "unit": "ms",
+            "extra": "Min 12.940ms\nMax 14.307ms\nMean 13.594ms\nStdDev 0.653ms\nMedian 13.334ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.19299999985378236,
+            "unit": "ms",
+            "extra": "Min 0.168ms\nMax 0.212ms\nMean 0.192ms\nStdDev 0.016ms\nMedian 0.193ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.4403000002639601,
+            "unit": "ms",
+            "extra": "Min 0.406ms\nMax 0.586ms\nMean 0.465ms\nStdDev 0.074ms\nMedian 0.440ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 14.445899999827816,
+            "unit": "ms",
+            "extra": "Min 13.899ms\nMax 18.139ms\nMean 15.078ms\nStdDev 1.737ms\nMedian 14.446ms"
+          },
+          {
+            "name": "Backend startup (native)",
+            "value": 2.78729999990901,
+            "unit": "ms",
+            "extra": "Min 2.710ms\nMax 3.017ms\nMean 2.809ms\nStdDev 0.121ms\nMedian 2.787ms"
+          },
+          {
+            "name": "Scope set_tag (inproc)",
+            "value": 0.007244599999921775,
+            "unit": "ms",
+            "extra": "Min 0.007ms\nMax 0.007ms\nMean 0.007ms\nMedian 0.007ms"
+          },
+          {
+            "name": "Scope add_breadcrumb (inproc)",
+            "value": 0.0010918999996647472,
+            "unit": "ms",
+            "extra": "Min 0.001ms\nMax 0.001ms\nMean 0.001ms\nMedian 0.001ms"
+          },
+          {
+            "name": "Scope set_tag (breakpad)",
+            "value": 0.007321600000068429,
+            "unit": "ms",
+            "extra": "Min 0.007ms\nMax 0.007ms\nMean 0.007ms\nMedian 0.007ms"
+          },
+          {
+            "name": "Scope add_breadcrumb (breakpad)",
+            "value": 0.0010800000000017462,
+            "unit": "ms",
+            "extra": "Min 0.001ms\nMax 0.001ms\nMean 0.001ms\nMedian 0.001ms"
+          },
+          {
+            "name": "Scope set_tag (crashpad)",
+            "value": 3.480297099999916,
+            "unit": "ms",
+            "extra": "Min 3.480ms\nMax 3.480ms\nMean 3.480ms\nMedian 3.480ms"
+          },
+          {
+            "name": "Scope add_breadcrumb (crashpad)",
+            "value": 0.15675009999995382,
+            "unit": "ms",
+            "extra": "Min 0.157ms\nMax 0.157ms\nMean 0.157ms\nMedian 0.157ms"
+          },
+          {
+            "name": "Scope set_tag (native)",
+            "value": 0.007560799999737355,
+            "unit": "ms",
+            "extra": "Min 0.008ms\nMax 0.008ms\nMean 0.008ms\nMedian 0.008ms"
+          },
+          {
+            "name": "Scope add_breadcrumb (native)",
+            "value": 0.0014059000000088417,
             "unit": "ms",
             "extra": "Min 0.001ms\nMax 0.001ms\nMean 0.001ms\nMedian 0.001ms"
           }
