@@ -453,7 +453,8 @@
                 // XXX: Undocumented. How can we know the index?
                 const index = activeElems[0]._index;
                 const datasetIndex = activeElems[0]._datasetIndex;
-                const data = seriesData[datasetIndex].points[index];
+                const series = seriesData[datasetIndex];
+                const data = series ? series.renderPoints[index] : undefined;
                 if (data) {
                   window.open(data.commit.url, '_blank');
                 }
