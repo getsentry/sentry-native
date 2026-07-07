@@ -19,6 +19,7 @@ add_executable(sentry_benchmark
 	${SENTRY_SOURCES}
 	benchmark_init.cpp
 	benchmark_backend.cpp
+	benchmark_scope.cpp
 )
 
 if(SENTRY_BACKEND_CRASHPAD)
