@@ -29,6 +29,13 @@ if(SENTRY_BACKEND_CRASHPAD)
 	endif()
 endif()
 
+if(SENTRY_BACKEND_NATIVE)
+	add_dependencies(sentry_benchmark sentry-crash)
+	if(WIN32)
+		add_dependencies(sentry_benchmark sentry-wer)
+	endif()
+endif()
+
 target_link_libraries(sentry_benchmark PRIVATE
 	${SENTRY_LINK_LIBRARIES}
 	${SENTRY_INTERFACE_LINK_LIBRARIES}
