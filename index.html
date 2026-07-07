@@ -157,10 +157,6 @@
             };
           }
 
-          function entryKey(entry) {
-            return entry.commit.id + ':' + entry.date;
-          }
-
           function ensureSeries(chartData, name) {
             let series = chartData.series.get(name);
             if (series !== undefined) {
@@ -183,9 +179,8 @@
               date: entry.date,
               tool: entry.tool,
             }));
-            const pointIndexByEntry = new Map(points.map((point, index) => [entryKey(point), index]));
 
-            for (const entry of entries) {
+            for (const [index, entry] of entries.entries()) {
               const {commit, date, tool, benches} = entry;
               for (const bench of benches) {
                 const result = { commit, date, tool, bench };
@@ -197,7 +192,6 @@
                   map.set(chartName, chartData);
                 }
 
-                const index = pointIndexByEntry.get(entryKey(result));
                 const series = ensureSeries(chartData, seriesName);
                 series.values[index] = bench.value;
                 series.points[index] = result;
