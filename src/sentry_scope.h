@@ -82,6 +82,7 @@ struct sentry_scope_s {
     sentry_scope_observer_t **observers;
     size_t num_observers;
     size_t is_notifying;
+    bool pending_flush;
 };
 
 /**

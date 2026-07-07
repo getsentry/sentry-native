@@ -91,6 +91,7 @@ init_scope(sentry_scope_t *scope)
     scope->observers = NULL;
     scope->num_observers = 0;
     scope->is_notifying = 0;
+    scope->pending_flush = false;
 }
 
 static sentry_scope_t *
@@ -136,6 +137,7 @@ cleanup_scope(sentry_scope_t *scope)
     sentry_free(scope->observers);
     scope->observers = NULL;
     scope->num_observers = 0;
+    scope->pending_flush = false;
 }
 
 void
@@ -158,28 +160,43 @@ sentry__scope_lock(void)
     return get_scope();
 }
 
+static void
+unlock_scope(bool flush)
+{
+    SENTRY__MUTEX_INIT_DYN_ONCE(g_lock);
+
+    if (g_scope.is_notifying > 0) {
+        // defer the flush requested by a reentrant scope change
+        g_scope.pending_flush = flush || g_scope.pending_flush;
+        flush = false;
+    } else {
+        // consume any flush requested by a reentrant scope change
+        flush = flush || g_scope.pending_flush;
+        g_scope.pending_flush = false;
+    }
+
+    // we try to unlock the scope as soon as possible. The
+    // backend will do its own `WITH_SCOPE` internally.
+    sentry__mutex_unlock(&g_lock);
+    if (flush) {
+        SENTRY_WITH_OPTIONS (options) {
+            if (options->backend && options->backend->flush_scope_func) {
+                options->backend->flush_scope_func(options->backend, options);
+            }
+        }
+    }
+}
+
 void
 sentry__scope_unlock(void)
 {
-    SENTRY__MUTEX_INIT_DYN_ONCE(g_lock);
-    sentry__mutex_unlock(&g_lock);
+    unlock_scope(false);
 }
 
 void
 sentry__scope_flush_unlock(void)
 {
-    bool was_notifying = g_scope.is_notifying > 0;
-    sentry__scope_unlock();
-    if (was_notifying) {
-        return;
-    }
-    SENTRY_WITH_OPTIONS (options) {
-        // we try to unlock the scope as soon as possible. The
-        // backend will do its own `WITH_SCOPE` internally.
-        if (options->backend && options->backend->flush_scope_func) {
-            options->backend->flush_scope_func(options->backend, options);
-        }
-    }
+    unlock_scope(true);
 }
 
 sentry_scope_observer_t *
