@@ -262,7 +262,7 @@
 
           function pointForTooltip(chartData, item) {
             const series = seriesForTooltip(chartData, item);
-            return series ? series.points[item.index] : undefined;
+            return series ? series.renderPoints[item.index] : undefined;
           }
 
           function chartValues(seriesData) {
@@ -351,14 +351,26 @@
             parent.appendChild(canvas);
 
             const visibleData = lastVisibleChartData(chartData);
+            const labels = visibleData.points.map(d => d.commit.id.slice(0, 7));
             const seriesData = Array.from(visibleData.series.values());
             const data = {
-              labels: visibleData.points.map(d => d.commit.id.slice(0, 7)),
+              labels,
               datasets: seriesData.map((series, index) => {
                 const color = colorForSeries(series.name, index);
+                series.renderData = [];
+                series.renderPoints = [];
+                for (let pointIndex = 0; pointIndex < series.values.length; pointIndex++) {
+                  const value = series.values[pointIndex];
+                  if (typeof value !== 'number' || !isFinite(value)) {
+                    continue;
+                  }
+
+                  series.renderData.push({ x: labels[pointIndex], y: value });
+                  series.renderPoints.push(series.points[pointIndex]);
+                }
                 return {
                   label: series.name,
-                  data: series.values.map(value => value === null ? NaN : value),
+                  data: series.renderData,
                   borderColor: color,
                   backgroundColor: color + '60', // Add alpha for #rrggbbaa
                   fill: false,
