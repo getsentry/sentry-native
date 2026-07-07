@@ -126,25 +126,75 @@
           _: '#333333'
         };
 
-        const benchColors = {
-          Windows: '#357ec7',
-          macOS: '#717378',
-          Linux: '#e95420',
+        const seriesColors = {
+          inproc: '#0072b2',
+          breakpad: '#009e73',
+          crashpad: '#d55e00',
+          native: '#cc79a7',
         };
 
+        const maxVisibleDataPoints = 100;
+
         function init() {
-          function collectBenchesPerTestCase(entries) {
+          function parseBenchName(name) {
+            const match = name.match(/^(.*) \(([^()]+)\)$/);
+            if (match) {
+              return {
+                chartName: match[1],
+                seriesName: match[2],
+              };
+            }
+            return {
+              chartName: name,
+              seriesName: name,
+            };
+          }
+
+          function createChartData() {
+            return {
+              points: [],
+              series: new Map(),
+            };
+          }
+
+          function ensureSeries(chartData, name) {
+            let series = chartData.series.get(name);
+            if (series !== undefined) {
+              return series;
+            }
+
+            series = {
+              name,
+              values: new Array(chartData.points.length).fill(null),
+              points: new Array(chartData.points.length).fill(null),
+            };
+            chartData.series.set(name, series);
+            return series;
+          }
+
+          function collectBenchesPerChart(entries) {
             const map = new Map();
-            for (const entry of entries) {
+            const points = entries.map(entry => ({
+              commit: entry.commit,
+              date: entry.date,
+              tool: entry.tool,
+            }));
+
+            for (const [index, entry] of entries.entries()) {
               const {commit, date, tool, benches} = entry;
               for (const bench of benches) {
                 const result = { commit, date, tool, bench };
-                const arr = map.get(bench.name);
-                if (arr === undefined) {
-                  map.set(bench.name, [result]);
-                } else {
-                  arr.push(result);
+                const {chartName, seriesName} = parseBenchName(bench.name);
+                let chartData = map.get(chartName);
+                if (chartData === undefined) {
+                  chartData = createChartData();
+                  chartData.points = points;
+                  map.set(chartName, chartData);
                 }
+
+                const series = ensureSeries(chartData, seriesName);
+                series.values[index] = bench.value;
+                series.points[index] = result;
               }
             }
             return map;
@@ -170,30 +220,227 @@
           // Prepare data points for charts
           return Object.keys(data.entries).map(name => ({
             name,
-            dataSet: collectBenchesPerTestCase(data.entries[name]),
+            dataSet: collectBenchesPerChart(data.entries[name]),
           }));
         }
 
         function renderAllChars(dataSets) {
 
-          function renderGraph(parent, name, dataset, color) {
+          function colorForSeries(name, index) {
+            if (seriesColors[name]) {
+              return seriesColors[name];
+            }
+            const fallbackColors = [
+              toolColors._,
+              '#f0e442',
+              '#56b4e9',
+              '#e69f00',
+              '#000000',
+            ];
+            return fallbackColors[index % fallbackColors.length];
+          }
+
+          function firstLine(text) {
+            const newlineIndex = text.indexOf('\n');
+            return newlineIndex === -1 ? text : text.slice(0, newlineIndex);
+          }
+
+          function firstBench(chartData) {
+            for (const series of chartData.series.values()) {
+              for (const point of series.points) {
+                if (point) {
+                  return point.bench;
+                }
+              }
+            }
+            return undefined;
+          }
+
+          function seriesForTooltip(renderSeriesData, item) {
+            return renderSeriesData[item.datasetIndex];
+          }
+
+          function pointForTooltip(renderSeriesData, item) {
+            const series = seriesForTooltip(renderSeriesData, item);
+            return series ? series.renderPoints[item.index] : undefined;
+          }
+
+          function chartValues(seriesData) {
+            const values = [];
+            for (const series of seriesData) {
+              for (const value of series.values) {
+                if (typeof value === 'number' && isFinite(value)) {
+                  values.push(value);
+                }
+              }
+            }
+            return values;
+          }
+
+          function shouldUseLogScale(seriesData) {
+            const values = chartValues(seriesData);
+            return values.length > 0 && values.every(value => value > 0);
+          }
+
+          function trimTrailingZeros(value) {
+            return value.replace(/(\.\d*?)0+$/, '$1').replace(/\.$/, '');
+          }
+
+          function formatLogTick(value) {
+            const numericValue = Number(value);
+            if (!isFinite(numericValue) || numericValue <= 0) {
+              return '';
+            }
+
+            const exponent = Math.floor(Math.log10(numericValue));
+            const mantissa = numericValue / Math.pow(10, exponent);
+            if (![1, 2, 5].some(value => Math.abs(mantissa - value) < 1e-10)) {
+              return '';
+            }
+
+            const absValue = Math.abs(numericValue);
+            if (absValue >= 1000) {
+              return trimTrailingZeros((numericValue / 1000).toFixed(absValue >= 10000 ? 0 : 1)) + 'k';
+            }
+            if (absValue >= 100) {
+              return Math.round(numericValue).toString();
+            }
+            if (absValue >= 10) {
+              return trimTrailingZeros(numericValue.toFixed(1));
+            }
+            if (absValue >= 1) {
+              return trimTrailingZeros(numericValue.toFixed(2));
+            }
+            if (absValue >= 0.001) {
+              return trimTrailingZeros(numericValue.toFixed(4));
+            }
+            return trimTrailingZeros(numericValue.toPrecision(2));
+          }
+
+          function medianAxisLabel(unit, useLogScale) {
+            if (useLogScale) {
+              return 'Median' + (unit ? ` (${unit}, logarithmic)` : ' (logarithmic)');
+            }
+            return 'Median' + (unit ? ` (${unit})` : '');
+          }
+
+          function lastVisibleChartData(chartData) {
+            const startIndex = Math.max(chartData.points.length - maxVisibleDataPoints, 0);
+            if (startIndex === 0) {
+              return chartData;
+            }
+
+            const series = new Map();
+            for (const [name, sourceSeries] of chartData.series.entries()) {
+              series.set(name, {
+                name,
+                values: sourceSeries.values.slice(startIndex),
+                points: sourceSeries.points.slice(startIndex),
+              });
+            }
+
+            return {
+              points: chartData.points.slice(startIndex),
+              series,
+            };
+          }
+
+          function renderGraph(parent, name, chartData) {
             const canvas = document.createElement('canvas');
             canvas.className = 'benchmark-chart';
             parent.appendChild(canvas);
 
-            const data = {
-              labels: dataset.map(d => d.commit.id.slice(0, 7)),
-              datasets: [
-                {
-                  label: name,
-                  data: dataset.map(d => d.bench.value),
+            const visibleData = lastVisibleChartData(chartData);
+            const labels = visibleData.points.map(d => d.commit.id + ':' + d.date);
+            const tickLabels = visibleData.points.map(d => d.commit.id.slice(0, 7));
+            const seriesData = Array.from(visibleData.series.values());
+            const renderSeriesData = [];
+            const datasets = [];
+            for (const [seriesIndex, series] of seriesData.entries()) {
+              const color = colorForSeries(series.name, seriesIndex);
+              let segmentData = [];
+              let segmentPoints = [];
+              let segmentIndex = 0;
+
+              const flushSegment = () => {
+                if (segmentData.length === 0) {
+                  return;
+                }
+
+                renderSeriesData.push({
+                  name: series.name,
+                  renderPoints: segmentPoints,
+                });
+                datasets.push({
+                  label: series.name,
+                  data: segmentData,
                   borderColor: color,
                   backgroundColor: color + '60', // Add alpha for #rrggbbaa
+                  fill: false,
+                  spanGaps: false,
+                  _hideLegend: segmentIndex > 0,
+                  _seriesName: series.name,
+                });
+                segmentData = [];
+                segmentPoints = [];
+                segmentIndex++;
+              };
+
+              for (let pointIndex = 0; pointIndex < series.values.length; pointIndex++) {
+                const value = series.values[pointIndex];
+                if (typeof value !== 'number' || !isFinite(value)) {
+                  flushSegment();
+                  continue;
                 }
-              ],
+
+                segmentData.push({ x: labels[pointIndex], y: value });
+                segmentPoints.push(series.points[pointIndex]);
+              }
+              flushSegment();
+            }
+            const data = {
+              labels,
+              datasets,
             };
-            const unit = dataset.length > 0 ? dataset[0].bench.unit : '';
+            const bench = firstBench(visibleData);
+            const unit = bench ? bench.unit : '';
+            const useLogScale = shouldUseLogScale(seriesData);
+            const yAxis = {
+              scaleLabel: {
+                display: true,
+                labelString: medianAxisLabel(unit, useLogScale),
+              },
+              ticks: {},
+            };
+            if (useLogScale) {
+              yAxis.type = 'logarithmic';
+              yAxis.ticks.autoSkip = false;
+              yAxis.ticks.callback = formatLogTick;
+            } else {
+              yAxis.ticks.beginAtZero = true;
+            }
             const options = {
+              title: {
+                display: true,
+                text: name,
+              },
+              legend: {
+                display: true,
+                labels: {
+                  filter: (legendItem, chartData) => !chartData.datasets[legendItem.datasetIndex]._hideLegend,
+                },
+                onClick: function(_mouseEvent, legendItem) {
+                  const chart = this.chart;
+                  const seriesName = chart.data.datasets[legendItem.datasetIndex]._seriesName;
+                  const hidden = chart.isDatasetVisible(legendItem.datasetIndex);
+                  for (let index = 0; index < chart.data.datasets.length; index++) {
+                    if (chart.data.datasets[index]._seriesName === seriesName) {
+                      chart.getDatasetMeta(index).hidden = hidden;
+                    }
+                  }
+                  chart.update();
+                },
+              },
               scales: {
                 xAxes: [
                   {
@@ -201,38 +448,41 @@
                       display: true,
                       labelString: 'commit',
                     },
-                  }
-                ],
-                yAxes: [
-                  {
-                    scaleLabel: {
-                      display: true,
-                      labelString: 'Median' + (unit ? ` (${unit})` : ''),
-                    },
                     ticks: {
-                      beginAtZero: true,
-                    }
+                      callback: (_value, index) => tickLabels[index],
+                    },
                   }
                 ],
+                yAxes: [yAxis],
               },
               tooltips: {
                 callbacks: {
                   afterTitle: items => {
-                    const {index} = items[0];
-                    const data = dataset[index];
-                    return '\n' + data.commit.message.slice(0, data.commit.message.indexOf('\n')) + '\n\n' + data.commit.timestamp + ' by @' + data.commit.author.username + '\n';
+                    const data = pointForTooltip(renderSeriesData, items[0]);
+                    if (!data) {
+                      return '';
+                    }
+                    return '\n' + firstLine(data.commit.message) + '\n\n' + data.commit.timestamp + ' by @' + data.commit.author.username + '\n';
                   },
                   label: item => {
-                    let label = item.value;
-                    const { range, unit } = dataset[item.index].bench;
-                    label += ' ' + unit;
+                    const data = pointForTooltip(renderSeriesData, item);
+                    if (!data) {
+                      return '';
+                    }
+                    const { range, unit } = data.bench;
+                    let label = data.bench.value + ' ' + unit;
                     if (range) {
                       label += ' (' + range + ')';
                     }
-                    return label;
+                    const series = seriesForTooltip(renderSeriesData, item);
+                    return (series ? series.name : data.bench.name) + ': ' + label;
                   },
                   afterLabel: item => {
-                    const { extra } = dataset[item.index].bench;
+                    const data = pointForTooltip(renderSeriesData, item);
+                    if (!data) {
+                      return '';
+                    }
+                    const { extra } = data.bench;
                     return extra ? '\n' + extra : '';
                   }
                 }
@@ -243,8 +493,12 @@
                 }
                 // XXX: Undocumented. How can we know the index?
                 const index = activeElems[0]._index;
-                const url = dataset[index].commit.url;
-                window.open(url, '_blank');
+                const datasetIndex = activeElems[0]._datasetIndex;
+                const series = renderSeriesData[datasetIndex];
+                const data = series ? series.renderPoints[index] : undefined;
+                if (data) {
+                  window.open(data.commit.url, '_blank');
+                }
               },
             };
 
@@ -269,9 +523,8 @@
             graphsElem.className = 'benchmark-graphs';
             setElem.appendChild(graphsElem);
 
-            const color = benchColors[name];
-            for (const [benchName, benches] of benchSet.entries()) {
-              renderGraph(graphsElem, benchName, benches, color)
+            for (const [benchName, chartData] of benchSet.entries()) {
+              renderGraph(graphsElem, benchName, chartData)
             }
           }
 
