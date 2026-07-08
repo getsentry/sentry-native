@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1783518101496,
+  "lastUpdate": 1783527358415,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -27724,6 +27724,126 @@ window.BENCHMARK_DATA = {
             "value": 0.014104330999998638,
             "unit": "ms",
             "extra": "Min 0.014ms\nMax 0.014ms\nMean 0.014ms\nMedian 0.014ms\nCPU 0.006ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "49699333+dependabot[bot]@users.noreply.github.com",
+            "name": "dependabot[bot]",
+            "username": "dependabot[bot]"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "16ae55ce5c216441109cf3d82045fc444fd5fa91",
+          "message": "build(deps): bump actions/setup-java from 5.3.0 to 5.4.0 (#1829)\n\nBumps [actions/setup-java](https://github.com/actions/setup-java) from 5.3.0 to 5.4.0.\n- [Release notes](https://github.com/actions/setup-java/releases)\n- [Commits](https://github.com/actions/setup-java/compare/ad2b38190b15e4d6bdf0c97fb4fca8412226d287...1bcf9fb12cf4aa7d266a90ae39939e61372fe520)\n\n---\nupdated-dependencies:\n- dependency-name: actions/setup-java\n  dependency-version: 5.4.0\n  dependency-type: direct:production\n  update-type: version-update:semver-minor\n...\n\nSigned-off-by: dependabot[bot] <support@github.com>\nCo-authored-by: dependabot[bot] <49699333+dependabot[bot]@users.noreply.github.com>",
+          "timestamp": "2026-07-08T18:12:28+02:00",
+          "tree_id": "4ac30533256e140d9aceb00f072099ff697f6200",
+          "url": "https://github.com/getsentry/sentry-native/commit/16ae55ce5c216441109cf3d82045fc444fd5fa91"
+        },
+        "date": 1783527350354,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 1.0437369999749535,
+            "unit": "ms",
+            "extra": "Min 1.034ms\nMax 1.087ms\nMean 1.051ms\nStdDev 0.021ms\nMedian 1.044ms\nCPU 1.004ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 1.8128259999912189,
+            "unit": "ms",
+            "extra": "Min 0.950ms\nMax 1.898ms\nMean 1.507ms\nStdDev 0.493ms\nMedian 1.813ms\nCPU 1.477ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 3.7609970000005433,
+            "unit": "ms",
+            "extra": "Min 3.488ms\nMax 3.944ms\nMean 3.753ms\nStdDev 0.171ms\nMedian 3.761ms\nCPU 1.951ms"
+          },
+          {
+            "name": "SDK init (native)",
+            "value": 14.124028000026101,
+            "unit": "ms",
+            "extra": "Min 13.673ms\nMax 14.466ms\nMean 14.121ms\nStdDev 0.301ms\nMedian 14.124ms\nCPU 8.531ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.15710299999227573,
+            "unit": "ms",
+            "extra": "Min 0.146ms\nMax 0.182ms\nMean 0.159ms\nStdDev 0.014ms\nMedian 0.157ms\nCPU 0.094ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.033129000030385214,
+            "unit": "ms",
+            "extra": "Min 0.031ms\nMax 0.034ms\nMean 0.033ms\nStdDev 0.001ms\nMedian 0.033ms\nCPU 0.032ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 2.5216700000214587,
+            "unit": "ms",
+            "extra": "Min 2.397ms\nMax 2.898ms\nMean 2.566ms\nStdDev 0.196ms\nMedian 2.522ms\nCPU 0.683ms"
+          },
+          {
+            "name": "Backend startup (native)",
+            "value": 13.353703000007044,
+            "unit": "ms",
+            "extra": "Min 13.157ms\nMax 14.675ms\nMean 13.558ms\nStdDev 0.634ms\nMedian 13.354ms\nCPU 7.652ms"
+          },
+          {
+            "name": "Scope set_tag (inproc)",
+            "value": 0.005220463999989988,
+            "unit": "ms",
+            "extra": "Min 0.005ms\nMax 0.005ms\nMean 0.005ms\nMedian 0.005ms\nCPU 0.005ms"
+          },
+          {
+            "name": "Scope add_breadcrumb (inproc)",
+            "value": 0.000492989999997917,
+            "unit": "ms",
+            "extra": "Min 0.000ms\nMax 0.000ms\nMean 0.000ms\nMedian 0.000ms\nCPU 0.000ms"
+          },
+          {
+            "name": "Scope set_tag (breakpad)",
+            "value": 0.0056430100000284256,
+            "unit": "ms",
+            "extra": "Min 0.006ms\nMax 0.006ms\nMean 0.006ms\nMedian 0.006ms\nCPU 0.006ms"
+          },
+          {
+            "name": "Scope add_breadcrumb (breakpad)",
+            "value": 0.0005068009999718015,
+            "unit": "ms",
+            "extra": "Min 0.001ms\nMax 0.001ms\nMean 0.001ms\nMedian 0.001ms\nCPU 0.001ms"
+          },
+          {
+            "name": "Scope set_tag (crashpad)",
+            "value": 0.005182638000007955,
+            "unit": "ms",
+            "extra": "Min 0.005ms\nMax 0.005ms\nMean 0.005ms\nMedian 0.005ms\nCPU 0.005ms"
+          },
+          {
+            "name": "Scope add_breadcrumb (crashpad)",
+            "value": 0.007461173000024246,
+            "unit": "ms",
+            "extra": "Min 0.007ms\nMax 0.007ms\nMean 0.007ms\nMedian 0.007ms\nCPU 0.007ms"
+          },
+          {
+            "name": "Scope set_tag (native)",
+            "value": 1.8986456889999772,
+            "unit": "ms",
+            "extra": "Min 1.899ms\nMax 1.899ms\nMean 1.899ms\nMedian 1.899ms\nCPU 1.892ms"
+          },
+          {
+            "name": "Scope add_breadcrumb (native)",
+            "value": 0.007442191999984971,
+            "unit": "ms",
+            "extra": "Min 0.007ms\nMax 0.007ms\nMean 0.007ms\nMedian 0.007ms\nCPU 0.007ms"
           }
         ]
       }
