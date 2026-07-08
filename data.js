@@ -27240,12 +27240,6 @@ window.BENCHMARK_DATA = {
             "extra": "Min 3.510ms\nMax 3.651ms\nMean 3.554ms\nStdDev 0.057ms\nMedian 3.538ms\nCPU 1.822ms"
           },
           {
-            "name": "SDK init (native)",
-            "value": 10017.534208000001,
-            "unit": "ms",
-            "extra": "Min 10015.255ms\nMax 10017.915ms\nMean 10017.150ms\nStdDev 1.074ms\nMedian 10017.534ms\nCPU 7.437ms"
-          },
-          {
             "name": "Backend startup (inproc)",
             "value": 0.12005499996803337,
             "unit": "ms",
@@ -27262,12 +27256,6 @@ window.BENCHMARK_DATA = {
             "value": 1.8218299999830379,
             "unit": "ms",
             "extra": "Min 1.808ms\nMax 1.849ms\nMean 1.825ms\nStdDev 0.015ms\nMedian 1.822ms\nCPU 0.540ms"
-          },
-          {
-            "name": "Backend startup (native)",
-            "value": 10016.560642999992,
-            "unit": "ms",
-            "extra": "Min 10016.385ms\nMax 10016.835ms\nMean 10016.576ms\nStdDev 0.163ms\nMedian 10016.561ms\nCPU 6.531ms"
           },
           {
             "name": "Scope set_tag (inproc)",
@@ -27302,18 +27290,6 @@ window.BENCHMARK_DATA = {
           {
             "name": "Scope add_breadcrumb (crashpad)",
             "value": 0.007230246000005991,
-            "unit": "ms",
-            "extra": "Min 0.007ms\nMax 0.007ms\nMean 0.007ms\nMedian 0.007ms\nCPU 0.007ms"
-          },
-          {
-            "name": "Scope set_tag (native)",
-            "value": 1.6244557630000145,
-            "unit": "ms",
-            "extra": "Min 1.624ms\nMax 1.624ms\nMean 1.624ms\nMedian 1.624ms\nCPU 1.615ms"
-          },
-          {
-            "name": "Scope add_breadcrumb (native)",
-            "value": 0.007298358999946686,
             "unit": "ms",
             "extra": "Min 0.007ms\nMax 0.007ms\nMean 0.007ms\nMedian 0.007ms\nCPU 0.007ms"
           }
@@ -27360,12 +27336,6 @@ window.BENCHMARK_DATA = {
             "extra": "Min 3.750ms\nMax 5.790ms\nMean 4.211ms\nStdDev 0.885ms\nMedian 3.851ms\nCPU 2.012ms"
           },
           {
-            "name": "SDK init (native)",
-            "value": 10018.20238600004,
-            "unit": "ms",
-            "extra": "Min 10018.071ms\nMax 10018.483ms\nMean 10018.233ms\nStdDev 0.152ms\nMedian 10018.202ms\nCPU 8.161ms"
-          },
-          {
             "name": "Backend startup (inproc)",
             "value": 0.13415000000804866,
             "unit": "ms",
@@ -27382,12 +27352,6 @@ window.BENCHMARK_DATA = {
             "value": 2.151061999995818,
             "unit": "ms",
             "extra": "Min 2.048ms\nMax 2.236ms\nMean 2.137ms\nStdDev 0.081ms\nMedian 2.151ms\nCPU 0.616ms"
-          },
-          {
-            "name": "Backend startup (native)",
-            "value": 10016.892076999966,
-            "unit": "ms",
-            "extra": "Min 10011.066ms\nMax 10017.057ms\nMean 10015.739ms\nStdDev 2.618ms\nMedian 10016.892ms\nCPU 6.819ms"
           },
           {
             "name": "Scope set_tag (inproc)",
@@ -27422,18 +27386,6 @@ window.BENCHMARK_DATA = {
           {
             "name": "Scope add_breadcrumb (crashpad)",
             "value": 0.007200275000059264,
-            "unit": "ms",
-            "extra": "Min 0.007ms\nMax 0.007ms\nMean 0.007ms\nMedian 0.007ms\nCPU 0.007ms"
-          },
-          {
-            "name": "Scope set_tag (native)",
-            "value": 1.66397004199996,
-            "unit": "ms",
-            "extra": "Min 1.664ms\nMax 1.664ms\nMean 1.664ms\nMedian 1.664ms\nCPU 1.639ms"
-          },
-          {
-            "name": "Scope add_breadcrumb (native)",
-            "value": 0.0070623440000190385,
             "unit": "ms",
             "extra": "Min 0.007ms\nMax 0.007ms\nMean 0.007ms\nMedian 0.007ms\nCPU 0.007ms"
           }
@@ -27480,12 +27432,6 @@ window.BENCHMARK_DATA = {
             "extra": "Min 3.082ms\nMax 3.228ms\nMean 3.152ms\nStdDev 0.058ms\nMedian 3.169ms\nCPU 1.647ms"
           },
           {
-            "name": "SDK init (native)",
-            "value": 10017.672270999981,
-            "unit": "ms",
-            "extra": "Min 10010.496ms\nMax 10017.901ms\nMean 10016.271ms\nStdDev 3.231ms\nMedian 10017.672ms\nCPU 7.660ms"
-          },
-          {
             "name": "Backend startup (inproc)",
             "value": 0.12967399999297413,
             "unit": "ms",
@@ -27502,12 +27448,6 @@ window.BENCHMARK_DATA = {
             "value": 1.8245030000230145,
             "unit": "ms",
             "extra": "Min 1.800ms\nMax 1.911ms\nMean 1.836ms\nStdDev 0.045ms\nMedian 1.825ms\nCPU 0.527ms"
-          },
-          {
-            "name": "Backend startup (native)",
-            "value": 10016.54105,
-            "unit": "ms",
-            "extra": "Min 10016.386ms\nMax 10016.867ms\nMean 10016.572ms\nStdDev 0.183ms\nMedian 10016.541ms\nCPU 6.532ms"
           },
           {
             "name": "Scope set_tag (inproc)",
@@ -27544,18 +27484,6 @@ window.BENCHMARK_DATA = {
             "value": 0.008500861000015902,
             "unit": "ms",
             "extra": "Min 0.009ms\nMax 0.009ms\nMean 0.009ms\nMedian 0.009ms\nCPU 0.007ms"
-          },
-          {
-            "name": "Scope set_tag (native)",
-            "value": 1.6355907189999925,
-            "unit": "ms",
-            "extra": "Min 1.636ms\nMax 1.636ms\nMean 1.636ms\nMedian 1.636ms\nCPU 1.619ms"
-          },
-          {
-            "name": "Scope add_breadcrumb (native)",
-            "value": 0.007071316999997634,
-            "unit": "ms",
-            "extra": "Min 0.007ms\nMax 0.007ms\nMean 0.007ms\nMedian 0.007ms\nCPU 0.007ms"
           }
         ]
       },
@@ -55158,12 +55086,6 @@ window.BENCHMARK_DATA = {
             "extra": "Min 11.545ms\nMax 22.856ms\nMean 16.981ms\nStdDev 5.396ms\nMedian 14.456ms\nCPU 5.395ms"
           },
           {
-            "name": "SDK init (native)",
-            "value": 6.5309580000416645,
-            "unit": "ms",
-            "extra": "Min 5.637ms\nMax 6.813ms\nMean 6.351ms\nStdDev 0.494ms\nMedian 6.531ms\nCPU 4.292ms"
-          },
-          {
             "name": "Backend startup (inproc)",
             "value": 0.0793749999843385,
             "unit": "ms",
@@ -55180,12 +55102,6 @@ window.BENCHMARK_DATA = {
             "value": 8.034166999948411,
             "unit": "ms",
             "extra": "Min 7.019ms\nMax 17.828ms\nMean 10.250ms\nStdDev 4.467ms\nMedian 8.034ms\nCPU 1.388ms"
-          },
-          {
-            "name": "Backend startup (native)",
-            "value": 1.3310830000250462,
-            "unit": "ms",
-            "extra": "Min 1.285ms\nMax 1.443ms\nMean 1.344ms\nStdDev 0.064ms\nMedian 1.331ms\nCPU 1.340ms"
           },
           {
             "name": "Scope set_tag (inproc)",
@@ -55222,18 +55138,6 @@ window.BENCHMARK_DATA = {
             "value": 0.08487724999997681,
             "unit": "ms",
             "extra": "Min 0.085ms\nMax 0.085ms\nMean 0.085ms\nMedian 0.085ms\nCPU 0.036ms"
-          },
-          {
-            "name": "Scope set_tag (native)",
-            "value": 0.003159666999977162,
-            "unit": "ms",
-            "extra": "Min 0.003ms\nMax 0.003ms\nMean 0.003ms\nMedian 0.003ms\nCPU 0.003ms"
-          },
-          {
-            "name": "Scope add_breadcrumb (native)",
-            "value": 0.0011993749999987813,
-            "unit": "ms",
-            "extra": "Min 0.001ms\nMax 0.001ms\nMean 0.001ms\nMedian 0.001ms\nCPU 0.001ms"
           }
         ]
       },
@@ -55278,12 +55182,6 @@ window.BENCHMARK_DATA = {
             "extra": "Min 18.612ms\nMax 27.459ms\nMean 22.532ms\nStdDev 3.767ms\nMedian 21.170ms\nCPU 7.582ms"
           },
           {
-            "name": "SDK init (native)",
-            "value": 21.332083999993756,
-            "unit": "ms",
-            "extra": "Min 8.575ms\nMax 29.195ms\nMean 20.846ms\nStdDev 8.832ms\nMedian 21.332ms\nCPU 9.092ms"
-          },
-          {
             "name": "Backend startup (inproc)",
             "value": 0.06862499998305793,
             "unit": "ms",
@@ -55300,12 +55198,6 @@ window.BENCHMARK_DATA = {
             "value": 13.55691700001671,
             "unit": "ms",
             "extra": "Min 8.574ms\nMax 18.731ms\nMean 13.938ms\nStdDev 3.677ms\nMedian 13.557ms\nCPU 1.494ms"
-          },
-          {
-            "name": "Backend startup (native)",
-            "value": 1.2167920000365484,
-            "unit": "ms",
-            "extra": "Min 0.787ms\nMax 3.267ms\nMean 1.723ms\nStdDev 1.012ms\nMedian 1.217ms\nCPU 1.325ms"
           },
           {
             "name": "Scope set_tag (inproc)",
@@ -55342,18 +55234,6 @@ window.BENCHMARK_DATA = {
             "value": 0.08083208400000785,
             "unit": "ms",
             "extra": "Min 0.081ms\nMax 0.081ms\nMean 0.081ms\nMedian 0.081ms\nCPU 0.052ms"
-          },
-          {
-            "name": "Scope set_tag (native)",
-            "value": 0.0029317080000055284,
-            "unit": "ms",
-            "extra": "Min 0.003ms\nMax 0.003ms\nMean 0.003ms\nMedian 0.003ms\nCPU 0.003ms"
-          },
-          {
-            "name": "Scope add_breadcrumb (native)",
-            "value": 0.0014047910000272168,
-            "unit": "ms",
-            "extra": "Min 0.001ms\nMax 0.001ms\nMean 0.001ms\nMedian 0.001ms\nCPU 0.001ms"
           }
         ]
       },
@@ -55398,12 +55278,6 @@ window.BENCHMARK_DATA = {
             "extra": "Min 11.978ms\nMax 14.540ms\nMean 13.230ms\nStdDev 1.113ms\nMedian 12.803ms\nCPU 4.379ms"
           },
           {
-            "name": "SDK init (native)",
-            "value": 6.962792000024365,
-            "unit": "ms",
-            "extra": "Min 4.972ms\nMax 7.886ms\nMean 6.600ms\nStdDev 1.236ms\nMedian 6.963ms\nCPU 4.007ms"
-          },
-          {
             "name": "Backend startup (inproc)",
             "value": 0.057416999993620266,
             "unit": "ms",
@@ -55420,12 +55294,6 @@ window.BENCHMARK_DATA = {
             "value": 7.198042000027272,
             "unit": "ms",
             "extra": "Min 6.689ms\nMax 11.655ms\nMean 8.595ms\nStdDev 2.306ms\nMedian 7.198ms\nCPU 1.067ms"
-          },
-          {
-            "name": "Backend startup (native)",
-            "value": 1.377624999975069,
-            "unit": "ms",
-            "extra": "Min 1.277ms\nMax 3.843ms\nMean 1.911ms\nStdDev 1.095ms\nMedian 1.378ms\nCPU 1.741ms"
           },
           {
             "name": "Scope set_tag (inproc)",
@@ -55462,18 +55330,6 @@ window.BENCHMARK_DATA = {
             "value": 0.05322200000000521,
             "unit": "ms",
             "extra": "Min 0.053ms\nMax 0.053ms\nMean 0.053ms\nMedian 0.053ms\nCPU 0.035ms"
-          },
-          {
-            "name": "Scope set_tag (native)",
-            "value": 0.0027110419999871738,
-            "unit": "ms",
-            "extra": "Min 0.003ms\nMax 0.003ms\nMean 0.003ms\nMedian 0.003ms\nCPU 0.003ms"
-          },
-          {
-            "name": "Scope add_breadcrumb (native)",
-            "value": 0.0011807090000388598,
-            "unit": "ms",
-            "extra": "Min 0.001ms\nMax 0.001ms\nMean 0.001ms\nMedian 0.001ms\nCPU 0.001ms"
           }
         ]
       },
@@ -83076,12 +82932,6 @@ window.BENCHMARK_DATA = {
             "extra": "Min 28.788ms\nMax 133.210ms\nMean 52.295ms\nStdDev 45.570ms\nMedian 28.958ms"
           },
           {
-            "name": "SDK init (native)",
-            "value": 16.202900000052978,
-            "unit": "ms",
-            "extra": "Min 15.732ms\nMax 17.207ms\nMean 16.358ms\nStdDev 0.569ms\nMedian 16.203ms"
-          },
-          {
             "name": "Backend startup (inproc)",
             "value": 0.24309999992055964,
             "unit": "ms",
@@ -83098,12 +82948,6 @@ window.BENCHMARK_DATA = {
             "value": 15.718600000013794,
             "unit": "ms",
             "extra": "Min 15.714ms\nMax 18.310ms\nMean 16.351ms\nStdDev 1.123ms\nMedian 15.719ms"
-          },
-          {
-            "name": "Backend startup (native)",
-            "value": 4.026100000032784,
-            "unit": "ms",
-            "extra": "Min 3.680ms\nMax 31.437ms\nMean 9.697ms\nStdDev 12.180ms\nMedian 4.026ms"
           },
           {
             "name": "Scope set_tag (inproc)",
@@ -83140,18 +82984,6 @@ window.BENCHMARK_DATA = {
             "value": 0.15371599999991759,
             "unit": "ms",
             "extra": "Min 0.154ms\nMax 0.154ms\nMean 0.154ms\nMedian 0.154ms"
-          },
-          {
-            "name": "Scope set_tag (native)",
-            "value": 0.0077573999999458465,
-            "unit": "ms",
-            "extra": "Min 0.008ms\nMax 0.008ms\nMean 0.008ms\nMedian 0.008ms"
-          },
-          {
-            "name": "Scope add_breadcrumb (native)",
-            "value": 0.0015389000000141095,
-            "unit": "ms",
-            "extra": "Min 0.002ms\nMax 0.002ms\nMean 0.002ms\nMedian 0.002ms"
           }
         ]
       },
@@ -83196,12 +83028,6 @@ window.BENCHMARK_DATA = {
             "extra": "Min 27.927ms\nMax 34.180ms\nMean 30.117ms\nStdDev 2.685ms\nMedian 28.632ms"
           },
           {
-            "name": "SDK init (native)",
-            "value": 14.571699999976317,
-            "unit": "ms",
-            "extra": "Min 14.201ms\nMax 14.979ms\nMean 14.598ms\nStdDev 0.329ms\nMedian 14.572ms"
-          },
-          {
             "name": "Backend startup (inproc)",
             "value": 0.2553000000489192,
             "unit": "ms",
@@ -83218,12 +83044,6 @@ window.BENCHMARK_DATA = {
             "value": 16.58839999998918,
             "unit": "ms",
             "extra": "Min 15.859ms\nMax 16.728ms\nMean 16.405ms\nStdDev 0.368ms\nMedian 16.588ms"
-          },
-          {
-            "name": "Backend startup (native)",
-            "value": 3.6073999999644,
-            "unit": "ms",
-            "extra": "Min 3.486ms\nMax 4.620ms\nMean 3.769ms\nStdDev 0.479ms\nMedian 3.607ms"
           },
           {
             "name": "Scope set_tag (inproc)",
@@ -83260,18 +83080,6 @@ window.BENCHMARK_DATA = {
             "value": 0.12483790000004547,
             "unit": "ms",
             "extra": "Min 0.125ms\nMax 0.125ms\nMean 0.125ms\nMedian 0.125ms"
-          },
-          {
-            "name": "Scope set_tag (native)",
-            "value": 0.008708500000011554,
-            "unit": "ms",
-            "extra": "Min 0.009ms\nMax 0.009ms\nMean 0.009ms\nMedian 0.009ms"
-          },
-          {
-            "name": "Scope add_breadcrumb (native)",
-            "value": 0.0013756999999827713,
-            "unit": "ms",
-            "extra": "Min 0.001ms\nMax 0.001ms\nMean 0.001ms\nMedian 0.001ms"
           }
         ]
       },
@@ -83316,12 +83124,6 @@ window.BENCHMARK_DATA = {
             "extra": "Min 26.024ms\nMax 27.699ms\nMean 26.745ms\nStdDev 0.642ms\nMedian 26.625ms"
           },
           {
-            "name": "SDK init (native)",
-            "value": 13.33359999989625,
-            "unit": "ms",
-            "extra": "Min 12.940ms\nMax 14.307ms\nMean 13.594ms\nStdDev 0.653ms\nMedian 13.334ms"
-          },
-          {
             "name": "Backend startup (inproc)",
             "value": 0.19299999985378236,
             "unit": "ms",
@@ -83338,12 +83140,6 @@ window.BENCHMARK_DATA = {
             "value": 14.445899999827816,
             "unit": "ms",
             "extra": "Min 13.899ms\nMax 18.139ms\nMean 15.078ms\nStdDev 1.737ms\nMedian 14.446ms"
-          },
-          {
-            "name": "Backend startup (native)",
-            "value": 2.78729999990901,
-            "unit": "ms",
-            "extra": "Min 2.710ms\nMax 3.017ms\nMean 2.809ms\nStdDev 0.121ms\nMedian 2.787ms"
           },
           {
             "name": "Scope set_tag (inproc)",
@@ -83380,18 +83176,6 @@ window.BENCHMARK_DATA = {
             "value": 0.15675009999995382,
             "unit": "ms",
             "extra": "Min 0.157ms\nMax 0.157ms\nMean 0.157ms\nMedian 0.157ms"
-          },
-          {
-            "name": "Scope set_tag (native)",
-            "value": 0.007560799999737355,
-            "unit": "ms",
-            "extra": "Min 0.008ms\nMax 0.008ms\nMean 0.008ms\nMedian 0.008ms"
-          },
-          {
-            "name": "Scope add_breadcrumb (native)",
-            "value": 0.0014059000000088417,
-            "unit": "ms",
-            "extra": "Min 0.001ms\nMax 0.001ms\nMean 0.001ms\nMedian 0.001ms"
           }
         ]
       },
