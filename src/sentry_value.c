@@ -512,7 +512,6 @@ sentry_value_new_list(void)
 {
     list_t *l = SENTRY_MAKE(list_t);
     if (l) {
-        memset(l, 0, sizeof(list_t));
         l->refcount = 1;
         sentry_value_t rv = new_thing_value(l, THING_TYPE_LIST);
         if (sentry_value_is_null(rv)) {
@@ -529,7 +528,6 @@ sentry__value_new_list_with_size(size_t size)
 {
     list_t *l = SENTRY_MAKE(list_t);
     if (l) {
-        memset(l, 0, sizeof(list_t));
         l->refcount = 1;
         l->allocated = size;
         if (size) {
@@ -555,7 +553,6 @@ sentry_value_new_object(void)
 {
     obj_t *o = SENTRY_MAKE(obj_t);
     if (o) {
-        memset(o, 0, sizeof(obj_t));
         o->refcount = 1;
         sentry_value_t rv = new_thing_value(o, THING_TYPE_OBJECT);
         if (sentry_value_is_null(rv)) {
@@ -572,7 +569,6 @@ sentry__value_new_object_with_size(size_t size)
 {
     obj_t *o = SENTRY_MAKE(obj_t);
     if (o) {
-        memset(o, 0, sizeof(obj_t));
         o->refcount = 1;
         o->allocated = size;
         if (size) {
