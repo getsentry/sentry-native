@@ -189,6 +189,59 @@ obj_free(obj_t *obj)
     sentry_free(obj);
 }
 
+static list_t *
+list_clone(const list_t *list)
+{
+    list_t *clone = SENTRY_MAKE(list_t);
+    if (!clone) {
+        return NULL;
+    }
+    clone->len = list->len;
+    clone->allocated = list->len;
+    clone->refcount = 1;
+    if (list->len) {
+        clone->items = sentry_malloc(sizeof(sentry_value_t) * list->len);
+        if (!clone->items) {
+            sentry_free(clone);
+            return NULL;
+        }
+        memcpy(clone->items, list->items, sizeof(sentry_value_t) * list->len);
+        for (size_t i = 0; i < list->len; i++) {
+            sentry_value_incref(clone->items[i]);
+        }
+    }
+    return clone;
+}
+
+static obj_t *
+obj_clone(const obj_t *obj)
+{
+    obj_t *clone = SENTRY_MAKE(obj_t);
+    if (!clone) {
+        return NULL;
+    }
+    clone->allocated = obj->len;
+    clone->refcount = 1;
+    if (obj->len) {
+        clone->pairs = sentry_malloc(sizeof(obj_pair_t) * obj->len);
+        if (!clone->pairs) {
+            sentry_free(clone);
+            return NULL;
+        }
+        for (size_t i = 0; i < obj->len; i++) {
+            clone->pairs[i].k = sentry__string_clone(obj->pairs[i].k);
+            if (!clone->pairs[i].k) {
+                obj_free(clone);
+                return NULL;
+            }
+            clone->pairs[i].v = obj->pairs[i].v;
+            sentry_value_incref(clone->pairs[i].v);
+            clone->len++;
+        }
+    }
+    return clone;
+}
+
 static bool
 thing_detach(thing_t *thing)
 {
@@ -198,29 +251,12 @@ thing_detach(thing_t *thing)
         if (sentry__atomic_fetch(&old->refcount) <= 1) {
             return true;
         }
-        list_t *new_list = SENTRY_MAKE(list_t);
-        if (!new_list) {
+        list_t *clone = list_clone(old);
+        if (!clone) {
             return false;
         }
-        new_list->len = old->len;
-        new_list->allocated = old->len;
-        new_list->refcount = 1;
-        if (old->len) {
-            new_list->items = sentry_malloc(sizeof(sentry_value_t) * old->len);
-            if (!new_list->items) {
-                sentry_free(new_list);
-                return false;
-            }
-            memcpy(
-                new_list->items, old->items, sizeof(sentry_value_t) * old->len);
-            for (size_t i = 0; i < old->len; i++) {
-                sentry_value_incref(new_list->items[i]);
-            }
-        } else {
-            new_list->items = NULL;
-        }
         list_free(old);
-        thing->payload._ptr = new_list;
+        thing->payload._ptr = clone;
         return true;
     }
     case THING_TYPE_OBJECT: {
@@ -228,34 +264,12 @@ thing_detach(thing_t *thing)
         if (sentry__atomic_fetch(&old->refcount) <= 1) {
             return true;
         }
-        obj_t *new_obj = SENTRY_MAKE(obj_t);
-        if (!new_obj) {
+        obj_t *clone = obj_clone(old);
+        if (!clone) {
             return false;
         }
-        new_obj->len = 0;
-        new_obj->allocated = old->len;
-        new_obj->refcount = 1;
-        if (old->len) {
-            new_obj->pairs = sentry_malloc(sizeof(obj_pair_t) * old->len);
-            if (!new_obj->pairs) {
-                sentry_free(new_obj);
-                return false;
-            }
-            for (size_t i = 0; i < old->len; i++) {
-                new_obj->pairs[i].k = sentry__string_clone(old->pairs[i].k);
-                if (!new_obj->pairs[i].k) {
-                    obj_free(new_obj);
-                    return false;
-                }
-                new_obj->pairs[i].v = old->pairs[i].v;
-                sentry_value_incref(new_obj->pairs[i].v);
-                new_obj->len++;
-            }
-        } else {
-            new_obj->pairs = NULL;
-        }
         obj_free(old);
-        thing->payload._ptr = new_obj;
+        thing->payload._ptr = clone;
         return true;
     }
     default:
