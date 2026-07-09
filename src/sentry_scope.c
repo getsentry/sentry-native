@@ -658,8 +658,10 @@ sentry_scope_set_user(sentry_scope_t *scope, sentry_value_t user)
 void
 sentry_scope_set_tag(sentry_scope_t *scope, const char *key, const char *value)
 {
-    sentry_scope_set_tag_n(scope, key, sentry__guarded_strlen(key), value,
-        sentry__guarded_strlen(value));
+    if (sentry_value_set_by_key(scope->tags, key, sentry_value_new_string(value))
+        == 0) {
+        SENTRY_SCOPE_NOTIFY(scope, set_tag, key, value);
+    }
 }
 
 void
@@ -677,7 +679,9 @@ void
 sentry_scope_set_extra(
     sentry_scope_t *scope, const char *key, sentry_value_t value)
 {
-    sentry_scope_set_extra_n(scope, key, sentry__guarded_strlen(key), value);
+    if (sentry_value_set_by_key(scope->extra, key, value) == 0) {
+        SENTRY_SCOPE_NOTIFY(scope, set_extra, key, value);
+    }
 }
 
 void
@@ -726,7 +730,9 @@ void
 sentry_scope_set_context(
     sentry_scope_t *scope, const char *key, sentry_value_t value)
 {
-    sentry_scope_set_context_n(scope, key, sentry__guarded_strlen(key), value);
+    if (sentry_value_set_by_key(scope->contexts, key, value) == 0) {
+        SENTRY_SCOPE_NOTIFY(scope, set_context, key, value);
+    }
 }
 
 void
