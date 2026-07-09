@@ -7,8 +7,11 @@ on:
     paths-ignore:
       - "*.md"
   pull_request:
+    types: [opened, synchronize, reopened]
     paths-ignore:
       - "*.md"
+  pull_request_target:
+    types: [closed]
 
 permissions:
   deployments: write
@@ -16,6 +19,7 @@ permissions:
 
 jobs:
   benchmark:
+    if: ${{ github.event_name != 'pull_request_target' }}
     strategy:
       fail-fast: false
       matrix:
@@ -52,12 +56,127 @@ jobs:
           pip install --upgrade --requirement tests/requirements.txt
           pytest --verbose --benchmark_out=benchmark.json tests/benchmark.py
 
-      - uses: benchmark-action/github-action-benchmark@52576c92bccf6ac60c8223ec7eb2565637cae9ba # pin@v1.22.1
-        if: ${{ github.event_name == 'push' }}
+      - name: Upload benchmark result
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
-          name: ${{ runner.os }}
+          name: benchmark-${{ runner.os }}
+          if-no-files-found: error
+          path: benchmark.json
+
+  publish:
+    if: ${{ github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository) }}
+    name: publish
+    needs: benchmark
+    runs-on: ubuntu-latest
+    concurrency:
+      group: benchmark-pages
+      cancel-in-progress: false
+    environment:
+      name: ${{ github.event_name == 'pull_request' && format('benchmark-pr-{0}', github.event.pull_request.number) || 'benchmark-master' }}
+      url: ${{ github.event_name == 'pull_request' && format('https://{0}.github.io/{1}/pull/{2}/', github.repository_owner, github.event.repository.name, github.event.pull_request.number) || format('https://{0}.github.io/{1}/', github.repository_owner, github.event.repository.name) }}
+
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+        with:
+          path: benchmark-results
+
+      - name: Prepare chart
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          git config user.name github-action-benchmark
+          git config user.email github@users.noreply.github.com
+          git fetch origin gh-pages:gh-pages
+          if [[ "$EVENT_NAME" == "pull_request" ]]; then
+            git switch gh-pages
+            mkdir -p "pull/$PR_NUMBER"
+            cp index.html data.js "pull/$PR_NUMBER/"
+            git add "pull/$PR_NUMBER/index.html" "pull/$PR_NUMBER/data.js"
+            git diff --cached --quiet || git commit -m "prepare benchmark chart for pull $PR_NUMBER"
+            git checkout -
+          fi
+
+      - uses: benchmark-action/github-action-benchmark@52576c92bccf6ac60c8223ec7eb2565637cae9ba # pin@v1.22.1
+        with:
+          name: Linux
           tool: customSmallerIsBetter
-          output-file-path: benchmark.json
+          output-file-path: benchmark-results/benchmark-Linux/benchmark.json
           github-token: ${{ secrets.GITHUB_TOKEN }}
-          benchmark-data-dir-path: ./
-          auto-push: true
+          benchmark-data-dir-path: ${{ github.event_name == 'pull_request' && format('pull/{0}', github.event.pull_request.number) || './' }}
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          auto-push: false
+          skip-fetch-gh-pages: true
+
+      - uses: benchmark-action/github-action-benchmark@52576c92bccf6ac60c8223ec7eb2565637cae9ba # pin@v1.22.1
+        with:
+          name: macOS
+          tool: customSmallerIsBetter
+          output-file-path: benchmark-results/benchmark-macOS/benchmark.json
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          benchmark-data-dir-path: ${{ github.event_name == 'pull_request' && format('pull/{0}', github.event.pull_request.number) || './' }}
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          auto-push: false
+          skip-fetch-gh-pages: true
+
+      - uses: benchmark-action/github-action-benchmark@52576c92bccf6ac60c8223ec7eb2565637cae9ba # pin@v1.22.1
+        with:
+          name: Windows
+          tool: customSmallerIsBetter
+          output-file-path: benchmark-results/benchmark-Windows/benchmark.json
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          benchmark-data-dir-path: ${{ github.event_name == 'pull_request' && format('pull/{0}', github.event.pull_request.number) || './' }}
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          auto-push: false
+          skip-fetch-gh-pages: true
+
+      - name: Publish chart
+        run: |
+          git switch gh-pages
+          git pull --rebase origin gh-pages
+          git push origin gh-pages
+
+      - name: Add chart link
+        env:
+          CHART_URL: ${{ github.event_name == 'pull_request' && format('https://{0}.github.io/{1}/pull/{2}/', github.repository_owner, github.event.repository.name, github.event.pull_request.number) || format('https://{0}.github.io/{1}/', github.repository_owner, github.event.repository.name) }}
+        run: |
+          echo "[$CHART_URL]($CHART_URL)" >> "$GITHUB_STEP_SUMMARY"
+
+  cleanup:
+    if: ${{ github.event_name == 'pull_request_target' && github.event.action == 'closed' }}
+    name: cleanup
+    runs-on: ubuntu-latest
+    concurrency:
+      group: benchmark-pages
+      cancel-in-progress: false
+
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - name: Remove PR benchmark chart
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          case "$PR_NUMBER" in
+            ""|*[!0-9]*)
+              echo "Invalid PR number: $PR_NUMBER"
+              exit 1
+              ;;
+          esac
+
+          git config user.name github-action-benchmark
+          git config user.email github@users.noreply.github.com
+          git fetch origin gh-pages:gh-pages
+          git switch gh-pages
+
+          if [[ ! -d "pull/$PR_NUMBER" ]]; then
+            echo "No benchmark chart found for pull/$PR_NUMBER"
+            exit 0
+          fi
+
+          git rm -r "pull/$PR_NUMBER"
+          git commit -m "remove benchmark chart for pull $PR_NUMBER"
+          git pull --rebase origin gh-pages
+          git push origin gh-pages
