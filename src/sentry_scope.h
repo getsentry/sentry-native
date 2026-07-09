@@ -14,6 +14,10 @@
  * Implementors set the function pointers they care about. NULL pointers are
  * skipped. Callbacks are invoked while the scope lock is held.
  *
+ * Note: callback arguments are borrowed and valid only for the duration of the
+ * callback. Reentrant mutation of the same observed entry is unsupported; for
+ * example, tag callbacks must not set or remove the same tag.
+ *
  * Ownership: the scope takes ownership of the observer pointer on
  * registration; the caller must not free it after that point.
  */
