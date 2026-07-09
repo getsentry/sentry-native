@@ -998,8 +998,7 @@ sentry_remove_tag_n(const char *key, size_t key_len)
         char *k = scope->num_observers > 0
             ? sentry__string_clone_n(key, key_len)
             : NULL;
-        if (sentry_value_remove_by_key_n(scope->tags, key, key_len) == 0
-            && k) {
+        if (sentry_value_remove_by_key_n(scope->tags, key, key_len) == 0 && k) {
             SENTRY_SCOPE_NOTIFY(scope, remove_tag, k);
         }
         sentry_free(k);

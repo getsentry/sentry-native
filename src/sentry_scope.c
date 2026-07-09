@@ -658,7 +658,8 @@ sentry_scope_set_user(sentry_scope_t *scope, sentry_value_t user)
 void
 sentry_scope_set_tag(sentry_scope_t *scope, const char *key, const char *value)
 {
-    if (sentry_value_set_by_key(scope->tags, key, sentry_value_new_string(value))
+    if (sentry_value_set_by_key(
+            scope->tags, key, sentry_value_new_string(value))
         == 0) {
         SENTRY_SCOPE_NOTIFY(scope, set_tag, key, value);
     }
