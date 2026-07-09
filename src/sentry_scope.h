@@ -20,28 +20,23 @@
 typedef struct sentry_scope_observer_s {
     void *data;
 
-    void (*set_release)(void *data, const char *release, size_t release_len);
-    void (*set_environment)(
-        void *data, const char *environment, size_t environment_len);
-    void (*set_transaction)(
-        void *data, const char *transaction, size_t transaction_len);
+    void (*set_release)(void *data, const char *release);
+    void (*set_environment)(void *data, const char *environment);
+    void (*set_transaction)(void *data, const char *transaction);
     void (*set_fingerprint)(void *data, sentry_value_t fingerprint);
     void (*set_level)(void *data, sentry_level_t level);
     void (*set_user)(void *data, sentry_value_t user);
 
     void (*add_breadcrumb)(void *data, sentry_value_t breadcrumb);
 
-    void (*set_tag)(void *data, const char *key, size_t key_len,
-        const char *value, size_t value_len);
-    void (*remove_tag)(void *data, const char *key, size_t key_len);
+    void (*set_tag)(void *data, const char *key, const char *value);
+    void (*remove_tag)(void *data, const char *key);
 
-    void (*set_extra)(
-        void *data, const char *key, size_t key_len, sentry_value_t value);
-    void (*remove_extra)(void *data, const char *key, size_t key_len);
+    void (*set_extra)(void *data, const char *key, sentry_value_t value);
+    void (*remove_extra)(void *data, const char *key);
 
-    void (*set_context)(
-        void *data, const char *key, size_t key_len, sentry_value_t value);
-    void (*remove_context)(void *data, const char *key, size_t key_len);
+    void (*set_context)(void *data, const char *key, sentry_value_t value);
+    void (*remove_context)(void *data, const char *key);
 
     void (*add_attachment)(void *data, sentry_attachment_t *attachment);
     void (*remove_attachment)(void *data, sentry_attachment_t *attachment);

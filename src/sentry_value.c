@@ -631,8 +631,8 @@ sentry_value_get_type(sentry_value_t value)
 }
 
 int
-sentry_value_set_by_key_n(
-    sentry_value_t value, const char *k, size_t k_len, sentry_value_t v)
+sentry__value_set_by_key_owned(
+    sentry_value_t value, char *k, size_t k_len, sentry_value_t v)
 {
     if (!k) {
         goto fail;
@@ -646,6 +646,8 @@ sentry_value_set_by_key_n(
     for (size_t i = 0; i < o->len; i++) {
         obj_pair_t *pair = &o->pairs[i];
         if (sentry__slice_eqs(k_slice, pair->k)) {
+            sentry_free(pair->k);
+            pair->k = k;
             sentry_value_decref(pair->v);
             pair->v = v;
             return 0;
@@ -658,17 +660,23 @@ sentry_value_set_by_key_n(
     }
 
     obj_pair_t pair;
-    pair.k = sentry__slice_to_owned(k_slice);
-    if (!pair.k) {
-        goto fail;
-    }
+    pair.k = k;
     pair.v = v;
     o->pairs[o->len++] = pair;
     return 0;
 
 fail:
+    sentry_free(k);
     sentry_value_decref(v);
     return 1;
+}
+
+int
+sentry_value_set_by_key_n(
+    sentry_value_t value, const char *k, size_t k_len, sentry_value_t v)
+{
+    return sentry__value_set_by_key_owned(
+        value, sentry__string_clone_n(k, k_len), k_len, v);
 }
 
 int

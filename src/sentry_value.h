@@ -76,6 +76,13 @@ void sentry__value_foreach_key_value(sentry_value_t value,
     void *userdata);
 
 /**
+ * Sets a value by an already-owned key.
+ * Takes ownership of `key` and `v`.
+ */
+int sentry__value_set_by_key_owned(
+    sentry_value_t value, char *key, size_t key_len, sentry_value_t v);
+
+/**
  * This will parse the Value into a UUID, or return a `nil` UUID on error.
  * See also `sentry_uuid_from_string`.
  */

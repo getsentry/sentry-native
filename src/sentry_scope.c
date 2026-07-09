@@ -666,9 +666,11 @@ void
 sentry_scope_set_tag_n(sentry_scope_t *scope, const char *key, size_t key_len,
     const char *value, size_t value_len)
 {
-    sentry_value_set_by_key_n(
-        scope->tags, key, key_len, sentry_value_new_string_n(value, value_len));
-    SENTRY_SCOPE_NOTIFY(scope, set_tag, key, key_len, value, value_len);
+    char *k = sentry__string_clone_n(key, key_len);
+    sentry_value_t v = sentry_value_new_string_n(value, value_len);
+    if (sentry__value_set_by_key_owned(scope->tags, k, key_len, v) == 0) {
+        SENTRY_SCOPE_NOTIFY(scope, set_tag, k, sentry_value_as_string(v));
+    }
 }
 
 void
@@ -682,8 +684,10 @@ void
 sentry_scope_set_extra_n(sentry_scope_t *scope, const char *key, size_t key_len,
     sentry_value_t value)
 {
-    sentry_value_set_by_key_n(scope->extra, key, key_len, value);
-    SENTRY_SCOPE_NOTIFY(scope, set_extra, key, key_len, value);
+    char *k = sentry__string_clone_n(key, key_len);
+    if (sentry__value_set_by_key_owned(scope->extra, k, key_len, value) == 0) {
+        SENTRY_SCOPE_NOTIFY(scope, set_extra, k, value);
+    }
 }
 
 void
@@ -722,17 +726,18 @@ void
 sentry_scope_set_context(
     sentry_scope_t *scope, const char *key, sentry_value_t value)
 {
-    sentry_value_set_by_key(scope->contexts, key, value);
-    SENTRY_SCOPE_NOTIFY(
-        scope, set_context, key, sentry__guarded_strlen(key), value);
+    sentry_scope_set_context_n(scope, key, sentry__guarded_strlen(key), value);
 }
 
 void
 sentry_scope_set_context_n(sentry_scope_t *scope, const char *key,
     size_t key_len, sentry_value_t value)
 {
-    sentry_value_set_by_key_n(scope->contexts, key, key_len, value);
-    SENTRY_SCOPE_NOTIFY(scope, set_context, key, key_len, value);
+    char *k = sentry__string_clone_n(key, key_len);
+    if (sentry__value_set_by_key_owned(scope->contexts, k, key_len, value)
+        == 0) {
+        SENTRY_SCOPE_NOTIFY(scope, set_context, k, value);
+    }
 }
 
 void
@@ -749,13 +754,20 @@ sentry_scope_update_context_n(sentry_scope_t *scope, const char *key,
 {
     sentry_value_t context
         = sentry_value_get_by_key_n(scope->contexts, key, key_len);
+    char *k = sentry__string_clone_n(key, key_len);
     if (sentry_value_is_null(context)) {
-        sentry_value_set_by_key_n(scope->contexts, key, key_len, value);
+        if (sentry__value_set_by_key_owned(scope->contexts, k, key_len, value)
+            != 0) {
+            return;
+        }
     } else {
         sentry__value_merge_objects(value, context);
-        sentry_value_set_by_key_n(scope->contexts, key, key_len, value);
+        if (sentry__value_set_by_key_owned(scope->contexts, k, key_len, value)
+            != 0) {
+            return;
+        }
     }
-    SENTRY_SCOPE_NOTIFY(scope, set_context, key, key_len, value);
+    SENTRY_SCOPE_NOTIFY(scope, set_context, k, value);
 }
 
 void

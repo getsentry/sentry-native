@@ -1237,28 +1237,26 @@ typedef struct {
 } reentrant_observer_data_t;
 
 static void
-observe_set_release(void *data, const char *release, size_t release_len)
+observe_set_release(void *data, const char *release)
 {
     test_observer_data_t *d = (test_observer_data_t *)data;
-    d->release = sentry_value_new_string_n(release, release_len);
+    d->release = sentry_value_new_string(release);
     d->was_called = true;
 }
 
 static void
-observe_set_environment(
-    void *data, const char *environment, size_t environment_len)
+observe_set_environment(void *data, const char *environment)
 {
     test_observer_data_t *d = (test_observer_data_t *)data;
-    d->environment = sentry_value_new_string_n(environment, environment_len);
+    d->environment = sentry_value_new_string(environment);
     d->was_called = true;
 }
 
 static void
-observe_set_transaction(
-    void *data, const char *transaction, size_t transaction_len)
+observe_set_transaction(void *data, const char *transaction)
 {
     test_observer_data_t *d = (test_observer_data_t *)data;
-    d->transaction = sentry_value_new_string_n(transaction, transaction_len);
+    d->transaction = sentry_value_new_string(transaction);
     d->was_called = true;
 }
 
@@ -1342,24 +1340,22 @@ observe_add_breadcrumb(void *data, sentry_value_t breadcrumb)
 }
 
 static void
-observe_set_tag(void *data, const char *key, size_t key_len, const char *value,
-    size_t value_len)
+observe_set_tag(void *data, const char *key, const char *value)
 {
     test_observer_data_t *d = (test_observer_data_t *)data;
     if (sentry_value_is_null(d->tags)) {
         d->tags = sentry_value_new_object();
     }
-    sentry_value_set_by_key_n(
-        d->tags, key, key_len, sentry_value_new_string_n(value, value_len));
+    sentry_value_set_by_key(d->tags, key, sentry_value_new_string(value));
     d->was_called = true;
 }
 
 static void
-observe_set_tag_remove_self_and_add(void *data, const char *key, size_t key_len,
-    const char *value, size_t value_len)
+observe_set_tag_remove_self_and_add(
+    void *data, const char *key, const char *value)
 {
     reentrant_observer_data_t *d = (reentrant_observer_data_t *)data;
-    observe_set_tag(d->self_data, key, key_len, value, value_len);
+    observe_set_tag(d->self_data, key, value);
     SENTRY_WITH_SCOPE_MUT_NO_FLUSH (scope) {
         sentry__scope_remove_observer(scope, d->self);
         TEST_CHECK(sentry__scope_add_observer(scope, d->added));
@@ -1370,64 +1366,61 @@ observe_set_tag_remove_self_and_add(void *data, const char *key, size_t key_len,
 }
 
 static void
-observe_remove_tag(void *data, const char *key, size_t key_len)
+observe_remove_tag(void *data, const char *key)
 {
     test_observer_data_t *d = (test_observer_data_t *)data;
     if (sentry_value_is_null(d->tags)) {
         d->tags = sentry_value_new_object();
     }
-    sentry_value_set_by_key_n(
-        d->tags, key, key_len, sentry_value_new_string("(removed)"));
+    sentry_value_set_by_key(d->tags, key, sentry_value_new_string("(removed)"));
     d->was_called = true;
 }
 
 static void
-observe_set_extra(
-    void *data, const char *key, size_t key_len, sentry_value_t value)
+observe_set_extra(void *data, const char *key, sentry_value_t value)
 {
     test_observer_data_t *d = (test_observer_data_t *)data;
     if (sentry_value_is_null(d->extras)) {
         d->extras = sentry_value_new_object();
     }
     sentry_value_incref(value);
-    sentry_value_set_by_key_n(d->extras, key, key_len, value);
+    sentry_value_set_by_key(d->extras, key, value);
     d->was_called = true;
 }
 
 static void
-observe_remove_extra(void *data, const char *key, size_t key_len)
+observe_remove_extra(void *data, const char *key)
 {
     test_observer_data_t *d = (test_observer_data_t *)data;
     if (sentry_value_is_null(d->extras)) {
         d->extras = sentry_value_new_object();
     }
-    sentry_value_set_by_key_n(
-        d->extras, key, key_len, sentry_value_new_string("(removed)"));
+    sentry_value_set_by_key(
+        d->extras, key, sentry_value_new_string("(removed)"));
     d->was_called = true;
 }
 
 static void
-observe_set_context(
-    void *data, const char *key, size_t key_len, sentry_value_t value)
+observe_set_context(void *data, const char *key, sentry_value_t value)
 {
     test_observer_data_t *d = (test_observer_data_t *)data;
     if (sentry_value_is_null(d->contexts)) {
         d->contexts = sentry_value_new_object();
     }
     sentry_value_incref(value);
-    sentry_value_set_by_key_n(d->contexts, key, key_len, value);
+    sentry_value_set_by_key(d->contexts, key, value);
     d->was_called = true;
 }
 
 static void
-observe_remove_context(void *data, const char *key, size_t key_len)
+observe_remove_context(void *data, const char *key)
 {
     test_observer_data_t *d = (test_observer_data_t *)data;
     if (sentry_value_is_null(d->contexts)) {
         d->contexts = sentry_value_new_object();
     }
-    sentry_value_set_by_key_n(
-        d->contexts, key, key_len, sentry_value_new_string("(removed)"));
+    sentry_value_set_by_key(
+        d->contexts, key, sentry_value_new_string("(removed)"));
     d->was_called = true;
 }
 
@@ -1762,11 +1755,27 @@ SENTRY_TEST(scope_observer_tags)
     TEST_CHECK_INT_EQUAL(
         sentry_value_get_length(sentry_value_get_by_key(d.tags, "my-tag")), 8);
 
+    char tag_key[] = { 'n', '-', 't', 'a', 'g', 'X' };
+    char tag_value[] = { 'n', '-', 'v', 'a', 'l', 'u', 'e', 'X' };
+    d.was_called = false;
+    sentry_set_tag_n(tag_key, 5, tag_value, 7);
+    TEST_CHECK(d.was_called);
+    TEST_CHECK_STRING_EQUAL(
+        sentry_value_as_string(sentry_value_get_by_key(d.tags, "n-tag")),
+        "n-value");
+
     d.was_called = false;
     sentry_remove_tag("my-tag");
     TEST_CHECK(d.was_called);
     TEST_CHECK_STRING_EQUAL(
         sentry_value_as_string(sentry_value_get_by_key(d.tags, "my-tag")),
+        "(removed)");
+
+    d.was_called = false;
+    sentry_remove_tag_n(tag_key, 5);
+    TEST_CHECK(d.was_called);
+    TEST_CHECK_STRING_EQUAL(
+        sentry_value_as_string(sentry_value_get_by_key(d.tags, "n-tag")),
         "(removed)");
 
     sentry_value_decref(d.tags);
@@ -1795,11 +1804,26 @@ SENTRY_TEST(scope_observer_extras)
         sentry_value_as_string(sentry_value_get_by_key(d.extras, "my-extra")),
         "extra-value");
 
+    char extra_key[] = { 'n', '-', 'e', 'x', 't', 'r', 'a', 'X' };
+    d.was_called = false;
+    sentry_set_extra_n(extra_key, 7, sentry_value_new_string("extra-n"));
+    TEST_CHECK(d.was_called);
+    TEST_CHECK_STRING_EQUAL(
+        sentry_value_as_string(sentry_value_get_by_key(d.extras, "n-extra")),
+        "extra-n");
+
     d.was_called = false;
     sentry_remove_extra("my-extra");
     TEST_CHECK(d.was_called);
     TEST_CHECK_STRING_EQUAL(
         sentry_value_as_string(sentry_value_get_by_key(d.extras, "my-extra")),
+        "(removed)");
+
+    d.was_called = false;
+    sentry_remove_extra_n(extra_key, 7);
+    TEST_CHECK(d.was_called);
+    TEST_CHECK_STRING_EQUAL(
+        sentry_value_as_string(sentry_value_get_by_key(d.extras, "n-extra")),
         "(removed)");
 
     sentry_value_decref(d.extras);
@@ -1831,6 +1855,18 @@ SENTRY_TEST(scope_observer_contexts)
         sentry_value_as_string(sentry_value_get_by_key(received, "type")),
         "device");
 
+    char context_key[] = { 'n', '-', 'c', 'o', 'n', 't', 'e', 'x', 't', 'X' };
+    sentry_value_t ctx_n = sentry_value_new_object();
+    sentry_value_set_by_key(ctx_n, "type", sentry_value_new_string("runtime"));
+    d.was_called = false;
+    sentry_set_context_n(context_key, 9, ctx_n);
+    TEST_CHECK(d.was_called);
+    received = sentry_value_get_by_key(d.contexts, "n-context");
+    TEST_CHECK(!sentry_value_is_null(received));
+    TEST_CHECK_STRING_EQUAL(
+        sentry_value_as_string(sentry_value_get_by_key(received, "type")),
+        "runtime");
+
     sentry_value_t update = sentry_value_new_object();
     sentry_value_set_by_key(update, "version", sentry_value_new_string("1.0"));
     d.was_called = false;
@@ -1849,6 +1885,13 @@ SENTRY_TEST(scope_observer_contexts)
     TEST_CHECK(d.was_called);
     TEST_CHECK_STRING_EQUAL(sentry_value_as_string(sentry_value_get_by_key(
                                 d.contexts, "my-context")),
+        "(removed)");
+
+    d.was_called = false;
+    sentry_remove_context_n(context_key, 9);
+    TEST_CHECK(d.was_called);
+    TEST_CHECK_STRING_EQUAL(sentry_value_as_string(sentry_value_get_by_key(
+                                d.contexts, "n-context")),
         "(removed)");
 
     sentry_value_decref(d.contexts);
