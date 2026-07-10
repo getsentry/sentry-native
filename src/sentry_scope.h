@@ -40,9 +40,9 @@ struct sentry_scope_s {
     sentry_span_t *span;
     bool trace_managed;
 
-    // Whether the user owns this scope's lifetime, meaning capture functions
-    // apply it without freeing it.
-    bool user_owned;
+    // Whether this scope is single-use. A capture function frees a one-shot
+    // scope after applying it.
+    bool one_shot;
 };
 
 /**

@@ -1216,14 +1216,14 @@ SENTRY_TEST(scope_local_attributes)
 
 SENTRY_TEST(scope_ownership)
 {
-    // `sentry_scope_new` marks a scope user-owned, `sentry_local_scope_new`
-    // does not.
+    // `sentry_local_scope_new` makes a one-shot scope, `sentry_scope_new` does
+    // not.
     sentry_scope_t *local_scope = sentry_local_scope_new();
-    TEST_CHECK(!local_scope->user_owned);
+    TEST_CHECK(local_scope->one_shot);
     sentry_scope_free(local_scope);
 
     sentry_scope_t *user_scope = sentry_scope_new();
-    TEST_CHECK(user_scope->user_owned);
+    TEST_CHECK(!user_scope->one_shot);
     sentry_scope_free(user_scope);
 }
 
@@ -1248,8 +1248,8 @@ SENTRY_TEST(scope_clone_independence)
 
     sentry_scope_t *clone = sentry_scope_clone(scope);
 
-    // A clone is always user-owned.
-    TEST_CHECK(clone->user_owned);
+    // A clone is reusable, never one-shot.
+    TEST_CHECK(!clone->one_shot);
 
     // The clone carries over the source's data.
     TEST_CHECK_STRING_EQUAL(
@@ -1399,7 +1399,7 @@ SENTRY_TEST(scope_capture_user_owned)
 
     sentry_scope_free(scope);
 
-    TEST_CHECK_INT_EQUAL(called, 2);
-
     sentry_close();
+
+    TEST_CHECK_INT_EQUAL(called, 2);
 }

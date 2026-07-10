@@ -88,7 +88,7 @@ init_scope(sentry_scope_t *scope)
     scope->transaction_object = NULL;
     scope->span = NULL;
     scope->trace_managed = true;
-    scope->user_owned = false;
+    scope->one_shot = false;
 }
 
 static sentry_scope_t *
@@ -179,7 +179,6 @@ sentry_scope_new(void)
     }
 
     init_scope(scope);
-    scope->user_owned = true;
     return scope;
 }
 
@@ -199,7 +198,7 @@ sentry_local_scope_new(void)
 {
     sentry_scope_t *scope = sentry_scope_new();
     if (scope) {
-        scope->user_owned = false;
+        scope->one_shot = true;
     }
     return scope;
 }
@@ -242,10 +241,6 @@ sentry_scope_clone(const sentry_scope_t *scope)
     clone->span = scope->span;
     sentry__span_incref(clone->span);
     clone->trace_managed = scope->trace_managed;
-
-    // A clone is created to be owned and managed by the caller, so it is
-    // user-owned regardless of the source's ownership.
-    clone->user_owned = true;
 
     return clone;
 }
