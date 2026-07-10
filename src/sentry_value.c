@@ -97,7 +97,7 @@ typedef struct {
 } list_t;
 
 typedef struct {
-    char *k;
+    sentry_value_t k;
     sentry_value_t v;
 } obj_pair_t;
 
@@ -182,7 +182,7 @@ obj_free(obj_t *obj)
         return;
     }
     for (size_t i = 0; i < obj->len; i++) {
-        sentry_free(obj->pairs[i].k);
+        sentry_value_decref(obj->pairs[i].k);
         sentry_value_decref(obj->pairs[i].v);
     }
     sentry_free(obj->pairs);
@@ -229,11 +229,7 @@ obj_clone(const obj_t *obj)
             return NULL;
         }
         for (size_t i = 0; i < obj->len; i++) {
-            clone->pairs[i].k = sentry__string_clone(obj->pairs[i].k);
-            if (!clone->pairs[i].k) {
-                obj_free(clone);
-                return NULL;
-            }
+            clone->pairs[i].k = sentry_value_incref(obj->pairs[i].k);
             clone->pairs[i].v = obj->pairs[i].v;
             sentry_value_incref(clone->pairs[i].v);
             clone->len++;
@@ -377,6 +373,14 @@ value_as_thing(sentry_value_t value)
         return NULL;
     }
     return (thing_t *)(size_t)value._bits;
+}
+
+static const char *
+obj_pair_key(const obj_pair_t *pair)
+{
+    const thing_t *thing = value_as_thing(pair->k);
+    assert(thing && thing_get_type(thing) == THING_TYPE_STRING);
+    return thing->payload._ptr;
 }
 
 static thing_t *
@@ -781,7 +785,7 @@ sentry_value_set_by_key_n(
     obj_t *o = thing->payload._ptr;
     for (size_t i = 0; i < o->len; i++) {
         obj_pair_t *pair = &o->pairs[i];
-        if (sentry__slice_eqs(k_slice, pair->k)) {
+        if (sentry__slice_eqs(k_slice, obj_pair_key(pair))) {
             sentry_value_decref(pair->v);
             pair->v = v;
             return 0;
@@ -794,8 +798,8 @@ sentry_value_set_by_key_n(
     }
 
     obj_pair_t pair;
-    pair.k = sentry__slice_to_owned(k_slice);
-    if (!pair.k) {
+    pair.k = sentry_value_new_string_n(k_slice.ptr, k_slice.len);
+    if (sentry_value_is_null(pair.k)) {
         goto fail;
     }
     pair.v = v;
@@ -833,8 +837,8 @@ sentry_value_remove_by_key_n(sentry_value_t value, const char *k, size_t k_len)
     obj_t *o = thing->payload._ptr;
     for (size_t i = 0; i < o->len; i++) {
         obj_pair_t *pair = &o->pairs[i];
-        if (sentry__slice_eqs(k_slice, pair->k)) {
-            sentry_free(pair->k);
+        if (sentry__slice_eqs(k_slice, obj_pair_key(pair))) {
+            sentry_value_decref(pair->k);
             sentry_value_decref(pair->v);
             memmove(o->pairs + i, o->pairs + i + 1,
                 (o->len - i - 1) * sizeof(o->pairs[0]));
@@ -1075,7 +1079,8 @@ sentry_value_get_by_key_n(sentry_value_t value, const char *k, size_t k_len)
         obj_t *o = thing->payload._ptr;
         for (size_t i = 0; i < o->len; i++) {
             obj_pair_t *pair = &o->pairs[i];
-            if (sentry__slice_eqs((sentry_slice_t) { k, k_len }, pair->k)) {
+            if (sentry__slice_eqs(
+                    (sentry_slice_t) { k, k_len }, obj_pair_key(pair))) {
                 return pair->v;
             }
         }
@@ -1134,7 +1139,7 @@ sentry__value_foreach_key_value(sentry_value_t value,
     }
     const obj_t *o = thing->payload._ptr;
     for (size_t i = 0; i < o->len; i++) {
-        callback(o->pairs[i].k, o->pairs[i].v, userdata);
+        callback(obj_pair_key(&o->pairs[i]), o->pairs[i].v, userdata);
     }
 }
 
@@ -1303,7 +1308,7 @@ sentry__value_merge_objects(sentry_value_t dst, sentry_value_t src)
     }
     obj_t *obj = thing->payload._ptr;
     for (size_t i = 0; i < obj->len; i++) {
-        char *key = obj->pairs[i].k;
+        const char *key = obj_pair_key(&obj->pairs[i]);
         sentry_value_t src_val = obj->pairs[i].v;
         sentry_value_t dst_val = sentry_value_get_by_key(dst, key);
         if (sentry_value_get_type(dst_val) == SENTRY_VALUE_TYPE_OBJECT
@@ -1371,7 +1376,7 @@ sentry__jsonwriter_write_value(sentry_jsonwriter_t *jw, sentry_value_t value)
         const obj_t *o = thing->payload._ptr;
         sentry__jsonwriter_write_object_start(jw);
         for (size_t i = 0; i < o->len; i++) {
-            sentry__jsonwriter_write_key(jw, o->pairs[i].k);
+            sentry__jsonwriter_write_key(jw, obj_pair_key(&o->pairs[i]));
             sentry__jsonwriter_write_value(jw, o->pairs[i].v);
         }
         sentry__jsonwriter_write_object_end(jw);
@@ -1441,7 +1446,7 @@ value_to_msgpack(mpack_writer_t *writer, sentry_value_t value)
 
         mpack_start_map(writer, (uint32_t)o->len);
         for (size_t i = 0; i < o->len; i++) {
-            mpack_write_cstr(writer, o->pairs[i].k);
+            mpack_write_cstr(writer, obj_pair_key(&o->pairs[i]));
             value_to_msgpack(writer, o->pairs[i].v);
         }
         mpack_finish_map(writer);
