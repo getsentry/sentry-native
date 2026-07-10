@@ -368,7 +368,7 @@ sentry__path_is_symlink(const sentry_path_t *path)
     WIN32_FIND_DATAW data;
     const HANDLE find_handle = FindFirstFileW(path_w, &data);
     if (find_handle == INVALID_HANDLE_VALUE) {
-        return false;
+        return true;
     }
     FindClose(find_handle);
 
