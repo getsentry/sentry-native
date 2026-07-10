@@ -2118,6 +2118,11 @@ typedef struct sentry_scope_s sentry_scope_t;
 
 /**
  * Creates a local scope.
+ *
+ * A local scope is a one-shot scope: the capture function it is passed to (such
+ * as `sentry_capture_event_with_scope`) takes ownership and frees it. To create
+ * a scope whose lifetime you manage and can reuse across captures, use
+ * `sentry_scope_new` instead.
  */
 SENTRY_API sentry_scope_t *sentry_local_scope_new(void);
 
@@ -2156,7 +2161,7 @@ SENTRY_API sentry_scope_t *sentry_scope_clone(const sentry_scope_t *scope);
 SENTRY_API sentry_uuid_t sentry_capture_event(sentry_value_t event);
 
 /**
- * Sends a sentry event with a local scope.
+ * Sends a sentry event with a scope.
  *
  * If `scope` is a local scope (`sentry_local_scope_new`), this takes ownership
  * of it and frees it. If `scope` is user-owned (`sentry_scope_new` or
