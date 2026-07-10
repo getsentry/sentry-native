@@ -2137,8 +2137,8 @@ SENTRY_API sentry_scope_t *sentry_local_scope_new(void);
 SENTRY_API sentry_scope_t *sentry_scope_new(void);
 
 /**
- * Frees a user-owned scope created via `sentry_scope_new` or
- * `sentry_scope_clone`.
+ * Frees a scope created via `sentry_scope_new`, `sentry_scope_clone`, or
+ * `sentry_local_scope_new`.
  */
 SENTRY_API void sentry_scope_free(sentry_scope_t *scope);
 
