@@ -2,7 +2,40 @@
 #include "sentry_string.h"
 #include "sentry_testsupport.h"
 
-#if defined(SENTRY_PLATFORM_UNIX) && !defined(SENTRY_PLATFORM_NX)              \
+#if defined(SENTRY_PLATFORM_WINDOWS) && !defined(SENTRY_PLATFORM_XBOX)
+static bool
+is_developer_mode_enabled(void)
+{
+    DWORD enabled = 0;
+    DWORD size = sizeof(enabled);
+    return RegGetValueW(HKEY_LOCAL_MACHINE,
+               L"SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\AppModelUnlock",
+               L"AllowDevelopmentWithoutDevLicense", RRF_RT_REG_DWORD, NULL,
+               &enabled, &size)
+        == ERROR_SUCCESS
+        && enabled != 0;
+}
+
+static int
+symlink(const char *target, const char *link)
+{
+    sentry_path_t *target_path = sentry__path_from_str(target);
+    sentry_path_t *link_path = sentry__path_from_str(link);
+    if (!target_path || !link_path) {
+        sentry__path_free(link_path);
+        sentry__path_free(target_path);
+        return -1;
+    }
+
+    BOOLEAN success
+        = CreateSymbolicLinkW(link_path->path_w, target_path->path_w,
+            SYMBOLIC_LINK_FLAG_DIRECTORY
+                | SYMBOLIC_LINK_FLAG_ALLOW_UNPRIVILEGED_CREATE);
+    sentry__path_free(link_path);
+    sentry__path_free(target_path);
+    return success ? 0 : -1;
+}
+#elif defined(SENTRY_PLATFORM_UNIX) && !defined(SENTRY_PLATFORM_NX)            \
     && !defined(SENTRY_PLATFORM_PS)
 #    include <unistd.h>
 #endif
@@ -254,10 +287,16 @@ SENTRY_TEST(path_directory)
 
 SENTRY_TEST(path_remove_all_symlink)
 {
-#if !defined(SENTRY_PLATFORM_UNIX) || defined(SENTRY_PLATFORM_NX)              \
-    || defined(SENTRY_PLATFORM_PS)
+#if defined(SENTRY_PLATFORM_NX) || defined(SENTRY_PLATFORM_PS)                 \
+    || defined(SENTRY_PLATFORM_XBOX)
     SKIP_TEST();
 #else
+#    ifdef SENTRY_PLATFORM_WINDOWS
+    // Creating symlinks without elevation requires Developer Mode.
+    if (!is_developer_mode_enabled()) {
+        SKIP_TEST();
+    }
+#    endif
     sentry_path_t *base
         = sentry__path_from_str(SENTRY_TEST_PATH_PREFIX ".remove-all");
     TEST_ASSERT(!!base);
