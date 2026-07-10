@@ -215,7 +215,6 @@ sentry_scope_clone(const sentry_scope_t *scope)
     if (!clone) {
         return NULL;
     }
-    memset(clone, 0, sizeof(sentry_scope_t));
 
     clone->release = sentry__string_clone(scope->release);
     clone->environment = sentry__string_clone(scope->environment);
