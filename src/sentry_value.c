@@ -97,7 +97,12 @@ typedef struct {
 } list_t;
 
 typedef struct {
-    sentry_value_t k;
+    long refcount;
+    char data[];
+} obj_key_t;
+
+typedef struct {
+    obj_key_t *k;
     sentry_value_t v;
 } obj_pair_t;
 
@@ -107,6 +112,37 @@ typedef struct {
     size_t allocated;
     long refcount;
 } obj_t;
+
+static obj_key_t *
+obj_key_new(const char *value, size_t len)
+{
+    if (!value || len > SIZE_MAX - sizeof(obj_key_t) - 1) {
+        return NULL;
+    }
+    obj_key_t *key = sentry_malloc(sizeof(obj_key_t) + len + 1);
+    if (!key) {
+        return NULL;
+    }
+    key->refcount = 1;
+    memcpy(key->data, value, len);
+    key->data[len] = '\0';
+    return key;
+}
+
+static obj_key_t *
+obj_key_incref(obj_key_t *key)
+{
+    sentry__atomic_fetch_and_add(&key->refcount, 1);
+    return key;
+}
+
+static void
+obj_key_decref(obj_key_t *key)
+{
+    if (sentry__atomic_fetch_and_add(&key->refcount, -1) == 1) {
+        sentry_free(key);
+    }
+}
 
 static const char *
 level_as_string(sentry_level_t level)
@@ -182,7 +218,7 @@ obj_free(obj_t *obj)
         return;
     }
     for (size_t i = 0; i < obj->len; i++) {
-        sentry_value_decref(obj->pairs[i].k);
+        obj_key_decref(obj->pairs[i].k);
         sentry_value_decref(obj->pairs[i].v);
     }
     sentry_free(obj->pairs);
@@ -229,7 +265,7 @@ obj_clone(const obj_t *obj)
             return NULL;
         }
         for (size_t i = 0; i < obj->len; i++) {
-            clone->pairs[i].k = sentry_value_incref(obj->pairs[i].k);
+            clone->pairs[i].k = obj_key_incref(obj->pairs[i].k);
             clone->pairs[i].v = obj->pairs[i].v;
             sentry_value_incref(clone->pairs[i].v);
             clone->len++;
@@ -378,9 +414,7 @@ value_as_thing(sentry_value_t value)
 static const char *
 obj_pair_key(const obj_pair_t *pair)
 {
-    const thing_t *thing = value_as_thing(pair->k);
-    assert(thing && thing_get_type(thing) == THING_TYPE_STRING);
-    return thing->payload._ptr;
+    return pair->k->data;
 }
 
 static thing_t *
@@ -798,8 +832,8 @@ sentry_value_set_by_key_n(
     }
 
     obj_pair_t pair;
-    pair.k = sentry_value_new_string_n(k_slice.ptr, k_slice.len);
-    if (sentry_value_is_null(pair.k)) {
+    pair.k = obj_key_new(k_slice.ptr, k_slice.len);
+    if (!pair.k) {
         goto fail;
     }
     pair.v = v;
@@ -838,7 +872,7 @@ sentry_value_remove_by_key_n(sentry_value_t value, const char *k, size_t k_len)
     for (size_t i = 0; i < o->len; i++) {
         obj_pair_t *pair = &o->pairs[i];
         if (sentry__slice_eqs(k_slice, obj_pair_key(pair))) {
-            sentry_value_decref(pair->k);
+            obj_key_decref(pair->k);
             sentry_value_decref(pair->v);
             memmove(o->pairs + i, o->pairs + i + 1,
                 (o->len - i - 1) * sizeof(o->pairs[0]));
