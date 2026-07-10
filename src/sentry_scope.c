@@ -171,7 +171,7 @@ sentry__scope_flush_unlock(void)
 }
 
 sentry_scope_t *
-sentry_local_scope_new(void)
+sentry_scope_new(void)
 {
     sentry_scope_t *scope = SENTRY_MAKE(sentry_scope_t);
     if (!scope) {
@@ -179,6 +179,7 @@ sentry_local_scope_new(void)
     }
 
     init_scope(scope);
+    scope->user_owned = true;
     return scope;
 }
 
@@ -194,11 +195,11 @@ sentry_scope_free(sentry_scope_t *scope)
 }
 
 sentry_scope_t *
-sentry_scope_new(void)
+sentry_local_scope_new(void)
 {
-    sentry_scope_t *scope = sentry_local_scope_new();
+    sentry_scope_t *scope = sentry_scope_new();
     if (scope) {
-        scope->user_owned = true;
+        scope->user_owned = false;
     }
     return scope;
 }
