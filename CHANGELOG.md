@@ -6,6 +6,8 @@
 
 - Apply the propagation context to events that already have contexts set, so that events captured with a local scope or with event-level contexts keep their trace. ([#1843](https://github.com/getsentry/sentry-native/pull/1843))
 - Fix scope data loss from shared `sentry_value_t` containers while significantly improving scope merge performance with copy-on-write cloning. ([#1794](https://github.com/getsentry/sentry-native/pull/1794))
+- Route libcurl debug output through the Sentry logger (`SENTRY_TRACE`) instead of writing to `stderr`. ([#1854](https://github.com/getsentry/sentry-native/pull/1854))
+  - NOTE: `sentry_options_set_debug(options, true)` no longer displays verbose libcurl debug output by default. To restore it, call `sentry_options_set_logger_level(options, SENTRY_LEVEL_TRACE)`.
 
 ## 0.15.3
 
