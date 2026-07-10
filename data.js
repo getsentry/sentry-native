@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1783609154183,
+  "lastUpdate": 1783687469471,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -27964,6 +27964,126 @@ window.BENCHMARK_DATA = {
             "value": 0.007506879000004574,
             "unit": "ms",
             "extra": "Min 0.008ms\nMax 0.008ms\nMean 0.008ms\nMedian 0.008ms\nCPU 0.008ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "jpnurmi@gmail.com",
+            "name": "J-P Nurmi",
+            "username": "jpnurmi"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "252e4c6aa5fe47015df90553db7ef4a59b2853d9",
+          "message": "fix: route libcurl debug output through SENTRY_TRACE (#1854)\n\n* fix: route libcurl debug output through SENTRY_TRACE\n\nReplaces `CURLOPT_WRITEDATA = stderr` with `CURLOPT_DEBUGFUNCTION` and\na custom `CURLOPT_WRITEFUNCTION` so curl's verbose trace and the HTTP\nresponse body flow through `SENTRY_TRACE` instead of being written to\n`stderr` in debug mode.\n\n* add note",
+          "timestamp": "2026-07-10T14:40:59+02:00",
+          "tree_id": "95b1ebce94acca15ac42689ebe7645577eb160e9",
+          "url": "https://github.com/getsentry/sentry-native/commit/252e4c6aa5fe47015df90553db7ef4a59b2853d9"
+        },
+        "date": 1783687460508,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 1.0746659999938402,
+            "unit": "ms",
+            "extra": "Min 1.056ms\nMax 1.103ms\nMean 1.077ms\nStdDev 0.019ms\nMedian 1.075ms\nCPU 1.030ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 0.9452879999969355,
+            "unit": "ms",
+            "extra": "Min 0.936ms\nMax 0.956ms\nMean 0.945ms\nStdDev 0.008ms\nMedian 0.945ms\nCPU 0.944ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 3.340207000007922,
+            "unit": "ms",
+            "extra": "Min 3.246ms\nMax 3.503ms\nMean 3.350ms\nStdDev 0.111ms\nMedian 3.340ms\nCPU 1.779ms"
+          },
+          {
+            "name": "SDK init (native)",
+            "value": 13.703649999996514,
+            "unit": "ms",
+            "extra": "Min 13.630ms\nMax 13.806ms\nMean 13.716ms\nStdDev 0.067ms\nMedian 13.704ms\nCPU 8.406ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.14877000000979024,
+            "unit": "ms",
+            "extra": "Min 0.125ms\nMax 0.153ms\nMean 0.143ms\nStdDev 0.012ms\nMedian 0.149ms\nCPU 0.084ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.03152600001499195,
+            "unit": "ms",
+            "extra": "Min 0.030ms\nMax 0.032ms\nMean 0.031ms\nStdDev 0.001ms\nMedian 0.032ms\nCPU 0.030ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 2.2040110000034474,
+            "unit": "ms",
+            "extra": "Min 2.144ms\nMax 2.233ms\nMean 2.195ms\nStdDev 0.033ms\nMedian 2.204ms\nCPU 0.603ms"
+          },
+          {
+            "name": "Backend startup (native)",
+            "value": 12.808823999989727,
+            "unit": "ms",
+            "extra": "Min 12.507ms\nMax 13.174ms\nMean 12.802ms\nStdDev 0.266ms\nMedian 12.809ms\nCPU 7.459ms"
+          },
+          {
+            "name": "Scope set_tag (inproc)",
+            "value": 0.005121939000019893,
+            "unit": "ms",
+            "extra": "Min 0.005ms\nMax 0.005ms\nMean 0.005ms\nMedian 0.005ms\nCPU 0.005ms"
+          },
+          {
+            "name": "Scope add_breadcrumb (inproc)",
+            "value": 0.000516632999989497,
+            "unit": "ms",
+            "extra": "Min 0.001ms\nMax 0.001ms\nMean 0.001ms\nMedian 0.001ms\nCPU 0.001ms"
+          },
+          {
+            "name": "Scope set_tag (breakpad)",
+            "value": 0.005413820000001124,
+            "unit": "ms",
+            "extra": "Min 0.005ms\nMax 0.005ms\nMean 0.005ms\nMedian 0.005ms\nCPU 0.005ms"
+          },
+          {
+            "name": "Scope add_breadcrumb (breakpad)",
+            "value": 0.0005245049999871298,
+            "unit": "ms",
+            "extra": "Min 0.001ms\nMax 0.001ms\nMean 0.001ms\nMedian 0.001ms\nCPU 0.001ms"
+          },
+          {
+            "name": "Scope set_tag (crashpad)",
+            "value": 0.004965507000008529,
+            "unit": "ms",
+            "extra": "Min 0.005ms\nMax 0.005ms\nMean 0.005ms\nMedian 0.005ms\nCPU 0.005ms"
+          },
+          {
+            "name": "Scope add_breadcrumb (crashpad)",
+            "value": 0.007561263000013696,
+            "unit": "ms",
+            "extra": "Min 0.008ms\nMax 0.008ms\nMean 0.008ms\nMedian 0.008ms\nCPU 0.008ms"
+          },
+          {
+            "name": "Scope set_tag (native)",
+            "value": 1.9066295990000128,
+            "unit": "ms",
+            "extra": "Min 1.907ms\nMax 1.907ms\nMean 1.907ms\nMedian 1.907ms\nCPU 1.902ms"
+          },
+          {
+            "name": "Scope add_breadcrumb (native)",
+            "value": 0.007333876000018336,
+            "unit": "ms",
+            "extra": "Min 0.007ms\nMax 0.007ms\nMean 0.007ms\nMedian 0.007ms\nCPU 0.007ms"
           }
         ]
       }
