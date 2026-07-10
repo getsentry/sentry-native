@@ -2182,8 +2182,6 @@ resolve_dsym(const sentry_module_info_t *mod, macho_sym_info_t *info)
 {
     static const char app_suffix[] = ".app/Contents/MacOS/";
 
-    info->state = -1;
-
     const char *slash = strrchr(mod->name, '/');
     const char *base = slash ? slash + 1 : mod->name;
     size_t base_len = strlen(base);
@@ -2232,6 +2230,8 @@ resolve_dsym(const sentry_module_info_t *mod, macho_sym_info_t *info)
         info->state = 1;
         return;
     }
+
+    info->state = -1;
 }
 
 /**
