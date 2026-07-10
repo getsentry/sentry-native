@@ -2122,6 +2122,31 @@ typedef struct sentry_scope_s sentry_scope_t;
 SENTRY_API sentry_scope_t *sentry_local_scope_new(void);
 
 /**
+ * Creates a user-owned scope.
+ *
+ * Unlike a local scope, a user-owned scope is applied but not freed by capture
+ * functions such as `sentry_capture_event_with_scope`, so the same scope can be
+ * mutated and reused across many captures. You must release it yourself with
+ * `sentry_scope_free`.
+ */
+SENTRY_API sentry_scope_t *sentry_scope_new(void);
+
+/**
+ * Frees a user-owned scope created via `sentry_scope_new` or
+ * `sentry_scope_clone`.
+ */
+SENTRY_API void sentry_scope_free(sentry_scope_t *scope);
+
+/**
+ * Creates a copy of a scope.
+ *
+ * Top-level fields are copied while nested values are shared by reference. The
+ * returned scope is user-owned regardless of the source's ownership. Release it
+ * with `sentry_scope_free`.
+ */
+SENTRY_API sentry_scope_t *sentry_scope_clone(const sentry_scope_t *scope);
+
+/**
  * Sends a sentry event.
  *
  * If returns a nil UUID if the event being passed in is a transaction, and the
@@ -2133,7 +2158,10 @@ SENTRY_API sentry_uuid_t sentry_capture_event(sentry_value_t event);
 /**
  * Sends a sentry event with a local scope.
  *
- * Takes ownership of `scope`.
+ * If `scope` is a local scope (`sentry_local_scope_new`), this takes ownership
+ * of it and frees it. If `scope` is user-owned (`sentry_scope_new` or
+ * `sentry_scope_clone`), it is applied but not freed, so it can be reused; free
+ * it yourself with `sentry_scope_free`.
  */
 SENTRY_API sentry_uuid_t sentry_capture_event_with_scope(
     sentry_value_t event, sentry_scope_t *scope);
