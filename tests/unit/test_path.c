@@ -3,19 +3,6 @@
 #include "sentry_testsupport.h"
 
 #if defined(SENTRY_PLATFORM_WINDOWS) && !defined(SENTRY_PLATFORM_XBOX)
-static bool
-is_developer_mode_enabled(void)
-{
-    DWORD enabled = 0;
-    DWORD size = sizeof(enabled);
-    return RegGetValueW(HKEY_LOCAL_MACHINE,
-               L"SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\AppModelUnlock",
-               L"AllowDevelopmentWithoutDevLicense", RRF_RT_REG_DWORD, NULL,
-               &enabled, &size)
-        == ERROR_SUCCESS
-        && enabled != 0;
-}
-
 static int
 symlink(const char *target, const char *link)
 {
@@ -291,12 +278,6 @@ SENTRY_TEST(path_remove_all_symlink)
     || defined(SENTRY_PLATFORM_XBOX)
     SKIP_TEST();
 #else
-#    ifdef SENTRY_PLATFORM_WINDOWS
-    // Creating symlinks without elevation requires Developer Mode.
-    if (!is_developer_mode_enabled()) {
-        SKIP_TEST();
-    }
-#    endif
     sentry_path_t *base
         = sentry__path_from_str(SENTRY_TEST_PATH_PREFIX ".remove-all");
     TEST_ASSERT(!!base);
