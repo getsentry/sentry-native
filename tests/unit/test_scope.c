@@ -91,7 +91,7 @@ SENTRY_TEST(scope_contexts)
         TEST_CHECK_CONTEXT_EQUAL(event, "local", "local");
         TEST_CHECK_CONTEXT_EQUAL(event, "scope", "local");
 
-        sentry__scope_free(local_scope);
+        sentry_scope_free(local_scope);
         sentry_value_decref(event);
     }
 
@@ -178,7 +178,7 @@ SENTRY_TEST(scope_update_context)
             sentry_value_as_string(sentry_value_get_by_key(ctx, "version")),
             "6.1");
 
-        sentry__scope_free(local_scope);
+        sentry_scope_free(local_scope);
     }
 
     sentry_close();
@@ -238,7 +238,7 @@ SENTRY_TEST(scope_propagation_context)
             global_scope, options, event, SENTRY_SCOPE_NONE);
         TEST_CHECK_EVENT_TRACE_ID_EQUAL(
             event, "aaaabbbbccccddddeeeeffff00001111");
-        sentry__scope_free(local_scope);
+        sentry_scope_free(local_scope);
         sentry_value_decref(event);
     }
 
@@ -351,7 +351,7 @@ SENTRY_TEST(scope_extra)
         TEST_CHECK_EXTRA_EQUAL(event, "local", "local");
         TEST_CHECK_EXTRA_EQUAL(event, "scope", "local");
 
-        sentry__scope_free(local_scope);
+        sentry_scope_free(local_scope);
         sentry_value_decref(event);
     }
 
@@ -435,7 +435,7 @@ SENTRY_TEST(scope_fingerprint)
         TEST_CHECK_JSON_VALUE(sentry_value_get_by_key(event, "fingerprint"),
             "[\"event1\",\"event2\"]");
 
-        sentry__scope_free(local_scope);
+        sentry_scope_free(local_scope);
         sentry_value_decref(event);
     }
 
@@ -546,7 +546,7 @@ SENTRY_TEST(scope_tags)
         TEST_CHECK_TAG_EQUAL(event, "local", "local");
         TEST_CHECK_TAG_EQUAL(event, "scope", "local");
 
-        sentry__scope_free(local_scope);
+        sentry_scope_free(local_scope);
         sentry_value_decref(event);
     }
 
@@ -601,7 +601,7 @@ SENTRY_TEST(scope_user)
         TEST_CHECK_JSON_VALUE(sentry_value_get_by_key(event, "user"),
             "{\"id\":\"3\",\"username\":\"event\"}");
 
-        sentry__scope_free(local_scope);
+        sentry_scope_free(local_scope);
         sentry_value_decref(event);
     }
 
@@ -665,7 +665,7 @@ SENTRY_TEST(scope_user_id)
     sentry_scope_t *local_scope = sentry_local_scope_new();
     sentry__scope_apply_to_event(
         local_scope, options, event, SENTRY_SCOPE_BREADCRUMBS);
-    sentry__scope_free(local_scope);
+    sentry_scope_free(local_scope);
     SENTRY_WITH_SCOPE (scope) {
         sentry__scope_apply_to_event(scope, options, event, SENTRY_SCOPE_ALL);
     }
@@ -750,7 +750,7 @@ SENTRY_TEST(scope_level)
             local_scope, options, event, SENTRY_SCOPE_NONE);
         TEST_CHECK_LEVEL_EQUAL(event, "debug");
 
-        sentry__scope_free(local_scope);
+        sentry_scope_free(local_scope);
         sentry_value_decref(event);
     }
 
@@ -866,7 +866,7 @@ SENTRY_TEST(scope_breadcrumbs)
         TEST_CHECK_MESSAGE_EQUAL(result, 3, "event5");
         TEST_CHECK_MESSAGE_EQUAL(result, 4, "local6");
 
-        sentry__scope_free(local_scope);
+        sentry_scope_free(local_scope);
         sentry_value_decref(event);
     }
 
@@ -1148,7 +1148,7 @@ SENTRY_TEST(scope_local_attributes)
                 sentry_value_get_by_key(global_attributes, "global"), "value")),
             "global");
 
-        sentry__scope_free(local_scope);
+        sentry_scope_free(local_scope);
     }
 
     // Test removing attributes from global scope
@@ -1190,7 +1190,7 @@ SENTRY_TEST(scope_local_attributes)
         TEST_CHECK(sentry_value_is_null(
             sentry_value_get_by_key(local_attributes, "test_key")));
 
-        sentry__scope_free(local_scope);
+        sentry_scope_free(local_scope);
     }
 
     // Test that invalid attributes are not set on local scope
@@ -1208,7 +1208,7 @@ SENTRY_TEST(scope_local_attributes)
             sentry_value_get_by_key(local_attributes, "invalid")));
         sentry_value_decref(invalid_attr);
 
-        sentry__scope_free(local_scope);
+        sentry_scope_free(local_scope);
     }
 
     sentry_close();
@@ -1220,7 +1220,7 @@ SENTRY_TEST(scope_ownership)
     // does not.
     sentry_scope_t *local_scope = sentry_local_scope_new();
     TEST_CHECK(!local_scope->user_owned);
-    sentry__scope_free(local_scope);
+    sentry_scope_free(local_scope);
 
     sentry_scope_t *user_scope = sentry_scope_new();
     TEST_CHECK(user_scope->user_owned);

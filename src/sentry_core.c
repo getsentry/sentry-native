@@ -700,7 +700,7 @@ sentry__prepare_event(const sentry_options_t *options, sentry_value_t event,
         sentry__scope_apply_to_event(local_scope, options, event, mode);
         sentry__attachments_extend(&all_attachments, local_scope->attachments);
         if (!local_scope->user_owned) {
-            sentry__scope_free(local_scope);
+            sentry_scope_free(local_scope);
         }
     }
 

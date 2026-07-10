@@ -183,7 +183,7 @@ sentry_local_scope_new(void)
 }
 
 void
-sentry__scope_free(sentry_scope_t *scope)
+sentry_scope_free(sentry_scope_t *scope)
 {
     if (!scope) {
         return;
@@ -201,12 +201,6 @@ sentry_scope_new(void)
         scope->user_owned = true;
     }
     return scope;
-}
-
-void
-sentry_scope_free(sentry_scope_t *scope)
-{
-    sentry__scope_free(scope);
 }
 
 sentry_scope_t *
