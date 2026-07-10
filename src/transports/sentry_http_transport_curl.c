@@ -157,6 +157,55 @@ swallow_data(
     return size * nmemb;
 }
 
+static int
+debug_callback(CURL *UNUSED(handle), curl_infotype type, char *data,
+    size_t size, void *UNUSED(userdata))
+{
+    const char *prefix;
+    switch (type) {
+    case CURLINFO_TEXT:
+        prefix = "*";
+        break;
+    case CURLINFO_HEADER_OUT:
+        prefix = ">";
+        break;
+    case CURLINFO_HEADER_IN:
+        prefix = "<";
+        break;
+    default:
+        return 0;
+    }
+    size_t start = 0;
+    for (size_t i = 0; i <= size; i++) {
+        if (i == size || data[i] == '\n') {
+            size_t end = i;
+            while (end > start && data[end - 1] == '\r') {
+                end--;
+            }
+            if (end > start) {
+                SENTRY_TRACEF(
+                    "%s %.*s", prefix, (int)(end - start), data + start);
+            }
+            start = i + 1;
+        }
+    }
+    return 0;
+}
+
+static size_t
+write_callback(char *ptr, size_t size, size_t nmemb, void *UNUSED(userdata))
+{
+    size_t total = size * nmemb;
+    size_t len = total;
+    while (len > 0 && (ptr[len - 1] == '\n' || ptr[len - 1] == '\r')) {
+        len--;
+    }
+    if (len > 0) {
+        SENTRY_TRACEF("%.*s", (int)len, ptr);
+    }
+    return total;
+}
+
 static size_t
 header_callback(char *buffer, size_t size, size_t nitems, void *userdata)
 {
@@ -238,8 +287,8 @@ curl_send_task(void *_client, sentry_prepared_http_request_t *req,
     curl_easy_reset(curl);
     if (client->debug) {
         curl_easy_setopt(curl, CURLOPT_VERBOSE, 1);
-        curl_easy_setopt(curl, CURLOPT_WRITEDATA, stderr);
-        // CURLOPT_WRITEFUNCTION will `fwrite` by default
+        curl_easy_setopt(curl, CURLOPT_DEBUGFUNCTION, debug_callback);
+        curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_callback);
     } else {
         curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, swallow_data);
     }
