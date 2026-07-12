@@ -3223,6 +3223,18 @@ SENTRY_EXPERIMENTAL_API sentry_uuid_t sentry_transaction_finish_ts(
     sentry_transaction_t *tx, uint64_t timestamp);
 
 /**
+ * Discards a Transaction without sending it to sentry.
+ *
+ * This takes ownership of `transaction`. A Transaction cannot be modified or
+ * re-used after it is discarded.
+ *
+ * If `transaction` is currently set on the scope, it will be removed from the
+ * scope.
+ */
+SENTRY_EXPERIMENTAL_API void sentry_transaction_discard(
+    sentry_transaction_t *tx);
+
+/**
  * Sets the Transaction so any Events sent while the Transaction
  * is active will be associated with the Transaction.
  *
@@ -3373,6 +3385,16 @@ SENTRY_EXPERIMENTAL_API void sentry_span_finish(sentry_span_t *span);
  */
 SENTRY_EXPERIMENTAL_API void sentry_span_finish_ts(
     sentry_span_t *span, uint64_t timestamp);
+
+/**
+ * Discards a Span without adding it to its containing Transaction.
+ *
+ * This takes ownership of `span`. A Span cannot be modified or re-used after it
+ * is discarded.
+ *
+ * If `span` is currently set on the scope, it will be removed from the scope.
+ */
+SENTRY_EXPERIMENTAL_API void sentry_span_discard(sentry_span_t *span);
 
 /**
  * Sets a tag on a Transaction to the given string value.
