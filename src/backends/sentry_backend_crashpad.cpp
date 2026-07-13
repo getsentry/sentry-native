@@ -262,6 +262,46 @@ flush_external_crash_report(
     sentry_envelope_free(envelope);
 }
 
+static logging::LogSeverity
+to_crashpad_level(sentry_level_t level)
+{
+    switch (level) {
+    case SENTRY_LEVEL_TRACE:
+    case SENTRY_LEVEL_DEBUG:
+        return logging::LOG_VERBOSE;
+    case SENTRY_LEVEL_INFO:
+        return logging::LOG_INFO;
+    case SENTRY_LEVEL_WARNING:
+        return logging::LOG_WARNING;
+    case SENTRY_LEVEL_ERROR:
+        return logging::LOG_ERROR;
+    case SENTRY_LEVEL_FATAL:
+        return logging::LOG_FATAL;
+    }
+
+    return logging::LOG_VERBOSE;
+}
+
+static sentry_level_t
+to_sentry_level(logging::LogSeverity severity)
+{
+    switch (severity) {
+    case logging::LOG_VERBOSE:
+        return SENTRY_LEVEL_DEBUG;
+    case logging::LOG_INFO:
+        return SENTRY_LEVEL_INFO;
+    case logging::LOG_WARNING:
+        return SENTRY_LEVEL_WARNING;
+    case logging::LOG_ERROR:
+    case logging::LOG_ERROR_REPORT:
+        return SENTRY_LEVEL_ERROR;
+    case logging::LOG_FATAL:
+        return SENTRY_LEVEL_FATAL;
+    }
+
+    return SENTRY_LEVEL_DEBUG;
+}
+
 // This function is necessary for macOS since it has no `FirstChanceHandler`.
 // but it is also necessary on Windows if the WER handler is enabled.
 // This means we have to continuously flush the scope on
@@ -730,25 +770,6 @@ crashpad_backend_startup(
     }
 
     std::vector<std::string> arguments { "--no-rate-limit" };
-
-    // Map sentry's log level to mini_chromium's LogSeverity. They diverge at
-    // FATAL (sentry=3, mini_chromium=4); otherwise 1:1.
-    int level = static_cast<int>(options->logger.logger_level);
-    switch (options->logger.logger_level) {
-    case SENTRY_LEVEL_TRACE:
-    case SENTRY_LEVEL_DEBUG:
-        level = -1; // LOG_VERBOSE
-        break;
-    case SENTRY_LEVEL_INFO:
-    case SENTRY_LEVEL_WARNING:
-    case SENTRY_LEVEL_ERROR:
-        // LOG_INFO/WARNING/ERROR (0/1/2) match 1:1
-        break;
-    case SENTRY_LEVEL_FATAL:
-        level = 4; // LOG_FATAL
-        break;
-    }
-
     sentry_path_t *log_path
         = sentry__path_join_str(current_run_folder, "crashpad-handler.log");
     if (log_path) {
@@ -756,11 +777,24 @@ crashpad_backend_startup(
         sentry__path_free(log_path);
     }
     if (options->debug) {
+        const logging::LogSeverity level
+            = to_crashpad_level(options->logger.logger_level);
         logging::LoggingSettings settings;
-        settings.logging_dest = logging::LOG_TO_STDERR;
         settings.min_log_level = level;
         logging::InitLogging(settings);
         arguments.push_back("--log-level=" + std::to_string(level));
+
+        logging::SetLogMessageHandler(
+            [](logging::LogSeverity severity, const char *UNUSED(file),
+                int UNUSED(line), size_t start, const std::string &msg) {
+                size_t end = msg.size();
+                if (end > start && msg[end - 1] == '\n') {
+                    end--;
+                }
+                sentry__logger_log(to_sentry_level(severity), "crashpad: %.*s",
+                    static_cast<int>(end - start), msg.c_str() + start);
+                return true;
+            });
     }
 
     char report_id[37];
