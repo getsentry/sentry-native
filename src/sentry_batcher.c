@@ -56,8 +56,9 @@ sentry__batcher_release(sentry_batcher_t *batcher)
     if (!batcher || sentry__atomic_fetch_and_add(&batcher->refcount, -1) != 1) {
         return;
     }
-    buffer_drain(&batcher->buffers[0]);
-    buffer_drain(&batcher->buffers[1]);
+    for (long i = 0; i < SENTRY_BATCHER_BUFFERS; i++) {
+        buffer_drain(&batcher->buffers[i]);
+    }
     sentry__dsn_decref(batcher->dsn);
     sentry__thread_free(&batcher->batching_thread);
     sentry_free(batcher);
@@ -127,27 +128,87 @@ crash_safe_sleep_ms(uint64_t delay_ms)
     }
 }
 
-// checks whether the currently active buffer should be flushed.
-// otherwise we could miss the trigger of adding the last log if we're actively
-// flushing the other buffer already.
-// we can safely check the state of the active buffer, as the only thread that
-// can change which buffer is active is the one calling this check function
-// inside sentry__batcher_flush() below
+// Checks whether the currently active buffer can be rotated. Producers do
+// this when adding the last log so the batching thread cannot miss the flush
+// trigger while it is actively flushing another buffer. Since both producers
+// and the flusher can change the active buffer, the change is verified by CAS.
 static bool
-check_for_flush_condition(sentry_batcher_t *batcher)
+try_rotate_active_buffer(sentry_batcher_t *batcher, long old_idx)
 {
-    // In sentry__batcher_flush, after finishing a flush:
-    long current_active = sentry__atomic_fetch(&batcher->active_idx);
-    sentry_batcher_buffer_t *current_buf = &batcher->buffers[current_active];
+    const long next_idx = (old_idx + 1) % SENTRY_BATCHER_BUFFERS;
+    sentry_batcher_buffer_t *old_buf = &batcher->buffers[old_idx];
+    sentry_batcher_buffer_t *next_buf = &batcher->buffers[next_idx];
 
-    // Check if current active buffer is also full
-    // We could even lower the threshold for high-contention scenarios
-    return sentry__atomic_fetch(&current_buf->index)
-        >= SENTRY_BATCHER_QUEUE_LENGTH;
+    // The flusher resets a drained buffer before clearing `sealed`, so all
+    // three values must indicate that the next buffer is free for producers.
+    if (sentry__atomic_fetch(&next_buf->sealed) != 0
+        || sentry__atomic_fetch(&next_buf->index) != 0
+        || sentry__atomic_fetch(&next_buf->adding) != 0) {
+        return false;
+    }
+
+    // Make the next buffer active (after this we're good to go producer side).
+    if (!sentry__atomic_compare_swap(&batcher->active_idx, old_idx, next_idx)) {
+        return false;
+    }
+
+    // Seal the old buffer.
+    sentry__atomic_store(&old_buf->sealed, 1);
+    return true;
 }
 
-bool
-sentry__batcher_flush(sentry_batcher_t *batcher, bool crash_safe)
+static void
+drain_buffer(sentry_batcher_t *batcher, long buf_idx, bool crash_safe)
+{
+    sentry_batcher_buffer_t *buf = &batcher->buffers[buf_idx];
+
+    // Wait for all in-flight producers of the old buffer.
+    while (sentry__atomic_fetch(&buf->adding) > 0) {
+        sentry__cpu_relax();
+    }
+
+    long n = sentry__atomic_store(&buf->index, 0);
+    if (n > SENTRY_BATCHER_QUEUE_LENGTH) {
+        n = SENTRY_BATCHER_QUEUE_LENGTH;
+    }
+
+    if (n > 0) {
+        // Now we can do the actual batching of the old buffer.
+        sentry_value_t logs = sentry_value_new_object();
+        sentry_value_t log_items = sentry_value_new_list();
+        for (long i = 0; i < n; i++) {
+            sentry_value_append(log_items, buf->items[i]);
+        }
+        sentry_value_set_by_key(logs, "items", log_items);
+
+        sentry_envelope_t *envelope
+            = sentry__envelope_new_with_dsn(batcher->dsn);
+        batcher->batch_func(envelope, logs);
+
+        if (crash_safe) {
+            // Write directly to disk to avoid transport queuing during
+            // crash.
+            sentry__run_write_envelope(batcher->run, envelope);
+            sentry_envelope_free(envelope);
+        } else if (!sentry__run_should_skip_upload(batcher->run)) {
+            // Normal operation: use transport for HTTP transmission.
+            sentry__transport_send_envelope(batcher->transport, envelope);
+        } else {
+            sentry_envelope_free(envelope);
+        }
+        sentry_value_decref(logs);
+    }
+
+    // Make the old buffer reusable only after its envelope has been
+    // submitted, then advance to the next sealed buffer in FIFO order.
+    sentry__atomic_store(&buf->sealed, 0);
+    sentry__atomic_store(
+        &batcher->drain_idx, (buf_idx + 1) % SENTRY_BATCHER_BUFFERS);
+}
+
+static bool
+batcher_flush(
+    sentry_batcher_t *batcher, bool crash_safe, bool flush_active_buffer)
 {
     if (crash_safe) {
         // In crash-safe mode, spin lock with timeout and backoff
@@ -176,83 +237,59 @@ sentry__batcher_flush(sentry_batcher_t *batcher, bool crash_safe)
             return false;
         }
     }
-    do {
-        // prep both buffers
-        long old_buf_idx = sentry__atomic_fetch(&batcher->active_idx);
-        long new_buf_idx = 1 - old_buf_idx;
-        sentry_batcher_buffer_t *old_buf = &batcher->buffers[old_buf_idx];
-        sentry_batcher_buffer_t *new_buf = &batcher->buffers[new_buf_idx];
-
-        // reset new buffer...
-        sentry__atomic_store(&new_buf->index, 0);
-        sentry__atomic_store(&new_buf->adding, 0);
-        sentry__atomic_store(&new_buf->sealed, 0);
-
-        // ...and make it active (after this we're good to go producer side)
-        sentry__atomic_store(&batcher->active_idx, new_buf_idx);
-
-        // seal old buffer
-        sentry__atomic_store(&old_buf->sealed, 1);
-
-        // Wait for all in-flight producers of the old buffer
-        while (sentry__atomic_fetch(&old_buf->adding) > 0) {
-            sentry__cpu_relax();
+    while (true) {
+        // Prepare the oldest sealed buffer for draining before considering
+        // the currently active buffer.
+        const long drain_idx = sentry__atomic_fetch(&batcher->drain_idx);
+        sentry_batcher_buffer_t *drain_buf = &batcher->buffers[drain_idx];
+        if (sentry__atomic_fetch(&drain_buf->sealed) != 0) {
+            drain_buffer(batcher, drain_idx, crash_safe);
+            continue;
         }
 
-        long n = sentry__atomic_store(&old_buf->index, 0);
-        if (n > SENTRY_BATCHER_QUEUE_LENGTH) {
-            n = SENTRY_BATCHER_QUEUE_LENGTH;
+        if (!flush_active_buffer) {
+            break;
         }
 
-        if (n > 0) {
-            // now we can do the actual batching of the old buffer
-
-            sentry_value_t logs = sentry_value_new_object();
-            sentry_value_t log_items = sentry_value_new_list();
-            int i;
-            for (i = 0; i < n; i++) {
-                sentry_value_append(log_items, old_buf->items[i]);
-            }
-            sentry_value_set_by_key(logs, "items", log_items);
-
-            sentry_envelope_t *envelope
-                = sentry__envelope_new_with_dsn(batcher->dsn);
-            batcher->batch_func(envelope, logs);
-
-            if (crash_safe) {
-                // Write directly to disk to avoid transport queuing during
-                // crash
-                sentry__run_write_envelope(batcher->run, envelope);
-                sentry_envelope_free(envelope);
-            } else if (!sentry__run_should_skip_upload(batcher->run)) {
-                // Normal operation: use transport for HTTP transmission
-                sentry__transport_send_envelope(batcher->transport, envelope);
-            } else {
-                sentry_envelope_free(envelope);
-            }
-            sentry_value_decref(logs);
+        // Check whether the currently active buffer should be flushed.
+        // Otherwise we could miss logs added while draining another buffer.
+        // Producers can change the active buffer, so the rotation helper uses
+        // CAS to verify that this is still the active generation.
+        const long active_idx = sentry__atomic_fetch(&batcher->active_idx);
+        sentry_batcher_buffer_t *active_buf = &batcher->buffers[active_idx];
+        if (sentry__atomic_fetch(&active_buf->index) <= 0) {
+            break;
         }
-    } while (check_for_flush_condition(batcher));
+
+        if (try_rotate_active_buffer(batcher, active_idx)) {
+            continue;
+        }
+
+        if (sentry__atomic_fetch(&batcher->active_idx) == active_idx) {
+            break;
+        }
+    }
 
     sentry__atomic_store(&batcher->flushing, 0);
     return true;
 }
 
-#define ENQUEUE_MAX_RETRIES 2
+bool
+sentry__batcher_flush(sentry_batcher_t *batcher, bool crash_safe)
+{
+    return batcher_flush(batcher, crash_safe, true);
+}
 
 bool
 sentry__batcher_enqueue(sentry_batcher_t *batcher, sentry_value_t item)
 {
-    for (int attempt = 0; attempt <= ENQUEUE_MAX_RETRIES; attempt++) {
+    while (true) {
         // retrieve the active buffer
         const long active_idx = sentry__atomic_fetch(&batcher->active_idx);
         sentry_batcher_buffer_t *active = &batcher->buffers[active_idx];
 
         // if the buffer is already sealed we retry or drop and exit early.
         if (sentry__atomic_fetch(&active->sealed) != 0) {
-            if (attempt == ENQUEUE_MAX_RETRIES) {
-                return false;
-            }
             continue;
         }
 
@@ -266,16 +303,10 @@ sentry__batcher_enqueue(sentry_batcher_t *batcher, sentry_value_t item)
         const long sealed_check = sentry__atomic_fetch(&active->sealed);
         if (active_idx != active_idx_check) {
             sentry__atomic_fetch_and_add(&active->adding, -1);
-            if (attempt == ENQUEUE_MAX_RETRIES) {
-                return false;
-            }
             continue;
         }
         if (sealed_check) {
             sentry__atomic_fetch_and_add(&active->adding, -1);
-            if (attempt == ENQUEUE_MAX_RETRIES) {
-                return false;
-            }
             continue;
         }
 
@@ -283,28 +314,38 @@ sentry__batcher_enqueue(sentry_batcher_t *batcher, sentry_value_t item)
         // buffer.
         const long item_idx = sentry__atomic_fetch_and_add(&active->index, 1);
         if (item_idx < SENTRY_BATCHER_QUEUE_LENGTH) {
-            // got a slot, write item to the buffer and unblock flusher
+            // Got a slot, write the item to the buffer.
+            // Keep `adding` held while publishing a full buffer so it cannot
+            // be drained and reused during the active-index CAS.
             active->items[item_idx] = item;
-            sentry__atomic_fetch_and_add(&active->adding, -1);
 
-            // Check if active buffer is now full and trigger flush.
+            // Check if the active buffer is now full and trigger a flush.
             if (item_idx == SENTRY_BATCHER_QUEUE_LENGTH - 1) {
+                try_rotate_active_buffer(batcher, active_idx);
                 sentry__waitable_flag_set(&batcher->request_flush);
             }
+            // Unblock the flusher after any full-buffer rotation attempt.
+            sentry__atomic_fetch_and_add(&active->adding, -1);
             return true;
         }
-        // ping the batching thread to flush, since we could miss the flag set
-        // on adding the last item
+
+        const bool rotated = try_rotate_active_buffer(batcher, active_idx);
+        // Ping the batching thread to flush, since we could miss the flag set
+        // on adding the last item.
         sentry__waitable_flag_set(&batcher->request_flush);
-        // Buffer is already full, roll back our increments and retry or drop.
+        // The buffer was already full; roll back our in-flight writer count
+        // before retrying the new active buffer or dropping the item.
         sentry__atomic_fetch_and_add(&active->adding, -1);
-        if (attempt == ENQUEUE_MAX_RETRIES) {
-            sentry__client_report_discard(SENTRY_DISCARD_REASON_QUEUE_OVERFLOW,
-                batcher->data_category, 1);
-            return false;
+
+        if (rotated
+            || sentry__atomic_fetch(&batcher->active_idx) != active_idx) {
+            continue;
         }
+
+        sentry__client_report_discard(
+            SENTRY_DISCARD_REASON_QUEUE_OVERFLOW, batcher->data_category, 1);
+        return false;
     }
-    return false;
 }
 
 SENTRY_THREAD_FN
@@ -336,7 +377,7 @@ batcher_thread_func(void *data)
     while (sentry__atomic_fetch(&batcher->thread_state)
         == SENTRY_BATCHER_THREAD_RUNNING) {
         // Sleep for 5 seconds or until request_flush is set
-        sentry__waitable_flag_wait(
+        const bool flush_requested = sentry__waitable_flag_wait(
             &batcher->request_flush, SENTRY_BATCHER_FLUSH_INTERVAL_MS);
 
         if (sentry__atomic_fetch(&batcher->thread_state)
@@ -346,20 +387,25 @@ batcher_thread_func(void *data)
 
         // Use the buffer state as the source of truth rather than the
         // wake trigger: flush if there's data, skip otherwise.
+        const long drain_idx = sentry__atomic_fetch(&batcher->drain_idx);
+        const bool has_sealed_buffer
+            = sentry__atomic_fetch(&batcher->buffers[drain_idx].sealed) != 0;
         const long active_idx = sentry__atomic_fetch(&batcher->active_idx);
         sentry_batcher_buffer_t *buf = &batcher->buffers[active_idx];
         const long count = sentry__atomic_fetch(&buf->index);
-        if (count <= 0) {
+        if (!has_sealed_buffer && count <= 0) {
             continue;
         }
 
-        if (count >= SENTRY_BATCHER_QUEUE_LENGTH) {
+        // Check if the current active buffer is also full. We could even lower
+        // the threshold for high-contention scenarios.
+        if (has_sealed_buffer || count >= SENTRY_BATCHER_QUEUE_LENGTH) {
             SENTRY_TRACE("Batcher flushed by filled buffer");
         } else {
             SENTRY_TRACE("Batcher flushed by timeout");
         }
 
-        sentry__batcher_flush(batcher, false);
+        batcher_flush(batcher, false, !flush_requested || !has_sealed_buffer);
     }
 
     SENTRY_DEBUG("batching thread exiting");

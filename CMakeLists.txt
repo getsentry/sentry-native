@@ -114,6 +114,7 @@ option(SENTRY_TRANSPORT_COMPRESSION "Enable transport gzip compression" OFF)
 option(SENTRY_BUILD_TESTS "Build sentry-native tests" "${SENTRY_MAIN_PROJECT}")
 option(SENTRY_BUILD_EXAMPLES "Build sentry-native example(s)" "${SENTRY_MAIN_PROJECT}")
 option(SENTRY_BUILD_BENCHMARKS "Build sentry-native benchmarks" OFF)
+set(SENTRY_BATCHER_BUFFERS 2 CACHE STRING "Number of buffers in each telemetry batcher")
 
 # Platform version embedding options
 option(SENTRY_EMBED_INFO "Embed version information in binary" OFF)
@@ -414,6 +415,7 @@ endif()
 
 add_subdirectory(src)
 
+target_compile_definitions(sentry PRIVATE SENTRY_BATCHER_BUFFERS=${SENTRY_BATCHER_BUFFERS})
 target_compile_definitions(sentry PRIVATE SENTRY_HANDLER_STACK_SIZE=${SENTRY_HANDLER_STACK_SIZE})
 if(WIN32)
 	target_compile_definitions(sentry PRIVATE SENTRY_THREAD_STACK_GUARANTEE_FACTOR=${SENTRY_THREAD_STACK_GUARANTEE_FACTOR})
