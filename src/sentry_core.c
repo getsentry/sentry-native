@@ -1744,6 +1744,8 @@ sentry_span_discard(sentry_span_t *opaque_span)
         return;
     }
 
+    sentry__transaction_remove_child(opaque_span->transaction, opaque_span);
+
     SENTRY_WITH_SCOPE_MUT (scope) {
         if (scope->span == opaque_span) {
             sentry__span_decref(scope->span);
