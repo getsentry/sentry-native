@@ -1063,6 +1063,9 @@ finish_children(
     sentry__mutex_lock(&tx->children_mutex);
     sentry_span_t **children = tx->children;
     size_t count = tx->children_count;
+    for (size_t i = 0; i < count; i++) {
+        sentry__span_incref(children[i]);
+    }
     tx->children = NULL;
     tx->children_count = 0;
     tx->children_cap = 0;
@@ -1070,7 +1073,6 @@ finish_children(
 
     for (size_t i = count; i-- > 0;) {
         sentry_span_t *child = children[i];
-        sentry__span_incref(child);
         sentry_span_set_status(child, status);
         sentry_span_finish_ts(child, end_ts);
     }
