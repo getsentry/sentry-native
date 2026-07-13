@@ -2316,6 +2316,9 @@ SENTRY_API void sentry_remove_extra_n(const char *key, size_t key_len);
  * all:
  * - logs
  * - metrics
+ *
+ * Ownership of `attribute` is transferred to the function. Attributes missing
+ * a `value` or a `type` are rejected and discarded.
  */
 SENTRY_API void sentry_set_attribute(const char *key, sentry_value_t attribute);
 SENTRY_API void sentry_set_attribute_n(

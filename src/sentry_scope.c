@@ -623,6 +623,7 @@ sentry_scope_set_attribute_n(sentry_scope_t *scope, const char *key,
     if (sentry_value_is_null(sentry_value_get_by_key(attribute, "value"))
         || sentry_value_is_null(sentry_value_get_by_key(attribute, "type"))) {
         SENTRY_DEBUG("Cannot set attribute with missing 'value' or 'type'");
+        sentry_value_decref(attribute);
         return;
     }
     sentry_value_set_by_key_n(scope->attributes, key, key_len, attribute);
