@@ -54,7 +54,7 @@ construct_metric(sentry_metric_type_t type, const char *name,
         : sentry_value_new_object();
     sentry_value_decref(user_attributes);
 
-    sentry__apply_attributes(metric, attributes);
+    sentry__apply_attributes(NULL, metric, attributes);
 
     if (sentry_value_get_length(attributes) > 0) {
         sentry_value_set_by_key(metric, "attributes", attributes);

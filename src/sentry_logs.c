@@ -386,7 +386,7 @@ apply_attributes(
 
     // adds data from the scope & options to the attributes, and adds `trace_id`
     // to the log
-    sentry__apply_attributes(log, attributes);
+    sentry__apply_attributes(NULL, log, attributes);
     sentry_value_set_by_key(log, "attributes", attributes);
 }
 

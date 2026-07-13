@@ -131,8 +131,11 @@ void sentry__set_propagation_context(const char *key, sentry_value_t value);
 
 /**
  * Adds default attributes to the telemetry attributes object.
+ *
+ * Sources are visited in precedence order:
+ * optional `scope` > global scope > options (first write wins).
  */
-void sentry__apply_attributes(
+void sentry__apply_attributes(const sentry_scope_t *scope,
     sentry_value_t telemetry, sentry_value_t attributes);
 
 bool sentry__launch_external_crash_reporter(

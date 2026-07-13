@@ -128,7 +128,10 @@ void sentry__scope_update_dsc(
 void sentry__scope_freeze_dsc(sentry_scope_t *scope, sentry_value_t incoming);
 
 /**
- * Adds scoped attributes to the telemetry attributes object.
+ * Adds scoped attributes to the telemetry attributes object, and the scope's
+ * trace to the telemetry item itself. Existing attributes are kept, so this can
+ * be called for each scope in a precedence chain, most specific first (first
+ * write wins).
  */
 void sentry__scope_apply_attributes(const sentry_scope_t *scope,
     sentry_value_t telemetry, sentry_value_t attributes);
