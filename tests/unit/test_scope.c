@@ -1114,11 +1114,11 @@ SENTRY_TEST(scope_local_attributes)
         // local:
         // {"all":"local","scope":"local","local":"local"}
         sentry_scope_t *local_scope = sentry_local_scope_new();
-        sentry__scope_set_attribute(local_scope, "all",
+        sentry_scope_set_attribute(local_scope, "all",
             sentry_value_new_attribute(sentry_value_new_string("local"), NULL));
-        sentry__scope_set_attribute(local_scope, "local",
+        sentry_scope_set_attribute(local_scope, "local",
             sentry_value_new_attribute(sentry_value_new_string("local"), NULL));
-        sentry__scope_set_attribute(local_scope, "scope",
+        sentry_scope_set_attribute(local_scope, "scope",
             sentry_value_new_attribute(sentry_value_new_string("local"), NULL));
 
         sentry_value_t local_attributes = local_scope->attributes;
@@ -1168,7 +1168,7 @@ SENTRY_TEST(scope_local_attributes)
     // Test _n variants with local scope
     SENTRY_WITH_SCOPE (global_scope) {
         sentry_scope_t *local_scope = sentry_local_scope_new();
-        sentry__scope_set_attribute_n(local_scope, "test_key", 8,
+        sentry_scope_set_attribute_n(local_scope, "test_key", 8,
             sentry_value_new_attribute(sentry_value_new_int32(100), "percent"));
 
         sentry_value_t local_attributes = local_scope->attributes;
@@ -1186,7 +1186,7 @@ SENTRY_TEST(scope_local_attributes)
             "percent");
 
         // Remove using _n variant
-        sentry__scope_remove_attribute_n(local_scope, "test_key", 8);
+        sentry_scope_remove_attribute_n(local_scope, "test_key", 8);
         TEST_CHECK(sentry_value_is_null(
             sentry_value_get_by_key(local_attributes, "test_key")));
 
@@ -1201,7 +1201,7 @@ SENTRY_TEST(scope_local_attributes)
         sentry_value_t invalid_attr = sentry_value_new_object();
         sentry_value_set_by_key(
             invalid_attr, "type", sentry_value_new_string("string"));
-        sentry__scope_set_attribute(local_scope, "invalid", invalid_attr);
+        sentry_scope_set_attribute(local_scope, "invalid", invalid_attr);
 
         sentry_value_t local_attributes = local_scope->attributes;
         TEST_CHECK(sentry_value_is_null(
@@ -1288,7 +1288,7 @@ SENTRY_TEST(scope_clone_preserves_data)
         scope, "extra_key", sentry_value_new_string("extra_value"));
     sentry_scope_set_fingerprint(scope, "fp1", "fp2", NULL);
     sentry_scope_set_level(scope, SENTRY_LEVEL_WARNING);
-    sentry__scope_set_attribute(scope, "attr_key",
+    sentry_scope_set_attribute(scope, "attr_key",
         sentry_value_new_attribute(
             sentry_value_new_string("attr_value"), NULL));
     sentry_scope_add_breadcrumb(

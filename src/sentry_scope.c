@@ -609,14 +609,15 @@ sentry_scope_set_extra_n(sentry_scope_t *scope, const char *key, size_t key_len,
 }
 
 void
-sentry__scope_set_attribute(
+sentry_scope_set_attribute(
     sentry_scope_t *scope, const char *key, sentry_value_t attribute)
 {
-    sentry__scope_set_attribute_n(scope, key, strlen(key), attribute);
+    sentry_scope_set_attribute_n(
+        scope, key, sentry__guarded_strlen(key), attribute);
 }
 
 void
-sentry__scope_set_attribute_n(sentry_scope_t *scope, const char *key,
+sentry_scope_set_attribute_n(sentry_scope_t *scope, const char *key,
     size_t key_len, sentry_value_t attribute)
 {
     if (sentry_value_is_null(sentry_value_get_by_key(attribute, "value"))
@@ -628,13 +629,13 @@ sentry__scope_set_attribute_n(sentry_scope_t *scope, const char *key,
 }
 
 void
-sentry__scope_remove_attribute(sentry_scope_t *scope, const char *key)
+sentry_scope_remove_attribute(sentry_scope_t *scope, const char *key)
 {
     sentry_value_remove_by_key(scope->attributes, key);
 }
 
 void
-sentry__scope_remove_attribute_n(
+sentry_scope_remove_attribute_n(
     sentry_scope_t *scope, const char *key, size_t key_len)
 {
     sentry_value_remove_by_key_n(scope->attributes, key, key_len);
