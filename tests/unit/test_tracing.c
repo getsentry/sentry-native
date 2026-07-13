@@ -979,7 +979,8 @@ SENTRY_TEST(discard_span)
         TEST_CHECK(scope->span == NULL);
     }
     TEST_CHECK_INT_EQUAL(
-        sentry_value_get_length(sentry_value_get_by_key(tx->inner, "spans")), 0);
+        sentry_value_get_length(sentry_value_get_by_key(tx->inner, "spans")),
+        0);
 
     sentry_uuid_t event_id = sentry_transaction_finish(tx);
     TEST_CHECK(!sentry_uuid_is_nil(&event_id));
