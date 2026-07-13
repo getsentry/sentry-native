@@ -597,6 +597,12 @@ read_stack_value(const uint8_t *stack_buf, uint64_t stack_start,
     return true;
 }
 
+#if defined(SENTRY_PLATFORM_MACOS) && defined(__aarch64__)
+#    define SENTRY__STRIP_PAC(addr) ((addr) & 0x00007FFFFFFFFFFFULL)
+#else
+#    define SENTRY__STRIP_PAC(addr) (addr)
+#endif
+
 /**
  * Check if an address looks like a valid code pointer.
  * Basic sanity check to avoid garbage in the stacktrace.
@@ -716,9 +722,9 @@ build_stacktrace_for_thread(
     fp = ctx->platform.mcontext.__ss.__rbp;
     sp = ctx->platform.mcontext.__ss.__rsp;
 #    elif defined(__aarch64__)
-    ip = SENTRY__ARM64_GET_PC(ctx->platform.mcontext.__ss);
-    fp = SENTRY__ARM64_GET_FP(ctx->platform.mcontext.__ss);
-    sp = SENTRY__ARM64_GET_SP(ctx->platform.mcontext.__ss);
+    ip = SENTRY__STRIP_PAC(SENTRY__ARM64_GET_PC(ctx->platform.mcontext.__ss));
+    fp = SENTRY__STRIP_PAC(SENTRY__ARM64_GET_FP(ctx->platform.mcontext.__ss));
+    sp = SENTRY__STRIP_PAC(SENTRY__ARM64_GET_SP(ctx->platform.mcontext.__ss));
 #    endif
 #elif defined(SENTRY_PLATFORM_WINDOWS)
     // Use thread-specific context, defaulting to crashed thread
@@ -785,9 +791,9 @@ build_stacktrace_for_thread(
         fp = thread->state.__ss.__rbp;
         sp = thread->state.__ss.__rsp;
 #    elif defined(__aarch64__)
-        ip = SENTRY__ARM64_GET_PC(thread->state.__ss);
-        fp = SENTRY__ARM64_GET_FP(thread->state.__ss);
-        sp = SENTRY__ARM64_GET_SP(thread->state.__ss);
+        ip = SENTRY__STRIP_PAC(SENTRY__ARM64_GET_PC(thread->state.__ss));
+        fp = SENTRY__STRIP_PAC(SENTRY__ARM64_GET_FP(thread->state.__ss));
+        sp = SENTRY__STRIP_PAC(SENTRY__ARM64_GET_SP(thread->state.__ss));
 #    endif
 
         SENTRY_DEBUGF("Thread %zu: IP=0x%llx FP=0x%llx SP=0x%llx", idx,
@@ -1128,6 +1134,8 @@ build_stacktrace_for_thread(
                     (unsigned long long)(current_fp + sizeof(uint64_t)));
                 break;
             }
+            saved_fp = SENTRY__STRIP_PAC(saved_fp);
+            return_addr = SENTRY__STRIP_PAC(return_addr);
 
             SENTRY_DEBUGF("Frame %d: FP=0x%llx saved_fp=0x%llx ret=0x%llx",
                 walk_count, (unsigned long long)current_fp,
