@@ -158,7 +158,7 @@ main(int argc, char **argv)
     }
 
     sentry_options_t *options = sentry_options_new();
-    sentry_options_set_debug(options, markdown ? 0 : 1);
+    sentry_options_set_debug(options, 0);
     if (sentry_init(options) != 0) {
         return 1;
     }

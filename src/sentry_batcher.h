@@ -51,6 +51,12 @@ typedef struct {
     sentry_threadid_t batching_thread; // the batching thread
     sentry_batch_func_t batch_func; // function to add items to envelope
     sentry_data_category_t data_category; // for client report discard tracking
+    uint64_t timing_batch_count;
+    uint64_t timing_item_count;
+    uint64_t timing_drain_us;
+    uint64_t timing_list_us;
+    uint64_t timing_serialize_us;
+    uint64_t timing_transport_us;
     sentry_dsn_t *dsn;
     sentry_transport_t *transport;
     sentry_run_t *run;

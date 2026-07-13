@@ -5,7 +5,7 @@ GIT_COMMON_DIR := $(shell git rev-parse --git-common-dir)
 VENV_BIN = $(if $(filter Windows_NT,$(OS)),.venv/Scripts,.venv/bin)
 LOGGER_SENTRY_BACKEND ?= $(or $(SENTRY_BACKEND),none)
 LOGGER_SENTRY_TRANSPORT ?= $(or $(SENTRY_TRANSPORT),none)
-LOGGER_SENTRY_BUFFERS ?= $(or $(SENTRY_BATCHER_BUFFERS),2)
+SENTRY_BATCHER_BUFFERS ?= 2
 
 update-test-discovery:
 	@perl -ne 'print if s/SENTRY_TEST\(([^)]+)\).*/XX(\1)/' tests/unit/*.c | LC_ALL=C sort | grep -v define | uniq > tests/unit/tests.inc
@@ -55,7 +55,7 @@ benchmark: setup-venv
 	$(VENV_BIN)/pytest tests/benchmark.py --verbose
 .PHONY: benchmark
 
-LOGGER_BUILD_STAMP = logger-build/.stamp-$(LOGGER_SENTRY_BACKEND)-$(LOGGER_SENTRY_TRANSPORT)-$(LOGGER_SENTRY_BUFFERS)
+LOGGER_BUILD_STAMP = logger-build/.stamp-$(LOGGER_SENTRY_BACKEND)-$(LOGGER_SENTRY_TRANSPORT)-$(SENTRY_BATCHER_BUFFERS)
 
 ifneq ($(filter test-logger,$(firstword $(MAKECMDGOALS))),)
 LOGGER_ARGS ?= $(wordlist 2,$(words $(MAKECMDGOALS)),$(MAKECMDGOALS))
@@ -69,7 +69,7 @@ $(LOGGER_BUILD_STAMP): CMakeLists.txt tests/logs/logger.cpp
 		-DCMAKE_RUNTIME_OUTPUT_DIRECTORY=$(PWD)/logger-build \
 		-DSENTRY_BACKEND=$(LOGGER_SENTRY_BACKEND) \
 		-DSENTRY_TRANSPORT=$(LOGGER_SENTRY_TRANSPORT) \
-		-DSENTRY_BATCHER_BUFFERS=$(LOGGER_SENTRY_BUFFERS) \
+		-DSENTRY_BATCHER_BUFFERS=$(SENTRY_BATCHER_BUFFERS) \
 		-DSENTRY_BUILD_EXAMPLES=ON \
 		..
 	@touch $@

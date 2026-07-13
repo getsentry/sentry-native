@@ -3,6 +3,7 @@
 #include "sentry_cpu_relax.h"
 #include "sentry_options.h"
 #include "sentry_utils.h"
+#include <stdio.h>
 
 // The batcher thread sleeps for this interval between flush cycles.
 // When the timer fires and there are items in the buffer, they are flushed
@@ -128,6 +129,13 @@ crash_safe_sleep_ms(uint64_t delay_ms)
     }
 }
 
+static uint64_t
+elapsed_usec(uint64_t start)
+{
+    const uint64_t end = sentry__usec_time();
+    return end >= start ? end - start : 0;
+}
+
 // Checks whether the currently active buffer can be rotated. Producers do
 // this when adding the last log so the batching thread cannot miss the flush
 // trigger while it is actively flushing another buffer. Since both producers
@@ -160,6 +168,7 @@ try_rotate_active_buffer(sentry_batcher_t *batcher, long old_idx)
 static void
 drain_buffer(sentry_batcher_t *batcher, long buf_idx, bool crash_safe)
 {
+    const uint64_t drain_started = sentry__usec_time();
     sentry_batcher_buffer_t *buf = &batcher->buffers[buf_idx];
 
     // Wait for all in-flight producers of the old buffer.
@@ -174,17 +183,22 @@ drain_buffer(sentry_batcher_t *batcher, long buf_idx, bool crash_safe)
 
     if (n > 0) {
         // Now we can do the actual batching of the old buffer.
+        const uint64_t list_started = sentry__usec_time();
         sentry_value_t logs = sentry_value_new_object();
         sentry_value_t log_items = sentry_value_new_list();
         for (long i = 0; i < n; i++) {
             sentry_value_append(log_items, buf->items[i]);
         }
         sentry_value_set_by_key(logs, "items", log_items);
+        batcher->timing_list_us += elapsed_usec(list_started);
 
         sentry_envelope_t *envelope
             = sentry__envelope_new_with_dsn(batcher->dsn);
+        const uint64_t serialize_started = sentry__usec_time();
         batcher->batch_func(envelope, logs);
+        batcher->timing_serialize_us += elapsed_usec(serialize_started);
 
+        const uint64_t transport_started = sentry__usec_time();
         if (crash_safe) {
             // Write directly to disk to avoid transport queuing during
             // crash.
@@ -196,6 +210,9 @@ drain_buffer(sentry_batcher_t *batcher, long buf_idx, bool crash_safe)
         } else {
             sentry_envelope_free(envelope);
         }
+        batcher->timing_transport_us += elapsed_usec(transport_started);
+        batcher->timing_batch_count++;
+        batcher->timing_item_count += (uint64_t)n;
         sentry_value_decref(logs);
     }
 
@@ -204,6 +221,9 @@ drain_buffer(sentry_batcher_t *batcher, long buf_idx, bool crash_safe)
     sentry__atomic_store(&buf->sealed, 0);
     sentry__atomic_store(
         &batcher->drain_idx, (buf_idx + 1) % SENTRY_BATCHER_BUFFERS);
+    if (n > 0) {
+        batcher->timing_drain_us += elapsed_usec(drain_started);
+    }
 }
 
 static bool
@@ -466,6 +486,32 @@ sentry__batcher_shutdown(sentry_batcher_t *batcher, uint64_t timeout)
 
     // Perform final flush to ensure any remaining items are sent
     sentry__batcher_flush(batcher, false);
+
+    if (batcher->timing_batch_count > 0) {
+        const double batches = (double)batcher->timing_batch_count;
+        const uint64_t accounted_us = batcher->timing_list_us
+            + batcher->timing_serialize_us + batcher->timing_transport_us;
+        const uint64_t other_us = batcher->timing_drain_us >= accounted_us
+            ? batcher->timing_drain_us - accounted_us
+            : 0;
+        fprintf(stderr,
+            "[sentry] TIMING batcher: category=%d batches=%llu items=%llu "
+            "drain=%llu us (%.2f us/batch) list=%llu us (%.2f us/batch) "
+            "serialization=%llu us (%.2f us/batch) transport=%llu us "
+            "(%.2f us/batch) other=%llu us (%.2f us/batch)\n",
+            (int)batcher->data_category,
+            (unsigned long long)batcher->timing_batch_count,
+            (unsigned long long)batcher->timing_item_count,
+            (unsigned long long)batcher->timing_drain_us,
+            (double)batcher->timing_drain_us / batches,
+            (unsigned long long)batcher->timing_list_us,
+            (double)batcher->timing_list_us / batches,
+            (unsigned long long)batcher->timing_serialize_us,
+            (double)batcher->timing_serialize_us / batches,
+            (unsigned long long)batcher->timing_transport_us,
+            (double)batcher->timing_transport_us / batches,
+            (unsigned long long)other_us, (double)other_us / batches);
+    }
 }
 
 void
