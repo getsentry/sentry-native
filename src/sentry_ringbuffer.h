@@ -31,6 +31,13 @@ sentry_ringbuffer_t *sentry__ringbuffer_new(size_t max_size);
 void sentry__ringbuffer_free(sentry_ringbuffer_t *rb);
 
 /**
+ * Create a copy of a ringbuffer with the same contents and ring state.
+ * The contained values are shared by reference, like `sentry__value_clone`.
+ * Returns a pointer to the ringbuffer on success, NULL on failure.
+ */
+sentry_ringbuffer_t *sentry__ringbuffer_clone(const sentry_ringbuffer_t *rb);
+
+/**
  * Append a sentry_value_t to the ringbuffer.
  * If the ringbuffer is full, the oldest value will be overwritten.
  * Returns 0 on success.
