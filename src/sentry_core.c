@@ -699,7 +699,9 @@ sentry__prepare_event(const sentry_options_t *options, sentry_value_t event,
         sentry_scope_mode_t mode = SENTRY_SCOPE_BREADCRUMBS;
         sentry__scope_apply_to_event(local_scope, options, event, mode);
         sentry__attachments_extend(&all_attachments, local_scope->attachments);
-        sentry__scope_free(local_scope);
+        if (local_scope->one_shot) {
+            sentry_scope_free(local_scope);
+        }
     }
 
     SENTRY_WITH_SCOPE (scope) {

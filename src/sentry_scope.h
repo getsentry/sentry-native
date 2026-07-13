@@ -39,6 +39,10 @@ struct sentry_scope_s {
     sentry_transaction_t *transaction_object;
     sentry_span_t *span;
     bool trace_managed;
+
+    // Whether this scope is single-use. A capture function frees a one-shot
+    // scope after applying it.
+    bool one_shot;
 };
 
 /**
@@ -78,11 +82,6 @@ void sentry__scope_cleanup(void);
  * unlocked internally.
  */
 void sentry__scope_flush_unlock(void);
-
-/**
- * Deallocates a (local) scope.
- */
-void sentry__scope_free(sentry_scope_t *scope);
 
 /**
  * This will merge the requested data which is in the given `scope` to the given
