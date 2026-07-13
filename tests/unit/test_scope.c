@@ -1211,6 +1211,48 @@ SENTRY_TEST(scope_local_attributes)
     sentry_close();
 }
 
+SENTRY_TEST(scope_set_attribute_invalid_decref_value)
+{
+    // an attribute missing 'value' or 'type' is rejected and decrefed
+    sentry_scope_t *scope = sentry_scope_new();
+
+    sentry_value_t no_value = sentry_value_new_object();
+    sentry_value_set_by_key(
+        no_value, "type", sentry_value_new_string("string"));
+    sentry_value_incref(no_value);
+    sentry_scope_set_attribute_n(scope, "no_value", 8, no_value);
+    TEST_CHECK_INT_EQUAL(sentry_value_refcount(no_value), 1);
+    sentry_value_decref(no_value);
+
+    sentry_value_t no_type = sentry_value_new_object();
+    sentry_value_set_by_key(no_type, "value", sentry_value_new_string("v"));
+    sentry_value_incref(no_type);
+    sentry_scope_set_attribute_n(scope, "no_type", 7, no_type);
+    TEST_CHECK_INT_EQUAL(sentry_value_refcount(no_type), 1);
+    sentry_value_decref(no_type);
+
+    TEST_CHECK_INT_EQUAL(sentry_value_get_length(scope->attributes), 0);
+
+    sentry_scope_free(scope);
+}
+
+SENTRY_TEST(scope_set_attribute_null_key_decref_value)
+{
+    // an attribute set under a NULL key is rejected and decrefed
+    sentry_scope_t *scope = sentry_scope_new();
+
+    sentry_value_t v
+        = sentry_value_new_attribute(sentry_value_new_int32(1), NULL);
+    sentry_value_incref(v);
+    sentry_scope_set_attribute(scope, NULL, v);
+    TEST_CHECK_INT_EQUAL(sentry_value_refcount(v), 1);
+    sentry_value_decref(v);
+
+    TEST_CHECK_INT_EQUAL(sentry_value_get_length(scope->attributes), 0);
+
+    sentry_scope_free(scope);
+}
+
 SENTRY_TEST(scope_ownership)
 {
     // `sentry_local_scope_new` makes a one-shot scope, `sentry_scope_new` does
