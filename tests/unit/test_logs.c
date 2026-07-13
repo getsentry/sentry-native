@@ -536,8 +536,7 @@ SENTRY_TEST(logs_span_trace_attributes)
         sentry_log(SENTRY_LEVEL_INFO, "honk", sentry_value_new_null()),
         SENTRY_LOG_RETURN_SUCCESS);
 
-    // scope's span gives log its trace, taking precedence over the propagation
-    // context
+    // scope's trace takes precedence over propagation context
     sentry_value_t attrs = sentry_value_get_by_key(captured_log, "attributes");
     sentry_value_t parent_span_id
         = sentry_value_get_by_key(attrs, "sentry.trace.parent_span_id");
