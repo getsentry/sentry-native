@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1783944904389,
+  "lastUpdate": 1783944909245,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -85456,6 +85456,126 @@ window.BENCHMARK_DATA = {
             "value": 0.1207456999999863,
             "unit": "ms",
             "extra": "Min 0.121ms\nMax 0.121ms\nMean 0.121ms\nMedian 0.121ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "tustanivsky@gmail.com",
+            "name": "Ivan Tustanivskyi",
+            "username": "tustanivsky"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "8c10a3545cc79ce2813c9b354d2f0915479786d5",
+          "message": "fix(native): resolve symbol names in crash stacktraces on macOS (#1856)\n\n* fix(native): resolve symbol names in crash stacktraces on macOS\n\nThe crash daemon had no symbol resolution on macOS: the ELF resolver\ncovers Linux/Android only and the dbghelp path is Windows-only, so\nframes carried bare instruction addresses and the external crash\nreporter displayed unreadable stacks.\n\nResolve names from the Mach-O symbol table of the containing module\n(fat/universal-aware, scanned in fixed-size chunks and cached per\nmodule). Since nlist entries carry no size, matches are bounded by\nLC_FUNCTION_STARTS - only a symbol placed exactly at the containing\nfunction's entry is accepted, so addresses in symbol-table gaps stay\nunresolved instead of being attributed to neighboring functions. Files\nare validated by LC_UUID equality with the loaded image, and stripped\nmodules fall back to the dSYM companion (checked both next to the\nbinary and next to the enclosing .app bundle), validated the same way.\n\n* Update changelog\n\n* fix: mark dSYM resolution failure after the candidate loop\n\nmacho_locate_symtab zeroes the whole macho_sym_info_t, so the state set\nat function entry was wiped by the first candidate probe. When no usable\ncompanion was found the slot stayed at 0 (\"unresolved\") and the dSYM\nsearch re-ran for every frame in the module instead of once.\n\n* chore(ci): enable stacktrace symbolication integration tests on Linux and macOS\n\n* fix: strip PAC bits from frame addresses on arm64e\n\nOn arm64e the kernel signs the pointer registers in the delivered thread state and return addresses on the stack are signed by pacibsp. The signature bits sit above the 47-bit macOS user address space, so signed addresses failed the module bounds check and no frame could be matched to a module or resolved to a symbol name.\n\nStrip the non-address bits from ip/fp/sp taken from the thread state and from values read off the stack during the frame-pointer walk. On plain arm64 user-space addresses fit in 47 bits, so the mask is a no-op.",
+          "timestamp": "2026-07-13T15:08:12+03:00",
+          "tree_id": "b1a733db6b56ae123600804604a119929fffa9c9",
+          "url": "https://github.com/getsentry/sentry-native/commit/8c10a3545cc79ce2813c9b354d2f0915479786d5"
+        },
+        "date": 1783944898201,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 185.8493999999382,
+            "unit": "ms",
+            "extra": "Min 154.129ms\nMax 241.861ms\nMean 186.065ms\nStdDev 34.492ms\nMedian 185.849ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 10.646899999983361,
+            "unit": "ms",
+            "extra": "Min 10.416ms\nMax 10.712ms\nMean 10.594ms\nStdDev 0.117ms\nMedian 10.647ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 28.171700000029887,
+            "unit": "ms",
+            "extra": "Min 27.772ms\nMax 28.332ms\nMean 28.132ms\nStdDev 0.214ms\nMedian 28.172ms"
+          },
+          {
+            "name": "SDK init (native)",
+            "value": 32.02890000000025,
+            "unit": "ms",
+            "extra": "Min 31.603ms\nMax 35.294ms\nMean 32.983ms\nStdDev 1.661ms\nMedian 32.029ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.21519999995689432,
+            "unit": "ms",
+            "extra": "Min 0.197ms\nMax 0.233ms\nMean 0.214ms\nStdDev 0.015ms\nMedian 0.215ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.42729999995572143,
+            "unit": "ms",
+            "extra": "Min 0.410ms\nMax 0.469ms\nMean 0.434ms\nStdDev 0.022ms\nMedian 0.427ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 15.481399999998757,
+            "unit": "ms",
+            "extra": "Min 15.032ms\nMax 16.908ms\nMean 15.671ms\nStdDev 0.720ms\nMedian 15.481ms"
+          },
+          {
+            "name": "Backend startup (native)",
+            "value": 21.06380000009267,
+            "unit": "ms",
+            "extra": "Min 19.503ms\nMax 24.534ms\nMean 21.965ms\nStdDev 2.397ms\nMedian 21.064ms"
+          },
+          {
+            "name": "Scope set_tag (inproc)",
+            "value": 0.0072093999999651714,
+            "unit": "ms",
+            "extra": "Min 0.007ms\nMax 0.007ms\nMean 0.007ms\nMedian 0.007ms"
+          },
+          {
+            "name": "Scope add_breadcrumb (inproc)",
+            "value": 0.001241999999933796,
+            "unit": "ms",
+            "extra": "Min 0.001ms\nMax 0.001ms\nMean 0.001ms\nMedian 0.001ms"
+          },
+          {
+            "name": "Scope set_tag (breakpad)",
+            "value": 0.0072578000000476095,
+            "unit": "ms",
+            "extra": "Min 0.007ms\nMax 0.007ms\nMean 0.007ms\nMedian 0.007ms"
+          },
+          {
+            "name": "Scope add_breadcrumb (breakpad)",
+            "value": 0.0011683000000175525,
+            "unit": "ms",
+            "extra": "Min 0.001ms\nMax 0.001ms\nMean 0.001ms\nMedian 0.001ms"
+          },
+          {
+            "name": "Scope set_tag (crashpad)",
+            "value": 3.5389052000000447,
+            "unit": "ms",
+            "extra": "Min 3.539ms\nMax 3.539ms\nMean 3.539ms\nMedian 3.539ms"
+          },
+          {
+            "name": "Scope add_breadcrumb (crashpad)",
+            "value": 0.15326649999997244,
+            "unit": "ms",
+            "extra": "Min 0.153ms\nMax 0.153ms\nMean 0.153ms\nMedian 0.153ms"
+          },
+          {
+            "name": "Scope set_tag (native)",
+            "value": 2.814873499999976,
+            "unit": "ms",
+            "extra": "Min 2.815ms\nMax 2.815ms\nMean 2.815ms\nMedian 2.815ms"
+          },
+          {
+            "name": "Scope add_breadcrumb (native)",
+            "value": 0.15194359999998142,
+            "unit": "ms",
+            "extra": "Min 0.152ms\nMax 0.152ms\nMean 0.152ms\nMedian 0.152ms"
           }
         ]
       }
