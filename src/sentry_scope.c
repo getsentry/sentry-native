@@ -193,6 +193,14 @@ sentry_scope_free(sentry_scope_t *scope)
     sentry_free(scope);
 }
 
+void
+sentry__scope_free_one_shot(sentry_scope_t *scope)
+{
+    if (scope && scope->one_shot) {
+        sentry_scope_free(scope);
+    }
+}
+
 sentry_scope_t *
 sentry_local_scope_new(void)
 {

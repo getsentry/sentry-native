@@ -77,6 +77,11 @@ void sentry__scope_unlock(void);
 void sentry__scope_cleanup(void);
 
 /**
+ * Frees the scope if it is a one-shot local scope.
+ */
+void sentry__scope_free_one_shot(sentry_scope_t *scope);
+
+/**
  * This will notify any backend of scope changes.
  * This function must be called while holding the scope lock, and it will be
  * unlocked internally.

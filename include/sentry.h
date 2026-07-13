@@ -2695,6 +2695,22 @@ SENTRY_EXPERIMENTAL_API log_return_value_t sentry_log(
     sentry_level_t level, const char *body, sentry_value_t attributes);
 
 /**
+ * Sends a structured log against a scope.
+ *
+ * Behaves like `sentry_log`, except the log also carries the attributes and
+ * trace of `scope`, layered on top of the global scope. An attribute set in
+ * more than one place resolves to the most specific: `attributes` > `scope` >
+ * global scope.
+ *
+ * Scope ownership works as in `sentry_capture_event_with_scope`: a local scope
+ * is freed by this function, a user-owned one is not. Pass `NULL` to apply the
+ * global scope only.
+ */
+SENTRY_EXPERIMENTAL_API log_return_value_t sentry_scope_capture_log(
+    sentry_scope_t *scope, sentry_level_t level, const char *body,
+    sentry_value_t attributes);
+
+/**
  * Type of the `before_send_log` callback.
  *
  * The callback takes ownership of the `log` and should usually return
