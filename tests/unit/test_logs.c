@@ -1,6 +1,7 @@
 #include "sentry_logs.h"
 #include "sentry_sync.h"
 #include "sentry_testsupport.h"
+#include "sentry_tracing.h"
 
 #include "sentry_envelope.h"
 #include <string.h>
@@ -511,6 +512,48 @@ SENTRY_TEST(logs_plain_string)
     sentry_close();
 
     TEST_CHECK(!validation_data.has_validation_error);
+}
+
+SENTRY_TEST(logs_span_trace_attributes)
+{
+    sentry_value_t captured_log = sentry_value_new_null();
+
+    SENTRY_TEST_OPTIONS_NEW(options);
+    sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
+    sentry_options_set_before_send_log(
+        options, capture_log_before_send, &captured_log);
+
+    sentry_init(options);
+    sentry__logs_wait_for_thread_startup();
+
+    sentry_transaction_context_t *tx_ctx
+        = sentry_transaction_context_new("honk", "goose");
+    sentry_transaction_t *tx
+        = sentry_transaction_start(tx_ctx, sentry_value_new_null());
+    sentry_set_transaction_object(tx);
+
+    TEST_CHECK_INT_EQUAL(
+        sentry_log(SENTRY_LEVEL_INFO, "honk", sentry_value_new_null()),
+        SENTRY_LOG_RETURN_SUCCESS);
+
+    // scope's span gives log its trace, taking precedence over the propagation
+    // context
+    sentry_value_t attrs = sentry_value_get_by_key(captured_log, "attributes");
+    sentry_value_t parent_span_id
+        = sentry_value_get_by_key(attrs, "sentry.trace.parent_span_id");
+    TEST_CHECK_STRING_EQUAL(
+        sentry_value_as_string(sentry_value_get_by_key(parent_span_id, "type")),
+        "string");
+    TEST_CHECK_STRING_EQUAL(sentry_value_as_string(sentry_value_get_by_key(
+                                parent_span_id, "value")),
+        sentry_value_as_string(sentry_value_get_by_key(tx->inner, "span_id")));
+    TEST_CHECK_STRING_EQUAL(sentry_value_as_string(sentry_value_get_by_key(
+                                captured_log, "trace_id")),
+        sentry_value_as_string(sentry_value_get_by_key(tx->inner, "trace_id")));
+
+    sentry_value_decref(captured_log);
+    sentry__transaction_decref(tx);
+    sentry_close();
 }
 
 SENTRY_TEST(logs_plain_string_disabled)
