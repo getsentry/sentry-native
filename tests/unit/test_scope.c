@@ -1373,6 +1373,7 @@ SENTRY_TEST(scope_capture_user_owned)
     uint64_t called = 0;
     SENTRY_TEST_OPTIONS_NEW(options);
     sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
+    sentry_options_set_auto_session_tracking(options, false);
     sentry_transport_t *transport = sentry_transport_new(send_envelope_count);
     sentry_transport_set_state(transport, &called);
     sentry_options_set_transport(options, transport);
