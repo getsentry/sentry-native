@@ -3,6 +3,9 @@ all: test
 GIT_COMMON_DIR := $(shell git rev-parse --git-common-dir)
 
 VENV_BIN = $(if $(filter Windows_NT,$(OS)),.venv/Scripts,.venv/bin)
+LOGGER_SENTRY_BACKEND ?= $(or $(SENTRY_BACKEND),none)
+LOGGER_SENTRY_TRANSPORT ?= $(or $(SENTRY_TRANSPORT),none)
+LOGGER_SENTRY_BUFFERS ?= $(or $(SENTRY_BATCHER_BUFFERS),2)
 
 update-test-discovery:
 	@perl -ne 'print if s/SENTRY_TEST\(([^)]+)\).*/XX(\1)/' tests/unit/*.c | LC_ALL=C sort | grep -v define | uniq > tests/unit/tests.inc
@@ -51,6 +54,30 @@ test-leaks: update-test-discovery CMakeLists.txt
 benchmark: setup-venv
 	$(VENV_BIN)/pytest tests/benchmark.py --verbose
 .PHONY: benchmark
+
+LOGGER_BUILD_STAMP = logger-build/.stamp-$(LOGGER_SENTRY_BACKEND)-$(LOGGER_SENTRY_TRANSPORT)-$(LOGGER_SENTRY_BUFFERS)
+
+ifneq ($(filter test-logger,$(firstword $(MAKECMDGOALS))),)
+LOGGER_ARGS ?= $(wordlist 2,$(words $(MAKECMDGOALS)),$(MAKECMDGOALS))
+$(LOGGER_ARGS):
+	@:
+endif
+
+$(LOGGER_BUILD_STAMP): CMakeLists.txt tests/logs/logger.cpp
+	@mkdir -p logger-build
+	@cd logger-build; cmake \
+		-DCMAKE_RUNTIME_OUTPUT_DIRECTORY=$(PWD)/logger-build \
+		-DSENTRY_BACKEND=$(LOGGER_SENTRY_BACKEND) \
+		-DSENTRY_TRANSPORT=$(LOGGER_SENTRY_TRANSPORT) \
+		-DSENTRY_BATCHER_BUFFERS=$(LOGGER_SENTRY_BUFFERS) \
+		-DSENTRY_BUILD_EXAMPLES=ON \
+		..
+	@touch $@
+
+test-logger: $(LOGGER_BUILD_STAMP)
+	@cmake --build logger-build --target sentry_logger --parallel --config RelWithDebInfo
+	@./logger-build/sentry_logger $(LOGGER_ARGS)
+.PHONY: test-logger
 
 clean: build/Makefile
 	@$(MAKE) -C build clean
