@@ -2695,7 +2695,7 @@ SENTRY_EXPERIMENTAL_API log_return_value_t sentry_log(
     sentry_level_t level, const char *body, sentry_value_t attributes);
 
 /**
- * Sends a structured log against a scope.
+ * Sends a structured log with a scope.
  *
  * Behaves like `sentry_log`, except the log also carries the attributes and
  * trace of `scope`, layered on top of the global scope. An attribute set in
