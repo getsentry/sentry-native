@@ -322,10 +322,25 @@ sentry__session_replay_capture_staged(
         return false;
     }
 
+    // End the capture window at the crash time so the buffered footage
+    // leading up to the fault is covered even when the crash handler runs
+    // for a while before capturing.
+    uint64_t end_ts_ms = 0;
+    sentry_value_t ts_val = sentry_value_get_by_key(crash_event, "timestamp");
+    const char *ts_str = sentry_value_as_string(ts_val);
+    if (ts_str && ts_str[0]) {
+        end_ts_ms = sentry__iso8601_to_usec(ts_str) / 1000;
+    } else {
+        double ts_sec = sentry_value_as_double(ts_val);
+        if (ts_sec > 0.0) {
+            end_ts_ms = (uint64_t)(ts_sec * 1000.0);
+        }
+    }
+
     bool rv = false;
     sentry_session_replay_info_t info = { 0 };
-    if (sentry__session_replay_capture(
-            mp4_path, options->session_replay_duration, pid, &info)) {
+    if (sentry__session_replay_capture(mp4_path,
+            options->session_replay_duration, pid, end_ts_ms, &info)) {
         sentry_value_t meta = sentry_value_new_object();
         sentry_value_set_by_key(
             meta, "replayId", sentry_value_new_string(replay_id));
@@ -335,7 +350,9 @@ sentry__session_replay_capture_staged(
         sentry_value_set_by_key(meta, "durationMs",
             sentry_value_new_double((double)info.duration_ms));
         sentry_value_set_by_key(meta, "endTimestampSec",
-            sentry_value_new_double((double)sentry__usec_time() / 1000000.0));
+            sentry_value_new_double(end_ts_ms
+                    ? (double)end_ts_ms / 1000.0
+                    : (double)sentry__usec_time() / 1000000.0));
         sentry_value_set_by_key(meta, "sizeBytes",
             sentry_value_new_double((double)info.size_bytes));
         sentry_value_set_by_key(

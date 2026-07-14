@@ -26,12 +26,17 @@ typedef struct sentry_session_replay_info_s {
  * @param duration_ms The requested duration in milliseconds.
  * @param pid The process ID whose output should be captured (0 = current
  * process).
+ * @param end_ts_ms Unix timestamp (ms) at which the capture window ends,
+ * typically the crash time (0 = now). Crash handling can run for a while
+ * before the capture, while the crashed process stopped rendering at the
+ * fault, so anchoring the window at "now" would miss most of the footage.
  * @param info Filled with the clip's metadata on success.
  *
  * Returns true if the replay was successfully captured and saved.
  */
 bool sentry__session_replay_capture(const sentry_path_t *path,
-    uint32_t duration_ms, uint32_t pid, sentry_session_replay_info_t *info);
+    uint32_t duration_ms, uint32_t pid, uint64_t end_ts_ms,
+    sentry_session_replay_info_t *info);
 
 /**
  * Captures a replay clip for the crash described by `crash_event` and stages
