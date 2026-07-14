@@ -17,17 +17,40 @@ fi
 # frames workers logs/thread task-burst engine-burst burst-every burst-frames
 read -r frames workers logs_per_thread task_burst engine_burst burst_every \
     burst_frames <<<"120 128 2 16 512 30 8"
-runs=10
+runs=5
+
+total_threads=$(( workers + 1 ))
+task_frames_per_cycle=$burst_frames
+if (( task_frames_per_cycle > burst_every )); then
+    task_frames_per_cycle=$burst_every
+fi
+full_cycles=$(( frames / burst_every ))
+remaining_frames=$(( frames % burst_every ))
+remaining_burst_frames=$remaining_frames
+if (( remaining_burst_frames > task_frames_per_cycle )); then
+    remaining_burst_frames=$task_frames_per_cycle
+fi
+task_burst_frames=$((
+    full_cycles * task_frames_per_cycle + remaining_burst_frames
+))
+engine_transitions=$(( (frames + burst_every - 1) / burst_every ))
+total_logs=$((
+    frames * total_threads * logs_per_thread
+    + task_burst_frames * total_threads * task_burst
+    + engine_transitions * engine_burst
+))
 
 failure_rate() {
     awk -v failures="$1" -v total="$2" \
         'BEGIN { printf "%.1f", failures * 100.0 / total }'
 }
 
-printf 'Workload: 120 frames, 129 producers, 2 base logs/producer/frame, +16 for 8/30 transition frames, and 512 engine logs/transition. Median of 10 runs.\n\n'
-printf '| %-7s | %-6s | %-8s | %-14s | %-12s |\n' \
-    Buffers Size Capacity 'Median' 'Min-Max'
-printf '|---------|--------|----------|----------------|--------------|\n'
+printf 'Workload: %d logs over %d frames from 1+%d threads. Every thread sends %d logs per frame; for %d frames every %d frames, every thread sends %d additional logs, and the main thread sends a %d-log engine burst at the start.\n\n' \
+    "$total_logs" "$frames" "$workers" "$logs_per_thread" "$burst_frames" \
+    "$burst_every" "$task_burst" "$engine_burst"
+printf '| %-7s | %-6s | %-8s | %-16s | %-12s |\n' \
+    Buffers Size Capacity "Median ($runs)" 'Min-Max'
+printf '|---------|--------|----------|------------------|--------------|\n'
 
 for buffer_config in "${buffer_configs[@]}"; do
     if [[ "$buffer_config" == *x* ]]; then
@@ -82,14 +105,30 @@ for buffer_config in "${buffer_configs[@]}"; do
     done
 
     sorted_failures=($(printf '%s\n' "${failures[@]}" | sort -n))
+    result_count="${#sorted_failures[@]}"
     minimum="${sorted_failures[0]}"
-    median="${sorted_failures[1]}"
-    maximum="${sorted_failures[2]}"
+    maximum="${sorted_failures[$(( result_count - 1 ))]}"
+    if (( result_count % 2 == 0 )); then
+        lower="${sorted_failures[$(( result_count / 2 - 1 ))]}"
+        upper="${sorted_failures[$(( result_count / 2 ))]}"
+        median="$(awk -v lower="$lower" -v upper="$upper" '
+            BEGIN {
+                median = (lower + upper) / 2
+                if (median == int(median)) {
+                    printf "%d", median
+                } else {
+                    printf "%.1f", median
+                }
+            }
+        ')"
+    else
+        median="${sorted_failures[$(( result_count / 2 ))]}"
+    fi
     median_label="$median ($(failure_rate "$median" "$total")%)"
     range_label="$(failure_rate "$minimum" "$total")%-$(failure_rate "$maximum" "$total")%"
     capacity=$(( buffer_count * buffer_size ))
 
-    printf '| %-7d | %-6d | %-8d | %-14s | %-12s |\n' \
+    printf '| %-7d | %-6d | %-8d | %-16s | %-12s |\n' \
         "$buffer_count" "$buffer_size" "$capacity" "$median_label" \
         "$range_label"
 done
