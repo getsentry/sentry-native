@@ -108,14 +108,24 @@ typedef enum {
 } sentry_scope_mode_t;
 
 /**
- * This will acquire a lock on the global scope.
+ * This will acquire a read lock on the global scope.
  */
-sentry_scope_t *sentry__scope_lock(void);
+const sentry_scope_t *sentry__scope_read_lock(void);
 
 /**
- * Release the lock on the global scope.
+ * Release the read lock on the global scope.
  */
-void sentry__scope_unlock(void);
+void sentry__scope_read_unlock(void);
+
+/**
+ * This will acquire a write lock on the global scope.
+ */
+sentry_scope_t *sentry__scope_write_lock(void);
+
+/**
+ * Release the write lock on the global scope.
+ */
+void sentry__scope_write_unlock(void);
 
 /**
  * This will free all the data attached to the global scope
@@ -132,7 +142,7 @@ void sentry__scope_free_one_shot(sentry_scope_t *scope);
  * This function must be called while holding the scope lock, and it will be
  * unlocked internally.
  */
-void sentry__scope_flush_unlock(void);
+void sentry__scope_flush_write_unlock(void);
 
 /**
  * This will merge the requested data which is in the given `scope` to the given
@@ -157,14 +167,14 @@ sentry_attachment_t *sentry__scope_add_attachment(
  * inside a code block.
  */
 #define SENTRY_WITH_SCOPE(Scope)                                               \
-    for (const sentry_scope_t *Scope = sentry__scope_lock(); Scope;            \
-        sentry__scope_unlock(), Scope = NULL)
+    for (const sentry_scope_t *Scope = sentry__scope_read_lock(); Scope;       \
+        sentry__scope_read_unlock(), Scope = NULL)
 #define SENTRY_WITH_SCOPE_MUT(Scope)                                           \
-    for (sentry_scope_t *Scope = sentry__scope_lock(); Scope;                  \
-        sentry__scope_flush_unlock(), Scope = NULL)
+    for (sentry_scope_t *Scope = sentry__scope_write_lock(); Scope;            \
+        sentry__scope_flush_write_unlock(), Scope = NULL)
 #define SENTRY_WITH_SCOPE_MUT_NO_FLUSH(Scope)                                  \
-    for (sentry_scope_t *Scope = sentry__scope_lock(); Scope;                  \
-        sentry__scope_unlock(), Scope = NULL)
+    for (sentry_scope_t *Scope = sentry__scope_write_lock(); Scope;            \
+        sentry__scope_write_unlock(), Scope = NULL)
 
 /**
  * Allocate and zero-initialize a scope observer.

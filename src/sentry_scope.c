@@ -26,12 +26,9 @@
 #endif
 
 static bool g_scope_initialized = false;
+static bool g_scope_flush_pending = false;
 static sentry_scope_t g_scope = { 0 };
-#ifdef SENTRY__MUTEX_INIT_DYN
-SENTRY__MUTEX_INIT_DYN(g_lock)
-#else
-static sentry_mutex_t g_lock = SENTRY__MUTEX_INIT;
-#endif
+SENTRY__RWLOCK_INIT_DYN(g_lock)
 
 static sentry_value_t
 get_client_sdk(void)
@@ -144,43 +141,64 @@ cleanup_scope(sentry_scope_t *scope)
 void
 sentry__scope_cleanup(void)
 {
-    SENTRY__MUTEX_INIT_DYN_ONCE(g_lock);
-    sentry__mutex_lock(&g_lock);
+    SENTRY__RWLOCK_INIT_DYN_ONCE(g_lock);
+    sentry__rwlock_write_lock(&g_lock);
     if (g_scope_initialized) {
         g_scope_initialized = false;
+        g_scope_flush_pending = false;
         cleanup_scope(&g_scope);
     }
-    sentry__mutex_unlock(&g_lock);
+    sentry__rwlock_unlock(&g_lock);
 }
 
-sentry_scope_t *
-sentry__scope_lock(void)
+const sentry_scope_t *
+sentry__scope_read_lock(void)
 {
-    SENTRY__MUTEX_INIT_DYN_ONCE(g_lock);
-    sentry__mutex_lock(&g_lock);
-    return get_scope();
+    SENTRY__RWLOCK_INIT_DYN_ONCE(g_lock);
+    for (;;) {
+        sentry__rwlock_read_lock(&g_lock);
+        if (g_scope_initialized) {
+            return &g_scope;
+        }
+        sentry__rwlock_unlock(&g_lock);
+
+        sentry_scope_t *scope = sentry__scope_write_lock();
+        (void)scope;
+        sentry__scope_write_unlock();
+    }
 }
 
-static void
-unlock_scope(bool flush)
+void
+sentry__scope_read_unlock(void)
 {
-    SENTRY__MUTEX_INIT_DYN_ONCE(g_lock);
+    SENTRY__RWLOCK_INIT_DYN_ONCE(g_lock);
+    sentry__rwlock_unlock(&g_lock);
+}
 
-    if (g_scope.is_notifying > 0) {
-        // defer the flush requested by a reentrant scope change
-        g_scope.pending_flush = flush || g_scope.pending_flush;
-        flush = false;
-    } else {
-        // consume any flush requested by a reentrant scope change
-        flush = flush || g_scope.pending_flush;
-        g_scope.pending_flush = false;
+void
+sentry__scope_write_unlock(void)
+{
+    SENTRY__RWLOCK_INIT_DYN_ONCE(g_lock);
+    bool flush = false;
+    if (sentry__rwlock_write_depth(&g_lock) == 1) {
+        flush = g_scope_flush_pending;
+        g_scope_flush_pending = false;
+        if (g_scope.is_notifying > 0) {
+            // defer the flush requested by a reentrant scope change
+            g_scope.pending_flush = flush || g_scope.pending_flush;
+            flush = false;
+        } else {
+            // consume any flush requested by a reentrant scope change
+            flush = flush || g_scope.pending_flush;
+            g_scope.pending_flush = false;
+        }
     }
 
-    // we try to unlock the scope as soon as possible. The
-    // backend will do its own `WITH_SCOPE` internally.
-    sentry__mutex_unlock(&g_lock);
-    if (flush) {
+    bool released_outermost = sentry__rwlock_unlock(&g_lock);
+    if (released_outermost && flush) {
         SENTRY_WITH_OPTIONS (options) {
+            // we try to unlock the scope as soon as possible. The
+            // backend will do its own `WITH_SCOPE` internally.
             if (options->backend && options->backend->flush_scope_func) {
                 options->backend->flush_scope_func(options->backend, options);
             }
@@ -188,16 +206,19 @@ unlock_scope(bool flush)
     }
 }
 
-void
-sentry__scope_unlock(void)
+sentry_scope_t *
+sentry__scope_write_lock(void)
 {
-    unlock_scope(false);
+    SENTRY__RWLOCK_INIT_DYN_ONCE(g_lock);
+    sentry__rwlock_write_lock(&g_lock);
+    return get_scope();
 }
 
 void
-sentry__scope_flush_unlock(void)
+sentry__scope_flush_write_unlock(void)
 {
-    unlock_scope(true);
+    g_scope_flush_pending = true;
+    sentry__scope_write_unlock();
 }
 
 sentry_scope_observer_t *
