@@ -141,16 +141,16 @@ rotate_buffer(sentry_batcher_t *batcher, long old_idx)
     if (sentry__atomic_fetch(&new_buf->sealed) != 0
         || sentry__atomic_fetch(&new_buf->index) != 0
         || sentry__atomic_fetch(&new_buf->adding) != 0) {
-        return false;
+        return sentry__atomic_fetch(&batcher->active_idx) != old_idx;
     }
+
+    // Seal the old buffer before publishing the new active buffer.
+    sentry__atomic_store(&old_buf->sealed, 1);
 
     // Make the next buffer active (after this we're good to go producer side).
     if (!sentry__atomic_compare_swap(&batcher->active_idx, old_idx, new_idx)) {
-        return false;
+        return sentry__atomic_fetch(&batcher->active_idx) != old_idx;
     }
-
-    // Seal the old buffer.
-    sentry__atomic_store(&old_buf->sealed, 1);
     return true;
 }
 
@@ -196,10 +196,11 @@ sentry__batcher_flush(sentry_batcher_t *batcher, bool crash_safe)
         if (!sentry__atomic_fetch(&old_buf->sealed)) {
             const long active_idx = sentry__atomic_fetch(&batcher->active_idx);
             const long count = sentry__atomic_fetch(&old_buf->index);
-            if (active_idx != old_buf_idx || count <= 0
-                || (old_buf_idx != flush_idx
-                    && count < SENTRY_BATCHER_QUEUE_LENGTH)
-                || !rotate_buffer(batcher, active_idx)) {
+            if (active_idx == old_buf_idx
+                && (count <= 0
+                    || (old_buf_idx != flush_idx
+                        && count < SENTRY_BATCHER_QUEUE_LENGTH)
+                    || !rotate_buffer(batcher, active_idx))) {
                 break;
             }
         }
