@@ -28,6 +28,8 @@ SENTRY_VERSION = "0.15.4"
 # must match the fixed id set by the example's "replay-context" arg
 REPLAY_ID = "deadbeefdeadbeefdeadbeefdeadbeef"
 
+sentry_ftrace_outputs = []
+
 from .assertions import wait_for_daemon as _wait_for_daemon
 from .conditions import is_asan
 
@@ -228,6 +230,16 @@ def run(
             "--leak-check=yes",
             *cmd,
         ]
+    if env.get("SENTRY_FTRACE", "").lower() in ("1", "on"):
+        env.setdefault(
+            "SENTRY_FTRACE_OUTPUT",
+            os.path.join(os.fspath(cwd), f"{exe}.{time.time_ns()}.ftrace"),
+        )
+        test_name = env.get("PYTEST_CURRENT_TEST", "unknown test").removesuffix(
+            " (call)"
+        )
+        sentry_ftrace_outputs.append((test_name, env["SENTRY_FTRACE_OUTPUT"]))
+        cmd = [os.path.join(sourcedir, "scripts", "sentry_ftrace.sh"), *cmd]
     try:
         result = subprocess.run([*cmd, *args], cwd=cwd, env=env, check=check, **kwargs)
         if wait_for_daemon:
