@@ -34,12 +34,6 @@
 
 #include <stdio.h>
 
-sentry_path_t *
-sentry__session_replay_get_path(const sentry_options_t *options)
-{
-    return sentry__path_join_str(options->run->run_path, "session-replay.mp4");
-}
-
 static sentry_path_t *
 session_replay_dir(const sentry_options_t *options)
 {
@@ -290,6 +284,87 @@ replay_file_path(
     return path;
 }
 
+// Extract `contexts.replay.replay_id` from an event, or NULL if unset.
+static const char *
+event_replay_id(sentry_value_t event)
+{
+    sentry_value_t replay_ctx = sentry_value_get_by_key(
+        sentry_value_get_by_key(event, "contexts"), "replay");
+    const char *replay_id = sentry_value_as_string(
+        sentry_value_get_by_key(replay_ctx, "replay_id"));
+    return replay_id && replay_id[0] ? replay_id : NULL;
+}
+
+bool
+sentry__session_replay_capture_staged(
+    const sentry_options_t *options, sentry_value_t crash_event, uint32_t pid)
+{
+    const char *replay_id = event_replay_id(crash_event);
+    if (!replay_id) {
+        return false;
+    }
+
+    sentry_path_t *dir = session_replay_dir(options);
+    if (!dir) {
+        return false;
+    }
+    if (sentry__path_create_dir_all(dir) != 0) {
+        sentry__path_free(dir);
+        return false;
+    }
+
+    sentry_path_t *mp4_path = replay_file_path(dir, replay_id, ".mp4");
+    sentry_path_t *sidecar_path = replay_file_path(dir, replay_id, ".json");
+    sentry__path_free(dir);
+    if (!mp4_path || !sidecar_path) {
+        sentry__path_free(mp4_path);
+        sentry__path_free(sidecar_path);
+        return false;
+    }
+
+    bool rv = false;
+    sentry_session_replay_info_t info = { 0 };
+    if (sentry__session_replay_capture(
+            mp4_path, options->session_replay_duration, pid, &info)) {
+        sentry_value_t meta = sentry_value_new_object();
+        sentry_value_set_by_key(
+            meta, "replayId", sentry_value_new_string(replay_id));
+        sentry_value_set_by_key(
+            meta, "replayType", sentry_value_new_string("buffer"));
+        sentry_value_set_by_key(meta, "segmentId", sentry_value_new_int32(0));
+        sentry_value_set_by_key(meta, "durationMs",
+            sentry_value_new_double((double)info.duration_ms));
+        sentry_value_set_by_key(meta, "endTimestampSec",
+            sentry_value_new_double((double)sentry__usec_time() / 1000000.0));
+        sentry_value_set_by_key(meta, "sizeBytes",
+            sentry_value_new_double((double)info.size_bytes));
+        sentry_value_set_by_key(
+            meta, "width", sentry_value_new_int32((int32_t)info.width));
+        sentry_value_set_by_key(
+            meta, "height", sentry_value_new_int32((int32_t)info.height));
+        sentry_value_set_by_key(meta, "frameCount",
+            sentry_value_new_int32((int32_t)info.frame_count));
+        sentry_value_set_by_key(meta, "frameRate",
+            sentry_value_new_int32((int32_t)info.frame_rate));
+
+        size_t json_len = 0;
+        char *json = sentry__value_to_json(meta, &json_len);
+        sentry_value_decref(meta);
+        if (json) {
+            rv = sentry__path_write_buffer(sidecar_path, json, json_len) == 0;
+            sentry_free(json);
+        }
+        if (!rv) {
+            // Without a sidecar the clip can never be flushed; don't leak it.
+            sentry__path_remove(mp4_path);
+        }
+    }
+
+    sentry__path_free(mp4_path);
+    sentry__path_free(sidecar_path);
+    return rv;
+}
+
 bool
 sentry__session_replay_has_pending(const sentry_options_t *options)
 {
@@ -322,16 +397,7 @@ sentry__session_replay_flush_pending(const sentry_options_t *options,
         return;
     }
 
-    const char *replay_id = NULL;
-    if (!sentry_value_is_null(scope_source)) {
-        sentry_value_t replay_ctx = sentry_value_get_by_key(
-            sentry_value_get_by_key(scope_source, "contexts"), "replay");
-        const char *rid = sentry_value_as_string(
-            sentry_value_get_by_key(replay_ctx, "replay_id"));
-        if (rid && rid[0]) {
-            replay_id = rid;
-        }
-    }
+    const char *replay_id = event_replay_id(scope_source);
     if (!replay_id) {
         return;
     }

@@ -4,7 +4,8 @@
 
 bool
 sentry__session_replay_capture(const sentry_path_t *UNUSED(path),
-    uint32_t UNUSED(duration_ms), uint32_t UNUSED(pid))
+    uint32_t UNUSED(duration_ms), uint32_t UNUSED(pid),
+    sentry_session_replay_info_t *UNUSED(info))
 {
     return false;
 }

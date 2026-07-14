@@ -7,22 +7,41 @@
 #include "sentry_path.h"
 
 /**
+ * Metadata describing a captured replay clip, filled by
+ * `sentry__session_replay_capture`.
+ */
+typedef struct sentry_session_replay_info_s {
+    size_t size_bytes;
+    uint32_t duration_ms;
+    uint32_t width;
+    uint32_t height;
+    uint32_t frame_count;
+    uint32_t frame_rate;
+} sentry_session_replay_info_t;
+
+/**
  * Captures a short retroactive video replay and saves it to the specified path.
  *
  * @param path The path where the replay should be saved (typically MP4).
  * @param duration_ms The requested duration in milliseconds.
  * @param pid The process ID whose output should be captured (0 = current
  * process).
+ * @param info Filled with the clip's metadata on success.
  *
  * Returns true if the replay was successfully captured and saved.
  */
-bool sentry__session_replay_capture(
-    const sentry_path_t *path, uint32_t duration_ms, uint32_t pid);
+bool sentry__session_replay_capture(const sentry_path_t *path,
+    uint32_t duration_ms, uint32_t pid, sentry_session_replay_info_t *info);
 
 /**
- * Returns the path where a session replay should be saved.
+ * Captures a replay clip for the crash described by `crash_event` and stages
+ * it as `<database>/replays/replay-<id>.{mp4,json}` — the same layout embedder
+ * recorders use — so `sentry__session_replay_flush_pending` can pick it up.
+ * The replay id is taken from the event's `contexts.replay.replay_id`; does
+ * nothing if it is missing.
  */
-sentry_path_t *sentry__session_replay_get_path(const sentry_options_t *options);
+bool sentry__session_replay_capture_staged(
+    const sentry_options_t *options, sentry_value_t crash_event, uint32_t pid);
 
 /**
  * Returns whether the embedder's `<database>/replays/` staging directory holds
@@ -33,8 +52,9 @@ bool sentry__session_replay_has_pending(const sentry_options_t *options);
 /**
  * Build and send the session-replay envelope for the crash described by
  * `scope_source`. The replay is identified by the crash event's
- * `contexts.replay.replay_id` and staged by the embedder as
- * `<database>/replays/replay-<id>.{json,mp4}`.
+ * `contexts.replay.replay_id` and staged as
+ * `<database>/replays/replay-<id>.{json,mp4}`, either by an embedder recorder
+ * or by `sentry__session_replay_capture_staged`.
  *
  * Runs only on a crash. The native crash daemon calls it out-of-process with
  * the live transport, delivering the replay same-session. The crashpad,

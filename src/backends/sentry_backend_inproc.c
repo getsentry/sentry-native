@@ -1162,15 +1162,9 @@ process_ucontext_deferred(const sentry_ucontext_t *uctx,
                 sentry__attachment_free(screenshot);
             }
 
-            if (options->attach_session_replay) {
-                sentry_attachment_t *replay = sentry__attachment_from_path(
-                    sentry__session_replay_get_path(options));
-                if (replay
-                    && sentry__session_replay_capture(
-                        replay->path, options->session_replay_duration, 0)) {
-                    sentry__envelope_add_attachment(envelope, replay);
-                }
-                sentry__attachment_free(replay);
+            if (envelope && options->attach_session_replay) {
+                sentry__session_replay_capture_staged(
+                    options, sentry_envelope_get_event(envelope), 0);
             }
 
             if (envelope && sentry__session_replay_has_pending(options)) {
