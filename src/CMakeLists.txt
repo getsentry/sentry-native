@@ -38,6 +38,8 @@ sentry_target_sources_cwd(sentry
 	sentry_os.c
 	sentry_os.h
 	sentry_path.h
+	sentry_ftrace.c
+	sentry_ftrace.h
 	sentry_process.h
 	sentry_ratelimiter.c
 	sentry_ratelimiter.h
