@@ -63,7 +63,7 @@ for buffer_config in "${buffer_configs[@]}"; do
 
     build_dir="$root_dir/logger-benchmark-build/${buffer_count}x${buffer_size}"
 
-    cmake -S "$root_dir" -B "$build_dir" \
+    if ! configure_output="$(cmake -S "$root_dir" -B "$build_dir" \
         -DCMAKE_BUILD_TYPE=Release \
         -DSENTRY_BACKEND=none \
         -DSENTRY_TRANSPORT=none \
@@ -71,18 +71,28 @@ for buffer_config in "${buffer_configs[@]}"; do
         -DSENTRY_BUILD_EXAMPLES=ON \
         -DSENTRY_BATCHER_BUFFER_COUNT="$buffer_count" \
         -DSENTRY_BATCHER_BUFFER_SIZE="$buffer_size" \
-        -DSENTRY_BATCHER_TIMING=OFF >/dev/null 2>&1
-    cmake --build "$build_dir" --config Release --target sentry_logger \
-        >/dev/null 2>&1
+        -DSENTRY_BATCHER_TIMING=OFF 2>&1)"; then
+        printf '%s\n' "$configure_output" >&2
+        exit 1
+    fi
+    if ! build_output="$(cmake --build "$build_dir" --config Release \
+        --target sentry_logger 2>&1)"; then
+        printf '%s\n' "$build_output" >&2
+        exit 1
+    fi
 
-    logger="$build_dir/sentry_logger"
-    if [[ ! -x "$logger" ]]; then
-        logger="$build_dir/Release/sentry_logger"
-    fi
-    if [[ ! -x "$logger" && -x "$logger.exe" ]]; then
-        logger="$logger.exe"
-    fi
-    if [[ ! -x "$logger" ]]; then
+    logger=
+    for candidate in \
+        "$build_dir/sentry_logger" \
+        "$build_dir/sentry_logger.exe" \
+        "$build_dir/Release/sentry_logger" \
+        "$build_dir/Release/sentry_logger.exe"; do
+        if [[ -x "$candidate" ]]; then
+            logger="$candidate"
+            break
+        fi
+    done
+    if [[ -z "$logger" ]]; then
         printf 'Could not find sentry_logger in %s\n' "$build_dir" >&2
         exit 1
     fi
@@ -92,7 +102,7 @@ for buffer_config in "${buffer_configs[@]}"; do
     for (( run = 0; run < runs; run++ )); do
         result="$("$logger" "$frames" -t "$workers" -l "$logs_per_thread" \
             -p "$task_burst" -e "$engine_burst" -b "$burst_every" -i 16667 \
-            -d "$burst_frames" --markdown 2>/dev/null)"
+            -d "$burst_frames" --markdown)"
         read -r failure total <<<"$(awk -F'|' '
             {
                 gsub(/^[[:space:]]+|[[:space:]]+$/, "", $13)
