@@ -13,6 +13,7 @@
 #else
 #    define SENTRY_BATCHER_QUEUE_LENGTH 100
 #endif
+#define SENTRY_BATCHER_BUFFER_COUNT 3
 
 /**
  * Thread lifecycle states for the batching thread.
@@ -38,8 +39,9 @@ typedef sentry_envelope_item_t *(*sentry_batch_func_t)(
 
 typedef struct {
     long refcount; // (atomic) reference count
-    sentry_batcher_buffer_t buffers[2]; // double buffer
+    sentry_batcher_buffer_t buffers[SENTRY_BATCHER_BUFFER_COUNT];
     long active_idx; // (atomic) index to the active buffer
+    long drain_idx; // (atomic) index to the oldest buffer to drain
     long flushing; // (atomic) reentrancy guard to the flusher
     long thread_state; // (atomic) sentry_batcher_thread_state_t
     sentry_waitable_flag_t request_flush; // level-triggered flush flag
