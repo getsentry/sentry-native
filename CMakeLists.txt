@@ -109,7 +109,13 @@ else()
 	set(SENTRY_LIBUNWIND_SYSTEM OFF)
 endif()
 
+if(NOT DEFINED SENTRY_FTRACE AND LINUX AND DEFINED ENV{SENTRY_FTRACE} AND NOT "$ENV{SENTRY_FTRACE}" MATCHES "^(|0|[Ff][Aa][Ll][Ss][Ee]|[Nn][Oo]|[Oo][Ff][Ff])$")
+	set(SENTRY_FTRACE_DEFAULT ON)
+else()
+	set(SENTRY_FTRACE_DEFAULT OFF)
+endif()
 option(SENTRY_TRANSPORT_COMPRESSION "Enable transport gzip compression" OFF)
+option(SENTRY_FTRACE "Enable Linux ftrace trace_marker support" ${SENTRY_FTRACE_DEFAULT})
 
 option(SENTRY_BUILD_TESTS "Build sentry-native tests" "${SENTRY_MAIN_PROJECT}")
 option(SENTRY_BUILD_EXAMPLES "Build sentry-native example(s)" "${SENTRY_MAIN_PROJECT}")
@@ -486,6 +492,9 @@ else()
 	target_compile_definitions(sentry PUBLIC SENTRY_BUILD_STATIC)
 endif()
 target_compile_definitions(sentry PRIVATE SIZEOF_LONG=${CMAKE_SIZEOF_LONG})
+if(SENTRY_FTRACE)
+	target_compile_definitions(sentry PRIVATE SENTRY_FTRACE)
+endif()
 
 # AIX needs libm for isnan used in test suite
 if(CMAKE_SYSTEM_NAME STREQUAL "AIX" OR CMAKE_SYSTEM_NAME STREQUAL "OS400")

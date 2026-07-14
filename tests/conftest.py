@@ -216,6 +216,11 @@ def pytest_sessionstart(session):
 
 
 def pytest_terminal_summary(terminalreporter):
+    if tests.sentry_ftrace_outputs:
+        terminalreporter.section("ftrace outputs")
+        for test_name, path in tests.sentry_ftrace_outputs:
+            terminalreporter.write_line(f"{test_name}: {path}")
+
     if has_sccache:
         result = subprocess.run(
             ["sccache", "--show-stats"], capture_output=True, text=True
