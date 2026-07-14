@@ -14,6 +14,7 @@
 #include <string.h>
 
 static sentry_batcher_ref_t g_batcher = SENTRY_BATCHER_REF_INIT;
+#ifdef SENTRY_BATCHER_TIMING
 static volatile long g_timing_construct_count = 0;
 static volatile long g_timing_construct_us = 0;
 static volatile long g_timing_enqueue_count = 0;
@@ -28,6 +29,7 @@ record_elapsed(volatile long *total, volatile long *count, uint64_t start)
         total, elapsed <= (uint64_t)LONG_MAX ? (long)elapsed : LONG_MAX);
     sentry__atomic_fetch_and_add(count, 1);
 }
+#endif
 
 typedef enum {
     PRINTF_LENGTH_NONE,
@@ -525,10 +527,14 @@ send_log(sentry_level_t level, sentry_value_t log)
         return SENTRY_LOG_RETURN_FAILED;
     }
 
+#ifdef SENTRY_BATCHER_TIMING
     const uint64_t enqueue_started = sentry__usec_time();
+#endif
     const bool enqueued = sentry__batcher_enqueue(batcher, log);
+#ifdef SENTRY_BATCHER_TIMING
     record_elapsed(
         &g_timing_enqueue_us, &g_timing_enqueue_count, enqueue_started);
+#endif
     if (!enqueued) {
         sentry__batcher_release(batcher);
         sentry_value_decref(log);
@@ -549,10 +555,14 @@ sentry__logs_log(sentry_level_t level, const char *message, va_list args)
     if (!enable_logs) {
         return SENTRY_LOG_RETURN_DISABLED;
     }
+#ifdef SENTRY_BATCHER_TIMING
     const uint64_t construct_started = sentry__usec_time();
+#endif
     sentry_value_t log = construct_log(level, message, args);
+#ifdef SENTRY_BATCHER_TIMING
     record_elapsed(
         &g_timing_construct_us, &g_timing_construct_count, construct_started);
+#endif
     return send_log(level, log);
 }
 
@@ -636,14 +646,18 @@ sentry_log(
         return SENTRY_LOG_RETURN_DISABLED;
     }
 
+#ifdef SENTRY_BATCHER_TIMING
     const uint64_t construct_started = sentry__usec_time();
+#endif
     sentry_value_t log = sentry_value_new_object();
     sentry_value_t attributes = clone_attributes(custom_attributes);
 
     sentry_value_set_by_key(log, "body", sentry_value_new_string(body));
     apply_attributes(log, attributes, level);
+#ifdef SENTRY_BATCHER_TIMING
     record_elapsed(
         &g_timing_construct_us, &g_timing_construct_count, construct_started);
+#endif
 
     return send_log(level, log);
 }
@@ -651,10 +665,12 @@ sentry_log(
 void
 sentry__logs_startup(const sentry_options_t *options)
 {
+#ifdef SENTRY_BATCHER_TIMING
     sentry__atomic_store(&g_timing_construct_count, 0);
     sentry__atomic_store(&g_timing_construct_us, 0);
     sentry__atomic_store(&g_timing_enqueue_count, 0);
     sentry__atomic_store(&g_timing_enqueue_us, 0);
+#endif
 
     sentry_batcher_t *batcher = sentry__batcher_new(
         sentry__envelope_add_logs, SENTRY_DATA_CATEGORY_LOG_ITEM);
@@ -681,6 +697,7 @@ sentry__logs_shutdown(uint64_t timeout)
         sentry__batcher_shutdown(batcher, timeout);
         sentry__batcher_release(batcher);
     }
+#ifdef SENTRY_BATCHER_TIMING
     const long construct_count
         = sentry__atomic_fetch(&g_timing_construct_count);
     const long construct_us = sentry__atomic_fetch(&g_timing_construct_us);
@@ -693,6 +710,7 @@ sentry__logs_shutdown(uint64_t timeout)
         construct_count > 0 ? (double)construct_us / construct_count : 0.0,
         enqueue_us, enqueue_count,
         enqueue_count > 0 ? (double)enqueue_us / enqueue_count : 0.0);
+#endif
     SENTRY_DEBUG("logs system shutdown complete");
 }
 

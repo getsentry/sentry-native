@@ -57,7 +57,7 @@ sentry__batcher_release(sentry_batcher_t *batcher)
     if (!batcher || sentry__atomic_fetch_and_add(&batcher->refcount, -1) != 1) {
         return;
     }
-    for (long i = 0; i < SENTRY_BATCHER_BUFFERS; i++) {
+    for (long i = 0; i < SENTRY_BATCHER_BUFFER_COUNT; i++) {
         buffer_drain(&batcher->buffers[i]);
     }
     sentry__dsn_decref(batcher->dsn);
@@ -129,12 +129,14 @@ crash_safe_sleep_ms(uint64_t delay_ms)
     }
 }
 
+#ifdef SENTRY_BATCHER_TIMING
 static uint64_t
 elapsed_usec(uint64_t start)
 {
     const uint64_t end = sentry__usec_time();
     return end >= start ? end - start : 0;
 }
+#endif
 
 // Checks whether the currently active buffer can be rotated. Producers do
 // this when adding the last log so the batching thread cannot miss the flush
@@ -143,7 +145,7 @@ elapsed_usec(uint64_t start)
 static bool
 try_rotate_active_buffer(sentry_batcher_t *batcher, long old_idx)
 {
-    const long next_idx = (old_idx + 1) % SENTRY_BATCHER_BUFFERS;
+    const long next_idx = (old_idx + 1) % SENTRY_BATCHER_BUFFER_COUNT;
     sentry_batcher_buffer_t *old_buf = &batcher->buffers[old_idx];
     sentry_batcher_buffer_t *next_buf = &batcher->buffers[next_idx];
 
@@ -168,7 +170,9 @@ try_rotate_active_buffer(sentry_batcher_t *batcher, long old_idx)
 static void
 drain_buffer(sentry_batcher_t *batcher, long buf_idx, bool crash_safe)
 {
+#ifdef SENTRY_BATCHER_TIMING
     const uint64_t drain_started = sentry__usec_time();
+#endif
     sentry_batcher_buffer_t *buf = &batcher->buffers[buf_idx];
 
     // Wait for all in-flight producers of the old buffer.
@@ -183,22 +187,30 @@ drain_buffer(sentry_batcher_t *batcher, long buf_idx, bool crash_safe)
 
     if (n > 0) {
         // Now we can do the actual batching of the old buffer.
+#ifdef SENTRY_BATCHER_TIMING
         const uint64_t list_started = sentry__usec_time();
+#endif
         sentry_value_t logs = sentry_value_new_object();
         sentry_value_t log_items = sentry_value_new_list();
         for (long i = 0; i < n; i++) {
             sentry_value_append(log_items, buf->items[i]);
         }
         sentry_value_set_by_key(logs, "items", log_items);
+#ifdef SENTRY_BATCHER_TIMING
         batcher->timing_list_us += elapsed_usec(list_started);
+#endif
 
         sentry_envelope_t *envelope
             = sentry__envelope_new_with_dsn(batcher->dsn);
+#ifdef SENTRY_BATCHER_TIMING
         const uint64_t serialize_started = sentry__usec_time();
+#endif
         batcher->batch_func(envelope, logs);
+#ifdef SENTRY_BATCHER_TIMING
         batcher->timing_serialize_us += elapsed_usec(serialize_started);
 
         const uint64_t transport_started = sentry__usec_time();
+#endif
         if (crash_safe) {
             // Write directly to disk to avoid transport queuing during
             // crash.
@@ -210,9 +222,11 @@ drain_buffer(sentry_batcher_t *batcher, long buf_idx, bool crash_safe)
         } else {
             sentry_envelope_free(envelope);
         }
+#ifdef SENTRY_BATCHER_TIMING
         batcher->timing_transport_us += elapsed_usec(transport_started);
         batcher->timing_batch_count++;
         batcher->timing_item_count += (uint64_t)n;
+#endif
         sentry_value_decref(logs);
     }
 
@@ -220,10 +234,12 @@ drain_buffer(sentry_batcher_t *batcher, long buf_idx, bool crash_safe)
     // submitted, then advance to the next sealed buffer in FIFO order.
     sentry__atomic_store(&buf->sealed, 0);
     sentry__atomic_store(
-        &batcher->drain_idx, (buf_idx + 1) % SENTRY_BATCHER_BUFFERS);
+        &batcher->drain_idx, (buf_idx + 1) % SENTRY_BATCHER_BUFFER_COUNT);
+#ifdef SENTRY_BATCHER_TIMING
     if (n > 0) {
         batcher->timing_drain_us += elapsed_usec(drain_started);
     }
+#endif
 }
 
 static bool
@@ -487,6 +503,7 @@ sentry__batcher_shutdown(sentry_batcher_t *batcher, uint64_t timeout)
     // Perform final flush to ensure any remaining items are sent
     sentry__batcher_flush(batcher, false);
 
+#ifdef SENTRY_BATCHER_TIMING
     if (batcher->timing_batch_count > 0) {
         const double batches = (double)batcher->timing_batch_count;
         const uint64_t accounted_us = batcher->timing_list_us
@@ -512,6 +529,7 @@ sentry__batcher_shutdown(sentry_batcher_t *batcher, uint64_t timeout)
             (double)batcher->timing_transport_us / batches,
             (unsigned long long)other_us, (double)other_us / batches);
     }
+#endif
 }
 
 void

@@ -11,11 +11,14 @@
 #ifdef SENTRY_UNITTEST
 #    define SENTRY_BATCHER_QUEUE_LENGTH 5
 #else
-#    define SENTRY_BATCHER_QUEUE_LENGTH 100
+#    ifndef SENTRY_BATCHER_BUFFER_SIZE
+#        define SENTRY_BATCHER_BUFFER_SIZE 100
+#    endif
+#    define SENTRY_BATCHER_QUEUE_LENGTH SENTRY_BATCHER_BUFFER_SIZE
 #endif
 
-#ifndef SENTRY_BATCHER_BUFFERS
-#    define SENTRY_BATCHER_BUFFERS 2
+#ifndef SENTRY_BATCHER_BUFFER_COUNT
+#    define SENTRY_BATCHER_BUFFER_COUNT 2
 #endif
 
 /**
@@ -42,7 +45,7 @@ typedef sentry_envelope_item_t *(*sentry_batch_func_t)(
 
 typedef struct {
     long refcount; // (atomic) reference count
-    sentry_batcher_buffer_t buffers[SENTRY_BATCHER_BUFFERS];
+    sentry_batcher_buffer_t buffers[SENTRY_BATCHER_BUFFER_COUNT];
     long active_idx; // (atomic) index to the active buffer
     long drain_idx; // (atomic) index to the oldest buffer to drain
     long flushing; // (atomic) reentrancy guard to the flusher
@@ -51,12 +54,14 @@ typedef struct {
     sentry_threadid_t batching_thread; // the batching thread
     sentry_batch_func_t batch_func; // function to add items to envelope
     sentry_data_category_t data_category; // for client report discard tracking
+#ifdef SENTRY_BATCHER_TIMING
     uint64_t timing_batch_count;
     uint64_t timing_item_count;
     uint64_t timing_drain_us;
     uint64_t timing_list_us;
     uint64_t timing_serialize_us;
     uint64_t timing_transport_us;
+#endif
     sentry_dsn_t *dsn;
     sentry_transport_t *transport;
     sentry_run_t *run;

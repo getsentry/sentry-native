@@ -5,7 +5,9 @@ GIT_COMMON_DIR := $(shell git rev-parse --git-common-dir)
 VENV_BIN = $(if $(filter Windows_NT,$(OS)),.venv/Scripts,.venv/bin)
 LOGGER_SENTRY_BACKEND ?= $(or $(SENTRY_BACKEND),none)
 LOGGER_SENTRY_TRANSPORT ?= $(or $(SENTRY_TRANSPORT),none)
-SENTRY_BATCHER_BUFFERS ?= 2
+SENTRY_BATCHER_BUFFER_COUNT ?= 2
+SENTRY_BATCHER_BUFFER_SIZE ?= 100
+SENTRY_BATCHER_TIMING ?= OFF
 
 update-test-discovery:
 	@perl -ne 'print if s/SENTRY_TEST\(([^)]+)\).*/XX(\1)/' tests/unit/*.c | LC_ALL=C sort | grep -v define | uniq > tests/unit/tests.inc
@@ -55,24 +57,30 @@ benchmark: setup-venv
 	$(VENV_BIN)/pytest tests/benchmark.py --verbose
 .PHONY: benchmark
 
-LOGGER_BUILD_STAMP = logger-build/.stamp-$(LOGGER_SENTRY_BACKEND)-$(LOGGER_SENTRY_TRANSPORT)-$(SENTRY_BATCHER_BUFFERS)
+LOGGER_BUILD_STAMP = logger-build/.stamp-$(LOGGER_SENTRY_BACKEND)-$(LOGGER_SENTRY_TRANSPORT)-$(SENTRY_BATCHER_BUFFER_COUNT)-$(SENTRY_BATCHER_BUFFER_SIZE)-$(SENTRY_BATCHER_TIMING)
 
 ifneq ($(filter test-logger,$(firstword $(MAKECMDGOALS))),)
-LOGGER_ARGS ?= $(wordlist 2,$(words $(MAKECMDGOALS)),$(MAKECMDGOALS))
-$(LOGGER_ARGS):
+LOGGER_GOAL_ARGS := $(wordlist 2,$(words $(MAKECMDGOALS)),$(MAKECMDGOALS))
+LOGGER_ARGS ?= $(LOGGER_GOAL_ARGS)
+$(LOGGER_GOAL_ARGS):
 	@:
 endif
 
-$(LOGGER_BUILD_STAMP): CMakeLists.txt tests/logs/logger.cpp
+$(LOGGER_BUILD_STAMP): FORCE_LOGGER_CONFIG CMakeLists.txt tests/logs/logger.cpp
 	@mkdir -p logger-build
 	@cd logger-build; cmake \
 		-DCMAKE_RUNTIME_OUTPUT_DIRECTORY=$(PWD)/logger-build \
 		-DSENTRY_BACKEND=$(LOGGER_SENTRY_BACKEND) \
 		-DSENTRY_TRANSPORT=$(LOGGER_SENTRY_TRANSPORT) \
-		-DSENTRY_BATCHER_BUFFERS=$(SENTRY_BATCHER_BUFFERS) \
+		-DSENTRY_BATCHER_BUFFER_COUNT=$(SENTRY_BATCHER_BUFFER_COUNT) \
+		-DSENTRY_BATCHER_BUFFER_SIZE=$(SENTRY_BATCHER_BUFFER_SIZE) \
+		-DSENTRY_BATCHER_TIMING=$(SENTRY_BATCHER_TIMING) \
 		-DSENTRY_BUILD_EXAMPLES=ON \
 		..
 	@touch $@
+
+FORCE_LOGGER_CONFIG:
+.PHONY: FORCE_LOGGER_CONFIG
 
 test-logger: $(LOGGER_BUILD_STAMP)
 	@cmake --build logger-build --target sentry_logger --parallel --config RelWithDebInfo
