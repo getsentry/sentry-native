@@ -1214,6 +1214,49 @@ SENTRY_TEST(scope_local_attributes)
     sentry_close();
 }
 
+SENTRY_TEST(scope_nested_write_locks)
+{
+    SENTRY_TEST_OPTIONS_NEW(options);
+    sentry_init(options);
+
+    bool read_nested_scope = false;
+
+    SENTRY_WITH_SCOPE_MUT (outer_scope) {
+        sentry_scope_set_tag(outer_scope, "outer", "yes");
+
+        SENTRY_WITH_SCOPE_MUT (inner_scope) {
+            TEST_CHECK(inner_scope == outer_scope);
+            sentry_scope_set_tag(inner_scope, "inner", "yes");
+
+            SENTRY_WITH_SCOPE (read_scope) {
+                TEST_CHECK(read_scope == inner_scope);
+                TEST_CHECK_STRING_EQUAL(
+                    sentry_value_as_string(
+                        sentry_value_get_by_key(read_scope->tags, "outer")),
+                    "yes");
+                TEST_CHECK_STRING_EQUAL(
+                    sentry_value_as_string(
+                        sentry_value_get_by_key(read_scope->tags, "inner")),
+                    "yes");
+                read_nested_scope = true;
+            }
+        }
+    }
+
+    TEST_CHECK(read_nested_scope);
+
+    SENTRY_WITH_SCOPE (scope) {
+        TEST_CHECK_STRING_EQUAL(sentry_value_as_string(sentry_value_get_by_key(
+                                    scope->tags, "outer")),
+            "yes");
+        TEST_CHECK_STRING_EQUAL(sentry_value_as_string(sentry_value_get_by_key(
+                                    scope->tags, "inner")),
+            "yes");
+    }
+
+    sentry_close();
+}
+
 SENTRY_TEST(scope_ownership)
 {
     // `sentry_local_scope_new` makes a one-shot scope, `sentry_scope_new` does
