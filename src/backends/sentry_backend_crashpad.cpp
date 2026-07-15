@@ -786,8 +786,8 @@ crashpad_backend_startup(
         arguments.push_back("--log-level=" + std::to_string(level));
 
         logging::SetLogMessageHandler(
-            [](logging::LogSeverity severity, const char *UNUSED(file),
-                int UNUSED(line), size_t start, const std::string &msg) {
+            [](logging::LogSeverity severity, const char *, int, size_t start,
+                const std::string &msg) {
                 size_t end = msg.size();
                 if (end > start && msg[end - 1] == '\n') {
                     end--;
