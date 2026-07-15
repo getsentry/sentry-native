@@ -15,7 +15,7 @@
   - NOTE: `sentry_options_set_debug(options, true)` no longer displays verbose libcurl debug output by default. To restore it, call `sentry_options_set_logger_level(options, SENTRY_LEVEL_TRACE)`.
 - Windows: fix symlink detection used to prevent database cleanup from following symlinks in run and cache directories. ([#1857](https://github.com/getsentry/sentry-native/pull/1857))
 - Linux: avoid unsafe `copy_file_range` at crash time. ([#1868](https://github.com/getsentry/sentry-native/pull/1868))
-- Increase the internal log buffer capacity to reduce the chance of queue overflows during sudden bursts. ([#1867](https://github.com/getsentry/sentry-native/pull/1867))
+- Increase the default telemetry batcher capacity from 2x100 to 3x100 items, and add `SENTRY_BATCHER_BUFFER_COUNT` to configure the number of rotating buffers used by log and metric batchers. ([#1867](https://github.com/getsentry/sentry-native/pull/1867))
 
 ## 0.15.3
 
