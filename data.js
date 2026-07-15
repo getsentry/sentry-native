@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1784110811894,
+  "lastUpdate": 1784110823227,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -57610,6 +57610,126 @@ window.BENCHMARK_DATA = {
             "value": 0.05002066700001251,
             "unit": "ms",
             "extra": "Min 0.050ms\nMax 0.050ms\nMean 0.050ms\nMedian 0.050ms\nCPU 0.039ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "jpnurmi@gmail.com",
+            "name": "J-P Nurmi",
+            "username": "jpnurmi"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "479fded14feb94e879890eccbeefcb486a56781e",
+          "message": "fix(linux): avoid unsafe `copy_file_range` at crash time (#1868)\n\n* fix: avoid unsafe crash-time file copy\n\nSkip copy_file_range() when the page allocator is enabled, since the file\ncopy may be running from crash handling on a constrained signal stack.\n\nMove the fallback copy buffer off the stack so large attachment caching\ndoes not consume stack space needed by the crash handler.\n\n* Update CHANGELOG.md\n\n* ci: add Ubuntu 26.04 + GCC 15",
+          "timestamp": "2026-07-15T12:14:22+02:00",
+          "tree_id": "6218e274dacc78a354ea916111d5ea62d373680f",
+          "url": "https://github.com/getsentry/sentry-native/commit/479fded14feb94e879890eccbeefcb486a56781e"
+        },
+        "date": 1784110812466,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 4.766791999998077,
+            "unit": "ms",
+            "extra": "Min 4.409ms\nMax 16.321ms\nMean 6.978ms\nStdDev 5.226ms\nMedian 4.767ms\nCPU 2.537ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 6.574208000017734,
+            "unit": "ms",
+            "extra": "Min 3.657ms\nMax 8.480ms\nMean 6.047ms\nStdDev 2.132ms\nMedian 6.574ms\nCPU 3.655ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 42.91520800001081,
+            "unit": "ms",
+            "extra": "Min 22.689ms\nMax 100.851ms\nMean 52.219ms\nStdDev 32.263ms\nMedian 42.915ms\nCPU 8.514ms"
+          },
+          {
+            "name": "SDK init (native)",
+            "value": 25.71237500001189,
+            "unit": "ms",
+            "extra": "Min 13.624ms\nMax 91.442ms\nMean 34.926ms\nStdDev 32.225ms\nMedian 25.712ms\nCPU 6.300ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.06633300000657982,
+            "unit": "ms",
+            "extra": "Min 0.057ms\nMax 0.081ms\nMean 0.066ms\nStdDev 0.010ms\nMedian 0.066ms\nCPU 0.045ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.2856670000142003,
+            "unit": "ms",
+            "extra": "Min 0.246ms\nMax 0.373ms\nMean 0.289ms\nStdDev 0.052ms\nMedian 0.286ms\nCPU 0.289ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 9.264666999968085,
+            "unit": "ms",
+            "extra": "Min 7.968ms\nMax 14.750ms\nMean 10.930ms\nStdDev 3.385ms\nMedian 9.265ms\nCPU 1.034ms"
+          },
+          {
+            "name": "Backend startup (native)",
+            "value": 16.137875000026725,
+            "unit": "ms",
+            "extra": "Min 11.251ms\nMax 33.558ms\nMean 20.335ms\nStdDev 9.122ms\nMedian 16.138ms\nCPU 2.937ms"
+          },
+          {
+            "name": "Scope set_tag (inproc)",
+            "value": 0.0027768329999844354,
+            "unit": "ms",
+            "extra": "Min 0.003ms\nMax 0.003ms\nMean 0.003ms\nMedian 0.003ms\nCPU 0.003ms"
+          },
+          {
+            "name": "Scope add_breadcrumb (inproc)",
+            "value": 0.0012999169999829974,
+            "unit": "ms",
+            "extra": "Min 0.001ms\nMax 0.001ms\nMean 0.001ms\nMedian 0.001ms\nCPU 0.001ms"
+          },
+          {
+            "name": "Scope set_tag (breakpad)",
+            "value": 0.002713667000023179,
+            "unit": "ms",
+            "extra": "Min 0.003ms\nMax 0.003ms\nMean 0.003ms\nMedian 0.003ms\nCPU 0.003ms"
+          },
+          {
+            "name": "Scope add_breadcrumb (breakpad)",
+            "value": 0.0012582080000242968,
+            "unit": "ms",
+            "extra": "Min 0.001ms\nMax 0.001ms\nMean 0.001ms\nMedian 0.001ms\nCPU 0.001ms"
+          },
+          {
+            "name": "Scope set_tag (crashpad)",
+            "value": 1.0719752500000368,
+            "unit": "ms",
+            "extra": "Min 1.072ms\nMax 1.072ms\nMean 1.072ms\nMedian 1.072ms\nCPU 1.056ms"
+          },
+          {
+            "name": "Scope add_breadcrumb (crashpad)",
+            "value": 0.17284216600000946,
+            "unit": "ms",
+            "extra": "Min 0.173ms\nMax 0.173ms\nMean 0.173ms\nMedian 0.173ms\nCPU 0.076ms"
+          },
+          {
+            "name": "Scope set_tag (native)",
+            "value": 1.5870956250000177,
+            "unit": "ms",
+            "extra": "Min 1.587ms\nMax 1.587ms\nMean 1.587ms\nMedian 1.587ms\nCPU 1.495ms"
+          },
+          {
+            "name": "Scope add_breadcrumb (native)",
+            "value": 0.07331954100004623,
+            "unit": "ms",
+            "extra": "Min 0.073ms\nMax 0.073ms\nMean 0.073ms\nMedian 0.073ms\nCPU 0.050ms"
           }
         ]
       }
