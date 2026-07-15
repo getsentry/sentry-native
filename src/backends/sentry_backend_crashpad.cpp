@@ -780,6 +780,7 @@ crashpad_backend_startup(
         const logging::LogSeverity level
             = to_crashpad_level(options->logger.logger_level);
         logging::LoggingSettings settings;
+        settings.logging_dest = logging::LOG_DEFAULT & ~logging::LOG_TO_STDERR;
         settings.min_log_level = level;
         logging::InitLogging(settings);
         arguments.push_back("--log-level=" + std::to_string(level));
@@ -793,7 +794,9 @@ crashpad_backend_startup(
                 }
                 sentry__logger_log(to_sentry_level(severity), "crashpad: %.*s",
                     static_cast<int>(end - start), msg.c_str() + start);
-                return true;
+                // Forward logs without consuming them so Crashpad keeps its
+                // default handling, including fatal termination.
+                return false;
             });
     }
 
