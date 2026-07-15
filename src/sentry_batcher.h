@@ -13,7 +13,9 @@
 #else
 #    define SENTRY_BATCHER_QUEUE_LENGTH 100
 #endif
-#define SENTRY_BATCHER_BUFFER_COUNT 3
+#ifndef SENTRY_BATCHER_BUFFER_COUNT
+#    define SENTRY_BATCHER_BUFFER_COUNT 3
+#endif
 
 /**
  * Thread lifecycle states for the batching thread.
