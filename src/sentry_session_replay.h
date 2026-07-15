@@ -39,11 +39,14 @@ bool sentry__session_replay_capture(const sentry_path_t *path,
     sentry_session_replay_info_t *info);
 
 /**
- * Captures a replay clip for the crash described by `crash_event` and stages
- * it as `<database>/replays/replay-<id>.{mp4,json}` — the same layout embedder
- * recorders use — so `sentry__session_replay_flush_pending` can pick it up.
- * The replay id is taken from the event's `contexts.replay.replay_id`; does
- * nothing if it is missing.
+ * Captures the replay for the crash described by `crash_event` and stages it
+ * as one or more segments `<database>/replays/replay-<id>-<segment>.{mp4,json}`
+ * so `sentry__session_replay_flush_pending` can pick them up. The configured
+ * duration is split into segment windows (newest ending at the crash time) so
+ * each segment's replay_video envelope stays under the ingestion size limit;
+ * segments without footage or over the size ceiling are dropped. The replay id
+ * is taken from the event's `contexts.replay.replay_id`; does nothing if it is
+ * missing. Returns true if at least one segment was staged.
  */
 bool sentry__session_replay_capture_staged(
     const sentry_options_t *options, sentry_value_t crash_event, uint32_t pid);
@@ -55,11 +58,13 @@ bool sentry__session_replay_capture_staged(
 bool sentry__session_replay_has_pending(const sentry_options_t *options);
 
 /**
- * Build and send the session-replay envelope for the crash described by
+ * Build and send the session-replay envelopes for the crash described by
  * `scope_source`. The replay is identified by the crash event's
- * `contexts.replay.replay_id` and staged as
- * `<database>/replays/replay-<id>.{json,mp4}`, either by an embedder recorder
- * or by `sentry__session_replay_capture_staged`.
+ * `contexts.replay.replay_id` and staged as segment pairs
+ * `<database>/replays/replay-<id>-<segment>.{json,mp4}` by
+ * `sentry__session_replay_capture_staged`, or as a single un-suffixed
+ * `replay-<id>.{json,mp4}` pair by an embedder recorder. One envelope is sent
+ * per segment, in ascending segment order.
  *
  * Runs only on a crash. The native crash daemon calls it out-of-process with
  * the live transport, delivering the replay same-session. The crashpad,

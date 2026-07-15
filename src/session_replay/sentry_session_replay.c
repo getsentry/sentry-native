@@ -34,6 +34,25 @@
 
 #include <stdio.h>
 
+// Maximum length of a single staged replay segment. The capture window is
+// split so that each segment's replay_video envelope stays under the
+// ingestion size limit.
+#define REPLAY_SEGMENT_MS 2000
+// Conservative per-segment ceiling below relay's default 10 MiB
+// `max_replay_compressed_size`, leaving headroom for the event and rrweb
+// payloads that share the envelope item.
+#define REPLAY_MAX_SEGMENT_BYTES ((size_t)10 * 1024 * 1024 - 64 * 1024)
+// Upper bound on staged segments per replay.
+#define REPLAY_MAX_SEGMENTS 16
+
+// A staged `replay-<id>[-<segment>].{json,mp4}` pair collected for flushing.
+typedef struct {
+    sentry_path_t *sidecar;
+    sentry_path_t *mp4;
+    sentry_value_t meta;
+    int32_t segment_id;
+} staged_segment_t;
+
 static sentry_path_t *
 session_replay_dir(const sentry_options_t *options)
 {
@@ -268,17 +287,24 @@ build_replay_envelope(const sentry_options_t *options, sentry_value_t meta,
     return envelope;
 }
 
-// Build `<dir>/replay-<replay_id><ext>`, matching the embedder's staged name.
+// Build `<dir>/replay-<replay_id>-<segment><ext>`, or the un-suffixed
+// `<dir>/replay-<replay_id><ext>` when `segment_id` is negative (the naming
+// used by embedder recorders staging a single segment).
 static sentry_path_t *
-replay_file_path(
-    const sentry_path_t *dir, const char *replay_id, const char *ext)
+replay_file_path(const sentry_path_t *dir, const char *replay_id,
+    int32_t segment_id, const char *ext)
 {
-    size_t len = strlen("replay-") + strlen(replay_id) + strlen(ext);
+    size_t len = strlen("replay-") + strlen(replay_id) + 16 + strlen(ext);
     char *name = sentry_malloc(len + 1);
     if (!name) {
         return NULL;
     }
-    snprintf(name, len + 1, "replay-%s%s", replay_id, ext);
+    if (segment_id < 0) {
+        snprintf(name, len + 1, "replay-%s%s", replay_id, ext);
+    } else {
+        snprintf(
+            name, len + 1, "replay-%s-%d%s", replay_id, (int)segment_id, ext);
+    }
     sentry_path_t *path = sentry__path_join_str(dir, name);
     sentry_free(name);
     return path;
@@ -293,6 +319,77 @@ event_replay_id(sentry_value_t event)
     const char *replay_id = sentry_value_as_string(
         sentry_value_get_by_key(replay_ctx, "replay_id"));
     return replay_id && replay_id[0] ? replay_id : NULL;
+}
+
+// Capture one clip covering `[end_ts_ms - duration_ms, end_ts_ms]` and stage
+// it together with its metadata sidecar. Returns false when the segment
+// yields no usable footage, exceeds the size ceiling, or cannot be staged.
+static bool
+stage_segment(const sentry_path_t *dir, const char *replay_id,
+    int32_t segment_id, uint32_t duration_ms, uint64_t end_ts_ms, uint32_t pid)
+{
+    sentry_path_t *mp4_path
+        = replay_file_path(dir, replay_id, segment_id, ".mp4");
+    sentry_path_t *sidecar_path
+        = replay_file_path(dir, replay_id, segment_id, ".json");
+    if (!mp4_path || !sidecar_path) {
+        sentry__path_free(mp4_path);
+        sentry__path_free(sidecar_path);
+        return false;
+    }
+
+    bool rv = false;
+    sentry_session_replay_info_t info = { 0 };
+    if (sentry__session_replay_capture(
+            mp4_path, duration_ms, pid, end_ts_ms, &info)) {
+        if (info.duration_ms == 0) {
+            SENTRY_DEBUGF(
+                "dropping replay segment %d: no footage", (int)segment_id);
+        } else if (info.size_bytes > REPLAY_MAX_SEGMENT_BYTES) {
+            SENTRY_WARNF("dropping replay segment %d: %llu bytes exceed the "
+                         "envelope size limit",
+                (int)segment_id, (unsigned long long)info.size_bytes);
+        } else {
+            sentry_value_t meta = sentry_value_new_object();
+            sentry_value_set_by_key(
+                meta, "replayId", sentry_value_new_string(replay_id));
+            sentry_value_set_by_key(
+                meta, "replayType", sentry_value_new_string("buffer"));
+            sentry_value_set_by_key(
+                meta, "segmentId", sentry_value_new_int32(segment_id));
+            sentry_value_set_by_key(meta, "durationMs",
+                sentry_value_new_double((double)info.duration_ms));
+            sentry_value_set_by_key(meta, "endTimestampSec",
+                sentry_value_new_double((double)end_ts_ms / 1000.0));
+            sentry_value_set_by_key(meta, "sizeBytes",
+                sentry_value_new_double((double)info.size_bytes));
+            sentry_value_set_by_key(
+                meta, "width", sentry_value_new_int32((int32_t)info.width));
+            sentry_value_set_by_key(
+                meta, "height", sentry_value_new_int32((int32_t)info.height));
+            sentry_value_set_by_key(meta, "frameCount",
+                sentry_value_new_int32((int32_t)info.frame_count));
+            sentry_value_set_by_key(meta, "frameRate",
+                sentry_value_new_int32((int32_t)info.frame_rate));
+
+            size_t json_len = 0;
+            char *json = sentry__value_to_json(meta, &json_len);
+            sentry_value_decref(meta);
+            if (json) {
+                rv = sentry__path_write_buffer(sidecar_path, json, json_len)
+                    == 0;
+                sentry_free(json);
+            }
+        }
+        if (!rv) {
+            // Without a sidecar the clip can never be flushed; don't leak it.
+            sentry__path_remove(mp4_path);
+        }
+    }
+
+    sentry__path_free(mp4_path);
+    sentry__path_free(sidecar_path);
+    return rv;
 }
 
 bool
@@ -313,15 +410,6 @@ sentry__session_replay_capture_staged(
         return false;
     }
 
-    sentry_path_t *mp4_path = replay_file_path(dir, replay_id, ".mp4");
-    sentry_path_t *sidecar_path = replay_file_path(dir, replay_id, ".json");
-    sentry__path_free(dir);
-    if (!mp4_path || !sidecar_path) {
-        sentry__path_free(mp4_path);
-        sentry__path_free(sidecar_path);
-        return false;
-    }
-
     // End the capture window at the crash time so the buffered footage
     // leading up to the fault is covered even when the crash handler runs
     // for a while before capturing.
@@ -336,50 +424,34 @@ sentry__session_replay_capture_staged(
             end_ts_ms = (uint64_t)(ts_sec * 1000.0);
         }
     }
+    if (!end_ts_ms) {
+        end_ts_ms = sentry__usec_time() / 1000;
+    }
 
-    bool rv = false;
-    sentry_session_replay_info_t info = { 0 };
-    if (sentry__session_replay_capture(mp4_path,
-            options->session_replay_duration, pid, end_ts_ms, &info)) {
-        sentry_value_t meta = sentry_value_new_object();
-        sentry_value_set_by_key(
-            meta, "replayId", sentry_value_new_string(replay_id));
-        sentry_value_set_by_key(
-            meta, "replayType", sentry_value_new_string("buffer"));
-        sentry_value_set_by_key(meta, "segmentId", sentry_value_new_int32(0));
-        sentry_value_set_by_key(meta, "durationMs",
-            sentry_value_new_double((double)info.duration_ms));
-        sentry_value_set_by_key(meta, "endTimestampSec",
-            sentry_value_new_double(end_ts_ms
-                    ? (double)end_ts_ms / 1000.0
-                    : (double)sentry__usec_time() / 1000000.0));
-        sentry_value_set_by_key(meta, "sizeBytes",
-            sentry_value_new_double((double)info.size_bytes));
-        sentry_value_set_by_key(
-            meta, "width", sentry_value_new_int32((int32_t)info.width));
-        sentry_value_set_by_key(
-            meta, "height", sentry_value_new_int32((int32_t)info.height));
-        sentry_value_set_by_key(meta, "frameCount",
-            sentry_value_new_int32((int32_t)info.frame_count));
-        sentry_value_set_by_key(meta, "frameRate",
-            sentry_value_new_int32((int32_t)info.frame_rate));
+    // Split the window into segments so each replay_video envelope stays
+    // under the ingestion size limit. Oldest segment first, so segment ids
+    // are in chronological order; the last segment ends at the crash.
+    uint32_t total_ms = options->session_replay_duration;
+    if (total_ms > REPLAY_MAX_SEGMENTS * REPLAY_SEGMENT_MS) {
+        total_ms = REPLAY_MAX_SEGMENTS * REPLAY_SEGMENT_MS;
+    }
+    const int32_t n_segments
+        = (int32_t)((total_ms + REPLAY_SEGMENT_MS - 1) / REPLAY_SEGMENT_MS);
 
-        size_t json_len = 0;
-        char *json = sentry__value_to_json(meta, &json_len);
-        sentry_value_decref(meta);
-        if (json) {
-            rv = sentry__path_write_buffer(sidecar_path, json, json_len) == 0;
-            sentry_free(json);
-        }
-        if (!rv) {
-            // Without a sidecar the clip can never be flushed; don't leak it.
-            sentry__path_remove(mp4_path);
+    int32_t staged = 0;
+    for (int32_t i = 0; i < n_segments; i++) {
+        const uint32_t seg_ms = i == 0
+            ? total_ms - (uint32_t)(n_segments - 1) * REPLAY_SEGMENT_MS
+            : REPLAY_SEGMENT_MS;
+        const uint64_t seg_end_ms
+            = end_ts_ms - (uint64_t)(n_segments - 1 - i) * REPLAY_SEGMENT_MS;
+        if (stage_segment(dir, replay_id, staged, seg_ms, seg_end_ms, pid)) {
+            staged++;
         }
     }
 
-    sentry__path_free(mp4_path);
-    sentry__path_free(sidecar_path);
-    return rv;
+    sentry__path_free(dir);
+    return staged > 0;
 }
 
 bool
@@ -424,43 +496,120 @@ sentry__session_replay_flush_pending(const sentry_options_t *options,
         return;
     }
 
-    sentry_path_t *sidecar_path = replay_file_path(dir, replay_id, ".json");
-    sentry_path_t *mp4_path = replay_file_path(dir, replay_id, ".mp4");
-    sentry__path_free(dir);
-    if (!sidecar_path || !mp4_path) {
-        sentry__path_free(sidecar_path);
-        sentry__path_free(mp4_path);
+    // Collect the staged sidecars for this replay: `replay-<id>-<segment>`
+    // pairs staged by the SDK, or the un-suffixed `replay-<id>` pair staged
+    // by embedder recorders.
+    staged_segment_t segments[REPLAY_MAX_SEGMENTS];
+    size_t n_segments = 0;
+
+    size_t prefix_len = strlen("replay-") + strlen(replay_id);
+    char *prefix = sentry_malloc(prefix_len + 1);
+    if (!prefix) {
+        sentry__path_free(dir);
         return;
     }
+    snprintf(prefix, prefix_len + 1, "replay-%s", replay_id);
 
-    size_t json_len = 0;
-    char *json = sentry__path_read_to_buffer(sidecar_path, &json_len);
-    if (json) {
-        sentry_value_t meta = sentry__value_from_json(json, json_len);
-        sentry_free(json);
-
-        // build_replay_envelope falls back to the sidecar's end timestamp if 0.
-        double end_sec = 0.0;
-        const char *ts = sentry_value_as_string(
-            sentry_value_get_by_key(scope_source, "timestamp"));
-        if (ts && ts[0]) {
-            uint64_t usec = sentry__iso8601_to_usec(ts);
-            if (usec) {
-                end_sec = (double)usec / 1000000.0;
+    sentry_pathiter_t *iter = sentry__path_iter_directory(dir);
+    if (iter) {
+        const sentry_path_t *entry;
+        while ((entry = sentry__pathiter_next(iter)) != NULL
+            && n_segments < REPLAY_MAX_SEGMENTS) {
+            const char *filename = sentry__path_filename(entry);
+            if (!filename || strncmp(filename, prefix, prefix_len) != 0
+                || (filename[prefix_len] != '.' && filename[prefix_len] != '-')
+                || !sentry__path_ends_with(entry, ".json")) {
+                continue;
             }
-        }
 
-        sentry_envelope_t *envelope = build_replay_envelope(
-            options, meta, mp4_path, end_sec, scope_source);
+            sentry_path_t *sidecar = sentry__path_join_str(dir, filename);
+            if (!sidecar) {
+                continue;
+            }
+
+            // The mp4 sits next to the sidecar under the same base name.
+            size_t name_len = strlen(filename);
+            char *mp4_name = sentry_malloc(name_len + 1);
+            if (!mp4_name) {
+                sentry__path_free(sidecar);
+                continue;
+            }
+            memcpy(mp4_name, filename, name_len - strlen(".json"));
+            strcpy(mp4_name + name_len - strlen(".json"), ".mp4");
+            sentry_path_t *mp4 = sentry__path_join_str(dir, mp4_name);
+            sentry_free(mp4_name);
+            if (!mp4) {
+                sentry__path_free(sidecar);
+                continue;
+            }
+
+            segments[n_segments].sidecar = sidecar;
+            segments[n_segments].mp4 = mp4;
+            n_segments++;
+        }
+        sentry__pathiter_free(iter);
+    }
+    sentry_free(prefix);
+    sentry__path_free(dir);
+
+    // Parse the sidecars; entries that cannot be read are left in place.
+    size_t n_valid = 0;
+    for (size_t i = 0; i < n_segments; i++) {
+        size_t json_len = 0;
+        char *json
+            = sentry__path_read_to_buffer(segments[i].sidecar, &json_len);
+        sentry_value_t meta = sentry_value_new_null();
+        if (json) {
+            meta = sentry__value_from_json(json, json_len);
+            sentry_free(json);
+        }
+        if (sentry_value_is_null(meta)) {
+            sentry__path_free(segments[i].sidecar);
+            sentry__path_free(segments[i].mp4);
+            continue;
+        }
+        segments[n_valid] = segments[i];
+        segments[n_valid].meta = meta;
+        segments[n_valid].segment_id
+            = sentry_value_as_int32(sentry_value_get_by_key(meta, "segmentId"));
+        n_valid++;
+    }
+
+    // Send in ascending segment order.
+    for (size_t i = 1; i < n_valid; i++) {
+        for (size_t j = i;
+            j > 0 && segments[j].segment_id < segments[j - 1].segment_id; j--) {
+            const staged_segment_t tmp = segments[j];
+            segments[j] = segments[j - 1];
+            segments[j - 1] = tmp;
+        }
+    }
+
+    // The crash event's timestamp ends the replay window; it applies to the
+    // newest segment only, older segments keep their own end timestamps.
+    double crash_end_sec = 0.0;
+    const char *ts = sentry_value_as_string(
+        sentry_value_get_by_key(scope_source, "timestamp"));
+    if (ts && ts[0]) {
+        uint64_t usec = sentry__iso8601_to_usec(ts);
+        if (usec) {
+            crash_end_sec = (double)usec / 1000000.0;
+        }
+    }
+
+    for (size_t i = 0; i < n_valid; i++) {
+        const bool is_newest = i + 1 == n_valid;
+        sentry_envelope_t *envelope
+            = build_replay_envelope(options, segments[i].meta, segments[i].mp4,
+                is_newest ? crash_end_sec : 0.0, scope_source);
         if (envelope) {
             sentry__capture_envelope(transport, envelope, options);
         }
-        sentry_value_decref(meta);
+        sentry_value_decref(segments[i].meta);
 
-        sentry__path_remove(mp4_path);
-        sentry__path_remove(sidecar_path);
+        sentry__path_remove(segments[i].mp4);
+        sentry__path_remove(segments[i].sidecar);
+        sentry__path_free(segments[i].mp4);
+        sentry__path_free(segments[i].sidecar);
     }
-
-    sentry__path_free(mp4_path);
-    sentry__path_free(sidecar_path);
 }

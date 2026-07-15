@@ -4,7 +4,7 @@
 
 **Features**:
 
-- Stage crash-time session replay clips in `<database_path>/replays/` and deliver them as replay envelopes, replacing the raw `session-replay.mp4` crash attachment. Platform `sentry__session_replay_capture` implementations now report clip metadata used for the replay envelope.
+- Stage crash-time session replay clips in `<database_path>/replays/` and deliver them as replay envelopes, replacing the raw `session-replay.mp4` crash attachment. The capture window is anchored at the crash time and split into multiple segments so each replay envelope stays under the ingestion size limit. Platform `sentry__session_replay_capture` implementations now report clip metadata used for the replay envelope.
 
 - Add reusable, user-owned scopes. `sentry_scope_new` creates a scope that `sentry_capture_event_with_scope` applies without consuming, so you can configure it once and reuse it across many captures instead of building a new local scope each time. `sentry_scope_clone` copies a scope, and `sentry_scope_free` releases it. ([#1855](https://github.com/getsentry/sentry-native/pull/1855))
 
