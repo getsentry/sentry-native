@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1784128658517,
+  "lastUpdate": 1784128859221,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -87136,6 +87136,126 @@ window.BENCHMARK_DATA = {
             "value": 0.12341939999998885,
             "unit": "ms",
             "extra": "Min 0.123ms\nMax 0.123ms\nMean 0.123ms\nMedian 0.123ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "jpnurmi@gmail.com",
+            "name": "J-P Nurmi",
+            "username": "jpnurmi"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "2723a0fb5707ae8596e90ae041d397d8ce4e9ceb",
+          "message": "fix: avoid borrowed `sample_rand` after unlock (#1869)\n\n* fix(envelope): avoid borrowed sample_rand after unlock\n\nCopy `sample_rand` out of the scope propagation context while the scope\nlock is held. Previously, it kept a borrowed `sentry_value_t` and read\nit after releasing the lock.\n\n* Update CHANGELOG.md\n\n* fix ClangCL build [-Werror,-Wdouble-promotion]\n\nD:\\a\\sentry-native\\sentry-native\\src\\sentry_envelope.c(395,26): error : implicit conversion increases floating-point precision: 'float' to 'double' [-Werror,-Wdouble-promotion] [C:\\Users\\runneradmin\\AppData\\Local\\Temp\\pytest-of-runneradmin\\pytest-0\\cmake190\\sentry.vcxproj]\n  C:\\Program Files (x86)\\Windows Kits\\10\\Include\\10.0.26100.0\\ucrt\\corecrt_math.h(111,13): note: expanded from macro 'NAN'\n  C:\\Program Files (x86)\\Windows Kits\\10\\Include\\10.0.26100.0\\ucrt\\corecrt_math.h(105,20): note: expanded from macro '_UCRT_NAN'",
+          "timestamp": "2026-07-15T17:14:35+02:00",
+          "tree_id": "ea4cc08336e00811ac8cea171c0edae0c22ad1f8",
+          "url": "https://github.com/getsentry/sentry-native/commit/2723a0fb5707ae8596e90ae041d397d8ce4e9ceb"
+        },
+        "date": 1784128845626,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 19.200899999987087,
+            "unit": "ms",
+            "extra": "Min 12.188ms\nMax 36.241ms\nMean 21.053ms\nStdDev 9.520ms\nMedian 19.201ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 12.466899999935777,
+            "unit": "ms",
+            "extra": "Min 10.905ms\nMax 15.192ms\nMean 12.687ms\nStdDev 1.603ms\nMedian 12.467ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 76.52179999990949,
+            "unit": "ms",
+            "extra": "Min 54.857ms\nMax 88.665ms\nMean 74.145ms\nStdDev 13.846ms\nMedian 76.522ms"
+          },
+          {
+            "name": "SDK init (native)",
+            "value": 61.90199999991819,
+            "unit": "ms",
+            "extra": "Min 51.944ms\nMax 159.586ms\nMean 93.252ms\nStdDev 51.762ms\nMedian 61.902ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.220299999909912,
+            "unit": "ms",
+            "extra": "Min 0.186ms\nMax 0.278ms\nMean 0.229ms\nStdDev 0.041ms\nMedian 0.220ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.5199999998239946,
+            "unit": "ms",
+            "extra": "Min 0.439ms\nMax 0.549ms\nMean 0.505ms\nStdDev 0.042ms\nMedian 0.520ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 16.11460000003717,
+            "unit": "ms",
+            "extra": "Min 14.964ms\nMax 40.569ms\nMean 23.765ms\nStdDev 11.873ms\nMedian 16.115ms"
+          },
+          {
+            "name": "Backend startup (native)",
+            "value": 38.69129999998222,
+            "unit": "ms",
+            "extra": "Min 21.131ms\nMax 48.526ms\nMean 34.738ms\nStdDev 12.683ms\nMedian 38.691ms"
+          },
+          {
+            "name": "Scope set_tag (inproc)",
+            "value": 0.00826310000002195,
+            "unit": "ms",
+            "extra": "Min 0.008ms\nMax 0.008ms\nMean 0.008ms\nMedian 0.008ms"
+          },
+          {
+            "name": "Scope add_breadcrumb (inproc)",
+            "value": 0.0010048999999980879,
+            "unit": "ms",
+            "extra": "Min 0.001ms\nMax 0.001ms\nMean 0.001ms\nMedian 0.001ms"
+          },
+          {
+            "name": "Scope set_tag (breakpad)",
+            "value": 0.008248200000025463,
+            "unit": "ms",
+            "extra": "Min 0.008ms\nMax 0.008ms\nMean 0.008ms\nMedian 0.008ms"
+          },
+          {
+            "name": "Scope add_breadcrumb (breakpad)",
+            "value": 0.0010299999999006104,
+            "unit": "ms",
+            "extra": "Min 0.001ms\nMax 0.001ms\nMean 0.001ms\nMedian 0.001ms"
+          },
+          {
+            "name": "Scope set_tag (crashpad)",
+            "value": 3.69320689999995,
+            "unit": "ms",
+            "extra": "Min 3.693ms\nMax 3.693ms\nMean 3.693ms\nMedian 3.693ms"
+          },
+          {
+            "name": "Scope add_breadcrumb (crashpad)",
+            "value": 0.13123080000013942,
+            "unit": "ms",
+            "extra": "Min 0.131ms\nMax 0.131ms\nMean 0.131ms\nMedian 0.131ms"
+          },
+          {
+            "name": "Scope set_tag (native)",
+            "value": 3.0212092000001576,
+            "unit": "ms",
+            "extra": "Min 3.021ms\nMax 3.021ms\nMean 3.021ms\nMedian 3.021ms"
+          },
+          {
+            "name": "Scope add_breadcrumb (native)",
+            "value": 0.18800700000019788,
+            "unit": "ms",
+            "extra": "Min 0.188ms\nMax 0.188ms\nMean 0.188ms\nMedian 0.188ms"
           }
         ]
       }
