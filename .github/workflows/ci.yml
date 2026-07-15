@@ -479,6 +479,14 @@ jobs:
         working-directory: ndk
         run: make check
 
+      - name: Upload coverage artifacts
+        if: ${{ contains(env['RUN_ANALYZER'], 'cov') }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: coverage-${{ matrix.name }}
+          if-no-files-found: warn
+          path: coverage/
+
       - name: "Upload to codecov.io"
         if: ${{ contains(env['RUN_ANALYZER'], 'cov') }}
         uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f # pin@v7.0.0
