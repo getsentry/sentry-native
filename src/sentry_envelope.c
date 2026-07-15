@@ -392,7 +392,7 @@ sentry__envelope_add_event(sentry_envelope_t *envelope, sentry_value_t event)
         traces_sample_rate = options->traces_sample_rate;
     }
     sentry_value_t dsc = sentry_value_new_null();
-    double sample_rand = NAN;
+    double sample_rand = (double)NAN;
     SENTRY_WITH_SCOPE (scope) {
         dsc = sentry__value_clone(scope->dynamic_sampling_context);
         sample_rand = sentry_value_as_double(sentry_value_get_by_key(
