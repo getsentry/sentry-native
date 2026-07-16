@@ -109,16 +109,16 @@ jobs:
             os: ubuntu-22.04
             CC: clang-11
             CXX: clang++-11
-          - name: Linux (clang 22 + asan + llvm-cov)
-            os: ubuntu-26.04
-            CC: clang-22
-            CXX: clang++-22
+          - name: Linux (clang 20 + asan + llvm-cov)
+            os: ubuntu-24.04
+            CC: clang-20
+            CXX: clang++-20
             ERROR_ON_WARNINGS: 1
             RUN_ANALYZER: asan,llvm-cov
-          - name: Linux Arm64 (clang 22 + asan + llvm-cov)
-            os: ubuntu-26.04-arm
-            CC: clang-22
-            CXX: clang++-22
+          - name: Linux Arm64 (clang 20 + asan + llvm-cov)
+            os: ubuntu-24.04-arm
+            CC: clang-20
+            CXX: clang++-20
             ERROR_ON_WARNINGS: 1
             RUN_ANALYZER: asan,llvm-cov
           - name: Linux (clang 20 + tsan)
@@ -282,6 +282,12 @@ jobs:
             sudo apt install "${CC}" "${CXX}"
           elif [[ "$CC" == clang-* ]]; then
             sudo apt install "${CC}"
+            if [[ "$RUN_ANALYZER" == *llvm-cov* ]]; then
+              llvm_version="${CC#clang-}"
+              sudo apt install "llvm-${llvm_version}"
+              echo "LLVM_PROFDATA=llvm-profdata-${llvm_version}" >> "$GITHUB_ENV"
+              echo "LLVM_COV=llvm-cov-${llvm_version}" >> "$GITHUB_ENV"
+            fi
           else
             echo "Unknown CC: $CC" >&2
             exit 1

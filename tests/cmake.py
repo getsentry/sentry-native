@@ -78,7 +78,7 @@ class CMake:
                 if len(files) == 0:
                     continue
                 cmd = [
-                    "llvm-profdata",
+                    os.environ.get("LLVM_PROFDATA", "llvm-profdata"),
                     "merge",
                     "-sparse",
                     "-o=sentry.profdata",
@@ -95,7 +95,7 @@ class CMake:
                     "libsentry.dylib" if sys.platform == "darwin" else "libsentry.so",
                 ]
                 cmd = [
-                    "llvm-cov",
+                    os.environ.get("LLVM_COV", "llvm-cov"),
                     "export",
                     "-format=lcov",
                     "-instr-profile=sentry.profdata",
