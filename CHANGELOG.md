@@ -16,6 +16,7 @@
 - Crashpad: route client logs through the Sentry logger to make actionable handler startup errors visible. ([#1859](https://github.com/getsentry/sentry-native/pull/1859))
 - Windows: fix symlink detection used to prevent database cleanup from following symlinks in run and cache directories. ([#1857](https://github.com/getsentry/sentry-native/pull/1857))
 - Linux: avoid unsafe `copy_file_range` at crash time. ([#1868](https://github.com/getsentry/sentry-native/pull/1868))
+- Increase the default telemetry batcher capacity from 2x100 to 3x100 items, and add `SENTRY_BATCHER_BUFFER_COUNT` to configure the number of rotating buffers used by log and metric batchers. ([#1867](https://github.com/getsentry/sentry-native/pull/1867))
 - Fix a lifetime issue when reading `sample_rand` from the scope propagation context. ([#1869](https://github.com/getsentry/sentry-native/pull/1869))
 - Linux: silence harmless compilation warnings in `sentry_modulefinder_linux.c` and `sentry_backend_inproc.c`. ([#1871](https://github.com/getsentry/sentry-native/pull/1871))
 
