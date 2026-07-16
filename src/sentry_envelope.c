@@ -13,6 +13,7 @@
 #include "sentry_value.h"
 #include <assert.h>
 #include <limits.h>
+#include <math.h>
 #include <string.h>
 
 struct sentry_envelope_item_s {
@@ -391,12 +392,12 @@ sentry__envelope_add_event(sentry_envelope_t *envelope, sentry_value_t event)
         traces_sample_rate = options->traces_sample_rate;
     }
     sentry_value_t dsc = sentry_value_new_null();
-    sentry_value_t sample_rand = sentry_value_new_null();
+    double sample_rand = (double)NAN;
     SENTRY_WITH_SCOPE (scope) {
         dsc = sentry__value_clone(scope->dynamic_sampling_context);
-        sample_rand = sentry_value_get_by_key(
+        sample_rand = sentry_value_as_double(sentry_value_get_by_key(
             sentry_value_get_by_key(scope->propagation_context, "trace"),
-            "sample_rand");
+            "sample_rand"));
     }
     if (!sentry_value_is_null(dsc)) {
         sentry_value_t trace_id = sentry_value_get_by_key(
@@ -410,8 +411,8 @@ sentry__envelope_add_event(sentry_envelope_t *envelope, sentry_value_t event)
             SENTRY_WARN("couldn't retrieve trace_id from scope to apply to the "
                         "dynamic sampling context");
         }
-        if (!sentry_value_is_null(sample_rand)) {
-            if (sentry_value_as_double(sample_rand) >= traces_sample_rate) {
+        if (!isnan(sample_rand)) {
+            if (sample_rand >= traces_sample_rate) {
                 sentry_value_set_by_key(
                     dsc, "sampled", sentry_value_new_string("false"));
             } else {

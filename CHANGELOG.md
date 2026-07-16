@@ -9,9 +9,16 @@
 **Fixes**:
 
 - Apply the propagation context to events that already have contexts set, so that events captured with a local scope or with event-level contexts keep their trace. ([#1843](https://github.com/getsentry/sentry-native/pull/1843))
+- Crashpad: reject runtime control IPC from processes other than the one that started the handler. ([#1853](https://github.com/getsentry/sentry-native/pull/1853))
+- Native/macOS: resolve symbol names for crash stacktraces from Mach-O symbol tables and dSYM companions. ([#1856](https://github.com/getsentry/sentry-native/pull/1856))
 - Route libcurl debug output through the Sentry logger (`SENTRY_TRACE`) instead of writing to `stderr`. ([#1854](https://github.com/getsentry/sentry-native/pull/1854))
   - NOTE: `sentry_options_set_debug(options, true)` no longer displays verbose libcurl debug output by default. To restore it, call `sentry_options_set_logger_level(options, SENTRY_LEVEL_TRACE)`.
+- Crashpad: route client logs through the Sentry logger to make actionable handler startup errors visible. ([#1859](https://github.com/getsentry/sentry-native/pull/1859))
 - Windows: fix symlink detection used to prevent database cleanup from following symlinks in run and cache directories. ([#1857](https://github.com/getsentry/sentry-native/pull/1857))
+- Linux: avoid unsafe `copy_file_range` at crash time. ([#1868](https://github.com/getsentry/sentry-native/pull/1868))
+- Increase the default telemetry batcher capacity from 2x100 to 3x100 items, and add `SENTRY_BATCHER_BUFFER_COUNT` to configure the number of rotating buffers used by log and metric batchers. ([#1867](https://github.com/getsentry/sentry-native/pull/1867))
+- Fix a lifetime issue when reading `sample_rand` from the scope propagation context. ([#1869](https://github.com/getsentry/sentry-native/pull/1869))
+- Linux: silence harmless compilation warnings in `sentry_modulefinder_linux.c` and `sentry_backend_inproc.c`. ([#1871](https://github.com/getsentry/sentry-native/pull/1871))
 
 ## 0.15.3
 
