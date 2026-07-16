@@ -4314,10 +4314,11 @@ sentry__process_crash(const sentry_options_t *options, sentry_crash_ipc_t *ipc)
 cleanup:
     // Send the staged session-replay envelope same-session, enriched from the
     // crash event (`<run>/__sentry-event`) so it shares the crash's
-    // tags/contexts/trace. Only flush when the crash itself was delivered:
-    // `cleanup` is also reached via `goto` on error paths where the crash was
-    // never captured, and flushing there would consume (and delete) the staged
-    // replay for a crash that never arrived.
+    // tags/contexts/trace and embeds its breadcrumbs. Only flush when the
+    // crash itself was delivered: `cleanup` is also reached via `goto` on
+    // error paths where the crash was never captured, and flushing there
+    // would consume (and delete) the staged replay for a crash that never
+    // arrived.
     if (crash_captured && options && options->transport
         && sentry__session_replay_has_pending(options)) {
         sentry_value_t crash_event = sentry_value_new_null();
@@ -4328,6 +4329,11 @@ cleanup:
                 crash_event = sentry__value_from_json(ev_json, ev_len);
                 sentry_free(ev_json);
             }
+        }
+        if (!sentry_value_is_null(crash_event)) {
+            // `__sentry-event` is scope-applied without breadcrumbs; merge
+            // the ring files so the replay recording can embed them
+            apply_breadcrumbs_from_ring_files(crash_event, run_folder, ctx);
         }
         sentry__session_replay_flush_pending(
             options, options->transport, crash_event);
