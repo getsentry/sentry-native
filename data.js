@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1784202193762,
+  "lastUpdate": 1784202702721,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -29282,6 +29282,126 @@ window.BENCHMARK_DATA = {
           {
             "name": "Scope add_breadcrumb (native)",
             "value": 0.0074330209999970975,
+            "unit": "ms",
+            "extra": "Min 0.007ms\nMax 0.007ms\nMean 0.007ms\nMedian 0.007ms\nCPU 0.007ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "jpnurmi@gmail.com",
+            "name": "J-P Nurmi",
+            "username": "jpnurmi"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "d50befe524b802012808e7a2f331c933daa1baab",
+          "message": "perf(batcher): configurable rotating telemetry buffers (#1867)\n\n* perf(logs): triple buffer to increase burst capacity\n\n* fix(batcher): drain concurrently rotated buffers\n\nSeal the old buffer before publishing the new active buffer, and treat a\nconcurrent rotation as successful so the final flush does not skip queued\nitems.\n\n* Update CHANGELOG.md\n\n* make buffer count configurable\n\nAdd a validated CMake option for selecting two to ten 100-item\ntelemetry buffers while retaining three as the default. Document the\nmemory and burst-capacity tradeoff.\n\n* Update CHANGELOG.md",
+          "timestamp": "2026-07-16T13:48:06+02:00",
+          "tree_id": "90aa20c756512abbc7b345fc160f15bc46705d00",
+          "url": "https://github.com/getsentry/sentry-native/commit/d50befe524b802012808e7a2f331c933daa1baab"
+        },
+        "date": 1784202692273,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 1.1477059999975836,
+            "unit": "ms",
+            "extra": "Min 1.112ms\nMax 1.182ms\nMean 1.145ms\nStdDev 0.029ms\nMedian 1.148ms\nCPU 1.079ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 1.0169410000173684,
+            "unit": "ms",
+            "extra": "Min 0.997ms\nMax 1.071ms\nMean 1.027ms\nStdDev 0.031ms\nMedian 1.017ms\nCPU 1.011ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 3.670295000006263,
+            "unit": "ms",
+            "extra": "Min 3.625ms\nMax 3.842ms\nMean 3.710ms\nStdDev 0.094ms\nMedian 3.670ms\nCPU 1.934ms"
+          },
+          {
+            "name": "SDK init (native)",
+            "value": 13.097942999991119,
+            "unit": "ms",
+            "extra": "Min 12.905ms\nMax 13.202ms\nMean 13.058ms\nStdDev 0.137ms\nMedian 13.098ms\nCPU 7.876ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.158356000014237,
+            "unit": "ms",
+            "extra": "Min 0.150ms\nMax 0.186ms\nMean 0.162ms\nStdDev 0.014ms\nMedian 0.158ms\nCPU 0.102ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.032992000001286215,
+            "unit": "ms",
+            "extra": "Min 0.030ms\nMax 0.038ms\nMean 0.034ms\nStdDev 0.003ms\nMedian 0.033ms\nCPU 0.032ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 2.209644999993543,
+            "unit": "ms",
+            "extra": "Min 2.196ms\nMax 2.303ms\nMean 2.240ms\nStdDev 0.050ms\nMedian 2.210ms\nCPU 0.636ms"
+          },
+          {
+            "name": "Backend startup (native)",
+            "value": 11.945138000015731,
+            "unit": "ms",
+            "extra": "Min 11.866ms\nMax 12.238ms\nMean 11.994ms\nStdDev 0.154ms\nMedian 11.945ms\nCPU 6.626ms"
+          },
+          {
+            "name": "Scope set_tag (inproc)",
+            "value": 0.0048434029999953054,
+            "unit": "ms",
+            "extra": "Min 0.005ms\nMax 0.005ms\nMean 0.005ms\nMedian 0.005ms\nCPU 0.005ms"
+          },
+          {
+            "name": "Scope add_breadcrumb (inproc)",
+            "value": 0.0005314040000143905,
+            "unit": "ms",
+            "extra": "Min 0.001ms\nMax 0.001ms\nMean 0.001ms\nMedian 0.001ms\nCPU 0.001ms"
+          },
+          {
+            "name": "Scope set_tag (breakpad)",
+            "value": 0.005086246999979949,
+            "unit": "ms",
+            "extra": "Min 0.005ms\nMax 0.005ms\nMean 0.005ms\nMedian 0.005ms\nCPU 0.005ms"
+          },
+          {
+            "name": "Scope add_breadcrumb (breakpad)",
+            "value": 0.000517016000003423,
+            "unit": "ms",
+            "extra": "Min 0.001ms\nMax 0.001ms\nMean 0.001ms\nMedian 0.001ms\nCPU 0.001ms"
+          },
+          {
+            "name": "Scope set_tag (crashpad)",
+            "value": 0.004486697000004369,
+            "unit": "ms",
+            "extra": "Min 0.004ms\nMax 0.004ms\nMean 0.004ms\nMedian 0.004ms\nCPU 0.004ms"
+          },
+          {
+            "name": "Scope add_breadcrumb (crashpad)",
+            "value": 0.007110711999985142,
+            "unit": "ms",
+            "extra": "Min 0.007ms\nMax 0.007ms\nMean 0.007ms\nMedian 0.007ms\nCPU 0.007ms"
+          },
+          {
+            "name": "Scope set_tag (native)",
+            "value": 1.793784044000006,
+            "unit": "ms",
+            "extra": "Min 1.794ms\nMax 1.794ms\nMean 1.794ms\nMedian 1.794ms\nCPU 1.777ms"
+          },
+          {
+            "name": "Scope add_breadcrumb (native)",
+            "value": 0.007049969999997074,
             "unit": "ms",
             "extra": "Min 0.007ms\nMax 0.007ms\nMean 0.007ms\nMedian 0.007ms\nCPU 0.007ms"
           }
