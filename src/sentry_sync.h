@@ -373,7 +373,8 @@ sentry__cond_wait_timeout(
 
 typedef struct {
     sentry_mutex_t mutex;
-    sentry_cond_t cond;
+    sentry_cond_t reader_cond;
+    sentry_cond_t writer_cond;
     size_t readers;
 #ifdef SENTRY_PLATFORM_WINDOWS
     DWORD writer_owner;
@@ -409,7 +410,8 @@ static inline void
 sentry__rwlock_init(sentry_rwlock_t *lock)
 {
     sentry__mutex_init(&lock->mutex);
-    sentry__cond_init(&lock->cond);
+    sentry__cond_init(&lock->reader_cond);
+    sentry__cond_init(&lock->writer_cond);
     lock->readers = 0;
 #ifdef SENTRY_PLATFORM_WINDOWS
     lock->writer_owner = 0;
@@ -457,11 +459,11 @@ sentry__rwlock_read_lock(sentry_rwlock_t *lock)
         sentry__mutex_unlock(&lock->mutex);
         return;
     }
-    while (lock->writer_depth > 0) {
-        sentry__cond_wait(&lock->cond, &lock->mutex);
+    while (lock->writer_depth > 0 || lock->waiting_writers > 0) {
+        sentry__cond_wait(&lock->reader_cond, &lock->mutex);
     }
     lock->readers++;
-    sentry__cond_wake(&lock->cond);
+    sentry__cond_wake(&lock->reader_cond);
     sentry__mutex_unlock(&lock->mutex);
 }
 
@@ -478,7 +480,11 @@ sentry__rwlock_release_writer_depth(sentry_rwlock_t *lock)
 #else
     sentry__thread_init(&lock->writer_owner);
 #endif
-    sentry__cond_wake(&lock->cond);
+    if (lock->waiting_writers > 0) {
+        sentry__cond_wake(&lock->writer_cond);
+    } else {
+        sentry__cond_wake(&lock->reader_cond);
+    }
     return true;
 }
 
@@ -501,7 +507,7 @@ sentry__rwlock_unlock(sentry_rwlock_t *lock)
     assert(lock->readers > 0);
     lock->readers--;
     if (lock->readers == 0) {
-        sentry__cond_wake(&lock->cond);
+        sentry__cond_wake(&lock->writer_cond);
     }
     sentry__mutex_unlock(&lock->mutex);
     return released_outermost;
@@ -523,7 +529,7 @@ sentry__rwlock_write_lock(sentry_rwlock_t *lock)
     }
     lock->waiting_writers++;
     while (lock->writer_depth > 0 || lock->readers > 0) {
-        sentry__cond_wait(&lock->cond, &lock->mutex);
+        sentry__cond_wait(&lock->writer_cond, &lock->mutex);
     }
     lock->waiting_writers--;
     sentry__rwlock_set_writer(lock);
