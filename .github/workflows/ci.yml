@@ -109,16 +109,16 @@ jobs:
             os: ubuntu-22.04
             CC: clang-11
             CXX: clang++-11
-          - name: Linux (clang 20 + asan + llvm-cov)
-            os: ubuntu-24.04
-            CC: clang-20
-            CXX: clang++-20
+          - name: Linux (clang 22 + asan + llvm-cov)
+            os: ubuntu-26.04
+            CC: clang-22
+            CXX: clang++-22
             ERROR_ON_WARNINGS: 1
             RUN_ANALYZER: asan,llvm-cov
-          - name: Linux Arm64 (clang 20 + asan + llvm-cov)
-            os: ubuntu-24.04-arm
-            CC: clang-20
-            CXX: clang++-20
+          - name: Linux Arm64 (clang 22 + asan + llvm-cov)
+            os: ubuntu-26.04-arm
+            CC: clang-22
+            CXX: clang++-22
             ERROR_ON_WARNINGS: 1
             RUN_ANALYZER: asan,llvm-cov
           - name: Linux (clang 20 + tsan)
