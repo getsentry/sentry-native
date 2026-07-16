@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1784195422068,
+  "lastUpdate": 1784202031342,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -29162,6 +29162,126 @@ window.BENCHMARK_DATA = {
           {
             "name": "Scope add_breadcrumb (native)",
             "value": 0.007373302000019066,
+            "unit": "ms",
+            "extra": "Min 0.007ms\nMax 0.007ms\nMean 0.007ms\nMedian 0.007ms\nCPU 0.007ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "jpnurmi@gmail.com",
+            "name": "J-P Nurmi",
+            "username": "jpnurmi"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "f6d36463c564c3b549b1876554ace0c56a8aaf62",
+          "message": "fix: silence warnings on Linux/GCC 15 (#1871)\n\n* fix: silence warnings on Linux/GCC\n\n```\nsrc/modulefinder/sentry_modulefinder_linux.c: In function ‘sentry__procmaps_parse_module_line’:\nsrc/modulefinder/sentry_modulefinder_linux.c:242:16: warning: initialization discards ‘const’ qualifier from pointer target type [-Wdiscarded-qualifiers]\n  242 |     char *nl = strchr(line, '\\n');\n      |                ^~~~~~\n```\n\n```\nsrc/backends/sentry_backend_inproc.c: In function ‘wait_for_handler_ready’:\nsrc/backends/sentry_backend_inproc.c:321:9: warning: ignoring return value of ‘read’ declared with attribute ‘warn_unused_result’ [-Wunused-result]\n  321 |         read(g_handler_ready_pipe[0], &c, 1);\n      |         ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n```\n\n```\ntests/unit/test_retry.c: In function ‘write_retry_file’:\ntests/unit/test_retry.c:69:11: warning: ignoring return value of ‘sentry_envelope_write_to_path’ declared with attribute ‘warn_unused_result’ [-Wunused-result]\n   69 |     (void)sentry_envelope_write_to_path(envelope, path);\n      |           ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n```\n\n* Update CHANGELOG.md",
+          "timestamp": "2026-07-16T13:37:19+02:00",
+          "tree_id": "3f7b556bd4eb30924402c149a4d9eb77e40c4077",
+          "url": "https://github.com/getsentry/sentry-native/commit/f6d36463c564c3b549b1876554ace0c56a8aaf62"
+        },
+        "date": 1784202022448,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 1.0586369999998624,
+            "unit": "ms",
+            "extra": "Min 1.049ms\nMax 1.087ms\nMean 1.061ms\nStdDev 0.016ms\nMedian 1.059ms\nCPU 1.014ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 1.012138000021423,
+            "unit": "ms",
+            "extra": "Min 0.984ms\nMax 1.044ms\nMean 1.013ms\nStdDev 0.022ms\nMedian 1.012ms\nCPU 1.012ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 4.282353000007788,
+            "unit": "ms",
+            "extra": "Min 4.114ms\nMax 4.793ms\nMean 4.379ms\nStdDev 0.265ms\nMedian 4.282ms\nCPU 2.227ms"
+          },
+          {
+            "name": "SDK init (native)",
+            "value": 14.251763000004303,
+            "unit": "ms",
+            "extra": "Min 14.090ms\nMax 14.315ms\nMean 14.232ms\nStdDev 0.086ms\nMedian 14.252ms\nCPU 8.687ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.15528000000131215,
+            "unit": "ms",
+            "extra": "Min 0.149ms\nMax 0.173ms\nMean 0.160ms\nStdDev 0.010ms\nMedian 0.155ms\nCPU 0.098ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.036103000013554265,
+            "unit": "ms",
+            "extra": "Min 0.034ms\nMax 0.049ms\nMean 0.039ms\nStdDev 0.006ms\nMedian 0.036ms\nCPU 0.037ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 2.473590999954922,
+            "unit": "ms",
+            "extra": "Min 2.386ms\nMax 2.521ms\nMean 2.461ms\nStdDev 0.050ms\nMedian 2.474ms\nCPU 0.687ms"
+          },
+          {
+            "name": "Backend startup (native)",
+            "value": 13.104225000006409,
+            "unit": "ms",
+            "extra": "Min 13.038ms\nMax 13.476ms\nMean 13.173ms\nStdDev 0.175ms\nMedian 13.104ms\nCPU 7.626ms"
+          },
+          {
+            "name": "Scope set_tag (inproc)",
+            "value": 0.004957927000020845,
+            "unit": "ms",
+            "extra": "Min 0.005ms\nMax 0.005ms\nMean 0.005ms\nMedian 0.005ms\nCPU 0.005ms"
+          },
+          {
+            "name": "Scope add_breadcrumb (inproc)",
+            "value": 0.0005121980000240001,
+            "unit": "ms",
+            "extra": "Min 0.001ms\nMax 0.001ms\nMean 0.001ms\nMedian 0.001ms\nCPU 0.001ms"
+          },
+          {
+            "name": "Scope set_tag (breakpad)",
+            "value": 0.005348304999984066,
+            "unit": "ms",
+            "extra": "Min 0.005ms\nMax 0.005ms\nMean 0.005ms\nMedian 0.005ms\nCPU 0.005ms"
+          },
+          {
+            "name": "Scope add_breadcrumb (breakpad)",
+            "value": 0.00047474299998384595,
+            "unit": "ms",
+            "extra": "Min 0.000ms\nMax 0.000ms\nMean 0.000ms\nMedian 0.000ms\nCPU 0.000ms"
+          },
+          {
+            "name": "Scope set_tag (crashpad)",
+            "value": 0.005140318000030675,
+            "unit": "ms",
+            "extra": "Min 0.005ms\nMax 0.005ms\nMean 0.005ms\nMedian 0.005ms\nCPU 0.005ms"
+          },
+          {
+            "name": "Scope add_breadcrumb (crashpad)",
+            "value": 0.007400463000010404,
+            "unit": "ms",
+            "extra": "Min 0.007ms\nMax 0.007ms\nMean 0.007ms\nMedian 0.007ms\nCPU 0.007ms"
+          },
+          {
+            "name": "Scope set_tag (native)",
+            "value": 1.8373852959999795,
+            "unit": "ms",
+            "extra": "Min 1.837ms\nMax 1.837ms\nMean 1.837ms\nMedian 1.837ms\nCPU 1.832ms"
+          },
+          {
+            "name": "Scope add_breadcrumb (native)",
+            "value": 0.0074330209999970975,
             "unit": "ms",
             "extra": "Min 0.007ms\nMax 0.007ms\nMean 0.007ms\nMedian 0.007ms\nCPU 0.007ms"
           }
