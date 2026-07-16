@@ -3042,16 +3042,8 @@ read_breadcrumb_ring_file(const sentry_path_t *run_folder, const char *name)
         sentry_free(buf);
         return sentry_value_new_null();
     }
-    sentry_value_t list = sentry__value_from_msgpack(buf, size);
+    sentry_value_t list = sentry__value_from_msgpack_stream(buf, size);
     sentry_free(buf);
-    // `sentry__value_from_msgpack` only builds a list when the file holds 2+
-    // concatenated values; a file with a single breadcrumb decodes to a bare
-    // object. Wrap it so the merge step (which ignores non-lists) keeps it.
-    if (sentry_value_get_type(list) == SENTRY_VALUE_TYPE_OBJECT) {
-        sentry_value_t wrapper = sentry_value_new_list();
-        sentry_value_append(wrapper, list);
-        return wrapper;
-    }
     return list;
 }
 

@@ -1741,8 +1741,8 @@ value_from_mpack(mpack_node_t node, size_t depth, bool *ok)
     }
 }
 
-sentry_value_t
-sentry__value_from_msgpack(const char *buf, size_t buf_len)
+static sentry_value_t
+value_from_msgpack_internal(const char *buf, size_t buf_len, bool force_list)
 {
     if (!buf || buf_len == 0) {
         return sentry_value_new_null();
@@ -1773,11 +1773,11 @@ sentry__value_from_msgpack(const char *buf, size_t buf_len)
         mpack_tree_destroy(&tree);
 
         if (offset == 0 && sentry_value_is_null(result)) {
-            if (offset + size < buf_len) {
+            if (!force_list && offset + size == buf_len) {
+                result = value;
+            } else {
                 result = sentry_value_new_list();
                 sentry_value_append(result, value);
-            } else {
-                result = value;
             }
         } else {
             sentry_value_append(result, value);
@@ -1787,6 +1787,18 @@ sentry__value_from_msgpack(const char *buf, size_t buf_len)
     }
 
     return result;
+}
+
+sentry_value_t
+sentry__value_from_msgpack(const char *buf, size_t buf_len)
+{
+    return value_from_msgpack_internal(buf, buf_len, false);
+}
+
+sentry_value_t
+sentry__value_from_msgpack_stream(const char *buf, size_t buf_len)
+{
+    return value_from_msgpack_internal(buf, buf_len, true);
 }
 
 static int
