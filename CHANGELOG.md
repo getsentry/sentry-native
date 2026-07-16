@@ -5,6 +5,7 @@
 **Features**:
 
 - Add reusable, user-owned scopes. `sentry_scope_new` creates a scope that `sentry_capture_event_with_scope` applies without consuming, so you can configure it once and reuse it across many captures instead of building a new local scope each time. `sentry_scope_clone` copies a scope, and `sentry_scope_free` releases it. ([#1855](https://github.com/getsentry/sentry-native/pull/1855))
+- Android: Expose setting the environment on the scope through the NDK bindings via `NativeScope.setEnvironment()`, so head SDKs can sync the environment at runtime. ([#1874](https://github.com/getsentry/sentry-native/pull/1874))
 
 **Fixes**:
 
