@@ -303,6 +303,24 @@ crashpad_backend_flush_scope(
 }
 
 #if defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_WINDOWS)
+// Decodes a breadcrumb ring file (an append-only stream of msgpack values)
+// into a list.
+static sentry_value_t
+read_msgpack_stream_file(const sentry_path_t *path)
+{
+    if (!path) {
+        return sentry_value_new_null();
+    }
+    size_t size;
+    char *data = sentry__path_read_to_buffer(path, &size);
+    if (!data) {
+        return sentry_value_new_null();
+    }
+    sentry_value_t value = sentry__value_from_msgpack_stream(data, size);
+    sentry_free(data);
+    return value;
+}
+
 static void
 flush_scope_from_handler(
     const sentry_options_t *options, sentry_value_t crash_event)
@@ -406,6 +424,22 @@ crashpad_handler(int signum, siginfo_t *info, ucontext_t *user_context)
             }
 
             if (sentry__session_replay_has_pending(options)) {
+                // the crash event was scope-applied without breadcrumbs, so
+                // enrich the in-memory copy from the ring files to let the
+                // replay recording embed them; the on-disk `__sentry-event`
+                // was already written above and stays breadcrumb-free
+                sentry_value_t b1
+                    = read_msgpack_stream_file(state->breadcrumb1_path);
+                sentry_value_t b2
+                    = read_msgpack_stream_file(state->breadcrumb2_path);
+                sentry_value_t merged = sentry__value_merge_breadcrumbs(
+                    b1, b2, options->max_breadcrumbs);
+                if (!sentry_value_is_null(merged)) {
+                    sentry_value_set_by_key(crash_event, "breadcrumbs", merged);
+                }
+                sentry_value_decref(b1);
+                sentry_value_decref(b2);
+
                 sentry_transport_t *replay_transport
                     = sentry_new_disk_transport(options->run);
                 if (replay_transport) {
