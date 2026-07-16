@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1784195387072,
+  "lastUpdate": 1784195422068,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -87616,6 +87616,126 @@ window.BENCHMARK_DATA = {
             "value": 0.18800700000019788,
             "unit": "ms",
             "extra": "Min 0.188ms\nMax 0.188ms\nMean 0.188ms\nMedian 0.188ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "jpnurmi@gmail.com",
+            "name": "J-P Nurmi",
+            "username": "jpnurmi"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "36f5fd2fc176c3cc199197b08c41f64053af5cdb",
+          "message": "fix(crashpad): route client logs through sentry logger (#1859)\n\n* fix(crashpad): route client logs through sentry logger\n\nForward Crashpad client log messages into the Sentry logger when debug\nlogging is enabled, mapping severities between mini_chromium and Sentry\nlevels. This makes detailed crashpad_handler startup errors, such as\nmissing executable permissions, visible.\n\nResolves: #792\n\n* Update CHANGELOG.md\n\n* fix(crashpad): Report spawn failures without child logging\n\nUpdate Crashpad so spawn and exec failures are reported from the parent\nprocess instead of logging from the forked intermediate child. This keeps\nhandler startup diagnostics visible without invoking logger callbacks after\nfork.\n\nCo-Authored-By: OpenAI Codex <noreply@openai.com>\n\n* fix(crashpad): Preserve fatal log handling\n\nForward Crashpad debug logs to the Sentry logger without consuming them.\nDisable Crashpad stderr logging for this forwarding path to avoid duplicate\nterminal output while keeping fatal termination behavior intact.\n\nCo-Authored-By: OpenAI Codex <noreply@openai.com>\n\n* bump crashpad\n\n* fix msvc build\n\nD:\\a\\***\\***\\src\\backends\\sentry_backend_crashpad.cpp(800,13): error C2220: the following warning is treated as an error [C:\\Users\\runneradmin\\AppData\\Local\\Temp\\pytest-of-runneradmin\\pytest-0\\cmake3\\sentry.vcxproj]\nD:\\a\\***\\***\\src\\backends\\sentry_backend_crashpad.cpp(800,13): warning C4100: 'UNUSED_line': unreferenced parameter [C:\\Users\\runneradmin\\AppData\\Local\\Temp\\pytest-of-runneradmin\\pytest-0\\cmake3\\sentry.vcxproj]\nD:\\a\\***\\***\\src\\backends\\sentry_backend_crashpad.cpp(800,13): warning C4100: 'UNUSED_file': unreferenced parameter [C:\\Users\\runneradmin\\AppData\\Local\\Temp\\pytest-of-runneradmin\\pytest-0\\cmake3\\sentry.vcxproj]\n\n* bump crashpad\n\n---------\n\nCo-authored-by: OpenAI Codex <noreply@openai.com>",
+          "timestamp": "2026-07-16T11:44:43+02:00",
+          "tree_id": "0d5fac5f96cdc476db2907adc0087e9013ed2bfb",
+          "url": "https://github.com/getsentry/sentry-native/commit/36f5fd2fc176c3cc199197b08c41f64053af5cdb"
+        },
+        "date": 1784195411438,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 10.280599999987317,
+            "unit": "ms",
+            "extra": "Min 10.234ms\nMax 10.587ms\nMean 10.373ms\nStdDev 0.166ms\nMedian 10.281ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 10.824400000018386,
+            "unit": "ms",
+            "extra": "Min 10.525ms\nMax 16.035ms\nMean 11.821ms\nStdDev 2.360ms\nMedian 10.824ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 26.074400000027254,
+            "unit": "ms",
+            "extra": "Min 25.944ms\nMax 26.846ms\nMean 26.237ms\nStdDev 0.360ms\nMedian 26.074ms"
+          },
+          {
+            "name": "SDK init (native)",
+            "value": 30.726000000015574,
+            "unit": "ms",
+            "extra": "Min 30.062ms\nMax 32.971ms\nMean 31.085ms\nStdDev 1.106ms\nMedian 30.726ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.17869999999220454,
+            "unit": "ms",
+            "extra": "Min 0.171ms\nMax 0.191ms\nMean 0.178ms\nStdDev 0.008ms\nMedian 0.179ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.4250000000070031,
+            "unit": "ms",
+            "extra": "Min 0.414ms\nMax 0.459ms\nMean 0.429ms\nStdDev 0.017ms\nMedian 0.425ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 14.531199999964883,
+            "unit": "ms",
+            "extra": "Min 14.029ms\nMax 14.851ms\nMean 14.463ms\nStdDev 0.364ms\nMedian 14.531ms"
+          },
+          {
+            "name": "Backend startup (native)",
+            "value": 20.160500000031334,
+            "unit": "ms",
+            "extra": "Min 19.720ms\nMax 22.355ms\nMean 20.487ms\nStdDev 1.060ms\nMedian 20.161ms"
+          },
+          {
+            "name": "Scope set_tag (inproc)",
+            "value": 0.008320299999979852,
+            "unit": "ms",
+            "extra": "Min 0.008ms\nMax 0.008ms\nMean 0.008ms\nMedian 0.008ms"
+          },
+          {
+            "name": "Scope add_breadcrumb (inproc)",
+            "value": 0.0010194999999839638,
+            "unit": "ms",
+            "extra": "Min 0.001ms\nMax 0.001ms\nMean 0.001ms\nMedian 0.001ms"
+          },
+          {
+            "name": "Scope set_tag (breakpad)",
+            "value": 0.008288699999980054,
+            "unit": "ms",
+            "extra": "Min 0.008ms\nMax 0.008ms\nMean 0.008ms\nMedian 0.008ms"
+          },
+          {
+            "name": "Scope add_breadcrumb (breakpad)",
+            "value": 0.000993499999992764,
+            "unit": "ms",
+            "extra": "Min 0.001ms\nMax 0.001ms\nMean 0.001ms\nMedian 0.001ms"
+          },
+          {
+            "name": "Scope set_tag (crashpad)",
+            "value": 3.6057386999999608,
+            "unit": "ms",
+            "extra": "Min 3.606ms\nMax 3.606ms\nMean 3.606ms\nMedian 3.606ms"
+          },
+          {
+            "name": "Scope add_breadcrumb (crashpad)",
+            "value": 0.12179179999998269,
+            "unit": "ms",
+            "extra": "Min 0.122ms\nMax 0.122ms\nMean 0.122ms\nMedian 0.122ms"
+          },
+          {
+            "name": "Scope set_tag (native)",
+            "value": 3.0026351000000204,
+            "unit": "ms",
+            "extra": "Min 3.003ms\nMax 3.003ms\nMean 3.003ms\nMedian 3.003ms"
+          },
+          {
+            "name": "Scope add_breadcrumb (native)",
+            "value": 0.12339350000002014,
+            "unit": "ms",
+            "extra": "Min 0.123ms\nMax 0.123ms\nMean 0.123ms\nMedian 0.123ms"
           }
         ]
       }
