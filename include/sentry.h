@@ -2861,6 +2861,36 @@ SENTRY_EXPERIMENTAL_API sentry_metrics_result_t sentry_metrics_distribution(
     const char *name, double value, const char *unit,
     sentry_value_t attributes);
 
+/**
+ * Specifies the metric type for `sentry_scope_capture_metric`.
+ *
+ * Each type corresponds to one of the dedicated recording functions:
+ * `sentry_metrics_count`, `sentry_metrics_gauge`, `sentry_metrics_distribution`
+ */
+typedef enum {
+    SENTRY_METRIC_COUNT,
+    SENTRY_METRIC_GAUGE,
+    SENTRY_METRIC_DISTRIBUTION,
+} sentry_metric_type_t;
+
+/**
+ * Records a metric of the given type with a scope.
+ *
+ * Behaves like the `sentry_metrics_*` functions, except the metric also carries
+ * the attributes and trace of `scope`, layered on top of the global scope. An
+ * attribute set in more than one place resolves to the most specific:
+ * `attributes` > `scope` > global scope.
+ *
+ * Ownership of `value` is transferred to this function, on top of `attributes`.
+ *
+ * Scope ownership works as in `sentry_capture_event_with_scope`: a local scope
+ * is freed by this function, a user-owned one is not. Pass `NULL` to apply the
+ * global scope only.
+ */
+SENTRY_EXPERIMENTAL_API sentry_metrics_result_t sentry_scope_capture_metric(
+    sentry_scope_t *scope, sentry_metric_type_t type, const char *name,
+    sentry_value_t value, const char *unit, sentry_value_t attributes);
+
 #ifdef SENTRY_PLATFORM_LINUX
 
 /**
