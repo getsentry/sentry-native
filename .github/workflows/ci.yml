@@ -282,6 +282,12 @@ jobs:
             sudo apt install "${CC}" "${CXX}"
           elif [[ "$CC" == clang-* ]]; then
             sudo apt install "${CC}"
+            if [[ "$RUN_ANALYZER" == *llvm-cov* ]]; then
+              llvm_version="${CC#clang-}"
+              sudo apt install "llvm-${llvm_version}"
+              echo "LLVM_PROFDATA=llvm-profdata-${llvm_version}" >> "$GITHUB_ENV"
+              echo "LLVM_COV=llvm-cov-${llvm_version}" >> "$GITHUB_ENV"
+            fi
           else
             echo "Unknown CC: $CC" >&2
             exit 1

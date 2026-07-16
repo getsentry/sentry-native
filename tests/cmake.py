@@ -78,14 +78,14 @@ class CMake:
                 if len(files) == 0:
                     continue
                 cmd = [
-                    "llvm-profdata",
+                    os.environ.get("LLVM_PROFDATA", "llvm-profdata"),
                     "merge",
                     "-sparse",
                     "-o=sentry.profdata",
                     *files,
                 ]
                 print("{} > {}".format(d, " ".join(cmd)))
-                subprocess.run(cmd, cwd=d)
+                subprocess.run(cmd, cwd=d, check=True)
 
                 # then export lcov from the profiling data, since this needs access
                 # to the object files, we need to do it per-test
@@ -95,7 +95,7 @@ class CMake:
                     "libsentry.dylib" if sys.platform == "darwin" else "libsentry.so",
                 ]
                 cmd = [
-                    "llvm-cov",
+                    os.environ.get("LLVM_COV", "llvm-cov"),
                     "export",
                     "-format=lcov",
                     "-instr-profile=sentry.profdata",
@@ -105,7 +105,7 @@ class CMake:
                 lcov = os.path.join(coveragedir, f"run-{i}.lcov")
                 with open(lcov, "w") as lcov_file:
                     print("{} > {} > {}".format(d, " ".join(cmd), lcov))
-                    subprocess.run(cmd, stdout=lcov_file, cwd=d)
+                    subprocess.run(cmd, stdout=lcov_file, cwd=d, check=True)
 
         if "kcov" in os.environ.get("RUN_ANALYZER", ""):
             coverage_dirs = [
