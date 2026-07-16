@@ -828,7 +828,7 @@ sentry_scope_attach_bytesw_n(sentry_scope_t *scope, const char *buf,
 #endif
 
 void
-sentry__scope_apply_attributes(const sentry_scope_t *scope,
+sentry__scope_apply_to_telemetry(const sentry_scope_t *scope,
     sentry_value_t telemetry, sentry_value_t attributes)
 {
     sentry__value_merge_objects(attributes, scope->attributes);

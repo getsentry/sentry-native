@@ -49,7 +49,7 @@ construct_metric(const sentry_scope_t *scope, sentry_metric_type_t type,
         : sentry_value_new_object();
     sentry_value_decref(user_attributes);
 
-    sentry__apply_attributes(scope, metric, attributes);
+    sentry__apply_to_telemetry(scope, metric, attributes);
 
     if (sentry_value_get_length(attributes) > 0) {
         sentry_value_set_by_key(metric, "attributes", attributes);

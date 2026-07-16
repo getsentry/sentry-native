@@ -1122,14 +1122,14 @@ sentry__set_propagation_context(const char *key, sentry_value_t value)
 }
 
 void
-sentry__apply_attributes(const sentry_scope_t *scope, sentry_value_t telemetry,
+sentry__apply_to_telemetry(const sentry_scope_t *scope, sentry_value_t telemetry,
     sentry_value_t attributes)
 {
     if (scope) {
-        sentry__scope_apply_attributes(scope, telemetry, attributes);
+        sentry__scope_apply_to_telemetry(scope, telemetry, attributes);
     }
     SENTRY_WITH_SCOPE (global_scope) {
-        sentry__scope_apply_attributes(global_scope, telemetry, attributes);
+        sentry__scope_apply_to_telemetry(global_scope, telemetry, attributes);
     }
     SENTRY_WITH_OPTIONS (options) {
         sentry__value_add_attribute(attributes,

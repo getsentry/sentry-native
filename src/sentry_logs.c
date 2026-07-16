@@ -386,7 +386,7 @@ apply_attributes(const sentry_scope_t *scope, sentry_value_t log,
 
     // adds data from the scope & options to the attributes, and adds `trace_id`
     // to the log
-    sentry__apply_attributes(scope, log, attributes);
+    sentry__apply_to_telemetry(scope, log, attributes);
     sentry_value_set_by_key(log, "attributes", attributes);
 }
 
