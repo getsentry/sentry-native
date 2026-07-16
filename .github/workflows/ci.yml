@@ -91,6 +91,10 @@ jobs:
             os: ubuntu-24.04
             CC: gcc-14
             CXX: g++-14
+          - name: Linux (GCC 15)
+            os: ubuntu-26.04
+            CC: gcc-15
+            CXX: g++-15
           - name: Linux Arm64 (GCC 14.2.0 + tsan)
             os: ubuntu-24.04-arm
             CC: gcc-14

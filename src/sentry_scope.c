@@ -88,6 +88,7 @@ init_scope(sentry_scope_t *scope)
     scope->transaction_object = NULL;
     scope->span = NULL;
     scope->trace_managed = true;
+    scope->one_shot = false;
 }
 
 static sentry_scope_t *
@@ -170,7 +171,7 @@ sentry__scope_flush_unlock(void)
 }
 
 sentry_scope_t *
-sentry_local_scope_new(void)
+sentry_scope_new(void)
 {
     sentry_scope_t *scope = SENTRY_MAKE(sentry_scope_t);
     if (!scope) {
@@ -182,7 +183,7 @@ sentry_local_scope_new(void)
 }
 
 void
-sentry__scope_free(sentry_scope_t *scope)
+sentry_scope_free(sentry_scope_t *scope)
 {
     if (!scope) {
         return;
@@ -190,6 +191,58 @@ sentry__scope_free(sentry_scope_t *scope)
 
     cleanup_scope(scope);
     sentry_free(scope);
+}
+
+sentry_scope_t *
+sentry_local_scope_new(void)
+{
+    sentry_scope_t *scope = sentry_scope_new();
+    if (scope) {
+        scope->one_shot = true;
+    }
+    return scope;
+}
+
+sentry_scope_t *
+sentry_scope_clone(const sentry_scope_t *scope)
+{
+    if (!scope) {
+        return NULL;
+    }
+
+    sentry_scope_t *clone = SENTRY_MAKE(sentry_scope_t);
+    if (!clone) {
+        return NULL;
+    }
+
+    clone->release = sentry__string_clone(scope->release);
+    clone->environment = sentry__string_clone(scope->environment);
+    clone->transaction = sentry__string_clone(scope->transaction);
+    clone->fingerprint = sentry__value_clone(scope->fingerprint);
+    clone->user = sentry__value_clone(scope->user);
+    clone->tags = sentry__value_clone(scope->tags);
+    clone->extra = sentry__value_clone(scope->extra);
+    clone->attributes = sentry__value_clone(scope->attributes);
+    clone->contexts = sentry__value_clone(scope->contexts);
+    clone->propagation_context
+        = sentry__value_clone(scope->propagation_context);
+    clone->breadcrumbs = sentry__ringbuffer_clone(scope->breadcrumbs);
+    clone->dynamic_sampling_context
+        = sentry__value_clone(scope->dynamic_sampling_context);
+    if (sentry_value_is_frozen(scope->dynamic_sampling_context)) {
+        sentry_value_freeze(clone->dynamic_sampling_context);
+    }
+    clone->level = scope->level;
+    clone->client_sdk = sentry__value_clone(scope->client_sdk);
+    sentry__attachments_extend(&clone->attachments, scope->attachments);
+
+    clone->transaction_object = scope->transaction_object;
+    sentry__transaction_incref(clone->transaction_object);
+    clone->span = scope->span;
+    sentry__span_incref(clone->span);
+    clone->trace_managed = scope->trace_managed;
+
+    return clone;
 }
 
 void

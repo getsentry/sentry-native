@@ -28,6 +28,25 @@ sentry__ringbuffer_free(sentry_ringbuffer_t *rb)
     sentry_free(rb);
 }
 
+sentry_ringbuffer_t *
+sentry__ringbuffer_clone(const sentry_ringbuffer_t *rb)
+{
+    if (!rb) {
+        return NULL;
+    }
+
+    sentry_ringbuffer_t *clone = SENTRY_MAKE(sentry_ringbuffer_t);
+    if (!clone) {
+        return NULL;
+    }
+
+    clone->list = sentry__value_clone(rb->list);
+    clone->max_size = rb->max_size;
+    clone->start_idx = rb->start_idx;
+
+    return clone;
+}
+
 int
 sentry__ringbuffer_append(sentry_ringbuffer_t *rb, sentry_value_t value)
 {

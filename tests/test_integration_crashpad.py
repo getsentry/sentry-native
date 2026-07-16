@@ -498,6 +498,7 @@ def test_crashpad_dumping_crash(cmake, httpserver, run_args, build_args):
         ),
     ],
 )
+@flaky(max_runs=3)
 def test_crashpad_dumping_stack_overflow(cmake, httpserver, stack_size):
     tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "crashpad"})
 

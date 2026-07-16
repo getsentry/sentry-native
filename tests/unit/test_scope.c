@@ -91,7 +91,7 @@ SENTRY_TEST(scope_contexts)
         TEST_CHECK_CONTEXT_EQUAL(event, "local", "local");
         TEST_CHECK_CONTEXT_EQUAL(event, "scope", "local");
 
-        sentry__scope_free(local_scope);
+        sentry_scope_free(local_scope);
         sentry_value_decref(event);
     }
 
@@ -178,7 +178,7 @@ SENTRY_TEST(scope_update_context)
             sentry_value_as_string(sentry_value_get_by_key(ctx, "version")),
             "6.1");
 
-        sentry__scope_free(local_scope);
+        sentry_scope_free(local_scope);
     }
 
     sentry_close();
@@ -238,7 +238,7 @@ SENTRY_TEST(scope_propagation_context)
             global_scope, options, event, SENTRY_SCOPE_NONE);
         TEST_CHECK_EVENT_TRACE_ID_EQUAL(
             event, "aaaabbbbccccddddeeeeffff00001111");
-        sentry__scope_free(local_scope);
+        sentry_scope_free(local_scope);
         sentry_value_decref(event);
     }
 
@@ -351,7 +351,7 @@ SENTRY_TEST(scope_extra)
         TEST_CHECK_EXTRA_EQUAL(event, "local", "local");
         TEST_CHECK_EXTRA_EQUAL(event, "scope", "local");
 
-        sentry__scope_free(local_scope);
+        sentry_scope_free(local_scope);
         sentry_value_decref(event);
     }
 
@@ -435,7 +435,7 @@ SENTRY_TEST(scope_fingerprint)
         TEST_CHECK_JSON_VALUE(sentry_value_get_by_key(event, "fingerprint"),
             "[\"event1\",\"event2\"]");
 
-        sentry__scope_free(local_scope);
+        sentry_scope_free(local_scope);
         sentry_value_decref(event);
     }
 
@@ -546,7 +546,7 @@ SENTRY_TEST(scope_tags)
         TEST_CHECK_TAG_EQUAL(event, "local", "local");
         TEST_CHECK_TAG_EQUAL(event, "scope", "local");
 
-        sentry__scope_free(local_scope);
+        sentry_scope_free(local_scope);
         sentry_value_decref(event);
     }
 
@@ -601,7 +601,7 @@ SENTRY_TEST(scope_user)
         TEST_CHECK_JSON_VALUE(sentry_value_get_by_key(event, "user"),
             "{\"id\":\"3\",\"username\":\"event\"}");
 
-        sentry__scope_free(local_scope);
+        sentry_scope_free(local_scope);
         sentry_value_decref(event);
     }
 
@@ -665,7 +665,7 @@ SENTRY_TEST(scope_user_id)
     sentry_scope_t *local_scope = sentry_local_scope_new();
     sentry__scope_apply_to_event(
         local_scope, options, event, SENTRY_SCOPE_BREADCRUMBS);
-    sentry__scope_free(local_scope);
+    sentry_scope_free(local_scope);
     SENTRY_WITH_SCOPE (scope) {
         sentry__scope_apply_to_event(scope, options, event, SENTRY_SCOPE_ALL);
     }
@@ -750,7 +750,7 @@ SENTRY_TEST(scope_level)
             local_scope, options, event, SENTRY_SCOPE_NONE);
         TEST_CHECK_LEVEL_EQUAL(event, "debug");
 
-        sentry__scope_free(local_scope);
+        sentry_scope_free(local_scope);
         sentry_value_decref(event);
     }
 
@@ -866,7 +866,7 @@ SENTRY_TEST(scope_breadcrumbs)
         TEST_CHECK_MESSAGE_EQUAL(result, 3, "event5");
         TEST_CHECK_MESSAGE_EQUAL(result, 4, "local6");
 
-        sentry__scope_free(local_scope);
+        sentry_scope_free(local_scope);
         sentry_value_decref(event);
     }
 
@@ -1230,7 +1230,7 @@ SENTRY_TEST(scope_local_attributes)
                 sentry_value_get_by_key(global_attributes, "global"), "value")),
             "global");
 
-        sentry__scope_free(local_scope);
+        sentry_scope_free(local_scope);
     }
 
     // Test removing attributes from global scope
@@ -1272,7 +1272,7 @@ SENTRY_TEST(scope_local_attributes)
         TEST_CHECK(sentry_value_is_null(
             sentry_value_get_by_key(local_attributes, "test_key")));
 
-        sentry__scope_free(local_scope);
+        sentry_scope_free(local_scope);
     }
 
     // Test that invalid attributes are not set on local scope
@@ -1290,8 +1290,199 @@ SENTRY_TEST(scope_local_attributes)
             sentry_value_get_by_key(local_attributes, "invalid")));
         sentry_value_decref(invalid_attr);
 
-        sentry__scope_free(local_scope);
+        sentry_scope_free(local_scope);
     }
 
     sentry_close();
+}
+
+SENTRY_TEST(scope_ownership)
+{
+    // `sentry_local_scope_new` makes a one-shot scope, `sentry_scope_new` does
+    // not.
+    sentry_scope_t *local_scope = sentry_local_scope_new();
+    TEST_CHECK(local_scope->one_shot);
+    sentry_scope_free(local_scope);
+
+    sentry_scope_t *user_scope = sentry_scope_new();
+    TEST_CHECK(!user_scope->one_shot);
+    sentry_scope_free(user_scope);
+}
+
+static size_t
+scope_breadcrumb_count(const sentry_scope_t *scope)
+{
+    sentry_value_t breadcrumbs = sentry__ringbuffer_to_list(scope->breadcrumbs);
+    size_t count = sentry_value_get_length(breadcrumbs);
+    sentry_value_decref(breadcrumbs);
+    return count;
+}
+
+SENTRY_TEST(scope_clone_independence)
+{
+    sentry_scope_t *scope = sentry_scope_new();
+    sentry_scope_set_tag(scope, "shared", "original");
+    sentry_scope_set_context(
+        scope, "device", sentry_value_new_string("original"));
+    sentry_scope_set_level(scope, SENTRY_LEVEL_WARNING);
+    sentry_scope_add_breadcrumb(
+        scope, sentry_value_new_breadcrumb(NULL, "first"));
+
+    sentry_scope_t *clone = sentry_scope_clone(scope);
+
+    // A clone is reusable, never one-shot.
+    TEST_CHECK(!clone->one_shot);
+
+    // The clone carries over the source's data.
+    TEST_CHECK_STRING_EQUAL(
+        sentry_value_as_string(sentry_value_get_by_key(clone->tags, "shared")),
+        "original");
+    TEST_CHECK(clone->level == SENTRY_LEVEL_WARNING);
+    TEST_CHECK_INT_EQUAL(scope_breadcrumb_count(clone), 1);
+
+    // Mutating the clone does not affect the source, and vice versa.
+    sentry_scope_set_tag(clone, "shared", "changed");
+    sentry_scope_set_tag(clone, "clone_only", "yes");
+    sentry_scope_add_breadcrumb(
+        clone, sentry_value_new_breadcrumb(NULL, "second"));
+
+    TEST_CHECK_STRING_EQUAL(
+        sentry_value_as_string(sentry_value_get_by_key(scope->tags, "shared")),
+        "original");
+    TEST_CHECK(sentry_value_is_null(
+        sentry_value_get_by_key(scope->tags, "clone_only")));
+    TEST_CHECK_INT_EQUAL(scope_breadcrumb_count(scope), 1);
+    TEST_CHECK_INT_EQUAL(scope_breadcrumb_count(clone), 2);
+
+    sentry_scope_free(clone);
+    sentry_scope_free(scope);
+}
+
+SENTRY_TEST(scope_clone_preserves_data)
+{
+    sentry_scope_t *scope = sentry_scope_new();
+
+    sentry_scope_set_tag(scope, "tag_key", "tag_value");
+    sentry_scope_set_context(scope, "device", sentry_value_new_string("Xbox"));
+    sentry_scope_set_user(
+        scope, sentry_value_new_user("id-1", "alice", NULL, NULL));
+    sentry_scope_set_extra(
+        scope, "extra_key", sentry_value_new_string("extra_value"));
+    sentry_scope_set_fingerprint(scope, "fp1", "fp2", NULL);
+    sentry_scope_set_level(scope, SENTRY_LEVEL_WARNING);
+    sentry__scope_set_attribute(scope, "attr_key",
+        sentry_value_new_attribute(
+            sentry_value_new_string("attr_value"), NULL));
+    sentry_scope_add_breadcrumb(
+        scope, sentry_value_new_breadcrumb(NULL, "crumb"));
+    sentry_scope_attach_bytes(scope, "payload", 7, "file.bin");
+
+    sentry_scope_t *clone = sentry_scope_clone(scope);
+
+    TEST_CHECK_STRING_EQUAL(
+        sentry_value_as_string(sentry_value_get_by_key(clone->tags, "tag_key")),
+        "tag_value");
+    TEST_CHECK_STRING_EQUAL(sentry_value_as_string(sentry_value_get_by_key(
+                                clone->contexts, "device")),
+        "Xbox");
+    TEST_CHECK_STRING_EQUAL(sentry_value_as_string(sentry_value_get_by_key(
+                                clone->user, "username")),
+        "alice");
+    TEST_CHECK_STRING_EQUAL(sentry_value_as_string(sentry_value_get_by_key(
+                                clone->extra, "extra_key")),
+        "extra_value");
+    TEST_CHECK_INT_EQUAL(sentry_value_get_length(clone->fingerprint), 2);
+    TEST_CHECK(clone->level == SENTRY_LEVEL_WARNING);
+    TEST_CHECK_STRING_EQUAL(
+        sentry_value_as_string(sentry_value_get_by_key(
+            sentry_value_get_by_key(clone->attributes, "attr_key"), "value")),
+        "attr_value");
+    TEST_CHECK_INT_EQUAL(scope_breadcrumb_count(clone), 1);
+
+    // Attachments are deep-copied into an independent list.
+    TEST_CHECK(clone->attachments != NULL);
+    TEST_CHECK(clone->attachments != scope->attachments);
+    TEST_CHECK_STRING_EQUAL(
+        sentry__attachment_get_filename(clone->attachments), "file.bin");
+    TEST_CHECK_INT_EQUAL(clone->attachments->buf_len, 7);
+
+    sentry_scope_free(clone);
+    sentry_scope_free(scope);
+}
+
+SENTRY_TEST(scope_clone_shares_span)
+{
+    SENTRY_TEST_OPTIONS_NEW(options);
+    sentry_options_set_traces_sample_rate(options, 1.0);
+    sentry_init(options);
+
+    sentry_transaction_context_t *tx_ctx
+        = sentry_transaction_context_new("txn", NULL);
+    sentry_transaction_t *tx
+        = sentry_transaction_start(tx_ctx, sentry_value_new_null());
+    sentry_set_transaction_object(tx);
+
+    // Clone the scope while a transaction is active on it.
+    sentry_scope_t *clone = NULL;
+    sentry_transaction_t *scope_txn = NULL;
+    SENTRY_WITH_SCOPE (scope) {
+        scope_txn = scope->transaction_object;
+        clone = sentry_scope_clone(scope);
+    }
+
+    // The active transaction is shared by reference, not dropped or duplicated.
+    TEST_CHECK(scope_txn != NULL);
+    TEST_CHECK(clone->transaction_object == scope_txn);
+
+    // The shared reference keeps the transaction alive for the original: the
+    // clone can be freed and the transaction still finished safely.
+    sentry_scope_free(clone);
+    sentry_transaction_finish(tx);
+
+    sentry_close();
+}
+
+static void
+send_envelope_count(sentry_envelope_t *envelope, void *data)
+{
+    uint64_t *called = data;
+    *called += 1;
+    sentry_envelope_free(envelope);
+}
+
+SENTRY_TEST(scope_capture_user_owned)
+{
+    uint64_t called = 0;
+    SENTRY_TEST_OPTIONS_NEW(options);
+    sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
+    sentry_options_set_auto_session_tracking(options, false);
+    sentry_transport_t *transport = sentry_transport_new(send_envelope_count);
+    sentry_transport_set_state(transport, &called);
+    sentry_options_set_transport(options, transport);
+    sentry_init(options);
+
+    // A user-owned scope survives being captured with, so it can be reused.
+    sentry_scope_t *scope = sentry_scope_new();
+    sentry_scope_set_tag(scope, "run", "first");
+
+    sentry_capture_event_with_scope(
+        sentry_value_new_message_event(SENTRY_LEVEL_INFO, "logger", "one"),
+        scope);
+
+    // The scope was applied but not freed, so reading and reusing it is safe
+    // (a use-after-free here would trip the sanitizers).
+    TEST_CHECK_STRING_EQUAL(
+        sentry_value_as_string(sentry_value_get_by_key(scope->tags, "run")),
+        "first");
+
+    sentry_scope_set_tag(scope, "run", "second");
+    sentry_capture_event_with_scope(
+        sentry_value_new_message_event(SENTRY_LEVEL_INFO, "logger", "two"),
+        scope);
+
+    sentry_scope_free(scope);
+
+    sentry_close();
+
+    TEST_CHECK_INT_EQUAL(called, 2);
 }
