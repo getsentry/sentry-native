@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1784202161715,
+  "lastUpdate": 1784202193762,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -58570,6 +58570,126 @@ window.BENCHMARK_DATA = {
             "value": 0.0729717089998303,
             "unit": "ms",
             "extra": "Min 0.073ms\nMax 0.073ms\nMean 0.073ms\nMedian 0.073ms\nCPU 0.038ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "jpnurmi@gmail.com",
+            "name": "J-P Nurmi",
+            "username": "jpnurmi"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "f6d36463c564c3b549b1876554ace0c56a8aaf62",
+          "message": "fix: silence warnings on Linux/GCC 15 (#1871)\n\n* fix: silence warnings on Linux/GCC\n\n```\nsrc/modulefinder/sentry_modulefinder_linux.c: In function ‘sentry__procmaps_parse_module_line’:\nsrc/modulefinder/sentry_modulefinder_linux.c:242:16: warning: initialization discards ‘const’ qualifier from pointer target type [-Wdiscarded-qualifiers]\n  242 |     char *nl = strchr(line, '\\n');\n      |                ^~~~~~\n```\n\n```\nsrc/backends/sentry_backend_inproc.c: In function ‘wait_for_handler_ready’:\nsrc/backends/sentry_backend_inproc.c:321:9: warning: ignoring return value of ‘read’ declared with attribute ‘warn_unused_result’ [-Wunused-result]\n  321 |         read(g_handler_ready_pipe[0], &c, 1);\n      |         ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n```\n\n```\ntests/unit/test_retry.c: In function ‘write_retry_file’:\ntests/unit/test_retry.c:69:11: warning: ignoring return value of ‘sentry_envelope_write_to_path’ declared with attribute ‘warn_unused_result’ [-Wunused-result]\n   69 |     (void)sentry_envelope_write_to_path(envelope, path);\n      |           ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n```\n\n* Update CHANGELOG.md",
+          "timestamp": "2026-07-16T13:37:19+02:00",
+          "tree_id": "3f7b556bd4eb30924402c149a4d9eb77e40c4077",
+          "url": "https://github.com/getsentry/sentry-native/commit/f6d36463c564c3b549b1876554ace0c56a8aaf62"
+        },
+        "date": 1784202182223,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 3.356999999994059,
+            "unit": "ms",
+            "extra": "Min 3.201ms\nMax 3.474ms\nMean 3.342ms\nStdDev 0.099ms\nMedian 3.357ms\nCPU 1.957ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 3.6559579999959624,
+            "unit": "ms",
+            "extra": "Min 3.253ms\nMax 7.060ms\nMean 4.569ms\nStdDev 1.647ms\nMedian 3.656ms\nCPU 2.599ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 38.370833999977094,
+            "unit": "ms",
+            "extra": "Min 25.216ms\nMax 62.463ms\nMean 39.268ms\nStdDev 14.528ms\nMedian 38.371ms\nCPU 9.730ms"
+          },
+          {
+            "name": "SDK init (native)",
+            "value": 27.10416700000451,
+            "unit": "ms",
+            "extra": "Min 20.124ms\nMax 39.624ms\nMean 27.924ms\nStdDev 7.150ms\nMedian 27.104ms\nCPU 8.994ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.07429099997580124,
+            "unit": "ms",
+            "extra": "Min 0.054ms\nMax 0.292ms\nMean 0.125ms\nStdDev 0.100ms\nMedian 0.074ms\nCPU 0.056ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.29699999998911153,
+            "unit": "ms",
+            "extra": "Min 0.253ms\nMax 0.495ms\nMean 0.337ms\nStdDev 0.095ms\nMedian 0.297ms\nCPU 0.337ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 10.849333999999544,
+            "unit": "ms",
+            "extra": "Min 9.504ms\nMax 13.648ms\nMean 11.574ms\nStdDev 1.874ms\nMedian 10.849ms\nCPU 1.164ms"
+          },
+          {
+            "name": "Backend startup (native)",
+            "value": 11.473749999993288,
+            "unit": "ms",
+            "extra": "Min 8.411ms\nMax 25.166ms\nMean 14.029ms\nStdDev 6.730ms\nMedian 11.474ms\nCPU 1.088ms"
+          },
+          {
+            "name": "Scope set_tag (inproc)",
+            "value": 0.003935916999978417,
+            "unit": "ms",
+            "extra": "Min 0.004ms\nMax 0.004ms\nMean 0.004ms\nMedian 0.004ms\nCPU 0.004ms"
+          },
+          {
+            "name": "Scope add_breadcrumb (inproc)",
+            "value": 0.001256374999968557,
+            "unit": "ms",
+            "extra": "Min 0.001ms\nMax 0.001ms\nMean 0.001ms\nMedian 0.001ms\nCPU 0.001ms"
+          },
+          {
+            "name": "Scope set_tag (breakpad)",
+            "value": 0.004376708999984658,
+            "unit": "ms",
+            "extra": "Min 0.004ms\nMax 0.004ms\nMean 0.004ms\nMedian 0.004ms\nCPU 0.003ms"
+          },
+          {
+            "name": "Scope add_breadcrumb (breakpad)",
+            "value": 0.0011741659999984222,
+            "unit": "ms",
+            "extra": "Min 0.001ms\nMax 0.001ms\nMean 0.001ms\nMedian 0.001ms\nCPU 0.001ms"
+          },
+          {
+            "name": "Scope set_tag (crashpad)",
+            "value": 1.1784068329999968,
+            "unit": "ms",
+            "extra": "Min 1.178ms\nMax 1.178ms\nMean 1.178ms\nMedian 1.178ms\nCPU 1.150ms"
+          },
+          {
+            "name": "Scope add_breadcrumb (crashpad)",
+            "value": 0.055161833999989085,
+            "unit": "ms",
+            "extra": "Min 0.055ms\nMax 0.055ms\nMean 0.055ms\nMedian 0.055ms\nCPU 0.037ms"
+          },
+          {
+            "name": "Scope set_tag (native)",
+            "value": 0.9104160829999728,
+            "unit": "ms",
+            "extra": "Min 0.910ms\nMax 0.910ms\nMean 0.910ms\nMedian 0.910ms\nCPU 0.902ms"
+          },
+          {
+            "name": "Scope add_breadcrumb (native)",
+            "value": 0.07380179099999395,
+            "unit": "ms",
+            "extra": "Min 0.074ms\nMax 0.074ms\nMean 0.074ms\nMedian 0.074ms\nCPU 0.046ms"
           }
         ]
       }
