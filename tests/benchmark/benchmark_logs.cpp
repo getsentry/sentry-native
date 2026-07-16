@@ -12,7 +12,7 @@ discard_envelope(sentry_envelope_t *envelope, void *state)
 }
 
 static void
-benchmark_logs(benchmark::State &state)
+setup_logs(const benchmark::State &)
 {
     sentry_options_t *options = sentry_options_new();
     sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
@@ -24,7 +24,17 @@ benchmark_logs(benchmark::State &state)
 
     sentry_set_attribute("global",
         sentry_value_new_attribute(sentry_value_new_string("attribute"), NULL));
+}
 
+static void
+teardown_logs(const benchmark::State &)
+{
+    sentry_close();
+}
+
+static void
+benchmark_logs(benchmark::State &state)
+{
     sentry_value_t attributes = sentry_value_new_object();
     sentry_value_set_by_key(attributes, "local",
         sentry_value_new_attribute(sentry_value_new_string("attribute"), NULL));
@@ -35,7 +45,6 @@ benchmark_logs(benchmark::State &state)
     }
 
     sentry_value_decref(attributes);
-    sentry_close();
 }
 
 BENCHMARK(benchmark_logs)
@@ -44,4 +53,6 @@ BENCHMARK(benchmark_logs)
     ->Threads(16)
     ->Threads(32)
     ->Iterations(100)
-    ->Unit(benchmark::kMillisecond);
+    ->Unit(benchmark::kMillisecond)
+    ->Setup(setup_logs)
+    ->Teardown(teardown_logs);
