@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1784202031342,
+  "lastUpdate": 1784202161715,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -87856,6 +87856,126 @@ window.BENCHMARK_DATA = {
             "value": 0.12339350000002014,
             "unit": "ms",
             "extra": "Min 0.123ms\nMax 0.123ms\nMean 0.123ms\nMedian 0.123ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "jpnurmi@gmail.com",
+            "name": "J-P Nurmi",
+            "username": "jpnurmi"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "f6d36463c564c3b549b1876554ace0c56a8aaf62",
+          "message": "fix: silence warnings on Linux/GCC 15 (#1871)\n\n* fix: silence warnings on Linux/GCC\n\n```\nsrc/modulefinder/sentry_modulefinder_linux.c: In function ‘sentry__procmaps_parse_module_line’:\nsrc/modulefinder/sentry_modulefinder_linux.c:242:16: warning: initialization discards ‘const’ qualifier from pointer target type [-Wdiscarded-qualifiers]\n  242 |     char *nl = strchr(line, '\\n');\n      |                ^~~~~~\n```\n\n```\nsrc/backends/sentry_backend_inproc.c: In function ‘wait_for_handler_ready’:\nsrc/backends/sentry_backend_inproc.c:321:9: warning: ignoring return value of ‘read’ declared with attribute ‘warn_unused_result’ [-Wunused-result]\n  321 |         read(g_handler_ready_pipe[0], &c, 1);\n      |         ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n```\n\n```\ntests/unit/test_retry.c: In function ‘write_retry_file’:\ntests/unit/test_retry.c:69:11: warning: ignoring return value of ‘sentry_envelope_write_to_path’ declared with attribute ‘warn_unused_result’ [-Wunused-result]\n   69 |     (void)sentry_envelope_write_to_path(envelope, path);\n      |           ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n```\n\n* Update CHANGELOG.md",
+          "timestamp": "2026-07-16T13:37:19+02:00",
+          "tree_id": "3f7b556bd4eb30924402c149a4d9eb77e40c4077",
+          "url": "https://github.com/getsentry/sentry-native/commit/f6d36463c564c3b549b1876554ace0c56a8aaf62"
+        },
+        "date": 1784202147416,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 9.722599999975046,
+            "unit": "ms",
+            "extra": "Min 9.366ms\nMax 9.972ms\nMean 9.688ms\nStdDev 0.217ms\nMedian 9.723ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 10.331699999994726,
+            "unit": "ms",
+            "extra": "Min 10.014ms\nMax 10.958ms\nMean 10.441ms\nStdDev 0.356ms\nMedian 10.332ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 26.316300000019055,
+            "unit": "ms",
+            "extra": "Min 24.511ms\nMax 33.489ms\nMean 27.413ms\nStdDev 3.522ms\nMedian 26.316ms"
+          },
+          {
+            "name": "SDK init (native)",
+            "value": 43.836899999973866,
+            "unit": "ms",
+            "extra": "Min 35.017ms\nMax 256.170ms\nMean 88.746ms\nStdDev 94.829ms\nMedian 43.837ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.2513000000021748,
+            "unit": "ms",
+            "extra": "Min 0.216ms\nMax 0.302ms\nMean 0.255ms\nStdDev 0.038ms\nMedian 0.251ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.46759999997902923,
+            "unit": "ms",
+            "extra": "Min 0.440ms\nMax 0.678ms\nMean 0.532ms\nStdDev 0.107ms\nMedian 0.468ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 41.25890000000254,
+            "unit": "ms",
+            "extra": "Min 38.479ms\nMax 67.621ms\nMean 49.386ms\nStdDev 13.880ms\nMedian 41.259ms"
+          },
+          {
+            "name": "Backend startup (native)",
+            "value": 33.959800000047835,
+            "unit": "ms",
+            "extra": "Min 25.430ms\nMax 45.854ms\nMean 34.613ms\nStdDev 8.154ms\nMedian 33.960ms"
+          },
+          {
+            "name": "Scope set_tag (inproc)",
+            "value": 0.008444900000029065,
+            "unit": "ms",
+            "extra": "Min 0.008ms\nMax 0.008ms\nMean 0.008ms\nMedian 0.008ms"
+          },
+          {
+            "name": "Scope add_breadcrumb (inproc)",
+            "value": 0.0009918000000084248,
+            "unit": "ms",
+            "extra": "Min 0.001ms\nMax 0.001ms\nMean 0.001ms\nMedian 0.001ms"
+          },
+          {
+            "name": "Scope set_tag (breakpad)",
+            "value": 0.008280200000001514,
+            "unit": "ms",
+            "extra": "Min 0.008ms\nMax 0.008ms\nMean 0.008ms\nMedian 0.008ms"
+          },
+          {
+            "name": "Scope add_breadcrumb (breakpad)",
+            "value": 0.0010244000000056985,
+            "unit": "ms",
+            "extra": "Min 0.001ms\nMax 0.001ms\nMean 0.001ms\nMedian 0.001ms"
+          },
+          {
+            "name": "Scope set_tag (crashpad)",
+            "value": 3.8009231999999997,
+            "unit": "ms",
+            "extra": "Min 3.801ms\nMax 3.801ms\nMean 3.801ms\nMedian 3.801ms"
+          },
+          {
+            "name": "Scope add_breadcrumb (crashpad)",
+            "value": 0.25224540000004936,
+            "unit": "ms",
+            "extra": "Min 0.252ms\nMax 0.252ms\nMean 0.252ms\nMedian 0.252ms"
+          },
+          {
+            "name": "Scope set_tag (native)",
+            "value": 3.0622223000000304,
+            "unit": "ms",
+            "extra": "Min 3.062ms\nMax 3.062ms\nMean 3.062ms\nMedian 3.062ms"
+          },
+          {
+            "name": "Scope add_breadcrumb (native)",
+            "value": 0.12246800000002622,
+            "unit": "ms",
+            "extra": "Min 0.122ms\nMax 0.122ms\nMean 0.122ms\nMedian 0.122ms"
           }
         ]
       }
