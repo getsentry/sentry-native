@@ -11,6 +11,7 @@ def run_benchmark(target, backend, cmake, httpserver, gbenchmark, label, runs=1)
         ["sentry_benchmark"],
         {
             "SENTRY_BACKEND": backend,
+            "SENTRY_BATCHER_BUFFER_COUNT": "10",
             "SENTRY_BUILD_BENCHMARKS": "ON",
             "CMAKE_BUILD_TYPE": "Release",
         },
@@ -65,4 +66,16 @@ def test_benchmark_scope(test_name, backend, cmake, httpserver, gbenchmark):
         httpserver,
         gbenchmark,
         f"Scope {test_name} ({backend})",
+    )
+
+
+@pytest.mark.parametrize("threads", [1, 8, 16, 32])
+def test_benchmark_logs(threads, cmake, httpserver, gbenchmark):
+    run_benchmark(
+        f"^benchmark_logs.*threads:{threads}$",
+        "none",
+        cmake,
+        httpserver,
+        gbenchmark,
+        f"Logs ({threads} thread{'s' if threads > 1 else ''})",
     )
