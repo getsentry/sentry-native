@@ -649,24 +649,20 @@ sentry__logs_startup(const sentry_options_t *options)
 void
 sentry__logs_shutdown(uint64_t timeout)
 {
-    SENTRY_DEBUG("shutting down logs system");
     sentry_batcher_t *batcher = sentry__batcher_swap(&g_batcher, NULL);
     if (batcher) {
         sentry__batcher_shutdown(batcher, timeout);
         sentry__batcher_release(batcher);
     }
-    SENTRY_DEBUG("logs system shutdown complete");
 }
 
 void
 sentry__logs_flush_crash_safe(void)
 {
-    SENTRY_SIGNAL_SAFE_LOG("DEBUG crash-safe logs flush");
     sentry_batcher_t *batcher = sentry__batcher_peek(&g_batcher);
     if (batcher) {
         sentry__batcher_flush_crash_safe(batcher);
     }
-    SENTRY_SIGNAL_SAFE_LOG("DEBUG crash-safe logs flush complete");
 }
 
 uintptr_t
