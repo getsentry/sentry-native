@@ -21,7 +21,7 @@
 #    pragma clang diagnostic ignored "-Wstatic-in-inline"
 #endif
 
-#include "../vendor/mpack.h"
+#include "sentry_mpack.h"
 
 #if defined(_MSC_VER)
 #    pragma warning(pop)

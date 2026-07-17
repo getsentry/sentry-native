@@ -374,7 +374,7 @@ endfunction()
 
 # ===== sentry library =====
 
-add_library(sentry ${SENTRY_LIBRARY_TYPE} "${PROJECT_SOURCE_DIR}/vendor/mpack.c")
+add_library(sentry ${SENTRY_LIBRARY_TYPE} "${PROJECT_SOURCE_DIR}/src/sentry_mpack.c")
 if (XBOX)
 	set_target_properties(sentry PROPERTIES VS_USER_PROPS gdk_build.props)
 endif()
@@ -532,7 +532,7 @@ if(MSVC)
 	endif()
 	# ignore all warnings for mpack
 	set_source_files_properties(
-		"${PROJECT_SOURCE_DIR}/vendor/mpack.c"
+		"${PROJECT_SOURCE_DIR}/src/sentry_mpack.c"
 		PROPERTIES
 		COMPILE_FLAGS
 		"/W0"
@@ -575,7 +575,7 @@ else()
 	endif()
 	# ignore all warnings for mpack
 	set_source_files_properties(
-		"${PROJECT_SOURCE_DIR}/vendor/mpack.c"
+		"${PROJECT_SOURCE_DIR}/src/sentry_mpack.c"
 		PROPERTIES
 		COMPILE_FLAGS
 		"-w"
