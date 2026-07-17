@@ -1741,8 +1741,40 @@ value_from_mpack(mpack_node_t node, size_t depth, bool *ok)
     }
 }
 
-static sentry_value_t
-value_from_msgpack_internal(const char *buf, size_t buf_len, bool force_list)
+sentry_value_t
+sentry__value_from_msgpack(const char *buf, size_t buf_len)
+{
+    if (!buf || buf_len == 0) {
+        return sentry_value_new_null();
+    }
+
+    mpack_tree_t tree;
+    mpack_tree_init_data(&tree, buf, buf_len);
+    mpack_tree_parse(&tree);
+
+    if (mpack_tree_error(&tree) != mpack_ok) {
+        mpack_tree_destroy(&tree);
+        return sentry_value_new_null();
+    }
+
+    size_t size = mpack_tree_size(&tree);
+    bool ok = true;
+    sentry_value_t value = value_from_mpack(mpack_tree_root(&tree), 0, &ok);
+    mpack_tree_destroy(&tree);
+
+    // reject buffers with trailing data after the first value; buffers
+    // holding concatenated values must be decoded with
+    // `sentry__value_from_msgpack_stream`
+    if (!ok || size != buf_len) {
+        sentry_value_decref(value);
+        return sentry_value_new_null();
+    }
+
+    return value;
+}
+
+sentry_value_t
+sentry__value_from_msgpack_stream(const char *buf, size_t buf_len)
 {
     if (!buf || buf_len == 0) {
         return sentry_value_new_null();
@@ -1772,33 +1804,15 @@ value_from_msgpack_internal(const char *buf, size_t buf_len, bool force_list)
         }
         mpack_tree_destroy(&tree);
 
-        if (offset == 0 && sentry_value_is_null(result)) {
-            if (!force_list && offset + size == buf_len) {
-                result = value;
-            } else {
-                result = sentry_value_new_list();
-                sentry_value_append(result, value);
-            }
-        } else {
-            sentry_value_append(result, value);
+        if (sentry_value_is_null(result)) {
+            result = sentry_value_new_list();
         }
+        sentry_value_append(result, value);
 
         offset += size;
     }
 
     return result;
-}
-
-sentry_value_t
-sentry__value_from_msgpack(const char *buf, size_t buf_len)
-{
-    return value_from_msgpack_internal(buf, buf_len, false);
-}
-
-sentry_value_t
-sentry__value_from_msgpack_stream(const char *buf, size_t buf_len)
-{
-    return value_from_msgpack_internal(buf, buf_len, true);
 }
 
 static int

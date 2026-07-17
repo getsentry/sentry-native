@@ -129,13 +129,12 @@ void sentry__value_add_attribute(sentry_value_t attributes,
     sentry_value_t value, const char *type, const char *name);
 
 /**
- * Deserialize a sentry value from msgpack.
+ * Deserialize a single sentry value from msgpack.
  *
- * A single msgpack value spanning the whole buffer decodes to that value. If
- * the buffer contains multiple sequential msgpack values (as in flat buffers
- * like breadcrumb files), they are wrapped in a list; use
- * `sentry__value_from_msgpack_stream` when a list is expected regardless of
- * the number of values.
+ * The value must span the whole buffer; buffers containing multiple
+ * sequential msgpack values (as in append-only streams like breadcrumb ring
+ * files) are rejected with null and must be decoded with
+ * `sentry__value_from_msgpack_stream`.
  *
  * The returned value must be released with `sentry_value_decref`.
  */

@@ -302,7 +302,6 @@ crashpad_backend_flush_scope(
 #endif
 }
 
-#if defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_WINDOWS)
 // Decodes a breadcrumb ring file (an append-only stream of msgpack values)
 // into a list.
 static sentry_value_t
@@ -321,6 +320,7 @@ read_msgpack_stream_file(const sentry_path_t *path)
     return value;
 }
 
+#if defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_WINDOWS)
 static void
 flush_scope_from_handler(
     const sentry_options_t *options, sentry_value_t crash_event)
@@ -566,9 +566,9 @@ report_to_envelope(const crashpad::CrashReportDatabase::Report &report,
             if (strcmp(filename, "__sentry-event") == 0) {
                 event = read_msgpack_file(path);
             } else if (strcmp(filename, "__sentry-breadcrumb1") == 0) {
-                breadcrumbs1 = read_msgpack_file(path);
+                breadcrumbs1 = read_msgpack_stream_file(path);
             } else if (strcmp(filename, "__sentry-breadcrumb2") == 0) {
-                breadcrumbs2 = read_msgpack_file(path);
+                breadcrumbs2 = read_msgpack_stream_file(path);
             } else {
                 sentry__attachments_add_path(
                     &attachments, sentry__path_clone(path), nullptr, nullptr);
