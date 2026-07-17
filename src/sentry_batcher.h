@@ -45,9 +45,11 @@ typedef struct {
     long active_idx; // (atomic) index to the active buffer
     long drain_idx; // (atomic) index to the oldest buffer to drain
     long flushing; // (atomic) reentrancy guard to the flusher
+    long crash_flush; // (atomic) write completed batch work to disk
     long thread_state; // (atomic) sentry_batcher_thread_state_t
     sentry_waitable_flag_t request_flush; // level-triggered flush flag
     sentry_threadid_t batching_thread; // the batching thread
+    sentry_threadpool_t *threadpool; // thread pool for batch work
     sentry_batch_func_t batch_func; // function to add items to envelope
     sentry_data_category_t data_category; // for client report discard tracking
     sentry_dsn_t *dsn;
@@ -62,8 +64,8 @@ typedef struct {
 
 #define SENTRY_BATCHER_REF_INIT { NULL, 0 }
 
-sentry_batcher_t *sentry__batcher_new(
-    sentry_batch_func_t batch_func, sentry_data_category_t data_category);
+sentry_batcher_t *sentry__batcher_new(sentry_batch_func_t batch_func,
+    sentry_data_category_t data_category, sentry_threadpool_t *threadpool);
 
 /**
  * Acquires a reference to the batcher behind `ref`, atomically incrementing

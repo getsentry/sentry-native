@@ -2,11 +2,13 @@
 #define SENTRY_METRICS_H_INCLUDED
 
 #include "sentry_boot.h"
+#include "sentry_sync.h"
 
 /**
  * Sets up the metrics timer/flush thread
  */
-void sentry__metrics_startup(const sentry_options_t *options);
+void sentry__metrics_startup(
+    const sentry_options_t *options, sentry_threadpool_t *threadpool);
 
 /**
  * Shuts down the metrics timer/flush thread.
