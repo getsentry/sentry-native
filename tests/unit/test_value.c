@@ -479,8 +479,6 @@ SENTRY_TEST(value_object_merge_shallow_nested)
     TEST_CHECK_INT_EQUAL(rv, 0);
     sentry_value_decref(src);
 
-    // "b" already exists, so its nested object is kept whole; unlike the deep
-    // merge, src's nested object is not stepped into, so "bc" never appears.
     sentry_value_t a = sentry_value_get_by_key(dst, "a");
     sentry_value_t nested = sentry_value_get_by_key(dst, "b");
     sentry_value_t ba = sentry_value_get_by_key(nested, "ba");

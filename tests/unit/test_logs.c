@@ -543,9 +543,9 @@ SENTRY_TEST(logs_global_attribute_no_field_leak)
     sentry_init(options);
     sentry__logs_wait_for_thread_startup();
 
-    // A per-call attribute with the same name as a global attribute must replace
-    // the global attribute entirely. In particular, the global attribute's
-    // `unit` field must not be retained when the per-call attribute omits it.
+    // Per-call attributes must override global attributes atomically by key.
+    // If both scopes define the same attribute, the per-call attribute replaces
+    // the whole global attribute instead of inheriting fields such as `unit`.
     sentry_set_attribute("shared",
         sentry_value_new_attribute(sentry_value_new_string("global"), "ms"));
 
