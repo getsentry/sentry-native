@@ -21,6 +21,7 @@
 - Increase the default telemetry batcher capacity from 2x100 to 3x100 items, and add `SENTRY_BATCHER_BUFFER_COUNT` to configure the number of rotating buffers used by log and metric batchers. ([#1867](https://github.com/getsentry/sentry-native/pull/1867))
 - Fix a lifetime issue when reading `sample_rand` from the scope propagation context. ([#1869](https://github.com/getsentry/sentry-native/pull/1869))
 - Linux: silence harmless compilation warnings in `sentry_modulefinder_linux.c` and `sentry_backend_inproc.c`. ([#1871](https://github.com/getsentry/sentry-native/pull/1871))
+- Fix per-call log and metric attributes to override same-named global attributes atomically, preventing fields such as `unit` from leaking from the global attribute when the per-call attribute does not define them. ([#1879](https://github.com/getsentry/sentry-native/pull/1879))
 
 ## 0.15.3
 
