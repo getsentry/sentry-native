@@ -125,6 +125,9 @@ Java_io_sentry_ndk_NativeScope_nativeSetEnvironment(
 
     const char *charEnvironment
         = (*env)->GetStringUTFChars(env, environment, 0);
+    if (!charEnvironment) {
+        return;
+    }
 
     sentry_set_environment(charEnvironment);
 
