@@ -211,6 +211,33 @@ sentry_local_scope_new(void)
     return scope;
 }
 
+void
+sentry_scope_clear(sentry_scope_t *scope)
+{
+    if (!scope) {
+        return;
+    }
+
+    // Keep the propagation and dynamic sampling contexts across clears so
+    // telemetry captured afterwards continues on the same trace.
+    bool trace_managed = scope->trace_managed;
+    sentry_value_t propagation_context = scope->propagation_context;
+    sentry_value_t dynamic_sampling_context = scope->dynamic_sampling_context;
+    sentry_value_incref(propagation_context);
+    sentry_value_incref(dynamic_sampling_context);
+    bool one_shot = scope->one_shot;
+
+    cleanup_scope(scope);
+    init_scope(scope);
+
+    sentry_value_decref(scope->propagation_context);
+    sentry_value_decref(scope->dynamic_sampling_context);
+    scope->propagation_context = propagation_context;
+    scope->dynamic_sampling_context = dynamic_sampling_context;
+    scope->trace_managed = trace_managed;
+    scope->one_shot = one_shot;
+}
+
 sentry_scope_t *
 sentry_scope_clone(const sentry_scope_t *scope)
 {

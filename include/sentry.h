@@ -2152,6 +2152,13 @@ SENTRY_API void sentry_scope_free(sentry_scope_t *scope);
 SENTRY_API sentry_scope_t *sentry_scope_clone(const sentry_scope_t *scope);
 
 /**
+ * Resets a scope to the state of a freshly created one, discarding the data
+ * previously set on it (user, tags, breadcrumbs, attributes, etc.) but keeping
+ * its trace. The scope is not freed and can be reused.
+ */
+SENTRY_API void sentry_scope_clear(sentry_scope_t *scope);
+
+/**
  * Sends a sentry event.
  *
  * If returns a nil UUID if the event being passed in is a transaction, and the
