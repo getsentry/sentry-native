@@ -531,6 +531,43 @@ SENTRY_TEST(logs_plain_string_disabled)
     sentry_close();
 }
 
+SENTRY_TEST(logs_global_attribute_no_field_leak)
+{
+    sentry_value_t captured_log = sentry_value_new_null();
+
+    SENTRY_TEST_OPTIONS_NEW(options);
+    sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
+    sentry_options_set_before_send_log(
+        options, capture_log_before_send, &captured_log);
+
+    sentry_init(options);
+    sentry__logs_wait_for_thread_startup();
+
+    // A per-call attribute with the same name as a global attribute must replace
+    // the global attribute entirely. In particular, the global attribute's
+    // `unit` field must not be retained when the per-call attribute omits it.
+    sentry_set_attribute("shared",
+        sentry_value_new_attribute(sentry_value_new_string("global"), "ms"));
+
+    sentry_value_t attrs = sentry_value_new_object();
+    sentry_value_set_by_key(attrs, "shared",
+        sentry_value_new_attribute(sentry_value_new_string("local"), NULL));
+
+    TEST_CHECK_INT_EQUAL(sentry_log(SENTRY_LEVEL_INFO, "hello", attrs),
+        SENTRY_LOG_RETURN_SUCCESS);
+
+    sentry_value_t log_attrs
+        = sentry_value_get_by_key(captured_log, "attributes");
+    sentry_value_t shared = sentry_value_get_by_key(log_attrs, "shared");
+    TEST_CHECK_STRING_EQUAL(
+        sentry_value_as_string(sentry_value_get_by_key(shared, "value")),
+        "local");
+    TEST_CHECK(sentry_value_is_null(sentry_value_get_by_key(shared, "unit")));
+
+    sentry_value_decref(captured_log);
+    sentry_close();
+}
+
 SENTRY_TEST(logs_reinit)
 {
     SENTRY_TEST_OPTIONS_NEW(options);

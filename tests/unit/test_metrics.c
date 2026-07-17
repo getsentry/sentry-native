@@ -405,6 +405,46 @@ SENTRY_TEST(metrics_default_attributes)
     sentry_value_decref(g_captured_metric);
 }
 
+SENTRY_TEST(metrics_global_attribute_no_field_leak)
+{
+    g_captured_metric = sentry_value_new_null();
+
+    SENTRY_TEST_OPTIONS_NEW(options);
+    sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
+    sentry_options_set_before_send_metric(options, capture_metric, NULL);
+
+    sentry_transport_t *transport = sentry_transport_new(discard_envelope);
+    sentry_options_set_transport(options, transport);
+
+    sentry_init(options);
+    sentry__metrics_wait_for_thread_startup();
+
+    // A global attribute carrying a `unit`, and a per-call attribute of the same
+    // name without one. The per-call attribute is more specific and must win
+    // whole; the global attribute's `unit` must not leak onto it.
+    sentry_set_attribute("shared",
+        sentry_value_new_attribute(sentry_value_new_string("global"), "ms"));
+
+    sentry_value_t attrs = sentry_value_new_object();
+    sentry_value_set_by_key(attrs, "shared",
+        sentry_value_new_attribute(sentry_value_new_string("local"), NULL));
+
+    TEST_CHECK_INT_EQUAL(sentry_metrics_count("test.metric", 1, attrs),
+        SENTRY_METRICS_RESULT_SUCCESS);
+
+    sentry_close();
+
+    sentry_value_t attributes
+        = sentry_value_get_by_key(g_captured_metric, "attributes");
+    sentry_value_t shared = sentry_value_get_by_key(attributes, "shared");
+    TEST_CHECK_STRING_EQUAL(
+        sentry_value_as_string(sentry_value_get_by_key(shared, "value")),
+        "local");
+    TEST_CHECK(sentry_value_is_null(sentry_value_get_by_key(shared, "unit")));
+
+    sentry_value_decref(g_captured_metric);
+}
+
 SENTRY_TEST(metrics_reinit)
 {
     SENTRY_TEST_OPTIONS_NEW(options);
