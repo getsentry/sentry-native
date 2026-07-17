@@ -6,6 +6,7 @@
 
 - Add reusable, user-owned scopes. `sentry_scope_new` creates a scope that `sentry_capture_event_with_scope` applies without consuming, so you can configure it once and reuse it across many captures instead of building a new local scope each time. `sentry_scope_clone` copies a scope, and `sentry_scope_free` releases it. ([#1855](https://github.com/getsentry/sentry-native/pull/1855))
 - Embed the crash event's breadcrumbs into session replay recordings, so breadcrumbs from the replay window show up on the replay timeline. ([#1875](https://github.com/getsentry/sentry-native/pull/1875))
+- Add `sentry_transaction_discard` and `sentry_span_discard` for releasing unfinished transactions and spans without sending them. ([#1858](https://github.com/getsentry/sentry-native/pull/1858))
 
 **Fixes**:
 
@@ -14,9 +15,12 @@
 - Native/macOS: resolve symbol names for crash stacktraces from Mach-O symbol tables and dSYM companions. ([#1856](https://github.com/getsentry/sentry-native/pull/1856))
 - Route libcurl debug output through the Sentry logger (`SENTRY_TRACE`) instead of writing to `stderr`. ([#1854](https://github.com/getsentry/sentry-native/pull/1854))
   - NOTE: `sentry_options_set_debug(options, true)` no longer displays verbose libcurl debug output by default. To restore it, call `sentry_options_set_logger_level(options, SENTRY_LEVEL_TRACE)`.
+- Crashpad: route client logs through the Sentry logger to make actionable handler startup errors visible. ([#1859](https://github.com/getsentry/sentry-native/pull/1859))
 - Windows: fix symlink detection used to prevent database cleanup from following symlinks in run and cache directories. ([#1857](https://github.com/getsentry/sentry-native/pull/1857))
 - Linux: avoid unsafe `copy_file_range` at crash time. ([#1868](https://github.com/getsentry/sentry-native/pull/1868))
+- Increase the default telemetry batcher capacity from 2x100 to 3x100 items, and add `SENTRY_BATCHER_BUFFER_COUNT` to configure the number of rotating buffers used by log and metric batchers. ([#1867](https://github.com/getsentry/sentry-native/pull/1867))
 - Fix a lifetime issue when reading `sample_rand` from the scope propagation context. ([#1869](https://github.com/getsentry/sentry-native/pull/1869))
+- Linux: silence harmless compilation warnings in `sentry_modulefinder_linux.c` and `sentry_backend_inproc.c`. ([#1871](https://github.com/getsentry/sentry-native/pull/1871))
 
 ## 0.15.3
 
