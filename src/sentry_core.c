@@ -1393,6 +1393,23 @@ sentry_transaction_finish_ts(
     return sentry__capture_event(tx, NULL);
 }
 
+void
+sentry_transaction_discard(sentry_transaction_t *opaque_tx)
+{
+    if (!opaque_tx) {
+        return;
+    }
+
+    SENTRY_WITH_SCOPE_MUT (scope) {
+        if (scope->transaction_object == opaque_tx) {
+            sentry__transaction_decref(scope->transaction_object);
+            scope->transaction_object = NULL;
+        }
+    }
+
+    sentry__transaction_decref(opaque_tx);
+}
+
 sentry_value_t
 sentry__transaction_finish_value(
     sentry_transaction_t *opaque_tx, uint64_t timestamp)
@@ -1711,6 +1728,25 @@ sentry_span_finish_ts(sentry_span_t *opaque_span, uint64_t timestamp)
     return;
 
 fail:
+    sentry__span_decref(opaque_span);
+}
+
+void
+sentry_span_discard(sentry_span_t *opaque_span)
+{
+    if (!opaque_span) {
+        return;
+    }
+
+    sentry__transaction_remove_child(opaque_span->transaction, opaque_span);
+
+    SENTRY_WITH_SCOPE_MUT (scope) {
+        if (scope->span == opaque_span) {
+            sentry__span_decref(scope->span);
+            scope->span = NULL;
+        }
+    }
+
     sentry__span_decref(opaque_span);
 }
 

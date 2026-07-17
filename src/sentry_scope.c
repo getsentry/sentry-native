@@ -831,7 +831,7 @@ void
 sentry__scope_apply_to_telemetry(const sentry_scope_t *scope,
     sentry_value_t telemetry, sentry_value_t attributes)
 {
-    sentry__value_merge_objects(attributes, scope->attributes);
+    sentry__value_merge_objects_shallow(attributes, scope->attributes);
 
     // a span on the scope MUST take precedence over the propagation context
     sentry_value_t trace_id = sentry_value_get_by_key(

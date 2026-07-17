@@ -342,6 +342,24 @@ crashpad_backend_flush_scope(
 #endif
 }
 
+// Decodes a breadcrumb ring file (an append-only stream of msgpack values)
+// into a list.
+static sentry_value_t
+read_msgpack_stream_file(const sentry_path_t *path)
+{
+    if (!path) {
+        return sentry_value_new_null();
+    }
+    size_t size;
+    char *data = sentry__path_read_to_buffer(path, &size);
+    if (!data) {
+        return sentry_value_new_null();
+    }
+    sentry_value_t value = sentry__value_from_msgpack_stream(data, size);
+    sentry_free(data);
+    return value;
+}
+
 #if defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_WINDOWS)
 static void
 flush_scope_from_handler(
@@ -446,6 +464,15 @@ crashpad_handler(int signum, siginfo_t *info, ucontext_t *user_context)
             }
 
             if (sentry__session_replay_has_pending(options)) {
+                // the crash event was scope-applied without breadcrumbs, so
+                // set them on the in-memory copy to let the replay recording
+                // embed them; the on-disk `__sentry-event` was already
+                // written above and stays breadcrumb-free
+                SENTRY_WITH_SCOPE (scope) {
+                    sentry_value_set_by_key(crash_event, "breadcrumbs",
+                        sentry__ringbuffer_to_list(scope->breadcrumbs));
+                }
+
                 sentry_transport_t *replay_transport
                     = sentry_new_disk_transport(options->run);
                 if (replay_transport) {
@@ -572,9 +599,9 @@ report_to_envelope(const crashpad::CrashReportDatabase::Report &report,
             if (strcmp(filename, "__sentry-event") == 0) {
                 event = read_msgpack_file(path);
             } else if (strcmp(filename, "__sentry-breadcrumb1") == 0) {
-                breadcrumbs1 = read_msgpack_file(path);
+                breadcrumbs1 = read_msgpack_stream_file(path);
             } else if (strcmp(filename, "__sentry-breadcrumb2") == 0) {
-                breadcrumbs2 = read_msgpack_file(path);
+                breadcrumbs2 = read_msgpack_stream_file(path);
             } else {
                 sentry__attachments_add_path(
                     &attachments, sentry__path_clone(path), nullptr, nullptr);
