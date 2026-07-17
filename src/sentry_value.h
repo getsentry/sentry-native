@@ -110,6 +110,18 @@ sentry_value_t sentry__value_clone(sentry_value_t value);
 int sentry__value_merge_objects(sentry_value_t dst, sentry_value_t src);
 
 /**
+ * Shallow-merges the top-level keys from src into dst, keeping keys that dst
+ * already has.
+ *
+ * Unlike `sentry__value_merge_objects`, values are copied whole and are never
+ * merged recursively, so a nested object in src cannot add fields to a
+ * same-keyed object already present in dst.
+ *
+ * Returns 0 on success.
+ */
+int sentry__value_merge_objects_shallow(sentry_value_t dst, sentry_value_t src);
+
+/**
  * Writes the given `value` into the `jsonwriter`.
  */
 void sentry__jsonwriter_write_value(
