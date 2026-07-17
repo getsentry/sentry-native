@@ -2180,7 +2180,8 @@ SENTRY_API sentry_uuid_t sentry_scope_capture_event(
 
 /**
  * Deprecated alias for `sentry_scope_capture_event`. Note the reversed argument
- * order: the replacement takes the scope first.
+ * order: the replacement takes the scope first. This alias will be removed in
+ * 2027.
  */
 SENTRY_DEPRECATED("Use `sentry_scope_capture_event` instead")
 SENTRY_API sentry_uuid_t sentry_capture_event_with_scope(
