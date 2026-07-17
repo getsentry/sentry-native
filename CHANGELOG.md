@@ -8,6 +8,7 @@
 - Embed the crash event's breadcrumbs into session replay recordings, so breadcrumbs from the replay window show up on the replay timeline. ([#1875](https://github.com/getsentry/sentry-native/pull/1875))
 - Add `sentry_transaction_discard` and `sentry_span_discard` for releasing unfinished transactions and spans without sending them. ([#1858](https://github.com/getsentry/sentry-native/pull/1858))
 - Add scope attributes. `sentry_scope_set_attribute` / `_n` set an attribute on a scope and `sentry_scope_remove_attribute` / `_n` remove one, while the new `sentry_scope_capture_log` and `sentry_scope_capture_metric` capture a log or metric against a given scope. Scope attributes and trace are applied to logs and metrics captured against it, resolving most-specific-first: per-call data, then the scope, then the global scope. ([#1861](https://github.com/getsentry/sentry-native/pull/1861))
+- Add `sentry_scope_clear` to reset a scope's data. ([#1861](https://github.com/getsentry/sentry-native/pull/1861))
 
 **Fixes**:
 
