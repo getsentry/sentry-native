@@ -9,8 +9,6 @@ extern "C" {
 #include "sentry_database.h"
 #include "sentry_envelope.h"
 #include "sentry_logger.h"
-#include "sentry_logs.h"
-#include "sentry_metrics.h"
 #include "sentry_options.h"
 #ifdef SENTRY_PLATFORM_WINDOWS
 #    include "sentry_os.h"
@@ -19,6 +17,7 @@ extern "C" {
 #include "sentry_screenshot.h"
 #include "sentry_session_replay.h"
 #include "sentry_sync.h"
+#include "sentry_telemetry.h"
 #include "sentry_transport.h"
 #include "sentry_value.h"
 #ifdef SENTRY_PLATFORM_LINUX
@@ -435,12 +434,7 @@ crashpad_handler(int signum, siginfo_t *info, ucontext_t *user_context)
         sentry__transport_suspend(options->transport);
 
         // Flush logs and metrics in a crash-safe manner before crash handling
-        if (options->enable_logs) {
-            sentry__logs_flush_crash_safe();
-        }
-        if (options->enable_metrics) {
-            sentry__metrics_flush_crash_safe();
-        }
+        sentry__telemetry_flush_crash_safe();
 
         should_dump = !sentry_value_is_null(crash_event);
 

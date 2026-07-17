@@ -28,8 +28,6 @@
 #include "sentry_envelope.h"
 #include "sentry_json.h"
 #include "sentry_logger.h"
-#include "sentry_logs.h"
-#include "sentry_metrics.h"
 #include "sentry_options.h"
 #include "sentry_os.h"
 #include "sentry_path.h"
@@ -37,6 +35,7 @@
 #include "sentry_scope.h"
 #include "sentry_session.h"
 #include "sentry_sync.h"
+#include "sentry_telemetry.h"
 #include "sentry_tracing.h"
 #include "sentry_transport.h"
 #include "sentry_value.h"
@@ -976,12 +975,7 @@ native_backend_except(sentry_backend_t *backend, const sentry_ucontext_t *uctx)
         sentry__transport_suspend(options->transport);
 
         // Flush logs and metrics in a crash-safe manner before crash handling
-        if (options->enable_logs) {
-            sentry__logs_flush_crash_safe();
-        }
-        if (options->enable_metrics) {
-            sentry__metrics_flush_crash_safe();
-        }
+        sentry__telemetry_flush_crash_safe();
 
         // Write crash marker
         sentry__write_crash_marker(options);

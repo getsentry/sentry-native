@@ -8,8 +8,6 @@
 #include "sentry_database.h"
 #include "sentry_envelope.h"
 #include "sentry_logger.h"
-#include "sentry_logs.h"
-#include "sentry_metrics.h"
 #include "sentry_options.h"
 #if defined(SENTRY_PLATFORM_WINDOWS)
 #    include "sentry_os.h"
@@ -18,6 +16,7 @@
 #include "sentry_screenshot.h"
 #include "sentry_session_replay.h"
 #include "sentry_sync.h"
+#include "sentry_telemetry.h"
 #include "sentry_tracing.h"
 #include "sentry_transport.h"
 #include "sentry_unix_pageallocator.h"
@@ -1129,12 +1128,7 @@ process_ucontext_deferred(const sentry_ucontext_t *uctx,
         sentry__transport_suspend(options->transport);
 
         // Flush logs in a crash-safe manner before crash handling
-        if (options->enable_logs) {
-            sentry__logs_flush_crash_safe();
-        }
-        if (options->enable_metrics) {
-            sentry__metrics_flush_crash_safe();
-        }
+        sentry__telemetry_flush_crash_safe();
         TEST_CRASH_POINT("before_capture");
         if (should_handle) {
             bool capture_screenshot = options->attach_screenshot;
