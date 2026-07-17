@@ -1485,9 +1485,8 @@ SENTRY_TEST(scope_capture_user_owned)
     sentry_scope_t *scope = sentry_scope_new();
     sentry_scope_set_tag(scope, "run", "first");
 
-    sentry_capture_event_with_scope(
-        sentry_value_new_message_event(SENTRY_LEVEL_INFO, "logger", "one"),
-        scope);
+    sentry_scope_capture_event(scope,
+        sentry_value_new_message_event(SENTRY_LEVEL_INFO, "logger", "one"));
 
     // The scope was applied but not freed, so reading and reusing it is safe
     // (a use-after-free here would trip the sanitizers).
@@ -1496,9 +1495,8 @@ SENTRY_TEST(scope_capture_user_owned)
         "first");
 
     sentry_scope_set_tag(scope, "run", "second");
-    sentry_capture_event_with_scope(
-        sentry_value_new_message_event(SENTRY_LEVEL_INFO, "logger", "two"),
-        scope);
+    sentry_scope_capture_event(scope,
+        sentry_value_new_message_event(SENTRY_LEVEL_INFO, "logger", "two"));
 
     sentry_scope_free(scope);
 

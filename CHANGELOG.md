@@ -10,6 +10,10 @@
 - Add scope attributes. `sentry_scope_set_attribute` / `_n` set an attribute on a scope and `sentry_scope_remove_attribute` / `_n` remove one, while the new `sentry_scope_capture_log` and `sentry_scope_capture_metric` capture a log or metric against a given scope. Scope attributes and trace are applied to logs and metrics captured against it, resolving most-specific-first: per-call data, then the scope, then the global scope. ([#1861](https://github.com/getsentry/sentry-native/pull/1861))
 - Add `sentry_scope_clear` to reset a scope's data. ([#1881](https://github.com/getsentry/sentry-native/pull/1881))
 
+**Deprecations**:
+
+- Deprecate `sentry_capture_event_with_scope` in favor of `sentry_scope_capture_event` (scope first), which matches `sentry_scope_capture_log` / `sentry_scope_capture_metric`. ([#1882](https://github.com/getsentry/sentry-native/pull/1882))
+
 **Fixes**:
 
 - Apply the propagation context to events that already have contexts set, so that events captured with a local scope or with event-level contexts keep their trace. ([#1843](https://github.com/getsentry/sentry-native/pull/1843))

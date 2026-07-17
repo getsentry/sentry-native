@@ -38,7 +38,7 @@
  * NOTE on attachments:
  *
  * Attachments are read lazily at the time of `sentry_capture_event`,
- * `sentry_capture_event_with_scope`, or at the time of a hard crash. Relative
+ * `sentry_scope_capture_event`, or at the time of a hard crash. Relative
  * attachment paths will be resolved according to the current working directory
  * at the time of envelope creation. When adding and removing attachments, they
  * are matched according to their given `path`. No normalization is performed.
@@ -2120,7 +2120,7 @@ typedef struct sentry_scope_s sentry_scope_t;
  * Creates a local scope.
  *
  * A local scope is a one-shot scope: the capture function it is passed to (such
- * as `sentry_capture_event_with_scope`) takes ownership and frees it. To create
+ * as `sentry_scope_capture_event`) takes ownership and frees it. To create
  * a scope whose lifetime you manage and can reuse across captures, use
  * `sentry_scope_new` instead.
  */
@@ -2130,7 +2130,7 @@ SENTRY_API sentry_scope_t *sentry_local_scope_new(void);
  * Creates a user-owned scope.
  *
  * Unlike a local scope, a user-owned scope is applied but not freed by capture
- * functions such as `sentry_capture_event_with_scope`, so the same scope can be
+ * functions such as `sentry_scope_capture_event`, so the same scope can be
  * mutated and reused across many captures. You must release it yourself with
  * `sentry_scope_free`.
  */
@@ -2175,6 +2175,15 @@ SENTRY_API sentry_uuid_t sentry_capture_event(sentry_value_t event);
  * `sentry_scope_clone`), it is applied but not freed, so it can be reused; free
  * it yourself with `sentry_scope_free`.
  */
+SENTRY_API sentry_uuid_t sentry_scope_capture_event(
+    sentry_scope_t *scope, sentry_value_t event);
+
+/**
+ * Deprecated alias for `sentry_scope_capture_event`. Note the reversed argument
+ * order: the replacement takes the scope first. This alias will be removed in
+ * 2027.
+ */
+SENTRY_DEPRECATED("Use `sentry_scope_capture_event` instead")
 SENTRY_API sentry_uuid_t sentry_capture_event_with_scope(
     sentry_value_t event, sentry_scope_t *scope);
 
@@ -2709,7 +2718,7 @@ SENTRY_EXPERIMENTAL_API log_return_value_t sentry_log(
  * more than one place resolves to the most specific: `attributes` > `scope` >
  * global scope.
  *
- * Scope ownership works as in `sentry_capture_event_with_scope`: a local scope
+ * Scope ownership works as in `sentry_scope_capture_event`: a local scope
  * is freed by this function, a user-owned one is not. Pass `NULL` to apply the
  * global scope only.
  */
@@ -2890,7 +2899,7 @@ typedef enum {
  *
  * Ownership of `value` is transferred to this function, on top of `attributes`.
  *
- * Scope ownership works as in `sentry_capture_event_with_scope`: a local scope
+ * Scope ownership works as in `sentry_scope_capture_event`: a local scope
  * is freed by this function, a user-owned one is not. Pass `NULL` to apply the
  * global scope only.
  */
