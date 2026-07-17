@@ -1,6 +1,7 @@
 #include "sentry_sync.h"
 #include "sentry_alloc.h"
 #include "sentry_core.h"
+#include "sentry_cpu_relax.h"
 #include "sentry_string.h"
 #include "sentry_utils.h"
 #include <stdio.h>
@@ -100,6 +101,253 @@ thread_setname(sentry_threadid_t thread_id, const char *thread_name)
 #    endif
 }
 #endif
+
+typedef struct sentry_threadpool_task_s {
+    struct sentry_threadpool_task_s *next;
+    void (*exec_func)(void *task_data);
+    void (*complete_func)(void *task_data);
+    void (*cleanup_func)(void *task_data);
+    void *task_data;
+    bool done;
+} sentry_threadpool_task_t;
+
+struct sentry_threadpool_s {
+    sentry_threadid_t *threads;
+    size_t thread_count;
+    size_t started_threads;
+    sentry_mutex_t lock;
+    sentry_cond_t work_signal;
+    sentry_cond_t state_signal;
+    sentry_threadpool_task_t *first_task;
+    sentry_threadpool_task_t *last_task;
+    sentry_threadpool_task_t *next_task;
+    long pending;
+    bool running;
+    bool stopping;
+    bool committing;
+};
+
+static void
+threadpool_task_free(sentry_threadpool_task_t *task)
+{
+    if (task->cleanup_func) {
+        task->cleanup_func(task->task_data);
+    }
+    sentry_free(task);
+}
+
+static void
+threadpool_wake_all(sentry_threadpool_t *pool)
+{
+    for (size_t i = 0; i < pool->started_threads; i++) {
+        sentry__cond_wake(&pool->work_signal);
+    }
+}
+
+static void
+threadpool_commit_ready(sentry_threadpool_t *pool)
+{
+    if (pool->committing) {
+        return;
+    }
+    pool->committing = true;
+
+    while (pool->first_task && pool->first_task->done) {
+        sentry_threadpool_task_t *task = pool->first_task;
+        pool->first_task = task->next;
+        if (!pool->first_task) {
+            pool->last_task = NULL;
+        }
+
+        sentry__mutex_unlock(&pool->lock);
+        if (task->complete_func) {
+            task->complete_func(task->task_data);
+        }
+        threadpool_task_free(task);
+        sentry__mutex_lock(&pool->lock);
+
+        sentry__atomic_fetch_and_add(&pool->pending, -1);
+        sentry__cond_wake(&pool->state_signal);
+    }
+
+    pool->committing = false;
+    if (sentry__atomic_fetch(&pool->pending) == 0) {
+        threadpool_wake_all(pool);
+    }
+}
+
+SENTRY_THREAD_FN
+threadpool_worker(void *data)
+{
+    sentry_threadpool_t *pool = data;
+
+    while (true) {
+        sentry__mutex_lock(&pool->lock);
+        sentry_threadpool_task_t *task = pool->next_task;
+        while (!task) {
+            if (pool->stopping && sentry__atomic_fetch(&pool->pending) == 0) {
+                sentry__mutex_unlock(&pool->lock);
+                return 0;
+            }
+            sentry__cond_wait(&pool->work_signal, &pool->lock);
+            task = pool->next_task;
+        }
+        pool->next_task = task->next;
+        sentry__mutex_unlock(&pool->lock);
+
+        task->exec_func(task->task_data);
+
+        sentry__mutex_lock(&pool->lock);
+        task->done = true;
+        threadpool_commit_ready(pool);
+        sentry__cond_wake(&pool->work_signal);
+        sentry__mutex_unlock(&pool->lock);
+    }
+}
+
+sentry_threadpool_t *
+sentry__threadpool_new(size_t thread_count)
+{
+    if (thread_count == 0) {
+        return NULL;
+    }
+    sentry_threadpool_t *pool = SENTRY_MAKE(sentry_threadpool_t);
+    if (!pool) {
+        return NULL;
+    }
+    pool->threads = sentry__calloc(thread_count, sizeof(sentry_threadid_t));
+    if (!pool->threads) {
+        sentry_free(pool);
+        return NULL;
+    }
+    pool->thread_count = thread_count;
+    sentry__mutex_init(&pool->lock);
+    sentry__cond_init(&pool->work_signal);
+    sentry__cond_init(&pool->state_signal);
+    for (size_t i = 0; i < thread_count; i++) {
+        sentry__thread_init(&pool->threads[i]);
+    }
+    return pool;
+}
+
+int
+sentry__threadpool_start(sentry_threadpool_t *pool)
+{
+    if (!pool || pool->running) {
+        return pool ? 0 : 1;
+    }
+    pool->running = true;
+    pool->stopping = false;
+    for (size_t i = 0; i < pool->thread_count; i++) {
+        if (sentry__thread_spawn(&pool->threads[i], threadpool_worker, pool)
+            != 0) {
+            sentry__mutex_lock(&pool->lock);
+            pool->stopping = true;
+            threadpool_wake_all(pool);
+            sentry__mutex_unlock(&pool->lock);
+            for (size_t j = 0; j < pool->started_threads; j++) {
+                sentry__thread_join(pool->threads[j]);
+            }
+            pool->started_threads = 0;
+            pool->running = false;
+            return 1;
+        }
+        pool->started_threads++;
+    }
+    return 0;
+}
+
+int
+sentry__threadpool_submit(sentry_threadpool_t *pool,
+    void (*exec_func)(void *task_data), void (*complete_func)(void *task_data),
+    void (*cleanup_func)(void *task_data), void *task_data)
+{
+    if (!pool || !exec_func) {
+        return 1;
+    }
+    sentry_threadpool_task_t *task = SENTRY_MAKE(sentry_threadpool_task_t);
+    if (!task) {
+        return 1;
+    }
+    task->exec_func = exec_func;
+    task->complete_func = complete_func;
+    task->cleanup_func = cleanup_func;
+    task->task_data = task_data;
+
+    sentry__mutex_lock(&pool->lock);
+    if (!pool->running || pool->stopping) {
+        sentry__mutex_unlock(&pool->lock);
+        sentry_free(task);
+        return 1;
+    }
+
+    if (pool->last_task) {
+        pool->last_task->next = task;
+    } else {
+        pool->first_task = task;
+    }
+    pool->last_task = task;
+    if (!pool->next_task) {
+        pool->next_task = task;
+    }
+    sentry__atomic_fetch_and_add(&pool->pending, 1);
+    sentry__cond_wake(&pool->work_signal);
+    sentry__mutex_unlock(&pool->lock);
+    return 0;
+}
+
+void
+sentry__threadpool_flush(sentry_threadpool_t *pool)
+{
+    if (!pool || !pool->running) {
+        return;
+    }
+    sentry__mutex_lock(&pool->lock);
+    while (sentry__atomic_fetch(&pool->pending) > 0) {
+        sentry__cond_wait(&pool->state_signal, &pool->lock);
+    }
+    sentry__mutex_unlock(&pool->lock);
+}
+
+void
+sentry__threadpool_shutdown(sentry_threadpool_t *pool)
+{
+    if (!pool || !pool->running) {
+        return;
+    }
+    sentry__mutex_lock(&pool->lock);
+    pool->stopping = true;
+    threadpool_wake_all(pool);
+    sentry__cond_wake(&pool->state_signal);
+    sentry__mutex_unlock(&pool->lock);
+
+    for (size_t i = 0; i < pool->started_threads; i++) {
+        sentry__thread_join(pool->threads[i]);
+    }
+    pool->started_threads = 0;
+    pool->running = false;
+}
+
+void
+sentry__threadpool_free(sentry_threadpool_t *pool)
+{
+    if (!pool) {
+        return;
+    }
+    sentry__threadpool_shutdown(pool);
+    sentry_threadpool_task_t *task = pool->first_task;
+    while (task) {
+        sentry_threadpool_task_t *next = task->next;
+        threadpool_task_free(task);
+        task = next;
+    }
+    for (size_t i = 0; i < pool->thread_count; i++) {
+        sentry__thread_free(&pool->threads[i]);
+    }
+    sentry__mutex_free(&pool->lock);
+    sentry_free(pool->threads);
+    sentry_free(pool);
+}
 
 /**
  * Queue operations, locking and Reference counting:

@@ -460,7 +460,23 @@ sentry__atomic_fetch_u64(uint64_t *val)
 struct sentry_bgworker_s;
 typedef struct sentry_bgworker_s sentry_bgworker_t;
 
+struct sentry_threadpool_s;
+typedef struct sentry_threadpool_s sentry_threadpool_t;
+
 typedef void (*sentry_task_exec_func_t)(void *task_data, void *state);
+
+/**
+ * Creates a thread pool. Tasks execute in parallel, while completion callbacks
+ * run in submission order.
+ */
+sentry_threadpool_t *sentry__threadpool_new(size_t thread_count);
+int sentry__threadpool_start(sentry_threadpool_t *pool);
+int sentry__threadpool_submit(sentry_threadpool_t *pool,
+    void (*exec_func)(void *task_data), void (*complete_func)(void *task_data),
+    void (*cleanup_func)(void *task_data), void *task_data);
+void sentry__threadpool_flush(sentry_threadpool_t *pool);
+void sentry__threadpool_shutdown(sentry_threadpool_t *pool);
+void sentry__threadpool_free(sentry_threadpool_t *pool);
 
 /**
  * Creates a new background worker thread.
