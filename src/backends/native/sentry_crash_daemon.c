@@ -3042,16 +3042,8 @@ read_breadcrumb_ring_file(const sentry_path_t *run_folder, const char *name)
         sentry_free(buf);
         return sentry_value_new_null();
     }
-    sentry_value_t list = sentry__value_from_msgpack(buf, size);
+    sentry_value_t list = sentry__value_from_msgpack_stream(buf, size);
     sentry_free(buf);
-    // `sentry__value_from_msgpack` only builds a list when the file holds 2+
-    // concatenated values; a file with a single breadcrumb decodes to a bare
-    // object. Wrap it so the merge step (which ignores non-lists) keeps it.
-    if (sentry_value_get_type(list) == SENTRY_VALUE_TYPE_OBJECT) {
-        sentry_value_t wrapper = sentry_value_new_list();
-        sentry_value_append(wrapper, list);
-        return wrapper;
-    }
     return list;
 }
 
@@ -4322,10 +4314,11 @@ sentry__process_crash(const sentry_options_t *options, sentry_crash_ipc_t *ipc)
 cleanup:
     // Send the staged session-replay envelope same-session, enriched from the
     // crash event (`<run>/__sentry-event`) so it shares the crash's
-    // tags/contexts/trace. Only flush when the crash itself was delivered:
-    // `cleanup` is also reached via `goto` on error paths where the crash was
-    // never captured, and flushing there would consume (and delete) the staged
-    // replay for a crash that never arrived.
+    // tags/contexts/trace and embeds its breadcrumbs. Only flush when the
+    // crash itself was delivered: `cleanup` is also reached via `goto` on
+    // error paths where the crash was never captured, and flushing there
+    // would consume (and delete) the staged replay for a crash that never
+    // arrived.
     if (crash_captured && options && options->transport
         && sentry__session_replay_has_pending(options)) {
         sentry_value_t crash_event = sentry_value_new_null();
@@ -4336,6 +4329,11 @@ cleanup:
                 crash_event = sentry__value_from_json(ev_json, ev_len);
                 sentry_free(ev_json);
             }
+        }
+        if (!sentry_value_is_null(crash_event)) {
+            // `__sentry-event` is scope-applied without breadcrumbs; merge
+            // the ring files so the replay recording can embed them
+            apply_breadcrumbs_from_ring_files(crash_event, run_folder, ctx);
         }
         sentry__session_replay_flush_pending(
             options, options->transport, crash_event);

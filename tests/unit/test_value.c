@@ -1646,6 +1646,9 @@ SENTRY_TEST(value_from_msgpack_object)
 
 SENTRY_TEST(value_from_msgpack_flat_buffer)
 {
+    // buffers holding multiple concatenated msgpack values are rejected by
+    // `sentry__value_from_msgpack`; they must be decoded with
+    // `sentry__value_from_msgpack_stream` instead
     sentry_value_t val1 = sentry_value_new_list();
     sentry_value_append(val1, sentry_value_new_int32(1));
     sentry_value_append(val1, sentry_value_new_int32(2));
@@ -1656,9 +1659,56 @@ SENTRY_TEST(value_from_msgpack_flat_buffer)
     size_t size2 = 0;
     char *buf2 = sentry_value_to_msgpack(val2, &size2);
 
-    sentry_value_t val3 = sentry_value_new_string("three");
-    size_t size3 = 0;
-    char *buf3 = sentry_value_to_msgpack(val3, &size3);
+    char combined[256];
+    size_t combined_size = 0;
+    memcpy(combined + combined_size, buf1, size1);
+    combined_size += size1;
+    memcpy(combined + combined_size, buf2, size2);
+    combined_size += size2;
+
+    sentry_value_t result = sentry__value_from_msgpack(combined, combined_size);
+    TEST_CHECK(sentry_value_is_null(result));
+
+    // a single value followed by trailing garbage is rejected as well
+    combined_size = size1;
+    memset(combined + combined_size, 0xC1, 4); // 0xC1 is never used in msgpack
+    combined_size += 4;
+
+    result = sentry__value_from_msgpack(combined, combined_size);
+    TEST_CHECK(sentry_value_is_null(result));
+
+    sentry_free(buf1);
+    sentry_free(buf2);
+    sentry_value_decref(val1);
+    sentry_value_decref(val2);
+}
+
+SENTRY_TEST(value_from_msgpack_stream)
+{
+    TEST_CHECK(
+        sentry_value_is_null(sentry__value_from_msgpack_stream(NULL, 0)));
+    TEST_CHECK(sentry_value_is_null(sentry__value_from_msgpack_stream("", 0)));
+
+    // a single value decodes to a one-element list, unlike
+    // `sentry__value_from_msgpack` which decodes it bare
+    sentry_value_t val1 = sentry_value_new_object();
+    sentry_value_set_by_key(val1, "message", sentry_value_new_string("first"));
+    size_t size1 = 0;
+    char *buf1 = sentry_value_to_msgpack(val1, &size1);
+
+    sentry_value_t single = sentry__value_from_msgpack_stream(buf1, size1);
+    TEST_CHECK(sentry_value_get_type(single) == SENTRY_VALUE_TYPE_LIST);
+    TEST_CHECK(sentry_value_get_length(single) == 1);
+    TEST_CHECK_STRING_EQUAL(
+        sentry_value_as_string(sentry_value_get_by_key(
+            sentry_value_get_by_index(single, 0), "message")),
+        "first");
+
+    // multiple concatenated values decode to a list of all of them
+    sentry_value_t val2 = sentry_value_new_object();
+    sentry_value_set_by_key(val2, "message", sentry_value_new_string("second"));
+    size_t size2 = 0;
+    char *buf2 = sentry_value_to_msgpack(val2, &size2);
 
     char combined[256];
     size_t combined_size = 0;
@@ -1666,32 +1716,26 @@ SENTRY_TEST(value_from_msgpack_flat_buffer)
     combined_size += size1;
     memcpy(combined + combined_size, buf2, size2);
     combined_size += size2;
-    memcpy(combined + combined_size, buf3, size3);
-    combined_size += size3;
 
-    sentry_value_t result = sentry__value_from_msgpack(combined, combined_size);
-    TEST_CHECK(sentry_value_get_type(result) == SENTRY_VALUE_TYPE_LIST);
-    TEST_CHECK(sentry_value_get_length(result) == 3);
-
-    sentry_value_t elem0 = sentry_value_get_by_index(result, 0);
-    TEST_CHECK(sentry_value_get_type(elem0) == SENTRY_VALUE_TYPE_LIST);
-    TEST_CHECK(sentry_value_get_length(elem0) == 2);
-    TEST_CHECK(sentry_value_as_int32(sentry_value_get_by_index(elem0, 0)) == 1);
-    TEST_CHECK(sentry_value_as_int32(sentry_value_get_by_index(elem0, 1)) == 2);
-
-    sentry_value_t elem1 = sentry_value_get_by_index(result, 1);
-    TEST_CHECK(sentry_value_as_int32(elem1) == 2);
-
-    sentry_value_t elem2 = sentry_value_get_by_index(result, 2);
-    TEST_CHECK_STRING_EQUAL(sentry_value_as_string(elem2), "three");
+    sentry_value_t multi
+        = sentry__value_from_msgpack_stream(combined, combined_size);
+    TEST_CHECK(sentry_value_get_type(multi) == SENTRY_VALUE_TYPE_LIST);
+    TEST_CHECK(sentry_value_get_length(multi) == 2);
+    TEST_CHECK_STRING_EQUAL(
+        sentry_value_as_string(sentry_value_get_by_key(
+            sentry_value_get_by_index(multi, 0), "message")),
+        "first");
+    TEST_CHECK_STRING_EQUAL(
+        sentry_value_as_string(sentry_value_get_by_key(
+            sentry_value_get_by_index(multi, 1), "message")),
+        "second");
 
     sentry_free(buf1);
     sentry_free(buf2);
-    sentry_free(buf3);
     sentry_value_decref(val1);
     sentry_value_decref(val2);
-    sentry_value_decref(val3);
-    sentry_value_decref(result);
+    sentry_value_decref(single);
+    sentry_value_decref(multi);
 }
 
 #define TEST_CHECK_MESSAGE_EQUAL(breadcrumbs, index, message)                  \
