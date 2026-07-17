@@ -3,6 +3,7 @@
 
 #include "sentry_boot.h"
 #include "sentry_core.h"
+#include "sentry_cpu_relax.h"
 
 #include <assert.h>
 #include <stdio.h>
@@ -452,6 +453,35 @@ sentry__atomic_compare_swap(volatile long *val, long expected, long desired)
 #endif
 }
 
+typedef bool (*sentry_spin_wait_func_t)(int attempt, void *data);
+
+static inline void
+sentry__spin_lock(volatile long *lock)
+{
+    while (!sentry__atomic_compare_swap(lock, 0, 1)) {
+        sentry__cpu_relax();
+    }
+}
+
+static inline bool
+sentry__spin_lock_wait(
+    volatile long *lock, sentry_spin_wait_func_t wait_func, void *data)
+{
+    int attempts = 0;
+    while (!sentry__atomic_compare_swap(lock, 0, 1)) {
+        if (!wait_func || !wait_func(++attempts, data)) {
+            return false;
+        }
+    }
+    return true;
+}
+
+static inline void
+sentry__spin_unlock(volatile long *lock)
+{
+    sentry__atomic_store(lock, 0);
+}
+
 /**
  * 64-bit variants of the atomic helpers above. The `long`-based helpers are
  * only 32 bits wide on Windows and 32-bit POSIX targets, so callers that need
@@ -492,7 +522,29 @@ int sentry__thread_setname(
 struct sentry_bgworker_s;
 typedef struct sentry_bgworker_s sentry_bgworker_t;
 
+struct sentry_threadpool_s;
+typedef struct sentry_threadpool_s sentry_threadpool_t;
+
 typedef void (*sentry_task_exec_func_t)(void *task_data, void *state);
+
+/**
+ * Creates a thread pool. Tasks execute in parallel, while completion callbacks
+ * run in submission order.
+ */
+sentry_threadpool_t *sentry__threadpool_new(size_t thread_count);
+void sentry__threadpool_setname(
+    sentry_threadpool_t *pool, const char *thread_name);
+int sentry__threadpool_start(sentry_threadpool_t *pool);
+/**
+ * Takes ownership of `task_data`, freeing it using `cleanup_func` when the
+ * task is completed, cancelled, or rejected.
+ */
+int sentry__threadpool_submit(sentry_threadpool_t *pool,
+    void (*exec_func)(void *task_data), void (*complete_func)(void *task_data),
+    void (*cleanup_func)(void *task_data), void *task_data);
+void sentry__threadpool_flush(sentry_threadpool_t *pool);
+void sentry__threadpool_shutdown(sentry_threadpool_t *pool);
+void sentry__threadpool_free(sentry_threadpool_t *pool);
 
 /**
  * Creates a new background worker thread.
