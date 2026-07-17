@@ -96,3 +96,35 @@ def test_static_native(cmake):
             "BUILD_SHARED_LIBS": "OFF",
         },
     )
+
+
+@pytest.mark.skipif(
+    sys.platform == "win32" or is_android or is_qemu,
+    reason="requires nm",
+)
+def test_static_mpack(cmake):
+    tmp_path = cmake(
+        ["sentry"],
+        {
+            "SENTRY_BACKEND": "none",
+            "SENTRY_TRANSPORT": "none",
+            "BUILD_SHARED_LIBS": "OFF",
+        },
+    )
+
+    library = tmp_path / "libsentry.a"
+    output = subprocess.check_output(["nm", "-g", library], text=True)
+    symbols = {
+        line.rsplit(maxsplit=1)[-1].removeprefix("_")
+        for line in output.splitlines()
+        if line.split()
+    }
+
+    unprefixed = sorted(symbol for symbol in symbols if symbol.startswith("mpack_"))
+    assert not unprefixed, (
+        f"{library.name} contains {len(unprefixed)} unprefixed MPack symbols: "
+        f"{', '.join(unprefixed[:10])}"
+    )
+    assert any(
+        symbol.startswith("sentry__mpack_") for symbol in symbols
+    ), f"{library.name} contains no Sentry-prefixed MPack symbols"

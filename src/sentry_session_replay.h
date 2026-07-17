@@ -46,8 +46,10 @@ bool sentry__session_replay_has_pending(const sentry_options_t *options);
  *
  * `scope_source` is the crash event (`<run>/__sentry-event`); its scope fields
  * and trace id are copied onto the replay, and its timestamp ends the replay
- * window. If it is NULL or carries no `contexts.replay.replay_id`, nothing is
- * flushed.
+ * window. If it carries `breadcrumbs`, those falling inside the replay window
+ * are embedded in the recording as rrweb `breadcrumb` events so they show up
+ * on the replay timeline. If it is NULL or carries no
+ * `contexts.replay.replay_id`, nothing is flushed.
  */
 void sentry__session_replay_flush_pending(const sentry_options_t *options,
     sentry_transport_t *transport, sentry_value_t scope_source);

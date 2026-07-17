@@ -19,7 +19,7 @@
 #    pragma clang diagnostic ignored "-Wstatic-in-inline"
 #endif
 
-#include "../vendor/mpack.h"
+#include "sentry_mpack.h"
 
 #if defined(_MSC_VER)
 #    pragma warning(pop)
@@ -1135,6 +1135,36 @@ sentry__value_merge_objects(sentry_value_t dst, sentry_value_t src)
     return 0;
 }
 
+int
+sentry__value_merge_objects_shallow(sentry_value_t dst, sentry_value_t src)
+{
+    if (sentry_value_is_null(src)) {
+        return 0;
+    }
+    if (sentry_value_get_type(dst) != SENTRY_VALUE_TYPE_OBJECT
+        || sentry_value_get_type(src) != SENTRY_VALUE_TYPE_OBJECT
+        || sentry_value_is_frozen(dst)) {
+        return 1;
+    }
+    thing_t *thing = value_as_thing(src);
+    if (!thing) {
+        return 1;
+    }
+    obj_t *obj = thing->payload._ptr;
+    for (size_t i = 0; i < obj->len; i++) {
+        char *key = obj->pairs[i].k;
+        if (!sentry_value_is_null(sentry_value_get_by_key(dst, key))) {
+            continue;
+        }
+        sentry_value_t src_val = obj->pairs[i].v;
+        sentry_value_incref(src_val);
+        if (sentry_value_set_by_key(dst, key, src_val) != 0) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
 void
 sentry__jsonwriter_write_value(sentry_jsonwriter_t *jw, sentry_value_t value)
 {
@@ -1748,6 +1778,38 @@ sentry__value_from_msgpack(const char *buf, size_t buf_len)
         return sentry_value_new_null();
     }
 
+    mpack_tree_t tree;
+    mpack_tree_init_data(&tree, buf, buf_len);
+    mpack_tree_parse(&tree);
+
+    if (mpack_tree_error(&tree) != mpack_ok) {
+        mpack_tree_destroy(&tree);
+        return sentry_value_new_null();
+    }
+
+    size_t size = mpack_tree_size(&tree);
+    bool ok = true;
+    sentry_value_t value = value_from_mpack(mpack_tree_root(&tree), 0, &ok);
+    mpack_tree_destroy(&tree);
+
+    // reject buffers with trailing data after the first value; buffers
+    // holding concatenated values must be decoded with
+    // `sentry__value_from_msgpack_stream`
+    if (!ok || size != buf_len) {
+        sentry_value_decref(value);
+        return sentry_value_new_null();
+    }
+
+    return value;
+}
+
+sentry_value_t
+sentry__value_from_msgpack_stream(const char *buf, size_t buf_len)
+{
+    if (!buf || buf_len == 0) {
+        return sentry_value_new_null();
+    }
+
     size_t offset = 0;
     sentry_value_t result = sentry_value_new_null();
 
@@ -1772,16 +1834,10 @@ sentry__value_from_msgpack(const char *buf, size_t buf_len)
         }
         mpack_tree_destroy(&tree);
 
-        if (offset == 0 && sentry_value_is_null(result)) {
-            if (offset + size < buf_len) {
-                result = sentry_value_new_list();
-                sentry_value_append(result, value);
-            } else {
-                result = value;
-            }
-        } else {
-            sentry_value_append(result, value);
+        if (sentry_value_is_null(result)) {
+            result = sentry_value_new_list();
         }
+        sentry_value_append(result, value);
 
         offset += size;
     }
