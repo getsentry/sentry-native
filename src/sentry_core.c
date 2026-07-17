@@ -557,13 +557,19 @@ sentry_capture_event(sentry_value_t event)
 }
 
 sentry_uuid_t
-sentry_capture_event_with_scope(sentry_value_t event, sentry_scope_t *scope)
+sentry_scope_capture_event(sentry_scope_t *scope, sentry_value_t event)
 {
     if (sentry__event_is_transaction(event)) {
         return sentry_uuid_nil();
     } else {
         return sentry__capture_event(event, scope);
     }
+}
+
+sentry_uuid_t
+sentry_capture_event_with_scope(sentry_value_t event, sentry_scope_t *scope)
+{
+    return sentry_scope_capture_event(scope, event);
 }
 
 #ifndef SENTRY_UNITTEST
