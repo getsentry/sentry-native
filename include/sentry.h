@@ -2316,12 +2316,27 @@ SENTRY_API void sentry_remove_extra_n(const char *key, size_t key_len);
  * all:
  * - logs
  * - metrics
+ *
+ * Ownership of `attribute` is transferred to the function. Attributes missing
+ * a `value` or a `type` are rejected and discarded.
  */
 SENTRY_API void sentry_set_attribute(const char *key, sentry_value_t attribute);
 SENTRY_API void sentry_set_attribute_n(
     const char *key, size_t key_len, sentry_value_t attribute);
+SENTRY_API void sentry_scope_set_attribute(
+    sentry_scope_t *scope, const char *key, sentry_value_t attribute);
+SENTRY_API void sentry_scope_set_attribute_n(sentry_scope_t *scope,
+    const char *key, size_t key_len, sentry_value_t attribute);
+
+/**
+ * Removes the attribute with the specified key.
+ */
 SENTRY_API void sentry_remove_attribute(const char *key);
 SENTRY_API void sentry_remove_attribute_n(const char *key, size_t key_len);
+SENTRY_API void sentry_scope_remove_attribute(
+    sentry_scope_t *scope, const char *key);
+SENTRY_API void sentry_scope_remove_attribute_n(
+    sentry_scope_t *scope, const char *key, size_t key_len);
 
 /**
  * Sets a context object.
@@ -2680,6 +2695,22 @@ SENTRY_EXPERIMENTAL_API log_return_value_t sentry_log(
     sentry_level_t level, const char *body, sentry_value_t attributes);
 
 /**
+ * Sends a structured log with a scope.
+ *
+ * Behaves like `sentry_log`, except the log also carries the attributes and
+ * trace of `scope`, layered on top of the global scope. An attribute set in
+ * more than one place resolves to the most specific: `attributes` > `scope` >
+ * global scope.
+ *
+ * Scope ownership works as in `sentry_capture_event_with_scope`: a local scope
+ * is freed by this function, a user-owned one is not. Pass `NULL` to apply the
+ * global scope only.
+ */
+SENTRY_EXPERIMENTAL_API log_return_value_t sentry_scope_capture_log(
+    sentry_scope_t *scope, sentry_level_t level, const char *body,
+    sentry_value_t attributes);
+
+/**
  * Type of the `before_send_log` callback.
  *
  * The callback takes ownership of the `log` and should usually return
@@ -2829,6 +2860,36 @@ SENTRY_EXPERIMENTAL_API sentry_metrics_result_t sentry_metrics_gauge(
 SENTRY_EXPERIMENTAL_API sentry_metrics_result_t sentry_metrics_distribution(
     const char *name, double value, const char *unit,
     sentry_value_t attributes);
+
+/**
+ * Specifies the metric type for `sentry_scope_capture_metric`.
+ *
+ * Each type corresponds to one of the dedicated recording functions:
+ * `sentry_metrics_count`, `sentry_metrics_gauge`, `sentry_metrics_distribution`
+ */
+typedef enum {
+    SENTRY_METRIC_COUNT,
+    SENTRY_METRIC_GAUGE,
+    SENTRY_METRIC_DISTRIBUTION,
+} sentry_metric_type_t;
+
+/**
+ * Records a metric of the given type with a scope.
+ *
+ * Behaves like the `sentry_metrics_*` functions, except the metric also carries
+ * the attributes and trace of `scope`, layered on top of the global scope. An
+ * attribute set in more than one place resolves to the most specific:
+ * `attributes` > `scope` > global scope.
+ *
+ * Ownership of `value` is transferred to this function, on top of `attributes`.
+ *
+ * Scope ownership works as in `sentry_capture_event_with_scope`: a local scope
+ * is freed by this function, a user-owned one is not. Pass `NULL` to apply the
+ * global scope only.
+ */
+SENTRY_EXPERIMENTAL_API sentry_metrics_result_t sentry_scope_capture_metric(
+    sentry_scope_t *scope, sentry_metric_type_t type, const char *name,
+    sentry_value_t value, const char *unit, sentry_value_t attributes);
 
 #ifdef SENTRY_PLATFORM_LINUX
 

@@ -699,9 +699,7 @@ sentry__prepare_event(const sentry_options_t *options, sentry_value_t event,
         sentry_scope_mode_t mode = SENTRY_SCOPE_BREADCRUMBS;
         sentry__scope_apply_to_event(local_scope, options, event, mode);
         sentry__attachments_extend(&all_attachments, local_scope->attachments);
-        if (local_scope->one_shot) {
-            sentry_scope_free(local_scope);
-        }
+        sentry__scope_free_one_shot(local_scope);
     }
 
     SENTRY_WITH_SCOPE (scope) {
@@ -1054,7 +1052,7 @@ void
 sentry_set_attribute(const char *key, sentry_value_t attribute)
 {
     SENTRY_WITH_SCOPE_MUT (scope) {
-        sentry__scope_set_attribute(scope, key, attribute);
+        sentry_scope_set_attribute(scope, key, attribute);
     }
 }
 
@@ -1063,7 +1061,7 @@ sentry_set_attribute_n(
     const char *key, size_t key_len, sentry_value_t attribute)
 {
     SENTRY_WITH_SCOPE_MUT (scope) {
-        sentry__scope_set_attribute_n(scope, key, key_len, attribute);
+        sentry_scope_set_attribute_n(scope, key, key_len, attribute);
     }
 }
 
@@ -1071,7 +1069,7 @@ void
 sentry_remove_attribute(const char *key)
 {
     SENTRY_WITH_SCOPE_MUT (scope) {
-        sentry__scope_remove_attribute(scope, key);
+        sentry_scope_remove_attribute(scope, key);
     }
 }
 
@@ -1079,7 +1077,7 @@ void
 sentry_remove_attribute_n(const char *key, size_t key_len)
 {
     SENTRY_WITH_SCOPE_MUT (scope) {
-        sentry__scope_remove_attribute_n(scope, key, key_len);
+        sentry_scope_remove_attribute_n(scope, key, key_len);
     }
 }
 
@@ -1124,20 +1122,14 @@ sentry__set_propagation_context(const char *key, sentry_value_t value)
 }
 
 void
-sentry__apply_attributes(sentry_value_t telemetry, sentry_value_t attributes)
+sentry__apply_to_telemetry(const sentry_scope_t *scope,
+    sentry_value_t telemetry, sentry_value_t attributes)
 {
-    SENTRY_WITH_SCOPE (scope) {
-        sentry__scope_apply_attributes(scope, telemetry, attributes);
-        if (scope->environment) {
-            sentry__value_add_attribute(attributes,
-                sentry_value_new_string(scope->environment), "string",
-                "sentry.environment");
-        }
-        if (scope->release) {
-            sentry__value_add_attribute(attributes,
-                sentry_value_new_string(scope->release), "string",
-                "sentry.release");
-        }
+    if (scope) {
+        sentry__scope_apply_to_telemetry(scope, telemetry, attributes);
+    }
+    SENTRY_WITH_SCOPE (global_scope) {
+        sentry__scope_apply_to_telemetry(global_scope, telemetry, attributes);
     }
     SENTRY_WITH_OPTIONS (options) {
         sentry__value_add_attribute(attributes,

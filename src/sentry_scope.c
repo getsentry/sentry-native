@@ -193,6 +193,14 @@ sentry_scope_free(sentry_scope_t *scope)
     sentry_free(scope);
 }
 
+void
+sentry__scope_free_one_shot(sentry_scope_t *scope)
+{
+    if (scope && scope->one_shot) {
+        sentry_scope_free(scope);
+    }
+}
+
 sentry_scope_t *
 sentry_local_scope_new(void)
 {
@@ -609,32 +617,34 @@ sentry_scope_set_extra_n(sentry_scope_t *scope, const char *key, size_t key_len,
 }
 
 void
-sentry__scope_set_attribute(
+sentry_scope_set_attribute(
     sentry_scope_t *scope, const char *key, sentry_value_t attribute)
 {
-    sentry__scope_set_attribute_n(scope, key, strlen(key), attribute);
+    sentry_scope_set_attribute_n(
+        scope, key, sentry__guarded_strlen(key), attribute);
 }
 
 void
-sentry__scope_set_attribute_n(sentry_scope_t *scope, const char *key,
+sentry_scope_set_attribute_n(sentry_scope_t *scope, const char *key,
     size_t key_len, sentry_value_t attribute)
 {
     if (sentry_value_is_null(sentry_value_get_by_key(attribute, "value"))
         || sentry_value_is_null(sentry_value_get_by_key(attribute, "type"))) {
         SENTRY_DEBUG("Cannot set attribute with missing 'value' or 'type'");
+        sentry_value_decref(attribute);
         return;
     }
     sentry_value_set_by_key_n(scope->attributes, key, key_len, attribute);
 }
 
 void
-sentry__scope_remove_attribute(sentry_scope_t *scope, const char *key)
+sentry_scope_remove_attribute(sentry_scope_t *scope, const char *key)
 {
     sentry_value_remove_by_key(scope->attributes, key);
 }
 
 void
-sentry__scope_remove_attribute_n(
+sentry_scope_remove_attribute_n(
     sentry_scope_t *scope, const char *key, size_t key_len)
 {
     sentry_value_remove_by_key_n(scope->attributes, key, key_len);
@@ -818,45 +828,46 @@ sentry_scope_attach_bytesw_n(sentry_scope_t *scope, const char *buf,
 #endif
 
 void
-sentry__scope_apply_attributes(const sentry_scope_t *scope,
+sentry__scope_apply_to_telemetry(const sentry_scope_t *scope,
     sentry_value_t telemetry, sentry_value_t attributes)
 {
     sentry__value_merge_objects_shallow(attributes, scope->attributes);
 
+    // a span on the scope MUST take precedence over the propagation context
     sentry_value_t trace_id = sentry_value_get_by_key(
         sentry_value_get_by_key(scope->propagation_context, "trace"),
         "trace_id");
-    sentry_value_incref(trace_id);
-    sentry_value_set_by_key(telemetry, "trace_id", trace_id);
 
     sentry_value_t parent_span_id = sentry_value_new_object();
-    sentry_value_t scoped_span_trace_id = sentry_value_new_null();
     if (scope->transaction_object) {
         sentry_value_t span_id = sentry_value_get_by_key(
             scope->transaction_object->inner, "span_id");
         sentry_value_incref(span_id);
         sentry_value_set_by_key(parent_span_id, "value", span_id);
-        scoped_span_trace_id = sentry_value_get_by_key(
+        trace_id = sentry_value_get_by_key(
             scope->transaction_object->inner, "trace_id");
-        sentry_value_incref(scoped_span_trace_id);
     } else if (scope->span) {
         sentry_value_t span_id
             = sentry_value_get_by_key(scope->span->inner, "span_id");
         sentry_value_incref(span_id);
         sentry_value_set_by_key(parent_span_id, "value", span_id);
-        scoped_span_trace_id
-            = sentry_value_get_by_key(scope->span->inner, "trace_id");
-        sentry_value_incref(scoped_span_trace_id);
+        trace_id = sentry_value_get_by_key(scope->span->inner, "trace_id");
     }
     sentry_value_set_by_key(
         parent_span_id, "type", sentry_value_new_string("string"));
-    if (scope->transaction_object || scope->span) {
+    if ((scope->transaction_object || scope->span)
+        && sentry_value_is_null(sentry_value_get_by_key(
+            attributes, "sentry.trace.parent_span_id"))) {
         sentry_value_set_by_key(
             attributes, "sentry.trace.parent_span_id", parent_span_id);
-        sentry_value_set_by_key(telemetry, "trace_id", scoped_span_trace_id);
     } else {
         sentry_value_decref(parent_span_id);
-        sentry_value_decref(scoped_span_trace_id);
+    }
+    if (!sentry_value_is_null(trace_id)
+        && sentry_value_is_null(
+            sentry_value_get_by_key(telemetry, "trace_id"))) {
+        sentry_value_incref(trace_id);
+        sentry_value_set_by_key(telemetry, "trace_id", trace_id);
     }
 
     if (!sentry_value_is_null(scope->user)) {
@@ -898,5 +909,15 @@ sentry__scope_apply_attributes(const sentry_scope_t *scope,
             sentry__value_add_attribute(
                 attributes, os_version, "string", "os.version");
         }
+    }
+    if (scope->environment) {
+        sentry__value_add_attribute(attributes,
+            sentry_value_new_string(scope->environment), "string",
+            "sentry.environment");
+    }
+    if (scope->release) {
+        sentry__value_add_attribute(attributes,
+            sentry_value_new_string(scope->release), "string",
+            "sentry.release");
     }
 }

@@ -1021,7 +1021,6 @@ SENTRY_TEST(scope_global_attributes)
         // Check that the attribute was NOT set
         TEST_CHECK(sentry_value_is_null(retrieved_attr));
     }
-    sentry_value_decref(invalid_attr_no_value);
 
     // Test invalid attribute missing 'type'
     sentry_value_t invalid_attr_no_type = sentry_value_new_object();
@@ -1038,7 +1037,6 @@ SENTRY_TEST(scope_global_attributes)
         // Check that the attribute was NOT set
         TEST_CHECK(sentry_value_is_null(retrieved_attr));
     }
-    sentry_value_decref(invalid_attr_no_type);
 
     // Test removing an attribute
     sentry_remove_attribute("valid_key");
@@ -1114,11 +1112,11 @@ SENTRY_TEST(scope_local_attributes)
         // local:
         // {"all":"local","scope":"local","local":"local"}
         sentry_scope_t *local_scope = sentry_local_scope_new();
-        sentry__scope_set_attribute(local_scope, "all",
+        sentry_scope_set_attribute(local_scope, "all",
             sentry_value_new_attribute(sentry_value_new_string("local"), NULL));
-        sentry__scope_set_attribute(local_scope, "local",
+        sentry_scope_set_attribute(local_scope, "local",
             sentry_value_new_attribute(sentry_value_new_string("local"), NULL));
-        sentry__scope_set_attribute(local_scope, "scope",
+        sentry_scope_set_attribute(local_scope, "scope",
             sentry_value_new_attribute(sentry_value_new_string("local"), NULL));
 
         sentry_value_t local_attributes = local_scope->attributes;
@@ -1168,7 +1166,7 @@ SENTRY_TEST(scope_local_attributes)
     // Test _n variants with local scope
     SENTRY_WITH_SCOPE (global_scope) {
         sentry_scope_t *local_scope = sentry_local_scope_new();
-        sentry__scope_set_attribute_n(local_scope, "test_key", 8,
+        sentry_scope_set_attribute_n(local_scope, "test_key", 8,
             sentry_value_new_attribute(sentry_value_new_int32(100), "percent"));
 
         sentry_value_t local_attributes = local_scope->attributes;
@@ -1186,7 +1184,7 @@ SENTRY_TEST(scope_local_attributes)
             "percent");
 
         // Remove using _n variant
-        sentry__scope_remove_attribute_n(local_scope, "test_key", 8);
+        sentry_scope_remove_attribute_n(local_scope, "test_key", 8);
         TEST_CHECK(sentry_value_is_null(
             sentry_value_get_by_key(local_attributes, "test_key")));
 
@@ -1201,17 +1199,58 @@ SENTRY_TEST(scope_local_attributes)
         sentry_value_t invalid_attr = sentry_value_new_object();
         sentry_value_set_by_key(
             invalid_attr, "type", sentry_value_new_string("string"));
-        sentry__scope_set_attribute(local_scope, "invalid", invalid_attr);
+        sentry_scope_set_attribute(local_scope, "invalid", invalid_attr);
 
         sentry_value_t local_attributes = local_scope->attributes;
         TEST_CHECK(sentry_value_is_null(
             sentry_value_get_by_key(local_attributes, "invalid")));
-        sentry_value_decref(invalid_attr);
 
         sentry_scope_free(local_scope);
     }
 
     sentry_close();
+}
+
+SENTRY_TEST(scope_set_attribute_invalid_decref_value)
+{
+    // an attribute missing 'value' or 'type' is rejected and decrefed
+    sentry_scope_t *scope = sentry_scope_new();
+
+    sentry_value_t no_value = sentry_value_new_object();
+    sentry_value_set_by_key(
+        no_value, "type", sentry_value_new_string("string"));
+    sentry_value_incref(no_value);
+    sentry_scope_set_attribute_n(scope, "no_value", 8, no_value);
+    TEST_CHECK_INT_EQUAL(sentry_value_refcount(no_value), 1);
+    sentry_value_decref(no_value);
+
+    sentry_value_t no_type = sentry_value_new_object();
+    sentry_value_set_by_key(no_type, "value", sentry_value_new_string("v"));
+    sentry_value_incref(no_type);
+    sentry_scope_set_attribute_n(scope, "no_type", 7, no_type);
+    TEST_CHECK_INT_EQUAL(sentry_value_refcount(no_type), 1);
+    sentry_value_decref(no_type);
+
+    TEST_CHECK_INT_EQUAL(sentry_value_get_length(scope->attributes), 0);
+
+    sentry_scope_free(scope);
+}
+
+SENTRY_TEST(scope_set_attribute_null_key_decref_value)
+{
+    // an attribute set under a NULL key is rejected and decrefed
+    sentry_scope_t *scope = sentry_scope_new();
+
+    sentry_value_t v
+        = sentry_value_new_attribute(sentry_value_new_int32(1), NULL);
+    sentry_value_incref(v);
+    sentry_scope_set_attribute(scope, NULL, v);
+    TEST_CHECK_INT_EQUAL(sentry_value_refcount(v), 1);
+    sentry_value_decref(v);
+
+    TEST_CHECK_INT_EQUAL(sentry_value_get_length(scope->attributes), 0);
+
+    sentry_scope_free(scope);
 }
 
 SENTRY_TEST(scope_ownership)
@@ -1288,7 +1327,7 @@ SENTRY_TEST(scope_clone_preserves_data)
         scope, "extra_key", sentry_value_new_string("extra_value"));
     sentry_scope_set_fingerprint(scope, "fp1", "fp2", NULL);
     sentry_scope_set_level(scope, SENTRY_LEVEL_WARNING);
-    sentry__scope_set_attribute(scope, "attr_key",
+    sentry_scope_set_attribute(scope, "attr_key",
         sentry_value_new_attribute(
             sentry_value_new_string("attr_value"), NULL));
     sentry_scope_add_breadcrumb(
