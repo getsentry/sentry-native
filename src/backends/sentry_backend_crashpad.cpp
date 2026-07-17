@@ -425,20 +425,13 @@ crashpad_handler(int signum, siginfo_t *info, ucontext_t *user_context)
 
             if (sentry__session_replay_has_pending(options)) {
                 // the crash event was scope-applied without breadcrumbs, so
-                // enrich the in-memory copy from the ring files to let the
-                // replay recording embed them; the on-disk `__sentry-event`
-                // was already written above and stays breadcrumb-free
-                sentry_value_t b1
-                    = read_msgpack_stream_file(state->breadcrumb1_path);
-                sentry_value_t b2
-                    = read_msgpack_stream_file(state->breadcrumb2_path);
-                sentry_value_t merged = sentry__value_merge_breadcrumbs(
-                    b1, b2, options->max_breadcrumbs);
-                if (!sentry_value_is_null(merged)) {
-                    sentry_value_set_by_key(crash_event, "breadcrumbs", merged);
+                // set them on the in-memory copy to let the replay recording
+                // embed them; the on-disk `__sentry-event` was already
+                // written above and stays breadcrumb-free
+                SENTRY_WITH_SCOPE (scope) {
+                    sentry_value_set_by_key(crash_event, "breadcrumbs",
+                        sentry__ringbuffer_to_list(scope->breadcrumbs));
                 }
-                sentry_value_decref(b1);
-                sentry_value_decref(b2);
 
                 sentry_transport_t *replay_transport
                     = sentry_new_disk_transport(options->run);
