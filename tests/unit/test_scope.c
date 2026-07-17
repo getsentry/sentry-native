@@ -1399,6 +1399,69 @@ SENTRY_TEST(scope_clone_shares_span)
     sentry_close();
 }
 
+SENTRY_TEST(scope_clear)
+{
+    SENTRY_TEST_OPTIONS_NEW(options);
+    sentry_init(options);
+
+    sentry_scope_t *scope = sentry_scope_new();
+
+    // Clearing a scope must keep trace propagation data intact, including the
+    // dynamic sampling context.
+    sentry_value_set_by_key(
+        scope->propagation_context, "marker", sentry_value_new_string("keep"));
+    sentry_value_set_by_key(scope->dynamic_sampling_context, "marker",
+        sentry_value_new_string("keep"));
+
+    sentry_scope_set_tag(scope, "tag", "value");
+    sentry_scope_set_extra(scope, "extra", sentry_value_new_string("value"));
+    sentry_scope_set_context(scope, "ctx", sentry_value_new_object());
+    sentry_value_t user = sentry_value_new_object();
+    sentry_value_set_by_key(user, "id", sentry_value_new_string("42"));
+    sentry_scope_set_user(scope, user);
+    sentry_scope_set_level(scope, SENTRY_LEVEL_DEBUG);
+    sentry_value_t fingerprints = sentry_value_new_list();
+    sentry_value_append(fingerprints, sentry_value_new_string("fp"));
+    sentry_scope_set_fingerprints(scope, fingerprints);
+    sentry_scope_set_attribute(scope, "attr",
+        sentry_value_new_attribute(sentry_value_new_string("value"), NULL));
+    sentry_scope_add_breadcrumb(
+        scope, sentry_value_new_breadcrumb(NULL, "crumb"));
+
+    TEST_CHECK(sentry_value_get_length(scope->tags) == 1);
+    TEST_CHECK(sentry_value_get_length(scope->attributes) == 1);
+    TEST_CHECK(!sentry_value_is_null(scope->user));
+
+    sentry_scope_clear(scope);
+
+    // Everything is reset to the state of a fresh scope.
+    TEST_CHECK(sentry_value_get_length(scope->tags) == 0);
+    TEST_CHECK(sentry_value_get_length(scope->extra) == 0);
+    TEST_CHECK(sentry_value_get_length(scope->contexts) == 0);
+    TEST_CHECK(sentry_value_get_length(scope->attributes) == 0);
+    TEST_CHECK(sentry_value_is_null(scope->user));
+    TEST_CHECK(sentry_value_is_null(scope->fingerprint));
+    TEST_CHECK_INT_EQUAL(scope->level, SENTRY_LEVEL_ERROR);
+    sentry_value_t crumbs = sentry__ringbuffer_to_list(scope->breadcrumbs);
+    TEST_CHECK(sentry_value_get_length(crumbs) == 0);
+    sentry_value_decref(crumbs);
+
+    // ... except the trace, which is preserved.
+    TEST_CHECK_STRING_EQUAL(sentry_value_as_string(sentry_value_get_by_key(
+                                scope->propagation_context, "marker")),
+        "keep");
+    TEST_CHECK_STRING_EQUAL(sentry_value_as_string(sentry_value_get_by_key(
+                                scope->dynamic_sampling_context, "marker")),
+        "keep");
+
+    // The cleared scope is still usable.
+    sentry_scope_set_tag(scope, "after", "clear");
+    TEST_CHECK(sentry_value_get_length(scope->tags) == 1);
+
+    sentry_scope_free(scope);
+    sentry_close();
+}
+
 static void
 send_envelope_count(sentry_envelope_t *envelope, void *data)
 {
