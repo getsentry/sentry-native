@@ -284,7 +284,9 @@ typedef pthread_cond_t sentry_cond_t;
                         PTHREAD_MUTEX_RECURSIVE                                \
                 }                                                              \
             }
-#    elif defined(__FreeBSD__) || defined(SENTRY_PLATFORM_NX)
+#    elif defined(__FreeBSD__) || defined(SENTRY_PLATFORM_NX)                  \
+        || (defined(SENTRY_PLATFORM_DARWIN)                                    \
+            && !defined(PTHREAD_RECURSIVE_MUTEX_INITIALIZER))
 // Don't define `SENTRY__MUTEX_INIT` but instead provide a new definition that
 // can be used by platforms requiring dynamic recursive mutex initialization.
 #        define SENTRY__MUTEX_INIT_DYN(Mutex)                                  \
@@ -368,6 +370,193 @@ sentry__cond_wait_timeout(
     return pthread_cond_timedwait(cv, mutex, &lock_time);
 }
 #endif
+
+typedef struct {
+    sentry_mutex_t mutex;
+    sentry_cond_t reader_cond;
+    sentry_cond_t writer_cond;
+    size_t readers;
+#ifdef SENTRY_PLATFORM_WINDOWS
+    DWORD writer_owner;
+#else
+    sentry_threadid_t writer_owner;
+#endif
+    size_t writer_depth;
+    size_t waiting_writers;
+} sentry_rwlock_t;
+
+#ifdef SENTRY_PLATFORM_WINDOWS
+#    define SENTRY__RWLOCK_INIT_DYN(Lock)                                      \
+        static sentry_rwlock_t Lock;                                           \
+        static INIT_ONCE Lock##_init_once = INIT_ONCE_STATIC_INIT;             \
+        static BOOL CALLBACK init_##Lock(PINIT_ONCE UNUSED(InitOnce),          \
+            PVOID UNUSED(Parameter), PVOID *UNUSED(Context))                   \
+        {                                                                      \
+            sentry__rwlock_init(&Lock);                                        \
+            return TRUE;                                                       \
+        }
+#    define SENTRY__RWLOCK_INIT_DYN_ONCE(Lock)                                 \
+        InitOnceExecuteOnce(&Lock##_init_once, init_##Lock, NULL, NULL)
+#else
+#    define SENTRY__RWLOCK_INIT_DYN(Lock)                                      \
+        static sentry_rwlock_t Lock;                                           \
+        static pthread_once_t Lock##_init_once = PTHREAD_ONCE_INIT;            \
+        static void init_##Lock(void) { sentry__rwlock_init(&Lock); }
+#    define SENTRY__RWLOCK_INIT_DYN_ONCE(Lock)                                 \
+        pthread_once(&Lock##_init_once, init_##Lock)
+#endif
+
+static inline void
+sentry__rwlock_init(sentry_rwlock_t *lock)
+{
+    sentry__mutex_init(&lock->mutex);
+    sentry__cond_init(&lock->reader_cond);
+    sentry__cond_init(&lock->writer_cond);
+    lock->readers = 0;
+#ifdef SENTRY_PLATFORM_WINDOWS
+    lock->writer_owner = 0;
+#else
+    sentry__thread_init(&lock->writer_owner);
+#endif
+    lock->writer_depth = 0;
+    lock->waiting_writers = 0;
+}
+
+static inline bool
+sentry__rwlock_is_writer(sentry_rwlock_t *lock)
+{
+    if (lock->writer_depth == 0) {
+        return false;
+    }
+#ifdef SENTRY_PLATFORM_WINDOWS
+    return lock->writer_owner == GetCurrentThreadId();
+#else
+    return sentry__threadid_equal(lock->writer_owner, sentry__current_thread());
+#endif
+}
+
+static inline void
+sentry__rwlock_set_writer(sentry_rwlock_t *lock)
+{
+#ifdef SENTRY_PLATFORM_WINDOWS
+    lock->writer_owner = GetCurrentThreadId();
+#else
+    lock->writer_owner = sentry__current_thread();
+#endif
+}
+
+static inline void
+sentry__rwlock_read_lock(sentry_rwlock_t *lock)
+{
+#ifndef SENTRY_PLATFORM_WINDOWS
+    if (!sentry__block_for_signal_handler()) {
+        return;
+    }
+#endif
+    sentry__mutex_lock(&lock->mutex);
+    if (sentry__rwlock_is_writer(lock)) {
+        lock->writer_depth++;
+        sentry__mutex_unlock(&lock->mutex);
+        return;
+    }
+    while (lock->writer_depth > 0 || lock->waiting_writers > 0) {
+        sentry__cond_wait(&lock->reader_cond, &lock->mutex);
+    }
+    lock->readers++;
+    sentry__cond_wake(&lock->reader_cond);
+    sentry__mutex_unlock(&lock->mutex);
+}
+
+static inline bool
+sentry__rwlock_release_writer_depth(sentry_rwlock_t *lock)
+{
+    assert(sentry__rwlock_is_writer(lock));
+    lock->writer_depth--;
+    if (lock->writer_depth > 0) {
+        return false;
+    }
+#ifdef SENTRY_PLATFORM_WINDOWS
+    lock->writer_owner = 0;
+#else
+    sentry__thread_init(&lock->writer_owner);
+#endif
+    if (lock->waiting_writers > 0) {
+        sentry__cond_wake(&lock->writer_cond);
+    } else {
+        sentry__cond_wake(&lock->reader_cond);
+    }
+    return true;
+}
+
+// Returns true when unlocking releases the outermost write lock.
+static inline bool
+sentry__rwlock_unlock(sentry_rwlock_t *lock)
+{
+#ifndef SENTRY_PLATFORM_WINDOWS
+    if (!sentry__block_for_signal_handler()) {
+        return true;
+    }
+#endif
+    sentry__mutex_lock(&lock->mutex);
+    bool released_outermost = false;
+    if (sentry__rwlock_is_writer(lock)) {
+        released_outermost = sentry__rwlock_release_writer_depth(lock);
+        sentry__mutex_unlock(&lock->mutex);
+        return released_outermost;
+    }
+    assert(lock->readers > 0);
+    lock->readers--;
+    if (lock->readers == 0) {
+        sentry__cond_wake(&lock->writer_cond);
+    }
+    sentry__mutex_unlock(&lock->mutex);
+    return released_outermost;
+}
+
+static inline void
+sentry__rwlock_write_lock(sentry_rwlock_t *lock)
+{
+#ifndef SENTRY_PLATFORM_WINDOWS
+    if (!sentry__block_for_signal_handler()) {
+        return;
+    }
+#endif
+    sentry__mutex_lock(&lock->mutex);
+    if (sentry__rwlock_is_writer(lock)) {
+        lock->writer_depth++;
+        sentry__mutex_unlock(&lock->mutex);
+        return;
+    }
+    lock->waiting_writers++;
+    while (lock->writer_depth > 0 || lock->readers > 0) {
+        sentry__cond_wait(&lock->writer_cond, &lock->mutex);
+    }
+    lock->waiting_writers--;
+    sentry__rwlock_set_writer(lock);
+    lock->writer_depth = 1;
+    sentry__mutex_unlock(&lock->mutex);
+}
+
+static inline size_t
+sentry__rwlock_write_depth(sentry_rwlock_t *lock)
+{
+#ifndef SENTRY_PLATFORM_WINDOWS
+    if (!sentry__block_for_signal_handler()) {
+        return 1;
+    }
+#endif
+    sentry__mutex_lock(&lock->mutex);
+    assert(sentry__rwlock_is_writer(lock));
+    size_t depth = lock->writer_depth;
+    sentry__mutex_unlock(&lock->mutex);
+    return depth;
+}
+
+static inline void
+sentry__rwlock_free(sentry_rwlock_t *lock)
+{
+    sentry__mutex_free(&lock->mutex);
+}
 
 static inline long
 sentry__atomic_fetch_and_add(volatile long *val, long diff)

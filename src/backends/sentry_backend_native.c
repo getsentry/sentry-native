@@ -49,7 +49,11 @@ static HANDLE g_ipc_mutex = NULL;
 #elif defined(SENTRY_PLATFORM_MACOS)
 // macOS uses a plain pthread mutex instead of named semaphores (sem_open)
 // because App Sandbox blocks POSIX named semaphores.
+#    ifdef SENTRY__MUTEX_INIT_DYN
+SENTRY__MUTEX_INIT_DYN(g_ipc_sync_mutex)
+#    else
 static sentry_mutex_t g_ipc_sync_mutex = SENTRY__MUTEX_INIT;
+#    endif
 #else
 #    include <semaphore.h>
 static sem_t *g_ipc_init_sem = SEM_FAILED;
@@ -250,6 +254,7 @@ native_backend_startup(
 #elif defined(SENTRY_PLATFORM_IOS)
     state->ipc = sentry__crash_ipc_init_app(NULL);
 #elif defined(SENTRY_PLATFORM_MACOS)
+    SENTRY__MUTEX_INIT_DYN_ONCE(g_ipc_sync_mutex);
     state->ipc = sentry__crash_ipc_init_app(&g_ipc_sync_mutex);
 #else
     state->ipc = sentry__crash_ipc_init_app(g_ipc_init_sem);

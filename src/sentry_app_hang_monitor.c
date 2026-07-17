@@ -58,7 +58,11 @@ sentry__app_hang_monitor_set_stackwalk_fn(sentry__app_hang_stackwalk_fn fn)
 
 static bool g_running = false;
 static sentry_threadid_t g_thread;
+#    ifdef SENTRY__MUTEX_INIT_DYN
+SENTRY__MUTEX_INIT_DYN(g_wait_mutex)
+#    else
 static sentry_mutex_t g_wait_mutex = SENTRY__MUTEX_INIT;
+#    endif
 static sentry_cond_t g_wait_cond;
 static uint64_t g_timeout_ms = 0;
 
@@ -127,6 +131,7 @@ sentry__app_hang_monitor_start(const sentry_options_t *options)
         return 0;
     }
 
+    SENTRY__MUTEX_INIT_DYN_ONCE(g_wait_mutex);
     g_timeout_ms = options->app_hang_timeout;
     sentry__cond_init(&g_wait_cond);
     // Arm before spawning: the worker uses is_active() as its run condition, so
@@ -150,6 +155,7 @@ sentry__app_hang_monitor_stop(void)
         return;
     }
     sentry__app_hang_set_active(false);
+    SENTRY__MUTEX_INIT_DYN_ONCE(g_wait_mutex);
     sentry__mutex_lock(&g_wait_mutex);
     sentry__cond_wake(&g_wait_cond);
     sentry__mutex_unlock(&g_wait_mutex);
