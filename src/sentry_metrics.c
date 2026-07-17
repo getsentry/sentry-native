@@ -131,10 +131,11 @@ sentry_metrics_distribution(
 }
 
 void
-sentry__metrics_startup(const sentry_options_t *options)
+sentry__metrics_startup(
+    const sentry_options_t *options, sentry_threadpool_t *threadpool)
 {
     sentry_batcher_t *batcher
-        = sentry__batcher_new(sentry__envelope_add_metrics);
+        = sentry__batcher_new(sentry__envelope_add_metrics, threadpool);
     if (!batcher) {
         SENTRY_WARN("failed to allocate metrics batcher");
         return;
