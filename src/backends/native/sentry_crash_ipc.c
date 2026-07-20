@@ -7,12 +7,147 @@
 #include <stdio.h>
 #include <string.h>
 
+static void
+write_u16_le(char *buf, uint16_t value)
+{
+    buf[0] = (char)(value & 0xffu);
+    buf[1] = (char)((value >> 8) & 0xffu);
+}
+
+static void
+write_u32_le(char *buf, uint32_t value)
+{
+    buf[0] = (char)(value & 0xffu);
+    buf[1] = (char)((value >> 8) & 0xffu);
+    buf[2] = (char)((value >> 16) & 0xffu);
+    buf[3] = (char)((value >> 24) & 0xffu);
+}
+
+static void
+write_u64_le(char *buf, uint64_t value)
+{
+    for (size_t i = 0; i < 8; i++) {
+        buf[i] = (char)((value >> (i * 8)) & 0xffu);
+    }
+}
+
+static uint16_t
+read_u16_le(const char *buf)
+{
+    return (uint16_t)((uint8_t)buf[0] | ((uint16_t)(uint8_t)buf[1] << 8));
+}
+
+static uint32_t
+read_u32_le(const char *buf)
+{
+    return (uint32_t)(uint8_t)buf[0] | ((uint32_t)(uint8_t)buf[1] << 8)
+        | ((uint32_t)(uint8_t)buf[2] << 16) | ((uint32_t)(uint8_t)buf[3] << 24);
+}
+
+static uint64_t
+read_u64_le(const char *buf)
+{
+    uint64_t value = 0;
+    for (size_t i = 0; i < 8; i++) {
+        value |= (uint64_t)(uint8_t)buf[i] << (i * 8);
+    }
+    return value;
+}
+
+bool
+sentry__crash_ipc_message_type_is_known(uint16_t type)
+{
+    return type >= SENTRY_CRASH_IPC_MESSAGE_SCOPE_SNAPSHOT
+        && type <= SENTRY_CRASH_IPC_MESSAGE_SHUTDOWN;
+}
+
+sentry_crash_ipc_message_result_t
+sentry__crash_ipc_message_encode(uint16_t type, uint16_t flags,
+    uint64_t sequence, const char *payload, size_t payload_len, char **out_buf,
+    size_t *out_len)
+{
+    if (!out_buf || !out_len || (payload_len && !payload)
+        || !sentry__crash_ipc_message_type_is_known(type)) {
+        return !sentry__crash_ipc_message_type_is_known(type)
+            ? SENTRY_CRASH_IPC_MESSAGE_UNKNOWN_TYPE
+            : SENTRY_CRASH_IPC_MESSAGE_INVALID;
+    }
+
+    if (payload_len > SENTRY_CRASH_IPC_MESSAGE_MAX_LEN
+                - SENTRY_CRASH_IPC_MESSAGE_MIN_LEN
+        || payload_len > UINT32_MAX - SENTRY_CRASH_IPC_MESSAGE_MIN_LEN) {
+        return SENTRY_CRASH_IPC_MESSAGE_OVERSIZED;
+    }
+
+    uint32_t message_len
+        = (uint32_t)(SENTRY_CRASH_IPC_MESSAGE_MIN_LEN + payload_len);
+    size_t total_len = SENTRY_CRASH_IPC_MESSAGE_PREFIX_SIZE + message_len;
+    char *buf = sentry_malloc(total_len);
+    if (!buf) {
+        return SENTRY_CRASH_IPC_MESSAGE_OOM;
+    }
+
+    write_u32_le(buf, message_len);
+    write_u16_le(buf + 4, type);
+    write_u16_le(buf + 6, flags);
+    write_u64_le(buf + 8, sequence);
+    if (payload_len) {
+        memcpy(
+            buf + SENTRY_CRASH_IPC_MESSAGE_HEADER_SIZE, payload, payload_len);
+    }
+
+    *out_buf = buf;
+    *out_len = total_len;
+    return SENTRY_CRASH_IPC_MESSAGE_OK;
+}
+
+sentry_crash_ipc_message_result_t
+sentry__crash_ipc_message_decode(
+    const char *buf, size_t buf_len, sentry_crash_ipc_message_t *message)
+{
+    if (!buf || !message) {
+        return SENTRY_CRASH_IPC_MESSAGE_INVALID;
+    }
+    if (buf_len < SENTRY_CRASH_IPC_MESSAGE_PREFIX_SIZE) {
+        return SENTRY_CRASH_IPC_MESSAGE_PARTIAL;
+    }
+
+    uint32_t message_len = read_u32_le(buf);
+    if (message_len < SENTRY_CRASH_IPC_MESSAGE_MIN_LEN) {
+        return SENTRY_CRASH_IPC_MESSAGE_INVALID;
+    }
+    if (message_len > SENTRY_CRASH_IPC_MESSAGE_MAX_LEN) {
+        return SENTRY_CRASH_IPC_MESSAGE_OVERSIZED;
+    }
+
+    size_t total_len = SENTRY_CRASH_IPC_MESSAGE_PREFIX_SIZE + message_len;
+    if (buf_len < total_len) {
+        return SENTRY_CRASH_IPC_MESSAGE_PARTIAL;
+    }
+    if (buf_len > total_len) {
+        return SENTRY_CRASH_IPC_MESSAGE_INVALID;
+    }
+
+    uint16_t type = read_u16_le(buf + 4);
+    if (!sentry__crash_ipc_message_type_is_known(type)) {
+        return SENTRY_CRASH_IPC_MESSAGE_UNKNOWN_TYPE;
+    }
+
+    message->type = type;
+    message->flags = read_u16_le(buf + 6);
+    message->sequence = read_u64_le(buf + 8);
+    message->payload = buf + SENTRY_CRASH_IPC_MESSAGE_HEADER_SIZE;
+    message->payload_len = message_len - SENTRY_CRASH_IPC_MESSAGE_MIN_LEN;
+    return SENTRY_CRASH_IPC_MESSAGE_OK;
+}
+
 #if defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID)
 
 #    include <errno.h>
 #    include <fcntl.h>
 #    include <pthread.h>
 #    include <sys/file.h>
+#    include <sys/socket.h>
 #    include <sys/stat.h>
 #    include <unistd.h>
 
@@ -25,6 +160,8 @@ sentry__crash_ipc_init_app(sem_t *init_sem)
     }
     ipc->is_daemon = false;
     ipc->init_sem = init_sem; // Use provided semaphore (managed by backend)
+    ipc->message_fd[0] = -1;
+    ipc->message_fd[1] = -1;
 
     // Create shared memory with unique name based on PID and thread ID
     // macOS has a 31-character limit for POSIX shared memory names (PSEMNAMLEN)
@@ -150,6 +287,24 @@ sentry__crash_ipc_init_app(sem_t *init_sem)
         return NULL;
     }
 
+    if (socketpair(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0, ipc->message_fd)
+        < 0) {
+        SENTRY_WARNF(
+            "failed to create message socketpair: %s", strerror(errno));
+        close(ipc->ready_fd);
+        close(ipc->notify_fd);
+        munmap(ipc->shmem, SENTRY_CRASH_SHM_SIZE);
+        close(ipc->shm_fd);
+        if (!shm_exists) {
+            shm_unlink(ipc->shm_name);
+        }
+        if (ipc->init_sem) {
+            sem_post(ipc->init_sem);
+        }
+        sentry_free(ipc);
+        return NULL;
+    }
+
     // Initialize shared memory only if newly created
     if (!shm_exists) {
         memset(ipc->shmem, 0, SENTRY_CRASH_SHM_SIZE);
@@ -171,14 +326,16 @@ sentry__crash_ipc_init_app(sem_t *init_sem)
 }
 
 sentry_crash_ipc_t *
-sentry__crash_ipc_init_daemon(
-    pid_t app_pid, uint64_t app_tid, int notify_eventfd, int ready_eventfd)
+sentry__crash_ipc_init_daemon(pid_t app_pid, uint64_t app_tid,
+    int notify_eventfd, int ready_eventfd, int message_fd)
 {
     sentry_crash_ipc_t *ipc = SENTRY_MAKE(sentry_crash_ipc_t);
     if (!ipc) {
         return NULL;
     }
     ipc->is_daemon = true;
+    ipc->message_fd[0] = -1;
+    ipc->message_fd[1] = message_fd;
 
     // Open existing shared memory created by app (using PID and thread ID)
     // Must match the format in sentry__crash_ipc_init_app
@@ -303,6 +460,13 @@ sentry__crash_ipc_free(sentry_crash_ipc_t *ipc)
         close(ipc->ready_fd);
     }
 
+    if (ipc->message_fd[0] >= 0) {
+        close(ipc->message_fd[0]);
+    }
+    if (ipc->message_fd[1] >= 0) {
+        close(ipc->message_fd[1]);
+    }
+
     sentry_free(ipc);
 }
 
@@ -313,6 +477,7 @@ sentry__crash_ipc_free(sentry_crash_ipc_t *ipc)
 #    include <pthread.h>
 #    include <stdlib.h>
 #    include <sys/file.h>
+#    include <sys/socket.h>
 #    include <sys/stat.h>
 #    include <unistd.h>
 
@@ -325,6 +490,8 @@ sentry__crash_ipc_init_app(sentry_mutex_t *init_mutex)
     }
     ipc->is_daemon = false;
     ipc->init_mutex = init_mutex;
+    ipc->message_fd[0] = -1;
+    ipc->message_fd[1] = -1;
 
     // Build a file path for shared memory using the system temp directory.
     // Unlike shm_open(), regular files in $TMPDIR work inside App Sandbox.
@@ -449,6 +616,27 @@ sentry__crash_ipc_init_app(sentry_mutex_t *init_mutex)
         return NULL;
     }
 
+    if (socketpair(AF_UNIX, SOCK_STREAM, 0, ipc->message_fd) < 0) {
+        SENTRY_WARNF(
+            "failed to create message socketpair: %s", strerror(errno));
+        close(ipc->ready_pipe[0]);
+        close(ipc->ready_pipe[1]);
+        close(ipc->notify_pipe[0]);
+        close(ipc->notify_pipe[1]);
+        munmap(ipc->shmem, SENTRY_CRASH_SHM_SIZE);
+        close(ipc->shm_fd);
+        if (!shm_exists) {
+            unlink(ipc->shm_path);
+        }
+        if (ipc->init_mutex) {
+            sentry__mutex_unlock(ipc->init_mutex);
+        }
+        sentry_free(ipc);
+        return NULL;
+    }
+    fcntl(ipc->message_fd[0], F_SETFD, FD_CLOEXEC);
+    fcntl(ipc->message_fd[1], F_SETFD, FD_CLOEXEC);
+
     if (!shm_exists) {
         memset(ipc->shmem, 0, SENTRY_CRASH_SHM_SIZE);
         ipc->shmem->magic = SENTRY_CRASH_MAGIC;
@@ -469,7 +657,7 @@ sentry__crash_ipc_init_app(sentry_mutex_t *init_mutex)
 
 sentry_crash_ipc_t *
 sentry__crash_ipc_init_daemon(pid_t app_pid, uint64_t app_tid,
-    int notify_pipe_read, int ready_pipe_write, int shm_fd)
+    int notify_pipe_read, int ready_pipe_write, int shm_fd, int message_fd)
 {
     (void)app_pid;
     (void)app_tid;
@@ -479,6 +667,8 @@ sentry__crash_ipc_init_daemon(pid_t app_pid, uint64_t app_tid,
         return NULL;
     }
     ipc->is_daemon = true;
+    ipc->message_fd[0] = -1;
+    ipc->message_fd[1] = message_fd;
 
     // Use the inherited shm_fd directly (no shm_open needed, sandbox-safe)
     ipc->shm_fd = shm_fd;
@@ -590,6 +780,13 @@ sentry__crash_ipc_free(sentry_crash_ipc_t *ipc)
     }
     if (ipc->ready_pipe[1] >= 0) {
         close(ipc->ready_pipe[1]);
+    }
+
+    if (ipc->message_fd[0] >= 0) {
+        close(ipc->message_fd[0]);
+    }
+    if (ipc->message_fd[1] >= 0) {
+        close(ipc->message_fd[1]);
     }
 
     if (!ipc->is_daemon) {
@@ -705,6 +902,25 @@ sentry__crash_ipc_init_app(HANDLE init_mutex)
         return NULL;
     }
 
+    SECURITY_ATTRIBUTES pipe_attrs;
+    ZeroMemory(&pipe_attrs, sizeof(pipe_attrs));
+    pipe_attrs.nLength = sizeof(pipe_attrs);
+    pipe_attrs.bInheritHandle = TRUE;
+    if (!CreatePipe(&ipc->message_read_handle, &ipc->message_write_handle,
+            &pipe_attrs, 0)) {
+        SENTRY_WARNF("failed to create message pipe: %lu", GetLastError());
+        CloseHandle(ipc->ready_event_handle);
+        CloseHandle(ipc->event_handle);
+        UnmapViewOfFile(ipc->shmem);
+        CloseHandle(ipc->shm_handle);
+        if (ipc->init_mutex) {
+            ReleaseMutex(ipc->init_mutex);
+        }
+        sentry_free(ipc);
+        return NULL;
+    }
+    SetHandleInformation(ipc->message_write_handle, HANDLE_FLAG_INHERIT, 0);
+
     // Initialize shared memory only if newly created
     if (!shm_exists) {
         memset(ipc->shmem, 0, SENTRY_CRASH_SHM_SIZE);
@@ -726,7 +942,7 @@ sentry__crash_ipc_init_app(HANDLE init_mutex)
 
 sentry_crash_ipc_t *
 sentry__crash_ipc_init_daemon(pid_t app_pid, uint64_t app_tid,
-    HANDLE event_handle, HANDLE ready_event_handle)
+    HANDLE event_handle, HANDLE ready_event_handle, HANDLE message_read_handle)
 {
     // On Windows, we open events by name, so handles from parent are not used
     // (handles are per-process and cannot be directly inherited)
@@ -738,6 +954,7 @@ sentry__crash_ipc_init_daemon(pid_t app_pid, uint64_t app_tid,
         return NULL;
     }
     ipc->is_daemon = true;
+    ipc->message_read_handle = message_read_handle;
 
     // Open existing shared memory (using PID and thread ID)
     swprintf(ipc->shm_name, SENTRY_CRASH_IPC_NAME_SIZE,
@@ -865,6 +1082,13 @@ sentry__crash_ipc_free(sentry_crash_ipc_t *ipc)
 
     if (ipc->ready_event_handle) {
         CloseHandle(ipc->ready_event_handle);
+    }
+
+    if (ipc->message_read_handle) {
+        CloseHandle(ipc->message_read_handle);
+    }
+    if (ipc->message_write_handle) {
+        CloseHandle(ipc->message_write_handle);
     }
 
     if (ipc->parent_handle) {

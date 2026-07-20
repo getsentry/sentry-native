@@ -13,6 +13,7 @@
 // Include native backend headers
 #    include "../../src/backends/native/minidump/sentry_minidump_format.h"
 #    include "../../src/backends/native/sentry_crash_context.h"
+#    include "../../src/backends/native/sentry_crash_ipc.h"
 #endif
 
 #if defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID)
@@ -579,5 +580,135 @@ SENTRY_TEST(elf_header_entry_sizes)
     TEST_CHECK(!sentry__elf_is_native_class(e_ident));
     TEST_CHECK(!sentry__elf_has_shdr_size(e_ident, shdr_size));
     TEST_CHECK(!sentry__elf_has_phdr_size(e_ident, phdr_size));
+#endif
+}
+
+SENTRY_TEST(crash_ipc_message_roundtrip)
+{
+#ifndef SENTRY_BACKEND_NATIVE
+    SKIP_TEST();
+#else
+    const char payload[] = "\x81\xa3key\xa5value";
+    char *buf = NULL;
+    size_t buf_len = 0;
+
+    sentry_crash_ipc_message_result_t result
+        = sentry__crash_ipc_message_encode(SENTRY_CRASH_IPC_MESSAGE_SET_TAG, 7,
+            42, payload, sizeof(payload) - 1, &buf, &buf_len);
+    TEST_CHECK_INT_EQUAL(result, SENTRY_CRASH_IPC_MESSAGE_OK);
+    TEST_CHECK(buf != NULL);
+    TEST_CHECK_INT_EQUAL(
+        buf_len, SENTRY_CRASH_IPC_MESSAGE_HEADER_SIZE + sizeof(payload) - 1);
+
+    sentry_crash_ipc_message_t message;
+    result = sentry__crash_ipc_message_decode(buf, buf_len, &message);
+    TEST_CHECK_INT_EQUAL(result, SENTRY_CRASH_IPC_MESSAGE_OK);
+    TEST_CHECK_INT_EQUAL(message.type, SENTRY_CRASH_IPC_MESSAGE_SET_TAG);
+    TEST_CHECK_INT_EQUAL(message.flags, 7);
+    TEST_CHECK_INT_EQUAL(message.sequence, 42);
+    TEST_CHECK_INT_EQUAL(message.payload_len, sizeof(payload) - 1);
+    TEST_CHECK(memcmp(message.payload, payload, sizeof(payload) - 1) == 0);
+
+    sentry_free(buf);
+#endif
+}
+
+SENTRY_TEST(crash_ipc_message_partial)
+{
+#ifndef SENTRY_BACKEND_NATIVE
+    SKIP_TEST();
+#else
+    char *buf = NULL;
+    size_t buf_len = 0;
+
+    sentry_crash_ipc_message_result_t result = sentry__crash_ipc_message_encode(
+        SENTRY_CRASH_IPC_MESSAGE_CRASH, 0, 9, NULL, 0, &buf, &buf_len);
+    TEST_CHECK_INT_EQUAL(result, SENTRY_CRASH_IPC_MESSAGE_OK);
+
+    sentry_crash_ipc_message_t message;
+    result = sentry__crash_ipc_message_decode(buf, 3, &message);
+    TEST_CHECK_INT_EQUAL(result, SENTRY_CRASH_IPC_MESSAGE_PARTIAL);
+
+    result = sentry__crash_ipc_message_decode(buf, buf_len - 1, &message);
+    TEST_CHECK_INT_EQUAL(result, SENTRY_CRASH_IPC_MESSAGE_PARTIAL);
+
+    sentry_free(buf);
+#endif
+}
+
+SENTRY_TEST(crash_ipc_message_invalid_lengths)
+{
+#ifndef SENTRY_BACKEND_NATIVE
+    SKIP_TEST();
+#else
+    char too_small_len[4] = { 11, 0, 0, 0 };
+    sentry_crash_ipc_message_t message;
+
+    sentry_crash_ipc_message_result_t result = sentry__crash_ipc_message_decode(
+        too_small_len, sizeof(too_small_len), &message);
+    TEST_CHECK_INT_EQUAL(result, SENTRY_CRASH_IPC_MESSAGE_INVALID);
+
+    char *buf = NULL;
+    size_t buf_len = 0;
+    result = sentry__crash_ipc_message_encode(
+        SENTRY_CRASH_IPC_MESSAGE_SHUTDOWN, 0, 1, NULL, 0, &buf, &buf_len);
+    TEST_CHECK_INT_EQUAL(result, SENTRY_CRASH_IPC_MESSAGE_OK);
+
+    char extra[32];
+    memcpy(extra, buf, buf_len);
+    extra[buf_len] = 0;
+    result = sentry__crash_ipc_message_decode(extra, buf_len + 1, &message);
+    TEST_CHECK_INT_EQUAL(result, SENTRY_CRASH_IPC_MESSAGE_INVALID);
+
+    sentry_free(buf);
+#endif
+}
+
+SENTRY_TEST(crash_ipc_message_unknown_type)
+{
+#ifndef SENTRY_BACKEND_NATIVE
+    SKIP_TEST();
+#else
+    char *buf = NULL;
+    size_t buf_len = 0;
+
+    sentry_crash_ipc_message_result_t result = sentry__crash_ipc_message_encode(
+        SENTRY_CRASH_IPC_MESSAGE_CRASH, 0, 1, NULL, 0, &buf, &buf_len);
+    TEST_CHECK_INT_EQUAL(result, SENTRY_CRASH_IPC_MESSAGE_OK);
+    buf[4] = 0xff;
+    buf[5] = 0x7f;
+
+    sentry_crash_ipc_message_t message;
+    result = sentry__crash_ipc_message_decode(buf, buf_len, &message);
+    TEST_CHECK_INT_EQUAL(result, SENTRY_CRASH_IPC_MESSAGE_UNKNOWN_TYPE);
+
+    sentry_free(buf);
+#endif
+}
+
+SENTRY_TEST(crash_ipc_message_oversized)
+{
+#ifndef SENTRY_BACKEND_NATIVE
+    SKIP_TEST();
+#else
+    char oversized_len[4] = { 0 };
+    uint32_t len = SENTRY_CRASH_IPC_MESSAGE_MAX_LEN + 1u;
+    oversized_len[0] = (char)(len & 0xffu);
+    oversized_len[1] = (char)((len >> 8) & 0xffu);
+    oversized_len[2] = (char)((len >> 16) & 0xffu);
+    oversized_len[3] = (char)((len >> 24) & 0xffu);
+
+    sentry_crash_ipc_message_t message;
+    sentry_crash_ipc_message_result_t result = sentry__crash_ipc_message_decode(
+        oversized_len, sizeof(oversized_len), &message);
+    TEST_CHECK_INT_EQUAL(result, SENTRY_CRASH_IPC_MESSAGE_OVERSIZED);
+
+    char payload = 0;
+    char *buf = NULL;
+    size_t buf_len = 0;
+    result = sentry__crash_ipc_message_encode(
+        SENTRY_CRASH_IPC_MESSAGE_SCOPE_SNAPSHOT, 0, 0, &payload,
+        SENTRY_CRASH_IPC_MESSAGE_MAX_LEN, &buf, &buf_len);
+    TEST_CHECK_INT_EQUAL(result, SENTRY_CRASH_IPC_MESSAGE_OVERSIZED);
 #endif
 }

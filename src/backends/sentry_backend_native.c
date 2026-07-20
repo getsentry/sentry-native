@@ -461,17 +461,18 @@ native_backend_startup(
 #    if defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID)
     uint64_t tid = (uint64_t)pthread_self();
     state->daemon_pid = sentry__crash_daemon_start(getpid(), tid,
-        state->ipc->notify_fd, state->ipc->ready_fd, daemon_handler_path);
+        state->ipc->notify_fd, state->ipc->ready_fd, state->ipc->message_fd[1],
+        daemon_handler_path);
 #    elif defined(SENTRY_PLATFORM_MACOS)
     uint64_t tid = (uint64_t)pthread_self();
-    state->daemon_pid
-        = sentry__crash_daemon_start(getpid(), tid, state->ipc->notify_pipe[0],
-            state->ipc->ready_pipe[1], state->ipc->shm_fd, daemon_handler_path);
+    state->daemon_pid = sentry__crash_daemon_start(getpid(), tid,
+        state->ipc->notify_pipe[0], state->ipc->ready_pipe[1],
+        state->ipc->shm_fd, state->ipc->message_fd[1], daemon_handler_path);
 #    elif defined(SENTRY_PLATFORM_WINDOWS)
     uint64_t tid = (uint64_t)GetCurrentThreadId();
     state->daemon_pid = sentry__crash_daemon_start(GetCurrentProcessId(), tid,
         state->ipc->event_handle, state->ipc->ready_event_handle,
-        daemon_handler_path);
+        state->ipc->message_read_handle, daemon_handler_path);
 #    endif
 
     // On Windows, pid_t is DWORD (unsigned), so (pid_t)-1 == 0xFFFFFFFF.
@@ -494,11 +495,16 @@ native_backend_startup(
     // Close unused pipe ends in parent process
     close(state->ipc->notify_pipe[0]); // Daemon reads from this
     close(state->ipc->ready_pipe[1]); // Daemon writes to this
+    close(state->ipc->message_fd[1]); // Daemon reads from this
     state->ipc->notify_pipe[0] = -1;
     state->ipc->ready_pipe[1] = -1;
+    state->ipc->message_fd[1] = -1;
 #    endif
 
 #    if defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID)
+    close(state->ipc->message_fd[1]); // Daemon reads from this
+    state->ipc->message_fd[1] = -1;
+
     // Close unused eventfd ends in parent process
     // (eventfds are bidirectional, but we only use one direction per fd)
     // Parent writes to notify_fd, daemon reads from it - parent can close for
@@ -516,6 +522,11 @@ native_backend_startup(
     } else {
         SENTRY_DEBUGF("Set daemon PID %d as ptracer", state->daemon_pid);
     }
+#    endif
+
+#    if defined(SENTRY_PLATFORM_WINDOWS)
+    CloseHandle(state->ipc->message_read_handle);
+    state->ipc->message_read_handle = NULL;
 #    endif
 
     // Wait for daemon to signal it's ready
