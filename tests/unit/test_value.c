@@ -873,6 +873,10 @@ SENTRY_TEST(value_json_parsing)
     TEST_CHECK(!sentry_value_is_true(rv));
     sentry_value_decref(rv);
 
+    rv = sentry__value_from_json(STRING("invalid json"));
+    TEST_CHECK(sentry_value_is_null(rv));
+    sentry_value_decref(rv);
+
     rv = sentry__value_from_json(STRING("[42, \"foo\\u2603\"]"));
     TEST_CHECK_INT_EQUAL(
         sentry_value_as_int32(sentry_value_get_by_index(rv, 0)), 42);
