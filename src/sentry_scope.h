@@ -82,6 +82,10 @@ struct sentry_scope_s {
     size_t num_observers;
     size_t is_notifying;
     bool pending_flush;
+
+    // Whether this scope is single-use. A capture function frees a one-shot
+    // scope after applying it.
+    bool one_shot;
 };
 
 /**
@@ -116,16 +120,16 @@ void sentry__scope_unlock(void);
 void sentry__scope_cleanup(void);
 
 /**
+ * Frees the scope if it is a one-shot local scope.
+ */
+void sentry__scope_free_one_shot(sentry_scope_t *scope);
+
+/**
  * This will notify any backend of scope changes.
  * This function must be called while holding the scope lock, and it will be
  * unlocked internally.
  */
 void sentry__scope_flush_unlock(void);
-
-/**
- * Deallocates a (local) scope.
- */
-void sentry__scope_free(sentry_scope_t *scope);
 
 /**
  * This will merge the requested data which is in the given `scope` to the given
@@ -234,9 +238,11 @@ void sentry__scope_update_dsc(
 void sentry__scope_freeze_dsc(sentry_scope_t *scope, sentry_value_t incoming);
 
 /**
- * Adds scoped attributes to the telemetry attributes object.
+ * Merges the given scope data into a telemetry item (a log or metric): its
+ * attributes, trace, user, etc. Existing values are kept, so this can be called
+ * for each scope in a precedence chain, most specific first (first write wins).
  */
-void sentry__scope_apply_attributes(const sentry_scope_t *scope,
+void sentry__scope_apply_to_telemetry(const sentry_scope_t *scope,
     sentry_value_t telemetry, sentry_value_t attributes);
 
 #endif

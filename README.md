@@ -285,6 +285,12 @@ using `cmake -D BUILD_SHARED_LIBS=OFF ..`.
   Sets the SDK name that should be included in the reported events. If you're overriding this, also define
   the same value using `target_compile_definitions()` on your own targets that include `sentry.h`.
 
+- `SENTRY_BATCHER_BUFFER_COUNT` (Default: `3`):
+  Sets the number of 100-item buffers allocated by each telemetry batcher. Valid values range from `2` to `10`.
+  Increasing the value retains more logs and metrics during sudden bursts, at the cost of reserving more memory even
+  when the buffers are empty. For example, `-D SENTRY_BATCHER_BUFFER_COUNT=10` provides capacity for up to 1,000
+  queued items per batcher while keeping each envelope limited to 100 items.
+
 - `SENTRY_HANDLER_STACK_SIZE` (Default: `64`):
   This specifies the size in KiB of the stack reserved for the crash handler (including hooks like `on_crash` and
   `before_send`) on Windows, Linux, and the `inproc` backend in macOS. Reserving the stack is necessary in case of a

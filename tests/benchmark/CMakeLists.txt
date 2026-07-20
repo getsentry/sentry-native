@@ -19,6 +19,7 @@ add_executable(sentry_benchmark
 	${SENTRY_SOURCES}
 	benchmark_init.cpp
 	benchmark_backend.cpp
+	benchmark_logs.cpp
 	benchmark_scope.cpp
 )
 
@@ -26,6 +27,13 @@ if(SENTRY_BACKEND_CRASHPAD)
 	add_dependencies(sentry_benchmark crashpad::handler)
 	if(WIN32)
 		add_dependencies(sentry_benchmark crashpad::wer)
+	endif()
+endif()
+
+if(SENTRY_BACKEND_NATIVE)
+	add_dependencies(sentry_benchmark sentry-crash)
+	if(WIN32)
+		add_dependencies(sentry_benchmark sentry-wer)
 	endif()
 endif()
 

@@ -597,6 +597,12 @@ read_stack_value(const uint8_t *stack_buf, uint64_t stack_start,
     return true;
 }
 
+#if defined(SENTRY_PLATFORM_MACOS) && defined(__aarch64__)
+#    define SENTRY__STRIP_PAC(addr) ((addr) & 0x00007FFFFFFFFFFFULL)
+#else
+#    define SENTRY__STRIP_PAC(addr) (addr)
+#endif
+
 /**
  * Check if an address looks like a valid code pointer.
  * Basic sanity check to avoid garbage in the stacktrace.
@@ -655,7 +661,8 @@ enrich_frame_with_module_info(
         (unsigned long long)addr, module_count);
 }
 
-#if defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID)
+#if defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID)         \
+    || defined(SENTRY_PLATFORM_MACOS)
 static void enrich_frame_with_symbol(
     const sentry_crash_context_t *ctx, sentry_value_t frame, uint64_t addr);
 #endif
@@ -715,9 +722,9 @@ build_stacktrace_for_thread(
     fp = ctx->platform.mcontext.__ss.__rbp;
     sp = ctx->platform.mcontext.__ss.__rsp;
 #    elif defined(__aarch64__)
-    ip = SENTRY__ARM64_GET_PC(ctx->platform.mcontext.__ss);
-    fp = SENTRY__ARM64_GET_FP(ctx->platform.mcontext.__ss);
-    sp = SENTRY__ARM64_GET_SP(ctx->platform.mcontext.__ss);
+    ip = SENTRY__STRIP_PAC(SENTRY__ARM64_GET_PC(ctx->platform.mcontext.__ss));
+    fp = SENTRY__STRIP_PAC(SENTRY__ARM64_GET_FP(ctx->platform.mcontext.__ss));
+    sp = SENTRY__STRIP_PAC(SENTRY__ARM64_GET_SP(ctx->platform.mcontext.__ss));
 #    endif
 #elif defined(SENTRY_PLATFORM_WINDOWS)
     // Use thread-specific context, defaulting to crashed thread
@@ -784,9 +791,9 @@ build_stacktrace_for_thread(
         fp = thread->state.__ss.__rbp;
         sp = thread->state.__ss.__rsp;
 #    elif defined(__aarch64__)
-        ip = SENTRY__ARM64_GET_PC(thread->state.__ss);
-        fp = SENTRY__ARM64_GET_FP(thread->state.__ss);
-        sp = SENTRY__ARM64_GET_SP(thread->state.__ss);
+        ip = SENTRY__STRIP_PAC(SENTRY__ARM64_GET_PC(thread->state.__ss));
+        fp = SENTRY__STRIP_PAC(SENTRY__ARM64_GET_FP(thread->state.__ss));
+        sp = SENTRY__STRIP_PAC(SENTRY__ARM64_GET_SP(thread->state.__ss));
 #    endif
 
         SENTRY_DEBUGF("Thread %zu: IP=0x%llx FP=0x%llx SP=0x%llx", idx,
@@ -1086,7 +1093,8 @@ build_stacktrace_for_thread(
         sentry_value_set_by_key(temp_frames[frame_count], "trust",
             sentry_value_new_string("context"));
         enrich_frame_with_module_info(ctx, temp_frames[frame_count], ip);
-#if defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID)
+#if defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID)         \
+    || defined(SENTRY_PLATFORM_MACOS)
         enrich_frame_with_symbol(ctx, temp_frames[frame_count], ip);
 #endif
         frame_count++;
@@ -1126,6 +1134,8 @@ build_stacktrace_for_thread(
                     (unsigned long long)(current_fp + sizeof(uint64_t)));
                 break;
             }
+            saved_fp = SENTRY__STRIP_PAC(saved_fp);
+            return_addr = SENTRY__STRIP_PAC(return_addr);
 
             SENTRY_DEBUGF("Frame %d: FP=0x%llx saved_fp=0x%llx ret=0x%llx",
                 walk_count, (unsigned long long)current_fp,
@@ -1147,7 +1157,8 @@ build_stacktrace_for_thread(
                 sentry_value_new_string("fp"));
             enrich_frame_with_module_info(
                 ctx, temp_frames[frame_count], return_addr);
-#if defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID)
+#if defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID)         \
+    || defined(SENTRY_PLATFORM_MACOS)
             enrich_frame_with_symbol(
                 ctx, temp_frames[frame_count], return_addr);
 #endif
@@ -1886,6 +1897,520 @@ enumerate_threads_from_proc(sentry_crash_context_t *ctx)
 }
 #endif // SENTRY_PLATFORM_LINUX || SENTRY_PLATFORM_ANDROID
 
+#if defined(SENTRY_PLATFORM_MACOS)
+#    include <libkern/OSByteOrder.h>
+#    include <mach-o/fat.h>
+#    include <mach-o/loader.h>
+#    include <mach-o/nlist.h>
+
+// Upper bound on a resolved symbol name; mirrors dbghelp's MAX_SYM_NAME.
+#    define SENTRY_MAX_SYM_NAME 2000
+
+#    if defined(__x86_64__)
+#        define SENTRY_MACHO_CPU_TYPE CPU_TYPE_X86_64
+#    elif defined(__aarch64__)
+#        define SENTRY_MACHO_CPU_TYPE CPU_TYPE_ARM64
+#    endif
+
+/**
+ * Location of the symbol/string tables and the LC_FUNCTION_STARTS payload
+ * within a Mach-O file. All offsets are absolute file offsets (already
+ * adjusted for the fat slice on universal binaries).
+ */
+typedef struct {
+    char path[SENTRY_CRASH_MAX_PATH];
+    int state; // 0 = unused, 1 = usable, -1 = no symbol table found
+    uint64_t text_vmaddr; // unslid __TEXT vmaddr of this image
+    uint64_t symtab_off;
+    uint32_t nsyms;
+    uint64_t strtab_off;
+    uint32_t strtab_size;
+    uint64_t fn_starts_off;
+    uint32_t fn_starts_size; // 0 when LC_FUNCTION_STARTS is absent
+} macho_sym_info_t;
+
+/**
+ * Per-module symbol sources: the module's own symbol table plus the dSYM
+ * companion consulted when the module was stripped of local symbols. The
+ * companion is resolved lazily on the first lookup miss in the module's
+ * own table.
+ */
+typedef struct {
+    macho_sym_info_t own;
+    macho_sym_info_t dsym;
+} sym_source_t;
+
+// Direct-mapped by module index; see enrich_frame_with_symbol. Being BSS,
+// only the slots touched during resolution are committed to physical memory.
+static sym_source_t g_sym_sources[SENTRY_CRASH_MAX_MODULES];
+
+static int
+is_zero_uuid(const uint8_t uuid[16])
+{
+    for (int i = 0; i < 16; i++) {
+        if (uuid[i]) {
+            return 0;
+        }
+    }
+    return 1;
+}
+
+/**
+ * Parse the Mach-O file at `path` and record the location of its symbol
+ * table, its __TEXT vmaddr and its LC_FUNCTION_STARTS payload in `info`;
+ * the LC_UUID is reported via `uuid_out` for validation against the loaded
+ * image. Universal (fat) binaries are resolved to the slice matching the
+ * daemon's own architecture, which on macOS always matches the crashed
+ * process. Returns 1 when a usable symbol table was found, 0 otherwise
+ * (`info` may still carry usable function-starts data in that case).
+ */
+static int
+macho_locate_symtab(const char *path, macho_sym_info_t *info, uint8_t *uuid_out,
+    int *has_uuid_out)
+{
+    memset(info, 0, sizeof(*info));
+    *has_uuid_out = 0;
+    if ((size_t)snprintf(info->path, sizeof(info->path), "%s", path)
+        >= sizeof(info->path)) {
+        return 0;
+    }
+
+    int fd = open(path, O_RDONLY);
+    if (fd < 0) {
+        return 0;
+    }
+
+    // Universal binaries store fat headers big-endian.
+    uint64_t slice_off = 0;
+    struct fat_header fh;
+    if (pread(fd, &fh, sizeof(fh), 0) != sizeof(fh)) {
+        close(fd);
+        return 0;
+    }
+    if (fh.magic == FAT_MAGIC || fh.magic == FAT_CIGAM
+        || fh.magic == FAT_MAGIC_64 || fh.magic == FAT_CIGAM_64) {
+        int is64 = fh.magic == FAT_MAGIC_64 || fh.magic == FAT_CIGAM_64;
+        uint32_t nfat = OSSwapBigToHostInt32(fh.nfat_arch);
+        if (nfat > 128) {
+            close(fd);
+            return 0;
+        }
+        for (uint32_t i = 0; i < nfat && !slice_off; i++) {
+            if (is64) {
+                struct fat_arch_64 fa;
+                if (pread(fd, &fa, sizeof(fa),
+                        (off_t)(sizeof(fh) + i * sizeof(fa)))
+                    != sizeof(fa)) {
+                    break;
+                }
+                if ((cpu_type_t)OSSwapBigToHostInt32((uint32_t)fa.cputype)
+                    == SENTRY_MACHO_CPU_TYPE) {
+                    slice_off = OSSwapBigToHostInt64(fa.offset);
+                }
+            } else {
+                struct fat_arch fa;
+                if (pread(fd, &fa, sizeof(fa),
+                        (off_t)(sizeof(fh) + i * sizeof(fa)))
+                    != sizeof(fa)) {
+                    break;
+                }
+                if ((cpu_type_t)OSSwapBigToHostInt32((uint32_t)fa.cputype)
+                    == SENTRY_MACHO_CPU_TYPE) {
+                    slice_off = OSSwapBigToHostInt32(fa.offset);
+                }
+            }
+        }
+        if (!slice_off) {
+            close(fd);
+            return 0;
+        }
+    }
+
+    struct mach_header_64 mh;
+    if (pread(fd, &mh, sizeof(mh), (off_t)slice_off) != sizeof(mh)
+        || mh.magic != MH_MAGIC_64 || mh.cputype != SENTRY_MACHO_CPU_TYPE) {
+        close(fd);
+        return 0;
+    }
+
+    // Cap keeps a corrupt sizeofcmds from driving a huge allocation.
+    if (mh.sizeofcmds == 0 || mh.sizeofcmds > 32 * 1024 * 1024) {
+        close(fd);
+        return 0;
+    }
+    uint8_t *cmds = sentry_malloc(mh.sizeofcmds);
+    if (!cmds
+        || pread(fd, cmds, mh.sizeofcmds, (off_t)(slice_off + sizeof(mh)))
+            != (ssize_t)mh.sizeofcmds) {
+        sentry_free(cmds);
+        close(fd);
+        return 0;
+    }
+    close(fd);
+
+    int have_text = 0;
+    struct symtab_command symtab;
+    int have_symtab = 0;
+
+    uint32_t pos = 0;
+    for (uint32_t i = 0; i < mh.ncmds; i++) {
+        if (pos + sizeof(struct load_command) > mh.sizeofcmds) {
+            break;
+        }
+        const struct load_command *lc
+            = (const struct load_command *)(cmds + pos);
+        if (lc->cmdsize < sizeof(struct load_command)
+            || lc->cmdsize > mh.sizeofcmds - pos) {
+            break;
+        }
+
+        if (lc->cmd == LC_SEGMENT_64
+            && lc->cmdsize >= sizeof(struct segment_command_64)) {
+            const struct segment_command_64 *seg
+                = (const struct segment_command_64 *)lc;
+            if (strncmp(seg->segname, SEG_TEXT, sizeof(seg->segname)) == 0) {
+                info->text_vmaddr = seg->vmaddr;
+                have_text = 1;
+            }
+        } else if (lc->cmd == LC_SYMTAB
+            && lc->cmdsize >= sizeof(struct symtab_command)) {
+            symtab = *(const struct symtab_command *)lc;
+            have_symtab = 1;
+        } else if (lc->cmd == LC_FUNCTION_STARTS
+            && lc->cmdsize >= sizeof(struct linkedit_data_command)) {
+            const struct linkedit_data_command *led
+                = (const struct linkedit_data_command *)lc;
+            info->fn_starts_off = slice_off + led->dataoff;
+            info->fn_starts_size = led->datasize;
+        } else if (lc->cmd == LC_UUID
+            && lc->cmdsize >= sizeof(struct uuid_command)) {
+            memcpy(uuid_out, ((const struct uuid_command *)lc)->uuid, 16);
+            *has_uuid_out = 1;
+        }
+
+        pos += lc->cmdsize;
+    }
+    sentry_free(cmds);
+
+    // Function starts are deltas from the __TEXT vmaddr; without it they
+    // cannot be interpreted.
+    if (!have_text) {
+        info->fn_starts_size = 0;
+        return 0;
+    }
+    if (!have_symtab || symtab.nsyms == 0 || symtab.strsize == 0) {
+        return 0;
+    }
+    info->symtab_off = slice_off + symtab.symoff;
+    info->nsyms = symtab.nsyms;
+    info->strtab_off = slice_off + symtab.stroff;
+    info->strtab_size = symtab.strsize;
+    return 1;
+}
+
+/**
+ * Find the start address of the function containing `target` (an unslid
+ * vmaddr) using the module's LC_FUNCTION_STARTS payload (ULEB128 deltas
+ * accumulating from the __TEXT vmaddr). The payload survives `strip`, so
+ * it bounds symbol matches even when the symbol table doesn't: without the
+ * bound, addresses in symbol-table gaps would be attributed to unrelated
+ * neighboring functions (the ELF resolver gets the same guarantee from
+ * st_size). Returns 1 and sets `start_out` when the target falls at or
+ * after some function start, 0 otherwise.
+ */
+static int
+fn_starts_find(
+    const macho_sym_info_t *info, uint64_t target, uint64_t *start_out)
+{
+    // The payload is a few MB even for very large binaries; read it whole.
+    if (info->fn_starts_size == 0 || info->fn_starts_size > 64 * 1024 * 1024) {
+        return 0;
+    }
+    int fd = open(info->path, O_RDONLY);
+    if (fd < 0) {
+        return 0;
+    }
+    uint8_t *buf = sentry_malloc(info->fn_starts_size);
+    if (!buf
+        || pread(fd, buf, info->fn_starts_size, (off_t)info->fn_starts_off)
+            != (ssize_t)info->fn_starts_size) {
+        sentry_free(buf);
+        close(fd);
+        return 0;
+    }
+    close(fd);
+
+    uint64_t address = info->text_vmaddr;
+    uint64_t prev = 0;
+    int have_prev = 0;
+    size_t pos = 0;
+    while (pos < info->fn_starts_size) {
+        uint64_t delta = 0;
+        unsigned shift = 0;
+        int complete = 0;
+        while (pos < info->fn_starts_size && shift < 64) {
+            uint8_t byte = buf[pos++];
+            delta |= (uint64_t)(byte & 0x7f) << shift;
+            shift += 7;
+            if (!(byte & 0x80)) {
+                complete = 1;
+                break;
+            }
+        }
+        if (!complete || delta == 0) {
+            break; // truncated entry or zero-padding terminator
+        }
+        address += delta;
+        if (address > target) {
+            break;
+        }
+        prev = address;
+        have_prev = 1;
+    }
+    sentry_free(buf);
+
+    if (!have_prev) {
+        return 0;
+    }
+    *start_out = prev;
+    return 1;
+}
+
+/**
+ * Resolve the dSYM companion for a module following the standard bundle
+ * layout `<X>.dSYM/Contents/Resources/DWARF/<binary>`. Candidates are
+ * checked next to the module itself and - for executables nested in an
+ * .app bundle (the Unreal Engine packaged-game layout) - next to the
+ * bundle. Candidates are validated by LC_UUID equality with the loaded
+ * image; a companion without a matching UUID would resolve unrelated
+ * names.
+ */
+static void
+resolve_dsym(const sentry_module_info_t *mod, macho_sym_info_t *info)
+{
+    static const char app_suffix[] = ".app/Contents/MacOS/";
+
+    const char *slash = strrchr(mod->name, '/');
+    const char *base = slash ? slash + 1 : mod->name;
+    size_t base_len = strlen(base);
+
+    char candidate[SENTRY_CRASH_MAX_PATH];
+    for (int c = 0; c < 2; c++) {
+        int n;
+        if (c == 0) {
+            n = snprintf(candidate, sizeof(candidate),
+                "%s.dSYM/Contents/Resources/DWARF/%s", mod->name, base);
+        } else {
+            // <dir>/<name>.app/Contents/MacOS/<name> -> <dir>/<name>.dSYM
+            size_t suffix_len = base_len + (sizeof(app_suffix) - 1) + base_len;
+            size_t full_len = strlen(mod->name);
+            if (full_len <= suffix_len) {
+                continue;
+            }
+            size_t app_pos = full_len - suffix_len;
+            if (strncmp(mod->name + app_pos, base, base_len) != 0
+                || strncmp(mod->name + app_pos + base_len, app_suffix,
+                       sizeof(app_suffix) - 1)
+                    != 0) {
+                continue;
+            }
+            n = snprintf(candidate, sizeof(candidate),
+                "%.*s%s.dSYM/Contents/Resources/DWARF/%s", (int)app_pos,
+                mod->name, base, base);
+        }
+        if (n < 0 || (size_t)n >= sizeof(candidate)) {
+            continue;
+        }
+
+        uint8_t uuid[16];
+        int has_uuid = 0;
+        if (!macho_locate_symtab(candidate, info, uuid, &has_uuid)) {
+            continue;
+        }
+        if (has_uuid && !is_zero_uuid(mod->uuid)
+            && memcmp(uuid, mod->uuid, 16) != 0) {
+            SENTRY_DEBUGF(
+                "dSYM candidate %s rejected: UUID mismatch", candidate);
+            continue;
+        }
+
+        SENTRY_DEBUGF("Using dSYM %s for module %s", candidate, mod->name);
+        info->state = 1;
+        return;
+    }
+
+    info->state = -1;
+}
+
+/**
+ * Find the symbol covering `target` (an unslid vmaddr in `info`'s address
+ * space) in the file's symbol table and copy its name into `name_out`. The
+ * table is scanned in fixed-size chunks and only the winning name is read
+ * from the string table, so large tables (dSYM companions of big binaries)
+ * are never loaded wholesale. When `fn_start` is non-NULL only a symbol
+ * placed exactly at the containing function's entry matches (Mach-O nlist
+ * entries carry no size, so nothing looser can be validated). Returns 1
+ * when a name was resolved.
+ */
+static int
+macho_sym_lookup(const macho_sym_info_t *info, uint64_t target,
+    const uint64_t *fn_start, char *name_out, size_t name_out_size)
+{
+    int fd = open(info->path, O_RDONLY);
+    if (fd < 0) {
+        return 0;
+    }
+
+    struct nlist_64 chunk[256];
+
+    uint64_t best_value = 0;
+    uint32_t best_strx = 0;
+    int have_best = 0;
+
+    for (uint32_t idx = 0; idx < info->nsyms && !(have_best && fn_start);) {
+        size_t n = info->nsyms - idx;
+        if (n > sizeof(chunk) / sizeof(chunk[0])) {
+            n = sizeof(chunk) / sizeof(chunk[0]);
+        }
+        ssize_t want = (ssize_t)(n * sizeof(chunk[0]));
+        if (pread(fd, chunk, (size_t)want,
+                (off_t)(info->symtab_off + (uint64_t)idx * sizeof(chunk[0])))
+            != want) {
+            break;
+        }
+
+        for (size_t k = 0; k < n; k++) {
+            uint8_t type = chunk[k].n_type;
+            if ((type & N_STAB) || (type & N_TYPE) != N_SECT) {
+                continue;
+            }
+            uint64_t value = chunk[k].n_value;
+            uint32_t strx = chunk[k].n_un.n_strx;
+            if (value == 0 || strx == 0 || strx >= info->strtab_size) {
+                continue;
+            }
+            if (fn_start) {
+                if (value == *fn_start) {
+                    best_value = value;
+                    best_strx = strx;
+                    have_best = 1;
+                    break;
+                }
+            } else if (value <= target && (!have_best || value > best_value)) {
+                best_value = value;
+                best_strx = strx;
+                have_best = 1;
+            }
+        }
+
+        idx += (uint32_t)n;
+    }
+
+    int resolved = 0;
+    if (have_best) {
+        size_t max_read = info->strtab_size - best_strx;
+        if (max_read > name_out_size - 1) {
+            max_read = name_out_size - 1;
+        }
+        ssize_t got = pread(
+            fd, name_out, max_read, (off_t)(info->strtab_off + best_strx));
+        if (got > 0) {
+            name_out[got] = '\0';
+            resolved = name_out[0] != '\0';
+        }
+    }
+
+    close(fd);
+    return resolved;
+}
+
+/**
+ * Resolve the symbol name for a given instruction address from the Mach-O
+ * symbol table of the containing module (or its dSYM companion when the
+ * module was stripped of local symbols) and set the "function" key on the
+ * frame value.
+ */
+static void
+enrich_frame_with_symbol(
+    const sentry_crash_context_t *ctx, sentry_value_t frame, uint64_t addr)
+{
+    uint32_t module_count = MIN(ctx->module_count, SENTRY_CRASH_MAX_MODULES);
+    for (uint32_t i = 0; i < module_count; i++) {
+        const sentry_module_info_t *mod = &ctx->modules[i];
+        if (addr < mod->base_address || addr >= mod->base_address + mod->size) {
+            continue;
+        }
+
+        // The cache is direct-mapped by module index: within a frozen crash
+        // context each index maps to exactly one module, so a slot is
+        // resolved at most once and reused for every frame in that module.
+        sym_source_t *slot = &g_sym_sources[i];
+        if (slot->own.state == 0) {
+            uint8_t uuid[16];
+            int has_uuid = 0;
+            int usable
+                = macho_locate_symtab(mod->name, &slot->own, uuid, &has_uuid);
+            // A stale binary on disk would resolve unrelated names; trust
+            // the file only when its UUID matches the loaded image.
+            if (has_uuid && !is_zero_uuid(mod->uuid)
+                && memcmp(uuid, mod->uuid, 16) != 0) {
+                SENTRY_DEBUGF(
+                    "Module file %s rejected: UUID mismatch", mod->name);
+                usable = 0;
+                slot->own.fn_starts_size = 0;
+            }
+            slot->own.state = usable ? 1 : -1;
+        }
+
+        uint64_t fn_start_rel = 0;
+        int have_bounds = 0;
+        if (slot->own.fn_starts_size > 0) {
+            uint64_t own_target
+                = addr - mod->base_address + slot->own.text_vmaddr;
+            uint64_t fn_start = 0;
+            if (!fn_starts_find(&slot->own, own_target, &fn_start)) {
+                // Not covered by any known function: an unresolved frame
+                // beats a wrong name.
+                return;
+            }
+            fn_start_rel = fn_start - slot->own.text_vmaddr;
+            have_bounds = 1;
+        }
+
+        char name[SENTRY_MAX_SYM_NAME];
+        int resolved = 0;
+        if (slot->own.state > 0) {
+            uint64_t target = addr - mod->base_address + slot->own.text_vmaddr;
+            uint64_t fn_start = fn_start_rel + slot->own.text_vmaddr;
+            resolved = macho_sym_lookup(&slot->own, target,
+                have_bounds ? &fn_start : NULL, name, sizeof(name));
+        }
+        if (!resolved) {
+            // A miss in the module's own table typically means stripped
+            // local symbols.
+            if (slot->dsym.state == 0) {
+                resolve_dsym(mod, &slot->dsym);
+            }
+            if (slot->dsym.state > 0) {
+                uint64_t target
+                    = addr - mod->base_address + slot->dsym.text_vmaddr;
+                uint64_t fn_start = fn_start_rel + slot->dsym.text_vmaddr;
+                resolved = macho_sym_lookup(&slot->dsym, target,
+                    have_bounds ? &fn_start : NULL, name, sizeof(name));
+            }
+        }
+
+        if (resolved) {
+            // Mach-O symbol names carry the C-ABI leading underscore.
+            const char *fn_name = name[0] == '_' ? name + 1 : name;
+            sentry_value_set_by_key(
+                frame, "function", sentry_value_new_string(fn_name));
+        }
+        return;
+    }
+}
+#endif // SENTRY_PLATFORM_MACOS
+
 #if defined(SENTRY_PLATFORM_WINDOWS)
 #    include <psapi.h>
 #    include <tlhelp32.h>
@@ -2517,16 +3042,8 @@ read_breadcrumb_ring_file(const sentry_path_t *run_folder, const char *name)
         sentry_free(buf);
         return sentry_value_new_null();
     }
-    sentry_value_t list = sentry__value_from_msgpack(buf, size);
+    sentry_value_t list = sentry__value_from_msgpack_stream(buf, size);
     sentry_free(buf);
-    // `sentry__value_from_msgpack` only builds a list when the file holds 2+
-    // concatenated values; a file with a single breadcrumb decodes to a bare
-    // object. Wrap it so the merge step (which ignores non-lists) keeps it.
-    if (sentry_value_get_type(list) == SENTRY_VALUE_TYPE_OBJECT) {
-        sentry_value_t wrapper = sentry_value_new_list();
-        sentry_value_append(wrapper, list);
-        return wrapper;
-    }
     return list;
 }
 
@@ -3797,10 +4314,11 @@ sentry__process_crash(const sentry_options_t *options, sentry_crash_ipc_t *ipc)
 cleanup:
     // Send the staged session-replay envelope same-session, enriched from the
     // crash event (`<run>/__sentry-event`) so it shares the crash's
-    // tags/contexts/trace. Only flush when the crash itself was delivered:
-    // `cleanup` is also reached via `goto` on error paths where the crash was
-    // never captured, and flushing there would consume (and delete) the staged
-    // replay for a crash that never arrived.
+    // tags/contexts/trace and embeds its breadcrumbs. Only flush when the
+    // crash itself was delivered: `cleanup` is also reached via `goto` on
+    // error paths where the crash was never captured, and flushing there
+    // would consume (and delete) the staged replay for a crash that never
+    // arrived.
     if (crash_captured && options && options->transport
         && sentry__session_replay_has_pending(options)) {
         sentry_value_t crash_event = sentry_value_new_null();
@@ -3811,6 +4329,11 @@ cleanup:
                 crash_event = sentry__value_from_json(ev_json, ev_len);
                 sentry_free(ev_json);
             }
+        }
+        if (!sentry_value_is_null(crash_event)) {
+            // `__sentry-event` is scope-applied without breadcrumbs; merge
+            // the ring files so the replay recording can embed them
+            apply_breadcrumbs_from_ring_files(crash_event, run_folder, ctx);
         }
         sentry__session_replay_flush_pending(
             options, options->transport, crash_event);

@@ -91,6 +91,10 @@ jobs:
             os: ubuntu-24.04
             CC: gcc-14
             CXX: g++-14
+          - name: Linux (GCC 15)
+            os: ubuntu-26.04
+            CC: gcc-15
+            CXX: g++-15
           - name: Linux Arm64 (GCC 14.2.0 + tsan)
             os: ubuntu-24.04-arm
             CC: gcc-14
@@ -257,7 +261,7 @@ jobs:
         run: |
           echo "Runner arch: $(uname -m)"
 
-      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
         with:
           python-version: ${{ !env['SYSTEM_PYTHON'] && '3.12' || '' }}
           cache: "pip"
@@ -278,6 +282,12 @@ jobs:
             sudo apt install "${CC}" "${CXX}"
           elif [[ "$CC" == clang-* ]]; then
             sudo apt install "${CC}"
+            if [[ "$RUN_ANALYZER" == *llvm-cov* ]]; then
+              llvm_version="${CC#clang-}"
+              sudo apt install "llvm-${llvm_version}"
+              echo "LLVM_PROFDATA=llvm-profdata-${llvm_version}" >> "$GITHUB_ENV"
+              echo "LLVM_COV=llvm-cov-${llvm_version}" >> "$GITHUB_ENV"
+            fi
           else
             echo "Unknown CC: $CC" >&2
             exit 1
@@ -400,7 +410,7 @@ jobs:
 
       - name: Setup Java Version
         if: ${{ env['ANDROID_API'] }}
-        uses: actions/setup-java@ad2b38190b15e4d6bdf0c97fb4fca8412226d287 # v5
+        uses: actions/setup-java@1bcf9fb12cf4aa7d266a90ae39939e61372fe520 # v5
         with:
           distribution: "temurin"
           java-version: "17"
@@ -449,7 +459,7 @@ jobs:
 
       - name: Test (Android)
         if: ${{ env['ANDROID_API'] }}
-        uses: reactivecircus/android-emulator-runner@e89f39f1abbbd05b1113a29cf4db69e7540cae5a # v2.37.0
+        uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0
         with:
           api-level: ${{ env.ANDROID_API }}
           ndk: ${{ env.ANDROID_NDK }}
@@ -497,7 +507,7 @@ jobs:
           submodules: recursive
 
       - name: Setup Java Version
-        uses: actions/setup-java@ad2b38190b15e4d6bdf0c97fb4fca8412226d287 # v5
+        uses: actions/setup-java@1bcf9fb12cf4aa7d266a90ae39939e61372fe520 # v5
         with:
           distribution: "temurin"
           java-version: "17"
