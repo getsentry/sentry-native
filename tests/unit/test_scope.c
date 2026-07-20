@@ -1224,6 +1224,7 @@ typedef struct {
     sentry_value_t contexts;
     sentry_value_t attachments;
     bool was_called;
+    bool was_cleared;
 } test_observer_data_t;
 
 typedef struct {
@@ -1239,6 +1240,13 @@ observe_set_release(void *data, const char *release)
     test_observer_data_t *d = (test_observer_data_t *)data;
     d->release = sentry_value_new_string(release);
     d->was_called = true;
+}
+
+static void
+observe_clear(void *data)
+{
+    test_observer_data_t *d = (test_observer_data_t *)data;
+    d->was_cleared = true;
 }
 
 static void
@@ -1419,6 +1427,37 @@ observe_remove_context(void *data, const char *key)
     sentry_value_set_by_key(
         d->contexts, key, sentry_value_new_string("(removed)"));
     d->was_called = true;
+}
+
+SENTRY_TEST(scope_observer_clear)
+{
+    sentry_scope_t *scope = sentry_scope_new();
+
+    test_observer_data_t d = { .tags = sentry_value_new_null() };
+    sentry_scope_observer_t *observer = sentry__scope_observer_new();
+    observer->data = &d;
+    observer->clear = observe_clear;
+    observer->set_tag = observe_set_tag;
+
+    TEST_CHECK(sentry__scope_add_observer(scope, observer));
+
+    sentry_scope_set_tag(scope, "before", "clear");
+    TEST_CHECK(d.was_called);
+
+    sentry_scope_clear(scope);
+    TEST_CHECK(d.was_cleared);
+    TEST_CHECK_INT_EQUAL(scope->num_observers, 1);
+    TEST_CHECK(sentry_value_get_length(scope->tags) == 0);
+
+    d.was_called = false;
+    sentry_scope_set_tag(scope, "after", "clear");
+    TEST_CHECK(d.was_called);
+    TEST_CHECK_STRING_EQUAL(
+        sentry_value_as_string(sentry_value_get_by_key(d.tags, "after")),
+        "clear");
+
+    sentry_value_decref(d.tags);
+    sentry_scope_free(scope);
 }
 
 SENTRY_TEST(scope_observer_null)

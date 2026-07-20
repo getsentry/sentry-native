@@ -343,6 +343,20 @@ sentry_scope_clear(sentry_scope_t *scope)
         return;
     }
 
+    size_t end = sentry__scope_begin_notify(scope);
+    for (size_t i = 0; i < end && i < scope->num_observers; i++) {
+        sentry_scope_observer_t *observer = scope->observers[i];
+        if (observer && observer->clear) {
+            observer->clear(observer->data);
+        }
+    }
+    sentry__scope_end_notify(scope);
+
+    sentry_scope_observer_t **observers = scope->observers;
+    size_t num_observers = scope->num_observers;
+    scope->observers = NULL;
+    scope->num_observers = 0;
+
     // Keep the propagation and dynamic sampling contexts across clears so
     // telemetry captured afterwards continues on the same trace.
     bool trace_managed = scope->trace_managed;
@@ -361,6 +375,8 @@ sentry_scope_clear(sentry_scope_t *scope)
     scope->dynamic_sampling_context = dynamic_sampling_context;
     scope->trace_managed = trace_managed;
     scope->one_shot = one_shot;
+    scope->observers = observers;
+    scope->num_observers = num_observers;
 }
 
 sentry_scope_t *

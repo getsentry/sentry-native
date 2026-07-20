@@ -24,6 +24,8 @@
 typedef struct sentry_scope_observer_s {
     void *data;
 
+    void (*clear)(void *data);
+
     void (*set_release)(void *data, const char *release);
     void (*set_environment)(void *data, const char *environment);
     void (*set_transaction)(void *data, const char *transaction);
