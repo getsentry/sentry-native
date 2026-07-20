@@ -13,6 +13,7 @@
  *
  * Implementors set the function pointers they care about. NULL pointers are
  * skipped. Callbacks are invoked while the scope lock is held.
+ * The data pointer is passed as the first argument to each callback.
  *
  * Note: callback arguments are borrowed and valid only for the duration of the
  * callback. Reentrant mutation of the same observed entry is unsupported; for
