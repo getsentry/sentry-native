@@ -1,4 +1,6 @@
 #include "sentry.h"
+#include "sentry_alloc.h"
+#include "sentry_backend.h"
 #include "sentry_database.h"
 #include "sentry_options.h"
 #include "sentry_scope.h"
@@ -1239,6 +1241,21 @@ typedef struct {
     test_observer_data_t *data;
 } clear_observer_data_t;
 
+typedef struct {
+    size_t total_flush_count;
+    size_t nested_flush_count;
+    bool was_called;
+} deferred_flush_observer_data_t;
+
+static void
+deferred_flush_scope(
+    sentry_backend_t *backend, const sentry_options_t *UNUSED(options))
+{
+    deferred_flush_observer_data_t *d
+        = (deferred_flush_observer_data_t *)backend->data;
+    d->total_flush_count++;
+}
+
 static void
 observe_set_release(void *data, const char *release)
 {
@@ -1388,6 +1405,16 @@ observe_set_tag_clear_scope(void *data, const char *key, const char *value)
     clear_observer_data_t *d = (clear_observer_data_t *)data;
     observe_set_tag(d->data, key, value);
     sentry_scope_clear(d->scope);
+}
+
+static void
+observe_set_tag_mutate_nested_scope(
+    void *data, const char *UNUSED(key), const char *UNUSED(value))
+{
+    deferred_flush_observer_data_t *d = (deferred_flush_observer_data_t *)data;
+    d->was_called = true;
+    sentry_set_extra("nested", sentry_value_new_string("value"));
+    d->nested_flush_count = d->total_flush_count;
 }
 
 static void
@@ -1621,6 +1648,37 @@ SENTRY_TEST(scope_observer_mutate)
     sentry_value_decref(d1.tags);
     sentry_value_decref(d2.tags);
     sentry_value_decref(d3.tags);
+    sentry_close();
+}
+
+SENTRY_TEST(scope_observer_deferred_flush)
+{
+    SENTRY_TEST_OPTIONS_NEW(options);
+
+    deferred_flush_observer_data_t observer_data = { 0 };
+    sentry_backend_t *backend = SENTRY_MAKE(sentry_backend_t);
+    TEST_ASSERT(!!backend);
+    backend->data = &observer_data;
+    backend->flush_scope_func = deferred_flush_scope;
+    sentry_options_set_backend(options, backend);
+
+    sentry_init(options);
+
+    sentry_scope_observer_t *observer = sentry__scope_observer_new();
+    observer->data = &observer_data;
+    observer->set_tag = observe_set_tag_mutate_nested_scope;
+
+    SENTRY_WITH_SCOPE_MUT (scope) {
+        TEST_CHECK(sentry__scope_add_observer(scope, observer));
+    }
+
+    observer_data.total_flush_count = 0;
+    sentry_set_tag("outer", "value");
+
+    TEST_CHECK(observer_data.was_called);
+    TEST_CHECK_INT_EQUAL(observer_data.nested_flush_count, 0);
+    TEST_CHECK_INT_EQUAL(observer_data.total_flush_count, 1);
+
     sentry_close();
 }
 
