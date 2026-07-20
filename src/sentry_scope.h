@@ -9,6 +9,42 @@
 #include "sentry_value.h"
 
 /**
+ * Scope observer — one callback per scope property.
+ *
+ * Implementors set the function pointers they care about. NULL pointers are
+ * skipped. Callbacks are invoked while the scope lock is held.
+ *
+ * Ownership: a copy of this struct is stored in the scope; the original may
+ * be stack-allocated or freed after registration.
+ */
+typedef struct sentry_scope_observer_s {
+    void *data;
+
+    void (*set_release)(void *data, const char *release, size_t release_len);
+    void (*set_environment)(
+        void *data, const char *environment, size_t environment_len);
+    void (*set_transaction)(
+        void *data, const char *transaction, size_t transaction_len);
+    void (*set_fingerprint)(void *data, sentry_value_t fingerprint);
+    void (*set_level)(void *data, sentry_level_t level);
+    void (*set_user)(void *data, sentry_value_t user);
+
+    void (*add_breadcrumb)(void *data, sentry_value_t breadcrumb);
+
+    void (*set_tag)(void *data, const char *key, size_t key_len,
+        const char *value, size_t value_len);
+    void (*remove_tag)(void *data, const char *key, size_t key_len);
+
+    void (*set_extra)(
+        void *data, const char *key, size_t key_len, sentry_value_t value);
+    void (*remove_extra)(void *data, const char *key, size_t key_len);
+
+    void (*set_context)(
+        void *data, const char *key, size_t key_len, sentry_value_t value);
+    void (*remove_context)(void *data, const char *key, size_t key_len);
+} sentry_scope_observer_t;
+
+/**
  * This represents the current scope.
  */
 struct sentry_scope_s {
@@ -43,6 +79,10 @@ struct sentry_scope_s {
     // Whether this scope is single-use. A capture function frees a one-shot
     // scope after applying it.
     bool one_shot;
+
+    sentry_scope_observer_t **observers;
+    size_t num_observers;
+    bool is_observing;
 };
 
 /**
@@ -116,6 +156,32 @@ void sentry__scope_set_fingerprint_nva(sentry_scope_t *scope,
 #define SENTRY_WITH_SCOPE_MUT_NO_FLUSH(Scope)                                  \
     for (sentry_scope_t *Scope = sentry__scope_lock(); Scope;                  \
         sentry__scope_unlock(), Scope = NULL)
+
+/**
+ * Register a scope observer.
+ *
+ * The observer struct is copied; the caller may free the original after this
+ * call. Must be called while holding the scope lock (i.e., inside
+ * SENTRY_WITH_SCOPE_MUT). Registration order is respected — observers are
+ * notified in registration order.
+ */
+void sentry__scope_add_observer(
+    sentry_scope_t *scope, const sentry_scope_observer_t *observer);
+
+/** Re-entrancy guard: set while notifying observers. */
+#define SENTRY_NOTIFY_OBSERVERS(scope, callback, ...)                          \
+    do {                                                                       \
+        if ((scope)->is_observing)                                             \
+            break;                                                             \
+        (scope)->is_observing = true;                                          \
+        for (size_t _i = 0; _i < (scope)->num_observers; _i++) {               \
+            sentry_scope_observer_t *_observer = (scope)->observers[_i];       \
+            if (_observer->callback) {                                         \
+                _observer->callback(_observer->data, ##__VA_ARGS__);           \
+            }                                                                  \
+        }                                                                      \
+        (scope)->is_observing = false;                                         \
+    } while (0)
 
 /**
  * Rebuilds the scope's dynamic sampling context (DSC) from the SDK options
