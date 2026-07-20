@@ -262,15 +262,17 @@ native_backend_process_old_run(sentry_backend_t *backend,
 #if defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID)
 static pid_t
 daemon_start(pid_t app_pid, uint64_t app_tid, int notify_eventfd,
-    int ready_eventfd, const char *handler_path)
+    int ready_eventfd, int message_fd, const char *handler_path)
 #elif defined(SENTRY_PLATFORM_MACOS)
 static pid_t
 daemon_start(pid_t app_pid, uint64_t app_tid, int notify_pipe_read,
-    int ready_pipe_write, int shm_fd, const char *handler_path)
+    int ready_pipe_write, int shm_fd, int message_fd,
+    const char *handler_path)
 #elif defined(SENTRY_PLATFORM_WINDOWS)
 static pid_t
 daemon_start(pid_t app_pid, uint64_t app_tid, HANDLE event_handle,
-    HANDLE ready_event_handle, const char *handler_path)
+    HANDLE ready_event_handle, HANDLE message_read_handle,
+    const char *handler_path)
 #endif
 {
 #if defined(SENTRY_PLATFORM_MACOS)
@@ -303,16 +305,19 @@ daemon_start(pid_t app_pid, uint64_t app_tid, HANDLE event_handle,
         strcpy(daemon_path + dir_len, "sentry-crash");
     }
 
-    // Build argument strings (6 args: pid, tid, notify_fd, ready_fd, shm_fd)
-    char pid_str[32], tid_str[32], notify_str[32], ready_str[32], shm_str[32];
+    // Build argument strings (pid, tid, notify_fd, ready_fd, shm_fd,
+    // message_fd)
+    char pid_str[32], tid_str[32], notify_str[32], ready_str[32], shm_str[32],
+        message_str[32];
     snprintf(pid_str, sizeof(pid_str), "%d", (int)app_pid);
     snprintf(tid_str, sizeof(tid_str), "%" PRIx64, app_tid);
     snprintf(notify_str, sizeof(notify_str), "%d", notify_pipe_read);
     snprintf(ready_str, sizeof(ready_str), "%d", ready_pipe_write);
     snprintf(shm_str, sizeof(shm_str), "%d", shm_fd);
+    snprintf(message_str, sizeof(message_str), "%d", message_fd);
 
     char *spawn_argv[] = { "sentry-crash", pid_str, tid_str, notify_str,
-        ready_str, shm_str, NULL };
+        ready_str, shm_str, message_str, NULL };
 
     // Set up posix_spawn attributes
     posix_spawnattr_t attr;
@@ -328,6 +333,7 @@ daemon_start(pid_t app_pid, uint64_t app_tid, HANDLE event_handle,
     posix_spawn_file_actions_addinherit_np(&file_actions, notify_pipe_read);
     posix_spawn_file_actions_addinherit_np(&file_actions, ready_pipe_write);
     posix_spawn_file_actions_addinherit_np(&file_actions, shm_fd);
+    posix_spawn_file_actions_addinherit_np(&file_actions, message_fd);
     // Open /dev/null on stdin/stdout/stderr so the daemon starts with valid
     // standard fds. Without this, POSIX_SPAWN_CLOEXEC_DEFAULT closes them,
     // and the first fopen() in the daemon would get fd 0, which the daemon's
@@ -338,7 +344,7 @@ daemon_start(pid_t app_pid, uint64_t app_tid, HANDLE event_handle,
     int std_modes[3] = { O_RDONLY, O_WRONLY, O_WRONLY };
     for (int i = 0; i < 3; i++) {
         if (std_fds[i] != notify_pipe_read && std_fds[i] != ready_pipe_write
-            && std_fds[i] != shm_fd) {
+            && std_fds[i] != shm_fd && std_fds[i] != message_fd) {
             posix_spawn_file_actions_addopen(
                 &file_actions, std_fds[i], "/dev/null", std_modes[i], 0);
         }
@@ -379,16 +385,22 @@ daemon_start(pid_t app_pid, uint64_t app_tid, HANDLE event_handle,
         if (ready_flags != -1) {
             fcntl(ready_eventfd, F_SETFD, ready_flags & ~FD_CLOEXEC);
         }
+        int message_flags = fcntl(message_fd, F_GETFD);
+        if (message_flags != -1) {
+            fcntl(message_fd, F_SETFD, message_flags & ~FD_CLOEXEC);
+        }
 
         // Convert arguments to strings for exec
-        char pid_str[32], tid_str[32], notify_str[32], ready_str[32];
+        char pid_str[32], tid_str[32], notify_str[32], ready_str[32],
+            message_str[32];
         snprintf(pid_str, sizeof(pid_str), "%d", (int)app_pid);
         snprintf(tid_str, sizeof(tid_str), "%" PRIx64, app_tid);
         snprintf(notify_str, sizeof(notify_str), "%d", notify_eventfd);
         snprintf(ready_str, sizeof(ready_str), "%d", ready_eventfd);
+        snprintf(message_str, sizeof(message_str), "%d", message_fd);
 
-        char *argv[]
-            = { "sentry-crash", pid_str, tid_str, notify_str, ready_str, NULL };
+        char *argv[] = { "sentry-crash", pid_str, tid_str, notify_str,
+            ready_str, message_str, NULL };
 
         if (!sentry__string_empty(handler_path)) {
             execv(handler_path, argv);
@@ -471,13 +483,14 @@ daemon_start(pid_t app_pid, uint64_t app_tid, HANDLE event_handle,
     }
 
     // Build command line: sentry-crash.exe <app_pid> <app_tid> <event_handle>
-    // <ready_event_handle>
-    wchar_t cmd_line[SENTRY_CRASH_MAX_PATH + 128];
+    // <ready_event_handle> <message_read_handle>
+    wchar_t cmd_line[SENTRY_CRASH_MAX_PATH + 192];
     int cmd_len = _snwprintf(cmd_line, sizeof(cmd_line) / sizeof(wchar_t),
-        L"\"%s\" %lu %llx %llu %llu", daemon_path_w, (unsigned long)app_pid,
-        (unsigned long long)app_tid,
+        L"\"%s\" %lu %llx %llu %llu %llu", daemon_path_w,
+        (unsigned long)app_pid, (unsigned long long)app_tid,
         (unsigned long long)(uintptr_t)event_handle,
-        (unsigned long long)(uintptr_t)ready_event_handle);
+        (unsigned long long)(uintptr_t)ready_event_handle,
+        (unsigned long long)(uintptr_t)message_read_handle);
 
     if (cmd_len < 0 || cmd_len >= (int)(sizeof(cmd_line) / sizeof(wchar_t))) {
         SENTRY_WARN("Command line too long for daemon spawn");
@@ -829,16 +842,19 @@ native_backend_startup(
 #    if defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID)
     uint64_t tid = (uint64_t)pthread_self();
     state->daemon_pid = daemon_start(getpid(), tid, state->ipc->notify_fd,
-        state->ipc->ready_fd, daemon_handler_path);
+        state->ipc->ready_fd, state->ipc->message_fd[1],
+        daemon_handler_path);
 #    elif defined(SENTRY_PLATFORM_MACOS)
     uint64_t tid = (uint64_t)pthread_self();
     state->daemon_pid = daemon_start(getpid(), tid, state->ipc->notify_pipe[0],
-        state->ipc->ready_pipe[1], state->ipc->shm_fd, daemon_handler_path);
+        state->ipc->ready_pipe[1], state->ipc->shm_fd,
+        state->ipc->message_fd[1], daemon_handler_path);
 #    elif defined(SENTRY_PLATFORM_WINDOWS)
     uint64_t tid = (uint64_t)GetCurrentThreadId();
     state->daemon_pid
         = daemon_start(GetCurrentProcessId(), tid, state->ipc->event_handle,
-            state->ipc->ready_event_handle, daemon_handler_path);
+            state->ipc->ready_event_handle, state->ipc->message_read_handle,
+            daemon_handler_path);
 #    endif
 
     // On Windows, pid_t is DWORD (unsigned), so (pid_t)-1 == 0xFFFFFFFF.
@@ -861,11 +877,16 @@ native_backend_startup(
     // Close unused pipe ends in parent process
     close(state->ipc->notify_pipe[0]); // Daemon reads from this
     close(state->ipc->ready_pipe[1]); // Daemon writes to this
+    close(state->ipc->message_fd[1]); // Daemon reads from this
     state->ipc->notify_pipe[0] = -1;
     state->ipc->ready_pipe[1] = -1;
+    state->ipc->message_fd[1] = -1;
 #    endif
 
 #    if defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID)
+    close(state->ipc->message_fd[1]); // Daemon reads from this
+    state->ipc->message_fd[1] = -1;
+
     // Close unused eventfd ends in parent process
     // (eventfds are bidirectional, but we only use one direction per fd)
     // Parent writes to notify_fd, daemon reads from it - parent can close for
@@ -883,6 +904,11 @@ native_backend_startup(
     } else {
         SENTRY_DEBUGF("Set daemon PID %d as ptracer", state->daemon_pid);
     }
+#    endif
+
+#    if defined(SENTRY_PLATFORM_WINDOWS)
+    CloseHandle(state->ipc->message_read_handle);
+    state->ipc->message_read_handle = NULL;
 #    endif
 
     // Wait for daemon to signal it's ready
