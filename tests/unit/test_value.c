@@ -369,6 +369,12 @@ SENTRY_TEST(value_object)
     TEST_CHECK_JSON_VALUE(
         val, "{\"key1\":100,\"key3\":3,\"key5\":5,\"key7\":7,\"key9\":9}");
 
+    char *taken_key = sentry__value_remove_and_take_key_n(val, "key1!", 4);
+    TEST_CHECK_STRING_EQUAL(taken_key, "key1");
+    sentry_free(taken_key);
+    TEST_CHECK(sentry_value_get_length(val) == 4);
+    TEST_CHECK_JSON_VALUE(val, "{\"key3\":3,\"key5\":5,\"key7\":7,\"key9\":9}");
+
     sentry_value_decref(val);
 
     val = sentry_value_new_object();
