@@ -354,6 +354,8 @@ sentry_scope_clear(sentry_scope_t *scope)
 
     sentry_scope_observer_t **observers = scope->observers;
     size_t num_observers = scope->num_observers;
+    size_t is_notifying = scope->is_notifying;
+    bool pending_flush = scope->pending_flush;
     scope->observers = NULL;
     scope->num_observers = 0;
 
@@ -377,6 +379,8 @@ sentry_scope_clear(sentry_scope_t *scope)
     scope->one_shot = one_shot;
     scope->observers = observers;
     scope->num_observers = num_observers;
+    scope->is_notifying = is_notifying;
+    scope->pending_flush = pending_flush;
 }
 
 sentry_scope_t *

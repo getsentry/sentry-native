@@ -1234,6 +1234,11 @@ typedef struct {
     sentry_scope_observer_t *added;
 } reentrant_observer_data_t;
 
+typedef struct {
+    sentry_scope_t *scope;
+    test_observer_data_t *data;
+} clear_observer_data_t;
+
 static void
 observe_set_release(void *data, const char *release)
 {
@@ -1247,6 +1252,13 @@ observe_clear(void *data)
 {
     test_observer_data_t *d = (test_observer_data_t *)data;
     d->was_cleared = true;
+}
+
+static void
+observe_clear_wrapped(void *data)
+{
+    clear_observer_data_t *d = (clear_observer_data_t *)data;
+    d->data->was_cleared = true;
 }
 
 static void
@@ -1371,6 +1383,14 @@ observe_set_tag_remove_self_and_add(
 }
 
 static void
+observe_set_tag_clear_scope(void *data, const char *key, const char *value)
+{
+    clear_observer_data_t *d = (clear_observer_data_t *)data;
+    observe_set_tag(d->data, key, value);
+    sentry_scope_clear(d->scope);
+}
+
+static void
 observe_remove_tag(void *data, const char *key)
 {
     test_observer_data_t *d = (test_observer_data_t *)data;
@@ -1457,6 +1477,27 @@ SENTRY_TEST(scope_observer_clear)
         "clear");
 
     sentry_value_decref(d.tags);
+    sentry_scope_free(scope);
+
+    test_observer_data_t observer_data = { .tags = sentry_value_new_null() };
+    scope = sentry_scope_new();
+    clear_observer_data_t clear_data
+        = { .scope = scope, .data = &observer_data };
+    observer = sentry__scope_observer_new();
+    observer->data = &clear_data;
+    observer->clear = observe_clear_wrapped;
+    observer->set_tag = observe_set_tag_clear_scope;
+
+    TEST_CHECK(sentry__scope_add_observer(scope, observer));
+
+    sentry_scope_set_tag(scope, "during", "notify");
+    TEST_CHECK(observer_data.was_called);
+    TEST_CHECK(observer_data.was_cleared);
+    TEST_CHECK_INT_EQUAL(scope->is_notifying, 0);
+    TEST_CHECK_INT_EQUAL(scope->num_observers, 1);
+    TEST_CHECK(sentry_value_get_length(scope->tags) == 0);
+
+    sentry_value_decref(observer_data.tags);
     sentry_scope_free(scope);
 }
 
