@@ -1715,6 +1715,17 @@ SENTRY_TEST(scope_observer_fingerprint)
     TEST_CHECK(d.was_called);
     TEST_CHECK(sentry_value_is_null(d.fingerprint));
 
+    sentry_value_t fingerprints = sentry_value_new_list();
+    sentry_value_append(fingerprints, sentry_value_new_string("scope-fp-1"));
+    sentry_value_append(fingerprints, sentry_value_new_string("scope-fp-2"));
+    d.was_called = false;
+    SENTRY_WITH_SCOPE_MUT (scope) {
+        sentry_scope_set_fingerprints(scope, fingerprints);
+    }
+    TEST_CHECK(d.was_called);
+    TEST_CHECK_JSON_VALUE(d.fingerprint, "[\"scope-fp-1\",\"scope-fp-2\"]");
+
+    sentry_value_decref(d.fingerprint);
     sentry_close();
 }
 
@@ -2032,6 +2043,31 @@ SENTRY_TEST(scope_observer_attachments)
     sentry_remove_attachment(duplicate);
     TEST_CHECK(!d.was_called);
     TEST_CHECK_INT_EQUAL(sentry_value_get_length(d.attachments), 4);
+
+    sentry_attachment_t *clear_one
+        = sentry_attach_bytes("one", 3, "clear-one.txt");
+    TEST_CHECK(clear_one != NULL);
+    sentry_attachment_t *clear_two
+        = sentry_attach_bytes("two", 3, "clear-two.txt");
+    TEST_CHECK(clear_two != NULL);
+    TEST_CHECK_INT_EQUAL(sentry_value_get_length(d.attachments), 6);
+
+    d.was_called = false;
+    sentry_clear_attachments();
+    TEST_CHECK(d.was_called);
+    TEST_CHECK_INT_EQUAL(sentry_value_get_length(d.attachments), 8);
+    removed = sentry_value_get_by_index(d.attachments, 6);
+    TEST_CHECK_STRING_EQUAL(
+        sentry_value_as_string(sentry_value_get_by_key(removed, "filename")),
+        "clear-one.txt");
+    TEST_CHECK(
+        sentry_value_is_true(sentry_value_get_by_key(removed, "removed")));
+    removed = sentry_value_get_by_index(d.attachments, 7);
+    TEST_CHECK_STRING_EQUAL(
+        sentry_value_as_string(sentry_value_get_by_key(removed, "filename")),
+        "clear-two.txt");
+    TEST_CHECK(
+        sentry_value_is_true(sentry_value_get_by_key(removed, "removed")));
 
     sentry_value_decref(d.attachments);
     sentry_close();
