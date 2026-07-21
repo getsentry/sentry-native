@@ -3,25 +3,17 @@
 #include "sentry_testsupport.h"
 #include "sentry_utils.h"
 
-SENTRY_TEST(rwlock_recursion)
+SENTRY_TEST(rwlock_crash_handler_bypass)
 {
     sentry_rwlock_t lock;
     sentry__rwlock_init(&lock);
 
-    sentry__rwlock_read_lock(&lock);
-    sentry__rwlock_read_lock(&lock);
-    sentry__rwlock_unlock(&lock);
-    sentry__rwlock_unlock(&lock);
-
     sentry__rwlock_write_lock(&lock);
-    sentry__rwlock_write_lock(&lock);
-    TEST_CHECK(!sentry__rwlock_unlock(&lock));
-    TEST_CHECK(sentry__rwlock_unlock(&lock));
-
-    sentry__rwlock_write_lock(&lock);
+    TEST_CHECK_INT_EQUAL(sentry__enter_signal_handler(), 1);
     sentry__rwlock_read_lock(&lock);
-    sentry__rwlock_unlock(&lock);
-    TEST_CHECK(sentry__rwlock_unlock(&lock));
+    sentry__rwlock_read_unlock(&lock);
+    sentry__leave_signal_handler();
+    sentry__rwlock_write_unlock(&lock);
 
     sentry__rwlock_free(&lock);
 }
@@ -57,7 +49,7 @@ rwlock_reader_thread(void *_data)
     }
     state->active_readers--;
     sentry__mutex_unlock(&state->mutex);
-    sentry__rwlock_unlock(&state->lock);
+    sentry__rwlock_read_unlock(&state->lock);
 
 #ifdef SENTRY_PLATFORM_WINDOWS
     return 0;
@@ -109,7 +101,7 @@ rwlock_blocked_reader_thread(void *_data)
     state->entered = true;
     sentry__cond_wake(&state->cond);
     sentry__mutex_unlock(&state->mutex);
-    sentry__rwlock_unlock(&state->lock);
+    sentry__rwlock_read_unlock(&state->lock);
 
 #ifdef SENTRY_PLATFORM_WINDOWS
     return 0;
@@ -138,7 +130,7 @@ SENTRY_TEST(rwlock_writer_excludes_readers)
     TEST_CHECK(!state.entered);
     sentry__mutex_unlock(&state.mutex);
 
-    TEST_CHECK(sentry__rwlock_unlock(&state.lock));
+    sentry__rwlock_write_unlock(&state.lock);
 
     sentry__mutex_lock(&state.mutex);
     while (!state.entered) {
@@ -166,7 +158,7 @@ rwlock_blocked_writer_thread(void *_data)
         sentry__cond_wait_timeout(&state->cond, &state->mutex, 100);
     }
     sentry__mutex_unlock(&state->mutex);
-    sentry__rwlock_unlock(&state->lock);
+    sentry__rwlock_write_unlock(&state->lock);
 
 #ifdef SENTRY_PLATFORM_WINDOWS
     return 0;
@@ -175,7 +167,7 @@ rwlock_blocked_writer_thread(void *_data)
 #endif
 }
 
-SENTRY_TEST(rwlock_waiting_writer_excludes_new_readers)
+SENTRY_TEST(rwlock_writer_excludes_writers)
 {
     struct rwlock_test_state state;
     memset(&state, 0, sizeof(state));
@@ -184,6 +176,8 @@ SENTRY_TEST(rwlock_waiting_writer_excludes_new_readers)
     sentry__cond_init(&state.cond);
 
     sentry__rwlock_read_lock(&state.lock);
+    sentry__rwlock_read_unlock(&state.lock);
+    sentry__rwlock_write_lock(&state.lock);
 
     sentry_threadid_t writer_thread;
     sentry__thread_init(&writer_thread);
@@ -191,43 +185,23 @@ SENTRY_TEST(rwlock_waiting_writer_excludes_new_readers)
                              rwlock_blocked_writer_thread, &state),
         0);
 
-    bool writer_waiting = false;
-    for (size_t i = 0; i < 1000 && !writer_waiting; i++) {
-        sentry__mutex_lock(&state.lock.mutex);
-        writer_waiting = state.lock.waiting_writers > 0;
-        sentry__mutex_unlock(&state.lock.mutex);
-        if (!writer_waiting) {
-            sleep_ms(1);
-        }
-    }
-    TEST_ASSERT(writer_waiting);
-
-    sentry_threadid_t reader_thread;
-    sentry__thread_init(&reader_thread);
-    TEST_CHECK_INT_EQUAL(sentry__thread_spawn(&reader_thread,
-                             rwlock_blocked_reader_thread, &state),
-        0);
-
     sleep_ms(100);
     sentry__mutex_lock(&state.mutex);
-    TEST_CHECK(!state.entered);
+    TEST_CHECK(!state.writer_entered);
     sentry__mutex_unlock(&state.mutex);
 
-    sentry__rwlock_unlock(&state.lock);
+    sentry__rwlock_write_unlock(&state.lock);
 
     sentry__mutex_lock(&state.mutex);
     while (!state.writer_entered) {
         sentry__cond_wait_timeout(&state.cond, &state.mutex, 1000);
     }
-    TEST_CHECK(!state.entered);
     state.release_writer = true;
     sentry__cond_wake(&state.cond);
     sentry__mutex_unlock(&state.mutex);
 
     sentry__thread_join(writer_thread);
     sentry__thread_free(&writer_thread);
-    sentry__thread_join(reader_thread);
-    sentry__thread_free(&reader_thread);
 
     sentry__rwlock_free(&state.lock);
     sentry__mutex_free(&state.mutex);

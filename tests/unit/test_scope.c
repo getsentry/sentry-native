@@ -1329,6 +1329,11 @@ typedef struct {
     bool was_called;
 } deferred_flush_observer_data_t;
 
+typedef struct {
+    size_t calls;
+    bool saw_tag;
+} scope_flush_reentry_state_t;
+
 static void
 deferred_flush_scope(
     sentry_backend_t *backend, const sentry_options_t *UNUSED(options))
@@ -2308,45 +2313,44 @@ SENTRY_TEST(scope_set_attribute_null_key_decref_value)
     sentry_scope_free(scope);
 }
 
-SENTRY_TEST(scope_nested_write_locks)
+static void
+backend_flush_scope_reentry(
+    sentry_backend_t *backend, const sentry_options_t *options)
+{
+    scope_flush_reentry_state_t *state = backend->data;
+    state->calls++;
+
+    sentry_value_t event = sentry_value_new_object();
+    sentry__scope_apply_to_event(
+        sentry__scope_get(), options, event, SENTRY_SCOPE_NONE);
+
+    const char *tag = sentry_value_as_string(sentry_value_get_by_key(
+        sentry_value_get_by_key(event, "tags"), "reentrant"));
+    if (tag && strcmp(tag, "yes") == 0) {
+        state->saw_tag = true;
+    }
+
+    sentry_value_decref(event);
+}
+
+SENTRY_TEST(scope_flush_reentry)
 {
     SENTRY_TEST_OPTIONS_NEW(options);
-    sentry_init(options);
+    scope_flush_reentry_state_t state = { 0 };
 
-    bool read_nested_scope = false;
+    sentry_backend_t *backend = SENTRY_MAKE(sentry_backend_t);
+    TEST_ASSERT(!!backend);
+    backend->flush_scope_func = backend_flush_scope_reentry;
+    backend->data = &state;
+    sentry_options_set_backend(options, backend);
 
-    SENTRY_WITH_SCOPE_MUT (outer_scope) {
-        sentry_scope_set_tag(outer_scope, "outer", "yes");
+    TEST_CHECK_INT_EQUAL(sentry_init(options), 0);
+    size_t init_flushes = state.calls;
 
-        SENTRY_WITH_SCOPE_MUT (inner_scope) {
-            TEST_CHECK(inner_scope == outer_scope);
-            sentry_scope_set_tag(inner_scope, "inner", "yes");
+    sentry_set_tag("reentrant", "yes");
 
-            SENTRY_WITH_SCOPE (read_scope) {
-                TEST_CHECK(read_scope == inner_scope);
-                TEST_CHECK_STRING_EQUAL(
-                    sentry_value_as_string(
-                        sentry_value_get_by_key(read_scope->tags, "outer")),
-                    "yes");
-                TEST_CHECK_STRING_EQUAL(
-                    sentry_value_as_string(
-                        sentry_value_get_by_key(read_scope->tags, "inner")),
-                    "yes");
-                read_nested_scope = true;
-            }
-        }
-    }
-
-    TEST_CHECK(read_nested_scope);
-
-    SENTRY_WITH_SCOPE (scope) {
-        TEST_CHECK_STRING_EQUAL(sentry_value_as_string(sentry_value_get_by_key(
-                                    scope->tags, "outer")),
-            "yes");
-        TEST_CHECK_STRING_EQUAL(sentry_value_as_string(sentry_value_get_by_key(
-                                    scope->tags, "inner")),
-            "yes");
-    }
+    TEST_CHECK(state.calls > init_flushes);
+    TEST_CHECK(state.saw_tag);
 
     sentry_close();
 }

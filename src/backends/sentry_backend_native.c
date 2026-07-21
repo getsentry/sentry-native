@@ -724,53 +724,54 @@ native_backend_write_attachments(const sentry_path_t *event_path)
     if (!event_path) {
         return;
     }
-    SENTRY_WITH_SCOPE (scope) {
-        if (!scope->attachments) {
-            continue;
-        }
-        sentry_path_t *run_path = sentry__path_dir(event_path);
-        if (!run_path) {
-            continue;
-        }
-        sentry_path_t *attach_list_path
-            = sentry__path_join_str(run_path, "__sentry-attachments");
-        if (attach_list_path) {
-            sentry_value_t attach_list = sentry_value_new_list();
-            for (sentry_attachment_t *it = scope->attachments; it;
-                it = it->next) {
-                if (!it->path) {
-                    continue;
-                }
-                sentry_value_t attach_info = sentry_value_new_object();
-                sentry_value_set_by_key(attach_info, "path",
-                    sentry_value_new_string(it->path->path));
-                const char *filename = sentry__path_filename(
-                    it->filename ? it->filename : it->path);
-                sentry_value_set_by_key(
-                    attach_info, "filename", sentry_value_new_string(filename));
-                if (it->type && *it->type) {
-                    sentry_value_set_by_key(attach_info, "attachment_type",
-                        sentry_value_new_string(it->type));
-                }
-                if (it->content_type) {
-                    sentry_value_set_by_key(attach_info, "content_type",
-                        sentry_value_new_string(it->content_type));
-                }
-                sentry_value_append(attach_list, attach_info);
-            }
-            size_t attach_json_len = 0;
-            char *attach_json
-                = sentry__value_to_json(attach_list, &attach_json_len);
-            sentry_value_decref(attach_list);
-            if (attach_json) {
-                sentry__path_write_buffer(
-                    attach_list_path, attach_json, attach_json_len);
-                sentry_free(attach_json);
-            }
-            sentry__path_free(attach_list_path);
-        }
-        sentry__path_free(run_path);
+    sentry_attachment_t *attachments
+        = sentry__scope_get_attachments(sentry__scope_get());
+    if (!attachments) {
+        return;
     }
+    sentry_path_t *run_path = sentry__path_dir(event_path);
+    if (!run_path) {
+        sentry__attachments_free(attachments);
+        return;
+    }
+    sentry_path_t *attach_list_path
+        = sentry__path_join_str(run_path, "__sentry-attachments");
+    if (attach_list_path) {
+        sentry_value_t attach_list = sentry_value_new_list();
+        for (sentry_attachment_t *it = attachments; it; it = it->next) {
+            if (!it->path) {
+                continue;
+            }
+            sentry_value_t attach_info = sentry_value_new_object();
+            sentry_value_set_by_key(
+                attach_info, "path", sentry_value_new_string(it->path->path));
+            const char *filename
+                = sentry__path_filename(it->filename ? it->filename : it->path);
+            sentry_value_set_by_key(
+                attach_info, "filename", sentry_value_new_string(filename));
+            if (it->type && *it->type) {
+                sentry_value_set_by_key(attach_info, "attachment_type",
+                    sentry_value_new_string(it->type));
+            }
+            if (it->content_type) {
+                sentry_value_set_by_key(attach_info, "content_type",
+                    sentry_value_new_string(it->content_type));
+            }
+            sentry_value_append(attach_list, attach_info);
+        }
+        size_t attach_json_len = 0;
+        char *attach_json
+            = sentry__value_to_json(attach_list, &attach_json_len);
+        sentry_value_decref(attach_list);
+        if (attach_json) {
+            sentry__path_write_buffer(
+                attach_list_path, attach_json, attach_json_len);
+            sentry_free(attach_json);
+        }
+        sentry__path_free(attach_list_path);
+    }
+    sentry__path_free(run_path);
+    sentry__attachments_free(attachments);
 }
 
 #if defined(SENTRY_PLATFORM_WINDOWS)

@@ -612,7 +612,59 @@ sentry__bgworker_get_thread_name(sentry_bgworker_t *bgw)
 }
 #endif
 
-#if defined(SENTRY_PLATFORM_UNIX) || defined(SENTRY_PLATFORM_NX)
+#ifdef SENTRY_PLATFORM_WINDOWS
+
+static volatile long g_in_signal_handler = 0;
+static volatile long g_signal_handling_thread_id = 0;
+static volatile long g_signal_handler_depth = 0;
+
+bool
+sentry__block_for_signal_handler(void)
+{
+    for (;;) {
+        if (!sentry__atomic_fetch(&g_in_signal_handler)) {
+            return true;
+        }
+
+        if (g_signal_handling_thread_id == (long)GetCurrentThreadId()) {
+            return false;
+        }
+
+        SwitchToThread();
+    }
+}
+
+int
+sentry__enter_signal_handler(void)
+{
+    DWORD me = GetCurrentThreadId();
+    for (;;) {
+        while (sentry__atomic_fetch(&g_in_signal_handler)) {
+            if (g_signal_handling_thread_id == (long)me) {
+                return (int)sentry__atomic_fetch_and_add(
+                           &g_signal_handler_depth, 1)
+                    + 1;
+            }
+            SwitchToThread();
+        }
+
+        if (sentry__atomic_compare_swap(&g_in_signal_handler, 0, 1)) {
+            sentry__atomic_store(&g_signal_handling_thread_id, (long)me);
+            sentry__atomic_store(&g_signal_handler_depth, 1);
+            return 1;
+        }
+    }
+}
+
+void
+sentry__leave_signal_handler(void)
+{
+    sentry__atomic_store(&g_signal_handling_thread_id, 0);
+    sentry__atomic_store(&g_signal_handler_depth, 0);
+    sentry__atomic_store(&g_in_signal_handler, 0);
+}
+
+#elif defined(SENTRY_PLATFORM_UNIX) || defined(SENTRY_PLATFORM_NX)
 #    include "sentry_cpu_relax.h"
 #    include <unistd.h>
 
@@ -684,6 +736,7 @@ sentry__leave_signal_handler(void)
     // reset handling thread
     __atomic_store_n(
         &g_signal_handling_thread, (sentry_threadid_t) { 0 }, __ATOMIC_RELAXED);
+    __atomic_store_n(&g_signal_handler_depth, 0, __ATOMIC_RELEASE);
 
     // reset handler flag
     __atomic_store_n(&g_in_signal_handler, 0, __ATOMIC_RELEASE);

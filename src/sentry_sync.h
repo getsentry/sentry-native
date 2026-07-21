@@ -371,19 +371,30 @@ sentry__cond_wait_timeout(
 }
 #endif
 
-typedef struct {
-    sentry_mutex_t mutex;
-    sentry_cond_t reader_cond;
-    sentry_cond_t writer_cond;
-    size_t readers;
 #ifdef SENTRY_PLATFORM_WINDOWS
-    DWORD writer_owner;
-#else
-    sentry_threadid_t writer_owner;
+bool sentry__block_for_signal_handler(void);
+int sentry__enter_signal_handler(void);
+void sentry__leave_signal_handler(void);
 #endif
-    size_t writer_depth;
-    size_t waiting_writers;
-} sentry_rwlock_t;
+
+#if defined(SENTRY_PLATFORM_WINDOWS) && _WIN32_WINNT >= 0x0600
+struct sentry_rwlock_s {
+    SRWLOCK lock;
+};
+#elif !defined(SENTRY_PLATFORM_WINDOWS) && !defined(SENTRY_PLATFORM_NX)
+struct sentry_rwlock_s {
+    pthread_rwlock_t lock;
+};
+#else
+struct sentry_rwlock_s {
+    sentry_mutex_t mutex;
+};
+#endif
+
+#ifndef SENTRY_RWLOCK_T_DEFINED
+#    define SENTRY_RWLOCK_T_DEFINED
+typedef struct sentry_rwlock_s sentry_rwlock_t;
+#endif
 
 #ifdef SENTRY_PLATFORM_WINDOWS
 #    define SENTRY__RWLOCK_INIT_DYN(Lock)                                      \
@@ -409,153 +420,97 @@ typedef struct {
 static inline void
 sentry__rwlock_init(sentry_rwlock_t *lock)
 {
+#if defined(SENTRY_PLATFORM_WINDOWS) && _WIN32_WINNT >= 0x0600
+    InitializeSRWLock(&lock->lock);
+#elif !defined(SENTRY_PLATFORM_WINDOWS) && !defined(SENTRY_PLATFORM_NX)
+    int rv = pthread_rwlock_init(&lock->lock, NULL);
+    (void)rv;
+    assert(rv == 0);
+#else
     sentry__mutex_init(&lock->mutex);
-    sentry__cond_init(&lock->reader_cond);
-    sentry__cond_init(&lock->writer_cond);
-    lock->readers = 0;
-#ifdef SENTRY_PLATFORM_WINDOWS
-    lock->writer_owner = 0;
-#else
-    sentry__thread_init(&lock->writer_owner);
-#endif
-    lock->writer_depth = 0;
-    lock->waiting_writers = 0;
-}
-
-static inline bool
-sentry__rwlock_is_writer(sentry_rwlock_t *lock)
-{
-    if (lock->writer_depth == 0) {
-        return false;
-    }
-#ifdef SENTRY_PLATFORM_WINDOWS
-    return lock->writer_owner == GetCurrentThreadId();
-#else
-    return sentry__threadid_equal(lock->writer_owner, sentry__current_thread());
-#endif
-}
-
-static inline void
-sentry__rwlock_set_writer(sentry_rwlock_t *lock)
-{
-#ifdef SENTRY_PLATFORM_WINDOWS
-    lock->writer_owner = GetCurrentThreadId();
-#else
-    lock->writer_owner = sentry__current_thread();
 #endif
 }
 
 static inline void
 sentry__rwlock_read_lock(sentry_rwlock_t *lock)
 {
-#ifndef SENTRY_PLATFORM_WINDOWS
     if (!sentry__block_for_signal_handler()) {
         return;
     }
-#endif
-    sentry__mutex_lock(&lock->mutex);
-    if (sentry__rwlock_is_writer(lock)) {
-        lock->writer_depth++;
-        sentry__mutex_unlock(&lock->mutex);
-        return;
-    }
-    while (lock->writer_depth > 0 || lock->waiting_writers > 0) {
-        sentry__cond_wait(&lock->reader_cond, &lock->mutex);
-    }
-    lock->readers++;
-    sentry__cond_wake(&lock->reader_cond);
-    sentry__mutex_unlock(&lock->mutex);
-}
-
-static inline bool
-sentry__rwlock_release_writer_depth(sentry_rwlock_t *lock)
-{
-    assert(sentry__rwlock_is_writer(lock));
-    lock->writer_depth--;
-    if (lock->writer_depth > 0) {
-        return false;
-    }
-#ifdef SENTRY_PLATFORM_WINDOWS
-    lock->writer_owner = 0;
+#if defined(SENTRY_PLATFORM_WINDOWS) && _WIN32_WINNT >= 0x0600
+    AcquireSRWLockShared(&lock->lock);
+#elif !defined(SENTRY_PLATFORM_WINDOWS) && !defined(SENTRY_PLATFORM_NX)
+    int rv = pthread_rwlock_rdlock(&lock->lock);
+    (void)rv;
+    assert(rv == 0);
 #else
-    sentry__thread_init(&lock->writer_owner);
+    sentry__mutex_lock(&lock->mutex);
 #endif
-    if (lock->waiting_writers > 0) {
-        sentry__cond_wake(&lock->writer_cond);
-    } else {
-        sentry__cond_wake(&lock->reader_cond);
-    }
-    return true;
 }
 
-// Returns true when unlocking releases the outermost write lock.
-static inline bool
-sentry__rwlock_unlock(sentry_rwlock_t *lock)
+static inline void
+sentry__rwlock_read_unlock(sentry_rwlock_t *lock)
 {
-#ifndef SENTRY_PLATFORM_WINDOWS
     if (!sentry__block_for_signal_handler()) {
-        return true;
+        return;
     }
-#endif
-    sentry__mutex_lock(&lock->mutex);
-    bool released_outermost = false;
-    if (sentry__rwlock_is_writer(lock)) {
-        released_outermost = sentry__rwlock_release_writer_depth(lock);
-        sentry__mutex_unlock(&lock->mutex);
-        return released_outermost;
-    }
-    assert(lock->readers > 0);
-    lock->readers--;
-    if (lock->readers == 0) {
-        sentry__cond_wake(&lock->writer_cond);
-    }
+#if defined(SENTRY_PLATFORM_WINDOWS) && _WIN32_WINNT >= 0x0600
+    ReleaseSRWLockShared(&lock->lock);
+#elif !defined(SENTRY_PLATFORM_WINDOWS) && !defined(SENTRY_PLATFORM_NX)
+    int rv = pthread_rwlock_unlock(&lock->lock);
+    (void)rv;
+    assert(rv == 0);
+#else
     sentry__mutex_unlock(&lock->mutex);
-    return released_outermost;
+#endif
 }
 
 static inline void
 sentry__rwlock_write_lock(sentry_rwlock_t *lock)
 {
-#ifndef SENTRY_PLATFORM_WINDOWS
     if (!sentry__block_for_signal_handler()) {
         return;
     }
-#endif
+#if defined(SENTRY_PLATFORM_WINDOWS) && _WIN32_WINNT >= 0x0600
+    AcquireSRWLockExclusive(&lock->lock);
+#elif !defined(SENTRY_PLATFORM_WINDOWS) && !defined(SENTRY_PLATFORM_NX)
+    int rv = pthread_rwlock_wrlock(&lock->lock);
+    (void)rv;
+    assert(rv == 0);
+#else
     sentry__mutex_lock(&lock->mutex);
-    if (sentry__rwlock_is_writer(lock)) {
-        lock->writer_depth++;
-        sentry__mutex_unlock(&lock->mutex);
-        return;
-    }
-    lock->waiting_writers++;
-    while (lock->writer_depth > 0 || lock->readers > 0) {
-        sentry__cond_wait(&lock->writer_cond, &lock->mutex);
-    }
-    lock->waiting_writers--;
-    sentry__rwlock_set_writer(lock);
-    lock->writer_depth = 1;
-    sentry__mutex_unlock(&lock->mutex);
+#endif
 }
 
-static inline size_t
-sentry__rwlock_write_depth(sentry_rwlock_t *lock)
+static inline void
+sentry__rwlock_write_unlock(sentry_rwlock_t *lock)
 {
-#ifndef SENTRY_PLATFORM_WINDOWS
     if (!sentry__block_for_signal_handler()) {
-        return 1;
+        return;
     }
-#endif
-    sentry__mutex_lock(&lock->mutex);
-    assert(sentry__rwlock_is_writer(lock));
-    size_t depth = lock->writer_depth;
+#if defined(SENTRY_PLATFORM_WINDOWS) && _WIN32_WINNT >= 0x0600
+    ReleaseSRWLockExclusive(&lock->lock);
+#elif !defined(SENTRY_PLATFORM_WINDOWS) && !defined(SENTRY_PLATFORM_NX)
+    int rv = pthread_rwlock_unlock(&lock->lock);
+    (void)rv;
+    assert(rv == 0);
+#else
     sentry__mutex_unlock(&lock->mutex);
-    return depth;
+#endif
 }
 
 static inline void
 sentry__rwlock_free(sentry_rwlock_t *lock)
 {
+#if defined(SENTRY_PLATFORM_WINDOWS) && _WIN32_WINNT >= 0x0600
+    (void)lock;
+#elif !defined(SENTRY_PLATFORM_WINDOWS) && !defined(SENTRY_PLATFORM_NX)
+    int rv = pthread_rwlock_destroy(&lock->lock);
+    (void)rv;
+    assert(rv == 0);
+#else
     sentry__mutex_free(&lock->mutex);
+#endif
 }
 
 static inline long
