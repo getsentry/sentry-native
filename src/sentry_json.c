@@ -690,7 +690,7 @@ sentry__value_from_json(const char *buf, size_t buflen)
         return sentry_value_new_null();
     }
 
-    sentry_value_t value_out;
+    sentry_value_t value_out = sentry_value_new_null();
     size_t tokens_consumed
         = tokens_to_value(tokens, (size_t)token_count, buf, 0, &value_out);
     sentry_free(tokens);
@@ -698,6 +698,7 @@ sentry__value_from_json(const char *buf, size_t buflen)
     if (tokens_consumed == (size_t)token_count) {
         return value_out;
     } else {
+        sentry_value_decref(value_out);
         return sentry_value_new_null();
     }
 }

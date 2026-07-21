@@ -90,8 +90,9 @@ sentry_attachment_t *sentry__attachments_add_path(
 
 /**
  * Removes an attachment from the attachments list at `attachments_ptr`.
+ * Returns true if the attachment was found and removed.
  */
-void sentry__attachments_remove(
+bool sentry__attachments_remove(
     sentry_attachment_t **attachments_ptr, sentry_attachment_t *attachment);
 
 /**

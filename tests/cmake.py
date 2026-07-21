@@ -93,6 +93,7 @@ class CMake:
                     "sentry_example",
                     "sentry_test_unit",
                     "libsentry.dylib" if sys.platform == "darwin" else "libsentry.so",
+                    "sentry-crash",
                 ]
                 cmd = [
                     os.environ.get("LLVM_COV", "llvm-cov"),
