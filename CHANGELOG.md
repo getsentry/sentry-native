@@ -1,12 +1,12 @@
 # Changelog
 
-## 0.15.4
+## Unreleased
 
 **Fixes**:
 
 - Fix a memory leak when JSON parsing rejects invalid input after partially parsed value. ([#1887](https://github.com/getsentry/sentry-native/pull/1887))
 
-## Unreleased
+## 0.15.4
 
 **Features**:
 
