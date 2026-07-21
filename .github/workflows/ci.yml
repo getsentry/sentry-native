@@ -196,9 +196,10 @@ jobs:
           - name: Windows (latest, ninja + sccache)
             os: windows-latest
             USE_SCCACHE: 1
-          - name: Windows ClangCL (2022)
+          - name: Windows ClangCL (2022 + llvm-cov)
             os: windows-2022
             VS_GENERATOR_TOOLSET: ClangCL
+            RUN_ANALYZER: llvm-cov
           - name: LLVM-Mingw
             os: windows-latest
             TEST_MINGW: 1
