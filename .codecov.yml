@@ -8,4 +8,4 @@ coverage:
 comment:
   layout: "diff"
   require_changes: true
-  after_n_builds: 4 # linux llvm-cov, linux arm64 llvm-cov, linux kcov, mac llvm-cov
+  after_n_builds: 5 # linux llvm-cov, linux arm64 llvm-cov, linux kcov, mac llvm-cov, windows clangcl llvm-cov
