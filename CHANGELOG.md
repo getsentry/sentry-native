@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+**Features**:
+
+- Report `cache_overflow` discards due to `cache_max_items` or `cache_max_size`. ([#1884](https://github.com/getsentry/sentry-native/pull/1884))
+
 **Fixes**:
 
 - Fix scope data loss from shared `sentry_value_t` containers while significantly improving scope merge performance with copy-on-write cloning. ([#1794](https://github.com/getsentry/sentry-native/pull/1794))
@@ -9,12 +13,6 @@
 - Crashpad: wait reliably for crash report uploads. ([#1885](https://github.com/getsentry/sentry-native/pull/1885))
 
 ## 0.15.4
-
-**Features**:
-
-- Report `cache_overflow` discards due to `cache_max_items` or `cache_max_size`. ([#1884](https://github.com/getsentry/sentry-native/pull/1884))
-
-## Unreleased
 
 **Features**:
 
