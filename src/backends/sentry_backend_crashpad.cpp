@@ -80,8 +80,11 @@ extern "C" {
 // is used in code sections or translation units solely building for Windows.
 #ifdef SENTRY_PLATFORM_WINDOWS
 #    define SENTRY_PATH_PLATFORM_STR(PATH) PATH->path_w
+#    define SENTRY_CRASHPAD_STACK_CHECKPOINT(CHECKPOINT)                       \
+        sentry__log_current_thread_stack(CHECKPOINT)
 #else
 #    define SENTRY_PATH_PLATFORM_STR(PATH) PATH->path
+#    define SENTRY_CRASHPAD_STACK_CHECKPOINT(CHECKPOINT) ((void)0)
 #endif
 
 template <typename T>
@@ -389,6 +392,7 @@ flush_scope_from_handler(
 static bool
 crashpad_handler(EXCEPTION_POINTERS *ExceptionInfo)
 {
+    SENTRY_CRASHPAD_STACK_CHECKPOINT("handler-enter");
 #    else
 static bool
 crashpad_handler(int signum, siginfo_t *info, ucontext_t *user_context)
@@ -403,16 +407,20 @@ crashpad_handler(int signum, siginfo_t *info, ucontext_t *user_context)
         }
     }
 
+    SENTRY_CRASHPAD_STACK_CHECKPOINT("before-initial-log");
     SENTRY_INFO("flushing session and queue before crashpad handler");
+    SENTRY_CRASHPAD_STACK_CHECKPOINT("after-initial-log");
 
     bool should_dump = true;
 
     SENTRY_WITH_OPTIONS (options) {
         auto state = static_cast<crashpad_state_t *>(options->backend->data);
+        SENTRY_CRASHPAD_STACK_CHECKPOINT("before-event-create");
         sentry_value_t crash_event
             = sentry__value_new_event_with_id(&state->crash_event_id);
         sentry_value_set_by_key(
             crash_event, "level", sentry__value_new_level(SENTRY_LEVEL_FATAL));
+        SENTRY_CRASHPAD_STACK_CHECKPOINT("after-event-create");
 
         if (options->on_crash_func) {
             sentry_ucontext_t uctx;
@@ -435,34 +443,48 @@ crashpad_handler(int signum, siginfo_t *info, ucontext_t *user_context)
 
         // Flush logs and metrics in a crash-safe manner before crash handling
         if (options->enable_logs) {
+            SENTRY_CRASHPAD_STACK_CHECKPOINT("before-logs-flush");
             sentry__logs_flush_crash_safe();
+            SENTRY_CRASHPAD_STACK_CHECKPOINT("after-logs-flush");
         }
         if (options->enable_metrics) {
+            SENTRY_CRASHPAD_STACK_CHECKPOINT("before-metrics-flush");
             sentry__metrics_flush_crash_safe();
+            SENTRY_CRASHPAD_STACK_CHECKPOINT("after-metrics-flush");
         }
 
         should_dump = !sentry_value_is_null(crash_event);
 
         if (should_dump) {
             sentry_value_incref(crash_event);
+            SENTRY_CRASHPAD_STACK_CHECKPOINT("before-scope-flush");
             flush_scope_from_handler(options, crash_event);
+            SENTRY_CRASHPAD_STACK_CHECKPOINT("after-scope-flush");
             sentry__write_crash_marker(options);
+            SENTRY_CRASHPAD_STACK_CHECKPOINT("after-crash-marker");
 
             sentry__record_errors_on_current_session(1);
+            SENTRY_CRASHPAD_STACK_CHECKPOINT("before-session-end");
             sentry_session_t *session = sentry__end_current_session_with_status(
                 SENTRY_SESSION_STATUS_CRASHED);
+            SENTRY_CRASHPAD_STACK_CHECKPOINT("after-session-end");
             if (session) {
                 sentry_envelope_t *envelope = sentry__envelope_new();
                 sentry__envelope_add_session(envelope, session);
 
                 // capture the envelope with the disk transport
+                SENTRY_CRASHPAD_STACK_CHECKPOINT("before-disk-transport");
                 sentry_transport_t *disk_transport
                     = sentry_new_disk_transport(options->run);
+                SENTRY_CRASHPAD_STACK_CHECKPOINT("before-session-capture");
                 sentry__capture_envelope(disk_transport, envelope, options);
+                SENTRY_CRASHPAD_STACK_CHECKPOINT("before-session-dump");
                 sentry__transport_dump_queue(disk_transport, options->run);
                 sentry_transport_free(disk_transport);
+                SENTRY_CRASHPAD_STACK_CHECKPOINT("after-session-dump");
             }
 
+            SENTRY_CRASHPAD_STACK_CHECKPOINT("before-replay-check");
             if (sentry__session_replay_has_pending(options)) {
                 // the crash event was scope-applied without breadcrumbs, so
                 // set them on the in-memory copy to let the replay recording
@@ -484,13 +506,18 @@ crashpad_handler(int signum, siginfo_t *info, ucontext_t *user_context)
                 }
             }
             sentry_value_decref(crash_event);
+            SENTRY_CRASHPAD_STACK_CHECKPOINT("after-replay-check");
         } else {
             SENTRY_DEBUG("event was discarded");
         }
+        SENTRY_CRASHPAD_STACK_CHECKPOINT("before-transport-dump");
         sentry__transport_dump_queue(options->transport, options->run);
+        SENTRY_CRASHPAD_STACK_CHECKPOINT("after-transport-dump");
     }
 
+    SENTRY_CRASHPAD_STACK_CHECKPOINT("before-final-log");
     SENTRY_INFO("handing control over to crashpad");
+    SENTRY_CRASHPAD_STACK_CHECKPOINT("handler-exit");
 
     // If we __don't__ want a minidump produced by crashpad we need to either
     // exit or longjmp at this point. The crashpad client handler which calls

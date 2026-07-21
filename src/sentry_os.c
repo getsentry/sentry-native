@@ -303,6 +303,74 @@ sentry__init_cached_kernel32_functions(void)
 #    undef LOAD_FUNCTION
 }
 
+static char *
+append_stack_measurement_text(char *dest, const char *end, const char *text)
+{
+    while (dest < end && *text) {
+        *dest++ = *text++;
+    }
+    return dest;
+}
+
+static char *
+append_stack_measurement_size(char *dest, const char *end, size_t value)
+{
+    char digits[24];
+    size_t count = 0;
+    do {
+        digits[count++] = (char)('0' + value % 10);
+        value /= 10;
+    } while (value && count < sizeof(digits));
+
+    while (dest < end && count) {
+        *dest++ = digits[--count];
+    }
+    return dest;
+}
+
+void
+sentry__log_current_thread_stack(const char *checkpoint)
+{
+    if (!g_kernel32_GetCurrentThreadStackLimits) {
+        return;
+    }
+
+    ULONG_PTR low = 0;
+    ULONG_PTR high = 0;
+    const char stack_marker = 0;
+    const ULONG_PTR stack_pointer = (ULONG_PTR)&stack_marker;
+    g_kernel32_GetCurrentThreadStackLimits(&low, &high);
+
+    const size_t remaining
+        = stack_pointer >= low ? (size_t)(stack_pointer - low) : 0;
+    const size_t used
+        = stack_pointer <= high ? (size_t)(high - stack_pointer) : 0;
+
+    char message[160];
+    char *cursor = message;
+    const char *end = message + sizeof(message) - 1;
+    cursor = append_stack_measurement_text(
+        cursor, end, "[sentry] STACK checkpoint=");
+    cursor = append_stack_measurement_text(cursor, end, checkpoint);
+    cursor = append_stack_measurement_text(cursor, end, " remaining=");
+    cursor = append_stack_measurement_size(cursor, end, remaining);
+    cursor = append_stack_measurement_text(cursor, end, " used=");
+    cursor = append_stack_measurement_size(cursor, end, used);
+    cursor = append_stack_measurement_text(cursor, end, " total=");
+    cursor = append_stack_measurement_size(
+        cursor, end, high >= low ? (size_t)(high - low) : 0);
+    cursor = append_stack_measurement_text(cursor, end, "\n");
+    *cursor = '\0';
+
+    OutputDebugStringA(message);
+    HANDLE stderr_handle = GetStdHandle(STD_ERROR_HANDLE);
+    if (stderr_handle && stderr_handle != INVALID_HANDLE_VALUE) {
+        DWORD written;
+        WriteFile(
+            stderr_handle, message, (DWORD)(cursor - message), &written, NULL);
+    }
+}
+
 int
 sentry_set_thread_stack_guarantee(uint32_t stack_guarantee_in_bytes)
 {

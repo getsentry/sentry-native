@@ -17,6 +17,7 @@ int sentry__get_windows_version(windows_version_t *win_ver);
 void sentry__set_default_thread_stack_guarantee(void);
 void sentry__init_cached_kernel32_functions(void);
 void sentry__get_system_time(LPFILETIME filetime);
+void sentry__log_current_thread_stack(const char *checkpoint);
 
 typedef void (*sentry__win32_abort_handler_t)(EXCEPTION_POINTERS *);
 void sentry__win32_install_sigabrt_handler(
