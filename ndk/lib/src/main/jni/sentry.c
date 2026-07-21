@@ -308,6 +308,16 @@ Java_io_sentry_ndk_NativeScope_nativeClearAttachments(JNIEnv *env, jclass cls)
     sentry_clear_attachments();
 }
 
+// sentry_path.h
+struct sentry_path_s;
+extern struct sentry_path_s *sentry__path_from_str(const char *s);
+extern int sentry__path_create_dir_all(const struct sentry_path_s *path);
+extern void sentry__path_free(struct sentry_path_s *path);
+
+// sentry_logger.h
+extern void sentry__logger_log(
+    sentry_level_t level, const char *message, ...);
+
 static void
 send_envelope(sentry_envelope_t *envelope, void *data)
 {
@@ -316,6 +326,18 @@ send_envelope(sentry_envelope_t *envelope, void *data)
 
     sentry_uuid_t envelope_id = sentry_uuid_new_v4();
     sentry_uuid_as_string(&envelope_id, envelope_id_str);
+
+    // The head SDK may create the outbox lazily, so ensure it exists before
+    // writing into it; the underlying file write does not create parent
+    // directories and would otherwise silently fail.
+    struct sentry_path_s *outbox = sentry__path_from_str(outbox_path);
+    if (outbox) {
+        if (sentry__path_create_dir_all(outbox) != 0) {
+            sentry__logger_log(SENTRY_LEVEL_ERROR,
+                "failed to create outbox directory \"%s\"", outbox_path);
+        }
+        sentry__path_free(outbox);
+    }
 
     size_t outbox_len = strlen(outbox_path);
     size_t final_len = outbox_len + 42; // "/" + envelope_id_str + "\0" = 42
