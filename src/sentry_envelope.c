@@ -1318,6 +1318,8 @@ discard_reason_to_string(sentry_discard_reason_t reason)
     switch (reason) {
     case SENTRY_DISCARD_REASON_QUEUE_OVERFLOW:
         return "queue_overflow";
+    case SENTRY_DISCARD_REASON_CACHE_OVERFLOW:
+        return "cache_overflow";
     case SENTRY_DISCARD_REASON_RATELIMIT_BACKOFF:
         return "ratelimit_backoff";
     case SENTRY_DISCARD_REASON_NETWORK_ERROR:
