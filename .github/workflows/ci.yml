@@ -368,6 +368,14 @@ jobs:
         if: ${{ runner.os == 'macOS' }}
         run: echo "SDKROOT=$(xcrun --sdk macosx --show-sdk-path)" >> "$GITHUB_ENV"
 
+      - name: Set LLVM tools for ClangCL
+        if: ${{ runner.os == 'Windows' && env['VS_GENERATOR_TOOLSET'] == 'ClangCL' && contains(env['RUN_ANALYZER'], 'llvm-cov') }}
+        shell: powershell
+        run: |
+          $llvm = Split-Path (Get-Command clang-cl.exe).Source
+          "LLVM_PROFDATA=$llvm\llvm-profdata.exe" >> $env:GITHUB_ENV
+          "LLVM_COV=$llvm\llvm-cov.exe" >> $env:GITHUB_ENV
+
       - name: Remove Strawberry Perl from PATH
         if: ${{ runner.os == 'Windows' }}
         shell: powershell
