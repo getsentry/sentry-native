@@ -1,12 +1,12 @@
 # Changelog
 
-## 0.15.4
+## Unreleased
 
 **Fixes**:
 
 - Crashpad: wait reliably for crash report uploads. ([#1885](https://github.com/getsentry/sentry-native/pull/1885))
 
-## Unreleased
+## 0.15.4
 
 **Features**:
 
