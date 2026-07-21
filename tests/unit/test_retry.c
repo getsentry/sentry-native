@@ -66,7 +66,7 @@ write_retry_file(const sentry_run_t *run, uint64_t timestamp, int retry_count,
 
     sentry_path_t *path
         = sentry__run_make_cache_path(run, timestamp, retry_count, uuid);
-    (void)sentry_envelope_write_to_path(envelope, path);
+    (void)!sentry_envelope_write_to_path(envelope, path);
     sentry__path_free(path);
     sentry_envelope_free(envelope);
 }

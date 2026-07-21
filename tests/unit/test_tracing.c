@@ -912,6 +912,83 @@ SENTRY_TEST(drop_unfinished_spans)
     TEST_CHECK_INT_EQUAL(called_transport, 1);
 }
 
+SENTRY_TEST(discard_transaction)
+{
+    uint64_t called = 0;
+
+    SENTRY_TEST_OPTIONS_NEW(options);
+    sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
+    sentry_options_set_auto_session_tracking(options, 0);
+    sentry_options_set_traces_sample_rate(options, 1.0);
+
+    sentry_transport_t *transport = sentry_transport_new(count_envelope);
+    sentry_transport_set_state(transport, &called);
+    sentry_options_set_transport(options, transport);
+
+    sentry_init(options);
+
+    sentry_transaction_context_t *tx_ctx
+        = sentry_transaction_context_new("discarded", "op");
+    sentry_transaction_t *tx
+        = sentry_transaction_start(tx_ctx, sentry_value_new_null());
+    sentry_set_transaction_object(tx);
+
+    SENTRY_WITH_SCOPE (scope) {
+        TEST_CHECK(scope->transaction_object == tx);
+    }
+
+    sentry_transaction_discard(tx);
+
+    SENTRY_WITH_SCOPE (scope) {
+        TEST_CHECK(scope->transaction_object == NULL);
+    }
+
+    sentry_close();
+    TEST_CHECK_INT_EQUAL(called, 0);
+}
+
+SENTRY_TEST(discard_span)
+{
+    uint64_t called = 0;
+
+    SENTRY_TEST_OPTIONS_NEW(options);
+    sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
+    sentry_options_set_auto_session_tracking(options, 0);
+    sentry_options_set_traces_sample_rate(options, 1.0);
+
+    sentry_transport_t *transport = sentry_transport_new(count_envelope);
+    sentry_transport_set_state(transport, &called);
+    sentry_options_set_transport(options, transport);
+
+    sentry_init(options);
+
+    sentry_transaction_context_t *tx_ctx
+        = sentry_transaction_context_new("kept", "op");
+    sentry_transaction_t *tx
+        = sentry_transaction_start(tx_ctx, sentry_value_new_null());
+    sentry_span_t *span = sentry_transaction_start_child(tx, "dropped", "span");
+    sentry_set_span(span);
+
+    SENTRY_WITH_SCOPE (scope) {
+        TEST_CHECK(scope->span == span);
+    }
+
+    sentry_span_discard(span);
+
+    SENTRY_WITH_SCOPE (scope) {
+        TEST_CHECK(scope->span == NULL);
+    }
+    TEST_CHECK_INT_EQUAL(
+        sentry_value_get_length(sentry_value_get_by_key(tx->inner, "spans")),
+        0);
+
+    sentry_uuid_t event_id = sentry_transaction_finish(tx);
+    TEST_CHECK(!sentry_uuid_is_nil(&event_id));
+
+    sentry_close();
+    TEST_CHECK_INT_EQUAL(called, 1);
+}
+
 static void
 forward_headers_to(const char *key, const char *value, void *userdata)
 {

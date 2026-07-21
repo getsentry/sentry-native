@@ -5,6 +5,7 @@
 
 #include "sentry_attachment.h"
 #include "sentry_database.h"
+#include "sentry_integration.h"
 #include "sentry_logger.h"
 #include "sentry_session.h"
 #include "sentry_utils.h"
@@ -95,6 +96,8 @@ struct sentry_options_s {
        not exposed through the options API */
     struct sentry_backend_s *backend;
     sentry_session_t *session;
+    sentry_integration_t **integrations;
+    size_t num_integrations;
 
     long refcount;
     uint64_t shutdown_timeout;
@@ -123,5 +126,14 @@ sentry_options_t *sentry__options_incref(sentry_options_t *options);
  * otherwise NULL.
  */
 const char *sentry__options_get_org_id(const sentry_options_t *options);
+
+/**
+ * Adds an integration to the options.
+ *
+ * Takes ownership of `integration`. If the integration owns `data`, it must
+ * provide `free_func`.
+ */
+void sentry__options_add_integration(
+    sentry_options_t *opts, sentry_integration_t *integration);
 
 #endif

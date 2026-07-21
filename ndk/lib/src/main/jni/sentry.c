@@ -115,6 +115,26 @@ Java_io_sentry_ndk_NativeScope_nativeRemoveExtra(
 }
 
 JNIEXPORT void JNICALL
+Java_io_sentry_ndk_NativeScope_nativeSetEnvironment(
+    JNIEnv *env, jclass cls, jstring environment)
+{
+    if (!environment) {
+        sentry_set_environment(NULL);
+        return;
+    }
+
+    const char *charEnvironment
+        = (*env)->GetStringUTFChars(env, environment, 0);
+    if (!charEnvironment) {
+        return;
+    }
+
+    sentry_set_environment(charEnvironment);
+
+    (*env)->ReleaseStringUTFChars(env, environment, charEnvironment);
+}
+
+JNIEXPORT void JNICALL
 Java_io_sentry_ndk_NativeScope_nativeSetUser(JNIEnv *env, jclass cls,
     jstring id, jstring email, jstring ipAddress, jstring username)
 {

@@ -359,8 +359,21 @@ sentry__path_is_symlink(const sentry_path_t *path)
         return false;
     }
     const DWORD attributes = GetFileAttributesW(path_w);
-    return attributes != INVALID_FILE_ATTRIBUTES
-        && (attributes & FILE_ATTRIBUTE_REPARSE_POINT) != 0;
+    if (attributes == INVALID_FILE_ATTRIBUTES
+        || (attributes & FILE_ATTRIBUTE_REPARSE_POINT) == 0) {
+        return false;
+    }
+
+    // https://learn.microsoft.com/en-us/windows/win32/fileio/reparse-point-tags
+    WIN32_FIND_DATAW data;
+    const HANDLE find_handle = FindFirstFileW(path_w, &data);
+    if (find_handle == INVALID_HANDLE_VALUE) {
+        return true;
+    }
+    FindClose(find_handle);
+
+    return (data.dwFileAttributes & FILE_ATTRIBUTE_REPARSE_POINT) != 0
+        && IsReparseTagNameSurrogate(data.dwReserved0) != 0;
 }
 
 size_t

@@ -369,6 +369,12 @@ SENTRY_TEST(value_object)
     TEST_CHECK_JSON_VALUE(
         val, "{\"key1\":100,\"key3\":3,\"key5\":5,\"key7\":7,\"key9\":9}");
 
+    char *taken_key = sentry__value_remove_and_take_key_n(val, "key1!", 4);
+    TEST_CHECK_STRING_EQUAL(taken_key, "key1");
+    sentry_free(taken_key);
+    TEST_CHECK(sentry_value_get_length(val) == 4);
+    TEST_CHECK_JSON_VALUE(val, "{\"key3\":3,\"key5\":5,\"key7\":7,\"key9\":9}");
+
     sentry_value_decref(val);
 
     val = sentry_value_new_object();
@@ -432,6 +438,294 @@ SENTRY_TEST(value_object_merge_nested)
     TEST_CHECK_INT_EQUAL(sentry_value_as_int32(ba), 1);
     TEST_CHECK_INT_EQUAL(sentry_value_as_int32(bb), 2);
     TEST_CHECK_INT_EQUAL(sentry_value_as_int32(bc), 30);
+
+    sentry_value_decref(dst);
+}
+
+SENTRY_TEST(value_clone_list)
+{
+    sentry_value_t original = sentry_value_new_list();
+    sentry_value_append(original, sentry_value_new_int32(1));
+    sentry_value_append(original, sentry_value_new_int32(2));
+    sentry_value_append(original, sentry_value_new_int32(3));
+
+    sentry_value_t clone = sentry__value_clone(original);
+    TEST_CHECK(sentry_value_refcount(clone) == 1);
+    TEST_CHECK_JSON_VALUE(clone, "[1,2,3]");
+
+    // mutating the clone triggers COW — original is unaffected
+    sentry_value_append(clone, sentry_value_new_int32(4));
+    TEST_CHECK_JSON_VALUE(clone, "[1,2,3,4]");
+    TEST_CHECK_JSON_VALUE(original, "[1,2,3]");
+
+    sentry_value_set_by_index(clone, 0, sentry_value_new_int32(10));
+    TEST_CHECK_JSON_VALUE(clone, "[10,2,3,4]");
+    TEST_CHECK_JSON_VALUE(original, "[1,2,3]");
+
+    sentry_value_remove_by_index(clone, 1);
+    TEST_CHECK_JSON_VALUE(clone, "[10,3,4]");
+    TEST_CHECK_JSON_VALUE(original, "[1,2,3]");
+
+    sentry_value_decref(clone);
+    // original still valid after clone is freed
+    TEST_CHECK_JSON_VALUE(original, "[1,2,3]");
+    sentry_value_decref(original);
+}
+
+SENTRY_TEST(value_clone_object)
+{
+    sentry_value_t original = sentry_value_new_object();
+    sentry_value_set_by_key(original, "a", sentry_value_new_int32(1));
+    sentry_value_set_by_key(original, "b", sentry_value_new_int32(2));
+
+    sentry_value_t clone = sentry__value_clone(original);
+    TEST_CHECK(sentry_value_refcount(clone) == 1);
+    TEST_CHECK_JSON_VALUE(clone, "{\"a\":1,\"b\":2}");
+
+    // mutating the clone triggers COW — original is unaffected
+    sentry_value_set_by_key(clone, "a", sentry_value_new_int32(10));
+    TEST_CHECK_INT_EQUAL(
+        sentry_value_as_int32(sentry_value_get_by_key(clone, "a")), 10);
+    TEST_CHECK_INT_EQUAL(
+        sentry_value_as_int32(sentry_value_get_by_key(original, "a")), 1);
+
+    sentry_value_set_by_key(clone, "c", sentry_value_new_int32(3));
+    TEST_CHECK(sentry_value_get_length(clone) == 3);
+    TEST_CHECK(sentry_value_get_length(original) == 2);
+
+    sentry_value_remove_by_key(clone, "b");
+    TEST_CHECK(sentry_value_get_length(clone) == 2);
+    TEST_CHECK(sentry_value_get_length(original) == 2);
+
+    sentry_value_decref(clone);
+    TEST_CHECK_JSON_VALUE(original, "{\"a\":1,\"b\":2}");
+    sentry_value_decref(original);
+}
+
+SENTRY_TEST(value_clone_frozen)
+{
+    sentry_value_t original = sentry_value_new_object();
+    sentry_value_set_by_key(original, "a", sentry_value_new_int32(1));
+    sentry_value_freeze(original);
+    TEST_CHECK(sentry_value_is_frozen(original));
+
+    sentry_value_t clone = sentry__value_clone(original);
+    TEST_CHECK(!sentry_value_is_frozen(clone));
+
+    // clone is mutable even though original is frozen
+    sentry_value_set_by_key(clone, "b", sentry_value_new_int32(2));
+    TEST_CHECK_JSON_VALUE(clone, "{\"a\":1,\"b\":2}");
+    TEST_CHECK_JSON_VALUE(original, "{\"a\":1}");
+
+    sentry_value_decref(clone);
+    sentry_value_decref(original);
+}
+
+SENTRY_TEST(value_clone_multiple)
+{
+    sentry_value_t original = sentry_value_new_list();
+    sentry_value_append(original, sentry_value_new_int32(1));
+
+    sentry_value_t clone1 = sentry__value_clone(original);
+    sentry_value_t clone2 = sentry__value_clone(original);
+
+    // each clone can be mutated independently
+    sentry_value_append(clone1, sentry_value_new_int32(2));
+    sentry_value_append(clone2, sentry_value_new_int32(3));
+
+    TEST_CHECK_JSON_VALUE(original, "[1]");
+    TEST_CHECK_JSON_VALUE(clone1, "[1,2]");
+    TEST_CHECK_JSON_VALUE(clone2, "[1,3]");
+
+    sentry_value_decref(original);
+    sentry_value_decref(clone1);
+    sentry_value_decref(clone2);
+}
+
+SENTRY_TEST(value_clone_of_clone)
+{
+    sentry_value_t original = sentry_value_new_object();
+    sentry_value_set_by_key(original, "x", sentry_value_new_int32(1));
+
+    sentry_value_t clone1 = sentry__value_clone(original);
+    sentry_value_t clone2 = sentry__value_clone(clone1);
+
+    sentry_value_set_by_key(clone2, "y", sentry_value_new_int32(2));
+    TEST_CHECK_JSON_VALUE(original, "{\"x\":1}");
+    TEST_CHECK_JSON_VALUE(clone1, "{\"x\":1}");
+    TEST_CHECK_JSON_VALUE(clone2, "{\"x\":1,\"y\":2}");
+
+    sentry_value_decref(original);
+    sentry_value_decref(clone1);
+    sentry_value_decref(clone2);
+}
+
+SENTRY_TEST(value_clone_merge)
+{
+    sentry_value_t original = sentry_value_new_object();
+    sentry_value_set_by_key(original, "a", sentry_value_new_int32(1));
+
+    sentry_value_t clone = sentry__value_clone(original);
+
+    sentry_value_t src = sentry_value_new_object();
+    sentry_value_set_by_key(src, "b", sentry_value_new_int32(2));
+
+    int rv = sentry__value_merge_objects(clone, src);
+    TEST_CHECK_INT_EQUAL(rv, 0);
+    sentry_value_decref(src);
+
+    TEST_CHECK_JSON_VALUE(clone, "{\"a\":1,\"b\":2}");
+    TEST_CHECK_JSON_VALUE(original, "{\"a\":1}");
+
+    sentry_value_decref(clone);
+    sentry_value_decref(original);
+}
+
+SENTRY_TEST(value_clone_free_original_first)
+{
+    sentry_value_t original = sentry_value_new_list();
+    sentry_value_append(original, sentry_value_new_string("hello"));
+    sentry_value_append(original, sentry_value_new_int32(42));
+
+    sentry_value_t clone = sentry__value_clone(original);
+    // free original while clone still shares data
+    sentry_value_decref(original);
+
+    TEST_CHECK_JSON_VALUE(clone, "[\"hello\",42]");
+    sentry_value_append(clone, sentry_value_new_int32(3));
+    TEST_CHECK_JSON_VALUE(clone, "[\"hello\",42,3]");
+    sentry_value_decref(clone);
+}
+
+SENTRY_TEST(value_clone_nested_modify_leaf)
+{
+    // {ctx: {name: "os", ver: "14"}, tag: "v1"}
+    sentry_value_t original = sentry_value_new_object();
+    sentry_value_t child = sentry_value_new_object();
+    sentry_value_set_by_key(child, "name", sentry_value_new_string("os"));
+    sentry_value_set_by_key(child, "ver", sentry_value_new_string("14"));
+    sentry_value_set_by_key(original, "ctx", child);
+    sentry_value_set_by_key(original, "tag", sentry_value_new_string("v1"));
+
+    sentry_value_t clone = sentry__value_clone(original);
+
+    // mutate a leaf key on the clone — original unaffected
+    sentry_value_set_by_key(clone, "tag", sentry_value_new_string("v2"));
+    TEST_CHECK_STRING_EQUAL(
+        sentry_value_as_string(sentry_value_get_by_key(original, "tag")), "v1");
+    TEST_CHECK_STRING_EQUAL(
+        sentry_value_as_string(sentry_value_get_by_key(clone, "tag")), "v2");
+
+    // nested child objects are independent
+    sentry_value_t clone_ctx = sentry_value_get_by_key(clone, "ctx");
+    sentry_value_set_by_key(clone_ctx, "name", sentry_value_new_string("win"));
+    sentry_value_set_by_key(clone_ctx, "arch", sentry_value_new_string("x64"));
+
+    sentry_value_t orig_ctx = sentry_value_get_by_key(original, "ctx");
+    TEST_CHECK_STRING_EQUAL(
+        sentry_value_as_string(sentry_value_get_by_key(orig_ctx, "name")),
+        "os");
+    TEST_CHECK(sentry_value_is_null(sentry_value_get_by_key(orig_ctx, "arch")));
+    TEST_CHECK(sentry_value_get_length(orig_ctx) == 2);
+
+    TEST_CHECK_STRING_EQUAL(
+        sentry_value_as_string(sentry_value_get_by_key(clone_ctx, "name")),
+        "win");
+    TEST_CHECK_STRING_EQUAL(
+        sentry_value_as_string(sentry_value_get_by_key(clone_ctx, "arch")),
+        "x64");
+    TEST_CHECK(sentry_value_get_length(clone_ctx) == 3);
+
+    sentry_value_decref(clone);
+    sentry_value_decref(original);
+}
+
+SENTRY_TEST(value_clone_nested_modify_middle)
+{
+    // [[1, 2], [3, 4]]
+    sentry_value_t original = sentry_value_new_list();
+    sentry_value_t inner0 = sentry_value_new_list();
+    sentry_value_append(inner0, sentry_value_new_int32(1));
+    sentry_value_append(inner0, sentry_value_new_int32(2));
+    sentry_value_t inner1 = sentry_value_new_list();
+    sentry_value_append(inner1, sentry_value_new_int32(3));
+    sentry_value_append(inner1, sentry_value_new_int32(4));
+    sentry_value_append(original, inner0);
+    sentry_value_append(original, inner1);
+
+    sentry_value_t clone = sentry__value_clone(original);
+
+    // replace a whole nested list in the clone (middle-level mutation)
+    sentry_value_t replacement = sentry_value_new_list();
+    sentry_value_append(replacement, sentry_value_new_int32(99));
+    sentry_value_set_by_index(clone, 0, replacement);
+
+    TEST_CHECK_JSON_VALUE(original, "[[1,2],[3,4]]");
+    TEST_CHECK_JSON_VALUE(clone, "[[99],[3,4]]");
+
+    // mutate a leaf inside the other nested list
+    sentry_value_t clone_inner1 = sentry_value_get_by_index(clone, 1);
+    sentry_value_append(clone_inner1, sentry_value_new_int32(5));
+
+    TEST_CHECK_JSON_VALUE(original, "[[1,2],[3,4]]");
+    TEST_CHECK_JSON_VALUE(clone, "[[99],[3,4,5]]");
+
+    sentry_value_decref(clone);
+    sentry_value_decref(original);
+}
+
+SENTRY_TEST(value_object_merge_shallow)
+{
+    sentry_value_t dst = sentry_value_new_object();
+    sentry_value_set_by_key(dst, "a", sentry_value_new_int32(1));
+    sentry_value_set_by_key(dst, "b", sentry_value_new_int32(2));
+
+    sentry_value_t src = sentry_value_new_object();
+    sentry_value_set_by_key(src, "b", sentry_value_new_int32(20));
+    sentry_value_set_by_key(src, "c", sentry_value_new_int32(30));
+
+    int rv = sentry__value_merge_objects_shallow(dst, src);
+    TEST_CHECK_INT_EQUAL(rv, 0);
+    sentry_value_decref(src);
+
+    sentry_value_t a = sentry_value_get_by_key(dst, "a");
+    sentry_value_t b = sentry_value_get_by_key(dst, "b");
+    sentry_value_t c = sentry_value_get_by_key(dst, "c");
+    TEST_CHECK_INT_EQUAL(sentry_value_as_int32(a), 1);
+    TEST_CHECK_INT_EQUAL(sentry_value_as_int32(b), 2);
+    TEST_CHECK_INT_EQUAL(sentry_value_as_int32(c), 30);
+
+    sentry_value_decref(dst);
+}
+
+SENTRY_TEST(value_object_merge_shallow_nested)
+{
+    sentry_value_t dst = sentry_value_new_object();
+    sentry_value_set_by_key(dst, "a", sentry_value_new_int32(1));
+    sentry_value_t dst_nested = sentry_value_new_object();
+    sentry_value_set_by_key(dst_nested, "ba", sentry_value_new_int32(1));
+    sentry_value_set_by_key(dst_nested, "bb", sentry_value_new_int32(2));
+    sentry_value_set_by_key(dst, "b", dst_nested);
+
+    sentry_value_t src = sentry_value_new_object();
+    sentry_value_t src_nested = sentry_value_new_object();
+    sentry_value_set_by_key(src_nested, "bb", sentry_value_new_int32(20));
+    sentry_value_set_by_key(src_nested, "bc", sentry_value_new_int32(30));
+    sentry_value_set_by_key(src, "b", src_nested);
+
+    int rv = sentry__value_merge_objects_shallow(dst, src);
+    TEST_CHECK_INT_EQUAL(rv, 0);
+    sentry_value_decref(src);
+
+    sentry_value_t a = sentry_value_get_by_key(dst, "a");
+    sentry_value_t nested = sentry_value_get_by_key(dst, "b");
+    sentry_value_t ba = sentry_value_get_by_key(nested, "ba");
+    sentry_value_t bb = sentry_value_get_by_key(nested, "bb");
+    sentry_value_t bc = sentry_value_get_by_key(nested, "bc");
+    TEST_CHECK_INT_EQUAL(sentry_value_as_int32(a), 1);
+    TEST_CHECK_INT_EQUAL(sentry_value_as_int32(ba), 1);
+    TEST_CHECK_INT_EQUAL(sentry_value_as_int32(bb), 2);
+    TEST_CHECK(sentry_value_is_null(bc));
 
     sentry_value_decref(dst);
 }
@@ -815,6 +1109,10 @@ SENTRY_TEST(value_json_parsing)
     rv = sentry__value_from_json(STRING("false"));
     TEST_CHECK(sentry_value_get_type(rv) == SENTRY_VALUE_TYPE_BOOL);
     TEST_CHECK(!sentry_value_is_true(rv));
+    sentry_value_decref(rv);
+
+    rv = sentry__value_from_json(STRING("invalid json"));
+    TEST_CHECK(sentry_value_is_null(rv));
     sentry_value_decref(rv);
 
     rv = sentry__value_from_json(STRING("[42, \"foo\\u2603\"]"));
@@ -1646,6 +1944,9 @@ SENTRY_TEST(value_from_msgpack_object)
 
 SENTRY_TEST(value_from_msgpack_flat_buffer)
 {
+    // buffers holding multiple concatenated msgpack values are rejected by
+    // `sentry__value_from_msgpack`; they must be decoded with
+    // `sentry__value_from_msgpack_stream` instead
     sentry_value_t val1 = sentry_value_new_list();
     sentry_value_append(val1, sentry_value_new_int32(1));
     sentry_value_append(val1, sentry_value_new_int32(2));
@@ -1656,9 +1957,56 @@ SENTRY_TEST(value_from_msgpack_flat_buffer)
     size_t size2 = 0;
     char *buf2 = sentry_value_to_msgpack(val2, &size2);
 
-    sentry_value_t val3 = sentry_value_new_string("three");
-    size_t size3 = 0;
-    char *buf3 = sentry_value_to_msgpack(val3, &size3);
+    char combined[256];
+    size_t combined_size = 0;
+    memcpy(combined + combined_size, buf1, size1);
+    combined_size += size1;
+    memcpy(combined + combined_size, buf2, size2);
+    combined_size += size2;
+
+    sentry_value_t result = sentry__value_from_msgpack(combined, combined_size);
+    TEST_CHECK(sentry_value_is_null(result));
+
+    // a single value followed by trailing garbage is rejected as well
+    combined_size = size1;
+    memset(combined + combined_size, 0xC1, 4); // 0xC1 is never used in msgpack
+    combined_size += 4;
+
+    result = sentry__value_from_msgpack(combined, combined_size);
+    TEST_CHECK(sentry_value_is_null(result));
+
+    sentry_free(buf1);
+    sentry_free(buf2);
+    sentry_value_decref(val1);
+    sentry_value_decref(val2);
+}
+
+SENTRY_TEST(value_from_msgpack_stream)
+{
+    TEST_CHECK(
+        sentry_value_is_null(sentry__value_from_msgpack_stream(NULL, 0)));
+    TEST_CHECK(sentry_value_is_null(sentry__value_from_msgpack_stream("", 0)));
+
+    // a single value decodes to a one-element list, unlike
+    // `sentry__value_from_msgpack` which decodes it bare
+    sentry_value_t val1 = sentry_value_new_object();
+    sentry_value_set_by_key(val1, "message", sentry_value_new_string("first"));
+    size_t size1 = 0;
+    char *buf1 = sentry_value_to_msgpack(val1, &size1);
+
+    sentry_value_t single = sentry__value_from_msgpack_stream(buf1, size1);
+    TEST_CHECK(sentry_value_get_type(single) == SENTRY_VALUE_TYPE_LIST);
+    TEST_CHECK(sentry_value_get_length(single) == 1);
+    TEST_CHECK_STRING_EQUAL(
+        sentry_value_as_string(sentry_value_get_by_key(
+            sentry_value_get_by_index(single, 0), "message")),
+        "first");
+
+    // multiple concatenated values decode to a list of all of them
+    sentry_value_t val2 = sentry_value_new_object();
+    sentry_value_set_by_key(val2, "message", sentry_value_new_string("second"));
+    size_t size2 = 0;
+    char *buf2 = sentry_value_to_msgpack(val2, &size2);
 
     char combined[256];
     size_t combined_size = 0;
@@ -1666,32 +2014,26 @@ SENTRY_TEST(value_from_msgpack_flat_buffer)
     combined_size += size1;
     memcpy(combined + combined_size, buf2, size2);
     combined_size += size2;
-    memcpy(combined + combined_size, buf3, size3);
-    combined_size += size3;
 
-    sentry_value_t result = sentry__value_from_msgpack(combined, combined_size);
-    TEST_CHECK(sentry_value_get_type(result) == SENTRY_VALUE_TYPE_LIST);
-    TEST_CHECK(sentry_value_get_length(result) == 3);
-
-    sentry_value_t elem0 = sentry_value_get_by_index(result, 0);
-    TEST_CHECK(sentry_value_get_type(elem0) == SENTRY_VALUE_TYPE_LIST);
-    TEST_CHECK(sentry_value_get_length(elem0) == 2);
-    TEST_CHECK(sentry_value_as_int32(sentry_value_get_by_index(elem0, 0)) == 1);
-    TEST_CHECK(sentry_value_as_int32(sentry_value_get_by_index(elem0, 1)) == 2);
-
-    sentry_value_t elem1 = sentry_value_get_by_index(result, 1);
-    TEST_CHECK(sentry_value_as_int32(elem1) == 2);
-
-    sentry_value_t elem2 = sentry_value_get_by_index(result, 2);
-    TEST_CHECK_STRING_EQUAL(sentry_value_as_string(elem2), "three");
+    sentry_value_t multi
+        = sentry__value_from_msgpack_stream(combined, combined_size);
+    TEST_CHECK(sentry_value_get_type(multi) == SENTRY_VALUE_TYPE_LIST);
+    TEST_CHECK(sentry_value_get_length(multi) == 2);
+    TEST_CHECK_STRING_EQUAL(
+        sentry_value_as_string(sentry_value_get_by_key(
+            sentry_value_get_by_index(multi, 0), "message")),
+        "first");
+    TEST_CHECK_STRING_EQUAL(
+        sentry_value_as_string(sentry_value_get_by_key(
+            sentry_value_get_by_index(multi, 1), "message")),
+        "second");
 
     sentry_free(buf1);
     sentry_free(buf2);
-    sentry_free(buf3);
     sentry_value_decref(val1);
     sentry_value_decref(val2);
-    sentry_value_decref(val3);
-    sentry_value_decref(result);
+    sentry_value_decref(single);
+    sentry_value_decref(multi);
 }
 
 #define TEST_CHECK_MESSAGE_EQUAL(breadcrumbs, index, message)                  \

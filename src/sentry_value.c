@@ -19,7 +19,7 @@
 #    pragma clang diagnostic ignored "-Wstatic-in-inline"
 #endif
 
-#include "../vendor/mpack.h"
+#include "sentry_mpack.h"
 
 #if defined(_MSC_VER)
 #    pragma warning(pop)
@@ -93,6 +93,7 @@ typedef struct {
     sentry_value_t *items;
     size_t len;
     size_t allocated;
+    long refcount;
 } list_t;
 
 typedef struct {
@@ -104,6 +105,7 @@ typedef struct {
     obj_pair_t *pairs;
     size_t len;
     size_t allocated;
+    long refcount;
 } obj_t;
 
 static const char *
@@ -161,32 +163,161 @@ thing_get_type(const thing_t *thing)
 }
 
 static void
-thing_free(thing_t *thing)
+list_free(list_t *list)
+{
+    if (sentry__atomic_fetch_and_add(&list->refcount, -1) != 1) {
+        return;
+    }
+    for (size_t i = 0; i < list->len; i++) {
+        sentry_value_decref(list->items[i]);
+    }
+    sentry_free(list->items);
+    sentry_free(list);
+}
+
+static void
+obj_free(obj_t *obj)
+{
+    if (sentry__atomic_fetch_and_add(&obj->refcount, -1) != 1) {
+        return;
+    }
+    for (size_t i = 0; i < obj->len; i++) {
+        sentry_free(obj->pairs[i].k);
+        sentry_value_decref(obj->pairs[i].v);
+    }
+    sentry_free(obj->pairs);
+    sentry_free(obj);
+}
+
+static list_t *
+list_clone(const list_t *list)
+{
+    list_t *clone = SENTRY_MAKE(list_t);
+    if (!clone) {
+        return NULL;
+    }
+    clone->len = list->len;
+    clone->allocated = list->len;
+    clone->refcount = 1;
+    if (list->len) {
+        clone->items = sentry_malloc(sizeof(sentry_value_t) * list->len);
+        if (!clone->items) {
+            sentry_free(clone);
+            return NULL;
+        }
+        memcpy(clone->items, list->items, sizeof(sentry_value_t) * list->len);
+        for (size_t i = 0; i < list->len; i++) {
+            sentry_value_incref(clone->items[i]);
+        }
+    }
+    return clone;
+}
+
+static obj_t *
+obj_clone(const obj_t *obj)
+{
+    obj_t *clone = SENTRY_MAKE(obj_t);
+    if (!clone) {
+        return NULL;
+    }
+    clone->allocated = obj->len;
+    clone->refcount = 1;
+    if (obj->len) {
+        clone->pairs = sentry_malloc(sizeof(obj_pair_t) * obj->len);
+        if (!clone->pairs) {
+            sentry_free(clone);
+            return NULL;
+        }
+        for (size_t i = 0; i < obj->len; i++) {
+            clone->pairs[i].k = sentry__string_clone(obj->pairs[i].k);
+            if (!clone->pairs[i].k) {
+                obj_free(clone);
+                return NULL;
+            }
+            clone->pairs[i].v = obj->pairs[i].v;
+            sentry_value_incref(clone->pairs[i].v);
+            clone->len++;
+        }
+    }
+    return clone;
+}
+
+static bool
+thing_detach(thing_t *thing)
 {
     switch (thing_get_type(thing)) {
     case THING_TYPE_LIST: {
-        list_t *list = thing->payload._ptr;
-        for (size_t i = 0; i < list->len; i++) {
-            sentry_value_decref(list->items[i]);
+        list_t *old = thing->payload._ptr;
+        if (sentry__atomic_fetch(&old->refcount) <= 1) {
+            return true;
         }
-        sentry_free(list->items);
-        sentry_free(list);
-        break;
+        list_t *clone = list_clone(old);
+        if (!clone) {
+            return false;
+        }
+        list_free(old);
+        thing->payload._ptr = clone;
+        return true;
     }
     case THING_TYPE_OBJECT: {
-        obj_t *obj = thing->payload._ptr;
-        for (size_t i = 0; i < obj->len; i++) {
-            sentry_free(obj->pairs[i].k);
-            sentry_value_decref(obj->pairs[i].v);
+        obj_t *old = thing->payload._ptr;
+        if (sentry__atomic_fetch(&old->refcount) <= 1) {
+            return true;
         }
-        sentry_free(obj->pairs);
-        sentry_free(obj);
+        obj_t *clone = obj_clone(old);
+        if (!clone) {
+            return false;
+        }
+        obj_free(old);
+        thing->payload._ptr = clone;
+        return true;
+    }
+    default:
+        return true;
+    }
+}
+
+static sentry_value_t
+thing_get_child(const thing_t *thing, size_t i)
+{
+    switch (thing_get_type(thing)) {
+    case THING_TYPE_LIST:
+        return ((const list_t *)thing->payload._ptr)->items[i];
+    case THING_TYPE_OBJECT:
+        return ((const obj_t *)thing->payload._ptr)->pairs[i].v;
+    default:
+        return sentry_value_new_null();
+    }
+}
+
+static void
+thing_set_child(thing_t *thing, size_t i, sentry_value_t value)
+{
+    switch (thing_get_type(thing)) {
+    case THING_TYPE_LIST:
+        ((list_t *)thing->payload._ptr)->items[i] = value;
+        break;
+    case THING_TYPE_OBJECT:
+        ((obj_t *)thing->payload._ptr)->pairs[i].v = value;
+        break;
+    default:
         break;
     }
-    case THING_TYPE_STRING: {
+}
+
+static void
+thing_free(thing_t *thing)
+{
+    switch (thing_get_type(thing)) {
+    case THING_TYPE_LIST:
+        list_free(thing->payload._ptr);
+        break;
+    case THING_TYPE_OBJECT:
+        obj_free(thing->payload._ptr);
+        break;
+    case THING_TYPE_STRING:
         sentry_free(thing->payload._ptr);
         break;
-    }
     }
     sentry_free(thing);
 }
@@ -395,6 +526,7 @@ sentry_value_new_list(void)
 {
     list_t *l = SENTRY_MAKE(list_t);
     if (l) {
+        l->refcount = 1;
         sentry_value_t rv = new_thing_value(l, THING_TYPE_LIST);
         if (sentry_value_is_null(rv)) {
             sentry_free(l);
@@ -410,6 +542,7 @@ sentry__value_new_list_with_size(size_t size)
 {
     list_t *l = SENTRY_MAKE(list_t);
     if (l) {
+        l->refcount = 1;
         l->allocated = size;
         if (size) {
             l->items = sentry_malloc(sizeof(sentry_value_t) * size);
@@ -434,6 +567,7 @@ sentry_value_new_object(void)
 {
     obj_t *o = SENTRY_MAKE(obj_t);
     if (o) {
+        o->refcount = 1;
         sentry_value_t rv = new_thing_value(o, THING_TYPE_OBJECT);
         if (sentry_value_is_null(rv)) {
             sentry_free(o);
@@ -449,6 +583,7 @@ sentry__value_new_object_with_size(size_t size)
 {
     obj_t *o = SENTRY_MAKE(obj_t);
     if (o) {
+        o->refcount = 1;
         o->allocated = size;
         if (size) {
             o->pairs = sentry_malloc(sizeof(obj_pair_t) * size);
@@ -631,21 +766,24 @@ sentry_value_get_type(sentry_value_t value)
 }
 
 int
-sentry_value_set_by_key_n(
-    sentry_value_t value, const char *k, size_t k_len, sentry_value_t v)
+sentry__value_set_by_key_owned(
+    sentry_value_t value, char *k, size_t k_len, sentry_value_t v)
 {
     if (!k) {
         goto fail;
     }
     sentry_slice_t k_slice = { k, k_len };
     thing_t *thing = value_as_unfrozen_thing(value);
-    if (!thing || thing_get_type(thing) != THING_TYPE_OBJECT) {
+    if (!thing || thing_get_type(thing) != THING_TYPE_OBJECT
+        || !thing_detach(thing)) {
         goto fail;
     }
     obj_t *o = thing->payload._ptr;
     for (size_t i = 0; i < o->len; i++) {
         obj_pair_t *pair = &o->pairs[i];
         if (sentry__slice_eqs(k_slice, pair->k)) {
+            sentry_free(pair->k);
+            pair->k = k;
             sentry_value_decref(pair->v);
             pair->v = v;
             return 0;
@@ -658,17 +796,23 @@ sentry_value_set_by_key_n(
     }
 
     obj_pair_t pair;
-    pair.k = sentry__slice_to_owned(k_slice);
-    if (!pair.k) {
-        goto fail;
-    }
+    pair.k = k;
     pair.v = v;
     o->pairs[o->len++] = pair;
     return 0;
 
 fail:
+    sentry_free(k);
     sentry_value_decref(v);
     return 1;
+}
+
+int
+sentry_value_set_by_key_n(
+    sentry_value_t value, const char *k, size_t k_len, sentry_value_t v)
+{
+    return sentry__value_set_by_key_owned(
+        value, sentry__string_clone_n(k, k_len), k_len, v);
 }
 
 int
@@ -682,30 +826,43 @@ sentry_value_set_by_key(sentry_value_t value, const char *k, sentry_value_t v)
     return 1;
 }
 
-int
-sentry_value_remove_by_key_n(sentry_value_t value, const char *k, size_t k_len)
+char *
+sentry__value_remove_and_take_key_n(
+    sentry_value_t value, const char *k, size_t k_len)
 {
     if (!k) {
-        return 1;
+        return NULL;
     }
     sentry_slice_t k_slice = { k, k_len };
     thing_t *thing = value_as_unfrozen_thing(value);
-    if (!thing || thing_get_type(thing) != THING_TYPE_OBJECT) {
-        return 1;
+    if (!thing || thing_get_type(thing) != THING_TYPE_OBJECT
+        || !thing_detach(thing)) {
+        return NULL;
     }
     obj_t *o = thing->payload._ptr;
     for (size_t i = 0; i < o->len; i++) {
         obj_pair_t *pair = &o->pairs[i];
         if (sentry__slice_eqs(k_slice, pair->k)) {
-            sentry_free(pair->k);
+            char *key = pair->k;
             sentry_value_decref(pair->v);
             memmove(o->pairs + i, o->pairs + i + 1,
                 (o->len - i - 1) * sizeof(o->pairs[0]));
             o->len--;
-            return 0;
+            return key;
         }
     }
-    return 1;
+    return NULL;
+}
+
+int
+sentry_value_remove_by_key_n(sentry_value_t value, const char *k, size_t k_len)
+{
+    char *key = sentry__value_remove_and_take_key_n(value, k, k_len);
+    if (!key) {
+        return 1;
+    }
+    sentry_free(key);
+    return 0;
 }
 
 int
@@ -722,7 +879,8 @@ int
 sentry_value_append(sentry_value_t value, sentry_value_t v)
 {
     thing_t *thing = value_as_unfrozen_thing(value);
-    if (!thing || thing_get_type(thing) != THING_TYPE_LIST) {
+    if (!thing || thing_get_type(thing) != THING_TYPE_LIST
+        || !thing_detach(thing)) {
         goto fail;
     }
 
@@ -791,6 +949,42 @@ sentry__value_stringify(sentry_value_t value)
 #undef STRINGIFY_NUMERIC
 }
 
+static bool
+value_is_container(sentry_value_t value)
+{
+    const thing_t *thing = value_as_thing(value);
+    if (!thing) {
+        return false;
+    }
+    int type = thing_get_type(thing);
+    return type == THING_TYPE_LIST || type == THING_TYPE_OBJECT;
+}
+
+static bool
+thing_clone_children(thing_t *thing, size_t len)
+{
+    bool detached = false;
+    for (size_t i = 0; i < len; i++) {
+        sentry_value_t child = thing_get_child(thing, i);
+        if (!value_is_container(child)) {
+            continue;
+        }
+        if (!detached) {
+            if (!thing_detach(thing)) {
+                return false;
+            }
+            detached = true;
+        }
+        sentry_value_t cloned = sentry__value_clone(child);
+        if (sentry_value_is_null(cloned)) {
+            return false;
+        }
+        sentry_value_decref(child);
+        thing_set_child(thing, i, cloned);
+    }
+    return true;
+}
+
 sentry_value_t
 sentry__value_clone(sentry_value_t value)
 {
@@ -800,20 +994,30 @@ sentry__value_clone(sentry_value_t value)
     }
     switch (thing_get_type(thing)) {
     case THING_TYPE_LIST: {
-        const list_t *list = thing->payload._ptr;
-        sentry_value_t rv = sentry__value_new_list_with_size(list->len);
-        for (size_t i = 0; i < list->len; i++) {
-            sentry_value_incref(list->items[i]);
-            sentry_value_append(rv, list->items[i]);
+        list_t *list = thing->payload._ptr;
+        sentry__atomic_fetch_and_add(&list->refcount, 1);
+        sentry_value_t rv = new_thing_value(list, THING_TYPE_LIST);
+        if (sentry_value_is_null(rv)) {
+            list_free(list);
+            return rv;
+        }
+        if (!thing_clone_children(value_as_thing(rv), list->len)) {
+            sentry_value_decref(rv);
+            return sentry_value_new_null();
         }
         return rv;
     }
     case THING_TYPE_OBJECT: {
-        const obj_t *obj = thing->payload._ptr;
-        sentry_value_t rv = sentry__value_new_object_with_size(obj->len);
-        for (size_t i = 0; i < obj->len; i++) {
-            sentry_value_incref(obj->pairs[i].v);
-            sentry_value_set_by_key(rv, obj->pairs[i].k, obj->pairs[i].v);
+        obj_t *obj = thing->payload._ptr;
+        sentry__atomic_fetch_and_add(&obj->refcount, 1);
+        sentry_value_t rv = new_thing_value(obj, THING_TYPE_OBJECT);
+        if (sentry_value_is_null(rv)) {
+            obj_free(obj);
+            return rv;
+        }
+        if (!thing_clone_children(value_as_thing(rv), obj->len)) {
+            sentry_value_decref(rv);
+            return sentry_value_new_null();
         }
         return rv;
     }
@@ -832,7 +1036,8 @@ int
 sentry_value_set_by_index(sentry_value_t value, size_t index, sentry_value_t v)
 {
     thing_t *thing = value_as_unfrozen_thing(value);
-    if (!thing || thing_get_type(thing) != THING_TYPE_LIST) {
+    if (!thing || thing_get_type(thing) != THING_TYPE_LIST
+        || !thing_detach(thing)) {
         goto fail;
     }
 
@@ -862,7 +1067,8 @@ int
 sentry_value_remove_by_index(sentry_value_t value, size_t index)
 {
     thing_t *thing = value_as_unfrozen_thing(value);
-    if (!thing || thing_get_type(thing) != THING_TYPE_LIST) {
+    if (!thing || thing_get_type(thing) != THING_TYPE_LIST
+        || !thing_detach(thing)) {
         return 1;
     }
 
@@ -1130,6 +1336,36 @@ sentry__value_merge_objects(sentry_value_t dst, sentry_value_t src)
             if (sentry_value_set_by_key(dst, key, src_val) != 0) {
                 return 1;
             }
+        }
+    }
+    return 0;
+}
+
+int
+sentry__value_merge_objects_shallow(sentry_value_t dst, sentry_value_t src)
+{
+    if (sentry_value_is_null(src)) {
+        return 0;
+    }
+    if (sentry_value_get_type(dst) != SENTRY_VALUE_TYPE_OBJECT
+        || sentry_value_get_type(src) != SENTRY_VALUE_TYPE_OBJECT
+        || sentry_value_is_frozen(dst)) {
+        return 1;
+    }
+    thing_t *thing = value_as_thing(src);
+    if (!thing) {
+        return 1;
+    }
+    obj_t *obj = thing->payload._ptr;
+    for (size_t i = 0; i < obj->len; i++) {
+        char *key = obj->pairs[i].k;
+        if (!sentry_value_is_null(sentry_value_get_by_key(dst, key))) {
+            continue;
+        }
+        sentry_value_t src_val = obj->pairs[i].v;
+        sentry_value_incref(src_val);
+        if (sentry_value_set_by_key(dst, key, src_val) != 0) {
+            return 1;
         }
     }
     return 0;
@@ -1748,6 +1984,38 @@ sentry__value_from_msgpack(const char *buf, size_t buf_len)
         return sentry_value_new_null();
     }
 
+    mpack_tree_t tree;
+    mpack_tree_init_data(&tree, buf, buf_len);
+    mpack_tree_parse(&tree);
+
+    if (mpack_tree_error(&tree) != mpack_ok) {
+        mpack_tree_destroy(&tree);
+        return sentry_value_new_null();
+    }
+
+    size_t size = mpack_tree_size(&tree);
+    bool ok = true;
+    sentry_value_t value = value_from_mpack(mpack_tree_root(&tree), 0, &ok);
+    mpack_tree_destroy(&tree);
+
+    // reject buffers with trailing data after the first value; buffers
+    // holding concatenated values must be decoded with
+    // `sentry__value_from_msgpack_stream`
+    if (!ok || size != buf_len) {
+        sentry_value_decref(value);
+        return sentry_value_new_null();
+    }
+
+    return value;
+}
+
+sentry_value_t
+sentry__value_from_msgpack_stream(const char *buf, size_t buf_len)
+{
+    if (!buf || buf_len == 0) {
+        return sentry_value_new_null();
+    }
+
     size_t offset = 0;
     sentry_value_t result = sentry_value_new_null();
 
@@ -1772,16 +2040,10 @@ sentry__value_from_msgpack(const char *buf, size_t buf_len)
         }
         mpack_tree_destroy(&tree);
 
-        if (offset == 0 && sentry_value_is_null(result)) {
-            if (offset + size < buf_len) {
-                result = sentry_value_new_list();
-                sentry_value_append(result, value);
-            } else {
-                result = value;
-            }
-        } else {
-            sentry_value_append(result, value);
+        if (sentry_value_is_null(result)) {
+            result = sentry_value_new_list();
         }
+        sentry_value_append(result, value);
 
         offset += size;
     }

@@ -6,11 +6,12 @@ import pytest
 from . import make_dsn, run
 
 
-def run_benchmark(target, backend, cmake, httpserver, gbenchmark, label):
+def run_benchmark(target, backend, cmake, httpserver, gbenchmark, label, runs=1):
     tmp_path = cmake(
         ["sentry_benchmark"],
         {
             "SENTRY_BACKEND": backend,
+            "SENTRY_BATCHER_BUFFER_COUNT": "10",
             "SENTRY_BUILD_BENCHMARKS": "ON",
             "CMAKE_BUILD_TYPE": "Release",
         },
@@ -19,7 +20,7 @@ def run_benchmark(target, backend, cmake, httpserver, gbenchmark, label):
     env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
     benchmark_out = tmp_path / "benchmark.json"
 
-    for i in range(6):
+    for i in range(runs):
         # make sure we are isolated from previous runs
         shutil.rmtree(tmp_path / ".sentry-native", ignore_errors=True)
 
@@ -30,19 +31,19 @@ def run_benchmark(target, backend, cmake, httpserver, gbenchmark, label):
             env=env,
         )
 
-        # ignore warmup run
-        if i > 0:
+        # ignore warmup run for init/startup benchmarks
+        if runs == 1 or i > 0:
             gbenchmark(benchmark_out, label)
 
 
-@pytest.mark.parametrize("backend", ["inproc", "breakpad", "crashpad"])
+@pytest.mark.parametrize("backend", ["inproc", "breakpad", "crashpad", "native"])
 def test_benchmark_init(backend, cmake, httpserver, gbenchmark):
     run_benchmark(
-        "init", backend, cmake, httpserver, gbenchmark, f"SDK init ({backend})"
+        "init", backend, cmake, httpserver, gbenchmark, f"SDK init ({backend})", 6
     )
 
 
-@pytest.mark.parametrize("backend", ["inproc", "breakpad", "crashpad"])
+@pytest.mark.parametrize("backend", ["inproc", "breakpad", "crashpad", "native"])
 def test_benchmark_backend(backend, cmake, httpserver, gbenchmark):
     run_benchmark(
         "backend",
@@ -51,4 +52,30 @@ def test_benchmark_backend(backend, cmake, httpserver, gbenchmark):
         httpserver,
         gbenchmark,
         f"Backend startup ({backend})",
+        6,
+    )
+
+
+@pytest.mark.parametrize("test_name", ["set_tag", "add_breadcrumb"])
+@pytest.mark.parametrize("backend", ["inproc", "breakpad", "crashpad", "native"])
+def test_benchmark_scope(test_name, backend, cmake, httpserver, gbenchmark):
+    run_benchmark(
+        f"benchmark_scope_{test_name}",
+        backend,
+        cmake,
+        httpserver,
+        gbenchmark,
+        f"Scope {test_name} ({backend})",
+    )
+
+
+@pytest.mark.parametrize("threads", [1, 8, 16, 32])
+def test_benchmark_logs(threads, cmake, httpserver, gbenchmark):
+    run_benchmark(
+        f"^benchmark_logs.*threads:{threads}$",
+        "none",
+        cmake,
+        httpserver,
+        gbenchmark,
+        f"Logs ({threads} thread{'s' if threads > 1 else ''})",
     )

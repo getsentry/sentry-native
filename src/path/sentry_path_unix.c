@@ -2,6 +2,7 @@
 #include "sentry_core.h"
 #include "sentry_path.h"
 #include "sentry_string.h"
+#include "sentry_unix_pageallocator.h"
 #include "sentry_utils.h"
 
 #ifdef SENTRY_PLATFORM_PS
@@ -366,29 +367,43 @@ sentry__path_copy(const sentry_path_t *src, const sentry_path_t *dst)
     int rv = 0;
 
 #    ifdef SENTRY_HAVE_COPY_FILE_RANGE
-    while (true) {
-        ssize_t n
-            = copy_file_range(src_fd, NULL, dst_fd, NULL, SIZE_MAX / 2, 0);
-        if (n > 0) {
-            continue;
-        } else if (n == 0) {
-            goto done;
-        } else if (errno == EAGAIN || errno == EINTR) {
-            continue;
-        } else if (errno == ENOSYS || errno == EXDEV || errno == EOPNOTSUPP
-            || errno == EINVAL) {
-            break;
-        } else {
-            rv = 1;
-            goto done;
+    // When the page allocator is enabled, this may be running from a crash
+    // handler on a constrained signal stack. Avoid copy_file_range() there:
+    // it is not async-signal-safe, and lazy PLT resolution can consume enough
+    // crash stack to clobber adjacent heap allocations.
+    if (!sentry__page_allocator_enabled()) {
+        while (true) {
+            ssize_t n
+                = copy_file_range(src_fd, NULL, dst_fd, NULL, SIZE_MAX / 2, 0);
+            if (n > 0) {
+                continue;
+            } else if (n == 0) {
+                goto done;
+            } else if (errno == EAGAIN || errno == EINTR) {
+                continue;
+            } else if (errno == ENOSYS || errno == EXDEV || errno == EOPNOTSUPP
+                || errno == EINVAL) {
+                break;
+            } else {
+                rv = 1;
+                goto done;
+            }
         }
     }
 #    endif
 
     {
-        char buf[16384];
+        // Keep the fallback buffer off the stack. Crash handlers may run on
+        // constrained signal stacks, so a large stack buffer is unsafe when
+        // attachments are cached during crash handling.
+        const size_t buf_len = 16384;
+        char *buf = sentry_malloc(buf_len);
+        if (!buf) {
+            rv = 1;
+            goto done;
+        }
         while (true) {
-            ssize_t n = read(src_fd, buf, sizeof(buf));
+            ssize_t n = read(src_fd, buf, buf_len);
             if (n < 0 && (errno == EAGAIN || errno == EINTR)) {
                 continue;
             } else if (n <= 0) {
@@ -400,11 +415,10 @@ sentry__path_copy(const sentry_path_t *src, const sentry_path_t *dst)
                 break;
             }
         }
+        sentry_free(buf);
     }
 
-#    ifdef SENTRY_HAVE_COPY_FILE_RANGE
 done:
-#    endif
     close(src_fd);
     close(dst_fd);
     return rv;

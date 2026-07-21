@@ -284,6 +284,12 @@ endif()
 
 set(SENTRY_SDK_NAME "" CACHE STRING "The SDK name to report when sending events.")
 set(SENTRY_HANDLER_STACK_SIZE 64 CACHE STRING "The stack size (in KiB) that should be reserved for the crash handler.")
+set(SENTRY_BATCHER_BUFFER_COUNT 3 CACHE STRING "Number of 100-item telemetry buffers (2-10).")
+if(NOT SENTRY_BATCHER_BUFFER_COUNT MATCHES "^[0-9]+$"
+	OR SENTRY_BATCHER_BUFFER_COUNT LESS 2
+	OR SENTRY_BATCHER_BUFFER_COUNT GREATER 10)
+	message(FATAL_ERROR "SENTRY_BATCHER_BUFFER_COUNT must be an integer between 2 and 10")
+endif()
 if (WIN32)
 	set(SENTRY_THREAD_STACK_GUARANTEE_FACTOR 10 CACHE STRING "The factor by which a threads stack should be larger than the stack guarantee for its handler.")
 	option(SENTRY_THREAD_STACK_GUARANTEE_AUTO_INIT "Automatically sets the thread stack guarantee for each thread via `DllMain` or for the `sentry_init()` when building statically" ON)
@@ -295,6 +301,7 @@ message(STATUS "SENTRY_BACKEND=${SENTRY_BACKEND}")
 message(STATUS "SENTRY_LIBRARY_TYPE=${SENTRY_LIBRARY_TYPE}")
 message(STATUS "SENTRY_SDK_NAME=${SENTRY_SDK_NAME}")
 message(STATUS "SENTRY_HANDLER_STACK_SIZE=${SENTRY_HANDLER_STACK_SIZE}")
+message(STATUS "SENTRY_BATCHER_BUFFER_COUNT=${SENTRY_BATCHER_BUFFER_COUNT}")
 if (WIN32)
 	message(STATUS "SENTRY_THREAD_STACK_GUARANTEE_FACTOR=${SENTRY_THREAD_STACK_GUARANTEE_FACTOR}")
 	message(STATUS "SENTRY_THREAD_STACK_GUARANTEE_AUTO_INIT=${SENTRY_THREAD_STACK_GUARANTEE_AUTO_INIT}")
@@ -367,7 +374,7 @@ endfunction()
 
 # ===== sentry library =====
 
-add_library(sentry ${SENTRY_LIBRARY_TYPE} "${PROJECT_SOURCE_DIR}/vendor/mpack.c")
+add_library(sentry ${SENTRY_LIBRARY_TYPE} "${PROJECT_SOURCE_DIR}/src/sentry_mpack.c")
 if (XBOX)
 	set_target_properties(sentry PROPERTIES VS_USER_PROPS gdk_build.props)
 endif()
@@ -415,6 +422,7 @@ endif()
 add_subdirectory(src)
 
 target_compile_definitions(sentry PRIVATE SENTRY_HANDLER_STACK_SIZE=${SENTRY_HANDLER_STACK_SIZE})
+target_compile_definitions(sentry PRIVATE SENTRY_BATCHER_BUFFER_COUNT=${SENTRY_BATCHER_BUFFER_COUNT})
 if(WIN32)
 	target_compile_definitions(sentry PRIVATE SENTRY_THREAD_STACK_GUARANTEE_FACTOR=${SENTRY_THREAD_STACK_GUARANTEE_FACTOR})
 	if (SENTRY_THREAD_STACK_GUARANTEE_AUTO_INIT)
@@ -524,7 +532,7 @@ if(MSVC)
 	endif()
 	# ignore all warnings for mpack
 	set_source_files_properties(
-		"${PROJECT_SOURCE_DIR}/vendor/mpack.c"
+		"${PROJECT_SOURCE_DIR}/src/sentry_mpack.c"
 		PROPERTIES
 		COMPILE_FLAGS
 		"/W0"
@@ -567,7 +575,7 @@ else()
 	endif()
 	# ignore all warnings for mpack
 	set_source_files_properties(
-		"${PROJECT_SOURCE_DIR}/vendor/mpack.c"
+		"${PROJECT_SOURCE_DIR}/src/sentry_mpack.c"
 		PROPERTIES
 		COMPILE_FLAGS
 		"-w"
@@ -832,6 +840,8 @@ elseif(SENTRY_BACKEND_NATIVE)
 	# Build sentry-crash executable for native backend
 	# Get all sources that were added to sentry target
 	get_target_property(SENTRY_SOURCES sentry SOURCES)
+	# Exclude integrations that are not needed in the daemon
+	list(FILTER SENTRY_SOURCES EXCLUDE REGEX "[/\\\\]integrations[/\\\\]")
 
 	# Create daemon executable with same sources (already includes
 	# sentry_crash_daemon.c and sentry_crash_ipc.c from src/CMakeLists.txt)
@@ -846,6 +856,7 @@ elseif(SENTRY_BACKEND_NATIVE)
 	if(SENTRY_COMPILE_DEFS)
 		# The daemon is always a static executable, never a shared library
 		list(REMOVE_ITEM SENTRY_COMPILE_DEFS "SENTRY_BUILD_SHARED")
+		list(FILTER SENTRY_COMPILE_DEFS EXCLUDE REGEX "^SENTRY_INTEGRATION_")
 		target_compile_definitions(sentry-crash PRIVATE ${SENTRY_COMPILE_DEFS})
 	endif()
 

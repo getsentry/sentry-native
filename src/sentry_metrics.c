@@ -8,12 +8,6 @@
 #include "sentry_utils.h"
 #include "sentry_value.h"
 
-typedef enum {
-    SENTRY_METRIC_COUNT,
-    SENTRY_METRIC_GAUGE,
-    SENTRY_METRIC_DISTRIBUTION,
-} sentry_metric_type_t;
-
 static sentry_batcher_ref_t g_batcher = SENTRY_BATCHER_REF_INIT;
 
 static const char *
@@ -32,8 +26,9 @@ metric_type_string(sentry_metric_type_t type)
 }
 
 static sentry_value_t
-construct_metric(sentry_metric_type_t type, const char *name,
-    sentry_value_t value, const char *unit, sentry_value_t user_attributes)
+construct_metric(const sentry_scope_t *scope, sentry_metric_type_t type,
+    const char *name, sentry_value_t value, const char *unit,
+    sentry_value_t user_attributes)
 {
     sentry_value_t metric = sentry_value_new_object();
 
@@ -54,7 +49,7 @@ construct_metric(sentry_metric_type_t type, const char *name,
         : sentry_value_new_object();
     sentry_value_decref(user_attributes);
 
-    sentry__apply_attributes(metric, attributes);
+    sentry__apply_to_telemetry(scope, metric, attributes);
 
     if (sentry_value_get_length(attributes) > 0) {
         sentry_value_set_by_key(metric, "attributes", attributes);
@@ -65,9 +60,10 @@ construct_metric(sentry_metric_type_t type, const char *name,
     return metric;
 }
 
-static sentry_metrics_result_t
-record_metric(sentry_metric_type_t type, const char *name, sentry_value_t value,
-    const char *unit, sentry_value_t attributes)
+sentry_metrics_result_t
+sentry_scope_capture_metric(sentry_scope_t *scope, sentry_metric_type_t type,
+    const char *name, sentry_value_t value, const char *unit,
+    sentry_value_t attributes)
 {
     bool enable_metrics = false;
     SENTRY_WITH_OPTIONS (options) {
@@ -77,7 +73,8 @@ record_metric(sentry_metric_type_t type, const char *name, sentry_value_t value,
     if (enable_metrics) {
         bool discarded = false;
         sentry_value_t metric
-            = construct_metric(type, name, value, unit, attributes);
+            = construct_metric(scope, type, name, value, unit, attributes);
+        sentry__scope_free_one_shot(scope);
         SENTRY_WITH_OPTIONS (options) {
             if (options->before_send_metric_func) {
                 metric = options->before_send_metric_func(
@@ -106,13 +103,14 @@ record_metric(sentry_metric_type_t type, const char *name, sentry_value_t value,
     }
     sentry_value_decref(value);
     sentry_value_decref(attributes);
+    sentry__scope_free_one_shot(scope);
     return SENTRY_METRICS_RESULT_DISABLED;
 }
 
 sentry_metrics_result_t
 sentry_metrics_count(const char *name, int64_t value, sentry_value_t attributes)
 {
-    return record_metric(SENTRY_METRIC_COUNT, name,
+    return sentry_scope_capture_metric(NULL, SENTRY_METRIC_COUNT, name,
         sentry_value_new_int64(value), NULL, attributes);
 }
 
@@ -120,7 +118,7 @@ sentry_metrics_result_t
 sentry_metrics_gauge(
     const char *name, double value, const char *unit, sentry_value_t attributes)
 {
-    return record_metric(SENTRY_METRIC_GAUGE, name,
+    return sentry_scope_capture_metric(NULL, SENTRY_METRIC_GAUGE, name,
         sentry_value_new_double(value), unit, attributes);
 }
 
@@ -128,7 +126,7 @@ sentry_metrics_result_t
 sentry_metrics_distribution(
     const char *name, double value, const char *unit, sentry_value_t attributes)
 {
-    return record_metric(SENTRY_METRIC_DISTRIBUTION, name,
+    return sentry_scope_capture_metric(NULL, SENTRY_METRIC_DISTRIBUTION, name,
         sentry_value_new_double(value), unit, attributes);
 }
 

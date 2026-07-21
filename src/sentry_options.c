@@ -13,6 +13,10 @@
 #include <math.h>
 #include <stdlib.h>
 
+#ifdef SENTRY_INTEGRATION_QT
+#    include "integrations/sentry_integration_qt.h"
+#endif
+
 static double
 normalize_sample_rate(double sample_rate, double default_value)
 {
@@ -119,6 +123,9 @@ sentry_options_new(void)
     opts->http_retry = false;
     opts->send_client_reports = true;
     opts->enable_large_attachments = false;
+#ifdef SENTRY_INTEGRATION_QT
+    sentry__options_add_integration(opts, sentry_integration_qt_new());
+#endif
 
     return opts;
 }
@@ -130,6 +137,18 @@ sentry__options_incref(sentry_options_t *options)
         sentry__atomic_fetch_and_add(&options->refcount, 1);
     }
     return options;
+}
+
+static void
+free_integration(sentry_integration_t *integration)
+{
+    if (!integration) {
+        return;
+    }
+    if (integration->free_func) {
+        integration->free_func(integration->data);
+    }
+    sentry_free(integration);
 }
 
 void
@@ -155,6 +174,10 @@ sentry_options_free(sentry_options_t *opts)
     sentry__backend_free(opts->backend);
     sentry__attachments_free(opts->attachments);
     sentry__run_free(opts->run);
+    for (size_t i = 0; i < opts->num_integrations; i++) {
+        free_integration(opts->integrations[i]);
+    }
+    sentry_free(opts->integrations);
 
     sentry_free(opts);
 }
@@ -928,6 +951,31 @@ sentry_options_set_backend(sentry_options_t *opts, sentry_backend_t *backend)
 {
     sentry__backend_free(opts->backend);
     opts->backend = backend;
+}
+
+void
+sentry__options_add_integration(
+    sentry_options_t *opts, sentry_integration_t *integration)
+{
+    if (!integration) {
+        return;
+    }
+
+    size_t new_count = opts->num_integrations + 1;
+    sentry_integration_t **integrations
+        = sentry__calloc(new_count, sizeof(sentry_integration_t *));
+    if (!integrations) {
+        free_integration(integration);
+        return;
+    }
+
+    for (size_t i = 0; i < opts->num_integrations; i++) {
+        integrations[i] = opts->integrations[i];
+    }
+    integrations[opts->num_integrations] = integration;
+    sentry_free(opts->integrations);
+    opts->integrations = integrations;
+    opts->num_integrations = new_count;
 }
 
 void
