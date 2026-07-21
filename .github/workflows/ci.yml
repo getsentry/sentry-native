@@ -478,7 +478,10 @@ jobs:
         shell: bash
         run: |
           pip install --upgrade --requirement tests/requirements.txt
-          pytest --capture=no --verbose tests/test_integration_crashpad.py -k dumping
+          pytest --capture=no --verbose \
+            tests/test_integration_crashpad.py \
+            tests/test_integration_stdout.py \
+            -k "dumping or bare_stack_overflow or inproc_stack_overflow_stdout or breakpad_stack_overflow_stdout"
 
       - name: Check NDK
         if: ${{ env['ANDROID_API'] }}
