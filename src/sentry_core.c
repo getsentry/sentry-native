@@ -927,6 +927,7 @@ sentry_set_release_n(const char *release, size_t release_len)
         scope->release = sentry__string_clone_n(release, release_len);
         sentry_value_set_by_key(scope->dynamic_sampling_context, "release",
             sentry_value_new_string(scope->release));
+        SENTRY_SCOPE_NOTIFY(scope, set_release, scope->release);
     }
 }
 
@@ -945,6 +946,7 @@ sentry_set_environment_n(const char *environment, size_t environment_len)
             = sentry__string_clone_n(environment, environment_len);
         sentry_value_set_by_key(scope->dynamic_sampling_context, "environment",
             sentry_value_new_string(scope->environment));
+        SENTRY_SCOPE_NOTIFY(scope, set_environment, scope->environment);
     }
 }
 
@@ -1010,7 +1012,9 @@ void
 sentry_remove_tag(const char *key)
 {
     SENTRY_WITH_SCOPE_MUT (scope) {
-        sentry_value_remove_by_key(scope->tags, key);
+        if (sentry_value_remove_by_key(scope->tags, key) == 0) {
+            SENTRY_SCOPE_NOTIFY(scope, remove_tag, key);
+        }
     }
 }
 
@@ -1018,7 +1022,12 @@ void
 sentry_remove_tag_n(const char *key, size_t key_len)
 {
     SENTRY_WITH_SCOPE_MUT (scope) {
-        sentry_value_remove_by_key_n(scope->tags, key, key_len);
+        char *k
+            = sentry__value_remove_and_take_key_n(scope->tags, key, key_len);
+        if (k) {
+            SENTRY_SCOPE_NOTIFY(scope, remove_tag, k);
+        }
+        sentry_free(k);
     }
 }
 
@@ -1042,7 +1051,9 @@ void
 sentry_remove_extra(const char *key)
 {
     SENTRY_WITH_SCOPE_MUT (scope) {
-        sentry_value_remove_by_key(scope->extra, key);
+        if (sentry_value_remove_by_key(scope->extra, key) == 0) {
+            SENTRY_SCOPE_NOTIFY(scope, remove_extra, key);
+        }
     }
 }
 
@@ -1050,7 +1061,12 @@ void
 sentry_remove_extra_n(const char *key, size_t key_len)
 {
     SENTRY_WITH_SCOPE_MUT (scope) {
-        sentry_value_remove_by_key_n(scope->extra, key, key_len);
+        char *k
+            = sentry__value_remove_and_take_key_n(scope->extra, key, key_len);
+        if (k) {
+            SENTRY_SCOPE_NOTIFY(scope, remove_extra, k);
+        }
+        sentry_free(k);
     }
 }
 
@@ -1151,7 +1167,9 @@ void
 sentry_remove_context(const char *key)
 {
     SENTRY_WITH_SCOPE_MUT (scope) {
-        sentry_value_remove_by_key(scope->contexts, key);
+        if (sentry_value_remove_by_key(scope->contexts, key) == 0) {
+            SENTRY_SCOPE_NOTIFY(scope, remove_context, key);
+        }
     }
 }
 
@@ -1159,7 +1177,12 @@ void
 sentry_remove_context_n(const char *key, size_t key_len)
 {
     SENTRY_WITH_SCOPE_MUT (scope) {
-        sentry_value_remove_by_key_n(scope->contexts, key, key_len);
+        char *k = sentry__value_remove_and_take_key_n(
+            scope->contexts, key, key_len);
+        if (k) {
+            SENTRY_SCOPE_NOTIFY(scope, remove_context, k);
+        }
+        sentry_free(k);
     }
 }
 
@@ -1196,6 +1219,7 @@ sentry_remove_fingerprint(void)
     SENTRY_WITH_SCOPE_MUT (scope) {
         sentry_value_decref(scope->fingerprint);
         scope->fingerprint = sentry_value_new_null();
+        SENTRY_SCOPE_NOTIFY(scope, set_fingerprint, scope->fingerprint);
     }
 }
 
@@ -1257,14 +1281,7 @@ sentry_regenerate_trace(void)
 void
 sentry_set_transaction(const char *transaction)
 {
-    SENTRY_WITH_SCOPE_MUT (scope) {
-        sentry_free(scope->transaction);
-        scope->transaction = sentry__string_clone(transaction);
-
-        if (scope->transaction_object) {
-            sentry_transaction_set_name(scope->transaction_object, transaction);
-        }
-    }
+    sentry_set_transaction_n(transaction, sentry__guarded_strlen(transaction));
 }
 
 void
@@ -1279,6 +1296,7 @@ sentry_set_transaction_n(const char *transaction, size_t transaction_len)
             sentry_transaction_set_name_n(
                 scope->transaction_object, transaction, transaction_len);
         }
+        SENTRY_SCOPE_NOTIFY(scope, set_transaction, scope->transaction);
     }
 }
 
@@ -1961,13 +1979,17 @@ sentry_capture_minidump_n(const char *path, size_t path_len)
 static sentry_attachment_t *
 add_attachment(sentry_attachment_t *attachment)
 {
+    if (!attachment) {
+        return NULL;
+    }
+
     SENTRY_WITH_OPTIONS (options) {
         if (options->backend && options->backend->add_attachment_func) {
             options->backend->add_attachment_func(options->backend, attachment);
         }
     }
     SENTRY_WITH_SCOPE_MUT (scope) {
-        attachment = sentry__attachments_add(&scope->attachments, attachment);
+        attachment = sentry__scope_add_attachment(scope, attachment);
     }
     return attachment;
 }
@@ -2005,15 +2027,17 @@ sentry_clear_attachments(void)
 {
     SENTRY_WITH_OPTIONS (options) {
         SENTRY_WITH_SCOPE_MUT (scope) {
-            if (options->backend && options->backend->remove_attachment_func) {
-                for (sentry_attachment_t *it = scope->attachments; it;
-                    it = it->next) {
+            sentry_attachment_t *attachments = scope->attachments;
+            scope->attachments = NULL;
+            for (sentry_attachment_t *it = attachments; it; it = it->next) {
+                if (options->backend
+                    && options->backend->remove_attachment_func) {
                     options->backend->remove_attachment_func(
                         options->backend, it);
                 }
+                SENTRY_SCOPE_NOTIFY(scope, remove_attachment, it);
             }
-            sentry__attachments_free(scope->attachments);
-            scope->attachments = NULL;
+            sentry__attachments_free(attachments);
         }
     }
 }
@@ -2021,14 +2045,22 @@ sentry_clear_attachments(void)
 void
 sentry_remove_attachment(sentry_attachment_t *attachment)
 {
-    SENTRY_WITH_OPTIONS (options) {
-        if (options->backend && options->backend->remove_attachment_func) {
-            options->backend->remove_attachment_func(
-                options->backend, attachment);
-        }
+    if (!attachment) {
+        return;
     }
-    SENTRY_WITH_SCOPE_MUT (scope) {
-        sentry__attachments_remove(&scope->attachments, attachment);
+
+    SENTRY_WITH_OPTIONS (options) {
+        SENTRY_WITH_SCOPE_MUT (scope) {
+            if (sentry__attachments_remove(&scope->attachments, attachment)) {
+                if (options->backend
+                    && options->backend->remove_attachment_func) {
+                    options->backend->remove_attachment_func(
+                        options->backend, attachment);
+                }
+                SENTRY_SCOPE_NOTIFY(scope, remove_attachment, attachment);
+                sentry__attachment_free(attachment);
+            }
+        }
     }
 }
 
