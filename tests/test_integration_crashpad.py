@@ -39,6 +39,8 @@ from .assertions import (
     wait_for_file,
 )
 
+STACK_DIAGNOSTIC_ATTEMPTS = range(5) if sys.platform == "win32" else range(1)
+
 pytestmark = pytest.mark.skipif(
     not has_crashpad,
     reason="Tests need a crashpad backend and a valid environment for it",
@@ -488,6 +490,13 @@ def test_crashpad_dumping_crash(cmake, httpserver, run_args, build_args):
             ),
         ),
         pytest.param(
+            "24",
+            marks=pytest.mark.skipif(
+                sys.platform != "win32",
+                reason="handler stack size parameterization tests stack guarantee on windows only",
+            ),
+        ),
+        pytest.param(
             "32",
             marks=pytest.mark.skipif(
                 sys.platform != "win32",
@@ -496,10 +505,12 @@ def test_crashpad_dumping_crash(cmake, httpserver, run_args, build_args):
         ),
     ],
 )
-def test_crashpad_dumping_stack_overflow(cmake, httpserver, stack_size):
+@pytest.mark.parametrize("attempt", STACK_DIAGNOSTIC_ATTEMPTS)
+def test_crashpad_dumping_stack_overflow(cmake, httpserver, stack_size, attempt):
     tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "crashpad"})
 
     env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
+    env["SENTRY_STACK_DIAGNOSTICS"] = "1"
     if stack_size:
         env["SENTRY_HANDLER_STACK_SIZE"] = stack_size
     httpserver.expect_oneshot_request("/api/123456/minidump/").respond_with_data("OK")
@@ -540,6 +551,35 @@ def test_crashpad_dumping_stack_overflow(cmake, httpserver, stack_size):
     assert_crashpad_upload(
         multipart, expect_attachment=True, expect_view_hierarchy=True
     )
+
+
+@pytest.mark.skipif(
+    sys.platform != "win32", reason="diagnostic control uses the Windows UEF"
+)
+@pytest.mark.parametrize("stack_size", ["16", "24", "32", "64"])
+@pytest.mark.parametrize("attempt", STACK_DIAGNOSTIC_ATTEMPTS)
+def test_crashpad_bare_stack_overflow(cmake, httpserver, stack_size, attempt):
+    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "crashpad"})
+
+    env = dict(
+        os.environ,
+        SENTRY_DSN=make_dsn(httpserver),
+        SENTRY_HANDLER_STACK_SIZE=stack_size,
+        SENTRY_STACK_DIAGNOSTICS="1",
+        SENTRY_DIAGNOSTIC_CRASHPAD_SKIP_FIRST_CHANCE="1",
+    )
+    httpserver.expect_oneshot_request("/api/123456/minidump/").respond_with_data("OK")
+
+    with httpserver.wait(timeout=10) as waiting:
+        run(
+            tmp_path,
+            "sentry_example",
+            ["crashpad-wait-for-upload", "stack-overflow"],
+            expect_failure=True,
+            env=env,
+        )
+
+    assert waiting.result
 
 
 @pytest.mark.skipif(not has_oom, reason="OOM test unreliable in this environment")

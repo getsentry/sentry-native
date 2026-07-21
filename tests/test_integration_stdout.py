@@ -24,6 +24,8 @@ from .assertions import (
 )
 from .conditions import has_breakpad, has_files, is_qemu
 
+STACK_DIAGNOSTIC_ATTEMPTS = range(5) if sys.platform == "win32" else range(1)
+
 
 @pytest.mark.skipif(is_qemu, reason="unreliable under qemu-user")
 def test_capture_stdout(cmake):
@@ -268,7 +270,20 @@ def test_inproc_crash_stdout_before_send_and_on_crash(cmake):
     "stack_size",
     [
         None,  # uses default of 64KiB
-        # no test with 16KiB since `inproc` fails with that handler stack size
+        pytest.param(
+            "16",
+            marks=pytest.mark.skipif(
+                sys.platform != "win32",
+                reason="handler stack size parameterization tests stack guarantee on windows only",
+            ),
+        ),
+        pytest.param(
+            "24",
+            marks=pytest.mark.skipif(
+                sys.platform != "win32",
+                reason="handler stack size parameterization tests stack guarantee on windows only",
+            ),
+        ),
         pytest.param(
             "32",
             marks=pytest.mark.skipif(
@@ -278,8 +293,10 @@ def test_inproc_crash_stdout_before_send_and_on_crash(cmake):
         ),
     ],
 )
-def test_inproc_stack_overflow_stdout(cmake, stack_size):
+@pytest.mark.parametrize("attempt", STACK_DIAGNOSTIC_ATTEMPTS)
+def test_inproc_stack_overflow_stdout(cmake, stack_size, attempt):
     env = dict(os.environ)
+    env["SENTRY_STACK_DIAGNOSTICS"] = "1"
     if stack_size:
         env["SENTRY_HANDLER_STACK_SIZE"] = stack_size
     tmp_path, output = run_stdout_for(
@@ -364,6 +381,13 @@ def test_breakpad_crash_stdout_before_send_and_on_crash(cmake):
             ),
         ),
         pytest.param(
+            "24",
+            marks=pytest.mark.skipif(
+                sys.platform != "win32",
+                reason="handler stack size parameterization tests stack guarantee on windows only",
+            ),
+        ),
+        pytest.param(
             "32",
             marks=pytest.mark.skipif(
                 sys.platform != "win32",
@@ -373,8 +397,10 @@ def test_breakpad_crash_stdout_before_send_and_on_crash(cmake):
     ],
 )
 @pytest.mark.skipif(not has_breakpad or is_qemu, reason="test needs breakpad backend")
-def test_breakpad_stack_overflow_stdout(cmake, stack_size):
+@pytest.mark.parametrize("attempt", STACK_DIAGNOSTIC_ATTEMPTS)
+def test_breakpad_stack_overflow_stdout(cmake, stack_size, attempt):
     env = dict(os.environ)
+    env["SENTRY_STACK_DIAGNOSTICS"] = "1"
     if stack_size:
         env["SENTRY_HANDLER_STACK_SIZE"] = stack_size
     tmp_path, output = run_stdout_for(

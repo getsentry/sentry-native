@@ -902,8 +902,18 @@ crashpad_backend_startup(
         return 1;
     }
 
-#if defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_WINDOWS)
+#if defined(SENTRY_PLATFORM_LINUX)
     crashpad::CrashpadClient::SetFirstChanceExceptionHandler(&crashpad_handler);
+#elif defined(SENTRY_PLATFORM_WINDOWS)
+    char skip_first_chance[2];
+    if (GetEnvironmentVariableA("SENTRY_DIAGNOSTIC_CRASHPAD_SKIP_FIRST_CHANCE",
+            skip_first_chance, sizeof(skip_first_chance))
+        == 0) {
+        crashpad::CrashpadClient::SetFirstChanceExceptionHandler(
+            &crashpad_handler);
+    } else {
+        SENTRY_INFO("skipping crashpad first-chance handler for diagnostics");
+    }
 #endif
 #ifdef SENTRY_PLATFORM_LINUX
     // Crashpad was recently changed to register its own signal stack, which for

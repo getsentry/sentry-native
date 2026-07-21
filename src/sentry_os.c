@@ -328,6 +328,38 @@ append_stack_measurement_size(char *dest, const char *end, size_t value)
     return dest;
 }
 
+static bool
+stack_diagnostics_enabled(void)
+{
+    char enabled[2];
+    return GetEnvironmentVariableA(
+               "SENTRY_STACK_DIAGNOSTICS", enabled, sizeof(enabled))
+        != 0;
+}
+
+static void
+log_stack_guarantee(uint32_t requested, unsigned long effective)
+{
+    char message[128];
+    char *cursor = message;
+    const char *end = message + sizeof(message) - 1;
+    cursor = append_stack_measurement_text(
+        cursor, end, "[sentry] STACK guarantee requested=");
+    cursor = append_stack_measurement_size(cursor, end, requested);
+    cursor = append_stack_measurement_text(cursor, end, " effective=");
+    cursor = append_stack_measurement_size(cursor, end, effective);
+    cursor = append_stack_measurement_text(cursor, end, "\n");
+    *cursor = '\0';
+
+    OutputDebugStringA(message);
+    HANDLE stderr_handle = GetStdHandle(STD_ERROR_HANDLE);
+    if (stderr_handle && stderr_handle != INVALID_HANDLE_VALUE) {
+        DWORD written;
+        WriteFile(
+            stderr_handle, message, (DWORD)(cursor - message), &written, NULL);
+    }
+}
+
 void
 sentry__log_current_thread_stack(const char *checkpoint)
 {
@@ -397,6 +429,14 @@ sentry_set_thread_stack_guarantee(uint32_t stack_guarantee_in_bytes)
                       "thread %lu when applying the guarantee of %lu bytes",
             GetLastError(), thread_id);
         return 0;
+    }
+
+    if (stack_diagnostics_enabled()) {
+        ULONG effective_stack_guarantee = 0;
+        if (g_kernel32_SetThreadStackGuarantee(&effective_stack_guarantee)) {
+            log_stack_guarantee(
+                stack_guarantee_in_bytes, effective_stack_guarantee);
+        }
     }
 
     return 1;

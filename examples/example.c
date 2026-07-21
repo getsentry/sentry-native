@@ -453,12 +453,19 @@ trigger_crash()
 #endif
 }
 
+#if defined(_MSC_VER)
+#    pragma optimize("", off)
+__declspec(noinline)
+#endif
 static void
 trigger_stack_overflow()
 {
     alloca(1024);
     trigger_stack_overflow();
 }
+#if defined(_MSC_VER)
+#    pragma optimize("", on)
+#endif
 
 static void
 trigger_oom(void)
