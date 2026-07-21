@@ -748,7 +748,9 @@ def wait_for_stdout(process, predicate, timeout=10):
 
 def assert_replay_envelope(envelope, video, replay_id=REPLAY_ID):
     """Validate a `replay_video` envelope built from the fixture staged by
-    `tests.stage_replay` (the sidecar values below match that fixture)."""
+    `tests.stage_replay` (the sidecar values below match that fixture) for a
+    crash of the example run with its default setup (the breadcrumb values
+    below match the crumbs that setup adds)."""
     assert envelope.headers["event_id"] == replay_id
 
     (item,) = envelope.items
@@ -770,7 +772,8 @@ def assert_replay_envelope(envelope, video, replay_id=REPLAY_ID):
 
     header, _, rrweb = body["replay_recording"].partition(b"\n")
     assert json.loads(header) == {"segment_id": 0}
-    meta_event, video_event = json.loads(rrweb)
+    events = json.loads(rrweb)
+    meta_event, video_event = events[0], events[1]
     assert meta_event["type"] == 4
     assert meta_event["data"]["width"] == 3864
     assert meta_event["data"]["height"] == 2100
@@ -784,5 +787,35 @@ def assert_replay_envelope(envelope, video, replay_id=REPLAY_ID):
     assert payload["container"] == "mp4"
     assert payload["frameCount"] == 58
     assert payload["frameRate"] == 30
+
+    # the crash event's breadcrumbs falling into the replay window are
+    # embedded as rrweb `breadcrumb` custom events, in timestamp order
+    breadcrumb_events = events[2:]
+    assert len(breadcrumb_events) == 3
+    for rrweb_event in breadcrumb_events:
+        assert rrweb_event["type"] == 5
+        assert rrweb_event["data"]["tag"] == "breadcrumb"
+        # the outer rrweb timestamp is in ms, the payload timestamp in seconds
+        payload_ts = rrweb_event["data"]["payload"]["timestamp"]
+        assert abs(rrweb_event["timestamp"] - payload_ts * 1000) < 1
+        assert event["replay_start_timestamp"] <= payload_ts <= event["timestamp"]
+    timestamps = [e["timestamp"] for e in events]
+    assert timestamps == sorted(timestamps)
+
+    crumbs = [e["data"]["payload"] for e in breadcrumb_events]
+    assert [c.get("message") for c in crumbs] == [
+        "default level is info",
+        "debug crumb",
+        "lf\ncrlf\r\nlf\n...",
+    ]
+    assert crumbs[0]["type"] == "default"
+    http_crumb = crumbs[1]
+    assert http_crumb["type"] == "http"
+    assert http_crumb["category"] == "example!"
+    assert http_crumb["level"] == "debug"
+    assert http_crumb["data"]["url"] == "https://example.com/api/1.0/users"
+    assert http_crumb["data"]["method"] == "GET"
+    assert http_crumb["data"]["status_code"] == 200
+    assert crumbs[2]["category"] == "something else"
 
     assert body["replay_video"] == video

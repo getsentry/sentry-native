@@ -9,6 +9,8 @@ public interface INativeScope {
 
   void removeExtra(String key);
 
+  void setEnvironment(String environment);
+
   void setUser(String id, String email, String ipAddress, String username);
 
   void removeUser();
