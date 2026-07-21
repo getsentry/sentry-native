@@ -18,6 +18,7 @@
 typedef struct sentry_integration_wer_data_s {
     HRESULT(WINAPI *WerRegisterCustomMetadata)(PCWSTR, PCWSTR);
     HRESULT(WINAPI *WerUnregisterCustomMetadata)(PCWSTR);
+    sentry_scope_t *scope;
     sentry_scope_observer_t *observer;
 } sentry_integration_wer_data_t;
 
@@ -175,6 +176,24 @@ wer_cleanup_tag(const char *key, sentry_value_t UNUSED(value), void *data)
 }
 
 static void
+wer_clear(void *data)
+{
+    sentry_integration_wer_data_t *wer_data
+        = (sentry_integration_wer_data_t *)data;
+    sentry_scope_t *scope = wer_data->scope;
+    if (!scope) {
+        return;
+    }
+
+    sentry__value_foreach_key_value(scope->tags, wer_cleanup_tag, wer_data);
+
+    for (sentry_attachment_t *attachment = scope->attachments; attachment;
+        attachment = attachment->next) {
+        wer_remove_attachment(wer_data, attachment);
+    }
+}
+
+static void
 register_wer(
     void *data, sentry_scope_t *scope, const sentry_options_t *UNUSED(options))
 {
@@ -186,6 +205,7 @@ register_wer(
     if (!observer) {
         return;
     }
+    observer->clear = wer_clear;
     observer->set_tag = wer_set_tag;
     observer->remove_tag = wer_remove_tag;
     observer->add_attachment = wer_add_attachment;
@@ -193,6 +213,7 @@ register_wer(
     observer->data = wer_data;
 
     if (sentry__scope_add_observer(scope, observer)) {
+        wer_data->scope = scope;
         wer_data->observer = observer;
         for (sentry_attachment_t *attachment = scope->attachments; attachment;
             attachment = attachment->next) {
@@ -219,6 +240,7 @@ unregister_wer(
     }
 
     sentry__scope_remove_observer(scope, wer_data->observer);
+    wer_data->scope = NULL;
     wer_data->observer = NULL;
 }
 
