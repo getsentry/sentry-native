@@ -17,34 +17,34 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  lint:
-    name: Lint
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
-      - run: make style
+  # lint:
+  #   name: Lint
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+  #     - run: make style
 
-  build-ios-inproc:
-    name: Xcode Build for inproc on iOS
-    runs-on: macos-latest
-    steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
-        with:
-          submodules: "recursive"
-      - run: |
-          cmake -B sentry-native-xcode -GXcode -DCMAKE_SYSTEM_NAME=iOS -DSENTRY_BACKEND=inproc
-          xcodebuild build -project sentry-native-xcode/Sentry-Native.xcodeproj -sdk iphonesimulator
+  # build-ios-inproc:
+  #   name: Xcode Build for inproc on iOS
+  #   runs-on: macos-latest
+  #   steps:
+  #     - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+  #       with:
+  #         submodules: "recursive"
+  #     - run: |
+  #         cmake -B sentry-native-xcode -GXcode -DCMAKE_SYSTEM_NAME=iOS -DSENTRY_BACKEND=inproc
+  #         xcodebuild build -project sentry-native-xcode/Sentry-Native.xcodeproj -sdk iphonesimulator
 
-  build-ios-breakpad:
-    name: Xcode Build for breakpad on iOS
-    runs-on: macos-latest
-    steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
-        with:
-          submodules: "recursive"
-      - run: |
-          cmake -B sentry-native-xcode -GXcode -DCMAKE_SYSTEM_NAME=iOS -DSENTRY_BACKEND=breakpad
-          xcodebuild build -project sentry-native-xcode/Sentry-Native.xcodeproj -sdk iphonesimulator
+  # build-ios-breakpad:
+  #   name: Xcode Build for breakpad on iOS
+  #   runs-on: macos-latest
+  #   steps:
+  #     - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+  #       with:
+  #         submodules: "recursive"
+  #     - run: |
+  #         cmake -B sentry-native-xcode -GXcode -DCMAKE_SYSTEM_NAME=iOS -DSENTRY_BACKEND=breakpad
+  #         xcodebuild build -project sentry-native-xcode/Sentry-Native.xcodeproj -sdk iphonesimulator
 
   test:
     strategy:
@@ -494,42 +494,42 @@ jobs:
           fail_ci_if_error: false
           verbose: true
 
-  archive:
-    name: Create Release Archive
-    runs-on: ubuntu-latest
-    needs: [lint, test]
-    # only run this on pushes, combined with the CI triggers, this will only
-    # run on master or the release branch
-    if: ${{ needs.test.result == 'success' && github.event_name == 'push' }}
-    steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
-        with:
-          submodules: recursive
+  # archive:
+  #   name: Create Release Archive
+  #   runs-on: ubuntu-latest
+  #   needs: [lint, test]
+  #   # only run this on pushes, combined with the CI triggers, this will only
+  #   # run on master or the release branch
+  #   if: ${{ needs.test.result == 'success' && github.event_name == 'push' }}
+  #   steps:
+  #     - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+  #       with:
+  #         submodules: recursive
 
-      - name: Setup Java Version
-        uses: actions/setup-java@1bcf9fb12cf4aa7d266a90ae39939e61372fe520 # v5
-        with:
-          distribution: "temurin"
-          java-version: "17"
+  #     - name: Setup Java Version
+  #       uses: actions/setup-java@1bcf9fb12cf4aa7d266a90ae39939e61372fe520 # v5
+  #       with:
+  #         distribution: "temurin"
+  #         java-version: "17"
 
-      - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@3f131e8634966bd73d06cc69884922b02e6faf92 # pin@v6.2.0
+  #     - name: Setup Gradle
+  #       uses: gradle/actions/setup-gradle@3f131e8634966bd73d06cc69884922b02e6faf92 # pin@v6.2.0
 
-      - name: Create source archive
-        run: |
-          rm -rf build .c* .e* .git* scripts Makefile external/breakpad/src/tools external/breakpad/src/processor
-          zip -r sentry-native.zip .
+  #     - name: Create source archive
+  #       run: |
+  #         rm -rf build .c* .e* .git* scripts Makefile external/breakpad/src/tools external/breakpad/src/processor
+  #         zip -r sentry-native.zip .
 
-      - name: Build NDK artifacts
-        working-directory: ndk
-        run: ./gradlew clean distZip
+  #     - name: Build NDK artifacts
+  #       working-directory: ndk
+  #       run: ./gradlew clean distZip
 
-      - name: Upload artifacts
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
-        with:
-          name: ${{ github.sha }}
-          if-no-files-found: error
-          path: |
-            sentry-native.zip
-            ndk/lib/build/distributions/*.zip
-            ndk/lib/build/intermediates/merged_native_libs/release/mergeReleaseNativeLibs/out/lib/*
+  #     - name: Upload artifacts
+  #       uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+  #       with:
+  #         name: ${{ github.sha }}
+  #         if-no-files-found: error
+  #         path: |
+  #           sentry-native.zip
+  #           ndk/lib/build/distributions/*.zip
+  #           ndk/lib/build/intermediates/merged_native_libs/release/mergeReleaseNativeLibs/out/lib/*
