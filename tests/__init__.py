@@ -23,7 +23,7 @@ def adb(*args, **kwargs):
 # https://docs.pytest.org/en/latest/assert.html#assert-details
 pytest.register_assert_rewrite("tests.assertions")
 
-SENTRY_VERSION = "0.15.3"
+SENTRY_VERSION = "0.15.4"
 
 # must match the fixed id set by the example's "replay-context" arg
 REPLAY_ID = "deadbeefdeadbeefdeadbeefdeadbeef"
