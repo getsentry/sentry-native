@@ -1281,15 +1281,7 @@ sentry_regenerate_trace(void)
 void
 sentry_set_transaction(const char *transaction)
 {
-    SENTRY_WITH_SCOPE_MUT (scope) {
-        sentry_free(scope->transaction);
-        scope->transaction = sentry__string_clone(transaction);
-
-        if (scope->transaction_object) {
-            sentry_transaction_set_name(scope->transaction_object, transaction);
-        }
-        SENTRY_SCOPE_NOTIFY(scope, set_transaction, scope->transaction);
-    }
+    sentry_set_transaction_n(transaction, sentry__guarded_strlen(transaction));
 }
 
 void
