@@ -47,8 +47,7 @@ sentry_integration_wer_free(void *data)
 }
 
 static void
-wer_set_tag(void *data, const char *key, size_t key_len, const char *value,
-    size_t value_len)
+wer_set_tag(void *data, const char *key, const char *value)
 {
     sentry_integration_wer_data_t *wer_data
         = (sentry_integration_wer_data_t *)data;
@@ -59,13 +58,8 @@ wer_set_tag(void *data, const char *key, size_t key_len, const char *value,
         return;
     }
 
-    char *key_n = sentry__string_clone_n(key, key_len);
-    char *value_n = sentry__string_clone_n(value, value_len);
-    wchar_t *key_w = sentry__string_to_wstr(key_n);
-    wchar_t *value_w = sentry__string_to_wstr(value_n);
-    sentry_free(key_n);
-    sentry_free(value_n);
-
+    wchar_t *key_w = sentry__string_to_wstr(key);
+    wchar_t *value_w = sentry__string_to_wstr(value);
     if (!key_w || !value_w) {
         sentry_free(key_w);
         sentry_free(value_w);
@@ -83,7 +77,7 @@ wer_set_tag(void *data, const char *key, size_t key_len, const char *value,
 }
 
 static void
-wer_remove_tag(void *data, const char *key, size_t key_len)
+wer_remove_tag(void *data, const char *key)
 {
     sentry_integration_wer_data_t *wer_data
         = (sentry_integration_wer_data_t *)data;
@@ -94,10 +88,7 @@ wer_remove_tag(void *data, const char *key, size_t key_len)
         return;
     }
 
-    char *key_n = sentry__string_clone_n(key, key_len);
-    wchar_t *key_w = sentry__string_to_wstr(key_n);
-    sentry_free(key_n);
-
+    wchar_t *key_w = sentry__string_to_wstr(key);
     if (!key_w) {
         return;
     }
@@ -180,7 +171,7 @@ wer_remove_attachment(void *UNUSED(data), sentry_attachment_t *attachment)
 static void
 wer_cleanup_tag(const char *key, sentry_value_t UNUSED(value), void *data)
 {
-    wer_remove_tag(data, key, strlen(key));
+    wer_remove_tag(data, key);
 }
 
 static void
