@@ -1400,6 +1400,16 @@ observe_set_tag_remove_self_and_add(
 }
 
 static void
+observe_set_tag_remove_self(void *data, const char *key, const char *value)
+{
+    reentrant_observer_data_t *d = (reentrant_observer_data_t *)data;
+    observe_set_tag(d->self_data, key, value);
+    SENTRY_WITH_SCOPE_MUT_NO_FLUSH (scope) {
+        sentry__scope_remove_observer(scope, d->self);
+    }
+}
+
+static void
 observe_set_tag_clear_scope(void *data, const char *key, const char *value)
 {
     clear_observer_data_t *d = (clear_observer_data_t *)data;
@@ -1533,6 +1543,16 @@ SENTRY_TEST(scope_observer_null)
     SENTRY_TEST_OPTIONS_NEW(options);
     sentry_init(options);
 
+    SENTRY_WITH_SCOPE_MUT (scope) {
+        TEST_CHECK(!sentry__scope_add_observer(scope, NULL));
+        TEST_CHECK_INT_EQUAL(scope->num_observers, 0);
+        TEST_CHECK(scope->observers == NULL);
+
+        sentry__scope_remove_observer(scope, NULL);
+        TEST_CHECK_INT_EQUAL(scope->num_observers, 0);
+        TEST_CHECK(scope->observers == NULL);
+    }
+
     test_observer_data_t d = { .tags = sentry_value_new_null() };
     sentry_scope_observer_t *observer = sentry__scope_observer_new();
     observer->data = &d;
@@ -1587,15 +1607,23 @@ SENTRY_TEST(scope_observer_multiple)
     d1.was_called = false;
     d2.was_called = false;
     SENTRY_WITH_SCOPE_MUT (scope) {
-        sentry__scope_remove_observer(scope, observer1);
+        sentry__scope_remove_observer(scope, observer2);
+        TEST_CHECK_INT_EQUAL(scope->num_observers, 1);
+        TEST_CHECK(scope->observers != NULL);
     }
 
     sentry_set_tag("multi", "again");
-    TEST_CHECK(!d1.was_called);
-    TEST_CHECK(d2.was_called);
+    TEST_CHECK(d1.was_called);
+    TEST_CHECK(!d2.was_called);
     TEST_CHECK_STRING_EQUAL(
-        sentry_value_as_string(sentry_value_get_by_key(d2.tags, "multi")),
+        sentry_value_as_string(sentry_value_get_by_key(d1.tags, "multi")),
         "again");
+
+    SENTRY_WITH_SCOPE_MUT (scope) {
+        sentry__scope_remove_observer(scope, observer1);
+        TEST_CHECK_INT_EQUAL(scope->num_observers, 0);
+        TEST_CHECK(scope->observers == NULL);
+    }
 
     sentry_value_decref(d1.tags);
     sentry_value_decref(d2.tags);
@@ -1645,9 +1673,34 @@ SENTRY_TEST(scope_observer_mutate)
     TEST_CHECK(d2.was_called);
     TEST_CHECK(d3.was_called);
 
+    SENTRY_WITH_SCOPE_MUT (scope) {
+        sentry__scope_remove_observer(scope, observer2);
+        sentry__scope_remove_observer(scope, observer3);
+    }
+
+    test_observer_data_t d4 = { .tags = sentry_value_new_null() };
+    reentrant_observer_data_t self_remove = { .self_data = &d4 };
+    sentry_scope_observer_t *observer4 = sentry__scope_observer_new();
+    self_remove.self = observer4;
+    observer4->data = &self_remove;
+    observer4->set_tag = observe_set_tag_remove_self;
+
+    SENTRY_WITH_SCOPE_MUT (scope) {
+        TEST_CHECK(sentry__scope_add_observer(scope, observer4));
+        TEST_CHECK_INT_EQUAL(scope->num_observers, 1);
+    }
+
+    sentry_set_tag("self", "remove");
+    TEST_CHECK(d4.was_called);
+    SENTRY_WITH_SCOPE_MUT (scope) {
+        TEST_CHECK_INT_EQUAL(scope->num_observers, 0);
+        TEST_CHECK(scope->observers == NULL);
+    }
+
     sentry_value_decref(d1.tags);
     sentry_value_decref(d2.tags);
     sentry_value_decref(d3.tags);
+    sentry_value_decref(d4.tags);
     sentry_close();
 }
 
