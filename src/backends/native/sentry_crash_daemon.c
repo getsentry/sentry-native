@@ -4281,13 +4281,21 @@ sentry__process_crash(const sentry_options_t *options, sentry_crash_ipc_t *ipc)
 
     SENTRY_DEBUG("Envelope loaded, capturing");
 
-    if (options->cache_keep && options->external_crash_reporter
+    const bool skip_upload
+        = options->run && sentry__run_should_skip_upload(options->run);
+
+    // Materialize only before handing off to the reporter (adds cache_dir
+    // header). Skip when consent blocks upload — we won't launch the reporter.
+    if (!skip_upload && options->cache_keep && options->external_crash_reporter
         && !sentry__envelope_materialize(envelope)) {
         SENTRY_WARN("Failed to materialize envelope for external crash report");
     }
 
-    // Capture directly, or pass to external crash reporter
-    if (!sentry__launch_external_crash_reporter(options, envelope)) {
+    const bool launched_reporter = !skip_upload
+        && sentry__launch_external_crash_reporter(options, envelope);
+
+    // Capture via transport, or pass to external crash reporter when allowed.
+    if (!launched_reporter) {
         if (has_attachment_refs && options && options->run) {
             if (!sentry__run_write_envelope(options->run, envelope)) {
                 SENTRY_WARN(
