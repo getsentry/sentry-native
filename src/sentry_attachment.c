@@ -262,12 +262,12 @@ sentry__attachments_add_path(sentry_attachment_t **attachments_ptr,
     return sentry__attachments_add(attachments_ptr, attachment);
 }
 
-void
+bool
 sentry__attachments_remove(
     sentry_attachment_t **attachments_ptr, sentry_attachment_t *attachment)
 {
     if (!attachment) {
-        return;
+        return false;
     }
 
     sentry_attachment_t **next_ptr = attachments_ptr;
@@ -275,12 +275,14 @@ sentry__attachments_remove(
     for (sentry_attachment_t *it = *attachments_ptr; it; it = it->next) {
         if (it == attachment) {
             *next_ptr = it->next;
-            sentry__attachment_free(it);
-            return;
+            it->next = NULL;
+            return true;
         }
 
         next_ptr = &it->next;
     }
+
+    return false;
 }
 
 static sentry_attachment_t *
