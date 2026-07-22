@@ -11,6 +11,7 @@
 - Fix scope data loss from shared `sentry_value_t` containers while significantly improving scope merge performance with copy-on-write cloning. ([#1794](https://github.com/getsentry/sentry-native/pull/1794))
 - Fix a memory leak when JSON parsing rejects invalid input after partially parsed value. ([#1887](https://github.com/getsentry/sentry-native/pull/1887))
 - Crashpad: wait reliably for crash report uploads. ([#1885](https://github.com/getsentry/sentry-native/pull/1885))
+- Crashpad/Linux: terminate Linux handler re-entry. ([#1894](https://github.com/getsentry/sentry-native/pull/1894))
 
 ## 0.15.4
 
