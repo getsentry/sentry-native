@@ -195,7 +195,14 @@ def run(
         "./{}".format(exe) if sys.platform != "win32" else "{}\\{}.exe".format(cwd, exe)
     ]
     if "asan" in os.environ.get("RUN_ANALYZER", ""):
-        env["ASAN_OPTIONS"] = "detect_leaks=1:detect_invalid_join=0"
+        asan_options = env.get("ASAN_OPTIONS", "")
+        if "detect_leaks" not in asan_options:
+            env["ASAN_OPTIONS"] = ":".join(
+                filter(
+                    None,
+                    [asan_options, "detect_leaks=1:detect_invalid_join=0"],
+                )
+            )
         env["LSAN_OPTIONS"] = "suppressions={}".format(
             os.path.join(sourcedir, "tests", "leaks.txt")
         )
@@ -263,9 +270,9 @@ def run_crash(tmp_path, exe, args, env, **kwargs):
             "handle_sigfpe=0:handle_sigill=0:allow_user_segv_handler=1"
         )
         if asan_opts:
-            env["ASAN_OPTIONS"] = f"{asan_opts}:{asan_signal_opts}"
+            env = dict(env, ASAN_OPTIONS=f"{asan_opts}:{asan_signal_opts}")
         else:
-            env["ASAN_OPTIONS"] = asan_signal_opts
+            env = dict(env, ASAN_OPTIONS=asan_signal_opts)
 
     run(tmp_path, exe, args, expect_failure=True, env=env, **kwargs)
 
