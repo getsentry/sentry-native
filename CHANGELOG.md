@@ -5,6 +5,7 @@
 **Features**:
 
 - Report `cache_overflow` discards due to `cache_max_items` or `cache_max_size`. ([#1884](https://github.com/getsentry/sentry-native/pull/1884))
+- Crashpad/Windows: optimize scope flushes for crash events and external crash reports. ([#1841](https://github.com/getsentry/sentry-native/pull/1841))
 
 **Fixes**:
 
