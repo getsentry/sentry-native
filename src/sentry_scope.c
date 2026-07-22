@@ -647,10 +647,10 @@ sentry__scope_apply_to_event(const sentry_scope_t *scope,
                     sentry_value_new_string(options->run->installation_id));
             }
         } else if (sentry_value_get_length(scope->user) > 0) {
-            PLACE_VALUE("user", scope->user);
+            PLACE_CLONED_VALUE("user", scope->user);
         }
     }
-    PLACE_VALUE("fingerprint", scope->fingerprint);
+    PLACE_CLONED_VALUE("fingerprint", scope->fingerprint);
     PLACE_STRING("transaction", scope->transaction);
     PLACE_VALUE("sdk", scope->client_sdk);
 
