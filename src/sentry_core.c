@@ -161,6 +161,10 @@ sentry_init(sentry_options_t *options)
     }
 
     transport = options->transport;
+    if (!transport) {
+        transport = sentry__transport_new_null();
+        options->transport = transport;
+    }
     sentry_path_t *database_path = options->database_path;
     options->database_path = sentry__path_absolute(database_path);
     if (options->database_path) {
@@ -199,7 +203,12 @@ sentry_init(sentry_options_t *options)
             // Also, we want to continue - crash capture doesn't need transport.
             sentry__transport_shutdown(transport, 0);
             sentry_options_set_transport(options, NULL);
-            transport = NULL;
+            transport = options->transport;
+            if (!transport
+                || sentry__transport_startup(transport, options) != 0) {
+                SENTRY_WARN("failed to initialize fallback transport");
+                goto fail;
+            }
 #else
             SENTRY_WARN("failed to initialize transport");
             goto fail;

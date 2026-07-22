@@ -30,7 +30,7 @@ SENTRY_TEST(init_failure)
     // On NX a failing transport must not fail initialization.
     TEST_CHECK(rv == 0);
     SENTRY_WITH_OPTIONS (runtime_options) {
-        TEST_CHECK(runtime_options->transport == NULL);
+        TEST_CHECK(runtime_options->transport != NULL);
     }
 #else
     TEST_CHECK(rv != 0);

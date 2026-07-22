@@ -187,7 +187,7 @@ sentry_options_set_transport(
     sentry_options_t *opts, sentry_transport_t *transport)
 {
     sentry_transport_free(opts->transport);
-    opts->transport = transport;
+    opts->transport = transport ? transport : sentry__transport_new_null();
 }
 
 #ifdef SENTRY_PLATFORM_NX

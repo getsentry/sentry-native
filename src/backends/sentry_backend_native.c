@@ -40,7 +40,6 @@
 #include "sentry_tracing.h"
 #include "sentry_transport.h"
 #include "sentry_value.h"
-#include "transports/sentry_disk_transport.h"
 
 // Global process-wide synchronization for IPC and shared memory access
 // This lives for the entire backend lifetime and is shared across all threads
@@ -974,6 +973,8 @@ native_backend_except(sentry_backend_t *backend, const sentry_ucontext_t *uctx)
 
         SENTRY_DEBUG("handling native backend exception");
 
+        sentry__transport_suspend(options->transport);
+
         // Flush logs and metrics in a crash-safe manner before crash handling
         if (options->enable_logs) {
             sentry__logs_flush_crash_safe();
@@ -1072,32 +1073,22 @@ native_backend_except(sentry_backend_t *backend, const sentry_ucontext_t *uctx)
                         SENTRY_SESSION_STATUS_CRASHED);
 
                 if (session || !sentry_value_is_null(transaction)) {
-                    sentry_transport_t *disk_transport
-                        = sentry_new_disk_transport(options->run);
-                    if (disk_transport) {
-                        if (!sentry_value_is_null(transaction)) {
-                            sentry_envelope_t *tx_envelope
-                                = sentry__prepare_transaction(
-                                    options, transaction, NULL);
-                            if (tx_envelope) {
-                                sentry__capture_envelope(
-                                    disk_transport, tx_envelope, options);
-                            }
+                    if (!sentry_value_is_null(transaction)) {
+                        sentry_envelope_t *tx_envelope
+                            = sentry__prepare_transaction(
+                                options, transaction, NULL);
+                        if (tx_envelope) {
+                            sentry__capture_envelope(
+                                options->transport, tx_envelope, options);
                         }
-                        if (session) {
-                            sentry_envelope_t *envelope
-                                = sentry__envelope_new();
-                            if (envelope) {
-                                sentry__envelope_add_session(envelope, session);
-                                sentry__capture_envelope(
-                                    disk_transport, envelope, options);
-                            }
+                    }
+                    if (session) {
+                        sentry_envelope_t *envelope = sentry__envelope_new();
+                        if (envelope) {
+                            sentry__envelope_add_session(envelope, session);
+                            sentry__capture_envelope(
+                                options->transport, envelope, options);
                         }
-                        sentry__transport_dump_queue(
-                            disk_transport, options->run);
-                        sentry_transport_free(disk_transport);
-                    } else {
-                        sentry_value_decref(transaction);
                     }
                 }
 

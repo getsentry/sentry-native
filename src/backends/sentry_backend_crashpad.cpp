@@ -26,7 +26,6 @@ extern "C" {
 #endif
 #include "sentry_utils.h"
 #include "sentry_uuid.h"
-#include "transports/sentry_disk_transport.h"
 }
 
 #include <map>
@@ -433,6 +432,8 @@ crashpad_handler(int signum, siginfo_t *info, ucontext_t *user_context)
                 crash_event, nullptr, options->before_send_data);
         }
 
+        sentry__transport_suspend(options->transport);
+
         // Flush logs and metrics in a crash-safe manner before crash handling
         if (options->enable_logs) {
             sentry__logs_flush_crash_safe();
@@ -454,13 +455,7 @@ crashpad_handler(int signum, siginfo_t *info, ucontext_t *user_context)
             if (session) {
                 sentry_envelope_t *envelope = sentry__envelope_new();
                 sentry__envelope_add_session(envelope, session);
-
-                // capture the envelope with the disk transport
-                sentry_transport_t *disk_transport
-                    = sentry_new_disk_transport(options->run);
-                sentry__capture_envelope(disk_transport, envelope, options);
-                sentry__transport_dump_queue(disk_transport, options->run);
-                sentry_transport_free(disk_transport);
+                sentry__capture_envelope(options->transport, envelope, options);
             }
 
             if (sentry__session_replay_has_pending(options)) {
@@ -473,15 +468,8 @@ crashpad_handler(int signum, siginfo_t *info, ucontext_t *user_context)
                         sentry__ringbuffer_to_list(scope->breadcrumbs));
                 }
 
-                sentry_transport_t *replay_transport
-                    = sentry_new_disk_transport(options->run);
-                if (replay_transport) {
-                    sentry__session_replay_flush_pending(
-                        options, replay_transport, crash_event);
-                    sentry__transport_dump_queue(
-                        replay_transport, options->run);
-                    sentry_transport_free(replay_transport);
-                }
+                sentry__session_replay_flush_pending(
+                    options, options->transport, crash_event);
             }
             sentry_value_decref(crash_event);
         } else {

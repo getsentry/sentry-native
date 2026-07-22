@@ -55,6 +55,12 @@ sentry_transport_t *sentry__transport_new_default(void);
 size_t sentry__transport_dump_queue(
     sentry_transport_t *transport, sentry_run_t *run);
 
+/** Creates an internal transport that discards envelopes. */
+sentry_transport_t *sentry__transport_new_null(void);
+
+/** Sets the run used for automatic queue dumps. */
+void sentry__transport_suspend(sentry_transport_t *transport);
+
 void *sentry__transport_get_state(sentry_transport_t *transport);
 
 void sentry__transport_set_retry_func(
