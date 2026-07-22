@@ -4,6 +4,7 @@
 #include "sentry_attachment.h"
 #include "sentry_core.h"
 #include "sentry_logger.h"
+#include "sentry_path.h"
 #include "sentry_scope.h"
 #include "sentry_string.h"
 
@@ -111,16 +112,17 @@ wer_add_attachment(void *UNUSED(data), sentry_attachment_t *attachment)
     }
 
     if (attachment->path) {
-        const wchar_t *path_w = attachment->path->path_w;
-        if (!path_w) {
+        sentry_path_t *path = sentry__path_absolute(attachment->path);
+        if (!path) {
             return;
         }
         HRESULT hr = WerRegisterFile(
-            path_w, WerRegFileTypeOther, WER_FILE_ANONYMOUS_DATA);
+            path->path_w, WerRegFileTypeOther, WER_FILE_ANONYMOUS_DATA);
         if (FAILED(hr)) {
             SENTRY_WARNF(
                 "WerRegisterFile failed: hr=0x%08lx", (unsigned long)hr);
         }
+        sentry__path_free(path);
         return;
     }
 
@@ -148,15 +150,16 @@ wer_remove_attachment(void *UNUSED(data), sentry_attachment_t *attachment)
     }
 
     if (attachment->path) {
-        const wchar_t *path_w = attachment->path->path_w;
-        if (!path_w) {
+        sentry_path_t *path = sentry__path_absolute(attachment->path);
+        if (!path) {
             return;
         }
-        HRESULT hr = WerUnregisterFile(path_w);
+        HRESULT hr = WerUnregisterFile(path->path_w);
         if (FAILED(hr)) {
             SENTRY_WARNF(
                 "WerUnregisterFile failed: hr=0x%08lx", (unsigned long)hr);
         }
+        sentry__path_free(path);
         return;
     }
 
