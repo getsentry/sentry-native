@@ -23,7 +23,6 @@ extern "C" {
 #include "sentry_tracing.h"
 #include "sentry_transport.h"
 #include "sentry_unix_pageallocator.h"
-#include "transports/sentry_disk_transport.h"
 }
 
 #ifdef __GNUC__
@@ -167,6 +166,8 @@ breakpad_backend_callback(const google_breakpad::MinidumpDescriptor &descriptor,
             should_handle = !sentry_value_is_null(result);
         }
 
+        sentry__transport_suspend(options->transport);
+
         // Flush logs and metrics in a crash-safe manner before crash handling
         if (options->enable_logs) {
             sentry__logs_flush_crash_safe();
@@ -246,33 +247,21 @@ breakpad_backend_callback(const google_breakpad::MinidumpDescriptor &descriptor,
             if (envelope && sentry__session_replay_has_pending(options)) {
                 sentry_value_t crash_event
                     = sentry_envelope_get_event(envelope);
-                sentry_transport_t *replay_transport
-                    = sentry_new_disk_transport(options->run);
-                if (replay_transport) {
-                    sentry__session_replay_flush_pending(
-                        options, replay_transport, crash_event);
-                    sentry__transport_dump_queue(
-                        replay_transport, options->run);
-                    sentry_transport_free(replay_transport);
-                }
+                sentry__session_replay_flush_pending(
+                    options, options->transport, crash_event);
             }
 
             if (!sentry__launch_external_crash_reporter(options, envelope)) {
-                // capture the envelopes with the disk transport
-                sentry_transport_t *disk_transport
-                    = sentry_new_disk_transport(options->run);
                 if (!sentry_value_is_null(transaction)) {
                     sentry_envelope_t *tx_envelope
                         = sentry__prepare_transaction(
                             options, transaction, nullptr);
                     if (tx_envelope) {
                         sentry__capture_envelope(
-                            disk_transport, tx_envelope, options);
+                            options->transport, tx_envelope, options);
                     }
                 }
-                sentry__capture_envelope(disk_transport, envelope, options);
-                sentry__transport_dump_queue(disk_transport, options->run);
-                sentry_transport_free(disk_transport);
+                sentry__capture_envelope(options->transport, envelope, options);
             } else {
                 sentry_value_decref(transaction);
             }
