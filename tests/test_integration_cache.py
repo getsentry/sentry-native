@@ -149,7 +149,15 @@ def test_cache_max_size(cmake, backend, unreachable_dsn):
         run_crash(
             tmp_path,
             "sentry_example",
-            ["log", "no-http-retry", "cache-keep", "flush", "crash"],
+            [
+                "log",
+                "no-http-retry",
+                "cache-keep",
+                "flush",
+                "crash",
+                "crash-mode",
+                "native",
+            ],
             env=env,
             wait_for_daemon=backend == "native",
         )
@@ -214,7 +222,15 @@ def test_cache_max_age(cmake, backend, unreachable_dsn):
         run_crash(
             tmp_path,
             "sentry_example",
-            ["log", "no-http-retry", "cache-keep", "flush", "crash"],
+            [
+                "log",
+                "no-http-retry",
+                "cache-keep",
+                "flush",
+                "crash",
+                "crash-mode",
+                "native",
+            ],
             env=env,
             wait_for_daemon=backend == "native",
         )
@@ -280,17 +296,21 @@ def test_cache_max_items(cmake, backend, unreachable_dsn):
         run_crash(
             tmp_path,
             "sentry_example",
-            ["log", "no-http-retry", "cache-keep", "flush", "crash"],
+            [
+                "log",
+                "no-http-retry",
+                "cache-keep",
+                "flush",
+                "crash",
+                "crash-mode",
+                "native",
+            ],
             env=env,
             wait_for_daemon=backend == "native",
         )
 
     if backend == "native":
         assert wait_for(lambda: len(list(cache_dir.glob("*.envelope"))) == 6)
-        for f in cache_dir.iterdir():
-            if f.is_file() and f.suffix != ".envelope":
-                with open(f, "r+b") as file:
-                    file.truncate(0)
 
     # flush + cache
     run(
@@ -335,7 +355,7 @@ def test_cache_max_items_with_retry(cmake, backend, unreachable_dsn):
         run_crash(
             tmp_path,
             "sentry_example",
-            ["log", "cache-keep", "flush", "crash"],
+            ["log", "cache-keep", "flush", "crash", "crash-mode", "native"],
             env=env,
             wait_for_daemon=backend == "native",
         )
