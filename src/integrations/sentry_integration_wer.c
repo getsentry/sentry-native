@@ -15,6 +15,9 @@
 #ifndef WER_FILE_ANONYMOUS_DATA
 #    define WER_FILE_ANONYMOUS_DATA 0x2
 #endif
+#ifndef WER_MAX_MEM_BLOCK_SIZE
+#    define WER_MAX_MEM_BLOCK_SIZE (64 * 1024)
+#endif
 
 typedef struct sentry_integration_wer_data_s {
     HRESULT(WINAPI *WerRegisterCustomMetadata)(PCWSTR, PCWSTR);
@@ -127,7 +130,7 @@ wer_add_attachment(void *UNUSED(data), sentry_attachment_t *attachment)
     }
 
     if (attachment->buf && attachment->buf_len > 0) {
-        if (attachment->buf_len > MAXDWORD) {
+        if (attachment->buf_len > WER_MAX_MEM_BLOCK_SIZE) {
             SENTRY_WARNF("WerRegisterMemoryBlock: buffer too large (%zu bytes)",
                 attachment->buf_len);
             return;
