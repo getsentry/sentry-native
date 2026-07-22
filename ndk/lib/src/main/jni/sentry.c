@@ -1,8 +1,11 @@
+#include <android/log.h>
+#include <errno.h>
 #include <jni.h>
 #include <sentry.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <string.h>
+#include <sys/stat.h>
 
 #define ENSURE(Expr)                                                           \
     if (!(Expr))                                                               \
@@ -308,6 +311,38 @@ Java_io_sentry_ndk_NativeScope_nativeClearAttachments(JNIEnv *env, jclass cls)
     sentry_clear_attachments();
 }
 
+// sentry-native's path helpers are internal to the core library and not
+// exported from the shared object we link against, so we create the outbox
+// ourselves. Android is always POSIX, so mkdir(2) is all we need.
+static int
+create_dir_all(const char *path)
+{
+    char *buf = sentry_malloc(strlen(path) + 1);
+    if (!buf) {
+        return -1;
+    }
+    strcpy(buf, path);
+
+    int rv = 0;
+    for (char *p = buf; *p; p++) {
+        if (*p == '/' && p != buf) {
+            *p = '\0';
+            if (mkdir(buf, 0700) != 0 && errno != EEXIST && errno != EINVAL) {
+                rv = -1;
+                goto done;
+            }
+            *p = '/';
+        }
+    }
+    if (mkdir(buf, 0700) != 0 && errno != EEXIST && errno != EINVAL) {
+        rv = -1;
+    }
+
+done:
+    sentry_free(buf);
+    return rv;
+}
+
 static void
 send_envelope(sentry_envelope_t *envelope, void *data)
 {
@@ -316,6 +351,14 @@ send_envelope(sentry_envelope_t *envelope, void *data)
 
     sentry_uuid_t envelope_id = sentry_uuid_new_v4();
     sentry_uuid_as_string(&envelope_id, envelope_id_str);
+
+    // The head SDK may create the outbox lazily, so ensure it exists before
+    // writing into it; the underlying file write does not create parent
+    // directories and would otherwise silently fail.
+    if (create_dir_all(outbox_path) != 0) {
+        __android_log_print(ANDROID_LOG_ERROR, "sentry-native",
+            "failed to create outbox directory \"%s\"", outbox_path);
+    }
 
     size_t outbox_len = strlen(outbox_path);
     size_t final_len = outbox_len + 42; // "/" + envelope_id_str + "\0" = 42

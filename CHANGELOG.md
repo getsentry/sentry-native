@@ -11,6 +11,7 @@
 - Fix scope data loss from shared `sentry_value_t` containers while significantly improving scope merge performance with copy-on-write cloning. ([#1794](https://github.com/getsentry/sentry-native/pull/1794))
 - Fix a memory leak when JSON parsing rejects invalid input after partially parsed value. ([#1887](https://github.com/getsentry/sentry-native/pull/1887))
 - Crashpad: wait reliably for crash report uploads. ([#1885](https://github.com/getsentry/sentry-native/pull/1885))
+- Android: create the outbox directory before writing NDK crash envelopes into it, so envelopes are not lost when the head SDK creates the outbox lazily. ([#1889](https://github.com/getsentry/sentry-native/pull/1889))
 
 ## 0.15.4
 
