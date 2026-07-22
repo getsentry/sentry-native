@@ -481,7 +481,7 @@ def test_crashpad_dumping_crash(cmake, httpserver, run_args, build_args):
     [
         None,  # uses default of 64KiB
         pytest.param(
-            "16",
+            "24",
             marks=pytest.mark.skipif(
                 sys.platform != "win32",
                 reason="handler stack size parameterization tests stack guarantee on windows only",
