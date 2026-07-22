@@ -154,13 +154,17 @@ def test_cache_max_size(cmake, backend, unreachable_dsn):
             wait_for_daemon=backend == "native",
         )
 
-    # flush + cache
-    run(
-        tmp_path,
-        "sentry_example",
-        ["log", "no-http-retry", "cache-keep", "flush", "no-setup"],
-        env=env,
-    )
+    if backend == "native":
+        # wait for daemon to cache
+        assert wait_for(lambda: len(list(cache_dir.glob("*.envelope"))) == 5)
+    else:
+        # flush + cache
+        run(
+            tmp_path,
+            "sentry_example",
+            ["log", "no-http-retry", "cache-keep", "flush", "no-setup"],
+            env=env,
+        )
 
     # 5 x 4mb
     assert cache_dir.exists()
@@ -215,13 +219,17 @@ def test_cache_max_age(cmake, backend, unreachable_dsn):
             wait_for_daemon=backend == "native",
         )
 
-    # flush + cache
-    run(
-        tmp_path,
-        "sentry_example",
-        ["log", "no-http-retry", "cache-keep", "flush", "no-setup"],
-        env=env,
-    )
+    if backend == "native":
+        # wait for daemon to cache
+        assert wait_for(lambda: len(list(cache_dir.glob("*.envelope"))) == 5)
+    else:
+        # flush + cache
+        run(
+            tmp_path,
+            "sentry_example",
+            ["log", "no-http-retry", "cache-keep", "flush", "no-setup"],
+            env=env,
+        )
 
     # 2,4,6,8,10 days old
     assert cache_dir.exists()
@@ -277,6 +285,13 @@ def test_cache_max_items(cmake, backend, unreachable_dsn):
             wait_for_daemon=backend == "native",
         )
 
+    if backend == "native":
+        assert wait_for(lambda: len(list(cache_dir.glob("*.envelope"))) == 6)
+        for f in cache_dir.iterdir():
+            if f.is_file() and f.suffix != ".envelope":
+                with open(f, "r+b") as file:
+                    file.truncate(0)
+
     # flush + cache
     run(
         tmp_path,
@@ -325,13 +340,17 @@ def test_cache_max_items_with_retry(cmake, backend, unreachable_dsn):
             wait_for_daemon=backend == "native",
         )
 
-    # flush + cache
-    run(
-        tmp_path,
-        "sentry_example",
-        ["log", "cache-keep", "flush", "no-setup"],
-        env=env,
-    )
+    if backend == "native":
+        # wait for daemon to cache
+        assert wait_for(lambda: len(list(cache_dir.glob("*.envelope"))) == 4)
+    else:
+        # flush + cache
+        run(
+            tmp_path,
+            "sentry_example",
+            ["log", "cache-keep", "flush", "no-setup"],
+            env=env,
+        )
     assert wait_for(lambda: len(list(cache_dir.glob("*.envelope"))) == 4)
 
     # Pre-populate cache/ with retry-format envelope files
