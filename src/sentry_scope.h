@@ -122,6 +122,9 @@ void sentry__scope_unlock(void);
  */
 void sentry__scope_cleanup(void);
 
+void sentry__scope_apply_options(
+    sentry_scope_t *scope, sentry_options_t *options);
+
 /**
  * Frees the scope if it is a one-shot local scope.
  */
@@ -144,13 +147,82 @@ void sentry__scope_apply_to_event(const sentry_scope_t *scope,
     const sentry_options_t *options, sentry_value_t event,
     sentry_scope_mode_t mode);
 
+const char *sentry__scope_get_release(const sentry_scope_t *scope);
+void sentry__scope_set_release_n(
+    sentry_scope_t *scope, const char *release, size_t release_len);
+
+const char *sentry__scope_get_environment(const sentry_scope_t *scope);
+void sentry__scope_set_environment_n(
+    sentry_scope_t *scope, const char *environment, size_t environment_len);
+
+const char *sentry__scope_get_transaction(const sentry_scope_t *scope);
+void sentry__scope_set_transaction_n(
+    sentry_scope_t *scope, const char *transaction, size_t transaction_len);
+
+sentry_value_t sentry__scope_get_fingerprint(const sentry_scope_t *scope);
 void sentry__scope_set_fingerprint_va(
     sentry_scope_t *scope, const char *fingerprint, va_list va);
 void sentry__scope_set_fingerprint_nva(sentry_scope_t *scope,
     const char *fingerprint, size_t fingerprint_len, va_list va);
+void sentry__scope_remove_fingerprint(sentry_scope_t *scope);
 
+sentry_value_t sentry__scope_get_user(const sentry_scope_t *scope);
+sentry_level_t sentry__scope_get_level(const sentry_scope_t *scope);
+
+sentry_value_t sentry__scope_get_tags(const sentry_scope_t *scope);
+void sentry__scope_remove_tag(sentry_scope_t *scope, const char *key);
+void sentry__scope_remove_tag_n(
+    sentry_scope_t *scope, const char *key, size_t key_len);
+
+sentry_value_t sentry__scope_get_extra(const sentry_scope_t *scope);
+void sentry__scope_remove_extra(sentry_scope_t *scope, const char *key);
+void sentry__scope_remove_extra_n(
+    sentry_scope_t *scope, const char *key, size_t key_len);
+
+sentry_value_t sentry__scope_get_attributes(const sentry_scope_t *scope);
+
+sentry_value_t sentry__scope_get_contexts(const sentry_scope_t *scope);
+void sentry__scope_remove_context(sentry_scope_t *scope, const char *key);
+void sentry__scope_remove_context_n(
+    sentry_scope_t *scope, const char *key, size_t key_len);
+
+sentry_value_t sentry__scope_get_propagation_context(
+    const sentry_scope_t *scope);
+sentry_value_t sentry__scope_get_trace_context(const sentry_scope_t *scope);
+void sentry__scope_set_propagation_context(
+    sentry_scope_t *scope, const char *key, sentry_value_t value);
+void sentry__scope_regenerate_propagation_context(sentry_scope_t *scope);
+
+const sentry_ringbuffer_t *sentry__scope_get_breadcrumbs(
+    const sentry_scope_t *scope);
+
+sentry_attachment_t *sentry__scope_get_attachments(const sentry_scope_t *scope);
 sentry_attachment_t *sentry__scope_add_attachment(
     sentry_scope_t *scope, sentry_attachment_t *attachment);
+bool sentry__scope_remove_attachment(
+    sentry_scope_t *scope, sentry_attachment_t *attachment);
+sentry_attachment_t *sentry__scope_take_attachments(sentry_scope_t *scope);
+
+sentry_transaction_t *sentry__scope_get_transaction_object(
+    const sentry_scope_t *scope);
+void sentry__scope_set_transaction_object(
+    sentry_scope_t *scope, sentry_transaction_t *transaction);
+bool sentry__scope_remove_transaction_object(
+    sentry_scope_t *scope, sentry_transaction_t *transaction);
+bool sentry__scope_remove_transaction_value(
+    sentry_scope_t *scope, sentry_value_t transaction);
+bool sentry__scope_restore_transaction_object(
+    sentry_scope_t *scope, sentry_transaction_t *transaction);
+
+sentry_span_t *sentry__scope_get_span(const sentry_scope_t *scope);
+void sentry__scope_set_span(sentry_scope_t *scope, sentry_span_t *span);
+bool sentry__scope_remove_span(sentry_scope_t *scope, sentry_span_t *span);
+bool sentry__scope_remove_span_value(
+    sentry_scope_t *scope, sentry_value_t span);
+bool sentry__scope_restore_span(sentry_scope_t *scope, sentry_span_t *span);
+
+bool sentry__scope_is_trace_managed(const sentry_scope_t *scope);
+void sentry__scope_set_trace_managed(sentry_scope_t *scope, bool managed);
 
 /**
  * These are convenience macros to automatically lock/unlock the global scope
@@ -209,6 +281,8 @@ void sentry__scope_end_notify(sentry_scope_t *scope);
         }                                                                      \
         sentry__scope_end_notify(scope);                                       \
     } while (0)
+
+sentry_value_t sentry__scope_get_dsc(const sentry_scope_t *scope);
 
 /**
  * Rebuilds the scope's dynamic sampling context (DSC) from the SDK options

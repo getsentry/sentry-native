@@ -149,7 +149,8 @@ SENTRY_TEST(attachments_add_dedupe)
 
     sentry_envelope_t *envelope = sentry__envelope_new();
     SENTRY_WITH_SCOPE (scope) {
-        sentry__envelope_add_attachments(envelope, scope->attachments, NULL);
+        sentry__envelope_add_attachments(
+            envelope, sentry__scope_get_attachments(scope), NULL);
     }
     char *serialized = sentry_envelope_serialize(envelope, NULL);
     sentry_envelope_free(envelope);
@@ -214,7 +215,8 @@ SENTRY_TEST(attachments_add_remove)
 
     envelope = sentry__envelope_new();
     SENTRY_WITH_SCOPE (scope) {
-        sentry__envelope_add_attachments(envelope, scope->attachments, NULL);
+        sentry__envelope_add_attachments(
+            envelope, sentry__scope_get_attachments(scope), NULL);
     }
     serialized = sentry_envelope_serialize(envelope, NULL);
     sentry_envelope_free(envelope);
@@ -231,7 +233,8 @@ SENTRY_TEST(attachments_add_remove)
 
     envelope = sentry__envelope_new();
     SENTRY_WITH_SCOPE (scope) {
-        sentry__envelope_add_attachments(envelope, scope->attachments, NULL);
+        sentry__envelope_add_attachments(
+            envelope, sentry__scope_get_attachments(scope), NULL);
     }
     serialized = sentry_envelope_serialize(envelope, NULL);
     sentry_envelope_free(envelope);
@@ -396,7 +399,7 @@ SENTRY_TEST(attachment_properties)
         sentry_envelope_t *envelope = sentry__envelope_new();
         SENTRY_WITH_SCOPE (scope) {
             sentry__envelope_add_attachments(
-                envelope, scope->attachments, NULL);
+                envelope, sentry__scope_get_attachments(scope), NULL);
         }
 
         char *serialized = sentry_envelope_serialize(envelope, NULL);
@@ -441,7 +444,7 @@ SENTRY_TEST(attachments_bytes)
         sentry_envelope_t *envelope = sentry__envelope_new();
         SENTRY_WITH_SCOPE (scope) {
             sentry__envelope_add_attachments(
-                envelope, scope->attachments, NULL);
+                envelope, sentry__scope_get_attachments(scope), NULL);
         }
         char *serialized = sentry_envelope_serialize(envelope, NULL);
         TEST_CHECK_STRING_EQUAL(serialized,
@@ -466,7 +469,7 @@ SENTRY_TEST(attachments_bytes)
         sentry_envelope_t *envelope = sentry__envelope_new();
         SENTRY_WITH_SCOPE (scope) {
             sentry__envelope_add_attachments(
-                envelope, scope->attachments, NULL);
+                envelope, sentry__scope_get_attachments(scope), NULL);
         }
 
         char *serialized = sentry_envelope_serialize(envelope, NULL);
@@ -488,7 +491,7 @@ SENTRY_TEST(attachments_bytes)
         sentry_envelope_t *envelope = sentry__envelope_new();
         SENTRY_WITH_SCOPE (scope) {
             sentry__envelope_add_attachments(
-                envelope, scope->attachments, NULL);
+                envelope, sentry__scope_get_attachments(scope), NULL);
         }
         char *serialized = sentry_envelope_serialize(envelope, NULL);
         TEST_CHECK_STRING_EQUAL(serialized, "{}");

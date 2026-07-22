@@ -117,8 +117,8 @@ SENTRY_TEST(scope_update_context)
         sentry_update_context("device", device);
 
         SENTRY_WITH_SCOPE (scope) {
-            sentry_value_t ctx
-                = sentry_value_get_by_key(scope->contexts, "device");
+            sentry_value_t ctx = sentry_value_get_by_key(
+                sentry__scope_get_contexts(scope), "device");
             TEST_CHECK_STRING_EQUAL(
                 sentry_value_as_string(sentry_value_get_by_key(ctx, "model")),
                 "Xbox Series X");
@@ -137,8 +137,8 @@ SENTRY_TEST(scope_update_context)
         sentry_update_context("device", extra);
 
         SENTRY_WITH_SCOPE (scope) {
-            sentry_value_t ctx
-                = sentry_value_get_by_key(scope->contexts, "device");
+            sentry_value_t ctx = sentry_value_get_by_key(
+                sentry__scope_get_contexts(scope), "device");
             TEST_CHECK_STRING_EQUAL(
                 sentry_value_as_string(sentry_value_get_by_key(ctx, "model")),
                 "PC");
@@ -160,8 +160,8 @@ SENTRY_TEST(scope_update_context)
         sentry_value_set_by_key(os, "name", sentry_value_new_string("SteamOS"));
         sentry_scope_update_context(local_scope, "os", os);
 
-        sentry_value_t ctx
-            = sentry_value_get_by_key(local_scope->contexts, "os");
+        sentry_value_t ctx = sentry_value_get_by_key(
+            sentry__scope_get_contexts(local_scope), "os");
         TEST_CHECK_STRING_EQUAL(
             sentry_value_as_string(sentry_value_get_by_key(ctx, "name")),
             "SteamOS");
@@ -172,7 +172,8 @@ SENTRY_TEST(scope_update_context)
         sentry_value_set_by_key(os2, "version", sentry_value_new_string("6.1"));
         sentry_scope_update_context(local_scope, "os", os2);
 
-        ctx = sentry_value_get_by_key(local_scope->contexts, "os");
+        ctx = sentry_value_get_by_key(
+            sentry__scope_get_contexts(local_scope), "os");
         TEST_CHECK_STRING_EQUAL(
             sentry_value_as_string(sentry_value_get_by_key(ctx, "name")),
             "Linux");
@@ -1038,7 +1039,7 @@ SENTRY_TEST(scope_clone)
     // scope values must not be corrupted by before_send modifications
     SENTRY_WITH_SCOPE (scope) {
         sentry_value_t scope_gpu
-            = sentry_value_get_by_key(scope->contexts, "gpu");
+            = sentry_value_get_by_key(sentry__scope_get_contexts(scope), "gpu");
         TEST_CHECK_STRING_EQUAL(
             sentry_value_as_string(sentry_value_get_by_key(scope_gpu, "name")),
             "original");
@@ -1046,7 +1047,7 @@ SENTRY_TEST(scope_clone)
             sentry_value_get_by_key(scope_gpu, "injected")));
 
         sentry_value_t scope_data
-            = sentry_value_get_by_key(scope->extra, "data");
+            = sentry_value_get_by_key(sentry__scope_get_extra(scope), "data");
         TEST_CHECK_STRING_EQUAL(
             sentry_value_as_string(sentry_value_get_by_key(scope_data, "key")),
             "original");
@@ -1054,12 +1055,13 @@ SENTRY_TEST(scope_clone)
             sentry_value_get_by_key(scope_data, "injected")));
 
         TEST_CHECK_STRING_EQUAL(sentry_value_as_string(sentry_value_get_by_key(
-                                    scope->user, "username")),
+                                    sentry__scope_get_user(scope), "username")),
             "original");
-        TEST_CHECK(sentry_value_is_null(
-            sentry_value_get_by_key(scope->user, "injected")));
+        TEST_CHECK(sentry_value_is_null(sentry_value_get_by_key(
+            sentry__scope_get_user(scope), "injected")));
 
-        TEST_CHECK_INT_EQUAL(sentry_value_get_length(scope->fingerprint), 2);
+        TEST_CHECK_INT_EQUAL(
+            sentry_value_get_length(sentry__scope_get_fingerprint(scope)), 2);
     }
 
     sentry_close();
@@ -1076,7 +1078,7 @@ SENTRY_TEST(scope_global_attributes)
     sentry_set_attribute("valid_key", valid_attr);
 
     SENTRY_WITH_SCOPE (scope) {
-        sentry_value_t attributes = scope->attributes;
+        sentry_value_t attributes = sentry__scope_get_attributes(scope);
         sentry_value_t retrieved_attr
             = sentry_value_get_by_key(attributes, "valid_key");
 
@@ -1098,7 +1100,7 @@ SENTRY_TEST(scope_global_attributes)
     sentry_set_attribute("invalid_no_value", invalid_attr_no_value);
 
     SENTRY_WITH_SCOPE (scope) {
-        sentry_value_t attributes = scope->attributes;
+        sentry_value_t attributes = sentry__scope_get_attributes(scope);
         sentry_value_t retrieved_attr
             = sentry_value_get_by_key(attributes, "invalid_no_value");
 
@@ -1114,7 +1116,7 @@ SENTRY_TEST(scope_global_attributes)
     sentry_set_attribute("invalid_no_type", invalid_attr_no_type);
 
     SENTRY_WITH_SCOPE (scope) {
-        sentry_value_t attributes = scope->attributes;
+        sentry_value_t attributes = sentry__scope_get_attributes(scope);
         sentry_value_t retrieved_attr
             = sentry_value_get_by_key(attributes, "invalid_no_type");
 
@@ -1126,7 +1128,7 @@ SENTRY_TEST(scope_global_attributes)
     sentry_remove_attribute("valid_key");
 
     SENTRY_WITH_SCOPE (scope) {
-        sentry_value_t attributes = scope->attributes;
+        sentry_value_t attributes = sentry__scope_get_attributes(scope);
         sentry_value_t retrieved_attr
             = sentry_value_get_by_key(attributes, "valid_key");
 
@@ -1140,7 +1142,7 @@ SENTRY_TEST(scope_global_attributes)
     sentry_set_attribute_n("key_n", 5, attr_n);
 
     SENTRY_WITH_SCOPE (scope) {
-        sentry_value_t attributes = scope->attributes;
+        sentry_value_t attributes = sentry__scope_get_attributes(scope);
         sentry_value_t retrieved_attr
             = sentry_value_get_by_key(attributes, "key_n");
 
@@ -1175,7 +1177,7 @@ SENTRY_TEST(scope_local_attributes)
         sentry_value_new_attribute(sentry_value_new_string("global"), NULL));
 
     SENTRY_WITH_SCOPE (global_scope) {
-        sentry_value_t attributes = global_scope->attributes;
+        sentry_value_t attributes = sentry__scope_get_attributes(global_scope);
 
         // Verify global attributes are set
         TEST_CHECK_STRING_EQUAL(
@@ -1203,7 +1205,8 @@ SENTRY_TEST(scope_local_attributes)
         sentry_scope_set_attribute(local_scope, "scope",
             sentry_value_new_attribute(sentry_value_new_string("local"), NULL));
 
-        sentry_value_t local_attributes = local_scope->attributes;
+        sentry_value_t local_attributes
+            = sentry__scope_get_attributes(local_scope);
 
         // Verify local attributes are set
         TEST_CHECK_STRING_EQUAL(
@@ -1220,7 +1223,8 @@ SENTRY_TEST(scope_local_attributes)
             "local");
 
         // Verify global scope still has its own attributes
-        sentry_value_t global_attributes = global_scope->attributes;
+        sentry_value_t global_attributes
+            = sentry__scope_get_attributes(global_scope);
         TEST_CHECK_STRING_EQUAL(
             sentry_value_as_string(sentry_value_get_by_key(
                 sentry_value_get_by_key(global_attributes, "all"), "value")),
@@ -1237,7 +1241,7 @@ SENTRY_TEST(scope_local_attributes)
     sentry_remove_attribute("all");
 
     SENTRY_WITH_SCOPE (scope) {
-        sentry_value_t attributes = scope->attributes;
+        sentry_value_t attributes = sentry__scope_get_attributes(scope);
         TEST_CHECK(
             sentry_value_is_null(sentry_value_get_by_key(attributes, "all")));
         // Other attributes should still exist
@@ -1253,7 +1257,8 @@ SENTRY_TEST(scope_local_attributes)
         sentry_scope_set_attribute_n(local_scope, "test_key", 8,
             sentry_value_new_attribute(sentry_value_new_int32(100), "percent"));
 
-        sentry_value_t local_attributes = local_scope->attributes;
+        sentry_value_t local_attributes
+            = sentry__scope_get_attributes(local_scope);
         sentry_value_t attr
             = sentry_value_get_by_key(local_attributes, "test_key");
 
@@ -1285,7 +1290,8 @@ SENTRY_TEST(scope_local_attributes)
             invalid_attr, "type", sentry_value_new_string("string"));
         sentry_scope_set_attribute(local_scope, "invalid", invalid_attr);
 
-        sentry_value_t local_attributes = local_scope->attributes;
+        sentry_value_t local_attributes
+            = sentry__scope_get_attributes(local_scope);
         TEST_CHECK(sentry_value_is_null(
             sentry_value_get_by_key(local_attributes, "invalid")));
 
@@ -1586,7 +1592,7 @@ SENTRY_TEST(scope_observer_clear)
     sentry_scope_clear(scope);
     TEST_CHECK(d.was_cleared);
     TEST_CHECK_INT_EQUAL(scope->num_observers, 1);
-    TEST_CHECK(sentry_value_get_length(scope->tags) == 0);
+    TEST_CHECK(sentry_value_get_length(sentry__scope_get_tags(scope)) == 0);
 
     d.was_called = false;
     sentry_scope_set_tag(scope, "after", "clear");
@@ -1614,7 +1620,7 @@ SENTRY_TEST(scope_observer_clear)
     TEST_CHECK(observer_data.was_cleared);
     TEST_CHECK_INT_EQUAL(scope->is_notifying, 0);
     TEST_CHECK_INT_EQUAL(scope->num_observers, 1);
-    TEST_CHECK(sentry_value_get_length(scope->tags) == 0);
+    TEST_CHECK(sentry_value_get_length(sentry__scope_get_tags(scope)) == 0);
 
     sentry_value_decref(observer_data.tags);
     sentry_scope_free(scope);
@@ -2286,7 +2292,8 @@ SENTRY_TEST(scope_set_attribute_invalid_decref_value)
     TEST_CHECK_INT_EQUAL(sentry_value_refcount(no_type), 1);
     sentry_value_decref(no_type);
 
-    TEST_CHECK_INT_EQUAL(sentry_value_get_length(scope->attributes), 0);
+    TEST_CHECK_INT_EQUAL(
+        sentry_value_get_length(sentry__scope_get_attributes(scope)), 0);
 
     sentry_scope_free(scope);
 }
@@ -2303,7 +2310,8 @@ SENTRY_TEST(scope_set_attribute_null_key_decref_value)
     TEST_CHECK_INT_EQUAL(sentry_value_refcount(v), 1);
     sentry_value_decref(v);
 
-    TEST_CHECK_INT_EQUAL(sentry_value_get_length(scope->attributes), 0);
+    TEST_CHECK_INT_EQUAL(
+        sentry_value_get_length(sentry__scope_get_attributes(scope)), 0);
 
     sentry_scope_free(scope);
 }
@@ -2324,7 +2332,8 @@ SENTRY_TEST(scope_ownership)
 static size_t
 scope_breadcrumb_count(const sentry_scope_t *scope)
 {
-    sentry_value_t breadcrumbs = sentry__ringbuffer_to_list(scope->breadcrumbs);
+    sentry_value_t breadcrumbs
+        = sentry__ringbuffer_to_list(sentry__scope_get_breadcrumbs(scope));
     size_t count = sentry_value_get_length(breadcrumbs);
     sentry_value_decref(breadcrumbs);
     return count;
@@ -2346,10 +2355,10 @@ SENTRY_TEST(scope_clone_independence)
     TEST_CHECK(!clone->one_shot);
 
     // The clone carries over the source's data.
-    TEST_CHECK_STRING_EQUAL(
-        sentry_value_as_string(sentry_value_get_by_key(clone->tags, "shared")),
+    TEST_CHECK_STRING_EQUAL(sentry_value_as_string(sentry_value_get_by_key(
+                                sentry__scope_get_tags(clone), "shared")),
         "original");
-    TEST_CHECK(clone->level == SENTRY_LEVEL_WARNING);
+    TEST_CHECK(sentry__scope_get_level(clone) == SENTRY_LEVEL_WARNING);
     TEST_CHECK_INT_EQUAL(scope_breadcrumb_count(clone), 1);
 
     // Mutating the clone does not affect the source, and vice versa.
@@ -2358,11 +2367,11 @@ SENTRY_TEST(scope_clone_independence)
     sentry_scope_add_breadcrumb(
         clone, sentry_value_new_breadcrumb(NULL, "second"));
 
-    TEST_CHECK_STRING_EQUAL(
-        sentry_value_as_string(sentry_value_get_by_key(scope->tags, "shared")),
+    TEST_CHECK_STRING_EQUAL(sentry_value_as_string(sentry_value_get_by_key(
+                                sentry__scope_get_tags(scope), "shared")),
         "original");
     TEST_CHECK(sentry_value_is_null(
-        sentry_value_get_by_key(scope->tags, "clone_only")));
+        sentry_value_get_by_key(sentry__scope_get_tags(scope), "clone_only")));
     TEST_CHECK_INT_EQUAL(scope_breadcrumb_count(scope), 1);
     TEST_CHECK_INT_EQUAL(scope_breadcrumb_count(clone), 2);
 
@@ -2391,32 +2400,37 @@ SENTRY_TEST(scope_clone_preserves_data)
 
     sentry_scope_t *clone = sentry_scope_clone(scope);
 
-    TEST_CHECK_STRING_EQUAL(
-        sentry_value_as_string(sentry_value_get_by_key(clone->tags, "tag_key")),
+    TEST_CHECK_STRING_EQUAL(sentry_value_as_string(sentry_value_get_by_key(
+                                sentry__scope_get_tags(clone), "tag_key")),
         "tag_value");
     TEST_CHECK_STRING_EQUAL(sentry_value_as_string(sentry_value_get_by_key(
-                                clone->contexts, "device")),
+                                sentry__scope_get_contexts(clone), "device")),
         "Xbox");
     TEST_CHECK_STRING_EQUAL(sentry_value_as_string(sentry_value_get_by_key(
-                                clone->user, "username")),
+                                sentry__scope_get_user(clone), "username")),
         "alice");
     TEST_CHECK_STRING_EQUAL(sentry_value_as_string(sentry_value_get_by_key(
-                                clone->extra, "extra_key")),
+                                sentry__scope_get_extra(clone), "extra_key")),
         "extra_value");
-    TEST_CHECK_INT_EQUAL(sentry_value_get_length(clone->fingerprint), 2);
-    TEST_CHECK(clone->level == SENTRY_LEVEL_WARNING);
+    TEST_CHECK_INT_EQUAL(
+        sentry_value_get_length(sentry__scope_get_fingerprint(clone)), 2);
+    TEST_CHECK(sentry__scope_get_level(clone) == SENTRY_LEVEL_WARNING);
     TEST_CHECK_STRING_EQUAL(
         sentry_value_as_string(sentry_value_get_by_key(
-            sentry_value_get_by_key(clone->attributes, "attr_key"), "value")),
+            sentry_value_get_by_key(
+                sentry__scope_get_attributes(clone), "attr_key"),
+            "value")),
         "attr_value");
     TEST_CHECK_INT_EQUAL(scope_breadcrumb_count(clone), 1);
 
     // Attachments are deep-copied into an independent list.
-    TEST_CHECK(clone->attachments != NULL);
-    TEST_CHECK(clone->attachments != scope->attachments);
+    TEST_CHECK(sentry__scope_get_attachments(clone) != NULL);
+    TEST_CHECK(sentry__scope_get_attachments(clone)
+        != sentry__scope_get_attachments(scope));
     TEST_CHECK_STRING_EQUAL(
-        sentry__attachment_get_filename(clone->attachments), "file.bin");
-    TEST_CHECK_INT_EQUAL(clone->attachments->buf_len, 7);
+        sentry__attachment_get_filename(sentry__scope_get_attachments(clone)),
+        "file.bin");
+    TEST_CHECK_INT_EQUAL(sentry__scope_get_attachments(clone)->buf_len, 7);
 
     sentry_scope_free(clone);
     sentry_scope_free(scope);
@@ -2438,13 +2452,13 @@ SENTRY_TEST(scope_clone_shares_span)
     sentry_scope_t *clone = NULL;
     sentry_transaction_t *scope_txn = NULL;
     SENTRY_WITH_SCOPE (scope) {
-        scope_txn = scope->transaction_object;
+        scope_txn = sentry__scope_get_transaction_object(scope);
         clone = sentry_scope_clone(scope);
     }
 
     // The active transaction is shared by reference, not dropped or duplicated.
     TEST_CHECK(scope_txn != NULL);
-    TEST_CHECK(clone->transaction_object == scope_txn);
+    TEST_CHECK(sentry__scope_get_transaction_object(clone) == scope_txn);
 
     // The shared reference keeps the transaction alive for the original: the
     // clone can be freed and the transaction still finished safely.
@@ -2463,9 +2477,9 @@ SENTRY_TEST(scope_clear)
 
     // Clearing a scope must keep trace propagation data intact, including the
     // dynamic sampling context.
-    sentry_value_set_by_key(
-        scope->propagation_context, "marker", sentry_value_new_string("keep"));
-    sentry_value_set_by_key(scope->dynamic_sampling_context, "marker",
+    sentry__scope_set_propagation_context(
+        scope, "marker", sentry_value_new_string("keep"));
+    sentry_value_set_by_key(sentry__scope_get_dsc(scope), "marker",
         sentry_value_new_string("keep"));
 
     sentry_scope_set_tag(scope, "tag", "value");
@@ -2483,35 +2497,39 @@ SENTRY_TEST(scope_clear)
     sentry_scope_add_breadcrumb(
         scope, sentry_value_new_breadcrumb(NULL, "crumb"));
 
-    TEST_CHECK(sentry_value_get_length(scope->tags) == 1);
-    TEST_CHECK(sentry_value_get_length(scope->attributes) == 1);
-    TEST_CHECK(!sentry_value_is_null(scope->user));
+    TEST_CHECK(sentry_value_get_length(sentry__scope_get_tags(scope)) == 1);
+    TEST_CHECK(
+        sentry_value_get_length(sentry__scope_get_attributes(scope)) == 1);
+    TEST_CHECK(!sentry_value_is_null(sentry__scope_get_user(scope)));
 
     sentry_scope_clear(scope);
 
     // Everything is reset to the state of a fresh scope.
-    TEST_CHECK(sentry_value_get_length(scope->tags) == 0);
-    TEST_CHECK(sentry_value_get_length(scope->extra) == 0);
-    TEST_CHECK(sentry_value_get_length(scope->contexts) == 0);
-    TEST_CHECK(sentry_value_get_length(scope->attributes) == 0);
-    TEST_CHECK(sentry_value_is_null(scope->user));
-    TEST_CHECK(sentry_value_is_null(scope->fingerprint));
-    TEST_CHECK_INT_EQUAL(scope->level, SENTRY_LEVEL_ERROR);
-    sentry_value_t crumbs = sentry__ringbuffer_to_list(scope->breadcrumbs);
+    TEST_CHECK(sentry_value_get_length(sentry__scope_get_tags(scope)) == 0);
+    TEST_CHECK(sentry_value_get_length(sentry__scope_get_extra(scope)) == 0);
+    TEST_CHECK(sentry_value_get_length(sentry__scope_get_contexts(scope)) == 0);
+    TEST_CHECK(
+        sentry_value_get_length(sentry__scope_get_attributes(scope)) == 0);
+    TEST_CHECK(sentry_value_is_null(sentry__scope_get_user(scope)));
+    TEST_CHECK(sentry_value_is_null(sentry__scope_get_fingerprint(scope)));
+    TEST_CHECK_INT_EQUAL(sentry__scope_get_level(scope), SENTRY_LEVEL_ERROR);
+    sentry_value_t crumbs
+        = sentry__ringbuffer_to_list(sentry__scope_get_breadcrumbs(scope));
     TEST_CHECK(sentry_value_get_length(crumbs) == 0);
     sentry_value_decref(crumbs);
 
     // ... except the trace, which is preserved.
-    TEST_CHECK_STRING_EQUAL(sentry_value_as_string(sentry_value_get_by_key(
-                                scope->propagation_context, "marker")),
+    TEST_CHECK_STRING_EQUAL(
+        sentry_value_as_string(sentry_value_get_by_key(
+            sentry__scope_get_propagation_context(scope), "marker")),
         "keep");
     TEST_CHECK_STRING_EQUAL(sentry_value_as_string(sentry_value_get_by_key(
-                                scope->dynamic_sampling_context, "marker")),
+                                sentry__scope_get_dsc(scope), "marker")),
         "keep");
 
     // The cleared scope is still usable.
     sentry_scope_set_tag(scope, "after", "clear");
-    TEST_CHECK(sentry_value_get_length(scope->tags) == 1);
+    TEST_CHECK(sentry_value_get_length(sentry__scope_get_tags(scope)) == 1);
 
     sentry_scope_free(scope);
     sentry_close();
@@ -2545,8 +2563,8 @@ SENTRY_TEST(scope_capture_user_owned)
 
     // The scope was applied but not freed, so reading and reusing it is safe
     // (a use-after-free here would trip the sanitizers).
-    TEST_CHECK_STRING_EQUAL(
-        sentry_value_as_string(sentry_value_get_by_key(scope->tags, "run")),
+    TEST_CHECK_STRING_EQUAL(sentry_value_as_string(sentry_value_get_by_key(
+                                sentry__scope_get_tags(scope), "run")),
         "first");
 
     sentry_scope_set_tag(scope, "run", "second");

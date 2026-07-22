@@ -720,7 +720,8 @@ native_backend_write_attachments(const sentry_path_t *event_path)
         return;
     }
     SENTRY_WITH_SCOPE (scope) {
-        if (!scope->attachments) {
+        sentry_attachment_t *attachments = sentry__scope_get_attachments(scope);
+        if (!attachments) {
             continue;
         }
         sentry_path_t *run_path = sentry__path_dir(event_path);
@@ -731,8 +732,7 @@ native_backend_write_attachments(const sentry_path_t *event_path)
             = sentry__path_join_str(run_path, "__sentry-attachments");
         if (attach_list_path) {
             sentry_value_t attach_list = sentry_value_new_list();
-            for (sentry_attachment_t *it = scope->attachments; it;
-                it = it->next) {
+            for (sentry_attachment_t *it = attachments; it; it = it->next) {
                 if (!it->path) {
                     continue;
                 }

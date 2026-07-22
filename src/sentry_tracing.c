@@ -96,22 +96,18 @@ transaction_context_new_n(sentry_slice_t name, sentry_slice_t operation)
         sentry_value_new_string_n(name.ptr, name.len));
 
     SENTRY_WITH_SCOPE_MUT (scope) {
-        if (!scope->trace_managed
-            && !sentry_value_is_null(
-                sentry_value_get_by_key(scope->propagation_context, "trace"))) {
+        sentry_value_t trace_context = sentry__scope_get_trace_context(scope);
+        if (!sentry__scope_is_trace_managed(scope)
+            && !sentry_value_is_null(trace_context)) {
             // The trace is managed from outside, so we use the propagation
             // context as the trace source for this transaction. This means that
             // either a downstream SDK or the user manages trace life-cycles.
             sentry_value_set_by_key(transaction_context, "trace_id",
-                sentry__value_clone(sentry_value_get_by_key(
-                    sentry_value_get_by_key(
-                        scope->propagation_context, "trace"),
-                    "trace_id")));
+                sentry__value_clone(
+                    sentry_value_get_by_key(trace_context, "trace_id")));
             sentry_value_set_by_key(transaction_context, "parent_span_id",
-                sentry__value_clone(sentry_value_get_by_key(
-                    sentry_value_get_by_key(
-                        scope->propagation_context, "trace"),
-                    "parent_span_id")));
+                sentry__value_clone(
+                    sentry_value_get_by_key(trace_context, "parent_span_id")));
         }
     }
 
@@ -965,7 +961,7 @@ sentry__span_iter_headers(sentry_value_t span,
 
         SENTRY_WITH_SCOPE (scope) {
             sentry__value_foreach_key_value(
-                scope->dynamic_sampling_context, append_baggage_member, &sb);
+                sentry__scope_get_dsc(scope), append_baggage_member, &sb);
         }
 
         char *baggage = sentry__stringbuilder_into_string(&sb);
@@ -1019,13 +1015,13 @@ save_active_trace(void)
 {
     saved_trace_t s = { 0 };
     SENTRY_WITH_SCOPE (scope) {
-        if (scope->span) {
-            sentry__span_incref(scope->span);
-            s.saved_span = scope->span;
+        s.saved_span = sentry__scope_get_span(scope);
+        if (s.saved_span) {
+            sentry__span_incref(s.saved_span);
         }
-        if (scope->transaction_object) {
-            sentry__transaction_incref(scope->transaction_object);
-            s.saved_tx_obj = scope->transaction_object;
+        s.saved_tx_obj = sentry__scope_get_transaction_object(scope);
+        if (s.saved_tx_obj) {
+            sentry__transaction_incref(s.saved_tx_obj);
         }
     }
     s.active_tx = s.saved_span && s.saved_span->transaction
@@ -1041,12 +1037,10 @@ static void
 restore_active_trace(saved_trace_t *s)
 {
     SENTRY_WITH_SCOPE_MUT (scope) {
-        if (!scope->span && s->saved_span) {
-            scope->span = s->saved_span;
+        if (sentry__scope_restore_span(scope, s->saved_span)) {
             s->saved_span = NULL;
         }
-        if (!scope->transaction_object && s->saved_tx_obj) {
-            scope->transaction_object = s->saved_tx_obj;
+        if (sentry__scope_restore_transaction_object(scope, s->saved_tx_obj)) {
             s->saved_tx_obj = NULL;
         }
     }
