@@ -18,6 +18,7 @@ from . import (
     is_replay_envelope,
     make_dsn,
     run,
+    run_crash,
     stage_replay,
     Envelope,
     split_log_request_cond,
@@ -44,32 +45,6 @@ pytestmark = pytest.mark.skipif(
 # Sanitizer builds are slower, so selected native crash tests use the same 10s
 # timeout the native daemon used before it respected the SDK shutdown timeout.
 SANITIZER_ARGS = ["shutdown-timeout", "10000"] if is_asan or is_tsan else []
-
-
-def run_crash(tmp_path, exe, args, env, **kwargs):
-    """
-    Run a crash test.
-
-    When running under ASAN, we configure it to not intercept crash signals
-    so that our native crash handler can run and capture the crash.
-    """
-    # When running under ASAN, disable ASAN's signal handling so our crash
-    # handler can run. ASAN would otherwise intercept SIGSEGV/SIGABRT/etc
-    # and terminate the process before our handler completes.
-    if is_asan:
-        # Preserve existing ASAN_OPTIONS and add signal handling overrides
-        asan_opts = env.get("ASAN_OPTIONS", "")
-        # Disable handling of crash signals so our handler can run
-        asan_signal_opts = (
-            "handle_segv=0:handle_sigbus=0:handle_abort=0:"
-            "handle_sigfpe=0:handle_sigill=0:allow_user_segv_handler=1"
-        )
-        if asan_opts:
-            env["ASAN_OPTIONS"] = f"{asan_opts}:{asan_signal_opts}"
-        else:
-            env["ASAN_OPTIONS"] = asan_signal_opts
-
-    run(tmp_path, exe, args, expect_failure=True, env=env, **kwargs)
 
 
 def test_native_capture_crash(cmake, httpserver):
@@ -1050,79 +1025,6 @@ def test_crash_mode_native_with_minidump(cmake, httpserver):
     assert "debug_meta" in event
     if sys.platform == "darwin":
         assert_debug_meta_images_do_not_overlap(event)
-
-
-def test_native_cache_consent(cmake, httpserver):
-    """Daemon honors revoked consent: envelope is cached, not sent. Giving
-    consent in a subsequent run flushes the cached envelope."""
-    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "native"})
-    cache_dir = tmp_path / ".sentry-native" / "cache"
-    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
-
-    # 1) Crash while consent is revoked. Envelope is cached, no upload.
-    run_crash(
-        tmp_path,
-        "sentry_example",
-        [
-            "log",
-            "stdout",
-            "cache-keep",
-            "http-retry",
-            "require-user-consent",
-            "user-consent-revoke",
-            "crash",
-        ],
-        env=env,
-    )
-
-    assert wait_for_file(cache_dir / "*.envelope")
-    assert len(list(cache_dir.glob("*.envelope"))) == 1
-    assert len(httpserver.log) == 0
-
-    # 2) Give consent. The cached envelope should be flushed to the server.
-    httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data("OK")
-    with httpserver.wait(timeout=10) as waiting:
-        run(
-            tmp_path,
-            "sentry_example",
-            [
-                "log",
-                "cache-keep",
-                "http-retry",
-                "require-user-consent",
-                "user-consent-give",
-            ],
-            env=env,
-        )
-    assert waiting.result
-    assert len(list(cache_dir.glob("*.envelope"))) == 0
-
-
-@pytest.mark.parametrize("cache_keep", [True, False])
-def test_native_cache_keep(cmake, cache_keep, unreachable_dsn):
-    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "native"})
-    db_dir = tmp_path / ".sentry-native"
-    cache_dir = db_dir / "cache"
-    env = dict(os.environ, SENTRY_DSN=unreachable_dsn)
-
-    # crash -> daemon sends via HTTP -> unreachable -> cache
-    run_crash(
-        tmp_path,
-        "sentry_example",
-        ["log", "stdout", "crash"] + (["cache-keep"] if cache_keep else []),
-        env=env,
-        wait_for_daemon=not cache_keep,
-    )
-
-    if cache_keep:
-        assert wait_for_file(cache_dir / "*.envelope")
-        cache_files = list(cache_dir.glob("*.envelope"))
-        assert len(cache_files) == 1
-        dmp_files = list(cache_dir.glob("*.dmp"))
-        assert len(dmp_files) == 1
-        assert cache_files[0].stem == dmp_files[0].stem
-    else:
-        assert len(list(cache_dir.glob("*.envelope"))) == 0
 
 
 def test_native_restart_on_crash(cmake, httpserver):
