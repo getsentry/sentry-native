@@ -852,7 +852,7 @@ SENTRY_TEST(trace_finish)
     // Scope still points at the (finished) span so a subsequent crash event
     // inherits its trace context.
     SENTRY_WITH_SCOPE (scope) {
-        TEST_CHECK(scope->span != NULL);
+        TEST_CHECK(sentry__scope_get_span(scope) != NULL);
     }
 
     sentry__span_decref(grand);
@@ -934,13 +934,13 @@ SENTRY_TEST(discard_transaction)
     sentry_set_transaction_object(tx);
 
     SENTRY_WITH_SCOPE (scope) {
-        TEST_CHECK(scope->transaction_object == tx);
+        TEST_CHECK(sentry__scope_get_transaction_object(scope) == tx);
     }
 
     sentry_transaction_discard(tx);
 
     SENTRY_WITH_SCOPE (scope) {
-        TEST_CHECK(scope->transaction_object == NULL);
+        TEST_CHECK(sentry__scope_get_transaction_object(scope) == NULL);
     }
 
     sentry_close();
@@ -970,13 +970,13 @@ SENTRY_TEST(discard_span)
     sentry_set_span(span);
 
     SENTRY_WITH_SCOPE (scope) {
-        TEST_CHECK(scope->span == span);
+        TEST_CHECK(sentry__scope_get_span(scope) == span);
     }
 
     sentry_span_discard(span);
 
     SENTRY_WITH_SCOPE (scope) {
-        TEST_CHECK(scope->span == NULL);
+        TEST_CHECK(sentry__scope_get_span(scope) == NULL);
     }
     TEST_CHECK_INT_EQUAL(
         sentry_value_get_length(sentry_value_get_by_key(tx->inner, "spans")),
@@ -1566,7 +1566,7 @@ SENTRY_TEST(set_trace)
 
     SENTRY_WITH_SCOPE (scope) {
         sentry_value_t propagation_trace_context
-            = sentry_value_get_by_key(scope->propagation_context, "trace");
+            = sentry__scope_get_trace_context(scope);
         TEST_CHECK(!sentry_value_is_null(propagation_trace_context));
 
         CHECK_STRING_PROPERTY(propagation_trace_context, "type", "trace");
@@ -2428,8 +2428,7 @@ SENTRY_TEST(strict_continuation_no_baggage_forks)
     SENTRY_WITH_SCOPE (scope) {
         const char *scope_trace_id
             = sentry_value_as_string(sentry_value_get_by_key(
-                sentry_value_get_by_key(scope->propagation_context, "trace"),
-                "trace_id"));
+                sentry__scope_get_trace_context(scope), "trace_id"));
         TEST_CHECK(strcmp(scope_trace_id, UPSTREAM_TRACE_ID) != 0);
         TEST_CHECK_STRING_EQUAL(scope_trace_id, trace_id);
     }
@@ -2477,7 +2476,7 @@ SENTRY_TEST(set_trace_rebuilds_dsc_sample_rand)
     double init_sample_rand = 0.0;
     SENTRY_WITH_SCOPE (scope) {
         init_sample_rand = sentry_value_as_double(sentry_value_get_by_key(
-            scope->dynamic_sampling_context, "sample_rand"));
+            sentry__scope_get_dsc(scope), "sample_rand"));
     }
 
     sentry_set_trace("11112222333344445555666677778888", "1234567812345678");
@@ -2485,7 +2484,7 @@ SENTRY_TEST(set_trace_rebuilds_dsc_sample_rand)
     double new_sample_rand = -1.0;
     SENTRY_WITH_SCOPE (scope) {
         new_sample_rand = sentry_value_as_double(sentry_value_get_by_key(
-            scope->dynamic_sampling_context, "sample_rand"));
+            sentry__scope_get_dsc(scope), "sample_rand"));
     }
     // sample_rand is regenerated for the new trace, so the DSC must reflect
     // the fresh value, not the init-time one.

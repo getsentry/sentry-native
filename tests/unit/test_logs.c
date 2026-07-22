@@ -768,9 +768,7 @@ SENTRY_TEST(scope_capture_log_trace_id)
         TEST_CHECK_STRING_EQUAL(sentry_value_as_string(sentry_value_get_by_key(
                                     captured_log, "trace_id")),
             sentry_value_as_string(sentry_value_get_by_key(
-                sentry_value_get_by_key(
-                    global_scope->propagation_context, "trace"),
-                "trace_id")));
+                sentry__scope_get_trace_context(global_scope), "trace_id")));
     }
 
     sentry_scope_free(scope);
