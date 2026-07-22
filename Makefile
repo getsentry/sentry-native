@@ -40,12 +40,12 @@ test-leaks: update-test-discovery CMakeLists.txt
 		-DCMAKE_RUNTIME_OUTPUT_DIRECTORY=$(PWD)/leak-build \
 		-DSENTRY_BACKEND=none \
 		-DWITH_ASAN_OPTION=ON \
-		-DCMAKE_C_COMPILER=/usr/local/opt/llvm/bin/clang \
-		-DCMAKE_CXX_COMPILER=/usr/local/opt/llvm/bin/clang++ \
-		-DCMAKE_LINKER=/usr/local/opt/llvm/bin/clang \
+		-DCMAKE_C_COMPILER=/opt/homebrew/opt/llvm/bin/clang \
+		-DCMAKE_CXX_COMPILER=/opt/homebrew/opt/llvm/bin/clang++ \
+		-DCMAKE_LINKER=/opt/homebrew/opt/llvm/bin/clang \
 		..
 	@cmake --build leak-build --target sentry_test_unit --parallel
-	@ASAN_OPTIONS=detect_leaks=1 ./leak-build/sentry_test_unit
+	@LSAN_OPTIONS=suppressions=$(PWD)/tests/leaks.txt:print_suppressions=0 ASAN_OPTIONS=detect_leaks=1 ./leak-build/sentry_test_unit
 .PHONY: test-leaks
 
 benchmark: setup-venv
