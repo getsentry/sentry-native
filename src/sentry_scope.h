@@ -8,11 +8,6 @@
 #include "sentry_session.h"
 #include "sentry_value.h"
 
-#ifndef SENTRY_RWLOCK_T_DEFINED
-#    define SENTRY_RWLOCK_T_DEFINED
-typedef struct sentry_rwlock_s sentry_rwlock_t;
-#endif
-
 /**
  * Scope observer — one callback per scope property.
  *
@@ -58,7 +53,6 @@ typedef struct sentry_scope_observer_s {
  * This represents the current scope.
  */
 struct sentry_scope_s {
-    sentry_rwlock_t *lock;
     char *release;
     char *environment;
     char *transaction;
@@ -113,7 +107,15 @@ typedef enum {
     SENTRY_SCOPE_ALL = ~0,
 } sentry_scope_mode_t;
 
-sentry_scope_t *sentry__scope_get(void);
+/**
+ * This will acquire a lock on the global scope.
+ */
+sentry_scope_t *sentry__scope_lock(void);
+
+/**
+ * Release the lock on the global scope.
+ */
+void sentry__scope_unlock(void);
 
 /**
  * This will free all the data attached to the global scope
@@ -127,8 +129,10 @@ void sentry__scope_free_one_shot(sentry_scope_t *scope);
 
 /**
  * This will notify any backend of scope changes.
+ * This function must be called while holding the scope lock, and it will be
+ * unlocked internally.
  */
-void sentry__scope_flush(void);
+void sentry__scope_flush_unlock(void);
 
 /**
  * This will merge the requested data which is in the given `scope` to the given
@@ -145,84 +149,22 @@ void sentry__scope_set_fingerprint_va(
 void sentry__scope_set_fingerprint_nva(sentry_scope_t *scope,
     const char *fingerprint, size_t fingerprint_len, va_list va);
 
-/**
- * Internal scope-based attribute functions.
- * For now, these are only used by the non-scope API functions that operate
- * on the global scope.
- * Once we have attributes for events or scope-based logs/metrics/spans APIs
- * these can become part of the public API too.
- */
-void sentry__scope_set_attribute(
-    sentry_scope_t *scope, const char *key, sentry_value_t attribute);
-void sentry__scope_set_attribute_n(sentry_scope_t *scope, const char *key,
-    size_t key_len, sentry_value_t attribute);
-void sentry__scope_remove_attribute(sentry_scope_t *scope, const char *key);
-void sentry__scope_remove_attribute_n(
-    sentry_scope_t *scope, const char *key, size_t key_len);
-void sentry__scope_remove_tag(sentry_scope_t *scope, const char *key);
-void sentry__scope_remove_tag_n(
-    sentry_scope_t *scope, const char *key, size_t key_len);
-void sentry__scope_remove_extra(sentry_scope_t *scope, const char *key);
-void sentry__scope_remove_extra_n(
-    sentry_scope_t *scope, const char *key, size_t key_len);
-void sentry__scope_remove_context(sentry_scope_t *scope, const char *key);
-void sentry__scope_remove_context_n(
-    sentry_scope_t *scope, const char *key, size_t key_len);
-void sentry__scope_set_release_n(
-    sentry_scope_t *scope, const char *release, size_t release_len);
-void sentry__scope_set_environment_n(
-    sentry_scope_t *scope, const char *environment, size_t environment_len);
-void sentry__scope_remove_fingerprint(sentry_scope_t *scope);
-void sentry__scope_set_propagation_context(
-    sentry_scope_t *scope, const char *key, sentry_value_t value);
 sentry_attachment_t *sentry__scope_add_attachment(
     sentry_scope_t *scope, sentry_attachment_t *attachment);
-void sentry__scope_remove_attachment(
-    sentry_scope_t *scope, sentry_attachment_t *attachment);
-void sentry__scope_clear_attachments(sentry_scope_t *scope);
-void sentry__scope_configure(sentry_scope_t *scope, sentry_options_t *options);
-void sentry__scope_set_trace_n(sentry_scope_t *scope,
-    const sentry_options_t *options, const char *trace_id, size_t trace_id_len,
-    const char *parent_span_id, size_t parent_span_id_len);
-void sentry__scope_regenerate_trace(
-    sentry_scope_t *scope, const sentry_options_t *options);
-void sentry__scope_apply_incoming_trace(sentry_scope_t *scope,
-    const sentry_options_t *options, sentry_value_t incoming,
-    sentry_value_t transaction);
-double sentry__scope_get_sample_rand(const sentry_scope_t *scope);
-void sentry__scope_set_transaction_name_n(
-    sentry_scope_t *scope, const char *transaction, size_t transaction_len);
-void sentry__scope_set_transaction_object(
-    sentry_scope_t *scope, sentry_transaction_t *tx);
-void sentry__scope_set_span(sentry_scope_t *scope, sentry_span_t *span);
-void sentry__scope_clear_transaction_if_matches(
-    sentry_scope_t *scope, sentry_value_t transaction);
-void sentry__scope_clear_span_if_matches(
-    sentry_scope_t *scope, sentry_value_t span);
-void sentry__scope_apply_to_transaction_context(
-    const sentry_scope_t *scope, sentry_value_t transaction_context);
-void sentry__scope_restore_active_trace(sentry_scope_t *scope,
-    sentry_span_t **saved_span, sentry_transaction_t **saved_tx_obj);
-char *sentry__scope_get_release(const sentry_scope_t *scope);
-char *sentry__scope_get_environment(const sentry_scope_t *scope);
-sentry_value_t sentry__scope_get_user(const sentry_scope_t *scope);
-sentry_value_t sentry__scope_get_dsc(const sentry_scope_t *scope);
-sentry_attachment_t *sentry__scope_get_attachments(const sentry_scope_t *scope);
-void sentry__scope_get_active_trace(const sentry_scope_t *scope,
-    sentry_span_t **span, sentry_transaction_t **transaction);
-void sentry__scope_apply_attribute_context(const sentry_scope_t *scope,
-    sentry_value_t telemetry, sentry_value_t attributes);
 
 /**
- * These are convenience macros to retrieve the global scope inside a code
- * block. Synchronization is owned by scope accessors.
+ * These are convenience macros to automatically lock/unlock the global scope
+ * inside a code block.
  */
 #define SENTRY_WITH_SCOPE(Scope)                                               \
-    for (const sentry_scope_t *Scope = sentry__scope_get(); Scope; Scope = NULL)
+    for (const sentry_scope_t *Scope = sentry__scope_lock(); Scope;            \
+        sentry__scope_unlock(), Scope = NULL)
 #define SENTRY_WITH_SCOPE_MUT(Scope)                                           \
-    for (sentry_scope_t *Scope = sentry__scope_get(); Scope; Scope = NULL)
+    for (sentry_scope_t *Scope = sentry__scope_lock(); Scope;                  \
+        sentry__scope_flush_unlock(), Scope = NULL)
 #define SENTRY_WITH_SCOPE_MUT_NO_FLUSH(Scope)                                  \
-    for (sentry_scope_t *Scope = sentry__scope_get(); Scope; Scope = NULL)
+    for (sentry_scope_t *Scope = sentry__scope_lock(); Scope;                  \
+        sentry__scope_unlock(), Scope = NULL)
 
 /**
  * Allocate and zero-initialize a scope observer.

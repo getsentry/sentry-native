@@ -1329,11 +1329,6 @@ typedef struct {
     bool was_called;
 } deferred_flush_observer_data_t;
 
-typedef struct {
-    size_t calls;
-    bool saw_tag;
-} scope_flush_reentry_state_t;
-
 static void
 deferred_flush_scope(
     sentry_backend_t *backend, const sentry_options_t *UNUSED(options))
@@ -2311,48 +2306,6 @@ SENTRY_TEST(scope_set_attribute_null_key_decref_value)
     TEST_CHECK_INT_EQUAL(sentry_value_get_length(scope->attributes), 0);
 
     sentry_scope_free(scope);
-}
-
-static void
-backend_flush_scope_reentry(
-    sentry_backend_t *backend, const sentry_options_t *options)
-{
-    scope_flush_reentry_state_t *state = backend->data;
-    state->calls++;
-
-    sentry_value_t event = sentry_value_new_object();
-    sentry__scope_apply_to_event(
-        sentry__scope_get(), options, event, SENTRY_SCOPE_NONE);
-
-    const char *tag = sentry_value_as_string(sentry_value_get_by_key(
-        sentry_value_get_by_key(event, "tags"), "reentrant"));
-    if (tag && strcmp(tag, "yes") == 0) {
-        state->saw_tag = true;
-    }
-
-    sentry_value_decref(event);
-}
-
-SENTRY_TEST(scope_flush_reentry)
-{
-    SENTRY_TEST_OPTIONS_NEW(options);
-    scope_flush_reentry_state_t state = { 0 };
-
-    sentry_backend_t *backend = SENTRY_MAKE(sentry_backend_t);
-    TEST_ASSERT(!!backend);
-    backend->flush_scope_func = backend_flush_scope_reentry;
-    backend->data = &state;
-    sentry_options_set_backend(options, backend);
-
-    TEST_CHECK_INT_EQUAL(sentry_init(options), 0);
-    size_t init_flushes = state.calls;
-
-    sentry_set_tag("reentrant", "yes");
-
-    TEST_CHECK(state.calls > init_flushes);
-    TEST_CHECK(state.saw_tag);
-
-    sentry_close();
 }
 
 SENTRY_TEST(scope_ownership)

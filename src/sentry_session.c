@@ -50,8 +50,8 @@ status_from_string(const char *status)
 sentry_session_t *
 sentry__session_new(const sentry_scope_t *scope)
 {
-    char *release = sentry__scope_get_release(scope);
-    char *environment = sentry__scope_get_environment(scope);
+    char *release = sentry__string_clone(scope->release);
+    char *environment = sentry__string_clone(scope->environment);
 
     if (!release) {
         sentry_free(environment);
@@ -215,15 +215,14 @@ sentry_start_session(void)
 {
     sentry_end_session();
     sentry_options_t *options = sentry__options_lock();
-    const sentry_scope_t *scope = sentry__scope_get();
-    if (options) {
-        options->session = sentry__session_new(scope);
-        if (options->session) {
-            sentry_value_t user = sentry__scope_get_user(scope);
-            sentry__session_sync_user(options->session, user,
-                options->run ? options->run->installation_id : NULL);
-            sentry_value_decref(user);
-            sentry__run_write_session(options->run, options->session);
+    SENTRY_WITH_SCOPE (scope) {
+        if (options) {
+            options->session = sentry__session_new(scope);
+            if (options->session) {
+                sentry__session_sync_user(options->session, scope->user,
+                    options->run ? options->run->installation_id : NULL);
+                sentry__run_write_session(options->run, options->session);
+            }
         }
     }
     sentry__options_unlock();

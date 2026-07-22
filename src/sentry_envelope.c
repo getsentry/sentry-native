@@ -393,9 +393,12 @@ sentry__envelope_add_event(sentry_envelope_t *envelope, sentry_value_t event)
     }
     sentry_value_t dsc = sentry_value_new_null();
     double sample_rand = (double)NAN;
-    const sentry_scope_t *scope = sentry__scope_get();
-    dsc = sentry__scope_get_dsc(scope);
-    sample_rand = sentry__scope_get_sample_rand(scope);
+    SENTRY_WITH_SCOPE (scope) {
+        dsc = sentry__value_clone(scope->dynamic_sampling_context);
+        sample_rand = sentry_value_as_double(sentry_value_get_by_key(
+            sentry_value_get_by_key(scope->propagation_context, "trace"),
+            "sample_rand"));
+    }
     if (!sentry_value_is_null(dsc)) {
         sentry_value_t trace_id = sentry_value_get_by_key(
             sentry_value_get_by_key(
@@ -471,7 +474,9 @@ sentry__envelope_add_transaction(
 
     sentry_value_t dsc = sentry_value_new_null();
 
-    dsc = sentry__scope_get_dsc(sentry__scope_get());
+    SENTRY_WITH_SCOPE (scope) {
+        dsc = sentry__value_clone(scope->dynamic_sampling_context);
+    }
 
     if (!sentry_value_is_null(dsc)) {
         sentry_value_t trace_id = sentry_value_get_by_key(
