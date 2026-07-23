@@ -72,6 +72,17 @@ class CMake:
         os.mkdir(coveragedir)
 
         if "llvm-cov" in os.environ.get("RUN_ANALYZER", ""):
+
+            def exe_name(name):
+                return name + ".exe" if sys.platform == "win32" else name
+
+            def lib_name(name):
+                if sys.platform == "win32":
+                    return name + ".dll"
+                elif sys.platform == "darwin":
+                    return "lib" + name + ".dylib"
+                return "lib" + name + ".so"
+
             for i, (d, _) in enumerate(self.runs.values()):
                 # first merge the raw profiling runs
                 files = [f for f in os.listdir(d) if f.endswith(".profraw")]
@@ -90,10 +101,10 @@ class CMake:
                 # then export lcov from the profiling data, since this needs access
                 # to the object files, we need to do it per-test
                 objects = [
-                    "sentry_example",
-                    "sentry_test_unit",
-                    "libsentry.dylib" if sys.platform == "darwin" else "libsentry.so",
-                    "sentry-crash",
+                    exe_name("sentry_example"),
+                    exe_name("sentry_test_unit"),
+                    lib_name("sentry"),
+                    exe_name("sentry-crash"),
                 ]
                 cmd = [
                     os.environ.get("LLVM_COV", "llvm-cov"),
@@ -343,6 +354,14 @@ def configure_llvm_cov(config_cmd: list[str]):
         config_cmd.append(f"-DCMAKE_MODULE_LINKER_FLAGS='{profile_lib}'")
     else:
         flags = "-fprofile-instr-generate -fcoverage-mapping"
+        if os.environ.get("VS_GENERATOR_TOOLSET") == "ClangCL":
+            # clang-cl source-based coverage needs the profile runtime explicitly linked.
+            # The flags above enable instrumentation; the runtime library merges and
+            # writes the raw profile at process exit.
+            profile_lib = "clang_rt.profile-x86_64.lib"
+            config_cmd.append(f"-DCMAKE_EXE_LINKER_FLAGS={profile_lib}")
+            config_cmd.append(f"-DCMAKE_SHARED_LINKER_FLAGS={profile_lib}")
+            config_cmd.append(f"-DCMAKE_MODULE_LINKER_FLAGS={profile_lib}")
     config_cmd.append("-DCMAKE_C_FLAGS='{}'".format(flags))
 
     # Since we overwrite `CXXFLAGS` below, we must add the experimental library here for the GHA runner that builds

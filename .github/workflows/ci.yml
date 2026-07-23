@@ -196,9 +196,10 @@ jobs:
           - name: Windows (latest, ninja + sccache)
             os: windows-latest
             USE_SCCACHE: 1
-          - name: Windows ClangCL (2022)
+          - name: Windows ClangCL (2022 + llvm-cov)
             os: windows-2022
             VS_GENERATOR_TOOLSET: ClangCL
+            RUN_ANALYZER: llvm-cov
           - name: LLVM-Mingw
             os: windows-latest
             TEST_MINGW: 1
@@ -366,6 +367,15 @@ jobs:
       - name: Set macOS SDKROOT
         if: ${{ runner.os == 'macOS' }}
         run: echo "SDKROOT=$(xcrun --sdk macosx --show-sdk-path)" >> "$GITHUB_ENV"
+
+      - name: Set VS LLVM tools for ClangCL
+        if: ${{ runner.os == 'Windows' && env['VS_GENERATOR_TOOLSET'] == 'ClangCL' && contains(env['RUN_ANALYZER'], 'llvm-cov') }}
+        shell: powershell
+        run: |
+          $vs = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -property installationPath
+          $llvm = Join-Path $vs "VC\Tools\Llvm\x64\bin"
+          "LLVM_PROFDATA=$llvm\llvm-profdata.exe" >> $env:GITHUB_ENV
+          "LLVM_COV=$llvm\llvm-cov.exe" >> $env:GITHUB_ENV
 
       - name: Remove Strawberry Perl from PATH
         if: ${{ runner.os == 'Windows' }}
