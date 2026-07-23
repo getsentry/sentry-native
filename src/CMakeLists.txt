@@ -307,6 +307,13 @@ if(SENTRY_INTEGRATION_QT)
 		integrations/sentry_integration_qt.h
 	)
 endif()
+if(SENTRY_INTEGRATION_WER AND WIN32)
+	target_compile_definitions(sentry PRIVATE SENTRY_INTEGRATION_WER)
+	sentry_target_sources_cwd(sentry
+		integrations/sentry_integration_wer.c
+		integrations/sentry_integration_wer.h
+	)
+endif()
 
 # screenshot
 if(SENTRY_SCREENSHOT_WINDOWS)

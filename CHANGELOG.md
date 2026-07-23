@@ -4,6 +4,7 @@
 
 **Features**:
 
+- Windows: add WER integration for syncing tags and attachments to WER. ([#1837](https://github.com/getsentry/sentry-native/pull/1837))
 - Report `cache_overflow` discards due to `cache_max_items` or `cache_max_size`. ([#1884](https://github.com/getsentry/sentry-native/pull/1884))
 
 **Fixes**:
