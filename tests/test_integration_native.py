@@ -903,6 +903,38 @@ def test_native_external_crash_reporter(cmake, httpserver):
     assert_user_feedback(envelope)
 
 
+def test_native_external_crash_reporter_consent_revoked(cmake, httpserver):
+    """With consent revoked, the daemon must not launch the external reporter.
+
+    Before the fix, crash-reporter + user-consent-revoke still spawned
+    sentry_crash_reporter, which uploaded via HTTP. Consent should block that
+    the same way it blocks the normal transport path.
+    """
+    tmp_path = cmake(
+        ["sentry_example", "sentry_crash_reporter"], {"SENTRY_BACKEND": "native"}
+    )
+    cache_dir = tmp_path / ".sentry-native" / "cache"
+    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
+
+    run_crash(
+        tmp_path,
+        "sentry_example",
+        [
+            "log",
+            "crash-reporter",
+            "cache-keep",
+            "require-user-consent",
+            "user-consent-revoke",
+            "crash",
+        ],
+        env=env,
+    )
+
+    assert len(httpserver.log) == 0
+    assert wait_for_file(cache_dir / "*.envelope")
+    assert len(list(cache_dir.glob("*.envelope"))) == 1
+
+
 def test_crash_mode_minidump_only(cmake, httpserver):
     """Mode 1: Should produce envelope with minidump attachment only"""
     tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "native"})
