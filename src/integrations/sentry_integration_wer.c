@@ -9,14 +9,24 @@
 #include "sentry_string.h"
 
 #include <string.h>
+#include <wchar.h>
 #include <werapi.h>
 
 // Windows 8+ SDK
 #ifndef WER_FILE_ANONYMOUS_DATA
 #    define WER_FILE_ANONYMOUS_DATA 0x2
 #endif
+#ifndef WER_MAX_PARAM_LENGTH
+#    define WER_MAX_PARAM_LENGTH (MAX_PATH)
+#endif
 #ifndef WER_MAX_MEM_BLOCK_SIZE
 #    define WER_MAX_MEM_BLOCK_SIZE (64 * 1024)
+#endif
+#ifndef WER_METADATA_KEY_MAX_LENGTH
+#    define WER_METADATA_KEY_MAX_LENGTH 64
+#endif
+#ifndef WER_METADATA_VALUE_MAX_LENGTH
+#    define WER_METADATA_VALUE_MAX_LENGTH 128
 #endif
 
 typedef struct sentry_integration_wer_data_s {
@@ -65,7 +75,8 @@ wer_set_tag(void *data, const char *key, const char *value)
 
     wchar_t *key_w = sentry__string_to_wstr(key);
     wchar_t *value_w = sentry__string_to_wstr(value);
-    if (!key_w || !value_w) {
+    if (!key_w || !value_w || wcslen(key_w) > WER_METADATA_KEY_MAX_LENGTH
+        || wcslen(value_w) > WER_METADATA_VALUE_MAX_LENGTH) {
         sentry_free(key_w);
         sentry_free(value_w);
         return;
@@ -77,8 +88,8 @@ wer_set_tag(void *data, const char *key, const char *value)
             "WerRegisterCustomMetadata failed: hr=0x%08lx", (unsigned long)hr);
     }
 
-    sentry_free(value_w);
     sentry_free(key_w);
+    sentry_free(value_w);
 }
 
 static void
@@ -94,7 +105,8 @@ wer_remove_tag(void *data, const char *key)
     }
 
     wchar_t *key_w = sentry__string_to_wstr(key);
-    if (!key_w) {
+    if (!key_w || wcslen(key_w) > WER_METADATA_KEY_MAX_LENGTH) {
+        sentry_free(key_w);
         return;
     }
 
@@ -116,7 +128,8 @@ wer_add_attachment(void *UNUSED(data), sentry_attachment_t *attachment)
 
     if (attachment->path) {
         sentry_path_t *path = sentry__path_absolute(attachment->path);
-        if (!path) {
+        if (!path || wcslen(path->path_w) > WER_MAX_PARAM_LENGTH) {
+            sentry__path_free(path);
             return;
         }
         HRESULT hr = WerRegisterFile(
@@ -129,12 +142,8 @@ wer_add_attachment(void *UNUSED(data), sentry_attachment_t *attachment)
         return;
     }
 
-    if (attachment->buf && attachment->buf_len > 0) {
-        if (attachment->buf_len > WER_MAX_MEM_BLOCK_SIZE) {
-            SENTRY_WARNF("WerRegisterMemoryBlock: buffer too large (%zu bytes)",
-                attachment->buf_len);
-            return;
-        }
+    if (attachment->buf && attachment->buf_len > 0
+        && attachment->buf_len <= WER_MAX_MEM_BLOCK_SIZE) {
         HRESULT hr = WerRegisterMemoryBlock(
             (PVOID)attachment->buf, (DWORD)attachment->buf_len);
         if (FAILED(hr)) {
@@ -154,7 +163,8 @@ wer_remove_attachment(void *UNUSED(data), sentry_attachment_t *attachment)
 
     if (attachment->path) {
         sentry_path_t *path = sentry__path_absolute(attachment->path);
-        if (!path) {
+        if (!path || wcslen(path->path_w) > WER_MAX_PARAM_LENGTH) {
+            sentry__path_free(path);
             return;
         }
         HRESULT hr = WerUnregisterFile(path->path_w);
