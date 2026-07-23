@@ -108,7 +108,7 @@ if(SENTRY_BUILD_RUNTIMESTATIC AND MSVC)
 	set_property(TARGET sentry_test_unit PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 endif()
 
-target_compile_definitions(sentry PRIVATE SIZEOF_LONG=${CMAKE_SIZEOF_LONG})
+target_compile_definitions(sentry PRIVATE SENTRY_SIZEOF_LONG=${CMAKE_SIZEOF_LONG})
 
 target_compile_definitions(sentry_test_unit PRIVATE SENTRY_UNITTEST)
 
