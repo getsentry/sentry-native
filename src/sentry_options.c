@@ -1,5 +1,6 @@
 #include "sentry_options.h"
 #include "sentry_alloc.h"
+#include "sentry_app_hang_monitor.h"
 #include "sentry_attachment.h"
 #include "sentry_backend.h"
 #include "sentry_database.h"
@@ -9,7 +10,29 @@
 #include "sentry_sync.h"
 #include "sentry_transport.h"
 #include "sentry_utils.h"
+#include <math.h>
 #include <stdlib.h>
+
+#ifdef SENTRY_INTEGRATION_QT
+#    include "integrations/sentry_integration_qt.h"
+#endif
+
+#ifdef SENTRY_INTEGRATION_WER
+#    include "integrations/sentry_integration_wer.h"
+#endif
+
+static double
+normalize_sample_rate(double sample_rate, double default_value)
+{
+    if (isnan(sample_rate)) {
+        return default_value;
+    } else if (sample_rate < 0.0) {
+        return 0.0;
+    } else if (sample_rate > 1.0) {
+        return 1.0;
+    }
+    return sample_rate;
+}
 
 sentry_options_t *
 sentry_options_new(void)
@@ -99,10 +122,18 @@ sentry_options_new(void)
         = SENTRY_CRASH_REPORTING_MODE_NATIVE_WITH_MINIDUMP; // Default: best of
                                                             // both worlds
     opts->crash_upload_mode = SENTRY_CRASH_UPLOAD_MODE_SYNC;
-    opts->attach_wer_report = false;
+    opts->enable_app_hang_tracking = false;
+    opts->app_hang_timeout = 5000;
     opts->http_retry = false;
     opts->send_client_reports = true;
     opts->enable_large_attachments = false;
+    opts->attach_wer_report = false;
+#ifdef SENTRY_INTEGRATION_QT
+    sentry__options_add_integration(opts, sentry_integration_qt_new());
+#endif
+#ifdef SENTRY_INTEGRATION_WER
+    sentry__options_add_integration(opts, sentry_integration_wer_new());
+#endif
 
     return opts;
 }
@@ -114,6 +145,18 @@ sentry__options_incref(sentry_options_t *options)
         sentry__atomic_fetch_and_add(&options->refcount, 1);
     }
     return options;
+}
+
+static void
+free_integration(sentry_integration_t *integration)
+{
+    if (!integration) {
+        return;
+    }
+    if (integration->free_func) {
+        integration->free_func(integration->data);
+    }
+    sentry_free(integration);
 }
 
 void
@@ -139,6 +182,10 @@ sentry_options_free(sentry_options_t *opts)
     sentry__backend_free(opts->backend);
     sentry__attachments_free(opts->attachments);
     sentry__run_free(opts->run);
+    for (size_t i = 0; i < opts->num_integrations; i++) {
+        free_integration(opts->integrations[i]);
+    }
+    sentry_free(opts->integrations);
 
     sentry_free(opts);
 }
@@ -257,12 +304,7 @@ sentry__options_get_org_id(const sentry_options_t *opts)
 void
 sentry_options_set_sample_rate(sentry_options_t *opts, double sample_rate)
 {
-    if (sample_rate < 0.0) {
-        sample_rate = 0.0;
-    } else if (sample_rate > 1.0) {
-        sample_rate = 1.0;
-    }
-    opts->sample_rate = sample_rate;
+    opts->sample_rate = normalize_sample_rate(sample_rate, 1.0);
 }
 
 double
@@ -898,13 +940,7 @@ void
 sentry_options_set_traces_sample_rate(
     sentry_options_t *opts, double sample_rate)
 {
-
-    if (sample_rate < 0.0) {
-        sample_rate = 0.0;
-    } else if (sample_rate > 1.0) {
-        sample_rate = 1.0;
-    }
-    opts->traces_sample_rate = sample_rate;
+    opts->traces_sample_rate = normalize_sample_rate(sample_rate, 0.0);
 }
 
 /**
@@ -929,6 +965,31 @@ sentry_options_set_backend(sentry_options_t *opts, sentry_backend_t *backend)
 {
     sentry__backend_free(opts->backend);
     opts->backend = backend;
+}
+
+void
+sentry__options_add_integration(
+    sentry_options_t *opts, sentry_integration_t *integration)
+{
+    if (!integration) {
+        return;
+    }
+
+    size_t new_count = opts->num_integrations + 1;
+    sentry_integration_t **integrations
+        = sentry__calloc(new_count, sizeof(sentry_integration_t *));
+    if (!integrations) {
+        free_integration(integration);
+        return;
+    }
+
+    for (size_t i = 0; i < opts->num_integrations; i++) {
+        integrations[i] = opts->integrations[i];
+    }
+    integrations[opts->num_integrations] = integration;
+    sentry_free(opts->integrations);
+    opts->integrations = integrations;
+    opts->num_integrations = new_count;
 }
 
 void
@@ -966,6 +1027,39 @@ int
 sentry_options_get_enable_metrics(const sentry_options_t *opts)
 {
     return opts->enable_metrics;
+}
+
+void
+sentry_options_set_enable_app_hang_tracking(sentry_options_t *opts, int enable)
+{
+    opts->enable_app_hang_tracking = !!enable;
+}
+
+int
+sentry_options_get_enable_app_hang_tracking(const sentry_options_t *opts)
+{
+    return opts->enable_app_hang_tracking;
+}
+
+void
+sentry_options_set_app_hang_timeout(
+    sentry_options_t *opts, uint64_t app_hang_timeout)
+{
+    // Clamp up to the smallest timeout the watchdog can resolve (see
+    // SENTRY_APP_HANG_MIN_TIMEOUT_MS).
+    if (app_hang_timeout < SENTRY_APP_HANG_MIN_TIMEOUT_MS) {
+        SENTRY_WARNF("app-hang: `app_hang_timeout` of %" PRIu64
+                     "ms is below the minimum of %dms, clamping",
+            app_hang_timeout, SENTRY_APP_HANG_MIN_TIMEOUT_MS);
+        app_hang_timeout = SENTRY_APP_HANG_MIN_TIMEOUT_MS;
+    }
+    opts->app_hang_timeout = app_hang_timeout;
+}
+
+uint64_t
+sentry_options_get_app_hang_timeout(const sentry_options_t *opts)
+{
+    return opts->app_hang_timeout;
 }
 
 void

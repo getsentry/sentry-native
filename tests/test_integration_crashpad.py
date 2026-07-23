@@ -5,17 +5,19 @@ import sys
 import time
 
 import pytest
-from flaky import flaky
 
 from . import (
     make_dsn,
     run,
+    stage_replay,
     Envelope,
     split_log_request_cond,
     extract_request,
     is_session_envelope,
     is_logs_envelope,
     is_feedback_envelope,
+    is_replay_envelope,
+    REPLAY_ID,
 )
 from .conditions import has_crashpad, has_oom
 from .proxy import (
@@ -29,6 +31,7 @@ from .assertions import (
     assert_crashpad_upload,
     assert_meta,
     assert_minidump,
+    assert_replay_envelope,
     assert_session,
     assert_gzip_file_header,
     assert_logs,
@@ -257,6 +260,46 @@ def test_crashpad_reinstall(cmake, httpserver):
     assert len(httpserver.log) == 1
 
 
+@pytest.mark.skipif(
+    sys.platform == "darwin",
+    reason="crashpad doesn't provide SetFirstChanceExceptionHandler on macOS",
+)
+def test_crashpad_replay_envelope(cmake, httpserver):
+    """A staged replay referenced by the crash event's `contexts.replay` is
+    consumed by the first-chance handler at crash time, persisted to the run
+    folder as its own `replay_video` envelope, and sent on the next launch,
+    while the minidump uploads same-session."""
+    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "crashpad"})
+
+    replays, video = stage_replay(tmp_path)
+
+    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
+    httpserver.expect_oneshot_request("/api/123456/minidump/").respond_with_data("OK")
+    httpserver.expect_request("/api/123456/envelope/").respond_with_data("OK")
+
+    with httpserver.wait(timeout=10) as waiting:
+        run(
+            tmp_path,
+            "sentry_example",
+            ["log", "replay-context", "crash"],
+            expect_failure=True,
+            env=env,
+        )
+    assert waiting.result
+
+    # the staged replay is consumed at crash time by the first-chance handler
+    assert not (replays / f"replay-{REPLAY_ID}.mp4").exists()
+    assert not (replays / f"replay-{REPLAY_ID}.json").exists()
+
+    run(tmp_path, "sentry_example", ["log", "no-setup"], env=env)
+
+    # minidump upload + replay envelope
+    assert len(httpserver.log) == 2
+    replay_request, _ = extract_request(httpserver.log, is_replay_envelope)
+    assert replay_request is not None, "expected a replay_video envelope"
+    assert_replay_envelope(Envelope.deserialize(replay_request.get_data()), video)
+
+
 import psutil
 import time
 
@@ -377,7 +420,6 @@ def test_crashpad_wer_crash(cmake, httpserver, run_args):
         ),
     ],
 )
-@flaky(max_runs=3)
 def test_crashpad_dumping_crash(cmake, httpserver, run_args, build_args):
     build_args.update({"SENTRY_BACKEND": "crashpad"})
     tmp_path = cmake(["sentry_example"], build_args)
@@ -439,7 +481,7 @@ def test_crashpad_dumping_crash(cmake, httpserver, run_args, build_args):
     [
         None,  # uses default of 64KiB
         pytest.param(
-            "16",
+            "24",
             marks=pytest.mark.skipif(
                 sys.platform != "win32",
                 reason="handler stack size parameterization tests stack guarantee on windows only",
@@ -472,6 +514,7 @@ def test_crashpad_dumping_stack_overflow(cmake, httpserver, stack_size):
                 "start-session",
                 "attachment",
                 "attach-view-hierarchy",
+                "crashpad-wait-for-upload",
                 "stack-overflow",
             ],
             expect_failure=True,

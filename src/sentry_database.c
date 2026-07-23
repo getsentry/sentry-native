@@ -632,6 +632,11 @@ sentry__process_old_runs(const sentry_options_t *options, uint64_t last_crash)
             continue;
         }
 
+        // our own run directory is protected by options->run->lock
+        if (sentry__path_eq(run_dir, options->run->run_path)) {
+            continue;
+        }
+
         sentry_path_t *lockfile = sentry__path_append_str(run_dir, ".lock");
         if (!lockfile) {
             continue;
@@ -644,10 +649,6 @@ sentry__process_old_runs(const sentry_options_t *options, uint64_t last_crash)
         // the file is locked by another process
         if (!did_lock) {
             sentry__filelock_free(lock);
-            continue;
-        }
-        // make sure we don't delete ourselves if the lock check fails
-        if (strcmp(options->run->run_path->path, run_dir->path) == 0) {
             continue;
         }
 
@@ -839,6 +840,20 @@ remove_file(sentry_path_t *path, void *data)
     sentry__path_remove(path);
 }
 
+static void
+record_cache_overflow_discard(const sentry_path_t *path)
+{
+    sentry_envelope_t *envelope = sentry__envelope_from_path(path);
+    if (envelope && sentry__envelope_materialize(envelope)) {
+        sentry__envelope_discard(
+            envelope, SENTRY_DISCARD_REASON_CACHE_OVERFLOW, NULL);
+    } else {
+        sentry__client_report_discard(SENTRY_DISCARD_REASON_CACHE_OVERFLOW,
+            SENTRY_DATA_CATEGORY_ERROR, 1);
+    }
+    sentry_envelope_free(envelope);
+}
+
 void
 sentry__cache_remove_envelope(const sentry_path_t *envelope_path)
 {
@@ -943,6 +958,7 @@ sentry__cleanup_cache(const sentry_options_t *options)
     size_t accumulated_size = 0;
     for (size_t i = 0; i < entries_count; i++) {
         bool should_prune = false;
+        bool cache_overflow = false;
 
         // Age-based pruning
         if (options->cache_max_age > 0 && entries[i].mtime < oldest_allowed) {
@@ -953,14 +969,19 @@ sentry__cleanup_cache(const sentry_options_t *options)
             if (options->cache_max_size > 0
                 && accumulated_size > options->cache_max_size) {
                 should_prune = true;
+                cache_overflow = true;
             }
             // Item count pruning
             if (options->cache_max_items > 0 && i >= options->cache_max_items) {
                 should_prune = true;
+                cache_overflow = true;
             }
         }
 
         if (should_prune) {
+            if (cache_overflow) {
+                record_cache_overflow_discard(entries[i].path);
+            }
             foreach_cache_sibling(entries[i].path, remove_file, NULL);
             sentry__path_remove_all(entries[i].path);
         }

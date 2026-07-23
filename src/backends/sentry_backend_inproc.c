@@ -318,7 +318,7 @@ wait_for_handler_ready(int timeout_ms)
         SENTRY_WARNF("poll for handler ready failed: %s", strerror(errno));
     } else if (rv > 0) {
         char c;
-        read(g_handler_ready_pipe[0], &c, 1);
+        (void)!read(g_handler_ready_pipe[0], &c, 1);
     }
 #elif defined(SENTRY_PLATFORM_WINDOWS)
     WaitForSingleObject(g_handler_ready_event, (DWORD)timeout_ms);
@@ -1171,6 +1171,20 @@ process_ucontext_deferred(const sentry_ucontext_t *uctx,
                     sentry__envelope_add_attachment(envelope, replay);
                 }
                 sentry__attachment_free(replay);
+            }
+
+            if (envelope && sentry__session_replay_has_pending(options)) {
+                sentry_value_t crash_event
+                    = sentry_envelope_get_event(envelope);
+                sentry_transport_t *replay_transport
+                    = sentry_new_disk_transport(options->run);
+                if (replay_transport) {
+                    sentry__session_replay_flush_pending(
+                        options, replay_transport, crash_event);
+                    sentry__transport_dump_queue(
+                        replay_transport, options->run);
+                    sentry_transport_free(replay_transport);
+                }
             }
 
             if (!sentry__launch_external_crash_reporter(options, envelope)) {

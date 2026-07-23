@@ -129,10 +129,13 @@ void sentry__options_unlock(void);
 
 void sentry__set_propagation_context(const char *key, sentry_value_t value);
 
-/**
- * Adds default attributes to the telemetry attributes object.
+/*
+ * Populates a telemetry item (a log or metric) with attributes and scope data
+ * from all available sources. Values are applied in precedence order, where the
+ * first write wins: per-call attributes already present in `attributes`, then
+ * the passed `scope`, then the global scope, and finally the options.
  */
-void sentry__apply_attributes(
+void sentry__apply_to_telemetry(const sentry_scope_t *scope,
     sentry_value_t telemetry, sentry_value_t attributes);
 
 bool sentry__launch_external_crash_reporter(
@@ -149,7 +152,8 @@ bool sentry__should_send_transaction(
     sentry_value_t tx_ctx, sentry_sampling_context_t *sampling_ctx);
 #endif
 
-#if defined(SENTRY_PLATFORM_NX) || defined(SENTRY_PLATFORM_PS)
+#if defined(SENTRY_PLATFORM_NX) || defined(SENTRY_PLATFORM_PS)                 \
+    || defined(SENTRY_PLATFORM_XBOX)
 int sentry__native_init(sentry_options_t *options);
 #endif
 

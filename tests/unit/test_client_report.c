@@ -1,10 +1,13 @@
 #include "sentry_batcher.h"
 #include "sentry_client_report.h"
+#include "sentry_database.h"
 #include "sentry_envelope.h"
+#include "sentry_options.h"
 #include "sentry_path.h"
 #include "sentry_ratelimiter.h"
 #include "sentry_sync.h"
 #include "sentry_testsupport.h"
+#include "sentry_uuid.h"
 #include "sentry_value.h"
 
 SENTRY_TEST(client_report_discard)
@@ -254,6 +257,65 @@ SENTRY_TEST(client_report_discard_envelope)
     sentry_close();
 }
 
+SENTRY_TEST(client_report_cache_overflow)
+{
+#if defined(SENTRY_PLATFORM_NX) || defined(SENTRY_PLATFORM_PS)
+    SKIP_TEST();
+#endif
+    SENTRY_TEST_OPTIONS_NEW(options);
+    sentry_options_set_cache_max_size(options, 1);
+    sentry__client_report_reset();
+
+    sentry_path_t *cache_path
+        = sentry__path_join_str(options->database_path, "cache");
+    TEST_ASSERT(!!cache_path);
+    TEST_ASSERT(sentry__path_remove_all(cache_path) == 0);
+    TEST_ASSERT(sentry__path_create_dir_all(cache_path) == 0);
+
+    for (size_t i = 0; i < 2; i++) {
+        sentry_uuid_t event_id = sentry_uuid_new_v4();
+        sentry_envelope_t *envelope = sentry__envelope_new();
+        TEST_ASSERT(!!envelope);
+        sentry_value_t event = sentry__value_new_event_with_id(&event_id);
+        sentry__envelope_add_event(envelope, event);
+        TEST_ASSERT(sentry__envelope_write_to_cache(envelope, cache_path) == 0);
+        sentry_envelope_free(envelope);
+    }
+
+    sentry__cleanup_cache(options);
+
+    sentry_client_report_t report;
+    TEST_CHECK(sentry__client_report_save(&report));
+    sentry_envelope_t *carrier = sentry__envelope_new();
+    sentry_envelope_item_t *item
+        = sentry__envelope_add_client_report(carrier, &report);
+    TEST_CHECK(!!item);
+
+    size_t payload_len = 0;
+    const char *payload = sentry__envelope_item_get_payload(item, &payload_len);
+    sentry_value_t value = sentry__value_from_json(payload, payload_len);
+
+    sentry_value_t discarded
+        = sentry_value_get_by_key(value, "discarded_events");
+    TEST_CHECK_INT_EQUAL(sentry_value_get_length(discarded), 1);
+
+    sentry_value_t entry0 = sentry_value_get_by_index(discarded, 0);
+    TEST_CHECK_STRING_EQUAL(
+        sentry_value_as_string(sentry_value_get_by_key(entry0, "reason")),
+        "cache_overflow");
+    TEST_CHECK_STRING_EQUAL(
+        sentry_value_as_string(sentry_value_get_by_key(entry0, "category")),
+        "error");
+    TEST_CHECK_INT_EQUAL(
+        sentry_value_as_int32(sentry_value_get_by_key(entry0, "quantity")), 2);
+
+    sentry_value_decref(value);
+    sentry_envelope_free(carrier);
+    sentry__path_free(cache_path);
+    sentry_options_free(options);
+    sentry__client_report_reset();
+}
+
 SENTRY_TEST(client_report_discard_rate_limited)
 {
     SENTRY_TEST_OPTIONS_NEW(options);
@@ -332,8 +394,9 @@ SENTRY_TEST(client_report_queue_overflow)
         = sentry__batcher_new(dummy_batch_func, SENTRY_DATA_CATEGORY_LOG_ITEM);
     TEST_CHECK(!!batcher);
 
-    // Fill the buffer (SENTRY_BATCHER_QUEUE_LENGTH is 5 in unit tests)
-    for (int i = 0; i < SENTRY_BATCHER_QUEUE_LENGTH; i++) {
+    // Fill all buffers (SENTRY_BATCHER_QUEUE_LENGTH is 5 in unit tests)
+    for (int i = 0;
+        i < SENTRY_BATCHER_BUFFER_COUNT * SENTRY_BATCHER_QUEUE_LENGTH; i++) {
         TEST_CHECK(sentry__batcher_enqueue(batcher, sentry_value_new_null()));
     }
 

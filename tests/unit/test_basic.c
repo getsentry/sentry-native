@@ -275,6 +275,32 @@ SENTRY_TEST(capture_minidump_basic)
 #endif
 }
 
+SENTRY_TEST(capture_minidump_wide)
+{
+#if !defined(SENTRY_PLATFORM_WINDOWS) || defined(SENTRY_PLATFORM_XBOX)
+    SKIP_TEST();
+#else
+    SENTRY_TEST_OPTIONS_NEW(options);
+    sentry_init(options);
+
+    const wchar_t *minidump_rel_path = L"../fixtures/minidump.dmp";
+    sentry_path_t *path = sentry__path_from_str(__FILE__);
+    sentry_path_t *dir = sentry__path_dir(path);
+    sentry_path_t *minidump_path
+        = sentry__path_join_wstr(dir, minidump_rel_path);
+
+    const sentry_uuid_t event_id
+        = sentry_capture_minidumpw(minidump_path->path_w);
+    TEST_CHECK(!sentry_uuid_is_nil(&event_id));
+
+    sentry__path_free(minidump_path);
+    sentry__path_free(dir);
+    sentry__path_free(path);
+
+    sentry_close();
+#endif
+}
+
 SENTRY_TEST(capture_minidump_null_path)
 {
     // a NULL path will activate the path check at the beginning of the function

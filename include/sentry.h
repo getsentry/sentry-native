@@ -38,7 +38,7 @@
  * NOTE on attachments:
  *
  * Attachments are read lazily at the time of `sentry_capture_event`,
- * `sentry_capture_event_with_scope`, or at the time of a hard crash. Relative
+ * `sentry_scope_capture_event`, or at the time of a hard crash. Relative
  * attachment paths will be resolved according to the current working directory
  * at the time of envelope creation. When adding and removing attachments, they
  * are matched according to their given `path`. No normalization is performed.
@@ -101,7 +101,7 @@ extern "C" {
 #    endif
 #endif
 #ifndef SENTRY_SDK_VERSION
-#    define SENTRY_SDK_VERSION "0.14.2"
+#    define SENTRY_SDK_VERSION "0.15.4"
 #endif
 #define SENTRY_SDK_USER_AGENT SENTRY_SDK_NAME "/" SENTRY_SDK_VERSION
 
@@ -2130,8 +2130,45 @@ typedef struct sentry_scope_s sentry_scope_t;
 
 /**
  * Creates a local scope.
+ *
+ * A local scope is a one-shot scope: the capture function it is passed to (such
+ * as `sentry_scope_capture_event`) takes ownership and frees it. To create
+ * a scope whose lifetime you manage and can reuse across captures, use
+ * `sentry_scope_new` instead.
  */
 SENTRY_API sentry_scope_t *sentry_local_scope_new(void);
+
+/**
+ * Creates a user-owned scope.
+ *
+ * Unlike a local scope, a user-owned scope is applied but not freed by capture
+ * functions such as `sentry_scope_capture_event`, so the same scope can be
+ * mutated and reused across many captures. You must release it yourself with
+ * `sentry_scope_free`.
+ */
+SENTRY_API sentry_scope_t *sentry_scope_new(void);
+
+/**
+ * Frees a scope created via `sentry_scope_new`, `sentry_scope_clone`, or
+ * `sentry_local_scope_new`.
+ */
+SENTRY_API void sentry_scope_free(sentry_scope_t *scope);
+
+/**
+ * Creates a copy of a scope.
+ *
+ * Top-level fields are copied while nested values are shared by reference. The
+ * returned scope is user-owned regardless of the source's ownership. Release it
+ * with `sentry_scope_free`.
+ */
+SENTRY_API sentry_scope_t *sentry_scope_clone(const sentry_scope_t *scope);
+
+/**
+ * Resets a scope to the state of a freshly created one, discarding the data
+ * previously set on it (user, tags, breadcrumbs, attributes, etc.) but keeping
+ * its trace. The scope is not freed and can be reused.
+ */
+SENTRY_API void sentry_scope_clear(sentry_scope_t *scope);
 
 /**
  * Sends a sentry event.
@@ -2143,10 +2180,22 @@ SENTRY_API sentry_scope_t *sentry_local_scope_new(void);
 SENTRY_API sentry_uuid_t sentry_capture_event(sentry_value_t event);
 
 /**
- * Sends a sentry event with a local scope.
+ * Sends a sentry event with a scope.
  *
- * Takes ownership of `scope`.
+ * If `scope` is a local scope (`sentry_local_scope_new`), this takes ownership
+ * of it and frees it. If `scope` is user-owned (`sentry_scope_new` or
+ * `sentry_scope_clone`), it is applied but not freed, so it can be reused; free
+ * it yourself with `sentry_scope_free`.
  */
+SENTRY_API sentry_uuid_t sentry_scope_capture_event(
+    sentry_scope_t *scope, sentry_value_t event);
+
+/**
+ * Deprecated alias for `sentry_scope_capture_event`. Note the reversed argument
+ * order: the replacement takes the scope first. This alias will be removed in
+ * 2027.
+ */
+SENTRY_DEPRECATED("Use `sentry_scope_capture_event` instead")
 SENTRY_API sentry_uuid_t sentry_capture_event_with_scope(
     sentry_value_t event, sentry_scope_t *scope);
 
@@ -2169,6 +2218,16 @@ SENTRY_API sentry_uuid_t sentry_capture_event_with_scope(
 SENTRY_API sentry_uuid_t sentry_capture_minidump(const char *path);
 SENTRY_API sentry_uuid_t sentry_capture_minidump_n(
     const char *path, size_t path_len);
+
+#ifdef SENTRY_PLATFORM_WINDOWS
+/**
+ * Wide char versions of `sentry_capture_minidump` and
+ * `sentry_capture_minidump_n`.
+ */
+SENTRY_API sentry_uuid_t sentry_capture_minidumpw(const wchar_t *path);
+SENTRY_API sentry_uuid_t sentry_capture_minidumpw_n(
+    const wchar_t *path, size_t path_len);
+#endif
 
 /**
  * Captures a system-native exception that you retrieve when you manually handle
@@ -2285,12 +2344,27 @@ SENTRY_API void sentry_remove_extra_n(const char *key, size_t key_len);
  * all:
  * - logs
  * - metrics
+ *
+ * Ownership of `attribute` is transferred to the function. Attributes missing
+ * a `value` or a `type` are rejected and discarded.
  */
 SENTRY_API void sentry_set_attribute(const char *key, sentry_value_t attribute);
 SENTRY_API void sentry_set_attribute_n(
     const char *key, size_t key_len, sentry_value_t attribute);
+SENTRY_API void sentry_scope_set_attribute(
+    sentry_scope_t *scope, const char *key, sentry_value_t attribute);
+SENTRY_API void sentry_scope_set_attribute_n(sentry_scope_t *scope,
+    const char *key, size_t key_len, sentry_value_t attribute);
+
+/**
+ * Removes the attribute with the specified key.
+ */
 SENTRY_API void sentry_remove_attribute(const char *key);
 SENTRY_API void sentry_remove_attribute_n(const char *key, size_t key_len);
+SENTRY_API void sentry_scope_remove_attribute(
+    sentry_scope_t *scope, const char *key);
+SENTRY_API void sentry_scope_remove_attribute_n(
+    sentry_scope_t *scope, const char *key, size_t key_len);
 
 /**
  * Sets a context object.
@@ -2301,6 +2375,19 @@ SENTRY_API void sentry_set_context_n(
 SENTRY_API void sentry_scope_set_context(
     sentry_scope_t *scope, const char *key, sentry_value_t value);
 SENTRY_API void sentry_scope_set_context_n(sentry_scope_t *scope,
+    const char *key, size_t key_len, sentry_value_t value);
+/**
+ * Updates a context object by merging the provided values into it.
+ * Keys in `value` take precedence over keys in the context, updating the
+ * existing values. Keys in the existing context that are not present in `value`
+ * are preserved. If the context object does not exist yet, it will be created.
+ */
+SENTRY_API void sentry_update_context(const char *key, sentry_value_t value);
+SENTRY_API void sentry_update_context_n(
+    const char *key, size_t key_len, sentry_value_t value);
+SENTRY_API void sentry_scope_update_context(
+    sentry_scope_t *scope, const char *key, sentry_value_t value);
+SENTRY_API void sentry_scope_update_context_n(sentry_scope_t *scope,
     const char *key, size_t key_len, sentry_value_t value);
 
 /**
@@ -2636,6 +2723,22 @@ SENTRY_EXPERIMENTAL_API log_return_value_t sentry_log(
     sentry_level_t level, const char *body, sentry_value_t attributes);
 
 /**
+ * Sends a structured log with a scope.
+ *
+ * Behaves like `sentry_log`, except the log also carries the attributes and
+ * trace of `scope`, layered on top of the global scope. An attribute set in
+ * more than one place resolves to the most specific: `attributes` > `scope` >
+ * global scope.
+ *
+ * Scope ownership works as in `sentry_scope_capture_event`: a local scope
+ * is freed by this function, a user-owned one is not. Pass `NULL` to apply the
+ * global scope only.
+ */
+SENTRY_EXPERIMENTAL_API log_return_value_t sentry_scope_capture_log(
+    sentry_scope_t *scope, sentry_level_t level, const char *body,
+    sentry_value_t attributes);
+
+/**
  * Type of the `before_send_log` callback.
  *
  * The callback takes ownership of the `log` and should usually return
@@ -2662,6 +2765,53 @@ SENTRY_EXPERIMENTAL_API void sentry_options_set_enable_metrics(
     sentry_options_t *opts, int enable_metrics);
 SENTRY_EXPERIMENTAL_API int sentry_options_get_enable_metrics(
     const sentry_options_t *opts);
+
+/**
+ * Enables or disables in-process app-hang detection. When enabled, a
+ * background watchdog thread monitors heartbeats from the watched thread. If
+ * no heartbeat is received within the configured timeout, an app-hang event is
+ * captured and sent to Sentry.
+ *
+ * Disabled by default. Must be combined with regular calls to
+ * `sentry_app_hang_heartbeat()` from the thread you want monitored.
+ */
+SENTRY_EXPERIMENTAL_API void sentry_options_set_enable_app_hang_tracking(
+    sentry_options_t *opts, int enable);
+SENTRY_EXPERIMENTAL_API int sentry_options_get_enable_app_hang_tracking(
+    const sentry_options_t *opts);
+
+/**
+ * Sets the app-hang detection timeout (in milliseconds). Defaults to 5000 ms.
+ * If `enable_app_hang_tracking` is true and no heartbeat is received within
+ * this window, an app-hang event is captured. Detection is enabled/disabled via
+ * `enable_app_hang_tracking`, not via this timeout.
+ *
+ * The watchdog samples the heartbeat on a fixed internal interval, so timeouts
+ * shorter than 1000 ms cannot be resolved reliably. Values below that minimum
+ * are clamped up to it (with a warning).
+ */
+SENTRY_EXPERIMENTAL_API void sentry_options_set_app_hang_timeout(
+    sentry_options_t *opts, uint64_t app_hang_timeout);
+SENTRY_EXPERIMENTAL_API uint64_t sentry_options_get_app_hang_timeout(
+    const sentry_options_t *opts);
+
+/**
+ * Records a heartbeat from the calling thread.
+ *
+ * The first call latches the calling thread as the monitored thread.
+ * Call this regularly from the thread you want watched for hangs. If the
+ * watchdog does not receive a heartbeat within the configured timeout, it
+ * captures an app-hang event.
+ *
+ * Only a single thread is monitored: the watchdog tracks exactly the one
+ * thread latched by the first heartbeat. Calls from any other thread are
+ * ignored. To watch the thread most representative of responsiveness (e.g.
+ * a UI or main loop), call this from that thread first.
+ *
+ * This function is a no-op unless app-hang detection is enabled via
+ * `sentry_options_set_enable_app_hang_tracking`.
+ */
+SENTRY_EXPERIMENTAL_API void sentry_app_hang_heartbeat(void);
 
 /**
  * Type of the `before_send_metric` callback.
@@ -2738,6 +2888,36 @@ SENTRY_EXPERIMENTAL_API sentry_metrics_result_t sentry_metrics_gauge(
 SENTRY_EXPERIMENTAL_API sentry_metrics_result_t sentry_metrics_distribution(
     const char *name, double value, const char *unit,
     sentry_value_t attributes);
+
+/**
+ * Specifies the metric type for `sentry_scope_capture_metric`.
+ *
+ * Each type corresponds to one of the dedicated recording functions:
+ * `sentry_metrics_count`, `sentry_metrics_gauge`, `sentry_metrics_distribution`
+ */
+typedef enum {
+    SENTRY_METRIC_COUNT,
+    SENTRY_METRIC_GAUGE,
+    SENTRY_METRIC_DISTRIBUTION,
+} sentry_metric_type_t;
+
+/**
+ * Records a metric of the given type with a scope.
+ *
+ * Behaves like the `sentry_metrics_*` functions, except the metric also carries
+ * the attributes and trace of `scope`, layered on top of the global scope. An
+ * attribute set in more than one place resolves to the most specific:
+ * `attributes` > `scope` > global scope.
+ *
+ * Ownership of `value` is transferred to this function, on top of `attributes`.
+ *
+ * Scope ownership works as in `sentry_scope_capture_event`: a local scope
+ * is freed by this function, a user-owned one is not. Pass `NULL` to apply the
+ * global scope only.
+ */
+SENTRY_EXPERIMENTAL_API sentry_metrics_result_t sentry_scope_capture_metric(
+    sentry_scope_t *scope, sentry_metric_type_t type, const char *name,
+    sentry_value_t value, const char *unit, sentry_value_t attributes);
 
 #ifdef SENTRY_PLATFORM_LINUX
 
@@ -3165,6 +3345,18 @@ SENTRY_EXPERIMENTAL_API sentry_uuid_t sentry_transaction_finish_ts(
     sentry_transaction_t *tx, uint64_t timestamp);
 
 /**
+ * Discards a Transaction without sending it to sentry.
+ *
+ * This takes ownership of `transaction`. A Transaction cannot be modified or
+ * re-used after it is discarded.
+ *
+ * If `transaction` is currently set on the scope, it will be removed from the
+ * scope.
+ */
+SENTRY_EXPERIMENTAL_API void sentry_transaction_discard(
+    sentry_transaction_t *tx);
+
+/**
  * Sets the Transaction so any Events sent while the Transaction
  * is active will be associated with the Transaction.
  *
@@ -3315,6 +3507,16 @@ SENTRY_EXPERIMENTAL_API void sentry_span_finish(sentry_span_t *span);
  */
 SENTRY_EXPERIMENTAL_API void sentry_span_finish_ts(
     sentry_span_t *span, uint64_t timestamp);
+
+/**
+ * Discards a Span without adding it to its containing Transaction.
+ *
+ * This takes ownership of `span`. A Span cannot be modified or re-used after it
+ * is discarded.
+ *
+ * If `span` is currently set on the scope, it will be removed from the scope.
+ */
+SENTRY_EXPERIMENTAL_API void sentry_span_discard(sentry_span_t *span);
 
 /**
  * Sets a tag on a Transaction to the given string value.

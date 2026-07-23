@@ -1,6 +1,10 @@
 sentry_target_sources_cwd(sentry
 	sentry_alloc.c
 	sentry_alloc.h
+	sentry_app_hang_latch.c
+	sentry_app_hang_latch.h
+	sentry_app_hang_monitor.c
+	sentry_app_hang_monitor.h
 	sentry_attachment.c
 	sentry_attachment.h
 	sentry_backend.c
@@ -20,6 +24,7 @@ sentry_target_sources_cwd(sentry
 	sentry_hint.c
 	sentry_hint.h
 	sentry_info.c
+	sentry_integration.h
 	sentry_json.c
 	sentry_json.h
 	sentry_logger.c
@@ -54,6 +59,7 @@ sentry_target_sources_cwd(sentry
 	sentry_symbolizer.h
 	sentry_sync.c
 	sentry_sync.h
+	sentry_thread_stackwalk.h
 	sentry_transport.c
 	sentry_transport.h
 	sentry_utils.c
@@ -62,6 +68,8 @@ sentry_target_sources_cwd(sentry
 	sentry_uuid.h
 	sentry_value.c
 	sentry_value.h
+	sentry_writer.c
+	sentry_writer.h
 	sentry_tracing.c
 	sentry_tracing.h
 	path/sentry_path.c
@@ -254,6 +262,25 @@ if(SENTRY_WITH_LIBUNWIND_MAC)
 	)
 endif()
 
+# platform thread stackwalker (suspend a thread and capture its backtrace)
+if(APPLE)
+	sentry_target_sources_cwd(sentry
+		sentry_thread_stackwalk_mach.c
+	)
+endif()
+
+if(WIN32)
+	sentry_target_sources_cwd(sentry
+		sentry_thread_stackwalk_windows.c
+	)
+endif()
+
+if(LINUX OR ANDROID)
+	sentry_target_sources_cwd(sentry
+		sentry_thread_stackwalk_posix.c
+	)
+endif()
+
 if(SENTRY_WITH_LIBUNWINDSTACK)
 	target_compile_definitions(sentry PRIVATE SENTRY_WITH_UNWINDER_LIBUNWINDSTACK)
 	sentry_target_sources_cwd(sentry
@@ -278,6 +305,13 @@ if(SENTRY_INTEGRATION_QT)
 	sentry_target_sources_cwd(sentry
 		integrations/sentry_integration_qt.cpp
 		integrations/sentry_integration_qt.h
+	)
+endif()
+if(SENTRY_INTEGRATION_WER AND WIN32)
+	target_compile_definitions(sentry PRIVATE SENTRY_INTEGRATION_WER)
+	sentry_target_sources_cwd(sentry
+		integrations/sentry_integration_wer.c
+		integrations/sentry_integration_wer.h
 	)
 endif()
 

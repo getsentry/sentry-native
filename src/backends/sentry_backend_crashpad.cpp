@@ -17,6 +17,7 @@ extern "C" {
 #endif
 #include "sentry_path.h"
 #include "sentry_screenshot.h"
+#include "sentry_session_replay.h"
 #include "sentry_sync.h"
 #include "sentry_transport.h"
 #include "sentry_value.h"
@@ -261,6 +262,46 @@ flush_external_crash_report(
     sentry_envelope_free(envelope);
 }
 
+static logging::LogSeverity
+to_crashpad_level(sentry_level_t level)
+{
+    switch (level) {
+    case SENTRY_LEVEL_TRACE:
+    case SENTRY_LEVEL_DEBUG:
+        return logging::LOG_VERBOSE;
+    case SENTRY_LEVEL_INFO:
+        return logging::LOG_INFO;
+    case SENTRY_LEVEL_WARNING:
+        return logging::LOG_WARNING;
+    case SENTRY_LEVEL_ERROR:
+        return logging::LOG_ERROR;
+    case SENTRY_LEVEL_FATAL:
+        return logging::LOG_FATAL;
+    }
+
+    return logging::LOG_VERBOSE;
+}
+
+static sentry_level_t
+to_sentry_level(logging::LogSeverity severity)
+{
+    switch (severity) {
+    case logging::LOG_VERBOSE:
+        return SENTRY_LEVEL_DEBUG;
+    case logging::LOG_INFO:
+        return SENTRY_LEVEL_INFO;
+    case logging::LOG_WARNING:
+        return SENTRY_LEVEL_WARNING;
+    case logging::LOG_ERROR:
+    case logging::LOG_ERROR_REPORT:
+        return SENTRY_LEVEL_ERROR;
+    case logging::LOG_FATAL:
+        return SENTRY_LEVEL_FATAL;
+    }
+
+    return SENTRY_LEVEL_DEBUG;
+}
+
 // This function is necessary for macOS since it has no `FirstChanceHandler`.
 // but it is also necessary on Windows if the WER handler is enabled.
 // This means we have to continuously flush the scope on
@@ -301,6 +342,24 @@ crashpad_backend_flush_scope(
 #endif
 }
 
+// Decodes a breadcrumb ring file (an append-only stream of msgpack values)
+// into a list.
+static sentry_value_t
+read_msgpack_stream_file(const sentry_path_t *path)
+{
+    if (!path) {
+        return sentry_value_new_null();
+    }
+    size_t size;
+    char *data = sentry__path_read_to_buffer(path, &size);
+    if (!data) {
+        return sentry_value_new_null();
+    }
+    sentry_value_t value = sentry__value_from_msgpack_stream(data, size);
+    sentry_free(data);
+    return value;
+}
+
 #if defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_WINDOWS)
 static void
 flush_scope_from_handler(
@@ -309,7 +368,14 @@ flush_scope_from_handler(
     auto state = static_cast<crashpad_state_t *>(options->backend->data);
 
     // this blocks any further calls to `crashpad_backend_flush_scope`
-    state->crashed.store(true, std::memory_order_relaxed);
+    if (state->crashed.exchange(true, std::memory_order_relaxed)) {
+#    ifdef SENTRY_PLATFORM_LINUX
+        // Re-entry cannot flush again because the flush lock is never released
+        // after a crash. PID 1 can hit this when it survives crashpad's
+        // default-signal re-raise.
+        _exit(EXIT_FAILURE);
+#    endif
+    }
 
     // busy-wait until any in-progress scope flushes are finished
     bool expected = false;
@@ -385,6 +451,7 @@ crashpad_handler(int signum, siginfo_t *info, ucontext_t *user_context)
         should_dump = !sentry_value_is_null(crash_event);
 
         if (should_dump) {
+            sentry_value_incref(crash_event);
             flush_scope_from_handler(options, crash_event);
             sentry__write_crash_marker(options);
 
@@ -402,6 +469,28 @@ crashpad_handler(int signum, siginfo_t *info, ucontext_t *user_context)
                 sentry__transport_dump_queue(disk_transport, options->run);
                 sentry_transport_free(disk_transport);
             }
+
+            if (sentry__session_replay_has_pending(options)) {
+                // the crash event was scope-applied without breadcrumbs, so
+                // set them on the in-memory copy to let the replay recording
+                // embed them; the on-disk `__sentry-event` was already
+                // written above and stays breadcrumb-free
+                SENTRY_WITH_SCOPE (scope) {
+                    sentry_value_set_by_key(crash_event, "breadcrumbs",
+                        sentry__ringbuffer_to_list(scope->breadcrumbs));
+                }
+
+                sentry_transport_t *replay_transport
+                    = sentry_new_disk_transport(options->run);
+                if (replay_transport) {
+                    sentry__session_replay_flush_pending(
+                        options, replay_transport, crash_event);
+                    sentry__transport_dump_queue(
+                        replay_transport, options->run);
+                    sentry_transport_free(replay_transport);
+                }
+            }
+            sentry_value_decref(crash_event);
         } else {
             SENTRY_DEBUG("event was discarded");
         }
@@ -517,9 +606,9 @@ report_to_envelope(const crashpad::CrashReportDatabase::Report &report,
             if (strcmp(filename, "__sentry-event") == 0) {
                 event = read_msgpack_file(path);
             } else if (strcmp(filename, "__sentry-breadcrumb1") == 0) {
-                breadcrumbs1 = read_msgpack_file(path);
+                breadcrumbs1 = read_msgpack_stream_file(path);
             } else if (strcmp(filename, "__sentry-breadcrumb2") == 0) {
-                breadcrumbs2 = read_msgpack_file(path);
+                breadcrumbs2 = read_msgpack_stream_file(path);
             } else {
                 sentry__attachments_add_path(
                     &attachments, sentry__path_clone(path), nullptr, nullptr);
@@ -715,25 +804,6 @@ crashpad_backend_startup(
     }
 
     std::vector<std::string> arguments { "--no-rate-limit" };
-
-    // Map sentry's log level to mini_chromium's LogSeverity. They diverge at
-    // FATAL (sentry=3, mini_chromium=4); otherwise 1:1.
-    int level = static_cast<int>(options->logger.logger_level);
-    switch (options->logger.logger_level) {
-    case SENTRY_LEVEL_TRACE:
-    case SENTRY_LEVEL_DEBUG:
-        level = -1; // LOG_VERBOSE
-        break;
-    case SENTRY_LEVEL_INFO:
-    case SENTRY_LEVEL_WARNING:
-    case SENTRY_LEVEL_ERROR:
-        // LOG_INFO/WARNING/ERROR (0/1/2) match 1:1
-        break;
-    case SENTRY_LEVEL_FATAL:
-        level = 4; // LOG_FATAL
-        break;
-    }
-
     sentry_path_t *log_path
         = sentry__path_join_str(current_run_folder, "crashpad-handler.log");
     if (log_path) {
@@ -741,11 +811,27 @@ crashpad_backend_startup(
         sentry__path_free(log_path);
     }
     if (options->debug) {
+        const logging::LogSeverity level
+            = to_crashpad_level(options->logger.logger_level);
         logging::LoggingSettings settings;
-        settings.logging_dest = logging::LOG_TO_STDERR;
+        settings.logging_dest = logging::LOG_DEFAULT & ~logging::LOG_TO_STDERR;
         settings.min_log_level = level;
         logging::InitLogging(settings);
         arguments.push_back("--log-level=" + std::to_string(level));
+
+        logging::SetLogMessageHandler(
+            [](logging::LogSeverity severity, const char *, int, size_t start,
+                const std::string &msg) {
+                size_t end = msg.size();
+                if (end > start && msg[end - 1] == '\n') {
+                    end--;
+                }
+                sentry__logger_log(to_sentry_level(severity), "crashpad: %.*s",
+                    static_cast<int>(end - start), msg.c_str() + start);
+                // Forward logs without consuming them so Crashpad keeps its
+                // default handling, including fatal termination.
+                return false;
+            });
     }
 
     char report_id[37];

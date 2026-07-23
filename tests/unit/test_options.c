@@ -1,6 +1,8 @@
 #include "sentry_options.h"
 #include "sentry_testsupport.h"
 
+#include <math.h>
+
 SENTRY_TEST(options_sdk_name_defaults)
 {
     SENTRY_TEST_OPTIONS_NEW(options);
@@ -124,6 +126,46 @@ SENTRY_TEST(options_crash_reporting_mode_clamp)
     sentry_options_set_crash_reporting_mode(options, -1);
     TEST_CHECK_INT_EQUAL(sentry_options_get_crash_reporting_mode(options),
         SENTRY_CRASH_REPORTING_MODE_MINIDUMP);
+
+    sentry_options_free(options);
+}
+
+SENTRY_TEST(options_sample_rate)
+{
+    SENTRY_TEST_OPTIONS_NEW(options);
+
+    sentry_options_set_sample_rate(options, 0.0);
+    sentry_options_set_traces_sample_rate(options, 0.0);
+    TEST_CHECK(sentry_options_get_sample_rate(options) == 0.0);
+    TEST_CHECK(sentry_options_get_traces_sample_rate(options) == 0.0);
+
+    sentry_options_set_sample_rate(options, 0.5);
+    sentry_options_set_traces_sample_rate(options, 0.5);
+    TEST_CHECK(sentry_options_get_sample_rate(options) == 0.5);
+    TEST_CHECK(sentry_options_get_traces_sample_rate(options) == 0.5);
+
+    sentry_options_set_sample_rate(options, 1.0);
+    sentry_options_set_traces_sample_rate(options, 1.0);
+    TEST_CHECK(sentry_options_get_sample_rate(options) == 1.0);
+    TEST_CHECK(sentry_options_get_traces_sample_rate(options) == 1.0);
+
+    // < 0.0
+    sentry_options_set_sample_rate(options, -0.1);
+    sentry_options_set_traces_sample_rate(options, -0.1);
+    TEST_CHECK(sentry_options_get_sample_rate(options) == 0.0);
+    TEST_CHECK(sentry_options_get_traces_sample_rate(options) == 0.0);
+
+    // > 1.0
+    sentry_options_set_sample_rate(options, 1.1);
+    sentry_options_set_traces_sample_rate(options, 1.1);
+    TEST_CHECK(sentry_options_get_sample_rate(options) == 1.0);
+    TEST_CHECK(sentry_options_get_traces_sample_rate(options) == 1.0);
+
+    // NaN -> default
+    sentry_options_set_sample_rate(options, NAN);
+    sentry_options_set_traces_sample_rate(options, NAN);
+    TEST_CHECK(sentry_options_get_sample_rate(options) == 1.0);
+    TEST_CHECK(sentry_options_get_traces_sample_rate(options) == 0.0);
 
     sentry_options_free(options);
 }

@@ -658,22 +658,11 @@ main(int argc, char **argv)
 
     if (has_arg(argc, argv, "large-attachment")) {
         sentry_options_set_enable_large_attachments(options, 1);
-        const char *large_file = ".sentry-large-attachment";
-        FILE *f = fopen(large_file, "wb");
-        if (f) {
-            // 100 MB = TUS upload threshold
-            char zeros[4096];
-            memset(zeros, 0, sizeof(zeros));
-            size_t remaining = 100 * 1024 * 1024;
-            while (remaining > 0) {
-                size_t chunk
-                    = remaining < sizeof(zeros) ? remaining : sizeof(zeros);
-                fwrite(zeros, 1, chunk, f);
-                remaining -= chunk;
-            }
-            fclose(f);
-            sentry_options_add_attachment(options, large_file);
-        }
+    }
+
+    if (has_arg(argc, argv, "app-hang")) {
+        sentry_options_set_enable_app_hang_tracking(options, 1);
+        sentry_options_set_app_hang_timeout(options, 1000);
     }
 
     if (has_arg(argc, argv, "stdout")) {
@@ -971,6 +960,29 @@ main(int argc, char **argv)
             view_hierarchy, SENTRY_ATTACHMENT_TYPE_VIEW_HIERARCHY);
     }
 
+    if (has_arg(argc, argv, "large-attachment")) {
+        const char *large_file = ".sentry-large-attachment";
+        FILE *f = fopen(large_file, "wb");
+        if (f) {
+            // 100 MB = TUS upload threshold
+            char zeros[4096];
+            memset(zeros, 0, sizeof(zeros));
+            size_t remaining = 100 * 1024 * 1024;
+            while (remaining > 0) {
+                size_t chunk
+                    = remaining < sizeof(zeros) ? remaining : sizeof(zeros);
+                fwrite(zeros, 1, chunk, f);
+                remaining -= chunk;
+            }
+            fclose(f);
+            sentry_attachment_t *attachment = sentry_attach_file(large_file);
+            if (attachment) {
+                sentry_attachment_set_type(
+                    attachment, SENTRY_ATTACHMENT_TYPE_MINIDUMP);
+            }
+        }
+    }
+
     if (sentry_options_get_enable_logs(options)) {
         if (has_arg(argc, argv, "capture-log")) {
             sentry_log_debug("I'm a log message!");
@@ -1061,6 +1073,15 @@ main(int argc, char **argv)
         sentry_set_trace(direct_trace_id, direct_parent_span_id);
     }
 
+    if (has_arg(argc, argv, "replay-context")) {
+        // mimics an embedder (e.g. sentry-unreal) that stages replay clips in
+        // `<database>/replays/` and announces the active replay on the scope
+        sentry_value_t replay = sentry_value_new_object();
+        sentry_value_set_by_key(replay, "replay_id",
+            sentry_value_new_string("deadbeefdeadbeefdeadbeefdeadbeef"));
+        sentry_set_context("replay", replay);
+    }
+
     if (has_arg(argc, argv, "attach-after-init")) {
         // assuming the example / test is run directly from the cmake build
         // directory
@@ -1114,7 +1135,7 @@ main(int argc, char **argv)
                 bytes, "application/octet-stream");
         }
 
-        sentry_capture_event_with_scope(event, scope);
+        sentry_scope_capture_event(scope, event);
     }
 
     if (has_arg(argc, argv, "capture-multiple")) {
@@ -1138,6 +1159,28 @@ main(int argc, char **argv)
 
     if (has_arg(argc, argv, "sleep")) {
         sleep_s(10);
+    }
+
+    if (has_arg(argc, argv, "app-hang")) {
+        printf("app-hang: start\n");
+        fflush(stdout);
+
+        // A couple of heartbeats to latch this (main) thread as the monitored
+        // thread and keep it fresh.
+        for (int i = 0; i < 3; i++) {
+            sentry_app_hang_heartbeat();
+            sleep_ms(100);
+        }
+
+        printf("app-hang: doing some heavy work now (going to sleep)\n");
+        fflush(stdout);
+
+        // Block the monitored thread past the configured timeout so the
+        // watchdog samples this hung thread and captures an AppHang event.
+        sleep_s(3);
+
+        printf("app-hang: finishing\n");
+        fflush(stdout);
     }
 
     if (has_arg(argc, argv, "test-logger-before-crash")) {

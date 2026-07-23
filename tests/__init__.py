@@ -23,9 +23,13 @@ def adb(*args, **kwargs):
 # https://docs.pytest.org/en/latest/assert.html#assert-details
 pytest.register_assert_rewrite("tests.assertions")
 
-SENTRY_VERSION = "0.14.2"
+SENTRY_VERSION = "0.15.4"
+
+# must match the fixed id set by the example's "replay-context" arg
+REPLAY_ID = "deadbeefdeadbeefdeadbeefdeadbeef"
 
 from .assertions import wait_for_daemon as _wait_for_daemon
+from .conditions import is_asan
 
 
 def make_dsn(httpserver, auth="uiaeosnrtdy", id=123456, proxy_host=False):
@@ -74,6 +78,36 @@ def is_metrics_envelope(data):
 
 def is_feedback_envelope(data):
     return b'"type":"feedback"' in data
+
+
+def is_replay_envelope(data):
+    return b'"type":"replay_video"' in data
+
+
+def stage_replay(tmp_path, replay_id=REPLAY_ID):
+    """Stage a dummy replay clip + sidecar in `<database>/replays/` the way an
+    embedder (e.g. sentry-unreal) would. The SDK treats the mp4 as opaque
+    bytes, so no valid video container is needed."""
+    replays = tmp_path / ".sentry-native" / "replays"
+    replays.mkdir(parents=True)
+    video = b"\x00\x00\x00\x1cftyp-dummy-mp4-payload-" * 64
+    (replays / f"replay-{replay_id}.mp4").write_bytes(video)
+    sidecar = {
+        "replayId": replay_id,
+        "videoFilename": f"replay-{replay_id}.mp4",
+        "replayType": "buffer",
+        "segmentId": 0,
+        "startTimestampSec": 1782892813.261,
+        "endTimestampSec": 1782892828.338,
+        "width": 3864,
+        "height": 2100,
+        "durationMs": 15077,
+        "sizeBytes": len(video),
+        "frameCount": 58,
+        "frameRate": 30,
+    }
+    (replays / f"replay-{replay_id}.json").write_text(json.dumps(sidecar))
+    return replays, video
 
 
 def split_log_request_cond(httpserver_log, cond):
@@ -161,7 +195,14 @@ def run(
         "./{}".format(exe) if sys.platform != "win32" else "{}\\{}.exe".format(cwd, exe)
     ]
     if "asan" in os.environ.get("RUN_ANALYZER", ""):
-        env["ASAN_OPTIONS"] = "detect_leaks=1:detect_invalid_join=0"
+        asan_options = env.get("ASAN_OPTIONS", "")
+        if "detect_leaks" not in asan_options:
+            env["ASAN_OPTIONS"] = ":".join(
+                filter(
+                    None,
+                    [asan_options, "detect_leaks=1:detect_invalid_join=0"],
+                )
+            )
         env["LSAN_OPTIONS"] = "suppressions={}".format(
             os.path.join(sourcedir, "tests", "leaks.txt")
         )
@@ -208,6 +249,32 @@ def run(
                 cmd=" ".join(cmd), args=" ".join(args)
             )
         ) from None
+
+
+def run_crash(tmp_path, exe, args, env, **kwargs):
+    """
+    Run a crash test.
+
+    When running under ASAN, we configure it to not intercept crash signals
+    so that our native crash handler can run and capture the crash.
+    """
+    # When running under ASAN, disable ASAN's signal handling so our crash
+    # handler can run. ASAN would otherwise intercept SIGSEGV/SIGABRT/etc
+    # and terminate the process before our handler completes.
+    if is_asan:
+        # Preserve existing ASAN_OPTIONS and add signal handling overrides
+        asan_opts = env.get("ASAN_OPTIONS", "")
+        # Disable handling of crash signals so our handler can run
+        asan_signal_opts = (
+            "handle_segv=0:handle_sigbus=0:handle_abort=0:"
+            "handle_sigfpe=0:handle_sigill=0:allow_user_segv_handler=1"
+        )
+        if asan_opts:
+            env = dict(env, ASAN_OPTIONS=f"{asan_opts}:{asan_signal_opts}")
+        else:
+            env = dict(env, ASAN_OPTIONS=asan_signal_opts)
+
+    run(tmp_path, exe, args, expect_failure=True, env=env, **kwargs)
 
 
 def check_output(*args, **kwargs):

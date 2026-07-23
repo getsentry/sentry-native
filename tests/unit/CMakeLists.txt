@@ -21,6 +21,7 @@ add_executable(sentry_test_unit
 	${SENTRY_SOURCES}
 	main.c
 	sentry_testsupport.h
+	test_app_hang.c
 	test_attachments.c
 	test_basic.c
 	test_cache.c
@@ -60,6 +61,7 @@ add_executable(sentry_test_unit
 	test_utils.c
 	test_uuid.c
 	test_value.c
+	test_writer.c
 	tests.inc
 )
 

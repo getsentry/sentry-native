@@ -10,20 +10,26 @@ import subprocess
 import sys
 import time
 import struct
+
 import pytest
 
 from . import (
     is_feedback_envelope,
+    is_replay_envelope,
     make_dsn,
     run,
+    run_crash,
+    stage_replay,
     Envelope,
     split_log_request_cond,
+    REPLAY_ID,
 )
 from .assertions import (
     assert_breadcrumb,
     assert_debug_meta_images_do_not_overlap,
     assert_meta,
     assert_native_crash,
+    assert_replay_envelope,
     assert_session,
     is_valid_hex,
     wait_for_file,
@@ -41,32 +47,6 @@ pytestmark = pytest.mark.skipif(
 SANITIZER_ARGS = ["shutdown-timeout", "10000"] if is_asan or is_tsan else []
 
 
-def run_crash(tmp_path, exe, args, env, **kwargs):
-    """
-    Run a crash test.
-
-    When running under ASAN, we configure it to not intercept crash signals
-    so that our native crash handler can run and capture the crash.
-    """
-    # When running under ASAN, disable ASAN's signal handling so our crash
-    # handler can run. ASAN would otherwise intercept SIGSEGV/SIGABRT/etc
-    # and terminate the process before our handler completes.
-    if is_asan:
-        # Preserve existing ASAN_OPTIONS and add signal handling overrides
-        asan_opts = env.get("ASAN_OPTIONS", "")
-        # Disable handling of crash signals so our handler can run
-        asan_signal_opts = (
-            "handle_segv=0:handle_sigbus=0:handle_abort=0:"
-            "handle_sigfpe=0:handle_sigill=0:allow_user_segv_handler=1"
-        )
-        if asan_opts:
-            env["ASAN_OPTIONS"] = f"{asan_opts}:{asan_signal_opts}"
-        else:
-            env["ASAN_OPTIONS"] = asan_signal_opts
-
-    run(tmp_path, exe, args, expect_failure=True, env=env, **kwargs)
-
-
 def test_native_capture_crash(cmake, httpserver):
     """Test basic crash capture with native backend"""
     tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "native"})
@@ -81,6 +61,10 @@ def test_native_capture_crash(cmake, httpserver):
             env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
         )
     assert waiting.result
+
+    assert len(httpserver.log) >= 1
+    envelope = Envelope.deserialize(httpserver.log[0][0].get_data())
+    assert_native_crash(envelope)
 
 
 @pytest.mark.skipif(
@@ -215,18 +199,33 @@ def test_native_capture_minidump_generated(cmake, httpserver):
             assert version != 0, "Minidump should have non-zero version"
 
 
-def test_native_breadcrumbs(cmake, httpserver):
-    """Test that breadcrumbs are captured before crash"""
+# Both daemon envelope writers merge the breadcrumb ring files: the native
+# stacktrace writer builds the event from scratch, while the minidump-only
+# writer re-parses the parent's event JSON, merges, and re-serializes. Exercise
+# both so the minidump path's extra parse/serialize roundtrip is covered too.
+BREADCRUMB_CRASH_MODES = ["native", "minidump"]
+
+
+@pytest.mark.parametrize("crash_mode", BREADCRUMB_CRASH_MODES)
+def test_native_breadcrumbs(cmake, httpserver, crash_mode):
+    """Test that breadcrumbs survive the daemon's ring-file merge.
+
+    The crashing process appends breadcrumbs as msgpack to the ring files; the
+    daemon reads, merges, and attaches them to the event. Asserting on the
+    default `debug crumb` verifies that whole roundtrip, not just that an event
+    arrived.
+    """
     tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "native"})
 
     httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data("OK")
 
-    # Add breadcrumbs then crash (use stdout for initialization delay under sanitizers)
+    # The default setup block adds the `debug crumb`; crash so the daemon emits
+    # the event (use stdout for initialization delay under sanitizers).
     with httpserver.wait(timeout=10) as waiting:
         run_crash(
             tmp_path,
             "sentry_example",
-            ["log", "stdout", "breadcrumb-log", "crash"],
+            ["log", "stdout", "crash-mode", crash_mode, "crash"],
             env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
         )
     assert waiting.result
@@ -234,7 +233,43 @@ def test_native_breadcrumbs(cmake, httpserver):
     # Verify breadcrumbs in envelope
     assert len(httpserver.log) >= 1
     envelope = Envelope.deserialize(httpserver.log[0][0].get_data())
-    assert envelope.get_event()
+    assert_breadcrumb(envelope)
+
+
+@pytest.mark.parametrize("crash_mode", BREADCRUMB_CRASH_MODES)
+def test_native_overflow_breadcrumbs(cmake, httpserver, crash_mode):
+    """Test that the daemon caps merged breadcrumbs at max_breadcrumbs.
+
+    The example adds 3 default crumbs plus 101 numbered crumbs ("0".."100").
+    With the default max_breadcrumbs (100), the daemon keeps the newest 100,
+    so the count is capped and the most-recent crumb ("100") is retained.
+    """
+    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "native"})
+
+    httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data("OK")
+
+    with httpserver.wait(timeout=10) as waiting:
+        run_crash(
+            tmp_path,
+            "sentry_example",
+            [
+                "log",
+                "stdout",
+                "overflow-breadcrumbs",
+                "crash-mode",
+                crash_mode,
+                "crash",
+            ],
+            env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
+        )
+    assert waiting.result
+
+    assert len(httpserver.log) >= 1
+    envelope = Envelope.deserialize(httpserver.log[0][0].get_data())
+    breadcrumbs = envelope.get_event()["breadcrumbs"]
+
+    assert len(breadcrumbs) == 100
+    assert any(b.get("message") == "100" for b in breadcrumbs)
 
 
 def test_native_session_tracking(cmake, httpserver):
@@ -902,7 +937,7 @@ def test_native_external_crash_reporter(cmake, httpserver):
     # Verify it's a minidump crash report and user feedback
     envelope = Envelope.deserialize(crash)
     assert envelope.headers["cache_dir"] == str(cache_dir)
-    assert_meta(envelope)
+    assert_meta(envelope, integration="native")
     assert_breadcrumb(envelope)
 
     envelope = Envelope.deserialize(feedback)
@@ -975,11 +1010,10 @@ def test_crash_mode_native_only(cmake, httpserver):
     for frame in exc["stacktrace"]["frames"]:
         assert "instruction_addr" in frame
 
-    if sys.platform == "win32" or sys.platform == "linux":
-        # At least some frames should have symbolicated function names
-        assert any(
-            frame.get("function") is not None for frame in exc["stacktrace"]["frames"]
-        )
+    # At least some frames should have symbolicated function names
+    assert any(
+        frame.get("function") is not None for frame in exc["stacktrace"]["frames"]
+    )
 
     # Should have debug_meta
     assert "debug_meta" in event
@@ -1022,89 +1056,16 @@ def test_crash_mode_native_with_minidump(cmake, httpserver):
     assert exc["mechanism"]["type"] == "signalhandler"
     assert "stacktrace" in exc
     assert len(exc["stacktrace"]["frames"]) > 0
-    if sys.platform == "win32" or sys.platform == "linux":
-        # At least some frames should have symbolicated function names
-        assert any(
-            frame.get("function") is not None for frame in exc["stacktrace"]["frames"]
-        )
+
+    # At least some frames should have symbolicated function names
+    assert any(
+        frame.get("function") is not None for frame in exc["stacktrace"]["frames"]
+    )
 
     # Should have debug_meta
     assert "debug_meta" in event
     if sys.platform == "darwin":
         assert_debug_meta_images_do_not_overlap(event)
-
-
-def test_native_cache_consent(cmake, httpserver):
-    """Daemon honors revoked consent: envelope is cached, not sent. Giving
-    consent in a subsequent run flushes the cached envelope."""
-    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "native"})
-    cache_dir = tmp_path / ".sentry-native" / "cache"
-    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
-
-    # 1) Crash while consent is revoked. Envelope is cached, no upload.
-    run_crash(
-        tmp_path,
-        "sentry_example",
-        [
-            "log",
-            "stdout",
-            "cache-keep",
-            "http-retry",
-            "require-user-consent",
-            "user-consent-revoke",
-            "crash",
-        ],
-        env=env,
-    )
-
-    assert wait_for_file(cache_dir / "*.envelope")
-    assert len(list(cache_dir.glob("*.envelope"))) == 1
-    assert len(httpserver.log) == 0
-
-    # 2) Give consent. The cached envelope should be flushed to the server.
-    httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data("OK")
-    with httpserver.wait(timeout=10) as waiting:
-        run(
-            tmp_path,
-            "sentry_example",
-            [
-                "log",
-                "cache-keep",
-                "http-retry",
-                "require-user-consent",
-                "user-consent-give",
-            ],
-            env=env,
-        )
-    assert waiting.result
-    assert len(list(cache_dir.glob("*.envelope"))) == 0
-
-
-@pytest.mark.parametrize("cache_keep", [True, False])
-def test_native_cache_keep(cmake, cache_keep, unreachable_dsn):
-    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "native"})
-    db_dir = tmp_path / ".sentry-native"
-    cache_dir = db_dir / "cache"
-    env = dict(os.environ, SENTRY_DSN=unreachable_dsn)
-
-    # crash -> daemon sends via HTTP -> unreachable -> cache
-    run_crash(
-        tmp_path,
-        "sentry_example",
-        ["log", "stdout", "crash"] + (["cache-keep"] if cache_keep else []),
-        env=env,
-        wait_for_daemon=not cache_keep,
-    )
-
-    if cache_keep:
-        assert wait_for_file(cache_dir / "*.envelope")
-        cache_files = list(cache_dir.glob("*.envelope"))
-        assert len(cache_files) == 1
-        dmp_files = list(cache_dir.glob("*.dmp"))
-        assert len(dmp_files) == 1
-        assert cache_files[0].stem == dmp_files[0].stem
-    else:
-        assert len(list(cache_dir.glob("*.envelope"))) == 0
 
 
 def test_native_restart_on_crash(cmake, httpserver):
@@ -1129,3 +1090,61 @@ def test_native_restart_on_crash(cmake, httpserver):
     for req in httpserver.log:
         envelope = Envelope.deserialize(req[0].get_data())
         assert_native_crash(envelope)
+
+
+def test_native_replay_envelope(cmake, httpserver):
+    """A staged replay referenced by the crash event's `contexts.replay` is
+    sent as a correctly structured `replay_video` envelope by the daemon."""
+    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "native"})
+
+    replays, video = stage_replay(tmp_path)
+
+    # crash envelope + replay envelope
+    httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data("OK")
+    httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data("OK")
+
+    with httpserver.wait(timeout=10) as waiting:
+        run_crash(
+            tmp_path,
+            "sentry_example",
+            ["log", "stdout", "replay-context", "crash"] + SANITIZER_ARGS,
+            env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
+            wait_for_daemon=True,
+        )
+    assert waiting.result
+
+    replay_requests = [
+        req for req, _ in httpserver.log if is_replay_envelope(req.get_data())
+    ]
+    assert len(replay_requests) == 1, "expected exactly one replay_video envelope"
+    envelope = Envelope.deserialize(replay_requests[0].get_data())
+    assert_replay_envelope(envelope, video)
+
+    # the staged replay is consumed exactly once
+    assert not (replays / f"replay-{REPLAY_ID}.mp4").exists()
+    assert not (replays / f"replay-{REPLAY_ID}.json").exists()
+
+
+def test_native_replay_orphan_not_flushed(cmake, httpserver):
+    """A staged replay that the crash event does not reference is neither
+    sent nor consumed."""
+    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "native"})
+
+    replays, _ = stage_replay(tmp_path)
+
+    httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data("OK")
+
+    with httpserver.wait(timeout=10) as waiting:
+        run_crash(
+            tmp_path,
+            "sentry_example",
+            ["log", "stdout", "crash"] + SANITIZER_ARGS,
+            env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
+            wait_for_daemon=True,
+        )
+    assert waiting.result
+
+    for req, _ in httpserver.log:
+        assert not is_replay_envelope(req.get_data())
+    assert (replays / f"replay-{REPLAY_ID}.mp4").exists()
+    assert (replays / f"replay-{REPLAY_ID}.json").exists()

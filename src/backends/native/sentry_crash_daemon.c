@@ -61,7 +61,8 @@
 
 // Forward declaration for StackWalk64-based stack unwinding (defined later)
 static size_t walk_stack_with_dbghelp(HANDLE hProcess, DWORD crashed_tid,
-    const CONTEXT *ctx_record, sentry_frame_info_t *frames, size_t max_frames);
+    const CONTEXT *ctx_record, const sentry_crash_context_t *crash_ctx,
+    sentry_frame_info_t *frames, size_t max_frames);
 #endif
 
 // Provide default ASAN options for sentry-crash daemon executable
@@ -597,6 +598,12 @@ read_stack_value(const uint8_t *stack_buf, uint64_t stack_start,
     return true;
 }
 
+#if defined(SENTRY_PLATFORM_MACOS) && defined(__aarch64__)
+#    define SENTRY__STRIP_PAC(addr) ((addr) & 0x00007FFFFFFFFFFFULL)
+#else
+#    define SENTRY__STRIP_PAC(addr) (addr)
+#endif
+
 /**
  * Check if an address looks like a valid code pointer.
  * Basic sanity check to avoid garbage in the stacktrace.
@@ -655,7 +662,8 @@ enrich_frame_with_module_info(
         (unsigned long long)addr, module_count);
 }
 
-#if defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID)
+#if defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID)         \
+    || defined(SENTRY_PLATFORM_MACOS)
 static void enrich_frame_with_symbol(
     const sentry_crash_context_t *ctx, sentry_value_t frame, uint64_t addr);
 #endif
@@ -715,9 +723,9 @@ build_stacktrace_for_thread(
     fp = ctx->platform.mcontext.__ss.__rbp;
     sp = ctx->platform.mcontext.__ss.__rsp;
 #    elif defined(__aarch64__)
-    ip = SENTRY__ARM64_GET_PC(ctx->platform.mcontext.__ss);
-    fp = SENTRY__ARM64_GET_FP(ctx->platform.mcontext.__ss);
-    sp = SENTRY__ARM64_GET_SP(ctx->platform.mcontext.__ss);
+    ip = SENTRY__STRIP_PAC(SENTRY__ARM64_GET_PC(ctx->platform.mcontext.__ss));
+    fp = SENTRY__STRIP_PAC(SENTRY__ARM64_GET_FP(ctx->platform.mcontext.__ss));
+    sp = SENTRY__STRIP_PAC(SENTRY__ARM64_GET_SP(ctx->platform.mcontext.__ss));
 #    endif
 #elif defined(SENTRY_PLATFORM_WINDOWS)
     // Use thread-specific context, defaulting to crashed thread
@@ -784,9 +792,9 @@ build_stacktrace_for_thread(
         fp = thread->state.__ss.__rbp;
         sp = thread->state.__ss.__rsp;
 #    elif defined(__aarch64__)
-        ip = SENTRY__ARM64_GET_PC(thread->state.__ss);
-        fp = SENTRY__ARM64_GET_FP(thread->state.__ss);
-        sp = SENTRY__ARM64_GET_SP(thread->state.__ss);
+        ip = SENTRY__STRIP_PAC(SENTRY__ARM64_GET_PC(thread->state.__ss));
+        fp = SENTRY__STRIP_PAC(SENTRY__ARM64_GET_FP(thread->state.__ss));
+        sp = SENTRY__STRIP_PAC(SENTRY__ARM64_GET_SP(thread->state.__ss));
 #    endif
 
         SENTRY_DEBUGF("Thread %zu: IP=0x%llx FP=0x%llx SP=0x%llx", idx,
@@ -874,7 +882,7 @@ build_stacktrace_for_thread(
         // Make a copy since StackWalk64 may modify the context
         CONTEXT ctx_copy = *walk_context;
         size_t dbghelp_frame_count = walk_stack_with_dbghelp(hProcess,
-            walk_thread_id, &ctx_copy, stack_frames, MAX_STACK_FRAMES);
+            walk_thread_id, &ctx_copy, ctx, stack_frames, MAX_STACK_FRAMES);
 
         if (dbghelp_frame_count > 0) {
             // Build sentry frames from StackWalk64 results
@@ -1086,7 +1094,8 @@ build_stacktrace_for_thread(
         sentry_value_set_by_key(temp_frames[frame_count], "trust",
             sentry_value_new_string("context"));
         enrich_frame_with_module_info(ctx, temp_frames[frame_count], ip);
-#if defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID)
+#if defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID)         \
+    || defined(SENTRY_PLATFORM_MACOS)
         enrich_frame_with_symbol(ctx, temp_frames[frame_count], ip);
 #endif
         frame_count++;
@@ -1126,6 +1135,8 @@ build_stacktrace_for_thread(
                     (unsigned long long)(current_fp + sizeof(uint64_t)));
                 break;
             }
+            saved_fp = SENTRY__STRIP_PAC(saved_fp);
+            return_addr = SENTRY__STRIP_PAC(return_addr);
 
             SENTRY_DEBUGF("Frame %d: FP=0x%llx saved_fp=0x%llx ret=0x%llx",
                 walk_count, (unsigned long long)current_fp,
@@ -1147,7 +1158,8 @@ build_stacktrace_for_thread(
                 sentry_value_new_string("fp"));
             enrich_frame_with_module_info(
                 ctx, temp_frames[frame_count], return_addr);
-#if defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID)
+#if defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID)         \
+    || defined(SENTRY_PLATFORM_MACOS)
             enrich_frame_with_symbol(
                 ctx, temp_frames[frame_count], return_addr);
 #endif
@@ -1308,8 +1320,354 @@ done:
 }
 
 /**
- * Resolve the symbol name for a given instruction address from an ELF symbol
- * table and set the "function" key on the frame value.
+ * A symbol-table source for a module: either the module's own ELF file or
+ * its split-debug companion located via the `.gnu_debuglink` section.
+ * Cached per module so the section-header parse and the debug-file search
+ * run once per module rather than once per frame.
+ */
+typedef struct {
+    char sym_path[SENTRY_CRASH_MAX_PATH];
+    int state; // 0 = unused, 1 = usable, -1 = no symbol table found
+    uint16_t e_type; // e_type of the loaded module (st_value semantics)
+    uint64_t symtab_off;
+    uint64_t symtab_size;
+    uint64_t strtab_off;
+    uint64_t strtab_size;
+} sym_source_t;
+
+// Upper bound on a resolved symbol name; mirrors dbghelp's MAX_SYM_NAME.
+#    define SENTRY_MAX_SYM_NAME 2000
+
+// Direct-mapped by module index; see get_sym_source. Being BSS, only the
+// slots touched during resolution are committed to physical memory.
+static sym_source_t g_sym_sources[SENTRY_CRASH_MAX_MODULES];
+
+/**
+ * Parse the ELF file at `path` and record the location of its symbol table
+ * in `src`. Prefers the full `.symtab` and only falls back to `.dynsym`
+ * when `allow_dynsym` is set: the dynamic table covers exported symbols
+ * only, so lookups against it are unreliable for binaries whose `.symtab`
+ * was stripped. When `debuglink_out` is non-NULL, also extracts the file
+ * name stored in a `.gnu_debuglink` section, if present.
+ * Returns 1 when a usable symbol table was found, 0 otherwise.
+ */
+static int
+elf_locate_symtab(const char *path, int allow_dynsym, sym_source_t *src,
+    char *debuglink_out, size_t debuglink_out_size, uint16_t *e_type_out)
+{
+    if (debuglink_out && debuglink_out_size > 0) {
+        debuglink_out[0] = '\0';
+    }
+
+    int fd = open(path, O_RDONLY);
+    if (fd < 0) {
+        return 0;
+    }
+
+#    if defined(__x86_64__) || defined(__aarch64__)
+    Elf64_Ehdr ehdr;
+#    else
+    Elf32_Ehdr ehdr;
+#    endif
+    if (read(fd, &ehdr, sizeof(ehdr)) != sizeof(ehdr)
+        || memcmp(ehdr.e_ident, ELFMAG, SELFMAG) != 0
+        || !sentry__elf_is_native_class(ehdr.e_ident)
+        || !sentry__elf_has_shdr_size(ehdr.e_ident, ehdr.e_shentsize)) {
+        close(fd);
+        return 0;
+    }
+
+    if (e_type_out) {
+        *e_type_out = ehdr.e_type;
+    }
+
+    size_t shdr_size = (size_t)ehdr.e_shentsize * ehdr.e_shnum;
+    void *shdr_buf = sentry_malloc(shdr_size);
+    if (!shdr_buf) {
+        close(fd);
+        return 0;
+    }
+
+    if (lseek(fd, ehdr.e_shoff, SEEK_SET) != (off_t)ehdr.e_shoff
+        || read(fd, shdr_buf, shdr_size) != (ssize_t)shdr_size) {
+        sentry_free(shdr_buf);
+        close(fd);
+        return 0;
+    }
+
+#    if defined(__x86_64__) || defined(__aarch64__)
+    Elf64_Shdr *sections = (Elf64_Shdr *)shdr_buf;
+#    else
+    Elf32_Shdr *sections = (Elf32_Shdr *)shdr_buf;
+#    endif
+
+    int symtab_idx = -1;
+    int dynsym_idx = -1;
+    for (int j = 0; j < ehdr.e_shnum; j++) {
+        if (sections[j].sh_type == SHT_SYMTAB && symtab_idx < 0) {
+            symtab_idx = j;
+        } else if (sections[j].sh_type == SHT_DYNSYM && dynsym_idx < 0) {
+            dynsym_idx = j;
+        }
+    }
+
+    // Extract the .gnu_debuglink file name, identified via the section name
+    // string table (the section has no dedicated sh_type).
+    if (debuglink_out && ehdr.e_shstrndx < ehdr.e_shnum) {
+        size_t shstr_size = sections[ehdr.e_shstrndx].sh_size;
+        if (shstr_size > 0 && shstr_size <= 1024 * 1024) {
+            char *shstr_buf = sentry_malloc(shstr_size);
+            if (shstr_buf
+                && lseek(fd, sections[ehdr.e_shstrndx].sh_offset, SEEK_SET)
+                    == (off_t)sections[ehdr.e_shstrndx].sh_offset
+                && read(fd, shstr_buf, shstr_size) == (ssize_t)shstr_size) {
+                for (int j = 0; j < ehdr.e_shnum; j++) {
+                    size_t name_off = sections[j].sh_name;
+                    if (name_off >= shstr_size
+                        || strnlen(shstr_buf + name_off, shstr_size - name_off)
+                            == shstr_size - name_off
+                        || strcmp(shstr_buf + name_off, ".gnu_debuglink")
+                            != 0) {
+                        continue;
+                    }
+                    // Content: NUL-terminated file name, padding, CRC32.
+                    size_t link_size = sections[j].sh_size;
+                    if (link_size < 5 || link_size > 4096 + 4) {
+                        break;
+                    }
+                    char link_buf[4096 + 4];
+                    if (lseek(fd, sections[j].sh_offset, SEEK_SET)
+                            == (off_t)sections[j].sh_offset
+                        && read(fd, link_buf, link_size)
+                            == (ssize_t)link_size) {
+                        size_t name_max = link_size - 4;
+                        size_t name_len = strnlen(link_buf, name_max);
+                        if (name_len > 0 && name_len < name_max
+                            && name_len < debuglink_out_size) {
+                            memcpy(debuglink_out, link_buf, name_len + 1);
+                        }
+                    }
+                    break;
+                }
+            }
+            sentry_free(shstr_buf);
+        }
+    }
+
+    int chosen
+        = symtab_idx >= 0 ? symtab_idx : (allow_dynsym ? dynsym_idx : -1);
+    int found = 0;
+    if (chosen >= 0
+        && sentry__elf_has_sym_entsize(
+            ehdr.e_ident, sections[chosen].sh_entsize)) {
+        uint32_t strtab_idx = sections[chosen].sh_link;
+        if (strtab_idx > 0 && strtab_idx < ehdr.e_shnum
+            && sections[strtab_idx].sh_size > 0
+            && (size_t)snprintf(
+                   src->sym_path, sizeof(src->sym_path), "%s", path)
+                < sizeof(src->sym_path)) {
+            src->symtab_off = sections[chosen].sh_offset;
+            src->symtab_size = sections[chosen].sh_size;
+            src->strtab_off = sections[strtab_idx].sh_offset;
+            src->strtab_size = sections[strtab_idx].sh_size;
+            found = 1;
+        }
+    }
+
+    sentry_free(shdr_buf);
+    close(fd);
+    return found;
+}
+
+/**
+ * Resolve the symbol-table source for a module. If the module's own ELF was
+ * stripped of its `.symtab`, follow the GDB split-debug conventions to find
+ * the debug companion (`<dir>/<debuglink>`, `<dir>/.debug/<debuglink>`,
+ * `/usr/lib/debug/<dir>/<debuglink>`), validated by GNU build-id equality.
+ * Falls back to the module's `.dynsym` when no companion is found.
+ * Returns NULL when the module has no usable symbol table.
+ */
+static const sym_source_t *
+get_sym_source(const sentry_module_info_t *mod, uint32_t mod_idx)
+{
+    // The cache is direct-mapped by module index: within a frozen crash
+    // context each index maps to exactly one module, so a slot is resolved at
+    // most once and reused for every frame in that module. This covers all
+    // modules the context can hold, so no frame is left unsymbolicated for
+    // want of a cache slot.
+    sym_source_t *slot = &g_sym_sources[mod_idx];
+    if (slot->state != 0) {
+        return slot->state > 0 ? slot : NULL;
+    }
+    slot->state = -1;
+
+    // 1) The module's own .symtab (also picks up the .gnu_debuglink name).
+    char debuglink[4096];
+    uint16_t e_type = ET_DYN;
+    if (elf_locate_symtab(
+            mod->name, 0, slot, debuglink, sizeof(debuglink), &e_type)) {
+        slot->e_type = e_type;
+        slot->state = 1;
+        return slot;
+    }
+
+    // 2) The split-debug companion. Candidates are validated by comparing
+    // GNU build-ids; when either file lacks one, the candidate is accepted
+    // as-is (the CRC32 stored in .gnu_debuglink is not verified here).
+    if (debuglink[0]) {
+        uint8_t mod_bid[16];
+        size_t mod_bid_len = extract_elf_build_id_for_module(
+            mod->name, mod_bid, sizeof(mod_bid));
+
+        const char *slash = strrchr(mod->name, '/');
+        int dir_len = slash ? (int)(slash - mod->name) : 0;
+
+        char candidate[SENTRY_CRASH_MAX_PATH];
+        for (int c = 0; slash && c < 3; c++) {
+            int n;
+            switch (c) {
+            case 0:
+                n = snprintf(candidate, sizeof(candidate), "%.*s/%s", dir_len,
+                    mod->name, debuglink);
+                break;
+            case 1:
+                n = snprintf(candidate, sizeof(candidate), "%.*s/.debug/%s",
+                    dir_len, mod->name, debuglink);
+                break;
+            default:
+                n = snprintf(candidate, sizeof(candidate),
+                    "/usr/lib/debug%.*s/%s", dir_len, mod->name, debuglink);
+                break;
+            }
+            if (n < 0 || (size_t)n >= sizeof(candidate)) {
+                continue;
+            }
+
+            // The companion must carry a real .symtab; its .dynsym (if any)
+            // adds nothing over the module's own.
+            if (!elf_locate_symtab(candidate, 0, slot, NULL, 0, NULL)) {
+                continue;
+            }
+
+            uint8_t dbg_bid[16];
+            size_t dbg_bid_len = extract_elf_build_id_for_module(
+                candidate, dbg_bid, sizeof(dbg_bid));
+            if (mod_bid_len && dbg_bid_len
+                && (mod_bid_len != dbg_bid_len
+                    || memcmp(mod_bid, dbg_bid, mod_bid_len) != 0)) {
+                SENTRY_DEBUGF(
+                    "Split-debug candidate %s rejected: build-id mismatch",
+                    candidate);
+                continue;
+            }
+
+            SENTRY_DEBUGF("Using split-debug file %s for module %s", candidate,
+                mod->name);
+            slot->e_type = e_type;
+            slot->state = 1;
+            return slot;
+        }
+    }
+
+    // 3) Fall back to the module's .dynsym.
+    if (elf_locate_symtab(mod->name, 1, slot, NULL, 0, &e_type)) {
+        slot->e_type = e_type;
+        slot->state = 1;
+        return slot;
+    }
+
+    return NULL;
+}
+
+/**
+ * Find the symbol covering `sym_target` in the source's symbol table and
+ * copy its name into `name_out`. The table is scanned in fixed-size chunks
+ * and only the winning name is read from the string table, so large tables
+ * (debug companions of big binaries) are never loaded wholesale. A symbol
+ * only matches when the target lies within [st_value, st_value + st_size):
+ * a nearest-preceding fallback without the size bound would attribute
+ * addresses in symbol-table gaps to unrelated neighboring functions.
+ * Returns 1 when a name was resolved.
+ */
+static int
+sym_source_lookup(const sym_source_t *src, uint64_t sym_target, char *name_out,
+    size_t name_out_size)
+{
+    int fd = open(src->sym_path, O_RDONLY);
+    if (fd < 0) {
+        return 0;
+    }
+
+#    if defined(__x86_64__) || defined(__aarch64__)
+    Elf64_Sym chunk[256];
+#    else
+    Elf32_Sym chunk[256];
+#    endif
+
+    uint64_t best_value = 0;
+    uint64_t best_name_off = 0;
+    int have_best = 0;
+
+    uint64_t sym_count = src->symtab_size / sizeof(chunk[0]);
+    for (uint64_t idx = 1; idx < sym_count;) {
+        size_t n = sym_count - idx;
+        if (n > sizeof(chunk) / sizeof(chunk[0])) {
+            n = sizeof(chunk) / sizeof(chunk[0]);
+        }
+        ssize_t want = (ssize_t)(n * sizeof(chunk[0]));
+        if (pread(fd, chunk, (size_t)want,
+                (off_t)(src->symtab_off + idx * sizeof(chunk[0])))
+            != want) {
+            break;
+        }
+
+        for (size_t k = 0; k < n; k++) {
+#    if defined(__x86_64__) || defined(__aarch64__)
+            unsigned char sym_type = ELF64_ST_TYPE(chunk[k].st_info);
+#    else
+            unsigned char sym_type = ELF32_ST_TYPE(chunk[k].st_info);
+#    endif
+            if (sym_type != STT_FUNC && sym_type != STT_NOTYPE) {
+                continue;
+            }
+            if (chunk[k].st_value == 0 || sym_target < chunk[k].st_value
+                || sym_target - chunk[k].st_value >= chunk[k].st_size) {
+                continue;
+            }
+            if ((!have_best || chunk[k].st_value > best_value)
+                && chunk[k].st_name != 0
+                && chunk[k].st_name < src->strtab_size) {
+                best_value = chunk[k].st_value;
+                best_name_off = chunk[k].st_name;
+                have_best = 1;
+            }
+        }
+
+        idx += n;
+    }
+
+    int resolved = 0;
+    if (have_best) {
+        size_t max_read = src->strtab_size - best_name_off;
+        if (max_read > name_out_size - 1) {
+            max_read = name_out_size - 1;
+        }
+        ssize_t got = pread(
+            fd, name_out, max_read, (off_t)(src->strtab_off + best_name_off));
+        if (got > 0) {
+            name_out[got] = '\0';
+            resolved = name_out[0] != '\0';
+        }
+    }
+
+    close(fd);
+    return resolved;
+}
+
+/**
+ * Resolve the symbol name for a given instruction address from the ELF
+ * symbol table of the containing module (or its split-debug companion) and
+ * set the "function" key on the frame value.
  */
 static void
 enrich_frame_with_symbol(
@@ -1322,145 +1680,21 @@ enrich_frame_with_symbol(
             continue;
         }
 
-        uint64_t offset = addr - mod->base_address;
-
-        int fd = open(mod->name, O_RDONLY);
-        if (fd < 0) {
+        const sym_source_t *src = get_sym_source(mod, i);
+        if (!src) {
             return;
         }
 
-#    if defined(__x86_64__) || defined(__aarch64__)
-        Elf64_Ehdr ehdr;
-#    else
-        Elf32_Ehdr ehdr;
-#    endif
-        if (read(fd, &ehdr, sizeof(ehdr)) != sizeof(ehdr)) {
-            close(fd);
-            return;
+        // For ET_DYN (shared libs, PIE) st_value is base-relative; for
+        // ET_EXEC (non-PIE) st_value is an absolute virtual address.
+        uint64_t sym_target
+            = src->e_type == ET_EXEC ? addr : addr - mod->base_address;
+
+        char name[SENTRY_MAX_SYM_NAME];
+        if (sym_source_lookup(src, sym_target, name, sizeof(name))) {
+            sentry_value_set_by_key(
+                frame, "function", sentry_value_new_string(name));
         }
-
-        if (memcmp(ehdr.e_ident, ELFMAG, SELFMAG) != 0
-            || !sentry__elf_is_native_class(ehdr.e_ident)
-            || !sentry__elf_has_shdr_size(ehdr.e_ident, ehdr.e_shentsize)) {
-            close(fd);
-            return;
-        }
-
-        size_t shdr_size = (size_t)ehdr.e_shentsize * ehdr.e_shnum;
-        void *shdr_buf = sentry_malloc(shdr_size);
-        if (!shdr_buf) {
-            close(fd);
-            return;
-        }
-
-        if (lseek(fd, ehdr.e_shoff, SEEK_SET) != (off_t)ehdr.e_shoff
-            || read(fd, shdr_buf, shdr_size) != (ssize_t)shdr_size) {
-            sentry_free(shdr_buf);
-            close(fd);
-            return;
-        }
-
-#    if defined(__x86_64__) || defined(__aarch64__)
-        Elf64_Shdr *sections = (Elf64_Shdr *)shdr_buf;
-#    else
-        Elf32_Shdr *sections = (Elf32_Shdr *)shdr_buf;
-#    endif
-
-        // Find symbol table section - prefer .dynsym (always present in .so),
-        // fall back to .symtab
-        int symtab_idx = -1;
-        for (int j = 0; j < ehdr.e_shnum; j++) {
-            if (sections[j].sh_type == SHT_DYNSYM) {
-                symtab_idx = j;
-                break;
-            }
-        }
-        if (symtab_idx < 0) {
-            for (int j = 0; j < ehdr.e_shnum; j++) {
-                if (sections[j].sh_type == SHT_SYMTAB) {
-                    symtab_idx = j;
-                    break;
-                }
-            }
-        }
-
-        if (symtab_idx >= 0
-            && sentry__elf_has_sym_entsize(
-                ehdr.e_ident, sections[symtab_idx].sh_entsize)) {
-            // For ET_DYN (shared libs, PIE) st_value is base-relative; for
-            // ET_EXEC (non-PIE) st_value is an absolute virtual address.
-            uint64_t sym_target = ehdr.e_type == ET_EXEC ? addr : offset;
-            size_t sym_size = sections[symtab_idx].sh_size;
-            size_t sym_count = sym_size / sections[symtab_idx].sh_entsize;
-            int strtab_idx = sections[symtab_idx].sh_link;
-            if (strtab_idx < 0 || (size_t)strtab_idx >= ehdr.e_shnum) {
-                sentry_free(shdr_buf);
-                close(fd);
-                return;
-            }
-
-            void *sym_buf = sentry_malloc(sym_size);
-            void *strtab_buf = NULL;
-
-            if (sym_buf
-                && lseek(fd, sections[symtab_idx].sh_offset, SEEK_SET)
-                    == (off_t)sections[symtab_idx].sh_offset
-                && read(fd, sym_buf, sym_size) == (ssize_t)sym_size) {
-
-                size_t strtab_size = sections[strtab_idx].sh_size;
-                strtab_buf = sentry_malloc(strtab_size);
-                if (strtab_buf
-                    && lseek(fd, sections[strtab_idx].sh_offset, SEEK_SET)
-                        == (off_t)sections[strtab_idx].sh_offset
-                    && read(fd, strtab_buf, strtab_size)
-                        == (ssize_t)strtab_size) {
-
-                    const char *best_name = NULL;
-                    uint64_t best_value = 0;
-
-#    if defined(__x86_64__) || defined(__aarch64__)
-                    Elf64_Sym *syms = (Elf64_Sym *)sym_buf;
-                    for (size_t k = 1; k < sym_count; k++) {
-                        unsigned char sym_type = ELF64_ST_TYPE(syms[k].st_info);
-#    else
-                    Elf32_Sym *syms = (Elf32_Sym *)sym_buf;
-                    for (size_t k = 1; k < sym_count; k++) {
-                        unsigned char sym_type = ELF32_ST_TYPE(syms[k].st_info);
-#    endif
-                        if (syms[k].st_value == 0
-                            || syms[k].st_value > sym_target) {
-                            continue;
-                        }
-                        if (sym_type != STT_FUNC && sym_type != STT_NOTYPE) {
-                            continue;
-                        }
-                        if (!best_name || syms[k].st_value > best_value) {
-                            if (syms[k].st_name < strtab_size) {
-                                const char *name = (const char *)strtab_buf
-                                    + syms[k].st_name;
-                                if (name[0]
-                                    && memchr(name, '\0',
-                                        strtab_size - syms[k].st_name)) {
-                                    best_name = name;
-                                    best_value = syms[k].st_value;
-                                }
-                            }
-                        }
-                    }
-
-                    if (best_name) {
-                        sentry_value_set_by_key(frame, "function",
-                            sentry_value_new_string(best_name));
-                    }
-                }
-            }
-
-            sentry_free(sym_buf);
-            sentry_free(strtab_buf);
-        }
-
-        sentry_free(shdr_buf);
-        close(fd);
         return;
     }
 }
@@ -1664,6 +1898,520 @@ enumerate_threads_from_proc(sentry_crash_context_t *ctx)
 }
 #endif // SENTRY_PLATFORM_LINUX || SENTRY_PLATFORM_ANDROID
 
+#if defined(SENTRY_PLATFORM_MACOS)
+#    include <libkern/OSByteOrder.h>
+#    include <mach-o/fat.h>
+#    include <mach-o/loader.h>
+#    include <mach-o/nlist.h>
+
+// Upper bound on a resolved symbol name; mirrors dbghelp's MAX_SYM_NAME.
+#    define SENTRY_MAX_SYM_NAME 2000
+
+#    if defined(__x86_64__)
+#        define SENTRY_MACHO_CPU_TYPE CPU_TYPE_X86_64
+#    elif defined(__aarch64__)
+#        define SENTRY_MACHO_CPU_TYPE CPU_TYPE_ARM64
+#    endif
+
+/**
+ * Location of the symbol/string tables and the LC_FUNCTION_STARTS payload
+ * within a Mach-O file. All offsets are absolute file offsets (already
+ * adjusted for the fat slice on universal binaries).
+ */
+typedef struct {
+    char path[SENTRY_CRASH_MAX_PATH];
+    int state; // 0 = unused, 1 = usable, -1 = no symbol table found
+    uint64_t text_vmaddr; // unslid __TEXT vmaddr of this image
+    uint64_t symtab_off;
+    uint32_t nsyms;
+    uint64_t strtab_off;
+    uint32_t strtab_size;
+    uint64_t fn_starts_off;
+    uint32_t fn_starts_size; // 0 when LC_FUNCTION_STARTS is absent
+} macho_sym_info_t;
+
+/**
+ * Per-module symbol sources: the module's own symbol table plus the dSYM
+ * companion consulted when the module was stripped of local symbols. The
+ * companion is resolved lazily on the first lookup miss in the module's
+ * own table.
+ */
+typedef struct {
+    macho_sym_info_t own;
+    macho_sym_info_t dsym;
+} sym_source_t;
+
+// Direct-mapped by module index; see enrich_frame_with_symbol. Being BSS,
+// only the slots touched during resolution are committed to physical memory.
+static sym_source_t g_sym_sources[SENTRY_CRASH_MAX_MODULES];
+
+static int
+is_zero_uuid(const uint8_t uuid[16])
+{
+    for (int i = 0; i < 16; i++) {
+        if (uuid[i]) {
+            return 0;
+        }
+    }
+    return 1;
+}
+
+/**
+ * Parse the Mach-O file at `path` and record the location of its symbol
+ * table, its __TEXT vmaddr and its LC_FUNCTION_STARTS payload in `info`;
+ * the LC_UUID is reported via `uuid_out` for validation against the loaded
+ * image. Universal (fat) binaries are resolved to the slice matching the
+ * daemon's own architecture, which on macOS always matches the crashed
+ * process. Returns 1 when a usable symbol table was found, 0 otherwise
+ * (`info` may still carry usable function-starts data in that case).
+ */
+static int
+macho_locate_symtab(const char *path, macho_sym_info_t *info, uint8_t *uuid_out,
+    int *has_uuid_out)
+{
+    memset(info, 0, sizeof(*info));
+    *has_uuid_out = 0;
+    if ((size_t)snprintf(info->path, sizeof(info->path), "%s", path)
+        >= sizeof(info->path)) {
+        return 0;
+    }
+
+    int fd = open(path, O_RDONLY);
+    if (fd < 0) {
+        return 0;
+    }
+
+    // Universal binaries store fat headers big-endian.
+    uint64_t slice_off = 0;
+    struct fat_header fh;
+    if (pread(fd, &fh, sizeof(fh), 0) != sizeof(fh)) {
+        close(fd);
+        return 0;
+    }
+    if (fh.magic == FAT_MAGIC || fh.magic == FAT_CIGAM
+        || fh.magic == FAT_MAGIC_64 || fh.magic == FAT_CIGAM_64) {
+        int is64 = fh.magic == FAT_MAGIC_64 || fh.magic == FAT_CIGAM_64;
+        uint32_t nfat = OSSwapBigToHostInt32(fh.nfat_arch);
+        if (nfat > 128) {
+            close(fd);
+            return 0;
+        }
+        for (uint32_t i = 0; i < nfat && !slice_off; i++) {
+            if (is64) {
+                struct fat_arch_64 fa;
+                if (pread(fd, &fa, sizeof(fa),
+                        (off_t)(sizeof(fh) + i * sizeof(fa)))
+                    != sizeof(fa)) {
+                    break;
+                }
+                if ((cpu_type_t)OSSwapBigToHostInt32((uint32_t)fa.cputype)
+                    == SENTRY_MACHO_CPU_TYPE) {
+                    slice_off = OSSwapBigToHostInt64(fa.offset);
+                }
+            } else {
+                struct fat_arch fa;
+                if (pread(fd, &fa, sizeof(fa),
+                        (off_t)(sizeof(fh) + i * sizeof(fa)))
+                    != sizeof(fa)) {
+                    break;
+                }
+                if ((cpu_type_t)OSSwapBigToHostInt32((uint32_t)fa.cputype)
+                    == SENTRY_MACHO_CPU_TYPE) {
+                    slice_off = OSSwapBigToHostInt32(fa.offset);
+                }
+            }
+        }
+        if (!slice_off) {
+            close(fd);
+            return 0;
+        }
+    }
+
+    struct mach_header_64 mh;
+    if (pread(fd, &mh, sizeof(mh), (off_t)slice_off) != sizeof(mh)
+        || mh.magic != MH_MAGIC_64 || mh.cputype != SENTRY_MACHO_CPU_TYPE) {
+        close(fd);
+        return 0;
+    }
+
+    // Cap keeps a corrupt sizeofcmds from driving a huge allocation.
+    if (mh.sizeofcmds == 0 || mh.sizeofcmds > 32 * 1024 * 1024) {
+        close(fd);
+        return 0;
+    }
+    uint8_t *cmds = sentry_malloc(mh.sizeofcmds);
+    if (!cmds
+        || pread(fd, cmds, mh.sizeofcmds, (off_t)(slice_off + sizeof(mh)))
+            != (ssize_t)mh.sizeofcmds) {
+        sentry_free(cmds);
+        close(fd);
+        return 0;
+    }
+    close(fd);
+
+    int have_text = 0;
+    struct symtab_command symtab;
+    int have_symtab = 0;
+
+    uint32_t pos = 0;
+    for (uint32_t i = 0; i < mh.ncmds; i++) {
+        if (pos + sizeof(struct load_command) > mh.sizeofcmds) {
+            break;
+        }
+        const struct load_command *lc
+            = (const struct load_command *)(cmds + pos);
+        if (lc->cmdsize < sizeof(struct load_command)
+            || lc->cmdsize > mh.sizeofcmds - pos) {
+            break;
+        }
+
+        if (lc->cmd == LC_SEGMENT_64
+            && lc->cmdsize >= sizeof(struct segment_command_64)) {
+            const struct segment_command_64 *seg
+                = (const struct segment_command_64 *)lc;
+            if (strncmp(seg->segname, SEG_TEXT, sizeof(seg->segname)) == 0) {
+                info->text_vmaddr = seg->vmaddr;
+                have_text = 1;
+            }
+        } else if (lc->cmd == LC_SYMTAB
+            && lc->cmdsize >= sizeof(struct symtab_command)) {
+            symtab = *(const struct symtab_command *)lc;
+            have_symtab = 1;
+        } else if (lc->cmd == LC_FUNCTION_STARTS
+            && lc->cmdsize >= sizeof(struct linkedit_data_command)) {
+            const struct linkedit_data_command *led
+                = (const struct linkedit_data_command *)lc;
+            info->fn_starts_off = slice_off + led->dataoff;
+            info->fn_starts_size = led->datasize;
+        } else if (lc->cmd == LC_UUID
+            && lc->cmdsize >= sizeof(struct uuid_command)) {
+            memcpy(uuid_out, ((const struct uuid_command *)lc)->uuid, 16);
+            *has_uuid_out = 1;
+        }
+
+        pos += lc->cmdsize;
+    }
+    sentry_free(cmds);
+
+    // Function starts are deltas from the __TEXT vmaddr; without it they
+    // cannot be interpreted.
+    if (!have_text) {
+        info->fn_starts_size = 0;
+        return 0;
+    }
+    if (!have_symtab || symtab.nsyms == 0 || symtab.strsize == 0) {
+        return 0;
+    }
+    info->symtab_off = slice_off + symtab.symoff;
+    info->nsyms = symtab.nsyms;
+    info->strtab_off = slice_off + symtab.stroff;
+    info->strtab_size = symtab.strsize;
+    return 1;
+}
+
+/**
+ * Find the start address of the function containing `target` (an unslid
+ * vmaddr) using the module's LC_FUNCTION_STARTS payload (ULEB128 deltas
+ * accumulating from the __TEXT vmaddr). The payload survives `strip`, so
+ * it bounds symbol matches even when the symbol table doesn't: without the
+ * bound, addresses in symbol-table gaps would be attributed to unrelated
+ * neighboring functions (the ELF resolver gets the same guarantee from
+ * st_size). Returns 1 and sets `start_out` when the target falls at or
+ * after some function start, 0 otherwise.
+ */
+static int
+fn_starts_find(
+    const macho_sym_info_t *info, uint64_t target, uint64_t *start_out)
+{
+    // The payload is a few MB even for very large binaries; read it whole.
+    if (info->fn_starts_size == 0 || info->fn_starts_size > 64 * 1024 * 1024) {
+        return 0;
+    }
+    int fd = open(info->path, O_RDONLY);
+    if (fd < 0) {
+        return 0;
+    }
+    uint8_t *buf = sentry_malloc(info->fn_starts_size);
+    if (!buf
+        || pread(fd, buf, info->fn_starts_size, (off_t)info->fn_starts_off)
+            != (ssize_t)info->fn_starts_size) {
+        sentry_free(buf);
+        close(fd);
+        return 0;
+    }
+    close(fd);
+
+    uint64_t address = info->text_vmaddr;
+    uint64_t prev = 0;
+    int have_prev = 0;
+    size_t pos = 0;
+    while (pos < info->fn_starts_size) {
+        uint64_t delta = 0;
+        unsigned shift = 0;
+        int complete = 0;
+        while (pos < info->fn_starts_size && shift < 64) {
+            uint8_t byte = buf[pos++];
+            delta |= (uint64_t)(byte & 0x7f) << shift;
+            shift += 7;
+            if (!(byte & 0x80)) {
+                complete = 1;
+                break;
+            }
+        }
+        if (!complete || delta == 0) {
+            break; // truncated entry or zero-padding terminator
+        }
+        address += delta;
+        if (address > target) {
+            break;
+        }
+        prev = address;
+        have_prev = 1;
+    }
+    sentry_free(buf);
+
+    if (!have_prev) {
+        return 0;
+    }
+    *start_out = prev;
+    return 1;
+}
+
+/**
+ * Resolve the dSYM companion for a module following the standard bundle
+ * layout `<X>.dSYM/Contents/Resources/DWARF/<binary>`. Candidates are
+ * checked next to the module itself and - for executables nested in an
+ * .app bundle (the Unreal Engine packaged-game layout) - next to the
+ * bundle. Candidates are validated by LC_UUID equality with the loaded
+ * image; a companion without a matching UUID would resolve unrelated
+ * names.
+ */
+static void
+resolve_dsym(const sentry_module_info_t *mod, macho_sym_info_t *info)
+{
+    static const char app_suffix[] = ".app/Contents/MacOS/";
+
+    const char *slash = strrchr(mod->name, '/');
+    const char *base = slash ? slash + 1 : mod->name;
+    size_t base_len = strlen(base);
+
+    char candidate[SENTRY_CRASH_MAX_PATH];
+    for (int c = 0; c < 2; c++) {
+        int n;
+        if (c == 0) {
+            n = snprintf(candidate, sizeof(candidate),
+                "%s.dSYM/Contents/Resources/DWARF/%s", mod->name, base);
+        } else {
+            // <dir>/<name>.app/Contents/MacOS/<name> -> <dir>/<name>.dSYM
+            size_t suffix_len = base_len + (sizeof(app_suffix) - 1) + base_len;
+            size_t full_len = strlen(mod->name);
+            if (full_len <= suffix_len) {
+                continue;
+            }
+            size_t app_pos = full_len - suffix_len;
+            if (strncmp(mod->name + app_pos, base, base_len) != 0
+                || strncmp(mod->name + app_pos + base_len, app_suffix,
+                       sizeof(app_suffix) - 1)
+                    != 0) {
+                continue;
+            }
+            n = snprintf(candidate, sizeof(candidate),
+                "%.*s%s.dSYM/Contents/Resources/DWARF/%s", (int)app_pos,
+                mod->name, base, base);
+        }
+        if (n < 0 || (size_t)n >= sizeof(candidate)) {
+            continue;
+        }
+
+        uint8_t uuid[16];
+        int has_uuid = 0;
+        if (!macho_locate_symtab(candidate, info, uuid, &has_uuid)) {
+            continue;
+        }
+        if (has_uuid && !is_zero_uuid(mod->uuid)
+            && memcmp(uuid, mod->uuid, 16) != 0) {
+            SENTRY_DEBUGF(
+                "dSYM candidate %s rejected: UUID mismatch", candidate);
+            continue;
+        }
+
+        SENTRY_DEBUGF("Using dSYM %s for module %s", candidate, mod->name);
+        info->state = 1;
+        return;
+    }
+
+    info->state = -1;
+}
+
+/**
+ * Find the symbol covering `target` (an unslid vmaddr in `info`'s address
+ * space) in the file's symbol table and copy its name into `name_out`. The
+ * table is scanned in fixed-size chunks and only the winning name is read
+ * from the string table, so large tables (dSYM companions of big binaries)
+ * are never loaded wholesale. When `fn_start` is non-NULL only a symbol
+ * placed exactly at the containing function's entry matches (Mach-O nlist
+ * entries carry no size, so nothing looser can be validated). Returns 1
+ * when a name was resolved.
+ */
+static int
+macho_sym_lookup(const macho_sym_info_t *info, uint64_t target,
+    const uint64_t *fn_start, char *name_out, size_t name_out_size)
+{
+    int fd = open(info->path, O_RDONLY);
+    if (fd < 0) {
+        return 0;
+    }
+
+    struct nlist_64 chunk[256];
+
+    uint64_t best_value = 0;
+    uint32_t best_strx = 0;
+    int have_best = 0;
+
+    for (uint32_t idx = 0; idx < info->nsyms && !(have_best && fn_start);) {
+        size_t n = info->nsyms - idx;
+        if (n > sizeof(chunk) / sizeof(chunk[0])) {
+            n = sizeof(chunk) / sizeof(chunk[0]);
+        }
+        ssize_t want = (ssize_t)(n * sizeof(chunk[0]));
+        if (pread(fd, chunk, (size_t)want,
+                (off_t)(info->symtab_off + (uint64_t)idx * sizeof(chunk[0])))
+            != want) {
+            break;
+        }
+
+        for (size_t k = 0; k < n; k++) {
+            uint8_t type = chunk[k].n_type;
+            if ((type & N_STAB) || (type & N_TYPE) != N_SECT) {
+                continue;
+            }
+            uint64_t value = chunk[k].n_value;
+            uint32_t strx = chunk[k].n_un.n_strx;
+            if (value == 0 || strx == 0 || strx >= info->strtab_size) {
+                continue;
+            }
+            if (fn_start) {
+                if (value == *fn_start) {
+                    best_value = value;
+                    best_strx = strx;
+                    have_best = 1;
+                    break;
+                }
+            } else if (value <= target && (!have_best || value > best_value)) {
+                best_value = value;
+                best_strx = strx;
+                have_best = 1;
+            }
+        }
+
+        idx += (uint32_t)n;
+    }
+
+    int resolved = 0;
+    if (have_best) {
+        size_t max_read = info->strtab_size - best_strx;
+        if (max_read > name_out_size - 1) {
+            max_read = name_out_size - 1;
+        }
+        ssize_t got = pread(
+            fd, name_out, max_read, (off_t)(info->strtab_off + best_strx));
+        if (got > 0) {
+            name_out[got] = '\0';
+            resolved = name_out[0] != '\0';
+        }
+    }
+
+    close(fd);
+    return resolved;
+}
+
+/**
+ * Resolve the symbol name for a given instruction address from the Mach-O
+ * symbol table of the containing module (or its dSYM companion when the
+ * module was stripped of local symbols) and set the "function" key on the
+ * frame value.
+ */
+static void
+enrich_frame_with_symbol(
+    const sentry_crash_context_t *ctx, sentry_value_t frame, uint64_t addr)
+{
+    uint32_t module_count = MIN(ctx->module_count, SENTRY_CRASH_MAX_MODULES);
+    for (uint32_t i = 0; i < module_count; i++) {
+        const sentry_module_info_t *mod = &ctx->modules[i];
+        if (addr < mod->base_address || addr >= mod->base_address + mod->size) {
+            continue;
+        }
+
+        // The cache is direct-mapped by module index: within a frozen crash
+        // context each index maps to exactly one module, so a slot is
+        // resolved at most once and reused for every frame in that module.
+        sym_source_t *slot = &g_sym_sources[i];
+        if (slot->own.state == 0) {
+            uint8_t uuid[16];
+            int has_uuid = 0;
+            int usable
+                = macho_locate_symtab(mod->name, &slot->own, uuid, &has_uuid);
+            // A stale binary on disk would resolve unrelated names; trust
+            // the file only when its UUID matches the loaded image.
+            if (has_uuid && !is_zero_uuid(mod->uuid)
+                && memcmp(uuid, mod->uuid, 16) != 0) {
+                SENTRY_DEBUGF(
+                    "Module file %s rejected: UUID mismatch", mod->name);
+                usable = 0;
+                slot->own.fn_starts_size = 0;
+            }
+            slot->own.state = usable ? 1 : -1;
+        }
+
+        uint64_t fn_start_rel = 0;
+        int have_bounds = 0;
+        if (slot->own.fn_starts_size > 0) {
+            uint64_t own_target
+                = addr - mod->base_address + slot->own.text_vmaddr;
+            uint64_t fn_start = 0;
+            if (!fn_starts_find(&slot->own, own_target, &fn_start)) {
+                // Not covered by any known function: an unresolved frame
+                // beats a wrong name.
+                return;
+            }
+            fn_start_rel = fn_start - slot->own.text_vmaddr;
+            have_bounds = 1;
+        }
+
+        char name[SENTRY_MAX_SYM_NAME];
+        int resolved = 0;
+        if (slot->own.state > 0) {
+            uint64_t target = addr - mod->base_address + slot->own.text_vmaddr;
+            uint64_t fn_start = fn_start_rel + slot->own.text_vmaddr;
+            resolved = macho_sym_lookup(&slot->own, target,
+                have_bounds ? &fn_start : NULL, name, sizeof(name));
+        }
+        if (!resolved) {
+            // A miss in the module's own table typically means stripped
+            // local symbols.
+            if (slot->dsym.state == 0) {
+                resolve_dsym(mod, &slot->dsym);
+            }
+            if (slot->dsym.state > 0) {
+                uint64_t target
+                    = addr - mod->base_address + slot->dsym.text_vmaddr;
+                uint64_t fn_start = fn_start_rel + slot->dsym.text_vmaddr;
+                resolved = macho_sym_lookup(&slot->dsym, target,
+                    have_bounds ? &fn_start : NULL, name, sizeof(name));
+            }
+        }
+
+        if (resolved) {
+            // Mach-O symbol names carry the C-ABI leading underscore.
+            const char *fn_name = name[0] == '_' ? name + 1 : name;
+            sentry_value_set_by_key(
+                frame, "function", sentry_value_new_string(fn_name));
+        }
+        return;
+    }
+}
+#endif // SENTRY_PLATFORM_MACOS
+
 #if defined(SENTRY_PLATFORM_WINDOWS)
 #    include <psapi.h>
 #    include <tlhelp32.h>
@@ -1694,7 +2442,8 @@ stack_walk_read_memory(HANDLE hProcess, DWORD64 lpBaseAddress, PVOID lpBuffer,
  */
 static size_t
 walk_stack_with_dbghelp(HANDLE hProcess, DWORD crashed_tid,
-    const CONTEXT *ctx_record, sentry_frame_info_t *frames, size_t max_frames)
+    const CONTEXT *ctx_record, const sentry_crash_context_t *crash_ctx,
+    sentry_frame_info_t *frames, size_t max_frames)
 {
     // Open thread handle for the crashed thread
     HANDLE hThread = OpenThread(
@@ -1708,9 +2457,58 @@ walk_stack_with_dbghelp(HANDLE hProcess, DWORD crashed_tid,
     // Set up global handle for read callback
     g_stack_walk_process = hProcess;
 
-    // Initialize dbghelp for the target process
-    SymSetOptions(SYMOPT_UNDNAME | SYMOPT_DEFERRED_LOADS);
-    if (!SymInitialize(hProcess, NULL, TRUE)) {
+    // Build a dbghelp search path from every loaded module's directory so it
+    // can find each module's PDB next to its DLL and resolve symbols
+    static wchar_t *s_sym_search_path = NULL;
+    static BOOL s_sym_search_path_built = FALSE;
+    if (!s_sym_search_path_built && crash_ctx && crash_ctx->module_count > 0) {
+        s_sym_search_path_built = TRUE;
+        uint32_t module_count
+            = MIN(crash_ctx->module_count, SENTRY_CRASH_MAX_MODULES);
+        sentry_stringbuilder_t sb;
+        sentry__stringbuilder_init(&sb);
+        size_t appended = 0;
+        for (uint32_t mi = 0; mi < module_count; mi++) {
+            const char *path = crash_ctx->modules[mi].name;
+            size_t dir_len = 0;
+            for (size_t k = 0; path[k]; k++) {
+                if (path[k] == '\\' || path[k] == '/') {
+                    dir_len = k;
+                }
+            }
+            if (dir_len == 0) {
+                continue;
+            }
+            // de-duplicate the directory against earlier modules
+            BOOL dup = FALSE;
+            for (uint32_t pj = 0; pj < mi && !dup; pj++) {
+                const char *pp = crash_ctx->modules[pj].name;
+                size_t pj_len = 0;
+                for (size_t k = 0; pp[k]; k++) {
+                    if (pp[k] == '\\' || pp[k] == '/') {
+                        pj_len = k;
+                    }
+                }
+                dup = (pj_len == dir_len && _strnicmp(pp, path, dir_len) == 0);
+            }
+            if (dup) {
+                continue;
+            }
+            if (appended++) {
+                sentry__stringbuilder_append_char(&sb, ';');
+            }
+            sentry__stringbuilder_append_buf(&sb, path, dir_len);
+        }
+        char *path_utf8 = sentry__stringbuilder_into_string(&sb);
+        if (path_utf8 && path_utf8[0]) {
+            s_sym_search_path = sentry__string_to_wstr(path_utf8);
+        }
+        sentry_free(path_utf8);
+    }
+
+    SymSetOptions(SYMOPT_UNDNAME | SYMOPT_DEFERRED_LOADS
+        | SYMOPT_FAIL_CRITICAL_ERRORS | SYMOPT_NO_PROMPTS);
+    if (!SymInitializeW(hProcess, s_sym_search_path, TRUE)) {
         SENTRY_WARNF("SymInitialize failed: %lu", GetLastError());
         CloseHandle(hThread);
         return 0;
@@ -2380,14 +3178,77 @@ build_stacktrace_from_ctx(const sentry_crash_context_t *ctx)
 }
 
 /**
- * Build native crash event with exception, mechanism, and debug_meta
- *
- * @param ctx Crash context
- * @param event_file_path Path to event file from parent process
+ * Reads one breadcrumb ring file the crashing process appended on its hot path
+ * into a breadcrumb list. Returns null if the file is absent or empty.
  */
 static sentry_value_t
-build_native_crash_event(
-    const sentry_crash_context_t *ctx, const char *event_file_path)
+read_breadcrumb_ring_file(const sentry_path_t *run_folder, const char *name)
+{
+    if (!run_folder) {
+        return sentry_value_new_null();
+    }
+    sentry_path_t *path = sentry__path_join_str(run_folder, name);
+    if (!path) {
+        return sentry_value_new_null();
+    }
+    size_t size = 0;
+    char *buf = sentry__path_read_to_buffer(path, &size);
+    sentry__path_free(path);
+    if (!buf || size == 0) {
+        sentry_free(buf);
+        return sentry_value_new_null();
+    }
+    sentry_value_t list = sentry__value_from_msgpack_stream(buf, size);
+    sentry_free(buf);
+    return list;
+}
+
+/**
+ * Assembles the crash event's breadcrumbs from the two ring files the crashing
+ * process appended one-at-a-time, merges them in timestamp order, keeps the
+ * newest `max_breadcrumbs`, and attaches them to `event`.
+ * Mirrors the crashpad backend's `report_to_envelope`.
+ */
+static void
+apply_breadcrumbs_from_ring_files(sentry_value_t event,
+    const sentry_path_t *run_folder, const sentry_crash_context_t *ctx)
+{
+    if (ctx && ctx->max_breadcrumbs == 0) {
+        return;
+    }
+
+    sentry_value_t b1
+        = read_breadcrumb_ring_file(run_folder, "__sentry-breadcrumb1");
+    sentry_value_t b2
+        = read_breadcrumb_ring_file(run_folder, "__sentry-breadcrumb2");
+    size_t max = ctx && ctx->max_breadcrumbs ? ctx->max_breadcrumbs
+                                             : SENTRY_BREADCRUMBS_MAX;
+    sentry_value_t merged = sentry__value_merge_breadcrumbs(b1, b2, max);
+    sentry_value_decref(b1);
+    sentry_value_decref(b2);
+    // Overwrite any breadcrumbs the base event may carry: the ring files are
+    // the single source of truth, so this is idempotent and never duplicates.
+    if (sentry_value_get_type(merged) == SENTRY_VALUE_TYPE_LIST) {
+        sentry_value_set_by_key(event, "breadcrumbs", merged);
+    } else {
+        sentry_value_decref(merged);
+    }
+}
+
+/**
+ * Build a native event and set the level, mechanism, and handled state
+ *
+ * @param ctx Crash context
+ * @param event_file_path Path to base event file from parent process
+ * @param run_folder Run directory holding the breadcrumb ring files
+ * @param level Event level (e.g. "fatal")
+ * @param mechanism_type Exception mechanism type (e.g. "signalhandler")
+ * @param handled Whether the mechanism was handled
+ */
+static sentry_value_t
+build_native_event(const sentry_crash_context_t *ctx,
+    const char *event_file_path, const sentry_path_t *run_folder,
+    const char *level, const char *mechanism_type, bool handled)
 {
     // Read base event from parent's file
     sentry_value_t event = sentry_value_new_null();
@@ -2407,14 +3268,17 @@ build_native_crash_event(
 
     if (sentry_value_is_null(event)) {
         event = sentry_value_new_event();
+    } else {
+        sentry__ensure_event_id(event, NULL);
     }
+
+    apply_breadcrumbs_from_ring_files(event, run_folder, ctx);
 
     // Set platform to native
     sentry_value_set_by_key(
         event, "platform", sentry_value_new_string("native"));
 
-    // Set level to fatal
-    sentry_value_set_by_key(event, "level", sentry_value_new_string("fatal"));
+    sentry_value_set_by_key(event, "level", sentry_value_new_string(level));
 
     // Build exception
     const char *signal_name = "UNKNOWN";
@@ -2436,10 +3300,11 @@ build_native_crash_event(
     // Add mechanism
     sentry_value_t mechanism = sentry_value_new_object();
     sentry_value_set_by_key(
-        mechanism, "type", sentry_value_new_string("signalhandler"));
+        mechanism, "type", sentry_value_new_string(mechanism_type));
     sentry_value_set_by_key(
         mechanism, "synthetic", sentry_value_new_bool(true));
-    sentry_value_set_by_key(mechanism, "handled", sentry_value_new_bool(false));
+    sentry_value_set_by_key(
+        mechanism, "handled", sentry_value_new_bool(handled));
 
     // Add signal metadata
     sentry_value_t meta = sentry_value_new_object();
@@ -2745,7 +3610,8 @@ write_envelope_with_native_stacktrace(const sentry_options_t *options,
     // Build native crash event (always include threads with names)
     SENTRY_DEBUGF("write_envelope_with_native_stacktrace: minidump_path=%s",
         minidump_path ? minidump_path : "(null)");
-    sentry_value_t event = build_native_crash_event(ctx, event_file_path);
+    sentry_value_t event = build_native_event(
+        ctx, event_file_path, run_folder, "fatal", "signalhandler", false);
 
     // Serialize event to JSON
     size_t event_size = 0;
@@ -3005,21 +3871,43 @@ write_envelope_with_minidump(const sentry_options_t *options,
     const char *event_msgpack_path, const char *minidump_path,
     sentry_path_t *run_folder)
 {
-    // Read event JSON data
+    // Read the base event, merge in the breadcrumbs from the ring files,
+    // re-serialize.
     size_t event_size = 0;
     char *event_json = NULL;
     char *event_id = NULL;
     sentry_path_t *ev_path = sentry__path_from_str(event_msgpack_path);
     if (ev_path) {
-        event_json = sentry__path_read_to_buffer(ev_path, &event_size);
+        size_t base_size = 0;
+        char *base_json = sentry__path_read_to_buffer(ev_path, &base_size);
         sentry__path_free(ev_path);
-        if (event_json && event_size > 0) {
+        if (base_json && base_size > 0) {
             sentry_value_t event
-                = sentry__value_from_json(event_json, event_size);
-            event_id = sentry__string_clone(sentry_value_as_string(
-                sentry_value_get_by_key(event, "event_id")));
-            sentry_value_decref(event);
+                = sentry__value_from_json(base_json, base_size);
+            if (sentry_value_is_null(event)) {
+                // Parsing the base event failed (e.g. truncated buffer or
+                // OOM). Don't serialize the null into "null" and ship an
+                // invalid payload - fall back to streaming the raw event
+                // bytes verbatim so the crash report is preserved.
+                sentry_value_decref(event);
+                event_json = sentry__string_clone_n(base_json, base_size);
+                event_size = event_json ? base_size : 0;
+            } else {
+                apply_breadcrumbs_from_ring_files(event, run_folder, ctx);
+                event_id = sentry__string_clone(sentry_value_as_string(
+                    sentry_value_get_by_key(event, "event_id")));
+                event_json = sentry__value_to_json(event, &event_size);
+                sentry_value_decref(event);
+                if (!event_json) {
+                    // Re-serialization failed (e.g. OOM). Fall back to the raw
+                    // event bytes so the crash report is preserved, losing only
+                    // the merged breadcrumbs rather than the whole event.
+                    event_json = sentry__string_clone_n(base_json, base_size);
+                    event_size = event_json ? base_size : 0;
+                }
+            }
         }
+        sentry_free(base_json);
     }
 
     // Open envelope file for writing
@@ -3371,8 +4259,6 @@ sentry__process_crash(const sentry_options_t *options, sentry_crash_ipc_t *ipc)
     SENTRY_DEBUG("Extracting run folder from event path");
     sentry_path_t *ev_path = sentry__path_from_str(event_path);
     sentry_path_t *run_folder = ev_path ? sentry__path_dir(ev_path) : NULL;
-    if (ev_path)
-        sentry__path_free(ev_path);
 
     // Acquire the run directory lock file so that process_old_runs() in a
     // new SDK run will skip this directory while the daemon is still
@@ -3400,6 +4286,7 @@ sentry__process_crash(const sentry_options_t *options, sentry_crash_ipc_t *ipc)
 
     if (path_len < 0 || path_len >= (int)sizeof(envelope_path)) {
         SENTRY_WARN("Envelope path truncated or invalid");
+        sentry__path_free(ev_path);
         if (run_folder) {
             sentry__path_free(run_folder);
         }
@@ -3532,6 +4419,7 @@ sentry__process_crash(const sentry_options_t *options, sentry_crash_ipc_t *ipc)
 
     if (!envelope_written) {
         SENTRY_WARN("Failed to write envelope");
+        sentry__path_free(ev_path);
         if (run_folder) {
             sentry__path_free(run_folder);
         }
@@ -3631,6 +4519,34 @@ sentry__process_crash(const sentry_options_t *options, sentry_crash_ipc_t *ipc)
 #endif
 
 cleanup:
+    // Send the staged session-replay envelope same-session, enriched from the
+    // crash event (`<run>/__sentry-event`) so it shares the crash's
+    // tags/contexts/trace and embeds its breadcrumbs. Only flush when the
+    // crash itself was delivered: `cleanup` is also reached via `goto` on
+    // error paths where the crash was never captured, and flushing there
+    // would consume (and delete) the staged replay for a crash that never
+    // arrived.
+    if (crash_captured && options && options->transport
+        && sentry__session_replay_has_pending(options)) {
+        sentry_value_t crash_event = sentry_value_new_null();
+        if (ev_path) {
+            size_t ev_len = 0;
+            char *ev_json = sentry__path_read_to_buffer(ev_path, &ev_len);
+            if (ev_json) {
+                crash_event = sentry__value_from_json(ev_json, ev_len);
+                sentry_free(ev_json);
+            }
+        }
+        if (!sentry_value_is_null(crash_event)) {
+            // `__sentry-event` is scope-applied without breadcrumbs; merge
+            // the ring files so the replay recording can embed them
+            apply_breadcrumbs_from_ring_files(crash_event, run_folder, ctx);
+        }
+        sentry__session_replay_flush_pending(
+            options, options->transport, crash_event);
+        sentry_value_decref(crash_event);
+    }
+
     // Send all other envelopes from run folder (logs, etc.) before cleanup
     if (run_folder && options && options->transport && options->run) {
         SENTRY_DEBUG("Checking for additional envelopes in run folder");
@@ -3673,6 +4589,7 @@ cleanup:
         sentry__path_remove_all(run_folder);
         sentry__path_free(run_folder);
     }
+    sentry__path_free(ev_path);
 
     // Release and clean up the lock file
     if (run_lock) {

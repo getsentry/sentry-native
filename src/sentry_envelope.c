@@ -13,6 +13,7 @@
 #include "sentry_value.h"
 #include <assert.h>
 #include <limits.h>
+#include <math.h>
 #include <string.h>
 
 struct sentry_envelope_item_s {
@@ -136,6 +137,8 @@ envelope_item_get_ratelimiter_category(const sentry_envelope_item_t *item)
         return SENTRY_RL_CATEGORY_SESSION;
     } else if (sentry__string_eq(ty, "transaction")) {
         return SENTRY_RL_CATEGORY_TRANSACTION;
+    } else if (sentry__string_eq(ty, "replay_video")) {
+        return SENTRY_RL_CATEGORY_REPLAY;
     } else if (sentry__string_eq(ty, "client_report")) {
         // internal telemetry, bypass rate limiting
         return -1;
@@ -160,6 +163,8 @@ item_type_to_data_category(const char *ty)
         return SENTRY_DATA_CATEGORY_FEEDBACK;
     } else if (sentry__string_eq(ty, "trace_metric")) {
         return SENTRY_DATA_CATEGORY_TRACE_METRIC;
+    } else if (sentry__string_eq(ty, "replay_video")) {
+        return SENTRY_DATA_CATEGORY_REPLAY;
     }
     return SENTRY_DATA_CATEGORY_ERROR;
 }
@@ -387,12 +392,12 @@ sentry__envelope_add_event(sentry_envelope_t *envelope, sentry_value_t event)
         traces_sample_rate = options->traces_sample_rate;
     }
     sentry_value_t dsc = sentry_value_new_null();
-    sentry_value_t sample_rand = sentry_value_new_null();
+    double sample_rand = (double)NAN;
     SENTRY_WITH_SCOPE (scope) {
         dsc = sentry__value_clone(scope->dynamic_sampling_context);
-        sample_rand = sentry_value_get_by_key(
+        sample_rand = sentry_value_as_double(sentry_value_get_by_key(
             sentry_value_get_by_key(scope->propagation_context, "trace"),
-            "sample_rand");
+            "sample_rand"));
     }
     if (!sentry_value_is_null(dsc)) {
         sentry_value_t trace_id = sentry_value_get_by_key(
@@ -406,8 +411,8 @@ sentry__envelope_add_event(sentry_envelope_t *envelope, sentry_value_t event)
             SENTRY_WARN("couldn't retrieve trace_id from scope to apply to the "
                         "dynamic sampling context");
         }
-        if (!sentry_value_is_null(sample_rand)) {
-            if (sentry_value_as_double(sample_rand) >= traces_sample_rate) {
+        if (!isnan(sample_rand)) {
+            if (sample_rand >= traces_sample_rate) {
                 sentry_value_set_by_key(
                     dsc, "sampled", sentry_value_new_string("false"));
             } else {
@@ -916,48 +921,73 @@ typedef bool (*envelope_item_writer_fn)(
 
 static int
 envelope_write_to_path(const sentry_envelope_t *envelope,
-    const sentry_path_t *path, envelope_item_writer_fn writer, void *data)
+    const sentry_path_t *path, envelope_item_writer_fn item_writer, void *data)
 {
-    sentry_filewriter_t *fw = sentry__filewriter_new(path);
-    if (!fw) {
+    sentry_writer_t *output = sentry__writer_new_file(path);
+    if (!output) {
         return 1;
     }
 
-    if (envelope->is_raw) {
-        size_t rv = sentry__filewriter_write(fw, envelope->contents.raw.payload,
-            envelope->contents.raw.payload_len);
-        sentry__filewriter_free(fw);
-        return rv != 0;
-    }
+    int failed = 0;
+    sentry_jsonwriter_t *jw = NULL;
 
-    sentry_jsonwriter_t *jw = sentry__jsonwriter_new_fw(fw);
-    if (jw) {
+    if (envelope->is_raw) {
+        sentry__writer_write(output, envelope->contents.raw.payload,
+            envelope->contents.raw.payload_len);
+    } else {
+        jw = sentry__jsonwriter_new_writer(output);
+        if (!jw) {
+            failed = 1;
+            goto done;
+        }
+
         sentry__jsonwriter_write_value(jw, envelope->contents.items.headers);
         sentry__jsonwriter_reset(jw);
+        if (sentry__jsonwriter_has_failed(jw)) {
+            goto done;
+        }
 
         for (const sentry_envelope_item_t *item
             = envelope->contents.items.first_item;
             item; item = item->next) {
-            if (writer && writer(item, data)) {
+            if (item_writer && item_writer(item, data)) {
                 continue;
             }
-            const char newline = '\n';
-            sentry__filewriter_write(fw, &newline, sizeof(char));
 
+            sentry__writer_write_char(output, '\n');
             sentry__jsonwriter_write_value(jw, item->headers);
             sentry__jsonwriter_reset(jw);
+            if (sentry__jsonwriter_has_failed(jw)) {
+                goto done;
+            }
 
-            sentry__filewriter_write(fw, &newline, sizeof(char));
-
-            sentry__filewriter_write(fw, item->payload, item->payload_len);
+            sentry__writer_write_char(output, '\n');
+            sentry__writer_write(output, item->payload, item->payload_len);
+            if (sentry__writer_has_failed(output)) {
+                goto done;
+            }
         }
-        sentry__jsonwriter_free(jw);
     }
 
-    size_t rv = sentry__filewriter_byte_count(fw);
-    sentry__filewriter_free(fw);
+done:
+    if (!sentry__writer_close(output)) {
+        failed = 1;
+    }
+    if (jw && sentry__jsonwriter_has_failed(jw)) {
+        failed = 1;
+    }
 
-    return rv == 0;
+    if (failed) {
+        SENTRY_WARN("envelope write failed");
+        // Best-effort cleanup for detected partial writes. This is not an
+        // atomic publication guarantee; a process crash during writing can
+        // still leave a partial file behind.
+        sentry__path_remove(path);
+    }
+    sentry__jsonwriter_free(jw);
+    sentry__writer_free(output);
+
+    return failed;
 }
 
 MUST_USE int
@@ -1288,6 +1318,8 @@ discard_reason_to_string(sentry_discard_reason_t reason)
     switch (reason) {
     case SENTRY_DISCARD_REASON_QUEUE_OVERFLOW:
         return "queue_overflow";
+    case SENTRY_DISCARD_REASON_CACHE_OVERFLOW:
+        return "cache_overflow";
     case SENTRY_DISCARD_REASON_RATELIMIT_BACKOFF:
         return "ratelimit_backoff";
     case SENTRY_DISCARD_REASON_NETWORK_ERROR:
@@ -1322,6 +1354,8 @@ data_category_to_string(sentry_data_category_t category)
         return "feedback";
     case SENTRY_DATA_CATEGORY_TRACE_METRIC:
         return "trace_metric";
+    case SENTRY_DATA_CATEGORY_REPLAY:
+        return "replay";
     case SENTRY_DATA_CATEGORY_MAX:
     default:
         return "unknown";
@@ -1551,6 +1585,8 @@ sentry__envelope_item_get_attachment_ref(
         sentry_value_get_by_key(ref->_owner, "location"));
     ref->content_type = sentry_value_as_string(
         sentry_value_get_by_key(ref->_owner, "content_type"));
+    ref->attachment_type = sentry_value_as_string(
+        sentry_value_get_by_key(item->headers, "attachment_type"));
     return true;
 }
 
@@ -1598,6 +1634,9 @@ sentry__envelope_item_resolve_attachment_ref(
     sentry_attachment_ref_t resolved = { 0 };
     if (sentry__guarded_strlen(ref.path)) {
         resolved.path = ref.path;
+    }
+    if (sentry__guarded_strlen(ref.attachment_type)) {
+        resolved.attachment_type = ref.attachment_type;
     }
     resolved.location = location;
     if (sentry__guarded_strlen(ref.content_type)) {

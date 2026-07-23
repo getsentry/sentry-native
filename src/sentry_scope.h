@@ -9,6 +9,47 @@
 #include "sentry_value.h"
 
 /**
+ * Scope observer — one callback per scope property.
+ *
+ * Implementors set the function pointers they care about. NULL pointers are
+ * skipped. Callbacks are invoked while the scope lock is held.
+ * The data pointer is passed as the first argument to each callback.
+ *
+ * Note: callback arguments are borrowed and valid only for the duration of the
+ * callback. Reentrant mutation of the same observed entry is unsupported; for
+ * example, tag callbacks must not set or remove the same tag.
+ *
+ * Ownership: the scope takes ownership of the observer pointer on
+ * registration; the caller must not free it after that point.
+ */
+typedef struct sentry_scope_observer_s {
+    void *data;
+
+    void (*clear)(void *data);
+
+    void (*set_release)(void *data, const char *release);
+    void (*set_environment)(void *data, const char *environment);
+    void (*set_transaction)(void *data, const char *transaction);
+    void (*set_fingerprint)(void *data, sentry_value_t fingerprint);
+    void (*set_level)(void *data, sentry_level_t level);
+    void (*set_user)(void *data, sentry_value_t user);
+
+    void (*add_breadcrumb)(void *data, sentry_value_t breadcrumb);
+
+    void (*set_tag)(void *data, const char *key, const char *value);
+    void (*remove_tag)(void *data, const char *key);
+
+    void (*set_extra)(void *data, const char *key, sentry_value_t value);
+    void (*remove_extra)(void *data, const char *key);
+
+    void (*set_context)(void *data, const char *key, sentry_value_t value);
+    void (*remove_context)(void *data, const char *key);
+
+    void (*add_attachment)(void *data, sentry_attachment_t *attachment);
+    void (*remove_attachment)(void *data, sentry_attachment_t *attachment);
+} sentry_scope_observer_t;
+
+/**
  * This represents the current scope.
  */
 struct sentry_scope_s {
@@ -39,6 +80,15 @@ struct sentry_scope_s {
     sentry_transaction_t *transaction_object;
     sentry_span_t *span;
     bool trace_managed;
+
+    sentry_scope_observer_t **observers;
+    size_t num_observers;
+    size_t is_notifying;
+    bool pending_flush;
+
+    // Whether this scope is single-use. A capture function frees a one-shot
+    // scope after applying it.
+    bool one_shot;
 };
 
 /**
@@ -73,16 +123,16 @@ void sentry__scope_unlock(void);
 void sentry__scope_cleanup(void);
 
 /**
+ * Frees the scope if it is a one-shot local scope.
+ */
+void sentry__scope_free_one_shot(sentry_scope_t *scope);
+
+/**
  * This will notify any backend of scope changes.
  * This function must be called while holding the scope lock, and it will be
  * unlocked internally.
  */
 void sentry__scope_flush_unlock(void);
-
-/**
- * Deallocates a (local) scope.
- */
-void sentry__scope_free(sentry_scope_t *scope);
 
 /**
  * This will merge the requested data which is in the given `scope` to the given
@@ -99,20 +149,8 @@ void sentry__scope_set_fingerprint_va(
 void sentry__scope_set_fingerprint_nva(sentry_scope_t *scope,
     const char *fingerprint, size_t fingerprint_len, va_list va);
 
-/**
- * Internal scope-based attribute functions.
- * For now, these are only used by the non-scope API functions that operate
- * on the global scope.
- * Once we have attributes for events or scope-based logs/metrics/spans APIs
- * these can become part of the public API too.
- */
-void sentry__scope_set_attribute(
-    sentry_scope_t *scope, const char *key, sentry_value_t attribute);
-void sentry__scope_set_attribute_n(sentry_scope_t *scope, const char *key,
-    size_t key_len, sentry_value_t attribute);
-void sentry__scope_remove_attribute(sentry_scope_t *scope, const char *key);
-void sentry__scope_remove_attribute_n(
-    sentry_scope_t *scope, const char *key, size_t key_len);
+sentry_attachment_t *sentry__scope_add_attachment(
+    sentry_scope_t *scope, sentry_attachment_t *attachment);
 
 /**
  * These are convenience macros to automatically lock/unlock the global scope
@@ -127,6 +165,50 @@ void sentry__scope_remove_attribute_n(
 #define SENTRY_WITH_SCOPE_MUT_NO_FLUSH(Scope)                                  \
     for (sentry_scope_t *Scope = sentry__scope_lock(); Scope;                  \
         sentry__scope_unlock(), Scope = NULL)
+
+/**
+ * Allocate and zero-initialize a scope observer.
+ *
+ * Returns NULL on allocation failure. The caller sets whichever callback
+ * function pointers and the `data` pointer they need, then registers the
+ * observer with `sentry__scope_add_observer`, which takes ownership.
+ */
+sentry_scope_observer_t *sentry__scope_observer_new(void);
+
+/**
+ * Register a scope observer.
+ *
+ * Takes ownership of `observer`; the caller must not free it after this call.
+ * Must be called while holding the scope lock. Registration order is respected
+ * — observers are notified in registration order.
+ */
+bool sentry__scope_add_observer(
+    sentry_scope_t *scope, sentry_scope_observer_t *observer);
+
+/**
+ * Remove a scope observer.
+ *
+ * Frees `observer` if it is registered. Must be called while holding the scope
+ * lock. Does nothing if `observer` is NULL or not registered.
+ */
+void sentry__scope_remove_observer(
+    sentry_scope_t *scope, sentry_scope_observer_t *observer);
+
+size_t sentry__scope_begin_notify(sentry_scope_t *scope);
+void sentry__scope_end_notify(sentry_scope_t *scope);
+
+/** Notify observers registered before this notification started. */
+#define SENTRY_SCOPE_NOTIFY(scope, callback, ...)                              \
+    do {                                                                       \
+        size_t _end = sentry__scope_begin_notify(scope);                       \
+        for (size_t _i = 0; _i < _end && _i < (scope)->num_observers; _i++) {  \
+            sentry_scope_observer_t *_observer = (scope)->observers[_i];       \
+            if (_observer && _observer->callback) {                            \
+                _observer->callback(_observer->data, __VA_ARGS__);             \
+            }                                                                  \
+        }                                                                      \
+        sentry__scope_end_notify(scope);                                       \
+    } while (0)
 
 /**
  * Rebuilds the scope's dynamic sampling context (DSC) from the SDK options
@@ -144,9 +226,11 @@ void sentry__scope_update_dsc(
 void sentry__scope_freeze_dsc(sentry_scope_t *scope, sentry_value_t incoming);
 
 /**
- * Adds scoped attributes to the telemetry attributes object.
+ * Merges the given scope data into a telemetry item (a log or metric): its
+ * attributes, trace, user, etc. Existing values are kept, so this can be called
+ * for each scope in a precedence chain, most specific first (first write wins).
  */
-void sentry__scope_apply_attributes(const sentry_scope_t *scope,
+void sentry__scope_apply_to_telemetry(const sentry_scope_t *scope,
     sentry_value_t telemetry, sentry_value_t attributes);
 
 #endif

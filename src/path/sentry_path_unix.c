@@ -2,6 +2,7 @@
 #include "sentry_core.h"
 #include "sentry_path.h"
 #include "sentry_string.h"
+#include "sentry_unix_pageallocator.h"
 #include "sentry_utils.h"
 
 #ifdef SENTRY_PLATFORM_PS
@@ -366,29 +367,43 @@ sentry__path_copy(const sentry_path_t *src, const sentry_path_t *dst)
     int rv = 0;
 
 #    ifdef SENTRY_HAVE_COPY_FILE_RANGE
-    while (true) {
-        ssize_t n
-            = copy_file_range(src_fd, NULL, dst_fd, NULL, SIZE_MAX / 2, 0);
-        if (n > 0) {
-            continue;
-        } else if (n == 0) {
-            goto done;
-        } else if (errno == EAGAIN || errno == EINTR) {
-            continue;
-        } else if (errno == ENOSYS || errno == EXDEV || errno == EOPNOTSUPP
-            || errno == EINVAL) {
-            break;
-        } else {
-            rv = 1;
-            goto done;
+    // When the page allocator is enabled, this may be running from a crash
+    // handler on a constrained signal stack. Avoid copy_file_range() there:
+    // it is not async-signal-safe, and lazy PLT resolution can consume enough
+    // crash stack to clobber adjacent heap allocations.
+    if (!sentry__page_allocator_enabled()) {
+        while (true) {
+            ssize_t n
+                = copy_file_range(src_fd, NULL, dst_fd, NULL, SIZE_MAX / 2, 0);
+            if (n > 0) {
+                continue;
+            } else if (n == 0) {
+                goto done;
+            } else if (errno == EAGAIN || errno == EINTR) {
+                continue;
+            } else if (errno == ENOSYS || errno == EXDEV || errno == EOPNOTSUPP
+                || errno == EINVAL) {
+                break;
+            } else {
+                rv = 1;
+                goto done;
+            }
         }
     }
 #    endif
 
     {
-        char buf[16384];
+        // Keep the fallback buffer off the stack. Crash handlers may run on
+        // constrained signal stacks, so a large stack buffer is unsafe when
+        // attachments are cached during crash handling.
+        const size_t buf_len = 16384;
+        char *buf = sentry_malloc(buf_len);
+        if (!buf) {
+            rv = 1;
+            goto done;
+        }
         while (true) {
-            ssize_t n = read(src_fd, buf, sizeof(buf));
+            ssize_t n = read(src_fd, buf, buf_len);
             if (n < 0 && (errno == EAGAIN || errno == EINTR)) {
                 continue;
             } else if (n <= 0) {
@@ -400,11 +415,10 @@ sentry__path_copy(const sentry_path_t *src, const sentry_path_t *dst)
                 break;
             }
         }
+        sentry_free(buf);
     }
 
-#    ifdef SENTRY_HAVE_COPY_FILE_RANGE
 done:
-#    endif
     close(src_fd);
     close(dst_fd);
     return rv;
@@ -601,6 +615,8 @@ sentry__path_append_buffer(
 struct sentry_filewriter_s {
     size_t byte_count;
     int fd;
+    bool failed;
+    bool closed;
 };
 
 MUST_USE sentry_filewriter_t *
@@ -620,6 +636,8 @@ sentry__filewriter_new(const sentry_path_t *path)
 
     result->fd = fd;
     result->byte_count = 0;
+    result->failed = false;
+    result->closed = false;
     return result;
 }
 
@@ -627,14 +645,15 @@ size_t
 sentry__filewriter_write(
     sentry_filewriter_t *filewriter, const char *buf, size_t buf_len)
 {
-    if (!filewriter) {
-        return 0;
+    if (!filewriter || filewriter->failed || filewriter->closed) {
+        return buf_len;
     }
     while (buf_len > 0) {
         ssize_t n = write(filewriter->fd, buf, buf_len);
         if (n < 0 && (errno == EAGAIN || errno == EINTR)) {
             continue;
         } else if (n <= 0) {
+            filewriter->failed = true;
             break;
         }
         filewriter->byte_count += n;
@@ -645,6 +664,30 @@ sentry__filewriter_write(
     return buf_len;
 }
 
+bool
+sentry__filewriter_close(sentry_filewriter_t *filewriter)
+{
+    if (!filewriter) {
+        return false;
+    }
+    if (filewriter->closed) {
+        return !filewriter->failed;
+    }
+
+    filewriter->closed = true;
+    if (close(filewriter->fd) != 0) {
+        filewriter->failed = true;
+    }
+    filewriter->fd = -1;
+    return !filewriter->failed;
+}
+
+bool
+sentry__filewriter_has_failed(const sentry_filewriter_t *filewriter)
+{
+    return !filewriter || filewriter->failed;
+}
+
 void
 sentry__filewriter_free(sentry_filewriter_t *filewriter)
 {
@@ -652,12 +695,12 @@ sentry__filewriter_free(sentry_filewriter_t *filewriter)
         return;
     }
 
-    close(filewriter->fd);
+    sentry__filewriter_close(filewriter);
     sentry_free(filewriter);
 }
 
 size_t
 sentry__filewriter_byte_count(const sentry_filewriter_t *filewriter)
 {
-    return filewriter->byte_count;
+    return filewriter ? filewriter->byte_count : 0;
 }

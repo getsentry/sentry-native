@@ -149,7 +149,8 @@ bool sentry__path_ends_with(const sentry_path_t *path, const char *suffix);
 bool sentry__path_is_dir(const sentry_path_t *path);
 
 /**
- * Return whether the path refers to a symlink.
+ * Return whether the path refers to a symlink. On Windows, this includes
+ * name-surrogate reparse points such as junctions.
  */
 bool sentry__path_is_symlink(const sentry_path_t *path);
 
@@ -276,9 +277,22 @@ sentry_filewriter_t *sentry__filewriter_new(const sentry_path_t *path);
 
 /**
  * Writes a buffer to the file behind the handle stored in the filewriter.
+ * Returns the number of bytes left unwritten. A non-zero return value marks the
+ * filewriter as failed and that failure is sticky.
  */
 size_t sentry__filewriter_write(
     sentry_filewriter_t *filewriter, const char *buf, size_t buf_len);
+
+/**
+ * Finalizes the writer. This reports late flush/close errors and marks the
+ * filewriter as failed if finalization fails. Returns true on success.
+ */
+bool sentry__filewriter_close(sentry_filewriter_t *filewriter);
+
+/**
+ * Returns true once any write, flush, or close operation has failed.
+ */
+bool sentry__filewriter_has_failed(const sentry_filewriter_t *filewriter);
 
 /**
  * Retrieves the count of written bytes.

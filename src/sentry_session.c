@@ -151,17 +151,20 @@ sentry__session_from_json(const char *buf, size_t buflen)
 
     sentry_value_t attrs = sentry_value_get_by_key(value, "attrs");
     if (sentry_value_is_null(attrs)) {
+        sentry_value_decref(value);
         return NULL;
     }
     char *release = sentry__string_clone(
         sentry_value_as_string(sentry_value_get_by_key(attrs, "release")));
     if (!release) {
+        sentry_value_decref(value);
         return NULL;
     }
 
     sentry_session_t *rv = SENTRY_MAKE(sentry_session_t);
     if (!rv) {
         sentry_free(release);
+        sentry_value_decref(value);
         return NULL;
     }
     rv->session_id

@@ -1,6 +1,8 @@
 #ifndef SENTRY_INTEGRATION_QT_H_INCLUDED
 #define SENTRY_INTEGRATION_QT_H_INCLUDED
 
+#include "sentry_integration.h"
+
 #ifdef __cplusplus
 #    define C_API extern "C"
 #else
@@ -8,8 +10,8 @@
 #endif
 
 /**
- * This sets up the Qt integration.
+ * This creates the Qt integration.
  */
-C_API void sentry_integration_setup_qt(void);
+C_API sentry_integration_t *sentry_integration_qt_new(void);
 
 #endif

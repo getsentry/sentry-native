@@ -23,195 +23,113 @@
 
 #define SENTRY_JSON_MAX_DEPTH 64
 
-typedef struct {
-    void (*free)(sentry_jsonwriter_t *writer);
-    bool (*write_str)(sentry_jsonwriter_t *writer, const char *str);
-    bool (*write_buf)(sentry_jsonwriter_t *writer, const char *buf, size_t len);
-    bool (*write_char)(sentry_jsonwriter_t *writer, char c);
-    char *(*into_string)(sentry_jsonwriter_t *jw, size_t *len_out);
-} sentry_jsonwriter_ops_t;
-
 struct sentry_jsonwriter_s {
-    union {
-        sentry_stringbuilder_t *sb;
-        sentry_filewriter_t *fw;
-    } output;
+    sentry_writer_t *writer;
     uint64_t want_comma;
     uint32_t depth;
     bool last_was_key;
-    bool owns_sb;
+    bool owns_writer;
     bool failed;
-    sentry_jsonwriter_ops_t *ops;
 };
 
-static void
-jsonwriter_free_sb(sentry_jsonwriter_t *jw)
+static sentry_jsonwriter_t *
+jsonwriter_new(sentry_writer_t *writer, bool owns_writer)
 {
-    if (!jw) {
-        return;
+    if (!writer) {
+        return NULL;
     }
-    if (jw->owns_sb) {
-        sentry__stringbuilder_cleanup(jw->output.sb);
-        sentry_free(jw->output.sb);
+
+    sentry_jsonwriter_t *rv = SENTRY_MAKE(sentry_jsonwriter_t);
+    if (!rv) {
+        if (owns_writer) {
+            sentry__writer_free(writer);
+        }
+        return NULL;
     }
-    sentry_free(jw);
-}
 
-static void
-jsonwriter_free_file(sentry_jsonwriter_t *jw)
-{
-    if (!jw) {
-        return;
-    }
-    sentry_free(jw);
-}
-
-static bool
-write_char_sb(sentry_jsonwriter_t *jw, char c)
-{
-    return sentry__stringbuilder_append_char(jw->output.sb, c) == 0;
-}
-
-static bool
-write_str_sb(sentry_jsonwriter_t *jw, const char *str)
-{
-    return sentry__stringbuilder_append(jw->output.sb, str) == 0;
-}
-
-static bool
-write_buf_sb(sentry_jsonwriter_t *jw, const char *buf, size_t len)
-{
-    return sentry__stringbuilder_append_buf(jw->output.sb, buf, len) == 0;
-}
-
-static bool
-write_char_file(sentry_jsonwriter_t *jw, char c)
-{
-    return sentry__filewriter_write(jw->output.fw, &c, sizeof(char)) == 0;
-}
-
-static bool
-write_str_file(sentry_jsonwriter_t *jw, const char *str)
-{
-    return sentry__filewriter_write(
-               jw->output.fw, str, sizeof(char) * strlen(str))
-        == 0;
-}
-
-static bool
-write_buf_file(sentry_jsonwriter_t *jw, const char *buf, size_t len)
-{
-    return sentry__filewriter_write(jw->output.fw, buf, len) == 0;
-}
-
-static char *
-into_string_sb(sentry_jsonwriter_t *jw, size_t *len_out)
-{
-    char *rv = NULL;
-    sentry_stringbuilder_t *sb = jw->output.sb;
-    if (len_out) {
-        *len_out = jw->failed ? 0 : sb->len;
-    }
-    if (!jw->failed) {
-        rv = sentry__stringbuilder_into_string(sb);
-    }
-    sentry__jsonwriter_free(jw);
+    rv->writer = writer;
+    rv->want_comma = 0;
+    rv->depth = 0;
+    rv->last_was_key = false;
+    rv->owns_writer = owns_writer;
+    rv->failed = false;
     return rv;
 }
 
-static char *
-into_string_file(sentry_jsonwriter_t *UNUSED(jw), size_t *len_out)
+sentry_jsonwriter_t *
+sentry__jsonwriter_new_writer(sentry_writer_t *writer)
 {
-    UNREACHABLE("A file-based jsonwriter can't convert into string");
-
-    *len_out = 0;
-    return NULL;
+    return jsonwriter_new(writer, false);
 }
-
-static sentry_jsonwriter_ops_t sb_ops = {
-    .write_char = write_char_sb,
-    .write_str = write_str_sb,
-    .write_buf = write_buf_sb,
-    .free = jsonwriter_free_sb,
-    .into_string = into_string_sb,
-};
 
 sentry_jsonwriter_t *
 sentry__jsonwriter_new_sb(sentry_stringbuilder_t *sb)
 {
-    bool owns_sb = false;
-    if (!sb) {
-        sb = SENTRY_MAKE(sentry_stringbuilder_t);
-        if (!sb) {
-            return NULL;
-        }
-        owns_sb = true;
-        sentry__stringbuilder_init(sb);
-    }
-    sentry_jsonwriter_t *rv = SENTRY_MAKE(sentry_jsonwriter_t);
-    if (!rv) {
-        if (owns_sb) {
-            sentry_free(sb);
-        }
-        return NULL;
-    }
-
-    rv->output.sb = sb;
-    rv->want_comma = 0;
-    rv->depth = 0;
-    rv->last_was_key = 0;
-    rv->owns_sb = owns_sb;
-    rv->failed = false;
-    rv->ops = &sb_ops;
-    return rv;
+    return jsonwriter_new(sentry__writer_new_sb(sb), true);
 }
-
-static sentry_jsonwriter_ops_t file_ops = {
-    .free = jsonwriter_free_file,
-    .write_char = write_char_file,
-    .write_str = write_str_file,
-    .write_buf = write_buf_file,
-    .into_string = into_string_file,
-};
 
 sentry_jsonwriter_t *
 sentry__jsonwriter_new_fw(sentry_filewriter_t *fw)
 {
-    bool owns_sb = false;
-    sentry_jsonwriter_t *rv = SENTRY_MAKE(sentry_jsonwriter_t);
-    if (!rv) {
-        return NULL;
-    }
-
-    rv->output.fw = fw;
-    rv->want_comma = 0;
-    rv->depth = 0;
-    rv->last_was_key = 0;
-    rv->owns_sb = owns_sb;
-    rv->failed = false;
-    rv->ops = &file_ops;
-    return rv;
+    return jsonwriter_new(sentry__writer_new_filewriter(fw, false), true);
 }
 
 void
 sentry__jsonwriter_free(sentry_jsonwriter_t *jw)
 {
-    jw->ops->free(jw);
+    if (!jw) {
+        return;
+    }
+    if (jw->owns_writer) {
+        sentry__writer_free(jw->writer);
+    }
+    sentry_free(jw);
 }
 
 void
 sentry__jsonwriter_reset(sentry_jsonwriter_t *jw)
 {
+    if (!jw) {
+        return;
+    }
+
     jw->want_comma = 0;
     jw->depth = 0;
-    jw->last_was_key = 0;
-    jw->failed = false;
+    jw->last_was_key = false;
+}
+
+bool
+sentry__jsonwriter_has_failed(const sentry_jsonwriter_t *jw)
+{
+    return !jw || jw->failed || sentry__writer_has_failed(jw->writer);
 }
 
 char *
 sentry__jsonwriter_into_string(sentry_jsonwriter_t *jw, size_t *len_out)
 {
-    return jw->ops->into_string(jw, len_out);
+    if (!jw) {
+        if (len_out) {
+            *len_out = 0;
+        }
+        return NULL;
+    }
+
+    sentry_writer_t *writer = jw->writer;
+    bool owns_writer = jw->owns_writer;
+    bool failed = sentry__jsonwriter_has_failed(jw);
+    jw->writer = NULL;
+    sentry_free(jw);
+
+    if (!owns_writer || failed) {
+        if (len_out) {
+            *len_out = 0;
+        }
+        if (owns_writer) {
+            sentry__writer_free(writer);
+        }
+        return NULL;
+    }
+    return sentry__writer_into_string(writer, len_out);
 }
 
 static bool
@@ -236,7 +154,7 @@ set_comma(sentry_jsonwriter_t *jw, bool val)
 static void
 write_char(sentry_jsonwriter_t *jw, char c)
 {
-    if (!jw->ops->write_char(jw, c)) {
+    if (!sentry__writer_write_char(jw->writer, c)) {
         jw->failed = true;
     }
 }
@@ -244,7 +162,7 @@ write_char(sentry_jsonwriter_t *jw, char c)
 static void
 write_str(sentry_jsonwriter_t *jw, const char *str)
 {
-    if (!jw->ops->write_str(jw, str)) {
+    if (!sentry__writer_write(jw->writer, str, strlen(str))) {
         jw->failed = true;
     }
 }
@@ -252,7 +170,7 @@ write_str(sentry_jsonwriter_t *jw, const char *str)
 static void
 write_buf(sentry_jsonwriter_t *jw, const char *buf, size_t len)
 {
-    if (!jw->ops->write_buf(jw, buf, len)) {
+    if (!sentry__writer_write(jw->writer, buf, len)) {
         jw->failed = true;
     }
 }
@@ -288,7 +206,7 @@ write_json_str(sentry_jsonwriter_t *jw, const char *str)
     // using unsigned here because utf-8 is > 127 :-)
     const unsigned char *ptr = (const unsigned char *)str;
     const unsigned char *start = ptr;
-    for (; *ptr && !jw->failed; ptr++) {
+    for (; *ptr && !sentry__jsonwriter_has_failed(jw); ptr++) {
         if (!needs_escaping[*ptr]) {
             continue;
         }
@@ -298,7 +216,7 @@ write_json_str(sentry_jsonwriter_t *jw, const char *str)
             write_buf(jw, (const char *)start, len);
         }
 
-        if (jw->failed) {
+        if (sentry__jsonwriter_has_failed(jw)) {
             return;
         }
 
@@ -337,7 +255,7 @@ write_json_str(sentry_jsonwriter_t *jw, const char *str)
             }
         }
 
-        if (jw->failed) {
+        if (sentry__jsonwriter_has_failed(jw)) {
             return;
         }
 
@@ -353,7 +271,7 @@ write_json_str(sentry_jsonwriter_t *jw, const char *str)
 static bool
 can_write_item(sentry_jsonwriter_t *jw)
 {
-    if (at_max_depth(jw) || jw->failed) {
+    if (at_max_depth(jw) || sentry__jsonwriter_has_failed(jw)) {
         return false;
     }
     if (jw->last_was_key) {
@@ -365,7 +283,7 @@ can_write_item(sentry_jsonwriter_t *jw)
     } else {
         set_comma(jw, true);
     }
-    return !jw->failed;
+    return !sentry__jsonwriter_has_failed(jw);
 }
 
 void
@@ -772,7 +690,7 @@ sentry__value_from_json(const char *buf, size_t buflen)
         return sentry_value_new_null();
     }
 
-    sentry_value_t value_out;
+    sentry_value_t value_out = sentry_value_new_null();
     size_t tokens_consumed
         = tokens_to_value(tokens, (size_t)token_count, buf, 0, &value_out);
     sentry_free(tokens);
@@ -780,6 +698,7 @@ sentry__value_from_json(const char *buf, size_t buflen)
     if (tokens_consumed == (size_t)token_count) {
         return value_out;
     } else {
+        sentry_value_decref(value_out);
         return sentry_value_new_null();
     }
 }
