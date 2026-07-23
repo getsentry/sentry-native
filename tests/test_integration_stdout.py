@@ -2,7 +2,6 @@ import os
 import shutil
 import subprocess
 import sys
-import time
 from pathlib import Path
 
 import pytest
@@ -21,6 +20,7 @@ from .assertions import (
     assert_crash_timestamp,
     assert_breakpad_crash,
     assert_exception,
+    wait_for,
 )
 from .conditions import has_breakpad, has_files, is_qemu
 
@@ -132,15 +132,19 @@ def test_multi_process(cmake):
 
     child1 = subprocess.Popen([cmd, "sleep"], cwd=cwd)
     child2 = subprocess.Popen([cmd, "sleep"], cwd=cwd)
-    time.sleep(0.5)
+
+    def list_db(suffix):
+        try:
+            return [
+                db_run
+                for db_run in os.listdir(os.path.join(cwd, ".sentry-native"))
+                if db_run.endswith(suffix)
+            ]
+        except FileNotFoundError:
+            return []
 
     # while the processes are running, we expect two runs
-    runs = [
-        db_run
-        for db_run in os.listdir(os.path.join(cwd, ".sentry-native"))
-        if db_run.endswith(".run")
-    ]
-    assert len(runs) == 2
+    assert wait_for(lambda: len(list_db(".run")) == 2)
 
     # kill the children
     child1.terminate()
@@ -151,12 +155,8 @@ def test_multi_process(cmake):
     # and start another process that cleans up the old runs
     subprocess.run([cmd], cwd=cwd)
 
-    runs = [
-        db_run
-        for db_run in os.listdir(os.path.join(cwd, ".sentry-native"))
-        if db_run.endswith(".run") or db_run.endswith(".lock")
-    ]
-    assert len(runs) == 0
+    assert len(list_db(".run")) == 0
+    assert len(list_db(".lock")) == 0
 
 
 def run_stdout_for(backend, cmake, example_args, build_args=None, env=None):
