@@ -15,6 +15,7 @@
 - Crashpad/Windows: flush Windows attachment IPC responses. ([#1895](https://github.com/getsentry/sentry-native/pull/1895))
 - Crashpad/Linux: terminate Linux handler re-entry. ([#1894](https://github.com/getsentry/sentry-native/pull/1894))
 - Android: create the outbox directory before writing NDK crash envelopes into it, so envelopes are not lost when the head SDK creates the outbox lazily. ([#1889](https://github.com/getsentry/sentry-native/pull/1889))
+- Native/macOS: write signal-handler-captured thread names into the minidump's ThreadNames stream when `task_for_pid` fails (e.g. sandboxed apps), so thread names resolve in crash events from packaged apps. ([#1905](https://github.com/getsentry/sentry-native/pull/1905))
 
 ## 0.15.4
 
