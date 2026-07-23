@@ -20,17 +20,19 @@
 #endif
 
 sentry_batcher_t *
-sentry__batcher_new(
-    sentry_batch_func_t batch_func, sentry_data_category_t data_category)
+sentry__batcher_new(sentry_batch_func_t batch_func,
+    sentry_data_category_t data_category, sentry_threadpool_t *threadpool)
 {
     sentry_batcher_t *batcher = SENTRY_MAKE(sentry_batcher_t);
-    if (!batcher) {
+    if (!batcher || !threadpool) {
+        sentry_free(batcher);
         return NULL;
     }
     batcher->refcount = 1;
     batcher->batch_func = batch_func;
     batcher->data_category = data_category;
     batcher->thread_state = (long)SENTRY_BATCHER_THREAD_STOPPED;
+    batcher->threadpool = threadpool;
     sentry__waitable_flag_init(&batcher->request_flush);
     sentry__thread_init(&batcher->batching_thread);
     return batcher;
@@ -154,6 +156,80 @@ rotate_buffer(sentry_batcher_t *batcher, long old_idx)
     return true;
 }
 
+typedef struct {
+    sentry_batcher_t *batcher;
+    sentry_envelope_t *envelope;
+    sentry_value_t items;
+} sentry_batch_task_t;
+
+static void
+batch_task_exec(void *task_data)
+{
+    sentry_batch_task_t *task = task_data;
+    task->batcher->batch_func(task->envelope, task->items);
+    sentry_value_decref(task->items);
+    task->items = sentry_value_new_null();
+}
+
+static void
+batch_task_complete(void *task_data)
+{
+    sentry_batch_task_t *task = task_data;
+    if (sentry__atomic_fetch(&task->batcher->crash_flush)) {
+        sentry__run_write_envelope(task->batcher->run, task->envelope);
+        sentry_envelope_free(task->envelope);
+    } else if (!sentry__run_should_skip_upload(task->batcher->run)) {
+        // Normal operation: use transport for HTTP transmission
+        sentry__transport_send_envelope(
+            task->batcher->transport, task->envelope);
+    } else {
+        sentry_envelope_free(task->envelope);
+    }
+    task->envelope = NULL;
+}
+
+static void
+batch_task_cleanup(void *task_data)
+{
+    sentry_batch_task_t *task = task_data;
+    sentry_value_decref(task->items);
+    sentry_envelope_free(task->envelope);
+    sentry_free(task);
+}
+
+static void
+process_batch(sentry_batcher_t *batcher, sentry_value_t items, bool crash_safe)
+{
+    sentry_envelope_t *envelope = sentry__envelope_new_with_dsn(batcher->dsn);
+    if (crash_safe) {
+        // Write directly to disk to avoid transport queuing during crash
+        batcher->batch_func(envelope, items);
+        sentry__run_write_envelope(batcher->run, envelope);
+        sentry_envelope_free(envelope);
+        sentry_value_decref(items);
+        return;
+    }
+
+    sentry_batch_task_t *task = SENTRY_MAKE(sentry_batch_task_t);
+    if (!task) {
+        sentry_value_decref(items);
+        sentry_envelope_free(envelope);
+        return;
+    }
+
+    task->batcher = batcher;
+    task->envelope = envelope;
+    task->items = items;
+    if (sentry__threadpool_submit(batcher->threadpool, batch_task_exec,
+            batch_task_complete, batch_task_cleanup, task)
+        != 0) {
+        sentry_value_decref(items);
+        sentry_envelope_free(envelope);
+        sentry_free(task);
+        return;
+    }
+}
+
 bool
 sentry__batcher_flush(sentry_batcher_t *batcher, bool crash_safe)
 {
@@ -226,22 +302,7 @@ sentry__batcher_flush(sentry_batcher_t *batcher, bool crash_safe)
             }
             sentry_value_set_by_key(logs, "items", log_items);
 
-            sentry_envelope_t *envelope
-                = sentry__envelope_new_with_dsn(batcher->dsn);
-            batcher->batch_func(envelope, logs);
-
-            if (crash_safe) {
-                // Write directly to disk to avoid transport queuing during
-                // crash
-                sentry__run_write_envelope(batcher->run, envelope);
-                sentry_envelope_free(envelope);
-            } else if (!sentry__run_should_skip_upload(batcher->run)) {
-                // Normal operation: use transport for HTTP transmission
-                sentry__transport_send_envelope(batcher->transport, envelope);
-            } else {
-                sentry_envelope_free(envelope);
-            }
-            sentry_value_decref(logs);
+            process_batch(batcher, logs, crash_safe);
         }
 
         // Reset the drained buffer...
@@ -433,12 +494,14 @@ sentry__batcher_shutdown(sentry_batcher_t *batcher, uint64_t timeout)
 
     // Perform final flush to ensure any remaining items are sent
     sentry__batcher_flush(batcher, false);
+    sentry__threadpool_flush(batcher->threadpool);
 }
 
 void
 sentry__batcher_flush_crash_safe(sentry_batcher_t *batcher)
 {
     // Check if batcher is initialized
+    sentry__atomic_store(&batcher->crash_flush, 1);
     const long state = sentry__atomic_fetch(&batcher->thread_state);
     if (state == SENTRY_BATCHER_THREAD_STOPPED) {
         return;
@@ -471,6 +534,7 @@ sentry__batcher_force_flush_wait(sentry_batcher_t *batcher)
         }
         // retry if the batcher thread (woken by _begin) wins the race
     } while (!sentry__batcher_flush(batcher, false));
+    sentry__threadpool_flush(batcher->threadpool);
 }
 
 #ifdef SENTRY_UNITTEST

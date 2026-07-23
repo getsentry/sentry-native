@@ -581,6 +581,92 @@ SENTRY_TEST(bgworker_delayed_shutdown)
     sentry__bgworker_decref(bgw);
 }
 
+struct threadpool_test_state {
+    volatile long first_started;
+    volatile long release_first;
+    volatile long second_ran;
+    bool first_timed_out;
+    int completion_order[2];
+    int completion_count;
+    int cleanup_count;
+};
+
+struct threadpool_test_task {
+    struct threadpool_test_state *state;
+    int id;
+};
+
+static void
+threadpool_test_exec(void *data)
+{
+    struct threadpool_test_task *task = data;
+    struct threadpool_test_state *state = task->state;
+    const uint64_t deadline = sentry__monotonic_time() + 1000;
+
+    if (task->id == 0) {
+        sentry__atomic_store(&state->first_started, 1);
+        while (!sentry__atomic_fetch(&state->release_first)) {
+            if (sentry__monotonic_time() >= deadline) {
+                state->first_timed_out = true;
+                break;
+            }
+            sleep_ms(1);
+        }
+    } else {
+        while (!sentry__atomic_fetch(&state->first_started)
+            && sentry__monotonic_time() < deadline) {
+            sleep_ms(1);
+        }
+        sentry__atomic_store(&state->second_ran, 1);
+        sentry__atomic_store(&state->release_first, 1);
+    }
+}
+
+static void
+threadpool_test_complete(void *data)
+{
+    struct threadpool_test_task *task = data;
+    struct threadpool_test_state *state = task->state;
+    state->completion_order[state->completion_count++] = task->id;
+}
+
+static void
+threadpool_test_cleanup(void *data)
+{
+    struct threadpool_test_task *task = data;
+    task->state->cleanup_count++;
+}
+
+SENTRY_TEST(threadpool_ordered_parallel)
+{
+    struct threadpool_test_state state = { 0 };
+    struct threadpool_test_task tasks[] = {
+        { &state, 0 },
+        { &state, 1 },
+    };
+    sentry_threadpool_t *pool = sentry__threadpool_new(2);
+    TEST_ASSERT(!!pool);
+    TEST_ASSERT(sentry__threadpool_start(pool) == 0);
+
+    for (size_t i = 0; i < 2; i++) {
+        TEST_ASSERT(
+            sentry__threadpool_submit(pool, threadpool_test_exec,
+                threadpool_test_complete, threadpool_test_cleanup, &tasks[i])
+            == 0);
+    }
+    sentry__threadpool_flush(pool);
+
+    TEST_CHECK(sentry__atomic_fetch(&state.second_ran));
+    TEST_CHECK(!state.first_timed_out);
+    TEST_CHECK_INT_EQUAL(state.completion_count, 2);
+    TEST_CHECK_INT_EQUAL(state.completion_order[0], 0);
+    TEST_CHECK_INT_EQUAL(state.completion_order[1], 1);
+    TEST_CHECK_INT_EQUAL(state.cleanup_count, 2);
+
+    sentry__threadpool_shutdown(pool);
+    sentry__threadpool_free(pool);
+}
+
 SENTRY_TEST(cond_wait_timeout_overflow)
 {
 #if !(defined(SENTRY_PLATFORM_MACOS)                                           \

@@ -627,10 +627,11 @@ sentry_scope_capture_log(sentry_scope_t *scope, sentry_level_t level,
 }
 
 void
-sentry__logs_startup(const sentry_options_t *options)
+sentry__logs_startup(
+    const sentry_options_t *options, sentry_threadpool_t *threadpool)
 {
     sentry_batcher_t *batcher = sentry__batcher_new(
-        sentry__envelope_add_logs, SENTRY_DATA_CATEGORY_LOG_ITEM);
+        sentry__envelope_add_logs, SENTRY_DATA_CATEGORY_LOG_ITEM, threadpool);
     if (!batcher) {
         SENTRY_WARN("failed to allocate logs batcher");
         return;

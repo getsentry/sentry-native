@@ -2,6 +2,7 @@
 #include "sentry_alloc.h"
 #include "sentry_envelope.h"
 #include "sentry_options.h"
+#include "sentry_sync.h"
 
 struct sentry_transport_s {
     void (*send_envelope_func)(sentry_envelope_t *envelope, void *state);
@@ -13,8 +14,17 @@ struct sentry_transport_s {
     void (*retry_func)(void *state);
     void (*cleanup_func)(const sentry_options_t *options, void *state);
     void *state;
+    sentry_run_t *run;
+    long suspended;
     bool running;
 };
+
+static void
+send_null_envelope(sentry_envelope_t *envelope, void *state)
+{
+    (void)state;
+    sentry_envelope_free(envelope);
+}
 
 sentry_transport_t *
 sentry_transport_new(
@@ -27,6 +37,12 @@ sentry_transport_new(
     transport->send_envelope_func = send_func;
 
     return transport;
+}
+
+sentry_transport_t *
+sentry__transport_new_null(void)
+{
+    return sentry_transport_new(send_null_envelope);
 }
 void
 sentry_transport_set_state(sentry_transport_t *transport, void *state)
@@ -73,14 +89,23 @@ sentry__transport_send_envelope(
         sentry_envelope_free(envelope);
         return;
     }
+    if (sentry__atomic_fetch(&transport->suspended)) {
+        sentry__run_write_envelope(transport->run, envelope);
+        sentry_envelope_free(envelope);
+        return;
+    }
     SENTRY_DEBUG("sending envelope");
     transport->send_envelope_func(envelope, transport->state);
+    if (sentry__atomic_fetch(&transport->suspended)) {
+        sentry__transport_dump_queue(transport, transport->run);
+    }
 }
 
 int
 sentry__transport_startup(
     sentry_transport_t *transport, const sentry_options_t *options)
 {
+    transport->run = sentry__run_incref(options->run);
     if (transport->startup_func) {
         SENTRY_DEBUG("starting transport");
         int rv = transport->startup_func(options, transport->state);
@@ -132,6 +157,15 @@ sentry__transport_dump_queue(sentry_transport_t *transport, sentry_run_t *run)
 }
 
 void
+sentry__transport_suspend(sentry_transport_t *transport)
+{
+    if (!transport) {
+        return;
+    }
+    sentry__atomic_store(&transport->suspended, 1);
+}
+
+void
 sentry_transport_free(sentry_transport_t *transport)
 {
     if (!transport) {
@@ -140,6 +174,7 @@ sentry_transport_free(sentry_transport_t *transport)
     if (transport->free_func) {
         transport->free_func(transport->state);
     }
+    sentry__run_free(transport->run);
     sentry_free(transport);
 }
 

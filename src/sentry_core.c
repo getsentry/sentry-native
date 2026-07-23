@@ -12,8 +12,6 @@
 #include "sentry_database.h"
 #include "sentry_envelope.h"
 #include "sentry_hint.h"
-#include "sentry_logs.h"
-#include "sentry_metrics.h"
 #include "sentry_options.h"
 #include "sentry_path.h"
 #include "sentry_process.h"
@@ -22,6 +20,7 @@
 #include "sentry_session.h"
 #include "sentry_string.h"
 #include "sentry_sync.h"
+#include "sentry_telemetry.h"
 #include "sentry_tracing.h"
 #include "sentry_transport.h"
 #include "sentry_tsan.h"
@@ -161,6 +160,10 @@ sentry_init(sentry_options_t *options)
     }
 
     transport = options->transport;
+    if (!transport) {
+        transport = sentry__transport_new_null();
+        options->transport = transport;
+    }
     sentry_path_t *database_path = options->database_path;
     options->database_path = sentry__path_absolute(database_path);
     if (options->database_path) {
@@ -199,7 +202,12 @@ sentry_init(sentry_options_t *options)
             // Also, we want to continue - crash capture doesn't need transport.
             sentry__transport_shutdown(transport, 0);
             sentry_options_set_transport(options, NULL);
-            transport = NULL;
+            transport = options->transport;
+            if (!transport
+                || sentry__transport_startup(transport, options) != 0) {
+                SENTRY_WARN("failed to initialize fallback transport");
+                goto fail;
+            }
 #else
             SENTRY_WARN("failed to initialize transport");
             goto fail;
@@ -278,13 +286,8 @@ sentry_init(sentry_options_t *options)
         sentry_start_session();
     }
 
-    if (options->enable_logs) {
-        sentry__logs_startup(options);
-    }
-
-    if (options->enable_metrics) {
-        sentry__metrics_startup(options);
-    }
+    sentry__telemetry_shutdown(0);
+    sentry__telemetry_startup(options);
 
     if (options->enable_app_hang_tracking) {
         sentry__app_hang_monitor_start(options);
@@ -309,20 +312,7 @@ sentry_flush(uint64_t timeout)
     int rv = 0;
     SENTRY_WITH_OPTIONS (options) {
         // flush logs and metrics in parallel
-        uintptr_t ltoken = 0;
-        uintptr_t mtoken = 0;
-        if (options->enable_logs) {
-            ltoken = sentry__logs_force_flush_begin();
-        }
-        if (options->enable_metrics) {
-            mtoken = sentry__metrics_force_flush_begin();
-        }
-        if (ltoken) {
-            sentry__logs_force_flush_wait(ltoken);
-        }
-        if (mtoken) {
-            sentry__metrics_force_flush_wait(mtoken);
-        }
+        sentry__telemetry_force_flush();
         rv = sentry__transport_flush(options->transport, timeout);
     }
     return rv;
@@ -341,12 +331,7 @@ sentry_close(void)
             }
         }
 
-        if (options->enable_logs) {
-            sentry__logs_shutdown(options->shutdown_timeout);
-        }
-        if (options->enable_metrics) {
-            sentry__metrics_shutdown(options->shutdown_timeout);
-        }
+        sentry__telemetry_shutdown(options->shutdown_timeout);
     }
 
     // Stop it before locking options to prevent a deadlock. The watchdog
