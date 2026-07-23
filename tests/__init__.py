@@ -29,6 +29,7 @@ SENTRY_VERSION = "0.15.4"
 REPLAY_ID = "deadbeefdeadbeefdeadbeefdeadbeef"
 
 from .assertions import wait_for_daemon as _wait_for_daemon
+from .conditions import is_asan
 
 
 def make_dsn(httpserver, auth="uiaeosnrtdy", id=123456, proxy_host=False):
@@ -194,7 +195,14 @@ def run(
         "./{}".format(exe) if sys.platform != "win32" else "{}\\{}.exe".format(cwd, exe)
     ]
     if "asan" in os.environ.get("RUN_ANALYZER", ""):
-        env["ASAN_OPTIONS"] = "detect_leaks=1:detect_invalid_join=0"
+        asan_options = env.get("ASAN_OPTIONS", "")
+        if "detect_leaks" not in asan_options:
+            env["ASAN_OPTIONS"] = ":".join(
+                filter(
+                    None,
+                    [asan_options, "detect_leaks=1:detect_invalid_join=0"],
+                )
+            )
         env["LSAN_OPTIONS"] = "suppressions={}".format(
             os.path.join(sourcedir, "tests", "leaks.txt")
         )
@@ -241,6 +249,32 @@ def run(
                 cmd=" ".join(cmd), args=" ".join(args)
             )
         ) from None
+
+
+def run_crash(tmp_path, exe, args, env, **kwargs):
+    """
+    Run a crash test.
+
+    When running under ASAN, we configure it to not intercept crash signals
+    so that our native crash handler can run and capture the crash.
+    """
+    # When running under ASAN, disable ASAN's signal handling so our crash
+    # handler can run. ASAN would otherwise intercept SIGSEGV/SIGABRT/etc
+    # and terminate the process before our handler completes.
+    if is_asan:
+        # Preserve existing ASAN_OPTIONS and add signal handling overrides
+        asan_opts = env.get("ASAN_OPTIONS", "")
+        # Disable handling of crash signals so our handler can run
+        asan_signal_opts = (
+            "handle_segv=0:handle_sigbus=0:handle_abort=0:"
+            "handle_sigfpe=0:handle_sigill=0:allow_user_segv_handler=1"
+        )
+        if asan_opts:
+            env = dict(env, ASAN_OPTIONS=f"{asan_opts}:{asan_signal_opts}")
+        else:
+            env = dict(env, ASAN_OPTIONS=asan_signal_opts)
+
+    run(tmp_path, exe, args, expect_failure=True, env=env, **kwargs)
 
 
 def check_output(*args, **kwargs):

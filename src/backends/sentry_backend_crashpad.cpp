@@ -368,7 +368,14 @@ flush_scope_from_handler(
     auto state = static_cast<crashpad_state_t *>(options->backend->data);
 
     // this blocks any further calls to `crashpad_backend_flush_scope`
-    state->crashed.store(true, std::memory_order_relaxed);
+    if (state->crashed.exchange(true, std::memory_order_relaxed)) {
+#    ifdef SENTRY_PLATFORM_LINUX
+        // Re-entry cannot flush again because the flush lock is never released
+        // after a crash. PID 1 can hit this when it survives crashpad's
+        // default-signal re-raise.
+        _exit(EXIT_FAILURE);
+#    endif
+    }
 
     // busy-wait until any in-progress scope flushes are finished
     bool expected = false;

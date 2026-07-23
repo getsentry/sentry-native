@@ -21,14 +21,14 @@ jobs:
     name: Lint
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - run: make style
 
   build-ios-inproc:
     name: Xcode Build for inproc on iOS
     runs-on: macos-latest
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           submodules: "recursive"
       - run: |
@@ -39,7 +39,7 @@ jobs:
     name: Xcode Build for breakpad on iOS
     runs-on: macos-latest
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           submodules: "recursive"
       - run: |
@@ -252,7 +252,7 @@ jobs:
       SENTRY_TEST_OOM_LIMIT: "4095" # ~4GB, to speed up OOM tests
 
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           submodules: recursive
 
@@ -261,7 +261,7 @@ jobs:
         run: |
           echo "Runner arch: $(uname -m)"
 
-      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: ${{ !env['SYSTEM_PYTHON'] && '3.12' || '' }}
           cache: "pip"
@@ -410,7 +410,7 @@ jobs:
 
       - name: Setup Java Version
         if: ${{ env['ANDROID_API'] }}
-        uses: actions/setup-java@0f481fcb613427c0f801b606911222b5b6f3083a # v5
+        uses: actions/setup-java@03ad4de0992f5dab5e18fcb136590ce7c4a0ac95 # v5
         with:
           distribution: "temurin"
           java-version: "17"
@@ -421,7 +421,7 @@ jobs:
 
       - name: Setup .NET for Android
         if: ${{ env['ANDROID_API'] }}
-        uses: actions/setup-dotnet@9a946fdbd5fb07b82b2f5a4466058b876ab72bb2 # v5
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v5
         with:
           dotnet-version: '10.0.x'
 
@@ -502,12 +502,12 @@ jobs:
     # run on master or the release branch
     if: ${{ needs.test.result == 'success' && github.event_name == 'push' }}
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           submodules: recursive
 
       - name: Setup Java Version
-        uses: actions/setup-java@0f481fcb613427c0f801b606911222b5b6f3083a # v5
+        uses: actions/setup-java@03ad4de0992f5dab5e18fcb136590ce7c4a0ac95 # v5
         with:
           distribution: "temurin"
           java-version: "17"
