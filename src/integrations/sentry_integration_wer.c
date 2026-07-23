@@ -176,7 +176,8 @@ wer_remove_attachment(void *UNUSED(data), sentry_attachment_t *attachment)
         return;
     }
 
-    if (attachment->buf) {
+    if (attachment->buf && attachment->buf_len > 0
+        && attachment->buf_len <= WER_MAX_MEM_BLOCK_SIZE) {
         HRESULT hr = WerUnregisterMemoryBlock((PVOID)attachment->buf);
         if (FAILED(hr)) {
             SENTRY_WARNF("WerUnregisterMemoryBlock failed: hr=0x%08lx",
