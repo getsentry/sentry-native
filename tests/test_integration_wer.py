@@ -8,8 +8,16 @@ from pathlib import Path
 
 import pytest
 
-from . import run
-from .assertions import wait_for
+from . import Envelope, make_dsn, run
+from .assertions import (
+    assert_breakpad_crash,
+    assert_crashpad_upload,
+    assert_event_meta,
+    assert_inproc_crash,
+    assert_minidump,
+    assert_native_crash,
+    wait_for,
+)
 from .conditions import has_breakpad, has_crashpad, has_native, is_qemu
 
 pytestmark = [
@@ -115,6 +123,100 @@ def wait_for_wer_report(store, test_id):
     )
 
 
+def assert_sentry_event(httpserver, backend, crash_arg):
+    assert len(httpserver.log) >= 1
+
+    if backend == "crashpad":
+        assert httpserver.log[0][0].path == "/api/123456/minidump/"
+        attachments = assert_crashpad_upload(httpserver.log[0][0])
+        assert attachments.event["event_id"]
+        return
+
+    envelope = Envelope.deserialize(httpserver.log[0][0].get_data())
+    event = envelope.get_event()
+    assert event is not None
+    assert event["event_id"]
+    assert_event_meta(event, integration=backend)
+
+    if backend == "inproc":
+        assert_inproc_crash(envelope)
+    elif backend == "breakpad":
+        assert_minidump(envelope)
+        assert_breakpad_crash(envelope)
+    elif backend == "native":
+        assert_native_crash(envelope)
+
+
+def run_wer_crash(cmake, backend, crash_arg, httpserver=None):
+    build_options = {
+        "SENTRY_BACKEND": backend,
+        "SENTRY_INTEGRATION_WER": "ON",
+    }
+    if httpserver is None:
+        build_options["SENTRY_TRANSPORT"] = "none"
+
+    tmp_path = cmake(
+        ["sentry_example"],
+        build_options,
+    )
+
+    env = None
+    if httpserver is not None:
+        env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
+        if backend == "crashpad":
+            httpserver.expect_oneshot_request(
+                "/api/123456/minidump/"
+            ).respond_with_data("OK")
+        else:
+            httpserver.expect_oneshot_request(
+                "/api/123456/envelope/"
+            ).respond_with_data("OK")
+
+    run_args = ["e2e-test", crash_arg]
+    if backend == "crashpad":
+        run_args.append("crashpad-wait-for-upload")
+
+    if httpserver is None:
+        completed = run(
+            tmp_path,
+            "sentry_example",
+            run_args,
+            expect_failure=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+        )
+    else:
+        with httpserver.wait(timeout=10) as waiting:
+            completed = run(
+                tmp_path,
+                "sentry_example",
+                run_args,
+                expect_failure=True,
+                env=env,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+            )
+            if backend in ("breakpad", "inproc"):
+                run(tmp_path, "sentry_example", ["no-setup"], env=env)
+
+        assert waiting.result
+        assert_sentry_event(httpserver, backend, crash_arg)
+
+    test_id = None
+    for line in completed.stdout.splitlines():
+        if line.startswith("TEST_ID:"):
+            test_id = line.removeprefix("TEST_ID:")
+            break
+    assert test_id, completed.stdout
+
+    report_path, report = wait_for_wer_report(WerStore(), test_id)
+    assert report_path.name == "Report.wer"
+
+    return report
+
+
 @pytest.mark.parametrize(
     "backend",
     [
@@ -127,7 +229,7 @@ def wait_for_wer_report(store, test_id):
                     not has_breakpad or is_qemu, reason="breakpad backend not available"
                 ),
                 pytest.mark.xfail(
-                    reason="breakpad swallows the exception",
+                    reason="breakpad swallows SEH exceptions",
                     strict=True,
                 ),
             ],
@@ -139,7 +241,7 @@ def wait_for_wer_report(store, test_id):
                     not has_crashpad, reason="crashpad backend not available"
                 ),
                 pytest.mark.xfail(
-                    reason="crashpad handler terminates the process",
+                    reason="crashpad terminates the process",
                     strict=True,
                 ),
             ],
@@ -149,39 +251,98 @@ def wait_for_wer_report(store, test_id):
             marks=pytest.mark.skipif(
                 not has_native or is_qemu, reason="native backend not available"
             ),
-            id="native",
         ),
     ],
 )
 def test_wer_custom_metadata(cmake, backend):
-    tmp_path = cmake(
-        ["sentry_example"],
-        {
-            "SENTRY_BACKEND": backend,
-            "SENTRY_TRANSPORT": "none",
-            "SENTRY_INTEGRATION_WER": "ON",
-        },
-    )
+    report = run_wer_crash(cmake, backend, "crash")
 
-    completed = run(
-        tmp_path,
-        "sentry_example",
-        ["e2e-test", "crash"],
-        expect_failure=True,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-        text=True,
-    )
-
-    test_id = None
-    for line in completed.stdout.splitlines():
-        if line.startswith("TEST_ID:"):
-            test_id = line.removeprefix("TEST_ID:")
-            break
-    assert test_id, completed.stdout
-
-    report_path, report = wait_for_wer_report(WerStore(), test_id)
-    assert report_path.name == "Report.wer"
     assert "expected-tag" in report
     assert "some value" in report
     assert "not-expected-tag" not in report
+
+
+@pytest.mark.parametrize(
+    "backend,crash_arg",
+    [
+        pytest.param("inproc", "crash"),
+        pytest.param(
+            "inproc",
+            "fastfail",
+            marks=pytest.mark.xfail(
+                reason="inproc does not capture WER exceptions",
+                strict=True,
+            ),
+        ),
+        pytest.param(
+            "breakpad",
+            "crash",
+            marks=[
+                pytest.mark.skipif(
+                    not has_breakpad or is_qemu, reason="breakpad backend not available"
+                ),
+                pytest.mark.xfail(
+                    reason="breakpad swallows SEH exceptions",
+                    strict=True,
+                ),
+            ],
+        ),
+        pytest.param(
+            "breakpad",
+            "fastfail",
+            marks=[
+                pytest.mark.skipif(
+                    not has_breakpad or is_qemu, reason="breakpad backend not available"
+                ),
+                pytest.mark.xfail(
+                    reason="breakpad does not capture WER exceptions",
+                    strict=True,
+                ),
+            ],
+        ),
+        pytest.param(
+            "crashpad",
+            "crash",
+            marks=[
+                pytest.mark.skipif(
+                    not has_crashpad, reason="crashpad backend not available"
+                ),
+                pytest.mark.xfail(
+                    reason="crashpad terminates the process",
+                    strict=True,
+                ),
+            ],
+        ),
+        pytest.param(
+            "crashpad",
+            "fastfail",
+            marks=[
+                pytest.mark.skipif(
+                    not has_crashpad, reason="crashpad backend not available"
+                ),
+                pytest.mark.xfail(
+                    reason="crashpad terminates the process",
+                    strict=True,
+                ),
+            ],
+        ),
+        pytest.param(
+            "native",
+            "crash",
+            marks=pytest.mark.skipif(
+                not has_native or is_qemu, reason="native backend not available"
+            ),
+        ),
+        pytest.param(
+            "native",
+            "fastfail",
+            marks=pytest.mark.skipif(
+                not has_native or is_qemu, reason="native backend not available"
+            ),
+        ),
+    ],
+)
+def test_wer_compatibility(cmake, httpserver, backend, crash_arg):
+    report = run_wer_crash(cmake, backend, crash_arg, httpserver)
+
+    assert "test.id" in report.lower()

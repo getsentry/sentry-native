@@ -15,6 +15,7 @@
 - Crashpad/Windows: flush Windows attachment IPC responses. ([#1895](https://github.com/getsentry/sentry-native/pull/1895))
 - Crashpad/Linux: terminate Linux handler re-entry. ([#1894](https://github.com/getsentry/sentry-native/pull/1894))
 - Android: create the outbox directory before writing NDK crash envelopes into it, so envelopes are not lost when the head SDK creates the outbox lazily. ([#1889](https://github.com/getsentry/sentry-native/pull/1889))
+- Native/Windows: let WER finish native crash reports to preserve WER custom metadata. ([#1904](https://github.com/getsentry/sentry-native/pull/1904))
 
 ## 0.15.4
 

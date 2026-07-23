@@ -161,8 +161,8 @@ process_wer_exception(
                 }
                 Sleep(SENTRY_CRASH_HANDLER_POLL_INTERVAL_MS);
             }
-            TerminateProcess(exception_info->hProcess,
-                exception_info->exceptionRecord.ExceptionCode);
+            // Return control to WER so it can finish report generation,
+            // including custom metadata registered by the crashed process.
         }
     }
 
