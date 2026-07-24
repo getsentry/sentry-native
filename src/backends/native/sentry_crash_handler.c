@@ -97,6 +97,8 @@ static const size_t g_crash_signal_count
 
 // Global state (signal-safe)
 static sentry_crash_ipc_t *g_crash_ipc = NULL;
+static sentry_handler_strategy_t g_handler_strategy
+    = SENTRY_HANDLER_STRATEGY_DEFAULT;
 static struct sigaction g_previous_handlers[16];
 static stack_t g_signal_stack = { 0 };
 
@@ -118,9 +120,6 @@ reraise_signal(int signum)
 static void
 invoke_previous_signal_handler(int signum, siginfo_t *info, void *context)
 {
-    // Re-enable previous signal handlers before re-raising to prevent loops
-    reset_signal_handlers();
-
     for (size_t i = 0; i < g_crash_signal_count; i++) {
         if (g_crash_signals[i] != signum) {
             continue;
@@ -292,10 +291,35 @@ safe_build_stack_path(
 static void
 crash_signal_handler(int signum, siginfo_t *info, void *context)
 {
+    ucontext_t *uctx = (ucontext_t *)context;
+
+#    if defined(SENTRY_PLATFORM_LINUX) && !defined(SENTRY_PLATFORM_ANDROID)
+    if (g_handler_strategy == SENTRY_HANDLER_STRATEGY_CHAIN_AT_START
+        && signum != SIGABRT && uctx) {
+        uintptr_t ip = sentry__ucontext_get_ip(uctx);
+        uintptr_t sp = sentry__ucontext_get_sp(uctx);
+
+        invoke_previous_signal_handler(signum, info, context);
+
+        // If the previous handler changed the instruction or stack pointer,
+        // it converted the signal into a runtime-level exception and
+        // transferred execution away from the faulting instruction. In that
+        // case this was not a native crash for Sentry to capture.
+        if (ip != sentry__ucontext_get_ip(uctx)
+            || sp != sentry__ucontext_get_sp(uctx)) {
+            return;
+        }
+    }
+#    endif
+
     sentry_crash_ipc_t *ipc = g_crash_ipc;
     if (!ipc || !ipc->shmem) {
         // No IPC available, forward to the previous handler
-        invoke_previous_signal_handler(signum, info, context);
+        // Re-enable previous signal handlers before re-raising to prevent loops
+        reset_signal_handlers();
+        if (g_handler_strategy != SENTRY_HANDLER_STRATEGY_CHAIN_AT_START) {
+            invoke_previous_signal_handler(signum, info, context);
+        }
         // The previous handler returned, fall back to default termination
         reraise_signal(signum);
         return;
@@ -309,7 +333,6 @@ crash_signal_handler(int signum, siginfo_t *info, void *context)
     }
 
     sentry_crash_context_t *ctx = ipc->shmem;
-    ucontext_t *uctx = (ucontext_t *)context;
 
     // Fill crash context
     ctx->crashed_pid = getpid();
@@ -833,7 +856,12 @@ daemon_handling:
         }
     }
 
-    invoke_previous_signal_handler(signum, info, context);
+    // Re-enable previous signal handlers before re-raising to prevent loops
+    reset_signal_handlers();
+
+    if (g_handler_strategy != SENTRY_HANDLER_STRATEGY_CHAIN_AT_START) {
+        invoke_previous_signal_handler(signum, info, context);
+    }
 
 #    if defined(SENTRY_PLATFORM_MACOS)
     if (!ctx->system_crash_reporter_enabled) {
@@ -848,13 +876,15 @@ daemon_handling:
 }
 
 int
-sentry__crash_handler_init(sentry_crash_ipc_t *ipc)
+sentry__crash_handler_init(
+    sentry_crash_ipc_t *ipc, sentry_handler_strategy_t strategy)
 {
     if (!ipc) {
         return -1;
     }
 
     g_crash_ipc = ipc;
+    g_handler_strategy = strategy;
 
     // Set up signal stack
     g_signal_stack.ss_sp = sentry_malloc(SENTRY_CRASH_SIGNAL_STACK_SIZE);
@@ -1051,11 +1081,13 @@ crash_exception_filter(EXCEPTION_POINTERS *exception_info)
 }
 
 int
-sentry__crash_handler_init(sentry_crash_ipc_t *ipc)
+sentry__crash_handler_init(
+    sentry_crash_ipc_t *ipc, sentry_handler_strategy_t strategy)
 {
     if (!ipc) {
         return -1;
     }
+    (void)strategy;
 
     g_crash_ipc = ipc;
 

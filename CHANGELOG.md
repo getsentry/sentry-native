@@ -20,6 +20,7 @@
 - Native/macOS: write signal-handler-captured thread names into the minidump's ThreadNames stream when `task_for_pid` fails (e.g. sandboxed apps), so thread names resolve in crash events from packaged apps. ([#1905](https://github.com/getsentry/sentry-native/pull/1905))
 - Native: don't dump the crash daemon's log to `stderr` on shutdown unless debug logging is enabled, so terminal applications stay quiet when `debug` is off. ([#1910](https://github.com/getsentry/sentry-native/pull/1910))
 - Native/Windows: capture heap corruption crashes reported as `STATUS_HEAP_CORRUPTION` (`0xC0000374`). ([#1909](https://github.com/getsentry/sentry-native/pull/1909))
+- Native/Linux: add support for `sentry_options_set_handler_strategy(SENTRY_HANDLER_STRATEGY_CHAIN_AT_START)`. ([#1912](https://github.com/getsentry/sentry-native/pull/1912))
 
 ## 0.15.4
 
