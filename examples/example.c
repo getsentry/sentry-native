@@ -414,6 +414,34 @@ trigger_stack_buffer_overrun()
 }
 
 static void
+trigger_heap_corruption()
+{
+    __try {
+        HANDLE heap = HeapCreate(0, 0, 0);
+        if (!heap) {
+            abort();
+        }
+        if (!HeapSetInformation(
+                heap, HeapEnableTerminationOnCorruption, NULL, 0)) {
+            abort();
+        }
+        void *addr = HeapAlloc(heap, 0, 0x1000);
+        if (!addr) {
+            abort();
+        }
+
+        char *addr_mutable = (char *)addr;
+        memset(addr_mutable - sizeof(addr), 0xCC, sizeof(addr));
+
+        HeapFree(heap, 0, addr);
+        HeapDestroy(heap);
+    } __except (EXCEPTION_EXECUTE_HANDLER) {
+        printf("Heap corruption exception should not be caught");
+    }
+    abort();
+}
+
+static void
 trigger_fastfail_crash()
 {
     // this bypasses WINDOWS SEH and will only be caught with the
@@ -1216,6 +1244,9 @@ main(int argc, char **argv)
     }
     if (has_arg(argc, argv, "stack-buffer-overrun")) {
         trigger_stack_buffer_overrun();
+    }
+    if (has_arg(argc, argv, "heap-corruption")) {
+        trigger_heap_corruption();
     }
 #endif
     if (has_arg(argc, argv, "assert")) {
