@@ -163,6 +163,14 @@ def assert_event_meta(
     if sdk_override is not None:
         expected_sdk["name"] = sdk_override
 
+    # ignore e2e test tags
+    event = event.copy()
+    event["tags"] = {
+        key: value
+        for key, value in event["tags"].items()
+        if not key.startswith("test.")
+    }
+
     assert_matches(event, expected)
     assert event["user"]["username"] == "some_name"
     assert INSTALLATION_ID_RE.match(event["user"]["id"])
