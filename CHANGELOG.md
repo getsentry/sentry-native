@@ -16,6 +16,9 @@
 - Crashpad/Linux: terminate Linux handler re-entry. ([#1894](https://github.com/getsentry/sentry-native/pull/1894))
 - Android: create the outbox directory before writing NDK crash envelopes into it, so envelopes are not lost when the head SDK creates the outbox lazily. ([#1889](https://github.com/getsentry/sentry-native/pull/1889))
 - Native/Windows: let WER finish native crash reports to preserve WER custom metadata. ([#1904](https://github.com/getsentry/sentry-native/pull/1904))
+- Native/macOS: write signal-handler-captured thread names into the minidump's ThreadNames stream when `task_for_pid` fails (e.g. sandboxed apps), so thread names resolve in crash events from packaged apps. ([#1905](https://github.com/getsentry/sentry-native/pull/1905))
+- Native: don't dump the crash daemon's log to `stderr` on shutdown unless debug logging is enabled, so terminal applications stay quiet when `debug` is off. ([#1910](https://github.com/getsentry/sentry-native/pull/1910))
+- Native/Windows: capture heap corruption crashes reported as `STATUS_HEAP_CORRUPTION` (`0xC0000374`). ([#1909](https://github.com/getsentry/sentry-native/pull/1909))
 
 ## 0.15.4
 
