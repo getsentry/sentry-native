@@ -390,9 +390,9 @@ SENTRY_TEST(client_report_queue_overflow)
     SENTRY_TEST_OPTIONS_NEW(options);
     sentry_init(options);
 
-    sentry_batcher_t *batcher
-        = sentry__batcher_new(dummy_batch_func, SENTRY_DATA_CATEGORY_LOG_ITEM);
+    sentry_batcher_t *batcher = sentry__batcher_new(dummy_batch_func);
     TEST_CHECK(!!batcher);
+    sentry__batcher_set_category(batcher, SENTRY_DATA_CATEGORY_LOG_ITEM, NULL);
 
     // Fill all buffers (SENTRY_BATCHER_QUEUE_LENGTH is 5 in unit tests)
     for (int i = 0;

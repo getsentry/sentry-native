@@ -133,13 +133,15 @@ sentry_metrics_distribution(
 void
 sentry__metrics_startup(const sentry_options_t *options)
 {
-    sentry_batcher_t *batcher = sentry__batcher_new(
-        sentry__envelope_add_metrics, SENTRY_DATA_CATEGORY_TRACE_METRIC);
+    sentry_batcher_t *batcher
+        = sentry__batcher_new(sentry__envelope_add_metrics);
     if (!batcher) {
         SENTRY_WARN("failed to allocate metrics batcher");
         return;
     }
 
+    sentry__batcher_set_category(
+        batcher, SENTRY_DATA_CATEGORY_TRACE_METRIC, "sentry-metrics");
     sentry__batcher_startup(batcher, options);
     sentry_batcher_t *old = sentry__batcher_swap(&g_batcher, batcher);
 

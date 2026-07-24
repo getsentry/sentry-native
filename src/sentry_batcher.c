@@ -2,12 +2,14 @@
 #include "sentry_alloc.h"
 #include "sentry_cpu_relax.h"
 #include "sentry_options.h"
+#include "sentry_string.h"
 #include "sentry_utils.h"
 
 // The batcher thread sleeps for this interval between flush cycles.
 // When the timer fires and there are items in the buffer, they are flushed
 // regardless of how recently they were enqueued.
 #define SENTRY_BATCHER_FLUSH_INTERVAL_MS 5000
+#define SENTRY_BATCHER_THREAD_NAME "sentry-batcher"
 
 #ifdef SENTRY_UNITTEST
 #    ifdef SENTRY_PLATFORM_WINDOWS
@@ -20,8 +22,7 @@
 #endif
 
 sentry_batcher_t *
-sentry__batcher_new(
-    sentry_batch_func_t batch_func, sentry_data_category_t data_category)
+sentry__batcher_new(sentry_batch_func_t batch_func)
 {
     sentry_batcher_t *batcher = SENTRY_MAKE(sentry_batcher_t);
     if (!batcher) {
@@ -29,7 +30,6 @@ sentry__batcher_new(
     }
     batcher->refcount = 1;
     batcher->batch_func = batch_func;
-    batcher->data_category = data_category;
     batcher->thread_state = (long)SENTRY_BATCHER_THREAD_STOPPED;
     sentry__waitable_flag_init(&batcher->request_flush);
     sentry__thread_init(&batcher->batching_thread);
@@ -59,9 +59,22 @@ sentry__batcher_release(sentry_batcher_t *batcher)
     for (long i = 0; i < SENTRY_BATCHER_BUFFER_COUNT; i++) {
         buffer_drain(&batcher->buffers[i]);
     }
+    sentry_free(batcher->thread_name);
     sentry__dsn_decref(batcher->dsn);
     sentry__thread_free(&batcher->batching_thread);
     sentry_free(batcher);
+}
+
+void
+sentry__batcher_set_category(sentry_batcher_t *batcher,
+    sentry_data_category_t data_category, const char *thread_name)
+{
+    if (!batcher) {
+        return;
+    }
+    batcher->data_category = data_category;
+    sentry_free(batcher->thread_name);
+    batcher->thread_name = sentry__string_clone(thread_name);
 }
 
 static inline void
@@ -321,7 +334,10 @@ SENTRY_THREAD_FN
 batcher_thread_func(void *data)
 {
     sentry_batcher_t *batcher = data;
-    SENTRY_DEBUG("Starting batching thread");
+    const char *thread_name = batcher->thread_name ? batcher->thread_name
+                                                   : SENTRY_BATCHER_THREAD_NAME;
+    sentry__thread_setname(sentry__current_thread(), thread_name);
+    SENTRY_DEBUGF("Starting %s thread", thread_name);
 
     // Transition from STARTING to RUNNING using compare-and-swap
     // CAS ensures atomic state verification: only succeeds if state is STARTING
