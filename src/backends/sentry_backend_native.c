@@ -596,9 +596,12 @@ native_backend_shutdown(sentry_backend_t *backend)
     }
 #endif
 
-    // Dump daemon log file for debugging (especially useful in CI)
-    // Use same naming as shared memory to find the correct log file
-    if (state->ipc && state->ipc->shmem) {
+    // Dump daemon log file for debugging (especially useful in CI).
+    // This bypasses the SDK logger and writes straight to stderr, so it must
+    // only run when debug logging was enabled. When debug is off the daemon
+    // keeps logging to its file (at INFO level), but we stay silent on stderr
+    // rather than spamming the terminal on shutdown (see #1908).
+    if (state->ipc && state->ipc->shmem && state->ipc->shmem->debug_enabled) {
         char log_path[SENTRY_CRASH_MAX_PATH];
         int log_path_len = -1;
 
