@@ -1881,7 +1881,7 @@ SENTRY_API void sentry_options_set_system_crash_reporter_enabled(
  * `SENTRY_MINIDUMP_MODE_SMART` are recommended.
  *
  * On Windows, custom flags configured through
- * `sentry_options_set_windows_minidump_flags` take precedence over this
+ * `sentry_options_set_minidump_flags` take precedence over this
  * setting, regardless of call order.
  *
  * This setting only has an effect when using the `native` backend.
@@ -1905,7 +1905,7 @@ SENTRY_API void sentry_options_set_minidump_mode(
  *
  * This setting only has an effect when using the `native` backend on Windows.
  */
-SENTRY_API void sentry_options_set_windows_minidump_flags(
+SENTRY_API void sentry_options_set_minidump_flags(
     sentry_options_t *opts, sentry_minidump_flags_t flags);
 #endif
 

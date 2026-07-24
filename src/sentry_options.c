@@ -644,7 +644,7 @@ sentry_options_set_minidump_mode(
 
 #ifdef SENTRY_PLATFORM_WINDOWS
 void
-sentry_options_set_windows_minidump_flags(
+sentry_options_set_minidump_flags(
     sentry_options_t *opts, sentry_minidump_flags_t flags)
 {
     opts->minidump_flags = (int32_t)(flags & 0x01ffffff);

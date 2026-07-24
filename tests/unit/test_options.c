@@ -130,7 +130,7 @@ SENTRY_TEST(options_crash_reporting_mode_clamp)
     sentry_options_free(options);
 }
 
-SENTRY_TEST(options_windows_minidump_flags)
+SENTRY_TEST(options_minidump_flags)
 {
 #ifdef SENTRY_PLATFORM_WINDOWS
     SENTRY_TEST_OPTIONS_NEW(options);
@@ -141,7 +141,7 @@ SENTRY_TEST(options_windows_minidump_flags)
     // Flags configured after a mode take precedence.
     sentry_options_set_minidump_mode(
         options, SENTRY_MINIDUMP_MODE_STACK_ONLY);
-    sentry_options_set_windows_minidump_flags(options, 0x00000002);
+    sentry_options_set_minidump_flags(options, 0x00000002);
     TEST_CHECK_INT_EQUAL(
         options->minidump_mode, SENTRY_MINIDUMP_MODE_STACK_ONLY);
     TEST_CHECK_INT_EQUAL(options->minidump_flags, 0x00000002);
@@ -152,15 +152,15 @@ SENTRY_TEST(options_windows_minidump_flags)
     TEST_CHECK_INT_EQUAL(options->minidump_flags, 0x00000002);
 
     // Zero is a valid custom value corresponding to MiniDumpNormal.
-    sentry_options_set_windows_minidump_flags(options, 0);
+    sentry_options_set_minidump_flags(options, 0);
     TEST_CHECK_INT_EQUAL(options->minidump_flags, 0);
 
     // The complete set of valid MINIDUMP_TYPE flags fits in the field.
-    sentry_options_set_windows_minidump_flags(options, 0x01ffffff);
+    sentry_options_set_minidump_flags(options, 0x01ffffff);
     TEST_CHECK_INT_EQUAL(options->minidump_flags, 0x01ffffff);
 
     // Unsupported bits are discarded before storing the flags.
-    sentry_options_set_windows_minidump_flags(options, UINT32_MAX);
+    sentry_options_set_minidump_flags(options, UINT32_MAX);
     TEST_CHECK_INT_EQUAL(options->minidump_flags, 0x01ffffff);
 
     sentry_options_free(options);

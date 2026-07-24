@@ -406,7 +406,7 @@ SENTRY_TEST(crash_context_options_propagation)
         options, SENTRY_CRASH_UPLOAD_MODE_ASYNC);
     sentry_options_set_transfer_timeout(options, 45000);
 #    ifdef SENTRY_PLATFORM_WINDOWS
-    sentry_options_set_windows_minidump_flags(options, 0x00000006);
+    sentry_options_set_minidump_flags(options, 0x00000006);
 #    endif
 
     // Verify options were set correctly
