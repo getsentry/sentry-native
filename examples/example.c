@@ -417,12 +417,12 @@ static void
 trigger_heap_corruption()
 {
     __try {
-        HANDLE heap = HeapCreate(0, 0, 0);
-        if (!heap) {
+        if (!HeapSetInformation(
+                NULL, HeapEnableTerminationOnCorruption, NULL, 0)) {
             abort();
         }
-        if (!HeapSetInformation(
-                heap, HeapEnableTerminationOnCorruption, NULL, 0)) {
+        HANDLE heap = HeapCreate(0, 0, 0);
+        if (!heap) {
             abort();
         }
         void *addr = HeapAlloc(heap, 0, 0x1000);
