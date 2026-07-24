@@ -293,7 +293,7 @@ crash_signal_handler(int signum, siginfo_t *info, void *context)
 {
     ucontext_t *uctx = (ucontext_t *)context;
 
-#    if defined(SENTRY_PLATFORM_LINUX)
+#    if defined(SENTRY_PLATFORM_LINUX) && !defined(SENTRY_PLATFORM_ANDROID)
     if (g_handler_strategy == SENTRY_HANDLER_STRATEGY_CHAIN_AT_START
         && signum != SIGABRT && uctx) {
         uintptr_t ip = sentry__ucontext_get_ip(uctx);
@@ -317,7 +317,9 @@ crash_signal_handler(int signum, siginfo_t *info, void *context)
         // No IPC available, forward to the previous handler
         // Re-enable previous signal handlers before re-raising to prevent loops
         reset_signal_handlers();
-        invoke_previous_signal_handler(signum, info, context);
+        if (g_handler_strategy != SENTRY_HANDLER_STRATEGY_CHAIN_AT_START) {
+            invoke_previous_signal_handler(signum, info, context);
+        }
         // The previous handler returned, fall back to default termination
         reraise_signal(signum);
         return;
@@ -857,15 +859,9 @@ daemon_handling:
     // Re-enable previous signal handlers before re-raising to prevent loops
     reset_signal_handlers();
 
-#    if defined(SENTRY_PLATFORM_LINUX)
-    if (g_handler_strategy == SENTRY_HANDLER_STRATEGY_CHAIN_AT_START
-        && signum != SIGABRT) {
-        raise(signum);
-        return;
+    if (g_handler_strategy != SENTRY_HANDLER_STRATEGY_CHAIN_AT_START) {
+        invoke_previous_signal_handler(signum, info, context);
     }
-#    endif
-
-    invoke_previous_signal_handler(signum, info, context);
 
 #    if defined(SENTRY_PLATFORM_MACOS)
     if (!ctx->system_crash_reporter_enabled) {

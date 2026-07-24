@@ -532,7 +532,7 @@ native_backend_startup(
 #    endif
 
     sentry_handler_strategy_t strategy =
-#    if defined(SENTRY_PLATFORM_LINUX)
+#    if defined(SENTRY_PLATFORM_LINUX) && !defined(SENTRY_PLATFORM_ANDROID)
         options ? sentry_options_get_handler_strategy(options) :
 #    endif
                 SENTRY_HANDLER_STRATEGY_DEFAULT;
