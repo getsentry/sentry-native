@@ -223,7 +223,7 @@ write_attachment(crashpad_state_t *state, const sentry_path_t *path,
     }
     return state->client->WriteAttachment(
                base::FilePath(SENTRY_PATH_PLATFORM_STR(path)),
-               std::string(data, size))
+               base::as_bytes(base::make_span(data, size)))
         ? 0
         : 1;
 }
@@ -237,7 +237,7 @@ append_attachment(crashpad_state_t *state, const sentry_path_t *path,
     }
     return state->client->AppendAttachment(
                base::FilePath(SENTRY_PATH_PLATFORM_STR(path)),
-               std::string(data, size))
+               base::as_bytes(base::make_span(data, size)))
         ? 0
         : 1;
 }
