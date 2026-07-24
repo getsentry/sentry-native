@@ -1046,6 +1046,11 @@ typedef enum {
 } sentry_minidump_mode_t;
 
 /**
+ * Platform-specific minidump flags.
+ */
+typedef uint32_t sentry_minidump_flags_t;
+
+/**
  * Crash reporting mode for the native backend.
  * Controls what data is collected and sent on crash.
  */
@@ -1875,11 +1880,34 @@ SENTRY_API void sentry_options_set_system_crash_reporter_enabled(
  * generate and upload. For production, `SENTRY_MINIDUMP_MODE_STACK_ONLY` or
  * `SENTRY_MINIDUMP_MODE_SMART` are recommended.
  *
+ * On Windows, custom flags configured through
+ * `sentry_options_set_minidump_flags` take precedence over this
+ * setting, regardless of call order.
+ *
  * This setting only has an effect when using the `native` backend.
  * Default is `SENTRY_MINIDUMP_MODE_SMART`.
  */
 SENTRY_API void sentry_options_set_minidump_mode(
     sentry_options_t *opts, sentry_minidump_mode_t mode);
+
+#ifdef SENTRY_PLATFORM_WINDOWS
+/**
+ * Sets the raw Windows `MINIDUMP_TYPE` flags for the native backend.
+ *
+ * When configured, these flags take precedence over
+ * `sentry_options_set_minidump_mode`, regardless of call order.
+ *
+ * `flags` is normalized to the flags supported by the Windows
+ * `MINIDUMP_TYPE` enum; unsupported bits are discarded. A value of zero
+ * selects `MiniDumpNormal`. See
+ * https://learn.microsoft.com/en-us/windows/win32/api/minidumpapiset/ne-minidumpapiset-minidump_type
+ * for the available flags.
+ *
+ * This setting only has an effect when using the `native` backend on Windows.
+ */
+SENTRY_API void sentry_options_set_minidump_flags(
+    sentry_options_t *opts, sentry_minidump_flags_t flags);
+#endif
 
 /**
  * Sets the crash reporting mode for the native backend.

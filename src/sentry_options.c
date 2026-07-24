@@ -118,6 +118,9 @@ sentry_options_new(void)
     opts->max_spans = SENTRY_SPANS_MAX;
     opts->handler_strategy = SENTRY_HANDLER_STRATEGY_DEFAULT;
     opts->minidump_mode = SENTRY_MINIDUMP_MODE_SMART; // Default: balanced mode
+#ifdef SENTRY_PLATFORM_WINDOWS
+    opts->minidump_flags = -1;
+#endif
     opts->crash_reporting_mode
         = SENTRY_CRASH_REPORTING_MODE_NATIVE_WITH_MINIDUMP; // Default: best of
                                                             // both worlds
@@ -638,6 +641,15 @@ sentry_options_set_minidump_mode(
     }
     opts->minidump_mode = mode;
 }
+
+#ifdef SENTRY_PLATFORM_WINDOWS
+void
+sentry_options_set_minidump_flags(
+    sentry_options_t *opts, sentry_minidump_flags_t flags)
+{
+    opts->minidump_flags = (int32_t)(flags & 0x01ffffff);
+}
+#endif
 
 void
 sentry_options_set_crash_reporting_mode(

@@ -292,6 +292,9 @@ native_backend_startup(
 
     // Set minidump mode from options
     ctx->minidump_mode = (sentry_minidump_mode_t)options->minidump_mode;
+#ifdef SENTRY_PLATFORM_WINDOWS
+    ctx->minidump_flags = options->minidump_flags;
+#endif
 
     // Set crash reporting mode from options
     ctx->crash_reporting_mode = options->crash_reporting_mode;
