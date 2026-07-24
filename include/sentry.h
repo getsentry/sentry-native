@@ -1046,6 +1046,11 @@ typedef enum {
 } sentry_minidump_mode_t;
 
 /**
+ * Platform-specific minidump flags.
+ */
+typedef uint32_t sentry_minidump_flags_t;
+
+/**
  * Crash reporting mode for the native backend.
  * Controls what data is collected and sent on crash.
  */
@@ -1892,15 +1897,16 @@ SENTRY_API void sentry_options_set_minidump_mode(
  * When configured, these flags take precedence over
  * `sentry_options_set_minidump_mode`, regardless of call order.
  *
- * `minidump_type_flags` must be a valid bitmask from the Windows
- * `MINIDUMP_TYPE` enum. A value of zero selects `MiniDumpNormal`. See
+ * `flags` is normalized to the flags supported by the Windows
+ * `MINIDUMP_TYPE` enum; unsupported bits are discarded. A value of zero
+ * selects `MiniDumpNormal`. See
  * https://learn.microsoft.com/en-us/windows/win32/api/minidumpapiset/ne-minidumpapiset-minidump_type
  * for the available flags.
  *
  * This setting only has an effect when using the `native` backend on Windows.
  */
 SENTRY_API void sentry_options_set_windows_minidump_flags(
-    sentry_options_t *opts, uint32_t minidump_type_flags);
+    sentry_options_t *opts, sentry_minidump_flags_t flags);
 #endif
 
 /**

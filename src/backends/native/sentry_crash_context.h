@@ -276,7 +276,7 @@ typedef struct {
     // Configuration (set by app during init)
     sentry_minidump_mode_t minidump_mode;
 #ifdef SENTRY_PLATFORM_WINDOWS
-    int32_t windows_minidump_flags;
+    int32_t minidump_flags;
 #endif
     int crash_reporting_mode; // sentry_crash_reporting_mode_t
     int crash_upload_mode; // sentry_crash_upload_mode_t

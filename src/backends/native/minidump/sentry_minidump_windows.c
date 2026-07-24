@@ -47,8 +47,8 @@ sentry__write_minidump(
     sentry_free(woutput_path);
 
     MINIDUMP_TYPE dump_type;
-    if (ctx->windows_minidump_flags >= 0) {
-        dump_type = (MINIDUMP_TYPE)ctx->windows_minidump_flags;
+    if (ctx->minidump_flags >= 0) {
+        dump_type = (MINIDUMP_TYPE)ctx->minidump_flags;
     } else {
         switch (ctx->minidump_mode) {
         case SENTRY_MINIDUMP_MODE_STACK_ONLY:

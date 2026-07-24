@@ -119,7 +119,7 @@ sentry_options_new(void)
     opts->handler_strategy = SENTRY_HANDLER_STRATEGY_DEFAULT;
     opts->minidump_mode = SENTRY_MINIDUMP_MODE_SMART; // Default: balanced mode
 #ifdef SENTRY_PLATFORM_WINDOWS
-    opts->windows_minidump_flags = -1;
+    opts->minidump_flags = -1;
 #endif
     opts->crash_reporting_mode
         = SENTRY_CRASH_REPORTING_MODE_NATIVE_WITH_MINIDUMP; // Default: best of
@@ -645,9 +645,9 @@ sentry_options_set_minidump_mode(
 #ifdef SENTRY_PLATFORM_WINDOWS
 void
 sentry_options_set_windows_minidump_flags(
-    sentry_options_t *opts, uint32_t minidump_type_flags)
+    sentry_options_t *opts, sentry_minidump_flags_t flags)
 {
-    opts->windows_minidump_flags = (int32_t)minidump_type_flags;
+    opts->minidump_flags = (int32_t)(flags & 0x01ffffff);
 }
 #endif
 

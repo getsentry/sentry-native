@@ -106,7 +106,7 @@ struct sentry_options_s {
     int minidump_mode; // 0=stack_only, 1=smart, 2=full (see
                        // sentry_crash_context.h)
 #ifdef SENTRY_PLATFORM_WINDOWS
-    int32_t windows_minidump_flags;
+    int32_t minidump_flags;
 #endif
     int crash_reporting_mode; // 0=minidump, 1=native, 2=native_with_minidump
                               // (see sentry_crash_reporting_mode_t)
