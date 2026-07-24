@@ -373,8 +373,8 @@ clone_attributes(sentry_value_t custom_attributes)
 }
 
 static void
-apply_attributes(
-    sentry_value_t log, sentry_value_t attributes, sentry_level_t level)
+apply_attributes(const sentry_scope_t *scope, sentry_value_t log,
+    sentry_value_t attributes, sentry_level_t level)
 {
     sentry_value_set_by_key(
         log, "level", sentry_value_new_string(level_as_string(level)));
@@ -386,7 +386,7 @@ apply_attributes(
 
     // adds data from the scope & options to the attributes, and adds `trace_id`
     // to the log
-    sentry__apply_attributes(log, attributes);
+    sentry__apply_to_telemetry(scope, log, attributes);
     sentry_value_set_by_key(log, "attributes", attributes);
 }
 
@@ -449,7 +449,7 @@ construct_log(sentry_level_t level, const char *message, va_list args)
         va_end(args_copy_3);
     }
 
-    apply_attributes(log, attributes, level);
+    apply_attributes(NULL, log, attributes, level);
 
     return log;
 }
@@ -598,6 +598,13 @@ log_return_value_t
 sentry_log(
     sentry_level_t level, const char *body, sentry_value_t custom_attributes)
 {
+    return sentry_scope_capture_log(NULL, level, body, custom_attributes);
+}
+
+log_return_value_t
+sentry_scope_capture_log(sentry_scope_t *scope, sentry_level_t level,
+    const char *body, sentry_value_t custom_attributes)
+{
     bool enable_logs = false;
     SENTRY_WITH_OPTIONS (options) {
         if (options->enable_logs)
@@ -605,6 +612,7 @@ sentry_log(
     }
     if (!enable_logs) {
         sentry_value_decref(custom_attributes);
+        sentry__scope_free_one_shot(scope);
         return SENTRY_LOG_RETURN_DISABLED;
     }
 
@@ -612,7 +620,8 @@ sentry_log(
     sentry_value_t attributes = clone_attributes(custom_attributes);
 
     sentry_value_set_by_key(log, "body", sentry_value_new_string(body));
-    apply_attributes(log, attributes, level);
+    apply_attributes(scope, log, attributes, level);
+    sentry__scope_free_one_shot(scope);
 
     return send_log(level, log);
 }

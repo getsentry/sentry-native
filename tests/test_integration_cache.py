@@ -2,8 +2,9 @@ import os
 import time
 import pytest
 
-from . import make_dsn, run
-from .conditions import has_breakpad, has_files, has_http, is_qemu
+from . import make_dsn, run, run_crash
+from .assertions import wait_for, wait_for_file
+from .conditions import has_breakpad, has_files, has_http, has_native, is_qemu
 
 pytestmark = [
     pytest.mark.skipif(not has_files, reason="tests need local filesystem"),
@@ -14,9 +15,9 @@ pytestmark = [
 @pytest.mark.parametrize(
     "cache_args,expect_cache",
     [
-        ([], False),
-        (["cache-keep"], True),
-        (["cache-keep-always"], True),
+        pytest.param([], False, id="none"),
+        pytest.param(["cache-keep"], True, id="offline"),
+        pytest.param(["cache-keep-always"], True, id="always"),
     ],
 )
 @pytest.mark.parametrize(
@@ -65,6 +66,42 @@ def test_cache_keep(cmake, backend, cache_args, expect_cache, unreachable_dsn):
             assert cache_files[0].stem == dmp_files[0].stem
 
 
+@pytest.mark.skipif(
+    not has_native or is_qemu,
+    reason="native backend not available",
+)
+@pytest.mark.parametrize(
+    "cache_args,expect_cache",
+    [
+        pytest.param([], False, id="none"),
+        pytest.param(["cache-keep"], True, id="offline"),
+        pytest.param(["cache-keep-always"], True, id="always"),
+    ],
+)
+def test_cache_keep_native(cmake, cache_args, expect_cache, unreachable_dsn):
+    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "native"})
+    cache_dir = tmp_path / ".sentry-native" / "cache"
+    env = dict(os.environ, SENTRY_DSN=unreachable_dsn)
+
+    run_crash(
+        tmp_path,
+        "sentry_example",
+        ["log", "stdout", "crash"] + cache_args,
+        env=env,
+        wait_for_daemon=not expect_cache,
+    )
+
+    if expect_cache:
+        assert wait_for_file(cache_dir / "*.envelope")
+        cache_files = list(cache_dir.glob("*.envelope"))
+        assert len(cache_files) == 1
+        dmp_files = list(cache_dir.glob("*.dmp"))
+        assert len(dmp_files) == 1
+        assert cache_files[0].stem == dmp_files[0].stem
+    else:
+        assert len(list(cache_dir.glob("*.envelope"))) == 0
+
+
 def test_cache_keep_always(cmake, httpserver):
     tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "inproc"})
     cache_dir = tmp_path.joinpath(".sentry-native/cache")
@@ -95,6 +132,12 @@ def test_cache_keep_always(cmake, httpserver):
                 not has_breakpad or is_qemu, reason="breakpad backend not available"
             ),
         ),
+        pytest.param(
+            "native",
+            marks=pytest.mark.skipif(
+                not has_native or is_qemu, reason="native backend not available"
+            ),
+        ),
     ],
 )
 def test_cache_max_size(cmake, backend, unreachable_dsn):
@@ -103,24 +146,37 @@ def test_cache_max_size(cmake, backend, unreachable_dsn):
     env = dict(os.environ, SENTRY_DSN=unreachable_dsn)
 
     for i in range(5):
+        run_crash(
+            tmp_path,
+            "sentry_example",
+            [
+                "log",
+                "no-http-retry",
+                "cache-keep",
+                "flush",
+                "crash",
+                "crash-mode",
+                "native",
+            ],
+            env=env,
+            wait_for_daemon=backend == "native",
+        )
+
+    if backend == "native":
+        # wait for daemon to cache
+        assert wait_for(lambda: len(list(cache_dir.glob("*.envelope"))) == 5)
+    else:
+        # flush + cache
         run(
             tmp_path,
             "sentry_example",
-            ["log", "no-http-retry", "cache-keep", "flush", "crash"],
-            expect_failure=True,
+            ["log", "no-http-retry", "cache-keep", "flush", "no-setup"],
             env=env,
         )
 
-    # flush + cache
-    run(
-        tmp_path,
-        "sentry_example",
-        ["log", "no-http-retry", "cache-keep", "flush", "no-setup"],
-        env=env,
-    )
-
     # 5 x 4mb
     assert cache_dir.exists()
+    assert wait_for(lambda: len(list(cache_dir.glob("*.envelope"))) == 5)
     cache_files = list(cache_dir.glob("*.envelope"))
     for f in cache_files:
         with open(f, "r+b") as file:
@@ -149,6 +205,12 @@ def test_cache_max_size(cmake, backend, unreachable_dsn):
                 not has_breakpad or is_qemu, reason="breakpad backend not available"
             ),
         ),
+        pytest.param(
+            "native",
+            marks=pytest.mark.skipif(
+                not has_native or is_qemu, reason="native backend not available"
+            ),
+        ),
     ],
 )
 def test_cache_max_age(cmake, backend, unreachable_dsn):
@@ -157,24 +219,37 @@ def test_cache_max_age(cmake, backend, unreachable_dsn):
     env = dict(os.environ, SENTRY_DSN=unreachable_dsn)
 
     for i in range(5):
+        run_crash(
+            tmp_path,
+            "sentry_example",
+            [
+                "log",
+                "no-http-retry",
+                "cache-keep",
+                "flush",
+                "crash",
+                "crash-mode",
+                "native",
+            ],
+            env=env,
+            wait_for_daemon=backend == "native",
+        )
+
+    if backend == "native":
+        # wait for daemon to cache
+        assert wait_for(lambda: len(list(cache_dir.glob("*.envelope"))) == 5)
+    else:
+        # flush + cache
         run(
             tmp_path,
             "sentry_example",
-            ["log", "no-http-retry", "cache-keep", "flush", "crash"],
-            expect_failure=True,
+            ["log", "no-http-retry", "cache-keep", "flush", "no-setup"],
             env=env,
         )
 
-    # flush + cache
-    run(
-        tmp_path,
-        "sentry_example",
-        ["log", "no-http-retry", "cache-keep", "flush", "no-setup"],
-        env=env,
-    )
-
     # 2,4,6,8,10 days old
     assert cache_dir.exists()
+    assert wait_for(lambda: len(list(cache_dir.glob("*.envelope"))) == 5)
     cache_files = list(cache_dir.glob("*.envelope"))
     for i, f in enumerate(cache_files):
         mtime = time.time() - ((i + 1) * 2 * 24 * 60 * 60)
@@ -204,6 +279,12 @@ def test_cache_max_age(cmake, backend, unreachable_dsn):
                 not has_breakpad or is_qemu, reason="breakpad backend not available"
             ),
         ),
+        pytest.param(
+            "native",
+            marks=pytest.mark.skipif(
+                not has_native or is_qemu, reason="native backend not available"
+            ),
+        ),
     ],
 )
 def test_cache_max_items(cmake, backend, unreachable_dsn):
@@ -212,13 +293,24 @@ def test_cache_max_items(cmake, backend, unreachable_dsn):
     env = dict(os.environ, SENTRY_DSN=unreachable_dsn)
 
     for i in range(6):
-        run(
+        run_crash(
             tmp_path,
             "sentry_example",
-            ["log", "no-http-retry", "cache-keep", "flush", "crash"],
-            expect_failure=True,
+            [
+                "log",
+                "no-http-retry",
+                "cache-keep",
+                "flush",
+                "crash",
+                "crash-mode",
+                "native",
+            ],
             env=env,
+            wait_for_daemon=backend == "native",
         )
+
+    if backend == "native":
+        assert wait_for(lambda: len(list(cache_dir.glob("*.envelope"))) == 6)
 
     # flush + cache
     run(
@@ -230,6 +322,7 @@ def test_cache_max_items(cmake, backend, unreachable_dsn):
 
     # max 5 items
     assert cache_dir.exists()
+    assert wait_for(lambda: len(list(cache_dir.glob("*.envelope"))) == 5)
     cache_files = list(cache_dir.glob("*.envelope"))
     assert len(cache_files) == 5
 
@@ -244,6 +337,12 @@ def test_cache_max_items(cmake, backend, unreachable_dsn):
                 not has_breakpad or is_qemu, reason="breakpad backend not available"
             ),
         ),
+        pytest.param(
+            "native",
+            marks=pytest.mark.skipif(
+                not has_native or is_qemu, reason="native backend not available"
+            ),
+        ),
     ],
 )
 def test_cache_max_items_with_retry(cmake, backend, unreachable_dsn):
@@ -253,21 +352,26 @@ def test_cache_max_items_with_retry(cmake, backend, unreachable_dsn):
 
     # Create cache files via crash+restart cycles
     for i in range(4):
+        run_crash(
+            tmp_path,
+            "sentry_example",
+            ["log", "cache-keep", "flush", "crash", "crash-mode", "native"],
+            env=env,
+            wait_for_daemon=backend == "native",
+        )
+
+    if backend == "native":
+        # wait for daemon to cache
+        assert wait_for(lambda: len(list(cache_dir.glob("*.envelope"))) == 4)
+    else:
+        # flush + cache
         run(
             tmp_path,
             "sentry_example",
-            ["log", "cache-keep", "flush", "crash"],
-            expect_failure=True,
+            ["log", "cache-keep", "flush", "no-setup"],
             env=env,
         )
-
-    # flush + cache
-    run(
-        tmp_path,
-        "sentry_example",
-        ["log", "cache-keep", "flush", "no-setup"],
-        env=env,
-    )
+    assert wait_for(lambda: len(list(cache_dir.glob("*.envelope"))) == 4)
 
     # Pre-populate cache/ with retry-format envelope files
     cache_dir.mkdir(parents=True, exist_ok=True)
@@ -363,3 +467,50 @@ def test_cache_consent_flush(cmake, httpserver):
 
     assert len(httpserver.log) >= 1
     assert not cache_dir.exists() or len(list(cache_dir.glob("*.envelope"))) == 0
+
+
+@pytest.mark.skipif(
+    not has_native or is_qemu,
+    reason="native backend not available",
+)
+def test_cache_consent_native(cmake, httpserver):
+    """Daemon honors revoked consent for crash envelopes."""
+    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "native"})
+    cache_dir = tmp_path / ".sentry-native" / "cache"
+    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
+
+    run_crash(
+        tmp_path,
+        "sentry_example",
+        [
+            "log",
+            "stdout",
+            "cache-keep",
+            "http-retry",
+            "require-user-consent",
+            "user-consent-revoke",
+            "crash",
+        ],
+        env=env,
+    )
+
+    assert wait_for_file(cache_dir / "*.envelope")
+    assert len(list(cache_dir.glob("*.envelope"))) == 1
+    assert len(httpserver.log) == 0
+
+    httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data("OK")
+    with httpserver.wait(timeout=10) as waiting:
+        run(
+            tmp_path,
+            "sentry_example",
+            [
+                "log",
+                "cache-keep",
+                "http-retry",
+                "require-user-consent",
+                "user-consent-give",
+            ],
+            env=env,
+        )
+    assert waiting.result
+    assert len(list(cache_dir.glob("*.envelope"))) == 0

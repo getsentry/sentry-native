@@ -13,3 +13,15 @@ leak:SCDynamicStoreCopyProxiesWithOptions
 leak:realizeClassWithoutSwift
 
 leak:Curl_getaddrinfo_ex
+
+# macOS notify framework false positives from fork() during tests.
+# The notify framework re-allocates internal data structures in the child
+# process after fork(), which LSan reports as leaks since the parent's
+# pointers are gone. Upstream: https://github.com/google/sanitizers/issues/764
+leak:os_set_*_ptr_init
+leak:os_map_*_init
+
+# macOS Objective-C runtime false positive from _fetchInitializingClassList.
+# Triggered during lazy class initialization in CoreFoundation/CFNumber.
+# Upstream: https://github.com/google/sanitizers/issues/1781
+leak:_fetchInitializingClassList

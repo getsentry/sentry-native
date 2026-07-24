@@ -9,6 +9,8 @@ public final class NativeScope implements INativeScope {
 
   public static native void nativeRemoveExtra(String key);
 
+  public static native void nativeSetEnvironment(String environment);
+
   public static native void nativeSetUser(
       String id, String email, String ipAddress, String username);
 
@@ -43,6 +45,11 @@ public final class NativeScope implements INativeScope {
   @Override
   public void removeExtra(String key) {
     nativeRemoveExtra(key);
+  }
+
+  @Override
+  public void setEnvironment(String environment) {
+    nativeSetEnvironment(environment);
   }
 
   @Override

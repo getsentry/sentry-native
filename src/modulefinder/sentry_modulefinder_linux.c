@@ -239,7 +239,7 @@ sentry__procmaps_parse_module_line(
     line += consumed;
     module->file.ptr = line;
     module->file.len = 0;
-    char *nl = strchr(line, '\n');
+    const char *nl = strchr(line, '\n');
     // `consumed` skips over whitespace (the trailing newline), so we have to
     // check for that explicitly
     if (consumed && (line - 1)[0] == '\n') {

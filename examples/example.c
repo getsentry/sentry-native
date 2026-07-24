@@ -1132,7 +1132,7 @@ main(int argc, char **argv)
                 bytes, "application/octet-stream");
         }
 
-        sentry_capture_event_with_scope(event, scope);
+        sentry_scope_capture_event(scope, event);
     }
 
     if (has_arg(argc, argv, "capture-multiple")) {

@@ -19,7 +19,9 @@ public class MainActivity extends Activity {
   }
 
   private void initNdk() {
-    final File outboxFolder = setupOutboxFolder();
+    // The outbox directory is created by sentry-native, so we only need to
+    // hand it the path here.
+    final File outboxFolder = new File(getFilesDir(), "outbox");
     final NdkOptions options =
         new NdkOptions(
             "https://1053864c67cc410aa1ffc9701bd6f93d@o447951.ingest.sentry.io/5428559",
@@ -33,23 +35,5 @@ public class MainActivity extends Activity {
     // set tracesSampleRate to 1
     options.setTracesSampleRate(1);
     SentryNdk.init(options);
-  }
-
-  private File setupOutboxFolder() {
-    // ensure we have a proper outbox directory
-    final File outboxDir = new File(getFilesDir(), "outbox");
-    if (outboxDir.isFile()) {
-      final boolean deleteOk = outboxDir.delete();
-      if (!deleteOk) {
-        throw new IllegalStateException("Failed to delete outbox file: " + outboxDir);
-      }
-    }
-    if (!outboxDir.exists()) {
-      final boolean mkdirOk = outboxDir.mkdirs();
-      if (!mkdirOk) {
-        throw new IllegalStateException("Failed to create outbox directory: " + outboxDir);
-      }
-    }
-    return outboxDir;
   }
 }

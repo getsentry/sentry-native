@@ -318,7 +318,7 @@ wait_for_handler_ready(int timeout_ms)
         SENTRY_WARNF("poll for handler ready failed: %s", strerror(errno));
     } else if (rv > 0) {
         char c;
-        read(g_handler_ready_pipe[0], &c, 1);
+        (void)!read(g_handler_ready_pipe[0], &c, 1);
     }
 #elif defined(SENTRY_PLATFORM_WINDOWS)
     WaitForSingleObject(g_handler_ready_event, (DWORD)timeout_ms);

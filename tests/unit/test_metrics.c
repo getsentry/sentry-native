@@ -405,6 +405,175 @@ SENTRY_TEST(metrics_default_attributes)
     sentry_value_decref(g_captured_metric);
 }
 
+SENTRY_TEST(metrics_global_attribute_no_field_leak)
+{
+    g_captured_metric = sentry_value_new_null();
+
+    SENTRY_TEST_OPTIONS_NEW(options);
+    sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
+    sentry_options_set_before_send_metric(options, capture_metric, NULL);
+
+    sentry_transport_t *transport = sentry_transport_new(discard_envelope);
+    sentry_options_set_transport(options, transport);
+
+    sentry_init(options);
+    sentry__metrics_wait_for_thread_startup();
+
+    // Per-call attributes must override global attributes atomically by key.
+    // If both scopes define the same attribute, the per-call attribute replaces
+    // the whole global attribute instead of inheriting fields such as `unit`.
+    sentry_set_attribute("shared",
+        sentry_value_new_attribute(sentry_value_new_string("global"), "ms"));
+
+    sentry_value_t attrs = sentry_value_new_object();
+    sentry_value_set_by_key(attrs, "shared",
+        sentry_value_new_attribute(sentry_value_new_string("local"), NULL));
+
+    TEST_CHECK_INT_EQUAL(sentry_metrics_count("test.metric", 1, attrs),
+        SENTRY_METRICS_RESULT_SUCCESS);
+
+    sentry_close();
+
+    sentry_value_t attributes
+        = sentry_value_get_by_key(g_captured_metric, "attributes");
+    sentry_value_t shared = sentry_value_get_by_key(attributes, "shared");
+    TEST_CHECK_STRING_EQUAL(
+        sentry_value_as_string(sentry_value_get_by_key(shared, "value")),
+        "local");
+    TEST_CHECK(sentry_value_is_null(sentry_value_get_by_key(shared, "unit")));
+
+    sentry_value_decref(g_captured_metric);
+}
+
+static sentry_value_t
+string_attribute(const char *value)
+{
+    return sentry_value_new_attribute(sentry_value_new_string(value), NULL);
+}
+
+static const char *
+captured_attribute(const char *key)
+{
+    sentry_value_t attributes
+        = sentry_value_get_by_key(g_captured_metric, "attributes");
+    return sentry_value_as_string(sentry_value_get_by_key(
+        sentry_value_get_by_key(attributes, key), "value"));
+}
+
+SENTRY_TEST(scope_capture_metric_attributes)
+{
+    g_captured_metric = sentry_value_new_null();
+
+    SENTRY_TEST_OPTIONS_NEW(options);
+    sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
+    sentry_options_set_before_send_metric(options, capture_metric, NULL);
+    sentry_options_set_transport(
+        options, sentry_transport_new(discard_envelope));
+
+    sentry_init(options);
+    sentry__metrics_wait_for_thread_startup();
+
+    sentry_set_attribute("from_global", string_attribute("global"));
+    sentry_set_attribute("scope_over_global", string_attribute("global"));
+    sentry_set_attribute("metric_over_all", string_attribute("global"));
+
+    sentry_scope_t *scope = sentry_scope_new();
+    sentry_scope_set_attribute(scope, "from_scope", string_attribute("scope"));
+    sentry_scope_set_attribute(
+        scope, "scope_over_global", string_attribute("scope"));
+    sentry_scope_set_attribute(
+        scope, "metric_over_all", string_attribute("scope"));
+
+    sentry_value_t attrs = sentry_value_new_object();
+    sentry_value_set_by_key(attrs, "from_metric", string_attribute("metric"));
+    sentry_value_set_by_key(
+        attrs, "metric_over_all", string_attribute("metric"));
+
+    TEST_CHECK_INT_EQUAL(sentry_scope_capture_metric(scope, SENTRY_METRIC_COUNT,
+                             "honks", sentry_value_new_int64(1), NULL, attrs),
+        SENTRY_METRICS_RESULT_SUCCESS);
+
+    // Each source contributes the attributes only it has...
+    TEST_CHECK_STRING_EQUAL(captured_attribute("from_global"), "global");
+    TEST_CHECK_STRING_EQUAL(captured_attribute("from_scope"), "scope");
+    TEST_CHECK_STRING_EQUAL(captured_attribute("from_metric"), "metric");
+
+    // ... and the most specific source wins the ones they share.
+    TEST_CHECK_STRING_EQUAL(captured_attribute("scope_over_global"), "scope");
+    TEST_CHECK_STRING_EQUAL(captured_attribute("metric_over_all"), "metric");
+
+    sentry_scope_free(scope);
+    sentry_value_decref(g_captured_metric);
+    sentry_close();
+}
+
+SENTRY_TEST(scope_capture_metric_user_owned)
+{
+    g_captured_metric = sentry_value_new_null();
+
+    SENTRY_TEST_OPTIONS_NEW(options);
+    sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
+    sentry_options_set_before_send_metric(options, capture_metric, NULL);
+    sentry_options_set_transport(
+        options, sentry_transport_new(discard_envelope));
+
+    sentry_init(options);
+    sentry__metrics_wait_for_thread_startup();
+
+    // A user-owned scope survives being captured with, so it can be reused.
+    sentry_scope_t *scope = sentry_scope_new();
+    sentry_scope_set_attribute(scope, "run", string_attribute("first"));
+
+    TEST_CHECK_INT_EQUAL(
+        sentry_scope_capture_metric(scope, SENTRY_METRIC_COUNT, "honks",
+            sentry_value_new_int64(1), NULL, sentry_value_new_null()),
+        SENTRY_METRICS_RESULT_SUCCESS);
+    TEST_CHECK_STRING_EQUAL(captured_attribute("run"), "first");
+    sentry_value_decref(g_captured_metric);
+
+    // The scope was applied but not freed, so mutating and reusing it is safe
+    // (a use-after-free here would trip the sanitizers).
+    sentry_scope_set_attribute(scope, "run", string_attribute("second"));
+
+    TEST_CHECK_INT_EQUAL(
+        sentry_scope_capture_metric(scope, SENTRY_METRIC_COUNT, "honks",
+            sentry_value_new_int64(1), NULL, sentry_value_new_null()),
+        SENTRY_METRICS_RESULT_SUCCESS);
+    TEST_CHECK_STRING_EQUAL(captured_attribute("run"), "second");
+
+    sentry_scope_free(scope);
+    sentry_value_decref(g_captured_metric);
+    sentry_close();
+}
+
+SENTRY_TEST(scope_capture_metric_one_shot)
+{
+    g_captured_metric = sentry_value_new_null();
+
+    SENTRY_TEST_OPTIONS_NEW(options);
+    sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
+    sentry_options_set_before_send_metric(options, capture_metric, NULL);
+    sentry_options_set_transport(
+        options, sentry_transport_new(discard_envelope));
+
+    sentry_init(options);
+    sentry__metrics_wait_for_thread_startup();
+
+    // A one-shot scope is applied, then freed by the capture
+    // (a leak or a double-free would trip the sanitizers).
+    sentry_scope_t *scope = sentry_local_scope_new();
+    sentry_scope_set_attribute(scope, "from_scope", string_attribute("scope"));
+
+    TEST_CHECK_INT_EQUAL(
+        sentry_scope_capture_metric(scope, SENTRY_METRIC_COUNT, "honks",
+            sentry_value_new_int64(1), NULL, sentry_value_new_null()),
+        SENTRY_METRICS_RESULT_SUCCESS);
+    TEST_CHECK_STRING_EQUAL(captured_attribute("from_scope"), "scope");
+
+    sentry_value_decref(g_captured_metric);
+    sentry_close();
+}
+
 SENTRY_TEST(metrics_reinit)
 {
     SENTRY_TEST_OPTIONS_NEW(options);

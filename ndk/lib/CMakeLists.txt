@@ -27,7 +27,10 @@ if(ENABLE_TESTS)
 endif()
 
 # Link to sentry-native
-target_link_libraries(sentry-android PRIVATE $<BUILD_INTERFACE:sentry::sentry>)
+target_link_libraries(sentry-android PRIVATE
+	${LOG_LIB}
+	$<BUILD_INTERFACE:sentry::sentry>
+)
 
 # Support 16KB page sizes
 target_link_options(sentry-android PRIVATE "-Wl,-z,max-page-size=16384")

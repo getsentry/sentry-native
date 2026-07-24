@@ -1,6 +1,8 @@
 #include "sentry_logs.h"
+#include "sentry_scope.h"
 #include "sentry_sync.h"
 #include "sentry_testsupport.h"
+#include "sentry_tracing.h"
 
 #include "sentry_envelope.h"
 #include <string.h>
@@ -513,6 +515,47 @@ SENTRY_TEST(logs_plain_string)
     TEST_CHECK(!validation_data.has_validation_error);
 }
 
+SENTRY_TEST(logs_span_trace_attributes)
+{
+    sentry_value_t captured_log = sentry_value_new_null();
+
+    SENTRY_TEST_OPTIONS_NEW(options);
+    sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
+    sentry_options_set_before_send_log(
+        options, capture_log_before_send, &captured_log);
+
+    sentry_init(options);
+    sentry__logs_wait_for_thread_startup();
+
+    sentry_transaction_context_t *tx_ctx
+        = sentry_transaction_context_new("honk", "goose");
+    sentry_transaction_t *tx
+        = sentry_transaction_start(tx_ctx, sentry_value_new_null());
+    sentry_set_transaction_object(tx);
+
+    TEST_CHECK_INT_EQUAL(
+        sentry_log(SENTRY_LEVEL_INFO, "honk", sentry_value_new_null()),
+        SENTRY_LOG_RETURN_SUCCESS);
+
+    // scope's trace takes precedence over propagation context
+    sentry_value_t attrs = sentry_value_get_by_key(captured_log, "attributes");
+    sentry_value_t parent_span_id
+        = sentry_value_get_by_key(attrs, "sentry.trace.parent_span_id");
+    TEST_CHECK_STRING_EQUAL(
+        sentry_value_as_string(sentry_value_get_by_key(parent_span_id, "type")),
+        "string");
+    TEST_CHECK_STRING_EQUAL(sentry_value_as_string(sentry_value_get_by_key(
+                                parent_span_id, "value")),
+        sentry_value_as_string(sentry_value_get_by_key(tx->inner, "span_id")));
+    TEST_CHECK_STRING_EQUAL(sentry_value_as_string(sentry_value_get_by_key(
+                                captured_log, "trace_id")),
+        sentry_value_as_string(sentry_value_get_by_key(tx->inner, "trace_id")));
+
+    sentry_value_decref(captured_log);
+    sentry__transaction_decref(tx);
+    sentry_close();
+}
+
 SENTRY_TEST(logs_plain_string_disabled)
 {
     SENTRY_TEST_OPTIONS_NEW(options);
@@ -528,6 +571,210 @@ SENTRY_TEST(logs_plain_string_disabled)
     TEST_CHECK_INT_EQUAL(sentry_log(SENTRY_LEVEL_INFO, "test", attrs),
         SENTRY_LOG_RETURN_DISABLED);
 
+    sentry_close();
+}
+
+SENTRY_TEST(logs_global_attribute_no_field_leak)
+{
+    sentry_value_t captured_log = sentry_value_new_null();
+
+    SENTRY_TEST_OPTIONS_NEW(options);
+    sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
+    sentry_options_set_before_send_log(
+        options, capture_log_before_send, &captured_log);
+
+    sentry_init(options);
+    sentry__logs_wait_for_thread_startup();
+
+    // Per-call attributes must override global attributes atomically by key.
+    // If both scopes define the same attribute, the per-call attribute replaces
+    // the whole global attribute instead of inheriting fields such as `unit`.
+    sentry_set_attribute("shared",
+        sentry_value_new_attribute(sentry_value_new_string("global"), "ms"));
+
+    sentry_value_t attrs = sentry_value_new_object();
+    sentry_value_set_by_key(attrs, "shared",
+        sentry_value_new_attribute(sentry_value_new_string("local"), NULL));
+
+    TEST_CHECK_INT_EQUAL(sentry_log(SENTRY_LEVEL_INFO, "hello", attrs),
+        SENTRY_LOG_RETURN_SUCCESS);
+
+    sentry_value_t log_attrs
+        = sentry_value_get_by_key(captured_log, "attributes");
+    sentry_value_t shared = sentry_value_get_by_key(log_attrs, "shared");
+    TEST_CHECK_STRING_EQUAL(
+        sentry_value_as_string(sentry_value_get_by_key(shared, "value")),
+        "local");
+    TEST_CHECK(sentry_value_is_null(sentry_value_get_by_key(shared, "unit")));
+
+    sentry_value_decref(captured_log);
+    sentry_close();
+}
+
+static sentry_value_t
+string_attribute(const char *value)
+{
+    return sentry_value_new_attribute(sentry_value_new_string(value), NULL);
+}
+
+static const char *
+attribute_value(sentry_value_t attributes, const char *key)
+{
+    return sentry_value_as_string(sentry_value_get_by_key(
+        sentry_value_get_by_key(attributes, key), "value"));
+}
+
+SENTRY_TEST(scope_capture_log_attributes)
+{
+    sentry_value_t captured_log = sentry_value_new_null();
+
+    SENTRY_TEST_OPTIONS_NEW(options);
+    sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
+    sentry_options_set_before_send_log(
+        options, capture_log_before_send, &captured_log);
+
+    sentry_init(options);
+    sentry__logs_wait_for_thread_startup();
+
+    sentry_set_attribute("from_global", string_attribute("global"));
+    sentry_set_attribute("scope_over_global", string_attribute("global"));
+    sentry_set_attribute("log_over_all", string_attribute("global"));
+
+    sentry_scope_t *scope = sentry_scope_new();
+    sentry_scope_set_attribute(scope, "from_scope", string_attribute("scope"));
+    sentry_scope_set_attribute(
+        scope, "scope_over_global", string_attribute("scope"));
+    sentry_scope_set_attribute(
+        scope, "log_over_all", string_attribute("scope"));
+
+    sentry_value_t attrs = sentry_value_new_object();
+    sentry_value_set_by_key(attrs, "from_log", string_attribute("log"));
+    sentry_value_set_by_key(attrs, "log_over_all", string_attribute("log"));
+
+    TEST_CHECK_INT_EQUAL(
+        sentry_scope_capture_log(scope, SENTRY_LEVEL_INFO, "honk", attrs),
+        SENTRY_LOG_RETURN_SUCCESS);
+
+    sentry_value_t log_attrs
+        = sentry_value_get_by_key(captured_log, "attributes");
+
+    // Each source contributes the attributes only it has
+    TEST_CHECK_STRING_EQUAL(
+        attribute_value(log_attrs, "from_global"), "global");
+    TEST_CHECK_STRING_EQUAL(attribute_value(log_attrs, "from_scope"), "scope");
+    TEST_CHECK_STRING_EQUAL(attribute_value(log_attrs, "from_log"), "log");
+
+    // ... and the most specific source wins the ones they share.
+    TEST_CHECK_STRING_EQUAL(
+        attribute_value(log_attrs, "scope_over_global"), "scope");
+    TEST_CHECK_STRING_EQUAL(attribute_value(log_attrs, "log_over_all"), "log");
+
+    sentry_scope_free(scope);
+    sentry_value_decref(captured_log);
+    sentry_close();
+}
+
+SENTRY_TEST(scope_capture_log_user_owned)
+{
+    sentry_value_t captured_log = sentry_value_new_null();
+
+    SENTRY_TEST_OPTIONS_NEW(options);
+    sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
+    sentry_options_set_before_send_log(
+        options, capture_log_before_send, &captured_log);
+
+    sentry_init(options);
+    sentry__logs_wait_for_thread_startup();
+
+    // A user-owned scope survives being captured with, so it can be reused.
+    sentry_scope_t *scope = sentry_scope_new();
+    sentry_scope_set_attribute(scope, "run", string_attribute("first"));
+
+    TEST_CHECK_INT_EQUAL(sentry_scope_capture_log(scope, SENTRY_LEVEL_INFO,
+                             "one", sentry_value_new_null()),
+        SENTRY_LOG_RETURN_SUCCESS);
+    TEST_CHECK_STRING_EQUAL(
+        attribute_value(
+            sentry_value_get_by_key(captured_log, "attributes"), "run"),
+        "first");
+
+    // The scope was applied but not freed, so mutating and reusing it is safe
+    // (a use-after-free here would trip the sanitizers).
+    sentry_scope_set_attribute(scope, "run", string_attribute("second"));
+
+    TEST_CHECK_INT_EQUAL(sentry_scope_capture_log(scope, SENTRY_LEVEL_INFO,
+                             "two", sentry_value_new_null()),
+        SENTRY_LOG_RETURN_SUCCESS);
+    TEST_CHECK_STRING_EQUAL(
+        attribute_value(
+            sentry_value_get_by_key(captured_log, "attributes"), "run"),
+        "second");
+
+    sentry_scope_free(scope);
+    sentry_value_decref(captured_log);
+    sentry_close();
+}
+
+SENTRY_TEST(scope_capture_log_one_shot)
+{
+    sentry_value_t captured_log = sentry_value_new_null();
+
+    SENTRY_TEST_OPTIONS_NEW(options);
+    sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
+    sentry_options_set_before_send_log(
+        options, capture_log_before_send, &captured_log);
+
+    sentry_init(options);
+    sentry__logs_wait_for_thread_startup();
+
+    // A one-shot local scope is applied, then freed by the capture, so it is
+    // never freed here (a leak or a double-free would trip the sanitizers).
+    sentry_scope_t *scope = sentry_local_scope_new();
+    sentry_scope_set_attribute(scope, "from_scope", string_attribute("scope"));
+
+    TEST_CHECK_INT_EQUAL(sentry_scope_capture_log(scope, SENTRY_LEVEL_INFO,
+                             "one", sentry_value_new_null()),
+        SENTRY_LOG_RETURN_SUCCESS);
+    TEST_CHECK_STRING_EQUAL(
+        attribute_value(
+            sentry_value_get_by_key(captured_log, "attributes"), "from_scope"),
+        "scope");
+
+    sentry_value_decref(captured_log);
+    sentry_close();
+}
+
+SENTRY_TEST(scope_capture_log_trace_id)
+{
+    sentry_value_t captured_log = sentry_value_new_null();
+
+    SENTRY_TEST_OPTIONS_NEW(options);
+    sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
+    sentry_options_set_before_send_log(
+        options, capture_log_before_send, &captured_log);
+
+    sentry_init(options);
+    sentry__logs_wait_for_thread_startup();
+
+    // A scope applies its trace to the log only if it has one of its own. This
+    // scope carries no span and an empty propagation context, so the log falls
+    // through to the trace of the global scope instead of ending up traceless.
+    sentry_scope_t *scope = sentry_scope_new();
+    TEST_CHECK_INT_EQUAL(sentry_scope_capture_log(scope, SENTRY_LEVEL_INFO,
+                             "honk", sentry_value_new_null()),
+        SENTRY_LOG_RETURN_SUCCESS);
+
+    SENTRY_WITH_SCOPE (global_scope) {
+        TEST_CHECK_STRING_EQUAL(sentry_value_as_string(sentry_value_get_by_key(
+                                    captured_log, "trace_id")),
+            sentry_value_as_string(sentry_value_get_by_key(
+                sentry_value_get_by_key(
+                    global_scope->propagation_context, "trace"),
+                "trace_id")));
+    }
+
+    sentry_scope_free(scope);
+    sentry_value_decref(captured_log);
     sentry_close();
 }
 

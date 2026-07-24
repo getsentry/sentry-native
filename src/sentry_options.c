@@ -17,6 +17,10 @@
 #    include "integrations/sentry_integration_qt.h"
 #endif
 
+#ifdef SENTRY_INTEGRATION_WER
+#    include "integrations/sentry_integration_wer.h"
+#endif
+
 static double
 normalize_sample_rate(double sample_rate, double default_value)
 {
@@ -125,6 +129,9 @@ sentry_options_new(void)
     opts->enable_large_attachments = false;
 #ifdef SENTRY_INTEGRATION_QT
     sentry__options_add_integration(opts, sentry_integration_qt_new());
+#endif
+#ifdef SENTRY_INTEGRATION_WER
+    sentry__options_add_integration(opts, sentry_integration_wer_new());
 #endif
 
     return opts;
