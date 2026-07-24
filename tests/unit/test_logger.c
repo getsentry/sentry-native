@@ -3,8 +3,6 @@
 #include "sentry_sync.h"
 #include "sentry_testsupport.h"
 
-#include <string.h>
-
 typedef struct {
     uint64_t called;
     bool assert_now;
@@ -61,52 +59,6 @@ SENTRY_TEST(custom_logger)
         sentry_init(options);
         sentry_close();
     }
-}
-
-#ifdef SENTRY_PLATFORM_WINDOWS
-static void
-minidump_override_logger(
-    sentry_level_t level, const char *message, va_list args, void *_data)
-{
-    uint64_t *called = _data;
-    char formatted[256];
-    vsnprintf(formatted, sizeof(formatted), message, args);
-
-    if (level == SENTRY_LEVEL_WARNING
-        && strcmp(formatted,
-               "both sentry_options_set_minidump_mode and "
-               "sentry_options_set_windows_minidump_flags were called; the "
-               "most recently called function takes precedence")
-            == 0) {
-        *called += 1;
-    }
-}
-#endif
-
-SENTRY_TEST(windows_minidump_override_warning)
-{
-#ifdef SENTRY_PLATFORM_WINDOWS
-    uint64_t called = 0;
-    SENTRY_TEST_OPTIONS_NEW(options);
-    sentry_options_set_debug(options, true);
-    sentry_options_set_logger(options, minidump_override_logger, &called);
-    sentry_options_set_enable_metrics(options, false);
-    sentry_options_set_enable_logs(options, false);
-
-    sentry_options_set_windows_minidump_flags(options, 0);
-    sentry_options_set_minidump_mode(options, SENTRY_MINIDUMP_MODE_FULL);
-
-    sentry_init(options);
-    TEST_CHECK_UINT64_EQUAL(called, 1);
-    sentry_close();
-
-    // Clear the global logger installed during initialization.
-    SENTRY_TEST_OPTIONS_NEW(clear_options);
-    sentry_init(clear_options);
-    sentry_close();
-#else
-    SKIP_TEST();
-#endif
 }
 
 SENTRY_TEST(logger_enable_disable_functionality)

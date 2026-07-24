@@ -440,7 +440,6 @@ SENTRY_TEST(crash_context_options_propagation)
     ctx->transfer_timeout = options->transfer_timeout;
 #    ifdef SENTRY_PLATFORM_WINDOWS
     ctx->windows_minidump_flags = options->windows_minidump_flags;
-    ctx->windows_minidump_flags_active = options->windows_minidump_flags_active;
 #    endif
 
     // Verify crash context received the values
@@ -454,8 +453,7 @@ SENTRY_TEST(crash_context_options_propagation)
         ctx->crash_upload_mode, SENTRY_CRASH_UPLOAD_MODE_ASYNC);
     TEST_CHECK_UINT64_EQUAL(ctx->transfer_timeout, 45000);
 #    ifdef SENTRY_PLATFORM_WINDOWS
-    TEST_CHECK(ctx->windows_minidump_flags_active);
-    TEST_CHECK_UINT64_EQUAL(ctx->windows_minidump_flags, 0x00000006);
+    TEST_CHECK_INT_EQUAL(ctx->windows_minidump_flags, 0x00000006);
 #    endif
 
     sentry_free(ctx);
