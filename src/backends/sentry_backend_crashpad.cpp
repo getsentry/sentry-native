@@ -833,11 +833,17 @@ crashpad_backend_startup(
         sentry_free(filename);
 
         if (data->external_report_path) {
-            sentry__path_create_dir_all(options->run->external_path);
-            crash_reporter = base::FilePath(
-                SENTRY_PATH_PLATFORM_STR(options->external_crash_reporter));
-            crash_envelope = base::FilePath(
-                SENTRY_PATH_PLATFORM_STR(data->external_report_path));
+            if (sentry__path_create_dir_all(options->run->external_path) == 0) {
+                crash_reporter = base::FilePath(
+                    SENTRY_PATH_PLATFORM_STR(options->external_crash_reporter));
+                crash_envelope = base::FilePath(
+                    SENTRY_PATH_PLATFORM_STR(data->external_report_path));
+            } else {
+                SENTRY_ERRORF(
+                    "mkdir failed: \"%s\"", options->run->external_path->path);
+                sentry__path_free(data->external_report_path);
+                data->external_report_path = nullptr;
+            }
         }
     }
 
