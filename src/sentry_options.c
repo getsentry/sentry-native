@@ -118,6 +118,12 @@ sentry_options_new(void)
     opts->max_spans = SENTRY_SPANS_MAX;
     opts->handler_strategy = SENTRY_HANDLER_STRATEGY_DEFAULT;
     opts->minidump_mode = SENTRY_MINIDUMP_MODE_SMART; // Default: balanced mode
+#ifdef SENTRY_PLATFORM_WINDOWS
+    opts->windows_minidump_flags = 0;
+    opts->windows_minidump_flags_active = false;
+    opts->minidump_mode_explicitly_set = false;
+    opts->minidump_configuration_overridden = false;
+#endif
     opts->crash_reporting_mode
         = SENTRY_CRASH_REPORTING_MODE_NATIVE_WITH_MINIDUMP; // Default: best of
                                                             // both worlds
@@ -630,6 +636,14 @@ void
 sentry_options_set_minidump_mode(
     sentry_options_t *opts, sentry_minidump_mode_t mode)
 {
+#ifdef SENTRY_PLATFORM_WINDOWS
+    if (opts->windows_minidump_flags_active) {
+        opts->minidump_configuration_overridden = true;
+    }
+    opts->windows_minidump_flags_active = false;
+    opts->minidump_mode_explicitly_set = true;
+#endif
+
     // Clamp to valid range
     if (mode < SENTRY_MINIDUMP_MODE_STACK_ONLY) {
         mode = SENTRY_MINIDUMP_MODE_STACK_ONLY;
@@ -638,6 +652,20 @@ sentry_options_set_minidump_mode(
     }
     opts->minidump_mode = mode;
 }
+
+#ifdef SENTRY_PLATFORM_WINDOWS
+void
+sentry_options_set_windows_minidump_flags(
+    sentry_options_t *opts, uint32_t minidump_type_flags)
+{
+    if (opts->minidump_mode_explicitly_set) {
+        opts->minidump_configuration_overridden = true;
+    }
+    opts->windows_minidump_flags = minidump_type_flags;
+    opts->windows_minidump_flags_active = true;
+    opts->minidump_mode_explicitly_set = false;
+}
+#endif
 
 void
 sentry_options_set_crash_reporting_mode(

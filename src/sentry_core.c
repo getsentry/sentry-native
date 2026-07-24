@@ -153,6 +153,14 @@ sentry_init(sentry_options_t *options)
     }
     sentry__logger_set_global(logger);
 
+#ifdef SENTRY_PLATFORM_WINDOWS
+    if (options->minidump_configuration_overridden) {
+        SENTRY_WARN("both sentry_options_set_minidump_mode and "
+                    "sentry_options_set_windows_minidump_flags were called; "
+                    "the most recently called function takes precedence");
+    }
+#endif
+
     // we need to ensure the dir exists, otherwise `path_absolute` will fail.
     if (sentry__path_create_dir_all(options->database_path)) {
         SENTRY_WARN("failed to create database directory or there is no write "

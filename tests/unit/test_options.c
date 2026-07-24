@@ -130,6 +130,63 @@ SENTRY_TEST(options_crash_reporting_mode_clamp)
     sentry_options_free(options);
 }
 
+SENTRY_TEST(options_windows_minidump_flags)
+{
+#ifdef SENTRY_PLATFORM_WINDOWS
+    {
+        SENTRY_TEST_OPTIONS_NEW(options);
+
+        sentry_options_set_minidump_mode(
+            options, SENTRY_MINIDUMP_MODE_STACK_ONLY);
+        sentry_options_set_minidump_mode(options, SENTRY_MINIDUMP_MODE_FULL);
+
+        TEST_CHECK(!options->windows_minidump_flags_active);
+        TEST_CHECK(options->minidump_mode_explicitly_set);
+        TEST_CHECK(!options->minidump_configuration_overridden);
+        TEST_CHECK_INT_EQUAL(options->minidump_mode, SENTRY_MINIDUMP_MODE_FULL);
+
+        sentry_options_free(options);
+    }
+
+    SENTRY_TEST_OPTIONS_NEW(options);
+
+    TEST_CHECK(!options->windows_minidump_flags_active);
+    TEST_CHECK(!options->minidump_mode_explicitly_set);
+    TEST_CHECK(!options->minidump_configuration_overridden);
+
+    // Zero is a valid custom value corresponding to MiniDumpNormal.
+    sentry_options_set_windows_minidump_flags(options, 0);
+    TEST_CHECK(options->windows_minidump_flags_active);
+    TEST_CHECK(!options->minidump_mode_explicitly_set);
+    TEST_CHECK(!options->minidump_configuration_overridden);
+    TEST_CHECK_UINT64_EQUAL(options->windows_minidump_flags, 0);
+
+    sentry_options_set_windows_minidump_flags(options, 0x00000002);
+    TEST_CHECK(options->windows_minidump_flags_active);
+    TEST_CHECK(!options->minidump_mode_explicitly_set);
+    TEST_CHECK(!options->minidump_configuration_overridden);
+    TEST_CHECK_UINT64_EQUAL(options->windows_minidump_flags, 0x00000002);
+
+    // A preset selected afterward replaces the custom flags.
+    sentry_options_set_minidump_mode(options, SENTRY_MINIDUMP_MODE_FULL);
+    TEST_CHECK(!options->windows_minidump_flags_active);
+    TEST_CHECK(options->minidump_mode_explicitly_set);
+    TEST_CHECK(options->minidump_configuration_overridden);
+    TEST_CHECK_INT_EQUAL(options->minidump_mode, SENTRY_MINIDUMP_MODE_FULL);
+
+    // Custom flags selected afterward replace the preset.
+    sentry_options_set_windows_minidump_flags(options, 0x00000006);
+    TEST_CHECK(options->windows_minidump_flags_active);
+    TEST_CHECK(!options->minidump_mode_explicitly_set);
+    TEST_CHECK(options->minidump_configuration_overridden);
+    TEST_CHECK_UINT64_EQUAL(options->windows_minidump_flags, 0x00000006);
+
+    sentry_options_free(options);
+#else
+    SKIP_TEST();
+#endif
+}
+
 SENTRY_TEST(options_sample_rate)
 {
     SENTRY_TEST_OPTIONS_NEW(options);

@@ -46,11 +46,35 @@ sentry__write_minidump(
     }
     sentry_free(woutput_path);
 
+    MINIDUMP_TYPE dump_type;
+    if (ctx->windows_minidump_flags_active) {
+        dump_type = (MINIDUMP_TYPE)ctx->windows_minidump_flags;
+    } else {
+        switch (ctx->minidump_mode) {
+        case SENTRY_MINIDUMP_MODE_STACK_ONLY:
+            dump_type = MiniDumpNormal;
+            break;
+
+        case SENTRY_MINIDUMP_MODE_SMART:
+            dump_type
+                = MiniDumpWithIndirectlyReferencedMemory | MiniDumpWithDataSegs;
+            break;
+
+        case SENTRY_MINIDUMP_MODE_FULL:
+            dump_type = MiniDumpWithFullMemory | MiniDumpWithHandleData
+                | MiniDumpWithThreadInfo;
+            break;
+
+        default:
+            dump_type = MiniDumpNormal;
+            break;
+        }
+    }
+
     // Open crashed process with permissions needed for MiniDumpWriteDump.
-    // FULL mode uses MiniDumpWithHandleData | MiniDumpWithThreadInfo which
-    // requires PROCESS_DUP_HANDLE.
+    // MiniDumpWithHandleData requires PROCESS_DUP_HANDLE.
     DWORD access_flags = PROCESS_QUERY_INFORMATION | PROCESS_VM_READ;
-    if (ctx->minidump_mode == SENTRY_MINIDUMP_MODE_FULL) {
+    if ((dump_type & MiniDumpWithHandleData) != 0) {
         access_flags |= PROCESS_DUP_HANDLE;
     }
     HANDLE process_handle = OpenProcess(access_flags, FALSE, ctx->crashed_pid);
@@ -89,28 +113,6 @@ sentry__write_minidump(
             = (PCONTEXT)&ctx->platform.context;
         exception_info.ExceptionPointers = &local_exception_pointers;
         exception_info.ClientPointers = FALSE;
-    }
-
-    // Determine minidump type based on configuration
-    MINIDUMP_TYPE dump_type;
-    switch (ctx->minidump_mode) {
-    case SENTRY_MINIDUMP_MODE_STACK_ONLY:
-        dump_type = MiniDumpNormal;
-        break;
-
-    case SENTRY_MINIDUMP_MODE_SMART:
-        dump_type
-            = MiniDumpWithIndirectlyReferencedMemory | MiniDumpWithDataSegs;
-        break;
-
-    case SENTRY_MINIDUMP_MODE_FULL:
-        dump_type = MiniDumpWithFullMemory | MiniDumpWithHandleData
-            | MiniDumpWithThreadInfo;
-        break;
-
-    default:
-        dump_type = MiniDumpNormal;
-        break;
     }
 
     // Write minidump using Windows API
