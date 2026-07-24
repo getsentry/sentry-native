@@ -342,6 +342,7 @@ def wait_for_no_werfault(timeout=30.0, poll_interval=0.5):
         (["fastfail"]),
         (["fastfail", "discarding-before-send"]),
         (["fastfail", "discarding-on-crash"]),
+        (["heap-corruption"]),
     ],
 )
 def test_crashpad_wer_crash(cmake, httpserver, run_args):
