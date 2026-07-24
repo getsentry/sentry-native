@@ -600,7 +600,7 @@ native_backend_shutdown(sentry_backend_t *backend)
     // This bypasses the SDK logger and writes straight to stderr, so it must
     // only run when debug logging was enabled. When debug is off the daemon
     // keeps logging to its file (at INFO level), but we stay silent on stderr
-    // rather than spamming the terminal on shutdown (see #1908).
+    // rather than spamming the terminal on shutdown.
     if (state->ipc && state->ipc->shmem && state->ipc->shmem->debug_enabled) {
         char log_path[SENTRY_CRASH_MAX_PATH];
         int log_path_len = -1;
