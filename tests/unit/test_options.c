@@ -139,8 +139,7 @@ SENTRY_TEST(options_minidump_flags)
     TEST_CHECK_INT_EQUAL(options->minidump_mode, SENTRY_MINIDUMP_MODE_SMART);
 
     // Flags configured after a mode take precedence.
-    sentry_options_set_minidump_mode(
-        options, SENTRY_MINIDUMP_MODE_STACK_ONLY);
+    sentry_options_set_minidump_mode(options, SENTRY_MINIDUMP_MODE_STACK_ONLY);
     sentry_options_set_minidump_flags(options, 0x00000002);
     TEST_CHECK_INT_EQUAL(
         options->minidump_mode, SENTRY_MINIDUMP_MODE_STACK_ONLY);
