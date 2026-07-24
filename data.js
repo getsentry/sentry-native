@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1784886913817,
+  "lastUpdate": 1784908215909,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -34636,6 +34636,150 @@ window.BENCHMARK_DATA = {
             "value": 0.1847464612500005,
             "unit": "ms",
             "extra": "Min 0.185ms\nMax 0.185ms\nMean 0.185ms\nMedian 0.185ms\nCPU 0.013ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "jpnurmi@gmail.com",
+            "name": "J-P Nurmi",
+            "username": "jpnurmi"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "34bad04d54d49087e05600847109568e1f391cbf",
+          "message": "fix(native): let WER finish native crash reports (#1904)\n\n* fix(native): let WER finish native crash reports\n\nThe native WER runtime exception callback previously terminated the\ncrashed process after signaling the native daemon. That made sense for\nthe original WER capture path: once the callback claimed ownership and\nthe daemon had been notified, terminating the process ensured the crash\nwas finalized even when the crashed thread did not return normally.\n\nHowever, terminating from the callback prevents WER from completing its\nnormal report generation. In particular, Report.wer can be written\nwithout custom metadata registered by the crashed process, so Sentry's\nWER integration tags are missing from native fast-fail reports.\n\nKeep claiming ownership and keep waiting for daemon processing, but\nreturn control to WER afterwards. This lets WER complete the report,\nincluding registered custom metadata, while the native daemon still\ncaptures and uploads the Sentry crash event.\n\nAdd WER compatibility coverage documenting which backends allow WER to\nsee SEH and fast-fail crashes alongside Sentry capture.\n\n* Update CHANGELOG.md",
+          "timestamp": "2026-07-24T17:46:14+02:00",
+          "tree_id": "bc991e5472759207a78f0d22fe62383a0872ab3b",
+          "url": "https://github.com/getsentry/sentry-native/commit/34bad04d54d49087e05600847109568e1f391cbf"
+        },
+        "date": 1784908202094,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 0.9334519999981694,
+            "unit": "ms",
+            "extra": "Min 0.916ms\nMax 0.988ms\nMean 0.942ms\nStdDev 0.030ms\nMedian 0.933ms\nCPU 0.889ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 0.857149000012214,
+            "unit": "ms",
+            "extra": "Min 0.846ms\nMax 0.921ms\nMean 0.870ms\nStdDev 0.030ms\nMedian 0.857ms\nCPU 0.864ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 3.2308689999922535,
+            "unit": "ms",
+            "extra": "Min 3.111ms\nMax 3.467ms\nMean 3.235ms\nStdDev 0.145ms\nMedian 3.231ms\nCPU 1.705ms"
+          },
+          {
+            "name": "SDK init (native)",
+            "value": 11.660503000001654,
+            "unit": "ms",
+            "extra": "Min 11.532ms\nMax 11.730ms\nMean 11.643ms\nStdDev 0.084ms\nMedian 11.661ms\nCPU 7.293ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.12356199999885575,
+            "unit": "ms",
+            "extra": "Min 0.119ms\nMax 0.125ms\nMean 0.123ms\nStdDev 0.003ms\nMedian 0.124ms\nCPU 0.073ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.02740099998277401,
+            "unit": "ms",
+            "extra": "Min 0.027ms\nMax 0.028ms\nMean 0.027ms\nStdDev 0.001ms\nMedian 0.027ms\nCPU 0.026ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 1.8441590000009,
+            "unit": "ms",
+            "extra": "Min 1.799ms\nMax 1.914ms\nMean 1.860ms\nStdDev 0.051ms\nMedian 1.844ms\nCPU 0.549ms"
+          },
+          {
+            "name": "Backend startup (native)",
+            "value": 10.625747999995383,
+            "unit": "ms",
+            "extra": "Min 10.576ms\nMax 10.784ms\nMean 10.656ms\nStdDev 0.088ms\nMedian 10.626ms\nCPU 6.391ms"
+          },
+          {
+            "name": "Scope set_tag (inproc)",
+            "value": 0.00471614100001716,
+            "unit": "ms",
+            "extra": "Min 0.005ms\nMax 0.005ms\nMean 0.005ms\nMedian 0.005ms\nCPU 0.005ms"
+          },
+          {
+            "name": "Scope add_breadcrumb (inproc)",
+            "value": 0.000507843000008279,
+            "unit": "ms",
+            "extra": "Min 0.001ms\nMax 0.001ms\nMean 0.001ms\nMedian 0.001ms\nCPU 0.001ms"
+          },
+          {
+            "name": "Scope set_tag (breakpad)",
+            "value": 0.004589032000012594,
+            "unit": "ms",
+            "extra": "Min 0.005ms\nMax 0.005ms\nMean 0.005ms\nMedian 0.005ms\nCPU 0.005ms"
+          },
+          {
+            "name": "Scope add_breadcrumb (breakpad)",
+            "value": 0.0005173609999928885,
+            "unit": "ms",
+            "extra": "Min 0.001ms\nMax 0.001ms\nMean 0.001ms\nMedian 0.001ms\nCPU 0.001ms"
+          },
+          {
+            "name": "Scope set_tag (crashpad)",
+            "value": 0.004968383000004906,
+            "unit": "ms",
+            "extra": "Min 0.005ms\nMax 0.005ms\nMean 0.005ms\nMedian 0.005ms\nCPU 0.005ms"
+          },
+          {
+            "name": "Scope add_breadcrumb (crashpad)",
+            "value": 0.0070902559999979076,
+            "unit": "ms",
+            "extra": "Min 0.007ms\nMax 0.007ms\nMean 0.007ms\nMedian 0.007ms\nCPU 0.007ms"
+          },
+          {
+            "name": "Scope set_tag (native)",
+            "value": 0.19635445500000515,
+            "unit": "ms",
+            "extra": "Min 0.196ms\nMax 0.196ms\nMean 0.196ms\nMedian 0.196ms\nCPU 0.142ms"
+          },
+          {
+            "name": "Scope add_breadcrumb (native)",
+            "value": 0.007145680000007815,
+            "unit": "ms",
+            "extra": "Min 0.007ms\nMax 0.007ms\nMean 0.007ms\nMedian 0.007ms\nCPU 0.007ms"
+          },
+          {
+            "name": "Logs (1 thread)",
+            "value": 0.0057620100000121965,
+            "unit": "ms",
+            "extra": "Min 0.006ms\nMax 0.006ms\nMean 0.006ms\nMedian 0.006ms\nCPU 0.006ms"
+          },
+          {
+            "name": "Logs (8 threads)",
+            "value": 0.050578112499977124,
+            "unit": "ms",
+            "extra": "Min 0.051ms\nMax 0.051ms\nMean 0.051ms\nMedian 0.051ms\nCPU 0.015ms"
+          },
+          {
+            "name": "Logs (16 threads)",
+            "value": 0.08821804937500843,
+            "unit": "ms",
+            "extra": "Min 0.088ms\nMax 0.088ms\nMean 0.088ms\nMedian 0.088ms\nCPU 0.015ms"
+          },
+          {
+            "name": "Logs (32 threads)",
+            "value": 0.14749044749999385,
+            "unit": "ms",
+            "extra": "Min 0.147ms\nMax 0.147ms\nMean 0.147ms\nMedian 0.147ms\nCPU 0.014ms"
           }
         ]
       }
