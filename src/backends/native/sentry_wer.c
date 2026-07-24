@@ -14,6 +14,10 @@
 #    define STATUS_STACK_BUFFER_OVERRUN ((DWORD)0xC0000409)
 #endif
 
+#ifndef STATUS_HEAP_CORRUPTION
+#    define STATUS_HEAP_CORRUPTION ((DWORD)0xC0000374)
+#endif
+
 static BOOL
 is_fatal_wer_exception(const WER_RUNTIME_EXCEPTION_INFORMATION *info)
 {
@@ -42,7 +46,8 @@ static BOOL
 is_native_wer_exception(DWORD code)
 {
     return code == STATUS_FAIL_FAST_EXCEPTION
-        || code == STATUS_STACK_BUFFER_OVERRUN;
+        || code == STATUS_STACK_BUFFER_OVERRUN
+        || code == STATUS_HEAP_CORRUPTION;
 }
 
 static BOOL

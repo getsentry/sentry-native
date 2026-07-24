@@ -76,6 +76,7 @@ def test_native_capture_crash(cmake, httpserver):
     "crash_arg,exception_code",
     [
         pytest.param("fastfail", 0xC0000602, id="fastfail"),
+        pytest.param("heap-corruption", 0xC0000374, id="heap-corruption"),
         pytest.param("stack-buffer-overrun", 0xC0000409, id="stack-buffer-overrun"),
     ],
 )
