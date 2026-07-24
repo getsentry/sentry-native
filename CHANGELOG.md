@@ -16,6 +16,7 @@
 - Windows: fix symlink detection used to prevent database cleanup from following symlinks in run and cache directories. ([#1857](https://github.com/getsentry/sentry-native/pull/1857))
 - Linux: avoid unsafe `copy_file_range` at crash time. ([#1868](https://github.com/getsentry/sentry-native/pull/1868))
 - Fix a lifetime issue when reading `sample_rand` from the scope propagation context. ([#1869](https://github.com/getsentry/sentry-native/pull/1869))
+- Honor checks before launching crash reporter ([#1906](https://github.com/getsentry/sentry-native/pull/1906))
 
 ## 0.15.3
 
