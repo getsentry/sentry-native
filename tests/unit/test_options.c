@@ -181,6 +181,14 @@ SENTRY_TEST(options_windows_minidump_flags)
     TEST_CHECK(options->minidump_configuration_overridden);
     TEST_CHECK_UINT64_EQUAL(options->windows_minidump_flags, 0x00000006);
 
+    // A preset selected again after an override still applies cleanly.
+    sentry_options_set_minidump_mode(options, SENTRY_MINIDUMP_MODE_STACK_ONLY);
+    TEST_CHECK(!options->windows_minidump_flags_active);
+    TEST_CHECK(options->minidump_mode_explicitly_set);
+    TEST_CHECK(options->minidump_configuration_overridden);
+    TEST_CHECK_INT_EQUAL(
+        options->minidump_mode, SENTRY_MINIDUMP_MODE_STACK_ONLY);
+
     sentry_options_free(options);
 #else
     SKIP_TEST();
