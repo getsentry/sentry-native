@@ -11,9 +11,7 @@
 #include "sentry_logs.h"
 #include "sentry_metrics.h"
 #include "sentry_options.h"
-#if defined(SENTRY_PLATFORM_WINDOWS)
-#    include "sentry_os.h"
-#endif
+#include "sentry_os.h"
 #include "sentry_scope.h"
 #include "sentry_screenshot.h"
 #include "sentry_session_replay.h"
@@ -959,45 +957,6 @@ registers_from_uctx(const sentry_ucontext_t *uctx)
     return registers;
 }
 
-#ifdef SENTRY_PLATFORM_LINUX
-static uintptr_t
-get_stack_pointer(const sentry_ucontext_t *uctx)
-{
-#    if defined(__i386__)
-    return uctx->user_context->uc_mcontext.gregs[REG_ESP];
-#    elif defined(__x86_64__)
-    return uctx->user_context->uc_mcontext.gregs[REG_RSP];
-#    elif defined(__arm__)
-    return uctx->user_context->uc_mcontext.arm_sp;
-#    elif defined(__aarch64__)
-    return uctx->user_context->uc_mcontext.sp;
-#    else
-    SENTRY_WARN("get_stack_pointer is not implemented for this architecture. "
-                "Signal chaining may not work as expected.");
-    return NULL;
-#    endif
-}
-
-static uintptr_t
-get_instruction_pointer(const sentry_ucontext_t *uctx)
-{
-#    if defined(__i386__)
-    return uctx->user_context->uc_mcontext.gregs[REG_EIP];
-#    elif defined(__x86_64__)
-    return uctx->user_context->uc_mcontext.gregs[REG_RIP];
-#    elif defined(__arm__)
-    return uctx->user_context->uc_mcontext.arm_pc;
-#    elif defined(__aarch64__)
-    return uctx->user_context->uc_mcontext.pc;
-#    else
-    SENTRY_WARN(
-        "get_instruction_pointer is not implemented for this architecture. "
-        "Signal chaining may not work as expected.");
-    return NULL;
-#    endif
-}
-#endif
-
 static sentry_value_t
 make_signal_event(const struct signal_slot *sig_slot,
     const sentry_ucontext_t *uctx, sentry_handler_strategy_t strategy)
@@ -1585,8 +1544,8 @@ process_ucontext(const sentry_ucontext_t *uctx)
         // cases, we shouldn't react to the signal at all and let their handler
         // discontinue the signal chain by invoking the runtime handler before
         // we process the signal.
-        uintptr_t ip = get_instruction_pointer(uctx);
-        uintptr_t sp = get_stack_pointer(uctx);
+        uintptr_t ip = sentry__ucontext_get_ip(uctx->user_context);
+        uintptr_t sp = sentry__ucontext_get_sp(uctx->user_context);
 
 #    ifdef SENTRY_PLATFORM_ANDROID
         // Mask the signal so SA_NODEFER doesn't let re-raises from the chained
@@ -1621,8 +1580,8 @@ process_ucontext(const sentry_ucontext_t *uctx)
         // signal into a managed exception and transferred execution to a
         // managed exception handler.
         // https://github.com/dotnet/runtime/blob/6d96e28597e7da0d790d495ba834cc4908e442cd/src/mono/mono/mini/exceptions-arm64.c#L538
-        if (ip != get_instruction_pointer(uctx)
-            || sp != get_stack_pointer(uctx)) {
+        if (ip != sentry__ucontext_get_ip(uctx->user_context)
+            || sp != sentry__ucontext_get_sp(uctx->user_context)) {
             return;
         }
 

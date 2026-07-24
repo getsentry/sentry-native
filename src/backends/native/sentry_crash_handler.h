@@ -7,7 +7,8 @@
 /**
  * Initialize crash handler (install signal handlers)
  */
-int sentry__crash_handler_init(sentry_crash_ipc_t *ipc);
+int sentry__crash_handler_init(
+    sentry_crash_ipc_t *ipc, sentry_handler_strategy_t strategy);
 
 /**
  * Shutdown crash handler (restore previous handlers)
