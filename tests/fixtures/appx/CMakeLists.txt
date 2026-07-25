@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.10)
 project(sentry_example_appx LANGUAGES C)
 
-if(WIN32)
+if(WIN32 AND NOT XBOX)
     add_executable(sentry_example_appx
         ${SENTRY_SOURCE_DIR}/examples/example.c
     )
