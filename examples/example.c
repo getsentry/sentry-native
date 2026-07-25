@@ -35,16 +35,19 @@
 
 #if defined(SENTRY_PLATFORM_WINDOWS)
 #    include <windows.h>
+#    ifdef HAVE_APPMODEL
+#        include <appmodel.h>
+#    endif
 unsigned long
 get_current_thread_id()
 {
     return GetCurrentThreadId();
 }
 
+#    ifdef HAVE_APPMODEL
 static void
 print_package_identity(void)
 {
-#    ifdef APPMODEL_ERROR_NO_PACKAGE
     UINT32 length = 0;
     LONG status = GetCurrentPackageFullName(&length, NULL);
     if (status == APPMODEL_ERROR_NO_PACKAGE) {
@@ -68,11 +71,8 @@ print_package_identity(void)
     }
     fflush(stdout);
     free(package_name);
-#    else
-    printf("PACKAGE_IDENTITY:unavailable\n");
-    fflush(stdout);
-#    endif
 }
+#    endif
 #elif defined(SENTRY_PLATFORM_MACOS)
 #    include <pthread.h>
 #    include <stdint.h>
@@ -965,7 +965,7 @@ main(int argc, char **argv)
                 sentry_value_new_string("my_global_value"), NULL));
     }
 
-#ifdef SENTRY_PLATFORM_WINDOWS
+#if defined(SENTRY_PLATFORM_WINDOWS) && defined(HAVE_APPMODEL)
     if (has_arg(argc, argv, "appx")) {
         print_package_identity();
     }
