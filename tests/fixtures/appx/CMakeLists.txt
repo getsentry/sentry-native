@@ -3,7 +3,7 @@ project(sentry_example_appx LANGUAGES C)
 
 if(WIN32)
     add_executable(sentry_example_appx
-        ${CMAKE_SOURCE_DIR}/examples/example.c
+        ${SENTRY_SOURCE_DIR}/examples/example.c
     )
     target_link_libraries(sentry_example_appx PRIVATE sentry)
 
@@ -18,6 +18,11 @@ if(WIN32)
         target_link_options(sentry_example_appx PRIVATE /GUARD:CF)
     else()
         target_sources(sentry_example_appx PRIVATE sentry_example_appx.rc)
+    endif()
+
+    if(SENTRY_BUILD_RUNTIMESTATIC AND MSVC)
+        set_property(TARGET sentry_example_appx PROPERTY
+            MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
     endif()
 
     set_target_properties(sentry_example_appx PROPERTIES

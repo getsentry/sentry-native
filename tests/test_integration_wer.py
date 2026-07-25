@@ -210,7 +210,7 @@ def register_appx_package(tmp_path):
         appx_log = ""
         if match:
             log_result = powershell(
-                f"Get-AppPackageLog -ActivityID '{match.group(1)}'",
+                f"Get-AppxLog -ActivityID '{match.group(1)}'",
                 check=False,
             )
             appx_log = "\nAppX deployment log:\n" + "\n".join(
