@@ -9,6 +9,7 @@
 - Report `cache_overflow` discards due to `cache_max_items` or `cache_max_size`. ([#1884](https://github.com/getsentry/sentry-native/pull/1884))
 - Crashpad/Windows: optimize scope flushes for crash events and external crash reports. ([#1841](https://github.com/getsentry/sentry-native/pull/1841))
 - User feedback now carries scope data, including release, environment, tags, user, and contexts with the trace, so feedback is connected to the same trace as errors from the same session. Attachments set on the scope are sent with the feedback as well, alongside any passed through a hint. This also fixed a memory leak when capturing user feedback before the SDK is initialized. ([#1915](https://github.com/getsentry/sentry-native/pull/1915))
+- Add `sentry_scope_capture_feedback` to capture user feedback against a given scope, matching `sentry_scope_capture_event` / `_log` / `_metric`. The feedback carries the scope's data layered on top of the global scope, including attachments set on that scope, accepts an optional hint for additional attachments, and returns the feedback's event ID. ([#1916](https://github.com/getsentry/sentry-native/pull/1916))
 
 **Fixes**:
 
