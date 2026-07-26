@@ -252,3 +252,74 @@ SENTRY_TEST(feedback_carries_scope_data)
 
     TEST_CHECK_INT_EQUAL(testdata.called, 1);
 }
+
+SENTRY_TEST(feedback_with_scope_attachment)
+{
+    sentry_feedback_testdata_t testdata;
+    setup_feedback_test(&testdata);
+
+    const char scope_data[] = "scope content";
+    sentry_attachment_t *attachment
+        = sentry_attach_bytes(scope_data, sizeof(scope_data) - 1, "scope.txt");
+    TEST_CHECK(attachment != NULL);
+
+    sentry_uuid_t event_id
+        = sentry_uuid_from_string("4c035723-8638-4c3a-923f-2ab9d08b4018");
+    sentry_value_t feedback = sentry_value_new_feedback(
+        "test message", "test@example.com", "Test User", &event_id);
+
+    sentry_capture_feedback(feedback);
+
+    char *serialized
+        = sentry_stringbuilder_take_string(&testdata.serialized_envelope);
+    TEST_CHECK(strstr(serialized, "\"type\":\"feedback\"") != NULL);
+    TEST_CHECK(strstr(serialized,
+                   "{\"type\":\"attachment\",\"length\":13,"
+                   "\"filename\":\"scope.txt\"}\n"
+                   "scope content")
+        != NULL);
+    sentry_free(serialized);
+
+    sentry_close();
+
+    TEST_CHECK_INT_EQUAL(testdata.called, 1);
+}
+
+SENTRY_TEST(feedback_with_scope_and_hint_attachments)
+{
+    sentry_feedback_testdata_t testdata;
+    setup_feedback_test(&testdata);
+
+    const char scope_data[] = "scope content";
+    sentry_attachment_t *scope_attachment
+        = sentry_attach_bytes(scope_data, sizeof(scope_data) - 1, "scope.txt");
+    TEST_CHECK(scope_attachment != NULL);
+
+    sentry_uuid_t event_id
+        = sentry_uuid_from_string("4c035723-8638-4c3a-923f-2ab9d08b4018");
+    sentry_value_t feedback = sentry_value_new_feedback(
+        "test message", "test@example.com", "Test User", &event_id);
+
+    sentry_hint_t *hint = sentry_hint_new();
+    TEST_CHECK(hint != NULL);
+
+    const char hint_data[] = "hint content";
+    sentry_attachment_t *hint_attachment = sentry_hint_attach_bytes(
+        hint, hint_data, sizeof(hint_data) - 1, "hint.txt");
+    TEST_CHECK(hint_attachment != NULL);
+
+    sentry_capture_feedback_with_hint(feedback, hint);
+
+    char *serialized
+        = sentry_stringbuilder_take_string(&testdata.serialized_envelope);
+    TEST_CHECK(strstr(serialized, "\"type\":\"feedback\"") != NULL);
+    TEST_CHECK(strstr(serialized, "\"filename\":\"scope.txt\"") != NULL);
+    TEST_CHECK(strstr(serialized, "scope content") != NULL);
+    TEST_CHECK(strstr(serialized, "\"filename\":\"hint.txt\"") != NULL);
+    TEST_CHECK(strstr(serialized, "hint content") != NULL);
+    sentry_free(serialized);
+
+    sentry_close();
+
+    TEST_CHECK_INT_EQUAL(testdata.called, 1);
+}
