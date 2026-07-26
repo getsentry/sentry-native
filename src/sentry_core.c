@@ -846,13 +846,28 @@ prepare_user_feedback(const sentry_options_t *options,
         goto fail;
     }
 
-    if (hint && hint->attachments) {
-        sentry__envelope_add_attachments(envelope, hint->attachments, options);
+    sentry_attachment_t *all_attachments = NULL;
+    if (hint) {
+        sentry__attachments_extend(&all_attachments, hint->attachments);
+    }
+    SENTRY_WITH_SCOPE (scope) {
+        if (all_attachments) {
+            // attachments merged from the hint and the scope
+            sentry__attachments_extend(&all_attachments, scope->attachments);
+            sentry__envelope_add_attachments(
+                envelope, all_attachments, options);
+        } else {
+            // only the scope has attachments
+            sentry__envelope_add_attachments(
+                envelope, scope->attachments, options);
+        }
         if (options->run) {
-            sentry__cache_attachment_refs(envelope, hint->attachments, options,
+            sentry__cache_attachment_refs(envelope,
+                all_attachments ? all_attachments : scope->attachments, options,
                 options->run->cache_path, options->run->run_path);
         }
     }
+    sentry__attachments_free(all_attachments);
 
     return envelope;
 
