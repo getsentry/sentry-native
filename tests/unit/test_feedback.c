@@ -223,6 +223,10 @@ SENTRY_TEST(feedback_carries_scope_data)
 
     sentry_set_tag("scoped_tag", "from_scope");
     sentry_set_user(sentry_value_new_user("id-42", "alice", NULL, NULL));
+    sentry_value_t game_context = sentry_value_new_object();
+    sentry_value_set_by_key(
+        game_context, "engine_version", sentry_value_new_string("4.5"));
+    sentry_set_context("game", game_context);
 
     sentry_uuid_t event_id
         = sentry_uuid_from_string("4c035723-8638-4c3a-923f-2ab9d08b4018");
@@ -240,6 +244,7 @@ SENTRY_TEST(feedback_carries_scope_data)
     TEST_CHECK(strstr(item, "\"scoped_tag\":\"from_scope\"") != NULL);
     TEST_CHECK(strstr(item, "\"id\":\"id-42\"") != NULL);
     TEST_CHECK(strstr(item, "\"trace\"") != NULL);
+    TEST_CHECK(strstr(item, "\"game\":{\"engine_version\":\"4.5\"}") != NULL);
     TEST_CHECK(strstr(item, "\"level\":\"info\"") != NULL);
     sentry_free(serialized);
 
