@@ -29,6 +29,8 @@ setup_feedback_test(sentry_feedback_testdata_t *testdata)
     SENTRY_TEST_OPTIONS_NEW(options);
     sentry_options_set_auto_session_tracking(options, false);
     sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
+    sentry_options_set_release(options, "my-app@1.2.3");
+    sentry_options_set_environment(options, "staging");
     sentry_transport_t *transport
         = sentry_transport_new(send_envelope_test_feedback);
     sentry_transport_set_state(transport, testdata);
@@ -210,6 +212,38 @@ SENTRY_TEST(feedback_with_multiple_attachments)
     sentry__path_remove(file2);
     sentry__path_free(file1);
     sentry__path_free(file2);
+
+    TEST_CHECK_INT_EQUAL(testdata.called, 1);
+}
+
+SENTRY_TEST(feedback_carries_scope_data)
+{
+    sentry_feedback_testdata_t testdata;
+    setup_feedback_test(&testdata);
+
+    sentry_set_tag("scoped_tag", "from_scope");
+    sentry_set_user(sentry_value_new_user("id-42", "alice", NULL, NULL));
+
+    sentry_uuid_t event_id
+        = sentry_uuid_from_string("4c035723-8638-4c3a-923f-2ab9d08b4018");
+    sentry_value_t feedback = sentry_value_new_feedback(
+        "test message", "test@example.com", "Test User", &event_id);
+
+    sentry_capture_feedback(feedback);
+
+    char *serialized
+        = sentry_stringbuilder_take_string(&testdata.serialized_envelope);
+    const char *item = strstr(serialized, "{\"type\":\"feedback\"");
+    TEST_ASSERT(item != NULL);
+    TEST_CHECK(strstr(item, "\"release\":\"my-app@1.2.3\"") != NULL);
+    TEST_CHECK(strstr(item, "\"environment\":\"staging\"") != NULL);
+    TEST_CHECK(strstr(item, "\"scoped_tag\":\"from_scope\"") != NULL);
+    TEST_CHECK(strstr(item, "\"id\":\"id-42\"") != NULL);
+    TEST_CHECK(strstr(item, "\"trace\"") != NULL);
+    TEST_CHECK(strstr(item, "\"level\":\"info\"") != NULL);
+    sentry_free(serialized);
+
+    sentry_close();
 
     TEST_CHECK_INT_EQUAL(testdata.called, 1);
 }
