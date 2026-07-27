@@ -296,8 +296,8 @@ using `cmake -D BUILD_SHARED_LIBS=OFF ..`.
   `before_send`) on Windows, Linux, and the `inproc` backend in macOS. Reserving the stack is necessary in case of a
   stack-overflow, where the handler could otherwise no longer execute. This parameter allows users to specify their
   target stack size in KiB, because some applications might require a different value from our default. On Windows,
-  this value can be as small as 16KiB with `breakpad` and 24KiB with `crashpad`, but we recommend 32KiB as the lower
-  bound on 64-bit systems. **The value should be a multiple of the page size**.
+  this value can be as small as 16KiB with `breakpad` and 24KiB with `crashpad` and `native`, but we recommend 32KiB
+  as the lower bound on 64-bit systems. **The value should be a multiple of the page size**.
 
 - `SENTRY_THREAD_STACK_GUARANTEE_FACTOR` (Default: `10`, only for Windows):
   Defines the factor by which the thread's stack reserve must exceed the specified guarantee for the handler.

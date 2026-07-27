@@ -46,6 +46,11 @@ pytestmark = pytest.mark.skipif(
 # timeout the native daemon used before it respected the SDK shutdown timeout.
 SANITIZER_ARGS = ["shutdown-timeout", "10000"] if is_asan or is_tsan else []
 
+STATUS_STACK_OVERFLOW = 0xC00000FD
+STATUS_STACK_BUFFER_OVERRUN = 0xC0000409
+STATUS_HEAP_CORRUPTION = 0xC0000374
+STATUS_FAIL_FAST_EXCEPTION = 0xC0000602
+
 
 def test_native_capture_crash(cmake, httpserver):
     """Test basic crash capture with native backend"""
@@ -75,9 +80,13 @@ def test_native_capture_crash(cmake, httpserver):
 @pytest.mark.parametrize(
     "crash_arg,exception_code",
     [
-        pytest.param("fastfail", 0xC0000602, id="fastfail"),
-        pytest.param("heap-corruption", 0xC0000374, id="heap-corruption"),
-        pytest.param("stack-buffer-overrun", 0xC0000409, id="stack-buffer-overrun"),
+        pytest.param("fastfail", STATUS_FAIL_FAST_EXCEPTION, id="fastfail"),
+        pytest.param("heap-corruption", STATUS_HEAP_CORRUPTION, id="heap-corruption"),
+        pytest.param(
+            "stack-buffer-overrun",
+            STATUS_STACK_BUFFER_OVERRUN,
+            id="stack-buffer-overrun",
+        ),
     ],
 )
 def test_native_wer_crash(cmake, httpserver, crash_arg, exception_code):
@@ -115,6 +124,50 @@ def test_native_oom(cmake, httpserver):
             env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
         )
     assert waiting.result
+
+
+@pytest.mark.parametrize(
+    "stack_size",
+    [
+        None,  # uses default of 64KiB
+        pytest.param(
+            "24",
+            marks=pytest.mark.skipif(
+                sys.platform != "win32",
+                reason="handler stack size parameterization tests stack guarantee on windows only",
+            ),
+        ),
+        pytest.param(
+            "32",
+            marks=pytest.mark.skipif(
+                sys.platform != "win32",
+                reason="handler stack size parameterization tests stack guarantee on windows only",
+            ),
+        ),
+    ],
+)
+def test_native_stack_overflow(cmake, httpserver, stack_size):
+    """Test stack overflow crash capture with native backend"""
+    env = dict(os.environ)
+    if stack_size:
+        env["SENTRY_HANDLER_STACK_SIZE"] = stack_size
+    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "native"})
+
+    httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data("OK")
+
+    with httpserver.wait(timeout=10) as waiting:
+        run_crash(
+            tmp_path,
+            "sentry_example",
+            ["log", "stdout", "stack-overflow"] + SANITIZER_ARGS,
+            env=dict(env, SENTRY_DSN=make_dsn(httpserver)),
+        )
+    assert waiting.result
+
+    assert len(httpserver.log) >= 1
+    envelope = Envelope.deserialize(httpserver.log[0][0].get_data())
+    exception_code = STATUS_STACK_OVERFLOW if sys.platform == "win32" else None
+    assert_native_crash(envelope, exception_code=exception_code)
 
 
 def test_native_capture_minidump_generated(cmake, httpserver):
