@@ -869,21 +869,19 @@ prepare_user_feedback(const sentry_options_t *options,
         goto fail;
     }
 
-    sentry_attachment_t *combined_attachments = NULL;
+    sentry_attachment_t *all_attachments = NULL;
     if (hint) {
-        sentry__attachments_extend(&combined_attachments, hint->attachments);
+        sentry__attachments_extend(&all_attachments, hint->attachments);
     }
     if (local_scope) {
-        sentry__attachments_extend(
-            &combined_attachments, local_scope->attachments);
+        sentry__attachments_extend(&all_attachments, local_scope->attachments);
     }
 
     SENTRY_WITH_SCOPE (scope) {
         const sentry_attachment_t *attachments = scope->attachments;
-        if (combined_attachments) {
-            sentry__attachments_extend(
-                &combined_attachments, scope->attachments);
-            attachments = combined_attachments;
+        if (all_attachments) {
+            sentry__attachments_extend(&all_attachments, scope->attachments);
+            attachments = all_attachments;
         }
         sentry__envelope_add_attachments(envelope, attachments, options);
         if (options->run) {
@@ -892,7 +890,7 @@ prepare_user_feedback(const sentry_options_t *options,
         }
     }
 
-    sentry__attachments_free(combined_attachments);
+    sentry__attachments_free(all_attachments);
     sentry__scope_free_one_shot(local_scope);
 
     return envelope;
