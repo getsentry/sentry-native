@@ -21,6 +21,8 @@
 - Native: don't dump the crash daemon's log to `stderr` on shutdown unless debug logging is enabled, so terminal applications stay quiet when `debug` is off. ([#1910](https://github.com/getsentry/sentry-native/pull/1910))
 - Native/Windows: capture heap corruption crashes reported as `STATUS_HEAP_CORRUPTION` (`0xC0000374`). ([#1909](https://github.com/getsentry/sentry-native/pull/1909))
 - Native/Linux: add support for `sentry_options_set_handler_strategy(SENTRY_HANDLER_STRATEGY_CHAIN_AT_START)`. ([#1912](https://github.com/getsentry/sentry-native/pull/1912))
+- Windows: apply the default thread stack guarantee in static builds - kernel32 functions are now cached before backend startup, so `sentry__set_default_thread_stack_guarantee()` no longer silently no-ops. ([#1918](https://github.com/getsentry/sentry-native/pull/1918))
+- Native/Windows: set the default thread stack guarantee during backend startup, matching the other backends, so crash handling can run after a stack overflow. ([#1918](https://github.com/getsentry/sentry-native/pull/1918))
 
 ## 0.15.4
 
