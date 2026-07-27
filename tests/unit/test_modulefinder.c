@@ -4,6 +4,9 @@
 
 #ifdef SENTRY_PLATFORM_LINUX
 #    include "modulefinder/sentry_modulefinder_linux.h"
+#    include <fcntl.h>
+#    include <stdlib.h>
+#    include <unistd.h>
 #endif
 
 SENTRY_TEST(module_finder)
@@ -71,6 +74,33 @@ SENTRY_TEST(module_addr)
 
     ptr = sentry__module_get_addr(&module, 7, 9);
     TEST_CHECK(ptr == NULL); // too big
+#endif
+}
+
+SENTRY_TEST(mmap_file_closes_fd_zero_on_failure)
+{
+#if !defined(SENTRY_PLATFORM_LINUX)
+    SKIP_TEST();
+#else
+    char tmp_path[] = "/tmp/sentry-native-mmap-XXXXXX";
+    int tmp_fd = mkstemp(tmp_path);
+    TEST_ASSERT(tmp_fd >= 0);
+    close(tmp_fd);
+
+    int saved_stdin = dup(STDIN_FILENO);
+    TEST_ASSERT(saved_stdin >= 0);
+    close(STDIN_FILENO);
+
+    sentry_mmap_t mmap = { 0 };
+    bool mapped = sentry__mmap_file(&mmap, tmp_path);
+    int fd_flags = fcntl(STDIN_FILENO, F_GETFD);
+
+    dup2(saved_stdin, STDIN_FILENO);
+    close(saved_stdin);
+    unlink(tmp_path);
+
+    TEST_CHECK(!mapped);
+    TEST_CHECK(fd_flags == -1);
 #endif
 }
 
