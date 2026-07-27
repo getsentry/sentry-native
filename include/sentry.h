@@ -3774,7 +3774,7 @@ SENTRY_API sentry_uuid_t sentry_scope_capture_feedback(
  * callback needs to call `sentry_value_decref` on the provided event and
  * return a `sentry_value_new_null()` instead.
  *
- * The hint can be used to add attachments to the in-flight feedback event.
+ * The hint is always provided and can be used to add attachments to the event.
  *
  * Feedback events do not go through the `before_send` callback.
  */
