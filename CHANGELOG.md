@@ -23,6 +23,7 @@
 - Native/Windows: capture heap corruption crashes reported as `STATUS_HEAP_CORRUPTION` (`0xC0000374`). ([#1909](https://github.com/getsentry/sentry-native/pull/1909))
 - Native/Linux: add support for `sentry_options_set_handler_strategy(SENTRY_HANDLER_STRATEGY_CHAIN_AT_START)`. ([#1912](https://github.com/getsentry/sentry-native/pull/1912))
 - Windows: the default thread stack guarantee is now actually applied in static builds and is also set by the native backend, so crash handling can run after a stack overflow. ([#1918](https://github.com/getsentry/sentry-native/pull/1918))
+- Include `before_send` attachments with local scopes. ([#1922](https://github.com/getsentry/sentry-native/pull/1922))
 
 ## 0.15.4
 
