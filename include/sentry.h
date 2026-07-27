@@ -3767,6 +3767,28 @@ SENTRY_API sentry_uuid_t sentry_scope_capture_feedback(
     sentry_scope_t *scope, sentry_value_t user_feedback, sentry_hint_t *hint);
 
 /**
+ * Type of the `before_send_feedback` callback.
+ *
+ * The callback takes ownership of the `feedback` event and should usually
+ * return that same event. In case the feedback should be discarded, the
+ * callback needs to call `sentry_value_decref` on the provided event and
+ * return a `sentry_value_new_null()` instead.
+ *
+ * Feedback events do not go through the `before_send` callback.
+ */
+typedef sentry_value_t (*sentry_before_send_feedback_function_t)(
+    sentry_value_t feedback, void *hint, void *user_data);
+
+/**
+ * Sets the `before_send_feedback` callback.
+ *
+ * See the `sentry_before_send_feedback_function_t` typedef above for more
+ * information.
+ */
+SENTRY_API void sentry_options_set_before_send_feedback(sentry_options_t *opts,
+    sentry_before_send_feedback_function_t func, void *user_data);
+
+/**
  * The status of a Span or Transaction.
  *
  * See https://develop.sentry.dev/sdk/event-payloads/span/ for documentation.

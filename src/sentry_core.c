@@ -854,6 +854,20 @@ prepare_user_feedback(const sentry_options_t *options,
         sentry__scope_apply_to_event(scope, options, event, SENTRY_SCOPE_NONE);
     }
 
+    if (options->before_send_feedback_func) {
+        SENTRY_DEBUG("invoking `before_send_feedback` hook");
+        event = options->before_send_feedback_func(
+            event, hint, options->before_send_feedback_data);
+        if (sentry_value_is_null(event)) {
+            SENTRY_DEBUG(
+                "feedback was discarded by the `before_send_feedback` hook");
+            sentry__client_report_discard(SENTRY_DISCARD_REASON_BEFORE_SEND,
+                SENTRY_DATA_CATEGORY_FEEDBACK, 1);
+            sentry__attachments_free(all_attachments);
+            return NULL;
+        }
+    }
+
     sentry__ensure_event_id(event, event_id);
 
     sentry_envelope_t *envelope = sentry__envelope_new();
