@@ -3777,7 +3777,7 @@ SENTRY_API sentry_uuid_t sentry_scope_capture_feedback(
  * Feedback events do not go through the `before_send` callback.
  */
 typedef sentry_value_t (*sentry_before_send_feedback_function_t)(
-    sentry_value_t feedback, void *hint, void *user_data);
+    sentry_value_t feedback, sentry_hint_t *hint, void *user_data);
 
 /**
  * Sets the `before_send_feedback` callback.
