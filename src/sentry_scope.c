@@ -676,6 +676,18 @@ sentry__scope_get_span_or_transaction(void)
     }
     return result;
 }
+
+bool
+sentry__scope_has_observers(const sentry_scope_t *scope)
+{
+    return scope->num_observers > 0;
+}
+
+bool
+sentry__scope_is_one_shot(const sentry_scope_t *scope)
+{
+    return scope->one_shot;
+}
 #endif
 
 void

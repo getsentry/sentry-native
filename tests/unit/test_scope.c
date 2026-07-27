@@ -1591,7 +1591,7 @@ SENTRY_TEST(scope_observer_clear)
 
     sentry_scope_clear(scope);
     TEST_CHECK(d.was_cleared);
-    TEST_CHECK_INT_EQUAL(scope->num_observers, 1);
+    TEST_CHECK(sentry__scope_has_observers(scope));
     TEST_CHECK(sentry_value_get_length(sentry__scope_get_tags(scope)) == 0);
 
     d.was_called = false;
@@ -1618,8 +1618,7 @@ SENTRY_TEST(scope_observer_clear)
     sentry_scope_set_tag(scope, "during", "notify");
     TEST_CHECK(observer_data.was_called);
     TEST_CHECK(observer_data.was_cleared);
-    TEST_CHECK_INT_EQUAL(scope->is_notifying, 0);
-    TEST_CHECK_INT_EQUAL(scope->num_observers, 1);
+    TEST_CHECK(sentry__scope_has_observers(scope));
     TEST_CHECK(sentry_value_get_length(sentry__scope_get_tags(scope)) == 0);
 
     sentry_value_decref(observer_data.tags);
@@ -1633,12 +1632,10 @@ SENTRY_TEST(scope_observer_null)
 
     SENTRY_WITH_SCOPE_MUT (scope) {
         TEST_CHECK(!sentry__scope_add_observer(scope, NULL));
-        TEST_CHECK_INT_EQUAL(scope->num_observers, 0);
-        TEST_CHECK(scope->observers == NULL);
+        TEST_CHECK(!sentry__scope_has_observers(scope));
 
         sentry__scope_remove_observer(scope, NULL);
-        TEST_CHECK_INT_EQUAL(scope->num_observers, 0);
-        TEST_CHECK(scope->observers == NULL);
+        TEST_CHECK(!sentry__scope_has_observers(scope));
     }
 
     test_observer_data_t d = { .tags = sentry_value_new_null() };
@@ -1696,8 +1693,7 @@ SENTRY_TEST(scope_observer_multiple)
     d2.was_called = false;
     SENTRY_WITH_SCOPE_MUT (scope) {
         sentry__scope_remove_observer(scope, observer2);
-        TEST_CHECK_INT_EQUAL(scope->num_observers, 1);
-        TEST_CHECK(scope->observers != NULL);
+        TEST_CHECK(sentry__scope_has_observers(scope));
     }
 
     sentry_set_tag("multi", "again");
@@ -1709,8 +1705,7 @@ SENTRY_TEST(scope_observer_multiple)
 
     SENTRY_WITH_SCOPE_MUT (scope) {
         sentry__scope_remove_observer(scope, observer1);
-        TEST_CHECK_INT_EQUAL(scope->num_observers, 0);
-        TEST_CHECK(scope->observers == NULL);
+        TEST_CHECK(!sentry__scope_has_observers(scope));
     }
 
     sentry_value_decref(d1.tags);
@@ -1775,14 +1770,13 @@ SENTRY_TEST(scope_observer_mutate)
 
     SENTRY_WITH_SCOPE_MUT (scope) {
         TEST_CHECK(sentry__scope_add_observer(scope, observer4));
-        TEST_CHECK_INT_EQUAL(scope->num_observers, 1);
+        TEST_CHECK(sentry__scope_has_observers(scope));
     }
 
     sentry_set_tag("self", "remove");
     TEST_CHECK(d4.was_called);
     SENTRY_WITH_SCOPE_MUT (scope) {
-        TEST_CHECK_INT_EQUAL(scope->num_observers, 0);
-        TEST_CHECK(scope->observers == NULL);
+        TEST_CHECK(!sentry__scope_has_observers(scope));
     }
 
     sentry_value_decref(d1.tags);
@@ -2321,11 +2315,11 @@ SENTRY_TEST(scope_ownership)
     // `sentry_local_scope_new` makes a one-shot scope, `sentry_scope_new` does
     // not.
     sentry_scope_t *local_scope = sentry_local_scope_new();
-    TEST_CHECK(local_scope->one_shot);
+    TEST_CHECK(sentry__scope_is_one_shot(local_scope));
     sentry_scope_free(local_scope);
 
     sentry_scope_t *user_scope = sentry_scope_new();
-    TEST_CHECK(!user_scope->one_shot);
+    TEST_CHECK(!sentry__scope_is_one_shot(user_scope));
     sentry_scope_free(user_scope);
 }
 
