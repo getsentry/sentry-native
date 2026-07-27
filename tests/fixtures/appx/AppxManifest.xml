@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Package
+  xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
+  xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
+  xmlns:uap4="http://schemas.microsoft.com/appx/manifest/uap/windows10/4"
+  xmlns:uap10="http://schemas.microsoft.com/appx/manifest/uap/windows10/10"
+  xmlns:desktop7="http://schemas.microsoft.com/appx/manifest/desktop/windows10/7"
+  xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities"
+  IgnorableNamespaces="uap uap4 uap10 desktop7 rescap">
+  <Identity
+    Name="SentryNativeExample"
+    Publisher="CN=Sentry Native Test"
+    Version="1.0.0.0"
+    ProcessorArchitecture="neutral" />
+  <Properties>
+    <DisplayName>Sentry Native AppX Test</DisplayName>
+    <PublisherDisplayName>Sentry Native Test</PublisherDisplayName>
+    <Logo>Assets\StoreLogo.png</Logo>
+    <uap10:AllowExternalContent>true</uap10:AllowExternalContent>
+  </Properties>
+  <Resources>
+    <Resource Language="en-us" />
+  </Resources>
+  <Dependencies>
+    <TargetDeviceFamily
+      Name="Windows.Desktop"
+      MinVersion="10.0.19041.0"
+      MaxVersionTested="10.0.26100.0" />
+  </Dependencies>
+  <Capabilities>
+    <rescap:Capability Name="runFullTrust" />
+    <uap4:CustomCapability Name="Microsoft.classicAppCompat_8wekyb3d8bbwe" />
+  </Capabilities>
+  <Applications>
+    <Application
+      Id="App"
+      Executable="sentry_example_appx.exe"
+      uap10:TrustLevel="mediumIL"
+      uap10:RuntimeBehavior="win32App">
+      <uap:VisualElements
+        AppListEntry="none"
+        DisplayName="Sentry Native AppX Test"
+        Description="Sentry Native AppX Test"
+        BackgroundColor="transparent"
+        Square150x150Logo="Assets\Square150x150Logo.png"
+        Square44x44Logo="Assets\Square44x44Logo.png" />
+    </Application>
+  </Applications>
+  <Extensions>
+    <desktop7:Extension
+      Category="windows.errorReporting"
+      desktop7:CompatMode="classic"
+      desktop7:Scope="user"
+      uap10:TrustLevel="mediumIL"
+      uap10:RuntimeBehavior="win32App">
+      <desktop7:ErrorReporting>
+        <desktop7:RuntimeExceptionHelperModule Path="sentry-wer.dll" />
+      </desktop7:ErrorReporting>
+    </desktop7:Extension>
+  </Extensions>
+</Package>

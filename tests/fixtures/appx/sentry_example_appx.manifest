@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<assembly manifestVersion="1.0" xmlns="urn:schemas-microsoft-com:asm.v1">
+  <assemblyIdentity version="1.0.0.0" name="SentryNativeExample"/>
+  <msix xmlns="urn:schemas-microsoft-com:msix.v1"
+        publisher="CN=Sentry Native Test"
+        packageName="SentryNativeExample"
+        applicationId="App"/>
+</assembly>
