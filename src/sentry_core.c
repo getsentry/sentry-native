@@ -838,19 +838,13 @@ prepare_user_feedback(const sentry_options_t *options,
     sentry_value_set_by_key(
         event, "level", sentry__value_new_level(SENTRY_LEVEL_INFO));
 
-    sentry_attachment_t *all_attachments = NULL;
-    if (hint) {
-        sentry__attachments_extend(&all_attachments, hint->attachments);
-    }
-
     if (local_scope) {
+        SENTRY_DEBUG("merging local scope into feedback event");
         sentry__scope_apply_to_event(
             local_scope, options, event, SENTRY_SCOPE_NONE);
-        // must be taken before the scope is freed below
-        sentry__attachments_extend(&all_attachments, local_scope->attachments);
-        sentry__scope_free_one_shot(local_scope);
     }
     SENTRY_WITH_SCOPE (scope) {
+        SENTRY_DEBUG("merging global scope into feedback event");
         sentry__scope_apply_to_event(scope, options, event, SENTRY_SCOPE_NONE);
     }
 
@@ -863,7 +857,7 @@ prepare_user_feedback(const sentry_options_t *options,
                 "feedback was discarded by the `before_send_feedback` hook");
             sentry__client_report_discard(SENTRY_DISCARD_REASON_BEFORE_SEND,
                 SENTRY_DATA_CATEGORY_FEEDBACK, 1);
-            sentry__attachments_free(all_attachments);
+            sentry__scope_free_one_shot(local_scope);
             return NULL;
         }
     }
@@ -875,24 +869,31 @@ prepare_user_feedback(const sentry_options_t *options,
         goto fail;
     }
 
+    sentry_attachment_t *combined_attachments = NULL;
+    if (hint) {
+        sentry__attachments_extend(&combined_attachments, hint->attachments);
+    }
+    if (local_scope) {
+        sentry__attachments_extend(
+            &combined_attachments, local_scope->attachments);
+    }
+
     SENTRY_WITH_SCOPE (scope) {
-        if (all_attachments) {
-            // all attachments merged from the hint and the scopes
-            sentry__attachments_extend(&all_attachments, scope->attachments);
-            sentry__envelope_add_attachments(
-                envelope, all_attachments, options);
-        } else {
-            // only the global scope has attachments
-            sentry__envelope_add_attachments(
-                envelope, scope->attachments, options);
+        const sentry_attachment_t *attachments = scope->attachments;
+        if (combined_attachments) {
+            sentry__attachments_extend(
+                &combined_attachments, scope->attachments);
+            attachments = combined_attachments;
         }
+        sentry__envelope_add_attachments(envelope, attachments, options);
         if (options->run) {
-            sentry__cache_attachment_refs(envelope,
-                all_attachments ? all_attachments : scope->attachments, options,
+            sentry__cache_attachment_refs(envelope, attachments, options,
                 options->run->cache_path, options->run->run_path);
         }
     }
-    sentry__attachments_free(all_attachments);
+
+    sentry__attachments_free(combined_attachments);
+    sentry__scope_free_one_shot(local_scope);
 
     return envelope;
 
@@ -900,7 +901,7 @@ fail:
     SENTRY_WARN("dropping user feedback");
     sentry_envelope_free(envelope);
     sentry_value_decref(event);
-    sentry__attachments_free(all_attachments);
+    sentry__scope_free_one_shot(local_scope);
     return NULL;
 }
 
