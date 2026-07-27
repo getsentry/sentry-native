@@ -209,6 +209,13 @@ sentry_init(sentry_options_t *options)
 
     uint64_t last_crash = 0;
 
+#if defined(SENTRY_PLATFORM_WINDOWS)                                           \
+    && (!defined(SENTRY_BUILD_SHARED) || defined(SENTRY_PLATFORM_XBOX))
+    // This function must be positioned so that any dependents on its cached
+    // functions are invoked after it.
+    sentry__init_cached_kernel32_functions();
+#endif
+
     // and then we will start the backend, since it requires a valid run
     sentry_backend_t *backend = options->backend;
     if (backend && backend->startup_func) {
@@ -252,13 +259,6 @@ sentry_init(sentry_options_t *options)
     if (backend && backend->user_consent_changed_func) {
         backend->user_consent_changed_func(backend);
     }
-
-#if defined(SENTRY_PLATFORM_WINDOWS)                                           \
-    && (!defined(SENTRY_BUILD_SHARED) || defined(SENTRY_PLATFORM_XBOX))
-    // This function must be positioned so that any dependents on its cached
-    // functions are invoked after it.
-    sentry__init_cached_kernel32_functions();
-#endif
 
     // after initializing the transport, we will submit all the unsent envelopes
     // and handle remaining sessions.

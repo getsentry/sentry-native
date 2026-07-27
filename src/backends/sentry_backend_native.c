@@ -191,6 +191,11 @@ native_backend_startup(
                 "development.");
     SENTRY_DEBUG("starting native backend");
 
+#if defined(SENTRY_PLATFORM_WINDOWS) && !defined(SENTRY_BUILD_SHARED)          \
+    && defined(SENTRY_THREAD_STACK_GUARANTEE_AUTO_INIT)
+    sentry__set_default_thread_stack_guarantee();
+#endif
+
 #if defined(SENTRY_PLATFORM_WINDOWS)
     // Create process-wide mutex for IPC synchronization (Windows)
     // Use portable mutex to protect Windows mutex creation
