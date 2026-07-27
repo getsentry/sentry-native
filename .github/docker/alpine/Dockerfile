@@ -59,4 +59,4 @@ ENV PIPX_BIN_DIR=/opt/pipx_bin
 ENV PIPX_HOME=/opt/pipx
 RUN python3 -m pip install pipx
 RUN python3 -m pipx ensurepath
-ENV PATH="PIPX_BIN_DIR:$PATH"
+ENV PATH="${PIPX_BIN_DIR}:$PATH"
