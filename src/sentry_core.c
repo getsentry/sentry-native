@@ -829,28 +829,52 @@ static sentry_envelope_t *
 prepare_user_feedback(const sentry_options_t *options,
     sentry_value_t user_feedback, sentry_hint_t *hint)
 {
-    sentry_envelope_t *envelope = NULL;
+    sentry_value_t event = sentry_value_new_event();
+    sentry_value_t contexts = sentry_value_new_object();
+    sentry_value_set_by_key(contexts, "feedback", user_feedback);
+    sentry_value_set_by_key(event, "contexts", contexts);
 
-    envelope = sentry__envelope_new();
-    if (!envelope
-        || !sentry__envelope_add_user_feedback(envelope, user_feedback)) {
+    sentry_value_set_by_key(
+        event, "level", sentry__value_new_level(SENTRY_LEVEL_INFO));
+
+    SENTRY_WITH_SCOPE (scope) {
+        sentry__scope_apply_to_event(scope, options, event, SENTRY_SCOPE_NONE);
+    }
+
+    sentry_envelope_t *envelope = sentry__envelope_new();
+    if (!envelope || !sentry__envelope_add_feedback_event(envelope, event)) {
         goto fail;
     }
 
-    if (hint && hint->attachments) {
-        sentry__envelope_add_attachments(envelope, hint->attachments, options);
+    sentry_attachment_t *all_attachments = NULL;
+    if (hint) {
+        sentry__attachments_extend(&all_attachments, hint->attachments);
+    }
+    SENTRY_WITH_SCOPE (scope) {
+        if (all_attachments) {
+            // attachments merged from the hint and the scope
+            sentry__attachments_extend(&all_attachments, scope->attachments);
+            sentry__envelope_add_attachments(
+                envelope, all_attachments, options);
+        } else {
+            // only the scope has attachments
+            sentry__envelope_add_attachments(
+                envelope, scope->attachments, options);
+        }
         if (options->run) {
-            sentry__cache_attachment_refs(envelope, hint->attachments, options,
+            sentry__cache_attachment_refs(envelope,
+                all_attachments ? all_attachments : scope->attachments, options,
                 options->run->cache_path, options->run->run_path);
         }
     }
+    sentry__attachments_free(all_attachments);
 
     return envelope;
 
 fail:
     SENTRY_WARN("dropping user feedback");
     sentry_envelope_free(envelope);
-    sentry_value_decref(user_feedback);
+    sentry_value_decref(event);
     return NULL;
 }
 
@@ -1797,13 +1821,20 @@ void
 sentry_capture_feedback_with_hint(
     sentry_value_t user_feedback, sentry_hint_t *hint)
 {
-    sentry_envelope_t *envelope = NULL;
-
+    bool captured = false;
     SENTRY_WITH_OPTIONS (options) {
-        envelope = prepare_user_feedback(options, user_feedback, hint);
+        captured = true;
+        sentry_envelope_t *envelope
+            = prepare_user_feedback(options, user_feedback, hint);
         if (envelope) {
             sentry__capture_envelope(options->transport, envelope, options);
         }
+    }
+
+    if (!captured) {
+        // The SDK is not initialized; release what `prepare_user_feedback`
+        // would have taken ownership of.
+        sentry_value_decref(user_feedback);
     }
 
     if (hint) {

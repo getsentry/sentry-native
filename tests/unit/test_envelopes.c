@@ -138,7 +138,11 @@ SENTRY_TEST(basic_http_request_preparation_for_user_feedback)
     sentry_envelope_t *envelope = sentry__envelope_new();
     sentry_value_t user_feedback = sentry_value_new_feedback(
         "some-message", "some-email", "some-name", &event_id);
-    sentry__envelope_add_user_feedback(envelope, user_feedback);
+    sentry_value_t feedback_event = sentry_value_new_event();
+    sentry_value_t feedback_contexts = sentry_value_new_object();
+    sentry_value_set_by_key(feedback_contexts, "feedback", user_feedback);
+    sentry_value_set_by_key(feedback_event, "contexts", feedback_contexts);
+    sentry__envelope_add_feedback_event(envelope, feedback_event);
 
     sentry_prepared_http_request_t *req
         = sentry__prepare_http_request(envelope, dsn, NULL, NULL);
