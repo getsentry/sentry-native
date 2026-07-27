@@ -500,6 +500,100 @@ SENTRY_TEST(attachments_bytes)
     sentry_close();
 }
 
+typedef struct {
+    uint64_t called;
+} sentry_before_send_attachment_testdata_t;
+
+static sentry_value_t
+before_send_attach_bytes(sentry_value_t event, void *UNUSED(hint), void *_data)
+{
+    sentry_before_send_attachment_testdata_t *data = _data;
+    data->called += 1;
+
+    if (data->called == 1) {
+        sentry_attach_bytes("global", 6, ".before-send.txt");
+    } else {
+        sentry_attach_bytes("first", 5, ".before-send.txt");
+    }
+
+    return event;
+}
+
+SENTRY_TEST(attachments_before_send)
+{
+    sentry_attachments_testdata_t testdata;
+    testdata.called = 0;
+    sentry__stringbuilder_init(&testdata.serialized_envelope);
+
+    sentry_before_send_attachment_testdata_t before_send_data = { 0 };
+
+    SENTRY_TEST_OPTIONS_NEW(options);
+    sentry_options_set_auto_session_tracking(options, false);
+    sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
+    sentry_options_set_before_send(
+        options, before_send_attach_bytes, &before_send_data);
+    sentry_transport_t *transport
+        = sentry_transport_new(send_envelope_test_attachments);
+    sentry_transport_set_state(transport, &testdata);
+    sentry_options_set_transport(options, transport);
+
+    sentry_path_t *local_attachment_path
+        = sentry__path_from_str(SENTRY_TEST_PATH_PREFIX ".local.txt");
+    sentry__path_write_buffer(local_attachment_path, "local", 5);
+
+    sentry_init(options);
+
+    sentry_capture_event(sentry_value_new_message_event(
+        SENTRY_LEVEL_INFO, "root", "global-only"));
+
+    char *serialized
+        = sentry_stringbuilder_take_string(&testdata.serialized_envelope);
+    TEST_CHECK(strstr(serialized,
+                   "{\"type\":\"attachment\",\"length\":6,"
+                   "\"filename\":\".before-send.txt\"}\n"
+                   "global")
+        != NULL);
+    TEST_CHECK(strstr(serialized, "\"filename\":\".local.txt\"") == NULL);
+    TEST_CHECK(strstr(serialized, "first") == NULL);
+    sentry_free(serialized);
+
+    sentry_clear_attachments();
+    sentry_attach_bytes("existing", 8, ".existing.txt");
+
+    sentry_scope_t *scope = sentry_local_scope_new();
+    sentry_scope_attach_file(scope, SENTRY_TEST_PATH_PREFIX ".local.txt");
+    sentry_scope_capture_event(scope,
+        sentry_value_new_message_event(SENTRY_LEVEL_INFO, "root", "first"));
+
+    serialized
+        = sentry_stringbuilder_take_string(&testdata.serialized_envelope);
+    TEST_CHECK(strstr(serialized,
+                   "{\"type\":\"attachment\",\"length\":5,"
+                   "\"filename\":\".local.txt\"}\n"
+                   "local")
+        != NULL);
+    TEST_CHECK(strstr(serialized,
+                   "{\"type\":\"attachment\",\"length\":5,"
+                   "\"filename\":\".before-send.txt\"}\n"
+                   "first")
+        != NULL);
+    TEST_CHECK(strstr(serialized,
+                   "{\"type\":\"attachment\",\"length\":8,"
+                   "\"filename\":\".existing.txt\"}\n"
+                   "existing")
+        != NULL);
+    TEST_CHECK(strstr(serialized, "global") == NULL);
+    sentry_free(serialized);
+
+    sentry_close();
+
+    sentry__path_remove(local_attachment_path);
+    sentry__path_free(local_attachment_path);
+
+    TEST_CHECK_INT_EQUAL(testdata.called, 2);
+    TEST_CHECK_INT_EQUAL(before_send_data.called, 2);
+}
+
 #define ATTACHMENT_COUNT 15
 
 SENTRY_TEST(attachments_more_than_ten)

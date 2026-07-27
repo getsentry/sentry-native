@@ -704,8 +704,6 @@ sentry__prepare_event(const sentry_options_t *options, sentry_value_t event,
         SENTRY_DEBUG("merging local scope into event");
         sentry_scope_mode_t mode = SENTRY_SCOPE_BREADCRUMBS;
         sentry__scope_apply_to_event(local_scope, options, event, mode);
-        sentry__attachments_extend(&all_attachments, local_scope->attachments);
-        sentry__scope_free_one_shot(local_scope);
     }
 
     SENTRY_WITH_SCOPE (scope) {
@@ -713,9 +711,6 @@ sentry__prepare_event(const sentry_options_t *options, sentry_value_t event,
         sentry_scope_mode_t mode = SENTRY_SCOPE_ALL;
         if (!options->symbolize_stacktraces) {
             mode &= ~SENTRY_SCOPE_STACKTRACES;
-        }
-        if (all_attachments) {
-            sentry__attachments_extend(&all_attachments, scope->attachments);
         }
         sentry__scope_apply_to_event(scope, options, event, mode);
     }
@@ -728,6 +723,7 @@ sentry__prepare_event(const sentry_options_t *options, sentry_value_t event,
             SENTRY_DEBUG("event was discarded by the `before_send` hook");
             sentry__client_report_discard(SENTRY_DISCARD_REASON_BEFORE_SEND,
                 SENTRY_DATA_CATEGORY_ERROR, 1);
+            sentry__scope_free_one_shot(local_scope);
             return NULL;
         }
     }
@@ -739,29 +735,31 @@ sentry__prepare_event(const sentry_options_t *options, sentry_value_t event,
     }
 
     SENTRY_WITH_SCOPE (scope) {
-        if (all_attachments) {
+        const sentry_attachment_t *attachments = scope->attachments;
+        if (local_scope && local_scope->attachments) {
             // all attachments merged from multiple scopes
-            sentry__envelope_add_attachments(
-                envelope, all_attachments, options);
-        } else {
-            // only global scope has attachments
-            sentry__envelope_add_attachments(
-                envelope, scope->attachments, options);
+            sentry__attachments_extend(
+                &all_attachments, local_scope->attachments);
+            sentry__attachments_extend(&all_attachments, scope->attachments);
+            attachments = all_attachments;
         }
+        // otherwise only global scope has attachments
+        sentry__envelope_add_attachments(envelope, attachments, options);
         if (options->run) {
-            sentry__cache_attachment_refs(envelope,
-                all_attachments ? all_attachments : scope->attachments, options,
+            sentry__cache_attachment_refs(envelope, attachments, options,
                 options->run->cache_path, options->run->run_path);
         }
     }
 
     sentry__attachments_free(all_attachments);
+    sentry__scope_free_one_shot(local_scope);
 
     return envelope;
 
 fail:
     sentry_envelope_free(envelope);
     sentry_value_decref(event);
+    sentry__scope_free_one_shot(local_scope);
     return NULL;
 }
 
