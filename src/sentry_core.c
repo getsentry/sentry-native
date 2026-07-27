@@ -1847,6 +1847,10 @@ capture_feedback(sentry_value_t user_feedback, sentry_hint_t *hint,
     bool was_sent = false;
     SENTRY_WITH_OPTIONS (options) {
         was_captured = true;
+        // Give the hook something to attach to when the caller passed no hint.
+        if (!hint && options->before_send_feedback_func) {
+            hint = sentry_hint_new();
+        }
         sentry_envelope_t *envelope = prepare_user_feedback(
             options, user_feedback, hint, local_scope, &event_id);
         if (envelope) {
