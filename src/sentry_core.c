@@ -1847,6 +1847,8 @@ capture_feedback(sentry_value_t user_feedback, sentry_hint_t *hint,
         was_captured = true;
         // Give the hook something to attach to when the caller passed no hint.
         if (!hint && options->before_send_feedback_func) {
+            // A failed allocation is tolerated: operating on a NULL hint
+            // no-ops.
             hint = sentry_hint_new();
         }
         sentry_envelope_t *envelope = prepare_user_feedback(
