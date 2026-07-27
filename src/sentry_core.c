@@ -827,7 +827,8 @@ fail:
 
 static sentry_envelope_t *
 prepare_user_feedback(const sentry_options_t *options,
-    sentry_value_t user_feedback, sentry_hint_t *hint)
+    sentry_value_t user_feedback, sentry_hint_t *hint,
+    sentry_scope_t *local_scope, sentry_uuid_t *event_id)
 {
     sentry_value_t event = sentry_value_new_event();
     sentry_value_t contexts = sentry_value_new_object();
@@ -837,27 +838,37 @@ prepare_user_feedback(const sentry_options_t *options,
     sentry_value_set_by_key(
         event, "level", sentry__value_new_level(SENTRY_LEVEL_INFO));
 
+    sentry_attachment_t *all_attachments = NULL;
+    if (hint) {
+        sentry__attachments_extend(&all_attachments, hint->attachments);
+    }
+
+    if (local_scope) {
+        sentry__scope_apply_to_event(
+            local_scope, options, event, SENTRY_SCOPE_NONE);
+        // must be taken before the scope is freed below
+        sentry__attachments_extend(&all_attachments, local_scope->attachments);
+        sentry__scope_free_one_shot(local_scope);
+    }
     SENTRY_WITH_SCOPE (scope) {
         sentry__scope_apply_to_event(scope, options, event, SENTRY_SCOPE_NONE);
     }
+
+    sentry__ensure_event_id(event, event_id);
 
     sentry_envelope_t *envelope = sentry__envelope_new();
     if (!envelope || !sentry__envelope_add_feedback_event(envelope, event)) {
         goto fail;
     }
 
-    sentry_attachment_t *all_attachments = NULL;
-    if (hint) {
-        sentry__attachments_extend(&all_attachments, hint->attachments);
-    }
     SENTRY_WITH_SCOPE (scope) {
         if (all_attachments) {
-            // attachments merged from the hint and the scope
+            // all attachments merged from the hint and the scopes
             sentry__attachments_extend(&all_attachments, scope->attachments);
             sentry__envelope_add_attachments(
                 envelope, all_attachments, options);
         } else {
-            // only the scope has attachments
+            // only the global scope has attachments
             sentry__envelope_add_attachments(
                 envelope, scope->attachments, options);
         }
@@ -875,6 +886,7 @@ fail:
     SENTRY_WARN("dropping user feedback");
     sentry_envelope_free(envelope);
     sentry_value_decref(event);
+    sentry__attachments_free(all_attachments);
     return NULL;
 }
 
@@ -1810,6 +1822,37 @@ sentry_capture_user_feedback(sentry_value_t user_report)
     sentry_value_decref(user_report);
 }
 
+static sentry_uuid_t
+capture_feedback(sentry_value_t user_feedback, sentry_hint_t *hint,
+    sentry_scope_t *local_scope)
+{
+    sentry_uuid_t event_id = sentry_uuid_nil();
+
+    bool was_captured = false;
+    bool was_sent = false;
+    SENTRY_WITH_OPTIONS (options) {
+        was_captured = true;
+        sentry_envelope_t *envelope = prepare_user_feedback(
+            options, user_feedback, hint, local_scope, &event_id);
+        if (envelope) {
+            sentry__capture_envelope(options->transport, envelope, options);
+            was_sent = true;
+        }
+    }
+
+    if (!was_captured) {
+        // The SDK is not initialized, most likely.
+        sentry_value_decref(user_feedback);
+        sentry__scope_free_one_shot(local_scope);
+    }
+
+    if (hint) {
+        sentry__hint_free(hint);
+    }
+
+    return was_sent ? event_id : sentry_uuid_nil();
+}
+
 void
 sentry_capture_feedback(sentry_value_t user_feedback)
 {
@@ -1821,25 +1864,14 @@ void
 sentry_capture_feedback_with_hint(
     sentry_value_t user_feedback, sentry_hint_t *hint)
 {
-    bool captured = false;
-    SENTRY_WITH_OPTIONS (options) {
-        captured = true;
-        sentry_envelope_t *envelope
-            = prepare_user_feedback(options, user_feedback, hint);
-        if (envelope) {
-            sentry__capture_envelope(options->transport, envelope, options);
-        }
-    }
+    capture_feedback(user_feedback, hint, NULL);
+}
 
-    if (!captured) {
-        // The SDK is not initialized; release what `prepare_user_feedback`
-        // would have taken ownership of.
-        sentry_value_decref(user_feedback);
-    }
-
-    if (hint) {
-        sentry__hint_free(hint);
-    }
+sentry_uuid_t
+sentry_scope_capture_feedback(
+    sentry_scope_t *scope, sentry_value_t user_feedback, sentry_hint_t *hint)
+{
+    return capture_feedback(user_feedback, hint, scope);
 }
 
 bool

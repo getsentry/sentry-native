@@ -323,3 +323,113 @@ SENTRY_TEST(feedback_with_scope_and_hint_attachments)
 
     TEST_CHECK_INT_EQUAL(testdata.called, 1);
 }
+
+SENTRY_TEST(feedback_with_scope)
+{
+    sentry_feedback_testdata_t testdata;
+    setup_feedback_test(&testdata);
+
+    sentry_set_tag("global_tag", "from_global");
+
+    sentry_scope_t *scope = sentry_scope_new();
+    sentry_scope_set_tag(scope, "scoped_tag", "from_scope");
+    sentry_scope_set_user(
+        scope, sentry_value_new_user("id-42", "alice", NULL, NULL));
+
+    sentry_uuid_t event_id
+        = sentry_uuid_from_string("4c035723-8638-4c3a-923f-2ab9d08b4018");
+    sentry_value_t feedback = sentry_value_new_feedback(
+        "test message", "test@example.com", "Test User", &event_id);
+
+    sentry_uuid_t feedback_id
+        = sentry_scope_capture_feedback(scope, feedback, NULL);
+    TEST_CHECK(!sentry_uuid_is_nil(&feedback_id));
+
+    char *serialized
+        = sentry_stringbuilder_take_string(&testdata.serialized_envelope);
+    const char *item = strstr(serialized, "{\"type\":\"feedback\"");
+    TEST_ASSERT(item != NULL);
+    TEST_CHECK(strstr(item, "\"scoped_tag\":\"from_scope\"") != NULL);
+    TEST_CHECK(strstr(item, "\"id\":\"id-42\"") != NULL);
+    TEST_CHECK(strstr(item, "\"global_tag\":\"from_global\"") != NULL);
+    TEST_CHECK(strstr(item, "\"release\":\"my-app@1.2.3\"") != NULL);
+
+    char feedback_id_str[37];
+    sentry_uuid_as_string(&feedback_id, feedback_id_str);
+    TEST_CHECK(strstr(serialized, feedback_id_str) != NULL);
+    sentry_free(serialized);
+
+    sentry_scope_free(scope);
+
+    sentry_close();
+
+    TEST_CHECK_INT_EQUAL(testdata.called, 1);
+}
+
+SENTRY_TEST(feedback_with_one_shot_scope)
+{
+    sentry_feedback_testdata_t testdata;
+    setup_feedback_test(&testdata);
+
+    sentry_uuid_t event_id
+        = sentry_uuid_from_string("4c035723-8638-4c3a-923f-2ab9d08b4018");
+    sentry_value_t feedback = sentry_value_new_feedback(
+        "test message", "test@example.com", "Test User", &event_id);
+
+    // A local scope is one-shot: it is consumed and freed by the capture. ASan
+    // fails the test if the scope leaks.
+    sentry_scope_t *local_scope = sentry_local_scope_new();
+    sentry_scope_set_tag(local_scope, "scoped_tag", "from_scope");
+
+    sentry_uuid_t feedback_id
+        = sentry_scope_capture_feedback(local_scope, feedback, NULL);
+    TEST_CHECK(!sentry_uuid_is_nil(&feedback_id));
+
+    char *serialized
+        = sentry_stringbuilder_take_string(&testdata.serialized_envelope);
+    const char *item = strstr(serialized, "{\"type\":\"feedback\"");
+    TEST_ASSERT(item != NULL);
+    TEST_CHECK(strstr(item, "\"scoped_tag\":\"from_scope\"") != NULL);
+    sentry_free(serialized);
+
+    sentry_close();
+
+    TEST_CHECK_INT_EQUAL(testdata.called, 1);
+}
+
+SENTRY_TEST(feedback_with_scope_and_hint)
+{
+    sentry_feedback_testdata_t testdata;
+    setup_feedback_test(&testdata);
+
+    sentry_scope_t *local_scope = sentry_local_scope_new();
+    sentry_scope_set_tag(local_scope, "scoped_tag", "from_scope");
+
+    sentry_uuid_t event_id
+        = sentry_uuid_from_string("4c035723-8638-4c3a-923f-2ab9d08b4018");
+    sentry_value_t feedback = sentry_value_new_feedback(
+        "test message", "test@example.com", "Test User", &event_id);
+
+    sentry_hint_t *hint = sentry_hint_new();
+    TEST_CHECK(hint != NULL);
+    sentry_attachment_t *attachment
+        = sentry_hint_attach_bytes(hint, "hint content", 12, "hint.txt");
+    TEST_CHECK(attachment != NULL);
+
+    sentry_uuid_t feedback_id
+        = sentry_scope_capture_feedback(local_scope, feedback, hint);
+    TEST_CHECK(!sentry_uuid_is_nil(&feedback_id));
+
+    char *serialized
+        = sentry_stringbuilder_take_string(&testdata.serialized_envelope);
+    const char *item = strstr(serialized, "{\"type\":\"feedback\"");
+    TEST_ASSERT(item != NULL);
+    TEST_CHECK(strstr(item, "\"scoped_tag\":\"from_scope\"") != NULL);
+    TEST_CHECK(strstr(serialized, "\"filename\":\"hint.txt\"") != NULL);
+    TEST_CHECK(strstr(serialized, "hint content") != NULL);
+    sentry_free(serialized);
+
+    sentry_close();
+
+    TEST_CHECK_INT_EQUAL(testdata.called, 1);
+}

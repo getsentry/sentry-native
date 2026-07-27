@@ -3694,6 +3694,7 @@ typedef struct sentry_hint_s sentry_hint_t;
 /**
  * Creates a new hint to be passed into
  * - `sentry_capture_feedback_with_hint`
+ * - `sentry_scope_capture_feedback`
  */
 SENTRY_API sentry_hint_t *sentry_hint_new(void);
 
@@ -3748,6 +3749,22 @@ SENTRY_API sentry_attachment_t *sentry_hint_attach_bytesw_n(sentry_hint_t *hint,
  */
 SENTRY_API void sentry_capture_feedback_with_hint(
     sentry_value_t user_feedback, sentry_hint_t *hint);
+
+/**
+ * Captures a manually created User Feedback with a scope and a hint, and sends
+ * it to Sentry.
+ *
+ * This function takes ownership of both the feedback value and the hint, which
+ * will be freed automatically. The hint parameter can be NULL if no additional
+ * context is needed.
+ *
+ * If `scope` is a local scope (`sentry_local_scope_new`), this takes ownership
+ * of it and frees it. If `scope` is user-owned (`sentry_scope_new` or
+ * `sentry_scope_clone`), it is applied but not freed, so it can be reused; free
+ * it yourself with `sentry_scope_free`.
+ */
+SENTRY_API sentry_uuid_t sentry_scope_capture_feedback(
+    sentry_scope_t *scope, sentry_value_t user_feedback, sentry_hint_t *hint);
 
 /**
  * The status of a Span or Transaction.
