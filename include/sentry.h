@@ -101,7 +101,7 @@ extern "C" {
 #    endif
 #endif
 #ifndef SENTRY_SDK_VERSION
-#    define SENTRY_SDK_VERSION "0.15.4"
+#    define SENTRY_SDK_VERSION "0.16.0"
 #endif
 #define SENTRY_SDK_USER_AGENT SENTRY_SDK_NAME "/" SENTRY_SDK_VERSION
 
@@ -1046,6 +1046,11 @@ typedef enum {
 } sentry_minidump_mode_t;
 
 /**
+ * Platform-specific minidump flags.
+ */
+typedef uint32_t sentry_minidump_flags_t;
+
+/**
  * Crash reporting mode for the native backend.
  * Controls what data is collected and sent on crash.
  */
@@ -1875,11 +1880,34 @@ SENTRY_API void sentry_options_set_system_crash_reporter_enabled(
  * generate and upload. For production, `SENTRY_MINIDUMP_MODE_STACK_ONLY` or
  * `SENTRY_MINIDUMP_MODE_SMART` are recommended.
  *
+ * On Windows, custom flags configured through
+ * `sentry_options_set_minidump_flags` take precedence over this
+ * setting, regardless of call order.
+ *
  * This setting only has an effect when using the `native` backend.
  * Default is `SENTRY_MINIDUMP_MODE_SMART`.
  */
 SENTRY_API void sentry_options_set_minidump_mode(
     sentry_options_t *opts, sentry_minidump_mode_t mode);
+
+#ifdef SENTRY_PLATFORM_WINDOWS
+/**
+ * Sets the raw Windows `MINIDUMP_TYPE` flags for the native backend.
+ *
+ * When configured, these flags take precedence over
+ * `sentry_options_set_minidump_mode`, regardless of call order.
+ *
+ * `flags` is normalized to the flags supported by the Windows
+ * `MINIDUMP_TYPE` enum; unsupported bits are discarded. A value of zero
+ * selects `MiniDumpNormal`. See
+ * https://learn.microsoft.com/en-us/windows/win32/api/minidumpapiset/ne-minidumpapiset-minidump_type
+ * for the available flags.
+ *
+ * This setting only has an effect when using the `native` backend on Windows.
+ */
+SENTRY_API void sentry_options_set_minidump_flags(
+    sentry_options_t *opts, sentry_minidump_flags_t flags);
+#endif
 
 /**
  * Sets the crash reporting mode for the native backend.
@@ -2912,7 +2940,8 @@ SENTRY_EXPERIMENTAL_API sentry_metrics_result_t sentry_scope_capture_metric(
 /**
  * Returns the currently set strategy for the handler.
  *
- * This option does only work for the `inproc` backend on `Linux` and `Android`.
+ * This option works for the `inproc` backend on `Linux` and `Android`, and for
+ * the `native` backend on `Linux`.
  *
  * The main use-case is when the Native SDK is used in the context of the
  * CLR/Mono runtimes which convert some POSIX signals into managed-code
@@ -3665,6 +3694,7 @@ typedef struct sentry_hint_s sentry_hint_t;
 /**
  * Creates a new hint to be passed into
  * - `sentry_capture_feedback_with_hint`
+ * - `sentry_scope_capture_feedback`
  */
 SENTRY_API sentry_hint_t *sentry_hint_new(void);
 
@@ -3719,6 +3749,22 @@ SENTRY_API sentry_attachment_t *sentry_hint_attach_bytesw_n(sentry_hint_t *hint,
  */
 SENTRY_API void sentry_capture_feedback_with_hint(
     sentry_value_t user_feedback, sentry_hint_t *hint);
+
+/**
+ * Captures a manually created User Feedback with a scope and a hint, and sends
+ * it to Sentry.
+ *
+ * This function takes ownership of both the feedback value and the hint, which
+ * will be freed automatically. The hint parameter can be NULL if no additional
+ * context is needed.
+ *
+ * If `scope` is a local scope (`sentry_local_scope_new`), this takes ownership
+ * of it and frees it. If `scope` is user-owned (`sentry_scope_new` or
+ * `sentry_scope_clone`), it is applied but not freed, so it can be reused; free
+ * it yourself with `sentry_scope_free`.
+ */
+SENTRY_API sentry_uuid_t sentry_scope_capture_feedback(
+    sentry_scope_t *scope, sentry_value_t user_feedback, sentry_hint_t *hint);
 
 /**
  * The status of a Span or Transaction.

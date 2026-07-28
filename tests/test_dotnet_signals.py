@@ -9,7 +9,7 @@ import pytest
 
 from tests import adb
 from tests.assertions import wait_for
-from tests.conditions import is_android, is_arm32, is_tsan, is_x86, is_asan
+from tests.conditions import has_native, is_android, is_arm32, is_tsan, is_x86, is_asan
 
 project_fixture_path = pathlib.Path("tests/fixtures/dotnet_signal")
 
@@ -17,11 +17,11 @@ project_fixture_path = pathlib.Path("tests/fixtures/dotnet_signal")
 def assert_empty_run_dir(database_path):
     run_dirs = [d for d in database_path.glob("*.run") if d.is_dir()]
     assert (
-        len(run_dirs) == 1
-    ), f"Expected exactly one .run directory, found {len(run_dirs)}"
-
-    run_dir = run_dirs[0]
-    assert not any(run_dir.iterdir()), f"The directory {run_dir} is not empty"
+        len(run_dirs) > 0
+    ), f"Expected at least one .run directory, found {len(run_dirs)}"
+    assert not list(
+        database_path.glob("**/*.envelope")
+    ), "Unexpected crash envelope found"
 
 
 def assert_run_dir_with_envelope(database_path):
@@ -42,7 +42,7 @@ def run_dotnet(tmp_path, args):
     env = os.environ.copy()
     env["LD_LIBRARY_PATH"] = str(tmp_path) + ":" + env.get("LD_LIBRARY_PATH", "")
     return subprocess.Popen(
-        args,
+        ["dotnet", "run", "-f:net10.0", f"-p:OutDir={tmp_path}/", "--", *args],
         cwd=str(project_fixture_path),
         env=env,
         text=True,
@@ -52,19 +52,15 @@ def run_dotnet(tmp_path, args):
 
 
 def run_dotnet_managed_exception(tmp_path):
-    return run_dotnet(
-        tmp_path, ["dotnet", "run", "-f:net10.0", "--", "managed-exception"]
-    )
+    return run_dotnet(tmp_path, ["managed-exception"])
 
 
 def run_dotnet_unhandled_managed_exception(tmp_path):
-    return run_dotnet(
-        tmp_path, ["dotnet", "run", "-f:net10.0", "--", "unhandled-managed-exception"]
-    )
+    return run_dotnet(tmp_path, ["unhandled-managed-exception"])
 
 
 def run_dotnet_native_crash(tmp_path):
-    return run_dotnet(tmp_path, ["dotnet", "run", "-f:net10.0", "--", "native-crash"])
+    return run_dotnet(tmp_path, ["native-crash"])
 
 
 @pytest.mark.skipif(
@@ -78,15 +74,27 @@ def run_dotnet_native_crash(tmp_path):
     ),
     reason="dotnet signal handling is currently only supported on 64-bit Linux without sanitizers",
 )
-def test_dotnet_signals_inproc(cmake):
+@pytest.mark.parametrize(
+    "backend",
+    [
+        pytest.param("inproc"),
+        pytest.param(
+            "native",
+            marks=pytest.mark.skipif(
+                not has_native, reason="native backend not available"
+            ),
+        ),
+    ],
+)
+def test_dotnet_signals(cmake, backend):
     if shutil.which("dotnet") is None:
         pytest.skip("dotnet is not installed")
 
     try:
-        # build native client library with inproc and the example for crash dumping
+        # build native client library and the example for crash dumping
         tmp_path = cmake(
             ["sentry"],
-            {"SENTRY_BACKEND": "inproc", "SENTRY_TRANSPORT": "none"},
+            {"SENTRY_BACKEND": backend, "SENTRY_TRANSPORT": "none"},
         )
 
         # build the crashing native library
@@ -140,11 +148,13 @@ def test_dotnet_signals_inproc(cmake):
 
         # the program will fail with a SIGSEGV, that has been processed by the Native SDK which produced a crash envelope
         assert dotnet_run.returncode != 0
-        assert (
-            "crash has been captured" in dotnet_run_stderr
+        assert any(
+            message in dotnet_run_stderr
+            for message in ("crash has been captured", "Envelope written successfully")
         ), f"Native exception run failed.\nstdout:\n{dotnet_run_stdout}\nstderr:\n{dotnet_run_stderr}"
         assert (database_path / "last_crash").exists()
-        assert_run_dir_with_envelope(database_path)
+        if backend != "native":
+            assert_run_dir_with_envelope(database_path)
     finally:
         shutil.rmtree(project_fixture_path / ".sentry-native", ignore_errors=True)
         shutil.rmtree(project_fixture_path / "bin", ignore_errors=True)

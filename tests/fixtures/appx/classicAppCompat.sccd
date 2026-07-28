@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<CustomCapabilityDescriptor
+  xmlns="http://schemas.microsoft.com/appx/2016/sccd">
+  <CustomCapabilities>
+    <CustomCapability Name="Microsoft.classicAppCompat_8wekyb3d8bbwe" />
+  </CustomCapabilities>
+  <AuthorizedEntities>
+    <AuthorizedEntity
+      AppPackageFamilyName="SentryNativeExample_4d5x6dfn6mhjm"
+      CertificateSignatureHash="0000000000000000000000000000000000000000000000000000000000000000" />
+  </AuthorizedEntities>
+  <Catalog>0000</Catalog>
+  <DeveloperModeOnly Value="true" />
+</CustomCapabilityDescriptor>

@@ -187,9 +187,12 @@ static int
 native_backend_startup(
     sentry_backend_t *backend, const sentry_options_t *options)
 {
-    SENTRY_WARN("The native backend is experimental and under active "
-                "development.");
     SENTRY_DEBUG("starting native backend");
+
+#if defined(SENTRY_PLATFORM_WINDOWS) && !defined(SENTRY_BUILD_SHARED)          \
+    && defined(SENTRY_THREAD_STACK_GUARANTEE_AUTO_INIT)
+    sentry__set_default_thread_stack_guarantee();
+#endif
 
 #if defined(SENTRY_PLATFORM_WINDOWS)
     // Create process-wide mutex for IPC synchronization (Windows)
@@ -292,6 +295,9 @@ native_backend_startup(
 
     // Set minidump mode from options
     ctx->minidump_mode = (sentry_minidump_mode_t)options->minidump_mode;
+#ifdef SENTRY_PLATFORM_WINDOWS
+    ctx->minidump_flags = options->minidump_flags;
+#endif
 
     // Set crash reporting mode from options
     ctx->crash_reporting_mode = options->crash_reporting_mode;
@@ -446,7 +452,8 @@ native_backend_startup(
     // Install crash handlers (signal handlers on Linux/macOS, Mach exception
     // handler on iOS)
 #if defined(SENTRY_PLATFORM_IOS)
-    if (sentry__crash_handler_init(state->ipc) < 0) {
+    if (sentry__crash_handler_init(state->ipc, SENTRY_HANDLER_STRATEGY_DEFAULT)
+        < 0) {
         SENTRY_WARN("failed to initialize crash handler");
         sentry__crash_ipc_free(state->ipc);
         sentry_free(state);
@@ -530,7 +537,12 @@ native_backend_startup(
     wer_register_module(tid);
 #    endif
 
-    if (sentry__crash_handler_init(state->ipc) < 0) {
+    sentry_handler_strategy_t strategy =
+#    if defined(SENTRY_PLATFORM_LINUX) && !defined(SENTRY_PLATFORM_ANDROID)
+        options ? sentry_options_get_handler_strategy(options) :
+#    endif
+                SENTRY_HANDLER_STRATEGY_DEFAULT;
+    if (sentry__crash_handler_init(state->ipc, strategy) < 0) {
         SENTRY_WARN("failed to initialize crash handler");
 #    if defined(SENTRY_PLATFORM_UNIX)
         kill(state->daemon_pid, SIGTERM);

@@ -2,10 +2,19 @@
 
 ## Unreleased
 
+**Fixes**:
+- Honor checks before launching crash reporter ([#1906](https://github.com/getsentry/sentry-native/pull/1906))
+
+## 0.16.0
+
 **Features**:
 
+- Native/Windows: add `sentry_options_set_minidump_flags` for configuring raw `MINIDUMP_TYPE` flags. ([#1911](https://github.com/getsentry/sentry-native/pull/1911))
 - Windows: add WER integration for syncing tags and attachments to WER. ([#1837](https://github.com/getsentry/sentry-native/pull/1837))
 - Report `cache_overflow` discards due to `cache_max_items` or `cache_max_size`. ([#1884](https://github.com/getsentry/sentry-native/pull/1884))
+- Crashpad/Windows: optimize scope flushes for crash events and external crash reports. ([#1841](https://github.com/getsentry/sentry-native/pull/1841))
+- User feedback now carries scope data, including release, environment, tags, user, and contexts with the trace, so feedback is connected to the same trace as errors from the same session. Attachments set on the scope are sent with the feedback as well, alongside any passed through a hint. This also fixed a memory leak when capturing user feedback before the SDK is initialized. ([#1915](https://github.com/getsentry/sentry-native/pull/1915))
+- Add `sentry_scope_capture_feedback` to capture user feedback against a given scope, matching `sentry_scope_capture_event` / `_log` / `_metric`. The feedback carries the scope's data layered on top of the global scope, including attachments set on that scope, accepts an optional hint for additional attachments, and returns the feedback's event ID. ([#1916](https://github.com/getsentry/sentry-native/pull/1916))
 
 **Fixes**:
 
@@ -15,9 +24,13 @@
 - Crashpad/Windows: flush Windows attachment IPC responses. ([#1895](https://github.com/getsentry/sentry-native/pull/1895))
 - Crashpad/Linux: terminate Linux handler re-entry. ([#1894](https://github.com/getsentry/sentry-native/pull/1894))
 - Android: create the outbox directory before writing NDK crash envelopes into it, so envelopes are not lost when the head SDK creates the outbox lazily. ([#1889](https://github.com/getsentry/sentry-native/pull/1889))
+- Native/Windows: let WER finish native crash reports to preserve WER custom metadata. ([#1904](https://github.com/getsentry/sentry-native/pull/1904))
 - Native/macOS: write signal-handler-captured thread names into the minidump's ThreadNames stream when `task_for_pid` fails (e.g. sandboxed apps), so thread names resolve in crash events from packaged apps. ([#1905](https://github.com/getsentry/sentry-native/pull/1905))
 - Native: don't dump the crash daemon's log to `stderr` on shutdown unless debug logging is enabled, so terminal applications stay quiet when `debug` is off. ([#1910](https://github.com/getsentry/sentry-native/pull/1910))
-- Honor checks before launching crash reporter ([#1906](https://github.com/getsentry/sentry-native/pull/1906))
+- Native/Windows: capture heap corruption crashes reported as `STATUS_HEAP_CORRUPTION` (`0xC0000374`). ([#1909](https://github.com/getsentry/sentry-native/pull/1909))
+- Native/Linux: add support for `sentry_options_set_handler_strategy(SENTRY_HANDLER_STRATEGY_CHAIN_AT_START)`. ([#1912](https://github.com/getsentry/sentry-native/pull/1912))
+- Windows: the default thread stack guarantee is now actually applied in static builds and is also set by the native backend, so crash handling can run after a stack overflow. ([#1918](https://github.com/getsentry/sentry-native/pull/1918))
+- Include `before_send` attachments with local scopes. ([#1922](https://github.com/getsentry/sentry-native/pull/1922))
 
 ## 0.15.4
 

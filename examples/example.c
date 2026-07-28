@@ -35,11 +35,44 @@
 
 #if defined(SENTRY_PLATFORM_WINDOWS)
 #    include <windows.h>
+#    ifdef HAVE_APPMODEL
+#        include <appmodel.h>
+#    endif
 unsigned long
 get_current_thread_id()
 {
     return GetCurrentThreadId();
 }
+
+#    ifdef HAVE_APPMODEL
+static void
+print_package_identity(void)
+{
+    UINT32 length = 0;
+    LONG status = GetCurrentPackageFullName(&length, NULL);
+    if (status == APPMODEL_ERROR_NO_PACKAGE) {
+        printf("PACKAGE_IDENTITY:none\n");
+        fflush(stdout);
+        return;
+    }
+
+    wchar_t *package_name = (wchar_t *)calloc(length, sizeof(wchar_t));
+    if (!package_name) {
+        printf("PACKAGE_IDENTITY:allocation-failed\n");
+        fflush(stdout);
+        return;
+    }
+
+    status = GetCurrentPackageFullName(&length, package_name);
+    if (status == ERROR_SUCCESS) {
+        printf("PACKAGE_IDENTITY:present\n");
+    } else {
+        printf("PACKAGE_IDENTITY:error:%ld\n", status);
+    }
+    fflush(stdout);
+    free(package_name);
+}
+#    endif
 #elif defined(SENTRY_PLATFORM_MACOS)
 #    include <pthread.h>
 #    include <stdint.h>
@@ -410,6 +443,34 @@ trigger_stack_buffer_overrun()
             "If you see me, then CFG wasn't enabled (compile with /guard:cf)");
     }
     // Should only reach here if CFG is disabled.
+    abort();
+}
+
+static void
+trigger_heap_corruption()
+{
+    __try {
+        if (!HeapSetInformation(
+                NULL, HeapEnableTerminationOnCorruption, NULL, 0)) {
+            abort();
+        }
+        HANDLE heap = HeapCreate(0, 0, 0);
+        if (!heap) {
+            abort();
+        }
+        void *addr = HeapAlloc(heap, 0, 0x1000);
+        if (!addr) {
+            abort();
+        }
+
+        char *addr_mutable = (char *)addr;
+        memset(addr_mutable - sizeof(addr), 0xCC, sizeof(addr));
+
+        HeapFree(heap, 0, addr);
+        HeapDestroy(heap);
+    } __except (EXCEPTION_EXECUTE_HANDLER) {
+        printf("Heap corruption exception should not be caught");
+    }
     abort();
 }
 
@@ -904,6 +965,12 @@ main(int argc, char **argv)
                 sentry_value_new_string("my_global_value"), NULL));
     }
 
+#if defined(SENTRY_PLATFORM_WINDOWS) && defined(HAVE_APPMODEL)
+    if (has_arg(argc, argv, "appx")) {
+        print_package_identity();
+    }
+#endif
+
     // E2E test mode: set tags and output test ID for event correlation
     if (e2e_test_id[0] != '\0') {
         sentry_set_tag("test.id", e2e_test_id);
@@ -1216,6 +1283,9 @@ main(int argc, char **argv)
     }
     if (has_arg(argc, argv, "stack-buffer-overrun")) {
         trigger_stack_buffer_overrun();
+    }
+    if (has_arg(argc, argv, "heap-corruption")) {
+        trigger_heap_corruption();
     }
 #endif
     if (has_arg(argc, argv, "assert")) {

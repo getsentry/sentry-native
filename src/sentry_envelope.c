@@ -599,20 +599,13 @@ sentry__envelope_add_user_report(
 }
 
 sentry_envelope_item_t *
-sentry__envelope_add_user_feedback(
-    sentry_envelope_t *envelope, sentry_value_t user_feedback)
+sentry__envelope_add_feedback_event(
+    sentry_envelope_t *envelope, sentry_value_t feedback_event)
 {
-    sentry_value_t event = sentry_value_new_event();
-    sentry_value_t contexts = sentry_value_get_by_key(event, "contexts");
-    if (sentry_value_is_null(contexts)) {
-        contexts = sentry_value_new_object();
-    }
-    sentry_value_set_by_key(contexts, "feedback", user_feedback);
-    sentry_value_set_by_key(event, "contexts", contexts);
-
-    sentry_envelope_item_t *item = sentry__envelope_add_event(envelope, event);
+    sentry_envelope_item_t *item
+        = sentry__envelope_add_event(envelope, feedback_event);
     if (!item) {
-        sentry_value_decref(event);
+        // The event is left untouched on failure and freed by the caller.
         return NULL;
     }
 

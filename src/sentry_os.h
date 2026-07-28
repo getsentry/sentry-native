@@ -3,6 +3,44 @@
 
 #include "sentry_boot.h"
 
+#ifdef SENTRY_PLATFORM_LINUX
+#    include <stdint.h>
+
+static inline uintptr_t
+sentry__ucontext_get_ip(const ucontext_t *uctx)
+{
+#    if defined(__i386__)
+    return (uintptr_t)uctx->uc_mcontext.gregs[REG_EIP];
+#    elif defined(__x86_64__)
+    return (uintptr_t)uctx->uc_mcontext.gregs[REG_RIP];
+#    elif defined(__arm__)
+    return (uintptr_t)uctx->uc_mcontext.arm_pc;
+#    elif defined(__aarch64__)
+    return (uintptr_t)uctx->uc_mcontext.pc;
+#    else
+    (void)uctx;
+    return 0;
+#    endif
+}
+
+static inline uintptr_t
+sentry__ucontext_get_sp(const ucontext_t *uctx)
+{
+#    if defined(__i386__)
+    return (uintptr_t)uctx->uc_mcontext.gregs[REG_ESP];
+#    elif defined(__x86_64__)
+    return (uintptr_t)uctx->uc_mcontext.gregs[REG_RSP];
+#    elif defined(__arm__)
+    return (uintptr_t)uctx->uc_mcontext.arm_sp;
+#    elif defined(__aarch64__)
+    return (uintptr_t)uctx->uc_mcontext.sp;
+#    else
+    (void)uctx;
+    return 0;
+#    endif
+}
+#endif
+
 #ifdef SENTRY_PLATFORM_WINDOWS
 
 typedef struct {

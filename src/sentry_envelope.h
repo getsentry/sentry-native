@@ -85,10 +85,10 @@ sentry_envelope_item_t *sentry__envelope_add_metrics(
     sentry_envelope_t *envelope, sentry_value_t metrics);
 
 /**
- * Add a user feedback to this envelope.
+ * Add a feedback event to this envelope.
  */
-sentry_envelope_item_t *sentry__envelope_add_user_feedback(
-    sentry_envelope_t *envelope, sentry_value_t user_feedback);
+sentry_envelope_item_t *sentry__envelope_add_feedback_event(
+    sentry_envelope_t *envelope, sentry_value_t feedback_event);
 
 /**
  * Add a session to this envelope.
