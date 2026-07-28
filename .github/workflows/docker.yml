@@ -35,7 +35,7 @@ jobs:
           git update-index --assume-unchanged .github/docker/alpine/requirements.txt
           cp tests/requirements.txt .github/docker/alpine/requirements.txt
 
-      - uses: docker/login-action@af1e73f918a031802d376d3c8bbc3fe56130a9b0 # pin@v4.4.0
+      - uses: docker/login-action@371161bbe7024a29a25c5e19bfcbc0804fe9ad2c # pin@v4.5.2
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
