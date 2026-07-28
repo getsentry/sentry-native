@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+**Fixes**:
+- Honor checks before launching crash reporter ([#1906](https://github.com/getsentry/sentry-native/pull/1906))
+
 ## 0.16.0
 
 **Features**:
