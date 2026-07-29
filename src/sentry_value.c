@@ -1158,6 +1158,45 @@ sentry__value_foreach_key_value(sentry_value_t value,
     }
 }
 
+size_t
+sentry__value_estimate_serialized_size(sentry_value_t value)
+{
+    const thing_t *thing = value_as_thing(value);
+    if (!thing) {
+        if ((value._bits & TAG_MASK) == TAG_INT32) {
+            return 11; // upper bound, as in `-2147483648`
+        }
+        return value._bits == CONST_FALSE ? 5 : 4; // `false`, `true`, `null`
+    }
+    switch (thing_get_type(thing)) {
+    case THING_TYPE_LIST: {
+        const list_t *l = thing->payload._ptr;
+        size_t size = 2; // []
+        for (size_t i = 0; i < l->len; i++) {
+            size += sentry__value_estimate_serialized_size(l->items[i]);
+        }
+        return l->len ? size + l->len - 1 : size; // separating commas
+    }
+    case THING_TYPE_OBJECT: {
+        const obj_t *o = thing->payload._ptr;
+        size_t size = 2; // {}
+        for (size_t i = 0; i < o->len; i++) {
+            size += strlen(o->pairs[i].k) + 3; // "key":
+            size += sentry__value_estimate_serialized_size(o->pairs[i].v);
+        }
+        return o->len ? size + o->len - 1 : size; // separating commas
+    }
+    case THING_TYPE_STRING:
+        return strlen(thing->payload._ptr) + 2; // surrounding quotes
+    case THING_TYPE_DOUBLE:
+    case THING_TYPE_INT64:
+    case THING_TYPE_UINT64:
+    default:
+        // upper bound for any 64-bit integer or double rendering
+        return 24;
+    }
+}
+
 sentry_value_t
 sentry_value_get_by_index_owned(sentry_value_t value, size_t index)
 {

@@ -77,14 +77,20 @@ sentry_scope_capture_metric(sentry_scope_t *scope, sentry_metric_type_t type,
         sentry__scope_free_one_shot(scope);
         SENTRY_WITH_OPTIONS (options) {
             if (options->before_send_metric_func) {
+                // the hook takes ownership and decrefs the metric when it
+                // discards it, so we have to size it up front for the
+                // `trace_metric_byte` client report
+                const size_t metric_bytes
+                    = sentry__value_estimate_serialized_size(metric);
                 metric = options->before_send_metric_func(
                     metric, options->before_send_metric_data);
                 if (sentry_value_is_null(metric)) {
                     SENTRY_DEBUG("metric was discarded by the "
                                  "`before_send_metric` hook");
-                    sentry__client_report_discard(
+                    sentry__client_report_discard_with_bytes(
                         SENTRY_DISCARD_REASON_BEFORE_SEND,
-                        SENTRY_DATA_CATEGORY_TRACE_METRIC, 1);
+                        SENTRY_DATA_CATEGORY_TRACE_METRIC, 1,
+                        (long)metric_bytes);
                     discarded = true;
                 }
             }

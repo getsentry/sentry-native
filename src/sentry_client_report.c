@@ -19,6 +19,27 @@ sentry__client_report_discard(sentry_discard_reason_t reason,
         (long *)&g_discard_counts[reason][category], quantity);
 }
 
+void
+sentry__client_report_discard_with_bytes(sentry_discard_reason_t reason,
+    sentry_data_category_t category, long quantity, long bytes)
+{
+    sentry__client_report_discard(reason, category, quantity);
+
+    switch (category) {
+    case SENTRY_DATA_CATEGORY_LOG_ITEM:
+        sentry__client_report_discard(
+            reason, SENTRY_DATA_CATEGORY_LOG_BYTE, bytes);
+        break;
+    case SENTRY_DATA_CATEGORY_TRACE_METRIC:
+        sentry__client_report_discard(
+            reason, SENTRY_DATA_CATEGORY_TRACE_METRIC_BYTE, bytes);
+        break;
+    default:
+        // all other categories have no byte counterpart
+        break;
+    }
+}
+
 bool
 sentry__client_report_has_pending(void)
 {

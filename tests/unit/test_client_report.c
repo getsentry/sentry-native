@@ -179,7 +179,8 @@ SENTRY_TEST(client_report_discard_envelope)
 
     sentry_value_t discarded
         = sentry_value_get_by_key(value, "discarded_events");
-    TEST_CHECK_INT_EQUAL(sentry_value_get_length(discarded), 7);
+    // 7 item categories, plus a byte counterpart for `log` and `trace_metric`
+    TEST_CHECK_INT_EQUAL(sentry_value_get_length(discarded), 9);
 
     sentry_value_t entry0 = sentry_value_get_by_index(discarded, 0);
     TEST_CHECK_STRING_EQUAL(
@@ -250,6 +251,102 @@ SENTRY_TEST(client_report_discard_envelope)
         "trace_metric");
     TEST_CHECK_INT_EQUAL(
         sentry_value_as_int32(sentry_value_get_by_key(entry6, "quantity")), 1);
+
+    // the byte categories are the size of the serialized payload, which is
+    // `{}` for every item added above
+    sentry_value_t entry7 = sentry_value_get_by_index(discarded, 7);
+    TEST_CHECK_STRING_EQUAL(
+        sentry_value_as_string(sentry_value_get_by_key(entry7, "reason")),
+        "network_error");
+    TEST_CHECK_STRING_EQUAL(
+        sentry_value_as_string(sentry_value_get_by_key(entry7, "category")),
+        "log_byte");
+    TEST_CHECK_INT_EQUAL(
+        sentry_value_as_int32(sentry_value_get_by_key(entry7, "quantity")), 2);
+
+    sentry_value_t entry8 = sentry_value_get_by_index(discarded, 8);
+    TEST_CHECK_STRING_EQUAL(
+        sentry_value_as_string(sentry_value_get_by_key(entry8, "reason")),
+        "network_error");
+    TEST_CHECK_STRING_EQUAL(
+        sentry_value_as_string(sentry_value_get_by_key(entry8, "category")),
+        "trace_metric_byte");
+    TEST_CHECK_INT_EQUAL(
+        sentry_value_as_int32(sentry_value_get_by_key(entry8, "quantity")), 2);
+
+    sentry_value_decref(value);
+    sentry_envelope_free(carrier);
+    sentry_envelope_free(envelope);
+    sentry_close();
+}
+
+SENTRY_TEST(client_report_discard_batched_logs)
+{
+    SENTRY_TEST_OPTIONS_NEW(options);
+    sentry_init(options);
+
+    TEST_CHECK(!sentry__client_report_has_pending());
+
+    // A `log` envelope item carries a whole batch of logs, so the discard has
+    // to be counted per log and not per item.
+    sentry_value_t logs = sentry_value_new_object();
+    sentry_value_t items = sentry_value_new_list();
+    for (int i = 0; i < 4; i++) {
+        sentry_value_t log = sentry_value_new_object();
+        sentry_value_set_by_key(
+            log, "body", sentry_value_new_string("some log body"));
+        sentry_value_append(items, log);
+    }
+    sentry_value_set_by_key(logs, "items", items);
+
+    sentry_envelope_t *envelope = sentry__envelope_new();
+    sentry_envelope_item_t *log_item
+        = sentry__envelope_add_logs(envelope, logs);
+    TEST_CHECK(!!log_item);
+    TEST_CHECK_INT_EQUAL(sentry_value_as_int32(sentry__envelope_item_get_header(
+                             log_item, "item_count")),
+        4);
+
+    size_t log_payload_len = 0;
+    TEST_CHECK(!!sentry__envelope_item_get_payload(log_item, &log_payload_len));
+
+    sentry__envelope_discard(envelope, SENTRY_DISCARD_REASON_SEND_ERROR, NULL);
+
+    sentry_client_report_t report;
+    TEST_CHECK(sentry__client_report_save(&report));
+    sentry_envelope_t *carrier = sentry__envelope_new();
+    sentry_envelope_item_t *item
+        = sentry__envelope_add_client_report(carrier, &report);
+    TEST_CHECK(!!item);
+
+    size_t payload_len = 0;
+    const char *payload = sentry__envelope_item_get_payload(item, &payload_len);
+    sentry_value_t value = sentry__value_from_json(payload, payload_len);
+
+    sentry_value_t discarded
+        = sentry_value_get_by_key(value, "discarded_events");
+    TEST_CHECK_INT_EQUAL(sentry_value_get_length(discarded), 2);
+
+    sentry_value_t entry0 = sentry_value_get_by_index(discarded, 0);
+    TEST_CHECK_STRING_EQUAL(
+        sentry_value_as_string(sentry_value_get_by_key(entry0, "reason")),
+        "send_error");
+    TEST_CHECK_STRING_EQUAL(
+        sentry_value_as_string(sentry_value_get_by_key(entry0, "category")),
+        "log_item");
+    TEST_CHECK_INT_EQUAL(
+        sentry_value_as_int32(sentry_value_get_by_key(entry0, "quantity")), 4);
+
+    sentry_value_t entry1 = sentry_value_get_by_index(discarded, 1);
+    TEST_CHECK_STRING_EQUAL(
+        sentry_value_as_string(sentry_value_get_by_key(entry1, "reason")),
+        "send_error");
+    TEST_CHECK_STRING_EQUAL(
+        sentry_value_as_string(sentry_value_get_by_key(entry1, "category")),
+        "log_byte");
+    TEST_CHECK_INT_EQUAL(
+        sentry_value_as_int32(sentry_value_get_by_key(entry1, "quantity")),
+        (int32_t)log_payload_len);
 
     sentry_value_decref(value);
     sentry_envelope_free(carrier);
@@ -421,7 +518,7 @@ SENTRY_TEST(client_report_queue_overflow)
 
     sentry_value_t discarded
         = sentry_value_get_by_key(value, "discarded_events");
-    TEST_CHECK_INT_EQUAL(sentry_value_get_length(discarded), 1);
+    TEST_CHECK_INT_EQUAL(sentry_value_get_length(discarded), 2);
 
     sentry_value_t entry0 = sentry_value_get_by_index(discarded, 0);
     TEST_CHECK_STRING_EQUAL(
@@ -432,6 +529,16 @@ SENTRY_TEST(client_report_queue_overflow)
         "log_item");
     TEST_CHECK_INT_EQUAL(
         sentry_value_as_int32(sentry_value_get_by_key(entry0, "quantity")), 1);
+
+    sentry_value_t entry1 = sentry_value_get_by_index(discarded, 1);
+    TEST_CHECK_STRING_EQUAL(
+        sentry_value_as_string(sentry_value_get_by_key(entry1, "reason")),
+        "queue_overflow");
+    TEST_CHECK_STRING_EQUAL(
+        sentry_value_as_string(sentry_value_get_by_key(entry1, "category")),
+        "log_byte");
+    TEST_CHECK(
+        sentry_value_as_int32(sentry_value_get_by_key(entry1, "quantity")) > 0);
 
     sentry_value_decref(value);
     sentry_envelope_free(envelope);

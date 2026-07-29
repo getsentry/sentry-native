@@ -22,6 +22,10 @@ typedef enum {
  * Data categories for tracking discarded events.
  * These match the rate limiting categories defined at:
  * https://develop.sentry.dev/sdk/expected-features/rate-limiting/#definitions
+ *
+ * The `_BYTE` categories track the byte size of discarded telemetry alongside
+ * its item count, see
+ * https://develop.sentry.dev/sdk/telemetry/client-reports/#log-byte-outcomes
  */
 typedef enum {
     SENTRY_DATA_CATEGORY_ERROR,
@@ -32,11 +36,17 @@ typedef enum {
     SENTRY_DATA_CATEGORY_FEEDBACK,
     SENTRY_DATA_CATEGORY_TRACE_METRIC,
     SENTRY_DATA_CATEGORY_REPLAY,
+    SENTRY_DATA_CATEGORY_LOG_BYTE,
+    SENTRY_DATA_CATEGORY_TRACE_METRIC_BYTE,
     SENTRY_DATA_CATEGORY_MAX
 } sentry_data_category_t;
 
 /**
  * Consumed discard counts, used to restore them on send failure.
+ *
+ * NOTE: `long` is 32-bit on Windows, so the `_BYTE` categories saturate at 2GiB
+ * of discarded telemetry between two client reports. Since the counters are
+ * flushed with every outgoing envelope, reaching that is not realistic.
  */
 typedef struct {
     long counts[SENTRY_DISCARD_REASON_MAX][SENTRY_DATA_CATEGORY_MAX];
@@ -48,6 +58,16 @@ typedef struct {
  */
 void sentry__client_report_discard(sentry_discard_reason_t reason,
     sentry_data_category_t category, long quantity);
+
+/**
+ * Record `quantity` discarded items of `category`, plus `bytes` under the
+ * category's byte counterpart (`log_byte` for logs, `trace_metric_byte` for
+ * metrics). `bytes` is ignored for categories that have no byte counterpart,
+ * so callers that discard items of an unknown category can use this
+ * unconditionally.
+ */
+void sentry__client_report_discard_with_bytes(sentry_discard_reason_t reason,
+    sentry_data_category_t category, long quantity, long bytes);
 
 /**
  * Check if there are any pending discards to report.

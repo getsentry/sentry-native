@@ -2,8 +2,13 @@
 
 ## Unreleased
 
+**Features**:
+
+- Report the byte size of discarded logs and metrics in client reports under the `log_byte` and `trace_metric_byte` categories, alongside the existing `log_item` and `trace_metric` counts.
+
 **Fixes**:
 - Honor checks before launching crash reporter ([#1906](https://github.com/getsentry/sentry-native/pull/1906))
+- Client reports now count every log in a discarded batch instead of counting the whole envelope item as a single discard, so dropping a batch of 100 logs is reported as 100 discarded `log_item`s rather than 1. The same applies to batched metrics.
 
 ## 0.16.0
 

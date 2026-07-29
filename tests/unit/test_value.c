@@ -1221,6 +1221,59 @@ SENTRY_TEST(value_json_len_out)
     sentry_free(json);
 }
 
+static size_t
+actual_json_size(sentry_value_t value)
+{
+    size_t json_len = 0;
+    char *json = sentry__value_to_json(value, &json_len);
+    sentry_free(json);
+    return json_len;
+}
+
+SENTRY_TEST(value_estimate_serialized_size)
+{
+    // for values made up of only strings and containers the estimate is exact
+    sentry_value_t obj = sentry_value_new_object();
+    TEST_CHECK_INT_EQUAL(
+        sentry__value_estimate_serialized_size(obj), actual_json_size(obj));
+
+    sentry_value_set_by_key(obj, "body", sentry_value_new_string("hello"));
+    TEST_CHECK_INT_EQUAL(
+        sentry__value_estimate_serialized_size(obj), actual_json_size(obj));
+
+    sentry_value_t list = sentry_value_new_list();
+    sentry_value_append(list, sentry_value_new_string("ab"));
+    sentry_value_append(list, sentry_value_new_string("cd"));
+    TEST_CHECK_INT_EQUAL(
+        sentry__value_estimate_serialized_size(list), actual_json_size(list));
+
+    sentry_value_set_by_key(obj, "attributes", list);
+    TEST_CHECK_INT_EQUAL(
+        sentry__value_estimate_serialized_size(obj), actual_json_size(obj));
+
+    // booleans and null are exact too
+    sentry_value_t exact[] = { sentry_value_new_null(),
+        sentry_value_new_bool(true), sentry_value_new_bool(false) };
+    for (size_t i = 0; i < sizeof(exact) / sizeof(exact[0]); i++) {
+        TEST_CHECK_INT_EQUAL(sentry__value_estimate_serialized_size(exact[i]),
+            actual_json_size(exact[i]));
+    }
+
+    // numbers are estimated with an upper bound
+    TEST_CHECK(sentry__value_estimate_serialized_size(
+                   sentry_value_new_int32(INT32_MIN))
+        >= actual_json_size(sentry_value_new_int32(INT32_MIN)));
+
+    sentry_value_set_by_key(obj, "count", sentry_value_new_int32(42));
+    sentry_value_set_by_key(obj, "ratio", sentry_value_new_double(0.5));
+    sentry_value_set_by_key(obj, "flag", sentry_value_new_bool(true));
+    sentry_value_set_by_key(obj, "nothing", sentry_value_new_null());
+    TEST_CHECK(
+        sentry__value_estimate_serialized_size(obj) >= actual_json_size(obj));
+
+    sentry_value_decref(obj);
+}
+
 SENTRY_TEST(value_json_escaping)
 {
     sentry_value_t rv = sentry__value_from_json(

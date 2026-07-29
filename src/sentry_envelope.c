@@ -169,6 +169,29 @@ item_type_to_data_category(const char *ty)
     return SENTRY_DATA_CATEGORY_ERROR;
 }
 
+/**
+ * Records a client report discard for a single envelope item.
+ *
+ * Batched items (logs, metrics) carry more than one item in a single payload,
+ * so the count comes from their `item_count` header. The already-serialized
+ * payload gives us an exact byte size for the `*_byte` categories.
+ */
+static void
+discard_envelope_item(
+    const sentry_envelope_item_t *item, sentry_discard_reason_t reason)
+{
+    const char *ty = sentry_value_as_string(
+        sentry_value_get_by_key(item->headers, "type"));
+    const sentry_value_t item_count
+        = sentry_value_get_by_key(item->headers, "item_count");
+    const long quantity = sentry_value_is_null(item_count)
+        ? 1
+        : (long)sentry_value_as_int32(item_count);
+
+    sentry__client_report_discard_with_bytes(reason,
+        item_type_to_data_category(ty), quantity, (long)item->payload_len);
+}
+
 bool
 sentry__envelope_can_add_client_report(
     const sentry_envelope_t *envelope, const sentry_rate_limiter_t *rl)
@@ -869,11 +892,8 @@ sentry_envelope_serialize_ratelimited(const sentry_envelope_t *envelope,
             // category < 0 means the item should bypass rate limiting
             if (category >= 0
                 && sentry__rate_limiter_is_disabled(rl, category)) {
-                const char *ty = sentry_value_as_string(
-                    sentry_value_get_by_key(item->headers, "type"));
-                sentry__client_report_discard(
-                    SENTRY_DISCARD_REASON_RATELIMIT_BACKOFF,
-                    item_type_to_data_category(ty), 1);
+                discard_envelope_item(
+                    item, SENTRY_DISCARD_REASON_RATELIMIT_BACKOFF);
                 continue;
             }
         }
@@ -1349,6 +1369,10 @@ data_category_to_string(sentry_data_category_t category)
         return "trace_metric";
     case SENTRY_DATA_CATEGORY_REPLAY:
         return "replay";
+    case SENTRY_DATA_CATEGORY_LOG_BYTE:
+        return "log_byte";
+    case SENTRY_DATA_CATEGORY_TRACE_METRIC_BYTE:
+        return "trace_metric_byte";
     case SENTRY_DATA_CATEGORY_MAX:
     default:
         return "unknown";
@@ -1425,10 +1449,7 @@ sentry__envelope_discard(const sentry_envelope_t *envelope,
         if (rl && sentry__rate_limiter_is_disabled(rl, category)) {
             continue;
         }
-        const char *ty = sentry_value_as_string(
-            sentry_value_get_by_key(item->headers, "type"));
-        sentry__client_report_discard(
-            reason, item_type_to_data_category(ty), 1);
+        discard_envelope_item(item, reason);
     }
 }
 
