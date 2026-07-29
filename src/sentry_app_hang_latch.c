@@ -134,8 +134,10 @@ sentry_app_hang_heartbeat(void)
     }
     if (target == tid) {
         // ignore heartbeats from other threads
-        sentry__atomic_store(&g_app_hang_paused, 0);
         sentry__atomic_store_u64(
             &g_last_heartbeat_ms, sentry__monotonic_time());
+        // Publish the fresh timestamp before resuming so the watchdog cannot
+        // observe an unpaused detector paired with a stale heartbeat.
+        sentry__atomic_store(&g_app_hang_paused, 0);
     }
 }

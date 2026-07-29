@@ -54,7 +54,9 @@ SENTRY_TEST(app_hang_pause_resumes_on_heartbeat)
 
     sentry_app_hang_latch_t l = sentry__app_hang_current_latch();
     uint64_t target = l.target_tid;
+    uint64_t first_heartbeat = l.last_heartbeat_ms;
     TEST_CHECK(target != 0);
+    TEST_CHECK(first_heartbeat != 0);
 
     sentry_app_hang_pause();
     l = sentry__app_hang_current_latch();
@@ -62,11 +64,12 @@ SENTRY_TEST(app_hang_pause_resumes_on_heartbeat)
     TEST_CHECK(l.target_tid == target);
     TEST_CHECK(l.last_heartbeat_ms == 0);
 
+    sleep_ms(1);
     sentry_app_hang_heartbeat();
     l = sentry__app_hang_current_latch();
     TEST_CHECK(!sentry__app_hang_is_paused());
     TEST_CHECK(l.target_tid == target);
-    TEST_CHECK(l.last_heartbeat_ms != 0);
+    TEST_CHECK(l.last_heartbeat_ms > first_heartbeat);
 
     sentry__app_hang_latch_reset();
     sentry__app_hang_set_active(false);
