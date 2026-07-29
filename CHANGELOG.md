@@ -3,7 +3,9 @@
 ## Unreleased
 
 **Fixes**:
+
 - Honor checks before launching crash reporter ([#1906](https://github.com/getsentry/sentry-native/pull/1906))
+- Reduce the size of native-generated minidumps on Windows ([#1929](https://github.com/getsentry/sentry-native/pull/1929))
 
 ## 0.16.0
 
