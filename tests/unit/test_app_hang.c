@@ -43,6 +43,35 @@ SENTRY_TEST(app_hang_latch)
     sentry__app_hang_set_active(false);
 }
 
+SENTRY_TEST(app_hang_pause_resumes_on_heartbeat)
+{
+#if !SENTRY_HAS_THREAD_STACKWALK
+    SKIP_TEST();
+#endif
+    sentry__app_hang_latch_reset();
+    sentry__app_hang_set_active(true);
+    sentry_app_hang_heartbeat();
+
+    sentry_app_hang_latch_t l = sentry__app_hang_current_latch();
+    uint64_t target = l.target_tid;
+    TEST_CHECK(target != 0);
+
+    sentry_app_hang_pause();
+    l = sentry__app_hang_current_latch();
+    TEST_CHECK(sentry__app_hang_is_paused());
+    TEST_CHECK(l.target_tid == target);
+    TEST_CHECK(l.last_heartbeat_ms == 0);
+
+    sentry_app_hang_heartbeat();
+    l = sentry__app_hang_current_latch();
+    TEST_CHECK(!sentry__app_hang_is_paused());
+    TEST_CHECK(l.target_tid == target);
+    TEST_CHECK(l.last_heartbeat_ms != 0);
+
+    sentry__app_hang_latch_reset();
+    sentry__app_hang_set_active(false);
+}
+
 SENTRY_TEST(app_hang_make_event)
 {
     void *ips[2] = { (void *)0x1000, (void *)0x2000 };

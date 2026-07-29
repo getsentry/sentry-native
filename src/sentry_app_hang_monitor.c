@@ -99,6 +99,9 @@ worker(void *arg)
         if (!sentry__app_hang_is_active()) {
             break;
         }
+        if (sentry__app_hang_is_paused()) {
+            continue;
+        }
 
         const sentry_app_hang_latch_t latch = sentry__app_hang_current_latch();
         uint64_t now = sentry__monotonic_time();
@@ -107,6 +110,9 @@ worker(void *arg)
             // Bail if disarmed. Keeps duplicate reporting window minimal
             if (!sentry__app_hang_is_active()) {
                 break;
+            }
+            if (sentry__app_hang_is_paused()) {
+                continue;
             }
             // Only mark this freeze as fired when an event was actually
             // captured. A transient stackwalk failure (0 frames) must not
@@ -181,3 +187,12 @@ sentry__app_hang_monitor_stop(void)
 }
 
 #endif // SENTRY_HAS_THREAD_STACKWALK
+
+void
+sentry_app_hang_pause(void)
+{
+    if (!sentry__app_hang_is_active()) {
+        return;
+    }
+    sentry__app_hang_set_paused(true);
+}

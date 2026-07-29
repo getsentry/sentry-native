@@ -54,6 +54,7 @@ sentry__app_hang_should_capture(
 static uint64_t g_target_tid = 0;
 static uint64_t g_last_heartbeat_ms = 0;
 static volatile long g_app_hang_active = 0;
+static volatile long g_app_hang_paused = 0;
 
 void
 sentry__app_hang_set_active(bool active)
@@ -65,6 +66,23 @@ bool
 sentry__app_hang_is_active(void)
 {
     return sentry__atomic_fetch(&g_app_hang_active) != 0;
+}
+
+void
+sentry__app_hang_set_paused(bool paused)
+{
+    if (paused) {
+        // Clear the old timestamp before publishing the paused state, so a
+        // concurrent heartbeat cannot leave detection armed with stale data.
+        sentry__atomic_store_u64(&g_last_heartbeat_ms, 0);
+    }
+    sentry__atomic_store(&g_app_hang_paused, paused ? 1 : 0);
+}
+
+bool
+sentry__app_hang_is_paused(void)
+{
+    return sentry__atomic_fetch(&g_app_hang_paused) != 0;
 }
 
 uint64_t
@@ -97,6 +115,7 @@ sentry__app_hang_latch_reset(void)
 {
     sentry__atomic_store_u64(&g_target_tid, 0);
     sentry__atomic_store_u64(&g_last_heartbeat_ms, 0);
+    sentry__atomic_store(&g_app_hang_paused, 0);
 }
 
 void
@@ -115,6 +134,7 @@ sentry_app_hang_heartbeat(void)
     }
     if (target == tid) {
         // ignore heartbeats from other threads
+        sentry__atomic_store(&g_app_hang_paused, 0);
         sentry__atomic_store_u64(
             &g_last_heartbeat_ms, sentry__monotonic_time());
     }
