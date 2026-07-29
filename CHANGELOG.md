@@ -2,7 +2,12 @@
 
 ## Unreleased
 
+**Features**
+
+- Added `sentry_app_hang_pause` to allow pausing of the app hang detection mechanism. This is useful in settings where an app can be put in the background, causing the monitored thread to suspend execution. ([#1928](https://github.com/getsentry/sentry-native/pull/1928))
+
 **Fixes**:
+
 - Honor checks before launching crash reporter ([#1906](https://github.com/getsentry/sentry-native/pull/1906))
 
 ## 0.16.0
