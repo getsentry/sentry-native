@@ -187,12 +187,3 @@ sentry__app_hang_monitor_stop(void)
 }
 
 #endif // SENTRY_HAS_THREAD_STACKWALK
-
-void
-sentry_app_hang_pause(void)
-{
-    if (!sentry__app_hang_is_active()) {
-        return;
-    }
-    sentry__app_hang_set_paused(true);
-}

@@ -141,3 +141,12 @@ sentry_app_hang_heartbeat(void)
         sentry__atomic_store(&g_app_hang_paused, 0);
     }
 }
+
+void
+sentry_app_hang_pause(void)
+{
+    if (!sentry__app_hang_is_active()) {
+        return;
+    }
+    sentry__app_hang_set_paused(true);
+}
