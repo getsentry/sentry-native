@@ -1902,6 +1902,17 @@ sentry__launch_external_crash_reporter(
         return false;
     }
 
+    // Check consent rule
+    if (sentry__run_should_skip_upload(options->run)) {
+        return false;
+    }
+
+    // Raw crash envelopes (native daemon) need parsing before cache_dir header.
+    if (options->cache_keep && sentry__envelope_is_raw(envelope)
+        && !sentry__envelope_materialize(envelope)) {
+        SENTRY_WARN("Failed to materialize envelope for external crash report");
+    }
+
     if (options->cache_keep == SENTRY_CACHE_KEEP_ALWAYS) {
         sentry__run_write_cache(options->run, envelope, -1);
     }
