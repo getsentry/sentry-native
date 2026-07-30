@@ -2830,6 +2830,18 @@ SENTRY_EXPERIMENTAL_API uint64_t sentry_options_get_app_hang_timeout(
 SENTRY_EXPERIMENTAL_API void sentry_app_hang_heartbeat(void);
 
 /**
+ * Pauses app-hang detection without changing the watched thread.
+ *
+ * While paused, the watchdog does not capture app hangs. A subsequent heartbeat
+ * from the watched thread automatically resumes detection. Heartbeats from
+ * other threads continue to be ignored.
+ *
+ * This function is a no-op unless app-hang detection is enabled via
+ * `sentry_options_set_enable_app_hang_tracking`.
+ */
+SENTRY_EXPERIMENTAL_API void sentry_app_hang_pause(void);
+
+/**
  * Type of the `before_send_metric` callback.
  *
  * The callback takes ownership of the `metric` and should usually return

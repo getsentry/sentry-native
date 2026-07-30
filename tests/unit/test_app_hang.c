@@ -43,6 +43,38 @@ SENTRY_TEST(app_hang_latch)
     sentry__app_hang_set_active(false);
 }
 
+SENTRY_TEST(app_hang_pause_resumes_on_heartbeat)
+{
+#if !SENTRY_HAS_THREAD_STACKWALK
+    SKIP_TEST();
+#endif
+    sentry__app_hang_latch_reset();
+    sentry__app_hang_set_active(true);
+    sentry_app_hang_heartbeat();
+
+    sentry_app_hang_latch_t l = sentry__app_hang_current_latch();
+    uint64_t target = l.target_tid;
+    uint64_t first_heartbeat = l.last_heartbeat_ms;
+    TEST_CHECK(target != 0);
+    TEST_CHECK(first_heartbeat != 0);
+
+    sentry_app_hang_pause();
+    l = sentry__app_hang_current_latch();
+    TEST_CHECK(sentry__app_hang_is_paused());
+    TEST_CHECK(l.target_tid == target);
+    TEST_CHECK(l.last_heartbeat_ms == first_heartbeat);
+
+    sleep_ms(1);
+    sentry_app_hang_heartbeat();
+    l = sentry__app_hang_current_latch();
+    TEST_CHECK(!sentry__app_hang_is_paused());
+    TEST_CHECK(l.target_tid == target);
+    TEST_CHECK(l.last_heartbeat_ms > first_heartbeat);
+
+    sentry__app_hang_latch_reset();
+    sentry__app_hang_set_active(false);
+}
+
 SENTRY_TEST(app_hang_make_event)
 {
     void *ips[2] = { (void *)0x1000, (void *)0x2000 };
@@ -127,6 +159,43 @@ SENTRY_TEST(app_hang_monitor_fires)
 
     sentry_app_hang_heartbeat();
 
+    for (int i = 0; i < 300 && !sentry__atomic_fetch(&g_app_hang_seen); i++) {
+        sleep_ms(10);
+    }
+
+    TEST_CHECK(sentry__atomic_fetch(&g_app_hang_seen) == 1);
+    TEST_CHECK_STRING_EQUAL(g_app_hang_type, "AppHang");
+
+    sentry_close();
+    sentry__app_hang_monitor_set_stackwalk_fn(NULL);
+}
+
+SENTRY_TEST(app_hang_pause_prevents_capture)
+{
+#if !SENTRY_HAS_THREAD_STACKWALK
+    SKIP_TEST();
+#endif
+    g_app_hang_seen = 0;
+    g_app_hang_type[0] = '\0';
+    sentry__app_hang_latch_reset();
+    sentry__app_hang_monitor_set_stackwalk_fn(fake_stackwalk);
+
+    SENTRY_TEST_OPTIONS_NEW(options);
+    sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
+    sentry_options_set_before_send(options, capture_before_send, NULL);
+    sentry_options_set_enable_app_hang_tracking(options, 1);
+    sentry_options_set_app_hang_timeout(options, 50);
+    sentry_init(options);
+
+    sentry_app_hang_heartbeat();
+    sentry_app_hang_pause();
+
+    // Wait beyond the timeout and several poll cycles while the worker is
+    // paused.
+    sleep_ms(100);
+    TEST_CHECK(sentry__atomic_fetch(&g_app_hang_seen) == 0);
+
+    sentry_app_hang_heartbeat();
     for (int i = 0; i < 300 && !sentry__atomic_fetch(&g_app_hang_seen); i++) {
         sleep_ms(10);
     }
