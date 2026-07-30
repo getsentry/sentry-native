@@ -349,6 +349,7 @@ SENTRY_TEST(client_report_discard_batched_logs)
         (int32_t)log_payload_len);
 
     sentry_value_decref(value);
+    sentry_value_decref(logs);
     sentry_envelope_free(carrier);
     sentry_envelope_free(envelope);
     sentry_close();
