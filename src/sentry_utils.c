@@ -20,67 +20,47 @@
 #include <string.h>
 #include <time.h>
 
+void
+sentry__clock_waiter_init(sentry_clock_waiter_t *waiter, sentry_cond_t *cond,
+    sentry_mutex_t *mutex)
+{
+    waiter->mutex = mutex;
+    waiter->cond = cond;
 #ifdef SENTRY_UNITTEST
-static volatile long g_test_clock_enabled = 0;
-static uint64_t g_test_clock_monotonic_ms = 0;
-static uint64_t g_test_clock_epoch_usec = 0;
-
-static uint64_t
-add_saturate(uint64_t value, uint64_t increment)
-{
-    return value > UINT64_MAX - increment ? UINT64_MAX : value + increment;
-}
-
-void
-sentry__test_clock_set(uint64_t monotonic_ms, uint64_t epoch_usec)
-{
-    sentry__atomic_store_u64(&g_test_clock_monotonic_ms, monotonic_ms);
-    sentry__atomic_store_u64(&g_test_clock_epoch_usec, epoch_usec);
-    sentry__atomic_store(&g_test_clock_enabled, 1);
-}
-
-void
-sentry__test_clock_advance(uint64_t milliseconds)
-{
-    assert(sentry__atomic_fetch(&g_test_clock_enabled));
-
-    uint64_t monotonic_ms
-        = sentry__atomic_fetch_u64(&g_test_clock_monotonic_ms);
-    uint64_t epoch_usec = sentry__atomic_fetch_u64(&g_test_clock_epoch_usec);
-    sentry__atomic_store_u64(
-        &g_test_clock_monotonic_ms, add_saturate(monotonic_ms, milliseconds));
-    sentry__atomic_store_u64(&g_test_clock_epoch_usec,
-        add_saturate(epoch_usec,
-            milliseconds > UINT64_MAX / 1000 ? UINT64_MAX
-                                             : milliseconds * 1000));
-}
-
-void
-sentry__test_clock_reset(void)
-{
-    sentry__atomic_store(&g_test_clock_enabled, 0);
-    sentry__atomic_store_u64(&g_test_clock_monotonic_ms, 0);
-    sentry__atomic_store_u64(&g_test_clock_epoch_usec, 0);
-}
-
-bool
-sentry__test_clock_is_enabled(void)
-{
-    return sentry__atomic_fetch(&g_test_clock_enabled) != 0;
-}
-
-uint64_t
-sentry__test_clock_monotonic_time(void)
-{
-    return sentry__atomic_fetch_u64(&g_test_clock_monotonic_ms);
-}
-
-uint64_t
-sentry__test_clock_usec_time(void)
-{
-    return sentry__atomic_fetch_u64(&g_test_clock_epoch_usec);
-}
+    sentry__test_clock_waiter_init(waiter);
 #endif
+}
+
+void
+sentry__clock_waiter_deinit(sentry_clock_waiter_t *waiter)
+{
+#ifdef SENTRY_UNITTEST
+    sentry__test_clock_waiter_deinit(waiter);
+#else
+    (void)waiter;
+#endif
+}
+
+void
+sentry__clock_waiter_wait_locked(
+    sentry_clock_waiter_t *waiter, uint64_t timeout_ms)
+{
+#ifdef SENTRY_UNITTEST
+    if (sentry__test_clock_waiter_wait_locked(waiter)) {
+        return;
+    }
+#endif
+    sentry__cond_wait_timeout(waiter->cond, waiter->mutex, timeout_ms);
+}
+
+void
+sentry__clock_waiter_wake_locked(sentry_clock_waiter_t *waiter)
+{
+#ifdef SENTRY_UNITTEST
+    sentry__test_clock_waiter_wake_locked(waiter);
+#endif
+    sentry__cond_wake(waiter->cond);
+}
 
 #ifdef SENTRY_PLATFORM_DARWIN
 #    include <xlocale.h>

@@ -117,6 +117,34 @@ SENTRY_TEST(app_hang_make_event)
 
 static long g_app_hang_seen;
 static char g_app_hang_type[32];
+static sentry_cond_t g_capture_signal;
+#ifdef SENTRY__MUTEX_INIT_DYN
+SENTRY__MUTEX_INIT_DYN(capture_lock)
+#else
+static sentry_mutex_t capture_lock = SENTRY__MUTEX_INIT;
+#endif
+static bool g_capture_received;
+
+static void
+reset_capture_signal(void)
+{
+    SENTRY__MUTEX_INIT_DYN_ONCE(capture_lock);
+    sentry__cond_init(&g_capture_signal);
+    g_capture_received = false;
+}
+
+static bool
+wait_for_capture(void)
+{
+    SENTRY__MUTEX_INIT_DYN_ONCE(capture_lock);
+    sentry__mutex_lock(&capture_lock);
+    for (int i = 0; i < 10 && !g_capture_received; i++) {
+        sentry__cond_wait_timeout(&g_capture_signal, &capture_lock, 100);
+    }
+    const bool captured = g_capture_received;
+    sentry__mutex_unlock(&capture_lock);
+    return captured;
+}
 
 static size_t
 fake_stackwalk(uint64_t tid, void **ips, size_t max)
@@ -145,6 +173,10 @@ capture_before_send(sentry_value_t event, void *hint, void *data)
         strncpy(g_app_hang_type, type, sizeof(g_app_hang_type) - 1);
     }
     sentry__atomic_store(&g_app_hang_seen, 1);
+    sentry__mutex_lock(&capture_lock);
+    g_capture_received = true;
+    sentry__cond_wake(&g_capture_signal);
+    sentry__mutex_unlock(&capture_lock);
     sentry_value_decref(event);
     return sentry_value_new_null();
 }
@@ -157,6 +189,7 @@ SENTRY_TEST(app_hang_monitor_fires)
     set_test_clock();
     g_app_hang_seen = 0;
     g_app_hang_type[0] = '\0';
+    reset_capture_signal();
     sentry__app_hang_latch_reset();
     sentry__app_hang_monitor_set_stackwalk_fn(fake_stackwalk);
 
@@ -169,8 +202,7 @@ SENTRY_TEST(app_hang_monitor_fires)
 
     sentry_app_hang_heartbeat();
     sentry__test_clock_advance(1000);
-    uint64_t last_fired_heartbeat_ms = 0;
-    sentry__app_hang_monitor_check(&last_fired_heartbeat_ms);
+    TEST_CHECK(wait_for_capture());
 
     TEST_CHECK(sentry__atomic_fetch(&g_app_hang_seen) == 1);
     TEST_CHECK_STRING_EQUAL(g_app_hang_type, "AppHang");
@@ -188,6 +220,7 @@ SENTRY_TEST(app_hang_pause_prevents_capture)
     set_test_clock();
     g_app_hang_seen = 0;
     g_app_hang_type[0] = '\0';
+    reset_capture_signal();
     sentry__app_hang_latch_reset();
     sentry__app_hang_monitor_set_stackwalk_fn(fake_stackwalk);
 
@@ -202,13 +235,11 @@ SENTRY_TEST(app_hang_pause_prevents_capture)
     sentry_app_hang_pause();
 
     sentry__test_clock_advance(2000);
-    uint64_t last_fired_heartbeat_ms = 0;
-    sentry__app_hang_monitor_check(&last_fired_heartbeat_ms);
     TEST_CHECK(sentry__atomic_fetch(&g_app_hang_seen) == 0);
 
     sentry_app_hang_heartbeat();
     sentry__test_clock_advance(1000);
-    sentry__app_hang_monitor_check(&last_fired_heartbeat_ms);
+    TEST_CHECK(wait_for_capture());
 
     TEST_CHECK(sentry__atomic_fetch(&g_app_hang_seen) == 1);
     TEST_CHECK_STRING_EQUAL(g_app_hang_type, "AppHang");
@@ -230,6 +261,7 @@ SENTRY_TEST(app_hang_disarm_prevents_capture)
     set_test_clock();
     g_app_hang_seen = 0;
     g_app_hang_type[0] = '\0';
+    reset_capture_signal();
     sentry__app_hang_latch_reset();
     sentry__app_hang_monitor_set_stackwalk_fn(fake_stackwalk);
 
@@ -245,12 +277,9 @@ SENTRY_TEST(app_hang_disarm_prevents_capture)
     sentry__app_hang_set_active(false);
 
     sentry__test_clock_advance(2000);
-    uint64_t last_fired_heartbeat_ms = 0;
-    sentry__app_hang_monitor_check(&last_fired_heartbeat_ms);
-
-    TEST_CHECK(sentry__atomic_fetch(&g_app_hang_seen) == 0);
 
     sentry_close();
+    TEST_CHECK(sentry__atomic_fetch(&g_app_hang_seen) == 0);
     sentry__app_hang_monitor_set_stackwalk_fn(NULL);
     sentry__test_clock_reset();
 }
@@ -279,6 +308,10 @@ real_before_send(sentry_value_t event, void *hint, void *data)
         sentry_value_get_by_key(exc, "stacktrace"), "frames");
     sentry__atomic_store(&g_real_frames, (long)sentry_value_get_length(frames));
     sentry__atomic_store(&g_real_seen, 1);
+    sentry__mutex_lock(&capture_lock);
+    g_capture_received = true;
+    sentry__cond_wake(&g_capture_signal);
+    sentry__mutex_unlock(&capture_lock);
     sentry_value_decref(event);
     return sentry_value_new_null();
 }
@@ -311,6 +344,7 @@ SENTRY_TEST(app_hang_end_to_end)
     set_test_clock();
     g_real_seen = 0;
     g_real_frames = 0;
+    reset_capture_signal();
     sentry__atomic_store(&g_keep_spinning, 1);
     SENTRY__MUTEX_INIT_DYN_ONCE(spinner_lock);
     sentry__cond_init(&g_spinner_ready);
@@ -334,11 +368,12 @@ SENTRY_TEST(app_hang_end_to_end)
     }
     const bool spinner_started = g_spinner_started;
     sentry__mutex_unlock(&spinner_lock);
-    TEST_ASSERT(spinner_started);
+    TEST_CHECK(spinner_started);
 
-    sentry__test_clock_advance(1000);
-    uint64_t last_fired_heartbeat_ms = 0;
-    sentry__app_hang_monitor_check(&last_fired_heartbeat_ms);
+    if (spinner_started) {
+        sentry__test_clock_advance(1000);
+        TEST_CHECK(wait_for_capture());
+    }
 
     sentry__atomic_store(&g_keep_spinning, 0);
     sentry__thread_join(t);

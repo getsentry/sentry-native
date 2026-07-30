@@ -3,6 +3,7 @@
 
 #include "sentry_boot.h"
 #include "sentry_slice.h"
+#include "sentry_sync.h"
 
 #ifdef SENTRY_PLATFORM_DARWIN
 #    include <mach/clock.h>
@@ -176,6 +177,32 @@ bool sentry__test_clock_is_enabled(void);
 uint64_t sentry__test_clock_monotonic_time(void);
 uint64_t sentry__test_clock_usec_time(void);
 #endif
+
+typedef struct sentry_clock_waiter_s {
+    sentry_mutex_t *mutex;
+    sentry_cond_t *cond;
+#ifdef SENTRY_UNITTEST
+    struct sentry_clock_waiter_s *next;
+    uint64_t requested_revision;
+    uint64_t seen_revision;
+    uint64_t wake_revision;
+    bool registered;
+#endif
+} sentry_clock_waiter_t;
+
+#ifdef SENTRY_UNITTEST
+void sentry__test_clock_waiter_init(sentry_clock_waiter_t *waiter);
+void sentry__test_clock_waiter_deinit(sentry_clock_waiter_t *waiter);
+bool sentry__test_clock_waiter_wait_locked(sentry_clock_waiter_t *waiter);
+void sentry__test_clock_waiter_wake_locked(sentry_clock_waiter_t *waiter);
+#endif
+
+void sentry__clock_waiter_init(sentry_clock_waiter_t *waiter,
+    sentry_cond_t *cond, sentry_mutex_t *mutex);
+void sentry__clock_waiter_deinit(sentry_clock_waiter_t *waiter);
+void sentry__clock_waiter_wait_locked(
+    sentry_clock_waiter_t *waiter, uint64_t timeout_ms);
+void sentry__clock_waiter_wake_locked(sentry_clock_waiter_t *waiter);
 
 /**
  * Returns the number of microseconds since the unix epoch.

@@ -7,6 +7,142 @@
 #include <stdlib.h>
 #include <string.h>
 
+static volatile long g_test_clock_enabled = 0;
+static uint64_t g_test_clock_monotonic_ms = 0;
+static uint64_t g_test_clock_epoch_usec = 0;
+static uint64_t g_test_clock_revision = 0;
+static sentry_clock_waiter_t *g_test_clock_waiters = NULL;
+#ifdef SENTRY__MUTEX_INIT_DYN
+SENTRY__MUTEX_INIT_DYN(g_test_clock_waiters_lock)
+#else
+static sentry_mutex_t g_test_clock_waiters_lock = SENTRY__MUTEX_INIT;
+#endif
+
+static uint64_t
+add_saturate(uint64_t value, uint64_t increment)
+{
+    return value > UINT64_MAX - increment ? UINT64_MAX : value + increment;
+}
+
+void
+sentry__test_clock_set(uint64_t monotonic_ms, uint64_t epoch_usec)
+{
+    sentry__atomic_store_u64(&g_test_clock_monotonic_ms, monotonic_ms);
+    sentry__atomic_store_u64(&g_test_clock_epoch_usec, epoch_usec);
+    sentry__atomic_store(&g_test_clock_enabled, 1);
+}
+
+void
+sentry__test_clock_advance(uint64_t milliseconds)
+{
+    assert(sentry__atomic_fetch(&g_test_clock_enabled));
+
+    uint64_t monotonic_ms
+        = sentry__atomic_fetch_u64(&g_test_clock_monotonic_ms);
+    uint64_t epoch_usec = sentry__atomic_fetch_u64(&g_test_clock_epoch_usec);
+    sentry__atomic_store_u64(
+        &g_test_clock_monotonic_ms, add_saturate(monotonic_ms, milliseconds));
+    sentry__atomic_store_u64(&g_test_clock_epoch_usec,
+        add_saturate(epoch_usec,
+            milliseconds > UINT64_MAX / 1000 ? UINT64_MAX
+                                              : milliseconds * 1000));
+
+    SENTRY__MUTEX_INIT_DYN_ONCE(g_test_clock_waiters_lock);
+    sentry__mutex_lock(&g_test_clock_waiters_lock);
+    const uint64_t revision = ++g_test_clock_revision;
+    for (sentry_clock_waiter_t *waiter = g_test_clock_waiters; waiter;
+         waiter = waiter->next) {
+        sentry__mutex_lock(waiter->mutex);
+        waiter->requested_revision = revision;
+        sentry__cond_wake(waiter->cond);
+        sentry__mutex_unlock(waiter->mutex);
+    }
+    sentry__mutex_unlock(&g_test_clock_waiters_lock);
+}
+
+void
+sentry__test_clock_reset(void)
+{
+    sentry__atomic_store(&g_test_clock_enabled, 0);
+    sentry__atomic_store_u64(&g_test_clock_monotonic_ms, 0);
+    sentry__atomic_store_u64(&g_test_clock_epoch_usec, 0);
+}
+
+bool
+sentry__test_clock_is_enabled(void)
+{
+    return sentry__atomic_fetch(&g_test_clock_enabled) != 0;
+}
+
+uint64_t
+sentry__test_clock_monotonic_time(void)
+{
+    return sentry__atomic_fetch_u64(&g_test_clock_monotonic_ms);
+}
+
+uint64_t
+sentry__test_clock_usec_time(void)
+{
+    return sentry__atomic_fetch_u64(&g_test_clock_epoch_usec);
+}
+
+void
+sentry__test_clock_waiter_init(sentry_clock_waiter_t *waiter)
+{
+    SENTRY__MUTEX_INIT_DYN_ONCE(g_test_clock_waiters_lock);
+    sentry__mutex_lock(&g_test_clock_waiters_lock);
+    waiter->next = g_test_clock_waiters;
+    waiter->requested_revision = 0;
+    waiter->seen_revision = 0;
+    waiter->wake_revision = 0;
+    waiter->registered = true;
+    g_test_clock_waiters = waiter;
+    sentry__mutex_unlock(&g_test_clock_waiters_lock);
+}
+
+void
+sentry__test_clock_waiter_deinit(sentry_clock_waiter_t *waiter)
+{
+    if (!waiter->registered) {
+        return;
+    }
+    SENTRY__MUTEX_INIT_DYN_ONCE(g_test_clock_waiters_lock);
+    sentry__mutex_lock(&g_test_clock_waiters_lock);
+    sentry_clock_waiter_t **next = &g_test_clock_waiters;
+    while (*next && *next != waiter) {
+        next = &(*next)->next;
+    }
+    if (*next) {
+        *next = waiter->next;
+    }
+    waiter->registered = false;
+    sentry__mutex_unlock(&g_test_clock_waiters_lock);
+}
+
+bool
+sentry__test_clock_waiter_wait_locked(sentry_clock_waiter_t *waiter)
+{
+    if (!sentry__test_clock_is_enabled()) {
+        return false;
+    }
+
+    const uint64_t wake_revision = waiter->wake_revision;
+    while (waiter->requested_revision == waiter->seen_revision
+        && waiter->wake_revision == wake_revision) {
+        sentry__cond_wait(waiter->cond, waiter->mutex);
+    }
+    if (waiter->requested_revision > waiter->seen_revision) {
+        waiter->seen_revision = waiter->requested_revision;
+    }
+    return true;
+}
+
+void
+sentry__test_clock_waiter_wake_locked(sentry_clock_waiter_t *waiter)
+{
+    waiter->wake_revision++;
+}
+
 #ifdef SENTRY_PLATFORM_UNIX
 #    include "sentry_unix_pageallocator.h"
 #endif
@@ -52,6 +188,69 @@ SENTRY_TEST(virtual_clock)
 
     sentry__test_clock_reset();
     TEST_CHECK(!sentry__test_clock_is_enabled());
+}
+
+typedef struct {
+    sentry_clock_waiter_t waiter;
+    sentry_mutex_t mutex;
+    sentry_cond_t signal;
+    bool waiting;
+    bool woke;
+} clock_waiter_test_t;
+
+SENTRY_THREAD_FN
+clock_waiter_test_thread(void *data)
+{
+    clock_waiter_test_t *state = data;
+    sentry__mutex_lock(&state->mutex);
+    state->waiting = true;
+    sentry__cond_wake(&state->signal);
+    sentry__clock_waiter_wait_locked(&state->waiter, 1000);
+    state->woke = true;
+    sentry__cond_wake(&state->signal);
+    sentry__mutex_unlock(&state->mutex);
+    return 0;
+}
+
+SENTRY_TEST(virtual_clock_waiter)
+{
+    clock_waiter_test_t state = { 0 };
+    sentry__mutex_init(&state.mutex);
+    sentry__cond_init(&state.signal);
+    sentry__clock_waiter_init(&state.waiter, &state.signal, &state.mutex);
+    sentry_threadid_t thread;
+    const int spawned
+        = sentry__thread_spawn(&thread, clock_waiter_test_thread, &state);
+    TEST_CHECK_INT_EQUAL(spawned, 0);
+    if (spawned == 0) {
+        sentry__test_clock_set(1000, 1700000000000000ULL);
+
+        sentry__mutex_lock(&state.mutex);
+        for (int i = 0; i < 10 && !state.waiting; i++) {
+            sentry__cond_wait_timeout(&state.signal, &state.mutex, 100);
+        }
+        const bool waiting = state.waiting;
+        sentry__mutex_unlock(&state.mutex);
+        TEST_CHECK(waiting);
+
+        sentry__test_clock_advance(1);
+        sentry__mutex_lock(&state.mutex);
+        for (int i = 0; i < 10 && !state.woke; i++) {
+            sentry__cond_wait_timeout(&state.signal, &state.mutex, 100);
+        }
+        if (!state.woke) {
+            sentry__clock_waiter_wake_locked(&state.waiter);
+        }
+        const bool woke = state.woke;
+        sentry__mutex_unlock(&state.mutex);
+
+        sentry__thread_join(thread);
+        sentry__thread_free(&thread);
+        TEST_CHECK(woke);
+    }
+    sentry__clock_waiter_deinit(&state.waiter);
+    sentry__mutex_free(&state.mutex);
+    sentry__test_clock_reset();
 }
 
 static void

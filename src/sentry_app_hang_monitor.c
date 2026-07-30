@@ -60,6 +60,7 @@ static bool g_running = false;
 static sentry_threadid_t g_thread;
 static sentry_mutex_t g_wait_mutex = SENTRY__MUTEX_INIT;
 static sentry_cond_t g_wait_cond;
+static sentry_clock_waiter_t g_waiter;
 static uint64_t g_timeout_ms = 0;
 
 static size_t
@@ -85,30 +86,6 @@ app_hang_capture(uint64_t hang_time_ms, uint64_t tid)
     return true;
 }
 
-void
-sentry__app_hang_monitor_check(uint64_t *last_fired_heartbeat_ms)
-{
-    if (!sentry__app_hang_is_active() || sentry__app_hang_is_paused()) {
-        return;
-    }
-
-    const sentry_app_hang_latch_t latch = sentry__app_hang_current_latch();
-    uint64_t now = sentry__monotonic_time();
-    if (!sentry__app_hang_should_capture(latch.last_heartbeat_ms, now,
-            g_timeout_ms, *last_fired_heartbeat_ms)) {
-        return;
-    }
-
-    // Re-check state immediately before stackwalking to avoid reporting while
-    // crash handling or an explicit pause has disarmed monitoring.
-    if (!sentry__app_hang_is_active() || sentry__app_hang_is_paused()) {
-        return;
-    }
-    if (app_hang_capture(now - latch.last_heartbeat_ms, latch.target_tid)) {
-        *last_fired_heartbeat_ms = latch.last_heartbeat_ms;
-    }
-}
-
 SENTRY_THREAD_FN
 worker(void *arg)
 {
@@ -120,14 +97,32 @@ worker(void *arg)
             sentry__mutex_unlock(&g_wait_mutex);
             break;
         }
-        sentry__cond_wait_timeout(
-            &g_wait_cond, &g_wait_mutex, SENTRY_APP_HANG_POLL_MS);
+        sentry__clock_waiter_wait_locked(
+            &g_waiter, SENTRY_APP_HANG_POLL_MS);
         sentry__mutex_unlock(&g_wait_mutex);
 
         if (!sentry__app_hang_is_active()) {
             break;
         }
-        sentry__app_hang_monitor_check(&last_fired_hb);
+        if (sentry__app_hang_is_paused()) {
+            continue;
+        }
+
+        const sentry_app_hang_latch_t latch = sentry__app_hang_current_latch();
+        uint64_t now = sentry__monotonic_time();
+        if (!sentry__app_hang_should_capture(latch.last_heartbeat_ms, now,
+                g_timeout_ms, last_fired_hb)) {
+            continue;
+        }
+
+        // Re-check state immediately before stackwalking to avoid reporting
+        // while crash handling or an explicit pause disarmed monitoring.
+        if (!sentry__app_hang_is_active() || sentry__app_hang_is_paused()) {
+            continue;
+        }
+        if (app_hang_capture(now - latch.last_heartbeat_ms, latch.target_tid)) {
+            last_fired_hb = latch.last_heartbeat_ms;
+        }
     }
     return 0;
 }
@@ -141,11 +136,13 @@ sentry__app_hang_monitor_start(const sentry_options_t *options)
 
     g_timeout_ms = options->app_hang_timeout;
     sentry__cond_init(&g_wait_cond);
+    sentry__clock_waiter_init(&g_waiter, &g_wait_cond, &g_wait_mutex);
     // Arm before spawning: the worker uses is_active() as its run condition, so
     // it must already be true when the new thread first evaluates the loop.
     sentry__app_hang_set_active(true);
     if (sentry__thread_spawn(&g_thread, worker, NULL) != 0) {
         sentry__app_hang_set_active(false);
+        sentry__clock_waiter_deinit(&g_waiter);
         SENTRY_WARN("app-hang: failed to spawn watchdog thread");
         return 1;
     }
@@ -163,10 +160,11 @@ sentry__app_hang_monitor_stop(void)
     }
     sentry__app_hang_set_active(false);
     sentry__mutex_lock(&g_wait_mutex);
-    sentry__cond_wake(&g_wait_cond);
+    sentry__clock_waiter_wake_locked(&g_waiter);
     sentry__mutex_unlock(&g_wait_mutex);
     sentry__thread_join(g_thread);
     sentry__thread_free(&g_thread);
+    sentry__clock_waiter_deinit(&g_waiter);
     sentry__app_hang_latch_reset();
     g_running = false;
     // g_timeout_ms are intentionally NOT cleared here: the worker
@@ -190,12 +188,6 @@ sentry__app_hang_monitor_start(const sentry_options_t *options)
 void
 sentry__app_hang_monitor_stop(void)
 {
-}
-
-void
-sentry__app_hang_monitor_check(uint64_t *last_fired_heartbeat_ms)
-{
-    (void)last_fired_heartbeat_ms;
 }
 
 #endif // SENTRY_HAS_THREAD_STACKWALK
