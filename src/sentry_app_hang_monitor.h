@@ -12,7 +12,7 @@ struct sentry_options_s;
 #if defined(SENTRY_UNITTEST)
 #    define SENTRY_APP_HANG_POLL_MS 10
 #else
-#define SENTRY_APP_HANG_POLL_MS 500
+#    define SENTRY_APP_HANG_POLL_MS 500
 #endif
 
 // Smallest timeout the watchdog can resolve meaningfully. A genuine hang fires

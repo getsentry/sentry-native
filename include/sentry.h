@@ -2835,7 +2835,7 @@ SENTRY_EXPERIMENTAL_API void sentry_app_hang_heartbeat(void);
  * While paused, the watchdog does not capture app hangs. A subsequent heartbeat
  * from the watched thread automatically resumes detection. Heartbeats from
  * other threads continue to be ignored.
- * 
+ *
  * This function is a no-op unless app-hang detection is enabled via
  * `sentry_options_set_enable_app_hang_tracking`.
  */
