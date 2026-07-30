@@ -71,11 +71,6 @@ sentry__app_hang_is_active(void)
 void
 sentry__app_hang_set_paused(bool paused)
 {
-    if (paused) {
-        // Clear the old timestamp before publishing the paused state, so a
-        // concurrent heartbeat cannot leave detection armed with stale data.
-        sentry__atomic_store_u64(&g_last_heartbeat_ms, 0);
-    }
     sentry__atomic_store(&g_app_hang_paused, paused ? 1 : 0);
 }
 
