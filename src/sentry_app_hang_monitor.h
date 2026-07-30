@@ -9,11 +9,7 @@
 struct sentry_options_s;
 
 // Interval at which the watchdog samples the heartbeat.
-#if defined(SENTRY_UNITTEST)
-#    define SENTRY_APP_HANG_POLL_MS 10
-#else
-#    define SENTRY_APP_HANG_POLL_MS 500
-#endif
+#define SENTRY_APP_HANG_POLL_MS 500
 
 // Smallest timeout the watchdog can resolve meaningfully. A genuine hang fires
 // somewhere in [timeout, timeout + POLL_MS) depending on the phase between the
@@ -25,6 +21,7 @@ struct sentry_options_s;
 
 int sentry__app_hang_monitor_start(const struct sentry_options_s *options);
 void sentry__app_hang_monitor_stop(void);
+void sentry__app_hang_monitor_check(uint64_t *last_fired_heartbeat_ms);
 
 // Test hook: overrides the platform thread stackwalker used by the watchdog.
 typedef size_t (*sentry__app_hang_stackwalk_fn)(

@@ -3,6 +3,13 @@
 #include "sentry_sync.h"
 #include "sentry_testsupport.h"
 #include "sentry_thread_stackwalk.h"
+#include "sentry_utils.h"
+
+static void
+set_test_clock(void)
+{
+    sentry__test_clock_set(1000, 1700000000000000ULL);
+}
 
 SENTRY_TEST(app_hang_should_capture)
 {
@@ -48,6 +55,7 @@ SENTRY_TEST(app_hang_pause_resumes_on_heartbeat)
 #if !SENTRY_HAS_THREAD_STACKWALK
     SKIP_TEST();
 #endif
+    set_test_clock();
     sentry__app_hang_latch_reset();
     sentry__app_hang_set_active(true);
     sentry_app_hang_heartbeat();
@@ -64,7 +72,7 @@ SENTRY_TEST(app_hang_pause_resumes_on_heartbeat)
     TEST_CHECK(l.target_tid == target);
     TEST_CHECK(l.last_heartbeat_ms == first_heartbeat);
 
-    sleep_ms(1);
+    sentry__test_clock_advance(1);
     sentry_app_hang_heartbeat();
     l = sentry__app_hang_current_latch();
     TEST_CHECK(!sentry__app_hang_is_paused());
@@ -73,6 +81,7 @@ SENTRY_TEST(app_hang_pause_resumes_on_heartbeat)
 
     sentry__app_hang_latch_reset();
     sentry__app_hang_set_active(false);
+    sentry__test_clock_reset();
 }
 
 SENTRY_TEST(app_hang_make_event)
@@ -145,6 +154,7 @@ SENTRY_TEST(app_hang_monitor_fires)
 #if !SENTRY_HAS_THREAD_STACKWALK
     SKIP_TEST();
 #endif
+    set_test_clock();
     g_app_hang_seen = 0;
     g_app_hang_type[0] = '\0';
     sentry__app_hang_latch_reset();
@@ -154,20 +164,20 @@ SENTRY_TEST(app_hang_monitor_fires)
     sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
     sentry_options_set_before_send(options, capture_before_send, NULL);
     sentry_options_set_enable_app_hang_tracking(options, 1);
-    sentry_options_set_app_hang_timeout(options, 50);
+    sentry_options_set_app_hang_timeout(options, 1000);
     sentry_init(options);
 
     sentry_app_hang_heartbeat();
-
-    for (int i = 0; i < 300 && !sentry__atomic_fetch(&g_app_hang_seen); i++) {
-        sleep_ms(10);
-    }
+    sentry__test_clock_advance(1000);
+    uint64_t last_fired_heartbeat_ms = 0;
+    sentry__app_hang_monitor_check(&last_fired_heartbeat_ms);
 
     TEST_CHECK(sentry__atomic_fetch(&g_app_hang_seen) == 1);
     TEST_CHECK_STRING_EQUAL(g_app_hang_type, "AppHang");
 
     sentry_close();
     sentry__app_hang_monitor_set_stackwalk_fn(NULL);
+    sentry__test_clock_reset();
 }
 
 SENTRY_TEST(app_hang_pause_prevents_capture)
@@ -175,6 +185,7 @@ SENTRY_TEST(app_hang_pause_prevents_capture)
 #if !SENTRY_HAS_THREAD_STACKWALK
     SKIP_TEST();
 #endif
+    set_test_clock();
     g_app_hang_seen = 0;
     g_app_hang_type[0] = '\0';
     sentry__app_hang_latch_reset();
@@ -184,35 +195,39 @@ SENTRY_TEST(app_hang_pause_prevents_capture)
     sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
     sentry_options_set_before_send(options, capture_before_send, NULL);
     sentry_options_set_enable_app_hang_tracking(options, 1);
-    sentry_options_set_app_hang_timeout(options, 50);
+    sentry_options_set_app_hang_timeout(options, 1000);
     sentry_init(options);
 
     sentry_app_hang_heartbeat();
     sentry_app_hang_pause();
 
-    // Wait beyond the timeout and several poll cycles while the worker is
-    // paused.
-    sleep_ms(100);
+    sentry__test_clock_advance(2000);
+    uint64_t last_fired_heartbeat_ms = 0;
+    sentry__app_hang_monitor_check(&last_fired_heartbeat_ms);
     TEST_CHECK(sentry__atomic_fetch(&g_app_hang_seen) == 0);
 
     sentry_app_hang_heartbeat();
-    for (int i = 0; i < 300 && !sentry__atomic_fetch(&g_app_hang_seen); i++) {
-        sleep_ms(10);
-    }
+    sentry__test_clock_advance(1000);
+    sentry__app_hang_monitor_check(&last_fired_heartbeat_ms);
 
     TEST_CHECK(sentry__atomic_fetch(&g_app_hang_seen) == 1);
     TEST_CHECK_STRING_EQUAL(g_app_hang_type, "AppHang");
 
     sentry_close();
     sentry__app_hang_monitor_set_stackwalk_fn(NULL);
+    sentry__test_clock_reset();
 }
 
 SENTRY_TEST(app_hang_disarm_prevents_capture)
 {
+#if !SENTRY_HAS_THREAD_STACKWALK
+    SKIP_TEST();
+#endif
     // Mirrors app_hang_monitor_fires, but disarms after latching. This is the
     // crash-handler path: once disarmed, the watchdog must not capture an
     // app-hang even though the latched thread stops heart-beating (so a crash
     // is never also reported as an app-hang).
+    set_test_clock();
     g_app_hang_seen = 0;
     g_app_hang_type[0] = '\0';
     sentry__app_hang_latch_reset();
@@ -222,27 +237,34 @@ SENTRY_TEST(app_hang_disarm_prevents_capture)
     sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
     sentry_options_set_before_send(options, capture_before_send, NULL);
     sentry_options_set_enable_app_hang_tracking(options, 1);
-    sentry_options_set_app_hang_timeout(options, 50);
+    sentry_options_set_app_hang_timeout(options, 1000);
     sentry_init(options);
 
     sentry_app_hang_heartbeat();
     // Simulate entering the crash handler: disable -> never heartbeat again.
     sentry__app_hang_set_active(false);
 
-    // Wait well past several timeout/poll cycles to be sure nothing fires.
-    for (int i = 0; i < 50; i++) {
-        sleep_ms(10);
-    }
+    sentry__test_clock_advance(2000);
+    uint64_t last_fired_heartbeat_ms = 0;
+    sentry__app_hang_monitor_check(&last_fired_heartbeat_ms);
 
     TEST_CHECK(sentry__atomic_fetch(&g_app_hang_seen) == 0);
 
     sentry_close();
     sentry__app_hang_monitor_set_stackwalk_fn(NULL);
+    sentry__test_clock_reset();
 }
 
 static long g_real_seen;
 static long g_real_frames;
 static volatile long g_keep_spinning;
+static sentry_cond_t g_spinner_ready;
+#ifdef SENTRY__MUTEX_INIT_DYN
+SENTRY__MUTEX_INIT_DYN(spinner_lock)
+#else
+static sentry_mutex_t spinner_lock = SENTRY__MUTEX_INIT;
+#endif
+static bool g_spinner_started;
 
 static sentry_value_t
 real_before_send(sentry_value_t event, void *hint, void *data)
@@ -266,6 +288,11 @@ spinner(void *arg)
 {
     (void)arg;
     sentry_app_hang_heartbeat(); // latch this thread
+    SENTRY__MUTEX_INIT_DYN_ONCE(spinner_lock);
+    sentry__mutex_lock(&spinner_lock);
+    g_spinner_started = true;
+    sentry__cond_wake(&g_spinner_ready);
+    sentry__mutex_unlock(&spinner_lock);
     while (sentry__atomic_fetch(&g_keep_spinning)) {
         // busy-wait: alive & sampleable but never heartbeats again -> hung
         volatile int x = 0;
@@ -281,9 +308,13 @@ SENTRY_TEST(app_hang_end_to_end)
 #if !SENTRY_HAS_THREAD_STACKWALK
     SKIP_TEST();
 #endif
+    set_test_clock();
     g_real_seen = 0;
     g_real_frames = 0;
     sentry__atomic_store(&g_keep_spinning, 1);
+    SENTRY__MUTEX_INIT_DYN_ONCE(spinner_lock);
+    sentry__cond_init(&g_spinner_ready);
+    g_spinner_started = false;
     sentry__app_hang_latch_reset();
     sentry__app_hang_monitor_set_stackwalk_fn(NULL); // use the REAL stackwalker
 
@@ -291,15 +322,23 @@ SENTRY_TEST(app_hang_end_to_end)
     sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
     sentry_options_set_before_send(options, real_before_send, NULL);
     sentry_options_set_enable_app_hang_tracking(options, 1);
-    sentry_options_set_app_hang_timeout(options, 50);
+    sentry_options_set_app_hang_timeout(options, 1000);
     sentry_init(options);
 
     sentry_threadid_t t;
     sentry__thread_spawn(&t, spinner, NULL);
 
-    for (int i = 0; i < 500 && !sentry__atomic_fetch(&g_real_seen); i++) {
-        sleep_ms(10);
+    sentry__mutex_lock(&spinner_lock);
+    for (int i = 0; i < 10 && !g_spinner_started; i++) {
+        sentry__cond_wait_timeout(&g_spinner_ready, &spinner_lock, 100);
     }
+    const bool spinner_started = g_spinner_started;
+    sentry__mutex_unlock(&spinner_lock);
+    TEST_ASSERT(spinner_started);
+
+    sentry__test_clock_advance(1000);
+    uint64_t last_fired_heartbeat_ms = 0;
+    sentry__app_hang_monitor_check(&last_fired_heartbeat_ms);
 
     sentry__atomic_store(&g_keep_spinning, 0);
     sentry__thread_join(t);
@@ -309,4 +348,5 @@ SENTRY_TEST(app_hang_end_to_end)
 
     sentry_close();
     sentry__app_hang_monitor_set_stackwalk_fn(NULL);
+    sentry__test_clock_reset();
 }

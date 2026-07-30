@@ -164,12 +164,30 @@ char *sentry__dsn_get_minidump_url(
  */
 char *sentry__base64_encode(const char *data, size_t len);
 
+#ifdef SENTRY_UNITTEST
+/**
+ * Overrides SDK time for deterministic unit tests. The clock is process-global,
+ * so callers must stop all SDK threads before resetting it.
+ */
+void sentry__test_clock_set(uint64_t monotonic_ms, uint64_t epoch_usec);
+void sentry__test_clock_advance(uint64_t milliseconds);
+void sentry__test_clock_reset(void);
+bool sentry__test_clock_is_enabled(void);
+uint64_t sentry__test_clock_monotonic_time(void);
+uint64_t sentry__test_clock_usec_time(void);
+#endif
+
 /**
  * Returns the number of microseconds since the unix epoch.
  */
 static inline uint64_t
 sentry__usec_time(void)
 {
+#ifdef SENTRY_UNITTEST
+    if (sentry__test_clock_is_enabled()) {
+        return sentry__test_clock_usec_time();
+    }
+#endif
 #ifdef SENTRY_PLATFORM_WINDOWS
     // Contains a 64-bit value representing the number of 100-nanosecond
     // intervals since January 1, 1601 (UTC).
@@ -198,6 +216,11 @@ sentry__usec_time(void)
 static inline uint64_t
 sentry__monotonic_time(void)
 {
+#ifdef SENTRY_UNITTEST
+    if (sentry__test_clock_is_enabled()) {
+        return sentry__test_clock_monotonic_time();
+    }
+#endif
 #ifdef SENTRY_PLATFORM_WINDOWS
     static LARGE_INTEGER qpc_frequency = { { 0, 0 } };
 

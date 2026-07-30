@@ -38,6 +38,22 @@ SENTRY_TEST(iso_time)
     TEST_CHECK_INT_EQUAL(roundtrip, usec);
 }
 
+SENTRY_TEST(virtual_clock)
+{
+    sentry__test_clock_set(1000, 1700000000000000ULL);
+
+    TEST_CHECK(sentry__test_clock_is_enabled());
+    TEST_CHECK_UINT64_EQUAL(sentry__monotonic_time(), 1000);
+    TEST_CHECK_UINT64_EQUAL(sentry__usec_time(), 1700000000000000ULL);
+
+    sentry__test_clock_advance(250);
+    TEST_CHECK_UINT64_EQUAL(sentry__monotonic_time(), 1250);
+    TEST_CHECK_UINT64_EQUAL(sentry__usec_time(), 1700000000250000ULL);
+
+    sentry__test_clock_reset();
+    TEST_CHECK(!sentry__test_clock_is_enabled());
+}
+
 static void
 check_url(const sentry_url_t *url)
 {

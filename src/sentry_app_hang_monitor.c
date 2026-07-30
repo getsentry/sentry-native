@@ -85,6 +85,30 @@ app_hang_capture(uint64_t hang_time_ms, uint64_t tid)
     return true;
 }
 
+void
+sentry__app_hang_monitor_check(uint64_t *last_fired_heartbeat_ms)
+{
+    if (!sentry__app_hang_is_active() || sentry__app_hang_is_paused()) {
+        return;
+    }
+
+    const sentry_app_hang_latch_t latch = sentry__app_hang_current_latch();
+    uint64_t now = sentry__monotonic_time();
+    if (!sentry__app_hang_should_capture(latch.last_heartbeat_ms, now,
+            g_timeout_ms, *last_fired_heartbeat_ms)) {
+        return;
+    }
+
+    // Re-check state immediately before stackwalking to avoid reporting while
+    // crash handling or an explicit pause has disarmed monitoring.
+    if (!sentry__app_hang_is_active() || sentry__app_hang_is_paused()) {
+        return;
+    }
+    if (app_hang_capture(now - latch.last_heartbeat_ms, latch.target_tid)) {
+        *last_fired_heartbeat_ms = latch.last_heartbeat_ms;
+    }
+}
+
 SENTRY_THREAD_FN
 worker(void *arg)
 {
@@ -92,6 +116,10 @@ worker(void *arg)
     uint64_t last_fired_hb = 0;
     while (sentry__app_hang_is_active()) {
         sentry__mutex_lock(&g_wait_mutex);
+        if (!sentry__app_hang_is_active()) {
+            sentry__mutex_unlock(&g_wait_mutex);
+            break;
+        }
         sentry__cond_wait_timeout(
             &g_wait_cond, &g_wait_mutex, SENTRY_APP_HANG_POLL_MS);
         sentry__mutex_unlock(&g_wait_mutex);
@@ -99,29 +127,7 @@ worker(void *arg)
         if (!sentry__app_hang_is_active()) {
             break;
         }
-        if (sentry__app_hang_is_paused()) {
-            continue;
-        }
-
-        const sentry_app_hang_latch_t latch = sentry__app_hang_current_latch();
-        uint64_t now = sentry__monotonic_time();
-        if (sentry__app_hang_should_capture(
-                latch.last_heartbeat_ms, now, g_timeout_ms, last_fired_hb)) {
-            // Bail if disarmed. Keeps duplicate reporting window minimal
-            if (!sentry__app_hang_is_active()) {
-                break;
-            }
-            if (sentry__app_hang_is_paused()) {
-                continue;
-            }
-            // Only mark this freeze as fired when an event was actually
-            // captured. A transient stackwalk failure (0 frames) must not
-            // suppress retries while the thread remains stuck.
-            if (app_hang_capture(
-                    now - latch.last_heartbeat_ms, latch.target_tid)) {
-                last_fired_hb = latch.last_heartbeat_ms;
-            }
-        }
+        sentry__app_hang_monitor_check(&last_fired_hb);
     }
     return 0;
 }
@@ -184,6 +190,12 @@ sentry__app_hang_monitor_start(const sentry_options_t *options)
 void
 sentry__app_hang_monitor_stop(void)
 {
+}
+
+void
+sentry__app_hang_monitor_check(uint64_t *last_fired_heartbeat_ms)
+{
+    (void)last_fired_heartbeat_ms;
 }
 
 #endif // SENTRY_HAS_THREAD_STACKWALK
