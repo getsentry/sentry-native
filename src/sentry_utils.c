@@ -51,7 +51,8 @@ sentry__test_clock_advance(uint64_t milliseconds)
         &g_test_clock_monotonic_ms, add_saturate(monotonic_ms, milliseconds));
     sentry__atomic_store_u64(&g_test_clock_epoch_usec,
         add_saturate(epoch_usec,
-            milliseconds > UINT64_MAX / 1000 ? UINT64_MAX : milliseconds * 1000));
+            milliseconds > UINT64_MAX / 1000 ? UINT64_MAX
+                                             : milliseconds * 1000));
 }
 
 void
