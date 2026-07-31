@@ -1217,6 +1217,15 @@ main(int argc, char **argv)
         sentry_reinstall_backend();
     }
 
+    if (has_arg(argc, argv, "attach-custom-filename")) {
+        // assuming the example / test is run directly from the cmake build
+        // directory
+        sentry_attachment_t *attachment
+            = sentry_attach_file("./CMakeCache.txt");
+        sentry_attachment_set_filename(attachment, "custom-name.log");
+        sentry_attachment_set_content_type(attachment, "application/zstd");
+    }
+
     if (has_arg(argc, argv, "flush")) {
         sentry_flush(10000);
     }
