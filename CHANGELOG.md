@@ -6,6 +6,10 @@
 
 - Add `sentry_scope_remove_fingerprint` to remove a fingerprint set on a scope, matching the global `sentry_remove_fingerprint`. ([#1932](https://github.com/getsentry/sentry-native/pull/1932))
 
+**Fixes**:
+
+- `sentry_attachment_set_filename`, `sentry_attachment_set_type`, and `sentry_attachment_set_content_type` now flush the scope, so changes applied after `sentry_attach_file`/`sentry_attach_bytes` also apply to hard-crash events instead of only to normal events. ([#1934](https://github.com/getsentry/sentry-native/pull/1934))
+
 ## 0.16.1
 
 **Features**:
