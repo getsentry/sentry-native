@@ -19,7 +19,7 @@ sentry_attachment_set_type(sentry_attachment_t *attachment, const char *type)
 // scope, after it was added. Mutating under the scope lock and flushing on
 // unlock keeps a backend's on-disk crash state in sync with the live
 // attachment - otherwise a hard crash reports the values the attachment had
-// when it was added. See https://github.com/getsentry/sentry-native/issues/1933
+// when it was added.
 void
 sentry_attachment_set_type_n(
     sentry_attachment_t *attachment, const char *type, size_t type_len)
