@@ -35,6 +35,26 @@ struct sentry_attachment_s {
 };
 
 /**
+ * These mutate the `attachment` without locking or flushing the scope, for
+ * attachments that are not owned by the global scope (options, hints, and
+ * backend-internal lists).
+ *
+ * The public `sentry_attachment_set_*` counterparts must be used for anything
+ * that can be scope-owned: they mutate under the scope lock and flush the
+ * backend on unlock, so a backend's on-disk crash state stays in sync.
+ */
+void sentry__attachment_set_type_n(
+    sentry_attachment_t *attachment, const char *type, size_t type_len);
+void sentry__attachment_set_content_type_n(sentry_attachment_t *attachment,
+    const char *content_type, size_t content_type_len);
+void sentry__attachment_set_filename_n(
+    sentry_attachment_t *attachment, const char *filename, size_t filename_len);
+#ifdef SENTRY_PLATFORM_WINDOWS
+void sentry__attachment_set_filenamew_n(sentry_attachment_t *attachment,
+    const wchar_t *filename, size_t filename_len);
+#endif
+
+/**
  * Returns the size in bytes of the attachment's data (buffer length or file
  * size).
  */

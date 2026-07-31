@@ -3,6 +3,7 @@
 #include "sentry_logger.h"
 #include "sentry_options.h"
 #include "sentry_path.h"
+#include "sentry_scope.h"
 #include "sentry_string.h"
 
 #include <string.h>
@@ -14,8 +15,26 @@ sentry_attachment_set_type(sentry_attachment_t *attachment, const char *type)
         attachment, type, sentry__guarded_strlen(type));
 }
 
+// The public setters can be called on an attachment that is owned by the global
+// scope, after it was added. Mutating under the scope lock and flushing on
+// unlock keeps a backend's on-disk crash state in sync with the live
+// attachment - otherwise a hard crash reports the values the attachment had
+// when it was added. See https://github.com/getsentry/sentry-native/issues/1933
 void
 sentry_attachment_set_type_n(
+    sentry_attachment_t *attachment, const char *type, size_t type_len)
+{
+    if (!attachment) {
+        return;
+    }
+
+    SENTRY_WITH_SCOPE_MUT (scope) {
+        sentry__attachment_set_type_n(attachment, type, type_len);
+    }
+}
+
+void
+sentry__attachment_set_type_n(
     sentry_attachment_t *attachment, const char *type, size_t type_len)
 {
     if (!attachment) {
@@ -54,6 +73,20 @@ sentry_attachment_set_content_type_n(sentry_attachment_t *attachment,
         return;
     }
 
+    SENTRY_WITH_SCOPE_MUT (scope) {
+        sentry__attachment_set_content_type_n(
+            attachment, content_type, content_type_len);
+    }
+}
+
+void
+sentry__attachment_set_content_type_n(sentry_attachment_t *attachment,
+    const char *content_type, size_t content_type_len)
+{
+    if (!attachment) {
+        return;
+    }
+
     sentry_free(attachment->content_type);
     attachment->content_type
         = sentry__string_clone_n(content_type, content_type_len);
@@ -75,6 +108,19 @@ sentry_attachment_set_filename_n(
         return;
     }
 
+    SENTRY_WITH_SCOPE_MUT (scope) {
+        sentry__attachment_set_filename_n(attachment, filename, filename_len);
+    }
+}
+
+void
+sentry__attachment_set_filename_n(
+    sentry_attachment_t *attachment, const char *filename, size_t filename_len)
+{
+    if (!attachment) {
+        return;
+    }
+
     sentry__path_free(attachment->filename);
     attachment->filename = sentry__path_from_str_n(filename, filename_len);
 }
@@ -90,6 +136,19 @@ sentry_attachment_set_filenamew(
 
 void
 sentry_attachment_set_filenamew_n(sentry_attachment_t *attachment,
+    const wchar_t *filename, size_t filename_len)
+{
+    if (!attachment) {
+        return;
+    }
+
+    SENTRY_WITH_SCOPE_MUT (scope) {
+        sentry__attachment_set_filenamew_n(attachment, filename, filename_len);
+    }
+}
+
+void
+sentry__attachment_set_filenamew_n(sentry_attachment_t *attachment,
     const wchar_t *filename, size_t filename_len)
 {
     if (!attachment) {
@@ -255,9 +314,12 @@ sentry__attachments_add_path(sentry_attachment_t **attachments_ptr,
     if (!attachment) {
         return NULL;
     }
-    sentry_attachment_set_type(attachment, attachment_type);
+    // these lists are not owned by the global scope, so no flush is needed
+    sentry__attachment_set_type_n(
+        attachment, attachment_type, sentry__guarded_strlen(attachment_type));
     if (content_type || !attachment->content_type) {
-        sentry_attachment_set_content_type(attachment, content_type);
+        sentry__attachment_set_content_type_n(
+            attachment, content_type, sentry__guarded_strlen(content_type));
     }
     return sentry__attachments_add(attachments_ptr, attachment);
 }

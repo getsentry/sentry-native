@@ -4,6 +4,7 @@
 
 **Fixes**:
 - Honor checks before launching crash reporter ([#1906](https://github.com/getsentry/sentry-native/pull/1906))
+- `sentry_attachment_set_filename`, `sentry_attachment_set_type`, and `sentry_attachment_set_content_type` now flush the scope, so changes applied after `sentry_attach_file`/`sentry_attach_bytes` also apply to hard-crash events instead of only to normal events. ([#1933](https://github.com/getsentry/sentry-native/issues/1933))
 
 ## 0.16.0
 
