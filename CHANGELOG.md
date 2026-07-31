@@ -2,7 +2,18 @@
 
 ## Unreleased
 
+**Features**:
+
+- Add `sentry_scope_remove_fingerprint` to remove a fingerprint set on a scope, matching the global `sentry_remove_fingerprint`. ([#1932](https://github.com/getsentry/sentry-native/pull/1932))
+
+## 0.16.1
+
+**Features**:
+
+- Added `sentry_app_hang_pause` to allow pausing of the app hang detection mechanism. This is useful in settings where an app can be put in the background, causing the monitored thread to suspend execution. ([#1928](https://github.com/getsentry/sentry-native/pull/1928))
+
 **Fixes**:
+
 - Honor checks before launching crash reporter ([#1906](https://github.com/getsentry/sentry-native/pull/1906))
 - `sentry_attachment_set_filename`, `sentry_attachment_set_type`, and `sentry_attachment_set_content_type` now flush the scope, so changes applied after `sentry_attach_file`/`sentry_attach_bytes` also apply to hard-crash events instead of only to normal events. ([#1933](https://github.com/getsentry/sentry-native/issues/1933))
 

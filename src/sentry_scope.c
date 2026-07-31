@@ -958,6 +958,14 @@ sentry_scope_set_fingerprints(
 }
 
 void
+sentry_scope_remove_fingerprint(sentry_scope_t *scope)
+{
+    sentry_value_decref(scope->fingerprint);
+    scope->fingerprint = sentry_value_new_null();
+    SENTRY_SCOPE_NOTIFY(scope, set_fingerprint, scope->fingerprint);
+}
+
+void
 sentry_scope_set_level(sentry_scope_t *scope, sentry_level_t level)
 {
     scope->level = level;
