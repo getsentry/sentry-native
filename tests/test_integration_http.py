@@ -410,6 +410,44 @@ def test_external_crash_reporter_consent_revoked(cmake, httpserver, build_args):
     assert len(list(cache_dir.glob("*.envelope"))) == 1
 
 
+@pytest.mark.parametrize(
+    "build_args",
+    [
+        ({"SENTRY_BACKEND": "inproc"}),
+        pytest.param(
+            {"SENTRY_BACKEND": "breakpad"},
+            marks=pytest.mark.skipif(
+                not has_breakpad or is_qemu, reason="test needs breakpad backend"
+            ),
+        ),
+    ],
+)
+def test_external_crash_reporter_consent_revoked_no_cache(
+    cmake, httpserver, build_args
+):
+    """With consent revoked and no cache_keep, the crash envelope is discarded."""
+    tmp_path = cmake(["sentry_example", "sentry_crash_reporter"], build_args)
+    cache_dir = tmp_path.joinpath(".sentry-native/cache")
+    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
+
+    run(
+        tmp_path,
+        "sentry_example",
+        [
+            "log",
+            "crash-reporter",
+            "require-user-consent",
+            "user-consent-revoke",
+            "crash",
+        ],
+        expect_failure=True,
+        env=env,
+    )
+
+    assert len(httpserver.log) == 0
+    assert not cache_dir.exists() or len(list(cache_dir.glob("*.envelope"))) == 0
+
+
 @pytest.mark.skipif(is_qemu, reason="unreliable under qemu-user")
 def test_exception_and_session_http(cmake, httpserver):
     tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "none"})

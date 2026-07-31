@@ -989,6 +989,31 @@ def test_native_external_crash_reporter_consent_revoked(cmake, httpserver):
     assert len(list(cache_dir.glob("*.envelope"))) == 1
 
 
+def test_native_external_crash_reporter_consent_revoked_no_cache(cmake, httpserver):
+    """With consent revoked and no cache_keep, the daemon discards the crash envelope."""
+    tmp_path = cmake(
+        ["sentry_example", "sentry_crash_reporter"], {"SENTRY_BACKEND": "native"}
+    )
+    cache_dir = tmp_path / ".sentry-native" / "cache"
+    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
+
+    run_crash(
+        tmp_path,
+        "sentry_example",
+        [
+            "log",
+            "crash-reporter",
+            "require-user-consent",
+            "user-consent-revoke",
+            "crash",
+        ],
+        env=env,
+    )
+
+    assert len(httpserver.log) == 0
+    assert not cache_dir.exists() or len(list(cache_dir.glob("*.envelope"))) == 0
+
+
 def test_crash_mode_minidump_only(cmake, httpserver):
     """Mode 1: Should produce envelope with minidump attachment only"""
     tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "native"})
