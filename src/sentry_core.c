@@ -1251,9 +1251,7 @@ void
 sentry_remove_fingerprint(void)
 {
     SENTRY_WITH_SCOPE_MUT (scope) {
-        sentry_value_decref(scope->fingerprint);
-        scope->fingerprint = sentry_value_new_null();
-        SENTRY_SCOPE_NOTIFY(scope, set_fingerprint, scope->fingerprint);
+        sentry_scope_remove_fingerprint(scope);
     }
 }
 

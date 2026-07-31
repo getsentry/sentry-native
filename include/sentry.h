@@ -2439,6 +2439,7 @@ SENTRY_API void sentry_scope_set_fingerprints(
  * Removes the fingerprint.
  */
 SENTRY_API void sentry_remove_fingerprint(void);
+SENTRY_API void sentry_scope_remove_fingerprint(sentry_scope_t *scope);
 
 /**
  * Set the trace. The primary use for this is to allow other SDKs to propagate
