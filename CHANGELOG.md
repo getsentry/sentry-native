@@ -7,6 +7,10 @@
 - Add `sentry_scope_remove_fingerprint` to remove a fingerprint set on a scope, matching the global `sentry_remove_fingerprint`. ([#1932](https://github.com/getsentry/sentry-native/pull/1932))
 - Add `sentry_options_set_before_send_feedback` to filter or enrich user feedback. Feedback does not go through `before_send`. ([#1923](https://github.com/getsentry/sentry-native/pull/1923))
 
+**Fixes**:
+
+- Name `sentry-logs` and `sentry-metrics` telemetry batcher threads so they can be identified in debuggers, profilers, and crash reports. ([#1937](https://github.com/getsentry/sentry-native/pull/1937))
+
 ## 0.16.1
 
 **Features**:

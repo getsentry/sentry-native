@@ -101,6 +101,12 @@ thread_setname(sentry_threadid_t thread_id, const char *thread_name)
 }
 #endif
 
+int
+sentry__thread_setname(sentry_threadid_t thread_id, const char *thread_name)
+{
+    return thread_setname(thread_id, thread_name);
+}
+
 /**
  * Queue operations, locking and Reference counting:
  *

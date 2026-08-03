@@ -50,6 +50,7 @@ typedef struct {
     sentry_threadid_t batching_thread; // the batching thread
     sentry_batch_func_t batch_func; // function to add items to envelope
     sentry_data_category_t data_category; // for client report discard tracking
+    char *thread_name;
     sentry_dsn_t *dsn;
     sentry_transport_t *transport;
     sentry_run_t *run;
@@ -62,8 +63,9 @@ typedef struct {
 
 #define SENTRY_BATCHER_REF_INIT { NULL, 0 }
 
-sentry_batcher_t *sentry__batcher_new(
-    sentry_batch_func_t batch_func, sentry_data_category_t data_category);
+sentry_batcher_t *sentry__batcher_new(sentry_batch_func_t batch_func);
+void sentry__batcher_set_category(sentry_batcher_t *batcher,
+    sentry_data_category_t data_category, const char *thread_name);
 
 /**
  * Acquires a reference to the batcher behind `ref`, atomically incrementing
