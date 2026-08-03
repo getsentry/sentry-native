@@ -1008,6 +1008,7 @@ def test_native_external_crash_reporter_consent_revoked_no_cache(cmake, httpserv
             "crash",
         ],
         env=env,
+        wait_for_daemon=True,
     )
 
     assert len(httpserver.log) == 0
