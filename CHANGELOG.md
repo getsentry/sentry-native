@@ -6,6 +6,10 @@
 
 - Add `sentry_scope_remove_fingerprint` to remove a fingerprint set on a scope, matching the global `sentry_remove_fingerprint`. ([#1932](https://github.com/getsentry/sentry-native/pull/1932))
 
+**Fixes**:
+
+- Crashpad: fix a crash when calling `sentry_init` before C++ dynamic initializers have run. ([#1930](https://github.com/getsentry/sentry-native/issues/1930), [mini_chromium#8](https://github.com/getsentry/mini_chromium/pull/8))
+
 ## 0.16.1
 
 **Features**:
