@@ -838,20 +838,28 @@ prepare_user_feedback(const sentry_options_t *options,
     sentry_value_set_by_key(
         event, "level", sentry__value_new_level(SENTRY_LEVEL_INFO));
 
-    sentry_attachment_t *all_attachments = NULL;
-    if (hint) {
-        sentry__attachments_extend(&all_attachments, hint->attachments);
-    }
-
     if (local_scope) {
+        SENTRY_DEBUG("merging local scope into feedback event");
         sentry__scope_apply_to_event(
             local_scope, options, event, SENTRY_SCOPE_NONE);
-        // must be taken before the scope is freed below
-        sentry__attachments_extend(&all_attachments, local_scope->attachments);
-        sentry__scope_free_one_shot(local_scope);
     }
     SENTRY_WITH_SCOPE (scope) {
+        SENTRY_DEBUG("merging global scope into feedback event");
         sentry__scope_apply_to_event(scope, options, event, SENTRY_SCOPE_NONE);
+    }
+
+    if (options->before_send_feedback_func) {
+        SENTRY_DEBUG("invoking `before_send_feedback` hook");
+        event = options->before_send_feedback_func(
+            event, hint, options->before_send_feedback_data);
+        if (sentry_value_is_null(event)) {
+            SENTRY_DEBUG(
+                "feedback was discarded by the `before_send_feedback` hook");
+            sentry__client_report_discard(SENTRY_DISCARD_REASON_BEFORE_SEND,
+                SENTRY_DATA_CATEGORY_FEEDBACK, 1);
+            sentry__scope_free_one_shot(local_scope);
+            return NULL;
+        }
     }
 
     sentry__ensure_event_id(event, event_id);
@@ -861,24 +869,29 @@ prepare_user_feedback(const sentry_options_t *options,
         goto fail;
     }
 
+    sentry_attachment_t *all_attachments = NULL;
+    if (hint) {
+        sentry__attachments_extend(&all_attachments, hint->attachments);
+    }
+    if (local_scope) {
+        sentry__attachments_extend(&all_attachments, local_scope->attachments);
+    }
+
     SENTRY_WITH_SCOPE (scope) {
+        const sentry_attachment_t *attachments = scope->attachments;
         if (all_attachments) {
-            // all attachments merged from the hint and the scopes
             sentry__attachments_extend(&all_attachments, scope->attachments);
-            sentry__envelope_add_attachments(
-                envelope, all_attachments, options);
-        } else {
-            // only the global scope has attachments
-            sentry__envelope_add_attachments(
-                envelope, scope->attachments, options);
+            attachments = all_attachments;
         }
+        sentry__envelope_add_attachments(envelope, attachments, options);
         if (options->run) {
-            sentry__cache_attachment_refs(envelope,
-                all_attachments ? all_attachments : scope->attachments, options,
+            sentry__cache_attachment_refs(envelope, attachments, options,
                 options->run->cache_path, options->run->run_path);
         }
     }
+
     sentry__attachments_free(all_attachments);
+    sentry__scope_free_one_shot(local_scope);
 
     return envelope;
 
@@ -886,7 +899,7 @@ fail:
     SENTRY_WARN("dropping user feedback");
     sentry_envelope_free(envelope);
     sentry_value_decref(event);
-    sentry__attachments_free(all_attachments);
+    sentry__scope_free_one_shot(local_scope);
     return NULL;
 }
 
@@ -1830,6 +1843,12 @@ capture_feedback(sentry_value_t user_feedback, sentry_hint_t *hint,
     bool was_sent = false;
     SENTRY_WITH_OPTIONS (options) {
         was_captured = true;
+        // Give the hook something to attach to when the caller passed no hint.
+        if (!hint && options->before_send_feedback_func) {
+            // A failed allocation is tolerated: operating on a NULL hint
+            // no-ops.
+            hint = sentry_hint_new();
+        }
         sentry_envelope_t *envelope = prepare_user_feedback(
             options, user_feedback, hint, local_scope, &event_id);
         if (envelope) {
