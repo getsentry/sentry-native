@@ -1,4 +1,9 @@
+#include "sentry_core.h"
+#include "sentry_envelope.h"
+#include "sentry_options.h"
+#include "sentry_sync.h"
 #include "sentry_testsupport.h"
+#include "sentry_transport.h"
 
 SENTRY_TEST(uninitialized)
 {
@@ -44,6 +49,14 @@ SENTRY_TEST(empty_transport)
         SENTRY_LEVEL_WARNING, NULL, "some message");
     sentry_uuid_t id = sentry_capture_event(event);
     TEST_CHECK(!sentry_uuid_is_nil(&id));
+
+    SENTRY_WITH_OPTIONS (runtime_options) {
+        TEST_ASSERT(!!runtime_options->transport);
+        sentry__transport_suspend(runtime_options->transport);
+        sentry__transport_send_envelope(
+            runtime_options->transport, sentry__envelope_new());
+        TEST_CHECK(sentry__atomic_fetch(&runtime_options->run->retain));
+    }
 
     sentry_close();
 }
