@@ -1134,3 +1134,17 @@ def test_crashpad_restart_on_crash(cmake, httpserver):
     assert len(httpserver.log) == 2
     for req in httpserver.log:
         assert_crashpad_upload(req[0])
+
+
+def test_crashpad_early_init(cmake):
+    tmp_path = cmake(
+        ["sentry_early_init"],
+        {"SENTRY_BACKEND": "crashpad", "SENTRY_BUILD_SHARED_LIBS": "OFF"},
+    )
+
+    result = run(
+        tmp_path,
+        "sentry_early_init",
+        [],
+    )
+    assert result.returncode == 0

@@ -1193,3 +1193,17 @@ def test_native_replay_orphan_not_flushed(cmake, httpserver):
         assert not is_replay_envelope(req.get_data())
     assert (replays / f"replay-{REPLAY_ID}.mp4").exists()
     assert (replays / f"replay-{REPLAY_ID}.json").exists()
+
+
+def test_native_early_init(cmake):
+    tmp_path = cmake(
+        ["sentry_early_init"],
+        {"SENTRY_BACKEND": "native", "SENTRY_BUILD_SHARED_LIBS": "OFF"},
+    )
+
+    result = run(
+        tmp_path,
+        "sentry_early_init",
+        [],
+    )
+    assert result.returncode == 0
