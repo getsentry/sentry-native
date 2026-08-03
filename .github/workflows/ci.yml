@@ -146,14 +146,14 @@ jobs:
             RUN_ANALYZER: code-checker,valgrind
           - name: Linux (GCC + musl + libunwind)
             os: ubuntu-latest
-            container: ghcr.io/getsentry/sentry-native-alpine:3.23
+            container: ghcr.io/getsentry/sentry-native-alpine:3.24
             CC: gcc
             CXX: g++
             SYSTEM_PYTHON: 1
             CMAKE_DEFINES: -DSENTRY_LIBUNWIND_SYSTEM=ON
           - name: Linux (clang + musl + libunwind)
             os: ubuntu-latest
-            container: ghcr.io/getsentry/sentry-native-alpine:3.23
+            container: ghcr.io/getsentry/sentry-native-alpine:3.24
             CC: clang
             CXX: clang++
             SYSTEM_PYTHON: 1
