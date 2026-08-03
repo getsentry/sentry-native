@@ -1198,7 +1198,11 @@ def test_native_replay_orphan_not_flushed(cmake, httpserver):
 def test_native_early_init(cmake):
     tmp_path = cmake(
         ["sentry_early_init"],
-        {"SENTRY_BACKEND": "native", "SENTRY_BUILD_SHARED_LIBS": "OFF"},
+        {
+            "SENTRY_BACKEND": "native",
+            "SENTRY_BUILD_SHARED_LIBS": "OFF",
+            "SENTRY_TRANSPORT": "none",
+        },
     )
 
     result = run(

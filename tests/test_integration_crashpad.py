@@ -1139,7 +1139,11 @@ def test_crashpad_restart_on_crash(cmake, httpserver):
 def test_crashpad_early_init(cmake):
     tmp_path = cmake(
         ["sentry_early_init"],
-        {"SENTRY_BACKEND": "crashpad", "SENTRY_BUILD_SHARED_LIBS": "OFF"},
+        {
+            "SENTRY_BACKEND": "crashpad",
+            "SENTRY_BUILD_SHARED_LIBS": "OFF",
+            "SENTRY_TRANSPORT": "none",
+        },
     )
 
     result = run(
