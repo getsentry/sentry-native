@@ -825,7 +825,8 @@ crashpad_backend_startup(
 
     base::FilePath crash_reporter;
     base::FilePath crash_envelope;
-    if (options->external_crash_reporter) {
+    if (options->external_crash_reporter && options->run
+        && !sentry__run_should_skip_upload(options->run)) {
         char *filename
             = sentry__uuid_as_filename(&data->crash_event_id, ".envelope");
         data->external_report_path

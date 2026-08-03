@@ -838,6 +838,32 @@ def test_crashpad_external_crash_reporter(cmake, httpserver, run_args):
     assert_user_feedback(envelope)
 
 
+def test_crashpad_external_crash_reporter_consent_revoked(cmake, httpserver):
+    """With consent revoked, crashpad must not launch the external reporter."""
+    tmp_path = cmake(
+        ["sentry_example", "sentry_crash_reporter"], {"SENTRY_BACKEND": "crashpad"}
+    )
+    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
+
+    run(
+        tmp_path,
+        "sentry_example",
+        [
+            "log",
+            "crash-reporter",
+            "cache-keep",
+            "require-user-consent",
+            "user-consent-revoke",
+            "crash",
+        ],
+        expect_failure=True,
+        env=env,
+    )
+
+    time.sleep(1)
+    assert len(httpserver.log) == 0
+
+
 @pytest.mark.skipif(
     sys.platform != "win32",
     reason="Test covers Windows-specific crashes which can only be covered via the Crashpad WER module",
