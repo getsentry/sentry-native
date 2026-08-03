@@ -1450,8 +1450,8 @@ def test_early_init(cmake, backend):
         ["sentry_early_init"],
         {
             "SENTRY_BACKEND": backend,
-            "SENTRY_BUILD_SHARED_LIBS": "OFF",
             "SENTRY_TRANSPORT": "none",
+            "BUILD_SHARED_LIBS": "OFF",
         },
     )
 
