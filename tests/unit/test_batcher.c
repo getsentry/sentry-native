@@ -28,12 +28,13 @@ blocking_task_exec(void *data)
     }
 }
 
-static void
+SENTRY_THREAD_FN
 shutdown_task_exec(void *data)
 {
     shutdown_task_t *task = data;
     sentry__batcher_shutdown(task->batcher, 0);
     sentry__atomic_store(&task->completed, 1);
+    return 0;
 }
 
 static sentry_envelope_item_t *
