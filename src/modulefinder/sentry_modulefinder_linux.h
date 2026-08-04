@@ -52,6 +52,8 @@ void sentry__module_mapping_push(
     sentry_module_t *module, const sentry_parsed_module_t *parsed);
 
 #ifdef SENTRY_UNITTEST
+bool sentry__mmap_file(sentry_mmap_t *rv, const char *path);
+
 bool sentry__procmaps_read_ids_from_elf(
     sentry_value_t value, const sentry_module_t *module);
 
