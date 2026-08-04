@@ -7,6 +7,7 @@
 - Add `sentry_scope_remove_fingerprint` to remove a fingerprint set on a scope, matching the global `sentry_remove_fingerprint`. ([#1932](https://github.com/getsentry/sentry-native/pull/1932))
 - Add `sentry_options_set_before_send_feedback` to filter or enrich user feedback. Feedback does not go through `before_send`. ([#1923](https://github.com/getsentry/sentry-native/pull/1923))
 - Unix: Add `SENTRY_LINK_CURL` to control whether the curl transport links `libcurl` directly, loads it dynamically at runtime, or uses the default behavior. ([#1954](https://github.com/getsentry/sentry-native/pull/1954))
+- Native/Unix: The native crash daemon now loads `libcurl` dynamically at runtime by default when `SENTRY_LINK_CURL=AUTO`, avoiding `libcurl` linker work during process startup and significantly speeding up startup time. Explicitly set `SENTRY_LINK_CURL=ON` to link it directly. ([#1955](https://github.com/getsentry/sentry-native/pull/1955))
 
 **Fixes**:
 
