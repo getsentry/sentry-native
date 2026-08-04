@@ -1,6 +1,7 @@
 import shutil
 import subprocess
 import sys
+import re
 
 import pytest
 
@@ -67,7 +68,7 @@ def parse_logger_output(output):
     # Background thread startup messages (e.g. from the metrics/logs batcher) can
     # race with the pre-crash marker and are not crash-time logs.
     # (from batcher_thread_func in sentry_batcher.c)
-    background_thread_messages = {"Starting batching thread"}
+    background_thread_message = re.compile(r"^Starting sentry-(logs|metrics) thread$")
 
     lines = output.split("\n")
 
@@ -89,7 +90,7 @@ def parse_logger_output(output):
 
             # Track logs that occur after the pre-crash marker,
             # excluding background thread noise
-            if pre_crash_completed and log_message not in background_thread_messages:
+            if pre_crash_completed and not background_thread_message.match(log_message):
                 parsed_data["logs_after_pre_crash"].append(log_message)
 
     return parsed_data

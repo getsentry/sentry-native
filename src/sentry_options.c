@@ -197,7 +197,7 @@ sentry_options_set_transport(
     sentry_options_t *opts, sentry_transport_t *transport)
 {
     sentry_transport_free(opts->transport);
-    opts->transport = transport;
+    opts->transport = transport ? transport : sentry__transport_new_null();
 }
 
 #ifdef SENTRY_PLATFORM_NX
@@ -253,6 +253,14 @@ sentry_options_set_before_breadcrumb(sentry_options_t *opts,
 {
     opts->before_breadcrumb_func = func;
     opts->before_breadcrumb_data = user_data;
+}
+
+void
+sentry_options_set_before_send_feedback(sentry_options_t *opts,
+    sentry_before_send_feedback_function_t func, void *user_data)
+{
+    opts->before_send_feedback_func = func;
+    opts->before_send_feedback_data = user_data;
 }
 
 void

@@ -457,6 +457,17 @@ sentry__atomic_fetch_u64(uint64_t *val)
 #endif
 }
 
+/**
+ * Sets the OS-level name for a thread.
+ *
+ * On macOS, only the current thread can be named.
+ *
+ * Returns 0 on success, or a non-zero value if the platform reports that
+ * setting the thread name failed.
+ */
+int sentry__thread_setname(
+    sentry_threadid_t thread_id, const char *thread_name);
+
 struct sentry_bgworker_s;
 typedef struct sentry_bgworker_s sentry_bgworker_t;
 

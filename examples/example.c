@@ -315,6 +315,16 @@ discarding_before_send_metric_callback(sentry_value_t metric, void *user_data)
 }
 
 static sentry_value_t
+discarding_before_send_feedback_callback(
+    sentry_value_t feedback, sentry_hint_t *hint, void *user_data)
+{
+    (void)hint;
+    (void)user_data;
+    sentry_value_decref(feedback);
+    return sentry_value_new_null();
+}
+
+static sentry_value_t
 before_breadcrumb_callback(sentry_value_t breadcrumb, void *user_data)
 {
     (void)user_data;
@@ -899,6 +909,11 @@ main(int argc, char **argv)
             options, discarding_before_send_metric_callback, NULL);
     }
 
+    if (has_arg(argc, argv, "discarding-before-send-feedback")) {
+        sentry_options_set_before_send_feedback(
+            options, discarding_before_send_feedback_callback, NULL);
+    }
+
     if (has_arg(argc, argv, "before-breadcrumb")) {
         sentry_options_set_before_breadcrumb(
             options, before_breadcrumb_callback, NULL);
@@ -1215,6 +1230,15 @@ main(int argc, char **argv)
 
     if (has_arg(argc, argv, "reinstall")) {
         sentry_reinstall_backend();
+    }
+
+    if (has_arg(argc, argv, "attach-custom-filename")) {
+        // assuming the example / test is run directly from the cmake build
+        // directory
+        sentry_attachment_t *attachment
+            = sentry_attach_file("./CMakeCache.txt");
+        sentry_attachment_set_filename(attachment, "custom-name.log");
+        sentry_attachment_set_content_type(attachment, "application/zstd");
     }
 
     if (has_arg(argc, argv, "flush")) {

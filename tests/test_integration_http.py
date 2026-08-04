@@ -1431,3 +1431,29 @@ def test_restart_on_crash(cmake, httpserver, backend):
             assert_breakpad_crash(envelope)
         else:
             assert False
+
+
+@pytest.mark.parametrize(
+    "backend",
+    [
+        "inproc",
+        pytest.param(
+            "breakpad",
+            marks=pytest.mark.skipif(
+                not has_breakpad, reason="breakpad backend not available"
+            ),
+        ),
+    ],
+)
+def test_early_init(cmake, backend):
+    tmp_path = cmake(
+        ["sentry_early_init"],
+        {
+            "SENTRY_BACKEND": backend,
+            "SENTRY_TRANSPORT": "none",
+            "BUILD_SHARED_LIBS": "OFF",
+        },
+    )
+
+    result = run(tmp_path, "sentry_early_init", [])
+    assert result.returncode == 0

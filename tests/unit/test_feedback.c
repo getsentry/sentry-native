@@ -21,7 +21,8 @@ send_envelope_test_feedback(sentry_envelope_t *envelope, void *_data)
 }
 
 static void
-setup_feedback_test(sentry_feedback_testdata_t *testdata)
+setup_feedback_test_with_before_send(sentry_feedback_testdata_t *testdata,
+    sentry_before_send_feedback_function_t func, void *user_data)
 {
     testdata->called = 0;
     sentry__stringbuilder_init(&testdata->serialized_envelope);
@@ -31,12 +32,19 @@ setup_feedback_test(sentry_feedback_testdata_t *testdata)
     sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
     sentry_options_set_release(options, "my-app@1.2.3");
     sentry_options_set_environment(options, "staging");
+    sentry_options_set_before_send_feedback(options, func, user_data);
     sentry_transport_t *transport
         = sentry_transport_new(send_envelope_test_feedback);
     sentry_transport_set_state(transport, testdata);
     sentry_options_set_transport(options, transport);
 
     sentry_init(options);
+}
+
+static void
+setup_feedback_test(sentry_feedback_testdata_t *testdata)
+{
+    setup_feedback_test_with_before_send(testdata, 0, NULL);
 }
 
 SENTRY_TEST(feedback_without_hint)
@@ -427,6 +435,201 @@ SENTRY_TEST(feedback_with_scope_and_hint)
     TEST_CHECK(strstr(item, "\"scoped_tag\":\"from_scope\"") != NULL);
     TEST_CHECK(strstr(serialized, "\"filename\":\"hint.txt\"") != NULL);
     TEST_CHECK(strstr(serialized, "hint content") != NULL);
+    sentry_free(serialized);
+
+    sentry_close();
+
+    TEST_CHECK_INT_EQUAL(testdata.called, 1);
+}
+
+static sentry_value_t
+before_send_feedback_inspect(
+    sentry_value_t feedback, sentry_hint_t *hint, void *user_data)
+{
+    (void)hint;
+    uint64_t *called = user_data;
+    *called += 1;
+
+    // the hook runs after scopes have been applied
+    TEST_CHECK_STRING_EQUAL(
+        sentry_value_as_string(sentry_value_get_by_key(feedback, "release")),
+        "my-app@1.2.3");
+    TEST_CHECK_STRING_EQUAL(
+        sentry_value_as_string(sentry_value_get_by_key(
+            sentry_value_get_by_key(feedback, "tags"), "global_tag")),
+        "from_global");
+
+    return feedback;
+}
+
+SENTRY_TEST(feedback_before_send_receives_scope_data)
+{
+    sentry_feedback_testdata_t testdata;
+    uint64_t before_send_called = 0;
+    setup_feedback_test_with_before_send(
+        &testdata, before_send_feedback_inspect, &before_send_called);
+
+    sentry_set_tag("global_tag", "from_global");
+
+    sentry_uuid_t event_id
+        = sentry_uuid_from_string("4c035723-8638-4c3a-923f-2ab9d08b4018");
+    sentry_value_t feedback = sentry_value_new_feedback(
+        "test message", "test@example.com", "Test User", &event_id);
+
+    sentry_capture_feedback(feedback);
+
+    TEST_CHECK_INT_EQUAL(before_send_called, 1);
+
+    char *serialized
+        = sentry_stringbuilder_take_string(&testdata.serialized_envelope);
+    TEST_CHECK(strstr(serialized, "{\"type\":\"feedback\"") != NULL);
+    sentry_free(serialized);
+
+    sentry_close();
+
+    TEST_CHECK_INT_EQUAL(testdata.called, 1);
+}
+
+static sentry_value_t
+before_send_feedback_modify(
+    sentry_value_t feedback, sentry_hint_t *hint, void *user_data)
+{
+    (void)hint;
+    (void)user_data;
+    sentry_value_set_by_key(
+        feedback, "logger", sentry_value_new_string("modified-by-hook"));
+    return feedback;
+}
+
+SENTRY_TEST(feedback_before_send_can_modify)
+{
+    sentry_feedback_testdata_t testdata;
+    setup_feedback_test_with_before_send(
+        &testdata, before_send_feedback_modify, NULL);
+
+    sentry_uuid_t event_id
+        = sentry_uuid_from_string("4c035723-8638-4c3a-923f-2ab9d08b4018");
+    sentry_value_t feedback = sentry_value_new_feedback(
+        "test message", "test@example.com", "Test User", &event_id);
+
+    sentry_capture_feedback(feedback);
+
+    char *serialized
+        = sentry_stringbuilder_take_string(&testdata.serialized_envelope);
+    const char *item = strstr(serialized, "{\"type\":\"feedback\"");
+    TEST_ASSERT(item != NULL);
+    TEST_CHECK(strstr(item, "\"logger\":\"modified-by-hook\"") != NULL);
+    sentry_free(serialized);
+
+    sentry_close();
+
+    TEST_CHECK_INT_EQUAL(testdata.called, 1);
+}
+
+static sentry_value_t
+before_send_feedback_discard(
+    sentry_value_t feedback, sentry_hint_t *hint, void *user_data)
+{
+    (void)hint;
+    uint64_t *called = user_data;
+    *called += 1;
+    sentry_value_decref(feedback);
+    return sentry_value_new_null();
+}
+
+SENTRY_TEST(feedback_before_send_discards_with_scope_and_hint)
+{
+    sentry_feedback_testdata_t testdata;
+    uint64_t before_send_called = 0;
+    setup_feedback_test_with_before_send(
+        &testdata, before_send_feedback_discard, &before_send_called);
+
+    sentry_uuid_t event_id
+        = sentry_uuid_from_string("4c035723-8638-4c3a-923f-2ab9d08b4018");
+    sentry_value_t feedback = sentry_value_new_feedback(
+        "test message", "test@example.com", "Test User", &event_id);
+
+    // The scope and the hint are consumed by the discarding capture;
+    // ASan fails the test if they leak.
+    sentry_scope_t *local_scope = sentry_local_scope_new();
+    sentry_scope_attach_bytes(local_scope, "dropped", 7, "dropped.txt");
+
+    sentry_hint_t *hint = sentry_hint_new();
+    sentry_hint_attach_bytes(hint, "dropped", 7, "hint.txt");
+
+    sentry_uuid_t feedback_id
+        = sentry_scope_capture_feedback(local_scope, feedback, hint);
+
+    TEST_CHECK_INT_EQUAL(before_send_called, 1);
+    TEST_CHECK(sentry_uuid_is_nil(&feedback_id));
+    TEST_CHECK_INT_EQUAL(testdata.called, 0);
+
+    char *serialized
+        = sentry_stringbuilder_take_string(&testdata.serialized_envelope);
+    TEST_CHECK(strstr(serialized, "\"type\":\"feedback\"") == NULL);
+    sentry_free(serialized);
+
+    sentry_close();
+}
+
+static sentry_value_t
+before_send_feedback_attach(
+    sentry_value_t feedback, sentry_hint_t *hint, void *user_data)
+{
+    (void)user_data;
+    sentry_hint_attach_bytes(hint, "from hook", 9, "hook.txt");
+    return feedback;
+}
+
+SENTRY_TEST(feedback_before_send_can_attach_to_hint)
+{
+    sentry_feedback_testdata_t testdata;
+    setup_feedback_test_with_before_send(
+        &testdata, before_send_feedback_attach, NULL);
+
+    sentry_uuid_t event_id
+        = sentry_uuid_from_string("4c035723-8638-4c3a-923f-2ab9d08b4018");
+    sentry_value_t feedback = sentry_value_new_feedback(
+        "test message", "test@example.com", "Test User", &event_id);
+
+    sentry_hint_t *hint = sentry_hint_new();
+    sentry_hint_attach_bytes(hint, "before hook", 11, "before.txt");
+
+    // The callback adds an additional attachment to the hint.
+    sentry_capture_feedback_with_hint(feedback, hint);
+
+    char *serialized
+        = sentry_stringbuilder_take_string(&testdata.serialized_envelope);
+    TEST_CHECK(strstr(serialized, "\"filename\":\"before.txt\"") != NULL);
+    TEST_CHECK(strstr(serialized, "before hook") != NULL);
+    TEST_CHECK(strstr(serialized, "\"filename\":\"hook.txt\"") != NULL);
+    TEST_CHECK(strstr(serialized, "from hook") != NULL);
+    sentry_free(serialized);
+
+    sentry_close();
+
+    TEST_CHECK_INT_EQUAL(testdata.called, 1);
+}
+
+SENTRY_TEST(feedback_before_send_can_attach_without_hint)
+{
+    sentry_feedback_testdata_t testdata;
+    setup_feedback_test_with_before_send(
+        &testdata, before_send_feedback_attach, NULL);
+
+    sentry_uuid_t event_id
+        = sentry_uuid_from_string("4c035723-8638-4c3a-923f-2ab9d08b4018");
+    sentry_value_t feedback = sentry_value_new_feedback(
+        "test message", "test@example.com", "Test User", &event_id);
+
+    // No hint is passed; capture should create one so the callback can attach
+    // additional files to it.
+    sentry_capture_feedback(feedback);
+
+    char *serialized
+        = sentry_stringbuilder_take_string(&testdata.serialized_envelope);
+    TEST_CHECK(strstr(serialized, "\"filename\":\"hook.txt\"") != NULL);
+    TEST_CHECK(strstr(serialized, "from hook") != NULL);
     sentry_free(serialized);
 
     sentry_close();

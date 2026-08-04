@@ -4273,12 +4273,7 @@ sentry__process_crash(const sentry_options_t *options, sentry_crash_ipc_t *ipc)
 
     SENTRY_DEBUG("Envelope loaded, capturing");
 
-    if (options->cache_keep && options->external_crash_reporter
-        && !sentry__envelope_materialize(envelope)) {
-        SENTRY_WARN("Failed to materialize envelope for external crash report");
-    }
-
-    // Capture directly, or pass to external crash reporter
+    // Launch reporter, or fall back to transport (consent/caching in core).
     if (!sentry__launch_external_crash_reporter(options, envelope)) {
         if (has_attachment_refs && options && options->run) {
             if (!sentry__run_write_envelope(options->run, envelope)) {

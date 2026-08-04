@@ -5,6 +5,7 @@ Tests crash handling, minidump generation, Build ID/UUID extraction,
 multi-thread capture, and FPU/SIMD register capture on all platforms.
 """
 
+import json
 import os
 import subprocess
 import sys
@@ -32,6 +33,7 @@ from .assertions import (
     assert_replay_envelope,
     assert_session,
     is_valid_hex,
+    wait_for,
     wait_for_file,
     assert_user_feedback,
 )
@@ -283,6 +285,58 @@ def test_native_overflow_breadcrumbs(cmake, httpserver, crash_mode):
 
     assert len(breadcrumbs) == 100
     assert any(b.get("message") == "100" for b in breadcrumbs)
+
+
+def test_native_attachment_manifest_is_current(cmake, httpserver):
+    """The attachment manifest must reflect the live attachment state (#1933).
+
+    The daemon builds hard-crash envelopes from `<run>/__sentry-attachments`,
+    which the backend only rewrites on a scope flush. `sentry_attach_file`
+    flushes, but `sentry_attachment_set_filename`/`_set_content_type` do not, so
+    the manifest keeps the physical basename and the crash event reports
+    `CMakeCache.txt` instead of `custom-name.log`.
+
+    Asserting on the manifest rather than on a crash envelope keeps this
+    deterministic: the in-process crash handler happens to flush the scope (via
+    `sentry__trace_finish`), which repairs the manifest before the daemon reads
+    it, but out-of-process paths such as WER never run that handler.
+    """
+    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "native"})
+
+    exe = tmp_path / (
+        "sentry_example.exe" if sys.platform == "win32" else "sentry_example"
+    )
+    child = subprocess.Popen(
+        [str(exe), "log", "attach-custom-filename", "sleep"],
+        cwd=tmp_path,
+        env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
+    )
+    db_dir = tmp_path / ".sentry-native"
+
+    def read_manifest():
+        # `sentry_attach_file` writes the manifest, the setters are expected to
+        # rewrite it, so poll instead of reading the first version we see
+        paths = list(db_dir.glob("*.run/__sentry-attachments"))
+        if not paths:
+            return None
+        try:
+            return json.loads(paths[0].read_text())
+        except (OSError, json.JSONDecodeError):
+            return None
+
+    try:
+        renamed = wait_for(
+            lambda: (read_manifest() or [{}])[0].get("filename") == "custom-name.log"
+        )
+        manifest = read_manifest()
+    finally:
+        child.terminate()
+        child.wait()
+
+    assert renamed, f"attachment manifest kept the physical filename: {manifest}"
+    assert len(manifest) == 1
+    assert manifest[0]["content_type"] == "application/zstd"
+    assert manifest[0]["path"].endswith("CMakeCache.txt")
 
 
 def test_native_session_tracking(cmake, httpserver):
@@ -957,6 +1011,38 @@ def test_native_external_crash_reporter(cmake, httpserver):
     assert_user_feedback(envelope)
 
 
+def test_native_external_crash_reporter_consent_revoked(cmake, httpserver):
+    """With consent revoked, the daemon must not launch the external reporter.
+
+    Before the fix, crash-reporter + user-consent-revoke still spawned
+    sentry_crash_reporter, which uploaded via HTTP. Consent should block that
+    the same way it blocks the normal transport path.
+    """
+    tmp_path = cmake(
+        ["sentry_example", "sentry_crash_reporter"], {"SENTRY_BACKEND": "native"}
+    )
+    cache_dir = tmp_path / ".sentry-native" / "cache"
+    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
+
+    run_crash(
+        tmp_path,
+        "sentry_example",
+        [
+            "log",
+            "crash-reporter",
+            "cache-keep",
+            "require-user-consent",
+            "user-consent-revoke",
+            "crash",
+        ],
+        env=env,
+    )
+
+    assert len(httpserver.log) == 0
+    assert wait_for_file(cache_dir / "*.envelope")
+    assert len(list(cache_dir.glob("*.envelope"))) == 1
+
+
 def test_crash_mode_minidump_only(cmake, httpserver):
     """Mode 1: Should produce envelope with minidump attachment only"""
     tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "native"})
@@ -1161,3 +1247,21 @@ def test_native_replay_orphan_not_flushed(cmake, httpserver):
         assert not is_replay_envelope(req.get_data())
     assert (replays / f"replay-{REPLAY_ID}.mp4").exists()
     assert (replays / f"replay-{REPLAY_ID}.json").exists()
+
+
+def test_native_early_init(cmake):
+    tmp_path = cmake(
+        ["sentry_early_init"],
+        {
+            "SENTRY_BACKEND": "native",
+            "SENTRY_TRANSPORT": "none",
+            "BUILD_SHARED_LIBS": "OFF",
+        },
+    )
+
+    result = run(
+        tmp_path,
+        "sentry_early_init",
+        [],
+    )
+    assert result.returncode == 0
