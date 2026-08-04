@@ -726,7 +726,6 @@ sentry__batcher_shutdown(sentry_batcher_t *batcher, uint64_t timeout)
 
     // Perform final flush to ensure any remaining items are sent
     sentry__batcher_flush(batcher, false);
-    sentry__threadpool_flush(batcher->threadpool);
 }
 
 void
