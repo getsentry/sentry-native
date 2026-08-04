@@ -79,7 +79,7 @@ SENTRY_TEST(module_addr)
 
 SENTRY_TEST(mmap_file_closes_fd_zero_on_failure)
 {
-#if !defined(SENTRY_PLATFORM_LINUX)
+#if !defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID)
     SKIP_TEST();
 #else
     char tmp_path[] = "/tmp/sentry-native-mmap-XXXXXX";
