@@ -768,6 +768,33 @@ wait_for_atomic_count(volatile long *value, long count, uint64_t timeout)
     return sentry__atomic_fetch(value) == count;
 }
 
+struct threadpool_count_state {
+    volatile long executed;
+    volatile long completed;
+    volatile long cleaned_up;
+};
+
+static void
+threadpool_count_exec(void *data)
+{
+    struct threadpool_count_state *state = data;
+    sentry__atomic_fetch_and_add(&state->executed, 1);
+}
+
+static void
+threadpool_count_complete(void *data)
+{
+    struct threadpool_count_state *state = data;
+    sentry__atomic_fetch_and_add(&state->completed, 1);
+}
+
+static void
+threadpool_count_cleanup(void *data)
+{
+    struct threadpool_count_state *state = data;
+    sentry__atomic_fetch_and_add(&state->cleaned_up, 1);
+}
+
 SENTRY_TEST(threadpool_concurrent_flush)
 {
     struct threadpool_flush_test_state state = { 0 };
@@ -809,6 +836,377 @@ SENTRY_TEST(threadpool_concurrent_flush)
 
     sentry__threadpool_shutdown(pool);
     sentry__threadpool_free(pool);
+}
+
+struct threadpool_reentry_state {
+    volatile long first_complete_entered;
+    volatile long second_exec_done;
+    volatile long first_complete_left;
+    volatile long second_complete_ran;
+    volatile long second_complete_before_first_left;
+    volatile long completion_count;
+    volatile long cleanup_count;
+    volatile long first_complete_timed_out;
+    volatile long second_exec_timed_out;
+    int completion_order[2];
+};
+
+struct threadpool_reentry_task {
+    struct threadpool_reentry_state *state;
+    int id;
+};
+
+static void
+threadpool_reentry_exec(void *data)
+{
+    struct threadpool_reentry_task *task = data;
+    struct threadpool_reentry_state *state = task->state;
+
+    if (task->id != 1) {
+        return;
+    }
+
+    const uint64_t deadline = sentry__monotonic_time() + 2000;
+    while (!sentry__atomic_fetch(&state->first_complete_entered)
+        && sentry__monotonic_time() < deadline) {
+        sleep_ms(1);
+    }
+    if (!sentry__atomic_fetch(&state->first_complete_entered)) {
+        sentry__atomic_store(&state->second_exec_timed_out, 1);
+    }
+    sentry__atomic_store(&state->second_exec_done, 1);
+}
+
+static void
+threadpool_reentry_complete(void *data)
+{
+    struct threadpool_reentry_task *task = data;
+    struct threadpool_reentry_state *state = task->state;
+    long pos = sentry__atomic_fetch_and_add(&state->completion_count, 1);
+    if (pos < 2) {
+        state->completion_order[pos] = task->id;
+    }
+
+    if (task->id == 0) {
+        sentry__atomic_store(&state->first_complete_entered, 1);
+
+        const uint64_t deadline = sentry__monotonic_time() + 2000;
+        while (!sentry__atomic_fetch(&state->second_exec_done)
+            && sentry__monotonic_time() < deadline) {
+            sleep_ms(1);
+        }
+        if (!sentry__atomic_fetch(&state->second_exec_done)) {
+            sentry__atomic_store(&state->first_complete_timed_out, 1);
+        }
+
+        sleep_ms(200);
+        sentry__atomic_store(&state->first_complete_left, 1);
+    } else if (!sentry__atomic_fetch(&state->first_complete_left)) {
+        sentry__atomic_store(&state->second_complete_before_first_left, 1);
+    }
+
+    if (task->id == 1) {
+        sentry__atomic_store(&state->second_complete_ran, 1);
+    }
+}
+
+static void
+threadpool_reentry_cleanup(void *data)
+{
+    struct threadpool_reentry_task *task = data;
+    sentry__atomic_fetch_and_add(&task->state->cleanup_count, 1);
+}
+
+SENTRY_TEST(threadpool_commit_reentry)
+{
+    struct threadpool_reentry_state state = { 0 };
+    struct threadpool_reentry_task tasks[] = {
+        { &state, 0 },
+        { &state, 1 },
+    };
+    sentry_threadpool_t *pool = sentry__threadpool_new(2);
+    TEST_ASSERT(!!pool);
+    TEST_ASSERT(sentry__threadpool_start(pool) == 0);
+
+    for (size_t i = 0; i < 2; i++) {
+        TEST_ASSERT(sentry__threadpool_submit(pool, threadpool_reentry_exec,
+                        threadpool_reentry_complete, threadpool_reentry_cleanup,
+                        &tasks[i])
+            == 0);
+    }
+    sentry__threadpool_flush(pool);
+
+    TEST_CHECK(!sentry__atomic_fetch(&state.first_complete_timed_out));
+    TEST_CHECK(!sentry__atomic_fetch(&state.second_exec_timed_out));
+    TEST_CHECK(sentry__atomic_fetch(&state.second_complete_ran));
+    TEST_CHECK(!sentry__atomic_fetch(&state.second_complete_before_first_left));
+    TEST_CHECK_INT_EQUAL(sentry__atomic_fetch(&state.completion_count), 2);
+    TEST_CHECK_INT_EQUAL(state.completion_order[0], 0);
+    TEST_CHECK_INT_EQUAL(state.completion_order[1], 1);
+    TEST_CHECK_INT_EQUAL(sentry__atomic_fetch(&state.cleanup_count), 2);
+
+    sentry__threadpool_shutdown(pool);
+    sentry__threadpool_free(pool);
+}
+
+SENTRY_TEST(threadpool_invalid_args)
+{
+    struct threadpool_count_state state = { 0 };
+
+    TEST_CHECK_PTR_EQUAL(sentry__threadpool_new(0), NULL);
+    if (sizeof(sentry_threadid_t) > 1) {
+        TEST_CHECK_PTR_EQUAL(
+            sentry__threadpool_new(SIZE_MAX / sizeof(sentry_threadid_t) + 1),
+            NULL);
+    }
+
+    TEST_CHECK(sentry__threadpool_start(NULL) != 0);
+    TEST_CHECK(sentry__threadpool_submit(NULL, threadpool_count_exec,
+                   threadpool_count_complete, threadpool_count_cleanup, &state)
+        != 0);
+    TEST_CHECK_INT_EQUAL(sentry__atomic_fetch(&state.cleaned_up), 1);
+    sentry__threadpool_setname(NULL, "ignored");
+    sentry__threadpool_flush(NULL);
+    sentry__threadpool_shutdown(NULL);
+    sentry__threadpool_free(NULL);
+
+    sentry_threadpool_t *pool = sentry__threadpool_new(1);
+    TEST_ASSERT(!!pool);
+    TEST_ASSERT(sentry__threadpool_start(pool) == 0);
+    TEST_CHECK_INT_EQUAL(sentry__threadpool_start(pool), 0);
+    TEST_CHECK(sentry__threadpool_submit(pool, NULL, threadpool_count_complete,
+                   threadpool_count_cleanup, &state)
+        != 0);
+    TEST_CHECK_INT_EQUAL(sentry__atomic_fetch(&state.cleaned_up), 2);
+    TEST_CHECK_INT_EQUAL(sentry__atomic_fetch(&state.completed), 0);
+    TEST_CHECK_INT_EQUAL(sentry__atomic_fetch(&state.executed), 0);
+
+    sentry__threadpool_shutdown(pool);
+    sentry__threadpool_shutdown(pool);
+    sentry__threadpool_free(pool);
+}
+
+SENTRY_TEST(threadpool_no_completion_callback_cleans_up)
+{
+    struct threadpool_count_state state = { 0 };
+    sentry_threadpool_t *pool = sentry__threadpool_new(1);
+    TEST_ASSERT(!!pool);
+    TEST_ASSERT(sentry__threadpool_start(pool) == 0);
+
+    TEST_ASSERT(sentry__threadpool_submit(pool, threadpool_count_exec, NULL,
+                    threadpool_count_cleanup, &state)
+        == 0);
+    sentry__threadpool_flush(pool);
+
+    TEST_CHECK_INT_EQUAL(sentry__atomic_fetch(&state.executed), 1);
+    TEST_CHECK_INT_EQUAL(sentry__atomic_fetch(&state.completed), 0);
+    TEST_CHECK_INT_EQUAL(sentry__atomic_fetch(&state.cleaned_up), 1);
+
+    sentry__threadpool_shutdown(pool);
+    sentry__threadpool_free(pool);
+}
+
+struct threadpool_blocking_state {
+    sentry_threadpool_t *pool;
+    sentry_mutex_t lock;
+    sentry_cond_t cond;
+    volatile long started;
+    volatile long executed;
+    volatile long completed;
+    volatile long cleaned_up;
+    volatile long release;
+    volatile long shutdown_done;
+};
+
+static void
+threadpool_blocking_state_init(struct threadpool_blocking_state *state)
+{
+    sentry__mutex_init(&state->lock);
+    sentry__cond_init(&state->cond);
+}
+
+static void
+threadpool_blocking_state_free(struct threadpool_blocking_state *state)
+{
+#ifndef SENTRY_PLATFORM_WINDOWS
+    pthread_cond_destroy(&state->cond);
+#endif
+    sentry__mutex_free(&state->lock);
+}
+
+static void
+threadpool_blocking_release(struct threadpool_blocking_state *state)
+{
+    sentry__mutex_lock(&state->lock);
+    sentry__atomic_store(&state->release, 1);
+    sentry__cond_wake_all(&state->cond);
+    sentry__mutex_unlock(&state->lock);
+}
+
+static void
+threadpool_blocking_exec(void *data)
+{
+    struct threadpool_blocking_state *state = data;
+
+    sentry__atomic_fetch_and_add(&state->started, 1);
+    sentry__mutex_lock(&state->lock);
+    while (!sentry__atomic_fetch(&state->release)) {
+        sentry__cond_wait_timeout(&state->cond, &state->lock, 100);
+    }
+    sentry__mutex_unlock(&state->lock);
+    sentry__atomic_fetch_and_add(&state->executed, 1);
+}
+
+static void
+threadpool_blocking_complete(void *data)
+{
+    struct threadpool_blocking_state *state = data;
+    sentry__atomic_fetch_and_add(&state->completed, 1);
+}
+
+static void
+threadpool_blocking_cleanup(void *data)
+{
+    struct threadpool_blocking_state *state = data;
+    sentry__atomic_fetch_and_add(&state->cleaned_up, 1);
+}
+
+SENTRY_THREAD_FN
+threadpool_shutdown_test_thread(void *data)
+{
+    struct threadpool_blocking_state *state = data;
+    sentry__threadpool_shutdown(state->pool);
+    sentry__atomic_fetch_and_add(&state->shutdown_done, 1);
+    return 0;
+}
+
+SENTRY_TEST(threadpool_shutdown_drains)
+{
+    enum { TASKS = 4, THREADS = 2 };
+    struct threadpool_blocking_state state = { 0 };
+    sentry_threadid_t shutdown_thread;
+    sentry_threadpool_t *pool = sentry__threadpool_new(THREADS);
+    TEST_ASSERT(!!pool);
+    TEST_ASSERT(sentry__threadpool_start(pool) == 0);
+    state.pool = pool;
+    threadpool_blocking_state_init(&state);
+
+    for (int i = 0; i < TASKS; i++) {
+        TEST_ASSERT(sentry__threadpool_submit(pool, threadpool_blocking_exec,
+                        threadpool_blocking_complete,
+                        threadpool_blocking_cleanup, &state)
+            == 0);
+    }
+    TEST_ASSERT(wait_for_atomic_count(&state.started, THREADS, 2000));
+
+    sentry__thread_init(&shutdown_thread);
+    TEST_ASSERT(sentry__thread_spawn(
+                    &shutdown_thread, threadpool_shutdown_test_thread, &state)
+        == 0);
+    sleep_ms(100);
+    threadpool_blocking_release(&state);
+    sentry__thread_join(shutdown_thread);
+    sentry__thread_free(&shutdown_thread);
+
+    TEST_CHECK_INT_EQUAL(sentry__atomic_fetch(&state.shutdown_done), 1);
+    TEST_CHECK_INT_EQUAL(sentry__atomic_fetch(&state.executed), TASKS);
+    TEST_CHECK_INT_EQUAL(sentry__atomic_fetch(&state.completed), TASKS);
+    TEST_CHECK_INT_EQUAL(sentry__atomic_fetch(&state.cleaned_up), TASKS);
+
+    sentry__threadpool_free(pool);
+    threadpool_blocking_state_free(&state);
+}
+
+SENTRY_TEST(threadpool_submit_rejected_while_stopping)
+{
+    struct threadpool_blocking_state blocking = { 0 };
+    struct threadpool_count_state submitted = { 0 };
+    sentry_threadid_t shutdown_thread;
+    sentry_threadpool_t *pool = sentry__threadpool_new(1);
+    TEST_ASSERT(!!pool);
+    TEST_ASSERT(sentry__threadpool_start(pool) == 0);
+    blocking.pool = pool;
+    threadpool_blocking_state_init(&blocking);
+
+    TEST_ASSERT(sentry__threadpool_submit(pool, threadpool_blocking_exec,
+                    threadpool_blocking_complete, threadpool_blocking_cleanup,
+                    &blocking)
+        == 0);
+    TEST_ASSERT(wait_for_atomic_count(&blocking.started, 1, 2000));
+
+    sentry__thread_init(&shutdown_thread);
+    TEST_ASSERT(sentry__thread_spawn(&shutdown_thread,
+                    threadpool_shutdown_test_thread, &blocking)
+        == 0);
+
+    bool rejected = false;
+    long accepted = 0;
+    const uint64_t deadline = sentry__monotonic_time() + 2000;
+    while (sentry__monotonic_time() < deadline) {
+        int rv = sentry__threadpool_submit(pool, threadpool_count_exec, NULL,
+            threadpool_count_cleanup, &submitted);
+        if (rv != 0) {
+            rejected = true;
+            break;
+        }
+        accepted++;
+        sleep_ms(1);
+    }
+
+    threadpool_blocking_release(&blocking);
+    sentry__thread_join(shutdown_thread);
+    sentry__thread_free(&shutdown_thread);
+
+    TEST_CHECK(rejected);
+    TEST_CHECK_INT_EQUAL(sentry__atomic_fetch(&blocking.executed), 1);
+    TEST_CHECK_INT_EQUAL(sentry__atomic_fetch(&blocking.completed), 1);
+    TEST_CHECK_INT_EQUAL(sentry__atomic_fetch(&blocking.cleaned_up), 1);
+    TEST_CHECK_INT_EQUAL(sentry__atomic_fetch(&submitted.executed), accepted);
+    TEST_CHECK_INT_EQUAL(
+        sentry__atomic_fetch(&submitted.cleaned_up), accepted + 1);
+
+    sentry__threadpool_free(pool);
+    threadpool_blocking_state_free(&blocking);
+}
+
+struct threadpool_name_state {
+    char thread_name[16];
+    volatile long captured;
+};
+
+static void
+threadpool_name_exec(void *data)
+{
+    struct threadpool_name_state *state = data;
+#if defined(SENTRY_PLATFORM_LINUX) && !defined(SENTRY_PLATFORM_ANDROID)
+    pthread_getname_np(
+        pthread_self(), state->thread_name, sizeof(state->thread_name));
+#endif
+    sentry__atomic_store(&state->captured, 1);
+}
+
+SENTRY_TEST(threadpool_thread_name)
+{
+#if !defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID)
+    SKIP_TEST();
+#else
+    struct threadpool_name_state state = { 0 };
+    sentry_threadpool_t *pool = sentry__threadpool_new(1);
+    TEST_ASSERT(!!pool);
+
+    sentry__threadpool_setname(pool, "tp");
+    TEST_ASSERT(sentry__threadpool_start(pool) == 0);
+    TEST_ASSERT(sentry__threadpool_submit(
+                    pool, threadpool_name_exec, NULL, NULL, &state)
+        == 0);
+    sentry__threadpool_flush(pool);
+
+    TEST_CHECK(sentry__atomic_fetch(&state.captured));
+    TEST_CHECK_STRING_EQUAL(state.thread_name, "tp-0");
+
+    sentry__threadpool_shutdown(pool);
+    sentry__threadpool_free(pool);
+#endif
 }
 
 SENTRY_TEST(threadpool_rejected_submit_cleans_up)
