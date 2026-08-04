@@ -11,6 +11,10 @@
 
 - Name `sentry-logs` and `sentry-metrics` telemetry batcher threads so they can be identified in debuggers, profilers, and crash reports. ([#1937](https://github.com/getsentry/sentry-native/pull/1937))
 
+**Fixes**:
+
+- `sentry_attachment_set_filename`, `sentry_attachment_set_type`, and `sentry_attachment_set_content_type` now flush the scope, so changes applied after `sentry_attach_file`/`sentry_attach_bytes` also apply to hard-crash events instead of only to normal events. ([#1934](https://github.com/getsentry/sentry-native/pull/1934))
+
 ## 0.16.1
 
 **Features**:
