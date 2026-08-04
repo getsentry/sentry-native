@@ -313,30 +313,40 @@ def test_native_attachment_manifest_is_current(cmake, httpserver):
     )
     db_dir = tmp_path / ".sentry-native"
 
-    def read_manifest():
-        # `sentry_attach_file` writes the manifest, the setters are expected to
-        # rewrite it, so poll instead of reading the first version we see
+    last_manifest = None
+
+    def manifest_is_current():
+        # `sentry_attach_file` writes the manifest and each setter rewrites it
+        # on its own flush, so a snapshot taken between the `set_filename` and
+        # `set_content_type` flushes carries the new name but no `content_type`
+        # key at all. Validate the complete expected state against a single
+        # snapshot instead of waiting on one field and re-reading the file.
+        nonlocal last_manifest
         paths = list(db_dir.glob("*.run/__sentry-attachments"))
         if not paths:
-            return None
+            return False
         try:
-            return json.loads(paths[0].read_text())
+            manifest = json.loads(paths[0].read_text())
         except (OSError, json.JSONDecodeError):
-            return None
+            # rewritten in place, so a read can catch a partial file
+            return False
+        last_manifest = manifest
+        return (
+            len(manifest) == 1
+            and manifest[0].get("filename") == "custom-name.log"
+            and manifest[0].get("content_type") == "application/zstd"
+            and manifest[0].get("path", "").endswith("CMakeCache.txt")
+        )
 
     try:
-        renamed = wait_for(
-            lambda: (read_manifest() or [{}])[0].get("filename") == "custom-name.log"
-        )
-        manifest = read_manifest()
+        up_to_date = wait_for(manifest_is_current)
     finally:
         child.terminate()
         child.wait()
 
-    assert renamed, f"attachment manifest kept the physical filename: {manifest}"
-    assert len(manifest) == 1
-    assert manifest[0]["content_type"] == "application/zstd"
-    assert manifest[0]["path"].endswith("CMakeCache.txt")
+    assert (
+        up_to_date
+    ), f"attachment manifest does not reflect the live attachment state: {last_manifest}"
 
 
 def test_native_session_tracking(cmake, httpserver):
