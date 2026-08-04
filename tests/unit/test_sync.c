@@ -943,6 +943,7 @@ SENTRY_TEST(threadpool_shutdown_drains)
     sentry__threadpool_free(pool);
 }
 
+#if defined(SENTRY_PLATFORM_LINUX) && !defined(SENTRY_PLATFORM_ANDROID)
 struct threadpool_name_state {
     char thread_name[16];
     volatile long captured;
@@ -952,12 +953,11 @@ static void
 threadpool_name_exec(void *data)
 {
     struct threadpool_name_state *state = data;
-#if defined(SENTRY_PLATFORM_LINUX) && !defined(SENTRY_PLATFORM_ANDROID)
     pthread_getname_np(
         pthread_self(), state->thread_name, sizeof(state->thread_name));
-#endif
     sentry__atomic_store(&state->captured, 1);
 }
+#endif
 
 SENTRY_TEST(threadpool_thread_name)
 {
