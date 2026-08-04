@@ -348,10 +348,8 @@ batch_task_complete(void *task_data)
 }
 
 static void
-batch_task_cleanup(void *task_data)
+batch_task_free(sentry_batch_task_t *task)
 {
-    sentry_batch_task_t *task = task_data;
-    batch_task_unlink(task);
     sentry_value_decref(task->items);
     sentry_envelope_free(task->envelope);
     sentry_free(task);
@@ -360,8 +358,9 @@ batch_task_cleanup(void *task_data)
 static void
 batch_task_complete_and_cleanup(void *task_data)
 {
-    batch_task_complete(task_data);
-    batch_task_cleanup(task_data);
+    sentry_batch_task_t *task = task_data;
+    batch_task_complete(task);
+    batch_task_free(task);
 }
 
 typedef struct {
@@ -471,7 +470,7 @@ process_batch(sentry_batcher_t *batcher, sentry_value_t items, bool crash_safe)
     if (!batcher->threadpool) {
         batch_task_exec(task);
         batch_task_complete(task);
-        batch_task_cleanup(task);
+        batch_task_free(task);
         return;
     }
 
