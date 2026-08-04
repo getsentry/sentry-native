@@ -272,6 +272,7 @@ sentry__threadpool_start(sentry_threadpool_t *pool)
             sentry__mutex_unlock(&pool->lock);
             for (size_t j = 0; j < pool->started_threads; j++) {
                 sentry__thread_join(pool->threads[j]);
+                sentry__thread_free(&pool->threads[j]);
             }
             pool->started_threads = 0;
             pool->running = false;
@@ -354,6 +355,7 @@ sentry__threadpool_shutdown(sentry_threadpool_t *pool)
 
     for (size_t i = 0; i < pool->started_threads; i++) {
         sentry__thread_join(pool->threads[i]);
+        sentry__thread_free(&pool->threads[i]);
     }
     pool->started_threads = 0;
     pool->running = false;
