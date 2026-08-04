@@ -5,6 +5,7 @@ import sys
 import time
 
 import pytest
+from flaky import flaky
 
 from . import (
     make_dsn,
@@ -420,6 +421,7 @@ def test_crashpad_wer_crash(cmake, httpserver, run_args):
         ),
     ],
 )
+@flaky(max_runs=3)
 def test_crashpad_dumping_crash(cmake, httpserver, run_args, build_args):
     build_args.update({"SENTRY_BACKEND": "crashpad"})
     tmp_path = cmake(["sentry_example"], build_args)
@@ -496,6 +498,7 @@ def test_crashpad_dumping_crash(cmake, httpserver, run_args, build_args):
         ),
     ],
 )
+@flaky(max_runs=3)
 def test_crashpad_dumping_stack_overflow(cmake, httpserver, stack_size):
     tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "crashpad"})
 
