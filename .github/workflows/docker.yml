@@ -17,8 +17,7 @@ jobs:
       fail-fast: false
       matrix:
         version:
-          - '3.21'
-          - '3.23'
+          - '3.24'
 
     permissions:
       contents: read
@@ -53,4 +52,3 @@ jobs:
           context: .github/docker/alpine
           build-args: |
             BASE=alpine:${{ matrix.version }}
-            PIP_INSTALL=${{ matrix.version == '3.23' && 'mitmproxy' || '' }}
