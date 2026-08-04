@@ -253,6 +253,23 @@ batch_task_unlink(sentry_batch_task_t *task)
 }
 
 static void
+process_batch_sync(sentry_batcher_t *batcher, sentry_envelope_t *envelope,
+    sentry_value_t items, bool crash_safe)
+{
+    batcher->batch_func(envelope, items);
+    sentry_value_decref(items);
+
+    if (crash_safe || sentry__atomic_fetch(&batcher->crash_flush)) {
+        sentry__run_write_envelope(batcher->run, envelope);
+        sentry_envelope_free(envelope);
+    } else if (!sentry__run_should_skip_upload(batcher->run)) {
+        sentry__transport_send_envelope(batcher->transport, envelope);
+    } else {
+        sentry_envelope_free(envelope);
+    }
+}
+
+static void
 batch_task_exec(void *task_data)
 {
     sentry_batch_task_t *task = task_data;
@@ -311,6 +328,13 @@ batch_task_cleanup(void *task_data)
     sentry_value_decref(task->items);
     sentry_envelope_free(task->envelope);
     sentry_free(task);
+}
+
+static void
+batch_task_complete_and_cleanup(void *task_data)
+{
+    batch_task_complete(task_data);
+    batch_task_cleanup(task_data);
 }
 
 typedef struct {
@@ -399,18 +423,15 @@ process_batch(sentry_batcher_t *batcher, sentry_value_t items, bool crash_safe)
 {
     sentry_envelope_t *envelope = sentry__envelope_new_with_dsn(batcher->dsn);
     if (crash_safe) {
-        // Write directly to disk to avoid transport queuing during crash
-        batcher->batch_func(envelope, items);
-        sentry__run_write_envelope(batcher->run, envelope);
-        sentry_envelope_free(envelope);
-        sentry_value_decref(items);
+        process_batch_sync(batcher, envelope, items, true);
         return;
     }
 
     sentry_batch_task_t *task = SENTRY_MAKE(sentry_batch_task_t);
     if (!task) {
-        sentry_value_decref(items);
-        sentry_envelope_free(envelope);
+        SENTRY_WARN("serializing telemetry batch synchronously: "
+                    "serialization task allocation failed");
+        process_batch_sync(batcher, envelope, items, false);
         return;
     }
 
@@ -428,11 +449,13 @@ process_batch(sentry_batcher_t *batcher, sentry_value_t items, bool crash_safe)
     }
 
     if (sentry__threadpool_submit(batcher->threadpool, batch_task_exec,
-            batch_task_complete, batch_task_cleanup, task)
+            batch_task_complete_and_cleanup, NULL, task)
         != 0) {
-        SENTRY_WARN(
-            "dropping telemetry batch: serialization pool unavailable or out "
-            "of memory");
+        SENTRY_WARN("serializing telemetry batch synchronously: "
+                    "serialization pool unavailable or out of memory");
+        batch_task_unlink(task);
+        process_batch_sync(batcher, envelope, items, false);
+        sentry_free(task);
         return;
     }
 }

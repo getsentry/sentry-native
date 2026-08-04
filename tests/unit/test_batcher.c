@@ -162,6 +162,33 @@ SENTRY_TEST(batcher_force_flush_sends)
     free_test_run(run, database_path);
 }
 
+SENTRY_TEST(batcher_rejected_submit_sends)
+{
+    sentry_threadpool_t *pool = sentry__threadpool_new(1);
+    TEST_ASSERT(!!pool);
+    sentry_path_t *database_path = NULL;
+    sentry_run_t *run = new_test_run(
+        SENTRY_TEST_PATH_PREFIX ".batcher-rejected-submit", &database_path);
+    long sent = 0;
+    sentry_transport_t *transport
+        = sentry_transport_new(counting_transport_send);
+    TEST_ASSERT(!!transport);
+    sentry_transport_set_state(transport, &sent);
+    sentry_batcher_t *batcher = sentry__batcher_new(pending_batch_func, pool);
+    TEST_ASSERT(!!batcher);
+    batcher->run = run;
+    batcher->transport = transport;
+
+    TEST_CHECK(sentry__batcher_enqueue(batcher, sentry_value_new_null()));
+    TEST_CHECK(sentry__batcher_flush(batcher, false));
+    TEST_CHECK_INT_EQUAL(sentry__atomic_fetch(&sent), 1);
+
+    sentry__batcher_release(batcher);
+    sentry_transport_free(transport);
+    sentry__threadpool_free(pool);
+    free_test_run(run, database_path);
+}
+
 SENTRY_TEST(batcher_crash_flush_buffers)
 {
     sentry_threadpool_t *pool = sentry__threadpool_new(1);
