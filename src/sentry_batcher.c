@@ -270,6 +270,16 @@ process_batch_sync(sentry_batcher_t *batcher, sentry_envelope_t *envelope,
 }
 
 static void
+process_batch_sync_ordered(sentry_batcher_t *batcher,
+    sentry_envelope_t *envelope, sentry_value_t items)
+{
+    // Preserve FIFO order when falling back after earlier batches were
+    // accepted by the serialization pool.
+    sentry__threadpool_flush(batcher->threadpool);
+    process_batch_sync(batcher, envelope, items, false);
+}
+
+static void
 batch_task_exec(void *task_data)
 {
     sentry_batch_task_t *task = task_data;
@@ -431,7 +441,7 @@ process_batch(sentry_batcher_t *batcher, sentry_value_t items, bool crash_safe)
     if (!task) {
         SENTRY_WARN("serializing telemetry batch synchronously: "
                     "serialization task allocation failed");
-        process_batch_sync(batcher, envelope, items, false);
+        process_batch_sync_ordered(batcher, envelope, items);
         return;
     }
 
@@ -454,7 +464,7 @@ process_batch(sentry_batcher_t *batcher, sentry_value_t items, bool crash_safe)
         SENTRY_WARN("serializing telemetry batch synchronously: "
                     "serialization pool unavailable or out of memory");
         batch_task_unlink(task);
-        process_batch_sync(batcher, envelope, items, false);
+        process_batch_sync_ordered(batcher, envelope, items);
         sentry_free(task);
         return;
     }
