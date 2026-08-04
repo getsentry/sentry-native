@@ -25,6 +25,12 @@ typedef struct {
     long sent;
 } blocking_transport_t;
 
+typedef struct {
+    sentry_batcher_t *batcher;
+    long started;
+    long completed;
+} crash_flush_task_t;
+
 static void
 blocking_task_exec(void *data)
 {
@@ -41,6 +47,16 @@ shutdown_task_exec(void *data)
     shutdown_task_t *task = data;
     sentry__atomic_store(&task->started, 1);
     sentry__batcher_shutdown(task->batcher, 0);
+    sentry__atomic_store(&task->completed, 1);
+    return 0;
+}
+
+SENTRY_THREAD_FN
+crash_flush_task_exec(void *data)
+{
+    crash_flush_task_t *task = data;
+    sentry__atomic_store(&task->started, 1);
+    sentry__batcher_flush_crash_safe(task->batcher);
     sentry__atomic_store(&task->completed, 1);
     return 0;
 }
@@ -424,6 +440,63 @@ SENTRY_TEST(batcher_crash_flush_pending)
     sentry__run_free(run);
     sentry__path_remove_all(database_path);
     sentry__path_free(database_path);
+}
+
+SENTRY_TEST(batcher_crash_flush_completing)
+{
+    sentry_path_t *database_path = NULL;
+    sentry_run_t *run = new_test_run(SENTRY_TEST_PATH_PREFIX
+        ".batcher-completing-crash-flush",
+        &database_path);
+    sentry_threadpool_t *pool = sentry__threadpool_new(1);
+    TEST_ASSERT(!!pool);
+    TEST_ASSERT(!sentry__threadpool_start(pool));
+
+    blocking_transport_t transport_state = { 0 };
+    sentry_transport_t *transport
+        = sentry_transport_new(blocking_transport_send);
+    TEST_ASSERT(!!transport);
+    sentry_transport_set_state(transport, &transport_state);
+
+    sentry_batcher_t *batcher = sentry__batcher_new(pending_batch_func, pool);
+    TEST_ASSERT(!!batcher);
+    batcher->run = run;
+    batcher->transport = transport;
+
+    TEST_CHECK(sentry__batcher_enqueue(batcher, sentry_value_new_null()));
+    TEST_CHECK(sentry__batcher_flush(batcher, false));
+    while (!sentry__atomic_fetch(&transport_state.started)) {
+        sentry__thread_yield();
+    }
+
+    crash_flush_task_t crash_flush_task = { .batcher = batcher };
+    sentry_threadid_t crash_flush_thread;
+    sentry__thread_init(&crash_flush_thread);
+    TEST_ASSERT(!sentry__thread_spawn(
+        &crash_flush_thread, crash_flush_task_exec, &crash_flush_task));
+    while (!sentry__atomic_fetch(&crash_flush_task.started)) {
+        sentry__thread_yield();
+    }
+
+    const uint64_t deadline = sentry__monotonic_time() + 100;
+    while (!sentry__atomic_fetch(&crash_flush_task.completed)
+        && sentry__monotonic_time() < deadline) {
+        sentry__thread_yield();
+    }
+    TEST_CHECK(!sentry__atomic_fetch(&crash_flush_task.completed));
+
+    sentry__atomic_store(&transport_state.release, 1);
+    sentry__thread_join(crash_flush_thread);
+    sentry__thread_free(&crash_flush_thread);
+    sentry__threadpool_flush(pool);
+    TEST_CHECK(sentry__atomic_fetch(&crash_flush_task.completed));
+    TEST_CHECK_INT_EQUAL(sentry__atomic_fetch(&transport_state.sent), 1);
+
+    sentry__threadpool_shutdown(pool);
+    sentry__threadpool_free(pool);
+    sentry__batcher_release(batcher);
+    sentry_transport_free(transport);
+    free_test_run(run, database_path);
 }
 
 SENTRY_TEST(batcher_crash_dump_does_not_block_workers)

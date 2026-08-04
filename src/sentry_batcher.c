@@ -407,7 +407,7 @@ batch_task_dump_pending_all(sentry_batcher_t *batcher)
 {
     int attempts = 0;
     while (true) {
-        bool has_running = false;
+        bool has_busy = false;
         bool claimed = false;
         sentry_batch_dump_t dump = { 0 };
         if (!lock_tasks_crash_safe(batcher)) {
@@ -419,9 +419,9 @@ batch_task_dump_pending_all(sentry_batcher_t *batcher)
                 claimed = true;
                 break;
             }
-            has_running = has_running
-                || sentry__atomic_fetch(&task->state)
-                    == SENTRY_BATCH_TASK_RUNNING;
+            const long state = sentry__atomic_fetch(&task->state);
+            has_busy = has_busy || state == SENTRY_BATCH_TASK_RUNNING
+                || state == SENTRY_BATCH_TASK_COMPLETING;
         }
         unlock_tasks(batcher);
 
@@ -430,7 +430,7 @@ batch_task_dump_pending_all(sentry_batcher_t *batcher)
             attempts = 0;
             continue;
         }
-        if (!has_running) {
+        if (!has_busy) {
             return;
         }
 
