@@ -1,6 +1,7 @@
 #include "sentry_batcher.h"
 #include "sentry_database.h"
 #include "sentry_envelope.h"
+#include "sentry_options.h"
 #include "sentry_path.h"
 #include "sentry_sync.h"
 #include "sentry_testsupport.h"
@@ -12,6 +13,11 @@ typedef struct {
     long release;
 } blocking_task_t;
 
+typedef struct {
+    sentry_batcher_t *batcher;
+    long completed;
+} shutdown_task_t;
+
 static void
 blocking_task_exec(void *data)
 {
@@ -20,6 +26,14 @@ blocking_task_exec(void *data)
     while (!sentry__atomic_fetch(&task->release)) {
         sentry__thread_yield();
     }
+}
+
+static void
+shutdown_task_exec(void *data)
+{
+    shutdown_task_t *task = data;
+    sentry__batcher_shutdown(task->batcher, 0);
+    sentry__atomic_store(&task->completed, 1);
 }
 
 static sentry_envelope_item_t *
@@ -187,6 +201,49 @@ SENTRY_TEST(batcher_rejected_submit_sends)
     sentry_transport_free(transport);
     sentry__threadpool_free(pool);
     free_test_run(run, database_path);
+}
+
+SENTRY_TEST(batcher_shutdown_wait)
+{
+    sentry_threadpool_t *pool = sentry__threadpool_new(1);
+    TEST_ASSERT(!!pool);
+    TEST_ASSERT(!sentry__threadpool_start(pool));
+
+    blocking_task_t blocking_task = { 0 };
+    TEST_ASSERT(!sentry__threadpool_submit(
+        pool, blocking_task_exec, NULL, NULL, &blocking_task));
+    while (!sentry__atomic_fetch(&blocking_task.started)) {
+        sentry__thread_yield();
+    }
+
+    SENTRY_TEST_OPTIONS_NEW(options);
+    sentry_batcher_t *batcher = sentry__batcher_new(pending_batch_func, pool);
+    TEST_ASSERT(!!batcher);
+    sentry__batcher_startup(batcher, options);
+    sentry__batcher_wait_for_thread_startup(batcher);
+
+    shutdown_task_t shutdown_task = { .batcher = batcher };
+    sentry_threadid_t shutdown_thread;
+    sentry__thread_init(&shutdown_thread);
+    TEST_ASSERT(!sentry__thread_spawn(
+        &shutdown_thread, shutdown_task_exec, &shutdown_task));
+
+    const uint64_t deadline = sentry__monotonic_time() + 1000;
+    while (!sentry__atomic_fetch(&shutdown_task.completed)
+        && sentry__monotonic_time() < deadline) {
+        sentry__thread_yield();
+    }
+    TEST_CHECK(sentry__atomic_fetch(&shutdown_task.completed));
+
+    sentry__atomic_store(&blocking_task.release, 1);
+    sentry__thread_join(shutdown_thread);
+    sentry__thread_free(&shutdown_thread);
+    sentry__threadpool_flush(pool);
+
+    sentry__batcher_release(batcher);
+    sentry_options_free(options);
+    sentry__threadpool_shutdown(pool);
+    sentry__threadpool_free(pool);
 }
 
 SENTRY_TEST(batcher_crash_flush_buffers)

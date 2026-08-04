@@ -253,6 +253,20 @@ batch_task_unlink(sentry_batch_task_t *task)
 }
 
 static void
+batch_task_wait_all(sentry_batcher_t *batcher)
+{
+    while (true) {
+        lock_tasks(batcher);
+        const bool done = batcher->tasks == NULL;
+        unlock_tasks(batcher);
+        if (done) {
+            return;
+        }
+        sentry__cpu_relax();
+    }
+}
+
+static void
 process_batch_sync(sentry_batcher_t *batcher, sentry_envelope_t *envelope,
     sentry_value_t items, bool crash_safe)
 {
@@ -275,7 +289,7 @@ process_batch_sync_ordered(sentry_batcher_t *batcher,
 {
     // Preserve FIFO order when falling back after earlier batches were
     // accepted by the serialization pool.
-    sentry__threadpool_flush(batcher->threadpool);
+    batch_task_wait_all(batcher);
     process_batch_sync(batcher, envelope, items, false);
 }
 
@@ -726,6 +740,7 @@ sentry__batcher_shutdown(sentry_batcher_t *batcher, uint64_t timeout)
 
     // Perform final flush to ensure any remaining items are sent
     sentry__batcher_flush(batcher, false);
+    batch_task_wait_all(batcher);
 }
 
 void
