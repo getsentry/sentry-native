@@ -10,6 +10,7 @@
 **Fixes**:
 
 - Name `sentry-logs` and `sentry-metrics` telemetry batcher threads so they can be identified in debuggers, profilers, and crash reports. ([#1937](https://github.com/getsentry/sentry-native/pull/1937))
+- Linux: close descriptor `0` on failed module file mapping when that descriptor was returned by `open`, avoiding a file descriptor leak. ([#1924](https://github.com/getsentry/sentry-native/pull/1924))
 
 **Fixes**:
 
