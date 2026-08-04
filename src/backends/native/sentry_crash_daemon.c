@@ -4620,18 +4620,6 @@ sentry__crash_daemon_main(pid_t app_pid, uint64_t app_tid, HANDLE event_handle,
         }
     }
 
-    // Transport is already initialized by sentry_options_new(), just start it
-    if (options->transport) {
-        SENTRY_DEBUG("Starting transport");
-        sentry__transport_startup(options->transport, options);
-        // Set http_retry after transport startup to keep daemon-side retry
-        // polling disabled, while letting capture cache consent-revoked
-        // envelopes in retry format for the app to send on restart.
-        options->http_retry = ipc->shmem->http_retry;
-    } else {
-        SENTRY_WARN("No transport available");
-    }
-
     SENTRY_DEBUG("Daemon options fully initialized");
 
 #if defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID)
@@ -4660,6 +4648,18 @@ sentry__crash_daemon_main(pid_t app_pid, uint64_t app_tid, HANDLE event_handle,
     // Signal to parent that daemon is ready
     SENTRY_DEBUG("Signaling ready to parent");
     sentry__crash_ipc_signal_ready(ipc);
+
+    // Transport is already initialized by sentry_options_new(), just start it
+    if (options->transport) {
+        SENTRY_DEBUG("Starting transport");
+        sentry__transport_startup(options->transport, options);
+        // Set http_retry after transport startup to keep daemon-side retry
+        // polling disabled, while letting capture cache consent-revoked
+        // envelopes in retry format for the app to send on restart.
+        options->http_retry = ipc->shmem->http_retry;
+    } else {
+        SENTRY_WARN("No transport available");
+    }
 
     SENTRY_DEBUG("Entering main loop");
 
