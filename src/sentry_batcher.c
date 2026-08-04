@@ -703,6 +703,7 @@ sentry__batcher_flush_crash_safe(sentry_batcher_t *batcher)
     sentry__atomic_store(&batcher->crash_flush, 1);
     const long state = sentry__atomic_fetch(&batcher->thread_state);
     if (state == SENTRY_BATCHER_THREAD_STOPPED) {
+        sentry__batcher_flush(batcher, true);
         batch_task_dump_pending_all(batcher);
         return;
     }

@@ -184,6 +184,23 @@ SENTRY_TEST(batcher_crash_flush_buffers)
     free_test_run(run, database_path);
 }
 
+SENTRY_TEST(batcher_crash_flush_stopped_buffers)
+{
+    sentry_path_t *database_path = NULL;
+    sentry_run_t *run = new_test_run(
+        SENTRY_TEST_PATH_PREFIX ".batcher-stopped-crash-flush", &database_path);
+    sentry_batcher_t *batcher = sentry__batcher_new(pending_batch_func, NULL);
+    TEST_ASSERT(!!batcher);
+    batcher->run = run;
+
+    TEST_CHECK(sentry__batcher_enqueue(batcher, sentry_value_new_null()));
+    sentry__batcher_flush_crash_safe(batcher);
+    TEST_CHECK(sentry__atomic_fetch(&run->retain));
+
+    sentry__batcher_release(batcher);
+    free_test_run(run, database_path);
+}
+
 SENTRY_TEST(batcher_crash_flush_pending)
 {
     sentry_path_t *database_path = sentry__path_from_str(
