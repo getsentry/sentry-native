@@ -15,8 +15,15 @@ typedef struct {
 
 typedef struct {
     sentry_batcher_t *batcher;
+    long started;
     long completed;
 } shutdown_task_t;
+
+typedef struct {
+    long started;
+    long release;
+    long sent;
+} blocking_transport_t;
 
 static void
 blocking_task_exec(void *data)
@@ -32,6 +39,7 @@ SENTRY_THREAD_FN
 shutdown_task_exec(void *data)
 {
     shutdown_task_t *task = data;
+    sentry__atomic_store(&task->started, 1);
     sentry__batcher_shutdown(task->batcher, 0);
     sentry__atomic_store(&task->completed, 1);
     return 0;
@@ -81,6 +89,18 @@ static void
 counting_transport_send(sentry_envelope_t *envelope, void *data)
 {
     sentry__atomic_fetch_and_add((long *)data, 1);
+    sentry_envelope_free(envelope);
+}
+
+static void
+blocking_transport_send(sentry_envelope_t *envelope, void *data)
+{
+    blocking_transport_t *transport = data;
+    sentry__atomic_store(&transport->started, 1);
+    while (!sentry__atomic_fetch(&transport->release)) {
+        sentry__thread_yield();
+    }
+    sentry__atomic_fetch_and_add(&transport->sent, 1);
     sentry_envelope_free(envelope);
 }
 
@@ -206,45 +226,114 @@ SENTRY_TEST(batcher_rejected_submit_sends)
 
 SENTRY_TEST(batcher_shutdown_wait)
 {
-    sentry_threadpool_t *pool = sentry__threadpool_new(1);
-    TEST_ASSERT(!!pool);
-    TEST_ASSERT(!sentry__threadpool_start(pool));
+    {
+        sentry_threadpool_t *pool = sentry__threadpool_new(1);
+        TEST_ASSERT(!!pool);
+        TEST_ASSERT(!sentry__threadpool_start(pool));
 
-    blocking_task_t blocking_task = { 0 };
-    TEST_ASSERT(!sentry__threadpool_submit(
-        pool, blocking_task_exec, NULL, NULL, &blocking_task));
-    while (!sentry__atomic_fetch(&blocking_task.started)) {
-        sentry__thread_yield();
+        blocking_task_t blocking_task = { 0 };
+        TEST_ASSERT(!sentry__threadpool_submit(
+            pool, blocking_task_exec, NULL, NULL, &blocking_task));
+        while (!sentry__atomic_fetch(&blocking_task.started)) {
+            sentry__thread_yield();
+        }
+
+        SENTRY_TEST_OPTIONS_NEW(options);
+        sentry_batcher_t *batcher
+            = sentry__batcher_new(pending_batch_func, pool);
+        TEST_ASSERT(!!batcher);
+        sentry__batcher_startup(batcher, options);
+        sentry__batcher_wait_for_thread_startup(batcher);
+
+        shutdown_task_t shutdown_task = { .batcher = batcher };
+        sentry_threadid_t shutdown_thread;
+        sentry__thread_init(&shutdown_thread);
+        TEST_ASSERT(!sentry__thread_spawn(
+            &shutdown_thread, shutdown_task_exec, &shutdown_task));
+        while (!sentry__atomic_fetch(&shutdown_task.started)) {
+            sentry__thread_yield();
+        }
+
+        const uint64_t deadline = sentry__monotonic_time() + 1000;
+        while (!sentry__atomic_fetch(&shutdown_task.completed)
+            && sentry__monotonic_time() < deadline) {
+            sentry__thread_yield();
+        }
+        TEST_CHECK(sentry__atomic_fetch(&shutdown_task.completed));
+
+        sentry__atomic_store(&blocking_task.release, 1);
+        sentry__thread_join(shutdown_thread);
+        sentry__thread_free(&shutdown_thread);
+        sentry__threadpool_flush(pool);
+
+        sentry__batcher_release(batcher);
+        sentry_options_free(options);
+        sentry__threadpool_shutdown(pool);
+        sentry__threadpool_free(pool);
     }
 
-    SENTRY_TEST_OPTIONS_NEW(options);
-    sentry_batcher_t *batcher = sentry__batcher_new(pending_batch_func, pool);
-    TEST_ASSERT(!!batcher);
-    sentry__batcher_startup(batcher, options);
-    sentry__batcher_wait_for_thread_startup(batcher);
+    {
+        sentry_threadpool_t *pool = sentry__threadpool_new(1);
+        TEST_ASSERT(!!pool);
+        TEST_ASSERT(!sentry__threadpool_start(pool));
 
-    shutdown_task_t shutdown_task = { .batcher = batcher };
-    sentry_threadid_t shutdown_thread;
-    sentry__thread_init(&shutdown_thread);
-    TEST_ASSERT(!sentry__thread_spawn(
-        &shutdown_thread, shutdown_task_exec, &shutdown_task));
+        sentry_path_t *database_path = NULL;
+        sentry_run_t *run = new_test_run(
+            SENTRY_TEST_PATH_PREFIX ".batcher-shutdown-wait", &database_path);
+        blocking_transport_t blocking_transport = { 0 };
+        sentry_transport_t *transport
+            = sentry_transport_new(blocking_transport_send);
+        TEST_ASSERT(!!transport);
+        sentry_transport_set_state(transport, &blocking_transport);
 
-    const uint64_t deadline = sentry__monotonic_time() + 1000;
-    while (!sentry__atomic_fetch(&shutdown_task.completed)
-        && sentry__monotonic_time() < deadline) {
-        sentry__thread_yield();
+        SENTRY_TEST_OPTIONS_NEW(options);
+        options->run = run;
+        sentry_options_set_transport(options, transport);
+
+        sentry_batcher_t *batcher
+            = sentry__batcher_new(pending_batch_func, pool);
+        TEST_ASSERT(!!batcher);
+        sentry__batcher_startup(batcher, options);
+        sentry__batcher_wait_for_thread_startup(batcher);
+
+        TEST_CHECK(sentry__batcher_enqueue(batcher, sentry_value_new_null()));
+        TEST_CHECK(sentry__batcher_flush(batcher, false));
+        while (!sentry__atomic_fetch(&blocking_transport.started)) {
+            sentry__thread_yield();
+        }
+
+        shutdown_task_t shutdown_task = { .batcher = batcher };
+        sentry_threadid_t shutdown_thread;
+        sentry__thread_init(&shutdown_thread);
+        TEST_ASSERT(!sentry__thread_spawn(
+            &shutdown_thread, shutdown_task_exec, &shutdown_task));
+        while (!sentry__atomic_fetch(&shutdown_task.started)) {
+            sentry__thread_yield();
+        }
+
+        const uint64_t deadline = sentry__monotonic_time() + 100;
+        while (!sentry__atomic_fetch(&shutdown_task.completed)
+            && sentry__monotonic_time() < deadline) {
+            sentry__thread_yield();
+        }
+        TEST_CHECK(!sentry__atomic_fetch(&shutdown_task.completed));
+
+        sentry__atomic_store(&blocking_transport.release, 1);
+        sentry__thread_join(shutdown_thread);
+        sentry__thread_free(&shutdown_thread);
+        sentry__threadpool_flush(pool);
+
+        TEST_CHECK(sentry__atomic_fetch(&shutdown_task.completed));
+        TEST_CHECK_INT_EQUAL(sentry__atomic_fetch(&blocking_transport.sent), 1);
+
+        sentry__batcher_release(batcher);
+        sentry__run_clean(run, true);
+        sentry_options_free(options);
+        sentry__path_remove_all(database_path);
+        sentry__path_free(database_path);
+        sentry__threadpool_shutdown(pool);
+        sentry__threadpool_free(pool);
     }
-    TEST_CHECK(sentry__atomic_fetch(&shutdown_task.completed));
-
-    sentry__atomic_store(&blocking_task.release, 1);
-    sentry__thread_join(shutdown_thread);
-    sentry__thread_free(&shutdown_thread);
-    sentry__threadpool_flush(pool);
-
-    sentry__batcher_release(batcher);
-    sentry_options_free(options);
-    sentry__threadpool_shutdown(pool);
-    sentry__threadpool_free(pool);
 }
 
 SENTRY_TEST(batcher_crash_flush_buffers)

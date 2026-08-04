@@ -182,7 +182,8 @@ typedef enum {
     SENTRY_BATCH_TASK_PENDING = 0,
     SENTRY_BATCH_TASK_RUNNING = 1,
     SENTRY_BATCH_TASK_READY = 2,
-    SENTRY_BATCH_TASK_DUMPED = 3,
+    SENTRY_BATCH_TASK_COMPLETING = 3,
+    SENTRY_BATCH_TASK_DUMPED = 4,
 } sentry_batch_task_state_t;
 
 typedef struct sentry_batch_task_s {
@@ -328,7 +329,7 @@ batch_task_complete(void *task_data)
         unlock_tasks(batcher);
         return;
     }
-    batch_task_unlink_locked(task);
+    sentry__atomic_store(&task->state, SENTRY_BATCH_TASK_COMPLETING);
     unlock_tasks(batcher);
 
     if (sentry__atomic_fetch(&task->batcher->crash_flush)) {
@@ -342,6 +343,8 @@ batch_task_complete(void *task_data)
         sentry_envelope_free(task->envelope);
     }
     task->envelope = NULL;
+
+    batch_task_unlink(task);
 }
 
 static void
