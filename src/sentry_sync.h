@@ -99,9 +99,9 @@ SleepConditionVariableCS_PREVISTA(
 {
     DWORD result = 0;
 
+    InterlockedIncrement((LONG *)&cv->Waiters);
     LeaveCriticalSection(cs);
 
-    InterlockedIncrement((LONG *)&cv->Waiters);
     result = WaitForSingleObject(cv->Semaphore, timeout);
 
     // send event only on target
