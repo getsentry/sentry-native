@@ -476,8 +476,13 @@ sentry_scope_clone(const sentry_scope_t *scope)
     clone->release = sentry__string_clone(scope->release);
     clone->environment = sentry__string_clone(scope->environment);
     clone->transaction = sentry__string_clone(scope->transaction);
-    clone->fingerprint = sentry__value_clone(scope->fingerprint);
-    clone->user = sentry__value_clone(scope->user);
+    sentry_value_t fingerprint = sentry__scope_ref_fingerprint(scope);
+    clone->fingerprint = sentry__value_clone(fingerprint);
+    sentry_value_decref(fingerprint);
+
+    sentry_value_t user = sentry__scope_ref_user(scope);
+    clone->user = sentry__value_clone(user);
+    sentry_value_decref(user);
     clone->tags = sentry__value_clone(scope->tags);
     clone->extra = sentry__value_clone(scope->extra);
     clone->attributes = sentry__value_clone(scope->attributes);
@@ -762,24 +767,31 @@ sentry__scope_apply_to_event(const sentry_scope_t *scope,
         SET("level", sentry__value_new_level(sentry__scope_get_level(scope)));
     }
 
-    if (sentry_value_get_type(scope->user) == SENTRY_VALUE_TYPE_OBJECT) {
+    sentry_value_t user = sentry__scope_ref_user(scope);
+    if (sentry_value_get_type(user) == SENTRY_VALUE_TYPE_OBJECT) {
         if (options->run && options->run->installation_id) {
             // ensure event has a user object
             if (IS_NULL("user")) {
-                SET("user", sentry__value_clone(scope->user));
+                SET("user", sentry__value_clone(user));
             }
             // patch missing user ID with installation ID
-            sentry_value_t user = sentry_value_get_by_key(event, "user");
-            if (sentry_value_get_type(user) == SENTRY_VALUE_TYPE_OBJECT
-                && sentry_value_is_null(sentry_value_get_by_key(user, "id"))) {
-                sentry_value_set_by_key(user, "id",
+            sentry_value_t event_user = sentry_value_get_by_key(event, "user");
+            if (sentry_value_get_type(event_user) == SENTRY_VALUE_TYPE_OBJECT
+                && sentry_value_is_null(
+                    sentry_value_get_by_key(event_user, "id"))) {
+                sentry_value_set_by_key(event_user, "id",
                     sentry_value_new_string(options->run->installation_id));
             }
-        } else if (sentry_value_get_length(scope->user) > 0) {
-            PLACE_CLONED_VALUE("user", scope->user);
+        } else if (sentry_value_get_length(user) > 0) {
+            PLACE_CLONED_VALUE("user", user);
         }
     }
-    PLACE_CLONED_VALUE("fingerprint", scope->fingerprint);
+    sentry_value_decref(user);
+
+    sentry_value_t fingerprint = sentry__scope_ref_fingerprint(scope);
+    PLACE_CLONED_VALUE("fingerprint", fingerprint);
+    sentry_value_decref(fingerprint);
+
     PLACE_STRING("transaction", scope->transaction);
     PLACE_VALUE("sdk", scope->client_sdk);
 
@@ -891,17 +903,27 @@ sentry__scope_get_breadcrumbs(const sentry_scope_t *scope)
 }
 
 sentry_value_t
-sentry__scope_get_user(const sentry_scope_t *scope)
+sentry__scope_ref_user(const sentry_scope_t *scope)
 {
-    return scope->user;
+    sentry_value_t user = sentry_value_new_null();
+    SCOPE_READ_LOCK(scope) { user = sentry_value_incref(scope->user); }
+    return user;
 }
 
 void
 sentry_scope_set_user(sentry_scope_t *scope, sentry_value_t user)
 {
-    sentry_value_decref(scope->user);
-    scope->user = user;
-    SENTRY_SCOPE_NOTIFY(scope, set_user, user);
+    sentry_value_t old_user = sentry_value_new_null();
+    sentry_value_t notify_user = sentry_value_new_null();
+    SCOPE_WRITE_LOCK(scope)
+    {
+        old_user = scope->user;
+        scope->user = user;
+        notify_user = sentry_value_incref(user);
+    }
+    sentry_value_decref(old_user);
+    SENTRY_SCOPE_NOTIFY(scope, set_user, notify_user);
+    sentry_value_decref(notify_user);
 }
 
 sentry_value_t
@@ -1111,9 +1133,14 @@ sentry__scope_remove_context_n(
 }
 
 sentry_value_t
-sentry__scope_get_fingerprint(const sentry_scope_t *scope)
+sentry__scope_ref_fingerprint(const sentry_scope_t *scope)
 {
-    return scope->fingerprint;
+    sentry_value_t fingerprint = sentry_value_new_null();
+    SCOPE_READ_LOCK(scope)
+    {
+        fingerprint = sentry_value_incref(scope->fingerprint);
+    }
+    return fingerprint;
 }
 
 void
@@ -1126,9 +1153,7 @@ sentry__scope_set_fingerprint_va(
             fingerprint_value, sentry_value_new_string(fingerprint));
     }
 
-    sentry_value_decref(scope->fingerprint);
-    scope->fingerprint = fingerprint_value;
-    SENTRY_SCOPE_NOTIFY(scope, set_fingerprint, fingerprint_value);
+    sentry_scope_set_fingerprints(scope, fingerprint_value);
 }
 
 void
@@ -1181,17 +1206,34 @@ sentry_scope_set_fingerprints(
         return;
     }
 
-    sentry_value_decref(scope->fingerprint);
-    scope->fingerprint = fingerprints;
-    SENTRY_SCOPE_NOTIFY(scope, set_fingerprint, fingerprints);
+    sentry_value_t old_fingerprint = sentry_value_new_null();
+    sentry_value_t notify_fingerprint = sentry_value_new_null();
+    SCOPE_WRITE_LOCK(scope)
+    {
+        old_fingerprint = scope->fingerprint;
+        scope->fingerprint = fingerprints;
+        notify_fingerprint = sentry_value_incref(fingerprints);
+    }
+    sentry_value_decref(old_fingerprint);
+    SENTRY_SCOPE_NOTIFY(scope, set_fingerprint, notify_fingerprint);
+    sentry_value_decref(notify_fingerprint);
 }
 
 void
 sentry__scope_remove_fingerprint(sentry_scope_t *scope)
 {
-    sentry_value_decref(scope->fingerprint);
-    scope->fingerprint = sentry_value_new_null();
-    SENTRY_SCOPE_NOTIFY(scope, set_fingerprint, scope->fingerprint);
+    sentry_value_t fingerprint = sentry_value_new_null();
+    sentry_value_t old_fingerprint = sentry_value_new_null();
+    sentry_value_t notify_fingerprint = sentry_value_new_null();
+    SCOPE_WRITE_LOCK(scope)
+    {
+        old_fingerprint = scope->fingerprint;
+        scope->fingerprint = fingerprint;
+        notify_fingerprint = sentry_value_incref(fingerprint);
+    }
+    sentry_value_decref(old_fingerprint);
+    SENTRY_SCOPE_NOTIFY(scope, set_fingerprint, notify_fingerprint);
+    sentry_value_decref(notify_fingerprint);
 }
 
 sentry_level_t
@@ -1531,8 +1573,9 @@ sentry__scope_apply_to_telemetry(const sentry_scope_t *scope,
         sentry_value_set_by_key(telemetry, "trace_id", trace_id);
     }
 
-    if (!sentry_value_is_null(scope->user)) {
-        sentry_value_t user_id = sentry_value_get_by_key(scope->user, "id");
+    sentry_value_t user = sentry__scope_ref_user(scope);
+    if (!sentry_value_is_null(user)) {
+        sentry_value_t user_id = sentry_value_get_by_key(user, "id");
         if (!sentry_value_is_null(user_id)) {
             sentry_value_incref(user_id);
             sentry__value_add_attribute(
@@ -1540,21 +1583,22 @@ sentry__scope_apply_to_telemetry(const sentry_scope_t *scope,
         }
 
         sentry_value_t user_username
-            = sentry_value_get_by_key(scope->user, "username");
+            = sentry_value_get_by_key(user, "username");
         if (!sentry_value_is_null(user_username)) {
             sentry_value_incref(user_username);
             sentry__value_add_attribute(
                 attributes, user_username, "string", "user.name");
         }
 
-        sentry_value_t user_email
-            = sentry_value_get_by_key(scope->user, "email");
+        sentry_value_t user_email = sentry_value_get_by_key(user, "email");
         if (!sentry_value_is_null(user_email)) {
             sentry_value_incref(user_email);
             sentry__value_add_attribute(
                 attributes, user_email, "string", "user.email");
         }
     }
+    sentry_value_decref(user);
+
     sentry_value_t os_context = sentry_value_get_by_key(scope->contexts, "os");
     if (!sentry_value_is_null(os_context)) {
         sentry_value_t os_name = sentry_value_get_by_key(os_context, "name");

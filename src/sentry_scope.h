@@ -165,14 +165,14 @@ const char *sentry__scope_get_transaction(const sentry_scope_t *scope);
 void sentry__scope_set_transaction_n(
     sentry_scope_t *scope, const char *transaction, size_t transaction_len);
 
-sentry_value_t sentry__scope_get_fingerprint(const sentry_scope_t *scope);
+sentry_value_t sentry__scope_ref_fingerprint(const sentry_scope_t *scope);
 void sentry__scope_set_fingerprint_va(
     sentry_scope_t *scope, const char *fingerprint, va_list va);
 void sentry__scope_set_fingerprint_nva(sentry_scope_t *scope,
     const char *fingerprint, size_t fingerprint_len, va_list va);
 void sentry__scope_remove_fingerprint(sentry_scope_t *scope);
 
-sentry_value_t sentry__scope_get_user(const sentry_scope_t *scope);
+sentry_value_t sentry__scope_ref_user(const sentry_scope_t *scope);
 sentry_level_t sentry__scope_get_level(const sentry_scope_t *scope);
 
 sentry_value_t sentry__scope_get_tags(const sentry_scope_t *scope);

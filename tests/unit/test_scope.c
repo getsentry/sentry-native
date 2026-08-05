@@ -438,6 +438,16 @@ SENTRY_TEST(scope_fingerprint)
         TEST_CHECK_JSON_VALUE(sentry_value_get_by_key(event, "fingerprint"),
             "[\"event1\",\"event2\"]");
 
+        sentry_value_t local_fingerprint
+            = sentry__scope_ref_fingerprint(local_scope);
+        sentry__scope_remove_fingerprint(local_scope);
+        TEST_CHECK_INT_EQUAL(sentry_value_get_length(local_fingerprint), 2);
+        TEST_CHECK_STRING_EQUAL(
+            sentry_value_as_string(
+                sentry_value_get_by_index(local_fingerprint, 0)),
+            "local1");
+        sentry_value_decref(local_fingerprint);
+
         sentry_scope_free(local_scope);
         sentry_value_decref(event);
     }
@@ -603,6 +613,13 @@ SENTRY_TEST(scope_user)
             global_scope, options, event, SENTRY_SCOPE_NONE);
         TEST_CHECK_JSON_VALUE(sentry_value_get_by_key(event, "user"),
             "{\"id\":\"3\",\"username\":\"event\"}");
+
+        sentry_value_t local_user = sentry__scope_ref_user(local_scope);
+        sentry_scope_set_user(local_scope, sentry_value_new_null());
+        TEST_CHECK_STRING_EQUAL(
+            sentry_value_as_string(sentry_value_get_by_key(local_user, "id")),
+            "2");
+        sentry_value_decref(local_user);
 
         sentry_scope_free(local_scope);
         sentry_value_decref(event);
@@ -1054,14 +1071,17 @@ SENTRY_TEST(scope_clone)
         TEST_CHECK(sentry_value_is_null(
             sentry_value_get_by_key(scope_data, "injected")));
 
+        sentry_value_t scope_user = sentry__scope_ref_user(scope);
         TEST_CHECK_STRING_EQUAL(sentry_value_as_string(sentry_value_get_by_key(
-                                    sentry__scope_get_user(scope), "username")),
+                                    scope_user, "username")),
             "original");
-        TEST_CHECK(sentry_value_is_null(sentry_value_get_by_key(
-            sentry__scope_get_user(scope), "injected")));
+        TEST_CHECK(sentry_value_is_null(
+            sentry_value_get_by_key(scope_user, "injected")));
+        sentry_value_decref(scope_user);
 
-        TEST_CHECK_INT_EQUAL(
-            sentry_value_get_length(sentry__scope_get_fingerprint(scope)), 2);
+        sentry_value_t scope_fingerprint = sentry__scope_ref_fingerprint(scope);
+        TEST_CHECK_INT_EQUAL(sentry_value_get_length(scope_fingerprint), 2);
+        sentry_value_decref(scope_fingerprint);
     }
 
     sentry_close();
@@ -1445,6 +1465,10 @@ static void
 observe_set_user(void *data, sentry_value_t user)
 {
     test_observer_data_t *d = (test_observer_data_t *)data;
+    if (!sentry_value_is_null(d->user)) {
+        sentry_value_decref(d->user);
+    }
+    sentry_value_incref(user);
     d->user = user;
     d->was_called = true;
 }
@@ -2400,14 +2424,17 @@ SENTRY_TEST(scope_clone_preserves_data)
     TEST_CHECK_STRING_EQUAL(sentry_value_as_string(sentry_value_get_by_key(
                                 sentry__scope_get_contexts(clone), "device")),
         "Xbox");
-    TEST_CHECK_STRING_EQUAL(sentry_value_as_string(sentry_value_get_by_key(
-                                sentry__scope_get_user(clone), "username")),
+    sentry_value_t clone_user = sentry__scope_ref_user(clone);
+    TEST_CHECK_STRING_EQUAL(
+        sentry_value_as_string(sentry_value_get_by_key(clone_user, "username")),
         "alice");
+    sentry_value_decref(clone_user);
     TEST_CHECK_STRING_EQUAL(sentry_value_as_string(sentry_value_get_by_key(
                                 sentry__scope_get_extra(clone), "extra_key")),
         "extra_value");
-    TEST_CHECK_INT_EQUAL(
-        sentry_value_get_length(sentry__scope_get_fingerprint(clone)), 2);
+    sentry_value_t clone_fingerprint = sentry__scope_ref_fingerprint(clone);
+    TEST_CHECK_INT_EQUAL(sentry_value_get_length(clone_fingerprint), 2);
+    sentry_value_decref(clone_fingerprint);
     TEST_CHECK(sentry__scope_get_level(clone) == SENTRY_LEVEL_WARNING);
     TEST_CHECK_STRING_EQUAL(
         sentry_value_as_string(sentry_value_get_by_key(
@@ -2494,7 +2521,9 @@ SENTRY_TEST(scope_clear)
     TEST_CHECK(sentry_value_get_length(sentry__scope_get_tags(scope)) == 1);
     TEST_CHECK(
         sentry_value_get_length(sentry__scope_get_attributes(scope)) == 1);
-    TEST_CHECK(!sentry_value_is_null(sentry__scope_get_user(scope)));
+    sentry_value_t scope_user = sentry__scope_ref_user(scope);
+    TEST_CHECK(!sentry_value_is_null(scope_user));
+    sentry_value_decref(scope_user);
 
     sentry_scope_clear(scope);
 
@@ -2504,8 +2533,13 @@ SENTRY_TEST(scope_clear)
     TEST_CHECK(sentry_value_get_length(sentry__scope_get_contexts(scope)) == 0);
     TEST_CHECK(
         sentry_value_get_length(sentry__scope_get_attributes(scope)) == 0);
-    TEST_CHECK(sentry_value_is_null(sentry__scope_get_user(scope)));
-    TEST_CHECK(sentry_value_is_null(sentry__scope_get_fingerprint(scope)));
+    scope_user = sentry__scope_ref_user(scope);
+    TEST_CHECK(sentry_value_is_null(scope_user));
+    sentry_value_decref(scope_user);
+
+    sentry_value_t scope_fingerprint = sentry__scope_ref_fingerprint(scope);
+    TEST_CHECK(sentry_value_is_null(scope_fingerprint));
+    sentry_value_decref(scope_fingerprint);
     TEST_CHECK_INT_EQUAL(sentry__scope_get_level(scope), SENTRY_LEVEL_ERROR);
     sentry_value_t crumbs
         = sentry__ringbuffer_to_list(sentry__scope_get_breadcrumbs(scope));
