@@ -224,9 +224,6 @@ curl_client_free(void *_client)
     }
     if (client->curl_initialized) {
         g_curl.global_cleanup();
-#ifndef SENTRY_LINK_CURL
-        curl_unload();
-#endif
         client->curl_initialized = false;
     }
     sentry_free(client->ca_certs);
