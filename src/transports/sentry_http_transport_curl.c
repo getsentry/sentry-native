@@ -80,17 +80,22 @@ curl_load(void)
         return 0;
     }
 
-#    ifdef SENTRY_PLATFORM_MACOS
-    const char *library_name = "libcurl.4.dylib";
+#    if defined(SENTRY_PLATFORM_MACOS)
+    const char *libname = "libcurl.4.dylib";
+    int flags = RTLD_LAZY | RTLD_LOCAL;
+#    elif defined(SENTRY_PLATFORM_AIX)
+    const char *libname = "libcurl.a(libcurl.so.4)";
+    int flags = RTLD_LAZY | RTLD_LOCAL | RTLD_MEMBER;
 #    else
-    const char *library_name = "libcurl.so.4";
+    const char *libname = "libcurl.so.4";
+    int flags = RTLD_LAZY | RTLD_LOCAL;
 #    endif
 
     dlerror();
-    g_curl.handle = dlopen(library_name, RTLD_LAZY | RTLD_LOCAL);
+    g_curl.handle = dlopen(libname, flags);
     if (!g_curl.handle) {
         const char *error = dlerror();
-        SENTRY_WARNF("failed to load %s: %s", library_name,
+        SENTRY_WARNF("failed to load %s: %s", libname,
             error ? error : "library not found");
         return 1;
     }
