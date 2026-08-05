@@ -184,6 +184,7 @@ curl_load(void)
 
 typedef struct {
     CURL *curl_handle;
+    bool curl_initialized;
     char *proxy;
     char *ca_certs;
     bool debug;
@@ -219,10 +220,14 @@ curl_client_free(void *_client)
     curl_client_t *client = _client;
     if (client->curl_handle) {
         g_curl.easy_cleanup(client->curl_handle);
+        client->curl_handle = NULL;
+    }
+    if (client->curl_initialized) {
         g_curl.global_cleanup();
 #ifndef SENTRY_LINK_CURL
         curl_unload();
 #endif
+        client->curl_initialized = false;
     }
     sentry_free(client->ca_certs);
     sentry_free(client->proxy);
@@ -246,6 +251,7 @@ curl_client_start(void *_client, const sentry_options_t *options)
         SENTRY_WARNF("`curl_global_init` failed with code `%d`", (int)rv);
         return 1;
     }
+    client->curl_initialized = true;
 
     curl_version_info_data *version_data = g_curl.version_info(CURLVERSION_NOW);
 
