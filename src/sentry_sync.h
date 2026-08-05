@@ -122,12 +122,14 @@ WakeConditionVariable_PREVISTA(PCONDITION_VARIABLE_PREVISTA ConditionVariable)
         return;
     }
 
-    if (ConditionVariable->Waiters == 0) {
+    const LONG waiters = InterlockedCompareExchange(
+        (volatile LONG *)&ConditionVariable->Waiters, 0, 0);
+    if (waiters == 0) {
         return;
     }
 
     // set target for continue event, alert it on first occurance
-    ConditionVariable->Target = ConditionVariable->Waiters - 1;
+    ConditionVariable->Target = waiters - 1;
 
     SignalObjectAndWait(ConditionVariable->Semaphore,
         ConditionVariable->ContinueEvent, INFINITE, FALSE);
