@@ -275,6 +275,9 @@ sentry__threadpool_start(sentry_threadpool_t *pool)
     }
 
     sentry__mutex_lock(&pool->lock);
+    while (sentry__atomic_fetch(&pool->running) && pool->stopping) {
+        sentry__cond_wait(&pool->state_signal, &pool->lock);
+    }
     if (sentry__atomic_fetch(&pool->running)) {
         sentry__mutex_unlock(&pool->lock);
         return 0;
@@ -300,6 +303,7 @@ sentry__threadpool_start(sentry_threadpool_t *pool)
             }
             pool->started_threads = 0;
             sentry__atomic_store(&pool->running, 0);
+            sentry__cond_wake_all(&pool->state_signal);
             sentry__mutex_unlock(&pool->lock);
             return 1;
         }
@@ -382,6 +386,9 @@ sentry__threadpool_shutdown(sentry_threadpool_t *pool)
 
     sentry__mutex_lock(&pool->lock);
     if (pool->stopping) {
+        while (sentry__atomic_fetch(&pool->running)) {
+            sentry__cond_wait(&pool->state_signal, &pool->lock);
+        }
         sentry__mutex_unlock(&pool->lock);
         return;
     }
@@ -402,6 +409,7 @@ sentry__threadpool_shutdown(sentry_threadpool_t *pool)
     pool->started_threads = 0;
     sentry__atomic_store(&pool->running, 0);
     pool->index = 0;
+    sentry__cond_wake_all(&pool->state_signal);
     sentry__mutex_unlock(&pool->lock);
 }
 
