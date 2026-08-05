@@ -34,6 +34,24 @@ SENTRY__MUTEX_INIT_DYN(g_lock)
 static sentry_mutex_t g_lock = SENTRY__MUTEX_INIT;
 #endif
 
+#define SCOPE_READ_LOCK(Scope)                                                 \
+    for (const sentry_scope_t *_locked_scope = (Scope); _locked_scope;         \
+        sentry__rwlock_read_unlock((sentry_rwlock_t *)&_locked_scope->rwlock), \
+                              _locked_scope = NULL)                            \
+        for (bool _locked_once                                                 \
+            = (sentry__rwlock_read_lock(                                       \
+                   (sentry_rwlock_t *)&_locked_scope->rwlock),                 \
+                true);                                                         \
+            _locked_once; _locked_once = false)
+
+#define SCOPE_WRITE_LOCK(Scope)                                                \
+    for (sentry_scope_t *_locked_scope = (Scope); _locked_scope;               \
+        sentry__rwlock_write_unlock(&_locked_scope->rwlock),                   \
+                        _locked_scope = NULL)                                  \
+        for (bool _locked_once                                                 \
+            = (sentry__rwlock_write_lock(&_locked_scope->rwlock), true);       \
+            _locked_once; _locked_once = false)
+
 static sentry_value_t
 get_client_sdk(void)
 {
@@ -121,6 +139,7 @@ get_scope(void)
     }
 
     memset(&g_scope, 0, sizeof(sentry_scope_t));
+    sentry__rwlock_init(&g_scope.rwlock);
     init_scope(&g_scope);
     g_scope.user = sentry_value_new_object();
     sentry_value_set_by_key(g_scope.contexts, "os", sentry__get_os_context());
@@ -167,6 +186,7 @@ sentry__scope_cleanup(void)
     if (g_scope_initialized) {
         g_scope_initialized = false;
         cleanup_scope(&g_scope);
+        sentry__rwlock_free(&g_scope.rwlock);
     }
     sentry__mutex_unlock(&g_lock);
 }
@@ -321,6 +341,7 @@ sentry_scope_new(void)
         return NULL;
     }
 
+    sentry__rwlock_init(&scope->rwlock);
     init_scope(scope);
     return scope;
 }
@@ -333,13 +354,28 @@ sentry_scope_free(sentry_scope_t *scope)
     }
 
     cleanup_scope(scope);
+    sentry__rwlock_free(&scope->rwlock);
     sentry_free(scope);
+}
+
+bool
+sentry__scope_is_one_shot(const sentry_scope_t *scope)
+{
+    bool one_shot = false;
+    SCOPE_READ_LOCK(scope) { one_shot = scope->one_shot; }
+    return one_shot;
+}
+
+void
+sentry__scope_set_one_shot(sentry_scope_t *scope, bool one_shot)
+{
+    SCOPE_WRITE_LOCK(scope) { scope->one_shot = one_shot; }
 }
 
 void
 sentry__scope_free_one_shot(sentry_scope_t *scope)
 {
-    if (scope && scope->one_shot) {
+    if (sentry__scope_is_one_shot(scope)) {
         sentry_scope_free(scope);
     }
 }
@@ -349,7 +385,7 @@ sentry_local_scope_new(void)
 {
     sentry_scope_t *scope = sentry_scope_new();
     if (scope) {
-        scope->one_shot = true;
+        sentry__scope_set_one_shot(scope, true);
     }
     return scope;
 }
@@ -401,12 +437,12 @@ sentry_scope_clear(sentry_scope_t *scope)
 
     // Keep the propagation and dynamic sampling contexts across clears so
     // telemetry captured afterwards continues on the same trace.
-    bool trace_managed = scope->trace_managed;
+    bool trace_managed = sentry__scope_is_trace_managed(scope);
     sentry_value_t propagation_context = scope->propagation_context;
     sentry_value_t dynamic_sampling_context = scope->dynamic_sampling_context;
     sentry_value_incref(propagation_context);
     sentry_value_incref(dynamic_sampling_context);
-    bool one_shot = scope->one_shot;
+    bool one_shot = sentry__scope_is_one_shot(scope);
 
     cleanup_scope(scope);
     init_scope(scope);
@@ -415,8 +451,8 @@ sentry_scope_clear(sentry_scope_t *scope)
     sentry_value_decref(scope->dynamic_sampling_context);
     scope->propagation_context = propagation_context;
     scope->dynamic_sampling_context = dynamic_sampling_context;
-    scope->trace_managed = trace_managed;
-    scope->one_shot = one_shot;
+    sentry__scope_set_trace_managed(scope, trace_managed);
+    sentry__scope_set_one_shot(scope, one_shot);
     scope->observers = observers;
     scope->num_observers = num_observers;
     scope->is_notifying = is_notifying;
@@ -435,6 +471,8 @@ sentry_scope_clone(const sentry_scope_t *scope)
         return NULL;
     }
 
+    sentry__rwlock_init(&clone->rwlock);
+
     clone->release = sentry__string_clone(scope->release);
     clone->environment = sentry__string_clone(scope->environment);
     clone->transaction = sentry__string_clone(scope->transaction);
@@ -452,7 +490,7 @@ sentry_scope_clone(const sentry_scope_t *scope)
     if (sentry_value_is_frozen(scope->dynamic_sampling_context)) {
         sentry_value_freeze(clone->dynamic_sampling_context);
     }
-    clone->level = scope->level;
+    clone->level = sentry__scope_get_level(scope);
     clone->client_sdk = sentry__value_clone(scope->client_sdk);
     sentry__attachments_extend(&clone->attachments, scope->attachments);
 
@@ -460,7 +498,7 @@ sentry_scope_clone(const sentry_scope_t *scope)
     sentry__transaction_incref(clone->transaction_object);
     clone->span = scope->span;
     sentry__span_incref(clone->span);
-    clone->trace_managed = scope->trace_managed;
+    clone->trace_managed = sentry__scope_is_trace_managed(scope);
 
     return clone;
 }
@@ -493,13 +531,15 @@ sentry__scope_regenerate_propagation_context(sentry_scope_t *scope)
 bool
 sentry__scope_is_trace_managed(const sentry_scope_t *scope)
 {
-    return scope->trace_managed;
+    bool managed = false;
+    SCOPE_READ_LOCK(scope) { managed = scope->trace_managed; }
+    return managed;
 }
 
 void
 sentry__scope_set_trace_managed(sentry_scope_t *scope, bool managed)
 {
-    scope->trace_managed = managed;
+    SCOPE_WRITE_LOCK(scope) { scope->trace_managed = managed; }
 }
 
 sentry_value_t
@@ -682,12 +722,6 @@ sentry__scope_has_observers(const sentry_scope_t *scope)
 {
     return scope->num_observers > 0;
 }
-
-bool
-sentry__scope_is_one_shot(const sentry_scope_t *scope)
-{
-    return scope->one_shot;
-}
 #endif
 
 void
@@ -725,7 +759,7 @@ sentry__scope_apply_to_event(const sentry_scope_t *scope,
 
     // is not transaction and has no level
     if (IS_NULL("type") && IS_NULL("level")) {
-        SET("level", sentry__value_new_level(scope->level));
+        SET("level", sentry__value_new_level(sentry__scope_get_level(scope)));
     }
 
     if (sentry_value_get_type(scope->user) == SENTRY_VALUE_TYPE_OBJECT) {
@@ -1163,13 +1197,15 @@ sentry__scope_remove_fingerprint(sentry_scope_t *scope)
 sentry_level_t
 sentry__scope_get_level(const sentry_scope_t *scope)
 {
-    return scope->level;
+    sentry_level_t level = SENTRY_LEVEL_ERROR;
+    SCOPE_READ_LOCK(scope) { level = scope->level; }
+    return level;
 }
 
 void
 sentry_scope_set_level(sentry_scope_t *scope, sentry_level_t level)
 {
-    scope->level = level;
+    SCOPE_WRITE_LOCK(scope) { scope->level = level; }
     SENTRY_SCOPE_NOTIFY(scope, set_level, level);
 }
 

@@ -6,6 +6,7 @@
 #include "sentry_attachment.h"
 #include "sentry_ringbuffer.h"
 #include "sentry_session.h"
+#include "sentry_sync.h"
 #include "sentry_value.h"
 
 /**
@@ -53,6 +54,8 @@ typedef struct sentry_scope_observer_s {
  * This represents the current scope.
  */
 struct sentry_scope_s {
+    sentry_rwlock_t rwlock;
+
     char *release;
     char *environment;
     char *transaction;
@@ -124,6 +127,9 @@ void sentry__scope_cleanup(void);
 
 void sentry__scope_apply_options(
     sentry_scope_t *scope, sentry_options_t *options);
+
+bool sentry__scope_is_one_shot(const sentry_scope_t *scope);
+void sentry__scope_set_one_shot(sentry_scope_t *scope, bool one_shot);
 
 /**
  * Frees the scope if it is a one-shot local scope.
@@ -313,5 +319,4 @@ void sentry__scope_apply_to_telemetry(const sentry_scope_t *scope,
 #ifdef SENTRY_UNITTEST
 sentry_value_t sentry__scope_get_span_or_transaction(void);
 bool sentry__scope_has_observers(const sentry_scope_t *scope);
-bool sentry__scope_is_one_shot(const sentry_scope_t *scope);
 #endif

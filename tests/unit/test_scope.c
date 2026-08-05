@@ -2346,7 +2346,7 @@ SENTRY_TEST(scope_clone_independence)
     sentry_scope_t *clone = sentry_scope_clone(scope);
 
     // A clone is reusable, never one-shot.
-    TEST_CHECK(!clone->one_shot);
+    TEST_CHECK(!sentry__scope_is_one_shot(clone));
 
     // The clone carries over the source's data.
     TEST_CHECK_STRING_EQUAL(sentry_value_as_string(sentry_value_get_by_key(
