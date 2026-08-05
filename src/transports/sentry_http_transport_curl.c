@@ -81,18 +81,37 @@ curl_load(void)
     }
 
 #    if defined(SENTRY_PLATFORM_MACOS)
-    const char *libname = "libcurl.4.dylib";
+    const char *libnames[] = { "libcurl.4.dylib", "libcurl.dylib", NULL };
     int flags = RTLD_LAZY | RTLD_LOCAL;
 #    elif defined(SENTRY_PLATFORM_AIX)
-    const char *libname = "libcurl.a(libcurl.so.4)";
+    const char *libnames[] = { "libcurl.a(libcurl.so.4)", "libcurl.so.4",
+        "libcurl.so", "libcurl.a", NULL };
     int flags = RTLD_LAZY | RTLD_LOCAL | RTLD_MEMBER;
 #    else
-    const char *libname = "libcurl.so.4";
+    const char *libnames[] = { "libcurl.so", "libcurl-gnutls.so.4",
+        "libcurl-nss.so.4", "libcurl.so.4", NULL };
     int flags = RTLD_LAZY | RTLD_LOCAL;
 #    endif
 
-    dlerror();
-    g_curl.handle = dlopen(libname, flags);
+    // Check for statically linked libcurl first.
+    g_curl.handle = dlopen(NULL, RTLD_LAZY | RTLD_LOCAL);
+    if (g_curl.handle
+        && (!dlsym(g_curl.handle, "curl_easy_init")
+            || !dlsym(g_curl.handle, "curl_easy_setopt"))) {
+        dlclose(g_curl.handle);
+        g_curl.handle = NULL;
+    }
+
+    const char *libname = NULL;
+    if (!g_curl.handle) {
+        for (const char **cur = libnames; *cur; cur++) {
+            libname = *cur;
+            g_curl.handle = dlopen(libname, flags);
+            if (g_curl.handle) {
+                break;
+            }
+        }
+    }
     if (!g_curl.handle) {
         const char *error = dlerror();
         SENTRY_WARNF("failed to load %s: %s", libname,
