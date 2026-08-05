@@ -2,10 +2,28 @@
 
 ## Unreleased
 
+**Features**:
+
+- Add `sentry_scope_remove_fingerprint` to remove a fingerprint set on a scope, matching the global `sentry_remove_fingerprint`. ([#1932](https://github.com/getsentry/sentry-native/pull/1932))
+- Add `sentry_options_set_before_send_feedback` to filter or enrich user feedback. Feedback does not go through `before_send`. ([#1923](https://github.com/getsentry/sentry-native/pull/1923))
+
+**Fixes**:
+
+- Name `sentry-logs` and `sentry-metrics` telemetry batcher threads so they can be identified in debuggers, profilers, and crash reports. ([#1937](https://github.com/getsentry/sentry-native/pull/1937))
+- Linux: close descriptor `0` on failed module file mapping when that descriptor was returned by `open`, avoiding a file descriptor leak. ([#1924](https://github.com/getsentry/sentry-native/pull/1924))
+- `sentry_attachment_set_filename`, `sentry_attachment_set_type`, and `sentry_attachment_set_content_type` now flush the scope, so changes applied after `sentry_attach_file`/`sentry_attach_bytes` also apply to hard-crash events instead of only to normal events. ([#1934](https://github.com/getsentry/sentry-native/pull/1934))
+- Crashpad: fix a crash when calling `sentry_init` before C++ dynamic initializers have run. ([#1930](https://github.com/getsentry/sentry-native/issues/1930), [mini_chromium#8](https://github.com/getsentry/mini_chromium/pull/8))
+- Reduce the size of native-generated minidumps on Windows ([#1929](https://github.com/getsentry/sentry-native/pull/1929))
+
+## 0.16.1
+
+**Features**:
+
+- Added `sentry_app_hang_pause` to allow pausing of the app hang detection mechanism. This is useful in settings where an app can be put in the background, causing the monitored thread to suspend execution. ([#1928](https://github.com/getsentry/sentry-native/pull/1928))
+
 **Fixes**:
 
 - Honor checks before launching crash reporter ([#1906](https://github.com/getsentry/sentry-native/pull/1906))
-- Reduce the size of native-generated minidumps on Windows ([#1929](https://github.com/getsentry/sentry-native/pull/1929))
 
 ## 0.16.0
 

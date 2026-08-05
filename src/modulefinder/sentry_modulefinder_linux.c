@@ -74,7 +74,7 @@ sentry__mmap_file(sentry_mmap_t *rv, const char *path)
     return true;
 
 fail:
-    if (fd > 0) {
+    if (fd >= 0) {
         close(fd);
     }
     rv->ptr = NULL;

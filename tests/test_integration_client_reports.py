@@ -230,6 +230,36 @@ def test_client_report_before_send_metric(cmake, httpserver):
     )
 
 
+def test_client_report_before_send_feedback(cmake, httpserver):
+    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "none"})
+
+    httpserver.expect_request("/api/123456/envelope/").respond_with_data("OK")
+    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
+
+    # Feedback is discarded by before_send_feedback. The session at
+    # shutdown carries the client report.
+    run(
+        tmp_path,
+        "sentry_example",
+        [
+            "log",
+            "start-session",
+            "capture-user-feedback",
+            "discarding-before-send-feedback",
+        ],
+        env=env,
+    )
+
+    assert len(httpserver.log) == 1
+    envelope = Envelope.deserialize(httpserver.log[0][0].get_data())
+
+    assert_session(envelope)
+    assert_client_report(
+        envelope,
+        [{"reason": "before_send", "category": "feedback", "quantity": 1}],
+    )
+
+
 def test_client_report_before_send_transaction(cmake, httpserver):
     tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "none"})
 

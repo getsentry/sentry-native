@@ -1,8 +1,8 @@
-# docker build --build-arg BASE=alpine:3.21
+# docker build --build-arg BASE=alpine:3.24
 ARG BASE=alpine:latest
 FROM ${BASE}
 
-ARG PIP_INSTALL=
+ARG BPF_LINKER_VERSION=v0.10.4
 COPY requirements.txt /tmp/requirements.txt
 
 RUN apk add --no-cache \
@@ -32,21 +32,17 @@ RUN apk add --no-cache \
     sudo \
     tar \
     tree \
-    wget
+    wget \
+    zstd
 
-# 3.23+
-RUN if awk -F. '{ exit !($1 > 3 || ($1 == 3 && $2 >= 23)) }' /etc/alpine-release; then \
-        (apk add --no-cache llvm22-libs || \
-            apk add --no-cache --repository=https://dl-cdn.alpinelinux.org/alpine/edge/main llvm22-libs) && \
-        cargo install --locked --git https://github.com/aya-rs/bpf-linker --root /usr/local bpf-linker && \
-        RUSTUP_INIT_SKIP_PATH_CHECK=yes rustup-init -y --profile minimal --default-toolchain none && \
-        . /root/.cargo/env && \
-        rustup toolchain install nightly --profile minimal --component rust-src && \
-        ln -s /root/.cargo/bin/rustup /usr/local/bin/rustup && \
-        if [ -n "${PIP_INSTALL}" ]; then \
-            python3 -m pip install --break-system-packages --upgrade --constraint /tmp/requirements.txt ${PIP_INSTALL}; \
-        fi; \
-    fi
+# mitmproxy-linux builds eBPF code for bpfel-unknown-none and needs bpf-linker plus nightly rust-src.
+RUN curl -sSL --retry 5 "https://github.com/aya-rs/bpf-linker/releases/download/${BPF_LINKER_VERSION}/bpf-linker-$(uname -m)-unknown-linux-musl.tar.zst" | \
+    tar --zstd -xpf - -C /usr/local/bin && \
+    RUSTUP_INIT_SKIP_PATH_CHECK=yes rustup-init -y --profile minimal --default-toolchain none && \
+    . /root/.cargo/env && \
+    rustup toolchain install nightly --profile minimal --component rust-src && \
+    ln -s /root/.cargo/bin/rustup /usr/local/bin/rustup && \
+    python3 -m pip install --break-system-packages --upgrade --constraint /tmp/requirements.txt mitmproxy
 ENV CARGO_HOME=/root/.cargo
 ENV RUSTUP_HOME=/root/.rustup
 

@@ -133,13 +133,15 @@ sentry_metrics_distribution(
 void
 sentry__metrics_startup(const sentry_options_t *options)
 {
-    sentry_batcher_t *batcher = sentry__batcher_new(
-        sentry__envelope_add_metrics, SENTRY_DATA_CATEGORY_TRACE_METRIC);
+    sentry_batcher_t *batcher
+        = sentry__batcher_new(sentry__envelope_add_metrics);
     if (!batcher) {
         SENTRY_WARN("failed to allocate metrics batcher");
         return;
     }
 
+    sentry__batcher_set_category(
+        batcher, SENTRY_DATA_CATEGORY_TRACE_METRIC, "sentry-metrics");
     sentry__batcher_startup(batcher, options);
     sentry_batcher_t *old = sentry__batcher_swap(&g_batcher, batcher);
 
@@ -152,24 +154,20 @@ sentry__metrics_startup(const sentry_options_t *options)
 void
 sentry__metrics_shutdown(uint64_t timeout)
 {
-    SENTRY_DEBUG("shutting down metrics system");
     sentry_batcher_t *batcher = sentry__batcher_swap(&g_batcher, NULL);
     if (batcher) {
         sentry__batcher_shutdown(batcher, timeout);
         sentry__batcher_release(batcher);
     }
-    SENTRY_DEBUG("metrics system shutdown complete");
 }
 
 void
 sentry__metrics_flush_crash_safe(void)
 {
-    SENTRY_SIGNAL_SAFE_LOG("DEBUG crash-safe metrics flush");
     sentry_batcher_t *batcher = sentry__batcher_peek(&g_batcher);
     if (batcher) {
         sentry__batcher_flush_crash_safe(batcher);
     }
-    SENTRY_SIGNAL_SAFE_LOG("DEBUG crash-safe metrics flush complete");
 }
 
 uintptr_t

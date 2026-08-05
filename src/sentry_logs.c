@@ -629,13 +629,14 @@ sentry_scope_capture_log(sentry_scope_t *scope, sentry_level_t level,
 void
 sentry__logs_startup(const sentry_options_t *options)
 {
-    sentry_batcher_t *batcher = sentry__batcher_new(
-        sentry__envelope_add_logs, SENTRY_DATA_CATEGORY_LOG_ITEM);
+    sentry_batcher_t *batcher = sentry__batcher_new(sentry__envelope_add_logs);
     if (!batcher) {
         SENTRY_WARN("failed to allocate logs batcher");
         return;
     }
 
+    sentry__batcher_set_category(
+        batcher, SENTRY_DATA_CATEGORY_LOG_ITEM, "sentry-logs");
     sentry__batcher_startup(batcher, options);
     sentry_batcher_t *old = sentry__batcher_swap(&g_batcher, batcher);
 
@@ -648,24 +649,20 @@ sentry__logs_startup(const sentry_options_t *options)
 void
 sentry__logs_shutdown(uint64_t timeout)
 {
-    SENTRY_DEBUG("shutting down logs system");
     sentry_batcher_t *batcher = sentry__batcher_swap(&g_batcher, NULL);
     if (batcher) {
         sentry__batcher_shutdown(batcher, timeout);
         sentry__batcher_release(batcher);
     }
-    SENTRY_DEBUG("logs system shutdown complete");
 }
 
 void
 sentry__logs_flush_crash_safe(void)
 {
-    SENTRY_SIGNAL_SAFE_LOG("DEBUG crash-safe logs flush");
     sentry_batcher_t *batcher = sentry__batcher_peek(&g_batcher);
     if (batcher) {
         sentry__batcher_flush_crash_safe(batcher);
     }
-    SENTRY_SIGNAL_SAFE_LOG("DEBUG crash-safe logs flush complete");
 }
 
 uintptr_t

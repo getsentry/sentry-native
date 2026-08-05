@@ -5,6 +5,7 @@ Tests crash handling, minidump generation, Build ID/UUID extraction,
 multi-thread capture, and FPU/SIMD register capture on all platforms.
 """
 
+import json
 import os
 import subprocess
 import sys
@@ -32,6 +33,7 @@ from .assertions import (
     assert_replay_envelope,
     assert_session,
     is_valid_hex,
+    wait_for,
     wait_for_file,
     assert_user_feedback,
 )
@@ -283,6 +285,68 @@ def test_native_overflow_breadcrumbs(cmake, httpserver, crash_mode):
 
     assert len(breadcrumbs) == 100
     assert any(b.get("message") == "100" for b in breadcrumbs)
+
+
+def test_native_attachment_manifest_is_current(cmake, httpserver):
+    """The attachment manifest must reflect the live attachment state (#1933).
+
+    The daemon builds hard-crash envelopes from `<run>/__sentry-attachments`,
+    which the backend only rewrites on a scope flush. `sentry_attach_file`
+    flushes, but `sentry_attachment_set_filename`/`_set_content_type` do not, so
+    the manifest keeps the physical basename and the crash event reports
+    `CMakeCache.txt` instead of `custom-name.log`.
+
+    Asserting on the manifest rather than on a crash envelope keeps this
+    deterministic: the in-process crash handler happens to flush the scope (via
+    `sentry__trace_finish`), which repairs the manifest before the daemon reads
+    it, but out-of-process paths such as WER never run that handler.
+    """
+    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "native"})
+
+    exe = tmp_path / (
+        "sentry_example.exe" if sys.platform == "win32" else "sentry_example"
+    )
+    child = subprocess.Popen(
+        [str(exe), "log", "attach-custom-filename", "sleep"],
+        cwd=tmp_path,
+        env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
+    )
+    db_dir = tmp_path / ".sentry-native"
+
+    last_manifest = None
+
+    def manifest_is_current():
+        # `sentry_attach_file` writes the manifest and each setter rewrites it
+        # on its own flush, so a snapshot taken between the `set_filename` and
+        # `set_content_type` flushes carries the new name but no `content_type`
+        # key at all. Validate the complete expected state against a single
+        # snapshot instead of waiting on one field and re-reading the file.
+        nonlocal last_manifest
+        paths = list(db_dir.glob("*.run/__sentry-attachments"))
+        if not paths:
+            return False
+        try:
+            manifest = json.loads(paths[0].read_text())
+        except (OSError, json.JSONDecodeError):
+            # rewritten in place, so a read can catch a partial file
+            return False
+        last_manifest = manifest
+        return (
+            len(manifest) == 1
+            and manifest[0].get("filename") == "custom-name.log"
+            and manifest[0].get("content_type") == "application/zstd"
+            and manifest[0].get("path", "").endswith("CMakeCache.txt")
+        )
+
+    try:
+        up_to_date = wait_for(manifest_is_current)
+    finally:
+        child.terminate()
+        child.wait()
+
+    assert (
+        up_to_date
+    ), f"attachment manifest does not reflect the live attachment state: {last_manifest}"
 
 
 def test_native_session_tracking(cmake, httpserver):
@@ -1193,3 +1257,21 @@ def test_native_replay_orphan_not_flushed(cmake, httpserver):
         assert not is_replay_envelope(req.get_data())
     assert (replays / f"replay-{REPLAY_ID}.mp4").exists()
     assert (replays / f"replay-{REPLAY_ID}.json").exists()
+
+
+def test_native_early_init(cmake):
+    tmp_path = cmake(
+        ["sentry_early_init"],
+        {
+            "SENTRY_BACKEND": "native",
+            "SENTRY_TRANSPORT": "none",
+            "BUILD_SHARED_LIBS": "OFF",
+        },
+    )
+
+    result = run(
+        tmp_path,
+        "sentry_early_init",
+        [],
+    )
+    assert result.returncode == 0

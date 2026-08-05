@@ -146,14 +146,14 @@ jobs:
             RUN_ANALYZER: code-checker,valgrind
           - name: Linux (GCC + musl + libunwind)
             os: ubuntu-latest
-            container: ghcr.io/getsentry/sentry-native-alpine:3.23
+            container: ghcr.io/getsentry/sentry-native-alpine:3.24
             CC: gcc
             CXX: g++
             SYSTEM_PYTHON: 1
             CMAKE_DEFINES: -DSENTRY_LIBUNWIND_SYSTEM=ON
           - name: Linux (clang + musl + libunwind)
             os: ubuntu-latest
-            container: ghcr.io/getsentry/sentry-native-alpine:3.23
+            container: ghcr.io/getsentry/sentry-native-alpine:3.24
             CC: clang
             CXX: clang++
             SYSTEM_PYTHON: 1
@@ -406,7 +406,7 @@ jobs:
 
       - name: Setup sccache
         if: ${{ env['USE_SCCACHE'] }}
-        uses: mozilla-actions/sccache-action@9e7fa8a12102821edf02ca5dbea1acd0f89a2696 # v0.0.10
+        uses: mozilla-actions/sccache-action@fc920bf0ec8de6ee65d409111f7ec508035751ba # v0.0.11
 
       - name: Setup Java Version
         if: ${{ env['ANDROID_API'] }}

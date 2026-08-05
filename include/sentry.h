@@ -101,7 +101,7 @@ extern "C" {
 #    endif
 #endif
 #ifndef SENTRY_SDK_VERSION
-#    define SENTRY_SDK_VERSION "0.16.0"
+#    define SENTRY_SDK_VERSION "0.16.1"
 #endif
 #define SENTRY_SDK_USER_AGENT SENTRY_SDK_NAME "/" SENTRY_SDK_VERSION
 
@@ -2439,6 +2439,7 @@ SENTRY_API void sentry_scope_set_fingerprints(
  * Removes the fingerprint.
  */
 SENTRY_API void sentry_remove_fingerprint(void);
+SENTRY_API void sentry_scope_remove_fingerprint(sentry_scope_t *scope);
 
 /**
  * Set the trace. The primary use for this is to allow other SDKs to propagate
@@ -2828,6 +2829,18 @@ SENTRY_EXPERIMENTAL_API uint64_t sentry_options_get_app_hang_timeout(
  * `sentry_options_set_enable_app_hang_tracking`.
  */
 SENTRY_EXPERIMENTAL_API void sentry_app_hang_heartbeat(void);
+
+/**
+ * Pauses app-hang detection without changing the watched thread.
+ *
+ * While paused, the watchdog does not capture app hangs. A subsequent heartbeat
+ * from the watched thread automatically resumes detection. Heartbeats from
+ * other threads continue to be ignored.
+ *
+ * This function is a no-op unless app-hang detection is enabled via
+ * `sentry_options_set_enable_app_hang_tracking`.
+ */
+SENTRY_EXPERIMENTAL_API void sentry_app_hang_pause(void);
 
 /**
  * Type of the `before_send_metric` callback.
@@ -3765,6 +3778,30 @@ SENTRY_API void sentry_capture_feedback_with_hint(
  */
 SENTRY_API sentry_uuid_t sentry_scope_capture_feedback(
     sentry_scope_t *scope, sentry_value_t user_feedback, sentry_hint_t *hint);
+
+/**
+ * Type of the `before_send_feedback` callback.
+ *
+ * The callback takes ownership of the `feedback` event and should usually
+ * return that same event. In case the feedback should be discarded, the
+ * callback needs to call `sentry_value_decref` on the provided event and
+ * return a `sentry_value_new_null()` instead.
+ *
+ * The hint is always provided and can be used to add attachments to the event.
+ *
+ * Feedback events do not go through the `before_send` callback.
+ */
+typedef sentry_value_t (*sentry_before_send_feedback_function_t)(
+    sentry_value_t feedback, sentry_hint_t *hint, void *user_data);
+
+/**
+ * Sets the `before_send_feedback` callback.
+ *
+ * See the `sentry_before_send_feedback_function_t` typedef above for more
+ * information.
+ */
+SENTRY_API void sentry_options_set_before_send_feedback(sentry_options_t *opts,
+    sentry_before_send_feedback_function_t func, void *user_data);
 
 /**
  * The status of a Span or Transaction.

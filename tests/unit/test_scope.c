@@ -465,6 +465,41 @@ SENTRY_TEST(scope_fingerprint_n)
     sentry_close();
 }
 
+static sentry_value_t
+before_send_capture_fingerprint(sentry_value_t event, void *hint, void *data)
+{
+    (void)hint;
+    char **fingerprint_json = data;
+    *fingerprint_json
+        = sentry_value_to_json(sentry_value_get_by_key(event, "fingerprint"));
+    return event;
+}
+
+SENTRY_TEST(scope_remove_fingerprint_capture)
+{
+    char *fingerprint_json = NULL;
+
+    SENTRY_TEST_OPTIONS_NEW(options);
+    sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
+    sentry_options_set_before_send(
+        options, before_send_capture_fingerprint, &fingerprint_json);
+    sentry_init(options);
+
+    sentry_set_fingerprint("global1", "global2", NULL);
+
+    sentry_scope_t *local_scope = sentry_local_scope_new();
+    sentry_scope_set_fingerprint(local_scope, "local1", NULL);
+    sentry_scope_remove_fingerprint(local_scope);
+    sentry_scope_capture_event(local_scope,
+        sentry_value_new_message_event(SENTRY_LEVEL_INFO, NULL, "test"));
+
+    TEST_ASSERT(!!fingerprint_json);
+    TEST_CHECK_STRING_EQUAL(fingerprint_json, "[\"global1\",\"global2\"]");
+    sentry_free(fingerprint_json);
+
+    sentry_close();
+}
+
 SENTRY_TEST(scope_tags)
 {
     SENTRY_TEST_OPTIONS_NEW(options);
