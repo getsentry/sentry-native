@@ -528,22 +528,59 @@ typedef struct sentry_threadpool_s sentry_threadpool_t;
 typedef void (*sentry_task_exec_func_t)(void *task_data, void *state);
 
 /**
- * Creates a thread pool. Tasks execute in parallel, while completion callbacks
- * run in submission order.
+ * Creates a thread pool configured with `thread_count` threads. Tasks execute
+ * in parallel, while completion callbacks run in submission order.
  */
 sentry_threadpool_t *sentry__threadpool_new(size_t thread_count);
+
+/**
+ * Sets a name for pooled threads. Each thread is named `<thread_name>-<index>`,
+ * where `index` starts at 0.
+ *
+ * Should be executed before thread pool start.
+ */
 void sentry__threadpool_setname(
     sentry_threadpool_t *pool, const char *thread_name);
-int sentry__threadpool_start(sentry_threadpool_t *pool);
+
 /**
- * Takes ownership of `task_data`, freeing it using `cleanup_func` when the
- * task is completed, cancelled, or rejected.
+ * Starts the pooled threads. Calling this on a running pool succeeds without
+ * effect. A pool can be restarted after shutdown.
+ *
+ * Returns 0 on success, or a non-zero value if `pool` is `NULL` or the pooled
+ * threads cannot be started.
+ */
+int sentry__threadpool_start(sentry_threadpool_t *pool);
+
+/**
+ * Submits a task for execution. `exec_func` runs on a pooled thread. The
+ * optional `complete_func` runs after execution, in submission order, followed
+ * by the optional `cleanup_func`.
+ *
+ * Takes ownership of `task_data` on every call. If the task is rejected,
+ * `cleanup_func` is called immediately when provided.
+ *
+ * Returns 0 if the task was accepted, or a non-zero value if the arguments are
+ * invalid, the pool is not running or is stopping, or allocation fails.
  */
 int sentry__threadpool_submit(sentry_threadpool_t *pool,
     void (*exec_func)(void *task_data), void (*complete_func)(void *task_data),
     void (*cleanup_func)(void *task_data), void *task_data);
+
+/**
+ * Blocks until all accepted tasks and their completion and cleanup callbacks
+ * have finished.
+ */
 void sentry__threadpool_flush(sentry_threadpool_t *pool);
+
+/**
+ * Stops accepting tasks, drains the queue, and joins all pooled threads. The
+ * pool can be started again after shutdown.
+ */
 void sentry__threadpool_shutdown(sentry_threadpool_t *pool);
+
+/**
+ * Shuts down the pool if necessary and releases its resources.
+ */
 void sentry__threadpool_free(sentry_threadpool_t *pool);
 
 /**

@@ -185,7 +185,7 @@ threadpool_commit_ready(sentry_threadpool_t *pool)
 }
 
 SENTRY_THREAD_FN
-threadpool_worker(void *data)
+threadpool_thread(void *data)
 {
     sentry_threadpool_t *pool = data;
     if (pool->thread_name) {
@@ -264,7 +264,7 @@ sentry__threadpool_start(sentry_threadpool_t *pool)
     sentry__atomic_store(&pool->running, 1);
     pool->stopping = false;
     for (size_t i = 0; i < pool->thread_count; i++) {
-        if (sentry__thread_spawn(&pool->threads[i], threadpool_worker, pool)
+        if (sentry__thread_spawn(&pool->threads[i], threadpool_thread, pool)
             != 0) {
             sentry__mutex_lock(&pool->lock);
             pool->stopping = true;
