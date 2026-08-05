@@ -220,6 +220,9 @@ curl_client_free(void *_client)
     if (client->curl_handle) {
         g_curl.easy_cleanup(client->curl_handle);
         g_curl.global_cleanup();
+#ifndef SENTRY_LINK_CURL
+        curl_unload();
+#endif
     }
     sentry_free(client->ca_certs);
     sentry_free(client->proxy);
