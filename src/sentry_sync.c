@@ -152,6 +152,18 @@ threadpool_wake_all(sentry_threadpool_t *pool)
     }
 }
 
+static bool
+is_pooled_thread(sentry_threadpool_t *pool)
+{
+    const sentry_threadid_t current = sentry__current_thread();
+    for (size_t i = 0; i < pool->started_threads; i++) {
+        if (sentry__threadid_equal(current, pool->threads[i])) {
+            return true;
+        }
+    }
+    return false;
+}
+
 static void
 threadpool_commit_ready(sentry_threadpool_t *pool)
 {
@@ -332,6 +344,10 @@ void
 sentry__threadpool_flush(sentry_threadpool_t *pool)
 {
     if (!pool || !sentry__atomic_fetch(&pool->running)) {
+        return;
+    }
+    if (is_pooled_thread(pool)) {
+        SENTRY_WARN("cannot flush thread pool from a pooled thread");
         return;
     }
     sentry__mutex_lock(&pool->lock);

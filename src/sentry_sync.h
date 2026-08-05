@@ -568,7 +568,7 @@ int sentry__threadpool_submit(sentry_threadpool_t *pool,
 
 /**
  * Blocks until all accepted tasks and their completion and cleanup callbacks
- * have finished.
+ * have finished. Does nothing when called from one of the pool's threads.
  */
 void sentry__threadpool_flush(sentry_threadpool_t *pool);
 

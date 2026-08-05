@@ -864,6 +864,38 @@ SENTRY_TEST(threadpool_commit_reentry)
     sentry__mutex_free(&state.lock);
 }
 
+struct callback_flush_state {
+    sentry_threadpool_t *pool;
+    volatile long calls;
+};
+
+static void
+callback_flush(void *data)
+{
+    struct callback_flush_state *state = data;
+    sentry__threadpool_flush(state->pool);
+    sentry__atomic_fetch_and_add(&state->calls, 1);
+}
+
+SENTRY_TEST(threadpool_callback_flush)
+{
+    struct callback_flush_state state = { 0 };
+    sentry_threadpool_t *pool = sentry__threadpool_new(1);
+    TEST_ASSERT(!!pool);
+    state.pool = pool;
+    TEST_ASSERT(sentry__threadpool_start(pool) == 0);
+    TEST_ASSERT(sentry__threadpool_submit(pool, callback_flush, callback_flush,
+                    callback_flush, &state)
+        == 0);
+
+    sentry__threadpool_flush(pool);
+
+    TEST_CHECK_INT_EQUAL(sentry__atomic_fetch(&state.calls), 3);
+
+    sentry__threadpool_shutdown(pool);
+    sentry__threadpool_free(pool);
+}
+
 SENTRY_TEST(threadpool_invalid_args)
 {
     struct threadpool_count_state state = { 0 };
