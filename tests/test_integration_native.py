@@ -857,8 +857,8 @@ def test_native_smart_mode_captures_indirect_heap_memory(cmake, httpserver):
         appends a chunk around each writable-heap hit to
         MemoryListStream.
       * Windows: the native backend passes
-        ``MiniDumpWithIndirectlyReferencedMemory | MiniDumpWithDataSegs``
-        to ``MiniDumpWriteDump`` so the OS does the equivalent scan.
+        ``MiniDumpWithIndirectlyReferencedMemory`` to
+        ``MiniDumpWriteDump`` so the OS does the equivalent scan.
 
     The minimal-mode fallback on macOS (when ``task_for_pid`` is
     blocked by the sandbox) silently breaks the SMART-mode contract by

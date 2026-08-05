@@ -56,8 +56,16 @@ sentry__write_minidump(
             break;
 
         case SENTRY_MINIDUMP_MODE_SMART:
-            dump_type
-                = MiniDumpWithIndirectlyReferencedMemory | MiniDumpWithDataSegs;
+            // Only indirectly-referenced memory: dbghelp walks the stack and
+            // registers and captures a small window around each pointer that
+            // lands in mapped memory. We deliberately omit MiniDumpWithDataSegs
+            // here: it writes the entire writable data segment of *every*
+            // loaded module (all DLL .data/.bss), which is uncapped and
+            // dominates dump size — for large module graphs it produces dumps
+            // 10-30x larger than intended. Global/static data is rarely needed
+            // for crash triage; callers that want it can opt in via
+            // sentry_options_set_minidump_flags() or MODE_FULL.
+            dump_type = MiniDumpWithIndirectlyReferencedMemory;
             break;
 
         case SENTRY_MINIDUMP_MODE_FULL:
