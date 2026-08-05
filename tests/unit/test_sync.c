@@ -3,6 +3,276 @@
 #include "sentry_testsupport.h"
 #include "sentry_utils.h"
 
+#define RWLOCK_WAIT_TIMEOUT_MS 2000
+
+static bool
+wait_for_atomic_value(volatile long *value, long expected)
+{
+    uint64_t deadline = sentry__monotonic_time() + RWLOCK_WAIT_TIMEOUT_MS;
+    while (sentry__atomic_fetch(value) != expected) {
+        if (sentry__monotonic_time() >= deadline) {
+            return false;
+        }
+        sentry__thread_yield();
+        sleep_ms(1);
+    }
+    return true;
+}
+
+#ifdef SENTRY__RWLOCK_INIT_DYN
+SENTRY__RWLOCK_INIT_DYN(static_rwlock)
+#else
+static sentry_rwlock_t static_rwlock = SENTRY__RWLOCK_INIT;
+#endif
+
+SENTRY_TEST(rwlock_static_init)
+{
+    SENTRY__RWLOCK_INIT_DYN_ONCE(static_rwlock);
+
+    sentry__rwlock_read_lock(&static_rwlock);
+    sentry__rwlock_read_unlock(&static_rwlock);
+
+    sentry__rwlock_write_lock(&static_rwlock);
+    sentry__rwlock_write_unlock(&static_rwlock);
+}
+
+SENTRY_TEST(rwlock_dynamic_init)
+{
+    sentry_rwlock_t rwlock;
+    sentry__rwlock_init(&rwlock);
+
+    sentry__rwlock_read_lock(&rwlock);
+    sentry__rwlock_read_unlock(&rwlock);
+
+    sentry__rwlock_write_lock(&rwlock);
+    sentry__rwlock_write_unlock(&rwlock);
+
+    sentry__rwlock_free(&rwlock);
+}
+
+typedef struct {
+    sentry_rwlock_t *rwlock;
+    volatile long start;
+    volatile long release;
+    volatile long entered;
+    volatile long active_readers;
+} rwlock_readers_state_t;
+
+SENTRY_THREAD_FN
+rwlock_reader_thread(void *data)
+{
+    rwlock_readers_state_t *state = (rwlock_readers_state_t *)data;
+    while (!sentry__atomic_fetch(&state->start)) {
+        sentry__thread_yield();
+    }
+
+    sentry__rwlock_read_lock(state->rwlock);
+    sentry__atomic_fetch_and_add(&state->active_readers, 1);
+    sentry__atomic_fetch_and_add(&state->entered, 1);
+    while (!sentry__atomic_fetch(&state->release)) {
+        sentry__thread_yield();
+    }
+    sentry__atomic_fetch_and_add(&state->active_readers, -1);
+    sentry__rwlock_read_unlock(state->rwlock);
+    return 0;
+}
+
+SENTRY_TEST(rwlock_shared_readers)
+{
+    enum { NUM_READERS = 8 };
+
+    sentry_rwlock_t rwlock;
+    sentry__rwlock_init(&rwlock);
+
+    rwlock_readers_state_t state = { &rwlock, 0, 0, 0, 0 };
+    sentry_threadid_t threads[NUM_READERS];
+    for (int i = 0; i < NUM_READERS; i++) {
+        sentry__thread_init(&threads[i]);
+        TEST_CHECK_INT_EQUAL(
+            sentry__thread_spawn(&threads[i], rwlock_reader_thread, &state), 0);
+    }
+
+    sentry__atomic_store(&state.start, 1);
+    TEST_CHECK(wait_for_atomic_value(&state.entered, NUM_READERS));
+    TEST_CHECK_INT_EQUAL(
+        sentry__atomic_fetch(&state.active_readers), NUM_READERS);
+
+    sentry__atomic_store(&state.release, 1);
+    for (int i = 0; i < NUM_READERS; i++) {
+        sentry__thread_join(threads[i]);
+    }
+
+    sentry__rwlock_free(&rwlock);
+}
+
+typedef struct {
+    sentry_rwlock_t *rwlock;
+    bool write;
+    volatile long attempting;
+    volatile long entered;
+    volatile long release;
+} rwlock_waiter_state_t;
+
+SENTRY_THREAD_FN
+rwlock_waiter_thread(void *data)
+{
+    rwlock_waiter_state_t *state = (rwlock_waiter_state_t *)data;
+    sentry__atomic_store(&state->attempting, 1);
+    if (state->write) {
+        sentry__rwlock_write_lock(state->rwlock);
+    } else {
+        sentry__rwlock_read_lock(state->rwlock);
+    }
+    sentry__atomic_store(&state->entered, 1);
+    while (!sentry__atomic_fetch(&state->release)) {
+        sentry__thread_yield();
+    }
+    if (state->write) {
+        sentry__rwlock_write_unlock(state->rwlock);
+    } else {
+        sentry__rwlock_read_unlock(state->rwlock);
+    }
+    return 0;
+}
+
+static void
+check_rwlock_blocks_waiter(bool holder_write, bool waiter_write)
+{
+    sentry_rwlock_t rwlock;
+    sentry__rwlock_init(&rwlock);
+
+    if (holder_write) {
+        sentry__rwlock_write_lock(&rwlock);
+    } else {
+        sentry__rwlock_read_lock(&rwlock);
+    }
+
+    rwlock_waiter_state_t state = { &rwlock, waiter_write, 0, 0, 0 };
+    sentry_threadid_t thread;
+    sentry__thread_init(&thread);
+    TEST_CHECK_INT_EQUAL(
+        sentry__thread_spawn(&thread, rwlock_waiter_thread, &state), 0);
+
+    TEST_CHECK(wait_for_atomic_value(&state.attempting, 1));
+    sleep_ms(100);
+    TEST_CHECK_INT_EQUAL(sentry__atomic_fetch(&state.entered), 0);
+
+    if (holder_write) {
+        sentry__rwlock_write_unlock(&rwlock);
+    } else {
+        sentry__rwlock_read_unlock(&rwlock);
+    }
+
+    TEST_CHECK(wait_for_atomic_value(&state.entered, 1));
+    sentry__atomic_store(&state.release, 1);
+    sentry__thread_join(thread);
+
+    sentry__rwlock_free(&rwlock);
+}
+
+SENTRY_TEST(rwlock_read_blocks_writer)
+{
+    check_rwlock_blocks_waiter(false, true);
+}
+
+SENTRY_TEST(rwlock_write_blocks_reader)
+{
+    check_rwlock_blocks_waiter(true, false);
+}
+
+SENTRY_TEST(rwlock_write_blocks_writer)
+{
+    check_rwlock_blocks_waiter(true, true);
+}
+
+typedef struct {
+    sentry_rwlock_t *rwlock;
+    volatile long start;
+    volatile long writers_done;
+    volatile long failed;
+    long writers_total;
+    long counter;
+} rwlock_stress_state_t;
+
+SENTRY_THREAD_FN
+rwlock_writer_thread(void *data)
+{
+    rwlock_stress_state_t *state = (rwlock_stress_state_t *)data;
+    while (!sentry__atomic_fetch(&state->start)) {
+        sentry__thread_yield();
+    }
+
+    for (int i = 0; i < 1000; i++) {
+        sentry__rwlock_write_lock(state->rwlock);
+        state->counter++;
+        sentry__rwlock_write_unlock(state->rwlock);
+        if (i % 16 == 0) {
+            sentry__thread_yield();
+        }
+    }
+    sentry__atomic_fetch_and_add(&state->writers_done, 1);
+    return 0;
+}
+
+SENTRY_THREAD_FN
+rwlock_stress_reader_thread(void *data)
+{
+    rwlock_stress_state_t *state = (rwlock_stress_state_t *)data;
+    long previous = 0;
+    while (!sentry__atomic_fetch(&state->start)) {
+        sentry__thread_yield();
+    }
+
+    while (sentry__atomic_fetch(&state->writers_done) < state->writers_total) {
+        sentry__rwlock_read_lock(state->rwlock);
+        long current = state->counter;
+        sentry__rwlock_read_unlock(state->rwlock);
+        if (current < previous) {
+            sentry__atomic_store(&state->failed, 1);
+        }
+        previous = current;
+        sentry__thread_yield();
+    }
+    return 0;
+}
+
+SENTRY_TEST(rwlock_stress)
+{
+    enum { NUM_WRITERS = 4, NUM_READERS = 4 };
+
+    sentry_rwlock_t rwlock;
+    sentry__rwlock_init(&rwlock);
+
+    rwlock_stress_state_t state = { &rwlock, 0, 0, 0, NUM_WRITERS, 0 };
+    sentry_threadid_t writers[NUM_WRITERS];
+    sentry_threadid_t readers[NUM_READERS];
+
+    for (int i = 0; i < NUM_WRITERS; i++) {
+        sentry__thread_init(&writers[i]);
+        TEST_CHECK_INT_EQUAL(
+            sentry__thread_spawn(&writers[i], rwlock_writer_thread, &state), 0);
+    }
+    for (int i = 0; i < NUM_READERS; i++) {
+        sentry__thread_init(&readers[i]);
+        TEST_CHECK_INT_EQUAL(sentry__thread_spawn(&readers[i],
+                                 rwlock_stress_reader_thread, &state),
+            0);
+    }
+
+    sentry__atomic_store(&state.start, 1);
+    for (int i = 0; i < NUM_WRITERS; i++) {
+        sentry__thread_join(writers[i]);
+    }
+    for (int i = 0; i < NUM_READERS; i++) {
+        sentry__thread_join(readers[i]);
+    }
+
+    TEST_CHECK_INT_EQUAL(state.counter, NUM_WRITERS * 1000);
+    TEST_CHECK_INT_EQUAL(sentry__atomic_fetch(&state.failed), 0);
+
+    sentry__rwlock_free(&rwlock);
+}
+
 struct task_state {
     int executed;
     bool running;
