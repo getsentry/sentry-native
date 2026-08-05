@@ -38,6 +38,7 @@ from .assertions import (
     assert_attachment_view_hierarchy,
     assert_before_breadcrumb,
     assert_no_breadcrumbs,
+    wait_for_file,
 )
 from .conditions import (
     has_http,
@@ -364,6 +365,143 @@ def test_external_crash_reporter_http(cmake, httpserver, build_args):
 
     envelope = Envelope.deserialize(feedback)
     assert_user_feedback(envelope)
+
+
+@pytest.mark.parametrize(
+    "build_args",
+    [
+        ({"SENTRY_BACKEND": "inproc"}),
+        pytest.param(
+            {"SENTRY_BACKEND": "breakpad"},
+            marks=pytest.mark.skipif(
+                not has_breakpad or is_qemu, reason="test needs breakpad backend"
+            ),
+        ),
+    ],
+)
+def test_external_crash_reporter_consent_revoked(cmake, httpserver, build_args):
+    """With consent revoked, must not launch the external reporter.
+
+    Before the fix, crash-reporter + user-consent-revoke still spawned
+    sentry_crash_reporter, which uploaded via HTTP. Consent should block that
+    the same way it blocks the normal transport path.
+    """
+    tmp_path = cmake(["sentry_example", "sentry_crash_reporter"], build_args)
+    cache_dir = tmp_path.joinpath(".sentry-native/cache")
+    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
+
+    run(
+        tmp_path,
+        "sentry_example",
+        [
+            "log",
+            "crash-reporter",
+            "cache-keep",
+            "require-user-consent",
+            "user-consent-revoke",
+            "crash",
+        ],
+        expect_failure=True,
+        env=env,
+    )
+
+    assert len(httpserver.log) == 0
+    assert wait_for_file(cache_dir / "*.envelope")
+    assert len(list(cache_dir.glob("*.envelope"))) == 1
+
+
+@pytest.mark.parametrize(
+    "build_args",
+    [
+        ({"SENTRY_BACKEND": "inproc"}),
+        pytest.param(
+            {"SENTRY_BACKEND": "breakpad"},
+            marks=pytest.mark.skipif(
+                not has_breakpad or is_qemu, reason="test needs breakpad backend"
+            ),
+        ),
+    ],
+)
+def test_external_crash_reporter_consent_revoked_no_cache(
+    cmake, httpserver, build_args
+):
+    """With consent revoked and no cache_keep, the crash envelope is discarded."""
+    tmp_path = cmake(["sentry_example", "sentry_crash_reporter"], build_args)
+    cache_dir = tmp_path.joinpath(".sentry-native/cache")
+    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
+
+    run(
+        tmp_path,
+        "sentry_example",
+        [
+            "log",
+            "crash-reporter",
+            "require-user-consent",
+            "user-consent-revoke",
+            "crash",
+        ],
+        expect_failure=True,
+        env=env,
+    )
+
+    assert len(httpserver.log) == 0
+    assert not cache_dir.exists() or len(list(cache_dir.glob("*.envelope"))) == 0
+
+
+@pytest.mark.parametrize(
+    "build_args",
+    [
+        ({"SENTRY_BACKEND": "inproc"}),
+        pytest.param(
+            {"SENTRY_BACKEND": "breakpad"},
+            marks=pytest.mark.skipif(
+                not has_breakpad or is_qemu, reason="test needs breakpad backend"
+            ),
+        ),
+    ],
+)
+def test_external_crash_reporter_consent_flush(cmake, httpserver, build_args):
+    """Cached crash envelope uploads once consent is given."""
+    tmp_path = cmake(["sentry_example", "sentry_crash_reporter"], build_args)
+    cache_dir = tmp_path.joinpath(".sentry-native/cache")
+    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
+
+    run(
+        tmp_path,
+        "sentry_example",
+        [
+            "log",
+            "crash-reporter",
+            "cache-keep",
+            "http-retry",
+            "require-user-consent",
+            "user-consent-revoke",
+            "crash",
+        ],
+        expect_failure=True,
+        env=env,
+    )
+
+    assert wait_for_file(cache_dir / "*.envelope")
+    assert len(list(cache_dir.glob("*.envelope"))) == 1
+    assert len(httpserver.log) == 0
+
+    httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data("OK")
+    with httpserver.wait(timeout=10) as waiting:
+        run(
+            tmp_path,
+            "sentry_example",
+            [
+                "log",
+                "cache-keep",
+                "http-retry",
+                "require-user-consent",
+                "user-consent-give",
+            ],
+            env=env,
+        )
+    assert waiting.result
+    assert len(list(cache_dir.glob("*.envelope"))) == 0
 
 
 @pytest.mark.skipif(is_qemu, reason="unreliable under qemu-user")

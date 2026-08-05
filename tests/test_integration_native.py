@@ -1053,6 +1053,77 @@ def test_native_external_crash_reporter_consent_revoked(cmake, httpserver):
     assert len(list(cache_dir.glob("*.envelope"))) == 1
 
 
+def test_native_external_crash_reporter_consent_revoked_no_cache(cmake, httpserver):
+    """With consent revoked and no cache_keep, the daemon discards the crash envelope."""
+    tmp_path = cmake(
+        ["sentry_example", "sentry_crash_reporter"], {"SENTRY_BACKEND": "native"}
+    )
+    cache_dir = tmp_path / ".sentry-native" / "cache"
+    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
+
+    run_crash(
+        tmp_path,
+        "sentry_example",
+        [
+            "log",
+            "crash-reporter",
+            "require-user-consent",
+            "user-consent-revoke",
+            "crash",
+        ],
+        env=env,
+        wait_for_daemon=True,
+    )
+
+    assert len(httpserver.log) == 0
+    assert not cache_dir.exists() or len(list(cache_dir.glob("*.envelope"))) == 0
+
+
+def test_native_external_crash_reporter_consent_flush(cmake, httpserver):
+    """Cached crash envelope uploads once consent is given."""
+    tmp_path = cmake(
+        ["sentry_example", "sentry_crash_reporter"], {"SENTRY_BACKEND": "native"}
+    )
+    cache_dir = tmp_path / ".sentry-native" / "cache"
+    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
+
+    run_crash(
+        tmp_path,
+        "sentry_example",
+        [
+            "log",
+            "crash-reporter",
+            "cache-keep",
+            "http-retry",
+            "require-user-consent",
+            "user-consent-revoke",
+            "crash",
+        ],
+        env=env,
+    )
+
+    assert wait_for_file(cache_dir / "*.envelope")
+    assert len(list(cache_dir.glob("*.envelope"))) == 1
+    assert len(httpserver.log) == 0
+
+    httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data("OK")
+    with httpserver.wait(timeout=10) as waiting:
+        run(
+            tmp_path,
+            "sentry_example",
+            [
+                "log",
+                "cache-keep",
+                "http-retry",
+                "require-user-consent",
+                "user-consent-give",
+            ],
+            env=env,
+        )
+    assert waiting.result
+    assert len(list(cache_dir.glob("*.envelope"))) == 0
+
+
 def test_crash_mode_minidump_only(cmake, httpserver):
     """Mode 1: Should produce envelope with minidump attachment only"""
     tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "native"})
