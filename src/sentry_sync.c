@@ -130,7 +130,7 @@ struct sentry_threadpool_s {
     sentry_threadpool_task_t *next_task;
     long pending;
     long index;
-    bool running;
+    long running;
     bool stopping;
     bool committing;
 };
@@ -258,10 +258,10 @@ sentry__threadpool_setname(sentry_threadpool_t *pool, const char *thread_name)
 int
 sentry__threadpool_start(sentry_threadpool_t *pool)
 {
-    if (!pool || pool->running) {
+    if (!pool || sentry__atomic_fetch(&pool->running)) {
         return pool ? 0 : 1;
     }
-    pool->running = true;
+    sentry__atomic_store(&pool->running, 1);
     pool->stopping = false;
     for (size_t i = 0; i < pool->thread_count; i++) {
         if (sentry__thread_spawn(&pool->threads[i], threadpool_worker, pool)
@@ -275,7 +275,7 @@ sentry__threadpool_start(sentry_threadpool_t *pool)
                 sentry__thread_free(&pool->threads[j]);
             }
             pool->started_threads = 0;
-            pool->running = false;
+            sentry__atomic_store(&pool->running, 0);
             return 1;
         }
         pool->started_threads++;
@@ -307,7 +307,7 @@ sentry__threadpool_submit(sentry_threadpool_t *pool,
     task->task_data = task_data;
 
     sentry__mutex_lock(&pool->lock);
-    if (!pool->running || pool->stopping) {
+    if (!sentry__atomic_fetch(&pool->running) || pool->stopping) {
         sentry__mutex_unlock(&pool->lock);
         threadpool_task_free(task);
         return 1;
@@ -331,7 +331,7 @@ sentry__threadpool_submit(sentry_threadpool_t *pool,
 void
 sentry__threadpool_flush(sentry_threadpool_t *pool)
 {
-    if (!pool || !pool->running) {
+    if (!pool || !sentry__atomic_fetch(&pool->running)) {
         return;
     }
     sentry__mutex_lock(&pool->lock);
@@ -344,7 +344,7 @@ sentry__threadpool_flush(sentry_threadpool_t *pool)
 void
 sentry__threadpool_shutdown(sentry_threadpool_t *pool)
 {
-    if (!pool || !pool->running) {
+    if (!pool || !sentry__atomic_fetch(&pool->running)) {
         return;
     }
     sentry__mutex_lock(&pool->lock);
@@ -358,7 +358,7 @@ sentry__threadpool_shutdown(sentry_threadpool_t *pool)
         sentry__thread_free(&pool->threads[i]);
     }
     pool->started_threads = 0;
-    pool->running = false;
+    sentry__atomic_store(&pool->running, 0);
     pool->index = 0;
 }
 
