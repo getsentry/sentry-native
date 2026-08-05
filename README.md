@@ -212,7 +212,7 @@ using `cmake -D BUILD_SHARED_LIBS=OFF ..`.
 - `SENTRY_LINK_CURL` (Default: `AUTO`):
   Controls whether the `curl` transport links `libcurl` directly or loads it
   dynamically at runtime on UNIX targets. Possible values are `AUTO`, `ON`, and
-  `OFF`.
+  `OFF`. `AUTO` currently behaves like `ON`.
 
 - `SENTRY_BUILD_FORCE32` (Default: `OFF`):
   Forces cross-compilation from 64-bit host to 32-bit target. Only affects Linux.
