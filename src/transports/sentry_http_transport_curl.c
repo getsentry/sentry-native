@@ -80,17 +80,33 @@ curl_load(void)
         return 0;
     }
 
+    typedef struct {
+        const char *name;
+        int flags;
+    } curl_library_t;
+
 #    if defined(SENTRY_PLATFORM_MACOS)
-    const char *libnames[] = { "libcurl.4.dylib", "libcurl.dylib", NULL };
-    int flags = RTLD_LAZY | RTLD_LOCAL;
+    const curl_library_t libs[] = {
+        { "libcurl.4.dylib", 0 },
+        { "libcurl.dylib", 0 },
+        { NULL, 0 },
+    };
 #    elif defined(SENTRY_PLATFORM_AIX)
-    const char *libnames[] = { "libcurl.a(libcurl.so.4)", "libcurl.so.4",
-        "libcurl.so", "libcurl.a", NULL };
-    int flags = RTLD_LAZY | RTLD_LOCAL | RTLD_MEMBER;
+    const curl_library_t libs[] = {
+        { "libcurl.a(libcurl.so.4)", RTLD_MEMBER },
+        { "libcurl.so.4", 0 },
+        { "libcurl.so", 0 },
+        { "libcurl.a", 0 },
+        { NULL, 0 },
+    };
 #    else
-    const char *libnames[] = { "libcurl.so", "libcurl-gnutls.so.4",
-        "libcurl-nss.so.4", "libcurl.so.4", NULL };
-    int flags = RTLD_LAZY | RTLD_LOCAL;
+    const curl_library_t libs[] = {
+        { "libcurl.so", 0 },
+        { "libcurl-gnutls.so.4", 0 },
+        { "libcurl-nss.so.4", 0 },
+        { "libcurl.so.4", 0 },
+        { NULL, 0 },
+    };
 #    endif
 
     // Check for statically linked libcurl first.
@@ -104,9 +120,10 @@ curl_load(void)
 
     const char *libname = NULL;
     if (!g_curl.handle) {
-        for (const char **cur = libnames; *cur; cur++) {
-            libname = *cur;
-            g_curl.handle = dlopen(libname, flags);
+        for (const curl_library_t *cur = libs; cur->name; cur++) {
+            libname = cur->name;
+            g_curl.handle
+                = dlopen(libname, RTLD_LAZY | RTLD_LOCAL | cur->flags);
             if (g_curl.handle) {
                 break;
             }
