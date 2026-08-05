@@ -464,12 +464,22 @@ typedef pthread_cond_t sentry_cond_t;
 #    define sentry__mutex_free(Lock) pthread_mutex_destroy(Lock)
 #    ifdef PTHREAD_RWLOCK_INITIALIZER
 #        define SENTRY__RWLOCK_INIT PTHREAD_RWLOCK_INITIALIZER
-#        define sentry__rwlock_init(Rwlock)                                    \
-            do {                                                               \
-                sentry_rwlock_t tmp = SENTRY__RWLOCK_INIT;                     \
-                *(Rwlock) = tmp;                                               \
-            } while (0)
+#    endif
+
+static inline void
+sentry__rwlock_init(sentry_rwlock_t *rwlock)
+{
+#    ifdef PTHREAD_RWLOCK_INITIALIZER
+    sentry_rwlock_t tmp = SENTRY__RWLOCK_INIT;
+    *rwlock = tmp;
 #    else
+    int rv = pthread_rwlock_init(rwlock, NULL);
+    (void)rv;
+    assert(rv == 0);
+#    endif
+}
+
+#    ifndef PTHREAD_RWLOCK_INITIALIZER
 #        define SENTRY__RWLOCK_INIT_DYN(Rwlock)                                \
             static sentry_rwlock_t Rwlock;                                     \
             static pthread_once_t Rwlock##_init_once = PTHREAD_ONCE_INIT;      \
@@ -477,42 +487,49 @@ typedef pthread_cond_t sentry_cond_t;
 #        undef SENTRY__RWLOCK_INIT_DYN_ONCE
 #        define SENTRY__RWLOCK_INIT_DYN_ONCE(Rwlock)                           \
             pthread_once(&Rwlock##_init_once, init_##Rwlock)
-#        define sentry__rwlock_init(Rwlock)                                    \
-            do {                                                               \
-                int rv = pthread_rwlock_init(Rwlock, NULL);                    \
-                (void)rv;                                                      \
-                assert(rv == 0);                                               \
-            } while (0)
 #    endif
-#    define sentry__rwlock_read_lock(Rwlock)                                   \
-        do {                                                                   \
-            if (sentry__block_for_signal_handler()) {                          \
-                int rv = pthread_rwlock_rdlock(Rwlock);                        \
-                (void)rv;                                                      \
-                assert(rv == 0);                                               \
-            }                                                                  \
-        } while (0)
-#    define sentry__rwlock_read_unlock(Rwlock)                                 \
-        do {                                                                   \
-            if (sentry__block_for_signal_handler()) {                          \
-                pthread_rwlock_unlock(Rwlock);                                 \
-            }                                                                  \
-        } while (0)
-#    define sentry__rwlock_write_lock(Rwlock)                                  \
-        do {                                                                   \
-            if (sentry__block_for_signal_handler()) {                          \
-                int rv = pthread_rwlock_wrlock(Rwlock);                        \
-                (void)rv;                                                      \
-                assert(rv == 0);                                               \
-            }                                                                  \
-        } while (0)
-#    define sentry__rwlock_write_unlock(Rwlock)                                \
-        do {                                                                   \
-            if (sentry__block_for_signal_handler()) {                          \
-                pthread_rwlock_unlock(Rwlock);                                 \
-            }                                                                  \
-        } while (0)
-#    define sentry__rwlock_free(Rwlock) pthread_rwlock_destroy(Rwlock)
+
+static inline void
+sentry__rwlock_read_lock(sentry_rwlock_t *rwlock)
+{
+    if (sentry__block_for_signal_handler()) {
+        int rv = pthread_rwlock_rdlock(rwlock);
+        (void)rv;
+        assert(rv == 0);
+    }
+}
+
+static inline void
+sentry__rwlock_read_unlock(sentry_rwlock_t *rwlock)
+{
+    if (sentry__block_for_signal_handler()) {
+        pthread_rwlock_unlock(rwlock);
+    }
+}
+
+static inline void
+sentry__rwlock_write_lock(sentry_rwlock_t *rwlock)
+{
+    if (sentry__block_for_signal_handler()) {
+        int rv = pthread_rwlock_wrlock(rwlock);
+        (void)rv;
+        assert(rv == 0);
+    }
+}
+
+static inline void
+sentry__rwlock_write_unlock(sentry_rwlock_t *rwlock)
+{
+    if (sentry__block_for_signal_handler()) {
+        pthread_rwlock_unlock(rwlock);
+    }
+}
+
+static inline void
+sentry__rwlock_free(sentry_rwlock_t *rwlock)
+{
+    pthread_rwlock_destroy(rwlock);
+}
 
 #    define sentry__cond_init(CondVar)                                         \
         do {                                                                   \
