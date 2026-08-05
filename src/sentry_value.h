@@ -83,6 +83,12 @@ int sentry__value_set_by_key_owned(
     sentry_value_t value, char *key, size_t key_len, sentry_value_t v);
 
 /**
+ * Replaces `*target` with `value`.
+ * Takes ownership of `value` and releases the previous `*target`.
+ */
+void sentry__value_replace(sentry_value_t *target, sentry_value_t value);
+
+/**
  * Removes a value by key and returns the owned object key on success.
  * The caller must free the returned key.
  */

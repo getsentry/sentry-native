@@ -2176,3 +2176,23 @@ SENTRY_TEST(value_refcount)
     TEST_CHECK_INT_EQUAL(1, sentry_value_refcount(obj));
     TEST_CHECK(!sentry_value_decref(obj));
 }
+
+SENTRY_TEST(value_replace)
+{
+    sentry_value_t target = sentry_value_new_string("old");
+    sentry_value_t old = sentry_value_incref(target);
+    sentry_value_t replacement = sentry_value_new_string("new");
+
+    sentry__value_replace(&target, replacement);
+    TEST_CHECK_STRING_EQUAL(sentry_value_as_string(target), "new");
+    TEST_CHECK_INT_EQUAL(1, sentry_value_refcount(target));
+    TEST_CHECK_INT_EQUAL(1, sentry_value_refcount(old));
+
+    sentry_value_decref(old);
+    sentry_value_decref(target);
+
+    target = sentry_value_new_object();
+    sentry__value_replace(&target, sentry_value_incref(target));
+    TEST_CHECK_INT_EQUAL(1, sentry_value_refcount(target));
+    sentry_value_decref(target);
+}

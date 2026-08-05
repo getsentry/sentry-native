@@ -1365,10 +1365,11 @@ deferred_flush_scope(
 }
 
 static void
-observe_set_release(void *data, const char *release)
+observe_set_release(void *data, sentry_value_t release)
 {
     test_observer_data_t *d = (test_observer_data_t *)data;
-    d->release = sentry_value_new_string(release);
+    sentry_value_decref(d->release);
+    d->release = sentry_value_incref(release);
     d->was_called = true;
 }
 
@@ -1387,18 +1388,20 @@ observe_clear_wrapped(void *data)
 }
 
 static void
-observe_set_environment(void *data, const char *environment)
+observe_set_environment(void *data, sentry_value_t environment)
 {
     test_observer_data_t *d = (test_observer_data_t *)data;
-    d->environment = sentry_value_new_string(environment);
+    sentry_value_decref(d->environment);
+    d->environment = sentry_value_incref(environment);
     d->was_called = true;
 }
 
 static void
-observe_set_transaction(void *data, const char *transaction)
+observe_set_transaction(void *data, sentry_value_t transaction)
 {
     test_observer_data_t *d = (test_observer_data_t *)data;
-    d->transaction = sentry_value_new_string(transaction);
+    sentry_value_decref(d->transaction);
+    d->transaction = sentry_value_incref(transaction);
     d->was_called = true;
 }
 
@@ -1859,6 +1862,15 @@ SENTRY_TEST(scope_observer_release)
     TEST_CHECK(d.was_called);
     TEST_CHECK_STRING_EQUAL(sentry_value_as_string(d.release), "my-release");
 
+    SENTRY_WITH_SCOPE_MUT (scope) {
+        sentry_value_t release = sentry__scope_ref_release(scope);
+        sentry__scope_set_release_n(
+            scope, "next-release", sizeof("next-release") - 1);
+        TEST_CHECK_STRING_EQUAL(sentry_value_as_string(release), "my-release");
+        sentry_value_decref(release);
+    }
+    TEST_CHECK_STRING_EQUAL(sentry_value_as_string(d.release), "next-release");
+
     sentry_value_decref(d.release);
     sentry_close();
 }
@@ -1880,6 +1892,15 @@ SENTRY_TEST(scope_observer_environment)
     sentry_set_environment("my-env");
     TEST_CHECK(d.was_called);
     TEST_CHECK_STRING_EQUAL(sentry_value_as_string(d.environment), "my-env");
+
+    SENTRY_WITH_SCOPE_MUT (scope) {
+        sentry_value_t environment = sentry__scope_ref_environment(scope);
+        sentry__scope_set_environment_n(
+            scope, "next-env", sizeof("next-env") - 1);
+        TEST_CHECK_STRING_EQUAL(sentry_value_as_string(environment), "my-env");
+        sentry_value_decref(environment);
+    }
+    TEST_CHECK_STRING_EQUAL(sentry_value_as_string(d.environment), "next-env");
 
     sentry_value_decref(d.environment);
     sentry_close();
@@ -1903,6 +1924,17 @@ SENTRY_TEST(scope_observer_transaction)
     TEST_CHECK(d.was_called);
     TEST_CHECK_STRING_EQUAL(
         sentry_value_as_string(d.transaction), "my-transaction");
+
+    SENTRY_WITH_SCOPE_MUT (scope) {
+        sentry_value_t transaction = sentry__scope_ref_transaction(scope);
+        sentry__scope_set_transaction_n(
+            scope, "next-transaction", sizeof("next-transaction") - 1);
+        TEST_CHECK_STRING_EQUAL(
+            sentry_value_as_string(transaction), "my-transaction");
+        sentry_value_decref(transaction);
+    }
+    TEST_CHECK_STRING_EQUAL(
+        sentry_value_as_string(d.transaction), "next-transaction");
 
     sentry_value_decref(d.transaction);
     sentry_close();

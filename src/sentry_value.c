@@ -409,6 +409,14 @@ sentry_value_decref(sentry_value_t value)
     return thing ? 1 : 0;
 }
 
+void
+sentry__value_replace(sentry_value_t *target, sentry_value_t value)
+{
+    sentry_value_t old_value = *target;
+    *target = value;
+    sentry_value_decref(old_value);
+}
+
 size_t
 sentry_value_refcount(sentry_value_t value)
 {

@@ -50,9 +50,17 @@ status_from_string(const char *status)
 sentry_session_t *
 sentry__session_new(const sentry_scope_t *scope)
 {
-    char *release = sentry__string_clone(sentry__scope_get_release(scope));
-    char *environment
-        = sentry__string_clone(sentry__scope_get_environment(scope));
+    sentry_value_t release_value = sentry__scope_ref_release(scope);
+    char *release = sentry_value_is_null(release_value)
+        ? NULL
+        : sentry__string_clone(sentry_value_as_string(release_value));
+    sentry_value_decref(release_value);
+
+    sentry_value_t environment_value = sentry__scope_ref_environment(scope);
+    char *environment = sentry_value_is_null(environment_value)
+        ? NULL
+        : sentry__string_clone(sentry_value_as_string(environment_value));
+    sentry_value_decref(environment_value);
 
     if (!release) {
         sentry_free(environment);

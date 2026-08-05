@@ -28,9 +28,9 @@ typedef struct sentry_scope_observer_s {
 
     void (*clear)(void *data);
 
-    void (*set_release)(void *data, const char *release);
-    void (*set_environment)(void *data, const char *environment);
-    void (*set_transaction)(void *data, const char *transaction);
+    void (*set_release)(void *data, sentry_value_t release);
+    void (*set_environment)(void *data, sentry_value_t environment);
+    void (*set_transaction)(void *data, sentry_value_t transaction);
     void (*set_fingerprint)(void *data, sentry_value_t fingerprint);
     void (*set_level)(void *data, sentry_level_t level);
     void (*set_user)(void *data, sentry_value_t user);
@@ -56,9 +56,9 @@ typedef struct sentry_scope_observer_s {
 struct sentry_scope_s {
     sentry_rwlock_t rwlock;
 
-    char *release;
-    char *environment;
-    char *transaction;
+    sentry_value_t release;
+    sentry_value_t environment;
+    sentry_value_t transaction;
     sentry_value_t fingerprint;
     sentry_value_t user;
     sentry_value_t tags;
@@ -153,15 +153,15 @@ void sentry__scope_apply_to_event(const sentry_scope_t *scope,
     const sentry_options_t *options, sentry_value_t event,
     sentry_scope_mode_t mode);
 
-const char *sentry__scope_get_release(const sentry_scope_t *scope);
+sentry_value_t sentry__scope_ref_release(const sentry_scope_t *scope);
 void sentry__scope_set_release_n(
     sentry_scope_t *scope, const char *release, size_t release_len);
 
-const char *sentry__scope_get_environment(const sentry_scope_t *scope);
+sentry_value_t sentry__scope_ref_environment(const sentry_scope_t *scope);
 void sentry__scope_set_environment_n(
     sentry_scope_t *scope, const char *environment, size_t environment_len);
 
-const char *sentry__scope_get_transaction(const sentry_scope_t *scope);
+sentry_value_t sentry__scope_ref_transaction(const sentry_scope_t *scope);
 void sentry__scope_set_transaction_n(
     sentry_scope_t *scope, const char *transaction, size_t transaction_len);
 
