@@ -3,7 +3,6 @@
 
 #include "sentry_boot.h"
 #include "sentry_core.h"
-#include "sentry_cpu_relax.h"
 
 #include <assert.h>
 #include <stdio.h>
@@ -451,35 +450,6 @@ sentry__atomic_compare_swap(volatile long *val, long expected, long desired)
     return __atomic_compare_exchange_n(
         val, &expected, desired, false, __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST);
 #endif
-}
-
-typedef bool (*sentry_spin_wait_func_t)(int attempt, void *data);
-
-static inline void
-sentry__spin_lock(volatile long *lock)
-{
-    while (!sentry__atomic_compare_swap(lock, 0, 1)) {
-        sentry__cpu_relax();
-    }
-}
-
-static inline bool
-sentry__spin_lock_wait(
-    volatile long *lock, sentry_spin_wait_func_t wait_func, void *data)
-{
-    int attempts = 0;
-    while (!sentry__atomic_compare_swap(lock, 0, 1)) {
-        if (!wait_func || !wait_func(++attempts, data)) {
-            return false;
-        }
-    }
-    return true;
-}
-
-static inline void
-sentry__spin_unlock(volatile long *lock)
-{
-    sentry__atomic_store(lock, 0);
 }
 
 /**
