@@ -220,9 +220,10 @@ sentry_start_session(void)
         if (options) {
             options->session = sentry__session_new(scope);
             if (options->session) {
-                sentry__session_sync_user(options->session,
-                    sentry__scope_get_user(scope),
+                sentry_value_t user = sentry__scope_ref_user(scope);
+                sentry__session_sync_user(options->session, user,
                     options->run ? options->run->installation_id : NULL);
+                sentry_value_decref(user);
                 sentry__run_write_session(options->run, options->session);
             }
         }
