@@ -54,6 +54,7 @@ sentry_target_sources_cwd(sentry
 	sentry_session.h
 	sentry_slice.c
 	sentry_slice.h
+	sentry_spinlock.h
 	sentry_string.c
 	sentry_string.h
 	sentry_symbolizer.h
@@ -98,7 +99,6 @@ if(WIN32)
 	)
 elseif(NX OR PROSPERO)
 	sentry_target_sources_cwd(sentry
-		sentry_unix_spinlock.h
 		path/sentry_path_unix.c
 		process/sentry_process_none.c
 	)
@@ -108,7 +108,6 @@ else()
 		sentry_random.h
 		sentry_unix_pageallocator.c
 		sentry_unix_pageallocator.h
-		sentry_unix_spinlock.h
 		symbolizer/sentry_symbolizer_unix.c
 		path/sentry_path_unix.c
 		process/sentry_process_unix.c
