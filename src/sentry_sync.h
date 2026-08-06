@@ -145,8 +145,8 @@ WakeAllConditionVariable_PREVISTA(
 
     LONG waiters = InterlockedCompareExchange(
         (volatile LONG *)&ConditionVariable->Waiters, 0, 0);
-    while (waiters-- > 0) {
-        WakeConditionVariable_PREVISTA(ConditionVariable);
+    if (waiters > 0) {
+        ReleaseSemaphore(ConditionVariable->Semaphore, waiters, NULL);
     }
 }
 
