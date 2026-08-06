@@ -28,6 +28,8 @@ typedef enum {
     SENTRY_BATCHER_THREAD_STARTING = 1,
     /** Thread is running and processing items */
     SENTRY_BATCHER_THREAD_RUNNING = 2,
+    /** Thread has been asked to stop and still needs to be joined */
+    SENTRY_BATCHER_THREAD_STOPPING = 3,
 } sentry_batcher_thread_state_t;
 
 typedef struct {

@@ -726,17 +726,17 @@ sentry__batcher_shutdown(sentry_batcher_t *batcher, uint64_t timeout)
     const long old_state = sentry__atomic_store(
         &batcher->thread_state, (long)SENTRY_BATCHER_THREAD_STOPPED);
 
-    // If thread was never started, nothing to do
     if (old_state == SENTRY_BATCHER_THREAD_STOPPED) {
-        SENTRY_DEBUG("batcher thread was not started, skipping shutdown");
-        return;
+        SENTRY_DEBUG("batcher thread was not started, skipping thread join");
+    } else {
+        // The thread was started, or a crash-safe flush already requested stop.
+        // Wake it so shutdown can join before the batcher is released.
+        sentry__waitable_flag_set(&batcher->request_flush);
+
+        sentry__thread_join(batcher->batching_thread);
+        sentry__atomic_store(
+            &batcher->thread_state, (long)SENTRY_BATCHER_THREAD_STOPPED);
     }
-
-    // Thread was started (either STARTING or RUNNING), signal it to stop
-    sentry__waitable_flag_set(&batcher->request_flush);
-
-    // Always join the thread to avoid leaks
-    sentry__thread_join(batcher->batching_thread);
 
     // Perform final flush to ensure any remaining items are sent
     sentry__batcher_flush(batcher, false);
@@ -758,7 +758,7 @@ sentry__batcher_flush_crash_safe(sentry_batcher_t *batcher)
     // Signal the thread to stop but don't wait, since the crash-safe flush
     // will spin-lock on flushing anyway.
     sentry__atomic_store(
-        &batcher->thread_state, (long)SENTRY_BATCHER_THREAD_STOPPED);
+        &batcher->thread_state, (long)SENTRY_BATCHER_THREAD_STOPPING);
 
     // Perform crash-safe flush directly to disk to avoid transport queuing
     // This is safe because we're in a crash scenario and the main thread
