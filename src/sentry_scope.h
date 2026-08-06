@@ -149,19 +149,19 @@ void sentry__scope_remove_fingerprint(sentry_scope_t *scope);
 sentry_value_t sentry__scope_ref_user(const sentry_scope_t *scope);
 sentry_level_t sentry__scope_get_level(const sentry_scope_t *scope);
 
-sentry_value_t sentry__scope_get_tags(const sentry_scope_t *scope);
+sentry_value_t sentry__scope_ref_tags(const sentry_scope_t *scope);
 void sentry__scope_remove_tag(sentry_scope_t *scope, const char *key);
 void sentry__scope_remove_tag_n(
     sentry_scope_t *scope, const char *key, size_t key_len);
 
-sentry_value_t sentry__scope_get_extra(const sentry_scope_t *scope);
+sentry_value_t sentry__scope_ref_extra(const sentry_scope_t *scope);
 void sentry__scope_remove_extra(sentry_scope_t *scope, const char *key);
 void sentry__scope_remove_extra_n(
     sentry_scope_t *scope, const char *key, size_t key_len);
 
-sentry_value_t sentry__scope_get_attributes(const sentry_scope_t *scope);
+sentry_value_t sentry__scope_ref_attributes(const sentry_scope_t *scope);
 
-sentry_value_t sentry__scope_get_contexts(const sentry_scope_t *scope);
+sentry_value_t sentry__scope_ref_contexts(const sentry_scope_t *scope);
 void sentry__scope_remove_context(sentry_scope_t *scope, const char *key);
 void sentry__scope_remove_context_n(
     sentry_scope_t *scope, const char *key, size_t key_len);

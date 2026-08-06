@@ -535,9 +535,11 @@ data_set_user(sentry_scope_data_t *data, sentry_value_t user)
 }
 
 static sentry_value_t
-data_get_tags(const sentry_scope_data_t *data)
+data_ref_tags(const sentry_scope_data_t *data)
 {
-    return data->tags;
+    sentry_value_t tags = sentry_value_new_null();
+    DATA_READ_LOCK(data) { tags = sentry_value_incref(data->tags); }
+    return tags;
 }
 
 static bool
@@ -588,9 +590,11 @@ data_remove_tag_n(sentry_scope_data_t *data, const char *key, size_t key_len)
 }
 
 static sentry_value_t
-data_get_extra(const sentry_scope_data_t *data)
+data_ref_extra(const sentry_scope_data_t *data)
 {
-    return data->extra;
+    sentry_value_t extra = sentry_value_new_null();
+    DATA_READ_LOCK(data) { extra = sentry_value_incref(data->extra); }
+    return extra;
 }
 
 static bool
@@ -641,9 +645,11 @@ data_remove_extra_n(sentry_scope_data_t *data, const char *key, size_t key_len)
 }
 
 static sentry_value_t
-data_get_attributes(const sentry_scope_data_t *data)
+data_ref_attributes(const sentry_scope_data_t *data)
 {
-    return data->attributes;
+    sentry_value_t attributes = sentry_value_new_null();
+    DATA_READ_LOCK(data) { attributes = sentry_value_incref(data->attributes); }
+    return attributes;
 }
 
 static bool
@@ -677,9 +683,11 @@ data_remove_attribute_n(
 }
 
 static sentry_value_t
-data_get_contexts(const sentry_scope_data_t *data)
+data_ref_contexts(const sentry_scope_data_t *data)
 {
-    return data->contexts;
+    sentry_value_t contexts = sentry_value_new_null();
+    DATA_READ_LOCK(data) { contexts = sentry_value_incref(data->contexts); }
+    return contexts;
 }
 
 static bool
@@ -1811,9 +1819,9 @@ sentry_scope_set_user(sentry_scope_t *scope, sentry_value_t user)
 }
 
 sentry_value_t
-sentry__scope_get_tags(const sentry_scope_t *scope)
+sentry__scope_ref_tags(const sentry_scope_t *scope)
 {
-    return data_get_tags(scope->data);
+    return data_ref_tags(scope->data);
 }
 
 void
@@ -1864,9 +1872,9 @@ sentry__scope_remove_tag_n(
 }
 
 sentry_value_t
-sentry__scope_get_extra(const sentry_scope_t *scope)
+sentry__scope_ref_extra(const sentry_scope_t *scope)
 {
-    return data_get_extra(scope->data);
+    return data_ref_extra(scope->data);
 }
 
 void
@@ -1938,9 +1946,9 @@ sentry_scope_set_attribute_n(sentry_scope_t *scope, const char *key,
 }
 
 sentry_value_t
-sentry__scope_get_attributes(const sentry_scope_t *scope)
+sentry__scope_ref_attributes(const sentry_scope_t *scope)
 {
-    return data_get_attributes(scope->data);
+    return data_ref_attributes(scope->data);
 }
 
 void
@@ -1957,9 +1965,9 @@ sentry_scope_remove_attribute_n(
 }
 
 sentry_value_t
-sentry__scope_get_contexts(const sentry_scope_t *scope)
+sentry__scope_ref_contexts(const sentry_scope_t *scope)
 {
-    return data_get_contexts(scope->data);
+    return data_ref_contexts(scope->data);
 }
 
 void
