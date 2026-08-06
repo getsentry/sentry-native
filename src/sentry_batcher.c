@@ -82,13 +82,13 @@ sentry__batcher_set_category(sentry_batcher_t *batcher,
 static inline void
 lock_ref(sentry_batcher_ref_t *ref)
 {
-    sentry__spin_lock(&ref->lock);
+    sentry__spinlock_lock(&ref->lock);
 }
 
 static inline void
 unlock_ref(sentry_batcher_ref_t *ref)
 {
-    sentry__spin_unlock(&ref->lock);
+    sentry__spinlock_unlock(&ref->lock);
 }
 
 sentry_batcher_t *
@@ -197,20 +197,20 @@ typedef struct sentry_batch_task_s {
 static void
 lock_tasks(sentry_batcher_t *batcher)
 {
-    sentry__spin_lock(&batcher->task_lock);
+    sentry__spinlock_lock(&batcher->task_lock);
 }
 
 static bool
 lock_tasks_crash_safe(sentry_batcher_t *batcher)
 {
-    return sentry__spin_lock_wait(
+    return sentry__spinlock_wait(
         &batcher->task_lock, crash_safe_spin_wait, NULL);
 }
 
 static void
 unlock_tasks(sentry_batcher_t *batcher)
 {
-    sentry__spin_unlock(&batcher->task_lock);
+    sentry__spinlock_unlock(&batcher->task_lock);
 }
 
 static void
@@ -490,7 +490,7 @@ bool
 sentry__batcher_flush(sentry_batcher_t *batcher, bool crash_safe)
 {
     if (crash_safe) {
-        if (!sentry__spin_lock_wait(
+        if (!sentry__spinlock_wait(
                 &batcher->flushing, crash_safe_spin_wait, NULL)) {
             SENTRY_SIGNAL_SAFE_LOG(
                 "WARN sentry__batcher_flush: timeout waiting for "
@@ -499,9 +499,7 @@ sentry__batcher_flush(sentry_batcher_t *batcher, bool crash_safe)
         }
     } else {
         // Normal mode: try once and return if already flushing
-        const long already_flushing
-            = sentry__atomic_store(&batcher->flushing, 1);
-        if (already_flushing) {
+        if (!sentry__spinlock_try_lock(&batcher->flushing)) {
             return false;
         }
     }
@@ -557,7 +555,7 @@ sentry__batcher_flush(sentry_batcher_t *batcher, bool crash_safe)
             (old_buf_idx + 1) % SENTRY_BATCHER_BUFFER_COUNT);
     }
 
-    sentry__spin_unlock(&batcher->flushing);
+    sentry__spinlock_unlock(&batcher->flushing);
     return true;
 }
 

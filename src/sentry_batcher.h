@@ -5,6 +5,7 @@
 #include "sentry_client_report.h"
 #include "sentry_database.h"
 #include "sentry_envelope.h"
+#include "sentry_spinlock.h"
 #include "sentry_sync.h"
 #include "sentry_transport.h"
 
@@ -46,9 +47,9 @@ typedef struct {
     sentry_batcher_buffer_t buffers[SENTRY_BATCHER_BUFFER_COUNT];
     long active_idx; // (atomic) index to the active buffer
     long drain_idx; // (atomic) index to the oldest buffer to drain
-    long flushing; // (atomic) reentrancy guard to the flusher
+    sentry_spinlock_t flushing; // reentrancy guard to the flusher
     long crash_flush; // (atomic) write completed batch work to disk
-    long task_lock; // (atomic) protects in-flight batch tasks
+    sentry_spinlock_t task_lock; // protects in-flight batch tasks
     struct sentry_batch_task_s *tasks; // in-flight batch tasks
     long thread_state; // (atomic) sentry_batcher_thread_state_t
     sentry_waitable_flag_t request_flush; // level-triggered flush flag
@@ -64,7 +65,7 @@ typedef struct {
 
 typedef struct {
     sentry_batcher_t *ptr;
-    long lock; // (atomic) spinlock
+    sentry_spinlock_t lock;
 } sentry_batcher_ref_t;
 
 #define SENTRY_BATCHER_REF_INIT { NULL, 0 }
