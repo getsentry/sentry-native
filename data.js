@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1786009758795,
+  "lastUpdate": 1786009843221,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -80482,6 +80482,150 @@ window.BENCHMARK_DATA = {
             "value": 0.18833868531253017,
             "unit": "ms",
             "extra": "Min 0.188ms\nMax 0.188ms\nMean 0.188ms\nMedian 0.188ms\nCPU 0.009ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "jpnurmi@gmail.com",
+            "name": "J-P Nurmi",
+            "username": "jpnurmi"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "159d1855aabaa91aefffe1450fdf541096d82f63",
+          "message": "feat(sync): add sentry__cond_wake_all (#1961)\n\n* feat(sync): add sentry__cond_wake_all\n\n* fix(sync): avoid pre-Vista wake-all timeout deadlock\n\nWakeAllConditionVariable_PREVISTA used to snapshot the waiter count and\nthen call WakeConditionVariable_PREVISTA once per waiter. Each single-wake\ncall waits for a waiter-side acknowledgement through ContinueEvent.\n\nThat handshake can block forever during broadcast if one of the snapshotted\nwaiters times out while another waiter is being signaled. The timed-out waiter\ncan move Waiters past the Target value without setting ContinueEvent, leaving\nSignalObjectAndWait stuck even though broadcast should never depend on a\nspecific waiter resuming.\n\nRelease the snapshotted number of semaphore slots directly for wake-all.\nThis keeps the waiter snapshot atomic, leaves the single-wake compatibility\npath unchanged, and makes broadcast tolerant of waiter timeouts. Any racing\ntimeout may leave a later waiter with a spurious wake, which condition\nvariable callers already have to handle by re-checking their predicate.\n\n* fix(sync): suppress stale pre-Vista broadcast acknowledgements\n\nThe pre-Vista wake-all path now releases semaphore slots directly instead\nof calling the blocking single-wake helper for every snapshotted waiter.\nThat avoids the timeout deadlock, but broadcast-woken waiters still run\nthrough the shared waiter acknowledgement code in\nSleepConditionVariableCS_PREVISTA.\n\nIf Target keeps its previous single-wake value, one of those broadcast\nwaiters can set ContinueEvent after WakeAllConditionVariable_PREVISTA has\nalready returned. The event then remains signaled and can be consumed by a\nlater WakeConditionVariable_PREVISTA call, causing that single wake to\nreturn without a fresh waiter acknowledgement.\n\nSet Target to an impossible waiter count before releasing the broadcast\nsemaphore slots. This keeps broadcast non-blocking, leaves the single-wake\nhandshake intact, and prevents wake-all from leaking acknowledgements into\nfuture single-wake operations.",
+          "timestamp": "2026-08-06T11:45:32+02:00",
+          "tree_id": "6e796c52ad69b7c7e63a80cd8267107fe4cd1dae",
+          "url": "https://github.com/getsentry/sentry-native/commit/159d1855aabaa91aefffe1450fdf541096d82f63"
+        },
+        "date": 1786009829708,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 3.902125000081469,
+            "unit": "ms",
+            "extra": "Min 3.879ms\nMax 11.006ms\nMean 5.390ms\nStdDev 3.144ms\nMedian 3.902ms\nCPU 2.254ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 4.208166999887908,
+            "unit": "ms",
+            "extra": "Min 3.736ms\nMax 4.688ms\nMean 4.211ms\nStdDev 0.362ms\nMedian 4.208ms\nCPU 2.353ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 15.069584000002578,
+            "unit": "ms",
+            "extra": "Min 12.834ms\nMax 21.272ms\nMean 15.994ms\nStdDev 3.449ms\nMedian 15.070ms\nCPU 5.046ms"
+          },
+          {
+            "name": "SDK init (native)",
+            "value": 13.8969580000321,
+            "unit": "ms",
+            "extra": "Min 12.732ms\nMax 16.439ms\nMean 14.304ms\nStdDev 1.447ms\nMedian 13.897ms\nCPU 3.977ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.06683300000531744,
+            "unit": "ms",
+            "extra": "Min 0.062ms\nMax 0.092ms\nMean 0.071ms\nStdDev 0.013ms\nMedian 0.067ms\nCPU 0.046ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.24229200005265739,
+            "unit": "ms",
+            "extra": "Min 0.221ms\nMax 0.248ms\nMean 0.238ms\nStdDev 0.010ms\nMedian 0.242ms\nCPU 0.238ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 7.322583000018312,
+            "unit": "ms",
+            "extra": "Min 6.863ms\nMax 8.154ms\nMean 7.429ms\nStdDev 0.489ms\nMedian 7.323ms\nCPU 0.917ms"
+          },
+          {
+            "name": "Backend startup (native)",
+            "value": 9.71029099991938,
+            "unit": "ms",
+            "extra": "Min 9.613ms\nMax 11.521ms\nMean 10.164ms\nStdDev 0.816ms\nMedian 9.710ms\nCPU 1.432ms"
+          },
+          {
+            "name": "Scope set_tag (inproc)",
+            "value": 0.0027944580000394126,
+            "unit": "ms",
+            "extra": "Min 0.003ms\nMax 0.003ms\nMean 0.003ms\nMedian 0.003ms\nCPU 0.003ms"
+          },
+          {
+            "name": "Scope add_breadcrumb (inproc)",
+            "value": 0.0011720830000285787,
+            "unit": "ms",
+            "extra": "Min 0.001ms\nMax 0.001ms\nMean 0.001ms\nMedian 0.001ms\nCPU 0.001ms"
+          },
+          {
+            "name": "Scope set_tag (breakpad)",
+            "value": 0.0029605830000036804,
+            "unit": "ms",
+            "extra": "Min 0.003ms\nMax 0.003ms\nMean 0.003ms\nMedian 0.003ms\nCPU 0.003ms"
+          },
+          {
+            "name": "Scope add_breadcrumb (breakpad)",
+            "value": 0.0012165000000550208,
+            "unit": "ms",
+            "extra": "Min 0.001ms\nMax 0.001ms\nMean 0.001ms\nMedian 0.001ms\nCPU 0.001ms"
+          },
+          {
+            "name": "Scope set_tag (crashpad)",
+            "value": 0.1845530420000614,
+            "unit": "ms",
+            "extra": "Min 0.185ms\nMax 0.185ms\nMean 0.185ms\nMedian 0.185ms\nCPU 0.175ms"
+          },
+          {
+            "name": "Scope add_breadcrumb (crashpad)",
+            "value": 0.05029141600005005,
+            "unit": "ms",
+            "extra": "Min 0.050ms\nMax 0.050ms\nMean 0.050ms\nMedian 0.050ms\nCPU 0.039ms"
+          },
+          {
+            "name": "Scope set_tag (native)",
+            "value": 0.11966308400008074,
+            "unit": "ms",
+            "extra": "Min 0.120ms\nMax 0.120ms\nMean 0.120ms\nMedian 0.120ms\nCPU 0.115ms"
+          },
+          {
+            "name": "Scope add_breadcrumb (native)",
+            "value": 0.05468625000003158,
+            "unit": "ms",
+            "extra": "Min 0.055ms\nMax 0.055ms\nMean 0.055ms\nMedian 0.055ms\nCPU 0.045ms"
+          },
+          {
+            "name": "Logs (1 thread)",
+            "value": 0.004743339999322416,
+            "unit": "ms",
+            "extra": "Min 0.005ms\nMax 0.005ms\nMean 0.005ms\nMedian 0.005ms\nCPU 0.005ms"
+          },
+          {
+            "name": "Logs (8 threads)",
+            "value": 0.033753647499850103,
+            "unit": "ms",
+            "extra": "Min 0.034ms\nMax 0.034ms\nMean 0.034ms\nMedian 0.034ms\nCPU 0.009ms"
+          },
+          {
+            "name": "Logs (16 threads)",
+            "value": 0.05841916687501225,
+            "unit": "ms",
+            "extra": "Min 0.058ms\nMax 0.058ms\nMean 0.058ms\nMedian 0.058ms\nCPU 0.009ms"
+          },
+          {
+            "name": "Logs (32 threads)",
+            "value": 0.1309944143749675,
+            "unit": "ms",
+            "extra": "Min 0.131ms\nMax 0.131ms\nMean 0.131ms\nMedian 0.131ms\nCPU 0.010ms"
           }
         ]
       }
