@@ -68,9 +68,8 @@ struct sentry_scope_data_s {
 static sentry_scope_t g_scope = { 0 };
 static sentry_scope_data_t g_scope_data = { 0 };
 
-#define SCOPE_READ_LOCK(Scope)                                                 \
-    for (const sentry_scope_data_t *_locked_data = (Scope)->data;              \
-        _locked_data;                                                          \
+#define DATA_READ_LOCK(Data)                                                   \
+    for (const sentry_scope_data_t *_locked_data = (Data); _locked_data;       \
         sentry__rwlock_read_unlock((sentry_rwlock_t *)&_locked_data->rwlock),  \
                                    _locked_data = NULL)                        \
         for (bool _locked_once                                                 \
@@ -79,8 +78,8 @@ static sentry_scope_data_t g_scope_data = { 0 };
                 true);                                                         \
             _locked_once; _locked_once = false)
 
-#define SCOPE_WRITE_LOCK(Scope)                                                \
-    for (sentry_scope_data_t *_locked_data = (Scope)->data; _locked_data;      \
+#define DATA_WRITE_LOCK(Data)                                                  \
+    for (sentry_scope_data_t *_locked_data = (Data); _locked_data;             \
         sentry__rwlock_write_unlock(&_locked_data->rwlock),                    \
                              _locked_data = NULL)                              \
         for (bool _locked_once                                                 \
@@ -126,46 +125,6 @@ get_client_sdk(void)
 #endif
 
     return client_sdk;
-}
-
-static bool
-data_set_by_key(sentry_scope_data_t *data, sentry_value_t *object,
-    const char *key, sentry_value_t value)
-{
-    sentry__rwlock_write_lock(&data->rwlock);
-    int rv = sentry_value_set_by_key(*object, key, value);
-    sentry__rwlock_write_unlock(&data->rwlock);
-    return rv == 0;
-}
-
-static bool
-data_set_by_key_n(sentry_scope_data_t *data, sentry_value_t *object,
-    const char *key, size_t key_len, sentry_value_t value)
-{
-    sentry__rwlock_write_lock(&data->rwlock);
-    int rv = sentry_value_set_by_key_n(*object, key, key_len, value);
-    sentry__rwlock_write_unlock(&data->rwlock);
-    return rv == 0;
-}
-
-static bool
-data_remove_by_key(
-    sentry_scope_data_t *data, sentry_value_t *object, const char *key)
-{
-    sentry__rwlock_write_lock(&data->rwlock);
-    int rv = sentry_value_remove_by_key(*object, key);
-    sentry__rwlock_write_unlock(&data->rwlock);
-    return rv == 0;
-}
-
-static char *
-data_remove_and_take_key_n(sentry_scope_data_t *data, sentry_value_t *object,
-    const char *key, size_t key_len)
-{
-    sentry__rwlock_write_lock(&data->rwlock);
-    char *rv = sentry__value_remove_and_take_key_n(*object, key, key_len);
-    sentry__rwlock_write_unlock(&data->rwlock);
-    return rv;
 }
 
 static bool
@@ -266,6 +225,885 @@ free_data(sentry_scope_data_t *data)
     sentry_free(data);
 }
 
+static void
+cleanup_global_data(sentry_scope_data_t *data)
+{
+    cleanup_data(data);
+    sentry__rwlock_free(&data->rwlock);
+}
+
+static void
+init_global_data(sentry_scope_data_t *data)
+{
+    sentry__value_replace(&data->user, sentry_value_new_object());
+    sentry_value_set_by_key(data->contexts, "os", sentry__get_os_context());
+    sentry__value_replace(&data->client_sdk, get_client_sdk());
+}
+
+static void
+data_apply_options(sentry_scope_data_t *data, sentry_options_t *options)
+{
+    DATA_WRITE_LOCK(data)
+    {
+        if (options->sdk_name) {
+            sentry_value_t sdk_name
+                = sentry_value_new_string(options->sdk_name);
+            sentry_value_set_by_key(data->client_sdk, "name", sdk_name);
+        }
+        sentry_value_freeze(data->client_sdk);
+        generate_propagation_context(data->propagation_context);
+        data->attachments = options->attachments;
+        options->attachments = NULL;
+        sentry__ringbuffer_set_max_size(
+            data->breadcrumbs, options->max_breadcrumbs);
+    }
+}
+
+static void
+clear_data(sentry_scope_data_t *data)
+{
+    DATA_WRITE_LOCK(data)
+    {
+        bool trace_managed = data->trace_managed;
+        sentry_value_t propagation_context
+            = sentry_value_incref(data->propagation_context);
+        sentry_value_t dynamic_sampling_context
+            = sentry_value_incref(data->dynamic_sampling_context);
+
+        cleanup_data(data);
+        init_data(data);
+
+        sentry_value_decref(data->propagation_context);
+        sentry_value_decref(data->dynamic_sampling_context);
+        data->propagation_context = propagation_context;
+        data->dynamic_sampling_context = dynamic_sampling_context;
+        data->trace_managed = trace_managed;
+    }
+}
+
+static sentry_scope_data_t *
+clone_data(const sentry_scope_data_t *source)
+{
+    sentry_scope_data_t *clone = SENTRY_MAKE(sentry_scope_data_t);
+    if (!clone) {
+        return NULL;
+    }
+
+    sentry__rwlock_init(&clone->rwlock);
+    DATA_READ_LOCK(source)
+    {
+        clone->release = sentry__value_clone(source->release);
+        clone->environment = sentry__value_clone(source->environment);
+        clone->transaction = sentry__value_clone(source->transaction);
+        clone->fingerprint = sentry__value_clone(source->fingerprint);
+        clone->user = sentry__value_clone(source->user);
+        clone->tags = sentry__value_clone(source->tags);
+        clone->extra = sentry__value_clone(source->extra);
+        clone->attributes = sentry__value_clone(source->attributes);
+        clone->contexts = sentry__value_clone(source->contexts);
+        clone->propagation_context
+            = sentry__value_clone(source->propagation_context);
+        clone->breadcrumbs = sentry__ringbuffer_clone(source->breadcrumbs);
+        clone->dynamic_sampling_context
+            = sentry__value_clone(source->dynamic_sampling_context);
+        if (sentry_value_is_frozen(source->dynamic_sampling_context)) {
+            sentry_value_freeze(clone->dynamic_sampling_context);
+        }
+        clone->level = source->level;
+        clone->client_sdk = sentry__value_clone(source->client_sdk);
+        sentry__attachments_extend(&clone->attachments, source->attachments);
+        clone->transaction_object = source->transaction_object;
+        sentry__transaction_incref(clone->transaction_object);
+        clone->span = source->span;
+        sentry__span_incref(clone->span);
+        clone->trace_managed = source->trace_managed;
+    }
+
+    return clone;
+}
+
+static sentry_value_t
+data_get_propagation_context(const sentry_scope_data_t *data)
+{
+    return data->propagation_context;
+}
+
+static sentry_value_t
+data_ref_propagation_context(const sentry_scope_data_t *data)
+{
+    sentry_value_t propagation_context = sentry_value_new_null();
+    DATA_READ_LOCK(data)
+    {
+        propagation_context = sentry_value_incref(data->propagation_context);
+    }
+    return propagation_context;
+}
+
+static sentry_value_t
+data_get_trace_context(const sentry_scope_data_t *data)
+{
+    return sentry_value_get_by_key(data->propagation_context, "trace");
+}
+
+static void
+data_set_propagation_context(
+    sentry_scope_data_t *data, const char *key, sentry_value_t value)
+{
+    DATA_WRITE_LOCK(data)
+    {
+        sentry_value_set_by_key(data->propagation_context, key, value);
+    }
+}
+
+static void
+data_regenerate_propagation_context(sentry_scope_data_t *data)
+{
+    DATA_WRITE_LOCK(data)
+    {
+        generate_propagation_context(data->propagation_context);
+    }
+}
+
+static bool
+data_is_trace_managed(const sentry_scope_data_t *data)
+{
+    bool managed = false;
+    DATA_READ_LOCK(data) { managed = data->trace_managed; }
+    return managed;
+}
+
+static void
+data_set_trace_managed(sentry_scope_data_t *data, bool managed)
+{
+    DATA_WRITE_LOCK(data) { data->trace_managed = managed; }
+}
+
+static sentry_value_t
+data_get_dsc(const sentry_scope_data_t *data)
+{
+    return data->dynamic_sampling_context;
+}
+
+static void
+data_freeze_dsc(sentry_scope_data_t *data, sentry_value_t incoming)
+{
+    sentry_value_t dsc = sentry_value_new_object();
+    sentry__value_merge_objects(dsc, incoming);
+    sentry_value_freeze(dsc);
+    DATA_WRITE_LOCK(data)
+    {
+        sentry__value_replace(&data->dynamic_sampling_context, dsc);
+    }
+}
+
+static void
+data_update_dsc(sentry_scope_data_t *data, const sentry_options_t *options)
+{
+    sentry_value_t dsc = sentry_value_new_object();
+
+    if (options->dsn) {
+        sentry_value_set_by_key(dsc, "public_key",
+            sentry_value_new_string(options->dsn->public_key));
+    }
+    const char *org_id = sentry__options_get_org_id(options);
+    if (org_id) {
+        sentry_value_set_by_key(dsc, "org_id", sentry_value_new_string(org_id));
+    }
+    sentry_value_set_by_key(dsc, "sample_rate",
+        sentry_value_new_double(options->traces_sample_rate));
+    if (options->traces_sampler) {
+        sentry_value_set_by_key(
+            dsc, "sample_rate", sentry_value_new_double(1.0));
+    }
+
+    DATA_WRITE_LOCK(data)
+    {
+        sentry_value_t sample_rand = sentry_value_get_by_key(
+            sentry_value_get_by_key(data->propagation_context, "trace"),
+            "sample_rand");
+        sentry_value_set_by_key(
+            dsc, "sample_rand", sentry_value_incref(sample_rand));
+        sentry_value_set_by_key(
+            dsc, "release", sentry_value_incref(data->release));
+        sentry_value_set_by_key(
+            dsc, "environment", sentry_value_incref(data->environment));
+        sentry__value_replace(&data->dynamic_sampling_context, dsc);
+    }
+}
+
+static sentry_value_t
+data_ref_client_sdk(const sentry_scope_data_t *data)
+{
+    sentry_value_t client_sdk = sentry_value_new_null();
+    DATA_READ_LOCK(data) { client_sdk = sentry_value_incref(data->client_sdk); }
+    return client_sdk;
+}
+
+static void
+data_apply_tags_and_extra(const sentry_scope_data_t *data, sentry_value_t event)
+{
+    DATA_READ_LOCK(data)
+    {
+        sentry_value_t event_tags = sentry_value_get_by_key(event, "tags");
+        if (sentry_value_is_null(event_tags)) {
+            if (!sentry_value_is_null(data->tags)) {
+                sentry_value_set_by_key(
+                    event, "tags", sentry__value_clone(data->tags));
+            }
+        } else {
+            sentry__value_merge_objects(event_tags, data->tags);
+        }
+
+        sentry_value_t event_extra = sentry_value_get_by_key(event, "extra");
+        if (sentry_value_is_null(event_extra)) {
+            if (!sentry_value_is_null(data->extra)) {
+                sentry_value_set_by_key(
+                    event, "extra", sentry__value_clone(data->extra));
+            }
+        } else {
+            sentry__value_merge_objects(event_extra, data->extra);
+        }
+    }
+}
+
+static sentry_value_t
+data_clone_contexts(const sentry_scope_data_t *data)
+{
+    sentry_value_t contexts = sentry_value_new_null();
+    DATA_READ_LOCK(data) { contexts = sentry__value_clone(data->contexts); }
+    return contexts;
+}
+
+static sentry_value_t
+data_ref_span_or_transaction(const sentry_scope_data_t *data)
+{
+    sentry_value_t value = sentry_value_new_null();
+    DATA_READ_LOCK(data)
+    {
+        if (data->span) {
+            value = sentry_value_incref(data->span->inner);
+        } else if (data->transaction_object) {
+            value = sentry_value_incref(data->transaction_object->inner);
+        }
+    }
+    return value;
+}
+
+static sentry_value_t
+data_breadcrumbs_to_list(const sentry_scope_data_t *data)
+{
+    sentry_value_t breadcrumbs = sentry_value_new_null();
+    DATA_READ_LOCK(data)
+    {
+        breadcrumbs = sentry__ringbuffer_to_list(data->breadcrumbs);
+    }
+    return breadcrumbs;
+}
+
+static bool
+data_add_breadcrumb(sentry_scope_data_t *data, sentry_value_t breadcrumb)
+{
+    bool added = false;
+    DATA_WRITE_LOCK(data)
+    {
+        added = sentry__ringbuffer_append(data->breadcrumbs, breadcrumb) == 0;
+    }
+    return added;
+}
+
+static const sentry_ringbuffer_t *
+data_get_breadcrumbs(const sentry_scope_data_t *data)
+{
+    return data->breadcrumbs;
+}
+
+static sentry_value_t
+data_ref_user(const sentry_scope_data_t *data)
+{
+    sentry_value_t user = sentry_value_new_null();
+    DATA_READ_LOCK(data) { user = sentry_value_incref(data->user); }
+    return user;
+}
+
+static void
+data_set_user(sentry_scope_data_t *data, sentry_value_t user)
+{
+    DATA_WRITE_LOCK(data)
+    {
+        sentry__value_replace(&data->user, sentry_value_incref(user));
+    }
+}
+
+static sentry_value_t
+data_get_tags(const sentry_scope_data_t *data)
+{
+    return data->tags;
+}
+
+static bool
+data_set_tag(sentry_scope_data_t *data, const char *key, sentry_value_t value)
+{
+    bool did_set = false;
+    DATA_WRITE_LOCK(data)
+    {
+        did_set = sentry_value_set_by_key(data->tags, key, value) == 0;
+    }
+    return did_set;
+}
+
+static bool
+data_set_tag_n(sentry_scope_data_t *data, const char *key, size_t key_len,
+    sentry_value_t value)
+{
+    bool did_set = false;
+    DATA_WRITE_LOCK(data)
+    {
+        did_set
+            = sentry_value_set_by_key_n(data->tags, key, key_len, value) == 0;
+    }
+    return did_set;
+}
+
+static bool
+data_remove_tag(sentry_scope_data_t *data, const char *key)
+{
+    bool removed = false;
+    DATA_WRITE_LOCK(data)
+    {
+        removed = sentry_value_remove_by_key(data->tags, key) == 0;
+    }
+    return removed;
+}
+
+static char *
+data_remove_tag_n(sentry_scope_data_t *data, const char *key, size_t key_len)
+{
+    char *removed_key = NULL;
+    DATA_WRITE_LOCK(data)
+    {
+        removed_key
+            = sentry__value_remove_and_take_key_n(data->tags, key, key_len);
+    }
+    return removed_key;
+}
+
+static sentry_value_t
+data_get_extra(const sentry_scope_data_t *data)
+{
+    return data->extra;
+}
+
+static bool
+data_set_extra(sentry_scope_data_t *data, const char *key, sentry_value_t value)
+{
+    bool did_set = false;
+    DATA_WRITE_LOCK(data)
+    {
+        did_set = sentry_value_set_by_key(data->extra, key, value) == 0;
+    }
+    return did_set;
+}
+
+static bool
+data_set_extra_n(sentry_scope_data_t *data, const char *key, size_t key_len,
+    sentry_value_t value)
+{
+    bool did_set = false;
+    DATA_WRITE_LOCK(data)
+    {
+        did_set
+            = sentry_value_set_by_key_n(data->extra, key, key_len, value) == 0;
+    }
+    return did_set;
+}
+
+static bool
+data_remove_extra(sentry_scope_data_t *data, const char *key)
+{
+    bool removed = false;
+    DATA_WRITE_LOCK(data)
+    {
+        removed = sentry_value_remove_by_key(data->extra, key) == 0;
+    }
+    return removed;
+}
+
+static char *
+data_remove_extra_n(sentry_scope_data_t *data, const char *key, size_t key_len)
+{
+    char *removed_key = NULL;
+    DATA_WRITE_LOCK(data)
+    {
+        removed_key
+            = sentry__value_remove_and_take_key_n(data->extra, key, key_len);
+    }
+    return removed_key;
+}
+
+static sentry_value_t
+data_get_attributes(const sentry_scope_data_t *data)
+{
+    return data->attributes;
+}
+
+static bool
+data_set_attribute_n(sentry_scope_data_t *data, const char *key, size_t key_len,
+    sentry_value_t attribute)
+{
+    bool did_set = false;
+    DATA_WRITE_LOCK(data)
+    {
+        did_set = sentry_value_set_by_key_n(
+                      data->attributes, key, key_len, attribute)
+            == 0;
+    }
+    return did_set;
+}
+
+static void
+data_remove_attribute(sentry_scope_data_t *data, const char *key)
+{
+    DATA_WRITE_LOCK(data) { sentry_value_remove_by_key(data->attributes, key); }
+}
+
+static void
+data_remove_attribute_n(
+    sentry_scope_data_t *data, const char *key, size_t key_len)
+{
+    DATA_WRITE_LOCK(data)
+    {
+        sentry_value_remove_by_key_n(data->attributes, key, key_len);
+    }
+}
+
+static sentry_value_t
+data_get_contexts(const sentry_scope_data_t *data)
+{
+    return data->contexts;
+}
+
+static bool
+data_set_context(
+    sentry_scope_data_t *data, const char *key, sentry_value_t value)
+{
+    bool did_set = false;
+    DATA_WRITE_LOCK(data)
+    {
+        did_set = sentry_value_set_by_key(data->contexts, key, value) == 0;
+    }
+    return did_set;
+}
+
+static bool
+data_set_context_n(sentry_scope_data_t *data, const char *key, size_t key_len,
+    sentry_value_t value)
+{
+    bool did_set = false;
+    DATA_WRITE_LOCK(data)
+    {
+        did_set = sentry_value_set_by_key_n(data->contexts, key, key_len, value)
+            == 0;
+    }
+    return did_set;
+}
+
+static bool
+data_update_context_n(sentry_scope_data_t *data, const char *key,
+    size_t key_len, sentry_value_t value)
+{
+    return data_update_context_by_key_n(data, key, key_len, value);
+}
+
+static bool
+data_remove_context(sentry_scope_data_t *data, const char *key)
+{
+    bool removed = false;
+    DATA_WRITE_LOCK(data)
+    {
+        removed = sentry_value_remove_by_key(data->contexts, key) == 0;
+    }
+    return removed;
+}
+
+static char *
+data_remove_context_n(
+    sentry_scope_data_t *data, const char *key, size_t key_len)
+{
+    char *removed_key = NULL;
+    DATA_WRITE_LOCK(data)
+    {
+        removed_key
+            = sentry__value_remove_and_take_key_n(data->contexts, key, key_len);
+    }
+    return removed_key;
+}
+
+static sentry_value_t
+data_ref_fingerprint(const sentry_scope_data_t *data)
+{
+    sentry_value_t fingerprint = sentry_value_new_null();
+    DATA_READ_LOCK(data)
+    {
+        fingerprint = sentry_value_incref(data->fingerprint);
+    }
+    return fingerprint;
+}
+
+static void
+data_set_fingerprint(sentry_scope_data_t *data, sentry_value_t fingerprint)
+{
+    DATA_WRITE_LOCK(data)
+    {
+        sentry__value_replace(
+            &data->fingerprint, sentry_value_incref(fingerprint));
+    }
+}
+
+static sentry_level_t
+data_get_level(const sentry_scope_data_t *data)
+{
+    sentry_level_t level = SENTRY_LEVEL_ERROR;
+    DATA_READ_LOCK(data) { level = data->level; }
+    return level;
+}
+
+static void
+data_set_level(sentry_scope_data_t *data, sentry_level_t level)
+{
+    DATA_WRITE_LOCK(data) { data->level = level; }
+}
+
+static sentry_attachment_t *
+data_get_attachments(const sentry_scope_data_t *data)
+{
+    return data->attachments;
+}
+
+static sentry_attachment_t *
+data_add_attachment(sentry_scope_data_t *data, sentry_attachment_t *attachment)
+{
+    sentry_attachment_t *added = NULL;
+    DATA_WRITE_LOCK(data)
+    {
+        added = sentry__attachments_add(&data->attachments, attachment);
+    }
+    return added;
+}
+
+static bool
+data_remove_attachment(
+    sentry_scope_data_t *data, sentry_attachment_t *attachment)
+{
+    bool removed = false;
+    DATA_WRITE_LOCK(data)
+    {
+        removed = sentry__attachments_remove(&data->attachments, attachment);
+    }
+    return removed;
+}
+
+static sentry_attachment_t *
+data_take_attachments(sentry_scope_data_t *data)
+{
+    sentry_attachment_t *attachments = NULL;
+    DATA_WRITE_LOCK(data)
+    {
+        attachments = data->attachments;
+        data->attachments = NULL;
+    }
+    return attachments;
+}
+
+static sentry_transaction_t *
+data_get_transaction_object(const sentry_scope_data_t *data)
+{
+    sentry_transaction_t *transaction = NULL;
+    DATA_READ_LOCK(data) { transaction = data->transaction_object; }
+    return transaction;
+}
+
+static bool
+value_has_span_id(sentry_value_t value, const char *span_id)
+{
+    const char *value_span_id
+        = sentry_value_as_string(sentry_value_get_by_key(value, "span_id"));
+    return sentry__string_eq(value_span_id, span_id);
+}
+
+static void
+data_set_transaction_object(
+    sentry_scope_data_t *data, sentry_transaction_t *transaction)
+{
+    sentry__transaction_incref(transaction);
+    DATA_WRITE_LOCK(data)
+    {
+        sentry__span_decref(data->span);
+        data->span = NULL;
+        sentry__transaction_decref(data->transaction_object);
+        data->transaction_object = transaction;
+    }
+}
+
+static bool
+data_remove_transaction_object(
+    sentry_scope_data_t *data, sentry_transaction_t *transaction)
+{
+    bool removed = false;
+    DATA_WRITE_LOCK(data)
+    {
+        if (transaction && data->transaction_object == transaction) {
+            data->transaction_object = NULL;
+            removed = true;
+        }
+    }
+    if (removed) {
+        sentry__transaction_decref(transaction);
+    }
+    return removed;
+}
+
+static bool
+data_remove_transaction_value(
+    sentry_scope_data_t *data, sentry_value_t transaction)
+{
+    const char *span_id = sentry_value_as_string(
+        sentry_value_get_by_key(transaction, "span_id"));
+    sentry_transaction_t *transaction_object = NULL;
+    DATA_WRITE_LOCK(data)
+    {
+        if (data->transaction_object
+            && value_has_span_id(data->transaction_object->inner, span_id)) {
+            transaction_object = data->transaction_object;
+            data->transaction_object = NULL;
+        }
+    }
+    sentry__transaction_decref(transaction_object);
+    return transaction_object != NULL;
+}
+
+static bool
+data_restore_transaction_object(
+    sentry_scope_data_t *data, sentry_transaction_t *transaction)
+{
+    bool restored = false;
+    DATA_WRITE_LOCK(data)
+    {
+        if (!data->transaction_object && transaction) {
+            data->transaction_object = transaction;
+            restored = true;
+        }
+    }
+    return restored;
+}
+
+static sentry_span_t *
+data_get_span(const sentry_scope_data_t *data)
+{
+    sentry_span_t *span = NULL;
+    DATA_READ_LOCK(data) { span = data->span; }
+    return span;
+}
+
+static void
+data_set_span(sentry_scope_data_t *data, sentry_span_t *span)
+{
+    sentry__span_incref(span);
+    DATA_WRITE_LOCK(data)
+    {
+        sentry__transaction_decref(data->transaction_object);
+        data->transaction_object = NULL;
+        sentry__span_decref(data->span);
+        data->span = span;
+    }
+}
+
+static bool
+data_remove_span(sentry_scope_data_t *data, sentry_span_t *span)
+{
+    bool removed = false;
+    DATA_WRITE_LOCK(data)
+    {
+        if (span && data->span == span) {
+            data->span = NULL;
+            removed = true;
+        }
+    }
+    if (removed) {
+        sentry__span_decref(span);
+    }
+    return removed;
+}
+
+static bool
+data_remove_span_value(sentry_scope_data_t *data, sentry_value_t span)
+{
+    const char *span_id
+        = sentry_value_as_string(sentry_value_get_by_key(span, "span_id"));
+    sentry_span_t *scope_span = NULL;
+    DATA_WRITE_LOCK(data)
+    {
+        if (data->span && value_has_span_id(data->span->inner, span_id)) {
+            scope_span = data->span;
+            data->span = NULL;
+        }
+    }
+    sentry__span_decref(scope_span);
+    return scope_span != NULL;
+}
+
+static bool
+data_restore_span(sentry_scope_data_t *data, sentry_span_t *span)
+{
+    bool restored = false;
+    DATA_WRITE_LOCK(data)
+    {
+        if (!data->span && span) {
+            data->span = span;
+            restored = true;
+        }
+    }
+    return restored;
+}
+
+static sentry_value_t
+data_ref_release(const sentry_scope_data_t *data)
+{
+    sentry_value_t release = sentry_value_new_null();
+    DATA_READ_LOCK(data) { release = sentry_value_incref(data->release); }
+    return release;
+}
+
+static void
+data_set_release(sentry_scope_data_t *data, sentry_value_t value)
+{
+    DATA_WRITE_LOCK(data)
+    {
+        sentry__value_replace(&data->release, sentry_value_incref(value));
+        sentry_value_set_by_key(data->dynamic_sampling_context, "release",
+            sentry_value_incref(value));
+    }
+}
+
+static sentry_value_t
+data_ref_environment(const sentry_scope_data_t *data)
+{
+    sentry_value_t environment = sentry_value_new_null();
+    DATA_READ_LOCK(data)
+    {
+        environment = sentry_value_incref(data->environment);
+    }
+    return environment;
+}
+
+static void
+data_set_environment(sentry_scope_data_t *data, sentry_value_t value)
+{
+    DATA_WRITE_LOCK(data)
+    {
+        sentry__value_replace(&data->environment, sentry_value_incref(value));
+        sentry_value_set_by_key(data->dynamic_sampling_context, "environment",
+            sentry_value_incref(value));
+    }
+}
+
+static sentry_value_t
+data_ref_transaction(const sentry_scope_data_t *data)
+{
+    sentry_value_t transaction = sentry_value_new_null();
+    DATA_READ_LOCK(data)
+    {
+        transaction = sentry_value_incref(data->transaction);
+    }
+    return transaction;
+}
+
+static void
+data_set_transaction(sentry_scope_data_t *data, sentry_value_t value,
+    const char *transaction, size_t transaction_len)
+{
+    DATA_WRITE_LOCK(data)
+    {
+        sentry__value_replace(&data->transaction, sentry_value_incref(value));
+        if (data->transaction_object) {
+            sentry_transaction_set_name_n(
+                data->transaction_object, transaction, transaction_len);
+        }
+    }
+}
+
+static void
+data_apply_to_telemetry(const sentry_scope_data_t *data,
+    sentry_value_t telemetry, sentry_value_t attributes)
+{
+    sentry_value_t os_name = sentry_value_new_null();
+    sentry_value_t os_version = sentry_value_new_null();
+
+    DATA_READ_LOCK(data)
+    {
+        sentry__value_merge_objects_shallow(attributes, data->attributes);
+
+        sentry_value_t trace_id = sentry_value_get_by_key(
+            sentry_value_get_by_key(data->propagation_context, "trace"),
+            "trace_id");
+
+        sentry_value_t parent_span_id = sentry_value_new_object();
+        bool has_parent_span = false;
+        if (data->transaction_object) {
+            sentry_value_t span_id = sentry_value_get_by_key(
+                data->transaction_object->inner, "span_id");
+            sentry_value_set_by_key(
+                parent_span_id, "value", sentry_value_incref(span_id));
+            trace_id = sentry_value_get_by_key(
+                data->transaction_object->inner, "trace_id");
+            has_parent_span = true;
+        } else if (data->span) {
+            sentry_value_t span_id
+                = sentry_value_get_by_key(data->span->inner, "span_id");
+            sentry_value_set_by_key(
+                parent_span_id, "value", sentry_value_incref(span_id));
+            trace_id = sentry_value_get_by_key(data->span->inner, "trace_id");
+            has_parent_span = true;
+        }
+        sentry_value_set_by_key(
+            parent_span_id, "type", sentry_value_new_string("string"));
+        if (has_parent_span
+            && sentry_value_is_null(sentry_value_get_by_key(
+                attributes, "sentry.trace.parent_span_id"))) {
+            sentry_value_set_by_key(
+                attributes, "sentry.trace.parent_span_id", parent_span_id);
+        } else {
+            sentry_value_decref(parent_span_id);
+        }
+        if (!sentry_value_is_null(trace_id)
+            && sentry_value_is_null(
+                sentry_value_get_by_key(telemetry, "trace_id"))) {
+            sentry_value_set_by_key(
+                telemetry, "trace_id", sentry_value_incref(trace_id));
+        }
+
+        sentry_value_t os_context
+            = sentry_value_get_by_key(data->contexts, "os");
+        if (!sentry_value_is_null(os_context)) {
+            os_name = sentry_value_incref(
+                sentry_value_get_by_key(os_context, "name"));
+            os_version = sentry_value_incref(
+                sentry_value_get_by_key(os_context, "version"));
+        }
+    }
+
+    if (!sentry_value_is_null(os_name)) {
+        sentry__value_add_attribute(attributes, os_name, "string", "os.name");
+    } else {
+        sentry_value_decref(os_name);
+    }
+    if (!sentry_value_is_null(os_version)) {
+        sentry__value_add_attribute(
+            attributes, os_version, "string", "os.version");
+    } else {
+        sentry_value_decref(os_version);
+    }
+}
+
 static bool
 init_scope(sentry_scope_t *scope, sentry_scope_data_t *data)
 {
@@ -295,10 +1133,7 @@ get_scope(void)
     if (!init_scope(&g_scope, &g_scope_data)) {
         return &g_scope;
     }
-    g_scope.data->user = sentry_value_new_object();
-    sentry_value_set_by_key(
-        g_scope.data->contexts, "os", sentry__get_os_context());
-    g_scope.data->client_sdk = get_client_sdk();
+    init_global_data(g_scope.data);
 
     g_scope_initialized = true;
 
@@ -332,8 +1167,7 @@ sentry__scope_cleanup(void)
     sentry__mutex_lock(&g_lock);
     if (g_scope_initialized) {
         g_scope_initialized = false;
-        cleanup_data(g_scope.data);
-        sentry__rwlock_free(&g_scope.data->rwlock);
+        cleanup_global_data(g_scope.data);
         g_scope.data = NULL;
         cleanup_observers(&g_scope);
     }
@@ -544,22 +1378,11 @@ sentry_local_scope_new(void)
 void
 sentry__scope_apply_options(sentry_scope_t *scope, sentry_options_t *options)
 {
-    if (options->sdk_name) {
-        sentry_value_t sdk_name = sentry_value_new_string(options->sdk_name);
-        sentry_value_set_by_key(scope->data->client_sdk, "name", sdk_name);
-    }
-    sentry_value_freeze(scope->data->client_sdk);
-    generate_propagation_context(scope->data->propagation_context);
+    data_apply_options(scope->data, options);
     sentry__scope_set_release_n(
         scope, options->release, sentry__guarded_strlen(options->release));
     sentry__scope_set_environment_n(scope, options->environment,
         sentry__guarded_strlen(options->environment));
-    scope->data->attachments = options->attachments;
-    options->attachments = NULL;
-
-    sentry__ringbuffer_set_max_size(
-        scope->data->breadcrumbs, options->max_breadcrumbs);
-
     sentry__scope_update_dsc(scope, options);
 }
 
@@ -579,25 +1402,7 @@ sentry_scope_clear(sentry_scope_t *scope)
     }
     sentry__scope_end_notify(scope);
 
-    // Keep the propagation and dynamic sampling contexts across clears so
-    // telemetry captured afterwards continues on the same trace.
-    sentry_scope_data_t *data = scope->data;
-    sentry__rwlock_write_lock(&data->rwlock);
-    bool trace_managed = data->trace_managed;
-    sentry_value_t propagation_context
-        = sentry_value_incref(data->propagation_context);
-    sentry_value_t dynamic_sampling_context
-        = sentry_value_incref(data->dynamic_sampling_context);
-
-    cleanup_data(data);
-    init_data(data);
-
-    sentry_value_decref(data->propagation_context);
-    sentry_value_decref(data->dynamic_sampling_context);
-    data->propagation_context = propagation_context;
-    data->dynamic_sampling_context = dynamic_sampling_context;
-    data->trace_managed = trace_managed;
-    sentry__rwlock_write_unlock(&data->rwlock);
+    clear_data(scope->data);
 }
 
 sentry_scope_t *
@@ -612,46 +1417,10 @@ sentry_scope_clone(const sentry_scope_t *scope)
         return NULL;
     }
 
-    clone->data = SENTRY_MAKE(sentry_scope_data_t);
+    clone->data = clone_data(scope->data);
     if (!clone->data) {
         sentry_free(clone);
         return NULL;
-    }
-    sentry__rwlock_init(&clone->data->rwlock);
-
-    SCOPE_READ_LOCK(scope)
-    {
-        clone->data->release = sentry__value_clone(scope->data->release);
-        clone->data->environment
-            = sentry__value_clone(scope->data->environment);
-        clone->data->transaction
-            = sentry__value_clone(scope->data->transaction);
-        clone->data->fingerprint
-            = sentry__value_clone(scope->data->fingerprint);
-        clone->data->user = sentry__value_clone(scope->data->user);
-        clone->data->tags = sentry__value_clone(scope->data->tags);
-        clone->data->extra = sentry__value_clone(scope->data->extra);
-        clone->data->contexts = sentry__value_clone(scope->data->contexts);
-        clone->data->attributes = sentry__value_clone(scope->data->attributes);
-        clone->data->propagation_context
-            = sentry__value_clone(scope->data->propagation_context);
-        clone->data->breadcrumbs
-            = sentry__ringbuffer_clone(scope->data->breadcrumbs);
-        clone->data->dynamic_sampling_context
-            = sentry__value_clone(scope->data->dynamic_sampling_context);
-        if (sentry_value_is_frozen(scope->data->dynamic_sampling_context)) {
-            sentry_value_freeze(clone->data->dynamic_sampling_context);
-        }
-        clone->data->level = scope->data->level;
-        clone->data->client_sdk = sentry__value_clone(scope->data->client_sdk);
-        sentry__attachments_extend(
-            &clone->data->attachments, scope->data->attachments);
-
-        clone->data->transaction_object = scope->data->transaction_object;
-        sentry__transaction_incref(clone->data->transaction_object);
-        clone->data->span = scope->data->span;
-        sentry__span_incref(clone->data->span);
-        clone->data->trace_managed = scope->data->trace_managed;
     }
 
     return clone;
@@ -660,88 +1429,56 @@ sentry_scope_clone(const sentry_scope_t *scope)
 sentry_value_t
 sentry__scope_get_propagation_context(const sentry_scope_t *scope)
 {
-    return scope->data->propagation_context;
+    return data_get_propagation_context(scope->data);
 }
 
 sentry_value_t
 sentry__scope_get_trace_context(const sentry_scope_t *scope)
 {
-    return sentry_value_get_by_key(scope->data->propagation_context, "trace");
+    return data_get_trace_context(scope->data);
 }
 
 void
 sentry__scope_set_propagation_context(
     sentry_scope_t *scope, const char *key, sentry_value_t value)
 {
-    sentry_value_set_by_key(scope->data->propagation_context, key, value);
+    data_set_propagation_context(scope->data, key, value);
 }
 
 void
 sentry__scope_regenerate_propagation_context(sentry_scope_t *scope)
 {
-    generate_propagation_context(scope->data->propagation_context);
+    data_regenerate_propagation_context(scope->data);
 }
 
 bool
 sentry__scope_is_trace_managed(const sentry_scope_t *scope)
 {
-    bool managed = false;
-    SCOPE_READ_LOCK(scope) { managed = scope->data->trace_managed; }
-    return managed;
+    return data_is_trace_managed(scope->data);
 }
 
 void
 sentry__scope_set_trace_managed(sentry_scope_t *scope, bool managed)
 {
-    SCOPE_WRITE_LOCK(scope) { scope->data->trace_managed = managed; }
+    data_set_trace_managed(scope->data, managed);
 }
 
 sentry_value_t
 sentry__scope_get_dsc(const sentry_scope_t *scope)
 {
-    return scope->data->dynamic_sampling_context;
+    return data_get_dsc(scope->data);
 }
 
 void
 sentry__scope_freeze_dsc(sentry_scope_t *scope, sentry_value_t incoming)
 {
-    sentry_value_decref(scope->data->dynamic_sampling_context);
-    sentry_value_t dsc = sentry_value_new_object();
-    sentry__value_merge_objects(dsc, incoming);
-    sentry_value_freeze(dsc);
-    scope->data->dynamic_sampling_context = dsc;
+    data_freeze_dsc(scope->data, incoming);
 }
 
 void
 sentry__scope_update_dsc(sentry_scope_t *scope, const sentry_options_t *options)
 {
-    sentry_value_decref(scope->data->dynamic_sampling_context);
-    sentry_value_t dsc = sentry_value_new_object();
-
-    if (options->dsn) {
-        sentry_value_set_by_key(dsc, "public_key",
-            sentry_value_new_string(options->dsn->public_key));
-    }
-    const char *org_id = sentry__options_get_org_id(options);
-    if (org_id) {
-        sentry_value_set_by_key(dsc, "org_id", sentry_value_new_string(org_id));
-    }
-    sentry_value_set_by_key(dsc, "sample_rate",
-        sentry_value_new_double(options->traces_sample_rate));
-    if (options->traces_sampler) {
-        sentry_value_set_by_key(
-            dsc, "sample_rate", sentry_value_new_double(1.0));
-    }
-    sentry_value_t sample_rand = sentry_value_get_by_key(
-        sentry_value_get_by_key(scope->data->propagation_context, "trace"),
-        "sample_rand");
-    sentry_value_set_by_key(dsc, "sample_rand", sample_rand);
-    sentry_value_incref(sample_rand);
-    sentry_value_set_by_key(dsc, "release", sentry__scope_ref_release(scope));
-    sentry_value_set_by_key(
-        dsc, "environment", sentry__scope_ref_environment(scope));
-
-    scope->data->dynamic_sampling_context = dsc;
+    data_update_dsc(scope->data, options);
 }
 
 #if !defined(SENTRY_PLATFORM_NX)
@@ -847,25 +1584,28 @@ sentry__symbolize_stacktrace(sentry_value_t stacktrace)
 }
 #endif
 
+#ifdef SENTRY_UNITTEST
 static sentry_value_t
-get_span_or_transaction(const sentry_scope_t *scope)
+data_get_span_or_transaction(const sentry_scope_data_t *data)
 {
-    if (scope->data->span) {
-        return scope->data->span->inner;
-    } else if (scope->data->transaction_object) {
-        return scope->data->transaction_object->inner;
-    } else {
-        return sentry_value_new_null();
+    sentry_value_t value = sentry_value_new_null();
+    DATA_READ_LOCK(data)
+    {
+        if (data->span) {
+            value = data->span->inner;
+        } else if (data->transaction_object) {
+            value = data->transaction_object->inner;
+        }
     }
+    return value;
 }
 
-#ifdef SENTRY_UNITTEST
 sentry_value_t
 sentry__scope_get_span_or_transaction(void)
 {
     sentry_value_t result = sentry_value_new_null();
     SENTRY_WITH_SCOPE (scope) {
-        result = get_span_or_transaction(scope);
+        result = data_get_span_or_transaction(scope->data);
     }
     return result;
 }
@@ -956,35 +1696,14 @@ sentry__scope_apply_to_event(const sentry_scope_t *scope,
     PLACE_STRING_VALUE("transaction", transaction);
     sentry_value_decref(transaction);
 
-    PLACE_VALUE("sdk", scope->data->client_sdk);
+    sentry_value_t client_sdk = data_ref_client_sdk(scope->data);
+    PLACE_VALUE("sdk", client_sdk);
+    sentry_value_decref(client_sdk);
 
-    SCOPE_READ_LOCK(scope)
-    {
-        sentry_value_t event_tags = sentry_value_get_by_key(event, "tags");
-        if (sentry_value_is_null(event_tags)) {
-            if (!sentry_value_is_null(scope->data->tags)) {
-                PLACE_CLONED_VALUE("tags", scope->data->tags);
-            }
-        } else {
-            sentry__value_merge_objects(event_tags, scope->data->tags);
-        }
-
-        sentry_value_t event_extra = sentry_value_get_by_key(event, "extra");
-        if (sentry_value_is_null(event_extra)) {
-            if (!sentry_value_is_null(scope->data->extra)) {
-                PLACE_CLONED_VALUE("extra", scope->data->extra);
-            }
-        } else {
-            sentry__value_merge_objects(event_extra, scope->data->extra);
-        }
-    }
+    data_apply_tags_and_extra(scope->data, event);
 
     bool is_transaction = sentry__event_is_transaction(event);
-    sentry_value_t contexts = sentry_value_new_null();
-    SCOPE_READ_LOCK(scope)
-    {
-        contexts = sentry__value_clone(scope->data->contexts);
-    }
+    sentry_value_t contexts = data_clone_contexts(scope->data);
     if (is_transaction && !sentry_value_is_null(contexts)) {
         sentry_value_remove_by_key(contexts, "trace");
     }
@@ -994,7 +1713,7 @@ sentry__scope_apply_to_event(const sentry_scope_t *scope,
     sentry_value_t scoped_txn_or_span = sentry_value_new_null();
     sentry_value_t scope_trace = sentry_value_new_null();
     if (!is_transaction) {
-        scoped_txn_or_span = get_span_or_transaction(scope);
+        scoped_txn_or_span = data_ref_span_or_transaction(scope->data);
         scope_trace = sentry__value_get_trace_context(scoped_txn_or_span);
     }
     if (!sentry_value_is_null(scope_trace)) {
@@ -1010,6 +1729,7 @@ sentry__scope_apply_to_event(const sentry_scope_t *scope,
         }
         sentry_value_set_by_key(contexts, "trace", scope_trace);
     }
+    sentry_value_decref(scoped_txn_or_span);
 
     // merge contexts sourced from scope into the event
     sentry_value_t event_contexts = sentry_value_get_by_key(event, "contexts");
@@ -1017,7 +1737,10 @@ sentry__scope_apply_to_event(const sentry_scope_t *scope,
     if (!is_transaction && sentry_value_is_null(scope_trace)
         && sentry_value_is_null(
             sentry_value_get_by_key(event_contexts, "trace"))) {
-        sentry__value_merge_objects(contexts, scope->data->propagation_context);
+        sentry_value_t propagation_context
+            = data_ref_propagation_context(scope->data);
+        sentry__value_merge_objects(contexts, propagation_context);
+        sentry_value_decref(propagation_context);
     }
     if (sentry_value_is_null(event_contexts)) {
         PLACE_VALUE("contexts", contexts);
@@ -1030,7 +1753,7 @@ sentry__scope_apply_to_event(const sentry_scope_t *scope,
         sentry_value_t event_breadcrumbs
             = sentry_value_get_by_key(event, "breadcrumbs");
         sentry_value_t scope_breadcrumbs
-            = sentry__ringbuffer_to_list(scope->data->breadcrumbs);
+            = data_breadcrumbs_to_list(scope->data);
         sentry_value_set_by_key(event, "breadcrumbs",
             sentry__value_merge_breadcrumbs(event_breadcrumbs,
                 scope_breadcrumbs, options->max_breadcrumbs));
@@ -1063,7 +1786,7 @@ sentry__scope_apply_to_event(const sentry_scope_t *scope,
 void
 sentry_scope_add_breadcrumb(sentry_scope_t *scope, sentry_value_t breadcrumb)
 {
-    if (sentry__ringbuffer_append(scope->data->breadcrumbs, breadcrumb) == 0) {
+    if (data_add_breadcrumb(scope->data, breadcrumb)) {
         SENTRY_SCOPE_NOTIFY(scope, add_breadcrumb, breadcrumb);
     }
 }
@@ -1071,38 +1794,32 @@ sentry_scope_add_breadcrumb(sentry_scope_t *scope, sentry_value_t breadcrumb)
 const sentry_ringbuffer_t *
 sentry__scope_get_breadcrumbs(const sentry_scope_t *scope)
 {
-    return scope->data->breadcrumbs;
+    return data_get_breadcrumbs(scope->data);
 }
 
 sentry_value_t
 sentry__scope_ref_user(const sentry_scope_t *scope)
 {
-    sentry_value_t user = sentry_value_new_null();
-    SCOPE_READ_LOCK(scope) { user = sentry_value_incref(scope->data->user); }
-    return user;
+    return data_ref_user(scope->data);
 }
 
 void
 sentry_scope_set_user(sentry_scope_t *scope, sentry_value_t user)
 {
-    SCOPE_WRITE_LOCK(scope)
-    {
-        sentry__value_replace(&scope->data->user, sentry_value_incref(user));
-    }
+    data_set_user(scope->data, user);
     SENTRY_SCOPE_NOTIFY_OWNED(scope, set_user, user);
 }
 
 sentry_value_t
 sentry__scope_get_tags(const sentry_scope_t *scope)
 {
-    return scope->data->tags;
+    return data_get_tags(scope->data);
 }
 
 void
 sentry_scope_set_tag(sentry_scope_t *scope, const char *key, const char *value)
 {
-    if (data_set_by_key(scope->data, &scope->data->tags, key,
-            sentry_value_new_string(value))) {
+    if (data_set_tag(scope->data, key, sentry_value_new_string(value))) {
         SENTRY_SCOPE_NOTIFY(scope, set_tag, key, value);
     }
 }
@@ -1118,8 +1835,8 @@ sentry_scope_set_tag_n(sentry_scope_t *scope, const char *key, size_t key_len,
         return;
     }
 
-    if (data_set_by_key_n(scope->data, &scope->data->tags, key, key_len,
-            sentry_value_incref(tag_value))) {
+    if (data_set_tag_n(
+            scope->data, key, key_len, sentry_value_incref(tag_value))) {
         SENTRY_SCOPE_NOTIFY(
             scope, set_tag, notify_key, sentry_value_as_string(tag_value));
     }
@@ -1130,7 +1847,7 @@ sentry_scope_set_tag_n(sentry_scope_t *scope, const char *key, size_t key_len,
 void
 sentry__scope_remove_tag(sentry_scope_t *scope, const char *key)
 {
-    if (data_remove_by_key(scope->data, &scope->data->tags, key)) {
+    if (data_remove_tag(scope->data, key)) {
         SENTRY_SCOPE_NOTIFY(scope, remove_tag, key);
     }
 }
@@ -1139,8 +1856,7 @@ void
 sentry__scope_remove_tag_n(
     sentry_scope_t *scope, const char *key, size_t key_len)
 {
-    char *k = data_remove_and_take_key_n(
-        scope->data, &scope->data->tags, key, key_len);
+    char *k = data_remove_tag_n(scope->data, key, key_len);
     if (k) {
         SENTRY_SCOPE_NOTIFY(scope, remove_tag, k);
     }
@@ -1150,15 +1866,14 @@ sentry__scope_remove_tag_n(
 sentry_value_t
 sentry__scope_get_extra(const sentry_scope_t *scope)
 {
-    return scope->data->extra;
+    return data_get_extra(scope->data);
 }
 
 void
 sentry_scope_set_extra(
     sentry_scope_t *scope, const char *key, sentry_value_t value)
 {
-    if (data_set_by_key(scope->data, &scope->data->extra, key,
-            sentry_value_incref(value))) {
+    if (data_set_extra(scope->data, key, sentry_value_incref(value))) {
         SENTRY_SCOPE_NOTIFY(scope, set_extra, key, value);
     }
     sentry_value_decref(value);
@@ -1174,8 +1889,8 @@ sentry_scope_set_extra_n(sentry_scope_t *scope, const char *key, size_t key_len,
         return;
     }
 
-    if (data_set_by_key_n(scope->data, &scope->data->extra, key, key_len,
-            sentry_value_incref(value))) {
+    if (data_set_extra_n(
+            scope->data, key, key_len, sentry_value_incref(value))) {
         SENTRY_SCOPE_NOTIFY(scope, set_extra, notify_key, value);
     }
     sentry_free(notify_key);
@@ -1185,7 +1900,7 @@ sentry_scope_set_extra_n(sentry_scope_t *scope, const char *key, size_t key_len,
 void
 sentry__scope_remove_extra(sentry_scope_t *scope, const char *key)
 {
-    if (data_remove_by_key(scope->data, &scope->data->extra, key)) {
+    if (data_remove_extra(scope->data, key)) {
         SENTRY_SCOPE_NOTIFY(scope, remove_extra, key);
     }
 }
@@ -1194,8 +1909,7 @@ void
 sentry__scope_remove_extra_n(
     sentry_scope_t *scope, const char *key, size_t key_len)
 {
-    char *k = data_remove_and_take_key_n(
-        scope->data, &scope->data->extra, key, key_len);
+    char *k = data_remove_extra_n(scope->data, key, key_len);
     if (k) {
         SENTRY_SCOPE_NOTIFY(scope, remove_extra, k);
     }
@@ -1220,40 +1934,39 @@ sentry_scope_set_attribute_n(sentry_scope_t *scope, const char *key,
         sentry_value_decref(attribute);
         return;
     }
-    sentry_value_set_by_key_n(scope->data->attributes, key, key_len, attribute);
+    data_set_attribute_n(scope->data, key, key_len, attribute);
 }
 
 sentry_value_t
 sentry__scope_get_attributes(const sentry_scope_t *scope)
 {
-    return scope->data->attributes;
+    return data_get_attributes(scope->data);
 }
 
 void
 sentry_scope_remove_attribute(sentry_scope_t *scope, const char *key)
 {
-    sentry_value_remove_by_key(scope->data->attributes, key);
+    data_remove_attribute(scope->data, key);
 }
 
 void
 sentry_scope_remove_attribute_n(
     sentry_scope_t *scope, const char *key, size_t key_len)
 {
-    sentry_value_remove_by_key_n(scope->data->attributes, key, key_len);
+    data_remove_attribute_n(scope->data, key, key_len);
 }
 
 sentry_value_t
 sentry__scope_get_contexts(const sentry_scope_t *scope)
 {
-    return scope->data->contexts;
+    return data_get_contexts(scope->data);
 }
 
 void
 sentry_scope_set_context(
     sentry_scope_t *scope, const char *key, sentry_value_t value)
 {
-    if (data_set_by_key(scope->data, &scope->data->contexts, key,
-            sentry_value_incref(value))) {
+    if (data_set_context(scope->data, key, sentry_value_incref(value))) {
         SENTRY_SCOPE_NOTIFY(scope, set_context, key, value);
     }
     sentry_value_decref(value);
@@ -1269,8 +1982,8 @@ sentry_scope_set_context_n(sentry_scope_t *scope, const char *key,
         return;
     }
 
-    if (data_set_by_key_n(scope->data, &scope->data->contexts, key, key_len,
-            sentry_value_incref(value))) {
+    if (data_set_context_n(
+            scope->data, key, key_len, sentry_value_incref(value))) {
         SENTRY_SCOPE_NOTIFY(scope, set_context, notify_key, value);
     }
     sentry_free(notify_key);
@@ -1295,7 +2008,7 @@ sentry_scope_update_context_n(sentry_scope_t *scope, const char *key,
         return;
     }
 
-    if (data_update_context_by_key_n(
+    if (data_update_context_n(
             scope->data, key, key_len, sentry_value_incref(value))) {
         SENTRY_SCOPE_NOTIFY(scope, set_context, notify_key, value);
     }
@@ -1306,7 +2019,7 @@ sentry_scope_update_context_n(sentry_scope_t *scope, const char *key,
 void
 sentry__scope_remove_context(sentry_scope_t *scope, const char *key)
 {
-    if (data_remove_by_key(scope->data, &scope->data->contexts, key)) {
+    if (data_remove_context(scope->data, key)) {
         SENTRY_SCOPE_NOTIFY(scope, remove_context, key);
     }
 }
@@ -1315,8 +2028,7 @@ void
 sentry__scope_remove_context_n(
     sentry_scope_t *scope, const char *key, size_t key_len)
 {
-    char *k = data_remove_and_take_key_n(
-        scope->data, &scope->data->contexts, key, key_len);
+    char *k = data_remove_context_n(scope->data, key, key_len);
     if (k) {
         SENTRY_SCOPE_NOTIFY(scope, remove_context, k);
     }
@@ -1326,12 +2038,7 @@ sentry__scope_remove_context_n(
 sentry_value_t
 sentry__scope_ref_fingerprint(const sentry_scope_t *scope)
 {
-    sentry_value_t fingerprint = sentry_value_new_null();
-    SCOPE_READ_LOCK(scope)
-    {
-        fingerprint = sentry_value_incref(scope->data->fingerprint);
-    }
-    return fingerprint;
+    return data_ref_fingerprint(scope->data);
 }
 
 void
@@ -1397,11 +2104,7 @@ sentry_scope_set_fingerprints(
         return;
     }
 
-    SCOPE_WRITE_LOCK(scope)
-    {
-        sentry__value_replace(
-            &scope->data->fingerprint, sentry_value_incref(fingerprints));
-    }
+    data_set_fingerprint(scope->data, fingerprints);
     SENTRY_SCOPE_NOTIFY_OWNED(scope, set_fingerprint, fingerprints);
 }
 
@@ -1409,33 +2112,27 @@ void
 sentry__scope_remove_fingerprint(sentry_scope_t *scope)
 {
     sentry_value_t fingerprint = sentry_value_new_null();
-    SCOPE_WRITE_LOCK(scope)
-    {
-        sentry__value_replace(
-            &scope->data->fingerprint, sentry_value_incref(fingerprint));
-    }
+    data_set_fingerprint(scope->data, fingerprint);
     SENTRY_SCOPE_NOTIFY_OWNED(scope, set_fingerprint, fingerprint);
 }
 
 sentry_level_t
 sentry__scope_get_level(const sentry_scope_t *scope)
 {
-    sentry_level_t level = SENTRY_LEVEL_ERROR;
-    SCOPE_READ_LOCK(scope) { level = scope->data->level; }
-    return level;
+    return data_get_level(scope->data);
 }
 
 void
 sentry_scope_set_level(sentry_scope_t *scope, sentry_level_t level)
 {
-    SCOPE_WRITE_LOCK(scope) { scope->data->level = level; }
+    data_set_level(scope->data, level);
     SENTRY_SCOPE_NOTIFY(scope, set_level, level);
 }
 
 sentry_attachment_t *
 sentry__scope_get_attachments(const sentry_scope_t *scope)
 {
-    return scope->data->attachments;
+    return data_get_attachments(scope->data);
 }
 
 sentry_attachment_t *
@@ -1446,8 +2143,7 @@ sentry__scope_add_attachment(
         return NULL;
     }
 
-    sentry_attachment_t *added
-        = sentry__attachments_add(&scope->data->attachments, attachment);
+    sentry_attachment_t *added = data_add_attachment(scope->data, attachment);
     if (added == attachment) {
         SENTRY_SCOPE_NOTIFY(scope, add_attachment, attachment);
     }
@@ -1458,149 +2154,83 @@ bool
 sentry__scope_remove_attachment(
     sentry_scope_t *scope, sentry_attachment_t *attachment)
 {
-    return sentry__attachments_remove(&scope->data->attachments, attachment);
+    return data_remove_attachment(scope->data, attachment);
 }
 
 sentry_attachment_t *
 sentry__scope_take_attachments(sentry_scope_t *scope)
 {
-    sentry_attachment_t *attachments = scope->data->attachments;
-    scope->data->attachments = NULL;
-    return attachments;
+    return data_take_attachments(scope->data);
 }
 
 sentry_transaction_t *
 sentry__scope_get_transaction_object(const sentry_scope_t *scope)
 {
-    return scope->data->transaction_object;
-}
-
-static bool
-value_has_span_id(sentry_value_t value, const char *span_id)
-{
-    const char *value_span_id
-        = sentry_value_as_string(sentry_value_get_by_key(value, "span_id"));
-    return sentry__string_eq(value_span_id, span_id);
+    return data_get_transaction_object(scope->data);
 }
 
 void
 sentry__scope_set_transaction_object(
     sentry_scope_t *scope, sentry_transaction_t *transaction)
 {
-    sentry__transaction_incref(transaction);
-    sentry__span_decref(scope->data->span);
-    scope->data->span = NULL;
-    sentry__transaction_decref(scope->data->transaction_object);
-    scope->data->transaction_object = transaction;
+    data_set_transaction_object(scope->data, transaction);
 }
 
 bool
 sentry__scope_remove_transaction_object(
     sentry_scope_t *scope, sentry_transaction_t *transaction)
 {
-    if (!transaction || scope->data->transaction_object != transaction) {
-        return false;
-    }
-
-    scope->data->transaction_object = NULL;
-    sentry__transaction_decref(transaction);
-    return true;
+    return data_remove_transaction_object(scope->data, transaction);
 }
 
 bool
 sentry__scope_remove_transaction_value(
     sentry_scope_t *scope, sentry_value_t transaction)
 {
-    const char *span_id = sentry_value_as_string(
-        sentry_value_get_by_key(transaction, "span_id"));
-    if (!scope->data->transaction_object
-        || !value_has_span_id(
-            scope->data->transaction_object->inner, span_id)) {
-        return false;
-    }
-
-    sentry_transaction_t *transaction_object = scope->data->transaction_object;
-    scope->data->transaction_object = NULL;
-    sentry__transaction_decref(transaction_object);
-    return true;
+    return data_remove_transaction_value(scope->data, transaction);
 }
 
 bool
 sentry__scope_restore_transaction_object(
     sentry_scope_t *scope, sentry_transaction_t *transaction)
 {
-    if (scope->data->transaction_object || !transaction) {
-        return false;
-    }
-
-    scope->data->transaction_object = transaction;
-    return true;
+    return data_restore_transaction_object(scope->data, transaction);
 }
 
 sentry_span_t *
 sentry__scope_get_span(const sentry_scope_t *scope)
 {
-    return scope->data->span;
+    return data_get_span(scope->data);
 }
 
 void
 sentry__scope_set_span(sentry_scope_t *scope, sentry_span_t *span)
 {
-    sentry__span_incref(span);
-    sentry__transaction_decref(scope->data->transaction_object);
-    scope->data->transaction_object = NULL;
-    sentry__span_decref(scope->data->span);
-    scope->data->span = span;
+    data_set_span(scope->data, span);
 }
 
 bool
 sentry__scope_remove_span(sentry_scope_t *scope, sentry_span_t *span)
 {
-    if (!span || scope->data->span != span) {
-        return false;
-    }
-
-    scope->data->span = NULL;
-    sentry__span_decref(span);
-    return true;
+    return data_remove_span(scope->data, span);
 }
 
 bool
 sentry__scope_remove_span_value(sentry_scope_t *scope, sentry_value_t span)
 {
-    const char *span_id
-        = sentry_value_as_string(sentry_value_get_by_key(span, "span_id"));
-    if (!scope->data->span
-        || !value_has_span_id(scope->data->span->inner, span_id)) {
-        return false;
-    }
-
-    sentry_span_t *scope_span = scope->data->span;
-    scope->data->span = NULL;
-    sentry__span_decref(scope_span);
-    return true;
+    return data_remove_span_value(scope->data, span);
 }
 
 bool
 sentry__scope_restore_span(sentry_scope_t *scope, sentry_span_t *span)
 {
-    if (scope->data->span || !span) {
-        return false;
-    }
-
-    scope->data->span = span;
-    return true;
+    return data_restore_span(scope->data, span);
 }
 
 sentry_value_t
 sentry__scope_ref_release(const sentry_scope_t *scope)
 {
-    sentry_value_t release = sentry_value_new_null();
-    SCOPE_READ_LOCK(scope)
-    {
-        release = sentry_value_incref(scope->data->release);
-    }
-    return release;
+    return data_ref_release(scope->data);
 }
 
 void
@@ -1608,25 +2238,14 @@ sentry__scope_set_release_n(
     sentry_scope_t *scope, const char *release, size_t release_len)
 {
     sentry_value_t value = sentry_value_new_string_n(release, release_len);
-    SCOPE_WRITE_LOCK(scope)
-    {
-        sentry__value_replace(
-            &scope->data->release, sentry_value_incref(value));
-        sentry_value_set_by_key(scope->data->dynamic_sampling_context,
-            "release", sentry_value_incref(value));
-    }
+    data_set_release(scope->data, value);
     SENTRY_SCOPE_NOTIFY_OWNED(scope, set_release, value);
 }
 
 sentry_value_t
 sentry__scope_ref_environment(const sentry_scope_t *scope)
 {
-    sentry_value_t environment = sentry_value_new_null();
-    SCOPE_READ_LOCK(scope)
-    {
-        environment = sentry_value_incref(scope->data->environment);
-    }
-    return environment;
+    return data_ref_environment(scope->data);
 }
 
 void
@@ -1635,25 +2254,14 @@ sentry__scope_set_environment_n(
 {
     sentry_value_t value
         = sentry_value_new_string_n(environment, environment_len);
-    SCOPE_WRITE_LOCK(scope)
-    {
-        sentry__value_replace(
-            &scope->data->environment, sentry_value_incref(value));
-        sentry_value_set_by_key(scope->data->dynamic_sampling_context,
-            "environment", sentry_value_incref(value));
-    }
+    data_set_environment(scope->data, value);
     SENTRY_SCOPE_NOTIFY_OWNED(scope, set_environment, value);
 }
 
 sentry_value_t
 sentry__scope_ref_transaction(const sentry_scope_t *scope)
 {
-    sentry_value_t transaction = sentry_value_new_null();
-    SCOPE_READ_LOCK(scope)
-    {
-        transaction = sentry_value_incref(scope->data->transaction);
-    }
-    return transaction;
+    return data_ref_transaction(scope->data);
 }
 
 void
@@ -1662,15 +2270,7 @@ sentry__scope_set_transaction_n(
 {
     sentry_value_t value
         = sentry_value_new_string_n(transaction, transaction_len);
-    SCOPE_WRITE_LOCK(scope)
-    {
-        sentry__value_replace(
-            &scope->data->transaction, sentry_value_incref(value));
-        if (scope->data->transaction_object) {
-            sentry_transaction_set_name_n(
-                scope->data->transaction_object, transaction, transaction_len);
-        }
-    }
+    data_set_transaction(scope->data, value, transaction, transaction_len);
     SENTRY_SCOPE_NOTIFY_OWNED(scope, set_transaction, value);
 }
 
@@ -1745,45 +2345,7 @@ void
 sentry__scope_apply_to_telemetry(const sentry_scope_t *scope,
     sentry_value_t telemetry, sentry_value_t attributes)
 {
-    sentry__value_merge_objects_shallow(attributes, scope->data->attributes);
-
-    // a span on the scope MUST take precedence over the propagation context
-    sentry_value_t trace_id = sentry_value_get_by_key(
-        sentry_value_get_by_key(scope->data->propagation_context, "trace"),
-        "trace_id");
-
-    sentry_value_t parent_span_id = sentry_value_new_object();
-    if (scope->data->transaction_object) {
-        sentry_value_t span_id = sentry_value_get_by_key(
-            scope->data->transaction_object->inner, "span_id");
-        sentry_value_incref(span_id);
-        sentry_value_set_by_key(parent_span_id, "value", span_id);
-        trace_id = sentry_value_get_by_key(
-            scope->data->transaction_object->inner, "trace_id");
-    } else if (scope->data->span) {
-        sentry_value_t span_id
-            = sentry_value_get_by_key(scope->data->span->inner, "span_id");
-        sentry_value_incref(span_id);
-        sentry_value_set_by_key(parent_span_id, "value", span_id);
-        trace_id
-            = sentry_value_get_by_key(scope->data->span->inner, "trace_id");
-    }
-    sentry_value_set_by_key(
-        parent_span_id, "type", sentry_value_new_string("string"));
-    if ((scope->data->transaction_object || scope->data->span)
-        && sentry_value_is_null(sentry_value_get_by_key(
-            attributes, "sentry.trace.parent_span_id"))) {
-        sentry_value_set_by_key(
-            attributes, "sentry.trace.parent_span_id", parent_span_id);
-    } else {
-        sentry_value_decref(parent_span_id);
-    }
-    if (!sentry_value_is_null(trace_id)
-        && sentry_value_is_null(
-            sentry_value_get_by_key(telemetry, "trace_id"))) {
-        sentry_value_incref(trace_id);
-        sentry_value_set_by_key(telemetry, "trace_id", trace_id);
-    }
+    data_apply_to_telemetry(scope->data, telemetry, attributes);
 
     sentry_value_t user = sentry__scope_ref_user(scope);
     if (!sentry_value_is_null(user)) {
@@ -1811,30 +2373,6 @@ sentry__scope_apply_to_telemetry(const sentry_scope_t *scope,
     }
     sentry_value_decref(user);
 
-    sentry_value_t os_name = sentry_value_new_null();
-    sentry_value_t os_version = sentry_value_new_null();
-    SCOPE_READ_LOCK(scope)
-    {
-        sentry_value_t os_context
-            = sentry_value_get_by_key(scope->data->contexts, "os");
-        if (!sentry_value_is_null(os_context)) {
-            os_name = sentry_value_incref(
-                sentry_value_get_by_key(os_context, "name"));
-            os_version = sentry_value_incref(
-                sentry_value_get_by_key(os_context, "version"));
-        }
-    }
-    if (!sentry_value_is_null(os_name)) {
-        sentry__value_add_attribute(attributes, os_name, "string", "os.name");
-    } else {
-        sentry_value_decref(os_name);
-    }
-    if (!sentry_value_is_null(os_version)) {
-        sentry__value_add_attribute(
-            attributes, os_version, "string", "os.version");
-    } else {
-        sentry_value_decref(os_version);
-    }
     sentry_value_t environment = sentry__scope_ref_environment(scope);
     if (!sentry_value_is_null(environment)) {
         sentry__value_add_attribute(attributes,
