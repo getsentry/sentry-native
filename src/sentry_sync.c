@@ -146,9 +146,7 @@ threadpool_task_free(sentry_threadpool_task_t *task)
 static void
 threadpool_wake_all(sentry_threadpool_t *pool)
 {
-    for (size_t i = 0; i < pool->started_threads; i++) {
-        sentry__cond_wake(&pool->work_signal);
-    }
+    sentry__cond_wake_all(&pool->work_signal);
 }
 
 static bool
