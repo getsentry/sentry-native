@@ -1,5 +1,4 @@
 import os
-import shutil
 import subprocess
 import sys
 import time
@@ -24,7 +23,7 @@ from .conditions import has_crashpad, has_oom
 from .proxy import (
     setup_proxy_env_vars,
     cleanup_proxy_env_vars,
-    start_mitmdump,
+    start_proxy,
     proxy_test_finally,
 )
 from .assertions import (
@@ -66,7 +65,7 @@ def test_crashpad_capture(cmake, httpserver):
 
 def _setup_crashpad_proxy_test(cmake, httpserver, proxy):
     if proxy:
-        proxy_process, port = start_mitmdump(proxy)
+        proxy_process, port = start_proxy(proxy)
     else:
         proxy_process, port = None, None
 
@@ -81,9 +80,6 @@ def _setup_crashpad_proxy_test(cmake, httpserver, proxy):
 
 
 def test_crashpad_crash_proxy_env(cmake, httpserver):
-    if not shutil.which("mitmdump"):
-        pytest.skip("mitmdump is not installed")
-
     proxy_process = None  # store the proxy process to terminate it later
     try:
         env, proxy_process, tmp_path, port = _setup_crashpad_proxy_test(
@@ -108,9 +104,6 @@ def test_crashpad_crash_proxy_env(cmake, httpserver):
 
 
 def test_crashpad_crash_proxy_env_port_incorrect(cmake, httpserver):
-    if not shutil.which("mitmdump"):
-        pytest.skip("mitmdump is not installed")
-
     proxy_process = None  # store the proxy process to terminate it later
     try:
         env, proxy_process, tmp_path, port = _setup_crashpad_proxy_test(
@@ -135,9 +128,6 @@ def test_crashpad_crash_proxy_env_port_incorrect(cmake, httpserver):
 
 
 def test_crashpad_proxy_set_empty(cmake, httpserver):
-    if not shutil.which("mitmdump"):
-        pytest.skip("mitmdump is not installed")
-
     proxy_process = None  # store the proxy process to terminate it later
     try:
         env, proxy_process, tmp_path, port = _setup_crashpad_proxy_test(
@@ -165,9 +155,6 @@ def test_crashpad_proxy_set_empty(cmake, httpserver):
 
 
 def test_crashpad_proxy_https_not_http(cmake, httpserver):
-    if not shutil.which("mitmdump"):
-        pytest.skip("mitmdump is not installed")
-
     proxy_process = None  # store the proxy process to terminate it later
     # we start the proxy but expect it to remain unused (dsn is http, so shouldn't use https proxy)
     try:
@@ -207,9 +194,6 @@ def test_crashpad_proxy_https_not_http(cmake, httpserver):
 )
 @pytest.mark.parametrize("proxy_running", [True, False])
 def test_crashpad_crash_proxy(cmake, httpserver, run_args, proxy_running):
-    if not shutil.which("mitmdump"):
-        pytest.skip("mitmdump is not installed")
-
     proxy_process = None  # store the proxy process to terminate it later
     expected_logsize = 0
 
