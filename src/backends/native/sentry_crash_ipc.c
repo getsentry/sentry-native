@@ -152,11 +152,7 @@ sentry__crash_ipc_init_app(sem_t *init_sem)
 
     // Initialize shared memory only if newly created
     if (!shm_exists) {
-        memset(ipc->shmem, 0, SENTRY_CRASH_SHM_SIZE);
-        ipc->shmem->magic = SENTRY_CRASH_MAGIC;
-        ipc->shmem->version = SENTRY_CRASH_VERSION;
-        sentry__atomic_store(&ipc->shmem->state, SENTRY_CRASH_STATE_READY);
-        sentry__atomic_store(&ipc->shmem->sequence, 0);
+        sentry__crash_context_init(ipc->shmem);
     }
 
     // Release semaphore after initialization
@@ -450,11 +446,7 @@ sentry__crash_ipc_init_app(sentry_mutex_t *init_mutex)
     }
 
     if (!shm_exists) {
-        memset(ipc->shmem, 0, SENTRY_CRASH_SHM_SIZE);
-        ipc->shmem->magic = SENTRY_CRASH_MAGIC;
-        ipc->shmem->version = SENTRY_CRASH_VERSION;
-        sentry__atomic_store(&ipc->shmem->state, SENTRY_CRASH_STATE_READY);
-        sentry__atomic_store(&ipc->shmem->sequence, 0);
+        sentry__crash_context_init(ipc->shmem);
     }
 
     if (ipc->init_mutex) {
@@ -707,11 +699,7 @@ sentry__crash_ipc_init_app(HANDLE init_mutex)
 
     // Initialize shared memory only if newly created
     if (!shm_exists) {
-        memset(ipc->shmem, 0, SENTRY_CRASH_SHM_SIZE);
-        ipc->shmem->magic = SENTRY_CRASH_MAGIC;
-        ipc->shmem->version = SENTRY_CRASH_VERSION;
-        sentry__atomic_store(&ipc->shmem->state, SENTRY_CRASH_STATE_READY);
-        sentry__atomic_store(&ipc->shmem->sequence, 0);
+        sentry__crash_context_init(ipc->shmem);
     }
 
     // Release mutex after initialization
