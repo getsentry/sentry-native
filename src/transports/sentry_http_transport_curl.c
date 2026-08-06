@@ -131,8 +131,8 @@ curl_load(void)
     }
     if (!g_curl.handle) {
         const char *error = dlerror();
-        SENTRY_WARNF("failed to load %s: %s", libname,
-            error ? error : "library not found");
+        SENTRY_WARNF(
+            "failed to load libcurl: %s", error ? error : "library not found");
         return 1;
     }
 
