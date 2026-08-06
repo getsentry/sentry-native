@@ -385,6 +385,11 @@ sentry__threadpool_shutdown(sentry_threadpool_t *pool)
     }
 
     sentry__mutex_lock(&pool->lock);
+    if (is_pooled_thread(pool)) {
+        sentry__mutex_unlock(&pool->lock);
+        SENTRY_WARN("cannot shut down thread pool from a pooled thread");
+        return;
+    }
     if (pool->stopping) {
         while (sentry__atomic_fetch(&pool->running)) {
             sentry__cond_wait(&pool->state_signal, &pool->lock);
@@ -418,6 +423,15 @@ sentry__threadpool_free(sentry_threadpool_t *pool)
 {
     if (!pool) {
         return;
+    }
+    if (sentry__atomic_fetch(&pool->running)) {
+        sentry__mutex_lock(&pool->lock);
+        if (is_pooled_thread(pool)) {
+            sentry__mutex_unlock(&pool->lock);
+            SENTRY_WARN("cannot free thread pool from a pooled thread");
+            return;
+        }
+        sentry__mutex_unlock(&pool->lock);
     }
     sentry__threadpool_shutdown(pool);
     sentry_threadpool_task_t *task = pool->first_task;

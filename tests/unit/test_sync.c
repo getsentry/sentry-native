@@ -864,22 +864,45 @@ SENTRY_TEST(threadpool_commit_reentry)
     sentry__mutex_free(&state.lock);
 }
 
-struct callback_flush_state {
+struct callback_pool_state {
     sentry_threadpool_t *pool;
-    volatile long calls;
+    volatile long flush_calls;
+    volatile long shutdown_calls;
+    volatile long free_calls;
 };
 
 static void
 callback_flush(void *data)
 {
-    struct callback_flush_state *state = data;
+    struct callback_pool_state *state = data;
     sentry__threadpool_flush(state->pool);
-    sentry__atomic_fetch_and_add(&state->calls, 1);
+    sentry__atomic_fetch_and_add(&state->flush_calls, 1);
 }
 
-SENTRY_TEST(threadpool_callback_flush)
+static void
+callback_shutdown(void *data)
 {
-    struct callback_flush_state state = { 0 };
+    struct callback_pool_state *state = data;
+    sentry__threadpool_shutdown(state->pool);
+    sentry__atomic_fetch_and_add(&state->shutdown_calls, 1);
+}
+
+static void
+threadpool_noop_exec(void *UNUSED(data))
+{
+}
+
+static void
+callback_free(void *data)
+{
+    struct callback_pool_state *state = data;
+    sentry__threadpool_free(state->pool);
+    sentry__atomic_fetch_and_add(&state->free_calls, 1);
+}
+
+SENTRY_TEST(threadpool_guard)
+{
+    struct callback_pool_state state = { 0 };
     sentry_threadpool_t *pool = sentry__threadpool_new(1);
     TEST_ASSERT(!!pool);
     state.pool = pool;
@@ -887,10 +910,18 @@ SENTRY_TEST(threadpool_callback_flush)
     TEST_ASSERT(sentry__threadpool_submit(pool, callback_flush, callback_flush,
                     callback_flush, &state)
         == 0);
+    TEST_ASSERT(sentry__threadpool_submit(
+                    pool, threadpool_noop_exec, callback_shutdown, NULL, &state)
+        == 0);
+    TEST_ASSERT(sentry__threadpool_submit(
+                    pool, threadpool_noop_exec, callback_free, NULL, &state)
+        == 0);
 
     sentry__threadpool_flush(pool);
 
-    TEST_CHECK_INT_EQUAL(sentry__atomic_fetch(&state.calls), 3);
+    TEST_CHECK_INT_EQUAL(sentry__atomic_fetch(&state.flush_calls), 3);
+    TEST_CHECK_INT_EQUAL(sentry__atomic_fetch(&state.shutdown_calls), 1);
+    TEST_CHECK_INT_EQUAL(sentry__atomic_fetch(&state.free_calls), 1);
 
     sentry__threadpool_shutdown(pool);
     sentry__threadpool_free(pool);
