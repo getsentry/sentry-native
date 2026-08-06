@@ -1,7 +1,6 @@
 #include "sentry_sync.h"
 #include "sentry_alloc.h"
 #include "sentry_core.h"
-#include "sentry_cpu_relax.h"
 #include "sentry_string.h"
 #include "sentry_utils.h"
 #include <stdio.h>
