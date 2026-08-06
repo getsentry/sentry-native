@@ -14,6 +14,7 @@
 - `sentry_attachment_set_filename`, `sentry_attachment_set_type`, and `sentry_attachment_set_content_type` now flush the scope, so changes applied after `sentry_attach_file`/`sentry_attach_bytes` also apply to hard-crash events instead of only to normal events. ([#1934](https://github.com/getsentry/sentry-native/pull/1934))
 - Crashpad: fix a crash when calling `sentry_init` before C++ dynamic initializers have run. ([#1930](https://github.com/getsentry/sentry-native/issues/1930), [mini_chromium#8](https://github.com/getsentry/mini_chromium/pull/8))
 - Reduce the size of native-generated minidumps on Windows ([#1929](https://github.com/getsentry/sentry-native/pull/1929))
+- Native/Linux: improve startup time by avoiding zeroing a large shmem module array during crash context initialization. ([#1966](https://github.com/getsentry/sentry-native/pull/1966))
 
 ## 0.16.1
 
