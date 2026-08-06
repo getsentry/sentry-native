@@ -146,7 +146,7 @@ void sentry__scope_set_fingerprint_nva(sentry_scope_t *scope,
     const char *fingerprint, size_t fingerprint_len, va_list va);
 sentry_value_t sentry__scope_ref_user(const sentry_scope_t *scope);
 sentry_level_t sentry__scope_get_level(const sentry_scope_t *scope);
-sentry_value_t sentry__scope_get_client_sdk(const sentry_scope_t *scope);
+sentry_value_t sentry__scope_ref_client_sdk(const sentry_scope_t *scope);
 
 sentry_value_t sentry__scope_get_attachments(const sentry_scope_t *scope);
 sentry_value_t sentry__scope_add_attachment(

@@ -424,9 +424,9 @@ SENTRY_TEST(client_sdk_integrations)
     sentry_init(options);
 
     SENTRY_WITH_SCOPE (scope) {
+        sentry_value_t client_sdk = sentry__scope_ref_client_sdk(scope);
         sentry_value_t integrations
-            = sentry_value_get_by_key(
-                sentry__scope_get_client_sdk(scope), "integrations");
+            = sentry_value_get_by_key(client_sdk, "integrations");
         size_t integration_count = sentry_value_get_length(integrations);
         TEST_CHECK(integration_count > 0);
         TEST_CHECK_STRING_EQUAL(
@@ -450,6 +450,7 @@ SENTRY_TEST(client_sdk_integrations)
                 sentry_value_get_by_index(integrations, integration_index)),
             "qt");
 #endif
+        sentry_value_decref(client_sdk);
     }
 
     sentry_close();
