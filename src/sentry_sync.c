@@ -301,6 +301,7 @@ sentry__threadpool_start(sentry_threadpool_t *pool)
                 sentry__thread_free(&pool->threads[j]);
             }
             pool->started_threads = 0;
+            pool->index = 0;
             sentry__atomic_store(&pool->running, 0);
             sentry__cond_wake_all(&pool->state_signal);
             sentry__mutex_unlock(&pool->lock);
@@ -406,8 +407,8 @@ sentry__threadpool_shutdown(sentry_threadpool_t *pool)
         sentry__thread_free(&pool->threads[i]);
     }
     pool->started_threads = 0;
-    sentry__atomic_store(&pool->running, 0);
     pool->index = 0;
+    sentry__atomic_store(&pool->running, 0);
     sentry__cond_wake_all(&pool->state_signal);
     sentry__mutex_unlock(&pool->lock);
 }
