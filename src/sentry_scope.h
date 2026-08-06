@@ -50,40 +50,13 @@ typedef struct sentry_scope_observer_s {
     void (*remove_attachment)(void *data, sentry_value_t attachment);
 } sentry_scope_observer_t;
 
+typedef struct sentry_scope_data_s sentry_scope_data_t;
+
 /**
  * This represents the current scope.
  */
 struct sentry_scope_s {
-    sentry_rwlock_t rwlock;
-
-    sentry_value_t release;
-    sentry_value_t environment;
-    sentry_value_t transaction;
-    sentry_value_t fingerprint;
-    sentry_value_t user;
-    sentry_value_t tags;
-    sentry_value_t extra;
-    sentry_value_t attributes;
-    sentry_value_t contexts;
-    sentry_value_t propagation_context;
-    sentry_ringbuffer_t *breadcrumbs;
-    sentry_value_t dynamic_sampling_context;
-    sentry_level_t level;
-    sentry_uuid_t last_event_id;
-    sentry_value_t client_sdk;
-    sentry_value_t attachments;
-
-    // The span attached to this scope, if any.
-    //
-    // Conceptually, every transaction is a span, so it should be possible to
-    // attach spans or transactions to a scope. But sentry_span_t and
-    // sentry_transaction_t are unrelated types in the native SDK, so we need
-    // two distinct pointers. At most one of them should ever be non-null.
-    // Whenever possible, `transaction` should pull its value from the
-    // `name` property nested in transaction_object or span.
-    sentry_transaction_t *transaction_object;
-    sentry_span_t *span;
-    bool trace_managed;
+    sentry_scope_data_t *data;
 
     sentry_scope_observer_t **observers;
     size_t num_observers;
@@ -173,9 +146,14 @@ void sentry__scope_set_fingerprint_nva(sentry_scope_t *scope,
     const char *fingerprint, size_t fingerprint_len, va_list va);
 sentry_value_t sentry__scope_ref_user(const sentry_scope_t *scope);
 sentry_level_t sentry__scope_get_level(const sentry_scope_t *scope);
+sentry_value_t sentry__scope_get_client_sdk(const sentry_scope_t *scope);
 
+sentry_value_t sentry__scope_get_attachments(const sentry_scope_t *scope);
 sentry_value_t sentry__scope_add_attachment(
     sentry_scope_t *scope, sentry_value_t attachment);
+sentry_value_t sentry__scope_take_attachments(sentry_scope_t *scope);
+sentry_value_t sentry__scope_remove_attachment(
+    sentry_scope_t *scope, const sentry_uuid_t *attachment_id);
 sentry_value_t sentry__scope_get_tags(const sentry_scope_t *scope);
 void sentry__scope_remove_tag(sentry_scope_t *scope, const char *key);
 void sentry__scope_remove_tag_n(

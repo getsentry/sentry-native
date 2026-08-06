@@ -708,9 +708,11 @@ sentry__prepare_event(const sentry_options_t *options, sentry_value_t event,
     }
 
     SENTRY_WITH_SCOPE (scope) {
-        sentry_value_t attachments = scope->attachments;
+        sentry_value_t attachments = sentry__scope_get_attachments(scope);
         if (local_scope
-            && sentry_value_get_length(local_scope->attachments) > 0) {
+            && sentry_value_get_length(
+                   sentry__scope_get_attachments(local_scope))
+                > 0) {
             // all attachments merged from multiple scopes
             sentry__attachments_extend(&all_attachments,
                 sentry__scope_get_attachments(local_scope));
@@ -848,13 +850,15 @@ prepare_user_feedback(const sentry_options_t *options,
         sentry__attachments_extend(&all_attachments, hint->attachments);
     }
     if (local_scope) {
-        sentry__attachments_extend(&all_attachments, local_scope->attachments);
+        sentry__attachments_extend(
+            &all_attachments, sentry__scope_get_attachments(local_scope));
     }
 
     SENTRY_WITH_SCOPE (scope) {
-        sentry_value_t attachments = scope->attachments;
+        sentry_value_t attachments = sentry__scope_get_attachments(scope);
         if (sentry_value_get_length(all_attachments) > 0) {
-            sentry__attachments_extend(&all_attachments, scope->attachments);
+            sentry__attachments_extend(
+                &all_attachments, sentry__scope_get_attachments(scope));
             attachments = all_attachments;
         }
         sentry__envelope_add_attachments(envelope, attachments, options);
@@ -2046,8 +2050,8 @@ sentry_clear_attachments(void)
 {
     SENTRY_WITH_OPTIONS (options) {
         SENTRY_WITH_SCOPE_MUT (scope) {
-            sentry_value_t attachments = scope->attachments;
-            scope->attachments = sentry__attachments_new();
+            sentry_value_t attachments
+                = sentry__scope_take_attachments(scope);
             size_t len = sentry_value_get_length(attachments);
             for (size_t i = 0; i < len; i++) {
                 sentry_value_t attachment
@@ -2073,8 +2077,8 @@ sentry_remove_attachment(sentry_uuid_t attachment_id)
 
     SENTRY_WITH_OPTIONS (options) {
         SENTRY_WITH_SCOPE_MUT (scope) {
-            sentry_value_t removed = sentry__attachments_remove(
-                scope->attachments, &attachment_id);
+            sentry_value_t removed
+                = sentry__scope_remove_attachment(scope, &attachment_id);
             if (!sentry_value_is_null(removed)) {
                 if (options->backend
                     && options->backend->remove_attachment_func) {

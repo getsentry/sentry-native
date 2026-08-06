@@ -17,7 +17,8 @@ static void
 add_scope_attachments(sentry_envelope_t *envelope)
 {
     SENTRY_WITH_SCOPE (scope) {
-        sentry__envelope_add_attachments(envelope, scope->attachments, NULL);
+        sentry__envelope_add_attachments(
+            envelope, sentry__scope_get_attachments(scope), NULL);
     }
 }
 

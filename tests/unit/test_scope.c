@@ -2566,7 +2566,7 @@ SENTRY_TEST(scope_clone_preserves_data)
 
     sentry_scope_t *clone = sentry_scope_clone(scope);
     sentry_value_decref(
-        sentry__attachments_remove(scope->attachments, &attachment_id));
+        sentry__scope_remove_attachment(scope, &attachment_id));
 
     TEST_CHECK_STRING_EQUAL(sentry_value_as_string(sentry_value_get_by_key(
                                 sentry__scope_get_tags(clone), "tag_key")),
@@ -2595,11 +2595,13 @@ SENTRY_TEST(scope_clone_preserves_data)
     TEST_CHECK_INT_EQUAL(scope_breadcrumb_count(clone), 1);
 
     // Attachments are deep-copied into an independent list.
-    TEST_CHECK_INT_EQUAL(sentry_value_get_length(clone->attachments), 1);
-    TEST_CHECK_INT_EQUAL(sentry_value_get_length(scope->attachments), 0);
-    TEST_CHECK(clone->attachments._bits != scope->attachments._bits);
+    sentry_value_t clone_attachments = sentry__scope_get_attachments(clone);
+    sentry_value_t scope_attachments = sentry__scope_get_attachments(scope);
+    TEST_CHECK_INT_EQUAL(sentry_value_get_length(clone_attachments), 1);
+    TEST_CHECK_INT_EQUAL(sentry_value_get_length(scope_attachments), 0);
+    TEST_CHECK(clone_attachments._bits != scope_attachments._bits);
     sentry_value_t clone_attachment
-        = sentry_value_get_by_index(clone->attachments, 0);
+        = sentry_value_get_by_index(clone_attachments, 0);
     TEST_CHECK_STRING_EQUAL(
         sentry__attachment_get_filename(clone_attachment), "file.bin");
     TEST_CHECK_INT_EQUAL(sentry__attachment_get_size(clone_attachment), 7);

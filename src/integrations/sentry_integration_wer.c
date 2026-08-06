@@ -207,12 +207,14 @@ wer_clear(void *data)
         return;
     }
 
-    sentry__value_foreach_key_value(scope->tags, wer_cleanup_tag, wer_data);
+    sentry__value_foreach_key_value(
+        sentry__scope_get_tags(scope), wer_cleanup_tag, wer_data);
 
-    size_t len = sentry_value_get_length(scope->attachments);
+    sentry_value_t attachments = sentry__scope_get_attachments(scope);
+    size_t len = sentry_value_get_length(attachments);
     for (size_t i = 0; i < len; i++) {
         wer_remove_attachment(
-            wer_data, sentry_value_get_by_index(scope->attachments, i));
+            wer_data, sentry_value_get_by_index(attachments, i));
     }
 }
 
@@ -238,10 +240,11 @@ register_wer(
     if (sentry__scope_add_observer(scope, observer)) {
         wer_data->scope = scope;
         wer_data->observer = observer;
-        size_t len = sentry_value_get_length(scope->attachments);
+        sentry_value_t attachments = sentry__scope_get_attachments(scope);
+        size_t len = sentry_value_get_length(attachments);
         for (size_t i = 0; i < len; i++) {
             wer_add_attachment(
-                wer_data, sentry_value_get_by_index(scope->attachments, i));
+                wer_data, sentry_value_get_by_index(attachments, i));
         }
     }
 }
@@ -256,12 +259,14 @@ unregister_wer(
         return;
     }
 
-    sentry__value_foreach_key_value(scope->tags, wer_cleanup_tag, wer_data);
+    sentry__value_foreach_key_value(
+        sentry__scope_get_tags(scope), wer_cleanup_tag, wer_data);
 
-    size_t len = sentry_value_get_length(scope->attachments);
+    sentry_value_t attachments = sentry__scope_get_attachments(scope);
+    size_t len = sentry_value_get_length(attachments);
     for (size_t i = 0; i < len; i++) {
         wer_remove_attachment(
-            wer_data, sentry_value_get_by_index(scope->attachments, i));
+            wer_data, sentry_value_get_by_index(attachments, i));
     }
 
     sentry__scope_remove_observer(scope, wer_data->observer);

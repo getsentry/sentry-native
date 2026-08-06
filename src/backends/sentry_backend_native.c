@@ -753,7 +753,7 @@ native_backend_write_attachments(const sentry_path_t *event_path)
         return;
     }
     SENTRY_WITH_SCOPE (scope) {
-        sentry_value_t attachments = scope->attachments;
+        sentry_value_t attachments = sentry__scope_get_attachments(scope);
         if (sentry_value_get_length(attachments) == 0) {
             continue;
         }

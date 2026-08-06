@@ -425,7 +425,8 @@ SENTRY_TEST(client_sdk_integrations)
 
     SENTRY_WITH_SCOPE (scope) {
         sentry_value_t integrations
-            = sentry_value_get_by_key(scope->client_sdk, "integrations");
+            = sentry_value_get_by_key(
+                sentry__scope_get_client_sdk(scope), "integrations");
         size_t integration_count = sentry_value_get_length(integrations);
         TEST_CHECK(integration_count > 0);
         TEST_CHECK_STRING_EQUAL(
