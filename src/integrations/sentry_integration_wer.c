@@ -207,8 +207,9 @@ wer_clear(void *data)
         return;
     }
 
-    sentry__value_foreach_key_value(
-        sentry__scope_get_tags(scope), wer_cleanup_tag, wer_data);
+    sentry_value_t tags = sentry__scope_ref_tags(scope);
+    sentry__value_foreach_key_value(tags, wer_cleanup_tag, wer_data);
+    sentry_value_decref(tags);
 
     sentry_value_t attachments = sentry__scope_get_attachments(scope);
     size_t len = sentry_value_get_length(attachments);
@@ -259,8 +260,9 @@ unregister_wer(
         return;
     }
 
-    sentry__value_foreach_key_value(
-        sentry__scope_get_tags(scope), wer_cleanup_tag, wer_data);
+    sentry_value_t tags = sentry__scope_ref_tags(scope);
+    sentry__value_foreach_key_value(tags, wer_cleanup_tag, wer_data);
+    sentry_value_decref(tags);
 
     sentry_value_t attachments = sentry__scope_get_attachments(scope);
     size_t len = sentry_value_get_length(attachments);
