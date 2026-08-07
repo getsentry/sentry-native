@@ -10,29 +10,43 @@ typedef struct {
     sentry_stringbuilder_t serialized_envelope;
 } sentry_attachments_testdata_t;
 
+static void
+add_scope_attachments(sentry_envelope_t *envelope)
+{
+    SENTRY_WITH_SCOPE (scope) {
+        sentry_value_t attachments = sentry__scope_ref_attachments(scope);
+        sentry__envelope_add_attachments(envelope, attachments, NULL);
+        sentry_value_decref(attachments);
+    }
+}
+
 SENTRY_TEST(attachment_placeholder)
 {
     SENTRY_TEST_OPTIONS_NEW(options);
 
-    char data[] = "x";
-    sentry_attachment_t attachment = { 0 };
-    attachment.buf = data;
-    attachment.buf_len = SENTRY_LARGE_ATTACHMENT_SIZE;
+    sentry_value_t attachment = { 0 };
+    attachment = sentry_value_new_object();
+    sentry_value_set_by_key(attachment, "bytes",
+        sentry__value_new_string_owned_n(
+            sentry__string_clone("x"), SENTRY_LARGE_ATTACHMENT_SIZE));
 
-    TEST_CHECK(!sentry__attachment_is_placeholder(&attachment, options));
+    TEST_CHECK(!sentry__attachment_is_placeholder(attachment, options));
 
     sentry_options_set_enable_large_attachments(options, 1);
-    attachment.buf_len = SENTRY_LARGE_ATTACHMENT_SIZE - 1;
-    TEST_CHECK(!sentry__attachment_is_placeholder(&attachment, options));
+    sentry_value_set_by_key(attachment, "bytes",
+        sentry__value_new_string_owned_n(
+            sentry__string_clone("x"), SENTRY_LARGE_ATTACHMENT_SIZE - 1));
+    TEST_CHECK(!sentry__attachment_is_placeholder(attachment, options));
 
-    attachment.buf_len = SENTRY_LARGE_ATTACHMENT_SIZE;
-    TEST_CHECK(sentry__attachment_is_placeholder(&attachment, options));
+    sentry_value_set_by_key(attachment, "bytes",
+        sentry__value_new_string_owned_n(
+            sentry__string_clone("x"), SENTRY_LARGE_ATTACHMENT_SIZE));
+    TEST_CHECK(sentry__attachment_is_placeholder(attachment, options));
 
-    sentry_attachment_set_type(&attachment, SENTRY_ATTACHMENT_TYPE_MINIDUMP);
-    TEST_CHECK(sentry__attachment_is_placeholder(&attachment, options));
+    sentry_attachment_set_type(attachment, SENTRY_ATTACHMENT_TYPE_MINIDUMP);
+    TEST_CHECK(sentry__attachment_is_placeholder(attachment, options));
 
-    sentry_free(attachment.type);
-    sentry_free(attachment.content_type);
+    sentry_value_decref(attachment);
     sentry_options_free(options);
 }
 
@@ -127,13 +141,13 @@ SENTRY_TEST(attachments_add_dedupe)
 
     sentry_init(options);
 
-    sentry_attach_file(SENTRY_TEST_PATH_PREFIX ".a.txt");
-    sentry_attach_file(SENTRY_TEST_PATH_PREFIX ".b.txt");
-    sentry_attach_file(SENTRY_TEST_PATH_PREFIX ".c.txt");
+    sentry_value_decref(sentry_attach_file(SENTRY_TEST_PATH_PREFIX ".a.txt"));
+    sentry_value_decref(sentry_attach_file(SENTRY_TEST_PATH_PREFIX ".b.txt"));
+    sentry_value_decref(sentry_attach_file(SENTRY_TEST_PATH_PREFIX ".c.txt"));
 #ifdef SENTRY_PLATFORM_WINDOWS
-    sentry_attach_filew(SENTRY_TEST_PATH_PREFIX L".a.txt");
-    sentry_attach_filew(SENTRY_TEST_PATH_PREFIX L".b.txt");
-    sentry_attach_filew(SENTRY_TEST_PATH_PREFIX L".c.txt");
+    sentry_value_decref(sentry_attach_filew(SENTRY_TEST_PATH_PREFIX L".a.txt"));
+    sentry_value_decref(sentry_attach_filew(SENTRY_TEST_PATH_PREFIX L".b.txt"));
+    sentry_value_decref(sentry_attach_filew(SENTRY_TEST_PATH_PREFIX L".c.txt"));
 #endif
 
     sentry_path_t *path_a
@@ -148,10 +162,7 @@ SENTRY_TEST(attachments_add_dedupe)
     sentry__path_write_buffer(path_c, "ccc", 3);
 
     sentry_envelope_t *envelope = sentry__envelope_new();
-    SENTRY_WITH_SCOPE (scope) {
-        sentry__envelope_add_attachments(
-            envelope, sentry__scope_get_attachments(scope), NULL);
-    }
+    add_scope_attachments(envelope);
     char *serialized = sentry_envelope_serialize(envelope, NULL);
     sentry_envelope_free(envelope);
 
@@ -184,12 +195,12 @@ SENTRY_TEST(attachments_add_remove)
 
     sentry_init(options);
 
-    sentry_attachment_t *attachment_c
+    sentry_value_t attachment_c
         = sentry_attach_file(SENTRY_TEST_PATH_PREFIX ".c.txt");
-    sentry_attachment_t *attachment_d
+    sentry_value_t attachment_d
         = sentry_attach_file(SENTRY_TEST_PATH_PREFIX ".d.txt");
 #ifdef SENTRY_PLATFORM_WINDOWS
-    sentry_attachment_t *attachment_ew
+    sentry_value_t attachment_ew
         = sentry_attach_filew(SENTRY_TEST_PATH_PREFIX L".e.txt");
 #endif
 
@@ -214,10 +225,7 @@ SENTRY_TEST(attachments_add_remove)
     char *serialized;
 
     envelope = sentry__envelope_new();
-    SENTRY_WITH_SCOPE (scope) {
-        sentry__envelope_add_attachments(
-            envelope, sentry__scope_get_attachments(scope), NULL);
-    }
+    add_scope_attachments(envelope);
     serialized = sentry_envelope_serialize(envelope, NULL);
     sentry_envelope_free(envelope);
 
@@ -232,10 +240,7 @@ SENTRY_TEST(attachments_add_remove)
     sentry_clear_attachments();
 
     envelope = sentry__envelope_new();
-    SENTRY_WITH_SCOPE (scope) {
-        sentry__envelope_add_attachments(
-            envelope, sentry__scope_get_attachments(scope), NULL);
-    }
+    add_scope_attachments(envelope);
     serialized = sentry_envelope_serialize(envelope, NULL);
     sentry_envelope_free(envelope);
     TEST_CHECK_STRING_EQUAL(serialized, "{}");
@@ -271,7 +276,7 @@ SENTRY_TEST(attachments_extend)
     sentry__path_write_buffer(path_c, "ccc", 3);
     sentry__path_write_buffer(path_d, "ddd", 3);
 
-    sentry_attachment_t *attachments_abc = NULL;
+    sentry_value_t attachments_abc = sentry_value_new_null();
     sentry__attachments_add_path(
         &attachments_abc, sentry__path_clone(path_a), NULL, NULL);
     sentry__attachments_add_path(
@@ -279,7 +284,7 @@ SENTRY_TEST(attachments_extend)
     sentry__attachments_add_path(
         &attachments_abc, sentry__path_clone(path_c), NULL, NULL);
 
-    sentry_attachment_t *attachments_bcd = NULL;
+    sentry_value_t attachments_bcd = sentry_value_new_null();
     sentry__attachments_add_path(
         &attachments_bcd, sentry__path_clone(path_b), NULL, NULL);
     sentry__attachments_add_path(
@@ -287,9 +292,9 @@ SENTRY_TEST(attachments_extend)
     sentry__attachments_add_path(
         &attachments_bcd, sentry__path_clone(path_d), NULL, NULL);
 
-    sentry_attachment_t *all_attachments = NULL;
+    sentry_value_t all_attachments = sentry_value_new_null();
     sentry__attachments_extend(&all_attachments, attachments_abc);
-    TEST_CHECK(all_attachments != NULL);
+    TEST_CHECK_INT_EQUAL(sentry_value_get_length(all_attachments), 3);
 
     {
         sentry_envelope_t *envelope = sentry__envelope_new();
@@ -311,7 +316,7 @@ SENTRY_TEST(attachments_extend)
     }
 
     sentry__attachments_extend(&all_attachments, attachments_bcd);
-    TEST_CHECK(all_attachments != NULL);
+    TEST_CHECK_INT_EQUAL(sentry_value_get_length(all_attachments), 4);
 
     {
         sentry_envelope_t *envelope = sentry__envelope_new();
@@ -356,20 +361,22 @@ SENTRY_TEST(attachment_properties)
     SENTRY_TEST_OPTIONS_NEW(options);
     sentry_init(options);
 
-    sentry_attachment_t attachment = { 0 };
-    sentry_attachment_set_type(&attachment, SENTRY_ATTACHMENT_TYPE_MINIDUMP);
+    sentry_value_t attachment = { 0 };
+    attachment = sentry_value_new_object();
+    sentry_attachment_set_type(attachment, SENTRY_ATTACHMENT_TYPE_MINIDUMP);
+    TEST_CHECK_STRING_EQUAL(sentry__attachment_get_content_type(attachment),
+        "application/octet-stream");
+    sentry_attachment_set_content_type(attachment, "application/x-dmp");
+    sentry_attachment_set_type(
+        attachment, SENTRY_ATTACHMENT_TYPE_VIEW_HIERARCHY);
     TEST_CHECK_STRING_EQUAL(
-        attachment.content_type, "application/octet-stream");
-    sentry_attachment_set_content_type(&attachment, "application/x-dmp");
+        sentry__attachment_get_content_type(attachment), "application/x-dmp");
+    sentry_attachment_set_content_type(attachment, NULL);
     sentry_attachment_set_type(
-        &attachment, SENTRY_ATTACHMENT_TYPE_VIEW_HIERARCHY);
-    TEST_CHECK_STRING_EQUAL(attachment.content_type, "application/x-dmp");
-    sentry_attachment_set_content_type(&attachment, NULL);
-    sentry_attachment_set_type(
-        &attachment, SENTRY_ATTACHMENT_TYPE_VIEW_HIERARCHY);
-    TEST_CHECK_STRING_EQUAL(attachment.content_type, "application/json");
-    sentry_free(attachment.type);
-    sentry_free(attachment.content_type);
+        attachment, SENTRY_ATTACHMENT_TYPE_VIEW_HIERARCHY);
+    TEST_CHECK_STRING_EQUAL(
+        sentry__attachment_get_content_type(attachment), "application/json");
+    sentry_value_decref(attachment);
 
     sentry_path_t *path_txt
         = sentry__path_from_str(SENTRY_TEST_PATH_PREFIX ".a.txt");
@@ -381,26 +388,26 @@ SENTRY_TEST(attachment_properties)
     sentry__path_write_buffer(path_html, "<html/>", 7);
     sentry__path_write_buffer(path_c, "int main() {}", 13);
 
-    sentry_attachment_t *attachment_txt
+    sentry_value_t attachment_txt
         = sentry_attach_file(SENTRY_TEST_PATH_PREFIX ".a.txt");
     sentry_attachment_set_content_type(attachment_txt, "text/plain");
     sentry_attachment_set_filename(attachment_txt, "A.TXT");
 
-    sentry_attachment_t *attachment_html
+    sentry_value_t attachment_html
         = sentry_attach_file(SENTRY_TEST_PATH_PREFIX ".b.html");
     sentry_attachment_set_content_type(attachment_html, "text/html");
     sentry_attachment_set_filename(attachment_html, "B.HTML");
 
-    sentry_attachment_t *attachment_c
+    sentry_value_t attachment_c
         = sentry_attach_file(SENTRY_TEST_PATH_PREFIX ".c");
     sentry_attachment_set_content_type(attachment_c, NULL);
+    sentry_value_decref(attachment_txt);
+    sentry_value_decref(attachment_html);
+    sentry_value_decref(attachment_c);
 
     {
         sentry_envelope_t *envelope = sentry__envelope_new();
-        SENTRY_WITH_SCOPE (scope) {
-            sentry__envelope_add_attachments(
-                envelope, sentry__scope_get_attachments(scope), NULL);
-        }
+        add_scope_attachments(envelope);
 
         char *serialized = sentry_envelope_serialize(envelope, NULL);
         TEST_CHECK_STRING_EQUAL(serialized,
@@ -432,20 +439,14 @@ SENTRY_TEST(attachments_bytes)
     SENTRY_TEST_OPTIONS_NEW(options);
     sentry_init(options);
 
-    sentry_attachment_t *attachment_a = sentry_attach_bytes("a", 1, ".a.txt");
-    sentry_attachment_t *attachment_b
-        = sentry_attach_bytes("b\0b", 3, ".b.txt");
-    sentry_attachment_t *attachment_c
-        = sentry_attach_bytes("c\0c\0c", 5, ".c.txt");
-    sentry_attachment_t *attachment_dupe
-        = sentry_attach_bytes("dupe", 4, ".c.txt");
+    sentry_value_t attachment_a = sentry_attach_bytes("a", 1, ".a.txt");
+    sentry_value_t attachment_b = sentry_attach_bytes("b\0b", 3, ".b.txt");
+    sentry_value_t attachment_c = sentry_attach_bytes("c\0c\0c", 5, ".c.txt");
+    sentry_value_t attachment_dupe = sentry_attach_bytes("dupe", 4, ".c.txt");
 
     {
         sentry_envelope_t *envelope = sentry__envelope_new();
-        SENTRY_WITH_SCOPE (scope) {
-            sentry__envelope_add_attachments(
-                envelope, sentry__scope_get_attachments(scope), NULL);
-        }
+        add_scope_attachments(envelope);
         char *serialized = sentry_envelope_serialize(envelope, NULL);
         TEST_CHECK_STRING_EQUAL(serialized,
             "{}\n"
@@ -467,10 +468,7 @@ SENTRY_TEST(attachments_bytes)
 
     {
         sentry_envelope_t *envelope = sentry__envelope_new();
-        SENTRY_WITH_SCOPE (scope) {
-            sentry__envelope_add_attachments(
-                envelope, sentry__scope_get_attachments(scope), NULL);
-        }
+        add_scope_attachments(envelope);
 
         char *serialized = sentry_envelope_serialize(envelope, NULL);
         TEST_CHECK_STRING_EQUAL(serialized,
@@ -489,10 +487,7 @@ SENTRY_TEST(attachments_bytes)
 
     {
         sentry_envelope_t *envelope = sentry__envelope_new();
-        SENTRY_WITH_SCOPE (scope) {
-            sentry__envelope_add_attachments(
-                envelope, sentry__scope_get_attachments(scope), NULL);
-        }
+        add_scope_attachments(envelope);
         char *serialized = sentry_envelope_serialize(envelope, NULL);
         TEST_CHECK_STRING_EQUAL(serialized, "{}");
         sentry_free(serialized);
@@ -531,7 +526,7 @@ SENTRY_TEST(attachments_more_than_ten)
             SENTRY_TEST_PATH_PREFIX ".attachment%d.txt", i);
         attachment_paths[i] = sentry__path_from_str(filename);
         sentry__path_write_buffer(attachment_paths[i], "content", 7);
-        sentry_attach_file(filename);
+        sentry_value_decref(sentry_attach_file(filename));
     }
 
     char message[128];

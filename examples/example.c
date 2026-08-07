@@ -944,17 +944,19 @@ main(int argc, char **argv)
     }
 
     if (has_arg(argc, argv, "attachment")) {
-        sentry_attachment_t *bytes
+        sentry_value_t bytes
             = sentry_attach_bytes("\xc0\xff\xee", 3, "bytes.bin");
         sentry_attachment_set_content_type(bytes, "application/octet-stream");
+        sentry_value_decref(bytes);
     }
     if (has_arg(argc, argv, "attach-view-hierarchy")) {
         // assuming the example / test is run directly from the cmake build
         // directory
-        sentry_attachment_t *view_hierarchy
+        sentry_value_t view_hierarchy
             = sentry_attach_file("./view-hierarchy.json");
         sentry_attachment_set_type(
             view_hierarchy, SENTRY_ATTACHMENT_TYPE_VIEW_HIERARCHY);
+        sentry_value_decref(view_hierarchy);
     }
 
     if (has_arg(argc, argv, "large-attachment")) {
@@ -972,11 +974,12 @@ main(int argc, char **argv)
                 remaining -= chunk;
             }
             fclose(f);
-            sentry_attachment_t *attachment = sentry_attach_file(large_file);
-            if (attachment) {
+            sentry_value_t attachment = sentry_attach_file(large_file);
+            if (!sentry_value_is_null(attachment)) {
                 sentry_attachment_set_type(
                     attachment, SENTRY_ATTACHMENT_TYPE_MINIDUMP);
             }
+            sentry_value_decref(attachment);
         }
     }
 
@@ -1082,10 +1085,11 @@ main(int argc, char **argv)
     if (has_arg(argc, argv, "attach-after-init")) {
         // assuming the example / test is run directly from the cmake build
         // directory
-        sentry_attach_file("./CMakeCache.txt");
-        sentry_attachment_t *bytes
+        sentry_value_decref(sentry_attach_file("./CMakeCache.txt"));
+        sentry_value_t bytes
             = sentry_attach_bytes("\xc0\xff\xee", 3, "bytes.bin");
         sentry_attachment_set_content_type(bytes, "application/octet-stream");
+        sentry_value_decref(bytes);
     }
 
     if (has_arg(argc, argv, "update-release-env")) {
@@ -1125,11 +1129,13 @@ main(int argc, char **argv)
         if (has_arg(argc, argv, "attach-to-scope")) {
             // assuming the example / test is run directly from the cmake build
             // directory
-            sentry_scope_attach_file(scope, "./CMakeCache.txt");
-            sentry_attachment_t *bytes = sentry_scope_attach_bytes(
+            sentry_value_decref(
+                sentry_scope_attach_file(scope, "./CMakeCache.txt"));
+            sentry_value_t bytes = sentry_scope_attach_bytes(
                 scope, "\xc0\xff\xee", 3, "bytes.bin");
             sentry_attachment_set_content_type(
                 bytes, "application/octet-stream");
+            sentry_value_decref(bytes);
         }
 
         sentry_scope_capture_event(scope, event);

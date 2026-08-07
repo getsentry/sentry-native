@@ -267,10 +267,10 @@ Java_io_sentry_ndk_NativeScope_nativeAddAttachment(
         return;
     }
 
-    // The returned sentry_attachment_t* is intentionally discarded.
+    // The returned attachment value is intentionally released immediately.
     // We are not tracking it across the JNI boundary for individual removals.
     // Use sentry_clear_attachments() for bulk removal.
-    sentry_attach_file(charPath);
+    sentry_value_decref(sentry_attach_file(charPath));
 
     (*env)->ReleaseStringUTFChars(env, path, charPath);
 }
@@ -293,10 +293,11 @@ Java_io_sentry_ndk_NativeScope_nativeAddAttachmentBytes(
         return;
     }
 
-    // The returned sentry_attachment_t* is intentionally discarded.
+    // The returned attachment value is intentionally released immediately.
     // We are not tracking it across the JNI boundary for individual removals.
     // Use sentry_clear_attachments() for bulk removal.
-    sentry_attach_bytes((const char *)buf, (size_t)bufLen, charFilename);
+    sentry_value_decref(
+        sentry_attach_bytes((const char *)buf, (size_t)bufLen, charFilename));
 
     (*env)->ReleaseStringUTFChars(env, filename, charFilename);
     (*env)->ReleaseByteArrayElements(env, data, buf, JNI_ABORT);

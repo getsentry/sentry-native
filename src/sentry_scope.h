@@ -46,8 +46,8 @@ typedef struct sentry_scope_observer_s {
     void (*set_context)(void *data, const char *key, sentry_value_t value);
     void (*remove_context)(void *data, const char *key);
 
-    void (*add_attachment)(void *data, sentry_attachment_t *attachment);
-    void (*remove_attachment)(void *data, sentry_attachment_t *attachment);
+    void (*add_attachment)(void *data, sentry_value_t attachment);
+    void (*remove_attachment)(void *data, sentry_value_t attachment);
 } sentry_scope_observer_t;
 
 typedef struct sentry_scope_data_s sentry_scope_data_t;
@@ -177,12 +177,12 @@ void sentry__scope_set_trace_context(
 
 sentry_value_t sentry__scope_breadcrumbs_to_list(const sentry_scope_t *scope);
 
-sentry_attachment_t *sentry__scope_get_attachments(const sentry_scope_t *scope);
-sentry_attachment_t *sentry__scope_add_attachment(
-    sentry_scope_t *scope, sentry_attachment_t *attachment);
+sentry_value_t sentry__scope_ref_attachments(const sentry_scope_t *scope);
+sentry_value_t sentry__scope_add_attachment(
+    sentry_scope_t *scope, sentry_value_t attachment);
 bool sentry__scope_remove_attachment(
-    sentry_scope_t *scope, sentry_attachment_t *attachment);
-sentry_attachment_t *sentry__scope_take_attachments(sentry_scope_t *scope);
+    sentry_scope_t *scope, sentry_value_t attachment);
+sentry_value_t sentry__scope_take_attachments(sentry_scope_t *scope);
 
 sentry_transaction_t *sentry__scope_ref_transaction_object(
     const sentry_scope_t *scope);

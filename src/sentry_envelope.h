@@ -100,13 +100,13 @@ sentry_envelope_item_t *sentry__envelope_add_session(
  * Add an attachment to this envelope.
  */
 sentry_envelope_item_t *sentry__envelope_add_attachment(
-    sentry_envelope_t *envelope, const sentry_attachment_t *attachment);
+    sentry_envelope_t *envelope, sentry_value_t attachment);
 
 /**
  * Add normal (non-attachment-ref) attachments to this envelope.
  */
 void sentry__envelope_add_attachments(sentry_envelope_t *envelope,
-    const sentry_attachment_t *attachments, const sentry_options_t *options);
+    sentry_value_t attachments, const sentry_options_t *options);
 
 /**
  * Add an attachment-ref item with standard item headers to this envelope.

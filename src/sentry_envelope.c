@@ -728,48 +728,60 @@ sentry__envelope_add_attachment_ref(sentry_envelope_t *envelope,
 
 sentry_envelope_item_t *
 sentry__envelope_add_attachment(
-    sentry_envelope_t *envelope, const sentry_attachment_t *attachment)
+    sentry_envelope_t *envelope, sentry_value_t attachment)
 {
-    if (!envelope || !attachment) {
+    if (!envelope || sentry_value_is_null(attachment)) {
         return NULL;
     }
 
     sentry_envelope_item_t *item = NULL;
-    if (attachment->buf) {
+    size_t bytes_len = 0;
+    const char *bytes = sentry__attachment_get_bytes(attachment, &bytes_len);
+    if (bytes) {
         item = sentry__envelope_add_from_buffer(
-            envelope, attachment->buf, attachment->buf_len, "attachment");
+            envelope, bytes, bytes_len, "attachment");
     } else {
-        item = sentry__envelope_add_from_path(
-            envelope, attachment->path, "attachment");
+        const char *path = sentry__attachment_get_path(attachment);
+        sentry_path_t *path_obj = sentry__path_from_str(path);
+        item = sentry__envelope_add_from_path(envelope, path_obj, "attachment");
+        sentry__path_free(path_obj);
     }
     if (!item) {
         return NULL;
     }
-    if (attachment->type && *attachment->type) {
+
+    const char *type = sentry__attachment_get_type(attachment);
+    if (type && *type) {
         sentry__envelope_item_set_header(
-            item, "attachment_type", sentry_value_new_string(attachment->type));
+            item, "attachment_type", sentry_value_new_string(type));
     }
-    if (attachment->content_type) {
-        sentry__envelope_item_set_header(item, "content_type",
-            sentry_value_new_string(attachment->content_type));
+    const char *content_type = sentry__attachment_get_content_type(attachment);
+    if (content_type) {
+        sentry__envelope_item_set_header(
+            item, "content_type", sentry_value_new_string(content_type));
     }
-    sentry__envelope_item_set_header(item, "filename",
-        sentry_value_new_string(sentry__attachment_get_filename(attachment)));
+    const char *filename = sentry__attachment_get_filename(attachment);
+    if (filename) {
+        sentry__envelope_item_set_header(
+            item, "filename", sentry_value_new_string(filename));
+    }
 
     return item;
 }
 
 void
 sentry__envelope_add_attachments(sentry_envelope_t *envelope,
-    const sentry_attachment_t *attachments, const sentry_options_t *options)
+    sentry_value_t attachments, const sentry_options_t *options)
 {
-    if (!envelope || !attachments) {
+    if (!envelope
+        || sentry_value_get_type(attachments) != SENTRY_VALUE_TYPE_LIST) {
         return;
     }
 
     SENTRY_DEBUG("adding attachments to envelope");
-    for (const sentry_attachment_t *attachment = attachments; attachment;
-        attachment = attachment->next) {
+    size_t len = sentry_value_get_length(attachments);
+    for (size_t i = 0; i < len; i++) {
+        sentry_value_t attachment = sentry_value_get_by_index(attachments, i);
         if (sentry__attachment_is_placeholder(attachment, options)) {
             continue;
         }
