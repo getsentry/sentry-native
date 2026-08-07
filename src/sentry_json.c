@@ -22,6 +22,7 @@
 #include "sentry_value.h"
 
 #define SENTRY_JSON_MAX_DEPTH 64
+#define SENTRY_JSON_STRLEN ((size_t)-1)
 
 struct sentry_jsonwriter_s {
     sentry_writer_t *writer;
@@ -201,12 +202,15 @@ static unsigned char needs_escaping[256] = {
 };
 
 static void
-write_json_str(sentry_jsonwriter_t *jw, const char *str)
+write_json_str(sentry_jsonwriter_t *jw, const char *str, size_t str_len)
 {
     // using unsigned here because utf-8 is > 127 :-)
     const unsigned char *ptr = (const unsigned char *)str;
     const unsigned char *start = ptr;
-    for (; *ptr && !sentry__jsonwriter_has_failed(jw); ptr++) {
+    const unsigned char *end
+        = str_len == SENTRY_JSON_STRLEN ? NULL : ptr + str_len;
+    for (; (end ? ptr < end : *ptr) && !sentry__jsonwriter_has_failed(jw);
+        ptr++) {
         if (!needs_escaping[*ptr]) {
             continue;
         }
@@ -353,13 +357,20 @@ sentry__jsonwriter_write_double(sentry_jsonwriter_t *jw, double val)
 void
 sentry__jsonwriter_write_str(sentry_jsonwriter_t *jw, const char *val)
 {
+    sentry__jsonwriter_write_str_n(jw, val, SENTRY_JSON_STRLEN);
+}
+
+void
+sentry__jsonwriter_write_str_n(
+    sentry_jsonwriter_t *jw, const char *val, size_t val_len)
+{
     if (!val) {
         sentry__jsonwriter_write_null(jw);
         return;
     }
     if (can_write_item(jw)) {
         write_char(jw, '"');
-        write_json_str(jw, val);
+        write_json_str(jw, val, val_len);
         write_char(jw, '"');
     }
 }
@@ -390,7 +401,7 @@ sentry__jsonwriter_write_key(sentry_jsonwriter_t *jw, const char *val)
 {
     if (can_write_item(jw)) {
         write_char(jw, '"');
-        write_json_str(jw, val);
+        write_json_str(jw, val, SENTRY_JSON_STRLEN);
         write_char(jw, '"');
         write_char(jw, ':');
         jw->last_was_key = true;
