@@ -1566,7 +1566,7 @@ SENTRY_TEST(set_trace)
 
     SENTRY_WITH_SCOPE (scope) {
         sentry_value_t propagation_trace_context
-            = sentry__scope_get_trace_context(scope);
+            = sentry__scope_ref_trace_context(scope);
         TEST_CHECK(!sentry_value_is_null(propagation_trace_context));
 
         CHECK_STRING_PROPERTY(propagation_trace_context, "type", "trace");
@@ -1579,6 +1579,7 @@ SENTRY_TEST(set_trace)
             sentry_value_get_by_key(propagation_trace_context, "span_id"));
         TEST_ASSERT(!!span_id);
         TEST_CHECK(strlen(span_id) > 0);
+        sentry_value_decref(propagation_trace_context);
     }
 
     sentry_close();
@@ -2426,11 +2427,12 @@ SENTRY_TEST(strict_continuation_no_baggage_forks)
 
     // Scope propagation follows the fork: no lingering upstream trace_id.
     SENTRY_WITH_SCOPE (scope) {
-        const char *scope_trace_id
-            = sentry_value_as_string(sentry_value_get_by_key(
-                sentry__scope_get_trace_context(scope), "trace_id"));
+        sentry_value_t trace_context = sentry__scope_ref_trace_context(scope);
+        const char *scope_trace_id = sentry_value_as_string(
+            sentry_value_get_by_key(trace_context, "trace_id"));
         TEST_CHECK(strcmp(scope_trace_id, UPSTREAM_TRACE_ID) != 0);
         TEST_CHECK_STRING_EQUAL(scope_trace_id, trace_id);
+        sentry_value_decref(trace_context);
     }
 
     sentry_transaction_finish(tx);

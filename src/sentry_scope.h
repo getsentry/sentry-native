@@ -168,10 +168,12 @@ void sentry__scope_remove_context_n(
 
 sentry_value_t sentry__scope_get_propagation_context(
     const sentry_scope_t *scope);
-sentry_value_t sentry__scope_get_trace_context(const sentry_scope_t *scope);
 void sentry__scope_set_propagation_context(
     sentry_scope_t *scope, const char *key, sentry_value_t value);
 void sentry__scope_regenerate_propagation_context(sentry_scope_t *scope);
+sentry_value_t sentry__scope_ref_trace_context(const sentry_scope_t *scope);
+void sentry__scope_set_trace_context(
+    sentry_scope_t *scope, const char *key, sentry_value_t value);
 
 sentry_value_t sentry__scope_breadcrumbs_to_list(const sentry_scope_t *scope);
 

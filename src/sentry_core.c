@@ -1290,9 +1290,11 @@ sentry_transaction_start_ts(sentry_transaction_context_t *opaque_tx_ctx,
                     // captured outside this transaction also carry the new
                     // trace_id, and align the tx's trace_id with it.
                     sentry__scope_regenerate_propagation_context(scope);
-                    sentry_value_t scope_trace_id = sentry_value_get_by_key(
-                        sentry__scope_get_trace_context(scope), "trace_id");
-                    sentry_value_incref(scope_trace_id);
+                    sentry_value_t trace_context
+                        = sentry__scope_ref_trace_context(scope);
+                    sentry_value_t scope_trace_id = sentry_value_incref(
+                        sentry_value_get_by_key(trace_context, "trace_id"));
+                    sentry_value_decref(trace_context);
                     sentry_value_set_by_key(tx, "trace_id", scope_trace_id);
                     sentry_value_remove_by_key(tx, "parent_span_id");
                     sentry_value_remove_by_key(tx, "sampled");
@@ -1305,8 +1307,10 @@ sentry_transaction_start_ts(sentry_transaction_context_t *opaque_tx_ctx,
 
     double sample_rand = 1.0;
     SENTRY_WITH_SCOPE (scope) {
-        sample_rand = sentry_value_as_double(sentry_value_get_by_key(
-            sentry__scope_get_trace_context(scope), "sample_rand"));
+        sentry_value_t trace_context = sentry__scope_ref_trace_context(scope);
+        sample_rand = sentry_value_as_double(
+            sentry_value_get_by_key(trace_context, "sample_rand"));
+        sentry_value_decref(trace_context);
     }
     sentry_sampling_context_t sampling_ctx
         = { opaque_tx_ctx, custom_sampling_ctx, NULL, sample_rand };
@@ -1378,8 +1382,7 @@ sentry__transaction_finish_value(
                 = sentry_value_get_by_key(tx, "trace_id");
             sentry_value_incref(txn_trace_id);
 
-            sentry_value_set_by_key(sentry__scope_get_trace_context(scope),
-                "trace_id", txn_trace_id);
+            sentry__scope_set_trace_context(scope, "trace_id", txn_trace_id);
         }
     }
     // The sampling decision should already be made for transactions
