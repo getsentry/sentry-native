@@ -13,7 +13,7 @@
  * Scope observer — one callback per scope property.
  *
  * Implementors set the function pointers they care about. NULL pointers are
- * skipped. Callbacks are invoked while the scope lock is held.
+ * skipped. Callbacks are invoked while the scope observer lock is held.
  * The data pointer is passed as the first argument to each callback.
  *
  * Note: callback arguments are borrowed and valid only for the duration of the
@@ -58,6 +58,7 @@ typedef struct sentry_scope_data_s sentry_scope_data_t;
 struct sentry_scope_s {
     sentry_scope_data_t *data;
 
+    sentry_mutex_t observers_lock;
     sentry_scope_observer_t **observers;
     size_t num_observers;
     size_t is_notifying;
@@ -230,8 +231,8 @@ sentry_scope_observer_t *sentry__scope_observer_new(void);
  * Register a scope observer.
  *
  * Takes ownership of `observer`; the caller must not free it after this call.
- * Must be called while holding the scope lock. Registration order is respected
- * — observers are notified in registration order.
+ * Registration order is respected: observers are notified in registration
+ * order.
  */
 bool sentry__scope_add_observer(
     sentry_scope_t *scope, sentry_scope_observer_t *observer);
@@ -239,8 +240,8 @@ bool sentry__scope_add_observer(
 /**
  * Remove a scope observer.
  *
- * Frees `observer` if it is registered. Must be called while holding the scope
- * lock. Does nothing if `observer` is NULL or not registered.
+ * Frees `observer` if it is registered. Does nothing if `observer` is NULL or
+ * not registered.
  */
 void sentry__scope_remove_observer(
     sentry_scope_t *scope, sentry_scope_observer_t *observer);
