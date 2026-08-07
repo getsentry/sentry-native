@@ -194,6 +194,13 @@ obj_free(obj_t *obj)
     sentry_free(obj);
 }
 
+static void
+blob_free(blob_t *blob)
+{
+    sentry_free(blob->s);
+    sentry_free(blob);
+}
+
 static list_t *
 list_clone(const list_t *list)
 {
@@ -321,11 +328,7 @@ thing_free(thing_t *thing)
         obj_free(thing->payload._ptr);
         break;
     case THING_TYPE_STRING:
-        if (thing->payload._ptr) {
-            blob_t *blob = thing->payload._ptr;
-            sentry_free(blob->s);
-            sentry_free(blob);
-        }
+        blob_free(thing->payload._ptr);
         break;
     }
     sentry_free(thing);
@@ -386,16 +389,6 @@ value_as_thing(sentry_value_t value)
         return NULL;
     }
     return (thing_t *)(size_t)value._bits;
-}
-
-static const blob_t *
-value_as_blob(sentry_value_t value)
-{
-    const thing_t *thing = value_as_thing(value);
-    if (thing && thing_get_type(thing) == THING_TYPE_STRING) {
-        return (const blob_t *)thing->payload._ptr;
-    }
-    return NULL;
 }
 
 static thing_t *
@@ -1286,9 +1279,9 @@ sentry_value_as_uint64(sentry_value_t value)
 const char *
 sentry_value_as_string(sentry_value_t value)
 {
-    const blob_t *blob = value_as_blob(value);
-    if (blob) {
-        return blob->s;
+    const thing_t *thing = value_as_thing(value);
+    if (thing && thing_get_type(thing) == THING_TYPE_STRING) {
+        return ((const blob_t *)thing->payload._ptr)->s;
     }
     return "";
 }
@@ -1413,8 +1406,14 @@ sentry__jsonwriter_write_value(sentry_jsonwriter_t *jw, sentry_value_t value)
         sentry__jsonwriter_write_double(jw, sentry_value_as_double(value));
         break;
     case SENTRY_VALUE_TYPE_STRING: {
-        const blob_t *blob = value_as_blob(value);
-        sentry__jsonwriter_write_str_n(jw, blob->s, blob->len);
+        const thing_t *thing = value_as_thing(value);
+        if (!thing) {
+            UNREACHABLE("thing of a string is NULL during serialization");
+            return;
+        }
+
+        const blob_t *b = thing->payload._ptr;
+        sentry__jsonwriter_write_str_n(jw, b->s, b->len);
         break;
     }
     case SENTRY_VALUE_TYPE_LIST: {
@@ -1494,8 +1493,9 @@ value_to_msgpack(mpack_writer_t *writer, sentry_value_t value)
         mpack_write_double(writer, sentry_value_as_double(value));
         break;
     case SENTRY_VALUE_TYPE_STRING: {
-        const blob_t *blob = value_as_blob(value);
-        mpack_write_str(writer, blob->s, (uint32_t)blob->len);
+        const blob_t *b = value_as_thing(value)->payload._ptr;
+
+        mpack_write_str(writer, b->s, (uint32_t)b->len);
         break;
     }
     case SENTRY_VALUE_TYPE_LIST: {
@@ -1548,20 +1548,20 @@ sentry__value_new_string_owned_n(char *s, size_t s_len)
     if (!s) {
         return sentry_value_new_null();
     }
-    blob_t *blob = SENTRY_MAKE(blob_t);
-    if (!blob) {
+    blob_t *b = SENTRY_MAKE(blob_t);
+    if (b) {
+        b->s = s;
+        b->len = s_len;
+        sentry_value_t rv
+            = new_thing_value(b, THING_TYPE_STRING | THING_TYPE_FROZEN);
+        if (sentry_value_is_null(rv)) {
+            blob_free(b);
+        }
+        return rv;
+    } else {
         sentry_free(s);
         return sentry_value_new_null();
     }
-    blob->s = s;
-    blob->len = s_len;
-    sentry_value_t rv
-        = new_thing_value(blob, THING_TYPE_STRING | THING_TYPE_FROZEN);
-    if (sentry_value_is_null(rv)) {
-        sentry_free(blob->s);
-        sentry_free(blob);
-    }
-    return rv;
 }
 
 #ifdef SENTRY_PLATFORM_WINDOWS
