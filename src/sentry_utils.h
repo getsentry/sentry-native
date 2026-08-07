@@ -3,6 +3,7 @@
 
 #include "sentry_boot.h"
 #include "sentry_slice.h"
+#include "sentry_sync.h"
 
 #ifdef SENTRY_PLATFORM_DARWIN
 #    include <mach/clock.h>
@@ -164,12 +165,56 @@ char *sentry__dsn_get_minidump_url(
  */
 char *sentry__base64_encode(const char *data, size_t len);
 
+#ifdef SENTRY_UNITTEST
+/**
+ * Overrides SDK time for deterministic unit tests. The clock is process-global,
+ * so callers must stop all SDK threads before resetting it.
+ */
+void sentry__test_clock_set(uint64_t monotonic_ms, uint64_t epoch_usec);
+void sentry__test_clock_advance(uint64_t milliseconds);
+void sentry__test_clock_reset(void);
+bool sentry__test_clock_is_enabled(void);
+uint64_t sentry__test_clock_monotonic_time(void);
+uint64_t sentry__test_clock_usec_time(void);
+#endif
+
+typedef struct sentry_clock_waiter_s {
+    sentry_mutex_t *mutex;
+    sentry_cond_t *cond;
+#ifdef SENTRY_UNITTEST
+    struct sentry_clock_waiter_s *next;
+    uint64_t requested_revision;
+    uint64_t seen_revision;
+    uint64_t wake_revision;
+    bool registered;
+#endif
+} sentry_clock_waiter_t;
+
+#ifdef SENTRY_UNITTEST
+void sentry__test_clock_waiter_init(sentry_clock_waiter_t *waiter);
+void sentry__test_clock_waiter_deinit(sentry_clock_waiter_t *waiter);
+bool sentry__test_clock_waiter_wait_locked(sentry_clock_waiter_t *waiter);
+void sentry__test_clock_waiter_wake_locked(sentry_clock_waiter_t *waiter);
+#endif
+
+void sentry__clock_waiter_init(sentry_clock_waiter_t *waiter,
+    sentry_cond_t *cond, sentry_mutex_t *mutex);
+void sentry__clock_waiter_deinit(sentry_clock_waiter_t *waiter);
+void sentry__clock_waiter_wait_locked(
+    sentry_clock_waiter_t *waiter, uint64_t timeout_ms);
+void sentry__clock_waiter_wake_locked(sentry_clock_waiter_t *waiter);
+
 /**
  * Returns the number of microseconds since the unix epoch.
  */
 static inline uint64_t
 sentry__usec_time(void)
 {
+#ifdef SENTRY_UNITTEST
+    if (sentry__test_clock_is_enabled()) {
+        return sentry__test_clock_usec_time();
+    }
+#endif
 #ifdef SENTRY_PLATFORM_WINDOWS
     // Contains a 64-bit value representing the number of 100-nanosecond
     // intervals since January 1, 1601 (UTC).
@@ -198,6 +243,11 @@ sentry__usec_time(void)
 static inline uint64_t
 sentry__monotonic_time(void)
 {
+#ifdef SENTRY_UNITTEST
+    if (sentry__test_clock_is_enabled()) {
+        return sentry__test_clock_monotonic_time();
+    }
+#endif
 #ifdef SENTRY_PLATFORM_WINDOWS
     static LARGE_INTEGER qpc_frequency = { { 0, 0 } };
 
