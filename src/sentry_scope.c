@@ -247,8 +247,7 @@ init_global_data(sentry_scope_data_t *data)
 static void
 data_apply_options(sentry_scope_data_t *data, sentry_options_t *options)
 {
-    DATA_WRITE_LOCK(data)
-    {
+    DATA_WRITE_LOCK (data) {
         if (options->sdk_name) {
             sentry_value_t sdk_name
                 = sentry_value_new_string(options->sdk_name);
@@ -281,8 +280,7 @@ data_apply_options(sentry_scope_data_t *data, sentry_options_t *options)
 static void
 clear_data(sentry_scope_data_t *data)
 {
-    DATA_WRITE_LOCK(data)
-    {
+    DATA_WRITE_LOCK (data) {
         bool trace_managed = data->trace_managed;
         sentry_value_t propagation_context
             = sentry_value_incref(data->propagation_context);
@@ -309,8 +307,7 @@ clone_data(const sentry_scope_data_t *source)
     }
 
     sentry__rwlock_init(&clone->rwlock);
-    DATA_READ_LOCK(source)
-    {
+    DATA_READ_LOCK (source) {
         clone->release = sentry__value_clone(source->release);
         clone->environment = sentry__value_clone(source->environment);
         clone->transaction = sentry__value_clone(source->transaction);
@@ -346,8 +343,7 @@ static sentry_value_t
 data_ref_propagation_context(const sentry_scope_data_t *data)
 {
     sentry_value_t propagation_context = sentry_value_new_null();
-    DATA_READ_LOCK(data)
-    {
+    DATA_READ_LOCK (data) {
         propagation_context = sentry_value_incref(data->propagation_context);
     }
     return propagation_context;
@@ -357,8 +353,7 @@ static void
 data_set_propagation_context(
     sentry_scope_data_t *data, const char *key, sentry_value_t value)
 {
-    DATA_WRITE_LOCK(data)
-    {
+    DATA_WRITE_LOCK (data) {
         sentry_value_set_by_key(data->propagation_context, key, value);
     }
 }
@@ -366,8 +361,7 @@ data_set_propagation_context(
 static void
 data_regenerate_propagation_context(sentry_scope_data_t *data)
 {
-    DATA_WRITE_LOCK(data)
-    {
+    DATA_WRITE_LOCK (data) {
         generate_propagation_context(data->propagation_context);
     }
 }
@@ -376,8 +370,7 @@ static sentry_value_t
 data_ref_trace_context(const sentry_scope_data_t *data)
 {
     sentry_value_t trace_context = sentry_value_new_null();
-    DATA_READ_LOCK(data)
-    {
+    DATA_READ_LOCK (data) {
         trace_context = sentry_value_incref(
             sentry_value_get_by_key(data->propagation_context, "trace"));
     }
@@ -388,8 +381,7 @@ static void
 data_set_trace_context(
     sentry_scope_data_t *data, const char *key, sentry_value_t value)
 {
-    DATA_WRITE_LOCK(data)
-    {
+    DATA_WRITE_LOCK (data) {
         sentry_value_set_by_key(
             sentry_value_get_by_key(data->propagation_context, "trace"), key,
             value);
@@ -400,14 +392,18 @@ static bool
 data_is_trace_managed(const sentry_scope_data_t *data)
 {
     bool managed = false;
-    DATA_READ_LOCK(data) { managed = data->trace_managed; }
+    DATA_READ_LOCK (data) {
+        managed = data->trace_managed;
+    }
     return managed;
 }
 
 static void
 data_set_trace_managed(sentry_scope_data_t *data, bool managed)
 {
-    DATA_WRITE_LOCK(data) { data->trace_managed = managed; }
+    DATA_WRITE_LOCK (data) {
+        data->trace_managed = managed;
+    }
 }
 
 static void
@@ -416,8 +412,7 @@ data_freeze_dsc(sentry_scope_data_t *data, sentry_value_t incoming)
     sentry_value_t dsc = sentry_value_new_object();
     sentry__value_merge_objects(dsc, incoming);
     sentry_value_freeze(dsc);
-    DATA_WRITE_LOCK(data)
-    {
+    DATA_WRITE_LOCK (data) {
         sentry__value_replace(&data->dynamic_sampling_context, dsc);
     }
 }
@@ -426,8 +421,7 @@ static sentry_value_t
 data_ref_dsc(const sentry_scope_data_t *data)
 {
     sentry_value_t dsc = sentry_value_new_null();
-    DATA_READ_LOCK(data)
-    {
+    DATA_READ_LOCK (data) {
         dsc = sentry_value_incref(data->dynamic_sampling_context);
     }
     return dsc;
@@ -437,8 +431,7 @@ static sentry_value_t
 data_clone_dsc(const sentry_scope_data_t *data)
 {
     sentry_value_t dsc = sentry_value_new_null();
-    DATA_READ_LOCK(data)
-    {
+    DATA_READ_LOCK (data) {
         dsc = sentry__value_clone(data->dynamic_sampling_context);
     }
     return dsc;
@@ -449,8 +442,7 @@ data_foreach_dsc(const sentry_scope_data_t *data,
     void (*callback)(const char *key, sentry_value_t value, void *userdata),
     void *userdata)
 {
-    DATA_READ_LOCK(data)
-    {
+    DATA_READ_LOCK (data) {
         sentry__value_foreach_key_value(
             data->dynamic_sampling_context, callback, userdata);
     }
@@ -476,8 +468,7 @@ data_update_dsc(sentry_scope_data_t *data, const sentry_options_t *options)
             dsc, "sample_rate", sentry_value_new_double(1.0));
     }
 
-    DATA_WRITE_LOCK(data)
-    {
+    DATA_WRITE_LOCK (data) {
         sentry_value_t sample_rand = sentry_value_get_by_key(
             sentry_value_get_by_key(data->propagation_context, "trace"),
             "sample_rand");
@@ -495,15 +486,16 @@ static sentry_value_t
 data_ref_client_sdk(const sentry_scope_data_t *data)
 {
     sentry_value_t client_sdk = sentry_value_new_null();
-    DATA_READ_LOCK(data) { client_sdk = sentry_value_incref(data->client_sdk); }
+    DATA_READ_LOCK (data) {
+        client_sdk = sentry_value_incref(data->client_sdk);
+    }
     return client_sdk;
 }
 
 static void
 data_apply_tags_and_extra(const sentry_scope_data_t *data, sentry_value_t event)
 {
-    DATA_READ_LOCK(data)
-    {
+    DATA_READ_LOCK (data) {
         sentry_value_t event_tags = sentry_value_get_by_key(event, "tags");
         if (sentry_value_is_null(event_tags)) {
             if (!sentry_value_is_null(data->tags)) {
@@ -530,7 +522,9 @@ static sentry_value_t
 data_clone_contexts(const sentry_scope_data_t *data)
 {
     sentry_value_t contexts = sentry_value_new_null();
-    DATA_READ_LOCK(data) { contexts = sentry__value_clone(data->contexts); }
+    DATA_READ_LOCK (data) {
+        contexts = sentry__value_clone(data->contexts);
+    }
     return contexts;
 }
 
@@ -538,8 +532,7 @@ static sentry_value_t
 data_ref_span_or_transaction(const sentry_scope_data_t *data)
 {
     sentry_value_t value = sentry_value_new_null();
-    DATA_READ_LOCK(data)
-    {
+    DATA_READ_LOCK (data) {
         if (data->span) {
             value = sentry_value_incref(data->span->inner);
         } else if (data->transaction_object) {
@@ -553,8 +546,7 @@ static sentry_value_t
 data_breadcrumbs_to_list(const sentry_scope_data_t *data)
 {
     sentry_value_t breadcrumbs = sentry_value_new_null();
-    DATA_READ_LOCK(data)
-    {
+    DATA_READ_LOCK (data) {
         breadcrumbs = sentry__ringbuffer_to_list(data->breadcrumbs);
     }
     return breadcrumbs;
@@ -564,8 +556,7 @@ static bool
 data_add_breadcrumb(sentry_scope_data_t *data, sentry_value_t breadcrumb)
 {
     bool added = false;
-    DATA_WRITE_LOCK(data)
-    {
+    DATA_WRITE_LOCK (data) {
         added = sentry__ringbuffer_append(data->breadcrumbs, breadcrumb) == 0;
     }
     return added;
@@ -575,15 +566,16 @@ static sentry_value_t
 data_ref_user(const sentry_scope_data_t *data)
 {
     sentry_value_t user = sentry_value_new_null();
-    DATA_READ_LOCK(data) { user = sentry_value_incref(data->user); }
+    DATA_READ_LOCK (data) {
+        user = sentry_value_incref(data->user);
+    }
     return user;
 }
 
 static void
 data_set_user(sentry_scope_data_t *data, sentry_value_t user)
 {
-    DATA_WRITE_LOCK(data)
-    {
+    DATA_WRITE_LOCK (data) {
         sentry__value_replace(&data->user, sentry_value_incref(user));
     }
 }
@@ -592,7 +584,9 @@ static sentry_value_t
 data_ref_tags(const sentry_scope_data_t *data)
 {
     sentry_value_t tags = sentry_value_new_null();
-    DATA_READ_LOCK(data) { tags = sentry_value_incref(data->tags); }
+    DATA_READ_LOCK (data) {
+        tags = sentry_value_incref(data->tags);
+    }
     return tags;
 }
 
@@ -600,8 +594,7 @@ static bool
 data_set_tag(sentry_scope_data_t *data, const char *key, sentry_value_t value)
 {
     bool did_set = false;
-    DATA_WRITE_LOCK(data)
-    {
+    DATA_WRITE_LOCK (data) {
         did_set = sentry_value_set_by_key(data->tags, key, value) == 0;
     }
     return did_set;
@@ -612,8 +605,7 @@ data_set_tag_n(sentry_scope_data_t *data, const char *key, size_t key_len,
     sentry_value_t value)
 {
     bool did_set = false;
-    DATA_WRITE_LOCK(data)
-    {
+    DATA_WRITE_LOCK (data) {
         did_set
             = sentry_value_set_by_key_n(data->tags, key, key_len, value) == 0;
     }
@@ -624,8 +616,7 @@ static bool
 data_remove_tag(sentry_scope_data_t *data, const char *key)
 {
     bool removed = false;
-    DATA_WRITE_LOCK(data)
-    {
+    DATA_WRITE_LOCK (data) {
         removed = sentry_value_remove_by_key(data->tags, key) == 0;
     }
     return removed;
@@ -635,8 +626,7 @@ static char *
 data_remove_tag_n(sentry_scope_data_t *data, const char *key, size_t key_len)
 {
     char *removed_key = NULL;
-    DATA_WRITE_LOCK(data)
-    {
+    DATA_WRITE_LOCK (data) {
         removed_key
             = sentry__value_remove_and_take_key_n(data->tags, key, key_len);
     }
@@ -647,7 +637,9 @@ static sentry_value_t
 data_ref_extra(const sentry_scope_data_t *data)
 {
     sentry_value_t extra = sentry_value_new_null();
-    DATA_READ_LOCK(data) { extra = sentry_value_incref(data->extra); }
+    DATA_READ_LOCK (data) {
+        extra = sentry_value_incref(data->extra);
+    }
     return extra;
 }
 
@@ -655,8 +647,7 @@ static bool
 data_set_extra(sentry_scope_data_t *data, const char *key, sentry_value_t value)
 {
     bool did_set = false;
-    DATA_WRITE_LOCK(data)
-    {
+    DATA_WRITE_LOCK (data) {
         did_set = sentry_value_set_by_key(data->extra, key, value) == 0;
     }
     return did_set;
@@ -667,8 +658,7 @@ data_set_extra_n(sentry_scope_data_t *data, const char *key, size_t key_len,
     sentry_value_t value)
 {
     bool did_set = false;
-    DATA_WRITE_LOCK(data)
-    {
+    DATA_WRITE_LOCK (data) {
         did_set
             = sentry_value_set_by_key_n(data->extra, key, key_len, value) == 0;
     }
@@ -679,8 +669,7 @@ static bool
 data_remove_extra(sentry_scope_data_t *data, const char *key)
 {
     bool removed = false;
-    DATA_WRITE_LOCK(data)
-    {
+    DATA_WRITE_LOCK (data) {
         removed = sentry_value_remove_by_key(data->extra, key) == 0;
     }
     return removed;
@@ -690,8 +679,7 @@ static char *
 data_remove_extra_n(sentry_scope_data_t *data, const char *key, size_t key_len)
 {
     char *removed_key = NULL;
-    DATA_WRITE_LOCK(data)
-    {
+    DATA_WRITE_LOCK (data) {
         removed_key
             = sentry__value_remove_and_take_key_n(data->extra, key, key_len);
     }
@@ -702,7 +690,9 @@ static sentry_value_t
 data_ref_attributes(const sentry_scope_data_t *data)
 {
     sentry_value_t attributes = sentry_value_new_null();
-    DATA_READ_LOCK(data) { attributes = sentry_value_incref(data->attributes); }
+    DATA_READ_LOCK (data) {
+        attributes = sentry_value_incref(data->attributes);
+    }
     return attributes;
 }
 
@@ -711,8 +701,7 @@ data_set_attribute_n(sentry_scope_data_t *data, const char *key, size_t key_len,
     sentry_value_t attribute)
 {
     bool did_set = false;
-    DATA_WRITE_LOCK(data)
-    {
+    DATA_WRITE_LOCK (data) {
         did_set = sentry_value_set_by_key_n(
                       data->attributes, key, key_len, attribute)
             == 0;
@@ -723,15 +712,16 @@ data_set_attribute_n(sentry_scope_data_t *data, const char *key, size_t key_len,
 static void
 data_remove_attribute(sentry_scope_data_t *data, const char *key)
 {
-    DATA_WRITE_LOCK(data) { sentry_value_remove_by_key(data->attributes, key); }
+    DATA_WRITE_LOCK (data) {
+        sentry_value_remove_by_key(data->attributes, key);
+    }
 }
 
 static void
 data_remove_attribute_n(
     sentry_scope_data_t *data, const char *key, size_t key_len)
 {
-    DATA_WRITE_LOCK(data)
-    {
+    DATA_WRITE_LOCK (data) {
         sentry_value_remove_by_key_n(data->attributes, key, key_len);
     }
 }
@@ -740,7 +730,9 @@ static sentry_value_t
 data_ref_contexts(const sentry_scope_data_t *data)
 {
     sentry_value_t contexts = sentry_value_new_null();
-    DATA_READ_LOCK(data) { contexts = sentry_value_incref(data->contexts); }
+    DATA_READ_LOCK (data) {
+        contexts = sentry_value_incref(data->contexts);
+    }
     return contexts;
 }
 
@@ -749,8 +741,7 @@ data_set_context(
     sentry_scope_data_t *data, const char *key, sentry_value_t value)
 {
     bool did_set = false;
-    DATA_WRITE_LOCK(data)
-    {
+    DATA_WRITE_LOCK (data) {
         did_set = sentry_value_set_by_key(data->contexts, key, value) == 0;
     }
     return did_set;
@@ -761,8 +752,7 @@ data_set_context_n(sentry_scope_data_t *data, const char *key, size_t key_len,
     sentry_value_t value)
 {
     bool did_set = false;
-    DATA_WRITE_LOCK(data)
-    {
+    DATA_WRITE_LOCK (data) {
         did_set = sentry_value_set_by_key_n(data->contexts, key, key_len, value)
             == 0;
     }
@@ -780,8 +770,7 @@ static bool
 data_remove_context(sentry_scope_data_t *data, const char *key)
 {
     bool removed = false;
-    DATA_WRITE_LOCK(data)
-    {
+    DATA_WRITE_LOCK (data) {
         removed = sentry_value_remove_by_key(data->contexts, key) == 0;
     }
     return removed;
@@ -792,8 +781,7 @@ data_remove_context_n(
     sentry_scope_data_t *data, const char *key, size_t key_len)
 {
     char *removed_key = NULL;
-    DATA_WRITE_LOCK(data)
-    {
+    DATA_WRITE_LOCK (data) {
         removed_key
             = sentry__value_remove_and_take_key_n(data->contexts, key, key_len);
     }
@@ -804,8 +792,7 @@ static sentry_value_t
 data_ref_fingerprint(const sentry_scope_data_t *data)
 {
     sentry_value_t fingerprint = sentry_value_new_null();
-    DATA_READ_LOCK(data)
-    {
+    DATA_READ_LOCK (data) {
         fingerprint = sentry_value_incref(data->fingerprint);
     }
     return fingerprint;
@@ -814,8 +801,7 @@ data_ref_fingerprint(const sentry_scope_data_t *data)
 static void
 data_set_fingerprint(sentry_scope_data_t *data, sentry_value_t fingerprint)
 {
-    DATA_WRITE_LOCK(data)
-    {
+    DATA_WRITE_LOCK (data) {
         sentry__value_replace(
             &data->fingerprint, sentry_value_incref(fingerprint));
     }
@@ -825,14 +811,18 @@ static sentry_level_t
 data_get_level(const sentry_scope_data_t *data)
 {
     sentry_level_t level = SENTRY_LEVEL_ERROR;
-    DATA_READ_LOCK(data) { level = data->level; }
+    DATA_READ_LOCK (data) {
+        level = data->level;
+    }
     return level;
 }
 
 static void
 data_set_level(sentry_scope_data_t *data, sentry_level_t level)
 {
-    DATA_WRITE_LOCK(data) { data->level = level; }
+    DATA_WRITE_LOCK (data) {
+        data->level = level;
+    }
 }
 
 static sentry_uuid_t
@@ -864,12 +854,16 @@ data_add_attachment(sentry_scope_data_t *data, sentry_value_t attachment,
     bool *did_add)
 {
     sentry_value_t added = sentry_value_new_null();
-    DATA_WRITE_LOCK(data)
-    {
+    if (did_add) {
+        *did_add = false;
+    }
+    DATA_WRITE_LOCK (data) {
         size_t len = sentry_value_get_length(data->attachments);
         added = sentry__attachments_add(&data->attachments, attachment);
-        *did_add = !sentry_value_is_null(added)
-            && sentry_value_get_length(data->attachments) > len;
+        if (did_add) {
+            *did_add = !sentry_value_is_null(added)
+                && sentry_value_get_length(data->attachments) > len;
+        }
     }
     return added;
 }
@@ -879,8 +873,7 @@ data_remove_attachment(
     sentry_scope_data_t *data, const sentry_uuid_t *attachment_id)
 {
     sentry_value_t removed = sentry_value_new_null();
-    DATA_WRITE_LOCK(data)
-    {
+    DATA_WRITE_LOCK (data) {
         removed = sentry__attachments_remove(data->attachments, attachment_id);
     }
     return removed;
@@ -890,8 +883,7 @@ static sentry_value_t
 data_take_attachments(sentry_scope_data_t *data)
 {
     sentry_value_t attachments = sentry_value_new_null();
-    DATA_WRITE_LOCK(data)
-    {
+    DATA_WRITE_LOCK (data) {
         attachments = data->attachments;
         data->attachments = sentry__attachments_new();
     }
@@ -902,8 +894,7 @@ static sentry_transaction_t *
 data_ref_transaction_object(const sentry_scope_data_t *data)
 {
     sentry_transaction_t *transaction = NULL;
-    DATA_READ_LOCK(data)
-    {
+    DATA_READ_LOCK (data) {
         transaction = data->transaction_object;
         sentry__transaction_incref(transaction);
     }
@@ -923,8 +914,7 @@ data_set_transaction_object(
     sentry_scope_data_t *data, sentry_transaction_t *transaction)
 {
     sentry__transaction_incref(transaction);
-    DATA_WRITE_LOCK(data)
-    {
+    DATA_WRITE_LOCK (data) {
         sentry__span_decref(data->span);
         data->span = NULL;
         sentry__transaction_decref(data->transaction_object);
@@ -937,8 +927,7 @@ data_remove_transaction_object(
     sentry_scope_data_t *data, sentry_transaction_t *transaction)
 {
     bool removed = false;
-    DATA_WRITE_LOCK(data)
-    {
+    DATA_WRITE_LOCK (data) {
         if (transaction && data->transaction_object == transaction) {
             data->transaction_object = NULL;
             removed = true;
@@ -957,8 +946,7 @@ data_remove_transaction_value(
     const char *span_id = sentry_value_as_string(
         sentry_value_get_by_key(transaction, "span_id"));
     sentry_transaction_t *transaction_object = NULL;
-    DATA_WRITE_LOCK(data)
-    {
+    DATA_WRITE_LOCK (data) {
         if (data->transaction_object
             && value_has_span_id(data->transaction_object->inner, span_id)) {
             transaction_object = data->transaction_object;
@@ -974,8 +962,7 @@ data_restore_transaction_object(
     sentry_scope_data_t *data, sentry_transaction_t *transaction)
 {
     bool restored = false;
-    DATA_WRITE_LOCK(data)
-    {
+    DATA_WRITE_LOCK (data) {
         if (!data->transaction_object && !data->span && transaction) {
             data->transaction_object = transaction;
             restored = true;
@@ -988,8 +975,7 @@ static sentry_span_t *
 data_ref_span(const sentry_scope_data_t *data)
 {
     sentry_span_t *span = NULL;
-    DATA_READ_LOCK(data)
-    {
+    DATA_READ_LOCK (data) {
         span = data->span;
         sentry__span_incref(span);
     }
@@ -1000,8 +986,7 @@ static void
 data_set_span(sentry_scope_data_t *data, sentry_span_t *span)
 {
     sentry__span_incref(span);
-    DATA_WRITE_LOCK(data)
-    {
+    DATA_WRITE_LOCK (data) {
         sentry__transaction_decref(data->transaction_object);
         data->transaction_object = NULL;
         sentry__span_decref(data->span);
@@ -1013,8 +998,7 @@ static bool
 data_remove_span(sentry_scope_data_t *data, sentry_span_t *span)
 {
     bool removed = false;
-    DATA_WRITE_LOCK(data)
-    {
+    DATA_WRITE_LOCK (data) {
         if (span && data->span == span) {
             data->span = NULL;
             removed = true;
@@ -1032,8 +1016,7 @@ data_remove_span_value(sentry_scope_data_t *data, sentry_value_t span)
     const char *span_id
         = sentry_value_as_string(sentry_value_get_by_key(span, "span_id"));
     sentry_span_t *scope_span = NULL;
-    DATA_WRITE_LOCK(data)
-    {
+    DATA_WRITE_LOCK (data) {
         if (data->span && value_has_span_id(data->span->inner, span_id)) {
             scope_span = data->span;
             data->span = NULL;
@@ -1047,8 +1030,7 @@ static bool
 data_restore_span(sentry_scope_data_t *data, sentry_span_t *span)
 {
     bool restored = false;
-    DATA_WRITE_LOCK(data)
-    {
+    DATA_WRITE_LOCK (data) {
         if (!data->span && !data->transaction_object && span) {
             data->span = span;
             restored = true;
@@ -1061,15 +1043,16 @@ static sentry_value_t
 data_ref_release(const sentry_scope_data_t *data)
 {
     sentry_value_t release = sentry_value_new_null();
-    DATA_READ_LOCK(data) { release = sentry_value_incref(data->release); }
+    DATA_READ_LOCK (data) {
+        release = sentry_value_incref(data->release);
+    }
     return release;
 }
 
 static void
 data_set_release(sentry_scope_data_t *data, sentry_value_t value)
 {
-    DATA_WRITE_LOCK(data)
-    {
+    DATA_WRITE_LOCK (data) {
         sentry__value_replace(&data->release, sentry_value_incref(value));
         sentry_value_set_by_key(data->dynamic_sampling_context, "release",
             sentry_value_incref(value));
@@ -1080,8 +1063,7 @@ static sentry_value_t
 data_ref_environment(const sentry_scope_data_t *data)
 {
     sentry_value_t environment = sentry_value_new_null();
-    DATA_READ_LOCK(data)
-    {
+    DATA_READ_LOCK (data) {
         environment = sentry_value_incref(data->environment);
     }
     return environment;
@@ -1090,8 +1072,7 @@ data_ref_environment(const sentry_scope_data_t *data)
 static void
 data_set_environment(sentry_scope_data_t *data, sentry_value_t value)
 {
-    DATA_WRITE_LOCK(data)
-    {
+    DATA_WRITE_LOCK (data) {
         sentry__value_replace(&data->environment, sentry_value_incref(value));
         sentry_value_set_by_key(data->dynamic_sampling_context, "environment",
             sentry_value_incref(value));
@@ -1102,8 +1083,7 @@ static sentry_value_t
 data_ref_transaction(const sentry_scope_data_t *data)
 {
     sentry_value_t transaction = sentry_value_new_null();
-    DATA_READ_LOCK(data)
-    {
+    DATA_READ_LOCK (data) {
         transaction = sentry_value_incref(data->transaction);
     }
     return transaction;
@@ -1113,8 +1093,7 @@ static void
 data_set_transaction(sentry_scope_data_t *data, sentry_value_t value,
     const char *transaction, size_t transaction_len)
 {
-    DATA_WRITE_LOCK(data)
-    {
+    DATA_WRITE_LOCK (data) {
         sentry__value_replace(&data->transaction, sentry_value_incref(value));
         if (data->transaction_object) {
             sentry_transaction_set_name_n(
@@ -1130,8 +1109,7 @@ data_apply_to_telemetry(const sentry_scope_data_t *data,
     sentry_value_t os_name = sentry_value_new_null();
     sentry_value_t os_version = sentry_value_new_null();
 
-    DATA_READ_LOCK(data)
-    {
+    DATA_READ_LOCK (data) {
         sentry__value_merge_objects_shallow(attributes, data->attributes);
 
         sentry_value_t trace_id = sentry_value_get_by_key(
