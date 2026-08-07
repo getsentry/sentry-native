@@ -5,6 +5,7 @@
 #include "sentry_options.h"
 #include "sentry_scope.h"
 #include "sentry_testsupport.h"
+#include "sentry_tracing.h"
 #include "sentry_utils.h"
 
 typedef sentry_value_t (*scope_value_ref_t)(const sentry_scope_t *scope);
@@ -2550,13 +2551,17 @@ SENTRY_TEST(scope_clone_shares_span)
     sentry_scope_t *clone = NULL;
     sentry_transaction_t *scope_txn = NULL;
     SENTRY_WITH_SCOPE (scope) {
-        scope_txn = sentry__scope_get_transaction_object(scope);
+        scope_txn = sentry__scope_ref_transaction_object(scope);
         clone = sentry_scope_clone(scope);
     }
 
     // The active transaction is shared by reference, not dropped or duplicated.
     TEST_CHECK(scope_txn != NULL);
-    TEST_CHECK(sentry__scope_get_transaction_object(clone) == scope_txn);
+    sentry_transaction_t *clone_txn
+        = sentry__scope_ref_transaction_object(clone);
+    TEST_CHECK(clone_txn == scope_txn);
+    sentry__transaction_decref(clone_txn);
+    sentry__transaction_decref(scope_txn);
 
     // The shared reference keeps the transaction alive for the original: the
     // clone can be freed and the transaction still finished safely.

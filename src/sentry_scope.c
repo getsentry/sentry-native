@@ -857,10 +857,14 @@ data_take_attachments(sentry_scope_data_t *data)
 }
 
 static sentry_transaction_t *
-data_get_transaction_object(const sentry_scope_data_t *data)
+data_ref_transaction_object(const sentry_scope_data_t *data)
 {
     sentry_transaction_t *transaction = NULL;
-    DATA_READ_LOCK(data) { transaction = data->transaction_object; }
+    DATA_READ_LOCK(data)
+    {
+        transaction = data->transaction_object;
+        sentry__transaction_incref(transaction);
+    }
     return transaction;
 }
 
@@ -939,10 +943,14 @@ data_restore_transaction_object(
 }
 
 static sentry_span_t *
-data_get_span(const sentry_scope_data_t *data)
+data_ref_span(const sentry_scope_data_t *data)
 {
     sentry_span_t *span = NULL;
-    DATA_READ_LOCK(data) { span = data->span; }
+    DATA_READ_LOCK(data)
+    {
+        span = data->span;
+        sentry__span_incref(span);
+    }
     return span;
 }
 
@@ -2227,9 +2235,9 @@ sentry__scope_take_attachments(sentry_scope_t *scope)
 }
 
 sentry_transaction_t *
-sentry__scope_get_transaction_object(const sentry_scope_t *scope)
+sentry__scope_ref_transaction_object(const sentry_scope_t *scope)
 {
-    return data_get_transaction_object(scope->data);
+    return data_ref_transaction_object(scope->data);
 }
 
 void
@@ -2261,9 +2269,9 @@ sentry__scope_restore_transaction_object(
 }
 
 sentry_span_t *
-sentry__scope_get_span(const sentry_scope_t *scope)
+sentry__scope_ref_span(const sentry_scope_t *scope)
 {
-    return data_get_span(scope->data);
+    return data_ref_span(scope->data);
 }
 
 void

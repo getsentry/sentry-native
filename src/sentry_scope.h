@@ -184,7 +184,7 @@ bool sentry__scope_remove_attachment(
     sentry_scope_t *scope, sentry_attachment_t *attachment);
 sentry_attachment_t *sentry__scope_take_attachments(sentry_scope_t *scope);
 
-sentry_transaction_t *sentry__scope_get_transaction_object(
+sentry_transaction_t *sentry__scope_ref_transaction_object(
     const sentry_scope_t *scope);
 void sentry__scope_set_transaction_object(
     sentry_scope_t *scope, sentry_transaction_t *transaction);
@@ -195,7 +195,7 @@ bool sentry__scope_remove_transaction_value(
 bool sentry__scope_restore_transaction_object(
     sentry_scope_t *scope, sentry_transaction_t *transaction);
 
-sentry_span_t *sentry__scope_get_span(const sentry_scope_t *scope);
+sentry_span_t *sentry__scope_ref_span(const sentry_scope_t *scope);
 void sentry__scope_set_span(sentry_scope_t *scope, sentry_span_t *span);
 bool sentry__scope_remove_span(sentry_scope_t *scope, sentry_span_t *span);
 bool sentry__scope_remove_span_value(
