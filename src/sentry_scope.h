@@ -304,6 +304,6 @@ void sentry__scope_capture_envelope(sentry_scope_t *scope,
 
 // this is only used in unit tests
 #ifdef SENTRY_UNITTEST
-sentry_value_t sentry__scope_get_span_or_transaction(void);
+sentry_value_t sentry__scope_ref_span_or_transaction(void);
 bool sentry__scope_has_observers(const sentry_scope_t *scope);
 #endif

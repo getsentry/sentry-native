@@ -420,12 +420,14 @@ SENTRY_TEST(multiple_transactions)
         = sentry_transaction_start(tx_ctx, sentry_value_new_null());
     sentry_set_transaction_object(tx);
 
-    sentry_value_t scope_tx = sentry__scope_get_span_or_transaction();
+    sentry_value_t scope_tx = sentry__scope_ref_span_or_transaction();
     CHECK_STRING_PROPERTY(scope_tx, "transaction", "wow!");
+    sentry_value_decref(scope_tx);
 
     sentry_uuid_t event_id = sentry_transaction_finish(tx);
-    scope_tx = sentry__scope_get_span_or_transaction();
+    scope_tx = sentry__scope_ref_span_or_transaction();
     TEST_CHECK(sentry_value_is_null(scope_tx));
+    sentry_value_decref(scope_tx);
     TEST_CHECK(!sentry_uuid_is_nil(&event_id));
 
     // Set transaction on scope twice, back-to-back without finishing the first
@@ -437,8 +439,9 @@ SENTRY_TEST(multiple_transactions)
     tx_ctx = sentry_transaction_context_new("wowee!", NULL);
     tx = sentry_transaction_start(tx_ctx, sentry_value_new_null());
     sentry_set_transaction_object(tx);
-    scope_tx = sentry__scope_get_span_or_transaction();
+    scope_tx = sentry__scope_ref_span_or_transaction();
     CHECK_STRING_PROPERTY(scope_tx, "transaction", "wowee!");
+    sentry_value_decref(scope_tx);
     event_id = sentry_transaction_finish(tx);
     TEST_CHECK(!sentry_uuid_is_nil(&event_id));
 
@@ -520,20 +523,21 @@ SENTRY_TEST(spans_on_scope)
 
     // Peek into the transaction's span list and make sure everything is
     // good
-    sentry_value_t scope_tx = sentry__scope_get_span_or_transaction();
-    const char *trace_id
-        = sentry_value_as_string(sentry_value_get_by_key(scope_tx, "trace_id"));
-    const char *parent_span_id
-        = sentry_value_as_string(sentry_value_get_by_key(scope_tx, "span_id"));
+    sentry_value_t scope_tx = sentry__scope_ref_span_or_transaction();
+    char *trace_id = sentry__string_clone(
+        sentry_value_as_string(sentry_value_get_by_key(scope_tx, "trace_id")));
+    char *parent_span_id = sentry__string_clone(
+        sentry_value_as_string(sentry_value_get_by_key(scope_tx, "span_id")));
     // Don't track the span yet
     TEST_CHECK(IS_NULL(scope_tx, "spans"));
+    sentry_value_decref(scope_tx);
 
     // Sanity check that child isn't finished yet
     TEST_CHECK(IS_NULL(child, "timestamp"));
 
     sentry_span_finish(opaque_child);
 
-    scope_tx = sentry__scope_get_span_or_transaction();
+    scope_tx = sentry__scope_ref_span_or_transaction();
     TEST_CHECK(!IS_NULL(scope_tx, "spans"));
     sentry_value_t spans = sentry_value_get_by_key(scope_tx, "spans");
     TEST_CHECK_INT_EQUAL(sentry_value_get_length(spans), 1);
@@ -546,6 +550,9 @@ SENTRY_TEST(spans_on_scope)
     CHECK_STRING_PROPERTY(stored_child, "description", "goose");
     // Should be finished
     TEST_CHECK(!IS_NULL(stored_child, "timestamp"));
+    sentry_value_decref(scope_tx);
+    sentry_free(trace_id);
+    sentry_free(parent_span_id);
 
     sentry__transaction_decref(opaque_tx);
 

@@ -2691,6 +2691,56 @@ SENTRY_TEST(scope_clone_shares_span)
     sentry_close();
 }
 
+SENTRY_TEST(scope_restore_trace)
+{
+    SENTRY_TEST_OPTIONS_NEW(options);
+    sentry_options_set_traces_sample_rate(options, 1.0);
+    sentry_init(options);
+
+    sentry_scope_t *scope = sentry_scope_new();
+    sentry_transaction_context_t *tx_ctx
+        = sentry_transaction_context_new("txn", NULL);
+    sentry_transaction_t *tx
+        = sentry_transaction_start(tx_ctx, sentry_value_new_null());
+    sentry_span_t *span = sentry_transaction_start_child(tx, "op", NULL);
+
+    sentry__scope_set_transaction_object(scope, tx);
+    TEST_CHECK(!sentry__scope_restore_span(scope, span));
+
+    sentry_span_t *scope_span = sentry__scope_ref_span(scope);
+    TEST_CHECK(scope_span == NULL);
+    sentry__span_decref(scope_span);
+    sentry_transaction_t *scope_tx
+        = sentry__scope_ref_transaction_object(scope);
+    TEST_CHECK(scope_tx == tx);
+    sentry__transaction_decref(scope_tx);
+
+    sentry_scope_free(scope);
+    sentry__span_decref(span);
+    sentry__transaction_decref(tx);
+
+    scope = sentry_scope_new();
+    tx_ctx = sentry_transaction_context_new("txn", NULL);
+    tx = sentry_transaction_start(tx_ctx, sentry_value_new_null());
+    span = sentry_transaction_start_child(tx, "op", NULL);
+
+    sentry__scope_set_span(scope, span);
+    TEST_CHECK(!sentry__scope_restore_transaction_object(scope, tx));
+
+    scope_tx = sentry__scope_ref_transaction_object(scope);
+    TEST_CHECK(scope_tx == NULL);
+    sentry__transaction_decref(scope_tx);
+    scope_span = sentry__scope_ref_span(scope);
+    TEST_CHECK(scope_span == span);
+    sentry__span_decref(scope_span);
+
+    sentry_scope_free(scope);
+    sentry__span_decref(span);
+    sentry__transaction_decref(tx);
+
+    sentry_close();
+}
+
 SENTRY_TEST(scope_clear)
 {
     SENTRY_TEST_OPTIONS_NEW(options);
