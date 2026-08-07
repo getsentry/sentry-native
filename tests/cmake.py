@@ -338,6 +338,11 @@ def configure_clang_cl(config_cmd: list[str]):
 
 
 def configure_llvm_cov(config_cmd: list[str]):
+    def cmake_flags(name: str, value: str) -> str:
+        if os.environ.get("VS_GENERATOR_TOOLSET") == "ClangCL":
+            return f"-D{name}={value}"
+        return f"-D{name}='{value}'"
+
     if False and os.environ.get("VS_GENERATOR_TOOLSET") == "ClangCL":
         # for clang-cl in CI we have to use `--coverage` rather than `fprofile-instr-generate` and provide an
         # architecture-specific profiling library for it work:
@@ -363,7 +368,7 @@ def configure_llvm_cov(config_cmd: list[str]):
             config_cmd.append(f"-DCMAKE_EXE_LINKER_FLAGS={profile_lib}")
             config_cmd.append(f"-DCMAKE_SHARED_LINKER_FLAGS={profile_lib}")
             config_cmd.append(f"-DCMAKE_MODULE_LINKER_FLAGS={profile_lib}")
-    config_cmd.append("-DCMAKE_C_FLAGS='{}'".format(flags))
+    config_cmd.append(cmake_flags("CMAKE_C_FLAGS", flags))
 
     # Since we overwrite `CXXFLAGS` below, we must add the experimental library here for the GHA runner that builds
     # sentry-native with LLVM clang for macOS (to run ASAN on macOS) rather than the version coming with XCode.
@@ -378,4 +383,4 @@ def configure_llvm_cov(config_cmd: list[str]):
             + " -L/usr/local/opt/llvm@15/lib/c++ -fexperimental-library -Wno-unused-command-line-argument"
         )
 
-    config_cmd.append("-DCMAKE_CXX_FLAGS='{}'".format(flags))
+    config_cmd.append(cmake_flags("CMAKE_CXX_FLAGS", flags))
