@@ -359,12 +359,6 @@ data_ref_propagation_context(const sentry_scope_data_t *data)
     return propagation_context;
 }
 
-static sentry_value_t
-data_get_trace_context(const sentry_scope_data_t *data)
-{
-    return sentry_value_get_by_key(data->propagation_context, "trace");
-}
-
 static void
 data_set_propagation_context(
     sentry_scope_data_t *data, const char *key, sentry_value_t value)
@@ -381,6 +375,30 @@ data_regenerate_propagation_context(sentry_scope_data_t *data)
     DATA_WRITE_LOCK(data)
     {
         generate_propagation_context(data->propagation_context);
+    }
+}
+
+static sentry_value_t
+data_ref_trace_context(const sentry_scope_data_t *data)
+{
+    sentry_value_t trace_context = sentry_value_new_null();
+    DATA_READ_LOCK(data)
+    {
+        trace_context = sentry_value_incref(
+            sentry_value_get_by_key(data->propagation_context, "trace"));
+    }
+    return trace_context;
+}
+
+static void
+data_set_trace_context(
+    sentry_scope_data_t *data, const char *key, sentry_value_t value)
+{
+    DATA_WRITE_LOCK(data)
+    {
+        sentry_value_set_by_key(
+            sentry_value_get_by_key(data->propagation_context, "trace"), key,
+            value);
     }
 }
 
@@ -1472,12 +1490,6 @@ sentry__scope_get_propagation_context(const sentry_scope_t *scope)
     return data_get_propagation_context(scope->data);
 }
 
-sentry_value_t
-sentry__scope_get_trace_context(const sentry_scope_t *scope)
-{
-    return data_get_trace_context(scope->data);
-}
-
 void
 sentry__scope_set_propagation_context(
     sentry_scope_t *scope, const char *key, sentry_value_t value)
@@ -1489,6 +1501,19 @@ void
 sentry__scope_regenerate_propagation_context(sentry_scope_t *scope)
 {
     data_regenerate_propagation_context(scope->data);
+}
+
+sentry_value_t
+sentry__scope_ref_trace_context(const sentry_scope_t *scope)
+{
+    return data_ref_trace_context(scope->data);
+}
+
+void
+sentry__scope_set_trace_context(
+    sentry_scope_t *scope, const char *key, sentry_value_t value)
+{
+    data_set_trace_context(scope->data, key, value);
 }
 
 bool

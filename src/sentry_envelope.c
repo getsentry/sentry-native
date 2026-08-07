@@ -416,8 +416,10 @@ sentry__envelope_add_event(sentry_envelope_t *envelope, sentry_value_t event)
     double sample_rand = (double)NAN;
     SENTRY_WITH_SCOPE (scope) {
         dsc = sentry__value_clone(sentry__scope_get_dsc(scope));
-        sample_rand = sentry_value_as_double(sentry_value_get_by_key(
-            sentry__scope_get_trace_context(scope), "sample_rand"));
+        sentry_value_t trace_context = sentry__scope_ref_trace_context(scope);
+        sample_rand = sentry_value_as_double(
+            sentry_value_get_by_key(trace_context, "sample_rand"));
+        sentry_value_decref(trace_context);
     }
     if (!sentry_value_is_null(dsc)) {
         sentry_value_t trace_id = sentry_value_get_by_key(
