@@ -934,7 +934,7 @@ data_restore_transaction_object(
     bool restored = false;
     DATA_WRITE_LOCK(data)
     {
-        if (!data->transaction_object && transaction) {
+        if (!data->transaction_object && !data->span && transaction) {
             data->transaction_object = transaction;
             restored = true;
         }
@@ -1007,7 +1007,7 @@ data_restore_span(sentry_scope_data_t *data, sentry_span_t *span)
     bool restored = false;
     DATA_WRITE_LOCK(data)
     {
-        if (!data->span && span) {
+        if (!data->span && !data->transaction_object && span) {
             data->span = span;
             restored = true;
         }
@@ -1656,27 +1656,12 @@ sentry__symbolize_stacktrace(sentry_value_t stacktrace)
 #endif
 
 #ifdef SENTRY_UNITTEST
-static sentry_value_t
-data_get_span_or_transaction(const sentry_scope_data_t *data)
-{
-    sentry_value_t value = sentry_value_new_null();
-    DATA_READ_LOCK(data)
-    {
-        if (data->span) {
-            value = data->span->inner;
-        } else if (data->transaction_object) {
-            value = data->transaction_object->inner;
-        }
-    }
-    return value;
-}
-
 sentry_value_t
-sentry__scope_get_span_or_transaction(void)
+sentry__scope_ref_span_or_transaction(void)
 {
     sentry_value_t result = sentry_value_new_null();
     SENTRY_WITH_SCOPE (scope) {
-        result = data_get_span_or_transaction(scope->data);
+        result = data_ref_span_or_transaction(scope->data);
     }
     return result;
 }
