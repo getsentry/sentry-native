@@ -8,6 +8,10 @@
 - Add `sentry_options_set_before_send_feedback` to filter or enrich user feedback. Feedback does not go through `before_send`. ([#1923](https://github.com/getsentry/sentry-native/pull/1923))
 - Unix: Add `SENTRY_LINK_CURL` to control whether the curl transport links `libcurl` directly, loads it dynamically at runtime, or uses the default behavior. ([#1954](https://github.com/getsentry/sentry-native/pull/1954))
 
+**Features**:
+
+- Report the byte size of discarded logs and metrics in client reports under the `log_byte` and `trace_metric_byte` categories, alongside the existing `log_item` and `trace_metric` counts.
+
 **Fixes**:
 
 - Name `sentry-logs` and `sentry-metrics` telemetry batcher threads so they can be identified in debuggers, profilers, and crash reports. ([#1937](https://github.com/getsentry/sentry-native/pull/1937))
@@ -25,6 +29,7 @@
 **Fixes**:
 
 - Honor checks before launching crash reporter ([#1906](https://github.com/getsentry/sentry-native/pull/1906))
+- Client reports now count every log in a discarded batch instead of counting the whole envelope item as a single discard, so dropping a batch of 100 logs is reported as 100 discarded `log_item`s rather than 1. The same applies to batched metrics.
 
 ## 0.16.0
 

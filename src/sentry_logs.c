@@ -487,12 +487,17 @@ send_log(sentry_level_t level, sentry_value_t log)
     bool discarded = false;
     SENTRY_WITH_OPTIONS (options) {
         if (options->before_send_log_func) {
+            // the hook takes ownership and decrefs the log when it discards it,
+            // so we have to size it up front for the `log_byte` client report
+            const size_t log_bytes
+                = sentry__value_estimate_serialized_size(log);
             log = options->before_send_log_func(
                 log, options->before_send_log_data);
             if (sentry_value_is_null(log)) {
                 SENTRY_DEBUG("log was discarded by the `before_send_log` hook");
-                sentry__client_report_discard(SENTRY_DISCARD_REASON_BEFORE_SEND,
-                    SENTRY_DATA_CATEGORY_LOG_ITEM, 1);
+                sentry__client_report_discard_with_bytes(
+                    SENTRY_DISCARD_REASON_BEFORE_SEND,
+                    SENTRY_DATA_CATEGORY_LOG_ITEM, 1, (long)log_bytes);
                 discarded = true;
             }
         }

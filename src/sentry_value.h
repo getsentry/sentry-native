@@ -68,6 +68,16 @@ sentry_value_t sentry__value_new_list_with_size(size_t size);
 sentry_value_t sentry__value_new_object_with_size(size_t size);
 
 /**
+ * Estimates the size in bytes of `value`s JSON representation.
+ *
+ * This walks the value without allocating and does not account for string
+ * escaping or the exact rendering of numbers, so the result is an
+ * approximation. It is used for the `*_byte` client report categories, which
+ * explicitly allow one.
+ */
+size_t sentry__value_estimate_serialized_size(sentry_value_t value);
+
+/**
  * Iterates over the key/value pairs of an object value. The callback receives a
  * borrowed reference for each value. Does nothing if `value` is not an object.
  */
