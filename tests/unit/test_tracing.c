@@ -2477,16 +2477,20 @@ SENTRY_TEST(set_trace_rebuilds_dsc_sample_rand)
 
     double init_sample_rand = 0.0;
     SENTRY_WITH_SCOPE (scope) {
-        init_sample_rand = sentry_value_as_double(sentry_value_get_by_key(
-            sentry__scope_get_dsc(scope), "sample_rand"));
+        sentry_value_t dsc = sentry__scope_ref_dsc(scope);
+        init_sample_rand = sentry_value_as_double(
+            sentry_value_get_by_key(dsc, "sample_rand"));
+        sentry_value_decref(dsc);
     }
 
     sentry_set_trace("11112222333344445555666677778888", "1234567812345678");
 
     double new_sample_rand = -1.0;
     SENTRY_WITH_SCOPE (scope) {
-        new_sample_rand = sentry_value_as_double(sentry_value_get_by_key(
-            sentry__scope_get_dsc(scope), "sample_rand"));
+        sentry_value_t dsc = sentry__scope_ref_dsc(scope);
+        new_sample_rand = sentry_value_as_double(
+            sentry_value_get_by_key(dsc, "sample_rand"));
+        sentry_value_decref(dsc);
     }
     // sample_rand is regenerated for the new trace, so the DSC must reflect
     // the fresh value, not the init-time one.

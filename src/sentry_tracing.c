@@ -961,8 +961,7 @@ sentry__span_iter_headers(sentry_value_t span,
         sentry__stringbuilder_append(&sb, sentry_value_as_string(trace_id));
 
         SENTRY_WITH_SCOPE (scope) {
-            sentry__value_foreach_key_value(
-                sentry__scope_get_dsc(scope), append_baggage_member, &sb);
+            sentry__scope_foreach_dsc(scope, append_baggage_member, &sb);
         }
 
         char *baggage = sentry__stringbuilder_into_string(&sb);

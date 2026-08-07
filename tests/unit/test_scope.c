@@ -2577,8 +2577,10 @@ SENTRY_TEST(scope_clear)
     // dynamic sampling context.
     sentry__scope_set_propagation_context(
         scope, "marker", sentry_value_new_string("keep"));
-    sentry_value_set_by_key(sentry__scope_get_dsc(scope), "marker",
-        sentry_value_new_string("keep"));
+    sentry_value_t dsc = sentry_value_new_object();
+    sentry_value_set_by_key(dsc, "marker", sentry_value_new_string("keep"));
+    sentry__scope_freeze_dsc(scope, dsc);
+    sentry_value_decref(dsc);
 
     sentry_scope_set_tag(scope, "tag", "value");
     sentry_scope_set_extra(scope, "extra", sentry_value_new_string("value"));
@@ -2629,9 +2631,11 @@ SENTRY_TEST(scope_clear)
                                 propagation_context, "marker")),
         "keep");
     sentry_value_decref(propagation_context);
-    TEST_CHECK_STRING_EQUAL(sentry_value_as_string(sentry_value_get_by_key(
-                                sentry__scope_get_dsc(scope), "marker")),
+    sentry_value_t scope_dsc = sentry__scope_ref_dsc(scope);
+    TEST_CHECK_STRING_EQUAL(
+        sentry_value_as_string(sentry_value_get_by_key(scope_dsc, "marker")),
         "keep");
+    sentry_value_decref(scope_dsc);
 
     // The cleared scope is still usable.
     sentry_scope_set_tag(scope, "after", "clear");
