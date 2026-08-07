@@ -2671,13 +2671,17 @@ SENTRY_TEST(scope_clone_shares_span)
     sentry_scope_t *clone = NULL;
     sentry_transaction_t *scope_txn = NULL;
     SENTRY_WITH_SCOPE (scope) {
-        scope_txn = sentry__scope_get_transaction_object(scope);
+        scope_txn = sentry__scope_ref_transaction_object(scope);
         clone = sentry_scope_clone(scope);
     }
 
     // The active transaction is shared by reference, not dropped or duplicated.
     TEST_CHECK(scope_txn != NULL);
-    TEST_CHECK(sentry__scope_get_transaction_object(clone) == scope_txn);
+    sentry_transaction_t *clone_txn
+        = sentry__scope_ref_transaction_object(clone);
+    TEST_CHECK(clone_txn == scope_txn);
+    sentry__transaction_decref(clone_txn);
+    sentry__transaction_decref(scope_txn);
 
     // The shared reference keeps the transaction alive for the original: the
     // clone can be freed and the transaction still finished safely.
@@ -3013,8 +3017,8 @@ SENTRY_TEST(scope_bind_transaction_object)
     // After unbinding, event falls back to the propagation context.
     TEST_ASSERT(!sentry_value_is_null(trace));
     SENTRY_WITH_SCOPE (global_scope) {
-        sentry_value_t propagation_trace = sentry_value_get_by_key(
-            global_scope->propagation_context, "trace");
+        sentry_value_t propagation_trace
+            = sentry__scope_ref_trace_context(global_scope);
         TEST_CHECK_STRING_EQUAL(
             sentry_value_as_string(sentry_value_get_by_key(trace, "trace_id")),
             sentry_value_as_string(
@@ -3023,6 +3027,7 @@ SENTRY_TEST(scope_bind_transaction_object)
             sentry_value_as_string(sentry_value_get_by_key(trace, "span_id")),
             sentry_value_as_string(
                 sentry_value_get_by_key(propagation_trace, "span_id")));
+        sentry_value_decref(propagation_trace);
     }
 
     sentry_value_decref(trace);
@@ -3052,8 +3057,13 @@ SENTRY_TEST(scope_bind_span)
 
     // Binding a scope of our own leaves the global scope alone.
     SENTRY_WITH_SCOPE (global_scope) {
-        TEST_CHECK(global_scope->span == NULL);
-        TEST_CHECK(global_scope->transaction_object == NULL);
+        sentry_span_t *global_span = sentry__scope_ref_span(global_scope);
+        sentry_transaction_t *global_tx
+            = sentry__scope_ref_transaction_object(global_scope);
+        TEST_CHECK(global_span == NULL);
+        TEST_CHECK(global_tx == NULL);
+        sentry__span_decref(global_span);
+        sentry__transaction_decref(global_tx);
     }
 
     sentry_scope_capture_event(scope,
@@ -3074,7 +3084,9 @@ SENTRY_TEST(scope_bind_span)
     // TODO: Finishing a span releases the caller's reference and only clears
     // the global scope. A user-owned scope still stamps that finished span onto
     // later events; this acknowledges the current behavior until it changes.
-    TEST_CHECK_PTR_EQUAL(scope->span, span);
+    sentry_span_t *bound_span = sentry__scope_ref_span(scope);
+    TEST_CHECK_PTR_EQUAL(bound_span, span);
+    sentry__span_decref(bound_span);
 
     sentry_value_decref(trace);
     sentry_scope_free(scope);
@@ -3099,17 +3111,30 @@ SENTRY_TEST(scope_bind_span_or_transaction_not_both)
     sentry_scope_t *scope = sentry_scope_new();
     sentry_scope_set_span(scope, span);
     sentry_scope_set_transaction_object(scope, tx);
-    TEST_CHECK(scope->span == NULL);
-    TEST_CHECK_PTR_EQUAL(scope->transaction_object, tx);
+    sentry_span_t *bound_span = sentry__scope_ref_span(scope);
+    sentry_transaction_t *bound_tx
+        = sentry__scope_ref_transaction_object(scope);
+    TEST_CHECK(bound_span == NULL);
+    TEST_CHECK_PTR_EQUAL(bound_tx, tx);
+    sentry__span_decref(bound_span);
+    sentry__transaction_decref(bound_tx);
 
     sentry_scope_set_span(scope, span);
-    TEST_CHECK(scope->transaction_object == NULL);
-    TEST_CHECK_PTR_EQUAL(scope->span, span);
+    bound_tx = sentry__scope_ref_transaction_object(scope);
+    bound_span = sentry__scope_ref_span(scope);
+    TEST_CHECK(bound_tx == NULL);
+    TEST_CHECK_PTR_EQUAL(bound_span, span);
+    sentry__transaction_decref(bound_tx);
+    sentry__span_decref(bound_span);
 
     // Passing null unbinds both.
     sentry_scope_set_transaction_object(scope, NULL);
-    TEST_CHECK(scope->span == NULL);
-    TEST_CHECK(scope->transaction_object == NULL);
+    bound_span = sentry__scope_ref_span(scope);
+    bound_tx = sentry__scope_ref_transaction_object(scope);
+    TEST_CHECK(bound_span == NULL);
+    TEST_CHECK(bound_tx == NULL);
+    sentry__span_decref(bound_span);
+    sentry__transaction_decref(bound_tx);
 
     sentry_scope_free(scope);
     sentry_span_finish(span);
@@ -3138,21 +3163,25 @@ SENTRY_TEST(scope_rebind_same_object)
 
     // Rebinding what is already bound must not drop that last reference (a
     // use-after-free here would trip the sanitizers).
-    sentry_scope_set_span(scope, scope->span);
-    TEST_CHECK_PTR_EQUAL(scope->span, span);
+    sentry_scope_set_span(scope, span);
+    sentry_span_t *bound_span = sentry__scope_ref_span(scope);
+    TEST_CHECK_PTR_EQUAL(bound_span, span);
     TEST_CHECK_STRING_EQUAL(sentry_value_as_string(sentry_value_get_by_key(
-                                scope->span->inner, "description")),
+                                bound_span->inner, "description")),
         "select");
+    sentry__span_decref(bound_span);
 
     sentry_scope_set_transaction_object(scope, tx);
     sentry_transaction_finish(tx);
 
-    sentry_scope_set_transaction_object(scope, scope->transaction_object);
-    TEST_CHECK_PTR_EQUAL(scope->transaction_object, tx);
-    TEST_CHECK_STRING_EQUAL(
-        sentry_value_as_string(sentry_value_get_by_key(
-            scope->transaction_object->inner, "transaction")),
+    sentry_scope_set_transaction_object(scope, tx);
+    sentry_transaction_t *bound_tx
+        = sentry__scope_ref_transaction_object(scope);
+    TEST_CHECK_PTR_EQUAL(bound_tx, tx);
+    TEST_CHECK_STRING_EQUAL(sentry_value_as_string(sentry_value_get_by_key(
+                                bound_tx->inner, "transaction")),
         "txn");
+    sentry__transaction_decref(bound_tx);
 
     sentry_scope_free(scope);
 
@@ -3174,15 +3203,19 @@ SENTRY_TEST(scope_clone_keeps_bound_span)
     sentry_scope_t *scope = sentry_scope_new();
     sentry_scope_set_span(scope, span);
     sentry_scope_t *clone = sentry_scope_clone(scope);
-    TEST_CHECK_PTR_EQUAL(clone->span, span);
+    sentry_span_t *clone_span = sentry__scope_ref_span(clone);
+    TEST_CHECK_PTR_EQUAL(clone_span, span);
+    sentry__span_decref(clone_span);
 
     // The clone owns its binding, so it outlives the original scope and caller
     // reference.
     sentry_scope_free(scope);
     sentry_span_finish(span);
+    clone_span = sentry__scope_ref_span(clone);
     TEST_CHECK_STRING_EQUAL(sentry_value_as_string(sentry_value_get_by_key(
-                                clone->span->inner, "description")),
+                                clone_span->inner, "description")),
         "select");
+    sentry__span_decref(clone_span);
 
     sentry_scope_free(clone);
     sentry_transaction_finish(tx);

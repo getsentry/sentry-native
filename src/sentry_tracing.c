@@ -1015,14 +1015,8 @@ save_active_trace(void)
 {
     saved_trace_t s = { 0 };
     SENTRY_WITH_SCOPE (scope) {
-        s.saved_span = sentry__scope_get_span(scope);
-        if (s.saved_span) {
-            sentry__span_incref(s.saved_span);
-        }
-        s.saved_tx_obj = sentry__scope_get_transaction_object(scope);
-        if (s.saved_tx_obj) {
-            sentry__transaction_incref(s.saved_tx_obj);
-        }
+        s.saved_span = sentry__scope_ref_span(scope);
+        s.saved_tx_obj = sentry__scope_ref_transaction_object(scope);
     }
     s.active_tx = s.saved_span && s.saved_span->transaction
         ? s.saved_span->transaction

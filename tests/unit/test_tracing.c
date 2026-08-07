@@ -852,7 +852,9 @@ SENTRY_TEST(trace_finish)
     // Scope still points at the (finished) span so a subsequent crash event
     // inherits its trace context.
     SENTRY_WITH_SCOPE (scope) {
-        TEST_CHECK(sentry__scope_get_span(scope) != NULL);
+        sentry_span_t *scope_span = sentry__scope_ref_span(scope);
+        TEST_CHECK(scope_span != NULL);
+        sentry__span_decref(scope_span);
     }
 
     sentry__span_decref(grand);
@@ -934,13 +936,19 @@ SENTRY_TEST(discard_transaction)
     sentry_set_transaction_object(tx);
 
     SENTRY_WITH_SCOPE (scope) {
-        TEST_CHECK(sentry__scope_get_transaction_object(scope) == tx);
+        sentry_transaction_t *scope_tx
+            = sentry__scope_ref_transaction_object(scope);
+        TEST_CHECK(scope_tx == tx);
+        sentry__transaction_decref(scope_tx);
     }
 
     sentry_transaction_discard(tx);
 
     SENTRY_WITH_SCOPE (scope) {
-        TEST_CHECK(sentry__scope_get_transaction_object(scope) == NULL);
+        sentry_transaction_t *scope_tx
+            = sentry__scope_ref_transaction_object(scope);
+        TEST_CHECK(scope_tx == NULL);
+        sentry__transaction_decref(scope_tx);
     }
 
     sentry_close();
@@ -970,13 +978,17 @@ SENTRY_TEST(discard_span)
     sentry_set_span(span);
 
     SENTRY_WITH_SCOPE (scope) {
-        TEST_CHECK(sentry__scope_get_span(scope) == span);
+        sentry_span_t *scope_span = sentry__scope_ref_span(scope);
+        TEST_CHECK(scope_span == span);
+        sentry__span_decref(scope_span);
     }
 
     sentry_span_discard(span);
 
     SENTRY_WITH_SCOPE (scope) {
-        TEST_CHECK(sentry__scope_get_span(scope) == NULL);
+        sentry_span_t *scope_span = sentry__scope_ref_span(scope);
+        TEST_CHECK(scope_span == NULL);
+        sentry__span_decref(scope_span);
     }
     TEST_CHECK_INT_EQUAL(
         sentry_value_get_length(sentry_value_get_by_key(tx->inner, "spans")),

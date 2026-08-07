@@ -839,14 +839,18 @@ static sentry_uuid_t
 data_get_last_event_id(const sentry_scope_data_t *data)
 {
     sentry_uuid_t event_id = sentry_uuid_nil();
-    DATA_READ_LOCK(data) { event_id = data->last_event_id; }
+    DATA_READ_LOCK (data) {
+        event_id = data->last_event_id;
+    }
     return event_id;
 }
 
 static void
 data_set_last_event_id(sentry_scope_data_t *data, sentry_uuid_t event_id)
 {
-    DATA_WRITE_LOCK(data) { data->last_event_id = event_id; }
+    DATA_WRITE_LOCK (data) {
+        data->last_event_id = event_id;
+    }
 }
 
 static sentry_value_t
@@ -895,10 +899,14 @@ data_take_attachments(sentry_scope_data_t *data)
 }
 
 static sentry_transaction_t *
-data_get_transaction_object(const sentry_scope_data_t *data)
+data_ref_transaction_object(const sentry_scope_data_t *data)
 {
     sentry_transaction_t *transaction = NULL;
-    DATA_READ_LOCK(data) { transaction = data->transaction_object; }
+    DATA_READ_LOCK(data)
+    {
+        transaction = data->transaction_object;
+        sentry__transaction_incref(transaction);
+    }
     return transaction;
 }
 
@@ -977,10 +985,14 @@ data_restore_transaction_object(
 }
 
 static sentry_span_t *
-data_get_span(const sentry_scope_data_t *data)
+data_ref_span(const sentry_scope_data_t *data)
 {
     sentry_span_t *span = NULL;
-    DATA_READ_LOCK(data) { span = data->span; }
+    DATA_READ_LOCK(data)
+    {
+        span = data->span;
+        sentry__span_incref(span);
+    }
     return span;
 }
 
@@ -2258,23 +2270,13 @@ void
 sentry_scope_set_transaction_object(
     sentry_scope_t *scope, sentry_transaction_t *tx)
 {
-    sentry__span_decref(scope->span);
-    scope->span = NULL;
-    // incref before decref, so rebinding the same object cannot free it
-    sentry__transaction_incref(tx);
-    sentry__transaction_decref(scope->transaction_object);
-    scope->transaction_object = tx;
+    sentry__scope_set_transaction_object(scope, tx);
 }
 
 void
 sentry_scope_set_span(sentry_scope_t *scope, sentry_span_t *span)
 {
-    sentry__transaction_decref(scope->transaction_object);
-    scope->transaction_object = NULL;
-    // incref before decref, so rebinding the same object cannot free it
-    sentry__span_incref(span);
-    sentry__span_decref(scope->span);
-    scope->span = span;
+    sentry__scope_set_span(scope, span);
 }
 
 sentry_value_t
@@ -2323,9 +2325,9 @@ sentry_scope_add_attachment(sentry_scope_t *scope, sentry_value_t attachment)
 }
 
 sentry_transaction_t *
-sentry__scope_get_transaction_object(const sentry_scope_t *scope)
+sentry__scope_ref_transaction_object(const sentry_scope_t *scope)
 {
-    return data_get_transaction_object(scope->data);
+    return data_ref_transaction_object(scope->data);
 }
 
 void
@@ -2357,9 +2359,9 @@ sentry__scope_restore_transaction_object(
 }
 
 sentry_span_t *
-sentry__scope_get_span(const sentry_scope_t *scope)
+sentry__scope_ref_span(const sentry_scope_t *scope)
 {
-    return data_get_span(scope->data);
+    return data_ref_span(scope->data);
 }
 
 void
@@ -2552,8 +2554,7 @@ sentry_scope_get_last_event_id(const sentry_scope_t *scope)
 }
 
 void
-sentry__scope_set_last_event_id(
-    sentry_scope_t *scope, sentry_uuid_t event_id)
+sentry__scope_set_last_event_id(sentry_scope_t *scope, sentry_uuid_t event_id)
 {
     if (scope) {
         data_set_last_event_id(scope->data, event_id);
