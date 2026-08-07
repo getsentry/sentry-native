@@ -323,12 +323,6 @@ clone_data(const sentry_scope_data_t *source)
 }
 
 static sentry_value_t
-data_get_propagation_context(const sentry_scope_data_t *data)
-{
-    return data->propagation_context;
-}
-
-static sentry_value_t
 data_ref_propagation_context(const sentry_scope_data_t *data)
 {
     sentry_value_t propagation_context = sentry_value_new_null();
@@ -1447,9 +1441,9 @@ sentry_scope_clone(const sentry_scope_t *scope)
 }
 
 sentry_value_t
-sentry__scope_get_propagation_context(const sentry_scope_t *scope)
+sentry__scope_ref_propagation_context(const sentry_scope_t *scope)
 {
-    return data_get_propagation_context(scope->data);
+    return data_ref_propagation_context(scope->data);
 }
 
 void
