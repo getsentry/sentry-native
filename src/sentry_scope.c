@@ -1181,6 +1181,7 @@ init_scope(sentry_scope_t *scope, sentry_scope_data_t *data)
     scope->num_observers = 0;
     scope->is_notifying = 0;
     scope->pending_flush = false;
+    sentry__mutex_init(&scope->observers_lock);
     scope->one_shot = false;
     return true;
 }
@@ -1209,13 +1210,16 @@ get_scope(void)
 static void
 cleanup_observers(sentry_scope_t *scope)
 {
+    sentry__mutex_lock(&scope->observers_lock);
     for (size_t i = 0; i < scope->num_observers; i++) {
         sentry_free(scope->observers[i]);
     }
     sentry_free(scope->observers);
     scope->observers = NULL;
     scope->num_observers = 0;
+    scope->is_notifying = 0;
     scope->pending_flush = false;
+    sentry__mutex_unlock(&scope->observers_lock);
 }
 
 static void
@@ -1224,6 +1228,7 @@ cleanup_scope(sentry_scope_t *scope)
     free_data(scope->data);
     scope->data = NULL;
     cleanup_observers(scope);
+    sentry__mutex_free(&scope->observers_lock);
 }
 
 void
@@ -1236,6 +1241,7 @@ sentry__scope_cleanup(void)
         cleanup_global_data(g_scope.data);
         g_scope.data = NULL;
         cleanup_observers(&g_scope);
+        sentry__mutex_free(&g_scope.observers_lock);
     }
     sentry__mutex_unlock(&g_lock);
 }
@@ -1253,6 +1259,7 @@ unlock_scope(bool flush)
 {
     SENTRY__MUTEX_INIT_DYN_ONCE(g_lock);
 
+    sentry__mutex_lock(&g_scope.observers_lock);
     if (g_scope.is_notifying > 0) {
         // defer the flush requested by a reentrant scope change
         g_scope.pending_flush = flush || g_scope.pending_flush;
@@ -1262,6 +1269,7 @@ unlock_scope(bool flush)
         flush = flush || g_scope.pending_flush;
         g_scope.pending_flush = false;
     }
+    sentry__mutex_unlock(&g_scope.observers_lock);
 
     // we try to unlock the scope as soon as possible. The
     // backend will do its own `WITH_SCOPE` internally.
@@ -1301,10 +1309,12 @@ sentry__scope_add_observer(
         return false;
     }
 
+    sentry__mutex_lock(&scope->observers_lock);
     size_t new_count = scope->num_observers + 1;
     sentry_scope_observer_t **new_array
         = sentry__calloc(new_count, sizeof(sentry_scope_observer_t *));
     if (!new_array) {
+        sentry__mutex_unlock(&scope->observers_lock);
         sentry_free(observer);
         return false;
     }
@@ -1316,6 +1326,7 @@ sentry__scope_add_observer(
     new_array[scope->num_observers] = observer;
     scope->observers = new_array;
     scope->num_observers = new_count;
+    sentry__mutex_unlock(&scope->observers_lock);
     return true;
 }
 
@@ -1323,7 +1334,13 @@ void
 sentry__scope_remove_observer(
     sentry_scope_t *scope, sentry_scope_observer_t *observer)
 {
-    if (!observer || !scope->observers) {
+    if (!observer) {
+        return;
+    }
+
+    sentry__mutex_lock(&scope->observers_lock);
+    if (!scope->observers) {
+        sentry__mutex_unlock(&scope->observers_lock);
         return;
     }
 
@@ -1336,6 +1353,7 @@ sentry__scope_remove_observer(
         if (scope->is_notifying) {
             // avoid shifting the array while SENTRY_SCOPE_NOTIFY is iterating
             scope->observers[i] = NULL;
+            sentry__mutex_unlock(&scope->observers_lock);
             return;
         }
         for (size_t j = i + 1; j < scope->num_observers; j++) {
@@ -1346,13 +1364,16 @@ sentry__scope_remove_observer(
             sentry_free(scope->observers);
             scope->observers = NULL;
         }
+        sentry__mutex_unlock(&scope->observers_lock);
         return;
     }
+    sentry__mutex_unlock(&scope->observers_lock);
 }
 
 size_t
 sentry__scope_begin_notify(sentry_scope_t *scope)
 {
+    sentry__mutex_lock(&scope->observers_lock);
     scope->is_notifying++;
     return scope->num_observers;
 }
@@ -1361,9 +1382,11 @@ void
 sentry__scope_end_notify(sentry_scope_t *scope)
 {
     if (--scope->is_notifying > 0) {
+        sentry__mutex_unlock(&scope->observers_lock);
         return;
     }
     if (!scope->observers) {
+        sentry__mutex_unlock(&scope->observers_lock);
         return;
     }
 
@@ -1380,6 +1403,7 @@ sentry__scope_end_notify(sentry_scope_t *scope)
         sentry_free(scope->observers);
         scope->observers = NULL;
     }
+    sentry__mutex_unlock(&scope->observers_lock);
 }
 
 sentry_scope_t *
@@ -1483,8 +1507,13 @@ sentry_scope_clone(const sentry_scope_t *scope)
         return NULL;
     }
 
-    clone->data = clone_data(scope->data);
-    if (!clone->data) {
+    sentry_scope_data_t *data = clone_data(scope->data);
+    if (!data) {
+        sentry_free(clone);
+        return NULL;
+    }
+    if (!init_scope(clone, data)) {
+        free_data(data);
         sentry_free(clone);
         return NULL;
     }
@@ -1685,7 +1714,10 @@ sentry__scope_ref_span_or_transaction(void)
 bool
 sentry__scope_has_observers(const sentry_scope_t *scope)
 {
-    return scope->num_observers > 0;
+    sentry__mutex_lock((sentry_mutex_t *)&scope->observers_lock);
+    bool has_observers = scope->num_observers > 0;
+    sentry__mutex_unlock((sentry_mutex_t *)&scope->observers_lock);
+    return has_observers;
 }
 #endif
 
