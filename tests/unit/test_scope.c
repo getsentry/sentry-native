@@ -2533,8 +2533,7 @@ SENTRY_TEST(scope_ownership)
 static size_t
 scope_breadcrumb_count(const sentry_scope_t *scope)
 {
-    sentry_value_t breadcrumbs
-        = sentry__ringbuffer_to_list(sentry__scope_get_breadcrumbs(scope));
+    sentry_value_t breadcrumbs = sentry__scope_breadcrumbs_to_list(scope);
     size_t count = sentry_value_get_length(breadcrumbs);
     sentry_value_decref(breadcrumbs);
     return count;
@@ -2740,8 +2739,7 @@ SENTRY_TEST(scope_clear)
     TEST_CHECK(sentry_value_is_null(scope_fingerprint));
     sentry_value_decref(scope_fingerprint);
     TEST_CHECK_INT_EQUAL(sentry__scope_get_level(scope), SENTRY_LEVEL_ERROR);
-    sentry_value_t crumbs
-        = sentry__ringbuffer_to_list(sentry__scope_get_breadcrumbs(scope));
+    sentry_value_t crumbs = sentry__scope_breadcrumbs_to_list(scope);
     TEST_CHECK(sentry_value_get_length(crumbs) == 0);
     sentry_value_decref(crumbs);
 

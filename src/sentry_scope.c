@@ -531,12 +531,6 @@ data_add_breadcrumb(sentry_scope_data_t *data, sentry_value_t breadcrumb)
     return added;
 }
 
-static const sentry_ringbuffer_t *
-data_get_breadcrumbs(const sentry_scope_data_t *data)
-{
-    return data->breadcrumbs;
-}
-
 static sentry_value_t
 data_ref_user(const sentry_scope_data_t *data)
 {
@@ -1837,10 +1831,10 @@ sentry_scope_add_breadcrumb(sentry_scope_t *scope, sentry_value_t breadcrumb)
     }
 }
 
-const sentry_ringbuffer_t *
-sentry__scope_get_breadcrumbs(const sentry_scope_t *scope)
+sentry_value_t
+sentry__scope_breadcrumbs_to_list(const sentry_scope_t *scope)
 {
-    return data_get_breadcrumbs(scope->data);
+    return data_breadcrumbs_to_list(scope->data);
 }
 
 sentry_value_t

@@ -178,8 +178,7 @@ void sentry__scope_set_propagation_context(
     sentry_scope_t *scope, const char *key, sentry_value_t value);
 void sentry__scope_regenerate_propagation_context(sentry_scope_t *scope);
 
-const sentry_ringbuffer_t *sentry__scope_get_breadcrumbs(
-    const sentry_scope_t *scope);
+sentry_value_t sentry__scope_breadcrumbs_to_list(const sentry_scope_t *scope);
 
 sentry_transaction_t *sentry__scope_get_transaction_object(
     const sentry_scope_t *scope);
