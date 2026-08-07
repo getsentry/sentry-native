@@ -2744,10 +2744,12 @@ SENTRY_TEST(scope_clear)
     sentry_value_decref(crumbs);
 
     // ... except the trace, which is preserved.
-    TEST_CHECK_STRING_EQUAL(
-        sentry_value_as_string(sentry_value_get_by_key(
-            sentry__scope_get_propagation_context(scope), "marker")),
+    sentry_value_t propagation_context
+        = sentry__scope_ref_propagation_context(scope);
+    TEST_CHECK_STRING_EQUAL(sentry_value_as_string(sentry_value_get_by_key(
+                                propagation_context, "marker")),
         "keep");
+    sentry_value_decref(propagation_context);
     TEST_CHECK_STRING_EQUAL(sentry_value_as_string(sentry_value_get_by_key(
                                 sentry__scope_get_dsc(scope), "marker")),
         "keep");

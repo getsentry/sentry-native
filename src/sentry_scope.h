@@ -171,7 +171,7 @@ void sentry__scope_remove_context(sentry_scope_t *scope, const char *key);
 void sentry__scope_remove_context_n(
     sentry_scope_t *scope, const char *key, size_t key_len);
 
-sentry_value_t sentry__scope_get_propagation_context(
+sentry_value_t sentry__scope_ref_propagation_context(
     const sentry_scope_t *scope);
 void sentry__scope_set_propagation_context(
     sentry_scope_t *scope, const char *key, sentry_value_t value);
