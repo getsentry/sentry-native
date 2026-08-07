@@ -269,6 +269,15 @@ SENTRY_TEST(value_string_n)
     TEST_CHECK(sentry_value_get_type(val) == SENTRY_VALUE_TYPE_STRING);
     TEST_CHECK(sentry_value_is_true(val) == true);
     sentry_value_decref(val);
+
+    char string_with_nul[] = { 'h', 'e', '\0', 'l', 'o' };
+    val = sentry_value_new_string_n(string_with_nul, sizeof(string_with_nul));
+    TEST_CHECK(sentry_value_get_length(val) == sizeof(string_with_nul));
+    TEST_CHECK(memcmp(sentry_value_as_string(val), string_with_nul,
+                   sizeof(string_with_nul))
+        == 0);
+    TEST_CHECK_JSON_VALUE(val, "\"he\\u0000lo\"");
+    sentry_value_decref(val);
 }
 
 SENTRY_TEST(value_unicode)

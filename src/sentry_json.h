@@ -89,6 +89,12 @@ void sentry__jsonwriter_write_double(sentry_jsonwriter_t *jw, double val);
 void sentry__jsonwriter_write_str(sentry_jsonwriter_t *jw, const char *val);
 
 /**
+ * Write a string with an explicit byte length.
+ */
+void sentry__jsonwriter_write_str_n(
+    sentry_jsonwriter_t *jw, const char *val, size_t val_len);
+
+/**
  * Write a UUID as a JSON string.
  * See `sentry_uuid_as_string`.
  */

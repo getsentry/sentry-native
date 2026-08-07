@@ -108,6 +108,11 @@ typedef struct {
     long refcount;
 } obj_t;
 
+typedef struct {
+    char *s;
+    size_t len;
+} blob_t;
+
 static const char *
 level_as_string(sentry_level_t level)
 {
@@ -316,7 +321,11 @@ thing_free(thing_t *thing)
         obj_free(thing->payload._ptr);
         break;
     case THING_TYPE_STRING:
-        sentry_free(thing->payload._ptr);
+        if (thing->payload._ptr) {
+            blob_t *blob = thing->payload._ptr;
+            sentry_free(blob->s);
+            sentry_free(blob);
+        }
         break;
     }
     sentry_free(thing);
@@ -377,6 +386,16 @@ value_as_thing(sentry_value_t value)
         return NULL;
     }
     return (thing_t *)(size_t)value._bits;
+}
+
+static const blob_t *
+value_as_blob(sentry_value_t value)
+{
+    const thing_t *thing = value_as_thing(value);
+    if (thing && thing_get_type(thing) == THING_TYPE_STRING) {
+        return (const blob_t *)thing->payload._ptr;
+    }
+    return NULL;
 }
 
 static thing_t *
@@ -511,7 +530,7 @@ sentry_value_new_string_n(const char *value, size_t value_len)
     if (!s) {
         return sentry_value_new_null();
     }
-    return sentry__value_new_string_owned(s);
+    return sentry__value_new_string_owned_n(s, value_len);
 }
 
 sentry_value_t
@@ -1173,7 +1192,7 @@ sentry_value_get_length(sentry_value_t value)
     if (thing) {
         switch (thing_get_type(thing)) {
         case THING_TYPE_STRING:
-            return strlen(thing->payload._ptr);
+            return ((const blob_t *)thing->payload._ptr)->len;
         case THING_TYPE_LIST:
             return ((const list_t *)thing->payload._ptr)->len;
         case THING_TYPE_OBJECT:
@@ -1267,9 +1286,9 @@ sentry_value_as_uint64(sentry_value_t value)
 const char *
 sentry_value_as_string(sentry_value_t value)
 {
-    const thing_t *thing = value_as_thing(value);
-    if (thing && thing_get_type(thing) == THING_TYPE_STRING) {
-        return (const char *)thing->payload._ptr;
+    const blob_t *blob = value_as_blob(value);
+    if (blob) {
+        return blob->s;
     }
     return "";
 }
@@ -1393,9 +1412,11 @@ sentry__jsonwriter_write_value(sentry_jsonwriter_t *jw, sentry_value_t value)
     case SENTRY_VALUE_TYPE_DOUBLE:
         sentry__jsonwriter_write_double(jw, sentry_value_as_double(value));
         break;
-    case SENTRY_VALUE_TYPE_STRING:
-        sentry__jsonwriter_write_str(jw, sentry_value_as_string(value));
+    case SENTRY_VALUE_TYPE_STRING: {
+        const blob_t *blob = value_as_blob(value);
+        sentry__jsonwriter_write_str_n(jw, blob->s, blob->len);
         break;
+    }
     case SENTRY_VALUE_TYPE_LIST: {
         const thing_t *thing = value_as_thing(value);
         if (!thing) {
@@ -1473,7 +1494,8 @@ value_to_msgpack(mpack_writer_t *writer, sentry_value_t value)
         mpack_write_double(writer, sentry_value_as_double(value));
         break;
     case SENTRY_VALUE_TYPE_STRING: {
-        mpack_write_cstr_or_nil(writer, sentry_value_as_string(value));
+        const blob_t *blob = value_as_blob(value);
+        mpack_write_str(writer, blob->s, (uint32_t)blob->len);
         break;
     }
     case SENTRY_VALUE_TYPE_LIST: {
@@ -1516,13 +1538,28 @@ sentry_value_to_msgpack(sentry_value_t value, size_t *size_out)
 sentry_value_t
 sentry__value_new_string_owned(char *s)
 {
+    return s ? sentry__value_new_string_owned_n(s, strlen(s))
+             : sentry_value_new_null();
+}
+
+sentry_value_t
+sentry__value_new_string_owned_n(char *s, size_t s_len)
+{
     if (!s) {
         return sentry_value_new_null();
     }
-    sentry_value_t rv
-        = new_thing_value(s, THING_TYPE_STRING | THING_TYPE_FROZEN);
-    if (sentry_value_is_null(rv)) {
+    blob_t *blob = SENTRY_MAKE(blob_t);
+    if (!blob) {
         sentry_free(s);
+        return sentry_value_new_null();
+    }
+    blob->s = s;
+    blob->len = s_len;
+    sentry_value_t rv
+        = new_thing_value(blob, THING_TYPE_STRING | THING_TYPE_FROZEN);
+    if (sentry_value_is_null(rv)) {
+        sentry_free(blob->s);
+        sentry_free(blob);
     }
     return rv;
 }
@@ -1564,7 +1601,7 @@ sentry__value_new_hexstring(const uint8_t *bytes, size_t len)
         written += rv;
     }
     buf[written] = '\0';
-    return sentry__value_new_string_owned(buf);
+    return sentry__value_new_string_owned_n(buf, written);
 }
 
 sentry_value_t
@@ -1576,7 +1613,7 @@ sentry__value_new_span_uuid(const sentry_uuid_t *uuid)
     }
     sentry__span_uuid_as_string(uuid, buf);
     buf[16] = '\0';
-    return sentry__value_new_string_owned(buf);
+    return sentry__value_new_string_owned_n(buf, 16);
 }
 
 sentry_value_t
@@ -1588,7 +1625,7 @@ sentry__value_new_internal_uuid(const sentry_uuid_t *uuid)
     }
     sentry__internal_uuid_as_string(uuid, buf);
     buf[32] = '\0';
-    return sentry__value_new_string_owned(buf);
+    return sentry__value_new_string_owned_n(buf, 32);
 }
 
 sentry_value_t
@@ -1600,7 +1637,7 @@ sentry__value_new_uuid(const sentry_uuid_t *uuid)
     }
     sentry_uuid_as_string(uuid, buf);
     buf[36] = '\0';
-    return sentry__value_new_string_owned(buf);
+    return sentry__value_new_string_owned_n(buf, 36);
 }
 
 sentry_value_t
