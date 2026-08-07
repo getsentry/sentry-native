@@ -261,7 +261,11 @@ void sentry__scope_end_notify(sentry_scope_t *scope);
         sentry__scope_end_notify(scope);                                       \
     } while (0)
 
-sentry_value_t sentry__scope_get_dsc(const sentry_scope_t *scope);
+sentry_value_t sentry__scope_ref_dsc(const sentry_scope_t *scope);
+sentry_value_t sentry__scope_clone_dsc(const sentry_scope_t *scope);
+void sentry__scope_foreach_dsc(const sentry_scope_t *scope,
+    void (*callback)(const char *key, sentry_value_t value, void *userdata),
+    void *userdata);
 
 /**
  * Rebuilds the scope's dynamic sampling context (DSC) from the SDK options

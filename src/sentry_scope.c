@@ -410,12 +410,6 @@ data_set_trace_managed(sentry_scope_data_t *data, bool managed)
     DATA_WRITE_LOCK(data) { data->trace_managed = managed; }
 }
 
-static sentry_value_t
-data_get_dsc(const sentry_scope_data_t *data)
-{
-    return data->dynamic_sampling_context;
-}
-
 static void
 data_freeze_dsc(sentry_scope_data_t *data, sentry_value_t incoming)
 {
@@ -425,6 +419,40 @@ data_freeze_dsc(sentry_scope_data_t *data, sentry_value_t incoming)
     DATA_WRITE_LOCK(data)
     {
         sentry__value_replace(&data->dynamic_sampling_context, dsc);
+    }
+}
+
+static sentry_value_t
+data_ref_dsc(const sentry_scope_data_t *data)
+{
+    sentry_value_t dsc = sentry_value_new_null();
+    DATA_READ_LOCK(data)
+    {
+        dsc = sentry_value_incref(data->dynamic_sampling_context);
+    }
+    return dsc;
+}
+
+static sentry_value_t
+data_clone_dsc(const sentry_scope_data_t *data)
+{
+    sentry_value_t dsc = sentry_value_new_null();
+    DATA_READ_LOCK(data)
+    {
+        dsc = sentry__value_clone(data->dynamic_sampling_context);
+    }
+    return dsc;
+}
+
+static void
+data_foreach_dsc(const sentry_scope_data_t *data,
+    void (*callback)(const char *key, sentry_value_t value, void *userdata),
+    void *userdata)
+{
+    DATA_READ_LOCK(data)
+    {
+        sentry__value_foreach_key_value(
+            data->dynamic_sampling_context, callback, userdata);
     }
 }
 
@@ -1523,9 +1551,23 @@ sentry__scope_set_trace_managed(sentry_scope_t *scope, bool managed)
 }
 
 sentry_value_t
-sentry__scope_get_dsc(const sentry_scope_t *scope)
+sentry__scope_ref_dsc(const sentry_scope_t *scope)
 {
-    return data_get_dsc(scope->data);
+    return data_ref_dsc(scope->data);
+}
+
+sentry_value_t
+sentry__scope_clone_dsc(const sentry_scope_t *scope)
+{
+    return data_clone_dsc(scope->data);
+}
+
+void
+sentry__scope_foreach_dsc(const sentry_scope_t *scope,
+    void (*callback)(const char *key, sentry_value_t value, void *userdata),
+    void *userdata)
+{
+    data_foreach_dsc(scope->data, callback, userdata);
 }
 
 void
