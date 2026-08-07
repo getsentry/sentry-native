@@ -91,10 +91,11 @@ jobs:
             os: ubuntu-24.04
             CC: gcc-14
             CXX: g++-14
-          - name: Linux (GCC 15)
+          - name: Linux (GCC 15 + runtime curl)
             os: ubuntu-26.04
             CC: gcc-15
             CXX: g++-15
+            CMAKE_DEFINES: -DSENTRY_LINK_CURL=OFF
           - name: Linux Arm64 (GCC 14.2.0 + tsan)
             os: ubuntu-24.04-arm
             CC: gcc-14
