@@ -470,7 +470,7 @@ read_escaped_unicode_char(const char *buf)
 }
 
 static bool
-decode_string_inplace(char *buf)
+decode_string_inplace(char *buf, size_t *len_out)
 {
     const char *input = buf;
     char *output = buf;
@@ -519,9 +519,7 @@ decode_string_inplace(char *buf)
                 return false;
             }
 
-            if (uchar) {
-                output += sentry__unichar_to_utf8((uint32_t)uchar, output);
-            }
+            output += sentry__unichar_to_utf8((uint32_t)uchar, output);
             break;
         }
         default:
@@ -531,6 +529,9 @@ decode_string_inplace(char *buf)
 
 #undef SIMPLE_ESCAPE
 
+    if (len_out) {
+        *len_out = (size_t)(output - buf);
+    }
     *output = 0;
     return true;
 }
@@ -615,8 +616,9 @@ tokens_to_value(jsmntok_t *tokens, size_t token_count, const char *buf,
     case JSMN_STRING: {
         char *string = sentry__string_clone_n_unchecked(
             buf + root->start, (size_t)(root->end - root->start));
-        if (decode_string_inplace(string)) {
-            rv = sentry__value_new_string_owned(string);
+        size_t string_len = 0;
+        if (decode_string_inplace(string, &string_len)) {
+            rv = sentry__value_new_string_owned_n(string, string_len);
         } else {
             sentry_free(string);
             rv = sentry_value_new_null();
@@ -639,7 +641,7 @@ tokens_to_value(jsmntok_t *tokens, size_t token_count, const char *buf,
 
             char *key = sentry__string_clone_n_unchecked(
                 buf + token->start, (size_t)(token->end - token->start));
-            if (decode_string_inplace(key)) {
+            if (decode_string_inplace(key, NULL)) {
                 sentry_value_set_by_key(rv, key, child);
             } else {
                 sentry_value_decref(child);

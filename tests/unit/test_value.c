@@ -277,6 +277,16 @@ SENTRY_TEST(value_string_n)
                    sizeof(string_with_nul))
         == 0);
     TEST_CHECK_JSON_VALUE(val, "\"he\\u0000lo\"");
+
+    char *json = sentry_value_to_json(val);
+    sentry_value_t deserialized = sentry__value_from_json(json, strlen(json));
+    TEST_CHECK(
+        sentry_value_get_length(deserialized) == sizeof(string_with_nul));
+    TEST_CHECK(memcmp(sentry_value_as_string(deserialized), string_with_nul,
+                   sizeof(string_with_nul))
+        == 0);
+    sentry_free(json);
+    sentry_value_decref(deserialized);
     sentry_value_decref(val);
 }
 
@@ -1130,6 +1140,14 @@ SENTRY_TEST(value_json_parsing)
     TEST_CHECK_STRING_EQUAL(
         sentry_value_as_string(sentry_value_get_by_index(rv, 1)),
         "foo\xe2\x98\x83");
+    sentry_value_decref(rv);
+
+    char string_with_nul[] = { 'h', 'e', '\0', 'l', 'o' };
+    rv = sentry__value_from_json(STRING("\"he\\u0000lo\""));
+    TEST_CHECK(sentry_value_get_length(rv) == sizeof(string_with_nul));
+    TEST_CHECK(memcmp(sentry_value_as_string(rv), string_with_nul,
+                   sizeof(string_with_nul))
+        == 0);
     sentry_value_decref(rv);
 
     rv = sentry__value_from_json(
