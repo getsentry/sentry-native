@@ -1254,10 +1254,22 @@ sentry__scope_lock(void)
     return get_scope();
 }
 
-static void
-unlock_scope(bool flush)
+sentry_scope_t *
+sentry__scope_begin(void)
 {
     SENTRY__MUTEX_INIT_DYN_ONCE(g_lock);
+    sentry__mutex_lock(&g_lock);
+    sentry_scope_t *scope = get_scope();
+    sentry__mutex_unlock(&g_lock);
+    return scope;
+}
+
+static void
+finish_scope(bool flush, bool unlock)
+{
+    if (unlock) {
+        SENTRY__MUTEX_INIT_DYN_ONCE(g_lock);
+    }
 
     sentry__mutex_lock(&g_scope.observers_lock);
     if (g_scope.is_notifying > 0) {
@@ -1271,9 +1283,12 @@ unlock_scope(bool flush)
     }
     sentry__mutex_unlock(&g_scope.observers_lock);
 
-    // we try to unlock the scope as soon as possible. The
-    // backend will do its own `WITH_SCOPE` internally.
-    sentry__mutex_unlock(&g_lock);
+    if (unlock) {
+        // we try to unlock the scope as soon as possible. The
+        // backend will do its own `WITH_SCOPE` internally.
+        sentry__mutex_unlock(&g_lock);
+    }
+
     if (flush) {
         SENTRY_WITH_OPTIONS (options) {
             if (options->backend && options->backend->flush_scope_func) {
@@ -1286,13 +1301,19 @@ unlock_scope(bool flush)
 void
 sentry__scope_unlock(void)
 {
-    unlock_scope(false);
+    finish_scope(false, true);
 }
 
 void
 sentry__scope_flush_unlock(void)
 {
-    unlock_scope(true);
+    finish_scope(true, true);
+}
+
+void
+sentry__scope_end(bool flush)
+{
+    finish_scope(flush, false);
 }
 
 sentry_scope_observer_t *

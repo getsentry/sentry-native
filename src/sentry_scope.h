@@ -91,6 +91,11 @@ typedef enum {
 sentry_scope_t *sentry__scope_lock(void);
 
 /**
+ * This will return the global scope, initializing it if needed.
+ */
+sentry_scope_t *sentry__scope_begin(void);
+
+/**
  * Release the lock on the global scope.
  */
 void sentry__scope_unlock(void);
@@ -117,6 +122,12 @@ void sentry__scope_free_one_shot(sentry_scope_t *scope);
  * unlocked internally.
  */
 void sentry__scope_flush_unlock(void);
+
+/**
+ * This will finish a global scope access, optionally notifying any backend of
+ * scope changes.
+ */
+void sentry__scope_end(bool flush);
 
 /**
  * This will merge the requested data which is in the given `scope` to the given
@@ -207,18 +218,17 @@ bool sentry__scope_is_trace_managed(const sentry_scope_t *scope);
 void sentry__scope_set_trace_managed(sentry_scope_t *scope, bool managed);
 
 /**
- * These are convenience macros to automatically lock/unlock the global scope
- * inside a code block.
+ * These are convenience macros to access the global scope inside a code block.
  */
 #define SENTRY_WITH_SCOPE(Scope)                                               \
-    for (const sentry_scope_t *Scope = sentry__scope_lock(); Scope;            \
-        sentry__scope_unlock(), Scope = NULL)
+    for (const sentry_scope_t *Scope = sentry__scope_begin(); Scope;           \
+        sentry__scope_end(false), Scope = NULL)
 #define SENTRY_WITH_SCOPE_MUT(Scope)                                           \
-    for (sentry_scope_t *Scope = sentry__scope_lock(); Scope;                  \
-        sentry__scope_flush_unlock(), Scope = NULL)
+    for (sentry_scope_t *Scope = sentry__scope_begin(); Scope;                 \
+        sentry__scope_end(true), Scope = NULL)
 #define SENTRY_WITH_SCOPE_MUT_NO_FLUSH(Scope)                                  \
-    for (sentry_scope_t *Scope = sentry__scope_lock(); Scope;                  \
-        sentry__scope_unlock(), Scope = NULL)
+    for (sentry_scope_t *Scope = sentry__scope_begin(); Scope;                 \
+        sentry__scope_end(false), Scope = NULL)
 
 /**
  * Allocate and zero-initialize a scope observer.
