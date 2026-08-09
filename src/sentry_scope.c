@@ -29,6 +29,9 @@
 #endif
 
 static bool g_scope_initialized = false;
+static size_t g_scope_accesses = 0;
+static bool g_scope_idle_initialized = false;
+static sentry_cond_t g_scope_idle;
 #ifdef SENTRY__MUTEX_INIT_DYN
 SENTRY__MUTEX_INIT_DYN(g_lock)
 #else
@@ -1240,6 +1243,9 @@ sentry__scope_cleanup(void)
 {
     SENTRY__MUTEX_INIT_DYN_ONCE(g_lock);
     sentry__mutex_lock(&g_lock);
+    while (g_scope_accesses > 0) {
+        sentry__cond_wait(&g_scope_idle, &g_lock);
+    }
     if (g_scope_initialized) {
         g_scope_initialized = false;
         cleanup_global_data(g_scope.data);
@@ -1263,9 +1269,27 @@ sentry__scope_begin(void)
 {
     SENTRY__MUTEX_INIT_DYN_ONCE(g_lock);
     sentry__mutex_lock(&g_lock);
+    if (!g_scope_idle_initialized) {
+        sentry__cond_init(&g_scope_idle);
+        g_scope_idle_initialized = true;
+    }
     sentry_scope_t *scope = get_scope();
+    g_scope_accesses++;
     sentry__mutex_unlock(&g_lock);
     return scope;
+}
+
+static void
+end_scope_access(void)
+{
+    SENTRY__MUTEX_INIT_DYN_ONCE(g_lock);
+    sentry__mutex_lock(&g_lock);
+    assert(g_scope_accesses > 0);
+    g_scope_accesses--;
+    if (g_scope_accesses == 0) {
+        sentry__cond_wake(&g_scope_idle);
+    }
+    sentry__mutex_unlock(&g_lock);
 }
 
 static void
@@ -1291,6 +1315,8 @@ finish_scope(bool flush, bool unlock)
         // we try to unlock the scope as soon as possible. The
         // backend will do its own `WITH_SCOPE` internally.
         sentry__mutex_unlock(&g_lock);
+    } else {
+        end_scope_access();
     }
 
     if (flush) {

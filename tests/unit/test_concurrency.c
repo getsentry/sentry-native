@@ -3,6 +3,7 @@
 #include "sentry_envelope.h"
 #include "sentry_options.h"
 #include "sentry_path.h"
+#include "sentry_scope.h"
 #include "sentry_testsupport.h"
 #include "sentry_transport.h"
 
@@ -240,4 +241,94 @@ SENTRY_TEST(concurrent_uninit)
     sentry__thread_free(&thread);
 
     sentry_close();
+}
+
+typedef struct {
+    sentry_mutex_t lock;
+    sentry_cond_t access_signal;
+    sentry_cond_t cleanup_signal;
+    bool access_started;
+    bool release_access;
+    bool cleanup_started;
+    bool cleanup_finished;
+} scope_cleanup_state_t;
+
+SENTRY_THREAD_FN
+scope_access_thread(void *data)
+{
+    scope_cleanup_state_t *state = data;
+    sentry_scope_t *scope = sentry__scope_begin();
+
+    sentry__mutex_lock(&state->lock);
+    state->access_started = true;
+    sentry__cond_wake(&state->access_signal);
+    while (!state->release_access) {
+        sentry__cond_wait(&state->access_signal, &state->lock);
+    }
+    sentry__mutex_unlock(&state->lock);
+
+    (void)sentry__scope_get_level(scope);
+    sentry__scope_end(false);
+    return 0;
+}
+
+SENTRY_THREAD_FN
+scope_cleanup_thread(void *data)
+{
+    scope_cleanup_state_t *state = data;
+
+    sentry__mutex_lock(&state->lock);
+    state->cleanup_started = true;
+    sentry__cond_wake(&state->cleanup_signal);
+    sentry__mutex_unlock(&state->lock);
+
+    sentry__scope_cleanup();
+
+    sentry__mutex_lock(&state->lock);
+    state->cleanup_finished = true;
+    sentry__cond_wake(&state->cleanup_signal);
+    sentry__mutex_unlock(&state->lock);
+    return 0;
+}
+
+SENTRY_TEST(scope_cleanup)
+{
+    scope_cleanup_state_t state = { 0 };
+    sentry__mutex_init(&state.lock);
+    sentry__cond_init(&state.access_signal);
+    sentry__cond_init(&state.cleanup_signal);
+
+    sentry_threadid_t access_thread;
+    sentry__thread_init(&access_thread);
+    TEST_ASSERT_INT_EQUAL(
+        sentry__thread_spawn(&access_thread, scope_access_thread, &state), 0);
+
+    sentry__mutex_lock(&state.lock);
+    while (!state.access_started) {
+        sentry__cond_wait(&state.access_signal, &state.lock);
+    }
+    sentry__mutex_unlock(&state.lock);
+
+    sentry_threadid_t cleanup_thread;
+    sentry__thread_init(&cleanup_thread);
+    TEST_ASSERT_INT_EQUAL(
+        sentry__thread_spawn(&cleanup_thread, scope_cleanup_thread, &state), 0);
+
+    sentry__mutex_lock(&state.lock);
+    while (!state.cleanup_started) {
+        sentry__cond_wait(&state.cleanup_signal, &state.lock);
+    }
+    sentry__cond_wait_timeout(&state.cleanup_signal, &state.lock, 250);
+    TEST_CHECK(!state.cleanup_finished);
+    state.release_access = true;
+    sentry__cond_wake(&state.access_signal);
+    sentry__mutex_unlock(&state.lock);
+
+    sentry__thread_join(access_thread);
+    sentry__thread_free(&access_thread);
+    sentry__thread_join(cleanup_thread);
+    sentry__thread_free(&cleanup_thread);
+
+    TEST_CHECK(state.cleanup_finished);
+    sentry__mutex_free(&state.lock);
 }
