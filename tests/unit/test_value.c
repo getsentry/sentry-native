@@ -262,6 +262,10 @@ SENTRY_TEST(value_string_n)
     TEST_CHECK(sentry_value_is_true(val) == false);
     sentry_value_decref(val);
 
+    val = sentry_value_new_string_n("sentry", SIZE_MAX);
+    TEST_CHECK(sentry_value_is_null(val));
+    sentry_value_decref(val);
+
     char non_null_term_empty_str[] = { 'h', 'e', 'l', 'l', 'o' };
     val = sentry_value_new_string_n(
         non_null_term_empty_str, sizeof(non_null_term_empty_str));

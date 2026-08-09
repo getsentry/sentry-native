@@ -109,8 +109,8 @@ typedef struct {
 } obj_t;
 
 typedef struct {
-    char *s;
     size_t len;
+    char s[];
 } blob_t;
 
 static const char *
@@ -197,7 +197,6 @@ obj_free(obj_t *obj)
 static void
 blob_free(blob_t *blob)
 {
-    sentry_free(blob->s);
     sentry_free(blob);
 }
 
@@ -382,6 +381,29 @@ new_thing_value(void *ptr, uint8_t thing_type)
     return rv;
 }
 
+static sentry_value_t
+new_string_value(const char *s, size_t s_len)
+{
+    if (!s || s_len > SIZE_MAX - sizeof(blob_t) - 1) {
+        return sentry_value_new_null();
+    }
+
+    blob_t *b = sentry_malloc(sizeof(blob_t) + s_len + 1);
+    if (!b) {
+        return sentry_value_new_null();
+    }
+    b->len = s_len;
+    memcpy(b->s, s, s_len);
+    b->s[s_len] = '\0';
+
+    sentry_value_t rv
+        = new_thing_value(b, THING_TYPE_STRING | THING_TYPE_FROZEN);
+    if (sentry_value_is_null(rv)) {
+        blob_free(b);
+    }
+    return rv;
+}
+
 static thing_t *
 value_as_thing(sentry_value_t value)
 {
@@ -519,11 +541,7 @@ sentry_value_new_bool(int value)
 sentry_value_t
 sentry_value_new_string_n(const char *value, size_t value_len)
 {
-    char *s = sentry__string_clone_n(value, value_len);
-    if (!s) {
-        return sentry_value_new_null();
-    }
-    return sentry__value_new_string_owned_n(s, value_len);
+    return new_string_value(value, value_len);
 }
 
 sentry_value_t
@@ -1545,23 +1563,9 @@ sentry__value_new_string_owned(char *s)
 sentry_value_t
 sentry__value_new_string_owned_n(char *s, size_t s_len)
 {
-    if (!s) {
-        return sentry_value_new_null();
-    }
-    blob_t *b = SENTRY_MAKE(blob_t);
-    if (b) {
-        b->s = s;
-        b->len = s_len;
-        sentry_value_t rv
-            = new_thing_value(b, THING_TYPE_STRING | THING_TYPE_FROZEN);
-        if (sentry_value_is_null(rv)) {
-            blob_free(b);
-        }
-        return rv;
-    } else {
-        sentry_free(s);
-        return sentry_value_new_null();
-    }
+    sentry_value_t rv = new_string_value(s, s_len);
+    sentry_free(s);
+    return rv;
 }
 
 #ifdef SENTRY_PLATFORM_WINDOWS
