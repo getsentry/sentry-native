@@ -101,8 +101,10 @@ public final class io/sentry/ndk/NdkOptions {
 	public fun getTracesSampleRate ()F
 	public fun isDebug ()Z
 	public fun isEnableAppHangTracking ()Z
+	public fun isEnableLogs ()Z
 	public fun setAppHangTimeoutMillis (J)V
 	public fun setEnableAppHangTracking (Z)V
+	public fun setEnableLogs (Z)V
 	public fun setNdkHandlerStrategy (Lio/sentry/ndk/NdkHandlerStrategy;)V
 	public fun setTracesSampleRate (F)V
 }

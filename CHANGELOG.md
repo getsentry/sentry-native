@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+**Features**:
+
+- Forward `enable_logs` option through `NdkOptions` so the Android SDK can enable native structured logging. ([#1971](https://github.com/getsentry/sentry-native/pull/1971))
+
 ## 0.16.2
 
 **Features**:
