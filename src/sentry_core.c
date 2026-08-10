@@ -250,6 +250,20 @@ sentry_init(sentry_options_t *options)
                 = sentry_value_new_string(options->sdk_name);
             sentry_value_set_by_key(scope->client_sdk, "name", sdk_name);
         }
+        sentry_value_t integrations
+            = sentry_value_get_by_key(scope->client_sdk, "integrations");
+        for (size_t i = 0; i < options->num_integrations; i++) {
+            const char *name = options->integrations[i]->name;
+            if (!name) {
+                continue;
+            }
+            if (sentry_value_is_null(integrations)) {
+                integrations = sentry_value_new_list();
+                sentry_value_set_by_key(
+                    scope->client_sdk, "integrations", integrations);
+            }
+            sentry_value_append(integrations, sentry_value_new_string(name));
+        }
         sentry_value_freeze(scope->client_sdk);
         generate_propagation_context(scope->propagation_context);
         scope->release = sentry__string_clone(options->release);

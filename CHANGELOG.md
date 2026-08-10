@@ -5,6 +5,8 @@
 **Features**:
 
 - Forward `enable_logs` option through `NdkOptions` so the Android SDK can enable native structured logging. ([#1971](https://github.com/getsentry/sentry-native/pull/1971))
+- Report enabled Qt and WER integrations in event SDK metadata (`sdk.integrations`) alongside the configured crash backend. ([#1969](https://github.com/
+  getsentry/sentry-native/pull/1969))
 
 ## 0.16.2
 
