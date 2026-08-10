@@ -3079,6 +3079,31 @@ apply_breadcrumbs_from_ring_files(sentry_value_t event,
     }
 }
 
+#if defined(SENTRY_PLATFORM_WINDOWS)
+static void
+apply_wer_context(sentry_value_t event, const sentry_crash_context_t *ctx)
+{
+    if (sentry__string_empty(ctx->platform.wer_report_id)) {
+        return;
+    }
+
+    sentry_value_t contexts = sentry_value_get_by_key(event, "contexts");
+    if (sentry_value_get_type(contexts) != SENTRY_VALUE_TYPE_OBJECT) {
+        contexts = sentry_value_new_object();
+        sentry_value_set_by_key(event, "contexts", contexts);
+    }
+
+    sentry_value_t wer = sentry_value_get_by_key(contexts, "wer");
+    if (sentry_value_get_type(wer) != SENTRY_VALUE_TYPE_OBJECT) {
+        wer = sentry_value_new_object();
+        sentry_value_set_by_key(contexts, "wer", wer);
+    }
+
+    sentry_value_set_by_key(
+        wer, "report_id", sentry_value_new_string(ctx->platform.wer_report_id));
+}
+#endif
+
 /**
  * Build a native event and set the level, mechanism, and handled state
  *
@@ -3117,6 +3142,9 @@ build_native_event(const sentry_crash_context_t *ctx,
     }
 
     apply_breadcrumbs_from_ring_files(event, run_folder, ctx);
+#if defined(SENTRY_PLATFORM_WINDOWS)
+    apply_wer_context(event, ctx);
+#endif
 
     // Set platform to native
     sentry_value_set_by_key(
@@ -3727,6 +3755,9 @@ write_envelope_with_minidump(const sentry_options_t *options,
                 event_size = event_json ? base_size : 0;
             } else {
                 apply_breadcrumbs_from_ring_files(event, run_folder, ctx);
+#if defined(SENTRY_PLATFORM_WINDOWS)
+                apply_wer_context(event, ctx);
+#endif
                 event_id = sentry__string_clone(sentry_value_as_string(
                     sentry_value_get_by_key(event, "event_id")));
                 event_json = sentry__value_to_json(event, &event_size);

@@ -139,7 +139,7 @@ def assert_sentry_event(httpserver, backend, crash_arg):
         assert httpserver.log[0][0].path == "/api/123456/minidump/"
         attachments = assert_crashpad_upload(httpserver.log[0][0])
         assert attachments.event["event_id"]
-        return
+        return attachments.event
 
     envelope = Envelope.deserialize(httpserver.log[0][0].get_data())
     event = envelope.get_event()
@@ -154,6 +154,8 @@ def assert_sentry_event(httpserver, backend, crash_arg):
         assert_breakpad_crash(envelope)
     elif backend == "native":
         assert_native_crash(envelope)
+
+    return event
 
 
 def powershell(command, check=True):
@@ -243,6 +245,7 @@ def run_wer_crash(cmake, backend, crash_arg, httpserver=None, appx=False):
 
     try:
         env = None
+        sentry_event = None
         if httpserver is not None:
             env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
             if backend == "crashpad":
@@ -287,7 +290,7 @@ def run_wer_crash(cmake, backend, crash_arg, httpserver=None, appx=False):
                     run(tmp_path, target, ["no-setup"], env=env)
 
             assert waiting.result
-            assert_sentry_event(httpserver, backend, crash_arg)
+            sentry_event = assert_sentry_event(httpserver, backend, crash_arg)
 
         if appx:
             assert "PACKAGE_IDENTITY:present" in completed.stdout
@@ -301,6 +304,18 @@ def run_wer_crash(cmake, backend, crash_arg, httpserver=None, appx=False):
 
         report_path, report = wait_for_wer_report(WerStore(), test_id)
         assert report_path.name == "Report.wer"
+
+        if backend == "native" and sentry_event is not None:
+            report_id = next(
+                (
+                    line.removeprefix("ReportIdentifier=")
+                    for line in report.splitlines()
+                    if line.startswith("ReportIdentifier=")
+                ),
+                None,
+            )
+            assert report_id
+            assert sentry_event["contexts"]["wer"]["report_id"] == report_id
 
         return report
     finally:
