@@ -7,6 +7,10 @@
 - Report enabled Qt and WER integrations in event SDK metadata (`sdk.integrations`) alongside the configured crash backend. ([#1969](https://github.com/
   getsentry/sentry-native/pull/1969))
 
+**Fixes**:
+
+- Crashpad: prevent external crash reporters from bypassing revoked user consent. ([#1972](https://github.com/getsentry/sentry-native/pull/1972))
+
 ## 0.16.2
 
 **Features**:
