@@ -6,6 +6,7 @@
 
 - Report enabled Qt and WER integrations in event SDK metadata (`sdk.integrations`) alongside the configured crash backend. ([#1969](https://github.com/
   getsentry/sentry-native/pull/1969))
+- Native/Windows: capture WER report ID and expose as `contexts.wer.report_id` in crash events. ([#1970](https://github.com/getsentry/sentry-native/pull/1970))
 
 ## 0.16.2
 
