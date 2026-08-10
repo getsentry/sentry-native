@@ -841,6 +841,112 @@ def test_crashpad_external_crash_reporter(cmake, httpserver, run_args):
     assert_user_feedback(envelope)
 
 
+def test_crashpad_external_crash_reporter_consent_revoked(cmake, httpserver):
+    """With consent revoked, Crashpad must not launch the external reporter."""
+    tmp_path = cmake(
+        ["sentry_example", "sentry_crash_reporter"], {"SENTRY_BACKEND": "crashpad"}
+    )
+    db_path = tmp_path / ".sentry-native"
+    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
+
+    run(
+        tmp_path,
+        "sentry_example",
+        [
+            "log",
+            "crash-reporter",
+            "cache-keep",
+            "require-user-consent",
+            "user-consent-revoke",
+            "crash",
+        ],
+        expect_failure=True,
+        env=env,
+    )
+
+    time.sleep(1)
+    assert len(httpserver.log) == 0
+    if sys.platform != "win32":
+        pending_dir = db_path / "pending"
+        assert any(pending_dir.glob("*.dmp"))
+
+
+def test_crashpad_external_crash_reporter_consent_revoked_no_cache(cmake, httpserver):
+    """With consent revoked and no cache_keep, Crashpad must not upload."""
+    tmp_path = cmake(
+        ["sentry_example", "sentry_crash_reporter"], {"SENTRY_BACKEND": "crashpad"}
+    )
+    cache_dir = tmp_path / ".sentry-native" / "cache"
+    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
+
+    run(
+        tmp_path,
+        "sentry_example",
+        [
+            "log",
+            "crash-reporter",
+            "require-user-consent",
+            "user-consent-revoke",
+            "crash",
+        ],
+        expect_failure=True,
+        env=env,
+    )
+
+    time.sleep(1)
+    assert len(httpserver.log) == 0
+    assert not cache_dir.exists() or not any(cache_dir.glob("*.envelope"))
+
+
+def test_crashpad_external_crash_reporter_consent_flush(cmake, httpserver):
+    """Pending crash report uploads once consent is given."""
+    tmp_path = cmake(
+        ["sentry_example", "sentry_crash_reporter"], {"SENTRY_BACKEND": "crashpad"}
+    )
+    db_path = tmp_path / ".sentry-native"
+    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
+
+    run(
+        tmp_path,
+        "sentry_example",
+        [
+            "log",
+            "crash-reporter",
+            "cache-keep",
+            "http-retry",
+            "require-user-consent",
+            "user-consent-revoke",
+            "crash",
+        ],
+        expect_failure=True,
+        env=env,
+    )
+
+    time.sleep(1)
+    assert len(httpserver.log) == 0
+    if sys.platform != "win32":
+        pending_dir = db_path / "pending"
+        assert any(pending_dir.glob("*.dmp"))
+
+    httpserver.expect_oneshot_request("/api/123456/minidump/").respond_with_data("OK")
+    with httpserver.wait(timeout=10) as waiting:
+        run(
+            tmp_path,
+            "sentry_example",
+            [
+                "log",
+                "cache-keep",
+                "http-retry",
+                "require-user-consent",
+                "user-consent-give",
+            ],
+            env=env,
+        )
+    assert waiting.result
+    if sys.platform != "win32":
+        assert not any((db_path / "pending").glob("*.dmp"))
+
+
 @pytest.mark.skipif(
     sys.platform != "win32",
     reason="Test covers Windows-specific crashes which can only be covered via the Crashpad WER module",
