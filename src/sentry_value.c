@@ -108,10 +108,20 @@ typedef struct {
     long refcount;
 } obj_t;
 
+#if defined(_MSC_VER)
+#    pragma warning(push)
+#    pragma warning(disable : 4200) // nonstandard extension used: zero-sized
+                                    // array in struct/union
+#endif
+
 typedef struct {
     size_t len;
-    char s[];
+    char s[]; // flexible array member
 } blob_t;
+
+#if defined(_MSC_VER)
+#    pragma warning(pop)
+#endif
 
 static const char *
 level_as_string(sentry_level_t level)
