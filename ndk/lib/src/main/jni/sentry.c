@@ -417,6 +417,9 @@ Java_io_sentry_ndk_SentryNdk_initSentryNative(
     jmethodID app_hang_timeout_mid = (*env)->GetMethodID(
         env, options_cls, "getAppHangTimeoutMillis", "()J");
 
+    jmethodID enable_logs_mid
+        = (*env)->GetMethodID(env, options_cls, "isEnableLogs", "()Z");
+
     (*env)->DeleteLocalRef(env, options_cls);
 
     char *outbox_path = NULL;
@@ -521,6 +524,10 @@ Java_io_sentry_ndk_SentryNdk_initSentryNative(
         app_hang_timeout = 0;
     }
     sentry_options_set_app_hang_timeout(options, (uint64_t)app_hang_timeout);
+
+    jboolean enable_logs = (jboolean)(*env)->CallBooleanMethod(
+        env, sentry_ndk_options, enable_logs_mid);
+    sentry_options_set_enable_logs(options, enable_logs);
 
     int rv = sentry_init(options);
     return (jint)rv;
