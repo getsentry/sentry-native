@@ -15,12 +15,176 @@
 #include <stdio.h>
 #include <string.h>
 
+#ifndef SENTRY_LINK_CURL
+#    include <dlfcn.h>
+#    ifndef RTLD_LOCAL
+#        define RTLD_LOCAL 0
+#    endif
+#endif
+
 #ifdef SENTRY_PLATFORM_NX
 #    include "sentry_transport_curl_nx.h"
 #endif
 
 typedef struct {
+#ifndef SENTRY_LINK_CURL
+    void *handle;
+#endif
+    CURLcode (*global_init)(long flags);
+    curl_version_info_data *(*version_info)(CURLversion version);
+    void (*global_cleanup)(void);
+    CURL *(*easy_init)(void);
+    void (*easy_cleanup)(CURL *curl);
+    void (*easy_reset)(CURL *curl);
+    CURLcode (*easy_setopt)(CURL *curl, CURLoption option, ...);
+    CURLcode (*easy_getinfo)(CURL *curl, CURLINFO info, ...);
+    CURLcode (*easy_perform)(CURL *curl);
+    const char *(*easy_strerror)(CURLcode errornum);
+    struct curl_slist *(*slist_append)(
+        struct curl_slist *list, const char *data);
+    void (*slist_free_all)(struct curl_slist *list);
+} curl_table_t;
+
+static curl_table_t g_curl;
+
+#ifndef SENTRY_LINK_CURL
+static void
+curl_unload(void)
+{
+    if (g_curl.handle) {
+        dlclose(g_curl.handle);
+    }
+    memset(&g_curl, 0, sizeof(g_curl));
+}
+
+static bool
+curl_resolve_symbol(const char *name, void **func)
+{
+    dlerror();
+    void *symbol = dlsym(g_curl.handle, name);
+    const char *error = dlerror();
+    if (error || !symbol) {
+        SENTRY_WARNF("failed to resolve libcurl symbol `%s`: %s", name,
+            error ? error : "symbol not found");
+        return false;
+    }
+
+    *func = symbol;
+    return true;
+}
+
+static int
+curl_load(void)
+{
+    if (g_curl.handle) {
+        return 0;
+    }
+
+    typedef struct {
+        const char *name;
+        int flags;
+    } curl_library_t;
+
+#    if defined(SENTRY_PLATFORM_MACOS)
+    const curl_library_t libs[] = {
+        { "libcurl.4.dylib", 0 },
+        { "libcurl.dylib", 0 },
+        { NULL, 0 },
+    };
+#    elif defined(SENTRY_PLATFORM_AIX)
+    const curl_library_t libs[] = {
+        { "libcurl.a(libcurl.so.4)", RTLD_MEMBER },
+        { "libcurl.so.4", 0 },
+        { "libcurl.so", 0 },
+        { "libcurl.a", 0 },
+        { NULL, 0 },
+    };
+#    else
+    const curl_library_t libs[] = {
+        { "libcurl.so", 0 },
+        { "libcurl-gnutls.so.4", 0 },
+        { "libcurl-nss.so.4", 0 },
+        { "libcurl.so.4", 0 },
+        { NULL, 0 },
+    };
+#    endif
+
+    // Check for statically linked libcurl first.
+    g_curl.handle = dlopen(NULL, RTLD_LAZY | RTLD_LOCAL);
+    if (g_curl.handle
+        && (!dlsym(g_curl.handle, "curl_easy_init")
+            || !dlsym(g_curl.handle, "curl_easy_setopt"))) {
+        dlclose(g_curl.handle);
+        g_curl.handle = NULL;
+    }
+
+    const char *libname = NULL;
+    if (!g_curl.handle) {
+        for (const curl_library_t *cur = libs; cur->name; cur++) {
+            libname = cur->name;
+            g_curl.handle
+                = dlopen(libname, RTLD_LAZY | RTLD_LOCAL | cur->flags);
+            if (g_curl.handle) {
+                break;
+            }
+        }
+    }
+    if (!g_curl.handle) {
+        const char *error = dlerror();
+        SENTRY_WARNF(
+            "failed to load libcurl: %s", error ? error : "library not found");
+        return 1;
+    }
+
+#    define RESOLVE_CURL_SYMBOL(symbol, field)                                 \
+        do {                                                                   \
+            if (!curl_resolve_symbol(#symbol, (void **)&g_curl.field)) {       \
+                curl_unload();                                                 \
+                return 1;                                                      \
+            }                                                                  \
+        } while (0)
+
+    RESOLVE_CURL_SYMBOL(curl_global_init, global_init);
+    RESOLVE_CURL_SYMBOL(curl_version_info, version_info);
+    RESOLVE_CURL_SYMBOL(curl_global_cleanup, global_cleanup);
+    RESOLVE_CURL_SYMBOL(curl_easy_init, easy_init);
+    RESOLVE_CURL_SYMBOL(curl_easy_cleanup, easy_cleanup);
+    RESOLVE_CURL_SYMBOL(curl_easy_reset, easy_reset);
+    RESOLVE_CURL_SYMBOL(curl_easy_setopt, easy_setopt);
+    RESOLVE_CURL_SYMBOL(curl_easy_getinfo, easy_getinfo);
+    RESOLVE_CURL_SYMBOL(curl_easy_perform, easy_perform);
+    RESOLVE_CURL_SYMBOL(curl_easy_strerror, easy_strerror);
+    RESOLVE_CURL_SYMBOL(curl_slist_append, slist_append);
+    RESOLVE_CURL_SYMBOL(curl_slist_free_all, slist_free_all);
+
+#    undef RESOLVE_CURL_SYMBOL
+
+    return 0;
+}
+#else
+static int
+curl_load(void)
+{
+    g_curl.global_init = curl_global_init;
+    g_curl.version_info = curl_version_info;
+    g_curl.global_cleanup = curl_global_cleanup;
+    g_curl.easy_init = curl_easy_init;
+    g_curl.easy_cleanup = curl_easy_cleanup;
+    g_curl.easy_reset = curl_easy_reset;
+    g_curl.easy_setopt = curl_easy_setopt;
+    g_curl.easy_getinfo = curl_easy_getinfo;
+    g_curl.easy_perform = curl_easy_perform;
+    g_curl.easy_strerror = curl_easy_strerror;
+    g_curl.slist_append = curl_slist_append;
+    g_curl.slist_free_all = curl_slist_free_all;
+
+    return 0;
+}
+#endif
+
+typedef struct {
     CURL *curl_handle;
+    bool curl_initialized;
     char *proxy;
     char *ca_certs;
     bool debug;
@@ -55,8 +219,12 @@ curl_client_free(void *_client)
 {
     curl_client_t *client = _client;
     if (client->curl_handle) {
-        curl_easy_cleanup(client->curl_handle);
-        curl_global_cleanup();
+        g_curl.easy_cleanup(client->curl_handle);
+        client->curl_handle = NULL;
+    }
+    if (client->curl_initialized) {
+        g_curl.global_cleanup();
+        client->curl_initialized = false;
     }
     sentry_free(client->ca_certs);
     sentry_free(client->proxy);
@@ -71,44 +239,45 @@ curl_client_start(void *_client, const sentry_options_t *options)
 {
     curl_client_t *client = _client;
 
-    static bool curl_initialized = false;
-    if (!curl_initialized) {
-        CURLcode rv = curl_global_init(CURL_GLOBAL_ALL);
-        if (rv != CURLE_OK) {
-            SENTRY_WARNF("`curl_global_init` failed with code `%d`", (int)rv);
-            return 1;
-        }
+    if (curl_load() != 0) {
+        return 1;
+    }
 
-        curl_version_info_data *version_data
-            = curl_version_info(CURLVERSION_NOW);
+    CURLcode rv = g_curl.global_init(CURL_GLOBAL_ALL);
+    if (rv != CURLE_OK) {
+        SENTRY_WARNF("`curl_global_init` failed with code `%d`", (int)rv);
+        return 1;
+    }
+    client->curl_initialized = true;
 
-        if (!version_data) {
-            SENTRY_WARN("Failed to retrieve `curl_version_info`");
-            return 1;
-        }
+    curl_version_info_data *version_data = g_curl.version_info(CURLVERSION_NOW);
 
-        sentry_version_t curl_version = {
-            .major = (version_data->version_num >> 16) & 0xff,
-            .minor = (version_data->version_num >> 8) & 0xff,
-            .patch = version_data->version_num & 0xff,
-        };
+    if (!version_data) {
+        SENTRY_WARN("Failed to retrieve `curl_version_info`");
+        return 1;
+    }
 
-        if (!sentry__check_min_version(
-                curl_version, (sentry_version_t) { 7, 21, 7 })) {
-            SENTRY_WARNF("`libcurl` is at unsupported version `%u.%u.%u`",
-                curl_version.major, curl_version.minor, curl_version.patch);
-            return 1;
-        }
+    sentry_version_t curl_version = {
+        .major = (version_data->version_num >> 16) & 0xff,
+        .minor = (version_data->version_num >> 8) & 0xff,
+        .patch = version_data->version_num & 0xff,
+    };
 
-        if ((version_data->features & CURL_VERSION_ASYNCHDNS) == 0) {
-            SENTRY_WARN("`libcurl` was not compiled with feature `AsynchDNS`");
-            return 1;
-        }
+    if (!sentry__check_min_version(
+            curl_version, (sentry_version_t) { 7, 21, 7 })) {
+        SENTRY_WARNF("`libcurl` is at unsupported version `%u.%u.%u`",
+            curl_version.major, curl_version.minor, curl_version.patch);
+        return 1;
+    }
+
+    if ((version_data->features & CURL_VERSION_ASYNCHDNS) == 0) {
+        SENTRY_WARN("`libcurl` was not compiled with feature `AsynchDNS`");
+        return 1;
     }
 
     client->proxy = sentry__string_clone(options->proxy);
     client->ca_certs = sentry__string_clone(options->ca_certs);
-    client->curl_handle = curl_easy_init();
+    client->curl_handle = g_curl.easy_init();
     client->debug = options->debug;
     client->transfer_timeout = options->transfer_timeout;
 
@@ -271,7 +440,7 @@ curl_send_task(void *_client, sentry_prepared_http_request_t *req,
 #endif
 
     struct curl_slist *headers = NULL;
-    headers = curl_slist_append(headers, "expect:");
+    headers = g_curl.slist_append(headers, "expect:");
     for (size_t i = 0; i < req->headers_len; i++) {
         char buf[512];
         size_t written = (size_t)snprintf(buf, sizeof(buf), "%s:%s",
@@ -280,27 +449,27 @@ curl_send_task(void *_client, sentry_prepared_http_request_t *req,
             continue;
         }
         buf[written] = '\0';
-        headers = curl_slist_append(headers, buf);
+        headers = g_curl.slist_append(headers, buf);
     }
 
     CURL *curl = client->curl_handle;
-    curl_easy_reset(curl);
+    g_curl.easy_reset(curl);
     if (client->debug) {
-        curl_easy_setopt(curl, CURLOPT_VERBOSE, 1);
-        curl_easy_setopt(curl, CURLOPT_DEBUGFUNCTION, debug_callback);
-        curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_callback);
+        g_curl.easy_setopt(curl, CURLOPT_VERBOSE, 1);
+        g_curl.easy_setopt(curl, CURLOPT_DEBUGFUNCTION, debug_callback);
+        g_curl.easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_callback);
     } else {
-        curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, swallow_data);
+        g_curl.easy_setopt(curl, CURLOPT_WRITEFUNCTION, swallow_data);
     }
-    curl_easy_setopt(curl, CURLOPT_URL, req->url);
-    curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
-    curl_easy_setopt(curl, CURLOPT_USERAGENT, SENTRY_SDK_USER_AGENT);
-    curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT_MS, 15000L);
-    curl_easy_setopt(
+    g_curl.easy_setopt(curl, CURLOPT_URL, req->url);
+    g_curl.easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
+    g_curl.easy_setopt(curl, CURLOPT_USERAGENT, SENTRY_SDK_USER_AGENT);
+    g_curl.easy_setopt(curl, CURLOPT_CONNECTTIMEOUT_MS, 15000L);
+    g_curl.easy_setopt(
         curl, CURLOPT_TIMEOUT_MS, curl_timeout_ms(client->transfer_timeout));
-    curl_easy_setopt(curl, CURLOPT_NOPROGRESS, 0L);
-    curl_easy_setopt(curl, CURLOPT_XFERINFOFUNCTION, progress_callback);
-    curl_easy_setopt(curl, CURLOPT_XFERINFODATA, client);
+    g_curl.easy_setopt(curl, CURLOPT_NOPROGRESS, 0L);
+    g_curl.easy_setopt(curl, CURLOPT_XFERINFOFUNCTION, progress_callback);
+    g_curl.easy_setopt(curl, CURLOPT_XFERINFODATA, client);
 
     FILE *body_file = NULL;
     file_body_t file_body = { 0 };
@@ -313,37 +482,37 @@ curl_send_task(void *_client, sentry_prepared_http_request_t *req,
         if (!body_file) {
             SENTRY_WARNF("failed to open request body file \"%s\"",
                 sentry__path_filename(req->body_path));
-            curl_slist_free_all(headers);
+            g_curl.slist_free_all(headers);
             return false;
         }
         file_body.file = body_file;
         file_body.path = req->body_path;
-        curl_easy_setopt(curl, CURLOPT_UPLOAD, 1L);
-        curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, req->method);
-        curl_easy_setopt(curl, CURLOPT_READFUNCTION, file_read_callback);
-        curl_easy_setopt(curl, CURLOPT_READDATA, &file_body);
-        curl_easy_setopt(
+        g_curl.easy_setopt(curl, CURLOPT_UPLOAD, 1L);
+        g_curl.easy_setopt(curl, CURLOPT_CUSTOMREQUEST, req->method);
+        g_curl.easy_setopt(curl, CURLOPT_READFUNCTION, file_read_callback);
+        g_curl.easy_setopt(curl, CURLOPT_READDATA, &file_body);
+        g_curl.easy_setopt(
             curl, CURLOPT_INFILESIZE_LARGE, (curl_off_t)req->body_len);
     } else if (req->body) {
-        curl_easy_setopt(curl, CURLOPT_POST, (long)1);
-        curl_easy_setopt(curl, CURLOPT_POSTFIELDS, req->body);
-        curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE, (long)req->body_len);
+        g_curl.easy_setopt(curl, CURLOPT_POST, (long)1);
+        g_curl.easy_setopt(curl, CURLOPT_POSTFIELDS, req->body);
+        g_curl.easy_setopt(curl, CURLOPT_POSTFIELDSIZE, (long)req->body_len);
     } else {
-        curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, req->method);
+        g_curl.easy_setopt(curl, CURLOPT_CUSTOMREQUEST, req->method);
     }
 
     char error_buf[CURL_ERROR_SIZE];
     error_buf[0] = 0;
-    curl_easy_setopt(curl, CURLOPT_ERRORBUFFER, error_buf);
+    g_curl.easy_setopt(curl, CURLOPT_ERRORBUFFER, error_buf);
 
-    curl_easy_setopt(curl, CURLOPT_HEADERDATA, (void *)resp);
-    curl_easy_setopt(curl, CURLOPT_HEADERFUNCTION, header_callback);
+    g_curl.easy_setopt(curl, CURLOPT_HEADERDATA, (void *)resp);
+    g_curl.easy_setopt(curl, CURLOPT_HEADERFUNCTION, header_callback);
 
     if (client->proxy) {
-        curl_easy_setopt(curl, CURLOPT_PROXY, client->proxy);
+        g_curl.easy_setopt(curl, CURLOPT_PROXY, client->proxy);
     }
     if (client->ca_certs) {
-        curl_easy_setopt(curl, CURLOPT_CAINFO, client->ca_certs);
+        g_curl.easy_setopt(curl, CURLOPT_CAINFO, client->ca_certs);
     }
 
 #ifdef SENTRY_PLATFORM_NX
@@ -353,12 +522,12 @@ curl_send_task(void *_client, sentry_prepared_http_request_t *req,
 #endif
 
     if (rv == CURLE_OK) {
-        rv = curl_easy_perform(curl);
+        rv = g_curl.easy_perform(curl);
     }
 
     if (rv == CURLE_OK) {
         long response_code;
-        curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &response_code);
+        g_curl.easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &response_code);
         resp->status_code = (int)response_code;
     } else {
         resp->shutdown = sentry__atomic_fetch(&client->shutdown) != 0;
@@ -371,14 +540,14 @@ curl_send_task(void *_client, sentry_prepared_http_request_t *req,
                 (int)rv, error_buf);
         } else {
             SENTRY_WARNF("`curl_easy_perform` failed with code `%d`: %s",
-                (int)rv, curl_easy_strerror(rv));
+                (int)rv, g_curl.easy_strerror(rv));
         }
     }
 
     if (body_file) {
         fclose(body_file);
     }
-    curl_slist_free_all(headers);
+    g_curl.slist_free_all(headers);
     return rv == CURLE_OK;
 }
 

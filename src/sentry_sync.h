@@ -135,6 +135,22 @@ WakeConditionVariable_PREVISTA(PCONDITION_VARIABLE_PREVISTA ConditionVariable)
         ConditionVariable->ContinueEvent, INFINITE, FALSE);
 }
 
+inline void
+WakeAllConditionVariable_PREVISTA(
+    PCONDITION_VARIABLE_PREVISTA ConditionVariable)
+{
+    if (!ConditionVariable) {
+        return;
+    }
+
+    LONG waiters = InterlockedCompareExchange(
+        (volatile LONG *)&ConditionVariable->Waiters, 0, 0);
+    if (waiters > 0) {
+        ConditionVariable->Target = -1;
+        ReleaseSemaphore(ConditionVariable->Semaphore, waiters, NULL);
+    }
+}
+
 #    endif /* _WIN32_WINNT < 0x0600 */
 
 struct sentry__winmutex_s {
@@ -195,6 +211,7 @@ typedef CONDITION_VARIABLE_PREVISTA sentry_cond_t;
 #        define sentry__cond_init(CondVar)                                     \
             InitializeConditionVariable_PREVISTA(CondVar)
 #        define sentry__cond_wake WakeConditionVariable_PREVISTA
+#        define sentry__cond_wake_all WakeAllConditionVariable_PREVISTA
 #        define sentry__cond_wait_timeout(CondVar, Lock, Timeout)              \
             SleepConditionVariableCS_PREVISTA(                                 \
                 CondVar, &(Lock)->critical_section, Timeout)
@@ -202,6 +219,7 @@ typedef CONDITION_VARIABLE_PREVISTA sentry_cond_t;
 typedef CONDITION_VARIABLE sentry_cond_t;
 #        define sentry__cond_init(CondVar) InitializeConditionVariable(CondVar)
 #        define sentry__cond_wake WakeConditionVariable
+#        define sentry__cond_wake_all WakeAllConditionVariable
 #        define sentry__cond_wait_timeout(CondVar, Lock, Timeout)              \
             SleepConditionVariableCS(                                          \
                 CondVar, &(Lock)->critical_section, Timeout)
@@ -344,6 +362,7 @@ typedef pthread_cond_t sentry_cond_t;
             }                                                                  \
         } while (0)
 #    define sentry__cond_wake pthread_cond_signal
+#    define sentry__cond_wake_all pthread_cond_broadcast
 #    define sentry__thread_init(ThreadId)                                      \
         memset(ThreadId, 0, sizeof(sentry_threadid_t))
 #    define sentry__thread_spawn(ThreadId, Func, Data)                         \

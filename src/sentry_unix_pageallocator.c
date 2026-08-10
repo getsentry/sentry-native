@@ -1,6 +1,6 @@
 #include "sentry_unix_pageallocator.h"
 #include "sentry_core.h"
-#include "sentry_unix_spinlock.h"
+#include "sentry_spinlock.h"
 
 #include <sys/mman.h>
 #include <unistd.h>

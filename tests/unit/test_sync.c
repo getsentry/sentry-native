@@ -1,4 +1,5 @@
 #include "sentry_core.h"
+#include "sentry_spinlock.h"
 #include "sentry_sync.h"
 #include "sentry_testsupport.h"
 #include "sentry_utils.h"
@@ -581,6 +582,72 @@ SENTRY_TEST(bgworker_delayed_shutdown)
     sentry__bgworker_decref(bgw);
 }
 
+#define COND_WAKE_ALL_THREADS 2
+
+struct cond_wake_all_state {
+    sentry_mutex_t mutex;
+    sentry_cond_t waiting_cond;
+    sentry_cond_t ready_cond;
+    volatile long waiting;
+    volatile long woke;
+    bool ready;
+};
+
+SENTRY_THREAD_FN
+cond_wake_all_thread(void *data)
+{
+    struct cond_wake_all_state *state = data;
+
+    sentry__mutex_lock(&state->mutex);
+    sentry__atomic_fetch_and_add(&state->waiting, 1);
+    sentry__cond_wake(&state->waiting_cond);
+    while (!state->ready) {
+        sentry__cond_wait(&state->ready_cond, &state->mutex);
+    }
+    sentry__atomic_fetch_and_add(&state->woke, 1);
+    sentry__mutex_unlock(&state->mutex);
+
+    return 0;
+}
+
+SENTRY_TEST(cond_wake_all)
+{
+    struct cond_wake_all_state state = { 0 };
+    sentry_threadid_t threads[COND_WAKE_ALL_THREADS];
+
+    sentry__mutex_init(&state.mutex);
+    sentry__cond_init(&state.waiting_cond);
+    sentry__cond_init(&state.ready_cond);
+
+    for (int i = 0; i < COND_WAKE_ALL_THREADS; i++) {
+        sentry__thread_init(&threads[i]);
+        TEST_ASSERT(
+            sentry__thread_spawn(&threads[i], cond_wake_all_thread, &state)
+            == 0);
+    }
+
+    sentry__mutex_lock(&state.mutex);
+    while (sentry__atomic_fetch(&state.waiting) < COND_WAKE_ALL_THREADS) {
+        sentry__cond_wait(&state.waiting_cond, &state.mutex);
+    }
+    state.ready = true;
+    sentry__cond_wake_all(&state.ready_cond);
+    sentry__mutex_unlock(&state.mutex);
+
+    for (int i = 0; i < COND_WAKE_ALL_THREADS; i++) {
+        sentry__thread_join(threads[i]);
+    }
+
+    TEST_CHECK_INT_EQUAL(
+        sentry__atomic_fetch(&state.woke), COND_WAKE_ALL_THREADS);
+
+#ifndef SENTRY_PLATFORM_WINDOWS
+    pthread_cond_destroy(&state.ready_cond);
+    pthread_cond_destroy(&state.waiting_cond);
+#endif
+    sentry__mutex_free(&state.mutex);
+}
+
 SENTRY_TEST(cond_wait_timeout_overflow)
 {
 #if !(defined(SENTRY_PLATFORM_MACOS)                                           \
@@ -602,4 +669,35 @@ SENTRY_TEST(cond_wait_timeout_overflow)
     sentry__mutex_free(&mutex);
     pthread_cond_destroy(&cond);
 #endif
+}
+
+static long g_spin_waits = 0;
+
+static bool
+spin_wait(int UNUSED(attempt), void *UNUSED(data))
+{
+    sentry__atomic_fetch_and_add(&g_spin_waits, 1);
+    return sentry__atomic_fetch(&g_spin_waits) < 2;
+}
+
+SENTRY_TEST(spinlock)
+{
+    sentry_spinlock_t lock = SENTRY__SPINLOCK_INIT;
+    sentry__atomic_store(&g_spin_waits, 0);
+
+    TEST_CHECK(sentry__spinlock_try_lock(&lock));
+    TEST_CHECK_INT_EQUAL(sentry__atomic_fetch(&lock), 1);
+    TEST_CHECK(!sentry__spinlock_try_lock(&lock));
+    sentry__spinlock_unlock(&lock);
+    TEST_CHECK_INT_EQUAL(sentry__atomic_fetch(&lock), 0);
+
+    sentry__spinlock_lock(&lock);
+    TEST_CHECK_INT_EQUAL(sentry__atomic_fetch(&lock), 1);
+    TEST_CHECK(!sentry__spinlock_wait(&lock, spin_wait, NULL));
+    TEST_CHECK_INT_EQUAL(sentry__atomic_fetch(&g_spin_waits), 2);
+    sentry__spinlock_unlock(&lock);
+    TEST_CHECK_INT_EQUAL(sentry__atomic_fetch(&lock), 0);
+    TEST_CHECK(sentry__spinlock_wait(&lock, spin_wait, NULL));
+    TEST_CHECK_INT_EQUAL(sentry__atomic_fetch(&g_spin_waits), 2);
+    sentry__spinlock_unlock(&lock);
 }

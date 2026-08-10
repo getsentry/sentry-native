@@ -494,12 +494,34 @@ if(CMAKE_SYSTEM_NAME STREQUAL "OS400")
 	target_link_libraries(sentry PRIVATE util)
 endif()
 
+set(SENTRY_LINK_CURL "AUTO" CACHE STRING "Link curl library")
+set_property(CACHE SENTRY_LINK_CURL PROPERTY STRINGS AUTO ON OFF)
+
+set(_SENTRY_LINK_CURL ${SENTRY_LINK_CURL})
+if(_SENTRY_LINK_CURL STREQUAL "AUTO")
+	set(_SENTRY_LINK_CURL ON)
+elseif(NOT _SENTRY_LINK_CURL STREQUAL "ON" AND NOT _SENTRY_LINK_CURL STREQUAL "OFF")
+	message(FATAL_ERROR "SENTRY_LINK_CURL must be one of AUTO, ON, or OFF.")
+endif()
+
+function(sentry_target_link_curl TARGET LINK_CURL)
+	if(LINK_CURL)
+		target_compile_definitions(${TARGET} PRIVATE SENTRY_LINK_CURL)
+		target_link_libraries(${TARGET} PRIVATE CURL::libcurl)
+	else()
+		target_include_directories(${TARGET} PRIVATE
+			$<TARGET_PROPERTY:CURL::libcurl,INTERFACE_INCLUDE_DIRECTORIES>
+			${CURL_INCLUDE_DIRS}
+		)
+	endif()
+endfunction()
+
 if(SENTRY_TRANSPORT_CURL)
 	if(NOT TARGET CURL::libcurl) # Some other lib might bring libcurl already
 		find_package(CURL REQUIRED)
 	endif()
 
-	target_link_libraries(sentry PRIVATE CURL::libcurl)
+	sentry_target_link_curl(sentry ${_SENTRY_LINK_CURL})
 endif()
 
 if(SENTRY_TRANSPORT_COMPRESSION)
@@ -888,7 +910,7 @@ elseif(SENTRY_BACKEND_NATIVE)
 
 	# Transport-specific libraries
 	if(SENTRY_TRANSPORT_CURL)
-		target_link_libraries(sentry-crash PRIVATE CURL::libcurl)
+		sentry_target_link_curl(sentry-crash ${_SENTRY_LINK_CURL})
 	endif()
 
 	if(SENTRY_TRANSPORT_WINHTTP)

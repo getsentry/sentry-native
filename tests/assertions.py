@@ -87,14 +87,19 @@ def assert_meta(
     assert envelope.headers["event_id"]
     event = envelope.get_event()
     assert_event_meta(
-        event, release, integration, transaction, transaction_data, sdk_override
+        event,
+        release=release,
+        integrations=[integration] if integration is not None else None,
+        transaction=transaction,
+        transaction_data=transaction_data,
+        sdk_override=sdk_override,
     )
 
 
 def assert_event_meta(
     event,
     release="test-example-release",
-    integration=None,
+    integrations=None,
     transaction="test-transaction",
     transaction_data=None,
     sdk_override=None,
@@ -179,10 +184,10 @@ def assert_event_meta(
         event["contexts"], {"runtime": {"type": "runtime", "name": "testing-runtime"}}
     )
 
-    if integration is None:
+    if integrations is None:
         assert event["sdk"].get("integrations") is None
     else:
-        assert event["sdk"]["integrations"] == [integration]
+        assert event["sdk"]["integrations"] == integrations
     if event.get("type") == "event":
         assert any(
             "sentry_example" in image["code_file"]
@@ -579,7 +584,7 @@ def assert_crashpad_upload(req, expect_attachment=False, expect_view_hierarchy=F
     attachments = _load_crashpad_attachments(msg)
 
     assert_overflowing_breadcrumb(attachments)
-    assert_event_meta(attachments.event, integration="crashpad")
+    assert_event_meta(attachments.event, integrations=["crashpad"])
     if expect_attachment:
         assert attachments.cmake_cache > 0
         assert attachments.bytes_bin == b"\xc0\xff\xee"

@@ -4,6 +4,7 @@
 #include "sentry_boot.h"
 
 typedef struct sentry_integration_s {
+    const char *name;
     void *data;
 
     void (*register_func)(

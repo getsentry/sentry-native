@@ -269,6 +269,7 @@ sentry_integration_wer_new(void)
         return NULL;
     }
 
+    integration->name = "wer";
     integration->data = SENTRY_MAKE(sentry_integration_wer_data_t);
     if (!integration->data) {
         sentry_free(integration);
