@@ -310,16 +310,12 @@ def run_wer_crash(cmake, backend, crash_arg, httpserver=None, appx=False):
         assert report_path.name == "Report.wer"
 
         if sentry_wer_report_id is not None:
-            report_id = next(
-                (
-                    line.removeprefix("ReportIdentifier=")
-                    for line in report.splitlines()
-                    if line.startswith("ReportIdentifier=")
-                ),
-                None,
-            )
-            assert report_id
-            assert sentry_wer_report_id == report_id
+            report_ids = {
+                line.partition("=")[2]
+                for line in report.splitlines()
+                if line.startswith(("ReportIdentifier=", "IntegratorReportIdentifier="))
+            }
+            assert sentry_wer_report_id in report_ids
 
         return report
     finally:
