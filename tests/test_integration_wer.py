@@ -145,11 +145,7 @@ def assert_sentry_event(httpserver, backend, crash_arg):
     event = envelope.get_event()
     assert event is not None
     assert event["event_id"]
-    assert event["sdk"]["integrations"] == [backend, "wer"]
-    event_meta = event.copy()
-    event_meta["sdk"] = event["sdk"].copy()
-    event_meta["sdk"]["integrations"] = [backend]
-    assert_event_meta(event_meta, integration=backend)
+    assert_event_meta(event, integrations=[backend, "wer"])
 
     if backend == "inproc":
         assert_inproc_crash(envelope)
