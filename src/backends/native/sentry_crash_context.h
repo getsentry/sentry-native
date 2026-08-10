@@ -9,9 +9,12 @@
 
 #include "sentry.h" // For sentry_minidump_mode_t
 #include "sentry_boot.h"
+#include "sentry_sync.h"
 
 #include <limits.h>
+#include <stddef.h>
 #include <stdint.h>
+#include <string.h>
 
 #if defined(SENTRY_PLATFORM_UNIX)
 #    include <signal.h>
@@ -326,11 +329,34 @@ typedef struct {
     // Minidump output path (filled by daemon)
     char minidump_path[SENTRY_CRASH_MAX_PATH];
 
+    uint32_t module_count; // Guards modules[] (uninitialized)
+
+    // === UNINITIALIZED MEMORY BEGIN ===
+
     // Module information (captured in signal handler from dyld)
-    uint32_t module_count;
     sentry_module_info_t modules[SENTRY_CRASH_MAX_MODULES];
 
+    // NOTE: Any new members added here remain uninitialized by
+    // sentry__crash_context_init().
+
 } sentry_crash_context_t;
+
+static inline void
+sentry__crash_context_init(sentry_crash_context_t *ctx)
+{
+    if (!ctx) {
+        return;
+    }
+
+    // Zero until the large modules[] array, and leave the rest uninitialized:
+    // https://github.com/getsentry/sentry-native/issues/1852
+    memset(ctx, 0, offsetof(sentry_crash_context_t, modules));
+
+    ctx->magic = SENTRY_CRASH_MAGIC;
+    ctx->version = SENTRY_CRASH_VERSION;
+    sentry__atomic_store(&ctx->state, SENTRY_CRASH_STATE_READY);
+    sentry__atomic_store(&ctx->sequence, 0);
+}
 
 // Shared memory size: calculated at compile-time based on actual struct size
 // Add 8KB padding for safety and future additions
