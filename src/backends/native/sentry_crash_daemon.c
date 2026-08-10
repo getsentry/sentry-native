@@ -4218,6 +4218,21 @@ sentry__process_crash(const sentry_options_t *options, sentry_crash_ipc_t *ipc)
             enumerate_threads_from_process(ctx);
         }
     }
+
+#    if !defined(SENTRY_PLATFORM_XBOX)
+    if (ctx->platform.wer_enabled
+        && sentry__string_empty(ctx->platform.wer_report_id)) {
+        SENTRY_DEBUG("Waiting for WER report ID, allowing app process to exit");
+        sentry__atomic_store(&ctx->state, SENTRY_CRASH_STATE_PROCESSED);
+
+        int elapsed_ms = 0;
+        while (elapsed_ms < SENTRY_CRASH_HANDLER_WAIT_TIMEOUT_MS
+            && sentry__string_empty(ctx->platform.wer_report_id)) {
+            Sleep(SENTRY_CRASH_HANDLER_POLL_INTERVAL_MS);
+            elapsed_ms += SENTRY_CRASH_HANDLER_POLL_INTERVAL_MS;
+        }
+    }
+#    endif
 #endif
 
     // Write envelope based on mode

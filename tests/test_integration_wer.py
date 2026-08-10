@@ -246,6 +246,7 @@ def run_wer_crash(cmake, backend, crash_arg, httpserver=None, appx=False):
     try:
         env = None
         sentry_event = None
+        sentry_wer_report_id = None
         if httpserver is not None:
             env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
             if backend == "crashpad":
@@ -291,6 +292,9 @@ def run_wer_crash(cmake, backend, crash_arg, httpserver=None, appx=False):
 
             assert waiting.result
             sentry_event = assert_sentry_event(httpserver, backend, crash_arg)
+            if backend == "native":
+                sentry_wer_report_id = sentry_event["contexts"]["wer"]["report_id"]
+                assert sentry_wer_report_id
 
         if appx:
             assert "PACKAGE_IDENTITY:present" in completed.stdout
@@ -305,7 +309,7 @@ def run_wer_crash(cmake, backend, crash_arg, httpserver=None, appx=False):
         report_path, report = wait_for_wer_report(WerStore(), test_id)
         assert report_path.name == "Report.wer"
 
-        if backend == "native" and sentry_event is not None:
+        if sentry_wer_report_id is not None:
             report_id = next(
                 (
                     line.removeprefix("ReportIdentifier=")
@@ -315,7 +319,7 @@ def run_wer_crash(cmake, backend, crash_arg, httpserver=None, appx=False):
                 None,
             )
             assert report_id
-            assert sentry_event["contexts"]["wer"]["report_id"] == report_id
+            assert sentry_wer_report_id == report_id
 
         return report
     finally:
