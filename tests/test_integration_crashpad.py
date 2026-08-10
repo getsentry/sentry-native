@@ -37,6 +37,7 @@ from .assertions import (
     assert_gzip_file_header,
     assert_logs,
     assert_user_feedback,
+    wait_for,
     wait_for_file,
 )
 
@@ -855,6 +856,7 @@ def test_crashpad_external_crash_reporter_consent_revoked(cmake, httpserver):
         [
             "log",
             "crash-reporter",
+            "crashpad-wait-for-upload",
             "cache-keep",
             "require-user-consent",
             "user-consent-revoke",
@@ -864,11 +866,10 @@ def test_crashpad_external_crash_reporter_consent_revoked(cmake, httpserver):
         env=env,
     )
 
-    time.sleep(1)
     assert len(httpserver.log) == 0
     if sys.platform != "win32":
         pending_dir = db_path / "pending"
-        assert any(pending_dir.glob("*.dmp"))
+        assert wait_for_file(pending_dir / "*.dmp")
 
 
 def test_crashpad_external_crash_reporter_consent_revoked_no_cache(cmake, httpserver):
@@ -885,6 +886,7 @@ def test_crashpad_external_crash_reporter_consent_revoked_no_cache(cmake, httpse
         [
             "log",
             "crash-reporter",
+            "crashpad-wait-for-upload",
             "require-user-consent",
             "user-consent-revoke",
             "crash",
@@ -893,7 +895,6 @@ def test_crashpad_external_crash_reporter_consent_revoked_no_cache(cmake, httpse
         env=env,
     )
 
-    time.sleep(1)
     assert len(httpserver.log) == 0
     assert not cache_dir.exists() or not any(cache_dir.glob("*.envelope"))
 
@@ -912,6 +913,7 @@ def test_crashpad_external_crash_reporter_consent_flush(cmake, httpserver):
         [
             "log",
             "crash-reporter",
+            "crashpad-wait-for-upload",
             "cache-keep",
             "http-retry",
             "require-user-consent",
@@ -922,11 +924,10 @@ def test_crashpad_external_crash_reporter_consent_flush(cmake, httpserver):
         env=env,
     )
 
-    time.sleep(1)
     assert len(httpserver.log) == 0
     if sys.platform != "win32":
         pending_dir = db_path / "pending"
-        assert any(pending_dir.glob("*.dmp"))
+        assert wait_for_file(pending_dir / "*.dmp")
 
     httpserver.expect_oneshot_request("/api/123456/minidump/").respond_with_data("OK")
     with httpserver.wait(timeout=10) as waiting:
@@ -944,7 +945,7 @@ def test_crashpad_external_crash_reporter_consent_flush(cmake, httpserver):
         )
     assert waiting.result
     if sys.platform != "win32":
-        assert not any((db_path / "pending").glob("*.dmp"))
+        assert wait_for(lambda: not any((db_path / "pending").glob("*.dmp")))
 
 
 @pytest.mark.skipif(
