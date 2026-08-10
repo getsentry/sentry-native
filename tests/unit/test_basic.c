@@ -3,6 +3,7 @@
 #include "sentry_core.h"
 #include "sentry_database.h"
 #include "sentry_options.h"
+#include "sentry_scope.h"
 #include "sentry_string.h"
 #include "sentry_sync.h"
 #include "sentry_testsupport.h"
@@ -403,6 +404,47 @@ SENTRY_TEST(basic_transport_thread_name)
             TEST_CHECK(false); // Fail if thread_name is NULL
             TEST_MSG("Transport thread name was not set ");
         }
+    }
+
+    sentry_close();
+}
+
+SENTRY_TEST(client_sdk_integrations)
+{
+    SENTRY_TEST_OPTIONS_NEW(options);
+    sentry_integration_t *integration = SENTRY_MAKE(sentry_integration_t);
+    TEST_ASSERT(!!integration);
+    integration->name = "custom";
+    sentry__options_add_integration(options, integration);
+
+    sentry_init(options);
+
+    SENTRY_WITH_SCOPE (scope) {
+        sentry_value_t integrations
+            = sentry_value_get_by_key(scope->client_sdk, "integrations");
+        size_t integration_count = sentry_value_get_length(integrations);
+        TEST_CHECK(integration_count > 0);
+        TEST_CHECK_STRING_EQUAL(
+            sentry_value_as_string(
+                sentry_value_get_by_index(integrations, integration_count - 1)),
+            "custom");
+#if defined(SENTRY_INTEGRATION_WER) || defined(SENTRY_INTEGRATION_QT)
+        size_t integration_index = integration_count - 1;
+#endif
+#ifdef SENTRY_INTEGRATION_WER
+        integration_index--;
+        TEST_CHECK_STRING_EQUAL(
+            sentry_value_as_string(
+                sentry_value_get_by_index(integrations, integration_index)),
+            "wer");
+#endif
+#ifdef SENTRY_INTEGRATION_QT
+        integration_index--;
+        TEST_CHECK_STRING_EQUAL(
+            sentry_value_as_string(
+                sentry_value_get_by_index(integrations, integration_index)),
+            "qt");
+#endif
     }
 
     sentry_close();

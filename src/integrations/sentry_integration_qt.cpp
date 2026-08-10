@@ -80,6 +80,7 @@ sentry_integration_qt_new(void)
         return nullptr;
     }
 
+    integration->name = "qt";
     integration->register_func = register_qt;
     integration->unregister_func = unregister_qt;
 
