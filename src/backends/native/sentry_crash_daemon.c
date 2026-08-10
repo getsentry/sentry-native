@@ -3080,10 +3080,17 @@ apply_breadcrumbs_from_ring_files(sentry_value_t event,
 }
 
 #if defined(SENTRY_PLATFORM_WINDOWS)
+static bool
+is_wer_done(const sentry_crash_context_t *ctx)
+{
+    return sentry__atomic_fetch((volatile long *)&ctx->platform.wer_done) != 0;
+}
+
 static void
 apply_wer_context(sentry_value_t event, const sentry_crash_context_t *ctx)
 {
-    if (sentry__string_empty(ctx->platform.wer_report_id)) {
+    if (!is_wer_done(ctx)
+        || sentry__string_empty(ctx->platform.wer_report_id)) {
         return;
     }
 
@@ -4220,14 +4227,13 @@ sentry__process_crash(const sentry_options_t *options, sentry_crash_ipc_t *ipc)
     }
 
 #    if !defined(SENTRY_PLATFORM_XBOX)
-    if (ctx->platform.wer_enabled
-        && sentry__string_empty(ctx->platform.wer_report_id)) {
+    if (ctx->platform.wer_enabled && !is_wer_done(ctx)) {
         SENTRY_DEBUG("Waiting for WER report ID, allowing app process to exit");
         sentry__atomic_store(&ctx->state, SENTRY_CRASH_STATE_PROCESSED);
 
         int elapsed_ms = 0;
         while (elapsed_ms < SENTRY_CRASH_HANDLER_WAIT_TIMEOUT_MS
-            && sentry__string_empty(ctx->platform.wer_report_id)) {
+            && !is_wer_done(ctx)) {
             Sleep(SENTRY_CRASH_HANDLER_POLL_INTERVAL_MS);
             elapsed_ms += SENTRY_CRASH_HANDLER_POLL_INTERVAL_MS;
         }

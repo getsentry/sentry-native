@@ -247,6 +247,7 @@ typedef struct {
     sentry_thread_context_windows_t threads[SENTRY_CRASH_MAX_THREADS];
 
     bool wer_enabled;
+    volatile long wer_done;
     char wer_report_id[SENTRY_WER_REPORT_ID_SIZE];
 } sentry_crash_platform_windows_t;
 

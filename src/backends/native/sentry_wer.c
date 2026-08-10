@@ -142,6 +142,7 @@ process_wer_exception(
             (int)sizeof(ctx->platform.wer_report_id), NULL, NULL)) {
         ctx->platform.wer_report_id[0] = '\0';
     }
+    InterlockedExchange(&ctx->platform.wer_done, TRUE);
 
     if (!is_native_wer_exception(
             exception_info->exceptionRecord.ExceptionCode)) {
