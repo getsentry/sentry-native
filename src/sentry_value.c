@@ -204,12 +204,6 @@ obj_free(obj_t *obj)
     sentry_free(obj);
 }
 
-static void
-blob_free(blob_t *blob)
-{
-    sentry_free(blob);
-}
-
 static list_t *
 list_clone(const list_t *list)
 {
@@ -337,7 +331,7 @@ thing_free(thing_t *thing)
         obj_free(thing->payload._ptr);
         break;
     case THING_TYPE_STRING:
-        blob_free(thing->payload._ptr);
+        sentry_free(thing->payload._ptr);
         break;
     }
     sentry_free(thing);
@@ -409,7 +403,7 @@ new_string_value(const char *s, size_t s_len)
     sentry_value_t rv
         = new_thing_value(b, THING_TYPE_STRING | THING_TYPE_FROZEN);
     if (sentry_value_is_null(rv)) {
-        blob_free(b);
+        sentry_free(b);
     }
     return rv;
 }
