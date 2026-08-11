@@ -714,9 +714,15 @@ SENTRY_TEST(threadpool_flush_wakes_all)
     sentry__mutex_unlock(&task_state.lock);
 
     sentry__mutex_lock(&flush_state.lock);
-    while (flush_state.flushed < FLUSH_THREADS
-        && sentry__cond_wait_timeout(&flush_state.cond, &flush_state.lock, 1000)
-            == 0) { }
+    const uint64_t started = sentry__monotonic_time();
+    while (flush_state.flushed < FLUSH_THREADS) {
+        const uint64_t elapsed = sentry__monotonic_time() - started;
+        if (elapsed >= 1000) {
+            break;
+        }
+        sentry__cond_wait_timeout(
+            &flush_state.cond, &flush_state.lock, 1000 - elapsed);
+    }
     const bool woke_all = flush_state.flushed == FLUSH_THREADS;
     sentry__mutex_unlock(&flush_state.lock);
 
