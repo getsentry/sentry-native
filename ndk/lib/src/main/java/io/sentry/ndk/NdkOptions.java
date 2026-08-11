@@ -17,6 +17,7 @@ public final class NdkOptions {
   private float tracesSampleRate = 0;
   private boolean enableAppHangTracking = false;
   private long appHangTimeoutMillis = 5000;
+  private boolean enableLogs = false;
 
   public NdkOptions(
       @NotNull String dsn,
@@ -105,5 +106,13 @@ public final class NdkOptions {
 
   public long getAppHangTimeoutMillis() {
     return appHangTimeoutMillis;
+  }
+
+  public void setEnableLogs(final boolean enableLogs) {
+    this.enableLogs = enableLogs;
+  }
+
+  public boolean isEnableLogs() {
+    return enableLogs;
   }
 }
