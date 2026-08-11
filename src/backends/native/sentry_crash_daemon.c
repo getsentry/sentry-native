@@ -4227,7 +4227,8 @@ sentry__process_crash(const sentry_options_t *options, sentry_crash_ipc_t *ipc)
     }
 
 #    if !defined(SENTRY_PLATFORM_XBOX)
-    if (ctx->platform.wer_enabled && !is_wer_done(ctx)) {
+    if (ctx->platform.wer_enabled && ctx->platform.wer_integration
+        && !is_wer_done(ctx)) {
         SENTRY_DEBUG("Waiting for WER report ID, allowing app process to exit");
         sentry__atomic_store(&ctx->state, SENTRY_CRASH_STATE_PROCESSED);
 

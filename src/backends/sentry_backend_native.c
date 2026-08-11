@@ -315,6 +315,10 @@ native_backend_startup(
     ctx->shutdown_timeout = options->shutdown_timeout;
     ctx->transfer_timeout = options->transfer_timeout;
     ctx->max_breadcrumbs = (uint32_t)options->max_breadcrumbs;
+#if defined(SENTRY_PLATFORM_WINDOWS)
+    ctx->platform.wer_integration
+        = sentry__options_has_integration(options, "wer");
+#endif
     sentry__atomic_store(
         &ctx->user_consent, sentry__atomic_fetch(&options->run->user_consent));
 
