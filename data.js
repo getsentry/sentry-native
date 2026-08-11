@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1786450857336,
+  "lastUpdate": 1786450960997,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -124168,6 +124168,150 @@ window.BENCHMARK_DATA = {
             "value": 0.0820647187499901,
             "unit": "ms",
             "extra": "Min 0.082ms\nMax 0.082ms\nMean 0.082ms\nMedian 0.082ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "jpnurmi@gmail.com",
+            "name": "J-P Nurmi",
+            "username": "jpnurmi"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "6bf62eb50c7e5e2575b106024ecd31165cb38d7e",
+          "message": "ci: enable llvm-cov for Windows ClangCL (#1890)\n\n* ci: enable llvm-cov for Windows ClangCL\n\n* Set LLVM tools for ClangCL\n\n* vswhere\n\n* GITHUB_ENV\n\n* cmake flags",
+          "timestamp": "2026-08-11T14:17:15+02:00",
+          "tree_id": "49248d53f9ce388456eac393e057886f71bc956d",
+          "url": "https://github.com/getsentry/sentry-native/commit/6bf62eb50c7e5e2575b106024ecd31165cb38d7e"
+        },
+        "date": 1786450946252,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 8.797200000003613,
+            "unit": "ms",
+            "extra": "Min 8.597ms\nMax 9.138ms\nMean 8.796ms\nStdDev 0.217ms\nMedian 8.797ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 9.053999999991902,
+            "unit": "ms",
+            "extra": "Min 8.739ms\nMax 11.493ms\nMean 9.475ms\nStdDev 1.136ms\nMedian 9.054ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 21.87909999997828,
+            "unit": "ms",
+            "extra": "Min 21.290ms\nMax 22.387ms\nMean 21.802ms\nStdDev 0.455ms\nMedian 21.879ms"
+          },
+          {
+            "name": "SDK init (native)",
+            "value": 24.377700000002278,
+            "unit": "ms",
+            "extra": "Min 24.300ms\nMax 30.758ms\nMean 25.680ms\nStdDev 2.843ms\nMedian 24.378ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.15960000001769004,
+            "unit": "ms",
+            "extra": "Min 0.151ms\nMax 0.193ms\nMean 0.171ms\nStdDev 0.020ms\nMedian 0.160ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.3448999999591251,
+            "unit": "ms",
+            "extra": "Min 0.339ms\nMax 0.400ms\nMean 0.358ms\nStdDev 0.025ms\nMedian 0.345ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 12.200500000005832,
+            "unit": "ms",
+            "extra": "Min 11.721ms\nMax 12.686ms\nMean 12.205ms\nStdDev 0.342ms\nMedian 12.201ms"
+          },
+          {
+            "name": "Backend startup (native)",
+            "value": 15.80669999998463,
+            "unit": "ms",
+            "extra": "Min 15.750ms\nMax 17.459ms\nMean 16.126ms\nStdDev 0.746ms\nMedian 15.807ms"
+          },
+          {
+            "name": "Scope set_tag (inproc)",
+            "value": 0.006054399999982252,
+            "unit": "ms",
+            "extra": "Min 0.006ms\nMax 0.006ms\nMean 0.006ms\nMedian 0.006ms"
+          },
+          {
+            "name": "Scope add_breadcrumb (inproc)",
+            "value": 0.0010592000000428925,
+            "unit": "ms",
+            "extra": "Min 0.001ms\nMax 0.001ms\nMean 0.001ms\nMedian 0.001ms"
+          },
+          {
+            "name": "Scope set_tag (breakpad)",
+            "value": 0.0061138000000369175,
+            "unit": "ms",
+            "extra": "Min 0.006ms\nMax 0.006ms\nMean 0.006ms\nMedian 0.006ms"
+          },
+          {
+            "name": "Scope add_breadcrumb (breakpad)",
+            "value": 0.0009380999999848427,
+            "unit": "ms",
+            "extra": "Min 0.001ms\nMax 0.001ms\nMean 0.001ms\nMedian 0.001ms"
+          },
+          {
+            "name": "Scope set_tag (crashpad)",
+            "value": 0.3627050000000054,
+            "unit": "ms",
+            "extra": "Min 0.363ms\nMax 0.363ms\nMean 0.363ms\nMedian 0.363ms"
+          },
+          {
+            "name": "Scope add_breadcrumb (crashpad)",
+            "value": 0.16024370000002364,
+            "unit": "ms",
+            "extra": "Min 0.160ms\nMax 0.160ms\nMean 0.160ms\nMedian 0.160ms"
+          },
+          {
+            "name": "Scope set_tag (native)",
+            "value": 0.182353599999999,
+            "unit": "ms",
+            "extra": "Min 0.182ms\nMax 0.182ms\nMean 0.182ms\nMedian 0.182ms"
+          },
+          {
+            "name": "Scope add_breadcrumb (native)",
+            "value": 0.06784210000000712,
+            "unit": "ms",
+            "extra": "Min 0.068ms\nMax 0.068ms\nMean 0.068ms\nMedian 0.068ms"
+          },
+          {
+            "name": "Logs (1 thread)",
+            "value": 0.007408000000168613,
+            "unit": "ms",
+            "extra": "Min 0.007ms\nMax 0.007ms\nMean 0.007ms\nMedian 0.007ms"
+          },
+          {
+            "name": "Logs (8 threads)",
+            "value": 0.03901887500006751,
+            "unit": "ms",
+            "extra": "Min 0.039ms\nMax 0.039ms\nMean 0.039ms\nMedian 0.039ms"
+          },
+          {
+            "name": "Logs (16 threads)",
+            "value": 0.061518374999991465,
+            "unit": "ms",
+            "extra": "Min 0.062ms\nMax 0.062ms\nMean 0.062ms\nMedian 0.062ms"
+          },
+          {
+            "name": "Logs (32 threads)",
+            "value": 0.10253425000001926,
+            "unit": "ms",
+            "extra": "Min 0.103ms\nMax 0.103ms\nMean 0.103ms\nMedian 0.103ms"
           }
         ]
       }
