@@ -47,12 +47,20 @@ void sentry__run_load_installation_id(sentry_run_t *run,
     const sentry_path_t *database_path, const char *public_key);
 
 /**
- * This creates a new application run including its associated directory and
+ * This creates a new run including its associated directory and
  * lockfile:
  * * `<database>/<uuid>.run/`
  * * `<database>/<uuid>.run.lock`
  */
 sentry_run_t *sentry__run_new(const sentry_path_t *database_path);
+
+/**
+ * This creates a run object for a crash daemon that adopts an existing run
+ * directory. The daemon holds a separate lock so old-run processing waits for
+ * both the process and its daemon to finish.
+ */
+sentry_run_t *sentry__run_new_for_daemon(
+    const sentry_path_t *database_path, const sentry_path_t *run_path);
 
 /**
  * Increment the refcount and return the run pointer.
@@ -159,6 +167,12 @@ sentry_path_t *sentry__run_make_cache_path(
  */
 void sentry__process_old_runs(
     const sentry_options_t *options, uint64_t last_crash);
+
+/**
+ * Captures and removes all envelope files from a run directory.
+ */
+void sentry__process_run_envelopes(
+    const sentry_options_t *options, const sentry_path_t *run_path);
 
 /**
  * Parses a cache filename in either form:

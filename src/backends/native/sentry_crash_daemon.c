@@ -4003,14 +4003,13 @@ sentry__process_crash(const sentry_options_t *options, sentry_crash_ipc_t *ipc)
     bool use_native_mode = (mode == SENTRY_CRASH_REPORTING_MODE_NATIVE
         || mode == SENTRY_CRASH_REPORTING_MODE_NATIVE_WITH_MINIDUMP);
 
-    // Generate minidump path in database directory
+    // Generate minidump path in run directory
     char minidump_path[SENTRY_CRASH_MAX_PATH] = { 0 };
-    const char *db_dir = ctx->database_path;
+    const char *run_dir = ctx->run_path;
 
     if (need_minidump) {
         int path_len = snprintf(minidump_path, sizeof(minidump_path),
-            "%s/sentry-minidump-%lu-%lu.dmp", db_dir,
-            (unsigned long)ctx->crashed_pid, (unsigned long)ctx->crashed_tid);
+            "%s/__sentry-crash.dmp", run_dir);
 
         if (path_len < 0 || path_len >= (int)sizeof(minidump_path)) {
             SENTRY_WARN("Minidump path truncated or invalid");
@@ -4082,39 +4081,25 @@ sentry__process_crash(const sentry_options_t *options, sentry_crash_ipc_t *ipc)
     sentry_path_t *ev_path = sentry__path_from_str(event_path);
     sentry_path_t *run_folder = ev_path ? sentry__path_dir(ev_path) : NULL;
 
-    // Acquire the run directory lock file so that process_old_runs() in a
-    // new SDK run will skip this directory while the daemon is still
-    // processing the crash. The crashed process's flock() is released on
-    // death, so without this the new run could delete the directory.
-    sentry_filelock_t *run_lock = NULL;
-    if (run_folder) {
-        sentry_path_t *lock_path = sentry__path_append_str(run_folder, ".lock");
-        if (lock_path) {
-            run_lock = sentry__filelock_new(lock_path);
-            if (run_lock) {
-                if (!sentry__filelock_try_lock(run_lock)) {
-                    SENTRY_WARN("daemon could not acquire run folder lock");
-                    sentry__filelock_free(run_lock);
-                    run_lock = NULL;
-                }
-            }
-        }
+    // The crashing process dumps its pending logs, sessions, and transactions
+    // before notifying the daemon. Queue those before writing the crash
+    // envelope so an attachment-ref prewrite is not captured a second time.
+    if (run_folder && options && options->transport && options->run) {
+        sentry__process_run_envelopes(options, run_folder);
+    } else {
+        SENTRY_DEBUG("No run folder or transport for additional envelopes");
     }
 
-    // Create envelope file in database directory
+    // Create envelope file in run directory
     char envelope_path[SENTRY_CRASH_MAX_PATH];
-    int path_len = snprintf(envelope_path, sizeof(envelope_path),
-        "%s/sentry-envelope-%lu.env", db_dir, (unsigned long)ctx->crashed_pid);
+    int path_len = snprintf(
+        envelope_path, sizeof(envelope_path), "%s", ctx->envelope_path);
 
     if (path_len < 0 || path_len >= (int)sizeof(envelope_path)) {
         SENTRY_WARN("Envelope path truncated or invalid");
         sentry__path_free(ev_path);
         if (run_folder) {
             sentry__path_free(run_folder);
-        }
-        if (run_lock) {
-            sentry__filelock_unlock(run_lock);
-            sentry__filelock_free(run_lock);
         }
         goto done;
     }
@@ -4215,10 +4200,6 @@ sentry__process_crash(const sentry_options_t *options, sentry_crash_ipc_t *ipc)
         sentry__path_free(ev_path);
         if (run_folder) {
             sentry__path_free(run_folder);
-        }
-        if (run_lock) {
-            sentry__filelock_unlock(run_lock);
-            sentry__filelock_free(run_lock);
         }
         goto done;
     }
@@ -4335,56 +4316,8 @@ cleanup:
         sentry_value_decref(crash_event);
     }
 
-    // Send all other envelopes from run folder (logs, etc.) before cleanup
-    if (run_folder && options && options->transport && options->run) {
-        SENTRY_DEBUG("Checking for additional envelopes in run folder");
-        sentry_pathiter_t *piter = sentry__path_iter_directory(run_folder);
-        if (piter) {
-            SENTRY_DEBUG("Iterating run folder for envelope files");
-            const sentry_path_t *file_path;
-            int envelope_count = 0;
-            while ((file_path = sentry__pathiter_next(piter)) != NULL) {
-                // Check if this is an envelope file (ends with .envelope)
-                const char *path_str = file_path->path;
-                size_t len = strlen(path_str);
-                if (len > 9 && strcmp(path_str + len - 9, ".envelope") == 0) {
-                    SENTRY_DEBUGF(
-                        "Sending envelope from run folder: %s", path_str);
-                    sentry_envelope_t *run_envelope
-                        = sentry__envelope_from_path(file_path);
-                    if (run_envelope) {
-                        sentry__capture_envelope(
-                            options->transport, run_envelope, options);
-                        envelope_count++;
-                    } else {
-                        SENTRY_WARNF("Failed to load envelope: %s", path_str);
-                    }
-                }
-            }
-            SENTRY_DEBUGF(
-                "Sent %d additional envelopes from run folder", envelope_count);
-            sentry__pathiter_free(piter);
-        } else {
-            SENTRY_DEBUG("Could not iterate run folder");
-        }
-    } else {
-        SENTRY_DEBUG("No run folder or transport for additional envelopes");
-    }
-
-    // Clean up the entire run folder (contains breadcrumbs, etc.)
-    if (run_folder) {
-        SENTRY_DEBUG("Cleaning up run folder");
-        sentry__path_remove_all(run_folder);
-        sentry__path_free(run_folder);
-    }
+    sentry__path_free(run_folder);
     sentry__path_free(ev_path);
-
-    // Release and clean up the lock file
-    if (run_lock) {
-        sentry__filelock_unlock(run_lock);
-        sentry__filelock_free(run_lock);
-    }
-    SENTRY_DEBUG("Cleaned up crash run folder and lock file");
 
     SENTRY_DEBUG("Crash processing completed successfully");
 
@@ -4392,6 +4325,20 @@ done:
     SENTRY_DEBUG("Processing crash - END");
     SENTRY_DEBUG("Crash processing complete");
     return crash_captured;
+}
+
+static void
+remove_pending_run_envelopes(const sentry_path_t *run_path)
+{
+    sentry_pathiter_t *it = sentry__path_iter_directory(run_path);
+    const sentry_path_t *file;
+    while (it && (file = sentry__pathiter_next(it)) != NULL) {
+        if (sentry__path_is_file(file) && !sentry__path_is_symlink(file)
+            && sentry__path_ends_with(file, ".envelope")) {
+            sentry__path_remove(file);
+        }
+    }
+    sentry__pathiter_free(it);
 }
 
 /**
@@ -4472,17 +4419,14 @@ sentry__crash_daemon_main(pid_t app_pid, uint64_t app_tid, HANDLE event_handle,
     }
 
     // Set up logging to file for daemon BEFORE redirecting streams
-    // Use same naming scheme as shared memory (PID ^ TID hash) to handle
-    // multiple threads in same process
     char log_path[SENTRY_CRASH_MAX_PATH];
     FILE *log_file = NULL;
-    uint32_t id = (uint32_t)((app_pid ^ (app_tid & 0xFFFFFFFF)) & 0xFFFFFFFF);
 
 #if defined(SENTRY_PLATFORM_WINDOWS)
     // On Windows, convert UTF-8 path to wide characters for proper file
     // handling
     int log_path_len = snprintf(log_path, sizeof(log_path),
-        "%s\\sentry-daemon-%08x.log", ipc->shmem->database_path, id);
+        "%s\\sentry-daemon.log", ipc->shmem->run_path);
 
     if (log_path_len > 0 && log_path_len < (int)sizeof(log_path)) {
         wchar_t *wlog_path = sentry__string_to_wstr(log_path);
@@ -4493,7 +4437,7 @@ sentry__crash_daemon_main(pid_t app_pid, uint64_t app_tid, HANDLE event_handle,
     }
 #else
     int log_path_len = snprintf(log_path, sizeof(log_path),
-        "%s/sentry-daemon-%08x.log", ipc->shmem->database_path, id);
+        "%s/sentry-daemon.log", ipc->shmem->run_path);
 
     if (log_path_len > 0 && log_path_len < (int)sizeof(log_path)) {
         log_file = fopen(log_path, "w");
@@ -4556,6 +4500,8 @@ sentry__crash_daemon_main(pid_t app_pid, uint64_t app_tid, HANDLE event_handle,
         return 1;
     }
 
+    sentry_options_set_database_path(options, ipc->shmem->database_path);
+
     // Use debug logging and screenshot settings from parent process
     sentry_options_set_debug(options, ipc->shmem->debug_enabled);
     options->attach_screenshot = ipc->shmem->attach_screenshot;
@@ -4597,17 +4543,18 @@ sentry__crash_daemon_main(pid_t app_pid, uint64_t app_tid, HANDLE event_handle,
         options->user_agent = sentry__string_clone(ipc->shmem->user_agent);
     }
 
-    // Create run with database path
-    SENTRY_DEBUG("Creating run with database path");
-    sentry_path_t *db_path = sentry__path_from_str(ipc->shmem->database_path);
-    if (db_path) {
-        options->run = sentry__run_new(db_path);
+    // Adopt existing run
+    SENTRY_DEBUG("Adopting existing run");
+    sentry_path_t *run_path = sentry__path_from_str(ipc->shmem->run_path);
+    if (options->database_path && run_path) {
+        options->run
+            = sentry__run_new_for_daemon(options->database_path, run_path);
         if (options->run) {
             options->run->require_user_consent
                 = ipc->shmem->require_user_consent;
         }
-        sentry__path_free(db_path);
     }
+    sentry__path_free(run_path);
 
     // Set external crash reporter if configured
     if (ipc->shmem->external_reporter_path[0] != '\0') {
@@ -4723,13 +4670,15 @@ sentry__crash_daemon_main(pid_t app_pid, uint64_t app_tid, HANDLE event_handle,
             if (rv != 0) {
                 SENTRY_WARN("transport did not shut down cleanly");
             }
-            dumped_envelopes = sentry__transport_dump_queue(
-                options->transport, options->run);
-            if (rv == 0 && !dumped_envelopes && options->run) {
-                sentry__run_clean(options->run, true);
+
+            if (crash_processed) {
+                dumped_envelopes = sentry__transport_dump_queue(
+                    options->transport, options->run);
+                if (rv == 0 && !dumped_envelopes && options->run) {
+                    remove_pending_run_envelopes(options->run->run_path);
+                }
             }
         }
-        sentry_options_free(options);
     }
     if (crash_processed) {
         // Mark as done
@@ -4743,7 +4692,12 @@ sentry__crash_daemon_main(pid_t app_pid, uint64_t app_tid, HANDLE event_handle,
 
     // Close log file
     if (log_file) {
+        sentry__logger_disable();
         fclose(log_file);
+    }
+
+    if (options) {
+        sentry_options_free(options);
     }
 
     return 0;
