@@ -184,11 +184,11 @@ threadpool_commit_ready(sentry_threadpool_t *pool)
         sentry__mutex_lock(&pool->lock);
 
         sentry__atomic_fetch_and_add(&pool->pending, -1);
-        sentry__cond_wake(&pool->state_signal);
     }
 
     pool->committing = false;
     if (sentry__atomic_fetch(&pool->pending) == 0) {
+        sentry__cond_wake_all(&pool->state_signal);
         threadpool_wake_all(pool);
     }
 }

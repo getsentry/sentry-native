@@ -639,6 +639,103 @@ threadpool_test_cleanup(void *data)
     task->state->cleanup_count++;
 }
 
+struct threadpool_flush_state {
+    sentry_threadpool_t *pool;
+    sentry_mutex_t lock;
+    sentry_cond_t cond;
+    int flushing;
+    int flushed;
+};
+
+SENTRY_THREAD_FN
+threadpool_flush_thread(void *data)
+{
+    struct threadpool_flush_state *state = data;
+
+    sentry__mutex_lock(&state->lock);
+    state->flushing++;
+    sentry__cond_wake_all(&state->cond);
+    sentry__mutex_unlock(&state->lock);
+
+    sentry__threadpool_flush(state->pool);
+
+    sentry__mutex_lock(&state->lock);
+    state->flushed++;
+    sentry__cond_wake_all(&state->cond);
+    sentry__mutex_unlock(&state->lock);
+
+    return 0;
+}
+
+SENTRY_TEST(threadpool_flush_wakes_all)
+{
+    enum { FLUSH_THREADS = 2 };
+    struct threadpool_test_state task_state = { 0 };
+    struct threadpool_test_task task = { &task_state, 0 };
+    struct threadpool_flush_state flush_state = { 0 };
+    sentry_threadid_t flush_threads[FLUSH_THREADS];
+    sentry_threadpool_t *pool = sentry__threadpool_new(1);
+    TEST_ASSERT(!!pool);
+
+    flush_state.pool = pool;
+    sentry__mutex_init(&task_state.lock);
+    sentry__cond_init(&task_state.cond);
+    sentry__mutex_init(&flush_state.lock);
+    sentry__cond_init(&flush_state.cond);
+    TEST_ASSERT(sentry__threadpool_start(pool) == 0);
+    TEST_ASSERT(
+        sentry__threadpool_submit(pool, threadpool_test_exec, NULL, NULL, &task)
+        == 0);
+
+    sentry__mutex_lock(&task_state.lock);
+    while (!sentry__atomic_fetch(&task_state.first_started)) {
+        sentry__cond_wait(&task_state.cond, &task_state.lock);
+    }
+    sentry__mutex_unlock(&task_state.lock);
+
+    for (int i = 0; i < FLUSH_THREADS; i++) {
+        sentry__thread_init(&flush_threads[i]);
+        TEST_ASSERT(sentry__thread_spawn(&flush_threads[i],
+                        threadpool_flush_thread, &flush_state)
+            == 0);
+    }
+
+    sentry__mutex_lock(&flush_state.lock);
+    while (flush_state.flushing < FLUSH_THREADS) {
+        sentry__cond_wait(&flush_state.cond, &flush_state.lock);
+    }
+    sentry__mutex_unlock(&flush_state.lock);
+
+    // Give both callers time to block in flush before draining the task.
+    sleep_ms(100);
+    sentry__mutex_lock(&task_state.lock);
+    sentry__atomic_store(&task_state.release_first, 1);
+    sentry__cond_wake(&task_state.cond);
+    sentry__mutex_unlock(&task_state.lock);
+
+    sentry__mutex_lock(&flush_state.lock);
+    while (flush_state.flushed < FLUSH_THREADS
+        && sentry__cond_wait_timeout(&flush_state.cond, &flush_state.lock, 1000)
+            == 0) { }
+    const bool woke_all = flush_state.flushed == FLUSH_THREADS;
+    sentry__mutex_unlock(&flush_state.lock);
+
+    sentry__threadpool_shutdown(pool);
+    for (int i = 0; i < FLUSH_THREADS; i++) {
+        sentry__thread_join(flush_threads[i]);
+        sentry__thread_free(&flush_threads[i]);
+    }
+    sentry__threadpool_free(pool);
+
+    TEST_CHECK(woke_all);
+#ifndef SENTRY_PLATFORM_WINDOWS
+    pthread_cond_destroy(&flush_state.cond);
+    pthread_cond_destroy(&task_state.cond);
+#endif
+    sentry__mutex_free(&flush_state.lock);
+    sentry__mutex_free(&task_state.lock);
+}
+
 SENTRY_TEST(threadpool_ordered_parallel)
 {
     struct threadpool_test_state state = { 0 };
