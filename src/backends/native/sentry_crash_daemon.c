@@ -4227,6 +4227,10 @@ sentry__process_crash(const sentry_options_t *options, sentry_crash_ipc_t *ipc)
     }
 
 #    if !defined(SENTRY_PLATFORM_XBOX)
+    // wer_enabled only confirms WER module registration. Wait only when
+    // wer_integration indicates the report ID and other metadata are expected,
+    // to avoid waiting for the full crash-handler timeout when the WER service
+    // is inactive.
     if (ctx->platform.wer_enabled && ctx->platform.wer_integration
         && !is_wer_done(ctx)) {
         SENTRY_DEBUG("Waiting for WER report ID, allowing app process to exit");
