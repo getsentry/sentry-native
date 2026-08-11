@@ -1621,37 +1621,25 @@ sentry__value_new_hexstring(const uint8_t *bytes, size_t len)
 sentry_value_t
 sentry__value_new_span_uuid(const sentry_uuid_t *uuid)
 {
-    char *buf = sentry_malloc(17);
-    if (!buf) {
-        return sentry_value_new_null();
-    }
+    char buf[17];
     sentry__span_uuid_as_string(uuid, buf);
-    buf[16] = '\0';
-    return sentry__value_new_string_owned_n(buf, 16);
+    return sentry_value_new_string_n(buf, 16);
 }
 
 sentry_value_t
 sentry__value_new_internal_uuid(const sentry_uuid_t *uuid)
 {
-    char *buf = sentry_malloc(33);
-    if (!buf) {
-        return sentry_value_new_null();
-    }
+    char buf[33];
     sentry__internal_uuid_as_string(uuid, buf);
-    buf[32] = '\0';
-    return sentry__value_new_string_owned_n(buf, 32);
+    return sentry_value_new_string_n(buf, 32);
 }
 
 sentry_value_t
 sentry__value_new_uuid(const sentry_uuid_t *uuid)
 {
-    char *buf = sentry_malloc(37);
-    if (!buf) {
-        return sentry_value_new_null();
-    }
+    char buf[37];
     sentry_uuid_as_string(uuid, buf);
-    buf[36] = '\0';
-    return sentry__value_new_string_owned_n(buf, 36);
+    return sentry_value_new_string_n(buf, 36);
 }
 
 sentry_value_t
