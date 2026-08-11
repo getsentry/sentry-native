@@ -9,7 +9,7 @@
 
 **Fixes**:
 
-- Crashpad: prevent external crash reporters from bypassing revoked user consent. ([#1972](https://github.com/getsentry/sentry-native/pull/1972))
+- Crashpad: prevent external crash reporters from bypassing revoked user consent. ([#1972](https://github.com/getsentry/sentry-native/pull/1972), [crashpad#168](https://github.com/getsentry/crashpad/pull/168))
 
 ## 0.16.2
 
