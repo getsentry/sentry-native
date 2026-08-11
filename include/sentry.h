@@ -471,9 +471,9 @@ SENTRY_API sentry_value_t sentry_value_get_by_index_owned(
     sentry_value_t value, size_t index);
 
 /**
- * Returns the length of the given map or list.
+ * Returns the length of the given map, list, or string.
  *
- * If an item is not a list or map, the return value is 0.
+ * If an item is not a list, map, or string, the return value is 0.
  */
 SENTRY_API size_t sentry_value_get_length(sentry_value_t value);
 

@@ -110,7 +110,7 @@ sentry_uuid_as_string(const sentry_uuid_t *uuid, char str[37])
 }
 
 void
-sentry__internal_uuid_as_string(const sentry_uuid_t *uuid, char str[37])
+sentry__internal_uuid_as_string(const sentry_uuid_t *uuid, char str[33])
 {
 #define B(X) (unsigned char)uuid->bytes[X]
     snprintf(str, 33,
