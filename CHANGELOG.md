@@ -13,6 +13,7 @@
 - Forward `enable_logs` option through `NdkOptions` so the Android SDK can enable native structured logging. ([#1971](https://github.com/getsentry/sentry-native/pull/1971))
 - Report enabled Qt and WER integrations in event SDK metadata (`sdk.integrations`) alongside the configured crash backend. ([#1969](https://github.com/
   getsentry/sentry-native/pull/1969))
+- Add a public custom HTTP transport client interface (`sentry_http_transport_new`) so applications can plug in their own HTTP client (e.g. platform-native ones) while sentry-native continues to own request queueing, retry/backoff, offline caching, rate-limiting, and client reports. The built-in curl and WinHTTP transports are now implemented against this same interface. ([#XXXX](https://github.com/getsentry/sentry-native/pull/XXXX))
 - Add `sentry_scope_set_span` and `sentry_scope_set_transaction_object` to bind a span or transaction to a given scope. ([#1981](https://github.com/getsentry/sentry-native/pull/1981))
 
 **Fixes**:

@@ -191,7 +191,7 @@ query_header(HINTERNET request, const wchar_t *header)
     return NULL;
 }
 
-static bool
+static int
 winhttp_send_task(void *_client, sentry_prepared_http_request_t *req,
     sentry_http_response_t *resp)
 {
@@ -376,13 +376,26 @@ winhttp_send_task(void *_client, sentry_prepared_http_request_t *req,
             WINHTTP_NO_HEADER_INDEX);
         resp->status_code = (int)status_code;
 
-        resp->x_sentry_rate_limits
+        char *rate_limits
             = query_header(client->request, L"x-sentry-rate-limits");
-        if (!resp->x_sentry_rate_limits) {
-            resp->retry_after = query_header(client->request, L"retry-after");
+        if (rate_limits) {
+            sentry_http_response_set_header(
+                resp, "x-sentry-rate-limits", rate_limits);
+            sentry_free(rate_limits);
+        } else {
+            char *retry_after = query_header(client->request, L"retry-after");
+            if (retry_after) {
+                sentry_http_response_set_header(
+                    resp, "retry-after", retry_after);
+                sentry_free(retry_after);
+            }
         }
 
-        resp->location = query_header(client->request, L"location");
+        char *location = query_header(client->request, L"location");
+        if (location) {
+            sentry_http_response_set_header(resp, "location", location);
+            sentry_free(location);
+        }
     }
 
     uint64_t now = sentry__monotonic_time();

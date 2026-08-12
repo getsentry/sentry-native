@@ -132,7 +132,7 @@ SENTRY_TEST(tus_request_preparation)
     sentry__dsn_decref(dsn);
 }
 
-static bool
+static int
 tus_mock_send(void *client, sentry_prepared_http_request_t *req,
     sentry_http_response_t *resp)
 {
@@ -189,7 +189,7 @@ typedef struct {
     int envelope_count;
 } tus_create_failure_state_t;
 
-static bool
+static int
 tus_create_failure_send(void *client, sentry_prepared_http_request_t *req,
     sentry_http_response_t *resp)
 {
@@ -261,7 +261,7 @@ typedef struct {
 static const char *TUS_RELATIVE_LOCATION
     = "/api/42/upload/019db3e0/?length=104857600&signature=test";
 
-static bool
+static int
 tus_capture_send(void *client, sentry_prepared_http_request_t *req,
     sentry_http_response_t *resp)
 {

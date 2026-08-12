@@ -35,23 +35,29 @@ sentry_prepared_http_request_t *sentry__prepare_tus_upload_request(
 
 void sentry__prepared_http_request_free(sentry_prepared_http_request_t *req);
 
-typedef struct {
+// The public `sentry_http_response_t` (see sentry.h) is a forward-declared
+// opaque handle for this same tag; this is the only place its layout is
+// defined. Internal code and the public accessors in sentry_http_transport.c
+// both operate on this concrete struct via that shared tag.
+struct sentry_http_response_s {
     int status_code;
     char *retry_after;
     char *x_sentry_rate_limits;
     char *location;
     bool shutdown;
-} sentry_http_response_t;
-
-typedef bool (*sentry_http_send_func_t)(void *client,
-    sentry_prepared_http_request_t *req, sentry_http_response_t *resp);
+};
 
 /**
  * Creates a new HTTP transport with the given client and send function.
  * Use the setter functions below to configure optional client callbacks.
+ *
+ * `send_func` uses the same `sentry_http_client_send_func_t` signature (see
+ * sentry.h) that the public `sentry_http_transport_new` accepts, so the
+ * curl and WinHTTP default clients are themselves reference implementations
+ * of that public interface.
  */
 sentry_transport_t *sentry__http_transport_new(
-    void *client, sentry_http_send_func_t send_func);
+    void *client, sentry_http_client_send_func_t send_func);
 
 void sentry__http_transport_set_free_client(
     sentry_transport_t *transport, void (*free_client)(void *));

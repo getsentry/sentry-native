@@ -35,7 +35,7 @@ typedef struct {
     void *client;
     void (*free_client)(void *);
     int (*start_client)(void *, const sentry_options_t *);
-    sentry_http_send_func_t send_func;
+    sentry_http_client_send_func_t send_func;
     void (*shutdown_client)(void *client);
     sentry_retry_t *retry;
     sentry_cache_keep_t cache_keep;
@@ -328,6 +328,116 @@ http_response_cleanup(sentry_http_response_t *resp)
     sentry_free(resp->retry_after);
     sentry_free(resp->x_sentry_rate_limits);
     sentry_free(resp->location);
+}
+
+void
+sentry_http_response_set_header(
+    sentry_http_response_t *resp, const char *key, const char *value)
+{
+    if (!resp || !key) {
+        return;
+    }
+    char *lower_key = sentry__string_clone(key);
+    if (!lower_key) {
+        return;
+    }
+    sentry__string_ascii_lower(lower_key);
+
+    if (sentry__string_eq(lower_key, "retry-after")) {
+        sentry_free(resp->retry_after);
+        resp->retry_after = sentry__string_clone(value);
+    } else if (sentry__string_eq(lower_key, "x-sentry-rate-limits")) {
+        sentry_free(resp->x_sentry_rate_limits);
+        resp->x_sentry_rate_limits = sentry__string_clone(value);
+    } else if (sentry__string_eq(lower_key, "location")) {
+        sentry_free(resp->location);
+        resp->location = sentry__string_clone(value);
+    }
+    sentry_free(lower_key);
+}
+
+void
+sentry_http_response_set_status_code(
+    sentry_http_response_t *resp, int status_code)
+{
+    if (!resp) {
+        return;
+    }
+    resp->status_code = status_code;
+}
+
+void
+sentry_http_response_set_shutdown(sentry_http_response_t *resp, int is_shutdown)
+{
+    if (!resp) {
+        return;
+    }
+    resp->shutdown = !!is_shutdown;
+}
+
+const char *
+sentry_http_request_get_method(const sentry_http_request_t *req)
+{
+    return req ? req->method : NULL;
+}
+
+const char *
+sentry_http_request_get_url(const sentry_http_request_t *req)
+{
+    return req ? req->url : NULL;
+}
+
+size_t
+sentry_http_request_get_header_count(const sentry_http_request_t *req)
+{
+    return req ? req->headers_len : 0;
+}
+
+int
+sentry_http_request_get_header(const sentry_http_request_t *req, size_t index,
+    const char **key_out, const char **value_out)
+{
+    if (!req || index >= req->headers_len) {
+        return 0;
+    }
+    if (key_out) {
+        *key_out = req->headers[index].key;
+    }
+    if (value_out) {
+        *value_out = req->headers[index].value;
+    }
+    return 1;
+}
+
+const char *
+sentry_http_request_get_body(const sentry_http_request_t *req, size_t *len_out)
+{
+    if (!req || req->body_path) {
+        if (len_out) {
+            *len_out = 0;
+        }
+        return NULL;
+    }
+    if (len_out) {
+        *len_out = req->body_len;
+    }
+    return req->body;
+}
+
+const char *
+sentry_http_request_get_body_file_path(
+    const sentry_http_request_t *req, size_t *len_out)
+{
+    if (!req || !req->body_path) {
+        if (len_out) {
+            *len_out = 0;
+        }
+        return NULL;
+    }
+    if (len_out) {
+        *len_out = req->body_len;
+    }
+    return req->body_path->path;
 }
 
 enum {
@@ -901,7 +1011,8 @@ http_transport_submit_cleanup(
 }
 
 sentry_transport_t *
-sentry__http_transport_new(void *client, sentry_http_send_func_t send_func)
+sentry__http_transport_new(
+    void *client, sentry_http_client_send_func_t send_func)
 {
     http_transport_state_t *state = SENTRY_MAKE(http_transport_state_t);
     if (!state) {
@@ -958,6 +1069,44 @@ sentry__http_transport_set_shutdown_client(
     sentry_transport_t *transport, void (*shutdown_client)(void *))
 {
     http_transport_get_state(transport)->shutdown_client = shutdown_client;
+}
+
+sentry_transport_t *
+sentry_http_transport_new(sentry_http_client_factory_func_t factory,
+    void *factory_data, sentry_http_client_send_func_t send_func,
+    void (*client_free_func)(void *client))
+{
+    if (!factory || !send_func) {
+        return NULL;
+    }
+    void *client = factory(factory_data);
+    if (!client) {
+        return NULL;
+    }
+    sentry_transport_t *transport
+        = sentry__http_transport_new(client, send_func);
+    if (!transport) {
+        if (client_free_func) {
+            client_free_func(client);
+        }
+        return NULL;
+    }
+    sentry__http_transport_set_free_client(transport, client_free_func);
+    return transport;
+}
+
+void
+sentry_http_transport_set_client_start_func(sentry_transport_t *transport,
+    int (*start_func)(void *client, const sentry_options_t *options))
+{
+    sentry__http_transport_set_start_client(transport, start_func);
+}
+
+void
+sentry_http_transport_set_client_shutdown_func(
+    sentry_transport_t *transport, void (*shutdown_func)(void *client))
+{
+    sentry__http_transport_set_shutdown_client(transport, shutdown_func);
 }
 
 #ifdef SENTRY_UNITTEST

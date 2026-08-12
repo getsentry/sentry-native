@@ -388,19 +388,11 @@ header_callback(char *buffer, size_t size, size_t nitems, void *userdata)
     char *sep = strchr(header, ':');
     if (sep) {
         *sep = '\0';
-        sentry__string_ascii_lower(header);
-        sentry_slice_t value
+        sentry_slice_t trimmed_value
             = sentry__slice_trim(sentry__slice_from_str(sep + 1));
-        if (sentry__string_eq(header, "retry-after")) {
-            sentry_free(info->retry_after);
-            info->retry_after = sentry__slice_to_owned(value);
-        } else if (sentry__string_eq(header, "x-sentry-rate-limits")) {
-            sentry_free(info->x_sentry_rate_limits);
-            info->x_sentry_rate_limits = sentry__slice_to_owned(value);
-        } else if (sentry__string_eq(header, "location")) {
-            sentry_free(info->location);
-            info->location = sentry__slice_to_owned(value);
-        }
+        char *value = sentry__slice_to_owned(trimmed_value);
+        sentry_http_response_set_header(info, header, value);
+        sentry_free(value);
     }
 
     sentry_free(header);
@@ -427,7 +419,7 @@ fail:
     return CURL_READFUNC_ABORT;
 }
 
-static bool
+static int
 curl_send_task(void *_client, sentry_prepared_http_request_t *req,
     sentry_http_response_t *resp)
 {
