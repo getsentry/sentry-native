@@ -863,6 +863,97 @@ SENTRY_TEST(trace_finish)
     TEST_CHECK_INT_EQUAL(called, 0);
 }
 
+SENTRY_TEST(finish_transaction_twice)
+{
+    uint64_t called = 0;
+    SENTRY_TEST_OPTIONS_NEW(options);
+    sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
+    sentry_options_set_auto_session_tracking(options, 0);
+
+    sentry_transport_t *transport = sentry_transport_new(count_envelope);
+    sentry_transport_set_state(transport, &called);
+    sentry_options_set_transport(options, transport);
+    sentry_options_set_traces_sample_rate(options, 1.0);
+    sentry_init(options);
+
+    sentry_transaction_t *tx = sentry_transaction_start(
+        sentry_transaction_context_new("txn", NULL), sentry_value_new_null());
+
+    // Keep a second reference so the transaction survives the first finish.
+    sentry__transaction_incref(tx);
+
+    sentry_transaction_finish(tx);
+    TEST_CHECK_INT_EQUAL(called, 1);
+    TEST_CHECK(!IS_NULL(tx->inner, "timestamp"));
+
+    // The second finish should do nothing, not send the transaction again.
+    sentry_transaction_finish(tx);
+    TEST_CHECK_INT_EQUAL(called, 1);
+    CHECK_STRING_PROPERTY(tx->inner, "transaction", "txn");
+
+    sentry__transaction_decref(tx);
+
+    sentry_close();
+}
+
+SENTRY_TEST(finish_span_twice)
+{
+    SENTRY_TEST_OPTIONS_NEW(options);
+    sentry_options_set_traces_sample_rate(options, 1.0);
+    sentry_init(options);
+
+    sentry_transaction_t *tx = sentry_transaction_start(
+        sentry_transaction_context_new("txn", NULL), sentry_value_new_null());
+    sentry_span_t *span
+        = sentry_transaction_start_child(tx, "db.query", "select");
+    TEST_ASSERT(!!span);
+
+    // Keep a second reference so the span survives the first finish.
+    sentry__span_incref(span);
+
+    sentry_span_finish(span);
+    sentry_value_t spans = sentry_value_get_by_key(tx->inner, "spans");
+    TEST_CHECK_INT_EQUAL(sentry_value_get_length(spans), 1);
+    TEST_CHECK(!IS_NULL(span->inner, "timestamp"));
+
+    sentry_span_finish(span);
+    TEST_CHECK_INT_EQUAL(sentry_value_get_length(spans), 1);
+    CHECK_STRING_PROPERTY(span->inner, "description", "select");
+
+    sentry__span_decref(span);
+    sentry_transaction_finish(tx);
+
+    sentry_close();
+}
+
+SENTRY_TEST(start_child_on_finished_parent)
+{
+    SENTRY_TEST_OPTIONS_NEW(options);
+    sentry_options_set_traces_sample_rate(options, 1.0);
+    sentry_init(options);
+
+    sentry_transaction_t *tx = sentry_transaction_start(
+        sentry_transaction_context_new("txn", NULL), sentry_value_new_null());
+    sentry_span_t *span
+        = sentry_transaction_start_child(tx, "db.query", "select");
+    TEST_ASSERT(!!span);
+
+    // Extra references keep both parents alive past their own finish.
+    sentry__span_incref(span);
+    sentry__transaction_incref(tx);
+
+    sentry_span_finish(span);
+    TEST_CHECK(!sentry_span_start_child(span, "http.client", "GET"));
+
+    sentry_transaction_finish(tx);
+    TEST_CHECK(!sentry_transaction_start_child(tx, "http.client", "GET"));
+
+    sentry__span_decref(span);
+    sentry__transaction_decref(tx);
+
+    sentry_close();
+}
+
 SENTRY_TEST(drop_unfinished_spans)
 {
     uint64_t called_transport = 0;
