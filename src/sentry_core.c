@@ -1570,11 +1570,7 @@ void
 sentry_set_transaction_object(sentry_transaction_t *tx)
 {
     SENTRY_WITH_SCOPE_MUT (scope) {
-        sentry__span_decref(scope->span);
-        scope->span = NULL;
-        sentry__transaction_decref(scope->transaction_object);
-        sentry__transaction_incref(tx);
-        scope->transaction_object = tx;
+        sentry_scope_set_transaction_object(scope, tx);
     }
 }
 
@@ -1582,11 +1578,7 @@ void
 sentry_set_span(sentry_span_t *span)
 {
     SENTRY_WITH_SCOPE_MUT (scope) {
-        sentry__transaction_decref(scope->transaction_object);
-        scope->transaction_object = NULL;
-        sentry__span_decref(scope->span);
-        sentry__span_incref(span);
-        scope->span = span;
+        sentry_scope_set_span(scope, span);
     }
 }
 

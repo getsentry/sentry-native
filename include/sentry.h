@@ -3402,6 +3402,8 @@ SENTRY_EXPERIMENTAL_API void sentry_transaction_discard(
  */
 SENTRY_EXPERIMENTAL_API void sentry_set_transaction_object(
     sentry_transaction_t *tx);
+SENTRY_EXPERIMENTAL_API void sentry_scope_set_transaction_object(
+    sentry_scope_t *scope, sentry_transaction_t *tx);
 
 /**
  * Sets the Span so any Events sent while the Span
@@ -3413,6 +3415,8 @@ SENTRY_EXPERIMENTAL_API void sentry_set_transaction_object(
  * this function.
  */
 SENTRY_EXPERIMENTAL_API void sentry_set_span(sentry_span_t *span);
+SENTRY_EXPERIMENTAL_API void sentry_scope_set_span(
+    sentry_scope_t *scope, sentry_span_t *span);
 
 /**
  * Starts a new Span.
