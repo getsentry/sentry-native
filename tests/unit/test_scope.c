@@ -2607,8 +2607,7 @@ SENTRY_TEST(scope_clone_preserves_data)
     TEST_CHECK(!sentry_uuid_is_nil(&attachment_id));
 
     sentry_scope_t *clone = sentry_scope_clone(scope);
-    sentry_value_decref(
-        sentry__scope_remove_attachment(scope, &attachment_id));
+    sentry_value_decref(sentry__scope_remove_attachment(scope, &attachment_id));
 
     sentry_value_t clone_tag
         = scope_value_get_by_key(sentry__scope_ref_tags, clone, "tag_key");
@@ -2640,8 +2639,8 @@ SENTRY_TEST(scope_clone_preserves_data)
     TEST_CHECK_INT_EQUAL(scope_breadcrumb_count(clone), 1);
 
     // Attachments are deep-copied into an independent list.
-    sentry_value_t clone_attachments = sentry__scope_get_attachments(clone);
-    sentry_value_t scope_attachments = sentry__scope_get_attachments(scope);
+    sentry_value_t clone_attachments = sentry__scope_ref_attachments(clone);
+    sentry_value_t scope_attachments = sentry__scope_ref_attachments(scope);
     TEST_CHECK_INT_EQUAL(sentry_value_get_length(clone_attachments), 1);
     TEST_CHECK_INT_EQUAL(sentry_value_get_length(scope_attachments), 0);
     TEST_CHECK(clone_attachments._bits != scope_attachments._bits);
@@ -2650,6 +2649,8 @@ SENTRY_TEST(scope_clone_preserves_data)
     TEST_CHECK_STRING_EQUAL(
         sentry__attachment_get_filename(clone_attachment), "file.bin");
     TEST_CHECK_INT_EQUAL(sentry__attachment_get_size(clone_attachment), 7);
+    sentry_value_decref(scope_attachments);
+    sentry_value_decref(clone_attachments);
 
     sentry_scope_free(clone);
     sentry_scope_free(scope);

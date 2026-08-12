@@ -753,12 +753,14 @@ native_backend_write_attachments(const sentry_path_t *event_path)
         return;
     }
     SENTRY_WITH_SCOPE (scope) {
-        sentry_value_t attachments = sentry__scope_get_attachments(scope);
+        sentry_value_t attachments = sentry__scope_ref_attachments(scope);
         if (sentry_value_get_length(attachments) == 0) {
+            sentry_value_decref(attachments);
             continue;
         }
         sentry_path_t *run_path = sentry__path_dir(event_path);
         if (!run_path) {
+            sentry_value_decref(attachments);
             continue;
         }
         sentry_path_t *attach_list_path
@@ -807,6 +809,7 @@ native_backend_write_attachments(const sentry_path_t *event_path)
             sentry__path_free(attach_list_path);
         }
         sentry__path_free(run_path);
+        sentry_value_decref(attachments);
     }
 }
 

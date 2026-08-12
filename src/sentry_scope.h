@@ -160,7 +160,7 @@ sentry_value_t sentry__scope_ref_user(const sentry_scope_t *scope);
 sentry_level_t sentry__scope_get_level(const sentry_scope_t *scope);
 sentry_value_t sentry__scope_ref_client_sdk(const sentry_scope_t *scope);
 
-sentry_value_t sentry__scope_get_attachments(const sentry_scope_t *scope);
+sentry_value_t sentry__scope_ref_attachments(const sentry_scope_t *scope);
 sentry_value_t sentry__scope_add_attachment(
     sentry_scope_t *scope, sentry_value_t attachment);
 sentry_value_t sentry__scope_take_attachments(sentry_scope_t *scope);

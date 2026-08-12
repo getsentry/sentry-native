@@ -331,6 +331,7 @@ clone_data(const sentry_scope_data_t *source)
         clone->level = source->level;
         clone->last_event_id = source->last_event_id;
         clone->client_sdk = sentry__value_clone(source->client_sdk);
+        clone->attachments = sentry__attachments_new();
         sentry__attachments_extend(&clone->attachments, source->attachments);
         clone->transaction_object = source->transaction_object;
         sentry__transaction_incref(clone->transaction_object);
@@ -847,14 +848,18 @@ data_set_last_event_id(sentry_scope_data_t *data, sentry_uuid_t event_id)
 }
 
 static sentry_value_t
-data_get_attachments(const sentry_scope_data_t *data)
+data_ref_attachments(const sentry_scope_data_t *data)
 {
-    return data->attachments;
+    sentry_value_t attachments = sentry_value_new_null();
+    DATA_READ_LOCK (data) {
+        attachments = sentry_value_incref(data->attachments);
+    }
+    return attachments;
 }
 
 static sentry_value_t
-data_add_attachment(sentry_scope_data_t *data, sentry_value_t attachment,
-    bool *did_add)
+data_add_attachment(
+    sentry_scope_data_t *data, sentry_value_t attachment, bool *did_add)
 {
     sentry_value_t added = sentry_value_new_null();
     if (did_add) {
@@ -2322,9 +2327,9 @@ sentry_scope_set_span(sentry_scope_t *scope, sentry_span_t *span)
 }
 
 sentry_value_t
-sentry__scope_get_attachments(const sentry_scope_t *scope)
+sentry__scope_ref_attachments(const sentry_scope_t *scope)
 {
-    return data_get_attachments(scope->data);
+    return data_ref_attachments(scope->data);
 }
 
 sentry_value_t

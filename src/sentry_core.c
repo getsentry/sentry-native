@@ -708,17 +708,20 @@ sentry__prepare_event(const sentry_options_t *options, sentry_value_t event,
     }
 
     SENTRY_WITH_SCOPE (scope) {
-        sentry_value_t attachments = sentry__scope_get_attachments(scope);
-        if (local_scope
-            && sentry_value_get_length(
-                   sentry__scope_get_attachments(local_scope))
-                > 0) {
-            // all attachments merged from multiple scopes
-            sentry__attachments_extend(&all_attachments,
-                sentry__scope_get_attachments(local_scope));
-            sentry__attachments_extend(
-                &all_attachments, sentry__scope_get_attachments(scope));
-            attachments = all_attachments;
+        sentry_value_t global_attachments
+            = sentry__scope_ref_attachments(scope);
+        sentry_value_t attachments = global_attachments;
+        if (local_scope) {
+            sentry_value_t local_attachments
+                = sentry__scope_ref_attachments(local_scope);
+            if (sentry_value_get_length(local_attachments) > 0) {
+                // all attachments merged from multiple scopes
+                sentry__attachments_extend(&all_attachments, local_attachments);
+                sentry__attachments_extend(
+                    &all_attachments, global_attachments);
+                attachments = all_attachments;
+            }
+            sentry_value_decref(local_attachments);
         }
         // otherwise only global scope has attachments
         sentry__envelope_add_attachments(envelope, attachments, options);
@@ -726,6 +729,7 @@ sentry__prepare_event(const sentry_options_t *options, sentry_value_t event,
             sentry__cache_attachment_refs(envelope, attachments, options,
                 options->run->cache_path, options->run->run_path);
         }
+        sentry_value_decref(global_attachments);
     }
 
     sentry_value_decref(all_attachments);
@@ -850,15 +854,18 @@ prepare_user_feedback(const sentry_options_t *options,
         sentry__attachments_extend(&all_attachments, hint->attachments);
     }
     if (local_scope) {
-        sentry__attachments_extend(
-            &all_attachments, sentry__scope_get_attachments(local_scope));
+        sentry_value_t local_attachments
+            = sentry__scope_ref_attachments(local_scope);
+        sentry__attachments_extend(&all_attachments, local_attachments);
+        sentry_value_decref(local_attachments);
     }
 
     SENTRY_WITH_SCOPE (scope) {
-        sentry_value_t attachments = sentry__scope_get_attachments(scope);
+        sentry_value_t global_attachments
+            = sentry__scope_ref_attachments(scope);
+        sentry_value_t attachments = global_attachments;
         if (sentry_value_get_length(all_attachments) > 0) {
-            sentry__attachments_extend(
-                &all_attachments, sentry__scope_get_attachments(scope));
+            sentry__attachments_extend(&all_attachments, global_attachments);
             attachments = all_attachments;
         }
         sentry__envelope_add_attachments(envelope, attachments, options);
@@ -866,6 +873,7 @@ prepare_user_feedback(const sentry_options_t *options,
             sentry__cache_attachment_refs(envelope, attachments, options,
                 options->run->cache_path, options->run->run_path);
         }
+        sentry_value_decref(global_attachments);
     }
 
     sentry_value_decref(all_attachments);
@@ -2053,8 +2061,7 @@ sentry_clear_attachments(void)
 {
     SENTRY_WITH_OPTIONS (options) {
         SENTRY_WITH_SCOPE_MUT (scope) {
-            sentry_value_t attachments
-                = sentry__scope_take_attachments(scope);
+            sentry_value_t attachments = sentry__scope_take_attachments(scope);
             size_t len = sentry_value_get_length(attachments);
             for (size_t i = 0; i < len; i++) {
                 sentry_value_t attachment
