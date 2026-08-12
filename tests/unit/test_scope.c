@@ -2803,7 +2803,8 @@ SENTRY_TEST(scope_clone_keeps_bound_span)
     sentry_scope_t *clone = sentry_scope_clone(scope);
     TEST_CHECK_PTR_EQUAL(clone->span, span);
 
-    // The clone owns its binding, so it outlives the original scope and caller reference.
+    // The clone owns its binding, so it outlives the original scope and caller
+    // reference.
     sentry_scope_free(scope);
     sentry_span_finish(span);
     TEST_CHECK_STRING_EQUAL(sentry_value_as_string(sentry_value_get_by_key(
