@@ -6,6 +6,7 @@
  */
 
 #include "sentry_database.h"
+#include "sentry_envelope.h"
 #include "sentry_options.h"
 #include "sentry_path.h"
 #include "sentry_testsupport.h"
@@ -21,6 +22,14 @@ noop_crashed_last_run(const sentry_envelope_t *envelope, void *user_data)
 {
     (void)envelope;
     (void)user_data;
+}
+
+static void
+count_sent_envelopes(sentry_envelope_t *envelope, void *state)
+{
+    size_t *count = state;
+    (*count)++;
+    sentry_envelope_free(envelope);
 }
 #endif
 
@@ -116,6 +125,58 @@ SENTRY_TEST(daemon_run_blocks_old_run_cleanup)
     sentry__run_free(old_run);
     sentry__run_clean(options->run, true);
     sentry_options_free(options);
+}
+
+SENTRY_TEST(corrupt_crash_envelope_does_not_block_old_run)
+{
+#ifdef SENTRY_BACKEND_NATIVE
+    SENTRY_TEST_OPTIONS_NEW(options);
+    TEST_ASSERT(sentry__path_remove_all(options->database_path) == 0);
+    TEST_ASSERT(sentry__path_create_dir_all(options->database_path) == 0);
+
+    options->run = sentry__run_new(options->database_path);
+    TEST_ASSERT(!!options->run);
+    sentry_run_t *old_run = sentry__run_new(options->database_path);
+    TEST_ASSERT(!!old_run);
+    sentry__filelock_unlock(old_run->lock);
+
+    sentry_path_t *crash_envelope
+        = sentry__path_join_str(old_run->run_path, "__sentry-crash.envelope");
+    sentry_path_t *queued_envelope
+        = sentry__path_join_str(old_run->run_path, "queued.envelope");
+    TEST_ASSERT(!!crash_envelope && !!queued_envelope);
+    TEST_ASSERT(sentry__path_write_buffer(crash_envelope, "garbage", 7) == 0);
+
+    sentry_envelope_t *envelope = sentry__envelope_new();
+    TEST_ASSERT(!!envelope);
+    sentry__envelope_add_event(envelope,
+        sentry_value_new_message_event(SENTRY_LEVEL_ERROR, NULL, "queued"));
+    TEST_ASSERT(sentry_envelope_write_to_path(envelope, queued_envelope) == 0);
+    sentry_envelope_free(envelope);
+
+    size_t sent_envelopes = 0;
+    sentry_transport_t *transport = sentry_transport_new(count_sent_envelopes);
+    TEST_ASSERT(!!transport);
+    sentry_transport_set_state(transport, &sent_envelopes);
+    sentry_options_set_transport(options, transport);
+    sentry_options_set_on_crashed_last_run(
+        options, noop_crashed_last_run, NULL);
+
+    sentry__process_old_runs(options, 0);
+
+    TEST_CHECK_INT_EQUAL(sent_envelopes, 1);
+    TEST_CHECK(!sentry__path_is_dir(old_run->run_path));
+    TEST_CHECK(!sentry__path_is_file(crash_envelope));
+    TEST_CHECK(!sentry__path_is_file(queued_envelope));
+
+    sentry__path_free(queued_envelope);
+    sentry__path_free(crash_envelope);
+    sentry__run_free(old_run);
+    sentry__run_clean(options->run, true);
+    sentry_options_free(options);
+#else
+    SKIP_TEST();
+#endif
 }
 
 /**

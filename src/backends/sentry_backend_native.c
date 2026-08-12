@@ -201,8 +201,7 @@ native_backend_process_old_run(sentry_backend_t *backend,
             : NULL;
         bool materialized = envelope && sentry__envelope_materialize(envelope);
         // remove before invoking to prevent repeated callbacks
-        if ((options->on_crashed_last_run_func && !materialized)
-            || sentry__path_remove(file) != 0) {
+        if (sentry__path_remove(file) != 0) {
             sentry_envelope_free(envelope);
             sentry__pathiter_free(it);
             return false;
