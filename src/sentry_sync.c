@@ -260,8 +260,12 @@ sentry__threadpool_setname(sentry_threadpool_t *pool, const char *thread_name)
     if (!pool) {
         return;
     }
-    sentry_free(pool->thread_name);
-    pool->thread_name = sentry__string_clone(thread_name);
+    sentry__mutex_lock(&pool->lock);
+    if (!sentry__atomic_fetch(&pool->running)) {
+        sentry_free(pool->thread_name);
+        pool->thread_name = sentry__string_clone(thread_name);
+    }
+    sentry__mutex_unlock(&pool->lock);
 }
 
 int

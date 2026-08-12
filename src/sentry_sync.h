@@ -505,7 +505,7 @@ sentry_threadpool_t *sentry__threadpool_new(size_t thread_count);
 
 /**
  * Sets a name for pooled threads. Each thread is named `<thread_name>-<index>`,
- * where `index` starts at 0.
+ * where `index` starts at 0. Does nothing while the pool is running.
  *
  * Should be executed before thread pool start.
  */

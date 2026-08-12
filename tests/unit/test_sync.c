@@ -1136,6 +1136,10 @@ SENTRY_TEST(threadpool_thread_name)
 
     sentry__threadpool_setname(pool, "tp");
     TEST_ASSERT(sentry__threadpool_start(pool) == 0);
+    sentry__threadpool_setname(pool, "ignored");
+    sentry__threadpool_shutdown(pool);
+
+    TEST_ASSERT(sentry__threadpool_start(pool) == 0);
     TEST_ASSERT(sentry__threadpool_submit(
                     pool, threadpool_name_exec, NULL, NULL, &state)
         == 0);
