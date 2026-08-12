@@ -262,22 +262,8 @@ SENTRY_TEST(metrics_before_send_modify)
     TEST_CHECK_INT_EQUAL(validation_data.called_count, 1);
 }
 
-SENTRY_TEST(metrics_disabled)
+SENTRY_TEST(metrics_uninitialized)
 {
-    transport_validation_data_t validation_data = { 0, false };
-
-    SENTRY_TEST_OPTIONS_NEW(options);
-    sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
-    sentry_options_set_enable_metrics(options, false);
-
-    sentry_transport_t *transport
-        = sentry_transport_new(validate_metrics_envelope);
-    sentry_transport_set_state(transport, &validation_data);
-    sentry_options_set_transport(options, transport);
-
-    sentry_init(options);
-
-    // These should return DISABLED since metrics were explicitly disabled
     TEST_CHECK_INT_EQUAL(
         sentry_metrics_count("test.counter", 1, sentry_value_new_null()),
         SENTRY_METRICS_RESULT_DISABLED);
@@ -287,12 +273,6 @@ SENTRY_TEST(metrics_disabled)
     TEST_CHECK_INT_EQUAL(sentry_metrics_distribution("test.distribution", 123.0,
                              NULL, sentry_value_new_null()),
         SENTRY_METRICS_RESULT_DISABLED);
-
-    sentry_close();
-
-    // Transport should not be called since metrics were explicitly disabled
-    TEST_CHECK(!validation_data.has_validation_error);
-    TEST_CHECK_INT_EQUAL(validation_data.called_count, 0);
 }
 
 SENTRY_TEST(metrics_force_flush)
@@ -591,8 +571,6 @@ SENTRY_TEST(metrics_reinit)
     // This will deadlock if sentry__batcher_flush holds g_options_lock.
     SENTRY_TEST_OPTIONS_NEW(options2);
     sentry_options_set_dsn(options2, "https://foo@sentry.invalid/42");
-    sentry_options_set_enable_metrics(options2, true);
-
     sentry_init(options2);
     sentry_close();
 }
