@@ -5,6 +5,7 @@
 #include "sentry_options.h"
 #include "sentry_scope.h"
 #include "sentry_testsupport.h"
+#include "sentry_tracing.h"
 #include "sentry_utils.h"
 
 SENTRY_TEST(scope_contexts)
@@ -2593,4 +2594,224 @@ SENTRY_TEST(scope_capture_user_owned)
     sentry_close();
 
     TEST_CHECK_INT_EQUAL(called, 2);
+}
+
+// Keeps the trace context the scopes produced and drops the event.
+static sentry_value_t
+keep_trace_context(sentry_value_t event, void *UNUSED(hint), void *data)
+{
+    sentry_value_t *trace = data;
+    sentry_value_decref(*trace);
+    *trace = sentry_value_get_by_key(
+        sentry_value_get_by_key(event, "contexts"), "trace");
+    sentry_value_incref(*trace);
+    sentry_value_decref(event);
+    return sentry_value_new_null();
+}
+
+SENTRY_TEST(scope_bind_transaction_object)
+{
+    sentry_value_t trace = sentry_value_new_null();
+
+    SENTRY_TEST_OPTIONS_NEW(options);
+    sentry_options_set_traces_sample_rate(options, 1.0);
+    sentry_options_set_before_send(options, keep_trace_context, &trace);
+    sentry_init(options);
+
+    sentry_transaction_t *tx = sentry_transaction_start(
+        sentry_transaction_context_new("txn", NULL), sentry_value_new_null());
+
+    sentry_scope_t *scope = sentry_scope_new();
+    sentry_scope_set_transaction_object(scope, tx);
+
+    sentry_scope_capture_event(scope,
+        sentry_value_new_message_event(SENTRY_LEVEL_ERROR, "logger", "boom"));
+
+    TEST_ASSERT(!sentry_value_is_null(trace));
+    TEST_CHECK_STRING_EQUAL(
+        sentry_value_as_string(sentry_value_get_by_key(trace, "span_id")),
+        sentry_value_as_string(sentry_value_get_by_key(tx->inner, "span_id")));
+
+    sentry_scope_set_transaction_object(scope, NULL);
+
+    sentry_scope_capture_event(scope,
+        sentry_value_new_message_event(SENTRY_LEVEL_ERROR, "logger", "boom"));
+
+    // After unbinding, event falls back to the propagation context.
+    TEST_ASSERT(!sentry_value_is_null(trace));
+    SENTRY_WITH_SCOPE (global_scope) {
+        sentry_value_t propagation_trace = sentry_value_get_by_key(
+            global_scope->propagation_context, "trace");
+        TEST_CHECK_STRING_EQUAL(
+            sentry_value_as_string(sentry_value_get_by_key(trace, "trace_id")),
+            sentry_value_as_string(
+                sentry_value_get_by_key(propagation_trace, "trace_id")));
+        TEST_CHECK_STRING_EQUAL(
+            sentry_value_as_string(sentry_value_get_by_key(trace, "span_id")),
+            sentry_value_as_string(
+                sentry_value_get_by_key(propagation_trace, "span_id")));
+    }
+
+    sentry_value_decref(trace);
+    sentry_scope_free(scope);
+    sentry_transaction_finish(tx);
+
+    sentry_close();
+}
+
+SENTRY_TEST(scope_bind_span)
+{
+    sentry_value_t trace = sentry_value_new_null();
+
+    SENTRY_TEST_OPTIONS_NEW(options);
+    sentry_options_set_traces_sample_rate(options, 1.0);
+    sentry_options_set_before_send(options, keep_trace_context, &trace);
+    sentry_init(options);
+
+    sentry_transaction_t *tx = sentry_transaction_start(
+        sentry_transaction_context_new("txn", NULL), sentry_value_new_null());
+    sentry_span_t *span
+        = sentry_transaction_start_child(tx, "db.query", "select");
+    TEST_ASSERT(!!span);
+
+    sentry_scope_t *scope = sentry_scope_new();
+    sentry_scope_set_span(scope, span);
+
+    // Binding a scope of our own leaves the global scope alone.
+    SENTRY_WITH_SCOPE (global_scope) {
+        TEST_CHECK(global_scope->span == NULL);
+        TEST_CHECK(global_scope->transaction_object == NULL);
+    }
+
+    sentry_scope_capture_event(scope,
+        sentry_value_new_message_event(SENTRY_LEVEL_ERROR, "logger", "boom"));
+
+    TEST_ASSERT(!sentry_value_is_null(trace));
+    TEST_CHECK_STRING_EQUAL(
+        sentry_value_as_string(sentry_value_get_by_key(trace, "trace_id")),
+        sentry_value_as_string(
+            sentry_value_get_by_key(span->inner, "trace_id")));
+    TEST_CHECK_STRING_EQUAL(
+        sentry_value_as_string(sentry_value_get_by_key(trace, "span_id")),
+        sentry_value_as_string(
+            sentry_value_get_by_key(span->inner, "span_id")));
+
+    sentry_span_finish(span);
+
+    // TODO: Finishing a span releases the caller's reference and only clears
+    // the global scope. A user-owned scope still stamps that finished span onto
+    // later events; this acknowledges the current behavior until it changes.
+    TEST_CHECK_PTR_EQUAL(scope->span, span);
+
+    sentry_value_decref(trace);
+    sentry_scope_free(scope);
+    sentry_transaction_finish(tx);
+
+    sentry_close();
+}
+
+SENTRY_TEST(scope_bind_span_or_transaction_not_both)
+{
+    SENTRY_TEST_OPTIONS_NEW(options);
+    sentry_options_set_traces_sample_rate(options, 1.0);
+    sentry_init(options);
+
+    sentry_transaction_t *tx = sentry_transaction_start(
+        sentry_transaction_context_new("txn", NULL), sentry_value_new_null());
+    sentry_span_t *span
+        = sentry_transaction_start_child(tx, "db.query", "select");
+    TEST_ASSERT(!!span);
+
+    // Only one binding can be active at a time.
+    sentry_scope_t *scope = sentry_scope_new();
+    sentry_scope_set_span(scope, span);
+    sentry_scope_set_transaction_object(scope, tx);
+    TEST_CHECK(scope->span == NULL);
+    TEST_CHECK_PTR_EQUAL(scope->transaction_object, tx);
+
+    sentry_scope_set_span(scope, span);
+    TEST_CHECK(scope->transaction_object == NULL);
+    TEST_CHECK_PTR_EQUAL(scope->span, span);
+
+    // Passing null unbinds both.
+    sentry_scope_set_transaction_object(scope, NULL);
+    TEST_CHECK(scope->span == NULL);
+    TEST_CHECK(scope->transaction_object == NULL);
+
+    sentry_scope_free(scope);
+    sentry_span_finish(span);
+    sentry_transaction_finish(tx);
+
+    sentry_close();
+}
+
+SENTRY_TEST(scope_rebind_same_object)
+{
+    SENTRY_TEST_OPTIONS_NEW(options);
+    sentry_options_set_traces_sample_rate(options, 1.0);
+    sentry_init(options);
+
+    sentry_transaction_t *tx = sentry_transaction_start(
+        sentry_transaction_context_new("txn", NULL), sentry_value_new_null());
+    sentry_span_t *span
+        = sentry_transaction_start_child(tx, "db.query", "select");
+    TEST_ASSERT(!!span);
+
+    sentry_scope_t *scope = sentry_scope_new();
+    sentry_scope_set_span(scope, span);
+    // Finishing hands the caller's reference over, so the scope holds the only
+    // one and rebinding has nothing to fall back on.
+    sentry_span_finish(span);
+
+    // Rebinding what is already bound must not drop that last reference (a
+    // use-after-free here would trip the sanitizers).
+    sentry_scope_set_span(scope, scope->span);
+    TEST_CHECK_PTR_EQUAL(scope->span, span);
+    TEST_CHECK_STRING_EQUAL(sentry_value_as_string(sentry_value_get_by_key(
+                                scope->span->inner, "description")),
+        "select");
+
+    sentry_scope_set_transaction_object(scope, tx);
+    sentry_transaction_finish(tx);
+
+    sentry_scope_set_transaction_object(scope, scope->transaction_object);
+    TEST_CHECK_PTR_EQUAL(scope->transaction_object, tx);
+    TEST_CHECK_STRING_EQUAL(
+        sentry_value_as_string(sentry_value_get_by_key(
+            scope->transaction_object->inner, "transaction")),
+        "txn");
+
+    sentry_scope_free(scope);
+
+    sentry_close();
+}
+
+SENTRY_TEST(scope_clone_keeps_bound_span)
+{
+    SENTRY_TEST_OPTIONS_NEW(options);
+    sentry_options_set_traces_sample_rate(options, 1.0);
+    sentry_init(options);
+
+    sentry_transaction_t *tx = sentry_transaction_start(
+        sentry_transaction_context_new("txn", NULL), sentry_value_new_null());
+    sentry_span_t *span
+        = sentry_transaction_start_child(tx, "db.query", "select");
+    TEST_ASSERT(!!span);
+
+    sentry_scope_t *scope = sentry_scope_new();
+    sentry_scope_set_span(scope, span);
+    sentry_scope_t *clone = sentry_scope_clone(scope);
+    TEST_CHECK_PTR_EQUAL(clone->span, span);
+
+    // The clone owns its binding, so it outlives the original scope and caller reference.
+    sentry_scope_free(scope);
+    sentry_span_finish(span);
+    TEST_CHECK_STRING_EQUAL(sentry_value_as_string(sentry_value_get_by_key(
+                                clone->span->inner, "description")),
+        "select");
+
+    sentry_scope_free(clone);
+    sentry_transaction_finish(tx);
+
+    sentry_close();
 }
