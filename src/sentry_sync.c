@@ -407,7 +407,6 @@ sentry__threadpool_shutdown(sentry_threadpool_t *pool)
     pool->stopping = true;
     const size_t started_threads = pool->started_threads;
     threadpool_wake_all(pool);
-    sentry__cond_wake(&pool->state_signal);
     sentry__mutex_unlock(&pool->lock);
 
     for (size_t i = 0; i < started_threads; i++) {
