@@ -498,10 +498,15 @@ typedef struct sentry_threadpool_s sentry_threadpool_t;
 typedef void (*sentry_task_exec_func_t)(void *task_data, void *state);
 
 /**
- * Creates a thread pool configured with `thread_count` threads. Tasks execute
- * in parallel, while completion callbacks run in submission order.
+ * Creates a thread pool configured with `thread_count` threads and at most
+ * `max_pending` outstanding tasks. Tasks execute in parallel, while completion
+ * callbacks run in submission order.
+ *
+ * `max_pending` includes tasks currently executing and tasks awaiting ordered
+ * completion, and must be greater than zero.
  */
-sentry_threadpool_t *sentry__threadpool_new(size_t thread_count);
+sentry_threadpool_t *sentry__threadpool_new(
+    size_t thread_count, size_t max_pending);
 
 /**
  * Sets a name for pooled threads. Each thread is named `<thread_name>-<index>`,
@@ -530,7 +535,8 @@ int sentry__threadpool_start(sentry_threadpool_t *pool);
  * `cleanup_func` is called immediately when provided.
  *
  * Returns 0 if the task was accepted, or a non-zero value if the arguments are
- * invalid, the pool is not running or is stopping, or allocation fails.
+ * invalid, the pool is not running or is stopping, its pending-task limit has
+ * been reached, or allocation fails.
  */
 int sentry__threadpool_submit(sentry_threadpool_t *pool,
     void (*exec_func)(void *task_data), void (*complete_func)(void *task_data),

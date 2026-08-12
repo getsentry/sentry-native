@@ -3,6 +3,7 @@
 #include "sentry_core.h"
 #include "sentry_string.h"
 #include "sentry_utils.h"
+#include <limits.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -127,6 +128,7 @@ struct sentry_threadpool_s {
     sentry_threadpool_task_t *first_task;
     sentry_threadpool_task_t *last_task;
     sentry_threadpool_task_t *next_task;
+    long max_pending;
     long pending;
     long index;
     long running;
@@ -230,9 +232,10 @@ threadpool_thread(void *data)
 }
 
 sentry_threadpool_t *
-sentry__threadpool_new(size_t thread_count)
+sentry__threadpool_new(size_t thread_count, size_t max_pending)
 {
-    if (thread_count == 0) {
+    if (thread_count == 0 || max_pending == 0
+        || max_pending > (size_t)LONG_MAX) {
         return NULL;
     }
     sentry_threadpool_t *pool = SENTRY_MAKE(sentry_threadpool_t);
@@ -245,6 +248,7 @@ sentry__threadpool_new(size_t thread_count)
         return NULL;
     }
     pool->thread_count = thread_count;
+    pool->max_pending = (long)max_pending;
     sentry__mutex_init(&pool->lock);
     sentry__cond_init(&pool->work_signal);
     sentry__cond_init(&pool->state_signal);
@@ -339,7 +343,8 @@ sentry__threadpool_submit(sentry_threadpool_t *pool,
     task->task_data = task_data;
 
     sentry__mutex_lock(&pool->lock);
-    if (!sentry__atomic_fetch(&pool->running) || pool->stopping) {
+    if (!sentry__atomic_fetch(&pool->running) || pool->stopping
+        || sentry__atomic_fetch(&pool->pending) >= pool->max_pending) {
         sentry__mutex_unlock(&pool->lock);
         threadpool_task_free(task);
         return 1;
