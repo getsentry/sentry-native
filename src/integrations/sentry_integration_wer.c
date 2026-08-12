@@ -195,7 +195,7 @@ static void
 wer_for_each_attachment(
     sentry_scope_t *scope, void *data, void (*callback)(void *, sentry_value_t))
 {
-    sentry_value_t attachments = sentry__scope_ref_attachments(scope);
+    sentry_value_t attachments = sentry__scope_clone_attachments(scope);
     size_t len = sentry_value_get_length(attachments);
     for (size_t i = 0; i < len; i++) {
         callback(data, sentry_value_get_by_index(attachments, i));

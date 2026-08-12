@@ -160,7 +160,14 @@ sentry_value_t sentry__scope_ref_user(const sentry_scope_t *scope);
 sentry_level_t sentry__scope_get_level(const sentry_scope_t *scope);
 sentry_value_t sentry__scope_ref_client_sdk(const sentry_scope_t *scope);
 
-sentry_value_t sentry__scope_ref_attachments(const sentry_scope_t *scope);
+/**
+ * Returns an owned copy-on-write snapshot of the scope's attachment list.
+ *
+ * The list remains stable after the scope data read lock is released. Published
+ * attachment elements remain shared because they are frozen. The caller must
+ * release the snapshot with `sentry_value_decref`.
+ */
+sentry_value_t sentry__scope_clone_attachments(const sentry_scope_t *scope);
 sentry_value_t sentry__scope_add_attachment(
     sentry_scope_t *scope, sentry_value_t attachment);
 sentry_value_t sentry__scope_take_attachments(sentry_scope_t *scope);

@@ -848,11 +848,11 @@ data_set_last_event_id(sentry_scope_data_t *data, sentry_uuid_t event_id)
 }
 
 static sentry_value_t
-data_ref_attachments(const sentry_scope_data_t *data)
+data_clone_attachments(const sentry_scope_data_t *data)
 {
     sentry_value_t attachments = sentry_value_new_null();
     DATA_READ_LOCK (data) {
-        attachments = sentry_value_incref(data->attachments);
+        attachments = sentry__value_clone(data->attachments);
     }
     return attachments;
 }
@@ -2327,9 +2327,9 @@ sentry_scope_set_span(sentry_scope_t *scope, sentry_span_t *span)
 }
 
 sentry_value_t
-sentry__scope_ref_attachments(const sentry_scope_t *scope)
+sentry__scope_clone_attachments(const sentry_scope_t *scope)
 {
-    return data_ref_attachments(scope->data);
+    return data_clone_attachments(scope->data);
 }
 
 sentry_value_t

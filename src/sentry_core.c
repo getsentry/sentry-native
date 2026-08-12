@@ -709,11 +709,11 @@ sentry__prepare_event(const sentry_options_t *options, sentry_value_t event,
 
     SENTRY_WITH_SCOPE (scope) {
         sentry_value_t global_attachments
-            = sentry__scope_ref_attachments(scope);
+            = sentry__scope_clone_attachments(scope);
         sentry_value_t attachments = global_attachments;
         if (local_scope) {
             sentry_value_t local_attachments
-                = sentry__scope_ref_attachments(local_scope);
+                = sentry__scope_clone_attachments(local_scope);
             if (sentry_value_get_length(local_attachments) > 0) {
                 // all attachments merged from multiple scopes
                 sentry__attachments_extend(&all_attachments, local_attachments);
@@ -855,14 +855,14 @@ prepare_user_feedback(const sentry_options_t *options,
     }
     if (local_scope) {
         sentry_value_t local_attachments
-            = sentry__scope_ref_attachments(local_scope);
+            = sentry__scope_clone_attachments(local_scope);
         sentry__attachments_extend(&all_attachments, local_attachments);
         sentry_value_decref(local_attachments);
     }
 
     SENTRY_WITH_SCOPE (scope) {
         sentry_value_t global_attachments
-            = sentry__scope_ref_attachments(scope);
+            = sentry__scope_clone_attachments(scope);
         sentry_value_t attachments = global_attachments;
         if (sentry_value_get_length(all_attachments) > 0) {
             sentry__attachments_extend(&all_attachments, global_attachments);
@@ -2012,7 +2012,9 @@ sentry_add_attachment(sentry_value_t attachment)
 
     sentry_value_t added = sentry_value_new_null();
     SENTRY_WITH_SCOPE_MUT (scope) {
-        added = sentry__attachments_find(scope->attachments, attachment);
+        sentry_value_t attachments = sentry__scope_clone_attachments(scope);
+        added = sentry__attachments_find(attachments, attachment);
+        sentry_value_decref(attachments);
         if (sentry_value_is_null(added)) {
             if (options->backend && options->backend->add_attachment_func) {
                 options->backend->add_attachment_func(

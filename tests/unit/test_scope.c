@@ -2639,8 +2639,8 @@ SENTRY_TEST(scope_clone_preserves_data)
     TEST_CHECK_INT_EQUAL(scope_breadcrumb_count(clone), 1);
 
     // Attachments are deep-copied into an independent list.
-    sentry_value_t clone_attachments = sentry__scope_ref_attachments(clone);
-    sentry_value_t scope_attachments = sentry__scope_ref_attachments(scope);
+    sentry_value_t clone_attachments = sentry__scope_clone_attachments(clone);
+    sentry_value_t scope_attachments = sentry__scope_clone_attachments(scope);
     TEST_CHECK_INT_EQUAL(sentry_value_get_length(clone_attachments), 1);
     TEST_CHECK_INT_EQUAL(sentry_value_get_length(scope_attachments), 0);
     TEST_CHECK(clone_attachments._bits != scope_attachments._bits);
@@ -2653,6 +2653,68 @@ SENTRY_TEST(scope_clone_preserves_data)
     sentry_value_decref(clone_attachments);
 
     sentry_scope_free(clone);
+    sentry_scope_free(scope);
+}
+
+SENTRY_TEST(scope_attachments)
+{
+    sentry_scope_t *scope = sentry_scope_new();
+    sentry_uuid_t first_id = sentry_scope_add_attachment(
+        scope, sentry_attachment_from_bytes("first", 5, "first.txt"));
+    sentry_uuid_t second_id = sentry_scope_add_attachment(
+        scope, sentry_attachment_from_bytes("second", 6, "second.txt"));
+    TEST_CHECK(!sentry_uuid_is_nil(&first_id));
+    TEST_CHECK(!sentry_uuid_is_nil(&second_id));
+
+    sentry_value_t snapshot = sentry__scope_clone_attachments(scope);
+    TEST_CHECK_INT_EQUAL(sentry_value_get_length(snapshot), 2);
+    TEST_CHECK_STRING_EQUAL(
+        sentry__attachment_get_filename(sentry_value_get_by_index(snapshot, 0)),
+        "first.txt");
+    TEST_CHECK_STRING_EQUAL(
+        sentry__attachment_get_filename(sentry_value_get_by_index(snapshot, 1)),
+        "second.txt");
+
+    sentry_uuid_t third_id = sentry_scope_add_attachment(
+        scope, sentry_attachment_from_bytes("third", 5, "third.txt"));
+    TEST_CHECK(!sentry_uuid_is_nil(&third_id));
+
+    sentry_value_t current = sentry__scope_clone_attachments(scope);
+    TEST_CHECK_INT_EQUAL(sentry_value_get_length(current), 3);
+    TEST_CHECK_STRING_EQUAL(
+        sentry__attachment_get_filename(sentry_value_get_by_index(current, 2)),
+        "third.txt");
+    sentry_value_decref(current);
+    TEST_CHECK_INT_EQUAL(sentry_value_get_length(snapshot), 2);
+
+    sentry_value_t removed = sentry__scope_remove_attachment(scope, &first_id);
+    TEST_CHECK(!sentry_value_is_null(removed));
+    sentry_value_decref(removed);
+
+    current = sentry__scope_clone_attachments(scope);
+    TEST_CHECK_INT_EQUAL(sentry_value_get_length(current), 2);
+    TEST_CHECK_STRING_EQUAL(
+        sentry__attachment_get_filename(sentry_value_get_by_index(current, 0)),
+        "second.txt");
+    TEST_CHECK_STRING_EQUAL(
+        sentry__attachment_get_filename(sentry_value_get_by_index(current, 1)),
+        "third.txt");
+    sentry_value_decref(current);
+    TEST_CHECK_INT_EQUAL(sentry_value_get_length(snapshot), 2);
+    TEST_CHECK_STRING_EQUAL(
+        sentry__attachment_get_filename(sentry_value_get_by_index(snapshot, 0)),
+        "first.txt");
+
+    sentry_scope_clear(scope);
+    current = sentry__scope_clone_attachments(scope);
+    TEST_CHECK_INT_EQUAL(sentry_value_get_length(current), 0);
+    sentry_value_decref(current);
+    TEST_CHECK_INT_EQUAL(sentry_value_get_length(snapshot), 2);
+    TEST_CHECK_STRING_EQUAL(
+        sentry__attachment_get_filename(sentry_value_get_by_index(snapshot, 1)),
+        "second.txt");
+
+    sentry_value_decref(snapshot);
     sentry_scope_free(scope);
 }
 
