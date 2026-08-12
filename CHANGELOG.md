@@ -12,6 +12,7 @@
 
 - Crashpad: prevent external crash reporters from bypassing revoked user consent. ([#1972](https://github.com/getsentry/sentry-native/pull/1972), [crashpad#168](https://github.com/getsentry/crashpad/pull/168))
 - Native/Linux: improve startup time by avoiding zeroing a large shmem module array during crash context initialization. ([#1966](https://github.com/getsentry/sentry-native/pull/1966))
+- Linux/ARM32: prevent recursive crashes when libunwind receives an unmapped initial instruction pointer during crash handling. ([#1977](https://github.com/getsentry/sentry-native/pull/1977))
 
 ## 0.16.2
 
