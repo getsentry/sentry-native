@@ -160,6 +160,8 @@ get_tid(void)
 #    endif
 }
 
+// safe_strxxx are only used on macOS (for stack path and module names)
+#    if defined(SENTRY_PLATFORM_MACOS)
 /**
  * Safe string length (signal-safe)
  */
@@ -173,8 +175,6 @@ safe_strlen(const char *s)
     return len;
 }
 
-// safe_strncpy is only used on macOS (for stack path and module names)
-#    if defined(SENTRY_PLATFORM_MACOS)
 /**
  * Safe string copy (signal-safe)
  */
