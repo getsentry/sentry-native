@@ -738,7 +738,7 @@ crashpad_backend_process_old_run(sentry_backend_t *backend,
     if (!envelope || !sentry__envelope_materialize(envelope)) {
         sentry_envelope_free(envelope);
         sentry__path_free(event_path);
-        return false;
+        return true;
     }
 
     // remove before invoking to prevent repeated callbacks
