@@ -1486,6 +1486,18 @@ sentry__transaction_finish_value(
         goto fail;
     }
 
+    if (!sentry_value_is_null(
+            sentry_value_get_by_key(opaque_tx->inner, "timestamp"))) {
+        // Skipping goto fail and decref: the first finish consumed the caller's
+        // reference, and releasing again would dangle a scope still bound here.
+        SENTRY_WARN("transaction is already finished, aborting finish");
+        return sentry_value_new_null();
+    }
+
+    sentry_value_set_by_key(opaque_tx->inner, "timestamp",
+        sentry__value_new_string_owned(
+            sentry__usec_time_to_iso8601(timestamp)));
+
     sentry_value_t tx = sentry__value_clone(opaque_tx->inner);
 
     SENTRY_WITH_SCOPE_MUT (scope) {
@@ -1526,9 +1538,6 @@ sentry__transaction_finish_value(
     sentry_value_remove_by_key(tx, "sampled");
 
     sentry_value_set_by_key(tx, "type", sentry_value_new_string("transaction"));
-    sentry_value_set_by_key(tx, "timestamp",
-        sentry__value_new_string_owned(
-            sentry__usec_time_to_iso8601(timestamp)));
     // TODO: This might not actually be necessary. Revisit after talking to
     // the relay team about this.
     sentry_value_set_by_key(tx, "level", sentry_value_new_string("info"));
@@ -1702,6 +1711,14 @@ sentry_span_finish_ts(sentry_span_t *opaque_span, uint64_t timestamp)
         goto fail;
     }
 
+    if (!sentry_value_is_null(
+            sentry_value_get_by_key(opaque_span->inner, "timestamp"))) {
+        // Skipping goto fail and decref: the first finish consumed the caller's
+        // reference, and releasing again would dangle a scope still bound here.
+        SENTRY_WARN("span is already finished, aborting span finish");
+        return;
+    }
+
     sentry_transaction_t *opaque_root_transaction = opaque_span->transaction;
     if (!opaque_root_transaction
         || sentry_value_is_null(opaque_root_transaction->inner)) {
@@ -1726,6 +1743,10 @@ sentry_span_finish_ts(sentry_span_t *opaque_span, uint64_t timestamp)
                     "span finish");
         goto fail;
     }
+
+    sentry_value_set_by_key(opaque_span->inner, "timestamp",
+        sentry__value_new_string_owned(
+            sentry__usec_time_to_iso8601(timestamp)));
 
     sentry_value_t span = sentry__value_clone(opaque_span->inner);
 
@@ -1753,15 +1774,6 @@ sentry_span_finish_ts(sentry_span_t *opaque_span, uint64_t timestamp)
         goto fail;
     }
 
-    if (!sentry_value_is_null(sentry_value_get_by_key(span, "timestamp"))) {
-        SENTRY_WARN("span is already finished, aborting span finish");
-        sentry_value_decref(span);
-        goto fail;
-    }
-
-    sentry_value_set_by_key(span, "timestamp",
-        sentry__value_new_string_owned(
-            sentry__usec_time_to_iso8601(timestamp)));
     sentry_value_remove_by_key(span, "sampled");
 
     size_t max_spans = SENTRY_SPANS_MAX;
