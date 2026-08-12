@@ -65,46 +65,41 @@ sentry_scope_capture_metric(sentry_scope_t *scope, sentry_metric_type_t type,
     const char *name, sentry_value_t value, const char *unit,
     sentry_value_t attributes)
 {
-    bool enable_metrics = false;
-    SENTRY_WITH_OPTIONS (options) {
-        if (options->enable_metrics)
-            enable_metrics = true;
-    }
-    if (enable_metrics) {
-        bool discarded = false;
-        sentry_value_t metric
-            = construct_metric(scope, type, name, value, unit, attributes);
+    if (!sentry_is_enabled()) {
+        sentry_value_decref(value);
+        sentry_value_decref(attributes);
         sentry__scope_free_one_shot(scope);
-        SENTRY_WITH_OPTIONS (options) {
-            if (options->before_send_metric_func) {
-                metric = options->before_send_metric_func(
-                    metric, options->before_send_metric_data);
-                if (sentry_value_is_null(metric)) {
-                    SENTRY_DEBUG("metric was discarded by the "
-                                 "`before_send_metric` hook");
-                    sentry__client_report_discard(
-                        SENTRY_DISCARD_REASON_BEFORE_SEND,
-                        SENTRY_DATA_CATEGORY_TRACE_METRIC, 1);
-                    discarded = true;
-                }
+        return SENTRY_METRICS_RESULT_DISABLED;
+    }
+
+    bool discarded = false;
+    sentry_value_t metric
+        = construct_metric(scope, type, name, value, unit, attributes);
+    sentry__scope_free_one_shot(scope);
+    SENTRY_WITH_OPTIONS (options) {
+        if (options->before_send_metric_func) {
+            metric = options->before_send_metric_func(
+                metric, options->before_send_metric_data);
+            if (sentry_value_is_null(metric)) {
+                SENTRY_DEBUG("metric was discarded by the "
+                             "`before_send_metric` hook");
+                sentry__client_report_discard(SENTRY_DISCARD_REASON_BEFORE_SEND,
+                    SENTRY_DATA_CATEGORY_TRACE_METRIC, 1);
+                discarded = true;
             }
         }
-        if (discarded) {
-            return SENTRY_METRICS_RESULT_DISCARD;
-        }
-        sentry_batcher_t *batcher = sentry__batcher_acquire(&g_batcher);
-        if (!batcher || !sentry__batcher_enqueue(batcher, metric)) {
-            sentry__batcher_release(batcher);
-            sentry_value_decref(metric);
-            return SENTRY_METRICS_RESULT_FAILED;
-        }
-        sentry__batcher_release(batcher);
-        return SENTRY_METRICS_RESULT_SUCCESS;
     }
-    sentry_value_decref(value);
-    sentry_value_decref(attributes);
-    sentry__scope_free_one_shot(scope);
-    return SENTRY_METRICS_RESULT_DISABLED;
+    if (discarded) {
+        return SENTRY_METRICS_RESULT_DISCARD;
+    }
+    sentry_batcher_t *batcher = sentry__batcher_acquire(&g_batcher);
+    if (!batcher || !sentry__batcher_enqueue(batcher, metric)) {
+        sentry__batcher_release(batcher);
+        sentry_value_decref(metric);
+        return SENTRY_METRICS_RESULT_FAILED;
+    }
+    sentry__batcher_release(batcher);
+    return SENTRY_METRICS_RESULT_SUCCESS;
 }
 
 sentry_metrics_result_t

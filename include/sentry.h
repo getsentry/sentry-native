@@ -3007,21 +3007,6 @@ SENTRY_API int sentry_options_get_strict_trace_continuation(
     const sentry_options_t *opts);
 
 /**
- * Enables or disables the structured logging feature.
- * When disabled, all calls to `sentry_log_X()` are no-ops.
- *
- * Enabled by default.
- */
-SENTRY_DEPRECATED(
-    "This function does nothing. It will be removed in a future release.")
-SENTRY_EXPERIMENTAL_API void sentry_options_set_enable_logs(
-    sentry_options_t *opts, int enable_logs);
-SENTRY_DEPRECATED("This function always returns true. It will be removed in a "
-                  "future release.")
-SENTRY_EXPERIMENTAL_API int sentry_options_get_enable_logs(
-    const sentry_options_t *opts);
-
-/**
  * Enables or disables HTTP retry with exponential backoff for network failures.
  *
  * Only applicable for HTTP transports.
@@ -3092,7 +3077,7 @@ SENTRY_API int sentry_options_get_send_client_reports(
  * - Success means a log was enqueued
  * - Discard means the `before_send_log` function discarded the log
  * - Failed means the log wasn't enqueued. This happens if the buffers are full
- * - Disabled means the option `enable_logs` was false.
+ * - Disabled means the SDK was not initialized
  */
 typedef enum {
     SENTRY_LOG_RETURN_SUCCESS = 0,
@@ -3193,21 +3178,6 @@ SENTRY_EXPERIMENTAL_API void sentry_options_set_before_send_log(
     sentry_options_t *opts, sentry_before_send_log_function_t func, void *data);
 
 /**
- * Enables or disables the metrics feature.
- * When disabled, all calls to `sentry_metrics_*()` are no-ops.
- *
- * Enabled by default.
- */
-SENTRY_DEPRECATED(
-    "This function does nothing. It will be removed in a future release.")
-SENTRY_EXPERIMENTAL_API void sentry_options_set_enable_metrics(
-    sentry_options_t *opts, int enable_metrics);
-SENTRY_DEPRECATED("This function always returns true. It will be removed in a "
-                  "future release.")
-SENTRY_EXPERIMENTAL_API int sentry_options_get_enable_metrics(
-    const sentry_options_t *opts);
-
-/**
  * Enables or disables in-process app-hang detection. When enabled, a
  * background watchdog thread monitors heartbeats from the watched thread. If
  * no heartbeat is received within the configured timeout, an app-hang event is
@@ -3289,7 +3259,7 @@ SENTRY_EXPERIMENTAL_API void sentry_options_set_before_send_metric(
  * - Success means the metric was enqueued
  * - Discard means the `before_send_metric` callback discarded the metric
  * - Failed means the metric wasn't enqueued (buffers are full)
- * - Disabled means metrics are disabled
+ * - Disabled means the SDK was not initialized
  */
 typedef enum {
     SENTRY_METRICS_RESULT_SUCCESS = 0,
