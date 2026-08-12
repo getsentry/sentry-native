@@ -667,7 +667,8 @@ sentry__process_run_envelopes(
     const sentry_path_t *file;
     while (it && (file = sentry__pathiter_next(it)) != NULL) {
         if (!sentry__path_is_file(file) || sentry__path_is_symlink(file)
-            || !sentry__path_ends_with(file, ".envelope")) {
+            || !sentry__path_ends_with(file, ".envelope")
+            || sentry__path_filename_matches(file, "__sentry-crash.envelope")) {
             continue;
         }
         sentry_envelope_t *envelope = sentry__envelope_from_path(file);
