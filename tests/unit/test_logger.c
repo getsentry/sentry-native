@@ -1,5 +1,7 @@
 #include "sentry_core.h"
 #include "sentry_logger.h"
+#include "sentry_logs.h"
+#include "sentry_metrics.h"
 #include "sentry_sync.h"
 #include "sentry_testsupport.h"
 
@@ -13,6 +15,13 @@ typedef struct {
 // single-threaded test assertions here, leading to flaky test runs.
 // To blacklist a test, add to the respective list of `test_unit_transport`
 // in the `tests/test_unit.py` unit-test runner.
+
+static void
+wait_for_telemetry_threads(void)
+{
+    sentry__logs_wait_for_thread_startup();
+    sentry__metrics_wait_for_thread_startup();
+}
 
 static void
 test_logger(
@@ -39,11 +48,10 @@ SENTRY_TEST(custom_logger)
         SENTRY_TEST_OPTIONS_NEW(options);
         sentry_options_set_debug(options, true);
         sentry_options_set_logger(options, test_logger, &data);
-        SENTRY_TEST_DEPRECATED(
-            sentry_options_set_enable_metrics(options, false));
-        SENTRY_TEST_DEPRECATED(sentry_options_set_enable_logs(options, false));
-
         sentry_init(options);
+
+        // Avoid startup logs racing with assertions
+        wait_for_telemetry_threads();
 
         data.assert_now = true;
         SENTRY_WARNF("Oh this is %s", "bad");
@@ -69,10 +77,10 @@ SENTRY_TEST(logger_enable_disable_functionality)
     SENTRY_TEST_OPTIONS_NEW(options);
     sentry_options_set_debug(options, true);
     sentry_options_set_logger(options, test_logger, &data);
-    SENTRY_TEST_DEPRECATED(sentry_options_set_enable_metrics(options, false));
-    SENTRY_TEST_DEPRECATED(sentry_options_set_enable_logs(options, false));
-
     sentry_init(options);
+
+    // Avoid startup logs racing with assertions
+    wait_for_telemetry_threads();
 
     // Test logging is enabled by default
     data.called = 0;
@@ -140,12 +148,10 @@ SENTRY_TEST(logger_level)
             sentry_options_set_debug(options, true);
             sentry_options_set_logger_level(options, test_cases[i].level);
             sentry_options_set_logger(options, test_log_level, &data);
-            SENTRY_TEST_DEPRECATED(
-                sentry_options_set_enable_metrics(options, false));
-            SENTRY_TEST_DEPRECATED(
-                sentry_options_set_enable_logs(options, false));
-
             sentry_init(options);
+
+            // Avoid startup logs racing with assertions
+            wait_for_telemetry_threads();
 
             data.assert_now = true;
             // Test all 5 levels in order from most to least verbose
