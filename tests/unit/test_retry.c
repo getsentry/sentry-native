@@ -85,14 +85,56 @@ test_send_cb(sentry_envelope_t *envelope, void *_ctx)
     return ctx->status_code;
 }
 
-static bool
-test_http_send_fails(void *client, sentry_prepared_http_request_t *req,
-    sentry_http_response_t *resp)
+static int
+test_http_send_fails(const sentry_http_request_t *req,
+    sentry_http_response_t *resp, void *client)
 {
     (void)client;
     (void)req;
     (void)resp;
-    return false;
+    return 1;
+}
+
+typedef struct {
+    size_t count;
+} http_response_headers_test_t;
+
+static int
+test_http_response_headers(const sentry_http_request_t *req,
+    sentry_http_response_t *resp, void *_state)
+{
+    (void)req;
+    http_response_headers_test_t *state = _state;
+    state->count++;
+    sentry_http_response_set_status(resp, 200);
+    sentry_http_response_set_header(resp, "Server", "unit-test");
+    sentry_http_response_set_header(
+        resp, "X-SENTRY-RATE-LIMITS", " 60:error:organization \t");
+    return 0;
+}
+
+SENTRY_TEST(http_transport_response_headers)
+{
+    http_response_headers_test_t state = { 0 };
+    sentry_transport_t *transport
+        = sentry_http_transport_new(test_http_response_headers, &state);
+    TEST_ASSERT(!!transport);
+
+    SENTRY_TEST_OPTIONS_NEW(options);
+    sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
+    sentry_options_set_send_client_reports(options, 0);
+    sentry_options_set_transport(options, transport);
+    TEST_CHECK_INT_EQUAL(sentry_init(options), 0);
+
+    sentry_capture_event(
+        sentry_value_new_message_event(SENTRY_LEVEL_INFO, NULL, "first"));
+    sentry_flush(5000);
+    sentry_capture_event(
+        sentry_value_new_message_event(SENTRY_LEVEL_INFO, NULL, "second"));
+    sentry_flush(5000);
+    sentry_close();
+
+    TEST_CHECK_INT_EQUAL(state.count, 1);
 }
 
 SENTRY_TEST(retry_filename)
@@ -300,7 +342,7 @@ SENTRY_TEST(retry_restore_report)
     sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
     sentry_options_set_http_retry(options, true);
     sentry_transport_t *transport
-        = sentry__http_transport_new(NULL, test_http_send_fails);
+        = sentry_http_transport_new(test_http_send_fails, NULL);
     TEST_ASSERT(!!transport);
     sentry_options_set_transport(options, transport);
     sentry_init(options);

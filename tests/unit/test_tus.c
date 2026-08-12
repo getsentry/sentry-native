@@ -132,15 +132,16 @@ SENTRY_TEST(tus_request_preparation)
     sentry__dsn_decref(dsn);
 }
 
-static bool
-tus_mock_send(void *client, sentry_prepared_http_request_t *req,
-    sentry_http_response_t *resp)
+static int
+tus_mock_send(const sentry_http_request_t *req, sentry_http_response_t *resp,
+    void *client)
 {
     (void)client;
     (void)req;
-    resp->status_code = 201;
-    resp->location = sentry__string_clone("https://sentry.invalid/upload/abc");
-    return true;
+    sentry_http_response_set_status(resp, 201);
+    sentry_http_response_set_header(
+        resp, "Location", "https://sentry.invalid/upload/abc");
+    return 0;
 }
 
 SENTRY_TEST(tus_file_attachment_preserves_original)
@@ -155,7 +156,7 @@ SENTRY_TEST(tus_file_attachment_preserves_original)
     create_large_test_file(test_file_str);
 
     sentry_transport_t *transport
-        = sentry__http_transport_new(NULL, tus_mock_send);
+        = sentry_http_transport_new(tus_mock_send, NULL);
     TEST_CHECK(!!transport);
     sentry__client_report_reset();
 
@@ -189,23 +190,26 @@ typedef struct {
     int envelope_count;
 } tus_create_failure_state_t;
 
-static bool
-tus_create_failure_send(void *client, sentry_prepared_http_request_t *req,
-    sentry_http_response_t *resp)
+static int
+tus_create_failure_send(const sentry_http_request_t *req,
+    sentry_http_response_t *resp, void *client)
 {
     tus_create_failure_state_t *state = client;
+    const char *method = sentry_http_request_get_method(req);
+    const char *body_path = sentry_http_request_get_body_path(req);
+    const char *body = sentry_http_request_get_body(req, NULL);
 
-    if (strcmp(req->method, "POST") == 0 && !req->body && !req->body_path) {
+    if (strcmp(method, "POST") == 0 && !body && !body_path) {
         state->create_count++;
-        resp->status_code = 404;
-        return true;
+        sentry_http_response_set_status(resp, 404);
+        return 0;
     }
-    if (strcmp(req->method, "POST") == 0 && req->body) {
+    if (strcmp(method, "POST") == 0 && body) {
         state->envelope_count++;
-        resp->status_code = 200;
-        return true;
+        sentry_http_response_set_status(resp, 200);
+        return 0;
     }
-    return false;
+    return 1;
 }
 
 SENTRY_TEST(tus_upload_error)
@@ -223,7 +227,7 @@ SENTRY_TEST(tus_upload_error)
 
     tus_create_failure_state_t state = { 0 };
     sentry_transport_t *transport
-        = sentry__http_transport_new(&state, tus_create_failure_send);
+        = sentry_http_transport_new(tus_create_failure_send, &state);
     TEST_ASSERT(!!transport);
 
     SENTRY_TEST_OPTIONS_NEW(options);
@@ -261,33 +265,38 @@ typedef struct {
 static const char *TUS_RELATIVE_LOCATION
     = "/api/42/upload/019db3e0/?length=104857600&signature=test";
 
-static bool
-tus_capture_send(void *client, sentry_prepared_http_request_t *req,
-    sentry_http_response_t *resp)
+static int
+tus_capture_send(const sentry_http_request_t *req, sentry_http_response_t *resp,
+    void *client)
 {
     tus_capture_state_t *cap = client;
+    const char *method = sentry_http_request_get_method(req);
+    const char *body_path = sentry_http_request_get_body_path(req);
+    size_t body_len = 0;
+    const char *body = sentry_http_request_get_body(req, &body_len);
 
     // TUS create: POST with no body
-    if (strcmp(req->method, "POST") == 0 && !req->body && !req->body_path) {
-        resp->status_code = 201;
-        resp->location = sentry__string_clone(TUS_RELATIVE_LOCATION);
-        return true;
+    if (strcmp(method, "POST") == 0 && !body && !body_path) {
+        sentry_http_response_set_status(resp, 201);
+        sentry_http_response_set_header(
+            resp, "Location", TUS_RELATIVE_LOCATION);
+        return 0;
     }
     // TUS upload: PATCH with body_path
-    if (strcmp(req->method, "PATCH") == 0 && req->body_path) {
-        resp->status_code = 204;
-        return true;
+    if (strcmp(method, "PATCH") == 0 && body_path) {
+        sentry_http_response_set_status(resp, 204);
+        return 0;
     }
     // Envelope POST: capture body
-    if (strcmp(req->method, "POST") == 0 && req->body) {
+    if (strcmp(method, "POST") == 0 && body) {
         sentry_free(cap->captured_body);
-        cap->captured_body = sentry_malloc(req->body_len);
-        memcpy(cap->captured_body, req->body, req->body_len);
-        cap->captured_body_len = req->body_len;
-        resp->status_code = 200;
-        return true;
+        cap->captured_body = sentry_malloc(body_len);
+        memcpy(cap->captured_body, body, body_len);
+        cap->captured_body_len = body_len;
+        sentry_http_response_set_status(resp, 200);
+        return 0;
     }
-    return false;
+    return 1;
 }
 
 SENTRY_TEST(tus_placeholder_uses_raw_location)
@@ -304,7 +313,7 @@ SENTRY_TEST(tus_placeholder_uses_raw_location)
 
     tus_capture_state_t cap = { 0 };
     sentry_transport_t *transport
-        = sentry__http_transport_new(&cap, tus_capture_send);
+        = sentry_http_transport_new(tus_capture_send, &cap);
     TEST_ASSERT(!!transport);
 
     SENTRY_TEST_OPTIONS_NEW(options);

@@ -239,6 +239,10 @@ using `cmake -D BUILD_SHARED_LIBS=OFF ..`.
     that the development version of the package is available.
   - **winhttp**: This uses the `winhttp` system library, is only supported on
     Windows and is the default there.
+  - **custom**: The downstream SDK provides `sentry__transport_new_default`.
+    Custom HTTP clients can use `sentry_http_transport_new` to retain the SDK's
+    queue, retries, rate limiting, cache, client reports, and large attachment
+    uploads.
   - **none**: Do not build any HTTP transport. This should be used if users
     want to handle uploads themselves
 

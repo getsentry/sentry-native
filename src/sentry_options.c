@@ -733,7 +733,7 @@ sentry_options_set_transfer_timeout(
 }
 
 uint64_t
-sentry_options_get_transfer_timeout(sentry_options_t *opts)
+sentry_options_get_transfer_timeout(const sentry_options_t *opts)
 {
     return opts->transfer_timeout;
 }

@@ -33,6 +33,28 @@ static char *const SERIALIZED_ENVELOPE_STR
       "{\"type\":\"attachment\",\"length\":12}\n"
       "Hello World!";
 
+typedef struct {
+    size_t count;
+    bool has_auth;
+    bool has_content_type;
+    bool has_content_length;
+} http_request_headers_t;
+
+static void
+collect_http_request_header(const char *key, const char *value, void *userdata)
+{
+    http_request_headers_t *headers = userdata;
+    headers->count++;
+    if (strcmp(key, "x-sentry-auth") == 0 && value[0]) {
+        headers->has_auth = true;
+    } else if (strcmp(key, "content-type") == 0
+        && strcmp(value, "application/x-sentry-envelope") == 0) {
+        headers->has_content_type = true;
+    } else if (strcmp(key, "content-length") == 0 && value[0]) {
+        headers->has_content_length = true;
+    }
+}
+
 SENTRY_TEST(basic_http_request_preparation_for_event)
 {
     SENTRY_TEST_DSN_NEW_DEFAULT(dsn);
@@ -47,11 +69,23 @@ SENTRY_TEST(basic_http_request_preparation_for_event)
 
     sentry_prepared_http_request_t *req
         = sentry__prepare_http_request(envelope, dsn, NULL, NULL);
-    TEST_CHECK_STRING_EQUAL(req->method, "POST");
-    TEST_CHECK_STRING_EQUAL(
-        req->url, "https://sentry.invalid:443/api/42/envelope/");
+    TEST_CHECK_STRING_EQUAL(sentry_http_request_get_method(req), "POST");
+    TEST_CHECK_STRING_EQUAL(sentry_http_request_get_url(req),
+        "https://sentry.invalid:443/api/42/envelope/");
+    TEST_CHECK(!sentry_http_request_get_body_path(req));
+    size_t body_len = 0;
+    const char *body = sentry_http_request_get_body(req, &body_len);
+    TEST_CHECK(!!body);
+    TEST_CHECK(body_len > 0);
+    http_request_headers_t headers = { 0 };
+    sentry_http_request_iter_headers(
+        req, collect_http_request_header, &headers);
+    TEST_CHECK(headers.count >= 3);
+    TEST_CHECK(headers.has_auth);
+    TEST_CHECK(headers.has_content_type);
+    TEST_CHECK(headers.has_content_length);
 #ifndef SENTRY_TRANSPORT_COMPRESSION
-    TEST_CHECK_STRING_EQUAL(req->body,
+    TEST_CHECK_STRING_EQUAL(body,
         "{\"event_id\":\"c993afb6-b4ac-48a6-b61b-2558e601d65d\"}\n"
         "{\"type\":\"event\",\"length\":51}\n"
         "{\"event_id\":\"c993afb6-b4ac-48a6-b61b-2558e601d65d\"}");

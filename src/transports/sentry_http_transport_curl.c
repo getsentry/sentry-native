@@ -197,7 +197,7 @@ typedef struct {
 
 typedef struct {
     FILE *file;
-    const sentry_path_t *path;
+    const char *path;
 } file_body_t;
 
 static curl_client_t *
@@ -235,7 +235,7 @@ curl_client_free(void *_client)
 }
 
 static int
-curl_client_start(void *_client, const sentry_options_t *options)
+curl_client_start(const sentry_options_t *options, void *_client)
 {
     curl_client_t *client = _client;
 
@@ -388,19 +388,10 @@ header_callback(char *buffer, size_t size, size_t nitems, void *userdata)
     char *sep = strchr(header, ':');
     if (sep) {
         *sep = '\0';
-        sentry__string_ascii_lower(header);
         sentry_slice_t value
             = sentry__slice_trim(sentry__slice_from_str(sep + 1));
-        if (sentry__string_eq(header, "retry-after")) {
-            sentry_free(info->retry_after);
-            info->retry_after = sentry__slice_to_owned(value);
-        } else if (sentry__string_eq(header, "x-sentry-rate-limits")) {
-            sentry_free(info->x_sentry_rate_limits);
-            info->x_sentry_rate_limits = sentry__slice_to_owned(value);
-        } else if (sentry__string_eq(header, "location")) {
-            sentry_free(info->location);
-            info->location = sentry__slice_to_owned(value);
-        }
+        header[(size_t)(value.ptr - header) + value.len] = '\0';
+        sentry_http_response_set_header(info, header, value.ptr);
     }
 
     sentry_free(header);
@@ -422,35 +413,67 @@ file_read_callback(char *buffer, size_t size, size_t nitems, void *userdata)
     return read;
 
 fail:
-    SENTRY_WARNF("failed to read request body file \"%s\"",
-        sentry__path_filename(body->path));
+    SENTRY_WARNF("failed to read request body file \"%s\"", body->path);
     return CURL_READFUNC_ABORT;
 }
 
-static bool
-curl_send_task(void *_client, sentry_prepared_http_request_t *req,
-    sentry_http_response_t *resp)
+typedef struct {
+    struct curl_slist *headers;
+    bool failed;
+} curl_headers_t;
+
+static void
+curl_append_header(const char *key, const char *value, void *userdata)
+{
+    curl_headers_t *ctx = userdata;
+    sentry_stringbuilder_t sb;
+    sentry__stringbuilder_init(&sb);
+    sentry__stringbuilder_append(&sb, key);
+    sentry__stringbuilder_append_char(&sb, ':');
+    sentry__stringbuilder_append(&sb, value);
+    char *header = sentry__stringbuilder_into_string(&sb);
+    if (!header) {
+        ctx->failed = true;
+        return;
+    }
+
+    struct curl_slist *headers = g_curl.slist_append(ctx->headers, header);
+    sentry_free(header);
+    if (!headers) {
+        ctx->failed = true;
+        return;
+    }
+    ctx->headers = headers;
+}
+
+static int
+curl_send_task(const sentry_http_request_t *req, sentry_http_response_t *resp,
+    void *_client)
 {
     curl_client_t *client = (curl_client_t *)_client;
 
 #ifdef SENTRY_PLATFORM_NX
     if (!sentry_nx_curl_connect(client->nx_state)) {
-        return false; // TODO should we dump the envelope to disk?
+        return 1; // TODO should we dump the envelope to disk?
     }
 #endif
 
-    struct curl_slist *headers = NULL;
-    headers = g_curl.slist_append(headers, "expect:");
-    for (size_t i = 0; i < req->headers_len; i++) {
-        char buf[512];
-        size_t written = (size_t)snprintf(buf, sizeof(buf), "%s:%s",
-            req->headers[i].key, req->headers[i].value);
-        if (written >= sizeof(buf)) {
-            continue;
-        }
-        buf[written] = '\0';
-        headers = g_curl.slist_append(headers, buf);
+    curl_headers_t header_ctx = { 0 };
+    header_ctx.headers = g_curl.slist_append(NULL, "expect:");
+    if (!header_ctx.headers) {
+        return 1;
     }
+    sentry_http_request_iter_headers(req, curl_append_header, &header_ctx);
+    if (header_ctx.failed) {
+        g_curl.slist_free_all(header_ctx.headers);
+        return 1;
+    }
+
+    const char *url = sentry_http_request_get_url(req);
+    const char *method = sentry_http_request_get_method(req);
+    const char *body_path = sentry_http_request_get_body_path(req);
+    size_t body_len = 0;
+    const char *body = sentry_http_request_get_body(req, &body_len);
 
     CURL *curl = client->curl_handle;
     g_curl.easy_reset(curl);
@@ -461,8 +484,8 @@ curl_send_task(void *_client, sentry_prepared_http_request_t *req,
     } else {
         g_curl.easy_setopt(curl, CURLOPT_WRITEFUNCTION, swallow_data);
     }
-    g_curl.easy_setopt(curl, CURLOPT_URL, req->url);
-    g_curl.easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
+    g_curl.easy_setopt(curl, CURLOPT_URL, url);
+    g_curl.easy_setopt(curl, CURLOPT_HTTPHEADER, header_ctx.headers);
     g_curl.easy_setopt(curl, CURLOPT_USERAGENT, SENTRY_SDK_USER_AGENT);
     g_curl.easy_setopt(curl, CURLOPT_CONNECTTIMEOUT_MS, 15000L);
     g_curl.easy_setopt(
@@ -473,32 +496,35 @@ curl_send_task(void *_client, sentry_prepared_http_request_t *req,
 
     FILE *body_file = NULL;
     file_body_t file_body = { 0 };
-    if (req->body_path) {
+    if (body_path) {
 #ifdef SENTRY_PLATFORM_WINDOWS
-        body_file = _wfopen(req->body_path->path_w, L"rb");
+        wchar_t *body_path_w = sentry__string_to_wstr(body_path);
+        if (body_path_w) {
+            body_file = _wfopen(body_path_w, L"rb");
+            sentry_free(body_path_w);
+        }
 #else
-        body_file = fopen(req->body_path->path, "rb");
+        body_file = fopen(body_path, "rb");
 #endif
         if (!body_file) {
-            SENTRY_WARNF("failed to open request body file \"%s\"",
-                sentry__path_filename(req->body_path));
-            g_curl.slist_free_all(headers);
-            return false;
+            SENTRY_WARNF("failed to open request body file \"%s\"", body_path);
+            g_curl.slist_free_all(header_ctx.headers);
+            return 1;
         }
         file_body.file = body_file;
-        file_body.path = req->body_path;
+        file_body.path = body_path;
         g_curl.easy_setopt(curl, CURLOPT_UPLOAD, 1L);
-        g_curl.easy_setopt(curl, CURLOPT_CUSTOMREQUEST, req->method);
+        g_curl.easy_setopt(curl, CURLOPT_CUSTOMREQUEST, method);
         g_curl.easy_setopt(curl, CURLOPT_READFUNCTION, file_read_callback);
         g_curl.easy_setopt(curl, CURLOPT_READDATA, &file_body);
         g_curl.easy_setopt(
-            curl, CURLOPT_INFILESIZE_LARGE, (curl_off_t)req->body_len);
-    } else if (req->body) {
+            curl, CURLOPT_INFILESIZE_LARGE, (curl_off_t)body_len);
+    } else if (body) {
         g_curl.easy_setopt(curl, CURLOPT_POST, (long)1);
-        g_curl.easy_setopt(curl, CURLOPT_POSTFIELDS, req->body);
-        g_curl.easy_setopt(curl, CURLOPT_POSTFIELDSIZE, (long)req->body_len);
+        g_curl.easy_setopt(curl, CURLOPT_POSTFIELDS, body);
+        g_curl.easy_setopt(curl, CURLOPT_POSTFIELDSIZE, (long)body_len);
     } else {
-        g_curl.easy_setopt(curl, CURLOPT_CUSTOMREQUEST, req->method);
+        g_curl.easy_setopt(curl, CURLOPT_CUSTOMREQUEST, method);
     }
 
     char error_buf[CURL_ERROR_SIZE];
@@ -516,7 +542,8 @@ curl_send_task(void *_client, sentry_prepared_http_request_t *req,
     }
 
 #ifdef SENTRY_PLATFORM_NX
-    CURLcode rv = sentry_nx_curl_easy_setopt(client->nx_state, curl, req);
+    CURLcode rv = sentry_nx_curl_easy_setopt(
+        client->nx_state, curl, (sentry_prepared_http_request_t *)req);
 #else
     CURLcode rv = CURLE_OK;
 #endif
@@ -528,9 +555,10 @@ curl_send_task(void *_client, sentry_prepared_http_request_t *req,
     if (rv == CURLE_OK) {
         long response_code;
         g_curl.easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &response_code);
-        resp->status_code = (int)response_code;
+        sentry_http_response_set_status(resp, (int)response_code);
     } else {
-        resp->shutdown = sentry__atomic_fetch(&client->shutdown) != 0;
+        sentry_http_response_set_cancelled(
+            resp, sentry__atomic_fetch(&client->shutdown) != 0);
         size_t len = strlen(error_buf);
         if (len) {
             if (error_buf[len - 1] == '\n') {
@@ -547,8 +575,8 @@ curl_send_task(void *_client, sentry_prepared_http_request_t *req,
     if (body_file) {
         fclose(body_file);
     }
-    g_curl.slist_free_all(headers);
-    return rv == CURLE_OK;
+    g_curl.slist_free_all(header_ctx.headers);
+    return rv == CURLE_OK ? 0 : 1;
 }
 
 sentry_transport_t *
@@ -561,13 +589,13 @@ sentry__transport_new_default(void)
     }
 
     sentry_transport_t *transport
-        = sentry__http_transport_new(client, curl_send_task);
+        = sentry_http_transport_new(curl_send_task, client);
     if (!transport) {
         curl_client_free(client);
         return NULL;
     }
-    sentry__http_transport_set_free_client(transport, curl_client_free);
-    sentry__http_transport_set_start_client(transport, curl_client_start);
-    sentry__http_transport_set_shutdown_client(transport, curl_client_shutdown);
+    sentry_http_transport_set_free_func(transport, curl_client_free);
+    sentry_http_transport_set_startup_func(transport, curl_client_start);
+    sentry_http_transport_set_cancel_func(transport, curl_client_shutdown);
     return transport;
 }

@@ -973,6 +973,129 @@ SENTRY_EXPERIMENTAL_API void sentry_transport_retry(
 SENTRY_API void sentry_transport_free(sentry_transport_t *transport);
 
 /**
+ * Opaque HTTP request and response types used by custom HTTP transports.
+ *
+ * The SDK owns both values. They are only valid for the duration of the
+ * `sentry_http_send_function_t` callback.
+ */
+struct sentry_http_request_s;
+typedef struct sentry_http_request_s sentry_http_request_t;
+struct sentry_http_response_s;
+typedef struct sentry_http_response_s sentry_http_response_t;
+
+/**
+ * Called for each HTTP header key/value pair.
+ *
+ * `key` and `value` are borrowed and only valid for the duration of the
+ * callback.
+ */
+typedef void (*sentry_iter_headers_function_t)(
+    const char *key, const char *value, void *userdata);
+
+/**
+ * Sends a prepared HTTP request using a custom HTTP client.
+ *
+ * The callback runs on the HTTP transport's worker thread and must not return
+ * until the request has completed. It should return `0` after receiving an
+ * HTTP response, including an error status, and non-zero for a network error.
+ * Before returning `0`, it must set the response status and should pass every
+ * received header to `sentry_http_response_set_header`.
+ */
+typedef int (*sentry_http_send_function_t)(const sentry_http_request_t *request,
+    sentry_http_response_t *response, void *state);
+
+/**
+ * Creates an HTTP transport backed by `send_func`.
+ *
+ * The transport provides the SDK's HTTP queue, retries, rate limiting, cache,
+ * client reports, and large attachment uploads. `state` is borrowed unless a
+ * free function is configured with `sentry_http_transport_set_free_func`.
+ */
+SENTRY_EXPERIMENTAL_API sentry_transport_t *sentry_http_transport_new(
+    sentry_http_send_function_t send_func, void *state);
+
+/**
+ * Sets the function that frees the custom HTTP client state.
+ */
+SENTRY_EXPERIMENTAL_API void sentry_http_transport_set_free_func(
+    sentry_transport_t *transport, void (*free_func)(void *state));
+
+/**
+ * Sets the custom HTTP client's startup function.
+ *
+ * It runs during `sentry_init`, before the transport worker starts, and should
+ * return `0` on success.
+ */
+SENTRY_EXPERIMENTAL_API void sentry_http_transport_set_startup_func(
+    sentry_transport_t *transport,
+    int (*startup_func)(const sentry_options_t *options, void *state));
+
+/**
+ * Sets a function that cancels an active HTTP request during timed-out
+ * transport shutdown. It can be called from a different thread than
+ * `send_func`.
+ */
+SENTRY_EXPERIMENTAL_API void sentry_http_transport_set_cancel_func(
+    sentry_transport_t *transport, void (*cancel_func)(void *state));
+
+/**
+ * Returns the request method or URL as a borrowed string.
+ */
+SENTRY_EXPERIMENTAL_API const char *sentry_http_request_get_method(
+    const sentry_http_request_t *request);
+SENTRY_EXPERIMENTAL_API const char *sentry_http_request_get_url(
+    const sentry_http_request_t *request);
+
+/**
+ * Calls `func` for every SDK-generated request header.
+ *
+ * The custom HTTP client can add further headers to its native request before
+ * sending it.
+ */
+SENTRY_EXPERIMENTAL_API void sentry_http_request_iter_headers(
+    const sentry_http_request_t *request, sentry_iter_headers_function_t func,
+    void *userdata);
+
+/**
+ * Returns the in-memory request body and writes its length to `length_out`.
+ *
+ * For a file-backed body this returns NULL, but still writes the file size to
+ * `length_out`. The returned buffer is borrowed and may contain null bytes.
+ */
+SENTRY_EXPERIMENTAL_API const char *sentry_http_request_get_body(
+    const sentry_http_request_t *request, size_t *length_out);
+
+/**
+ * Returns the narrow path of a file-backed request body, or NULL when the body
+ * is in memory or empty. It is UTF-8 on Windows and uses the platform path
+ * encoding elsewhere. The returned string is borrowed.
+ */
+SENTRY_EXPERIMENTAL_API const char *sentry_http_request_get_body_path(
+    const sentry_http_request_t *request);
+
+/**
+ * Sets the HTTP status code received for a request.
+ */
+SENTRY_EXPERIMENTAL_API void sentry_http_response_set_status(
+    sentry_http_response_t *response, int status_code);
+
+/**
+ * Passes a response header to the HTTP transport for processing.
+ *
+ * Header names are matched case-insensitively and values are copied when the
+ * transport needs them. Custom HTTP clients can pass every received header;
+ * unrecognized headers are ignored.
+ */
+SENTRY_EXPERIMENTAL_API void sentry_http_response_set_header(
+    sentry_http_response_t *response, const char *key, const char *value);
+
+/**
+ * Marks a network error as caused by transport shutdown, preventing retries.
+ */
+SENTRY_EXPERIMENTAL_API void sentry_http_response_set_cancelled(
+    sentry_http_response_t *response, int cancelled);
+
+/**
  * Create a new function transport.
  *
  * It is a convenience function that works with a borrowed `data`, and will
@@ -2009,7 +2132,8 @@ SENTRY_API void sentry_options_set_transfer_timeout(
 /**
  * Gets the timeout (in milliseconds) for HTTP transfer operations.
  */
-SENTRY_API uint64_t sentry_options_get_transfer_timeout(sentry_options_t *opts);
+SENTRY_API uint64_t sentry_options_get_transfer_timeout(
+    const sentry_options_t *opts);
 
 /**
  * Sets a user-defined backend.
@@ -3877,17 +4001,6 @@ SENTRY_EXPERIMENTAL_API void sentry_span_set_status(
  */
 SENTRY_EXPERIMENTAL_API void sentry_transaction_set_status(
     sentry_transaction_t *tx, sentry_span_status_t status);
-
-/**
- * Type of the `iter_headers` callback.
- *
- * The callback is being called with HTTP header key/value pairs.
- * These headers can be attached to outgoing HTTP requests to propagate
- * distributed tracing metadata to downstream services.
- *
- */
-typedef void (*sentry_iter_headers_function_t)(
-    const char *key, const char *value, void *userdata);
 
 /**
  * Iterates the distributed tracing HTTP headers for the given span.

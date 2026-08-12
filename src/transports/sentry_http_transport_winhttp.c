@@ -88,7 +88,7 @@ winhttp_timeout_ms(uint64_t timeout)
 }
 
 static int
-winhttp_client_start(void *_client, const sentry_options_t *opts)
+winhttp_client_start(const sentry_options_t *opts, void *_client)
 {
     winhttp_client_t *client = _client;
 
@@ -176,31 +176,81 @@ winhttp_client_shutdown(void *_client)
     }
 }
 
-static char *
-query_header(HINTERNET request, const wchar_t *header)
+static void
+set_response_headers(sentry_http_response_t *response, char *headers)
 {
-    // lets just assume we won't have headers > 2k
-    wchar_t buf[2048];
-    DWORD buf_size = sizeof(buf);
+    char *line = headers;
+    while (line && *line) {
+        char *next = strstr(line, "\r\n");
+        if (next) {
+            *next = '\0';
+        }
 
-    if (WinHttpQueryHeaders(request, WINHTTP_QUERY_CUSTOM, header, buf,
-            &buf_size, WINHTTP_NO_HEADER_INDEX)) {
-        return sentry__string_from_wstr(buf);
+        char *separator = strchr(line, ':');
+        if (separator) {
+            *separator = '\0';
+            sentry_http_response_set_header(response, line, separator + 1);
+        }
+        line = next ? next + 2 : NULL;
     }
-
-    return NULL;
 }
 
-static bool
-winhttp_send_task(void *_client, sentry_prepared_http_request_t *req,
-    sentry_http_response_t *resp)
+static void
+query_response_headers(
+    HINTERNET request, sentry_http_response_t *response, bool debug)
+{
+    DWORD size = 0;
+    WinHttpQueryHeaders(request, WINHTTP_QUERY_RAW_HEADERS_CRLF,
+        WINHTTP_HEADER_NAME_BY_INDEX, NULL, &size, WINHTTP_NO_HEADER_INDEX);
+    if (GetLastError() != ERROR_INSUFFICIENT_BUFFER) {
+        return;
+    }
+
+    wchar_t *headers_w = sentry_malloc(size);
+    if (!headers_w) {
+        return;
+    }
+
+    if (WinHttpQueryHeaders(request, WINHTTP_QUERY_RAW_HEADERS_CRLF,
+            WINHTTP_HEADER_NAME_BY_INDEX, headers_w, &size,
+            WINHTTP_NO_HEADER_INDEX)) {
+        char *headers = sentry__string_from_wstr(headers_w);
+        if (headers) {
+            if (debug) {
+                SENTRY_DEBUGF("received response:\n%s", headers);
+            }
+            set_response_headers(response, headers);
+            sentry_free(headers);
+        }
+    }
+    sentry_free(headers_w);
+}
+
+static void
+winhttp_append_header(const char *key, const char *value, void *userdata)
+{
+    sentry_stringbuilder_t *sb = userdata;
+    sentry__stringbuilder_append(sb, key);
+    sentry__stringbuilder_append_char(sb, ':');
+    sentry__stringbuilder_append(sb, value);
+    sentry__stringbuilder_append(sb, "\r\n");
+}
+
+static int
+winhttp_send_task(const sentry_http_request_t *req,
+    sentry_http_response_t *resp, void *_client)
 {
     winhttp_client_t *client = (winhttp_client_t *)_client;
     bool result = false;
 
     uint64_t started = sentry__monotonic_time();
 
-    wchar_t *url = sentry__string_to_wstr(req->url);
+    const char *url_str = sentry_http_request_get_url(req);
+    const char *method = sentry_http_request_get_method(req);
+    const char *body_path = sentry_http_request_get_body_path(req);
+    size_t body_len = 0;
+    const char *body = sentry_http_request_get_body(req, &body_len);
+    wchar_t *url = sentry__string_to_wstr(url_str);
     wchar_t *headers = NULL;
 
     URL_COMPONENTS url_components;
@@ -232,8 +282,8 @@ winhttp_send_task(void *_client, sentry_prepared_http_request_t *req,
         goto exit;
     }
 
-    bool is_secure = strstr(req->url, "https") == req->url;
-    wchar_t *method_w = sentry__string_to_wstr(req->method);
+    bool is_secure = strstr(url_str, "https") == url_str;
+    wchar_t *method_w = sentry__string_to_wstr(method);
     client->request = WinHttpOpenRequest(client->connect, method_w,
         url_components.lpszUrlPath, NULL, WINHTTP_NO_REFERER,
         WINHTTP_DEFAULT_ACCEPT_TYPES, is_secure ? WINHTTP_FLAG_SECURE : 0);
@@ -246,19 +296,13 @@ winhttp_send_task(void *_client, sentry_prepared_http_request_t *req,
 
     sentry_stringbuilder_t sb;
     sentry__stringbuilder_init(&sb);
-
-    for (size_t i = 0; i < req->headers_len; i++) {
-        sentry__stringbuilder_append(&sb, req->headers[i].key);
-        sentry__stringbuilder_append_char(&sb, ':');
-        sentry__stringbuilder_append(&sb, req->headers[i].value);
-        sentry__stringbuilder_append(&sb, "\r\n");
-    }
+    sentry_http_request_iter_headers(req, winhttp_append_header, &sb);
 
     char *headers_buf = sentry__stringbuilder_into_string(&sb);
     headers = sentry__string_to_wstr(headers_buf);
 
     if (headers_buf) {
-        SENTRY_DEBUGF("sending request using winhttp to \"%s\":\n%s", req->url,
+        SENTRY_DEBUGF("sending request using winhttp to \"%s\":\n%s", url_str,
             headers_buf);
     }
     sentry_free(headers_buf);
@@ -274,19 +318,22 @@ winhttp_send_task(void *_client, sentry_prepared_http_request_t *req,
             client->proxy_password, 0);
     }
 
-    if (req->body_path) {
-        HANDLE hFile = CreateFileW(req->body_path->path_w, GENERIC_READ,
-            FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+    if (body_path) {
+        wchar_t *body_path_w = sentry__string_to_wstr(body_path);
+        HANDLE hFile = body_path_w
+            ? CreateFileW(body_path_w, GENERIC_READ, FILE_SHARE_READ, NULL,
+                  OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL)
+            : INVALID_HANDLE_VALUE;
+        sentry_free(body_path_w);
         if (hFile == INVALID_HANDLE_VALUE) {
-            SENTRY_WARNF("failed to open request body file \"%s\"",
-                sentry__path_filename(req->body_path));
+            SENTRY_WARNF("failed to open request body file \"%s\"", body_path);
             goto exit;
         }
 
         // https://learn.microsoft.com/en-us/windows/win32/api/winhttp/nf-winhttp-winhttpsendrequest#support-for-greater-than-4-gb-upload
-        DWORD total_length = req->body_len > (size_t)(DWORD)-1
+        DWORD total_length = body_len > (size_t)(DWORD)-1
             ? WINHTTP_IGNORE_REQUEST_TOTAL_LENGTH
-            : (DWORD)req->body_len;
+            : (DWORD)body_len;
         result = WinHttpSendRequest(client->request, headers, (DWORD)-1,
             WINHTTP_NO_REQUEST_DATA, 0, total_length, 0);
         if (result) {
@@ -296,7 +343,7 @@ winhttp_send_task(void *_client, sentry_prepared_http_request_t *req,
                 if (!ReadFile(hFile, chunk, sizeof(chunk), &bytes_read, NULL)) {
                     SENTRY_WARNF("failed to read request body file \"%s\" "
                                  "with code `%d`",
-                        sentry__path_filename(req->body_path), GetLastError());
+                        body_path, GetLastError());
                     result = false;
                     break;
                 }
@@ -309,13 +356,13 @@ winhttp_send_task(void *_client, sentry_prepared_http_request_t *req,
                         client->request, chunk, bytes_read, &bytes_written)) {
                     SENTRY_WARNF("failed to upload request body file \"%s\" "
                                  "with code `%d`",
-                        sentry__path_filename(req->body_path), GetLastError());
+                        body_path, GetLastError());
                     result = false;
                     break;
                 }
                 if (bytes_written != bytes_read) {
-                    SENTRY_WARNF("failed to upload request body file \"%s\"",
-                        sentry__path_filename(req->body_path));
+                    SENTRY_WARNF(
+                        "failed to upload request body file \"%s\"", body_path);
                     result = false;
                     break;
                 }
@@ -327,7 +374,7 @@ winhttp_send_task(void *_client, sentry_prepared_http_request_t *req,
         CloseHandle(hFile);
     } else {
         result = WinHttpSendRequest(client->request, headers, (DWORD)-1,
-            (LPVOID)req->body, (DWORD)req->body_len, (DWORD)req->body_len, 0);
+            (LPVOID)body, (DWORD)body_len, (DWORD)body_len, 0);
         if (!result) {
             SENTRY_WARNF(
                 "`WinHttpSendRequest` failed with code `%d`", GetLastError());
@@ -341,32 +388,6 @@ winhttp_send_task(void *_client, sentry_prepared_http_request_t *req,
             goto exit;
         }
 
-        if (client->debug) {
-            // this is basically the example from:
-            // https://docs.microsoft.com/en-us/windows/win32/api/winhttp/nf-winhttp-winhttpqueryheaders#examples
-            DWORD dwSize = 0;
-            LPVOID lpOutBuffer = NULL;
-            WinHttpQueryHeaders(client->request, WINHTTP_QUERY_RAW_HEADERS_CRLF,
-                WINHTTP_HEADER_NAME_BY_INDEX, NULL, &dwSize,
-                WINHTTP_NO_HEADER_INDEX);
-
-            // Allocate memory for the buffer.
-            if (GetLastError() == ERROR_INSUFFICIENT_BUFFER) {
-                lpOutBuffer = sentry_malloc(dwSize);
-
-                // Now, use WinHttpQueryHeaders to retrieve the header.
-                if (lpOutBuffer
-                    && WinHttpQueryHeaders(client->request,
-                        WINHTTP_QUERY_RAW_HEADERS_CRLF,
-                        WINHTTP_HEADER_NAME_BY_INDEX, lpOutBuffer, &dwSize,
-                        WINHTTP_NO_HEADER_INDEX)) {
-                    SENTRY_DEBUGF(
-                        "received response:\n%S", (wchar_t *)lpOutBuffer);
-                }
-                sentry_free(lpOutBuffer);
-            }
-        }
-
         DWORD status_code = 0;
         DWORD status_code_size = sizeof(status_code);
 
@@ -374,15 +395,8 @@ winhttp_send_task(void *_client, sentry_prepared_http_request_t *req,
             WINHTTP_QUERY_STATUS_CODE | WINHTTP_QUERY_FLAG_NUMBER,
             WINHTTP_HEADER_NAME_BY_INDEX, &status_code, &status_code_size,
             WINHTTP_NO_HEADER_INDEX);
-        resp->status_code = (int)status_code;
-
-        resp->x_sentry_rate_limits
-            = query_header(client->request, L"x-sentry-rate-limits");
-        if (!resp->x_sentry_rate_limits) {
-            resp->retry_after = query_header(client->request, L"retry-after");
-        }
-
-        resp->location = query_header(client->request, L"location");
+        sentry_http_response_set_status(resp, (int)status_code);
+        query_response_headers(client->request, resp, client->debug);
     }
 
     uint64_t now = sentry__monotonic_time();
@@ -390,7 +404,7 @@ winhttp_send_task(void *_client, sentry_prepared_http_request_t *req,
 
 exit:;
     if (!result && sentry__atomic_fetch(&client->shutdown)) {
-        resp->shutdown = true;
+        sentry_http_response_set_cancelled(resp, 1);
     }
     HINTERNET request = InterlockedExchangePointer(&client->request, NULL);
     if (request) {
@@ -398,7 +412,7 @@ exit:;
     }
     sentry_free(url);
     sentry_free(headers);
-    return result;
+    return result ? 0 : 1;
 }
 
 sentry_transport_t *
@@ -411,14 +425,13 @@ sentry__transport_new_default(void)
     }
 
     sentry_transport_t *transport
-        = sentry__http_transport_new(client, winhttp_send_task);
+        = sentry_http_transport_new(winhttp_send_task, client);
     if (!transport) {
         winhttp_client_free(client);
         return NULL;
     }
-    sentry__http_transport_set_free_client(transport, winhttp_client_free);
-    sentry__http_transport_set_start_client(transport, winhttp_client_start);
-    sentry__http_transport_set_shutdown_client(
-        transport, winhttp_client_shutdown);
+    sentry_http_transport_set_free_func(transport, winhttp_client_free);
+    sentry_http_transport_set_startup_func(transport, winhttp_client_start);
+    sentry_http_transport_set_cancel_func(transport, winhttp_client_shutdown);
     return transport;
 }
