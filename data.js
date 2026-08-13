@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1786543858114,
+  "lastUpdate": 1786609880034,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -41980,6 +41980,150 @@ window.BENCHMARK_DATA = {
             "value": 0.19043054250001745,
             "unit": "ms",
             "extra": "Min 0.190ms\nMax 0.190ms\nMean 0.190ms\nMedian 0.190ms\nCPU 0.017ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "tustanivsky@gmail.com",
+            "name": "Ivan Tustanivskyi",
+            "username": "tustanivsky"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "490cfc0ed26f23a3ada464689ea22e75261174f6",
+          "message": "fix(crashpad): avoid heap allocation in crash-time attachment writes (#1984)\n\n* fix(crashpad): avoid heap allocation in crash-time attachment writes\n\n`write_attachment`/`append_attachment` built a `base::FilePath` from the\nattachment path inside the crash handler, which copies the path into a\n`std::string`/`std::wstring` and hits the global allocator. When a crash is\ncaused by heap corruption, allocating there crashes while handling the\ncrash, so no report is written.\n\nPre-build the event, breadcrumb and external-report `base::FilePath`s once\nat startup and pass them by reference. This keeps the handler-IPC write\npath from #1841 while making the crash-time writes allocation-free.\n\n* Update CHANGELOG.md\n\n* fix(crashpad): harden run-file path handling at startup\n\nSkip empty run-file paths when registering crashpad attachments. If the\npath allocation in create_run_file fails, it returns an empty base::FilePath;\nsuch paths should not be handed to StartHandler.\n\nReset external_report_path on every startup before the external-reporter\ncheck. crashpad_backend_startup runs again on the same state after\nsentry_reinstall_backend, so a stale path from a previous run could\notherwise be retained when external reporting is now disabled or its setup\nfails, leaving crash-time flushes treating an external report as enabled.",
+          "timestamp": "2026-08-13T11:28:25+03:00",
+          "tree_id": "d1aff6047b4d3a72a7ec85c7de4e23e4c1ca9490",
+          "url": "https://github.com/getsentry/sentry-native/commit/490cfc0ed26f23a3ada464689ea22e75261174f6"
+        },
+        "date": 1786609868966,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 0.6374470000025667,
+            "unit": "ms",
+            "extra": "Min 0.602ms\nMax 0.662ms\nMean 0.632ms\nStdDev 0.024ms\nMedian 0.637ms\nCPU 0.593ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 0.573342000024013,
+            "unit": "ms",
+            "extra": "Min 0.571ms\nMax 0.613ms\nMean 0.584ms\nStdDev 0.019ms\nMedian 0.573ms\nCPU 0.584ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 2.2526509999920563,
+            "unit": "ms",
+            "extra": "Min 2.212ms\nMax 2.529ms\nMean 2.309ms\nStdDev 0.130ms\nMedian 2.253ms\nCPU 1.046ms"
+          },
+          {
+            "name": "SDK init (native)",
+            "value": 3.7167209999893203,
+            "unit": "ms",
+            "extra": "Min 3.635ms\nMax 3.803ms\nMean 3.722ms\nStdDev 0.066ms\nMedian 3.717ms\nCPU 0.977ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.1007199999776276,
+            "unit": "ms",
+            "extra": "Min 0.096ms\nMax 0.105ms\nMean 0.101ms\nStdDev 0.004ms\nMedian 0.101ms\nCPU 0.057ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.022102999992057448,
+            "unit": "ms",
+            "extra": "Min 0.020ms\nMax 0.026ms\nMean 0.023ms\nStdDev 0.003ms\nMedian 0.022ms\nCPU 0.022ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 1.190971999960766,
+            "unit": "ms",
+            "extra": "Min 1.168ms\nMax 1.217ms\nMean 1.196ms\nStdDev 0.021ms\nMedian 1.191ms\nCPU 0.284ms"
+          },
+          {
+            "name": "Backend startup (native)",
+            "value": 3.1059469999945577,
+            "unit": "ms",
+            "extra": "Min 3.073ms\nMax 3.306ms\nMean 3.135ms\nStdDev 0.097ms\nMedian 3.106ms\nCPU 0.424ms"
+          },
+          {
+            "name": "Scope set_tag (inproc)",
+            "value": 0.0016447940000148265,
+            "unit": "ms",
+            "extra": "Min 0.002ms\nMax 0.002ms\nMean 0.002ms\nMedian 0.002ms\nCPU 0.002ms"
+          },
+          {
+            "name": "Scope add_breadcrumb (inproc)",
+            "value": 0.00037451000002874935,
+            "unit": "ms",
+            "extra": "Min 0.000ms\nMax 0.000ms\nMean 0.000ms\nMedian 0.000ms\nCPU 0.000ms"
+          },
+          {
+            "name": "Scope set_tag (breakpad)",
+            "value": 0.001639569999952073,
+            "unit": "ms",
+            "extra": "Min 0.002ms\nMax 0.002ms\nMean 0.002ms\nMedian 0.002ms\nCPU 0.002ms"
+          },
+          {
+            "name": "Scope add_breadcrumb (breakpad)",
+            "value": 0.0003661640000132138,
+            "unit": "ms",
+            "extra": "Min 0.000ms\nMax 0.000ms\nMean 0.000ms\nMedian 0.000ms\nCPU 0.000ms"
+          },
+          {
+            "name": "Scope set_tag (crashpad)",
+            "value": 0.0016182129999720019,
+            "unit": "ms",
+            "extra": "Min 0.002ms\nMax 0.002ms\nMean 0.002ms\nMedian 0.002ms\nCPU 0.002ms"
+          },
+          {
+            "name": "Scope add_breadcrumb (crashpad)",
+            "value": 0.0023845779999760452,
+            "unit": "ms",
+            "extra": "Min 0.002ms\nMax 0.002ms\nMean 0.002ms\nMedian 0.002ms\nCPU 0.002ms"
+          },
+          {
+            "name": "Scope set_tag (native)",
+            "value": 1.1919116930000087,
+            "unit": "ms",
+            "extra": "Min 1.192ms\nMax 1.192ms\nMean 1.192ms\nMedian 1.192ms\nCPU 0.055ms"
+          },
+          {
+            "name": "Scope add_breadcrumb (native)",
+            "value": 0.0022530130000291138,
+            "unit": "ms",
+            "extra": "Min 0.002ms\nMax 0.002ms\nMean 0.002ms\nMedian 0.002ms\nCPU 0.002ms"
+          },
+          {
+            "name": "Logs (1 thread)",
+            "value": 0.004001140000013947,
+            "unit": "ms",
+            "extra": "Min 0.004ms\nMax 0.004ms\nMean 0.004ms\nMedian 0.004ms\nCPU 0.004ms"
+          },
+          {
+            "name": "Logs (8 threads)",
+            "value": 0.04088279124999872,
+            "unit": "ms",
+            "extra": "Min 0.041ms\nMax 0.041ms\nMean 0.041ms\nMedian 0.041ms\nCPU 0.011ms"
+          },
+          {
+            "name": "Logs (16 threads)",
+            "value": 0.06112458124995612,
+            "unit": "ms",
+            "extra": "Min 0.061ms\nMax 0.061ms\nMean 0.061ms\nMedian 0.061ms\nCPU 0.009ms"
+          },
+          {
+            "name": "Logs (32 threads)",
+            "value": 0.135124058749998,
+            "unit": "ms",
+            "extra": "Min 0.135ms\nMax 0.135ms\nMean 0.135ms\nMedian 0.135ms\nCPU 0.010ms"
           }
         ]
       }
