@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1786625451976,
+  "lastUpdate": 1786625574907,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -85378,6 +85378,150 @@ window.BENCHMARK_DATA = {
             "value": 0.09061164062494242,
             "unit": "ms",
             "extra": "Min 0.091ms\nMax 0.091ms\nMean 0.091ms\nMedian 0.091ms\nCPU 0.007ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "jpnurmi@gmail.com",
+            "name": "J-P Nurmi",
+            "username": "jpnurmi"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "dcf96230fd77599b8dbb68b459487c6eaedcf20d",
+          "message": "fix(unwinder): Guard invalid ARM32 instruction pointers (#1977)\n\n* fix(unwinder): Guard invalid ARM32 instruction pointers\n\nOn ARM32, unw_step first asks libunwind whether the current frame is a\nsignal frame. The vendored implementation answers that by reading an\ninstruction directly from the cursor's initial IP. Its local address-space\nvalidation is enabled only after this probe, so an unmapped IP faults inside\nthe crash handler instead of returning an unwind error.\n\nThis surfaced when unrelated stack-layout changes made the handler fallback\nproduce 0x10c as its initial IP. No attachment code ran on that path; the\nchanged layout only exposed the unwinder's unchecked read. The resulting\nSIGSEGV recursively entered the crash handler and prevented the original\nabort from being captured.\n\nCheck /proc/self/maps before calling unw_step. Keep the initial frame, as the\nexisting invalid-stack-pointer path does, but stop the walk before libunwind\ncan dereference an unmapped address. Cover the failure with an ARM32 context\nwhose initial IP is intentionally unmapped.\n\n* Update CHANGELOG.md\n\n* Update CHANGELOG.md",
+          "timestamp": "2026-08-13T14:47:07+02:00",
+          "tree_id": "8d2229a2ad48672b6237a40b8141157ab25d0240",
+          "url": "https://github.com/getsentry/sentry-native/commit/dcf96230fd77599b8dbb68b459487c6eaedcf20d"
+        },
+        "date": 1786625568800,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 3.8648750000334076,
+            "unit": "ms",
+            "extra": "Min 3.732ms\nMax 4.107ms\nMean 3.862ms\nStdDev 0.151ms\nMedian 3.865ms\nCPU 2.096ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 4.382791000011821,
+            "unit": "ms",
+            "extra": "Min 4.146ms\nMax 4.524ms\nMean 4.348ms\nStdDev 0.142ms\nMedian 4.383ms\nCPU 2.487ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 18.16887500001485,
+            "unit": "ms",
+            "extra": "Min 13.395ms\nMax 49.925ms\nMean 23.163ms\nStdDev 15.246ms\nMedian 18.169ms\nCPU 5.349ms"
+          },
+          {
+            "name": "SDK init (native)",
+            "value": 12.696083000037106,
+            "unit": "ms",
+            "extra": "Min 11.868ms\nMax 12.929ms\nMean 12.477ms\nStdDev 0.501ms\nMedian 12.696ms\nCPU 3.159ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.07229199997027536,
+            "unit": "ms",
+            "extra": "Min 0.056ms\nMax 0.075ms\nMean 0.067ms\nStdDev 0.008ms\nMedian 0.072ms\nCPU 0.045ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.336833000005754,
+            "unit": "ms",
+            "extra": "Min 0.247ms\nMax 0.897ms\nMean 0.433ms\nStdDev 0.266ms\nMedian 0.337ms\nCPU 0.370ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 8.02525000000287,
+            "unit": "ms",
+            "extra": "Min 7.002ms\nMax 11.765ms\nMean 8.864ms\nStdDev 1.901ms\nMedian 8.025ms\nCPU 1.031ms"
+          },
+          {
+            "name": "Backend startup (native)",
+            "value": 9.956332999990991,
+            "unit": "ms",
+            "extra": "Min 8.754ms\nMax 22.213ms\nMean 12.164ms\nStdDev 5.647ms\nMedian 9.956ms\nCPU 0.843ms"
+          },
+          {
+            "name": "Scope set_tag (inproc)",
+            "value": 0.002712332999976752,
+            "unit": "ms",
+            "extra": "Min 0.003ms\nMax 0.003ms\nMean 0.003ms\nMedian 0.003ms\nCPU 0.003ms"
+          },
+          {
+            "name": "Scope add_breadcrumb (inproc)",
+            "value": 0.0026613750000024083,
+            "unit": "ms",
+            "extra": "Min 0.003ms\nMax 0.003ms\nMean 0.003ms\nMedian 0.003ms\nCPU 0.002ms"
+          },
+          {
+            "name": "Scope set_tag (breakpad)",
+            "value": 0.003028500000027634,
+            "unit": "ms",
+            "extra": "Min 0.003ms\nMax 0.003ms\nMean 0.003ms\nMedian 0.003ms\nCPU 0.003ms"
+          },
+          {
+            "name": "Scope add_breadcrumb (breakpad)",
+            "value": 0.001518416999999772,
+            "unit": "ms",
+            "extra": "Min 0.002ms\nMax 0.002ms\nMean 0.002ms\nMedian 0.002ms\nCPU 0.001ms"
+          },
+          {
+            "name": "Scope set_tag (crashpad)",
+            "value": 0.22912750000000415,
+            "unit": "ms",
+            "extra": "Min 0.229ms\nMax 0.229ms\nMean 0.229ms\nMedian 0.229ms\nCPU 0.194ms"
+          },
+          {
+            "name": "Scope add_breadcrumb (crashpad)",
+            "value": 0.055027291999977024,
+            "unit": "ms",
+            "extra": "Min 0.055ms\nMax 0.055ms\nMean 0.055ms\nMedian 0.055ms\nCPU 0.035ms"
+          },
+          {
+            "name": "Scope set_tag (native)",
+            "value": 0.15283683299998074,
+            "unit": "ms",
+            "extra": "Min 0.153ms\nMax 0.153ms\nMean 0.153ms\nMedian 0.153ms\nCPU 0.134ms"
+          },
+          {
+            "name": "Scope add_breadcrumb (native)",
+            "value": 0.0514444580000486,
+            "unit": "ms",
+            "extra": "Min 0.051ms\nMax 0.051ms\nMean 0.051ms\nMedian 0.051ms\nCPU 0.043ms"
+          },
+          {
+            "name": "Logs (1 thread)",
+            "value": 0.0045962499996221595,
+            "unit": "ms",
+            "extra": "Min 0.005ms\nMax 0.005ms\nMean 0.005ms\nMedian 0.005ms\nCPU 0.005ms"
+          },
+          {
+            "name": "Logs (8 threads)",
+            "value": 0.037051875000173595,
+            "unit": "ms",
+            "extra": "Min 0.037ms\nMax 0.037ms\nMean 0.037ms\nMedian 0.037ms\nCPU 0.010ms"
+          },
+          {
+            "name": "Logs (16 threads)",
+            "value": 0.0859822400000354,
+            "unit": "ms",
+            "extra": "Min 0.086ms\nMax 0.086ms\nMean 0.086ms\nMedian 0.086ms\nCPU 0.012ms"
+          },
+          {
+            "name": "Logs (32 threads)",
+            "value": 0.139763828125119,
+            "unit": "ms",
+            "extra": "Min 0.140ms\nMax 0.140ms\nMean 0.140ms\nMedian 0.140ms\nCPU 0.011ms"
           }
         ]
       }
