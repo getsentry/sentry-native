@@ -698,14 +698,22 @@ sentry__process_old_runs(const sentry_options_t *options, uint64_t last_crash)
 
         sentry_path_t *daemon_lockfile
             = sentry__path_append_str(run_dir, ".daemon.lock");
-        sentry_filelock_t *daemon_lock
-            = daemon_lockfile ? sentry__filelock_new(daemon_lockfile) : NULL;
-        if (!daemon_lock || !sentry__filelock_try_lock(daemon_lock)) {
-            if (daemon_lock) {
-                sentry__filelock_free(daemon_lock);
-            }
+        sentry_filelock_t *daemon_lock = NULL;
+        if (!daemon_lockfile) {
             sentry__filelock_free(lock);
             continue;
+        }
+        if (sentry__path_is_file(daemon_lockfile)) {
+            daemon_lock = sentry__filelock_new(daemon_lockfile);
+            if (!daemon_lock || !sentry__filelock_try_lock(daemon_lock)) {
+                if (daemon_lock) {
+                    sentry__filelock_free(daemon_lock);
+                }
+                sentry__filelock_free(lock);
+                continue;
+            }
+        } else {
+            sentry__path_free(daemon_lockfile);
         }
 
         sentry__process_run_envelopes(options, run_dir);
@@ -758,7 +766,9 @@ sentry__process_old_runs(const sentry_options_t *options, uint64_t last_crash)
         sentry__pathiter_free(run_iter);
 
         sentry__path_remove_all(run_dir);
-        sentry__filelock_free(daemon_lock);
+        if (daemon_lock) {
+            sentry__filelock_free(daemon_lock);
+        }
         sentry__filelock_free(lock);
     }
     sentry__pathiter_free(db_iter);
