@@ -4,6 +4,7 @@
 #include "sentry_backend.h"
 #include "sentry_core.h"
 #include "sentry_database.h"
+#include "sentry_envelope.h"
 #include "sentry_options.h"
 #include "sentry_os.h"
 #include "sentry_ringbuffer.h"
@@ -11,6 +12,7 @@
 #include "sentry_symbolizer.h"
 #include "sentry_sync.h"
 #include "sentry_tracing.h"
+#include "sentry_transport.h"
 #include "sentry_value.h"
 
 #include <stdlib.h>
@@ -83,6 +85,7 @@ init_scope(sentry_scope_t *scope)
     scope->breadcrumbs = sentry__ringbuffer_new(SENTRY_BREADCRUMBS_MAX);
     scope->dynamic_sampling_context = sentry_value_new_object();
     scope->level = SENTRY_LEVEL_ERROR;
+    scope->last_event_id = sentry_uuid_nil();
     scope->client_sdk = sentry_value_new_null();
     scope->attachments = NULL;
     scope->transaction_object = NULL;
@@ -413,6 +416,7 @@ sentry_scope_clone(const sentry_scope_t *scope)
         sentry_value_freeze(clone->dynamic_sampling_context);
     }
     clone->level = scope->level;
+    clone->last_event_id = scope->last_event_id;
     clone->client_sdk = sentry__value_clone(scope->client_sdk);
     sentry__attachments_extend(&clone->attachments, scope->attachments);
 
@@ -1171,4 +1175,41 @@ sentry__scope_apply_to_telemetry(const sentry_scope_t *scope,
             sentry_value_new_string(scope->release), "string",
             "sentry.release");
     }
+}
+
+sentry_uuid_t
+sentry_scope_get_last_event_id(const sentry_scope_t *scope)
+{
+    return scope ? scope->last_event_id : sentry_uuid_nil();
+}
+
+void
+sentry__scope_capture_envelope(sentry_scope_t *scope,
+    sentry_transport_t *transport, sentry_envelope_t *envelope,
+    const sentry_options_t *options)
+{
+    if (envelope) {
+        sentry_uuid_t event_id = sentry__envelope_get_event_id(envelope);
+        if (!sentry_uuid_is_nil(&event_id)) {
+            scope->last_event_id = event_id;
+        }
+    }
+
+    if (!sentry__run_should_skip_upload(options->run)) {
+        sentry__transport_send_envelope(transport, envelope);
+        return;
+    }
+    bool cached = false;
+    if (options->cache_keep || options->http_retry) {
+        int retry_count = options->http_retry ? 0 : -1;
+        cached = sentry__run_write_cache(options->run, envelope, retry_count);
+        if (cached && !sentry__run_should_skip_upload(options->run)) {
+            // consent given meanwhile -> trigger retry to avoid waiting
+            // until the next retry poll
+            sentry_transport_retry(options->transport);
+        }
+    }
+    SENTRY_INFO(cached ? "caching envelope due to missing user consent"
+                       : "discarding envelope due to missing user consent");
+    sentry_envelope_free(envelope);
 }

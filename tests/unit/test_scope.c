@@ -8,6 +8,9 @@
 #include "sentry_tracing.h"
 #include "sentry_utils.h"
 
+#define TEST_CHECK_UUID_EQUAL(Actual, Expected)                                \
+    TEST_CHECK(memcmp(&(Actual), &(Expected), sizeof(sentry_uuid_t)) == 0)
+
 SENTRY_TEST(scope_contexts)
 {
     SENTRY_TEST_OPTIONS_NEW(options);
@@ -2559,6 +2562,99 @@ send_envelope_count(sentry_envelope_t *envelope, void *data)
     uint64_t *called = data;
     *called += 1;
     sentry_envelope_free(envelope);
+}
+
+static sentry_value_t
+conditionally_discard_event(
+    sentry_value_t event, void *UNUSED(hint), void *data)
+{
+    if (*(bool *)data) {
+        sentry_value_decref(event);
+        return sentry_value_new_null();
+    }
+    return event;
+}
+
+SENTRY_TEST(scope_last_event_id)
+{
+    uint64_t called = 0;
+    bool discard = false;
+    SENTRY_TEST_OPTIONS_NEW(options);
+    sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
+    sentry_options_set_auto_session_tracking(options, false);
+    sentry_options_set_traces_sample_rate(options, 1.0);
+    sentry_options_set_before_send(
+        options, conditionally_discard_event, &discard);
+    sentry_transport_t *transport = sentry_transport_new(send_envelope_count);
+    sentry_transport_set_state(transport, &called);
+    sentry_options_set_transport(options, transport);
+    sentry_init(options);
+
+    sentry_uuid_t last_event_id = sentry_get_last_event_id();
+    TEST_CHECK(sentry_uuid_is_nil(&last_event_id));
+    last_event_id = sentry_scope_get_last_event_id(NULL);
+    TEST_CHECK(sentry_uuid_is_nil(&last_event_id));
+
+    sentry_uuid_t global_event_id = sentry_capture_event(
+        sentry_value_new_message_event(SENTRY_LEVEL_ERROR, NULL, "global"));
+    TEST_CHECK(!sentry_uuid_is_nil(&global_event_id));
+    last_event_id = sentry_get_last_event_id();
+    TEST_CHECK_UUID_EQUAL(last_event_id, global_event_id);
+
+    sentry_scope_t *scope = sentry_scope_new();
+    last_event_id = sentry_scope_get_last_event_id(scope);
+    TEST_CHECK(sentry_uuid_is_nil(&last_event_id));
+
+    sentry_uuid_t scoped_event_id = sentry_scope_capture_event(scope,
+        sentry_value_new_message_event(SENTRY_LEVEL_ERROR, NULL, "scoped"));
+    TEST_CHECK(!sentry_uuid_is_nil(&scoped_event_id));
+    last_event_id = sentry_scope_get_last_event_id(scope);
+    TEST_CHECK_UUID_EQUAL(last_event_id, scoped_event_id);
+    last_event_id = sentry_get_last_event_id();
+    TEST_CHECK_UUID_EQUAL(last_event_id, global_event_id);
+
+    sentry_scope_t *clone = sentry_scope_clone(scope);
+    last_event_id = sentry_scope_get_last_event_id(clone);
+    TEST_CHECK_UUID_EQUAL(last_event_id, scoped_event_id);
+
+    discard = true;
+    sentry_uuid_t discarded_event_id = sentry_scope_capture_event(scope,
+        sentry_value_new_message_event(SENTRY_LEVEL_ERROR, NULL, "discarded"));
+    TEST_CHECK(sentry_uuid_is_nil(&discarded_event_id));
+    last_event_id = sentry_scope_get_last_event_id(scope);
+    TEST_CHECK_UUID_EQUAL(last_event_id, scoped_event_id);
+
+    discarded_event_id = sentry_capture_event(
+        sentry_value_new_message_event(SENTRY_LEVEL_ERROR, NULL, "discarded"));
+    TEST_CHECK(sentry_uuid_is_nil(&discarded_event_id));
+    last_event_id = sentry_get_last_event_id();
+    TEST_CHECK_UUID_EQUAL(last_event_id, global_event_id);
+
+    sentry_transaction_t *transaction = sentry_transaction_start(
+        sentry_transaction_context_new("transaction", NULL),
+        sentry_value_new_null());
+    sentry_uuid_t transaction_id = sentry_transaction_finish(transaction);
+    TEST_CHECK(!sentry_uuid_is_nil(&transaction_id));
+    last_event_id = sentry_get_last_event_id();
+    TEST_CHECK_UUID_EQUAL(last_event_id, transaction_id);
+
+    sentry_uuid_t feedback_id = sentry_scope_capture_feedback(
+        NULL, sentry_value_new_feedback("feedback", NULL, NULL, NULL), NULL);
+    TEST_CHECK(!sentry_uuid_is_nil(&feedback_id));
+    last_event_id = sentry_get_last_event_id();
+    TEST_CHECK_UUID_EQUAL(last_event_id, feedback_id);
+
+    sentry_scope_clear(scope);
+    last_event_id = sentry_scope_get_last_event_id(scope);
+    TEST_CHECK(sentry_uuid_is_nil(&last_event_id));
+    last_event_id = sentry_scope_get_last_event_id(clone);
+    TEST_CHECK_UUID_EQUAL(last_event_id, scoped_event_id);
+
+    sentry_scope_free(clone);
+    sentry_scope_free(scope);
+    sentry_close();
+
+    TEST_CHECK_INT_EQUAL(called, 4);
 }
 
 SENTRY_TEST(scope_capture_user_owned)

@@ -2187,6 +2187,22 @@ SENTRY_API sentry_scope_t *sentry_scope_clone(const sentry_scope_t *scope);
 SENTRY_API void sentry_scope_clear(sentry_scope_t *scope);
 
 /**
+ * Returns the ID of the last event sent with the global scope.
+ *
+ * Returns a nil UUID if no event has been sent.
+ */
+SENTRY_API sentry_uuid_t sentry_get_last_event_id(void);
+
+/**
+ * Returns the ID of the last event sent with `scope`.
+ *
+ * Returns a nil UUID if no event has been sent with the scope or if `scope` is
+ * NULL.
+ */
+SENTRY_API sentry_uuid_t sentry_scope_get_last_event_id(
+    const sentry_scope_t *scope);
+
+/**
  * Sends a sentry event.
  *
  * If returns a nil UUID if the event being passed in is a transaction, and the
