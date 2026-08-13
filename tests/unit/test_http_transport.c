@@ -94,21 +94,6 @@ SENTRY_TEST(http_response_set_status_code)
     sentry_http_response_set_status_code(NULL, 500);
 }
 
-SENTRY_TEST(http_response_set_shutdown)
-{
-    sentry_http_response_t resp;
-    memset(&resp, 0, sizeof(resp));
-
-    TEST_CHECK(!resp.shutdown);
-    sentry_http_response_set_shutdown(&resp, 1);
-    TEST_CHECK(resp.shutdown);
-    sentry_http_response_set_shutdown(&resp, 0);
-    TEST_CHECK(!resp.shutdown);
-
-    // Must not crash on a NULL response.
-    sentry_http_response_set_shutdown(NULL, 1);
-}
-
 static sentry_prepared_http_request_t *
 make_test_request(void)
 {

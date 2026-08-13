@@ -402,9 +402,6 @@ winhttp_send_task(void *_client, sentry_prepared_http_request_t *req,
     SENTRY_DEBUGF("request handled in %llums", now - started);
 
 exit:;
-    if (!result && sentry__atomic_fetch(&client->shutdown)) {
-        resp->shutdown = true;
-    }
     HINTERNET request = InterlockedExchangePointer(&client->request, NULL);
     if (request) {
         WinHttpCloseHandle(request);

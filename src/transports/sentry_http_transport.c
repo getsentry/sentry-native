@@ -37,6 +37,10 @@ typedef struct {
     int (*start_client)(void *, const sentry_options_t *);
     sentry_http_client_send_func_t send_func;
     void (*shutdown_client)(void *client);
+    // Set before the client is asked to stop, so a `send_func` failure that
+    // only happened because shutdown interrupted it can be told apart from a
+    // regular request error without the client having to report it back.
+    volatile long shutting_down;
     sentry_retry_t *retry;
     sentry_cache_keep_t cache_keep;
     sentry_run_t *run;
@@ -366,15 +370,6 @@ sentry_http_response_set_status_code(
     resp->status_code = status_code;
 }
 
-void
-sentry_http_response_set_shutdown(sentry_http_response_t *resp, int is_shutdown)
-{
-    if (!resp) {
-        return;
-    }
-    resp->shutdown = !!is_shutdown;
-}
-
 const char *
 sentry_http_request_get_method(const sentry_http_request_t *req)
 {
@@ -452,7 +447,9 @@ http_send_request(http_transport_state_t *state,
 {
     memset(resp, 0, sizeof(*resp));
     if (!state->send_func(state->client, req, resp)) {
-        int result = resp->shutdown ? RESULT_SHUTDOWN : RESULT_ERROR;
+        int result = sentry__atomic_fetch(&state->shutting_down)
+            ? RESULT_SHUTDOWN
+            : RESULT_ERROR;
         http_response_cleanup(resp);
         return result;
     }
@@ -946,6 +943,11 @@ http_transport_shutdown(uint64_t timeout, void *transport_state)
 {
     sentry_bgworker_t *bgworker = transport_state;
     http_transport_state_t *state = sentry__bgworker_get_state(bgworker);
+
+    // Must be set before the client is asked to stop (which only happens from
+    // `http_transport_shutdown_timeout` below), so that any `send_func` failure
+    // caused by that interruption is already seen as a shutdown failure.
+    sentry__atomic_store(&state->shutting_down, 1);
 
     sentry__retry_shutdown(state->retry);
 

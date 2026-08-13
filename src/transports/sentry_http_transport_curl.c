@@ -522,7 +522,6 @@ curl_send_task(void *_client, sentry_prepared_http_request_t *req,
         g_curl.easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &response_code);
         resp->status_code = (int)response_code;
     } else {
-        resp->shutdown = sentry__atomic_fetch(&client->shutdown) != 0;
         size_t len = strlen(error_buf);
         if (len) {
             if (error_buf[len - 1] == '\n') {

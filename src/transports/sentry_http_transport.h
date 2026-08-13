@@ -40,7 +40,6 @@ struct sentry_http_response_s {
     char *retry_after;
     char *x_sentry_rate_limits;
     char *location;
-    bool shutdown;
 };
 
 /**

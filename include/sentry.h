@@ -1063,16 +1063,6 @@ SENTRY_EXPERIMENTAL_API void sentry_http_response_set_header(
     sentry_http_response_t *resp, const char *key, const char *value);
 
 /**
- * Marks `resp` as having failed because the transport is shutting down,
- * rather than because of a regular request error. Only meaningful when the
- * client's `sentry_http_client_send_func_t` call is about to return `0`
- * (failure); sentry-native uses this to skip retry/caching for requests
- * that failed only because shutdown interrupted them.
- */
-SENTRY_EXPERIMENTAL_API void sentry_http_response_set_shutdown(
-    sentry_http_response_t *resp, int is_shutdown);
-
-/**
  * Opaque handle to a custom HTTP client instance, as created by a
  * `sentry_http_client_factory_func_t` and passed back into
  * `sentry_http_client_send_func_t` and the client start/shutdown hooks.
@@ -1104,9 +1094,9 @@ typedef sentry_http_client_t *(*sentry_http_client_factory_func_t)(
  * `sentry_http_response_set_header`.
  *
  * Returns `1` on success. Returning `0` marks the request as failed for
- * sentry-native's retry/caching logic; call
- * `sentry_http_response_set_shutdown` first if the failure is because the
- * transport is shutting down rather than a request error.
+ * sentry-native's retry/caching logic. A request that fails only because
+ * shutdown interrupted it does not need any special handling: sentry-native
+ * already knows it is shutting down and classifies the failure accordingly.
  *
  * sentry-native calls this from a single background thread, once per
  * request, in the order requests were queued, and never invokes it again
