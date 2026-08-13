@@ -5,6 +5,9 @@
 #include "transports/sentry_http_transport.h"
 
 #include <string.h>
+#ifdef SENTRY_PLATFORM_WINDOWS
+#    include <wchar.h>
+#endif
 
 SENTRY_TEST(http_response_set_header_sets_known_headers)
 {
@@ -171,6 +174,20 @@ SENTRY_TEST(http_request_accessors_file_backed_body)
     const char *path = sentry_http_request_get_body_file_path(req, &len);
     TEST_CHECK_STRING_EQUAL(path, "/tmp/does-not-need-to-exist");
     TEST_CHECK_INT_EQUAL((int)len, 100 * 1024 * 1024);
+
+#ifdef SENTRY_PLATFORM_WINDOWS
+    // The wide variant must stay in sync with the narrow one, since that is
+    // what a Windows client needs to hand to the `W` Win32 file APIs.
+    len = 0;
+    const wchar_t *path_w = sentry_http_request_get_body_file_pathw(req, &len);
+    TEST_CHECK(path_w != NULL);
+    TEST_CHECK(wcscmp(path_w, L"/tmp/does-not-need-to-exist") == 0);
+    TEST_CHECK_INT_EQUAL((int)len, 100 * 1024 * 1024);
+
+    len = 123;
+    TEST_CHECK(sentry_http_request_get_body_file_pathw(NULL, &len) == NULL);
+    TEST_CHECK_INT_EQUAL((int)len, 0);
+#endif
 
     sentry__prepared_http_request_free(req);
 }

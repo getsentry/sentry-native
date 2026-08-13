@@ -1032,9 +1032,23 @@ SENTRY_EXPERIMENTAL_API const char *sentry_http_request_get_body(
  * `req`, and writes its size to `*len_out`. Returns `NULL` unless `req`
  * requires a file-backed body -- see `sentry_http_request_get_body`, which
  * also covers requests with no body at all.
+ *
+ * The path is in a platform-specific filesystem path encoding, which on
+ * Windows is UTF-8 rather than the ANSI code page the narrow Win32 APIs
+ * assume. API users on Windows are encouraged to use
+ * `sentry_http_request_get_body_file_pathw` instead, which is what the
+ * built-in curl and WinHTTP transports use.
  */
 SENTRY_EXPERIMENTAL_API const char *sentry_http_request_get_body_file_path(
     const sentry_http_request_t *req, size_t *len_out);
+
+#ifdef SENTRY_PLATFORM_WINDOWS
+/**
+ * Wide char version of `sentry_http_request_get_body_file_path`.
+ */
+SENTRY_EXPERIMENTAL_API const wchar_t *sentry_http_request_get_body_file_pathw(
+    const sentry_http_request_t *req, size_t *len_out);
+#endif
 
 /**
  * Represents the response to a single HTTP request, to be filled in by a

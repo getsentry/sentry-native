@@ -435,6 +435,24 @@ sentry_http_request_get_body_file_path(
     return req->body_path->path;
 }
 
+#ifdef SENTRY_PLATFORM_WINDOWS
+const wchar_t *
+sentry_http_request_get_body_file_pathw(
+    const sentry_http_request_t *req, size_t *len_out)
+{
+    if (!req || !req->body_path) {
+        if (len_out) {
+            *len_out = 0;
+        }
+        return NULL;
+    }
+    if (len_out) {
+        *len_out = req->body_len;
+    }
+    return req->body_path->path_w;
+}
+#endif
+
 enum {
     RESULT_OK = 0,
     RESULT_ERROR = -1,
