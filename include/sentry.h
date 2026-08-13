@@ -101,7 +101,7 @@ extern "C" {
 #    endif
 #endif
 #ifndef SENTRY_SDK_VERSION
-#    define SENTRY_SDK_VERSION "0.16.2"
+#    define SENTRY_SDK_VERSION "0.16.3"
 #endif
 #define SENTRY_SDK_USER_AGENT SENTRY_SDK_NAME "/" SENTRY_SDK_VERSION
 
@@ -3398,10 +3398,13 @@ SENTRY_EXPERIMENTAL_API void sentry_transaction_discard(
  * This increases the number of references pointing to the Transaction. Invoke
  * `sentry_transaction_finish` to remove the Transaction set by this function as
  * well as its reference by passing in the same Transaction as the one passed
- * into this function.
+ * into this function. A Transaction set on a scope stays set until it is
+ * replaced or the scope is freed.
  */
 SENTRY_EXPERIMENTAL_API void sentry_set_transaction_object(
     sentry_transaction_t *tx);
+SENTRY_EXPERIMENTAL_API void sentry_scope_set_transaction_object(
+    sentry_scope_t *scope, sentry_transaction_t *tx);
 
 /**
  * Sets the Span so any Events sent while the Span
@@ -3410,9 +3413,12 @@ SENTRY_EXPERIMENTAL_API void sentry_set_transaction_object(
  * This increases the number of references pointing to the Span. Invoke
  * `sentry_span_finish` to remove the Span set by this function as well
  * as its reference by passing in the same Span as the one passed into
- * this function.
+ * this function. A Span set on a scope stays set until it is replaced or the
+ * scope is freed.
  */
 SENTRY_EXPERIMENTAL_API void sentry_set_span(sentry_span_t *span);
+SENTRY_EXPERIMENTAL_API void sentry_scope_set_span(
+    sentry_scope_t *scope, sentry_span_t *span);
 
 /**
  * Starts a new Span.
