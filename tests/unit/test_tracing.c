@@ -863,6 +863,74 @@ SENTRY_TEST(trace_finish)
     TEST_CHECK_INT_EQUAL(called, 0);
 }
 
+SENTRY_TEST(finish_dropped_span_twice)
+{
+    SENTRY_TEST_OPTIONS_NEW(options);
+    sentry_options_set_traces_sample_rate(options, 1.0);
+    sentry_init(options);
+
+    sentry_transaction_context_t *ctx
+        = sentry_transaction_context_new("txn", NULL);
+    // Unsampled root drops finished child spans.
+    sentry_transaction_context_set_sampled(ctx, 0);
+    sentry_transaction_t *tx
+        = sentry_transaction_start(ctx, sentry_value_new_null());
+    sentry_span_t *span
+        = sentry_transaction_start_child(tx, "db.query", "select");
+    TEST_ASSERT(!!span);
+
+    // Hold reference (as a scope would) so the span survives the first finish.
+    sentry__span_incref(span);
+
+    // Dropped because the root is unsampled. Should be stamped as done.
+    sentry_span_finish(span);
+    TEST_CHECK(!IS_NULL(span->inner, "timestamp"));
+
+    // Marked done above, so the guard aborts instead of releasing twice.
+    sentry_span_finish(span);
+    CHECK_STRING_PROPERTY(span->inner, "description", "select");
+
+    sentry__span_decref(span);
+    sentry__transaction_decref(tx);
+
+    sentry_close();
+}
+
+SENTRY_TEST(finish_overflowed_span_twice)
+{
+    SENTRY_TEST_OPTIONS_NEW(options);
+    sentry_options_set_traces_sample_rate(options, 1.0);
+    // Force the second child span to overflow and be dropped.
+    sentry_options_set_max_spans(options, 1);
+    sentry_init(options);
+
+    sentry_transaction_t *tx = sentry_transaction_start(
+        sentry_transaction_context_new("txn", NULL), sentry_value_new_null());
+    sentry_span_t *first = sentry_transaction_start_child(tx, "op", "first");
+    sentry_span_t *overflow
+        = sentry_transaction_start_child(tx, "op", "overflow");
+    TEST_ASSERT(!!first && !!overflow);
+
+    sentry_span_finish(first);
+
+    // Hold reference (as a scope would) so the span survives the first finish.
+    sentry__span_incref(overflow);
+
+    // Dropped for overflowing max_spans. Should be stamped as done.
+    sentry_span_finish(overflow);
+    TEST_CHECK(!IS_NULL(overflow->inner, "timestamp"));
+
+    // Marked done above, so the guard aborts instead of releasing twice.
+    sentry_span_finish(overflow);
+    sentry_value_t spans = sentry_value_get_by_key(tx->inner, "spans");
+    TEST_CHECK_INT_EQUAL(sentry_value_get_length(spans), 1);
+
+    sentry__span_decref(overflow);
+    sentry_transaction_finish(tx);
+
+    sentry_close();
+}
+
 SENTRY_TEST(finish_transaction_twice)
 {
     uint64_t called = 0;
@@ -879,14 +947,15 @@ SENTRY_TEST(finish_transaction_twice)
     sentry_transaction_t *tx = sentry_transaction_start(
         sentry_transaction_context_new("txn", NULL), sentry_value_new_null());
 
-    // Keep a second reference so the transaction survives the first finish.
+    // Hold reference (as a scope would) so the span survives the first finish.
     sentry__transaction_incref(tx);
 
+    // Should be stamped as done.
     sentry_transaction_finish(tx);
     TEST_CHECK_INT_EQUAL(called, 1);
     TEST_CHECK(!IS_NULL(tx->inner, "timestamp"));
 
-    // The second finish should do nothing, not send the transaction again.
+    // The second finish should not send the transaction again.
     sentry_transaction_finish(tx);
     TEST_CHECK_INT_EQUAL(called, 1);
     CHECK_STRING_PROPERTY(tx->inner, "transaction", "txn");
@@ -908,7 +977,7 @@ SENTRY_TEST(finish_span_twice)
         = sentry_transaction_start_child(tx, "db.query", "select");
     TEST_ASSERT(!!span);
 
-    // Keep a second reference so the span survives the first finish.
+    // Hold reference (as a scope would) so the span survives the first finish.
     sentry__span_incref(span);
 
     sentry_span_finish(span);
@@ -916,6 +985,7 @@ SENTRY_TEST(finish_span_twice)
     TEST_CHECK_INT_EQUAL(sentry_value_get_length(spans), 1);
     TEST_CHECK(!IS_NULL(span->inner, "timestamp"));
 
+    // Marked done above, so the guard aborts instead of releasing twice.
     sentry_span_finish(span);
     TEST_CHECK_INT_EQUAL(sentry_value_get_length(spans), 1);
     CHECK_STRING_PROPERTY(span->inner, "description", "select");
@@ -942,9 +1012,9 @@ SENTRY_TEST(start_child_on_finished_parent)
     sentry__span_incref(span);
     sentry__transaction_incref(tx);
 
+    // Starting a child span on a finished parent returns NULL.
     sentry_span_finish(span);
     TEST_CHECK(!sentry_span_start_child(span, "http.client", "GET"));
-
     sentry_transaction_finish(tx);
     TEST_CHECK(!sentry_transaction_start_child(tx, "http.client", "GET"));
 

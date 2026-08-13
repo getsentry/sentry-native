@@ -1494,6 +1494,8 @@ sentry__transaction_finish_value(
         return sentry_value_new_null();
     }
 
+    // Mark as finished before any drop path releases the caller's reference,
+    // preventing a second finish call from releasing it again.
     sentry_value_set_by_key(opaque_tx->inner, "timestamp",
         sentry__value_new_string_owned(
             sentry__usec_time_to_iso8601(timestamp)));
@@ -1719,6 +1721,12 @@ sentry_span_finish_ts(sentry_span_t *opaque_span, uint64_t timestamp)
         return;
     }
 
+    // Mark as finished before any drop path releases the caller's reference,
+    // preventing a second finish call from releasing it again.
+    sentry_value_set_by_key(opaque_span->inner, "timestamp",
+        sentry__value_new_string_owned(
+            sentry__usec_time_to_iso8601(timestamp)));
+
     sentry_transaction_t *opaque_root_transaction = opaque_span->transaction;
     if (!opaque_root_transaction
         || sentry_value_is_null(opaque_root_transaction->inner)) {
@@ -1743,10 +1751,6 @@ sentry_span_finish_ts(sentry_span_t *opaque_span, uint64_t timestamp)
                     "span finish");
         goto fail;
     }
-
-    sentry_value_set_by_key(opaque_span->inner, "timestamp",
-        sentry__value_new_string_owned(
-            sentry__usec_time_to_iso8601(timestamp)));
 
     sentry_value_t span = sentry__value_clone(opaque_span->inner);
 
