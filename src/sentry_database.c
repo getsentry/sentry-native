@@ -770,12 +770,10 @@ sentry__process_old_runs(const sentry_options_t *options, uint64_t last_crash)
             sentry__path_free(daemon_lockfile);
         }
 
-        if (options->backend && options->backend->process_old_run_func
-            && !options->backend->process_old_run_func(
-                options->backend, options, run_dir)) {
-            sentry__filelock_free(daemon_lock);
-            sentry__filelock_free(lock);
-            continue;
+        bool processed = true;
+        if (options->backend && options->backend->process_old_run_func) {
+            processed = options->backend->process_old_run_func(
+                options->backend, options, run_dir);
         }
         sentry__process_run_envelopes(options, run_dir);
 
@@ -823,13 +821,16 @@ sentry__process_old_runs(const sentry_options_t *options, uint64_t last_crash)
                         session_num = 0;
                     }
                 }
+                sentry__path_remove(file);
+            } else if (processed) {
+                sentry__path_remove(file);
             }
-
-            sentry__path_remove(file);
         }
         sentry__pathiter_free(run_iter);
 
-        sentry__path_remove_all(run_dir);
+        if (processed) {
+            sentry__path_remove_all(run_dir);
+        }
         if (daemon_lock) {
             sentry__filelock_free(daemon_lock);
         }
