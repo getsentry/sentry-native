@@ -387,6 +387,32 @@ SENTRY_TEST(crash_context_transport_fields)
 #endif
 }
 
+SENTRY_TEST(crash_context_init)
+{
+#ifdef SENTRY_BACKEND_NATIVE
+    sentry_crash_context_t *ctx = sentry_malloc(sizeof(*ctx));
+    TEST_ASSERT(!!ctx);
+    memset(ctx, 0xA5, sizeof(*ctx));
+
+    sentry__crash_context_init(ctx);
+
+    TEST_CHECK_INT_EQUAL(ctx->magic, SENTRY_CRASH_MAGIC);
+    TEST_CHECK_INT_EQUAL(ctx->version, SENTRY_CRASH_VERSION);
+    TEST_CHECK_INT_EQUAL(ctx->state, SENTRY_CRASH_STATE_READY);
+    TEST_CHECK_INT_EQUAL(ctx->sequence, 0);
+    TEST_CHECK_INT_EQUAL(ctx->module_count, 0);
+
+    TEST_CHECK(
+        ((unsigned char *)ctx)[offsetof(sentry_crash_context_t, modules) - 1]
+        == 0);
+    TEST_CHECK(((unsigned char *)&ctx->modules[0])[0] == 0xA5);
+
+    sentry_free(ctx);
+#else
+    SKIP_TEST();
+#endif
+}
+
 /**
  * Test that options transport configuration is propagated to crash context
  * during native backend startup. This verifies the fix for the daemon

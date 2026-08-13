@@ -8,6 +8,11 @@
  */
 sentry_value_t sentry__value_new_string_owned(char *s);
 
+/**
+ * Create a new Value from an owned string with explicit byte length.
+ */
+sentry_value_t sentry__value_new_string_owned_n(char *s, size_t s_len);
+
 #ifdef SENTRY_PLATFORM_WINDOWS
 /**
  * Create a new Value from a Wide String.

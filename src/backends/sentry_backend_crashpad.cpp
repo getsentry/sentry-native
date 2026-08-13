@@ -90,6 +90,19 @@ safe_delete(T *&ptr)
     ptr = nullptr;
 }
 
+static base::FilePath
+create_run_file(const sentry_path_t *run_folder, const char *name)
+{
+    sentry_path_t *path = sentry__path_join_str(run_folder, name);
+    if (!path) {
+        return base::FilePath();
+    }
+    sentry__path_touch(path);
+    base::FilePath filepath(SENTRY_PATH_PLATFORM_STR(path));
+    sentry__path_free(path);
+    return filepath;
+}
+
 extern "C" {
 
 #ifdef SENTRY_PLATFORM_LINUX
@@ -126,10 +139,10 @@ static_assert(std::atomic<bool>::is_always_lock_free,
 typedef struct {
     crashpad::CrashReportDatabase *db;
     crashpad::CrashpadClient *client;
-    sentry_path_t *event_path;
-    sentry_path_t *breadcrumb1_path;
-    sentry_path_t *breadcrumb2_path;
-    sentry_path_t *external_report_path;
+    base::FilePath event_path;
+    base::FilePath breadcrumb1_path;
+    base::FilePath breadcrumb2_path;
+    base::FilePath external_report_path;
     size_t num_breadcrumbs;
     std::atomic<bool> crashed;
     std::atomic<bool> scope_flush;
@@ -213,35 +226,33 @@ crashpad_register_wer_module(
 #endif
 
 static int
-write_attachment(crashpad_state_t *state, const sentry_path_t *path,
+write_attachment(crashpad_state_t *state, const base::FilePath &path,
     const char *data, size_t size)
 {
-    if (!path || !state || !state->client) {
+    if (path.empty() || !state || !state->client) {
         return 1;
     }
     return state->client->WriteAttachment(
-               base::FilePath(SENTRY_PATH_PLATFORM_STR(path)),
-               base::as_bytes(base::make_span(data, size)))
+               path, base::as_bytes(base::make_span(data, size)))
         ? 0
         : 1;
 }
 
 static int
-append_attachment(crashpad_state_t *state, const sentry_path_t *path,
+append_attachment(crashpad_state_t *state, const base::FilePath &path,
     const char *data, size_t size)
 {
-    if (!path || !state || !state->client) {
+    if (path.empty() || !state || !state->client) {
         return 1;
     }
     return state->client->AppendAttachment(
-               base::FilePath(SENTRY_PATH_PLATFORM_STR(path)),
-               base::as_bytes(base::make_span(data, size)))
+               path, base::as_bytes(base::make_span(data, size)))
         ? 0
         : 1;
 }
 
 static void
-flush_scope_to_event(crashpad_state_t *state, const sentry_path_t *event_path,
+flush_scope_to_event(crashpad_state_t *state, const base::FilePath &event_path,
     const sentry_options_t *options, sentry_value_t crash_event)
 {
     SENTRY_WITH_SCOPE (scope) {
@@ -269,7 +280,7 @@ flush_scope_to_event(crashpad_state_t *state, const sentry_path_t *event_path,
 // external crash reporter.
 static void
 flush_external_crash_report(crashpad_state_t *state,
-    const sentry_path_t *external_report_path, const sentry_options_t *options,
+    const base::FilePath &external_report_path, const sentry_options_t *options,
     const sentry_uuid_t *crash_event_id)
 {
     sentry_envelope_t *envelope = sentry__envelope_new();
@@ -353,7 +364,8 @@ crashpad_backend_flush_scope(
     bool expected = false;
 
     //
-    if (!data->event_path || data->crashed.load(std::memory_order_relaxed)
+    if (data->event_path.empty()
+        || data->crashed.load(std::memory_order_relaxed)
         || !data->scope_flush.compare_exchange_strong(
             expected, true, std::memory_order_acquire)) {
         return;
@@ -368,7 +380,7 @@ crashpad_backend_flush_scope(
         event, "level", sentry__value_new_level(SENTRY_LEVEL_FATAL));
 
     flush_scope_to_event(data, data->event_path, options, event);
-    if (data->external_report_path) {
+    if (!data->external_report_path.empty()) {
         flush_external_crash_report(
             data, data->external_report_path, options, &data->crash_event_id);
     }
@@ -421,7 +433,7 @@ flush_scope_from_handler(
 
     // now we are the sole flusher and can flush into the crash event
     flush_scope_to_event(state, state->event_path, options, crash_event);
-    if (state->external_report_path) {
+    if (!state->external_report_path.empty()) {
         flush_external_crash_report(state, state->external_report_path, options,
             &state->crash_event_id);
     }
@@ -782,21 +794,18 @@ crashpad_backend_startup(
 
     // and add the serialized event, and two rotating breadcrumb files
     // as attachments and make sure the files exist
-    data->event_path
-        = sentry__path_join_str(current_run_folder, "__sentry-event");
+    data->event_path = create_run_file(current_run_folder, "__sentry-event");
     data->breadcrumb1_path
-        = sentry__path_join_str(current_run_folder, "__sentry-breadcrumb1");
+        = create_run_file(current_run_folder, "__sentry-breadcrumb1");
     data->breadcrumb2_path
-        = sentry__path_join_str(current_run_folder, "__sentry-breadcrumb2");
+        = create_run_file(current_run_folder, "__sentry-breadcrumb2");
 
-    sentry__path_touch(data->event_path);
-    sentry__path_touch(data->breadcrumb1_path);
-    sentry__path_touch(data->breadcrumb2_path);
-
-    attachments.insert(attachments.end(),
-        { base::FilePath(SENTRY_PATH_PLATFORM_STR(data->event_path)),
-            base::FilePath(SENTRY_PATH_PLATFORM_STR(data->breadcrumb1_path)),
-            base::FilePath(SENTRY_PATH_PLATFORM_STR(data->breadcrumb2_path)) });
+    for (const base::FilePath *run_file : { &data->event_path,
+             &data->breadcrumb1_path, &data->breadcrumb2_path }) {
+        if (!run_file->empty()) {
+            attachments.push_back(*run_file);
+        }
+    }
 
     base::FilePath screenshot;
     if (options->attach_screenshot) {
@@ -807,25 +816,26 @@ crashpad_backend_startup(
 
     base::FilePath crash_reporter;
     base::FilePath crash_envelope;
+    data->external_report_path = base::FilePath();
     if (options->external_crash_reporter) {
         char *filename
             = sentry__uuid_as_filename(&data->crash_event_id, ".envelope");
-        data->external_report_path
+        sentry_path_t *external_report_path
             = sentry__path_join_str(options->run->external_path, filename);
         sentry_free(filename);
 
-        if (data->external_report_path) {
+        if (external_report_path) {
             if (sentry__path_create_dir_all(options->run->external_path) == 0) {
+                data->external_report_path = base::FilePath(
+                    SENTRY_PATH_PLATFORM_STR(external_report_path));
                 crash_reporter = base::FilePath(
                     SENTRY_PATH_PLATFORM_STR(options->external_crash_reporter));
-                crash_envelope = base::FilePath(
-                    SENTRY_PATH_PLATFORM_STR(data->external_report_path));
+                crash_envelope = data->external_report_path;
             } else {
                 SENTRY_ERRORF(
                     "mkdir failed: \"%s\"", options->run->external_path->path);
-                sentry__path_free(data->external_report_path);
-                data->external_report_path = nullptr;
             }
+            sentry__path_free(external_report_path);
         }
     }
 
@@ -978,12 +988,12 @@ crashpad_backend_add_breadcrumb(sentry_backend_t *backend,
 
     bool first_breadcrumb = data->num_breadcrumbs % max_breadcrumbs == 0;
 
-    const sentry_path_t *breadcrumb_file
+    const base::FilePath &breadcrumb_file
         = data->num_breadcrumbs % (max_breadcrumbs * 2) < max_breadcrumbs
         ? data->breadcrumb1_path
         : data->breadcrumb2_path;
     data->num_breadcrumbs++;
-    if (!breadcrumb_file) {
+    if (breadcrumb_file.empty()) {
         return;
     }
 
@@ -1007,10 +1017,6 @@ static void
 crashpad_backend_free(sentry_backend_t *backend)
 {
     auto *data = static_cast<crashpad_state_t *>(backend->data);
-    sentry__path_free(data->event_path);
-    sentry__path_free(data->breadcrumb1_path);
-    sentry__path_free(data->breadcrumb2_path);
-    sentry__path_free(data->external_report_path);
     delete data;
 }
 

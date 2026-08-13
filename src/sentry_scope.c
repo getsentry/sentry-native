@@ -972,6 +972,29 @@ sentry_scope_set_level(sentry_scope_t *scope, sentry_level_t level)
     SENTRY_SCOPE_NOTIFY(scope, set_level, level);
 }
 
+void
+sentry_scope_set_transaction_object(
+    sentry_scope_t *scope, sentry_transaction_t *tx)
+{
+    sentry__span_decref(scope->span);
+    scope->span = NULL;
+    // incref before decref, so rebinding the same object cannot free it
+    sentry__transaction_incref(tx);
+    sentry__transaction_decref(scope->transaction_object);
+    scope->transaction_object = tx;
+}
+
+void
+sentry_scope_set_span(sentry_scope_t *scope, sentry_span_t *span)
+{
+    sentry__transaction_decref(scope->transaction_object);
+    scope->transaction_object = NULL;
+    // incref before decref, so rebinding the same object cannot free it
+    sentry__span_incref(span);
+    sentry__span_decref(scope->span);
+    scope->span = span;
+}
+
 sentry_attachment_t *
 sentry__scope_add_attachment(
     sentry_scope_t *scope, sentry_attachment_t *attachment)

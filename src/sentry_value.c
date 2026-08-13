@@ -108,6 +108,21 @@ typedef struct {
     long refcount;
 } obj_t;
 
+#if defined(_MSC_VER)
+#    pragma warning(push)
+#    pragma warning(disable : 4200) // nonstandard extension used: zero-sized
+                                    // array in struct/union
+#endif
+
+typedef struct {
+    size_t len;
+    char s[]; // flexible array member
+} blob_t;
+
+#if defined(_MSC_VER)
+#    pragma warning(pop)
+#endif
+
 static const char *
 level_as_string(sentry_level_t level)
 {
@@ -370,6 +385,29 @@ new_thing_value(void *ptr, uint8_t thing_type)
     return rv;
 }
 
+static sentry_value_t
+new_string_value(const char *s, size_t s_len)
+{
+    if (!s || s_len > SIZE_MAX - sizeof(blob_t) - 1) {
+        return sentry_value_new_null();
+    }
+
+    blob_t *b = sentry_malloc(sizeof(blob_t) + s_len + 1);
+    if (!b) {
+        return sentry_value_new_null();
+    }
+    b->len = s_len;
+    memcpy(b->s, s, s_len);
+    b->s[s_len] = '\0';
+
+    sentry_value_t rv
+        = new_thing_value(b, THING_TYPE_STRING | THING_TYPE_FROZEN);
+    if (sentry_value_is_null(rv)) {
+        sentry_free(b);
+    }
+    return rv;
+}
+
 static thing_t *
 value_as_thing(sentry_value_t value)
 {
@@ -507,11 +545,7 @@ sentry_value_new_bool(int value)
 sentry_value_t
 sentry_value_new_string_n(const char *value, size_t value_len)
 {
-    char *s = sentry__string_clone_n(value, value_len);
-    if (!s) {
-        return sentry_value_new_null();
-    }
-    return sentry__value_new_string_owned(s);
+    return new_string_value(value, value_len);
 }
 
 sentry_value_t
@@ -1173,7 +1207,7 @@ sentry_value_get_length(sentry_value_t value)
     if (thing) {
         switch (thing_get_type(thing)) {
         case THING_TYPE_STRING:
-            return strlen(thing->payload._ptr);
+            return ((const blob_t *)thing->payload._ptr)->len;
         case THING_TYPE_LIST:
             return ((const list_t *)thing->payload._ptr)->len;
         case THING_TYPE_OBJECT:
@@ -1269,7 +1303,7 @@ sentry_value_as_string(sentry_value_t value)
 {
     const thing_t *thing = value_as_thing(value);
     if (thing && thing_get_type(thing) == THING_TYPE_STRING) {
-        return (const char *)thing->payload._ptr;
+        return ((const blob_t *)thing->payload._ptr)->s;
     }
     return "";
 }
@@ -1393,9 +1427,17 @@ sentry__jsonwriter_write_value(sentry_jsonwriter_t *jw, sentry_value_t value)
     case SENTRY_VALUE_TYPE_DOUBLE:
         sentry__jsonwriter_write_double(jw, sentry_value_as_double(value));
         break;
-    case SENTRY_VALUE_TYPE_STRING:
-        sentry__jsonwriter_write_str(jw, sentry_value_as_string(value));
+    case SENTRY_VALUE_TYPE_STRING: {
+        const thing_t *thing = value_as_thing(value);
+        if (!thing) {
+            UNREACHABLE("thing of a string is NULL during serialization");
+            return;
+        }
+
+        const blob_t *b = thing->payload._ptr;
+        sentry__jsonwriter_write_str_n(jw, b->s, b->len);
         break;
+    }
     case SENTRY_VALUE_TYPE_LIST: {
         const thing_t *thing = value_as_thing(value);
         if (!thing) {
@@ -1473,7 +1515,9 @@ value_to_msgpack(mpack_writer_t *writer, sentry_value_t value)
         mpack_write_double(writer, sentry_value_as_double(value));
         break;
     case SENTRY_VALUE_TYPE_STRING: {
-        mpack_write_cstr_or_nil(writer, sentry_value_as_string(value));
+        const blob_t *b = value_as_thing(value)->payload._ptr;
+
+        mpack_write_str(writer, b->s, (uint32_t)b->len);
         break;
     }
     case SENTRY_VALUE_TYPE_LIST: {
@@ -1516,14 +1560,15 @@ sentry_value_to_msgpack(sentry_value_t value, size_t *size_out)
 sentry_value_t
 sentry__value_new_string_owned(char *s)
 {
-    if (!s) {
-        return sentry_value_new_null();
-    }
-    sentry_value_t rv
-        = new_thing_value(s, THING_TYPE_STRING | THING_TYPE_FROZEN);
-    if (sentry_value_is_null(rv)) {
-        sentry_free(s);
-    }
+    return s ? sentry__value_new_string_owned_n(s, strlen(s))
+             : sentry_value_new_null();
+}
+
+sentry_value_t
+sentry__value_new_string_owned_n(char *s, size_t s_len)
+{
+    sentry_value_t rv = new_string_value(s, s_len);
+    sentry_free(s);
     return rv;
 }
 
@@ -1564,43 +1609,31 @@ sentry__value_new_hexstring(const uint8_t *bytes, size_t len)
         written += rv;
     }
     buf[written] = '\0';
-    return sentry__value_new_string_owned(buf);
+    return sentry__value_new_string_owned_n(buf, written);
 }
 
 sentry_value_t
 sentry__value_new_span_uuid(const sentry_uuid_t *uuid)
 {
-    char *buf = sentry_malloc(17);
-    if (!buf) {
-        return sentry_value_new_null();
-    }
+    char buf[17];
     sentry__span_uuid_as_string(uuid, buf);
-    buf[16] = '\0';
-    return sentry__value_new_string_owned(buf);
+    return sentry_value_new_string_n(buf, 16);
 }
 
 sentry_value_t
 sentry__value_new_internal_uuid(const sentry_uuid_t *uuid)
 {
-    char *buf = sentry_malloc(33);
-    if (!buf) {
-        return sentry_value_new_null();
-    }
+    char buf[33];
     sentry__internal_uuid_as_string(uuid, buf);
-    buf[32] = '\0';
-    return sentry__value_new_string_owned(buf);
+    return sentry_value_new_string_n(buf, 32);
 }
 
 sentry_value_t
 sentry__value_new_uuid(const sentry_uuid_t *uuid)
 {
-    char *buf = sentry_malloc(37);
-    if (!buf) {
-        return sentry_value_new_null();
-    }
+    char buf[37];
     sentry_uuid_as_string(uuid, buf);
-    buf[36] = '\0';
-    return sentry__value_new_string_owned(buf);
+    return sentry_value_new_string_n(buf, 36);
 }
 
 sentry_value_t
