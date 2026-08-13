@@ -719,6 +719,31 @@ native_backend_free(sentry_backend_t *backend)
     sentry_free(state);
 }
 
+/**
+ * Creates an attachment path, deriving a unique path in the run directory for
+ * buffer attachments.
+ */
+static sentry_path_t *
+make_attachment_path(const sentry_path_t *run_path, sentry_value_t attachment)
+{
+    if (!sentry__attachment_get_bytes(attachment, NULL)) {
+        return sentry__attachment_make_path(attachment);
+    }
+
+    sentry_uuid_t id = sentry__attachment_get_id(attachment);
+    const char *filename = sentry__attachment_get_filename(attachment);
+    if (!run_path || sentry_uuid_is_nil(&id) || !filename) {
+        return NULL;
+    }
+
+    char uuid[37];
+    sentry_uuid_as_string(&id, uuid);
+    sentry_path_t *dir = sentry__path_join_str(run_path, uuid);
+    sentry_path_t *path = dir ? sentry__path_join_str(dir, filename) : NULL;
+    sentry__path_free(dir);
+    return path;
+}
+
 // Writes the scope's attachment list to <run>/__sentry-attachments so the
 // crash daemon can locate and append them to the crash envelope.
 static void
@@ -728,7 +753,8 @@ native_backend_write_attachments(const sentry_path_t *event_path)
         return;
     }
     SENTRY_WITH_SCOPE (scope) {
-        if (!scope->attachments) {
+        sentry_value_t attachments = scope->attachments;
+        if (sentry_value_get_length(attachments) == 0) {
             continue;
         }
         sentry_path_t *run_path = sentry__path_dir(event_path);
@@ -739,30 +765,35 @@ native_backend_write_attachments(const sentry_path_t *event_path)
             = sentry__path_join_str(run_path, "__sentry-attachments");
         if (attach_list_path) {
             sentry_value_t attach_list = sentry_value_new_list();
-            for (sentry_attachment_t *it = scope->attachments; it;
-                it = it->next) {
-                const char *path = sentry__attachment_get_path(it);
+            size_t len = sentry_value_get_length(attachments);
+            for (size_t i = 0; i < len; i++) {
+                sentry_value_t attachment
+                    = sentry_value_get_by_index(attachments, i);
+                sentry_path_t *path
+                    = make_attachment_path(run_path, attachment);
                 if (!path) {
                     continue;
                 }
                 sentry_value_t attach_info = sentry_value_new_object();
                 sentry_value_set_by_key(
-                    attach_info, "path", sentry_value_new_string(path));
-                const char *filename = sentry__attachment_get_filename(it);
+                    attach_info, "path", sentry_value_new_string(path->path));
+                const char *filename
+                    = sentry__attachment_get_filename(attachment);
                 sentry_value_set_by_key(
                     attach_info, "filename", sentry_value_new_string(filename));
-                const char *type = sentry__attachment_get_type(it);
+                const char *type = sentry__attachment_get_type(attachment);
                 if (type && *type) {
                     sentry_value_set_by_key(attach_info, "attachment_type",
                         sentry_value_new_string(type));
                 }
                 const char *content_type
-                    = sentry__attachment_get_content_type(it);
+                    = sentry__attachment_get_content_type(attachment);
                 if (content_type) {
                     sentry_value_set_by_key(attach_info, "content_type",
                         sentry_value_new_string(content_type));
                 }
                 sentry_value_append(attach_list, attach_info);
+                sentry__path_free(path);
             }
             size_t attach_json_len = 0;
             char *attach_json
@@ -899,66 +930,33 @@ native_backend_add_breadcrumb(sentry_backend_t *backend,
     }
 }
 
-/**
- * Ensures that buffer attachments have a unique path in the run directory.
- * Similar to Crashpad's ensure_unique_path function.
- */
-static bool
-ensure_attachment_path(sentry_attachment_t *attachment)
-{
-    if (!attachment || !attachment->filename) {
-        return false;
-    }
-
-    // Generate UUID for unique path
-    sentry_uuid_t uuid = sentry_uuid_new_v4();
-    char uuid_str[37];
-    sentry_uuid_as_string(&uuid, uuid_str);
-
-    sentry_path_t *base_path = NULL;
-    SENTRY_WITH_OPTIONS (options) {
-        if (options->run && options->run->run_path) {
-            base_path = sentry__path_join_str(options->run->run_path, uuid_str);
-        }
-    }
-
-    if (!base_path || sentry__path_create_dir_all(base_path) != 0) {
-        sentry__path_free(base_path);
-        return false;
-    }
-
-    sentry_path_t *old_path = attachment->path;
-    attachment->path = sentry__path_join_str(
-        base_path, sentry__path_filename(attachment->filename));
-
-    sentry__path_free(base_path);
-    sentry__path_free(old_path);
-    return attachment->path != NULL;
-}
-
 static void
-native_backend_add_attachment(
-    sentry_backend_t *backend, sentry_attachment_t *attachment)
+native_backend_add_attachment(sentry_backend_t *backend,
+    sentry_value_t attachment, const sentry_options_t *options)
 {
     (void)backend; // Unused
 
-    // For buffer attachments, assign a path in the run directory and write to
+    // For buffer attachments, derive a path in the run directory and write to
     // disk
     size_t bytes_len = 0;
     const char *bytes = sentry__attachment_get_bytes(attachment, &bytes_len);
     if (bytes) {
-        if (!sentry__attachment_get_path(attachment)) {
-            if (!ensure_attachment_path(attachment)) {
-                SENTRY_WARN("failed to assign path for buffer attachment");
-                return;
-            }
+        sentry_path_t *path
+            = make_attachment_path(options->run->run_path, attachment);
+        if (!path) {
+            const char *filename = sentry__attachment_get_filename(attachment);
+            SENTRY_WARNF("failed to create path for native backend attachment "
+                         "\"%s\"",
+                filename ? filename : "<unknown>");
+            return;
         }
-
+        sentry_path_t *dir = sentry__path_dir(path);
+        int rv = dir ? sentry__path_create_dir_all(dir) : 1;
+        sentry__path_free(dir);
         // Write buffer to disk
-        sentry_path_t *path = sentry__attachment_make_path(attachment);
-        if (!path || sentry__path_write_buffer(path, bytes, bytes_len) != 0) {
-            SENTRY_WARNF("failed to write native backend attachment \"%s\"",
-                sentry__attachment_get_path(attachment));
+        if (rv != 0 || sentry__path_write_buffer(path, bytes, bytes_len) != 0) {
+            SENTRY_WARNF(
+                "failed to write native backend attachment \"%s\"", path->path);
         }
         sentry__path_free(path);
     }

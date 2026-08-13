@@ -268,8 +268,9 @@ sentry_init(sentry_options_t *options)
         generate_propagation_context(scope->propagation_context);
         scope->release = sentry__string_clone(options->release);
         scope->environment = sentry__string_clone(options->environment);
+        sentry_value_decref(scope->attachments);
         scope->attachments = options->attachments;
-        options->attachments = NULL;
+        options->attachments = sentry_value_new_null();
 
         sentry__ringbuffer_set_max_size(
             scope->breadcrumbs, options->max_breadcrumbs);
@@ -720,7 +721,7 @@ sentry__prepare_event(const sentry_options_t *options, sentry_value_t event,
         sentry__record_errors_on_current_session(1);
     }
 
-    sentry_attachment_t *all_attachments = NULL;
+    sentry_value_t all_attachments = sentry_value_new_null();
     if (local_scope) {
         SENTRY_DEBUG("merging local scope into event");
         sentry_scope_mode_t mode = SENTRY_SCOPE_BREADCRUMBS;
@@ -755,8 +756,9 @@ sentry__prepare_event(const sentry_options_t *options, sentry_value_t event,
     }
 
     SENTRY_WITH_SCOPE (scope) {
-        const sentry_attachment_t *attachments = scope->attachments;
-        if (local_scope && local_scope->attachments) {
+        sentry_value_t attachments = scope->attachments;
+        if (local_scope
+            && sentry_value_get_length(local_scope->attachments) > 0) {
             // all attachments merged from multiple scopes
             sentry__attachments_extend(
                 &all_attachments, local_scope->attachments);
@@ -771,10 +773,11 @@ sentry__prepare_event(const sentry_options_t *options, sentry_value_t event,
         }
     }
 
-    sentry__attachments_free(all_attachments);
+    sentry_value_decref(all_attachments);
     return envelope;
 
 fail:
+    sentry_value_decref(all_attachments);
     sentry_envelope_free(envelope);
     sentry_value_decref(event);
     return NULL;
@@ -885,8 +888,10 @@ prepare_user_feedback(const sentry_options_t *options,
         goto fail;
     }
 
-    sentry_attachment_t *all_attachments = NULL;
-    if (hint) {
+    sentry_value_t all_attachments = sentry_value_new_null();
+    if (hint
+        && sentry_value_get_type(hint->attachments) == SENTRY_VALUE_TYPE_LIST
+        && sentry_value_get_length(hint->attachments) > 0) {
         sentry__attachments_extend(&all_attachments, hint->attachments);
     }
     if (local_scope) {
@@ -894,8 +899,8 @@ prepare_user_feedback(const sentry_options_t *options,
     }
 
     SENTRY_WITH_SCOPE (scope) {
-        const sentry_attachment_t *attachments = scope->attachments;
-        if (all_attachments) {
+        sentry_value_t attachments = scope->attachments;
+        if (sentry_value_get_length(all_attachments) > 0) {
             sentry__attachments_extend(&all_attachments, scope->attachments);
             attachments = all_attachments;
         }
@@ -906,7 +911,7 @@ prepare_user_feedback(const sentry_options_t *options,
         }
     }
 
-    sentry__attachments_free(all_attachments);
+    sentry_value_decref(all_attachments);
     return envelope;
 
 fail:
@@ -2029,20 +2034,23 @@ capture_minidump(sentry_path_t *dump_path)
             if (options->enable_large_attachments && options->run
                 && sentry__path_get_size(dump_path)
                     >= SENTRY_LARGE_ATTACHMENT_SIZE) {
-                sentry_attachment_t tmp = { 0 };
-                tmp.path = dump_path;
-                tmp.type = (char *)SENTRY_ATTACHMENT_TYPE_MINIDUMP;
+                sentry_value_t attachment
+                    = sentry_attachment_from_file(dump_path->path);
+                sentry_attachment_set_type(
+                    attachment, SENTRY_ATTACHMENT_TYPE_MINIDUMP);
                 if (!sentry__cache_attachment_ref(
-                        envelope, &tmp, options->run->cache_path, NULL)) {
+                        envelope, attachment, options->run->cache_path, NULL)) {
                     SENTRY_WARN("failed to cache minidump attachment-ref");
                     sentry__client_report_discard(
                         SENTRY_DISCARD_REASON_SEND_ERROR,
                         SENTRY_DATA_CATEGORY_ATTACHMENT, 1);
                     sentry_envelope_free(envelope);
+                    sentry_value_decref(attachment);
                     sentry__path_free(dump_path);
                     sentry_options_free((sentry_options_t *)options);
                     return sentry_uuid_nil();
                 }
+                sentry_value_decref(attachment);
                 sentry__capture_envelope(options->transport, envelope, options);
                 SENTRY_INFOF(
                     "Minidump has been captured: \"%s\"", dump_path->path);
@@ -2090,50 +2098,64 @@ sentry_capture_minidump_n(const char *path, size_t path_len)
     return capture_minidump(dump_path);
 }
 
-static sentry_attachment_t *
-add_attachment(sentry_attachment_t *attachment)
+sentry_uuid_t
+sentry_add_attachment(sentry_value_t attachment)
 {
-    if (!attachment) {
-        return NULL;
+    if (!sentry__attachment_is_valid(attachment)) {
+        sentry_value_decref(attachment);
+        return sentry_uuid_nil();
     }
 
-    SENTRY_WITH_OPTIONS (options) {
-        if (options->backend && options->backend->add_attachment_func) {
-            options->backend->add_attachment_func(options->backend, attachment);
+    const sentry_options_t *options = sentry__options_getref();
+    if (!options) {
+        sentry_value_decref(attachment);
+        return sentry_uuid_nil();
+    }
+
+    sentry_value_t added = sentry_value_new_null();
+    SENTRY_WITH_SCOPE_MUT (scope) {
+        added = sentry__attachments_find(scope->attachments, attachment);
+        if (sentry_value_is_null(added)) {
+            if (options->backend && options->backend->add_attachment_func) {
+                options->backend->add_attachment_func(
+                    options->backend, attachment, options);
+            }
+            added = sentry__scope_add_attachment(scope, attachment);
+        } else {
+            sentry_value_decref(attachment);
         }
     }
-    SENTRY_WITH_SCOPE_MUT (scope) {
-        attachment = sentry__scope_add_attachment(scope, attachment);
-    }
-    return attachment;
+    sentry_options_free((sentry_options_t *)options);
+    sentry_uuid_t uuid = sentry__attachment_get_id(added);
+    sentry_value_decref(added);
+    return uuid;
 }
 
-sentry_attachment_t *
+sentry_uuid_t
 sentry_attach_file(const char *path)
 {
     return sentry_attach_file_n(path, sentry__guarded_strlen(path));
 }
 
-sentry_attachment_t *
+sentry_uuid_t
 sentry_attach_file_n(const char *path, size_t path_len)
 {
-    return add_attachment(
-        sentry__attachment_from_path(sentry__path_from_str_n(path, path_len)));
+    return sentry_add_attachment(sentry_attachment_from_file_n(path, path_len));
 }
 
-sentry_attachment_t *
+sentry_uuid_t
 sentry_attach_bytes(const char *buf, size_t buf_len, const char *filename)
 {
     return sentry_attach_bytes_n(
         buf, buf_len, filename, sentry__guarded_strlen(filename));
 }
 
-sentry_attachment_t *
+sentry_uuid_t
 sentry_attach_bytes_n(
     const char *buf, size_t buf_len, const char *filename, size_t filename_len)
 {
-    return add_attachment(sentry__attachment_from_buffer(
-        buf, buf_len, sentry__path_from_str_n(filename, filename_len)));
+    return sentry_add_attachment(
+        sentry_attachment_from_bytes_n(buf, buf_len, filename, filename_len));
 }
 
 void
@@ -2141,71 +2163,76 @@ sentry_clear_attachments(void)
 {
     SENTRY_WITH_OPTIONS (options) {
         SENTRY_WITH_SCOPE_MUT (scope) {
-            sentry_attachment_t *attachments = scope->attachments;
-            scope->attachments = NULL;
-            for (sentry_attachment_t *it = attachments; it; it = it->next) {
-                if (options->backend
-                    && options->backend->remove_attachment_func) {
-                    options->backend->remove_attachment_func(
-                        options->backend, it);
-                }
-                SENTRY_SCOPE_NOTIFY(scope, remove_attachment, it);
-            }
-            sentry__attachments_free(attachments);
-        }
-    }
-}
-
-void
-sentry_remove_attachment(sentry_attachment_t *attachment)
-{
-    if (!attachment) {
-        return;
-    }
-
-    SENTRY_WITH_OPTIONS (options) {
-        SENTRY_WITH_SCOPE_MUT (scope) {
-            if (sentry__attachments_remove(&scope->attachments, attachment)) {
+            sentry_value_t attachments = scope->attachments;
+            scope->attachments = sentry__attachments_new();
+            size_t len = sentry_value_get_length(attachments);
+            for (size_t i = 0; i < len; i++) {
+                sentry_value_t attachment
+                    = sentry_value_get_by_index(attachments, i);
                 if (options->backend
                     && options->backend->remove_attachment_func) {
                     options->backend->remove_attachment_func(
                         options->backend, attachment);
                 }
                 SENTRY_SCOPE_NOTIFY(scope, remove_attachment, attachment);
-                sentry__attachment_free(attachment);
             }
+            sentry_value_decref(attachments);
+        }
+    }
+}
+
+void
+sentry_remove_attachment(sentry_uuid_t attachment_id)
+{
+    if (sentry_uuid_is_nil(&attachment_id)) {
+        return;
+    }
+
+    SENTRY_WITH_OPTIONS (options) {
+        SENTRY_WITH_SCOPE_MUT (scope) {
+            sentry_value_t removed = sentry__attachments_remove(
+                scope->attachments, &attachment_id);
+            if (!sentry_value_is_null(removed)) {
+                if (options->backend
+                    && options->backend->remove_attachment_func) {
+                    options->backend->remove_attachment_func(
+                        options->backend, removed);
+                }
+                SENTRY_SCOPE_NOTIFY(scope, remove_attachment, removed);
+            }
+            sentry_value_decref(removed);
         }
     }
 }
 
 #ifdef SENTRY_PLATFORM_WINDOWS
-sentry_attachment_t *
+sentry_uuid_t
 sentry_attach_filew(const wchar_t *path)
 {
     size_t path_len = path ? wcslen(path) : 0;
     return sentry_attach_filew_n(path, path_len);
 }
 
-sentry_attachment_t *
+sentry_uuid_t
 sentry_attach_filew_n(const wchar_t *path, size_t path_len)
 {
-    return add_attachment(
-        sentry__attachment_from_path(sentry__path_from_wstr_n(path, path_len)));
+    return sentry_add_attachment(
+        sentry_attachment_from_filew_n(path, path_len));
 }
 
-sentry_attachment_t *
+sentry_uuid_t
 sentry_attach_bytesw(const char *buf, size_t buf_len, const wchar_t *filename)
 {
     size_t filename_len = filename ? wcslen(filename) : 0;
     return sentry_attach_bytesw_n(buf, buf_len, filename, filename_len);
 }
 
-sentry_attachment_t *
+sentry_uuid_t
 sentry_attach_bytesw_n(const char *buf, size_t buf_len, const wchar_t *filename,
     size_t filename_len)
 {
-    return add_attachment(sentry__attachment_from_buffer(
-        buf, buf_len, sentry__path_from_wstr_n(filename, filename_len)));
+    return sentry_add_attachment(
+        sentry_attachment_from_bytesw_n(buf, buf_len, filename, filename_len));
 }
 
 sentry_uuid_t

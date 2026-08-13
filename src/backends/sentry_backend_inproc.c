@@ -1107,24 +1107,28 @@ process_ucontext_deferred(const sentry_ucontext_t *uctx,
             sentry__envelope_add_session(envelope, session);
 
             if (capture_screenshot) {
-                sentry_attachment_t *screenshot = sentry__attachment_from_path(
-                    sentry__screenshot_get_path(options));
-                if (screenshot
-                    && sentry__screenshot_capture(screenshot->path, 0)) {
+                sentry_path_t *path = sentry__screenshot_get_path(options);
+                sentry_value_t screenshot
+                    = sentry_attachment_from_file(path ? path->path : NULL);
+                if (!sentry_value_is_null(screenshot)
+                    && sentry__screenshot_capture(path, 0)) {
                     sentry__envelope_add_attachment(envelope, screenshot);
                 }
-                sentry__attachment_free(screenshot);
+                sentry_value_decref(screenshot);
+                sentry__path_free(path);
             }
 
             if (options->attach_session_replay) {
-                sentry_attachment_t *replay = sentry__attachment_from_path(
-                    sentry__session_replay_get_path(options));
-                if (replay
+                sentry_path_t *path = sentry__session_replay_get_path(options);
+                sentry_value_t replay
+                    = sentry_attachment_from_file(path ? path->path : NULL);
+                if (!sentry_value_is_null(replay)
                     && sentry__session_replay_capture(
-                        replay->path, options->session_replay_duration, 0)) {
+                        path, options->session_replay_duration, 0)) {
                     sentry__envelope_add_attachment(envelope, replay);
                 }
-                sentry__attachment_free(replay);
+                sentry_value_decref(replay);
+                sentry__path_free(path);
             }
 
             if (envelope && sentry__session_replay_has_pending(options)) {

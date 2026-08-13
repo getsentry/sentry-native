@@ -58,7 +58,7 @@ struct sentry_options_s {
     size_t cache_max_size;
     size_t cache_max_items;
 
-    sentry_attachment_t *attachments;
+    sentry_value_t attachments;
     sentry_run_t *run;
 
     sentry_transport_t *transport;
