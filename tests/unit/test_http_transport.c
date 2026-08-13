@@ -190,6 +190,28 @@ SENTRY_TEST(http_request_accessors_file_backed_body)
     sentry__prepared_http_request_free(req);
 }
 
+SENTRY_TEST(http_request_accessors_bodyless_request)
+{
+    // Mirrors the TUS creation `POST`, which has neither an in-memory nor a
+    // file-backed body.
+    sentry_prepared_http_request_t *req
+        = SENTRY_MAKE(sentry_prepared_http_request_t);
+    memset(req, 0, sizeof(*req));
+    req->method = "POST";
+    req->url = sentry__string_clone("https://sentry.invalid/upload/");
+    req->headers_len = 0;
+
+    size_t len = 123;
+    TEST_CHECK(sentry_http_request_get_body(req, &len) == NULL);
+    TEST_CHECK_INT_EQUAL((int)len, 0);
+
+    len = 123;
+    TEST_CHECK(sentry_http_request_get_body_file_path(req, &len) == NULL);
+    TEST_CHECK_INT_EQUAL((int)len, 0);
+
+    sentry__prepared_http_request_free(req);
+}
+
 SENTRY_TEST(http_request_accessors_null_safety)
 {
     TEST_CHECK(sentry_http_request_get_method(NULL) == NULL);
@@ -214,6 +236,15 @@ failing_factory(void *factory_data)
 {
     (void)factory_data;
     return NULL;
+}
+
+// Returns a non-`NULL` client without heap-allocating, for tests that
+// exercise a code path with no client-free hook and must not leak.
+static void *
+non_owning_factory(void *factory_data)
+{
+    (void)factory_data;
+    return (void *)1;
 }
 
 static int
@@ -279,9 +310,8 @@ SENTRY_TEST(http_transport_new_factory_failure_returns_null)
 
 SENTRY_TEST(http_transport_new_null_client_free_func_is_safe)
 {
-    int call_count = 0;
     sentry_transport_t *transport = sentry_http_transport_new(
-        counting_factory, &call_count, noop_send_func, NULL);
+        non_owning_factory, NULL, noop_send_func, NULL);
     TEST_CHECK(!!transport);
     // Must not crash freeing a transport with no client-free hook.
     sentry_transport_free(transport);

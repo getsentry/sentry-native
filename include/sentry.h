@@ -982,8 +982,8 @@ SENTRY_API void sentry_transport_free(sentry_transport_t *transport);
  * `sentry_http_client_send_func_t` call it was passed to; the client must
  * not retain it afterwards.
  */
-struct sentry_prepared_http_request_s;
-typedef struct sentry_prepared_http_request_s sentry_http_request_t;
+struct sentry_http_request_s;
+typedef struct sentry_http_request_s sentry_http_request_t;
 
 /**
  * Returns the HTTP method of `req`, such as `"POST"` or `"PATCH"`.
@@ -1018,9 +1018,11 @@ SENTRY_EXPERIMENTAL_API int sentry_http_request_get_header(
 /**
  * Returns the in-memory request body of `req` and writes its length to
  * `*len_out`. Returns `NULL` if `req` has no in-memory body, which happens
- * for large-attachment uploads that stream a file instead -- see
- * `sentry_http_request_get_body_file_path`. Exactly one of the two ever
- * returns non-`NULL` for a given request.
+ * both for large-attachment uploads that stream a file instead -- see
+ * `sentry_http_request_get_body_file_path` -- and for bodyless requests such
+ * as the initial TUS creation `POST`, for which both accessors return
+ * `NULL`. At most one of the two ever returns non-`NULL` for a given
+ * request.
  */
 SENTRY_EXPERIMENTAL_API const char *sentry_http_request_get_body(
     const sentry_http_request_t *req, size_t *len_out);
@@ -1028,7 +1030,8 @@ SENTRY_EXPERIMENTAL_API const char *sentry_http_request_get_body(
 /**
  * Returns the path to a file that should be streamed as the request body of
  * `req`, and writes its size to `*len_out`. Returns `NULL` unless `req`
- * requires a file-backed body -- see `sentry_http_request_get_body`.
+ * requires a file-backed body -- see `sentry_http_request_get_body`, which
+ * also covers requests with no body at all.
  */
 SENTRY_EXPERIMENTAL_API const char *sentry_http_request_get_body_file_path(
     const sentry_http_request_t *req, size_t *len_out);
@@ -1070,6 +1073,15 @@ SENTRY_EXPERIMENTAL_API void sentry_http_response_set_shutdown(
     sentry_http_response_t *resp, int is_shutdown);
 
 /**
+ * Opaque handle to a custom HTTP client instance, as created by a
+ * `sentry_http_client_factory_func_t` and passed back into
+ * `sentry_http_client_send_func_t` and the client start/shutdown hooks.
+ * Purely cosmetic -- it exists to distinguish client pointers from the
+ * unrelated `void *factory_data` / user-data pointers used alongside them.
+ */
+typedef void sentry_http_client_t;
+
+/**
  * Creates a new HTTP client instance for a transport created with
  * `sentry_http_transport_new`. Returns an opaque client pointer, or `NULL`
  * on failure. `factory_data` is the pointer passed to
@@ -1082,7 +1094,8 @@ SENTRY_EXPERIMENTAL_API void sentry_http_response_set_shutdown(
  * instead, each time from that worker thread; implementations should not
  * assume they are called from any particular thread, or exactly once.
  */
-typedef void *(*sentry_http_client_factory_func_t)(void *factory_data);
+typedef sentry_http_client_t *(*sentry_http_client_factory_func_t)(
+    void *factory_data);
 
 /**
  * Executes a single HTTP request using `client` (as returned by the
@@ -1100,10 +1113,16 @@ typedef void *(*sentry_http_client_factory_func_t)(void *factory_data);
  * for the same client until the previous call returns. A future
  * multi-threaded transport may drive different client instances from
  * different threads concurrently, but will still only ever call into one
- * client instance from one thread at a time.
+ * client instance from one thread at a time for `send_func` calls
+ * specifically.
+ *
+ * The one exception is `sentry_http_transport_set_client_shutdown_func`'s
+ * hook, which sentry-native may call from a different thread while a
+ * `send_func` call for the same client is still in flight -- see its
+ * documentation.
  */
-typedef int (*sentry_http_client_send_func_t)(
-    void *client, sentry_http_request_t *req, sentry_http_response_t *resp);
+typedef int (*sentry_http_client_send_func_t)(sentry_http_client_t *client,
+    sentry_http_request_t *req, sentry_http_response_t *resp);
 
 /**
  * Creates a new HTTP transport that executes requests through a custom HTTP
@@ -1132,7 +1151,7 @@ typedef int (*sentry_http_client_send_func_t)(
 SENTRY_EXPERIMENTAL_API sentry_transport_t *sentry_http_transport_new(
     sentry_http_client_factory_func_t factory, void *factory_data,
     sentry_http_client_send_func_t send_func,
-    void (*client_free_func)(void *client));
+    void (*client_free_func)(sentry_http_client_t *client));
 
 /**
  * Sets the hook that initializes the client once `sentry_options_t` is
@@ -1143,15 +1162,23 @@ SENTRY_EXPERIMENTAL_API sentry_transport_t *sentry_http_transport_new(
  */
 SENTRY_EXPERIMENTAL_API void sentry_http_transport_set_client_start_func(
     sentry_transport_t *transport,
-    int (*start_func)(void *client, const sentry_options_t *options));
+    int (*start_func)(
+        sentry_http_client_t *client, const sentry_options_t *options));
 
 /**
  * Sets the hook that tells the client the transport is shutting down, e.g.
  * to unblock or cancel an in-flight request. Called at most once, when the
  * transport is shut down.
+ *
+ * This hook runs on the thread that calls `sentry_close`, which is not the
+ * background thread that runs `send_func` -- if a `send_func` call is still
+ * in flight when shutdown starts, this hook may be invoked concurrently
+ * with it, on a different thread, for the same client. The client
+ * implementation must be able to tolerate that.
  */
 SENTRY_EXPERIMENTAL_API void sentry_http_transport_set_client_shutdown_func(
-    sentry_transport_t *transport, void (*shutdown_func)(void *client));
+    sentry_transport_t *transport,
+    void (*shutdown_func)(sentry_http_client_t *client));
 
 /**
  * Create a new function transport.

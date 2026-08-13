@@ -1074,12 +1074,12 @@ sentry__http_transport_set_shutdown_client(
 sentry_transport_t *
 sentry_http_transport_new(sentry_http_client_factory_func_t factory,
     void *factory_data, sentry_http_client_send_func_t send_func,
-    void (*client_free_func)(void *client))
+    void (*client_free_func)(sentry_http_client_t *client))
 {
     if (!factory || !send_func) {
         return NULL;
     }
-    void *client = factory(factory_data);
+    sentry_http_client_t *client = factory(factory_data);
     if (!client) {
         return NULL;
     }
@@ -1097,14 +1097,15 @@ sentry_http_transport_new(sentry_http_client_factory_func_t factory,
 
 void
 sentry_http_transport_set_client_start_func(sentry_transport_t *transport,
-    int (*start_func)(void *client, const sentry_options_t *options))
+    int (*start_func)(
+        sentry_http_client_t *client, const sentry_options_t *options))
 {
     sentry__http_transport_set_start_client(transport, start_func);
 }
 
 void
-sentry_http_transport_set_client_shutdown_func(
-    sentry_transport_t *transport, void (*shutdown_func)(void *client))
+sentry_http_transport_set_client_shutdown_func(sentry_transport_t *transport,
+    void (*shutdown_func)(sentry_http_client_t *client))
 {
     sentry__http_transport_set_shutdown_client(transport, shutdown_func);
 }
