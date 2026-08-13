@@ -193,9 +193,14 @@ def test_client_report_before_send_log(cmake, httpserver):
     envelope = Envelope.deserialize(httpserver.log[0][0].get_data())
 
     assert_event(envelope)
+    # the discarded log is reported both as an item count and as a byte size,
+    # see https://develop.sentry.dev/sdk/telemetry/client-reports/#log-byte-outcomes
     assert_client_report(
         envelope,
-        [{"reason": "before_send", "category": "log_item", "quantity": 1}],
+        [
+            {"reason": "before_send", "category": "log_item", "quantity": 1},
+            {"reason": "before_send", "category": "log_byte"},
+        ],
     )
 
 
@@ -226,7 +231,10 @@ def test_client_report_before_send_metric(cmake, httpserver):
     assert_event(envelope)
     assert_client_report(
         envelope,
-        [{"reason": "before_send", "category": "trace_metric", "quantity": 1}],
+        [
+            {"reason": "before_send", "category": "trace_metric", "quantity": 1},
+            {"reason": "before_send", "category": "trace_metric_byte"},
+        ],
     )
 
 
