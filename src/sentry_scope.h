@@ -45,8 +45,8 @@ typedef struct sentry_scope_observer_s {
     void (*set_context)(void *data, const char *key, sentry_value_t value);
     void (*remove_context)(void *data, const char *key);
 
-    void (*add_attachment)(void *data, sentry_attachment_t *attachment);
-    void (*remove_attachment)(void *data, sentry_attachment_t *attachment);
+    void (*add_attachment)(void *data, sentry_value_t attachment);
+    void (*remove_attachment)(void *data, sentry_value_t attachment);
 } sentry_scope_observer_t;
 
 /**
@@ -68,7 +68,7 @@ struct sentry_scope_s {
     sentry_level_t level;
     sentry_uuid_t last_event_id;
     sentry_value_t client_sdk;
-    sentry_attachment_t *attachments;
+    sentry_value_t attachments;
 
     // The span attached to this scope, if any.
     //
@@ -150,8 +150,8 @@ void sentry__scope_set_fingerprint_va(
 void sentry__scope_set_fingerprint_nva(sentry_scope_t *scope,
     const char *fingerprint, size_t fingerprint_len, va_list va);
 
-sentry_attachment_t *sentry__scope_add_attachment(
-    sentry_scope_t *scope, sentry_attachment_t *attachment);
+sentry_value_t sentry__scope_add_attachment(
+    sentry_scope_t *scope, sentry_value_t attachment);
 
 /**
  * These are convenience macros to automatically lock/unlock the global scope

@@ -203,17 +203,19 @@ breakpad_backend_callback(const google_breakpad::MinidumpDescriptor &descriptor,
                 sentry__envelope_item_set_header(item, "filename",
                     sentry_value_new_string(sentry__path_filename(dump_path)));
             } else if (options->enable_large_attachments) {
-                sentry_attachment_t tmp = {};
-                tmp.path = dump_path;
-                tmp.type = (char *)SENTRY_ATTACHMENT_TYPE_MINIDUMP;
-                if (!sentry__cache_attachment_ref(
-                        envelope, &tmp, options->run->cache_path, nullptr)) {
+                sentry_value_t attachment
+                    = sentry_attachment_from_file(dump_path->path);
+                sentry_attachment_set_type(
+                    attachment, SENTRY_ATTACHMENT_TYPE_MINIDUMP);
+                if (!sentry__cache_attachment_ref(envelope, attachment,
+                        options->run->cache_path, nullptr)) {
                     SENTRY_SIGNAL_SAFE_LOG(
                         "WARN failed to cache minidump attachment-ref");
                     sentry__client_report_discard(
                         SENTRY_DISCARD_REASON_SEND_ERROR,
                         SENTRY_DATA_CATEGORY_ATTACHMENT, 1);
                 }
+                sentry_value_decref(attachment);
             } else {
                 SENTRY_SIGNAL_SAFE_LOG(
                     "WARN failed to add minidump attachment");
@@ -222,24 +224,28 @@ breakpad_backend_callback(const google_breakpad::MinidumpDescriptor &descriptor,
             }
 
             if (capture_screenshot) {
-                sentry_attachment_t *screenshot = sentry__attachment_from_path(
-                    sentry__screenshot_get_path(options));
-                if (screenshot
-                    && sentry__screenshot_capture(screenshot->path, 0)) {
+                sentry_path_t *path = sentry__screenshot_get_path(options);
+                sentry_value_t screenshot
+                    = sentry_attachment_from_file(path ? path->path : nullptr);
+                if (!sentry_value_is_null(screenshot)
+                    && sentry__screenshot_capture(path, 0)) {
                     sentry__envelope_add_attachment(envelope, screenshot);
                 }
-                sentry__attachment_free(screenshot);
+                sentry_value_decref(screenshot);
+                sentry__path_free(path);
             }
 
             if (options->attach_session_replay) {
-                sentry_attachment_t *replay = sentry__attachment_from_path(
-                    sentry__session_replay_get_path(options));
-                if (replay
+                sentry_path_t *path = sentry__session_replay_get_path(options);
+                sentry_value_t replay
+                    = sentry_attachment_from_file(path ? path->path : nullptr);
+                if (!sentry_value_is_null(replay)
                     && sentry__session_replay_capture(
-                        replay->path, options->session_replay_duration, 0)) {
+                        path, options->session_replay_duration, 0)) {
                     sentry__envelope_add_attachment(envelope, replay);
                 }
-                sentry__attachment_free(replay);
+                sentry_value_decref(replay);
+                sentry__path_free(path);
             }
 
             if (envelope && sentry__session_replay_has_pending(options)) {

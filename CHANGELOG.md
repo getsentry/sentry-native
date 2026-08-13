@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+**Breaking changes**:
+
+- Attachment APIs now use `sentry_value_t` and `sentry_uuid_t` instead of `sentry_attachment_t *` handles. Most attachment APIs, function names and arguments, are otherwise unchanged. ([#1974](https://github.com/getsentry/sentry-native/pull/1974))
+
 **Features**:
 
 - Add `sentry_attachment_from_file/bytes` (and their wide-string variants) for creating attachment values that can be fully configured before they are added. ([#2079](https://github.com/getsentry/sentry-native/pull/2079))

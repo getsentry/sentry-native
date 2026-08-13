@@ -270,7 +270,7 @@ Java_io_sentry_ndk_NativeScope_nativeAddAttachment(
         return;
     }
 
-    // The returned sentry_attachment_t* is intentionally discarded.
+    // The returned sentry_uuid_t is intentionally discarded.
     // We are not tracking it across the JNI boundary for individual removals.
     // Use sentry_clear_attachments() for bulk removal.
     sentry_attach_file(charPath);
@@ -296,7 +296,7 @@ Java_io_sentry_ndk_NativeScope_nativeAddAttachmentBytes(
         return;
     }
 
-    // The returned sentry_attachment_t* is intentionally discarded.
+    // The returned sentry_uuid_t is intentionally discarded.
     // We are not tracking it across the JNI boundary for individual removals.
     // Use sentry_clear_attachments() for bulk removal.
     sentry_attach_bytes((const char *)buf, (size_t)bufLen, charFilename);

@@ -1530,7 +1530,7 @@ observe_set_level(void *data, sentry_level_t level)
 }
 
 static void
-observe_add_attachment(void *data, sentry_attachment_t *attachment)
+observe_add_attachment(void *data, sentry_value_t attachment)
 {
     test_observer_data_t *d = (test_observer_data_t *)data;
     if (sentry_value_is_null(d->attachments)) {
@@ -1553,7 +1553,7 @@ observe_add_attachment(void *data, sentry_attachment_t *attachment)
 }
 
 static void
-observe_remove_attachment(void *data, sentry_attachment_t *attachment)
+observe_remove_attachment(void *data, sentry_value_t attachment)
 {
     test_observer_data_t *d = (test_observer_data_t *)data;
     if (sentry_value_is_null(d->attachments)) {
@@ -2388,9 +2388,9 @@ SENTRY_TEST(scope_observer_attachments)
         sentry__scope_add_observer(scope, observer);
     }
 
-    sentry_attachment_t *attachment = sentry_attach_bytes("buf", 3, "test.txt");
+    sentry_uuid_t attachment = sentry_attach_bytes("buf", 3, "test.txt");
     TEST_CHECK(d.was_called);
-    TEST_CHECK(attachment != NULL);
+    TEST_CHECK(!sentry_uuid_is_nil(&attachment));
     TEST_CHECK_INT_EQUAL(sentry_value_get_length(d.attachments), 1);
     sentry_value_t added = sentry_value_get_by_index(d.attachments, 0);
     TEST_CHECK_STRING_EQUAL(
@@ -2412,12 +2412,12 @@ SENTRY_TEST(scope_observer_attachments)
 
     attachment = sentry_attach_file("test.txt");
     TEST_CHECK(d.was_called);
-    TEST_CHECK(attachment != NULL);
+    TEST_CHECK(!sentry_uuid_is_nil(&attachment));
     TEST_CHECK_INT_EQUAL(sentry_value_get_length(d.attachments), 3);
 
     d.was_called = false;
-    sentry_attachment_t *duplicate = sentry_attach_file("test.txt");
-    TEST_CHECK(duplicate == attachment);
+    sentry_uuid_t duplicate = sentry_attach_file("test.txt");
+    TEST_CHECK_UUID_EQUAL(duplicate, attachment);
     TEST_CHECK(!d.was_called);
     TEST_CHECK_INT_EQUAL(sentry_value_get_length(d.attachments), 3);
 
@@ -2431,12 +2431,10 @@ SENTRY_TEST(scope_observer_attachments)
     TEST_CHECK(!d.was_called);
     TEST_CHECK_INT_EQUAL(sentry_value_get_length(d.attachments), 4);
 
-    sentry_attachment_t *clear_one
-        = sentry_attach_bytes("one", 3, "clear-one.txt");
-    TEST_CHECK(clear_one != NULL);
-    sentry_attachment_t *clear_two
-        = sentry_attach_bytes("two", 3, "clear-two.txt");
-    TEST_CHECK(clear_two != NULL);
+    sentry_uuid_t clear_one = sentry_attach_bytes("one", 3, "clear-one.txt");
+    TEST_CHECK(!sentry_uuid_is_nil(&clear_one));
+    sentry_uuid_t clear_two = sentry_attach_bytes("two", 3, "clear-two.txt");
+    TEST_CHECK(!sentry_uuid_is_nil(&clear_two));
     TEST_CHECK_INT_EQUAL(sentry_value_get_length(d.attachments), 6);
 
     d.was_called = false;
@@ -2581,9 +2579,15 @@ SENTRY_TEST(scope_clone_preserves_data)
             sentry_value_new_string("attr_value"), NULL));
     sentry_scope_add_breadcrumb(
         scope, sentry_value_new_breadcrumb(NULL, "crumb"));
-    sentry_scope_attach_bytes(scope, "payload", 7, "file.bin");
+    sentry_value_t attachment
+        = sentry_attachment_from_bytes("payload", 7, "file.bin");
+    sentry_uuid_t attachment_id
+        = sentry_scope_add_attachment(scope, attachment);
+    TEST_CHECK(!sentry_uuid_is_nil(&attachment_id));
 
     sentry_scope_t *clone = sentry_scope_clone(scope);
+    sentry_value_decref(
+        sentry__attachments_remove(scope->attachments, &attachment_id));
 
     TEST_CHECK_STRING_EQUAL(
         sentry_value_as_string(sentry_value_get_by_key(clone->tags, "tag_key")),
@@ -2606,11 +2610,14 @@ SENTRY_TEST(scope_clone_preserves_data)
     TEST_CHECK_INT_EQUAL(scope_breadcrumb_count(clone), 1);
 
     // Attachments are deep-copied into an independent list.
-    TEST_CHECK(clone->attachments != NULL);
-    TEST_CHECK(clone->attachments != scope->attachments);
+    TEST_CHECK_INT_EQUAL(sentry_value_get_length(clone->attachments), 1);
+    TEST_CHECK_INT_EQUAL(sentry_value_get_length(scope->attachments), 0);
+    TEST_CHECK(clone->attachments._bits != scope->attachments._bits);
+    sentry_value_t clone_attachment
+        = sentry_value_get_by_index(clone->attachments, 0);
     TEST_CHECK_STRING_EQUAL(
-        sentry__attachment_get_filename(clone->attachments), "file.bin");
-    TEST_CHECK_INT_EQUAL(sentry__attachment_get_size(clone->attachments), 7);
+        sentry__attachment_get_filename(clone_attachment), "file.bin");
+    TEST_CHECK_INT_EQUAL(sentry__attachment_get_size(clone_attachment), 7);
 
     sentry_scope_free(clone);
     sentry_scope_free(scope);

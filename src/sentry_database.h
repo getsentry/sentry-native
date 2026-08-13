@@ -98,14 +98,14 @@ bool sentry__run_write_envelope(
  * that directory; pass NULL to always copy.
  */
 bool sentry__cache_attachment_ref(sentry_envelope_t *envelope,
-    const sentry_attachment_t *attachment, const sentry_path_t *cache_path,
+    sentry_value_t attachment, const sentry_path_t *cache_path,
     const sentry_path_t *run_path);
 
 /**
  * Cache every attachment that should be represented as an attachment-ref.
  */
 void sentry__cache_attachment_refs(sentry_envelope_t *envelope,
-    const sentry_attachment_t *attachments, const sentry_options_t *options,
+    sentry_value_t attachments, const sentry_options_t *options,
     const sentry_path_t *cache_path, const sentry_path_t *run_path);
 
 /**
