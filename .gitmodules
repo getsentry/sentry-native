@@ -14,3 +14,6 @@
 [submodule "external/benchmark"]
 	path = external/benchmark
 	url = https://github.com/google/benchmark.git
+[submodule "external/vulkan-headers"]
+	path = external/vulkan-headers
+	url = https://github.com/KhronosGroup/Vulkan-Headers.git
