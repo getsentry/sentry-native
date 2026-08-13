@@ -800,8 +800,12 @@ crashpad_backend_startup(
     data->breadcrumb2_path
         = create_run_file(current_run_folder, "__sentry-breadcrumb2");
 
-    attachments.insert(attachments.end(),
-        { data->event_path, data->breadcrumb1_path, data->breadcrumb2_path });
+    for (const base::FilePath *run_file : { &data->event_path,
+             &data->breadcrumb1_path, &data->breadcrumb2_path }) {
+        if (!run_file->empty()) {
+            attachments.push_back(*run_file);
+        }
+    }
 
     base::FilePath screenshot;
     if (options->attach_screenshot) {
@@ -812,6 +816,7 @@ crashpad_backend_startup(
 
     base::FilePath crash_reporter;
     base::FilePath crash_envelope;
+    data->external_report_path = base::FilePath();
     if (options->external_crash_reporter) {
         char *filename
             = sentry__uuid_as_filename(&data->crash_event_id, ".envelope");
