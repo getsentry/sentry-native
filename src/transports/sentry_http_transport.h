@@ -12,10 +12,6 @@ typedef struct sentry_prepared_http_header_s {
     char *value;
 } sentry_prepared_http_header_t;
 
-// The public `sentry_http_request_t` (see sentry.h) is a forward-declared
-// opaque handle for this same tag; this is the only place its layout is
-// defined. Internal code and the public accessors in sentry_http_transport.c
-// both operate on this concrete struct via that shared tag.
 typedef struct sentry_http_request_s {
     const char *method;
     char *url;
@@ -39,10 +35,6 @@ sentry_prepared_http_request_t *sentry__prepare_tus_upload_request(
 
 void sentry__prepared_http_request_free(sentry_prepared_http_request_t *req);
 
-// The public `sentry_http_response_t` (see sentry.h) is a forward-declared
-// opaque handle for this same tag; this is the only place its layout is
-// defined. Internal code and the public accessors in sentry_http_transport.c
-// both operate on this concrete struct via that shared tag.
 struct sentry_http_response_s {
     int status_code;
     char *retry_after;
