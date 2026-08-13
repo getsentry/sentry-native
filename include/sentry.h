@@ -3615,8 +3615,7 @@ SENTRY_API void sentry_end_session(void);
 /**
  * Ends a session with an explicit `status` code.
  */
-SENTRY_EXPERIMENTAL_API void sentry_end_session_with_status(
-    sentry_session_status_t status);
+SENTRY_API void sentry_end_session_with_status(sentry_session_status_t status);
 
 /* -- Performance Monitoring/Tracing APIs -- */
 
@@ -4389,7 +4388,7 @@ SENTRY_API void sentry_transaction_iter_headers(sentry_transaction_t *tx,
  *   0 = no crash recognized
  *  -1 = sentry_init() hasn't been called yet
  */
-SENTRY_EXPERIMENTAL_API int sentry_get_crashed_last_run(void);
+SENTRY_API int sentry_get_crashed_last_run(void);
 
 /**
  * Clear the persisted status of the "crashed-last-run".
