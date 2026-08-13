@@ -4,7 +4,7 @@
 
 **Fixes**:
 
-- Native: store daemon logs, minidumps, crash envelopes, and scratch files in `.run` directories so they are cleaned up with the run instead of accumulating in the database root. ([#1976](https://github.com/getsentry/sentry-native/pull/1976))
+- Native: store daemon logs, minidumps, crash envelopes, and scratch files in `.run` directories so they are cleaned up with the run instead of accumulating in the database root. Minidumps can still be retained with `cache_keep`, which stores `.dmp` sidecars alongside cached envelopes. ([#1976](https://github.com/getsentry/sentry-native/pull/1976))
 
 ## 0.16.3
 
