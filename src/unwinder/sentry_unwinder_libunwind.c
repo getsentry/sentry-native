@@ -191,6 +191,12 @@ sentry__unwind_stack_libunwind(
     if (n < max_frames) {
         ptrs[n++] = (void *)ip;
     }
+
+    mem_range_t code = { 0, 0 };
+    if (uctx && !find_mem_range((uintptr_t)ip, &code)) {
+        return n;
+    }
+
     unw_word_t sp = 0;
     (void)unw_get_reg(&cursor, UNW_REG_SP, &sp);
 
