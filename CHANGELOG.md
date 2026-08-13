@@ -4,7 +4,7 @@
 
 **Features**:
 
-- Add `on_crashed_last_run` callback for inspecting crash envelopes from previous runs. ([#1977](https://github.com/getsentry/sentry-native/pull/1977))
+- Add `on_crashed_last_run` callback for inspecting crash envelopes from previous runs. ([#1985](https://github.com/getsentry/sentry-native/pull/1985))
 
 **Fixes**:
 
