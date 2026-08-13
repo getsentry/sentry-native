@@ -4547,8 +4547,7 @@ sentry__crash_daemon_main(pid_t app_pid, uint64_t app_tid, HANDLE event_handle,
     SENTRY_DEBUG("Adopting existing run");
     sentry_path_t *run_path = sentry__path_from_str(ipc->shmem->run_path);
     if (options->database_path && run_path) {
-        options->run
-            = sentry__run_new_for_daemon(options->database_path, run_path);
+        options->run = sentry__run_adopt(options->database_path, run_path);
         if (options->run) {
             options->run->require_user_consent
                 = ipc->shmem->require_user_consent;

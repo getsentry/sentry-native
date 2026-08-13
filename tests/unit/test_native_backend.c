@@ -32,8 +32,8 @@ SENTRY_TEST(daemon_adopts_existing_run)
 
     sentry_run_t *existing_run = sentry__run_new(options->database_path);
     TEST_ASSERT(!!existing_run);
-    sentry_run_t *adopted_run = sentry__run_new_for_daemon(
-        options->database_path, existing_run->run_path);
+    sentry_run_t *adopted_run
+        = sentry__run_adopt(options->database_path, existing_run->run_path);
     TEST_ASSERT(!!adopted_run);
 
     sentry_path_t *cache_path
@@ -89,7 +89,7 @@ SENTRY_TEST(daemon_run_blocks_old_run_cleanup)
     sentry__filelock_unlock(old_run->lock);
 
     sentry_run_t *daemon_run
-        = sentry__run_new_for_daemon(options->database_path, old_run->run_path);
+        = sentry__run_adopt(options->database_path, old_run->run_path);
     TEST_ASSERT(!!daemon_run);
     sentry_path_t *artifact
         = sentry__path_join_str(old_run->run_path, "daemon.log");

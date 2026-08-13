@@ -17,7 +17,7 @@
 #include <string.h>
 
 static sentry_run_t *
-run_new_with_paths(const sentry_path_t *database_path, sentry_path_t *run_path,
+run_new(const sentry_path_t *database_path, sentry_path_t *run_path,
     sentry_path_t *lock_path)
 {
     if (!database_path || !run_path || !lock_path) {
@@ -104,7 +104,7 @@ sentry__run_new(const sentry_path_t *database_path)
     strcpy(&run_name[40], ".lock");
     sentry_path_t *lock_path = sentry__path_join_str(database_path, run_name);
 
-    sentry_run_t *run = run_new_with_paths(database_path, run_path, lock_path);
+    sentry_run_t *run = run_new(database_path, run_path, lock_path);
     if (run) {
         run->uuid = uuid;
     }
@@ -112,7 +112,7 @@ sentry__run_new(const sentry_path_t *database_path)
 }
 
 sentry_run_t *
-sentry__run_new_for_daemon(
+sentry__run_adopt(
     const sentry_path_t *database_path, const sentry_path_t *run_path)
 {
     if (!database_path || !run_path) {
@@ -121,7 +121,7 @@ sentry__run_new_for_daemon(
     sentry_path_t *owned_run_path = sentry__path_clone(run_path);
     sentry_path_t *lock_path
         = sentry__path_append_str(run_path, ".daemon.lock");
-    return run_new_with_paths(database_path, owned_run_path, lock_path);
+    return run_new(database_path, owned_run_path, lock_path);
 }
 
 bool
