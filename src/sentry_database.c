@@ -313,9 +313,9 @@ sanitize_basename(const char *src, char *out, size_t out_size)
 // or NULL on failure.
 static sentry_path_t *
 build_sibling_path(const sentry_path_t *cache_path, const char *uuid_str,
-    const sentry_attachment_t *att)
+    sentry_value_t attachment)
 {
-    const char *type = sentry__attachment_get_type(att);
+    const char *type = sentry__attachment_get_type(attachment);
     if (type && strcmp(type, SENTRY_ATTACHMENT_TYPE_MINIDUMP) == 0) {
         char buf[41];
         snprintf(buf, sizeof(buf), "%s.dmp", uuid_str);
@@ -325,8 +325,8 @@ build_sibling_path(const sentry_path_t *cache_path, const char *uuid_str,
     char buf[256];
     memcpy(buf, uuid_str, 36);
     buf[36] = '-';
-    sanitize_basename(
-        sentry__attachment_get_filename(att), buf + 37, sizeof(buf) - 37);
+    sanitize_basename(sentry__attachment_get_filename(attachment), buf + 37,
+        sizeof(buf) - 37);
 
     return sentry__path_unique(cache_path, buf);
 }
@@ -334,13 +334,13 @@ build_sibling_path(const sentry_path_t *cache_path, const char *uuid_str,
 // Cache `att` to a sibling file of the cached envelope and append an
 // attachment-ref item with `path` set. Returns true on success.
 static bool
-cache_attachment_ref(sentry_envelope_t *envelope,
-    const sentry_attachment_t *att, const sentry_path_t *cache_path,
-    const char *uuid_str, const sentry_path_t *run_path)
+cache_attachment_ref(sentry_envelope_t *envelope, sentry_value_t attachment,
+    const sentry_path_t *cache_path, const char *uuid_str,
+    const sentry_path_t *run_path)
 {
     size_t bytes_len = 0;
-    const char *bytes = sentry__attachment_get_bytes(att, &bytes_len);
-    sentry_path_t *path = bytes ? NULL : sentry__attachment_make_path(att);
+    const char *bytes = sentry__attachment_get_bytes(attachment, &bytes_len);
+    sentry_path_t *path = sentry__attachment_make_path(attachment);
 
     // File-backed attachments must exist on disk.
     if (!bytes && (!path || !sentry__path_is_file(path))) {
@@ -353,8 +353,8 @@ cache_attachment_ref(sentry_envelope_t *envelope,
         return false;
     }
 
-    const char *raw_filename = sentry__attachment_get_filename(att);
-    sentry_path_t *dst = build_sibling_path(cache_path, uuid_str, att);
+    const char *raw_filename = sentry__attachment_get_filename(attachment);
+    sentry_path_t *dst = build_sibling_path(cache_path, uuid_str, attachment);
     if (!dst) {
         sentry__path_free(path);
         return false;
@@ -381,10 +381,9 @@ cache_attachment_ref(sentry_envelope_t *envelope,
     size_t file_size = sentry__path_get_size(dst);
     sentry_attachment_ref_t ref = { 0 };
     ref.path = sentry__path_filename(dst);
-    ref.content_type = sentry__attachment_get_content_type(att);
-    const char *type = sentry__attachment_get_type(att);
-    sentry_envelope_item_t *item = sentry__envelope_add_attachment_ref(
-        envelope, &ref, raw_filename, type, file_size);
+    ref.content_type = sentry__attachment_get_content_type(attachment);
+    sentry_envelope_item_t *item = sentry__envelope_add_attachment_ref(envelope,
+        &ref, raw_filename, sentry__attachment_get_type(attachment), file_size);
     if (!item) {
         sentry__path_remove(dst);
         sentry__path_free(dst);
@@ -396,10 +395,10 @@ cache_attachment_ref(sentry_envelope_t *envelope,
 
 bool
 sentry__cache_attachment_ref(sentry_envelope_t *envelope,
-    const sentry_attachment_t *attachment, const sentry_path_t *cache_path,
+    sentry_value_t attachment, const sentry_path_t *cache_path,
     const sentry_path_t *run_path)
 {
-    if (!envelope || !attachment || !cache_path) {
+    if (!envelope || sentry_value_is_null(attachment) || !cache_path) {
         return false;
     }
 
@@ -417,10 +416,12 @@ sentry__cache_attachment_ref(sentry_envelope_t *envelope,
 
 void
 sentry__cache_attachment_refs(sentry_envelope_t *envelope,
-    const sentry_attachment_t *attachments, const sentry_options_t *options,
+    sentry_value_t attachments, const sentry_options_t *options,
     const sentry_path_t *cache_path, const sentry_path_t *run_path)
 {
-    if (!envelope || !attachments || !cache_path) {
+    if (!envelope
+        || sentry_value_get_type(attachments) != SENTRY_VALUE_TYPE_LIST
+        || !cache_path) {
         return;
     }
 
@@ -432,12 +433,14 @@ sentry__cache_attachment_refs(sentry_envelope_t *envelope,
     char uuid_str[37];
     sentry_uuid_as_string(&event_id, uuid_str);
 
-    for (const sentry_attachment_t *att = attachments; att; att = att->next) {
-        if (!sentry__attachment_is_placeholder(att, options)) {
+    size_t len = sentry_value_get_length(attachments);
+    for (size_t i = 0; i < len; i++) {
+        sentry_value_t attachment = sentry_value_get_by_index(attachments, i);
+        if (!sentry__attachment_is_placeholder(attachment, options)) {
             continue;
         }
         if (!cache_attachment_ref(
-                envelope, att, cache_path, uuid_str, run_path)) {
+                envelope, attachment, cache_path, uuid_str, run_path)) {
             SENTRY_WARN("failed to cache attachment-ref");
             sentry__client_report_discard(SENTRY_DISCARD_REASON_SEND_ERROR,
                 SENTRY_DATA_CATEGORY_ATTACHMENT, 1);

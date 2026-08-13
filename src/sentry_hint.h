@@ -8,7 +8,7 @@
  * or feedback when it's being captured.
  */
 struct sentry_hint_s {
-    sentry_attachment_t *attachments;
+    sentry_value_t attachments;
 };
 
 /**

@@ -2,8 +2,14 @@
 
 ## Unreleased
 
+**Breaking changes**:
+
+- Attachment APIs now use `sentry_value_t` and `sentry_uuid_t` instead of `sentry_attachment_t *` handles. Most attachment APIs, function names and arguments, are otherwise unchanged. ([#1974](https://github.com/getsentry/sentry-native/pull/1974))
+
 **Features**:
 
+- Add `sentry_attachment_from_file/bytes` (and their wide-string variants) for creating attachment values that can be fully configured before they are added. ([#1974](https://github.com/getsentry/sentry-native/pull/1974))
+- Add `sentry_add_attachment`, `sentry_scope_add_attachment`, and `sentry_hint_add_attachment` for adding configured attachments to the global scope, a specific scope, or a hint. ([#1974](https://github.com/getsentry/sentry-native/pull/1974))
 - Add `sentry_event_set_level` for setting the level of an individual event. ([#2038](https://github.com/getsentry/sentry-native/pull/2038))
 
 ## 0.16.5

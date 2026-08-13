@@ -808,6 +808,29 @@ SENTRY_TEST(envelope_remove_item)
     sentry_envelope_free(envelope);
 }
 
+SENTRY_TEST(attachment_bytes_no_copy)
+{
+    const char bytes[] = { 'a', '\0', 'b' };
+    sentry_value_t attachment
+        = sentry_attachment_from_bytes(bytes, sizeof(bytes), "bytes.bin");
+    const char *attachment_bytes
+        = sentry__attachment_get_bytes(attachment, NULL);
+    sentry_envelope_t *envelope = sentry__envelope_new();
+    sentry_envelope_item_t *item
+        = sentry__envelope_add_attachment(envelope, attachment);
+
+    TEST_ASSERT(!!item);
+    size_t payload_len = 0;
+    const char *payload = sentry__envelope_item_get_payload(item, &payload_len);
+    TEST_CHECK(payload == attachment_bytes);
+    TEST_CHECK_INT_EQUAL(payload_len, sizeof(bytes));
+
+    sentry_value_remove_by_key(attachment, "bytes");
+    sentry_value_decref(attachment);
+    TEST_CHECK(memcmp(payload, bytes, sizeof(bytes)) == 0);
+    sentry_envelope_free(envelope);
+}
+
 SENTRY_TEST(attachment_ref_creation)
 {
     const char *test_file_str
@@ -822,8 +845,8 @@ SENTRY_TEST(attachment_ref_creation)
                                  small_data, sizeof(small_data) - 1),
             0);
 
-        sentry_attachment_t *attachment
-            = sentry__attachment_from_path(sentry__path_clone(test_file_path));
+        sentry_value_t attachment
+            = sentry_attachment_from_file(test_file_path->path);
         sentry_envelope_item_t *item
             = sentry__envelope_add_attachment(envelope, attachment);
 
@@ -833,7 +856,31 @@ SENTRY_TEST(attachment_ref_creation)
         TEST_CHECK_STRING_EQUAL(
             sentry__envelope_item_get_payload(item, &payload_len), "small");
 
-        sentry__attachment_free(attachment);
+        sentry_value_decref(attachment);
+        sentry_envelope_free(envelope);
+    }
+
+    // A path value may fail to materialize because of invalid encoding or an
+    // allocation failure. Attachment processing must fail without dereferencing
+    // the missing path object.
+    {
+        sentry_envelope_t *envelope = sentry__envelope_new();
+        sentry_value_t attachment
+            = sentry_attachment_from_file(test_file_path->path);
+        sentry_value_remove_by_key(attachment, "path");
+
+        TEST_CHECK(!sentry__envelope_add_attachment(envelope, attachment));
+        TEST_CHECK_INT_EQUAL(sentry__envelope_get_item_count(envelope), 0);
+
+        sentry_uuid_t event_id = sentry_uuid_new_v4();
+        sentry__envelope_set_event_id(envelope, &event_id);
+        sentry_path_t *cache_path = sentry__path_from_str(
+            SENTRY_TEST_PATH_PREFIX "missing-attachment-path-cache");
+        TEST_CHECK(!sentry__cache_attachment_ref(
+            envelope, attachment, cache_path, NULL));
+
+        sentry__path_free(cache_path);
+        sentry_value_decref(attachment);
         sentry_envelope_free(envelope);
     }
 
@@ -934,8 +981,8 @@ SENTRY_TEST(attachment_ref_copy)
     fputs("minidump_data", f);
     fclose(f);
 
-    sentry_attachment_t *attachment
-        = sentry__attachment_from_path(sentry__path_clone(test_file_path));
+    sentry_value_t attachment
+        = sentry_attachment_from_file(test_file_path->path);
     sentry_attachment_set_type(attachment, SENTRY_ATTACHMENT_TYPE_MINIDUMP);
     sentry_attachment_set_content_type(attachment, "application/x-dmp");
 
@@ -984,7 +1031,7 @@ SENTRY_TEST(attachment_ref_copy)
     sentry__path_free(cache_dir);
     sentry__path_free(cached);
     sentry__path_free(db_path);
-    sentry__attachment_free(attachment);
+    sentry_value_decref(attachment);
     sentry__path_remove(test_file_path);
     sentry__path_free(test_file_path);
     sentry_close();
@@ -1019,8 +1066,7 @@ SENTRY_TEST(attachment_ref_move)
     fputs("attachment_data", f);
     fclose(f);
 
-    sentry_attachment_t *attachment
-        = sentry__attachment_from_path(sentry__path_clone(src_path));
+    sentry_value_t attachment = sentry_attachment_from_file(src_path->path);
 
     sentry_envelope_t *envelope = sentry__envelope_new();
     sentry__envelope_set_event_id(envelope, &event_id);
@@ -1050,7 +1096,7 @@ SENTRY_TEST(attachment_ref_move)
     sentry__path_remove(cached);
     sentry__path_free(cached);
     sentry__path_free(db_path);
-    sentry__attachment_free(attachment);
+    sentry_value_decref(attachment);
     sentry__path_free(src_path);
     sentry__path_free(run_path);
     sentry_close();
@@ -1070,8 +1116,8 @@ SENTRY_TEST(attachment_ref_cache_cleanup)
     sentry_envelope_t *raw_envelope = sentry__envelope_from_path(raw_path);
     TEST_ASSERT(!!raw_envelope);
 
-    sentry_attachment_t *attachment = sentry__attachment_from_buffer(
-        "payload", strlen("payload"), sentry__path_from_str("payload.bin"));
+    sentry_value_t attachment = sentry_attachment_from_bytes(
+        "payload", strlen("payload"), "payload.bin");
     sentry_path_t *cache_path = NULL;
     SENTRY_WITH_OPTIONS (opts) {
         cache_path = sentry__path_clone(opts->run->cache_path);
@@ -1085,7 +1131,7 @@ SENTRY_TEST(attachment_ref_cache_cleanup)
 
     sentry__path_free(cached);
     sentry__path_free(cache_path);
-    sentry__attachment_free(attachment);
+    sentry_value_decref(attachment);
     sentry_envelope_free(raw_envelope);
     sentry__path_remove(raw_path);
     sentry__path_free(raw_path);
@@ -1107,12 +1153,15 @@ SENTRY_TEST(attachment_ref_cache_discard)
         SENTRY_TEST_PATH_PREFIX "sentry_test_attachment_ref_cache_file");
     TEST_CHECK_INT_EQUAL(sentry__path_write_buffer(cache_path, "x", 1), 0);
 
-    sentry_attachment_t *attachment = sentry__attachment_from_buffer(
-        "x", 1, sentry__path_from_str("large.bin"));
-    attachment->buf_len = SENTRY_LARGE_ATTACHMENT_SIZE;
+    sentry_value_t attachment
+        = sentry_attachment_from_bytes("x", 1, "large.bin");
+    sentry_value_set_by_key(attachment, "size",
+        sentry_value_new_uint64(SENTRY_LARGE_ATTACHMENT_SIZE));
 
+    sentry_value_t attachments = sentry_value_new_list();
+    sentry_value_append(attachments, sentry_value_incref(attachment));
     sentry__cache_attachment_refs(
-        envelope, attachment, options, cache_path, NULL);
+        envelope, attachments, options, cache_path, NULL);
     TEST_CHECK_INT_EQUAL(sentry__envelope_get_item_count(envelope), 0);
 
     sentry_client_report_t report = { { 0 } };
@@ -1121,7 +1170,8 @@ SENTRY_TEST(attachment_ref_cache_discard)
                                       [SENTRY_DATA_CATEGORY_ATTACHMENT],
         1);
 
-    sentry__attachment_free(attachment);
+    sentry_value_decref(attachment);
+    sentry_value_decref(attachments);
     sentry__path_remove(cache_path);
     sentry__path_free(cache_path);
     sentry_envelope_free(envelope);

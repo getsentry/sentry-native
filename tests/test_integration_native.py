@@ -374,10 +374,9 @@ def test_native_attachment_manifest_is_current(cmake, httpserver):
     """The attachment manifest must reflect the live attachment state (#1933).
 
     The daemon builds hard-crash envelopes from `<run>/__sentry-attachments`,
-    which the backend only rewrites on a scope flush. `sentry_attach_file`
-    flushes, but `sentry_attachment_set_filename`/`_set_content_type` do not, so
-    the manifest keeps the physical basename and the crash event reports
-    `CMakeCache.txt` instead of `custom-name.log`.
+    which the backend only rewrites on a scope flush. `sentry_add_attachment`
+    adds the fully configured attachment before that flush, so the manifest
+    must contain all its metadata immediately.
 
     Asserting on the manifest rather than on a crash envelope keeps this
     deterministic: the in-process crash handler happens to flush the scope (via
@@ -397,11 +396,8 @@ def test_native_attachment_manifest_is_current(cmake, httpserver):
     last_manifest = None
 
     def manifest_is_current():
-        # `sentry_attach_file` writes the manifest and each setter rewrites it
-        # on its own flush, so a snapshot taken between the `set_filename` and
-        # `set_content_type` flushes carries the new name but no `content_type`
-        # key at all. Validate the complete expected state against a single
-        # snapshot instead of waiting on one field and re-reading the file.
+        # Validate the complete expected state against a single snapshot
+        # instead of waiting on one field and re-reading the file.
         nonlocal last_manifest
         paths = list(db_dir.glob("*.run/__sentry-attachments"))
         if not paths:
@@ -428,6 +424,34 @@ def test_native_attachment_manifest_is_current(cmake, httpserver):
     assert (
         up_to_date
     ), f"attachment manifest does not reflect the live attachment state: {last_manifest}"
+
+
+def test_native_byte_attachment_is_confined(cmake, unreachable_dsn):
+    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "native"})
+
+    cmd = run_command(str(tmp_path / "sentry_example"))
+    child = subprocess.Popen(
+        [*cmd, "log", "attachment", "sleep"],
+        cwd=tmp_path,
+        env=dict(os.environ, SENTRY_DSN=unreachable_dsn),
+    )
+    outside_path = tmp_path / ".sentry-byte-attachment"
+    confined_paths = []
+
+    def attachment_was_written():
+        nonlocal confined_paths
+        confined_paths = list((tmp_path / ".sentry-native").glob("*.run/*/bytes.bin"))
+        return outside_path.exists() or bool(confined_paths)
+
+    try:
+        assert wait_for(attachment_was_written)
+    finally:
+        child.terminate()
+        child.wait()
+
+    assert not outside_path.exists()
+    assert len(confined_paths) == 1
+    assert confined_paths[0].read_bytes() == b"\xc0\xff\xee"
 
 
 def test_native_session_tracking(cmake, httpserver):

@@ -222,14 +222,10 @@ write_attachment_to_envelope(int fd, const char *file_path,
 static bool
 attachment_is_placeholder(const sentry_options_t *options, const char *path)
 {
-    sentry_attachment_t attachment = { 0 };
-    attachment.path = sentry__path_from_str(path);
-    if (!attachment.path) {
-        return false;
-    }
+    sentry_value_t attachment = sentry_attachment_from_file(path);
     bool is_placeholder
-        = sentry__attachment_is_placeholder(&attachment, options);
-    sentry__path_free(attachment.path);
+        = sentry__attachment_is_placeholder(attachment, options);
+    sentry_value_decref(attachment);
     return is_placeholder;
 }
 
@@ -282,38 +278,29 @@ add_attachment_refs(sentry_envelope_t *envelope,
             SENTRY_WARN("Skipping malformed attachment manifest entry");
             continue;
         }
-        sentry_attachment_t attachment = { 0 };
-        attachment.path = sentry__path_from_str(path);
-        attachment.filename = sentry__path_from_str(filename);
-        if (!attachment.path || !attachment.filename) {
+        sentry_value_t attachment = sentry_attachment_from_file(path);
+        if (sentry_value_is_null(attachment)) {
             SENTRY_WARNF("Failed to allocate attachment paths for: %s", path);
-            sentry__path_free(attachment.path);
-            sentry__path_free(attachment.filename);
             continue;
         }
-        attachment.type
-            = (char *)((attachment_type && *attachment_type) ? attachment_type
-                                                             : NULL);
-        attachment.content_type
-            = sentry__string_empty(content_type) ? NULL : (char *)content_type;
-        if (!sentry__attachment_is_placeholder(&attachment, options)) {
-            sentry__path_free(attachment.path);
-            sentry__path_free(attachment.filename);
+        sentry_attachment_set_filename(attachment, filename);
+        sentry_attachment_set_type(attachment, attachment_type);
+        sentry_attachment_set_content_type(attachment, content_type);
+        if (!sentry__attachment_is_placeholder(attachment, options)) {
+            sentry_value_decref(attachment);
             continue;
         }
         if (!materialized && !sentry__envelope_materialize(envelope)) {
             SENTRY_WARN("Failed to materialize envelope for attachment-refs");
-            sentry__path_free(attachment.path);
-            sentry__path_free(attachment.filename);
+            sentry_value_decref(attachment);
             break;
         }
         materialized = true;
         if (!sentry__cache_attachment_ref(
-                envelope, &attachment, options->run->cache_path, NULL)) {
+                envelope, attachment, options->run->cache_path, NULL)) {
             SENTRY_WARN("failed to cache attachment-ref");
         }
-        sentry__path_free(attachment.path);
-        sentry__path_free(attachment.filename);
+        sentry_value_decref(attachment);
     }
     sentry_value_decref(list);
 }
