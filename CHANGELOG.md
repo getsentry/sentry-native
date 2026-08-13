@@ -1,15 +1,18 @@
 # Changelog
 
-## Unreleased
+## 0.16.3
 
 **Features**:
 
 - Forward `enable_logs` option through `NdkOptions` so the Android SDK can enable native structured logging. ([#1971](https://github.com/getsentry/sentry-native/pull/1971))
 - Report enabled Qt and WER integrations in event SDK metadata (`sdk.integrations`) alongside the configured crash backend. ([#1969](https://github.com/
   getsentry/sentry-native/pull/1969))
+- Add `sentry_scope_set_span` and `sentry_scope_set_transaction_object` to bind a span or transaction to a given scope. ([#1981](https://github.com/getsentry/sentry-native/pull/1981))
 
 **Fixes**:
 
+- Remove the `serializing envelope into buffer` debug log that could flood logs on every scope flush when an external crash reporter is configured. ([#1988](https://github.com/getsentry/sentry-native/pull/1988))
+- Crashpad: avoid allocating while handling a crash. The backend built the attachment `base::FilePath` inside the crash handler; if the crash corrupted the heap (e.g. via an overridden `operator new`) that allocation faults again and the report is lost. The paths are now cached at startup. ([#1984](https://github.com/getsentry/sentry-native/pull/1984))
 - Crashpad: prevent external crash reporters from bypassing revoked user consent. ([#1972](https://github.com/getsentry/sentry-native/pull/1972), [crashpad#168](https://github.com/getsentry/crashpad/pull/168))
 - Native/Linux: improve startup time by avoiding zeroing a large shmem module array during crash context initialization. ([#1966](https://github.com/getsentry/sentry-native/pull/1966))
 - Linux/ARM32: prevent recursive crashes when libunwind receives an unmapped initial instruction pointer during crash handling. ([#1977](https://github.com/getsentry/sentry-native/pull/1977))

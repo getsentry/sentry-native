@@ -835,7 +835,6 @@ sentry__envelope_serialize_into_stringbuilder(
         return;
     }
 
-    SENTRY_DEBUG("serializing envelope into buffer");
     sentry__envelope_serialize_headers_into_stringbuilder(envelope, sb);
 
     for (const sentry_envelope_item_t *item
