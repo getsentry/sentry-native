@@ -128,6 +128,12 @@ void sentry__path_free(sentry_path_t *path);
 const char *sentry__path_filename(const sentry_path_t *path);
 
 /**
+ * Returns a pointer to the last path segment in the borrowed string.
+ */
+const char *sentry__path_filename_from_str(const char *path);
+const char *sentry__path_filename_from_str_n(const char *path, size_t path_len);
+
+/**
  * Returns whether the two paths are equal.
  */
 bool sentry__path_eq(const sentry_path_t *path_a, const sentry_path_t *path_b);
