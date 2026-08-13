@@ -160,9 +160,8 @@ breakpad_backend_callback(const google_breakpad::MinidumpDescriptor &descriptor,
 #endif
 
             SENTRY_SIGNAL_SAFE_LOG("DEBUG invoking `on_crash` hook");
-            sentry_value_t result
-                = options->on_crash_func(uctx, event, options->on_crash_data);
-            should_handle = !sentry_value_is_null(result);
+            event = options->on_crash_func(uctx, event, options->on_crash_data);
+            should_handle = !sentry_value_is_null(event);
         }
 
         sentry__transport_suspend(options->transport);
