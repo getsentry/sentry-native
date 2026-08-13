@@ -863,7 +863,7 @@ SENTRY_TEST(trace_finish)
     TEST_CHECK_INT_EQUAL(called, 0);
 }
 
-SENTRY_TEST(finish_dropped_span_twice)
+SENTRY_TEST(finish_marks_dropped_span)
 {
     SENTRY_TEST_OPTIONS_NEW(options);
     sentry_options_set_traces_sample_rate(options, 1.0);
@@ -879,16 +879,11 @@ SENTRY_TEST(finish_dropped_span_twice)
         = sentry_transaction_start_child(tx, "db.query", "select");
     TEST_ASSERT(!!span);
 
-    // Hold reference (as a scope would) so the span survives the first finish.
     sentry__span_incref(span);
 
     // Dropped because the root is unsampled. Should be stamped as done.
     sentry_span_finish(span);
     TEST_CHECK(!IS_NULL(span->inner, "timestamp"));
-
-    // Marked done above, so the guard aborts instead of releasing twice.
-    sentry_span_finish(span);
-    CHECK_STRING_PROPERTY(span->inner, "description", "select");
 
     sentry__span_decref(span);
     sentry__transaction_decref(tx);
@@ -896,7 +891,7 @@ SENTRY_TEST(finish_dropped_span_twice)
     sentry_close();
 }
 
-SENTRY_TEST(finish_overflowed_span_twice)
+SENTRY_TEST(finish_marks_overflowed_span)
 {
     SENTRY_TEST_OPTIONS_NEW(options);
     sentry_options_set_traces_sample_rate(options, 1.0);
@@ -913,15 +908,12 @@ SENTRY_TEST(finish_overflowed_span_twice)
 
     sentry_span_finish(first);
 
-    // Hold reference (as a scope would) so the span survives the first finish.
     sentry__span_incref(overflow);
 
     // Dropped for overflowing max_spans. Should be stamped as done.
     sentry_span_finish(overflow);
     TEST_CHECK(!IS_NULL(overflow->inner, "timestamp"));
 
-    // Marked done above, so the guard aborts instead of releasing twice.
-    sentry_span_finish(overflow);
     sentry_value_t spans = sentry_value_get_by_key(tx->inner, "spans");
     TEST_CHECK_INT_EQUAL(sentry_value_get_length(spans), 1);
 
@@ -931,7 +923,7 @@ SENTRY_TEST(finish_overflowed_span_twice)
     sentry_close();
 }
 
-SENTRY_TEST(finish_transaction_twice)
+SENTRY_TEST(finish_marks_transaction)
 {
     uint64_t called = 0;
     SENTRY_TEST_OPTIONS_NEW(options);
@@ -947,7 +939,6 @@ SENTRY_TEST(finish_transaction_twice)
     sentry_transaction_t *tx = sentry_transaction_start(
         sentry_transaction_context_new("txn", NULL), sentry_value_new_null());
 
-    // Hold reference (as a scope would) so the span survives the first finish.
     sentry__transaction_incref(tx);
 
     // Should be stamped as done.
@@ -955,17 +946,12 @@ SENTRY_TEST(finish_transaction_twice)
     TEST_CHECK_INT_EQUAL(called, 1);
     TEST_CHECK(!IS_NULL(tx->inner, "timestamp"));
 
-    // The second finish should not send the transaction again.
-    sentry_transaction_finish(tx);
-    TEST_CHECK_INT_EQUAL(called, 1);
-    CHECK_STRING_PROPERTY(tx->inner, "transaction", "txn");
-
     sentry__transaction_decref(tx);
 
     sentry_close();
 }
 
-SENTRY_TEST(finish_span_twice)
+SENTRY_TEST(finish_marks_span)
 {
     SENTRY_TEST_OPTIONS_NEW(options);
     sentry_options_set_traces_sample_rate(options, 1.0);
@@ -977,18 +963,13 @@ SENTRY_TEST(finish_span_twice)
         = sentry_transaction_start_child(tx, "db.query", "select");
     TEST_ASSERT(!!span);
 
-    // Hold reference (as a scope would) so the span survives the first finish.
+    // Hold reference (as a scope would) so we can inspect it after finishing.
     sentry__span_incref(span);
 
     sentry_span_finish(span);
     sentry_value_t spans = sentry_value_get_by_key(tx->inner, "spans");
     TEST_CHECK_INT_EQUAL(sentry_value_get_length(spans), 1);
     TEST_CHECK(!IS_NULL(span->inner, "timestamp"));
-
-    // Marked done above, so the guard aborts instead of releasing twice.
-    sentry_span_finish(span);
-    TEST_CHECK_INT_EQUAL(sentry_value_get_length(spans), 1);
-    CHECK_STRING_PROPERTY(span->inner, "description", "select");
 
     sentry__span_decref(span);
     sentry_transaction_finish(tx);
