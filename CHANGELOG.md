@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+**Fixes**:
+
+- Native: store daemon logs, minidumps, crash envelopes, and scratch files in `.run` directories so they are cleaned up with the run instead of accumulating in the database root. ([#1976](https://github.com/getsentry/sentry-native/pull/1976))
+
 ## 0.16.3
 
 **Features**:
@@ -15,7 +21,6 @@
 - Crashpad: avoid allocating while handling a crash. The backend built the attachment `base::FilePath` inside the crash handler; if the crash corrupted the heap (e.g. via an overridden `operator new`) that allocation faults again and the report is lost. The paths are now cached at startup. ([#1984](https://github.com/getsentry/sentry-native/pull/1984))
 - Crashpad: prevent external crash reporters from bypassing revoked user consent. ([#1972](https://github.com/getsentry/sentry-native/pull/1972), [crashpad#168](https://github.com/getsentry/crashpad/pull/168))
 - Native/Linux: improve startup time by avoiding zeroing a large shmem module array during crash context initialization. ([#1966](https://github.com/getsentry/sentry-native/pull/1966))
-- Native: store daemon logs, minidumps, crash envelopes, and scratch files in `.run` directories so they are cleaned up with the run instead of accumulating in the database root. ([#1976](https://github.com/getsentry/sentry-native/pull/1976))
 
 ## 0.16.2
 
