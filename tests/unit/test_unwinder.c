@@ -7,6 +7,10 @@
 #    include "unwinder/sentry_unwinder.h"
 #    include <fcntl.h>
 #    include <unistd.h>
+#    if defined(__arm__)
+#        define UNW_LOCAL_ONLY
+#        include <libunwind.h>
+#    endif
 extern bool find_mem_range_from_fd(int fd, uintptr_t ptr, mem_range_t *range);
 #endif
 
@@ -101,6 +105,29 @@ SENTRY_TEST(unwinder)
             }
         }
     }
+}
+
+SENTRY_TEST(unwinder_unmapped_ip)
+{
+#if !defined(SENTRY_WITH_UNWINDER_LIBUNWIND) || !defined(__arm__)
+    SKIP_TEST();
+#else
+    int stack_var = 0;
+    // libunwind uses its own register-array context on ARM.
+    unw_context_t unwind_context = { 0 };
+    unwind_context.regs[13] = (uintptr_t)&stack_var;
+    unwind_context.regs[15] = 0x10c;
+
+    sentry_ucontext_t context = { 0 };
+    context.user_context = (ucontext_t *)&unwind_context;
+
+    void *backtrace[2] = { 0 };
+    size_t frame_count
+        = sentry_unwind_stack_from_ucontext(&context, backtrace, 2);
+
+    TEST_CHECK_INT_EQUAL(frame_count, 1);
+    TEST_CHECK_PTR_EQUAL(backtrace[0], (void *)(uintptr_t)0x10c);
+#endif
 }
 
 SENTRY_TEST(find_mem_range)

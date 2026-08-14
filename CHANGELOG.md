@@ -5,6 +5,7 @@
 **Fixes**:
 
 - Native: store daemon logs, minidumps, crash envelopes, and scratch files in `.run` directories so they are cleaned up with the run instead of accumulating in the database root. Minidumps can still be retained with `cache_keep`, which stores `.dmp` sidecars alongside cached envelopes. ([#1976](https://github.com/getsentry/sentry-native/pull/1976))
+- Linux/ARM32: prevent recursive crashes when libunwind receives an unmapped initial instruction pointer during crash handling. ([#1977](https://github.com/getsentry/sentry-native/pull/1977))
 
 ## 0.16.3
 
@@ -21,6 +22,7 @@
 - Crashpad: avoid allocating while handling a crash. The backend built the attachment `base::FilePath` inside the crash handler; if the crash corrupted the heap (e.g. via an overridden `operator new`) that allocation faults again and the report is lost. The paths are now cached at startup. ([#1984](https://github.com/getsentry/sentry-native/pull/1984))
 - Crashpad: prevent external crash reporters from bypassing revoked user consent. ([#1972](https://github.com/getsentry/sentry-native/pull/1972), [crashpad#168](https://github.com/getsentry/crashpad/pull/168))
 - Native/Linux: improve startup time by avoiding zeroing a large shmem module array during crash context initialization. ([#1966](https://github.com/getsentry/sentry-native/pull/1966))
+- Preserve embedded `NUL` bytes in strings created with `sentry_value_new_string_n` during JSON and MessagePack serialization. `sentry_value_get_length` now returns the full byte length, which can exceed `strlen(sentry_value_as_string(value))`. ([#1968](https://github.com/getsentry/sentry-native/pull/1968))
 
 ## 0.16.2
 
@@ -37,7 +39,6 @@
 - `sentry_attachment_set_filename`, `sentry_attachment_set_type`, and `sentry_attachment_set_content_type` now flush the scope, so changes applied after `sentry_attach_file`/`sentry_attach_bytes` also apply to hard-crash events instead of only to normal events. ([#1934](https://github.com/getsentry/sentry-native/pull/1934))
 - Crashpad: fix a crash when calling `sentry_init` before C++ dynamic initializers have run. ([#1930](https://github.com/getsentry/sentry-native/issues/1930), [mini_chromium#8](https://github.com/getsentry/mini_chromium/pull/8))
 - Reduce the size of native-generated minidumps on Windows ([#1929](https://github.com/getsentry/sentry-native/pull/1929))
-- Preserve embedded `NUL` bytes in strings created with `sentry_value_new_string_n` during JSON and MessagePack serialization. `sentry_value_get_length` now returns the full byte length, which can exceed `strlen(sentry_value_as_string(value))`. ([#1968](https://github.com/getsentry/sentry-native/pull/1968))
 
 ## 0.16.1
 
