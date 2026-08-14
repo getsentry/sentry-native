@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+**Features**:
+
+- Add `sentry_set_tags` and `sentry_scope_set_tags` for updating multiple tags with a single scope flush, improving bulk-update performance.
+
 **Fixes**:
 
 - Linux/ARM32: prevent recursive crashes when libunwind receives an unmapped initial instruction pointer during crash handling. ([#1977](https://github.com/getsentry/sentry-native/pull/1977))

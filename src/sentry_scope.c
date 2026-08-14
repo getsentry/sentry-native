@@ -784,6 +784,20 @@ sentry_scope_set_tag_n(sentry_scope_t *scope, const char *key, size_t key_len,
     }
 }
 
+static void
+set_tag_value(const char *key, sentry_value_t value, void *userdata)
+{
+    sentry_scope_set_tag(
+        (sentry_scope_t *)userdata, key, sentry_value_as_string(value));
+}
+
+void
+sentry_scope_set_tags(sentry_scope_t *scope, sentry_value_t tags)
+{
+    sentry__value_foreach_key_value(tags, set_tag_value, scope);
+    sentry_value_decref(tags);
+}
+
 void
 sentry_scope_set_extra(
     sentry_scope_t *scope, const char *key, sentry_value_t value)

@@ -2333,6 +2333,16 @@ SENTRY_API void sentry_scope_set_tag_n(sentry_scope_t *scope, const char *key,
     size_t key_len, const char *value, size_t value_len);
 
 /**
+ * Adds or updates tags from the specified object. Existing tags whose keys are
+ * not supplied remain unchanged.
+ *
+ * The function takes ownership of `tags`.
+ */
+SENTRY_API void sentry_set_tags(sentry_value_t tags);
+SENTRY_API void sentry_scope_set_tags(
+    sentry_scope_t *scope, sentry_value_t tags);
+
+/**
  * Removes the tag with the specified key.
  */
 SENTRY_API void sentry_remove_tag(const char *key);
