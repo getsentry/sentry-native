@@ -16,6 +16,10 @@ SENTRY_TEST(uninitialized)
     TEST_CHECK(sentry_user_consent_get() == SENTRY_USER_CONSENT_UNKNOWN);
     sentry_uuid_t uuid = sentry_capture_event(sentry_value_new_event());
     TEST_CHECK(sentry_uuid_is_nil(&uuid));
+    uuid = sentry_get_last_event_id();
+    TEST_CHECK(sentry_uuid_is_nil(&uuid));
+    uuid = sentry_scope_get_last_event_id(NULL);
+    TEST_CHECK(sentry_uuid_is_nil(&uuid));
     sentry_handle_exception(NULL);
     sentry_add_breadcrumb(sentry_value_new_breadcrumb("foo", "bar"));
     sentry_set_user(sentry_value_new_object());

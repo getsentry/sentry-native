@@ -489,7 +489,7 @@ sentry_user_consent_is_required(void)
 }
 
 void
-sentry__capture_envelope(sentry_transport_t *transport,
+sentry__submit_envelope(sentry_transport_t *transport,
     sentry_envelope_t *envelope, const sentry_options_t *options)
 {
     if (!sentry__run_should_skip_upload(options->run)) {
@@ -509,6 +509,20 @@ sentry__capture_envelope(sentry_transport_t *transport,
     SENTRY_INFO(cached ? "caching envelope due to missing user consent"
                        : "discarding envelope due to missing user consent");
     sentry_envelope_free(envelope);
+}
+
+void
+sentry__capture_envelope(sentry_transport_t *transport,
+    sentry_envelope_t *envelope, const sentry_options_t *options)
+{
+    sentry_uuid_t event_id = sentry__envelope_get_event_id(envelope);
+    if (!sentry_uuid_is_nil(&event_id)) {
+        SENTRY_WITH_SCOPE_MUT_NO_FLUSH (scope) {
+            scope->last_event_id = event_id;
+        }
+    }
+
+    sentry__submit_envelope(transport, envelope, options);
 }
 
 void
@@ -633,7 +647,13 @@ sentry__capture_event(sentry_value_t event, sentry_scope_t *local_scope)
                     SENTRY_DATA_CATEGORY_ERROR, 1);
                 sentry_envelope_free(envelope);
             } else {
-                sentry__capture_envelope(options->transport, envelope, options);
+                if (local_scope) {
+                    sentry__scope_capture_envelope(
+                        local_scope, options->transport, envelope, options);
+                } else {
+                    sentry__capture_envelope(
+                        options->transport, envelope, options);
+                }
                 was_sent = true;
             }
         }
@@ -641,6 +661,7 @@ sentry__capture_event(sentry_value_t event, sentry_scope_t *local_scope)
     if (!was_captured) {
         sentry_value_decref(event);
     }
+    sentry__scope_free_one_shot(local_scope);
     return was_sent ? event_id : sentry_uuid_nil();
 }
 
@@ -721,7 +742,6 @@ sentry__prepare_event(const sentry_options_t *options, sentry_value_t event,
             SENTRY_DEBUG("event was discarded by the `before_send` hook");
             sentry__client_report_discard(SENTRY_DISCARD_REASON_BEFORE_SEND,
                 SENTRY_DATA_CATEGORY_ERROR, 1);
-            sentry__scope_free_one_shot(local_scope);
             return NULL;
         }
     }
@@ -750,14 +770,11 @@ sentry__prepare_event(const sentry_options_t *options, sentry_value_t event,
     }
 
     sentry__attachments_free(all_attachments);
-    sentry__scope_free_one_shot(local_scope);
-
     return envelope;
 
 fail:
     sentry_envelope_free(envelope);
     sentry_value_decref(event);
-    sentry__scope_free_one_shot(local_scope);
     return NULL;
 }
 
@@ -855,7 +872,6 @@ prepare_user_feedback(const sentry_options_t *options,
                 "feedback was discarded by the `before_send_feedback` hook");
             sentry__client_report_discard(SENTRY_DISCARD_REASON_BEFORE_SEND,
                 SENTRY_DATA_CATEGORY_FEEDBACK, 1);
-            sentry__scope_free_one_shot(local_scope);
             return NULL;
         }
     }
@@ -889,15 +905,12 @@ prepare_user_feedback(const sentry_options_t *options,
     }
 
     sentry__attachments_free(all_attachments);
-    sentry__scope_free_one_shot(local_scope);
-
     return envelope;
 
 fail:
     SENTRY_WARN("dropping user feedback");
     sentry_envelope_free(envelope);
     sentry_value_decref(event);
-    sentry__scope_free_one_shot(local_scope);
     return NULL;
 }
 
@@ -1856,7 +1869,12 @@ capture_feedback(sentry_value_t user_feedback, sentry_hint_t *hint,
         sentry_envelope_t *envelope = prepare_user_feedback(
             options, user_feedback, hint, local_scope, &event_id);
         if (envelope) {
-            sentry__capture_envelope(options->transport, envelope, options);
+            if (local_scope) {
+                sentry__scope_capture_envelope(
+                    local_scope, options->transport, envelope, options);
+            } else {
+                sentry__capture_envelope(options->transport, envelope, options);
+            }
             was_sent = true;
         }
     }
@@ -1864,8 +1882,9 @@ capture_feedback(sentry_value_t user_feedback, sentry_hint_t *hint,
     if (!was_captured) {
         // The SDK is not initialized, most likely.
         sentry_value_decref(user_feedback);
-        sentry__scope_free_one_shot(local_scope);
     }
+
+    sentry__scope_free_one_shot(local_scope);
 
     if (hint) {
         sentry__hint_free(hint);
@@ -2201,3 +2220,13 @@ sentry_capture_minidumpw_n(const wchar_t *path, size_t path_len)
     return capture_minidump(dump_path);
 }
 #endif
+
+sentry_uuid_t
+sentry_get_last_event_id(void)
+{
+    sentry_uuid_t event_id = sentry_uuid_nil();
+    SENTRY_WITH_SCOPE (scope) {
+        event_id = sentry_scope_get_last_event_id(scope);
+    }
+    return event_id;
+}

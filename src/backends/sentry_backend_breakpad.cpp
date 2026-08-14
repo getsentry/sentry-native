@@ -250,11 +250,11 @@ breakpad_backend_callback(const google_breakpad::MinidumpDescriptor &descriptor,
                         = sentry__prepare_transaction(
                             options, transaction, nullptr);
                     if (tx_envelope) {
-                        sentry__capture_envelope(
+                        sentry__submit_envelope(
                             options->transport, tx_envelope, options);
                     }
                 }
-                sentry__capture_envelope(options->transport, envelope, options);
+                sentry__submit_envelope(options->transport, envelope, options);
             } else {
                 sentry_value_decref(transaction);
             }
