@@ -4,6 +4,7 @@
 
 **Features**:
 
+- Native/Windows: capture WER report ID and expose as `contexts.wer.report_id` in crash events when the WER integration is enabled. ([#1970](https://github.com/getsentry/sentry-native/pull/1970))
 - Add `sentry_set_tags` and `sentry_scope_set_tags` for updating multiple tags with a single scope flush, improving bulk-update performance. ([#1993](https://github.com/getsentry/sentry-native/pull/1993))
 
 **Fixes**:
