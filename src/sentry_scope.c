@@ -1191,7 +1191,13 @@ sentry__scope_capture_envelope(sentry_scope_t *scope,
     if (envelope) {
         sentry_uuid_t event_id = sentry__envelope_get_event_id(envelope);
         if (!sentry_uuid_is_nil(&event_id)) {
-            scope->last_event_id = event_id;
+            if (scope) {
+                scope->last_event_id = event_id;
+            } else {
+                SENTRY_WITH_SCOPE_MUT_NO_FLUSH (global_scope) {
+                    global_scope->last_event_id = event_id;
+                }
+            }
         }
     }
 

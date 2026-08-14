@@ -492,9 +492,10 @@ void
 sentry__capture_envelope(sentry_transport_t *transport,
     sentry_envelope_t *envelope, const sentry_options_t *options)
 {
-    SENTRY_WITH_SCOPE_MUT_NO_FLUSH (scope) {
-        sentry__scope_capture_envelope(scope, transport, envelope, options);
-    }
+    // Envelope capture deliberately bypasses SENTRY_WITH_SCOPE: passing NULL
+    // makes sentry__scope_capture_envelope lock only for the global ID update,
+    // leaving transport execution outside the critical section.
+    sentry__scope_capture_envelope(NULL, transport, envelope, options);
 }
 
 void

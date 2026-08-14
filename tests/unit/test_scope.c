@@ -2564,6 +2564,61 @@ send_envelope_count(sentry_envelope_t *envelope, void *data)
     sentry_envelope_free(envelope);
 }
 
+typedef struct {
+    sentry_waitable_flag_t mutation_finished;
+    sentry_threadid_t thread;
+    bool mutation_finished_during_send;
+    int spawn_result;
+} scope_transport_state_t;
+
+SENTRY_THREAD_FN
+mutate_scope_during_send(void *data)
+{
+    scope_transport_state_t *state = data;
+    sentry_set_tag("during_send", "true");
+    sentry__waitable_flag_set(&state->mutation_finished);
+    return 0;
+}
+
+static void
+send_envelope_while_mutating_scope(sentry_envelope_t *envelope, void *data)
+{
+    scope_transport_state_t *state = data;
+    state->spawn_result
+        = sentry__thread_spawn(&state->thread, mutate_scope_during_send, state);
+    if (!state->spawn_result) {
+        state->mutation_finished_during_send
+            = sentry__waitable_flag_wait(&state->mutation_finished, 1000);
+    }
+
+    sentry_envelope_free(envelope);
+}
+
+SENTRY_TEST(scope_capture_unlocked)
+{
+    scope_transport_state_t state = { 0 };
+    sentry__waitable_flag_init(&state.mutation_finished);
+    sentry__thread_init(&state.thread);
+
+    SENTRY_TEST_OPTIONS_NEW(options);
+    sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
+    sentry_options_set_auto_session_tracking(options, false);
+    sentry_transport_t *transport
+        = sentry_transport_new(send_envelope_while_mutating_scope);
+    sentry_transport_set_state(transport, &state);
+    sentry_options_set_transport(options, transport);
+    sentry_init(options);
+
+    sentry_uuid_t event_id = sentry_capture_event(sentry_value_new_event());
+    TEST_CHECK(!sentry_uuid_is_nil(&event_id));
+    TEST_ASSERT(state.spawn_result == 0);
+    sentry__thread_join(state.thread);
+    sentry__thread_free(&state.thread);
+    TEST_CHECK(state.mutation_finished_during_send);
+
+    sentry_close();
+}
+
 static sentry_value_t
 conditionally_discard_event(
     sentry_value_t event, void *UNUSED(hint), void *data)
