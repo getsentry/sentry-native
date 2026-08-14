@@ -523,6 +523,7 @@ SENTRY_TEST(scope_tags)
         global_tags, "global", sentry_value_new_string("global"));
     sentry_value_set_by_key(
         global_tags, "scope", sentry_value_new_string("global"));
+    sentry_value_set_by_key(global_tags, "invalid", sentry_value_new_int32(42));
     sentry_value_incref(global_tags);
     sentry_set_tags(global_tags);
     TEST_CHECK_INT_EQUAL(sentry_value_refcount(global_tags), 1);
@@ -549,6 +550,8 @@ SENTRY_TEST(scope_tags)
         TEST_CHECK_TAG_EQUAL(event, "event", "event");
         TEST_CHECK_TAG_EQUAL(event, "global", "global");
         TEST_CHECK_TAG_EQUAL(event, "scope", "global");
+        TEST_CHECK(sentry_value_is_null(sentry_value_get_by_key(
+            sentry_value_get_by_key(event, "tags"), "invalid")));
 
         sentry_value_decref(event);
     }
