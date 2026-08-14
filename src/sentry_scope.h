@@ -234,6 +234,9 @@ void sentry__scope_freeze_dsc(sentry_scope_t *scope, sentry_value_t incoming);
 void sentry__scope_apply_to_telemetry(const sentry_scope_t *scope,
     sentry_value_t telemetry, sentry_value_t attributes);
 
+/**
+ * Captures the `envelope` on `scope`, recording the last sent event ID.
+ */
 void sentry__scope_capture_envelope(sentry_scope_t *scope,
     sentry_transport_t *transport, sentry_envelope_t *envelope,
     const sentry_options_t *options);

@@ -1,7 +1,9 @@
 #include "sentry.h"
 #include "sentry_alloc.h"
 #include "sentry_backend.h"
+#include "sentry_core.h"
 #include "sentry_database.h"
+#include "sentry_envelope.h"
 #include "sentry_options.h"
 #include "sentry_scope.h"
 #include "sentry_testsupport.h"
@@ -2768,6 +2770,17 @@ SENTRY_TEST(scope_last_event_id)
     last_event_id = sentry_get_last_event_id();
     TEST_CHECK_UUID_EQUAL(last_event_id, feedback_id);
 
+    sentry_uuid_t submitted_id = sentry_uuid_new_v4();
+    sentry_envelope_t *envelope = sentry__envelope_new();
+    sentry__envelope_add_event(
+        envelope, sentry__value_new_event_with_id(&submitted_id));
+    SENTRY_WITH_OPTIONS (current_options) {
+        sentry__submit_envelope(
+            current_options->transport, envelope, current_options);
+    }
+    last_event_id = sentry_get_last_event_id();
+    TEST_CHECK_UUID_EQUAL(last_event_id, feedback_id);
+
     sentry_scope_clear(scope);
     last_event_id = sentry_scope_get_last_event_id(scope);
     TEST_CHECK(sentry_uuid_is_nil(&last_event_id));
@@ -2778,7 +2791,7 @@ SENTRY_TEST(scope_last_event_id)
     sentry_scope_free(scope);
     sentry_close();
 
-    TEST_CHECK_INT_EQUAL(called, 4);
+    TEST_CHECK_INT_EQUAL(called, 5);
 }
 
 SENTRY_TEST(scope_capture_user_owned)

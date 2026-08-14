@@ -96,6 +96,16 @@ sentry_value_t sentry__transaction_finish_value(
  * This function will submit the `envelope` to the given `transport`, first
  * checking for consent.
  */
+void sentry__submit_envelope(sentry_transport_t *transport,
+    sentry_envelope_t *envelope, const sentry_options_t *options);
+
+/**
+ * Captures the `envelope` on the global scope, recording the last sent event
+ * ID.
+ *
+ * Note: This is not safe to call from crash handlers; use
+ * `sentry__submit_envelope` directly instead.
+ */
 void sentry__capture_envelope(sentry_transport_t *transport,
     sentry_envelope_t *envelope, const sentry_options_t *options);
 

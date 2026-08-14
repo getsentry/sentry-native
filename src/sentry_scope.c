@@ -1206,34 +1206,10 @@ sentry__scope_capture_envelope(sentry_scope_t *scope,
     sentry_transport_t *transport, sentry_envelope_t *envelope,
     const sentry_options_t *options)
 {
-    if (envelope) {
-        sentry_uuid_t event_id = sentry__envelope_get_event_id(envelope);
-        if (!sentry_uuid_is_nil(&event_id)) {
-            if (scope) {
-                scope->last_event_id = event_id;
-            } else {
-                SENTRY_WITH_SCOPE_MUT_NO_FLUSH (global_scope) {
-                    global_scope->last_event_id = event_id;
-                }
-            }
-        }
+    sentry_uuid_t event_id = sentry__envelope_get_event_id(envelope);
+    if (!sentry_uuid_is_nil(&event_id)) {
+        scope->last_event_id = event_id;
     }
 
-    if (!sentry__run_should_skip_upload(options->run)) {
-        sentry__transport_send_envelope(transport, envelope);
-        return;
-    }
-    bool cached = false;
-    if (options->cache_keep || options->http_retry) {
-        int retry_count = options->http_retry ? 0 : -1;
-        cached = sentry__run_write_cache(options->run, envelope, retry_count);
-        if (cached && !sentry__run_should_skip_upload(options->run)) {
-            // consent given meanwhile -> trigger retry to avoid waiting
-            // until the next retry poll
-            sentry_transport_retry(options->transport);
-        }
-    }
-    SENTRY_INFO(cached ? "caching envelope due to missing user consent"
-                       : "discarding envelope due to missing user consent");
-    sentry_envelope_free(envelope);
+    sentry__submit_envelope(transport, envelope, options);
 }
