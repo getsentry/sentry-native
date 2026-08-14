@@ -150,6 +150,7 @@ def test_http_forwarding(start_proxy, target_server):
     response = _exchange(port, _proxy_request(target_port))
 
     assert response.startswith(b"HTTP/1.1 200")
+    assert response.endswith(b"OK")
     method, path, _, body = target_server.requests.get(timeout=5)
     assert (method, path, body) == ("POST", "/envelope?test=1", b"data")
 
@@ -171,6 +172,7 @@ def test_proxy_auth_forwarding(start_proxy, target_server):
     response = _exchange(port, _proxy_request(target_port, "user:password"))
 
     assert response.startswith(b"HTTP/1.1 200")
+    assert response.endswith(b"OK")
     _, _, headers, body = target_server.requests.get(timeout=5)
     assert "Proxy-Authorization" not in headers
     assert body == b"data"
@@ -208,5 +210,6 @@ def test_socks5_tunneling(start_proxy, target_server):
             response += chunk
 
     assert response.startswith(b"HTTP/1.1 200")
+    assert response.endswith(b"OK")
     method, path, _, body = target_server.requests.get(timeout=5)
     assert (method, path, body) == ("GET", "/through-socks", b"")
