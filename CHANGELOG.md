@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+**Features**:
+
+- Native/Windows: capture WER report ID and expose as `contexts.wer.report_id` in crash events when the WER integration is enabled. ([#1970](https://github.com/getsentry/sentry-native/pull/1970))
+
 **Fixes**:
 
 - Linux/ARM32: prevent recursive crashes when libunwind receives an unmapped initial instruction pointer during crash handling. ([#1977](https://github.com/getsentry/sentry-native/pull/1977))

@@ -1005,6 +1005,18 @@ sentry__options_add_integration(
     opts->num_integrations = new_count;
 }
 
+bool
+sentry__options_has_integration(const sentry_options_t *opts, const char *name)
+{
+    for (size_t i = 0; i < opts->num_integrations; i++) {
+        const char *integration_name = opts->integrations[i]->name;
+        if (integration_name && sentry__string_eq(integration_name, name)) {
+            return true;
+        }
+    }
+    return false;
+}
+
 void
 sentry_options_set_enable_logs(sentry_options_t *opts, int enable_logs)
 {

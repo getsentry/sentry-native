@@ -139,7 +139,7 @@ def assert_sentry_event(httpserver, backend, crash_arg):
         assert httpserver.log[0][0].path == "/api/123456/minidump/"
         attachments = assert_crashpad_upload(httpserver.log[0][0])
         assert attachments.event["event_id"]
-        return
+        return attachments.event
 
     envelope = Envelope.deserialize(httpserver.log[0][0].get_data())
     event = envelope.get_event()
@@ -154,6 +154,8 @@ def assert_sentry_event(httpserver, backend, crash_arg):
         assert_breakpad_crash(envelope)
     elif backend == "native":
         assert_native_crash(envelope)
+
+    return event
 
 
 def powershell(command, check=True):
@@ -243,6 +245,8 @@ def run_wer_crash(cmake, backend, crash_arg, httpserver=None, appx=False):
 
     try:
         env = None
+        sentry_event = None
+        sentry_wer_report_id = None
         if httpserver is not None:
             env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
             if backend == "crashpad":
@@ -287,7 +291,10 @@ def run_wer_crash(cmake, backend, crash_arg, httpserver=None, appx=False):
                     run(tmp_path, target, ["no-setup"], env=env)
 
             assert waiting.result
-            assert_sentry_event(httpserver, backend, crash_arg)
+            sentry_event = assert_sentry_event(httpserver, backend, crash_arg)
+            if backend == "native":
+                sentry_wer_report_id = sentry_event["contexts"]["wer"]["report_id"]
+                assert sentry_wer_report_id
 
         if appx:
             assert "PACKAGE_IDENTITY:present" in completed.stdout
@@ -301,6 +308,14 @@ def run_wer_crash(cmake, backend, crash_arg, httpserver=None, appx=False):
 
         report_path, report = wait_for_wer_report(WerStore(), test_id)
         assert report_path.name == "Report.wer"
+
+        if sentry_wer_report_id is not None:
+            report_ids = {
+                line.partition("=")[2]
+                for line in report.splitlines()
+                if line.startswith(("ReportIdentifier=", "IntegratorReportIdentifier="))
+            }
+            assert sentry_wer_report_id in report_ids
 
         return report
     finally:
@@ -440,7 +455,8 @@ def test_wer_compatibility(cmake, httpserver, backend, crash_arg):
 
 
 @pytest.mark.skipif(not has_native or is_qemu, reason="native backend not available")
-def test_wer_appx(cmake, httpserver):
-    report = run_wer_crash(cmake, "native", "fastfail", httpserver, appx=True)
+@pytest.mark.parametrize("crash_arg", ["crash", "fastfail"])
+def test_wer_appx(cmake, httpserver, crash_arg):
+    report = run_wer_crash(cmake, "native", crash_arg, httpserver, appx=True)
 
     assert "test.id" in report.lower()
