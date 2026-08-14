@@ -65,6 +65,8 @@ typedef DWORD pid_t;
 // String formatting buffer sizes
 #define SENTRY_CRASH_TIMESTAMP_SIZE 32 // Timestamp strings
 
+#define SENTRY_WER_REPORT_ID_SIZE 40 // GUID, braces, and null terminator
+
 // Memory and stack size limits
 #define SENTRY_CRASH_MAX_STACK_CAPTURE                                         \
     (512 * 1024) // 512KB default stack capture
@@ -125,8 +127,9 @@ typedef enum {
     SENTRY_CRASH_STATE_READY = 0,
     SENTRY_CRASH_STATE_CRASHED = 1,
     SENTRY_CRASH_STATE_PROCESSING = 2,
-    SENTRY_CRASH_STATE_CAPTURED = 3,
-    SENTRY_CRASH_STATE_DONE = 4
+    SENTRY_CRASH_STATE_PROCESSED = 3,
+    SENTRY_CRASH_STATE_CAPTURED = 4,
+    SENTRY_CRASH_STATE_DONE = 5
 } sentry_crash_state_t;
 
 /**
@@ -245,6 +248,11 @@ typedef struct {
     // Additional thread contexts
     DWORD num_threads;
     sentry_thread_context_windows_t threads[SENTRY_CRASH_MAX_THREADS];
+
+    bool wer_enabled;
+    bool wer_integration;
+    volatile long wer_done;
+    char wer_report_id[SENTRY_WER_REPORT_ID_SIZE];
 } sentry_crash_platform_windows_t;
 
 typedef struct {
