@@ -15,6 +15,8 @@ class _RequestHandler(BaseHTTPRequestHandler):
     protocol_version = "HTTP/1.1"
 
     def do_GET(self):
+        if self.path == "/through-socks":
+            self.server.response_gate.wait(timeout=5)
         self._respond(b"")
 
     def do_POST(self):
@@ -39,6 +41,7 @@ class _RequestHandler(BaseHTTPRequestHandler):
 def target_server():
     server = ThreadingHTTPServer(("127.0.0.1", 0), _RequestHandler)
     server.requests = queue.Queue()
+    server.response_gate = threading.Event()
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
 
@@ -201,6 +204,8 @@ def test_socks5_tunneling(start_proxy, target_server):
             "\r\n"
         ).format(target_port)
         client.sendall(request.encode("ascii"))
+        client.shutdown(socket.SHUT_WR)
+        target_server.response_gate.set()
 
         response = b""
         while True:

@@ -283,21 +283,27 @@ def _forward_socks5(client):
 
 
 def _relay_tunnel(client, server):
+    readable_sockets = [client, server]
     request_method = None
     response_status = None
     logged = False
     client_buffer = b""
     server_buffer = b""
 
-    while True:
-        readable, _, _ = select.select([client, server], [], [], 30)
+    while readable_sockets:
+        readable, _, _ = select.select(readable_sockets, [], [], 30)
         if not readable:
             return
         for source in readable:
             target = server if source is client else client
             data = source.recv(BUFFER_SIZE)
             if not data:
-                return
+                readable_sockets.remove(source)
+                try:
+                    target.shutdown(socket.SHUT_WR)
+                except OSError:
+                    pass
+                continue
             target.sendall(data)
 
             if logged:
