@@ -4,7 +4,7 @@
 
 **Features**:
 
-- Add `sentry_set_tags` and `sentry_scope_set_tags` for updating multiple tags with a single scope flush, improving bulk-update performance.
+- Add `sentry_set_tags` and `sentry_scope_set_tags` for updating multiple tags with a single scope flush, improving bulk-update performance. ([#1993](https://github.com/getsentry/sentry-native/pull/1993))
 
 **Fixes**:
 
