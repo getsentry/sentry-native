@@ -1054,6 +1054,20 @@ sentry_set_tag_n(
 }
 
 void
+sentry_set_tags(sentry_value_t tags)
+{
+    if (sentry_value_get_type(tags) != SENTRY_VALUE_TYPE_OBJECT
+        || sentry_value_get_length(tags) == 0) {
+        sentry_value_decref(tags);
+        return;
+    }
+
+    SENTRY_WITH_SCOPE_MUT (scope) {
+        sentry_scope_set_tags(scope, tags);
+    }
+}
+
+void
 sentry_remove_tag(const char *key)
 {
     SENTRY_WITH_SCOPE_MUT (scope) {

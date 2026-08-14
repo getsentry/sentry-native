@@ -517,8 +517,17 @@ SENTRY_TEST(scope_tags)
     // global:
     // {"all":"global","scope":"global","global":"global"}
     sentry_set_tag("all", "global");
-    sentry_set_tag("global", "global");
-    sentry_set_tag("scope", "global");
+    sentry_set_tag("scope", "overwritten");
+    sentry_value_t global_tags = sentry_value_new_object();
+    sentry_value_set_by_key(
+        global_tags, "global", sentry_value_new_string("global"));
+    sentry_value_set_by_key(
+        global_tags, "scope", sentry_value_new_string("global"));
+    sentry_value_set_by_key(global_tags, "invalid", sentry_value_new_int32(42));
+    sentry_value_incref(global_tags);
+    sentry_set_tags(global_tags);
+    TEST_CHECK_INT_EQUAL(sentry_value_refcount(global_tags), 1);
+    sentry_value_decref(global_tags);
 
     SENTRY_WITH_SCOPE (global_scope) {
         // event:
@@ -541,6 +550,8 @@ SENTRY_TEST(scope_tags)
         TEST_CHECK_TAG_EQUAL(event, "event", "event");
         TEST_CHECK_TAG_EQUAL(event, "global", "global");
         TEST_CHECK_TAG_EQUAL(event, "scope", "global");
+        TEST_CHECK(sentry_value_is_null(sentry_value_get_by_key(
+            sentry_value_get_by_key(event, "tags"), "invalid")));
 
         sentry_value_decref(event);
     }
@@ -550,8 +561,13 @@ SENTRY_TEST(scope_tags)
         // {"all":"scope","scope":"scope","local":"local"}
         sentry_scope_t *local_scope = sentry_local_scope_new();
         sentry_scope_set_tag(local_scope, "all", "local");
-        sentry_scope_set_tag(local_scope, "local", "local");
-        sentry_scope_set_tag(local_scope, "scope", "local");
+        sentry_scope_set_tag(local_scope, "scope", "overwritten");
+        sentry_value_t local_tags = sentry_value_new_object();
+        sentry_value_set_by_key(
+            local_tags, "local", sentry_value_new_string("local"));
+        sentry_value_set_by_key(
+            local_tags, "scope", sentry_value_new_string("local"));
+        sentry_scope_set_tags(local_scope, local_tags);
 
         // event:
         // {"all":"event","event":"event"}
@@ -1345,6 +1361,7 @@ typedef struct {
     sentry_value_t attachments;
     bool was_called;
     bool was_cleared;
+    size_t set_tag_count;
 } test_observer_data_t;
 
 typedef struct {
@@ -1500,6 +1517,7 @@ observe_set_tag(void *data, const char *key, const char *value)
     }
     sentry_value_set_by_key(d->tags, key, sentry_value_new_string(value));
     d->was_called = true;
+    d->set_tag_count++;
 }
 
 static void
@@ -2096,6 +2114,57 @@ SENTRY_TEST(scope_observer_tags)
         "(removed)");
 
     sentry_value_decref(d.tags);
+    sentry_close();
+}
+
+SENTRY_TEST(scope_tags_flush)
+{
+    SENTRY_TEST_OPTIONS_NEW(options);
+
+    deferred_flush_observer_data_t flush_data = { 0 };
+    sentry_backend_t *backend = SENTRY_MAKE(sentry_backend_t);
+    TEST_ASSERT(!!backend);
+    backend->data = &flush_data;
+    backend->flush_scope_func = deferred_flush_scope;
+    sentry_options_set_backend(options, backend);
+    sentry_init(options);
+
+    test_observer_data_t observer_data = { .tags = sentry_value_new_null() };
+    sentry_scope_observer_t *observer = sentry__scope_observer_new();
+    observer->data = &observer_data;
+    observer->set_tag = observe_set_tag;
+    SENTRY_WITH_SCOPE_MUT (scope) {
+        TEST_CHECK(sentry__scope_add_observer(scope, observer));
+    }
+
+    flush_data.total_flush_count = 0;
+    sentry_value_t tags = sentry_value_new_object();
+    sentry_value_set_by_key(tags, "one", sentry_value_new_string("1"));
+    sentry_value_set_by_key(tags, "two", sentry_value_new_string("2"));
+    sentry_value_set_by_key(tags, "three", sentry_value_new_string("3"));
+    sentry_set_tags(tags);
+
+    TEST_CHECK_INT_EQUAL(observer_data.set_tag_count, 3);
+    TEST_CHECK_INT_EQUAL(flush_data.total_flush_count, 1);
+
+    sentry_scope_t *local_scope = sentry_scope_new();
+    sentry_value_t local_tags = sentry_value_new_object();
+    sentry_value_set_by_key(
+        local_tags, "local", sentry_value_new_string("value"));
+    sentry_scope_set_tags(local_scope, local_tags);
+    TEST_CHECK_INT_EQUAL(flush_data.total_flush_count, 1);
+    sentry_scope_free(local_scope);
+
+    sentry_set_tags(sentry_value_new_object());
+    sentry_set_tags(sentry_value_new_list());
+    TEST_CHECK_INT_EQUAL(observer_data.set_tag_count, 3);
+    TEST_CHECK_INT_EQUAL(flush_data.total_flush_count, 1);
+
+    sentry_set_tag("singular", "value");
+    TEST_CHECK_INT_EQUAL(observer_data.set_tag_count, 4);
+    TEST_CHECK_INT_EQUAL(flush_data.total_flush_count, 2);
+
+    sentry_value_decref(observer_data.tags);
     sentry_close();
 }
 
