@@ -109,6 +109,14 @@ get_scope(void)
     init_scope(&g_scope);
     g_scope.user = sentry_value_new_object();
     sentry_value_set_by_key(g_scope.contexts, "os", sentry__get_os_context());
+#if defined(SENTRY_PLATFORM_WINDOWS) && !defined(SENTRY_PLATFORM_XBOX)
+    sentry_value_t wine_context = sentry__get_wine_context();
+    if (!sentry_value_is_null(wine_context)) {
+        sentry_value_set_by_key(g_scope.contexts, "wine", wine_context);
+    } else {
+        sentry_value_decref(wine_context);
+    }
+#endif
     g_scope.client_sdk = get_client_sdk();
 
     g_scope_initialized = true;

@@ -200,6 +200,33 @@ extern void(WINAPI *g_kernel32_GetCurrentThreadStackLimits)(
     PULONG_PTR, PULONG_PTR);
 static size_t g_kernel32_SetThreadStackGuaranteeCalled = 0;
 
+#    if !defined(SENTRY_PLATFORM_XBOX)
+static const char *CDECL
+wine_get_version(void)
+{
+    return "9.0";
+}
+
+static const char *CDECL
+wine_get_empty_version(void)
+{
+    return "";
+}
+
+static const char *CDECL
+wine_get_build_id(void)
+{
+    return "wine-9.0";
+}
+
+static void CDECL
+wine_get_host_version(const char **sysname, const char **release)
+{
+    *sysname = "Linux";
+    *release = "6.8.0";
+}
+#    endif
+
 static BOOL WINAPI
 no_previous_guarantee(PULONG guarantee)
 {
@@ -294,6 +321,48 @@ stack_reserve_exact_factor_minus_one(PULONG_PTR low, PULONG_PTR high)
     *low = 0;
 }
 #endif
+
+SENTRY_TEST(wine_context)
+{
+#if !defined(SENTRY_PLATFORM_WINDOWS) || defined(SENTRY_PLATFORM_XBOX)
+    SKIP_TEST();
+#else
+    sentry_value_t context = sentry__make_wine_context(
+        wine_get_version, wine_get_build_id, wine_get_host_version);
+    TEST_CHECK(!sentry_value_is_null(context));
+    TEST_CHECK(sentry_value_is_frozen(context));
+    TEST_CHECK_STRING_EQUAL(
+        sentry_value_as_string(sentry_value_get_by_key(context, "version")),
+        "9.0");
+    TEST_CHECK_STRING_EQUAL(
+        sentry_value_as_string(sentry_value_get_by_key(context, "build")),
+        "wine-9.0");
+    TEST_CHECK_STRING_EQUAL(
+        sentry_value_as_string(sentry_value_get_by_key(context, "sysname")),
+        "Linux");
+    TEST_CHECK_STRING_EQUAL(
+        sentry_value_as_string(sentry_value_get_by_key(context, "release")),
+        "6.8.0");
+    sentry_value_decref(context);
+
+    context = sentry__make_wine_context(wine_get_version, NULL, NULL);
+    TEST_CHECK(!sentry_value_is_null(context));
+    TEST_CHECK(sentry_value_is_null(sentry_value_get_by_key(context, "build")));
+    TEST_CHECK(
+        sentry_value_is_null(sentry_value_get_by_key(context, "sysname")));
+    TEST_CHECK(
+        sentry_value_is_null(sentry_value_get_by_key(context, "release")));
+    sentry_value_decref(context);
+
+    context = sentry__make_wine_context(NULL, NULL, NULL);
+    TEST_CHECK(sentry_value_is_null(context));
+    sentry_value_decref(context);
+
+    context = sentry__make_wine_context(wine_get_empty_version, NULL, NULL);
+    TEST_CHECK(sentry_value_is_null(context));
+    sentry_value_decref(context);
+#endif
+}
 
 SENTRY_TEST(stack_guarantee)
 {

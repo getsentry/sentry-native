@@ -52,6 +52,20 @@ typedef struct {
 
 int sentry__get_kernel_version(windows_version_t *win_ver);
 int sentry__get_windows_version(windows_version_t *win_ver);
+
+#    if !defined(SENTRY_PLATFORM_XBOX)
+typedef const char *(CDECL *sentry__wine_get_version_t)(void);
+typedef const char *(CDECL *sentry__wine_get_build_id_t)(void);
+typedef void(CDECL *sentry__wine_get_host_version_t)(
+    const char **sysname, const char **release);
+
+sentry_value_t sentry__make_wine_context(
+    sentry__wine_get_version_t wine_get_version,
+    sentry__wine_get_build_id_t wine_get_build_id,
+    sentry__wine_get_host_version_t wine_get_host_version);
+sentry_value_t sentry__get_wine_context(void);
+#    endif
+
 void sentry__set_default_thread_stack_guarantee(void);
 void sentry__init_cached_kernel32_functions(void);
 void sentry__get_system_time(LPFILETIME filetime);

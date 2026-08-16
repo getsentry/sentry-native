@@ -178,6 +178,71 @@ sentry__get_windows_version(windows_version_t *win_ver)
     return 1;
 }
 
+static void
+set_wine_context_string(
+    sentry_value_t context, const char *key, const char *value)
+{
+    if (value && value[0]) {
+        sentry_value_set_by_key(context, key, sentry_value_new_string(value));
+    }
+}
+
+sentry_value_t
+sentry__make_wine_context(sentry__wine_get_version_t wine_get_version,
+    sentry__wine_get_build_id_t wine_get_build_id,
+    sentry__wine_get_host_version_t wine_get_host_version)
+{
+    if (!wine_get_version) {
+        return sentry_value_new_null();
+    }
+
+    const char *version = wine_get_version();
+    if (!version || !version[0]) {
+        return sentry_value_new_null();
+    }
+
+    sentry_value_t context = sentry_value_new_object();
+    if (sentry_value_is_null(context)) {
+        return context;
+    }
+
+    set_wine_context_string(context, "version", version);
+    if (wine_get_build_id) {
+        set_wine_context_string(context, "build", wine_get_build_id());
+    }
+    if (wine_get_host_version) {
+        const char *sysname = NULL;
+        const char *release = NULL;
+        wine_get_host_version(&sysname, &release);
+        set_wine_context_string(context, "sysname", sysname);
+        set_wine_context_string(context, "release", release);
+    }
+
+    sentry_value_freeze(context);
+    return context;
+}
+
+sentry_value_t
+sentry__get_wine_context(void)
+{
+    const HMODULE ntdll = GetModuleHandleW(L"ntdll.dll");
+    if (!ntdll) {
+        return sentry_value_new_null();
+    }
+
+    const sentry__wine_get_version_t wine_get_version
+        = (sentry__wine_get_version_t)GetProcAddress(ntdll, "wine_get_version");
+    const sentry__wine_get_build_id_t wine_get_build_id
+        = (sentry__wine_get_build_id_t)GetProcAddress(
+            ntdll, "wine_get_build_id");
+    const sentry__wine_get_host_version_t wine_get_host_version
+        = (sentry__wine_get_host_version_t)GetProcAddress(
+            ntdll, "wine_get_host_version");
+
+    return sentry__make_wine_context(
+        wine_get_version, wine_get_build_id, wine_get_host_version);
+}
+
 #    endif // !defined(SENTRY_PLATFORM_XBOX)
 
 sentry_value_t
