@@ -3167,7 +3167,7 @@ build_native_event(const sentry_crash_context_t *ctx,
     // Exception code is used directly below as unsigned
     const char *signal_name = "EXCEPTION";
 #else
-    const char *signal_name = "UNKNOWN";
+#    error Unsupported platform
 #endif
 
     sentry_value_t exc = sentry_value_new_object();
