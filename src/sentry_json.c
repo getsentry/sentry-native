@@ -664,6 +664,8 @@ tokens_to_value(jsmntok_t *tokens, size_t token_count, const char *buf,
     }
     case JSMN_UNDEFINED:
         break;
+    default:
+        goto error;
     }
 
 #undef POP
