@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1786994802374,
+  "lastUpdate": 1786994984977,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -131080,6 +131080,150 @@ window.BENCHMARK_DATA = {
             "value": 0.11260440625008528,
             "unit": "ms",
             "extra": "Min 0.113ms\nMax 0.113ms\nMean 0.113ms\nMedian 0.113ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "jpnurmi@gmail.com",
+            "name": "J-P Nurmi",
+            "username": "jpnurmi"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "a6aeffea485db5629c64dc3805d2764dbc7a77b2",
+          "message": "chore: restore CodeChecker analysis (#1991)\n\n* fix: address CodeChecker findings\n\nAdd a local CodeChecker runner that generates and merges compilation databases\nfor the supported configurations, then runs clangsa and clang-tidy while\npropagating the analyzer result.\n\nFix actionable findings in native minidump and crash handling, JSON, logging,\nconsent, and value serialization. Exclude tests for now and suppress intentional\nor deferred reports, with TODOs for issues that should be revisited.\n\n* ff\n\n* ci: fix CodeChecker analysis\n\nThe tests/cmake.py integration runs CodeChecker after every CMake build. Since\nthe test suite creates many temporary build configurations, it repeatedly\nanalyzes the same source files and takes hours to finish.\n\nInstall the latest CodeChecker 6.28.2 from PyPI instead of the broken Snap\ninstallation, and run CodeChecker in a dedicated job that builds each backend\nonce, merges their compilation databases, and performs a single analysis.",
+          "timestamp": "2026-08-17T21:23:19+02:00",
+          "tree_id": "130f09158ec4a37dc6136be9409049b55c983de6",
+          "url": "https://github.com/getsentry/sentry-native/commit/a6aeffea485db5629c64dc3805d2764dbc7a77b2"
+        },
+        "date": 1786994966986,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 10.514899999975569,
+            "unit": "ms",
+            "extra": "Min 9.964ms\nMax 10.987ms\nMean 10.545ms\nStdDev 0.402ms\nMedian 10.515ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 10.840799999982664,
+            "unit": "ms",
+            "extra": "Min 10.398ms\nMax 11.188ms\nMean 10.797ms\nStdDev 0.303ms\nMedian 10.841ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 26.374299999986306,
+            "unit": "ms",
+            "extra": "Min 24.574ms\nMax 28.908ms\nMean 26.624ms\nStdDev 1.845ms\nMedian 26.374ms"
+          },
+          {
+            "name": "SDK init (native)",
+            "value": 31.735499999967942,
+            "unit": "ms",
+            "extra": "Min 30.142ms\nMax 38.649ms\nMean 32.761ms\nStdDev 3.430ms\nMedian 31.735ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.21960000003673485,
+            "unit": "ms",
+            "extra": "Min 0.213ms\nMax 0.229ms\nMean 0.220ms\nStdDev 0.007ms\nMedian 0.220ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.42579999995950857,
+            "unit": "ms",
+            "extra": "Min 0.418ms\nMax 0.546ms\nMean 0.456ms\nStdDev 0.054ms\nMedian 0.426ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 14.553400000011152,
+            "unit": "ms",
+            "extra": "Min 14.314ms\nMax 15.055ms\nMean 14.629ms\nStdDev 0.276ms\nMedian 14.553ms"
+          },
+          {
+            "name": "Backend startup (native)",
+            "value": 19.928600000014285,
+            "unit": "ms",
+            "extra": "Min 19.489ms\nMax 24.155ms\nMean 20.727ms\nStdDev 1.960ms\nMedian 19.929ms"
+          },
+          {
+            "name": "Scope set_tag (inproc)",
+            "value": 0.00652890000003481,
+            "unit": "ms",
+            "extra": "Min 0.007ms\nMax 0.007ms\nMean 0.007ms\nMedian 0.007ms"
+          },
+          {
+            "name": "Scope add_breadcrumb (inproc)",
+            "value": 0.0012861000000157219,
+            "unit": "ms",
+            "extra": "Min 0.001ms\nMax 0.001ms\nMean 0.001ms\nMedian 0.001ms"
+          },
+          {
+            "name": "Scope set_tag (breakpad)",
+            "value": 0.007049200000039946,
+            "unit": "ms",
+            "extra": "Min 0.007ms\nMax 0.007ms\nMean 0.007ms\nMedian 0.007ms"
+          },
+          {
+            "name": "Scope add_breadcrumb (breakpad)",
+            "value": 0.0012739000000010492,
+            "unit": "ms",
+            "extra": "Min 0.001ms\nMax 0.001ms\nMean 0.001ms\nMedian 0.001ms"
+          },
+          {
+            "name": "Scope set_tag (crashpad)",
+            "value": 0.6195343999999636,
+            "unit": "ms",
+            "extra": "Min 0.620ms\nMax 0.620ms\nMean 0.620ms\nMedian 0.620ms"
+          },
+          {
+            "name": "Scope add_breadcrumb (crashpad)",
+            "value": 0.17540370000000394,
+            "unit": "ms",
+            "extra": "Min 0.175ms\nMax 0.175ms\nMean 0.175ms\nMedian 0.175ms"
+          },
+          {
+            "name": "Scope set_tag (native)",
+            "value": 0.2860458999999764,
+            "unit": "ms",
+            "extra": "Min 0.286ms\nMax 0.286ms\nMean 0.286ms\nMedian 0.286ms"
+          },
+          {
+            "name": "Scope add_breadcrumb (native)",
+            "value": 0.1177665000000161,
+            "unit": "ms",
+            "extra": "Min 0.118ms\nMax 0.118ms\nMean 0.118ms\nMedian 0.118ms"
+          },
+          {
+            "name": "Logs (1 thread)",
+            "value": 0.00853699999993296,
+            "unit": "ms",
+            "extra": "Min 0.009ms\nMax 0.009ms\nMean 0.009ms\nMedian 0.009ms"
+          },
+          {
+            "name": "Logs (8 threads)",
+            "value": 0.05014149999993833,
+            "unit": "ms",
+            "extra": "Min 0.050ms\nMax 0.050ms\nMean 0.050ms\nMedian 0.050ms"
+          },
+          {
+            "name": "Logs (16 threads)",
+            "value": 0.08929331250008943,
+            "unit": "ms",
+            "extra": "Min 0.089ms\nMax 0.089ms\nMean 0.089ms\nMedian 0.089ms"
+          },
+          {
+            "name": "Logs (32 threads)",
+            "value": 0.13870478124999863,
+            "unit": "ms",
+            "extra": "Min 0.139ms\nMax 0.139ms\nMean 0.139ms\nMedian 0.139ms"
           }
         ]
       }
