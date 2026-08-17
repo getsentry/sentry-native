@@ -611,7 +611,7 @@ static bool
 is_valid_code_addr(uint64_t addr)
 {
     // Must be non-null and in typical code range
-    if (addr == 0 || addr < 0x1000) {
+    if (addr < 0x1000) {
         return false;
     }
 #if defined(__x86_64__) || defined(_M_AMD64)
@@ -3160,13 +3160,14 @@ build_native_event(const sentry_crash_context_t *ctx,
     sentry_value_set_by_key(event, "level", sentry_value_new_string(level));
 
     // Build exception
-    const char *signal_name = "UNKNOWN";
 #if defined(SENTRY_PLATFORM_UNIX)
     int signal_number = ctx->platform.signum;
-    signal_name = get_signal_name(signal_number);
+    const char *signal_name = get_signal_name(signal_number);
 #elif defined(SENTRY_PLATFORM_WINDOWS)
     // Exception code is used directly below as unsigned
-    signal_name = "EXCEPTION";
+    const char *signal_name = "EXCEPTION";
+#else
+    const char *signal_name = "UNKNOWN";
 #endif
 
     sentry_value_t exc = sentry_value_new_object();

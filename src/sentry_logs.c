@@ -84,7 +84,7 @@ static
             val = va_arg(*args_copy, int);
             break;
         case PRINTF_LENGTH_CHAR:
-            val = (signed char)va_arg(*args_copy, int);
+            val = (int64_t)(signed char)va_arg(*args_copy, int);
             break;
         case PRINTF_LENGTH_SHORT:
             val = (short)va_arg(*args_copy, int);
@@ -477,6 +477,8 @@ debug_print_log(sentry_level_t level, const char *log_body)
         break;
     case SENTRY_LEVEL_FATAL:
         SENTRY_FATALF("LOG: %s", log_body);
+        break;
+    default:
         break;
     }
 }

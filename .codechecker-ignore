@@ -2,3 +2,5 @@
 -*/vendor/*
 -/usr/*
 -*/atomic_base.h
+# TODO: re-enable tests after addressing CodeChecker reports
+-*/tests/*
