@@ -1,5 +1,4 @@
 import os
-import shutil
 import sys
 
 import pytest
@@ -14,7 +13,7 @@ from .assertions import (
 from .conditions import has_http
 from .proxy import (
     closed_port,
-    start_mitmdump,
+    start_proxy,
     proxy_test_finally,
 )
 
@@ -25,7 +24,7 @@ def _setup_http_proxy_test(
     cmake, httpserver, proxy, proxy_auth=None, listen_host="127.0.0.1"
 ):
     if proxy:
-        proxy_process, port = start_mitmdump(proxy, proxy_auth, listen_host=listen_host)
+        proxy_process, port = start_proxy(proxy, proxy_auth, listen_host=listen_host)
     else:
         proxy_process, port = None, None
 
@@ -40,9 +39,6 @@ def _setup_http_proxy_test(
 
 
 def test_proxy_from_env(cmake, httpserver):
-    if not shutil.which("mitmdump"):
-        pytest.skip("mitmdump is not installed")
-
     proxy_process = None  # store the proxy process to terminate it later
     try:
         env, proxy_process, tmp_path, port = _setup_http_proxy_test(
@@ -63,9 +59,6 @@ def test_proxy_from_env(cmake, httpserver):
 
 
 def test_proxy_from_env_port_incorrect(cmake, httpserver):
-    if not shutil.which("mitmdump"):
-        pytest.skip("mitmdump is not installed")
-
     proxy_process = None  # store the proxy process to terminate it later
     try:
         env, proxy_process, tmp_path, port = _setup_http_proxy_test(
@@ -87,9 +80,6 @@ def test_proxy_from_env_port_incorrect(cmake, httpserver):
 
 
 def test_proxy_auth(cmake, httpserver):
-    if not shutil.which("mitmdump"):
-        pytest.skip("mitmdump is not installed")
-
     proxy_process = None  # store the proxy process to terminate it later
     try:
         env, proxy_process, tmp_path, port = _setup_http_proxy_test(
@@ -116,9 +106,6 @@ def test_proxy_auth(cmake, httpserver):
 
 
 def test_proxy_auth_incorrect(cmake, httpserver):
-    if not shutil.which("mitmdump"):
-        pytest.skip("mitmdump is not installed")
-
     proxy_process = None  # store the proxy process to terminate it later
     try:
         env, proxy_process, tmp_path, port = _setup_http_proxy_test(
@@ -145,9 +132,6 @@ def test_proxy_auth_incorrect(cmake, httpserver):
 
 
 def test_proxy_ipv6(cmake, httpserver):
-    if not shutil.which("mitmdump"):
-        pytest.skip("mitmdump is not installed")
-
     proxy_process = None  # store the proxy process to terminate it later
     try:
         env, proxy_process, tmp_path, port = _setup_http_proxy_test(
@@ -166,9 +150,6 @@ def test_proxy_ipv6(cmake, httpserver):
 
 
 def test_proxy_set_empty(cmake, httpserver):
-    if not shutil.which("mitmdump"):
-        pytest.skip("mitmdump is not installed")
-
     proxy_process = None  # store the proxy process to terminate it later
     try:
         env, proxy_process, tmp_path, port = _setup_http_proxy_test(
@@ -190,9 +171,6 @@ def test_proxy_set_empty(cmake, httpserver):
 
 
 def test_proxy_https_not_http(cmake, httpserver):
-    if not shutil.which("mitmdump"):
-        pytest.skip("mitmdump is not installed")
-
     proxy_process = None  # store the proxy process to terminate it later
     try:
         # we start the proxy but expect it to remain unused (dsn is http, so shouldn't use https proxy)
@@ -227,9 +205,6 @@ def test_proxy_https_not_http(cmake, httpserver):
 )
 @pytest.mark.parametrize("proxy_running", [True, False])
 def test_capture_proxy(cmake, httpserver, run_args, proxy_running):
-    if not shutil.which("mitmdump"):
-        pytest.skip("mitmdump is not installed")
-
     proxy_process = None  # store the proxy process to terminate it later
     expected_logsize = 0
 
