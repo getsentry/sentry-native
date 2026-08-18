@@ -188,12 +188,17 @@ def test_native_capture_minidump_generated(cmake, httpserver):
         )
     assert waiting.result
 
-    # Check for minidump file in database directory
+    # Check for minidump file in run directory
     db_dir = tmp_path / ".sentry-native"
     assert db_dir.exists()
 
-    assert wait_for_file(db_dir / "*.dmp"), "Minidump file should be generated"
-    minidump_files = list(db_dir.glob("*.dmp"))
+    assert wait_for_file(
+        db_dir / "*.run/__sentry-crash.dmp"
+    ), "Minidump file should be generated"
+    minidump_files = list(db_dir.glob("*.run/__sentry-crash.dmp"))
+    assert not list(db_dir.glob("*.dmp"))
+    assert not list(db_dir.glob("sentry-daemon.log"))
+    assert not list(db_dir.glob("sentry-envelope-*"))
 
     # Verify minidump has correct header
     minidump_path = minidump_files[0]
@@ -212,6 +217,16 @@ def test_native_capture_minidump_generated(cmake, httpserver):
             # Windows minidumps have a different version format
             # Just verify it's non-zero
             assert version != 0, "Minidump should have non-zero version"
+
+    # The next SDK launch owns cleanup of the completed crash run.
+    run(
+        tmp_path,
+        "sentry_example",
+        ["log", "no-setup"],
+        env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
+    )
+    assert not list(db_dir.glob("*.run"))
+    assert not list(db_dir.glob("*.run*.lock"))
 
 
 # Both daemon envelope writers merge the breadcrumb ring files: the native
@@ -690,8 +705,8 @@ def test_native_minidump_streams(cmake, httpserver):
 
     # Find minidump
     db_dir = tmp_path / ".sentry-native"
-    assert wait_for_file(db_dir / "*.dmp")
-    minidump_files = list(db_dir.glob("*.dmp"))
+    assert wait_for_file(db_dir / "*.run/__sentry-crash.dmp")
+    minidump_files = list(db_dir.glob("*.run/__sentry-crash.dmp"))
     assert len(minidump_files) > 0
 
     dump = _parse_minidump(minidump_files[0])
@@ -897,8 +912,8 @@ def test_native_smart_mode_captures_indirect_heap_memory(cmake, httpserver):
     assert waiting.result
 
     db_dir = tmp_path / ".sentry-native"
-    assert wait_for_file(db_dir / "*.dmp")
-    minidump_files = list(db_dir.glob("*.dmp"))
+    assert wait_for_file(db_dir / "*.run/__sentry-crash.dmp")
+    minidump_files = list(db_dir.glob("*.run/__sentry-crash.dmp"))
     assert len(minidump_files) > 0
 
     dump = _parse_minidump(minidump_files[0])
@@ -946,6 +961,42 @@ def test_native_smart_mode_captures_indirect_heap_memory(cmake, httpserver):
     )
 
 
+def test_native_uses_existing_run(cmake):
+    """The daemon adopts the existing run instead of creating root artifacts."""
+    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "native"})
+    exe = tmp_path / (
+        "sentry_example.exe" if sys.platform == "win32" else "sentry_example"
+    )
+    child = subprocess.Popen(
+        [str(exe), "log", "sleep"],
+        cwd=tmp_path,
+        env=dict(os.environ, SENTRY_DSN="https://foo@sentry.invalid/42"),
+    )
+    db_dir = tmp_path / ".sentry-native"
+
+    try:
+        assert wait_for(
+            lambda: len(list(db_dir.glob("*.run/sentry-daemon.log"))) == 1
+            and len(list(db_dir.glob("*.run.daemon.lock"))) == 1
+        )
+        run_dirs = list(db_dir.glob("*.run"))
+        daemon_logs = list(db_dir.glob("*.run/sentry-daemon.log"))
+
+        assert len(run_dirs) == 1
+        assert daemon_logs[0].parent == run_dirs[0]
+        assert len(list(db_dir.glob("*.run.daemon.lock"))) == 1
+        assert not list(db_dir.glob("sentry-daemon.log"))
+        assert not list(db_dir.glob("sentry-minidump-*"))
+        assert not list(db_dir.glob("sentry-envelope-*"))
+        assert not list(db_dir.glob("__sentry-stack*"))
+        assert not list(db_dir.glob("__sentry-modheaders"))
+    finally:
+        child.terminate()
+        child.wait()
+        # Windows cannot remove the run until the orphaned daemon releases it.
+        assert wait_for(lambda: not list(db_dir.glob("*.run.daemon.lock")))
+
+
 def test_native_cleanup(cmake):
     """Test that cleanup works properly"""
     tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "native"})
@@ -960,6 +1011,10 @@ def test_native_cleanup(cmake):
     # Database should exist
     db_dir = tmp_path / ".sentry-native"
     assert db_dir.exists()
+    assert not list(db_dir.glob("*.run"))
+    assert not list(db_dir.glob("*.run*.lock"))
+    assert not list(db_dir.glob("sentry-daemon.log"))
+    assert not list(db_dir.glob("sentry-minidump-*"))
 
 
 def test_native_no_dsn_no_crash(cmake):
@@ -977,7 +1032,7 @@ def test_native_no_dsn_no_crash(cmake):
     # Should not create database
     db_dir = tmp_path / ".sentry-native"
     if db_dir.exists():
-        minidump_files = list(db_dir.glob("*.dmp"))
+        minidump_files = list(db_dir.glob("*.run/*.dmp"))
         # Minidumps might still be generated for debugging
         # but won't be uploaded
 
