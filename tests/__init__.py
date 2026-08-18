@@ -20,6 +20,19 @@ def adb(*args, **kwargs):
     )
 
 
+def exe_name(name):
+    if sys.platform == "win32" or os.environ.get("TEST_WINE"):
+        return f"{name}.exe"
+    return name
+
+
+def run_command(name):
+    name = exe_name(name)
+    if os.environ.get("TEST_WINE"):
+        return ["wine", name]
+    return [name]
+
+
 # https://docs.pytest.org/en/latest/assert.html#assert-details
 pytest.register_assert_rewrite("tests.assertions")
 
@@ -191,9 +204,10 @@ def run(
             )
         return child
 
-    cmd = [
-        "./{}".format(exe) if sys.platform != "win32" else "{}\\{}.exe".format(cwd, exe)
-    ]
+    executable = (
+        "./{}".format(exe) if sys.platform != "win32" else "{}\\{}".format(cwd, exe)
+    )
+    cmd = run_command(executable)
     if "asan" in os.environ.get("RUN_ANALYZER", ""):
         asan_options = env.get("ASAN_OPTIONS", "")
         if "detect_leaks" not in asan_options:

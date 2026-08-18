@@ -42,12 +42,31 @@ def get_platform_cmake_args():
 
     This handles:
     - 32-bit builds (TEST_X86)
+    - Wine cross-builds (TEST_WINE)
     - ASAN/TSAN sanitizers (RUN_ANALYZER)
     - Additional CMAKE_DEFINES from environment
     """
     args = []
 
-    if sys.platform == "win32" and os.environ.get("TEST_X86"):
+    if os.environ.get("TEST_WINE"):
+        cc = os.environ.get("CC") or "clang"
+        cxx = os.environ.get("CXX") or "clang++"
+        linker_flags = "-fuse-ld=lld -static-libgcc -static-libstdc++"
+        args.extend(
+            [
+                "-DCMAKE_SYSTEM_NAME=Windows",
+                "-DCMAKE_SYSTEM_VERSION=10.0",
+                f"-DCMAKE_C_COMPILER={cc}",
+                "-DCMAKE_C_COMPILER_TARGET=x86_64-w64-windows-gnu",
+                f"-DCMAKE_CXX_COMPILER={cxx}",
+                "-DCMAKE_CXX_COMPILER_TARGET=x86_64-w64-windows-gnu",
+                "-DCMAKE_RC_COMPILER=x86_64-w64-mingw32-windres",
+                f"-DCMAKE_EXE_LINKER_FLAGS={linker_flags}",
+                f"-DCMAKE_SHARED_LINKER_FLAGS={linker_flags}",
+                f"-DCMAKE_MODULE_LINKER_FLAGS={linker_flags}",
+            ]
+        )
+    elif sys.platform == "win32" and os.environ.get("TEST_X86"):
         args.append("-AWin32")
     elif sys.platform == "linux" and os.environ.get("TEST_X86"):
         args.append("-DSENTRY_BUILD_FORCE32=ON")

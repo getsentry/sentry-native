@@ -1,10 +1,13 @@
 import os
 import pytest
 from . import run
-from .conditions import has_http
+from .conditions import has_http, is_wine
 
 
 def _skip_if_unsupported(unittest):
+    if is_wine and unittest == "path_remove_all_symlink":
+        pytest.skip("Wine does not implement CreateSymbolicLinkW")
+
     # app_hang_end_to_end drives the real cross-thread RT-signal sampler and
     # unwinds a signal frame inside the handler. qemu-user does not emulate
     # thread-targeted signal delivery/unwinding faithfully, so the sample never

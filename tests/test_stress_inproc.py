@@ -11,9 +11,13 @@ import pytest
 from . import adb, Envelope
 from .assertions import assert_inproc_crash
 from .build_config import get_test_executable_cmake_args, get_test_executable_env
-from .conditions import is_android, is_tsan
+from .conditions import is_android, is_tsan, is_wine
 
 fixture_path = pathlib.Path("tests/fixtures/inproc_stress")
+
+pytestmark = pytest.mark.skipif(
+    is_wine, reason="inproc stress test harness does not support Wine"
+)
 
 ANDROID_TMP = "/data/local/tmp"
 
