@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1787050128883,
+  "lastUpdate": 1787059956220,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -44428,6 +44428,150 @@ window.BENCHMARK_DATA = {
             "value": 0.16819593156246704,
             "unit": "ms",
             "extra": "Min 0.168ms\nMax 0.168ms\nMean 0.168ms\nMedian 0.168ms\nCPU 0.014ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "143286445+HuzaifaAbdulRehman@users.noreply.github.com",
+            "name": "Huzaifa Abdul Rehman",
+            "username": "HuzaifaAbdulRehman"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "85b229cb0e8fc179cf60ec8b29e9e9aab9e355dd",
+          "message": "feat(native): add public custom HTTP transport client interface (#1987)\n\n* feat(native): add public custom HTTP transport client interface\n\nExpose sentry_http_transport_new so applications can plug in their own\nHTTP client (platform-native ones like Qt, .NET, or Dart) while\nsentry-native keeps owning request queueing, envelope ordering, retry\nwith exponential backoff, offline caching, rate-limit handling, and\nclient reports. The curl and WinHTTP transports are now implemented\nagainst this same interface, deduplicating the Sentry-specific\nresponse header parsing that used to be copy-pasted in both.\n\n* docs: fill in PR number for HTTP transport client interface changelog entry\n\n* fix(native): address review feedback on HTTP transport client interface\n\n- Document that both body accessors return NULL for bodyless requests\n  (e.g. the TUS creation POST), and cover that case in the accessor tests\n- Add a sentry_http_client_t typedef to distinguish client pointers from\n  factory/user-data pointers in the public API\n- Rename the sentry_prepared_http_request_s tag to sentry_http_request_s\n  so the public opaque type no longer leaks the old internal name\n- Document that the client shutdown hook runs on the sentry_close thread,\n  concurrently with an in-flight send_func call on the transport thread\n- Fix a test that leaked its client object by allocating one instead of\n  using a non-owning fake pointer when exercising the null-free-func path\n\n* ref(native): drop redundant opaque-handle comments in http transport header\n\nThe forward-declared-tag pattern is used throughout the codebase (envelope,\noptions, transport, scope, ...), so spelling it out here adds no information.\n\n* docs: move HTTP transport changelog entry back under Unreleased\n\nThe 0.16.3 release cut the Unreleased heading while this branch was open,\nso the rebase left this entry inside the released section.\n\n* ref(native): infer shutdown failures in the transport, not the client\n\nCustom HTTP clients had to call `sentry_http_response_set_shutdown` to say\nthat a request failed only because the transport was shutting down. That put\nthe burden on every client implementation, and required them to be thread\nsafe even in the current single-instance case, since the shutdown hook runs\non the `sentry_close` thread.\n\nThe transport already knows when it is shutting down, so it can classify the\nfailure itself. Adds an atomic `shutting_down` flag set at the start of\n`http_transport_shutdown`, before the client is ever asked to stop, and reads\nit in `http_send_request` instead of the client-reported value.\n\nRemoves `sentry_http_response_set_shutdown` from the public API.\n\n* feat(native): add wide-char accessor for the request body file path\n\nOn Windows `sentry_path_t` keeps the path both as canonical UTF-8 (`path`)\nand as wide chars (`path_w`), and the SDK's rule is to use the wide Win32\nAPIs when leaving the SDK boundary, since the narrow ones interpret `char *`\naccording to the ANSI code page rather than UTF-8.\n\n`sentry_http_request_get_body_file_path` only exposed the narrow variant, so\na custom client passing it to `fopen`/`CreateFileA` would fail to open any\npath containing non-ASCII characters. Both built-in transports avoid this by\nreading `path_w` directly (`CreateFileW` in WinHTTP, `_wfopen` in curl),\nwhich a custom client had no way to do.\n\nAdds `sentry_http_request_get_body_file_pathw`, following the same `w`\nsuffix convention already used by `sentry_options_set_database_pathw` and\nfriends, and documents the encoding on the narrow accessor.\n\n* fix(winhttp): remove unused shutdown flag\n\n---------\n\nCo-authored-by: J-P Nurmi <jpnurmi@gmail.com>",
+          "timestamp": "2026-08-18T15:28:56+02:00",
+          "tree_id": "ac6049e56b65f9c9c9e428d25fab03659e29cad3",
+          "url": "https://github.com/getsentry/sentry-native/commit/85b229cb0e8fc179cf60ec8b29e9e9aab9e355dd"
+        },
+        "date": 1787059941843,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 1.0444810000080906,
+            "unit": "ms",
+            "extra": "Min 1.008ms\nMax 1.124ms\nMean 1.061ms\nStdDev 0.048ms\nMedian 1.044ms\nCPU 1.015ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 0.930351000008045,
+            "unit": "ms",
+            "extra": "Min 0.918ms\nMax 0.954ms\nMean 0.934ms\nStdDev 0.015ms\nMedian 0.930ms\nCPU 0.933ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 3.35341499999231,
+            "unit": "ms",
+            "extra": "Min 3.339ms\nMax 3.491ms\nMean 3.396ms\nStdDev 0.068ms\nMedian 3.353ms\nCPU 1.765ms"
+          },
+          {
+            "name": "SDK init (native)",
+            "value": 2.654882000001635,
+            "unit": "ms",
+            "extra": "Min 2.633ms\nMax 2.691ms\nMean 2.657ms\nStdDev 0.021ms\nMedian 2.655ms\nCPU 1.723ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.12930200000482728,
+            "unit": "ms",
+            "extra": "Min 0.126ms\nMax 0.142ms\nMean 0.133ms\nStdDev 0.007ms\nMedian 0.129ms\nCPU 0.082ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.030495000004293615,
+            "unit": "ms",
+            "extra": "Min 0.030ms\nMax 0.032ms\nMean 0.031ms\nStdDev 0.001ms\nMedian 0.030ms\nCPU 0.030ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 1.9657040000140569,
+            "unit": "ms",
+            "extra": "Min 1.910ms\nMax 1.971ms\nMean 1.946ms\nStdDev 0.029ms\nMedian 1.966ms\nCPU 0.552ms"
+          },
+          {
+            "name": "Backend startup (native)",
+            "value": 1.6052330000206894,
+            "unit": "ms",
+            "extra": "Min 1.590ms\nMax 1.650ms\nMean 1.614ms\nStdDev 0.026ms\nMedian 1.605ms\nCPU 0.698ms"
+          },
+          {
+            "name": "Scope set_tag (inproc)",
+            "value": 0.0055455449999897155,
+            "unit": "ms",
+            "extra": "Min 0.006ms\nMax 0.006ms\nMean 0.006ms\nMedian 0.006ms\nCPU 0.005ms"
+          },
+          {
+            "name": "Scope add_breadcrumb (inproc)",
+            "value": 0.0005266519999906905,
+            "unit": "ms",
+            "extra": "Min 0.001ms\nMax 0.001ms\nMean 0.001ms\nMedian 0.001ms\nCPU 0.001ms"
+          },
+          {
+            "name": "Scope set_tag (breakpad)",
+            "value": 0.005503030999989278,
+            "unit": "ms",
+            "extra": "Min 0.006ms\nMax 0.006ms\nMean 0.006ms\nMedian 0.006ms\nCPU 0.005ms"
+          },
+          {
+            "name": "Scope add_breadcrumb (breakpad)",
+            "value": 0.000555293999980222,
+            "unit": "ms",
+            "extra": "Min 0.001ms\nMax 0.001ms\nMean 0.001ms\nMedian 0.001ms\nCPU 0.001ms"
+          },
+          {
+            "name": "Scope set_tag (crashpad)",
+            "value": 0.005036698999987266,
+            "unit": "ms",
+            "extra": "Min 0.005ms\nMax 0.005ms\nMean 0.005ms\nMedian 0.005ms\nCPU 0.005ms"
+          },
+          {
+            "name": "Scope add_breadcrumb (crashpad)",
+            "value": 0.008024624999990237,
+            "unit": "ms",
+            "extra": "Min 0.008ms\nMax 0.008ms\nMean 0.008ms\nMedian 0.008ms\nCPU 0.008ms"
+          },
+          {
+            "name": "Scope set_tag (native)",
+            "value": 0.15259842899999398,
+            "unit": "ms",
+            "extra": "Min 0.153ms\nMax 0.153ms\nMean 0.153ms\nMedian 0.153ms\nCPU 0.129ms"
+          },
+          {
+            "name": "Scope add_breadcrumb (native)",
+            "value": 0.007217446999987942,
+            "unit": "ms",
+            "extra": "Min 0.007ms\nMax 0.007ms\nMean 0.007ms\nMedian 0.007ms\nCPU 0.007ms"
+          },
+          {
+            "name": "Logs (1 thread)",
+            "value": 0.006228949999922406,
+            "unit": "ms",
+            "extra": "Min 0.006ms\nMax 0.006ms\nMean 0.006ms\nMedian 0.006ms\nCPU 0.006ms"
+          },
+          {
+            "name": "Logs (8 threads)",
+            "value": 0.047317172499958815,
+            "unit": "ms",
+            "extra": "Min 0.047ms\nMax 0.047ms\nMean 0.047ms\nMedian 0.047ms\nCPU 0.014ms"
+          },
+          {
+            "name": "Logs (16 threads)",
+            "value": 0.08487862812497582,
+            "unit": "ms",
+            "extra": "Min 0.085ms\nMax 0.085ms\nMean 0.085ms\nMedian 0.085ms\nCPU 0.014ms"
+          },
+          {
+            "name": "Logs (32 threads)",
+            "value": 0.1509791403124794,
+            "unit": "ms",
+            "extra": "Min 0.151ms\nMax 0.151ms\nMean 0.151ms\nMedian 0.151ms\nCPU 0.013ms"
           }
         ]
       }
