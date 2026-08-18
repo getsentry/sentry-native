@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1787050020650,
+  "lastUpdate": 1787050074254,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -88834,6 +88834,150 @@ window.BENCHMARK_DATA = {
             "value": 0.06255643312494286,
             "unit": "ms",
             "extra": "Min 0.063ms\nMax 0.063ms\nMean 0.063ms\nMedian 0.063ms\nCPU 0.004ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "jpnurmi@gmail.com",
+            "name": "J-P Nurmi",
+            "username": "jpnurmi"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "a689095a5a77f769aef85e07d92b51d347f7e4d2",
+          "message": "fix(native): use app .run for crash daemon (#1976)\n\n* ref(native): use .run for crash daemon\n\nHave the native crash daemon adopt the application's existing .run\ninstead of creating a second unrelated .run, and store daemon logs,\nminidumps, crash envelopes, and signal-handler scratch files within\nthat .run.\n\nProtect daemon-owned work with a dedicated `.run.daemon.lock` so\nold-run processing waits for completion. Keep retry cache and external\nstorage database-global, and leave crashed runs for normal next-launch\ncleanup.\n\n* ++\n\n* Update CHANGELOG.md\n\n* check .daemon.lock existence\n\n* clean up\n\n* Update CHANGELOG.md\n\n* clarify the changelog entry",
+          "timestamp": "2026-08-18T12:43:11+02:00",
+          "tree_id": "695885aa37b2c366e246c706803f3d3fa8f7123d",
+          "url": "https://github.com/getsentry/sentry-native/commit/a689095a5a77f769aef85e07d92b51d347f7e4d2"
+        },
+        "date": 1787050061255,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 3.7259169999970254,
+            "unit": "ms",
+            "extra": "Min 3.660ms\nMax 3.773ms\nMean 3.724ms\nStdDev 0.049ms\nMedian 3.726ms\nCPU 2.038ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 3.8548750000018117,
+            "unit": "ms",
+            "extra": "Min 3.588ms\nMax 3.992ms\nMean 3.824ms\nStdDev 0.147ms\nMedian 3.855ms\nCPU 2.168ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 12.673458999984177,
+            "unit": "ms",
+            "extra": "Min 12.066ms\nMax 23.793ms\nMean 15.095ms\nStdDev 4.932ms\nMedian 12.673ms\nCPU 4.132ms"
+          },
+          {
+            "name": "SDK init (native)",
+            "value": 8.237707999910526,
+            "unit": "ms",
+            "extra": "Min 7.772ms\nMax 8.272ms\nMean 8.135ms\nStdDev 0.209ms\nMedian 8.238ms\nCPU 2.653ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.057166000033248565,
+            "unit": "ms",
+            "extra": "Min 0.056ms\nMax 0.067ms\nMean 0.061ms\nStdDev 0.006ms\nMedian 0.057ms\nCPU 0.043ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.23154200005137682,
+            "unit": "ms",
+            "extra": "Min 0.155ms\nMax 0.274ms\nMean 0.222ms\nStdDev 0.043ms\nMedian 0.232ms\nCPU 0.220ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 6.194833999984439,
+            "unit": "ms",
+            "extra": "Min 5.684ms\nMax 7.011ms\nMean 6.299ms\nStdDev 0.493ms\nMedian 6.195ms\nCPU 0.703ms"
+          },
+          {
+            "name": "Backend startup (native)",
+            "value": 4.587874999970154,
+            "unit": "ms",
+            "extra": "Min 4.195ms\nMax 4.649ms\nMean 4.517ms\nStdDev 0.188ms\nMedian 4.588ms\nCPU 0.511ms"
+          },
+          {
+            "name": "Scope set_tag (inproc)",
+            "value": 0.0027812920000087615,
+            "unit": "ms",
+            "extra": "Min 0.003ms\nMax 0.003ms\nMean 0.003ms\nMedian 0.003ms\nCPU 0.003ms"
+          },
+          {
+            "name": "Scope add_breadcrumb (inproc)",
+            "value": 0.0010757499999272113,
+            "unit": "ms",
+            "extra": "Min 0.001ms\nMax 0.001ms\nMean 0.001ms\nMedian 0.001ms\nCPU 0.001ms"
+          },
+          {
+            "name": "Scope set_tag (breakpad)",
+            "value": 0.0029189580000092974,
+            "unit": "ms",
+            "extra": "Min 0.003ms\nMax 0.003ms\nMean 0.003ms\nMedian 0.003ms\nCPU 0.003ms"
+          },
+          {
+            "name": "Scope add_breadcrumb (breakpad)",
+            "value": 0.0011894589999883465,
+            "unit": "ms",
+            "extra": "Min 0.001ms\nMax 0.001ms\nMean 0.001ms\nMedian 0.001ms\nCPU 0.001ms"
+          },
+          {
+            "name": "Scope set_tag (crashpad)",
+            "value": 0.1623657910000702,
+            "unit": "ms",
+            "extra": "Min 0.162ms\nMax 0.162ms\nMean 0.162ms\nMedian 0.162ms\nCPU 0.127ms"
+          },
+          {
+            "name": "Scope add_breadcrumb (crashpad)",
+            "value": 0.05061179200004062,
+            "unit": "ms",
+            "extra": "Min 0.051ms\nMax 0.051ms\nMean 0.051ms\nMedian 0.051ms\nCPU 0.040ms"
+          },
+          {
+            "name": "Scope set_tag (native)",
+            "value": 0.11445416700007627,
+            "unit": "ms",
+            "extra": "Min 0.114ms\nMax 0.114ms\nMean 0.114ms\nMedian 0.114ms\nCPU 0.108ms"
+          },
+          {
+            "name": "Scope add_breadcrumb (native)",
+            "value": 0.046767499999987194,
+            "unit": "ms",
+            "extra": "Min 0.047ms\nMax 0.047ms\nMean 0.047ms\nMedian 0.047ms\nCPU 0.035ms"
+          },
+          {
+            "name": "Logs (1 thread)",
+            "value": 0.0034470799994323897,
+            "unit": "ms",
+            "extra": "Min 0.003ms\nMax 0.003ms\nMean 0.003ms\nMedian 0.003ms\nCPU 0.003ms"
+          },
+          {
+            "name": "Logs (8 threads)",
+            "value": 0.030664947499587925,
+            "unit": "ms",
+            "extra": "Min 0.031ms\nMax 0.031ms\nMean 0.031ms\nMedian 0.031ms\nCPU 0.009ms"
+          },
+          {
+            "name": "Logs (16 threads)",
+            "value": 0.053521690624975804,
+            "unit": "ms",
+            "extra": "Min 0.054ms\nMax 0.054ms\nMean 0.054ms\nMedian 0.054ms\nCPU 0.008ms"
+          },
+          {
+            "name": "Logs (32 threads)",
+            "value": 0.09809109312495679,
+            "unit": "ms",
+            "extra": "Min 0.098ms\nMax 0.098ms\nMean 0.098ms\nMedian 0.098ms\nCPU 0.008ms"
           }
         ]
       }
