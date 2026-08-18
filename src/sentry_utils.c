@@ -20,6 +20,48 @@
 #include <string.h>
 #include <time.h>
 
+void
+sentry__clock_waiter_init(sentry_clock_waiter_t *waiter, sentry_cond_t *cond,
+    sentry_mutex_t *mutex)
+{
+    waiter->mutex = mutex;
+    waiter->cond = cond;
+#ifdef SENTRY_UNITTEST
+    sentry__test_clock_waiter_init(waiter);
+#endif
+}
+
+void
+sentry__clock_waiter_deinit(sentry_clock_waiter_t *waiter)
+{
+#ifdef SENTRY_UNITTEST
+    sentry__test_clock_waiter_deinit(waiter);
+#else
+    (void)waiter;
+#endif
+}
+
+void
+sentry__clock_waiter_wait_locked(
+    sentry_clock_waiter_t *waiter, uint64_t timeout_ms)
+{
+#ifdef SENTRY_UNITTEST
+    if (sentry__test_clock_waiter_wait_locked(waiter)) {
+        return;
+    }
+#endif
+    sentry__cond_wait_timeout(waiter->cond, waiter->mutex, timeout_ms);
+}
+
+void
+sentry__clock_waiter_wake_locked(sentry_clock_waiter_t *waiter)
+{
+#ifdef SENTRY_UNITTEST
+    sentry__test_clock_waiter_wake_locked(waiter);
+#endif
+    sentry__cond_wake(waiter->cond);
+}
+
 #ifdef SENTRY_PLATFORM_DARWIN
 #    include <xlocale.h>
 #elif defined(SENTRY_PLATFORM_LINUX) && !defined(SENTRY_PLATFORM_ANDROID)
