@@ -4,7 +4,7 @@
 
 **Breaking / Important behavior changes**:
 
-- Deprecate `sentry_options_get/set_enable_logs` and `sentry_options_get/set_enable_metrics`. The setters no longer affect SDK behavior and the getters always return `true`. ([#1980](https://github.com/getsentry/sentry-native/pull/1980))
+- Deprecate `sentry_options_get/set_enable_logs` and `sentry_options_get/set_enable_metrics`. The setters no longer affect SDK behavior and the getters always return `true`. ([#2000](https://github.com/getsentry/sentry-native/pull/2000))
   > Structured logs and metrics have been enabled by default since `0.13`.
   >
   > We recognize that this change may inconvenience applications that rely on the opt-out. Use `sentry_options_set_before_send_log` or `sentry_options_set_before_send_metric` to filter logs or metrics. We made this tradeoff deliberately because consistent behavior across SDK integrations will help most users successfully adopt these features.
