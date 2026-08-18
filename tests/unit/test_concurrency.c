@@ -257,7 +257,7 @@ SENTRY_THREAD_FN
 scope_access_thread(void *data)
 {
     scope_cleanup_state_t *state = data;
-    sentry_scope_t *scope = sentry__scope_begin();
+    sentry_scope_t *scope = sentry__scope_getref();
 
     sentry__mutex_lock(&state->lock);
     state->access_started = true;
@@ -268,7 +268,8 @@ scope_access_thread(void *data)
     sentry__mutex_unlock(&state->lock);
 
     (void)sentry__scope_get_level(scope);
-    sentry__scope_end(false);
+    sentry__scope_finish(scope, false);
+    sentry__scope_decref(scope);
     return 0;
 }
 

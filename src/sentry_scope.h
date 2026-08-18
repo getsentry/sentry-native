@@ -56,6 +56,7 @@ typedef struct sentry_scope_data_s sentry_scope_data_t;
  * This represents the current scope.
  */
 struct sentry_scope_s {
+    long refcount;
     sentry_scope_data_t *data;
 
     sentry_mutex_t observers_lock;
@@ -86,19 +87,21 @@ typedef enum {
 } sentry_scope_mode_t;
 
 /**
- * This will acquire a lock on the global scope.
+ * This will return a new reference to the global scope, initializing it if
+ * needed.
  */
-sentry_scope_t *sentry__scope_lock(void);
+sentry_scope_t *sentry__scope_getref(void);
 
 /**
- * This will return the global scope, initializing it if needed.
+ * Increment the refcount and return the scope pointer.
  */
-sentry_scope_t *sentry__scope_begin(void);
+sentry_scope_t *sentry__scope_incref(sentry_scope_t *scope);
 
 /**
- * Release the lock on the global scope.
+ * Decrement the refcount and free the scope when the last reference is
+ * released.
  */
-void sentry__scope_unlock(void);
+void sentry__scope_decref(sentry_scope_t *scope);
 
 /**
  * This will free all the data attached to the global scope
@@ -117,17 +120,10 @@ void sentry__scope_set_one_shot(sentry_scope_t *scope, bool one_shot);
 void sentry__scope_free_one_shot(sentry_scope_t *scope);
 
 /**
- * This will notify any backend of scope changes.
- * This function must be called while holding the scope lock, and it will be
- * unlocked internally.
+ * Finish a global scope access, optionally notifying the backend of changes.
+ * This does not release the caller's scope reference.
  */
-void sentry__scope_flush_unlock(void);
-
-/**
- * This will finish a global scope access, optionally notifying any backend of
- * scope changes.
- */
-void sentry__scope_end(bool flush);
+void sentry__scope_finish(sentry_scope_t *scope, bool flush);
 
 /**
  * This will merge the requested data which is in the given `scope` to the given
@@ -213,6 +209,8 @@ bool sentry__scope_restore_transaction_object(
     sentry_scope_t *scope, sentry_transaction_t *transaction);
 
 sentry_span_t *sentry__scope_ref_span(const sentry_scope_t *scope);
+sentry_value_t sentry__scope_ref_span_or_transaction(
+    const sentry_scope_t *scope);
 void sentry__scope_set_span(sentry_scope_t *scope, sentry_span_t *span);
 bool sentry__scope_remove_span(sentry_scope_t *scope, sentry_span_t *span);
 bool sentry__scope_remove_span_value(
@@ -226,14 +224,18 @@ void sentry__scope_set_trace_managed(sentry_scope_t *scope, bool managed);
  * These are convenience macros to access the global scope inside a code block.
  */
 #define SENTRY_WITH_SCOPE(Scope)                                               \
-    for (const sentry_scope_t *Scope = sentry__scope_begin(); Scope;           \
-        sentry__scope_end(false), Scope = NULL)
+    for (const sentry_scope_t *Scope = sentry__scope_getref(); Scope;          \
+        sentry__scope_finish((sentry_scope_t *)Scope, false),                  \
+                              sentry__scope_decref((sentry_scope_t *)Scope),   \
+                              Scope = NULL)
 #define SENTRY_WITH_SCOPE_MUT(Scope)                                           \
-    for (sentry_scope_t *Scope = sentry__scope_begin(); Scope;                 \
-        sentry__scope_end(true), Scope = NULL)
+    for (sentry_scope_t *Scope = sentry__scope_getref(); Scope;                \
+        sentry__scope_finish(Scope, true), sentry__scope_decref(Scope),        \
+                        Scope = NULL)
 #define SENTRY_WITH_SCOPE_MUT_NO_FLUSH(Scope)                                  \
-    for (sentry_scope_t *Scope = sentry__scope_begin(); Scope;                 \
-        sentry__scope_end(false), Scope = NULL)
+    for (sentry_scope_t *Scope = sentry__scope_getref(); Scope;                \
+        sentry__scope_finish(Scope, false), sentry__scope_decref(Scope),       \
+                        Scope = NULL)
 
 /**
  * Allocate and zero-initialize a scope observer.
@@ -322,6 +324,5 @@ void sentry__scope_capture_envelope(sentry_scope_t *scope,
 
 // this is only used in unit tests
 #ifdef SENTRY_UNITTEST
-sentry_value_t sentry__scope_ref_span_or_transaction(void);
 bool sentry__scope_has_observers(const sentry_scope_t *scope);
 #endif

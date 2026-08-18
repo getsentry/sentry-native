@@ -2527,7 +2527,14 @@ SENTRY_TEST(scope_ownership)
 
     sentry_scope_t *user_scope = sentry_scope_new();
     TEST_CHECK(!sentry__scope_is_one_shot(user_scope));
+    sentry_scope_t *retained_scope = sentry__scope_incref(user_scope);
     sentry_scope_free(user_scope);
+    sentry_scope_set_tag(retained_scope, "retained", "true");
+    sentry_value_t retained_tag = scope_value_get_by_key(
+        sentry__scope_ref_tags, retained_scope, "retained");
+    TEST_CHECK_STRING_EQUAL(sentry_value_as_string(retained_tag), "true");
+    sentry_value_decref(retained_tag);
+    sentry__scope_decref(retained_scope);
 }
 
 static size_t
