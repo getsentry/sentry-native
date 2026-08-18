@@ -1168,9 +1168,12 @@ sentry_scope_add_breadcrumb(sentry_scope_t *scope, sentry_value_t breadcrumb)
     SENTRY_SCOPE_WRITE_LOCK (scope->data) {
         added = sentry__ringbuffer_append(scope->data->breadcrumbs, breadcrumb)
             == 0;
+        if (added) {
+            sentry_value_incref(breadcrumb);
+        }
     }
     if (added) {
-        SENTRY_SCOPE_NOTIFY(scope, add_breadcrumb, breadcrumb);
+        SENTRY_SCOPE_NOTIFY_OWNED(scope, add_breadcrumb, breadcrumb);
     }
 }
 

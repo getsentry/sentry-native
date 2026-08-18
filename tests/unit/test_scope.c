@@ -1432,6 +1432,7 @@ typedef struct {
     bool was_called;
     bool was_cleared;
     size_t set_tag_count;
+    sentry_scope_t *scope;
 } test_observer_data_t;
 
 typedef struct {
@@ -1579,6 +1580,12 @@ static void
 observe_add_breadcrumb(void *data, sentry_value_t breadcrumb)
 {
     test_observer_data_t *d = (test_observer_data_t *)data;
+    if (d->scope) {
+        sentry_scope_t *scope = d->scope;
+        d->scope = NULL;
+        sentry_scope_add_breadcrumb(
+            scope, sentry_value_new_breadcrumb(NULL, "replacement"));
+    }
     if (sentry_value_is_null(d->breadcrumbs)) {
         d->breadcrumbs = sentry_value_new_list();
     }
@@ -2133,6 +2140,7 @@ SENTRY_TEST(scope_observer_user)
 SENTRY_TEST(scope_observer_breadcrumbs)
 {
     SENTRY_TEST_OPTIONS_NEW(options);
+    sentry_options_set_max_breadcrumbs(options, 1);
     sentry_init(options);
 
     test_observer_data_t d = { .breadcrumbs = sentry_value_new_null() };
@@ -2141,28 +2149,33 @@ SENTRY_TEST(scope_observer_breadcrumbs)
     observer->add_breadcrumb = observe_add_breadcrumb;
 
     SENTRY_WITH_SCOPE_MUT (scope) {
+        d.scope = scope;
         sentry__scope_add_observer(scope, observer);
     }
 
     sentry_add_breadcrumb(
         sentry_value_new_breadcrumb(NULL, "first breadcrumb"));
     TEST_CHECK(d.was_called);
-    TEST_CHECK_INT_EQUAL(sentry_value_get_length(d.breadcrumbs), 1);
+    TEST_CHECK_INT_EQUAL(sentry_value_get_length(d.breadcrumbs), 2);
     TEST_CHECK_STRING_EQUAL(
         sentry_value_as_string(sentry_value_get_by_key(
             sentry_value_get_by_index(d.breadcrumbs, 0), "message")),
+        "replacement");
+    TEST_CHECK_STRING_EQUAL(
+        sentry_value_as_string(sentry_value_get_by_key(
+            sentry_value_get_by_index(d.breadcrumbs, 1), "message")),
         "first breadcrumb");
 
     sentry_add_breadcrumb(
         sentry_value_new_breadcrumb("warning", "second breadcrumb"));
-    TEST_CHECK_INT_EQUAL(sentry_value_get_length(d.breadcrumbs), 2);
+    TEST_CHECK_INT_EQUAL(sentry_value_get_length(d.breadcrumbs), 3);
     TEST_CHECK_STRING_EQUAL(
         sentry_value_as_string(sentry_value_get_by_key(
-            sentry_value_get_by_index(d.breadcrumbs, 1), "message")),
+            sentry_value_get_by_index(d.breadcrumbs, 2), "message")),
         "second breadcrumb");
     TEST_CHECK_STRING_EQUAL(
         sentry_value_as_string(sentry_value_get_by_key(
-            sentry_value_get_by_index(d.breadcrumbs, 1), "type")),
+            sentry_value_get_by_index(d.breadcrumbs, 2), "type")),
         "warning");
 
     sentry_value_decref(d.breadcrumbs);
