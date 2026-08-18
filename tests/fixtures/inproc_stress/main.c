@@ -29,6 +29,31 @@ extern void run_concurrent_crash(void);
 
 static void *invalid_mem = (void *)1;
 
+#ifdef _WIN32
+// This test stresses inproc's crash handling from many threads at
+// once. The handler normally returns EXCEPTION_CONTINUE_SEARCH, which
+// lets every thread enter WER concurrently and can stall the CI.
+// ==> Chain through the inproc handler to capture the crash, but
+// return EXCEPTION_EXECUTE_HANDLER to terminate and skip WER.
+static LPTOP_LEVEL_EXCEPTION_FILTER g_sentry_exception_filter;
+
+static LONG WINAPI
+test_exception_filter(EXCEPTION_POINTERS *exception_info)
+{
+    if (g_sentry_exception_filter) {
+        g_sentry_exception_filter(exception_info);
+    }
+    return EXCEPTION_EXECUTE_HANDLER;
+}
+
+static void
+install_test_exception_filter(void)
+{
+    g_sentry_exception_filter
+        = SetUnhandledExceptionFilter(test_exception_filter);
+}
+#endif
+
 // Prevent inlining and optimization to ensure predictable frame records.
 #if defined(__clang__)
 #    define NOINLINE __attribute__((noinline, optnone))
@@ -229,6 +254,10 @@ test_concurrent_crash(PATH_TYPE database_path)
     }
 
     sentry_set_tag("test", "concurrent-crash");
+
+#ifdef _WIN32
+    install_test_exception_filter();
+#endif
 
     fprintf(stderr, "Starting concurrent crash test\n");
     fflush(stderr);

@@ -5,9 +5,14 @@
 **Features**:
 
 - Add a public custom HTTP transport client interface (`sentry_http_transport_new`) so applications can plug in their own HTTP client (e.g. platform-native ones) while sentry-native continues to own request queueing, retry/backoff, offline caching, rate-limiting, and client reports. The built-in curl and WinHTTP transports are now implemented against this same interface. ([#1987](https://github.com/getsentry/sentry-native/pull/1987))
+- Native/Windows: capture WER report ID and expose as `contexts.wer.report_id` in crash events when the WER integration is enabled. ([#1970](https://github.com/getsentry/sentry-native/pull/1970))
+- Add `sentry_set_tags` and `sentry_scope_set_tags` for updating multiple tags with a single scope flush, improving bulk-update performance. ([#1993](https://github.com/getsentry/sentry-native/pull/1993))
+- Add `sentry_get_last_event_id` and `sentry_scope_get_last_event_id` for retrieving the last event ID captured with the global or given scope, respectively. ([#1992](https://github.com/getsentry/sentry-native/pull/1992))
+- Native/Unix: The native crash daemon now loads `libcurl` dynamically at runtime by default when `SENTRY_LINK_CURL=AUTO`, avoiding `libcurl` linker work during process startup and significantly speeding up startup time. Explicitly set `SENTRY_LINK_CURL=ON` to link it directly. ([#1955](https://github.com/getsentry/sentry-native/pull/1955))
 
 **Fixes**:
 
+- Native: store daemon logs, minidumps, crash envelopes, and scratch files in `.run` directories so they are cleaned up with the run instead of accumulating in the database root. Minidumps can still be retained with `cache_keep`, which stores `.dmp` sidecars alongside cached envelopes. ([#1976](https://github.com/getsentry/sentry-native/pull/1976))
 - Linux/ARM32: prevent recursive crashes when libunwind receives an unmapped initial instruction pointer during crash handling. ([#1977](https://github.com/getsentry/sentry-native/pull/1977))
 
 ## 0.16.3

@@ -160,9 +160,8 @@ breakpad_backend_callback(const google_breakpad::MinidumpDescriptor &descriptor,
 #endif
 
             SENTRY_SIGNAL_SAFE_LOG("DEBUG invoking `on_crash` hook");
-            sentry_value_t result
-                = options->on_crash_func(uctx, event, options->on_crash_data);
-            should_handle = !sentry_value_is_null(result);
+            event = options->on_crash_func(uctx, event, options->on_crash_data);
+            should_handle = !sentry_value_is_null(event);
         }
 
         sentry__transport_suspend(options->transport);
@@ -251,11 +250,11 @@ breakpad_backend_callback(const google_breakpad::MinidumpDescriptor &descriptor,
                         = sentry__prepare_transaction(
                             options, transaction, nullptr);
                     if (tx_envelope) {
-                        sentry__capture_envelope(
+                        sentry__submit_envelope(
                             options->transport, tx_envelope, options);
                     }
                 }
-                sentry__capture_envelope(options->transport, envelope, options);
+                sentry__submit_envelope(options->transport, envelope, options);
             } else {
                 sentry_value_decref(transaction);
             }

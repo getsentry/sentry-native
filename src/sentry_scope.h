@@ -66,6 +66,7 @@ struct sentry_scope_s {
     sentry_ringbuffer_t *breadcrumbs;
     sentry_value_t dynamic_sampling_context;
     sentry_level_t level;
+    sentry_uuid_t last_event_id;
     sentry_value_t client_sdk;
     sentry_attachment_t *attachments;
 
@@ -232,6 +233,13 @@ void sentry__scope_freeze_dsc(sentry_scope_t *scope, sentry_value_t incoming);
  */
 void sentry__scope_apply_to_telemetry(const sentry_scope_t *scope,
     sentry_value_t telemetry, sentry_value_t attributes);
+
+/**
+ * Captures the `envelope` on `scope`, recording the last sent event ID.
+ */
+void sentry__scope_capture_envelope(sentry_scope_t *scope,
+    sentry_transport_t *transport, sentry_envelope_t *envelope,
+    const sentry_options_t *options);
 
 #endif
 

@@ -2,12 +2,10 @@ black==26.3.1
 pytest==9.0.3
 pytest-httpserver==1.0.10
 flaky==3.8.1
-msgpack==1.0.8
+msgpack==1.2.1
 pytest-xdist==3.8.0
 clang-format==20.1.5
 pywin32==308; sys_platform == "win32"
-# mitmproxy requires OpenSSL to build on Windows ARM64, skip it there
-mitmproxy==12.2.2; platform_machine != "ARM64"
 psutil==7.1.1
 # For E2E tests that call Sentry API
 requests==2.33.0

@@ -396,6 +396,9 @@ SENTRY_TEST(write_raw_envelope_to_file)
 
 SENTRY_TEST(raw_envelope_event_id)
 {
+    sentry_uuid_t event_id = sentry__envelope_get_event_id(NULL);
+    TEST_CHECK(sentry_uuid_is_nil(&event_id));
+
     sentry_envelope_t *envelope = create_test_envelope();
     const char *test_file_str = SENTRY_TEST_PATH_PREFIX "sentry_test_envelope";
     sentry_path_t *test_file_path = sentry__path_from_str(test_file_str);
@@ -406,7 +409,7 @@ SENTRY_TEST(raw_envelope_event_id)
         = sentry__envelope_from_path(test_file_path);
     TEST_CHECK(!!raw_envelope);
 
-    sentry_uuid_t event_id = sentry__envelope_get_event_id(raw_envelope);
+    event_id = sentry__envelope_get_event_id(raw_envelope);
     char event_id_str[37];
     sentry_uuid_as_string(&event_id, event_id_str);
     TEST_CHECK_STRING_EQUAL(

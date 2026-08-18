@@ -441,7 +441,7 @@ sentry__session_replay_flush_pending(const sentry_options_t *options,
         sentry_envelope_t *envelope = build_replay_envelope(
             options, meta, mp4_path, end_sec, scope_source);
         if (envelope) {
-            sentry__capture_envelope(transport, envelope, options);
+            sentry__submit_envelope(transport, envelope, options);
         }
         sentry_value_decref(meta);
 

@@ -6,7 +6,6 @@ on:
       - master
     paths:
       - '.github/docker/**'
-      - 'tests/requirements.txt'
   workflow_dispatch:
 
 jobs:
@@ -28,11 +27,6 @@ jobs:
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # pin@v7.0.1
-
-      - name: Copy test requirements
-        run: |
-          git update-index --assume-unchanged .github/docker/alpine/requirements.txt
-          cp tests/requirements.txt .github/docker/alpine/requirements.txt
 
       - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # pin@v4.6.0
         with:

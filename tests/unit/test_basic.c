@@ -267,6 +267,8 @@ SENTRY_TEST(capture_minidump_basic)
 
     const sentry_uuid_t event_id = sentry_capture_minidump(minidump_path->path);
     TEST_CHECK(!sentry_uuid_is_nil(&event_id));
+    sentry_uuid_t last_event_id = sentry_get_last_event_id();
+    TEST_CHECK(memcmp(&last_event_id, &event_id, sizeof(sentry_uuid_t)) == 0);
 
     sentry__path_free(minidump_path);
     sentry__path_free(dir);
@@ -293,6 +295,8 @@ SENTRY_TEST(capture_minidump_wide)
     const sentry_uuid_t event_id
         = sentry_capture_minidumpw(minidump_path->path_w);
     TEST_CHECK(!sentry_uuid_is_nil(&event_id));
+    sentry_uuid_t last_event_id = sentry_get_last_event_id();
+    TEST_CHECK(memcmp(&last_event_id, &event_id, sizeof(sentry_uuid_t)) == 0);
 
     sentry__path_free(minidump_path);
     sentry__path_free(dir);

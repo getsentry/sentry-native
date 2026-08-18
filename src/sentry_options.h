@@ -141,4 +141,10 @@ const char *sentry__options_get_org_id(const sentry_options_t *options);
 void sentry__options_add_integration(
     sentry_options_t *opts, sentry_integration_t *integration);
 
+/**
+ * Returns whether an integration with the given name has been added.
+ */
+bool sentry__options_has_integration(
+    const sentry_options_t *opts, const char *name);
+
 #endif
