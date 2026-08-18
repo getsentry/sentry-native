@@ -1,4 +1,5 @@
 #include "sentry_os.h"
+#include "sentry_path.h"
 #include "sentry_slice.h"
 #include "sentry_string.h"
 #if defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_WINDOWS)
@@ -178,46 +179,177 @@ sentry__get_windows_version(windows_version_t *win_ver)
     return 1;
 }
 
-static void
-set_wine_context_string(
-    sentry_value_t context, const char *key, const char *value)
+static bool
+string_ends_with(const char *value, size_t value_len, const char *suffix)
 {
-    if (value && value[0]) {
-        sentry_value_set_by_key(context, key, sentry_value_new_string(value));
+    const size_t suffix_len = strlen(suffix);
+    return value_len >= suffix_len
+        && memcmp(value + value_len - suffix_len, suffix, suffix_len) == 0;
+}
+
+static char *
+make_wine_path(const char *path, const char *suffix)
+{
+    sentry_stringbuilder_t sb;
+    sentry__stringbuilder_init(&sb);
+    if (sentry__stringbuilder_append(&sb, "Z:")
+        || sentry__stringbuilder_append(&sb, path)
+        || sentry__stringbuilder_append(&sb, suffix)) {
+        sentry__stringbuilder_cleanup(&sb);
+        return NULL;
     }
+    return sentry__stringbuilder_into_string(&sb);
+}
+
+static char *
+read_wine_file(const char *path)
+{
+    sentry_path_t *file_path = sentry__path_from_str(path);
+    char *contents
+        = file_path ? sentry__path_read_to_buffer(file_path, NULL) : NULL;
+    sentry__path_free(file_path);
+    return contents;
+}
+
+static char *
+get_proton_version(bool *is_proton)
+{
+    *is_proton = false;
+    const char *compat_path = getenv("STEAM_COMPAT_DATA_PATH");
+    if (!compat_path || !compat_path[0]) {
+        return NULL;
+    }
+
+    char *config_path = make_wine_path(compat_path, "/config_info");
+    char *config = config_path ? read_wine_file(config_path) : NULL;
+    sentry_free(config_path);
+    if (!config) {
+        return NULL;
+    }
+
+    char *fonts_path = strchr(config, '\n');
+    if (!fonts_path) {
+        sentry_free(config);
+        return NULL;
+    }
+    fonts_path++;
+    while (*fonts_path == ' ' || *fonts_path == '\t') {
+        fonts_path++;
+    }
+    size_t fonts_path_len = strcspn(fonts_path, "\r\n");
+    while (fonts_path_len > 0
+        && (fonts_path[fonts_path_len - 1] == ' '
+            || fonts_path[fonts_path_len - 1] == '\t')) {
+        fonts_path_len--;
+    }
+
+    const char *fonts_suffix = NULL;
+    if (string_ends_with(fonts_path, fonts_path_len, "/files/share/fonts/")) {
+        fonts_suffix = "/files/share/fonts/";
+    } else if (string_ends_with(
+                   fonts_path, fonts_path_len, "/dist/share/fonts/")) {
+        fonts_suffix = "/dist/share/fonts/";
+    }
+    if (!fonts_suffix) {
+        sentry_free(config);
+        return NULL;
+    }
+
+    const size_t root_len = fonts_path_len - strlen(fonts_suffix);
+    char *proton_root = sentry__string_clone_n(fonts_path, root_len);
+    sentry_free(config);
+    if (!proton_root) {
+        return NULL;
+    }
+
+    char *proton_path = make_wine_path(proton_root, "/proton");
+    sentry_path_t *proton_file = sentry__path_from_str(proton_path);
+    *is_proton = proton_file && sentry__path_is_file(proton_file);
+    sentry__path_free(proton_file);
+    sentry_free(proton_path);
+
+    char *version_path = make_wine_path(proton_root, "/version");
+    sentry_free(proton_root);
+    char *version_file = version_path ? read_wine_file(version_path) : NULL;
+    sentry_free(version_path);
+    if (!version_file) {
+        return NULL;
+    }
+
+    char *version = strpbrk(version_file, " \t");
+    if (!version) {
+        sentry_free(version_file);
+        return NULL;
+    }
+    while (*version == ' ' || *version == '\t') {
+        version++;
+    }
+    size_t version_len = strcspn(version, "\r\n");
+    while (version_len > 0
+        && (version[version_len - 1] == ' '
+            || version[version_len - 1] == '\t')) {
+        version_len--;
+    }
+
+    char *result
+        = version_len ? sentry__string_clone_n(version, version_len) : NULL;
+    sentry_free(version_file);
+    return result;
+}
+
+static bool
+string_starts_with(const char *value, const char *prefix)
+{
+    const size_t value_len = strlen(value);
+    const size_t prefix_len = strlen(prefix);
+    return value_len >= prefix_len && memcmp(value, prefix, prefix_len) == 0;
 }
 
 sentry_value_t
 sentry__make_wine_context(sentry__wine_get_version_t wine_get_version,
-    sentry__wine_get_build_id_t wine_get_build_id,
-    sentry__wine_get_host_version_t wine_get_host_version)
+    const char *proton_version, bool is_proton)
 {
     if (!wine_get_version) {
         return sentry_value_new_null();
     }
 
-    const char *version = wine_get_version();
-    if (!version || !version[0]) {
+    const char *runtime_name = "Wine";
+    const char *runtime_version = wine_get_version();
+    if (!runtime_version || !runtime_version[0]) {
         return sentry_value_new_null();
+    }
+
+    if (proton_version && proton_version[0]) {
+        runtime_version = proton_version;
+        if (is_proton) {
+            if (string_starts_with(proton_version, "proton-")) {
+                runtime_name = "Proton";
+                runtime_version += strlen("proton-");
+            } else if (string_starts_with(proton_version, "experimental-")) {
+                runtime_name = "Proton Experimental";
+                runtime_version += strlen("experimental-");
+            } else if (string_starts_with(proton_version, "GE-Proton")) {
+                runtime_name = "GE-Proton";
+                runtime_version += strlen("GE-Proton");
+            } else if (string_starts_with(proton_version, "hotfix-")) {
+                runtime_name = "Proton Hotfix";
+                runtime_version += strlen("hotfix-");
+            } else {
+                runtime_name = "Proton Custom";
+            }
+        }
     }
 
     sentry_value_t context = sentry_value_new_object();
     if (sentry_value_is_null(context)) {
         return context;
     }
-
-    set_wine_context_string(context, "version", version);
-    if (wine_get_build_id) {
-        set_wine_context_string(context, "build", wine_get_build_id());
-    }
-    if (wine_get_host_version) {
-        const char *sysname = NULL;
-        const char *release = NULL;
-        wine_get_host_version(&sysname, &release);
-        set_wine_context_string(context, "sysname", sysname);
-        set_wine_context_string(context, "release", release);
-    }
-
+    sentry_value_set_by_key(
+        context, "type", sentry_value_new_string("runtime"));
+    sentry_value_set_by_key(
+        context, "name", sentry_value_new_string(runtime_name));
+    sentry_value_set_by_key(
+        context, "version", sentry_value_new_string(runtime_version));
     sentry_value_freeze(context);
     return context;
 }
@@ -232,15 +364,12 @@ sentry__get_wine_context(void)
 
     const sentry__wine_get_version_t wine_get_version
         = (sentry__wine_get_version_t)GetProcAddress(ntdll, "wine_get_version");
-    const sentry__wine_get_build_id_t wine_get_build_id
-        = (sentry__wine_get_build_id_t)GetProcAddress(
-            ntdll, "wine_get_build_id");
-    const sentry__wine_get_host_version_t wine_get_host_version
-        = (sentry__wine_get_host_version_t)GetProcAddress(
-            ntdll, "wine_get_host_version");
-
-    return sentry__make_wine_context(
-        wine_get_version, wine_get_build_id, wine_get_host_version);
+    bool is_proton = false;
+    char *proton_version = get_proton_version(&is_proton);
+    sentry_value_t context = sentry__make_wine_context(
+        wine_get_version, proton_version, is_proton);
+    sentry_free(proton_version);
+    return context;
 }
 
 #    endif // !defined(SENTRY_PLATFORM_XBOX)

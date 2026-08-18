@@ -213,18 +213,6 @@ wine_get_empty_version(void)
     return "";
 }
 
-static const char *CDECL
-wine_get_build_id(void)
-{
-    return "wine-9.0";
-}
-
-static void CDECL
-wine_get_host_version(const char **sysname, const char **release)
-{
-    *sysname = "Linux";
-    *release = "6.8.0";
-}
 #    endif
 
 static BOOL WINAPI
@@ -327,38 +315,86 @@ SENTRY_TEST(wine_context)
 #if !defined(SENTRY_PLATFORM_WINDOWS) || defined(SENTRY_PLATFORM_XBOX)
     SKIP_TEST();
 #else
-    sentry_value_t context = sentry__make_wine_context(
-        wine_get_version, wine_get_build_id, wine_get_host_version);
+    sentry_value_t context
+        = sentry__make_wine_context(wine_get_version, NULL, false);
     TEST_CHECK(!sentry_value_is_null(context));
     TEST_CHECK(sentry_value_is_frozen(context));
     TEST_CHECK_STRING_EQUAL(
+        sentry_value_as_string(sentry_value_get_by_key(context, "type")),
+        "runtime");
+    TEST_CHECK_STRING_EQUAL(
+        sentry_value_as_string(sentry_value_get_by_key(context, "name")),
+        "Wine");
+    TEST_CHECK_STRING_EQUAL(
         sentry_value_as_string(sentry_value_get_by_key(context, "version")),
         "9.0");
-    TEST_CHECK_STRING_EQUAL(
-        sentry_value_as_string(sentry_value_get_by_key(context, "build")),
-        "wine-9.0");
-    TEST_CHECK_STRING_EQUAL(
-        sentry_value_as_string(sentry_value_get_by_key(context, "sysname")),
-        "Linux");
-    TEST_CHECK_STRING_EQUAL(
-        sentry_value_as_string(sentry_value_get_by_key(context, "release")),
-        "6.8.0");
     sentry_value_decref(context);
 
-    context = sentry__make_wine_context(wine_get_version, NULL, NULL);
-    TEST_CHECK(!sentry_value_is_null(context));
-    TEST_CHECK(sentry_value_is_null(sentry_value_get_by_key(context, "build")));
-    TEST_CHECK(
-        sentry_value_is_null(sentry_value_get_by_key(context, "sysname")));
-    TEST_CHECK(
-        sentry_value_is_null(sentry_value_get_by_key(context, "release")));
+    context
+        = sentry__make_wine_context(wine_get_version, "proton-10.0-4", true);
+    TEST_CHECK_STRING_EQUAL(
+        sentry_value_as_string(sentry_value_get_by_key(context, "name")),
+        "Proton");
+    TEST_CHECK_STRING_EQUAL(
+        sentry_value_as_string(sentry_value_get_by_key(context, "version")),
+        "10.0-4");
     sentry_value_decref(context);
 
-    context = sentry__make_wine_context(NULL, NULL, NULL);
+    context = sentry__make_wine_context(
+        wine_get_version, "experimental-10.0-20260113", true);
+    TEST_CHECK_STRING_EQUAL(
+        sentry_value_as_string(sentry_value_get_by_key(context, "name")),
+        "Proton Experimental");
+    TEST_CHECK_STRING_EQUAL(
+        sentry_value_as_string(sentry_value_get_by_key(context, "version")),
+        "10.0-20260113");
+    sentry_value_decref(context);
+
+    context
+        = sentry__make_wine_context(wine_get_version, "GE-Proton9-27", true);
+    TEST_CHECK_STRING_EQUAL(
+        sentry_value_as_string(sentry_value_get_by_key(context, "name")),
+        "GE-Proton");
+    TEST_CHECK_STRING_EQUAL(
+        sentry_value_as_string(sentry_value_get_by_key(context, "version")),
+        "9-27");
+    sentry_value_decref(context);
+
+    context
+        = sentry__make_wine_context(wine_get_version, "hotfix-20251031", true);
+    TEST_CHECK_STRING_EQUAL(
+        sentry_value_as_string(sentry_value_get_by_key(context, "name")),
+        "Proton Hotfix");
+    TEST_CHECK_STRING_EQUAL(
+        sentry_value_as_string(sentry_value_get_by_key(context, "version")),
+        "20251031");
+    sentry_value_decref(context);
+
+    context
+        = sentry__make_wine_context(wine_get_version, "custom-tool-1", true);
+    TEST_CHECK_STRING_EQUAL(
+        sentry_value_as_string(sentry_value_get_by_key(context, "name")),
+        "Proton Custom");
+    TEST_CHECK_STRING_EQUAL(
+        sentry_value_as_string(sentry_value_get_by_key(context, "version")),
+        "custom-tool-1");
+    sentry_value_decref(context);
+
+    context
+        = sentry__make_wine_context(wine_get_version, "wine-ge-8-26", false);
+    TEST_CHECK_STRING_EQUAL(
+        sentry_value_as_string(sentry_value_get_by_key(context, "name")),
+        "Wine");
+    TEST_CHECK_STRING_EQUAL(
+        sentry_value_as_string(sentry_value_get_by_key(context, "version")),
+        "wine-ge-8-26");
+    sentry_value_decref(context);
+
+    context = sentry__make_wine_context(NULL, NULL, false);
     TEST_CHECK(sentry_value_is_null(context));
     sentry_value_decref(context);
 
-    context = sentry__make_wine_context(wine_get_empty_version, NULL, NULL);
+    context = sentry__make_wine_context(wine_get_empty_version, NULL, false);
     TEST_CHECK(sentry_value_is_null(context));
     sentry_value_decref(context);
 #endif
