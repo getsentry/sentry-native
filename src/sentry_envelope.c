@@ -298,6 +298,9 @@ sentry__envelope_from_path(const sentry_path_t *path)
 sentry_uuid_t
 sentry__envelope_get_event_id(const sentry_envelope_t *envelope)
 {
+    if (!envelope) {
+        return sentry_uuid_nil();
+    }
     if (envelope->is_raw) {
         const char *payload = envelope->contents.raw.payload;
         size_t payload_len = envelope->contents.raw.payload_len;

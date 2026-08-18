@@ -1,10 +1,11 @@
 import contextlib
 import os
+from pathlib import Path
 import socket
 import subprocess
+import sys
+import tempfile
 import time
-
-import psutil
 
 import pytest
 
@@ -30,100 +31,82 @@ def cleanup_proxy_env_vars():
     os.environ.pop("https_proxy", None)
 
 
-def _get_process_tree(proc):
-    """Return a list of psutil.Process for proc and all its descendants."""
-    procs = [proc]
-    try:
-        procs.extend(proc.children(recursive=True))
-    except (psutil.NoSuchProcess, psutil.AccessDenied):
-        pass
-    return procs
-
-
-def _discover_listening_port(process, timeout=10):
-    """Use psutil to discover which port the process (or any of its children)
-    is listening on.  On Windows, pip-installed mitmdump is a launcher that
-    spawns Python child processes, so the actual listener lives in a
-    descendant, not the top-level PID."""
+def _wait_for_output_file(process, output_file, timeout=10):
     deadline = time.monotonic() + timeout
-    proc = psutil.Process(process.pid)
     while time.monotonic() < deadline:
         if process.poll() is not None:
+            stdout, _ = process.communicate(timeout=1)
             raise RuntimeError(
-                f"mitmdump exited with code {process.returncode} before listening"
-            )
-        # Collect the process and all its children (pip-installed mitmdump on
-        # Windows spawns child python.exe processes that do the actual work).
-        tree = _get_process_tree(proc)
-
-        listeners = []
-        for p in tree:
-            try:
-                listeners.extend(
-                    conn
-                    for conn in p.net_connections(kind="tcp")
-                    if conn.status == psutil.CONN_LISTEN
+                "test proxy exited with code {} before listening:\n{}".format(
+                    process.returncode, stdout.decode("utf-8", errors="replace")
                 )
-            except (psutil.NoSuchProcess, psutil.AccessDenied, OSError):
-                continue
-
-        if listeners:
-            assert (
-                len(listeners) == 1
-            ), f"Expected mitmdump to listen on exactly one port, got: {listeners}"
-            return listeners[0].laddr.port
-        time.sleep(0.2)
+            )
+        try:
+            port = Path(output_file).read_text(encoding="ascii")
+        except OSError:
+            port = ""
+        if port:
+            return int(port)
+        time.sleep(0.05)
     raise TimeoutError(
-        f"mitmdump (pid {process.pid}) did not start listening within {timeout}s"
+        f"test proxy (pid {process.pid}) did not start listening within {timeout}s"
     )
 
 
-def start_mitmdump(
+def start_proxy(
     proxy_type, proxy_auth: str = None, listen_host: str = "127.0.0.1", retries: int = 3
 ):
-    """Start mitmdump on a free port. Returns (process, port).
-    Retries up to `retries` times if mitmdump fails to start listening."""
+    """Start the stdlib test proxy on a free port. Returns (process, port)."""
+    proxy_server = Path(__file__).with_name("proxy_server.py")
     for attempt in range(1, retries + 1):
+        output = tempfile.NamedTemporaryFile(delete=False)
+        output_file = output.name
+        output.close()
+        try:
+            os.unlink(output_file)
+        except OSError:
+            pass
+
         proxy_command = [
-            "mitmdump",
-            "--set",
-            f"listen_host={listen_host}",
-            "--listen-port",
+            sys.executable,
+            "-u",
+            str(proxy_server),
+            "--type",
+            proxy_type,
+            "--listen-host",
+            listen_host,
+            "--port",
             "0",
+            "--output",
+            output_file,
         ]
 
-        if proxy_type == "socks5-proxy":
-            proxy_command += ["--mode", "socks5"]
-
         if proxy_auth:
-            proxy_command += ["-v", "--proxyauth", proxy_auth]
-
-        proxy_env = os.environ.copy()
-        proxy_env["PYTHONUNBUFFERED"] = "1"
+            proxy_command += ["--proxy-auth", proxy_auth]
 
         proxy_process = subprocess.Popen(
             proxy_command,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
-            env=proxy_env,
         )
 
         try:
-            port = _discover_listening_port(proxy_process)
+            port = _wait_for_output_file(proxy_process, output_file)
             return proxy_process, port
         except (TimeoutError, RuntimeError) as e:
             proxy_process.kill()
             proxy_process.wait()
             if attempt < retries:
-                print(f"mitmdump attempt {attempt}/{retries} failed, retrying: {e}")
+                print(f"test proxy attempt {attempt}/{retries} failed, retrying: {e}")
                 continue
-            else:
-                pytest.fail(str(e))
-        except Exception:
-            proxy_process.terminate()
-            proxy_process.wait()
-            raise
-    pytest.fail("start_mitmdump: all retries exhausted")
+            pytest.fail(str(e))
+        finally:
+            try:
+                os.unlink(output_file)
+            except OSError:
+                pass
+
+    pytest.fail("start_proxy: all retries exhausted")
 
 
 def proxy_test_finally(
@@ -139,7 +122,7 @@ def proxy_test_finally(
 
     if proxy_process:
         try:
-            # Give mitmdump some time to get a response from the mock server
+            # Give the proxy some time to get a response from the mock server.
             assert wait_for(
                 lambda: len(httpserver.log) >= expected_httpserver_logsize, timeout
             )

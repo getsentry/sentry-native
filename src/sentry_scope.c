@@ -4,6 +4,7 @@
 #include "sentry_backend.h"
 #include "sentry_core.h"
 #include "sentry_database.h"
+#include "sentry_envelope.h"
 #include "sentry_options.h"
 #include "sentry_os.h"
 #include "sentry_ringbuffer.h"
@@ -11,6 +12,7 @@
 #include "sentry_symbolizer.h"
 #include "sentry_sync.h"
 #include "sentry_tracing.h"
+#include "sentry_transport.h"
 #include "sentry_value.h"
 
 #include <stdlib.h>
@@ -83,6 +85,7 @@ init_scope(sentry_scope_t *scope)
     scope->breadcrumbs = sentry__ringbuffer_new(SENTRY_BREADCRUMBS_MAX);
     scope->dynamic_sampling_context = sentry_value_new_object();
     scope->level = SENTRY_LEVEL_ERROR;
+    scope->last_event_id = sentry_uuid_nil();
     scope->client_sdk = sentry_value_new_null();
     scope->attachments = NULL;
     scope->transaction_object = NULL;
@@ -413,6 +416,7 @@ sentry_scope_clone(const sentry_scope_t *scope)
         sentry_value_freeze(clone->dynamic_sampling_context);
     }
     clone->level = scope->level;
+    clone->last_event_id = scope->last_event_id;
     clone->client_sdk = sentry__value_clone(scope->client_sdk);
     sentry__attachments_extend(&clone->attachments, scope->attachments);
 
@@ -782,6 +786,24 @@ sentry_scope_set_tag_n(sentry_scope_t *scope, const char *key, size_t key_len,
     if (sentry__value_set_by_key_owned(scope->tags, k, key_len, v) == 0) {
         SENTRY_SCOPE_NOTIFY(scope, set_tag, k, sentry_value_as_string(v));
     }
+}
+
+static void
+set_tag_value(const char *key, sentry_value_t value, void *userdata)
+{
+    if (sentry_value_get_type(value) != SENTRY_VALUE_TYPE_STRING) {
+        SENTRY_WARNF("set_tags: ignoring non-string value for tag `%s`", key);
+        return;
+    }
+    sentry_scope_set_tag(
+        (sentry_scope_t *)userdata, key, sentry_value_as_string(value));
+}
+
+void
+sentry_scope_set_tags(sentry_scope_t *scope, sentry_value_t tags)
+{
+    sentry__value_foreach_key_value(tags, set_tag_value, scope);
+    sentry_value_decref(tags);
 }
 
 void
@@ -1171,4 +1193,23 @@ sentry__scope_apply_to_telemetry(const sentry_scope_t *scope,
             sentry_value_new_string(scope->release), "string",
             "sentry.release");
     }
+}
+
+sentry_uuid_t
+sentry_scope_get_last_event_id(const sentry_scope_t *scope)
+{
+    return scope ? scope->last_event_id : sentry_uuid_nil();
+}
+
+void
+sentry__scope_capture_envelope(sentry_scope_t *scope,
+    sentry_transport_t *transport, sentry_envelope_t *envelope,
+    const sentry_options_t *options)
+{
+    sentry_uuid_t event_id = sentry__envelope_get_event_id(envelope);
+    if (!sentry_uuid_is_nil(&event_id)) {
+        scope->last_event_id = event_id;
+    }
+
+    sentry__submit_envelope(transport, envelope, options);
 }

@@ -2214,6 +2214,22 @@ SENTRY_API sentry_scope_t *sentry_scope_clone(const sentry_scope_t *scope);
 SENTRY_API void sentry_scope_clear(sentry_scope_t *scope);
 
 /**
+ * Returns the ID of the last event sent with the global scope.
+ *
+ * Returns a nil UUID if no event has been sent.
+ */
+SENTRY_API sentry_uuid_t sentry_get_last_event_id(void);
+
+/**
+ * Returns the ID of the last event sent with `scope`.
+ *
+ * Returns a nil UUID if no event has been sent with the scope or if `scope` is
+ * NULL.
+ */
+SENTRY_API sentry_uuid_t sentry_scope_get_last_event_id(
+    const sentry_scope_t *scope);
+
+/**
  * Sends a sentry event.
  *
  * If returns a nil UUID if the event being passed in is a transaction, and the
@@ -2358,6 +2374,16 @@ SENTRY_API void sentry_scope_set_tag(
     sentry_scope_t *scope, const char *key, const char *value);
 SENTRY_API void sentry_scope_set_tag_n(sentry_scope_t *scope, const char *key,
     size_t key_len, const char *value, size_t value_len);
+
+/**
+ * Adds or updates tags from the specified object. Existing tags whose keys are
+ * not supplied remain unchanged.
+ *
+ * The function takes ownership of `tags`.
+ */
+SENTRY_API void sentry_set_tags(sentry_value_t tags);
+SENTRY_API void sentry_scope_set_tags(
+    sentry_scope_t *scope, sentry_value_t tags);
 
 /**
  * Removes the tag with the specified key.
