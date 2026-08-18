@@ -488,6 +488,8 @@ sentry__scope_finish(sentry_scope_t *scope, bool flush)
     }
     sentry__mutex_unlock(&scope->observers_lock);
 
+    sentry__scope_decref(scope);
+
     if (flush) {
         SENTRY_WITH_OPTIONS (options) {
             if (options->backend && options->backend->flush_scope_func) {

@@ -121,7 +121,7 @@ void sentry__scope_free_one_shot(sentry_scope_t *scope);
 
 /**
  * Finish a global scope access, optionally notifying the backend of changes.
- * This does not release the caller's scope reference.
+ * This consumes the caller's scope reference.
  */
 void sentry__scope_finish(sentry_scope_t *scope, bool flush);
 
@@ -225,17 +225,13 @@ void sentry__scope_set_trace_managed(sentry_scope_t *scope, bool managed);
  */
 #define SENTRY_WITH_SCOPE(Scope)                                               \
     for (const sentry_scope_t *Scope = sentry__scope_getref(); Scope;          \
-        sentry__scope_finish((sentry_scope_t *)Scope, false),                  \
-                              sentry__scope_decref((sentry_scope_t *)Scope),   \
-                              Scope = NULL)
+        sentry__scope_finish((sentry_scope_t *)Scope, false), Scope = NULL)
 #define SENTRY_WITH_SCOPE_MUT(Scope)                                           \
     for (sentry_scope_t *Scope = sentry__scope_getref(); Scope;                \
-        sentry__scope_finish(Scope, true), sentry__scope_decref(Scope),        \
-                        Scope = NULL)
+        sentry__scope_finish(Scope, true), Scope = NULL)
 #define SENTRY_WITH_SCOPE_MUT_NO_FLUSH(Scope)                                  \
     for (sentry_scope_t *Scope = sentry__scope_getref(); Scope;                \
-        sentry__scope_finish(Scope, false), sentry__scope_decref(Scope),       \
-                        Scope = NULL)
+        sentry__scope_finish(Scope, false), Scope = NULL)
 
 /**
  * Allocate and zero-initialize a scope observer.

@@ -269,7 +269,6 @@ scope_access_thread(void *data)
 
     (void)sentry__scope_get_level(scope);
     sentry__scope_finish(scope, false);
-    sentry__scope_decref(scope);
     return 0;
 }
 
