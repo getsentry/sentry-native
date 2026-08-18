@@ -26,7 +26,6 @@ typedef struct {
     HINTERNET request;
     bool debug;
     uint64_t transfer_timeout;
-    long shutdown;
 } winhttp_client_t;
 
 static winhttp_client_t *
@@ -156,7 +155,6 @@ static void
 winhttp_client_shutdown(void *_client)
 {
     winhttp_client_t *client = _client;
-    sentry__atomic_store(&client->shutdown, 1);
     // Seems like some requests are taking too long/hanging
     // Just close them to make sure the background thread is exiting.
     if (client->connect) {
