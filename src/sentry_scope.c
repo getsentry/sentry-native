@@ -377,7 +377,6 @@ get_scope(void)
 static void
 cleanup_observers(sentry_scope_t *scope)
 {
-    sentry__mutex_lock(&scope->observers_lock);
     for (size_t i = 0; i < scope->num_observers; i++) {
         sentry_free(scope->observers[i]);
     }
@@ -386,7 +385,6 @@ cleanup_observers(sentry_scope_t *scope)
     scope->num_observers = 0;
     scope->is_notifying = 0;
     scope->pending_flush = false;
-    sentry__mutex_unlock(&scope->observers_lock);
 }
 
 static void
