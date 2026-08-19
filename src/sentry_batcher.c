@@ -96,11 +96,33 @@ unlock_ref(sentry_batcher_ref_t *ref)
     sentry__atomic_store(&ref->lock, 0);
 }
 
+static sentry_batcher_t *
+swap_batcher(sentry_batcher_ref_t *ref, sentry_batcher_t *batcher)
+{
+#ifdef SENTRY_PLATFORM_WINDOWS
+    return (sentry_batcher_t *)InterlockedExchangePointer(
+        (volatile PVOID *)&ref->ptr, batcher);
+#else
+    return __atomic_exchange_n(&ref->ptr, batcher, __ATOMIC_SEQ_CST);
+#endif
+}
+
+static sentry_batcher_t *
+load_batcher(sentry_batcher_ref_t *ref)
+{
+#ifdef SENTRY_PLATFORM_WINDOWS
+    return (sentry_batcher_t *)InterlockedCompareExchangePointer(
+        (volatile PVOID *)&ref->ptr, NULL, NULL);
+#else
+    return __atomic_load_n(&ref->ptr, __ATOMIC_SEQ_CST);
+#endif
+}
+
 sentry_batcher_t *
 sentry__batcher_acquire(sentry_batcher_ref_t *ref)
 {
     lock_ref(ref);
-    sentry_batcher_t *batcher = ref->ptr;
+    sentry_batcher_t *batcher = load_batcher(ref);
     if (batcher) {
         sentry__atomic_fetch_and_add(&batcher->refcount, 1);
     }
@@ -109,25 +131,31 @@ sentry__batcher_acquire(sentry_batcher_ref_t *ref)
 }
 
 sentry_batcher_t *
-sentry__batcher_peek(sentry_batcher_ref_t *ref)
+sentry__batcher_pin(sentry_batcher_ref_t *ref)
 {
-#ifdef SENTRY_PLATFORM_WINDOWS
-    return (sentry_batcher_t *)InterlockedCompareExchangePointer(
-        (volatile PVOID *)&ref->ptr, NULL, NULL);
-#else
-    sentry_batcher_t *ptr;
-    __atomic_load(&ref->ptr, &ptr, __ATOMIC_SEQ_CST);
-    return ptr;
-#endif
+    sentry__atomic_fetch_and_add(&ref->pins, 1);
+    sentry_batcher_t *batcher = load_batcher(ref);
+    if (!batcher) {
+        sentry__atomic_fetch_and_add(&ref->pins, -1);
+    }
+    return batcher;
+}
+
+void
+sentry__batcher_unpin(sentry_batcher_ref_t *ref)
+{
+    sentry__atomic_fetch_and_add(&ref->pins, -1);
 }
 
 sentry_batcher_t *
 sentry__batcher_swap(sentry_batcher_ref_t *ref, sentry_batcher_t *batcher)
 {
     lock_ref(ref);
-    sentry_batcher_t *old = ref->ptr;
-    ref->ptr = batcher;
+    sentry_batcher_t *old = swap_batcher(ref, batcher);
     unlock_ref(ref);
+    while (old && sentry__atomic_fetch(&ref->pins) > 0) {
+        sentry__cpu_relax();
+    }
     return old;
 }
 

@@ -69,9 +69,10 @@ typedef struct {
 typedef struct {
     sentry_batcher_t *ptr;
     long lock; // (atomic) spinlock
+    long pins; // (atomic) active pins
 } sentry_batcher_ref_t;
 
-#define SENTRY_BATCHER_REF_INIT { NULL, 0 }
+#define SENTRY_BATCHER_REF_INIT { NULL, 0, 0 }
 
 sentry_batcher_t *sentry__batcher_new(
     sentry_batch_func_t batch_func, sentry_threadpool_t *threadpool);
@@ -85,11 +86,16 @@ void sentry__batcher_set_category(sentry_batcher_t *batcher,
 sentry_batcher_t *sentry__batcher_acquire(sentry_batcher_ref_t *ref);
 
 /**
- * Lock-free, signal-safe read of `ref->ptr`. No refcount bump, no lock.
- * Only safe when the caller will never release the returned pointer
- * (i.e. crash-safe flush paths where the process is dying).
+ * Lock-free, signal-safe access to `ref->ptr`. Keeps the returned pointer alive
+ * until the caller passes `ref` to `sentry__batcher_unpin`.
  */
-sentry_batcher_t *sentry__batcher_peek(sentry_batcher_ref_t *ref);
+sentry_batcher_t *sentry__batcher_pin(sentry_batcher_ref_t *ref);
+
+/**
+ * Ends a successful pin. Must be called once for every non-NULL pointer
+ * returned by `sentry__batcher_pin`.
+ */
+void sentry__batcher_unpin(sentry_batcher_ref_t *ref);
 
 /**
  * Decrements the batcher's refcount and frees it when it reaches zero.

@@ -661,9 +661,10 @@ sentry__logs_shutdown(uint64_t timeout)
 void
 sentry__logs_flush_crash_safe(void)
 {
-    sentry_batcher_t *batcher = sentry__batcher_peek(&g_batcher);
+    sentry_batcher_t *batcher = sentry__batcher_pin(&g_batcher);
     if (batcher) {
         sentry__batcher_flush_crash_safe(batcher);
+        sentry__batcher_unpin(&g_batcher);
     }
 }
 

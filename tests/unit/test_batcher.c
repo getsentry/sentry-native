@@ -20,6 +20,11 @@ typedef struct {
 } shutdown_task_t;
 
 typedef struct {
+    sentry_batcher_ref_t *ref;
+    long completed;
+} ref_shutdown_task_t;
+
+typedef struct {
     long started;
     long release;
     long sent;
@@ -47,6 +52,19 @@ shutdown_task_exec(void *data)
     shutdown_task_t *task = data;
     sentry__atomic_store(&task->started, 1);
     sentry__batcher_shutdown(task->batcher, 0);
+    sentry__atomic_store(&task->completed, 1);
+    return 0;
+}
+
+SENTRY_THREAD_FN
+ref_shutdown_task_exec(void *data)
+{
+    ref_shutdown_task_t *task = data;
+    sentry_batcher_t *batcher = sentry__batcher_swap(task->ref, NULL);
+    if (batcher) {
+        sentry__batcher_shutdown(batcher, 0);
+        sentry__batcher_release(batcher);
+    }
     sentry__atomic_store(&task->completed, 1);
     return 0;
 }
@@ -607,5 +625,50 @@ SENTRY_TEST(batcher_crash_dump_does_not_block_workers)
     sentry__threadpool_shutdown(pool);
     sentry__threadpool_free(pool);
     sentry__batcher_release(batcher);
+    free_test_run(run, database_path);
+}
+
+SENTRY_TEST(batcher_crash_flush_after_release)
+{
+    // the crash thread pins the batcher before sentry_close() swaps the global
+    // reference, so shutdown must not release it until crash flushing finishes.
+    sentry_batcher_ref_t ref = SENTRY_BATCHER_REF_INIT;
+    sentry_batcher_t *batcher = sentry__batcher_new(pending_batch_func, NULL);
+    TEST_ASSERT(!!batcher);
+
+    sentry_path_t *database_path = NULL;
+    sentry_run_t *run = new_test_run(
+        SENTRY_TEST_PATH_PREFIX ".batcher-crash-after-release", &database_path);
+    batcher->run = run;
+
+    sentry__batcher_swap(&ref, batcher);
+
+    // crash thread: pin the global reference without taking its spinlock
+    sentry_batcher_t *pinned = sentry__batcher_pin(&ref);
+    TEST_CHECK(pinned == batcher);
+
+    // shutdown thread: sentry__logs_shutdown() waits for the pin before release
+    ref_shutdown_task_t task = { .ref = &ref };
+    sentry_threadid_t shutdown_thread;
+    sentry__thread_init(&shutdown_thread);
+    TEST_ASSERT(
+        !sentry__thread_spawn(&shutdown_thread, ref_shutdown_task_exec, &task));
+    while (true) {
+        sentry_batcher_t *current = sentry__batcher_pin(&ref);
+        if (!current) {
+            break;
+        }
+        sentry__batcher_unpin(&ref);
+        sentry__thread_yield();
+    }
+    TEST_CHECK(!sentry__atomic_fetch(&task.completed));
+
+    // crash thread can safely dereference the pinned batcher
+    sentry__batcher_flush_crash_safe(pinned);
+    sentry__batcher_unpin(&ref);
+
+    sentry__thread_join(shutdown_thread);
+    sentry__thread_free(&shutdown_thread);
+    TEST_CHECK(sentry__atomic_fetch(&task.completed));
     free_test_run(run, database_path);
 }
