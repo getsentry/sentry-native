@@ -16,7 +16,8 @@ sourcedir = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 
 def lib_name(name):
     if sys.platform == "win32":
-        return name + ".dll"
+        prefix = "lib" if os.environ.get("TEST_MINGW") else ""
+        return prefix + name + ".dll"
     elif sys.platform == "darwin":
         return "lib" + name + ".dylib"
     return "lib" + name + ".so"
