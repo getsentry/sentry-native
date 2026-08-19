@@ -7,13 +7,21 @@
 void
 sentry__telemetry_startup(const sentry_options_t *options)
 {
-    sentry__logs_startup(options);
-    sentry__metrics_startup(options);
+    if (options->enable_logs) {
+        sentry__logs_startup(options);
+    }
+    if (options->enable_metrics) {
+        sentry__metrics_startup(options);
+    }
 }
 
 void
 sentry__telemetry_shutdown(const sentry_options_t *options)
 {
+    if (!options->enable_logs && !options->enable_metrics) {
+        return;
+    }
+
     SENTRY_DEBUG("shutting down telemetry");
     sentry__logs_shutdown(options->shutdown_timeout);
     sentry__metrics_shutdown(options->shutdown_timeout);

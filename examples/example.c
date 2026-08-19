@@ -857,6 +857,12 @@ main(int argc, char **argv)
         sentry_options_set_logger_enabled_when_crashed(options, 1);
     }
 
+    SENTRY_SUPPRESS_DEPRECATED
+    if (has_arg(argc, argv, "disable-logs")) {
+        sentry_options_set_enable_logs(options, false);
+    }
+    SENTRY_RESTORE_DEPRECATED
+
     if (has_arg(argc, argv, "crash-reporter")) {
 #ifdef SENTRY_PLATFORM_WINDOWS
         sentry_options_set_external_crash_reporter_pathw(
@@ -890,6 +896,12 @@ main(int argc, char **argv)
     if (has_arg(argc, argv, "no-http-retry")) {
         sentry_options_set_http_retry(options, false);
     }
+
+    SENTRY_SUPPRESS_DEPRECATED
+    if (has_arg(argc, argv, "disable-metrics")) {
+        sentry_options_set_enable_metrics(options, false);
+    }
+    SENTRY_RESTORE_DEPRECATED
 
     if (has_arg(argc, argv, "before-send-metric")) {
         sentry_options_set_before_send_metric(
@@ -1054,49 +1066,57 @@ main(int argc, char **argv)
         }
     }
 
-    if (has_arg(argc, argv, "capture-log")) {
-        sentry_log_debug("I'm a log message!");
-    }
-    if (has_arg(argc, argv, "logs-timer")) {
-        for (int i = 0; i < 10; i++) {
-            sentry_log_info("Informational log nr.%d", i);
+    SENTRY_SUPPRESS_DEPRECATED
+    if (sentry_options_get_enable_logs(options)) {
+        if (has_arg(argc, argv, "capture-log")) {
+            sentry_log_debug("I'm a log message!");
         }
-        // sleep >5s to trigger logs timer
-        sleep_s(6);
-        // we should see two envelopes make its way to Sentry
-        sentry_log_debug("post-sleep log");
-    }
-    if (has_arg(argc, argv, "logs-threads")) {
-        run_threads(log_thread_func);
+        if (has_arg(argc, argv, "logs-timer")) {
+            for (int i = 0; i < 10; i++) {
+                sentry_log_info("Informational log nr.%d", i);
+            }
+            // sleep >5s to trigger logs timer
+            sleep_s(6);
+            // we should see two envelopes make its way to Sentry
+            sentry_log_debug("post-sleep log");
+        }
+        if (has_arg(argc, argv, "logs-threads")) {
+            run_threads(log_thread_func);
+        }
     }
 
-    if (has_arg(argc, argv, "capture-metric")) {
-        sentry_metrics_count("test.counter", 1, sentry_value_new_null());
-    }
-    if (has_arg(argc, argv, "capture-metric-all-types")) {
-        sentry_metrics_count("test.counter", 1, sentry_value_new_null());
-        sentry_metrics_gauge(
-            "test.gauge", 42.5, SENTRY_UNIT_PERCENT, sentry_value_new_null());
-        sentry_metrics_distribution("test.distribution", 123.456,
-            SENTRY_UNIT_MILLISECOND, sentry_value_new_null());
-    }
-    if (has_arg(argc, argv, "metric-with-attributes")) {
-        sentry_value_t attributes = sentry_value_new_object();
-        sentry_value_t attr = sentry_value_new_attribute(
-            sentry_value_new_string("my_value"), NULL);
-        sentry_value_set_by_key(attributes, "my.custom.attribute", attr);
-        sentry_metrics_count("test.counter.with.attributes", 1, attributes);
-    }
-    if (has_arg(argc, argv, "metrics-timer")) {
-        for (int i = 0; i < 10; i++) {
-            sentry_metrics_count("batch.counter", 1, sentry_value_new_null());
+    if (sentry_options_get_enable_metrics(options)) {
+        if (has_arg(argc, argv, "capture-metric")) {
+            sentry_metrics_count("test.counter", 1, sentry_value_new_null());
         }
-        sleep_s(6);
-        sentry_metrics_count("post.sleep.counter", 1, sentry_value_new_null());
+        if (has_arg(argc, argv, "capture-metric-all-types")) {
+            sentry_metrics_count("test.counter", 1, sentry_value_new_null());
+            sentry_metrics_gauge("test.gauge", 42.5, SENTRY_UNIT_PERCENT,
+                sentry_value_new_null());
+            sentry_metrics_distribution("test.distribution", 123.456,
+                SENTRY_UNIT_MILLISECOND, sentry_value_new_null());
+        }
+        if (has_arg(argc, argv, "metric-with-attributes")) {
+            sentry_value_t attributes = sentry_value_new_object();
+            sentry_value_t attr = sentry_value_new_attribute(
+                sentry_value_new_string("my_value"), NULL);
+            sentry_value_set_by_key(attributes, "my.custom.attribute", attr);
+            sentry_metrics_count("test.counter.with.attributes", 1, attributes);
+        }
+        if (has_arg(argc, argv, "metrics-timer")) {
+            for (int i = 0; i < 10; i++) {
+                sentry_metrics_count(
+                    "batch.counter", 1, sentry_value_new_null());
+            }
+            sleep_s(6);
+            sentry_metrics_count(
+                "post.sleep.counter", 1, sentry_value_new_null());
+        }
+        if (has_arg(argc, argv, "metrics-threads")) {
+            run_threads(metric_thread_func);
+        }
     }
-    if (has_arg(argc, argv, "metrics-threads")) {
-        run_threads(metric_thread_func);
-    }
+    SENTRY_RESTORE_DEPRECATED
 
     if (!has_arg(argc, argv, "no-setup")) {
         sentry_set_transaction("test-transaction");

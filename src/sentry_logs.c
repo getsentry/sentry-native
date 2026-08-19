@@ -14,17 +14,6 @@
 
 static sentry_batcher_ref_t g_batcher = SENTRY_BATCHER_REF_INIT;
 
-static bool
-sdk_is_initialized(void)
-{
-    bool initialized = false;
-    SENTRY_WITH_OPTIONS (options) {
-        (void)options;
-        initialized = true;
-    }
-    return initialized;
-}
-
 typedef enum {
     PRINTF_LENGTH_NONE,
     PRINTF_LENGTH_CHAR,
@@ -530,7 +519,12 @@ send_log(sentry_level_t level, sentry_value_t log)
 log_return_value_t
 sentry__logs_log(sentry_level_t level, const char *message, va_list args)
 {
-    if (!sdk_is_initialized()) {
+    bool enable_logs = false;
+    SENTRY_WITH_OPTIONS (options) {
+        if (options->enable_logs)
+            enable_logs = true;
+    }
+    if (!enable_logs) {
         return SENTRY_LOG_RETURN_DISABLED;
     }
     return send_log(level, construct_log(level, message, args));
@@ -613,7 +607,12 @@ log_return_value_t
 sentry_scope_capture_log(sentry_scope_t *scope, sentry_level_t level,
     const char *body, sentry_value_t custom_attributes)
 {
-    if (!sdk_is_initialized()) {
+    bool enable_logs = false;
+    SENTRY_WITH_OPTIONS (options) {
+        if (options->enable_logs)
+            enable_logs = true;
+    }
+    if (!enable_logs) {
         sentry_value_decref(custom_attributes);
         sentry__scope_free_one_shot(scope);
         return SENTRY_LOG_RETURN_DISABLED;

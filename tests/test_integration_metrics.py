@@ -222,6 +222,23 @@ def test_before_send_metric_discard(cmake, httpserver):
     assert len(httpserver.log) == 0
 
 
+def test_metrics_disabled(cmake, httpserver):
+    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "none"})
+
+    httpserver.expect_request("/api/123456/envelope/").respond_with_data("OK")
+    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
+
+    run(
+        tmp_path,
+        "sentry_example",
+        ["log", "disable-metrics", "capture-metric"],
+        env=env,
+    )
+
+    # No metrics should be sent when feature is disabled
+    assert len(httpserver.log) == 0
+
+
 def test_metrics_event(cmake, httpserver):
     tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "none"})
 

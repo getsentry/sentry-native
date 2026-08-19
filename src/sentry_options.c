@@ -90,6 +90,8 @@ sentry_options_new(void)
     opts->propagate_traceparent = false;
     opts->strict_trace_continuation = false;
     opts->crashpad_limit_stack_capture_to_sp = false;
+    opts->enable_metrics = true;
+    opts->enable_logs = true;
     opts->cache_keep = SENTRY_CACHE_KEEP_NONE;
     opts->cache_max_age = 0;
     opts->cache_max_size = 0;
@@ -1018,15 +1020,13 @@ sentry__options_has_integration(const sentry_options_t *opts, const char *name)
 void
 sentry_options_set_enable_logs(sentry_options_t *opts, int enable_logs)
 {
-    (void)opts;
-    (void)enable_logs;
+    opts->enable_logs = !!enable_logs;
 }
 
 int
 sentry_options_get_enable_logs(const sentry_options_t *opts)
 {
-    (void)opts;
-    return 1;
+    return opts->enable_logs;
 }
 
 void
@@ -1045,15 +1045,13 @@ sentry_options_get_logs_with_attributes(const sentry_options_t *opts)
 void
 sentry_options_set_enable_metrics(sentry_options_t *opts, int enable_metrics)
 {
-    (void)opts;
-    (void)enable_metrics;
+    opts->enable_metrics = !!enable_metrics;
 }
 
 int
 sentry_options_get_enable_metrics(const sentry_options_t *opts)
 {
-    (void)opts;
-    return 1;
+    return opts->enable_metrics;
 }
 
 void
