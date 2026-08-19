@@ -5,7 +5,9 @@
  * and low-level crash handling functionality.
  */
 
+#include "sentry_database.h"
 #include "sentry_options.h"
+#include "sentry_path.h"
 #include "sentry_testsupport.h"
 #include <string.h>
 
@@ -18,6 +20,96 @@
 #if defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID)
 #    include "sentry_elf.h"
 #endif
+
+SENTRY_TEST(daemon_adopts_existing_run)
+{
+#if defined(SENTRY_PLATFORM_NX) || defined(SENTRY_PLATFORM_PS)
+    SKIP_TEST();
+#endif
+    SENTRY_TEST_OPTIONS_NEW(options);
+    TEST_ASSERT(sentry__path_remove_all(options->database_path) == 0);
+    TEST_ASSERT(sentry__path_create_dir_all(options->database_path) == 0);
+
+    sentry_run_t *existing_run = sentry__run_new(options->database_path);
+    TEST_ASSERT(!!existing_run);
+    sentry_run_t *adopted_run
+        = sentry__run_adopt(options->database_path, existing_run->run_path);
+    TEST_ASSERT(!!adopted_run);
+
+    sentry_path_t *cache_path
+        = sentry__path_join_str(options->database_path, "cache");
+    sentry_path_t *external_path
+        = sentry__path_join_str(options->database_path, "external");
+    sentry_path_t *daemon_lock_path
+        = sentry__path_append_str(existing_run->run_path, ".daemon.lock");
+    TEST_ASSERT(!!cache_path);
+    TEST_ASSERT(!!external_path);
+    TEST_ASSERT(!!daemon_lock_path);
+
+    TEST_CHECK(sentry__path_eq(adopted_run->run_path, existing_run->run_path));
+    TEST_CHECK(sentry__path_eq(adopted_run->cache_path, cache_path));
+    TEST_CHECK(sentry__path_eq(adopted_run->external_path, external_path));
+    TEST_CHECK(sentry__path_is_file(daemon_lock_path));
+
+    size_t run_count = 0;
+    sentry_pathiter_t *it = sentry__path_iter_directory(options->database_path);
+    const sentry_path_t *entry;
+    while (it && (entry = sentry__pathiter_next(it)) != NULL) {
+        if (sentry__path_is_dir(entry)
+            && sentry__path_ends_with(entry, ".run")) {
+            run_count++;
+        }
+    }
+    sentry__pathiter_free(it);
+    TEST_CHECK_INT_EQUAL(run_count, 1);
+
+    sentry__run_free(adopted_run);
+    TEST_CHECK(!sentry__path_is_file(daemon_lock_path));
+    sentry__run_clean(existing_run, true);
+    sentry__run_free(existing_run);
+    sentry__path_free(daemon_lock_path);
+    sentry__path_free(external_path);
+    sentry__path_free(cache_path);
+    sentry_options_free(options);
+}
+
+SENTRY_TEST(daemon_run_blocks_old_run_cleanup)
+{
+#if defined(SENTRY_PLATFORM_NX) || defined(SENTRY_PLATFORM_PS)
+    SKIP_TEST();
+#endif
+    SENTRY_TEST_OPTIONS_NEW(options);
+    TEST_ASSERT(sentry__path_remove_all(options->database_path) == 0);
+    TEST_ASSERT(sentry__path_create_dir_all(options->database_path) == 0);
+
+    options->run = sentry__run_new(options->database_path);
+    TEST_ASSERT(!!options->run);
+    sentry_run_t *old_run = sentry__run_new(options->database_path);
+    TEST_ASSERT(!!old_run);
+    sentry__filelock_unlock(old_run->lock);
+
+    sentry_run_t *daemon_run
+        = sentry__run_adopt(options->database_path, old_run->run_path);
+    TEST_ASSERT(!!daemon_run);
+    sentry_path_t *artifact
+        = sentry__path_join_str(old_run->run_path, "daemon.log");
+    TEST_ASSERT(!!artifact);
+    TEST_ASSERT(sentry__path_write_buffer(artifact, "log", 3) == 0);
+
+    sentry__process_old_runs(options, 0);
+    TEST_CHECK(sentry__path_is_dir(old_run->run_path));
+    TEST_CHECK(sentry__path_is_file(artifact));
+
+    sentry__run_free(daemon_run);
+    sentry__process_old_runs(options, 0);
+    TEST_CHECK(!sentry__path_is_dir(old_run->run_path));
+    TEST_CHECK(!sentry__path_is_file(artifact));
+
+    sentry__path_free(artifact);
+    sentry__run_free(old_run);
+    sentry__run_clean(options->run, true);
+    sentry_options_free(options);
+}
 
 /**
  * Test minidump header structure size and alignment

@@ -578,4 +578,6 @@ def test_tus_crash_native(cmake, httpserver):
         for d in os.listdir(db_dir)
         if d.endswith(".run") and os.path.isdir(os.path.join(db_dir, d))
     ]
-    assert run_dirs == []
+    assert len(run_dirs) == 1
+    run_dir = os.path.join(db_dir, run_dirs[0])
+    assert not [f for f in os.listdir(run_dir) if f.endswith(".envelope")]

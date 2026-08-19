@@ -443,6 +443,8 @@ set_user_consent(sentry_user_consent_t new_val)
             case SENTRY_USER_CONSENT_UNKNOWN:
                 sentry__path_remove(consent_path);
                 break;
+            default:
+                break;
             }
             sentry__path_free(consent_path);
         }

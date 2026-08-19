@@ -710,7 +710,7 @@ def wait_for_daemon(tmp_path, started_at, timeout=None):
 
     deadline = time.time() + timeout
     while time.time() < deadline:
-        for log_path in db_dir.glob("sentry-daemon-*.log"):
+        for log_path in db_dir.glob("*.run/sentry-daemon.log"):
             try:
                 if log_path.stat().st_mtime < started_at:
                     continue

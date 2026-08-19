@@ -875,7 +875,7 @@ elseif(SENTRY_BACKEND_NATIVE)
 	get_target_property(SENTRY_COMPILE_DEFS sentry COMPILE_DEFINITIONS)
 	if(SENTRY_COMPILE_DEFS)
 		# The daemon is always a static executable, never a shared library
-		list(REMOVE_ITEM SENTRY_COMPILE_DEFS "SENTRY_BUILD_SHARED")
+		list(REMOVE_ITEM SENTRY_COMPILE_DEFS "SENTRY_BUILD_SHARED" "SENTRY_LINK_CURL")
 		list(FILTER SENTRY_COMPILE_DEFS EXCLUDE REGEX "^SENTRY_INTEGRATION_")
 		target_compile_definitions(sentry-crash PRIVATE ${SENTRY_COMPILE_DEFS})
 	endif()
@@ -910,7 +910,11 @@ elseif(SENTRY_BACKEND_NATIVE)
 
 	# Transport-specific libraries
 	if(SENTRY_TRANSPORT_CURL)
-		sentry_target_link_curl(sentry-crash ${_SENTRY_LINK_CURL})
+		set(_SENTRY_CRASH_LINK_CURL ${_SENTRY_LINK_CURL})
+		if(SENTRY_LINK_CURL STREQUAL "AUTO" AND UNIX)
+			set(_SENTRY_CRASH_LINK_CURL OFF)
+		endif()
+		sentry_target_link_curl(sentry-crash ${_SENTRY_CRASH_LINK_CURL})
 	endif()
 
 	if(SENTRY_TRANSPORT_WINHTTP)

@@ -326,6 +326,13 @@ native_backend_startup(
     sentry_path_t *run_path = options->run->run_path;
     sentry_path_t *db_path = options->database_path;
 
+#ifdef _WIN32
+    strncpy_s(ctx->run_path, sizeof(ctx->run_path), run_path->path, _TRUNCATE);
+#else
+    strncpy(ctx->run_path, run_path->path, sizeof(ctx->run_path) - 1);
+    ctx->run_path[sizeof(ctx->run_path) - 1] = '\0';
+#endif
+
     // Store database path for daemon use
     if (db_path) {
 #ifdef _WIN32
@@ -590,12 +597,17 @@ native_backend_shutdown(sentry_backend_t *backend)
     // handler on iOS)
     sentry__crash_handler_shutdown();
 
+    bool daemon_stopped = false;
 #if defined(SENTRY_PLATFORM_UNIX) && !defined(SENTRY_PLATFORM_IOS)
     // Terminate daemon (Unix)
     if (state->daemon_pid > 0) {
         kill(state->daemon_pid, SIGTERM);
         // Wait for daemon to exit
-        waitpid(state->daemon_pid, NULL, 0);
+        pid_t wait_result;
+        do {
+            wait_result = waitpid(state->daemon_pid, NULL, 0);
+        } while (wait_result < 0 && errno == EINTR);
+        daemon_stopped = wait_result == state->daemon_pid;
     }
 #elif defined(SENTRY_PLATFORM_WINDOWS)
     // Terminate daemon (Windows)
@@ -605,11 +617,26 @@ native_backend_shutdown(sentry_backend_t *backend)
         if (hDaemon) {
             TerminateProcess(hDaemon, 0);
             // Wait for daemon to exit (with timeout)
-            WaitForSingleObject(hDaemon, 5000); // 5 second timeout
+            daemon_stopped
+                = WaitForSingleObject(hDaemon, 5000) == WAIT_OBJECT_0;
             CloseHandle(hDaemon);
         }
     }
 #endif
+
+    if (daemon_stopped && state->ipc && state->ipc->shmem
+        && state->ipc->shmem->run_path[0]) {
+        sentry_path_t *run_path
+            = sentry__path_from_str(state->ipc->shmem->run_path);
+        sentry_path_t *lock_path = run_path
+            ? sentry__path_append_str(run_path, ".daemon.lock")
+            : NULL;
+        if (lock_path) {
+            sentry__path_remove(lock_path);
+        }
+        sentry__path_free(lock_path);
+        sentry__path_free(run_path);
+    }
 
     // Dump daemon log file for debugging (especially useful in CI).
     // This bypasses the SDK logger and writes straight to stderr, so it must
@@ -619,69 +646,32 @@ native_backend_shutdown(sentry_backend_t *backend)
     if (state->ipc && state->ipc->shmem && state->ipc->shmem->debug_enabled) {
         char log_path[SENTRY_CRASH_MAX_PATH];
         int log_path_len = -1;
+        FILE *log_file = NULL;
 
-        // Extract the unique ID from the shm name/path to find the daemon log
-        // Platform-specific: shm_name on Linux/Windows, shm_path on macOS
 #if defined(SENTRY_PLATFORM_WINDOWS)
-        const wchar_t *shm_id_w = wcsrchr(state->ipc->shm_name, L'-');
-        if (shm_id_w) {
-            shm_id_w++; // Skip the '-'
-            char *shm_id = sentry__string_from_wstr(shm_id_w);
-            if (shm_id) {
-                log_path_len = _snprintf(log_path, sizeof(log_path),
-                    "%s\\sentry-daemon-%s.log",
-                    state->ipc->shmem->database_path, shm_id);
-                if (log_path_len > 0 && log_path_len < (int)sizeof(log_path)) {
-                    wchar_t *wpath = sentry__string_to_wstr(log_path);
-                    FILE *log_file = wpath ? _wfopen(wpath, L"r") : NULL;
-                    sentry_free(wpath);
-                    if (log_file) {
-                        fprintf(stderr,
-                            "\n========== Daemon Log (%s) ==========\n",
-                            shm_id);
-                        char line[1024];
-                        while (fgets(line, sizeof(line), log_file)) {
-                            fprintf(stderr, "%s", line);
-                        }
-                        fprintf(stderr,
-                            "=========================================\n\n");
-                        fclose(log_file);
-                    }
-                }
-                sentry_free(shm_id);
-            }
+        log_path_len = _snprintf(log_path, sizeof(log_path),
+            "%s\\sentry-daemon.log", state->ipc->shmem->run_path);
+        if (log_path_len > 0 && log_path_len < (int)sizeof(log_path)) {
+            wchar_t *wpath = sentry__string_to_wstr(log_path);
+            log_file = wpath ? _wfopen(wpath, L"r") : NULL;
+            sentry_free(wpath);
         }
 #else
-        // On macOS: shm_path = "{tmpdir}/.sentry-shm-{id}"
-        // On Linux: shm_name = "/s-{id}"
-        // In both cases, the ID follows the last '-'
-#    if defined(SENTRY_PLATFORM_MACOS)
-        const char *shm_id_src = state->ipc->shm_path;
-#    else
-        const char *shm_id_src = state->ipc->shm_name;
-#    endif
-        const char *shm_id = shm_id_src[0] ? strrchr(shm_id_src, '-') : NULL;
-        if (shm_id) {
-            shm_id++; // Skip the '-'
-            log_path_len = snprintf(log_path, sizeof(log_path),
-                "%s/sentry-daemon-%s.log", state->ipc->shmem->database_path,
-                shm_id);
-            if (log_path_len > 0 && log_path_len < (int)sizeof(log_path)) {
-                FILE *log_file = fopen(log_path, "r");
-                if (log_file) {
-                    fprintf(stderr, "\n========== Daemon Log (%s) ==========\n",
-                        shm_id);
-                    char line[1024];
-                    while (fgets(line, sizeof(line), log_file)) {
-                        fprintf(stderr, "%s", line);
-                    }
-                    fprintf(stderr,
-                        "=========================================\n\n");
-                    fclose(log_file);
-                }
-            }
+        log_path_len = snprintf(log_path, sizeof(log_path),
+            "%s/sentry-daemon.log", state->ipc->shmem->run_path);
+        if (log_path_len > 0 && log_path_len < (int)sizeof(log_path)) {
+            log_file = fopen(log_path, "r");
         }
 #endif
+        if (log_file) {
+            fprintf(stderr, "\n========== Daemon Log ==========\n");
+            char line[1024];
+            while (fgets(line, sizeof(line), log_file)) {
+                fprintf(stderr, "%s", line);
+            }
+            fprintf(stderr, "================================\n\n");
+            fclose(log_file);
+        }
     }
 
     // Cleanup IPC
