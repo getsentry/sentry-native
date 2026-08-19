@@ -34,6 +34,8 @@ sentry__batcher_new(
     batcher->thread_state = (long)SENTRY_BATCHER_THREAD_STOPPED;
     batcher->threadpool = threadpool;
     sentry__waitable_flag_init(&batcher->request_flush);
+    sentry__mutex_init(&batcher->task_wait_mutex);
+    sentry__cond_init(&batcher->task_wait_cond);
     sentry__thread_init(&batcher->batching_thread);
     return batcher;
 }
@@ -64,6 +66,7 @@ sentry__batcher_release(sentry_batcher_t *batcher)
     sentry_free(batcher->thread_name);
     sentry__dsn_decref(batcher->dsn);
     sentry__thread_free(&batcher->batching_thread);
+    sentry__mutex_free(&batcher->task_wait_mutex);
     sentry_free(batcher);
 }
 
@@ -234,7 +237,7 @@ batch_task_link(sentry_batch_task_t *task)
     unlock_tasks(batcher);
 }
 
-static void
+static bool
 batch_task_unlink_locked(sentry_batch_task_t *task)
 {
     sentry_batch_task_t *prev = NULL;
@@ -248,11 +251,20 @@ batch_task_unlink_locked(sentry_batch_task_t *task)
                 batcher->tasks = cur->next;
             }
             task->next = NULL;
-            return;
+            return batcher->tasks == NULL;
         }
         prev = cur;
         cur = cur->next;
     }
+    return false;
+}
+
+static void
+batch_task_notify_waiters(sentry_batcher_t *batcher)
+{
+    sentry__mutex_lock(&batcher->task_wait_mutex);
+    sentry__cond_wake_all(&batcher->task_wait_cond);
+    sentry__mutex_unlock(&batcher->task_wait_mutex);
 }
 
 static void
@@ -260,22 +272,27 @@ batch_task_unlink(sentry_batch_task_t *task)
 {
     sentry_batcher_t *batcher = task->batcher;
     lock_tasks(batcher);
-    batch_task_unlink_locked(task);
+    const bool drained = batch_task_unlink_locked(task);
     unlock_tasks(batcher);
+    if (drained) {
+        batch_task_notify_waiters(batcher);
+    }
 }
 
 static void
 batch_task_wait_all(sentry_batcher_t *batcher)
 {
+    sentry__mutex_lock(&batcher->task_wait_mutex);
     while (true) {
         lock_tasks(batcher);
         const bool done = batcher->tasks == NULL;
         unlock_tasks(batcher);
         if (done) {
-            return;
+            break;
         }
-        sentry__cpu_relax();
+        sentry__cond_wait(&batcher->task_wait_cond, &batcher->task_wait_mutex);
     }
+    sentry__mutex_unlock(&batcher->task_wait_mutex);
 }
 
 static void
@@ -315,6 +332,8 @@ batch_task_exec(void *task_data)
     sentry_batcher_t *batcher = task->batcher;
 
     lock_tasks(batcher);
+    // Crash flushing may have claimed and dumped this task before its worker
+    // started, leaving nothing to execute.
     if (!sentry__atomic_compare_swap(&task->state, SENTRY_BATCH_TASK_PENDING,
             SENTRY_BATCH_TASK_RUNNING)) {
         unlock_tasks(batcher);
@@ -339,8 +358,11 @@ batch_task_complete(void *task_data)
     lock_tasks(batcher);
     const long state = sentry__atomic_fetch(&task->state);
     if (state == SENTRY_BATCH_TASK_DUMPED) {
-        batch_task_unlink_locked(task);
+        const bool drained = batch_task_unlink_locked(task);
         unlock_tasks(batcher);
+        if (drained) {
+            batch_task_notify_waiters(batcher);
+        }
         return;
     }
     sentry__atomic_store(&task->state, SENTRY_BATCH_TASK_COMPLETING);

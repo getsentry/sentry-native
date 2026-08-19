@@ -52,6 +52,8 @@ typedef struct {
     long crash_flush; // (atomic) write completed batch work to disk
     long task_lock; // (atomic) protects in-flight batch tasks
     struct sentry_batch_task_s *tasks; // in-flight batch tasks
+    sentry_mutex_t task_wait_mutex; // mutex for task completion waiters
+    sentry_cond_t task_wait_cond; // signals changes to in-flight tasks
     long thread_state; // (atomic) sentry_batcher_thread_state_t
     sentry_waitable_flag_t request_flush; // level-triggered flush flag
     sentry_threadid_t batching_thread; // the batching thread
