@@ -85,7 +85,7 @@ test_send_cb(sentry_envelope_t *envelope, void *_ctx)
     return ctx->status_code;
 }
 
-static bool
+static int
 test_http_send_fails(void *client, sentry_prepared_http_request_t *req,
     sentry_http_response_t *resp)
 {
