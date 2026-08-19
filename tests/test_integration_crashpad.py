@@ -19,7 +19,7 @@ from . import (
     is_replay_envelope,
     REPLAY_ID,
 )
-from .conditions import has_crashpad, has_oom, is_wine
+from .conditions import has_crashpad, has_oom
 from .proxy import (
     setup_proxy_env_vars,
     cleanup_proxy_env_vars,
@@ -40,13 +40,10 @@ from .assertions import (
     wait_for_file,
 )
 
-pytestmark = [
-    pytest.mark.skipif(
-        not has_crashpad,
-        reason="Tests need a crashpad backend and a valid environment for it",
-    ),
-    pytest.mark.skipif(is_wine, reason="Crashpad does not support Wine cross-builds"),
-]
+pytestmark = pytest.mark.skipif(
+    not has_crashpad,
+    reason="Tests need a crashpad backend and a valid environment for it",
+)
 
 # Windows and Linux are currently able to flush all the state on crash
 flushes_state = sys.platform != "darwin"

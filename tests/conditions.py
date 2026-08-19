@@ -30,7 +30,7 @@ has_breakpad = (
     # breakpad accesses thread state registers directly, which doesn't work on arm64e
     and not (is_arm64e and sys.platform == "darwin")
 )
-# crashpad requires http, needs porting to AIX, and doesn’t work with kcov/valgrind/tsan either
+# crashpad requires http, needs porting to AIX, and doesn’t work with kcov/valgrind/tsan or Wine cross-builds
 has_crashpad = (
     has_http
     and not is_valgrind
@@ -38,6 +38,7 @@ has_crashpad = (
     and not is_android
     and not is_aix
     and not is_tsan
+    and not is_wine
 )
 # android has no local filesystem
 has_files = not is_android
