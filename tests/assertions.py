@@ -607,7 +607,8 @@ def assert_crashpad_upload(req, expect_attachment=False, expect_view_hierarchy=F
         assert attachments.bytes_bin == None
     if expect_view_hierarchy:
         assert_attachment_content_view_hierarchy(attachments.view_hierarchy)
-    assert attachments.minidump.startswith(b"MDMP")
+    assert attachments.minidump is not None, "minidump attachment missing"
+    assert attachments.minidump.startswith(b"MDMP"), "invalid minidump signature"
     return attachments
 
 

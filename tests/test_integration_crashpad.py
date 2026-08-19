@@ -18,6 +18,7 @@ from . import (
     is_logs_envelope,
     is_feedback_envelope,
     is_replay_envelope,
+    lib_name,
     REPLAY_ID,
 )
 from .conditions import has_crashpad, has_oom
@@ -108,13 +109,15 @@ def test_crashpad_codeview(cmake, httpserver):
         name.replace("\\", "/").rsplit("/", 1)[-1]: codeview
         for name, codeview in _minidump_modules(attachments.minidump)
     }
-    module_name = {"win32": "sentry.dll", "darwin": "libsentry.dylib"}.get(
-        sys.platform, "libsentry.so"
-    )
-    codeview = codeviews[module_name]
+    codeview = codeviews[lib_name("sentry")]
     signature = codeview[:4]
-    identifier = codeview[4:20] if signature == b"RSDS" else codeview[4:]
-    assert signature in (b"RSDS", b"LEpB")
+    if sys.platform == "linux":
+        assert signature == b"LEpB"
+        identifier = codeview[4:]
+    else:
+        assert signature == b"RSDS"
+        identifier = codeview[4:20]
+
     assert any(identifier)
 
 
