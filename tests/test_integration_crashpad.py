@@ -108,10 +108,14 @@ def test_crashpad_codeview(cmake, httpserver):
         name.replace("\\", "/").rsplit("/", 1)[-1]: codeview
         for name, codeview in _minidump_modules(attachments.minidump)
     }
-    module_name = "sentry_example.exe" if sys.platform == "win32" else "sentry_example"
+    module_name = {"win32": "sentry.dll", "darwin": "libsentry.dylib"}.get(
+        sys.platform, "libsentry.so"
+    )
     codeview = codeviews[module_name]
-    assert codeview[:4] == b"RSDS"
-    assert codeview[4:20] != bytes(16)
+    signature = codeview[:4]
+    identifier = codeview[4:20] if signature == b"RSDS" else codeview[4:]
+    assert signature in (b"RSDS", b"LEpB")
+    assert any(identifier)
 
 
 def _setup_crashpad_proxy_test(cmake, httpserver, proxy):
