@@ -348,8 +348,10 @@ sentry__make_wine_context(sentry__wine_get_version_t wine_get_version,
         context, "type", sentry_value_new_string("runtime"));
     sentry_value_set_by_key(
         context, "name", sentry_value_new_string(runtime_name));
-    sentry_value_set_by_key(
-        context, "version", sentry_value_new_string(runtime_version));
+    if (runtime_version[0]) {
+        sentry_value_set_by_key(
+            context, "version", sentry_value_new_string(runtime_version));
+    }
     sentry_value_freeze(context);
     return context;
 }

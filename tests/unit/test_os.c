@@ -361,6 +361,15 @@ SENTRY_TEST(wine_context)
     sentry_value_decref(context);
 
     context
+        = sentry__make_wine_context(wine_get_version, "GE-Proton", true);
+    TEST_CHECK_STRING_EQUAL(
+        sentry_value_as_string(sentry_value_get_by_key(context, "name")),
+        "GE-Proton");
+    TEST_CHECK(sentry_value_is_null(
+        sentry_value_get_by_key(context, "version")));
+    sentry_value_decref(context);
+
+    context
         = sentry__make_wine_context(wine_get_version, "hotfix-20251031", true);
     TEST_CHECK_STRING_EQUAL(
         sentry_value_as_string(sentry_value_get_by_key(context, "name")),
