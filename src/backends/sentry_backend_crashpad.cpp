@@ -1168,10 +1168,9 @@ make_attachment_path(const sentry_path_t *run_path, sentry_value_t attachment)
 }
 
 static void
-crashpad_backend_add_attachment(sentry_backend_t *backend,
-    sentry_value_t attachment, const sentry_options_t *UNUSED(options))
+crashpad_backend_add_attachment(void *state, sentry_value_t attachment)
 {
-    auto *data = static_cast<crashpad_state_t *>(backend->data);
+    auto *data = static_cast<crashpad_state_t *>(state);
     if (!data || !data->client) {
         return;
     }
@@ -1200,10 +1199,9 @@ crashpad_backend_add_attachment(sentry_backend_t *backend,
 }
 
 static void
-crashpad_backend_remove_attachment(
-    sentry_backend_t *backend, sentry_value_t attachment)
+crashpad_backend_remove_attachment(void *state, sentry_value_t attachment)
 {
-    auto *data = static_cast<crashpad_state_t *>(backend->data);
+    auto *data = static_cast<crashpad_state_t *>(state);
     if (!data || !data->client) {
         return;
     }
@@ -1259,8 +1257,14 @@ sentry__backend_new(void)
     backend->prune_database_func = crashpad_backend_prune_database;
 #if defined(SENTRY_PLATFORM_WINDOWS) || defined(SENTRY_PLATFORM_LINUX)         \
     || defined(SENTRY_PLATFORM_MACOS)
-    backend->add_attachment_func = crashpad_backend_add_attachment;
-    backend->remove_attachment_func = crashpad_backend_remove_attachment;
+    backend->scope_observer = sentry__scope_observer_new();
+    if (backend->scope_observer) {
+        backend->scope_observer->data = data;
+        backend->scope_observer->add_attachment
+            = crashpad_backend_add_attachment;
+        backend->scope_observer->remove_attachment
+            = crashpad_backend_remove_attachment;
+    }
 #endif
     backend->data = data;
     backend->can_capture_after_shutdown = true;

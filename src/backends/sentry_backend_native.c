@@ -174,6 +174,7 @@ wer_register_module(uint64_t app_tid)
 typedef struct {
     sentry_crash_ipc_t *ipc;
     pid_t daemon_pid;
+    sentry_path_t *run_path;
     sentry_path_t *event_path;
     sentry_path_t *breadcrumb1_path;
     sentry_path_t *breadcrumb2_path;
@@ -244,6 +245,10 @@ native_backend_startup(
         return 1;
     }
     backend->data = state;
+    state->run_path = sentry__path_clone(options->run->run_path);
+    if (backend->scope_observer) {
+        backend->scope_observer->data = state;
+    }
 
     // Initialize IPC (protected by global synchronization for concurrent
     // access)
@@ -715,6 +720,7 @@ native_backend_free(sentry_backend_t *backend)
     sentry__path_free(state->breadcrumb1_path);
     sentry__path_free(state->breadcrumb2_path);
     sentry__path_free(state->envelope_path);
+    sentry__path_free(state->run_path);
 
     sentry_free(state);
 }
@@ -934,18 +940,19 @@ native_backend_add_breadcrumb(sentry_backend_t *backend,
 }
 
 static void
-native_backend_add_attachment(sentry_backend_t *backend,
-    sentry_value_t attachment, const sentry_options_t *options)
+native_backend_add_attachment(void *data, sentry_value_t attachment)
 {
-    (void)backend; // Unused
+    native_backend_state_t *state = (native_backend_state_t *)data;
+    if (!state) {
+        return;
+    }
 
     // For buffer attachments, derive a path in the run directory and write to
     // disk
     size_t bytes_len = 0;
     const char *bytes = sentry__attachment_get_bytes(attachment, &bytes_len);
     if (bytes) {
-        sentry_path_t *path
-            = make_attachment_path(options->run->run_path, attachment);
+        sentry_path_t *path = make_attachment_path(state->run_path, attachment);
         if (!path) {
             const char *filename = sentry__attachment_get_filename(attachment);
             SENTRY_WARNF("failed to create path for native backend attachment "
@@ -1140,7 +1147,10 @@ sentry__backend_new(void)
     backend->except_func = native_backend_except;
     backend->flush_scope_func = native_backend_flush_scope;
     backend->add_breadcrumb_func = native_backend_add_breadcrumb;
-    backend->add_attachment_func = native_backend_add_attachment;
+    backend->scope_observer = sentry__scope_observer_new();
+    if (backend->scope_observer) {
+        backend->scope_observer->add_attachment = native_backend_add_attachment;
+    }
     backend->user_consent_changed_func = native_backend_user_consent_changed;
     backend->can_capture_after_shutdown = false;
 

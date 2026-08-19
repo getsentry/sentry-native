@@ -229,6 +229,10 @@ sentry_init(sentry_options_t *options)
     // it at runtime via the options interface.
     SENTRY_WITH_SCOPE_MUT (scope) {
         sentry__scope_apply_options(scope, options);
+        if (backend && backend->scope_observer
+            && !sentry__scope_add_observer(scope, backend->scope_observer)) {
+            backend->scope_observer = NULL;
+        }
         register_integrations(scope, options);
     }
     if (backend && backend->user_consent_changed_func) {
@@ -291,8 +295,13 @@ sentry_close(void)
     // flushed. This prevents a potential deadlock on the options during
     // envelope creation.
     SENTRY_WITH_OPTIONS (options) {
-        if (options->num_integrations) {
+        if (options->backend || options->num_integrations) {
             SENTRY_WITH_SCOPE_MUT_NO_FLUSH (scope) {
+                if (options->backend && options->backend->scope_observer) {
+                    sentry__scope_remove_observer(
+                        scope, options->backend->scope_observer);
+                    options->backend->scope_observer = NULL;
+                }
                 unregister_integrations(scope, options);
             }
         }
@@ -2012,18 +2021,7 @@ sentry_add_attachment(sentry_value_t attachment)
 
     sentry_value_t added = sentry_value_new_null();
     SENTRY_WITH_SCOPE_MUT (scope) {
-        sentry_value_t attachments = sentry__scope_clone_attachments(scope);
-        added = sentry__attachments_find(attachments, attachment);
-        sentry_value_decref(attachments);
-        if (sentry_value_is_null(added)) {
-            if (options->backend && options->backend->add_attachment_func) {
-                options->backend->add_attachment_func(
-                    options->backend, attachment, options);
-            }
-            added = sentry__scope_add_attachment(scope, attachment);
-        } else {
-            sentry_value_decref(attachment);
-        }
+        added = sentry__scope_add_attachment(scope, attachment);
     }
     sentry_options_free((sentry_options_t *)options);
     sentry_uuid_t uuid = sentry__attachment_get_id(added);
@@ -2068,11 +2066,6 @@ sentry_clear_attachments(void)
             for (size_t i = 0; i < len; i++) {
                 sentry_value_t attachment
                     = sentry_value_get_by_index(attachments, i);
-                if (options->backend
-                    && options->backend->remove_attachment_func) {
-                    options->backend->remove_attachment_func(
-                        options->backend, attachment);
-                }
                 SENTRY_SCOPE_NOTIFY(scope, remove_attachment, attachment);
             }
             sentry_value_decref(attachments);
@@ -2092,11 +2085,6 @@ sentry_remove_attachment(sentry_uuid_t attachment_id)
             sentry_value_t removed
                 = sentry__scope_remove_attachment(scope, &attachment_id);
             if (!sentry_value_is_null(removed)) {
-                if (options->backend
-                    && options->backend->remove_attachment_func) {
-                    options->backend->remove_attachment_func(
-                        options->backend, removed);
-                }
                 SENTRY_SCOPE_NOTIFY(scope, remove_attachment, removed);
             }
             sentry_value_decref(removed);
