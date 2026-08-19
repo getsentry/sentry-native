@@ -1595,7 +1595,7 @@ SENTRY_TEST(set_trace)
 
     SENTRY_WITH_SCOPE (scope) {
         sentry_value_t propagation_trace_context
-            = sentry__scope_ref_trace_context(scope);
+            = sentry__scope_load_trace_context(scope);
         TEST_CHECK(!sentry_value_is_null(propagation_trace_context));
 
         CHECK_STRING_PROPERTY(propagation_trace_context, "type", "trace");
@@ -2456,7 +2456,7 @@ SENTRY_TEST(strict_continuation_no_baggage_forks)
 
     // Scope propagation follows the fork: no lingering upstream trace_id.
     SENTRY_WITH_SCOPE (scope) {
-        sentry_value_t trace_context = sentry__scope_ref_trace_context(scope);
+        sentry_value_t trace_context = sentry__scope_load_trace_context(scope);
         const char *scope_trace_id = sentry_value_as_string(
             sentry_value_get_by_key(trace_context, "trace_id"));
         TEST_CHECK(strcmp(scope_trace_id, UPSTREAM_TRACE_ID) != 0);
@@ -2506,7 +2506,7 @@ SENTRY_TEST(set_trace_rebuilds_dsc_sample_rand)
 
     double init_sample_rand = 0.0;
     SENTRY_WITH_SCOPE (scope) {
-        sentry_value_t dsc = sentry__scope_ref_dsc(scope);
+        sentry_value_t dsc = sentry__scope_load_dsc(scope);
         init_sample_rand = sentry_value_as_double(
             sentry_value_get_by_key(dsc, "sample_rand"));
         sentry_value_decref(dsc);
@@ -2516,7 +2516,7 @@ SENTRY_TEST(set_trace_rebuilds_dsc_sample_rand)
 
     double new_sample_rand = -1.0;
     SENTRY_WITH_SCOPE (scope) {
-        sentry_value_t dsc = sentry__scope_ref_dsc(scope);
+        sentry_value_t dsc = sentry__scope_load_dsc(scope);
         new_sample_rand = sentry_value_as_double(
             sentry_value_get_by_key(dsc, "sample_rand"));
         sentry_value_decref(dsc);

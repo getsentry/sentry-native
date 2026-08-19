@@ -152,6 +152,7 @@ void sentry__scope_set_fingerprint_va(
     sentry_scope_t *scope, const char *fingerprint, va_list va);
 void sentry__scope_set_fingerprint_nva(sentry_scope_t *scope,
     const char *fingerprint, size_t fingerprint_len, va_list va);
+
 sentry_value_t sentry__scope_ref_user(const sentry_scope_t *scope);
 sentry_level_t sentry__scope_get_level(const sentry_scope_t *scope);
 sentry_value_t sentry__scope_ref_client_sdk(const sentry_scope_t *scope);
@@ -163,35 +164,36 @@ sentry_value_t sentry__scope_ref_client_sdk(const sentry_scope_t *scope);
  * attachment elements remain shared because they are frozen. The caller must
  * release the snapshot with `sentry_value_decref`.
  */
-sentry_value_t sentry__scope_clone_attachments(const sentry_scope_t *scope);
+sentry_value_t sentry__scope_load_attachments(const sentry_scope_t *scope);
 sentry_value_t sentry__scope_add_attachment(
     sentry_scope_t *scope, sentry_value_t attachment);
 sentry_value_t sentry__scope_take_attachments(sentry_scope_t *scope);
 sentry_value_t sentry__scope_remove_attachment(
     sentry_scope_t *scope, const sentry_uuid_t *attachment_id);
-sentry_value_t sentry__scope_ref_tags(const sentry_scope_t *scope);
+
+sentry_value_t sentry__scope_load_tags(const sentry_scope_t *scope);
 void sentry__scope_remove_tag(sentry_scope_t *scope, const char *key);
 void sentry__scope_remove_tag_n(
     sentry_scope_t *scope, const char *key, size_t key_len);
 
-sentry_value_t sentry__scope_ref_extra(const sentry_scope_t *scope);
+sentry_value_t sentry__scope_load_extra(const sentry_scope_t *scope);
 void sentry__scope_remove_extra(sentry_scope_t *scope, const char *key);
 void sentry__scope_remove_extra_n(
     sentry_scope_t *scope, const char *key, size_t key_len);
 
-sentry_value_t sentry__scope_ref_attributes(const sentry_scope_t *scope);
+sentry_value_t sentry__scope_load_attributes(const sentry_scope_t *scope);
 
-sentry_value_t sentry__scope_ref_contexts(const sentry_scope_t *scope);
+sentry_value_t sentry__scope_load_contexts(const sentry_scope_t *scope);
 void sentry__scope_remove_context(sentry_scope_t *scope, const char *key);
 void sentry__scope_remove_context_n(
     sentry_scope_t *scope, const char *key, size_t key_len);
 
-sentry_value_t sentry__scope_ref_propagation_context(
+sentry_value_t sentry__scope_load_propagation_context(
     const sentry_scope_t *scope);
 void sentry__scope_set_propagation_context(
     sentry_scope_t *scope, const char *key, sentry_value_t value);
 void sentry__scope_regenerate_propagation_context(sentry_scope_t *scope);
-sentry_value_t sentry__scope_ref_trace_context(const sentry_scope_t *scope);
+sentry_value_t sentry__scope_load_trace_context(const sentry_scope_t *scope);
 void sentry__scope_set_trace_context(
     sentry_scope_t *scope, const char *key, sentry_value_t value);
 
@@ -277,8 +279,7 @@ void sentry__scope_end_notify(sentry_scope_t *scope);
         sentry__scope_end_notify(scope);                                       \
     } while (0)
 
-sentry_value_t sentry__scope_ref_dsc(const sentry_scope_t *scope);
-sentry_value_t sentry__scope_clone_dsc(const sentry_scope_t *scope);
+sentry_value_t sentry__scope_load_dsc(const sentry_scope_t *scope);
 void sentry__scope_foreach_dsc(const sentry_scope_t *scope,
     void (*callback)(const char *key, sentry_value_t value, void *userdata),
     void *userdata);

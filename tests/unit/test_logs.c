@@ -766,7 +766,7 @@ SENTRY_TEST(scope_capture_log_trace_id)
 
     SENTRY_WITH_SCOPE (global_scope) {
         sentry_value_t trace_context
-            = sentry__scope_ref_trace_context(global_scope);
+            = sentry__scope_load_trace_context(global_scope);
         TEST_CHECK_STRING_EQUAL(sentry_value_as_string(sentry_value_get_by_key(
                                     captured_log, "trace_id")),
             sentry_value_as_string(

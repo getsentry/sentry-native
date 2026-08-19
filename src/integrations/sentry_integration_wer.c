@@ -195,7 +195,7 @@ static void
 wer_for_each_attachment(
     sentry_scope_t *scope, void *data, void (*callback)(void *, sentry_value_t))
 {
-    sentry_value_t attachments = sentry__scope_clone_attachments(scope);
+    sentry_value_t attachments = sentry__scope_load_attachments(scope);
     size_t len = sentry_value_get_length(attachments);
     for (size_t i = 0; i < len; i++) {
         callback(data, sentry_value_get_by_index(attachments, i));
@@ -219,7 +219,7 @@ wer_clear(void *data)
         return;
     }
 
-    sentry_value_t tags = sentry__scope_ref_tags(scope);
+    sentry_value_t tags = sentry__scope_load_tags(scope);
     sentry__value_foreach_key_value(tags, wer_cleanup_tag, wer_data);
     sentry_value_decref(tags);
 
@@ -262,7 +262,7 @@ unregister_wer(
         return;
     }
 
-    sentry_value_t tags = sentry__scope_ref_tags(scope);
+    sentry_value_t tags = sentry__scope_load_tags(scope);
     sentry__value_foreach_key_value(tags, wer_cleanup_tag, wer_data);
     sentry_value_decref(tags);
 

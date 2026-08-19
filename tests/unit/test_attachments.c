@@ -17,7 +17,7 @@ static void
 add_scope_attachments(sentry_envelope_t *envelope)
 {
     SENTRY_WITH_SCOPE (scope) {
-        sentry_value_t attachments = sentry__scope_clone_attachments(scope);
+        sentry_value_t attachments = sentry__scope_load_attachments(scope);
         sentry__envelope_add_attachments(envelope, attachments, NULL);
         sentry_value_decref(attachments);
     }
@@ -390,7 +390,7 @@ SENTRY_TEST(attachment_properties)
     sentry_init(options);
 
     SENTRY_WITH_SCOPE (scope) {
-        sentry_value_t attachments = sentry__scope_clone_attachments(scope);
+        sentry_value_t attachments = sentry__scope_load_attachments(scope);
         TEST_CHECK_INT_EQUAL(sentry_value_get_length(attachments), 0);
         sentry_value_decref(attachments);
     }

@@ -96,7 +96,7 @@ transaction_context_new_n(sentry_slice_t name, sentry_slice_t operation)
         sentry_value_new_string_n(name.ptr, name.len));
 
     SENTRY_WITH_SCOPE_MUT (scope) {
-        sentry_value_t trace_context = sentry__scope_ref_trace_context(scope);
+        sentry_value_t trace_context = sentry__scope_load_trace_context(scope);
         if (!sentry__scope_is_trace_managed(scope)
             && !sentry_value_is_null(trace_context)) {
             // The trace is managed from outside, so we use the propagation

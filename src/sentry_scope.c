@@ -747,12 +747,12 @@ sentry_scope_clone(const sentry_scope_t *scope)
 }
 
 sentry_value_t
-sentry__scope_ref_propagation_context(const sentry_scope_t *scope)
+sentry__scope_load_propagation_context(const sentry_scope_t *scope)
 {
     sentry_value_t propagation_context = sentry_value_new_null();
     SENTRY_SCOPE_READ_LOCK (scope->data) {
         propagation_context
-            = sentry_value_incref(scope->data->propagation_context);
+            = sentry__value_clone(scope->data->propagation_context);
     }
     return propagation_context;
 }
@@ -775,11 +775,11 @@ sentry__scope_regenerate_propagation_context(sentry_scope_t *scope)
 }
 
 sentry_value_t
-sentry__scope_ref_trace_context(const sentry_scope_t *scope)
+sentry__scope_load_trace_context(const sentry_scope_t *scope)
 {
     sentry_value_t trace_context = sentry_value_new_null();
     SENTRY_SCOPE_READ_LOCK (scope->data) {
-        trace_context = sentry_value_incref(
+        trace_context = sentry__value_clone(
             sentry_value_get_by_key(scope->data->propagation_context, "trace"));
     }
     return trace_context;
@@ -815,17 +815,7 @@ sentry__scope_set_trace_managed(sentry_scope_t *scope, bool managed)
 }
 
 sentry_value_t
-sentry__scope_ref_dsc(const sentry_scope_t *scope)
-{
-    sentry_value_t dsc = sentry_value_new_null();
-    SENTRY_SCOPE_READ_LOCK (scope->data) {
-        dsc = sentry_value_incref(scope->data->dynamic_sampling_context);
-    }
-    return dsc;
-}
-
-sentry_value_t
-sentry__scope_clone_dsc(const sentry_scope_t *scope)
+sentry__scope_load_dsc(const sentry_scope_t *scope)
 {
     sentry_value_t dsc = sentry_value_new_null();
     SENTRY_SCOPE_READ_LOCK (scope->data) {
@@ -1114,7 +1104,7 @@ sentry__scope_apply_to_event(const sentry_scope_t *scope,
         && sentry_value_is_null(
             sentry_value_get_by_key(event_contexts, "trace"))) {
         sentry_value_t propagation_context
-            = sentry__scope_ref_propagation_context(scope);
+            = sentry__scope_load_propagation_context(scope);
         sentry__value_merge_objects(contexts, propagation_context);
         sentry_value_decref(propagation_context);
     }
@@ -1205,11 +1195,11 @@ sentry_scope_set_user(sentry_scope_t *scope, sentry_value_t user)
 }
 
 sentry_value_t
-sentry__scope_ref_tags(const sentry_scope_t *scope)
+sentry__scope_load_tags(const sentry_scope_t *scope)
 {
     sentry_value_t tags = sentry_value_new_null();
     SENTRY_SCOPE_READ_LOCK (scope->data) {
-        tags = sentry_value_incref(scope->data->tags);
+        tags = sentry__value_clone(scope->data->tags);
     }
     return tags;
 }
@@ -1300,11 +1290,11 @@ sentry__scope_remove_tag_n(
 }
 
 sentry_value_t
-sentry__scope_ref_extra(const sentry_scope_t *scope)
+sentry__scope_load_extra(const sentry_scope_t *scope)
 {
     sentry_value_t extra = sentry_value_new_null();
     SENTRY_SCOPE_READ_LOCK (scope->data) {
-        extra = sentry_value_incref(scope->data->extra);
+        extra = sentry__value_clone(scope->data->extra);
     }
     return extra;
 }
@@ -1401,11 +1391,11 @@ sentry_scope_set_attribute_n(sentry_scope_t *scope, const char *key,
 }
 
 sentry_value_t
-sentry__scope_ref_attributes(const sentry_scope_t *scope)
+sentry__scope_load_attributes(const sentry_scope_t *scope)
 {
     sentry_value_t attributes = sentry_value_new_null();
     SENTRY_SCOPE_READ_LOCK (scope->data) {
-        attributes = sentry_value_incref(scope->data->attributes);
+        attributes = sentry__value_clone(scope->data->attributes);
     }
     return attributes;
 }
@@ -1428,11 +1418,11 @@ sentry_scope_remove_attribute_n(
 }
 
 sentry_value_t
-sentry__scope_ref_contexts(const sentry_scope_t *scope)
+sentry__scope_load_contexts(const sentry_scope_t *scope)
 {
     sentry_value_t contexts = sentry_value_new_null();
     SENTRY_SCOPE_READ_LOCK (scope->data) {
-        contexts = sentry_value_incref(scope->data->contexts);
+        contexts = sentry__value_clone(scope->data->contexts);
     }
     return contexts;
 }
@@ -1676,7 +1666,7 @@ sentry_scope_set_span(sentry_scope_t *scope, sentry_span_t *span)
 }
 
 sentry_value_t
-sentry__scope_clone_attachments(const sentry_scope_t *scope)
+sentry__scope_load_attachments(const sentry_scope_t *scope)
 {
     sentry_value_t attachments = sentry_value_new_null();
     SENTRY_SCOPE_READ_LOCK (scope->data) {

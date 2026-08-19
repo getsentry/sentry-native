@@ -718,11 +718,11 @@ sentry__prepare_event(const sentry_options_t *options, sentry_value_t event,
 
     SENTRY_WITH_SCOPE (scope) {
         sentry_value_t global_attachments
-            = sentry__scope_clone_attachments(scope);
+            = sentry__scope_load_attachments(scope);
         sentry_value_t attachments = global_attachments;
         if (local_scope) {
             sentry_value_t local_attachments
-                = sentry__scope_clone_attachments(local_scope);
+                = sentry__scope_load_attachments(local_scope);
             if (sentry_value_get_length(local_attachments) > 0) {
                 // all attachments merged from multiple scopes
                 sentry__attachments_extend(&all_attachments, local_attachments);
@@ -864,14 +864,14 @@ prepare_user_feedback(const sentry_options_t *options,
     }
     if (local_scope) {
         sentry_value_t local_attachments
-            = sentry__scope_clone_attachments(local_scope);
+            = sentry__scope_load_attachments(local_scope);
         sentry__attachments_extend(&all_attachments, local_attachments);
         sentry_value_decref(local_attachments);
     }
 
     SENTRY_WITH_SCOPE (scope) {
         sentry_value_t global_attachments
-            = sentry__scope_clone_attachments(scope);
+            = sentry__scope_load_attachments(scope);
         sentry_value_t attachments = global_attachments;
         if (sentry_value_get_length(all_attachments) > 0) {
             sentry__attachments_extend(&all_attachments, global_attachments);
@@ -1374,7 +1374,7 @@ sentry_transaction_start_ts(sentry_transaction_context_t *opaque_tx_ctx,
                     // trace_id, and align the tx's trace_id with it.
                     sentry__scope_regenerate_propagation_context(scope);
                     sentry_value_t trace_context
-                        = sentry__scope_ref_trace_context(scope);
+                        = sentry__scope_load_trace_context(scope);
                     sentry_value_t scope_trace_id = sentry_value_incref(
                         sentry_value_get_by_key(trace_context, "trace_id"));
                     sentry_value_decref(trace_context);
@@ -1390,7 +1390,7 @@ sentry_transaction_start_ts(sentry_transaction_context_t *opaque_tx_ctx,
 
     double sample_rand = 1.0;
     SENTRY_WITH_SCOPE (scope) {
-        sentry_value_t trace_context = sentry__scope_ref_trace_context(scope);
+        sentry_value_t trace_context = sentry__scope_load_trace_context(scope);
         sample_rand = sentry_value_as_double(
             sentry_value_get_by_key(trace_context, "sample_rand"));
         sentry_value_decref(trace_context);
