@@ -1,4 +1,5 @@
 import os
+import struct
 import subprocess
 import sys
 import time
@@ -49,6 +50,28 @@ pytestmark = pytest.mark.skipif(
 flushes_state = sys.platform != "darwin"
 
 
+def _minidump_stream(minidump, stream_type):
+    stream_count, directory_rva = struct.unpack_from("<II", minidump, 8)
+    for stream in range(stream_count):
+        stream_offset = directory_rva + stream * 12
+        current_type, size, rva = struct.unpack_from("<III", minidump, stream_offset)
+        if current_type == stream_type:
+            return minidump[rva : rva + size]
+    raise AssertionError(f"stream {stream_type} not found in minidump")
+
+
+def _minidump_modules(minidump):
+    modules = _minidump_stream(minidump, 4)
+    module_count = struct.unpack_from("<I", modules)[0]
+    for module in range(module_count):
+        offset = 4 + module * 108
+        name_rva = struct.unpack_from("<I", modules, offset + 20)[0]
+        name_size = struct.unpack_from("<I", minidump, name_rva)[0]
+        name = minidump[name_rva + 4 : name_rva + 4 + name_size].decode("utf-16-le")
+        record_size, record_rva = struct.unpack_from("<II", modules, offset + 76)
+        yield name, minidump[record_rva : record_rva + record_size]
+
+
 def test_crashpad_capture(cmake, httpserver):
     tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "crashpad"})
 
@@ -62,6 +85,33 @@ def test_crashpad_capture(cmake, httpserver):
     )
 
     assert len(httpserver.log) == 2
+
+
+def test_crashpad_codeview(cmake, httpserver):
+    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "crashpad"})
+
+    httpserver.expect_oneshot_request("/api/123456/minidump/").respond_with_data("OK")
+
+    with httpserver.wait(timeout=10) as waiting:
+        run(
+            tmp_path,
+            "sentry_example",
+            ["log", "crashpad-wait-for-upload", "crash"],
+            expect_failure=True,
+            env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
+        )
+
+    assert waiting.result
+    assert len(httpserver.log) == 1
+    attachments = assert_crashpad_upload(httpserver.log[0][0])
+    codeviews = {
+        name.replace("\\", "/").rsplit("/", 1)[-1]: codeview
+        for name, codeview in _minidump_modules(attachments.minidump)
+    }
+    module_name = "sentry_example.exe" if sys.platform == "win32" else "sentry_example"
+    codeview = codeviews[module_name]
+    assert codeview[:4] == b"RSDS"
+    assert codeview[4:20] != bytes(16)
 
 
 def _setup_crashpad_proxy_test(cmake, httpserver, proxy):
