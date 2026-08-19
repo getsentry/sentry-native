@@ -136,6 +136,13 @@ sentry_options_new(void)
 #ifdef SENTRY_INTEGRATION_WER
     sentry__options_add_integration(opts, sentry_integration_wer_new());
 #endif
+#ifdef SENTRY_INTEGRATION_PLATFORM
+    if (!sentry__options_add_integration(
+            opts, sentry_integration_platform_new())) {
+        sentry_options_free(opts);
+        return NULL;
+    }
+#endif
 
     return opts;
 }
@@ -980,12 +987,12 @@ sentry_options_set_backend(sentry_options_t *opts, sentry_backend_t *backend)
     opts->backend = backend;
 }
 
-void
+bool
 sentry__options_add_integration(
     sentry_options_t *opts, sentry_integration_t *integration)
 {
     if (!integration) {
-        return;
+        return false;
     }
 
     size_t new_count = opts->num_integrations + 1;
@@ -993,7 +1000,7 @@ sentry__options_add_integration(
         = sentry__calloc(new_count, sizeof(sentry_integration_t *));
     if (!integrations) {
         free_integration(integration);
-        return;
+        return false;
     }
 
     for (size_t i = 0; i < opts->num_integrations; i++) {
@@ -1003,6 +1010,7 @@ sentry__options_add_integration(
     sentry_free(opts->integrations);
     opts->integrations = integrations;
     opts->num_integrations = new_count;
+    return true;
 }
 
 bool

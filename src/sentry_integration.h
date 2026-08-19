@@ -14,4 +14,16 @@ typedef struct sentry_integration_s {
     void (*free_func)(void *data);
 } sentry_integration_t;
 
+#ifdef SENTRY_INTEGRATION_PLATFORM
+#    ifdef __cplusplus
+extern "C" {
+#    endif
+
+sentry_integration_t *sentry_integration_platform_new(void);
+
+#    ifdef __cplusplus
+}
+#    endif
+#endif
+
 #endif

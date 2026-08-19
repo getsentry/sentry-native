@@ -117,8 +117,9 @@ unregister_integrations(sentry_scope_t *scope, const sentry_options_t *options)
     }
 }
 
-#if defined(SENTRY_PLATFORM_NX) || defined(SENTRY_PLATFORM_PS)                 \
-    || defined(SENTRY_PLATFORM_XBOX)
+#if (defined(SENTRY_PLATFORM_NX) || defined(SENTRY_PLATFORM_PS)                \
+    || defined(SENTRY_PLATFORM_XBOX))                                          \
+    && !defined(SENTRY_INTEGRATION_PLATFORM)
 int
 sentry__native_init(sentry_options_t *options)
 #else

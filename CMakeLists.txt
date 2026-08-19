@@ -115,6 +115,14 @@ option(SENTRY_BUILD_TESTS "Build sentry-native tests" "${SENTRY_MAIN_PROJECT}")
 option(SENTRY_BUILD_EXAMPLES "Build sentry-native example(s)" "${SENTRY_MAIN_PROJECT}")
 option(SENTRY_BUILD_BENCHMARKS "Build sentry-native benchmarks" OFF)
 
+set(SENTRY_INTEGRATION_PLATFORM "" CACHE STRING
+	"Downstream-provided platform integration to create automatically")
+if(NOT SENTRY_INTEGRATION_PLATFORM STREQUAL ""
+		AND NOT SENTRY_INTEGRATION_PLATFORM MATCHES "^[A-Za-z_][A-Za-z0-9_]*$")
+	message(FATAL_ERROR
+		"SENTRY_INTEGRATION_PLATFORM must be empty or a valid C identifier")
+endif()
+
 # Platform version embedding options
 option(SENTRY_EMBED_INFO "Embed version information in binary" OFF)
 set(SENTRY_BUILD_PLATFORM "${CMAKE_SYSTEM_NAME}" CACHE STRING "Platform name for embedded version (e.g., switch, playstation, xbox)")
@@ -298,6 +306,7 @@ message(STATUS "SENTRY_TRANSPORT=${SENTRY_TRANSPORT}")
 message(STATUS "SENTRY_BACKEND=${SENTRY_BACKEND}")
 message(STATUS "SENTRY_LIBRARY_TYPE=${SENTRY_LIBRARY_TYPE}")
 message(STATUS "SENTRY_SDK_NAME=${SENTRY_SDK_NAME}")
+message(STATUS "SENTRY_INTEGRATION_PLATFORM=${SENTRY_INTEGRATION_PLATFORM}")
 message(STATUS "SENTRY_HANDLER_STACK_SIZE=${SENTRY_HANDLER_STACK_SIZE}")
 message(STATUS "SENTRY_BATCHER_BUFFER_COUNT=${SENTRY_BATCHER_BUFFER_COUNT}")
 if (WIN32)
@@ -418,6 +427,10 @@ if(SENTRY_EMBED_INFO)
 endif()
 
 add_subdirectory(src)
+
+if(NOT SENTRY_INTEGRATION_PLATFORM STREQUAL "")
+	target_compile_definitions(sentry PRIVATE SENTRY_INTEGRATION_PLATFORM)
+endif()
 
 target_compile_definitions(sentry PRIVATE SENTRY_HANDLER_STACK_SIZE=${SENTRY_HANDLER_STACK_SIZE})
 target_compile_definitions(sentry PRIVATE SENTRY_BATCHER_BUFFER_COUNT=${SENTRY_BATCHER_BUFFER_COUNT})
@@ -1030,6 +1043,9 @@ if(SENTRY_BUILD_TESTS)
 	add_subdirectory(tests/unit)
 	add_subdirectory(tests/fixtures/crash_reporter)
 	add_subdirectory(tests/fixtures/early_init)
+	if(SENTRY_INTEGRATION_PLATFORM STREQUAL "test")
+		add_subdirectory(tests/fixtures/test_platform)
+	endif()
 	add_subdirectory(tests/fixtures/screenshot)
 	if(WIN32 AND NOT XBOX)
 		add_subdirectory(tests/fixtures/appx)
