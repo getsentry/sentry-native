@@ -68,8 +68,8 @@ trailing_task(void *data, void *UNUSED(state))
     sentry__mutex_lock(&executed_lock);
     bool *executed = (bool *)data;
     *executed = true;
-    sentry__mutex_unlock(&executed_lock);
     sentry__cond_wake(&trailing_task_done);
+    sentry__mutex_unlock(&executed_lock);
 }
 
 static bool
@@ -140,6 +140,7 @@ SENTRY_TEST(task_queue)
     sentry__mutex_lock(&executed_lock);
     sentry__cond_wait_timeout(&trailing_task_done, &executed_lock, 1000);
     TEST_CHECK(executed_after_shutdown);
+    sentry__cond_free(&trailing_task_done);
 }
 
 SENTRY_TEST(bgworker_flush)
@@ -361,6 +362,7 @@ SENTRY_TEST(bgworker_delayed_priority)
     TEST_CHECK_INT_EQUAL(os.order[1], 2); // immediate (submitted later)
 
     sentry__bgworker_decref(bgw);
+    sentry__cond_free(&blocker_signal);
 }
 
 static void
@@ -411,6 +413,7 @@ SENTRY_TEST(bgworker_delayed_current)
     TEST_CHECK_INT_EQUAL(os.order[1], 2);
 
     sentry__bgworker_decref(bgw);
+    sentry__cond_free(&blocker_signal);
 }
 
 SENTRY_TEST(bgworker_delayed_head)
@@ -481,6 +484,7 @@ SENTRY_TEST(bgworker_delayed_drop_current)
     TEST_CHECK_INT_EQUAL(os.order[2], 2);
 
     sentry__bgworker_decref(bgw);
+    sentry__cond_free(&blocker_signal);
 }
 
 SENTRY_TEST(bgworker_delayed_drop_next)
@@ -523,6 +527,7 @@ SENTRY_TEST(bgworker_delayed_drop_next)
     TEST_CHECK_INT_EQUAL(os.order[2], 3);
 
     sentry__bgworker_decref(bgw);
+    sentry__cond_free(&blocker_signal);
 }
 
 SENTRY_TEST(bgworker_delayed_cleanup)
@@ -735,10 +740,8 @@ SENTRY_TEST(threadpool_flush_wakes_all)
     sentry__threadpool_free(pool);
 
     TEST_CHECK(woke_all);
-#ifndef SENTRY_PLATFORM_WINDOWS
-    pthread_cond_destroy(&flush_state.cond);
-    pthread_cond_destroy(&task_state.cond);
-#endif
+    sentry__cond_free(&flush_state.cond);
+    sentry__cond_free(&task_state.cond);
     sentry__mutex_free(&flush_state.lock);
     sentry__mutex_free(&task_state.lock);
 }
@@ -772,9 +775,7 @@ SENTRY_TEST(threadpool_ordered_parallel)
 
     sentry__threadpool_shutdown(pool);
     sentry__threadpool_free(pool);
-#ifndef SENTRY_PLATFORM_WINDOWS
-    pthread_cond_destroy(&state.cond);
-#endif
+    sentry__cond_free(&state.cond);
     sentry__mutex_free(&state.lock);
 }
 
@@ -943,9 +944,7 @@ SENTRY_TEST(threadpool_max_pending)
 
     sentry__threadpool_shutdown(pool);
     sentry__threadpool_free(pool);
-#ifndef SENTRY_PLATFORM_WINDOWS
-    pthread_cond_destroy(&state.cond);
-#endif
+    sentry__cond_free(&state.cond);
     sentry__mutex_free(&state.lock);
 }
 
@@ -1056,9 +1055,7 @@ SENTRY_TEST(threadpool_commit_reentry)
 
     sentry__threadpool_shutdown(pool);
     sentry__threadpool_free(pool);
-#ifndef SENTRY_PLATFORM_WINDOWS
-    pthread_cond_destroy(&state.cond);
-#endif
+    sentry__cond_free(&state.cond);
     sentry__mutex_free(&state.lock);
 }
 
@@ -1327,10 +1324,8 @@ SENTRY_TEST(cond_wake_all)
     TEST_CHECK_INT_EQUAL(
         sentry__atomic_fetch(&state.woke), COND_WAKE_ALL_THREADS);
 
-#ifndef SENTRY_PLATFORM_WINDOWS
-    pthread_cond_destroy(&state.ready_cond);
-    pthread_cond_destroy(&state.waiting_cond);
-#endif
+    sentry__cond_free(&state.ready_cond);
+    sentry__cond_free(&state.waiting_cond);
     sentry__mutex_free(&state.mutex);
 }
 
@@ -1353,7 +1348,7 @@ SENTRY_TEST(cond_wait_timeout_overflow)
     sentry__mutex_unlock(&mutex);
 
     sentry__mutex_free(&mutex);
-    pthread_cond_destroy(&cond);
+    sentry__cond_free(&cond);
 #endif
 }
 

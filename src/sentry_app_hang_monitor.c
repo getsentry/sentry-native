@@ -140,6 +140,7 @@ sentry__app_hang_monitor_start(const sentry_options_t *options)
     sentry__app_hang_set_active(true);
     if (sentry__thread_spawn(&g_thread, worker, NULL) != 0) {
         sentry__app_hang_set_active(false);
+        sentry__cond_free(&g_wait_cond);
         SENTRY_WARN("app-hang: failed to spawn watchdog thread");
         return 1;
     }
@@ -161,6 +162,7 @@ sentry__app_hang_monitor_stop(void)
     sentry__mutex_unlock(&g_wait_mutex);
     sentry__thread_join(g_thread);
     sentry__thread_free(&g_thread);
+    sentry__cond_free(&g_wait_cond);
     sentry__app_hang_latch_reset();
     g_running = false;
     // g_timeout_ms are intentionally NOT cleared here: the worker
