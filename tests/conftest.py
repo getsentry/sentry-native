@@ -214,8 +214,9 @@ def pytest_sessionstart(session):
     if is_wine:
         # Keep Wine diagnostics from obscuring test output.
         os.environ.setdefault("WINEDEBUG", "-all")
-        # Prevent intentional crashes from opening WineDbg and blocking pytest.
-        os.environ.setdefault("WINEDLLOVERRIDES", "winedbg.exe=d")
+        # Prevent intentional crashes from opening WineDbg and fresh prefixes
+        # from prompting to install Wine Mono.
+        os.environ.setdefault("WINEDLLOVERRIDES", "winedbg.exe=d;mscoree=d")
     if has_sccache:
         subprocess.run(["sccache", "--zero-stats"], capture_output=True)
 

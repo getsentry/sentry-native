@@ -303,7 +303,14 @@ jobs:
 
       - name: Installing Wine Dependencies
         if: ${{ env['TEST_WINE'] }}
-        run: sudo apt install wine mingw-w64 lld
+        run: |
+          sudo install -d -m 0755 /etc/apt/keyrings
+          sudo curl -fsSL -o /etc/apt/keyrings/winehq-archive.asc https://dl.winehq.org/wine-builds/winehq.key
+          sudo curl -fsSL -o /etc/apt/sources.list.d/winehq-resolute.sources https://dl.winehq.org/wine-builds/ubuntu/dists/resolute/winehq-resolute.sources
+          sudo sed -i 's|winehq-archive\.key|winehq-archive.asc|' /etc/apt/sources.list.d/winehq-resolute.sources
+          sudo apt-get update
+          sudo apt-get install --install-recommends winehq-stable mingw-w64 lld
+          wine --version
 
       - name: Installing kcov dependencies
         if: ${{ contains(env['RUN_ANALYZER'], 'kcov') }}
