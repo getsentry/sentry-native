@@ -629,9 +629,11 @@ sentry_scope_capture_log(sentry_scope_t *scope, sentry_level_t level,
 }
 
 void
-sentry__logs_startup(const sentry_options_t *options)
+sentry__logs_startup(
+    const sentry_options_t *options, sentry_threadpool_t *threadpool)
 {
-    sentry_batcher_t *batcher = sentry__batcher_new(sentry__envelope_add_logs);
+    sentry_batcher_t *batcher
+        = sentry__batcher_new(sentry__envelope_add_logs, threadpool);
     if (!batcher) {
         SENTRY_WARN("failed to allocate logs batcher");
         return;
@@ -661,9 +663,10 @@ sentry__logs_shutdown(uint64_t timeout)
 void
 sentry__logs_flush_crash_safe(void)
 {
-    sentry_batcher_t *batcher = sentry__batcher_peek(&g_batcher);
+    sentry_batcher_t *batcher = sentry__batcher_pin(&g_batcher);
     if (batcher) {
         sentry__batcher_flush_crash_safe(batcher);
+        sentry__batcher_unpin(&g_batcher);
     }
 }
 

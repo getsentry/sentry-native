@@ -2,6 +2,7 @@
 #define SENTRY_LOGS_H_INCLUDED
 
 #include "sentry_boot.h"
+#include "sentry_sync.h"
 
 log_return_value_t sentry__logs_log(
     sentry_level_t level, const char *message, va_list args);
@@ -9,7 +10,8 @@ log_return_value_t sentry__logs_log(
 /**
  * Sets up the logs timer/flush thread
  */
-void sentry__logs_startup(const sentry_options_t *options);
+void sentry__logs_startup(
+    const sentry_options_t *options, sentry_threadpool_t *threadpool);
 
 /**
  * Shuts down the logs timer/flush thread.

@@ -131,10 +131,11 @@ sentry_metrics_distribution(
 }
 
 void
-sentry__metrics_startup(const sentry_options_t *options)
+sentry__metrics_startup(
+    const sentry_options_t *options, sentry_threadpool_t *threadpool)
 {
     sentry_batcher_t *batcher
-        = sentry__batcher_new(sentry__envelope_add_metrics);
+        = sentry__batcher_new(sentry__envelope_add_metrics, threadpool);
     if (!batcher) {
         SENTRY_WARN("failed to allocate metrics batcher");
         return;
@@ -164,9 +165,10 @@ sentry__metrics_shutdown(uint64_t timeout)
 void
 sentry__metrics_flush_crash_safe(void)
 {
-    sentry_batcher_t *batcher = sentry__batcher_peek(&g_batcher);
+    sentry_batcher_t *batcher = sentry__batcher_pin(&g_batcher);
     if (batcher) {
         sentry__batcher_flush_crash_safe(batcher);
+        sentry__batcher_unpin(&g_batcher);
     }
 }
 
