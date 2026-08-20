@@ -1,0 +1,12 @@
+5f583f6b5592cb24d91c043a66efb2b5||sentry_backend_inproc.c||TODO: Fix nullable signal-context path
+e424fa2c2faf433cf48256ac1e659dfa||sentry_http_transport_curl.c||Intentionally ignored curl debug data
+47bb7e7d44d6e5cf20f6fc4b2860cd5b||sentry_logger.c||Logging API accepts a runtime format
+fa583be73838173c02357431ab86c05b||sentry_logs.c||Logging API accepts a runtime format
+ff9dc7d976d46411308e4fbc3b23c24a||sentry_logs.c||Logging API accepts a runtime format
+ca6b03d250a728170be00fadb09900ad||sentry_logs.c||Logging API accepts a runtime format
+bfafc180af44acc534a4da113b02baf6||sentry_alloc.c||Preserve calloc zero-size semantics
+877ae33a5806c6afdc9f147ef735c016||sentry_backend_crashpad.cpp||Keep portable post-switch fallback
+25537027bfbdb890e1f7e7e5f73272ef||sentry_backend_crashpad.cpp||Keep portable post-switch fallback
+5462e2d08b25802a4baf335e54641c7c||sentry_backend_crashpad.cpp||Keep portable post-switch fallback
+5c963678cf1863557bbc86151aabb4cb||sentry_crash_daemon.c||Logging function accepts a runtime format
+8109abd7bbb04b81a4d9bde8e9ea3cb1||sentry_modulefinder_linux.c||TODO: Initialize module cache outside its mutex

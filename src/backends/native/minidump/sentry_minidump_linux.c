@@ -719,7 +719,7 @@ write_thread_context(
             // Copy control/status words
             context.float_save.control_word = fpregs.cwd;
             context.float_save.status_word = fpregs.swd;
-            context.float_save.tag_word = fpregs.ftw;
+            context.float_save.tag_word = (uint8_t)fpregs.ftw;
             context.float_save.error_opcode = fpregs.fop;
             // On x86_64, FPU IP/DP are 64-bit. The FXSAVE format splits them
             // across offset (low 32) and selector (high 16) fields.
@@ -2684,6 +2684,8 @@ write_linux_dso_debug_stream(
             break;
         case AT_BASE:
             at_base = auxv[i].a_un.a_val;
+            break;
+        default:
             break;
         }
     }

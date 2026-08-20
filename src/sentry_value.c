@@ -333,6 +333,8 @@ thing_free(thing_t *thing)
     case THING_TYPE_STRING:
         sentry_free(thing->payload._ptr);
         break;
+    default:
+        break;
     }
     sentry_free(thing);
 }
@@ -788,6 +790,8 @@ sentry_value_get_type(sentry_value_t value)
             return SENTRY_VALUE_TYPE_INT64;
         case THING_TYPE_UINT64:
             return SENTRY_VALUE_TYPE_UINT64;
+        default:
+            break;
         }
         UNREACHABLE("invalid thing type");
     } else if ((value._bits & TAG_MASK) == TAG_CONST) {
@@ -1212,6 +1216,8 @@ sentry_value_get_length(sentry_value_t value)
             return ((const list_t *)thing->payload._ptr)->len;
         case THING_TYPE_OBJECT:
             return ((const obj_t *)thing->payload._ptr)->len;
+        default:
+            break;
         }
     }
     return 0;
@@ -1469,6 +1475,9 @@ sentry__jsonwriter_write_value(sentry_jsonwriter_t *jw, sentry_value_t value)
         sentry__jsonwriter_write_object_end(jw);
         break;
     }
+    default:
+        UNREACHABLE("invalid value type during JSON serialization");
+        break;
     }
 }
 
@@ -1541,6 +1550,9 @@ value_to_msgpack(mpack_writer_t *writer, sentry_value_t value)
         mpack_finish_map(writer);
         break;
     }
+    default:
+        UNREACHABLE("invalid value type during MessagePack serialization");
+        break;
     }
 }
 

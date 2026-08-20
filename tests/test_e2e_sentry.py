@@ -405,7 +405,7 @@ class TestE2ENative:
             return
 
         # Find daemon log files
-        log_files = list(db_path.glob("sentry-daemon-*.log"))
+        log_files = list(db_path.glob("*.run/sentry-daemon.log"))
         if not log_files:
             print(f"\n=== No daemon log files found in {db_path} ===")
             return

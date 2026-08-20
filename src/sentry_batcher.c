@@ -66,6 +66,7 @@ sentry__batcher_release(sentry_batcher_t *batcher)
     sentry_free(batcher->thread_name);
     sentry__dsn_decref(batcher->dsn);
     sentry__thread_free(&batcher->batching_thread);
+    sentry__cond_free(&batcher->task_wait_cond);
     sentry__mutex_free(&batcher->task_wait_mutex);
     sentry_free(batcher);
 }

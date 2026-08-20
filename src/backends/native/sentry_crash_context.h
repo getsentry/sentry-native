@@ -320,8 +320,8 @@ typedef struct {
 #endif
 
     // Sentry-specific metadata paths
-    char database_path[SENTRY_CRASH_MAX_PATH]; // Database directory for all
-                                               // files
+    char database_path[SENTRY_CRASH_MAX_PATH]; // Shared across runs
+    char run_path[SENTRY_CRASH_MAX_PATH]; // For current run
     char event_path[SENTRY_CRASH_MAX_PATH];
     char breadcrumb1_path[SENTRY_CRASH_MAX_PATH];
     char breadcrumb2_path[SENTRY_CRASH_MAX_PATH];
