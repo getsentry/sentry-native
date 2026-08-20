@@ -10,7 +10,7 @@ from . import (
 from .assertions import (
     assert_failed_proxy_auth_request,
 )
-from .conditions import has_http
+from .conditions import has_http, is_wine
 from .proxy import (
     closed_port,
     start_proxy,
@@ -131,6 +131,7 @@ def test_proxy_auth_incorrect(cmake, httpserver):
         )
 
 
+@pytest.mark.skipif(is_wine, reason="Wine WinHTTP does not support IPv6 proxies")
 def test_proxy_ipv6(cmake, httpserver):
     proxy_process = None  # store the proxy process to terminate it later
     try:
@@ -197,7 +198,7 @@ def test_proxy_https_not_http(cmake, httpserver):
         pytest.param(
             ["socks5-proxy"],
             marks=pytest.mark.skipif(
-                sys.platform not in ["darwin", "linux"],
+                sys.platform not in ["darwin", "linux"] or is_wine,
                 reason="SOCKS5 proxy tests are only supported on macOS and Linux",
             ),
         ),

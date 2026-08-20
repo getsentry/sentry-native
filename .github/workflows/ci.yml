@@ -207,6 +207,11 @@ jobs:
             MINGW_PKG_PREFIX: x86_64-w64-mingw32
             MINGW_ASM_MASM_COMPILER: llvm-ml
             MINGW_ASM_MASM_FLAGS: -m64
+          - name: Wine (Clang 21 + MinGW-w64)
+            os: ubuntu-26.04
+            CC: clang-21
+            CXX: clang++-21
+            TEST_WINE: 1
           - name: Android (API 21, NDK 23)
             os: ubuntu-latest
             ANDROID_API: 21
@@ -237,6 +242,7 @@ jobs:
       CXX: ${{ matrix.CXX }}
       TEST_X86: ${{ matrix.TEST_X86 }}
       TEST_MINGW: ${{ matrix.TEST_MINGW }}
+      TEST_WINE: ${{ matrix.TEST_WINE }}
       TEST_ARM32: ${{ matrix.TEST_ARM32 }}
       TEST_QEMU: ${{ matrix.TEST_QEMU }}
       USE_SCCACHE: ${{ matrix.USE_SCCACHE }}
@@ -294,6 +300,17 @@ jobs:
             echo "Unknown CC: $CC" >&2
             exit 1
           fi
+
+      - name: Installing Wine Dependencies
+        if: ${{ env['TEST_WINE'] }}
+        run: |
+          sudo install -d -m 0755 /etc/apt/keyrings
+          sudo curl -fsSL -o /etc/apt/keyrings/winehq-archive.asc https://dl.winehq.org/wine-builds/winehq.key
+          sudo curl -fsSL -o /etc/apt/sources.list.d/winehq-resolute.sources https://dl.winehq.org/wine-builds/ubuntu/dists/resolute/winehq-resolute.sources
+          sudo sed -i 's|winehq-archive\.key|winehq-archive.asc|' /etc/apt/sources.list.d/winehq-resolute.sources
+          sudo apt-get update
+          sudo apt-get install --install-recommends winehq-stable mingw-w64 lld
+          wine --version
 
       - name: Installing kcov dependencies
         if: ${{ contains(env['RUN_ANALYZER'], 'kcov') }}

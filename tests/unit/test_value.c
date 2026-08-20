@@ -1089,7 +1089,11 @@ SENTRY_TEST(value_stringify)
     STRINGIFY_AND_CHECK(rv, "3.14");
 
     rv = sentry_value_new_double(1000000000000000);
-    STRINGIFY_AND_CHECK(rv, "1e+15");
+    char *stringified = sentry__value_stringify(rv);
+    TEST_CHECK(strcmp(stringified, "1e+15") == 0 // msvcrt, libc, stbsp
+        || strcmp(stringified, "1e+015") == 0); // wine
+    sentry_free(stringified);
+    sentry_value_decref(rv);
 
     rv = sentry_value_new_double(INFINITY);
     STRINGIFY_AND_CHECK_CONTAINS(rv, "inf");
