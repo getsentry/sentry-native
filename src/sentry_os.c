@@ -215,12 +215,15 @@ static char *
 get_proton_version(bool *is_proton)
 {
     *is_proton = false;
-    const char *compat_path = getenv("STEAM_COMPAT_DATA_PATH");
+    char *compat_path
+        = sentry__string_from_wstr(_wgetenv(L"STEAM_COMPAT_DATA_PATH"));
     if (!compat_path || !compat_path[0]) {
+        sentry_free(compat_path);
         return NULL;
     }
 
     char *config_path = make_wine_path(compat_path, "/config_info");
+    sentry_free(compat_path);
     char *config = config_path ? read_wine_file(config_path) : NULL;
     sentry_free(config_path);
     if (!config) {
