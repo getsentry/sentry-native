@@ -527,7 +527,9 @@ Java_io_sentry_ndk_SentryNdk_initSentryNative(
 
     jboolean enable_logs = (jboolean)(*env)->CallBooleanMethod(
         env, sentry_ndk_options, enable_logs_mid);
+    SENTRY_SUPPRESS_DEPRECATED
     sentry_options_set_enable_logs(options, enable_logs);
+    SENTRY_RESTORE_DEPRECATED
 
     int rv = sentry_init(options);
     return (jint)rv;

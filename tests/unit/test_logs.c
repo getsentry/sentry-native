@@ -81,7 +81,7 @@ SENTRY_TEST(logs_disabled)
 
     SENTRY_TEST_OPTIONS_NEW(options);
     sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
-    sentry_options_set_enable_logs(options, false);
+    SENTRY_TEST_DEPRECATED(sentry_options_set_enable_logs(options, false));
 
     sentry_transport_t *transport
         = sentry_transport_new(validate_logs_envelope);
@@ -560,7 +560,7 @@ SENTRY_TEST(logs_plain_string_disabled)
 {
     SENTRY_TEST_OPTIONS_NEW(options);
     sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
-    sentry_options_set_enable_logs(options, false);
+    SENTRY_TEST_DEPRECATED(sentry_options_set_enable_logs(options, false));
 
     sentry_init(options);
 

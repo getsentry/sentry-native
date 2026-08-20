@@ -10,12 +10,19 @@
 - Add `sentry_get_last_event_id` and `sentry_scope_get_last_event_id` for retrieving the last event ID captured with the global or given scope, respectively. ([#1992](https://github.com/getsentry/sentry-native/pull/1992))
 - Native/Unix: The native crash daemon now loads `libcurl` dynamically at runtime by default when `SENTRY_LINK_CURL=AUTO`, avoiding `libcurl` linker work during process startup and significantly speeding up startup time. Explicitly set `SENTRY_LINK_CURL=ON` to link it directly. ([#1955](https://github.com/getsentry/sentry-native/pull/1955))
 
+**Deprecations**:
+
+- Deprecate `sentry_options_get/set_enable_logs` and `sentry_options_get/set_enable_metrics`. ([#2000](https://github.com/getsentry/sentry-native/pull/2000))
+
 **Fixes**:
 
 - Native: store daemon logs, minidumps, crash envelopes, and scratch files in `.run` directories so they are cleaned up with the run instead of accumulating in the database root. Minidumps can still be retained with `cache_keep`, which stores `.dmp` sidecars alongside cached envelopes. ([#1976](https://github.com/getsentry/sentry-native/pull/1976))
 - Linux/ARM32: prevent recursive crashes when libunwind receives an unmapped initial instruction pointer during crash handling. ([#1977](https://github.com/getsentry/sentry-native/pull/1977))
+- Improve log and metric delivery when telemetry is captured faster than envelopes can be serialized by offloading serialization to an internal thread pool. ([#1946](https://github.com/getsentry/sentry-native/pull/1946))
+- Wine: fix OS version detection and cross-compiling Windows builds from Linux. ([#2001](https://github.com/getsentry/sentry-native/pull/2001))
 - Destroy condition variables as approriate when no longer needed. ([#2004](https://github.com/getsentry/sentry-native/pull/2004))
 - CMake: `pkg-config` is no longer a hard build requirement. `SENTRY_LIBUNWIND_SYSTEM` and `SENTRY_BREAKPAD_SYSTEM` still prefer the `pkg-config` metadata of the system package, but now fall back to `find_library()`/`find_path()` when the tool or the `.pc` file is missing. The same applies to the exported CMake config, which no longer requires consumers of a static build to have `pkg-config` installed.
+- Crashpad/Windows: preserve module CodeView UUIDs for minimal PDB70 records with empty PDB filenames. ([#2003](https://github.com/getsentry/sentry-native/pull/2003))
 
 ## 0.16.3
 
