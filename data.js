@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1787226222724,
+  "lastUpdate": 1787226270609,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -135110,6 +135110,150 @@ window.BENCHMARK_DATA = {
           {
             "name": "Logs (32 threads)",
             "value": 0.12401631250000378,
+            "unit": "ms",
+            "extra": "Min 0.124ms\nMax 0.124ms\nMean 0.124ms\nMedian 0.124ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "jpnurmi@gmail.com",
+            "name": "J-P Nurmi",
+            "username": "jpnurmi"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "0596783e59572423591a88be884dc75e4e6fba85",
+          "message": "perf(telemetry): serialize batches on shared thread pool (#1946)\n\n* revert(sync): Restore Unix-only page allocator spinlock\n\nRevert 219d9348, which promoted the page allocator spinlock into a shared\nprimitive. The page allocator and telemetry batcher require different locking\nsemantics and should not share this implementation.\n\n* perf(telemetry): serialize batches on shared thread pool\n\nLet the telemetry lifecycle own a shared serialization pool for enabled\ntelemetry batchers.\n\nUse the pool for log and metric batch serialization while keeping completion\nordered through the batcher flush lifecycle.\n\n* perf(batcher): Block while waiting for batch tasks\n\nWake task waiters when the final in-flight task is removed instead of\ncontinuously polling the task list. Document the crash-flush race that can\nleave a worker with no task to execute.\n\n* fix(batcher): Pin crash-safe references during shutdown\n\nKeep lock-free crash flush access alive until shutdown detaches the\nbatcher and all active pins are released.",
+          "timestamp": "2026-08-20T13:37:16+02:00",
+          "tree_id": "414031b49490cd99050cc2ee718b7005510b69cd",
+          "url": "https://github.com/getsentry/sentry-native/commit/0596783e59572423591a88be884dc75e4e6fba85"
+        },
+        "date": 1787226254091,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 13.560799999936535,
+            "unit": "ms",
+            "extra": "Min 12.607ms\nMax 14.448ms\nMean 13.481ms\nStdDev 0.670ms\nMedian 13.561ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 17.272400000138077,
+            "unit": "ms",
+            "extra": "Min 11.531ms\nMax 19.084ms\nMean 15.672ms\nStdDev 3.343ms\nMedian 17.272ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 33.02880000001096,
+            "unit": "ms",
+            "extra": "Min 31.438ms\nMax 66.439ms\nMean 39.413ms\nStdDev 15.127ms\nMedian 33.029ms"
+          },
+          {
+            "name": "SDK init (native)",
+            "value": 31.981800000039584,
+            "unit": "ms",
+            "extra": "Min 30.024ms\nMax 38.883ms\nMean 33.446ms\nStdDev 3.964ms\nMedian 31.982ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.1755999999204505,
+            "unit": "ms",
+            "extra": "Min 0.170ms\nMax 0.224ms\nMean 0.185ms\nStdDev 0.022ms\nMedian 0.176ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.4868999999416701,
+            "unit": "ms",
+            "extra": "Min 0.435ms\nMax 0.591ms\nMean 0.509ms\nStdDev 0.076ms\nMedian 0.487ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 20.437799999854178,
+            "unit": "ms",
+            "extra": "Min 16.624ms\nMax 22.115ms\nMean 20.008ms\nStdDev 2.061ms\nMedian 20.438ms"
+          },
+          {
+            "name": "Backend startup (native)",
+            "value": 20.606600000064645,
+            "unit": "ms",
+            "extra": "Min 15.922ms\nMax 35.284ms\nMean 24.207ms\nStdDev 8.421ms\nMedian 20.607ms"
+          },
+          {
+            "name": "Scope set_tag (inproc)",
+            "value": 0.007228599999962171,
+            "unit": "ms",
+            "extra": "Min 0.007ms\nMax 0.007ms\nMean 0.007ms\nMedian 0.007ms"
+          },
+          {
+            "name": "Scope add_breadcrumb (inproc)",
+            "value": 0.0012277999999241729,
+            "unit": "ms",
+            "extra": "Min 0.001ms\nMax 0.001ms\nMean 0.001ms\nMedian 0.001ms"
+          },
+          {
+            "name": "Scope set_tag (breakpad)",
+            "value": 0.007278900000073918,
+            "unit": "ms",
+            "extra": "Min 0.007ms\nMax 0.007ms\nMean 0.007ms\nMedian 0.007ms"
+          },
+          {
+            "name": "Scope add_breadcrumb (breakpad)",
+            "value": 0.0012560000000121363,
+            "unit": "ms",
+            "extra": "Min 0.001ms\nMax 0.001ms\nMean 0.001ms\nMedian 0.001ms"
+          },
+          {
+            "name": "Scope set_tag (crashpad)",
+            "value": 0.5871482000000015,
+            "unit": "ms",
+            "extra": "Min 0.587ms\nMax 0.587ms\nMean 0.587ms\nMedian 0.587ms"
+          },
+          {
+            "name": "Scope add_breadcrumb (crashpad)",
+            "value": 0.2620553000001564,
+            "unit": "ms",
+            "extra": "Min 0.262ms\nMax 0.262ms\nMean 0.262ms\nMedian 0.262ms"
+          },
+          {
+            "name": "Scope set_tag (native)",
+            "value": 0.4538720000000467,
+            "unit": "ms",
+            "extra": "Min 0.454ms\nMax 0.454ms\nMean 0.454ms\nMedian 0.454ms"
+          },
+          {
+            "name": "Scope add_breadcrumb (native)",
+            "value": 0.16943450000007942,
+            "unit": "ms",
+            "extra": "Min 0.169ms\nMax 0.169ms\nMean 0.169ms\nMedian 0.169ms"
+          },
+          {
+            "name": "Logs (1 thread)",
+            "value": 0.008688000000347529,
+            "unit": "ms",
+            "extra": "Min 0.009ms\nMax 0.009ms\nMean 0.009ms\nMedian 0.009ms"
+          },
+          {
+            "name": "Logs (8 threads)",
+            "value": 0.0407616250001297,
+            "unit": "ms",
+            "extra": "Min 0.041ms\nMax 0.041ms\nMean 0.041ms\nMedian 0.041ms"
+          },
+          {
+            "name": "Logs (16 threads)",
+            "value": 0.074051312500103,
+            "unit": "ms",
+            "extra": "Min 0.074ms\nMax 0.074ms\nMean 0.074ms\nMedian 0.074ms"
+          },
+          {
+            "name": "Logs (32 threads)",
+            "value": 0.12373043750010027,
             "unit": "ms",
             "extra": "Min 0.124ms\nMax 0.124ms\nMean 0.124ms\nMedian 0.124ms"
           }
