@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1787229514218,
+  "lastUpdate": 1787229521349,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -135544,6 +135544,150 @@ window.BENCHMARK_DATA = {
             "value": 0.12373043750010027,
             "unit": "ms",
             "extra": "Min 0.124ms\nMax 0.124ms\nMean 0.124ms\nMedian 0.124ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "jpnurmi@gmail.com",
+            "name": "J-P Nurmi",
+            "username": "jpnurmi"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "638e43d374126fe3967aaa85892159993b9d64f8",
+          "message": "fix: add basic Wine support and test pipeline (#2001)\n\n* fix: add basic Wine support and test pipeline\n\nMake the Windows build compatible with Wine cross-compilation by using portable\nheader casing, limiting MSVC-only abort setup, and accepting missing UBR\nregistry metadata.\n\nCross-compile Windows test binaries with Clang and MinGW-w64 on Ubuntu, then\nrun the test suite through Wine.\n\nThis exercises actual Windows code paths from Linux CI. Crashpad is skipped\nbecause its vendored Windows build does not currently cross-compile with this\ntoolchain; other skips cover host-only harnesses or specific Wine limitations.\n\n* Wine 11 (has CreateSymbolicLink)\n\n* disable has_crashpad for is_wine\n\n* build config\n\n* ucrt _set_abort_behavior\n\n* Update CHANGELOG.md\n\n* test: Avoid resetting rejected proxy requests\n\nConsume the request body before returning a proxy authentication challenge so\nclosing the connection does not produce a TCP reset. This lets Wine WinHTTP\nreceive the challenge and retry with credentials.",
+          "timestamp": "2026-08-20T14:31:34+02:00",
+          "tree_id": "9dbb892be2381696b8287c9fbd693410f457d7bc",
+          "url": "https://github.com/getsentry/sentry-native/commit/638e43d374126fe3967aaa85892159993b9d64f8"
+        },
+        "date": 1787229502097,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 8.320999999909873,
+            "unit": "ms",
+            "extra": "Min 7.940ms\nMax 9.056ms\nMean 8.347ms\nStdDev 0.459ms\nMedian 8.321ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 8.938800000009905,
+            "unit": "ms",
+            "extra": "Min 8.905ms\nMax 43.344ms\nMean 15.834ms\nStdDev 15.379ms\nMedian 8.939ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 21.07659999990119,
+            "unit": "ms",
+            "extra": "Min 20.691ms\nMax 22.690ms\nMean 21.371ms\nStdDev 0.807ms\nMedian 21.077ms"
+          },
+          {
+            "name": "SDK init (native)",
+            "value": 18.481500000007145,
+            "unit": "ms",
+            "extra": "Min 17.955ms\nMax 18.838ms\nMean 18.409ms\nStdDev 0.336ms\nMedian 18.482ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.12909999986732146,
+            "unit": "ms",
+            "extra": "Min 0.127ms\nMax 0.142ms\nMean 0.132ms\nStdDev 0.006ms\nMedian 0.129ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.33529999996062543,
+            "unit": "ms",
+            "extra": "Min 0.308ms\nMax 0.357ms\nMean 0.331ms\nStdDev 0.019ms\nMedian 0.335ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 10.844399999996313,
+            "unit": "ms",
+            "extra": "Min 10.727ms\nMax 72.348ms\nMean 23.318ms\nStdDev 27.413ms\nMedian 10.844ms"
+          },
+          {
+            "name": "Backend startup (native)",
+            "value": 10.004400000070746,
+            "unit": "ms",
+            "extra": "Min 9.749ms\nMax 103.012ms\nMean 28.850ms\nStdDev 41.465ms\nMedian 10.004ms"
+          },
+          {
+            "name": "Scope set_tag (inproc)",
+            "value": 0.006508500000109052,
+            "unit": "ms",
+            "extra": "Min 0.007ms\nMax 0.007ms\nMean 0.007ms\nMedian 0.007ms"
+          },
+          {
+            "name": "Scope add_breadcrumb (inproc)",
+            "value": 0.0009055000000444124,
+            "unit": "ms",
+            "extra": "Min 0.001ms\nMax 0.001ms\nMean 0.001ms\nMedian 0.001ms"
+          },
+          {
+            "name": "Scope set_tag (breakpad)",
+            "value": 0.00653480000005402,
+            "unit": "ms",
+            "extra": "Min 0.007ms\nMax 0.007ms\nMean 0.007ms\nMedian 0.007ms"
+          },
+          {
+            "name": "Scope add_breadcrumb (breakpad)",
+            "value": 0.0008717000000615371,
+            "unit": "ms",
+            "extra": "Min 0.001ms\nMax 0.001ms\nMean 0.001ms\nMedian 0.001ms"
+          },
+          {
+            "name": "Scope set_tag (crashpad)",
+            "value": 0.4770575000000008,
+            "unit": "ms",
+            "extra": "Min 0.477ms\nMax 0.477ms\nMean 0.477ms\nMedian 0.477ms"
+          },
+          {
+            "name": "Scope add_breadcrumb (crashpad)",
+            "value": 0.14537130000007892,
+            "unit": "ms",
+            "extra": "Min 0.145ms\nMax 0.145ms\nMean 0.145ms\nMedian 0.145ms"
+          },
+          {
+            "name": "Scope set_tag (native)",
+            "value": 0.28617050000002564,
+            "unit": "ms",
+            "extra": "Min 0.286ms\nMax 0.286ms\nMean 0.286ms\nMedian 0.286ms"
+          },
+          {
+            "name": "Scope add_breadcrumb (native)",
+            "value": 0.6646692000001622,
+            "unit": "ms",
+            "extra": "Min 0.665ms\nMax 0.665ms\nMean 0.665ms\nMedian 0.665ms"
+          },
+          {
+            "name": "Logs (1 thread)",
+            "value": 0.007266000000072381,
+            "unit": "ms",
+            "extra": "Min 0.007ms\nMax 0.007ms\nMean 0.007ms\nMedian 0.007ms"
+          },
+          {
+            "name": "Logs (8 threads)",
+            "value": 0.03430437500014705,
+            "unit": "ms",
+            "extra": "Min 0.034ms\nMax 0.034ms\nMean 0.034ms\nMedian 0.034ms"
+          },
+          {
+            "name": "Logs (16 threads)",
+            "value": 0.05439506250013437,
+            "unit": "ms",
+            "extra": "Min 0.054ms\nMax 0.054ms\nMean 0.054ms\nMedian 0.054ms"
+          },
+          {
+            "name": "Logs (32 threads)",
+            "value": 0.1027067812501059,
+            "unit": "ms",
+            "extra": "Min 0.103ms\nMax 0.103ms\nMean 0.103ms\nMedian 0.103ms"
           }
         ]
       }
