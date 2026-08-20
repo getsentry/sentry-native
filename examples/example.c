@@ -857,9 +857,11 @@ main(int argc, char **argv)
         sentry_options_set_logger_enabled_when_crashed(options, 1);
     }
 
+    SENTRY_SUPPRESS_DEPRECATED
     if (has_arg(argc, argv, "disable-logs")) {
         sentry_options_set_enable_logs(options, false);
     }
+    SENTRY_RESTORE_DEPRECATED
 
     if (has_arg(argc, argv, "crash-reporter")) {
 #ifdef SENTRY_PLATFORM_WINDOWS
@@ -895,9 +897,11 @@ main(int argc, char **argv)
         sentry_options_set_http_retry(options, false);
     }
 
+    SENTRY_SUPPRESS_DEPRECATED
     if (has_arg(argc, argv, "disable-metrics")) {
         sentry_options_set_enable_metrics(options, false);
     }
+    SENTRY_RESTORE_DEPRECATED
 
     if (has_arg(argc, argv, "before-send-metric")) {
         sentry_options_set_before_send_metric(
@@ -1062,6 +1066,7 @@ main(int argc, char **argv)
         }
     }
 
+    SENTRY_SUPPRESS_DEPRECATED
     if (sentry_options_get_enable_logs(options)) {
         if (has_arg(argc, argv, "capture-log")) {
             sentry_log_debug("I'm a log message!");
@@ -1111,6 +1116,7 @@ main(int argc, char **argv)
             run_threads(metric_thread_func);
         }
     }
+    SENTRY_RESTORE_DEPRECATED
 
     if (!has_arg(argc, argv, "no-setup")) {
         sentry_set_transaction("test-transaction");
