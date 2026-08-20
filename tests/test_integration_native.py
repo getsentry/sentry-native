@@ -21,6 +21,7 @@ from . import (
     run,
     run_crash,
     stage_replay,
+    run_command,
     Envelope,
     split_log_request_cond,
     REPLAY_ID,
@@ -37,7 +38,7 @@ from .assertions import (
     wait_for_file,
     assert_user_feedback,
 )
-from .conditions import has_native, has_oom, is_asan, is_tsan, is_qemu
+from .conditions import has_native, has_oom, is_asan, is_tsan, is_qemu, is_wine
 
 pytestmark = pytest.mark.skipif(
     not has_native or is_qemu,
@@ -148,6 +149,7 @@ def test_native_oom(cmake, httpserver):
         ),
     ],
 )
+@pytest.mark.skipif(is_wine, reason="Wine does not terminate after stack overflow")
 def test_native_stack_overflow(cmake, httpserver, stack_size):
     """Test stack overflow crash capture with native backend"""
     env = dict(os.environ)
@@ -318,11 +320,9 @@ def test_native_attachment_manifest_is_current(cmake, httpserver):
     """
     tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "native"})
 
-    exe = tmp_path / (
-        "sentry_example.exe" if sys.platform == "win32" else "sentry_example"
-    )
+    cmd = run_command(str(tmp_path / "sentry_example"))
     child = subprocess.Popen(
-        [str(exe), "log", "attach-custom-filename", "sleep"],
+        [*cmd, "log", "attach-custom-filename", "sleep"],
         cwd=tmp_path,
         env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
     )
@@ -855,6 +855,10 @@ def _codesign_for_task_for_pid(*paths):
         )
 
 
+@pytest.mark.skipif(
+    is_wine,
+    reason="Wine does not capture indirectly referenced minidump memory",
+)
 def test_native_smart_mode_captures_indirect_heap_memory(cmake, httpserver):
     """
     Verify SMART minidump mode captures memory regions referenced by the
@@ -964,11 +968,9 @@ def test_native_smart_mode_captures_indirect_heap_memory(cmake, httpserver):
 def test_native_uses_existing_run(cmake):
     """The daemon adopts the existing run instead of creating root artifacts."""
     tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "native"})
-    exe = tmp_path / (
-        "sentry_example.exe" if sys.platform == "win32" else "sentry_example"
-    )
+    cmd = run_command(str(tmp_path / "sentry_example"))
     child = subprocess.Popen(
-        [str(exe), "log", "sleep"],
+        [*cmd, "log", "sleep"],
         cwd=tmp_path,
         env=dict(os.environ, SENTRY_DSN="https://foo@sentry.invalid/42"),
     )
@@ -1068,7 +1070,12 @@ def test_native_external_crash_reporter(cmake, httpserver):
 
     # Verify it's a minidump crash report and user feedback
     envelope = Envelope.deserialize(crash)
-    assert envelope.headers["cache_dir"] == str(cache_dir)
+    actual_cache_dir = envelope.headers["cache_dir"]
+    if is_wine:
+        actual_cache_dir = subprocess.check_output(
+            ["winepath", "-u", actual_cache_dir], text=True
+        ).strip()
+    assert actual_cache_dir == str(cache_dir)
     assert_meta(envelope, integration="native")
     assert_breadcrumb(envelope)
 

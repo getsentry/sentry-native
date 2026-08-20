@@ -1,7 +1,7 @@
 import os
 import pytest
 from . import run
-from .conditions import has_http
+from .conditions import has_http, is_wine
 
 
 def _skip_if_unsupported(unittest):

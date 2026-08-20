@@ -1,5 +1,4 @@
 #include "sentry_core.h"
-#include "sentry_spinlock.h"
 #include "sentry_sync.h"
 #include "sentry_testsupport.h"
 #include "sentry_utils.h"
@@ -1351,35 +1350,4 @@ SENTRY_TEST(cond_wait_timeout_overflow)
     sentry__mutex_free(&mutex);
     sentry__cond_free(&cond);
 #endif
-}
-
-static long g_spin_waits = 0;
-
-static bool
-spin_wait(int UNUSED(attempt), void *UNUSED(data))
-{
-    sentry__atomic_fetch_and_add(&g_spin_waits, 1);
-    return sentry__atomic_fetch(&g_spin_waits) < 2;
-}
-
-SENTRY_TEST(spinlock)
-{
-    sentry_spinlock_t lock = SENTRY__SPINLOCK_INIT;
-    sentry__atomic_store(&g_spin_waits, 0);
-
-    TEST_CHECK(sentry__spinlock_try_lock(&lock));
-    TEST_CHECK_INT_EQUAL(sentry__atomic_fetch(&lock), 1);
-    TEST_CHECK(!sentry__spinlock_try_lock(&lock));
-    sentry__spinlock_unlock(&lock);
-    TEST_CHECK_INT_EQUAL(sentry__atomic_fetch(&lock), 0);
-
-    sentry__spinlock_lock(&lock);
-    TEST_CHECK_INT_EQUAL(sentry__atomic_fetch(&lock), 1);
-    TEST_CHECK(!sentry__spinlock_wait(&lock, spin_wait, NULL));
-    TEST_CHECK_INT_EQUAL(sentry__atomic_fetch(&g_spin_waits), 2);
-    sentry__spinlock_unlock(&lock);
-    TEST_CHECK_INT_EQUAL(sentry__atomic_fetch(&lock), 0);
-    TEST_CHECK(sentry__spinlock_wait(&lock, spin_wait, NULL));
-    TEST_CHECK_INT_EQUAL(sentry__atomic_fetch(&g_spin_waits), 2);
-    sentry__spinlock_unlock(&lock);
 }

@@ -13,7 +13,7 @@ import tests
 import msgpack
 
 from . import REPLAY_ID, SENTRY_VERSION
-from .conditions import is_android, is_asan, is_tsan
+from .conditions import is_android, is_asan, is_tsan, is_wine
 
 VERSION_RE = re.compile(r"(\d+\.\d+\.\d+)[-.]?(.*)")
 
@@ -131,11 +131,12 @@ def assert_event_meta(
     if is_android:
         expected_sdk["name"] = "sentry.native.android"
     else:
-        if sys.platform == "win32":
-            assert_matches(
-                event["contexts"]["os"],
-                {"name": "Windows", "version": platform.version()},
-            )
+        if sys.platform == "win32" or is_wine:
+            expected_os_context = {"name": "Windows"}
+            if not is_wine:
+                expected_os_context["version"] = platform.version()
+            assert_matches(event["contexts"]["os"], expected_os_context)
+            assert event["contexts"]["os"]["version"] is not None
             assert event["contexts"]["os"]["build"] is not None
         elif sys.platform == "linux":
             version = platform.release()
