@@ -729,24 +729,29 @@ sentry__envelope_add_attachment(
         return NULL;
     }
 
+    size_t bytes_len = 0;
+    const char *bytes = sentry__attachment_get_bytes(attachment, &bytes_len);
     sentry_envelope_item_t *item = NULL;
-    if (attachment->buf) {
+    if (bytes) {
         item = sentry__envelope_add_from_buffer(
-            envelope, attachment->buf, attachment->buf_len, "attachment");
+            envelope, bytes, bytes_len, "attachment");
     } else {
-        item = sentry__envelope_add_from_path(
-            envelope, attachment->path, "attachment");
+        sentry_path_t *path = sentry__attachment_make_path(attachment);
+        item = sentry__envelope_add_from_path(envelope, path, "attachment");
+        sentry__path_free(path);
     }
     if (!item) {
         return NULL;
     }
-    if (attachment->type && *attachment->type) {
+    const char *type = sentry__attachment_get_type(attachment);
+    if (type && *type) {
         sentry__envelope_item_set_header(
-            item, "attachment_type", sentry_value_new_string(attachment->type));
+            item, "attachment_type", sentry_value_new_string(type));
     }
-    if (attachment->content_type) {
-        sentry__envelope_item_set_header(item, "content_type",
-            sentry_value_new_string(attachment->content_type));
+    const char *content_type = sentry__attachment_get_content_type(attachment);
+    if (content_type) {
+        sentry__envelope_item_set_header(
+            item, "content_type", sentry_value_new_string(content_type));
     }
     sentry__envelope_item_set_header(item, "filename",
         sentry_value_new_string(sentry__attachment_get_filename(attachment)));
