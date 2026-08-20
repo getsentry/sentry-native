@@ -289,23 +289,17 @@ batch_task_unlink_locked(sentry_batch_task_t *task)
 }
 
 static void
-batch_task_notify_waiters(sentry_batcher_t *batcher)
-{
-    sentry__mutex_lock(&batcher->task_wait_mutex);
-    sentry__cond_wake_all(&batcher->task_wait_cond);
-    sentry__mutex_unlock(&batcher->task_wait_mutex);
-}
-
-static void
 batch_task_unlink(sentry_batch_task_t *task)
 {
     sentry_batcher_t *batcher = task->batcher;
+    sentry__mutex_lock(&batcher->task_wait_mutex);
     lock_tasks(batcher);
     const bool drained = batch_task_unlink_locked(task);
     unlock_tasks(batcher);
     if (drained) {
-        batch_task_notify_waiters(batcher);
+        sentry__cond_wake_all(&batcher->task_wait_cond);
     }
+    sentry__mutex_unlock(&batcher->task_wait_mutex);
 }
 
 static void
@@ -387,11 +381,8 @@ batch_task_complete(void *task_data)
     lock_tasks(batcher);
     const long state = sentry__atomic_fetch(&task->state);
     if (state == SENTRY_BATCH_TASK_DUMPED) {
-        const bool drained = batch_task_unlink_locked(task);
         unlock_tasks(batcher);
-        if (drained) {
-            batch_task_notify_waiters(batcher);
-        }
+        batch_task_unlink(task);
         return;
     }
     sentry__atomic_store(&task->state, SENTRY_BATCH_TASK_COMPLETING);
