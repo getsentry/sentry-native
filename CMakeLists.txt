@@ -115,13 +115,8 @@ option(SENTRY_BUILD_TESTS "Build sentry-native tests" "${SENTRY_MAIN_PROJECT}")
 option(SENTRY_BUILD_EXAMPLES "Build sentry-native example(s)" "${SENTRY_MAIN_PROJECT}")
 option(SENTRY_BUILD_BENCHMARKS "Build sentry-native benchmarks" OFF)
 
-set(SENTRY_INTEGRATION_PLATFORM "" CACHE STRING
-	"Downstream-provided platform integration to create automatically")
-if(NOT SENTRY_INTEGRATION_PLATFORM STREQUAL ""
-		AND NOT SENTRY_INTEGRATION_PLATFORM MATCHES "^[A-Za-z_][A-Za-z0-9_]*$")
-	message(FATAL_ERROR
-		"SENTRY_INTEGRATION_PLATFORM must be empty or a valid C identifier")
-endif()
+option(SENTRY_INTEGRATION_PLATFORM
+	"Enable the downstream-provided platform integration" OFF)
 
 # Platform version embedding options
 option(SENTRY_EMBED_INFO "Embed version information in binary" OFF)
@@ -428,7 +423,7 @@ endif()
 
 add_subdirectory(src)
 
-if(NOT SENTRY_INTEGRATION_PLATFORM STREQUAL "")
+if(SENTRY_INTEGRATION_PLATFORM)
 	target_compile_definitions(sentry PRIVATE SENTRY_INTEGRATION_PLATFORM)
 endif()
 
@@ -1043,7 +1038,7 @@ if(SENTRY_BUILD_TESTS)
 	add_subdirectory(tests/unit)
 	add_subdirectory(tests/fixtures/crash_reporter)
 	add_subdirectory(tests/fixtures/early_init)
-	if(SENTRY_INTEGRATION_PLATFORM STREQUAL "test")
+	if(SENTRY_INTEGRATION_PLATFORM AND SENTRY_MAIN_PROJECT)
 		add_subdirectory(tests/fixtures/test_platform)
 	endif()
 	add_subdirectory(tests/fixtures/screenshot)

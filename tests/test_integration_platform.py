@@ -14,7 +14,7 @@ def test_platform_integration(cmake, httpserver):
         {
             "SENTRY_BACKEND": "none",
             "SENTRY_BUILD_SHARED_LIBS": "OFF",
-            "SENTRY_INTEGRATION_PLATFORM": "test",
+            "SENTRY_INTEGRATION_PLATFORM": "ON",
         },
     )
 
