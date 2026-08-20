@@ -640,6 +640,7 @@ if(WIN32)
 endif()
 
 include(cmake/utils.cmake)
+include(cmake/sentry-find-system-library.cmake)
 if (WIN32 AND SENTRY_BUILD_SHARED_LIBS)
 	sentry_add_version_resource(sentry "Client Library")
 endif()
@@ -705,12 +706,11 @@ endif()
 if(SENTRY_WITH_LIBUNWIND)
 	if(LINUX)
 		if(SENTRY_LIBUNWIND_SYSTEM)
-			find_package(PkgConfig REQUIRED)
-			pkg_check_modules(LIBUNWIND REQUIRED IMPORTED_TARGET libunwind)
+			sentry_find_libunwind()
 			if(SENTRY_BUILD_SHARED_LIBS)
-				target_link_libraries(sentry PRIVATE PkgConfig::LIBUNWIND)
+				target_link_libraries(sentry PRIVATE sentry::libunwind)
 			else()
-				target_link_libraries(sentry PUBLIC PkgConfig::LIBUNWIND)
+				target_link_libraries(sentry PUBLIC sentry::libunwind)
 			endif()
 		else()
 			# Use vendored libunwind
@@ -802,13 +802,12 @@ elseif(SENTRY_BACKEND_BREAKPAD)
 	option(SENTRY_BREAKPAD_SYSTEM "Use system breakpad" OFF)
 	if(SENTRY_BREAKPAD_SYSTEM)
 		target_compile_definitions(sentry PRIVATE SENTRY_BREAKPAD_SYSTEM)
-		# system breakpad is using pkg-config, see `external/breakpad/breakpad-client.pc.in`
-		find_package(PkgConfig REQUIRED)
-		pkg_check_modules(BREAKPAD REQUIRED IMPORTED_TARGET breakpad-client)
+		# system breakpad ships pkg-config metadata, see `external/breakpad/breakpad-client.pc.in`
+		sentry_find_breakpad_client()
 		if(SENTRY_BUILD_SHARED_LIBS)
-			target_link_libraries(sentry PRIVATE PkgConfig::BREAKPAD)
+			target_link_libraries(sentry PRIVATE sentry::breakpad-client)
 		else()
-			target_link_libraries(sentry PUBLIC PkgConfig::BREAKPAD)
+			target_link_libraries(sentry PUBLIC sentry::breakpad-client)
 		endif()
 	else()
 		add_subdirectory(external)
@@ -934,8 +933,8 @@ elseif(SENTRY_BACKEND_NATIVE)
 
 	if(SENTRY_WITH_LIBUNWIND AND LINUX)
 		if(SENTRY_LIBUNWIND_SYSTEM)
-			pkg_check_modules(LIBUNWIND_PTRACE REQUIRED IMPORTED_TARGET libunwind-ptrace)
-			target_link_libraries(sentry-crash PRIVATE PkgConfig::LIBUNWIND PkgConfig::LIBUNWIND_PTRACE)
+			sentry_find_libunwind_ptrace()
+			target_link_libraries(sentry-crash PRIVATE sentry::libunwind sentry::libunwind-ptrace)
 		else()
 			# Use unwind_remote for the daemon (includes ptrace accessors
 			# for remote DWARF unwinding of the crashed process)
@@ -1018,6 +1017,8 @@ sentry_install(
 	FILES
 		"${PROJECT_BINARY_DIR}/sentry-config.cmake"
 		"${PROJECT_BINARY_DIR}/sentry-config-version.cmake"
+		# `sentry-config.cmake` recreates the system-library targets for consumers of a static build
+		"${SENTRY_SOURCE_DIR}/cmake/sentry-find-system-library.cmake"
 	DESTINATION "${CMAKE_INSTALL_CMAKEDIR}")
 if(WIN32 AND MSVC AND SENTRY_BUILD_SHARED_LIBS)
 	sentry_install(FILES $<TARGET_PDB_FILE:sentry>
