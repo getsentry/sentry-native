@@ -167,12 +167,11 @@ sentry__get_windows_version(windows_version_t *win_ver)
     }
     win_ver->build = strtoul(buf, NULL, 10);
 
+    // UBR (Update Build Revision) is optional (not present on Wine)
+    reg_version = 0;
     buf_size = sizeof(uint32_t);
-    if (RegGetValueA(HKEY_LOCAL_MACHINE, CURRENT_VERSION, "UBR",
-            RRF_RT_REG_DWORD, NULL, &reg_version, &buf_size)
-        != ERROR_SUCCESS) {
-        return 0;
-    }
+    RegGetValueA(HKEY_LOCAL_MACHINE, CURRENT_VERSION, "UBR", RRF_RT_REG_DWORD,
+        NULL, &reg_version, &buf_size);
     win_ver->ubr = reg_version;
 
     return 1;

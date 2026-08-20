@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from . import check_output, run, Envelope
+from . import check_output, run, run_command, Envelope
 from .assertions import (
     assert_attachment,
     assert_meta,
@@ -22,7 +22,7 @@ from .assertions import (
     assert_exception,
     wait_for,
 )
-from .conditions import has_breakpad, has_files, is_qemu
+from .conditions import has_breakpad, has_files, is_qemu, is_wine
 
 
 @pytest.mark.skipif(is_qemu, reason="unreliable under qemu-user")
@@ -123,15 +123,10 @@ def test_multi_process(cmake):
 
     cwd = tmp_path.joinpath("unicode ❤️ Юля")
     cwd.mkdir()
-    exe = "sentry_example"
-    cmd = (
-        "../{}".format(exe)
-        if sys.platform != "win32"
-        else "{}\\{}.exe".format(tmp_path, exe)
-    )
+    cmd = run_command(str(tmp_path / "sentry_example"))
 
-    child1 = subprocess.Popen([cmd, "sleep"], cwd=cwd)
-    child2 = subprocess.Popen([cmd, "sleep"], cwd=cwd)
+    child1 = subprocess.Popen([*cmd, "sleep"], cwd=cwd)
+    child2 = subprocess.Popen([*cmd, "sleep"], cwd=cwd)
 
     def list_db(suffix):
         try:
@@ -153,7 +148,7 @@ def test_multi_process(cmake):
     child2.wait()
 
     # and start another process that cleans up the old runs
-    subprocess.run([cmd], cwd=cwd)
+    subprocess.run(cmd, cwd=cwd)
 
     assert len(list_db(".run")) == 0
     assert len(list_db(".lock")) == 0
@@ -278,6 +273,7 @@ def test_inproc_crash_stdout_before_send_and_on_crash(cmake):
         ),
     ],
 )
+@pytest.mark.skipif(is_wine, reason="Wine does not terminate after stack overflow")
 def test_inproc_stack_overflow_stdout(cmake, stack_size):
     env = dict(os.environ)
     if stack_size:
@@ -373,6 +369,7 @@ def test_breakpad_crash_stdout_before_send_and_on_crash(cmake):
     ],
 )
 @pytest.mark.skipif(not has_breakpad or is_qemu, reason="test needs breakpad backend")
+@pytest.mark.skipif(is_wine, reason="Wine does not terminate after stack overflow")
 def test_breakpad_stack_overflow_stdout(cmake, stack_size):
     env = dict(os.environ)
     if stack_size:

@@ -39,8 +39,9 @@ SENTRY_TEST(custom_logger)
         SENTRY_TEST_OPTIONS_NEW(options);
         sentry_options_set_debug(options, true);
         sentry_options_set_logger(options, test_logger, &data);
-        sentry_options_set_enable_metrics(options, false);
-        sentry_options_set_enable_logs(options, false);
+        SENTRY_TEST_DEPRECATED(
+            sentry_options_set_enable_metrics(options, false));
+        SENTRY_TEST_DEPRECATED(sentry_options_set_enable_logs(options, false));
 
         sentry_init(options);
 
@@ -68,8 +69,8 @@ SENTRY_TEST(logger_enable_disable_functionality)
     SENTRY_TEST_OPTIONS_NEW(options);
     sentry_options_set_debug(options, true);
     sentry_options_set_logger(options, test_logger, &data);
-    sentry_options_set_enable_metrics(options, false);
-    sentry_options_set_enable_logs(options, false);
+    SENTRY_TEST_DEPRECATED(sentry_options_set_enable_metrics(options, false));
+    SENTRY_TEST_DEPRECATED(sentry_options_set_enable_logs(options, false));
 
     sentry_init(options);
 
@@ -139,8 +140,10 @@ SENTRY_TEST(logger_level)
             sentry_options_set_debug(options, true);
             sentry_options_set_logger_level(options, test_cases[i].level);
             sentry_options_set_logger(options, test_log_level, &data);
-            sentry_options_set_enable_metrics(options, false);
-            sentry_options_set_enable_logs(options, false);
+            SENTRY_TEST_DEPRECATED(
+                sentry_options_set_enable_metrics(options, false));
+            SENTRY_TEST_DEPRECATED(
+                sentry_options_set_enable_logs(options, false));
 
             sentry_init(options);
 

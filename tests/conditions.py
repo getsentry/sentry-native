@@ -4,6 +4,7 @@ import shutil
 
 is_aix = sys.platform == "aix" or sys.platform == "os400"
 is_android = os.environ.get("ANDROID_API")
+is_wine = bool(os.environ.get("TEST_WINE"))
 is_x86 = os.environ.get("TEST_X86")
 is_arm32 = bool(os.environ.get("TEST_ARM32"))
 is_qemu = bool(os.environ.get("TEST_QEMU"))
@@ -29,7 +30,7 @@ has_breakpad = (
     # breakpad accesses thread state registers directly, which doesn't work on arm64e
     and not (is_arm64e and sys.platform == "darwin")
 )
-# crashpad requires http, needs porting to AIX, and doesn’t work with kcov/valgrind/tsan either
+# crashpad requires http, needs porting to AIX, and doesn’t work with kcov/valgrind/tsan or Wine cross-builds
 has_crashpad = (
     has_http
     and not is_valgrind
@@ -37,6 +38,7 @@ has_crashpad = (
     and not is_android
     and not is_aix
     and not is_tsan
+    and not is_wine
 )
 # android has no local filesystem
 has_files = not is_android

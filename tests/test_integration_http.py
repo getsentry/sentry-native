@@ -47,6 +47,7 @@ from .conditions import (
     has_files,
     is_asan,
     is_qemu,
+    is_wine,
 )
 
 
@@ -360,7 +361,12 @@ def test_external_crash_reporter_http(cmake, httpserver, build_args):
     crash = crash_request.get_data()
 
     envelope = Envelope.deserialize(crash)
-    assert envelope.headers["cache_dir"] == str(cache_dir)
+    actual_cache_dir = envelope.headers["cache_dir"]
+    if is_wine:
+        actual_cache_dir = subprocess.check_output(
+            ["winepath", "-u", actual_cache_dir], text=True
+        ).strip()
+    assert actual_cache_dir == str(cache_dir)
     assert_meta(envelope, integration=build_args.get("SENTRY_BACKEND", ""))
 
     envelope = Envelope.deserialize(feedback)

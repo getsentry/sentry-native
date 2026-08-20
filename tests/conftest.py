@@ -11,7 +11,7 @@ import threading
 from datetime import datetime, timedelta, UTC
 from . import adb, run
 from .cmake import CMake
-from .conditions import has_sccache, is_android
+from .conditions import has_sccache, is_android, is_wine
 import tests
 
 LABEL = "label"
@@ -211,6 +211,12 @@ def pytest_sessionfinish(session, exitstatus):
 
 
 def pytest_sessionstart(session):
+    if is_wine:
+        # Keep Wine diagnostics from obscuring test output.
+        os.environ.setdefault("WINEDEBUG", "-all")
+        # Prevent intentional crashes from opening WineDbg and fresh prefixes
+        # from prompting to install Wine Mono.
+        os.environ.setdefault("WINEDLLOVERRIDES", "winedbg.exe=d;mscoree=d")
     if has_sccache:
         subprocess.run(["sccache", "--zero-stats"], capture_output=True)
 
