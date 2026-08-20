@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 
-from . import adb, exe_name
+from . import adb, exe_name, lib_name
 from .conditions import has_sccache
 from .build_config import (
     get_android_config,
@@ -72,13 +72,6 @@ class CMake:
         os.mkdir(coveragedir)
 
         if "llvm-cov" in os.environ.get("RUN_ANALYZER", ""):
-
-            def lib_name(name):
-                if sys.platform == "win32":
-                    return name + ".dll"
-                elif sys.platform == "darwin":
-                    return "lib" + name + ".dylib"
-                return "lib" + name + ".so"
 
             for i, (d, _) in enumerate(self.runs.values()):
                 # first merge the raw profiling runs

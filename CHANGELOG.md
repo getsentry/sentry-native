@@ -21,6 +21,7 @@
 - Improve log and metric delivery when telemetry is captured faster than envelopes can be serialized by offloading serialization to an internal thread pool. ([#1946](https://github.com/getsentry/sentry-native/pull/1946))
 - Wine: fix OS version detection and cross-compiling Windows builds from Linux. ([#2001](https://github.com/getsentry/sentry-native/pull/2001))
 - Destroy condition variables as approriate when no longer needed. ([#2004](https://github.com/getsentry/sentry-native/pull/2004))
+- Crashpad/Windows: preserve module CodeView UUIDs for minimal PDB70 records with empty PDB filenames. ([#2003](https://github.com/getsentry/sentry-native/pull/2003))
 
 ## 0.16.3
 

@@ -516,6 +516,7 @@ class CrashpadAttachments:
     view_hierarchy: dict
     cmake_cache: int
     bytes_bin: bytes = None
+    minidump: bytes = None
 
 
 def _unpack_breadcrumbs(payload):
@@ -531,6 +532,7 @@ def _load_crashpad_attachments(msg):
     view_hierarchy = {}
     cmake_cache = -1
     bytes_bin = None
+    minidump = None
     for part in msg.walk():
         if part.get_filename() is not None:
             assert part.get("Content-Type") is None
@@ -549,8 +551,20 @@ def _load_crashpad_attachments(msg):
             case "bytes.bin":
                 bytes_bin = part.get_payload(decode=True)
 
+        if (
+            part.get_param("name", header="content-disposition")
+            == "upload_file_minidump"
+        ):
+            minidump = part.get_payload(decode=True)
+
     return CrashpadAttachments(
-        event, breadcrumb1, breadcrumb2, view_hierarchy, cmake_cache, bytes_bin
+        event,
+        breadcrumb1,
+        breadcrumb2,
+        view_hierarchy,
+        cmake_cache,
+        bytes_bin,
+        minidump,
     )
 
 
@@ -594,11 +608,8 @@ def assert_crashpad_upload(req, expect_attachment=False, expect_view_hierarchy=F
         assert attachments.bytes_bin == None
     if expect_view_hierarchy:
         assert_attachment_content_view_hierarchy(attachments.view_hierarchy)
-    assert any(
-        b'name="upload_file_minidump"' in part.as_bytes()
-        and b"\n\nMDMP" in part.as_bytes()
-        for part in msg.walk()
-    )
+    assert attachments.minidump is not None, "minidump attachment missing"
+    assert attachments.minidump.startswith(b"MDMP"), "invalid minidump signature"
     return attachments
 
 

@@ -14,6 +14,15 @@ import socket
 sourcedir = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 
 
+def lib_name(name):
+    if sys.platform == "win32":
+        prefix = "lib" if os.environ.get("TEST_MINGW") else ""
+        return prefix + name + ".dll"
+    elif sys.platform == "darwin":
+        return "lib" + name + ".dylib"
+    return "lib" + name + ".so"
+
+
 def adb(*args, **kwargs):
     return subprocess.run(
         ["{}/platform-tools/adb".format(os.environ["ANDROID_HOME"]), *args], **kwargs
