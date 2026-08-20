@@ -450,6 +450,8 @@ sentry__threadpool_free(sentry_threadpool_t *pool)
         sentry__thread_free(&pool->threads[i]);
     }
     sentry_free(pool->thread_name);
+    sentry__cond_free(&pool->work_signal);
+    sentry__cond_free(&pool->state_signal);
     sentry__mutex_free(&pool->lock);
     sentry_free(pool->threads);
     sentry_free(pool);
@@ -571,6 +573,8 @@ sentry__bgworker_decref(sentry_bgworker_t *bgw)
         bgw->free_state(bgw->state);
     }
     sentry__thread_free(&bgw->thread_id);
+    sentry__cond_free(&bgw->submit_signal);
+    sentry__cond_free(&bgw->done_signal);
     sentry__mutex_free(&bgw->task_lock);
     sentry_free(bgw->thread_name);
     sentry_free(bgw);
@@ -708,6 +712,7 @@ static void
 sentry__flush_task_decref(sentry_flush_task_t *task)
 {
     if (sentry__atomic_fetch_and_add(&task->refcount, -1) == 1) {
+        sentry__cond_free(&task->signal);
         sentry__mutex_free(&task->lock);
         sentry_free(task);
     }
