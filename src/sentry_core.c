@@ -1,6 +1,8 @@
 #include "sentry_boot.h"
 
+#include <signal.h>
 #include <stdarg.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include "sentry_app_hang_latch.h"
@@ -927,6 +929,37 @@ sentry_handle_exception(const sentry_ucontext_t *uctx)
             options->backend->except_func(options->backend, uctx);
         }
     }
+}
+
+// Detect Address Sanitizer (works for both GCC and Clang).
+#if defined(__SANITIZE_ADDRESS__)
+#    define SENTRY_ASAN_ACTIVE 1
+#elif defined(__has_feature)
+#    if __has_feature(address_sanitizer)
+#        define SENTRY_ASAN_ACTIVE 1
+#    endif
+#endif
+
+void
+sentry_crash(void)
+{
+#ifdef SENTRY_ASAN_ACTIVE
+    // ASAN intercepts memory writes and would abort before the crash handler
+    // runs, so bypass its memory instrumentation.
+    raise(SIGSEGV);
+#else
+#    ifdef SENTRY_PLATFORM_AIX
+    // AIX maps its null page, so use an address near the top of memory.
+    void *volatile invalid_mem = (void *)0xFFFFFFFFFFFFFF9B;
+#    else
+    void *volatile invalid_mem = (void *)1;
+#    endif
+    memset((char *)invalid_mem, 1, 100);
+#endif
+
+    // A user-installed signal or exception handler could allow execution to
+    // continue. Ensure this API never returns in that case.
+    abort();
 }
 
 sentry_uuid_t
