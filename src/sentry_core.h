@@ -162,6 +162,8 @@ bool sentry__should_send_transaction(
     sentry_value_t tx_ctx, sentry_sampling_context_t *sampling_ctx);
 #endif
 
+// TODO: remove sentry__native_init after console SDKs have been migrated to
+// platform integrations
 #if (defined(SENTRY_PLATFORM_NX) || defined(SENTRY_PLATFORM_PS)                \
     || defined(SENTRY_PLATFORM_XBOX))                                          \
     && !defined(SENTRY_INTEGRATION_PLATFORM)

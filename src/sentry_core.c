@@ -117,6 +117,8 @@ unregister_integrations(sentry_scope_t *scope, const sentry_options_t *options)
     }
 }
 
+// TODO: remove sentry__native_init after console SDKs have been migrated to
+// platform integrations
 #if (defined(SENTRY_PLATFORM_NX) || defined(SENTRY_PLATFORM_PS)                \
     || defined(SENTRY_PLATFORM_XBOX))                                          \
     && !defined(SENTRY_INTEGRATION_PLATFORM)
