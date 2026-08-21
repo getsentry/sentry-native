@@ -130,18 +130,18 @@ sentry_options_new(void)
     opts->http_retry = false;
     opts->send_client_reports = true;
     opts->enable_large_attachments = false;
-#ifdef SENTRY_INTEGRATION_QT
-    sentry__options_add_integration(opts, sentry_integration_qt_new());
-#endif
-#ifdef SENTRY_INTEGRATION_WER
-    sentry__options_add_integration(opts, sentry_integration_wer_new());
-#endif
 #ifdef SENTRY_INTEGRATION_PLATFORM
     if (!sentry__options_add_integration(
             opts, sentry_integration_platform_new())) {
         sentry_options_free(opts);
         return NULL;
     }
+#endif
+#ifdef SENTRY_INTEGRATION_QT
+    sentry__options_add_integration(opts, sentry_integration_qt_new());
+#endif
+#ifdef SENTRY_INTEGRATION_WER
+    sentry__options_add_integration(opts, sentry_integration_wer_new());
 #endif
 
     return opts;
