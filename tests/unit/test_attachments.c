@@ -17,18 +17,18 @@ static void
 add_scope_attachments(sentry_envelope_t *envelope)
 {
     SENTRY_WITH_SCOPE (scope) {
-        sentry__envelope_add_attachments(envelope, scope->attachments, NULL);
+        sentry_value_t attachments = sentry__scope_load_attachments(scope);
+        sentry__envelope_add_attachments(envelope, attachments, NULL);
+        sentry_value_decref(attachments);
     }
 }
 
 static void
-count_backend_attachment(sentry_backend_t *backend, sentry_value_t attachment,
-    const sentry_options_t *options)
+count_backend_attachment(void *data, sentry_value_t attachment)
 {
-    size_t *count = (size_t *)backend->data;
+    size_t *count = (size_t *)data;
     (*count)++;
-    TEST_CHECK(!sentry_value_is_frozen(attachment));
-    TEST_CHECK(!!options);
+    TEST_CHECK(sentry_value_is_frozen(attachment));
 }
 
 SENTRY_TEST(attachment_placeholder)
@@ -147,8 +147,10 @@ SENTRY_TEST(attachments_add_dedupe)
     size_t backend_add_count = 0;
     sentry_backend_t *backend = SENTRY_MAKE(sentry_backend_t);
     TEST_ASSERT(!!backend);
-    backend->data = &backend_add_count;
-    backend->add_attachment_func = count_backend_attachment;
+    backend->scope_observer = sentry__scope_observer_new();
+    TEST_ASSERT(!!backend->scope_observer);
+    backend->scope_observer->data = &backend_add_count;
+    backend->scope_observer->add_attachment = count_backend_attachment;
     sentry_options_set_backend(options, backend);
     sentry_options_add_attachment(options, SENTRY_TEST_PATH_PREFIX ".a.txt");
     sentry_options_add_attachment(options, SENTRY_TEST_PATH_PREFIX ".b.txt");
@@ -388,7 +390,9 @@ SENTRY_TEST(attachment_properties)
     sentry_init(options);
 
     SENTRY_WITH_SCOPE (scope) {
-        TEST_CHECK_INT_EQUAL(sentry_value_get_length(scope->attachments), 0);
+        sentry_value_t attachments = sentry__scope_load_attachments(scope);
+        TEST_CHECK_INT_EQUAL(sentry_value_get_length(attachments), 0);
+        sentry_value_decref(attachments);
     }
 
     TEST_CHECK(sentry_value_is_null(sentry_attachment_from_file(NULL)));

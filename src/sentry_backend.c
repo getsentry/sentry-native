@@ -9,5 +9,6 @@ sentry__backend_free(sentry_backend_t *backend)
     if (backend->free_func) {
         backend->free_func(backend);
     }
+    sentry_free(backend->scope_observer);
     sentry_free(backend);
 }
