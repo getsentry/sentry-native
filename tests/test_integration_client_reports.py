@@ -212,7 +212,6 @@ def test_client_report_before_send_metric(cmake, httpserver):
         "sentry_example",
         [
             "log",
-            "enable-metrics",
             "discarding-before-send-metric",
             "capture-metric",
             "capture-event",

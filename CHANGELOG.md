@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+**Breaking / Important behavior changes**:
+
+- Remove `sentry_options_get/set_enable_logs` and `sentry_options_get/set_enable_metrics`. ([#1980](https://github.com/getsentry/sentry-native/pull/1980))
+  > Structured logs and metrics have been enabled by default since `0.13`.
+  >
+  > We recognize that this change may inconvenience applications that rely on the opt-out. Use `sentry_options_set_before_send_log` or `sentry_options_set_before_send_metric` to filter logs or metrics. We made this tradeoff deliberately because consistent behavior across SDK integrations will help most users successfully adopt these features.
+
+## Unreleased
+
 **Features**:
 
 - Add a public custom HTTP transport client interface (`sentry_http_transport_new`) so applications can plug in their own HTTP client (e.g. platform-native ones) while sentry-native continues to own request queueing, retry/backoff, offline caching, rate-limiting, and client reports. The built-in curl and WinHTTP transports are now implemented against this same interface. ([#1987](https://github.com/getsentry/sentry-native/pull/1987))

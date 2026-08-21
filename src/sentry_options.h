@@ -83,11 +83,9 @@ struct sentry_options_s {
     void *traces_sampler_data;
     char *org_id;
     size_t max_spans;
-    bool enable_logs;
     // takes the first varg as a `sentry_value_t` object containing attributes
     // if no custom attributes are to be passed, use `sentry_value_new_object()`
     bool logs_with_attributes;
-    bool enable_metrics;
     sentry_before_send_metric_function_t before_send_metric_func;
     void *before_send_metric_data;
     bool enable_app_hang_tracking;
