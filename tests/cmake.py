@@ -96,6 +96,7 @@ class CMake:
                     lib_name("sentry"),
                     exe_name("sentry-crash"),
                     exe_name("sentry_early_init"),
+                    exe_name("sentry_test_platform"),
                 ]
                 cmd = [
                     os.environ.get("LLVM_COV", "llvm-cov"),

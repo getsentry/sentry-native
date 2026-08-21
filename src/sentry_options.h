@@ -137,8 +137,10 @@ const char *sentry__options_get_org_id(const sentry_options_t *options);
  *
  * Takes ownership of `integration`. If the integration owns `data`, it must
  * provide `free_func`.
+ *
+ * Returns true if the integration was added.
  */
-void sentry__options_add_integration(
+bool sentry__options_add_integration(
     sentry_options_t *opts, sentry_integration_t *integration);
 
 /**
