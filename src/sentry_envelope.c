@@ -21,6 +21,7 @@ struct sentry_envelope_item_s {
     sentry_value_t event;
     char *payload;
     size_t payload_len;
+    sentry_value_t payload_value;
     sentry_envelope_item_t *next;
 };
 
@@ -62,6 +63,7 @@ envelope_add_item(sentry_envelope_t *envelope)
     item->event = sentry_value_new_null();
     item->payload = NULL;
     item->payload_len = 0;
+    item->payload_value = sentry_value_new_null();
     item->next = NULL;
 
     // Append to linked list
@@ -81,7 +83,10 @@ envelope_item_cleanup(sentry_envelope_item_t *item)
 {
     sentry_value_decref(item->headers);
     sentry_value_decref(item->event);
-    sentry_free(item->payload);
+    if (sentry_value_is_null(item->payload_value)) {
+        sentry_free(item->payload);
+    }
+    sentry_value_decref(item->payload_value);
 }
 
 static void
@@ -191,26 +196,39 @@ sentry__envelope_can_add_client_report(
 }
 
 static sentry_envelope_item_t *
-envelope_add_from_owned_buffer(
-    sentry_envelope_t *envelope, char *buf, size_t buf_len, const char *type)
+envelope_add_from_buffer(sentry_envelope_t *envelope, char *buf, size_t buf_len,
+    const char *type, sentry_value_t payload_value)
 {
     if (!buf) {
+        sentry_value_decref(payload_value);
         return NULL;
     }
     sentry_envelope_item_t *item = envelope_add_item(envelope);
     if (!item) {
-        sentry_free(buf);
+        if (sentry_value_is_null(payload_value)) {
+            sentry_free(buf);
+        }
+        sentry_value_decref(payload_value);
         return NULL;
     }
 
     item->payload = buf;
     item->payload_len = buf_len;
+    item->payload_value = payload_value;
     sentry_value_t length = sentry_value_new_int32((int32_t)buf_len);
     sentry__envelope_item_set_header(
         item, "type", sentry_value_new_string(type));
     sentry__envelope_item_set_header(item, "length", length);
 
     return item;
+}
+
+static sentry_envelope_item_t *
+envelope_add_from_owned_buffer(
+    sentry_envelope_t *envelope, char *buf, size_t buf_len, const char *type)
+{
+    return envelope_add_from_buffer(
+        envelope, buf, buf_len, type, sentry_value_new_null());
 }
 
 void
@@ -723,26 +741,30 @@ sentry__envelope_add_attachment_ref(sentry_envelope_t *envelope,
 
 sentry_envelope_item_t *
 sentry__envelope_add_attachment(
-    sentry_envelope_t *envelope, const sentry_attachment_t *attachment)
+    sentry_envelope_t *envelope, sentry_value_t attachment)
 {
-    if (!envelope || !attachment) {
+    if (!envelope) {
         return NULL;
     }
 
-    size_t bytes_len = 0;
-    const char *bytes = sentry__attachment_get_bytes(attachment, &bytes_len);
     sentry_envelope_item_t *item = NULL;
-    if (bytes) {
-        item = sentry__envelope_add_from_buffer(
-            envelope, bytes, bytes_len, "attachment");
+    sentry_value_t bytes = sentry__attachment_get_bytes_owned(attachment);
+    if (!sentry_value_is_null(bytes)) {
+        item = envelope_add_from_buffer(envelope,
+            (char *)sentry_value_as_string(bytes),
+            sentry_value_get_length(bytes), "attachment", bytes);
     } else {
         sentry_path_t *path = sentry__attachment_make_path(attachment);
+        if (!path) {
+            return NULL;
+        }
         item = sentry__envelope_add_from_path(envelope, path, "attachment");
         sentry__path_free(path);
     }
     if (!item) {
         return NULL;
     }
+
     const char *type = sentry__attachment_get_type(attachment);
     if (type && *type) {
         sentry__envelope_item_set_header(
@@ -761,15 +783,17 @@ sentry__envelope_add_attachment(
 
 void
 sentry__envelope_add_attachments(sentry_envelope_t *envelope,
-    const sentry_attachment_t *attachments, const sentry_options_t *options)
+    sentry_value_t attachments, const sentry_options_t *options)
 {
-    if (!envelope || !attachments) {
+    if (!envelope
+        || sentry_value_get_type(attachments) != SENTRY_VALUE_TYPE_LIST) {
         return;
     }
 
     SENTRY_DEBUG("adding attachments to envelope");
-    for (const sentry_attachment_t *attachment = attachments; attachment;
-        attachment = attachment->next) {
+    size_t len = sentry_value_get_length(attachments);
+    for (size_t i = 0; i < len; i++) {
+        sentry_value_t attachment = sentry_value_get_by_index(attachments, i);
         if (sentry__attachment_is_placeholder(attachment, options)) {
             continue;
         }

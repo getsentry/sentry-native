@@ -87,7 +87,7 @@ init_scope(sentry_scope_t *scope)
     scope->level = SENTRY_LEVEL_ERROR;
     scope->last_event_id = sentry_uuid_nil();
     scope->client_sdk = sentry_value_new_null();
-    scope->attachments = NULL;
+    scope->attachments = sentry__attachments_new();
     scope->transaction_object = NULL;
     scope->span = NULL;
     scope->trace_managed = true;
@@ -132,7 +132,7 @@ cleanup_scope(sentry_scope_t *scope)
     sentry__ringbuffer_free(scope->breadcrumbs);
     sentry_value_decref(scope->dynamic_sampling_context);
     sentry_value_decref(scope->client_sdk);
-    sentry__attachments_free(scope->attachments);
+    sentry_value_decref(scope->attachments);
     sentry__transaction_decref(scope->transaction_object);
     sentry__span_decref(scope->span);
     for (size_t i = 0; i < scope->num_observers; i++) {
@@ -418,6 +418,7 @@ sentry_scope_clone(const sentry_scope_t *scope)
     clone->level = scope->level;
     clone->last_event_id = scope->last_event_id;
     clone->client_sdk = sentry__value_clone(scope->client_sdk);
+    clone->attachments = sentry__attachments_new();
     sentry__attachments_extend(&clone->attachments, scope->attachments);
 
     clone->transaction_object = scope->transaction_object;
@@ -1017,38 +1018,49 @@ sentry_scope_set_span(sentry_scope_t *scope, sentry_span_t *span)
     scope->span = span;
 }
 
-sentry_attachment_t *
-sentry__scope_add_attachment(
-    sentry_scope_t *scope, sentry_attachment_t *attachment)
+sentry_value_t
+sentry__scope_add_attachment(sentry_scope_t *scope, sentry_value_t attachment)
 {
-    if (!attachment) {
-        return NULL;
-    }
-
-    sentry_attachment_t *added
+    size_t len = sentry_value_get_length(scope->attachments);
+    sentry_value_t added
         = sentry__attachments_add(&scope->attachments, attachment);
-    if (added == attachment) {
-        SENTRY_SCOPE_NOTIFY(scope, add_attachment, attachment);
+    if (!sentry_value_is_null(added)
+        && sentry_value_get_length(scope->attachments) > len) {
+        SENTRY_SCOPE_NOTIFY(scope, add_attachment, added);
     }
     return added;
 }
 
-sentry_attachment_t *
+sentry_uuid_t
+sentry_scope_add_attachment(sentry_scope_t *scope, sentry_value_t attachment)
+{
+    if (!scope) {
+        sentry_value_decref(attachment);
+        return sentry_uuid_nil();
+    }
+
+    sentry_value_t added = sentry__scope_add_attachment(scope, attachment);
+    sentry_uuid_t attachment_id = sentry__attachment_get_id(added);
+    sentry_value_decref(added);
+    return attachment_id;
+}
+
+sentry_uuid_t
 sentry_scope_attach_file(sentry_scope_t *scope, const char *path)
 {
     return sentry_scope_attach_file_n(
         scope, path, sentry__guarded_strlen(path));
 }
 
-sentry_attachment_t *
+sentry_uuid_t
 sentry_scope_attach_file_n(
     sentry_scope_t *scope, const char *path, size_t path_len)
 {
-    return sentry__scope_add_attachment(scope,
-        sentry__attachment_from_path(sentry__path_from_str_n(path, path_len)));
+    return sentry_scope_add_attachment(
+        scope, sentry_attachment_from_file_n(path, path_len));
 }
 
-sentry_attachment_t *
+sentry_uuid_t
 sentry_scope_attach_bytes(sentry_scope_t *scope, const char *buf,
     size_t buf_len, const char *filename)
 {
@@ -1056,32 +1068,31 @@ sentry_scope_attach_bytes(sentry_scope_t *scope, const char *buf,
         scope, buf, buf_len, filename, sentry__guarded_strlen(filename));
 }
 
-sentry_attachment_t *
+sentry_uuid_t
 sentry_scope_attach_bytes_n(sentry_scope_t *scope, const char *buf,
     size_t buf_len, const char *filename, size_t filename_len)
 {
-    return sentry__scope_add_attachment(scope,
-        sentry__attachment_from_buffer(
-            buf, buf_len, sentry__path_from_str_n(filename, filename_len)));
+    return sentry_scope_add_attachment(scope,
+        sentry_attachment_from_bytes_n(buf, buf_len, filename, filename_len));
 }
 
 #ifdef SENTRY_PLATFORM_WINDOWS
-sentry_attachment_t *
+sentry_uuid_t
 sentry_scope_attach_filew(sentry_scope_t *scope, const wchar_t *path)
 {
     size_t path_len = path ? wcslen(path) : 0;
     return sentry_scope_attach_filew_n(scope, path, path_len);
 }
 
-sentry_attachment_t *
+sentry_uuid_t
 sentry_scope_attach_filew_n(
     sentry_scope_t *scope, const wchar_t *path, size_t path_len)
 {
-    return sentry__scope_add_attachment(scope,
-        sentry__attachment_from_path(sentry__path_from_wstr_n(path, path_len)));
+    return sentry_scope_add_attachment(
+        scope, sentry_attachment_from_filew_n(path, path_len));
 }
 
-sentry_attachment_t *
+sentry_uuid_t
 sentry_scope_attach_bytesw(sentry_scope_t *scope, const char *buf,
     size_t buf_len, const wchar_t *filename)
 {
@@ -1090,13 +1101,12 @@ sentry_scope_attach_bytesw(sentry_scope_t *scope, const char *buf,
         scope, buf, buf_len, filename, filename_len);
 }
 
-sentry_attachment_t *
+sentry_uuid_t
 sentry_scope_attach_bytesw_n(sentry_scope_t *scope, const char *buf,
     size_t buf_len, const wchar_t *filename, size_t filename_len)
 {
-    return sentry__scope_add_attachment(scope,
-        sentry__attachment_from_buffer(
-            buf, buf_len, sentry__path_from_wstr_n(filename, filename_len)));
+    return sentry_scope_add_attachment(scope,
+        sentry_attachment_from_bytesw_n(buf, buf_len, filename, filename_len));
 }
 #endif
 

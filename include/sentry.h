@@ -3249,12 +3249,40 @@ SENTRY_EXPERIMENTAL_API void sentry_options_set_handler_strategy(
 #endif // SENTRY_PLATFORM_LINUX
 
 /**
- * A sentry Attachment.
+ * Creates an attachment value from a file.
+ *
+ * The path is copied and the filename is derived from it.
+ *
+ * Returns an owned attachment value, or a null value on error.
  *
  * See https://develop.sentry.dev/sdk/data-model/envelope-items/#attachment
  */
-struct sentry_attachment_s;
-typedef struct sentry_attachment_s sentry_attachment_t;
+SENTRY_API sentry_value_t sentry_attachment_from_file(const char *path);
+SENTRY_API sentry_value_t sentry_attachment_from_file_n(
+    const char *path, size_t path_len);
+#ifdef SENTRY_PLATFORM_WINDOWS
+SENTRY_API sentry_value_t sentry_attachment_from_filew(const wchar_t *path);
+SENTRY_API sentry_value_t sentry_attachment_from_filew_n(
+    const wchar_t *path, size_t path_len);
+#endif
+
+/**
+ * Creates an attachment value from bytes.
+ *
+ * The bytes and filename are copied.
+ *
+ * Returns an owned attachment value, or a null value on error.
+ */
+SENTRY_API sentry_value_t sentry_attachment_from_bytes(
+    const char *buf, size_t buf_len, const char *filename);
+SENTRY_API sentry_value_t sentry_attachment_from_bytes_n(
+    const char *buf, size_t buf_len, const char *filename, size_t filename_len);
+#ifdef SENTRY_PLATFORM_WINDOWS
+SENTRY_API sentry_value_t sentry_attachment_from_bytesw(
+    const char *buf, size_t buf_len, const wchar_t *filename);
+SENTRY_API sentry_value_t sentry_attachment_from_bytesw_n(const char *buf,
+    size_t buf_len, const wchar_t *filename, size_t filename_len);
+#endif
 
 /**
  * Attaches a file to be sent along with events.
@@ -3267,18 +3295,16 @@ typedef struct sentry_attachment_s sentry_attachment_t;
  * Calling this function multiple times with the same `path` is safe, but
  * duplicate attachments with equal paths will not be added.
  *
- * The returned `sentry_attachment_t` is owned by the SDK and will remain valid
- * until the attachment is removed with `sentry_remove_attachment` or
- * `sentry_close` is called.
+ * Returns the attachment UUID, or a nil UUID on error.
  *
  * See the NOTE on attachments above for restrictions of this API.
  */
-SENTRY_API sentry_attachment_t *sentry_attach_file(const char *path);
-SENTRY_API sentry_attachment_t *sentry_attach_file_n(
+SENTRY_API sentry_uuid_t sentry_attach_file(const char *path);
+SENTRY_API sentry_uuid_t sentry_attach_file_n(
     const char *path, size_t path_len);
-SENTRY_API sentry_attachment_t *sentry_scope_attach_file(
+SENTRY_API sentry_uuid_t sentry_scope_attach_file(
     sentry_scope_t *scope, const char *path);
-SENTRY_API sentry_attachment_t *sentry_scope_attach_file_n(
+SENTRY_API sentry_uuid_t sentry_scope_attach_file_n(
     sentry_scope_t *scope, const char *path, size_t path_len);
 
 /**
@@ -3299,21 +3325,18 @@ SENTRY_API sentry_attachment_t *sentry_scope_attach_file_n(
  * by appending a unique suffix to the filename. Therefore, attachments may show
  * up with altered names in the Sentry Web UI.
  *
- * The returned `sentry_attachment_t` is owned by the SDK and will remain valid
- * until the attachment is removed with `sentry_remove_attachment` or
- * `sentry_close` is called.
+ * Returns the attachment UUID, or a nil UUID on error.
  *
  * See the NOTE on attachments above for restrictions of this API.
  */
-SENTRY_API sentry_attachment_t *sentry_attach_bytes(
+SENTRY_API sentry_uuid_t sentry_attach_bytes(
     const char *buf, size_t buf_len, const char *filename);
-SENTRY_API sentry_attachment_t *sentry_attach_bytes_n(
+SENTRY_API sentry_uuid_t sentry_attach_bytes_n(
     const char *buf, size_t buf_len, const char *filename, size_t filename_len);
-SENTRY_API sentry_attachment_t *sentry_scope_attach_bytes(sentry_scope_t *scope,
+SENTRY_API sentry_uuid_t sentry_scope_attach_bytes(sentry_scope_t *scope,
     const char *buf, size_t buf_len, const char *filename);
-SENTRY_API sentry_attachment_t *sentry_scope_attach_bytes_n(
-    sentry_scope_t *scope, const char *buf, size_t buf_len,
-    const char *filename, size_t filename_len);
+SENTRY_API sentry_uuid_t sentry_scope_attach_bytes_n(sentry_scope_t *scope,
+    const char *buf, size_t buf_len, const char *filename, size_t filename_len);
 
 /**
  * Removes and frees all previously added attachments.
@@ -3325,33 +3348,32 @@ SENTRY_API void sentry_clear_attachments(void);
  *
  * See the NOTE on attachments above for restrictions of this API.
  */
-SENTRY_API void sentry_remove_attachment(sentry_attachment_t *attachment);
+SENTRY_API void sentry_remove_attachment(sentry_uuid_t attachment_id);
 
 #ifdef SENTRY_PLATFORM_WINDOWS
 /**
  * Wide char versions of `sentry_attach_file` and `sentry_scope_attach_file`.
  */
-SENTRY_API sentry_attachment_t *sentry_attach_filew(const wchar_t *path);
-SENTRY_API sentry_attachment_t *sentry_attach_filew_n(
+SENTRY_API sentry_uuid_t sentry_attach_filew(const wchar_t *path);
+SENTRY_API sentry_uuid_t sentry_attach_filew_n(
     const wchar_t *path, size_t path_len);
-SENTRY_API sentry_attachment_t *sentry_scope_attach_filew(
+SENTRY_API sentry_uuid_t sentry_scope_attach_filew(
     sentry_scope_t *scope, const wchar_t *path);
-SENTRY_API sentry_attachment_t *sentry_scope_attach_filew_n(
+SENTRY_API sentry_uuid_t sentry_scope_attach_filew_n(
     sentry_scope_t *scope, const wchar_t *path, size_t path_len);
 
 /**
  * Wide char versions of `sentry_attach_bytes` and `sentry_scope_attach_bytes`.
  */
-SENTRY_API sentry_attachment_t *sentry_attach_bytesw(
+SENTRY_API sentry_uuid_t sentry_attach_bytesw(
     const char *buf, size_t buf_len, const wchar_t *filename);
-SENTRY_API sentry_attachment_t *sentry_attach_bytesw_n(const char *buf,
-    size_t buf_len, const wchar_t *filename, size_t filename_len);
-SENTRY_API sentry_attachment_t *sentry_scope_attach_bytesw(
-    sentry_scope_t *scope, const char *buf, size_t buf_len,
-    const wchar_t *filename);
-SENTRY_API sentry_attachment_t *sentry_scope_attach_bytesw_n(
-    sentry_scope_t *scope, const char *buf, size_t buf_len,
+SENTRY_API sentry_uuid_t sentry_attach_bytesw_n(const char *buf, size_t buf_len,
     const wchar_t *filename, size_t filename_len);
+SENTRY_API sentry_uuid_t sentry_scope_attach_bytesw(sentry_scope_t *scope,
+    const char *buf, size_t buf_len, const wchar_t *filename);
+SENTRY_API sentry_uuid_t sentry_scope_attach_bytesw_n(sentry_scope_t *scope,
+    const char *buf, size_t buf_len, const wchar_t *filename,
+    size_t filename_len);
 #endif
 
 #define SENTRY_ATTACHMENT_TYPE_GENERIC "event.attachment"
@@ -3370,37 +3392,45 @@ SENTRY_API sentry_attachment_t *sentry_scope_attach_bytesw_n(
  * https://develop.sentry.dev/sdk/telemetry/attachments/#attachment-types
  */
 SENTRY_API void sentry_attachment_set_type(
-    sentry_attachment_t *attachment, const char *type);
+    sentry_value_t attachment, const char *type);
 SENTRY_API void sentry_attachment_set_type_n(
-    sentry_attachment_t *attachment, const char *type, size_t type_len);
+    sentry_value_t attachment, const char *type, size_t type_len);
 
 /**
  * Sets the content type of attachment.
  */
 SENTRY_API void sentry_attachment_set_content_type(
-    sentry_attachment_t *attachment, const char *content_type);
-SENTRY_API void sentry_attachment_set_content_type_n(
-    sentry_attachment_t *attachment, const char *content_type,
-    size_t content_type_len);
+    sentry_value_t attachment, const char *content_type);
+SENTRY_API void sentry_attachment_set_content_type_n(sentry_value_t attachment,
+    const char *content_type, size_t content_type_len);
 
 /**
  * Sets the filename of an attachment.
  */
 SENTRY_API void sentry_attachment_set_filename(
-    sentry_attachment_t *attachment, const char *filename);
+    sentry_value_t attachment, const char *filename);
 SENTRY_API void sentry_attachment_set_filename_n(
-    sentry_attachment_t *attachment, const char *filename, size_t filename_len);
+    sentry_value_t attachment, const char *filename, size_t filename_len);
 
 #ifdef SENTRY_PLATFORM_WINDOWS
 /**
  * Wide char version of `sentry_attachment_set_filename`.
  */
 SENTRY_API void sentry_attachment_set_filenamew(
-    sentry_attachment_t *attachment, const wchar_t *filename);
+    sentry_value_t attachment, const wchar_t *filename);
 SENTRY_API void sentry_attachment_set_filenamew_n(
-    sentry_attachment_t *attachment, const wchar_t *filename,
-    size_t filename_len);
+    sentry_value_t attachment, const wchar_t *filename, size_t filename_len);
 #endif
+
+/**
+ * Adds a configured attachment.
+ *
+ * Consumes `attachment` and returns its UUID, or a nil UUID on error. If an
+ * equivalent file attachment already exists, returns the existing UUID.
+ */
+SENTRY_API sentry_uuid_t sentry_add_attachment(sentry_value_t attachment);
+SENTRY_API sentry_uuid_t sentry_scope_add_attachment(
+    sentry_scope_t *scope, sentry_value_t attachment);
 
 /* -- Session APIs -- */
 
@@ -3987,42 +4017,50 @@ typedef struct sentry_hint_s sentry_hint_t;
 SENTRY_API sentry_hint_t *sentry_hint_new(void);
 
 /**
+ * Adds a configured attachment to a hint.
+ *
+ * Consumes `attachment` and returns its UUID, or a nil UUID on error.
+ */
+SENTRY_API sentry_uuid_t sentry_hint_add_attachment(
+    sentry_hint_t *hint, sentry_value_t attachment);
+
+/**
  * Attaches a file to a hint.
  *
  * The file will be read and sent when the event is captured.
- * Returns a pointer to the attachment, or NULL on error.
+ * Returns the attachment UUID, or a nil UUID on error.
  */
-SENTRY_API sentry_attachment_t *sentry_hint_attach_file(
+SENTRY_API sentry_uuid_t sentry_hint_attach_file(
     sentry_hint_t *hint, const char *path);
-SENTRY_API sentry_attachment_t *sentry_hint_attach_file_n(
+SENTRY_API sentry_uuid_t sentry_hint_attach_file_n(
     sentry_hint_t *hint, const char *path, size_t path_len);
 
 /**
  * Attaches bytes to a hint.
  *
  * The data is copied internally and will be sent when the event is captured.
- * Returns a pointer to the attachment, or NULL on error.
+ * Returns the attachment UUID, or a nil UUID on error.
  */
-SENTRY_API sentry_attachment_t *sentry_hint_attach_bytes(
+SENTRY_API sentry_uuid_t sentry_hint_attach_bytes(
     sentry_hint_t *hint, const char *buf, size_t buf_len, const char *filename);
-SENTRY_API sentry_attachment_t *sentry_hint_attach_bytes_n(sentry_hint_t *hint,
+SENTRY_API sentry_uuid_t sentry_hint_attach_bytes_n(sentry_hint_t *hint,
     const char *buf, size_t buf_len, const char *filename, size_t filename_len);
 
 #ifdef SENTRY_PLATFORM_WINDOWS
 /**
  * Wide char version of `sentry_hint_attach_file`.
  */
-SENTRY_API sentry_attachment_t *sentry_hint_attach_filew(
+SENTRY_API sentry_uuid_t sentry_hint_attach_filew(
     sentry_hint_t *hint, const wchar_t *path);
-SENTRY_API sentry_attachment_t *sentry_hint_attach_filew_n(
+SENTRY_API sentry_uuid_t sentry_hint_attach_filew_n(
     sentry_hint_t *hint, const wchar_t *path, size_t path_len);
 
 /**
  * Wide char version of `sentry_hint_attach_bytes`.
  */
-SENTRY_API sentry_attachment_t *sentry_hint_attach_bytesw(sentry_hint_t *hint,
+SENTRY_API sentry_uuid_t sentry_hint_attach_bytesw(sentry_hint_t *hint,
     const char *buf, size_t buf_len, const wchar_t *filename);
-SENTRY_API sentry_attachment_t *sentry_hint_attach_bytesw_n(sentry_hint_t *hint,
+SENTRY_API sentry_uuid_t sentry_hint_attach_bytesw_n(sentry_hint_t *hint,
     const char *buf, size_t buf_len, const wchar_t *filename,
     size_t filename_len);
 #endif

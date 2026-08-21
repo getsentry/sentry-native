@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+**Breaking / Important behavior changes**:
+
+- Attachment APIs now use `sentry_value_t` and `sentry_uuid_t` instead of `sentry_attachment_t *`. Attachment metadata must be configured before the attachment is added. ([#1974](https://github.com/getsentry/sentry-native/pull/1974))
+
+## Unreleased
+
 **Features**:
 
 - Add a public custom HTTP transport client interface (`sentry_http_transport_new`) so applications can plug in their own HTTP client (e.g. platform-native ones) while sentry-native continues to own request queueing, retry/backoff, offline caching, rate-limiting, and client reports. The built-in curl and WinHTTP transports are now implemented against this same interface. ([#1987](https://github.com/getsentry/sentry-native/pull/1987))
