@@ -363,11 +363,9 @@ def test_native_attachment_manifest_is_current(cmake, httpserver):
 def test_native_byte_attachment_is_confined(cmake, unreachable_dsn):
     tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "native"})
 
-    exe = tmp_path / (
-        "sentry_example.exe" if sys.platform == "win32" else "sentry_example"
-    )
+    cmd = run_command(str(tmp_path / "sentry_example"))
     child = subprocess.Popen(
-        [str(exe), "log", "attachment", "sleep"],
+        [*cmd, "log", "attachment", "sleep"],
         cwd=tmp_path,
         env=dict(os.environ, SENTRY_DSN=unreachable_dsn),
     )
