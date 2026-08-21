@@ -22,6 +22,7 @@
 - Improve log and metric delivery when telemetry is captured faster than envelopes can be serialized by offloading serialization to an internal thread pool. ([#1946](https://github.com/getsentry/sentry-native/pull/1946))
 - Wine: fix OS version detection and cross-compiling Windows builds from Linux. ([#2001](https://github.com/getsentry/sentry-native/pull/2001))
 - Destroy condition variables as approriate when no longer needed. ([#2004](https://github.com/getsentry/sentry-native/pull/2004))
+- CMake: `pkg-config` is no longer a hard build requirement. `SENTRY_LIBUNWIND_SYSTEM` and `SENTRY_BREAKPAD_SYSTEM` still prefer the `pkg-config` metadata of the system package, but now fall back to `find_library()`/`find_path()` when the tool or the `.pc` file is missing. The same applies to the exported CMake config, which no longer requires consumers of a static build to have `pkg-config` installed.
 - Crashpad/Windows: preserve module CodeView UUIDs for minimal PDB70 records with empty PDB filenames. ([#2003](https://github.com/getsentry/sentry-native/pull/2003))
 
 ## 0.16.3
