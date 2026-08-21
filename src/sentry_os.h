@@ -54,11 +54,6 @@ int sentry__get_kernel_version(windows_version_t *win_ver);
 int sentry__get_windows_version(windows_version_t *win_ver);
 
 #    if !defined(SENTRY_PLATFORM_XBOX)
-typedef const char *(CDECL *sentry__wine_get_version_t)(void);
-
-sentry_value_t sentry__make_wine_context(
-    sentry__wine_get_version_t wine_get_version, const char *proton_version,
-    bool is_proton);
 sentry_value_t sentry__get_wine_context(void);
 #    endif
 

@@ -307,8 +307,10 @@ string_starts_with(const char *value, const char *prefix)
     return value_len >= prefix_len && memcmp(value, prefix, prefix_len) == 0;
 }
 
-sentry_value_t
-sentry__make_wine_context(sentry__wine_get_version_t wine_get_version,
+typedef const char *(CDECL *sentry__wine_get_version_t)(void);
+
+static sentry_value_t
+make_wine_context(sentry__wine_get_version_t wine_get_version,
     const char *proton_version, bool is_proton)
 {
     if (!wine_get_version) {
@@ -370,8 +372,8 @@ sentry__get_wine_context(void)
         = (sentry__wine_get_version_t)GetProcAddress(ntdll, "wine_get_version");
     bool is_proton = false;
     char *proton_version = get_proton_version(&is_proton);
-    sentry_value_t context = sentry__make_wine_context(
-        wine_get_version, proton_version, is_proton);
+    sentry_value_t context
+        = make_wine_context(wine_get_version, proton_version, is_proton);
     sentry_free(proton_version);
     return context;
 }
