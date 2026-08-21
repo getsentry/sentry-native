@@ -2521,6 +2521,17 @@ SENTRY_EXPERIMENTAL_API void sentry_handle_exception(
     const sentry_ucontext_t *uctx);
 
 /**
+ * Deliberately crashes the current process.
+ *
+ * This is intended for testing that crash reporting is correctly configured.
+ * To capture the crash, call this only after `sentry_init` returns
+ * successfully.
+ *
+ * This function does not return and must not be used in production.
+ */
+SENTRY_EXPERIMENTAL_API void sentry_crash(void);
+
+/**
  * Type of the `before_breadcrumb` callback.
  *
  * The callback takes ownership of the `breadcrumb` and should usually return
