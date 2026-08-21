@@ -1,6 +1,7 @@
 #include "sentry_database.h"
 #include "sentry_alloc.h"
 #include "sentry_attachment.h"
+#include "sentry_backend.h"
 #include "sentry_client_report.h"
 #include "sentry_envelope.h"
 #include "sentry_json.h"
@@ -618,6 +619,46 @@ sentry__run_clear_session(const sentry_run_t *run)
     return !rv;
 }
 
+static sentry_path_t *
+run_crash_marker_path(
+    const sentry_path_t *run_path, const sentry_uuid_t *event_id)
+{
+    if (!run_path || !event_id || sentry_uuid_is_nil(event_id)) {
+        return NULL;
+    }
+    char *filename = sentry__uuid_as_filename(event_id, ".crash");
+    if (!filename) {
+        return NULL;
+    }
+    sentry_path_t *path = sentry__path_join_str(run_path, filename);
+    sentry_free(filename);
+    return path;
+}
+
+bool
+sentry__run_write_crash_marker(
+    const sentry_run_t *run, const sentry_uuid_t *event_id)
+{
+    if (!run || !event_id || sentry_uuid_is_nil(event_id)) {
+        return false;
+    }
+
+    char *filename = sentry__uuid_as_filename(event_id, ".envelope");
+    sentry_path_t *envelope_path
+        = filename ? sentry__path_join_str(run->run_path, filename) : NULL;
+    sentry_free(filename);
+    if (!envelope_path || !sentry__path_is_file(envelope_path)) {
+        sentry__path_free(envelope_path);
+        return false;
+    }
+    sentry__path_free(envelope_path);
+
+    sentry_path_t *marker_path = run_crash_marker_path(run->run_path, event_id);
+    int rv = marker_path ? sentry__path_touch(marker_path) : 1;
+    sentry__path_free(marker_path);
+    return rv == 0;
+}
+
 void
 sentry__process_run_envelopes(
     const sentry_options_t *options, const sentry_path_t *run_path)
@@ -626,11 +667,24 @@ sentry__process_run_envelopes(
     const sentry_path_t *file;
     while (it && (file = sentry__pathiter_next(it)) != NULL) {
         if (!sentry__path_is_file(file) || sentry__path_is_symlink(file)
-            || !sentry__path_ends_with(file, ".envelope")) {
+            || !sentry__path_ends_with(file, ".envelope")
+            || sentry__path_filename_matches(file, "__sentry-crash.envelope")) {
             continue;
         }
         sentry_envelope_t *envelope = sentry__envelope_from_path(file);
         if (envelope) {
+            sentry_uuid_t event_id = sentry__envelope_get_event_id(envelope);
+            sentry_path_t *marker = run_crash_marker_path(run_path, &event_id);
+            // remove before invoking to prevent repeated callbacks
+            if (marker && sentry__path_is_file(marker)
+                && sentry__path_remove(marker) == 0) {
+                if (options->on_crashed_last_run_func
+                    && sentry__envelope_materialize(envelope)) {
+                    options->on_crashed_last_run_func(
+                        envelope, options->on_crashed_last_run_data);
+                }
+            }
+            sentry__path_free(marker);
             sentry__capture_envelope(options->transport, envelope, options);
         }
         sentry__path_remove(file);
@@ -716,12 +770,20 @@ sentry__process_old_runs(const sentry_options_t *options, uint64_t last_crash)
             sentry__path_free(daemon_lockfile);
         }
 
+        bool processed = true;
+        if (options->backend && options->backend->process_old_run_func) {
+            processed = options->backend->process_old_run_func(
+                options->backend, options, run_dir);
+        }
         sentry__process_run_envelopes(options, run_dir);
 
         sentry_pathiter_t *run_iter = sentry__path_iter_directory(run_dir);
         const sentry_path_t *file;
         while (run_iter && (file = sentry__pathiter_next(run_iter)) != NULL) {
-            if (sentry__path_filename_matches(file, "session.json")) {
+            if (sentry__path_ends_with(file, ".crash")) {
+                // handled by sentry__process_run_envelopes above
+                continue;
+            } else if (sentry__path_filename_matches(file, "session.json")) {
                 if (!session_envelope) {
                     session_envelope = sentry__envelope_new();
                 }
@@ -759,13 +821,16 @@ sentry__process_old_runs(const sentry_options_t *options, uint64_t last_crash)
                         session_num = 0;
                     }
                 }
+                sentry__path_remove(file);
+            } else if (processed) {
+                sentry__path_remove(file);
             }
-
-            sentry__path_remove(file);
         }
         sentry__pathiter_free(run_iter);
 
-        sentry__path_remove_all(run_dir);
+        if (processed) {
+            sentry__path_remove_all(run_dir);
+        }
         if (daemon_lock) {
             sentry__filelock_free(daemon_lock);
         }

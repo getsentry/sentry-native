@@ -140,6 +140,7 @@ breakpad_backend_callback(const google_breakpad::MinidumpDescriptor &descriptor,
 
         sentry_value_t transaction
             = sentry__trace_finish(SENTRY_SPAN_STATUS_ABORTED);
+        sentry_uuid_t event_id = sentry_uuid_nil();
 
         bool should_handle = true;
 
@@ -183,6 +184,9 @@ breakpad_backend_callback(const google_breakpad::MinidumpDescriptor &descriptor,
 
             sentry_envelope_t *envelope = sentry__prepare_event(
                 options, event, nullptr, !options->on_crash_func, nullptr);
+            if (envelope) {
+                event_id = sentry__envelope_get_event_id(envelope);
+            }
             sentry_session_t *session = sentry__end_current_session_with_status(
                 SENTRY_SESSION_STATUS_CRASHED);
             sentry__envelope_add_session(envelope, session);
@@ -273,6 +277,10 @@ breakpad_backend_callback(const google_breakpad::MinidumpDescriptor &descriptor,
         // after capturing the crash event, try to dump all the in-flight
         // data of the previous transports
         sentry__transport_dump_queue(options->transport, options->run);
+        if (!sentry_uuid_is_nil(&event_id)
+            && !sentry__run_write_crash_marker(options->run, &event_id)) {
+            SENTRY_SIGNAL_SAFE_LOG("WARN writing run crash marker failed");
+        }
         // and restore the old transport
     }
     SENTRY_SIGNAL_SAFE_LOG("INFO crash has been captured");

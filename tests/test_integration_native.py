@@ -75,6 +75,67 @@ def test_native_capture_crash(cmake, httpserver):
     assert_native_crash(envelope)
 
 
+def test_native_on_crashed_last_run(cmake, httpserver):
+    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "native"})
+    httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data("OK")
+    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
+    args = ["log", "on-crashed-last-run"]
+
+    with httpserver.wait(timeout=10) as waiting:
+        run_crash(
+            tmp_path,
+            "sentry_example",
+            [*args, "crash"],
+            env=env,
+            wait_for_daemon=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+    assert waiting.result
+    assert len(httpserver.log) == 1
+
+    crash_envelope = Envelope.deserialize(httpserver.log[0][0].get_data())
+    assert_native_crash(crash_envelope)
+    event_id = crash_envelope.headers["event_id"]
+
+    db_dir = tmp_path / ".sentry-native"
+    run_dirs = list(db_dir.glob("*.run"))
+    assert len(run_dirs) == 1
+    assert {path.name for path in run_dirs[0].glob("*.envelope")} == {
+        "__sentry-crash.envelope"
+    }
+    assert not list(run_dirs[0].glob("*.crash"))
+
+    restarted = run(
+        tmp_path,
+        "sentry_example",
+        [*args, "no-setup"],
+        env=env,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    callbacks = [
+        line
+        for line in restarted.stdout.splitlines()
+        if line.startswith(b"CRASHED_LAST_RUN:")
+    ]
+    assert callbacks == [f"CRASHED_LAST_RUN:{event_id}".encode()]
+    assert len(httpserver.log) == 1
+    assert not list(db_dir.glob("*.run"))
+    assert not list(db_dir.glob("*.run*.lock"))
+
+    restarted_again = run(
+        tmp_path,
+        "sentry_example",
+        [*args, "no-setup"],
+        env=env,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    assert b"CRASHED_LAST_RUN:" not in restarted_again.stdout
+    assert len(httpserver.log) == 1
+
+
 @pytest.mark.skipif(
     sys.platform != "win32" or bool(os.environ.get("TEST_MINGW")),
     reason="WER crash tests are only available in MSVC Windows builds",

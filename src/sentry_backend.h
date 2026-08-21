@@ -3,6 +3,7 @@
 
 #include "sentry_boot.h"
 
+#include "sentry_path.h"
 #include "sentry_scope.h"
 
 /**
@@ -24,6 +25,9 @@ struct sentry_backend_s {
         const sentry_options_t *options);
     void (*user_consent_changed_func)(sentry_backend_t *);
     uint64_t (*get_last_crash_func)(sentry_backend_t *);
+    // called with the run file lock held; false retains the run
+    bool (*process_old_run_func)(sentry_backend_t *,
+        const sentry_options_t *options, const sentry_path_t *run_path);
     void (*prune_database_func)(sentry_backend_t *);
     void (*add_attachment_func)(sentry_backend_t *, sentry_attachment_t *);
     void (*remove_attachment_func)(sentry_backend_t *, sentry_attachment_t *);

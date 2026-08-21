@@ -232,6 +232,14 @@ sentry_options_set_on_crash(
 }
 
 void
+sentry_options_set_on_crashed_last_run(sentry_options_t *opts,
+    sentry_crashed_last_run_function_t func, void *user_data)
+{
+    opts->on_crashed_last_run_func = func;
+    opts->on_crashed_last_run_data = user_data;
+}
+
+void
 sentry_options_set_before_transaction(
     sentry_options_t *opts, sentry_transaction_function_t func, void *user_data)
 {

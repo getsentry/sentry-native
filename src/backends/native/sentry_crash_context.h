@@ -299,6 +299,7 @@ typedef struct {
                                       // ms
     int cache_keep; // sentry_cache_keep_t
     bool require_user_consent;
+    bool has_on_crashed_last_run;
     bool enable_large_attachments;
     bool http_retry;
     uint64_t shutdown_timeout;

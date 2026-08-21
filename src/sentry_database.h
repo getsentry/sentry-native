@@ -175,6 +175,13 @@ void sentry__process_run_envelopes(
     const sentry_options_t *options, const sentry_path_t *run_path);
 
 /**
+ * Writes `<event-uuid>.crash` into `run` after verifying that the matching
+ * `<event-uuid>.envelope` exists.
+ */
+bool sentry__run_write_crash_marker(
+    const sentry_run_t *run, const sentry_uuid_t *event_id);
+
+/**
  * Parses a cache filename in either form:
  *   - `<uuid>.envelope` sets `*ts_out = 0`, `*count_out = -1`.
  *   - `<ts>-<count>-<uuid>.envelope` is retry form, count >= 0.

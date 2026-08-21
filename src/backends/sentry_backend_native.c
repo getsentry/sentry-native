@@ -182,6 +182,41 @@ typedef struct {
     volatile long crashed;
 } native_backend_state_t;
 
+static bool
+native_backend_process_old_run(sentry_backend_t *backend,
+    const sentry_options_t *options, const sentry_path_t *run_path)
+{
+    (void)backend;
+
+    sentry_pathiter_t *it = sentry__path_iter_directory(run_path);
+    const sentry_path_t *file;
+    while (it && (file = sentry__pathiter_next(it)) != NULL) {
+        if (!sentry__path_is_file(file) || sentry__path_is_symlink(file)
+            || !sentry__path_filename_matches(
+                file, "__sentry-crash.envelope")) {
+            continue;
+        }
+
+        sentry_envelope_t *envelope = options->on_crashed_last_run_func
+            ? sentry__envelope_from_path(file)
+            : NULL;
+        bool materialized = envelope && sentry__envelope_materialize(envelope);
+        // remove before invoking to prevent repeated callbacks
+        if (sentry__path_remove(file) != 0) {
+            sentry_envelope_free(envelope);
+            sentry__pathiter_free(it);
+            return false;
+        }
+        if (materialized) {
+            options->on_crashed_last_run_func(
+                envelope, options->on_crashed_last_run_data);
+        }
+        sentry_envelope_free(envelope);
+    }
+    sentry__pathiter_free(it);
+    return true;
+}
+
 static int
 native_backend_startup(
     sentry_backend_t *backend, const sentry_options_t *options)
@@ -310,6 +345,7 @@ native_backend_startup(
     ctx->session_replay_duration = options->session_replay_duration;
     ctx->cache_keep = (int)options->cache_keep;
     ctx->require_user_consent = options->require_user_consent;
+    ctx->has_on_crashed_last_run = options->on_crashed_last_run_func != NULL;
     ctx->enable_large_attachments = options->enable_large_attachments;
     ctx->http_retry = options->http_retry;
     ctx->shutdown_timeout = options->shutdown_timeout;
@@ -1136,6 +1172,7 @@ sentry__backend_new(void)
     backend->add_breadcrumb_func = native_backend_add_breadcrumb;
     backend->add_attachment_func = native_backend_add_attachment;
     backend->user_consent_changed_func = native_backend_user_consent_changed;
+    backend->process_old_run_func = native_backend_process_old_run;
     backend->can_capture_after_shutdown = false;
 
     return backend;

@@ -172,6 +172,16 @@ on_crash_callback(
     return event;
 }
 
+static void
+on_crashed_last_run_callback(const sentry_envelope_t *envelope, void *user_data)
+{
+    (void)user_data;
+    const char *event_id = sentry_value_as_string(
+        sentry_envelope_get_header(envelope, "event_id"));
+    printf("CRASHED_LAST_RUN:%s\n", event_id ? event_id : "");
+    fflush(stdout);
+}
+
 static sentry_value_t
 restart_on_crash(
     const sentry_ucontext_t *uctx, sentry_value_t event, void *user_data)
@@ -769,6 +779,11 @@ main(int argc, char **argv)
 
     if (has_arg(argc, argv, "on-crash")) {
         sentry_options_set_on_crash(options, on_crash_callback, NULL);
+    }
+
+    if (has_arg(argc, argv, "on-crashed-last-run")) {
+        sentry_options_set_on_crashed_last_run(
+            options, on_crashed_last_run_callback, NULL);
     }
 
     if (has_arg(argc, argv, "discarding-on-crash")) {
