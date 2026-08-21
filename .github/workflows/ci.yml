@@ -545,7 +545,7 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt update
-          sudo apt install cmake clang clang-tidy gcc-13 g++-13 zlib1g-dev libcurl4-openssl-dev
+          sudo apt install cmake clang clang-tidy cppcheck gcc-13 g++-13 zlib1g-dev libcurl4-openssl-dev
           python -m pip install codechecker==6.28.2
 
       - name: Analyze
