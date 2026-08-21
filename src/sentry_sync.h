@@ -93,6 +93,13 @@ InitializeConditionVariable_PREVISTA(
     ConditionVariable->ContinueEvent = CreateEventW(NULL, FALSE, FALSE, NULL);
 }
 
+inline void
+DeleteConditionVariable_PREVISTA(PCONDITION_VARIABLE_PREVISTA ConditionVariable)
+{
+    CloseHandle(ConditionVariable->Semaphore);
+    CloseHandle(ConditionVariable->ContinueEvent);
+}
+
 inline BOOL
 SleepConditionVariableCS_PREVISTA(
     PCONDITION_VARIABLE_PREVISTA cv, PCRITICAL_SECTION cs, DWORD timeout)
@@ -210,6 +217,8 @@ typedef struct sentry__winmutex_s sentry_mutex_t;
 typedef CONDITION_VARIABLE_PREVISTA sentry_cond_t;
 #        define sentry__cond_init(CondVar)                                     \
             InitializeConditionVariable_PREVISTA(CondVar)
+#        define sentry__cond_free(CondVar)                                     \
+            DeleteConditionVariable_PREVISTA(CondVar)
 #        define sentry__cond_wake WakeConditionVariable_PREVISTA
 #        define sentry__cond_wake_all WakeAllConditionVariable_PREVISTA
 #        define sentry__cond_wait_timeout(CondVar, Lock, Timeout)              \
@@ -218,6 +227,7 @@ typedef CONDITION_VARIABLE_PREVISTA sentry_cond_t;
 #    else
 typedef CONDITION_VARIABLE sentry_cond_t;
 #        define sentry__cond_init(CondVar) InitializeConditionVariable(CondVar)
+#        define sentry__cond_free(CondVar) ((void)(CondVar))
 #        define sentry__cond_wake WakeConditionVariable
 #        define sentry__cond_wake_all WakeAllConditionVariable
 #        define sentry__cond_wait_timeout(CondVar, Lock, Timeout)              \
@@ -355,6 +365,7 @@ typedef pthread_cond_t sentry_cond_t;
             sentry_cond_t tmp = PTHREAD_COND_INITIALIZER;                      \
             *(CondVar) = tmp;                                                  \
         } while (0)
+#    define sentry__cond_free(CondVar) pthread_cond_destroy(CondVar)
 #    define sentry__cond_wait(Cond, Mutex)                                     \
         do {                                                                   \
             if (sentry__block_for_signal_handler()) {                          \

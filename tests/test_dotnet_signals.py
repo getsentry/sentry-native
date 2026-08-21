@@ -9,9 +9,21 @@ import pytest
 
 from tests import adb
 from tests.assertions import wait_for
-from tests.conditions import has_native, is_android, is_arm32, is_tsan, is_x86, is_asan
+from tests.conditions import (
+    has_native,
+    is_android,
+    is_arm32,
+    is_tsan,
+    is_wine,
+    is_x86,
+    is_asan,
+)
 
 project_fixture_path = pathlib.Path("tests/fixtures/dotnet_signal")
+
+pytestmark = pytest.mark.skipif(
+    is_wine, reason=".NET signal tests do not support Windows targets under Wine"
+)
 
 
 def assert_empty_run_dir(database_path):

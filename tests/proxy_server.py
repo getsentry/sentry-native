@@ -169,6 +169,7 @@ def _forward_http(client, proxy_auth):
     lines = header.decode("iso-8859-1").split("\r\n")
     method, target, version = lines[0].split(" ", 2)
     headers = _parse_headers(lines[1:])
+    body = _read_http_body(client, headers, initial_body)
 
     if not _auth_matches(headers, proxy_auth):
         _send_proxy_auth_required(client, method)
@@ -188,7 +189,6 @@ def _forward_http(client, proxy_auth):
         if url.query:
             path += "?" + url.query
 
-    body = _read_http_body(client, headers, initial_body)
     outbound_headers = [
         (name, value)
         for name, value in headers

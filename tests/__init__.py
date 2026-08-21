@@ -14,10 +14,32 @@ import socket
 sourcedir = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 
 
+def lib_name(name):
+    if sys.platform == "win32":
+        prefix = "lib" if os.environ.get("TEST_MINGW") else ""
+        return prefix + name + ".dll"
+    elif sys.platform == "darwin":
+        return "lib" + name + ".dylib"
+    return "lib" + name + ".so"
+
+
 def adb(*args, **kwargs):
     return subprocess.run(
         ["{}/platform-tools/adb".format(os.environ["ANDROID_HOME"]), *args], **kwargs
     )
+
+
+def exe_name(name):
+    if sys.platform == "win32" or os.environ.get("TEST_WINE"):
+        return f"{name}.exe"
+    return name
+
+
+def run_command(name):
+    name = exe_name(name)
+    if os.environ.get("TEST_WINE"):
+        return ["wine", name]
+    return [name]
 
 
 # https://docs.pytest.org/en/latest/assert.html#assert-details
@@ -191,9 +213,10 @@ def run(
             )
         return child
 
-    cmd = [
-        "./{}".format(exe) if sys.platform != "win32" else "{}\\{}.exe".format(cwd, exe)
-    ]
+    executable = (
+        "./{}".format(exe) if sys.platform != "win32" else "{}\\{}".format(cwd, exe)
+    )
+    cmd = run_command(executable)
     if "asan" in os.environ.get("RUN_ANALYZER", ""):
         asan_options = env.get("ASAN_OPTIONS", "")
         if "detect_leaks" not in asan_options:
