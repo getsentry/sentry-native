@@ -176,6 +176,16 @@ SENTRY_TEST(attachments_add_dedupe)
 
 SENTRY_TEST(attachments_add_remove)
 {
+    sentry_scope_t *scope = sentry_scope_new();
+    sentry_attachment_t *scoped_attachment
+        = sentry_scope_attach_bytes(scope, "payload", 7, "file.bin");
+    TEST_CHECK(scoped_attachment != NULL);
+    TEST_CHECK(scope->attachments != NULL);
+    sentry_scope_remove_attachment(scope, scoped_attachment);
+    TEST_CHECK(scope->attachments == NULL);
+    sentry_scope_remove_attachment(scope, NULL);
+    sentry_scope_free(scope);
+
     SENTRY_TEST_OPTIONS_NEW(options);
     sentry_options_add_attachment(options, SENTRY_TEST_PATH_PREFIX ".a.txt");
     sentry_options_add_attachment(options, SENTRY_TEST_PATH_PREFIX ".c.txt");
