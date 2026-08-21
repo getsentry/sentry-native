@@ -24,6 +24,10 @@
 - Destroy condition variables as approriate when no longer needed. ([#2004](https://github.com/getsentry/sentry-native/pull/2004))
 - Crashpad/Windows: preserve module CodeView UUIDs for minimal PDB70 records with empty PDB filenames. ([#2003](https://github.com/getsentry/sentry-native/pull/2003))
 
+**Other changes**:
+
+- Promote the 68 performance monitoring and tracing functions from experimental to stable. ([#2012](https://github.com/getsentry/sentry-native/pull/2012))
+
 ## 0.16.3
 
 **Features**:
