@@ -386,3 +386,32 @@ def test_breakpad_stack_overflow_stdout(cmake, stack_size):
     assert_attachment(envelope)
     assert_minidump(envelope)
     assert_breakpad_crash(envelope)
+
+
+@pytest.mark.skipif(not is_wine, reason="test needs Wine")
+def test_wine_context(cmake):
+    tmp_path = cmake(
+        ["sentry_example"],
+        {
+            "SENTRY_BACKEND": "none",
+            "SENTRY_TRANSPORT": "none",
+        },
+    )
+    env = dict(os.environ)
+    env.pop("STEAM_COMPAT_DATA_PATH", None)
+
+    output = check_output(
+        tmp_path,
+        "sentry_example",
+        ["stdout", "capture-event"],
+        env=env,
+    )
+    context = Envelope.deserialize(output).get_event()["contexts"]["wine"]
+
+    version = subprocess.check_output(["wine", "--version"], text=True).split()[0]
+    assert version.startswith("wine-")
+    assert context == {
+        "type": "runtime",
+        "name": "Wine",
+        "version": version.removeprefix("wine-"),
+    }
