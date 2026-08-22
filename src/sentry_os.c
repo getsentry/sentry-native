@@ -186,7 +186,7 @@ string_ends_with(const char *value, size_t value_len, const char *suffix)
         && memcmp(value + value_len - suffix_len, suffix, suffix_len) == 0;
 }
 
-static char *
+static sentry_path_t *
 make_wine_path(const char *path, const char *suffix)
 {
     sentry_stringbuilder_t sb;
@@ -197,17 +197,13 @@ make_wine_path(const char *path, const char *suffix)
         sentry__stringbuilder_cleanup(&sb);
         return NULL;
     }
-    return sentry__stringbuilder_into_string(&sb);
+    return sentry__path_from_str_owned(sentry__stringbuilder_into_string(&sb));
 }
 
 static char *
-read_wine_file(const char *path)
+read_wine_file(const sentry_path_t *path)
 {
-    sentry_path_t *file_path = sentry__path_from_str(path);
-    char *contents
-        = file_path ? sentry__path_read_to_buffer(file_path, NULL) : NULL;
-    sentry__path_free(file_path);
-    return contents;
+    return path ? sentry__path_read_to_buffer(path, NULL) : NULL;
 }
 
 static char *
@@ -216,15 +212,15 @@ get_proton_version(bool *is_proton)
     *is_proton = false;
     char *compat_path
         = sentry__string_from_wstr(_wgetenv(L"STEAM_COMPAT_DATA_PATH"));
-    if (!compat_path || !compat_path[0]) {
+    if (sentry__string_empty(compat_path)) {
         sentry_free(compat_path);
         return NULL;
     }
 
-    char *config_path = make_wine_path(compat_path, "/config_info");
+    sentry_path_t *config_path = make_wine_path(compat_path, "/config_info");
     sentry_free(compat_path);
     char *config = config_path ? read_wine_file(config_path) : NULL;
-    sentry_free(config_path);
+    sentry__path_free(config_path);
     if (!config) {
         return NULL;
     }
@@ -264,20 +260,19 @@ get_proton_version(bool *is_proton)
         return NULL;
     }
 
-    char *proton_path = make_wine_path(proton_root, "/proton");
-    sentry_path_t *proton_file = sentry__path_from_str(proton_path);
-    *is_proton = proton_file && sentry__path_is_file(proton_file);
-    sentry__path_free(proton_file);
-    sentry_free(proton_path);
+    sentry_path_t *proton_path = make_wine_path(proton_root, "/proton");
+    *is_proton = proton_path && sentry__path_is_file(proton_path);
+    sentry__path_free(proton_path);
 
-    char *version_path = make_wine_path(proton_root, "/version");
+    sentry_path_t *version_path = make_wine_path(proton_root, "/version");
     sentry_free(proton_root);
     char *version_file = version_path ? read_wine_file(version_path) : NULL;
-    sentry_free(version_path);
+    sentry__path_free(version_path);
     if (!version_file) {
         return NULL;
     }
 
+    // Format: "<timestamp> <git-tag>", e.g. "1769167055 proton-10.0-4".
     char *version = strpbrk(version_file, " \t");
     if (!version) {
         sentry_free(version_file);
@@ -319,11 +314,7 @@ make_wine_context(sentry__wine_get_version_t wine_get_version,
 
     const char *runtime_name = "Wine";
     const char *runtime_version = wine_get_version();
-    if (!runtime_version || !runtime_version[0]) {
-        return sentry_value_new_null();
-    }
-
-    if (proton_version && proton_version[0]) {
+    if (!sentry__string_empty(proton_version)) {
         runtime_version = proton_version;
         if (is_proton) {
             if (string_starts_with(proton_version, "proton-")) {
@@ -343,6 +334,9 @@ make_wine_context(sentry__wine_get_version_t wine_get_version,
             }
         }
     }
+    if (sentry__string_empty(runtime_version)) {
+        return sentry_value_new_null();
+    }
 
     sentry_value_t context = sentry_value_new_object();
     if (sentry_value_is_null(context)) {
@@ -352,10 +346,8 @@ make_wine_context(sentry__wine_get_version_t wine_get_version,
         context, "type", sentry_value_new_string("runtime"));
     sentry_value_set_by_key(
         context, "name", sentry_value_new_string(runtime_name));
-    if (runtime_version[0]) {
-        sentry_value_set_by_key(
-            context, "version", sentry_value_new_string(runtime_version));
-    }
+    sentry_value_set_by_key(
+        context, "version", sentry_value_new_string(runtime_version));
     sentry_value_freeze(context);
     return context;
 }
@@ -370,6 +362,9 @@ sentry__get_wine_context(void)
 
     const sentry__wine_get_version_t wine_get_version
         = (sentry__wine_get_version_t)GetProcAddress(ntdll, "wine_get_version");
+    if (!wine_get_version) {
+        return sentry_value_new_null();
+    }
     bool is_proton = false;
     char *proton_version = get_proton_version(&is_proton);
     sentry_value_t context
