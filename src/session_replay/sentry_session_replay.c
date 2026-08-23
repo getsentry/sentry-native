@@ -32,7 +32,13 @@
 #    pragma clang diagnostic pop
 #endif
 
+#include <math.h>
 #include <stdio.h>
+#ifdef SENTRY_PLATFORM_WINDOWS
+#    include <wchar.h>
+#endif
+
+#define SENTRY_MAX_REPLAY_VIDEO_SIZE (20 * 1024 * 1024)
 
 sentry_path_t *
 sentry__session_replay_get_path(const sentry_options_t *options)
@@ -261,9 +267,14 @@ build_replay_envelope(const sentry_options_t *options, sentry_value_t meta,
         return NULL;
     }
 
+    size_t file_size = sentry__path_get_size(mp4_path);
+    if (file_size == 0 || file_size > SENTRY_MAX_REPLAY_VIDEO_SIZE) {
+        return NULL;
+    }
+
     size_t video_len = 0;
     char *video = sentry__path_read_to_buffer(mp4_path, &video_len);
-    if (!video || video_len == 0) {
+    if (!video || video_len == 0 || video_len > SENTRY_MAX_REPLAY_VIDEO_SIZE) {
         sentry_free(video);
         return NULL;
     }
@@ -344,6 +355,160 @@ build_replay_envelope(const sentry_options_t *options, sentry_value_t meta,
     sentry_free(video);
     return envelope;
 }
+
+static bool
+is_replay_id(const char *value)
+{
+    if (!value || strlen(value) != 32) {
+        return false;
+    }
+    for (size_t i = 0; i < 32; i++) {
+        if (!(value[i] >= '0' && value[i] <= '9')
+            && !(value[i] >= 'a' && value[i] <= 'f')) {
+            return false;
+        }
+    }
+    return true;
+}
+
+static bool
+validate_replay_submission(sentry_value_t metadata,
+    const sentry_envelope_t *crash_envelope, sentry_value_t *event_out,
+    double *end_sec_out)
+{
+    if (sentry_value_get_type(metadata) != SENTRY_VALUE_TYPE_OBJECT
+        || !crash_envelope) {
+        return false;
+    }
+
+    const char *replay_id
+        = sentry_value_as_string(sentry_value_get_by_key(metadata, "replayId"));
+    const char *replay_type = sentry_value_as_string(
+        sentry_value_get_by_key(metadata, "replayType"));
+    if (!is_replay_id(replay_id) || !sentry__string_eq(replay_type, "buffer")) {
+        return false;
+    }
+
+    sentry_value_t event = sentry_envelope_get_event(crash_envelope);
+    if (sentry_value_is_null(event)) {
+        return false;
+    }
+    const char *crash_replay_id
+        = sentry_value_as_string(sentry_value_get_by_key(
+            sentry_value_get_by_key(
+                sentry_value_get_by_key(event, "contexts"), "replay"),
+            "replay_id"));
+    if (!crash_replay_id || strcmp(replay_id, crash_replay_id) != 0) {
+        return false;
+    }
+
+    const double duration_ms = sentry_value_as_double(
+        sentry_value_get_by_key(metadata, "durationMs"));
+    const int32_t width
+        = sentry_value_as_int32(sentry_value_get_by_key(metadata, "width"));
+    const int32_t height
+        = sentry_value_as_int32(sentry_value_get_by_key(metadata, "height"));
+    const int32_t frame_count = sentry_value_as_int32(
+        sentry_value_get_by_key(metadata, "frameCount"));
+    const int32_t frame_rate
+        = sentry_value_as_int32(sentry_value_get_by_key(metadata, "frameRate"));
+    const int32_t segment_id
+        = sentry_value_as_int32(sentry_value_get_by_key(metadata, "segmentId"));
+    if (!isfinite(duration_ms) || duration_ms <= 0.0 || width <= 0
+        || height <= 0 || (width % 2) != 0 || (height % 2) != 0
+        || frame_count <= 0 || frame_rate <= 0 || frame_rate > 120
+        || segment_id < 0) {
+        return false;
+    }
+
+    const char *timestamp
+        = sentry_value_as_string(sentry_value_get_by_key(event, "timestamp"));
+    const uint64_t end_usec
+        = timestamp && timestamp[0] ? sentry__iso8601_to_usec(timestamp) : 0;
+    double end_sec = end_usec ? (double)end_usec / 1000000.0
+                              : sentry_value_as_double(sentry_value_get_by_key(
+                                    metadata, "endTimestampSec"));
+    if (!isfinite(end_sec) || end_sec <= 0.0) {
+        return false;
+    }
+
+    *event_out = event;
+    *end_sec_out = end_sec;
+    return true;
+}
+
+static sentry_replay_video_result_t
+submit_replay_video_path(const sentry_path_t *path, sentry_value_t metadata,
+    const sentry_envelope_t *crash_envelope)
+{
+    sentry_value_t event = sentry_value_new_null();
+    double end_sec = 0.0;
+    const size_t video_size = path ? sentry__path_get_size(path) : 0;
+    if (video_size == 0 || video_size > SENTRY_MAX_REPLAY_VIDEO_SIZE
+        || !validate_replay_submission(
+            metadata, crash_envelope, &event, &end_sec)) {
+        return SENTRY_REPLAY_VIDEO_INVALID_INPUT;
+    }
+
+    sentry_replay_video_result_t result = SENTRY_REPLAY_VIDEO_NOT_INITIALIZED;
+    SENTRY_WITH_OPTIONS (options) {
+        sentry_envelope_t *envelope
+            = build_replay_envelope(options, metadata, path, end_sec, event);
+        if (!envelope) {
+            result = SENTRY_REPLAY_VIDEO_BUILD_FAILED;
+        } else {
+            sentry__capture_envelope(options->transport, envelope, options);
+            result = SENTRY_REPLAY_VIDEO_ACCEPTED;
+        }
+    }
+    return result;
+}
+
+sentry_replay_video_result_t
+sentry_submit_replay_video_n(const char *path, size_t path_len,
+    sentry_value_t metadata, const sentry_envelope_t *crash_envelope)
+{
+    if (!path || path_len == 0) {
+        return SENTRY_REPLAY_VIDEO_INVALID_INPUT;
+    }
+    sentry_path_t *path_obj = sentry__path_from_str_n(path, path_len);
+    sentry_replay_video_result_t result
+        = submit_replay_video_path(path_obj, metadata, crash_envelope);
+    sentry__path_free(path_obj);
+    return result;
+}
+
+sentry_replay_video_result_t
+sentry_submit_replay_video(const char *path, sentry_value_t metadata,
+    const sentry_envelope_t *crash_envelope)
+{
+    return sentry_submit_replay_video_n(
+        path, path ? strlen(path) : 0, metadata, crash_envelope);
+}
+
+#ifdef SENTRY_PLATFORM_WINDOWS
+sentry_replay_video_result_t
+sentry_submit_replay_videow_n(const wchar_t *path, size_t path_len,
+    sentry_value_t metadata, const sentry_envelope_t *crash_envelope)
+{
+    if (!path || path_len == 0) {
+        return SENTRY_REPLAY_VIDEO_INVALID_INPUT;
+    }
+    sentry_path_t *path_obj = sentry__path_from_wstr_n(path, path_len);
+    sentry_replay_video_result_t result
+        = submit_replay_video_path(path_obj, metadata, crash_envelope);
+    sentry__path_free(path_obj);
+    return result;
+}
+
+sentry_replay_video_result_t
+sentry_submit_replay_videow(const wchar_t *path, sentry_value_t metadata,
+    const sentry_envelope_t *crash_envelope)
+{
+    return sentry_submit_replay_videow_n(
+        path, path ? wcslen(path) : 0, metadata, crash_envelope);
+}
+#endif
 
 // Build `<dir>/replay-<replay_id><ext>`, matching the embedder's staged name.
 static sentry_path_t *

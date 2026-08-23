@@ -1944,6 +1944,52 @@ SENTRY_EXPERIMENTAL_API void sentry_options_set_session_replay_duration(
     sentry_options_t *opts, uint32_t duration_ms);
 
 /**
+ * Result of submitting an already finalized replay video.
+ */
+typedef enum {
+    SENTRY_REPLAY_VIDEO_ACCEPTED = 0,
+    SENTRY_REPLAY_VIDEO_INVALID_INPUT = 1,
+    SENTRY_REPLAY_VIDEO_BUILD_FAILED = 2,
+    SENTRY_REPLAY_VIDEO_RATE_LIMITED = 3,
+    SENTRY_REPLAY_VIDEO_NOT_INITIALIZED = 4,
+} sentry_replay_video_result_t;
+
+/**
+ * Builds and submits a structured `replay_video` envelope from a finalized
+ * H.264/MPEG-4 file and a previous-crash envelope.
+ *
+ * `metadata` is a borrowed object with the same fields used by the native
+ * replay sidecar: `replayId`, `replayType`, `segmentId`, `durationMs`,
+ * `width`, `height`, `frameCount`, and `frameRate`. The replay ID must be a
+ * lowercase 32-character hexadecimal ID and must exactly match
+ * `contexts.replay.replay_id` in `crash_envelope`.
+ *
+ * The SDK must be initialized. On `SENTRY_REPLAY_VIDEO_ACCEPTED`, ownership of
+ * the constructed envelope has transferred to the SDK transport or cache.
+ * This function never takes ownership of `metadata`, `crash_envelope`, or the
+ * video file and never deletes the video. It is safe to call from a healthy
+ * process only; it must not be called from a crash handler.
+ *
+ * `path` uses the platform-specific path encoding. On Windows it is UTF-8;
+ * callers with a wide path should use `sentry_submit_replay_videow`.
+ */
+SENTRY_EXPERIMENTAL_API sentry_replay_video_result_t sentry_submit_replay_video(
+    const char *path, sentry_value_t metadata,
+    const sentry_envelope_t *crash_envelope);
+SENTRY_EXPERIMENTAL_API sentry_replay_video_result_t
+sentry_submit_replay_video_n(const char *path, size_t path_len,
+    sentry_value_t metadata, const sentry_envelope_t *crash_envelope);
+
+#ifdef SENTRY_PLATFORM_WINDOWS
+SENTRY_EXPERIMENTAL_API sentry_replay_video_result_t
+sentry_submit_replay_videow(const wchar_t *path, sentry_value_t metadata,
+    const sentry_envelope_t *crash_envelope);
+SENTRY_EXPERIMENTAL_API sentry_replay_video_result_t
+sentry_submit_replay_videow_n(const wchar_t *path, size_t path_len,
+    sentry_value_t metadata, const sentry_envelope_t *crash_envelope);
+#endif
+
+/**
  * Sets the path to the crashpad handler if the crashpad backend is used.
  *
  * The path defaults to the `crashpad_handler`/`crashpad_handler.exe`

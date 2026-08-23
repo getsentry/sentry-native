@@ -52,6 +52,7 @@ add_executable(sentry_test_unit
 	test_sampling.c
 	test_scope.c
 	test_session.c
+	test_session_replay.c
 	test_slice.c
 	test_string.c
 	test_symbolizer.c
