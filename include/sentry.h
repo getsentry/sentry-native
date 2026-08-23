@@ -144,16 +144,19 @@ extern "C" {
 #endif
 
 #if defined(__GNUC__) || defined(__clang__)
+#    define SENTRY_NORETURN __attribute__((noreturn))
 #    define SENTRY_SUPPRESS_DEPRECATED                                         \
         _Pragma("GCC diagnostic push");                                        \
         _Pragma("GCC diagnostic ignored \"-Wdeprecated-declarations\"")
 #    define SENTRY_RESTORE_DEPRECATED _Pragma("GCC diagnostic pop")
 #elif defined(_MSC_VER)
+#    define SENTRY_NORETURN __declspec(noreturn)
 #    define SENTRY_SUPPRESS_DEPRECATED                                         \
         __pragma(warning(push));                                               \
         __pragma(warning(disable : 4996))
 #    define SENTRY_RESTORE_DEPRECATED __pragma(warning(pop))
 #else
+#    define SENTRY_NORETURN
 #    define SENTRY_SUPPRESS_DEPRECATED
 #    define SENTRY_RESTORE_DEPRECATED
 #endif
@@ -2529,7 +2532,7 @@ SENTRY_EXPERIMENTAL_API void sentry_handle_exception(
  *
  * This function does not return and must not be used in production.
  */
-SENTRY_EXPERIMENTAL_API void sentry_crash(void);
+SENTRY_EXPERIMENTAL_API SENTRY_NORETURN void sentry_crash(void);
 
 /**
  * Type of the `before_breadcrumb` callback.
