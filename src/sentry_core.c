@@ -932,16 +932,6 @@ sentry_handle_exception(const sentry_ucontext_t *uctx)
     }
 }
 
-#ifdef SENTRY_PLATFORM_AIX
-// AIX has a null page mapped to the bottom of memory, which means null derefs
-// don't segfault. try dereferencing the top of memory instead; the top nibble
-// seems to be unusable.
-static void *volatile invalid_mem
-    = (void *)0xFFFFFFFFFFFFFF9B; // -100 for memset
-#else
-static void *volatile invalid_mem = (void *)1;
-#endif
-
 // Detect Address Sanitizer (works for both GCC and Clang)
 #if defined(__SANITIZE_ADDRESS__)
 #    define SENTRY_ASAN_ACTIVE 1
@@ -951,7 +941,18 @@ static void *volatile invalid_mem = (void *)1;
 #    endif
 #endif
 
-void
+#if defined(__clang__)
+#    define SENTRY_CRASH_ATTRIBUTES __attribute__((noinline, optnone))
+#elif defined(__GNUC__)
+#    define SENTRY_CRASH_ATTRIBUTES __attribute__((noinline, optimize("O0")))
+#elif defined(_MSC_VER)
+#    define SENTRY_CRASH_ATTRIBUTES __declspec(noinline)
+#    pragma optimize("", off)
+#else
+#    define SENTRY_CRASH_ATTRIBUTES
+#endif
+
+SENTRY_CRASH_ATTRIBUTES void
 sentry_crash(void)
 {
 #ifdef SENTRY_ASAN_ACTIVE
@@ -959,9 +960,22 @@ sentry_crash(void)
     // ASAN intercepts memset and would abort before our signal handler runs.
     raise(SIGSEGV);
 #else
+#    ifdef SENTRY_PLATFORM_AIX
+    // AIX has a null page mapped to the bottom of memory, which means null
+    // derefs don't segfault. try dereferencing the top of memory instead; the
+    // top nibble seems to be unusable.
+    void *volatile invalid_mem = (void *)0xFFFFFFFFFFFFFF9B;
+#    else
+    void *volatile invalid_mem = (void *)1;
+#    endif
     memset((char *)invalid_mem, 1, 100);
 #endif
 }
+
+#ifdef _MSC_VER
+#    pragma optimize("", on)
+#endif
+#undef SENTRY_CRASH_ATTRIBUTES
 
 sentry_uuid_t
 sentry__new_event_id(void)
