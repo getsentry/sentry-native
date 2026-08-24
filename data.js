@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1787563470891,
+  "lastUpdate": 1787563512734,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -137272,6 +137272,150 @@ window.BENCHMARK_DATA = {
             "value": 0.13785231249993757,
             "unit": "ms",
             "extra": "Min 0.138ms\nMax 0.138ms\nMean 0.138ms\nMedian 0.138ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "43997191+GtechGovind@users.noreply.github.com",
+            "name": "Govind yadav",
+            "username": "GtechGovind"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "51540b30c6eaec474a7ddcc98d3b7b6e161cc757",
+          "message": "feat(windows): add WINE and Proton runtime context (#1995)\n\n* feat(windows): add WINE runtime context\n\n* feat(windows): detect Proton runtime variants\n\n* fix(windows): omit empty Proton runtime version\n\n* fix Wine environment path encoding\n\n* test Wine context in integration suite\n\n* address Wine context review feedback",
+          "timestamp": "2026-08-24T11:18:36+02:00",
+          "tree_id": "41d84896c8cd798bd49d1e6349c070b114313cbd",
+          "url": "https://github.com/getsentry/sentry-native/commit/51540b30c6eaec474a7ddcc98d3b7b6e161cc757"
+        },
+        "date": 1787563495728,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 10.471899999970447,
+            "unit": "ms",
+            "extra": "Min 9.850ms\nMax 16.828ms\nMean 11.634ms\nStdDev 2.951ms\nMedian 10.472ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 10.439299999973173,
+            "unit": "ms",
+            "extra": "Min 10.181ms\nMax 12.755ms\nMean 10.942ms\nStdDev 1.051ms\nMedian 10.439ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 124.97429999996257,
+            "unit": "ms",
+            "extra": "Min 51.850ms\nMax 282.249ms\nMean 165.918ms\nStdDev 99.121ms\nMedian 124.974ms"
+          },
+          {
+            "name": "SDK init (native)",
+            "value": 24.333200000000943,
+            "unit": "ms",
+            "extra": "Min 23.299ms\nMax 25.208ms\nMean 24.352ms\nStdDev 0.764ms\nMedian 24.333ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.17529999996668266,
+            "unit": "ms",
+            "extra": "Min 0.158ms\nMax 0.218ms\nMean 0.182ms\nStdDev 0.024ms\nMedian 0.175ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.4776000000106251,
+            "unit": "ms",
+            "extra": "Min 0.421ms\nMax 0.509ms\nMean 0.468ms\nStdDev 0.034ms\nMedian 0.478ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 17.742700000042078,
+            "unit": "ms",
+            "extra": "Min 14.999ms\nMax 18.651ms\nMean 17.075ms\nStdDev 1.595ms\nMedian 17.743ms"
+          },
+          {
+            "name": "Backend startup (native)",
+            "value": 13.144299999964915,
+            "unit": "ms",
+            "extra": "Min 12.186ms\nMax 15.719ms\nMean 13.662ms\nStdDev 1.472ms\nMedian 13.144ms"
+          },
+          {
+            "name": "Scope set_tag (inproc)",
+            "value": 0.007330400000000736,
+            "unit": "ms",
+            "extra": "Min 0.007ms\nMax 0.007ms\nMean 0.007ms\nMedian 0.007ms"
+          },
+          {
+            "name": "Scope add_breadcrumb (inproc)",
+            "value": 0.0012841000000207714,
+            "unit": "ms",
+            "extra": "Min 0.001ms\nMax 0.001ms\nMean 0.001ms\nMedian 0.001ms"
+          },
+          {
+            "name": "Scope set_tag (breakpad)",
+            "value": 0.007360699999992448,
+            "unit": "ms",
+            "extra": "Min 0.007ms\nMax 0.007ms\nMean 0.007ms\nMedian 0.007ms"
+          },
+          {
+            "name": "Scope add_breadcrumb (breakpad)",
+            "value": 0.0012576999999964755,
+            "unit": "ms",
+            "extra": "Min 0.001ms\nMax 0.001ms\nMean 0.001ms\nMedian 0.001ms"
+          },
+          {
+            "name": "Scope set_tag (crashpad)",
+            "value": 0.5340317000000141,
+            "unit": "ms",
+            "extra": "Min 0.534ms\nMax 0.534ms\nMean 0.534ms\nMedian 0.534ms"
+          },
+          {
+            "name": "Scope add_breadcrumb (crashpad)",
+            "value": 0.49386190000001307,
+            "unit": "ms",
+            "extra": "Min 0.494ms\nMax 0.494ms\nMean 0.494ms\nMedian 0.494ms"
+          },
+          {
+            "name": "Scope set_tag (native)",
+            "value": 0.3496187000000077,
+            "unit": "ms",
+            "extra": "Min 0.350ms\nMax 0.350ms\nMean 0.350ms\nMedian 0.350ms"
+          },
+          {
+            "name": "Scope add_breadcrumb (native)",
+            "value": 0.15476879999999937,
+            "unit": "ms",
+            "extra": "Min 0.155ms\nMax 0.155ms\nMean 0.155ms\nMedian 0.155ms"
+          },
+          {
+            "name": "Logs (1 thread)",
+            "value": 0.008665000000291911,
+            "unit": "ms",
+            "extra": "Min 0.009ms\nMax 0.009ms\nMean 0.009ms\nMedian 0.009ms"
+          },
+          {
+            "name": "Logs (8 threads)",
+            "value": 0.04695962500022688,
+            "unit": "ms",
+            "extra": "Min 0.047ms\nMax 0.047ms\nMean 0.047ms\nMedian 0.047ms"
+          },
+          {
+            "name": "Logs (16 threads)",
+            "value": 0.07082824999997683,
+            "unit": "ms",
+            "extra": "Min 0.071ms\nMax 0.071ms\nMean 0.071ms\nMedian 0.071ms"
+          },
+          {
+            "name": "Logs (32 threads)",
+            "value": 0.1364774999999696,
+            "unit": "ms",
+            "extra": "Min 0.136ms\nMax 0.136ms\nMean 0.136ms\nMedian 0.136ms"
           }
         ]
       }
