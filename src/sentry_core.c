@@ -1,6 +1,8 @@
 #include "sentry_boot.h"
 
-#include <signal.h>
+#ifndef SENTRY_PLATFORM_PS
+#    include <signal.h>
+#endif
 #include <stdarg.h>
 #include <stdlib.h>
 #include <string.h>
