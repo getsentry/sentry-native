@@ -4,7 +4,6 @@
 #    include <signal.h>
 #endif
 #include <stdarg.h>
-#include <stdlib.h>
 #include <string.h>
 
 #include "sentry_app_hang_latch.h"
@@ -958,10 +957,6 @@ sentry_crash(void)
 #    endif
     memset((char *)invalid_mem, 1, 100);
 #endif
-
-    // A user-installed signal or exception handler could allow execution to
-    // continue. Ensure this API never returns in that case.
-    abort();
 }
 
 sentry_uuid_t
