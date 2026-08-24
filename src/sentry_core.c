@@ -941,9 +941,9 @@ sentry_handle_exception(const sentry_ucontext_t *uctx)
 #    endif
 #endif
 
-// Preserve `sentry_crash` as an unwindable stack frame. Use `optnone` only on
-// macOS because on musl it leaves the fault inside stripped `memset`, producing
-// an unsymbolicated stack trace.
+// Preserve `sentry_crash` as an unwindable stack frame. Clang's `optnone` is
+// needed on macOS, but on musl it leaves the fault inside stripped `memset`,
+// producing an unsymbolicated stack trace.
 #if defined(_MSC_VER)
 #    define SENTRY_NOINLINE __declspec(noinline)
 #    pragma optimize("", off)
