@@ -932,7 +932,7 @@ sentry_handle_exception(const sentry_ucontext_t *uctx)
     }
 }
 
-// Detect Address Sanitizer (works for both GCC and Clang).
+// Detect Address Sanitizer (works for both GCC and Clang)
 #if defined(__SANITIZE_ADDRESS__)
 #    define SENTRY_ASAN_ACTIVE 1
 #elif defined(__has_feature)
@@ -945,12 +945,14 @@ void
 sentry_crash(void)
 {
 #ifdef SENTRY_ASAN_ACTIVE
-    // ASAN intercepts memory writes and would abort before the crash handler
-    // runs, so bypass its memory instrumentation.
+    // Under ASAN, raise signal directly to bypass ASAN's memory interception.
+    // ASAN intercepts memset and would abort before our signal handler runs.
     raise(SIGSEGV);
 #else
 #    ifdef SENTRY_PLATFORM_AIX
-    // AIX maps its null page, so use an address near the top of memory.
+    // AIX has a null page mapped to the bottom of memory, which means null
+    // derefs don't segfault. try dereferencing the top of memory instead; the
+    // top nibble seems to be unusable.
     void *volatile invalid_mem = (void *)0xFFFFFFFFFFFFFF9B;
 #    else
     void *volatile invalid_mem = (void *)1;
