@@ -45,7 +45,24 @@ typedef struct {
     void (*slist_free_all)(struct curl_slist *list);
 } curl_table_t;
 
+#ifdef SENTRY_LINK_CURL
+static const curl_table_t g_curl = {
+    .global_init = curl_global_init,
+    .version_info = curl_version_info,
+    .global_cleanup = curl_global_cleanup,
+    .easy_init = curl_easy_init,
+    .easy_cleanup = curl_easy_cleanup,
+    .easy_reset = curl_easy_reset,
+    .easy_setopt = curl_easy_setopt,
+    .easy_getinfo = curl_easy_getinfo,
+    .easy_perform = curl_easy_perform,
+    .easy_strerror = curl_easy_strerror,
+    .slist_append = curl_slist_append,
+    .slist_free_all = curl_slist_free_all,
+};
+#else
 static curl_table_t g_curl;
+#endif
 
 #ifndef SENTRY_LINK_CURL
 static void
@@ -165,19 +182,6 @@ curl_load(void)
 static int
 curl_load(void)
 {
-    g_curl.global_init = curl_global_init;
-    g_curl.version_info = curl_version_info;
-    g_curl.global_cleanup = curl_global_cleanup;
-    g_curl.easy_init = curl_easy_init;
-    g_curl.easy_cleanup = curl_easy_cleanup;
-    g_curl.easy_reset = curl_easy_reset;
-    g_curl.easy_setopt = curl_easy_setopt;
-    g_curl.easy_getinfo = curl_easy_getinfo;
-    g_curl.easy_perform = curl_easy_perform;
-    g_curl.easy_strerror = curl_easy_strerror;
-    g_curl.slist_append = curl_slist_append;
-    g_curl.slist_free_all = curl_slist_free_all;
-
     return 0;
 }
 #endif
