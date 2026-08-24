@@ -941,6 +941,7 @@ sentry_handle_exception(const sentry_ucontext_t *uctx)
 #    endif
 #endif
 
+// Preserve an unwindable stack frame for crash reporting.
 #if defined(__clang__)
 #    define SENTRY_CRASH_ATTRIBUTES __attribute__((noinline, optnone))
 #elif defined(__GNUC__)
@@ -964,7 +965,7 @@ sentry_crash(void)
     // AIX has a null page mapped to the bottom of memory, which means null
     // derefs don't segfault. try dereferencing the top of memory instead; the
     // top nibble seems to be unusable.
-    void *volatile invalid_mem = (void *)0xFFFFFFFFFFFFFF9B;
+    void *volatile invalid_mem = (void *)0xFFFFFFFFFFFFFF9B; // -100 for memset
 #    else
     void *volatile invalid_mem = (void *)1;
 #    endif
