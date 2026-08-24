@@ -941,15 +941,20 @@ sentry_handle_exception(const sentry_ucontext_t *uctx)
 #    endif
 #endif
 
-// Preserve an unwindable stack frame for crash reporting
+// Preserve `sentry_crash` as an unwindable stack frame. Use `optnone` only on
+// macOS because on musl it leaves the fault inside stripped `memset`, producing
+// an unsymbolicated stack trace.
 #if defined(_MSC_VER)
 #    define SENTRY_NOINLINE __declspec(noinline)
 #    pragma optimize("", off)
 #elif defined(__has_attribute)
-#    if __has_attribute(noinline) && __has_attribute(optnone)
+#    if defined(SENTRY_PLATFORM_MACOS) && __has_attribute(noinline)            \
+        && __has_attribute(optnone)
 #        define SENTRY_NOINLINE __attribute__((noinline, optnone))
 #    elif __has_attribute(noinline) && __has_attribute(optimize)
 #        define SENTRY_NOINLINE __attribute__((noinline, optimize("O0")))
+#    elif __has_attribute(noinline)
+#        define SENTRY_NOINLINE __attribute__((noinline))
 #    endif
 #endif
 #ifndef SENTRY_NOINLINE
