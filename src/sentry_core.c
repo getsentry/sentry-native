@@ -941,19 +941,23 @@ sentry_handle_exception(const sentry_ucontext_t *uctx)
 #    endif
 #endif
 
-// Preserve an unwindable stack frame for crash reporting.
-#if defined(__clang__)
-#    define SENTRY_CRASH_ATTRIBUTES __attribute__((noinline, optnone))
-#elif defined(__GNUC__)
-#    define SENTRY_CRASH_ATTRIBUTES __attribute__((noinline, optimize("O0")))
-#elif defined(_MSC_VER)
-#    define SENTRY_CRASH_ATTRIBUTES __declspec(noinline)
-#    pragma optimize("", off)
-#else
-#    define SENTRY_CRASH_ATTRIBUTES
+// Preserve an unwindable stack frame for crash reporting
+#if defined(__has_attribute)
+#    if __has_attribute(noinline) && __has_attribute(optnone)
+#        define SENTRY_NOINLINE __attribute__((noinline, optnone))
+#    elif __has_attribute(noinline) && __has_attribute(optimize)
+#        define SENTRY_NOINLINE __attribute__((noinline, optimize("O0")))
+#    endif
+#endif
+#ifndef SENTRY_NOINLINE
+#    if defined(_MSC_VER)
+#        define SENTRY_NOINLINE __declspec(noinline)
+#    else
+#        define SENTRY_NOINLINE
+#    endif
 #endif
 
-SENTRY_CRASH_ATTRIBUTES void
+SENTRY_NOINLINE void
 sentry_crash(void)
 {
 #ifdef SENTRY_ASAN_ACTIVE
@@ -973,10 +977,7 @@ sentry_crash(void)
 #endif
 }
 
-#ifdef _MSC_VER
-#    pragma optimize("", on)
-#endif
-#undef SENTRY_CRASH_ATTRIBUTES
+#undef SENTRY_NOINLINE
 
 sentry_uuid_t
 sentry__new_event_id(void)
