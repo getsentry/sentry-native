@@ -936,9 +936,10 @@ sentry_handle_exception(const sentry_ucontext_t *uctx)
 // AIX has a null page mapped to the bottom of memory, which means null derefs
 // don't segfault. try dereferencing the top of memory instead; the top nibble
 // seems to be unusable.
-static void *invalid_mem = (void *)0xFFFFFFFFFFFFFF9B; // -100 for memset
+static void *volatile invalid_mem
+    = (void *)0xFFFFFFFFFFFFFF9B; // -100 for memset
 #else
-static void *invalid_mem = (void *)1;
+static void *volatile invalid_mem = (void *)1;
 #endif
 
 // Detect Address Sanitizer (works for both GCC and Clang)
