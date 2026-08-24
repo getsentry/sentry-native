@@ -11,6 +11,7 @@
 - Add `on_crashed_last_run` callback for inspecting crash envelopes from previous runs. ([#1985](https://github.com/getsentry/sentry-native/pull/1985))
 - Add `sentry_get_last_event_id` and `sentry_scope_get_last_event_id` for retrieving the last event ID captured with the global or given scope, respectively. ([#1992](https://github.com/getsentry/sentry-native/pull/1992))
 - Native/Unix: The native crash daemon now loads `libcurl` dynamically at runtime by default when `SENTRY_LINK_CURL=AUTO`, avoiding `libcurl` linker work during process startup and significantly speeding up startup time. Explicitly set `SENTRY_LINK_CURL=ON` to link it directly. ([#1955](https://github.com/getsentry/sentry-native/pull/1955))
+- Add missing public scope mutators: `set_release`, `set_environment`, `set_transaction`, `remove_tag`, `remove_extra`, `remove_context`, and `remove_attachment`. ([#2011](https://github.com/getsentry/sentry-native/pull/2011))
 
 **Deprecations**:
 
