@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1787673061536,
+  "lastUpdate": 1787678236493,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -46732,6 +46732,150 @@ window.BENCHMARK_DATA = {
             "value": 0.14086172843751577,
             "unit": "ms",
             "extra": "Min 0.141ms\nMax 0.141ms\nMean 0.141ms\nMedian 0.141ms\nCPU 0.010ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "jpnurmi@gmail.com",
+            "name": "J-P Nurmi",
+            "username": "jpnurmi"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "ef47f649180ea62e9cf8b3ff49a2e5cea15d6fc7",
+          "message": "ref: add sentry_attachment_t accessors (#2009)\n\n* ref: add sentry_attachment_t accessors\n\n* check path",
+          "timestamp": "2026-08-25T19:13:24+02:00",
+          "tree_id": "b1bd0ee68997bf1d24f79e2b3ea36a7f70f0aeb0",
+          "url": "https://github.com/getsentry/sentry-native/commit/ef47f649180ea62e9cf8b3ff49a2e5cea15d6fc7"
+        },
+        "date": 1787678221991,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 1.0108759999809536,
+            "unit": "ms",
+            "extra": "Min 0.979ms\nMax 1.035ms\nMean 1.012ms\nStdDev 0.022ms\nMedian 1.011ms\nCPU 0.966ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 0.9211569999934,
+            "unit": "ms",
+            "extra": "Min 0.889ms\nMax 0.949ms\nMean 0.918ms\nStdDev 0.022ms\nMedian 0.921ms\nCPU 0.915ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 3.3904129999768884,
+            "unit": "ms",
+            "extra": "Min 3.361ms\nMax 3.626ms\nMean 3.455ms\nStdDev 0.119ms\nMedian 3.390ms\nCPU 1.844ms"
+          },
+          {
+            "name": "SDK init (native)",
+            "value": 2.4851860000012493,
+            "unit": "ms",
+            "extra": "Min 2.439ms\nMax 2.567ms\nMean 2.492ms\nStdDev 0.050ms\nMedian 2.485ms\nCPU 1.648ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.125475999993796,
+            "unit": "ms",
+            "extra": "Min 0.112ms\nMax 0.141ms\nMean 0.124ms\nStdDev 0.012ms\nMedian 0.125ms\nCPU 0.072ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.02832300003774435,
+            "unit": "ms",
+            "extra": "Min 0.027ms\nMax 0.030ms\nMean 0.028ms\nStdDev 0.001ms\nMedian 0.028ms\nCPU 0.028ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 1.8183760000169968,
+            "unit": "ms",
+            "extra": "Min 1.803ms\nMax 1.920ms\nMean 1.851ms\nStdDev 0.059ms\nMedian 1.818ms\nCPU 0.542ms"
+          },
+          {
+            "name": "Backend startup (native)",
+            "value": 1.4815540000086003,
+            "unit": "ms",
+            "extra": "Min 1.450ms\nMax 1.540ms\nMean 1.486ms\nStdDev 0.035ms\nMedian 1.482ms\nCPU 0.640ms"
+          },
+          {
+            "name": "Scope set_tag (inproc)",
+            "value": 0.005029915000022811,
+            "unit": "ms",
+            "extra": "Min 0.005ms\nMax 0.005ms\nMean 0.005ms\nMedian 0.005ms\nCPU 0.005ms"
+          },
+          {
+            "name": "Scope add_breadcrumb (inproc)",
+            "value": 0.0005989999999655993,
+            "unit": "ms",
+            "extra": "Min 0.001ms\nMax 0.001ms\nMean 0.001ms\nMedian 0.001ms\nCPU 0.001ms"
+          },
+          {
+            "name": "Scope set_tag (breakpad)",
+            "value": 0.004760748000023796,
+            "unit": "ms",
+            "extra": "Min 0.005ms\nMax 0.005ms\nMean 0.005ms\nMedian 0.005ms\nCPU 0.005ms"
+          },
+          {
+            "name": "Scope add_breadcrumb (breakpad)",
+            "value": 0.0005472429999713313,
+            "unit": "ms",
+            "extra": "Min 0.001ms\nMax 0.001ms\nMean 0.001ms\nMedian 0.001ms\nCPU 0.001ms"
+          },
+          {
+            "name": "Scope set_tag (crashpad)",
+            "value": 0.0048887990000139325,
+            "unit": "ms",
+            "extra": "Min 0.005ms\nMax 0.005ms\nMean 0.005ms\nMedian 0.005ms\nCPU 0.005ms"
+          },
+          {
+            "name": "Scope add_breadcrumb (crashpad)",
+            "value": 0.007490445000030377,
+            "unit": "ms",
+            "extra": "Min 0.007ms\nMax 0.007ms\nMean 0.007ms\nMedian 0.007ms\nCPU 0.007ms"
+          },
+          {
+            "name": "Scope set_tag (native)",
+            "value": 0.20379274900000155,
+            "unit": "ms",
+            "extra": "Min 0.204ms\nMax 0.204ms\nMean 0.204ms\nMedian 0.204ms\nCPU 0.144ms"
+          },
+          {
+            "name": "Scope add_breadcrumb (native)",
+            "value": 0.007248919999994996,
+            "unit": "ms",
+            "extra": "Min 0.007ms\nMax 0.007ms\nMean 0.007ms\nMedian 0.007ms\nCPU 0.007ms"
+          },
+          {
+            "name": "Logs (1 thread)",
+            "value": 0.006054520000020602,
+            "unit": "ms",
+            "extra": "Min 0.006ms\nMax 0.006ms\nMean 0.006ms\nMedian 0.006ms\nCPU 0.006ms"
+          },
+          {
+            "name": "Logs (8 threads)",
+            "value": 0.05112342000003878,
+            "unit": "ms",
+            "extra": "Min 0.051ms\nMax 0.051ms\nMean 0.051ms\nMedian 0.051ms\nCPU 0.014ms"
+          },
+          {
+            "name": "Logs (16 threads)",
+            "value": 0.08367409562506367,
+            "unit": "ms",
+            "extra": "Min 0.084ms\nMax 0.084ms\nMean 0.084ms\nMedian 0.084ms\nCPU 0.013ms"
+          },
+          {
+            "name": "Logs (32 threads)",
+            "value": 0.2262303415624345,
+            "unit": "ms",
+            "extra": "Min 0.226ms\nMax 0.226ms\nMean 0.226ms\nMedian 0.226ms\nCPU 0.020ms"
           }
         ]
       }
