@@ -4209,8 +4209,7 @@ SENTRY_EXPERIMENTAL_API void sentry_transaction_iter_headers(
  *
  * Notes:
  *   * The underlying value is set by sentry_init() - it must be called first.
- *   * sentry_init() clears the persisted value for the next run except on
- *     Android, where it must be cleared explicitly.
+ *   * sentry_init() clears the persisted value for the next run.
  *
  * Possible return values:
  *   1 = the last run was a crash
@@ -4222,8 +4221,6 @@ SENTRY_EXPERIMENTAL_API int sentry_get_crashed_last_run(void);
 /**
  * Clear the persisted status of the "crashed-last-run".
  *
- * Calling this function is only required on Android.
- *
  * Notes:
  *   * This doesn't change the value of sentry_get_crashed_last_run() yet.
  *     However, if sentry_init() is called again, the value will change.
@@ -4231,6 +4228,7 @@ SENTRY_EXPERIMENTAL_API int sentry_get_crashed_last_run(void);
  *
  * Returns 0 on success, 1 on error.
  */
+SENTRY_DEPRECATED("The crash marker is cleared by `sentry_init()`.")
 SENTRY_EXPERIMENTAL_API int sentry_clear_crashed_last_run(void);
 
 /**

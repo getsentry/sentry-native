@@ -4,7 +4,11 @@
 
 **Breaking / Important behavior changes**:
 
-- `sentry_init()` now consumes `<db>/last_crash` after caching its value, except on Android. `sentry_clear_crashed_last_run()` is no longer required elsewhere. ([#2023](https://github.com/getsentry/sentry-native/pull/2023))
+- `sentry_init()` now consumes `<db>/last_crash` after caching its value, aligning crashed-last-run behavior with other Sentry SDKs. ([#2023](https://github.com/getsentry/sentry-native/pull/2023))
+
+**Deprecations**:
+
+- Deprecate `sentry_clear_crashed_last_run()` because `sentry_init()` now consumes the marker automatically. ([#2023](https://github.com/getsentry/sentry-native/pull/2023))
 
 ## Unreleased
 

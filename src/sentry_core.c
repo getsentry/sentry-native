@@ -238,12 +238,9 @@ sentry_init(sentry_options_t *options)
     }
 
     g_last_crash = sentry__has_crash_marker(options);
-    // Android SDK needs the marker timestamp for session finalization
-#if !defined(SENTRY_PLATFORM_ANDROID)
-    if (g_last_crash) {
+    if (g_last_crash && !options->retain_crash_marker) {
         sentry__clear_crash_marker(options);
     }
-#endif
     g_options = options;
 
     // *after* setting the global options, trigger a scope and consent flush,
