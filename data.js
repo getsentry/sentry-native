@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1787683720690,
+  "lastUpdate": 1787683810807,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -94018,6 +94018,150 @@ window.BENCHMARK_DATA = {
             "value": 0.2806525390625225,
             "unit": "ms",
             "extra": "Min 0.281ms\nMax 0.281ms\nMean 0.281ms\nMedian 0.281ms\nCPU 0.021ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "jpnurmi@gmail.com",
+            "name": "J-P Nurmi",
+            "username": "jpnurmi"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "64ff8fe80d44d5a15b008d399e298843b2c2af3c",
+          "message": "ci: add GCC+MSVC analyzer builds and CppCheck (#2014)",
+          "timestamp": "2026-08-25T20:44:39+02:00",
+          "tree_id": "3be685afcaf1b6e7e5f0a0ea11d86cf40ba09030",
+          "url": "https://github.com/getsentry/sentry-native/commit/64ff8fe80d44d5a15b008d399e298843b2c2af3c"
+        },
+        "date": 1787683792811,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 3.562832999989496,
+            "unit": "ms",
+            "extra": "Min 3.411ms\nMax 4.875ms\nMean 3.787ms\nStdDev 0.612ms\nMedian 3.563ms\nCPU 2.058ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 4.247208000037972,
+            "unit": "ms",
+            "extra": "Min 3.498ms\nMax 5.640ms\nMean 4.463ms\nStdDev 0.964ms\nMedian 4.247ms\nCPU 2.589ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 17.682249999950272,
+            "unit": "ms",
+            "extra": "Min 12.898ms\nMax 65.778ms\nMean 26.617ms\nStdDev 22.023ms\nMedian 17.682ms\nCPU 5.418ms"
+          },
+          {
+            "name": "SDK init (native)",
+            "value": 9.278875000006792,
+            "unit": "ms",
+            "extra": "Min 7.920ms\nMax 9.333ms\nMean 8.901ms\nStdDev 0.611ms\nMedian 9.279ms\nCPU 2.800ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.05770899997514789,
+            "unit": "ms",
+            "extra": "Min 0.054ms\nMax 0.069ms\nMean 0.060ms\nStdDev 0.006ms\nMedian 0.058ms\nCPU 0.040ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.17937500001607987,
+            "unit": "ms",
+            "extra": "Min 0.143ms\nMax 0.235ms\nMean 0.188ms\nStdDev 0.037ms\nMedian 0.179ms\nCPU 0.188ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 6.481000000007953,
+            "unit": "ms",
+            "extra": "Min 6.336ms\nMax 8.076ms\nMean 6.809ms\nStdDev 0.720ms\nMedian 6.481ms\nCPU 0.854ms"
+          },
+          {
+            "name": "Backend startup (native)",
+            "value": 5.798749999996744,
+            "unit": "ms",
+            "extra": "Min 4.605ms\nMax 8.332ms\nMean 5.950ms\nStdDev 1.478ms\nMedian 5.799ms\nCPU 0.710ms"
+          },
+          {
+            "name": "Scope set_tag (inproc)",
+            "value": 0.002797457999974995,
+            "unit": "ms",
+            "extra": "Min 0.003ms\nMax 0.003ms\nMean 0.003ms\nMedian 0.003ms\nCPU 0.003ms"
+          },
+          {
+            "name": "Scope add_breadcrumb (inproc)",
+            "value": 0.0010817499999689062,
+            "unit": "ms",
+            "extra": "Min 0.001ms\nMax 0.001ms\nMean 0.001ms\nMedian 0.001ms\nCPU 0.001ms"
+          },
+          {
+            "name": "Scope set_tag (breakpad)",
+            "value": 0.0029624160000025768,
+            "unit": "ms",
+            "extra": "Min 0.003ms\nMax 0.003ms\nMean 0.003ms\nMedian 0.003ms\nCPU 0.003ms"
+          },
+          {
+            "name": "Scope add_breadcrumb (breakpad)",
+            "value": 0.003017207999960192,
+            "unit": "ms",
+            "extra": "Min 0.003ms\nMax 0.003ms\nMean 0.003ms\nMedian 0.003ms\nCPU 0.003ms"
+          },
+          {
+            "name": "Scope set_tag (crashpad)",
+            "value": 0.1427687909999804,
+            "unit": "ms",
+            "extra": "Min 0.143ms\nMax 0.143ms\nMean 0.143ms\nMedian 0.143ms\nCPU 0.133ms"
+          },
+          {
+            "name": "Scope add_breadcrumb (crashpad)",
+            "value": 0.04407424999999421,
+            "unit": "ms",
+            "extra": "Min 0.044ms\nMax 0.044ms\nMean 0.044ms\nMedian 0.044ms\nCPU 0.029ms"
+          },
+          {
+            "name": "Scope set_tag (native)",
+            "value": 0.12934420800002044,
+            "unit": "ms",
+            "extra": "Min 0.129ms\nMax 0.129ms\nMean 0.129ms\nMedian 0.129ms\nCPU 0.118ms"
+          },
+          {
+            "name": "Scope add_breadcrumb (native)",
+            "value": 0.04547416700000895,
+            "unit": "ms",
+            "extra": "Min 0.045ms\nMax 0.045ms\nMean 0.045ms\nMedian 0.045ms\nCPU 0.036ms"
+          },
+          {
+            "name": "Logs (1 thread)",
+            "value": 0.0038337499995577673,
+            "unit": "ms",
+            "extra": "Min 0.004ms\nMax 0.004ms\nMean 0.004ms\nMedian 0.004ms\nCPU 0.004ms"
+          },
+          {
+            "name": "Logs (8 threads)",
+            "value": 0.028933543749829482,
+            "unit": "ms",
+            "extra": "Min 0.029ms\nMax 0.029ms\nMean 0.029ms\nMedian 0.029ms\nCPU 0.007ms"
+          },
+          {
+            "name": "Logs (16 threads)",
+            "value": 0.045447342500004595,
+            "unit": "ms",
+            "extra": "Min 0.045ms\nMax 0.045ms\nMean 0.045ms\nMedian 0.045ms\nCPU 0.006ms"
+          },
+          {
+            "name": "Logs (32 threads)",
+            "value": 0.08459167999994577,
+            "unit": "ms",
+            "extra": "Min 0.085ms\nMax 0.085ms\nMean 0.085ms\nMedian 0.085ms\nCPU 0.006ms"
           }
         ]
       }
