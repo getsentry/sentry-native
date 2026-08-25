@@ -791,7 +791,7 @@ sentry_envelope_item_t *
 sentry__envelope_add_from_path(
     sentry_envelope_t *envelope, const sentry_path_t *path, const char *type)
 {
-    if (!envelope) {
+    if (!envelope || !path) {
         return NULL;
     }
     size_t buf_len;
