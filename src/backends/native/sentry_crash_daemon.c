@@ -1219,7 +1219,7 @@ static size_t
 extract_elf_build_id_for_module(
     const char *elf_path, uint8_t *build_id, size_t max_len)
 {
-    int fd = open(elf_path, O_RDONLY);
+    int fd = sentry__elf_open(elf_path);
     if (fd < 0) {
         return 0;
     }
@@ -1353,7 +1353,7 @@ elf_locate_symtab(const char *path, int allow_dynsym, sym_source_t *src,
         debuglink_out[0] = '\0';
     }
 
-    int fd = open(path, O_RDONLY);
+    int fd = sentry__elf_open(path);
     if (fd < 0) {
         return 0;
     }
@@ -1587,7 +1587,7 @@ static int
 sym_source_lookup(const sym_source_t *src, uint64_t sym_target, char *name_out,
     size_t name_out_size)
 {
-    int fd = open(src->sym_path, O_RDONLY);
+    int fd = sentry__elf_open(src->sym_path);
     if (fd < 0) {
         return 0;
     }
@@ -1781,6 +1781,10 @@ capture_modules_from_proc_maps(sentry_crash_context_t *ctx)
             = len < sizeof(mod->name) - 1 ? len : sizeof(mod->name) - 1;
         memcpy(mod->name, pathname, copy_len);
         mod->name[copy_len] = '\0';
+
+        if (!sentry__elf_is_file(mod->name)) {
+            continue;
+        }
 
         // Extract Build ID from ELF file
         memset(mod->uuid, 0, sizeof(mod->uuid));
