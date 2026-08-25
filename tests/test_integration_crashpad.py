@@ -102,7 +102,9 @@ def test_crashpad_on_crashed_last_run(cmake):
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
     )
-    assert_crash_timestamp(has_files, tmp_path)
+    # no first-chance handler nor crash marker on macOS
+    if sys.platform != "darwin":
+        assert_crash_timestamp(has_files, tmp_path)
 
     assert not list((tmp_path / ".sentry-native").glob("*.run/*.crash"))
 
@@ -113,7 +115,9 @@ def test_crashpad_on_crashed_last_run(cmake):
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
     )
-    assert_no_crash_timestamp(has_files, tmp_path)
+    # no first-chance handler nor crash marker on macOS
+    if sys.platform != "darwin":
+        assert_no_crash_timestamp(has_files, tmp_path)
     callbacks = [
         line
         for line in restarted.stdout.splitlines()
