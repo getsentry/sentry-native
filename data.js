@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1787667830371,
+  "lastUpdate": 1787670202874,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -46444,6 +46444,150 @@ window.BENCHMARK_DATA = {
             "value": 0.19818543812499811,
             "unit": "ms",
             "extra": "Min 0.198ms\nMax 0.198ms\nMean 0.198ms\nMedian 0.198ms\nCPU 0.016ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "49699333+dependabot[bot]@users.noreply.github.com",
+            "name": "dependabot[bot]",
+            "username": "dependabot[bot]"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "50fddbf30e1547e2fa4b29bc86d587346e3ee3e8",
+          "message": "build(deps): bump the github-codeql-action group with 2 updates (#2021)\n\nBumps the github-codeql-action group with 2 updates: [github/codeql-action/init](https://github.com/github/codeql-action) and [github/codeql-action/analyze](https://github.com/github/codeql-action).\n\n\nUpdates `github/codeql-action/init` from 4.37.7 to 4.37.8\n- [Release notes](https://github.com/github/codeql-action/releases)\n- [Changelog](https://github.com/github/codeql-action/blob/main/CHANGELOG.md)\n- [Commits](https://github.com/github/codeql-action/compare/ff2f1c621b7f889edc0d3c761ac2e6a3f8cdb0dd...db488ddef3bf6cb639b32c2e9a7c0a7ea8271d28)\n\nUpdates `github/codeql-action/analyze` from 4.37.7 to 4.37.8\n- [Release notes](https://github.com/github/codeql-action/releases)\n- [Changelog](https://github.com/github/codeql-action/blob/main/CHANGELOG.md)\n- [Commits](https://github.com/github/codeql-action/compare/ff2f1c621b7f889edc0d3c761ac2e6a3f8cdb0dd...db488ddef3bf6cb639b32c2e9a7c0a7ea8271d28)\n\n---\nupdated-dependencies:\n- dependency-name: github/codeql-action/init\n  dependency-version: 4.37.8\n  dependency-type: direct:production\n  update-type: version-update:semver-patch\n  dependency-group: github-codeql-action\n- dependency-name: github/codeql-action/analyze\n  dependency-version: 4.37.8\n  dependency-type: direct:production\n  update-type: version-update:semver-patch\n  dependency-group: github-codeql-action\n...\n\nSigned-off-by: dependabot[bot] <support@github.com>\nCo-authored-by: dependabot[bot] <49699333+dependabot[bot]@users.noreply.github.com>",
+          "timestamp": "2026-08-25T17:00:00+02:00",
+          "tree_id": "d9dbd3d30b2909f8f73f9e8fb74b5cfa1d979618",
+          "url": "https://github.com/getsentry/sentry-native/commit/50fddbf30e1547e2fa4b29bc86d587346e3ee3e8"
+        },
+        "date": 1787670190358,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 0.811330000004773,
+            "unit": "ms",
+            "extra": "Min 0.806ms\nMax 0.825ms\nMean 0.813ms\nStdDev 0.007ms\nMedian 0.811ms\nCPU 0.779ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 0.776028000004203,
+            "unit": "ms",
+            "extra": "Min 0.748ms\nMax 0.798ms\nMean 0.775ms\nStdDev 0.018ms\nMedian 0.776ms\nCPU 0.772ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 2.9091540000081295,
+            "unit": "ms",
+            "extra": "Min 2.858ms\nMax 3.010ms\nMean 2.921ms\nStdDev 0.058ms\nMedian 2.909ms\nCPU 1.517ms"
+          },
+          {
+            "name": "SDK init (native)",
+            "value": 2.079374999993888,
+            "unit": "ms",
+            "extra": "Min 2.045ms\nMax 2.168ms\nMean 2.093ms\nStdDev 0.046ms\nMedian 2.079ms\nCPU 1.369ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.10626700000671008,
+            "unit": "ms",
+            "extra": "Min 0.102ms\nMax 0.117ms\nMean 0.107ms\nStdDev 0.006ms\nMedian 0.106ms\nCPU 0.063ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.02476700001352583,
+            "unit": "ms",
+            "extra": "Min 0.023ms\nMax 0.025ms\nMean 0.024ms\nStdDev 0.001ms\nMedian 0.025ms\nCPU 0.024ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 1.5120459999877767,
+            "unit": "ms",
+            "extra": "Min 1.491ms\nMax 1.540ms\nMean 1.511ms\nStdDev 0.019ms\nMedian 1.512ms\nCPU 0.422ms"
+          },
+          {
+            "name": "Backend startup (native)",
+            "value": 1.2403340000162189,
+            "unit": "ms",
+            "extra": "Min 1.229ms\nMax 1.261ms\nMean 1.242ms\nStdDev 0.012ms\nMedian 1.240ms\nCPU 0.533ms"
+          },
+          {
+            "name": "Scope set_tag (inproc)",
+            "value": 0.004002057000008108,
+            "unit": "ms",
+            "extra": "Min 0.004ms\nMax 0.004ms\nMean 0.004ms\nMedian 0.004ms\nCPU 0.004ms"
+          },
+          {
+            "name": "Scope add_breadcrumb (inproc)",
+            "value": 0.000373341999988952,
+            "unit": "ms",
+            "extra": "Min 0.000ms\nMax 0.000ms\nMean 0.000ms\nMedian 0.000ms\nCPU 0.000ms"
+          },
+          {
+            "name": "Scope set_tag (breakpad)",
+            "value": 0.004099611000015102,
+            "unit": "ms",
+            "extra": "Min 0.004ms\nMax 0.004ms\nMean 0.004ms\nMedian 0.004ms\nCPU 0.004ms"
+          },
+          {
+            "name": "Scope add_breadcrumb (breakpad)",
+            "value": 0.0003902770000081546,
+            "unit": "ms",
+            "extra": "Min 0.000ms\nMax 0.000ms\nMean 0.000ms\nMedian 0.000ms\nCPU 0.000ms"
+          },
+          {
+            "name": "Scope set_tag (crashpad)",
+            "value": 0.0035629479999954583,
+            "unit": "ms",
+            "extra": "Min 0.004ms\nMax 0.004ms\nMean 0.004ms\nMedian 0.004ms\nCPU 0.004ms"
+          },
+          {
+            "name": "Scope add_breadcrumb (crashpad)",
+            "value": 0.00615848500001448,
+            "unit": "ms",
+            "extra": "Min 0.006ms\nMax 0.006ms\nMean 0.006ms\nMedian 0.006ms\nCPU 0.006ms"
+          },
+          {
+            "name": "Scope set_tag (native)",
+            "value": 0.1649170290000086,
+            "unit": "ms",
+            "extra": "Min 0.165ms\nMax 0.165ms\nMean 0.165ms\nMedian 0.165ms\nCPU 0.095ms"
+          },
+          {
+            "name": "Scope add_breadcrumb (native)",
+            "value": 0.005856829000009611,
+            "unit": "ms",
+            "extra": "Min 0.006ms\nMax 0.006ms\nMean 0.006ms\nMedian 0.006ms\nCPU 0.006ms"
+          },
+          {
+            "name": "Logs (1 thread)",
+            "value": 0.004939499999920827,
+            "unit": "ms",
+            "extra": "Min 0.005ms\nMax 0.005ms\nMean 0.005ms\nMedian 0.005ms\nCPU 0.005ms"
+          },
+          {
+            "name": "Logs (8 threads)",
+            "value": 0.03561065500001348,
+            "unit": "ms",
+            "extra": "Min 0.036ms\nMax 0.036ms\nMean 0.036ms\nMedian 0.036ms\nCPU 0.010ms"
+          },
+          {
+            "name": "Logs (16 threads)",
+            "value": 0.1363531112500027,
+            "unit": "ms",
+            "extra": "Min 0.136ms\nMax 0.136ms\nMean 0.136ms\nMedian 0.136ms\nCPU 0.029ms"
+          },
+          {
+            "name": "Logs (32 threads)",
+            "value": 0.14075652187503174,
+            "unit": "ms",
+            "extra": "Min 0.141ms\nMax 0.141ms\nMean 0.141ms\nMedian 0.141ms\nCPU 0.013ms"
           }
         ]
       }
