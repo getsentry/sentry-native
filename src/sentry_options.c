@@ -1028,13 +1028,15 @@ sentry__options_has_integration(const sentry_options_t *opts, const char *name)
 void
 sentry_options_set_enable_logs(sentry_options_t *opts, int enable_logs)
 {
-    opts->enable_logs = !!enable_logs;
+    (void)opts;
+    (void)enable_logs;
 }
 
 int
 sentry_options_get_enable_logs(const sentry_options_t *opts)
 {
-    return opts->enable_logs;
+    (void)opts;
+    return true;
 }
 
 void
@@ -1053,13 +1055,15 @@ sentry_options_get_logs_with_attributes(const sentry_options_t *opts)
 void
 sentry_options_set_enable_metrics(sentry_options_t *opts, int enable_metrics)
 {
-    opts->enable_metrics = !!enable_metrics;
+    (void)opts;
+    (void)enable_metrics;
 }
 
 int
 sentry_options_get_enable_metrics(const sentry_options_t *opts)
 {
-    return opts->enable_metrics;
+    (void)opts;
+    return true;
 }
 
 void

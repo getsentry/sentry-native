@@ -2882,10 +2882,12 @@ SENTRY_EXPERIMENTAL_API int sentry_options_get_strict_trace_continuation(
  *
  * Enabled by default.
  */
-SENTRY_DEPRECATED("This function will be removed in a future release.")
+SENTRY_DEPRECATED(
+    "This function does nothing. It will be removed in a future release.")
 SENTRY_EXPERIMENTAL_API void sentry_options_set_enable_logs(
     sentry_options_t *opts, int enable_logs);
-SENTRY_DEPRECATED("This function will be removed in a future release.")
+SENTRY_DEPRECATED("This function always returns true. It will be removed in a "
+                  "future release.")
 SENTRY_EXPERIMENTAL_API int sentry_options_get_enable_logs(
     const sentry_options_t *opts);
 
@@ -3068,10 +3070,12 @@ SENTRY_EXPERIMENTAL_API void sentry_options_set_before_send_log(
  *
  * Enabled by default.
  */
-SENTRY_DEPRECATED("This function will be removed in a future release.")
+SENTRY_DEPRECATED(
+    "This function does nothing. It will be removed in a future release.")
 SENTRY_EXPERIMENTAL_API void sentry_options_set_enable_metrics(
     sentry_options_t *opts, int enable_metrics);
-SENTRY_DEPRECATED("This function will be removed in a future release.")
+SENTRY_DEPRECATED("This function always returns true. It will be removed in a "
+                  "future release.")
 SENTRY_EXPERIMENTAL_API int sentry_options_get_enable_metrics(
     const sentry_options_t *opts);
 
