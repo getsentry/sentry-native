@@ -572,7 +572,7 @@ SENTRY_API sentry_value_t sentry_value_new_breadcrumb_n(
  * try-catch block. `type` and `value` here refer to the exception class and
  * a possible description.
  *
- * See https://develop.sentry.dev/sdk/event-payloads/exception/
+ * See https://develop.sentry.dev/sdk/telemetry/errors/#exception-interface
  *
  * The returned value needs to be attached to an event via
  * `sentry_event_add_exception`.
