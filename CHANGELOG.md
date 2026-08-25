@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+**Breaking / Important behavior changes**:
+
+- `sentry_init()` now consumes `<db>/last_crash` after caching its value, except on Android. `sentry_clear_crashed_last_run()` is no longer required elsewhere. ([#1325](https://github.com/getsentry/sentry-native/issues/1325))
+
+## Unreleased
+
 **Features**:
 
 - Windows: report WINE and Proton metadata in a separate runtime context. ([#1995](https://github.com/getsentry/sentry-native/pull/1995))

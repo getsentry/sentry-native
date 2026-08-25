@@ -33,6 +33,8 @@ from .assertions import (
     assert_user_report,
     assert_minidump,
     assert_breakpad_crash,
+    assert_crash_timestamp,
+    assert_no_crash_timestamp,
     assert_gzip_content_encoding,
     assert_gzip_file_header,
     assert_attachment_view_hierarchy,
@@ -1078,6 +1080,7 @@ def test_on_crashed_last_run(cmake, backend):
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
     )
+    assert_crash_timestamp(has_files, tmp_path)
 
     run_dirs = list((tmp_path / ".sentry-native").glob("*.run"))
     assert len(run_dirs) == 1
@@ -1092,6 +1095,7 @@ def test_on_crashed_last_run(cmake, backend):
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
     )
+    assert_no_crash_timestamp(has_files, tmp_path)
     callbacks = [
         line
         for line in restarted.stdout.splitlines()

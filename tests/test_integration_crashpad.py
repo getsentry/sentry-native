@@ -21,7 +21,7 @@ from . import (
     lib_name,
     REPLAY_ID,
 )
-from .conditions import has_crashpad, has_oom
+from .conditions import has_crashpad, has_files, has_oom
 from .proxy import (
     setup_proxy_env_vars,
     cleanup_proxy_env_vars,
@@ -30,6 +30,8 @@ from .proxy import (
 )
 from .assertions import (
     assert_breadcrumb,
+    assert_crash_timestamp,
+    assert_no_crash_timestamp,
     assert_crashpad_upload,
     assert_meta,
     assert_minidump,
@@ -100,6 +102,7 @@ def test_crashpad_on_crashed_last_run(cmake):
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
     )
+    assert_crash_timestamp(has_files, tmp_path)
 
     assert not list((tmp_path / ".sentry-native").glob("*.run/*.crash"))
 
@@ -110,6 +113,7 @@ def test_crashpad_on_crashed_last_run(cmake):
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
     )
+    assert_no_crash_timestamp(has_files, tmp_path)
     callbacks = [
         line
         for line in restarted.stdout.splitlines()

@@ -230,7 +230,14 @@ SENTRY_TEST(crashed_last_run)
 
         TEST_CHECK_INT_EQUAL(sentry_get_crashed_last_run(), 1);
 
-        // clear the status and re-init
+#ifdef SENTRY_PLATFORM_ANDROID
+        // Android preserves the marker for session finalization
+        TEST_CHECK(sentry__has_crash_marker(options));
+#else
+        // other platforms consume it automatically during initialization
+        TEST_CHECK(!sentry__has_crash_marker(options));
+#endif
+        // explicit clearing remains supported on all platforms
         TEST_CHECK_INT_EQUAL(sentry_clear_crashed_last_run(), 0);
 
         sentry_close();
