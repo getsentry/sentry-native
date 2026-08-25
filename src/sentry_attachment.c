@@ -8,6 +8,12 @@
 
 #include <string.h>
 
+const char *
+sentry__attachment_get_type(const sentry_attachment_t *attachment)
+{
+    return attachment ? attachment->type : NULL;
+}
+
 void
 sentry_attachment_set_type(sentry_attachment_t *attachment, const char *type)
 {
@@ -55,6 +61,12 @@ sentry__attachment_set_type_n(
             attachment->content_type = sentry__string_clone("application/json");
         }
     }
+}
+
+const char *
+sentry__attachment_get_content_type(const sentry_attachment_t *attachment)
+{
+    return attachment ? attachment->content_type : NULL;
 }
 
 void
@@ -220,11 +232,39 @@ sentry__attachment_get_size(const sentry_attachment_t *attachment)
 }
 
 const char *
+sentry__attachment_get_bytes(const sentry_attachment_t *attachment, size_t *len)
+{
+    if (!attachment || !attachment->buf) {
+        if (len) {
+            *len = 0;
+        }
+        return NULL;
+    }
+
+    if (len) {
+        *len = attachment->buf_len;
+    }
+    return attachment->buf;
+}
+
+const char *
 sentry__attachment_get_filename(const sentry_attachment_t *attachment)
 {
     const sentry_path_t *path
         = attachment->filename ? attachment->filename : attachment->path;
     return path ? sentry__path_filename(path) : NULL;
+}
+
+const char *
+sentry__attachment_get_path(const sentry_attachment_t *attachment)
+{
+    return attachment && attachment->path ? attachment->path->path : NULL;
+}
+
+sentry_path_t *
+sentry__attachment_make_path(const sentry_attachment_t *attachment)
+{
+    return sentry__path_from_str(sentry__attachment_get_path(attachment));
 }
 
 bool
