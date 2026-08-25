@@ -17,6 +17,10 @@
 
 - Deprecate `sentry_options_get/set_enable_logs` and `sentry_options_get/set_enable_metrics`. ([#2000](https://github.com/getsentry/sentry-native/pull/2000))
 
+**Features**:
+
+- Report the byte size of discarded logs and metrics in client reports under the `log_byte` and `trace_metric_byte` categories, alongside the existing `log_item` and `trace_metric` counts.
+
 **Fixes**:
 
 - Native: store daemon logs, minidumps, crash envelopes, and scratch files in `.run` directories so they are cleaned up with the run instead of accumulating in the database root. Minidumps can still be retained with `cache_keep`, which stores `.dmp` sidecars alongside cached envelopes. ([#1976](https://github.com/getsentry/sentry-native/pull/1976))
@@ -70,6 +74,7 @@
 **Fixes**:
 
 - Honor checks before launching crash reporter ([#1906](https://github.com/getsentry/sentry-native/pull/1906))
+- Client reports now count every log in a discarded batch instead of counting the whole envelope item as a single discard, so dropping a batch of 100 logs is reported as 100 discarded `log_item`s rather than 1. The same applies to batched metrics.
 
 ## 0.16.0
 
