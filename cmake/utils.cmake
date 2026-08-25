@@ -14,3 +14,11 @@ function(sentry_add_version_resource TGT FILE_DESCRIPTION)
 	# Finally add the generated resource file to the target sources
 	target_sources("${TGT}" PRIVATE "${RESOURCE_PATH}")
 endfunction()
+
+function(sentry_get_property NAME)
+	get_target_property(prop sentry "${NAME}")
+	if(NOT prop)
+		set(prop)
+	endif()
+	set("SENTRY_${NAME}" "${prop}" PARENT_SCOPE)
+endfunction()

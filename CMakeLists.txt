@@ -1050,6 +1050,7 @@ if(SENTRY_BUILD_TESTS)
 		set(BENCHMARK_ENABLE_GTEST_TESTS OFF)
 		add_subdirectory(external/benchmark)
 		add_subdirectory(tests/benchmark)
+		add_subdirectory(tests/fixtures/stack_usage)
 	endif()
 endif()
 

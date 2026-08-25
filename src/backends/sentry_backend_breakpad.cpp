@@ -112,6 +112,7 @@ breakpad_backend_callback(const google_breakpad::MinidumpDescriptor &descriptor,
     sentry__page_allocator_enable();
     (void)!sentry__enter_signal_handler();
 #endif
+    sentry__enter_crash_handler();
 
     sentry_path_t *dump_path = nullptr;
 #ifdef SENTRY_PLATFORM_WINDOWS
@@ -285,6 +286,7 @@ breakpad_backend_callback(const google_breakpad::MinidumpDescriptor &descriptor,
     }
     SENTRY_SIGNAL_SAFE_LOG("INFO crash has been captured");
 
+    sentry__exit_crash_handler();
 #ifndef SENTRY_PLATFORM_WINDOWS
     sentry__leave_signal_handler();
 #endif

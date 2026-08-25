@@ -291,6 +291,7 @@ safe_build_stack_path(
 static void
 crash_signal_handler(int signum, siginfo_t *info, void *context)
 {
+    sentry__enter_crash_handler();
     ucontext_t *uctx = (ucontext_t *)context;
 
 #    if defined(SENTRY_PLATFORM_LINUX) && !defined(SENTRY_PLATFORM_ANDROID)
@@ -307,6 +308,7 @@ crash_signal_handler(int signum, siginfo_t *info, void *context)
         // case this was not a native crash for Sentry to capture.
         if (ip != sentry__ucontext_get_ip(uctx)
             || sp != sentry__ucontext_get_sp(uctx)) {
+            sentry__exit_crash_handler();
             return;
         }
     }
@@ -321,6 +323,7 @@ crash_signal_handler(int signum, siginfo_t *info, void *context)
             invoke_previous_signal_handler(signum, info, context);
         }
         // The previous handler returned, fall back to default termination
+        sentry__exit_crash_handler();
         reraise_signal(signum);
         return;
     }
@@ -329,6 +332,7 @@ crash_signal_handler(int signum, siginfo_t *info, void *context)
     static volatile long handling_crash = 0;
     if (!sentry__atomic_compare_swap(&handling_crash, 0, 1)) {
         // Already handling a crash, just exit immediately
+        sentry__exit_crash_handler();
         _exit(1);
     }
 
@@ -834,6 +838,7 @@ daemon_handling:
     }
 
     // Re-enable previous signal handlers before re-raising to prevent loops
+    sentry__exit_crash_handler();
     reset_signal_handlers();
 
     if (g_handler_strategy != SENTRY_HANDLER_STRATEGY_CHAIN_AT_START) {
@@ -979,16 +984,19 @@ crash_sigabrt_handler(EXCEPTION_POINTERS *exception_pointers)
 static LONG WINAPI
 crash_exception_filter(EXCEPTION_POINTERS *exception_info)
 {
+    sentry__enter_crash_handler();
     // Only handle crash once
     static volatile long handling_crash = 0;
     if (!sentry__atomic_compare_swap(&handling_crash, 0, 1)) {
         // Already handling a crash (no logging - exception filter context)
+        sentry__exit_crash_handler();
         return EXCEPTION_CONTINUE_SEARCH;
     }
 
     sentry_crash_ipc_t *ipc = g_crash_ipc;
     if (!ipc || !ipc->shmem) {
         // No IPC or shared memory (no logging - exception filter context)
+        sentry__exit_crash_handler();
         return EXCEPTION_CONTINUE_SEARCH;
     }
 
@@ -1049,6 +1057,7 @@ crash_exception_filter(EXCEPTION_POINTERS *exception_info)
     }
 
     // Continue to default handler (which will terminate the process)
+    sentry__exit_crash_handler();
     return EXCEPTION_CONTINUE_SEARCH;
 }
 
