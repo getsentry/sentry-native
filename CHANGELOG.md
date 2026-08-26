@@ -2,9 +2,20 @@
 
 ## Unreleased
 
+**Important behavior changes**:
+
+- `sentry_options_set_enable_logs` and `sentry_options_set_enable_metrics` no longer have any effect. The corresponding getters always return true.
+  > Structured logs and metrics have been enabled by default since `0.13`.
+  >
+  > We recognize that this change may inconvenience applications that rely on the opt-out. Use `sentry_options_set_before_send_log` or `sentry_options_set_before_send_metric` to filter logs or metrics. We made this tradeoff deliberately because consistent behavior across SDK integrations will help most users successfully adopt these features.
+
 **Fixes**:
 
 - Native/Linux: prevent the crash daemon from hanging when module discovery encounters device-backed memory mappings. ([#2025](https://github.com/getsentry/sentry-native/pull/2025))
+
+**Other changes**:
+
+- Promote the 68 performance monitoring and tracing functions from experimental to stable. ([#2012](https://github.com/getsentry/sentry-native/pull/2012))
 
 ## 0.16.4
 
