@@ -1762,13 +1762,16 @@ SENTRY_TEST(scope_observer_null)
     sentry_init(options);
 
     SENTRY_WITH_SCOPE_MUT (scope) {
+        size_t initial_count = scope->num_observers;
+        sentry_scope_observer_t **initial_observers = scope->observers;
+
         TEST_CHECK(!sentry__scope_add_observer(scope, NULL));
-        TEST_CHECK_INT_EQUAL(scope->num_observers, 0);
-        TEST_CHECK(scope->observers == NULL);
+        TEST_CHECK_INT_EQUAL(scope->num_observers, initial_count);
+        TEST_CHECK(scope->observers == initial_observers);
 
         sentry__scope_remove_observer(scope, NULL);
-        TEST_CHECK_INT_EQUAL(scope->num_observers, 0);
-        TEST_CHECK(scope->observers == NULL);
+        TEST_CHECK_INT_EQUAL(scope->num_observers, initial_count);
+        TEST_CHECK(scope->observers == initial_observers);
     }
 
     test_observer_data_t d = { .tags = sentry_value_new_null() };
@@ -1807,7 +1810,9 @@ SENTRY_TEST(scope_observer_multiple)
     observer2->data = &d2;
     observer2->set_tag = observe_set_tag;
 
+    size_t initial_count = 0;
     SENTRY_WITH_SCOPE_MUT (scope) {
+        initial_count = scope->num_observers;
         TEST_CHECK(sentry__scope_add_observer(scope, observer1));
         TEST_CHECK(sentry__scope_add_observer(scope, observer2));
     }
@@ -1826,7 +1831,7 @@ SENTRY_TEST(scope_observer_multiple)
     d2.was_called = false;
     SENTRY_WITH_SCOPE_MUT (scope) {
         sentry__scope_remove_observer(scope, observer2);
-        TEST_CHECK_INT_EQUAL(scope->num_observers, 1);
+        TEST_CHECK_INT_EQUAL(scope->num_observers, initial_count + 1);
         TEST_CHECK(scope->observers != NULL);
     }
 
@@ -1839,8 +1844,8 @@ SENTRY_TEST(scope_observer_multiple)
 
     SENTRY_WITH_SCOPE_MUT (scope) {
         sentry__scope_remove_observer(scope, observer1);
-        TEST_CHECK_INT_EQUAL(scope->num_observers, 0);
-        TEST_CHECK(scope->observers == NULL);
+        TEST_CHECK_INT_EQUAL(scope->num_observers, initial_count);
+        TEST_CHECK((scope->observers == NULL) == (initial_count == 0));
     }
 
     sentry_value_decref(d1.tags);
@@ -1874,7 +1879,9 @@ SENTRY_TEST(scope_observer_mutate)
     observer3->data = &d3;
     observer3->set_tag = observe_set_tag;
 
+    size_t initial_count;
     SENTRY_WITH_SCOPE_MUT (scope) {
+        initial_count = scope->num_observers;
         TEST_CHECK(sentry__scope_add_observer(scope, observer1));
         TEST_CHECK(sentry__scope_add_observer(scope, observer2));
     }
@@ -1905,14 +1912,14 @@ SENTRY_TEST(scope_observer_mutate)
 
     SENTRY_WITH_SCOPE_MUT (scope) {
         TEST_CHECK(sentry__scope_add_observer(scope, observer4));
-        TEST_CHECK_INT_EQUAL(scope->num_observers, 1);
+        TEST_CHECK_INT_EQUAL(scope->num_observers, initial_count + 1);
     }
 
     sentry_set_tag("self", "remove");
     TEST_CHECK(d4.was_called);
     SENTRY_WITH_SCOPE_MUT (scope) {
-        TEST_CHECK_INT_EQUAL(scope->num_observers, 0);
-        TEST_CHECK(scope->observers == NULL);
+        TEST_CHECK_INT_EQUAL(scope->num_observers, initial_count);
+        TEST_CHECK((scope->observers == NULL) == (initial_count == 0));
     }
 
     sentry_value_decref(d1.tags);
