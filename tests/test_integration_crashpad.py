@@ -425,7 +425,7 @@ def wait_for_no_werfault(timeout=30.0, poll_interval=0.5):
         (["fastfail"]),
         (["fastfail", "discarding-before-send"]),
         (["fastfail", "discarding-on-crash"]),
-        pytest.param(["invalid-parameter"], id="invalid-parameter"),
+        (["invalid-parameter"]),
     ],
 )
 def test_crashpad_wer_crash(cmake, httpserver, run_args):
