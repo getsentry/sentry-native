@@ -9,6 +9,10 @@
   >
   > We recognize that this change may inconvenience applications that rely on the opt-out. Use `sentry_options_set_before_send_log` or `sentry_options_set_before_send_metric` to filter logs or metrics. We made this tradeoff deliberately because consistent behavior across SDK integrations will help most users successfully adopt these features.
 
+**Features**:
+
+- Add `sentry_crash` for deliberately crashing the current process to test its crash reporting configuration. ([#2013](https://github.com/getsentry/sentry-native/pull/2013))
+
 **Other changes**:
 
 - Promote the 68 performance monitoring and tracing functions from experimental to stable. ([#2012](https://github.com/getsentry/sentry-native/pull/2012))
@@ -24,7 +28,6 @@
 - Add `on_crashed_last_run` callback for inspecting crash envelopes from previous runs. ([#1985](https://github.com/getsentry/sentry-native/pull/1985))
 - Add `sentry_get_last_event_id` and `sentry_scope_get_last_event_id` for retrieving the last event ID captured with the global or given scope, respectively. ([#1992](https://github.com/getsentry/sentry-native/pull/1992))
 - Native/Unix: The native crash daemon now loads `libcurl` dynamically at runtime by default when `SENTRY_LINK_CURL=AUTO`, avoiding `libcurl` linker work during process startup and significantly speeding up startup time. Explicitly set `SENTRY_LINK_CURL=ON` to link it directly. ([#1955](https://github.com/getsentry/sentry-native/pull/1955))
-- Add `sentry_crash` for deliberately crashing the current process to test its crash reporting configuration. ([#2013](https://github.com/getsentry/sentry-native/pull/2013))
 - Add missing public scope mutators: `set_release`, `set_environment`, `set_transaction`, `remove_tag`, `remove_extra`, `remove_context`, and `remove_attachment`. ([#2011](https://github.com/getsentry/sentry-native/pull/2011))
 
 **Deprecations**:
