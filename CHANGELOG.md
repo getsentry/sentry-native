@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+**Other changes**:
+
+- Promote the 68 performance monitoring and tracing functions from experimental to stable. ([#2012](https://github.com/getsentry/sentry-native/pull/2012))
+
 ## 0.16.4
 
 **Features**:
@@ -27,10 +33,6 @@
 - Crashpad/Windows: preserve module CodeView UUIDs for minimal PDB70 records with empty PDB filenames. ([#2003](https://github.com/getsentry/sentry-native/pull/2003))
 - Native/Windows: improve crash-processing performance for applications with many threads. ([#2018](https://github.com/getsentry/sentry-native/pull/2018))
 - Prevent a race between SDK reinitialization and cleanup of the previous curl client when libcurl is linked directly. ([#2015](https://github.com/getsentry/sentry-native/pull/2015))
-
-**Other changes**:
-
-- Promote the 68 performance monitoring and tracing functions from experimental to stable. ([#2012](https://github.com/getsentry/sentry-native/pull/2012))
 
 ## 0.16.3
 
