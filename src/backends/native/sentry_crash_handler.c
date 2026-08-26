@@ -528,7 +528,17 @@ crash_signal_handler(int signum, siginfo_t *info, void *context)
                 }
             }
 
-            // Capture stack memory for this thread
+            // Capture stack memory for this thread. In crashed-only
+            // stackwalk mode the daemon never walks the other threads, so
+            // their stack copies would go unused.
+            if (!is_crashing_thread
+                && ctx->thread_stackwalk_mode
+                    == SENTRY_THREAD_STACKWALK_MODE_CRASHED_ONLY) {
+                ctx->platform.threads[i].stack_path[0] = '\0';
+                ctx->platform.threads[i].stack_size = 0;
+                continue;
+            }
+
             uint64_t sp;
 #        if defined(__x86_64__)
             sp = ctx->platform.threads[i].state.__ss.__rsp;

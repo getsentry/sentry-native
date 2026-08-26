@@ -9,6 +9,10 @@
   >
   > We recognize that this change may inconvenience applications that rely on the opt-out. Use `sentry_options_set_before_send_log` or `sentry_options_set_before_send_metric` to filter logs or metrics. We made this tradeoff deliberately because consistent behavior across SDK integrations will help most users successfully adopt these features.
 
+**Features**:
+
+- Native: add `sentry_options_set_thread_stackwalk_mode` to limit client-side stackwalking to the crashed thread, which shortens crash processing for applications with a high thread count. ([#2026](https://github.com/getsentry/sentry-native/pull/2026))
+
 **Other changes**:
 
 - Promote the 68 performance monitoring and tracing functions from experimental to stable. ([#2012](https://github.com/getsentry/sentry-native/pull/2012))
