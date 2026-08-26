@@ -1293,6 +1293,30 @@ typedef enum {
 } sentry_crash_reporting_mode_t;
 
 /**
+ * Thread stackwalk mode for the native backend.
+ * Controls which threads have their stack walked when a crash is reported.
+ *
+ * The values start at 1, `0` is reserved.
+ */
+typedef enum {
+    /**
+     * Walk the crashed thread only.
+     * The remaining threads are still reported with their id and name, but
+     * without a stacktrace. Considerably faster on processes with a high
+     * thread count, at the cost of losing the state of the threads that did
+     * not crash.
+     */
+    SENTRY_THREAD_STACKWALK_MODE_CRASHED_ONLY = 1,
+
+    /**
+     * Walk every thread of the crashed process (default).
+     * Provides the most context, but the time needed to collect a crash grows
+     * with the thread count.
+     */
+    SENTRY_THREAD_STACKWALK_MODE_ALL = 2,
+} sentry_thread_stackwalk_mode_t;
+
+/**
  * Crash upload mode for the native backend.
  * Controls whether the crashed application remains blocked while upload and
  * shutdown work finishes after crash data has been captured.
@@ -2169,6 +2193,33 @@ SENTRY_API void sentry_options_set_crash_reporting_mode(
  */
 SENTRY_API sentry_crash_reporting_mode_t
 sentry_options_get_crash_reporting_mode(const sentry_options_t *opts);
+
+/**
+ * Sets the thread stackwalk mode for the native backend.
+ *
+ * This controls which threads the crash daemon walks and symbolicates:
+ * - CRASHED_ONLY: only the crashed thread gets a stacktrace, the remaining
+ *   threads are still listed with their id and name
+ * - ALL: every thread gets a stacktrace
+ *
+ * Walking every thread of a process with a high thread count (such as an
+ * editor or tooling build) can add a noticeable delay to crash collection.
+ *
+ * See `sentry_thread_stackwalk_mode_t` for detailed mode descriptions.
+ *
+ * This setting only has an effect when using the `native` backend with
+ * client-side stackwalking enabled, see
+ * `sentry_options_set_crash_reporting_mode`.
+ * Default is `SENTRY_THREAD_STACKWALK_MODE_ALL`.
+ */
+SENTRY_API void sentry_options_set_thread_stackwalk_mode(
+    sentry_options_t *opts, sentry_thread_stackwalk_mode_t mode);
+
+/**
+ * Gets the thread stackwalk mode for the native backend.
+ */
+SENTRY_API sentry_thread_stackwalk_mode_t
+sentry_options_get_thread_stackwalk_mode(const sentry_options_t *opts);
 
 /**
  * Sets the crash upload mode for the native backend.

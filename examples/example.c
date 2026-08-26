@@ -7,6 +7,9 @@
 #endif
 
 #include "sentry.h"
+#if defined(_WIN32) && !defined(__MINGW32__) && !defined(__MINGW64__)
+#    include <corecrt.h>
+#endif
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -500,6 +503,14 @@ trigger_fastfail_crash()
     // this bypasses WINDOWS SEH and will only be caught with the
     // crashpad/native WER module enabled
     RaiseFailFastException(NULL, NULL, 0);
+}
+
+static void
+trigger_invalid_parameter()
+{
+    // with no custom handler, this invokes _invoke_watson and fast-fails:
+    // https://learn.microsoft.com/en-us/cpp/c-runtime-library/reference/invalid-parameter-functions
+    _invalid_parameter_noinfo();
 }
 
 #endif
@@ -1295,6 +1306,9 @@ main(int argc, char **argv)
     && !defined(__MINGW64__)
     if (has_arg(argc, argv, "fastfail")) {
         trigger_fastfail_crash();
+    }
+    if (has_arg(argc, argv, "invalid-parameter")) {
+        trigger_invalid_parameter();
     }
     if (has_arg(argc, argv, "stack-buffer-overrun")) {
         trigger_stack_buffer_overrun();

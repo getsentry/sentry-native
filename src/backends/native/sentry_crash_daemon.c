@@ -1219,7 +1219,7 @@ static size_t
 extract_elf_build_id_for_module(
     const char *elf_path, uint8_t *build_id, size_t max_len)
 {
-    int fd = open(elf_path, O_RDONLY);
+    int fd = sentry__elf_open(elf_path);
     if (fd < 0) {
         return 0;
     }
@@ -1353,7 +1353,7 @@ elf_locate_symtab(const char *path, int allow_dynsym, sym_source_t *src,
         debuglink_out[0] = '\0';
     }
 
-    int fd = open(path, O_RDONLY);
+    int fd = sentry__elf_open(path);
     if (fd < 0) {
         return 0;
     }
@@ -1587,7 +1587,7 @@ static int
 sym_source_lookup(const sym_source_t *src, uint64_t sym_target, char *name_out,
     size_t name_out_size)
 {
-    int fd = open(src->sym_path, O_RDONLY);
+    int fd = sentry__elf_open(src->sym_path);
     if (fd < 0) {
         return 0;
     }
@@ -1781,6 +1781,10 @@ capture_modules_from_proc_maps(sentry_crash_context_t *ctx)
             = len < sizeof(mod->name) - 1 ? len : sizeof(mod->name) - 1;
         memcpy(mod->name, pathname, copy_len);
         mod->name[copy_len] = '\0';
+
+        if (!sentry__elf_is_file(mod->name)) {
+            continue;
+        }
 
         // Extract Build ID from ELF file
         memset(mod->uuid, 0, sizeof(mod->uuid));
@@ -3221,6 +3225,16 @@ build_native_event(const sentry_crash_context_t *ctx,
         sentry_value_t threads = sentry_value_new_object();
         sentry_value_t thread_values = sentry_value_new_list();
 
+        // Threads are always listed with their id and name. Whether the
+        // non-crashed ones also get a stacktrace depends on the configured
+        // stackwalk mode - walking every thread of a process with a high
+        // thread count can add a noticeable delay to crash collection.
+        const bool walk_all_threads = ctx->thread_stackwalk_mode
+            != SENTRY_THREAD_STACKWALK_MODE_CRASHED_ONLY;
+        if (!walk_all_threads) {
+            SENTRY_DEBUG("Stackwalk limited to the crashed thread");
+        }
+
 #if defined(SENTRY_PLATFORM_MACOS)
         // Add all captured threads
         for (size_t i = 0; i < ctx->platform.num_threads; i++) {
@@ -3245,7 +3259,7 @@ build_native_event(const sentry_crash_context_t *ctx,
 
             // Build stacktrace for non-crashed threads only
             // (crashed thread's stacktrace is already in exception.values)
-            if (!is_crashed) {
+            if (!is_crashed && walk_all_threads) {
                 sentry_value_t stacktrace = build_stacktrace_for_thread(ctx, i);
                 if (!sentry_value_is_null(stacktrace)) {
                     sentry_value_set_by_key(thread, "stacktrace", stacktrace);
@@ -3279,7 +3293,7 @@ build_native_event(const sentry_crash_context_t *ctx,
 
             // Build stacktrace for non-crashed threads only
             // (crashed thread's stacktrace is already in exception.values)
-            if (!is_crashed) {
+            if (!is_crashed && walk_all_threads) {
                 sentry_value_t stacktrace = build_stacktrace_for_thread(ctx, i);
                 if (!sentry_value_is_null(stacktrace)) {
                     sentry_value_set_by_key(thread, "stacktrace", stacktrace);
@@ -3315,7 +3329,7 @@ build_native_event(const sentry_crash_context_t *ctx,
 
             // Build stacktrace for non-crashed threads only
             // (crashed thread's stacktrace is already in exception.values)
-            if (!is_crashed) {
+            if (!is_crashed && walk_all_threads) {
                 sentry_value_t stacktrace = build_stacktrace_for_thread(ctx, i);
                 if (!sentry_value_is_null(stacktrace)) {
                     sentry_value_set_by_key(thread, "stacktrace", stacktrace);

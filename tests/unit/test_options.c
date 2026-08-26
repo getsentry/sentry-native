@@ -130,6 +130,55 @@ SENTRY_TEST(options_crash_reporting_mode_clamp)
     sentry_options_free(options);
 }
 
+SENTRY_TEST(options_thread_stackwalk_mode_default)
+{
+    SENTRY_TEST_OPTIONS_NEW(options);
+
+    TEST_CHECK_INT_EQUAL(sentry_options_get_thread_stackwalk_mode(options),
+        SENTRY_THREAD_STACKWALK_MODE_ALL);
+
+    sentry_options_free(options);
+}
+
+SENTRY_TEST(options_thread_stackwalk_mode_set_get)
+{
+    SENTRY_TEST_OPTIONS_NEW(options);
+
+    sentry_options_set_thread_stackwalk_mode(
+        options, SENTRY_THREAD_STACKWALK_MODE_CRASHED_ONLY);
+    TEST_CHECK_INT_EQUAL(sentry_options_get_thread_stackwalk_mode(options),
+        SENTRY_THREAD_STACKWALK_MODE_CRASHED_ONLY);
+
+    sentry_options_set_thread_stackwalk_mode(
+        options, SENTRY_THREAD_STACKWALK_MODE_ALL);
+    TEST_CHECK_INT_EQUAL(sentry_options_get_thread_stackwalk_mode(options),
+        SENTRY_THREAD_STACKWALK_MODE_ALL);
+
+    sentry_options_free(options);
+}
+
+SENTRY_TEST(options_thread_stackwalk_mode_clamp)
+{
+    SENTRY_TEST_OPTIONS_NEW(options);
+
+    // Test clamping invalid high values to ALL
+    sentry_options_set_thread_stackwalk_mode(options, 99);
+    TEST_CHECK_INT_EQUAL(sentry_options_get_thread_stackwalk_mode(options),
+        SENTRY_THREAD_STACKWALK_MODE_ALL);
+
+    // Test clamping invalid low values to CRASHED_ONLY
+    sentry_options_set_thread_stackwalk_mode(options, -1);
+    TEST_CHECK_INT_EQUAL(sentry_options_get_thread_stackwalk_mode(options),
+        SENTRY_THREAD_STACKWALK_MODE_CRASHED_ONLY);
+
+    // The reserved zero value clamps to CRASHED_ONLY as well
+    sentry_options_set_thread_stackwalk_mode(options, 0);
+    TEST_CHECK_INT_EQUAL(sentry_options_get_thread_stackwalk_mode(options),
+        SENTRY_THREAD_STACKWALK_MODE_CRASHED_ONLY);
+
+    sentry_options_free(options);
+}
+
 SENTRY_TEST(options_minidump_flags)
 {
 #ifdef SENTRY_PLATFORM_WINDOWS

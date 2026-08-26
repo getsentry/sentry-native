@@ -145,6 +145,11 @@ def test_native_on_crashed_last_run(cmake, httpserver):
     "crash_arg,exception_code",
     [
         pytest.param("fastfail", STATUS_FAIL_FAST_EXCEPTION, id="fastfail"),
+        pytest.param(
+            "invalid-parameter",
+            STATUS_STACK_BUFFER_OVERRUN,
+            id="invalid-parameter",
+        ),
         pytest.param("heap-corruption", STATUS_HEAP_CORRUPTION, id="heap-corruption"),
         pytest.param(
             "stack-buffer-overrun",
