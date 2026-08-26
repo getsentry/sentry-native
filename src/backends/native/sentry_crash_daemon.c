@@ -3225,6 +3225,16 @@ build_native_event(const sentry_crash_context_t *ctx,
         sentry_value_t threads = sentry_value_new_object();
         sentry_value_t thread_values = sentry_value_new_list();
 
+        // Threads are always listed with their id and name. Whether the
+        // non-crashed ones also get a stacktrace depends on the configured
+        // stackwalk mode - walking every thread of a process with a high
+        // thread count can add a noticeable delay to crash collection.
+        const bool walk_all_threads = ctx->thread_stackwalk_mode
+            != SENTRY_THREAD_STACKWALK_MODE_CRASHED_ONLY;
+        if (!walk_all_threads) {
+            SENTRY_DEBUG("Stackwalk limited to the crashed thread");
+        }
+
 #if defined(SENTRY_PLATFORM_MACOS)
         // Add all captured threads
         for (size_t i = 0; i < ctx->platform.num_threads; i++) {
@@ -3249,7 +3259,7 @@ build_native_event(const sentry_crash_context_t *ctx,
 
             // Build stacktrace for non-crashed threads only
             // (crashed thread's stacktrace is already in exception.values)
-            if (!is_crashed) {
+            if (!is_crashed && walk_all_threads) {
                 sentry_value_t stacktrace = build_stacktrace_for_thread(ctx, i);
                 if (!sentry_value_is_null(stacktrace)) {
                     sentry_value_set_by_key(thread, "stacktrace", stacktrace);
@@ -3283,7 +3293,7 @@ build_native_event(const sentry_crash_context_t *ctx,
 
             // Build stacktrace for non-crashed threads only
             // (crashed thread's stacktrace is already in exception.values)
-            if (!is_crashed) {
+            if (!is_crashed && walk_all_threads) {
                 sentry_value_t stacktrace = build_stacktrace_for_thread(ctx, i);
                 if (!sentry_value_is_null(stacktrace)) {
                     sentry_value_set_by_key(thread, "stacktrace", stacktrace);
@@ -3319,7 +3329,7 @@ build_native_event(const sentry_crash_context_t *ctx,
 
             // Build stacktrace for non-crashed threads only
             // (crashed thread's stacktrace is already in exception.values)
-            if (!is_crashed) {
+            if (!is_crashed && walk_all_threads) {
                 sentry_value_t stacktrace = build_stacktrace_for_thread(ctx, i);
                 if (!sentry_value_is_null(stacktrace)) {
                     sentry_value_set_by_key(thread, "stacktrace", stacktrace);

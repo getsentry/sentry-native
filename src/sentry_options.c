@@ -125,6 +125,7 @@ sentry_options_new(void)
         = SENTRY_CRASH_REPORTING_MODE_NATIVE_WITH_MINIDUMP; // Default: best of
                                                             // both worlds
     opts->crash_upload_mode = SENTRY_CRASH_UPLOAD_MODE_SYNC;
+    opts->thread_stackwalk_mode = SENTRY_THREAD_STACKWALK_MODE_ALL;
     opts->enable_app_hang_tracking = false;
     opts->app_hang_timeout = 5000;
     opts->http_retry = false;
@@ -692,6 +693,26 @@ sentry_crash_reporting_mode_t
 sentry_options_get_crash_reporting_mode(const sentry_options_t *opts)
 {
     return (sentry_crash_reporting_mode_t)opts->crash_reporting_mode;
+}
+
+void
+sentry_options_set_thread_stackwalk_mode(
+    sentry_options_t *opts, sentry_thread_stackwalk_mode_t mode)
+{
+    // Clamp to valid range (cast to int to handle negative values)
+    int imode = (int)mode;
+    if (imode < SENTRY_THREAD_STACKWALK_MODE_CRASHED_ONLY) {
+        imode = SENTRY_THREAD_STACKWALK_MODE_CRASHED_ONLY;
+    } else if (imode > SENTRY_THREAD_STACKWALK_MODE_ALL) {
+        imode = SENTRY_THREAD_STACKWALK_MODE_ALL;
+    }
+    opts->thread_stackwalk_mode = imode;
+}
+
+sentry_thread_stackwalk_mode_t
+sentry_options_get_thread_stackwalk_mode(const sentry_options_t *opts)
+{
+    return (sentry_thread_stackwalk_mode_t)opts->thread_stackwalk_mode;
 }
 
 void
