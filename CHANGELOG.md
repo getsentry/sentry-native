@@ -1,15 +1,17 @@
 # Changelog
 
-## Unreleased
+## 0.16.4
 
 **Features**:
 
+- Windows: report WINE and Proton metadata in a separate runtime context. ([#1995](https://github.com/getsentry/sentry-native/pull/1995))
 - Add a public custom HTTP transport client interface (`sentry_http_transport_new`) so applications can plug in their own HTTP client (e.g. platform-native ones) while sentry-native continues to own request queueing, retry/backoff, offline caching, rate-limiting, and client reports. The built-in curl and WinHTTP transports are now implemented against this same interface. ([#1987](https://github.com/getsentry/sentry-native/pull/1987))
 - Native/Windows: capture WER report ID and expose as `contexts.wer.report_id` in crash events when the WER integration is enabled. ([#1970](https://github.com/getsentry/sentry-native/pull/1970))
 - Add `sentry_set_tags` and `sentry_scope_set_tags` for updating multiple tags with a single scope flush, improving bulk-update performance. ([#1993](https://github.com/getsentry/sentry-native/pull/1993))
 - Add `on_crashed_last_run` callback for inspecting crash envelopes from previous runs. ([#1985](https://github.com/getsentry/sentry-native/pull/1985))
 - Add `sentry_get_last_event_id` and `sentry_scope_get_last_event_id` for retrieving the last event ID captured with the global or given scope, respectively. ([#1992](https://github.com/getsentry/sentry-native/pull/1992))
 - Native/Unix: The native crash daemon now loads `libcurl` dynamically at runtime by default when `SENTRY_LINK_CURL=AUTO`, avoiding `libcurl` linker work during process startup and significantly speeding up startup time. Explicitly set `SENTRY_LINK_CURL=ON` to link it directly. ([#1955](https://github.com/getsentry/sentry-native/pull/1955))
+- Add missing public scope mutators: `set_release`, `set_environment`, `set_transaction`, `remove_tag`, `remove_extra`, `remove_context`, and `remove_attachment`. ([#2011](https://github.com/getsentry/sentry-native/pull/2011))
 
 **Deprecations**:
 
@@ -23,6 +25,8 @@
 - Wine: fix OS version detection and cross-compiling Windows builds from Linux. ([#2001](https://github.com/getsentry/sentry-native/pull/2001))
 - Destroy condition variables as approriate when no longer needed. ([#2004](https://github.com/getsentry/sentry-native/pull/2004))
 - Crashpad/Windows: preserve module CodeView UUIDs for minimal PDB70 records with empty PDB filenames. ([#2003](https://github.com/getsentry/sentry-native/pull/2003))
+- Native/Windows: improve crash-processing performance for applications with many threads. ([#2018](https://github.com/getsentry/sentry-native/pull/2018))
+- Prevent a race between SDK reinitialization and cleanup of the previous curl client when libcurl is linked directly. ([#2015](https://github.com/getsentry/sentry-native/pull/2015))
 
 **Other changes**:
 

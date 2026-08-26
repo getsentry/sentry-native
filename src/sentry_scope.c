@@ -109,6 +109,14 @@ get_scope(void)
     init_scope(&g_scope);
     g_scope.user = sentry_value_new_object();
     sentry_value_set_by_key(g_scope.contexts, "os", sentry__get_os_context());
+#if defined(SENTRY_PLATFORM_WINDOWS) && !defined(SENTRY_PLATFORM_XBOX)
+    sentry_value_t wine_context = sentry__get_wine_context();
+    if (!sentry_value_is_null(wine_context)) {
+        sentry_value_set_by_key(g_scope.contexts, "wine", wine_context);
+    } else {
+        sentry_value_decref(wine_context);
+    }
+#endif
     g_scope.client_sdk = get_client_sdk();
 
     g_scope_initialized = true;
@@ -807,6 +815,25 @@ sentry_scope_set_tags(sentry_scope_t *scope, sentry_value_t tags)
 }
 
 void
+sentry_scope_remove_tag(sentry_scope_t *scope, const char *key)
+{
+    if (sentry_value_remove_by_key(scope->tags, key) == 0) {
+        SENTRY_SCOPE_NOTIFY(scope, remove_tag, key);
+    }
+}
+
+void
+sentry_scope_remove_tag_n(
+    sentry_scope_t *scope, const char *key, size_t key_len)
+{
+    char *k = sentry__value_remove_and_take_key_n(scope->tags, key, key_len);
+    if (k) {
+        SENTRY_SCOPE_NOTIFY(scope, remove_tag, k);
+    }
+    sentry_free(k);
+}
+
+void
 sentry_scope_set_extra(
     sentry_scope_t *scope, const char *key, sentry_value_t value)
 {
@@ -823,6 +850,25 @@ sentry_scope_set_extra_n(sentry_scope_t *scope, const char *key, size_t key_len,
     if (sentry__value_set_by_key_owned(scope->extra, k, key_len, value) == 0) {
         SENTRY_SCOPE_NOTIFY(scope, set_extra, k, value);
     }
+}
+
+void
+sentry_scope_remove_extra(sentry_scope_t *scope, const char *key)
+{
+    if (sentry_value_remove_by_key(scope->extra, key) == 0) {
+        SENTRY_SCOPE_NOTIFY(scope, remove_extra, key);
+    }
+}
+
+void
+sentry_scope_remove_extra_n(
+    sentry_scope_t *scope, const char *key, size_t key_len)
+{
+    char *k = sentry__value_remove_and_take_key_n(scope->extra, key, key_len);
+    if (k) {
+        SENTRY_SCOPE_NOTIFY(scope, remove_extra, k);
+    }
+    sentry_free(k);
 }
 
 void
@@ -880,6 +926,26 @@ sentry_scope_set_context_n(sentry_scope_t *scope, const char *key,
 }
 
 void
+sentry_scope_remove_context(sentry_scope_t *scope, const char *key)
+{
+    if (sentry_value_remove_by_key(scope->contexts, key) == 0) {
+        SENTRY_SCOPE_NOTIFY(scope, remove_context, key);
+    }
+}
+
+void
+sentry_scope_remove_context_n(
+    sentry_scope_t *scope, const char *key, size_t key_len)
+{
+    char *k
+        = sentry__value_remove_and_take_key_n(scope->contexts, key, key_len);
+    if (k) {
+        SENTRY_SCOPE_NOTIFY(scope, remove_context, k);
+    }
+    sentry_free(k);
+}
+
+void
 sentry_scope_update_context(
     sentry_scope_t *scope, const char *key, sentry_value_t value)
 {
@@ -907,6 +973,62 @@ sentry_scope_update_context_n(sentry_scope_t *scope, const char *key,
         }
     }
     SENTRY_SCOPE_NOTIFY(scope, set_context, k, value);
+}
+
+void
+sentry_scope_set_release_n(
+    sentry_scope_t *scope, const char *release, size_t release_len)
+{
+    sentry_free(scope->release);
+    scope->release = sentry__string_clone_n(release, release_len);
+    sentry_value_set_by_key(scope->dynamic_sampling_context, "release",
+        sentry_value_new_string(scope->release));
+    SENTRY_SCOPE_NOTIFY(scope, set_release, scope->release);
+}
+
+void
+sentry_scope_set_release(sentry_scope_t *scope, const char *release)
+{
+    sentry_scope_set_release_n(scope, release, sentry__guarded_strlen(release));
+}
+
+void
+sentry_scope_set_environment_n(
+    sentry_scope_t *scope, const char *environment, size_t environment_len)
+{
+    sentry_free(scope->environment);
+    scope->environment = sentry__string_clone_n(environment, environment_len);
+    sentry_value_set_by_key(scope->dynamic_sampling_context, "environment",
+        sentry_value_new_string(scope->environment));
+    SENTRY_SCOPE_NOTIFY(scope, set_environment, scope->environment);
+}
+
+void
+sentry_scope_set_environment(sentry_scope_t *scope, const char *environment)
+{
+    sentry_scope_set_environment_n(
+        scope, environment, sentry__guarded_strlen(environment));
+}
+
+void
+sentry_scope_set_transaction_n(
+    sentry_scope_t *scope, const char *transaction, size_t transaction_len)
+{
+    sentry_free(scope->transaction);
+    scope->transaction = sentry__string_clone_n(transaction, transaction_len);
+
+    if (scope->transaction_object) {
+        sentry_transaction_set_name_n(
+            scope->transaction_object, transaction, transaction_len);
+    }
+    SENTRY_SCOPE_NOTIFY(scope, set_transaction, scope->transaction);
+}
+
+void
+sentry_scope_set_transaction(sentry_scope_t *scope, const char *transaction)
+{
+    sentry_scope_set_transaction_n(
+        scope, transaction, sentry__guarded_strlen(transaction));
 }
 
 void
@@ -1031,6 +1153,17 @@ sentry__scope_add_attachment(
         SENTRY_SCOPE_NOTIFY(scope, add_attachment, attachment);
     }
     return added;
+}
+
+void
+sentry_scope_remove_attachment(
+    sentry_scope_t *scope, sentry_attachment_t *attachment)
+{
+    if (attachment
+        && sentry__attachments_remove(&scope->attachments, attachment)) {
+        SENTRY_SCOPE_NOTIFY(scope, remove_attachment, attachment);
+        sentry__attachment_free(attachment);
+    }
 }
 
 sentry_attachment_t *

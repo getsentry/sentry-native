@@ -101,7 +101,7 @@ extern "C" {
 #    endif
 #endif
 #ifndef SENTRY_SDK_VERSION
-#    define SENTRY_SDK_VERSION "0.16.3"
+#    define SENTRY_SDK_VERSION "0.16.4"
 #endif
 #define SENTRY_SDK_USER_AGENT SENTRY_SDK_NAME "/" SENTRY_SDK_VERSION
 
@@ -572,7 +572,7 @@ SENTRY_API sentry_value_t sentry_value_new_breadcrumb_n(
  * try-catch block. `type` and `value` here refer to the exception class and
  * a possible description.
  *
- * See https://develop.sentry.dev/sdk/event-payloads/exception/
+ * See https://develop.sentry.dev/sdk/telemetry/errors/#exception-interface
  *
  * The returned value needs to be attached to an event via
  * `sentry_event_add_exception`.
@@ -2567,6 +2567,10 @@ SENTRY_API void sentry_remove_user(void);
  */
 SENTRY_API void sentry_set_release(const char *release);
 SENTRY_API void sentry_set_release_n(const char *release, size_t release_len);
+SENTRY_API void sentry_scope_set_release(
+    sentry_scope_t *scope, const char *release);
+SENTRY_API void sentry_scope_set_release_n(
+    sentry_scope_t *scope, const char *release, size_t release_len);
 
 /**
  * Sets the environment after the SDK has been initialized. To apply the new
@@ -2575,6 +2579,10 @@ SENTRY_API void sentry_set_release_n(const char *release, size_t release_len);
 SENTRY_API void sentry_set_environment(const char *environment);
 SENTRY_API void sentry_set_environment_n(
     const char *environment, size_t environment_len);
+SENTRY_API void sentry_scope_set_environment(
+    sentry_scope_t *scope, const char *environment);
+SENTRY_API void sentry_scope_set_environment_n(
+    sentry_scope_t *scope, const char *environment, size_t environment_len);
 
 /**
  * Sets a tag.
@@ -2602,6 +2610,9 @@ SENTRY_API void sentry_scope_set_tags(
  */
 SENTRY_API void sentry_remove_tag(const char *key);
 SENTRY_API void sentry_remove_tag_n(const char *key, size_t key_len);
+SENTRY_API void sentry_scope_remove_tag(sentry_scope_t *scope, const char *key);
+SENTRY_API void sentry_scope_remove_tag_n(
+    sentry_scope_t *scope, const char *key, size_t key_len);
 
 /**
  * Sets extra information.
@@ -2619,6 +2630,10 @@ SENTRY_API void sentry_scope_set_extra_n(sentry_scope_t *scope, const char *key,
  */
 SENTRY_API void sentry_remove_extra(const char *key);
 SENTRY_API void sentry_remove_extra_n(const char *key, size_t key_len);
+SENTRY_API void sentry_scope_remove_extra(
+    sentry_scope_t *scope, const char *key);
+SENTRY_API void sentry_scope_remove_extra_n(
+    sentry_scope_t *scope, const char *key, size_t key_len);
 
 /**
  * Sets attributes created with `sentry_value_new_attribute` to be applied to
@@ -2676,6 +2691,10 @@ SENTRY_API void sentry_scope_update_context_n(sentry_scope_t *scope,
  */
 SENTRY_API void sentry_remove_context(const char *key);
 SENTRY_API void sentry_remove_context_n(const char *key, size_t key_len);
+SENTRY_API void sentry_scope_remove_context(
+    sentry_scope_t *scope, const char *key);
+SENTRY_API void sentry_scope_remove_context_n(
+    sentry_scope_t *scope, const char *key, size_t key_len);
 
 /**
  * Sets the event fingerprint.
@@ -2739,6 +2758,10 @@ SENTRY_API void sentry_regenerate_trace(void);
 SENTRY_API void sentry_set_transaction(const char *transaction);
 SENTRY_API void sentry_set_transaction_n(
     const char *transaction, size_t transaction_len);
+SENTRY_API void sentry_scope_set_transaction(
+    sentry_scope_t *scope, const char *transaction);
+SENTRY_API void sentry_scope_set_transaction_n(
+    sentry_scope_t *scope, const char *transaction, size_t transaction_len);
 
 /**
  * Sets the event level.
@@ -3266,7 +3289,8 @@ typedef struct sentry_attachment_s sentry_attachment_t;
  *
  * The returned `sentry_attachment_t` is owned by the SDK and will remain valid
  * until the attachment is removed with `sentry_remove_attachment` or
- * `sentry_close` is called.
+ * `sentry_scope_remove_attachment`, or its owning scope is freed with
+ * `sentry_scope_free` or `sentry_close`.
  *
  * See the NOTE on attachments above for restrictions of this API.
  */
@@ -3298,7 +3322,8 @@ SENTRY_API sentry_attachment_t *sentry_scope_attach_file_n(
  *
  * The returned `sentry_attachment_t` is owned by the SDK and will remain valid
  * until the attachment is removed with `sentry_remove_attachment` or
- * `sentry_close` is called.
+ * `sentry_scope_remove_attachment`, or its owning scope is freed with
+ * `sentry_scope_free` or `sentry_close`.
  *
  * See the NOTE on attachments above for restrictions of this API.
  */
@@ -3323,6 +3348,8 @@ SENTRY_API void sentry_clear_attachments(void);
  * See the NOTE on attachments above for restrictions of this API.
  */
 SENTRY_API void sentry_remove_attachment(sentry_attachment_t *attachment);
+SENTRY_API void sentry_scope_remove_attachment(
+    sentry_scope_t *scope, sentry_attachment_t *attachment);
 
 #ifdef SENTRY_PLATFORM_WINDOWS
 /**

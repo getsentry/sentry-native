@@ -119,16 +119,24 @@ wer_remove_tag(void *data, const char *key)
     sentry_free(key_w);
 }
 
+static sentry_path_t *
+wer_attachment_path(const sentry_attachment_t *attachment)
+{
+    sentry_path_t *path = sentry__attachment_make_path(attachment);
+    if (!path) {
+        return NULL;
+    }
+    sentry_path_t *absolute_path = sentry__path_absolute(path);
+    sentry__path_free(path);
+    return absolute_path;
+}
+
 static void
 wer_add_attachment(void *UNUSED(data), sentry_attachment_t *attachment)
 {
-    if (!attachment) {
-        return;
-    }
-
-    if (attachment->path) {
-        sentry_path_t *path = sentry__path_absolute(attachment->path);
-        if (!path || wcslen(path->path_w) > WER_MAX_PARAM_LENGTH) {
+    sentry_path_t *path = wer_attachment_path(attachment);
+    if (path) {
+        if (wcslen(path->path_w) > WER_MAX_PARAM_LENGTH) {
             sentry__path_free(path);
             return;
         }
@@ -142,10 +150,10 @@ wer_add_attachment(void *UNUSED(data), sentry_attachment_t *attachment)
         return;
     }
 
-    if (attachment->buf && attachment->buf_len > 0
-        && attachment->buf_len <= WER_MAX_MEM_BLOCK_SIZE) {
-        HRESULT hr = WerRegisterMemoryBlock(
-            (PVOID)attachment->buf, (DWORD)attachment->buf_len);
+    size_t bytes_len = 0;
+    const char *bytes = sentry__attachment_get_bytes(attachment, &bytes_len);
+    if (bytes && bytes_len > 0 && bytes_len <= WER_MAX_MEM_BLOCK_SIZE) {
+        HRESULT hr = WerRegisterMemoryBlock((PVOID)bytes, (DWORD)bytes_len);
         if (FAILED(hr)) {
             SENTRY_WARNF(
                 "WerRegisterMemoryBlock failed: hr=0x%08lx", (unsigned long)hr);
@@ -157,13 +165,9 @@ wer_add_attachment(void *UNUSED(data), sentry_attachment_t *attachment)
 static void
 wer_remove_attachment(void *UNUSED(data), sentry_attachment_t *attachment)
 {
-    if (!attachment) {
-        return;
-    }
-
-    if (attachment->path) {
-        sentry_path_t *path = sentry__path_absolute(attachment->path);
-        if (!path || wcslen(path->path_w) > WER_MAX_PARAM_LENGTH) {
+    sentry_path_t *path = wer_attachment_path(attachment);
+    if (path) {
+        if (wcslen(path->path_w) > WER_MAX_PARAM_LENGTH) {
             sentry__path_free(path);
             return;
         }
@@ -176,9 +180,10 @@ wer_remove_attachment(void *UNUSED(data), sentry_attachment_t *attachment)
         return;
     }
 
-    if (attachment->buf && attachment->buf_len > 0
-        && attachment->buf_len <= WER_MAX_MEM_BLOCK_SIZE) {
-        HRESULT hr = WerUnregisterMemoryBlock((PVOID)attachment->buf);
+    size_t bytes_len = 0;
+    const char *bytes = sentry__attachment_get_bytes(attachment, &bytes_len);
+    if (bytes && bytes_len > 0 && bytes_len <= WER_MAX_MEM_BLOCK_SIZE) {
+        HRESULT hr = WerUnregisterMemoryBlock((PVOID)bytes);
         if (FAILED(hr)) {
             SENTRY_WARNF("WerUnregisterMemoryBlock failed: hr=0x%08lx",
                 (unsigned long)hr);

@@ -62,6 +62,7 @@ def main():
             "--analyzers",
             "clangsa",
             "clang-tidy",
+            "cppcheck",
             *("--disable={}".format(checker) for checker in disabled_checkers),
             "--print-steps",
             "--ignore",

@@ -67,6 +67,16 @@ SENTRY_TEST(scope_contexts)
             local_scope, "local", sentry_value_new_string("local"));
         sentry_scope_set_context(
             local_scope, "scope", sentry_value_new_string("local"));
+        sentry_scope_set_context(
+            local_scope, "removed", sentry_value_new_string("removed"));
+        sentry_scope_set_context(
+            local_scope, "n-removed", sentry_value_new_string("removed"));
+        sentry_scope_remove_context(local_scope, "removed");
+        sentry_scope_remove_context_n(local_scope, "n-removed-trailing", 9);
+        TEST_CHECK(sentry_value_is_null(
+            sentry_value_get_by_key(local_scope->contexts, "removed")));
+        TEST_CHECK(sentry_value_is_null(
+            sentry_value_get_by_key(local_scope->contexts, "n-removed")));
 
         // event:
         // {"all":"event","event":"event"}
@@ -327,6 +337,16 @@ SENTRY_TEST(scope_extra)
             local_scope, "local", sentry_value_new_string("local"));
         sentry_scope_set_extra(
             local_scope, "scope", sentry_value_new_string("local"));
+        sentry_scope_set_extra(
+            local_scope, "removed", sentry_value_new_string("removed"));
+        sentry_scope_set_extra(
+            local_scope, "n-removed", sentry_value_new_string("removed"));
+        sentry_scope_remove_extra(local_scope, "removed");
+        sentry_scope_remove_extra_n(local_scope, "n-removed-trailing", 9);
+        TEST_CHECK(sentry_value_is_null(
+            sentry_value_get_by_key(local_scope->extra, "removed")));
+        TEST_CHECK(sentry_value_is_null(
+            sentry_value_get_by_key(local_scope->extra, "n-removed")));
 
         // event:
         // {"all":"event","event":"event"}
@@ -573,6 +593,14 @@ SENTRY_TEST(scope_tags)
         sentry_value_set_by_key(
             local_tags, "scope", sentry_value_new_string("local"));
         sentry_scope_set_tags(local_scope, local_tags);
+        sentry_scope_set_tag(local_scope, "removed", "removed");
+        sentry_scope_set_tag(local_scope, "n-removed", "removed");
+        sentry_scope_remove_tag(local_scope, "removed");
+        sentry_scope_remove_tag_n(local_scope, "n-removed-trailing", 9);
+        TEST_CHECK(sentry_value_is_null(
+            sentry_value_get_by_key(local_scope->tags, "removed")));
+        TEST_CHECK(sentry_value_is_null(
+            sentry_value_get_by_key(local_scope->tags, "n-removed")));
 
         // event:
         // {"all":"event","event":"event"}
@@ -1352,6 +1380,53 @@ SENTRY_TEST(scope_local_attributes)
     sentry_close();
 }
 
+SENTRY_TEST(scope_release)
+{
+    SENTRY_TEST_OPTIONS_NEW(options);
+    sentry_init(options);
+
+    SENTRY_WITH_SCOPE_MUT (scope) {
+        sentry_scope_set_release(scope, "my-release");
+        TEST_CHECK_STRING_EQUAL(scope->release, "my-release");
+        TEST_CHECK_STRING_EQUAL(
+            sentry_value_as_string(sentry_value_get_by_key(
+                scope->dynamic_sampling_context, "release")),
+            "my-release");
+    }
+
+    sentry_close();
+}
+
+SENTRY_TEST(scope_environment)
+{
+    SENTRY_TEST_OPTIONS_NEW(options);
+    sentry_init(options);
+
+    SENTRY_WITH_SCOPE_MUT (scope) {
+        sentry_scope_set_environment(scope, "my-environment");
+        TEST_CHECK_STRING_EQUAL(scope->environment, "my-environment");
+        TEST_CHECK_STRING_EQUAL(
+            sentry_value_as_string(sentry_value_get_by_key(
+                scope->dynamic_sampling_context, "environment")),
+            "my-environment");
+    }
+
+    sentry_close();
+}
+
+SENTRY_TEST(scope_transaction)
+{
+    SENTRY_TEST_OPTIONS_NEW(options);
+    sentry_init(options);
+
+    SENTRY_WITH_SCOPE_MUT (scope) {
+        sentry_scope_set_transaction(scope, "my-transaction");
+        TEST_CHECK_STRING_EQUAL(scope->transaction, "my-transaction");
+    }
+
+    sentry_close();
+}
+
 typedef struct {
     sentry_value_t release;
     sentry_value_t environment;
@@ -1467,9 +1542,11 @@ observe_add_attachment(void *data, sentry_attachment_t *attachment)
         sentry_value_set_by_key(
             obj, "filename", sentry_value_new_string(filename));
     }
-    if (attachment->buf) {
-        sentry_value_set_by_key(obj, "buf",
-            sentry_value_new_string_n(attachment->buf, attachment->buf_len));
+    size_t bytes_len = 0;
+    const char *bytes = sentry__attachment_get_bytes(attachment, &bytes_len);
+    if (bytes) {
+        sentry_value_set_by_key(
+            obj, "buf", sentry_value_new_string_n(bytes, bytes_len));
     }
     sentry_value_append(d->attachments, obj);
     d->was_called = true;
@@ -2526,7 +2603,7 @@ SENTRY_TEST(scope_clone_preserves_data)
     TEST_CHECK(clone->attachments != scope->attachments);
     TEST_CHECK_STRING_EQUAL(
         sentry__attachment_get_filename(clone->attachments), "file.bin");
-    TEST_CHECK_INT_EQUAL(clone->attachments->buf_len, 7);
+    TEST_CHECK_INT_EQUAL(sentry__attachment_get_size(clone->attachments), 7);
 
     sentry_scope_free(clone);
     sentry_scope_free(scope);
