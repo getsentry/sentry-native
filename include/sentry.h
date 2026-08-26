@@ -3027,18 +3027,16 @@ typedef enum {
  * Format string restrictions:
  * Only a subset of printf format specifiers are supported for parameter
  * extraction. Supported specifiers include:
- * - %d, %i - signed integers (treated as long long)
- * - %u, %x, %X, %o - unsigned integers (treated as unsigned long long)
- * - %f, %F, %e, %E, %g, %G - floating point numbers (treated as double)
+ * - %d, %i - signed integers
+ * - %u, %x, %X, %o - unsigned integers
+ * - %f, %F, %e, %E, %g, %G - floating point numbers
  * - %c - single character
  * - %s - null-terminated string (null pointers are handled as "(null)")
  * - %p - pointer value (formatted as hexadecimal string)
  *
  * Unsupported format specifiers will consume their corresponding argument
  * but will be recorded as "(unknown)" in the structured log data.
- * Length modifiers (h, l, L, z, j, t) are parsed but ignored.
- *
- * Because of this, please only use 64-bit types/casts for your arguments.
+ * Standard printf argument types and length modifiers are honored.
  *
  * Flags, width, and precision specifiers are parsed but currently ignored for
  * parameter extraction purposes.
