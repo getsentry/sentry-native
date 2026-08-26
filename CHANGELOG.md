@@ -13,6 +13,10 @@
 
 - Native: add `sentry_options_set_thread_stackwalk_mode` to limit client-side stackwalking to the crashed thread, which shortens crash processing for applications with a high thread count. ([#2026](https://github.com/getsentry/sentry-native/pull/2026))
 
+**Fixes**:
+
+- Native/Linux: prevent the crash daemon from hanging when module discovery encounters device-backed memory mappings. ([#2025](https://github.com/getsentry/sentry-native/pull/2025))
+
 **Other changes**:
 
 - Promote the 68 performance monitoring and tracing functions from experimental to stable. ([#2012](https://github.com/getsentry/sentry-native/pull/2012))

@@ -37,6 +37,13 @@ count_sent_envelopes(sentry_envelope_t *envelope, void *state)
 #    include "sentry_elf.h"
 #endif
 
+#if defined(SENTRY_PLATFORM_LINUX)
+#    include <fcntl.h>
+#    include <stdlib.h>
+#    include <sys/stat.h>
+#    include <unistd.h>
+#endif
+
 SENTRY_TEST(daemon_adopts_existing_run)
 {
 #if defined(SENTRY_PLATFORM_NX) || defined(SENTRY_PLATFORM_PS)
@@ -197,6 +204,32 @@ SENTRY_TEST(minidump_header_size)
     TEST_CHECK(header.version == 0xa793); // Version 1.0
 #else
     SKIP_TEST();
+#endif
+}
+
+SENTRY_TEST(elf_rejects_non_regular_files)
+{
+#if !defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID)
+    SKIP_TEST();
+#else
+    TEST_CHECK(sentry__elf_is_file("/proc/self/exe"));
+    TEST_CHECK(!sentry__elf_is_file("/dev/null"));
+
+    char path[] = "/tmp/sentry-minidump-module-XXXXXX";
+    int fd = mkstemp(path);
+    TEST_ASSERT(fd >= 0);
+    close(fd);
+    TEST_ASSERT(unlink(path) == 0);
+    TEST_ASSERT(mkfifo(path, 0600) == 0);
+
+    fd = open(path, O_RDWR | O_NONBLOCK);
+    TEST_ASSERT(fd >= 0);
+    TEST_ASSERT(write(fd, ELFMAG, SELFMAG) == (ssize_t)SELFMAG);
+
+    TEST_CHECK(!sentry__elf_is_file(path));
+
+    close(fd);
+    TEST_CHECK(unlink(path) == 0);
 #endif
 }
 
