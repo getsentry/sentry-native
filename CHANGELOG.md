@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+**Features**:
+
+- Native: add `sentry_options_set_thread_stackwalk_mode` to limit client-side stackwalking to the crashed thread, which shortens crash processing for applications with a high thread count. ([#2026](https://github.com/getsentry/sentry-native/pull/2026))
+
 ## 0.16.4
 
 **Features**:
