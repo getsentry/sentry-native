@@ -122,7 +122,7 @@ never calls into the C++ exception ABI.
 
 ## Source Modifications
 
-Only **one** upstream source file was modified:
+Two upstream source files were modified:
 
 ### `include/libunwind-aarch64.h` — `alignas` → `__attribute__((aligned))`
 
@@ -137,6 +137,15 @@ uint8_t __reserved[(66 * 8)] __attribute__((aligned(16)));
 **Reason**: The SDK targets C99.  `alignas` is a C11 keyword.  The
 `__attribute__((aligned(...)))` form is semantically equivalent and supported by
 both GCC and Clang.
+
+### `src/elfxx.c` — overflow-safe section table bounds check
+
+The section table size is calculated as `size_t`, and its bounds are checked
+against the remaining image size instead of adding it to the section offset.
+
+**Reason**: Malformed ELF header values could overflow during the section table
+size calculation or offset addition and bypass the bounds check.  Identified by
+[CodeQL alert #5](https://github.com/getsentry/sentry-native/security/code-scanning/5).
 
 ## How to Update the Vendored Version
 
@@ -169,6 +178,8 @@ both GCC and Clang.
 6. **Re-apply source modifications**:
    - Check `include/libunwind-aarch64.h` for `alignas` — replace with
      `__attribute__((aligned(...)))`.
+   - Re-apply the overflow-safe section table bounds check in `src/elfxx.c` if
+     upstream does not contain an equivalent fix.
    - Scan for other C11/C23 constructs incompatible with C99.
 
 7. Build and test on all four architectures: x86_64, x86 (32-bit), aarch64, arm (32-bit).
