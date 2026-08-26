@@ -16,6 +16,7 @@
 **Fixes**:
 
 - Native/Linux: prevent the crash daemon from hanging when module discovery encounters device-backed memory mappings. ([#2025](https://github.com/getsentry/sentry-native/pull/2025))
+- Linux: prevent integer overflow when validating ELF section tables in vendored libunwind. ([#2028](https://github.com/getsentry/sentry-native/pull/2028))
 
 **Other changes**:
 
