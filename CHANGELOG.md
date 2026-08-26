@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+**Other changes**:
+
+- Promote the 68 performance monitoring and tracing functions from experimental to stable. ([#2012](https://github.com/getsentry/sentry-native/pull/2012))
+
 ## 0.16.4
 
 **Features**:

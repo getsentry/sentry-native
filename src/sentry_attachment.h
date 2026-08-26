@@ -55,16 +55,45 @@ void sentry__attachment_set_filenamew_n(sentry_attachment_t *attachment,
 #endif
 
 /**
+ * Returns the attachment type.
+ */
+const char *sentry__attachment_get_type(const sentry_attachment_t *attachment);
+
+/**
+ * Returns the attachment content type.
+ */
+const char *sentry__attachment_get_content_type(
+    const sentry_attachment_t *attachment);
+
+/**
  * Returns the size in bytes of the attachment's data (buffer length or file
  * size).
  */
 size_t sentry__attachment_get_size(const sentry_attachment_t *attachment);
 
 /**
+ * Returns the in-memory attachment bytes and writes their length to `len` if
+ * provided.
+ */
+const char *sentry__attachment_get_bytes(
+    const sentry_attachment_t *attachment, size_t *len);
+
+/**
  * Returns the filename string for the attachment (basename of `filename` if
  * set, otherwise basename of `path`).
  */
 const char *sentry__attachment_get_filename(
+    const sentry_attachment_t *attachment);
+
+/**
+ * Returns the attachment path string.
+ */
+const char *sentry__attachment_get_path(const sentry_attachment_t *attachment);
+
+/**
+ * Creates an owned path object for the attachment path.
+ */
+sentry_path_t *sentry__attachment_make_path(
     const sentry_attachment_t *attachment);
 
 /**

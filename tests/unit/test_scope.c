@@ -1542,9 +1542,11 @@ observe_add_attachment(void *data, sentry_attachment_t *attachment)
         sentry_value_set_by_key(
             obj, "filename", sentry_value_new_string(filename));
     }
-    if (attachment->buf) {
-        sentry_value_set_by_key(obj, "buf",
-            sentry_value_new_string_n(attachment->buf, attachment->buf_len));
+    size_t bytes_len = 0;
+    const char *bytes = sentry__attachment_get_bytes(attachment, &bytes_len);
+    if (bytes) {
+        sentry_value_set_by_key(
+            obj, "buf", sentry_value_new_string_n(bytes, bytes_len));
     }
     sentry_value_append(d->attachments, obj);
     d->was_called = true;
@@ -2601,7 +2603,7 @@ SENTRY_TEST(scope_clone_preserves_data)
     TEST_CHECK(clone->attachments != scope->attachments);
     TEST_CHECK_STRING_EQUAL(
         sentry__attachment_get_filename(clone->attachments), "file.bin");
-    TEST_CHECK_INT_EQUAL(clone->attachments->buf_len, 7);
+    TEST_CHECK_INT_EQUAL(sentry__attachment_get_size(clone->attachments), 7);
 
     sentry_scope_free(clone);
     sentry_scope_free(scope);
