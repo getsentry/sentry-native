@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+**Important behavior changes**:
+
+- `sentry_options_set_enable_logs` and `sentry_options_set_enable_metrics` no longer have any effect. The corresponding getters always return true.
+  > Structured logs and metrics have been enabled by default since `0.13`.
+  >
+  > We recognize that this change may inconvenience applications that rely on the opt-out. Use `sentry_options_set_before_send_log` or `sentry_options_set_before_send_metric` to filter logs or metrics. We made this tradeoff deliberately because consistent behavior across SDK integrations will help most users successfully adopt these features.
+
+**Other changes**:
+
+- Promote the 68 performance monitoring and tracing functions from experimental to stable. ([#2012](https://github.com/getsentry/sentry-native/pull/2012))
+
+## 0.16.4
+
 **Features**:
 
 - Windows: report WINE and Proton metadata in a separate runtime context. ([#1995](https://github.com/getsentry/sentry-native/pull/1995))
@@ -26,6 +39,8 @@
 - Wine: fix OS version detection and cross-compiling Windows builds from Linux. ([#2001](https://github.com/getsentry/sentry-native/pull/2001))
 - Destroy condition variables as approriate when no longer needed. ([#2004](https://github.com/getsentry/sentry-native/pull/2004))
 - Crashpad/Windows: preserve module CodeView UUIDs for minimal PDB70 records with empty PDB filenames. ([#2003](https://github.com/getsentry/sentry-native/pull/2003))
+- Native/Windows: improve crash-processing performance for applications with many threads. ([#2018](https://github.com/getsentry/sentry-native/pull/2018))
+- Prevent a race between SDK reinitialization and cleanup of the previous curl client when libcurl is linked directly. ([#2015](https://github.com/getsentry/sentry-native/pull/2015))
 
 ## 0.16.3
 
