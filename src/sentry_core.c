@@ -29,7 +29,6 @@
 #include "sentry_tsan.h"
 #include "sentry_uuid.h"
 #include "sentry_value.h"
-#include "transports/sentry_disk_transport.h"
 
 #ifdef SENTRY_PLATFORM_WINDOWS
 #    include "sentry_os.h"
@@ -1975,14 +1974,6 @@ sentry__launch_external_crash_reporter(
         return false;
     }
 
-    // capture the envelope with the disk transport
-    sentry_transport_t *disk_transport
-        = sentry_new_external_disk_transport(options->run);
-    if (!disk_transport) {
-        sentry__path_free(report_path);
-        sentry_free(envelope_filename);
-        return false;
-    }
     if (options->cache_keep) {
         if (!sentry__envelope_is_raw(envelope)) {
             sentry__envelope_set_header(envelope, "cache_dir",
@@ -1991,9 +1982,12 @@ sentry__launch_external_crash_reporter(
             SENTRY_WARN("failed to add cache_dir to external crash report");
         }
     }
-    sentry__transport_send_envelope(disk_transport, envelope);
-    sentry__transport_dump_queue(disk_transport, options->run);
-    sentry_transport_free(disk_transport);
+    if (!sentry__run_write_external(options->run, envelope)) {
+        sentry__path_free(report_path);
+        sentry_free(envelope_filename);
+        return false;
+    }
+    sentry_envelope_free(envelope);
 
     sentry__process_spawn(
         options->external_crash_reporter, report_path->path, NULL);

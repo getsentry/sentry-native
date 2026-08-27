@@ -22,7 +22,6 @@
 #include "sentry_utils.h"
 #include "sentry_uuid.h"
 #include "sentry_value.h"
-#include "transports/sentry_disk_transport.h"
 
 #include <limits.h>
 #include <stdarg.h>
