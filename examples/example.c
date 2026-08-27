@@ -515,36 +515,6 @@ trigger_invalid_parameter()
 
 #endif
 
-#ifdef SENTRY_PLATFORM_AIX
-// AIX has a null page mapped to the bottom of memory, which means null derefs
-// don't segfault. try dereferencing the top of memory instead; the top nibble
-// seems to be unusable.
-static void *invalid_mem = (void *)0xFFFFFFFFFFFFFF9B; // -100 for memset
-#else
-static void *invalid_mem = (void *)1;
-#endif
-
-// Detect Address Sanitizer (works for both GCC and Clang)
-#if defined(__SANITIZE_ADDRESS__)
-#    define SENTRY_ASAN_ACTIVE 1
-#elif defined(__has_feature)
-#    if __has_feature(address_sanitizer)
-#        define SENTRY_ASAN_ACTIVE 1
-#    endif
-#endif
-
-static void
-trigger_crash()
-{
-#ifdef SENTRY_ASAN_ACTIVE
-    // Under ASAN, raise signal directly to bypass ASAN's memory interception.
-    // ASAN intercepts memset and would abort before our signal handler runs.
-    raise(SIGSEGV);
-#else
-    memset((char *)invalid_mem, 1, 100);
-#endif
-}
-
 static void
 trigger_stack_overflow()
 {
@@ -1323,7 +1293,7 @@ main(int argc, char **argv)
     }
 
     if (has_arg(argc, argv, "crash")) {
-        trigger_crash();
+        sentry_crash();
     }
     if (has_arg(argc, argv, "stack-overflow")) {
         trigger_stack_overflow();
@@ -1535,7 +1505,7 @@ main(int argc, char **argv)
     }
 
     if (has_arg(argc, argv, "crash-after-shutdown")) {
-        trigger_crash();
+        sentry_crash();
     }
 
     return EXIT_SUCCESS;

@@ -1,5 +1,8 @@
 #include "sentry_boot.h"
 
+#ifndef SENTRY_PLATFORM_PS
+#    include <signal.h>
+#endif
 #include <stdarg.h>
 #include <string.h>
 
@@ -931,6 +934,60 @@ sentry_handle_exception(const sentry_ucontext_t *uctx)
         }
     }
 }
+
+// Detect Address Sanitizer (works for both GCC and Clang)
+#if defined(__SANITIZE_ADDRESS__)
+#    define SENTRY_ASAN_ACTIVE 1
+#elif defined(__has_feature)
+#    if __has_feature(address_sanitizer)
+#        define SENTRY_ASAN_ACTIVE 1
+#    endif
+#endif
+
+// Preserve `sentry_crash` as an unwindable stack frame. Clang's `optnone` is
+// needed on macOS, but on musl it leaves the fault inside stripped `memset`,
+// producing an unsymbolicated stack trace.
+#if defined(_MSC_VER)
+#    define SENTRY_NOINLINE __declspec(noinline)
+#    pragma optimize("", off)
+#elif defined(__has_attribute)
+#    if defined(SENTRY_PLATFORM_MACOS) && __has_attribute(noinline)            \
+        && __has_attribute(optnone)
+#        define SENTRY_NOINLINE __attribute__((noinline, optnone))
+#    elif __has_attribute(noinline) && __has_attribute(optimize)
+#        define SENTRY_NOINLINE __attribute__((noinline, optimize("O0")))
+#    elif __has_attribute(noinline)
+#        define SENTRY_NOINLINE __attribute__((noinline))
+#    endif
+#endif
+#ifndef SENTRY_NOINLINE
+#    define SENTRY_NOINLINE
+#endif
+
+SENTRY_NOINLINE void
+sentry_crash(void)
+{
+#ifdef SENTRY_ASAN_ACTIVE
+    // Under ASAN, raise signal directly to bypass ASAN's memory interception.
+    // ASAN intercepts memset and would abort before our signal handler runs.
+    raise(SIGSEGV);
+#else
+#    ifdef SENTRY_PLATFORM_AIX
+    // AIX has a null page mapped to the bottom of memory, which means null
+    // derefs don't segfault. try dereferencing the top of memory instead; the
+    // top nibble seems to be unusable.
+    void *volatile invalid_mem = (void *)0xFFFFFFFFFFFFFF9B; // -100 for memset
+#    else
+    void *volatile invalid_mem = (void *)1;
+#    endif
+    memset((char *)invalid_mem, 1, 100);
+#endif
+}
+
+#if defined(_MSC_VER)
+#    pragma optimize("", on)
+#endif
+#undef SENTRY_NOINLINE
 
 sentry_uuid_t
 sentry__new_event_id(void)
