@@ -22,7 +22,6 @@ typedef volatile sig_atomic_t sentry_spinlock_t;
             break;                                                             \
         }                                                                      \
     }
-#define sentry__spinlock_unlock(spinlock_ref)                                  \
-    (__atomic_store_n(spinlock_ref, 0, __ATOMIC_RELEASE))
+#define sentry__spinlock_unlock(spinlock_ref) (*spinlock_ref = 0)
 
 #endif
