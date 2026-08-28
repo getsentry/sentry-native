@@ -265,6 +265,10 @@
             return series ? series.renderPoints[item.index] : undefined;
           }
 
+          function isChartScale(value) {
+            return value === 'linear' || value === 'logarithmic';
+          }
+
           function chartValues(seriesData) {
             const values = [];
             for (const series of seriesData) {
@@ -277,9 +281,23 @@
             return values;
           }
 
-          function shouldUseLogScale(seriesData) {
+          function chartScale(seriesData) {
+            const pointCount = seriesData.reduce(
+              (count, series) => Math.max(count, series.points.length),
+              0
+            );
+            for (let pointIndex = pointCount - 1; pointIndex >= 0; pointIndex--) {
+              for (const series of seriesData) {
+                const point = series.points[pointIndex];
+                if (point && isChartScale(point.bench.range)) {
+                  return point.bench.range;
+                }
+              }
+            }
             const values = chartValues(seriesData);
-            return values.length > 0 && values.every(value => value > 0);
+            return values.length > 0 && values.every(value => value > 0)
+              ? 'logarithmic'
+              : 'linear';
           }
 
           function trimTrailingZeros(value) {
@@ -404,7 +422,7 @@
             };
             const bench = firstBench(visibleData);
             const unit = bench ? bench.unit : '';
-            const useLogScale = shouldUseLogScale(seriesData);
+            const useLogScale = chartScale(seriesData) === 'logarithmic';
             const yAxis = {
               scaleLabel: {
                 display: true,
@@ -471,7 +489,7 @@
                     }
                     const { range, unit } = data.bench;
                     let label = data.bench.value + ' ' + unit;
-                    if (range) {
+                    if (range && !isChartScale(range)) {
                       label += ' (' + range + ')';
                     }
                     const series = seriesForTooltip(renderSeriesData, item);
