@@ -478,6 +478,58 @@ SENTRY_API sentry_value_t sentry_value_get_by_index_owned(
 SENTRY_API size_t sentry_value_get_length(sentry_value_t value);
 
 /**
+ * Type of the `sentry_value_foreach_value` callback.
+ *
+ * The callback receives a borrowed value and should return 0 to continue
+ * iteration or a non-zero value to stop it. The value is guaranteed to remain
+ * valid only for the duration of the callback. Call `sentry_value_incref` to
+ * retain it.
+ */
+typedef int (*sentry_value_foreach_value_function_t)(
+    sentry_value_t value, void *userdata);
+
+/**
+ * Iterates over the values of a list.
+ *
+ * The callback may modify `list`. Those changes are applied to the list, but
+ * the current iteration continues over the values present when iteration
+ * began. Added values are not visited, and removed or replaced values are
+ * still visited.
+ *
+ * If the callback returns a non-zero value, iteration stops and the same value
+ * is returned. Returns 0 after visiting every value, or if `list` is not a list
+ * or `callback` is `NULL`.
+ */
+SENTRY_API int sentry_value_foreach_value(sentry_value_t list,
+    sentry_value_foreach_value_function_t callback, void *userdata);
+
+/**
+ * Type of the `sentry_value_foreach_key_value` callback.
+ *
+ * The callback receives a borrowed key and value and should return 0 to
+ * continue iteration or a non-zero value to stop it. The key and value are
+ * guaranteed to remain valid only for the duration of the callback. Copy the
+ * key and call `sentry_value_incref` on the value to retain them.
+ */
+typedef int (*sentry_value_foreach_key_value_function_t)(
+    const char *key, sentry_value_t value, void *userdata);
+
+/**
+ * Iterates over the key/value pairs of an object in an unspecified order.
+ *
+ * The callback may modify `object`. Those changes are applied to the object,
+ * but the current iteration continues over the pairs present when iteration
+ * began. Added pairs are not visited, and removed or replaced pairs are still
+ * visited.
+ *
+ * If the callback returns a non-zero value, iteration stops and the same value
+ * is returned. Returns 0 after visiting every pair, or if `object` is not an
+ * object or `callback` is `NULL`.
+ */
+SENTRY_API int sentry_value_foreach_key_value(sentry_value_t object,
+    sentry_value_foreach_key_value_function_t callback, void *userdata);
+
+/**
  * Converts a value into a 32bit signed integer.
  */
 SENTRY_API int32_t sentry_value_as_int32(sentry_value_t value);

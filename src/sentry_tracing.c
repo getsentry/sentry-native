@@ -36,16 +36,16 @@ percent_encode_append(sentry_stringbuilder_t *sb, const char *value)
     }
 }
 
-static void
+static int
 append_baggage_member(const char *key, sentry_value_t value, void *userdata)
 {
     if (!key || strcmp(key, "trace_id") == 0 || sentry_value_is_null(value)) {
-        return;
+        return 0;
     }
 
     char *value_str = sentry__value_stringify(value);
     if (!value_str) {
-        return;
+        return 0;
     }
 
     sentry_stringbuilder_t *sb = userdata;
@@ -54,6 +54,7 @@ append_baggage_member(const char *key, sentry_value_t value, void *userdata)
     sentry__stringbuilder_append_char(sb, '=');
     percent_encode_append(sb, value_str);
     sentry_free(value_str);
+    return 0;
 }
 
 static sentry_value_t
@@ -964,7 +965,7 @@ sentry__span_iter_headers(sentry_value_t span,
         sentry__stringbuilder_append(&sb, sentry_value_as_string(trace_id));
 
         SENTRY_WITH_SCOPE (scope) {
-            sentry__value_foreach_key_value(
+            sentry_value_foreach_key_value(
                 scope->dynamic_sampling_context, append_baggage_member, &sb);
         }
 

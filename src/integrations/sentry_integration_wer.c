@@ -191,10 +191,11 @@ wer_remove_attachment(void *UNUSED(data), sentry_attachment_t *attachment)
     }
 }
 
-static void
+static int
 wer_cleanup_tag(const char *key, sentry_value_t UNUSED(value), void *data)
 {
     wer_remove_tag(data, key);
+    return 0;
 }
 
 static void
@@ -207,7 +208,7 @@ wer_clear(void *data)
         return;
     }
 
-    sentry__value_foreach_key_value(scope->tags, wer_cleanup_tag, wer_data);
+    sentry_value_foreach_key_value(scope->tags, wer_cleanup_tag, wer_data);
 
     for (sentry_attachment_t *attachment = scope->attachments; attachment;
         attachment = attachment->next) {
@@ -254,7 +255,7 @@ unregister_wer(
         return;
     }
 
-    sentry__value_foreach_key_value(scope->tags, wer_cleanup_tag, wer_data);
+    sentry_value_foreach_key_value(scope->tags, wer_cleanup_tag, wer_data);
 
     for (sentry_attachment_t *attachment = scope->attachments; attachment;
         attachment = attachment->next) {
