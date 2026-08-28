@@ -871,11 +871,43 @@ elseif(SENTRY_BACKEND_NATIVE)
 	# Exclude integrations that are not needed in the daemon
 	list(FILTER SENTRY_SOURCES EXCLUDE REGEX "[/\\\\]integrations[/\\\\]")
 
-	# Create daemon executable with same sources (already includes
-	# sentry_crash_daemon.c and sentry_crash_ipc.c from src/CMakeLists.txt)
+	# Create daemon executable with same SDK sources
 	add_executable(sentry-crash
 		${SENTRY_SOURCES}
 	)
+
+	# Add daemon-only sources not built into libsentry.so
+	sentry_target_sources_cwd(sentry-crash SUBDIR src
+		backends/native/sentry_crash_daemon.c
+		backends/native/minidump/sentry_minidump_format.h
+		backends/native/minidump/sentry_minidump_writer.h
+	)
+
+	# Remote unwinding (Linux only — uses libunwind ptrace accessors)
+	if(LINUX)
+		sentry_target_sources_cwd(sentry-crash SUBDIR src
+			unwinder/sentry_unwinder_libunwind_remote.c
+		)
+	endif()
+
+	# Platform-specific minidump writers
+	if(LINUX OR ANDROID)
+		sentry_target_sources_cwd(sentry-crash SUBDIR src
+			backends/native/minidump/sentry_minidump_common.c
+			backends/native/minidump/sentry_minidump_indirect.c
+			backends/native/minidump/sentry_minidump_linux.c
+		)
+	elseif(APPLE)
+		sentry_target_sources_cwd(sentry-crash SUBDIR src
+			backends/native/minidump/sentry_minidump_common.c
+			backends/native/minidump/sentry_minidump_indirect.c
+			backends/native/minidump/sentry_minidump_macos.c
+		)
+	elseif(WIN32)
+		sentry_target_sources_cwd(sentry-crash SUBDIR src
+			backends/native/minidump/sentry_minidump_windows.c
+		)
+	endif()
 
 	# Copy all compile definitions from sentry target so shared sources
 	# compile under identical preprocessor conditions (backend, transport,

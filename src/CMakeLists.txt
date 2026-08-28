@@ -175,37 +175,8 @@ elseif(SENTRY_BACKEND_NATIVE)
 	sentry_target_sources_cwd(sentry
 		backends/sentry_backend_native.c
 		backends/native/sentry_crash_ipc.c
-		backends/native/sentry_crash_daemon.c
 		backends/native/sentry_crash_handler.c
-		backends/native/minidump/sentry_minidump_format.h
-		backends/native/minidump/sentry_minidump_writer.h
 	)
-
-	# Remote unwinding (Linux only — uses libunwind ptrace accessors)
-	if(LINUX)
-		sentry_target_sources_cwd(sentry
-			unwinder/sentry_unwinder_libunwind_remote.c
-		)
-	endif()
-
-	# Platform-specific minidump writers
-	if(LINUX OR ANDROID)
-		sentry_target_sources_cwd(sentry
-			backends/native/minidump/sentry_minidump_common.c
-			backends/native/minidump/sentry_minidump_indirect.c
-			backends/native/minidump/sentry_minidump_linux.c
-		)
-	elseif(APPLE)
-		sentry_target_sources_cwd(sentry
-			backends/native/minidump/sentry_minidump_common.c
-			backends/native/minidump/sentry_minidump_indirect.c
-			backends/native/minidump/sentry_minidump_macos.c
-		)
-	elseif(WIN32)
-		sentry_target_sources_cwd(sentry
-			backends/native/minidump/sentry_minidump_windows.c
-		)
-	endif()
 
 	# Add include directory for native backend headers
 	target_include_directories(sentry PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/backends/native)
