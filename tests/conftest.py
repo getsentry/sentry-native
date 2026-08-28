@@ -18,6 +18,9 @@ LABEL = "label"
 TIME_UNIT = "time_unit"
 REAL_TIME = "real_time"
 CPU_TIME = "cpu_time"
+VALUE = "value"
+EXTRA = "extra"
+RANGE = "range"
 
 gbenchmarks = {}
 
@@ -147,6 +150,7 @@ def gbenchmark():
                 TIME_UNIT: "",
                 REAL_TIME: [],
                 CPU_TIME: [],
+                RANGE: "logarithmic",
             }
 
         for benchmark in data["benchmarks"]:
@@ -160,10 +164,43 @@ def gbenchmark():
     return _load
 
 
+@pytest.fixture
+def gmeasurement():
+    def _record(value, label, unit, extra="", test_name=None, range=None):
+        if test_name is None:
+            test_name = (
+                os.environ.get("PYTEST_CURRENT_TEST")
+                .split(" ")[0]
+                .replace("[", "_")
+                .replace("]", "")
+            )
+
+        gbenchmarks[test_name] = {
+            LABEL: label,
+            TIME_UNIT: unit,
+            VALUE: value,
+            EXTRA: extra,
+            RANGE: range,
+        }
+
+    return _record
+
+
 def _get_benchmark(name, separator):
     data = gbenchmarks.get(name)
     if data is None:
         return None
+
+    if VALUE in data:
+        benchmark = {
+            "name": data[LABEL],
+            "unit": data[TIME_UNIT],
+            "value": data[VALUE],
+            "extra": data[EXTRA],
+        }
+        if data[RANGE] is not None:
+            benchmark[RANGE] = data[RANGE]
+        return benchmark
 
     unit = data[TIME_UNIT]
     real_time = data[REAL_TIME] if data[REAL_TIME] else []
@@ -181,12 +218,15 @@ def _get_benchmark(name, separator):
         f"CPU {statistics.mean(cpu_time):.3f}{unit}" if sys.platform != "win32" else "",
     ]
 
-    return {
+    benchmark = {
         "name": data[LABEL],
         "unit": unit,
         "value": statistics.median(real_time),
         "extra": separator.join(e for e in extra if e),
     }
+    if data.get(RANGE) is not None:
+        benchmark[RANGE] = data[RANGE]
+    return benchmark
 
 
 def pytest_report_teststatus(report, config):
