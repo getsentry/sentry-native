@@ -1,5 +1,8 @@
 #include "sentry_boot.h"
 
+#ifndef SENTRY_PLATFORM_PS
+#    include <signal.h>
+#endif
 #include <stdarg.h>
 #include <string.h>
 
@@ -117,8 +120,11 @@ unregister_integrations(sentry_scope_t *scope, const sentry_options_t *options)
     }
 }
 
-#if defined(SENTRY_PLATFORM_NX) || defined(SENTRY_PLATFORM_PS)                 \
-    || defined(SENTRY_PLATFORM_XBOX)
+// TODO: remove sentry__native_init after console SDKs have been migrated to
+// platform integrations
+#if (defined(SENTRY_PLATFORM_NX) || defined(SENTRY_PLATFORM_PS)                \
+    || defined(SENTRY_PLATFORM_XBOX))                                          \
+    && !defined(SENTRY_INTEGRATION_PLATFORM)
 int
 sentry__native_init(sentry_options_t *options)
 #else
@@ -929,6 +935,60 @@ sentry_handle_exception(const sentry_ucontext_t *uctx)
     }
 }
 
+// Detect Address Sanitizer (works for both GCC and Clang)
+#if defined(__SANITIZE_ADDRESS__)
+#    define SENTRY_ASAN_ACTIVE 1
+#elif defined(__has_feature)
+#    if __has_feature(address_sanitizer)
+#        define SENTRY_ASAN_ACTIVE 1
+#    endif
+#endif
+
+// Preserve `sentry_crash` as an unwindable stack frame. Clang's `optnone` is
+// needed on macOS, but on musl it leaves the fault inside stripped `memset`,
+// producing an unsymbolicated stack trace.
+#if defined(_MSC_VER)
+#    define SENTRY_NOINLINE __declspec(noinline)
+#    pragma optimize("", off)
+#elif defined(__has_attribute)
+#    if defined(SENTRY_PLATFORM_MACOS) && __has_attribute(noinline)            \
+        && __has_attribute(optnone)
+#        define SENTRY_NOINLINE __attribute__((noinline, optnone))
+#    elif __has_attribute(noinline) && __has_attribute(optimize)
+#        define SENTRY_NOINLINE __attribute__((noinline, optimize("O0")))
+#    elif __has_attribute(noinline)
+#        define SENTRY_NOINLINE __attribute__((noinline))
+#    endif
+#endif
+#ifndef SENTRY_NOINLINE
+#    define SENTRY_NOINLINE
+#endif
+
+SENTRY_NOINLINE void
+sentry_crash(void)
+{
+#ifdef SENTRY_ASAN_ACTIVE
+    // Under ASAN, raise signal directly to bypass ASAN's memory interception.
+    // ASAN intercepts memset and would abort before our signal handler runs.
+    raise(SIGSEGV);
+#else
+#    ifdef SENTRY_PLATFORM_AIX
+    // AIX has a null page mapped to the bottom of memory, which means null
+    // derefs don't segfault. try dereferencing the top of memory instead; the
+    // top nibble seems to be unusable.
+    void *volatile invalid_mem = (void *)0xFFFFFFFFFFFFFF9B; // -100 for memset
+#    else
+    void *volatile invalid_mem = (void *)1;
+#    endif
+    memset((char *)invalid_mem, 1, 100);
+#endif
+}
+
+#if defined(_MSC_VER)
+#    pragma optimize("", on)
+#endif
+#undef SENTRY_NOINLINE
+
 sentry_uuid_t
 sentry__new_event_id(void)
 {
@@ -983,11 +1043,7 @@ void
 sentry_set_release_n(const char *release, size_t release_len)
 {
     SENTRY_WITH_SCOPE_MUT (scope) {
-        sentry_free(scope->release);
-        scope->release = sentry__string_clone_n(release, release_len);
-        sentry_value_set_by_key(scope->dynamic_sampling_context, "release",
-            sentry_value_new_string(scope->release));
-        SENTRY_SCOPE_NOTIFY(scope, set_release, scope->release);
+        sentry_scope_set_release_n(scope, release, release_len);
     }
 }
 
@@ -1001,12 +1057,7 @@ void
 sentry_set_environment_n(const char *environment, size_t environment_len)
 {
     SENTRY_WITH_SCOPE_MUT (scope) {
-        sentry_free(scope->environment);
-        scope->environment
-            = sentry__string_clone_n(environment, environment_len);
-        sentry_value_set_by_key(scope->dynamic_sampling_context, "environment",
-            sentry_value_new_string(scope->environment));
-        SENTRY_SCOPE_NOTIFY(scope, set_environment, scope->environment);
+        sentry_scope_set_environment_n(scope, environment, environment_len);
     }
 }
 
@@ -1086,9 +1137,7 @@ void
 sentry_remove_tag(const char *key)
 {
     SENTRY_WITH_SCOPE_MUT (scope) {
-        if (sentry_value_remove_by_key(scope->tags, key) == 0) {
-            SENTRY_SCOPE_NOTIFY(scope, remove_tag, key);
-        }
+        sentry_scope_remove_tag(scope, key);
     }
 }
 
@@ -1096,12 +1145,7 @@ void
 sentry_remove_tag_n(const char *key, size_t key_len)
 {
     SENTRY_WITH_SCOPE_MUT (scope) {
-        char *k
-            = sentry__value_remove_and_take_key_n(scope->tags, key, key_len);
-        if (k) {
-            SENTRY_SCOPE_NOTIFY(scope, remove_tag, k);
-        }
-        sentry_free(k);
+        sentry_scope_remove_tag_n(scope, key, key_len);
     }
 }
 
@@ -1125,9 +1169,7 @@ void
 sentry_remove_extra(const char *key)
 {
     SENTRY_WITH_SCOPE_MUT (scope) {
-        if (sentry_value_remove_by_key(scope->extra, key) == 0) {
-            SENTRY_SCOPE_NOTIFY(scope, remove_extra, key);
-        }
+        sentry_scope_remove_extra(scope, key);
     }
 }
 
@@ -1135,12 +1177,7 @@ void
 sentry_remove_extra_n(const char *key, size_t key_len)
 {
     SENTRY_WITH_SCOPE_MUT (scope) {
-        char *k
-            = sentry__value_remove_and_take_key_n(scope->extra, key, key_len);
-        if (k) {
-            SENTRY_SCOPE_NOTIFY(scope, remove_extra, k);
-        }
-        sentry_free(k);
+        sentry_scope_remove_extra_n(scope, key, key_len);
     }
 }
 
@@ -1241,9 +1278,7 @@ void
 sentry_remove_context(const char *key)
 {
     SENTRY_WITH_SCOPE_MUT (scope) {
-        if (sentry_value_remove_by_key(scope->contexts, key) == 0) {
-            SENTRY_SCOPE_NOTIFY(scope, remove_context, key);
-        }
+        sentry_scope_remove_context(scope, key);
     }
 }
 
@@ -1251,12 +1286,7 @@ void
 sentry_remove_context_n(const char *key, size_t key_len)
 {
     SENTRY_WITH_SCOPE_MUT (scope) {
-        char *k = sentry__value_remove_and_take_key_n(
-            scope->contexts, key, key_len);
-        if (k) {
-            SENTRY_SCOPE_NOTIFY(scope, remove_context, k);
-        }
-        sentry_free(k);
+        sentry_scope_remove_context_n(scope, key, key_len);
     }
 }
 
@@ -1360,15 +1390,7 @@ void
 sentry_set_transaction_n(const char *transaction, size_t transaction_len)
 {
     SENTRY_WITH_SCOPE_MUT (scope) {
-        sentry_free(scope->transaction);
-        scope->transaction
-            = sentry__string_clone_n(transaction, transaction_len);
-
-        if (scope->transaction_object) {
-            sentry_transaction_set_name_n(
-                scope->transaction_object, transaction, transaction_len);
-        }
-        SENTRY_SCOPE_NOTIFY(scope, set_transaction, scope->transaction);
+        sentry_scope_set_transaction_n(scope, transaction, transaction_len);
     }
 }
 

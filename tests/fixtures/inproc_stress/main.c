@@ -270,12 +270,6 @@ test_concurrent_crash(PATH_TYPE database_path)
     return 1;
 }
 
-static void
-trigger_crash(void)
-{
-    memset((char *)invalid_mem, 1, 100);
-}
-
 static int
 setup_sentry_with_crashing_on_crash(PATH_TYPE database_path)
 {
@@ -330,7 +324,7 @@ test_handler_thread_crash(PATH_TYPE database_path)
     // This will crash, trigger the handler thread, which will call
     // on_crash callback, which will crash the handler thread.
     // The fallback should then process in the signal handler.
-    trigger_crash();
+    sentry_crash();
 
     fprintf(stderr, "ERROR: Should have crashed\n");
     sentry_close();
@@ -352,7 +346,7 @@ test_handler_abort_crash(PATH_TYPE database_path)
     // This will crash, trigger the handler thread, which will call
     // on_crash callback, which will call abort(). abort() resets the
     // signal mask, so this tests a different code path.
-    trigger_crash();
+    sentry_crash();
 
     fprintf(stderr, "ERROR: Should have crashed\n");
     sentry_close();
@@ -418,7 +412,7 @@ test_simple_crash(PATH_TYPE database_path)
     fprintf(stderr, "Starting simple crash test\n");
     fflush(stderr);
 
-    trigger_crash();
+    sentry_crash();
 
     fprintf(stderr, "ERROR: Should have crashed\n");
     sentry_close();

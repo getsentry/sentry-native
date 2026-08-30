@@ -1,9 +1,5 @@
 #include <signal.h>
 #include <stdlib.h>
-void native_crash(void)
-{
-    *(int *)10 = 100;
-}
 
 void enable_sigaltstack(void)
 {

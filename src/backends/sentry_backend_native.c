@@ -182,6 +182,41 @@ typedef struct {
     volatile long crashed;
 } native_backend_state_t;
 
+static bool
+native_backend_process_old_run(sentry_backend_t *backend,
+    const sentry_options_t *options, const sentry_path_t *run_path)
+{
+    (void)backend;
+
+    sentry_pathiter_t *it = sentry__path_iter_directory(run_path);
+    const sentry_path_t *file;
+    while (it && (file = sentry__pathiter_next(it)) != NULL) {
+        if (!sentry__path_is_file(file) || sentry__path_is_symlink(file)
+            || !sentry__path_filename_matches(
+                file, "__sentry-crash.envelope")) {
+            continue;
+        }
+
+        sentry_envelope_t *envelope = options->on_crashed_last_run_func
+            ? sentry__envelope_from_path(file)
+            : NULL;
+        bool materialized = envelope && sentry__envelope_materialize(envelope);
+        // remove before invoking to prevent repeated callbacks
+        if (sentry__path_remove(file) != 0) {
+            sentry_envelope_free(envelope);
+            sentry__pathiter_free(it);
+            return false;
+        }
+        if (materialized) {
+            options->on_crashed_last_run_func(
+                envelope, options->on_crashed_last_run_data);
+        }
+        sentry_envelope_free(envelope);
+    }
+    sentry__pathiter_free(it);
+    return true;
+}
+
 static int
 native_backend_startup(
     sentry_backend_t *backend, const sentry_options_t *options)
@@ -302,6 +337,7 @@ native_backend_startup(
     ctx->crash_reporting_mode = options->crash_reporting_mode;
     ctx->system_crash_reporter_enabled = options->system_crash_reporter_enabled;
     ctx->crash_upload_mode = options->crash_upload_mode;
+    ctx->thread_stackwalk_mode = options->thread_stackwalk_mode;
 
     // Pass debug logging setting to daemon
     ctx->debug_enabled = options->debug;
@@ -310,6 +346,7 @@ native_backend_startup(
     ctx->session_replay_duration = options->session_replay_duration;
     ctx->cache_keep = (int)options->cache_keep;
     ctx->require_user_consent = options->require_user_consent;
+    ctx->has_on_crashed_last_run = options->on_crashed_last_run_func != NULL;
     ctx->enable_large_attachments = options->enable_large_attachments;
     ctx->http_retry = options->http_retry;
     ctx->shutdown_timeout = options->shutdown_timeout;
@@ -741,23 +778,26 @@ native_backend_write_attachments(const sentry_path_t *event_path)
             sentry_value_t attach_list = sentry_value_new_list();
             for (sentry_attachment_t *it = scope->attachments; it;
                 it = it->next) {
-                if (!it->path) {
+                const char *path = sentry__attachment_get_path(it);
+                if (!path) {
                     continue;
                 }
                 sentry_value_t attach_info = sentry_value_new_object();
-                sentry_value_set_by_key(attach_info, "path",
-                    sentry_value_new_string(it->path->path));
-                const char *filename = sentry__path_filename(
-                    it->filename ? it->filename : it->path);
+                sentry_value_set_by_key(
+                    attach_info, "path", sentry_value_new_string(path));
+                const char *filename = sentry__attachment_get_filename(it);
                 sentry_value_set_by_key(
                     attach_info, "filename", sentry_value_new_string(filename));
-                if (it->type && *it->type) {
+                const char *type = sentry__attachment_get_type(it);
+                if (type && *type) {
                     sentry_value_set_by_key(attach_info, "attachment_type",
-                        sentry_value_new_string(it->type));
+                        sentry_value_new_string(type));
                 }
-                if (it->content_type) {
+                const char *content_type
+                    = sentry__attachment_get_content_type(it);
+                if (content_type) {
                     sentry_value_set_by_key(attach_info, "content_type",
-                        sentry_value_new_string(it->content_type));
+                        sentry_value_new_string(content_type));
                 }
                 sentry_value_append(attach_list, attach_info);
             }
@@ -941,8 +981,10 @@ native_backend_add_attachment(
 
     // For buffer attachments, assign a path in the run directory and write to
     // disk
-    if (attachment->buf) {
-        if (!attachment->path) {
+    size_t bytes_len = 0;
+    const char *bytes = sentry__attachment_get_bytes(attachment, &bytes_len);
+    if (bytes) {
+        if (!sentry__attachment_get_path(attachment)) {
             if (!ensure_attachment_path(attachment)) {
                 SENTRY_WARN("failed to assign path for buffer attachment");
                 return;
@@ -950,12 +992,12 @@ native_backend_add_attachment(
         }
 
         // Write buffer to disk
-        if (sentry__path_write_buffer(
-                attachment->path, attachment->buf, attachment->buf_len)
-            != 0) {
+        sentry_path_t *path = sentry__attachment_make_path(attachment);
+        if (!path || sentry__path_write_buffer(path, bytes, bytes_len) != 0) {
             SENTRY_WARNF("failed to write native backend attachment \"%s\"",
-                attachment->path->path);
+                sentry__attachment_get_path(attachment));
         }
+        sentry__path_free(path);
     }
     // For file attachments, the path is already set and points to the actual
     // file. The crash daemon will read these files from their original
@@ -1136,6 +1178,7 @@ sentry__backend_new(void)
     backend->add_breadcrumb_func = native_backend_add_breadcrumb;
     backend->add_attachment_func = native_backend_add_attachment;
     backend->user_consent_changed_func = native_backend_user_consent_changed;
+    backend->process_old_run_func = native_backend_process_old_run;
     backend->can_capture_after_shutdown = false;
 
     return backend;

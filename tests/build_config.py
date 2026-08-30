@@ -99,7 +99,7 @@ def get_cflags(extra_cflags=None):
 
     This handles:
     - ERROR_ON_WARNINGS -> -Werror
-    - MSVC parallel builds and warnings as errors
+    - MSVC parallel builds, warnings as errors, and code analysis
     - GCC analyzer
 
     Args:
@@ -113,6 +113,8 @@ def get_cflags(extra_cflags=None):
     if sys.platform == "win32" and not os.environ.get("TEST_MINGW"):
         cpus = os.cpu_count()
         cflags.append("/WX /MP{}".format(cpus))
+        if "msvc" in os.environ.get("RUN_ANALYZER", ""):
+            cflags.append("/analyze /analyze:WX-")
 
     if "gcc" in os.environ.get("RUN_ANALYZER", ""):
         cflags.append("-fanalyzer")

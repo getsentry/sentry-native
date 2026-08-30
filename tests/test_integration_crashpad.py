@@ -88,6 +88,46 @@ def test_crashpad_capture(cmake, httpserver):
     assert len(httpserver.log) == 2
 
 
+def test_crashpad_on_crashed_last_run(cmake):
+    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "crashpad"})
+    args = ["log", "on-crashed-last-run"]
+
+    run(
+        tmp_path,
+        "sentry_example",
+        ["log", "crash"],
+        expect_failure=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+
+    assert not list((tmp_path / ".sentry-native").glob("*.run/*.crash"))
+
+    restarted = run(
+        tmp_path,
+        "sentry_example",
+        [*args, "no-setup"],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    callbacks = [
+        line
+        for line in restarted.stdout.splitlines()
+        if line.startswith(b"CRASHED_LAST_RUN:")
+    ]
+    assert len(callbacks) == 1
+    assert len(callbacks[0].partition(b":")[2]) == 36
+
+    restarted_again = run(
+        tmp_path,
+        "sentry_example",
+        [*args, "no-setup"],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    assert b"CRASHED_LAST_RUN:" not in restarted_again.stdout
+
+
 def test_crashpad_codeview(cmake, httpserver):
     tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "crashpad"})
 
@@ -385,6 +425,7 @@ def wait_for_no_werfault(timeout=30.0, poll_interval=0.5):
         (["fastfail"]),
         (["fastfail", "discarding-before-send"]),
         (["fastfail", "discarding-on-crash"]),
+        (["invalid-parameter"]),
     ],
 )
 def test_crashpad_wer_crash(cmake, httpserver, run_args):

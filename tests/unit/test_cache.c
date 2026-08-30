@@ -1,9 +1,12 @@
+#include "sentry_alloc.h"
+#include "sentry_backend.h"
 #include "sentry_core.h"
 #include "sentry_database.h"
 #include "sentry_envelope.h"
 #include "sentry_options.h"
 #include "sentry_path.h"
 #include "sentry_retry.h"
+#include "sentry_session.h"
 #include "sentry_string.h"
 #include "sentry_testsupport.h"
 #include "sentry_uuid.h"
@@ -39,6 +42,101 @@ set_file_mtime(const sentry_path_t *path, time_t mtime)
     (void)mtime;
     return -1;
 #endif
+}
+
+typedef struct {
+    size_t count;
+    size_t materialized_count;
+    sentry_uuid_t event_ids[4];
+} crashed_last_run_state_t;
+
+static void
+record_crashed_last_run(const sentry_envelope_t *envelope, void *user_data)
+{
+    crashed_last_run_state_t *state = user_data;
+    sentry_value_t event_id = sentry_envelope_get_header(envelope, "event_id");
+    if (state->count < 4) {
+        state->event_ids[state->count]
+            = sentry_uuid_from_string(sentry_value_as_string(event_id));
+    }
+    if (!sentry_value_is_null(event_id)
+        && !sentry_value_is_null(sentry_envelope_get_event(envelope))) {
+        state->materialized_count++;
+    }
+    state->count++;
+}
+
+static void
+count_sent_envelopes(sentry_envelope_t *envelope, void *user_data)
+{
+    size_t *count = user_data;
+    (*count)++;
+    sentry_envelope_free(envelope);
+}
+
+#if !defined(SENTRY_PLATFORM_NX) && !defined(SENTRY_PLATFORM_PS)
+typedef struct {
+    size_t attempts;
+} old_run_retry_state_t;
+
+static bool
+retry_old_run(sentry_backend_t *backend, const sentry_options_t *options,
+    const sentry_path_t *run_path)
+{
+    (void)options;
+    (void)run_path;
+    old_run_retry_state_t *state = backend->data;
+    return ++state->attempts > 1;
+}
+#endif
+
+static sentry_path_t *
+write_event_envelope(const sentry_path_t *dir, const sentry_uuid_t *event_id)
+{
+    if (sentry__path_create_dir_all(dir) != 0) {
+        return NULL;
+    }
+    sentry_envelope_t *envelope = sentry__envelope_new();
+    sentry__envelope_add_event(
+        envelope, sentry__value_new_event_with_id(event_id));
+    char *filename = sentry__uuid_as_filename(event_id, ".envelope");
+    sentry_path_t *path
+        = filename ? sentry__path_join_str(dir, filename) : NULL;
+    sentry_free(filename);
+    int rv = path ? sentry_envelope_write_to_path(envelope, path) : 1;
+    sentry_envelope_free(envelope);
+    if (rv != 0) {
+        sentry__path_free(path);
+        return NULL;
+    }
+    return path;
+}
+
+static sentry_path_t *
+write_run_crash_marker(
+    const sentry_path_t *run_path, const sentry_uuid_t *event_id)
+{
+    char *filename = sentry__uuid_as_filename(event_id, ".crash");
+    sentry_path_t *path
+        = filename ? sentry__path_join_str(run_path, filename) : NULL;
+    sentry_free(filename);
+    if (!path || sentry__path_touch(path) != 0) {
+        sentry__path_free(path);
+        return NULL;
+    }
+    return path;
+}
+
+static bool
+state_has_event_id(
+    const crashed_last_run_state_t *state, const sentry_uuid_t *event_id)
+{
+    for (size_t i = 0; i < state->count && i < 4; i++) {
+        if (memcmp(&state->event_ids[i], event_id, sizeof(*event_id)) == 0) {
+            return true;
+        }
+    }
+    return false;
 }
 
 SENTRY_TEST(cache_keep)
@@ -96,6 +194,233 @@ SENTRY_TEST(cache_keep)
     sentry__path_free(cache_path);
     sentry_free(envelope_filename);
     sentry_close();
+}
+
+SENTRY_TEST(old_run_retry)
+{
+#if defined(SENTRY_PLATFORM_NX) || defined(SENTRY_PLATFORM_PS)
+    SKIP_TEST();
+#else
+    SENTRY_TEST_OPTIONS_NEW(options);
+    TEST_ASSERT(sentry__path_remove_all(options->database_path) == 0);
+    TEST_ASSERT(sentry__path_create_dir_all(options->database_path) == 0);
+
+    options->run = sentry__run_new(options->database_path);
+    TEST_ASSERT(!!options->run);
+    sentry_run_t *old_run = sentry__run_new(options->database_path);
+    TEST_ASSERT(!!old_run);
+    sentry__filelock_unlock(old_run->lock);
+
+    sentry_uuid_t event_id = sentry_uuid_new_v4();
+    sentry_path_t *queued_envelope
+        = write_event_envelope(old_run->run_path, &event_id);
+    sentry_path_t *backend_state
+        = sentry__path_join_str(old_run->run_path, "backend-state");
+    TEST_ASSERT(!!queued_envelope && !!backend_state);
+    TEST_ASSERT(sentry__path_touch(backend_state) == 0);
+
+    static const char session_json[]
+        = "{\"init\":true,\"sid\":\"00000000-0000-4000-8000-000000000001\","
+          "\"status\":\"ok\",\"errors\":0,\"started\":\"2020-01-01T00:00:00Z\","
+          "\"duration\":0,\"attrs\":{\"release\":\"test@1.0.0\","
+          "\"environment\":\"production\"}}";
+    sentry_session_t *session
+        = sentry__session_from_json(session_json, sizeof(session_json) - 1);
+    TEST_ASSERT(!!session);
+    TEST_ASSERT(sentry__run_write_session(old_run, session));
+    sentry__session_free(session);
+
+    size_t sent_envelopes = 0;
+    sentry_transport_t *transport = sentry_transport_new(count_sent_envelopes);
+    TEST_ASSERT(!!transport);
+    sentry_transport_set_state(transport, &sent_envelopes);
+    sentry_options_set_transport(options, transport);
+
+    old_run_retry_state_t retry_state = { 0 };
+    sentry_backend_t *backend = SENTRY_MAKE(sentry_backend_t);
+    TEST_ASSERT(!!backend);
+    backend->data = &retry_state;
+    backend->process_old_run_func = retry_old_run;
+    sentry_options_set_backend(options, backend);
+
+    sentry__process_old_runs(options, 0);
+
+    TEST_CHECK_INT_EQUAL(retry_state.attempts, 1);
+    TEST_CHECK_INT_EQUAL(sent_envelopes, 2);
+    TEST_CHECK(sentry__path_is_dir(old_run->run_path));
+    TEST_CHECK(sentry__path_is_file(backend_state));
+    TEST_CHECK(!sentry__path_is_file(queued_envelope));
+    TEST_CHECK(!sentry__path_is_file(old_run->session_path));
+
+    sentry__process_old_runs(options, 0);
+
+    TEST_CHECK_INT_EQUAL(retry_state.attempts, 2);
+    TEST_CHECK_INT_EQUAL(sent_envelopes, 2);
+    TEST_CHECK(!sentry__path_is_dir(old_run->run_path));
+
+    sentry__path_free(backend_state);
+    sentry__path_free(queued_envelope);
+    sentry__run_free(old_run);
+    sentry__run_clean(options->run, true);
+    sentry_options_free(options);
+#endif
+}
+
+SENTRY_TEST(on_crashed_last_run)
+{
+    crashed_last_run_state_t state = { 0 };
+    SENTRY_TEST_OPTIONS_NEW(options);
+    sentry_options_set_transport(options, NULL);
+    sentry_options_set_on_crashed_last_run(
+        options, record_crashed_last_run, &state);
+    TEST_CHECK_INT_EQUAL(sentry_init(options), 0);
+
+    sentry_path_t *old_run1
+        = sentry__path_join_str(options->database_path, "first.run");
+    sentry_path_t *old_run2
+        = sentry__path_join_str(options->database_path, "second.run");
+    TEST_ASSERT(!!old_run1 && !!old_run2);
+    sentry__path_remove_all(old_run1);
+    sentry__path_remove_all(old_run2);
+
+    sentry_uuid_t crash1 = sentry_uuid_new_v4();
+    sentry_uuid_t crash2 = sentry_uuid_new_v4();
+    sentry_uuid_t normal = sentry_uuid_new_v4();
+    sentry_path_t *crash1_envelope = write_event_envelope(old_run1, &crash1);
+    sentry_path_t *normal_envelope = write_event_envelope(old_run1, &normal);
+    sentry_path_t *crash2_envelope = write_event_envelope(old_run2, &crash2);
+    sentry_path_t *crash1_marker = write_run_crash_marker(old_run1, &crash1);
+    sentry_path_t *crash2_marker = write_run_crash_marker(old_run2, &crash2);
+    TEST_ASSERT(!!crash1_envelope && !!normal_envelope && !!crash2_envelope);
+    TEST_ASSERT(!!crash1_marker && !!crash2_marker);
+
+    sentry__process_old_runs(options, 0);
+    TEST_CHECK_INT_EQUAL(state.count, 2);
+    TEST_CHECK_INT_EQUAL(state.materialized_count, 2);
+    TEST_CHECK(state_has_event_id(&state, &crash1));
+    TEST_CHECK(state_has_event_id(&state, &crash2));
+    TEST_CHECK(!state_has_event_id(&state, &normal));
+    TEST_CHECK(!sentry__path_is_dir(old_run1));
+    TEST_CHECK(!sentry__path_is_dir(old_run2));
+
+    sentry__process_old_runs(options, 0);
+    TEST_CHECK_INT_EQUAL(state.count, 2);
+
+    sentry__path_free(crash1_marker);
+    sentry__path_free(crash2_marker);
+    sentry__path_free(crash1_envelope);
+    sentry__path_free(normal_envelope);
+    sentry__path_free(crash2_envelope);
+    sentry__path_free(old_run1);
+    sentry__path_free(old_run2);
+    sentry_close();
+}
+
+SENTRY_TEST(on_crashed_last_run_cache)
+{
+    crashed_last_run_state_t state = { 0 };
+    SENTRY_TEST_OPTIONS_NEW(options);
+    sentry_options_set_transport(options, NULL);
+    sentry_options_set_on_crashed_last_run(
+        options, record_crashed_last_run, &state);
+    TEST_CHECK_INT_EQUAL(sentry_init(options), 0);
+    sentry__path_remove_all(options->run->cache_path);
+
+    sentry_uuid_t event_id = sentry_uuid_new_v4();
+    TEST_CHECK(!sentry__run_write_crash_marker(options->run, &event_id));
+
+    sentry_path_t *old_run
+        = sentry__path_join_str(options->database_path, "old.run");
+    sentry__path_remove_all(old_run);
+    sentry_path_t *crash_path = write_event_envelope(old_run, &event_id);
+    sentry_path_t *marker_path = write_run_crash_marker(old_run, &event_id);
+
+    sentry_envelope_t *envelope = sentry__envelope_new();
+    sentry__envelope_add_event(
+        envelope, sentry__value_new_event_with_id(&event_id));
+    TEST_CHECK(sentry__run_write_cache(options->run, envelope, -1));
+    sentry_envelope_free(envelope);
+
+    char *cache_filename = sentry__uuid_as_filename(&event_id, ".envelope");
+    sentry_path_t *cache_path
+        = sentry__path_join_str(options->run->cache_path, cache_filename);
+    sentry_free(cache_filename);
+    TEST_ASSERT(!!old_run && !!crash_path && !!marker_path && !!cache_path);
+    TEST_CHECK(sentry__path_is_file(crash_path));
+    TEST_CHECK(sentry__path_is_file(marker_path));
+    TEST_CHECK(sentry__path_is_file(cache_path));
+
+    sentry__process_old_runs(options, 0);
+    TEST_CHECK_INT_EQUAL(state.count, 1);
+    TEST_CHECK_INT_EQUAL(state.materialized_count, 1);
+    TEST_CHECK(state_has_event_id(&state, &event_id));
+    TEST_CHECK(!sentry__path_is_file(crash_path));
+    TEST_CHECK(!sentry__path_is_file(marker_path));
+    TEST_CHECK(sentry__path_is_file(cache_path));
+
+    sentry__process_old_runs(options, 0);
+    TEST_CHECK_INT_EQUAL(state.count, 1);
+
+    sentry__path_remove_all(options->run->cache_path);
+    sentry__path_free(old_run);
+    sentry__path_free(crash_path);
+    sentry__path_free(marker_path);
+    sentry__path_free(cache_path);
+    sentry_close();
+}
+
+SENTRY_TEST(callback_envelope_is_not_resent_without_backend)
+{
+#if defined(SENTRY_PLATFORM_NX) || defined(SENTRY_PLATFORM_PS)
+    SKIP_TEST();
+#else
+    SENTRY_TEST_OPTIONS_NEW(options);
+    TEST_ASSERT(sentry__path_remove_all(options->database_path) == 0);
+    TEST_ASSERT(sentry__path_create_dir_all(options->database_path) == 0);
+
+    options->run = sentry__run_new(options->database_path);
+    TEST_ASSERT(!!options->run);
+    sentry_run_t *old_run = sentry__run_new(options->database_path);
+    TEST_ASSERT(!!old_run);
+    sentry__filelock_unlock(old_run->lock);
+
+    sentry_path_t *callback_path
+        = sentry__path_join_str(old_run->run_path, "__sentry-crash.envelope");
+    TEST_ASSERT(!!callback_path);
+    sentry_envelope_t *callback_envelope = sentry__envelope_new();
+    TEST_ASSERT(!!callback_envelope);
+    sentry_uuid_t callback_id = sentry_uuid_new_v4();
+    sentry__envelope_add_event(
+        callback_envelope, sentry__value_new_event_with_id(&callback_id));
+    TEST_ASSERT(
+        sentry_envelope_write_to_path(callback_envelope, callback_path) == 0);
+    sentry_envelope_free(callback_envelope);
+
+    sentry_uuid_t queued_id = sentry_uuid_new_v4();
+    sentry_path_t *queued_path
+        = write_event_envelope(old_run->run_path, &queued_id);
+    TEST_ASSERT(!!queued_path);
+
+    size_t sent_envelopes = 0;
+    sentry_transport_t *transport = sentry_transport_new(count_sent_envelopes);
+    TEST_ASSERT(!!transport);
+    sentry_transport_set_state(transport, &sent_envelopes);
+    sentry_options_set_transport(options, transport);
+    sentry_options_set_backend(options, NULL);
+
+    sentry__process_old_runs(options, 0);
+
+    TEST_CHECK_INT_EQUAL(sent_envelopes, 1);
+    TEST_CHECK(!sentry__path_is_dir(old_run->run_path));
+    TEST_CHECK(!sentry__path_is_file(callback_path));
+    TEST_CHECK(!sentry__path_is_file(queued_path));
+
+    sentry__path_free(queued_path);
+    sentry__path_free(callback_path);
+    sentry__run_free(old_run);
+    sentry__run_clean(options->run, true);
+    sentry_options_free(options);
+#endif
 }
 
 SENTRY_TEST(cache_max_size)

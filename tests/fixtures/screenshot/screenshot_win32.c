@@ -4,7 +4,6 @@
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
 
 enum {
     IDT_TIMER_CRASH = 1,
@@ -21,14 +20,6 @@ has_arg(int argc, LPWSTR *argv, LPCWSTR arg)
         }
     }
     return false;
-}
-
-static void *invalid_mem = (void *)1;
-
-static void
-trigger_crash()
-{
-    memset((char *)invalid_mem, 1, 100);
 }
 
 static void
@@ -61,7 +52,7 @@ wnd_proc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
     case WM_TIMER:
         switch (wParam) {
         case IDT_TIMER_CRASH:
-            trigger_crash();
+            sentry_crash();
             break;
         case IDT_TIMER_STACK_OVERFLOW:
             trigger_stack_overflow();

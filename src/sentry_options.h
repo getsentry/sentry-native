@@ -66,6 +66,8 @@ struct sentry_options_s {
     void *before_send_data;
     sentry_crash_function_t on_crash_func;
     void *on_crash_data;
+    sentry_crashed_last_run_function_t on_crashed_last_run_func;
+    void *on_crashed_last_run_data;
     sentry_transaction_function_t before_transaction_func;
     void *before_transaction_data;
     sentry_before_send_log_function_t before_send_log_func;
@@ -113,6 +115,8 @@ struct sentry_options_s {
     int crash_reporting_mode; // 0=minidump, 1=native, 2=native_with_minidump
                               // (see sentry_crash_reporting_mode_t)
     int crash_upload_mode; // 0=sync, 1=async (see sentry_crash_upload_mode_t)
+    int thread_stackwalk_mode; // 0=crashed_only, 1=all (see
+                               // sentry_thread_stackwalk_mode_t)
 
 #ifdef SENTRY_PLATFORM_NX
     void (*network_connect_func)(void);
@@ -137,8 +141,10 @@ const char *sentry__options_get_org_id(const sentry_options_t *options);
  *
  * Takes ownership of `integration`. If the integration owns `data`, it must
  * provide `free_func`.
+ *
+ * Returns true if the integration was added.
  */
-void sentry__options_add_integration(
+bool sentry__options_add_integration(
     sentry_options_t *opts, sentry_integration_t *integration);
 
 /**

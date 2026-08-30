@@ -7,6 +7,9 @@
 #endif
 
 #include "sentry.h"
+#if defined(_WIN32) && !defined(__MINGW32__) && !defined(__MINGW64__)
+#    include <corecrt.h>
+#endif
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -170,6 +173,16 @@ on_crash_callback(
 
     // tell the backend to retain the event
     return event;
+}
+
+static void
+on_crashed_last_run_callback(const sentry_envelope_t *envelope, void *user_data)
+{
+    (void)user_data;
+    const char *event_id = sentry_value_as_string(
+        sentry_envelope_get_header(envelope, "event_id"));
+    printf("CRASHED_LAST_RUN:%s\n", event_id ? event_id : "");
+    fflush(stdout);
 }
 
 static sentry_value_t
@@ -492,37 +505,15 @@ trigger_fastfail_crash()
     RaiseFailFastException(NULL, NULL, 0);
 }
 
-#endif
-
-#ifdef SENTRY_PLATFORM_AIX
-// AIX has a null page mapped to the bottom of memory, which means null derefs
-// don't segfault. try dereferencing the top of memory instead; the top nibble
-// seems to be unusable.
-static void *invalid_mem = (void *)0xFFFFFFFFFFFFFF9B; // -100 for memset
-#else
-static void *invalid_mem = (void *)1;
-#endif
-
-// Detect Address Sanitizer (works for both GCC and Clang)
-#if defined(__SANITIZE_ADDRESS__)
-#    define SENTRY_ASAN_ACTIVE 1
-#elif defined(__has_feature)
-#    if __has_feature(address_sanitizer)
-#        define SENTRY_ASAN_ACTIVE 1
-#    endif
-#endif
-
 static void
-trigger_crash()
+trigger_invalid_parameter()
 {
-#ifdef SENTRY_ASAN_ACTIVE
-    // Under ASAN, raise signal directly to bypass ASAN's memory interception.
-    // ASAN intercepts memset and would abort before our signal handler runs.
-    raise(SIGSEGV);
-#else
-    memset((char *)invalid_mem, 1, 100);
-#endif
+    // with no custom handler, this invokes _invoke_watson and fast-fails:
+    // https://learn.microsoft.com/en-us/cpp/c-runtime-library/reference/invalid-parameter-functions
+    _invalid_parameter_noinfo();
 }
+
+#endif
 
 static void
 trigger_stack_overflow()
@@ -771,6 +762,11 @@ main(int argc, char **argv)
         sentry_options_set_on_crash(options, on_crash_callback, NULL);
     }
 
+    if (has_arg(argc, argv, "on-crashed-last-run")) {
+        sentry_options_set_on_crashed_last_run(
+            options, on_crashed_last_run_callback, NULL);
+    }
+
     if (has_arg(argc, argv, "discarding-on-crash")) {
         sentry_options_set_on_crash(
             options, discarding_on_crash_callback, NULL);
@@ -1010,8 +1006,7 @@ main(int argc, char **argv)
         sentry_value_set_by_key(attributes, "number.first", attr_2);
         sentry_value_set_by_key(attributes, "number.second", attr_3);
         // testing multiple attributes
-        sentry_log_debug(
-            "logging with %d custom attributes", attributes, (int64_t)3);
+        sentry_log_debug("logging with %d custom attributes", attributes, 3);
         // testing no attributes
         sentry_log_debug("logging with %s custom attributes",
             sentry_value_new_object(), "no");
@@ -1298,7 +1293,7 @@ main(int argc, char **argv)
     }
 
     if (has_arg(argc, argv, "crash")) {
-        trigger_crash();
+        sentry_crash();
     }
     if (has_arg(argc, argv, "stack-overflow")) {
         trigger_stack_overflow();
@@ -1310,6 +1305,9 @@ main(int argc, char **argv)
     && !defined(__MINGW64__)
     if (has_arg(argc, argv, "fastfail")) {
         trigger_fastfail_crash();
+    }
+    if (has_arg(argc, argv, "invalid-parameter")) {
+        trigger_invalid_parameter();
     }
     if (has_arg(argc, argv, "stack-buffer-overrun")) {
         trigger_stack_buffer_overrun();
@@ -1507,7 +1505,7 @@ main(int argc, char **argv)
     }
 
     if (has_arg(argc, argv, "crash-after-shutdown")) {
-        trigger_crash();
+        sentry_crash();
     }
 
     return EXIT_SUCCESS;

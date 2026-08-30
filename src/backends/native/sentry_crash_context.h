@@ -291,6 +291,7 @@ typedef struct {
 #endif
     int crash_reporting_mode; // sentry_crash_reporting_mode_t
     int crash_upload_mode; // sentry_crash_upload_mode_t
+    int thread_stackwalk_mode; // sentry_thread_stackwalk_mode_t
     bool debug_enabled; // Debug logging enabled in parent process
     bool attach_screenshot; // Screenshot attachment enabled in parent process
     bool attach_session_replay; // Session replay attachment enabled in parent
@@ -299,6 +300,7 @@ typedef struct {
                                       // ms
     int cache_keep; // sentry_cache_keep_t
     bool require_user_consent;
+    bool has_on_crashed_last_run;
     bool enable_large_attachments;
     bool http_retry;
     uint64_t shutdown_timeout;
