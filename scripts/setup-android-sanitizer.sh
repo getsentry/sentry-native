@@ -3,10 +3,12 @@ set -euxo pipefail
 
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
+sanitizer="${1:-}"
+[[ -n "$sanitizer" ]] || exit 0
+
 : "${ANDROID_HOME:?ANDROID_HOME must point to the Android SDK}"
 : "${ANDROID_NDK:?ANDROID_NDK must name an installed NDK version}"
 : "${ANDROID_ARCH:?ANDROID_ARCH must name the emulator ABI}"
-sanitizer="${1:?sanitizer must be asan or tsan}"
 
 if [[ "$sanitizer" != asan && "$sanitizer" != tsan ]]; then
     echo "Unsupported sanitizer: $sanitizer" >&2

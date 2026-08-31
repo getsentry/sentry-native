@@ -507,12 +507,7 @@ jobs:
           script: |
             # Sync emulator clock with host to avoid timestamp assertion failures
             adb shell cmd alarm set-time $(date +%s000) || adb shell su root date $(date -u +%m%d%H%M%Y.%S)
-            for sanitizer in asan tsan; do
-              if [[ ",$RUN_ANALYZER," == *",$sanitizer,"* ]]; then
-                # Set up the runtime for pytest and Gradle tests
-                scripts/setup-android-sanitizer.sh "$sanitizer"
-              fi
-            done
+            scripts/setup-android-sanitizer.sh "$RUN_ANALYZER"
             pip install --upgrade --requirement tests/requirements.txt
             pytest --capture=no --verbose tests
             (cd ndk && ./gradlew :sentry-native-ndk:connectedDebugAndroidTest --stacktrace)
