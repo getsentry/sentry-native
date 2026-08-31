@@ -373,8 +373,8 @@ ndk_aar_path = (
 
 
 @pytest.mark.skipif(
-    not is_android or int(is_android) < 26,
-    reason="needs Android API 26+ (tombstoned)",
+    not is_android or int(is_android) < 26 or is_asan or is_tsan,
+    reason="needs Android API 26+ (tombstoned) without sanitizers",
 )
 # Mono on Android keeps using CHAIN_AT_START. Preload is the CoreCLR path,
 # where sentry-native can enter the signal chain before the runtime installs

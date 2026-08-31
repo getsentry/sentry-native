@@ -240,6 +240,12 @@ jobs:
             ANDROID_API: 35
             ANDROID_NDK: 29.0.14206865
             ANDROID_ARCH: x86_64
+          - name: Android (API 36, NDK 30 + asan)
+            os: ubuntu-latest
+            ANDROID_API: 36
+            ANDROID_NDK: 30.0.16138531
+            ANDROID_ARCH: x86_64
+            RUN_ANALYZER: asan
 
     name: ${{ matrix.name }}
     runs-on: ${{ matrix.os }}
@@ -501,6 +507,12 @@ jobs:
           script: |
             # Sync emulator clock with host to avoid timestamp assertion failures
             adb shell cmd alarm set-time $(date +%s000) || adb shell su root date $(date -u +%m%d%H%M%Y.%S)
+            for sanitizer in asan tsan; do
+              if [[ ",$RUN_ANALYZER," == *",$sanitizer,"* ]]; then
+                # Set up the runtime for pytest and Gradle tests
+                scripts/setup-android-sanitizer.sh "$sanitizer"
+              fi
+            done
             pip install --upgrade --requirement tests/requirements.txt
             pytest --capture=no --verbose tests
             (cd ndk && ./gradlew :sentry-native-ndk:connectedDebugAndroidTest --stacktrace)
