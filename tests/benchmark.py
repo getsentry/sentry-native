@@ -3,7 +3,7 @@ import shutil
 
 import pytest
 
-from . import make_dsn, run
+from . import lib_name, make_dsn, run
 
 
 def run_benchmark(target, backend, cmake, httpserver, gbenchmark, label, runs=1):
@@ -78,4 +78,26 @@ def test_benchmark_logs(threads, cmake, httpserver, gbenchmark):
         httpserver,
         gbenchmark,
         f"Logs ({threads} thread{'s' if threads > 1 else ''})",
+    )
+
+
+@pytest.mark.parametrize("backend", ["inproc", "breakpad", "crashpad", "native"])
+def test_benchmark_libsize(backend, cmake, gmeasurement):
+    tmp_path = cmake(
+        ["sentry"],
+        {
+            "SENTRY_BACKEND": backend,
+            "CMAKE_BUILD_TYPE": "Release",
+        },
+    )
+
+    library = tmp_path / lib_name("sentry")
+    size = library.stat().st_size
+    assert size > 0
+    gmeasurement(
+        size,
+        f"Library size ({backend})",
+        "bytes",
+        f"Size {size}b",
+        range="linear",
     )
