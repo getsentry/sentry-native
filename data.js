@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1788186818935,
+  "lastUpdate": 1788187042793,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -98298,6 +98298,216 @@ window.BENCHMARK_DATA = {
             "range": "logarithmic",
             "unit": "ms",
             "extra": "Min 0.314ms\nMax 0.314ms\nMean 0.314ms\nMedian 0.314ms\nCPU 0.020ms"
+          },
+          {
+            "name": "Library size (inproc)",
+            "value": 390336,
+            "range": "linear",
+            "unit": "bytes",
+            "extra": "Size 390336b"
+          },
+          {
+            "name": "Library size (breakpad)",
+            "value": 474928,
+            "range": "linear",
+            "unit": "bytes",
+            "extra": "Size 474928b"
+          },
+          {
+            "name": "Library size (crashpad)",
+            "value": 791040,
+            "range": "linear",
+            "unit": "bytes",
+            "extra": "Size 791040b"
+          },
+          {
+            "name": "Library size (native)",
+            "value": 408720,
+            "range": "linear",
+            "unit": "bytes",
+            "extra": "Size 408720b"
+          },
+          {
+            "name": "Stack usage (inproc)",
+            "value": 9208,
+            "unit": "bytes",
+            "extra": "Peak 9208b, Segments 2"
+          },
+          {
+            "name": "Stack usage (breakpad)",
+            "value": 8072,
+            "unit": "bytes",
+            "extra": "Peak 8072b, Segments 1"
+          },
+          {
+            "name": "Stack usage (native)",
+            "value": 5320,
+            "unit": "bytes",
+            "extra": "Peak 5320b, Segments 1"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "jpnurmi@gmail.com",
+            "name": "J-P Nurmi",
+            "username": "jpnurmi"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "a0612efc47f59c9eea1ad4085ac79a97052aac8c",
+          "message": "test: concurrent page allocator (#2035)\n\n* test: Cover concurrent page allocator access\n\nExercise the page allocator from synchronized threads and verify that\nallocations remain independent. This exposes missing spinlock ordering\nunder ThreadSanitizer.\n\n* revert: Reproduce concurrent page allocator race\n\nPartially revert the spinlock changes from\neecc7fa7a0032b74f99a5930611d9087d68a2cd8 (#1446) by restoring the\nnon-atomic unlock.\n\nTogether with the concurrent page allocator test in f3ad564a, this makes\nThreadSanitizer report the missing synchronization on g_lock and the\nresulting races in the allocator state.\n\n* Revert \"revert: Reproduce concurrent page allocator race\"\n\nThis reverts commit b603e3c3080deb9e475291c2908c330c7452829c.",
+          "timestamp": "2026-08-31T16:26:52+02:00",
+          "tree_id": "c15cce62a606be9c32790ee81d644125dc50e44d",
+          "url": "https://github.com/getsentry/sentry-native/commit/a0612efc47f59c9eea1ad4085ac79a97052aac8c"
+        },
+        "date": 1788187020485,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 6.82541699998751,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 5.426ms\nMax 13.932ms\nMean 8.064ms\nStdDev 3.372ms\nMedian 6.825ms\nCPU 4.650ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 5.680583000014394,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 4.214ms\nMax 6.949ms\nMean 5.679ms\nStdDev 0.989ms\nMedian 5.681ms\nCPU 3.294ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 28.38475000004337,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 23.170ms\nMax 88.167ms\nMean 39.185ms\nStdDev 27.526ms\nMedian 28.385ms\nCPU 9.178ms"
+          },
+          {
+            "name": "SDK init (native)",
+            "value": 24.697333000005983,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 13.292ms\nMax 33.904ms\nMean 23.512ms\nStdDev 9.129ms\nMedian 24.697ms\nCPU 5.146ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.08812499999066858,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.050ms\nMax 0.131ms\nMean 0.096ms\nStdDev 0.033ms\nMedian 0.088ms\nCPU 0.068ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.2576250000174696,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.247ms\nMax 0.529ms\nMean 0.316ms\nStdDev 0.121ms\nMedian 0.258ms\nCPU 0.316ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 12.096541000005345,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 9.404ms\nMax 16.412ms\nMean 12.588ms\nStdDev 2.716ms\nMedian 12.097ms\nCPU 1.014ms"
+          },
+          {
+            "name": "Backend startup (native)",
+            "value": 8.85133299999552,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 5.863ms\nMax 11.412ms\nMean 9.098ms\nStdDev 2.134ms\nMedian 8.851ms\nCPU 1.095ms"
+          },
+          {
+            "name": "Scope set_tag (inproc)",
+            "value": 0.003926499999977295,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.004ms\nMax 0.004ms\nMean 0.004ms\nMedian 0.004ms\nCPU 0.004ms"
+          },
+          {
+            "name": "Scope add_breadcrumb (inproc)",
+            "value": 0.002712916000007226,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.003ms\nMax 0.003ms\nMean 0.003ms\nMedian 0.003ms\nCPU 0.003ms"
+          },
+          {
+            "name": "Scope set_tag (breakpad)",
+            "value": 0.0037045409999905132,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.004ms\nMax 0.004ms\nMean 0.004ms\nMedian 0.004ms\nCPU 0.004ms"
+          },
+          {
+            "name": "Scope add_breadcrumb (breakpad)",
+            "value": 0.001330124999981308,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.001ms\nMax 0.001ms\nMean 0.001ms\nMedian 0.001ms\nCPU 0.001ms"
+          },
+          {
+            "name": "Scope set_tag (crashpad)",
+            "value": 0.2760574170000041,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.276ms\nMax 0.276ms\nMean 0.276ms\nMedian 0.276ms\nCPU 0.255ms"
+          },
+          {
+            "name": "Scope add_breadcrumb (crashpad)",
+            "value": 0.13526704100002007,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.135ms\nMax 0.135ms\nMean 0.135ms\nMedian 0.135ms\nCPU 0.078ms"
+          },
+          {
+            "name": "Scope set_tag (native)",
+            "value": 0.2538350830000127,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.254ms\nMax 0.254ms\nMean 0.254ms\nMedian 0.254ms\nCPU 0.199ms"
+          },
+          {
+            "name": "Scope add_breadcrumb (native)",
+            "value": 0.11914804100001675,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.119ms\nMax 0.119ms\nMean 0.119ms\nMedian 0.119ms\nCPU 0.079ms"
+          },
+          {
+            "name": "Logs (1 thread)",
+            "value": 0.008905419999791775,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.009ms\nMax 0.009ms\nMean 0.009ms\nMedian 0.009ms\nCPU 0.009ms"
+          },
+          {
+            "name": "Logs (8 threads)",
+            "value": 0.04315010375009365,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.043ms\nMax 0.043ms\nMean 0.043ms\nMedian 0.043ms\nCPU 0.011ms"
+          },
+          {
+            "name": "Logs (16 threads)",
+            "value": 0.12978408875000014,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.130ms\nMax 0.130ms\nMean 0.130ms\nMedian 0.130ms\nCPU 0.019ms"
+          },
+          {
+            "name": "Logs (32 threads)",
+            "value": 0.31668680906243196,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.317ms\nMax 0.317ms\nMean 0.317ms\nMedian 0.317ms\nCPU 0.021ms"
           },
           {
             "name": "Library size (inproc)",
