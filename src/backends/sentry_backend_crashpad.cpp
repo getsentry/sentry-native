@@ -450,6 +450,7 @@ crashpad_handler(int signum, siginfo_t *info, ucontext_t *user_context)
     sentry__page_allocator_enable();
     (void)!sentry__enter_signal_handler();
 #    endif
+    sentry__enter_crash_handler();
     // Disable logging during crash handling if the option is set
     SENTRY_WITH_OPTIONS (options) {
         if (!options->enable_logging_when_crashed) {
@@ -556,6 +557,7 @@ crashpad_handler(int signum, siginfo_t *info, ucontext_t *user_context)
     // * we should adapt the SetFirstChanceExceptionHandler interface in
     // crashpad
     if (!should_dump) {
+        sentry__exit_crash_handler();
 #    ifdef SENTRY_PLATFORM_WINDOWS
         TerminateProcess(GetCurrentProcess(),
             crashpad::TerminationCodes::kTerminationCodeCrashNoDump);
@@ -564,6 +566,7 @@ crashpad_handler(int signum, siginfo_t *info, ucontext_t *user_context)
 #    endif
     }
 
+    sentry__exit_crash_handler();
 #    ifndef SENTRY_PLATFORM_WINDOWS
     sentry__leave_signal_handler();
 #    endif

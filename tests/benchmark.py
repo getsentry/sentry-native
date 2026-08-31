@@ -1,9 +1,12 @@
 import os
 import shutil
+import subprocess
+import sys
 
 import pytest
 
 from . import lib_name, make_dsn, run
+from .conditions import has_breakpad, has_crashpad, has_native
 
 
 def run_benchmark(target, backend, cmake, httpserver, gbenchmark, label, runs=1):
@@ -100,4 +103,69 @@ def test_benchmark_libsize(backend, cmake, gmeasurement):
         "bytes",
         f"Size {size}b",
         range="linear",
+    )
+
+
+@pytest.mark.parametrize(
+    "backend",
+    [
+        "inproc",
+        pytest.param(
+            "breakpad",
+            marks=pytest.mark.skipif(
+                not has_breakpad, reason="breakpad backend not available"
+            ),
+        ),
+        pytest.param(
+            "crashpad",
+            marks=[
+                pytest.mark.skipif(
+                    not has_crashpad, reason="crashpad backend not available"
+                ),
+                pytest.mark.skipif(
+                    sys.platform == "darwin",
+                    reason="crashpad has no first-chance handler on macOS",
+                ),
+            ],
+        ),
+        pytest.param(
+            "native",
+            marks=pytest.mark.skipif(
+                not has_native, reason="native backend not available"
+            ),
+        ),
+    ],
+)
+def test_benchmark_stack_usage(backend, cmake, gmeasurement):
+    tmp_path = cmake(
+        ["sentry_stack_usage"],
+        {
+            "SENTRY_BACKEND": backend,
+            "SENTRY_BUILD_BENCHMARKS": "ON",
+        },
+    )
+
+    result = run(
+        tmp_path,
+        "sentry_stack_usage",
+        [],
+        expect_failure=True,
+        stdout=subprocess.PIPE,
+    )
+
+    prefix = b"[STACK] "
+    suffix = b" bytes"
+    lines = [line for line in result.stdout.splitlines() if line.strip()]
+    assert all(line.startswith(prefix) and line.endswith(suffix) for line in lines)
+    measurements = [int(line[len(prefix) : -len(suffix)]) for line in lines]
+    assert measurements
+    assert all(value >= 0 for value in measurements)
+
+    peak = max(measurements)
+    assert peak > 0
+    gmeasurement(
+        peak,
+        f"Stack usage ({backend})",
+        "bytes",
+        f"Peak {peak}b, Segments {len(measurements)}",
     )

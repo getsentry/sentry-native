@@ -120,6 +120,34 @@ unregister_integrations(sentry_scope_t *scope, const sentry_options_t *options)
     }
 }
 
+void
+sentry__enter_crash_handler(void)
+{
+    const sentry_options_t *options = g_options;
+    if (options) {
+        for (size_t i = 0; i < options->num_integrations; i++) {
+            sentry_integration_t *integration = options->integrations[i];
+            if (integration->crash_handler_enter_func) {
+                integration->crash_handler_enter_func(integration->data);
+            }
+        }
+    }
+}
+
+void
+sentry__exit_crash_handler(void)
+{
+    const sentry_options_t *options = g_options;
+    if (options) {
+        for (size_t i = options->num_integrations; i > 0; i--) {
+            sentry_integration_t *integration = options->integrations[i - 1];
+            if (integration->crash_handler_exit_func) {
+                integration->crash_handler_exit_func(integration->data);
+            }
+        }
+    }
+}
+
 // TODO: remove sentry__native_init after console SDKs have been migrated to
 // platform integrations
 #if (defined(SENTRY_PLATFORM_NX) || defined(SENTRY_PLATFORM_PS)                \

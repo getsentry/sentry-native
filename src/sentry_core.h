@@ -151,6 +151,9 @@ void sentry__apply_to_telemetry(const sentry_scope_t *scope,
 bool sentry__launch_external_crash_reporter(
     const sentry_options_t *options, sentry_envelope_t *envelope);
 
+void sentry__enter_crash_handler(void);
+void sentry__exit_crash_handler(void);
+
 #define SENTRY_WITH_OPTIONS(Options)                                           \
     for (const sentry_options_t *Options = sentry__options_getref(); Options;  \
         sentry_options_free((sentry_options_t *)Options), Options = NULL)

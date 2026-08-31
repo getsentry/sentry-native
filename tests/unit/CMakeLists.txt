@@ -1,13 +1,3 @@
-function(sentry_get_property NAME)
-	get_target_property(prop sentry "${NAME}")
-
-	if(NOT prop)
-		set(prop)
-	endif()
-
-	set("SENTRY_${NAME}" "${prop}" PARENT_SCOPE)
-endfunction()
-
 sentry_get_property(SOURCES)
 sentry_get_property(COMPILE_DEFINITIONS)
 sentry_get_property(INTERFACE_INCLUDE_DIRECTORIES)

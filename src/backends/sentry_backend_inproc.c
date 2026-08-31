@@ -1209,8 +1209,10 @@ handler_thread_main(void *UNUSED(data))
             continue;
         }
 
+        sentry__enter_crash_handler();
         process_ucontext_deferred(
             &g_handler_state.uctx, g_handler_state.sig_slot, false);
+        sentry__exit_crash_handler();
         sentry__atomic_store(&g_handler_has_work, 0);
 #ifdef SENTRY_PLATFORM_UNIX
         if (g_handler_ack_pipe[1] >= 0) {
@@ -1594,6 +1596,7 @@ process_ucontext(const sentry_ucontext_t *uctx)
     }
 #endif
 
+    sentry__enter_crash_handler();
 #ifdef SENTRY_PLATFORM_UNIX
     int handler_depth = sentry__enter_signal_handler();
     if (handler_depth >= 3) {
@@ -1625,6 +1628,7 @@ process_ucontext(const sentry_ucontext_t *uctx)
             "handler thread not ready, falling through to previous handler");
         reset_signal_handlers();
         sentry__atomic_store(&g_preloaded, 0);
+        sentry__exit_crash_handler();
         sentry__leave_signal_handler();
         invoke_signal_handler(
             uctx->signum, uctx->siginfo, (void *)uctx->user_context);
@@ -1666,6 +1670,7 @@ process_ucontext(const sentry_ucontext_t *uctx)
     // Signal handlers are already reset by the handling thread, so
     // re-executing the crashing instruction will hit the default handler.
     if (!is_handling_thread) {
+        sentry__exit_crash_handler();
         return;
     }
 
@@ -1682,6 +1687,7 @@ cleanup:
     // are unregistered, re-executing their crash will hit the default handler.
     sentry__atomic_store(&g_crash_handling_state, CRASH_STATE_DONE);
 
+    sentry__exit_crash_handler();
     sentry__leave_signal_handler();
     if (g_backend_config.handler_strategy
         != SENTRY_HANDLER_STRATEGY_CHAIN_AT_START) {
@@ -1693,6 +1699,7 @@ cleanup:
     // done. They can now return EXCEPTION_CONTINUE_SEARCH from their UEF,
     // allowing the exception to propagate and terminate the process.
     sentry__atomic_store(&g_crash_handling_state, CRASH_STATE_DONE);
+    sentry__exit_crash_handler();
 #endif
 }
 
