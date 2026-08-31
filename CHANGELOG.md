@@ -13,6 +13,7 @@
 
 - Add `sentry_crash` for deliberately crashing the current process to test its crash reporting configuration. ([#2013](https://github.com/getsentry/sentry-native/pull/2013))
 - Native: add `sentry_options_set_thread_stackwalk_mode` to limit client-side stackwalking to the crashed thread, which shortens crash processing for applications with a high thread count. ([#2026](https://github.com/getsentry/sentry-native/pull/2026))
+- Add `sentry_value_foreach_value` and `sentry_value_foreach_key_value` for iterating lists and objects. ([#2032](https://github.com/getsentry/sentry-native/issues/2032))
 
 **Fixes**:
 

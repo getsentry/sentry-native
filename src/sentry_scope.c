@@ -796,21 +796,22 @@ sentry_scope_set_tag_n(sentry_scope_t *scope, const char *key, size_t key_len,
     }
 }
 
-static void
+static int
 set_tag_value(const char *key, sentry_value_t value, void *userdata)
 {
     if (sentry_value_get_type(value) != SENTRY_VALUE_TYPE_STRING) {
         SENTRY_WARNF("set_tags: ignoring non-string value for tag `%s`", key);
-        return;
+        return 0;
     }
     sentry_scope_set_tag(
         (sentry_scope_t *)userdata, key, sentry_value_as_string(value));
+    return 0;
 }
 
 void
 sentry_scope_set_tags(sentry_scope_t *scope, sentry_value_t tags)
 {
-    sentry__value_foreach_key_value(tags, set_tag_value, scope);
+    sentry_value_foreach_key_value(tags, set_tag_value, scope);
     sentry_value_decref(tags);
 }
 
