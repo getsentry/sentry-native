@@ -6,6 +6,10 @@
 
 - Add `sentry_event_set_level` for setting the level of an individual event. ([#2038](https://github.com/getsentry/sentry-native/pull/2038))
 
+**Fixes**:
+
+- Prevent backend state races when `sentry_reinstall_backend` runs concurrently with scope observer callbacks. ([#2041](https://github.com/getsentry/sentry-native/pull/2041))
+
 ## 0.16.5
 
 **Important behavior changes**:
