@@ -12,6 +12,10 @@
 - Add `sentry_add_attachment`, `sentry_scope_add_attachment`, and `sentry_hint_add_attachment` for adding configured attachments to the global scope, a specific scope, or a hint. ([#1974](https://github.com/getsentry/sentry-native/pull/1974))
 - Add `sentry_event_set_level` for setting the level of an individual event. ([#2038](https://github.com/getsentry/sentry-native/pull/2038))
 
+**Fixes**:
+
+- Reduce lock contention for multi-threaded log and metric capture by allowing concurrent reads of scope data. ([#2042](https://github.com/getsentry/sentry-native/pull/2042))
+
 ## 0.16.5
 
 **Important behavior changes**:

@@ -148,6 +148,7 @@ typedef struct {
     std::atomic<bool> crashed;
     std::atomic<bool> scope_flush;
     sentry_uuid_t crash_event_id;
+    sentry_scope_observer_t *scope_observer;
 } crashpad_state_t;
 
 /**
@@ -517,7 +518,7 @@ crashpad_handler(int signum, siginfo_t *info, ucontext_t *user_context)
                 // written above and stays breadcrumb-free
                 SENTRY_WITH_SCOPE (scope) {
                     sentry_value_set_by_key(crash_event, "breadcrumbs",
-                        sentry__ringbuffer_to_list(scope->breadcrumbs));
+                        sentry__scope_breadcrumbs_to_list(scope));
                 }
 
                 sentry__session_replay_flush_pending(
@@ -800,6 +801,91 @@ process_completed_reports(
     }
 }
 
+#if defined(SENTRY_PLATFORM_WINDOWS) || defined(SENTRY_PLATFORM_LINUX)         \
+    || defined(SENTRY_PLATFORM_MACOS)
+static sentry_path_t *
+make_attachment_path(const sentry_path_t *run_path, sentry_value_t attachment)
+{
+    if (!sentry__attachment_get_bytes(attachment, nullptr)) {
+        return sentry__attachment_make_path(attachment);
+    }
+
+    sentry_uuid_t id = sentry__attachment_get_id(attachment);
+    const char *filename = sentry__attachment_get_filename(attachment);
+    if (!run_path || sentry_uuid_is_nil(&id) || !filename) {
+        return nullptr;
+    }
+
+    char uuid[37];
+    sentry_uuid_as_string(&id, uuid);
+    sentry_path_t *dir = sentry__path_join_str(run_path, uuid);
+    sentry_path_t *path = dir ? sentry__path_join_str(dir, filename) : nullptr;
+    sentry__path_free(dir);
+    return path;
+}
+
+static void
+add_attachment(void *state, sentry_value_t attachment)
+{
+    auto *data = static_cast<crashpad_state_t *>(state);
+    if (!data || !data->client) {
+        return;
+    }
+
+    size_t bytes_len = 0;
+    const char *bytes = sentry__attachment_get_bytes(attachment, &bytes_len);
+    sentry_path_t *path = make_attachment_path(data->run_path, attachment);
+    if (!path) {
+        const char *filename = sentry__attachment_get_filename(attachment);
+        SENTRY_WARNF("failed to create path for crashpad attachment \"%s\"",
+            filename ? filename : "<unknown>");
+        return;
+    }
+
+    if (bytes) {
+        sentry_path_t *dir = sentry__path_dir(path);
+        int rv = dir ? sentry__path_create_dir_all(dir) : 1;
+        sentry__path_free(dir);
+        if (rv != 0 || sentry__path_write_buffer(path, bytes, bytes_len) != 0) {
+            SENTRY_WARNF(
+                "failed to write crashpad attachment \"%s\"", path->path);
+            sentry__path_remove(path);
+            sentry__path_free(path);
+            return;
+        }
+    }
+    data->client->AddAttachment(base::FilePath(SENTRY_PATH_PLATFORM_STR(path)));
+    sentry__path_free(path);
+}
+
+static void
+remove_attachment(void *state, sentry_value_t attachment)
+{
+    auto *data = static_cast<crashpad_state_t *>(state);
+    if (!data || !data->client) {
+        return;
+    }
+    sentry_path_t *path = make_attachment_path(data->run_path, attachment);
+    if (!path) {
+        return;
+    }
+    data->client->RemoveAttachment(
+        base::FilePath(SENTRY_PATH_PLATFORM_STR(path)));
+
+    if (sentry__attachment_get_bytes(attachment, nullptr)) {
+        if (sentry__path_remove(path) != 0) {
+            SENTRY_WARNF(
+                "failed to remove crashpad attachment \"%s\"", path->path);
+        }
+        if (sentry_path_t *dir = sentry__path_dir(path)) {
+            sentry__path_remove(dir);
+            sentry__path_free(dir);
+        }
+    }
+    sentry__path_free(path);
+}
+#endif
+
 static int
 crashpad_backend_startup(
     sentry_backend_t *backend, const sentry_options_t *options)
@@ -1028,12 +1114,38 @@ crashpad_backend_startup(
             crashpad::TriState::kEnabled);
     }
 
+#if defined(SENTRY_PLATFORM_WINDOWS) || defined(SENTRY_PLATFORM_LINUX)         \
+    || defined(SENTRY_PLATFORM_MACOS)
+    sentry_scope_observer_t *observer = sentry__scope_observer_new();
+    if (observer) {
+        observer->data = data;
+        observer->add_attachment = add_attachment;
+        observer->remove_attachment = remove_attachment;
+        SENTRY_WITH_SCOPE_MUT_NO_FLUSH (scope) {
+            if (sentry__scope_add_observer(scope, observer)) {
+                data->scope_observer = observer;
+            }
+        }
+    }
+#endif
+
     return 0;
 }
 
 static void
 crashpad_backend_shutdown(sentry_backend_t *backend)
 {
+    auto *data = static_cast<crashpad_state_t *>(backend->data);
+#if defined(SENTRY_PLATFORM_WINDOWS) || defined(SENTRY_PLATFORM_LINUX)         \
+    || defined(SENTRY_PLATFORM_MACOS)
+    if (data->scope_observer) {
+        SENTRY_WITH_SCOPE_MUT_NO_FLUSH (scope) {
+            sentry__scope_remove_observer(scope, data->scope_observer);
+        }
+        data->scope_observer = nullptr;
+    }
+#endif
+
 #ifdef SENTRY_PLATFORM_LINUX
     // restore signal handlers to their default state
     for (const auto signal : g_CrashSignals) {
@@ -1043,7 +1155,7 @@ crashpad_backend_shutdown(sentry_backend_t *backend)
     }
 #endif
 
-    crashpad_state_dtor(static_cast<crashpad_state_t *>(backend->data));
+    crashpad_state_dtor(data);
 
 #ifdef SENTRY_PLATFORM_LINUX
     g_signal_stack.ss_flags = SS_DISABLE;
@@ -1214,93 +1326,6 @@ crashpad_backend_prune_database(sentry_backend_t *backend)
     crashpad::PruneCrashReportDatabase(data->db, &condition);
 }
 
-#if defined(SENTRY_PLATFORM_WINDOWS) || defined(SENTRY_PLATFORM_LINUX)         \
-    || defined(SENTRY_PLATFORM_MACOS)
-static sentry_path_t *
-make_attachment_path(const sentry_path_t *run_path, sentry_value_t attachment)
-{
-    if (!sentry__attachment_get_bytes(attachment, nullptr)) {
-        return sentry__attachment_make_path(attachment);
-    }
-
-    sentry_uuid_t id = sentry__attachment_get_id(attachment);
-    const char *filename = sentry__attachment_get_filename(attachment);
-    if (!run_path || sentry_uuid_is_nil(&id) || !filename) {
-        return nullptr;
-    }
-
-    char uuid[37];
-    sentry_uuid_as_string(&id, uuid);
-    sentry_path_t *dir = sentry__path_join_str(run_path, uuid);
-    sentry_path_t *path = dir ? sentry__path_join_str(dir, filename) : nullptr;
-    sentry__path_free(dir);
-    return path;
-}
-
-static void
-crashpad_backend_add_attachment(sentry_backend_t *backend,
-    sentry_value_t attachment, const sentry_options_t *UNUSED(options))
-{
-    auto *data = static_cast<crashpad_state_t *>(backend->data);
-    if (!data || !data->client) {
-        return;
-    }
-
-    size_t bytes_len = 0;
-    const char *bytes = sentry__attachment_get_bytes(attachment, &bytes_len);
-    sentry_path_t *path = make_attachment_path(data->run_path, attachment);
-    if (!path) {
-        const char *filename = sentry__attachment_get_filename(attachment);
-        SENTRY_WARNF("failed to create path for crashpad attachment \"%s\"",
-            filename ? filename : "<unknown>");
-        return;
-    }
-
-    if (bytes) {
-        sentry_path_t *dir = sentry__path_dir(path);
-        int rv = dir ? sentry__path_create_dir_all(dir) : 1;
-        sentry__path_free(dir);
-        if (rv != 0 || sentry__path_write_buffer(path, bytes, bytes_len) != 0) {
-            SENTRY_WARNF(
-                "failed to write crashpad attachment \"%s\"", path->path);
-            sentry__path_remove(path);
-            sentry__path_free(path);
-            return;
-        }
-    }
-    data->client->AddAttachment(base::FilePath(SENTRY_PATH_PLATFORM_STR(path)));
-    sentry__path_free(path);
-}
-
-static void
-crashpad_backend_remove_attachment(
-    sentry_backend_t *backend, sentry_value_t attachment)
-{
-    auto *data = static_cast<crashpad_state_t *>(backend->data);
-    if (!data || !data->client) {
-        return;
-    }
-    sentry_path_t *path = make_attachment_path(data->run_path, attachment);
-    if (!path) {
-        return;
-    }
-    data->client->RemoveAttachment(
-        base::FilePath(SENTRY_PATH_PLATFORM_STR(path)));
-
-    if (sentry__attachment_get_bytes(attachment, nullptr)) {
-        if (sentry__path_remove(path) != 0) {
-            SENTRY_WARNF(
-                "failed to remove crashpad attachment \"%s\"", path->path);
-        }
-        if (sentry_path_t *dir = sentry__path_dir(path)) {
-            sentry__path_remove(dir);
-            sentry__path_free(dir);
-        }
-    }
-    sentry__path_free(path);
-}
-#endif
-
 void
 sentry__backend_preload(void)
 {
@@ -1332,11 +1357,6 @@ sentry__backend_new(void)
     backend->get_last_crash_func = crashpad_backend_last_crash;
     backend->process_old_run_func = crashpad_backend_process_old_run;
     backend->prune_database_func = crashpad_backend_prune_database;
-#if defined(SENTRY_PLATFORM_WINDOWS) || defined(SENTRY_PLATFORM_LINUX)         \
-    || defined(SENTRY_PLATFORM_MACOS)
-    backend->add_attachment_func = crashpad_backend_add_attachment;
-    backend->remove_attachment_func = crashpad_backend_remove_attachment;
-#endif
     backend->data = data;
     backend->can_capture_after_shutdown = true;
 
