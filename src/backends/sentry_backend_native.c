@@ -646,6 +646,7 @@ native_backend_startup(
 #endif
     if (!state->ipc) {
         SENTRY_WARN("failed to initialize crash IPC");
+        sentry__path_free(state->run_path);
         sentry_free(state);
         backend->data = NULL;
         return 1;
@@ -660,6 +661,7 @@ native_backend_startup(
             SENTRY_WARNF("failed to acquire mutex for context setup: %lu",
                 GetLastError());
             sentry__crash_ipc_free(state->ipc);
+            sentry__path_free(state->run_path);
             sentry_free(state);
             backend->data = NULL;
             return 1;
@@ -672,6 +674,7 @@ native_backend_startup(
         SENTRY_WARNF("failed to acquire semaphore for context setup: %s",
             strerror(errno));
         sentry__crash_ipc_free(state->ipc);
+        sentry__path_free(state->run_path);
         sentry_free(state);
         backend->data = NULL;
         return 1;
@@ -856,6 +859,7 @@ native_backend_startup(
         < 0) {
         SENTRY_WARN("failed to initialize crash handler");
         sentry__crash_ipc_free(state->ipc);
+        sentry__path_free(state->run_path);
         sentry_free(state);
         backend->data = NULL;
         return 1;
@@ -889,6 +893,7 @@ native_backend_startup(
 #    endif
         SENTRY_WARN("failed to start crash daemon");
         sentry__crash_ipc_free(state->ipc);
+        sentry__path_free(state->run_path);
         sentry_free(state);
         backend->data = NULL;
         return 1;
@@ -958,6 +963,7 @@ native_backend_startup(
         }
 #    endif
         sentry__crash_ipc_free(state->ipc);
+        sentry__path_free(state->run_path);
         sentry_free(state);
         backend->data = NULL;
         return 1;
