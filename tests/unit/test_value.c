@@ -1557,6 +1557,30 @@ SENTRY_TEST(message_with_null_text_is_valid)
     sentry_value_decref(message_event);
 }
 
+SENTRY_TEST(event_level)
+{
+    const struct {
+        sentry_level_t level;
+        const char *expected;
+    } cases[] = {
+        { SENTRY_LEVEL_TRACE, "trace" },
+        { SENTRY_LEVEL_DEBUG, "debug" },
+        { SENTRY_LEVEL_INFO, "info" },
+        { SENTRY_LEVEL_WARNING, "warning" },
+        { SENTRY_LEVEL_ERROR, "error" },
+        { SENTRY_LEVEL_FATAL, "fatal" },
+    };
+
+    sentry_value_t event = sentry_value_new_event();
+    for (size_t i = 0; i < sizeof(cases) / sizeof(cases[0]); i++) {
+        sentry_event_set_level(event, cases[i].level);
+        TEST_CHECK_STRING_EQUAL(
+            sentry_value_as_string(sentry_value_get_by_key(event, "level")),
+            cases[i].expected);
+    }
+    sentry_value_decref(event);
+}
+
 SENTRY_TEST(breadcrumb_without_type_or_message_still_valid)
 {
     sentry_value_t breadcrumb = sentry_value_new_breadcrumb(NULL, NULL);

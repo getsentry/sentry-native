@@ -675,6 +675,12 @@ SENTRY_EXPERIMENTAL_API void sentry_value_set_stacktrace(
     sentry_value_t value, void **ips, size_t len);
 
 /**
+ * Sets the level of an Event value.
+ */
+SENTRY_EXPERIMENTAL_API void sentry_event_set_level(
+    sentry_value_t event, sentry_level_t level);
+
+/**
  * Adds an Exception to an Event value.
  *
  * This takes ownership of the `exception`.
@@ -2876,7 +2882,12 @@ SENTRY_API void sentry_scope_set_transaction_n(
     sentry_scope_t *scope, const char *transaction, size_t transaction_len);
 
 /**
- * Sets the event level.
+ * Sets the default event level on the scope.
+ *
+ * The default level applies to events created with `sentry_value_new_event`,
+ * which do not have an explicit level.
+ *
+ * Note: Native crash events are always assigned `SENTRY_LEVEL_FATAL`.
  */
 SENTRY_API void sentry_set_level(sentry_level_t level);
 SENTRY_API void sentry_scope_set_level(

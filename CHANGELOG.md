@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+**Features**:
+
+- Add `sentry_event_set_level` for setting the level of an individual event. ([#2038](https://github.com/getsentry/sentry-native/pull/2038))
+
 ## 0.16.5
 
 **Important behavior changes**:
