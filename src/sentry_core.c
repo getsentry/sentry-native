@@ -271,6 +271,9 @@ sentry_init(sentry_options_t *options)
     }
 
     g_last_crash = sentry__has_crash_marker(options);
+    if (g_last_crash && !options->retain_crash_marker) {
+        sentry__clear_crash_marker(options);
+    }
     g_options = options;
 
     // *after* setting the global options, trigger a scope and consent flush,

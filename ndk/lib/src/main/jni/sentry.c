@@ -377,6 +377,9 @@ send_envelope(sentry_envelope_t *envelope, void *data)
 // sentry_backend.h
 extern void sentry__backend_preload(void);
 
+// sentry_database.h
+extern void sentry__retain_crash_marker(sentry_options_t *options);
+
 JNIEXPORT void JNICALL
 Java_io_sentry_ndk_SentryNdk_preloadSentryNative(JNIEnv *env, jclass cls)
 {
@@ -435,6 +438,10 @@ Java_io_sentry_ndk_SentryNdk_initSentryNative(
 
     options = sentry_options_new();
     ENSURE_OR_FAIL(options);
+
+    // Android SDK needs to retain the marker timestamp for session finalization
+    // and cleans it up when appropriate
+    sentry__retain_crash_marker(options);
 
     // session tracking is enabled by default, but the Android SDK already
     // handles it

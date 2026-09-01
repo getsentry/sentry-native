@@ -17,7 +17,7 @@ from .assertions import (
     assert_minidump,
     assert_before_send,
     assert_no_before_send,
-    assert_crash_timestamp,
+    assert_no_crash_timestamp,
     assert_breakpad_crash,
     assert_exception,
     wait_for,
@@ -174,7 +174,7 @@ def test_inproc_crash_stdout(cmake):
 
     envelope = Envelope.deserialize(output)
 
-    assert_crash_timestamp(has_files, tmp_path)
+    assert_no_crash_timestamp(has_files, tmp_path)
     assert_meta(envelope, integration="inproc")
     assert_breadcrumb(envelope)
     assert_attachment(envelope)
@@ -205,7 +205,7 @@ def test_abort_stdout(cmake, backend):
 
     envelope = Envelope.deserialize(output)
 
-    assert_crash_timestamp(has_files, tmp_path)
+    assert_no_crash_timestamp(has_files, tmp_path)
     assert_meta(envelope, integration=backend)
     assert_breadcrumb(envelope)
     assert_attachment(envelope)
@@ -224,7 +224,7 @@ def test_inproc_crash_stdout_before_send(cmake):
 
     envelope = Envelope.deserialize(output)
 
-    assert_crash_timestamp(has_files, tmp_path)
+    assert_no_crash_timestamp(has_files, tmp_path)
     assert_meta(envelope, integration="inproc")
     assert_breadcrumb(envelope)
     assert_attachment(envelope)
@@ -239,7 +239,7 @@ def test_inproc_crash_stdout_discarding_on_crash(cmake):
     # since the on_crash() handler discards further processing we expect an empty response
     assert len(output) == 0
 
-    assert_crash_timestamp(has_files, tmp_path)
+    assert_no_crash_timestamp(has_files, tmp_path)
 
 
 def test_inproc_crash_stdout_before_send_and_on_crash(cmake):
@@ -252,7 +252,7 @@ def test_inproc_crash_stdout_before_send_and_on_crash(cmake):
     # but we expect no event modification from before_send() since setting on_crash() disables before_send()
     assert_no_before_send(envelope)
 
-    assert_crash_timestamp(has_files, tmp_path)
+    assert_no_crash_timestamp(has_files, tmp_path)
     assert_meta(envelope, integration="inproc")
     assert_breadcrumb(envelope)
     assert_attachment(envelope)
@@ -284,7 +284,7 @@ def test_inproc_stack_overflow_stdout(cmake, stack_size):
 
     envelope = Envelope.deserialize(output)
 
-    assert_crash_timestamp(has_files, tmp_path)
+    assert_no_crash_timestamp(has_files, tmp_path)
     assert_meta(envelope, integration="inproc")
     assert_breadcrumb(envelope)
     assert_attachment(envelope)
@@ -297,7 +297,7 @@ def test_breakpad_crash_stdout(cmake):
 
     envelope = Envelope.deserialize(output)
 
-    assert_crash_timestamp(has_files, tmp_path)
+    assert_no_crash_timestamp(has_files, tmp_path)
     assert_meta(envelope, integration="breakpad")
     assert_breadcrumb(envelope)
     assert_attachment(envelope)
@@ -311,7 +311,7 @@ def test_breakpad_crash_stdout_before_send(cmake):
 
     envelope = Envelope.deserialize(output)
 
-    assert_crash_timestamp(has_files, tmp_path)
+    assert_no_crash_timestamp(has_files, tmp_path)
     assert_meta(envelope, integration="breakpad")
     assert_breadcrumb(envelope)
     assert_attachment(envelope)
@@ -327,7 +327,7 @@ def test_breakpad_crash_stdout_discarding_on_crash(cmake):
     # since the on_crash() handler discards further processing we expect an empty response
     assert len(output) == 0
 
-    assert_crash_timestamp(has_files, tmp_path)
+    assert_no_crash_timestamp(has_files, tmp_path)
 
 
 @pytest.mark.skipif(not has_breakpad or is_qemu, reason="test needs breakpad backend")
@@ -341,7 +341,7 @@ def test_breakpad_crash_stdout_before_send_and_on_crash(cmake):
     # but we expect no event modification from before_send() since setting on_crash() disables before_send()
     assert_no_before_send(envelope)
 
-    assert_crash_timestamp(has_files, tmp_path)
+    assert_no_crash_timestamp(has_files, tmp_path)
     assert_meta(envelope, integration="breakpad")
     assert_breadcrumb(envelope)
     assert_attachment(envelope)
@@ -380,7 +380,7 @@ def test_breakpad_stack_overflow_stdout(cmake, stack_size):
 
     envelope = Envelope.deserialize(output)
 
-    assert_crash_timestamp(has_files, tmp_path)
+    assert_no_crash_timestamp(has_files, tmp_path)
     assert_meta(envelope, integration="breakpad")
     assert_breadcrumb(envelope)
     assert_attachment(envelope)

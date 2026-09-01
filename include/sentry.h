@@ -4321,7 +4321,7 @@ SENTRY_API void sentry_transaction_iter_headers(sentry_transaction_t *tx,
  *
  * Notes:
  *   * The underlying value is set by sentry_init() - it must be called first.
- *   * Call sentry_clear_crashed_last_run() to reset for the next app run.
+ *   * sentry_init() clears the persisted value for the next run.
  *
  * Possible return values:
  *   1 = the last run was a crash
@@ -4331,9 +4331,7 @@ SENTRY_API void sentry_transaction_iter_headers(sentry_transaction_t *tx,
 SENTRY_EXPERIMENTAL_API int sentry_get_crashed_last_run(void);
 
 /**
- * Clear the status of the "crashed-last-run". You should explicitly call
- * this after sentry_init() if you're using sentry_get_crashed_last_run().
- * Otherwise, the same information is reported on any subsequent runs.
+ * Clear the persisted status of the "crashed-last-run".
  *
  * Notes:
  *   * This doesn't change the value of sentry_get_crashed_last_run() yet.
@@ -4342,6 +4340,7 @@ SENTRY_EXPERIMENTAL_API int sentry_get_crashed_last_run(void);
  *
  * Returns 0 on success, 1 on error.
  */
+SENTRY_DEPRECATED("The crash marker is cleared by `sentry_init()`.")
 SENTRY_EXPERIMENTAL_API int sentry_clear_crashed_last_run(void);
 
 /**
