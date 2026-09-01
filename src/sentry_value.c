@@ -1933,6 +1933,12 @@ sentry__get_or_insert_values_list(sentry_value_t parent, const char *key)
 }
 
 void
+sentry_event_set_level(sentry_value_t event, sentry_level_t level)
+{
+    sentry_value_set_by_key(event, "level", sentry__value_new_level(level));
+}
+
+void
 sentry_event_add_exception(sentry_value_t event, sentry_value_t exception)
 {
     sentry_value_t exceptions
