@@ -6,15 +6,13 @@
 
 - `sentry_init()` now consumes `<db>/last_crash` after caching its value, aligning crashed-last-run behavior with other Sentry SDKs. ([#2023](https://github.com/getsentry/sentry-native/pull/2023))
 
-**Deprecations**:
-
-- Deprecate `sentry_clear_crashed_last_run()` because `sentry_init()` now consumes the marker automatically. ([#2023](https://github.com/getsentry/sentry-native/pull/2023))
-
-## Unreleased
-
 **Features**:
 
 - Add `sentry_event_set_level` for setting the level of an individual event. ([#2038](https://github.com/getsentry/sentry-native/pull/2038))
+
+**Deprecations**:
+
+- Deprecate `sentry_clear_crashed_last_run()` because `sentry_init()` now consumes the marker automatically. ([#2023](https://github.com/getsentry/sentry-native/pull/2023))
 
 ## 0.16.5
 
