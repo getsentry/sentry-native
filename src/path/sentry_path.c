@@ -21,6 +21,37 @@ sentry__path_from_str(const char *s)
     return s ? sentry__path_from_str_n(s, strlen(s)) : NULL;
 }
 
+const char *
+sentry__path_filename_from_str_n(const char *path, size_t path_len)
+{
+    if (!path) {
+        return NULL;
+    }
+
+    const char *filename = path;
+#ifdef SENTRY_PLATFORM_WINDOWS
+    if (path_len > 1 && path[1] == ':') {
+        filename = path + 2;
+    }
+#endif
+    for (size_t i = 0; i < path_len; i++) {
+        if (path[i] == '/'
+#ifdef SENTRY_PLATFORM_WINDOWS
+            || path[i] == '\\'
+#endif
+        ) {
+            filename = path + i + 1;
+        }
+    }
+    return filename;
+}
+
+const char *
+sentry__path_filename_from_str(const char *path)
+{
+    return sentry__path_filename_from_str_n(path, sentry__guarded_strlen(path));
+}
+
 sentry_path_t *
 sentry__path_from_str_owned(char *s)
 {
