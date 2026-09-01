@@ -1,10 +1,14 @@
+#include "sentry_alloc.h"
+#include "sentry_backend.h"
 #include "sentry_core.h"
 #include "sentry_database.h"
 #include "sentry_envelope.h"
 #include "sentry_options.h"
 #include "sentry_path.h"
+#include "sentry_scope.h"
 #include "sentry_testsupport.h"
 #include "sentry_transport.h"
+#include "sentry_utils.h"
 
 #include <sentry_sync.h>
 
@@ -239,5 +243,63 @@ SENTRY_TEST(concurrent_uninit)
     sentry__thread_join(thread);
     sentry__thread_free(&thread);
 
+    sentry_close();
+}
+
+typedef struct {
+    long started;
+    long shutdowns;
+} reinstall_backend_state_t;
+
+static void
+reinstall_backend_shutdown(sentry_backend_t *backend)
+{
+    reinstall_backend_state_t *state = backend->data;
+    sentry__atomic_fetch_and_add(&state->shutdowns, 1);
+}
+
+SENTRY_THREAD_FN
+reinstall_backend_thread(void *data)
+{
+    reinstall_backend_state_t *state = data;
+    sentry__atomic_store(&state->started, 1);
+    sentry_reinstall_backend();
+    return 0;
+}
+
+SENTRY_TEST(concurrent_reinstall)
+{
+    reinstall_backend_state_t state = { 0 };
+    SENTRY_TEST_OPTIONS_NEW(options);
+    sentry_backend_t *backend = SENTRY_MAKE(sentry_backend_t);
+    TEST_ASSERT(!!backend);
+    backend->data = &state;
+    backend->shutdown_func = reinstall_backend_shutdown;
+    sentry_options_set_backend(options, backend);
+    sentry_init(options);
+
+    // Holding the scope lock simulates an observer callback in progress.
+    // Backend reinstall must wait until that callback finishes.
+    sentry_scope_t *scope = sentry__scope_lock();
+    TEST_ASSERT(!!scope);
+    sentry_threadid_t thread;
+    sentry__thread_init(&thread);
+    TEST_ASSERT(
+        !sentry__thread_spawn(&thread, reinstall_backend_thread, &state));
+    while (!sentry__atomic_fetch(&state.started)) {
+        sentry__thread_yield();
+    }
+
+    const uint64_t deadline = sentry__monotonic_time() + 100;
+    while (!sentry__atomic_fetch(&state.shutdowns)
+        && sentry__monotonic_time() < deadline) {
+        sentry__thread_yield();
+    }
+    TEST_CHECK_INT_EQUAL(sentry__atomic_fetch(&state.shutdowns), 0);
+
+    sentry__scope_unlock();
+    sentry__thread_join(thread);
+    sentry__thread_free(&thread);
+    TEST_CHECK_INT_EQUAL(sentry__atomic_fetch(&state.shutdowns), 1);
     sentry_close();
 }
