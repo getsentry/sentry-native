@@ -1,0 +1,11 @@
+prefix=@PREFIX@
+exec_prefix=${prefix}
+libdir=@PKGCONFIG_LIBDIR@
+includedir=@PKGCONFIG_INCLUDEDIR@
+
+Name: sentry
+Description: Sentry SDK for C, C++ and native applications
+Version: @PKGCONFIG_VERSION@
+URL: https://sentry.io/
+Libs: -L${libdir} -lsentry
+Cflags: -I${includedir}
