@@ -863,33 +863,13 @@ write_thread_context(
 }
 
 /**
- * Quickly verify a file is an ELF binary by reading its magic bytes.
- * Used to filter out non-ELF mappings (e.g. files under /dev/shm, deleted
- * files, sentry-native's own IPC shared memory) from the module list — LLDB and
- * other consumers can choke on entries that look like modules but aren't.
- */
-static bool
-is_elf_file(const char *path)
-{
-    int fd = open(path, O_RDONLY);
-    if (fd < 0) {
-        return false;
-    }
-    unsigned char magic[SELFMAG];
-    bool is_elf = read(fd, magic, SELFMAG) == (ssize_t)SELFMAG
-        && memcmp(magic, ELFMAG, SELFMAG) == 0;
-    close(fd);
-    return is_elf;
-}
-
-/**
  * Extract Build ID from ELF file
  * Returns the Build ID length, or 0 if not found
  */
 static size_t
 extract_elf_build_id(const char *elf_path, uint8_t *build_id, size_t max_len)
 {
-    int fd = open(elf_path, O_RDONLY);
+    int fd = sentry__elf_open(elf_path);
     if (fd < 0) {
         return 0;
     }
@@ -1019,7 +999,7 @@ done:
 static uint64_t
 compute_elf_size_from_phdrs(const char *elf_path)
 {
-    int fd = open(elf_path, O_RDONLY);
+    int fd = sentry__elf_open(elf_path);
     if (fd < 0) {
         return 0;
     }
@@ -1099,7 +1079,7 @@ compute_elf_size_from_phdrs(const char *elf_path)
 static bool
 read_elf_soname(const char *elf_path, char *soname_buf, size_t soname_buf_size)
 {
-    int fd = open(elf_path, O_RDONLY);
+    int fd = sentry__elf_open(elf_path);
     if (fd < 0) {
         return false;
     }
@@ -1691,7 +1671,7 @@ resolve_modules(const minidump_writer_t *writer, resolved_module_t *modules,
         // First time we see this file — confirm it's actually an ELF before
         // adding it as a module. This drops sentry-native's own IPC shm,
         // deleted semaphores, and any other non-ELF named mapping.
-        if (!is_elf_file(mapping->name)) {
+        if (!sentry__elf_is_file(mapping->name)) {
             if (skip_count < SENTRY_CRASH_MAX_MODULES) {
                 skip_names[skip_count++] = mapping->name;
             }

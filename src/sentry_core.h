@@ -151,6 +151,9 @@ void sentry__apply_to_telemetry(const sentry_scope_t *scope,
 bool sentry__launch_external_crash_reporter(
     const sentry_options_t *options, sentry_envelope_t *envelope);
 
+void sentry__enter_crash_handler(void);
+void sentry__exit_crash_handler(void);
+
 #define SENTRY_WITH_OPTIONS(Options)                                           \
     for (const sentry_options_t *Options = sentry__options_getref(); Options;  \
         sentry_options_free((sentry_options_t *)Options), Options = NULL)
@@ -162,8 +165,11 @@ bool sentry__should_send_transaction(
     sentry_value_t tx_ctx, sentry_sampling_context_t *sampling_ctx);
 #endif
 
-#if defined(SENTRY_PLATFORM_NX) || defined(SENTRY_PLATFORM_PS)                 \
-    || defined(SENTRY_PLATFORM_XBOX)
+// TODO: remove sentry__native_init after console SDKs have been migrated to
+// platform integrations
+#if (defined(SENTRY_PLATFORM_NX) || defined(SENTRY_PLATFORM_PS)                \
+    || defined(SENTRY_PLATFORM_XBOX))                                          \
+    && !defined(SENTRY_INTEGRATION_PLATFORM)
 int sentry__native_init(sentry_options_t *options);
 #endif
 

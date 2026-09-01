@@ -12,6 +12,20 @@ typedef struct sentry_integration_s {
     void (*unregister_func)(
         void *data, sentry_scope_t *scope, const sentry_options_t *options);
     void (*free_func)(void *data);
+    void (*crash_handler_enter_func)(void *data); // must be async-signal-safe
+    void (*crash_handler_exit_func)(void *data); // must be async-signal-safe
 } sentry_integration_t;
+
+#ifdef SENTRY_INTEGRATION_PLATFORM
+#    ifdef __cplusplus
+extern "C" {
+#    endif
+
+sentry_integration_t *sentry_integration_platform_new(void);
+
+#    ifdef __cplusplus
+}
+#    endif
+#endif
 
 #endif

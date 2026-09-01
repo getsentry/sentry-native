@@ -437,7 +437,7 @@ SENTRY_TEST(client_sdk_integrations)
     sentry_integration_t *integration = SENTRY_MAKE(sentry_integration_t);
     TEST_ASSERT(!!integration);
     integration->name = "custom";
-    sentry__options_add_integration(options, integration);
+    TEST_ASSERT(sentry__options_add_integration(options, integration));
 
     sentry_init(options);
 

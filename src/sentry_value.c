@@ -1181,19 +1181,46 @@ sentry_value_get_by_index(sentry_value_t value, size_t index)
     return sentry_value_new_null();
 }
 
-void
-sentry__value_foreach_key_value(sentry_value_t value,
-    void (*callback)(const char *key, sentry_value_t value, void *userdata),
-    void *userdata)
+int
+sentry_value_foreach_key_value(sentry_value_t object,
+    sentry_value_foreach_key_value_function_t callback, void *userdata)
 {
-    const thing_t *thing = value_as_thing(value);
-    if (!thing || thing_get_type(thing) != THING_TYPE_OBJECT) {
-        return;
+    const thing_t *thing = value_as_thing(object);
+    if (!callback || !thing || thing_get_type(thing) != THING_TYPE_OBJECT) {
+        return 0;
     }
-    const obj_t *o = thing->payload._ptr;
+    obj_t *o = thing->payload._ptr;
+    sentry__atomic_fetch_and_add(&o->refcount, 1);
+    int result = 0;
     for (size_t i = 0; i < o->len; i++) {
-        callback(o->pairs[i].k, o->pairs[i].v, userdata);
+        result = callback(o->pairs[i].k, o->pairs[i].v, userdata);
+        if (result) {
+            break;
+        }
     }
+    obj_free(o);
+    return result;
+}
+
+int
+sentry_value_foreach_value(sentry_value_t list,
+    sentry_value_foreach_value_function_t callback, void *userdata)
+{
+    const thing_t *thing = value_as_thing(list);
+    if (!callback || !thing || thing_get_type(thing) != THING_TYPE_LIST) {
+        return 0;
+    }
+    list_t *l = thing->payload._ptr;
+    sentry__atomic_fetch_and_add(&l->refcount, 1);
+    int result = 0;
+    for (size_t i = 0; i < l->len; i++) {
+        result = callback(l->items[i], userdata);
+        if (result) {
+            break;
+        }
+    }
+    list_free(l);
+    return result;
 }
 
 sentry_value_t
@@ -1903,6 +1930,12 @@ sentry__get_or_insert_values_list(sentry_value_t parent, const char *key)
     }
 
     return values;
+}
+
+void
+sentry_event_set_level(sentry_value_t event, sentry_level_t level)
+{
+    sentry_value_set_by_key(event, "level", sentry__value_new_level(level));
 }
 
 void

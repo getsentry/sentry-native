@@ -10,18 +10,23 @@
 #    include <unistd.h>
 #    if defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID)
 #        include <sys/prctl.h>
+#    elif defined(SENTRY_PLATFORM_MACOS)
+#        include <crt_externs.h>
+#        include <mach-o/dyld.h>
+#        include <spawn.h>
 #    endif
 #elif defined(SENTRY_PLATFORM_WINDOWS) && !defined(SENTRY_PLATFORM_XBOX)
 #    include <werapi.h>
 #endif
 
+#include <inttypes.h>
+#include <stdio.h>
 #include <string.h>
 
 #include "sentry_alloc.h"
 #include "sentry_backend.h"
 #include "sentry_core.h"
 #include "sentry_crash_context.h"
-#include "sentry_crash_daemon.h"
 #include "sentry_crash_handler.h"
 #include "sentry_crash_ipc.h"
 #include "sentry_database.h"
@@ -34,6 +39,7 @@
 
 #include "sentry_scope.h"
 #include "sentry_session.h"
+#include "sentry_string.h"
 #include "sentry_sync.h"
 #include "sentry_telemetry.h"
 #include "sentry_tracing.h"
@@ -217,6 +223,289 @@ native_backend_process_old_run(sentry_backend_t *backend,
     return true;
 }
 
+/**
+ * Start crash daemon for monitoring app process
+ * This forks a child process (Unix) or creates a new process (Windows) that
+ * waits for crashes
+ *
+ * @param app_pid Parent application process ID
+ * @param app_tid Parent application thread ID
+ * @param notify_handle Crash notification handle
+ * @param ready_handle Ready signal handle
+ * @return Daemon PID on success, -1 on failure
+ */
+#if defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID)
+static pid_t
+daemon_start(pid_t app_pid, uint64_t app_tid, int notify_eventfd,
+    int ready_eventfd, const char *handler_path)
+#elif defined(SENTRY_PLATFORM_MACOS)
+static pid_t
+daemon_start(pid_t app_pid, uint64_t app_tid, int notify_pipe_read,
+    int ready_pipe_write, int shm_fd, const char *handler_path)
+#elif defined(SENTRY_PLATFORM_WINDOWS)
+static pid_t
+daemon_start(pid_t app_pid, uint64_t app_tid, HANDLE event_handle,
+    HANDLE ready_event_handle, const char *handler_path)
+#endif
+{
+#if defined(SENTRY_PLATFORM_MACOS)
+    // macOS: Use posix_spawn instead of fork+exec for App Sandbox
+    // compatibility. posix_spawn is Apple's recommended API and works correctly
+    // in sandboxed processes, unlike fork() which can have issues with sandbox
+    // inheritance.
+
+    // Resolve daemon path
+    char daemon_path[SENTRY_CRASH_MAX_PATH];
+    if (!sentry__string_empty(handler_path)) {
+        strncpy(daemon_path, handler_path, sizeof(daemon_path) - 1);
+        daemon_path[sizeof(daemon_path) - 1] = '\0';
+    } else {
+        char exe_path[SENTRY_CRASH_MAX_PATH];
+        uint32_t exe_size = sizeof(exe_path);
+        if (_NSGetExecutablePath(exe_path, &exe_size) != 0) {
+            SENTRY_WARN("Failed to get executable path for daemon");
+            return -1;
+        }
+        const char *slash = strrchr(exe_path, '/');
+        if (!slash
+            || (size_t)(slash - exe_path + 1) + strlen("sentry-crash")
+                >= sizeof(daemon_path)) {
+            SENTRY_WARN("Daemon path too long");
+            return -1;
+        }
+        size_t dir_len = (size_t)(slash - exe_path + 1);
+        memcpy(daemon_path, exe_path, dir_len);
+        strcpy(daemon_path + dir_len, "sentry-crash");
+    }
+
+    // Build argument strings (6 args: pid, tid, notify_fd, ready_fd, shm_fd)
+    char pid_str[32], tid_str[32], notify_str[32], ready_str[32], shm_str[32];
+    snprintf(pid_str, sizeof(pid_str), "%d", (int)app_pid);
+    snprintf(tid_str, sizeof(tid_str), "%" PRIx64, app_tid);
+    snprintf(notify_str, sizeof(notify_str), "%d", notify_pipe_read);
+    snprintf(ready_str, sizeof(ready_str), "%d", ready_pipe_write);
+    snprintf(shm_str, sizeof(shm_str), "%d", shm_fd);
+
+    char *spawn_argv[] = { "sentry-crash", pid_str, tid_str, notify_str,
+        ready_str, shm_str, NULL };
+
+    // Set up posix_spawn attributes
+    posix_spawnattr_t attr;
+    posix_spawnattr_init(&attr);
+    // POSIX_SPAWN_SETSID: create new session (like setsid() after fork)
+    // POSIX_SPAWN_CLOEXEC_DEFAULT: close all fds except explicitly inherited
+    short spawn_flags = POSIX_SPAWN_SETSID | POSIX_SPAWN_CLOEXEC_DEFAULT;
+    posix_spawnattr_setflags(&attr, spawn_flags);
+
+    // Explicitly inherit only the fds the daemon needs
+    posix_spawn_file_actions_t file_actions;
+    posix_spawn_file_actions_init(&file_actions);
+    posix_spawn_file_actions_addinherit_np(&file_actions, notify_pipe_read);
+    posix_spawn_file_actions_addinherit_np(&file_actions, ready_pipe_write);
+    posix_spawn_file_actions_addinherit_np(&file_actions, shm_fd);
+    // Open /dev/null on stdin/stdout/stderr so the daemon starts with valid
+    // standard fds. Without this, POSIX_SPAWN_CLOEXEC_DEFAULT closes them,
+    // and the first fopen() in the daemon would get fd 0, which the daemon's
+    // own close(STDIN_FILENO) would then destroy.
+    // Skip if an IPC fd occupies that slot (e.g. caller closed stdin before
+    // sentry_init), to avoid clobbering it with /dev/null.
+    int std_fds[3] = { STDIN_FILENO, STDOUT_FILENO, STDERR_FILENO };
+    int std_modes[3] = { O_RDONLY, O_WRONLY, O_WRONLY };
+    for (int i = 0; i < 3; i++) {
+        if (std_fds[i] != notify_pipe_read && std_fds[i] != ready_pipe_write
+            && std_fds[i] != shm_fd) {
+            posix_spawn_file_actions_addopen(
+                &file_actions, std_fds[i], "/dev/null", std_modes[i], 0);
+        }
+    }
+
+    pid_t daemon_pid;
+    int spawn_result = posix_spawn(&daemon_pid, daemon_path, &file_actions,
+        &attr, spawn_argv, *_NSGetEnviron());
+
+    posix_spawn_file_actions_destroy(&file_actions);
+    posix_spawnattr_destroy(&attr);
+
+    if (spawn_result != 0) {
+        SENTRY_WARNF("posix_spawn failed for %s: %s", daemon_path,
+            strerror(spawn_result));
+        return -1;
+    }
+
+    return daemon_pid;
+
+#elif defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID)
+    // Linux: Use fork+exec
+    pid_t daemon_pid = fork();
+
+    if (daemon_pid < 0) {
+        SENTRY_WARN("Failed to fork daemon process");
+        return -1;
+    } else if (daemon_pid == 0) {
+        // Child process - exec sentry-crash
+        setsid();
+
+        // Clear FD_CLOEXEC on notify and ready fds so they survive exec
+        int notify_flags = fcntl(notify_eventfd, F_GETFD);
+        if (notify_flags != -1) {
+            fcntl(notify_eventfd, F_SETFD, notify_flags & ~FD_CLOEXEC);
+        }
+        int ready_flags = fcntl(ready_eventfd, F_GETFD);
+        if (ready_flags != -1) {
+            fcntl(ready_eventfd, F_SETFD, ready_flags & ~FD_CLOEXEC);
+        }
+
+        // Convert arguments to strings for exec
+        char pid_str[32], tid_str[32], notify_str[32], ready_str[32];
+        snprintf(pid_str, sizeof(pid_str), "%d", (int)app_pid);
+        snprintf(tid_str, sizeof(tid_str), "%" PRIx64, app_tid);
+        snprintf(notify_str, sizeof(notify_str), "%d", notify_eventfd);
+        snprintf(ready_str, sizeof(ready_str), "%d", ready_eventfd);
+
+        char *argv[]
+            = { "sentry-crash", pid_str, tid_str, notify_str, ready_str, NULL };
+
+        if (!sentry__string_empty(handler_path)) {
+            execv(handler_path, argv);
+        } else {
+            char exe_path[SENTRY_CRASH_MAX_PATH];
+            char daemon_exec_path[SENTRY_CRASH_MAX_PATH];
+
+            ssize_t exe_len
+                = readlink("/proc/self/exe", exe_path, sizeof(exe_path) - 1);
+            if (exe_len > 0) {
+                exe_path[exe_len] = '\0';
+                const char *slash = strrchr(exe_path, '/');
+                if (slash) {
+                    size_t dir_len = (size_t)(slash - exe_path + 1);
+                    if (dir_len + strlen("sentry-crash")
+                        < sizeof(daemon_exec_path)) {
+                        memcpy(daemon_exec_path, exe_path, dir_len);
+                        strcpy(daemon_exec_path + dir_len, "sentry-crash");
+                        execv(daemon_exec_path, argv);
+                    }
+                }
+            }
+        }
+
+        // exec failed - exit with error
+        perror("Failed to exec sentry-crash");
+        _exit(1);
+    }
+
+    // Parent process - return daemon PID
+    return daemon_pid;
+
+#elif defined(SENTRY_PLATFORM_WINDOWS)
+    // On Windows, create a separate daemon process using CreateProcess
+    // Spawn the sentry-crash.exe executable
+
+    wchar_t daemon_path_w[SENTRY_CRASH_MAX_PATH];
+
+    // If handler_path was explicitly set via options, use it directly
+    if (!sentry__string_empty(handler_path)) {
+        wchar_t *wpath = sentry__string_to_wstr(handler_path);
+        if (wpath) {
+            wcsncpy(daemon_path_w, wpath, SENTRY_CRASH_MAX_PATH - 1);
+            daemon_path_w[SENTRY_CRASH_MAX_PATH - 1] = L'\0';
+            sentry_free(wpath);
+        } else {
+            SENTRY_WARN("Failed to convert handler_path to wide string");
+            return (pid_t)-1;
+        }
+    } else {
+        // Try to find sentry-crash.exe in the same directory as the current
+        // executable
+        wchar_t exe_dir[SENTRY_CRASH_MAX_PATH];
+        DWORD len = GetModuleFileNameW(NULL, exe_dir, SENTRY_CRASH_MAX_PATH);
+        if (len == 0 || len >= SENTRY_CRASH_MAX_PATH) {
+            SENTRY_WARN("Failed to get current executable path");
+            return (pid_t)-1;
+        }
+
+        // Remove filename to get directory
+        wchar_t *last_slash = wcsrchr(exe_dir, L'\\');
+        if (last_slash) {
+            *(last_slash + 1) = L'\0'; // Keep the trailing backslash
+        }
+
+        // Build full path to sentry-crash.exe
+        int path_len = _snwprintf(daemon_path_w, SENTRY_CRASH_MAX_PATH,
+            L"%ssentry-crash.exe", exe_dir);
+        if (path_len < 0 || path_len >= SENTRY_CRASH_MAX_PATH) {
+            SENTRY_WARN("Daemon path too long");
+            return (pid_t)-1;
+        }
+    }
+
+    // Log the daemon path we're trying to launch for debugging
+    char *daemon_path_utf8 = sentry__string_from_wstr(daemon_path_w);
+    if (daemon_path_utf8) {
+        SENTRY_DEBUGF("Attempting to launch daemon: %s", daemon_path_utf8);
+        sentry_free(daemon_path_utf8);
+    }
+
+    // Build command line: sentry-crash.exe <app_pid> <app_tid> <event_handle>
+    // <ready_event_handle>
+    wchar_t cmd_line[SENTRY_CRASH_MAX_PATH + 128];
+    int cmd_len = _snwprintf(cmd_line, sizeof(cmd_line) / sizeof(wchar_t),
+        L"\"%s\" %lu %llx %llu %llu", daemon_path_w, (unsigned long)app_pid,
+        (unsigned long long)app_tid,
+        (unsigned long long)(uintptr_t)event_handle,
+        (unsigned long long)(uintptr_t)ready_event_handle);
+
+    if (cmd_len < 0 || cmd_len >= (int)(sizeof(cmd_line) / sizeof(wchar_t))) {
+        SENTRY_WARN("Command line too long for daemon spawn");
+        return (pid_t)-1;
+    }
+
+    // Prepare process creation structures
+    STARTUPINFOW si;
+    PROCESS_INFORMATION pi;
+    ZeroMemory(&si, sizeof(si));
+    si.cb = sizeof(si);
+    // Hide console window for daemon
+    si.dwFlags = STARTF_USESHOWWINDOW;
+    si.wShowWindow = SW_HIDE;
+    ZeroMemory(&pi, sizeof(pi));
+
+    // Create the daemon process
+    if (!CreateProcessW(NULL, // Application name (use command line)
+            cmd_line, // Command line
+            NULL, // Process security attributes
+            NULL, // Thread security attributes
+            TRUE, // Inherit handles (for event_handle)
+            CREATE_NO_WINDOW | DETACHED_PROCESS, // Creation flags
+            NULL, // Environment
+            NULL, // Current directory
+            &si, // Startup info
+            &pi)) { // Process information
+        DWORD error = GetLastError();
+        char *daemon_path_err = sentry__string_from_wstr(daemon_path_w);
+        if (daemon_path_err) {
+            SENTRY_WARNF("Failed to create daemon process at '%s': Error %lu%s",
+                daemon_path_err, error,
+                error == 2       ? " (File not found)"
+                    : error == 3 ? " (Path not found)"
+                                 : "");
+            sentry_free(daemon_path_err);
+        } else {
+            SENTRY_WARNF("Failed to create daemon process: %lu", error);
+        }
+        return (pid_t)-1;
+    }
+
+    // Close thread handle (we don't need it)
+    CloseHandle(pi.hThread);
+
+    // Close process handle (daemon is independent)
+    CloseHandle(pi.hProcess);
+
+    // Return daemon process ID
+    return pi.dwProcessId;
+#endif
+}
+
 static int
 native_backend_startup(
     sentry_backend_t *backend, const sentry_options_t *options)
@@ -337,6 +626,7 @@ native_backend_startup(
     ctx->crash_reporting_mode = options->crash_reporting_mode;
     ctx->system_crash_reporter_enabled = options->system_crash_reporter_enabled;
     ctx->crash_upload_mode = options->crash_upload_mode;
+    ctx->thread_stackwalk_mode = options->thread_stackwalk_mode;
 
     // Pass debug logging setting to daemon
     ctx->debug_enabled = options->debug;
@@ -513,18 +803,17 @@ native_backend_startup(
         = options->handler_path ? options->handler_path->path : NULL;
 #    if defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID)
     uint64_t tid = (uint64_t)pthread_self();
-    state->daemon_pid = sentry__crash_daemon_start(getpid(), tid,
-        state->ipc->notify_fd, state->ipc->ready_fd, daemon_handler_path);
+    state->daemon_pid = daemon_start(getpid(), tid, state->ipc->notify_fd,
+        state->ipc->ready_fd, daemon_handler_path);
 #    elif defined(SENTRY_PLATFORM_MACOS)
     uint64_t tid = (uint64_t)pthread_self();
-    state->daemon_pid
-        = sentry__crash_daemon_start(getpid(), tid, state->ipc->notify_pipe[0],
-            state->ipc->ready_pipe[1], state->ipc->shm_fd, daemon_handler_path);
+    state->daemon_pid = daemon_start(getpid(), tid, state->ipc->notify_pipe[0],
+        state->ipc->ready_pipe[1], state->ipc->shm_fd, daemon_handler_path);
 #    elif defined(SENTRY_PLATFORM_WINDOWS)
     uint64_t tid = (uint64_t)GetCurrentThreadId();
-    state->daemon_pid = sentry__crash_daemon_start(GetCurrentProcessId(), tid,
-        state->ipc->event_handle, state->ipc->ready_event_handle,
-        daemon_handler_path);
+    state->daemon_pid
+        = daemon_start(GetCurrentProcessId(), tid, state->ipc->event_handle,
+            state->ipc->ready_event_handle, daemon_handler_path);
 #    endif
 
     // On Windows, pid_t is DWORD (unsigned), so (pid_t)-1 == 0xFFFFFFFF.
@@ -777,23 +1066,26 @@ native_backend_write_attachments(const sentry_path_t *event_path)
             sentry_value_t attach_list = sentry_value_new_list();
             for (sentry_attachment_t *it = scope->attachments; it;
                 it = it->next) {
-                if (!it->path) {
+                const char *path = sentry__attachment_get_path(it);
+                if (!path) {
                     continue;
                 }
                 sentry_value_t attach_info = sentry_value_new_object();
-                sentry_value_set_by_key(attach_info, "path",
-                    sentry_value_new_string(it->path->path));
-                const char *filename = sentry__path_filename(
-                    it->filename ? it->filename : it->path);
+                sentry_value_set_by_key(
+                    attach_info, "path", sentry_value_new_string(path));
+                const char *filename = sentry__attachment_get_filename(it);
                 sentry_value_set_by_key(
                     attach_info, "filename", sentry_value_new_string(filename));
-                if (it->type && *it->type) {
+                const char *type = sentry__attachment_get_type(it);
+                if (type && *type) {
                     sentry_value_set_by_key(attach_info, "attachment_type",
-                        sentry_value_new_string(it->type));
+                        sentry_value_new_string(type));
                 }
-                if (it->content_type) {
+                const char *content_type
+                    = sentry__attachment_get_content_type(it);
+                if (content_type) {
                     sentry_value_set_by_key(attach_info, "content_type",
-                        sentry_value_new_string(it->content_type));
+                        sentry_value_new_string(content_type));
                 }
                 sentry_value_append(attach_list, attach_info);
             }
@@ -977,8 +1269,10 @@ native_backend_add_attachment(
 
     // For buffer attachments, assign a path in the run directory and write to
     // disk
-    if (attachment->buf) {
-        if (!attachment->path) {
+    size_t bytes_len = 0;
+    const char *bytes = sentry__attachment_get_bytes(attachment, &bytes_len);
+    if (bytes) {
+        if (!sentry__attachment_get_path(attachment)) {
             if (!ensure_attachment_path(attachment)) {
                 SENTRY_WARN("failed to assign path for buffer attachment");
                 return;
@@ -986,12 +1280,12 @@ native_backend_add_attachment(
         }
 
         // Write buffer to disk
-        if (sentry__path_write_buffer(
-                attachment->path, attachment->buf, attachment->buf_len)
-            != 0) {
+        sentry_path_t *path = sentry__attachment_make_path(attachment);
+        if (!path || sentry__path_write_buffer(path, bytes, bytes_len) != 0) {
             SENTRY_WARNF("failed to write native backend attachment \"%s\"",
-                attachment->path->path);
+                sentry__attachment_get_path(attachment));
         }
+        sentry__path_free(path);
     }
     // For file attachments, the path is already set and points to the actual
     // file. The crash daemon will read these files from their original

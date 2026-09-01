@@ -16,6 +16,25 @@ set(SENTRY_BUILD_SHARED_LIBS ON)
 # Adding sentry-native project
 add_subdirectory(${SENTRY_NATIVE_SRC} sentry_build)
 
+if(WITH_ASAN_OPTION)
+	set(SENTRY_ANDROID_SANITIZER address)
+elseif(WITH_TSAN_OPTION)
+	set(SENTRY_ANDROID_SANITIZER thread)
+endif()
+
+if(SENTRY_ANDROID_SANITIZER)
+	set(SENTRY_ANDROID_SANITIZER_TARGETS sentry-android)
+	if(ENABLE_TESTS)
+		list(APPEND SENTRY_ANDROID_SANITIZER_TARGETS sentry-android-test)
+	endif()
+	foreach(target IN LISTS SENTRY_ANDROID_SANITIZER_TARGETS)
+		target_compile_options(${target} PRIVATE
+			-g -fsanitize=${SENTRY_ANDROID_SANITIZER} -fno-omit-frame-pointer)
+		target_link_libraries(${target} PRIVATE
+			-fsanitize=${SENTRY_ANDROID_SANITIZER})
+	endforeach()
+endif()
+
 # Android logging library
 find_library(LOG_LIB log)
 

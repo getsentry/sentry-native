@@ -5,6 +5,8 @@ plugins {
 }
 
 var sentryNativeSrc: String = "${project.projectDir}/../.."
+val sanitizer = System.getenv("RUN_ANALYZER").orEmpty().split(',')
+    .firstOrNull { it == "asan" || it == "tsan" }
 
 android {
     compileSdk = 35
@@ -17,16 +19,33 @@ android {
 
         externalNativeBuild {
             cmake {
-                arguments.add(0, "-DANDROID_STL=c++_static")
+                arguments.add(0, "-DANDROID_STL=${if (sanitizer != null) "c++_shared" else "c++_static"}")
                 arguments.add(0, "-DSENTRY_NATIVE_SRC=$sentryNativeSrc")
+                if (sanitizer == "asan") {
+                    arguments.add(0, "-DWITH_ASAN_OPTION=ON")
+                }
+                if (sanitizer == "tsan") {
+                    arguments.add(0, "-DWITH_TSAN_OPTION=ON")
+                }
             }
         }
 
         ndk {
-            abiFilters.addAll(listOf("x86", "armeabi-v7a", "x86_64", "arm64-v8a"))
+            abiFilters.addAll(
+                if (sanitizer == "tsan") listOf("x86_64", "arm64-v8a")
+                else listOf("x86", "armeabi-v7a", "x86_64", "arm64-v8a")
+            )
         }
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+    }
+
+    if (sanitizer != null) {
+        System.getenv("ANDROID_NDK")?.let { ndkVersion = it }
+        sourceSets.getByName("androidTest") {
+            jniLibs.srcDir("build/$sanitizer/jniLibs")
+            resources.srcDir("build/$sanitizer/resources")
+        }
     }
 
     // we use the default NDK and CMake versions based on the AGP's version

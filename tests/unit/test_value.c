@@ -19,19 +19,51 @@ typedef struct {
     const char *keys[4];
     sentry_value_t values[4];
     size_t count;
-} value_foreach_key_value_collector_t;
+    size_t stop_after;
+    sentry_value_t container;
+} value_foreach_collector_t;
 
-static void
+static int
+collect_value(sentry_value_t value, void *userdata)
+{
+    value_foreach_collector_t *collector
+        = (value_foreach_collector_t *)userdata;
+    if (collector->count >= 4) {
+        return -1;
+    }
+    collector->values[collector->count++] = value;
+    return collector->count == collector->stop_after ? 42 : 0;
+}
+
+static int
 collect_value_pair(const char *key, sentry_value_t value, void *userdata)
 {
-    value_foreach_key_value_collector_t *collector
-        = (value_foreach_key_value_collector_t *)userdata;
+    value_foreach_collector_t *collector
+        = (value_foreach_collector_t *)userdata;
     if (collector->count >= 4) {
-        return;
+        return -1;
     }
     collector->keys[collector->count] = key;
     collector->values[collector->count] = value;
     collector->count++;
+    return collector->count == collector->stop_after ? 42 : 0;
+}
+
+static int
+remove_list_value(sentry_value_t UNUSED(value), void *userdata)
+{
+    value_foreach_collector_t *remover = (value_foreach_collector_t *)userdata;
+    remover->count++;
+    return sentry_value_remove_by_index(remover->container, 0);
+}
+
+static int
+remove_object_value(
+    const char *key, sentry_value_t UNUSED(value), void *userdata)
+{
+    value_foreach_collector_t *remover = (value_foreach_collector_t *)userdata;
+    remover->count++;
+    return sentry_value_remove_by_key(remover->container, key);
 }
 
 static void
@@ -1008,6 +1040,35 @@ SENTRY_TEST(value_freezing)
     sentry_value_decref(val);
 }
 
+SENTRY_TEST(value_foreach_value)
+{
+    sentry_value_t value = sentry_value_new_list();
+    sentry_value_append(value, sentry_value_new_string("one"));
+    sentry_value_append(value, sentry_value_new_int32(2));
+    sentry_value_append(value, sentry_value_new_bool(true));
+
+    value_foreach_collector_t collector = { 0 };
+    TEST_CHECK_INT_EQUAL(
+        sentry_value_foreach_value(value, collect_value, &collector), 0);
+    TEST_CHECK_INT_EQUAL(collector.count, 3);
+    TEST_CHECK_STRING_EQUAL(sentry_value_as_string(collector.values[0]), "one");
+    TEST_CHECK_INT_EQUAL(sentry_value_as_int32(collector.values[1]), 2);
+    TEST_CHECK(sentry_value_is_true(collector.values[2]));
+
+    value_foreach_collector_t stopped = { .stop_after = 2 };
+    TEST_CHECK_INT_EQUAL(
+        sentry_value_foreach_value(value, collect_value, &stopped), 42);
+    TEST_CHECK_INT_EQUAL(stopped.count, 2);
+
+    value_foreach_collector_t remover = { .container = value };
+    TEST_CHECK_INT_EQUAL(
+        sentry_value_foreach_value(value, remove_list_value, &remover), 0);
+    TEST_CHECK_INT_EQUAL(remover.count, 3);
+    TEST_CHECK_INT_EQUAL(sentry_value_get_length(value), 0);
+
+    sentry_value_decref(value);
+}
+
 SENTRY_TEST(value_foreach_key_value)
 {
     sentry_value_t value = sentry_value_new_object();
@@ -1015,8 +1076,10 @@ SENTRY_TEST(value_foreach_key_value)
     sentry_value_set_by_key(value, "second", sentry_value_new_int32(2));
     sentry_value_set_by_key(value, "third", sentry_value_new_bool(true));
 
-    value_foreach_key_value_collector_t collector = { 0 };
-    sentry__value_foreach_key_value(value, collect_value_pair, &collector);
+    value_foreach_collector_t collector = { 0 };
+    TEST_CHECK_INT_EQUAL(
+        sentry_value_foreach_key_value(value, collect_value_pair, &collector),
+        0);
 
     TEST_CHECK_INT_EQUAL(collector.count, 3);
     TEST_CHECK_STRING_EQUAL(collector.keys[0], "first");
@@ -1026,11 +1089,26 @@ SENTRY_TEST(value_foreach_key_value)
     TEST_CHECK_STRING_EQUAL(collector.keys[2], "third");
     TEST_CHECK(sentry_value_is_true(collector.values[2]));
 
-    value_foreach_key_value_collector_t ignored = { 0 };
+    value_foreach_collector_t stopped = { .stop_after = 2 };
+    TEST_CHECK_INT_EQUAL(
+        sentry_value_foreach_key_value(value, collect_value_pair, &stopped),
+        42);
+    TEST_CHECK_INT_EQUAL(stopped.count, 2);
+
+    value_foreach_collector_t ignored = { 0 };
     sentry_value_t not_object = sentry_value_new_string("not-object");
-    sentry__value_foreach_key_value(not_object, collect_value_pair, &ignored);
+    TEST_CHECK_INT_EQUAL(sentry_value_foreach_key_value(
+                             not_object, collect_value_pair, &ignored),
+        0);
     TEST_CHECK_INT_EQUAL(ignored.count, 0);
     sentry_value_decref(not_object);
+
+    value_foreach_collector_t remover = { .container = value };
+    TEST_CHECK_INT_EQUAL(
+        sentry_value_foreach_key_value(value, remove_object_value, &remover),
+        0);
+    TEST_CHECK_INT_EQUAL(remover.count, 3);
+    TEST_CHECK_INT_EQUAL(sentry_value_get_length(value), 0);
 
     sentry_value_decref(value);
 }
@@ -1477,6 +1555,30 @@ SENTRY_TEST(message_with_null_text_is_valid)
         "warning");
 
     sentry_value_decref(message_event);
+}
+
+SENTRY_TEST(event_level)
+{
+    const struct {
+        sentry_level_t level;
+        const char *expected;
+    } cases[] = {
+        { SENTRY_LEVEL_TRACE, "trace" },
+        { SENTRY_LEVEL_DEBUG, "debug" },
+        { SENTRY_LEVEL_INFO, "info" },
+        { SENTRY_LEVEL_WARNING, "warning" },
+        { SENTRY_LEVEL_ERROR, "error" },
+        { SENTRY_LEVEL_FATAL, "fatal" },
+    };
+
+    sentry_value_t event = sentry_value_new_event();
+    for (size_t i = 0; i < sizeof(cases) / sizeof(cases[0]); i++) {
+        sentry_event_set_level(event, cases[i].level);
+        TEST_CHECK_STRING_EQUAL(
+            sentry_value_as_string(sentry_value_get_by_key(event, "level")),
+            cases[i].expected);
+    }
+    sentry_value_decref(event);
 }
 
 SENTRY_TEST(breadcrumb_without_type_or_message_still_valid)

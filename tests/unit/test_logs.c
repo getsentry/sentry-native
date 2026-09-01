@@ -53,7 +53,7 @@ SENTRY_TEST(basic_logging_functionality)
     sentry_init(options);
     sentry__logs_wait_for_thread_startup();
 
-    // These should not crash and should respect the enable_logs option
+    // These should not crash
     TEST_CHECK_INT_EQUAL(sentry_log_trace("Trace message"), 0);
     TEST_CHECK_INT_EQUAL(sentry_log_debug("Debug message"), 0);
     TEST_CHECK_INT_EQUAL(sentry_log_info("Info message"), 0);
@@ -73,31 +73,6 @@ SENTRY_TEST(basic_logging_functionality)
     // Validate results on main thread (no race condition)
     TEST_CHECK(!validation_data.has_validation_error);
     TEST_CHECK_INT_EQUAL(validation_data.called_count, 2);
-}
-
-SENTRY_TEST(logs_disabled)
-{
-    transport_validation_data_t validation_data = { 0, false };
-
-    SENTRY_TEST_OPTIONS_NEW(options);
-    sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
-    SENTRY_TEST_DEPRECATED(sentry_options_set_enable_logs(options, false));
-
-    sentry_transport_t *transport
-        = sentry_transport_new(validate_logs_envelope);
-    sentry_transport_set_state(transport, &validation_data);
-    sentry_options_set_transport(options, transport);
-
-    sentry_init(options);
-
-    // Should return DISABLED since logs were explicitly disabled
-    TEST_CHECK_INT_EQUAL(sentry_log_info("This should not be sent"), 3);
-
-    sentry_close();
-
-    // Transport should not be called since logs were explicitly disabled
-    TEST_CHECK(!validation_data.has_validation_error);
-    TEST_CHECK_INT_EQUAL(validation_data.called_count, 0);
 }
 
 SENTRY_TEST(formatted_log_messages)
@@ -338,7 +313,7 @@ SENTRY_TEST(logs_force_flush)
     sentry_init(options);
     sentry__logs_wait_for_thread_startup();
 
-    // These should not crash and should respect the enable_logs option
+    // These should not crash
     TEST_CHECK_INT_EQUAL(sentry_log_trace("Trace message"), 0);
     sentry_flush(5000);
     TEST_CHECK_INT_EQUAL(sentry_log_debug("Debug message"), 0);
@@ -556,22 +531,14 @@ SENTRY_TEST(logs_span_trace_attributes)
     sentry_close();
 }
 
-SENTRY_TEST(logs_plain_string_disabled)
+SENTRY_TEST(logs_uninitialized)
 {
-    SENTRY_TEST_OPTIONS_NEW(options);
-    sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
-    SENTRY_TEST_DEPRECATED(sentry_options_set_enable_logs(options, false));
-
-    sentry_init(options);
-
     // Should not leak the attributes value
     sentry_value_t attrs = sentry_value_new_object();
     sentry_value_set_by_key(attrs, "key",
         sentry_value_new_attribute(sentry_value_new_string("val"), NULL));
     TEST_CHECK_INT_EQUAL(sentry_log(SENTRY_LEVEL_INFO, "test", attrs),
         SENTRY_LOG_RETURN_DISABLED);
-
-    sentry_close();
 }
 
 SENTRY_TEST(logs_global_attribute_no_field_leak)

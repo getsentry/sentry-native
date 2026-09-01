@@ -52,6 +52,22 @@ benchmark: setup-venv
 	$(VENV_BIN)/pytest tests/benchmark.py --verbose
 .PHONY: benchmark
 
+stack-frames:
+	@cmake -E remove_directory stack-frames-build/CMakeFiles/sentry.dir
+	@cmake -S . -B stack-frames-build \
+		-DCMAKE_C_FLAGS=-fstack-usage \
+		-DCMAKE_CXX_FLAGS=-fstack-usage \
+		$(if $(SENTRY_BACKEND),-DSENTRY_BACKEND=$(SENTRY_BACKEND),-U SENTRY_BACKEND) \
+		-DSENTRY_BUILD_TESTS=OFF
+	@cmake --build stack-frames-build \
+		--target sentry --parallel
+	@# reoder bytes first for sorting ("<file>:<line>:<column>:<function>\t<bytes>\t<qualifiers>")
+	@find stack-frames-build/CMakeFiles/sentry.dir -name '*.su' \
+		-exec awk -F '\t' -v OFS='\t' -v root="$(CURDIR)/" '{ print $$2, substr($$1, length(root) + 1), $$3 }' {} + \
+		| sort -k1,1nr -k2,2 \
+		| head -n $(or $(N),20)
+.PHONY: stack-frames
+
 clean: build/Makefile
 	@$(MAKE) -C build clean
 .PHONY: clean

@@ -49,13 +49,13 @@ static sentry_slice_t LINUX_GATE = { "linux-gate.so", 13 };
 bool
 sentry__mmap_file(sentry_mmap_t *rv, const char *path)
 {
-    int fd = open(path, O_RDONLY);
+    int fd = sentry__elf_open(path);
     if (fd < 0) {
         goto fail;
     }
 
     struct stat sb;
-    if (stat(path, &sb) != 0 || !S_ISREG(sb.st_mode)) {
+    if (fstat(fd, &sb) != 0) {
         goto fail;
     }
 

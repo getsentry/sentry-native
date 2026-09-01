@@ -115,6 +115,9 @@ option(SENTRY_BUILD_TESTS "Build sentry-native tests" "${SENTRY_MAIN_PROJECT}")
 option(SENTRY_BUILD_EXAMPLES "Build sentry-native example(s)" "${SENTRY_MAIN_PROJECT}")
 option(SENTRY_BUILD_BENCHMARKS "Build sentry-native benchmarks" OFF)
 
+option(SENTRY_INTEGRATION_PLATFORM
+	"Enable the downstream-provided platform integration" OFF)
+
 # Platform version embedding options
 option(SENTRY_EMBED_INFO "Embed version information in binary" OFF)
 set(SENTRY_BUILD_PLATFORM "${CMAKE_SYSTEM_NAME}" CACHE STRING "Platform name for embedded version (e.g., switch, playstation, xbox)")
@@ -298,6 +301,7 @@ message(STATUS "SENTRY_TRANSPORT=${SENTRY_TRANSPORT}")
 message(STATUS "SENTRY_BACKEND=${SENTRY_BACKEND}")
 message(STATUS "SENTRY_LIBRARY_TYPE=${SENTRY_LIBRARY_TYPE}")
 message(STATUS "SENTRY_SDK_NAME=${SENTRY_SDK_NAME}")
+message(STATUS "SENTRY_INTEGRATION_PLATFORM=${SENTRY_INTEGRATION_PLATFORM}")
 message(STATUS "SENTRY_HANDLER_STACK_SIZE=${SENTRY_HANDLER_STACK_SIZE}")
 message(STATUS "SENTRY_BATCHER_BUFFER_COUNT=${SENTRY_BATCHER_BUFFER_COUNT}")
 if (WIN32)
@@ -418,6 +422,10 @@ if(SENTRY_EMBED_INFO)
 endif()
 
 add_subdirectory(src)
+
+if(SENTRY_INTEGRATION_PLATFORM)
+	target_compile_definitions(sentry PRIVATE SENTRY_INTEGRATION_PLATFORM)
+endif()
 
 target_compile_definitions(sentry PRIVATE SENTRY_HANDLER_STACK_SIZE=${SENTRY_HANDLER_STACK_SIZE})
 target_compile_definitions(sentry PRIVATE SENTRY_BATCHER_BUFFER_COUNT=${SENTRY_BATCHER_BUFFER_COUNT})
@@ -863,11 +871,43 @@ elseif(SENTRY_BACKEND_NATIVE)
 	# Exclude integrations that are not needed in the daemon
 	list(FILTER SENTRY_SOURCES EXCLUDE REGEX "[/\\\\]integrations[/\\\\]")
 
-	# Create daemon executable with same sources (already includes
-	# sentry_crash_daemon.c and sentry_crash_ipc.c from src/CMakeLists.txt)
+	# Create daemon executable with same SDK sources
 	add_executable(sentry-crash
 		${SENTRY_SOURCES}
 	)
+
+	# Add daemon-only sources not built into libsentry.so
+	sentry_target_sources_cwd(sentry-crash SUBDIR src
+		backends/native/sentry_crash_daemon.c
+		backends/native/minidump/sentry_minidump_format.h
+		backends/native/minidump/sentry_minidump_writer.h
+	)
+
+	# Remote unwinding (Linux only — uses libunwind ptrace accessors)
+	if(LINUX)
+		sentry_target_sources_cwd(sentry-crash SUBDIR src
+			unwinder/sentry_unwinder_libunwind_remote.c
+		)
+	endif()
+
+	# Platform-specific minidump writers
+	if(LINUX OR ANDROID)
+		sentry_target_sources_cwd(sentry-crash SUBDIR src
+			backends/native/minidump/sentry_minidump_common.c
+			backends/native/minidump/sentry_minidump_indirect.c
+			backends/native/minidump/sentry_minidump_linux.c
+		)
+	elseif(APPLE)
+		sentry_target_sources_cwd(sentry-crash SUBDIR src
+			backends/native/minidump/sentry_minidump_common.c
+			backends/native/minidump/sentry_minidump_indirect.c
+			backends/native/minidump/sentry_minidump_macos.c
+		)
+	elseif(WIN32)
+		sentry_target_sources_cwd(sentry-crash SUBDIR src
+			backends/native/minidump/sentry_minidump_windows.c
+		)
+	endif()
 
 	# Copy all compile definitions from sentry target so shared sources
 	# compile under identical preprocessor conditions (backend, transport,
@@ -1030,6 +1070,9 @@ if(SENTRY_BUILD_TESTS)
 	add_subdirectory(tests/unit)
 	add_subdirectory(tests/fixtures/crash_reporter)
 	add_subdirectory(tests/fixtures/early_init)
+	if(SENTRY_INTEGRATION_PLATFORM AND SENTRY_MAIN_PROJECT)
+		add_subdirectory(tests/fixtures/test_platform)
+	endif()
 	add_subdirectory(tests/fixtures/screenshot)
 	if(WIN32 AND NOT XBOX)
 		add_subdirectory(tests/fixtures/appx)
@@ -1039,6 +1082,7 @@ if(SENTRY_BUILD_TESTS)
 		set(BENCHMARK_ENABLE_GTEST_TESTS OFF)
 		add_subdirectory(external/benchmark)
 		add_subdirectory(tests/benchmark)
+		add_subdirectory(tests/fixtures/stack_usage)
 	endif()
 endif()
 

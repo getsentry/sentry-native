@@ -1,5 +1,8 @@
 #include "sentry_boot.h"
 
+#ifndef SENTRY_PLATFORM_PS
+#    include <signal.h>
+#endif
 #include <stdarg.h>
 #include <string.h>
 
@@ -26,7 +29,6 @@
 #include "sentry_tsan.h"
 #include "sentry_uuid.h"
 #include "sentry_value.h"
-#include "transports/sentry_disk_transport.h"
 
 #ifdef SENTRY_PLATFORM_WINDOWS
 #    include "sentry_os.h"
@@ -117,8 +119,39 @@ unregister_integrations(sentry_scope_t *scope, const sentry_options_t *options)
     }
 }
 
-#if defined(SENTRY_PLATFORM_NX) || defined(SENTRY_PLATFORM_PS)                 \
-    || defined(SENTRY_PLATFORM_XBOX)
+void
+sentry__enter_crash_handler(void)
+{
+    const sentry_options_t *options = g_options;
+    if (options) {
+        for (size_t i = 0; i < options->num_integrations; i++) {
+            sentry_integration_t *integration = options->integrations[i];
+            if (integration->crash_handler_enter_func) {
+                integration->crash_handler_enter_func(integration->data);
+            }
+        }
+    }
+}
+
+void
+sentry__exit_crash_handler(void)
+{
+    const sentry_options_t *options = g_options;
+    if (options) {
+        for (size_t i = options->num_integrations; i > 0; i--) {
+            sentry_integration_t *integration = options->integrations[i - 1];
+            if (integration->crash_handler_exit_func) {
+                integration->crash_handler_exit_func(integration->data);
+            }
+        }
+    }
+}
+
+// TODO: remove sentry__native_init after console SDKs have been migrated to
+// platform integrations
+#if (defined(SENTRY_PLATFORM_NX) || defined(SENTRY_PLATFORM_PS)                \
+    || defined(SENTRY_PLATFORM_XBOX))                                          \
+    && !defined(SENTRY_INTEGRATION_PLATFORM)
 int
 sentry__native_init(sentry_options_t *options)
 #else
@@ -931,6 +964,60 @@ sentry_handle_exception(const sentry_ucontext_t *uctx)
         }
     }
 }
+
+// Detect Address Sanitizer (works for both GCC and Clang)
+#if defined(__SANITIZE_ADDRESS__)
+#    define SENTRY_ASAN_ACTIVE 1
+#elif defined(__has_feature)
+#    if __has_feature(address_sanitizer)
+#        define SENTRY_ASAN_ACTIVE 1
+#    endif
+#endif
+
+// Preserve `sentry_crash` as an unwindable stack frame. Clang's `optnone` is
+// needed on macOS, but on musl it leaves the fault inside stripped `memset`,
+// producing an unsymbolicated stack trace.
+#if defined(_MSC_VER)
+#    define SENTRY_NOINLINE __declspec(noinline)
+#    pragma optimize("", off)
+#elif defined(__has_attribute)
+#    if defined(SENTRY_PLATFORM_MACOS) && __has_attribute(noinline)            \
+        && __has_attribute(optnone)
+#        define SENTRY_NOINLINE __attribute__((noinline, optnone))
+#    elif __has_attribute(noinline) && __has_attribute(optimize)
+#        define SENTRY_NOINLINE __attribute__((noinline, optimize("O0")))
+#    elif __has_attribute(noinline)
+#        define SENTRY_NOINLINE __attribute__((noinline))
+#    endif
+#endif
+#ifndef SENTRY_NOINLINE
+#    define SENTRY_NOINLINE
+#endif
+
+SENTRY_NOINLINE void
+sentry_crash(void)
+{
+#ifdef SENTRY_ASAN_ACTIVE
+    // Under ASAN, raise signal directly to bypass ASAN's memory interception.
+    // ASAN intercepts memset and would abort before our signal handler runs.
+    raise(SIGSEGV);
+#else
+#    ifdef SENTRY_PLATFORM_AIX
+    // AIX has a null page mapped to the bottom of memory, which means null
+    // derefs don't segfault. try dereferencing the top of memory instead; the
+    // top nibble seems to be unusable.
+    void *volatile invalid_mem = (void *)0xFFFFFFFFFFFFFF9B; // -100 for memset
+#    else
+    void *volatile invalid_mem = (void *)1;
+#    endif
+    memset((char *)invalid_mem, 1, 100);
+#endif
+}
+
+#if defined(_MSC_VER)
+#    pragma optimize("", on)
+#endif
+#undef SENTRY_NOINLINE
 
 sentry_uuid_t
 sentry__new_event_id(void)
@@ -1918,14 +2005,6 @@ sentry__launch_external_crash_reporter(
         return false;
     }
 
-    // capture the envelope with the disk transport
-    sentry_transport_t *disk_transport
-        = sentry_new_external_disk_transport(options->run);
-    if (!disk_transport) {
-        sentry__path_free(report_path);
-        sentry_free(envelope_filename);
-        return false;
-    }
     if (options->cache_keep) {
         if (!sentry__envelope_is_raw(envelope)) {
             sentry__envelope_set_header(envelope, "cache_dir",
@@ -1934,9 +2013,12 @@ sentry__launch_external_crash_reporter(
             SENTRY_WARN("failed to add cache_dir to external crash report");
         }
     }
-    sentry__transport_send_envelope(disk_transport, envelope);
-    sentry__transport_dump_queue(disk_transport, options->run);
-    sentry_transport_free(disk_transport);
+    if (!sentry__run_write_external(options->run, envelope)) {
+        sentry__path_free(report_path);
+        sentry_free(envelope_filename);
+        return false;
+    }
+    sentry_envelope_free(envelope);
 
     sentry__process_spawn(
         options->external_crash_reporter, report_path->path, NULL);

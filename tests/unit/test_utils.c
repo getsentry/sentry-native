@@ -1,6 +1,7 @@
 #include "sentry_os.h"
 #include "sentry_slice.h"
 #include "sentry_string.h"
+#include "sentry_sync.h"
 #include "sentry_testsupport.h"
 #include "sentry_utils.h"
 #include "sentry_value.h"
@@ -332,6 +333,102 @@ SENTRY_TEST(page_allocator)
 
     /* now we can free p_before though */
     sentry_free(p_before);
+#endif
+}
+
+#if defined(SENTRY_PLATFORM_UNIX) && !defined(SENTRY_PLATFORM_PS)
+enum {
+    PAGE_ALLOCATOR_THREAD_COUNT = 8,
+    PAGE_ALLOCATOR_ALLOCATION_COUNT = 512,
+    PAGE_ALLOCATOR_ALLOCATION_SIZE = 64,
+};
+
+typedef struct {
+    long *ready;
+    long *start;
+    size_t thread_index;
+    void *allocations[PAGE_ALLOCATOR_ALLOCATION_COUNT];
+} page_allocator_thread_data_t;
+
+SENTRY_THREAD_FN
+page_allocator_thread(void *data)
+{
+    page_allocator_thread_data_t *thread_data = data;
+    sentry__atomic_fetch_and_add(thread_data->ready, 1);
+    while (!sentry__atomic_fetch(thread_data->start)) {
+        sentry__thread_yield();
+    }
+
+    for (size_t i = 0; i < PAGE_ALLOCATOR_ALLOCATION_COUNT; i++) {
+        unsigned char *allocation
+            = sentry__page_allocator_alloc(PAGE_ALLOCATOR_ALLOCATION_SIZE);
+        thread_data->allocations[i] = allocation;
+        if (allocation) {
+            uint64_t id
+                = thread_data->thread_index * PAGE_ALLOCATOR_ALLOCATION_COUNT
+                + i;
+            memset(
+                allocation, (unsigned char)id, PAGE_ALLOCATOR_ALLOCATION_SIZE);
+            memcpy(allocation, &id, sizeof(id));
+        }
+    }
+
+    return 0;
+}
+#endif
+
+SENTRY_TEST(page_allocator_concurrent)
+{
+#if !defined(SENTRY_PLATFORM_UNIX) || defined(SENTRY_PLATFORM_PS)
+    SKIP_TEST();
+#else
+    long ready = 0;
+    long start = 0;
+    sentry_threadid_t threads[PAGE_ALLOCATOR_THREAD_COUNT];
+    page_allocator_thread_data_t thread_data[PAGE_ALLOCATOR_THREAD_COUNT]
+        = { 0 };
+
+    sentry__page_allocator_enable();
+
+    for (size_t i = 0; i < PAGE_ALLOCATOR_THREAD_COUNT; i++) {
+        thread_data[i].ready = &ready;
+        thread_data[i].start = &start;
+        thread_data[i].thread_index = i;
+        sentry__thread_init(&threads[i]);
+        TEST_ASSERT(!sentry__thread_spawn(
+            &threads[i], page_allocator_thread, &thread_data[i]));
+    }
+
+    while (sentry__atomic_fetch(&ready) < PAGE_ALLOCATOR_THREAD_COUNT) {
+        sentry__thread_yield();
+    }
+    sentry__atomic_store(&start, 1);
+
+    for (size_t i = 0; i < PAGE_ALLOCATOR_THREAD_COUNT; i++) {
+        sentry__thread_join(threads[i]);
+        sentry__thread_free(&threads[i]);
+    }
+
+    for (size_t thread_index = 0; thread_index < PAGE_ALLOCATOR_THREAD_COUNT;
+        thread_index++) {
+        for (size_t allocation_index = 0;
+            allocation_index < PAGE_ALLOCATOR_ALLOCATION_COUNT;
+            allocation_index++) {
+            unsigned char *allocation
+                = thread_data[thread_index].allocations[allocation_index];
+            TEST_ASSERT(!!allocation);
+
+            uint64_t expected_id
+                = thread_index * PAGE_ALLOCATOR_ALLOCATION_COUNT
+                + allocation_index;
+            unsigned char expected[PAGE_ALLOCATOR_ALLOCATION_SIZE];
+            memset(expected, (unsigned char)expected_id, sizeof(expected));
+            memcpy(expected, &expected_id, sizeof(expected_id));
+            TEST_CHECK(!memcmp(allocation, expected, sizeof(expected)));
+        }
+    }
+
+    sentry__page_allocator_disable();
 #endif
 }
 

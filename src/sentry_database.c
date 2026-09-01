@@ -315,7 +315,8 @@ static sentry_path_t *
 build_sibling_path(const sentry_path_t *cache_path, const char *uuid_str,
     const sentry_attachment_t *att)
 {
-    if (att->type && strcmp(att->type, SENTRY_ATTACHMENT_TYPE_MINIDUMP) == 0) {
+    const char *type = sentry__attachment_get_type(att);
+    if (type && strcmp(type, SENTRY_ATTACHMENT_TYPE_MINIDUMP) == 0) {
         char buf[41];
         snprintf(buf, sizeof(buf), "%s.dmp", uuid_str);
         return sentry__path_unique(cache_path, buf);
@@ -337,32 +338,40 @@ cache_attachment_ref(sentry_envelope_t *envelope,
     const sentry_attachment_t *att, const sentry_path_t *cache_path,
     const char *uuid_str, const sentry_path_t *run_path)
 {
+    size_t bytes_len = 0;
+    const char *bytes = sentry__attachment_get_bytes(att, &bytes_len);
+    sentry_path_t *path = bytes ? NULL : sentry__attachment_make_path(att);
+
     // File-backed attachments must exist on disk.
-    if (!att->buf && !sentry__path_is_file(att->path)) {
+    if (!bytes && (!path || !sentry__path_is_file(path))) {
+        sentry__path_free(path);
         return false;
     }
 
     if (sentry__path_create_dir_all(cache_path) != 0) {
+        sentry__path_free(path);
         return false;
     }
 
     const char *raw_filename = sentry__attachment_get_filename(att);
     sentry_path_t *dst = build_sibling_path(cache_path, uuid_str, att);
     if (!dst) {
+        sentry__path_free(path);
         return false;
     }
 
     int rv;
-    if (att->buf) {
-        rv = sentry__path_write_buffer(dst, att->buf, att->buf_len);
+    if (bytes) {
+        rv = sentry__path_write_buffer(dst, bytes, bytes_len);
     } else {
-        sentry_path_t *src_dir = sentry__path_dir(att->path);
+        sentry_path_t *src_dir = sentry__path_dir(path);
         bool is_run_owned
             = run_path && src_dir && sentry__path_eq(src_dir, run_path);
         sentry__path_free(src_dir);
-        rv = is_run_owned ? sentry__path_rename(att->path, dst)
-                          : sentry__path_copy(att->path, dst);
+        rv = is_run_owned ? sentry__path_rename(path, dst)
+                          : sentry__path_copy(path, dst);
     }
+    sentry__path_free(path);
     if (rv != 0) {
         sentry__path_remove(dst);
         sentry__path_free(dst);
@@ -372,9 +381,10 @@ cache_attachment_ref(sentry_envelope_t *envelope,
     size_t file_size = sentry__path_get_size(dst);
     sentry_attachment_ref_t ref = { 0 };
     ref.path = sentry__path_filename(dst);
-    ref.content_type = att->content_type;
+    ref.content_type = sentry__attachment_get_content_type(att);
+    const char *type = sentry__attachment_get_type(att);
     sentry_envelope_item_t *item = sentry__envelope_add_attachment_ref(
-        envelope, &ref, raw_filename, att->type, file_size);
+        envelope, &ref, raw_filename, type, file_size);
     if (!item) {
         sentry__path_remove(dst);
         sentry__path_free(dst);

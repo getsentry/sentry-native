@@ -91,6 +91,11 @@ jobs:
             os: ubuntu-24.04
             CC: gcc-14
             CXX: g++-14
+          - name: Linux (GCC 14 + analyzer)
+            os: ubuntu-24.04
+            CC: gcc-14
+            CXX: g++-14
+            RUN_ANALYZER: gcc
           - name: Linux (GCC 15 + runtime curl)
             os: ubuntu-26.04
             CC: gcc-15
@@ -189,6 +194,9 @@ jobs:
             TEST_X86: 1
           - name: Windows (latest)
             os: windows-latest
+          - name: Windows (MSVC analyzer)
+            os: windows-2022
+            RUN_ANALYZER: msvc
           - name: Windows arm64
             os: windows-11-arm
           - name: Windows (latest, UTF-8 paths)
@@ -232,6 +240,12 @@ jobs:
             ANDROID_API: 35
             ANDROID_NDK: 29.0.14206865
             ANDROID_ARCH: x86_64
+          - name: Android (API 36, NDK 30 + asan)
+            os: ubuntu-latest
+            ANDROID_API: 36
+            ANDROID_NDK: 30.0.16138531
+            ANDROID_ARCH: x86_64
+            RUN_ANALYZER: asan
 
     name: ${{ matrix.name }}
     runs-on: ${{ matrix.os }}
@@ -493,6 +507,7 @@ jobs:
           script: |
             # Sync emulator clock with host to avoid timestamp assertion failures
             adb shell cmd alarm set-time $(date +%s000) || adb shell su root date $(date -u +%m%d%H%M%Y.%S)
+            scripts/setup-android-sanitizer.sh "$RUN_ANALYZER"
             pip install --upgrade --requirement tests/requirements.txt
             pytest --capture=no --verbose tests
             (cd ndk && ./gradlew :sentry-native-ndk:connectedDebugAndroidTest --stacktrace)
@@ -537,7 +552,7 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt update
-          sudo apt install cmake clang clang-tidy gcc-13 g++-13 zlib1g-dev libcurl4-openssl-dev
+          sudo apt install cmake clang clang-tidy cppcheck gcc-13 g++-13 zlib1g-dev libcurl4-openssl-dev
           python -m pip install codechecker==6.28.2
 
       - name: Analyze

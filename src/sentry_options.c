@@ -125,11 +125,19 @@ sentry_options_new(void)
         = SENTRY_CRASH_REPORTING_MODE_NATIVE_WITH_MINIDUMP; // Default: best of
                                                             // both worlds
     opts->crash_upload_mode = SENTRY_CRASH_UPLOAD_MODE_SYNC;
+    opts->thread_stackwalk_mode = SENTRY_THREAD_STACKWALK_MODE_ALL;
     opts->enable_app_hang_tracking = false;
     opts->app_hang_timeout = 5000;
     opts->http_retry = false;
     opts->send_client_reports = true;
     opts->enable_large_attachments = false;
+#ifdef SENTRY_INTEGRATION_PLATFORM
+    if (!sentry__options_add_integration(
+            opts, sentry_integration_platform_new())) {
+        sentry_options_free(opts);
+        return NULL;
+    }
+#endif
 #ifdef SENTRY_INTEGRATION_QT
     sentry__options_add_integration(opts, sentry_integration_qt_new());
 #endif
@@ -688,6 +696,26 @@ sentry_options_get_crash_reporting_mode(const sentry_options_t *opts)
 }
 
 void
+sentry_options_set_thread_stackwalk_mode(
+    sentry_options_t *opts, sentry_thread_stackwalk_mode_t mode)
+{
+    // Clamp to valid range (cast to int to handle negative values)
+    int imode = (int)mode;
+    if (imode < SENTRY_THREAD_STACKWALK_MODE_CRASHED_ONLY) {
+        imode = SENTRY_THREAD_STACKWALK_MODE_CRASHED_ONLY;
+    } else if (imode > SENTRY_THREAD_STACKWALK_MODE_ALL) {
+        imode = SENTRY_THREAD_STACKWALK_MODE_ALL;
+    }
+    opts->thread_stackwalk_mode = imode;
+}
+
+sentry_thread_stackwalk_mode_t
+sentry_options_get_thread_stackwalk_mode(const sentry_options_t *opts)
+{
+    return (sentry_thread_stackwalk_mode_t)opts->thread_stackwalk_mode;
+}
+
+void
 sentry_options_set_crash_upload_mode(
     sentry_options_t *opts, sentry_crash_upload_mode_t mode)
 {
@@ -988,12 +1016,12 @@ sentry_options_set_backend(sentry_options_t *opts, sentry_backend_t *backend)
     opts->backend = backend;
 }
 
-void
+bool
 sentry__options_add_integration(
     sentry_options_t *opts, sentry_integration_t *integration)
 {
     if (!integration) {
-        return;
+        return false;
     }
 
     size_t new_count = opts->num_integrations + 1;
@@ -1001,7 +1029,7 @@ sentry__options_add_integration(
         = sentry__calloc(new_count, sizeof(sentry_integration_t *));
     if (!integrations) {
         free_integration(integration);
-        return;
+        return false;
     }
 
     for (size_t i = 0; i < opts->num_integrations; i++) {
@@ -1011,6 +1039,7 @@ sentry__options_add_integration(
     sentry_free(opts->integrations);
     opts->integrations = integrations;
     opts->num_integrations = new_count;
+    return true;
 }
 
 bool
@@ -1028,13 +1057,15 @@ sentry__options_has_integration(const sentry_options_t *opts, const char *name)
 void
 sentry_options_set_enable_logs(sentry_options_t *opts, int enable_logs)
 {
-    opts->enable_logs = !!enable_logs;
+    (void)opts;
+    (void)enable_logs;
 }
 
 int
 sentry_options_get_enable_logs(const sentry_options_t *opts)
 {
-    return opts->enable_logs;
+    (void)opts;
+    return true;
 }
 
 void
@@ -1053,13 +1084,15 @@ sentry_options_get_logs_with_attributes(const sentry_options_t *opts)
 void
 sentry_options_set_enable_metrics(sentry_options_t *opts, int enable_metrics)
 {
-    opts->enable_metrics = !!enable_metrics;
+    (void)opts;
+    (void)enable_metrics;
 }
 
 int
 sentry_options_get_enable_metrics(const sentry_options_t *opts)
 {
-    return opts->enable_metrics;
+    (void)opts;
+    return true;
 }
 
 void

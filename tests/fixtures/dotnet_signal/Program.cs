@@ -5,8 +5,8 @@ using System.Runtime.InteropServices;
 
 class Program
 {
-    [DllImport("crash", EntryPoint = "native_crash")]
-    static extern void native_crash();
+    [DllImport("sentry", EntryPoint = "sentry_crash")]
+    static extern void sentry_crash();
 
     [DllImport("crash", EntryPoint = "enable_sigaltstack")]
     static extern void enable_sigaltstack();
@@ -72,7 +72,7 @@ class Program
 
         if (args.Contains("native-crash"))
         {
-            native_crash();
+            sentry_crash();
         }
         else if (args.Contains("managed-exception"))
         {

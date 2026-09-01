@@ -14,6 +14,35 @@
 
 **Features**:
 
+- Add `sentry_event_set_level` for setting the level of an individual event. ([#2038](https://github.com/getsentry/sentry-native/pull/2038))
+
+## 0.16.5
+
+**Important behavior changes**:
+
+- `sentry_options_set_enable_logs` and `sentry_options_set_enable_metrics` no longer have any effect. The corresponding getters always return true.
+  > Structured logs and metrics have been enabled by default since `0.13`.
+  >
+  > We recognize that this change may inconvenience applications that rely on the opt-out. Use `sentry_options_set_before_send_log` or `sentry_options_set_before_send_metric` to filter logs or metrics. We made this tradeoff deliberately because consistent behavior across SDK integrations will help most users successfully adopt these features.
+
+**Features**:
+
+- Add `sentry_crash` for deliberately crashing the current process to test its crash reporting configuration. ([#2013](https://github.com/getsentry/sentry-native/pull/2013))
+- Native: add `sentry_options_set_thread_stackwalk_mode` to limit client-side stackwalking to the crashed thread, which shortens crash processing for applications with a high thread count. ([#2026](https://github.com/getsentry/sentry-native/pull/2026))
+- Add `sentry_value_foreach_value` and `sentry_value_foreach_key_value` for iterating lists and objects. ([#2032](https://github.com/getsentry/sentry-native/issues/2032))
+
+**Fixes**:
+
+- Native/Linux: prevent the crash daemon from hanging when module discovery encounters device-backed memory mappings. ([#2025](https://github.com/getsentry/sentry-native/pull/2025))
+
+**Other changes**:
+
+- Promote the 68 performance monitoring and tracing functions from experimental to stable. ([#2012](https://github.com/getsentry/sentry-native/pull/2012))
+
+## 0.16.4
+
+**Features**:
+
 - Windows: report WINE and Proton metadata in a separate runtime context. ([#1995](https://github.com/getsentry/sentry-native/pull/1995))
 - Add a public custom HTTP transport client interface (`sentry_http_transport_new`) so applications can plug in their own HTTP client (e.g. platform-native ones) while sentry-native continues to own request queueing, retry/backoff, offline caching, rate-limiting, and client reports. The built-in curl and WinHTTP transports are now implemented against this same interface. ([#1987](https://github.com/getsentry/sentry-native/pull/1987))
 - Native/Windows: capture WER report ID and expose as `contexts.wer.report_id` in crash events when the WER integration is enabled. ([#1970](https://github.com/getsentry/sentry-native/pull/1970))
@@ -35,6 +64,8 @@
 - Wine: fix OS version detection and cross-compiling Windows builds from Linux. ([#2001](https://github.com/getsentry/sentry-native/pull/2001))
 - Destroy condition variables as approriate when no longer needed. ([#2004](https://github.com/getsentry/sentry-native/pull/2004))
 - Crashpad/Windows: preserve module CodeView UUIDs for minimal PDB70 records with empty PDB filenames. ([#2003](https://github.com/getsentry/sentry-native/pull/2003))
+- Native/Windows: improve crash-processing performance for applications with many threads. ([#2018](https://github.com/getsentry/sentry-native/pull/2018))
+- Prevent a race between SDK reinitialization and cleanup of the previous curl client when libcurl is linked directly. ([#2015](https://github.com/getsentry/sentry-native/pull/2015))
 
 ## 0.16.3
 

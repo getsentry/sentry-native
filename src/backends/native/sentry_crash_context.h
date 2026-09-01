@@ -291,6 +291,7 @@ typedef struct {
 #endif
     int crash_reporting_mode; // sentry_crash_reporting_mode_t
     int crash_upload_mode; // sentry_crash_upload_mode_t
+    int thread_stackwalk_mode; // sentry_thread_stackwalk_mode_t
     bool debug_enabled; // Debug logging enabled in parent process
     bool attach_screenshot; // Screenshot attachment enabled in parent process
     bool attach_session_replay; // Session replay attachment enabled in parent

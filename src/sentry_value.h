@@ -73,14 +73,6 @@ sentry_value_t sentry__value_new_list_with_size(size_t size);
 sentry_value_t sentry__value_new_object_with_size(size_t size);
 
 /**
- * Iterates over the key/value pairs of an object value. The callback receives a
- * borrowed reference for each value. Does nothing if `value` is not an object.
- */
-void sentry__value_foreach_key_value(sentry_value_t value,
-    void (*callback)(const char *key, sentry_value_t value, void *userdata),
-    void *userdata);
-
-/**
  * Sets a value by an already-owned key.
  * Takes ownership of `key` and `v`.
  */
