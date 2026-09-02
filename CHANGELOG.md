@@ -9,6 +9,7 @@
 
 **Fixes**:
 
+- native: Read frame records at pointer width in the crash daemon's frame-pointer walk, so 32-bit targets no longer read two stack slots per pointer. ([#2052](https://github.com/getsentry/sentry-native/pull/2052))
 - Prevent backend state races when `sentry_reinstall_backend` runs concurrently with scope observer callbacks. ([#2041](https://github.com/getsentry/sentry-native/pull/2041))
 
 ## 0.16.5
