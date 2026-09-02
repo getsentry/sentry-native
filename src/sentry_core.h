@@ -53,7 +53,8 @@ bool sentry__event_is_transaction(sentry_value_t event);
 void sentry__event_ensure_modules(sentry_value_t event);
 
 /**
- * Invokes the configured `on_crash` callback, if any.
+ * Invokes the integration crash hooks and the configured `on_crash` callback,
+ * if any.
  *
  * Returns the callback result, or `event` unchanged when no callback is
  * configured.

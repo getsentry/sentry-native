@@ -907,6 +907,13 @@ sentry_value_t
 sentry__invoke_on_crash(const sentry_options_t *options,
     const sentry_ucontext_t *uctx, sentry_value_t event, sentry_hint_t *hint)
 {
+    for (size_t i = 0; i < options->num_integrations; i++) {
+        sentry_integration_t *integration = options->integrations[i];
+        if (integration->on_crash_func) {
+            integration->on_crash_func(integration->data, uctx, event);
+        }
+    }
+
     if (!options->on_crash_func) {
         return event;
     }

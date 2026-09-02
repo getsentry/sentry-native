@@ -28,6 +28,9 @@ typedef struct sentry_integration_s {
      * empty string when there is no valid DSN.
      */
     const char *(*installation_id_func)(void *data, const char *public_key);
+
+    void (*on_crash_func)(
+        void *data, const sentry_ucontext_t *uctx, sentry_value_t event);
 } sentry_integration_t;
 
 #ifdef SENTRY_INTEGRATION_PLATFORM

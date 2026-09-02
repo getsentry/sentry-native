@@ -727,10 +727,12 @@ process_ucontext_deferred(const sentry_options_t *options,
         sentry_hint_t hint;
         sentry__hint_init(&hint);
 
-        if (options->on_crash_func && !skip_hooks) {
+        if (!skip_hooks) {
             event = sentry__invoke_on_crash(options, uctx, event, &hint);
             should_handle = !sentry_value_is_null(event);
-        } else if (skip_hooks && options->on_crash_func) {
+        }
+
+        if (skip_hooks && options->on_crash_func) {
             SENTRY_DEBUG("skipping `on_crash` hook due to recursive crash");
         }
 
