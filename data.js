@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1788333531976,
+  "lastUpdate": 1788333593291,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -150898,6 +150898,222 @@ window.BENCHMARK_DATA = {
             "value": 9104,
             "unit": "bytes",
             "extra": "Peak 9104b, Segments 1"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "jpnurmi@gmail.com",
+            "name": "J-P Nurmi",
+            "username": "jpnurmi"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "d74a0fe113faff985d17ca2cc8fc7e8d061767f3",
+          "message": "fix: Serialize scope observers with backend reinstall (#2041)\n\n* fix: Serialize scope observers with backend reinstall\n\nScope observers can access resources whose lifetime is managed by a backend.\nDuring sentry_reinstall_backend(), an observer could run while the backend\nshut down and started up again.\n\nThis allowed lazily initialized backend state to be recreated after shutdown\nreset it, while its unsynchronized storage could race with teardown.\n\nHold the scope lock across backend shutdown and startup because observer\ncallbacks run under that lock. Add a concurrency test proving shutdown\nwaits for an in-progress observer callback.\n\n* Update CHANGELOG.md",
+          "timestamp": "2026-09-02T09:07:19+02:00",
+          "tree_id": "0e1b7c18442103878ce3c4303ea74558544d86ab",
+          "url": "https://github.com/getsentry/sentry-native/commit/d74a0fe113faff985d17ca2cc8fc7e8d061767f3"
+        },
+        "date": 1788333571493,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 10.54030000000239,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 10.363ms\nMax 11.116ms\nMean 10.617ms\nStdDev 0.289ms\nMedian 10.540ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 11.301000000003114,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 11.114ms\nMax 11.907ms\nMean 11.470ms\nStdDev 0.366ms\nMedian 11.301ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 28.68439999997463,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 27.869ms\nMax 30.035ms\nMean 28.871ms\nStdDev 0.815ms\nMedian 28.684ms"
+          },
+          {
+            "name": "SDK init (native)",
+            "value": 25.34050000008392,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 24.804ms\nMax 26.953ms\nMean 25.704ms\nStdDev 0.913ms\nMedian 25.341ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.18379999994522223,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.181ms\nMax 0.237ms\nMean 0.200ms\nStdDev 0.025ms\nMedian 0.184ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.4385000000866057,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.406ms\nMax 0.562ms\nMean 0.461ms\nStdDev 0.066ms\nMedian 0.439ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 15.85910000005697,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 14.644ms\nMax 17.289ms\nMean 16.104ms\nStdDev 1.064ms\nMedian 15.859ms"
+          },
+          {
+            "name": "Backend startup (native)",
+            "value": 13.346200000000863,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 12.773ms\nMax 14.144ms\nMean 13.371ms\nStdDev 0.495ms\nMedian 13.346ms"
+          },
+          {
+            "name": "Scope set_tag (inproc)",
+            "value": 0.007218599999987418,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.007ms\nMax 0.007ms\nMean 0.007ms\nMedian 0.007ms"
+          },
+          {
+            "name": "Scope add_breadcrumb (inproc)",
+            "value": 0.001268200000026809,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.001ms\nMax 0.001ms\nMean 0.001ms\nMedian 0.001ms"
+          },
+          {
+            "name": "Scope set_tag (breakpad)",
+            "value": 0.007335799999964365,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.007ms\nMax 0.007ms\nMean 0.007ms\nMedian 0.007ms"
+          },
+          {
+            "name": "Scope add_breadcrumb (breakpad)",
+            "value": 0.001268399999958092,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.001ms\nMax 0.001ms\nMean 0.001ms\nMedian 0.001ms"
+          },
+          {
+            "name": "Scope set_tag (crashpad)",
+            "value": 0.535852699999964,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.536ms\nMax 0.536ms\nMean 0.536ms\nMedian 0.536ms"
+          },
+          {
+            "name": "Scope add_breadcrumb (crashpad)",
+            "value": 0.21982749999995121,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.220ms\nMax 0.220ms\nMean 0.220ms\nMedian 0.220ms"
+          },
+          {
+            "name": "Scope set_tag (native)",
+            "value": 0.4431389000000081,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.443ms\nMax 0.443ms\nMean 0.443ms\nMedian 0.443ms"
+          },
+          {
+            "name": "Scope add_breadcrumb (native)",
+            "value": 0.15982439999993403,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.160ms\nMax 0.160ms\nMean 0.160ms\nMedian 0.160ms"
+          },
+          {
+            "name": "Logs (1 thread)",
+            "value": 0.008229000000028464,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.008ms\nMax 0.008ms\nMean 0.008ms\nMedian 0.008ms"
+          },
+          {
+            "name": "Logs (8 threads)",
+            "value": 0.05663787499997852,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.057ms\nMax 0.057ms\nMean 0.057ms\nMedian 0.057ms"
+          },
+          {
+            "name": "Logs (16 threads)",
+            "value": 0.07931756249988098,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.079ms\nMax 0.079ms\nMean 0.079ms\nMedian 0.079ms"
+          },
+          {
+            "name": "Logs (32 threads)",
+            "value": 0.15290793750001086,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.153ms\nMax 0.153ms\nMean 0.153ms\nMedian 0.153ms"
+          },
+          {
+            "name": "Library size (inproc)",
+            "value": 269312,
+            "range": "linear",
+            "unit": "bytes",
+            "extra": "Size 269312b"
+          },
+          {
+            "name": "Library size (breakpad)",
+            "value": 281088,
+            "range": "linear",
+            "unit": "bytes",
+            "extra": "Size 281088b"
+          },
+          {
+            "name": "Library size (crashpad)",
+            "value": 452096,
+            "range": "linear",
+            "unit": "bytes",
+            "extra": "Size 452096b"
+          },
+          {
+            "name": "Library size (native)",
+            "value": 263680,
+            "range": "linear",
+            "unit": "bytes",
+            "extra": "Size 263680b"
+          },
+          {
+            "name": "Stack usage (inproc)",
+            "value": 12288,
+            "unit": "bytes",
+            "extra": "Peak 12288b, Segments 2"
+          },
+          {
+            "name": "Stack usage (breakpad)",
+            "value": 9040,
+            "unit": "bytes",
+            "extra": "Peak 9040b, Segments 1"
+          },
+          {
+            "name": "Stack usage (crashpad)",
+            "value": 8120,
+            "unit": "bytes",
+            "extra": "Peak 8120b, Segments 1"
+          },
+          {
+            "name": "Stack usage (native)",
+            "value": 9008,
+            "unit": "bytes",
+            "extra": "Peak 9008b, Segments 1"
           }
         ]
       }
