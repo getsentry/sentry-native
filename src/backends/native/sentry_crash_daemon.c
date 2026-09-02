@@ -4764,8 +4764,8 @@ sentry__crash_daemon_main(pid_t app_pid, uint64_t app_tid, HANDLE event_handle,
     }
     if (crash_processed) {
         // Mark as done
-        SENTRY_DEBUG("Marking crash state as DONE");
         sentry__atomic_store(&ipc->shmem->state, SENTRY_CRASH_STATE_DONE);
+        SENTRY_INFO("Marking crash state as DONE");
     }
     if (crash_processed || !is_parent_alive(ipc->parent_handle)) {
         sentry__crash_ipc_unlink(ipc);

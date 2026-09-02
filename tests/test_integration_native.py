@@ -75,6 +75,21 @@ def test_native_capture_crash(cmake, httpserver):
     assert_native_crash(envelope)
 
 
+def test_native_null_transport_completion(cmake):
+    tmp_path = cmake(
+        ["sentry_example"],
+        {"SENTRY_BACKEND": "native", "SENTRY_TRANSPORT": "none"},
+    )
+
+    run_crash(
+        tmp_path,
+        "sentry_example",
+        ["crash"],
+        env=dict(os.environ, SENTRY_DSN=""),
+        wait_for_daemon=True,
+    )
+
+
 def test_native_on_crashed_last_run(cmake, httpserver):
     tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "native"})
     httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data("OK")
