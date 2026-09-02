@@ -2849,6 +2849,8 @@ SENTRY_API void sentry_scope_remove_fingerprint(sentry_scope_t *scope);
  *
  * Once a trace is managed by the downstream SDK using this function,
  * transactions no longer act as automatic trace boundaries.
+ *
+ * Pass a NULL or empty `parent_span_id` to start a trace without a parent.
  */
 SENTRY_API void sentry_set_trace(
     const char *trace_id, const char *parent_span_id);
