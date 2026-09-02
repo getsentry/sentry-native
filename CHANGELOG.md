@@ -9,6 +9,7 @@
 **Fixes**:
 
 - Prevent backend state races when `sentry_reinstall_backend` runs concurrently with scope observer callbacks. ([#2041](https://github.com/getsentry/sentry-native/pull/2041))
+- `sentry_set_trace` omits `parent_span_id` when the caller does not provide one, instead of serializing it as `null`. ([#2047](https://github.com/getsentry/sentry-native/pull/2047))
 
 ## 0.16.5
 
