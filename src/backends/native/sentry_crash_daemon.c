@@ -4678,7 +4678,12 @@ sentry__crash_daemon_main(pid_t app_pid, uint64_t app_tid, HANDLE event_handle,
     SENTRY_DEBUG("Signaling ready to parent");
     sentry__crash_ipc_signal_ready(ipc);
 
-    // Transport is already initialized by sentry_options_new(), just start it
+    // Transport is already initialized by sentry_options_new(), except when
+    // SENTRY_TRANSPORT=none. Mirror sentry_init() by installing the internal
+    // null transport in that case, then start it.
+    if (!options->transport) {
+        options->transport = sentry__transport_new_null();
+    }
     if (options->transport) {
         SENTRY_DEBUG("Starting transport");
         sentry__transport_startup(options->transport, options);
