@@ -171,6 +171,16 @@ SENTRY_TEST(path_joining_windows)
 
 SENTRY_TEST(path_relative_filename)
 {
+    const char unterminated[] = { 'f', 'o', 'o', '/', 'b', 'a', 'r' };
+    TEST_CHECK(sentry__path_filename_from_str(NULL) == NULL);
+    TEST_CHECK(
+        sentry__path_filename_from_str_n(unterminated, sizeof(unterminated))
+        == unterminated + 4);
+#ifdef SENTRY_PLATFORM_WINDOWS
+    TEST_CHECK_STRING_EQUAL(
+        sentry__path_filename_from_str("C:foobar.txt"), "foobar.txt");
+#endif
+
     sentry_path_t *path = sentry__path_from_str("foobar.txt");
     TEST_ASSERT(!!path);
     TEST_CHECK_STRING_EQUAL(sentry__path_filename(path), "foobar.txt");
