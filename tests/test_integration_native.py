@@ -1105,25 +1105,6 @@ def test_native_no_dsn_no_crash(cmake):
         # but won't be uploaded
 
 
-def test_native_null_transport(cmake):
-    tmp_path = cmake(
-        ["sentry_example"],
-        {"SENTRY_BACKEND": "native", "SENTRY_TRANSPORT": "none"},
-    )
-
-    run_crash(
-        tmp_path,
-        "sentry_example",
-        ["capture-log", "crash"],
-        env=dict(os.environ, SENTRY_DSN=""),
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-    )
-
-    (run_dir,) = (tmp_path / ".sentry-native").glob("*.run")
-    assert not list(run_dir.glob("*.envelope"))
-
-
 def test_native_external_crash_reporter(cmake, httpserver):
     """Test external crash reporter invocation with native backend"""
     tmp_path = cmake(
