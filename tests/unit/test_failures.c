@@ -34,5 +34,6 @@ SENTRY_TEST(init_failure)
     }
 #else
     TEST_CHECK(rv != 0);
+    TEST_CHECK(!sentry_is_enabled());
 #endif
 }

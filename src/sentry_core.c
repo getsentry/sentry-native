@@ -344,6 +344,14 @@ fail:
 }
 
 int
+sentry_is_enabled(void)
+{
+    int enabled = sentry__options_lock() != NULL;
+    sentry__options_unlock();
+    return enabled;
+}
+
+int
 sentry_flush(uint64_t timeout)
 {
     int rv = 0;

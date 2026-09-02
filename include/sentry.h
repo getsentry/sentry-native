@@ -2383,6 +2383,16 @@ SENTRY_API void sentry_options_set_backend(
 SENTRY_API int sentry_init(sentry_options_t *options);
 
 /**
+ * Returns whether the Sentry SDK has been initialized successfully and has not
+ * yet been closed.
+ *
+ * Returns 1 after `sentry_init()` completes successfully and until
+ * `sentry_close()` completes. Returns 0 before initialization, after failed
+ * initialization, and after close.
+ */
+SENTRY_API int sentry_is_enabled(void);
+
+/**
  * Instructs the transport to flush its send-queue.
  *
  * The `timeout` parameter is in milliseconds.
