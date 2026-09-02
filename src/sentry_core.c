@@ -147,17 +147,8 @@ sentry__exit_crash_handler(void)
     }
 }
 
-// TODO: remove sentry__native_init after console SDKs have been migrated to
-// platform integrations
-#if (defined(SENTRY_PLATFORM_NX) || defined(SENTRY_PLATFORM_PS)                \
-    || defined(SENTRY_PLATFORM_XBOX))                                          \
-    && !defined(SENTRY_INTEGRATION_PLATFORM)
-int
-sentry__native_init(sentry_options_t *options)
-#else
 int
 sentry_init(sentry_options_t *options)
-#endif
 {
     // pre-init here, so we can consistently use bailing out to :fail
     sentry_transport_t *transport = NULL;
