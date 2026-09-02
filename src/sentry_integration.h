@@ -14,6 +14,8 @@ typedef struct sentry_integration_s {
     void (*free_func)(void *data);
     void (*crash_handler_enter_func)(void *data); // must be async-signal-safe
     void (*crash_handler_exit_func)(void *data); // must be async-signal-safe
+    void (*on_crash_func)(
+        void *data, const sentry_ucontext_t *uctx, sentry_value_t event);
 } sentry_integration_t;
 
 #ifdef SENTRY_INTEGRATION_PLATFORM

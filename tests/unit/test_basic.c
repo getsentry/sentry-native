@@ -432,7 +432,8 @@ SENTRY_TEST(client_sdk_integrations)
             sentry_value_as_string(
                 sentry_value_get_by_index(integrations, integration_count - 1)),
             "custom");
-#if defined(SENTRY_INTEGRATION_WER) || defined(SENTRY_INTEGRATION_QT)
+#if defined(SENTRY_INTEGRATION_WER) || defined(SENTRY_INTEGRATION_QT)          \
+    || defined(SENTRY_INTEGRATION_CPP)
         size_t integration_index = integration_count - 1;
 #endif
 #ifdef SENTRY_INTEGRATION_WER
@@ -448,6 +449,13 @@ SENTRY_TEST(client_sdk_integrations)
             sentry_value_as_string(
                 sentry_value_get_by_index(integrations, integration_index)),
             "qt");
+#endif
+#ifdef SENTRY_INTEGRATION_CPP
+        integration_index--;
+        TEST_CHECK_STRING_EQUAL(
+            sentry_value_as_string(
+                sentry_value_get_by_index(integrations, integration_index)),
+            "cpp");
 #endif
     }
 

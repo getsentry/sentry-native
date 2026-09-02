@@ -3164,21 +3164,38 @@ build_native_event(const sentry_crash_context_t *ctx,
 #    error Unsupported platform
 #endif
 
-    sentry_value_t exc = sentry_value_new_object();
-    sentry_value_set_by_key(exc, "type", sentry_value_new_string(signal_name));
-
-    char value_buf[128];
-    snprintf(value_buf, sizeof(value_buf), "Fatal crash: %s", signal_name);
-    sentry_value_set_by_key(exc, "value", sentry_value_new_string(value_buf));
+    sentry_value_t exceptions = sentry_value_get_by_key(event, "exception");
+    sentry_value_t exc_values = sentry_value_get_by_key(exceptions, "values");
+    sentry_value_t exc = sentry_value_get_by_index(exc_values, 0);
+    sentry_value_t mechanism = sentry_value_get_by_key(exc, "mechanism");
+    bool has_cpp_exception = sentry__string_eq("cpp_exception",
+        sentry_value_as_string(sentry_value_get_by_key(mechanism, "type")));
+    if (!has_cpp_exception) {
+        exc = sentry_value_new_object();
+    }
+    if (sentry_value_get_type(sentry_value_get_by_key(exc, "type"))
+        != SENTRY_VALUE_TYPE_STRING) {
+        sentry_value_set_by_key(
+            exc, "type", sentry_value_new_string(signal_name));
+    }
+    if (sentry_value_get_type(sentry_value_get_by_key(exc, "value"))
+        != SENTRY_VALUE_TYPE_STRING) {
+        char value_buf[128];
+        snprintf(value_buf, sizeof(value_buf), "Fatal crash: %s", signal_name);
+        sentry_value_set_by_key(
+            exc, "value", sentry_value_new_string(value_buf));
+    }
 
     // Add mechanism
-    sentry_value_t mechanism = sentry_value_new_object();
-    sentry_value_set_by_key(
-        mechanism, "type", sentry_value_new_string(mechanism_type));
-    sentry_value_set_by_key(
-        mechanism, "synthetic", sentry_value_new_bool(true));
-    sentry_value_set_by_key(
-        mechanism, "handled", sentry_value_new_bool(handled));
+    if (!has_cpp_exception) {
+        mechanism = sentry_value_new_object();
+        sentry_value_set_by_key(
+            mechanism, "type", sentry_value_new_string(mechanism_type));
+        sentry_value_set_by_key(
+            mechanism, "synthetic", sentry_value_new_bool(true));
+        sentry_value_set_by_key(
+            mechanism, "handled", sentry_value_new_bool(handled));
+    }
 
     // Add signal metadata
     sentry_value_t meta = sentry_value_new_object();
@@ -3197,7 +3214,9 @@ build_native_event(const sentry_crash_context_t *ctx,
     sentry_value_set_by_key(meta, "signal", signal_info);
     sentry_value_set_by_key(mechanism, "meta", meta);
 
-    sentry_value_set_by_key(exc, "mechanism", mechanism);
+    if (!has_cpp_exception) {
+        sentry_value_set_by_key(exc, "mechanism", mechanism);
+    }
 
     // Add stacktrace to exception
 #if defined(SENTRY_PLATFORM_WINDOWS)
@@ -3220,11 +3239,13 @@ build_native_event(const sentry_crash_context_t *ctx,
     sentry_value_set_by_key(exc, "stacktrace", build_stacktrace_from_ctx(ctx));
 
     // Wrap exception in values array
-    sentry_value_t exceptions = sentry_value_new_object();
-    sentry_value_t exc_values = sentry_value_new_list();
-    sentry_value_append(exc_values, exc);
-    sentry_value_set_by_key(exceptions, "values", exc_values);
-    sentry_value_set_by_key(event, "exception", exceptions);
+    if (!has_cpp_exception) {
+        exceptions = sentry_value_new_object();
+        exc_values = sentry_value_new_list();
+        sentry_value_append(exc_values, exc);
+        sentry_value_set_by_key(exceptions, "values", exc_values);
+        sentry_value_set_by_key(event, "exception", exceptions);
+    }
 
     // Always add threads with names to the event JSON
     {

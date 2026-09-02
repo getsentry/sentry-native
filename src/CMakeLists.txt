@@ -271,6 +271,13 @@ if(PROSPERO)
 endif()
 
 # integrations
+if(SENTRY_INTEGRATION_CPP)
+	target_compile_definitions(sentry PRIVATE SENTRY_INTEGRATION_CPP)
+	sentry_target_sources_cwd(sentry
+		integrations/sentry_integration_cpp.cpp
+		integrations/sentry_integration_cpp.h
+	)
+endif()
 if(SENTRY_INTEGRATION_QT)
 	target_compile_definitions(sentry PRIVATE SENTRY_INTEGRATION_QT)
 	sentry_target_sources_cwd(sentry

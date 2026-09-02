@@ -691,6 +691,43 @@ class TestE2ENative:
         )
 
 
+@pytest.mark.skipif(not has_native, reason="native backend not available")
+def test_e2e_cpp(cmake):
+    """Verify that the native backend reports an uncaught C++ exception."""
+    tmp_path = cmake(
+        ["sentry_test_cpp"],
+        {
+            "SENTRY_BACKEND": "native",
+            "SENTRY_INTEGRATION_CPP": "ON",
+        },
+    )
+    env = dict(os.environ, SENTRY_DSN=os.environ["SENTRY_E2E_DSN"])
+
+    output = run_crash_e2e(
+        tmp_path,
+        "sentry_test_cpp",
+        ["e2e-test", "custom_exception"],
+        env=env,
+        wait_for_daemon=True,
+    )
+    test_id = extract_test_id(output)
+
+    event = poll_sentry_for_event(test_id)
+
+    assert event["platform"] == "native"
+    exception_data = get_exception_from_event(event)
+    assert exception_data is not None
+    assert "values" in exception_data
+
+    exception = exception_data["values"][0]
+    assert exception["type"] == "C++ Exception"
+    assert exception["value"].endswith(": custom exception")
+    assert exception["mechanism"]["type"] == "cpp_exception"
+    assert exception["mechanism"]["handled"] is False
+    assert "stacktrace" in exception
+    assert exception["stacktrace"]["frames"]
+
+
 def test_e2e_inproc(cmake):
     """Verify that inproc can send a signal-handler crash event to Sentry."""
     tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "inproc"})

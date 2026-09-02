@@ -22,3 +22,23 @@ function(sentry_get_property NAME)
 	endif()
 	set("SENTRY_${NAME}" "${prop}" PARENT_SCOPE)
 endfunction()
+
+function(sentry_check_cpp_language_features)
+	include(CheckCXXSourceCompiles)
+	unset(SENTRY_CPP_LANGUAGE_FEATURES CACHE)
+	check_cxx_source_compiles("\
+#if !defined(__cpp_exceptions) && !defined(__EXCEPTIONS) && !defined(_CPPUNWIND)\n\
+#error C++ exceptions are disabled\n\
+#endif\n\
+#if !defined(__cpp_rtti) && !defined(__GXX_RTTI) && !defined(_CPPRTTI)\n\
+#error C++ RTTI is disabled\n\
+#endif\n\
+#include <exception>\n\
+#include <typeinfo>\n\
+int main() { try { throw 1; } catch (...) { return typeid(int) == typeid(int) ? 0 : 1; } }"
+		SENTRY_CPP_LANGUAGE_FEATURES)
+	if(NOT SENTRY_CPP_LANGUAGE_FEATURES)
+		message(FATAL_ERROR
+			"SENTRY_INTEGRATION_CPP requires C++ exceptions and RTTI")
+	endif()
+endfunction()

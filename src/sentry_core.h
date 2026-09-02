@@ -153,6 +153,8 @@ bool sentry__launch_external_crash_reporter(
 
 void sentry__enter_crash_handler(void);
 void sentry__exit_crash_handler(void);
+sentry_value_t sentry__invoke_on_crash(
+    const sentry_ucontext_t *uctx, sentry_value_t event);
 
 #define SENTRY_WITH_OPTIONS(Options)                                           \
     for (const sentry_options_t *Options = sentry__options_getref(); Options;  \

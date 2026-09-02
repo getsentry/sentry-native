@@ -262,6 +262,30 @@ using `cmake -D BUILD_SHARED_LIBS=OFF ..`.
 - `SENTRY_INTEGRATION_QT` (Default: `OFF`):
   Builds the Qt integration, which turns Qt log messages into breadcrumbs.
 
+- `SENTRY_INTEGRATION_CPP` (Default: `OFF`):
+  Reports fatal events from uncaught C++ exceptions as `C++ Exception`, with
+  the dynamic `typeid()` name and the value returned by
+  `std::exception::what()` combined in the exception value. Enabling this
+  integration adds a C++ runtime dependency while the public SDK API and ABI
+  remain C. It installs a process-global `std::terminate` handler and chains to
+  the handler that was installed before Sentry. Restoration is best-effort
+  because the standard terminate API cannot atomically compare and replace
+  handlers; Sentry does not knowingly overwrite a handler installed later by
+  the application.
+
+  Metadata capture uses fixed 255-byte type and 1023-byte value limits and
+  preserves empty values. Raw `typeid()` names are implementation-defined
+  and can be mangled. Capture is best-effort during process termination. MSVC
+  exceptions intercepted before `std::terminate` are decoded from the runtime
+  exception record; malformed or unsupported records are ignored without
+  changing the native crash event.
+
+  With the `native` backend, use `SENTRY_CRASH_REPORTING_MODE_NATIVE` to
+  preserve this metadata. In the default
+  `SENTRY_CRASH_REPORTING_MODE_NATIVE_WITH_MINIDUMP` mode, server-side minidump
+  processing replaces the exception type and value with the minidump crash
+  reason.
+
 - `SENTRY_BREAKPAD_SYSTEM` (Default: `OFF`):
   This instructs the build system to use system-installed breakpad libraries instead of the in-tree version.
 
