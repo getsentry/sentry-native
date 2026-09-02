@@ -50,6 +50,131 @@
 #    if defined(SENTRY_PLATFORM_LINUX)
 #        include "unwinder/sentry_unwinder.h"
 #    endif
+#    if defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID)
+/**
+ * Read one logical line of `/proc/<pid>/maps`. A pathname longer than the
+ * buffer is truncated, and the rest of that line is consumed rather than
+ * handed to the next `fgets` as if it were a mapping of its own.
+ */
+static bool
+read_maps_line(FILE *f, char *line, size_t size)
+{
+    if (!fgets(line, size, f)) {
+        return false;
+    }
+    size_t len = strlen(line);
+    if (len > 0 && line[len - 1] == '\n') {
+        return true;
+    }
+    int c;
+    while ((c = fgetc(f)) != EOF && c != '\n') { }
+    return true;
+}
+#    endif
+#    if defined(__arm__)
+/**
+ * Every mapping of the crashed process, recorded while `/proc/<pid>/maps` is
+ * parsed for modules. Unlike the module inventory this includes anonymous and
+ * special mappings and keeps the permission bits, so the ARM32 frame-pointer
+ * walk can answer "is this a return address" (executable, not writable) and
+ * "is this a saved frame pointer" (writable, above the current frame) without
+ * guessing. `g_vma_complete` is true only when the whole file was read and
+ * recorded; `vma_snapshot_unchanged` lets the walk notice a snapshot that
+ * changed under it, since only the crashing thread is stopped while the
+ * daemon works.
+ * ARM32 only: nothing else consumes it, so nothing else pays for it.
+ */
+typedef struct {
+    uint64_t start;
+    uint64_t end;
+    bool write;
+    bool exec;
+} vma_range_t;
+static vma_range_t *g_vmas = NULL;
+static size_t g_vma_count = 0;
+static size_t g_vma_capacity = 0;
+static bool g_vma_alloc_failed = false;
+static bool g_vma_complete = false;
+
+static bool
+vma_record(uint64_t start, uint64_t end, const char *perms)
+{
+    if (g_vma_alloc_failed) {
+        return false;
+    }
+    if (g_vma_count == g_vma_capacity) {
+        size_t capacity = g_vma_capacity ? g_vma_capacity * 2 : 256;
+        if (capacity < g_vma_capacity
+            || capacity > SIZE_MAX / sizeof(vma_range_t)) {
+            g_vma_alloc_failed = true;
+            return false;
+        }
+        vma_range_t *grown = sentry_malloc(capacity * sizeof(vma_range_t));
+        if (!grown) {
+            g_vma_alloc_failed = true;
+            return false;
+        }
+        if (g_vmas) {
+            memcpy(grown, g_vmas, g_vma_count * sizeof(vma_range_t));
+            sentry_free(g_vmas);
+        }
+        g_vmas = grown;
+        g_vma_capacity = capacity;
+    }
+    g_vmas[g_vma_count].start = start;
+    g_vmas[g_vma_count].end = end;
+    g_vmas[g_vma_count].write = perms[1] == 'w';
+    g_vmas[g_vma_count].exec = perms[2] == 'x';
+    g_vma_count++;
+    return true;
+}
+
+static const vma_range_t *
+vma_containing(uint64_t addr)
+{
+    for (size_t i = 0; i < g_vma_count; i++) {
+        if (addr >= g_vmas[i].start && addr < g_vmas[i].end) {
+            return &g_vmas[i];
+        }
+    }
+    return NULL;
+}
+
+/**
+ * Re-read the mappings and answer whether every one of them still matches
+ * the recorded snapshot, field by field and in order. Called after the stack
+ * bytes have been copied, so a mapping change between the two reads is
+ * detected rather than reasoned about.
+ */
+static bool
+vma_snapshot_unchanged(pid_t pid)
+{
+    char maps_path[64];
+    snprintf(maps_path, sizeof(maps_path), "/proc/%d/maps", pid);
+    FILE *f = fopen(maps_path, "r");
+    if (!f) {
+        return false;
+    }
+    char line[1024];
+    size_t i = 0;
+    bool same = true;
+    while (same && read_maps_line(f, line, sizeof(line))) {
+        unsigned long long start, end;
+        char perms[5];
+        if (sscanf(line, "%llx-%llx %4s", &start, &end, perms) != 3) {
+            same = false;
+            break;
+        }
+        same = i < g_vma_count && g_vmas[i].start == start
+            && g_vmas[i].end == end && g_vmas[i].write == (perms[1] == 'w')
+            && g_vmas[i].exec == (perms[2] == 'x');
+        i++;
+    }
+    same = same && i == g_vma_count && !ferror(f);
+    fclose(f);
+    return same;
+}
+#    endif
 #elif defined(SENTRY_PLATFORM_WINDOWS)
 #    include <dbghelp.h>
 #    include <fcntl.h>
@@ -420,6 +545,41 @@ build_registers_from_ctx(const sentry_crash_context_t *ctx, size_t thread_idx)
         registers, "sp", sentry__value_new_addr(uctx->uc_mcontext.sp));
     sentry_value_set_by_key(
         registers, "pc", sentry__value_new_addr(uctx->uc_mcontext.pc));
+#    elif defined(__arm__)
+    sentry_value_set_by_key(
+        registers, "r0", sentry__value_new_addr(uctx->uc_mcontext.arm_r0));
+    sentry_value_set_by_key(
+        registers, "r1", sentry__value_new_addr(uctx->uc_mcontext.arm_r1));
+    sentry_value_set_by_key(
+        registers, "r2", sentry__value_new_addr(uctx->uc_mcontext.arm_r2));
+    sentry_value_set_by_key(
+        registers, "r3", sentry__value_new_addr(uctx->uc_mcontext.arm_r3));
+    sentry_value_set_by_key(
+        registers, "r4", sentry__value_new_addr(uctx->uc_mcontext.arm_r4));
+    sentry_value_set_by_key(
+        registers, "r5", sentry__value_new_addr(uctx->uc_mcontext.arm_r5));
+    sentry_value_set_by_key(
+        registers, "r6", sentry__value_new_addr(uctx->uc_mcontext.arm_r6));
+    sentry_value_set_by_key(
+        registers, "r7", sentry__value_new_addr(uctx->uc_mcontext.arm_r7));
+    sentry_value_set_by_key(
+        registers, "r8", sentry__value_new_addr(uctx->uc_mcontext.arm_r8));
+    sentry_value_set_by_key(
+        registers, "r9", sentry__value_new_addr(uctx->uc_mcontext.arm_r9));
+    sentry_value_set_by_key(
+        registers, "r10", sentry__value_new_addr(uctx->uc_mcontext.arm_r10));
+    sentry_value_set_by_key(
+        registers, "fp", sentry__value_new_addr(uctx->uc_mcontext.arm_fp));
+    sentry_value_set_by_key(
+        registers, "ip", sentry__value_new_addr(uctx->uc_mcontext.arm_ip));
+    sentry_value_set_by_key(
+        registers, "sp", sentry__value_new_addr(uctx->uc_mcontext.arm_sp));
+    sentry_value_set_by_key(
+        registers, "lr", sentry__value_new_addr(uctx->uc_mcontext.arm_lr));
+    sentry_value_set_by_key(
+        registers, "pc", sentry__value_new_addr(uctx->uc_mcontext.arm_pc));
+    sentry_value_set_by_key(
+        registers, "cpsr", sentry__value_new_addr(uctx->uc_mcontext.arm_cpsr));
 #    endif
 
 #elif defined(SENTRY_PLATFORM_MACOS)
@@ -605,6 +765,41 @@ read_stack_value(const uint8_t *stack_buf, uint64_t stack_start,
     *out_value = (uint64_t)value;
     return true;
 }
+
+#if defined(__arm__)
+/**
+ * Does a (saved fp, return address) pair look like a frame record?
+ *
+ * Judged against the crashed process's mappings. A return address must be in
+ * an executable mapping that is not writable: that is what separates code
+ * from a stack (writable, and on some systems executable too) and from the
+ * heap. A non-zero saved fp must be above the current frame and in a
+ * writable mapping: stacks are writable, code is not, so the other compiler's
+ * record shape - whose "saved fp" is really a return address - is rejected
+ * even when code sits numerically below the stack. The walk reads frame
+ * records out of the one captured window, so a chain is followed only while
+ * it stays inside that window; a signal stack or a split stack that links to
+ * a lower or non-contiguous segment ends the walk. Not walked either: JIT
+ * code in writable mappings.
+ */
+static bool
+arm_frame_record_plausible(
+    uint64_t saved_fp, uint64_t return_addr, uint64_t current_fp)
+{
+    const vma_range_t *code = vma_containing(return_addr);
+    if (!code || !code->exec || code->write) {
+        return false;
+    }
+    if (saved_fp == 0) {
+        return true;
+    }
+    if (saved_fp <= current_fp) {
+        return false;
+    }
+    const vma_range_t *stack = vma_containing(saved_fp);
+    return stack && stack->write;
+}
+#endif
 
 #if defined(SENTRY_PLATFORM_MACOS) && defined(__aarch64__)
 #    define SENTRY__STRIP_PAC(addr) ((addr) & 0x00007FFFFFFFFFFFULL)
@@ -1105,6 +1300,18 @@ build_stacktrace_for_thread(
     if (stack_buf && fp != 0 && frame_count < MAX_STACK_FRAMES) {
         uint64_t current_fp = fp;
         int walk_count = 0;
+#if defined(__arm__)
+        // Fail closed: without a complete and still-current picture of the
+        // mappings neither frame-record shape can be told from the other,
+        // and guessing would emit fabricated frames rather than a shorter,
+        // honest stack. Only the crashing thread is stopped, so the mappings
+        // are re-read now that the stack bytes are in hand.
+        if (!g_vma_complete || !vma_snapshot_unchanged(ctx->crashed_pid)) {
+            SENTRY_TRACE("Mappings incomplete or changed; skipping the ARM32 "
+                         "frame-pointer walk");
+            walk_count = MAX_STACK_FRAMES;
+        }
+#endif
 
         // Check if FP is within captured stack range
         uint64_t stack_end = stack_start + stack_size;
@@ -1118,6 +1325,44 @@ build_stacktrace_for_thread(
             uint64_t saved_fp = 0;
             uint64_t return_addr = 0;
 
+#if defined(__arm__)
+            // Two frame-record shapes coexist in one ARM32 process. GCC's
+            // `push {.., fp, lr}; add fp, sp, #N` leaves fp on the LR slot
+            // ([fp-4] = saved fp, [fp] = return address), while clang/LLVM's
+            // leaves it on the saved-fp slot ([fp] = saved fp, [fp+4] = return
+            // address). Read both records and keep the one shaped like a
+            // frame.
+            {
+                uint64_t fp_llvm = 0, ret_llvm = 0, fp_gcc = 0, ret_gcc = 0;
+                bool ok_llvm = read_stack_value(stack_buf, stack_start,
+                                   stack_size, current_fp, &fp_llvm)
+                    && read_stack_value(stack_buf, stack_start, stack_size,
+                        current_fp + sizeof(uintptr_t), &ret_llvm);
+                bool ok_gcc
+                    = read_stack_value(stack_buf, stack_start, stack_size,
+                          current_fp - sizeof(uintptr_t), &fp_gcc)
+                    && read_stack_value(stack_buf, stack_start, stack_size,
+                        current_fp, &ret_gcc);
+                if (ok_llvm
+                    && arm_frame_record_plausible(
+                        fp_llvm, ret_llvm, current_fp)) {
+                    saved_fp = fp_llvm;
+                    return_addr = ret_llvm;
+                } else if (ok_gcc
+                    && arm_frame_record_plausible(
+                        fp_gcc, ret_gcc, current_fp)) {
+                    saved_fp = fp_gcc;
+                    return_addr = ret_gcc;
+                } else {
+                    SENTRY_TRACEF("No frame record at FP=0x%llx (stack: 0x%llx "
+                                  "- 0x%llx)",
+                        (unsigned long long)current_fp,
+                        (unsigned long long)stack_start,
+                        (unsigned long long)stack_end);
+                    break;
+                }
+            }
+#else
             // Read saved frame pointer and return address
             // Frame layout: [FP] = saved FP, [FP + pointer size] = return addr
             if (!read_stack_value(stack_buf, stack_start, stack_size,
@@ -1135,6 +1380,7 @@ build_stacktrace_for_thread(
                     (unsigned long long)(current_fp + sizeof(uintptr_t)));
                 break;
             }
+#endif
             saved_fp = SENTRY__STRIP_PAC(saved_fp);
             return_addr = SENTRY__STRIP_PAC(return_addr);
 
@@ -1718,9 +1964,14 @@ capture_modules_from_proc_maps(sentry_crash_context_t *ctx)
 
     char line[1024];
     ctx->module_count = 0;
+#    if defined(__arm__)
+    g_vma_count = 0;
+    g_vma_complete = false;
+    g_vma_alloc_failed = false;
+    bool vma_ok = true;
+#    endif
 
-    while (fgets(line, sizeof(line), f)
-        && ctx->module_count < SENTRY_CRASH_MAX_MODULES) {
+    while (read_maps_line(f, line, sizeof(line))) {
 
         // Parse line: "start-end perms offset dev inode pathname"
         unsigned long long start, end, offset;
@@ -1731,8 +1982,25 @@ capture_modules_from_proc_maps(sentry_crash_context_t *ctx)
             perms, &offset, &pathname_offset);
 
         if (parsed < 4) {
+#    if defined(__arm__)
+            vma_ok = false; // a line this parser cannot read is a mapping it
+                            // does not know about
+#    endif
             continue;
         }
+
+#    if defined(__arm__)
+        if (!vma_record(start, end, perms)) {
+            vma_ok = false;
+        }
+        if (ctx->module_count >= SENTRY_CRASH_MAX_MODULES) {
+            continue; // module inventory is full; keep reading for mappings
+        }
+#    else
+        if (ctx->module_count >= SENTRY_CRASH_MAX_MODULES) {
+            break;
+        }
+#    endif
 
         // Must have a valid pathname (not [stack], [heap], etc.)
         if (pathname_offset <= 0 || line[pathname_offset] == '\0'
@@ -1808,6 +2076,11 @@ capture_modules_from_proc_maps(sentry_crash_context_t *ctx)
         ctx->module_count++;
     }
 
+#    if defined(__arm__)
+    g_vma_complete = vma_ok && !ferror(f);
+    SENTRY_DEBUGF("Captured %zu mappings (%s) from /proc/%d/maps", g_vma_count,
+        g_vma_complete ? "complete" : "INCOMPLETE", ctx->crashed_pid);
+#    endif
     fclose(f);
     SENTRY_DEBUGF("Captured %u modules from /proc/%d/maps", ctx->module_count,
         ctx->crashed_pid);

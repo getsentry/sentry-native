@@ -11,6 +11,7 @@
 
 - Native/Linux: parse minidump-writer ELF build-id notes with `sentry__elf_find_note`. ([#2055](https://github.com/getsentry/sentry-native/pull/2055))
 - Native: Read frame records at pointer width in the crash daemon's frame-pointer walk, so 32-bit targets no longer read two stack slots per pointer. ([#2052](https://github.com/getsentry/sentry-native/pull/2052))
+- Native: Report ARM32 registers for Linux crash events, and walk both r11-based ARM32 frame-record shapes (GCC's and clang's; Thumb r7 chains are not walked) in the crash daemon. ([#2053](https://github.com/getsentry/sentry-native/pull/2053))
 - Prevent backend state races when `sentry_reinstall_backend` runs concurrently with scope observer callbacks. ([#2041](https://github.com/getsentry/sentry-native/pull/2041))
 - `sentry_set_trace` omits `parent_span_id` when the caller does not provide one, instead of serializing it as `null`. ([#2047](https://github.com/getsentry/sentry-native/pull/2047))
 - Native/Linux i386: write valid thread stack descriptors to minidumps when stack addresses use the upper half of the 32-bit address space. ([#2054](https://github.com/getsentry/sentry-native/pull/2054))
