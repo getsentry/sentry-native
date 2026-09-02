@@ -9,6 +9,7 @@
 **Fixes**:
 
 - Prevent backend state races when `sentry_reinstall_backend` runs concurrently with scope observer callbacks. ([#2041](https://github.com/getsentry/sentry-native/pull/2041))
+- Native: clean up stale envelopes after crashes with `SENTRY_TRANSPORT=none`. ([#2048](https://github.com/getsentry/sentry-native/pull/2048))
 
 ## 0.16.5
 
