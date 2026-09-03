@@ -1,4 +1,4 @@
-name: Credit External Contributors
+name: Contrib
 
 on:
   pull_request_target:
@@ -17,7 +17,7 @@ on:
         type: string
 
 jobs:
-  update-changelog:
+  update_changelog:
     name: Update Changelog
     permissions:
       contents: write
@@ -40,7 +40,7 @@ jobs:
           ref: master
 
       - name: Credit contributor
-        run: python3 scripts/credit-contributors.py "$CONTRIBUTOR" --release "$RELEASE"
+        run: python3 scripts/contrib.py "$CONTRIBUTOR" --release "$RELEASE"
 
       - name: Generate token
         id: app-token
@@ -57,7 +57,7 @@ jobs:
           token: ${{ steps.app-token.outputs.token }}
           commit-message: "chore: Update CHANGELOG.md"
           title: "chore: credit external contributor"
-          branch: external-contributor/${{ env.CONTRIBUTOR }}
+          branch: chore/contrib-${{ github.event.number || github.run_id }}
           base: master
           delete-branch: true
           body: >-
