@@ -1428,7 +1428,7 @@ ptrace_capture_thread(
 #    elif defined(__aarch64__)
     ptrace_sp = ptrace_ctx.uc_mcontext.sp;
 #    elif defined(__i386__)
-    ptrace_sp = ptrace_ctx.uc_mcontext.gregs[REG_ESP];
+    ptrace_sp = (uint32_t)ptrace_ctx.uc_mcontext.gregs[REG_ESP];
 #    elif defined(__arm__)
     ptrace_sp = ptrace_ctx.uc_mcontext.arm_sp;
 #    endif
@@ -1515,7 +1515,7 @@ write_thread_list_stream(minidump_writer_t *writer, minidump_directory_t *dir)
 #    elif defined(__aarch64__)
             sp = uctx->uc_mcontext.sp;
 #    elif defined(__i386__)
-            sp = uctx->uc_mcontext.gregs[REG_ESP];
+            sp = (uint32_t)uctx->uc_mcontext.gregs[REG_ESP];
 #    elif defined(__arm__)
             sp = uctx->uc_mcontext.arm_sp;
 #    endif
