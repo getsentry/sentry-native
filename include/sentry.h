@@ -2383,6 +2383,16 @@ SENTRY_API void sentry_options_set_backend(
 SENTRY_API int sentry_init(sentry_options_t *options);
 
 /**
+ * Returns whether the Sentry SDK has been initialized successfully and has not
+ * yet been closed.
+ *
+ * Returns 1 after `sentry_init()` completes successfully and until
+ * `sentry_close()` completes. Returns 0 before initialization, after failed
+ * initialization, and after close.
+ */
+SENTRY_API int sentry_is_enabled(void);
+
+/**
  * Instructs the transport to flush its send-queue.
  *
  * The `timeout` parameter is in milliseconds.
@@ -2849,6 +2859,8 @@ SENTRY_API void sentry_scope_remove_fingerprint(sentry_scope_t *scope);
  *
  * Once a trace is managed by the downstream SDK using this function,
  * transactions no longer act as automatic trace boundaries.
+ *
+ * Pass a NULL or empty `parent_span_id` to start a trace without a parent.
  */
 SENTRY_API void sentry_set_trace(
     const char *trace_id, const char *parent_span_id);

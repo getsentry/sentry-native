@@ -590,12 +590,19 @@ static bool
 read_stack_value(const uint8_t *stack_buf, uint64_t stack_start,
     uint64_t stack_size, uint64_t addr, uint64_t *out_value)
 {
-    if (addr < stack_start
-        || addr + sizeof(uint64_t) > stack_start + stack_size) {
+    // Range-check by subtraction: `addr` comes from a frame pointer in a
+    // crashed process, and a corrupted value near the top of the address
+    // space would wrap an `addr + size` sum past the naive comparison.
+    if (addr < stack_start) {
         return false;
     }
     uint64_t offset = addr - stack_start;
-    memcpy(out_value, stack_buf + offset, sizeof(uint64_t));
+    if (offset > stack_size || stack_size - offset < sizeof(uintptr_t)) {
+        return false;
+    }
+    uintptr_t value = 0;
+    memcpy(&value, stack_buf + (size_t)offset, sizeof(value));
+    *out_value = (uint64_t)value;
     return true;
 }
 
@@ -1112,7 +1119,7 @@ build_stacktrace_for_thread(
             uint64_t return_addr = 0;
 
             // Read saved frame pointer and return address
-            // Frame layout: [FP+0] = saved FP, [FP+8] = return addr
+            // Frame layout: [FP] = saved FP, [FP + pointer size] = return addr
             if (!read_stack_value(stack_buf, stack_start, stack_size,
                     current_fp, &saved_fp)) {
                 SENTRY_TRACEF(
@@ -1123,9 +1130,9 @@ build_stacktrace_for_thread(
                 break;
             }
             if (!read_stack_value(stack_buf, stack_start, stack_size,
-                    current_fp + sizeof(uint64_t), &return_addr)) {
+                    current_fp + sizeof(uintptr_t), &return_addr)) {
                 SENTRY_TRACEF("Cannot read return addr at 0x%llx",
-                    (unsigned long long)(current_fp + sizeof(uint64_t)));
+                    (unsigned long long)(current_fp + sizeof(uintptr_t)));
                 break;
             }
             saved_fp = SENTRY__STRIP_PAC(saved_fp);

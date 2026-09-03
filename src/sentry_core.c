@@ -344,6 +344,14 @@ fail:
 }
 
 int
+sentry_is_enabled(void)
+{
+    int enabled = sentry__options_lock() != NULL;
+    sentry__options_unlock();
+    return enabled;
+}
+
+int
 sentry_flush(uint64_t timeout)
 {
     int rv = 0;
@@ -1367,8 +1375,10 @@ sentry_set_trace_n(const char *trace_id, size_t trace_id_len,
 
         sentry_value_set_by_key(context, "trace_id",
             sentry_value_new_string_n(trace_id, trace_id_len));
-        sentry_value_set_by_key(context, "parent_span_id",
-            sentry_value_new_string_n(parent_span_id, parent_span_id_len));
+        if (parent_span_id && parent_span_id_len) {
+            sentry_value_set_by_key(context, "parent_span_id",
+                sentry_value_new_string_n(parent_span_id, parent_span_id_len));
+        }
 
         sentry_uuid_t span_id = sentry_uuid_new_v4();
         sentry_value_set_by_key(
