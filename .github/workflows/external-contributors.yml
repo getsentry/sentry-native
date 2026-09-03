@@ -1,0 +1,65 @@
+name: Credit External Contributors
+
+on:
+  pull_request_target:
+    types: [closed]
+    branches: [master]
+  workflow_dispatch:
+    inputs:
+      contributor:
+        description: GitHub username
+        required: true
+        type: string
+      release:
+        description: Changelog section
+        required: false
+        default: Unreleased
+        type: string
+
+jobs:
+  update-changelog:
+    name: Update Changelog
+    permissions:
+      contents: write
+      pull-requests: write
+    runs-on: ubuntu-24.04
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.pull_request.merged == true &&
+       github.event.pull_request.author_association != 'COLLABORATOR' &&
+       github.event.pull_request.author_association != 'MEMBER' &&
+       github.event.pull_request.author_association != 'OWNER' &&
+       endsWith(github.event.pull_request.user.login, '[bot]') == false &&
+       endsWith(github.event.pull_request.user.login, '-bot') == false)
+    env:
+      CONTRIBUTOR: ${{ inputs.contributor || github.event.pull_request.user.login }}
+      RELEASE: ${{ inputs.release || 'Unreleased' }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: master
+
+      - name: Credit contributor
+        run: python3 scripts/credit-contributors.py "$CONTRIBUTOR" --release "$RELEASE"
+
+      - name: Generate token
+        id: app-token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          app-id: ${{ vars.SDK_MAINTAINER_BOT_APP_ID }}
+          private-key: ${{ secrets.SDK_MAINTAINER_BOT_PRIVATE_KEY }}
+          permission-contents: write
+          permission-pull-requests: write
+
+      - name: Create PR
+        uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v8.1.1
+        with:
+          token: ${{ steps.app-token.outputs.token }}
+          commit-message: "chore: Update CHANGELOG.md"
+          title: "chore: credit external contributor"
+          branch: external-contributor/${{ env.CONTRIBUTOR }}
+          base: master
+          delete-branch: true
+          body: >-
+            Credits @${{ env.CONTRIBUTOR }} in the ${{ env.RELEASE }} section
+            of CHANGELOG.md.
