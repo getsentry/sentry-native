@@ -2,6 +2,7 @@
 
 import argparse
 import re
+import sys
 from pathlib import Path
 
 
@@ -16,8 +17,8 @@ def unique_contributors(contributors):
 def update_changelog(contents, release, contributors):
     heading = re.search(rf"^## {re.escape(release)}$", contents, re.MULTILINE)
     if not heading:
-        print(f"Release {release} not found in the changelog")
-        return contents
+        print(f"Release {release} not found in the changelog", file=sys.stderr)
+        return None
 
     end = contents.find("\n## ", heading.end())
     if end == -1:
@@ -35,13 +36,16 @@ def update_changelog(contents, release, contributors):
             )
         }
 
+    requested = unique_contributors(contributors)
     contributors = [
         contributor
-        for contributor in unique_contributors(contributors)
+        for contributor in requested
         if contributor.lower() not in existing
     ]
     if not contributors:
-        print(f"All contributors are already credited in {release}")
+        credited = ", ".join(f"@{contributor}" for contributor in requested)
+        verb = "is" if len(requested) == 1 else "are"
+        print(f"{credited} {verb} already credited in {release}")
         return contents
 
     entries = "\n".join(
@@ -70,9 +74,9 @@ def main():
     changelog = Path(__file__).resolve().parents[1] / "CHANGELOG.md"
     contents = changelog.read_text()
     updated = update_changelog(contents, args.release, args.contributors)
-    if contents != updated:
+    if updated is not None and contents != updated:
         changelog.write_text(updated)
-    return 0
+    return int(updated is None)
 
 
 if __name__ == "__main__":
