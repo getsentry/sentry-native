@@ -63,6 +63,11 @@
 - Native/Windows: improve crash-processing performance for applications with many threads. ([#2018](https://github.com/getsentry/sentry-native/pull/2018))
 - Prevent a race between SDK reinitialization and cleanup of the previous curl client when libcurl is linked directly. ([#2015](https://github.com/getsentry/sentry-native/pull/2015))
 
+**Thank you**:
+
+- [GtechGovind](https://github.com/GtechGovind)
+- [HuzaifaAbdulRehman](https://github.com/HuzaifaAbdulRehman)
+
 ## 0.16.3
 
 **Features**:
@@ -95,6 +100,10 @@
 - `sentry_attachment_set_filename`, `sentry_attachment_set_type`, and `sentry_attachment_set_content_type` now flush the scope, so changes applied after `sentry_attach_file`/`sentry_attach_bytes` also apply to hard-crash events instead of only to normal events. ([#1934](https://github.com/getsentry/sentry-native/pull/1934))
 - Crashpad: fix a crash when calling `sentry_init` before C++ dynamic initializers have run. ([#1930](https://github.com/getsentry/sentry-native/issues/1930), [mini_chromium#8](https://github.com/getsentry/mini_chromium/pull/8))
 - Reduce the size of native-generated minidumps on Windows ([#1929](https://github.com/getsentry/sentry-native/pull/1929))
+
+**Thank you**:
+
+- [fallintoplace](https://github.com/fallintoplace)
 
 ## 0.16.1
 
@@ -132,6 +141,10 @@
 - Native/Linux: add support for `sentry_options_set_handler_strategy(SENTRY_HANDLER_STRATEGY_CHAIN_AT_START)`. ([#1912](https://github.com/getsentry/sentry-native/pull/1912))
 - Windows: the default thread stack guarantee is now actually applied in static builds and is also set by the native backend, so crash handling can run after a stack overflow. ([#1918](https://github.com/getsentry/sentry-native/pull/1918))
 - Include `before_send` attachments with local scopes. ([#1922](https://github.com/getsentry/sentry-native/pull/1922))
+
+**Thank you**:
+
+- [HuzaifaAbdulRehman](https://github.com/HuzaifaAbdulRehman)
 
 ## 0.15.4
 
@@ -254,6 +267,10 @@
 
 - Protect CMAKE_SYSTEM_VERSION to avoid empty values when cross-building. ([#1720](https://github.com/getsentry/sentry-native/pull/1720))
 
+**Thank you**:
+
+- [uilianries](https://github.com/uilianries)
+
 ## 0.14.1
 
 **Features**:
@@ -329,6 +346,10 @@
 - Native: build for 64-bit ARM on Linux with musl. ([#1665](https://github.com/getsentry/sentry-native/pull/1665))
 - Native/Linux: prevent shared memory leak on crash. ([#1664](https://github.com/getsentry/sentry-native/pull/1664))
 - Native: skip scope flush during crash handling. ([#1668](https://github.com/getsentry/sentry-native/pull/1668))
+
+**Thank you**:
+
+- [HrMathematiker](https://github.com/HrMathematiker)
 
 ## 0.13.7
 
