@@ -936,45 +936,16 @@ extract_elf_build_id(const char *elf_path, uint8_t *build_id, size_t max_len)
             if (lseek(fd, sections[i].sh_offset, SEEK_SET)
                     == (off_t)sections[i].sh_offset
                 && read(fd, note_buf, note_size) == (ssize_t)note_size) {
-
-                // Parse notes
-                uint8_t *ptr = (uint8_t *)note_buf;
-                uint8_t *end = ptr + note_size;
-
-                while (ptr + 12 <= end) {
-#    if defined(__x86_64__) || defined(__aarch64__)
-                    Elf64_Nhdr *nhdr = (Elf64_Nhdr *)ptr;
-#    else
-                    Elf32_Nhdr *nhdr = (Elf32_Nhdr *)ptr;
-#    endif
-                    ptr += sizeof(*nhdr);
-
-                    // Use aligned sizes in bounds check since pointer advances
-                    // by aligned amounts. Also check for zero advancement to
-                    // prevent infinite loop on malformed notes (e.g., overflow
-                    // on 32-bit when n_namesz/n_descsz are near UINT32_MAX)
-                    size_t aligned_namesz = ((nhdr->n_namesz + 3) & ~3);
-                    size_t aligned_descsz = ((nhdr->n_descsz + 3) & ~3);
-                    if (aligned_namesz == 0 && aligned_descsz == 0)
-                        break; // Prevent infinite loop
-                    if (ptr + aligned_namesz + aligned_descsz > end)
-                        break;
-
-                    // Check if this is GNU Build ID (type 3, name "GNU\0")
-                    if (nhdr->n_type == 3 && nhdr->n_namesz == 4
-                        && memcmp(ptr, "GNU", 4) == 0) {
-
-                        ptr += aligned_namesz;
-                        size_t len = nhdr->n_descsz < max_len ? nhdr->n_descsz
-                                                              : max_len;
-                        memcpy(build_id, ptr, len);
-                        build_id_len = len;
-                        sentry_free(note_buf);
-                        goto done;
-                    }
-
-                    ptr += aligned_namesz;
-                    ptr += aligned_descsz;
+                // Find the GNU build-id note. SHT_NOTE uses 4-byte alignment.
+                size_t desc_size = 0;
+                const uint8_t *desc = sentry__elf_find_note(note_buf, note_size,
+                    4, NT_GNU_BUILD_ID, "GNU", 4, &desc_size);
+                if (desc) {
+                    size_t len = desc_size < max_len ? desc_size : max_len;
+                    memcpy(build_id, desc, len);
+                    build_id_len = len;
+                    sentry_free(note_buf);
+                    goto done;
                 }
             }
 
