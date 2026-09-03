@@ -18,14 +18,17 @@ SENTRY_TEST(http_response_set_header_sets_known_headers)
     sentry_http_response_set_header(
         &resp, "x-sentry-rate-limits", "60:error:key");
     sentry_http_response_set_header(&resp, "location", "/uploads/1");
+    sentry_http_response_set_header(&resp, "upload-offset", "42");
 
     TEST_CHECK_STRING_EQUAL(resp.retry_after, "60");
     TEST_CHECK_STRING_EQUAL(resp.x_sentry_rate_limits, "60:error:key");
     TEST_CHECK_STRING_EQUAL(resp.location, "/uploads/1");
+    TEST_CHECK_STRING_EQUAL(resp.upload_offset, "42");
 
     sentry_free(resp.retry_after);
     sentry_free(resp.x_sentry_rate_limits);
     sentry_free(resp.location);
+    sentry_free(resp.upload_offset);
 }
 
 SENTRY_TEST(http_response_set_header_is_case_insensitive)
@@ -37,14 +40,17 @@ SENTRY_TEST(http_response_set_header_is_case_insensitive)
     sentry_http_response_set_header(
         &resp, "X-SENTRY-RATE-LIMITS", "30:error:key");
     sentry_http_response_set_header(&resp, "Location", "/uploads/2");
+    sentry_http_response_set_header(&resp, "Upload-Offset", "84");
 
     TEST_CHECK_STRING_EQUAL(resp.retry_after, "30");
     TEST_CHECK_STRING_EQUAL(resp.x_sentry_rate_limits, "30:error:key");
     TEST_CHECK_STRING_EQUAL(resp.location, "/uploads/2");
+    TEST_CHECK_STRING_EQUAL(resp.upload_offset, "84");
 
     sentry_free(resp.retry_after);
     sentry_free(resp.x_sentry_rate_limits);
     sentry_free(resp.location);
+    sentry_free(resp.upload_offset);
 }
 
 SENTRY_TEST(http_response_set_header_ignores_unknown_headers)
@@ -58,6 +64,7 @@ SENTRY_TEST(http_response_set_header_ignores_unknown_headers)
     TEST_CHECK(resp.retry_after == NULL);
     TEST_CHECK(resp.x_sentry_rate_limits == NULL);
     TEST_CHECK(resp.location == NULL);
+    TEST_CHECK(resp.upload_offset == NULL);
 }
 
 SENTRY_TEST(http_response_set_header_overwrites_previous_value)
@@ -165,6 +172,7 @@ SENTRY_TEST(http_request_accessors_file_backed_body)
     req->headers_len = 0;
     req->body_path = sentry__path_from_str("/tmp/does-not-need-to-exist");
     req->body_len = 100 * 1024 * 1024;
+    req->body_offset = 42;
 
     size_t len = 0;
     TEST_CHECK(sentry_http_request_get_body(req, &len) == NULL);
@@ -174,6 +182,8 @@ SENTRY_TEST(http_request_accessors_file_backed_body)
     const char *path = sentry_http_request_get_body_file_path(req, &len);
     TEST_CHECK_STRING_EQUAL(path, "/tmp/does-not-need-to-exist");
     TEST_CHECK_INT_EQUAL((int)len, 100 * 1024 * 1024);
+    TEST_CHECK_INT_EQUAL(
+        (int)sentry_http_request_get_body_file_offset(req), 42);
 
 #ifdef SENTRY_PLATFORM_WINDOWS
     // The wide variant must stay in sync with the narrow one, since that is
@@ -210,6 +220,7 @@ SENTRY_TEST(http_request_accessors_bodyless_request)
     len = 123;
     TEST_CHECK(sentry_http_request_get_body_file_path(req, &len) == NULL);
     TEST_CHECK_INT_EQUAL((int)len, 0);
+    TEST_CHECK_INT_EQUAL((int)sentry_http_request_get_body_file_offset(req), 0);
 
     sentry__prepared_http_request_free(req);
 }
@@ -223,6 +234,8 @@ SENTRY_TEST(http_request_accessors_null_safety)
     size_t len = 0;
     TEST_CHECK(sentry_http_request_get_body(NULL, &len) == NULL);
     TEST_CHECK(sentry_http_request_get_body_file_path(NULL, &len) == NULL);
+    TEST_CHECK_INT_EQUAL(
+        (int)sentry_http_request_get_body_file_offset(NULL), 0);
 }
 
 static void *
