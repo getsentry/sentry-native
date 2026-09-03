@@ -9,6 +9,7 @@
 
 **Fixes**:
 
+- Native/Linux: parse minidump-writer ELF build-id notes with `sentry__elf_find_note`.
 - Prevent backend state races when `sentry_reinstall_backend` runs concurrently with scope observer callbacks. ([#2041](https://github.com/getsentry/sentry-native/pull/2041))
 
 ## 0.16.5
