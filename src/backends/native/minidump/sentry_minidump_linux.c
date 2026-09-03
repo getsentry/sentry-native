@@ -938,8 +938,8 @@ extract_elf_build_id(const char *elf_path, uint8_t *build_id, size_t max_len)
                 && read(fd, note_buf, note_size) == (ssize_t)note_size) {
                 // Find the GNU build-id note. SHT_NOTE uses 4-byte alignment.
                 size_t desc_size = 0;
-                const uint8_t *desc = sentry__elf_find_note(note_buf,
-                    note_size, 4, NT_GNU_BUILD_ID, "GNU", 4, &desc_size);
+                const uint8_t *desc = sentry__elf_find_note(note_buf, note_size,
+                    4, NT_GNU_BUILD_ID, "GNU", 4, &desc_size);
                 if (desc) {
                     size_t len = desc_size < max_len ? desc_size : max_len;
                     memcpy(build_id, desc, len);
