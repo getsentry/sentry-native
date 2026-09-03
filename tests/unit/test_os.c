@@ -102,6 +102,7 @@ const struct distro test_dists[] = {
     { .name = "fedora", .version = "31" },
     { .name = "pop", .version = "22.04" },
     { .name = "sled", .version = "12.3" },
+    { .name = "\"", .version = "" },
 };
 
 const size_t num_test_dists = sizeof(test_dists) / sizeof(struct distro);

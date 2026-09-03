@@ -91,7 +91,17 @@ sentry__page_allocator_alloc(size_t size)
 
     // make sure the requested size is correctly aligned
     size_t diff = size % ALIGN;
-    size = size + ALIGN - diff;
+    size_t padding = ALIGN - diff;
+    if (size > SIZE_MAX - padding) {
+        return NULL;
+    }
+    size += padding;
+
+    if (size > SIZE_MAX - sizeof(struct page_header)
+        || size + sizeof(struct page_header)
+            > SIZE_MAX - g_alloc->page_size + 1) {
+        return NULL;
+    }
 
     char *rv = NULL;
 
