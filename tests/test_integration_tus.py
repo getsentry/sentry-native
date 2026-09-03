@@ -327,7 +327,7 @@ def test_tus_resume_after_shutdown(cmake, httpserver):
         method="HEAD",
         headers={"tus-resumable": "1.0.0"},
         query_string=upload_qs,
-    ).respond_with_data("", status=200, headers={"Upload-Offset": str(upload_offset)})
+    ).respond_with_data("", status=204, headers={"Upload-Offset": str(upload_offset)})
 
     httpserver.expect_oneshot_request(
         upload_uri,

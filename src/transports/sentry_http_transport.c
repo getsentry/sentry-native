@@ -617,7 +617,7 @@ tus_upload_file(http_transport_state_t *state, const sentry_path_t *cache_path,
             return status_code;
         }
 
-        bool valid_offset = resp.status_code == 200
+        bool valid_offset = (resp.status_code == 200 || resp.status_code == 204)
             && tus_parse_upload_offset(
                 resp.upload_offset, file_size, &upload_offset);
         int status = resp.status_code;
