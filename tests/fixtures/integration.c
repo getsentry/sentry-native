@@ -793,6 +793,9 @@ main(int argc, char **argv)
     if (has_arg(argc, argv, "log")) {
         sentry_options_set_debug(options, 1);
     }
+    if (has_arg(argc, argv, "trace")) {
+        sentry_options_set_logger_level(options, SENTRY_LEVEL_TRACE);
+    }
 
     if (has_arg(argc, argv, "attachment")) {
         // assuming the example / test is run directly from the cmake build
@@ -1145,7 +1148,7 @@ main(int argc, char **argv)
             fclose(f);
             sentry_value_t attachment = sentry_attachment_from_file(large_file);
             sentry_attachment_set_type(
-                attachment, SENTRY_ATTACHMENT_TYPE_MINIDUMP);
+                attachment, SENTRY_ATTACHMENT_TYPE_GENERIC);
             sentry_add_attachment(attachment);
         }
     }

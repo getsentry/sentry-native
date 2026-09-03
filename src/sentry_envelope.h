@@ -23,6 +23,7 @@ typedef struct {
     const char *location;
     const char *content_type;
     const char *attachment_type;
+    size_t chunk_size;
     sentry_value_t _owner;
 } sentry_attachment_ref_t;
 
@@ -227,8 +228,8 @@ void sentry__attachment_ref_cleanup(sentry_attachment_ref_t *ref);
 /**
  * Resolves an attachment-ref item with a remote TUS location.
  */
-bool sentry__envelope_item_resolve_attachment_ref(
-    sentry_envelope_item_t *item, const char *location);
+bool sentry__envelope_item_resolve_attachment_ref(sentry_envelope_item_t *item,
+    const char *path, const char *location, size_t chunk_size);
 
 /**
  * If `envelope` is raw, parse it in place into a structured envelope.

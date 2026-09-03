@@ -65,12 +65,14 @@ SENTRY_TEST(tus_request_preparation)
         }
         if (strcmp(req->headers[i].key, "upload-metadata") == 0) {
             has_upload_metadata = true;
+            TEST_CHECK_STRING_EQUAL(req->headers[i].value,
+                "sentry eyJhdHRhY2htZW50X3R5cGUiOiJldmVudC5hdHRhY2htZW50In0=");
         }
     }
     TEST_CHECK(has_tus_resumable);
     TEST_CHECK(has_upload_length);
     TEST_CHECK(!has_content_type);
-    TEST_CHECK(!has_upload_metadata);
+    TEST_CHECK(has_upload_metadata);
 
     sentry__prepared_http_request_free(req);
 
@@ -96,7 +98,7 @@ SENTRY_TEST(tus_request_preparation)
 
     const char *location = "https://sentry.invalid/api/42/upload/abc123/";
     req = sentry__prepare_tus_upload_request(
-        location, test_file_path, 9, dsn, NULL);
+        location, test_file_path, 9, 0, 9, dsn, NULL);
     TEST_CHECK(!!req);
     TEST_CHECK_STRING_EQUAL(req->method, "PATCH");
     TEST_CHECK_STRING_EQUAL(req->url, location);
@@ -127,6 +129,29 @@ SENTRY_TEST(tus_request_preparation)
     TEST_CHECK(has_upload_offset);
 
     sentry__prepared_http_request_free(req);
+
+    // Test a resumed upload starts at the requested file offset.
+    req = sentry__prepare_tus_upload_request(
+        location, test_file_path, 9, 4, 3, dsn, NULL);
+    TEST_CHECK(!!req);
+    TEST_CHECK_INT_EQUAL(req->body_offset, 4);
+    TEST_CHECK_INT_EQUAL(req->body_len, 3);
+    has_upload_offset = false;
+    for (size_t i = 0; i < req->headers_len; i++) {
+        if (strcmp(req->headers[i].key, "upload-offset") == 0) {
+            TEST_CHECK_STRING_EQUAL(req->headers[i].value, "4");
+            has_upload_offset = true;
+        }
+    }
+    TEST_CHECK(has_upload_offset);
+    sentry__prepared_http_request_free(req);
+
+    TEST_CHECK(!sentry__prepare_tus_upload_request(
+        location, test_file_path, 9, 10, 0, dsn, NULL));
+
+    TEST_CHECK(!sentry__prepare_tus_upload_request(
+        location, test_file_path, 9, 4, 6, dsn, NULL));
+
     sentry__path_remove(test_file_path);
     sentry__path_free(test_file_path);
     sentry__dsn_decref(dsn);
@@ -251,8 +276,9 @@ SENTRY_TEST(tus_upload_error)
 }
 
 // Mock that drives a full TUS round-trip: returns a relative `Location` from
-// the create POST (per spec), 204 from the upload PATCH, and captures the
-// final envelope POST body so the test can inspect the placeholder payload.
+// the create POST (per spec), 204 with the final `Location` from the upload
+// PATCH, and captures the final envelope POST body so the test can inspect
+// the placeholder payload.
 typedef struct {
     char *captured_body;
     size_t captured_body_len;
@@ -262,6 +288,8 @@ typedef struct {
 
 static const char *TUS_RELATIVE_LOCATION
     = "/api/42/upload/019db3e0/?length=104857600&signature=test";
+static const char *TUS_FINAL_LOCATION
+    = "/api/42/upload/019db3e0/?upload_length=104857600&upload_signature=test";
 
 static int
 tus_capture_send(void *client, sentry_prepared_http_request_t *req,
@@ -280,6 +308,8 @@ tus_capture_send(void *client, sentry_prepared_http_request_t *req,
     if (strcmp(req->method, "PATCH") == 0 && req->body_path) {
         cap->patch_count++;
         resp->status_code = 204;
+        resp->location = sentry__string_clone(TUS_FINAL_LOCATION);
+        resp->upload_offset = sentry__string_clone("104857600");
         return true;
     }
     // Envelope POST: capture body
@@ -341,7 +371,9 @@ SENTRY_TEST(tus_placeholder_uses_raw_location)
         if (!sentry__envelope_item_get_attachment_ref(item, &ref)) {
             continue;
         }
-        TEST_CHECK_STRING_EQUAL(ref.location, TUS_RELATIVE_LOCATION);
+        // The placeholder must carry the final PATCH `Location`, not the
+        // one from the create POST.
+        TEST_CHECK_STRING_EQUAL(ref.location, TUS_FINAL_LOCATION);
         sentry__attachment_ref_cleanup(&ref);
         found_ref = true;
     }
@@ -454,4 +486,45 @@ SENTRY_TEST(tus_attachment_ref_confinement)
     TEST_CHECK_INT_EQUAL(sentry__path_remove_all(db), 0);
     sentry__path_free(db);
 #endif
+}
+
+SENTRY_TEST(tus_chunk_size)
+{
+    struct {
+        const char *granularity;
+        const char *min;
+        const char *max;
+        bool valid;
+        size_t size;
+    } cases[] = {
+        { "256", "1048576", "1073741824", true, 32 * 1024 * 1024 },
+        { "1048576", "1048576", "26214400", true, 25 * 1024 * 1024 },
+        { "1048576", "41943040", "1073741824", true, 40 * 1024 * 1024 },
+        { "5242880", "5242880", "1073741824", true, 30 * 1024 * 1024 },
+        { "10485760", "32505856", "104857600", true, 40 * 1024 * 1024 },
+        { "67108864", "1048576", "134217728", true, 64 * 1024 * 1024 },
+        { NULL, "1048576", "1073741824", true, 0 },
+        { "256", NULL, "1073741824", true, 0 },
+        { "256", "1048576", NULL, true, 0 },
+        { "0", "1048576", "1073741824", false, 0 },
+        { "256", "0", "1073741824", false, 0 },
+        { "256", "1048576", "0", false, 0 },
+        { "256", "1048576", "1024", false, 0 },
+        { "1024", "513", "1023", false, 0 },
+        { "", "1048576", "1073741824", false, 0 },
+        { "-1", "1048576", "1073741824", false, 0 },
+        { "256", "+1048576", "1073741824", false, 0 },
+        { "256", "1048576", "1073741824x", false, 0 },
+        { "256", "1048576", "18446744073709551616", false, 0 },
+    };
+    for (size_t i = 0; i < sizeof(cases) / sizeof(cases[0]); i++) {
+        sentry_http_response_t resp = { 0 };
+        resp.upload_chunk_granularity = (char *)cases[i].granularity;
+        resp.upload_min_chunk_size = (char *)cases[i].min;
+        resp.upload_max_chunk_size = (char *)cases[i].max;
+        size_t size = 0;
+        TEST_CHECK(
+            sentry__tus_choose_chunk_size(&resp, &size) == cases[i].valid);
+        TEST_CHECK_INT_EQUAL(size, cases[i].size);
+    }
 }

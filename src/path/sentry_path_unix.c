@@ -704,3 +704,28 @@ sentry__filewriter_byte_count(const sentry_filewriter_t *filewriter)
 {
     return filewriter ? filewriter->byte_count : 0;
 }
+
+FILE *
+sentry__path_open(const sentry_path_t *path, const char *mode, size_t offset)
+{
+    if (!path || !mode) {
+        return NULL;
+    }
+    FILE *file = fopen(path->path, mode);
+    if (!file) {
+        return NULL;
+    }
+#if defined(SENTRY_PLATFORM_NX) || defined(SENTRY_PLATFORM_PS)
+    int result = offset > LONG_MAX ? -1 : fseek(file, (long)offset, SEEK_SET);
+#else
+    off_t file_offset = (off_t)offset;
+    int result = file_offset < 0 || (size_t)file_offset != offset
+        ? -1
+        : fseeko(file, file_offset, SEEK_SET);
+#endif
+    if (result != 0) {
+        fclose(file);
+        return NULL;
+    }
+    return file;
+}

@@ -470,14 +470,11 @@ curl_send_task(void *_client, sentry_prepared_http_request_t *req,
     FILE *body_file = NULL;
     file_body_t file_body = { 0 };
     if (req->body_path) {
-#ifdef SENTRY_PLATFORM_WINDOWS
-        body_file = _wfopen(req->body_path->path_w, L"rb");
-#else
-        body_file = fopen(req->body_path->path, "rb");
-#endif
+        body_file = sentry__path_open(req->body_path, "rb", req->body_offset);
         if (!body_file) {
-            SENTRY_WARNF("failed to open request body file \"%s\"",
-                sentry__path_filename(req->body_path));
+            SENTRY_WARNF("failed to open request body file \"%s\" at offset "
+                         "%zu",
+                sentry__path_filename(req->body_path), req->body_offset);
             g_curl.slist_free_all(headers);
             return false;
         }
@@ -493,6 +490,8 @@ curl_send_task(void *_client, sentry_prepared_http_request_t *req,
         g_curl.easy_setopt(curl, CURLOPT_POST, (long)1);
         g_curl.easy_setopt(curl, CURLOPT_POSTFIELDS, req->body);
         g_curl.easy_setopt(curl, CURLOPT_POSTFIELDSIZE, (long)req->body_len);
+    } else if (sentry__string_eq(req->method, "HEAD")) {
+        g_curl.easy_setopt(curl, CURLOPT_NOBODY, 1L);
     } else {
         g_curl.easy_setopt(curl, CURLOPT_CUSTOMREQUEST, req->method);
     }

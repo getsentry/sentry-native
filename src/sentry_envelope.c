@@ -730,6 +730,10 @@ attachment_ref_payload_to_string(
         sentry_value_set_by_key(
             obj, "content_type", sentry_value_new_string(ref->content_type));
     }
+    if (ref->chunk_size) {
+        sentry_value_set_by_key(obj, "chunk_size",
+            sentry_value_new_uint64((uint64_t)ref->chunk_size));
+    }
     sentry__jsonwriter_write_value(jw, obj);
     sentry_value_decref(obj);
     return sentry__jsonwriter_into_string(jw, payload_len);
@@ -1651,6 +1655,19 @@ sentry__envelope_item_get_attachment_ref(
         sentry_value_get_by_key(ref->_owner, "content_type"));
     ref->attachment_type = sentry_value_as_string(
         sentry_value_get_by_key(item->headers, "attachment_type"));
+    sentry_value_t value = sentry_value_get_by_key(ref->_owner, "chunk_size");
+    uint64_t chunk_size = 0;
+    if (sentry_value_get_type(value) == SENTRY_VALUE_TYPE_UINT64) {
+        chunk_size = sentry_value_as_uint64(value);
+    } else {
+        int64_t size = sentry_value_as_int64(value);
+        if (size > 0) {
+            chunk_size = (uint64_t)size;
+        }
+    }
+    if (chunk_size <= SIZE_MAX) {
+        ref->chunk_size = (size_t)chunk_size;
+    }
     return true;
 }
 
@@ -1685,8 +1702,8 @@ set_attachment_ref_payload(
 }
 
 bool
-sentry__envelope_item_resolve_attachment_ref(
-    sentry_envelope_item_t *item, const char *location)
+sentry__envelope_item_resolve_attachment_ref(sentry_envelope_item_t *item,
+    const char *path, const char *location, size_t chunk_size)
 {
     if (sentry__string_empty(location)) {
         return false;
@@ -1696,13 +1713,14 @@ sentry__envelope_item_resolve_attachment_ref(
         return false;
     }
     sentry_attachment_ref_t resolved = { 0 };
-    if (!sentry__string_empty(ref.path)) {
-        resolved.path = ref.path;
+    if (!sentry__string_empty(path)) {
+        resolved.path = path;
     }
     if (!sentry__string_empty(ref.attachment_type)) {
         resolved.attachment_type = ref.attachment_type;
     }
     resolved.location = location;
+    resolved.chunk_size = chunk_size;
     if (!sentry__string_empty(ref.content_type)) {
         resolved.content_type = ref.content_type;
     }

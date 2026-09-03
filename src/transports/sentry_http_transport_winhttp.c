@@ -204,18 +204,22 @@ winhttp_send_task(void *_client, sentry_prepared_http_request_t *req,
 
     wchar_t *url = sentry__string_to_wstr(req->url);
     wchar_t *headers = NULL;
+    size_t url_len = url ? wcslen(url) : 0;
+    wchar_t *url_path = sentry_malloc((url_len + 1) * sizeof(wchar_t));
 
     URL_COMPONENTS url_components;
     wchar_t hostname[128];
-    wchar_t url_path[4096];
     memset(&url_components, 0, sizeof(URL_COMPONENTS));
     url_components.dwStructSize = sizeof(URL_COMPONENTS);
     url_components.lpszHostName = hostname;
     url_components.dwHostNameLength = 128;
     url_components.lpszUrlPath = url_path;
-    url_components.dwUrlPathLength = 1024;
+    url_components.dwUrlPathLength = (DWORD)(url_len + 1);
 
-    WinHttpCrackUrl(url, 0, 0, &url_components);
+    if (!url || !url_path || !WinHttpCrackUrl(url, 0, 0, &url_components)) {
+        SENTRY_WARNF("`WinHttpCrackUrl` failed with code `%d`", GetLastError());
+        goto exit;
+    }
 
 #ifdef SENTRY_PLATFORM_XBOX
     // Ensure Xbox network connectivity is initialized before HTTP requests
@@ -285,6 +289,22 @@ winhttp_send_task(void *_client, sentry_prepared_http_request_t *req,
             goto exit;
         }
 
+        LARGE_INTEGER file_offset;
+        if (req->body_offset > INT64_MAX) {
+            SENTRY_WARNF("failed to seek request body file \"%s\"",
+                sentry__path_filename(req->body_path));
+            CloseHandle(hFile);
+            goto exit;
+        }
+        file_offset.QuadPart = (LONGLONG)req->body_offset;
+        if (!SetFilePointerEx(hFile, file_offset, NULL, FILE_BEGIN)) {
+            SENTRY_WARNF(
+                "failed to seek request body file \"%s\" with code `%d`",
+                sentry__path_filename(req->body_path), GetLastError());
+            CloseHandle(hFile);
+            goto exit;
+        }
+
         // https://learn.microsoft.com/en-us/windows/win32/api/winhttp/nf-winhttp-winhttpsendrequest#support-for-greater-than-4-gb-upload
         DWORD total_length = req->body_len > (size_t)(DWORD)-1
             ? WINHTTP_IGNORE_REQUEST_TOTAL_LENGTH
@@ -294,8 +314,11 @@ winhttp_send_task(void *_client, sentry_prepared_http_request_t *req,
         if (result) {
             char chunk[65536];
             DWORD bytes_read = 0;
-            while (true) {
-                if (!ReadFile(hFile, chunk, sizeof(chunk), &bytes_read, NULL)) {
+            size_t remaining = req->body_len;
+            while (remaining) {
+                DWORD len = remaining < sizeof(chunk) ? (DWORD)remaining
+                                                      : sizeof(chunk);
+                if (!ReadFile(hFile, chunk, len, &bytes_read, NULL)) {
                     SENTRY_WARNF("failed to read request body file \"%s\" "
                                  "with code `%d`",
                         sentry__path_filename(req->body_path), GetLastError());
@@ -303,6 +326,7 @@ winhttp_send_task(void *_client, sentry_prepared_http_request_t *req,
                     break;
                 }
                 if (bytes_read == 0) {
+                    result = false;
                     break;
                 }
 
@@ -321,6 +345,7 @@ winhttp_send_task(void *_client, sentry_prepared_http_request_t *req,
                     result = false;
                     break;
                 }
+                remaining -= bytes_written;
             }
         } else {
             SENTRY_WARNF(
@@ -398,6 +423,37 @@ winhttp_send_task(void *_client, sentry_prepared_http_request_t *req,
             sentry_http_response_set_header(resp, "location", location);
             sentry_free(location);
         }
+
+        char *upload_offset = query_header(client->request, L"upload-offset");
+        if (upload_offset) {
+            sentry_http_response_set_header(
+                resp, "upload-offset", upload_offset);
+            sentry_free(upload_offset);
+        }
+
+        char *upload_chunk_granularity
+            = query_header(client->request, L"upload-chunk-granularity");
+        if (upload_chunk_granularity) {
+            sentry_http_response_set_header(
+                resp, "upload-chunk-granularity", upload_chunk_granularity);
+            sentry_free(upload_chunk_granularity);
+        }
+
+        char *upload_min_chunk_size
+            = query_header(client->request, L"upload-min-chunk-size");
+        if (upload_min_chunk_size) {
+            sentry_http_response_set_header(
+                resp, "upload-min-chunk-size", upload_min_chunk_size);
+            sentry_free(upload_min_chunk_size);
+        }
+
+        char *upload_max_chunk_size
+            = query_header(client->request, L"upload-max-chunk-size");
+        if (upload_max_chunk_size) {
+            sentry_http_response_set_header(
+                resp, "upload-max-chunk-size", upload_max_chunk_size);
+            sentry_free(upload_max_chunk_size);
+        }
     }
 
     uint64_t now = sentry__monotonic_time();
@@ -409,6 +465,7 @@ exit:;
         WinHttpCloseHandle(request);
     }
     sentry_free(url);
+    sentry_free(url_path);
     sentry_free(headers);
     return result;
 }
