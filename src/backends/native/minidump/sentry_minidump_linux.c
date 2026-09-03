@@ -936,12 +936,7 @@ extract_elf_build_id(const char *elf_path, uint8_t *build_id, size_t max_len)
             if (lseek(fd, sections[i].sh_offset, SEEK_SET)
                     == (off_t)sections[i].sh_offset
                 && read(fd, note_buf, note_size) == (ssize_t)note_size) {
-                // Find the GNU build-id note using the shared bounds-checked
-                // iterator. It performs overflow-safe arithmetic and verifies
-                // the descriptor fits within the buffer, unlike the previous
-                // inline walk whose `(n_descsz + 3) & ~3` alignment wrapped for
-                // near-UINT32_MAX sizes and let the memcpy read past the note.
-                // SHT_NOTE uses 4-byte alignment.
+                // Find the GNU build-id note. SHT_NOTE uses 4-byte alignment.
                 size_t desc_size = 0;
                 const uint8_t *desc = sentry__elf_find_note(note_buf,
                     note_size, 4, NT_GNU_BUILD_ID, "GNU", 4, &desc_size);
