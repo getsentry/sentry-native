@@ -21,6 +21,7 @@
 **Thank you**:
 
 - [HuzaifaAbdulRehman](https://github.com/HuzaifaAbdulRehman)
+- [GLinnik21](https://github.com/GLinnik21)
 
 ## 0.16.5
 
