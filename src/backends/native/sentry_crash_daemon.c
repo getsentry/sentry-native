@@ -73,15 +73,16 @@ read_maps_line(FILE *f, char *line, size_t size)
 #    endif
 #    if defined(__arm__)
 /**
- * Every mapping of the crashed process, recorded while `/proc/<pid>/maps` is
- * parsed for modules. Unlike the module inventory this includes anonymous and
- * special mappings and keeps the permission bits, so the ARM32 frame-pointer
- * walk can answer "is this a return address" (executable, not writable) and
- * "is this a saved frame pointer" (writable, above the current frame) without
- * guessing. `g_vma_complete` is true only when the whole file was read and
- * recorded; `vma_snapshot_unchanged` lets the walk notice a snapshot that
- * changed under it, since only the crashing thread is stopped while the
- * daemon works.
+ * Every mapping of the crashed process, with its permission bits, recorded
+ * by `vma_capture` immediately after a thread's stack bytes have been copied
+ * out. Unlike the module inventory this includes anonymous and special
+ * mappings, so the ARM32 frame-pointer walk can answer "is this a return
+ * address" (executable, not writable) and "is this a saved frame pointer"
+ * (writable, above the current frame) without guessing. It is read after
+ * the stack copy on purpose: only the crashing thread is stopped while the
+ * daemon works, so the freshest view of the mappings is the one taken next
+ * to the bytes it will be asked about. `g_vma_complete` is true only when
+ * the whole file was read and recorded.
  * ARM32 only: nothing else consumes it, so nothing else pays for it.
  */
 typedef struct {
@@ -141,38 +142,42 @@ vma_containing(uint64_t addr)
 }
 
 /**
- * Re-read the mappings and answer whether every one of them still matches
- * the recorded snapshot, field by field and in order. Called after the stack
- * bytes have been copied, so a mapping change between the two reads is
- * detected rather than reasoned about.
+ * Read `/proc/<pid>/maps` into the VMA table, replacing whatever it held.
+ * Called right after a stack copy, so the walk judges the copied bytes
+ * against the mappings as they were at (nearly) the same moment.
  */
-static bool
-vma_snapshot_unchanged(pid_t pid)
+static void
+vma_capture(pid_t pid)
 {
+    g_vma_count = 0;
+    g_vma_complete = false;
+    g_vma_alloc_failed = false;
+
     char maps_path[64];
     snprintf(maps_path, sizeof(maps_path), "/proc/%d/maps", pid);
     FILE *f = fopen(maps_path, "r");
     if (!f) {
-        return false;
+        SENTRY_WARNF("Failed to open %s for mapping capture", maps_path);
+        return;
     }
     char line[1024];
-    size_t i = 0;
-    bool same = true;
-    while (same && read_maps_line(f, line, sizeof(line))) {
+    bool ok = true;
+    while (read_maps_line(f, line, sizeof(line))) {
         unsigned long long start, end;
         char perms[5];
         if (sscanf(line, "%llx-%llx %4s", &start, &end, perms) != 3) {
-            same = false;
-            break;
+            ok = false; // a line this parser cannot read is a mapping it
+                        // does not know about
+            continue;
         }
-        same = i < g_vma_count && g_vmas[i].start == start
-            && g_vmas[i].end == end && g_vmas[i].write == (perms[1] == 'w')
-            && g_vmas[i].exec == (perms[2] == 'x');
-        i++;
+        if (!vma_record(start, end, perms)) {
+            ok = false;
+        }
     }
-    same = same && i == g_vma_count && !ferror(f);
+    g_vma_complete = ok && !ferror(f);
     fclose(f);
-    return same;
+    SENTRY_DEBUGF("Captured %zu mappings (%s) from %s", g_vma_count,
+        g_vma_complete ? "complete" : "INCOMPLETE", maps_path);
 }
 #    endif
 #elif defined(SENTRY_PLATFORM_WINDOWS)
@@ -1060,6 +1065,9 @@ build_stacktrace_for_thread(
                 stack_size = (uint64_t)bytes_read;
                 SENTRY_DEBUGF(
                     "Read %zd bytes of stack from process %d", bytes_read, pid);
+#    if defined(__arm__)
+                vma_capture(pid);
+#    endif
             }
         }
     }
@@ -1301,14 +1309,12 @@ build_stacktrace_for_thread(
         uint64_t current_fp = fp;
         int walk_count = 0;
 #if defined(__arm__)
-        // Fail closed: without a complete and still-current picture of the
-        // mappings neither frame-record shape can be told from the other,
-        // and guessing would emit fabricated frames rather than a shorter,
-        // honest stack. Only the crashing thread is stopped, so the mappings
-        // are re-read now that the stack bytes are in hand.
-        if (!g_vma_complete || !vma_snapshot_unchanged(ctx->crashed_pid)) {
-            SENTRY_TRACE("Mappings incomplete or changed; skipping the ARM32 "
-                         "frame-pointer walk");
+        // Fail closed: without a complete picture of the mappings neither
+        // frame-record shape can be told from the other, and guessing would
+        // emit fabricated frames rather than a shorter, honest stack.
+        if (!g_vma_complete) {
+            SENTRY_TRACE(
+                "Mappings incomplete; skipping the ARM32 frame-pointer walk");
             walk_count = MAX_STACK_FRAMES;
         }
 #endif
@@ -1964,12 +1970,6 @@ capture_modules_from_proc_maps(sentry_crash_context_t *ctx)
 
     char line[1024];
     ctx->module_count = 0;
-#    if defined(__arm__)
-    g_vma_count = 0;
-    g_vma_complete = false;
-    g_vma_alloc_failed = false;
-    bool vma_ok = true;
-#    endif
 
     while (read_maps_line(f, line, sizeof(line))) {
 
@@ -1982,25 +1982,12 @@ capture_modules_from_proc_maps(sentry_crash_context_t *ctx)
             perms, &offset, &pathname_offset);
 
         if (parsed < 4) {
-#    if defined(__arm__)
-            vma_ok = false; // a line this parser cannot read is a mapping it
-                            // does not know about
-#    endif
             continue;
         }
 
-#    if defined(__arm__)
-        if (!vma_record(start, end, perms)) {
-            vma_ok = false;
-        }
-        if (ctx->module_count >= SENTRY_CRASH_MAX_MODULES) {
-            continue; // module inventory is full; keep reading for mappings
-        }
-#    else
         if (ctx->module_count >= SENTRY_CRASH_MAX_MODULES) {
             break;
         }
-#    endif
 
         // Must have a valid pathname (not [stack], [heap], etc.)
         if (pathname_offset <= 0 || line[pathname_offset] == '\0'
@@ -2076,11 +2063,6 @@ capture_modules_from_proc_maps(sentry_crash_context_t *ctx)
         ctx->module_count++;
     }
 
-#    if defined(__arm__)
-    g_vma_complete = vma_ok && !ferror(f);
-    SENTRY_DEBUGF("Captured %zu mappings (%s) from /proc/%d/maps", g_vma_count,
-        g_vma_complete ? "complete" : "INCOMPLETE", ctx->crashed_pid);
-#    endif
     fclose(f);
     SENTRY_DEBUGF("Captured %u modules from /proc/%d/maps", ctx->module_count,
         ctx->crashed_pid);
