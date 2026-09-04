@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1788535889484,
+  "lastUpdate": 1788536019982,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -160528,6 +160528,222 @@ window.BENCHMARK_DATA = {
             "value": 9104,
             "unit": "bytes",
             "extra": "Peak 9104b, Segments 1"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "jpnurmi@gmail.com",
+            "name": "J-P Nurmi",
+            "username": "jpnurmi"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "5ef4c14c882cab3af61d1b378d51fc5bdb9c926e",
+          "message": "fix: build on ARM32 targets (#2063)\n\n* fix(native): Detect libunwind ABI from pointer width\n\nRaspberry Pi OS can run a 32-bit armhf userland with a 64-bit\nkernel. In that configuration, CMake reports aarch64 as the system\nprocessor while the compiler emits 32-bit ARM code.\n\nVendored libunwind previously used the system processor for both the\nprocessor family and ABI width. It consequently combined ARM symbols\nwith AArch64 DWARF headers and produced this diagnostic:\n\n    vendor/libunwind/src/dwarf/Gexpr.c: In function\n    ‘_ULarm_dwarf_eval_expr’:\n    vendor/libunwind/include/tdep-aarch64/dwarf-config.h:37:45:\n    error: ‘UNW_AARCH64_V31’ undeclared (first use in this function)\n    vendor/libunwind/src/dwarf/Gexpr.c:359:35:\n    note: in expansion of macro ‘dwarf_to_unw_regnum’\n\nNormalize processor names into x86 and ARM families, then select the\nconcrete architecture and ELF class from the compiler pointer width.\nThis also handles the equivalent 32-bit x86 userland configuration.\n\n* fix: Build on baseline ARM32 targets\n\nAvoid aliasing fixed-width module mapping fields as native pointer and\nsize types in the module finder test. Convert mapped addresses through\nuintptr_t before widening them to uint64_t.\n\nUse nop for CPU relaxation on 32-bit ARM, where the baseline assembler\ncan reject yield as an unsupported instruction. AArch64 continues to\nuse yield.\n\nDetect whether 64-bit atomic operations require libatomic and link it\nwhen necessary. This supports ARM32 targets where those operations are\nnot provided directly by the compiler's target architecture.\n\nThis fixes the incompatible pointer type, pointer-to-integer cast,\nunsupported processor instruction, and unresolved __atomic_load_8 and\n__atomic_store_8 diagnostics from the ARM32 build.\n\n* Update CHANGELOG.md",
+          "timestamp": "2026-09-04T17:21:43+02:00",
+          "tree_id": "39d72c3934957a42716cfd8987c70b64ac035553",
+          "url": "https://github.com/getsentry/sentry-native/commit/5ef4c14c882cab3af61d1b378d51fc5bdb9c926e"
+        },
+        "date": 1788535999763,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 11.079999999992651,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 10.316ms\nMax 13.135ms\nMean 11.282ms\nStdDev 1.105ms\nMedian 11.080ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 10.67980000004809,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 10.192ms\nMax 11.604ms\nMean 10.776ms\nStdDev 0.515ms\nMedian 10.680ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 26.504799999997886,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 25.783ms\nMax 29.312ms\nMean 27.148ms\nStdDev 1.466ms\nMedian 26.505ms"
+          },
+          {
+            "name": "SDK init (native)",
+            "value": 25.049499999965974,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 23.327ms\nMax 25.275ms\nMean 24.573ms\nStdDev 0.889ms\nMedian 25.049ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.17490000004727335,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.173ms\nMax 0.199ms\nMean 0.179ms\nStdDev 0.011ms\nMedian 0.175ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.43360000000802756,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.410ms\nMax 0.482ms\nMean 0.441ms\nStdDev 0.031ms\nMedian 0.434ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 15.210599999988972,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 14.545ms\nMax 18.180ms\nMean 15.676ms\nStdDev 1.505ms\nMedian 15.211ms"
+          },
+          {
+            "name": "Backend startup (native)",
+            "value": 13.645899999971789,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 13.035ms\nMax 19.640ms\nMean 14.683ms\nStdDev 2.786ms\nMedian 13.646ms"
+          },
+          {
+            "name": "Scope set_tag (inproc)",
+            "value": 0.008317599999998038,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.008ms\nMax 0.008ms\nMean 0.008ms\nMedian 0.008ms"
+          },
+          {
+            "name": "Scope add_breadcrumb (inproc)",
+            "value": 0.00111850000001823,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.001ms\nMax 0.001ms\nMean 0.001ms\nMedian 0.001ms"
+          },
+          {
+            "name": "Scope set_tag (breakpad)",
+            "value": 0.008330300000011448,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.008ms\nMax 0.008ms\nMean 0.008ms\nMedian 0.008ms"
+          },
+          {
+            "name": "Scope add_breadcrumb (breakpad)",
+            "value": 0.0011056000000166932,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.001ms\nMax 0.001ms\nMean 0.001ms\nMedian 0.001ms"
+          },
+          {
+            "name": "Scope set_tag (crashpad)",
+            "value": 0.4779896000000008,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.478ms\nMax 0.478ms\nMean 0.478ms\nMedian 0.478ms"
+          },
+          {
+            "name": "Scope add_breadcrumb (crashpad)",
+            "value": 0.18189029999996364,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.182ms\nMax 0.182ms\nMean 0.182ms\nMedian 0.182ms"
+          },
+          {
+            "name": "Scope set_tag (native)",
+            "value": 0.45509309999999914,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.455ms\nMax 0.455ms\nMean 0.455ms\nMedian 0.455ms"
+          },
+          {
+            "name": "Scope add_breadcrumb (native)",
+            "value": 0.13154789999998684,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.132ms\nMax 0.132ms\nMean 0.132ms\nMedian 0.132ms"
+          },
+          {
+            "name": "Logs (1 thread)",
+            "value": 0.00992399999972804,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.010ms\nMax 0.010ms\nMean 0.010ms\nMedian 0.010ms"
+          },
+          {
+            "name": "Logs (8 threads)",
+            "value": 0.0436976249999077,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.044ms\nMax 0.044ms\nMean 0.044ms\nMedian 0.044ms"
+          },
+          {
+            "name": "Logs (16 threads)",
+            "value": 0.07417006249994529,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.074ms\nMax 0.074ms\nMean 0.074ms\nMedian 0.074ms"
+          },
+          {
+            "name": "Logs (32 threads)",
+            "value": 0.1300256875000727,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.130ms\nMax 0.130ms\nMean 0.130ms\nMedian 0.130ms"
+          },
+          {
+            "name": "Library size (inproc)",
+            "value": 270336,
+            "range": "linear",
+            "unit": "bytes",
+            "extra": "Size 270336b"
+          },
+          {
+            "name": "Library size (breakpad)",
+            "value": 282112,
+            "range": "linear",
+            "unit": "bytes",
+            "extra": "Size 282112b"
+          },
+          {
+            "name": "Library size (crashpad)",
+            "value": 452608,
+            "range": "linear",
+            "unit": "bytes",
+            "extra": "Size 452608b"
+          },
+          {
+            "name": "Library size (native)",
+            "value": 264192,
+            "range": "linear",
+            "unit": "bytes",
+            "extra": "Size 264192b"
+          },
+          {
+            "name": "Stack usage (inproc)",
+            "value": 12288,
+            "unit": "bytes",
+            "extra": "Peak 12288b, Segments 2"
+          },
+          {
+            "name": "Stack usage (breakpad)",
+            "value": 9408,
+            "unit": "bytes",
+            "extra": "Peak 9408b, Segments 1"
+          },
+          {
+            "name": "Stack usage (crashpad)",
+            "value": 8120,
+            "unit": "bytes",
+            "extra": "Peak 8120b, Segments 1"
+          },
+          {
+            "name": "Stack usage (native)",
+            "value": 9008,
+            "unit": "bytes",
+            "extra": "Peak 9008b, Segments 1"
           }
         ]
       }
