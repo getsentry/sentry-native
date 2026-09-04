@@ -261,12 +261,13 @@ load_modules(void)
 #    endif
 
                     sentry_value_set_by_key(rv, "image_addr",
-                        sentry__value_new_addr((uint64_t)handle));
+                        sentry__value_new_addr(
+                            (uint64_t)module_info.lpBaseOfDll));
 
                     sentry_value_set_by_key(rv, "code_file",
                         sentry__value_new_string_from_wstr(szModName));
-                    extract_pdb_info(
-                        (uintptr_t)handle, (size_t)module_info.SizeOfImage, rv);
+                    extract_pdb_info((uintptr_t)module_info.lpBaseOfDll,
+                        (size_t)module_info.SizeOfImage, rv);
                     sentry_value_append(g_modules, rv);
 
                     FreeLibrary(handle);
