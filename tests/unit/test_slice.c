@@ -14,6 +14,14 @@ SENTRY_TEST(slice)
     TEST_CHECK(sentry__slice_eq(str1, str2));
     TEST_CHECK(!sentry__slice_eq(str1, my));
 
+    char copy[4];
+    sentry__slice_to_buffer(str1, copy, sizeof(copy));
+    TEST_CHECK_STRING_EQUAL(copy, "str");
+
+    char untouched = 'x';
+    sentry__slice_to_buffer(str1, &untouched, 0);
+    TEST_CHECK(untouched == 'x');
+
     char *owned = sentry__slice_to_owned(str1);
     TEST_ASSERT(!!owned);
     TEST_CHECK_STRING_EQUAL(owned, "string");
