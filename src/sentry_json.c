@@ -17,6 +17,7 @@
 #include "sentry_alloc.h"
 #include "sentry_core.h"
 #include "sentry_json.h"
+#include "sentry_slice.h"
 #include "sentry_string.h"
 #include "sentry_utils.h"
 #include "sentry_value.h"
@@ -575,12 +576,18 @@ tokens_to_value(jsmntok_t *tokens, size_t token_count, const char *buf,
         default: {
             bool success = false;
             char *endptr;
+            sentry_slice_t slice
+                = { buf + root->start, (size_t)(root->end - root->start) };
+            char number[32];
+            if (slice.len >= sizeof(number)) {
+                goto error;
+            }
+            sentry__slice_to_buffer(slice, number, sizeof(number));
             errno = 0;
 
-            if (buf[root->start] == '-') {
-                const long long ll_val
-                    = strtoll(buf + root->start, &endptr, 10);
-                if (endptr == buf + root->end && errno == 0) {
+            if (number[0] == '-') {
+                const long long ll_val = strtoll(number, &endptr, 10);
+                if (endptr == number + slice.len && errno == 0) {
                     if (ll_val >= INT32_MIN && ll_val <= INT32_MAX) {
                         rv = sentry_value_new_int32((int32_t)ll_val);
                     } else {
@@ -590,8 +597,8 @@ tokens_to_value(jsmntok_t *tokens, size_t token_count, const char *buf,
                 }
             } else {
                 const unsigned long long ull_val
-                    = strtoull(buf + root->start, &endptr, 10);
-                if (endptr == buf + root->end && errno == 0) {
+                    = strtoull(number, &endptr, 10);
+                if (endptr == number + slice.len && errno == 0) {
                     if (ull_val <= INT32_MAX) {
                         rv = sentry_value_new_int32((int32_t)ull_val);
                     } else if (ull_val <= INT64_MAX) {
@@ -605,7 +612,7 @@ tokens_to_value(jsmntok_t *tokens, size_t token_count, const char *buf,
 
             // Both failed, fallback to double
             if (!success) {
-                double val = sentry__strtod_c(buf + root->start, NULL);
+                double val = sentry__strtod_c(number, NULL);
                 rv = sentry_value_new_double(val);
             }
             break;

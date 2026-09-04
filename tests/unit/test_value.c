@@ -1191,6 +1191,12 @@ SENTRY_TEST(value_json_parsing)
     TEST_CHECK_INT_EQUAL(sentry_value_as_int32(rv), 42);
     sentry_value_decref(rv);
 
+    const char number_with_trailing_digit[] = "420";
+    rv = sentry__value_from_json(number_with_trailing_digit, 2);
+    TEST_CHECK(sentry_value_get_type(rv) == SENTRY_VALUE_TYPE_INT32);
+    TEST_CHECK_INT_EQUAL(sentry_value_as_int32(rv), 42);
+    sentry_value_decref(rv);
+
     rv = sentry__value_from_json(STRING("-9223372036854775808"));
     TEST_CHECK(sentry_value_get_type(rv) == SENTRY_VALUE_TYPE_INT64);
     TEST_CHECK_INT_EQUAL(sentry_value_as_int64(rv), INT64_MIN);
