@@ -235,10 +235,12 @@ load_modules(void)
                     hMods[i], szModName, sizeof(szModName) / sizeof(wchar_t))) {
                 HMODULE handle
                     = LoadLibraryExW(szModName, NULL, LOAD_LIBRARY_AS_DATAFILE);
+                if (!handle) {
+                    continue;
+                }
                 MEMORY_BASIC_INFORMATION vmem_info = { 0 };
                 MODULEINFO module_info = { 0 };
-                if (handle
-                    && GetModuleInformation(
+                if (GetModuleInformation(
                         hProcess, hMods[i], &module_info, sizeof(module_info))
                     && sizeof(vmem_info)
                         == VirtualQuery(hMods[i], &vmem_info, sizeof(vmem_info))
@@ -269,9 +271,8 @@ load_modules(void)
                     extract_pdb_info((uintptr_t)module_info.lpBaseOfDll,
                         (size_t)module_info.SizeOfImage, rv);
                     sentry_value_append(g_modules, rv);
-
-                    FreeLibrary(handle);
                 }
+                FreeLibrary(handle);
             }
         }
     }
