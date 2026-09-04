@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1788521953816,
+  "lastUpdate": 1788530392407,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -52848,6 +52848,222 @@ window.BENCHMARK_DATA = {
             "range": "logarithmic",
             "unit": "ms",
             "extra": "Min 0.156ms\nMax 0.156ms\nMean 0.156ms\nMedian 0.156ms\nCPU 0.013ms"
+          },
+          {
+            "name": "Library size (inproc)",
+            "value": 562520,
+            "range": "linear",
+            "unit": "bytes",
+            "extra": "Size 562520b"
+          },
+          {
+            "name": "Library size (breakpad)",
+            "value": 680592,
+            "range": "linear",
+            "unit": "bytes",
+            "extra": "Size 680592b"
+          },
+          {
+            "name": "Library size (crashpad)",
+            "value": 986080,
+            "range": "linear",
+            "unit": "bytes",
+            "extra": "Size 986080b"
+          },
+          {
+            "name": "Library size (native)",
+            "value": 575936,
+            "range": "linear",
+            "unit": "bytes",
+            "extra": "Size 575936b"
+          },
+          {
+            "name": "Stack usage (inproc)",
+            "value": 7512,
+            "unit": "bytes",
+            "extra": "Peak 7512b, Segments 2"
+          },
+          {
+            "name": "Stack usage (breakpad)",
+            "value": 3016,
+            "unit": "bytes",
+            "extra": "Peak 3016b, Segments 1"
+          },
+          {
+            "name": "Stack usage (crashpad)",
+            "value": 2072,
+            "unit": "bytes",
+            "extra": "Peak 2072b, Segments 1"
+          },
+          {
+            "name": "Stack usage (native)",
+            "value": 2216,
+            "unit": "bytes",
+            "extra": "Peak 2216b, Segments 1"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "gleb_linnik@icloud.com",
+            "name": "Gleb Linnik",
+            "username": "GLinnik21"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "eef63d16e842fa1ee26cdcc244fe1b5a6ab7fdfc",
+          "message": "feat(native): ARM32 registers and both frame-record shapes in the crash daemon (#2053)\n\n* feat(native): ARM32 registers and both frame-record shapes in the crash daemon\n\nTwo scoped changes for 32-bit ARM on Linux, a supported target since #1659:\n\n- `build_registers_from_ctx` covered x86_64 and aarch64 only, so ARM32\n  events shipped an empty `registers` object. Add an `__arm__` branch\n  (r0-r10, fp, ip, sp, lr, pc, cpsr from the saved ucontext).\n- The generic frame-pointer walk already runs on ARM32 but assumes one\n  frame-record shape: [fp] = saved fp, [fp+4] = return address. That is\n  clang's layout. GCC's `push {.., fp, lr}; add fp, sp, #N` leaves fp on\n  the LR slot instead ([fp-4] = saved fp, [fp] = return address), and one\n  ARM32 process routinely contains both (an application built by one\n  compiler, a libc or shim built by the other). Read both candidate\n  records and keep the one whose return address is outside the stack and\n  whose saved fp is zero or further up the stack. Both are judged\n  against the crashed process's mappings, recorded with their permission\n  bits while /proc/<pid>/maps is parsed for modules: a return address must\n  be in an executable, non-writable mapping (code, as opposed to a stack -\n  writable, and on some systems executable too - or the heap), and a saved\n  fp must be in a writable mapping above the current frame. That rejects\n  the other shape's record, whose \"saved fp\" is really a return address,\n  even when code sits numerically below the stack. The walk reads records\n  out of the one captured stack window, so a chain is followed only while\n  it stays inside it; signal stacks and split stacks end the walk. Only\n  the crashing thread is stopped while the daemon works, so the mappings\n  are recorded (ARM32 only) and re-read, field by field, once the stack\n  bytes are copied; if they are incomplete or differ, the ARM32 walk\n  stops rather than guess a shape. That narrows, but does not close, the\n  window every post-crash capture in this daemon has: the stack bytes and\n  the module inventory are read after the crash on every platform, while\n  peer threads keep running and could in principle modify or remap the\n  stopped thread's stack. Freezing the thread group during capture would\n  close it for the generic walk too; that is a separate change.\n\nThumb code using r7 as its frame pointer is not covered; the walk still\nseeds from r11. JIT code in writable mappings is not walked either.\n\nMeasured on an LG webOS 4.x television (Cortex-A9, glibc 2.24, in-process\nlibunwind disabled so the FP fallback runs), with daemons built from the\nsame tree with and without this change, both including the pointer-width\nfix this is stacked on. A GCC-built chain (-O2 -fno-omit-frame-pointer,\nnoinline f1 -> f2 -> f3 -> leaf, null write in leaf) goes from `leaf` plus\na stack address to `leaf <- f2 <- f1 <- __libc_start_main`; a rustc-built\napplication is unchanged (`gsignal <- plex_run <- __libc_start_main`),\nsince its frames already match the assumed shape.\n\n* fix(native): capture the ARM32 mapping view after the stack copy\n\nThe walk compared a second read of /proc/<pid>/maps against the snapshot\ntaken during module capture and skipped every frame on any difference.\nOnly the crashing thread is stopped while the daemon works, so an\nunrelated mmap or munmap on a peer thread in that window emptied the\nwalk, including chains the single-shape walker used to report.\n\nRead the mappings once, immediately after the thread's stack bytes are\ncopied out, and judge the copied bytes against that view. The module\ninventory no longer doubles as the mapping table, and the walk still\nfails closed when the file cannot be read completely.",
+          "timestamp": "2026-09-04T15:52:54+02:00",
+          "tree_id": "7ae72902292a3f0eb0604e7709538b1faaebb9e5",
+          "url": "https://github.com/getsentry/sentry-native/commit/eef63d16e842fa1ee26cdcc244fe1b5a6ab7fdfc"
+        },
+        "date": 1788530376497,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 1.0256779999622267,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 1.004ms\nMax 1.475ms\nMean 1.109ms\nStdDev 0.205ms\nMedian 1.026ms\nCPU 1.056ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 0.9169579999479538,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.915ms\nMax 0.934ms\nMean 0.921ms\nStdDev 0.008ms\nMedian 0.917ms\nCPU 0.919ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 3.3191030000239152,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 3.261ms\nMax 3.459ms\nMean 3.341ms\nStdDev 0.073ms\nMedian 3.319ms\nCPU 1.796ms"
+          },
+          {
+            "name": "SDK init (native)",
+            "value": 2.541890000031799,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 2.474ms\nMax 2.586ms\nMean 2.534ms\nStdDev 0.050ms\nMedian 2.542ms\nCPU 1.677ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.12916299999687908,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.113ms\nMax 0.143ms\nMean 0.127ms\nStdDev 0.011ms\nMedian 0.129ms\nCPU 0.071ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.027231000046867848,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.026ms\nMax 0.029ms\nMean 0.027ms\nStdDev 0.001ms\nMedian 0.027ms\nCPU 0.027ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 1.8800759999635375,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 1.812ms\nMax 1.893ms\nMean 1.864ms\nStdDev 0.033ms\nMedian 1.880ms\nCPU 0.531ms"
+          },
+          {
+            "name": "Backend startup (native)",
+            "value": 1.488268999992215,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 1.444ms\nMax 1.553ms\nMean 1.486ms\nStdDev 0.044ms\nMedian 1.488ms\nCPU 0.641ms"
+          },
+          {
+            "name": "Scope set_tag (inproc)",
+            "value": 0.0051257299999747374,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.005ms\nMax 0.005ms\nMean 0.005ms\nMedian 0.005ms\nCPU 0.005ms"
+          },
+          {
+            "name": "Scope add_breadcrumb (inproc)",
+            "value": 0.0005379019999622869,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.001ms\nMax 0.001ms\nMean 0.001ms\nMedian 0.001ms\nCPU 0.001ms"
+          },
+          {
+            "name": "Scope set_tag (breakpad)",
+            "value": 0.004914012000028833,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.005ms\nMax 0.005ms\nMean 0.005ms\nMedian 0.005ms\nCPU 0.005ms"
+          },
+          {
+            "name": "Scope add_breadcrumb (breakpad)",
+            "value": 0.0005610649999994166,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.001ms\nMax 0.001ms\nMean 0.001ms\nMedian 0.001ms\nCPU 0.001ms"
+          },
+          {
+            "name": "Scope set_tag (crashpad)",
+            "value": 0.0049205949999873155,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.005ms\nMax 0.005ms\nMean 0.005ms\nMedian 0.005ms\nCPU 0.005ms"
+          },
+          {
+            "name": "Scope add_breadcrumb (crashpad)",
+            "value": 0.007476992000022165,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.007ms\nMax 0.007ms\nMean 0.007ms\nMedian 0.007ms\nCPU 0.007ms"
+          },
+          {
+            "name": "Scope set_tag (native)",
+            "value": 0.23130058099997086,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.231ms\nMax 0.231ms\nMean 0.231ms\nMedian 0.231ms\nCPU 0.148ms"
+          },
+          {
+            "name": "Scope add_breadcrumb (native)",
+            "value": 0.007243052999967858,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.007ms\nMax 0.007ms\nMean 0.007ms\nMedian 0.007ms\nCPU 0.007ms"
+          },
+          {
+            "name": "Logs (1 thread)",
+            "value": 0.005686900000227979,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.006ms\nMax 0.006ms\nMean 0.006ms\nMedian 0.006ms\nCPU 0.006ms"
+          },
+          {
+            "name": "Logs (8 threads)",
+            "value": 0.050349243749892025,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.050ms\nMax 0.050ms\nMean 0.050ms\nMedian 0.050ms\nCPU 0.012ms"
+          },
+          {
+            "name": "Logs (16 threads)",
+            "value": 0.0869488650000605,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.087ms\nMax 0.087ms\nMean 0.087ms\nMedian 0.087ms\nCPU 0.012ms"
+          },
+          {
+            "name": "Logs (32 threads)",
+            "value": 0.1641445665625163,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.164ms\nMax 0.164ms\nMean 0.164ms\nMedian 0.164ms\nCPU 0.013ms"
           },
           {
             "name": "Library size (inproc)",
