@@ -101,17 +101,21 @@ sentry__module_get_addr(
 {
     for (size_t i = 0; i < module->num_mappings; i++) {
         const sentry_mapped_region_t *mapping = &module->mappings[i];
+        if (mapping->offset < module->offset_in_inode) {
+            continue;
+        }
         uint64_t mapping_offset = mapping->offset - module->offset_in_inode;
 
-        // start_offset is inside this mapping
-        if (start_offset >= mapping_offset
-            && start_offset < mapping_offset + mapping->size) {
-            uint64_t addr = start_offset - mapping_offset + mapping->addr;
-            // the requested size is fully inside the mapping
-            if (addr + size <= mapping->addr + mapping->size) {
-                return (void *)(uintptr_t)(addr);
-            }
+        if (start_offset < mapping_offset) {
+            continue;
         }
+        uint64_t offset = start_offset - mapping_offset;
+
+        // start_offset and the requested size are fully inside this mapping
+        if (offset >= mapping->size || size > mapping->size - offset) {
+            continue;
+        }
+        return (void *)(uintptr_t)(mapping->addr + offset);
     }
     return NULL;
 }
@@ -506,7 +510,7 @@ sentry__procmaps_module_to_value(const sentry_module_t *module)
         mmapped_module.is_mmapped = true;
         mmapped_module.num_mappings = 1;
         mmapped_module.mappings[0].addr
-            = (uint64_t)mm.ptr + module->offset_in_inode;
+            = (uint64_t)(uintptr_t)mm.ptr + module->offset_in_inode;
         mmapped_module.mappings[0].size = mm.len - module->offset_in_inode;
 
         sentry__procmaps_read_ids_from_elf(mod_val, &mmapped_module);

@@ -74,6 +74,13 @@ SENTRY_TEST(module_addr)
 
     ptr = sentry__module_get_addr(&module, 7, 9);
     TEST_CHECK(ptr == NULL); // too big
+
+    ptr = sentry__module_get_addr(&module, 1, UINT64_MAX);
+    TEST_CHECK(ptr == NULL); // size overflows
+
+    module.offset_in_inode = 10;
+    ptr = sentry__module_get_addr(&module, UINT64_MAX - 8, 1);
+    TEST_CHECK(ptr == NULL); // mapping offset underflows
 #endif
 }
 
@@ -203,16 +210,17 @@ parse_elf_and_check_code_and_build_id(const char *rel_elf_path,
 
     sentry_module_t module = { 0 };
     module.num_mappings = 1;
-    size_t *file_size = &module.mappings[0].size;
-    char **buf = (char **)&module.mappings[0].addr;
 
     sentry_value_t value = sentry_value_new_object();
     sentry_path_t *elf_path = sentry__path_join_str(dir, rel_elf_path);
-    *buf = sentry__path_read_to_buffer(elf_path, file_size);
+    size_t file_size = 0;
+    char *buf = sentry__path_read_to_buffer(elf_path, &file_size);
     sentry__path_free(elf_path);
+    module.mappings[0].addr = (uint64_t)(uintptr_t)buf;
+    module.mappings[0].size = file_size;
 
     TEST_CHECK(sentry__procmaps_read_ids_from_elf(value, &module));
-    sentry_free(*buf);
+    sentry_free(buf);
     sentry__path_free(dir);
 
     if (expected_code_id) {
