@@ -1123,45 +1123,25 @@ read_elf_soname(const char *elf_path, char *soname_buf, size_t soname_buf_size)
     }
 
     // Read .dynstr
-    size_t dynstr_size = dynstr_shdr->sh_size;
-    if (dynstr_size > 1024 * 1024) { // Sanity: max 1MB
-        sentry_free(shdr_buf);
-        close(fd);
-        return false;
-    }
-    char *dynstr = sentry_malloc(dynstr_size);
+    char *dynstr = sentry__elf_read_metadata_section(
+        fd, dynstr_shdr->sh_offset, dynstr_shdr->sh_size);
     if (!dynstr) {
         sentry_free(shdr_buf);
         close(fd);
         return false;
     }
-    if (lseek(fd, dynstr_shdr->sh_offset, SEEK_SET)
-            != (off_t)dynstr_shdr->sh_offset
-        || read(fd, dynstr, dynstr_size) != (ssize_t)dynstr_size) {
-        sentry_free(dynstr);
-        sentry_free(shdr_buf);
-        close(fd);
-        return false;
-    }
+    size_t dynstr_size = (size_t)dynstr_shdr->sh_size;
 
     // Read .dynamic entries and find DT_SONAME
-    size_t dyn_size = dynamic_shdr->sh_size;
-    void *dyn_buf = sentry_malloc(dyn_size);
+    void *dyn_buf = sentry__elf_read_metadata_section(
+        fd, dynamic_shdr->sh_offset, dynamic_shdr->sh_size);
     if (!dyn_buf) {
         sentry_free(dynstr);
         sentry_free(shdr_buf);
         close(fd);
         return false;
     }
-    if (lseek(fd, dynamic_shdr->sh_offset, SEEK_SET)
-            != (off_t)dynamic_shdr->sh_offset
-        || read(fd, dyn_buf, dyn_size) != (ssize_t)dyn_size) {
-        sentry_free(dyn_buf);
-        sentry_free(dynstr);
-        sentry_free(shdr_buf);
-        close(fd);
-        return false;
-    }
+    size_t dyn_size = (size_t)dynamic_shdr->sh_size;
 
     DynT *dyn_entries = (DynT *)dyn_buf;
     size_t dyn_count = dyn_size / sizeof(DynT);

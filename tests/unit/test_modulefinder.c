@@ -84,6 +84,30 @@ SENTRY_TEST(module_addr)
 #endif
 }
 
+SENTRY_TEST(elf_metadata_section)
+{
+#if !defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID)
+    SKIP_TEST();
+#else
+    char tmp_path[] = "/tmp/sentry-native-elf-section-XXXXXX";
+    int fd = mkstemp(tmp_path);
+    TEST_ASSERT(fd >= 0);
+    TEST_ASSERT(write(fd, "test", 4) == 4);
+
+    char *buf = sentry__elf_read_metadata_section(fd, 1, 3);
+    TEST_ASSERT(!!buf);
+    TEST_CHECK(memcmp(buf, "est", 3) == 0);
+    sentry_free(buf);
+
+    TEST_CHECK(!sentry__elf_read_metadata_section(
+        fd, 0, SENTRY_ELF_MAX_METADATA_SECTION_SIZE + 1));
+    TEST_CHECK(!sentry__elf_read_metadata_section(fd, UINT64_MAX, 1));
+
+    close(fd);
+    unlink(tmp_path);
+#endif
+}
+
 SENTRY_TEST(mmap_file_closes_fd_zero_on_failure)
 {
 #if !defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID)
