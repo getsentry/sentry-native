@@ -9,6 +9,7 @@
 
 **Fixes**:
 
+- Native/Windows: prevent out-of-bounds PE debug-directory parsing. ([#2062](https://github.com/getsentry/sentry-native/pull/2062))
 - Native/Linux: parse minidump-writer ELF build-id notes with `sentry__elf_find_note`. ([#2055](https://github.com/getsentry/sentry-native/pull/2055))
 - Native: Read frame records at pointer width in the crash daemon's frame-pointer walk, so 32-bit targets no longer read two stack slots per pointer. ([#2052](https://github.com/getsentry/sentry-native/pull/2052))
 - Native: Report ARM32 registers for Linux crash events, and walk both r11-based ARM32 frame-record shapes (GCC's and clang's; Thumb r7 chains are not walked) in the crash daemon. ([#2053](https://github.com/getsentry/sentry-native/pull/2053))
