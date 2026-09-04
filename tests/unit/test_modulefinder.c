@@ -74,6 +74,13 @@ SENTRY_TEST(module_addr)
 
     ptr = sentry__module_get_addr(&module, 7, 9);
     TEST_CHECK(ptr == NULL); // too big
+
+    ptr = sentry__module_get_addr(&module, 1, UINT64_MAX);
+    TEST_CHECK(ptr == NULL); // size overflows
+
+    module.offset_in_inode = 10;
+    ptr = sentry__module_get_addr(&module, UINT64_MAX - 8, 1);
+    TEST_CHECK(ptr == NULL); // mapping offset underflows
 #endif
 }
 
