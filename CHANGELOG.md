@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+**Features**:
+
+- Add a C++ integration for capturing uncaught C++ exceptions, enabled with the `SENTRY_INTEGRATION_CPP` CMake option. ([#2069](https://github.com/getsentry/sentry-native/pull/2069))
+
 ## 1.0.0-beta.1
 
 **Breaking / Important behavior changes**:
