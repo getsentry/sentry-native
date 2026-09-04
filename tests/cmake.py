@@ -97,6 +97,7 @@ class CMake:
                     exe_name("sentry-crash"),
                     exe_name("sentry_early_init"),
                     exe_name("sentry_test_platform"),
+                    exe_name("sentry_test_cpp"),
                 ]
                 cmd = [
                     os.environ.get("LLVM_COV", "llvm-cov"),
@@ -359,7 +360,7 @@ def configure_llvm_cov(config_cmd: list[str]):
             config_cmd.append(f"-DCMAKE_EXE_LINKER_FLAGS={profile_lib}")
             config_cmd.append(f"-DCMAKE_SHARED_LINKER_FLAGS={profile_lib}")
             config_cmd.append(f"-DCMAKE_MODULE_LINKER_FLAGS={profile_lib}")
-    config_cmd.append(cmake_flags("CMAKE_C_FLAGS", flags))
+    config_cmd.append(cmake_flags("CMAKE_C_FLAGS_INIT", flags))
 
     # Since we overwrite `CXXFLAGS` below, we must add the experimental library here for the GHA runner that builds
     # sentry-native with LLVM clang for macOS (to run ASAN on macOS) rather than the version coming with XCode.
@@ -374,4 +375,4 @@ def configure_llvm_cov(config_cmd: list[str]):
             + " -L/usr/local/opt/llvm@15/lib/c++ -fexperimental-library -Wno-unused-command-line-argument"
         )
 
-    config_cmd.append(cmake_flags("CMAKE_CXX_FLAGS", flags))
+    config_cmd.append(cmake_flags("CMAKE_CXX_FLAGS_INIT", flags))

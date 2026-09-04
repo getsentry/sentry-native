@@ -13,6 +13,10 @@
 #include <math.h>
 #include <stdlib.h>
 
+#ifdef SENTRY_INTEGRATION_CPP
+#    include "integrations/sentry_integration_cpp.h"
+#endif
+
 #ifdef SENTRY_INTEGRATION_QT
 #    include "integrations/sentry_integration_qt.h"
 #endif
@@ -137,6 +141,9 @@ sentry_options_new(void)
         sentry_options_free(opts);
         return NULL;
     }
+#endif
+#ifdef SENTRY_INTEGRATION_CPP
+    sentry__options_add_integration(opts, sentry_integration_cpp_new());
 #endif
 #ifdef SENTRY_INTEGRATION_QT
     sentry__options_add_integration(opts, sentry_integration_qt_new());

@@ -469,20 +469,21 @@ crashpad_handler(int signum, siginfo_t *info, ucontext_t *user_context)
         sentry_value_set_by_key(
             crash_event, "level", sentry__value_new_level(SENTRY_LEVEL_FATAL));
 
-        if (options->on_crash_func) {
-            sentry_ucontext_t uctx;
+        sentry_ucontext_t uctx;
 #    ifdef SENTRY_PLATFORM_WINDOWS
-            uctx.exception_ptrs = *ExceptionInfo;
+        uctx.exception_ptrs = *ExceptionInfo;
 #    else
-            uctx.signum = signum;
-            uctx.siginfo = info;
-            uctx.user_context = user_context;
+        uctx.signum = signum;
+        uctx.siginfo = info;
+        uctx.user_context = user_context;
 #    endif
 
+        if (options->on_crash_func) {
             SENTRY_DEBUG("invoking `on_crash` hook");
-            crash_event = options->on_crash_func(
-                &uctx, crash_event, options->on_crash_data);
-        } else if (options->before_send_func) {
+        }
+        crash_event = sentry__invoke_on_crash(&uctx, crash_event);
+
+        if (!options->on_crash_func && options->before_send_func) {
             SENTRY_DEBUG("invoking `before_send` hook");
             crash_event = options->before_send_func(
                 crash_event, nullptr, options->before_send_data);

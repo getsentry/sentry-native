@@ -147,6 +147,27 @@ sentry__exit_crash_handler(void)
     }
 }
 
+sentry_value_t
+sentry__invoke_on_crash(const sentry_ucontext_t *uctx, sentry_value_t event)
+{
+    const sentry_options_t *options = g_options;
+    if (!options) {
+        return event;
+    }
+
+    for (size_t i = 0; i < options->num_integrations; i++) {
+        sentry_integration_t *integration = options->integrations[i];
+        if (integration->on_crash_func) {
+            integration->on_crash_func(integration->data, uctx, event);
+        }
+    }
+
+    if (options->on_crash_func) {
+        event = options->on_crash_func(uctx, event, options->on_crash_data);
+    }
+    return event;
+}
+
 int
 sentry_init(sentry_options_t *options)
 {

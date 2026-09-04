@@ -1077,11 +1077,15 @@ process_ucontext_deferred(const sentry_ucontext_t *uctx,
             = sentry__trace_finish(SENTRY_SPAN_STATUS_ABORTED);
         sentry_uuid_t event_id = sentry_uuid_nil();
 
-        if (options->on_crash_func && !skip_hooks) {
-            SENTRY_DEBUG("invoking `on_crash` hook");
-            event = options->on_crash_func(uctx, event, options->on_crash_data);
+        if (!skip_hooks) {
+            if (options->on_crash_func) {
+                SENTRY_DEBUG("invoking `on_crash` hook");
+            }
+            event = sentry__invoke_on_crash(uctx, event);
             should_handle = !sentry_value_is_null(event);
-        } else if (skip_hooks && options->on_crash_func) {
+        }
+
+        if (skip_hooks && options->on_crash_func) {
             SENTRY_DEBUG("skipping `on_crash` hook due to recursive crash");
         }
 

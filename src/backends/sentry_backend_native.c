@@ -1333,11 +1333,9 @@ native_backend_except(sentry_backend_t *backend, const sentry_ucontext_t *uctx)
         // Call on_crash hook if configured
         if (options->on_crash_func) {
             SENTRY_DEBUG("invoking `on_crash` hook");
-            sentry_value_t result
-                = options->on_crash_func(uctx, event, options->on_crash_data);
-            should_handle = !sentry_value_is_null(result);
-            event = result;
         }
+        event = sentry__invoke_on_crash(uctx, event);
+        should_handle = !sentry_value_is_null(event);
 
         if (should_handle) {
             // Apply before_send hook if on_crash wasn't set
