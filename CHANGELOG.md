@@ -16,6 +16,7 @@
 - `sentry_set_trace` omits `parent_span_id` when the caller does not provide one, instead of serializing it as `null`. ([#2047](https://github.com/getsentry/sentry-native/pull/2047))
 - Native/Linux i386: write valid thread stack descriptors to minidumps when stack addresses use the upper half of the 32-bit address space. ([#2054](https://github.com/getsentry/sentry-native/pull/2054))
 - Linux/ARM32: fix builds on 32-bit ARM systems, including 32-bit Raspberry Pi OS installations running a 64-bit kernel. ([#2063](https://github.com/getsentry/sentry-native/pull/2063))
+- Guard size arithmetic when parsing envelopes and Linux OS release data, copying slices, and allocating memory during crash handling. ([#2059](https://github.com/getsentry/sentry-native/pull/2059))
 
 **Thank you**:
 

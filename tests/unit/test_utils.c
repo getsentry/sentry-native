@@ -313,6 +313,7 @@ SENTRY_TEST(page_allocator)
         p_before[i] = i % 255;
     }
     sentry__page_allocator_enable();
+    TEST_CHECK(!sentry_malloc(SIZE_MAX));
 
     char *p_after = sentry_malloc(size);
     TEST_ASSERT(!!p_after);

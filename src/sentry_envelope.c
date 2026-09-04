@@ -1085,7 +1085,7 @@ deserialize_into(sentry_envelope_t *envelope, const char *buf, size_t buf_len)
         // item headers
         const char *item_headers_end = memchr(ptr, '\n', (size_t)(end - ptr));
         if (!item_headers_end) {
-            item_headers_end = end;
+            return false;
         }
         size_t item_headers_len = (size_t)(item_headers_end - ptr);
         sentry_value_decref(item->headers);
@@ -1123,8 +1123,8 @@ deserialize_into(sentry_envelope_t *envelope, const char *buf, size_t buf_len)
             item->payload_len = (size_t)payload_len;
         }
         if (item->payload_len > 0) {
-            if (ptr + item->payload_len > end
-                || item->payload_len >= SIZE_MAX) {
+            if (item->payload_len >= SIZE_MAX
+                || item->payload_len > (size_t)(end - ptr)) {
                 return false;
             }
             item->payload = sentry_malloc(item->payload_len + 1);

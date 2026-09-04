@@ -712,7 +712,8 @@ parse_os_release_line(const char *line, char *key, char *value)
         = { .ptr = equals + 1, .len = strlen(equals + 1) };
 
     // some values are wrapped in double quotes
-    if (value_slice.ptr[0] == '\"') {
+    if (value_slice.len >= 2 && value_slice.ptr[0] == '\"'
+        && value_slice.ptr[value_slice.len - 1] == '\"') {
         value_slice.ptr++;
         value_slice.len -= 2;
     }

@@ -22,6 +22,9 @@ sentry__slice_to_owned(sentry_slice_t slice)
 void
 sentry__slice_to_buffer(sentry_slice_t slice, char *buffer, size_t buffer_len)
 {
+    if (buffer_len == 0) {
+        return;
+    }
     size_t copy_len = MIN(slice.len, buffer_len - 1);
     strncpy(buffer, slice.ptr, copy_len);
     buffer[copy_len] = 0;
