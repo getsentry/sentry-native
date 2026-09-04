@@ -506,7 +506,7 @@ sentry__procmaps_module_to_value(const sentry_module_t *module)
         mmapped_module.is_mmapped = true;
         mmapped_module.num_mappings = 1;
         mmapped_module.mappings[0].addr
-            = (uint64_t)mm.ptr + module->offset_in_inode;
+            = (uint64_t)(uintptr_t)mm.ptr + module->offset_in_inode;
         mmapped_module.mappings[0].size = mm.len - module->offset_in_inode;
 
         sentry__procmaps_read_ids_from_elf(mod_val, &mmapped_module);
