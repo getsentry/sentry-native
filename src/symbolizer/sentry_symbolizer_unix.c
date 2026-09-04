@@ -40,6 +40,19 @@ typedef struct dl_info {
     void *dli_saddr;
 } Dl_info;
 
+static const void *
+tb_consume(const char **ptr, const void *end, size_t size)
+{
+    uintptr_t ptr_addr = (uintptr_t)*ptr;
+    uintptr_t end_addr = (uintptr_t)end;
+    if (ptr_addr > end_addr || size > end_addr - ptr_addr) {
+        return NULL;
+    }
+    const void *rv = *ptr;
+    *ptr += size;
+    return rv;
+}
+
 /**
  * Gets the base address and name of a symbol.
  *
@@ -56,26 +69,36 @@ typedef struct dl_info {
  * could be emitted with XCOFF traceback...
  */
 static void
-sym_from_tb(void **sbase, char **sname, void *where)
+sym_from_tb(void **sbase, char **sname, void *where, const void *text_end)
 {
     /* The pointer must be word aligned as instructions are */
-    unsigned int *s = (unsigned int *)((uintptr_t)where & ~3);
-    while (*s) {
+    const char *cur = (const char *)((uintptr_t)where & ~3);
+    const unsigned int *s;
+    while ((s = tb_consume(&cur, text_end, sizeof(*s))) && *s) {
         /* look for zero word (invalid op) that begins epilogue */
-        s++;
+    }
+    if (!s) {
+        return;
     }
     /* We're on a zero word now, seek after the traceback table. */
-    struct tbtable_short *tb = (struct tbtable_short *)(s + 1);
+    const struct tbtable_short *tb = tb_consume(&cur, text_end, sizeof(*tb));
+    if (!tb) {
+        return;
+    }
     /* The extended traceback is variable length, so more seeking. */
-    char *ext = (char *)(tb + 1);
     /* Skip a lot of cruft, in order according to the ext "structure". */
-    if (tb->fixedparms || tb->floatparms) {
-        ext += sizeof(unsigned int);
+    if ((tb->fixedparms || tb->floatparms)
+        && !tb_consume(&cur, text_end, sizeof(unsigned int))) {
+        return;
     }
     if (tb->has_tboff) {
         /* tb_offset */
-        void *start = (char *)s - *((unsigned int *)ext);
-        ext += sizeof(unsigned int);
+        const unsigned int *tb_offset
+            = tb_consume(&cur, text_end, sizeof(*tb_offset));
+        if (!tb_offset) {
+            return;
+        }
+        void *start = (char *)s - *tb_offset;
         *sbase = (void *)start;
     } else {
         /*
@@ -85,22 +108,32 @@ sym_from_tb(void **sbase, char **sname, void *where)
          */
         *sbase = NULL; /* NULL base address as a sentinel */
     }
-    if (tb->int_hndl) {
-        ext += sizeof(int);
+    if (tb->int_hndl && !tb_consume(&cur, text_end, sizeof(int))) {
+        return;
     }
     if (tb->has_ctl) {
         /* array */
-        int ctlnum = (*(int *)ext);
-        ext += sizeof(int) + (sizeof(int) * ctlnum);
+        const int *ctlnum = tb_consume(&cur, text_end, sizeof(*ctlnum));
+        if (!ctlnum || *ctlnum < 0 || (size_t)*ctlnum > SIZE_MAX / sizeof(int)
+            || !tb_consume(&cur, text_end, (size_t)*ctlnum * sizeof(int))) {
+            return;
+        }
     }
     if (tb->name_present) {
         /* Oops! It does seem these can contain a null! */
-        short name_len = (*(short *)ext);
-        ext += sizeof(short);
-        char *name = sentry_malloc(name_len + 1);
+        const unsigned short *name_len
+            = tb_consume(&cur, text_end, sizeof(*name_len));
+        if (!name_len) {
+            return;
+        }
+        const char *name_start = tb_consume(&cur, text_end, *name_len);
+        if (!name_start) {
+            return;
+        }
+        char *name = sentry_malloc((size_t)*name_len + 1);
         if (name) {
-            memcpy(name, (char *)ext, name_len);
-            name[name_len] = '\0';
+            memcpy(name, name_start, *name_len);
+            name[*name_len] = '\0';
         }
         *sname = name;
     } else {
@@ -148,8 +181,8 @@ dladdr(void *s, Dl_info *i)
          * See the function's comments above as to why.
          * (Perhaps we could deref if a descriptor though...)
          */
-        if (cs >= tb && cs <= te) {
-            sym_from_tb(&i->dli_saddr, &i->dli_sname, s);
+        if (cs >= tb && cs < te) {
+            sym_from_tb(&i->dli_saddr, &i->dli_sname, s, te);
         }
 
         if ((cs >= db && cs <= de) || (cs >= tb && cs <= te)) {
