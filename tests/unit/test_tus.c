@@ -96,7 +96,7 @@ SENTRY_TEST(tus_request_preparation)
 
     const char *location = "https://sentry.invalid/api/42/upload/abc123/";
     req = sentry__prepare_tus_upload_request(
-        location, test_file_path, 9, dsn, NULL);
+        location, test_file_path, 9, 0, dsn, NULL);
     TEST_CHECK(!!req);
     TEST_CHECK_STRING_EQUAL(req->method, "PATCH");
     TEST_CHECK_STRING_EQUAL(req->url, location);
@@ -127,6 +127,26 @@ SENTRY_TEST(tus_request_preparation)
     TEST_CHECK(has_upload_offset);
 
     sentry__prepared_http_request_free(req);
+
+    // Test a resumed upload starts at the requested file offset.
+    req = sentry__prepare_tus_upload_request(
+        location, test_file_path, 9, 4, dsn, NULL);
+    TEST_CHECK(!!req);
+    TEST_CHECK_INT_EQUAL(req->body_offset, 4);
+    TEST_CHECK_INT_EQUAL(req->body_len, 5);
+    has_upload_offset = false;
+    for (size_t i = 0; i < req->headers_len; i++) {
+        if (strcmp(req->headers[i].key, "upload-offset") == 0) {
+            TEST_CHECK_STRING_EQUAL(req->headers[i].value, "4");
+            has_upload_offset = true;
+        }
+    }
+    TEST_CHECK(has_upload_offset);
+    sentry__prepared_http_request_free(req);
+
+    TEST_CHECK(!sentry__prepare_tus_upload_request(
+        location, test_file_path, 9, 10, dsn, NULL));
+
     sentry__path_remove(test_file_path);
     sentry__path_free(test_file_path);
     sentry__dsn_decref(dsn);

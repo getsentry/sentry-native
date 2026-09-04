@@ -281,6 +281,22 @@ winhttp_send_task(void *_client, sentry_prepared_http_request_t *req,
             goto exit;
         }
 
+        LARGE_INTEGER file_offset;
+        if (req->body_offset > INT64_MAX) {
+            SENTRY_WARNF("failed to seek request body file \"%s\"",
+                sentry__path_filename(req->body_path));
+            CloseHandle(hFile);
+            goto exit;
+        }
+        file_offset.QuadPart = (LONGLONG)req->body_offset;
+        if (!SetFilePointerEx(hFile, file_offset, NULL, FILE_BEGIN)) {
+            SENTRY_WARNF(
+                "failed to seek request body file \"%s\" with code `%d`",
+                sentry__path_filename(req->body_path), GetLastError());
+            CloseHandle(hFile);
+            goto exit;
+        }
+
         // https://learn.microsoft.com/en-us/windows/win32/api/winhttp/nf-winhttp-winhttpsendrequest#support-for-greater-than-4-gb-upload
         DWORD total_length = req->body_len > (size_t)(DWORD)-1
             ? WINHTTP_IGNORE_REQUEST_TOTAL_LENGTH
@@ -393,6 +409,13 @@ winhttp_send_task(void *_client, sentry_prepared_http_request_t *req,
         if (location) {
             sentry_http_response_set_header(resp, "location", location);
             sentry_free(location);
+        }
+
+        char *upload_offset = query_header(client->request, L"upload-offset");
+        if (upload_offset) {
+            sentry_http_response_set_header(
+                resp, "upload-offset", upload_offset);
+            sentry_free(upload_offset);
         }
     }
 

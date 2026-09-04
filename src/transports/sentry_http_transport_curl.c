@@ -470,14 +470,11 @@ curl_send_task(void *_client, sentry_prepared_http_request_t *req,
     FILE *body_file = NULL;
     file_body_t file_body = { 0 };
     if (req->body_path) {
-#ifdef SENTRY_PLATFORM_WINDOWS
-        body_file = _wfopen(req->body_path->path_w, L"rb");
-#else
-        body_file = fopen(req->body_path->path, "rb");
-#endif
+        body_file = sentry__path_open(req->body_path, "rb", req->body_offset);
         if (!body_file) {
-            SENTRY_WARNF("failed to open request body file \"%s\"",
-                sentry__path_filename(req->body_path));
+            SENTRY_WARNF("failed to open request body file \"%s\" at offset "
+                         "%zu",
+                sentry__path_filename(req->body_path), req->body_offset);
             g_curl.slist_free_all(headers);
             return false;
         }

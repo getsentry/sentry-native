@@ -4,6 +4,7 @@
 
 **Features**:
 
+- Resume interrupted TUS attachment uploads from the server-provided upload offset. ([#2058](https://github.com/getsentry/sentry-native/pull/2058))
 - Add `sentry_is_enabled` for checking whether the SDK has been initialized. ([#2045](https://github.com/getsentry/sentry-native/pull/2045))
 - Add `sentry_event_set_level` for setting the level of an individual event. ([#2038](https://github.com/getsentry/sentry-native/pull/2038))
 
