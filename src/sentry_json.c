@@ -554,8 +554,8 @@ parse_number(sentry_slice_t slice, sentry_value_t *value_out)
     }
 
     bool success = false;
-    char *endptr;
-    sentry_value_t rv;
+    char *endptr = NULL;
+    sentry_value_t rv = sentry_value_new_null();
     errno = 0;
 
     if (number[0] == '-') {
