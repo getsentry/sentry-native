@@ -23,6 +23,7 @@
 - Guard size arithmetic when parsing envelopes and Linux OS release data, copying slices, and allocating memory during crash handling. ([#2059](https://github.com/getsentry/sentry-native/pull/2059))
 - macOS: prevent out-of-bounds reads while parsing Mach-O load commands. ([#2065](https://github.com/getsentry/sentry-native/pull/2065))
 - Prevent out-of-bounds reads when parsing JSON numbers from length-delimited buffers. ([#2067](https://github.com/getsentry/sentry-native/pull/2067))
+- Validate session replay IDs before accessing staged files to prevent path traversal and unintended file uploads or deletions. ([#2071](https://github.com/getsentry/sentry-native/pull/2071))
 
 **Thank you**:
 

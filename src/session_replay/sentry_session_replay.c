@@ -6,6 +6,7 @@
 #include "sentry_json.h"
 #include "sentry_string.h"
 #include "sentry_utils.h"
+#include "sentry_uuid.h"
 #include "sentry_value.h"
 
 #if defined(_MSC_VER)
@@ -397,10 +398,10 @@ sentry__session_replay_flush_pending(const sentry_options_t *options,
     if (!sentry_value_is_null(scope_source)) {
         sentry_value_t replay_ctx = sentry_value_get_by_key(
             sentry_value_get_by_key(scope_source, "contexts"), "replay");
-        const char *rid = sentry_value_as_string(
-            sentry_value_get_by_key(replay_ctx, "replay_id"));
-        if (rid && rid[0]) {
-            replay_id = rid;
+        sentry_value_t rid = sentry_value_get_by_key(replay_ctx, "replay_id");
+        if (sentry__uuid_is_valid(
+                sentry_value_as_string(rid), sentry_value_get_length(rid))) {
+            replay_id = sentry_value_as_string(rid);
         }
     }
     if (!replay_id) {
