@@ -1247,18 +1247,25 @@ ensure_attachment_path(sentry_attachment_t *attachment)
         }
     }
 
-    if (!base_path || sentry__path_create_dir_all(base_path) != 0) {
+    if (!base_path) {
+        return false;
+    }
+
+    sentry_path_t *path = sentry__path_join_str(
+        base_path, sentry__path_filename(attachment->filename));
+    sentry_path_t *parent = path ? sentry__path_dir(path) : NULL;
+    bool valid = parent && sentry__path_eq(parent, base_path);
+    sentry__path_free(parent);
+    if (!valid || sentry__path_create_dir_all(base_path) != 0) {
+        sentry__path_free(path);
         sentry__path_free(base_path);
         return false;
     }
 
-    sentry_path_t *old_path = attachment->path;
-    attachment->path = sentry__path_join_str(
-        base_path, sentry__path_filename(attachment->filename));
-
     sentry__path_free(base_path);
-    sentry__path_free(old_path);
-    return attachment->path != NULL;
+    sentry__path_free(attachment->path);
+    attachment->path = path;
+    return true;
 }
 
 static void
