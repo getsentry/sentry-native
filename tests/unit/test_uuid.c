@@ -46,3 +46,30 @@ SENTRY_TEST(internal_uuid_api)
     sentry__span_uuid_as_string(&span_id, sbuf);
     TEST_CHECK_STRING_EQUAL(sbuf, "f391fdc0bb2743b1");
 }
+
+SENTRY_TEST(uuid_is_valid)
+{
+    const char compact[32] = "f391fdc0bb2743b18c0c183bc217d42b";
+    const char hyphenated[36] = "F391FDC0-BB27-43B1-8C0C-183BC217D42B";
+    TEST_CHECK(sentry__uuid_is_valid(compact, sizeof(compact)));
+    TEST_CHECK(sentry__uuid_is_valid(hyphenated, sizeof(hyphenated)));
+    TEST_CHECK(!sentry__uuid_is_valid(NULL, 32));
+    TEST_CHECK(!sentry__uuid_is_valid(compact, sizeof(compact) - 1));
+
+    char embedded_nul[32];
+    memcpy(embedded_nul, compact, sizeof(compact));
+    embedded_nul[16] = '\0';
+    TEST_CHECK(!sentry__uuid_is_valid(embedded_nul, sizeof(embedded_nul)));
+    const char trailing[] = "f391fdc0bb2743b18c0c183bc217d42b/../file";
+    TEST_CHECK(!sentry__uuid_is_valid(trailing, sizeof(trailing) - 1));
+    const char misplaced_dash[] = "f391fdc-0bb27-43b1-8c0c-183bc217d42b";
+    TEST_CHECK(
+        !sentry__uuid_is_valid(misplaced_dash, sizeof(misplaced_dash) - 1));
+    TEST_CHECK(!sentry__uuid_is_valid("", 32));
+    TEST_CHECK(!sentry__uuid_is_valid("", 36));
+    TEST_CHECK(!sentry__uuid_is_valid("f", 36));
+    const char extra_dash[] = "F391FDC0-BB27-43B1-8C0C-183BC217D42-";
+    TEST_CHECK(!sentry__uuid_is_valid(extra_dash, sizeof(extra_dash) - 1));
+    const char invalid_hex[] = "f391fdc0bb2743b18c0c183bc217d42g";
+    TEST_CHECK(!sentry__uuid_is_valid(invalid_hex, sizeof(invalid_hex) - 1));
+}
