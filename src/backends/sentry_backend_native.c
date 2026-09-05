@@ -1247,8 +1247,7 @@ ensure_attachment_path(sentry_attachment_t *attachment)
         }
     }
 
-    if (!base_path || sentry__path_create_dir_all(base_path) != 0) {
-        sentry__path_free(base_path);
+    if (!base_path) {
         return false;
     }
 
@@ -1257,12 +1256,13 @@ ensure_attachment_path(sentry_attachment_t *attachment)
     sentry_path_t *parent = path ? sentry__path_dir(path) : NULL;
     bool valid = parent && sentry__path_eq(parent, base_path);
     sentry__path_free(parent);
-    sentry__path_free(base_path);
-    if (!valid) {
+    if (!valid || sentry__path_create_dir_all(base_path) != 0) {
         sentry__path_free(path);
+        sentry__path_free(base_path);
         return false;
     }
 
+    sentry__path_free(base_path);
     sentry__path_free(attachment->path);
     attachment->path = path;
     return true;
