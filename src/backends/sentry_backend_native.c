@@ -1252,13 +1252,20 @@ ensure_attachment_path(sentry_attachment_t *attachment)
         return false;
     }
 
-    sentry_path_t *old_path = attachment->path;
-    attachment->path = sentry__path_join_str(
+    sentry_path_t *path = sentry__path_join_str(
         base_path, sentry__path_filename(attachment->filename));
-
+    sentry_path_t *parent = path ? sentry__path_dir(path) : NULL;
+    bool valid = parent && sentry__path_eq(parent, base_path);
+    sentry__path_free(parent);
     sentry__path_free(base_path);
-    sentry__path_free(old_path);
-    return attachment->path != NULL;
+    if (!valid) {
+        sentry__path_free(path);
+        return false;
+    }
+
+    sentry__path_free(attachment->path);
+    attachment->path = path;
+    return true;
 }
 
 static void
