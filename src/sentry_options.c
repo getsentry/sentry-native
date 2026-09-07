@@ -318,10 +318,10 @@ sentry_options_set_org_id(sentry_options_t *opts, const char *org_id)
 const char *
 sentry__options_get_org_id(const sentry_options_t *opts)
 {
-    if (opts->org_id && *opts->org_id) {
+    if (!sentry__string_empty(opts->org_id)) {
         return opts->org_id;
     }
-    if (opts->dsn && opts->dsn->org_id && *opts->dsn->org_id) {
+    if (opts->dsn && !sentry__string_empty(opts->dsn->org_id)) {
         return opts->dsn->org_id;
     }
     return NULL;
