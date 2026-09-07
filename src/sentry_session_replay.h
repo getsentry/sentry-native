@@ -35,6 +35,8 @@ bool sentry__session_replay_has_pending(const sentry_options_t *options);
  * `scope_source`. The replay is identified by the crash event's
  * `contexts.replay.replay_id` and staged by the embedder as
  * `<database>/replays/replay-<id>.{json,mp4}`.
+ * The ID must contain 32 hex digits, optionally hyphenated as a UUID. The
+ * sidecar's `videoFilename` is ignored when locating the video.
  *
  * Runs only on a crash. The native crash daemon calls it out-of-process with
  * the live transport, delivering the replay same-session. The crashpad,
@@ -48,7 +50,7 @@ bool sentry__session_replay_has_pending(const sentry_options_t *options);
  * and trace id are copied onto the replay, and its timestamp ends the replay
  * window. If it carries `breadcrumbs`, those falling inside the replay window
  * are embedded in the recording as rrweb `breadcrumb` events so they show up
- * on the replay timeline. If it is NULL or carries no
+ * on the replay timeline. If it is NULL or carries no valid
  * `contexts.replay.replay_id`, nothing is flushed.
  */
 void sentry__session_replay_flush_pending(const sentry_options_t *options,
