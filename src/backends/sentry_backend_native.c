@@ -894,8 +894,7 @@ native_backend_startup(
     }
 
 #    if defined(SENTRY_PLATFORM_WINDOWS) && !defined(SENTRY_PLATFORM_XBOX)
-    state->ipc->shmem->platform.wer_enabled
-        = wer_register_module(tid, options);
+    state->ipc->shmem->platform.wer_enabled = wer_register_module(tid, options);
 #    endif
 
     sentry_handler_strategy_t strategy =
