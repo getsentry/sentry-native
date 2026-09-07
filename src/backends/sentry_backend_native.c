@@ -1260,6 +1260,11 @@ ensure_attachment_path(sentry_attachment_t *attachment)
         return false;
     }
 
+    const char *filename = sentry__path_filename(attachment->filename);
+    if (sentry__string_empty(filename)) {
+        return false;
+    }
+
     // Generate UUID for unique path
     sentry_uuid_t uuid = sentry_uuid_new_v4();
     char uuid_str[37];
@@ -1276,8 +1281,7 @@ ensure_attachment_path(sentry_attachment_t *attachment)
         return false;
     }
 
-    sentry_path_t *path = sentry__path_join_str(
-        base_path, sentry__path_filename(attachment->filename));
+    sentry_path_t *path = sentry__path_join_str(base_path, filename);
     sentry_path_t *parent = path ? sentry__path_dir(path) : NULL;
     bool valid = parent && sentry__path_eq(parent, base_path);
     sentry__path_free(parent);
