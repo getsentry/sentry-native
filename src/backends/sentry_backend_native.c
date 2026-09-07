@@ -95,8 +95,34 @@ wer_delete_registry_value(const sentry_path_t *wer_path)
 }
 
 static sentry_path_t *
-wer_default_path(void)
+wer_path_in_dir(const sentry_path_t *dir)
 {
+    sentry_path_t *wer_path = sentry__path_join_str(dir, "sentry-wer.dll");
+    if (wer_path && sentry__path_is_file(wer_path)) {
+        return wer_path;
+    }
+    sentry__path_free(wer_path);
+    return NULL;
+}
+
+static sentry_path_t *
+wer_module_path(const sentry_options_t *options)
+{
+    if (options && options->handler_path) {
+        sentry_path_t *handler_path
+            = sentry__path_absolute(options->handler_path);
+        sentry_path_t *handler_dir = sentry__path_dir(
+            handler_path ? handler_path : options->handler_path);
+        sentry__path_free(handler_path);
+        if (handler_dir) {
+            sentry_path_t *wer_path = wer_path_in_dir(handler_dir);
+            sentry__path_free(handler_dir);
+            if (wer_path) {
+                return wer_path;
+            }
+        }
+    }
+
     sentry_path_t *current_exe = sentry__path_current_exe();
     if (!current_exe) {
         return NULL;
@@ -108,7 +134,7 @@ wer_default_path(void)
         return NULL;
     }
 
-    sentry_path_t *wer_path = sentry__path_join_str(exe_dir, "sentry-wer.dll");
+    sentry_path_t *wer_path = wer_path_in_dir(exe_dir);
     sentry__path_free(exe_dir);
     return wer_path;
 }
@@ -129,7 +155,7 @@ wer_unregister_module(void)
 }
 
 static bool
-wer_register_module(uint64_t app_tid)
+wer_register_module(uint64_t app_tid, const sentry_options_t *options)
 {
     windows_version_t win_ver;
     if (!sentry__get_windows_version(&win_ver) || win_ver.build < 19041) {
@@ -138,10 +164,9 @@ wer_register_module(uint64_t app_tid)
         return false;
     }
 
-    sentry_path_t *wer_path = wer_default_path();
-    if (!wer_path || !sentry__path_is_file(wer_path)) {
+    sentry_path_t *wer_path = wer_module_path(options);
+    if (!wer_path) {
         SENTRY_WARN("Native WER module not found");
-        sentry__path_free(wer_path);
         return false;
     }
 
@@ -869,7 +894,8 @@ native_backend_startup(
     }
 
 #    if defined(SENTRY_PLATFORM_WINDOWS) && !defined(SENTRY_PLATFORM_XBOX)
-    state->ipc->shmem->platform.wer_enabled = wer_register_module(tid);
+    state->ipc->shmem->platform.wer_enabled
+        = wer_register_module(tid, options);
 #    endif
 
     sentry_handler_strategy_t strategy =
