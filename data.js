@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1788776140175,
+  "lastUpdate": 1788776317201,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -109828,6 +109828,216 @@ window.BENCHMARK_DATA = {
             "range": "linear",
             "unit": "bytes",
             "extra": "Size 408896b"
+          },
+          {
+            "name": "Stack usage (inproc)",
+            "value": 9208,
+            "unit": "bytes",
+            "extra": "Peak 9208b, Segments 2"
+          },
+          {
+            "name": "Stack usage (breakpad)",
+            "value": 8072,
+            "unit": "bytes",
+            "extra": "Peak 8072b, Segments 1"
+          },
+          {
+            "name": "Stack usage (native)",
+            "value": 5320,
+            "unit": "bytes",
+            "extra": "Peak 5320b, Segments 1"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "jpnurmi@gmail.com",
+            "name": "J-P Nurmi",
+            "username": "jpnurmi"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "761a5ef7ff7f915d9154ce9b42e66e7000ee443e",
+          "message": "fix: validate session replay IDs (#2071)\n\n* fix: validate session replay IDs\n\nPrevent path traversal through replay IDs.\n\nReplay flushing interpolated contexts.replay.replay_id from the stored\ncrash event into JSON and MP4 paths after only checking for a nonempty\nstring. A crafted ID containing path separators and parent-directory\ncomponents could select files outside the replay staging directory.\nMatching JSON/MP4 files could be read, the video uploaded to the\nconfigured DSN, and both files deleted.\n\nRequire a complete 32-digit hexadecimal UUID or its standard hyphenated\nform before constructing either path. Preserve casing and hyphenation\nto keep matching staged filenames. The existing UUID parser is\nunsuitable for validation because it accepts partial IDs and ignores\ntrailing input once it has decoded 16 bytes.\n\nThe related videoFilename issue allowed an on-disk JSON sidecar to\nredirect video uploads to arbitrary readable files using absolute paths\nor traversal components. Current code already derives video filenames\nfrom replay_id; document that videoFilename is ignored.\n\nAdd UUID unit coverage for valid forms, invalid lengths and characters,\nmisplaced hyphens, embedded NULs, and trailing data.\n\n* Update CHANGELOG.md",
+          "timestamp": "2026-09-07T12:08:35+02:00",
+          "tree_id": "562180ba6e037a98c5c1052169b226cb6e7f39e9",
+          "url": "https://github.com/getsentry/sentry-native/commit/761a5ef7ff7f915d9154ce9b42e66e7000ee443e"
+        },
+        "date": 1788776294211,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 4.306750000012016,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 3.620ms\nMax 9.691ms\nMean 5.902ms\nStdDev 2.672ms\nMedian 4.307ms\nCPU 2.574ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 11.295291000010366,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 5.790ms\nMax 35.287ms\nMean 14.325ms\nStdDev 12.112ms\nMedian 11.295ms\nCPU 4.489ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 19.923084000026847,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 14.764ms\nMax 30.505ms\nMean 21.304ms\nStdDev 6.836ms\nMedian 19.923ms\nCPU 6.847ms"
+          },
+          {
+            "name": "SDK init (native)",
+            "value": 13.426999999978761,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 10.131ms\nMax 18.013ms\nMean 13.530ms\nStdDev 2.876ms\nMedian 13.427ms\nCPU 4.852ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.0730000000430664,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.062ms\nMax 0.288ms\nMean 0.113ms\nStdDev 0.098ms\nMedian 0.073ms\nCPU 0.047ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.27783400003045244,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.267ms\nMax 0.326ms\nMean 0.293ms\nStdDev 0.030ms\nMedian 0.278ms\nCPU 0.291ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 9.046792000049209,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 7.737ms\nMax 17.589ms\nMean 10.378ms\nStdDev 4.080ms\nMedian 9.047ms\nCPU 1.225ms"
+          },
+          {
+            "name": "Backend startup (native)",
+            "value": 6.671957999969891,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 5.709ms\nMax 11.697ms\nMean 7.345ms\nStdDev 2.470ms\nMedian 6.672ms\nCPU 1.134ms"
+          },
+          {
+            "name": "Scope set_tag (inproc)",
+            "value": 0.0030969160000040574,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.003ms\nMax 0.003ms\nMean 0.003ms\nMedian 0.003ms\nCPU 0.003ms"
+          },
+          {
+            "name": "Scope add_breadcrumb (inproc)",
+            "value": 0.0015193330000329297,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.002ms\nMax 0.002ms\nMean 0.002ms\nMedian 0.002ms\nCPU 0.001ms"
+          },
+          {
+            "name": "Scope set_tag (breakpad)",
+            "value": 0.002801750000003267,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.003ms\nMax 0.003ms\nMean 0.003ms\nMedian 0.003ms\nCPU 0.003ms"
+          },
+          {
+            "name": "Scope add_breadcrumb (breakpad)",
+            "value": 0.0011764999999286374,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.001ms\nMax 0.001ms\nMean 0.001ms\nMedian 0.001ms\nCPU 0.001ms"
+          },
+          {
+            "name": "Scope set_tag (crashpad)",
+            "value": 0.18345466699997814,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.183ms\nMax 0.183ms\nMean 0.183ms\nMedian 0.183ms\nCPU 0.171ms"
+          },
+          {
+            "name": "Scope add_breadcrumb (crashpad)",
+            "value": 0.07254712500002825,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.073ms\nMax 0.073ms\nMean 0.073ms\nMedian 0.073ms\nCPU 0.051ms"
+          },
+          {
+            "name": "Scope set_tag (native)",
+            "value": 0.24689779200002704,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.247ms\nMax 0.247ms\nMean 0.247ms\nMedian 0.247ms\nCPU 0.190ms"
+          },
+          {
+            "name": "Scope add_breadcrumb (native)",
+            "value": 0.08787070899995797,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.088ms\nMax 0.088ms\nMean 0.088ms\nMedian 0.088ms\nCPU 0.056ms"
+          },
+          {
+            "name": "Logs (1 thread)",
+            "value": 0.004747500000803484,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.005ms\nMax 0.005ms\nMean 0.005ms\nMedian 0.005ms\nCPU 0.005ms"
+          },
+          {
+            "name": "Logs (8 threads)",
+            "value": 0.024797136249787854,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.025ms\nMax 0.025ms\nMean 0.025ms\nMedian 0.025ms\nCPU 0.007ms"
+          },
+          {
+            "name": "Logs (16 threads)",
+            "value": 0.04904341187504713,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.049ms\nMax 0.049ms\nMean 0.049ms\nMedian 0.049ms\nCPU 0.005ms"
+          },
+          {
+            "name": "Logs (32 threads)",
+            "value": 0.11216942718746736,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.112ms\nMax 0.112ms\nMean 0.112ms\nMedian 0.112ms\nCPU 0.005ms"
+          },
+          {
+            "name": "Library size (inproc)",
+            "value": 390512,
+            "range": "linear",
+            "unit": "bytes",
+            "extra": "Size 390512b"
+          },
+          {
+            "name": "Library size (breakpad)",
+            "value": 475072,
+            "range": "linear",
+            "unit": "bytes",
+            "extra": "Size 475072b"
+          },
+          {
+            "name": "Library size (crashpad)",
+            "value": 791200,
+            "range": "linear",
+            "unit": "bytes",
+            "extra": "Size 791200b"
+          },
+          {
+            "name": "Library size (native)",
+            "value": 408928,
+            "range": "linear",
+            "unit": "bytes",
+            "extra": "Size 408928b"
           },
           {
             "name": "Stack usage (inproc)",
