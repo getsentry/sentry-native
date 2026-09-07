@@ -8,11 +8,12 @@ update-test-discovery:
 	@perl -ne 'print if s/SENTRY_TEST\(([^)]+)\).*/XX(\1)/' tests/unit/*.c | LC_ALL=C sort | grep -v define | uniq > tests/unit/tests.inc
 .PHONY: update-test-discovery
 
-build/Makefile: CMakeLists.txt
+build/Makefile configure: CMakeLists.txt
 	@mkdir -p build
-	@cd build; cmake ..
+	@cmake -S . -B build $(if $(SENTRY_BACKEND),-DSENTRY_BACKEND=$(SENTRY_BACKEND)) $(if $(SENTRY_TRANSPORT),-DSENTRY_TRANSPORT=$(SENTRY_TRANSPORT))
+.PHONY: configure
 
-build: build/Makefile
+build: configure
 	@cmake --build build --parallel
 .PHONY: build
 
