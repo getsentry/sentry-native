@@ -421,9 +421,9 @@ add_attachment_refs(sentry_envelope_t *envelope,
             sentry__path_free(attachment.filename);
             continue;
         }
-        attachment.type
-            = (char *)((attachment_type && *attachment_type) ? attachment_type
-                                                             : NULL);
+        attachment.type = sentry__string_empty(attachment_type)
+            ? NULL
+            : (char *)attachment_type;
         attachment.content_type
             = sentry__string_empty(content_type) ? NULL : (char *)content_type;
         if (!sentry__attachment_is_placeholder(&attachment, options)) {
@@ -2756,7 +2756,7 @@ walk_stack_with_dbghelp(HANDLE hProcess, DWORD crashed_tid,
             sentry__stringbuilder_append_buf(&sb, path, dir_len);
         }
         char *path_utf8 = sentry__stringbuilder_into_string(&sb);
-        if (path_utf8 && path_utf8[0]) {
+        if (!sentry__string_empty(path_utf8)) {
             s_sym_search_path = sentry__string_to_wstr(path_utf8);
         }
         sentry_free(path_utf8);
@@ -3377,7 +3377,7 @@ build_native_event(const sentry_crash_context_t *ctx,
 {
     // Read base event from parent's file
     sentry_value_t event = sentry_value_new_null();
-    if (event_file_path && event_file_path[0]) {
+    if (!sentry__string_empty(event_file_path)) {
         sentry_path_t *ev_path = sentry__path_from_str(event_file_path);
         if (ev_path) {
             size_t event_size = 0;
@@ -3860,7 +3860,7 @@ write_envelope_with_native_stacktrace(const sentry_options_t *options,
     sentry_free(event_json);
 
     // Add minidump as attachment if provided
-    if (minidump_path && minidump_path[0]) {
+    if (!sentry__string_empty(minidump_path)) {
 #if defined(SENTRY_PLATFORM_UNIX)
         int minidump_fd = open(minidump_path, O_RDONLY);
 #elif defined(SENTRY_PLATFORM_WINDOWS)
