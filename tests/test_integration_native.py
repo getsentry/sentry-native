@@ -1438,10 +1438,14 @@ def test_native_pdb(cmake, httpserver, build_args, run_args):
 
     envelope = Envelope.deserialize(httpserver.log[0][0].get_data())
     event = envelope.get_event()
-    if "crash" in run_args:
-        stack = event["exception"]["values"][0]["stacktrace"]
-    else:
-        stack = event["threads"]["values"][0]["stacktrace"]
+    stacks = [
+        value.get("stacktrace", {})
+        for value in (
+            event.get("threads", {}).get("values", [])
+            + event.get("exception", {}).get("values", [])
+        )
+    ]
+    assert stacks
     image = next(
         image
         for image in event["debug_meta"]["images"]
@@ -1451,7 +1455,8 @@ def test_native_pdb(cmake, httpserver, build_args, run_args):
     end = start + image["image_size"]
     frames = [
         frame
-        for frame in stack["frames"]
+        for stack in stacks
+        for frame in stack.get("frames", [])
         if start <= int(frame["instruction_addr"], 16) < end
     ]
     assert frames
