@@ -2824,8 +2824,10 @@ walk_stack_with_dbghelp(HANDLE hProcess, DWORD crashed_tid,
             sym_info->SizeOfStruct = sizeof(SYMBOL_INFOW);
             sym_info->MaxNameLen = MAX_SYM_NAME;
 
+            // reject SYMFLAG_EXPORT: export fallback can misidentify functions
             if (SymFromAddrW(
-                    hProcess, stack_frame.AddrPC.Offset, NULL, sym_info)) {
+                    hProcess, stack_frame.AddrPC.Offset, NULL, sym_info)
+                && !(sym_info->Flags & SYMFLAG_EXPORT)) {
                 frames[frame_count].symbol
                     = sentry__string_from_wstr(sym_info->Name);
                 frames[frame_count].symbol_addr
