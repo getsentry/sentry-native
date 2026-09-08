@@ -26,6 +26,12 @@ from .conditions import has_breakpad, has_files, is_qemu, is_wine
 
 
 @pytest.mark.skipif(is_qemu, reason="unreliable under qemu-user")
+@pytest.mark.xfail(
+    bool(os.environ.get("TEST_MINGW")),
+    reason="DbgHelp cannot read MinGW DWARF symbols",
+    raises=pytest.RaisesExc(AssertionError, match="^missing symbolicated frames"),
+    strict=True,
+)
 def test_capture_stdout(cmake):
     tmp_path = cmake(
         ["sentry_example"],
