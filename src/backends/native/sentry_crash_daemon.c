@@ -187,6 +187,11 @@ vma_capture(pid_t pid)
 #    include <sys/stat.h>
 #    include <windows.h>
 
+// https://learn.microsoft.com/en-us/windows/win32/api/dbghelp/ns-dbghelp-symbol_info
+#    ifndef SYMFLAG_EXPORT
+#        define SYMFLAG_EXPORT 0x00000200
+#    endif
+
 // Global handle for ReadProcessMemory callback and shared stack-walk session
 static HANDLE g_stack_walk_process = NULL;
 
