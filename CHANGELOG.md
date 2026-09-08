@@ -26,6 +26,7 @@
 - Validate session replay IDs before accessing staged files to prevent path traversal and unintended file uploads or deletions. ([#2071](https://github.com/getsentry/sentry-native/pull/2071))
 - Native/Windows: resolve the WER module relative to `handler_path`, so it is found when the crash handler is installed outside the executable's directory. ([#2073](https://github.com/getsentry/sentry-native/pull/2073))
 - Native: prevent buffer attachments from being written outside their UUID run directory. ([#2072](https://github.com/getsentry/sentry-native/pull/2072))
+- Native/Windows: reject misleading export fallback symbols in stack traces when PDB files are unavailable. ([#2075](https://github.com/getsentry/sentry-native/pull/2075))
 
 **Thank you**:
 

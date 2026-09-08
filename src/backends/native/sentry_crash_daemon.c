@@ -187,6 +187,11 @@ vma_capture(pid_t pid)
 #    include <sys/stat.h>
 #    include <windows.h>
 
+// https://learn.microsoft.com/en-us/windows/win32/api/dbghelp/ns-dbghelp-symbol_info
+#    ifndef SYMFLAG_EXPORT
+#        define SYMFLAG_EXPORT 0x00000200
+#    endif
+
 // Global handle for ReadProcessMemory callback and shared stack-walk session
 static HANDLE g_stack_walk_process = NULL;
 
@@ -2824,8 +2829,10 @@ walk_stack_with_dbghelp(HANDLE hProcess, DWORD crashed_tid,
             sym_info->SizeOfStruct = sizeof(SYMBOL_INFOW);
             sym_info->MaxNameLen = MAX_SYM_NAME;
 
+            // reject SYMFLAG_EXPORT: export fallback can misidentify functions
             if (SymFromAddrW(
-                    hProcess, stack_frame.AddrPC.Offset, NULL, sym_info)) {
+                    hProcess, stack_frame.AddrPC.Offset, NULL, sym_info)
+                && !(sym_info->Flags & SYMFLAG_EXPORT)) {
                 frames[frame_count].symbol
                     = sentry__string_from_wstr(sym_info->Name);
                 frames[frame_count].symbol_addr
