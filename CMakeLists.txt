@@ -1099,8 +1099,14 @@ endif()
 
 if(SENTRY_BUILD_EXAMPLES)
 	add_executable(sentry_example examples/example.c)
+	set(SENTRY_EXAMPLE_TARGETS sentry_example)
+	foreach(example feedback)
+		add_executable(sentry_example_${example} examples/${example}.c)
+		target_link_libraries(sentry_example_${example} PRIVATE sentry)
+		list(APPEND SENTRY_EXAMPLE_TARGETS sentry_example_${example})
+	endforeach()
 	if(XBOX)
-		set_target_properties(sentry_example PROPERTIES VS_USER_PROPS gdk_build.props)
+		set_target_properties(${SENTRY_EXAMPLE_TARGETS} PROPERTIES VS_USER_PROPS gdk_build.props)
 	endif()
 	target_link_libraries(sentry_example PRIVATE sentry)
 
@@ -1124,11 +1130,11 @@ if(SENTRY_BUILD_EXAMPLES)
 
 	# set static runtime if enabled
 	if(SENTRY_BUILD_RUNTIMESTATIC AND MSVC)
-		set_property(TARGET sentry_example PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+		set_property(TARGET ${SENTRY_EXAMPLE_TARGETS} PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 	endif()
 
 	if(DEFINED SENTRY_FOLDER)
-		set_target_properties(sentry_example PROPERTIES FOLDER ${SENTRY_FOLDER})
+		set_target_properties(${SENTRY_EXAMPLE_TARGETS} PROPERTIES FOLDER ${SENTRY_FOLDER})
 	endif()
 
 	if(CMAKE_GENERATOR STREQUAL "Xcode")

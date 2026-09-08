@@ -10,6 +10,7 @@ from flaky import flaky
 from . import (
     make_dsn,
     run,
+    check_output,
     stage_replay,
     Envelope,
     split_log_request_cond,
@@ -223,7 +224,12 @@ def test_capture_and_session_http(cmake, httpserver):
 
 
 def test_user_feedback_http(cmake, httpserver):
-    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "none"})
+    tmp_path = cmake(
+        ["sentry_example", "sentry_example_feedback"], {"SENTRY_BACKEND": "none"}
+    )
+    source = check_output(tmp_path, "sentry_example", ["stdout", "capture-event"])
+    (tmp_path / "event.envelope").write_bytes(source)
+    event_id = Envelope.deserialize(source).headers["event_id"]
 
     httpserver.expect_request(
         "/api/123456/envelope/",
@@ -233,20 +239,33 @@ def test_user_feedback_http(cmake, httpserver):
 
     run(
         tmp_path,
-        "sentry_example",
-        ["log", "capture-user-feedback"],
+        "sentry_example_feedback",
+        ["event.envelope", "some-message", "some-email", "some-name"],
         env=env,
     )
 
-    assert len(httpserver.log) == 1
-    output = httpserver.log[0][0].get_data()
-    envelope = Envelope.deserialize(output)
-
-    assert_user_feedback(envelope)
+    assert (tmp_path / "event.envelope").read_bytes() == source
+    assert all(
+        Envelope.deserialize(req.get_data()).get_event() is None
+        for req, _ in httpserver.log
+    )
+    feedback_request, _ = extract_request(httpserver.log, is_feedback_envelope)
+    envelope = Envelope.deserialize(feedback_request.get_data())
+    assert len(envelope.items) == 1
+    assert_user_feedback(envelope, event_id=event_id)
 
 
 def test_user_feedback_with_attachments_http(cmake, httpserver):
-    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "none"})
+    tmp_path = cmake(
+        ["sentry_example", "sentry_example_feedback"], {"SENTRY_BACKEND": "none"}
+    )
+    source = check_output(tmp_path, "sentry_example", ["stdout", "capture-event"])
+    (tmp_path / "event.envelope").write_bytes(source)
+    event_id = Envelope.deserialize(source).headers["event_id"]
+    attachment = tmp_path / "application.log"
+    attachment.write_text("ERROR Failed to save document")
+    diagnostics = tmp_path / "diagnostics.txt"
+    diagnostics.write_text("Additional diagnostics")
 
     httpserver.expect_request(
         "/api/123456/envelope/",
@@ -256,17 +275,23 @@ def test_user_feedback_with_attachments_http(cmake, httpserver):
 
     run(
         tmp_path,
-        "sentry_example",
-        ["log", "capture-user-feedback-with-attachment"],
+        "sentry_example_feedback",
+        [
+            "event.envelope",
+            "some-message",
+            "some-email",
+            "some-name",
+            attachment.name,
+            diagnostics.name,
+        ],
         env=env,
     )
 
-    assert len(httpserver.log) == 1
-    output = httpserver.log[0][0].get_data()
-    envelope = Envelope.deserialize(output)
+    feedback_request, _ = extract_request(httpserver.log, is_feedback_envelope)
+    envelope = Envelope.deserialize(feedback_request.get_data())
 
     # Verify the feedback is present
-    assert_user_feedback(envelope)
+    assert_user_feedback(envelope, event_id=event_id)
 
     # Verify attachments are present
     attachment_count = 0
@@ -274,8 +299,18 @@ def test_user_feedback_with_attachments_http(cmake, httpserver):
         if item.headers.get("type") == "attachment":
             attachment_count += 1
 
-    # Should have 2 attachments (one file, one bytes)
+    # Should have 2 attachments
     assert attachment_count == 2
+
+    attachments = {
+        item.headers["filename"]: item.payload.bytes
+        for item in envelope
+        if item.headers.get("type") == "attachment"
+    }
+    assert attachments == {
+        "application.log": b"ERROR Failed to save document",
+        "diagnostics.txt": b"Additional diagnostics",
+    }
 
 
 def test_user_report_http(cmake, httpserver):

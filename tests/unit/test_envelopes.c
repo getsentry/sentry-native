@@ -396,7 +396,7 @@ SENTRY_TEST(write_raw_envelope_to_file)
 
 SENTRY_TEST(raw_envelope_event_id)
 {
-    sentry_uuid_t event_id = sentry__envelope_get_event_id(NULL);
+    sentry_uuid_t event_id = sentry_envelope_get_event_id(NULL);
     TEST_CHECK(sentry_uuid_is_nil(&event_id));
 
     sentry_envelope_t *envelope = create_test_envelope();
@@ -409,7 +409,7 @@ SENTRY_TEST(raw_envelope_event_id)
         = sentry__envelope_from_path(test_file_path);
     TEST_CHECK(!!raw_envelope);
 
-    event_id = sentry__envelope_get_event_id(raw_envelope);
+    event_id = sentry_envelope_get_event_id(raw_envelope);
     char event_id_str[37];
     sentry_uuid_as_string(&event_id, event_id_str);
     TEST_CHECK_STRING_EQUAL(
@@ -430,7 +430,7 @@ SENTRY_TEST(raw_envelope_event_id)
         0);
     raw_envelope = sentry__envelope_from_path(test_file_path);
     TEST_CHECK(!!raw_envelope);
-    event_id = sentry__envelope_get_event_id(raw_envelope);
+    event_id = sentry_envelope_get_event_id(raw_envelope);
     TEST_CHECK(sentry_uuid_is_nil(&event_id));
     sentry__path_remove(test_file_path);
     sentry__path_free(test_file_path);
@@ -445,7 +445,7 @@ SENTRY_TEST(raw_envelope_event_id)
         0);
     raw_envelope = sentry__envelope_from_path(test_file_path);
     TEST_CHECK(!!raw_envelope);
-    event_id = sentry__envelope_get_event_id(raw_envelope);
+    event_id = sentry_envelope_get_event_id(raw_envelope);
     sentry_uuid_as_string(&event_id, event_id_str);
     TEST_CHECK_STRING_EQUAL(
         event_id_str, "c993afb6-b4ac-48a6-b61b-2558e601d65d");
@@ -475,7 +475,7 @@ SENTRY_TEST(read_envelope_from_file)
                                 envelope, "event_id")),
         "c993afb6-b4ac-48a6-b61b-2558e601d65d");
 
-    sentry_uuid_t event_id = sentry__envelope_get_event_id(envelope);
+    sentry_uuid_t event_id = sentry_envelope_get_event_id(envelope);
     char event_id_str[37];
     sentry_uuid_as_string(&event_id, event_id_str);
     TEST_CHECK_STRING_EQUAL(

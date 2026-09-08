@@ -835,7 +835,7 @@ http_send_task(void *_envelope, void *_state)
     sentry_envelope_t *envelope = _envelope;
     http_transport_state_t *state = _state;
 
-    sentry_uuid_t event_id = sentry__envelope_get_event_id(envelope);
+    sentry_uuid_t event_id = sentry_envelope_get_event_id(envelope);
     if (!materialize_attachment_refs(envelope)) {
         sentry__cache_remove_siblings(state->run, &event_id);
         return;

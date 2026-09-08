@@ -845,6 +845,15 @@ SENTRY_API sentry_value_t sentry_envelope_get_event(
     const sentry_envelope_t *envelope);
 
 /**
+ * Returns the event ID from the envelope header.
+ *
+ * Returns a nil UUID if `envelope` is NULL or the event ID is missing or
+ * invalid.
+ */
+SENTRY_API sentry_uuid_t sentry_envelope_get_event_id(
+    const sentry_envelope_t *envelope);
+
+/**
  * Given an Envelope, returns the embedded Transaction if there is one.
  *
  * This returns a borrowed value to the Transaction in the Envelope.

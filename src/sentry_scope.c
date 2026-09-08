@@ -1340,7 +1340,7 @@ sentry__scope_capture_envelope(sentry_scope_t *scope,
     sentry_transport_t *transport, sentry_envelope_t *envelope,
     const sentry_options_t *options)
 {
-    sentry_uuid_t event_id = sentry__envelope_get_event_id(envelope);
+    sentry_uuid_t event_id = sentry_envelope_get_event_id(envelope);
     if (!sentry_uuid_is_nil(&event_id)) {
         scope->last_event_id = event_id;
     }

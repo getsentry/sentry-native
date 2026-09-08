@@ -6,6 +6,9 @@
 
 - Add `sentry_is_enabled` for checking whether the SDK has been initialized. ([#2045](https://github.com/getsentry/sentry-native/pull/2045))
 - Add `sentry_event_set_level` for setting the level of an individual event. ([#2038](https://github.com/getsentry/sentry-native/pull/2038))
+- Add `sentry_envelope_get_event_id` for reading the event ID from an envelope. ([#2076](https://github.com/getsentry/sentry-native/pull/2076))
+- New examples:
+  - `examples/feedback.c`: [#2076](https://github.com/getsentry/sentry-native/pull/2076)
 
 **Fixes**:
 

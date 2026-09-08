@@ -186,7 +186,7 @@ breakpad_backend_callback(const google_breakpad::MinidumpDescriptor &descriptor,
             sentry_envelope_t *envelope = sentry__prepare_event(
                 options, event, nullptr, !options->on_crash_func, nullptr);
             if (envelope) {
-                event_id = sentry__envelope_get_event_id(envelope);
+                event_id = sentry_envelope_get_event_id(envelope);
             }
             sentry_session_t *session = sentry__end_current_session_with_status(
                 SENTRY_SESSION_STATUS_CRASHED);

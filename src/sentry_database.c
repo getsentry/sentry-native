@@ -248,7 +248,7 @@ sentry__run_free(sentry_run_t *run)
 static bool
 write_envelope(const sentry_path_t *path, const sentry_envelope_t *envelope)
 {
-    sentry_uuid_t event_id = sentry__envelope_get_event_id(envelope);
+    sentry_uuid_t event_id = sentry_envelope_get_event_id(envelope);
 
     // Generate a random UUID for the filename if the envelope has no event_id
     // this avoids collisions on NIL-UUIDs
@@ -403,7 +403,7 @@ sentry__cache_attachment_ref(sentry_envelope_t *envelope,
         return false;
     }
 
-    sentry_uuid_t event_id = sentry__envelope_get_event_id(envelope);
+    sentry_uuid_t event_id = sentry_envelope_get_event_id(envelope);
     if (sentry_uuid_is_nil(&event_id)) {
         return false;
     }
@@ -424,7 +424,7 @@ sentry__cache_attachment_refs(sentry_envelope_t *envelope,
         return;
     }
 
-    sentry_uuid_t event_id = sentry__envelope_get_event_id(envelope);
+    sentry_uuid_t event_id = sentry_envelope_get_event_id(envelope);
     if (sentry_uuid_is_nil(&event_id)) {
         return;
     }
@@ -481,7 +481,7 @@ sentry__run_write_cache(
         return sentry__envelope_write_to_cache(envelope, run->cache_path) == 0;
     }
 
-    sentry_uuid_t event_id = sentry__envelope_get_event_id(envelope);
+    sentry_uuid_t event_id = sentry_envelope_get_event_id(envelope);
     if (sentry_uuid_is_nil(&event_id)) {
         event_id = sentry_uuid_new_v4();
     }
@@ -683,7 +683,7 @@ sentry__process_run_envelopes(
         }
         sentry_envelope_t *envelope = sentry__envelope_from_path(file);
         if (envelope) {
-            sentry_uuid_t event_id = sentry__envelope_get_event_id(envelope);
+            sentry_uuid_t event_id = sentry_envelope_get_event_id(envelope);
             sentry_path_t *marker = run_crash_marker_path(run_path, &event_id);
             // remove before invoking to prevent repeated callbacks
             if (marker && sentry__path_is_file(marker)

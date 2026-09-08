@@ -552,7 +552,7 @@ void
 sentry__capture_envelope(sentry_transport_t *transport,
     sentry_envelope_t *envelope, const sentry_options_t *options)
 {
-    sentry_uuid_t event_id = sentry__envelope_get_event_id(envelope);
+    sentry_uuid_t event_id = sentry_envelope_get_event_id(envelope);
     if (!sentry_uuid_is_nil(&event_id)) {
         SENTRY_WITH_SCOPE_MUT_NO_FLUSH (scope) {
             scope->last_event_id = event_id;
@@ -1993,7 +1993,7 @@ sentry__launch_external_crash_reporter(
         sentry__run_write_cache(options->run, envelope, -1);
     }
 
-    sentry_uuid_t event_id = sentry__envelope_get_event_id(envelope);
+    sentry_uuid_t event_id = sentry_envelope_get_event_id(envelope);
     char *envelope_filename = sentry__uuid_as_filename(&event_id, ".envelope");
     if (!envelope_filename) {
         return false;

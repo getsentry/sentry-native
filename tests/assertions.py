@@ -4,6 +4,7 @@ import json
 import platform
 import re
 import sys
+import uuid
 from dataclasses import dataclass
 from datetime import datetime, timedelta, UTC
 from pathlib import Path
@@ -52,7 +53,7 @@ def assert_session(
         assert_matches(session, extra_assertion)
 
 
-def assert_user_feedback(envelope):
+def assert_user_feedback(envelope, event_id=None):
     user_feedback = None
     for item in envelope:
         if item.headers.get("type") == "feedback" and item.payload.json is not None:
@@ -62,6 +63,8 @@ def assert_user_feedback(envelope):
     assert user_feedback["name"] == "some-name"
     assert user_feedback["contact_email"] == "some-email"
     assert user_feedback["message"] == "some-message"
+    if event_id is not None:
+        assert user_feedback["associated_event_id"] == uuid.UUID(event_id).hex
 
 
 def assert_user_report(envelope):

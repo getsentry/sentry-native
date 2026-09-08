@@ -92,6 +92,7 @@ class CMake:
                 # to the object files, we need to do it per-test
                 objects = [
                     exe_name("sentry_example"),
+                    exe_name("sentry_example_feedback"),
                     exe_name("sentry_test_unit"),
                     lib_name("sentry"),
                     exe_name("sentry-crash"),

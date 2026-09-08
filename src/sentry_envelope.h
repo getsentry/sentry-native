@@ -42,13 +42,6 @@ sentry_envelope_t *sentry__envelope_new_with_dsn(const sentry_dsn_t *dsn);
 sentry_envelope_t *sentry__envelope_from_path(const sentry_path_t *path);
 
 /**
- * This returns the UUID of the event associated with this envelope.
- * If `envelope` is NULL or there is no event inside it, the empty nil UUID will
- * be returned.
- */
-sentry_uuid_t sentry__envelope_get_event_id(const sentry_envelope_t *envelope);
-
-/**
  * Set the event ID header for this envelope.
  */
 void sentry__envelope_set_event_id(

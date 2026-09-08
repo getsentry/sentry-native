@@ -360,6 +360,7 @@ In addition to platform support, the "Advanced Usage" section of the SDK docs no
 - `sentry_example`: This is a small example program highlighting the API, which
   can be controlled via command-line parameters, and is also used for
   integration tests.
+- `sentry_example_*`: Standalone [examples](examples/README.md).
 
 ## Runtime Configuration
 
