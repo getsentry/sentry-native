@@ -19,11 +19,6 @@ sentry__telemetry_startup(const sentry_options_t *options)
     SENTRY__MUTEX_INIT_DYN_ONCE(g_telemetry_lock);
     sentry__mutex_lock(&g_telemetry_lock);
 
-    if (!options->enable_logs && !options->enable_metrics) {
-        sentry__mutex_unlock(&g_telemetry_lock);
-        return;
-    }
-
     // use two workers for serializing telemetry batches off the batcher threads
     // and cap to 10x100 batches to respect the max 1000-item buffer limit:
     // https://develop.sentry.dev/sdk/telemetry/logs/#buffering
@@ -36,22 +31,14 @@ sentry__telemetry_startup(const sentry_options_t *options)
             "telemetry pool unavailable; serializing in batcher thread");
     }
 
-    if (options->enable_logs) {
-        sentry__logs_startup(options, g_telemetry_pool);
-    }
-    if (options->enable_metrics) {
-        sentry__metrics_startup(options, g_telemetry_pool);
-    }
+    sentry__logs_startup(options, g_telemetry_pool);
+    sentry__metrics_startup(options, g_telemetry_pool);
     sentry__mutex_unlock(&g_telemetry_lock);
 }
 
 void
 sentry__telemetry_shutdown(const sentry_options_t *options)
 {
-    if (!options->enable_logs && !options->enable_metrics) {
-        return;
-    }
-
     SENTRY__MUTEX_INIT_DYN_ONCE(g_telemetry_lock);
     sentry__mutex_lock(&g_telemetry_lock);
 

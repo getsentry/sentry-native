@@ -5,6 +5,10 @@
 **Breaking / Important behavior changes**:
 
 - `sentry_init()` now consumes `<db>/last_crash` after caching its value, aligning crashed-last-run behavior with other Sentry SDKs. ([#2023](https://github.com/getsentry/sentry-native/pull/2023))
+- Remove `sentry_options_get/set_enable_logs` and `sentry_options_get/set_enable_metrics`. ([#1980](https://github.com/getsentry/sentry-native/pull/1980))
+  > Structured logs and metrics have been enabled by default since `0.13`, and the options were deprecated and made no-ops in `0.16`.
+  >
+  > We recognize that this change may inconvenience applications that rely on the opt-out. Use `sentry_options_set_before_send_log` or `sentry_options_set_before_send_metric` to filter logs or metrics. We made this tradeoff deliberately because consistent behavior across SDK integrations will help most users successfully adopt these features.
 
 **Features**:
 
