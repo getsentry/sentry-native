@@ -221,6 +221,13 @@ bool sentry__write_crash_marker(const sentry_options_t *options);
 bool sentry__has_crash_marker(const sentry_options_t *options);
 
 /**
+ * Prevents sentry_init() from clearing `<database>/last_crash`.
+ *
+ * Exported for the Android NDK integration.
+ */
+SENTRY_API void sentry__retain_crash_marker(sentry_options_t *options);
+
+/**
  * This will remove the `<database>/last_crash` file.
  */
 bool sentry__clear_crash_marker(const sentry_options_t *options);

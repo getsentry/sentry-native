@@ -477,12 +477,15 @@ def assert_native_crash(envelope, exception_code=None):
 
 
 def assert_crash_timestamp(has_files, tmp_path):
-    # The crash file should survive a `sentry_init` and should still be there
-    # even after restarts.
     if has_files:
         with open("{}/.sentry-native/last_crash".format(tmp_path)) as f:
             crash_timestamp = f.read()
         assert_timestamp(crash_timestamp)
+
+
+def assert_no_crash_timestamp(has_files, tmp_path):
+    if has_files:
+        assert not (Path(tmp_path) / ".sentry-native" / "last_crash").exists()
 
 
 def assert_before_send(envelope):

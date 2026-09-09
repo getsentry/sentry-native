@@ -1172,6 +1172,12 @@ sentry__has_crash_marker(const sentry_options_t *options)
     return result;
 }
 
+void
+sentry__retain_crash_marker(sentry_options_t *options)
+{
+    options->retain_crash_marker = true;
+}
+
 bool
 sentry__clear_crash_marker(const sentry_options_t *options)
 {

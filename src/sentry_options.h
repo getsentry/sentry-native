@@ -102,6 +102,7 @@ struct sentry_options_s {
     sentry_session_t *session;
     sentry_integration_t **integrations;
     size_t num_integrations;
+    bool retain_crash_marker;
 
     long refcount;
     uint64_t shutdown_timeout;
