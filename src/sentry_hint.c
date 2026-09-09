@@ -28,6 +28,17 @@ sentry__hint_free(sentry_hint_t *hint)
 }
 
 sentry_attachment_t *
+sentry_hint_add_attachment(sentry_hint_t *hint, sentry_attachment_t *attachment)
+{
+    if (!hint) {
+        sentry__attachment_free(attachment);
+        return NULL;
+    }
+
+    return sentry__attachments_add(&hint->attachments, attachment);
+}
+
+sentry_attachment_t *
 sentry_hint_attach_file(sentry_hint_t *hint, const char *path)
 {
     return sentry_hint_attach_file_n(hint, path, sentry__guarded_strlen(path));
@@ -37,11 +48,8 @@ sentry_attachment_t *
 sentry_hint_attach_file_n(
     sentry_hint_t *hint, const char *path, size_t path_len)
 {
-    if (!hint) {
-        return NULL;
-    }
-    return sentry__attachments_add_path(&hint->attachments,
-        sentry__path_from_str_n(path, path_len), NULL, NULL);
+    return sentry_hint_add_attachment(
+        hint, sentry_attachment_from_file_n(path, path_len));
 }
 
 sentry_attachment_t *
@@ -56,12 +64,8 @@ sentry_attachment_t *
 sentry_hint_attach_bytes_n(sentry_hint_t *hint, const char *buf, size_t buf_len,
     const char *filename, size_t filename_len)
 {
-    if (!hint) {
-        return NULL;
-    }
-    return sentry__attachments_add(&hint->attachments,
-        sentry__attachment_from_buffer(
-            buf, buf_len, sentry__path_from_str_n(filename, filename_len)));
+    return sentry_hint_add_attachment(hint,
+        sentry_attachment_from_bytes_n(buf, buf_len, filename, filename_len));
 }
 
 #ifdef SENTRY_PLATFORM_WINDOWS
@@ -76,11 +80,8 @@ sentry_attachment_t *
 sentry_hint_attach_filew_n(
     sentry_hint_t *hint, const wchar_t *path, size_t path_len)
 {
-    if (!hint) {
-        return NULL;
-    }
-    return sentry__attachments_add_path(&hint->attachments,
-        sentry__path_from_wstr_n(path, path_len), NULL, NULL);
+    return sentry_hint_add_attachment(
+        hint, sentry_attachment_from_filew_n(path, path_len));
 }
 
 sentry_attachment_t *
@@ -96,11 +97,7 @@ sentry_attachment_t *
 sentry_hint_attach_bytesw_n(sentry_hint_t *hint, const char *buf,
     size_t buf_len, const wchar_t *filename, size_t filename_len)
 {
-    if (!hint) {
-        return NULL;
-    }
-    return sentry__attachments_add(&hint->attachments,
-        sentry__attachment_from_buffer(
-            buf, buf_len, sentry__path_from_wstr_n(filename, filename_len)));
+    return sentry_hint_add_attachment(hint,
+        sentry_attachment_from_bytesw_n(buf, buf_len, filename, filename_len));
 }
 #endif
