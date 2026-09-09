@@ -704,7 +704,7 @@ sentry__envelope_add_attachment_ref(sentry_envelope_t *envelope,
         sentry__envelope_item_set_header(
             item, "filename", sentry_value_new_string(filename));
     }
-    if (attachment_type && *attachment_type) {
+    if (!sentry__string_empty(attachment_type)) {
         sentry__envelope_item_set_header(
             item, "attachment_type", sentry_value_new_string(attachment_type));
     }
@@ -744,7 +744,7 @@ sentry__envelope_add_attachment(
         return NULL;
     }
     const char *type = sentry__attachment_get_type(attachment);
-    if (type && *type) {
+    if (!sentry__string_empty(type)) {
         sentry__envelope_item_set_header(
             item, "attachment_type", sentry_value_new_string(type));
     }
@@ -1085,7 +1085,7 @@ deserialize_into(sentry_envelope_t *envelope, const char *buf, size_t buf_len)
         // item headers
         const char *item_headers_end = memchr(ptr, '\n', (size_t)(end - ptr));
         if (!item_headers_end) {
-            item_headers_end = end;
+            return false;
         }
         size_t item_headers_len = (size_t)(item_headers_end - ptr);
         sentry_value_decref(item->headers);
@@ -1123,8 +1123,8 @@ deserialize_into(sentry_envelope_t *envelope, const char *buf, size_t buf_len)
             item->payload_len = (size_t)payload_len;
         }
         if (item->payload_len > 0) {
-            if (ptr + item->payload_len > end
-                || item->payload_len >= SIZE_MAX) {
+            if (item->payload_len >= SIZE_MAX
+                || item->payload_len > (size_t)(end - ptr)) {
                 return false;
             }
             item->payload = sentry_malloc(item->payload_len + 1);
@@ -1624,7 +1624,7 @@ bool
 sentry__envelope_item_resolve_attachment_ref(
     sentry_envelope_item_t *item, const char *location)
 {
-    if (!sentry__guarded_strlen(location)) {
+    if (sentry__string_empty(location)) {
         return false;
     }
     sentry_attachment_ref_t ref;
@@ -1632,14 +1632,14 @@ sentry__envelope_item_resolve_attachment_ref(
         return false;
     }
     sentry_attachment_ref_t resolved = { 0 };
-    if (sentry__guarded_strlen(ref.path)) {
+    if (!sentry__string_empty(ref.path)) {
         resolved.path = ref.path;
     }
-    if (sentry__guarded_strlen(ref.attachment_type)) {
+    if (!sentry__string_empty(ref.attachment_type)) {
         resolved.attachment_type = ref.attachment_type;
     }
     resolved.location = location;
-    if (sentry__guarded_strlen(ref.content_type)) {
+    if (!sentry__string_empty(ref.content_type)) {
         resolved.content_type = ref.content_type;
     }
     bool ok = set_attachment_ref_payload(item, &resolved);

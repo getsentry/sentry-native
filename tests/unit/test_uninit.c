@@ -42,6 +42,25 @@ SENTRY_TEST(uninitialized)
     sentry_close();
 }
 
+SENTRY_TEST(is_enabled)
+{
+    TEST_CHECK(!sentry_is_enabled());
+
+    SENTRY_TEST_OPTIONS_NEW(options);
+    TEST_CHECK(sentry_init(options) == 0);
+    TEST_CHECK(sentry_is_enabled());
+
+    sentry_close();
+    TEST_CHECK(!sentry_is_enabled());
+
+    SENTRY_TEST_OPTIONS_NEW(reinit_options);
+    TEST_CHECK(sentry_init(reinit_options) == 0);
+    TEST_CHECK(sentry_is_enabled());
+
+    sentry_close();
+    TEST_CHECK(!sentry_is_enabled());
+}
+
 SENTRY_TEST(empty_transport)
 {
     SENTRY_TEST_OPTIONS_NEW(options);

@@ -31,7 +31,9 @@ sentry__symbolize(
     symbol_info->MaxNameLen = MAX_SYM_NAME;
     symbol_info->SizeOfStruct = sizeof(SYMBOL_INFOW);
 
-    if (!SymFromAddrW(proc, (uintptr_t)addr, NULL, symbol_info)) {
+    // reject SYMFLAG_EXPORT: export fallback can misidentify functions
+    if (!SymFromAddrW(proc, (uintptr_t)addr, NULL, symbol_info)
+        || (symbol_info->Flags & SYMFLAG_EXPORT)) {
         return false;
     }
 

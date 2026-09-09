@@ -244,7 +244,7 @@ def assert_stacktrace(
         assert any(
             frame.get("function") is not None and frame.get("package") is not None
             for frame in frames
-        )
+        ), "missing symbolicated frames"
 
     if check_package:
         for frame in frames:

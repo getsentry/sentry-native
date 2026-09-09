@@ -17,6 +17,7 @@ import pytest
 from . import (
     is_feedback_envelope,
     is_replay_envelope,
+    lib_name,
     make_dsn,
     run,
     run_crash,
@@ -1284,6 +1285,14 @@ def test_crash_mode_minidump_only(cmake, httpserver):
     assert has_minidump, "Minidump mode should include minidump"
 
 
+@pytest.mark.xfail(
+    bool(os.environ.get("TEST_MINGW")),
+    reason="DbgHelp cannot read MinGW DWARF symbols",
+    raises=pytest.RaisesExc(
+        AssertionError, match="^missing symbolicated function names"
+    ),
+    strict=True,
+)
 def test_crash_mode_native_only(cmake, httpserver):
     """Mode 2: Should produce envelope with native stacktrace, no minidump"""
     tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "native"})
@@ -1326,7 +1335,7 @@ def test_crash_mode_native_only(cmake, httpserver):
     # At least some frames should have symbolicated function names
     assert any(
         frame.get("function") is not None for frame in exc["stacktrace"]["frames"]
-    )
+    ), "missing symbolicated function names"
 
     # Should have debug_meta
     assert "debug_meta" in event
@@ -1335,6 +1344,14 @@ def test_crash_mode_native_only(cmake, httpserver):
         assert_debug_meta_images_do_not_overlap(event)
 
 
+@pytest.mark.xfail(
+    bool(os.environ.get("TEST_MINGW")),
+    reason="DbgHelp cannot read MinGW DWARF symbols",
+    raises=pytest.RaisesExc(
+        AssertionError, match="^missing symbolicated function names"
+    ),
+    strict=True,
+)
 def test_crash_mode_native_with_minidump(cmake, httpserver):
     """Mode 3 (default): Should have both native stacktrace AND minidump"""
     tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "native"})
@@ -1373,12 +1390,87 @@ def test_crash_mode_native_with_minidump(cmake, httpserver):
     # At least some frames should have symbolicated function names
     assert any(
         frame.get("function") is not None for frame in exc["stacktrace"]["frames"]
-    )
+    ), "missing symbolicated function names"
 
     # Should have debug_meta
     assert "debug_meta" in event
     if sys.platform == "darwin":
         assert_debug_meta_images_do_not_overlap(event)
+
+
+@pytest.mark.skipif(
+    sys.platform != "win32" or bool(os.environ.get("TEST_MINGW")),
+    reason="PDB tests are only available in MSVC Windows builds",
+)
+@pytest.mark.parametrize(
+    "build_args",
+    [
+        {},  # with PDBs
+        {
+            # without PDBs (remove CMake's MSVC /debug defaults to disable PDBs)
+            "CMAKE_SHARED_LINKER_FLAGS_DEBUG": "",
+            "CMAKE_SHARED_LINKER_FLAGS_RELWITHDEBINFO": "",
+        },
+    ],
+)
+@pytest.mark.parametrize(
+    "run_args",
+    [
+        ["capture-event", "add-stacktrace"],
+        ["log", "crash"],
+    ],
+)
+def test_native_pdb(cmake, httpserver, build_args, run_args):
+    build_args.update({"SENTRY_BACKEND": "native"})
+    tmp_path = cmake(["sentry_example"], build_args)
+
+    has_pdb = build_args.get("CMAKE_SHARED_LINKER_FLAGS_DEBUG") != ""
+    if has_pdb:
+        assert (tmp_path / "sentry.pdb").is_file()
+    else:
+        assert not (tmp_path / "sentry.pdb").is_file()
+
+    httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data("OK")
+    with httpserver.wait(timeout=10) as waiting:
+        runner = run_crash if "crash" in run_args else run
+        runner(
+            tmp_path,
+            "sentry_example",
+            run_args,
+            env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
+        )
+    assert waiting.result
+
+    envelope = Envelope.deserialize(httpserver.log[0][0].get_data())
+    event = envelope.get_event()
+    stacks = [
+        value.get("stacktrace", {})
+        for value in (
+            event.get("threads", {}).get("values", [])
+            + event.get("exception", {}).get("values", [])
+        )
+    ]
+    assert stacks
+    image = next(
+        image
+        for image in event["debug_meta"]["images"]
+        if image["code_file"].lower().endswith("\\" + lib_name("sentry"))
+    )
+    start = int(image["image_addr"], 16)
+    end = start + image["image_size"]
+    frames = [
+        frame
+        for stack in stacks
+        for frame in stack.get("frames", [])
+        if start <= int(frame["instruction_addr"], 16) < end
+    ]
+    assert frames
+    if has_pdb:
+        assert any("function" in frame for frame in frames), frames
+        assert any("symbol_addr" in frame for frame in frames), frames
+    else:
+        assert all("function" not in frame for frame in frames), frames
+        assert all("symbol_addr" not in frame for frame in frames), frames
 
 
 def test_native_restart_on_crash(cmake, httpserver):

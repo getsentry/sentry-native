@@ -13,8 +13,10 @@
 #else
 #    if defined(__i386__) || defined(__x86_64__) || defined(__amd64__)
 #        define sentry__cpu_relax() __asm__ __volatile__("pause")
-#    elif defined(__aarch64__) || defined(__arm__)
+#    elif defined(__aarch64__)
 #        define sentry__cpu_relax() __asm__ __volatile__("yield")
+#    elif defined(__arm__)
+#        define sentry__cpu_relax() __asm__ __volatile__("nop")
 #    elif defined(__powerpc__) || defined(__ppc__) || defined(__PPC__)
 #        define sentry__cpu_relax() __asm__ __volatile__("or 27,27,27")
 #    elif defined(__riscv)

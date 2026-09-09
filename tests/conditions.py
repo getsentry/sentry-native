@@ -14,7 +14,7 @@ is_kcov = "kcov" in os.environ.get("RUN_ANALYZER", "")
 is_valgrind = "valgrind" in os.environ.get("RUN_ANALYZER", "")
 is_arm64e = "CMAKE_OSX_ARCHITECTURES=arm64e" in os.environ.get("CMAKE_DEFINES", "")
 
-has_http = not is_android and not (sys.platform == "linux" and is_x86)
+has_http = not is_android
 # breakpad does not work correctly when using kcov or valgrind
 # also, asan reports a `stack-buffer-underflow` in breakpad itself,
 # and says this may be a false positive due to a custom stack unwinding mechanism

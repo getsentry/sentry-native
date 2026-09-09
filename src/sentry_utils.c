@@ -243,7 +243,7 @@ sentry__dsn_new_n(const char *raw_dsn, size_t raw_dsn_len)
     dsn->refcount = 1;
 
     dsn->raw = sentry__string_clone_n(raw_dsn, raw_dsn_len);
-    if (!dsn->raw || !dsn->raw[0]
+    if (sentry__string_empty(dsn->raw)
         || sentry__url_parse(&url, dsn->raw, true) != 0) {
         goto exit;
     }
@@ -286,7 +286,7 @@ sentry__dsn_new_n(const char *raw_dsn, size_t raw_dsn_len)
     }
 
     project_id = strrchr(url.path, '/');
-    if (!project_id || strlen(project_id + 1) == 0) {
+    if (!project_id || sentry__string_empty(project_id + 1)) {
         goto exit;
     }
 

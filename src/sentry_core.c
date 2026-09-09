@@ -147,17 +147,8 @@ sentry__exit_crash_handler(void)
     }
 }
 
-// TODO: remove sentry__native_init after console SDKs have been migrated to
-// platform integrations
-#if (defined(SENTRY_PLATFORM_NX) || defined(SENTRY_PLATFORM_PS)                \
-    || defined(SENTRY_PLATFORM_XBOX))                                          \
-    && !defined(SENTRY_INTEGRATION_PLATFORM)
-int
-sentry__native_init(sentry_options_t *options)
-#else
 int
 sentry_init(sentry_options_t *options)
-#endif
 {
     // pre-init here, so we can consistently use bailing out to :fail
     sentry_transport_t *transport = NULL;
@@ -356,6 +347,14 @@ fail:
 }
 
 int
+sentry_is_enabled(void)
+{
+    int enabled = sentry__options_lock() != NULL;
+    sentry__options_unlock();
+    return enabled;
+}
+
+int
 sentry_flush(uint64_t timeout)
 {
     int rv = 0;
@@ -440,6 +439,8 @@ sentry_reinstall_backend(void)
 {
     int rv = 0;
     SENTRY_WITH_OPTIONS (options) {
+        // prevent scope observers from racing with backend reinstall
+        (void)sentry__scope_lock();
         sentry_backend_t *backend = options->backend;
         if (backend && backend->shutdown_func) {
             backend->shutdown_func(backend);
@@ -450,6 +451,7 @@ sentry_reinstall_backend(void)
                 rv = 1;
             }
         }
+        sentry__scope_unlock();
     }
     return rv;
 }
@@ -1376,8 +1378,10 @@ sentry_set_trace_n(const char *trace_id, size_t trace_id_len,
 
         sentry_value_set_by_key(context, "trace_id",
             sentry_value_new_string_n(trace_id, trace_id_len));
-        sentry_value_set_by_key(context, "parent_span_id",
-            sentry_value_new_string_n(parent_span_id, parent_span_id_len));
+        if (parent_span_id && parent_span_id_len) {
+            sentry_value_set_by_key(context, "parent_span_id",
+                sentry_value_new_string_n(parent_span_id, parent_span_id_len));
+        }
 
         sentry_uuid_t span_id = sentry_uuid_new_v4();
         sentry_value_set_by_key(

@@ -1584,6 +1584,39 @@ SENTRY_TEST(set_trace)
     sentry_close();
 }
 
+static void
+check_trace_omits_parent(const char *parent_span_id, size_t parent_span_id_len)
+{
+    SENTRY_TEST_OPTIONS_NEW(options);
+    sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
+    sentry_init(options);
+
+    const char *trace_id = "2674eb52d5874b13b560236d6c79ce8a";
+    sentry_set_trace_n(
+        trace_id, strlen(trace_id), parent_span_id, parent_span_id_len);
+
+    SENTRY_WITH_SCOPE (scope) {
+        sentry_value_t propagation_trace_context
+            = sentry_value_get_by_key(scope->propagation_context, "trace");
+        CHECK_STRING_PROPERTY(propagation_trace_context, "trace_id", trace_id);
+
+        char *json = sentry_value_to_json(propagation_trace_context);
+        TEST_ASSERT(!!json);
+        TEST_CHECK(strstr(json, "parent_span_id") == NULL);
+        sentry_free(json);
+    }
+
+    sentry_close();
+}
+
+SENTRY_TEST(set_trace_without_parent)
+{
+    check_trace_omits_parent(NULL, 0);
+    // A caller can pass a non-NULL parent span ID with length 0.
+    // Treat that the same as NULL.
+    check_trace_omits_parent("", 0);
+}
+
 sentry_value_t
 apply_scope_for_trace_context(sentry_options_t *options)
 {

@@ -6,8 +6,11 @@ $ZLIB_RELEASE_ASSET = "zlib131.zip"
 $ZLIB_DL_URL = "https://github.com/madler/zlib/releases/download/v${ZLIB_RELEASE}/${ZLIB_RELEASE_ASSET}"
 $ZLIB_DL_SHA512 = "1f171880153b0120e1364baaf7d0a17f65086eff279f8f8c8538e5950097d1feee37cc173181676ba1e2aeb4565ba68749c814cd3e25bfb06271bea02feb7d94"
 $ZLIB_DL_PATH = "${DL_BASEDIR}\${ZLIB_RELEASE_ASSET}"
-$CurlArguments = '-s', '-Lf', '-o', "${ZLIB_DL_PATH}", "${ZLIB_DL_URL}"
+$CurlArguments = '-sS', '-Lf', '--retry', '5', '--retry-all-errors', '--retry-delay', '1', '-o', "${ZLIB_DL_PATH}", "${ZLIB_DL_URL}"
 & curl.exe @CurlArguments
+if ($LASTEXITCODE -ne 0) {
+    throw "Failed to download ${ZLIB_DL_URL}"
+}
 $zlib_zip_hash = Get-FileHash -LiteralPath "${ZLIB_DL_PATH}" -Algorithm SHA512
 if ($zlib_zip_hash.Hash -eq $ZLIB_DL_SHA512) {
     Write-Host "Successfully downloaded ${ZLIB_RELEASE_ASSET}"

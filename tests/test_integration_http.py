@@ -92,6 +92,12 @@ auth_header = (
         ({"SENTRY_TRANSPORT_COMPRESSION": "On"}),
     ],
 )
+@pytest.mark.xfail(
+    bool(os.environ.get("TEST_MINGW")),
+    reason="DbgHelp cannot read MinGW DWARF symbols",
+    raises=pytest.RaisesExc(AssertionError, match="^missing symbolicated frames"),
+    strict=True,
+)
 def test_capture_http(cmake, httpserver, build_args):
     build_args.update({"SENTRY_BACKEND": "none"})
     tmp_path = cmake(["sentry_example"], build_args)
@@ -513,6 +519,12 @@ def test_external_crash_reporter_consent_flush(cmake, httpserver, build_args):
 
 
 @pytest.mark.skipif(is_qemu, reason="unreliable under qemu-user")
+@pytest.mark.xfail(
+    bool(os.environ.get("TEST_MINGW")),
+    reason="DbgHelp cannot read MinGW DWARF symbols",
+    raises=pytest.RaisesExc(AssertionError, match="^missing symbolicated frames"),
+    strict=True,
+)
 def test_exception_and_session_http(cmake, httpserver):
     tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "none"})
 

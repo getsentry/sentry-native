@@ -9,8 +9,11 @@ $LLVM_MINGW_DL_PATH = "${DL_BASEDIR}\llvm-mingw.zip"
 if (!(Test-Path -Path "$DL_BASEDIR")) { New-Item -ItemType Directory -Force -Path "$DL_BASEDIR" }
 
 # Download LLVM-mingw
-$CurlArguments = '-s', '-Lf', '-o', "${LLVM_MINGW_DL_PATH}", "${LLVM_MINGW_DL_URL}"
+$CurlArguments = '-sS', '-Lf', '--retry', '5', '--retry-all-errors', '--retry-delay', '1', '-o', "${LLVM_MINGW_DL_PATH}", "${LLVM_MINGW_DL_URL}"
 & curl.exe @CurlArguments
+if ($LASTEXITCODE -ne 0) {
+	throw "Failed to download ${LLVM_MINGW_DL_URL}"
+}
 $dl_zip_hash = Get-FileHash -LiteralPath "${LLVM_MINGW_DL_PATH}" -Algorithm SHA256
 if ($dl_zip_hash.Hash -eq $LLVM_MINGW_DL_SHA256) {
 	Write-Host "Successfully downloaded LLVM-mingw .zip"
@@ -35,8 +38,11 @@ Write-Host "Path to LLVM-mingw bin folder: ${LLVM_MINGW_INSTALL_PATH}\bin"
 $NINJA_DL_URL = "https://github.com/ninja-build/ninja/releases/download/v1.12.1/ninja-win.zip"
 $NINJA_DL_SHA512 = "d6715c6458d798bcb809f410c0364dabd937b5b7a3ddb4cd5aba42f9fca45139b2a8a3e7fd9fbd88fd75d298ed99123220b33c7bdc8966a9d5f2a1c9c230955f"
 $NINJA_DL_PATH = "${DL_BASEDIR}\ninja-win.zip"
-$CurlArguments = '-s', '-Lf', '-o', "${NINJA_DL_PATH}", "${NINJA_DL_URL}"
+$CurlArguments = '-sS', '-Lf', '--retry', '5', '--retry-all-errors', '--retry-delay', '1', '-o', "${NINJA_DL_PATH}", "${NINJA_DL_URL}"
 & curl.exe @CurlArguments
+if ($LASTEXITCODE -ne 0) {
+	throw "Failed to download ${NINJA_DL_URL}"
+}
 $ninja_zip_hash = Get-FileHash -LiteralPath "${NINJA_DL_PATH}" -Algorithm SHA512
 if ($ninja_zip_hash.Hash -eq $NINJA_DL_SHA512) {
 	Write-Host "Successfully downloaded Ninja-Build .zip"

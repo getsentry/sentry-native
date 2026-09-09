@@ -28,20 +28,29 @@ struct CodeViewRecord70 {
     char pdb_filename[1];
 };
 
-static void
-extract_pdb_info(uintptr_t module_addr, sentry_value_t module)
+static bool
+contains_range(size_t image_size, size_t offset, size_t len)
 {
-    if (!module_addr) {
+    // NOTE: subtraction avoids wrapping offset + len
+    return offset <= image_size && len <= image_size - offset;
+}
+
+static void
+extract_pdb_info(uintptr_t image_addr, size_t image_size, sentry_value_t module)
+{
+    if (!image_addr || image_size < sizeof(IMAGE_DOS_HEADER)) {
         return;
     }
 
-    PIMAGE_DOS_HEADER dos_header = (PIMAGE_DOS_HEADER)module_addr;
-    if (dos_header->e_magic != IMAGE_DOS_SIGNATURE) {
+    PIMAGE_DOS_HEADER dos_header = (PIMAGE_DOS_HEADER)image_addr;
+    if (dos_header->e_magic != IMAGE_DOS_SIGNATURE || dos_header->e_lfanew < 0
+        || !contains_range(image_size, (size_t)dos_header->e_lfanew,
+            sizeof(IMAGE_NT_HEADERS))) {
         return;
     }
 
     PIMAGE_NT_HEADERS nt_headers
-        = (PIMAGE_NT_HEADERS)(module_addr + (uintptr_t)dos_header->e_lfanew);
+        = (PIMAGE_NT_HEADERS)(image_addr + (uintptr_t)dos_header->e_lfanew);
     if (nt_headers->Signature != IMAGE_NT_SIGNATURE) {
         return;
     }
@@ -56,11 +65,12 @@ extract_pdb_info(uintptr_t module_addr, sentry_value_t module)
         = nt_headers->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_DEBUG];
 
     size_t relative_addr = (size_t)debug_entry.VirtualAddress;
-    if (!relative_addr) {
+    size_t table_size = (size_t)debug_entry.Size;
+    if (!relative_addr
+        || !contains_range(image_size, relative_addr, table_size)) {
         return;
     }
 
-    size_t table_size = (size_t)debug_entry.Size;
     size_t entry_size = sizeof(IMAGE_DEBUG_DIRECTORY);
     if (table_size % entry_size != 0) {
         return;
@@ -68,21 +78,36 @@ extract_pdb_info(uintptr_t module_addr, sentry_value_t module)
 
     for (size_t offset = 0; offset < table_size; offset += entry_size) {
         PIMAGE_DEBUG_DIRECTORY debug_dict
-            = (PIMAGE_DEBUG_DIRECTORY)(module_addr + relative_addr + offset);
+            = (PIMAGE_DEBUG_DIRECTORY)(image_addr + relative_addr + offset);
 
         if (debug_dict->Type != IMAGE_DEBUG_TYPE_CODEVIEW) {
             continue;
         }
 
         struct CodeViewRecord70 *debug_info
-            = (struct CodeViewRecord70 *)(module_addr
+            = (struct CodeViewRecord70 *)(image_addr
                 + debug_dict->AddressOfRawData);
+        size_t debug_info_size = (size_t)debug_dict->SizeOfData;
+        size_t filename_offset
+            = offsetof(struct CodeViewRecord70, pdb_filename);
+        if (debug_info_size <= filename_offset
+            || !contains_range(
+                image_size, debug_dict->AddressOfRawData, debug_info_size)) {
+            continue;
+        }
         if (debug_info->signature != CV_SIGNATURE) {
             continue;
         }
 
+        size_t filename_size = debug_info_size - filename_offset;
+        const char *filename_end
+            = memchr(debug_info->pdb_filename, '\0', filename_size);
+        if (!filename_end) {
+            continue;
+        }
         sentry_value_set_by_key(module, "debug_file",
-            sentry_value_new_string(debug_info->pdb_filename));
+            sentry_value_new_string_n(debug_info->pdb_filename,
+                (size_t)(filename_end - debug_info->pdb_filename)));
 
         sentry_uuid_t debug_id_base
             = sentry__uuid_from_native(&debug_info->pdb_signature);
@@ -184,7 +209,8 @@ load_modules(void)
                     sentry_value_new_int32((int32_t)module.modBaseSize));
                 sentry_value_set_by_key(rv, "code_file",
                     sentry__value_new_string_from_wstr(module_filename_w));
-                extract_pdb_info((uintptr_t)module.modBaseAddr, rv);
+                extract_pdb_info((uintptr_t)module.modBaseAddr,
+                    (size_t)module.modBaseSize, rv);
                 sentry_value_append(g_modules, rv);
             }
             FreeLibrary(module_handle);
@@ -209,8 +235,13 @@ load_modules(void)
                     hMods[i], szModName, sizeof(szModName) / sizeof(wchar_t))) {
                 HMODULE handle
                     = LoadLibraryExW(szModName, NULL, LOAD_LIBRARY_AS_DATAFILE);
+                if (!handle) {
+                    continue;
+                }
                 MEMORY_BASIC_INFORMATION vmem_info = { 0 };
-                if (handle
+                MODULEINFO module_info = { 0 };
+                if (GetModuleInformation(
+                        hProcess, hMods[i], &module_info, sizeof(module_info))
                     && sizeof(vmem_info)
                         == VirtualQuery(hMods[i], &vmem_info, sizeof(vmem_info))
                     && vmem_info.State == MEM_COMMIT) {
@@ -232,15 +263,16 @@ load_modules(void)
 #    endif
 
                     sentry_value_set_by_key(rv, "image_addr",
-                        sentry__value_new_addr((uint64_t)handle));
+                        sentry__value_new_addr(
+                            (uint64_t)module_info.lpBaseOfDll));
 
                     sentry_value_set_by_key(rv, "code_file",
                         sentry__value_new_string_from_wstr(szModName));
-                    extract_pdb_info((uintptr_t)handle, rv);
+                    extract_pdb_info((uintptr_t)module_info.lpBaseOfDll,
+                        (size_t)module_info.SizeOfImage, rv);
                     sentry_value_append(g_modules, rv);
-
-                    FreeLibrary(handle);
                 }
+                FreeLibrary(handle);
             }
         }
     }
