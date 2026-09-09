@@ -3414,6 +3414,43 @@ struct sentry_attachment_s;
 typedef struct sentry_attachment_s sentry_attachment_t;
 
 /**
+ * Creates an attachment from a file.
+ *
+ * The path is copied and the filename is derived from it.
+ *
+ * Returns an owned attachment, or `NULL` on error.
+ *
+ * See https://develop.sentry.dev/sdk/data-model/envelope-items/#attachment
+ */
+SENTRY_API sentry_attachment_t *sentry_attachment_from_file(const char *path);
+SENTRY_API sentry_attachment_t *sentry_attachment_from_file_n(
+    const char *path, size_t path_len);
+#ifdef SENTRY_PLATFORM_WINDOWS
+SENTRY_API sentry_attachment_t *sentry_attachment_from_filew(
+    const wchar_t *path);
+SENTRY_API sentry_attachment_t *sentry_attachment_from_filew_n(
+    const wchar_t *path, size_t path_len);
+#endif
+
+/**
+ * Creates an attachment from bytes.
+ *
+ * The bytes and filename are copied.
+ *
+ * Returns an owned attachment, or `NULL` on error.
+ */
+SENTRY_API sentry_attachment_t *sentry_attachment_from_bytes(
+    const char *buf, size_t buf_len, const char *filename);
+SENTRY_API sentry_attachment_t *sentry_attachment_from_bytes_n(
+    const char *buf, size_t buf_len, const char *filename, size_t filename_len);
+#ifdef SENTRY_PLATFORM_WINDOWS
+SENTRY_API sentry_attachment_t *sentry_attachment_from_bytesw(
+    const char *buf, size_t buf_len, const wchar_t *filename);
+SENTRY_API sentry_attachment_t *sentry_attachment_from_bytesw_n(const char *buf,
+    size_t buf_len, const wchar_t *filename, size_t filename_len);
+#endif
+
+/**
  * Attaches a file to be sent along with events.
  *
  * `path` is assumed to be in a platform-specific filesystem path encoding.
@@ -3562,6 +3599,19 @@ SENTRY_API void sentry_attachment_set_filenamew_n(
     sentry_attachment_t *attachment, const wchar_t *filename,
     size_t filename_len);
 #endif
+
+/**
+ * Adds a configured attachment.
+ *
+ * Consumes `attachment` and returns an SDK-owned pointer, or `NULL` on error.
+ * If an equivalent file attachment already exists, returns the existing
+ * attachment. The returned pointer remains valid until the attachment is
+ * removed or its owning scope is freed.
+ */
+SENTRY_API sentry_attachment_t *sentry_add_attachment(
+    sentry_attachment_t *attachment);
+SENTRY_API sentry_attachment_t *sentry_scope_add_attachment(
+    sentry_scope_t *scope, sentry_attachment_t *attachment);
 
 /* -- Session APIs -- */
 
@@ -4137,6 +4187,16 @@ typedef struct sentry_hint_s sentry_hint_t;
  * - `sentry_scope_capture_feedback`
  */
 SENTRY_API sentry_hint_t *sentry_hint_new(void);
+
+/**
+ * Adds a configured attachment to a hint.
+ *
+ * Consumes `attachment` and returns a hint-owned pointer, or `NULL` on error.
+ * If an equivalent file attachment already exists, returns the existing
+ * attachment. The returned pointer remains valid until the hint is freed.
+ */
+SENTRY_API sentry_attachment_t *sentry_hint_add_attachment(
+    sentry_hint_t *hint, sentry_attachment_t *attachment);
 
 /**
  * Attaches a file to a hint.

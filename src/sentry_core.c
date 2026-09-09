@@ -2138,8 +2138,8 @@ sentry_capture_minidump_n(const char *path, size_t path_len)
     return capture_minidump(dump_path);
 }
 
-static sentry_attachment_t *
-add_attachment(sentry_attachment_t *attachment)
+sentry_attachment_t *
+sentry_add_attachment(sentry_attachment_t *attachment)
 {
     if (!attachment) {
         return NULL;
@@ -2165,8 +2165,7 @@ sentry_attach_file(const char *path)
 sentry_attachment_t *
 sentry_attach_file_n(const char *path, size_t path_len)
 {
-    return add_attachment(
-        sentry__attachment_from_path(sentry__path_from_str_n(path, path_len)));
+    return sentry_add_attachment(sentry_attachment_from_file_n(path, path_len));
 }
 
 sentry_attachment_t *
@@ -2180,8 +2179,8 @@ sentry_attachment_t *
 sentry_attach_bytes_n(
     const char *buf, size_t buf_len, const char *filename, size_t filename_len)
 {
-    return add_attachment(sentry__attachment_from_buffer(
-        buf, buf_len, sentry__path_from_str_n(filename, filename_len)));
+    return sentry_add_attachment(
+        sentry_attachment_from_bytes_n(buf, buf_len, filename, filename_len));
 }
 
 void
@@ -2237,8 +2236,8 @@ sentry_attach_filew(const wchar_t *path)
 sentry_attachment_t *
 sentry_attach_filew_n(const wchar_t *path, size_t path_len)
 {
-    return add_attachment(
-        sentry__attachment_from_path(sentry__path_from_wstr_n(path, path_len)));
+    return sentry_add_attachment(
+        sentry_attachment_from_filew_n(path, path_len));
 }
 
 sentry_attachment_t *
@@ -2252,8 +2251,8 @@ sentry_attachment_t *
 sentry_attach_bytesw_n(const char *buf, size_t buf_len, const wchar_t *filename,
     size_t filename_len)
 {
-    return add_attachment(sentry__attachment_from_buffer(
-        buf, buf_len, sentry__path_from_wstr_n(filename, filename_len)));
+    return sentry_add_attachment(
+        sentry_attachment_from_bytesw_n(buf, buf_len, filename, filename_len));
 }
 
 sentry_uuid_t
