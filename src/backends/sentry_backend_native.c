@@ -95,8 +95,34 @@ wer_delete_registry_value(const sentry_path_t *wer_path)
 }
 
 static sentry_path_t *
-wer_default_path(void)
+wer_path_in_dir(const sentry_path_t *dir)
 {
+    sentry_path_t *wer_path = sentry__path_join_str(dir, "sentry-wer.dll");
+    if (wer_path && sentry__path_is_file(wer_path)) {
+        return wer_path;
+    }
+    sentry__path_free(wer_path);
+    return NULL;
+}
+
+static sentry_path_t *
+wer_module_path(const sentry_options_t *options)
+{
+    if (options && options->handler_path) {
+        sentry_path_t *handler_path
+            = sentry__path_absolute(options->handler_path);
+        sentry_path_t *handler_dir = sentry__path_dir(
+            handler_path ? handler_path : options->handler_path);
+        sentry__path_free(handler_path);
+        if (handler_dir) {
+            sentry_path_t *wer_path = wer_path_in_dir(handler_dir);
+            sentry__path_free(handler_dir);
+            if (wer_path) {
+                return wer_path;
+            }
+        }
+    }
+
     sentry_path_t *current_exe = sentry__path_current_exe();
     if (!current_exe) {
         return NULL;
@@ -108,7 +134,7 @@ wer_default_path(void)
         return NULL;
     }
 
-    sentry_path_t *wer_path = sentry__path_join_str(exe_dir, "sentry-wer.dll");
+    sentry_path_t *wer_path = wer_path_in_dir(exe_dir);
     sentry__path_free(exe_dir);
     return wer_path;
 }
@@ -129,7 +155,7 @@ wer_unregister_module(void)
 }
 
 static bool
-wer_register_module(uint64_t app_tid)
+wer_register_module(uint64_t app_tid, const sentry_options_t *options)
 {
     windows_version_t win_ver;
     if (!sentry__get_windows_version(&win_ver) || win_ver.build < 19041) {
@@ -138,10 +164,9 @@ wer_register_module(uint64_t app_tid)
         return false;
     }
 
-    sentry_path_t *wer_path = wer_default_path();
-    if (!wer_path || !sentry__path_is_file(wer_path)) {
+    sentry_path_t *wer_path = wer_module_path(options);
+    if (!wer_path) {
         SENTRY_WARN("Native WER module not found");
-        sentry__path_free(wer_path);
         return false;
     }
 
@@ -869,7 +894,7 @@ native_backend_startup(
     }
 
 #    if defined(SENTRY_PLATFORM_WINDOWS) && !defined(SENTRY_PLATFORM_XBOX)
-    state->ipc->shmem->platform.wer_enabled = wer_register_module(tid);
+    state->ipc->shmem->platform.wer_enabled = wer_register_module(tid, options);
 #    endif
 
     sentry_handler_strategy_t strategy =
@@ -1077,7 +1102,7 @@ native_backend_write_attachments(const sentry_path_t *event_path)
                 sentry_value_set_by_key(
                     attach_info, "filename", sentry_value_new_string(filename));
                 const char *type = sentry__attachment_get_type(it);
-                if (type && *type) {
+                if (!sentry__string_empty(type)) {
                     sentry_value_set_by_key(attach_info, "attachment_type",
                         sentry_value_new_string(type));
                 }
@@ -1235,6 +1260,11 @@ ensure_attachment_path(sentry_attachment_t *attachment)
         return false;
     }
 
+    const char *filename = sentry__path_filename(attachment->filename);
+    if (sentry__string_empty(filename)) {
+        return false;
+    }
+
     // Generate UUID for unique path
     sentry_uuid_t uuid = sentry_uuid_new_v4();
     char uuid_str[37];
@@ -1247,18 +1277,24 @@ ensure_attachment_path(sentry_attachment_t *attachment)
         }
     }
 
-    if (!base_path || sentry__path_create_dir_all(base_path) != 0) {
+    if (!base_path) {
+        return false;
+    }
+
+    sentry_path_t *path = sentry__path_join_str(base_path, filename);
+    sentry_path_t *parent = path ? sentry__path_dir(path) : NULL;
+    bool valid = parent && sentry__path_eq(parent, base_path);
+    sentry__path_free(parent);
+    if (!valid || sentry__path_create_dir_all(base_path) != 0) {
+        sentry__path_free(path);
         sentry__path_free(base_path);
         return false;
     }
 
-    sentry_path_t *old_path = attachment->path;
-    attachment->path = sentry__path_join_str(
-        base_path, sentry__path_filename(attachment->filename));
-
     sentry__path_free(base_path);
-    sentry__path_free(old_path);
-    return attachment->path != NULL;
+    sentry__path_free(attachment->path);
+    attachment->path = path;
+    return true;
 }
 
 static void

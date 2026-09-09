@@ -50,15 +50,25 @@ add_image(const struct mach_header *mh, intptr_t UNUSED(vmaddr_slide))
     sentry_value_set_by_key(
         module, "image_addr", sentry__value_new_addr((uint64_t)info.dli_fbase));
 
-    const struct load_command *cmd = (const struct load_command *)(header + 1);
+    const char *commands = (const char *)(header + 1);
+    size_t pos = 0;
     bool has_size = false;
     bool has_uuid = false;
 
-    for (size_t i = 0; cmd && (i < header->ncmds) && (!has_uuid || !has_size);
-        ++i,
-                cmd
-        = (const struct load_command *)((const char *)cmd + cmd->cmdsize)) {
-        if (cmd->cmd == CMD_SEGMENT) {
+    for (size_t i = 0; i < header->ncmds && (!has_uuid || !has_size); i++) {
+        if (sizeof(struct load_command) > header->sizeofcmds - pos) {
+            break;
+        }
+
+        const struct load_command *cmd
+            = (const struct load_command *)(commands + pos);
+        if (cmd->cmdsize < sizeof(struct load_command)
+            || cmd->cmdsize > header->sizeofcmds - pos) {
+            break;
+        }
+
+        if (cmd->cmd == CMD_SEGMENT
+            && cmd->cmdsize >= sizeof(mach_segment_command_type)) {
             const mach_segment_command_type *seg
                 = (const mach_segment_command_type *)cmd;
 
@@ -67,7 +77,8 @@ add_image(const struct mach_header *mh, intptr_t UNUSED(vmaddr_slide))
                     sentry_value_new_int32((uint32_t)seg->vmsize));
                 has_size = true;
             }
-        } else if (cmd->cmd == LC_UUID) {
+        } else if (cmd->cmd == LC_UUID
+            && cmd->cmdsize >= sizeof(struct uuid_command)) {
             const struct uuid_command *ucmd = (const struct uuid_command *)cmd;
             sentry_uuid_t uuid
                 = sentry_uuid_from_bytes((const char *)ucmd->uuid);
@@ -75,6 +86,8 @@ add_image(const struct mach_header *mh, intptr_t UNUSED(vmaddr_slide))
                 module, "debug_id", sentry__value_new_uuid(&uuid));
             has_uuid = true;
         }
+
+        pos += cmd->cmdsize;
     }
 
     sentry__mutex_lock(&g_mutex);

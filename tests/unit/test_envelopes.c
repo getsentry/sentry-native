@@ -1171,6 +1171,8 @@ SENTRY_TEST(deserialize_envelope_invalid)
     char buf[128];
     snprintf(buf, sizeof(buf), "{}\n{\"length\":%zu}\n", SIZE_MAX);
     TEST_CHECK(!sentry_envelope_deserialize(buf, strlen(buf)));
+    snprintf(buf, sizeof(buf), "{}\n{\"length\":%zu}\n", SIZE_MAX - 1);
+    TEST_CHECK(!sentry_envelope_deserialize(buf, strlen(buf)));
 }
 
 SENTRY_TEST(envelope_can_add_client_report)

@@ -33,6 +33,8 @@ from .assertions import (
     assert_user_report,
     assert_minidump,
     assert_breakpad_crash,
+    assert_crash_timestamp,
+    assert_no_crash_timestamp,
     assert_gzip_content_encoding,
     assert_gzip_file_header,
     assert_attachment_view_hierarchy,
@@ -89,6 +91,12 @@ auth_header = (
         ({}),  # SENTRY_TRANSPORT_COMPRESSION=Off (default, cached)
         ({"SENTRY_TRANSPORT_COMPRESSION": "On"}),
     ],
+)
+@pytest.mark.xfail(
+    bool(os.environ.get("TEST_MINGW")),
+    reason="DbgHelp cannot read MinGW DWARF symbols",
+    raises=pytest.RaisesExc(AssertionError, match="^missing symbolicated frames"),
+    strict=True,
 )
 def test_capture_http(cmake, httpserver, build_args):
     build_args.update({"SENTRY_BACKEND": "none"})
@@ -511,6 +519,12 @@ def test_external_crash_reporter_consent_flush(cmake, httpserver, build_args):
 
 
 @pytest.mark.skipif(is_qemu, reason="unreliable under qemu-user")
+@pytest.mark.xfail(
+    bool(os.environ.get("TEST_MINGW")),
+    reason="DbgHelp cannot read MinGW DWARF symbols",
+    raises=pytest.RaisesExc(AssertionError, match="^missing symbolicated frames"),
+    strict=True,
+)
 def test_exception_and_session_http(cmake, httpserver):
     tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "none"})
 
@@ -1078,6 +1092,7 @@ def test_on_crashed_last_run(cmake, backend):
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
     )
+    assert_crash_timestamp(has_files, tmp_path)
 
     run_dirs = list((tmp_path / ".sentry-native").glob("*.run"))
     assert len(run_dirs) == 1
@@ -1092,6 +1107,7 @@ def test_on_crashed_last_run(cmake, backend):
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
     )
+    assert_no_crash_timestamp(has_files, tmp_path)
     callbacks = [
         line
         for line in restarted.stdout.splitlines()

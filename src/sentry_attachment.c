@@ -224,6 +224,68 @@ sentry__attachment_free(sentry_attachment_t *attachment)
     sentry_free(attachment);
 }
 
+sentry_attachment_t *
+sentry_attachment_from_file(const char *path)
+{
+    return sentry_attachment_from_file_n(path, sentry__guarded_strlen(path));
+}
+
+sentry_attachment_t *
+sentry_attachment_from_file_n(const char *path, size_t path_len)
+{
+    return sentry__attachment_from_path(
+        sentry__path_from_str_n(path, path_len));
+}
+
+sentry_attachment_t *
+sentry_attachment_from_bytes(
+    const char *buf, size_t buf_len, const char *filename)
+{
+    return sentry_attachment_from_bytes_n(
+        buf, buf_len, filename, sentry__guarded_strlen(filename));
+}
+
+sentry_attachment_t *
+sentry_attachment_from_bytes_n(
+    const char *buf, size_t buf_len, const char *filename, size_t filename_len)
+{
+    return sentry__attachment_from_buffer(
+        buf, buf_len, sentry__path_from_str_n(filename, filename_len));
+}
+
+#ifdef SENTRY_PLATFORM_WINDOWS
+sentry_attachment_t *
+sentry_attachment_from_filew(const wchar_t *path)
+{
+    size_t path_len = path ? wcslen(path) : 0;
+    return sentry_attachment_from_filew_n(path, path_len);
+}
+
+sentry_attachment_t *
+sentry_attachment_from_filew_n(const wchar_t *path, size_t path_len)
+{
+    return sentry__attachment_from_path(
+        sentry__path_from_wstr_n(path, path_len));
+}
+
+sentry_attachment_t *
+sentry_attachment_from_bytesw(
+    const char *buf, size_t buf_len, const wchar_t *filename)
+{
+    size_t filename_len = filename ? wcslen(filename) : 0;
+    return sentry_attachment_from_bytesw_n(
+        buf, buf_len, filename, filename_len);
+}
+
+sentry_attachment_t *
+sentry_attachment_from_bytesw_n(const char *buf, size_t buf_len,
+    const wchar_t *filename, size_t filename_len)
+{
+    return sentry__attachment_from_buffer(
+        buf, buf_len, sentry__path_from_wstr_n(filename, filename_len));
+}
+#endif
+
 size_t
 sentry__attachment_get_size(const sentry_attachment_t *attachment)
 {

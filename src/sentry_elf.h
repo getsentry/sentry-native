@@ -108,6 +108,34 @@ sentry__elf_has_phdr_size(
 #    endif
 }
 
+#    define SENTRY_ELF_MAX_METADATA_SECTION_SIZE (1024 * 1024)
+
+static inline void *
+sentry__elf_read_metadata_section(int fd, uint64_t offset, uint64_t size)
+{
+    if (size == 0 || size > SENTRY_ELF_MAX_METADATA_SECTION_SIZE) {
+        return NULL;
+    }
+
+    off_t file_offset = (off_t)offset;
+    if (file_offset < 0 || (uint64_t)file_offset != offset) {
+        return NULL;
+    }
+
+    size_t len = (size_t)size;
+    void *buf = sentry_malloc(len);
+    if (!buf) {
+        return NULL;
+    }
+
+    if (lseek(fd, file_offset, SEEK_SET) != file_offset
+        || read(fd, buf, len) != (ssize_t)len) {
+        sentry_free(buf);
+        return NULL;
+    }
+    return buf;
+}
+
 /**
  * Safely iterate ELF notes in a buffer to find one matching the given type
  * and name. Alignment must be 4 or 8 (per ELF spec, PT_NOTE uses p_align,

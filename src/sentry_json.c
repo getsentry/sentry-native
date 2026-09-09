@@ -17,6 +17,7 @@
 #include "sentry_alloc.h"
 #include "sentry_core.h"
 #include "sentry_json.h"
+#include "sentry_slice.h"
 #include "sentry_string.h"
 #include "sentry_utils.h"
 #include "sentry_value.h"
@@ -536,6 +537,64 @@ decode_string_inplace(char *buf, size_t *len_out)
     return true;
 }
 
+static bool
+parse_number(sentry_slice_t slice, sentry_value_t *value_out)
+{
+    char number_buf[32];
+    char *number = number_buf;
+    if (slice.len < sizeof(number_buf)) {
+        // stack buffer is sufficient for any SDK-supplied numbers
+        sentry__slice_to_buffer(slice, number_buf, sizeof(number_buf));
+    } else {
+        // heap fallback for longer external numbers
+        number = sentry__slice_to_owned(slice);
+        if (!number) {
+            return false;
+        }
+    }
+
+    bool success = false;
+    char *endptr = NULL;
+    sentry_value_t rv = sentry_value_new_null();
+    errno = 0;
+
+    if (number[0] == '-') {
+        const long long ll_val = strtoll(number, &endptr, 10);
+        if (endptr == number + slice.len && errno == 0) {
+            if (ll_val >= INT32_MIN && ll_val <= INT32_MAX) {
+                rv = sentry_value_new_int32((int32_t)ll_val);
+            } else {
+                rv = sentry_value_new_int64((int64_t)ll_val);
+            }
+            success = true;
+        }
+    } else {
+        const unsigned long long ull_val = strtoull(number, &endptr, 10);
+        if (endptr == number + slice.len && errno == 0) {
+            if (ull_val <= INT32_MAX) {
+                rv = sentry_value_new_int32((int32_t)ull_val);
+            } else if (ull_val <= INT64_MAX) {
+                rv = sentry_value_new_int64((int64_t)ull_val);
+            } else {
+                rv = sentry_value_new_uint64((uint64_t)ull_val);
+            }
+            success = true;
+        }
+    }
+
+    // Both failed, fallback to double
+    if (!success) {
+        double val = sentry__strtod_c(number, NULL);
+        rv = sentry_value_new_double(val);
+    }
+
+    if (number != number_buf) {
+        sentry_free(number);
+    }
+    *value_out = rv;
+    return true;
+}
+
 static size_t
 tokens_to_value(jsmntok_t *tokens, size_t token_count, const char *buf,
     size_t depth, sentry_value_t *value_out)
@@ -573,40 +632,10 @@ tokens_to_value(jsmntok_t *tokens, size_t token_count, const char *buf,
             rv = sentry_value_new_null();
             break;
         default: {
-            bool success = false;
-            char *endptr;
-            errno = 0;
-
-            if (buf[root->start] == '-') {
-                const long long ll_val
-                    = strtoll(buf + root->start, &endptr, 10);
-                if (endptr == buf + root->end && errno == 0) {
-                    if (ll_val >= INT32_MIN && ll_val <= INT32_MAX) {
-                        rv = sentry_value_new_int32((int32_t)ll_val);
-                    } else {
-                        rv = sentry_value_new_int64((int64_t)ll_val);
-                    }
-                    success = true;
-                }
-            } else {
-                const unsigned long long ull_val
-                    = strtoull(buf + root->start, &endptr, 10);
-                if (endptr == buf + root->end && errno == 0) {
-                    if (ull_val <= INT32_MAX) {
-                        rv = sentry_value_new_int32((int32_t)ull_val);
-                    } else if (ull_val <= INT64_MAX) {
-                        rv = sentry_value_new_int64((int64_t)ull_val);
-                    } else {
-                        rv = sentry_value_new_uint64((uint64_t)ull_val);
-                    }
-                    success = true;
-                }
-            }
-
-            // Both failed, fallback to double
-            if (!success) {
-                double val = sentry__strtod_c(buf + root->start, NULL);
-                rv = sentry_value_new_double(val);
+            sentry_slice_t slice
+                = { buf + root->start, (size_t)(root->end - root->start) };
+            if (!parse_number(slice, &rv)) {
+                goto error;
             }
             break;
         }

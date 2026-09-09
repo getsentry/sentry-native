@@ -6,6 +6,7 @@
 #include "sentry_json.h"
 #include "sentry_string.h"
 #include "sentry_utils.h"
+#include "sentry_uuid.h"
 #include "sentry_value.h"
 
 #if defined(_MSC_VER)
@@ -70,7 +71,7 @@ build_replay_event(sentry_value_t meta, const char *replay_id, double start_sec,
         event, "type", sentry_value_new_string("replay_event"));
     sentry_value_set_by_key(event, "replay_type",
         sentry_value_new_string(
-            replay_type && replay_type[0] ? replay_type : "buffer"));
+            !sentry__string_empty(replay_type) ? replay_type : "buffer"));
     sentry_value_set_by_key(
         event, "segment_id", sentry_value_new_int32(segment_id));
     sentry_value_set_by_key(
@@ -135,7 +136,7 @@ append_breadcrumb_events(sentry_value_t recording, sentry_value_t breadcrumbs,
         sentry_value_t crumb = sentry_value_get_by_index(breadcrumbs, i);
         const char *ts = sentry_value_as_string(
             sentry_value_get_by_key(crumb, "timestamp"));
-        if (!ts || !ts[0]) {
+        if (sentry__string_empty(ts)) {
             continue;
         }
         const uint64_t usec = sentry__iso8601_to_usec(ts);
@@ -152,7 +153,7 @@ append_breadcrumb_events(sentry_value_t recording, sentry_value_t breadcrumbs,
             = sentry_value_as_string(sentry_value_get_by_key(crumb, "type"));
         sentry_value_set_by_key(payload, "type",
             sentry_value_new_string(
-                crumb_type && crumb_type[0] ? crumb_type : "default"));
+                !sentry__string_empty(crumb_type) ? crumb_type : "default"));
         // the rrweb payload timestamp is in seconds, the outer one in ms
         sentry_value_set_by_key(
             payload, "timestamp", sentry_value_new_double(ts_sec));
@@ -257,7 +258,7 @@ build_replay_envelope(const sentry_options_t *options, sentry_value_t meta,
 
     const char *replay_id
         = sentry_value_as_string(sentry_value_get_by_key(meta, "replayId"));
-    if (!replay_id || !replay_id[0]) {
+    if (sentry__string_empty(replay_id)) {
         return NULL;
     }
 
@@ -397,10 +398,10 @@ sentry__session_replay_flush_pending(const sentry_options_t *options,
     if (!sentry_value_is_null(scope_source)) {
         sentry_value_t replay_ctx = sentry_value_get_by_key(
             sentry_value_get_by_key(scope_source, "contexts"), "replay");
-        const char *rid = sentry_value_as_string(
-            sentry_value_get_by_key(replay_ctx, "replay_id"));
-        if (rid && rid[0]) {
-            replay_id = rid;
+        sentry_value_t rid = sentry_value_get_by_key(replay_ctx, "replay_id");
+        if (sentry__uuid_is_valid(
+                sentry_value_as_string(rid), sentry_value_get_length(rid))) {
+            replay_id = sentry_value_as_string(rid);
         }
     }
     if (!replay_id) {
@@ -431,7 +432,7 @@ sentry__session_replay_flush_pending(const sentry_options_t *options,
         double end_sec = 0.0;
         const char *ts = sentry_value_as_string(
             sentry_value_get_by_key(scope_source, "timestamp"));
-        if (ts && ts[0]) {
+        if (!sentry__string_empty(ts)) {
             uint64_t usec = sentry__iso8601_to_usec(ts);
             if (usec) {
                 end_sec = (double)usec / 1000000.0;

@@ -195,7 +195,8 @@ SENTRY_TEST(crash_marker)
 SENTRY_TEST(crashed_last_run)
 {
     // fails before init() is called
-    TEST_CHECK_INT_EQUAL(sentry_clear_crashed_last_run(), 1);
+    SENTRY_TEST_DEPRECATED(
+        TEST_CHECK_INT_EQUAL(sentry_clear_crashed_last_run(), 1));
 
     // clear any leftover from previous test runs
     {
@@ -229,14 +230,31 @@ SENTRY_TEST(crashed_last_run)
         TEST_CHECK_INT_EQUAL(sentry_init(options), 0);
 
         TEST_CHECK_INT_EQUAL(sentry_get_crashed_last_run(), 1);
-
-        // clear the status and re-init
-        TEST_CHECK_INT_EQUAL(sentry_clear_crashed_last_run(), 0);
+        TEST_CHECK(!sentry__has_crash_marker(options));
 
         sentry_close();
 
         // no change yet before sentry_init() is called
         TEST_CHECK_INT_EQUAL(sentry_get_crashed_last_run(), 1);
+    }
+
+    {
+        SENTRY_TEST_OPTIONS_NEW(options);
+        sentry_options_set_dsn_n(options, dsn, sizeof(dsn));
+
+        // simulate a crash
+        TEST_CHECK(sentry__write_crash_marker(options));
+
+        sentry__retain_crash_marker(options);
+        TEST_CHECK_INT_EQUAL(sentry_init(options), 0);
+
+        TEST_CHECK_INT_EQUAL(sentry_get_crashed_last_run(), 1);
+        TEST_CHECK(sentry__has_crash_marker(options));
+        // explicit clearing remains supported on all platforms
+        SENTRY_TEST_DEPRECATED(
+            TEST_CHECK_INT_EQUAL(sentry_clear_crashed_last_run(), 0));
+
+        sentry_close();
     }
 
     {

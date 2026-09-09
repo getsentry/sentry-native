@@ -101,7 +101,7 @@ extern "C" {
 #    endif
 #endif
 #ifndef SENTRY_SDK_VERSION
-#    define SENTRY_SDK_VERSION "0.16.5"
+#    define SENTRY_SDK_VERSION "0.16.6"
 #endif
 #define SENTRY_SDK_USER_AGENT SENTRY_SDK_NAME "/" SENTRY_SDK_VERSION
 
@@ -2859,6 +2859,8 @@ SENTRY_API void sentry_scope_remove_fingerprint(sentry_scope_t *scope);
  *
  * Once a trace is managed by the downstream SDK using this function,
  * transactions no longer act as automatic trace boundaries.
+ *
+ * Pass a NULL or empty `parent_span_id` to start a trace without a parent.
  */
 SENTRY_API void sentry_set_trace(
     const char *trace_id, const char *parent_span_id);
@@ -3382,6 +3384,43 @@ struct sentry_attachment_s;
 typedef struct sentry_attachment_s sentry_attachment_t;
 
 /**
+ * Creates an attachment from a file.
+ *
+ * The path is copied and the filename is derived from it.
+ *
+ * Returns an owned attachment, or `NULL` on error.
+ *
+ * See https://develop.sentry.dev/sdk/data-model/envelope-items/#attachment
+ */
+SENTRY_API sentry_attachment_t *sentry_attachment_from_file(const char *path);
+SENTRY_API sentry_attachment_t *sentry_attachment_from_file_n(
+    const char *path, size_t path_len);
+#ifdef SENTRY_PLATFORM_WINDOWS
+SENTRY_API sentry_attachment_t *sentry_attachment_from_filew(
+    const wchar_t *path);
+SENTRY_API sentry_attachment_t *sentry_attachment_from_filew_n(
+    const wchar_t *path, size_t path_len);
+#endif
+
+/**
+ * Creates an attachment from bytes.
+ *
+ * The bytes and filename are copied.
+ *
+ * Returns an owned attachment, or `NULL` on error.
+ */
+SENTRY_API sentry_attachment_t *sentry_attachment_from_bytes(
+    const char *buf, size_t buf_len, const char *filename);
+SENTRY_API sentry_attachment_t *sentry_attachment_from_bytes_n(
+    const char *buf, size_t buf_len, const char *filename, size_t filename_len);
+#ifdef SENTRY_PLATFORM_WINDOWS
+SENTRY_API sentry_attachment_t *sentry_attachment_from_bytesw(
+    const char *buf, size_t buf_len, const wchar_t *filename);
+SENTRY_API sentry_attachment_t *sentry_attachment_from_bytesw_n(const char *buf,
+    size_t buf_len, const wchar_t *filename, size_t filename_len);
+#endif
+
+/**
  * Attaches a file to be sent along with events.
  *
  * `path` is assumed to be in a platform-specific filesystem path encoding.
@@ -3530,6 +3569,19 @@ SENTRY_API void sentry_attachment_set_filenamew_n(
     sentry_attachment_t *attachment, const wchar_t *filename,
     size_t filename_len);
 #endif
+
+/**
+ * Adds a configured attachment.
+ *
+ * Consumes `attachment` and returns an SDK-owned pointer, or `NULL` on error.
+ * If an equivalent file attachment already exists, returns the existing
+ * attachment. The returned pointer remains valid until the attachment is
+ * removed or its owning scope is freed.
+ */
+SENTRY_API sentry_attachment_t *sentry_add_attachment(
+    sentry_attachment_t *attachment);
+SENTRY_API sentry_attachment_t *sentry_scope_add_attachment(
+    sentry_scope_t *scope, sentry_attachment_t *attachment);
 
 /* -- Session APIs -- */
 
@@ -4107,6 +4159,16 @@ typedef struct sentry_hint_s sentry_hint_t;
 SENTRY_API sentry_hint_t *sentry_hint_new(void);
 
 /**
+ * Adds a configured attachment to a hint.
+ *
+ * Consumes `attachment` and returns a hint-owned pointer, or `NULL` on error.
+ * If an equivalent file attachment already exists, returns the existing
+ * attachment. The returned pointer remains valid until the hint is freed.
+ */
+SENTRY_API sentry_attachment_t *sentry_hint_add_attachment(
+    sentry_hint_t *hint, sentry_attachment_t *attachment);
+
+/**
  * Attaches a file to a hint.
  *
  * The file will be read and sent when the event is captured.
@@ -4301,7 +4363,7 @@ SENTRY_API void sentry_transaction_iter_headers(sentry_transaction_t *tx,
  *
  * Notes:
  *   * The underlying value is set by sentry_init() - it must be called first.
- *   * Call sentry_clear_crashed_last_run() to reset for the next app run.
+ *   * sentry_init() clears the persisted value for the next run.
  *
  * Possible return values:
  *   1 = the last run was a crash
@@ -4311,9 +4373,7 @@ SENTRY_API void sentry_transaction_iter_headers(sentry_transaction_t *tx,
 SENTRY_EXPERIMENTAL_API int sentry_get_crashed_last_run(void);
 
 /**
- * Clear the status of the "crashed-last-run". You should explicitly call
- * this after sentry_init() if you're using sentry_get_crashed_last_run().
- * Otherwise, the same information is reported on any subsequent runs.
+ * Clear the persisted status of the "crashed-last-run".
  *
  * Notes:
  *   * This doesn't change the value of sentry_get_crashed_last_run() yet.
@@ -4322,6 +4382,7 @@ SENTRY_EXPERIMENTAL_API int sentry_get_crashed_last_run(void);
  *
  * Returns 0 on success, 1 on error.
  */
+SENTRY_DEPRECATED("The crash marker is cleared by `sentry_init()`.")
 SENTRY_EXPERIMENTAL_API int sentry_clear_crashed_last_run(void);
 
 /**
