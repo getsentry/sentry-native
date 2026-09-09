@@ -199,6 +199,13 @@ typedef struct sentry__winmutex_s sentry_mutex_t;
 #    define sentry__mutex_free(Lock)                                           \
         DeleteCriticalSection(&(Lock)->critical_section)
 
+/**
+ * A non-recursive read-write lock for short critical sections around protected
+ * variable access. Allows multiple concurrent readers, or a single exclusive
+ * writer.
+ *
+ * Based on `SRWLOCK` on Windows, and `pthread_rwlock_t` on POSIX.
+ */
 #    if _WIN32_WINNT >= 0x0600
 typedef SRWLOCK sentry_rwlock_t;
 #        define SENTRY__RWLOCK_INIT SRWLOCK_INIT
