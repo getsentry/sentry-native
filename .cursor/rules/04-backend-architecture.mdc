@@ -1,0 +1,172 @@
+# Backend Architecture & Crash Handling
+
+## Backend Selection Strategy
+
+The SDK chooses backends based on platform and requirements:
+
+**crashpad** (Out-of-process handler):
+- **Default:** Windows, macOS, Linux desktop
+- **Pros:** Robust crash handling, can survive application crashes
+- **Cons:** Larger memory footprint, requires separate handler process
+- **Files:** [src/backends/sentry_backend_crashpad.cpp](mdc:src/backends/sentry_backend_crashpad.cpp)
+
+**breakpad** (In-process handler):
+- **Default:** None (optional alternative)
+- **Pros:** Self-contained, smaller footprint
+- **Cons:** May not survive all crash scenarios
+- **Files:** [src/backends/sentry_backend_breakpad.cpp](mdc:src/backends/sentry_backend_breakpad.cpp)
+
+**inproc** (Minimal in-process):
+- **Default:** Android, embedded systems
+- **Pros:** Minimal dependencies, signal-safe
+- **Cons:** Limited crash information capture
+- **Files:** [src/backends/sentry_backend_inproc.c](mdc:src/backends/sentry_backend_inproc.c)
+
+## Backend Interface Pattern
+
+All backends implement the same interface defined in [src/sentry_backend.h](mdc:src/sentry_backend.h):
+
+```c
+typedef struct sentry_backend_s {
+    int (*startup_func)(struct sentry_backend_s *, const sentry_options_t *);
+    int (*shutdown_func)(struct sentry_backend_s *);
+    void (*except_func)(struct sentry_backend_s *, const sentry_ucontext_t *);
+    void (*prune_database_func)(struct sentry_backend_s *);
+    size_t (*get_minidump_count_func)(struct sentry_backend_s *);
+    void (*user_consent_changed_func)(struct sentry_backend_s *);
+    void (*free_func)(struct sentry_backend_s *);
+    void *data;  // Backend-specific state
+} sentry_backend_t;
+```
+
+## Signal Safety Requirements
+
+**Critical Constraint:** Code in crash handlers must be **async-signal-safe**.
+
+**Safe Operations:**
+- Write to pre-allocated memory only
+- Use async-signal-safe system calls
+- No malloc/free (use page allocator)
+- No mutex operations
+- No C library functions that aren't signal-safe
+
+**Signal-Safe Memory Management:**
+```c
+// Enable page allocator for signal handlers
+#ifdef WITH_PAGE_ALLOCATOR
+if (sentry__page_allocator_enabled()) {
+    return sentry__page_allocator_alloc(size);
+}
+#endif
+
+// In signal handler context
+void signal_handler(int sig, siginfo_t *info, void *ucontext) {
+    sentry__page_allocator_enable();  // Switch to safe allocator
+    // ... crash handling logic ...
+}
+```
+
+## Crashpad Backend Details
+
+**Process Architecture:**
+- Main process links `libsentry`
+- Separate `crashpad_handler` process launched on init
+- IPC communication via platform-specific mechanisms
+
+**Handler Management:**
+```cpp
+// Typical crashpad initialization
+crashpad::CrashpadClient client;
+crashpad::CrashReportDatabase* database =
+    crashpad::CrashReportDatabase::Initialize(database_path);
+
+client.StartHandler(
+    handler_path,           // Path to crashpad_handler executable
+    database_path,          // Crash report storage
+    metrics_path,           // Usage metrics
+    url,                    // Sentry upload URL
+    annotations,            // Process annotations
+    arguments,              // Handler arguments
+    false                   // Restart handler on failure
+);
+```
+
+**Platform-Specific Considerations:**
+- **Linux:** Signal stack setup required for stack overflow crashes
+- **macOS:** Limited before_send/on_crash support due to out-of-process nature
+- **Windows:** WER integration for fast-fail crashes, thread stack guarantees
+
+## Breakpad Backend Details
+
+**In-Process Architecture:**
+- Crash handling happens within the crashed process
+- Minidump generation via breakpad libraries
+- Signal handlers for POSIX, exception handlers for Windows
+
+**Limitations:**
+- Cannot handle all crash types (stack overflow may corrupt handler)
+- Memory corruption may prevent proper crash handling
+- Less reliable than out-of-process solutions
+
+## InProc Backend Details
+
+**Minimal Signal Handler:**
+```c
+static void
+handle_signal(int signum, siginfo_t *info, void *user_context) {
+    sentry_ucontext_t uctx;
+    uctx.signum = signum;
+    uctx.siginfo = info;
+    uctx.user_context = (ucontext_t *)user_context;
+
+    // Capture event with minimal overhead
+    sentry_value_t event = sentry_value_new_event();
+    sentry__run_before_send(event, &uctx);
+
+    // Minimal envelope creation and storage
+    sentry__capture_with_scope(event, NULL);
+}
+```
+
+**Signal Configuration:**
+- Handles: SIGSEGV, SIGBUS, SIGFPE, SIGILL, SIGABRT
+- Uses alternate signal stack to handle stack overflow
+- Chains to previous handlers when possible
+
+## Backend Selection at Build Time
+
+**CMake Configuration:**
+```cmake
+# Set backend via CMake option
+set(SENTRY_BACKEND "crashpad" CACHE STRING "Backend selection")
+
+# Conditional compilation
+if(SENTRY_BACKEND STREQUAL "crashpad")
+    target_compile_definitions(sentry PRIVATE SENTRY_BACKEND_CRASHPAD)
+    target_sources(sentry PRIVATE src/backends/sentry_backend_crashpad.cpp)
+endif()
+```
+
+**Runtime Detection:**
+```c
+#ifdef SENTRY_BACKEND_CRASHPAD
+#    define SENTRY_BACKEND "crashpad"
+#elif defined(SENTRY_BACKEND_BREAKPAD)
+#    define SENTRY_BACKEND "breakpad"
+#elif defined(SENTRY_BACKEND_INPROC)
+#    define SENTRY_BACKEND "inproc"
+#endif
+```
+
+## Performance Considerations
+
+**Initialization Overhead:**
+- **crashpad:** ~50-100ms (process startup)
+- **breakpad:** ~10-20ms (library init)
+- **inproc:** ~1-5ms (signal handler setup)
+
+**Runtime Overhead:**
+- All backends: Minimal overhead during normal operation
+- Crash handling: Varies by backend complexity
+
+See [docs.sentry.io/platforms/native/advanced-usage/backend-tradeoffs/](https://docs.sentry.io/platforms/native/advanced-usage/backend-tradeoffs/) for detailed backend comparison.
