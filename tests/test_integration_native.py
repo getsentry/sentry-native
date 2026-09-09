@@ -29,6 +29,8 @@ from . import (
 )
 from .assertions import (
     assert_breadcrumb,
+    assert_crash_timestamp,
+    assert_no_crash_timestamp,
     assert_debug_meta_images_do_not_overlap,
     assert_meta,
     assert_native_crash,
@@ -39,6 +41,7 @@ from .assertions import (
     wait_for_file,
     assert_user_feedback,
 )
+from .conditions import has_files
 from .conditions import has_native, has_oom, is_asan, is_tsan, is_qemu, is_wine
 
 pytestmark = pytest.mark.skipif(
@@ -98,6 +101,7 @@ def test_native_on_crashed_last_run(cmake, httpserver):
     crash_envelope = Envelope.deserialize(httpserver.log[0][0].get_data())
     assert_native_crash(crash_envelope)
     event_id = crash_envelope.headers["event_id"]
+    assert_crash_timestamp(has_files, tmp_path)
 
     db_dir = tmp_path / ".sentry-native"
     run_dirs = list(db_dir.glob("*.run"))
@@ -115,6 +119,7 @@ def test_native_on_crashed_last_run(cmake, httpserver):
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
     )
+    assert_no_crash_timestamp(has_files, tmp_path)
     callbacks = [
         line
         for line in restarted.stdout.splitlines()
