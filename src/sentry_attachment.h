@@ -20,6 +20,12 @@
  */
 
 /**
+ * Creates a file attachment for internal crash-time use without enforcing the
+ * public attachment size limit.
+ */
+sentry_value_t sentry__attachment_from_file(const char *path);
+
+/**
  * Returns the attachment type.
  */
 const char *sentry__attachment_get_type(sentry_value_t attachment);

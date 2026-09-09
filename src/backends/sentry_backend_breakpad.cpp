@@ -204,7 +204,7 @@ breakpad_backend_callback(const google_breakpad::MinidumpDescriptor &descriptor,
                     sentry_value_new_string(sentry__path_filename(dump_path)));
             } else if (options->enable_large_attachments) {
                 sentry_value_t attachment
-                    = sentry_attachment_from_file(dump_path->path);
+                    = sentry__attachment_from_file(dump_path->path);
                 sentry_attachment_set_type(
                     attachment, SENTRY_ATTACHMENT_TYPE_MINIDUMP);
                 if (!sentry__cache_attachment_ref(envelope, attachment,

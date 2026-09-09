@@ -218,6 +218,18 @@ sentry_attachment_from_file_n(const char *path, size_t path_len)
 }
 
 sentry_value_t
+sentry__attachment_from_file(const char *path)
+{
+    if (!path) {
+        return sentry_value_new_null();
+    }
+
+    sentry_value_t attachment = attachment_new();
+    set_path_value(attachment, sentry_value_new_string(path));
+    return attachment;
+}
+
+sentry_value_t
 sentry_attachment_from_bytes(
     const char *buf, size_t buf_len, const char *filename)
 {

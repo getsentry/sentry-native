@@ -357,7 +357,7 @@ write_attachment_to_envelope(int fd, const char *file_path,
 static bool
 attachment_is_placeholder(const sentry_options_t *options, const char *path)
 {
-    sentry_value_t attachment = sentry_attachment_from_file(path);
+    sentry_value_t attachment = sentry__attachment_from_file(path);
     bool is_placeholder
         = sentry__attachment_is_placeholder(attachment, options);
     sentry_value_decref(attachment);
@@ -413,7 +413,7 @@ add_attachment_refs(sentry_envelope_t *envelope,
             SENTRY_WARN("Skipping malformed attachment manifest entry");
             continue;
         }
-        sentry_value_t attachment = sentry_attachment_from_file(path);
+        sentry_value_t attachment = sentry__attachment_from_file(path);
         if (sentry_value_is_null(attachment)) {
             SENTRY_WARNF("Failed to allocate attachment paths for: %s", path);
             continue;

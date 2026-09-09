@@ -2083,7 +2083,7 @@ capture_minidump(sentry_path_t *dump_path)
                 && sentry__path_get_size(dump_path)
                     >= SENTRY_LARGE_ATTACHMENT_SIZE) {
                 sentry_value_t attachment
-                    = sentry_attachment_from_file(dump_path->path);
+                    = sentry__attachment_from_file(dump_path->path);
                 sentry_attachment_set_type(
                     attachment, SENTRY_ATTACHMENT_TYPE_MINIDUMP);
                 if (!sentry__cache_attachment_ref(
