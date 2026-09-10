@@ -229,8 +229,23 @@ static int
 write_attachment(crashpad_state_t *state, const base::FilePath &path,
     const char *data, size_t size)
 {
-    if (path.empty() || !state || !state->client) {
+    if (path.empty() || !state) {
         return 1;
+    }
+    if (!state->client) {
+#ifdef SENTRY_PLATFORM_WINDOWS
+        sentry_path_t *sentry_path
+            = sentry__path_from_wstr(path.value().c_str());
+#else
+        sentry_path_t *sentry_path
+            = sentry__path_from_str(path.value().c_str());
+#endif
+        if (!sentry_path) {
+            return 1;
+        }
+        int rv = sentry__path_write_buffer(sentry_path, data, size);
+        sentry__path_free(sentry_path);
+        return rv;
     }
     return state->client->WriteAttachment(
                path, base::as_bytes(base::make_span(data, size)))
@@ -346,6 +361,22 @@ to_sentry_level(logging::LogSeverity severity)
     return SENTRY_LEVEL_DEBUG;
 }
 
+static void
+flush_scope_attachments(crashpad_state_t *data, const sentry_options_t *options)
+{
+    sentry_value_t event = sentry_value_new_object();
+    sentry_value_set_by_key(
+        event, "event_id", sentry__value_new_uuid(&data->crash_event_id));
+    sentry_value_set_by_key(
+        event, "level", sentry__value_new_level(SENTRY_LEVEL_FATAL));
+
+    flush_scope_to_event(data, data->event_path, options, event);
+    if (!data->external_report_path.empty()) {
+        flush_external_crash_report(
+            data, data->external_report_path, options, &data->crash_event_id);
+    }
+}
+
 // This function is necessary for macOS since it has no `FirstChanceHandler`.
 // but it is also necessary on Windows if the WER handler is enabled.
 // This means we have to continuously flush the scope on
@@ -371,19 +402,7 @@ crashpad_backend_flush_scope(
         return;
     }
 
-    sentry_value_t event = sentry_value_new_object();
-    sentry_value_set_by_key(
-        event, "event_id", sentry__value_new_uuid(&data->crash_event_id));
-    // Since this will only be uploaded in case of a crash we must make this
-    // event fatal.
-    sentry_value_set_by_key(
-        event, "level", sentry__value_new_level(SENTRY_LEVEL_FATAL));
-
-    flush_scope_to_event(data, data->event_path, options, event);
-    if (!data->external_report_path.empty()) {
-        flush_external_crash_report(
-            data, data->external_report_path, options, &data->crash_event_id);
-    }
+    flush_scope_attachments(data, options);
     data->scope_flush.store(false, std::memory_order_release);
 #endif
 }
@@ -912,6 +931,9 @@ crashpad_backend_startup(
             sentry__path_free(external_report_path);
         }
     }
+
+    // Persist the preloaded scope before Crashpad starts handling crashes.
+    flush_scope_attachments(data, options);
 
     std::vector<std::string> arguments { "--no-rate-limit" };
     sentry_path_t *log_path

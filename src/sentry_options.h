@@ -35,6 +35,7 @@ struct sentry_options_s {
     sentry_path_t *database_path;
     sentry_path_t *handler_path;
     sentry_path_t *external_crash_reporter;
+    sentry_value_t initial_scope_tags;
     sentry_logger_t logger;
     size_t max_breadcrumbs;
     bool debug;

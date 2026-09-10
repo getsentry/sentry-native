@@ -97,7 +97,7 @@ def test_crashpad_on_crashed_last_run(cmake):
     run(
         tmp_path,
         "sentry_example",
-        ["log", "crash"],
+        [*args, "initial-tags", "crash"],
         expect_failure=True,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
@@ -125,6 +125,7 @@ def test_crashpad_on_crashed_last_run(cmake):
     ]
     assert len(callbacks) == 1
     assert len(callbacks[0].partition(b":")[2]) == 36
+    assert b"CRASHED_LAST_RUN_INITIAL_TAG:initial-value" in restarted.stdout
 
     restarted_again = run(
         tmp_path,
@@ -167,6 +168,27 @@ def test_crashpad_codeview(cmake, httpserver):
         identifier = codeview[4:20]
 
     assert any(identifier)
+
+
+@pytest.mark.skipif(sys.platform != "win32", reason="fast-fail is Windows-only")
+def test_crashpad_initial_tags_fastfail(cmake, httpserver):
+    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "crashpad"})
+
+    httpserver.expect_oneshot_request("/api/123456/minidump/").respond_with_data("OK")
+
+    with httpserver.wait(timeout=10) as waiting:
+        run(
+            tmp_path,
+            "sentry_example",
+            ["initial-tags", "crashpad-wait-for-upload", "fastfail"],
+            expect_failure=True,
+            env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
+        )
+
+    assert waiting.result
+    assert len(httpserver.log) == 1
+    attachments = assert_crashpad_upload(httpserver.log[0][0])
+    assert attachments.event["tags"]["test.initial-tag"] == "initial-value"
 
 
 def _setup_crashpad_proxy_test(cmake, httpserver, proxy):

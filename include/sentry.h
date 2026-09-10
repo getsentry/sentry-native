@@ -1427,6 +1427,18 @@ SENTRY_API sentry_options_t *sentry_options_new(void);
 SENTRY_API void sentry_options_free(sentry_options_t *opts);
 
 /**
+ * Sets tags on the initial scope before the crash backend is started.
+ *
+ * The tags must be an object with string values. Non-string values are
+ * ignored. Calling this function again replaces the previously configured
+ * initial tags.
+ *
+ * The function takes ownership of `tags`.
+ */
+SENTRY_API void sentry_options_set_tags(
+    sentry_options_t *opts, sentry_value_t tags);
+
+/**
  * Sets a transport.
  */
 SENTRY_API void sentry_options_set_transport(

@@ -139,12 +139,14 @@ def assert_sentry_event(httpserver, backend, crash_arg):
         assert httpserver.log[0][0].path == "/api/123456/minidump/"
         attachments = assert_crashpad_upload(httpserver.log[0][0])
         assert attachments.event["event_id"]
+        assert attachments.event["tags"]["test.initial-tag"] == "initial-value"
         return attachments.event
 
     envelope = Envelope.deserialize(httpserver.log[0][0].get_data())
     event = envelope.get_event()
     assert event is not None
     assert event["event_id"]
+    assert event["tags"]["test.initial-tag"] == "initial-value"
     assert_event_meta(event, integrations=[backend, "wer"])
 
     if backend == "inproc":
@@ -262,6 +264,7 @@ def run_wer_crash(cmake, backend, crash_arg, httpserver=None, appx=False):
         if appx:
             run_args.append("appx")
         run_args.append(crash_arg)
+        run_args.append("initial-tags")
         if backend == "crashpad":
             run_args.append("crashpad-wait-for-upload")
 
@@ -363,6 +366,8 @@ def run_wer_crash(cmake, backend, crash_arg, httpserver=None, appx=False):
 def test_wer_custom_metadata(cmake, backend):
     report = run_wer_crash(cmake, backend, "crash")
 
+    assert "test.initial-tag" in report
+    assert "initial-value" in report
     assert "expected-tag" in report
     assert "some value" in report
     assert "not-expected-tag" not in report

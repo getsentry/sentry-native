@@ -1,7 +1,116 @@
+#include "sentry_alloc.h"
+#include "sentry_backend.h"
 #include "sentry_options.h"
+#include "sentry_scope.h"
 #include "sentry_testsupport.h"
 
 #include <math.h>
+#include <string.h>
+
+static int
+startup_with_initial_tags(
+    sentry_backend_t *backend, const sentry_options_t *UNUSED(options))
+{
+    bool *found = backend->data;
+    SENTRY_WITH_SCOPE (scope) {
+        const char *value = sentry_value_as_string(
+            sentry_value_get_by_key(scope->tags, "initial"));
+        *found = value && strcmp(value, "value") == 0;
+    }
+    return 0;
+}
+
+static int
+startup_failure_with_initial_tags(
+    sentry_backend_t *backend, const sentry_options_t *options)
+{
+    startup_with_initial_tags(backend, options);
+    return 1;
+}
+
+SENTRY_TEST(options_initial_tags_before_backend_startup)
+{
+    SENTRY_TEST_OPTIONS_NEW(options);
+
+    bool found = false;
+    sentry_backend_t *backend = SENTRY_MAKE(sentry_backend_t);
+    TEST_ASSERT(!!backend);
+    backend->data = &found;
+    backend->startup_func = startup_with_initial_tags;
+    sentry_options_set_backend(options, backend);
+
+    sentry_value_t tags = sentry_value_new_object();
+    sentry_value_set_by_key(tags, "initial", sentry_value_new_string("value"));
+    sentry_value_set_by_key(tags, "invalid", sentry_value_new_int32(42));
+    sentry_options_set_tags(options, tags);
+
+    sentry_init(options);
+    TEST_CHECK(found);
+
+    SENTRY_WITH_SCOPE (scope) {
+        TEST_CHECK_STRING_EQUAL(sentry_value_as_string(sentry_value_get_by_key(
+                                    scope->tags, "initial")),
+            "value");
+        TEST_CHECK(sentry_value_is_null(
+            sentry_value_get_by_key(scope->tags, "invalid")));
+    }
+
+    sentry_close();
+}
+
+SENTRY_TEST(options_initial_tags_rollback_after_startup_failure)
+{
+    SENTRY_TEST_OPTIONS_NEW(options);
+
+    bool found = false;
+    sentry_backend_t *backend = SENTRY_MAKE(sentry_backend_t);
+    TEST_ASSERT(!!backend);
+    backend->data = &found;
+    backend->startup_func = startup_failure_with_initial_tags;
+    sentry_options_set_backend(options, backend);
+
+    sentry_value_t tags = sentry_value_new_object();
+    sentry_value_set_by_key(tags, "initial", sentry_value_new_string("value"));
+    sentry_options_set_tags(options, tags);
+
+    TEST_CHECK(sentry_init(options) != 0);
+    TEST_CHECK(found);
+
+    SENTRY_WITH_SCOPE (scope) {
+        TEST_CHECK(sentry_value_is_null(
+            sentry_value_get_by_key(scope->tags, "initial")));
+    }
+}
+
+SENTRY_TEST(options_initial_tags_replace)
+{
+    SENTRY_TEST_OPTIONS_NEW(options);
+
+    sentry_value_t first = sentry_value_new_object();
+    sentry_value_incref(first);
+    sentry_options_set_tags(options, first);
+    TEST_CHECK_INT_EQUAL(sentry_value_refcount(first), 2);
+
+    sentry_value_t second = sentry_value_new_object();
+    sentry_value_incref(second);
+    sentry_options_set_tags(options, second);
+    TEST_CHECK_INT_EQUAL(sentry_value_refcount(first), 1);
+    TEST_CHECK_INT_EQUAL(sentry_value_refcount(second), 2);
+
+    sentry_options_set_tags(options, sentry_value_new_list());
+    TEST_CHECK(sentry_value_is_null(options->initial_scope_tags));
+    TEST_CHECK_INT_EQUAL(sentry_value_refcount(second), 1);
+
+    sentry_value_decref(first);
+    sentry_value_decref(second);
+
+    sentry_value_t final = sentry_value_new_object();
+    sentry_value_incref(final);
+    sentry_options_set_tags(options, final);
+    sentry_options_free(options);
+    TEST_CHECK_INT_EQUAL(sentry_value_refcount(final), 1);
+    sentry_value_decref(final);
+}
 
 SENTRY_TEST(options_sdk_name_defaults)
 {

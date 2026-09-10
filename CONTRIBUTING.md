@@ -195,6 +195,7 @@ The example currently supports the following commands:
 - `clear-attachments`: Clears all attachments from the global scope.
 - `capture-user-feedback`: Captures a user feedback event.
 - `test-logger`: Sets up a test logger for integration tests that outputs in a format the integration tests can parse.
+- `initial-tags`: Configures a test tag on the initial scope before SDK initialization.
 - `disable-logger-when-crashed`: Disables logging during crash handling.
 - `enable-logger-when-crashed`: Explicitly enables logging during crash handling (default behavior).
 - `test-logger-before-crash`: Outputs marker directly using printf for test parsing before crash.

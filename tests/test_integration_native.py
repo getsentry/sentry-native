@@ -89,7 +89,7 @@ def test_native_on_crashed_last_run(cmake, httpserver):
         run_crash(
             tmp_path,
             "sentry_example",
-            [*args, "crash"],
+            [*args, "initial-tags", "crash"],
             env=env,
             wait_for_daemon=True,
             stdout=subprocess.PIPE,
@@ -126,6 +126,7 @@ def test_native_on_crashed_last_run(cmake, httpserver):
         if line.startswith(b"CRASHED_LAST_RUN:")
     ]
     assert callbacks == [f"CRASHED_LAST_RUN:{event_id}".encode()]
+    assert b"CRASHED_LAST_RUN_INITIAL_TAG:initial-value" in restarted.stdout
     assert len(httpserver.log) == 1
     assert not list(db_dir.glob("*.run"))
     assert not list(db_dir.glob("*.run*.lock"))

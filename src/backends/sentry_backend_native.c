@@ -213,6 +213,9 @@ typedef struct {
     volatile long crashed;
 } native_backend_state_t;
 
+static void native_backend_flush_scope(
+    sentry_backend_t *backend, const sentry_options_t *options);
+
 static bool
 native_backend_process_old_run(sentry_backend_t *backend,
     const sentry_options_t *options, const sentry_path_t *run_path)
@@ -809,6 +812,9 @@ native_backend_startup(
         sem_post(g_ipc_init_sem);
     }
 #endif
+
+    // Persist the preloaded scope before any crash handler becomes active.
+    native_backend_flush_scope(backend, options);
 
     // Install crash handlers (signal handlers on Linux/macOS, Mach exception
     // handler on iOS)

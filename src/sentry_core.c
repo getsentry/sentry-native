@@ -152,6 +152,7 @@ sentry_init(sentry_options_t *options)
 {
     // pre-init here, so we can consistently use bailing out to :fail
     sentry_transport_t *transport = NULL;
+    bool initial_scope_tags_applied = false;
 
     SENTRY__MUTEX_INIT_DYN_ONCE(g_options_lock);
     // Stop the app hang watchdog before locking options. The watchdog thread
@@ -248,6 +249,15 @@ sentry_init(sentry_options_t *options)
     sentry__init_cached_kernel32_functions();
 #endif
 
+    if (!sentry_value_is_null(options->initial_scope_tags)) {
+        sentry_value_t tags = options->initial_scope_tags;
+        options->initial_scope_tags = sentry_value_new_null();
+        SENTRY_WITH_SCOPE_MUT_NO_FLUSH (scope) {
+            sentry_scope_set_tags(scope, tags);
+        }
+        initial_scope_tags_applied = true;
+    }
+
     // and then we will start the backend, since it requires a valid run
     sentry_backend_t *backend = options->backend;
     if (backend && backend->startup_func) {
@@ -342,6 +352,9 @@ fail:
         sentry__transport_shutdown(transport, 0);
     }
     sentry_options_free(options);
+    if (initial_scope_tags_applied) {
+        sentry__scope_cleanup();
+    }
     sentry__mutex_unlock(&g_options_lock);
     return 1;
 }
