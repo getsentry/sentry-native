@@ -170,7 +170,11 @@ def test_crashpad_codeview(cmake, httpserver):
     assert any(identifier)
 
 
-@pytest.mark.skipif(sys.platform != "win32", reason="fast-fail is Windows-only")
+@pytest.mark.skipif(
+    sys.platform != "win32" or bool(os.environ.get("TEST_MINGW")),
+    reason="fast-fail is only available in MSVC Windows builds",
+)
+@pytest.mark.with_wer
 def test_crashpad_initial_tags_fastfail(cmake, httpserver):
     tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "crashpad"})
 
