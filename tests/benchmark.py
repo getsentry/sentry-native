@@ -192,3 +192,15 @@ def test_benchmark_stack_usage(backend, cmake, gmeasurement):
         "bytes",
         f"Peak {peak}b, Segments {len(measurements)}",
     )
+
+
+@pytest.mark.parametrize("backend", ["inproc", "breakpad", "crashpad", "native"])
+def test_benchmark_contexts(backend, cmake, httpserver, gbenchmark):
+    run_benchmark(
+        "benchmark_contexts",
+        backend,
+        cmake,
+        httpserver,
+        gbenchmark,
+        f"Contexts ({backend})",
+    )
