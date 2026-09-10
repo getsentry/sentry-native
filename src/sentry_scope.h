@@ -49,38 +49,13 @@ typedef struct sentry_scope_observer_s {
     void (*remove_attachment)(void *data, sentry_value_t attachment);
 } sentry_scope_observer_t;
 
+typedef struct sentry_scope_data_s sentry_scope_data_t;
+
 /**
  * This represents the current scope.
  */
 struct sentry_scope_s {
-    char *release;
-    char *environment;
-    char *transaction;
-    sentry_value_t fingerprint;
-    sentry_value_t user;
-    sentry_value_t tags;
-    sentry_value_t extra;
-    sentry_value_t attributes;
-    sentry_value_t contexts;
-    sentry_value_t propagation_context;
-    sentry_ringbuffer_t *breadcrumbs;
-    sentry_value_t dynamic_sampling_context;
-    sentry_level_t level;
-    sentry_uuid_t last_event_id;
-    sentry_value_t client_sdk;
-    sentry_value_t attachments;
-
-    // The span attached to this scope, if any.
-    //
-    // Conceptually, every transaction is a span, so it should be possible to
-    // attach spans or transactions to a scope. But sentry_span_t and
-    // sentry_transaction_t are unrelated types in the native SDK, so we need
-    // two distinct pointers. At most one of them should ever be non-null.
-    // Whenever possible, `transaction` should pull its value from the
-    // `name` property nested in transaction_object or span.
-    sentry_transaction_t *transaction_object;
-    sentry_span_t *span;
-    bool trace_managed;
+    sentry_scope_data_t *data;
 
     sentry_scope_observer_t **observers;
     size_t num_observers;
@@ -123,6 +98,9 @@ void sentry__scope_unlock(void);
  */
 void sentry__scope_cleanup(void);
 
+void sentry__scope_apply_options(
+    sentry_scope_t *scope, sentry_options_t *options);
+
 /**
  * Frees the scope if it is a one-shot local scope.
  */
@@ -145,13 +123,71 @@ void sentry__scope_apply_to_event(const sentry_scope_t *scope,
     const sentry_options_t *options, sentry_value_t event,
     sentry_scope_mode_t mode);
 
+sentry_value_t sentry__scope_ref_release(const sentry_scope_t *scope);
+
+sentry_value_t sentry__scope_ref_environment(const sentry_scope_t *scope);
+
+sentry_value_t sentry__scope_ref_transaction(const sentry_scope_t *scope);
+
+sentry_value_t sentry__scope_ref_fingerprint(const sentry_scope_t *scope);
 void sentry__scope_set_fingerprint_va(
     sentry_scope_t *scope, const char *fingerprint, va_list va);
 void sentry__scope_set_fingerprint_nva(sentry_scope_t *scope,
     const char *fingerprint, size_t fingerprint_len, va_list va);
 
+sentry_value_t sentry__scope_ref_user(const sentry_scope_t *scope);
+sentry_level_t sentry__scope_get_level(const sentry_scope_t *scope);
+sentry_value_t sentry__scope_ref_client_sdk(const sentry_scope_t *scope);
+
+/**
+ * Returns an owned reference to the scope attachment list.
+ * The caller must release it with `sentry_value_decref`.
+ */
+sentry_value_t sentry__scope_load_attachments(const sentry_scope_t *scope);
 sentry_value_t sentry__scope_add_attachment(
     sentry_scope_t *scope, sentry_value_t attachment);
+sentry_value_t sentry__scope_take_attachments(sentry_scope_t *scope);
+sentry_value_t sentry__scope_load_tags(const sentry_scope_t *scope);
+
+sentry_value_t sentry__scope_load_extra(const sentry_scope_t *scope);
+
+sentry_value_t sentry__scope_load_attributes(const sentry_scope_t *scope);
+
+sentry_value_t sentry__scope_load_contexts(const sentry_scope_t *scope);
+
+sentry_value_t sentry__scope_load_propagation_context(
+    const sentry_scope_t *scope);
+void sentry__scope_set_propagation_context(
+    sentry_scope_t *scope, const char *key, sentry_value_t value);
+void sentry__scope_regenerate_propagation_context(sentry_scope_t *scope);
+sentry_value_t sentry__scope_load_trace_context(const sentry_scope_t *scope);
+void sentry__scope_set_trace_context(
+    sentry_scope_t *scope, const char *key, sentry_value_t value);
+
+sentry_value_t sentry__scope_breadcrumbs_to_list(const sentry_scope_t *scope);
+
+sentry_transaction_t *sentry__scope_ref_transaction_object(
+    const sentry_scope_t *scope);
+void sentry__scope_set_transaction_object(
+    sentry_scope_t *scope, sentry_transaction_t *transaction);
+bool sentry__scope_remove_transaction_object(
+    sentry_scope_t *scope, sentry_transaction_t *transaction);
+bool sentry__scope_remove_transaction_value(
+    sentry_scope_t *scope, sentry_value_t transaction);
+bool sentry__scope_restore_transaction_object(
+    sentry_scope_t *scope, sentry_transaction_t *transaction);
+
+sentry_span_t *sentry__scope_ref_span(const sentry_scope_t *scope);
+sentry_value_t sentry__scope_ref_span_or_transaction(
+    const sentry_scope_t *scope);
+void sentry__scope_set_span(sentry_scope_t *scope, sentry_span_t *span);
+bool sentry__scope_remove_span(sentry_scope_t *scope, sentry_span_t *span);
+bool sentry__scope_remove_span_value(
+    sentry_scope_t *scope, sentry_value_t span);
+bool sentry__scope_restore_span(sentry_scope_t *scope, sentry_span_t *span);
+
+bool sentry__scope_is_trace_managed(const sentry_scope_t *scope);
+void sentry__scope_set_trace_managed(sentry_scope_t *scope, bool managed);
 
 /**
  * These are convenience macros to automatically lock/unlock the global scope
@@ -211,6 +247,10 @@ void sentry__scope_end_notify(sentry_scope_t *scope);
         sentry__scope_end_notify(scope);                                       \
     } while (0)
 
+sentry_value_t sentry__scope_load_dsc(const sentry_scope_t *scope);
+void sentry__scope_foreach_dsc(const sentry_scope_t *scope,
+    sentry_value_foreach_key_value_function_t callback, void *userdata);
+
 /**
  * Rebuilds the scope's dynamic sampling context (DSC) from the SDK options
  * and the current propagation context. The previous DSC is discarded.
@@ -234,6 +274,9 @@ void sentry__scope_freeze_dsc(sentry_scope_t *scope, sentry_value_t incoming);
 void sentry__scope_apply_to_telemetry(const sentry_scope_t *scope,
     sentry_value_t telemetry, sentry_value_t attributes);
 
+void sentry__scope_set_last_event_id(
+    sentry_scope_t *scope, sentry_uuid_t event_id);
+
 /**
  * Captures the `envelope` on `scope`, recording the last sent event ID.
  */
@@ -241,9 +284,4 @@ void sentry__scope_capture_envelope(sentry_scope_t *scope,
     sentry_transport_t *transport, sentry_envelope_t *envelope,
     const sentry_options_t *options);
 
-#endif
-
-// this is only used in unit tests
-#ifdef SENTRY_UNITTEST
-sentry_value_t sentry__scope_get_span_or_transaction(void);
 #endif

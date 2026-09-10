@@ -191,6 +191,18 @@ wer_remove_attachment(void *UNUSED(data), sentry_value_t attachment)
     }
 }
 
+static void
+wer_for_each_attachment(
+    sentry_scope_t *scope, void *data, void (*callback)(void *, sentry_value_t))
+{
+    sentry_value_t attachments = sentry__scope_load_attachments(scope);
+    size_t len = sentry_value_get_length(attachments);
+    for (size_t i = 0; i < len; i++) {
+        callback(data, sentry_value_get_by_index(attachments, i));
+    }
+    sentry_value_decref(attachments);
+}
+
 static int
 wer_cleanup_tag(const char *key, sentry_value_t UNUSED(value), void *data)
 {
@@ -208,13 +220,11 @@ wer_clear(void *data)
         return;
     }
 
-    sentry_value_foreach_key_value(scope->tags, wer_cleanup_tag, wer_data);
+    sentry_value_t tags = sentry__scope_load_tags(scope);
+    sentry_value_foreach_key_value(tags, wer_cleanup_tag, wer_data);
+    sentry_value_decref(tags);
 
-    size_t len = sentry_value_get_length(scope->attachments);
-    for (size_t i = 0; i < len; i++) {
-        wer_remove_attachment(
-            wer_data, sentry_value_get_by_index(scope->attachments, i));
-    }
+    wer_for_each_attachment(scope, wer_data, wer_remove_attachment);
 }
 
 static void
@@ -239,11 +249,7 @@ register_wer(
     if (sentry__scope_add_observer(scope, observer)) {
         wer_data->scope = scope;
         wer_data->observer = observer;
-        size_t len = sentry_value_get_length(scope->attachments);
-        for (size_t i = 0; i < len; i++) {
-            wer_add_attachment(
-                wer_data, sentry_value_get_by_index(scope->attachments, i));
-        }
+        wer_for_each_attachment(scope, wer_data, wer_add_attachment);
     }
 }
 
@@ -257,13 +263,11 @@ unregister_wer(
         return;
     }
 
-    sentry_value_foreach_key_value(scope->tags, wer_cleanup_tag, wer_data);
+    sentry_value_t tags = sentry__scope_load_tags(scope);
+    sentry_value_foreach_key_value(tags, wer_cleanup_tag, wer_data);
+    sentry_value_decref(tags);
 
-    size_t len = sentry_value_get_length(scope->attachments);
-    for (size_t i = 0; i < len; i++) {
-        wer_remove_attachment(
-            wer_data, sentry_value_get_by_index(scope->attachments, i));
-    }
+    wer_for_each_attachment(scope, wer_data, wer_remove_attachment);
 
     sentry__scope_remove_observer(scope, wer_data->observer);
     wer_data->scope = NULL;
