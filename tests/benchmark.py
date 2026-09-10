@@ -84,6 +84,18 @@ def test_benchmark_logs(threads, cmake, httpserver, gbenchmark):
     )
 
 
+@pytest.mark.parametrize("threads", [1, 8, 16, 32])
+def test_benchmark_metrics(threads, cmake, httpserver, gbenchmark):
+    run_benchmark(
+        f"^benchmark_metrics.*threads:{threads}$",
+        "none",
+        cmake,
+        httpserver,
+        gbenchmark,
+        f"Metrics ({threads} thread{'s' if threads > 1 else ''})",
+    )
+
+
 @pytest.mark.parametrize("backend", ["inproc", "breakpad", "crashpad", "native"])
 def test_benchmark_libsize(backend, cmake, gmeasurement):
     tmp_path = cmake(

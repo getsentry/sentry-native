@@ -12,6 +12,7 @@ add_executable(sentry_benchmark
 	benchmark_init.cpp
 	benchmark_backend.cpp
 	benchmark_logs.cpp
+	benchmark_metrics.cpp
 	benchmark_scope.cpp
 )
 
