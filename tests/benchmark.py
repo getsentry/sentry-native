@@ -59,16 +59,27 @@ def test_benchmark_backend(backend, cmake, httpserver, gbenchmark):
     )
 
 
-@pytest.mark.parametrize("test_name", ["set_tag", "add_breadcrumb"])
 @pytest.mark.parametrize("backend", ["inproc", "breakpad", "crashpad", "native"])
-def test_benchmark_scope(test_name, backend, cmake, httpserver, gbenchmark):
+def test_benchmark_tags(backend, cmake, httpserver, gbenchmark):
     run_benchmark(
-        f"benchmark_scope_{test_name}",
+        "benchmark_tags",
         backend,
         cmake,
         httpserver,
         gbenchmark,
-        f"Scope {test_name} ({backend})",
+        f"Tags ({backend})",
+    )
+
+
+@pytest.mark.parametrize("backend", ["inproc", "breakpad", "crashpad", "native"])
+def test_benchmark_breadcrumbs(backend, cmake, httpserver, gbenchmark):
+    run_benchmark(
+        "benchmark_breadcrumbs",
+        backend,
+        cmake,
+        httpserver,
+        gbenchmark,
+        f"Breadcrumbs ({backend})",
     )
 
 
