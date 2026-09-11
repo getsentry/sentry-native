@@ -59,16 +59,27 @@ def test_benchmark_backend(backend, cmake, httpserver, gbenchmark):
     )
 
 
-@pytest.mark.parametrize("test_name", ["set_tag", "add_breadcrumb"])
 @pytest.mark.parametrize("backend", ["inproc", "breakpad", "crashpad", "native"])
-def test_benchmark_scope(test_name, backend, cmake, httpserver, gbenchmark):
+def test_benchmark_tags(backend, cmake, httpserver, gbenchmark):
     run_benchmark(
-        f"benchmark_scope_{test_name}",
+        "benchmark_tags",
         backend,
         cmake,
         httpserver,
         gbenchmark,
-        f"Scope {test_name} ({backend})",
+        f"Tags ({backend})",
+    )
+
+
+@pytest.mark.parametrize("backend", ["inproc", "breakpad", "crashpad", "native"])
+def test_benchmark_breadcrumbs(backend, cmake, httpserver, gbenchmark):
+    run_benchmark(
+        "benchmark_breadcrumbs",
+        backend,
+        cmake,
+        httpserver,
+        gbenchmark,
+        f"Breadcrumbs ({backend})",
     )
 
 
@@ -81,6 +92,18 @@ def test_benchmark_logs(threads, cmake, httpserver, gbenchmark):
         httpserver,
         gbenchmark,
         f"Logs ({threads} thread{'s' if threads > 1 else ''})",
+    )
+
+
+@pytest.mark.parametrize("threads", [1, 8, 16, 32])
+def test_benchmark_metrics(threads, cmake, httpserver, gbenchmark):
+    run_benchmark(
+        f"^benchmark_metrics.*threads:{threads}$",
+        "none",
+        cmake,
+        httpserver,
+        gbenchmark,
+        f"Metrics ({threads} thread{'s' if threads > 1 else ''})",
     )
 
 
@@ -168,4 +191,16 @@ def test_benchmark_stack_usage(backend, cmake, gmeasurement):
         f"Stack usage ({backend})",
         "bytes",
         f"Peak {peak}b, Segments {len(measurements)}",
+    )
+
+
+@pytest.mark.parametrize("backend", ["inproc", "breakpad", "crashpad", "native"])
+def test_benchmark_contexts(backend, cmake, httpserver, gbenchmark):
+    run_benchmark(
+        "benchmark_contexts",
+        backend,
+        cmake,
+        httpserver,
+        gbenchmark,
+        f"Contexts ({backend})",
     )

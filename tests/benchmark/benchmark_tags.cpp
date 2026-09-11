@@ -7,7 +7,7 @@ extern "C" {
 }
 
 static void
-benchmark_scope_set_tag(benchmark::State &state)
+benchmark_tags(benchmark::State &state)
 {
     sentry_options_t *options = sentry_options_new();
     sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
@@ -28,28 +28,6 @@ benchmark_scope_set_tag(benchmark::State &state)
     sentry_close();
 }
 
-BENCHMARK(benchmark_scope_set_tag)
-    ->Iterations(1000)
-    ->Unit(benchmark::kMillisecond);
-
-static void
-benchmark_scope_add_breadcrumb(benchmark::State &state)
-{
-    sentry_options_t *options = sentry_options_new();
-    sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
-    sentry_init(options);
-
-    int i = 0;
-    for (auto _ : state) {
-        char msg[32];
-        snprintf(msg, sizeof(msg), "message%d", i);
-        sentry_add_breadcrumb(sentry_value_new_breadcrumb(NULL, msg));
-        i++;
-    }
-
-    sentry_close();
-}
-
-BENCHMARK(benchmark_scope_add_breadcrumb)
+BENCHMARK(benchmark_tags)
     ->Iterations(1000)
     ->Unit(benchmark::kMillisecond);
