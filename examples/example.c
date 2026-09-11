@@ -1013,17 +1013,19 @@ main(int argc, char **argv)
     }
 
     if (has_arg(argc, argv, "attachment")) {
-        sentry_attachment_t *bytes
-            = sentry_attach_bytes("\xc0\xff\xee", 3, "bytes.bin");
+        sentry_value_t bytes
+            = sentry_attachment_from_bytes("\xc0\xff\xee", 3, "bytes.bin");
         sentry_attachment_set_content_type(bytes, "application/octet-stream");
+        sentry_add_attachment(bytes);
     }
     if (has_arg(argc, argv, "attach-view-hierarchy")) {
         // assuming the example / test is run directly from the cmake build
         // directory
-        sentry_attachment_t *view_hierarchy
-            = sentry_attach_file("./view-hierarchy.json");
+        sentry_value_t view_hierarchy
+            = sentry_attachment_from_file("./view-hierarchy.json");
         sentry_attachment_set_type(
             view_hierarchy, SENTRY_ATTACHMENT_TYPE_VIEW_HIERARCHY);
+        sentry_add_attachment(view_hierarchy);
     }
 
     if (has_arg(argc, argv, "large-attachment")) {
@@ -1041,11 +1043,10 @@ main(int argc, char **argv)
                 remaining -= chunk;
             }
             fclose(f);
-            sentry_attachment_t *attachment = sentry_attach_file(large_file);
-            if (attachment) {
-                sentry_attachment_set_type(
-                    attachment, SENTRY_ATTACHMENT_TYPE_MINIDUMP);
-            }
+            sentry_value_t attachment = sentry_attachment_from_file(large_file);
+            sentry_attachment_set_type(
+                attachment, SENTRY_ATTACHMENT_TYPE_MINIDUMP);
+            sentry_add_attachment(attachment);
         }
     }
 
@@ -1145,9 +1146,10 @@ main(int argc, char **argv)
         // assuming the example / test is run directly from the cmake build
         // directory
         sentry_attach_file("./CMakeCache.txt");
-        sentry_attachment_t *bytes
-            = sentry_attach_bytes("\xc0\xff\xee", 3, "bytes.bin");
+        sentry_value_t bytes
+            = sentry_attachment_from_bytes("\xc0\xff\xee", 3, "bytes.bin");
         sentry_attachment_set_content_type(bytes, "application/octet-stream");
+        sentry_add_attachment(bytes);
     }
 
     if (has_arg(argc, argv, "update-release-env")) {
@@ -1188,10 +1190,11 @@ main(int argc, char **argv)
             // assuming the example / test is run directly from the cmake build
             // directory
             sentry_scope_attach_file(scope, "./CMakeCache.txt");
-            sentry_attachment_t *bytes = sentry_scope_attach_bytes(
-                scope, "\xc0\xff\xee", 3, "bytes.bin");
+            sentry_value_t bytes
+                = sentry_attachment_from_bytes("\xc0\xff\xee", 3, "bytes.bin");
             sentry_attachment_set_content_type(
                 bytes, "application/octet-stream");
+            sentry_scope_add_attachment(scope, bytes);
         }
 
         sentry_scope_capture_event(scope, event);
@@ -1215,10 +1218,11 @@ main(int argc, char **argv)
     if (has_arg(argc, argv, "attach-custom-filename")) {
         // assuming the example / test is run directly from the cmake build
         // directory
-        sentry_attachment_t *attachment
-            = sentry_attach_file("./CMakeCache.txt");
+        sentry_value_t attachment
+            = sentry_attachment_from_file("./CMakeCache.txt");
         sentry_attachment_set_filename(attachment, "custom-name.log");
         sentry_attachment_set_content_type(attachment, "application/zstd");
+        sentry_add_attachment(attachment);
     }
 
     if (has_arg(argc, argv, "flush")) {
