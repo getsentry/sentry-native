@@ -1095,14 +1095,29 @@ if(SENTRY_BUILD_TESTS)
 	endif()
 endif()
 
-# ===== example, also used as integration test =====
+# ===== examples =====
 
 if(SENTRY_BUILD_EXAMPLES)
-	add_executable(sentry_example examples/example.c)
-	if(XBOX)
-		set_target_properties(sentry_example PROPERTIES VS_USER_PROPS gdk_build.props)
-	endif()
-	target_link_libraries(sentry_example PRIVATE sentry)
+	function(sentry_add_sample TARGET SOURCE)
+		add_executable(${TARGET} ${SOURCE})
+		target_link_libraries(${TARGET} PRIVATE sentry)
+		if(XBOX)
+			set_target_properties(${TARGET} PROPERTIES VS_USER_PROPS gdk_build.props)
+		endif()
+		if(SENTRY_BUILD_RUNTIMESTATIC AND MSVC)
+			set_property(TARGET ${TARGET} PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+		endif()
+		if(DEFINED SENTRY_FOLDER)
+			set_target_properties(${TARGET} PROPERTIES FOLDER ${SENTRY_FOLDER})
+		endif()
+	endfunction()
+
+	foreach(EXAMPLE message crash enrich feedback logs metrics scope tracing)
+		sentry_add_sample(sentry_example_${EXAMPLE} examples/${EXAMPLE}.c)
+	endforeach()
+
+	# also used as integration test
+	sentry_add_sample(sentry_example examples/example.c)
 
 	if(MSVC)
 		target_compile_options(sentry_example PRIVATE $<BUILD_INTERFACE:/wd5105 /wd4717>)
@@ -1120,15 +1135,6 @@ if(SENTRY_BUILD_EXAMPLES)
 		# Disable all optimizations for the `sentry_example` in gcc/clang. This allows us to keep crash triggers simple.
 		# The effects besides reproducible code-gen across compiler versions, will be negligible for build- and runtime.
 		target_compile_options(sentry_example PRIVATE $<BUILD_INTERFACE:-O0>)
-	endif()
-
-	# set static runtime if enabled
-	if(SENTRY_BUILD_RUNTIMESTATIC AND MSVC)
-		set_property(TARGET sentry_example PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
-	endif()
-
-	if(DEFINED SENTRY_FOLDER)
-		set_target_properties(sentry_example PROPERTIES FOLDER ${SENTRY_FOLDER})
 	endif()
 
 	if(CMAKE_GENERATOR STREQUAL "Xcode")
