@@ -1519,9 +1519,9 @@ sentry__scope_ref_span(const sentry_scope_t *scope)
 }
 
 sentry_value_t
-sentry__scope_ref_span_or_transaction(const sentry_scope_t *scope)
+sentry__scope_load_span_or_transaction(const sentry_scope_t *scope)
 {
-    return sentry_value_incref(get_span_or_transaction(scope));
+    return sentry__value_clone(get_span_or_transaction(scope));
 }
 
 void

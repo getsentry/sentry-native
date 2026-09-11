@@ -178,7 +178,7 @@ bool sentry__scope_restore_transaction_object(
     sentry_scope_t *scope, sentry_transaction_t *transaction);
 
 sentry_span_t *sentry__scope_ref_span(const sentry_scope_t *scope);
-sentry_value_t sentry__scope_ref_span_or_transaction(
+sentry_value_t sentry__scope_load_span_or_transaction(
     const sentry_scope_t *scope);
 void sentry__scope_set_span(sentry_scope_t *scope, sentry_span_t *span);
 bool sentry__scope_remove_span(sentry_scope_t *scope, sentry_span_t *span);
