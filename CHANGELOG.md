@@ -20,6 +20,10 @@
 
 - Deprecate `sentry_clear_crashed_last_run()` because `sentry_init()` now consumes the marker automatically. ([#2023](https://github.com/getsentry/sentry-native/pull/2023))
 
+**Fixes**:
+
+- Reduce lock contention for multi-threaded log and metric capture by allowing concurrent reads of scope data. ([#2042](https://github.com/getsentry/sentry-native/pull/2042))
+
 ## 0.16.6
 
 **Features**:
