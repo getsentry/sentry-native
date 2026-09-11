@@ -517,7 +517,7 @@ crashpad_handler(int signum, siginfo_t *info, ucontext_t *user_context)
                 // written above and stays breadcrumb-free
                 SENTRY_WITH_SCOPE (scope) {
                     sentry_value_set_by_key(crash_event, "breadcrumbs",
-                        sentry__ringbuffer_to_list(scope->breadcrumbs));
+                        sentry__scope_breadcrumbs_to_list(scope));
                 }
 
                 sentry__session_replay_flush_pending(

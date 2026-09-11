@@ -17,7 +17,9 @@ static void
 add_scope_attachments(sentry_envelope_t *envelope)
 {
     SENTRY_WITH_SCOPE (scope) {
-        sentry__envelope_add_attachments(envelope, scope->attachments, NULL);
+        sentry_value_t attachments = sentry__scope_load_attachments(scope);
+        sentry__envelope_add_attachments(envelope, attachments, NULL);
+        sentry_value_decref(attachments);
     }
 }
 
@@ -210,9 +212,13 @@ SENTRY_TEST(attachments_add_remove)
     sentry_uuid_t scoped_attachment
         = sentry_scope_attach_bytes(scope, "payload", 7, "file.bin");
     TEST_CHECK(!sentry_uuid_is_nil(&scoped_attachment));
-    TEST_CHECK_INT_EQUAL(sentry_value_get_length(scope->attachments), 1);
+    sentry_value_t scoped_attachments = sentry__scope_load_attachments(scope);
+    TEST_CHECK_INT_EQUAL(sentry_value_get_length(scoped_attachments), 1);
+    sentry_value_decref(scoped_attachments);
     sentry_scope_remove_attachment(scope, scoped_attachment);
-    TEST_CHECK_INT_EQUAL(sentry_value_get_length(scope->attachments), 0);
+    scoped_attachments = sentry__scope_load_attachments(scope);
+    TEST_CHECK_INT_EQUAL(sentry_value_get_length(scoped_attachments), 0);
+    sentry_value_decref(scoped_attachments);
     sentry_scope_remove_attachment(scope, sentry_uuid_nil());
     sentry_scope_free(scope);
 
@@ -398,7 +404,9 @@ SENTRY_TEST(attachment_properties)
     sentry_init(options);
 
     SENTRY_WITH_SCOPE (scope) {
-        TEST_CHECK_INT_EQUAL(sentry_value_get_length(scope->attachments), 0);
+        sentry_value_t attachments = sentry__scope_load_attachments(scope);
+        TEST_CHECK_INT_EQUAL(sentry_value_get_length(attachments), 0);
+        sentry_value_decref(attachments);
     }
 
     sentry_value_t invalid = sentry_attachment_from_file(NULL);
