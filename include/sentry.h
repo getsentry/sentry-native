@@ -3554,8 +3554,9 @@ SENTRY_API void sentry_attachment_set_filenamew_n(
 /**
  * Adds a configured attachment.
  *
- * Consumes `attachment` and returns its UUID, or a nil UUID on error. If an
- * equivalent file attachment already exists, returns the existing UUID.
+ * Consumes and freezes `attachment`, and returns its UUID or a nil UUID on
+ * error. If an equivalent file attachment already exists, returns the existing
+ * UUID.
  */
 SENTRY_API sentry_uuid_t sentry_add_attachment(sentry_value_t attachment);
 SENTRY_API sentry_uuid_t sentry_scope_add_attachment(
@@ -4139,7 +4140,8 @@ SENTRY_API sentry_hint_t *sentry_hint_new(void);
 /**
  * Adds a configured attachment to a hint.
  *
- * Consumes `attachment` and returns its UUID, or a nil UUID on error.
+ * Consumes and freezes `attachment`, and returns its UUID or a nil UUID on
+ * error.
  */
 SENTRY_API sentry_uuid_t sentry_hint_add_attachment(
     sentry_hint_t *hint, sentry_value_t attachment);
