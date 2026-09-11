@@ -251,7 +251,7 @@ def test_tus_rate_limit(cmake, httpserver):
         assert leftovers == []
 
 
-def test_tus_shutdown(cmake, httpserver):
+def test_tus_resume_after_shutdown(cmake, httpserver):
     tmp_path = cmake(
         ["sentry_example"],
         {"SENTRY_BACKEND": "none"},
@@ -262,17 +262,26 @@ def test_tus_shutdown(cmake, httpserver):
     upload_uri = "/api/123456/upload/abc123def456789/"
     upload_qs = "length=104857600&signature=xyz"
     location = httpserver.url_for(upload_uri) + "?" + upload_qs
-
-    release_create = threading.Event()
-
-    def delayed_create(_req):
-        release_create.wait()
-        return Response("OK", status=201, headers={"Location": location})
+    upload_size = 100 * 1024 * 1024
+    upload_offset = upload_size // 2
 
     httpserver.expect_oneshot_request(
         "/api/123456/upload/",
         headers={"tus-resumable": "1.0.0"},
-    ).respond_with_handler(delayed_create)
+    ).respond_with_data("OK", status=201, headers={"Location": location})
+
+    release_upload = threading.Event()
+
+    def delayed_upload(_req):
+        release_upload.wait()
+        return Response("", status=204, headers={"Upload-Offset": str(upload_offset)})
+
+    httpserver.expect_oneshot_request(
+        upload_uri,
+        method="PATCH",
+        headers={"tus-resumable": "1.0.0", "upload-offset": "0"},
+        query_string=upload_qs,
+    ).respond_with_handler(delayed_upload)
 
     with httpserver.wait(timeout=10):
         try:
@@ -290,7 +299,7 @@ def test_tus_shutdown(cmake, httpserver):
                 timeout=30,
             )
         finally:
-            release_create.set()
+            release_upload.set()
 
     db_dir = os.path.join(tmp_path, ".sentry-native")
     cache_dir = os.path.join(db_dir, "cache")
@@ -306,22 +315,27 @@ def test_tus_shutdown(cmake, httpserver):
     base = envelope_files[0][: -len(".envelope")]
     siblings = [f for f in os.listdir(cache_dir) if f.startswith(base)]
     assert len(siblings) > 0
+    resume_marker = b"resumed-body"
+    with open(os.path.join(cache_dir, siblings[0]), "r+b") as attachment:
+        attachment.seek(upload_offset)
+        attachment.write(resume_marker)
 
     httpserver.clear_all_handlers()
 
     httpserver.expect_oneshot_request(
-        "/api/123456/upload/",
+        upload_uri,
+        method="HEAD",
         headers={"tus-resumable": "1.0.0"},
-    ).respond_with_data(
-        "OK",
-        status=201,
-        headers={"Location": location},
-    )
+        query_string=upload_qs,
+    ).respond_with_data("", status=204, headers={"Upload-Offset": str(upload_offset)})
 
     httpserver.expect_oneshot_request(
         upload_uri,
         method="PATCH",
-        headers={"tus-resumable": "1.0.0"},
+        headers={
+            "tus-resumable": "1.0.0",
+            "upload-offset": str(upload_offset),
+        },
         query_string=upload_qs,
     ).respond_with_data("", status=204)
 
@@ -356,6 +370,15 @@ def test_tus_shutdown(cmake, httpserver):
 
     assert attachment_ref is not None
     assert attachment_ref.payload.json["location"] == location
+
+    upload_reqs = [
+        req
+        for req, _resp in httpserver.log
+        if req.path == upload_uri and req.method == "PATCH"
+    ]
+    assert len(upload_reqs) == 2
+    assert int(upload_reqs[-1].headers["content-length"]) == upload_size - upload_offset
+    assert upload_reqs[-1].get_data().startswith(resume_marker)
 
     leftover_siblings = [f for f in os.listdir(cache_dir) if f.startswith(base)]
     assert leftover_siblings == []

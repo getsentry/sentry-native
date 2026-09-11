@@ -4,6 +4,7 @@
 #include "sentry_boot.h"
 #include "sentry_string.h"
 
+#include <stdio.h>
 #include <time.h>
 
 struct sentry_path_s {
@@ -206,6 +207,12 @@ int sentry__path_touch(const sentry_path_t *path);
  * This will return the size of the file at `path`, or 0 on failure.
  */
 size_t sentry__path_get_size(const sentry_path_t *path);
+
+/**
+ * Opens `path` with `mode` and seeks to `offset`, or returns NULL on failure.
+ */
+FILE *sentry__path_open(
+    const sentry_path_t *path, const char *mode, size_t offset);
 
 /**
  * This will return the last modification time of the file at `path`, or 0 on

@@ -1,8 +1,10 @@
 #include "sentry_path.h"
 #include "sentry_alloc.h"
 
+#include <limits.h>
 #include <stdio.h>
 #include <string.h>
+#include <sys/types.h>
 
 sentry_path_t *
 sentry__path_from_str_n(const char *s, size_t s_len)
@@ -152,4 +154,38 @@ sentry__path_basename(const sentry_path_t *path, const char *suffix)
         }
     }
     return NULL;
+}
+
+FILE *
+sentry__path_open(const sentry_path_t *path, const char *mode, size_t offset)
+{
+    if (!path || !mode) {
+        return NULL;
+    }
+#ifdef SENTRY_PLATFORM_WINDOWS
+    wchar_t *mode_w = sentry__string_to_wstr(mode);
+    FILE *file = mode_w ? _wfopen(path->path_w, mode_w) : NULL;
+    sentry_free(mode_w);
+#else
+    FILE *file = fopen(path->path, mode);
+#endif
+    if (!file) {
+        return NULL;
+    }
+#ifdef SENTRY_PLATFORM_WINDOWS
+    int result
+        = offset > INT64_MAX ? -1 : _fseeki64(file, (__int64)offset, SEEK_SET);
+#elif defined(SENTRY_PLATFORM_NX)
+    int result = offset > LONG_MAX ? -1 : fseek(file, (long)offset, SEEK_SET);
+#else
+    off_t file_offset = (off_t)offset;
+    int result = file_offset < 0 || (size_t)file_offset != offset
+        ? -1
+        : fseeko(file, file_offset, SEEK_SET);
+#endif
+    if (result != 0) {
+        fclose(file);
+        return NULL;
+    }
+    return file;
 }
