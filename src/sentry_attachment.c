@@ -21,6 +21,21 @@ static void set_filename_from_string_n(
     sentry_value_t attachment, const char *path, size_t path_len);
 static const char *value_as_string_or_null(sentry_value_t value);
 
+static bool
+attachment_check_mutable(sentry_value_t attachment, const char *property)
+{
+    if (sentry_value_is_null(attachment)) {
+        return false;
+    }
+    if (sentry_value_is_frozen(attachment)) {
+        const char *filename = sentry__attachment_get_filename(attachment);
+        SENTRY_WARNF("cannot set frozen attachment %s: %s", property,
+            filename ? filename : "<unknown>");
+        return false;
+    }
+    return true;
+}
+
 const char *
 sentry__attachment_get_type(sentry_value_t attachment)
 {
@@ -39,7 +54,7 @@ void
 sentry_attachment_set_type_n(
     sentry_value_t attachment, const char *type, size_t type_len)
 {
-    if (sentry_value_is_null(attachment)) {
+    if (!attachment_check_mutable(attachment, "type")) {
         return;
     }
 
@@ -77,7 +92,7 @@ void
 sentry_attachment_set_content_type_n(sentry_value_t attachment,
     const char *content_type, size_t content_type_len)
 {
-    if (sentry_value_is_null(attachment)) {
+    if (!attachment_check_mutable(attachment, "content type")) {
         return;
     }
 
@@ -96,7 +111,7 @@ void
 sentry_attachment_set_filename_n(
     sentry_value_t attachment, const char *filename, size_t filename_len)
 {
-    if (sentry_value_is_null(attachment)) {
+    if (!attachment_check_mutable(attachment, "filename")) {
         return;
     }
 
@@ -116,7 +131,7 @@ void
 sentry_attachment_set_filenamew_n(
     sentry_value_t attachment, const wchar_t *filename, size_t filename_len)
 {
-    if (sentry_value_is_null(attachment)) {
+    if (!attachment_check_mutable(attachment, "filename")) {
         return;
     }
 
