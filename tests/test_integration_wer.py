@@ -140,6 +140,7 @@ def assert_sentry_event(httpserver, backend, crash_arg):
         attachments = assert_crashpad_upload(httpserver.log[0][0])
         assert attachments.event["event_id"]
         assert attachments.event["tags"]["test.initial-tag"] == "initial-value"
+        assert attachments.event["contexts"]["initial"]["foo"] == "bar"
         return attachments.event
 
     envelope = Envelope.deserialize(httpserver.log[0][0].get_data())
@@ -147,6 +148,7 @@ def assert_sentry_event(httpserver, backend, crash_arg):
     assert event is not None
     assert event["event_id"]
     assert event["tags"]["test.initial-tag"] == "initial-value"
+    assert event["contexts"]["initial"]["foo"] == "bar"
     assert_event_meta(event, integrations=[backend, "wer"])
 
     if backend == "inproc":
@@ -264,7 +266,7 @@ def run_wer_crash(cmake, backend, crash_arg, httpserver=None, appx=False):
         if appx:
             run_args.append("appx")
         run_args.append(crash_arg)
-        run_args.append("initial-tags")
+        run_args.append("initial-scope")
         if backend == "crashpad":
             run_args.append("crashpad-wait-for-upload")
 

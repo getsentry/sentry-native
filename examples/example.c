@@ -175,6 +175,29 @@ on_crash_callback(
     return event;
 }
 
+static sentry_value_t create_debug_crumb(const char *message);
+
+static void
+configure_initial_scope(sentry_scope_t *scope, void *user_data)
+{
+    sentry_scope_set_tag(scope, "test.initial-tag", "initial-value");
+
+    sentry_value_t context = sentry_value_new_object();
+    sentry_value_set_by_key(context, "foo", sentry_value_new_string("bar"));
+    sentry_scope_set_context(scope, "initial", context);
+
+    sentry_value_t user
+        = sentry_value_new_user("1", "user", "initial@example.com", NULL);
+    sentry_scope_set_user(scope, user);
+
+    if (user_data && *(bool *)user_data) {
+        sentry_scope_add_breadcrumb(
+            scope, create_debug_crumb("initial scope breadcrumb"));
+        sentry_scope_attach_file(scope, "CMakeCache.txt");
+        sentry_scope_attach_bytes(scope, "\xc0\xff\xee", 3, "bytes.bin");
+    }
+}
+
 static void
 on_crashed_last_run_callback(const sentry_envelope_t *envelope, void *user_data)
 {
@@ -188,6 +211,20 @@ on_crashed_last_run_callback(const sentry_envelope_t *envelope, void *user_data)
         sentry_value_get_by_key(tags, "test.initial-tag"));
     if (initial_tag) {
         printf("CRASHED_LAST_RUN_INITIAL_TAG:%s\n", initial_tag);
+    }
+    sentry_value_t contexts = sentry_value_get_by_key(event, "contexts");
+    sentry_value_t initial_context
+        = sentry_value_get_by_key(contexts, "initial");
+    const char *context_value = sentry_value_as_string(
+        sentry_value_get_by_key(initial_context, "foo"));
+    if (context_value) {
+        printf("CRASHED_LAST_RUN_INITIAL_CONTEXT:%s\n", context_value);
+    }
+    sentry_value_t user = sentry_value_get_by_key(event, "user");
+    const char *user_id
+        = sentry_value_as_string(sentry_value_get_by_key(user, "id"));
+    if (user_id) {
+        printf("CRASHED_LAST_RUN_INITIAL_USER:%s\n", user_id);
     }
     fflush(stdout);
 }
@@ -845,11 +882,10 @@ main(int argc, char **argv)
         sentry_options_set_crashpad_wait_for_upload(options, true);
     }
 
-    if (has_arg(argc, argv, "initial-tags")) {
-        sentry_value_t tags = sentry_value_new_object();
-        sentry_value_set_by_key(
-            tags, "test.initial-tag", sentry_value_new_string("initial-value"));
-        sentry_options_set_tags(options, tags);
+    bool initial_scope_payload = has_arg(argc, argv, "initial-scope-payload");
+    if (has_arg(argc, argv, "initial-scope")) {
+        sentry_options_set_initial_scope(
+            options, configure_initial_scope, &initial_scope_payload);
     }
 
     if (has_arg(argc, argv, "test-logger")) {

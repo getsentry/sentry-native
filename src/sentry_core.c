@@ -152,7 +152,7 @@ sentry_init(sentry_options_t *options)
 {
     // pre-init here, so we can consistently use bailing out to :fail
     sentry_transport_t *transport = NULL;
-    bool initial_scope_tags_applied = false;
+    bool initial_scope_prepared = false;
 
     SENTRY__MUTEX_INIT_DYN_ONCE(g_options_lock);
     // Stop the app hang watchdog before locking options. The watchdog thread
@@ -249,39 +249,7 @@ sentry_init(sentry_options_t *options)
     sentry__init_cached_kernel32_functions();
 #endif
 
-    if (!sentry_value_is_null(options->initial_scope_tags)) {
-        sentry_value_t tags = options->initial_scope_tags;
-        options->initial_scope_tags = sentry_value_new_null();
-        SENTRY_WITH_SCOPE_MUT_NO_FLUSH (scope) {
-            sentry_scope_set_tags(scope, tags);
-        }
-        initial_scope_tags_applied = true;
-    }
-
-    // and then we will start the backend, since it requires a valid run
-    sentry_backend_t *backend = options->backend;
-    if (backend && backend->startup_func) {
-        SENTRY_DEBUG("starting backend");
-        if (backend->startup_func(backend, options) != 0) {
-            SENTRY_WARN("failed to initialize backend");
-            goto fail;
-        }
-    }
-    if (backend && backend->get_last_crash_func) {
-        last_crash = backend->get_last_crash_func(backend);
-    }
-
-    g_last_crash = sentry__has_crash_marker(options);
-    if (g_last_crash && !options->retain_crash_marker) {
-        sentry__clear_crash_marker(options);
-    }
-    g_options = options;
-
-    // *after* setting the global options, trigger a scope and consent flush,
-    // since at least crashpad needs that. At this point we also freeze the
-    // `client_sdk` in the `scope` because some downstream SDKs want to override
-    // it at runtime via the options interface.
-    SENTRY_WITH_SCOPE_MUT (scope) {
+    SENTRY_WITH_SCOPE_MUT_NO_FLUSH (scope) {
         if (options->sdk_name) {
             sentry_value_t sdk_name
                 = sentry_value_new_string(options->sdk_name);
@@ -311,8 +279,36 @@ sentry_init(sentry_options_t *options)
         sentry__ringbuffer_set_max_size(
             scope->breadcrumbs, options->max_breadcrumbs);
 
-        sentry__scope_update_dsc(scope, options);
+        if (options->initial_scope_func) {
+            options->initial_scope_func(scope, options->initial_scope_data);
+        }
 
+        sentry__scope_update_dsc(scope, options);
+    }
+    initial_scope_prepared = true;
+
+    // and then we will start the backend, since it requires a valid run
+    sentry_backend_t *backend = options->backend;
+    if (backend && backend->startup_func) {
+        SENTRY_DEBUG("starting backend");
+        if (backend->startup_func(backend, options) != 0) {
+            SENTRY_WARN("failed to initialize backend");
+            goto fail;
+        }
+    }
+    if (backend && backend->get_last_crash_func) {
+        last_crash = backend->get_last_crash_func(backend);
+    }
+
+    g_last_crash = sentry__has_crash_marker(options);
+    if (g_last_crash && !options->retain_crash_marker) {
+        sentry__clear_crash_marker(options);
+    }
+    g_options = options;
+
+    // *after* setting the global options, register integrations and trigger a
+    // scope and consent flush, since at least crashpad needs that.
+    SENTRY_WITH_SCOPE_MUT (scope) {
         register_integrations(scope, options);
     }
     if (backend && backend->user_consent_changed_func) {
@@ -352,7 +348,7 @@ fail:
         sentry__transport_shutdown(transport, 0);
     }
     sentry_options_free(options);
-    if (initial_scope_tags_applied) {
+    if (initial_scope_prepared) {
         sentry__scope_cleanup();
     }
     sentry__mutex_unlock(&g_options_lock);

@@ -89,7 +89,13 @@ def test_native_on_crashed_last_run(cmake, httpserver):
         run_crash(
             tmp_path,
             "sentry_example",
-            [*args, "initial-tags", "crash"],
+            [
+                *args,
+                "initial-scope",
+                "initial-scope-payload",
+                "no-setup",
+                "crash",
+            ],
             env=env,
             wait_for_daemon=True,
             stdout=subprocess.PIPE,
@@ -100,6 +106,21 @@ def test_native_on_crashed_last_run(cmake, httpserver):
 
     crash_envelope = Envelope.deserialize(httpserver.log[0][0].get_data())
     assert_native_crash(crash_envelope)
+    crash_event = crash_envelope.get_event()
+    assert any(
+        breadcrumb.get("message") == "initial scope breadcrumb"
+        for breadcrumb in crash_event["breadcrumbs"]
+    )
+    assert any(
+        item.headers.get("filename") == "CMakeCache.txt"
+        and b"This is the CMakeCache file." in item.payload.bytes
+        for item in crash_envelope
+    )
+    assert any(
+        item.headers.get("filename") == "bytes.bin"
+        and item.payload.bytes == b"\xc0\xff\xee"
+        for item in crash_envelope
+    )
     event_id = crash_envelope.headers["event_id"]
     assert_crash_timestamp(has_files, tmp_path)
 
@@ -127,6 +148,8 @@ def test_native_on_crashed_last_run(cmake, httpserver):
     ]
     assert callbacks == [f"CRASHED_LAST_RUN:{event_id}".encode()]
     assert b"CRASHED_LAST_RUN_INITIAL_TAG:initial-value" in restarted.stdout
+    assert b"CRASHED_LAST_RUN_INITIAL_CONTEXT:bar" in restarted.stdout
+    assert b"CRASHED_LAST_RUN_INITIAL_USER:1" in restarted.stdout
     assert len(httpserver.log) == 1
     assert not list(db_dir.glob("*.run"))
     assert not list(db_dir.glob("*.run*.lock"))

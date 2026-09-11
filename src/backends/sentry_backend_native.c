@@ -215,6 +215,49 @@ typedef struct {
 
 static void native_backend_flush_scope(
     sentry_backend_t *backend, const sentry_options_t *options);
+static void native_backend_add_breadcrumb(sentry_backend_t *backend,
+    sentry_value_t breadcrumb, const sentry_options_t *options);
+
+static void
+native_backend_prepare_initial_attachment(
+    sentry_attachment_t *attachment, const sentry_path_t *run_path)
+{
+    size_t bytes_len = 0;
+    const char *bytes = sentry__attachment_get_bytes(attachment, &bytes_len);
+    if (!bytes) {
+        return;
+    }
+
+    if (!attachment->path) {
+        attachment->path = sentry__path_unique(
+            run_path, sentry__attachment_get_filename(attachment));
+    }
+    if (!attachment->path
+        || sentry__path_write_buffer(attachment->path, bytes, bytes_len) != 0) {
+        SENTRY_WARN("failed to prepare initial scope attachment");
+    }
+}
+
+static void
+native_backend_preload_scope(sentry_backend_t *backend,
+    const sentry_options_t *options, const sentry_path_t *run_path)
+{
+    sentry_value_t breadcrumbs = sentry_value_new_null();
+    SENTRY_WITH_SCOPE (scope) {
+        for (sentry_attachment_t *attachment = scope->attachments; attachment;
+            attachment = attachment->next) {
+            native_backend_prepare_initial_attachment(attachment, run_path);
+        }
+        breadcrumbs = sentry__ringbuffer_to_list(scope->breadcrumbs);
+    }
+
+    size_t breadcrumb_count = sentry_value_get_length(breadcrumbs);
+    for (size_t i = 0; i < breadcrumb_count; i++) {
+        native_backend_add_breadcrumb(
+            backend, sentry_value_get_by_index(breadcrumbs, i), options);
+    }
+    sentry_value_decref(breadcrumbs);
+}
 
 static bool
 native_backend_process_old_run(sentry_backend_t *backend,
@@ -814,6 +857,7 @@ native_backend_startup(
 #endif
 
     // Persist the preloaded scope before any crash handler becomes active.
+    native_backend_preload_scope(backend, options, run_path);
     native_backend_flush_scope(backend, options);
 
     // Install crash handlers (signal handlers on Linux/macOS, Mach exception

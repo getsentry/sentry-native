@@ -42,7 +42,6 @@ sentry_options_new(void)
         return NULL;
     }
     opts->database_path = sentry__path_from_str(".sentry-native");
-    opts->initial_scope_tags = sentry_value_new_null();
     // we assume the DSN to be ASCII only
     sentry_options_set_dsn(opts, getenv("SENTRY_DSN"));
     const char *debug = getenv("SENTRY_DEBUG");
@@ -187,7 +186,6 @@ sentry_options_free(sentry_options_t *opts)
     sentry__path_free(opts->database_path);
     sentry__path_free(opts->handler_path);
     sentry__path_free(opts->external_crash_reporter);
-    sentry_value_decref(opts->initial_scope_tags);
     sentry_transport_free(opts->transport);
     sentry__backend_free(opts->backend);
     sentry__attachments_free(opts->attachments);
@@ -201,16 +199,11 @@ sentry_options_free(sentry_options_t *opts)
 }
 
 void
-sentry_options_set_tags(sentry_options_t *opts, sentry_value_t tags)
+sentry_options_set_initial_scope(sentry_options_t *opts,
+    sentry_initial_scope_function_t func, void *user_data)
 {
-    sentry_value_decref(opts->initial_scope_tags);
-    if (sentry_value_get_type(tags) == SENTRY_VALUE_TYPE_OBJECT) {
-        opts->initial_scope_tags = tags;
-    } else {
-        SENTRY_WARN("initial tags must be an object");
-        sentry_value_decref(tags);
-        opts->initial_scope_tags = sentry_value_new_null();
-    }
+    opts->initial_scope_func = func;
+    opts->initial_scope_data = user_data;
 }
 
 void
