@@ -418,15 +418,14 @@ sentry__attachment_validate(sentry_value_t attachment)
         return false;
     }
     size_t size = sentry__attachment_get_size(attachment);
+    const char *filename = sentry__attachment_get_filename(attachment);
     if (size > SENTRY_MAX_ATTACHMENT_SIZE) {
-        const char *filename = sentry__attachment_get_filename(attachment);
         SENTRY_WARNF("rejected oversized attachment \"%s\" (%zu > %d MiB)",
             filename ? filename : "<unknown>", size / (1024 * 1024),
             SENTRY_MAX_ATTACHMENT_SIZE / (1024 * 1024));
         return false;
     }
     sentry_uuid_t attachment_id = sentry__attachment_get_id(attachment);
-    const char *filename = sentry__attachment_get_filename(attachment);
     return !sentry_uuid_is_nil(&attachment_id)
         && (sentry__attachment_get_path(attachment)
             || sentry__attachment_get_bytes(attachment, NULL))
