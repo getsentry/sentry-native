@@ -651,3 +651,14 @@ sentry__attachments_find(sentry_value_t attachments, sentry_value_t attachment)
     }
     return sentry_value_new_null();
 }
+
+sentry_value_t
+sentry__attachments_clone(sentry_value_t attachments)
+{
+    sentry_value_t clone = sentry__value_clone(attachments);
+    size_t len = sentry_value_get_length(clone);
+    for (size_t i = 0; i < len; i++) {
+        sentry_value_freeze(sentry_value_get_by_index(clone, i));
+    }
+    return clone;
+}

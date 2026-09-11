@@ -137,4 +137,9 @@ void sentry__attachments_extend(
 sentry_value_t sentry__attachments_find(
     sentry_value_t attachments, sentry_value_t attachment);
 
+/**
+ * Clones the list and freezes each attachment without revalidation.
+ */
+sentry_value_t sentry__attachments_clone(sentry_value_t attachments);
+
 #endif

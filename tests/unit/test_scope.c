@@ -2615,6 +2615,7 @@ SENTRY_TEST(scope_clone_preserves_data)
     TEST_CHECK(clone->attachments._bits != scope->attachments._bits);
     sentry_value_t clone_attachment
         = sentry_value_get_by_index(clone->attachments, 0);
+    TEST_CHECK(sentry_value_is_frozen(clone_attachment));
     TEST_CHECK_STRING_EQUAL(
         sentry__attachment_get_filename(clone_attachment), "file.bin");
     TEST_CHECK_INT_EQUAL(sentry__attachment_get_size(clone_attachment), 7);

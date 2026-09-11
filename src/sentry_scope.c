@@ -426,8 +426,7 @@ sentry_scope_clone(const sentry_scope_t *scope)
     clone->level = scope->level;
     clone->last_event_id = scope->last_event_id;
     clone->client_sdk = sentry__value_clone(scope->client_sdk);
-    clone->attachments = sentry_value_new_list();
-    sentry__attachments_extend(&clone->attachments, scope->attachments);
+    clone->attachments = sentry__attachments_clone(scope->attachments);
 
     clone->transaction_object = scope->transaction_object;
     sentry__transaction_incref(clone->transaction_object);
