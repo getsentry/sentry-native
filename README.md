@@ -357,6 +357,8 @@ In addition to platform support, the "Advanced Usage" section of the SDK docs no
   the project's executable.
 - `sentry_test_unit`: These are the main unit-tests, which are conveniently built
   also by the toplevel makefile.
+- `sentry_test_integration`: This is the integration test fixture, controlled via
+  command-line parameters.
 - `sentry_example_*`: These are small [examples](examples/README.md) highlighting common APIs.
 
 ## Runtime Configuration

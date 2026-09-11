@@ -28,7 +28,7 @@ def _setup_http_proxy_test(
     else:
         proxy_process, port = None, None
 
-    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "none"})
+    tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "none"})
 
     env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver, proxy_host=True))
     if port is not None:
@@ -49,7 +49,7 @@ def test_proxy_from_env(cmake, httpserver):
 
         run(
             tmp_path,
-            "sentry_example",
+            "sentry_test_integration",
             ["log", "capture-event"],
             env=env,
         )
@@ -70,7 +70,7 @@ def test_proxy_from_env_port_incorrect(cmake, httpserver):
 
         run(
             tmp_path,
-            "sentry_example",
+            "sentry_test_integration",
             ["log", "capture-event"],
             env=env,
         )
@@ -88,7 +88,7 @@ def test_proxy_auth(cmake, httpserver):
 
         run(
             tmp_path,
-            "sentry_example",
+            "sentry_test_integration",
             ["log", "capture-event", "http-proxy-auth"],
             env=dict(
                 os.environ,
@@ -114,7 +114,7 @@ def test_proxy_auth_incorrect(cmake, httpserver):
 
         run(
             tmp_path,
-            "sentry_example",
+            "sentry_test_integration",
             ["log", "capture-event", "http-proxy-auth"],
             env=dict(
                 os.environ,
@@ -141,7 +141,7 @@ def test_proxy_ipv6(cmake, httpserver):
 
         run(
             tmp_path,
-            "sentry_example",
+            "sentry_test_integration",
             ["log", "capture-event", "http-proxy-ipv6"],
             env=env,
         )
@@ -162,7 +162,7 @@ def test_proxy_set_empty(cmake, httpserver):
 
         run(
             tmp_path,
-            "sentry_example",
+            "sentry_test_integration",
             ["log", "capture-event", "proxy-empty"],
             env=env,
         )
@@ -182,7 +182,7 @@ def test_proxy_https_not_http(cmake, httpserver):
 
         run(
             tmp_path,
-            "sentry_example",
+            "sentry_test_integration",
             ["log", "capture-event"],
             env=env,
         )
@@ -219,7 +219,7 @@ def test_capture_proxy(cmake, httpserver, run_args, proxy_running):
             port_env = {"SENTRY_TEST_PROXY_PORT": str(effective_port)}
             run(
                 tmp_path,
-                "sentry_example",
+                "sentry_test_integration",
                 ["log", "capture-event"]
                 + run_args,  # only passes if given proxy is running
                 env=dict(
