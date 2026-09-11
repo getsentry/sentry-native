@@ -180,9 +180,10 @@ main(void)
         return 1;
     }
 
-    sentry_attachment_t *bytes
-        = sentry_attach_bytes("\xc0\xff\xee", 3, "bytes.bin");
+    sentry_value_t bytes
+        = sentry_attachment_from_bytes("\xc0\xff\xee", 3, "bytes.bin");
     sentry_attachment_set_content_type(bytes, "application/octet-stream");
+    sentry_add_attachment(bytes);
     sentry_start_session();
     sentry_crash();
     return 0;

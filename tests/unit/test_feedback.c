@@ -110,9 +110,10 @@ SENTRY_TEST(feedback_with_file_attachment)
     sentry_hint_t *hint = sentry_hint_new();
     TEST_CHECK(hint != NULL);
 
-    sentry_attachment_t *attachment = sentry_hint_attach_file(
-        hint, SENTRY_TEST_PATH_PREFIX ".feedback-attachment");
-    TEST_CHECK(attachment != NULL);
+    sentry_value_t attachment = sentry_attachment_from_file(
+        SENTRY_TEST_PATH_PREFIX ".feedback-attachment");
+    sentry_uuid_t attachment_id = sentry_hint_add_attachment(hint, attachment);
+    TEST_CHECK(!sentry_uuid_is_nil(&attachment_id));
 
     sentry_capture_feedback_with_hint(feedback, hint);
 
@@ -148,9 +149,9 @@ SENTRY_TEST(feedback_with_bytes_attachment)
     TEST_CHECK(hint != NULL);
 
     const char binary_data[] = "binary\0data\0here";
-    sentry_attachment_t *attachment = sentry_hint_attach_bytes(
+    sentry_uuid_t attachment = sentry_hint_attach_bytes(
         hint, binary_data, sizeof(binary_data) - 1, "binary.dat");
-    TEST_CHECK(attachment != NULL);
+    TEST_CHECK(!sentry_uuid_is_nil(&attachment));
 
     sentry_capture_feedback_with_hint(feedback, hint);
 
@@ -189,17 +190,17 @@ SENTRY_TEST(feedback_with_multiple_attachments)
     sentry_hint_t *hint = sentry_hint_new();
     TEST_CHECK(hint != NULL);
 
-    sentry_attachment_t *attachment1 = sentry_hint_attach_file(
+    sentry_uuid_t attachment1 = sentry_hint_attach_file(
         hint, SENTRY_TEST_PATH_PREFIX ".feedback-file1");
-    TEST_CHECK(attachment1 != NULL);
+    TEST_CHECK(!sentry_uuid_is_nil(&attachment1));
 
-    sentry_attachment_t *attachment2
+    sentry_uuid_t attachment2
         = sentry_hint_attach_bytes(hint, "bytes content", 13, "bytes.txt");
-    TEST_CHECK(attachment2 != NULL);
+    TEST_CHECK(!sentry_uuid_is_nil(&attachment2));
 
-    sentry_attachment_t *attachment3 = sentry_hint_attach_file(
+    sentry_uuid_t attachment3 = sentry_hint_attach_file(
         hint, SENTRY_TEST_PATH_PREFIX ".feedback-file2");
-    TEST_CHECK(attachment3 != NULL);
+    TEST_CHECK(!sentry_uuid_is_nil(&attachment3));
 
     sentry_capture_feedback_with_hint(feedback, hint);
 
@@ -267,9 +268,9 @@ SENTRY_TEST(feedback_with_scope_attachment)
     setup_feedback_test(&testdata);
 
     const char scope_data[] = "scope content";
-    sentry_attachment_t *attachment
+    sentry_uuid_t attachment
         = sentry_attach_bytes(scope_data, sizeof(scope_data) - 1, "scope.txt");
-    TEST_CHECK(attachment != NULL);
+    TEST_CHECK(!sentry_uuid_is_nil(&attachment));
 
     sentry_uuid_t event_id
         = sentry_uuid_from_string("4c035723-8638-4c3a-923f-2ab9d08b4018");
@@ -299,9 +300,9 @@ SENTRY_TEST(feedback_with_scope_and_hint_attachments)
     setup_feedback_test(&testdata);
 
     const char scope_data[] = "scope content";
-    sentry_attachment_t *scope_attachment
+    sentry_uuid_t scope_attachment
         = sentry_attach_bytes(scope_data, sizeof(scope_data) - 1, "scope.txt");
-    TEST_CHECK(scope_attachment != NULL);
+    TEST_CHECK(!sentry_uuid_is_nil(&scope_attachment));
 
     sentry_uuid_t event_id
         = sentry_uuid_from_string("4c035723-8638-4c3a-923f-2ab9d08b4018");
@@ -312,9 +313,9 @@ SENTRY_TEST(feedback_with_scope_and_hint_attachments)
     TEST_CHECK(hint != NULL);
 
     const char hint_data[] = "hint content";
-    sentry_attachment_t *hint_attachment = sentry_hint_attach_bytes(
+    sentry_uuid_t hint_attachment = sentry_hint_attach_bytes(
         hint, hint_data, sizeof(hint_data) - 1, "hint.txt");
-    TEST_CHECK(hint_attachment != NULL);
+    TEST_CHECK(!sentry_uuid_is_nil(&hint_attachment));
 
     sentry_capture_feedback_with_hint(feedback, hint);
 
@@ -420,9 +421,9 @@ SENTRY_TEST(feedback_with_scope_and_hint)
 
     sentry_hint_t *hint = sentry_hint_new();
     TEST_CHECK(hint != NULL);
-    sentry_attachment_t *attachment
+    sentry_uuid_t attachment
         = sentry_hint_attach_bytes(hint, "hint content", 12, "hint.txt");
-    TEST_CHECK(attachment != NULL);
+    TEST_CHECK(!sentry_uuid_is_nil(&attachment));
 
     sentry_uuid_t feedback_id
         = sentry_scope_capture_feedback(local_scope, feedback, hint);

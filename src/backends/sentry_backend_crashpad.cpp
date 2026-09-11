@@ -139,6 +139,7 @@ static_assert(std::atomic<bool>::is_always_lock_free,
 typedef struct {
     crashpad::CrashReportDatabase *db;
     crashpad::CrashpadClient *client;
+    sentry_path_t *run_path;
     base::FilePath event_path;
     base::FilePath breadcrumb1_path;
     base::FilePath breadcrumb2_path;
@@ -151,6 +152,8 @@ typedef struct {
 
 static void crashpad_backend_add_breadcrumb(sentry_backend_t *backend,
     sentry_value_t breadcrumb, const sentry_options_t *options);
+static sentry_path_t *make_attachment_path(
+    const sentry_path_t *run_path, sentry_value_t attachment);
 
 /**
  * Correctly destruct C++ members of the crashpad state.
@@ -397,19 +400,24 @@ flush_scope_attachments(crashpad_state_t *data, const sentry_options_t *options)
 
 static sentry_path_t *
 prepare_initial_attachment(
-    sentry_attachment_t *attachment, const sentry_path_t *run_path)
+    sentry_value_t attachment, const sentry_path_t *run_path)
 {
     size_t bytes_len = 0;
     const char *bytes = sentry__attachment_get_bytes(attachment, &bytes_len);
-    if (bytes && !attachment->path) {
-        attachment->path = sentry__path_unique(
-            run_path, sentry__attachment_get_filename(attachment));
+    sentry_path_t *path = make_attachment_path(run_path, attachment);
+    if (!path) {
+        return nullptr;
     }
-
-    sentry_path_t *path = sentry__attachment_make_path(attachment);
-    if (bytes
-        && (!path || sentry__path_write_buffer(path, bytes, bytes_len) != 0)) {
-        SENTRY_WARN("failed to prepare initial scope attachment");
+    if (bytes) {
+        sentry_path_t *dir = sentry__path_dir(path);
+        int rv = dir ? sentry__path_create_dir_all(dir) : 1;
+        sentry__path_free(dir);
+        if (rv != 0 || sentry__path_write_buffer(path, bytes, bytes_len) != 0) {
+            SENTRY_WARN("failed to prepare initial scope attachment");
+            sentry__path_remove(path);
+            sentry__path_free(path);
+            return nullptr;
+        }
     }
     return path;
 }
@@ -703,7 +711,7 @@ report_to_envelope(const crashpad::CrashReportDatabase::Report &report,
     sentry_value_t event = sentry_value_new_null();
     sentry_value_t breadcrumbs1 = sentry_value_new_null();
     sentry_value_t breadcrumbs2 = sentry_value_new_null();
-    sentry_attachment_t *attachments = nullptr;
+    sentry_value_t attachments = sentry_value_new_null();
 
     sentry_pathiter_t *iter = sentry__path_iter_directory(attachments_dir);
     if (iter) {
@@ -717,8 +725,8 @@ report_to_envelope(const crashpad::CrashReportDatabase::Report &report,
             } else if (strcmp(filename, "__sentry-breadcrumb2") == 0) {
                 breadcrumbs2 = read_msgpack_stream_file(path);
             } else {
-                sentry__attachments_add_path(
-                    &attachments, sentry__path_clone(path), nullptr, nullptr);
+                sentry_value_decref(sentry__attachments_add_path(
+                    &attachments, path->path, nullptr, nullptr));
             }
         }
         sentry__pathiter_free(iter);
@@ -737,8 +745,8 @@ report_to_envelope(const crashpad::CrashReportDatabase::Report &report,
         sentry_value_set_by_key(event, "breadcrumbs",
             sentry__value_merge_breadcrumbs(
                 breadcrumbs1, breadcrumbs2, options->max_breadcrumbs));
-        sentry__attachments_add_path(&attachments, minidump_path,
-            SENTRY_ATTACHMENT_TYPE_MINIDUMP, nullptr);
+        sentry_value_decref(sentry__attachments_add_path(&attachments,
+            minidump_path->path, SENTRY_ATTACHMENT_TYPE_MINIDUMP, nullptr));
 
         if (sentry__envelope_add_event(envelope, event)) {
             sentry__envelope_add_attachments(envelope, attachments, options);
@@ -752,13 +760,13 @@ report_to_envelope(const crashpad::CrashReportDatabase::Report &report,
             envelope = nullptr;
         }
     } else {
-        sentry__path_free(minidump_path);
         sentry_value_decref(event);
     }
 
+    sentry__path_free(minidump_path);
     sentry_value_decref(breadcrumbs1);
     sentry_value_decref(breadcrumbs2);
-    sentry__attachments_free(attachments);
+    sentry_value_decref(attachments);
 
     return envelope;
 }
@@ -918,6 +926,8 @@ crashpad_backend_startup(
         absolute_handler_path->path);
     sentry_path_t *current_run_folder = options->run->run_path;
     auto *data = static_cast<crashpad_state_t *>(backend->data);
+    sentry__path_free(data->run_path);
+    data->run_path = sentry__path_clone(current_run_folder);
 
     // pre-generate event ID for a potential future crash to be able to
     // associate feedback with the crash event.
@@ -931,8 +941,10 @@ crashpad_backend_startup(
 
     // register attachments from the finalized initial scope
     SENTRY_WITH_SCOPE (scope) {
-        for (sentry_attachment_t *attachment = scope->attachments; attachment;
-            attachment = attachment->next) {
+        size_t num_attachments = sentry_value_get_length(scope->attachments);
+        for (size_t i = 0; i < num_attachments; i++) {
+            sentry_value_t attachment
+                = sentry_value_get_by_index(scope->attachments, i);
             sentry_path_t *path
                 = prepare_initial_attachment(attachment, current_run_folder);
             if (path) {
@@ -1170,6 +1182,7 @@ static void
 crashpad_backend_free(sentry_backend_t *backend)
 {
     auto *data = static_cast<crashpad_state_t *>(backend->data);
+    sentry__path_free(data->run_path);
     delete data;
 }
 
@@ -1290,26 +1303,38 @@ crashpad_backend_prune_database(sentry_backend_t *backend)
 
 #if defined(SENTRY_PLATFORM_WINDOWS) || defined(SENTRY_PLATFORM_LINUX)         \
     || defined(SENTRY_PLATFORM_MACOS)
-static bool
-ensure_unique_path(sentry_attachment_t *attachment)
+static sentry_path_t *
+make_attachment_path(const sentry_path_t *run_path, sentry_value_t attachment)
 {
-    sentry_path_t *path = nullptr;
-    SENTRY_WITH_OPTIONS (options) {
-        path = sentry__path_unique(options->run->run_path,
-            sentry__path_filename(attachment->filename));
-    }
-    if (!path) {
-        return false;
+    if (!sentry__attachment_get_bytes(attachment, nullptr)) {
+        return sentry__attachment_make_path(attachment);
     }
 
-    sentry__path_free(attachment->path);
-    attachment->path = path;
-    return true;
+    sentry_uuid_t id = sentry__attachment_get_id(attachment);
+    const char *filename = sentry__attachment_get_filename(attachment);
+    if (!run_path || sentry_uuid_is_nil(&id)
+        || sentry__string_empty(filename)) {
+        return nullptr;
+    }
+
+    char uuid[37];
+    sentry_uuid_as_string(&id, uuid);
+    sentry_path_t *dir = sentry__path_join_str(run_path, uuid);
+    sentry_path_t *path = dir ? sentry__path_join_str(dir, filename) : nullptr;
+    sentry_path_t *parent = path ? sentry__path_dir(path) : nullptr;
+    bool valid = parent && sentry__path_eq(parent, dir);
+    sentry__path_free(parent);
+    sentry__path_free(dir);
+    if (!valid) {
+        sentry__path_free(path);
+        return nullptr;
+    }
+    return path;
 }
 
 static void
-crashpad_backend_add_attachment(
-    sentry_backend_t *backend, sentry_attachment_t *attachment)
+crashpad_backend_add_attachment(sentry_backend_t *backend,
+    sentry_value_t attachment, const sentry_options_t *UNUSED(options))
 {
     auto *data = static_cast<crashpad_state_t *>(backend->data);
     if (!data || !data->client) {
@@ -1318,42 +1343,54 @@ crashpad_backend_add_attachment(
 
     size_t bytes_len = 0;
     const char *bytes = sentry__attachment_get_bytes(attachment, &bytes_len);
-    sentry_path_t *path = nullptr;
-    if (!bytes || ensure_unique_path(attachment)) {
-        path = sentry__attachment_make_path(attachment);
+    sentry_path_t *path = make_attachment_path(data->run_path, attachment);
+    if (!path) {
+        const char *filename = sentry__attachment_get_filename(attachment);
+        SENTRY_WARNF("failed to create path for crashpad attachment \"%s\"",
+            filename ? filename : "<unknown>");
+        return;
     }
 
-    if (bytes
-        && (!path || sentry__path_write_buffer(path, bytes, bytes_len) != 0)) {
-        SENTRY_WARNF("failed to write crashpad attachment \"%s\"",
-            sentry__attachment_get_path(attachment));
+    if (bytes) {
+        sentry_path_t *dir = sentry__path_dir(path);
+        int rv = dir ? sentry__path_create_dir_all(dir) : 1;
+        sentry__path_free(dir);
+        if (rv != 0 || sentry__path_write_buffer(path, bytes, bytes_len) != 0) {
+            SENTRY_WARNF(
+                "failed to write crashpad attachment \"%s\"", path->path);
+            sentry__path_remove(path);
+            sentry__path_free(path);
+            return;
+        }
     }
-
-    if (path) {
-        data->client->AddAttachment(
-            base::FilePath(SENTRY_PATH_PLATFORM_STR(path)));
-    }
+    data->client->AddAttachment(base::FilePath(SENTRY_PATH_PLATFORM_STR(path)));
     sentry__path_free(path);
 }
 
 static void
 crashpad_backend_remove_attachment(
-    sentry_backend_t *backend, sentry_attachment_t *attachment)
+    sentry_backend_t *backend, sentry_value_t attachment)
 {
     auto *data = static_cast<crashpad_state_t *>(backend->data);
     if (!data || !data->client) {
         return;
     }
-    sentry_path_t *path = sentry__attachment_make_path(attachment);
+    sentry_path_t *path = make_attachment_path(data->run_path, attachment);
     if (!path) {
         return;
     }
     data->client->RemoveAttachment(
         base::FilePath(SENTRY_PATH_PLATFORM_STR(path)));
 
-    if (sentry__attachment_get_bytes(attachment, nullptr)
-        && sentry__path_remove(path) != 0) {
-        SENTRY_WARNF("failed to remove crashpad attachment \"%s\"", path->path);
+    if (sentry__attachment_get_bytes(attachment, nullptr)) {
+        if (sentry__path_remove(path) != 0) {
+            SENTRY_WARNF(
+                "failed to remove crashpad attachment \"%s\"", path->path);
+        }
+        if (sentry_path_t *dir = sentry__path_dir(path)) {
+            sentry__path_remove(dir);
+            sentry__path_free(dir);
+        }
     }
     sentry__path_free(path);
 }

@@ -11,13 +11,12 @@ discard_envelope(sentry_envelope_t *envelope, void *)
 }
 
 static void
-setup_logs(const benchmark::State &)
+setup_metrics(const benchmark::State &)
 {
     sentry_options_t *options = sentry_options_new();
     sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
     sentry_options_set_release(options, "benchmark@1.0");
     sentry_options_set_environment(options, "test");
-    sentry_options_set_logs_with_attributes(options, true);
     sentry_options_set_auto_session_tracking(options, 0);
     sentry_options_set_transport(
         options, sentry_transport_new(discard_envelope));
@@ -28,24 +27,23 @@ setup_logs(const benchmark::State &)
 }
 
 static void
-teardown_logs(const benchmark::State &)
+teardown_metrics(const benchmark::State &)
 {
     sentry_close();
 }
 
 static void
-benchmark_logs(benchmark::State &state)
+benchmark_metrics(benchmark::State &state)
 {
     sentry_value_t attributes = sentry_value_new_object();
-    sentry_value_set_by_key(attributes, "local",
-        sentry_value_new_attribute(sentry_value_new_string("attribute"), NULL));
+    sentry_value_set_by_key(attributes, "asset.type",
+        sentry_value_new_attribute(sentry_value_new_string("texture"), NULL));
 
-    int i = 0;
     int failed = 0;
     for (auto _ : state) {
-        if (sentry_log_info(
-                "log %d", sentry_value_incref(attributes), i++, NULL)
-            != SENTRY_LOG_RETURN_SUCCESS) {
+        if (sentry_metrics_distribution("asset.load.duration", 12.5,
+                SENTRY_UNIT_MILLISECOND, sentry_value_incref(attributes))
+            != SENTRY_METRICS_RESULT_SUCCESS) {
             failed++;
         }
     }
@@ -55,7 +53,7 @@ benchmark_logs(benchmark::State &state)
     sentry_value_decref(attributes);
 }
 
-BENCHMARK(benchmark_logs)
+BENCHMARK(benchmark_metrics)
     ->Threads(1)
     ->Threads(8)
     ->Threads(16)
@@ -63,5 +61,5 @@ BENCHMARK(benchmark_logs)
     ->Iterations(32) // 32x32=1024 (peak) > 10x100=1000 (capacity)
     ->UseRealTime()
     ->Unit(benchmark::kMillisecond)
-    ->Setup(setup_logs)
-    ->Teardown(teardown_logs);
+    ->Setup(setup_metrics)
+    ->Teardown(teardown_metrics);

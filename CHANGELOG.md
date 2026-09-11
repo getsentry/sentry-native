@@ -4,6 +4,7 @@
 
 **Breaking / Important behavior changes**:
 
+- Attachment APIs now use `sentry_value_t` and `sentry_uuid_t` instead of `sentry_attachment_t *` handles. Most attachment APIs, function names and arguments, are otherwise unchanged. ([#1974](https://github.com/getsentry/sentry-native/pull/1974))
 - `sentry_init()` now consumes `<db>/last_crash` after caching its value, aligning crashed-last-run behavior with other Sentry SDKs. ([#2023](https://github.com/getsentry/sentry-native/pull/2023))
 - Remove `sentry_options_get/set_enable_logs` and `sentry_options_get/set_enable_metrics`. ([#1980](https://github.com/getsentry/sentry-native/pull/1980))
   > Structured logs and metrics have been enabled by default since `0.13`, and the options were deprecated and made no-ops in `0.16`.
@@ -14,7 +15,7 @@
 
 - Add `sentry_options_set_initial_scope` for configuring scope data before the crash backend is started, including out-of-process crash handlers. ([#2087](https://github.com/getsentry/sentry-native/pull/2087))
 - Add `sentry_attachment_from_file/bytes` (and their wide-string variants) for creating attachment values that can be fully configured before they are added. ([#2079](https://github.com/getsentry/sentry-native/pull/2079))
-- Add `sentry_add_attachment`, `sentry_scope_add_attachment`, and `sentry_hint_add_attachment` for adding configured attachments to the global scope, a specific scope, or a hint. ([#2079](https://github.com/getsentry/sentry-native/pull/2079))
+- Add `sentry_add_attachment`, `sentry_scope_add_attachment`, and `sentry_hint_add_attachment` for adding configured attachments to the global scope, a specific scope, or a hint. These functions consume and freeze the attachment value. ([#2079](https://github.com/getsentry/sentry-native/pull/2079), [#1974](https://github.com/getsentry/sentry-native/pull/1974))
 
 **Deprecations**:
 

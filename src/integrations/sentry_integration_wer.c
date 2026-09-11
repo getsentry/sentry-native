@@ -120,7 +120,7 @@ wer_remove_tag(void *data, const char *key)
 }
 
 static sentry_path_t *
-wer_attachment_path(const sentry_attachment_t *attachment)
+wer_attachment_path(sentry_value_t attachment)
 {
     sentry_path_t *path = sentry__attachment_make_path(attachment);
     if (!path) {
@@ -141,7 +141,7 @@ wer_sync_tag(const char *key, sentry_value_t value, void *data)
 }
 
 static void
-wer_add_attachment(void *UNUSED(data), sentry_attachment_t *attachment)
+wer_add_attachment(void *UNUSED(data), sentry_value_t attachment)
 {
     sentry_path_t *path = wer_attachment_path(attachment);
     if (path) {
@@ -159,10 +159,10 @@ wer_add_attachment(void *UNUSED(data), sentry_attachment_t *attachment)
         return;
     }
 
-    size_t bytes_len = 0;
-    const char *bytes = sentry__attachment_get_bytes(attachment, &bytes_len);
-    if (bytes && bytes_len > 0 && bytes_len <= WER_MAX_MEM_BLOCK_SIZE) {
-        HRESULT hr = WerRegisterMemoryBlock((PVOID)bytes, (DWORD)bytes_len);
+    size_t buf_len = 0;
+    const char *buf = sentry__attachment_get_bytes(attachment, &buf_len);
+    if (buf && buf_len > 0 && buf_len <= WER_MAX_MEM_BLOCK_SIZE) {
+        HRESULT hr = WerRegisterMemoryBlock((PVOID)buf, (DWORD)buf_len);
         if (FAILED(hr)) {
             SENTRY_WARNF(
                 "WerRegisterMemoryBlock failed: hr=0x%08lx", (unsigned long)hr);
@@ -172,7 +172,7 @@ wer_add_attachment(void *UNUSED(data), sentry_attachment_t *attachment)
 }
 
 static void
-wer_remove_attachment(void *UNUSED(data), sentry_attachment_t *attachment)
+wer_remove_attachment(void *UNUSED(data), sentry_value_t attachment)
 {
     sentry_path_t *path = wer_attachment_path(attachment);
     if (path) {
@@ -189,10 +189,10 @@ wer_remove_attachment(void *UNUSED(data), sentry_attachment_t *attachment)
         return;
     }
 
-    size_t bytes_len = 0;
-    const char *bytes = sentry__attachment_get_bytes(attachment, &bytes_len);
-    if (bytes && bytes_len > 0 && bytes_len <= WER_MAX_MEM_BLOCK_SIZE) {
-        HRESULT hr = WerUnregisterMemoryBlock((PVOID)bytes);
+    size_t buf_len = 0;
+    const char *buf = sentry__attachment_get_bytes(attachment, &buf_len);
+    if (buf && buf_len > 0 && buf_len <= WER_MAX_MEM_BLOCK_SIZE) {
+        HRESULT hr = WerUnregisterMemoryBlock((PVOID)buf);
         if (FAILED(hr)) {
             SENTRY_WARNF("WerUnregisterMemoryBlock failed: hr=0x%08lx",
                 (unsigned long)hr);
@@ -219,9 +219,10 @@ wer_clear(void *data)
 
     sentry_value_foreach_key_value(scope->tags, wer_cleanup_tag, wer_data);
 
-    for (sentry_attachment_t *attachment = scope->attachments; attachment;
-        attachment = attachment->next) {
-        wer_remove_attachment(wer_data, attachment);
+    size_t len = sentry_value_get_length(scope->attachments);
+    for (size_t i = 0; i < len; i++) {
+        wer_remove_attachment(
+            wer_data, sentry_value_get_by_index(scope->attachments, i));
     }
 }
 
@@ -248,9 +249,10 @@ register_wer(
         wer_data->scope = scope;
         wer_data->observer = observer;
         sentry_value_foreach_key_value(scope->tags, wer_sync_tag, wer_data);
-        for (sentry_attachment_t *attachment = scope->attachments; attachment;
-            attachment = attachment->next) {
-            wer_add_attachment(wer_data, attachment);
+        size_t len = sentry_value_get_length(scope->attachments);
+        for (size_t i = 0; i < len; i++) {
+            wer_add_attachment(
+                wer_data, sentry_value_get_by_index(scope->attachments, i));
         }
     }
 }
@@ -267,9 +269,10 @@ unregister_wer(
 
     sentry_value_foreach_key_value(scope->tags, wer_cleanup_tag, wer_data);
 
-    for (sentry_attachment_t *attachment = scope->attachments; attachment;
-        attachment = attachment->next) {
-        wer_remove_attachment(wer_data, attachment);
+    size_t len = sentry_value_get_length(scope->attachments);
+    for (size_t i = 0; i < len; i++) {
+        wer_remove_attachment(
+            wer_data, sentry_value_get_by_index(scope->attachments, i));
     }
 
     sentry__scope_remove_observer(scope, wer_data->observer);
