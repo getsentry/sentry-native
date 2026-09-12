@@ -21,6 +21,10 @@
 
 - Deprecate `sentry_clear_crashed_last_run()` because `sentry_init()` now consumes the marker automatically. ([#2023](https://github.com/getsentry/sentry-native/pull/2023))
 
+**Thank you**:
+
+- [nathan-white-mojang](https://github.com/nathan-white-mojang)
+
 ## 0.16.6
 
 **Features**:
