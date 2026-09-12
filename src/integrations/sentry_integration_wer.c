@@ -131,6 +131,15 @@ wer_attachment_path(const sentry_attachment_t *attachment)
     return absolute_path;
 }
 
+static int
+wer_sync_tag(const char *key, sentry_value_t value, void *data)
+{
+    if (sentry_value_get_type(value) == SENTRY_VALUE_TYPE_STRING) {
+        wer_set_tag(data, key, sentry_value_as_string(value));
+    }
+    return 0;
+}
+
 static void
 wer_add_attachment(void *UNUSED(data), sentry_attachment_t *attachment)
 {
@@ -238,6 +247,7 @@ register_wer(
     if (sentry__scope_add_observer(scope, observer)) {
         wer_data->scope = scope;
         wer_data->observer = observer;
+        sentry_value_foreach_key_value(scope->tags, wer_sync_tag, wer_data);
         for (sentry_attachment_t *attachment = scope->attachments; attachment;
             attachment = attachment->next) {
             wer_add_attachment(wer_data, attachment);

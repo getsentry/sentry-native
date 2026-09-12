@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+**Features**:
+
+- Add `sentry_options_set_initial_scope` for configuring scope data before the crash backend is started, including out-of-process crash handlers. ([#2087](https://github.com/getsentry/sentry-native/pull/2087))
+
 **Fixes**:
 
 - Respect independent rate limits for feedback, logs, metrics, and attachments instead of dropping them during error backoff. ([#2109](https://github.com/getsentry/sentry-native/pull/2109))

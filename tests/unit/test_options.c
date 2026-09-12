@@ -1,7 +1,147 @@
+#include "sentry_alloc.h"
+#include "sentry_backend.h"
 #include "sentry_options.h"
+#include "sentry_scope.h"
 #include "sentry_testsupport.h"
 
 #include <math.h>
+#include <string.h>
+
+typedef struct {
+    bool configured;
+    bool defaults_found;
+    bool found;
+} initial_scope_state_t;
+
+static void
+configure_initial_scope(sentry_scope_t *scope, void *user_data)
+{
+    initial_scope_state_t *state = user_data;
+    state->configured = true;
+    state->defaults_found = scope->release
+        && strcmp(scope->release, "option-release") == 0 && scope->environment
+        && strcmp(scope->environment, "option-environment") == 0
+        && scope->breadcrumbs->max_size == 17;
+
+    sentry_scope_set_tag(scope, "initial", "value");
+    sentry_scope_set_environment(scope, "initial-environment");
+
+    sentry_value_t context = sentry_value_new_object();
+    sentry_value_set_by_key(context, "foo", sentry_value_new_string("bar"));
+    sentry_scope_set_context(scope, "initial", context);
+
+    sentry_value_t user
+        = sentry_value_new_user("1", "user", "initial@example.com", NULL);
+    sentry_scope_set_user(scope, user);
+}
+
+static int
+startup_with_initial_scope(
+    sentry_backend_t *backend, const sentry_options_t *UNUSED(options))
+{
+    initial_scope_state_t *state = backend->data;
+    SENTRY_WITH_SCOPE (scope) {
+        const char *tag = sentry_value_as_string(
+            sentry_value_get_by_key(scope->tags, "initial"));
+        sentry_value_t context
+            = sentry_value_get_by_key(scope->contexts, "initial");
+        const char *context_value
+            = sentry_value_as_string(sentry_value_get_by_key(context, "foo"));
+        const char *user_id = sentry_value_as_string(
+            sentry_value_get_by_key(scope->user, "id"));
+        state->found = state->configured && state->defaults_found && tag
+            && strcmp(tag, "value") == 0 && scope->environment
+            && strcmp(scope->environment, "initial-environment") == 0
+            && context_value && strcmp(context_value, "bar") == 0 && user_id
+            && strcmp(user_id, "1") == 0;
+    }
+    return 0;
+}
+
+static int
+startup_failure_with_initial_scope(
+    sentry_backend_t *backend, const sentry_options_t *options)
+{
+    startup_with_initial_scope(backend, options);
+    return 1;
+}
+
+static void
+mark_initial_scope(sentry_scope_t *UNUSED(scope), void *user_data)
+{
+    *(bool *)user_data = true;
+}
+
+SENTRY_TEST(options_initial_scope_before_backend_startup)
+{
+    SENTRY_TEST_OPTIONS_NEW(options);
+
+    initial_scope_state_t state = { 0 };
+    sentry_backend_t *backend = SENTRY_MAKE(sentry_backend_t);
+    TEST_ASSERT(!!backend);
+    backend->data = &state;
+    backend->startup_func = startup_with_initial_scope;
+    sentry_options_set_backend(options, backend);
+
+    sentry_options_set_release(options, "option-release");
+    sentry_options_set_environment(options, "option-environment");
+    sentry_options_set_max_breadcrumbs(options, 17);
+    sentry_options_set_initial_scope(options, configure_initial_scope, &state);
+
+    sentry_init(options);
+    TEST_CHECK(state.found);
+
+    SENTRY_WITH_SCOPE (scope) {
+        TEST_CHECK_STRING_EQUAL(sentry_value_as_string(sentry_value_get_by_key(
+                                    scope->tags, "initial")),
+            "value");
+    }
+
+    sentry_close();
+}
+
+SENTRY_TEST(options_initial_scope_rollback_after_startup_failure)
+{
+    SENTRY_TEST_OPTIONS_NEW(options);
+
+    initial_scope_state_t state = { 0 };
+    sentry_backend_t *backend = SENTRY_MAKE(sentry_backend_t);
+    TEST_ASSERT(!!backend);
+    backend->data = &state;
+    backend->startup_func = startup_failure_with_initial_scope;
+    sentry_options_set_backend(options, backend);
+
+    sentry_options_set_release(options, "option-release");
+    sentry_options_set_environment(options, "option-environment");
+    sentry_options_set_max_breadcrumbs(options, 17);
+    sentry_options_set_initial_scope(options, configure_initial_scope, &state);
+
+    TEST_CHECK(sentry_init(options) != 0);
+    TEST_CHECK(state.found);
+
+    SENTRY_WITH_SCOPE (scope) {
+        TEST_CHECK(sentry_value_is_null(
+            sentry_value_get_by_key(scope->tags, "initial")));
+    }
+}
+
+SENTRY_TEST(options_initial_scope_replace)
+{
+    SENTRY_TEST_OPTIONS_NEW(options);
+
+    bool first_called = false;
+    bool second_called = false;
+    sentry_options_set_initial_scope(
+        options, mark_initial_scope, &first_called);
+    sentry_options_set_initial_scope(
+        options, mark_initial_scope, &second_called);
+
+    TEST_CHECK(sentry_init(options) == 0);
+    TEST_CHECK(!first_called);
+    TEST_CHECK(second_called);
+
+    sentry_close();
+}
 
 SENTRY_TEST(options_sdk_name_defaults)
 {

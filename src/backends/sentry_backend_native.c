@@ -213,6 +213,34 @@ typedef struct {
     volatile long crashed;
 } native_backend_state_t;
 
+static void native_backend_flush_scope(
+    sentry_backend_t *backend, const sentry_options_t *options);
+static void native_backend_add_breadcrumb(sentry_backend_t *backend,
+    sentry_value_t breadcrumb, const sentry_options_t *options);
+static void native_backend_prepare_attachment(
+    sentry_attachment_t *attachment, const sentry_options_t *options);
+
+static void
+native_backend_preload_scope(
+    sentry_backend_t *backend, const sentry_options_t *options)
+{
+    sentry_value_t breadcrumbs = sentry_value_new_null();
+    SENTRY_WITH_SCOPE (scope) {
+        for (sentry_attachment_t *attachment = scope->attachments; attachment;
+            attachment = attachment->next) {
+            native_backend_prepare_attachment(attachment, options);
+        }
+        breadcrumbs = sentry__ringbuffer_to_list(scope->breadcrumbs);
+    }
+
+    size_t breadcrumb_count = sentry_value_get_length(breadcrumbs);
+    for (size_t i = 0; i < breadcrumb_count; i++) {
+        native_backend_add_breadcrumb(
+            backend, sentry_value_get_by_index(breadcrumbs, i), options);
+    }
+    sentry_value_decref(breadcrumbs);
+}
+
 static bool
 native_backend_process_old_run(sentry_backend_t *backend,
     const sentry_options_t *options, const sentry_path_t *run_path)
@@ -810,6 +838,10 @@ native_backend_startup(
     }
 #endif
 
+    // Persist the preloaded scope before any crash handler becomes active.
+    native_backend_preload_scope(backend, options);
+    native_backend_flush_scope(backend, options);
+
     // Install crash handlers (signal handlers on Linux/macOS, Mach exception
     // handler on iOS)
 #if defined(SENTRY_PLATFORM_IOS)
@@ -1254,7 +1286,8 @@ native_backend_add_breadcrumb(sentry_backend_t *backend,
  * Similar to Crashpad's ensure_unique_path function.
  */
 static bool
-ensure_attachment_path(sentry_attachment_t *attachment)
+ensure_attachment_path(
+    sentry_attachment_t *attachment, const sentry_options_t *options)
 {
     if (!attachment || !attachment->filename) {
         return false;
@@ -1271,10 +1304,8 @@ ensure_attachment_path(sentry_attachment_t *attachment)
     sentry_uuid_as_string(&uuid, uuid_str);
 
     sentry_path_t *base_path = NULL;
-    SENTRY_WITH_OPTIONS (options) {
-        if (options->run && options->run->run_path) {
-            base_path = sentry__path_join_str(options->run->run_path, uuid_str);
-        }
+    if (options->run && options->run->run_path) {
+        base_path = sentry__path_join_str(options->run->run_path, uuid_str);
     }
 
     if (!base_path) {
@@ -1298,18 +1329,16 @@ ensure_attachment_path(sentry_attachment_t *attachment)
 }
 
 static void
-native_backend_add_attachment(
-    sentry_backend_t *backend, sentry_attachment_t *attachment)
+native_backend_prepare_attachment(
+    sentry_attachment_t *attachment, const sentry_options_t *options)
 {
-    (void)backend; // Unused
-
     // For buffer attachments, assign a path in the run directory and write to
     // disk
     size_t bytes_len = 0;
     const char *bytes = sentry__attachment_get_bytes(attachment, &bytes_len);
     if (bytes) {
         if (!sentry__attachment_get_path(attachment)) {
-            if (!ensure_attachment_path(attachment)) {
+            if (!ensure_attachment_path(attachment, options)) {
                 SENTRY_WARN("failed to assign path for buffer attachment");
                 return;
             }
@@ -1326,6 +1355,15 @@ native_backend_add_attachment(
     // For file attachments, the path is already set and points to the actual
     // file. The crash daemon will read these files from their original
     // locations.
+}
+
+static void
+native_backend_add_attachment(
+    sentry_backend_t *UNUSED(backend), sentry_attachment_t *attachment)
+{
+    SENTRY_WITH_OPTIONS (options) {
+        native_backend_prepare_attachment(attachment, options);
+    }
 }
 
 /**
