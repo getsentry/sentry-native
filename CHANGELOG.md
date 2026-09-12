@@ -13,12 +13,17 @@
 
 **Features**:
 
+- Add `sentry_options_set_initial_scope` for configuring scope data before the crash backend is started, including out-of-process crash handlers. ([#2087](https://github.com/getsentry/sentry-native/pull/2087))
 - Add `sentry_attachment_from_file/bytes` (and their wide-string variants) for creating attachment values that can be fully configured before they are added. ([#2079](https://github.com/getsentry/sentry-native/pull/2079))
 - Add `sentry_add_attachment`, `sentry_scope_add_attachment`, and `sentry_hint_add_attachment` for adding configured attachments to the global scope, a specific scope, or a hint. These functions consume and freeze the attachment value. ([#2079](https://github.com/getsentry/sentry-native/pull/2079), [#1974](https://github.com/getsentry/sentry-native/pull/1974))
 
 **Deprecations**:
 
 - Deprecate `sentry_clear_crashed_last_run()` because `sentry_init()` now consumes the marker automatically. ([#2023](https://github.com/getsentry/sentry-native/pull/2023))
+
+**Thank you**:
+
+- [nathan-white-mojang](https://github.com/nathan-white-mojang)
 
 ## 0.16.6
 

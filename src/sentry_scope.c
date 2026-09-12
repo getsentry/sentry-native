@@ -573,6 +573,10 @@ sentry__scope_apply_options(sentry_scope_t *scope, sentry_options_t *options)
     sentry__ringbuffer_set_max_size(
         scope->data->breadcrumbs, options->max_breadcrumbs);
 
+    if (options->initial_scope_func) {
+        options->initial_scope_func(scope, options->initial_scope_data);
+    }
+
     sentry__scope_update_dsc(scope, options);
 }
 

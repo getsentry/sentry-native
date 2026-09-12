@@ -135,6 +135,7 @@ sentry_init(sentry_options_t *options)
 {
     // pre-init here, so we can consistently use bailing out to :fail
     sentry_transport_t *transport = NULL;
+    bool initial_scope_prepared = false;
 
     SENTRY__MUTEX_INIT_DYN_ONCE(g_options_lock);
     // Stop the app hang watchdog before locking options. The watchdog thread
@@ -231,6 +232,11 @@ sentry_init(sentry_options_t *options)
     sentry__init_cached_kernel32_functions();
 #endif
 
+    SENTRY_WITH_SCOPE_MUT_NO_FLUSH (scope) {
+        sentry__scope_apply_options(scope, options);
+    }
+    initial_scope_prepared = true;
+
     // and then we will start the backend, since it requires a valid run
     sentry_backend_t *backend = options->backend;
     if (backend && backend->startup_func) {
@@ -250,12 +256,9 @@ sentry_init(sentry_options_t *options)
     }
     g_options = options;
 
-    // *after* setting the global options, trigger a scope and consent flush,
-    // since at least crashpad needs that. At this point we also freeze the
-    // `client_sdk` in the `scope` because some downstream SDKs want to override
-    // it at runtime via the options interface.
+    // *after* setting the global options, register integrations and trigger a
+    // scope and consent flush, since at least crashpad needs that.
     SENTRY_WITH_SCOPE_MUT (scope) {
-        sentry__scope_apply_options(scope, options);
         register_integrations(scope, options);
     }
     if (backend && backend->user_consent_changed_func) {
@@ -295,6 +298,9 @@ fail:
         sentry__transport_shutdown(transport, 0);
     }
     sentry_options_free(options);
+    if (initial_scope_prepared) {
+        sentry__scope_cleanup();
+    }
     sentry__mutex_unlock(&g_options_lock);
     return 1;
 }

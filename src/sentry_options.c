@@ -200,6 +200,14 @@ sentry_options_free(sentry_options_t *opts)
 }
 
 void
+sentry_options_set_initial_scope(sentry_options_t *opts,
+    sentry_initial_scope_function_t func, void *user_data)
+{
+    opts->initial_scope_func = func;
+    opts->initial_scope_data = user_data;
+}
+
+void
 sentry_options_set_transport(
     sentry_options_t *opts, sentry_transport_t *transport)
 {
