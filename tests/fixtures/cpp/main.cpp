@@ -76,7 +76,7 @@ main(int argc, char **argv)
         throw std::string("uncaught string");
     }
     if (has_arg("runtime_error")) {
-        throw std::runtime_error("runtime error");
+        throw std::runtime_error("something went wrong");
     }
     if (has_arg("out_of_range")) {
         (void)std::string().at(0);

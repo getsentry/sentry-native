@@ -28,7 +28,7 @@ pytestmark = pytest.mark.skipif(
 @pytest.mark.parametrize(
     "type_name,message",
     [
-        pytest.param("runtime_error", "runtime error", id="runtime_error"),
+        pytest.param("runtime_error", "something went wrong", id="runtime_error"),
         pytest.param("out_of_range", None, id="out_of_range"),
         pytest.param("invalid_argument", None, id="invalid_argument"),
         pytest.param("custom_exception", "custom exception", id="custom_exception"),
@@ -101,12 +101,13 @@ def test_uncaught_cpp_exception(cmake, httpserver, backend, type_name, message):
     if sys.platform != "win32" or os.environ.get("TEST_MINGW"):
         assert output.pop(0) == "terminate_handler"
     observed_type, observed_value = output
-    assert observed_type == "C++ Exception"
-    assert type_name in observed_value
+    assert type_name in observed_type
+    if sys.platform != "win32" or os.environ.get("TEST_MINGW"):
+        assert observed_type == type_name or "::" in observed_type
     if message is None:
-        assert observed_value.split(": ", 1)[1]
+        assert observed_value
     else:
-        assert observed_value.endswith(f": {message}")
+        assert observed_value == message
 
     if backend == "native":
         request = httpserver.log[0][0]
@@ -129,7 +130,7 @@ def test_uncaught_cpp_exception(cmake, httpserver, backend, type_name, message):
         event = Envelope.deserialize(output).get_event()
 
     exception = event["exception"]["values"][0]
-    assert exception["type"] == "C++ Exception"
+    assert exception["type"] == observed_type
     assert exception["value"] == observed_value
     assert exception["mechanism"]["type"] == "cpp_exception"
 

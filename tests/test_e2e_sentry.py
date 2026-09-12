@@ -770,8 +770,8 @@ def test_e2e_cpp(cmake):
     assert "values" in exception_data
 
     exception = exception_data["values"][0]
-    assert exception["type"] == "C++ Exception"
-    assert exception["value"].endswith(": custom exception")
+    assert exception["type"].endswith("custom_exception")
+    assert exception["value"] == "custom exception"
     assert exception["mechanism"]["type"] == "cpp_exception"
     assert exception["mechanism"]["handled"] is False
     assert "stacktrace" in exception

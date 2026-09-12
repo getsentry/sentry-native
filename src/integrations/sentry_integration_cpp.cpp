@@ -14,6 +14,10 @@ extern "C" {
 #include <new>
 #include <typeinfo>
 
+#if defined(__GXX_ABI_VERSION) && !defined(_MSC_VER)
+#    include <cxxabi.h>
+#endif
+
 #ifdef __clang__
 #    define CLANG_DIAGNOSTIC_PUSH _Pragma("clang diagnostic push")
 #    define CLANG_DIAGNOSTIC_IGNORE                                            \
@@ -264,10 +268,22 @@ stash_metadata(cpp_state_t *data, const char *type, const char *value)
         return;
     }
 
+#if defined(__GXX_ABI_VERSION) && !defined(_MSC_VER)
+    char *demangled
+        = type ? abi::__cxa_demangle(type, nullptr, nullptr, nullptr) : nullptr;
+    if (demangled) {
+        type = demangled;
+    }
+#endif
+
     data->has_type = type != nullptr;
     data->has_value = value != nullptr;
     data->type_len = copy_bounded(data->type, sizeof(data->type), type);
     data->value_len = copy_bounded(data->value, sizeof(data->value), value);
+
+#if defined(__GXX_ABI_VERSION) && !defined(_MSC_VER)
+    std::free(demangled);
+#endif
 
     data->metadata.store(METADATA_PENDING, std::memory_order_release);
 }
@@ -388,30 +404,20 @@ on_cpp_crash(void *_data, const sentry_ucontext_t *uctx, sentry_value_t event)
         return;
     }
 
-    char value[TYPE_CAPACITY + 2 + VALUE_CAPACITY];
-    size_t value_len = 0;
-    if (data->has_type) {
-        memcpy(value, data->type, data->type_len);
-        value_len = data->type_len;
-    }
-    if (data->has_type && data->has_value) {
-        value[value_len++] = ':';
-        value[value_len++] = ' ';
-    }
-    if (data->has_value) {
-        memcpy(value + value_len, data->value, data->value_len);
-        value_len += data->value_len;
-    }
-    value[value_len] = '\0';
+    const char *type = data->has_type ? data->type : "C++ Exception";
+    size_t type_len
+        = data->has_type ? data->type_len : sizeof("C++ Exception") - 1;
+    const char *value = data->has_value ? data->value : "";
+    size_t value_len = data->has_value ? data->value_len : 0;
 
     sentry_value_t exception = get_exception(event);
     if (sentry_value_is_null(exception)) {
-        exception = sentry_value_new_exception_n(
-            "C++ Exception", sizeof("C++ Exception") - 1, value, value_len);
+        exception
+            = sentry_value_new_exception_n(type, type_len, value, value_len);
         sentry_event_add_exception(event, exception);
     } else {
         sentry_value_set_by_key(
-            exception, "type", sentry_value_new_string("C++ Exception"));
+            exception, "type", sentry_value_new_string_n(type, type_len));
         sentry_value_set_by_key(
             exception, "value", sentry_value_new_string_n(value, value_len));
     }

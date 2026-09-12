@@ -293,9 +293,9 @@ using `cmake -D BUILD_SHARED_LIBS=OFF ..`.
   backends.
 
 - `SENTRY_INTEGRATION_CPP` (Default: `OFF`):
-  Reports fatal events from uncaught C++ exceptions as `C++ Exception`, with
-  the dynamic `typeid()` name and the value returned by
-  `std::exception::what()` combined in the exception value. Enabling this
+  Reports fatal events from uncaught C++ exceptions with the dynamic `typeid()`
+  name as the exception type and the value returned by
+  `std::exception::what()` as the exception value. Enabling this
   integration adds a C++ runtime dependency while the public SDK API and ABI
   remain C. It installs a process-global `std::terminate` handler and chains to
   the handler that was installed before Sentry. Restoration is best-effort
@@ -304,9 +304,9 @@ using `cmake -D BUILD_SHARED_LIBS=OFF ..`.
   the application.
 
   Metadata capture uses fixed 255-byte type and 1023-byte value limits and
-  preserves empty values. Raw `typeid()` names are implementation-defined
-  and can be mangled. Capture is best-effort during process termination. MSVC
-  exceptions intercepted before `std::terminate` are decoded from the runtime
+  preserves empty values. Raw `typeid()` names are implementation-defined and
+  demangled when supported. Capture is best-effort during process termination.
+  MSVC exceptions intercepted before `std::terminate` are decoded from the runtime
   exception record; malformed or unsupported records are ignored without
   changing the native crash event.
 
