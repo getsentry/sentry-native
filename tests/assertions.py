@@ -596,13 +596,21 @@ def assert_overflowing_breadcrumb(attachments):
         assert_breadcrumb_inner(attachments.breadcrumb1)
 
 
-def assert_crashpad_upload(req, expect_attachment=False, expect_view_hierarchy=False):
+def assert_crashpad_upload(
+    req,
+    expect_attachment=False,
+    expect_view_hierarchy=False,
+    expect_breadcrumbs=True,
+    expect_default_scope=True,
+):
     multipart = gzip.decompress(req.get_data())
     msg = email.message_from_bytes(bytes(str(req.headers), encoding="utf8") + multipart)
     attachments = _load_crashpad_attachments(msg)
 
-    assert_overflowing_breadcrumb(attachments)
-    assert_event_meta(attachments.event, integrations=["crashpad"])
+    if expect_breadcrumbs:
+        assert_overflowing_breadcrumb(attachments)
+    if expect_default_scope:
+        assert_event_meta(attachments.event, integrations=["crashpad"])
     if expect_attachment:
         assert attachments.cmake_cache > 0
         assert attachments.bytes_bin == b"\xc0\xff\xee"

@@ -919,6 +919,14 @@ struct sentry_options_s;
 typedef struct sentry_options_s sentry_options_t;
 
 /**
+ * A Sentry Scope.
+ *
+ * See https://develop.sentry.dev/sdk/telemetry/scopes/
+ */
+struct sentry_scope_s;
+typedef struct sentry_scope_s sentry_scope_t;
+
+/**
  * This represents an interface for user-defined transports.
  *
  * Transports are responsible for sending envelopes to sentry and are the last
@@ -1425,6 +1433,28 @@ SENTRY_API sentry_options_t *sentry_options_new(void);
  * Deallocates previously allocated sentry options.
  */
 SENTRY_API void sentry_options_free(sentry_options_t *opts);
+
+/**
+ * Type of the callback used to configure the initial scope.
+ *
+ * The callback is invoked synchronously once during `sentry_init`, after
+ * option-derived defaults are applied and before the crash backend is started.
+ * The scope is borrowed. Configure it with `sentry_scope_*` functions rather
+ * than global scope functions such as `sentry_set_tag`.
+ */
+typedef void (*sentry_initial_scope_function_t)(
+    sentry_scope_t *scope, void *user_data);
+
+/**
+ * Sets the callback used to configure the initial scope.
+ *
+ * Calling this function again replaces the previously configured callback.
+ * Passing `NULL` for `func` disables initial scope configuration. The SDK does
+ * not take ownership of `user_data`, which must remain valid until the callback
+ * is invoked.
+ */
+SENTRY_API void sentry_options_set_initial_scope(sentry_options_t *opts,
+    sentry_initial_scope_function_t func, void *user_data);
 
 /**
  * Sets a transport.
@@ -2493,14 +2523,6 @@ SENTRY_API sentry_user_consent_t sentry_user_consent_get(void);
  * Returns 1 if user consent is required, 0 otherwise.
  */
 SENTRY_API int sentry_user_consent_is_required(void);
-
-/**
- * A sentry Scope.
- *
- * See https://develop.sentry.dev/sdk/telemetry/scopes/
- */
-struct sentry_scope_s;
-typedef struct sentry_scope_s sentry_scope_t;
 
 /**
  * Creates a local scope.
