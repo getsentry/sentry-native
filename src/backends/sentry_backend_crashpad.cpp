@@ -428,7 +428,7 @@ preload_scope_breadcrumbs(
 {
     sentry_value_t breadcrumbs = sentry_value_new_null();
     SENTRY_WITH_SCOPE (scope) {
-        breadcrumbs = sentry__ringbuffer_to_list(scope->breadcrumbs);
+        breadcrumbs = sentry__scope_breadcrumbs_to_list(scope);
     }
 
     size_t breadcrumb_count = sentry_value_get_length(breadcrumbs);
@@ -597,7 +597,7 @@ crashpad_handler(int signum, siginfo_t *info, ucontext_t *user_context)
                 // written above and stays breadcrumb-free
                 SENTRY_WITH_SCOPE (scope) {
                     sentry_value_set_by_key(crash_event, "breadcrumbs",
-                        sentry__ringbuffer_to_list(scope->breadcrumbs));
+                        sentry__scope_breadcrumbs_to_list(scope));
                 }
 
                 sentry__session_replay_flush_pending(
@@ -941,10 +941,12 @@ crashpad_backend_startup(
 
     // register attachments from the finalized initial scope
     SENTRY_WITH_SCOPE (scope) {
-        size_t num_attachments = sentry_value_get_length(scope->attachments);
+        sentry_value_t scope_attachments
+            = sentry__scope_load_attachments(scope);
+        size_t num_attachments = sentry_value_get_length(scope_attachments);
         for (size_t i = 0; i < num_attachments; i++) {
             sentry_value_t attachment
-                = sentry_value_get_by_index(scope->attachments, i);
+                = sentry_value_get_by_index(scope_attachments, i);
             sentry_path_t *path
                 = prepare_initial_attachment(attachment, current_run_folder);
             if (path) {
@@ -952,6 +954,7 @@ crashpad_backend_startup(
                 sentry__path_free(path);
             }
         }
+        sentry_value_decref(scope_attachments);
     }
 
     // and add the serialized event, and two rotating breadcrumb files

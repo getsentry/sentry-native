@@ -18,10 +18,21 @@ configure_initial_scope(sentry_scope_t *scope, void *user_data)
 {
     initial_scope_state_t *state = user_data;
     state->configured = true;
-    state->defaults_found = scope->release
-        && strcmp(scope->release, "option-release") == 0 && scope->environment
-        && strcmp(scope->environment, "option-environment") == 0
-        && scope->breadcrumbs->max_size == 17;
+    sentry_value_t release = sentry__scope_ref_release(scope);
+    sentry_value_t environment = sentry__scope_ref_environment(scope);
+    for (size_t i = 0; i < 18; i++) {
+        sentry_scope_add_breadcrumb(
+            scope, sentry_value_new_breadcrumb(NULL, NULL));
+    }
+    sentry_value_t breadcrumbs = sentry__scope_breadcrumbs_to_list(scope);
+    state->defaults_found
+        = strcmp(sentry_value_as_string(release), "option-release") == 0
+        && strcmp(sentry_value_as_string(environment), "option-environment")
+            == 0
+        && sentry_value_get_length(breadcrumbs) == 17;
+    sentry_value_decref(release);
+    sentry_value_decref(environment);
+    sentry_value_decref(breadcrumbs);
 
     sentry_scope_set_tag(scope, "initial", "value");
     sentry_scope_set_environment(scope, "initial-environment");
@@ -41,19 +52,28 @@ startup_with_initial_scope(
 {
     initial_scope_state_t *state = backend->data;
     SENTRY_WITH_SCOPE (scope) {
-        const char *tag = sentry_value_as_string(
-            sentry_value_get_by_key(scope->tags, "initial"));
-        sentry_value_t context
-            = sentry_value_get_by_key(scope->contexts, "initial");
+        sentry_value_t tags = sentry__scope_load_tags(scope);
+        sentry_value_t contexts = sentry__scope_load_contexts(scope);
+        sentry_value_t user = sentry__scope_ref_user(scope);
+        sentry_value_t environment = sentry__scope_ref_environment(scope);
+        const char *tag
+            = sentry_value_as_string(sentry_value_get_by_key(tags, "initial"));
+        sentry_value_t context = sentry_value_get_by_key(contexts, "initial");
         const char *context_value
             = sentry_value_as_string(sentry_value_get_by_key(context, "foo"));
-        const char *user_id = sentry_value_as_string(
-            sentry_value_get_by_key(scope->user, "id"));
+        const char *user_id
+            = sentry_value_as_string(sentry_value_get_by_key(user, "id"));
         state->found = state->configured && state->defaults_found && tag
-            && strcmp(tag, "value") == 0 && scope->environment
-            && strcmp(scope->environment, "initial-environment") == 0
+            && strcmp(tag, "value") == 0
+            && strcmp(
+                   sentry_value_as_string(environment), "initial-environment")
+                == 0
             && context_value && strcmp(context_value, "bar") == 0 && user_id
             && strcmp(user_id, "1") == 0;
+        sentry_value_decref(tags);
+        sentry_value_decref(contexts);
+        sentry_value_decref(user);
+        sentry_value_decref(environment);
     }
     return 0;
 }
@@ -92,9 +112,11 @@ SENTRY_TEST(options_initial_scope_before_backend_startup)
     TEST_CHECK(state.found);
 
     SENTRY_WITH_SCOPE (scope) {
-        TEST_CHECK_STRING_EQUAL(sentry_value_as_string(sentry_value_get_by_key(
-                                    scope->tags, "initial")),
+        sentry_value_t tags = sentry__scope_load_tags(scope);
+        TEST_CHECK_STRING_EQUAL(
+            sentry_value_as_string(sentry_value_get_by_key(tags, "initial")),
             "value");
+        sentry_value_decref(tags);
     }
 
     sentry_close();
@@ -120,8 +142,10 @@ SENTRY_TEST(options_initial_scope_rollback_after_startup_failure)
     TEST_CHECK(state.found);
 
     SENTRY_WITH_SCOPE (scope) {
-        TEST_CHECK(sentry_value_is_null(
-            sentry_value_get_by_key(scope->tags, "initial")));
+        sentry_value_t tags = sentry__scope_load_tags(scope);
+        TEST_CHECK(
+            sentry_value_is_null(sentry_value_get_by_key(tags, "initial")));
+        sentry_value_decref(tags);
     }
 }
 

@@ -226,12 +226,14 @@ native_backend_preload_scope(
 {
     sentry_value_t breadcrumbs = sentry_value_new_null();
     SENTRY_WITH_SCOPE (scope) {
-        size_t attachment_count = sentry_value_get_length(scope->attachments);
+        sentry_value_t attachments = sentry__scope_load_attachments(scope);
+        size_t attachment_count = sentry_value_get_length(attachments);
         for (size_t i = 0; i < attachment_count; i++) {
-            native_backend_add_attachment(backend,
-                sentry_value_get_by_index(scope->attachments, i), options);
+            native_backend_add_attachment(
+                backend, sentry_value_get_by_index(attachments, i), options);
         }
-        breadcrumbs = sentry__ringbuffer_to_list(scope->breadcrumbs);
+        sentry_value_decref(attachments);
+        breadcrumbs = sentry__scope_breadcrumbs_to_list(scope);
     }
 
     size_t breadcrumb_count = sentry_value_get_length(breadcrumbs);
@@ -1144,12 +1146,14 @@ native_backend_write_attachments(const sentry_path_t *event_path)
         return;
     }
     SENTRY_WITH_SCOPE (scope) {
-        sentry_value_t attachments = scope->attachments;
+        sentry_value_t attachments = sentry__scope_load_attachments(scope);
         if (sentry_value_get_length(attachments) == 0) {
+            sentry_value_decref(attachments);
             continue;
         }
         sentry_path_t *run_path = sentry__path_dir(event_path);
         if (!run_path) {
+            sentry_value_decref(attachments);
             continue;
         }
         sentry_path_t *attach_list_path
@@ -1205,6 +1209,7 @@ native_backend_write_attachments(const sentry_path_t *event_path)
             sentry__path_free(attach_list_path);
         }
         sentry__path_free(run_path);
+        sentry_value_decref(attachments);
     }
 }
 
