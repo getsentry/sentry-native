@@ -1263,8 +1263,8 @@ sentry__set_propagation_context(const char *key, sentry_value_t value)
 }
 
 void
-sentry__apply_to_telemetry(const sentry_options_t *options,
-    const sentry_scope_t *scope, sentry_value_t telemetry,
+sentry__apply_to_telemetry(const sentry_scope_t *scope,
+    const sentry_options_t *options, sentry_value_t telemetry,
     sentry_value_t attributes)
 {
     if (scope) {

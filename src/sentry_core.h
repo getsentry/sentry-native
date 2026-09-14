@@ -145,8 +145,8 @@ void sentry__set_propagation_context(const char *key, sentry_value_t value);
  * first write wins: per-call attributes already present in `attributes`, then
  * the passed `scope`, then the global scope, and finally the options.
  */
-void sentry__apply_to_telemetry(const sentry_options_t *options,
-    const sentry_scope_t *scope, sentry_value_t telemetry,
+void sentry__apply_to_telemetry(const sentry_scope_t *scope,
+    const sentry_options_t *options, sentry_value_t telemetry,
     sentry_value_t attributes);
 
 bool sentry__launch_external_crash_reporter(
