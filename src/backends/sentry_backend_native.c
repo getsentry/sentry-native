@@ -205,20 +205,21 @@ wer_register_module(uint64_t app_tid, const sentry_options_t *options)
 typedef struct {
     sentry_crash_ipc_t *ipc;
     pid_t daemon_pid;
+    sentry_path_t *run_path;
     sentry_path_t *event_path;
     sentry_path_t *breadcrumb1_path;
     sentry_path_t *breadcrumb2_path;
     sentry_path_t *envelope_path;
     size_t num_breadcrumbs;
     volatile long crashed;
+    sentry_scope_observer_t *scope_observer;
 } native_backend_state_t;
 
 static void native_backend_flush_scope(
     sentry_backend_t *backend, const sentry_options_t *options);
 static void native_backend_add_breadcrumb(sentry_backend_t *backend,
     sentry_value_t breadcrumb, const sentry_options_t *options);
-static void native_backend_add_attachment(sentry_backend_t *backend,
-    sentry_value_t attachment, const sentry_options_t *options);
+static void add_attachment(void *data, sentry_value_t attachment);
 
 static void
 native_backend_preload_scope(
@@ -229,8 +230,8 @@ native_backend_preload_scope(
         sentry_value_t attachments = sentry__scope_load_attachments(scope);
         size_t attachment_count = sentry_value_get_length(attachments);
         for (size_t i = 0; i < attachment_count; i++) {
-            native_backend_add_attachment(
-                backend, sentry_value_get_by_index(attachments, i), options);
+            add_attachment(
+                backend->data, sentry_value_get_by_index(attachments, i));
         }
         sentry_value_decref(attachments);
         breadcrumbs = sentry__scope_breadcrumbs_to_list(scope);
@@ -242,6 +243,76 @@ native_backend_preload_scope(
             backend, sentry_value_get_by_index(breadcrumbs, i), options);
     }
     sentry_value_decref(breadcrumbs);
+}
+
+/**
+ * Creates an attachment path, deriving a unique path in the run directory for
+ * buffer attachments.
+ */
+static sentry_path_t *
+make_attachment_path(const sentry_path_t *run_path, sentry_value_t attachment)
+{
+    if (!sentry__attachment_get_bytes(attachment, NULL)) {
+        return sentry__attachment_make_path(attachment);
+    }
+
+    sentry_uuid_t id = sentry__attachment_get_id(attachment);
+    const char *filename = sentry__attachment_get_filename(attachment);
+    if (!run_path || sentry_uuid_is_nil(&id)
+        || sentry__string_empty(filename)) {
+        return NULL;
+    }
+
+    char uuid[37];
+    sentry_uuid_as_string(&id, uuid);
+    sentry_path_t *dir = sentry__path_join_str(run_path, uuid);
+    sentry_path_t *path = dir ? sentry__path_join_str(dir, filename) : NULL;
+    sentry_path_t *parent = path ? sentry__path_dir(path) : NULL;
+    bool valid = parent && sentry__path_eq(parent, dir);
+    sentry__path_free(parent);
+    sentry__path_free(dir);
+    if (!valid) {
+        sentry__path_free(path);
+        return NULL;
+    }
+    return path;
+}
+
+static void
+add_attachment(void *data, sentry_value_t attachment)
+{
+    native_backend_state_t *state = (native_backend_state_t *)data;
+    if (!state) {
+        return;
+    }
+
+    // For buffer attachments, derive a path in the run directory and write to
+    // disk
+    size_t bytes_len = 0;
+    const char *bytes = sentry__attachment_get_bytes(attachment, &bytes_len);
+    if (bytes) {
+        sentry_path_t *path = make_attachment_path(state->run_path, attachment);
+        if (!path) {
+            const char *filename = sentry__attachment_get_filename(attachment);
+            SENTRY_WARNF("failed to create path for native backend attachment "
+                         "\"%s\"",
+                filename ? filename : "<unknown>");
+            return;
+        }
+        sentry_path_t *dir = sentry__path_dir(path);
+        int rv = dir ? sentry__path_create_dir_all(dir) : 1;
+        sentry__path_free(dir);
+        // Write buffer to disk
+        if (rv != 0 || sentry__path_write_buffer(path, bytes, bytes_len) != 0) {
+            SENTRY_WARNF(
+                "failed to write native backend attachment \"%s\"", path->path);
+            sentry__path_remove(path);
+        }
+        sentry__path_free(path);
+    }
+    // For file attachments, the path is already set and points to the actual
+    // file. The crash daemon will read these files from their original
+    // locations.
 }
 
 static bool
@@ -624,6 +695,7 @@ native_backend_startup(
         return 1;
     }
     backend->data = state;
+    state->run_path = sentry__path_clone(options->run->run_path);
 
     // Initialize IPC (protected by global synchronization for concurrent
     // access)
@@ -638,6 +710,7 @@ native_backend_startup(
 #endif
     if (!state->ipc) {
         SENTRY_WARN("failed to initialize crash IPC");
+        sentry__path_free(state->run_path);
         sentry_free(state);
         backend->data = NULL;
         return 1;
@@ -652,6 +725,7 @@ native_backend_startup(
             SENTRY_WARNF("failed to acquire mutex for context setup: %lu",
                 GetLastError());
             sentry__crash_ipc_free(state->ipc);
+            sentry__path_free(state->run_path);
             sentry_free(state);
             backend->data = NULL;
             return 1;
@@ -664,6 +738,7 @@ native_backend_startup(
         SENTRY_WARNF("failed to acquire semaphore for context setup: %s",
             strerror(errno));
         sentry__crash_ipc_free(state->ipc);
+        sentry__path_free(state->run_path);
         sentry_free(state);
         backend->data = NULL;
         return 1;
@@ -852,6 +927,7 @@ native_backend_startup(
         < 0) {
         SENTRY_WARN("failed to initialize crash handler");
         sentry__crash_ipc_free(state->ipc);
+        sentry__path_free(state->run_path);
         sentry_free(state);
         backend->data = NULL;
         return 1;
@@ -885,6 +961,7 @@ native_backend_startup(
 #    endif
         SENTRY_WARN("failed to start crash daemon");
         sentry__crash_ipc_free(state->ipc);
+        sentry__path_free(state->run_path);
         sentry_free(state);
         backend->data = NULL;
         return 1;
@@ -954,6 +1031,7 @@ native_backend_startup(
         }
 #    endif
         sentry__crash_ipc_free(state->ipc);
+        sentry__path_free(state->run_path);
         sentry_free(state);
         backend->data = NULL;
         return 1;
@@ -961,6 +1039,16 @@ native_backend_startup(
 #endif
 
     SENTRY_DEBUG("native backend started successfully");
+    sentry_scope_observer_t *observer = sentry__scope_observer_new();
+    if (observer) {
+        observer->data = state;
+        observer->add_attachment = add_attachment;
+        SENTRY_WITH_SCOPE_MUT_NO_FLUSH (scope) {
+            if (sentry__scope_add_observer(scope, observer)) {
+                state->scope_observer = observer;
+            }
+        }
+    }
     return 0;
 }
 
@@ -972,6 +1060,13 @@ native_backend_shutdown(sentry_backend_t *backend)
     native_backend_state_t *state = (native_backend_state_t *)backend->data;
     if (!state) {
         return;
+    }
+
+    if (state->scope_observer) {
+        SENTRY_WITH_SCOPE_MUT_NO_FLUSH (scope) {
+            sentry__scope_remove_observer(scope, state->scope_observer);
+        }
+        state->scope_observer = NULL;
     }
 
 #if defined(SENTRY_PLATFORM_WINDOWS) && !defined(SENTRY_PLATFORM_XBOX)
@@ -1100,41 +1195,9 @@ native_backend_free(sentry_backend_t *backend)
     sentry__path_free(state->breadcrumb1_path);
     sentry__path_free(state->breadcrumb2_path);
     sentry__path_free(state->envelope_path);
+    sentry__path_free(state->run_path);
 
     sentry_free(state);
-}
-
-/**
- * Creates an attachment path, deriving a unique path in the run directory for
- * buffer attachments.
- */
-static sentry_path_t *
-make_attachment_path(const sentry_path_t *run_path, sentry_value_t attachment)
-{
-    if (!sentry__attachment_get_bytes(attachment, NULL)) {
-        return sentry__attachment_make_path(attachment);
-    }
-
-    sentry_uuid_t id = sentry__attachment_get_id(attachment);
-    const char *filename = sentry__attachment_get_filename(attachment);
-    if (!run_path || sentry_uuid_is_nil(&id)
-        || sentry__string_empty(filename)) {
-        return NULL;
-    }
-
-    char uuid[37];
-    sentry_uuid_as_string(&id, uuid);
-    sentry_path_t *dir = sentry__path_join_str(run_path, uuid);
-    sentry_path_t *path = dir ? sentry__path_join_str(dir, filename) : NULL;
-    sentry_path_t *parent = path ? sentry__path_dir(path) : NULL;
-    bool valid = parent && sentry__path_eq(parent, dir);
-    sentry__path_free(parent);
-    sentry__path_free(dir);
-    if (!valid) {
-        sentry__path_free(path);
-        return NULL;
-    }
-    return path;
 }
 
 // Writes the scope's attachment list to <run>/__sentry-attachments so the
@@ -1333,42 +1396,6 @@ native_backend_add_breadcrumb(sentry_backend_t *backend,
     }
 }
 
-static void
-native_backend_add_attachment(sentry_backend_t *backend,
-    sentry_value_t attachment, const sentry_options_t *options)
-{
-    (void)backend; // Unused
-
-    // For buffer attachments, derive a path in the run directory and write to
-    // disk
-    size_t bytes_len = 0;
-    const char *bytes = sentry__attachment_get_bytes(attachment, &bytes_len);
-    if (bytes) {
-        sentry_path_t *path
-            = make_attachment_path(options->run->run_path, attachment);
-        if (!path) {
-            const char *filename = sentry__attachment_get_filename(attachment);
-            SENTRY_WARNF("failed to create path for native backend attachment "
-                         "\"%s\"",
-                filename ? filename : "<unknown>");
-            return;
-        }
-        sentry_path_t *dir = sentry__path_dir(path);
-        int rv = dir ? sentry__path_create_dir_all(dir) : 1;
-        sentry__path_free(dir);
-        // Write buffer to disk
-        if (rv != 0 || sentry__path_write_buffer(path, bytes, bytes_len) != 0) {
-            SENTRY_WARNF(
-                "failed to write native backend attachment \"%s\"", path->path);
-            sentry__path_remove(path);
-        }
-        sentry__path_free(path);
-    }
-    // For file attachments, the path is already set and points to the actual
-    // file. The crash daemon will read these files from their original
-    // locations.
-}
-
 /**
  * Handle exception - called from signal handler via sentry_handle_exception
  * This processes the event with on_crash/before_send hooks and ends the session
@@ -1541,7 +1568,6 @@ sentry__backend_new(void)
     backend->except_func = native_backend_except;
     backend->flush_scope_func = native_backend_flush_scope;
     backend->add_breadcrumb_func = native_backend_add_breadcrumb;
-    backend->add_attachment_func = native_backend_add_attachment;
     backend->user_consent_changed_func = native_backend_user_consent_changed;
     backend->process_old_run_func = native_backend_process_old_run;
     backend->can_capture_after_shutdown = false;
