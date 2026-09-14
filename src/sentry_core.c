@@ -399,7 +399,8 @@ sentry_reinstall_backend(void)
     int rv = 0;
     SENTRY_WITH_OPTIONS (options) {
         // prevent scope observers from racing with backend reinstall
-        (void)sentry__scope_lock();
+        sentry_scope_t *scope = sentry__scope_getref();
+        sentry__mutex_lock(&scope->observers_lock);
         sentry_backend_t *backend = options->backend;
         if (backend && backend->shutdown_func) {
             backend->shutdown_func(backend);
@@ -410,7 +411,8 @@ sentry_reinstall_backend(void)
                 rv = 1;
             }
         }
-        sentry__scope_unlock();
+        sentry__mutex_unlock(&scope->observers_lock);
+        sentry__scope_finish(scope, false);
     }
     return rv;
 }
