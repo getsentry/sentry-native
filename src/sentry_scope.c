@@ -1228,7 +1228,9 @@ sentry_scope_set_release_n(
     scope->data->release = sentry__string_clone_n(release, release_len);
     sentry_value_set_by_key(scope->data->dynamic_sampling_context, "release",
         sentry_value_new_string(scope->data->release));
-    SENTRY_SCOPE_NOTIFY(scope, set_release, scope->data->release);
+    sentry_value_t value = sentry_value_new_string(scope->data->release);
+    SENTRY_SCOPE_NOTIFY(scope, set_release, value);
+    sentry_value_decref(value);
 }
 
 void
@@ -1246,7 +1248,9 @@ sentry_scope_set_environment_n(
         = sentry__string_clone_n(environment, environment_len);
     sentry_value_set_by_key(scope->data->dynamic_sampling_context,
         "environment", sentry_value_new_string(scope->data->environment));
-    SENTRY_SCOPE_NOTIFY(scope, set_environment, scope->data->environment);
+    sentry_value_t value = sentry_value_new_string(scope->data->environment);
+    SENTRY_SCOPE_NOTIFY(scope, set_environment, value);
+    sentry_value_decref(value);
 }
 
 void
@@ -1268,7 +1272,9 @@ sentry_scope_set_transaction_n(
         sentry_transaction_set_name_n(
             scope->data->transaction_object, transaction, transaction_len);
     }
-    SENTRY_SCOPE_NOTIFY(scope, set_transaction, scope->data->transaction);
+    sentry_value_t value = sentry_value_new_string(scope->data->transaction);
+    SENTRY_SCOPE_NOTIFY(scope, set_transaction, value);
+    sentry_value_decref(value);
 }
 
 void
