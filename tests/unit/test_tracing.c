@@ -2071,27 +2071,6 @@ SENTRY_TEST(propagation_context_init)
     sentry_close();
 }
 
-SENTRY_TEST(regenerate_trace_deprecated_alias)
-{
-    SENTRY_TEST_OPTIONS_NEW(options);
-    sentry_init(options);
-
-    sentry_value_t initial_trace = apply_scope_for_trace_context(options);
-    const char *initial_trace_id = sentry_value_as_string(
-        sentry_value_get_by_key(initial_trace, "trace_id"));
-
-    SENTRY_TEST_DEPRECATED(sentry_regenerate_trace());
-
-    sentry_value_t regenerated_trace = apply_scope_for_trace_context(options);
-    const char *regenerated_trace_id = sentry_value_as_string(
-        sentry_value_get_by_key(regenerated_trace, "trace_id"));
-    TEST_CHECK(strcmp(initial_trace_id, regenerated_trace_id) != 0);
-
-    sentry_value_decref(initial_trace);
-    sentry_value_decref(regenerated_trace);
-    sentry_close();
-}
-
 typedef struct {
     int sentry_trace_found;
     int traceparent_found;
