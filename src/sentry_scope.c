@@ -29,9 +29,9 @@
 #endif
 
 struct sentry_scope_data_s {
-    char *release;
-    char *environment;
-    char *transaction;
+    sentry_value_t release;
+    sentry_value_t environment;
+    sentry_value_t transaction;
     sentry_value_t fingerprint;
     sentry_value_t user;
     sentry_value_t tags;
@@ -67,6 +67,13 @@ SENTRY__MUTEX_INIT_DYN(g_lock)
 #else
 static sentry_mutex_t g_lock = SENTRY__MUTEX_INIT;
 #endif
+
+#define SENTRY_SCOPE_NOTIFY_OWNED(Scope, Callback, Value)                      \
+    do {                                                                       \
+        sentry_value_t _notify_value = (Value);                                \
+        SENTRY_SCOPE_NOTIFY(Scope, Callback, _notify_value);                   \
+        sentry_value_decref(_notify_value);                                    \
+    } while (0)
 
 static sentry_value_t
 get_client_sdk(void)
@@ -105,9 +112,9 @@ get_client_sdk(void)
 static void
 init_scope_data(sentry_scope_data_t *data)
 {
-    data->release = NULL;
-    data->environment = NULL;
-    data->transaction = NULL;
+    data->release = sentry_value_new_null();
+    data->environment = sentry_value_new_null();
+    data->transaction = sentry_value_new_null();
     data->fingerprint = sentry_value_new_null();
     data->user = sentry_value_new_null();
     data->tags = sentry_value_new_object();
@@ -129,9 +136,9 @@ init_scope_data(sentry_scope_data_t *data)
 static void
 cleanup_scope_data(sentry_scope_data_t *data)
 {
-    sentry_free(data->release);
-    sentry_free(data->environment);
-    sentry_free(data->transaction);
+    sentry_value_decref(data->release);
+    sentry_value_decref(data->environment);
+    sentry_value_decref(data->transaction);
     sentry_value_decref(data->fingerprint);
     sentry_value_decref(data->user);
     sentry_value_decref(data->tags);
@@ -196,9 +203,9 @@ clone_scope_data(const sentry_scope_data_t *source)
         return NULL;
     }
 
-    clone->release = sentry__string_clone(source->release);
-    clone->environment = sentry__string_clone(source->environment);
-    clone->transaction = sentry__string_clone(source->transaction);
+    clone->release = sentry__value_clone(source->release);
+    clone->environment = sentry__value_clone(source->environment);
+    clone->transaction = sentry__value_clone(source->transaction);
     clone->fingerprint = sentry__value_clone(source->fingerprint);
     clone->user = sentry__value_clone(source->user);
     clone->tags = sentry__value_clone(source->tags);
@@ -270,9 +277,9 @@ sentry__scope_update_dsc(sentry_scope_t *scope, const sentry_options_t *options)
     sentry_value_set_by_key(dsc, "sample_rand", sample_rand);
     sentry_value_incref(sample_rand);
     sentry_value_set_by_key(
-        dsc, "release", sentry_value_new_string(scope->data->release));
+        dsc, "release", sentry_value_incref(scope->data->release));
     sentry_value_set_by_key(
-        dsc, "environment", sentry_value_new_string(scope->data->environment));
+        dsc, "environment", sentry_value_incref(scope->data->environment));
 
     scope->data->dynamic_sampling_context = dsc;
 }
@@ -564,8 +571,10 @@ sentry__scope_apply_options(sentry_scope_t *scope, sentry_options_t *options)
     }
     sentry_value_freeze(scope->data->client_sdk);
     generate_propagation_context(scope->data->propagation_context);
-    scope->data->release = sentry__string_clone(options->release);
-    scope->data->environment = sentry__string_clone(options->environment);
+    sentry__value_replace(
+        &scope->data->release, sentry_value_new_string(options->release));
+    sentry__value_replace(&scope->data->environment,
+        sentry_value_new_string(options->environment));
     sentry_value_decref(scope->data->attachments);
     scope->data->attachments = options->attachments;
     options->attachments = sentry_value_new_null();
@@ -823,6 +832,12 @@ sentry__scope_apply_to_event(const sentry_scope_t *scope,
             SET(Key, sentry_value_new_string(Source));                         \
         }                                                                      \
     } while (0)
+#define PLACE_STRING_VALUE(Key, Source)                                        \
+    do {                                                                       \
+        if (IS_NULL(Key) && sentry_value_get_length(Source) > 0) {             \
+            SET(Key, sentry_value_incref(Source));                             \
+        }                                                                      \
+    } while (0)
 #define PLACE_VALUE(Key, Source)                                               \
     do {                                                                       \
         if (IS_NULL(Key) && !sentry_value_is_null(Source)) {                   \
@@ -839,9 +854,9 @@ sentry__scope_apply_to_event(const sentry_scope_t *scope,
 
     PLACE_STRING("platform", "native");
 
-    PLACE_STRING("release", scope->data->release);
+    PLACE_STRING_VALUE("release", scope->data->release);
     PLACE_STRING("dist", options->dist);
-    PLACE_STRING("environment", scope->data->environment);
+    PLACE_STRING_VALUE("environment", scope->data->environment);
 
     // is not transaction and has no level
     if (IS_NULL("type") && IS_NULL("level")) {
@@ -866,7 +881,7 @@ sentry__scope_apply_to_event(const sentry_scope_t *scope,
         }
     }
     PLACE_CLONED_VALUE("fingerprint", scope->data->fingerprint);
-    PLACE_STRING("transaction", scope->data->transaction);
+    PLACE_STRING_VALUE("transaction", scope->data->transaction);
     PLACE_VALUE("sdk", scope->data->client_sdk);
 
     sentry_value_t event_tags = sentry_value_get_by_key(event, "tags");
@@ -958,6 +973,7 @@ sentry__scope_apply_to_event(const sentry_scope_t *scope,
 #undef PLACE_CLONED_VALUE
 #undef PLACE_VALUE
 #undef PLACE_STRING
+#undef PLACE_STRING_VALUE
 #undef SET
 #undef IS_NULL
 }
@@ -1224,13 +1240,11 @@ void
 sentry_scope_set_release_n(
     sentry_scope_t *scope, const char *release, size_t release_len)
 {
-    sentry_free(scope->data->release);
-    scope->data->release = sentry__string_clone_n(release, release_len);
+    sentry_value_t value = sentry_value_new_string_n(release, release_len);
+    sentry__value_replace(&scope->data->release, sentry_value_incref(value));
     sentry_value_set_by_key(scope->data->dynamic_sampling_context, "release",
-        sentry_value_new_string(scope->data->release));
-    sentry_value_t value = sentry_value_new_string(scope->data->release);
-    SENTRY_SCOPE_NOTIFY(scope, set_release, value);
-    sentry_value_decref(value);
+        sentry_value_incref(value));
+    SENTRY_SCOPE_NOTIFY_OWNED(scope, set_release, value);
 }
 
 void
@@ -1243,14 +1257,13 @@ void
 sentry_scope_set_environment_n(
     sentry_scope_t *scope, const char *environment, size_t environment_len)
 {
-    sentry_free(scope->data->environment);
-    scope->data->environment
-        = sentry__string_clone_n(environment, environment_len);
+    sentry_value_t value
+        = sentry_value_new_string_n(environment, environment_len);
+    sentry__value_replace(
+        &scope->data->environment, sentry_value_incref(value));
     sentry_value_set_by_key(scope->data->dynamic_sampling_context,
-        "environment", sentry_value_new_string(scope->data->environment));
-    sentry_value_t value = sentry_value_new_string(scope->data->environment);
-    SENTRY_SCOPE_NOTIFY(scope, set_environment, value);
-    sentry_value_decref(value);
+        "environment", sentry_value_incref(value));
+    SENTRY_SCOPE_NOTIFY_OWNED(scope, set_environment, value);
 }
 
 void
@@ -1264,17 +1277,15 @@ void
 sentry_scope_set_transaction_n(
     sentry_scope_t *scope, const char *transaction, size_t transaction_len)
 {
-    sentry_free(scope->data->transaction);
-    scope->data->transaction
-        = sentry__string_clone_n(transaction, transaction_len);
-
+    sentry_value_t value
+        = sentry_value_new_string_n(transaction, transaction_len);
+    sentry__value_replace(
+        &scope->data->transaction, sentry_value_incref(value));
     if (scope->data->transaction_object) {
         sentry_transaction_set_name_n(
             scope->data->transaction_object, transaction, transaction_len);
     }
-    sentry_value_t value = sentry_value_new_string(scope->data->transaction);
-    SENTRY_SCOPE_NOTIFY(scope, set_transaction, value);
-    sentry_value_decref(value);
+    SENTRY_SCOPE_NOTIFY_OWNED(scope, set_transaction, value);
 }
 
 void
@@ -1589,24 +1600,19 @@ sentry__scope_restore_span(sentry_scope_t *scope, sentry_span_t *span)
 sentry_value_t
 sentry__scope_ref_release(const sentry_scope_t *scope)
 {
-    return scope->data->release ? sentry_value_new_string(scope->data->release)
-                                : sentry_value_new_null();
+    return sentry_value_incref(scope->data->release);
 }
 
 sentry_value_t
 sentry__scope_ref_environment(const sentry_scope_t *scope)
 {
-    return scope->data->environment
-        ? sentry_value_new_string(scope->data->environment)
-        : sentry_value_new_null();
+    return sentry_value_incref(scope->data->environment);
 }
 
 sentry_value_t
 sentry__scope_ref_transaction(const sentry_scope_t *scope)
 {
-    return scope->data->transaction
-        ? sentry_value_new_string(scope->data->transaction)
-        : sentry_value_new_null();
+    return sentry_value_incref(scope->data->transaction);
 }
 
 sentry_uuid_t
@@ -1760,14 +1766,14 @@ sentry__scope_apply_to_telemetry(const sentry_scope_t *scope,
                 attributes, os_version, "string", "os.version");
         }
     }
-    if (scope->data->environment) {
+    if (!sentry_value_is_null(scope->data->environment)) {
         sentry__value_add_attribute(attributes,
-            sentry_value_new_string(scope->data->environment), "string",
+            sentry_value_incref(scope->data->environment), "string",
             "sentry.environment");
     }
-    if (scope->data->release) {
+    if (!sentry_value_is_null(scope->data->release)) {
         sentry__value_add_attribute(attributes,
-            sentry_value_new_string(scope->data->release), "string",
+            sentry_value_incref(scope->data->release), "string",
             "sentry.release");
     }
 }
