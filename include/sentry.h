@@ -2894,14 +2894,17 @@ SENTRY_API void sentry_set_trace_n(const char *trace_id, size_t trace_id_len,
  * the propagation context. Use this to set a trace boundary for
  * events/transactions.
  *
- * Once you regenerate a trace manually, transactions no longer act as automatic
+ * Once you start a new trace manually, transactions no longer act as automatic
  * trace boundaries. This means all following transactions will be part of the
- * same trace until you regenerate the trace again.
+ * same trace until you start a new trace again.
  *
  * We urge you not to use this function if you use the Native SDK in the context
  * of a downstream SDK like Android, .NET, Unity, or Unreal, because it will
  * interfere with cross-SDK traces which are managed by these SDKs.
  */
+SENTRY_API void sentry_start_new_trace(void);
+
+SENTRY_DEPRECATED("Use `sentry_start_new_trace` instead")
 SENTRY_API void sentry_regenerate_trace(void);
 
 /**

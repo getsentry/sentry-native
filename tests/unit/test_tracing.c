@@ -293,8 +293,8 @@ SENTRY_TEST(transport_sampling_transactions_set_trace)
 
     uint64_t sent_transactions = 0;
     for (int i = 0; i < 100; i++) {
-        // regenerate trace to re-roll `sample_rand`
-        sentry_regenerate_trace();
+        // start a new trace to re-roll `sample_rand`
+        sentry_start_new_trace();
         sentry_transaction_context_t *tx_ctx
             = sentry_transaction_context_new("honk", "beep");
         sentry_transaction_t *tx
@@ -2034,7 +2034,7 @@ SENTRY_TEST(propagation_context_init)
     apply_scope_and_check_trace_context(options, tx_trace_id, "", true);
 
     // now manually generate a new trace which should be different from before
-    sentry_regenerate_trace();
+    sentry_start_new_trace();
     sentry_value_t regenerated_trace = apply_scope_for_trace_context(options);
     char *regenerated_trace_id = sentry__string_clone(sentry_value_as_string(
         sentry_value_get_by_key(regenerated_trace, "trace_id")));
