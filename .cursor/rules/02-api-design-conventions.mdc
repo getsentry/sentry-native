@@ -1,0 +1,150 @@
+# API Design & Coding Conventions
+
+## Naming Conventions
+
+**Public API Functions:**
+- All public functions start with `sentry_`
+- Use snake_case: `sentry_capture_event()`, `sentry_options_new()`
+- Experimental APIs: `SENTRY_EXPERIMENTAL_API` attribute
+- Deprecated APIs: `SENTRY_DEPRECATED("message")` attribute
+
+**Internal Functions:**
+- Private functions use `sentry__` (double underscore): `sentry__scope_lock()`
+- Static functions can omit prefix within compilation units
+- Platform-specific suffixes: `_windows`, `_unix`, `_darwin`
+
+**Types and Constants:**
+- Types: `sentry_value_t`, `sentry_options_t` (typedef structs)
+- Enums: `SENTRY_LEVEL_ERROR`, `SENTRY_VALUE_TYPE_STRING`
+- Constants: `SENTRY_SDK_VERSION`, `SENTRY_BREADCRUMBS_MAX`
+
+## Memory Management Patterns
+
+**Reference Counting:**
+```c
+// Values use ref counting - always match incref/decref
+sentry_value_t val = sentry_value_new_string("hello"); // starts at ref count 1
+sentry_value_incref(val);  // Optional increment
+sentry_value_decref(val);  // Required decrement
+
+// Ownership transfer functions consume references
+sentry_value_append(list, val);  // `val` is consumed, don't decref
+```
+
+**Allocation Helpers:**
+```c
+// Use typed allocation macro
+my_struct_t *obj = SENTRY_MAKE(my_struct_t);
+if (!obj) return NULL;  // Always check allocation failures
+
+// Custom allocator for signal safety
+#ifdef WITH_PAGE_ALLOCATOR
+    if (sentry__page_allocator_enabled()) {
+        return sentry__page_allocator_alloc(size);
+    }
+#endif
+```
+
+## Error Handling Patterns
+
+**Return Value Conventions:**
+- `0` = success, non-zero = failure (for int returns)
+- `NULL` = failure for pointer returns
+- `sentry_value_new_null()` = failure for sentry_value_t returns
+
+**Error Propagation:**
+```c
+static int
+example_function(void) {
+    thing_t *thing = allocate_thing();
+    if (!thing) {
+        goto fail;  // Use goto for cleanup
+    }
+
+    if (setup_thing(thing) != 0) {
+        goto fail;
+    }
+
+    return 0;  // Success
+
+fail:
+    cleanup_thing(thing);  // Clean up on failure
+    return 1;  // Failure
+}
+```
+
+## Thread Safety Requirements
+
+**Mutex Usage:**
+```c
+// Use dynamic mutex initialization for cross-platform support
+#ifdef SENTRY__MUTEX_INIT_DYN
+SENTRY__MUTEX_INIT_DYN(g_lock)
+#else
+static sentry_mutex_t g_lock = SENTRY__MUTEX_INIT;
+#endif
+
+// Always use RAII-style locking
+sentry_scope_t *scope = sentry__scope_lock();
+// ... use scope
+sentry__scope_unlock();
+```
+
+**Atomic Operations:**
+```c
+// Use atomic operations for lock-free operations
+sentry__atomic_fetch_and_add(&thing->refcount, 1);
+```
+
+## Platform Abstraction
+
+**Conditional Compilation:**
+```c
+#ifdef SENTRY_PLATFORM_WINDOWS
+    // Windows-specific code
+#elif defined(SENTRY_PLATFORM_DARWIN)
+    // macOS/iOS-specific code
+#elif defined(SENTRY_PLATFORM_UNIX)
+    // Unix-like systems
+#endif
+```
+
+**Feature Detection:**
+```c
+#ifdef SENTRY_BACKEND_CRASHPAD
+#    define SENTRY_BACKEND "crashpad"
+#elif defined(SENTRY_BACKEND_BREAKPAD)
+#    define SENTRY_BACKEND "breakpad"
+#endif
+```
+
+## Value System Architecture
+
+The core `sentry_value_t` uses **tagged pointers** for efficient storage:
+- Supports: null, bool, int32, double, string, list, object
+- Automatic memory management with reference counting
+- Immutable when frozen (thread-safe sharing)
+
+**Value Creation Patterns:**
+```c
+// Prefer stack allocation for simple values
+sentry_value_t obj = sentry_value_new_object();
+sentry_value_set_by_key(obj, "key", sentry_value_new_string("value"));
+
+// Use size hints for performance
+sentry_value_t list = sentry__value_new_list_with_size(expected_size);
+```
+
+## String Handling
+
+**Safe String Operations:**
+```c
+// Always use length-aware functions
+char *str = sentry__string_clone_n(input, input_len);
+
+// Use slices for borrowed strings
+sentry_slice_t slice = sentry__slice_from_str(str);
+char *owned = sentry__slice_to_owned(slice);
+```
+
+See [sentry.h](mdc:include/sentry.h) for the complete public API and [src/sentry_value.h](mdc:src/sentry_value.h) for internal patterns.
