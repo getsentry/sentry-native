@@ -1379,7 +1379,7 @@ sentry_set_trace_n(const char *trace_id, size_t trace_id_len,
 }
 
 void
-sentry_regenerate_trace(void)
+sentry_start_new_trace(void)
 {
     SENTRY_WITH_OPTIONS (options) {
         SENTRY_WITH_SCOPE_MUT (scope) {
@@ -1388,6 +1388,12 @@ sentry_regenerate_trace(void)
             sentry__scope_update_dsc(scope, options);
         }
     }
+}
+
+void
+sentry_regenerate_trace(void)
+{
+    sentry_start_new_trace();
 }
 
 void
