@@ -37,7 +37,7 @@ typedef struct sentry_scope_observer_s {
 
     void (*add_breadcrumb)(void *data, sentry_value_t breadcrumb);
 
-    void (*set_tag)(void *data, const char *key, const char *value);
+    void (*set_tag)(void *data, const char *key, sentry_value_t value);
     void (*remove_tag)(void *data, const char *key);
 
     void (*set_extra)(void *data, const char *key, sentry_value_t value);
@@ -48,6 +48,8 @@ typedef struct sentry_scope_observer_s {
 
     void (*add_attachment)(void *data, sentry_value_t attachment);
     void (*remove_attachment)(void *data, sentry_value_t attachment);
+
+    void (*set_trace)(void *data, sentry_value_t trace);
 } sentry_scope_observer_t;
 
 typedef struct sentry_scope_data_s sentry_scope_data_t;

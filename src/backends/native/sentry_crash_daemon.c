@@ -364,121 +364,15 @@ attachment_is_placeholder(const sentry_options_t *options, const char *path)
     return is_placeholder;
 }
 
-/**
- * Reads a legacy JSON attachment manifest (TODO: remove in 1.0)
- */
-static sentry_value_t
-read_legacy_manifest(const sentry_path_t *manifest_path)
-{
-    size_t buf_len = 0;
-    char *buf = sentry__path_read_to_buffer(manifest_path, &buf_len);
-    if (!buf) {
-        return sentry_value_new_list();
-    }
-
-    const char *start = buf;
-    const char *end = buf + buf_len;
-    while (start < end
-        && (*start == ' ' || *start == '\t' || *start == '\r'
-            || *start == '\n')) {
-        start++;
-    }
-    const char *trimmed_end = end;
-    while (trimmed_end > start
-        && (trimmed_end[-1] == ' ' || trimmed_end[-1] == '\t'
-            || trimmed_end[-1] == '\r' || trimmed_end[-1] == '\n')) {
-        trimmed_end--;
-    }
-    sentry_value_t legacy
-        = start < trimmed_end && *start == '[' && trimmed_end[-1] == ']'
-        ? sentry__value_from_json(start, (size_t)(trimmed_end - start))
-        : sentry_value_new_null();
-    sentry_free(buf);
-    if (sentry_value_get_type(legacy) != SENTRY_VALUE_TYPE_LIST) {
-        sentry_value_decref(legacy);
-        return sentry_value_new_null();
-    }
-
-    sentry_value_t attachments = sentry_value_new_list();
-    size_t len = sentry_value_get_length(legacy);
-    for (size_t i = 0; i < len; i++) {
-        sentry_value_t info = sentry_value_get_by_index(legacy, i);
-        const char *path
-            = sentry_value_as_string(sentry_value_get_by_key(info, "path"));
-        const char *filename
-            = sentry_value_as_string(sentry_value_get_by_key(info, "filename"));
-        if (sentry__string_empty(path) || sentry__string_empty(filename)) {
-            continue;
-        }
-        sentry_value_t attachment = sentry__attachment_from_file(path);
-        if (sentry_value_is_null(attachment)) {
-            continue;
-        }
-        sentry_attachment_set_filename(attachment, filename);
-        sentry_attachment_set_type(attachment,
-            sentry_value_as_string(
-                sentry_value_get_by_key(info, "attachment_type")));
-        sentry_attachment_set_content_type(attachment,
-            sentry_value_as_string(
-                sentry_value_get_by_key(info, "content_type")));
-        sentry_value_append(attachments, attachment);
-    }
-    sentry_value_decref(legacy);
-    return attachments;
-}
-
-static sentry_value_t
-read_attachment_manifest(const sentry_path_t *run_folder)
-{
-    sentry_path_t *path
-        = sentry__path_join_str(run_folder, "__sentry-attachments");
-    if (!path) {
-        return sentry_value_new_null();
-    }
-    sentry_value_t attachments = sentry__read_attachment_manifest(path);
-    if (sentry_value_is_null(attachments)) {
-        attachments = read_legacy_manifest(path);
-    }
-    sentry__path_free(path);
-    return attachments;
-}
-
-static void
-write_attachments_from_manifest(
-    int fd, const sentry_options_t *options, const sentry_path_t *run_folder)
-{
-    sentry_value_t attachments = read_attachment_manifest(run_folder);
-    size_t len = sentry_value_get_length(attachments);
-    for (size_t i = 0; i < len; i++) {
-        sentry_value_t attachment = sentry_value_get_by_index(attachments, i);
-        const char *path = sentry__attachment_get_path(attachment);
-        if (!attachment_is_placeholder(options, path)) {
-            write_attachment_to_envelope(fd, path,
-                sentry__attachment_get_filename(attachment),
-                sentry__attachment_get_type(attachment),
-                sentry__attachment_get_content_type(attachment));
-        }
-    }
-    sentry_value_decref(attachments);
-}
-
-// For each large attachment listed in `<run_folder>/__sentry-attachments`,
-// cache it as an attachment-ref item. Small attachments were already inlined
-// during envelope writing.
+// cache large staged attachments as attachment-ref items
 static void
 add_attachment_refs(sentry_envelope_t *envelope,
-    const sentry_options_t *options, const sentry_path_t *run_folder)
+    const sentry_options_t *options, sentry_value_t list)
 {
     if (!envelope || !options || !options->run
-        || !options->enable_large_attachments || !run_folder) {
+        || !options->enable_large_attachments) {
         return;
     }
-    sentry_value_t list = read_attachment_manifest(run_folder);
-    if (sentry_value_is_null(list)) {
-        SENTRY_WARN("Failed to parse attachment manifest");
-        return;
-    }
-
     bool materialized = false;
     size_t len = sentry_value_get_length(list);
     for (size_t i = 0; i < len; i++) {
@@ -496,7 +390,6 @@ add_attachment_refs(sentry_envelope_t *envelope,
             SENTRY_WARN("failed to cache attachment-ref");
         }
     }
-    sentry_value_decref(list);
 }
 
 #if defined(SENTRY_PLATFORM_UNIX)
@@ -3323,64 +3216,6 @@ build_stacktrace_from_ctx(const sentry_crash_context_t *ctx)
     return build_stacktrace_for_thread(ctx, SIZE_MAX);
 }
 
-/**
- * Reads one breadcrumb ring file the crashing process appended on its hot path
- * into a breadcrumb list. Returns null if the file is absent or empty.
- */
-static sentry_value_t
-read_breadcrumb_ring_file(const sentry_path_t *run_folder, const char *name)
-{
-    if (!run_folder) {
-        return sentry_value_new_null();
-    }
-    sentry_path_t *path = sentry__path_join_str(run_folder, name);
-    if (!path) {
-        return sentry_value_new_null();
-    }
-    size_t size = 0;
-    char *buf = sentry__path_read_to_buffer(path, &size);
-    sentry__path_free(path);
-    if (!buf || size == 0) {
-        sentry_free(buf);
-        return sentry_value_new_null();
-    }
-    sentry_value_t list = sentry__value_from_msgpack_stream(buf, size);
-    sentry_free(buf);
-    return list;
-}
-
-/**
- * Assembles the crash event's breadcrumbs from the two ring files the crashing
- * process appended one-at-a-time, merges them in timestamp order, keeps the
- * newest `max_breadcrumbs`, and attaches them to `event`.
- * Mirrors the crashpad backend's `report_to_envelope`.
- */
-static void
-apply_breadcrumbs_from_ring_files(sentry_value_t event,
-    const sentry_path_t *run_folder, const sentry_crash_context_t *ctx)
-{
-    if (ctx && ctx->max_breadcrumbs == 0) {
-        return;
-    }
-
-    sentry_value_t b1
-        = read_breadcrumb_ring_file(run_folder, "__sentry-breadcrumb1");
-    sentry_value_t b2
-        = read_breadcrumb_ring_file(run_folder, "__sentry-breadcrumb2");
-    size_t max = ctx && ctx->max_breadcrumbs ? ctx->max_breadcrumbs
-                                             : SENTRY_BREADCRUMBS_MAX;
-    sentry_value_t merged = sentry__value_merge_breadcrumbs(b1, b2, max);
-    sentry_value_decref(b1);
-    sentry_value_decref(b2);
-    // Overwrite any breadcrumbs the base event may carry: the ring files are
-    // the single source of truth, so this is idempotent and never duplicates.
-    if (sentry_value_get_type(merged) == SENTRY_VALUE_TYPE_LIST) {
-        sentry_value_set_by_key(event, "breadcrumbs", merged);
-    } else {
-        sentry_value_decref(merged);
-    }
-}
-
 #if defined(SENTRY_PLATFORM_WINDOWS)
 static bool
 is_wer_done(const sentry_crash_context_t *ctx)
@@ -3417,40 +3252,18 @@ apply_wer_context(sentry_value_t event, const sentry_crash_context_t *ctx)
  * Build a native event and set the level, mechanism, and handled state
  *
  * @param ctx Crash context
- * @param event_file_path Path to base event file from parent process
- * @param run_folder Run directory holding the breadcrumb ring files
+ * @param base Staged event received from the parent process
  * @param level Event level (e.g. "fatal")
  * @param mechanism_type Exception mechanism type (e.g. "signalhandler")
  * @param handled Whether the mechanism was handled
  */
 static sentry_value_t
-build_native_event(const sentry_crash_context_t *ctx,
-    const char *event_file_path, const sentry_path_t *run_folder,
+build_native_event(const sentry_crash_context_t *ctx, sentry_value_t base,
     const char *level, const char *mechanism_type, bool handled)
 {
-    // Read base event from parent's file
-    sentry_value_t event = sentry_value_new_null();
-    if (!sentry__string_empty(event_file_path)) {
-        sentry_path_t *ev_path = sentry__path_from_str(event_file_path);
-        if (ev_path) {
-            size_t event_size = 0;
-            char *event_json
-                = sentry__path_read_to_buffer(ev_path, &event_size);
-            sentry__path_free(ev_path);
-            if (event_json && event_size > 0) {
-                event = sentry__value_from_json(event_json, event_size);
-                sentry_free(event_json);
-            }
-        }
-    }
+    sentry_value_t event = sentry__value_clone(base);
+    sentry__ensure_event_id(event, NULL);
 
-    if (sentry_value_is_null(event)) {
-        event = sentry_value_new_event();
-    } else {
-        sentry__ensure_event_id(event, NULL);
-    }
-
-    apply_breadcrumbs_from_ring_files(event, run_folder, ctx);
 #if defined(SENTRY_PLATFORM_WINDOWS)
     apply_wer_context(event, ctx);
 #endif
@@ -3821,14 +3634,14 @@ build_native_event(const sentry_crash_context_t *ctx,
 static bool
 write_envelope_with_native_stacktrace(const sentry_options_t *options,
     const char *envelope_path, const sentry_crash_context_t *ctx,
-    const char *event_file_path, const char *minidump_path,
-    sentry_path_t *run_folder)
+    sentry_value_t base, const char *minidump_path, sentry_path_t *run_folder,
+    sentry_value_t attachments)
 {
     // Build native crash event (always include threads with names)
     SENTRY_DEBUGF("write_envelope_with_native_stacktrace: minidump_path=%s",
         minidump_path ? minidump_path : "(null)");
-    sentry_value_t event = build_native_event(
-        ctx, event_file_path, run_folder, "fatal", "signalhandler", false);
+    sentry_value_t event
+        = build_native_event(ctx, base, "fatal", "signalhandler", false);
 
     // Serialize event to JSON
     size_t event_size = 0;
@@ -3984,9 +3797,27 @@ write_envelope_with_native_stacktrace(const sentry_options_t *options,
         }
     }
 
-    // Add scope attachments using metadata file
-    if (run_folder) {
-        write_attachments_from_manifest(fd, options, run_folder);
+    size_t len = sentry_value_get_length(attachments);
+    for (size_t i = 0; i < len; i++) {
+        sentry_value_t attach_info = sentry_value_get_by_index(attachments, i);
+        sentry_value_t path_val = sentry_value_get_by_key(attach_info, "path");
+        sentry_value_t filename_val
+            = sentry_value_get_by_key(attach_info, "filename");
+        sentry_value_t attachment_type_val
+            = sentry_value_get_by_key(attach_info, "attachment_type");
+        sentry_value_t content_type_val
+            = sentry_value_get_by_key(attach_info, "content_type");
+
+        const char *path = sentry_value_as_string(path_val);
+        const char *filename = sentry_value_as_string(filename_val);
+        const char *attachment_type
+            = sentry_value_as_string(attachment_type_val);
+        const char *content_type = sentry_value_as_string(content_type_val);
+
+        if (path && filename && !attachment_is_placeholder(options, path)) {
+            write_attachment_to_envelope(
+                fd, path, filename, attachment_type, content_type);
+        }
     }
 
     // Add screenshot attachment if captured by the daemon
@@ -4027,49 +3858,21 @@ write_envelope_with_native_stacktrace(const sentry_options_t *options,
 static bool
 write_envelope_with_minidump(const sentry_options_t *options,
     const sentry_crash_context_t *ctx, const char *envelope_path,
-    const char *event_msgpack_path, const char *minidump_path,
-    sentry_path_t *run_folder)
+    sentry_value_t base, const char *minidump_path, sentry_path_t *run_folder,
+    sentry_value_t attachments)
 {
-    // Read the base event, merge in the breadcrumbs from the ring files,
-    // re-serialize.
-    size_t event_size = 0;
-    char *event_json = NULL;
-    char *event_id = NULL;
-    sentry_path_t *ev_path = sentry__path_from_str(event_msgpack_path);
-    if (ev_path) {
-        size_t base_size = 0;
-        char *base_json = sentry__path_read_to_buffer(ev_path, &base_size);
-        sentry__path_free(ev_path);
-        if (base_json && base_size > 0) {
-            sentry_value_t event
-                = sentry__value_from_json(base_json, base_size);
-            if (sentry_value_is_null(event)) {
-                // Parsing the base event failed (e.g. truncated buffer or
-                // OOM). Don't serialize the null into "null" and ship an
-                // invalid payload - fall back to streaming the raw event
-                // bytes verbatim so the crash report is preserved.
-                sentry_value_decref(event);
-                event_json = sentry__string_clone_n(base_json, base_size);
-                event_size = event_json ? base_size : 0;
-            } else {
-                apply_breadcrumbs_from_ring_files(event, run_folder, ctx);
+    sentry_value_t event = sentry__value_clone(base);
 #if defined(SENTRY_PLATFORM_WINDOWS)
-                apply_wer_context(event, ctx);
+    apply_wer_context(event, ctx);
 #endif
-                event_id = sentry__string_clone(sentry_value_as_string(
-                    sentry_value_get_by_key(event, "event_id")));
-                event_json = sentry__value_to_json(event, &event_size);
-                sentry_value_decref(event);
-                if (!event_json) {
-                    // Re-serialization failed (e.g. OOM). Fall back to the raw
-                    // event bytes so the crash report is preserved, losing only
-                    // the merged breadcrumbs rather than the whole event.
-                    event_json = sentry__string_clone_n(base_json, base_size);
-                    event_size = event_json ? base_size : 0;
-                }
-            }
-        }
-        sentry_free(base_json);
+    size_t event_size = 0;
+    char *event_json = sentry__value_to_json(event, &event_size);
+    char *event_id = sentry__string_clone(
+        sentry_value_as_string(sentry_value_get_by_key(event, "event_id")));
+    sentry_value_decref(event);
+    if (!event_json) {
+        sentry_free(event_id);
+        return false;
     }
 
     // Open envelope file for writing
@@ -4214,9 +4017,27 @@ write_envelope_with_minidump(const sentry_options_t *options,
 #endif
     }
 
-    // Add scope attachments using metadata file
-    if (run_folder) {
-        write_attachments_from_manifest(fd, options, run_folder);
+    size_t len = sentry_value_get_length(attachments);
+    for (size_t i = 0; i < len; i++) {
+        sentry_value_t attach_info = sentry_value_get_by_index(attachments, i);
+        sentry_value_t path_val = sentry_value_get_by_key(attach_info, "path");
+        sentry_value_t filename_val
+            = sentry_value_get_by_key(attach_info, "filename");
+        sentry_value_t attachment_type_val
+            = sentry_value_get_by_key(attach_info, "attachment_type");
+        sentry_value_t content_type_val
+            = sentry_value_get_by_key(attach_info, "content_type");
+
+        const char *path = sentry_value_as_string(path_val);
+        const char *filename = sentry_value_as_string(filename_val);
+        const char *attachment_type
+            = sentry_value_as_string(attachment_type_val);
+        const char *content_type = sentry_value_as_string(content_type_val);
+
+        if (path && filename && !attachment_is_placeholder(options, path)) {
+            write_attachment_to_envelope(
+                fd, path, filename, attachment_type, content_type);
+        }
     }
 
     // Add screenshot attachment if captured by the daemon
@@ -4256,6 +4077,39 @@ write_envelope_with_minidump(const sentry_options_t *options,
  *
  * Called by the crash daemon (out-of-process on Linux/macOS).
  */
+#if defined(SENTRY_PLATFORM_WINDOWS)
+// Sentry's symbolicator needs `contexts.device.arch` to process PE modules. If
+// the scope already carries a device context with arch (host SDKs like Unity
+// provide one), leave it; otherwise synthesize a minimal one so native-only
+// consumers still symbolicate.
+static void
+ensure_device_arch(sentry_value_t event)
+{
+    sentry_value_t contexts = sentry_value_get_by_key(event, "contexts");
+    if (sentry_value_is_null(contexts)) {
+        contexts = sentry_value_new_object();
+        sentry_value_set_by_key(event, "contexts", contexts);
+    }
+    sentry_value_t device = sentry_value_get_by_key(contexts, "device");
+    if (sentry_value_is_null(device)) {
+        device = sentry_value_new_object();
+        sentry_value_set_by_key(
+            device, "type", sentry_value_new_string("device"));
+        sentry_value_set_by_key(contexts, "device", device);
+    }
+    if (!sentry_value_is_null(sentry_value_get_by_key(device, "arch"))) {
+        return;
+    }
+#    if defined(_M_AMD64)
+    sentry_value_set_by_key(device, "arch", sentry_value_new_string("x86_64"));
+#    elif defined(_M_IX86)
+    sentry_value_set_by_key(device, "arch", sentry_value_new_string("x86"));
+#    elif defined(_M_ARM64)
+    sentry_value_set_by_key(device, "arch", sentry_value_new_string("arm64"));
+#    endif
+}
+#endif
+
 bool
 sentry__process_crash(const sentry_options_t *options, sentry_crash_ipc_t *ipc)
 {
@@ -4335,33 +4189,11 @@ sentry__process_crash(const sentry_options_t *options, sentry_crash_ipc_t *ipc)
         goto done;
     }
 
-    // Get event file path from context
-    const char *event_path = ctx->event_path[0] ? ctx->event_path : NULL;
-    SENTRY_DEBUGF(
-        "Event path from context: %s", event_path ? event_path : "(null)");
-    if (!event_path) {
-        SENTRY_WARN("No event file from parent");
-        if (minidump_path[0]) {
-            // Delete the orphaned minidump to prevent disk space leaks
-#if defined(SENTRY_PLATFORM_UNIX)
-            unlink(minidump_path);
-#elif defined(SENTRY_PLATFORM_WINDOWS)
-            wchar_t *wpath = sentry__string_to_wstr(minidump_path);
-            if (wpath) {
-                _wunlink(wpath);
-                sentry_free(wpath);
-            }
+    sentry_value_t base = sentry__crash_scope_event(&ipc->scope);
+#if defined(SENTRY_PLATFORM_WINDOWS)
+    ensure_device_arch(base);
 #endif
-        }
-        ctx->minidump_path[0] = '\0';
-        goto done;
-    }
-
-    // Extract run folder path from event path (event is at
-    // run_folder/__sentry-event)
-    SENTRY_DEBUG("Extracting run folder from event path");
-    sentry_path_t *ev_path = sentry__path_from_str(event_path);
-    sentry_path_t *run_folder = ev_path ? sentry__path_dir(ev_path) : NULL;
+    sentry_path_t *run_folder = sentry__path_from_str(ctx->run_path);
 
     // The crashing process dumps its pending logs, sessions, and transactions
     // before notifying the daemon. Queue those before writing the crash
@@ -4379,7 +4211,7 @@ sentry__process_crash(const sentry_options_t *options, sentry_crash_ipc_t *ipc)
 
     if (path_len < 0 || path_len >= (int)sizeof(envelope_path)) {
         SENTRY_WARN("Envelope path truncated or invalid");
-        sentry__path_free(ev_path);
+        sentry_value_decref(base);
         if (run_folder) {
             sentry__path_free(run_folder);
         }
@@ -4487,18 +4319,19 @@ sentry__process_crash(const sentry_options_t *options, sentry_crash_ipc_t *ipc)
                       "minidump_path=%s",
             minidump_path[0] ? minidump_path : "NULL");
         envelope_written = write_envelope_with_native_stacktrace(options,
-            envelope_path, ctx, event_path,
-            minidump_path[0] ? minidump_path : NULL, run_folder);
+            envelope_path, ctx, base, minidump_path[0] ? minidump_path : NULL,
+            run_folder, ipc->scope.attachments);
     } else {
         // Mode 0 (MINIDUMP only)
         SENTRY_DEBUG("Writing envelope with minidump");
-        envelope_written = write_envelope_with_minidump(
-            options, ctx, envelope_path, event_path, minidump_path, run_folder);
+        envelope_written
+            = write_envelope_with_minidump(options, ctx, envelope_path, base,
+                minidump_path, run_folder, ipc->scope.attachments);
     }
 
     if (!envelope_written) {
         SENTRY_WARN("Failed to write envelope");
-        sentry__path_free(ev_path);
+        sentry_value_decref(base);
         if (run_folder) {
             sentry__path_free(run_folder);
         }
@@ -4548,7 +4381,7 @@ sentry__process_crash(const sentry_options_t *options, sentry_crash_ipc_t *ipc)
         goto cleanup;
     }
 
-    add_attachment_refs(envelope, options, run_folder);
+    add_attachment_refs(envelope, options, ipc->scope.attachments);
 
     bool has_attachment_refs = sentry__envelope_has_content_type(
         envelope, SENTRY_ATTACHMENT_REF_MIME);
@@ -4590,36 +4423,14 @@ sentry__process_crash(const sentry_options_t *options, sentry_crash_ipc_t *ipc)
     }
 
 cleanup:
-    // Send the staged session-replay envelope same-session, enriched from the
-    // crash event (`<run>/__sentry-event`) so it shares the crash's
-    // tags/contexts/trace and embeds its breadcrumbs. Only flush when the
-    // crash itself was delivered: `cleanup` is also reached via `goto` on
-    // error paths where the crash was never captured, and flushing there
-    // would consume (and delete) the staged replay for a crash that never
-    // arrived.
+    // flush replay only after the crash itself was captured
     if (crash_captured && options && options->transport
         && sentry__session_replay_has_pending(options)) {
-        sentry_value_t crash_event = sentry_value_new_null();
-        if (ev_path) {
-            size_t ev_len = 0;
-            char *ev_json = sentry__path_read_to_buffer(ev_path, &ev_len);
-            if (ev_json) {
-                crash_event = sentry__value_from_json(ev_json, ev_len);
-                sentry_free(ev_json);
-            }
-        }
-        if (!sentry_value_is_null(crash_event)) {
-            // `__sentry-event` is scope-applied without breadcrumbs; merge
-            // the ring files so the replay recording can embed them
-            apply_breadcrumbs_from_ring_files(crash_event, run_folder, ctx);
-        }
-        sentry__session_replay_flush_pending(
-            options, options->transport, crash_event);
-        sentry_value_decref(crash_event);
+        sentry__session_replay_flush_pending(options, options->transport, base);
     }
 
     sentry__path_free(run_folder);
-    sentry__path_free(ev_path);
+    sentry_value_decref(base);
 
     SENTRY_DEBUG("Crash processing completed successfully");
 
@@ -4896,6 +4707,16 @@ sentry__crash_daemon_main(pid_t app_pid, uint64_t app_tid, HANDLE event_handle,
     ipc->parent_handle = app_pid;
 #endif
 
+    if (!sentry__crash_scope_init(&ipc->scope, ipc->shmem->max_breadcrumbs)) {
+        sentry__crash_ipc_free(ipc);
+        sentry_options_free(options);
+        if (log_file) {
+            sentry__logger_disable();
+            fclose(log_file);
+        }
+        return 1;
+    }
+
     // Signal to parent that daemon is ready
     SENTRY_DEBUG("Signaling ready to parent");
     sentry__crash_ipc_signal_ready(ipc);
@@ -4923,8 +4744,8 @@ sentry__crash_daemon_main(pid_t app_pid, uint64_t app_tid, HANDLE event_handle,
     bool crash_processed = false;
     while (true) {
         // Wait for crash notification (with timeout to check parent health)
-        bool wait_result
-            = sentry__crash_ipc_wait(ipc, SENTRY_CRASH_DAEMON_WAIT_TIMEOUT_MS);
+        bool wait_result = sentry__crash_ipc_receive(
+            ipc, SENTRY_CRASH_DAEMON_WAIT_TIMEOUT_MS);
         if (wait_result) {
             // Crash occurred!
             SENTRY_DEBUG("Event signaled, checking crash state");
@@ -4959,8 +4780,18 @@ sentry__crash_daemon_main(pid_t app_pid, uint64_t app_tid, HANDLE event_handle,
             SENTRY_DEBUG("Spurious notification or already processed");
         }
 
+        if (ipc->scope.stopped) {
+            break;
+        }
+        if (ipc->message_closed) {
+            // retain legacy WER notifications after the app closes its stream
+            ipc->notify_pending = sentry__crash_ipc_wait(
+                ipc, SENTRY_CRASH_DAEMON_WAIT_TIMEOUT_MS);
+        }
+
         // Check if parent is still alive (only if no crash processed yet)
-        if (!crash_processed && !is_parent_alive(ipc->parent_handle)) {
+        if (!crash_processed && !ipc->notify_pending
+            && !is_parent_alive(ipc->parent_handle)) {
             SENTRY_DEBUG("Parent process exited without crash");
             break;
         }
