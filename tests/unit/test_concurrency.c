@@ -310,10 +310,11 @@ typedef struct {
     sentry_mutex_t lock;
     sentry_cond_t access_signal;
     sentry_cond_t cleanup_signal;
-    bool access_started;
+    size_t accesses;
     bool release_access;
     bool cleanup_started;
     bool cleanup_finished;
+    sentry_level_t level;
 } scope_cleanup_state_t;
 
 SENTRY_THREAD_FN
@@ -323,14 +324,19 @@ scope_access_thread(void *data)
     sentry_scope_t *scope = sentry__scope_getref();
 
     sentry__mutex_lock(&state->lock);
-    state->access_started = true;
-    sentry__cond_wake(&state->access_signal);
+    state->accesses++;
+    state->level = sentry__scope_get_level(scope);
+    sentry__cond_wake_all(&state->access_signal);
     while (!state->release_access) {
         sentry__cond_wait(&state->access_signal, &state->lock);
     }
     sentry__mutex_unlock(&state->lock);
 
     (void)sentry__scope_get_level(scope);
+    (void)sentry_is_enabled();
+    SENTRY_WITH_SCOPE (nested) {
+        (void)sentry__scope_get_level(nested);
+    }
     sentry__scope_finish(scope, false);
     return 0;
 }
@@ -345,7 +351,7 @@ scope_cleanup_thread(void *data)
     sentry__cond_wake(&state->cleanup_signal);
     sentry__mutex_unlock(&state->lock);
 
-    sentry__scope_cleanup();
+    sentry_close();
 
     sentry__mutex_lock(&state->lock);
     state->cleanup_finished = true;
@@ -356,6 +362,10 @@ scope_cleanup_thread(void *data)
 
 SENTRY_TEST(scope_cleanup)
 {
+    SENTRY_TEST_OPTIONS_NEW(options);
+    TEST_ASSERT_INT_EQUAL(sentry_init(options), 0);
+    sentry_set_level(SENTRY_LEVEL_WARNING);
+
     scope_cleanup_state_t state = { 0 };
     sentry__mutex_init(&state.lock);
     sentry__cond_init(&state.access_signal);
@@ -367,7 +377,7 @@ SENTRY_TEST(scope_cleanup)
         sentry__thread_spawn(&access_thread, scope_access_thread, &state), 0);
 
     sentry__mutex_lock(&state.lock);
-    while (!state.access_started) {
+    while (!state.accesses) {
         sentry__cond_wait(&state.access_signal, &state.lock);
     }
     sentry__mutex_unlock(&state.lock);
@@ -383,15 +393,36 @@ SENTRY_TEST(scope_cleanup)
     }
     sentry__cond_wait_timeout(&state.cleanup_signal, &state.lock, 250);
     TEST_CHECK(!state.cleanup_finished);
+
+    sentry_threadid_t late_thread;
+    sentry__thread_init(&late_thread);
+    TEST_ASSERT_INT_EQUAL(
+        sentry__thread_spawn(&late_thread, scope_access_thread, &state), 0);
+    sentry__cond_wait_timeout(&state.access_signal, &state.lock, 250);
+    TEST_CHECK_INT_EQUAL(state.accesses, 1);
     state.release_access = true;
-    sentry__cond_wake(&state.access_signal);
+    sentry__cond_wake_all(&state.access_signal);
     sentry__mutex_unlock(&state.lock);
 
     sentry__thread_join(access_thread);
     sentry__thread_free(&access_thread);
     sentry__thread_join(cleanup_thread);
     sentry__thread_free(&cleanup_thread);
+    sentry__thread_join(late_thread);
+    sentry__thread_free(&late_thread);
 
     TEST_CHECK(state.cleanup_finished);
+    TEST_CHECK_INT_EQUAL(state.accesses, 2);
+    TEST_CHECK_INT_EQUAL(state.level, SENTRY_LEVEL_ERROR);
+
+    SENTRY_TEST_OPTIONS_NEW(next_options);
+    TEST_ASSERT_INT_EQUAL(sentry_init(next_options), 0);
+    sentry_set_level(SENTRY_LEVEL_WARNING);
+    sentry__scope_cleanup();
+    SENTRY_WITH_SCOPE (scope) {
+        TEST_CHECK_INT_EQUAL(
+            sentry__scope_get_level(scope), SENTRY_LEVEL_WARNING);
+    }
+    sentry_close();
     sentry__mutex_free(&state.lock);
 }
