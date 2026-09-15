@@ -63,13 +63,13 @@ bool sentry__event_is_transaction(sentry_value_t event);
  */
 sentry_envelope_t *sentry__prepare_event(const sentry_options_t *options,
     sentry_value_t event, sentry_uuid_t *event_id, bool invoke_before_send,
-    sentry_scope_t *local_scope);
+    sentry_scope_t *local_scope, sentry_hint_t *hint);
 
 /**
  * Sends a sentry event, regardless of its type.
  */
 sentry_uuid_t sentry__capture_event(
-    sentry_value_t event, sentry_scope_t *local_scope);
+    sentry_value_t event, sentry_scope_t *local_scope, sentry_hint_t *hint);
 
 /**
  * Convert the given transaction into an envelope. This assumes that the

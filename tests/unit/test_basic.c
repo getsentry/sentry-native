@@ -2,6 +2,7 @@
 #include "sentry_backend.h"
 #include "sentry_core.h"
 #include "sentry_database.h"
+#include "sentry_hint.h"
 #include "sentry_options.h"
 #include "sentry_scope.h"
 #include "sentry_string.h"
@@ -81,7 +82,7 @@ counting_transport_func(sentry_envelope_t *envelope, void *data)
 }
 
 static sentry_value_t
-before_send(sentry_value_t event, void *UNUSED(hint), void *data)
+before_send(sentry_value_t event, sentry_hint_t *UNUSED(hint), void *data)
 {
     uint64_t *called = data;
     *called += 1;
@@ -121,7 +122,8 @@ SENTRY_TEST(sampling_before_send)
 }
 
 static sentry_value_t
-discarding_before_send(sentry_value_t event, void *UNUSED(hint), void *data)
+discarding_before_send(
+    sentry_value_t event, sentry_hint_t *UNUSED(hint), void *data)
 {
     uint64_t *called = data;
     *called += 1;
@@ -545,4 +547,190 @@ SENTRY_TEST(clear_options)
     // The backend free hook runs from sentry_options_free(). At that point,
     // sentry__options_getref() must no longer expose the options.
     TEST_CHECK(options_ref == NULL);
+}
+
+static void
+capture_envelope(sentry_envelope_t *envelope, void *data)
+{
+    sentry_envelope_t **captured = data;
+    TEST_CHECK(*captured == NULL);
+    *captured = envelope;
+}
+
+static sentry_value_t
+attach_before_send(sentry_value_t event, sentry_hint_t *hint, void *data)
+{
+    TEST_CHECK(hint != NULL);
+    if (data) {
+        TEST_CHECK(hint == data);
+    }
+    sentry_hint_attach_bytes(hint, "callback", 8, "callback.txt");
+    return event;
+}
+
+static sentry_value_t
+discard_before_send(sentry_value_t event, sentry_hint_t *hint, void *data)
+{
+    TEST_CHECK(hint == data);
+    sentry_value_decref(event);
+    return sentry_value_new_null();
+}
+
+SENTRY_TEST(capture_event_hints)
+{
+    for (int mode = 0; mode < 4; mode++) {
+        sentry_envelope_t *captured = NULL;
+        SENTRY_TEST_OPTIONS_NEW(options);
+        sentry_options_set_auto_session_tracking(options, false);
+        sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
+        sentry_transport_t *transport = sentry_transport_new(capture_envelope);
+        sentry_transport_set_state(transport, &captured);
+        sentry_options_set_transport(options, transport);
+        sentry_hint_t *hint = mode ? sentry_hint_new() : NULL;
+        if (hint) {
+            sentry_hint_attach_bytes(hint, "hint", 4, "hint.txt");
+        }
+        sentry_options_set_before_send(options,
+            mode == 3 ? discard_before_send : attach_before_send, hint);
+        TEST_CHECK_INT_EQUAL(sentry_init(options), 0);
+        sentry_attach_bytes("global", 6, "global.txt");
+        sentry_uuid_t id;
+        if (mode == 2) {
+            sentry_scope_t *scope = sentry_scope_new();
+            sentry_scope_attach_bytes(scope, "local", 5, "local.txt");
+            id = sentry_scope_capture_event(
+                scope, sentry_value_new_event(), hint);
+            sentry_scope_free(scope);
+        } else if (mode == 0) {
+            id = sentry_capture_event(sentry_value_new_event());
+        } else {
+            id = sentry_scope_capture_event(
+                NULL, sentry_value_new_event(), hint);
+        }
+        sentry_close();
+        TEST_CHECK(sentry_uuid_is_nil(&id) == (mode == 3));
+        if (mode == 3) {
+            TEST_CHECK(captured == NULL);
+            continue;
+        }
+        TEST_ASSERT(captured != NULL);
+        size_t size;
+        char *serialized = sentry_envelope_serialize(captured, &size);
+        TEST_ASSERT(serialized != NULL);
+        TEST_CHECK(strstr(serialized, "global.txt") != NULL);
+        TEST_CHECK(strstr(serialized, "callback.txt") != NULL);
+        TEST_CHECK((strstr(serialized, "hint.txt") != NULL) == (mode != 0));
+        TEST_CHECK((strstr(serialized, "local.txt") != NULL) == (mode == 2));
+        sentry_free(serialized);
+        sentry_envelope_free(captured);
+    }
+}
+
+SENTRY_TEST(capture_hint_cleanup)
+{
+    sentry_hint_t *hint = sentry_hint_new();
+    sentry_hint_attach_bytes(hint, "hint", 4, "hint.txt");
+    sentry_uuid_t id
+        = sentry_scope_capture_event(NULL, sentry_value_new_event(), hint);
+    TEST_CHECK(sentry_uuid_is_nil(&id));
+    sentry_value_t event = sentry_value_new_event();
+    sentry_value_set_by_key(
+        event, "type", sentry_value_new_string("transaction"));
+    sentry_scope_t *scope = sentry_local_scope_new();
+    id = sentry_scope_capture_event(scope, event, sentry_hint_new());
+    TEST_CHECK(sentry_uuid_is_nil(&id));
+    sentry_value_decref(event);
+    sentry_scope_free(scope);
+}
+
+typedef struct {
+    sentry_uuid_t global;
+    sentry_uuid_t local;
+    bool clear;
+    bool discard;
+    int calls;
+} attachment_filter_t;
+
+static sentry_value_t
+filter_attachments(sentry_value_t event, sentry_hint_t *hint, void *data)
+{
+    attachment_filter_t *filter = data;
+    filter->calls++;
+    TEST_CHECK_INT_EQUAL(sentry_value_get_length(hint->attachments), 3);
+    sentry_hint_remove_attachment(hint, filter->global);
+    sentry_hint_remove_attachment(hint, filter->local);
+    TEST_CHECK_INT_EQUAL(sentry_value_get_length(hint->attachments), 1);
+    if (filter->clear) {
+        sentry_hint_clear_attachments(hint);
+    }
+    sentry_hint_attach_bytes(hint, "callback", 8, "callback.txt");
+    if (filter->discard) {
+        sentry_value_decref(event);
+        return sentry_value_new_null();
+    }
+    return event;
+}
+
+SENTRY_TEST(capture_filter_attachments)
+{
+    for (int feedback = 0; feedback < 2; feedback++) {
+        for (int mode = 0; mode < 3; mode++) {
+            sentry_envelope_t *captured = NULL;
+            attachment_filter_t filter = { 0 };
+            filter.clear = mode == 1;
+            filter.discard = mode == 2;
+            SENTRY_TEST_OPTIONS_NEW(options);
+            sentry_options_set_auto_session_tracking(options, false);
+            sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
+            sentry_transport_t *transport
+                = sentry_transport_new(capture_envelope);
+            sentry_transport_set_state(transport, &captured);
+            sentry_options_set_transport(options, transport);
+            if (feedback) {
+                sentry_options_set_before_send_feedback(
+                    options, filter_attachments, &filter);
+            } else {
+                sentry_options_set_before_send(
+                    options, filter_attachments, &filter);
+            }
+            TEST_CHECK_INT_EQUAL(sentry_init(options), 0);
+            filter.global = sentry_attach_bytes("global", 6, "global.txt");
+            sentry_scope_t *scope = sentry_scope_new();
+            filter.local
+                = sentry_scope_attach_bytes(scope, "local", 5, "local.txt");
+            for (int capture = 0; capture < 2; capture++) {
+                sentry_hint_t *hint = sentry_hint_new();
+                sentry_hint_attach_bytes(hint, "hint", 4, "hint.txt");
+                sentry_uuid_t id;
+                if (feedback) {
+                    id = sentry_scope_capture_feedback(scope,
+                        sentry_value_new_feedback("message", NULL, NULL, NULL),
+                        hint);
+                } else {
+                    id = sentry_scope_capture_event(
+                        scope, sentry_value_new_event(), hint);
+                }
+                TEST_CHECK(sentry_uuid_is_nil(&id) == filter.discard);
+                if (filter.discard) {
+                    TEST_CHECK(captured == NULL);
+                    continue;
+                }
+                TEST_ASSERT(captured != NULL);
+                size_t size;
+                char *serialized = sentry_envelope_serialize(captured, &size);
+                TEST_ASSERT(serialized != NULL);
+                TEST_CHECK(strstr(serialized, "global.txt") == NULL);
+                TEST_CHECK(strstr(serialized, "local.txt") == NULL);
+                TEST_CHECK(
+                    (strstr(serialized, "hint.txt") == NULL) == filter.clear);
+                TEST_CHECK(strstr(serialized, "callback.txt") != NULL);
+                sentry_free(serialized);
+                sentry_envelope_free(captured);
+                captured = NULL;
+            }
+            TEST_CHECK_INT_EQUAL(filter.calls, 2);
+            sentry_scope_free(scope);
+            sentry_close();
+        }
+    }
 }

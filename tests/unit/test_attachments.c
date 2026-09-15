@@ -599,15 +599,15 @@ typedef struct {
 } sentry_before_send_attachment_testdata_t;
 
 static sentry_value_t
-before_send_attach_bytes(sentry_value_t event, void *UNUSED(hint), void *_data)
+before_send_attach_bytes(sentry_value_t event, sentry_hint_t *hint, void *_data)
 {
     sentry_before_send_attachment_testdata_t *data = _data;
     data->called += 1;
 
     if (data->called == 1) {
-        sentry_attach_bytes("global", 6, ".before-send.txt");
+        sentry_hint_attach_bytes(hint, "global", 6, ".before-send.txt");
     } else {
-        sentry_attach_bytes("first", 5, ".before-send.txt");
+        sentry_hint_attach_bytes(hint, "first", 5, ".before-send.txt");
     }
 
     return event;
@@ -657,7 +657,8 @@ SENTRY_TEST(attachments_before_send)
     sentry_scope_t *scope = sentry_local_scope_new();
     sentry_scope_attach_file(scope, SENTRY_TEST_PATH_PREFIX ".local.txt");
     sentry_scope_capture_event(scope,
-        sentry_value_new_message_event(SENTRY_LEVEL_INFO, "root", "first"));
+        sentry_value_new_message_event(SENTRY_LEVEL_INFO, "root", "first"),
+        NULL);
 
     serialized
         = sentry_stringbuilder_take_string(&testdata.serialized_envelope);
