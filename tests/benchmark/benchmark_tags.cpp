@@ -1,5 +1,7 @@
 #include <benchmark/benchmark.h>
 
+#include "sentry_benchmark.h"
+
 extern "C" {
 #include "sentry_core.h"
 #include "sentry_options.h"
@@ -15,6 +17,10 @@ benchmark_tags(benchmark::State &state)
     sentry_options_set_external_crash_reporter_path(options, ".");
     sentry_options_set_debug(options, true);
     sentry_init(options);
+    if (!benchmark_warmup(state, options)) {
+        sentry_close();
+        return;
+    }
 
     int i = 0;
     for (auto _ : state) {
