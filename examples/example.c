@@ -127,7 +127,7 @@ traces_sampler_callback(const sentry_transaction_context_t *transaction_ctx,
 }
 
 static sentry_value_t
-before_send_callback(sentry_value_t event, void *hint, void *user_data)
+before_send_callback(sentry_value_t event, sentry_hint_t *hint, void *user_data)
 {
     (void)hint;
     (void)user_data;
@@ -142,7 +142,7 @@ before_send_callback(sentry_value_t event, void *hint, void *user_data)
 
 static sentry_value_t
 discarding_before_send_callback(
-    sentry_value_t event, void *hint, void *user_data)
+    sentry_value_t event, sentry_hint_t *hint, void *user_data)
 {
     (void)hint;
     (void)user_data;
@@ -1247,7 +1247,7 @@ main(int argc, char **argv)
             sentry_scope_add_attachment(scope, bytes);
         }
 
-        sentry_scope_capture_event(scope, event);
+        sentry_scope_capture_event(scope, event, NULL);
     }
 
     if (has_arg(argc, argv, "capture-multiple")) {

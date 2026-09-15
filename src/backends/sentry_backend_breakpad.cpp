@@ -183,8 +183,8 @@ breakpad_backend_callback(const google_breakpad::MinidumpDescriptor &descriptor,
             }
 #endif
 
-            sentry_envelope_t *envelope = sentry__prepare_event(
-                options, event, nullptr, !options->on_crash_func, nullptr);
+            sentry_envelope_t *envelope = sentry__prepare_event(options, event,
+                nullptr, !options->on_crash_func, nullptr, nullptr);
             if (envelope) {
                 event_id = sentry__envelope_get_event_id(envelope);
             }
