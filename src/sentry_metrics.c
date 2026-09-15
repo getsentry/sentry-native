@@ -26,9 +26,9 @@ metric_type_string(sentry_metric_type_t type)
 }
 
 static sentry_value_t
-construct_metric(const sentry_scope_t *scope, sentry_metric_type_t type,
-    const char *name, sentry_value_t value, const char *unit,
-    sentry_value_t user_attributes)
+construct_metric(const sentry_options_t *options, const sentry_scope_t *scope,
+    sentry_metric_type_t type, const char *name, sentry_value_t value,
+    const char *unit, sentry_value_t user_attributes)
 {
     sentry_value_t metric = sentry_value_new_object();
 
@@ -49,7 +49,7 @@ construct_metric(const sentry_scope_t *scope, sentry_metric_type_t type,
         : sentry_value_new_object();
     sentry_value_decref(user_attributes);
 
-    sentry__apply_to_telemetry(scope, metric, attributes);
+    sentry__apply_to_telemetry(scope, options, metric, attributes);
 
     if (sentry_value_get_length(attributes) > 0) {
         sentry_value_set_by_key(metric, "attributes", attributes);
@@ -65,7 +65,8 @@ sentry_scope_capture_metric(sentry_scope_t *scope, sentry_metric_type_t type,
     const char *name, sentry_value_t value, const char *unit,
     sentry_value_t attributes)
 {
-    if (!sentry_is_enabled()) {
+    const sentry_options_t *options = sentry__options_getref();
+    if (!options) {
         sentry_value_decref(value);
         sentry_value_decref(attributes);
         sentry__scope_free_one_shot(scope);
@@ -74,21 +75,21 @@ sentry_scope_capture_metric(sentry_scope_t *scope, sentry_metric_type_t type,
 
     bool discarded = false;
     sentry_value_t metric
-        = construct_metric(scope, type, name, value, unit, attributes);
+        = construct_metric(options, scope, type, name, value, unit, attributes);
     sentry__scope_free_one_shot(scope);
-    SENTRY_WITH_OPTIONS (options) {
-        if (options->before_send_metric_func) {
-            metric = options->before_send_metric_func(
-                metric, options->before_send_metric_data);
-            if (sentry_value_is_null(metric)) {
-                SENTRY_DEBUG("metric was discarded by the "
-                             "`before_send_metric` hook");
-                sentry__client_report_discard(SENTRY_DISCARD_REASON_BEFORE_SEND,
-                    SENTRY_DATA_CATEGORY_TRACE_METRIC, 1);
-                discarded = true;
-            }
+    if (options->before_send_metric_func) {
+        metric = options->before_send_metric_func(
+            metric, options->before_send_metric_data);
+        if (sentry_value_is_null(metric)) {
+            SENTRY_DEBUG("metric was discarded by the "
+                         "`before_send_metric` hook");
+            sentry__client_report_discard(SENTRY_DISCARD_REASON_BEFORE_SEND,
+                SENTRY_DATA_CATEGORY_TRACE_METRIC, 1);
+            discarded = true;
         }
     }
+
+    sentry_options_free((sentry_options_t *)options);
     if (discarded) {
         return SENTRY_METRICS_RESULT_DISCARD;
     }
