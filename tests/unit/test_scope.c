@@ -1667,20 +1667,20 @@ observe_add_breadcrumb(void *data, sentry_value_t breadcrumb)
 }
 
 static void
-observe_set_tag(void *data, const char *key, const char *value)
+observe_set_tag(void *data, const char *key, sentry_value_t value)
 {
     test_observer_data_t *d = (test_observer_data_t *)data;
     if (sentry_value_is_null(d->tags)) {
         d->tags = sentry_value_new_object();
     }
-    sentry_value_set_by_key(d->tags, key, sentry_value_new_string(value));
+    sentry_value_set_by_key(d->tags, key, sentry_value_incref(value));
     d->was_called = true;
     d->set_tag_count++;
 }
 
 static void
 observe_set_tag_remove_self_and_add(
-    void *data, const char *key, const char *value)
+    void *data, const char *key, sentry_value_t value)
 {
     reentrant_observer_data_t *d = (reentrant_observer_data_t *)data;
     observe_set_tag(d->self_data, key, value);
@@ -1694,7 +1694,7 @@ observe_set_tag_remove_self_and_add(
 }
 
 static void
-observe_set_tag_remove_self(void *data, const char *key, const char *value)
+observe_set_tag_remove_self(void *data, const char *key, sentry_value_t value)
 {
     reentrant_observer_data_t *d = (reentrant_observer_data_t *)data;
     observe_set_tag(d->self_data, key, value);
@@ -1704,7 +1704,7 @@ observe_set_tag_remove_self(void *data, const char *key, const char *value)
 }
 
 static void
-observe_set_tag_clear_scope(void *data, const char *key, const char *value)
+observe_set_tag_clear_scope(void *data, const char *key, sentry_value_t value)
 {
     clear_observer_data_t *d = (clear_observer_data_t *)data;
     observe_set_tag(d->data, key, value);
@@ -1713,7 +1713,7 @@ observe_set_tag_clear_scope(void *data, const char *key, const char *value)
 
 static void
 observe_set_tag_mutate_nested_scope(
-    void *data, const char *UNUSED(key), const char *UNUSED(value))
+    void *data, const char *UNUSED(key), sentry_value_t UNUSED(value))
 {
     deferred_flush_observer_data_t *d = (deferred_flush_observer_data_t *)data;
     d->was_called = true;

@@ -400,60 +400,58 @@ def test_native_overflow_breadcrumbs(cmake, httpserver, crash_mode):
     assert any(b.get("message") == "100" for b in breadcrumbs)
 
 
-def test_native_attachment_manifest_is_current(cmake, httpserver):
-    """The attachment manifest must reflect the live attachment state (#1933).
-
-    The daemon builds hard-crash envelopes from `<run>/__sentry-attachments`,
-    which the backend only rewrites on a scope flush. `sentry_add_attachment`
-    adds the fully configured attachment before that flush, so the manifest
-    must contain all its metadata immediately.
-
-    Asserting on the manifest rather than on a crash envelope keeps this
-    deterministic: the in-process crash handler happens to flush the scope (via
-    `sentry__trace_finish`), which repairs the manifest before the daemon reads
-    it, but out-of-process paths such as WER never run that handler.
-    """
-    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "native"})
-
-    cmd = run_command(str(tmp_path / "sentry_example"))
-    child = subprocess.Popen(
-        [*cmd, "log", "attach-custom-filename", "sleep"],
-        cwd=tmp_path,
-        env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
+@pytest.mark.parametrize("mode", [0, 1, 2])
+@pytest.mark.parametrize("scoped_trace", [False, True])
+def test_native_scope_updates_without_snapshot(cmake, httpserver, mode, scoped_trace):
+    tmp_path = cmake(["sentry_test_unit", "sentry-crash"], {"SENTRY_BACKEND": "native"})
+    httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data("OK")
+    env = dict(
+        os.environ,
+        SENTRY_DSN=make_dsn(httpserver),
+        SENTRY_TEST_NATIVE_SCOPE_CRASH=str(mode),
     )
-    db_dir = tmp_path / ".sentry-native"
-
-    last_manifest = None
-
-    def manifest_is_current():
-        # Validate the complete expected state against a single snapshot
-        # instead of waiting on one field and re-reading the file.
-        nonlocal last_manifest
-        paths = list(db_dir.glob("*.run/__sentry-attachments"))
-        if not paths:
-            return False
-        try:
-            manifest = json.loads(paths[0].read_text())
-        except (OSError, json.JSONDecodeError):
-            # rewritten in place, so a read can catch a partial file
-            return False
-        last_manifest = manifest
-        return (
-            len(manifest) == 1
-            and manifest[0].get("filename") == "custom-name.log"
-            and manifest[0].get("content_type") == "application/zstd"
-            and manifest[0].get("path", "").endswith("CMakeCache.txt")
+    if scoped_trace:
+        env["SENTRY_TEST_NATIVE_SCOPE_SPAN"] = "1"
+    with httpserver.wait(timeout=15) as waiting:
+        run_crash(
+            tmp_path,
+            "sentry_test_unit",
+            ["--no-exec", "native_scope_updates"],
+            env=env,
         )
-
-    try:
-        up_to_date = wait_for(manifest_is_current)
-    finally:
-        child.terminate()
-        child.wait()
-
-    assert (
-        up_to_date
-    ), f"attachment manifest does not reflect the live attachment state: {last_manifest}"
+    assert waiting.result
+    envelope = Envelope.deserialize(httpserver.log[0][0].get_data())
+    event = envelope.get_event()
+    assert event["release"] == "ipc-release"
+    assert event["environment"] == "ipc-environment"
+    assert event["transaction"] == "ipc-transaction"
+    assert event["level"] == "fatal"
+    assert event["fingerprint"] == ["ipc", "latest"]
+    assert event["user"]["username"] == "ipc-user"
+    assert event["user"]["id"]
+    assert event["tags"] == {"tag": "latest", "binary-tag": "v\0x"}
+    assert event["extra"]["large"] == "x" * (1024 * 1024)
+    assert set(event["extra"]) == {"large", "expected-trace"}
+    assert set(event["contexts"]) == {"trace", "ipc"} or (
+        sys.platform == "win32" and set(event["contexts"]) == {"trace", "ipc", "device"}
+    )
+    assert event["contexts"]["ipc"] == {"status": "latest"}
+    assert event["contexts"]["trace"] == event["extra"]["expected-trace"]
+    assert [crumb["index"] for crumb in event["breadcrumbs"]] == [2, 3, 4]
+    attachments = {
+        item.headers.get("filename"): item.payload.bytes
+        for item in envelope
+        if item.headers.get("type") == "attachment"
+        and item.headers.get("attachment_type") != "event.minidump"
+    }
+    assert attachments == {"latest.txt": b"new"}
+    for name in (
+        "__sentry-event",
+        "__sentry-breadcrumb1",
+        "__sentry-breadcrumb2",
+        "__sentry-attachments",
+    ):
+        assert not list((tmp_path / ".sentry-native").glob(f"*.run/{name}"))
 
 
 def test_native_byte_attachment_is_confined(cmake, unreachable_dsn):
@@ -1619,3 +1617,31 @@ def test_native_early_init(cmake):
         [],
     )
     assert result.returncode == 0
+
+
+def test_native_scope_updates_in_crash_callback(cmake, httpserver):
+    tmp_path = cmake(["sentry_test_unit", "sentry-crash"], {"SENTRY_BACKEND": "native"})
+    httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data("OK")
+    with httpserver.wait(timeout=15) as waiting:
+        run_crash(
+            tmp_path,
+            "sentry_test_unit",
+            ["--no-exec", "native_scope_updates"],
+            env=dict(
+                os.environ,
+                SENTRY_DSN=make_dsn(httpserver),
+                SENTRY_TEST_NATIVE_SCOPE_CRASH="1",
+                SENTRY_TEST_NATIVE_SCOPE_CALLBACK="1",
+            ),
+        )
+    assert waiting.result
+    envelope = Envelope.deserialize(httpserver.log[0][0].get_data())
+    event = envelope.get_event()
+    assert event["callback"] is True
+    assert event["tags"]["tag"] == "callback"
+    attachments = [
+        item for item in envelope if item.headers.get("type") == "attachment"
+    ]
+    assert len(attachments) == 1
+    assert attachments[0].headers["filename"] == "callback.txt"
+    assert attachments[0].payload.bytes == b"callback"
