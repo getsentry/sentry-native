@@ -2026,8 +2026,10 @@ capture_minidump(sentry_path_t *dump_path)
         sentry_value_t event = sentry_value_new_event();
         sentry_value_set_by_key(
             event, "level", sentry__value_new_level(SENTRY_LEVEL_FATAL));
+        sentry_hint_t hint = { sentry_value_new_null() };
         sentry_envelope_t *envelope = sentry__prepare_event(
-            options, event, &event_id, true, NULL, NULL);
+            options, event, &event_id, true, NULL, &hint);
+        sentry_value_decref(hint.attachments);
 
         if (!envelope || sentry_uuid_is_nil(&event_id)) {
             sentry_envelope_free(envelope);
