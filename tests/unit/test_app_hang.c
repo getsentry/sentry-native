@@ -122,7 +122,7 @@ fake_stackwalk(uint64_t tid, void **ips, size_t max)
 }
 
 static sentry_value_t
-capture_before_send(sentry_value_t event, void *hint, void *data)
+capture_before_send(sentry_value_t event, sentry_hint_t *hint, void *data)
 {
     (void)hint;
     (void)data;
@@ -245,7 +245,7 @@ static long g_real_frames;
 static volatile long g_keep_spinning;
 
 static sentry_value_t
-real_before_send(sentry_value_t event, void *hint, void *data)
+real_before_send(sentry_value_t event, sentry_hint_t *hint, void *data)
 {
     (void)hint;
     (void)data;
