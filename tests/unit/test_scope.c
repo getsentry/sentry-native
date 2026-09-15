@@ -527,7 +527,8 @@ SENTRY_TEST(scope_fingerprint_n)
 }
 
 static sentry_value_t
-before_send_capture_fingerprint(sentry_value_t event, void *hint, void *data)
+before_send_capture_fingerprint(
+    sentry_value_t event, sentry_hint_t *hint, void *data)
 {
     (void)hint;
     char **fingerprint_json = data;
@@ -552,7 +553,7 @@ SENTRY_TEST(scope_remove_fingerprint_capture)
     sentry_scope_set_fingerprint(local_scope, "local1", NULL);
     sentry_scope_remove_fingerprint(local_scope);
     sentry_scope_capture_event(local_scope,
-        sentry_value_new_message_event(SENTRY_LEVEL_INFO, NULL, "test"));
+        sentry_value_new_message_event(SENTRY_LEVEL_INFO, NULL, "test"), NULL);
 
     TEST_ASSERT(!!fingerprint_json);
     TEST_CHECK_STRING_EQUAL(fingerprint_json, "[\"global1\",\"global2\"]");
@@ -1109,7 +1110,7 @@ SENTRY_TEST(before_breadcrumb_passthrough)
 
 static sentry_value_t
 before_send_modify_scope_values(
-    sentry_value_t event, void *UNUSED(hint), void *UNUSED(data))
+    sentry_value_t event, sentry_hint_t *UNUSED(hint), void *UNUSED(data))
 {
     sentry_value_t contexts = sentry_value_get_by_key(event, "contexts");
     sentry_value_t gpu = sentry_value_get_by_key(contexts, "gpu");
@@ -2927,7 +2928,7 @@ SENTRY_TEST(scope_capture_unlocked)
 
 static sentry_value_t
 conditionally_discard_event(
-    sentry_value_t event, void *UNUSED(hint), void *data)
+    sentry_value_t event, sentry_hint_t *UNUSED(hint), void *data)
 {
     if (*(bool *)data) {
         sentry_value_decref(event);
@@ -2967,7 +2968,8 @@ SENTRY_TEST(scope_last_event_id)
     TEST_CHECK(sentry_uuid_is_nil(&last_event_id));
 
     sentry_uuid_t scoped_event_id = sentry_scope_capture_event(scope,
-        sentry_value_new_message_event(SENTRY_LEVEL_ERROR, NULL, "scoped"));
+        sentry_value_new_message_event(SENTRY_LEVEL_ERROR, NULL, "scoped"),
+        NULL);
     TEST_CHECK(!sentry_uuid_is_nil(&scoped_event_id));
     last_event_id = sentry_scope_get_last_event_id(scope);
     TEST_CHECK_UUID_EQUAL(last_event_id, scoped_event_id);
@@ -2980,7 +2982,8 @@ SENTRY_TEST(scope_last_event_id)
 
     discard = true;
     sentry_uuid_t discarded_event_id = sentry_scope_capture_event(scope,
-        sentry_value_new_message_event(SENTRY_LEVEL_ERROR, NULL, "discarded"));
+        sentry_value_new_message_event(SENTRY_LEVEL_ERROR, NULL, "discarded"),
+        NULL);
     TEST_CHECK(sentry_uuid_is_nil(&discarded_event_id));
     last_event_id = sentry_scope_get_last_event_id(scope);
     TEST_CHECK_UUID_EQUAL(last_event_id, scoped_event_id);
@@ -3045,7 +3048,8 @@ SENTRY_TEST(scope_capture_user_owned)
     sentry_scope_set_tag(scope, "run", "first");
 
     sentry_scope_capture_event(scope,
-        sentry_value_new_message_event(SENTRY_LEVEL_INFO, "logger", "one"));
+        sentry_value_new_message_event(SENTRY_LEVEL_INFO, "logger", "one"),
+        NULL);
 
     // The scope was applied but not freed, so reading and reusing it is safe
     // (a use-after-free here would trip the sanitizers).
@@ -3056,7 +3060,8 @@ SENTRY_TEST(scope_capture_user_owned)
 
     sentry_scope_set_tag(scope, "run", "second");
     sentry_scope_capture_event(scope,
-        sentry_value_new_message_event(SENTRY_LEVEL_INFO, "logger", "two"));
+        sentry_value_new_message_event(SENTRY_LEVEL_INFO, "logger", "two"),
+        NULL);
 
     sentry_scope_free(scope);
 
@@ -3067,7 +3072,8 @@ SENTRY_TEST(scope_capture_user_owned)
 
 // Keeps the trace context the scopes produced and drops the event.
 static sentry_value_t
-keep_trace_context(sentry_value_t event, void *UNUSED(hint), void *data)
+keep_trace_context(
+    sentry_value_t event, sentry_hint_t *UNUSED(hint), void *data)
 {
     sentry_value_t *trace = data;
     sentry_value_decref(*trace);
@@ -3094,7 +3100,8 @@ SENTRY_TEST(scope_bind_transaction_object)
     sentry_scope_set_transaction_object(scope, tx);
 
     sentry_scope_capture_event(scope,
-        sentry_value_new_message_event(SENTRY_LEVEL_ERROR, "logger", "boom"));
+        sentry_value_new_message_event(SENTRY_LEVEL_ERROR, "logger", "boom"),
+        NULL);
 
     TEST_ASSERT(!sentry_value_is_null(trace));
     TEST_CHECK_STRING_EQUAL(
@@ -3104,7 +3111,8 @@ SENTRY_TEST(scope_bind_transaction_object)
     sentry_scope_set_transaction_object(scope, NULL);
 
     sentry_scope_capture_event(scope,
-        sentry_value_new_message_event(SENTRY_LEVEL_ERROR, "logger", "boom"));
+        sentry_value_new_message_event(SENTRY_LEVEL_ERROR, "logger", "boom"),
+        NULL);
 
     // After unbinding, event falls back to the propagation context.
     TEST_ASSERT(!sentry_value_is_null(trace));
@@ -3159,7 +3167,8 @@ SENTRY_TEST(scope_bind_span)
     }
 
     sentry_scope_capture_event(scope,
-        sentry_value_new_message_event(SENTRY_LEVEL_ERROR, "logger", "boom"));
+        sentry_value_new_message_event(SENTRY_LEVEL_ERROR, "logger", "boom"),
+        NULL);
 
     TEST_ASSERT(!sentry_value_is_null(trace));
     TEST_CHECK_STRING_EQUAL(

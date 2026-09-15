@@ -348,7 +348,7 @@ SENTRY_TEST(transport_sampling_transactions)
 }
 
 static sentry_value_t
-before_send(sentry_value_t event, void *UNUSED(hint), void *data)
+before_send(sentry_value_t event, sentry_hint_t *UNUSED(hint), void *data)
 {
     uint64_t *called = data;
     *called += 1;
