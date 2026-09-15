@@ -1,11 +1,17 @@
 #include "sentry_crash_ipc.h"
 
 #include "sentry_alloc.h"
+#include "sentry_core.h"
 #include "sentry_logger.h"
 #include "sentry_sync.h"
+#include "sentry_value.h"
 
 #include <stdio.h>
 #include <string.h>
+
+#if defined(SENTRY_PLATFORM_UNIX)
+#    include <poll.h>
+#endif
 
 static void
 write_u16_le(char *buf, uint16_t value)
@@ -114,6 +120,9 @@ sentry__crash_ipc_message_decode(
     }
 
     uint32_t message_len = read_u32_le(buf);
+    if (message_len > SENTRY_CRASH_IPC_MESSAGE_MAX_LEN) {
+        return SENTRY_CRASH_IPC_MESSAGE_OVERSIZED;
+    }
     if (message_len < SENTRY_CRASH_IPC_MESSAGE_MIN_LEN) {
         return SENTRY_CRASH_IPC_MESSAGE_INVALID;
     }
@@ -309,6 +318,10 @@ sentry__crash_ipc_init_app(sem_t *init_sem)
         return NULL;
     }
 
+    struct timeval send_timeout = { 1, 0 };
+    setsockopt(ipc->message_fd[0], SOL_SOCKET, SO_SNDTIMEO, &send_timeout,
+        sizeof(send_timeout));
+
     // Initialize shared memory only if newly created
     if (!shm_exists) {
         sentry__crash_context_init(ipc->shmem);
@@ -336,6 +349,7 @@ sentry__crash_ipc_init_daemon(pid_t app_pid, uint64_t app_tid,
     ipc->is_daemon = true;
     ipc->message_fd[0] = -1;
     ipc->message_fd[1] = message_fd;
+    fcntl(message_fd, F_SETFD, FD_CLOEXEC);
 
     // Open existing shared memory created by app (using PID and thread ID)
     // Must match the format in sentry__crash_ipc_init_app
@@ -381,8 +395,8 @@ sentry__crash_ipc_init_daemon(pid_t app_pid, uint64_t app_tid,
     return ipc;
 }
 
-void
-sentry__crash_ipc_notify(sentry_crash_ipc_t *ipc)
+static void
+notify_fallback(sentry_crash_ipc_t *ipc)
 {
     if (!ipc || ipc->notify_fd < 0) {
         return;
@@ -439,6 +453,9 @@ sentry__crash_ipc_free(sentry_crash_ipc_t *ipc)
     if (!ipc) {
         return;
     }
+
+    sentry_free(ipc->message_buf);
+    sentry__crash_scope_free(&ipc->scope);
 
     if (ipc->shmem && ipc->shmem != MAP_FAILED) {
         munmap(ipc->shmem, SENTRY_CRASH_SHM_SIZE);
@@ -634,6 +651,12 @@ sentry__crash_ipc_init_app(sentry_mutex_t *init_mutex)
         sentry_free(ipc);
         return NULL;
     }
+    int no_sigpipe = 1;
+    setsockopt(ipc->message_fd[0], SOL_SOCKET, SO_NOSIGPIPE, &no_sigpipe,
+        sizeof(no_sigpipe));
+    struct timeval send_timeout = { 1, 0 };
+    setsockopt(ipc->message_fd[0], SOL_SOCKET, SO_SNDTIMEO, &send_timeout,
+        sizeof(send_timeout));
     fcntl(ipc->message_fd[0], F_SETFD, FD_CLOEXEC);
     fcntl(ipc->message_fd[1], F_SETFD, FD_CLOEXEC);
 
@@ -665,6 +688,7 @@ sentry__crash_ipc_init_daemon(pid_t app_pid, uint64_t app_tid,
     ipc->is_daemon = true;
     ipc->message_fd[0] = -1;
     ipc->message_fd[1] = message_fd;
+    fcntl(message_fd, F_SETFD, FD_CLOEXEC);
 
     // Use the inherited shm_fd directly (no shm_open needed, sandbox-safe)
     ipc->shm_fd = shm_fd;
@@ -699,8 +723,8 @@ sentry__crash_ipc_init_daemon(pid_t app_pid, uint64_t app_tid,
     return ipc;
 }
 
-void
-sentry__crash_ipc_notify(sentry_crash_ipc_t *ipc)
+static void
+notify_fallback(sentry_crash_ipc_t *ipc)
 {
     if (!ipc) {
         return;
@@ -753,6 +777,9 @@ sentry__crash_ipc_free(sentry_crash_ipc_t *ipc)
     if (!ipc) {
         return;
     }
+
+    sentry_free(ipc->message_buf);
+    sentry__crash_scope_free(&ipc->scope);
 
     if (ipc->shmem && ipc->shmem != MAP_FAILED) {
         munmap(ipc->shmem, SENTRY_CRASH_SHM_SIZE);
@@ -947,6 +974,7 @@ sentry__crash_ipc_init_daemon(pid_t app_pid, uint64_t app_tid,
     }
     ipc->is_daemon = true;
     ipc->message_read_handle = message_read_handle;
+    SetHandleInformation(message_read_handle, HANDLE_FLAG_INHERIT, 0);
 
     // Open existing shared memory (using PID and thread ID)
     swprintf(ipc->shm_name, SENTRY_CRASH_IPC_NAME_SIZE,
@@ -1012,8 +1040,8 @@ sentry__crash_ipc_init_daemon(pid_t app_pid, uint64_t app_tid,
     return ipc;
 }
 
-void
-sentry__crash_ipc_notify(sentry_crash_ipc_t *ipc)
+static void
+notify_fallback(sentry_crash_ipc_t *ipc)
 {
     if (!ipc || !ipc->event_handle) {
         // No logging - called from signal handler/exception filter
@@ -1059,6 +1087,9 @@ sentry__crash_ipc_free(sentry_crash_ipc_t *ipc)
     if (!ipc) {
         return;
     }
+
+    sentry_free(ipc->message_buf);
+    sentry__crash_scope_free(&ipc->scope);
 
     if (ipc->shmem) {
         UnmapViewOfFile(ipc->shmem);
@@ -1214,4 +1245,436 @@ sentry__crash_ipc_wait_for_ready(sentry_crash_ipc_t *ipc, int timeout_ms)
 #else
     return false;
 #endif
+}
+
+bool
+sentry__crash_scope_init(sentry_crash_scope_t *scope, size_t max_breadcrumbs)
+{
+    memset(scope, 0, sizeof(*scope));
+    scope->event = sentry_value_new_null();
+    scope->attachments = sentry_value_new_list();
+    scope->breadcrumbs = sentry__ringbuffer_new(max_breadcrumbs);
+    return scope->breadcrumbs && !sentry_value_is_null(scope->attachments);
+}
+
+void
+sentry__crash_scope_free(sentry_crash_scope_t *scope)
+{
+    sentry_value_decref(scope->event);
+    sentry_value_decref(scope->attachments);
+    sentry__ringbuffer_free(scope->breadcrumbs);
+}
+
+bool
+sentry__crash_scope_apply(
+    sentry_crash_scope_t *scope, const sentry_crash_ipc_message_t *message)
+{
+    if (scope->stopped || message->flags
+        || message->sequence != scope->sequence + 1
+        || (!scope->initialized
+            && message->type != SENTRY_CRASH_IPC_MESSAGE_SCOPE_SNAPSHOT)) {
+        return false;
+    }
+    if (message->type == SENTRY_CRASH_IPC_MESSAGE_CRASH
+        || message->type == SENTRY_CRASH_IPC_MESSAGE_SHUTDOWN) {
+        if (message->payload_len) {
+            return false;
+        }
+        scope->sequence = message->sequence;
+        scope->stopped = true;
+        return true;
+    }
+
+    sentry_value_t value
+        = sentry__value_from_msgpack(message->payload, message->payload_len);
+    sentry_value_type_t type = sentry_value_get_type(value);
+    if (sentry_value_is_null(value)
+        && (message->payload_len != 1
+            || (unsigned char)message->payload[0] != 0xc0)) {
+        return false;
+    }
+    bool valid = false;
+    const char *field = NULL;
+    switch (message->type) {
+    case SENTRY_CRASH_IPC_MESSAGE_SCOPE_SNAPSHOT: {
+        sentry_value_t event = sentry_value_get_by_key(value, "event");
+        sentry_value_t attachments
+            = sentry_value_get_by_key(value, "attachments");
+        if (sentry_value_get_type(event) != SENTRY_VALUE_TYPE_OBJECT
+            || sentry_value_get_type(attachments) != SENTRY_VALUE_TYPE_LIST) {
+            break;
+        }
+        sentry_ringbuffer_t *breadcrumbs
+            = sentry__ringbuffer_new(scope->breadcrumbs->max_size);
+        if (!breadcrumbs) {
+            break;
+        }
+        sentry_value_t list = sentry_value_get_by_key(event, "breadcrumbs");
+        for (size_t i = 0; i < sentry_value_get_length(list); i++) {
+            sentry__ringbuffer_append(breadcrumbs,
+                sentry_value_incref(sentry_value_get_by_index(list, i)));
+        }
+        sentry_value_remove_by_key(event, "breadcrumbs");
+        sentry__value_replace(&scope->event, sentry_value_incref(event));
+        sentry__value_replace(
+            &scope->attachments, sentry_value_incref(attachments));
+        sentry__ringbuffer_free(scope->breadcrumbs);
+        scope->breadcrumbs = breadcrumbs;
+        scope->initialized = true;
+        valid = true;
+        break;
+    }
+    case SENTRY_CRASH_IPC_MESSAGE_SET_RELEASE:
+        field = "release";
+        break;
+    case SENTRY_CRASH_IPC_MESSAGE_SET_ENVIRONMENT:
+        field = "environment";
+        break;
+    case SENTRY_CRASH_IPC_MESSAGE_SET_TRANSACTION:
+        field = "transaction";
+        break;
+    case SENTRY_CRASH_IPC_MESSAGE_SET_FINGERPRINT:
+        field = "fingerprint";
+        break;
+    case SENTRY_CRASH_IPC_MESSAGE_SET_LEVEL:
+        field = "level";
+        break;
+    case SENTRY_CRASH_IPC_MESSAGE_SET_USER:
+        field = "user";
+        break;
+    case SENTRY_CRASH_IPC_MESSAGE_SET_TAG:
+    case SENTRY_CRASH_IPC_MESSAGE_SET_EXTRA:
+    case SENTRY_CRASH_IPC_MESSAGE_SET_CONTEXT: {
+        const char *key
+            = sentry_value_as_string(sentry_value_get_by_index(value, 0));
+        if (type != SENTRY_VALUE_TYPE_LIST
+            || sentry_value_get_length(value) != 2
+            || sentry_value_get_type(sentry_value_get_by_index(value, 0))
+                != SENTRY_VALUE_TYPE_STRING) {
+            break;
+        }
+        const char *name = message->type == SENTRY_CRASH_IPC_MESSAGE_SET_TAG
+            ? "tags"
+            : message->type == SENTRY_CRASH_IPC_MESSAGE_SET_EXTRA ? "extra"
+                                                                  : "contexts";
+        sentry_value_t object = sentry_value_get_by_key(scope->event, name);
+        if (sentry_value_is_null(object)) {
+            object = sentry_value_new_object();
+            sentry_value_set_by_key(scope->event, name, object);
+        }
+        valid
+            = sentry_value_set_by_key_n(object, key,
+                  sentry_value_get_length(sentry_value_get_by_index(value, 0)),
+                  sentry_value_incref(sentry_value_get_by_index(value, 1)))
+            == 0;
+        break;
+    }
+    case SENTRY_CRASH_IPC_MESSAGE_REMOVE_TAG:
+    case SENTRY_CRASH_IPC_MESSAGE_REMOVE_EXTRA:
+    case SENTRY_CRASH_IPC_MESSAGE_REMOVE_CONTEXT: {
+        if (type != SENTRY_VALUE_TYPE_STRING) {
+            break;
+        }
+        const char *name = message->type == SENTRY_CRASH_IPC_MESSAGE_REMOVE_TAG
+            ? "tags"
+            : message->type == SENTRY_CRASH_IPC_MESSAGE_REMOVE_EXTRA
+            ? "extra"
+            : "contexts";
+        sentry_value_remove_by_key_n(
+            sentry_value_get_by_key(scope->event, name),
+            sentry_value_as_string(value), sentry_value_get_length(value));
+        valid = true;
+        break;
+    }
+    case SENTRY_CRASH_IPC_MESSAGE_ADD_BREADCRUMB:
+        if (type == SENTRY_VALUE_TYPE_OBJECT) {
+            valid = !scope->breadcrumbs->max_size
+                || sentry__ringbuffer_append(
+                       scope->breadcrumbs, sentry_value_incref(value))
+                    == 0;
+        }
+        break;
+    case SENTRY_CRASH_IPC_MESSAGE_SET_ATTACHMENT_LIST:
+        if (type == SENTRY_VALUE_TYPE_LIST) {
+            sentry__value_replace(
+                &scope->attachments, sentry_value_incref(value));
+            valid = true;
+        }
+        break;
+    default:
+        break;
+    }
+    if (field) {
+        sentry_value_type_t expected
+            = message->type == SENTRY_CRASH_IPC_MESSAGE_SET_USER
+            ? SENTRY_VALUE_TYPE_OBJECT
+            : message->type == SENTRY_CRASH_IPC_MESSAGE_SET_FINGERPRINT
+            ? SENTRY_VALUE_TYPE_LIST
+            : SENTRY_VALUE_TYPE_STRING;
+        if (type == expected || sentry_value_is_null(value)) {
+            if (sentry_value_is_null(value)
+                || (type == SENTRY_VALUE_TYPE_STRING
+                    && !sentry_value_get_length(value))) {
+                sentry_value_remove_by_key(scope->event, field);
+                valid = true;
+            } else {
+                valid = sentry_value_set_by_key(
+                            scope->event, field, sentry_value_incref(value))
+                    == 0;
+            }
+        }
+    }
+    sentry_value_decref(value);
+    if (valid) {
+        scope->sequence = message->sequence;
+    }
+    return valid;
+}
+
+sentry_value_t
+sentry__crash_scope_event(const sentry_crash_scope_t *scope)
+{
+    sentry_value_t event = scope->initialized
+        ? sentry__value_clone(scope->event)
+        : sentry_value_new_event();
+    sentry_value_set_by_key(
+        event, "breadcrumbs", sentry__ringbuffer_to_list(scope->breadcrumbs));
+    sentry_value_set_by_key(
+        event, "level", sentry__value_new_level(SENTRY_LEVEL_FATAL));
+    sentry__ensure_event_id(event, NULL);
+    return event;
+}
+
+static bool
+write_message(
+    sentry_crash_ipc_t *ipc, const char *buf, size_t len, bool nonblocking)
+{
+    while (len) {
+#if defined(SENTRY_PLATFORM_WINDOWS)
+        (void)nonblocking;
+        DWORD written = 0;
+        if (!WriteFile(
+                ipc->message_write_handle, buf, (DWORD)len, &written, NULL)
+            || !written) {
+            return false;
+        }
+#else
+        int flags = nonblocking ? MSG_DONTWAIT : 0;
+#    if defined(MSG_NOSIGNAL)
+        flags |= MSG_NOSIGNAL;
+#    endif
+        ssize_t written = send(ipc->message_fd[0], buf, len, flags);
+        if (written < 0 && errno == EINTR) {
+            continue;
+        }
+        if (written <= 0) {
+            return false;
+        }
+#endif
+        buf += written;
+        len -= (size_t)written;
+    }
+    return true;
+}
+
+bool
+sentry__crash_ipc_send(
+    sentry_crash_ipc_t *ipc, uint16_t type, sentry_value_t value)
+{
+    if (!ipc || sentry__atomic_fetch(&ipc->stopped)
+        || sentry__atomic_fetch(&ipc->message_failed)
+        || !sentry__atomic_compare_swap(&ipc->writing, 0, 1)) {
+        return false;
+    }
+    size_t payload_len = 0;
+    char *payload = type == SENTRY_CRASH_IPC_MESSAGE_SHUTDOWN
+        ? NULL
+        : sentry_value_to_msgpack(value, &payload_len);
+    char *buf = NULL;
+    size_t len = 0;
+    bool sent = (payload || type == SENTRY_CRASH_IPC_MESSAGE_SHUTDOWN)
+        && sentry__crash_ipc_message_encode(
+               type, 0, ipc->sequence + 1, payload, payload_len, &buf, &len)
+            == SENTRY_CRASH_IPC_MESSAGE_OK;
+    if (sent) {
+        sent = write_message(ipc, buf, len, false);
+        if (sent) {
+            ipc->sequence++;
+        } else {
+            // a partial write makes this stream unusable for further frames
+            sentry__atomic_store(&ipc->message_failed, 1);
+        }
+    }
+    sentry_free(buf);
+    sentry_free(payload);
+    sentry__atomic_store(&ipc->writing, 0);
+    return sent;
+}
+
+void
+sentry__crash_ipc_notify(sentry_crash_ipc_t *ipc)
+{
+    if (!ipc) {
+        return;
+    }
+    sentry__atomic_store(&ipc->stopped, 1);
+#if !defined(SENTRY_PLATFORM_WINDOWS)
+    if (!sentry__atomic_fetch(&ipc->message_failed)
+        && sentry__atomic_compare_swap(&ipc->writing, 0, 1)) {
+        char frame[SENTRY_CRASH_IPC_MESSAGE_HEADER_SIZE] = { 0 };
+        write_u32_le(frame, SENTRY_CRASH_IPC_MESSAGE_MIN_LEN);
+        write_u16_le(frame + 4, SENTRY_CRASH_IPC_MESSAGE_CRASH);
+        write_u64_le(frame + 8, ipc->sequence + 1);
+        bool sent = write_message(ipc, frame, sizeof(frame), true);
+        sentry__atomic_store(&ipc->writing, 0);
+        if (sent) {
+            return;
+        }
+    }
+#endif
+    // also used by WER; the daemon drains complete frames before freezing
+    notify_fallback(ipc);
+}
+
+static void
+close_message_stream(sentry_crash_ipc_t *ipc)
+{
+    ipc->message_closed = true;
+#if defined(SENTRY_PLATFORM_WINDOWS)
+    CloseHandle(ipc->message_read_handle);
+    ipc->message_read_handle = NULL;
+#else
+    close(ipc->message_fd[1]);
+    ipc->message_fd[1] = -1;
+#endif
+}
+
+bool
+sentry__crash_ipc_receive(sentry_crash_ipc_t *ipc, int timeout_ms)
+{
+    // a bounded poll also checks legacy notifications without blocking a writer
+    int remaining = timeout_ms;
+    do {
+        ipc->notify_pending
+            = ipc->notify_pending || sentry__crash_ipc_wait(ipc, 0);
+        bool available = false;
+        if (!ipc->message_closed) {
+#if defined(SENTRY_PLATFORM_WINDOWS)
+            DWORD bytes = 0;
+            if (!PeekNamedPipe(
+                    ipc->message_read_handle, NULL, 0, NULL, &bytes, NULL)) {
+                close_message_stream(ipc);
+            }
+            available = bytes > 0;
+#else
+            struct pollfd fd = { ipc->message_fd[1], POLLIN, 0 };
+            available = poll(&fd, 1, 0) > 0;
+#endif
+        }
+        if (!available) {
+            if (ipc->notify_pending) {
+                ipc->scope.stopped = true;
+                return true;
+            }
+            if (ipc->message_closed || remaining <= 0) {
+                return false;
+            }
+#if defined(SENTRY_PLATFORM_WINDOWS)
+            int delay = remaining < 10 ? remaining : 10;
+            ipc->notify_pending = sentry__crash_ipc_wait(ipc, delay);
+            remaining -= delay;
+#else
+#    if defined(SENTRY_PLATFORM_MACOS)
+            int notify_fd = ipc->notify_pipe[0];
+#    else
+            int notify_fd = ipc->notify_fd;
+#    endif
+            struct pollfd fds[] = {
+                { ipc->message_fd[1], POLLIN, 0 },
+                { notify_fd, POLLIN, 0 },
+            };
+            int rv = poll(fds, 2, remaining);
+            if (!rv || (rv < 0 && errno != EINTR)) {
+                return false;
+            }
+#endif
+            continue;
+        }
+        if (!ipc->message_buf) {
+            ipc->message_size = SENTRY_CRASH_IPC_MESSAGE_HEADER_SIZE;
+            ipc->message_buf = sentry_malloc(ipc->message_size);
+            if (!ipc->message_buf) {
+                close_message_stream(ipc);
+                continue;
+            }
+        }
+        size_t len = ipc->message_size - ipc->message_len;
+#if defined(SENTRY_PLATFORM_WINDOWS)
+        DWORD bytes = 0, received = 0;
+        if (!PeekNamedPipe(
+                ipc->message_read_handle, NULL, 0, NULL, &bytes, NULL)
+            || !ReadFile(ipc->message_read_handle,
+                ipc->message_buf + ipc->message_len,
+                (DWORD)(len < bytes ? len : bytes), &received, NULL)
+            || !received) {
+            close_message_stream(ipc);
+            continue;
+        }
+#else
+        ssize_t received = recv(ipc->message_fd[1],
+            ipc->message_buf + ipc->message_len, len, MSG_DONTWAIT);
+        if (received < 0 && (errno == EINTR || errno == EAGAIN)) {
+            continue;
+        }
+        if (received <= 0) {
+            close_message_stream(ipc);
+            continue;
+        }
+#endif
+        ipc->message_len += (size_t)received;
+        if (ipc->message_len < ipc->message_size) {
+            continue;
+        }
+        sentry_crash_ipc_message_t message;
+        sentry_crash_ipc_message_result_t result
+            = sentry__crash_ipc_message_decode(
+                ipc->message_buf, ipc->message_len, &message);
+        if (result == SENTRY_CRASH_IPC_MESSAGE_PARTIAL) {
+            if (!sentry__crash_ipc_message_type_is_known(
+                    read_u16_le(ipc->message_buf + 4))
+                || read_u16_le(ipc->message_buf + 6)
+                || read_u64_le(ipc->message_buf + 8)
+                    != ipc->scope.sequence + 1) {
+                close_message_stream(ipc);
+                continue;
+            }
+            ipc->message_size = (size_t)read_u32_le(ipc->message_buf)
+                + SENTRY_CRASH_IPC_MESSAGE_PREFIX_SIZE;
+            char *buf = sentry_malloc(ipc->message_size);
+            if (!buf) {
+                close_message_stream(ipc);
+                continue;
+            }
+            memcpy(buf, ipc->message_buf, ipc->message_len);
+            sentry_free(ipc->message_buf);
+            ipc->message_buf = buf;
+            continue;
+        }
+        if (result != SENTRY_CRASH_IPC_MESSAGE_OK
+            || !sentry__crash_scope_apply(&ipc->scope, &message)) {
+            SENTRY_WARN("daemon: invalid scope IPC frame");
+            close_message_stream(ipc);
+            continue;
+        }
+        uint16_t type = message.type;
+        sentry_free(ipc->message_buf);
+        ipc->message_buf = NULL;
+        ipc->message_len = 0;
+        if (type == SENTRY_CRASH_IPC_MESSAGE_CRASH) {
+            return true;
+        }
+        if (type == SENTRY_CRASH_IPC_MESSAGE_SHUTDOWN) {
+            return false;
+        }
+    } while (true);
 }
