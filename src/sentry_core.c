@@ -2154,14 +2154,7 @@ sentry_clear_attachments(void)
 {
     SENTRY_WITH_OPTIONS (options) {
         SENTRY_WITH_SCOPE_MUT (scope) {
-            sentry_value_t attachments = sentry__scope_take_attachments(scope);
-            size_t len = sentry_value_get_length(attachments);
-            for (size_t i = 0; i < len; i++) {
-                sentry_value_t attachment
-                    = sentry_value_get_by_index(attachments, i);
-                SENTRY_SCOPE_NOTIFY(scope, remove_attachment, attachment);
-            }
-            sentry_value_decref(attachments);
+            sentry__scope_clear_attachments(scope);
         }
     }
 }

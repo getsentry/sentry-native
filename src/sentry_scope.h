@@ -158,7 +158,7 @@ sentry_value_t sentry__scope_ref_client_sdk(const sentry_scope_t *scope);
 sentry_value_t sentry__scope_load_attachments(const sentry_scope_t *scope);
 sentry_value_t sentry__scope_add_attachment(
     sentry_scope_t *scope, sentry_value_t attachment);
-sentry_value_t sentry__scope_take_attachments(sentry_scope_t *scope);
+void sentry__scope_clear_attachments(sentry_scope_t *scope);
 sentry_value_t sentry__scope_load_tags(const sentry_scope_t *scope);
 
 sentry_value_t sentry__scope_load_extra(const sentry_scope_t *scope);
@@ -250,22 +250,6 @@ bool sentry__scope_add_observer(
  */
 void sentry__scope_remove_observer(
     sentry_scope_t *scope, sentry_scope_observer_t *observer);
-
-size_t sentry__scope_begin_notify(sentry_scope_t *scope);
-void sentry__scope_end_notify(sentry_scope_t *scope);
-
-/** Notify observers registered before this notification started. */
-#define SENTRY_SCOPE_NOTIFY(scope, callback, ...)                              \
-    do {                                                                       \
-        size_t _end = sentry__scope_begin_notify(scope);                       \
-        for (size_t _i = 0; _i < _end && _i < (scope)->num_observers; _i++) {  \
-            sentry_scope_observer_t *_observer = (scope)->observers[_i];       \
-            if (_observer && _observer->callback) {                            \
-                _observer->callback(_observer->data, __VA_ARGS__);             \
-            }                                                                  \
-        }                                                                      \
-        sentry__scope_end_notify(scope);                                       \
-    } while (0)
 
 sentry_value_t sentry__scope_load_dsc(const sentry_scope_t *scope);
 void sentry__scope_foreach_dsc(const sentry_scope_t *scope,
