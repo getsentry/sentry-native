@@ -5,6 +5,7 @@
 extern "C" {
 #include "sentry_options.h"
 #include "sentry_scope.h"
+#include "sentry_tracing.h"
 }
 
 enum payload_type {
@@ -156,14 +157,20 @@ new_transaction(size_t span_count)
 static void
 benchmark_scope_apply(benchmark::State &state)
 {
-    auto new_payload = state.range(0) == EVENT ? new_event : new_transaction;
+    auto type = static_cast<payload_type>(state.range(0));
     size_t item_count = static_cast<size_t>(state.range(1));
     sentry_options_t *options = sentry_options_new();
     sentry_scope_t *scope = new_scope();
+    sentry_transaction_t *transaction = NULL;
+    if (type == TRANSACTION) {
+        transaction = sentry__transaction_new(new_transaction(item_count));
+        sentry_scope_set_transaction_object(scope, transaction);
+        item_count = 0;
+    }
 
     for (auto _ : state) {
         state.PauseTiming();
-        sentry_value_t value = new_payload(item_count);
+        sentry_value_t value = new_event(item_count);
         state.ResumeTiming();
 
         sentry__scope_apply_to_event(scope, options, value, SENTRY_SCOPE_ALL);
@@ -173,6 +180,8 @@ benchmark_scope_apply(benchmark::State &state)
         state.ResumeTiming();
     }
 
+    sentry_scope_set_transaction_object(scope, NULL);
+    sentry__transaction_decref(transaction);
     sentry_scope_free(scope);
     sentry_options_free(options);
 }
