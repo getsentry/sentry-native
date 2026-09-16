@@ -907,7 +907,7 @@ load_span_or_transaction_trace_context(const sentry_scope_t *scope)
             sentry_value_t data = sentry_value_get_by_key(value, "data");
             if (!sentry_value_is_null(data)) {
                 sentry_value_set_by_key(
-                    trace, "data", sentry_value_incref(data));
+                    trace, "data", sentry__value_clone(data));
             }
         }
     }
