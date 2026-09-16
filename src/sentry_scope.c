@@ -888,6 +888,32 @@ sentry__symbolize_stacktrace(sentry_value_t stacktrace)
 }
 #endif
 
+static sentry_value_t
+load_span_or_transaction_trace_context(const sentry_scope_t *scope)
+{
+    // prep contexts sourced from scope; data about transaction on scope needs
+    // to be extracted and inserted
+    sentry_value_t trace = sentry_value_new_null();
+    SENTRY_SCOPE_READ_LOCK (scope->data) {
+        sentry_value_t value = sentry_value_new_null();
+        if (scope->data->span) {
+            value = scope->data->span->inner;
+        } else if (scope->data->transaction_object) {
+            value = scope->data->transaction_object->inner;
+        }
+
+        trace = sentry__value_get_trace_context(value);
+        if (!sentry_value_is_null(trace)) {
+            sentry_value_t data = sentry_value_get_by_key(value, "data");
+            if (!sentry_value_is_null(data)) {
+                sentry_value_set_by_key(
+                    trace, "data", sentry_value_incref(data));
+            }
+        }
+    }
+    return trace;
+}
+
 void
 sentry__scope_apply_to_event(const sentry_scope_t *scope,
     const sentry_options_t *options, sentry_value_t event,
@@ -1002,28 +1028,16 @@ sentry__scope_apply_to_event(const sentry_scope_t *scope,
         sentry_value_remove_by_key(contexts, "trace");
     }
 
-    // prep contexts sourced from scope; data about transaction on scope needs
-    // to be extracted and inserted
-    sentry_value_t scoped_txn_or_span = sentry_value_new_null();
     sentry_value_t scope_trace = sentry_value_new_null();
     if (!is_transaction) {
-        scoped_txn_or_span = sentry__scope_load_span_or_transaction(scope);
-        scope_trace = sentry__value_get_trace_context(scoped_txn_or_span);
+        scope_trace = load_span_or_transaction_trace_context(scope);
     }
     if (!sentry_value_is_null(scope_trace)) {
         if (sentry_value_is_null(contexts)) {
             contexts = sentry_value_new_object();
         }
-        sentry_value_t scoped_txn_or_span_data
-            = sentry_value_get_by_key(scoped_txn_or_span, "data");
-        if (!sentry_value_is_null(scoped_txn_or_span_data)) {
-            sentry_value_incref(scoped_txn_or_span_data);
-            sentry_value_set_by_key(
-                scope_trace, "data", scoped_txn_or_span_data);
-        }
         sentry_value_set_by_key(contexts, "trace", scope_trace);
     }
-    sentry_value_decref(scoped_txn_or_span);
 
     // merge contexts sourced from scope into the event
     sentry_value_t event_contexts = sentry_value_get_by_key(event, "contexts");
