@@ -204,3 +204,26 @@ def test_benchmark_contexts(backend, cmake, httpserver, gbenchmark):
         gbenchmark,
         f"Contexts ({backend})",
     )
+
+
+@pytest.mark.parametrize(
+    "case",
+    [
+        ("event", 10, "frames"),
+        ("event", 256, "frames"),
+        ("transaction", 100, "spans"),
+        ("transaction", 1000, "spans"),
+    ],
+    ids=lambda case: f"{case[1]}-{case[2]}",
+)
+def test_benchmark_scope_apply(case, cmake, httpserver, gbenchmark):
+    kind, count, item = case
+    kind_id = 0 if kind == "event" else 1
+    run_benchmark(
+        f"^benchmark_scope_apply/type:{kind_id}/count:{count}/",
+        "none",
+        cmake,
+        httpserver,
+        gbenchmark,
+        f"Scope apply ({kind}, {count} {item})",
+    )
