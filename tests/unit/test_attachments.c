@@ -756,3 +756,111 @@ SENTRY_TEST(attachments_more_than_ten)
 
     TEST_CHECK_INT_EQUAL(testdata.called, 1);
 }
+
+SENTRY_TEST(attachment_manifest)
+{
+    sentry_value_t attachment = sentry__attachment_from_file("attachment.bin");
+    sentry_attachment_set_filename(attachment, "renamed.bin");
+    sentry_value_t attachments = sentry_value_new_list();
+    sentry_value_append(attachments, attachment);
+
+    const char bytes[] = { 'a', '\0', 'b' };
+    const char *id = "00000000-0000-4000-8000-000000000001";
+    sentry_value_t bytes_attachment
+        = sentry_attachment_from_bytes(bytes, sizeof(bytes), "bytes.bin");
+    sentry_value_set_by_key(
+        bytes_attachment, "id", sentry_value_new_string(id));
+    sentry_value_append(attachments, bytes_attachment);
+    for (size_t i = 0; i < sentry_value_get_length(attachments); i++) {
+        attachment = sentry_value_get_by_index(attachments, i);
+        sentry_attachment_set_type(attachment, "event.attachment");
+        sentry_attachment_set_content_type(
+            attachment, "application/octet-stream");
+    }
+    sentry_value_freeze(attachments);
+    TEST_CHECK(!sentry__write_attachment_manifest(NULL, attachments));
+
+    sentry_path_t *run_path = sentry__path_from_str(
+        SENTRY_TEST_PATH_PREFIX ".attachment-manifest-run");
+    sentry_path_t *dir = sentry__path_join_str(run_path, id);
+    sentry_path_t *path = sentry__path_join_str(dir, "bytes.bin");
+    sentry_path_t *manifest_path
+        = sentry__path_join_str(run_path, "__sentry-attachments");
+    TEST_ASSERT(sentry__path_create_dir_all(dir) == 0);
+    sentry__path_remove(path);
+
+    // missing and partially written byte attachments are excluded
+    for (size_t size = 0; size <= sizeof(bytes); size++) {
+        if (size) {
+            TEST_ASSERT(sentry__path_write_buffer(path, bytes, size) == 0);
+        }
+        TEST_ASSERT(
+            sentry__write_attachment_manifest(manifest_path, attachments));
+        sentry_value_t parsed = sentry__read_attachment_manifest(manifest_path);
+        TEST_CHECK(sentry_value_get_type(parsed) == SENTRY_VALUE_TYPE_LIST);
+        TEST_CHECK_INT_EQUAL(
+            sentry_value_get_length(parsed), size == sizeof(bytes) ? 2 : 1);
+        for (size_t i = 0; i < sentry_value_get_length(parsed); i++) {
+            sentry_value_t info = sentry_value_get_by_index(parsed, i);
+            attachment = sentry_value_get_by_index(attachments, i);
+            TEST_CHECK_STRING_EQUAL(sentry__attachment_get_path(info),
+                i == 0 ? "attachment.bin" : path->path);
+            TEST_CHECK_STRING_EQUAL(sentry__attachment_get_filename(info),
+                i == 0 ? "renamed.bin" : "bytes.bin");
+            TEST_CHECK_STRING_EQUAL(
+                sentry__attachment_get_type(info), "event.attachment");
+            TEST_CHECK_STRING_EQUAL(sentry__attachment_get_content_type(info),
+                "application/octet-stream");
+            TEST_CHECK(sentry__attachment_eq(info, attachment));
+            TEST_CHECK(sentry__attachment_get_bytes(info, NULL) == NULL);
+        }
+        sentry_value_decref(parsed);
+    }
+
+    size_t size = 0;
+    const char *original
+        = sentry__attachment_get_bytes(bytes_attachment, &size);
+    TEST_CHECK(size == sizeof(bytes));
+    TEST_CHECK(memcmp(original, bytes, sizeof(bytes)) == 0);
+    TEST_CHECK(sentry__attachment_get_path(bytes_attachment) == NULL);
+    TEST_CHECK(sentry_value_is_frozen(bytes_attachment));
+    char *persisted = sentry__path_read_to_buffer(path, &size);
+    TEST_ASSERT(persisted != NULL);
+    TEST_CHECK(size == sizeof(bytes));
+    TEST_CHECK(memcmp(persisted, bytes, sizeof(bytes)) == 0);
+    sentry_free(persisted);
+    sentry_value_decref(attachments);
+
+    sentry_value_t parsed = sentry__read_attachment_manifest(NULL);
+    TEST_CHECK(sentry_value_is_null(parsed));
+    sentry_value_decref(parsed);
+
+    sentry_path_t *missing_path = sentry__path_from_str(
+        SENTRY_TEST_PATH_PREFIX ".missing-attachment-manifest");
+    sentry__path_remove(missing_path);
+    parsed = sentry__read_attachment_manifest(missing_path);
+    TEST_CHECK(sentry_value_is_null(parsed));
+    sentry_value_decref(parsed);
+    sentry__path_free(missing_path);
+
+    TEST_ASSERT(
+        sentry__path_write_buffer(manifest_path, "incomplete", 10) == 0);
+    parsed = sentry__read_attachment_manifest(manifest_path);
+    TEST_CHECK(sentry_value_is_null(parsed));
+    sentry_value_decref(parsed);
+
+    sentry_value_t empty = sentry_value_new_list();
+    TEST_ASSERT(sentry__write_attachment_manifest(manifest_path, empty));
+    parsed = sentry__read_attachment_manifest(manifest_path);
+    TEST_CHECK_INT_EQUAL(sentry_value_get_length(parsed), 0);
+    sentry_value_decref(parsed);
+    sentry_value_decref(empty);
+    sentry__path_remove(path);
+    sentry__path_remove(dir);
+    sentry__path_remove(manifest_path);
+    sentry__path_remove(run_path);
+    sentry__path_free(path);
+    sentry__path_free(dir);
+    sentry__path_free(manifest_path);
+    sentry__path_free(run_path);
+}

@@ -153,8 +153,6 @@ typedef struct {
 
 static void crashpad_backend_add_breadcrumb(sentry_backend_t *backend,
     sentry_value_t breadcrumb, const sentry_options_t *options);
-static sentry_path_t *make_attachment_path(
-    const sentry_path_t *run_path, sentry_value_t attachment);
 
 /**
  * Correctly destruct C++ members of the crashpad state.
@@ -405,7 +403,8 @@ prepare_initial_attachment(
 {
     size_t bytes_len = 0;
     const char *bytes = sentry__attachment_get_bytes(attachment, &bytes_len);
-    sentry_path_t *path = make_attachment_path(run_path, attachment);
+    sentry_path_t *path
+        = sentry__attachment_make_run_path(run_path, attachment);
     if (!path) {
         return nullptr;
     }
@@ -883,35 +882,6 @@ process_completed_reports(
 
 #if defined(SENTRY_PLATFORM_WINDOWS) || defined(SENTRY_PLATFORM_LINUX)         \
     || defined(SENTRY_PLATFORM_MACOS)
-static sentry_path_t *
-make_attachment_path(const sentry_path_t *run_path, sentry_value_t attachment)
-{
-    if (!sentry__attachment_get_bytes(attachment, nullptr)) {
-        return sentry__attachment_make_path(attachment);
-    }
-
-    sentry_uuid_t id = sentry__attachment_get_id(attachment);
-    const char *filename = sentry__attachment_get_filename(attachment);
-    if (!run_path || sentry_uuid_is_nil(&id)
-        || sentry__string_empty(filename)) {
-        return nullptr;
-    }
-
-    char uuid[37];
-    sentry_uuid_as_string(&id, uuid);
-    sentry_path_t *dir = sentry__path_join_str(run_path, uuid);
-    sentry_path_t *path = dir ? sentry__path_join_str(dir, filename) : nullptr;
-    sentry_path_t *parent = path ? sentry__path_dir(path) : nullptr;
-    bool valid = parent && sentry__path_eq(parent, dir);
-    sentry__path_free(parent);
-    sentry__path_free(dir);
-    if (!valid) {
-        sentry__path_free(path);
-        return nullptr;
-    }
-    return path;
-}
-
 static void
 add_attachment(void *state, sentry_value_t attachment)
 {
@@ -922,7 +892,8 @@ add_attachment(void *state, sentry_value_t attachment)
 
     size_t bytes_len = 0;
     const char *bytes = sentry__attachment_get_bytes(attachment, &bytes_len);
-    sentry_path_t *path = make_attachment_path(data->run_path, attachment);
+    sentry_path_t *path
+        = sentry__attachment_make_run_path(data->run_path, attachment);
     if (!path) {
         const char *filename = sentry__attachment_get_filename(attachment);
         SENTRY_WARNF("failed to create path for crashpad attachment \"%s\"",
@@ -953,7 +924,8 @@ remove_attachment(void *state, sentry_value_t attachment)
     if (!data || !data->client) {
         return;
     }
-    sentry_path_t *path = make_attachment_path(data->run_path, attachment);
+    sentry_path_t *path
+        = sentry__attachment_make_run_path(data->run_path, attachment);
     if (!path) {
         return;
     }

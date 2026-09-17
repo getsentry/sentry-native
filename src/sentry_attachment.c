@@ -1,6 +1,7 @@
 #include "sentry_attachment.h"
 #include "sentry_alloc.h"
 #include "sentry_logger.h"
+#include "sentry_mpack.h"
 #include "sentry_options.h"
 #include "sentry_path.h"
 #include "sentry_string.h"
@@ -401,6 +402,36 @@ sentry__attachment_make_path(sentry_value_t attachment)
     return sentry__path_from_str(sentry__attachment_get_path(attachment));
 }
 
+sentry_path_t *
+sentry__attachment_make_run_path(
+    const sentry_path_t *run_path, sentry_value_t attachment)
+{
+    if (!sentry__attachment_get_bytes(attachment, NULL)) {
+        return sentry__attachment_make_path(attachment);
+    }
+
+    sentry_uuid_t id = sentry__attachment_get_id(attachment);
+    const char *filename = sentry__attachment_get_filename(attachment);
+    if (!run_path || sentry_uuid_is_nil(&id)
+        || sentry__string_empty(filename)) {
+        return NULL;
+    }
+
+    char uuid[37];
+    sentry_uuid_as_string(&id, uuid);
+    sentry_path_t *dir = sentry__path_join_str(run_path, uuid);
+    sentry_path_t *path = dir ? sentry__path_join_str(dir, filename) : NULL;
+    sentry_path_t *parent = path ? sentry__path_dir(path) : NULL;
+    bool valid = parent && sentry__path_eq(parent, dir);
+    sentry__path_free(parent);
+    sentry__path_free(dir);
+    if (!valid) {
+        sentry__path_free(path);
+        return NULL;
+    }
+    return path;
+}
+
 bool
 sentry__attachment_is_placeholder(
     sentry_value_t attachment, const sentry_options_t *options)
@@ -661,4 +692,110 @@ sentry__attachments_clone(sentry_value_t attachments)
         sentry_value_freeze(sentry_value_get_by_index(clone, i));
     }
     return clone;
+}
+
+static sentry_value_t
+read_manifest(const char *buf, size_t buf_len)
+{
+    if (buf_len == 0) {
+        return sentry_value_new_list();
+    }
+
+    sentry_value_t attachments
+        = sentry__value_from_msgpack_stream(buf, buf_len);
+    size_t len = sentry_value_get_length(attachments);
+    for (size_t i = 0; i < len; i++) {
+        sentry_value_t attachment = sentry_value_get_by_index(attachments, i);
+        if (sentry_value_get_type(attachment) != SENTRY_VALUE_TYPE_OBJECT
+            || sentry__string_empty(sentry__attachment_get_path(attachment))
+            || sentry__string_empty(
+                sentry__attachment_get_filename(attachment))) {
+            sentry_value_decref(attachments);
+            return sentry_value_new_null();
+        }
+    }
+    return attachments;
+}
+
+sentry_value_t
+sentry__read_attachment_manifest(const sentry_path_t *path)
+{
+    if (!path) {
+        return sentry_value_new_null();
+    }
+    size_t buf_len = 0;
+    char *buf = sentry__path_read_to_buffer(path, &buf_len);
+    if (!buf) {
+        return sentry_value_new_null();
+    }
+    sentry_value_t attachments = read_manifest(buf, buf_len);
+    sentry_free(buf);
+    return attachments;
+}
+
+bool
+sentry__write_attachment_manifest(
+    const sentry_path_t *path, sentry_value_t attachments)
+{
+    if (!path) {
+        return false;
+    }
+
+    sentry_path_t *run_path = sentry__path_dir(path);
+    if (!run_path) {
+        return false;
+    }
+
+    const char *keys[] = { ATTACHMENT_ID, ATTACHMENT_FILENAME, ATTACHMENT_TYPE,
+        ATTACHMENT_CONTENT_TYPE };
+    mpack_writer_t writer;
+    char *buf = NULL;
+    size_t buf_len = 0;
+    mpack_writer_init_growable(&writer, &buf, &buf_len);
+    size_t len = sentry_value_get_length(attachments);
+    for (size_t i = 0; i < len && mpack_writer_error(&writer) == mpack_ok;
+        i++) {
+        sentry_value_t attachment = sentry_value_get_by_index(attachments, i);
+        sentry_path_t *attachment_path
+            = sentry__attachment_make_run_path(run_path, attachment);
+        if (!attachment_path) {
+            continue;
+        }
+
+        // skip missing or partially written attachments
+        size_t bytes_len = 0;
+        if (sentry__attachment_get_bytes(attachment, &bytes_len)
+            && sentry__path_get_size(attachment_path) != bytes_len) {
+            sentry__path_free(attachment_path);
+            continue;
+        }
+
+        uint32_t count = 1;
+        for (size_t j = 0; j < sizeof(keys) / sizeof(keys[0]); j++) {
+            if (sentry_value_get_type(
+                    sentry_value_get_by_key(attachment, keys[j]))
+                == SENTRY_VALUE_TYPE_STRING) {
+                count++;
+            }
+        }
+        mpack_start_map(&writer, count);
+        mpack_write_cstr(&writer, ATTACHMENT_PATH);
+        mpack_write_cstr(&writer, attachment_path->path);
+        sentry__path_free(attachment_path);
+        for (size_t j = 0; j < sizeof(keys) / sizeof(keys[0]); j++) {
+            sentry_value_t value = sentry_value_get_by_key(attachment, keys[j]);
+            if (sentry_value_get_type(value) == SENTRY_VALUE_TYPE_STRING) {
+                mpack_write_cstr(&writer, keys[j]);
+                mpack_write_str(&writer, sentry_value_as_string(value),
+                    (uint32_t)sentry_value_get_length(value));
+            }
+        }
+        mpack_finish_map(&writer);
+    }
+
+    sentry__path_free(run_path);
+    bool success = mpack_writer_destroy(&writer) == mpack_ok
+        && sentry__path_write_buffer(path, buf ? buf : "", buf_len) == 0;
+    sentry_free(buf);
+    return success;
 }
