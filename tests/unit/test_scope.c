@@ -35,6 +35,68 @@ scope_value_get_length(scope_value_getter_t get, const sentry_scope_t *scope)
     return length;
 }
 
+SENTRY_TEST(scope_update_nested)
+{
+    sentry_scope_t *scope = sentry_scope_new();
+    TEST_ASSERT(!!scope);
+
+    sentry_scope_begin_update(scope);
+    sentry_scope_set_tag(scope, "first", "value");
+
+    sentry_scope_begin_update(scope);
+    sentry_scope_set_tag(scope, "second", "value");
+    TEST_CHECK(scope_value_get_length(sentry__scope_load_tags, scope) == 2);
+    sentry_scope_end_update(scope);
+
+    sentry_scope_set_environment(scope, "production");
+    sentry_value_t environment = sentry__scope_ref_environment(scope);
+    TEST_CHECK_STRING_EQUAL(sentry_value_as_string(environment), "production");
+    sentry_value_decref(environment);
+    sentry_scope_end_update(scope);
+
+    TEST_CHECK(scope_value_get_length(sentry__scope_load_tags, scope) == 2);
+    sentry_scope_free(scope);
+}
+
+typedef struct {
+    sentry_scope_t *scope;
+    sentry_waitable_flag_t started;
+    sentry_waitable_flag_t finished;
+} scope_update_thread_t;
+
+SENTRY_THREAD_FN
+read_scope_during_update(void *data)
+{
+    scope_update_thread_t *state = data;
+    sentry__waitable_flag_set(&state->started);
+    sentry_value_decref(sentry__scope_load_tags(state->scope));
+    sentry__waitable_flag_set(&state->finished);
+    return 0;
+}
+
+SENTRY_TEST(scope_update_exclusive)
+{
+    sentry_scope_t *scope = sentry_scope_new();
+    TEST_ASSERT(!!scope);
+
+    scope_update_thread_t state = { .scope = scope };
+    sentry__waitable_flag_init(&state.started);
+    sentry__waitable_flag_init(&state.finished);
+
+    sentry_scope_begin_update(scope);
+    sentry_threadid_t thread;
+    sentry__thread_init(&thread);
+    TEST_ASSERT(
+        !sentry__thread_spawn(&thread, read_scope_during_update, &state));
+    TEST_ASSERT(sentry__waitable_flag_wait(&state.started, 1000));
+    TEST_CHECK(!sentry__waitable_flag_wait(&state.finished, 10));
+
+    sentry_scope_end_update(scope);
+    TEST_CHECK(sentry__waitable_flag_wait(&state.finished, 1000));
+    sentry__thread_join(thread);
+    sentry_scope_free(scope);
+}
+
 SENTRY_TEST(scope_contexts)
 {
     SENTRY_TEST_OPTIONS_NEW(options);
@@ -2059,6 +2121,17 @@ SENTRY_TEST(scope_observer_deferred_flush)
     TEST_CHECK(observer_data.was_called);
     TEST_CHECK_INT_EQUAL(observer_data.nested_flush_count, 0);
     TEST_CHECK_INT_EQUAL(observer_data.total_flush_count, 1);
+
+    observer_data.total_flush_count = 0;
+    observer_data.nested_flush_count = 0;
+    sentry_scope_t *scope = sentry__scope_getref();
+    sentry_scope_begin_update(scope);
+    sentry_scope_set_tag(scope, "batched", "value");
+    TEST_CHECK_INT_EQUAL(observer_data.nested_flush_count, 0);
+    TEST_CHECK_INT_EQUAL(observer_data.total_flush_count, 0);
+    sentry_scope_end_update(scope);
+    TEST_CHECK_INT_EQUAL(observer_data.total_flush_count, 1);
+    sentry__scope_finish(scope);
 
     sentry_close();
 }
