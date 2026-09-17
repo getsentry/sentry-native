@@ -53,7 +53,8 @@ wait_at_barrier(void)
 #else
     InterlockedIncrement(&g_ready_count);
     while (InterlockedCompareExchange(&g_barrier, 1, 1) == 0) {
-        // spin
+        // let other threads start on CPU-constrained runners
+        SwitchToThread();
     }
 #endif
 }
