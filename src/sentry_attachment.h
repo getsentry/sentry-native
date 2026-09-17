@@ -142,4 +142,15 @@ sentry_value_t sentry__attachments_find(
  */
 sentry_value_t sentry__attachments_clone(sentry_value_t attachments);
 
+/**
+ * Reads a list of attachments from a manifest file.
+ */
+sentry_value_t sentry__read_attachment_manifest(const sentry_path_t *path);
+
+/**
+ * Writes a list of attachments to a manifest file.
+ */
+bool sentry__write_attachment_manifest(
+    const sentry_path_t *path, sentry_value_t attachments);
+
 #endif

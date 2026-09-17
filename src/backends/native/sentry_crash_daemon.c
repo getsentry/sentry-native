@@ -364,6 +364,103 @@ attachment_is_placeholder(const sentry_options_t *options, const char *path)
     return is_placeholder;
 }
 
+static sentry_value_t
+read_legacy_manifest(const char *buf, size_t buf_len)
+{
+    sentry_value_t legacy = sentry__value_from_json(buf, buf_len);
+    if (sentry_value_get_type(legacy) != SENTRY_VALUE_TYPE_LIST) {
+        sentry_value_decref(legacy);
+        return sentry_value_new_null();
+    }
+
+    sentry_value_t attachments = sentry_value_new_list();
+    size_t len = sentry_value_get_length(legacy);
+    for (size_t i = 0; i < len; i++) {
+        sentry_value_t info = sentry_value_get_by_index(legacy, i);
+        const char *path
+            = sentry_value_as_string(sentry_value_get_by_key(info, "path"));
+        const char *filename
+            = sentry_value_as_string(sentry_value_get_by_key(info, "filename"));
+        if (sentry__string_empty(path) || sentry__string_empty(filename)) {
+            continue;
+        }
+        sentry_value_t attachment = sentry__attachment_from_file(path);
+        if (sentry_value_is_null(attachment)) {
+            continue;
+        }
+        sentry_attachment_set_filename(attachment, filename);
+        sentry_attachment_set_type(attachment,
+            sentry_value_as_string(
+                sentry_value_get_by_key(info, "attachment_type")));
+        sentry_attachment_set_content_type(attachment,
+            sentry_value_as_string(
+                sentry_value_get_by_key(info, "content_type")));
+        sentry_value_append(attachments, attachment);
+    }
+    sentry_value_decref(legacy);
+    return attachments;
+}
+
+static sentry_value_t
+read_attachment_manifest(const sentry_path_t *run_folder)
+{
+    sentry_path_t *path
+        = sentry__path_join_str(run_folder, "__sentry-attachments");
+    if (!path) {
+        return sentry_value_new_null();
+    }
+    sentry_value_t attachments = sentry__read_attachment_manifest(path);
+    if (!sentry_value_is_null(attachments)) {
+        sentry__path_free(path);
+        return attachments;
+    }
+    sentry_value_decref(attachments);
+
+    size_t buf_len = 0;
+    char *buf = sentry__path_read_to_buffer(path, &buf_len);
+    sentry__path_free(path);
+    if (!buf) {
+        return sentry_value_new_null();
+    }
+    const char *start = buf;
+    const char *end = buf + buf_len;
+    while (start < end
+        && (*start == ' ' || *start == '\t' || *start == '\r'
+            || *start == '\n')) {
+        start++;
+    }
+    const char *trimmed_end = end;
+    while (trimmed_end > start
+        && (trimmed_end[-1] == ' ' || trimmed_end[-1] == '\t'
+            || trimmed_end[-1] == '\r' || trimmed_end[-1] == '\n')) {
+        trimmed_end--;
+    }
+    attachments = start < trimmed_end && *start == '[' && trimmed_end[-1] == ']'
+        ? read_legacy_manifest(start, (size_t)(trimmed_end - start))
+        : sentry_value_new_null();
+    sentry_free(buf);
+    return attachments;
+}
+
+static void
+write_attachments_from_manifest(
+    int fd, const sentry_options_t *options, const sentry_path_t *run_folder)
+{
+    sentry_value_t attachments = read_attachment_manifest(run_folder);
+    size_t len = sentry_value_get_length(attachments);
+    for (size_t i = 0; i < len; i++) {
+        sentry_value_t attachment = sentry_value_get_by_index(attachments, i);
+        const char *path = sentry__attachment_get_path(attachment);
+        if (!attachment_is_placeholder(options, path)) {
+            write_attachment_to_envelope(fd, path,
+                sentry__attachment_get_filename(attachment),
+                sentry__attachment_get_type(attachment),
+                sentry__attachment_get_content_type(attachment));
+        }
+    }
+    sentry_value_decref(attachments);
+}
+
 // For each large attachment listed in `<run_folder>/__sentry-attachments`,
 // cache it as an attachment-ref item. Small attachments were already inlined
 // during envelope writing.
@@ -375,23 +472,7 @@ add_attachment_refs(sentry_envelope_t *envelope,
         || !options->enable_large_attachments || !run_folder) {
         return;
     }
-    sentry_path_t *attach_list_path
-        = sentry__path_join_str(run_folder, "__sentry-attachments");
-    if (!attach_list_path) {
-        SENTRY_WARN("Failed to resolve attachment manifest path");
-        return;
-    }
-    size_t attach_json_len = 0;
-    char *attach_json
-        = sentry__path_read_to_buffer(attach_list_path, &attach_json_len);
-    sentry__path_free(attach_list_path);
-    if (!attach_json) {
-        return;
-    }
-    sentry_value_t list = attach_json_len > 0
-        ? sentry__value_from_json(attach_json, attach_json_len)
-        : sentry_value_new_null();
-    sentry_free(attach_json);
+    sentry_value_t list = read_attachment_manifest(run_folder);
     if (sentry_value_is_null(list)) {
         SENTRY_WARN("Failed to parse attachment manifest");
         return;
@@ -400,34 +481,12 @@ add_attachment_refs(sentry_envelope_t *envelope,
     bool materialized = false;
     size_t len = sentry_value_get_length(list);
     for (size_t i = 0; i < len; i++) {
-        sentry_value_t info = sentry_value_get_by_index(list, i);
-        const char *path
-            = sentry_value_as_string(sentry_value_get_by_key(info, "path"));
-        const char *filename
-            = sentry_value_as_string(sentry_value_get_by_key(info, "filename"));
-        const char *attachment_type = sentry_value_as_string(
-            sentry_value_get_by_key(info, "attachment_type"));
-        const char *content_type = sentry_value_as_string(
-            sentry_value_get_by_key(info, "content_type"));
-        if (sentry__string_empty(path) || sentry__string_empty(filename)) {
-            SENTRY_WARN("Skipping malformed attachment manifest entry");
-            continue;
-        }
-        sentry_value_t attachment = sentry__attachment_from_file(path);
-        if (sentry_value_is_null(attachment)) {
-            SENTRY_WARNF("Failed to allocate attachment paths for: %s", path);
-            continue;
-        }
-        sentry_attachment_set_filename(attachment, filename);
-        sentry_attachment_set_type(attachment, attachment_type);
-        sentry_attachment_set_content_type(attachment, content_type);
+        sentry_value_t attachment = sentry_value_get_by_index(list, i);
         if (!sentry__attachment_is_placeholder(attachment, options)) {
-            sentry_value_decref(attachment);
             continue;
         }
         if (!materialized && !sentry__envelope_materialize(envelope)) {
             SENTRY_WARN("Failed to materialize envelope for attachment-refs");
-            sentry_value_decref(attachment);
             break;
         }
         materialized = true;
@@ -435,7 +494,6 @@ add_attachment_refs(sentry_envelope_t *envelope,
                 envelope, attachment, options->run->cache_path, NULL)) {
             SENTRY_WARN("failed to cache attachment-ref");
         }
-        sentry_value_decref(attachment);
     }
     sentry_value_decref(list);
 }
@@ -3927,54 +3985,7 @@ write_envelope_with_native_stacktrace(const sentry_options_t *options,
 
     // Add scope attachments using metadata file
     if (run_folder) {
-        sentry_path_t *attach_list_path
-            = sentry__path_join_str(run_folder, "__sentry-attachments");
-        if (attach_list_path) {
-            size_t attach_json_len = 0;
-            char *attach_json = sentry__path_read_to_buffer(
-                attach_list_path, &attach_json_len);
-            sentry__path_free(attach_list_path);
-
-            if (attach_json && attach_json_len > 0) {
-                // Parse attachment list JSON
-                sentry_value_t attach_list
-                    = sentry__value_from_json(attach_json, attach_json_len);
-                sentry_free(attach_json);
-
-                if (!sentry_value_is_null(attach_list)) {
-                    size_t len = sentry_value_get_length(attach_list);
-                    for (size_t i = 0; i < len; i++) {
-                        sentry_value_t attach_info
-                            = sentry_value_get_by_index(attach_list, i);
-                        sentry_value_t path_val
-                            = sentry_value_get_by_key(attach_info, "path");
-                        sentry_value_t filename_val
-                            = sentry_value_get_by_key(attach_info, "filename");
-                        sentry_value_t attachment_type_val
-                            = sentry_value_get_by_key(
-                                attach_info, "attachment_type");
-                        sentry_value_t content_type_val
-                            = sentry_value_get_by_key(
-                                attach_info, "content_type");
-
-                        const char *path = sentry_value_as_string(path_val);
-                        const char *filename
-                            = sentry_value_as_string(filename_val);
-                        const char *attachment_type
-                            = sentry_value_as_string(attachment_type_val);
-                        const char *content_type
-                            = sentry_value_as_string(content_type_val);
-
-                        if (path && filename
-                            && !attachment_is_placeholder(options, path)) {
-                            write_attachment_to_envelope(fd, path, filename,
-                                attachment_type, content_type);
-                        }
-                    }
-                    sentry_value_decref(attach_list);
-                }
-            }
-        }
+        write_attachments_from_manifest(fd, options, run_folder);
     }
 
     // Add screenshot attachment if captured by the daemon
@@ -4204,54 +4215,7 @@ write_envelope_with_minidump(const sentry_options_t *options,
 
     // Add scope attachments using metadata file
     if (run_folder) {
-        sentry_path_t *attach_list_path
-            = sentry__path_join_str(run_folder, "__sentry-attachments");
-        if (attach_list_path) {
-            size_t attach_json_len = 0;
-            char *attach_json = sentry__path_read_to_buffer(
-                attach_list_path, &attach_json_len);
-            sentry__path_free(attach_list_path);
-
-            if (attach_json && attach_json_len > 0) {
-                // Parse attachment list JSON
-                sentry_value_t attach_list
-                    = sentry__value_from_json(attach_json, attach_json_len);
-                sentry_free(attach_json);
-
-                if (!sentry_value_is_null(attach_list)) {
-                    size_t len = sentry_value_get_length(attach_list);
-                    for (size_t i = 0; i < len; i++) {
-                        sentry_value_t attach_info
-                            = sentry_value_get_by_index(attach_list, i);
-                        sentry_value_t path_val
-                            = sentry_value_get_by_key(attach_info, "path");
-                        sentry_value_t filename_val
-                            = sentry_value_get_by_key(attach_info, "filename");
-                        sentry_value_t attachment_type_val
-                            = sentry_value_get_by_key(
-                                attach_info, "attachment_type");
-                        sentry_value_t content_type_val
-                            = sentry_value_get_by_key(
-                                attach_info, "content_type");
-
-                        const char *path = sentry_value_as_string(path_val);
-                        const char *filename
-                            = sentry_value_as_string(filename_val);
-                        const char *attachment_type
-                            = sentry_value_as_string(attachment_type_val);
-                        const char *content_type
-                            = sentry_value_as_string(content_type_val);
-
-                        if (path && filename
-                            && !attachment_is_placeholder(options, path)) {
-                            write_attachment_to_envelope(fd, path, filename,
-                                attachment_type, content_type);
-                        }
-                    }
-                    sentry_value_decref(attach_list);
-                }
-            }
-        }
+        write_attachments_from_manifest(fd, options, run_folder);
     }
 
     // Add screenshot attachment if captured by the daemon

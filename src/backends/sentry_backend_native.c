@@ -1239,36 +1239,26 @@ native_backend_write_attachments(const sentry_path_t *event_path)
                     sentry__path_free(path);
                     continue;
                 }
-                sentry_value_t attach_info = sentry_value_new_object();
-                sentry_value_set_by_key(
-                    attach_info, "path", sentry_value_new_string(path->path));
+                sentry_value_t attach_info
+                    = sentry__attachment_from_file(path->path);
                 const char *filename
                     = sentry__attachment_get_filename(attachment);
-                sentry_value_set_by_key(
-                    attach_info, "filename", sentry_value_new_string(filename));
+                sentry_attachment_set_filename(attach_info, filename);
                 const char *type = sentry__attachment_get_type(attachment);
                 if (!sentry__string_empty(type)) {
-                    sentry_value_set_by_key(attach_info, "attachment_type",
-                        sentry_value_new_string(type));
+                    sentry_attachment_set_type(attach_info, type);
                 }
                 const char *content_type
                     = sentry__attachment_get_content_type(attachment);
                 if (content_type) {
-                    sentry_value_set_by_key(attach_info, "content_type",
-                        sentry_value_new_string(content_type));
+                    sentry_attachment_set_content_type(
+                        attach_info, content_type);
                 }
                 sentry_value_append(attach_list, attach_info);
                 sentry__path_free(path);
             }
-            size_t attach_json_len = 0;
-            char *attach_json
-                = sentry__value_to_json(attach_list, &attach_json_len);
+            sentry__write_attachment_manifest(attach_list_path, attach_list);
             sentry_value_decref(attach_list);
-            if (attach_json) {
-                sentry__path_write_buffer(
-                    attach_list_path, attach_json, attach_json_len);
-                sentry_free(attach_json);
-            }
             sentry__path_free(attach_list_path);
         }
         sentry__path_free(run_path);

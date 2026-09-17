@@ -662,3 +662,77 @@ sentry__attachments_clone(sentry_value_t attachments)
     }
     return clone;
 }
+
+bool
+sentry__write_attachment_manifest(
+    const sentry_path_t *path, sentry_value_t attachments)
+{
+    if (!path) {
+        return false;
+    }
+
+    sentry_stringbuilder_t manifest;
+    sentry__stringbuilder_init(&manifest);
+    size_t len = sentry_value_get_length(attachments);
+    for (size_t i = 0; i < len; i++) {
+        sentry_value_t attachment = sentry_value_get_by_index(attachments, i);
+        if (sentry__string_empty(sentry__attachment_get_path(attachment))) {
+            continue;
+        }
+
+        size_t buf_len = 0;
+        char *buf = sentry_value_to_msgpack(attachment, &buf_len);
+        if (!buf
+            || sentry__stringbuilder_append_buf(&manifest, buf, buf_len) != 0) {
+            sentry_free(buf);
+            sentry__stringbuilder_cleanup(&manifest);
+            return false;
+        }
+        sentry_free(buf);
+    }
+
+    bool success = sentry__path_write_buffer(
+                       path, manifest.buf ? manifest.buf : "", manifest.len)
+        == 0;
+    sentry__stringbuilder_cleanup(&manifest);
+    return success;
+}
+
+static sentry_value_t
+read_manifest(const char *buf, size_t buf_len)
+{
+    if (buf_len == 0) {
+        return sentry_value_new_list();
+    }
+
+    sentry_value_t attachments
+        = sentry__value_from_msgpack_stream(buf, buf_len);
+    size_t len = sentry_value_get_length(attachments);
+    for (size_t i = 0; i < len; i++) {
+        sentry_value_t attachment = sentry_value_get_by_index(attachments, i);
+        if (sentry_value_get_type(attachment) != SENTRY_VALUE_TYPE_OBJECT
+            || sentry__string_empty(sentry__attachment_get_path(attachment))
+            || sentry__string_empty(
+                sentry__attachment_get_filename(attachment))) {
+            sentry_value_decref(attachments);
+            return sentry_value_new_null();
+        }
+    }
+    return attachments;
+}
+
+sentry_value_t
+sentry__read_attachment_manifest(const sentry_path_t *path)
+{
+    if (!path) {
+        return sentry_value_new_null();
+    }
+    size_t buf_len = 0;
+    char *buf = sentry__path_read_to_buffer(path, &buf_len);
+    if (!buf) {
+        return sentry_value_new_null();
+    }
+    sentry_value_t attachments = read_manifest(buf, buf_len);
+    sentry_free(buf);
+    return attachments;
+}
