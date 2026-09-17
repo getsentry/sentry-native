@@ -22,6 +22,10 @@
 
 - Reduce lock contention for multi-threaded log and metric capture by reusing a single options reference throughout each capture. ([#2094](https://github.com/getsentry/sentry-native/pull/2094))
 
+**Other changes**:
+
+- Promote structured logs and metrics APIs to stable. ([#TODO](https://github.com/getsentry/sentry-native/pull/TODO))
+
 **Deprecations**:
 
 - Deprecate `sentry_clear_crashed_last_run()` because `sentry_init()` now consumes the marker automatically. ([#2023](https://github.com/getsentry/sentry-native/pull/2023))
