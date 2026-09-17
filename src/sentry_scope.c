@@ -517,7 +517,24 @@ sentry__scope_getref(void)
 }
 
 void
-sentry__scope_finish(sentry_scope_t *scope, bool flush)
+sentry__scope_finish(sentry_scope_t *scope)
+{
+    if (!scope) {
+        return;
+    }
+
+    if (scope == &g_scope
+#ifndef SENTRY_PLATFORM_WINDOWS
+        && sentry__block_for_signal_handler()
+#endif
+    ) {
+        g_scope_depth--;
+    }
+    sentry__scope_decref(scope);
+}
+
+void
+sentry__scope_finish_mut(sentry_scope_t *scope, bool flush)
 {
     if (!scope) {
         return;
@@ -535,14 +552,7 @@ sentry__scope_finish(sentry_scope_t *scope, bool flush)
     }
     sentry__mutex_unlock(&scope->observers_lock);
 
-    if (scope == &g_scope
-#ifndef SENTRY_PLATFORM_WINDOWS
-        && sentry__block_for_signal_handler()
-#endif
-    ) {
-        g_scope_depth--;
-    }
-    sentry__scope_decref(scope);
+    sentry__scope_finish(scope);
 
     if (flush) {
         SENTRY_WITH_OPTIONS (options) {
