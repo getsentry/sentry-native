@@ -3073,9 +3073,9 @@ SENTRY_EXPERIMENTAL_API int sentry_options_get_enable_large_attachments(
  *
  * Disabled by default.
  */
-SENTRY_EXPERIMENTAL_API void sentry_options_set_logs_with_attributes(
+SENTRY_API void sentry_options_set_logs_with_attributes(
     sentry_options_t *opts, int logs_with_attributes);
-SENTRY_EXPERIMENTAL_API int sentry_options_get_logs_with_attributes(
+SENTRY_API int sentry_options_get_logs_with_attributes(
     const sentry_options_t *opts);
 
 /**
@@ -3144,18 +3144,12 @@ typedef enum {
  * To re-use the same attributes, call `sentry_value_incref` on it
  * before passing the attributes to the log function.
  */
-SENTRY_EXPERIMENTAL_API log_return_value_t sentry_log_trace(
-    const char *message, ...);
-SENTRY_EXPERIMENTAL_API log_return_value_t sentry_log_debug(
-    const char *message, ...);
-SENTRY_EXPERIMENTAL_API log_return_value_t sentry_log_info(
-    const char *message, ...);
-SENTRY_EXPERIMENTAL_API log_return_value_t sentry_log_warn(
-    const char *message, ...);
-SENTRY_EXPERIMENTAL_API log_return_value_t sentry_log_error(
-    const char *message, ...);
-SENTRY_EXPERIMENTAL_API log_return_value_t sentry_log_fatal(
-    const char *message, ...);
+SENTRY_API log_return_value_t sentry_log_trace(const char *message, ...);
+SENTRY_API log_return_value_t sentry_log_debug(const char *message, ...);
+SENTRY_API log_return_value_t sentry_log_info(const char *message, ...);
+SENTRY_API log_return_value_t sentry_log_warn(const char *message, ...);
+SENTRY_API log_return_value_t sentry_log_error(const char *message, ...);
+SENTRY_API log_return_value_t sentry_log_fatal(const char *message, ...);
 
 /**
  * Sends a structured log with a plain string body and explicit attributes.
@@ -3168,7 +3162,7 @@ SENTRY_EXPERIMENTAL_API log_return_value_t sentry_log_fatal(
  * Pass `sentry_value_new_null()` if no custom attributes are needed.
  * To re-use the same attributes, call `sentry_value_incref` before passing.
  */
-SENTRY_EXPERIMENTAL_API log_return_value_t sentry_log(
+SENTRY_API log_return_value_t sentry_log(
     sentry_level_t level, const char *body, sentry_value_t attributes);
 
 /**
@@ -3183,9 +3177,8 @@ SENTRY_EXPERIMENTAL_API log_return_value_t sentry_log(
  * is freed by this function, a user-owned one is not. Pass `NULL` to apply the
  * global scope only.
  */
-SENTRY_EXPERIMENTAL_API log_return_value_t sentry_scope_capture_log(
-    sentry_scope_t *scope, sentry_level_t level, const char *body,
-    sentry_value_t attributes);
+SENTRY_API log_return_value_t sentry_scope_capture_log(sentry_scope_t *scope,
+    sentry_level_t level, const char *body, sentry_value_t attributes);
 
 /**
  * Type of the `before_send_log` callback.
@@ -3201,7 +3194,7 @@ typedef sentry_value_t (*sentry_before_send_log_function_t)(
 /**
  * Sets the `before_send_log` callback.
  */
-SENTRY_EXPERIMENTAL_API void sentry_options_set_before_send_log(
+SENTRY_API void sentry_options_set_before_send_log(
     sentry_options_t *opts, sentry_before_send_log_function_t func, void *data);
 
 /**
@@ -3277,9 +3270,8 @@ typedef sentry_value_t (*sentry_before_send_metric_function_t)(
 /**
  * Sets the `before_send_metric` callback.
  */
-SENTRY_EXPERIMENTAL_API void sentry_options_set_before_send_metric(
-    sentry_options_t *opts, sentry_before_send_metric_function_t func,
-    void *data);
+SENTRY_API void sentry_options_set_before_send_metric(sentry_options_t *opts,
+    sentry_before_send_metric_function_t func, void *data);
 
 /**
  * Result type for metric operations.
@@ -3320,24 +3312,22 @@ typedef enum {
  * Records a counter metric. Counters track incrementing values like
  * request counts or error counts.
  */
-SENTRY_EXPERIMENTAL_API sentry_metrics_result_t sentry_metrics_count(
+SENTRY_API sentry_metrics_result_t sentry_metrics_count(
     const char *name, int64_t value, sentry_value_t attributes);
 
 /**
  * Records a gauge metric. Gauges track values that can go up or down,
  * like memory usage or active connections.
  */
-SENTRY_EXPERIMENTAL_API sentry_metrics_result_t sentry_metrics_gauge(
-    const char *name, double value, const char *unit,
-    sentry_value_t attributes);
+SENTRY_API sentry_metrics_result_t sentry_metrics_gauge(const char *name,
+    double value, const char *unit, sentry_value_t attributes);
 
 /**
  * Records a distribution metric. Distributions track the statistical
  * distribution of values, useful for timing data and percentiles.
  */
-SENTRY_EXPERIMENTAL_API sentry_metrics_result_t sentry_metrics_distribution(
-    const char *name, double value, const char *unit,
-    sentry_value_t attributes);
+SENTRY_API sentry_metrics_result_t sentry_metrics_distribution(const char *name,
+    double value, const char *unit, sentry_value_t attributes);
 
 /**
  * Specifies the metric type for `sentry_scope_capture_metric`.
@@ -3365,7 +3355,7 @@ typedef enum {
  * is freed by this function, a user-owned one is not. Pass `NULL` to apply the
  * global scope only.
  */
-SENTRY_EXPERIMENTAL_API sentry_metrics_result_t sentry_scope_capture_metric(
+SENTRY_API sentry_metrics_result_t sentry_scope_capture_metric(
     sentry_scope_t *scope, sentry_metric_type_t type, const char *name,
     sentry_value_t value, const char *unit, sentry_value_t attributes);
 
