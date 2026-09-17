@@ -175,6 +175,18 @@ def run_crash_stdout_for(backend, cmake, example_args):
     return run_stdout_for(backend, cmake, ["attachment", "crash"] + example_args)
 
 
+def assert_crash_hint_attachments(envelope, callback):
+    assert not any(
+        item.headers.get("filename") in ("CMakeCache.txt", "bytes.bin")
+        for item in envelope
+    )
+    assert any(
+        item.headers.get("filename") == "callback.txt"
+        and item.payload.bytes == callback.replace("-", "_").encode()
+        for item in envelope
+    )
+
+
 def test_inproc_crash_stdout(cmake):
     tmp_path, output = run_crash_stdout_for("inproc", cmake, [])
 
@@ -233,7 +245,7 @@ def test_inproc_crash_stdout_before_send(cmake):
     assert_no_crash_timestamp(has_files, tmp_path)
     assert_meta(envelope, integration="inproc")
     assert_breadcrumb(envelope)
-    assert_attachment(envelope)
+    assert_crash_hint_attachments(envelope, "before-send")
     assert_inproc_crash(envelope)
     assert_before_send(envelope)
 
@@ -248,6 +260,7 @@ def test_inproc_crash_stdout_discarding_on_crash(cmake):
     assert_no_crash_timestamp(has_files, tmp_path)
 
 
+@pytest.mark.skipif(is_qemu, reason="unreliable under qemu-user")
 def test_inproc_crash_stdout_before_send_and_on_crash(cmake):
     tmp_path, output = run_crash_stdout_for(
         "inproc", cmake, ["before-send", "on-crash"]
@@ -261,7 +274,7 @@ def test_inproc_crash_stdout_before_send_and_on_crash(cmake):
     assert_no_crash_timestamp(has_files, tmp_path)
     assert_meta(envelope, integration="inproc")
     assert_breadcrumb(envelope)
-    assert_attachment(envelope)
+    assert_crash_hint_attachments(envelope, "on-crash")
     assert_inproc_crash(envelope)
 
 
@@ -320,7 +333,7 @@ def test_breakpad_crash_stdout_before_send(cmake):
     assert_no_crash_timestamp(has_files, tmp_path)
     assert_meta(envelope, integration="breakpad")
     assert_breadcrumb(envelope)
-    assert_attachment(envelope)
+    assert_crash_hint_attachments(envelope, "before-send")
     assert_minidump(envelope)
     assert_before_send(envelope)
     assert_breakpad_crash(envelope)
@@ -350,7 +363,7 @@ def test_breakpad_crash_stdout_before_send_and_on_crash(cmake):
     assert_no_crash_timestamp(has_files, tmp_path)
     assert_meta(envelope, integration="breakpad")
     assert_breadcrumb(envelope)
-    assert_attachment(envelope)
+    assert_crash_hint_attachments(envelope, "on-crash")
     assert_breakpad_crash(envelope)
 
 

@@ -129,8 +129,12 @@ traces_sampler_callback(const sentry_transaction_context_t *transaction_ctx,
 static sentry_value_t
 before_send_callback(sentry_value_t event, sentry_hint_t *hint, void *user_data)
 {
-    (void)hint;
     (void)user_data;
+
+    sentry_hint_clear_attachments(hint);
+    sentry_hint_add_attachment(hint,
+        sentry_attachment_from_bytes(
+            "before_send", strlen("before_send"), "callback.txt"));
 
     // make our mark on the event
     sentry_value_set_by_key(
@@ -153,10 +157,11 @@ discarding_before_send_callback(
 }
 
 static sentry_value_t
-discarding_on_crash_callback(
-    const sentry_ucontext_t *uctx, sentry_value_t event, void *user_data)
+discarding_on_crash_callback(const sentry_ucontext_t *uctx,
+    sentry_value_t event, sentry_hint_t *hint, void *user_data)
 {
     (void)uctx;
+    (void)hint;
     (void)user_data;
 
     // discard event and signal backend to stop further processing
@@ -165,11 +170,16 @@ discarding_on_crash_callback(
 }
 
 static sentry_value_t
-on_crash_callback(
-    const sentry_ucontext_t *uctx, sentry_value_t event, void *user_data)
+on_crash_callback(const sentry_ucontext_t *uctx, sentry_value_t event,
+    sentry_hint_t *hint, void *user_data)
 {
     (void)uctx;
     (void)user_data;
+
+    sentry_hint_clear_attachments(hint);
+    sentry_hint_add_attachment(hint,
+        sentry_attachment_from_bytes(
+            "on_crash", strlen("on_crash"), "callback.txt"));
 
     // tell the backend to retain the event
     return event;
@@ -230,10 +240,11 @@ on_crashed_last_run_callback(const sentry_envelope_t *envelope, void *user_data)
 }
 
 static sentry_value_t
-restart_on_crash(
-    const sentry_ucontext_t *uctx, sentry_value_t event, void *user_data)
+restart_on_crash(const sentry_ucontext_t *uctx, sentry_value_t event,
+    sentry_hint_t *hint, void *user_data)
 {
     (void)uctx;
+    (void)hint;
 
 #ifdef SENTRY_PLATFORM_WINDOWS
     wchar_t **argv = user_data;

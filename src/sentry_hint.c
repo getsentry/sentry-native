@@ -13,8 +13,19 @@ sentry_hint_new(void)
     if (!hint) {
         return NULL;
     }
-    hint->attachments = sentry_value_new_null();
+    SENTRY__HINT_INIT(*hint);
     return hint;
+}
+
+void
+sentry__hint_set_attachments(sentry_hint_t *hint, sentry_value_t attachments)
+{
+    if (hint) {
+        sentry_value_decref(hint->attachments);
+        hint->attachments = attachments;
+    } else {
+        sentry_value_decref(attachments);
+    }
 }
 
 void
@@ -23,7 +34,7 @@ sentry__hint_free(sentry_hint_t *hint)
     if (!hint) {
         return;
     }
-    sentry_value_decref(hint->attachments);
+    SENTRY__HINT_DEINIT(*hint);
     sentry_free(hint);
 }
 
@@ -35,8 +46,20 @@ sentry_hint_add_attachment(sentry_hint_t *hint, sentry_value_t attachment)
         return sentry_uuid_nil();
     }
 
-    sentry_value_t added
-        = sentry__attachments_add(&hint->attachments, attachment);
+    size_t len = sentry_value_get_length(hint->attachments);
+    sentry_value_t attachments = sentry_value_is_frozen(hint->attachments)
+        ? sentry__attachments_clone(hint->attachments)
+        : sentry_value_incref(hint->attachments);
+    if (len && sentry_value_is_null(attachments)) {
+        sentry_value_decref(attachment);
+        return sentry_uuid_nil();
+    }
+    sentry_value_t added = sentry__attachments_add(&attachments, attachment);
+    if (sentry_value_get_length(attachments) != len) {
+        sentry__hint_set_attachments(hint, attachments);
+    } else {
+        sentry_value_decref(attachments);
+    }
     sentry_uuid_t attachment_id = sentry__attachment_get_id(added);
     sentry_value_decref(added);
     return attachment_id;
@@ -110,16 +133,27 @@ void
 sentry_hint_remove_attachment(sentry_hint_t *hint, sentry_uuid_t attachment_id)
 {
     if (hint) {
-        sentry_value_decref(
-            sentry__attachments_remove(hint->attachments, &attachment_id));
+        sentry_value_t attachments = sentry_value_is_frozen(hint->attachments)
+            ? sentry__attachments_clone(hint->attachments)
+            : sentry_value_incref(hint->attachments);
+        sentry_value_t removed
+            = sentry__attachments_remove(attachments, &attachment_id);
+        if (!sentry_value_is_null(removed)) {
+            sentry__hint_set_attachments(hint, attachments);
+        } else {
+            sentry_value_decref(attachments);
+        }
+        sentry_value_decref(removed);
     }
 }
 
 void
 sentry_hint_clear_attachments(sentry_hint_t *hint)
 {
-    if (hint) {
-        sentry_value_decref(hint->attachments);
-        hint->attachments = sentry_value_new_null();
+    if (hint && sentry_value_get_length(hint->attachments)) {
+        sentry_value_t attachments = sentry_value_new_list();
+        if (!sentry_value_is_null(attachments)) {
+            sentry__hint_set_attachments(hint, attachments);
+        }
     }
 }
