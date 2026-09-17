@@ -2,6 +2,7 @@
 
 #include "sentry_alloc.h"
 #include "sentry_attachment.h"
+#include "sentry_scope.h"
 #include "sentry_string.h"
 
 #include <string.h>
@@ -14,7 +15,43 @@ sentry_hint_new(void)
         return NULL;
     }
     hint->attachments = sentry_value_new_null();
+    hint->modified = false;
     return hint;
+}
+
+void
+sentry__hint_init(sentry_hint_t *hint)
+{
+    hint->attachments = sentry_value_new_null();
+    SENTRY_WITH_SCOPE (scope) {
+        sentry_value_decref(hint->attachments);
+        hint->attachments = sentry__scope_load_attachments(scope);
+    }
+    hint->modified = false;
+}
+
+void
+sentry__hint_deinit(sentry_hint_t *hint)
+{
+    sentry_value_decref(hint->attachments);
+}
+
+bool
+sentry__hint_is_modified(const sentry_hint_t *hint)
+{
+    return hint && hint->modified;
+}
+
+void
+sentry__hint_set_attachments(sentry_hint_t *hint, sentry_value_t attachments)
+{
+    if (hint) {
+        sentry_value_decref(hint->attachments);
+        hint->attachments = attachments;
+        hint->modified = false;
+    } else {
+        sentry_value_decref(attachments);
+    }
 }
 
 void
@@ -23,7 +60,7 @@ sentry__hint_free(sentry_hint_t *hint)
     if (!hint) {
         return;
     }
-    sentry_value_decref(hint->attachments);
+    sentry__hint_deinit(hint);
     sentry_free(hint);
 }
 
@@ -35,8 +72,12 @@ sentry_hint_add_attachment(sentry_hint_t *hint, sentry_value_t attachment)
         return sentry_uuid_nil();
     }
 
+    size_t len = sentry_value_get_length(hint->attachments);
     sentry_value_t added
         = sentry__attachments_add(&hint->attachments, attachment);
+    if (sentry_value_get_length(hint->attachments) != len) {
+        hint->modified = true;
+    }
     sentry_uuid_t attachment_id = sentry__attachment_get_id(added);
     sentry_value_decref(added);
     return attachment_id;
@@ -116,16 +157,21 @@ void
 sentry_hint_remove_attachment(sentry_hint_t *hint, sentry_uuid_t attachment_id)
 {
     if (hint) {
-        sentry_value_decref(
-            sentry__attachments_remove(hint->attachments, &attachment_id));
+        sentry_value_t removed
+            = sentry__attachments_remove(hint->attachments, &attachment_id);
+        if (!sentry_value_is_null(removed)) {
+            hint->modified = true;
+        }
+        sentry_value_decref(removed);
     }
 }
 
 void
 sentry_hint_clear_attachments(sentry_hint_t *hint)
 {
-    if (hint) {
+    if (hint && sentry_value_get_length(hint->attachments)) {
         sentry_value_decref(hint->attachments);
         hint->attachments = sentry_value_new_null();
+        hint->modified = true;
     }
 }

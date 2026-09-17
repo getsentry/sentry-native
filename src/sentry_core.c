@@ -587,6 +587,9 @@ sentry_capture_event_with_scope(sentry_value_t event, sentry_scope_t *scope)
     return sentry_scope_capture_event(scope, event, NULL);
 }
 
+static sentry_value_t prepare_attachments(
+    sentry_hint_t *hint, sentry_scope_t *local_scope);
+
 #ifndef SENTRY_UNITTEST
 static
 #endif
@@ -622,8 +625,12 @@ sentry__capture_event(
                 // no-ops.
                 hint = sentry_hint_new();
             }
-            envelope = sentry__prepare_event(
-                options, event, &event_id, true, local_scope, hint);
+            event = sentry__prepare_event(options, event, local_scope);
+            sentry_value_t attachments = prepare_attachments(hint, local_scope);
+            event = sentry__invoke_before_send(options, event, hint);
+            envelope = sentry__enclose_event(options, event, &event_id,
+                hint ? hint->attachments : attachments);
+            sentry_value_decref(attachments);
         }
         if (envelope) {
             // Accept a racy read here, since SENTRY_WITH_OPTIONS only prevents
@@ -739,10 +746,20 @@ prepare_attachments(sentry_hint_t *hint, sentry_scope_t *local_scope)
         sentry_value_decref(global_attachments);
     }
     if (hint) {
-        sentry_value_decref(hint->attachments);
-        hint->attachments = sentry_value_incref(attachments);
+        sentry__hint_set_attachments(hint, sentry_value_incref(attachments));
     }
     return attachments;
+}
+
+sentry_value_t
+sentry__invoke_on_crash(const sentry_options_t *options,
+    const sentry_ucontext_t *uctx, sentry_value_t event, sentry_hint_t *hint)
+{
+    if (!options->on_crash_func) {
+        return event;
+    }
+    SENTRY_SIGNAL_SAFE_LOG("DEBUG invoking `on_crash` hook");
+    return options->on_crash_func(uctx, event, hint, options->on_crash_data);
 }
 
 sentry_value_t
@@ -762,13 +779,10 @@ sentry__invoke_before_send(
     return event;
 }
 
-sentry_envelope_t *
+sentry_value_t
 sentry__prepare_event(const sentry_options_t *options, sentry_value_t event,
-    sentry_uuid_t *event_id, bool invoke_before_send,
-    sentry_scope_t *local_scope, sentry_hint_t *hint)
+    sentry_scope_t *local_scope)
 {
-    sentry_envelope_t *envelope = NULL;
-
     if (event_is_considered_error(event)) {
         sentry__record_errors_on_current_session(1);
     }
@@ -787,16 +801,17 @@ sentry__prepare_event(const sentry_options_t *options, sentry_value_t event,
         }
         sentry__scope_apply_to_event(scope, options, event, mode);
     }
+    return event;
+}
 
-    sentry_value_t all_attachments = prepare_attachments(hint, local_scope);
-
-    if (invoke_before_send) {
-        event = sentry__invoke_before_send(options, event, hint);
-        if (sentry_value_is_null(event)) {
-            sentry_value_decref(all_attachments);
-            return NULL;
-        }
+sentry_envelope_t *
+sentry__enclose_event(const sentry_options_t *options, sentry_value_t event,
+    sentry_uuid_t *event_id, sentry_value_t attachments)
+{
+    if (sentry_value_is_null(event)) {
+        return NULL;
     }
+    sentry_envelope_t *envelope = NULL;
 
     sentry__ensure_event_id(event, event_id);
     envelope = sentry__envelope_new();
@@ -804,18 +819,15 @@ sentry__prepare_event(const sentry_options_t *options, sentry_value_t event,
         goto fail;
     }
 
-    sentry_value_t attachments = hint ? hint->attachments : all_attachments;
     sentry__envelope_add_attachments(envelope, attachments, options);
     if (options->run) {
         sentry__cache_attachment_refs(envelope, attachments, options,
             options->run->cache_path, options->run->run_path);
     }
 
-    sentry_value_decref(all_attachments);
     return envelope;
 
 fail:
-    sentry_value_decref(all_attachments);
     sentry_envelope_free(envelope);
     sentry_value_decref(event);
     return NULL;
@@ -922,6 +934,11 @@ prepare_user_feedback(const sentry_options_t *options,
         }
     }
 
+    if (sentry__hint_is_modified(hint)) {
+        sentry_value_decref(all_attachments);
+        all_attachments = sentry_value_incref(hint->attachments);
+    }
+
     sentry__ensure_event_id(event, event_id);
 
     sentry_envelope_t *envelope = sentry__envelope_new();
@@ -929,10 +946,9 @@ prepare_user_feedback(const sentry_options_t *options,
         goto fail;
     }
 
-    sentry_value_t attachments = hint ? hint->attachments : all_attachments;
-    sentry__envelope_add_attachments(envelope, attachments, options);
+    sentry__envelope_add_attachments(envelope, all_attachments, options);
     if (options->run) {
-        sentry__cache_attachment_refs(envelope, attachments, options,
+        sentry__cache_attachment_refs(envelope, all_attachments, options,
             options->run->cache_path, options->run->run_path);
     }
 
@@ -2040,10 +2056,13 @@ capture_minidump(sentry_path_t *dump_path)
         sentry_value_t event = sentry_value_new_event();
         sentry_value_set_by_key(
             event, "level", sentry__value_new_level(SENTRY_LEVEL_FATAL));
-        sentry_hint_t hint = { sentry_value_new_null() };
-        sentry_envelope_t *envelope = sentry__prepare_event(
-            options, event, &event_id, true, NULL, &hint);
-        sentry_value_decref(hint.attachments);
+        sentry_hint_t hint;
+        sentry__hint_init(&hint);
+        event = sentry__prepare_event(options, event, NULL);
+        event = sentry__invoke_before_send(options, event, &hint);
+        sentry_envelope_t *envelope = sentry__enclose_event(
+            options, event, &event_id, hint.attachments);
+        sentry__hint_deinit(&hint);
 
         if (!envelope || sentry_uuid_is_nil(&event_id)) {
             sentry_envelope_free(envelope);

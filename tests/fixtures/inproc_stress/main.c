@@ -173,11 +173,12 @@ stacktest_A_calls_B_no_frame_record(void)
 
 // on_crash callback that crashes via SIGSEGV: simulates buggy user code
 static sentry_value_t
-crashing_on_crash_callback(
-    const sentry_ucontext_t *uctx, sentry_value_t event, void *closure)
+crashing_on_crash_callback(const sentry_ucontext_t *uctx, sentry_value_t event,
+    sentry_hint_t *hint, void *closure)
 {
     (void)uctx;
     (void)event;
+    (void)hint;
     (void)closure;
 
     fprintf(stderr, "on_crash callback about to crash\n");
@@ -190,11 +191,12 @@ crashing_on_crash_callback(
 
 // on_crash callback that crashes via abort(): tests signal mask reset behavior
 static sentry_value_t
-aborting_on_crash_callback(
-    const sentry_ucontext_t *uctx, sentry_value_t event, void *closure)
+aborting_on_crash_callback(const sentry_ucontext_t *uctx, sentry_value_t event,
+    sentry_hint_t *hint, void *closure)
 {
     (void)uctx;
     (void)event;
+    (void)hint;
     (void)closure;
 
     fprintf(stderr, "on_crash callback about to abort\n");

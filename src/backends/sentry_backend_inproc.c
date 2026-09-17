@@ -7,6 +7,7 @@
 #include "sentry_cpu_relax.h"
 #include "sentry_database.h"
 #include "sentry_envelope.h"
+#include "sentry_hint.h"
 #include "sentry_logger.h"
 #include "sentry_options.h"
 #include "sentry_os.h"
@@ -1077,9 +1078,11 @@ process_ucontext_deferred(const sentry_ucontext_t *uctx,
             = sentry__trace_finish(SENTRY_SPAN_STATUS_ABORTED);
         sentry_uuid_t event_id = sentry_uuid_nil();
 
+        sentry_hint_t hint;
+        sentry__hint_init(&hint);
+
         if (options->on_crash_func && !skip_hooks) {
-            SENTRY_DEBUG("invoking `on_crash` hook");
-            event = options->on_crash_func(uctx, event, options->on_crash_data);
+            event = sentry__invoke_on_crash(options, uctx, event, &hint);
             should_handle = !sentry_value_is_null(event);
         } else if (skip_hooks && options->on_crash_func) {
             SENTRY_DEBUG("skipping `on_crash` hook due to recursive crash");
@@ -1101,8 +1104,12 @@ process_ucontext_deferred(const sentry_ucontext_t *uctx,
             }
 #endif
 
-            sentry_envelope_t *envelope = sentry__prepare_event(options, event,
-                NULL, !options->on_crash_func && !skip_hooks, NULL, NULL);
+            event = sentry__prepare_event(options, event, NULL);
+            if (!options->on_crash_func && !skip_hooks) {
+                event = sentry__invoke_before_send(options, event, &hint);
+            }
+            sentry_envelope_t *envelope
+                = sentry__enclose_event(options, event, NULL, hint.attachments);
             if (envelope) {
                 event_id = sentry__envelope_get_event_id(envelope);
             }
@@ -1161,6 +1168,7 @@ process_ucontext_deferred(const sentry_ucontext_t *uctx,
             sentry_value_decref(event);
             sentry_value_decref(transaction);
         }
+        sentry__hint_deinit(&hint);
 
         // after capturing the crash event, dump all the envelopes to disk
         sentry__transport_dump_queue(options->transport, options->run);

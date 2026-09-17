@@ -520,6 +520,7 @@ class CrashpadAttachments:
     cmake_cache: int
     bytes_bin: bytes = None
     minidump: bytes = None
+    callback: bytes = None
 
 
 def _unpack_breadcrumbs(payload):
@@ -536,6 +537,7 @@ def _load_crashpad_attachments(msg):
     cmake_cache = -1
     bytes_bin = None
     minidump = None
+    callback = None
     for part in msg.walk():
         assert part.get_filename() != "__sentry-attachments"
         if part.get_filename() is not None:
@@ -554,6 +556,8 @@ def _load_crashpad_attachments(msg):
                 cmake_cache = len(part.get_payload(decode=True))
             case "bytes.bin":
                 bytes_bin = part.get_payload(decode=True)
+            case "callback.txt":
+                callback = part.get_payload(decode=True)
 
         if (
             part.get_param("name", header="content-disposition")
@@ -569,6 +573,7 @@ def _load_crashpad_attachments(msg):
         cmake_cache,
         bytes_bin,
         minidump,
+        callback,
     )
 
 
