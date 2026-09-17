@@ -1005,44 +1005,6 @@ sentry_transaction_iter_headers(sentry_transaction_t *tx,
     }
 }
 
-typedef struct {
-    sentry_span_t *saved_span;
-    sentry_transaction_t *saved_tx_obj;
-    sentry_transaction_t *active_tx;
-} saved_trace_t;
-
-static saved_trace_t
-save_active_trace(void)
-{
-    saved_trace_t s = { 0 };
-    SENTRY_WITH_SCOPE (scope) {
-        s.saved_span = sentry__scope_ref_span(scope);
-        s.saved_tx_obj = sentry__scope_ref_transaction_object(scope);
-    }
-    s.active_tx = s.saved_span && s.saved_span->transaction
-        ? s.saved_span->transaction
-        : s.saved_tx_obj;
-    if (s.active_tx) {
-        sentry__transaction_incref(s.active_tx);
-    }
-    return s;
-}
-
-static void
-restore_active_trace(saved_trace_t *s)
-{
-    SENTRY_WITH_SCOPE_MUT (scope) {
-        if (sentry__scope_restore_span(scope, s->saved_span)) {
-            s->saved_span = NULL;
-        }
-        if (sentry__scope_restore_transaction_object(scope, s->saved_tx_obj)) {
-            s->saved_tx_obj = NULL;
-        }
-    }
-    sentry__span_decref(s->saved_span);
-    sentry__transaction_decref(s->saved_tx_obj);
-}
-
 // Atomically swap the live-children list off `tx` and finish each span.
 // The swap ensures `sentry_span_finish_ts`'s per-span remove-scan is a no-op.
 static void
@@ -1075,9 +1037,9 @@ sentry__trace_finish(sentry_span_status_t status)
     // still inherits the active trace context (cf. sentry-cocoa's
     // `finishTracer:shouldCleanUp:NO`). Finished spans retain their ids; only
     // `timestamp` is added.
-    saved_trace_t s = save_active_trace();
+    sentry_saved_trace_t s = sentry__scope_save_active_trace();
     if (!s.active_tx) {
-        restore_active_trace(&s);
+        sentry__scope_restore_active_trace(&s);
         return sentry_value_new_null();
     }
 
@@ -1087,6 +1049,6 @@ sentry__trace_finish(sentry_span_status_t status)
     sentry_transaction_set_status(s.active_tx, status);
     sentry_value_t tx = sentry__transaction_finish_value(s.active_tx, end_ts);
 
-    restore_active_trace(&s);
+    sentry__scope_restore_active_trace(&s);
     return tx;
 }

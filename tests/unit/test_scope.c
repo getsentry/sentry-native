@@ -498,6 +498,16 @@ SENTRY_TEST(scope_fingerprint)
         TEST_CHECK_JSON_VALUE(sentry_value_get_by_key(event, "fingerprint"),
             "[\"event1\",\"event2\"]");
 
+        sentry_value_t local_fingerprint
+            = sentry__scope_ref_fingerprint(local_scope);
+        sentry_scope_remove_fingerprint(local_scope);
+        TEST_CHECK_INT_EQUAL(sentry_value_get_length(local_fingerprint), 2);
+        TEST_CHECK_STRING_EQUAL(
+            sentry_value_as_string(
+                sentry_value_get_by_index(local_fingerprint, 0)),
+            "local1");
+        sentry_value_decref(local_fingerprint);
+
         sentry_scope_free(local_scope);
         sentry_value_decref(event);
     }
@@ -726,6 +736,13 @@ SENTRY_TEST(scope_user)
             global_scope, options, event, SENTRY_SCOPE_NONE);
         TEST_CHECK_JSON_VALUE(sentry_value_get_by_key(event, "user"),
             "{\"id\":\"3\",\"username\":\"event\"}");
+
+        sentry_value_t local_user = sentry__scope_ref_user(local_scope);
+        sentry_scope_set_user(local_scope, sentry_value_new_null());
+        TEST_CHECK_STRING_EQUAL(
+            sentry_value_as_string(sentry_value_get_by_key(local_user, "id")),
+            "2");
+        sentry_value_decref(local_user);
 
         sentry_scope_free(local_scope);
         sentry_value_decref(event);
@@ -1515,6 +1532,7 @@ typedef struct {
     bool was_called;
     bool was_cleared;
     size_t set_tag_count;
+    sentry_scope_t *scope;
 } test_observer_data_t;
 
 typedef struct {
@@ -1650,6 +1668,10 @@ static void
 observe_set_user(void *data, sentry_value_t user)
 {
     test_observer_data_t *d = (test_observer_data_t *)data;
+    if (!sentry_value_is_null(d->user)) {
+        sentry_value_decref(d->user);
+    }
+    sentry_value_incref(user);
     d->user = user;
     d->was_called = true;
 }
@@ -1658,6 +1680,12 @@ static void
 observe_add_breadcrumb(void *data, sentry_value_t breadcrumb)
 {
     test_observer_data_t *d = (test_observer_data_t *)data;
+    if (d->scope) {
+        sentry_scope_t *scope = d->scope;
+        d->scope = NULL;
+        sentry_scope_add_breadcrumb(
+            scope, sentry_value_new_breadcrumb(NULL, "replacement"));
+    }
     if (sentry_value_is_null(d->breadcrumbs)) {
         d->breadcrumbs = sentry_value_new_list();
     }
@@ -2225,6 +2253,7 @@ SENTRY_TEST(scope_observer_user)
 SENTRY_TEST(scope_observer_breadcrumbs)
 {
     SENTRY_TEST_OPTIONS_NEW(options);
+    sentry_options_set_max_breadcrumbs(options, 1);
     sentry_init(options);
 
     test_observer_data_t d = { .breadcrumbs = sentry_value_new_null() };
@@ -2233,28 +2262,33 @@ SENTRY_TEST(scope_observer_breadcrumbs)
     observer->add_breadcrumb = observe_add_breadcrumb;
 
     SENTRY_WITH_SCOPE_MUT (scope) {
+        d.scope = scope;
         sentry__scope_add_observer(scope, observer);
     }
 
     sentry_add_breadcrumb(
         sentry_value_new_breadcrumb(NULL, "first breadcrumb"));
     TEST_CHECK(d.was_called);
-    TEST_CHECK_INT_EQUAL(sentry_value_get_length(d.breadcrumbs), 1);
+    TEST_CHECK_INT_EQUAL(sentry_value_get_length(d.breadcrumbs), 2);
     TEST_CHECK_STRING_EQUAL(
         sentry_value_as_string(sentry_value_get_by_key(
             sentry_value_get_by_index(d.breadcrumbs, 0), "message")),
+        "replacement");
+    TEST_CHECK_STRING_EQUAL(
+        sentry_value_as_string(sentry_value_get_by_key(
+            sentry_value_get_by_index(d.breadcrumbs, 1), "message")),
         "first breadcrumb");
 
     sentry_add_breadcrumb(
         sentry_value_new_breadcrumb("warning", "second breadcrumb"));
-    TEST_CHECK_INT_EQUAL(sentry_value_get_length(d.breadcrumbs), 2);
+    TEST_CHECK_INT_EQUAL(sentry_value_get_length(d.breadcrumbs), 3);
     TEST_CHECK_STRING_EQUAL(
         sentry_value_as_string(sentry_value_get_by_key(
-            sentry_value_get_by_index(d.breadcrumbs, 1), "message")),
+            sentry_value_get_by_index(d.breadcrumbs, 2), "message")),
         "second breadcrumb");
     TEST_CHECK_STRING_EQUAL(
         sentry_value_as_string(sentry_value_get_by_key(
-            sentry_value_get_by_index(d.breadcrumbs, 1), "type")),
+            sentry_value_get_by_index(d.breadcrumbs, 2), "type")),
         "warning");
 
     sentry_value_decref(d.breadcrumbs);
@@ -2747,6 +2781,66 @@ SENTRY_TEST(scope_clone_preserves_data)
     sentry_scope_free(scope);
 }
 
+SENTRY_TEST(scope_attachments)
+{
+    sentry_scope_t *scope = sentry_scope_new();
+    sentry_uuid_t first_id = sentry_scope_add_attachment(
+        scope, sentry_attachment_from_bytes("first", 5, "first.txt"));
+    sentry_uuid_t second_id = sentry_scope_add_attachment(
+        scope, sentry_attachment_from_bytes("second", 6, "second.txt"));
+    TEST_CHECK(!sentry_uuid_is_nil(&first_id));
+    TEST_CHECK(!sentry_uuid_is_nil(&second_id));
+
+    sentry_value_t snapshot = sentry__scope_load_attachments(scope);
+    TEST_CHECK_INT_EQUAL(sentry_value_get_length(snapshot), 2);
+    TEST_CHECK_STRING_EQUAL(
+        sentry__attachment_get_filename(sentry_value_get_by_index(snapshot, 0)),
+        "first.txt");
+    TEST_CHECK_STRING_EQUAL(
+        sentry__attachment_get_filename(sentry_value_get_by_index(snapshot, 1)),
+        "second.txt");
+
+    sentry_uuid_t third_id = sentry_scope_add_attachment(
+        scope, sentry_attachment_from_bytes("third", 5, "third.txt"));
+    TEST_CHECK(!sentry_uuid_is_nil(&third_id));
+
+    sentry_value_t current = sentry__scope_load_attachments(scope);
+    TEST_CHECK_INT_EQUAL(sentry_value_get_length(current), 3);
+    TEST_CHECK_STRING_EQUAL(
+        sentry__attachment_get_filename(sentry_value_get_by_index(current, 2)),
+        "third.txt");
+    sentry_value_decref(current);
+    TEST_CHECK_INT_EQUAL(sentry_value_get_length(snapshot), 2);
+
+    sentry_scope_remove_attachment(scope, first_id);
+
+    current = sentry__scope_load_attachments(scope);
+    TEST_CHECK_INT_EQUAL(sentry_value_get_length(current), 2);
+    TEST_CHECK_STRING_EQUAL(
+        sentry__attachment_get_filename(sentry_value_get_by_index(current, 0)),
+        "second.txt");
+    TEST_CHECK_STRING_EQUAL(
+        sentry__attachment_get_filename(sentry_value_get_by_index(current, 1)),
+        "third.txt");
+    sentry_value_decref(current);
+    TEST_CHECK_INT_EQUAL(sentry_value_get_length(snapshot), 2);
+    TEST_CHECK_STRING_EQUAL(
+        sentry__attachment_get_filename(sentry_value_get_by_index(snapshot, 0)),
+        "first.txt");
+
+    sentry_scope_clear(scope);
+    current = sentry__scope_load_attachments(scope);
+    TEST_CHECK_INT_EQUAL(sentry_value_get_length(current), 0);
+    sentry_value_decref(current);
+    TEST_CHECK_INT_EQUAL(sentry_value_get_length(snapshot), 2);
+    TEST_CHECK_STRING_EQUAL(
+        sentry__attachment_get_filename(sentry_value_get_by_index(snapshot, 1)),
+        "second.txt");
+
+    sentry_value_decref(snapshot);
+    sentry_scope_free(scope);
+}
+
 SENTRY_TEST(scope_clone_shares_span)
 {
     SENTRY_TEST_OPTIONS_NEW(options);
@@ -2779,6 +2873,56 @@ SENTRY_TEST(scope_clone_shares_span)
     // clone can be freed and the transaction still finished safely.
     sentry_scope_free(clone);
     sentry_transaction_finish(tx);
+
+    sentry_close();
+}
+
+SENTRY_TEST(scope_restore_trace)
+{
+    SENTRY_TEST_OPTIONS_NEW(options);
+    sentry_options_set_traces_sample_rate(options, 1.0);
+    sentry_init(options);
+
+    sentry_scope_t *scope = sentry_scope_new();
+    sentry_transaction_context_t *tx_ctx
+        = sentry_transaction_context_new("txn", NULL);
+    sentry_transaction_t *tx
+        = sentry_transaction_start(tx_ctx, sentry_value_new_null());
+    sentry_span_t *span = sentry_transaction_start_child(tx, "op", NULL);
+
+    sentry__scope_set_transaction_object(scope, tx);
+    TEST_CHECK(!sentry__scope_restore_span(scope, span));
+
+    sentry_span_t *scope_span = sentry__scope_ref_span(scope);
+    TEST_CHECK(scope_span == NULL);
+    sentry__span_decref(scope_span);
+    sentry_transaction_t *scope_tx
+        = sentry__scope_ref_transaction_object(scope);
+    TEST_CHECK(scope_tx == tx);
+    sentry__transaction_decref(scope_tx);
+
+    sentry_scope_free(scope);
+    sentry__span_decref(span);
+    sentry__transaction_decref(tx);
+
+    scope = sentry_scope_new();
+    tx_ctx = sentry_transaction_context_new("txn", NULL);
+    tx = sentry_transaction_start(tx_ctx, sentry_value_new_null());
+    span = sentry_transaction_start_child(tx, "op", NULL);
+
+    sentry__scope_set_span(scope, span);
+    TEST_CHECK(!sentry__scope_restore_transaction_object(scope, tx));
+
+    scope_tx = sentry__scope_ref_transaction_object(scope);
+    TEST_CHECK(scope_tx == NULL);
+    sentry__transaction_decref(scope_tx);
+    scope_span = sentry__scope_ref_span(scope);
+    TEST_CHECK(scope_span == span);
+    sentry__span_decref(scope_span);
+
+    sentry_scope_free(scope);
+    sentry__span_decref(span);
+    sentry__transaction_decref(tx);
 
     sentry_close();
 }
