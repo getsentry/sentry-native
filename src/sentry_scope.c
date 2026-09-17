@@ -2005,6 +2005,9 @@ sentry__scope_apply_to_telemetry(const sentry_scope_t *scope,
     const sentry_scope_data_t *data = scope->data;
     sentry_value_t os_name = sentry_value_new_null();
     sentry_value_t os_version = sentry_value_new_null();
+    sentry_value_t user = sentry_value_new_null();
+    sentry_value_t environment = sentry_value_new_null();
+    sentry_value_t release = sentry_value_new_null();
 
     SENTRY_SCOPE_READ_LOCK (data) {
         sentry__value_merge_objects_shallow(attributes, data->attributes);
@@ -2056,6 +2059,10 @@ sentry__scope_apply_to_telemetry(const sentry_scope_t *scope,
             os_version = sentry_value_incref(
                 sentry_value_get_by_key(os_context, "version"));
         }
+
+        user = sentry_value_incref(data->user);
+        environment = sentry_value_incref(data->environment);
+        release = sentry_value_incref(data->release);
     }
 
     if (!sentry_value_is_null(os_name)) {
@@ -2070,7 +2077,6 @@ sentry__scope_apply_to_telemetry(const sentry_scope_t *scope,
         sentry_value_decref(os_version);
     }
 
-    sentry_value_t user = sentry__scope_ref_user(scope);
     if (!sentry_value_is_null(user)) {
         sentry_value_t user_id = sentry_value_get_by_key(user, "id");
         if (!sentry_value_is_null(user_id)) {
@@ -2096,14 +2102,12 @@ sentry__scope_apply_to_telemetry(const sentry_scope_t *scope,
     }
     sentry_value_decref(user);
 
-    sentry_value_t environment = sentry__scope_ref_environment(scope);
     if (!sentry_value_is_null(environment)) {
         sentry__value_add_attribute(attributes,
             sentry_value_incref(environment), "string", "sentry.environment");
     }
     sentry_value_decref(environment);
 
-    sentry_value_t release = sentry__scope_ref_release(scope);
     if (!sentry_value_is_null(release)) {
         sentry__value_add_attribute(attributes, sentry_value_incref(release),
             "string", "sentry.release");
