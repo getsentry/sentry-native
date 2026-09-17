@@ -412,7 +412,7 @@ sentry_reinstall_backend(void)
             }
         }
         sentry__mutex_unlock(&scope->observers_lock);
-        sentry__scope_finish(scope, false);
+        sentry__scope_finish_mut(scope, false);
     }
     return rv;
 }

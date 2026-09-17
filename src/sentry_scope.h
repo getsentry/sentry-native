@@ -120,10 +120,16 @@ void sentry__scope_set_one_shot(sentry_scope_t *scope, bool one_shot);
 void sentry__scope_free_one_shot(sentry_scope_t *scope);
 
 /**
- * Finish a global scope access, optionally notifying the backend of changes.
+ * Finish a read-only global scope access.
  * This consumes the caller's scope reference.
  */
-void sentry__scope_finish(sentry_scope_t *scope, bool flush);
+void sentry__scope_finish(sentry_scope_t *scope);
+
+/**
+ * Finish a mutable global scope access, optionally notifying the backend of
+ * changes. This consumes the caller's scope reference.
+ */
+void sentry__scope_finish_mut(sentry_scope_t *scope, bool flush);
 
 /**
  * This will merge the requested data which is in the given `scope` to the given
@@ -215,13 +221,13 @@ void sentry__scope_set_trace_managed(sentry_scope_t *scope, bool managed);
  */
 #define SENTRY_WITH_SCOPE(Scope)                                               \
     for (const sentry_scope_t *Scope = sentry__scope_getref(); Scope;          \
-        sentry__scope_finish((sentry_scope_t *)Scope, false), Scope = NULL)
+        sentry__scope_finish((sentry_scope_t *)Scope), Scope = NULL)
 #define SENTRY_WITH_SCOPE_MUT(Scope)                                           \
     for (sentry_scope_t *Scope = sentry__scope_getref(); Scope;                \
-        sentry__scope_finish(Scope, true), Scope = NULL)
+        sentry__scope_finish_mut(Scope, true), Scope = NULL)
 #define SENTRY_WITH_SCOPE_MUT_NO_FLUSH(Scope)                                  \
     for (sentry_scope_t *Scope = sentry__scope_getref(); Scope;                \
-        sentry__scope_finish(Scope, false), Scope = NULL)
+        sentry__scope_finish_mut(Scope, false), Scope = NULL)
 
 /**
  * Allocate and zero-initialize a scope observer.
