@@ -1903,6 +1903,48 @@ sentry__scope_restore_span(sentry_scope_t *scope, sentry_span_t *span)
     return restored;
 }
 
+sentry_saved_trace_t
+sentry__scope_save_active_trace(void)
+{
+    sentry_saved_trace_t trace = { 0 };
+    SENTRY_WITH_SCOPE (scope) {
+        SENTRY_SCOPE_READ_LOCK (scope->data) {
+            trace.saved_span = scope->data->span;
+            sentry__span_incref(trace.saved_span);
+            trace.saved_tx_obj = scope->data->transaction_object;
+            sentry__transaction_incref(trace.saved_tx_obj);
+        }
+    }
+    trace.active_tx = trace.saved_span && trace.saved_span->transaction
+        ? trace.saved_span->transaction
+        : trace.saved_tx_obj;
+    if (trace.active_tx) {
+        sentry__transaction_incref(trace.active_tx);
+    }
+    return trace;
+}
+
+void
+sentry__scope_restore_active_trace(sentry_saved_trace_t *trace)
+{
+    SENTRY_WITH_SCOPE_MUT (scope) {
+        SENTRY_SCOPE_WRITE_LOCK (scope->data) {
+            if (!scope->data->span && !scope->data->transaction_object
+                && trace->saved_span) {
+                scope->data->span = trace->saved_span;
+                trace->saved_span = NULL;
+            }
+            if (!scope->data->transaction_object && !scope->data->span
+                && trace->saved_tx_obj) {
+                scope->data->transaction_object = trace->saved_tx_obj;
+                trace->saved_tx_obj = NULL;
+            }
+        }
+    }
+    sentry__span_decref(trace->saved_span);
+    sentry__transaction_decref(trace->saved_tx_obj);
+}
+
 sentry_value_t
 sentry__scope_ref_release(const sentry_scope_t *scope)
 {
