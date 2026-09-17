@@ -24,7 +24,7 @@
 
 **Other changes**:
 
-- Promote structured logs and metrics APIs to stable. ([#TODO](https://github.com/getsentry/sentry-native/pull/TODO))
+- Promote structured logs and metrics APIs to stable. ([#2101](https://github.com/getsentry/sentry-native/pull/2101))
 
 **Deprecations**:
 
