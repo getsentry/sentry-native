@@ -1825,7 +1825,7 @@ SENTRY_TEST(scope_observer_clear)
 
     sentry_scope_clear(scope);
     TEST_CHECK(d.was_cleared);
-    TEST_CHECK_INT_EQUAL(scope->num_observers, 1);
+    TEST_CHECK(sentry__scope_has_observers(scope));
     TEST_CHECK(scope_value_get_length(sentry__scope_load_tags, scope) == 0);
 
     d.was_called = false;
@@ -1852,8 +1852,7 @@ SENTRY_TEST(scope_observer_clear)
     sentry_scope_set_tag(scope, "during", "notify");
     TEST_CHECK(observer_data.was_called);
     TEST_CHECK(observer_data.was_cleared);
-    TEST_CHECK_INT_EQUAL(scope->is_notifying, 0);
-    TEST_CHECK_INT_EQUAL(scope->num_observers, 1);
+    TEST_CHECK(sentry__scope_has_observers(scope));
     TEST_CHECK(scope_value_get_length(sentry__scope_load_tags, scope) == 0);
 
     sentry_value_decref(observer_data.tags);
@@ -2646,12 +2645,19 @@ SENTRY_TEST(scope_ownership)
     // `sentry_local_scope_new` makes a one-shot scope, `sentry_scope_new` does
     // not.
     sentry_scope_t *local_scope = sentry_local_scope_new();
-    TEST_CHECK(local_scope->one_shot);
+    TEST_CHECK(sentry__scope_is_one_shot(local_scope));
     sentry_scope_free(local_scope);
 
     sentry_scope_t *user_scope = sentry_scope_new();
-    TEST_CHECK(!user_scope->one_shot);
+    TEST_CHECK(!sentry__scope_is_one_shot(user_scope));
+    sentry_scope_t *retained_scope = sentry__scope_incref(user_scope);
     sentry_scope_free(user_scope);
+    sentry_scope_set_tag(retained_scope, "retained", "true");
+    sentry_value_t retained_tag = scope_value_get_by_key(
+        sentry__scope_load_tags, retained_scope, "retained");
+    TEST_CHECK_STRING_EQUAL(sentry_value_as_string(retained_tag), "true");
+    sentry_value_decref(retained_tag);
+    sentry__scope_decref(retained_scope);
 }
 
 static size_t
@@ -2676,7 +2682,7 @@ SENTRY_TEST(scope_clone_independence)
     sentry_scope_t *clone = sentry_scope_clone(scope);
 
     // A clone is reusable, never one-shot.
-    TEST_CHECK(!clone->one_shot);
+    TEST_CHECK(!sentry__scope_is_one_shot(clone));
 
     // The clone carries over the source's data.
     sentry_value_t clone_tag
