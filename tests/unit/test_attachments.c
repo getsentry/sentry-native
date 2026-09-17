@@ -2,6 +2,7 @@
 #include "sentry_attachment.h"
 #include "sentry_backend.h"
 #include "sentry_envelope.h"
+#include "sentry_hint.h"
 #include "sentry_options.h"
 #include "sentry_path.h"
 #include "sentry_scope.h"
@@ -864,4 +865,48 @@ SENTRY_TEST(attachment_manifest)
     sentry__path_free(dir);
     sentry__path_free(manifest_path);
     sentry__path_free(run_path);
+}
+
+SENTRY_TEST(hint_frozen_attachments)
+{
+    for (int action = 0; action < 3; action++) {
+        sentry_hint_t hint;
+        SENTRY__HINT_INIT(hint);
+        sentry_hint_clear_attachments(&hint);
+        sentry_hint_remove_attachment(&hint, sentry_uuid_nil());
+        sentry_hint_add_attachment(&hint, sentry_value_new_null());
+        TEST_CHECK(sentry_value_is_frozen(hint.attachments));
+
+        sentry_uuid_t id
+            = sentry_hint_attach_bytes(&hint, "first", 5, "first.txt");
+        sentry_value_freeze(hint.attachments);
+        sentry_value_t original = sentry_value_incref(hint.attachments);
+        sentry_hint_add_attachment(
+            &hint, sentry_value_get_by_index_owned(original, 0));
+        sentry_hint_add_attachment(&hint, sentry_value_new_null());
+        sentry_hint_remove_attachment(&hint, sentry_uuid_nil());
+        TEST_CHECK(sentry_value_is_frozen(hint.attachments));
+        TEST_CHECK_INT_EQUAL(sentry_value_get_length(hint.attachments), 1);
+
+        switch (action) {
+        case 0:
+            sentry_hint_attach_bytes(&hint, "second", 6, "second.txt");
+            TEST_CHECK_INT_EQUAL(sentry_value_get_length(hint.attachments), 2);
+            break;
+        case 1:
+            sentry_hint_remove_attachment(&hint, id);
+            TEST_CHECK_INT_EQUAL(sentry_value_get_length(hint.attachments), 0);
+            break;
+        case 2:
+            sentry_hint_clear_attachments(&hint);
+            TEST_CHECK_INT_EQUAL(sentry_value_get_length(hint.attachments), 0);
+            sentry_hint_clear_attachments(&hint);
+            break;
+        }
+        TEST_CHECK(!sentry_value_is_frozen(hint.attachments));
+        TEST_CHECK(sentry_value_is_frozen(original));
+        TEST_CHECK_INT_EQUAL(sentry_value_get_length(original), 1);
+        sentry_value_decref(original);
+        SENTRY__HINT_DEINIT(hint);
+    }
 }

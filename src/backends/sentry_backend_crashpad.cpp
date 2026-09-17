@@ -8,6 +8,7 @@ extern "C" {
 #include "sentry_cpu_relax.h"
 #include "sentry_database.h"
 #include "sentry_envelope.h"
+#include "sentry_hint.h"
 #include "sentry_logger.h"
 #include "sentry_options.h"
 #ifdef SENTRY_PLATFORM_WINDOWS
@@ -287,6 +288,39 @@ append_attachment(crashpad_state_t *state, const base::FilePath &path,
 }
 
 static void
+write_attachment_manifest(crashpad_state_t *state, sentry_value_t attachments)
+{
+    sentry_path_t *manifest_path
+        = sentry__path_join_str(state->run_path, "__sentry-attachments");
+    if (!manifest_path) {
+        return;
+    }
+
+    sentry_value_t manifest = sentry_value_new_list();
+    size_t len = sentry_value_get_length(attachments);
+    for (size_t i = 0; i < len; i++) {
+        sentry_value_t attachment = sentry_value_get_by_index(attachments, i);
+        sentry_path_t *path
+            = prepare_initial_attachment(attachment, state->run_path);
+        if (!path) {
+            continue;
+        }
+        sentry_value_t info = sentry__attachment_from_file(path->path);
+        sentry_attachment_set_filename(
+            info, sentry__attachment_get_filename(attachment));
+        sentry_attachment_set_type(
+            info, sentry__attachment_get_type(attachment));
+        sentry_attachment_set_content_type(
+            info, sentry__attachment_get_content_type(attachment));
+        sentry_value_append(manifest, info);
+        sentry__path_free(path);
+    }
+    sentry__write_attachment_manifest(manifest_path, manifest);
+    sentry_value_decref(manifest);
+    sentry__path_free(manifest_path);
+}
+
+static void
 flush_scope_to_event(crashpad_state_t *state, const base::FilePath &event_path,
     const sentry_options_t *options, sentry_value_t crash_event)
 {
@@ -549,6 +583,14 @@ crashpad_handler(int signum, siginfo_t *info, ucontext_t *user_context)
             = sentry__value_new_event_with_id(&state->crash_event_id);
         sentry_value_set_by_key(
             crash_event, "level", sentry__value_new_level(SENTRY_LEVEL_FATAL));
+        sentry_hint_t hint;
+        SENTRY__HINT_INIT(hint);
+
+        if (options->on_crash_func || options->before_send_func) {
+            sentry__hint_set_attachments(
+                &hint, sentry__merge_attachments(hint.attachments, nullptr));
+        }
+        sentry_value_freeze(hint.attachments);
 
         if (options->on_crash_func) {
             sentry_ucontext_t uctx;
@@ -562,11 +604,9 @@ crashpad_handler(int signum, siginfo_t *info, ucontext_t *user_context)
 
             SENTRY_DEBUG("invoking `on_crash` hook");
             crash_event = options->on_crash_func(
-                &uctx, crash_event, options->on_crash_data);
+                &uctx, crash_event, &hint, options->on_crash_data);
         } else if (options->before_send_func) {
-            SENTRY_DEBUG("invoking `before_send` hook");
-            crash_event = options->before_send_func(
-                crash_event, nullptr, options->before_send_data);
+            crash_event = sentry__before_send(options, crash_event, &hint);
         }
 
         sentry__transport_suspend(options->transport);
@@ -577,6 +617,9 @@ crashpad_handler(int signum, siginfo_t *info, ucontext_t *user_context)
         should_dump = !sentry_value_is_null(crash_event);
 
         if (should_dump) {
+            if (!sentry_value_is_frozen(hint.attachments)) {
+                write_attachment_manifest(state, hint.attachments);
+            }
             sentry_value_incref(crash_event);
             flush_scope_from_handler(options, crash_event);
             sentry__write_crash_marker(options);
@@ -607,6 +650,7 @@ crashpad_handler(int signum, siginfo_t *info, ucontext_t *user_context)
         } else {
             SENTRY_DEBUG("event was discarded");
         }
+        SENTRY__HINT_DEINIT(hint);
         sentry__transport_dump_queue(options->transport, options->run);
     }
 
@@ -944,6 +988,7 @@ remove_attachment(void *state, sentry_value_t attachment)
     }
     sentry__path_free(path);
 }
+
 #endif
 
 static int
@@ -1409,7 +1454,7 @@ sentry__backend_new(void)
         return nullptr;
     }
 
-    auto *data = new (std::nothrow) crashpad_state_t {};
+    auto *data = new (std::nothrow) crashpad_state_t { };
     if (!data) {
         sentry_free(backend);
         return nullptr;

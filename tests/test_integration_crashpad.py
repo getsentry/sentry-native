@@ -601,11 +601,19 @@ def test_crashpad_dumping_crash(cmake, httpserver, run_args, build_args):
 
     envelope = Envelope.deserialize(session)
     assert_session(envelope, {"status": "crashed", "errors": 1})
+    expect_attachments = not any(
+        arg in run_args for arg in ("before-send", "on-crash", "clear-attachments")
+    )
     attachments = assert_crashpad_upload(
         multipart,
-        expect_attachment="clear-attachments" not in run_args,
-        expect_view_hierarchy="clear-attachments" not in run_args,
+        expect_attachment=expect_attachments,
+        expect_view_hierarchy=expect_attachments,
     )
+    callback = next(
+        (arg for arg in run_args if arg in ("before-send", "on-crash")), None
+    )
+    expected_callback = callback.replace("-", "_").encode() if callback else None
+    assert attachments.callback == expected_callback
     event_id = attachments.event["event_id"]
     if sys.platform == "win32":
         minidump = tmp_path / ".sentry-native" / "reports" / f"{event_id}.dmp"
