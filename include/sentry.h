@@ -2545,6 +2545,24 @@ SENTRY_API sentry_scope_t *sentry_local_scope_new(void);
 SENTRY_API sentry_scope_t *sentry_scope_new(void);
 
 /**
+ * Begins a batch update of `scope`.
+ *
+ * The scope remains write-locked until the matching
+ * `sentry_scope_end_update` call on the same thread. Scope functions may be
+ * called normally during the update, including functions that read the scope.
+ * Updates may be nested for the same scope.
+ */
+SENTRY_API void sentry_scope_begin_update(sentry_scope_t *scope);
+
+/**
+ * Ends a batch update begun by `sentry_scope_begin_update`.
+ *
+ * The outermost call releases the scope write lock and flushes any pending
+ * global scope changes to the backend.
+ */
+SENTRY_API void sentry_scope_end_update(sentry_scope_t *scope);
+
+/**
  * Frees a scope created via `sentry_scope_new`, `sentry_scope_clone`, or
  * `sentry_local_scope_new`.
  */
