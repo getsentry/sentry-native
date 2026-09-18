@@ -21,6 +21,7 @@
 **Fixes**:
 
 - Reduce lock contention for multi-threaded log and metric capture by reusing a single options reference throughout each capture. ([#2094](https://github.com/getsentry/sentry-native/pull/2094))
+- Respect independent rate limits for feedback, logs, metrics, and attachments instead of dropping them during error backoff. ([#2109](https://github.com/getsentry/sentry-native/pull/2109))
 
 **Other changes**:
 
