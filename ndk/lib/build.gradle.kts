@@ -102,6 +102,7 @@ android {
         warningsAsErrors = true
         checkDependencies = true
         checkReleaseBuilds = true
+        disable.add("NewerVersionAvailable")
     }
 
     packaging {
