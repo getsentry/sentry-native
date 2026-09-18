@@ -2,7 +2,6 @@ import com.diffplug.gradle.spotless.SpotlessPlugin
 import com.diffplug.spotless.LineEnding
 import com.vanniktech.maven.publish.MavenPublishBaseExtension
 import com.vanniktech.maven.publish.MavenPublishPlugin
-import com.vanniktech.maven.publish.MavenPublishPluginExtension
 import groovy.util.Node
 import io.gitlab.arturbosch.detekt.extensions.DetektExtension
 import org.gradle.api.tasks.testing.logging.TestExceptionFormat
@@ -10,8 +9,8 @@ import org.gradle.api.tasks.testing.logging.TestLogEvent
 
 plugins {
     `java-library`
-    id("com.diffplug.spotless") version "6.25.0" apply true
-    id("io.gitlab.arturbosch.detekt") version "1.19.0"
+    id("com.diffplug.spotless") version "8.8.0" apply true
+    id("io.gitlab.arturbosch.detekt") version "1.23.8"
     `maven-publish`
     id("org.jetbrains.kotlinx.binary-compatibility-validator") version "0.13.0"
 }
@@ -21,16 +20,13 @@ buildscript {
         google()
     }
     dependencies {
-        classpath("com.android.tools.build:gradle:8.7.3")
-        classpath(kotlin("gradle-plugin", version = "1.8.0"))
-        classpath("com.vanniktech:gradle-maven-publish-plugin:0.18.0")
+        val agp = System.getenv("VERSION_AGP") ?: "9.4.0"
+        classpath("com.android.tools.build:gradle:$agp")
+        classpath(kotlin("gradle-plugin", version = "2.3.21"))
+        classpath("com.vanniktech:gradle-maven-publish-plugin:0.30.0")
         // dokka is required by gradle-maven-publish-plugin.
-        classpath("org.jetbrains.dokka:dokka-gradle-plugin:1.7.10")
+        classpath("org.jetbrains.dokka:dokka-gradle-plugin:2.0.0")
         classpath("net.ltgt.gradle:gradle-errorprone-plugin:3.0.1")
-
-        // legacy pre-prefab support
-        // https://github.com/howardpang/androidNativeBundle
-        classpath("io.github.howardpang:androidNativeBundle:1.1.4")
     }
 }
 
@@ -66,6 +62,24 @@ allprojects {
 }
 
 subprojects {
+    // keep Java and Kotlin bytecode compatible with existing consumers
+    val javaVersion = JavaVersion.VERSION_1_8
+    plugins.withId("com.android.base") {
+        configure<com.android.build.gradle.BaseExtension> {
+            compileOptions {
+                sourceCompatibility = javaVersion
+                targetCompatibility = javaVersion
+            }
+        }
+    }
+    plugins.withId("org.jetbrains.kotlin.android") {
+        configure<org.jetbrains.kotlin.gradle.dsl.KotlinAndroidProjectExtension> {
+            compilerOptions {
+                jvmTarget = org.jetbrains.kotlin.gradle.dsl.JvmTarget.fromTarget(javaVersion.toString())
+            }
+        }
+    }
+
     plugins.withId("io.gitlab.arturbosch.detekt") {
         configure<DetektExtension> {
             buildUponDefaultConfig = true
@@ -76,6 +90,12 @@ subprojects {
 
     if (!name.contains("sample")) {
         apply<DistributionPlugin>()
+        apply<MavenPublishPlugin>()
+
+        @Suppress("UnstableApiUsage")
+        configure<MavenPublishBaseExtension> {
+            assignAarTypes()
+        }
 
         val sep = File.separator
 
@@ -89,6 +109,14 @@ subprojects {
                     include("*-release*")
                 }
                 from("build${sep}publications${sep}release")
+                from("build${sep}intermediates${sep}java_doc_jar${sep}release") {
+                    include("*javadoc*")
+                    rename { it.replace("release", "${project.name}-${project.version}") }
+                }
+                from("build${sep}intermediates${sep}source_jar${sep}release") {
+                    include("*sources*")
+                    rename { it.replace("release", "${project.name}-${project.version}") }
+                }
             }
 
             // craft only uses zip archives
@@ -111,21 +139,6 @@ subprojects {
                 val distZip = distZipProvider.get().asFile
                 require(distZip.exists()) { "Distribution file does not exist: ${distZip.absolutePath}" }
                 require(distZip.length() > 0L) { "Distribution file is empty: ${distZip.absolutePath}" }
-            }
-        }
-
-        afterEvaluate {
-            apply<MavenPublishPlugin>()
-
-            configure<MavenPublishPluginExtension> {
-                // signing is done when uploading files to MC
-                // via gpg:sign-and-deploy-file (release.kts)
-                releaseSigningEnabled = false
-            }
-
-            @Suppress("UnstableApiUsage")
-            configure<MavenPublishBaseExtension> {
-                assignAarTypes()
             }
         }
     }

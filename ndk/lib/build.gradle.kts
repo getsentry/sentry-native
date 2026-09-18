@@ -1,7 +1,6 @@
 plugins {
     id("com.android.library")
     kotlin("android")
-    id("com.ydq.android.gradle.native-aar.export")
 }
 
 var sentryNativeSrc: String = "${project.projectDir}/../.."
@@ -9,13 +8,20 @@ val sanitizer = System.getenv("RUN_ANALYZER").orEmpty().split(',')
     .firstOrNull { it == "asan" || it == "tsan" }
 
 android {
-    compileSdk = 35
+    compileSdk = 37
+    // retain AGP 8.7.3's default NDK to avoid changing the compiler and libc++ in a hotfix
+    ndkVersion = "27.0.12077973"
     namespace = "io.sentry.ndk"
 
     testBuildType = "debug"
 
     defaultConfig {
         minSdk = 21
+
+        aarMetadata {
+            // avoid requiring consumers to compile against API 37
+            minCompileSdk = 1
+        }
 
         externalNativeBuild {
             cmake {
@@ -84,19 +90,6 @@ android {
         }
     }
 
-    // legacy pre-prefab support
-    // https://github.com/howardpang/androidNativeBundle
-    // creates
-    // lib.aar/jni/<arch>/<lib>.so
-    // lib.aar/jni/include/sentry.h
-    nativeBundleExport {
-        headerDir = "../../include"
-    }
-
-    kotlinOptions {
-        jvmTarget = JavaVersion.VERSION_1_8.toString()
-    }
-
     testOptions {
         animationsDisabled = true
         unitTests.apply {
@@ -114,6 +107,16 @@ android {
     packaging {
         jniLibs {
             useLegacyPackaging = true
+        }
+    }
+}
+
+// legacy pre-prefab support
+// creates lib.aar/jni/include/sentry.h alongside AGP's lib.aar/jni/<arch>/<lib>.so
+tasks.withType<Zip>().configureEach {
+    if (name.startsWith("bundle") && name.endsWith("Aar")) {
+        from("../../include") {
+            into("jni/include")
         }
     }
 }
