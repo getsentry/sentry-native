@@ -3,7 +3,7 @@
 #include "sentry_slice.h"
 #include "sentry_utils.h"
 
-#define MAX_RATE_LIMITS 5
+#define MAX_RATE_LIMITS 9
 #define MAX_RETRY_AFTER (24 * 60 * 60) // 24h
 
 struct sentry_rate_limiter_s {
@@ -29,6 +29,10 @@ sentry__rate_limiter_new(void)
         rl->disabled_until[SENTRY_RL_CATEGORY_SESSION] = 0;
         rl->disabled_until[SENTRY_RL_CATEGORY_TRANSACTION] = 0;
         rl->disabled_until[SENTRY_RL_CATEGORY_REPLAY] = 0;
+        rl->disabled_until[SENTRY_RL_CATEGORY_ATTACHMENT] = 0;
+        rl->disabled_until[SENTRY_RL_CATEGORY_LOG] = 0;
+        rl->disabled_until[SENTRY_RL_CATEGORY_FEEDBACK] = 0;
+        rl->disabled_until[SENTRY_RL_CATEGORY_TRACE_METRIC] = 0;
     }
     return rl;
 }
@@ -53,20 +57,36 @@ sentry__rate_limiter_update_from_header(
 
         sentry_slice_t categories = sentry__slice_split_at(slice, ':');
         if (categories.len == 0) {
-            rl->disabled_until[SENTRY_RL_CATEGORY_ANY] = retry_after;
+            rl->disabled_until[SENTRY_RL_CATEGORY_ANY]
+                = MAX(rl->disabled_until[SENTRY_RL_CATEGORY_ANY], retry_after);
         }
 
         while (categories.len > 0) {
             sentry_slice_t category = sentry__slice_split_at(categories, ';');
+            int index = -1;
             if (sentry__slice_eqs(category, "error")) {
-                rl->disabled_until[SENTRY_RL_CATEGORY_ERROR] = retry_after;
+                index = SENTRY_RL_CATEGORY_ERROR;
             } else if (sentry__slice_eqs(category, "session")) {
-                rl->disabled_until[SENTRY_RL_CATEGORY_SESSION] = retry_after;
+                index = SENTRY_RL_CATEGORY_SESSION;
             } else if (sentry__slice_eqs(category, "transaction")) {
-                rl->disabled_until[SENTRY_RL_CATEGORY_TRANSACTION]
-                    = retry_after;
+                index = SENTRY_RL_CATEGORY_TRANSACTION;
             } else if (sentry__slice_eqs(category, "replay")) {
-                rl->disabled_until[SENTRY_RL_CATEGORY_REPLAY] = retry_after;
+                index = SENTRY_RL_CATEGORY_REPLAY;
+            } else if (sentry__slice_eqs(category, "attachment")
+                || sentry__slice_eqs(category, "attachment_item")) {
+                index = SENTRY_RL_CATEGORY_ATTACHMENT;
+            } else if (sentry__slice_eqs(category, "log_item")
+                || sentry__slice_eqs(category, "log_byte")) {
+                index = SENTRY_RL_CATEGORY_LOG;
+            } else if (sentry__slice_eqs(category, "feedback")) {
+                index = SENTRY_RL_CATEGORY_FEEDBACK;
+            } else if (sentry__slice_eqs(category, "trace_metric")
+                || sentry__slice_eqs(category, "trace_metric_byte")) {
+                index = SENTRY_RL_CATEGORY_TRACE_METRIC;
+            }
+            if (index >= 0) {
+                rl->disabled_until[index]
+                    = MAX(rl->disabled_until[index], retry_after);
             }
 
             categories = sentry__slice_advance(categories, category.len);

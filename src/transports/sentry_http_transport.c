@@ -688,8 +688,8 @@ resolve_attachment_refs(
             continue;
         }
 
-        if (sentry__rate_limiter_is_disabled(
-                state->ratelimiter, SENTRY_RL_CATEGORY_ERROR)) {
+        if (sentry__envelope_item_is_ratelimited(
+                envelope, item, state->ratelimiter)) {
             sentry__attachment_ref_cleanup(&ref);
             sentry__client_report_discard(
                 SENTRY_DISCARD_REASON_RATELIMIT_BACKOFF,

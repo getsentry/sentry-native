@@ -77,7 +77,16 @@ def test_client_report_ratelimit(cmake, httpserver):
     run(
         tmp_path,
         "sentry_example",
-        ["log", "start-session", "capture-multiple"],
+        [
+            "log",
+            "start-session",
+            "capture-multiple",
+            # flush to wait for the error burst to finish to ensure error
+            # backoff is active before capturing feedback
+            "flush",
+            "capture-user-feedback",
+            "capture-user-feedback-with-attachment",
+        ],
         env=env,
     )
 
@@ -86,16 +95,21 @@ def test_client_report_ratelimit(cmake, httpserver):
     # updates still go through.
     assert len(httpserver.log) >= 2
 
+    item_types = []
     total_discards = {}
     for req, _resp in httpserver.log:
         envelope = Envelope.deserialize(req.get_data())
         for item in envelope:
+            item_types.append(item.headers["type"])
             if item.headers.get("type") != "client_report" or not item.payload.json:
                 continue
             for entry in item.payload.json.get("discarded_events", []):
                 key = (entry["reason"], entry["category"])
                 total_discards[key] = total_discards.get(key, 0) + entry["quantity"]
 
+    assert item_types.count("event") == 1
+    assert item_types.count("feedback") == 2
+    assert item_types.count("attachment") == 2
     assert total_discards == {("ratelimit_backoff", "error"): 9}
 
 

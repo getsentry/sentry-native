@@ -147,10 +147,55 @@ envelope_item_get_ratelimiter_category(const sentry_envelope_item_t *item)
     } else if (sentry__string_eq(ty, "client_report")) {
         // internal telemetry, bypass rate limiting
         return -1;
+    } else if (sentry__string_eq(ty, "attachment")) {
+        const char *attachment_type = sentry_value_as_string(
+            sentry_value_get_by_key(item->headers, "attachment_type"));
+        if (sentry__string_eq(
+                attachment_type, SENTRY_ATTACHMENT_TYPE_MINIDUMP)) {
+            return SENTRY_RL_CATEGORY_ERROR;
+        }
+        return SENTRY_RL_CATEGORY_ATTACHMENT;
+    } else if (sentry__string_eq(ty, "log")) {
+        return SENTRY_RL_CATEGORY_LOG;
+    } else if (sentry__string_eq(ty, "feedback")) {
+        return SENTRY_RL_CATEGORY_FEEDBACK;
+    } else if (sentry__string_eq(ty, "trace_metric")) {
+        return SENTRY_RL_CATEGORY_TRACE_METRIC;
     }
-    // NOTE: the `type` here can be `event` or `attachment`.
-    // Ideally, attachments should have their own RL_CATEGORY.
     return SENTRY_RL_CATEGORY_ERROR;
+}
+
+bool
+sentry__envelope_item_is_ratelimited(const sentry_envelope_t *envelope,
+    const sentry_envelope_item_t *item, const sentry_rate_limiter_t *rl)
+{
+    if (!rl || envelope->is_raw) {
+        return false;
+    }
+    int category = envelope_item_get_ratelimiter_category(item);
+    if (category < 0) {
+        return false;
+    }
+    if (sentry__rate_limiter_is_disabled(rl, category)) {
+        return true;
+    }
+    if (category != SENTRY_RL_CATEGORY_ATTACHMENT) {
+        return false;
+    }
+
+    // attachments depend on their parent event surviving rate limiting
+    for (const sentry_envelope_item_t *parent
+        = envelope->contents.items.first_item;
+        parent; parent = parent->next) {
+        int parent_category = envelope_item_get_ratelimiter_category(parent);
+        if ((parent_category == SENTRY_RL_CATEGORY_ERROR
+                || parent_category == SENTRY_RL_CATEGORY_TRANSACTION
+                || parent_category == SENTRY_RL_CATEGORY_FEEDBACK)
+            && sentry__rate_limiter_is_disabled(rl, parent_category)) {
+            return true;
+        }
+    }
+    return false;
 }
 
 static sentry_data_category_t
@@ -188,7 +233,7 @@ sentry__envelope_can_add_client_report(
         if (category < 0) {
             continue;
         }
-        if (!rl || !sentry__rate_limiter_is_disabled(rl, category)) {
+        if (!sentry__envelope_item_is_ratelimited(envelope, item, rl)) {
             return true;
         }
     }
@@ -896,18 +941,13 @@ sentry_envelope_serialize_ratelimited(const sentry_envelope_t *envelope,
     for (const sentry_envelope_item_t *item
         = envelope->contents.items.first_item;
         item; item = item->next) {
-        if (rl) {
-            int category = envelope_item_get_ratelimiter_category(item);
-            // category < 0 means the item should bypass rate limiting
-            if (category >= 0
-                && sentry__rate_limiter_is_disabled(rl, category)) {
-                const char *ty = sentry_value_as_string(
-                    sentry_value_get_by_key(item->headers, "type"));
-                sentry__client_report_discard(
-                    SENTRY_DISCARD_REASON_RATELIMIT_BACKOFF,
-                    item_type_to_data_category(ty), 1);
-                continue;
-            }
+        if (sentry__envelope_item_is_ratelimited(envelope, item, rl)) {
+            const char *ty = sentry_value_as_string(
+                sentry_value_get_by_key(item->headers, "type"));
+            sentry__client_report_discard(
+                SENTRY_DISCARD_REASON_RATELIMIT_BACKOFF,
+                item_type_to_data_category(ty), 1);
+            continue;
         }
         sentry__envelope_serialize_item_into_stringbuilder(item, &sb);
         serialized_items += 1;
@@ -1454,7 +1494,7 @@ sentry__envelope_discard(const sentry_envelope_t *envelope,
             continue;
         }
         // already recorded as ratelimit_backoff
-        if (rl && sentry__rate_limiter_is_disabled(rl, category)) {
+        if (sentry__envelope_item_is_ratelimited(envelope, item, rl)) {
             continue;
         }
         const char *ty = sentry_value_as_string(

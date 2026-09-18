@@ -65,3 +65,31 @@ SENTRY_TEST(rate_limit_retry_after)
 
     sentry__rate_limiter_free(rl);
 }
+
+SENTRY_TEST(rate_limit_longest)
+{
+    sentry_rate_limiter_t *rl = sentry__rate_limiter_new();
+    TEST_ASSERT(!!rl);
+    uint64_t now = sentry__monotonic_time();
+    TEST_ASSERT(sentry__rate_limiter_update_from_header(rl,
+        "120:attachment;log_item;trace_metric:key, "
+        "60:attachment_item;log_byte;trace_metric_byte:key, "
+        "120::key, 60::key"));
+    TEST_ASSERT(sentry__rate_limiter_update_from_header(
+        rl, "30:attachment_item;log_byte;trace_metric_byte:key, 30::key"));
+
+    TEST_CHECK(sentry__rate_limiter_get_disabled_until(
+                   rl, SENTRY_RL_CATEGORY_ATTACHMENT)
+        >= now + 120000);
+    TEST_CHECK(
+        sentry__rate_limiter_get_disabled_until(rl, SENTRY_RL_CATEGORY_LOG)
+        >= now + 120000);
+    TEST_CHECK(sentry__rate_limiter_get_disabled_until(
+                   rl, SENTRY_RL_CATEGORY_TRACE_METRIC)
+        >= now + 120000);
+    TEST_CHECK(
+        sentry__rate_limiter_get_disabled_until(rl, SENTRY_RL_CATEGORY_ANY)
+        >= now + 120000);
+
+    sentry__rate_limiter_free(rl);
+}
