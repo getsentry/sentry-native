@@ -6,14 +6,14 @@ plugins {
 var sentryNativeSrc: String = "${project.projectDir}/../.."
 
 android {
-    compileSdk = 35
+    compileSdk = 37
     namespace = "io.sentry.ndk.sample"
     buildFeatures.buildConfig = true
 
     defaultConfig {
         applicationId = "io.sentry.ndk.sample"
         minSdk = 21
-        targetSdk = 34
+        targetSdk = 37
         versionCode = 2
         versionName = project.version.toString()
 
@@ -63,9 +63,6 @@ android {
         }
     }
 
-    kotlinOptions {
-        jvmTarget = JavaVersion.VERSION_1_8.toString()
-    }
     packaging {
         jniLibs {
             useLegacyPackaging = true
