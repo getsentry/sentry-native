@@ -5,6 +5,7 @@
 **Features**:
 
 - Add `SENTRY_SDK_VERSION_MAJOR`, `SENTRY_SDK_VERSION_MINOR`, `SENTRY_SDK_VERSION_PATCH`, and `SENTRY_SDK_VERSION_AT_LEAST` for compile-time version checks. ([#2136](https://github.com/getsentry/sentry-native/pull/2136))
+- Native: add Android support. ([#1725](https://github.com/getsentry/sentry-native/pull/1725))
 
 ## 0.17.1
 
