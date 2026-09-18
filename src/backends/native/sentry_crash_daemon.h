@@ -21,7 +21,10 @@ struct sentry_options_s;
  * @param notify_handle Notification handle for crash signals
  * @param ready_handle Ready signal handle to signal parent
  */
-#if defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID)
+#if defined(SENTRY_PLATFORM_ANDROID)
+int sentry__crash_daemon_main(pid_t app_pid, uint64_t app_tid,
+    int notify_eventfd, int ready_eventfd, int shm_fd);
+#elif defined(SENTRY_PLATFORM_LINUX)
 int sentry__crash_daemon_main(
     pid_t app_pid, uint64_t app_tid, int notify_eventfd, int ready_eventfd);
 #elif defined(SENTRY_PLATFORM_MACOS)

@@ -101,17 +101,23 @@ public final class io/sentry/ndk/NdkOptions {
 	public fun getTracesSampleRate ()F
 	public fun isDebug ()Z
 	public fun isEnableAppHangTracking ()Z
+	public fun isTombstoneEnabled ()Z
 	public fun setAppHangTimeoutMillis (J)V
 	public fun setEnableAppHangTracking (Z)V
 	public fun setNdkHandlerStrategy (Lio/sentry/ndk/NdkHandlerStrategy;)V
+	public fun setTombstoneEnabled (Z)V
 	public fun setTracesSampleRate (F)V
 }
 
 public final class io/sentry/ndk/SentryNdk {
 	public static fun close ()V
+	public static fun closeCrashDaemon ()V
 	public static fun init (Lio/sentry/ndk/NdkOptions;)V
+	public static fun initCrashDaemon (Ljava/lang/String;II)V
 	public static fun loadNativeLibraries ()V
 	public static fun preload ()V
+	public static fun runCrashDaemon (IJIILjava/lang/String;)Ljava/lang/String;
+	public static fun sendEnvelope (Ljava/lang/String;J)Z
 }
 
 public final class io/sentry/ndk/SentryNdkPreloadProvider : android/content/ContentProvider {
