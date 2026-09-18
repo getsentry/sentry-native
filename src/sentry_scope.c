@@ -889,26 +889,22 @@ sentry__symbolize_stacktrace(sentry_value_t stacktrace)
 #endif
 
 static sentry_value_t
-load_span_or_transaction_trace_context(const sentry_scope_t *scope)
+load_span_or_transaction_trace_context(const sentry_scope_data_t *scope_data)
 {
     // prep contexts sourced from scope; data about transaction on scope needs
     // to be extracted and inserted
-    sentry_value_t trace = sentry_value_new_null();
-    SENTRY_SCOPE_READ_LOCK (scope->data) {
-        sentry_value_t value = sentry_value_new_null();
-        if (scope->data->span) {
-            value = scope->data->span->inner;
-        } else if (scope->data->transaction_object) {
-            value = scope->data->transaction_object->inner;
-        }
+    sentry_value_t value = sentry_value_new_null();
+    if (scope_data->span) {
+        value = scope_data->span->inner;
+    } else if (scope_data->transaction_object) {
+        value = scope_data->transaction_object->inner;
+    }
 
-        trace = sentry__value_get_trace_context(value);
-        if (!sentry_value_is_null(trace)) {
-            sentry_value_t data = sentry_value_get_by_key(value, "data");
-            if (!sentry_value_is_null(data)) {
-                sentry_value_set_by_key(
-                    trace, "data", sentry__value_clone(data));
-            }
+    sentry_value_t trace = sentry__value_get_trace_context(value);
+    if (!sentry_value_is_null(trace)) {
+        sentry_value_t data = sentry_value_get_by_key(value, "data");
+        if (!sentry_value_is_null(data)) {
+            sentry_value_set_by_key(trace, "data", sentry__value_clone(data));
         }
     }
     return trace;
@@ -947,24 +943,80 @@ sentry__scope_apply_to_event(const sentry_scope_t *scope,
         }                                                                      \
     } while (0)
 
+    const sentry_scope_data_t *data = scope->data;
+    bool is_transaction = sentry__event_is_transaction(event);
+    sentry_value_t event_contexts = sentry_value_get_by_key(event, "contexts");
+    sentry_value_t release = sentry_value_new_null();
+    sentry_value_t environment = sentry_value_new_null();
+    sentry_level_t level = SENTRY_LEVEL_ERROR;
+    sentry_value_t user = sentry_value_new_null();
+    sentry_value_t fingerprint = sentry_value_new_null();
+    sentry_value_t transaction = sentry_value_new_null();
+    sentry_value_t client_sdk = sentry_value_new_null();
+    sentry_value_t contexts = sentry_value_new_null();
+    sentry_value_t scope_trace = sentry_value_new_null();
+    sentry_value_t propagation_context = sentry_value_new_null();
+    sentry_value_t scope_breadcrumbs = sentry_value_new_null();
+
+    SENTRY_SCOPE_READ_LOCK (data) {
+        release = sentry_value_incref(data->release);
+        environment = sentry_value_incref(data->environment);
+        level = data->level;
+        user = sentry_value_incref(data->user);
+        fingerprint = sentry_value_incref(data->fingerprint);
+        transaction = sentry_value_incref(data->transaction);
+        client_sdk = sentry_value_incref(data->client_sdk);
+
+        sentry_value_t event_tags = sentry_value_get_by_key(event, "tags");
+        if (sentry_value_is_null(event_tags)) {
+            if (!sentry_value_is_null(scope->data->tags)) {
+                sentry_value_set_by_key(
+                    event, "tags", sentry__value_clone(scope->data->tags));
+            }
+        } else {
+            sentry__value_merge_objects(event_tags, scope->data->tags);
+        }
+
+        sentry_value_t event_extra = sentry_value_get_by_key(event, "extra");
+        if (sentry_value_is_null(event_extra)) {
+            if (!sentry_value_is_null(scope->data->extra)) {
+                sentry_value_set_by_key(
+                    event, "extra", sentry__value_clone(scope->data->extra));
+            }
+        } else {
+            sentry__value_merge_objects(event_extra, scope->data->extra);
+        }
+
+        contexts = sentry__value_clone(data->contexts);
+        if (!is_transaction) {
+            scope_trace = load_span_or_transaction_trace_context(data);
+            if (sentry_value_is_null(scope_trace)
+                && sentry_value_is_null(
+                    sentry_value_get_by_key(event_contexts, "trace"))) {
+                propagation_context
+                    = sentry__value_clone(data->propagation_context);
+            }
+        }
+        if (mode & SENTRY_SCOPE_BREADCRUMBS) {
+            scope_breadcrumbs = sentry__ringbuffer_to_list(data->breadcrumbs);
+        }
+    }
+
     PLACE_STRING("platform", "native");
 
-    sentry_value_t release = sentry__scope_ref_release(scope);
     PLACE_STRING_VALUE("release", release);
     sentry_value_decref(release);
 
     PLACE_STRING("dist", options->dist);
 
-    sentry_value_t environment = sentry__scope_ref_environment(scope);
     PLACE_STRING_VALUE("environment", environment);
     sentry_value_decref(environment);
 
     // is not transaction and has no level
     if (IS_NULL("type") && IS_NULL("level")) {
-        SET("level", sentry__value_new_level(sentry__scope_get_level(scope)));
+        SET("level", sentry__value_new_level(level));
     }
 
-    sentry_value_t user = sentry__scope_ref_user(scope);
     if (sentry_value_get_type(user) == SENTRY_VALUE_TYPE_OBJECT) {
         if (options->run && options->run->installation_id) {
             // ensure event has a user object
@@ -985,53 +1037,19 @@ sentry__scope_apply_to_event(const sentry_scope_t *scope,
     }
     sentry_value_decref(user);
 
-    sentry_value_t fingerprint = sentry__scope_ref_fingerprint(scope);
     PLACE_CLONED_VALUE("fingerprint", fingerprint);
     sentry_value_decref(fingerprint);
 
-    sentry_value_t transaction = sentry__scope_ref_transaction(scope);
     PLACE_STRING_VALUE("transaction", transaction);
     sentry_value_decref(transaction);
 
-    sentry_value_t client_sdk = sentry__scope_ref_client_sdk(scope);
     PLACE_VALUE("sdk", client_sdk);
     sentry_value_decref(client_sdk);
 
-    SENTRY_SCOPE_READ_LOCK (scope->data) {
-        sentry_value_t event_tags = sentry_value_get_by_key(event, "tags");
-        if (sentry_value_is_null(event_tags)) {
-            if (!sentry_value_is_null(scope->data->tags)) {
-                sentry_value_set_by_key(
-                    event, "tags", sentry__value_clone(scope->data->tags));
-            }
-        } else {
-            sentry__value_merge_objects(event_tags, scope->data->tags);
-        }
-
-        sentry_value_t event_extra = sentry_value_get_by_key(event, "extra");
-        if (sentry_value_is_null(event_extra)) {
-            if (!sentry_value_is_null(scope->data->extra)) {
-                sentry_value_set_by_key(
-                    event, "extra", sentry__value_clone(scope->data->extra));
-            }
-        } else {
-            sentry__value_merge_objects(event_extra, scope->data->extra);
-        }
-    }
-
-    bool is_transaction = sentry__event_is_transaction(event);
-    sentry_value_t contexts = sentry_value_new_null();
-    SENTRY_SCOPE_READ_LOCK (scope->data) {
-        contexts = sentry__value_clone(scope->data->contexts);
-    }
     if (is_transaction && !sentry_value_is_null(contexts)) {
         sentry_value_remove_by_key(contexts, "trace");
     }
 
-    sentry_value_t scope_trace = sentry_value_new_null();
-    if (!is_transaction) {
-        scope_trace = load_span_or_transaction_trace_context(scope);
-    }
     if (!sentry_value_is_null(scope_trace)) {
         if (sentry_value_is_null(contexts)) {
             contexts = sentry_value_new_object();
@@ -1040,16 +1058,13 @@ sentry__scope_apply_to_event(const sentry_scope_t *scope,
     }
 
     // merge contexts sourced from scope into the event
-    sentry_value_t event_contexts = sentry_value_get_by_key(event, "contexts");
     // merge propagation context only when no scoped span or event trace exists
     if (!is_transaction && sentry_value_is_null(scope_trace)
         && sentry_value_is_null(
             sentry_value_get_by_key(event_contexts, "trace"))) {
-        sentry_value_t propagation_context
-            = sentry__scope_load_propagation_context(scope);
         sentry__value_merge_objects(contexts, propagation_context);
-        sentry_value_decref(propagation_context);
     }
+    sentry_value_decref(propagation_context);
     if (sentry_value_is_null(event_contexts)) {
         PLACE_VALUE("contexts", contexts);
     } else {
@@ -1060,8 +1075,6 @@ sentry__scope_apply_to_event(const sentry_scope_t *scope,
     if (mode & SENTRY_SCOPE_BREADCRUMBS) {
         sentry_value_t event_breadcrumbs
             = sentry_value_get_by_key(event, "breadcrumbs");
-        sentry_value_t scope_breadcrumbs
-            = sentry__scope_breadcrumbs_to_list(scope);
         sentry_value_set_by_key(event, "breadcrumbs",
             sentry__value_merge_breadcrumbs(event_breadcrumbs,
                 scope_breadcrumbs, options->max_breadcrumbs));
