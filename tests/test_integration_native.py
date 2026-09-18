@@ -12,6 +12,7 @@ import sys
 import time
 import struct
 
+import msgpack
 import pytest
 
 from . import (
@@ -433,8 +434,10 @@ def test_native_attachment_manifest_is_current(cmake, httpserver):
         if not paths:
             return False
         try:
-            manifest = json.loads(paths[0].read_text())
-        except (OSError, json.JSONDecodeError):
+            unpacker = msgpack.Unpacker(raw=False)
+            unpacker.feed(paths[0].read_bytes())
+            manifest = list(unpacker)
+        except (OSError, msgpack.UnpackException):
             # rewritten in place, so a read can catch a partial file
             return False
         last_manifest = manifest
