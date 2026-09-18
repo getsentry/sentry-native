@@ -245,39 +245,6 @@ native_backend_preload_scope(
     sentry_value_decref(breadcrumbs);
 }
 
-/**
- * Creates an attachment path, deriving a unique path in the run directory for
- * buffer attachments.
- */
-static sentry_path_t *
-make_attachment_path(const sentry_path_t *run_path, sentry_value_t attachment)
-{
-    if (!sentry__attachment_get_bytes(attachment, NULL)) {
-        return sentry__attachment_make_path(attachment);
-    }
-
-    sentry_uuid_t id = sentry__attachment_get_id(attachment);
-    const char *filename = sentry__attachment_get_filename(attachment);
-    if (!run_path || sentry_uuid_is_nil(&id)
-        || sentry__string_empty(filename)) {
-        return NULL;
-    }
-
-    char uuid[37];
-    sentry_uuid_as_string(&id, uuid);
-    sentry_path_t *dir = sentry__path_join_str(run_path, uuid);
-    sentry_path_t *path = dir ? sentry__path_join_str(dir, filename) : NULL;
-    sentry_path_t *parent = path ? sentry__path_dir(path) : NULL;
-    bool valid = parent && sentry__path_eq(parent, dir);
-    sentry__path_free(parent);
-    sentry__path_free(dir);
-    if (!valid) {
-        sentry__path_free(path);
-        return NULL;
-    }
-    return path;
-}
-
 static void
 add_attachment(void *data, sentry_value_t attachment)
 {
@@ -291,7 +258,8 @@ add_attachment(void *data, sentry_value_t attachment)
     size_t bytes_len = 0;
     const char *bytes = sentry__attachment_get_bytes(attachment, &bytes_len);
     if (bytes) {
-        sentry_path_t *path = make_attachment_path(state->run_path, attachment);
+        sentry_path_t *path
+            = sentry__attachment_make_run_path(state->run_path, attachment);
         if (!path) {
             const char *filename = sentry__attachment_get_filename(attachment);
             SENTRY_WARNF("failed to create path for native backend attachment "
@@ -1222,43 +1190,7 @@ native_backend_write_attachments(const sentry_path_t *event_path)
         sentry_path_t *attach_list_path
             = sentry__path_join_str(run_path, "__sentry-attachments");
         if (attach_list_path) {
-            sentry_value_t attach_list = sentry_value_new_list();
-            size_t len = sentry_value_get_length(attachments);
-            for (size_t i = 0; i < len; i++) {
-                sentry_value_t attachment
-                    = sentry_value_get_by_index(attachments, i);
-                sentry_path_t *path
-                    = make_attachment_path(run_path, attachment);
-                if (!path) {
-                    continue;
-                }
-                // skip missing or partially written attachments
-                size_t bytes_len = 0;
-                if (sentry__attachment_get_bytes(attachment, &bytes_len)
-                    && sentry__path_get_size(path) != bytes_len) {
-                    sentry__path_free(path);
-                    continue;
-                }
-                sentry_value_t attach_info
-                    = sentry__attachment_from_file(path->path);
-                const char *filename
-                    = sentry__attachment_get_filename(attachment);
-                sentry_attachment_set_filename(attach_info, filename);
-                const char *type = sentry__attachment_get_type(attachment);
-                if (!sentry__string_empty(type)) {
-                    sentry_attachment_set_type(attach_info, type);
-                }
-                const char *content_type
-                    = sentry__attachment_get_content_type(attachment);
-                if (content_type) {
-                    sentry_attachment_set_content_type(
-                        attach_info, content_type);
-                }
-                sentry_value_append(attach_list, attach_info);
-                sentry__path_free(path);
-            }
-            sentry__write_attachment_manifest(attach_list_path, attach_list);
-            sentry_value_decref(attach_list);
+            sentry__write_attachment_manifest(attach_list_path, attachments);
             sentry__path_free(attach_list_path);
         }
         sentry__path_free(run_path);

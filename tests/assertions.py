@@ -537,6 +537,7 @@ def _load_crashpad_attachments(msg):
     bytes_bin = None
     minidump = None
     for part in msg.walk():
+        assert part.get_filename() != "__sentry-attachments"
         if part.get_filename() is not None:
             assert part.get("Content-Type") is None
 
