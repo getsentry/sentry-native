@@ -16,6 +16,11 @@ int sentry__crash_handler_init(
 int sentry__crash_handler_reinstall(void);
 
 /**
+ * Preload crash handler before full initialization.
+ */
+int sentry__crash_handler_preload(void);
+
+/**
  * Shutdown crash handler (restore previous handlers)
  */
 void sentry__crash_handler_shutdown(void);
