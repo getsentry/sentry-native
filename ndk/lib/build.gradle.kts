@@ -14,7 +14,7 @@ val sanitizer =
 android {
     compileSdk = 37
     // retain AGP 8.7.3's default NDK to avoid changing the compiler and libc++ in a hotfix
-    ndkVersion = System.getenv("ANDROID_NDK") ?: "27.0.12077973"
+    ndkVersion = System.getenv("ANDROID_NDK")?.let { File(it).name } ?: "27.0.12077973"
     namespace = "io.sentry.ndk"
 
     testBuildType = "debug"
