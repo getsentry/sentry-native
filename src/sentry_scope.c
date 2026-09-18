@@ -30,8 +30,6 @@
 
 struct sentry_scope_data_s {
     sentry_rwlock_t rwlock;
-    uint64_t update_owner;
-    size_t update_depth;
 
     sentry_value_t release;
     sentry_value_t environment;
@@ -63,6 +61,13 @@ struct sentry_scope_data_s {
     bool trace_managed;
 };
 
+typedef struct scope_access_s {
+    sentry_scope_data_t *data;
+    size_t depth;
+    bool write;
+    struct scope_access_s *next;
+} scope_access_t;
+
 static bool g_scope_initialized = false;
 static sentry_scope_t g_scope = { 0 };
 static sentry_scope_data_t g_scope_data = { 0 };
@@ -70,12 +75,10 @@ static bool g_scope_idle_initialized = false;
 static sentry_cond_t g_scope_idle;
 #ifdef _MSC_VER
 static __declspec(thread) size_t g_scope_depth;
-static __declspec(thread) size_t g_scope_update_depth;
-static __declspec(thread) char g_scope_update_token;
+static __declspec(thread) scope_access_t *g_scope_access;
 #else
 static __thread size_t g_scope_depth;
-static __thread size_t g_scope_update_depth;
-static __thread char g_scope_update_token;
+static __thread scope_access_t *g_scope_access;
 #endif
 #ifdef SENTRY__MUTEX_INIT_DYN
 SENTRY__MUTEX_INIT_DYN(g_lock)
@@ -83,32 +86,28 @@ SENTRY__MUTEX_INIT_DYN(g_lock)
 static sentry_mutex_t g_lock = SENTRY__MUTEX_INIT;
 #endif
 
-static uint64_t
-scope_update_token(void)
-{
-    return (uint64_t)(uintptr_t)&g_scope_update_token;
-}
-
-static bool
-scope_data_is_updating(const sentry_scope_data_t *data)
+static scope_access_t *
+scope_data_get_access(const sentry_scope_data_t *data)
 {
 #ifndef SENTRY_PLATFORM_WINDOWS
     // avoid dynamic TLS access during signal handling
     if (!sentry__block_for_signal_handler()) {
-        return false;
+        return NULL;
     }
 #endif
-    if (!g_scope_update_depth) {
-        return false;
+    for (scope_access_t *access = g_scope_access; access;
+        access = access->next) {
+        if (access->data == data) {
+            return access;
+        }
     }
-    return sentry__atomic_fetch_u64((uint64_t *)&data->update_owner)
-        == scope_update_token();
+    return NULL;
 }
 
 static bool
 scope_data_read_lock(const sentry_scope_data_t *data)
 {
-    if (scope_data_is_updating(data)) {
+    if (scope_data_get_access(data)) {
         return false;
     }
     sentry__rwlock_read_lock((sentry_rwlock_t *)&data->rwlock);
@@ -126,7 +125,9 @@ scope_data_read_unlock(const sentry_scope_data_t *data, bool locked)
 static bool
 scope_data_write_lock(sentry_scope_data_t *data)
 {
-    if (scope_data_is_updating(data)) {
+    scope_access_t *access = scope_data_get_access(data);
+    assert(!access || access->write);
+    if (access && access->write) {
         return false;
     }
     sentry__rwlock_write_lock(&data->rwlock);
@@ -601,7 +602,8 @@ static bool
 scope_should_flush(sentry_scope_t *scope, bool flush)
 {
     sentry__mutex_lock(&scope->observers_lock);
-    if (scope->is_notifying > 0 || scope_data_is_updating(scope->data)) {
+    scope_access_t *access = scope_data_get_access(scope->data);
+    if (scope->is_notifying > 0 || (access && access->write)) {
         // defer the flush requested by a reentrant or batched scope change
         scope->pending_flush = flush || scope->pending_flush;
         flush = false;
@@ -771,51 +773,100 @@ sentry_scope_new(void)
     return scope;
 }
 
-void
-sentry_scope_begin_update(sentry_scope_t *scope)
+static int
+scope_begin(const sentry_scope_t *scope, bool write)
 {
     if (!scope) {
-        return;
+        return 1;
     }
 
     sentry_scope_data_t *data = scope->data;
-    if (scope_data_is_updating(data)) {
-        data->update_depth++;
-        return;
+    scope_access_t *access = scope_data_get_access(data);
+    if (access) {
+        if (write && !access->write) {
+            return 1;
+        }
+        access->depth++;
+        return 0;
     }
 
-    lock_scope_notify(scope);
-    sentry__rwlock_write_lock(&data->rwlock);
-    data->update_depth = 1;
-    sentry__atomic_store_u64(&data->update_owner, scope_update_token());
-    g_scope_update_depth++;
+    access = SENTRY_MAKE(scope_access_t);
+    if (!access) {
+        return 1;
+    }
+
+    if (write) {
+        lock_scope_notify((sentry_scope_t *)scope);
+        sentry__rwlock_write_lock(&data->rwlock);
+    } else {
+        sentry__rwlock_read_lock(&data->rwlock);
+    }
+    access->data = data;
+    access->depth = 1;
+    access->write = write;
+    access->next = g_scope_access;
+    g_scope_access = access;
+    return 0;
 }
 
-void
-sentry_scope_end_update(sentry_scope_t *scope)
+int
+sentry_scope_begin_read(const sentry_scope_t *scope)
+{
+    return scope_begin(scope, false);
+}
+
+int
+sentry_scope_begin_write(sentry_scope_t *scope)
+{
+    return scope_begin(scope, true);
+}
+
+static void
+scope_end(const sentry_scope_t *scope)
 {
     if (!scope) {
         return;
     }
 
-    sentry_scope_data_t *data = scope->data;
-    if (!scope_data_is_updating(data)) {
+    scope_access_t **link = &g_scope_access;
+    while (*link && (*link)->data != scope->data) {
+        link = &(*link)->next;
+    }
+    scope_access_t *access = *link;
+    if (!access) {
         assert(false);
         return;
     }
-    if (--data->update_depth > 0) {
+    if (--access->depth > 0) {
         return;
     }
 
-    sentry__atomic_store_u64(&data->update_owner, 0);
-    g_scope_update_depth--;
-    sentry__rwlock_write_unlock(&data->rwlock);
+    *link = access->next;
+    bool write = access->write;
+    sentry_free(access);
+    if (!write) {
+        sentry__rwlock_read_unlock(&scope->data->rwlock);
+        return;
+    }
+    sentry__rwlock_write_unlock(&scope->data->rwlock);
 
-    bool flush = scope_should_flush(scope, scope == &g_scope);
-    unlock_scope_notify(scope);
+    bool flush = scope_should_flush((sentry_scope_t *)scope, scope == &g_scope);
+    unlock_scope_notify((sentry_scope_t *)scope);
     if (flush && scope == &g_scope) {
         flush_scope();
     }
+}
+
+void
+sentry_scope_end_read(const sentry_scope_t *scope)
+{
+    scope_end(scope);
+}
+
+void
+sentry_scope_end_write(sentry_scope_t *scope)
+{
+    scope_end(scope);
 }
 
 void

@@ -17,7 +17,7 @@
 - Add `sentry_attachment_from_file/bytes` (and their wide-string variants) for creating attachment values that can be fully configured before they are added. ([#2079](https://github.com/getsentry/sentry-native/pull/2079))
 - Add `sentry_add_attachment`, `sentry_scope_add_attachment`, and `sentry_hint_add_attachment` for adding configured attachments to the global scope, a specific scope, or a hint. These functions consume and freeze the attachment value. ([#2079](https://github.com/getsentry/sentry-native/pull/2079), [#1974](https://github.com/getsentry/sentry-native/pull/1974))
 - Add `sentry_start_new_trace()` as a clearer name for starting a new trace. ([#2095](https://github.com/getsentry/sentry-native/pull/2095))
-- Add `sentry_scope_begin_update` and `sentry_scope_end_update` for applying multiple scope changes with a single scope flush, improving bulk-update performance. ([#2107](https://github.com/getsentry/sentry-native/pull/2107))
+- Add `sentry_scope_begin_read`/`sentry_scope_end_read` and `sentry_scope_begin_write`/`sentry_scope_end_write` for consistent reads of multiple scope properties and applying multiple scope changes with a single scope flush. ([#2107](https://github.com/getsentry/sentry-native/pull/2107))
 
 **Fixes**:
 
