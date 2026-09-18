@@ -2,6 +2,7 @@ package io.sentry.ndk;
 
 import org.jetbrains.annotations.ApiStatus;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 @ApiStatus.Internal
 public final class SentryNdk {
@@ -19,6 +20,16 @@ public final class SentryNdk {
    *     to initialize
    */
   private static native int initSentryNative(@NotNull final NdkOptions options);
+
+  private static native void nativeInitCrashDaemon(
+      @NotNull String shmPath, int notifyFd, int readyFd, int messageFd);
+
+  private static native @Nullable String nativeRunCrashDaemon(
+      int appPid, long appTid, int notifyFd, int readyFd, int messageFd, @NotNull String shmPath);
+
+  private static native boolean nativeSendEnvelope(@NotNull String path, long timeout);
+
+  private static native void nativeCloseCrashDaemon();
 
   private static native void shutdown();
 
@@ -53,6 +64,28 @@ public final class SentryNdk {
     } else if (returnCode < 0) {
       throw new IllegalStateException("A sentry-native setup failure occurred");
     }
+  }
+
+  public static void initCrashDaemon(
+      @NotNull String shmPath, int notifyFd, int readyFd, int messageFd) {
+    loadNativeLibraries();
+    nativeInitCrashDaemon(shmPath, notifyFd, readyFd, messageFd);
+  }
+
+  public static @Nullable String runCrashDaemon(
+      int appPid, long appTid, int notifyFd, int readyFd, int messageFd, @NotNull String shmPath) {
+    loadNativeLibraries();
+    return nativeRunCrashDaemon(appPid, appTid, notifyFd, readyFd, messageFd, shmPath);
+  }
+
+  public static boolean sendEnvelope(@NotNull String path, long timeout) {
+    loadNativeLibraries();
+    return nativeSendEnvelope(path, timeout);
+  }
+
+  public static void closeCrashDaemon() {
+    loadNativeLibraries();
+    nativeCloseCrashDaemon();
   }
 
   /** Closes the NDK integration */

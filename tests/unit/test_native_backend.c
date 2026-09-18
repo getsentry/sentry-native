@@ -1307,7 +1307,11 @@ SENTRY_TEST(native_scope_updates)
 static sentry_crash_ipc_t *
 new_test_ipc(void)
 {
+#    if defined(SENTRY_PLATFORM_ANDROID)
+    sentry_crash_ipc_t *ipc = sentry__crash_ipc_init_app(".", NULL);
+#    else
     sentry_crash_ipc_t *ipc = sentry__crash_ipc_init_app(NULL);
+#    endif
     TEST_ASSERT(ipc != NULL);
     TEST_ASSERT(sentry__crash_scope_init(&ipc->scope, 2));
     sentry_value_t snapshot = scope_snapshot();

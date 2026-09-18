@@ -515,6 +515,7 @@ jobs:
             pip install --upgrade --requirement tests/requirements.txt
             pytest --capture=no --verbose tests
             (cd ndk && ./gradlew :sentry-native-ndk:connectedDebugAndroidTest --stacktrace)
+            (cd ndk && ./gradlew :sentry-native-ndk-native:connectedDebugAndroidTest --stacktrace)
 
       - name: Test
         if: ${{ !env['ANDROID_API'] }}
@@ -604,4 +605,6 @@ jobs:
             sentry-native-*.zip
             sentry-native.zip
             ndk/lib/build/distributions/*.zip
+            ndk/native/build/distributions/*.zip
             ndk/lib/build/intermediates/merged_native_libs/release/mergeReleaseNativeLibs/out/lib/*
+            ndk/native/build/intermediates/merged_native_libs/release/mergeReleaseNativeLibs/out/lib/*

@@ -125,6 +125,8 @@ static sentry_handler_strategy_t g_handler_strategy
     = SENTRY_HANDLER_STRATEGY_DEFAULT;
 static struct sigaction g_previous_handlers[16];
 static stack_t g_signal_stack = { 0 };
+static volatile long g_handlers_installed = 0;
+static volatile long g_preloaded = 0;
 
 static void
 reset_signal_handlers(void)
@@ -973,12 +975,20 @@ daemon_handling:
     reraise_signal(signum);
 }
 
-int
-sentry__crash_handler_init(sentry_crash_ipc_t *ipc,
+static int
+install_signal_handlers(sentry_crash_ipc_t *ipc, bool preload,
     sentry_handler_strategy_t strategy, void (*callback)(void))
 {
-    if (!ipc && !callback) {
+    if (!preload && !ipc && !callback) {
         return -1;
+    }
+
+    if (sentry__atomic_fetch(&g_handlers_installed)) {
+        if (!preload) {
+            g_crash_ipc = ipc;
+            g_handler_strategy = strategy;
+        }
+        return 0;
     }
 
     g_crash_ipc = ipc;
@@ -1019,6 +1029,12 @@ sentry__crash_handler_init(sentry_crash_ipc_t *ipc,
         installed_count++;
     }
 
+    g_crash_ipc = ipc;
+    sentry__atomic_store(&g_handlers_installed, 1);
+    if (preload) {
+        sentry__atomic_store(&g_preloaded, 1);
+    }
+
     // Prime libunwind's internal cache by performing a short unwind.
     // This forces dl_iterate_phdr to be called now (while safe) rather than
     // in the signal handler where it could deadlock if the crash occurs
@@ -1050,6 +1066,20 @@ sentry__crash_handler_init(sentry_crash_ipc_t *ipc,
 
     SENTRY_DEBUG("crash handler initialized");
     return 0;
+}
+
+int
+sentry__crash_handler_init(sentry_crash_ipc_t *ipc,
+    sentry_handler_strategy_t strategy, void (*callback)(void))
+{
+    return install_signal_handlers(ipc, false, strategy, callback);
+}
+
+int
+sentry__crash_handler_preload(void)
+{
+    return install_signal_handlers(
+        NULL, true, SENTRY_HANDLER_STRATEGY_DEFAULT, NULL);
 }
 
 int
@@ -1087,6 +1117,16 @@ sentry__crash_handler_reinstall(void)
 void
 sentry__crash_handler_shutdown(void)
 {
+    if (sentry__atomic_fetch(&g_preloaded)) {
+        g_crash_ipc = NULL;
+        SENTRY_DEBUG("crash handler deactivated, keeping preloaded handlers");
+        return;
+    }
+
+    if (!sentry__atomic_fetch(&g_handlers_installed)) {
+        return;
+    }
+
     // Restore previous signal handlers
     reset_signal_handlers();
 
@@ -1095,6 +1135,8 @@ sentry__crash_handler_shutdown(void)
 
     g_crash_ipc = NULL;
     g_crash_callback = NULL;
+    sentry__atomic_store(&g_handlers_installed, 0);
+    sentry__atomic_store(&g_preloaded, 0);
 
     SENTRY_DEBUG("crash handler shutdown");
 }
