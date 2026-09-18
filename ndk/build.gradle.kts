@@ -20,8 +20,7 @@ buildscript {
         google()
     }
     dependencies {
-        val agp = System.getenv("VERSION_AGP") ?: "9.4.0"
-        classpath("com.android.tools.build:gradle:$agp")
+        classpath("com.android.tools.build:gradle:9.4.0")
         classpath(kotlin("gradle-plugin", version = "2.3.21"))
         classpath("com.vanniktech:gradle-maven-publish-plugin:0.30.0")
         // dokka is required by gradle-maven-publish-plugin.
