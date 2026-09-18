@@ -9,24 +9,17 @@ import org.gradle.api.tasks.testing.logging.TestLogEvent
 
 plugins {
     `java-library`
+    id("com.android.application") version "9.4.0" apply false
+    id("com.android.library") version "9.4.0" apply false
     id("com.diffplug.spotless") version "8.8.0" apply true
     id("io.gitlab.arturbosch.detekt") version "1.23.8"
+    id("com.vanniktech.maven.publish") version "0.30.0" apply false
+    id("net.ltgt.errorprone") version "3.0.1" apply false
+    // dokka is required by gradle-maven-publish-plugin.
+    id("org.jetbrains.dokka") version "2.0.0" apply false
+    kotlin("android") version "2.3.21" apply false
     `maven-publish`
     id("org.jetbrains.kotlinx.binary-compatibility-validator") version "0.13.0"
-}
-
-buildscript {
-    repositories {
-        google()
-    }
-    dependencies {
-        classpath("com.android.tools.build:gradle:9.4.0")
-        classpath(kotlin("gradle-plugin", version = "2.3.21"))
-        classpath("com.vanniktech:gradle-maven-publish-plugin:0.30.0")
-        // dokka is required by gradle-maven-publish-plugin.
-        classpath("org.jetbrains.dokka:dokka-gradle-plugin:2.0.0")
-        classpath("net.ltgt.gradle:gradle-errorprone-plugin:3.0.1")
-    }
 }
 
 allprojects {
@@ -98,23 +91,21 @@ subprojects {
             assignAarTypes()
         }
 
-        val sep = File.separator
-
         configure<DistributionContainer> {
             getByName("main").contents {
                 // non android modules
-                from("build${sep}libs")
-                from("build${sep}publications${sep}maven")
+                from("build/libs")
+                from("build/publications/maven")
                 // android modules
-                from("build${sep}outputs${sep}aar") {
+                from("build/outputs/aar") {
                     include("*-release*")
                 }
-                from("build${sep}publications${sep}release")
-                from("build${sep}intermediates${sep}java_doc_jar${sep}release") {
+                from("build/publications/release")
+                from("build/intermediates/java_doc_jar/release") {
                     include("*javadoc*")
                     rename { it.replace("release", "${project.name}-${project.version}") }
                 }
-                from("build${sep}intermediates${sep}source_jar${sep}release") {
+                from("build/intermediates/source_jar/release") {
                     include("*sources*")
                     rename { it.replace("release", "${project.name}-${project.version}") }
                 }
