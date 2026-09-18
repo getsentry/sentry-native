@@ -91,5 +91,15 @@ SENTRY_TEST(rate_limit_longest)
         sentry__rate_limiter_get_disabled_until(rl, SENTRY_RL_CATEGORY_ANY)
         >= now + 120000);
 
+    TEST_ASSERT(sentry__rate_limiter_update_from_http_retry_after(rl, "30"));
+    TEST_CHECK(
+        sentry__rate_limiter_get_disabled_until(rl, SENTRY_RL_CATEGORY_ANY)
+        >= now + 120000);
+
+    TEST_ASSERT(sentry__rate_limiter_update_from_429(rl));
+    TEST_CHECK(
+        sentry__rate_limiter_get_disabled_until(rl, SENTRY_RL_CATEGORY_ANY)
+        >= now + 120000);
+
     sentry__rate_limiter_free(rl);
 }

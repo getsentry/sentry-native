@@ -37,6 +37,13 @@ sentry__rate_limiter_new(void)
     return rl;
 }
 
+static void
+disable_until(sentry_rate_limiter_t *rl, int category, uint64_t disabled_until)
+{
+    uint64_t prev = rl->disabled_until[category];
+    rl->disabled_until[category] = MAX(prev, disabled_until);
+}
+
 bool
 sentry__rate_limiter_update_from_header(
     sentry_rate_limiter_t *rl, const char *sentry_header)
@@ -57,8 +64,7 @@ sentry__rate_limiter_update_from_header(
 
         sentry_slice_t categories = sentry__slice_split_at(slice, ':');
         if (categories.len == 0) {
-            rl->disabled_until[SENTRY_RL_CATEGORY_ANY]
-                = MAX(rl->disabled_until[SENTRY_RL_CATEGORY_ANY], retry_after);
+            disable_until(rl, SENTRY_RL_CATEGORY_ANY, retry_after);
         }
 
         while (categories.len > 0) {
@@ -85,8 +91,7 @@ sentry__rate_limiter_update_from_header(
                 index = SENTRY_RL_CATEGORY_TRACE_METRIC;
             }
             if (index >= 0) {
-                rl->disabled_until[index]
-                    = MAX(rl->disabled_until[index], retry_after);
+                disable_until(rl, index, retry_after);
             }
 
             categories = sentry__slice_advance(categories, category.len);
@@ -111,15 +116,14 @@ sentry__rate_limiter_update_from_http_retry_after(
     sentry_slice_t slice = sentry__slice_from_str(retry_after);
     uint64_t eta = 60;
     sentry__slice_consume_uint64(&slice, &eta);
-    rl->disabled_until[SENTRY_RL_CATEGORY_ANY] = calculate_disabled_until(eta);
+    disable_until(rl, SENTRY_RL_CATEGORY_ANY, calculate_disabled_until(eta));
     return true;
 }
 
 bool
 sentry__rate_limiter_update_from_429(sentry_rate_limiter_t *rl)
 {
-    rl->disabled_until[SENTRY_RL_CATEGORY_ANY]
-        = sentry__monotonic_time() + 60 * 1000;
+    disable_until(rl, SENTRY_RL_CATEGORY_ANY, calculate_disabled_until(60));
     return true;
 }
 
