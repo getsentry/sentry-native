@@ -55,9 +55,11 @@ android {
 
     if (sanitizer != null) {
         System.getenv("ANDROID_NDK")?.let { ndkVersion = it }
-        sourceSets.getByName("androidTest") {
-            jniLibs.srcDir("build/$sanitizer/jniLibs")
-            resources.srcDir("build/$sanitizer/resources")
+        sourceSets {
+            getByName("androidTest") {
+                jniLibs.srcDir("build/$sanitizer/jniLibs")
+                resources.srcDir("build/$sanitizer/resources")
+            }
         }
     }
 
