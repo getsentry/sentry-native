@@ -1298,3 +1298,125 @@ SENTRY_TEST(write_envelope_partial_write_fails)
     sentry_close();
 #endif
 }
+
+static size_t
+check_rate_limit(const char *header, const char *type1, const char *type2)
+{
+    sentry_envelope_t *envelope = sentry__envelope_new();
+    TEST_ASSERT(!!envelope);
+
+    TEST_ASSERT(!!sentry__envelope_add_from_buffer(envelope, "{}", 2, type1));
+    if (type2) {
+        TEST_ASSERT(
+            !!sentry__envelope_add_from_buffer(envelope, "{}", 2, type2));
+    }
+
+    sentry_rate_limiter_t *rl = sentry__rate_limiter_new();
+    TEST_ASSERT(!!rl);
+    TEST_ASSERT(sentry__rate_limiter_update_from_header(rl, header));
+
+    size_t size = 0;
+    bool owned = false;
+    char *serialized
+        = sentry_envelope_serialize_ratelimited(envelope, rl, &size, &owned);
+    TEST_CHECK((size == 0) == (serialized == NULL));
+    size_t count = 0;
+    if (serialized) {
+        sentry_envelope_t *sent = sentry_envelope_deserialize(serialized, size);
+        TEST_ASSERT(!!sent);
+        count = sentry__envelope_get_item_count(sent);
+        sentry_envelope_free(sent);
+    }
+    if (type2) {
+        TEST_CHECK(sentry__envelope_can_add_client_report(envelope, rl)
+            == (count > 0));
+    }
+
+    if (owned) {
+        sentry_free(serialized);
+    }
+    sentry__rate_limiter_free(rl);
+    sentry_envelope_free(envelope);
+    sentry__client_report_reset();
+    return count;
+}
+
+SENTRY_TEST(envelope_rate_limit)
+{
+    TEST_CHECK(check_rate_limit("60:error:key", "event", NULL) == 0);
+    TEST_CHECK(check_rate_limit("60:error:key", "feedback", NULL) == 1);
+    TEST_CHECK(check_rate_limit("60:error:key", "log", NULL) == 1);
+    TEST_CHECK(check_rate_limit("60:error:key", "attachment", NULL) == 1);
+    TEST_CHECK(check_rate_limit("60:error:key", "trace_metric", NULL) == 1);
+
+    TEST_CHECK(check_rate_limit("60::key", "event", NULL) == 0);
+    TEST_CHECK(check_rate_limit("60::key", "feedback", NULL) == 0);
+    TEST_CHECK(check_rate_limit("60::key", "log", NULL) == 0);
+    TEST_CHECK(check_rate_limit("60::key", "attachment", NULL) == 0);
+    TEST_CHECK(check_rate_limit("60::key", "trace_metric", NULL) == 0);
+
+    TEST_CHECK(check_rate_limit("60:feedback:key", "feedback", NULL) == 0);
+    TEST_CHECK(check_rate_limit("60:log_item:key", "log", NULL) == 0);
+    TEST_CHECK(check_rate_limit("60:log_byte:key", "log", NULL) == 0);
+    TEST_CHECK(check_rate_limit("60:attachment:key", "attachment", NULL) == 0);
+    TEST_CHECK(
+        check_rate_limit("60:attachment_item:key", "attachment", NULL) == 0);
+    TEST_CHECK(
+        check_rate_limit("60:trace_metric:key", "trace_metric", NULL) == 0);
+    TEST_CHECK(
+        check_rate_limit("60:trace_metric_byte:key", "trace_metric", NULL)
+        == 0);
+
+    TEST_CHECK(check_rate_limit("60:feedback;log_item;attachment;"
+                                "trace_metric:key",
+                   "event", NULL)
+        == 1);
+    TEST_CHECK(check_rate_limit("60:log_item:key", "feedback", NULL) == 1);
+    TEST_CHECK(check_rate_limit("60:trace_metric:key", "log", NULL) == 1);
+    TEST_CHECK(check_rate_limit("60:feedback:key", "attachment", NULL) == 1);
+    TEST_CHECK(
+        check_rate_limit("60:attachment:key", "trace_metric", NULL) == 1);
+    TEST_CHECK(check_rate_limit("60:unknown:key", "feedback", NULL) == 1);
+    TEST_CHECK(check_rate_limit("60::key", "client_report", NULL) == 1);
+}
+
+SENTRY_TEST(attachment_rate_limit)
+{
+    TEST_CHECK(check_rate_limit("60:error:key", "attachment", "event") == 0);
+    TEST_CHECK(check_rate_limit("60:error:key", "attachment", "feedback") == 2);
+    TEST_CHECK(
+        check_rate_limit("60:error:key", "attachment", "transaction") == 2);
+    TEST_CHECK(
+        check_rate_limit("60:feedback:key", "attachment", "feedback") == 0);
+    TEST_CHECK(
+        check_rate_limit("60:transaction:key", "attachment", "transaction")
+        == 0);
+    TEST_CHECK(
+        check_rate_limit("60:attachment:key", "attachment", "event") == 1);
+    TEST_CHECK(
+        check_rate_limit("60:attachment:key", "attachment", "feedback") == 1);
+    TEST_CHECK(check_rate_limit("60::key", "attachment", "feedback") == 0);
+}
+
+SENTRY_TEST(minidump_rate_limit)
+{
+    sentry_envelope_t *envelope = sentry__envelope_new();
+    TEST_ASSERT(!!envelope);
+    sentry_envelope_item_t *item
+        = sentry__envelope_add_from_buffer(envelope, "MDMP", 4, "attachment");
+    TEST_ASSERT(!!item);
+    sentry__envelope_item_set_header(item, "attachment_type",
+        sentry_value_new_string(SENTRY_ATTACHMENT_TYPE_MINIDUMP));
+
+    sentry_rate_limiter_t *rl = sentry__rate_limiter_new();
+    TEST_ASSERT(!!rl);
+    TEST_CHECK(!sentry__envelope_item_is_ratelimited(envelope, item, rl));
+    TEST_ASSERT(
+        sentry__rate_limiter_update_from_header(rl, "60:attachment:key"));
+    TEST_CHECK(!sentry__envelope_item_is_ratelimited(envelope, item, rl));
+    TEST_ASSERT(sentry__rate_limiter_update_from_header(rl, "60:error:key"));
+    TEST_CHECK(sentry__envelope_item_is_ratelimited(envelope, item, rl));
+
+    sentry__rate_limiter_free(rl);
+    sentry_envelope_free(envelope);
+}

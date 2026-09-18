@@ -172,6 +172,12 @@ char *sentry_envelope_serialize_ratelimited(const sentry_envelope_t *envelope,
     const sentry_rate_limiter_t *rl, size_t *size_out, bool *owned_out);
 
 /**
+ * Check whether an item or its parent event is rate limited.
+ */
+bool sentry__envelope_item_is_ratelimited(const sentry_envelope_t *envelope,
+    const sentry_envelope_item_t *item, const sentry_rate_limiter_t *rl);
+
+/**
  * Serialize a complete envelope with all its items into the given string
  * builder.
  */

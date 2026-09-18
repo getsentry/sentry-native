@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+**Fixes**:
+
+- Respect independent rate limits for feedback, logs, metrics, and attachments instead of dropping them during error backoff. ([#2109](https://github.com/getsentry/sentry-native/pull/2109))
+
 ## 0.16.6
 
 **Features**:
