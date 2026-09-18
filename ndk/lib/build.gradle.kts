@@ -4,8 +4,12 @@ plugins {
 }
 
 var sentryNativeSrc: String = "${project.projectDir}/../.."
-val sanitizer = System.getenv("RUN_ANALYZER").orEmpty().split(',')
-    .firstOrNull { it == "asan" || it == "tsan" }
+val sanitizer =
+    System
+        .getenv("RUN_ANALYZER")
+        .orEmpty()
+        .split(',')
+        .firstOrNull { it == "asan" || it == "tsan" }
 
 android {
     compileSdk = 37
@@ -38,8 +42,11 @@ android {
 
         ndk {
             abiFilters.addAll(
-                if (sanitizer == "tsan") listOf("x86_64", "arm64-v8a")
-                else listOf("x86", "armeabi-v7a", "x86_64", "arm64-v8a")
+                if (sanitizer == "tsan") {
+                    listOf("x86_64", "arm64-v8a")
+                } else {
+                    listOf("x86", "armeabi-v7a", "x86_64", "arm64-v8a")
+                },
             )
         }
 
@@ -162,11 +169,12 @@ dependencies {
 afterEvaluate {
     tasks.getByName("prefabReleasePackage") {
         doLast {
-            project.fileTree("build/intermediates/prefab_package/") {
-                include("**/abi.json")
-            }.forEach { file ->
-                file.writeText(file.readText().replace("c++_static", "none"))
-            }
+            project
+                .fileTree("build/intermediates/prefab_package/") {
+                    include("**/abi.json")
+                }.forEach { file ->
+                    file.writeText(file.readText().replace("c++_static", "none"))
+                }
         }
     }
 }

@@ -75,7 +75,9 @@ subprojects {
     plugins.withId("org.jetbrains.kotlin.android") {
         configure<org.jetbrains.kotlin.gradle.dsl.KotlinAndroidProjectExtension> {
             compilerOptions {
-                jvmTarget = org.jetbrains.kotlin.gradle.dsl.JvmTarget.fromTarget(javaVersion.toString())
+                jvmTarget =
+                    org.jetbrains.kotlin.gradle.dsl.JvmTarget
+                        .fromTarget(javaVersion.toString())
             }
         }
     }
@@ -131,7 +133,8 @@ subprojects {
 
         val distZipProvider =
             project.layout.buildDirectory
-                .dir("distributions").map { it.file("${project.name}-${project.version}.zip") }
+                .dir("distributions")
+                .map { it.file("${project.name}-${project.version}.zip") }
 
         tasks.named("distZip").configure {
             dependsOn("publishToMavenLocal")
