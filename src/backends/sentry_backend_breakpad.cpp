@@ -8,6 +8,7 @@ extern "C" {
 #include "sentry_core.h"
 #include "sentry_database.h"
 #include "sentry_envelope.h"
+#include "sentry_hint.h"
 #include "sentry_logger.h"
 #include "sentry_options.h"
 #ifdef SENTRY_PLATFORM_WINDOWS
@@ -142,10 +143,14 @@ breakpad_backend_callback(const google_breakpad::MinidumpDescriptor &descriptor,
         sentry_value_t transaction
             = sentry__trace_finish(SENTRY_SPAN_STATUS_ABORTED);
         sentry_uuid_t event_id = sentry_uuid_nil();
+        sentry_hint_t hint;
+        SENTRY__HINT_INIT(hint);
 
         bool should_handle = true;
 
         if (options->on_crash_func) {
+            sentry__hint_set_attachments(
+                &hint, sentry__merge_attachments(hint.attachments, nullptr));
             sentry_ucontext_t *uctx = nullptr;
 
 #if defined(SENTRY_PLATFORM_DARWIN)                                            \
@@ -162,7 +167,8 @@ breakpad_backend_callback(const google_breakpad::MinidumpDescriptor &descriptor,
 #endif
 
             SENTRY_SIGNAL_SAFE_LOG("DEBUG invoking `on_crash` hook");
-            event = options->on_crash_func(uctx, event, options->on_crash_data);
+            event = options->on_crash_func(
+                uctx, event, &hint, options->on_crash_data);
             should_handle = !sentry_value_is_null(event);
         }
 
@@ -183,8 +189,14 @@ breakpad_backend_callback(const google_breakpad::MinidumpDescriptor &descriptor,
             }
 #endif
 
-            sentry_envelope_t *envelope = sentry__prepare_event(options, event,
-                nullptr, !options->on_crash_func, nullptr, nullptr);
+            event = sentry__prepare_event(options, event, nullptr);
+            if (!options->on_crash_func) {
+                sentry__hint_set_attachments(&hint,
+                    sentry__merge_attachments(hint.attachments, nullptr));
+                event = sentry__before_send(options, event, &hint);
+            }
+            sentry_envelope_t *envelope = sentry__enclose_event(
+                options, event, nullptr, hint.attachments);
             if (envelope) {
                 event_id = sentry__envelope_get_event_id(envelope);
             }
@@ -280,6 +292,7 @@ breakpad_backend_callback(const google_breakpad::MinidumpDescriptor &descriptor,
             sentry_value_decref(event);
             sentry_value_decref(transaction);
         }
+        SENTRY__HINT_DEINIT(hint);
 
         // after capturing the crash event, try to dump all the in-flight
         // data of the previous transports

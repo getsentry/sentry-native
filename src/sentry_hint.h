@@ -11,6 +11,17 @@ struct sentry_hint_s {
     sentry_value_t attachments;
 };
 
+#define SENTRY__HINT_INIT(Hint)                                                \
+    ((void)((Hint).attachments = sentry_value_new_null()))
+#define SENTRY__HINT_DEINIT(Hint)                                              \
+    ((void)sentry_value_decref((Hint).attachments))
+
+/**
+ * Replaces a hint's attachments, taking ownership of `attachments`.
+ */
+void sentry__hint_set_attachments(
+    sentry_hint_t *hint, sentry_value_t attachments);
+
 /**
  * Frees a hint (internal use only).
  */

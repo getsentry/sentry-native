@@ -31,6 +31,7 @@
 #include "sentry_crash_ipc.h"
 #include "sentry_database.h"
 #include "sentry_envelope.h"
+#include "sentry_hint.h"
 #include "sentry_json.h"
 #include "sentry_logger.h"
 #include "sentry_options.h"
@@ -1168,17 +1169,20 @@ native_backend_free(sentry_backend_t *backend)
     sentry_free(state);
 }
 
-// Writes the scope's attachment list to <run>/__sentry-attachments so the
-// crash daemon can locate and append them to the crash envelope.
+// Writes attachments to <run>/__sentry-attachments so the crash daemon can
+// locate and append them to the crash envelope.
 static void
-native_backend_write_attachments(const sentry_path_t *event_path)
+native_backend_write_attachments(
+    const sentry_path_t *event_path, const sentry_hint_t *hint)
 {
     if (!event_path) {
         return;
     }
     SENTRY_WITH_SCOPE (scope) {
-        sentry_value_t attachments = sentry__scope_load_attachments(scope);
-        if (sentry_value_get_length(attachments) == 0) {
+        sentry_value_t attachments = hint
+            ? sentry_value_incref(hint->attachments)
+            : sentry__scope_load_attachments(scope);
+        if (sentry_value_get_length(attachments) == 0 && !hint) {
             sentry_value_decref(attachments);
             continue;
         }
@@ -1242,7 +1246,7 @@ native_backend_flush_scope(
 
     // Manifest writes must continue post-crash so attachments registered
     // from on_crash/before_send reach the daemon
-    native_backend_write_attachments(state->event_path);
+    native_backend_write_attachments(state->event_path, NULL);
 
     if (sentry__atomic_fetch(&state->crashed)) {
         return;
@@ -1353,14 +1357,21 @@ native_backend_except(sentry_backend_t *backend, const sentry_ucontext_t *uctx)
         sentry_value_t event = sentry_value_new_event();
         sentry_value_set_by_key(
             event, "level", sentry__value_new_level(SENTRY_LEVEL_FATAL));
+        sentry_hint_t hint;
+        SENTRY__HINT_INIT(hint);
 
         bool should_handle = true;
+
+        if (options->on_crash_func || options->before_send_func) {
+            sentry__hint_set_attachments(
+                &hint, sentry__merge_attachments(hint.attachments, NULL));
+        }
 
         // Call on_crash hook if configured
         if (options->on_crash_func) {
             SENTRY_DEBUG("invoking `on_crash` hook");
-            sentry_value_t result
-                = options->on_crash_func(uctx, event, options->on_crash_data);
+            sentry_value_t result = options->on_crash_func(
+                uctx, event, &hint, options->on_crash_data);
             should_handle = !sentry_value_is_null(result);
             event = result;
         }
@@ -1368,13 +1379,20 @@ native_backend_except(sentry_backend_t *backend, const sentry_ucontext_t *uctx)
         if (should_handle) {
             // Apply before_send hook if on_crash wasn't set
             if (!options->on_crash_func && options->before_send_func) {
-                SENTRY_DEBUG("invoking `before_send` hook");
-                event = options->before_send_func(
-                    event, NULL, options->before_send_data);
+                event = sentry__before_send(options, event, &hint);
                 should_handle = !sentry_value_is_null(event);
             }
 
             if (should_handle) {
+                if (options->on_crash_func || options->before_send_func) {
+                    size_t len = sentry_value_get_length(hint.attachments);
+                    for (size_t i = 0; i < len; i++) {
+                        add_attachment(state,
+                            sentry_value_get_by_index(hint.attachments, i));
+                    }
+                    native_backend_write_attachments(
+                        state ? state->event_path : NULL, &hint);
+                }
                 // Apply scope to the event. The daemon assembles breadcrumbs
                 // from the ring files
                 SENTRY_WITH_SCOPE (scope) {
@@ -1465,6 +1483,7 @@ native_backend_except(sentry_backend_t *backend, const sentry_ucontext_t *uctx)
             sentry_value_decref(event);
             sentry_value_decref(transaction);
         }
+        SENTRY__HINT_DEINIT(hint);
     }
 }
 
