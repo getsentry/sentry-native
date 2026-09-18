@@ -1,21 +1,31 @@
 plugins {
     id("com.android.library")
     kotlin("android")
-    id("com.ydq.android.gradle.native-aar.export")
 }
 
 var sentryNativeSrc: String = "${project.projectDir}/../.."
-val sanitizer = System.getenv("RUN_ANALYZER").orEmpty().split(',')
-    .firstOrNull { it == "asan" || it == "tsan" }
+val sanitizer =
+    System
+        .getenv("RUN_ANALYZER")
+        .orEmpty()
+        .split(',')
+        .firstOrNull { it == "asan" || it == "tsan" }
 
 android {
-    compileSdk = 35
+    compileSdk = 37
+    // retain AGP 8.7.3's default NDK to avoid changing the compiler and libc++ in a hotfix
+    ndkVersion = System.getenv("ANDROID_NDK")?.let { File(it).name } ?: "27.0.12077973"
     namespace = "io.sentry.ndk"
 
     testBuildType = "debug"
 
     defaultConfig {
         minSdk = 21
+
+        aarMetadata {
+            // avoid requiring consumers to compile against API 37
+            minCompileSdk = 1
+        }
 
         externalNativeBuild {
             cmake {
@@ -32,8 +42,11 @@ android {
 
         ndk {
             abiFilters.addAll(
-                if (sanitizer == "tsan") listOf("x86_64", "arm64-v8a")
-                else listOf("x86", "armeabi-v7a", "x86_64", "arm64-v8a")
+                if (sanitizer == "tsan") {
+                    listOf("x86_64", "arm64-v8a")
+                } else {
+                    listOf("x86", "armeabi-v7a", "x86_64", "arm64-v8a")
+                },
             )
         }
 
@@ -41,10 +54,11 @@ android {
     }
 
     if (sanitizer != null) {
-        System.getenv("ANDROID_NDK")?.let { ndkVersion = it }
-        sourceSets.getByName("androidTest") {
-            jniLibs.srcDir("build/$sanitizer/jniLibs")
-            resources.srcDir("build/$sanitizer/resources")
+        sourceSets {
+            getByName("androidTest") {
+                jniLibs.srcDir("build/$sanitizer/jniLibs")
+                resources.srcDir("build/$sanitizer/resources")
+            }
         }
     }
 
@@ -84,19 +98,6 @@ android {
         }
     }
 
-    // legacy pre-prefab support
-    // https://github.com/howardpang/androidNativeBundle
-    // creates
-    // lib.aar/jni/<arch>/<lib>.so
-    // lib.aar/jni/include/sentry.h
-    nativeBundleExport {
-        headerDir = "../../include"
-    }
-
-    kotlinOptions {
-        jvmTarget = JavaVersion.VERSION_1_8.toString()
-    }
-
     testOptions {
         animationsDisabled = true
         unitTests.apply {
@@ -109,11 +110,22 @@ android {
         warningsAsErrors = true
         checkDependencies = true
         checkReleaseBuilds = true
+        disable.add("NewerVersionAvailable")
     }
 
     packaging {
         jniLibs {
             useLegacyPackaging = true
+        }
+    }
+}
+
+// legacy pre-prefab support
+// creates lib.aar/jni/include/sentry.h alongside AGP's lib.aar/jni/<arch>/<lib>.so
+tasks.withType<Zip>().configureEach {
+    if (name.startsWith("bundle") && name.endsWith("Aar")) {
+        from("../../include") {
+            into("jni/include")
         }
     }
 }
@@ -158,11 +170,12 @@ dependencies {
 afterEvaluate {
     tasks.getByName("prefabReleasePackage") {
         doLast {
-            project.fileTree("build/intermediates/prefab_package/") {
-                include("**/abi.json")
-            }.forEach { file ->
-                file.writeText(file.readText().replace("c++_static", "none"))
-            }
+            project
+                .fileTree("build/intermediates/prefab_package/") {
+                    include("**/abi.json")
+                }.forEach { file ->
+                    file.writeText(file.readText().replace("c++_static", "none"))
+                }
         }
     }
 }
