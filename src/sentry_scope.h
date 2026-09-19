@@ -186,6 +186,15 @@ bool sentry__scope_remove_span_value(
     sentry_scope_t *scope, sentry_value_t span);
 bool sentry__scope_restore_span(sentry_scope_t *scope, sentry_span_t *span);
 
+typedef struct {
+    sentry_span_t *saved_span;
+    sentry_transaction_t *saved_tx_obj;
+    sentry_transaction_t *active_tx;
+} sentry_saved_trace_t;
+
+sentry_saved_trace_t sentry__scope_save_active_trace(void);
+void sentry__scope_restore_active_trace(sentry_saved_trace_t *trace);
+
 bool sentry__scope_is_trace_managed(const sentry_scope_t *scope);
 void sentry__scope_set_trace_managed(sentry_scope_t *scope, bool managed);
 
