@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.16.7
 
 **Breaking / Important behavior changes**:
 
