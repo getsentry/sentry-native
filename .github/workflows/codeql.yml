@@ -54,7 +54,7 @@ jobs:
         name: Build for Android NDK
         working-directory: ./ndk
         run: |
-          ./gradlew compileJava
+          ./gradlew --no-daemon --no-build-cache --rerun-tasks compileReleaseJavaWithJavac
 
       - if: matrix.language == 'cpp'
         name: Build sentry-native
