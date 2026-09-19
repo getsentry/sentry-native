@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.16.7
+## Unreleased
 
 **Breaking / Important behavior changes**:
 
@@ -13,7 +13,6 @@
 
 **Features**:
 
-- Add `sentry_options_set_initial_scope` for configuring scope data before the crash backend is started, including out-of-process crash handlers. ([#2087](https://github.com/getsentry/sentry-native/pull/2087))
 - Add `sentry_attachment_from_file/bytes` (and their wide-string variants) for creating attachment values that can be fully configured before they are added. ([#2079](https://github.com/getsentry/sentry-native/pull/2079))
 - Add `sentry_add_attachment`, `sentry_scope_add_attachment`, and `sentry_hint_add_attachment` for adding configured attachments to the global scope, a specific scope, or a hint. These functions consume and freeze the attachment value. ([#2079](https://github.com/getsentry/sentry-native/pull/2079), [#1974](https://github.com/getsentry/sentry-native/pull/1974))
 - Add `sentry_start_new_trace()` as a clearer name for starting a new trace. ([#2095](https://github.com/getsentry/sentry-native/pull/2095))
@@ -21,7 +20,6 @@
 **Fixes**:
 
 - Reduce lock contention for multi-threaded log and metric capture by reusing a single options reference throughout each capture. ([#2094](https://github.com/getsentry/sentry-native/pull/2094))
-- Respect independent rate limits for feedback, logs, metrics, and attachments instead of dropping them during error backoff. ([#2109](https://github.com/getsentry/sentry-native/pull/2109))
 
 **Other changes**:
 
@@ -32,9 +30,27 @@
 - Deprecate `sentry_clear_crashed_last_run()` because `sentry_init()` now consumes the marker automatically. ([#2023](https://github.com/getsentry/sentry-native/pull/2023))
 - Deprecate `sentry_regenerate_trace()` in favor of `sentry_start_new_trace()`. ([#2095](https://github.com/getsentry/sentry-native/pull/2095))
 
+## 0.16.8
+
+**Features**:
+
+- Add `sentry_options_set_initial_scope` for configuring scope data before the crash backend is started, including out-of-process crash handlers. ([#2087](https://github.com/getsentry/sentry-native/pull/2087))
+
+**Fixes**:
+
+- Respect independent rate limits for feedback, logs, metrics, and attachments instead of dropping them during error backoff. ([#2109](https://github.com/getsentry/sentry-native/pull/2109))
+
 **Thank you**:
 
 - [nathan-white-mojang](https://github.com/nathan-white-mojang)
+
+## 0.16.7
+
+**Important**:
+
+This version was accidentally released from `master` and includes breaking changes intended for `0.17`. It is superseded by `0.16.8`, which restores compatibility with `0.16.6` and includes the intended hotfixes.
+
+See https://github.com/getsentry/sentry-native/releases/tag/0.16.7 for the original changelog.
 
 ## 0.16.6
 
