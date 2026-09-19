@@ -14,6 +14,14 @@
 
 - [nathan-white-mojang](https://github.com/nathan-white-mojang)
 
+## 0.16.7
+
+**Important**:
+
+This version was accidentally released from `master` and includes breaking changes intended for `0.17`. It is superseded by `0.16.8`, which restores compatibility with `0.16.6` and includes the intended hotfixes.
+
+See https://github.com/getsentry/sentry-native/releases/tag/0.16.7 for the original changelog.
+
 ## 0.16.6
 
 **Features**:
