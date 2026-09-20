@@ -399,7 +399,8 @@ sentry_reinstall_backend(void)
     int rv = 0;
     SENTRY_WITH_OPTIONS (options) {
         // prevent scope observers from racing with backend reinstall
-        (void)sentry__scope_lock();
+        sentry_scope_t *scope = sentry__scope_getref();
+        sentry__mutex_lock(&scope->observers_lock);
         sentry_backend_t *backend = options->backend;
         if (backend && backend->shutdown_func) {
             backend->shutdown_func(backend);
@@ -410,7 +411,8 @@ sentry_reinstall_backend(void)
                 rv = 1;
             }
         }
-        sentry__scope_unlock();
+        sentry__mutex_unlock(&scope->observers_lock);
+        sentry__scope_finish_mut(scope, false);
     }
     return rv;
 }
@@ -2152,14 +2154,7 @@ sentry_clear_attachments(void)
 {
     SENTRY_WITH_OPTIONS (options) {
         SENTRY_WITH_SCOPE_MUT (scope) {
-            sentry_value_t attachments = sentry__scope_take_attachments(scope);
-            size_t len = sentry_value_get_length(attachments);
-            for (size_t i = 0; i < len; i++) {
-                sentry_value_t attachment
-                    = sentry_value_get_by_index(attachments, i);
-                SENTRY_SCOPE_NOTIFY(scope, remove_attachment, attachment);
-            }
-            sentry_value_decref(attachments);
+            sentry__scope_clear_attachments(scope);
         }
     }
 }
