@@ -19,6 +19,7 @@ typedef struct sentry_http_request_s {
     size_t headers_len;
     char *body;
     size_t body_len;
+    size_t body_offset;
     bool body_owned;
     sentry_path_t *body_path;
 } sentry_prepared_http_request_t;
@@ -31,7 +32,7 @@ sentry_prepared_http_request_t *sentry__prepare_tus_create_request(
     const char *user_agent);
 sentry_prepared_http_request_t *sentry__prepare_tus_upload_request(
     const char *location, const sentry_path_t *path, size_t file_size,
-    const sentry_dsn_t *dsn, const char *user_agent);
+    size_t upload_offset, const sentry_dsn_t *dsn, const char *user_agent);
 
 void sentry__prepared_http_request_free(sentry_prepared_http_request_t *req);
 
@@ -40,6 +41,7 @@ struct sentry_http_response_s {
     char *retry_after;
     char *x_sentry_rate_limits;
     char *location;
+    char *upload_offset;
 };
 
 /**
