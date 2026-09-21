@@ -564,9 +564,8 @@ crashpad_handler(int signum, siginfo_t *info, ucontext_t *user_context)
             crash_event = options->on_crash_func(
                 &uctx, crash_event, options->on_crash_data);
         } else if (options->before_send_func) {
-            SENTRY_DEBUG("invoking `before_send` hook");
-            crash_event = options->before_send_func(
-                crash_event, nullptr, options->before_send_data);
+            crash_event
+                = sentry__invoke_before_send(options, crash_event, nullptr);
         }
 
         sentry__transport_suspend(options->transport);

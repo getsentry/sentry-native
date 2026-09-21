@@ -745,6 +745,23 @@ prepare_attachments(sentry_hint_t *hint, sentry_scope_t *local_scope)
     return attachments;
 }
 
+sentry_value_t
+sentry__invoke_before_send(
+    const sentry_options_t *options, sentry_value_t event, sentry_hint_t *hint)
+{
+    if (!options->before_send_func) {
+        return event;
+    }
+    SENTRY_DEBUG("invoking `before_send` hook");
+    event = options->before_send_func(event, hint, options->before_send_data);
+    if (sentry_value_is_null(event)) {
+        SENTRY_DEBUG("event was discarded by the `before_send` hook");
+        sentry__client_report_discard(
+            SENTRY_DISCARD_REASON_BEFORE_SEND, SENTRY_DATA_CATEGORY_ERROR, 1);
+    }
+    return event;
+}
+
 sentry_envelope_t *
 sentry__prepare_event(const sentry_options_t *options, sentry_value_t event,
     sentry_uuid_t *event_id, bool invoke_before_send,
@@ -773,14 +790,9 @@ sentry__prepare_event(const sentry_options_t *options, sentry_value_t event,
 
     sentry_value_t all_attachments = prepare_attachments(hint, local_scope);
 
-    if (options->before_send_func && invoke_before_send) {
-        SENTRY_DEBUG("invoking `before_send` hook");
-        event
-            = options->before_send_func(event, hint, options->before_send_data);
+    if (invoke_before_send) {
+        event = sentry__invoke_before_send(options, event, hint);
         if (sentry_value_is_null(event)) {
-            SENTRY_DEBUG("event was discarded by the `before_send` hook");
-            sentry__client_report_discard(SENTRY_DISCARD_REASON_BEFORE_SEND,
-                SENTRY_DATA_CATEGORY_ERROR, 1);
             sentry_value_decref(all_attachments);
             return NULL;
         }
