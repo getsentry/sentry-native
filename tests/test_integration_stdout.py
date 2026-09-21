@@ -276,6 +276,8 @@ def test_inproc_crash_stdout_before_send_and_on_crash(cmake):
     assert_breadcrumb(envelope)
     assert_crash_hint_attachments(envelope, "on-crash")
     assert_inproc_crash(envelope)
+    assert envelope.get_event()["on_crash_scope_tag"] == "some value"
+    assert envelope.get_event()["tags"]["test.on-crash"] == "added-by-on-crash"
 
 
 @pytest.mark.parametrize(
@@ -365,6 +367,8 @@ def test_breakpad_crash_stdout_before_send_and_on_crash(cmake):
     assert_breadcrumb(envelope)
     assert_crash_hint_attachments(envelope, "on-crash")
     assert_breakpad_crash(envelope)
+    assert envelope.get_event()["on_crash_scope_tag"] == "some value"
+    assert envelope.get_event()["tags"]["test.on-crash"] == "added-by-on-crash"
 
 
 @pytest.mark.parametrize(

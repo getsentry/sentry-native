@@ -166,9 +166,7 @@ breakpad_backend_callback(const google_breakpad::MinidumpDescriptor &descriptor,
             uctx = &uctx_data;
 #endif
 
-            SENTRY_SIGNAL_SAFE_LOG("DEBUG invoking `on_crash` hook");
-            event = options->on_crash_func(
-                uctx, event, &hint, options->on_crash_data);
+            event = sentry__invoke_on_crash(options, uctx, event, &hint, true);
             should_handle = !sentry_value_is_null(event);
         }
 
@@ -189,8 +187,8 @@ breakpad_backend_callback(const google_breakpad::MinidumpDescriptor &descriptor,
             }
 #endif
 
-            event = sentry__prepare_event(options, event, nullptr);
             if (!options->on_crash_func) {
+                event = sentry__prepare_event(options, event, nullptr);
                 sentry__hint_set_attachments(&hint,
                     sentry__merge_attachments(hint.attachments, nullptr));
                 event = sentry__invoke_before_send(options, event, &hint);

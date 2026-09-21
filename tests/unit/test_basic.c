@@ -158,6 +158,66 @@ SENTRY_TEST(discarding_before_send)
     TEST_CHECK_INT_EQUAL(called_beforesend, 1);
 }
 
+static sentry_value_t
+on_crash_modify_scope(const sentry_ucontext_t *UNUSED(uctx),
+    sentry_value_t event, sentry_hint_t *UNUSED(hint), void *data)
+{
+    bool *saw_scope = data;
+    sentry_value_t tags = sentry_value_get_by_key(event, "tags");
+    *saw_scope = sentry__string_eq(
+        sentry_value_as_string(sentry_value_get_by_key(tags, "changed")),
+        "before");
+
+    sentry_set_tag("changed", "after");
+    sentry_set_tag("added", "during-on-crash");
+    sentry_remove_tag("removed");
+    sentry_set_release("after-on-crash");
+    sentry_set_user(sentry_value_new_user("after-on-crash", NULL, NULL, NULL));
+    return event;
+}
+
+SENTRY_TEST(on_crash_scope_changes)
+{
+    bool saw_scope = false;
+    SENTRY_TEST_OPTIONS_NEW(options);
+    sentry_options_set_backend(options, NULL);
+    sentry_options_set_release(options, "before");
+    sentry_options_set_on_crash(options, on_crash_modify_scope, &saw_scope);
+    sentry_init(options);
+
+    sentry_set_tag("changed", "before");
+    sentry_set_tag("removed", "before");
+    sentry_set_user(sentry_value_new_user("before", NULL, NULL, NULL));
+
+    sentry_value_t event = sentry_value_new_event();
+    sentry_hint_t hint;
+    SENTRY__HINT_INIT(hint);
+    SENTRY_WITH_OPTIONS (held_options) {
+        event
+            = sentry__invoke_on_crash(held_options, NULL, event, &hint, false);
+    }
+
+    TEST_CHECK(saw_scope);
+    sentry_value_t tags = sentry_value_get_by_key(event, "tags");
+    TEST_CHECK_STRING_EQUAL(
+        sentry_value_as_string(sentry_value_get_by_key(tags, "changed")),
+        "after");
+    TEST_CHECK_STRING_EQUAL(
+        sentry_value_as_string(sentry_value_get_by_key(tags, "added")),
+        "during-on-crash");
+    TEST_CHECK(sentry_value_is_null(sentry_value_get_by_key(tags, "removed")));
+    TEST_CHECK_STRING_EQUAL(
+        sentry_value_as_string(sentry_value_get_by_key(event, "release")),
+        "after-on-crash");
+    TEST_CHECK_STRING_EQUAL(sentry_value_as_string(sentry_value_get_by_key(
+                                sentry_value_get_by_key(event, "user"), "id")),
+        "after-on-crash");
+
+    sentry_value_decref(event);
+    SENTRY__HINT_DEINIT(hint);
+    sentry_close();
+}
+
 SENTRY_TEST(crash_marker)
 {
     // We don't use sentry_init() in this test so we must create a database dir

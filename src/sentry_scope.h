@@ -50,6 +50,13 @@ typedef struct sentry_scope_observer_s {
     void (*remove_attachment)(void *data, sentry_value_t attachment);
 } sentry_scope_observer_t;
 
+typedef struct {
+    sentry_scope_observer_t base;
+    sentry_value_t values;
+    bool cleared;
+    bool include_breadcrumbs;
+} sentry_scope_change_observer_t;
+
 typedef struct sentry_scope_data_s sentry_scope_data_t;
 
 /**
@@ -237,6 +244,20 @@ void sentry__scope_set_trace_managed(sentry_scope_t *scope, bool managed);
  * observer with `sentry__scope_add_observer`, which takes ownership.
  */
 sentry_scope_observer_t *sentry__scope_observer_new(void);
+
+/**
+ * Creates an observer that records scope changes for later application to an
+ * event. Register `base` with the scope and clean up the observer before
+ * removing it.
+ */
+sentry_scope_change_observer_t *sentry__scope_change_observer_new(
+    bool include_breadcrumbs);
+
+void sentry__scope_change_observer_apply(
+    const sentry_scope_change_observer_t *observer, sentry_value_t event,
+    size_t max_breadcrumbs);
+void sentry__scope_change_observer_cleanup(
+    sentry_scope_change_observer_t *observer);
 
 /**
  * Register a scope observer.

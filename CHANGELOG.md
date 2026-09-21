@@ -25,6 +25,7 @@
 **Fixes**:
 
 - Reduce lock contention for multi-threaded log and metric capture by allowing concurrent reads of scope data, and reusing a single options reference throughout each capture. ([#2091](https://github.com/getsentry/sentry-native/pull/2091), [#2094](https://github.com/getsentry/sentry-native/pull/2094))
+- Apply scope data before invoking `on_crash` while preserving scope changes made by the callback. ([#2119](https://github.com/getsentry/sentry-native/pull/2119))
 
 **Other changes**:
 

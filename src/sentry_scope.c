@@ -569,6 +569,269 @@ sentry__scope_observer_new(void)
     return SENTRY_MAKE(sentry_scope_observer_t);
 }
 
+static sentry_value_t
+scope_change_observer_value(sentry_scope_change_observer_t *changes)
+{
+    if (sentry_value_is_null(changes->values)) {
+        changes->values = sentry_value_new_object();
+    }
+    return changes->values;
+}
+
+static void
+scope_change_observer_set_value(
+    void *data, const char *key, sentry_value_t value)
+{
+    sentry_scope_change_observer_t *changes = data;
+    sentry_value_set_by_key(
+        scope_change_observer_value(changes), key, sentry__value_clone(value));
+}
+
+static sentry_value_t
+scope_change_observer_object(
+    sentry_scope_change_observer_t *changes, const char *key)
+{
+    sentry_value_t values = scope_change_observer_value(changes);
+    sentry_value_t object = sentry_value_get_by_key(values, key);
+    if (sentry_value_is_null(object)) {
+        object = sentry_value_new_object();
+        sentry_value_set_by_key(values, key, object);
+    }
+    return object;
+}
+
+static void
+scope_change_observer_clear(void *data)
+{
+    sentry_scope_change_observer_t *changes = data;
+    sentry_value_decref(changes->values);
+    changes->values = sentry_value_new_null();
+    changes->cleared = true;
+}
+
+static void
+scope_change_observer_set_string(
+    void *data, const char *key, sentry_value_t value)
+{
+    sentry_scope_change_observer_t *changes = data;
+    sentry_value_set_by_key(scope_change_observer_value(changes), key,
+        sentry_value_get_length(value) > 0 ? sentry__value_clone(value)
+                                           : sentry_value_new_null());
+}
+
+static void
+scope_change_observer_set_release(void *data, sentry_value_t value)
+{
+    scope_change_observer_set_string(data, "release", value);
+}
+
+static void
+scope_change_observer_set_environment(void *data, sentry_value_t value)
+{
+    scope_change_observer_set_string(data, "environment", value);
+}
+
+static void
+scope_change_observer_set_transaction(void *data, sentry_value_t value)
+{
+    scope_change_observer_set_string(data, "transaction", value);
+}
+
+static void
+scope_change_observer_set_fingerprint(void *data, sentry_value_t value)
+{
+    scope_change_observer_set_value(data, "fingerprint", value);
+}
+
+static void
+scope_change_observer_set_level(void *data, sentry_level_t level)
+{
+    sentry_scope_change_observer_t *changes = data;
+    sentry_value_set_by_key(scope_change_observer_value(changes), "level",
+        sentry__value_new_level(level));
+}
+
+static void
+scope_change_observer_set_user(void *data, sentry_value_t value)
+{
+    scope_change_observer_set_value(data, "user", value);
+}
+
+static void
+scope_change_observer_add_breadcrumb(void *data, sentry_value_t breadcrumb)
+{
+    sentry_scope_change_observer_t *changes = data;
+    sentry_value_t values = scope_change_observer_value(changes);
+    sentry_value_t breadcrumbs = sentry_value_get_by_key(values, "breadcrumbs");
+    if (sentry_value_is_null(breadcrumbs)) {
+        breadcrumbs = sentry_value_new_list();
+        sentry_value_set_by_key(values, "breadcrumbs", breadcrumbs);
+    }
+    sentry_value_append(breadcrumbs, sentry__value_clone(breadcrumb));
+}
+
+static void
+scope_change_observer_set_tag(void *data, const char *key, const char *value)
+{
+    sentry_scope_change_observer_t *changes = data;
+    sentry_value_set_by_key(scope_change_observer_object(changes, "tags"), key,
+        sentry_value_new_string(value));
+}
+
+static void
+scope_change_observer_remove_tag(void *data, const char *key)
+{
+    sentry_scope_change_observer_t *changes = data;
+    sentry_value_set_by_key(scope_change_observer_object(changes, "tags"), key,
+        sentry_value_new_null());
+}
+
+static void
+scope_change_observer_set_extra(
+    void *data, const char *key, sentry_value_t value)
+{
+    sentry_scope_change_observer_t *changes = data;
+    sentry_value_set_by_key(scope_change_observer_object(changes, "extra"), key,
+        sentry__value_clone(value));
+}
+
+static void
+scope_change_observer_remove_extra(void *data, const char *key)
+{
+    sentry_scope_change_observer_t *changes = data;
+    sentry_value_set_by_key(scope_change_observer_object(changes, "extra"), key,
+        sentry_value_new_null());
+}
+
+static void
+scope_change_observer_set_context(
+    void *data, const char *key, sentry_value_t value)
+{
+    sentry_scope_change_observer_t *changes = data;
+    sentry_value_set_by_key(scope_change_observer_object(changes, "contexts"),
+        key, sentry__value_clone(value));
+}
+
+static void
+scope_change_observer_remove_context(void *data, const char *key)
+{
+    sentry_scope_change_observer_t *changes = data;
+    sentry_value_set_by_key(scope_change_observer_object(changes, "contexts"),
+        key, sentry_value_new_null());
+}
+
+sentry_scope_change_observer_t *
+sentry__scope_change_observer_new(bool include_breadcrumbs)
+{
+    sentry_scope_change_observer_t *changes
+        = SENTRY_MAKE(sentry_scope_change_observer_t);
+    if (!changes) {
+        return NULL;
+    }
+
+    changes->values = sentry_value_new_null();
+    changes->cleared = false;
+    changes->include_breadcrumbs = include_breadcrumbs;
+
+    sentry_scope_observer_t *observer = &changes->base;
+    observer->data = changes;
+    observer->clear = scope_change_observer_clear;
+    observer->set_release = scope_change_observer_set_release;
+    observer->set_environment = scope_change_observer_set_environment;
+    observer->set_transaction = scope_change_observer_set_transaction;
+    observer->set_fingerprint = scope_change_observer_set_fingerprint;
+    observer->set_level = scope_change_observer_set_level;
+    observer->set_user = scope_change_observer_set_user;
+    observer->add_breadcrumb
+        = include_breadcrumbs ? scope_change_observer_add_breadcrumb : NULL;
+    observer->set_tag = scope_change_observer_set_tag;
+    observer->remove_tag = scope_change_observer_remove_tag;
+    observer->set_extra = scope_change_observer_set_extra;
+    observer->remove_extra = scope_change_observer_remove_extra;
+    observer->set_context = scope_change_observer_set_context;
+    observer->remove_context = scope_change_observer_remove_context;
+    return changes;
+}
+
+static int
+apply_scope_object_change(const char *key, sentry_value_t value, void *data)
+{
+    sentry_value_t object = *(sentry_value_t *)data;
+    if (sentry_value_is_null(value)) {
+        sentry_value_remove_by_key(object, key);
+    } else {
+        sentry_value_set_by_key(object, key, sentry__value_clone(value));
+    }
+    return 0;
+}
+
+typedef struct {
+    sentry_value_t event;
+    size_t max_breadcrumbs;
+} sentry_scope_changes_apply_t;
+
+static int
+apply_scope_change(const char *key, sentry_value_t value, void *data)
+{
+    sentry_scope_changes_apply_t *apply = data;
+    if (!strcmp(key, "tags") || !strcmp(key, "extra")
+        || !strcmp(key, "contexts")) {
+        sentry_value_t object = sentry_value_get_by_key(apply->event, key);
+        if (sentry_value_get_type(object) != SENTRY_VALUE_TYPE_OBJECT) {
+            object = sentry_value_new_object();
+            sentry_value_set_by_key(apply->event, key, object);
+        }
+        sentry_value_foreach_key_value(
+            value, apply_scope_object_change, &object);
+    } else if (!strcmp(key, "breadcrumbs")) {
+        sentry_value_t breadcrumbs
+            = sentry_value_get_by_key(apply->event, "breadcrumbs");
+        sentry_value_set_by_key(apply->event, "breadcrumbs",
+            sentry__value_merge_breadcrumbs(
+                breadcrumbs, value, apply->max_breadcrumbs));
+    } else if (sentry_value_is_null(value)) {
+        sentry_value_remove_by_key(apply->event, key);
+    } else {
+        sentry_value_set_by_key(apply->event, key, sentry__value_clone(value));
+    }
+    return 0;
+}
+
+void
+sentry__scope_change_observer_apply(
+    const sentry_scope_change_observer_t *changes, sentry_value_t event,
+    size_t max_breadcrumbs)
+{
+    if (sentry_value_is_null(event)) {
+        return;
+    }
+    if (changes->cleared) {
+        static const char *scope_keys[]
+            = { "release", "environment", "transaction", "fingerprint", "user",
+                  "tags", "extra", "contexts", "sdk" };
+        for (size_t i = 0; i < sizeof(scope_keys) / sizeof(scope_keys[0]);
+            i++) {
+            sentry_value_remove_by_key(event, scope_keys[i]);
+        }
+        if (changes->include_breadcrumbs) {
+            sentry_value_remove_by_key(event, "breadcrumbs");
+        }
+    }
+    if (!sentry_value_is_null(changes->values)) {
+        sentry_scope_changes_apply_t apply
+            = { .event = event, .max_breadcrumbs = max_breadcrumbs };
+        sentry_value_foreach_key_value(
+            changes->values, apply_scope_change, &apply);
+    }
+}
+
+void
+sentry__scope_change_observer_cleanup(sentry_scope_change_observer_t *changes)
+{
+    sentry_value_decref(changes->values);
+    changes->values = sentry_value_new_null();
+}
+
 bool
 sentry__scope_add_observer(
     sentry_scope_t *scope, sentry_scope_observer_t *observer)

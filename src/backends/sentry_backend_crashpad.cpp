@@ -326,15 +326,9 @@ write_attachment_manifest(crashpad_state_t *state, sentry_value_t attachments)
 #endif
 
 static void
-flush_scope_to_event(crashpad_state_t *state, const base::FilePath &event_path,
-    const sentry_options_t *options, sentry_value_t crash_event)
+flush_event(crashpad_state_t *state, const base::FilePath &event_path,
+    sentry_value_t crash_event)
 {
-    SENTRY_WITH_SCOPE (scope) {
-        // we want the scope without any modules or breadcrumbs
-        sentry__scope_apply_to_event(
-            scope, options, crash_event, SENTRY_SCOPE_NONE);
-    }
-
     size_t mpack_size;
     char *mpack = sentry_value_to_msgpack(crash_event, &mpack_size);
     sentry_value_decref(crash_event);
@@ -348,6 +342,18 @@ flush_scope_to_event(crashpad_state_t *state, const base::FilePath &event_path,
     if (rv != 0) {
         SENTRY_WARN("flushing scope to msgpack failed");
     }
+}
+
+static void
+flush_scope_to_event(crashpad_state_t *state, const base::FilePath &event_path,
+    const sentry_options_t *options, sentry_value_t crash_event)
+{
+    SENTRY_WITH_SCOPE (scope) {
+        // we want the scope without any modules or breadcrumbs
+        sentry__scope_apply_to_event(
+            scope, options, crash_event, SENTRY_SCOPE_NONE);
+    }
+    flush_event(state, event_path, crash_event);
 }
 
 // Prepares an envelope with DSN, event ID, and session if available, for an
@@ -527,9 +533,8 @@ read_msgpack_stream_file(const sentry_path_t *path)
 }
 
 #if defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_WINDOWS)
-static void
-flush_scope_from_handler(
-    const sentry_options_t *options, sentry_value_t crash_event)
+static crashpad_state_t *
+lock_scope_from_handler(const sentry_options_t *options)
 {
     auto state = static_cast<crashpad_state_t *>(options->backend->data);
 
@@ -551,12 +556,32 @@ flush_scope_from_handler(
         sentry__cpu_relax();
     }
 
-    // now we are the sole flusher and can flush into the crash event
-    flush_scope_to_event(state, state->event_path, options, crash_event);
+    return state;
+}
+
+static void
+flush_event_from_handler(crashpad_state_t *state,
+    const sentry_options_t *options, sentry_value_t crash_event)
+{
+    flush_event(state, state->event_path, crash_event);
     if (!state->external_report_path.empty()) {
         flush_external_crash_report(state, state->external_report_path, options,
             &state->crash_event_id);
     }
+}
+
+static void
+flush_scope_from_handler(
+    const sentry_options_t *options, sentry_value_t crash_event)
+{
+    crashpad_state_t *state = lock_scope_from_handler(options);
+
+    // now we are the sole flusher and can flush into the crash event
+    SENTRY_WITH_SCOPE (scope) {
+        sentry__scope_apply_to_event(
+            scope, options, crash_event, SENTRY_SCOPE_NONE);
+    }
+    flush_event_from_handler(state, options, crash_event);
 }
 
 #    ifdef SENTRY_PLATFORM_WINDOWS
@@ -597,7 +622,9 @@ crashpad_handler(int signum, siginfo_t *info, ucontext_t *user_context)
         }
         sentry_value_freeze(hint.attachments);
 
+        crashpad_state_t *locked_state = nullptr;
         if (options->on_crash_func) {
+            locked_state = lock_scope_from_handler(options);
             sentry_ucontext_t uctx;
 #    ifdef SENTRY_PLATFORM_WINDOWS
             uctx.exception_ptrs = *ExceptionInfo;
@@ -607,9 +634,8 @@ crashpad_handler(int signum, siginfo_t *info, ucontext_t *user_context)
             uctx.user_context = user_context;
 #    endif
 
-            SENTRY_DEBUG("invoking `on_crash` hook");
-            crash_event = options->on_crash_func(
-                &uctx, crash_event, &hint, options->on_crash_data);
+            crash_event = sentry__invoke_on_crash(
+                options, &uctx, crash_event, &hint, false);
         } else if (options->before_send_func) {
             crash_event
                 = sentry__invoke_before_send(options, crash_event, &hint);
@@ -627,7 +653,11 @@ crashpad_handler(int signum, siginfo_t *info, ucontext_t *user_context)
                 write_attachment_manifest(state, hint.attachments);
             }
             sentry_value_incref(crash_event);
-            flush_scope_from_handler(options, crash_event);
+            if (locked_state) {
+                flush_event_from_handler(locked_state, options, crash_event);
+            } else {
+                flush_scope_from_handler(options, crash_event);
+            }
             sentry__write_crash_marker(options);
 
             sentry__record_errors_on_current_session(1);

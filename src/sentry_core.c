@@ -795,6 +795,41 @@ sentry__prepare_event(const sentry_options_t *options, sentry_value_t event,
     return event;
 }
 
+sentry_value_t
+sentry__invoke_on_crash(const sentry_options_t *options,
+    const sentry_ucontext_t *uctx, sentry_value_t event, sentry_hint_t *hint,
+    bool full_scope)
+{
+    if (!options->on_crash_func) {
+        return event;
+    }
+
+    sentry_scope_change_observer_t *observer
+        = sentry__scope_change_observer_new(full_scope);
+
+    SENTRY_WITH_SCOPE_MUT_NO_FLUSH (scope) {
+        bool observing
+            = observer && sentry__scope_add_observer(scope, &observer->base);
+        if (full_scope) {
+            event = sentry__prepare_event(options, event, NULL);
+        } else {
+            sentry__scope_apply_to_event(
+                scope, options, event, SENTRY_SCOPE_NONE);
+        }
+        SENTRY_SIGNAL_SAFE_LOG("DEBUG invoking `on_crash` hook");
+        event
+            = options->on_crash_func(uctx, event, hint, options->on_crash_data);
+        if (observing) {
+            sentry__scope_change_observer_apply(
+                observer, event, options->max_breadcrumbs);
+            sentry__scope_change_observer_cleanup(observer);
+            sentry__scope_remove_observer(scope, &observer->base);
+        }
+    }
+
+    return event;
+}
+
 sentry_envelope_t *
 sentry__enclose_event(const sentry_options_t *options, sentry_value_t event,
     sentry_uuid_t *event_id, sentry_value_t attachments)
