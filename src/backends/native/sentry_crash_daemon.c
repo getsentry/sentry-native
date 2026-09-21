@@ -420,7 +420,7 @@ read_attachment_manifest(const sentry_path_t *run_folder)
     char *buf = sentry__path_read_to_buffer(path, &buf_len);
     sentry__path_free(path);
     if (!buf) {
-        return sentry_value_new_null();
+        return sentry_value_new_list();
     }
     const char *start = buf;
     const char *end = buf + buf_len;
