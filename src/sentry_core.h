@@ -88,6 +88,14 @@ sentry_value_t sentry__merge_attachments(
     sentry_value_t attachments, sentry_scope_t *local_scope);
 
 /**
+ * Applies the scope, invokes the configured `on_crash` callback, and preserves
+ * scope changes made by the callback on the returned event.
+ */
+sentry_value_t sentry__invoke_on_crash(const sentry_options_t *options,
+    const sentry_ucontext_t *uctx, sentry_value_t event, sentry_hint_t *hint,
+    bool full_scope);
+
+/**
  * Sends a sentry event, regardless of its type.
  */
 sentry_uuid_t sentry__capture_event(

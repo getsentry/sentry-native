@@ -1363,9 +1363,8 @@ native_backend_except(sentry_backend_t *backend, const sentry_ucontext_t *uctx)
 
         // Call on_crash hook if configured
         if (options->on_crash_func) {
-            SENTRY_DEBUG("invoking `on_crash` hook");
-            sentry_value_t result = options->on_crash_func(
-                uctx, event, &hint, options->on_crash_data);
+            sentry_value_t result
+                = sentry__invoke_on_crash(options, uctx, event, &hint, false);
             should_handle = !sentry_value_is_null(result);
             event = result;
         }
@@ -1389,11 +1388,12 @@ native_backend_except(sentry_backend_t *backend, const sentry_ucontext_t *uctx)
                     native_backend_write_attachments(
                         state ? state->event_path : NULL, &hint);
                 }
-                // Apply scope to the event. The daemon assembles breadcrumbs
-                // from the ring files
-                SENTRY_WITH_SCOPE (scope) {
-                    sentry__scope_apply_to_event(
-                        scope, options, event, SENTRY_SCOPE_NONE);
+                if (!options->on_crash_func) {
+                    // The daemon assembles breadcrumbs from the ring files
+                    SENTRY_WITH_SCOPE (scope) {
+                        sentry__scope_apply_to_event(
+                            scope, options, event, SENTRY_SCOPE_NONE);
+                    }
                 }
 #if defined(SENTRY_PLATFORM_WINDOWS)
                 ensure_device_arch(event);

@@ -1543,9 +1543,12 @@ SENTRY_API void sentry_options_set_before_send(
  * The hint is always provided and can be used to modify attachments on the
  * event.
  *
+ * The current scope is applied before invoking the callback. Scope changes made
+ * from inside the callback are also applied to the returned event.
+ *
  * Only the `inproc` backend currently fills the passed-in event with crash
  * meta-data. Since both `breakpad` and `crashpad` use minidumps to capture the
- * crash state, the passed-in event is empty when using these backends. Changes
+ * crash state, their events contain scope data but no crash meta-data. Changes
  * to the event from inside the hooks will be passed along, but in the case of
  * the minidump backends these changes might get overwritten during server-side
  * ingestion and processing. This primarily affects the exception payloads which

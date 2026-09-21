@@ -181,6 +181,11 @@ on_crash_callback(const sentry_ucontext_t *uctx, sentry_value_t event,
         sentry_attachment_from_bytes(
             "on_crash", strlen("on_crash"), "callback.txt"));
 
+    sentry_value_t tags = sentry_value_get_by_key(event, "tags");
+    sentry_value_set_by_key(event, "on_crash_scope_tag",
+        sentry_value_incref(sentry_value_get_by_key(tags, "expected-tag")));
+    sentry_set_tag("test.on-crash", "added-by-on-crash");
+
     // tell the backend to retain the event
     return event;
 }

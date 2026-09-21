@@ -1085,9 +1085,7 @@ process_ucontext_deferred(const sentry_ucontext_t *uctx,
                 &hint, sentry__merge_attachments(hint.attachments, NULL));
         }
         if (options->on_crash_func && !skip_hooks) {
-            SENTRY_DEBUG("invoking `on_crash` hook");
-            event = options->on_crash_func(
-                uctx, event, &hint, options->on_crash_data);
+            event = sentry__invoke_on_crash(options, uctx, event, &hint, true);
             should_handle = !sentry_value_is_null(event);
         } else if (skip_hooks && options->on_crash_func) {
             SENTRY_DEBUG("skipping `on_crash` hook due to recursive crash");
@@ -1109,7 +1107,9 @@ process_ucontext_deferred(const sentry_ucontext_t *uctx,
             }
 #endif
 
-            event = sentry__prepare_event(options, event, NULL);
+            if (!options->on_crash_func || skip_hooks) {
+                event = sentry__prepare_event(options, event, NULL);
+            }
             if (!options->on_crash_func) {
                 sentry__hint_set_attachments(
                     &hint, sentry__merge_attachments(hint.attachments, NULL));
