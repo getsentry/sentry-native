@@ -57,22 +57,35 @@ sentry_value_t sentry__invoke_before_send(
     const sentry_options_t *options, sentry_value_t event, sentry_hint_t *hint);
 
 /**
- * Convert the given event into an envelope. This assumes that the event
- * being passed in is not a transaction.
+ * Encloses the given event in an envelope. This assumes that the event being
+ * passed in is not a transaction.
  *
  * More specifically, it will do the following things:
- * - apply the scope to it,
- * - call the before_send hook on it (if invoke_before_send == true),
  * - add the event to a new envelope,
- * - record errors on the current session,
  * - add any attachments to the envelope as well
  *
  * The function will ensure the event has a UUID and write it into the
  * `event_id` out-parameter.
  */
-sentry_envelope_t *sentry__prepare_event(const sentry_options_t *options,
-    sentry_value_t event, sentry_uuid_t *event_id, bool invoke_before_send,
-    sentry_scope_t *local_scope, sentry_hint_t *hint);
+sentry_envelope_t *sentry__enclose_event(const sentry_options_t *options,
+    sentry_value_t event, sentry_uuid_t *event_id, sentry_value_t attachments);
+
+/**
+ * Prepares an event by recording errors on the current session and applying
+ * the local and global scopes.
+ *
+ * Returns `event` without transferring ownership.
+ */
+sentry_value_t sentry__prepare_event(const sentry_options_t *options,
+    sentry_value_t event, sentry_scope_t *local_scope);
+
+/**
+ * Merges attachments with local-scope and global-scope attachments.
+ *
+ * Returns an owned value that the caller must release or transfer.
+ */
+sentry_value_t sentry__merge_attachments(
+    sentry_value_t attachments, sentry_scope_t *local_scope);
 
 /**
  * Sends a sentry event, regardless of its type.

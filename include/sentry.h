@@ -1540,6 +1540,9 @@ SENTRY_API void sentry_options_set_before_send(
  * `sentry_value_decref` on the provided event and return a
  * `sentry_value_new_null()` instead.
  *
+ * The hint is always provided and can be used to modify attachments on the
+ * event.
+ *
  * Only the `inproc` backend currently fills the passed-in event with crash
  * meta-data. Since both `breakpad` and `crashpad` use minidumps to capture the
  * crash state, the passed-in event is empty when using these backends. Changes
@@ -1580,8 +1583,8 @@ SENTRY_API void sentry_options_set_before_send(
  *    exception-handler, it will not be invoked when such a crash happened, even
  *    though a crash report will be sent.
  */
-typedef sentry_value_t (*sentry_crash_function_t)(
-    const sentry_ucontext_t *uctx, sentry_value_t event, void *user_data);
+typedef sentry_value_t (*sentry_crash_function_t)(const sentry_ucontext_t *uctx,
+    sentry_value_t event, sentry_hint_t *hint, void *user_data);
 
 /**
  * Sets the `on_crash` callback.
