@@ -746,8 +746,8 @@ sentry__write_attachment_manifest(
         return false;
     }
 
-    const char *keys[] = { ATTACHMENT_ID, ATTACHMENT_FILENAME, ATTACHMENT_TYPE,
-        ATTACHMENT_CONTENT_TYPE };
+    const char *keys[]
+        = { ATTACHMENT_FILENAME, ATTACHMENT_TYPE, ATTACHMENT_CONTENT_TYPE };
     mpack_writer_t writer;
     char *buf = NULL;
     size_t buf_len = 0;

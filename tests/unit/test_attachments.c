@@ -811,7 +811,8 @@ SENTRY_TEST(attachment_manifest)
                 sentry__attachment_get_type(info), "event.attachment");
             TEST_CHECK_STRING_EQUAL(sentry__attachment_get_content_type(info),
                 "application/octet-stream");
-            TEST_CHECK(sentry__attachment_eq(info, attachment));
+            sentry_uuid_t info_id = sentry__attachment_get_id(info);
+            TEST_CHECK(sentry_uuid_is_nil(&info_id));
             TEST_CHECK(sentry__attachment_get_bytes(info, NULL) == NULL);
         }
         sentry_value_decref(parsed);
