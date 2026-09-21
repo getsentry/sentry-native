@@ -1368,9 +1368,7 @@ native_backend_except(sentry_backend_t *backend, const sentry_ucontext_t *uctx)
         if (should_handle) {
             // Apply before_send hook if on_crash wasn't set
             if (!options->on_crash_func && options->before_send_func) {
-                SENTRY_DEBUG("invoking `before_send` hook");
-                event = options->before_send_func(
-                    event, NULL, options->before_send_data);
+                event = sentry__invoke_before_send(options, event, NULL);
                 should_handle = !sentry_value_is_null(event);
             }
 

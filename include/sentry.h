@@ -1479,12 +1479,22 @@ SENTRY_API void sentry_options_set_send_default_pii(
 #endif
 
 /**
+ * A hint that can be passed to capture functions to provide additional context,
+ * such as attachments.
+ */
+struct sentry_hint_s;
+typedef struct sentry_hint_s sentry_hint_t;
+
+/**
  * Type of the `before_send` callback.
  *
  * The callback takes ownership of the `event`, and should usually return that
  * same event. In case the event should be discarded, the callback needs to
  * call `sentry_value_decref` on the provided event and return a
  * `sentry_value_new_null()` instead.
+ *
+ * The hint is always provided and can be used to modify attachments on the
+ * event.
  *
  * If you have set an `on_crash` callback (independent of whether it discards or
  * retains the event), `before_send` will no longer be invoked for crash-events,
@@ -1510,7 +1520,7 @@ SENTRY_API void sentry_options_set_send_default_pii(
  * though a crash report will be sent.
  */
 typedef sentry_value_t (*sentry_event_function_t)(
-    sentry_value_t event, void *hint, void *user_data);
+    sentry_value_t event, sentry_hint_t *hint, void *user_data);
 
 /**
  * Sets the `before_send` callback.
@@ -2592,7 +2602,10 @@ SENTRY_API sentry_uuid_t sentry_scope_get_last_event_id(
 SENTRY_API sentry_uuid_t sentry_capture_event(sentry_value_t event);
 
 /**
- * Sends a sentry event with a scope.
+ * Sends a sentry event with a scope and a hint.
+ *
+ * This function takes ownership of the event and hint, which will be freed
+ * automatically. The hint may be NULL.
  *
  * If `scope` is a local scope (`sentry_local_scope_new`), this takes ownership
  * of it and frees it. If `scope` is user-owned (`sentry_scope_new` or
@@ -2600,7 +2613,7 @@ SENTRY_API sentry_uuid_t sentry_capture_event(sentry_value_t event);
  * it yourself with `sentry_scope_free`.
  */
 SENTRY_API sentry_uuid_t sentry_scope_capture_event(
-    sentry_scope_t *scope, sentry_value_t event);
+    sentry_scope_t *scope, sentry_value_t event, sentry_hint_t *hint);
 
 /**
  * Deprecated alias for `sentry_scope_capture_event`. Note the reversed argument
@@ -4139,16 +4152,7 @@ SENTRY_API sentry_value_t sentry_value_new_feedback_n(const char *message,
 SENTRY_API void sentry_capture_feedback(sentry_value_t user_feedback);
 
 /**
- * A hint that can be passed to capture functions to provide additional context,
- * such as attachments.
- */
-struct sentry_hint_s;
-typedef struct sentry_hint_s sentry_hint_t;
-
-/**
- * Creates a new hint to be passed into
- * - `sentry_capture_feedback_with_hint`
- * - `sentry_scope_capture_feedback`
+ * Creates a new hint to be passed into capture functions.
  */
 SENTRY_API sentry_hint_t *sentry_hint_new(void);
 
@@ -4203,6 +4207,17 @@ SENTRY_API sentry_uuid_t sentry_hint_attach_bytesw_n(sentry_hint_t *hint,
 #endif
 
 /**
+ * Removes an attachment from the hint by its ID. Does not modify scopes.
+ */
+SENTRY_API void sentry_hint_remove_attachment(
+    sentry_hint_t *hint, sentry_uuid_t attachment_id);
+
+/**
+ * Removes all attachments from the hint. Does not modify scopes.
+ */
+SENTRY_API void sentry_hint_clear_attachments(sentry_hint_t *hint);
+
+/**
  * Captures a manually created feedback with a hint and sends it to Sentry.
  *
  * This function takes ownership of both the feedback value and the hint,
@@ -4237,7 +4252,8 @@ SENTRY_API sentry_uuid_t sentry_scope_capture_feedback(
  * callback needs to call `sentry_value_decref` on the provided event and
  * return a `sentry_value_new_null()` instead.
  *
- * The hint is always provided and can be used to add attachments to the event.
+ * The hint is always provided and can be used to modify attachments on the
+ * event.
  *
  * Feedback events do not go through the `before_send` callback.
  */
