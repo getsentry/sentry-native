@@ -364,10 +364,36 @@ attachment_is_placeholder(const sentry_options_t *options, const char *path)
     return is_placeholder;
 }
 
+/**
+ * Reads a legacy JSON attachment manifest (TODO: remove in 1.0)
+ */
 static sentry_value_t
-read_legacy_manifest(const char *buf, size_t buf_len)
+read_legacy_manifest(const sentry_path_t *manifest_path)
 {
-    sentry_value_t legacy = sentry__value_from_json(buf, buf_len);
+    size_t buf_len = 0;
+    char *buf = sentry__path_read_to_buffer(manifest_path, &buf_len);
+    if (!buf) {
+        return sentry_value_new_list();
+    }
+
+    const char *start = buf;
+    const char *end = buf + buf_len;
+    while (start < end
+        && (*start == ' ' || *start == '\t' || *start == '\r'
+            || *start == '\n')) {
+        start++;
+    }
+    const char *trimmed_end = end;
+    while (trimmed_end > start
+        && (trimmed_end[-1] == ' ' || trimmed_end[-1] == '\t'
+            || trimmed_end[-1] == '\r' || trimmed_end[-1] == '\n')) {
+        trimmed_end--;
+    }
+    sentry_value_t legacy
+        = start < trimmed_end && *start == '[' && trimmed_end[-1] == ']'
+        ? sentry__value_from_json(start, (size_t)(trimmed_end - start))
+        : sentry_value_new_null();
+    sentry_free(buf);
     if (sentry_value_get_type(legacy) != SENTRY_VALUE_TYPE_LIST) {
         sentry_value_decref(legacy);
         return sentry_value_new_null();
@@ -410,35 +436,10 @@ read_attachment_manifest(const sentry_path_t *run_folder)
         return sentry_value_new_null();
     }
     sentry_value_t attachments = sentry__read_attachment_manifest(path);
-    if (!sentry_value_is_null(attachments)) {
-        sentry__path_free(path);
-        return attachments;
+    if (sentry_value_is_null(attachments)) {
+        attachments = read_legacy_manifest(path);
     }
-    sentry_value_decref(attachments);
-
-    size_t buf_len = 0;
-    char *buf = sentry__path_read_to_buffer(path, &buf_len);
     sentry__path_free(path);
-    if (!buf) {
-        return sentry_value_new_list();
-    }
-    const char *start = buf;
-    const char *end = buf + buf_len;
-    while (start < end
-        && (*start == ' ' || *start == '\t' || *start == '\r'
-            || *start == '\n')) {
-        start++;
-    }
-    const char *trimmed_end = end;
-    while (trimmed_end > start
-        && (trimmed_end[-1] == ' ' || trimmed_end[-1] == '\t'
-            || trimmed_end[-1] == '\r' || trimmed_end[-1] == '\n')) {
-        trimmed_end--;
-    }
-    attachments = start < trimmed_end && *start == '[' && trimmed_end[-1] == ']'
-        ? read_legacy_manifest(start, (size_t)(trimmed_end - start))
-        : sentry_value_new_null();
-    sentry_free(buf);
     return attachments;
 }
 
