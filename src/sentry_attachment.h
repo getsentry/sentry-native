@@ -70,6 +70,13 @@ const char *sentry__attachment_get_path(sentry_value_t attachment);
 sentry_path_t *sentry__attachment_make_path(sentry_value_t attachment);
 
 /**
+ * Creates an attachment path, deriving a unique path in the run directory for
+ * buffer attachments.
+ */
+sentry_path_t *sentry__attachment_make_run_path(
+    const sentry_path_t *run_path, sentry_value_t attachment);
+
+/**
  * Returns true if the attachment should be represented as an attachment-ref.
  */
 bool sentry__attachment_is_placeholder(
@@ -141,5 +148,18 @@ sentry_value_t sentry__attachments_find(
  * Clones the list and freezes each attachment without revalidation.
  */
 sentry_value_t sentry__attachments_clone(sentry_value_t attachments);
+
+/**
+ * Reads a list of attachments from a manifest file.
+ */
+sentry_value_t sentry__read_attachment_manifest(const sentry_path_t *path);
+
+/**
+ * Writes attachment metadata to a manifest file in the run directory.
+ * Byte attachments reference their separately persisted files; missing or
+ * partially written files are skipped. Does not modify the attachments.
+ */
+bool sentry__write_attachment_manifest(
+    const sentry_path_t *path, sentry_value_t attachments);
 
 #endif
