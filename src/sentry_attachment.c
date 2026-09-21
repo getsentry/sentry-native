@@ -703,16 +703,24 @@ read_manifest(const char *buf, size_t buf_len)
 
     sentry_value_t attachments
         = sentry__value_from_msgpack_stream(buf, buf_len);
-    size_t len = sentry_value_get_length(attachments);
-    for (size_t i = 0; i < len; i++) {
+    size_t i = 0;
+    while (i < sentry_value_get_length(attachments)) {
         sentry_value_t attachment = sentry_value_get_by_index(attachments, i);
         if (sentry_value_get_type(attachment) != SENTRY_VALUE_TYPE_OBJECT
             || sentry__string_empty(sentry__attachment_get_path(attachment))
             || sentry__string_empty(
                 sentry__attachment_get_filename(attachment))) {
-            sentry_value_decref(attachments);
-            return sentry_value_new_null();
+            if (sentry_value_remove_by_index(attachments, i)) {
+                sentry_value_decref(attachments);
+                return sentry_value_new_null();
+            }
+            continue;
         }
+        i++;
+    }
+    if (sentry_value_get_length(attachments) == 0) {
+        sentry_value_decref(attachments);
+        return sentry_value_new_null();
     }
     return attachments;
 }

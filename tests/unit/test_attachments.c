@@ -818,6 +818,33 @@ SENTRY_TEST(attachment_manifest)
         sentry_value_decref(parsed);
     }
 
+    // malformed manifest entries are excluded
+    sentry_value_t malformed = sentry_value_new_object();
+    size_t valid_len = 0;
+    size_t malformed_len = 0;
+    char *valid_buf = sentry_value_to_msgpack(
+        sentry_value_get_by_index(attachments, 0), &valid_len);
+    char *malformed_buf = sentry_value_to_msgpack(malformed, &malformed_len);
+    char *manifest_buf = sentry_malloc(valid_len + malformed_len);
+    TEST_ASSERT(valid_buf != NULL);
+    TEST_ASSERT(malformed_buf != NULL);
+    TEST_ASSERT(manifest_buf != NULL);
+    memcpy(manifest_buf, malformed_buf, malformed_len);
+    memcpy(manifest_buf + malformed_len, valid_buf, valid_len);
+    TEST_ASSERT(sentry__path_write_buffer(
+                    manifest_path, manifest_buf, valid_len + malformed_len)
+        == 0);
+    sentry_value_t salvaged = sentry__read_attachment_manifest(manifest_path);
+    TEST_CHECK_INT_EQUAL(sentry_value_get_length(salvaged), 1);
+    TEST_CHECK_STRING_EQUAL(
+        sentry__attachment_get_filename(sentry_value_get_by_index(salvaged, 0)),
+        "renamed.bin");
+    sentry_value_decref(salvaged);
+    sentry_free(manifest_buf);
+    sentry_free(malformed_buf);
+    sentry_free(valid_buf);
+    sentry_value_decref(malformed);
+
     size_t size = 0;
     const char *original
         = sentry__attachment_get_bytes(bytes_attachment, &size);
