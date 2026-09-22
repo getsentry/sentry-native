@@ -28,6 +28,12 @@ void sentry__hint_deinit(sentry_hint_t *hint);
 bool sentry__hint_is_modified(const sentry_hint_t *hint);
 
 /**
+ * Returns modified hint attachments or the current scope attachments as an
+ * owned value.
+ */
+sentry_value_t sentry__hint_resolve_attachments(const sentry_hint_t *hint);
+
+/**
  * Replaces a hint's attachment baseline, taking ownership of `attachments`.
  */
 void sentry__hint_set_attachments(

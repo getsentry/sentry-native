@@ -42,6 +42,21 @@ sentry__hint_is_modified(const sentry_hint_t *hint)
     return hint && hint->modified;
 }
 
+sentry_value_t
+sentry__hint_resolve_attachments(const sentry_hint_t *hint)
+{
+    if (sentry__hint_is_modified(hint)) {
+        return sentry_value_incref(hint->attachments);
+    }
+
+    sentry_value_t attachments = sentry_value_new_null();
+    SENTRY_WITH_SCOPE (scope) {
+        sentry_value_decref(attachments);
+        attachments = sentry__scope_load_attachments(scope);
+    }
+    return attachments;
+}
+
 void
 sentry__hint_set_attachments(sentry_hint_t *hint, sentry_value_t attachments)
 {
