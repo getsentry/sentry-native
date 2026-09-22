@@ -81,7 +81,7 @@ app_hang_capture(uint64_t hang_time_ms, uint64_t tid)
         return false;
     }
     sentry_value_t event = sentry__app_hang_make_event(ips, n, hang_time_ms);
-    sentry__capture_event(event, NULL);
+    sentry__capture_event(event, NULL, NULL);
     return true;
 }
 

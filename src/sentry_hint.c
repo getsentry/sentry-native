@@ -105,3 +105,27 @@ sentry_hint_attach_bytesw_n(sentry_hint_t *hint, const char *buf,
         sentry_attachment_from_bytesw_n(buf, buf_len, filename, filename_len));
 }
 #endif
+
+sentry_value_t
+sentry_hint_get_attachments(const sentry_hint_t *hint)
+{
+    return hint ? hint->attachments : sentry_value_new_null();
+}
+
+void
+sentry_hint_remove_attachment(sentry_hint_t *hint, sentry_uuid_t attachment_id)
+{
+    if (hint) {
+        sentry_value_decref(
+            sentry__attachments_remove(hint->attachments, &attachment_id));
+    }
+}
+
+void
+sentry_hint_clear_attachments(sentry_hint_t *hint)
+{
+    if (hint) {
+        sentry_value_decref(hint->attachments);
+        hint->attachments = sentry_value_new_null();
+    }
+}
