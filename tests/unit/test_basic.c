@@ -656,10 +656,12 @@ filter_attachments(sentry_value_t event, sentry_hint_t *hint, void *data)
 {
     attachment_filter_t *filter = data;
     filter->calls++;
-    TEST_CHECK_INT_EQUAL(sentry_value_get_length(hint->attachments), 3);
+    TEST_CHECK_INT_EQUAL(
+        sentry_value_get_length(sentry_hint_get_attachments(hint)), 3);
     sentry_hint_remove_attachment(hint, filter->global);
     sentry_hint_remove_attachment(hint, filter->local);
-    TEST_CHECK_INT_EQUAL(sentry_value_get_length(hint->attachments), 1);
+    TEST_CHECK_INT_EQUAL(
+        sentry_value_get_length(sentry_hint_get_attachments(hint)), 1);
     if (filter->clear) {
         sentry_hint_clear_attachments(hint);
     }

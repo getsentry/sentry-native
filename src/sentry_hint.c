@@ -106,6 +106,12 @@ sentry_hint_attach_bytesw_n(sentry_hint_t *hint, const char *buf,
 }
 #endif
 
+sentry_value_t
+sentry_hint_get_attachments(const sentry_hint_t *hint)
+{
+    return hint ? hint->attachments : sentry_value_new_null();
+}
+
 void
 sentry_hint_remove_attachment(sentry_hint_t *hint, sentry_uuid_t attachment_id)
 {

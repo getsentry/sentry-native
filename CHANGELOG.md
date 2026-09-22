@@ -19,7 +19,7 @@
 - Add `sentry_add_attachment`, `sentry_scope_add_attachment`, and `sentry_hint_add_attachment` for adding configured attachments to the global scope, a specific scope, or a hint. These functions consume and freeze the attachment value. ([#2079](https://github.com/getsentry/sentry-native/pull/2079), [#1974](https://github.com/getsentry/sentry-native/pull/1974))
 - Add `sentry_start_new_trace()` as a clearer name for starting a new trace. ([#2095](https://github.com/getsentry/sentry-native/pull/2095))
 - Add hint support to `sentry_scope_capture_event` to pass event-specific attachments. The hint is also passed to `before_send`, which can modify attachments before the event is sent. ([#2099](https://github.com/getsentry/sentry-native/pull/2099))
-- Add `sentry_hint_remove_attachment` and `sentry_hint_clear_attachments`. ([#2099](https://github.com/getsentry/sentry-native/pull/2099))
+- Add `sentry_hint_get_attachments`, `sentry_hint_remove_attachment`, and `sentry_hint_clear_attachments`. ([#2099](https://github.com/getsentry/sentry-native/pull/2099))
 
 **Fixes**:
 

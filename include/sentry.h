@@ -4207,6 +4207,13 @@ SENTRY_API sentry_uuid_t sentry_hint_attach_bytesw_n(sentry_hint_t *hint,
 #endif
 
 /**
+ * Returns a borrowed list of attachments in the hint, or a null value if the
+ * hint is NULL.
+ */
+SENTRY_API sentry_value_t sentry_hint_get_attachments(
+    const sentry_hint_t *hint);
+
+/**
  * Removes an attachment from the hint by its ID. Does not modify scopes.
  */
 SENTRY_API void sentry_hint_remove_attachment(
