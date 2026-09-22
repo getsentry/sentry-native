@@ -80,6 +80,33 @@ def test_native_capture_crash(cmake, httpserver):
     assert_native_crash(envelope)
 
 
+@pytest.mark.parametrize("callback", ["before-send", "on-crash"])
+def test_native_crash_hint_attachments(cmake, httpserver, callback):
+    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "native"})
+
+    httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data("OK")
+
+    with httpserver.wait(timeout=10) as waiting:
+        run_crash(
+            tmp_path,
+            "sentry_example",
+            ["log", "attachment", callback, "crash"],
+            env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
+        )
+    assert waiting.result
+
+    assert len(httpserver.log) >= 1
+    envelope = Envelope.deserialize(httpserver.log[0][0].get_data())
+    assert not any(
+        item.headers.get("filename") == "CMakeCache.txt" for item in envelope
+    )
+    assert any(
+        item.headers.get("filename") == "callback.txt"
+        and item.payload.bytes == callback.replace("-", "_").encode()
+        for item in envelope
+    )
+
+
 def test_native_on_crashed_last_run(cmake, httpserver):
     tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "native"})
     httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data("OK")

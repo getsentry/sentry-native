@@ -135,9 +135,11 @@ stack_usage_integration_new(void)
 static void *invalid_mem = (void *)1;
 
 static sentry_value_t
-on_crash(const sentry_ucontext_t *uctx, sentry_value_t event, void *data)
+on_crash(const sentry_ucontext_t *uctx, sentry_value_t event,
+    sentry_hint_t *hint, void *data)
 {
     (void)uctx;
+    (void)hint;
     (void)data;
     return event;
 }

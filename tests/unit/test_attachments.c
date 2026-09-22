@@ -1,7 +1,9 @@
 #include "sentry_alloc.h"
 #include "sentry_attachment.h"
 #include "sentry_backend.h"
+#include "sentry_core.h"
 #include "sentry_envelope.h"
+#include "sentry_hint.h"
 #include "sentry_options.h"
 #include "sentry_path.h"
 #include "sentry_scope.h"
@@ -892,4 +894,57 @@ SENTRY_TEST(attachment_manifest)
     sentry__path_free(dir);
     sentry__path_free(manifest_path);
     sentry__path_free(run_path);
+}
+
+SENTRY_TEST(hint_attachments)
+{
+    sentry_hint_t *empty = sentry_hint_new();
+    sentry_hint_clear_attachments(empty);
+    sentry_hint_remove_attachment(empty, sentry_uuid_nil());
+    sentry_hint_add_attachment(empty, sentry_value_new_null());
+    TEST_CHECK_INT_EQUAL(sentry_value_get_length(empty->attachments), 0);
+    TEST_CHECK(!sentry__hint_is_modified(empty));
+    sentry__hint_free(empty);
+
+    SENTRY_TEST_OPTIONS_NEW(options);
+    TEST_CHECK_INT_EQUAL(sentry_init(options), 0);
+    sentry_uuid_t id = sentry_attach_bytes("first", 5, "first.txt");
+    TEST_CHECK(!sentry_uuid_is_nil(&id));
+
+    for (int action = 0; action < 3; action++) {
+        sentry_hint_t hint;
+        sentry__hint_init(&hint);
+        TEST_CHECK_INT_EQUAL(sentry_value_get_length(hint.attachments), 1);
+        TEST_CHECK(!sentry__hint_is_modified(&hint));
+
+        sentry_hint_remove_attachment(&hint, sentry_uuid_nil());
+        sentry_hint_add_attachment(&hint, sentry_value_new_null());
+        TEST_CHECK(!sentry__hint_is_modified(&hint));
+
+        sentry_hint_add_attachment(
+            &hint, sentry_value_get_by_index_owned(hint.attachments, 0));
+        sentry_hint_add_attachment(&hint, sentry_value_new_null());
+        sentry_hint_remove_attachment(&hint, sentry_uuid_nil());
+        TEST_CHECK_INT_EQUAL(sentry_value_get_length(hint.attachments), 1);
+        TEST_CHECK(!sentry__hint_is_modified(&hint));
+
+        switch (action) {
+        case 0:
+            sentry_hint_attach_bytes(&hint, "second", 6, "second.txt");
+            TEST_CHECK_INT_EQUAL(sentry_value_get_length(hint.attachments), 2);
+            break;
+        case 1:
+            sentry_hint_remove_attachment(&hint, id);
+            TEST_CHECK_INT_EQUAL(sentry_value_get_length(hint.attachments), 0);
+            break;
+        case 2:
+            sentry_hint_clear_attachments(&hint);
+            TEST_CHECK_INT_EQUAL(sentry_value_get_length(hint.attachments), 0);
+            sentry_hint_clear_attachments(&hint);
+            break;
+        }
+        TEST_CHECK(sentry__hint_is_modified(&hint));
+        sentry__hint_deinit(&hint);
+    }
+    sentry_close();
 }
