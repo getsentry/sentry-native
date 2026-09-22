@@ -934,7 +934,7 @@ prepare_user_feedback(const sentry_options_t *options,
         }
     }
 
-    if (sentry__hint_is_modified(hint)) {
+    if (hint && sentry__hint_is_modified(hint)) {
         sentry_value_decref(all_attachments);
         all_attachments = sentry_value_incref(hint->attachments);
     }
