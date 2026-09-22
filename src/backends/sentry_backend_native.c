@@ -1372,17 +1372,17 @@ native_backend_except(sentry_backend_t *backend, const sentry_ucontext_t *uctx)
             }
 
             if (should_handle) {
-                if (sentry__hint_is_modified(&hint)) {
+                bool modified = sentry__hint_is_modified(&hint);
+                if (modified) {
                     size_t len = sentry_value_get_length(hint.attachments);
                     for (size_t i = 0; i < len; i++) {
                         add_attachment(state,
                             sentry_value_get_by_index(hint.attachments, i));
                     }
-                    // Manifest writes must continue post-crash so attachments
-                    // registered from on_crash/before_send reach the daemon
-                    native_backend_write_attachments(
-                        state ? state->event_path : NULL, &hint);
                 }
+                // Write modified hint attachments or reload the current scope
+                native_backend_write_attachments(
+                    state ? state->event_path : NULL, modified ? &hint : NULL);
                 // Apply scope to the event. The daemon assembles breadcrumbs
                 // from the ring files
                 SENTRY_WITH_SCOPE (scope) {
