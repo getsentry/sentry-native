@@ -54,8 +54,10 @@ void sentry__logger_disable(void);
 /**
  * Signal/async-safe logging macro for use in signal handlers or other
  * contexts where stdio and malloc are unsafe. Only supports static strings.
+ * No-op on PlayStation, where writing to stderr from the coredump handler
+ * crashes the handler.
  */
-#ifdef SENTRY_PLATFORM_UNIX
+#if defined(SENTRY_PLATFORM_UNIX) && !defined(SENTRY_PLATFORM_PS)
 #    include <unistd.h>
 #    define SENTRY_SIGNAL_SAFE_LOG(msg)                                        \
         do {                                                                   \
