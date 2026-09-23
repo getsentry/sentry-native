@@ -242,6 +242,11 @@ using `cmake -D BUILD_SHARED_LIBS=OFF ..`.
     Windows and is the default there.
   - **none**: Do not build any HTTP transport. This should be used if users
     want to handle uploads themselves
+  - **custom**: Provide an external
+    `sentry_transport_t *sentry_transport_new_default(void)` implementation
+    (with `extern "C"` linkage if written in C++). Return a transport created
+    with `sentry_transport_new` or `sentry_http_transport_new`, or `NULL` to
+    disable uploads.
 
 - `SENTRY_SCREENSHOT` (Default: `windows` on Windows, `none` elsewhere):
   Selects the screenshot implementation. Set it to `custom` and provide an

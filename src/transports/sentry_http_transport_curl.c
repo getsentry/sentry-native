@@ -547,7 +547,7 @@ curl_send_task(void *_client, sentry_prepared_http_request_t *req,
 }
 
 sentry_transport_t *
-sentry__transport_new_default(void)
+sentry_transport_new_default(void)
 {
     SENTRY_INFO("initializing curl transport");
     curl_client_t *client = curl_client_new();
