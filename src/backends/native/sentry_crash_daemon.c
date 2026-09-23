@@ -4399,8 +4399,9 @@ sentry__process_crash(const sentry_options_t *options, sentry_crash_ipc_t *ipc)
         if (screenshot_path) {
             // Pass the crashed app's PID so we capture its windows, not the
             // daemon's
-            if (sentry__screenshot_capture(
-                    screenshot_path, (uint32_t)ctx->crashed_pid)) {
+            if (sentry_screenshot_capture(
+                    screenshot_path->path, (uint32_t)ctx->crashed_pid)
+                == 0) {
                 SENTRY_DEBUG("Screenshot captured successfully");
             } else {
                 SENTRY_DEBUG("Screenshot capture failed");
