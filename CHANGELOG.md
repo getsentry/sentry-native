@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+**Fixes**:
+
+- Fix crash context missing from PlayStation crash reports when an `on_crash` callback is set. ([#2133](https://github.com/getsentry/sentry-native/pull/2133))
+
 ## 0.17.0
 
 **Breaking / Important behavior changes**:
