@@ -1,0 +1,227 @@
+# Android NDK Integration
+
+## Overview
+
+The [ndk/](mdc:ndk/) directory provides Android-specific integration of the Sentry Native SDK, creating an `.aar` package that bridges native C/C++ code with Java/Kotlin Android applications.
+
+## Architecture Layers
+
+**Java Layer** ([ndk/lib/src/main/java/](mdc:ndk/lib/src/main/java/)):
+- `SentryNdk` - Main initialization and lifecycle management
+- `NativeScope` - JNI bindings for scope operations
+- `NdkOptions` - Configuration options from Android SDK
+- Public API exposed to [sentry-android](https://docs.sentry.io/platforms/android/)
+
+**JNI Layer** ([ndk/lib/src/main/jni/](mdc:ndk/lib/src/main/jni/)):
+- `sentry.c` - Bridge between Java and native SDK
+- Converts Java objects to native options
+- Manages native SDK lifecycle from Android context
+
+**Native Layer:**
+- Full Sentry Native SDK linked as native libraries
+- Custom transport for envelope file writing
+- Android-specific optimizations (inproc backend)
+
+## JNI Naming Conventions
+
+**Function Naming:**
+```c
+// Pattern: Java_package_class_methodName
+JNIEXPORT void JNICALL
+Java_io_sentry_ndk_SentryNdk_initSentryNative(
+    JNIEnv *env, jclass cls, jobject options);
+
+JNIEXPORT void JNICALL
+Java_io_sentry_ndk_NativeScope_nativeSetTag(
+    JNIEnv *env, jclass cls, jstring key, jstring value);
+```
+
+**String Handling Pattern:**
+```c
+static char *
+call_get_string(JNIEnv *env, jobject obj, jmethodID method) {
+    jstring jstr = (*env)->CallObjectMethod(env, obj, method);
+    if (!jstr) return NULL;
+
+    const char *native_str = (*env)->GetStringUTFChars(env, jstr, NULL);
+    char *result = sentry__string_clone(native_str);
+
+    (*env)->ReleaseStringUTFChars(env, jstr, native_str);
+    (*env)->DeleteLocalRef(env, jstr);
+    return result;
+}
+```
+
+## Options Bridge Pattern
+
+**Java to Native Conversion:**
+```c
+// Extract configuration from Java NdkOptions object
+jclass options_cls = (*env)->GetObjectClass(env, ndk_options);
+jmethodID dsn_mid = (*env)->GetMethodID(env, options_cls, "getDsn", "()Ljava/lang/String;");
+jmethodID debug_mid = (*env)->GetMethodID(env, options_cls, "isDebug", "()Z");
+
+// Convert to native options
+sentry_options_t *options = sentry_options_new();
+char *dsn_str = call_get_string(env, ndk_options, dsn_mid);
+sentry_options_set_dsn(options, dsn_str);
+
+jboolean debug = (*env)->CallBooleanMethod(env, ndk_options, debug_mid);
+sentry_options_set_debug(options, debug);
+```
+
+## Transport Integration
+
+**File-Based Transport:**
+```c
+// Android uses file transport to work with sentry-android's HTTP layer
+static void
+send_envelope(sentry_envelope_t *envelope, void *data) {
+    char *outbox_path = (char *)data;
+    if (!outbox_path || !envelope) return;
+
+    // Generate unique filename for envelope
+    sentry_uuid_t uuid = sentry_uuid_new_v4();
+    char uuid_str[37];
+    sentry_uuid_as_string(&uuid, uuid_str);
+
+    // Write envelope to outbox directory
+    char envelope_path[512];
+    snprintf(envelope_path, sizeof(envelope_path), "%s/%s.envelope",
+             outbox_path, uuid_str);
+    sentry_envelope_write_to_file(envelope, envelope_path);
+}
+```
+
+## Build Configuration
+
+**CMake Integration ([ndk/lib/CMakeLists.txt](mdc:ndk/lib/CMakeLists.txt)):**
+```cmake
+# Link against sentry-native source
+set(SENTRY_NATIVE_SRC "${CMAKE_CURRENT_SOURCE_DIR}/../..")
+add_subdirectory("${SENTRY_NATIVE_SRC}" sentry-native)
+
+# Create Android-specific wrapper library
+add_library(sentry-android SHARED
+    src/main/jni/sentry.c
+)
+target_link_libraries(sentry-android sentry)
+```
+
+**Gradle Configuration ([ndk/lib/build.gradle.kts](mdc:ndk/lib/build.gradle.kts)):**
+```kotlin
+android {
+    compileSdk = 35
+
+    defaultConfig {
+        minSdk = 21
+        ndk {
+            abiFilters.addAll(listOf("x86", "armeabi-v7a", "x86_64", "arm64-v8a"))
+        }
+    }
+
+    // Enable prefab for native dependency consumption
+    buildFeatures {
+        prefabPublishing = true
+    }
+
+    prefab {
+        create("sentry-android") {}  // JNI wrapper
+        create("sentry") {          // Native SDK headers
+            headers = "../../include"
+        }
+    }
+}
+```
+
+## Memory Management in JNI
+
+**Reference Management:**
+```c
+// Always clean up local references
+jstring jkey = (*env)->NewStringUTF(env, key);
+if (!jkey) return;  // OutOfMemoryError thrown
+
+// Call Java method
+(*env)->CallStaticVoidMethod(env, cls, method_id, jkey, jvalue);
+
+// Clean up local references
+(*env)->DeleteLocalRef(env, jkey);
+(*env)->DeleteLocalRef(env, jvalue);
+```
+
+**Exception Handling:**
+```c
+// Check for Java exceptions after JNI calls
+if ((*env)->ExceptionCheck(env)) {
+    (*env)->ExceptionDescribe(env);  // Log exception
+    (*env)->ExceptionClear(env);     // Clear for continued execution
+    return;  // Early return on error
+}
+```
+
+## Library Loading Strategy
+
+**Native Library Loading ([SentryNdk.java](mdc:ndk/lib/src/main/java/io/sentry/ndk/SentryNdk.java)):**
+```java
+public static synchronized void loadNativeLibraries() {
+    if (!nativeLibrariesLoaded) {
+        // Load dependencies first (Android < 6.0 requirement)
+        System.loadLibrary("log");        // Android logging
+        System.loadLibrary("sentry");     // Core native SDK
+        System.loadLibrary("sentry-android"); // JNI wrapper
+        nativeLibrariesLoaded = true;
+    }
+}
+```
+
+## API Surface Design
+
+**Minimal JNI Exposure:**
+- Only essential functions exposed through JNI
+- Complex operations handled in Java layer when possible
+- Batch operations to minimize JNI overhead
+
+**Scope Operations ([NativeScope.java](mdc:ndk/lib/src/main/java/io/sentry/ndk/NativeScope.java)):**
+```java
+@Override
+public void setTag(String key, String value) {
+    nativeSetTag(key, value);  // Direct JNI call
+}
+
+@Override
+public void setUser(String id, String email, String ipAddress, String username) {
+    nativeSetUser(id, email, ipAddress, username);  // Batch parameters
+}
+```
+
+## Testing on Android
+
+**Emulator Testing:**
+```bash
+# Start Android emulator (see CI configuration)
+scripts/start-android.sh
+
+# Run NDK-specific tests
+cd ndk && ./gradlew check
+```
+
+**Integration with sentry-android:**
+- NDK package consumed as dependency in main Android SDK
+- Provides both native crash handling and JNI bridge
+- Compatible with sentry-android's scope and configuration system
+
+## Performance Considerations
+
+**JNI Overhead:**
+- Minimize JNI boundary crossings
+- Batch multiple operations when possible
+- Cache method IDs and class references
+- Use direct buffer access for large data
+
+**Android-Specific Optimizations:**
+- Uses `inproc` backend by default (smaller footprint)
+- File-based transport (avoids HTTP in native layer)
+- Integrated with Android's crash reporting pipeline
+
+Reference [ndk/README.md](mdc:ndk/README.md) for detailed Android integration and [sentry-android documentation](https://docs.sentry.io/platforms/android/) for usage.
