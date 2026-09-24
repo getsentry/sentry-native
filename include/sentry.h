@@ -638,9 +638,9 @@ SENTRY_API sentry_value_t sentry_value_new_breadcrumb_n(
  * The returned value needs to be attached to an event via
  * `sentry_event_add_exception`.
  */
-SENTRY_EXPERIMENTAL_API sentry_value_t sentry_value_new_exception(
+SENTRY_API sentry_value_t sentry_value_new_exception(
     const char *type, const char *value);
-SENTRY_EXPERIMENTAL_API sentry_value_t sentry_value_new_exception_n(
+SENTRY_API sentry_value_t sentry_value_new_exception_n(
     const char *type, size_t type_len, const char *value, size_t value_len);
 
 /**
@@ -653,9 +653,9 @@ SENTRY_EXPERIMENTAL_API sentry_value_t sentry_value_new_exception_n(
  *
  * `name` can be NULL.
  */
-SENTRY_EXPERIMENTAL_API sentry_value_t sentry_value_new_thread(
+SENTRY_API sentry_value_t sentry_value_new_thread(
     uint64_t id, const char *name);
-SENTRY_EXPERIMENTAL_API sentry_value_t sentry_value_new_thread_n(
+SENTRY_API sentry_value_t sentry_value_new_thread_n(
     uint64_t id, const char *name, size_t name_len);
 
 /**
@@ -669,8 +669,7 @@ SENTRY_EXPERIMENTAL_API sentry_value_t sentry_value_new_thread_n(
  * If `ips` is NULL, the current stack trace is captured. Otherwise, `len`
  * stack trace instruction pointers are attached to the event.
  */
-SENTRY_EXPERIMENTAL_API sentry_value_t sentry_value_new_stacktrace(
-    void **ips, size_t len);
+SENTRY_API sentry_value_t sentry_value_new_stacktrace(void **ips, size_t len);
 
 /**
  * Sets the Stack Trace conforming to the Stack Trace Interface in a value.
@@ -680,13 +679,13 @@ SENTRY_EXPERIMENTAL_API sentry_value_t sentry_value_new_stacktrace(
  * If `ips` is NULL, the current stack trace is captured. Otherwise, `len` stack
  * trace instruction pointers are attached to the event.
  */
-SENTRY_EXPERIMENTAL_API void sentry_value_set_stacktrace(
+SENTRY_API void sentry_value_set_stacktrace(
     sentry_value_t value, void **ips, size_t len);
 
 /**
  * Sets the level of an Event value.
  */
-SENTRY_EXPERIMENTAL_API void sentry_event_set_level(
+SENTRY_API void sentry_event_set_level(
     sentry_value_t event, sentry_level_t level);
 
 /**
@@ -694,7 +693,7 @@ SENTRY_EXPERIMENTAL_API void sentry_event_set_level(
  *
  * This takes ownership of the `exception`.
  */
-SENTRY_EXPERIMENTAL_API void sentry_event_add_exception(
+SENTRY_API void sentry_event_add_exception(
     sentry_value_t event, sentry_value_t exception);
 
 /**
@@ -702,7 +701,7 @@ SENTRY_EXPERIMENTAL_API void sentry_event_add_exception(
  *
  * This takes ownership of the `thread`.
  */
-SENTRY_EXPERIMENTAL_API void sentry_event_add_thread(
+SENTRY_API void sentry_event_add_thread(
     sentry_value_t event, sentry_value_t thread);
 
 /* -- Experimental APIs -- */
@@ -759,7 +758,7 @@ typedef struct sentry_ucontext_s {
  * caller allocated `stacktrace_out`, with up to `max_len` frames being written.
  * The actual number of unwound stack frames is returned.
  */
-SENTRY_EXPERIMENTAL_API size_t sentry_unwind_stack(
+SENTRY_API size_t sentry_unwind_stack(
     void *addr, void **stacktrace_out, size_t max_len);
 
 /**
@@ -773,7 +772,7 @@ SENTRY_EXPERIMENTAL_API size_t sentry_unwind_stack(
  * caller allocated `stacktrace_out`, with up to `max_len` frames being written.
  * The actual number of unwound stack frames is returned.
  */
-SENTRY_EXPERIMENTAL_API size_t sentry_unwind_stack_from_ucontext(
+SENTRY_API size_t sentry_unwind_stack_from_ucontext(
     const sentry_ucontext_t *uctx, void **stacktrace_out, size_t max_len);
 
 /**
@@ -2683,8 +2682,7 @@ SENTRY_API sentry_uuid_t sentry_capture_minidumpw_n(
  *       and `breakpad` support it on all platforms (on macOS, the `uctx`
  *       argument is ignored when using the `breakpad` backend).
  */
-SENTRY_EXPERIMENTAL_API void sentry_handle_exception(
-    const sentry_ucontext_t *uctx);
+SENTRY_API void sentry_handle_exception(const sentry_ucontext_t *uctx);
 
 /**
  * Deliberately crashes the current process.
