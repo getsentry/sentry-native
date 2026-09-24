@@ -1647,20 +1647,24 @@ def test_native_early_init(cmake):
     assert result.returncode == 0
 
 
-def test_native_scope_updates_in_crash_callback(cmake, httpserver):
+@pytest.mark.parametrize("clear_hint", [False, True])
+def test_native_scope_updates_in_crash_callback(cmake, httpserver, clear_hint):
     tmp_path = cmake(["sentry_test_unit", "sentry-crash"], {"SENTRY_BACKEND": "native"})
     httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data("OK")
+    env = dict(
+        os.environ,
+        SENTRY_DSN=make_dsn(httpserver),
+        SENTRY_TEST_NATIVE_SCOPE_CRASH="1",
+        SENTRY_TEST_NATIVE_SCOPE_CALLBACK="1",
+    )
+    if clear_hint:
+        env["SENTRY_TEST_NATIVE_SCOPE_HINT_CLEAR"] = "1"
     with httpserver.wait(timeout=15) as waiting:
         run_crash(
             tmp_path,
             "sentry_test_unit",
             ["--no-exec", "native_scope_updates"],
-            env=dict(
-                os.environ,
-                SENTRY_DSN=make_dsn(httpserver),
-                SENTRY_TEST_NATIVE_SCOPE_CRASH="1",
-                SENTRY_TEST_NATIVE_SCOPE_CALLBACK="1",
-            ),
+            env=env,
         )
     assert waiting.result
     envelope = Envelope.deserialize(httpserver.log[0][0].get_data())
@@ -1670,6 +1674,9 @@ def test_native_scope_updates_in_crash_callback(cmake, httpserver):
     attachments = [
         item for item in envelope if item.headers.get("type") == "attachment"
     ]
-    assert len(attachments) == 1
-    assert attachments[0].headers["filename"] == "callback.txt"
-    assert attachments[0].payload.bytes == b"callback"
+    if clear_hint:
+        assert attachments == []
+    else:
+        assert len(attachments) == 1
+        assert attachments[0].headers["filename"] == "callback.txt"
+        assert attachments[0].payload.bytes == b"callback"

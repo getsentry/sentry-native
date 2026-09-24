@@ -210,11 +210,11 @@ typedef struct {
     sentry_path_t *envelope_path;
     const sentry_options_t *options;
     sentry_scope_observer_t *scope_observer;
+    volatile long crashed;
 } native_backend_state_t;
 
 static sentry_value_t attachment_list(
-    native_backend_state_t *state, const sentry_scope_t *scope,
-    const sentry_hint_t *hint);
+    native_backend_state_t *state, const sentry_scope_t *scope);
 static void sync_attachments(void *data, sentry_value_t attachment);
 static bool observe_scope(native_backend_state_t *state);
 static void native_backend_shutdown(sentry_backend_t *backend);
@@ -310,8 +310,7 @@ daemon_start(pid_t app_pid, uint64_t app_tid, int notify_eventfd,
 #elif defined(SENTRY_PLATFORM_MACOS)
 static pid_t
 daemon_start(pid_t app_pid, uint64_t app_tid, int notify_pipe_read,
-    int ready_pipe_write, int shm_fd, int message_fd,
-    const char *handler_path)
+    int ready_pipe_write, int shm_fd, int message_fd, const char *handler_path)
 #elif defined(SENTRY_PLATFORM_WINDOWS)
 static pid_t
 daemon_start(pid_t app_pid, uint64_t app_tid, HANDLE event_handle,
@@ -886,8 +885,7 @@ native_backend_startup(
 #    if defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID)
     uint64_t tid = (uint64_t)pthread_self();
     state->daemon_pid = daemon_start(getpid(), tid, state->ipc->notify_fd,
-        state->ipc->ready_fd, state->ipc->message_fd[1],
-        daemon_handler_path);
+        state->ipc->ready_fd, state->ipc->message_fd[1], daemon_handler_path);
 #    elif defined(SENTRY_PLATFORM_MACOS)
     uint64_t tid = (uint64_t)pthread_self();
     state->daemon_pid = daemon_start(getpid(), tid, state->ipc->notify_pipe[0],
@@ -895,10 +893,9 @@ native_backend_startup(
         state->ipc->message_fd[1], daemon_handler_path);
 #    elif defined(SENTRY_PLATFORM_WINDOWS)
     uint64_t tid = (uint64_t)GetCurrentThreadId();
-    state->daemon_pid
-        = daemon_start(GetCurrentProcessId(), tid, state->ipc->event_handle,
-            state->ipc->ready_event_handle, state->ipc->message_read_handle,
-            daemon_handler_path);
+    state->daemon_pid = daemon_start(GetCurrentProcessId(), tid,
+        state->ipc->event_handle, state->ipc->ready_event_handle,
+        state->ipc->message_read_handle, daemon_handler_path);
 #    endif
 
     // On Windows, pid_t is DWORD (unsigned), so (pid_t)-1 == 0xFFFFFFFF.
@@ -1169,12 +1166,51 @@ native_backend_free(sentry_backend_t *backend)
     sentry_free(state);
 }
 
-static sentry_value_t
-attachment_list(native_backend_state_t *state, const sentry_scope_t *scope,
-    const sentry_hint_t *hint)
+static void
+write_crash_attachments(
+    native_backend_state_t *state, const sentry_hint_t *hint)
 {
-    sentry_value_t attachments = hint ? sentry_value_incref(hint->attachments)
-                                      : sentry__scope_load_attachments(scope);
+    if (!state || !state->run_path) {
+        return;
+    }
+    sentry_value_t attachments = sentry__hint_resolve_attachments(hint);
+    size_t len = sentry_value_get_length(attachments);
+    for (size_t i = 0; i < len; i++) {
+        add_attachment(state, sentry_value_get_by_index(attachments, i));
+    }
+    sentry_path_t *path
+        = sentry__path_join_str(state->run_path, "__sentry-attachments");
+    if (path) {
+        sentry__write_attachment_manifest(path, attachments);
+        sentry__path_free(path);
+    }
+    sentry_value_decref(attachments);
+}
+
+static void
+write_crash_event(native_backend_state_t *state, sentry_value_t event)
+{
+    if (!state || !state->run_path) {
+        return;
+    }
+    sentry_path_t *path
+        = sentry__path_join_str(state->run_path, "__sentry-event");
+    if (!path) {
+        return;
+    }
+    size_t len = 0;
+    char *json = sentry__value_to_json(event, &len);
+    if (json) {
+        sentry__path_write_buffer(path, json, len);
+        sentry_free(json);
+    }
+    sentry__path_free(path);
+}
+
+static sentry_value_t
+attachment_list(native_backend_state_t *state, const sentry_scope_t *scope)
+{
+    sentry_value_t attachments = sentry__scope_load_attachments(scope);
     sentry_value_t attach_list = sentry_value_new_list();
     size_t len = sentry_value_get_length(attachments);
     for (size_t i = 0; i < len; i++) {
@@ -1220,8 +1256,11 @@ sync_attachments(void *data, sentry_value_t attachment)
 {
     (void)attachment;
     native_backend_state_t *state = data;
+    if (sentry__atomic_fetch(&state->crashed)) {
+        return;
+    }
     SENTRY_WITH_SCOPE (scope) {
-        sentry_value_t list = attachment_list(state, scope, NULL);
+        sentry_value_t list = attachment_list(state, scope);
         sentry__crash_ipc_send(
             state->ipc, SENTRY_CRASH_IPC_MESSAGE_SET_ATTACHMENT_LIST, list);
         sentry_value_decref(list);
@@ -1231,18 +1270,22 @@ sync_attachments(void *data, sentry_value_t attachment)
 static void
 observe_attachment(void *data, sentry_value_t attachment)
 {
+    native_backend_state_t *state = data;
+    if (sentry__atomic_fetch(&state->crashed)) {
+        return;
+    }
     add_attachment(data, attachment);
     sync_attachments(data, attachment);
 }
 
 static bool
 send_snapshot(native_backend_state_t *state, const sentry_scope_t *scope,
-    sentry_value_t event, const sentry_hint_t *hint)
+    sentry_value_t event)
 {
     sentry_value_t snapshot = sentry_value_new_object();
     sentry_value_set_by_key(snapshot, "event", sentry_value_incref(event));
     sentry_value_set_by_key(
-        snapshot, "attachments", attachment_list(state, scope, hint));
+        snapshot, "attachments", attachment_list(state, scope));
     bool sent = sentry__crash_ipc_send(
         state->ipc, SENTRY_CRASH_IPC_MESSAGE_SCOPE_SNAPSHOT, snapshot);
     sentry_value_decref(snapshot);
@@ -1252,10 +1295,13 @@ send_snapshot(native_backend_state_t *state, const sentry_scope_t *scope,
 static bool
 snapshot_scope(native_backend_state_t *state, const sentry_scope_t *scope)
 {
+    if (sentry__atomic_fetch(&state->crashed)) {
+        return false;
+    }
     sentry_value_t event = sentry_value_new_object();
     sentry__scope_apply_to_event(
         scope, state->options, event, SENTRY_SCOPE_BREADCRUMBS);
-    bool sent = send_snapshot(state, scope, event, NULL);
+    bool sent = send_snapshot(state, scope, event);
     sentry_value_decref(event);
     return sent;
 }
@@ -1264,6 +1310,9 @@ static void
 clear_scope(void *data)
 {
     native_backend_state_t *state = data;
+    if (sentry__atomic_fetch(&state->crashed)) {
+        return;
+    }
     // clear observers run before the source scope is reset
     SENTRY_WITH_SCOPE (scope) {
         sentry_scope_t *empty = sentry_scope_clone(scope);
@@ -1427,6 +1476,12 @@ static void
 native_backend_except(sentry_backend_t *backend, const sentry_ucontext_t *uctx)
 {
     native_backend_state_t *state = (native_backend_state_t *)backend->data;
+    if (state) {
+        sentry__atomic_store(&state->crashed, 1);
+        if (state->ipc) {
+            sentry__atomic_store(&state->ipc->stopped, 1);
+        }
+    }
 
     SENTRY_WITH_OPTIONS (options) {
         // Disable logging during crash handling if configured
@@ -1472,19 +1527,12 @@ native_backend_except(sentry_backend_t *backend, const sentry_ucontext_t *uctx)
             }
 
             if (should_handle) {
-                bool modified = sentry__hint_is_modified(&hint);
-                if (modified) {
-                    size_t len = sentry_value_get_length(hint.attachments);
-                    for (size_t i = 0; i < len; i++) {
-                        add_attachment(state,
-                            sentry_value_get_by_index(hint.attachments, i));
-                    }
-                }
-                // include callback changes in the final ordered snapshot
+                write_crash_attachments(state, &hint);
                 SENTRY_WITH_SCOPE (scope) {
                     sentry__scope_apply_to_event(
                         scope, options, event, SENTRY_SCOPE_BREADCRUMBS);
                 }
+                write_crash_event(state, event);
 
 #ifndef SENTRY_SCREENSHOT_NONE
                 // The screenshot is captured by the daemon out-of-process, so
@@ -1505,13 +1553,6 @@ native_backend_except(sentry_backend_t *backend, const sentry_ucontext_t *uctx)
                     }
                 }
 #endif
-
-                if (state && state->ipc) {
-                    SENTRY_WITH_SCOPE (scope) {
-                        send_snapshot(
-                            state, scope, event, modified ? &hint : NULL);
-                    }
-                }
 
                 sentry_value_decref(event);
 

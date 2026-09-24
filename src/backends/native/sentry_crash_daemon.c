@@ -364,6 +364,107 @@ attachment_is_placeholder(const sentry_options_t *options, const char *path)
     return is_placeholder;
 }
 
+/**
+ * Reads a legacy JSON attachment manifest (TODO: remove in 1.0)
+ */
+static sentry_value_t
+read_legacy_manifest(const sentry_path_t *manifest_path)
+{
+    size_t buf_len = 0;
+    char *buf = sentry__path_read_to_buffer(manifest_path, &buf_len);
+    if (!buf) {
+        return sentry_value_new_null();
+    }
+
+    const char *start = buf;
+    const char *end = buf + buf_len;
+    while (start < end
+        && (*start == ' ' || *start == '\t' || *start == '\r'
+            || *start == '\n')) {
+        start++;
+    }
+    const char *trimmed_end = end;
+    while (trimmed_end > start
+        && (trimmed_end[-1] == ' ' || trimmed_end[-1] == '\t'
+            || trimmed_end[-1] == '\r' || trimmed_end[-1] == '\n')) {
+        trimmed_end--;
+    }
+    sentry_value_t legacy
+        = start < trimmed_end && *start == '[' && trimmed_end[-1] == ']'
+        ? sentry__value_from_json(start, (size_t)(trimmed_end - start))
+        : sentry_value_new_null();
+    sentry_free(buf);
+    if (sentry_value_get_type(legacy) != SENTRY_VALUE_TYPE_LIST) {
+        sentry_value_decref(legacy);
+        return sentry_value_new_null();
+    }
+
+    sentry_value_t attachments = sentry_value_new_list();
+    size_t len = sentry_value_get_length(legacy);
+    for (size_t i = 0; i < len; i++) {
+        sentry_value_t info = sentry_value_get_by_index(legacy, i);
+        const char *path
+            = sentry_value_as_string(sentry_value_get_by_key(info, "path"));
+        const char *filename
+            = sentry_value_as_string(sentry_value_get_by_key(info, "filename"));
+        if (sentry__string_empty(path) || sentry__string_empty(filename)) {
+            continue;
+        }
+        sentry_value_t attachment = sentry__attachment_from_file(path);
+        if (sentry_value_is_null(attachment)) {
+            continue;
+        }
+        sentry_attachment_set_filename(attachment, filename);
+        sentry_attachment_set_type(attachment,
+            sentry_value_as_string(
+                sentry_value_get_by_key(info, "attachment_type")));
+        sentry_attachment_set_content_type(attachment,
+            sentry_value_as_string(
+                sentry_value_get_by_key(info, "content_type")));
+        sentry_value_append(attachments, attachment);
+    }
+    sentry_value_decref(legacy);
+    return attachments;
+}
+
+static sentry_value_t
+read_attachment_manifest(const sentry_path_t *run_folder)
+{
+    sentry_path_t *path
+        = sentry__path_join_str(run_folder, "__sentry-attachments");
+    if (!path) {
+        return sentry_value_new_null();
+    }
+    sentry_value_t attachments = sentry__read_attachment_manifest(path);
+    if (sentry_value_is_null(attachments)) {
+        attachments = read_legacy_manifest(path);
+    }
+    sentry__path_free(path);
+    return attachments;
+}
+
+static sentry_value_t
+read_crash_event(const sentry_path_t *run_folder)
+{
+    sentry_path_t *path = sentry__path_join_str(run_folder, "__sentry-event");
+    if (!path) {
+        return sentry_value_new_null();
+    }
+    size_t len = 0;
+    char *buf = sentry__path_read_to_buffer(path, &len);
+    sentry__path_free(path);
+    if (!buf) {
+        return sentry_value_new_null();
+    }
+    sentry_value_t event = sentry__value_from_json(buf, len);
+    sentry_free(buf);
+    if (sentry_value_get_type(event) != SENTRY_VALUE_TYPE_OBJECT) {
+        sentry_value_decref(event);
+        return sentry_value_new_null();
+    }
+    return event;
+}
+
 // cache large staged attachments as attachment-ref items
 static void
 add_attachment_refs(sentry_envelope_t *envelope,
@@ -4190,10 +4291,22 @@ sentry__process_crash(const sentry_options_t *options, sentry_crash_ipc_t *ipc)
     }
 
     sentry_value_t base = sentry__crash_scope_event(&ipc->scope);
+    sentry_path_t *run_folder = sentry__path_from_str(ctx->run_path);
+    sentry_value_t crash_event
+        = run_folder ? read_crash_event(run_folder) : sentry_value_new_null();
+    if (!sentry_value_is_null(crash_event)) {
+        sentry_value_decref(base);
+        base = crash_event;
+    }
+    sentry_value_t attachments = run_folder
+        ? read_attachment_manifest(run_folder)
+        : sentry_value_new_null();
+    if (sentry_value_is_null(attachments)) {
+        attachments = sentry_value_incref(ipc->scope.attachments);
+    }
 #if defined(SENTRY_PLATFORM_WINDOWS)
     ensure_device_arch(base);
 #endif
-    sentry_path_t *run_folder = sentry__path_from_str(ctx->run_path);
 
     // The crashing process dumps its pending logs, sessions, and transactions
     // before notifying the daemon. Queue those before writing the crash
@@ -4212,6 +4325,7 @@ sentry__process_crash(const sentry_options_t *options, sentry_crash_ipc_t *ipc)
     if (path_len < 0 || path_len >= (int)sizeof(envelope_path)) {
         SENTRY_WARN("Envelope path truncated or invalid");
         sentry_value_decref(base);
+        sentry_value_decref(attachments);
         if (run_folder) {
             sentry__path_free(run_folder);
         }
@@ -4320,18 +4434,18 @@ sentry__process_crash(const sentry_options_t *options, sentry_crash_ipc_t *ipc)
             minidump_path[0] ? minidump_path : "NULL");
         envelope_written = write_envelope_with_native_stacktrace(options,
             envelope_path, ctx, base, minidump_path[0] ? minidump_path : NULL,
-            run_folder, ipc->scope.attachments);
+            run_folder, attachments);
     } else {
         // Mode 0 (MINIDUMP only)
         SENTRY_DEBUG("Writing envelope with minidump");
-        envelope_written
-            = write_envelope_with_minidump(options, ctx, envelope_path, base,
-                minidump_path, run_folder, ipc->scope.attachments);
+        envelope_written = write_envelope_with_minidump(options, ctx,
+            envelope_path, base, minidump_path, run_folder, attachments);
     }
 
     if (!envelope_written) {
         SENTRY_WARN("Failed to write envelope");
         sentry_value_decref(base);
+        sentry_value_decref(attachments);
         if (run_folder) {
             sentry__path_free(run_folder);
         }
@@ -4381,7 +4495,7 @@ sentry__process_crash(const sentry_options_t *options, sentry_crash_ipc_t *ipc)
         goto cleanup;
     }
 
-    add_attachment_refs(envelope, options, ipc->scope.attachments);
+    add_attachment_refs(envelope, options, attachments);
 
     bool has_attachment_refs = sentry__envelope_has_content_type(
         envelope, SENTRY_ATTACHMENT_REF_MIME);
@@ -4431,6 +4545,7 @@ cleanup:
 
     sentry__path_free(run_folder);
     sentry_value_decref(base);
+    sentry_value_decref(attachments);
 
     SENTRY_DEBUG("Crash processing completed successfully");
 

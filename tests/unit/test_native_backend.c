@@ -1162,11 +1162,15 @@ SENTRY_TEST(crash_scope_invalid_updates)
 #ifdef SENTRY_BACKEND_NATIVE
 static sentry_value_t
 native_scope_on_crash(const sentry_ucontext_t *UNUSED(uctx),
-    sentry_value_t event, sentry_hint_t *UNUSED(hint), void *UNUSED(data))
+    sentry_value_t event, sentry_hint_t *hint, void *UNUSED(data))
 {
     sentry_set_tag("tag", "callback");
-    sentry_clear_attachments();
-    sentry_attach_bytes("callback", 8, "callback.txt");
+    if (getenv("SENTRY_TEST_NATIVE_SCOPE_HINT_CLEAR")) {
+        sentry_hint_clear_attachments(hint);
+    } else {
+        sentry_clear_attachments();
+        sentry_attach_bytes("callback", 8, "callback.txt");
+    }
     sentry_value_set_by_key(event, "callback", sentry_value_new_bool(true));
     return event;
 }
