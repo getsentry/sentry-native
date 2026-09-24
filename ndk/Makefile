@@ -18,4 +18,4 @@ api:
 
 # Run tests and lint
 check:
-	./gradlew :sentry-native-ndk:check
+	./gradlew :sentry-native-ndk:check :sentry-native-ndk-native:check
