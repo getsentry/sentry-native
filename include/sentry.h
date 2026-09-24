@@ -106,6 +106,12 @@ extern "C" {
 #define SENTRY_SDK_VERSION_MAJOR 0
 #define SENTRY_SDK_VERSION_MINOR 17
 #define SENTRY_SDK_VERSION_PATCH 1
+#define SENTRY_SDK_VERSION_AT_LEAST(major, minor, patch)                       \
+    (SENTRY_SDK_VERSION_MAJOR > (major)                                        \
+        || (SENTRY_SDK_VERSION_MAJOR == (major)                                \
+            && (SENTRY_SDK_VERSION_MINOR > (minor)                             \
+                || (SENTRY_SDK_VERSION_MINOR == (minor)                        \
+                    && SENTRY_SDK_VERSION_PATCH >= (patch)))))
 #define SENTRY_SDK_USER_AGENT SENTRY_SDK_NAME "/" SENTRY_SDK_VERSION
 
 /* marks a function as part of the sentry API */
