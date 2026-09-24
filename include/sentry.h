@@ -2558,6 +2558,55 @@ SENTRY_API sentry_scope_t *sentry_local_scope_new(void);
 SENTRY_API sentry_scope_t *sentry_scope_new(void);
 
 /**
+ * Begins a batch read of `scope`.
+ *
+ * The scope remains read-locked until the matching `sentry_scope_end_read` call
+ * on the same thread, so multiple properties can be read consistently. Other
+ * threads may read the scope concurrently. Reads may be nested for the same
+ * scope, including inside a write batch. Mutating the scope inside an outermost
+ * read batch is not allowed.
+ *
+ * Returns 0 on success or 1 if `scope` is NULL or allocation fails. Each
+ * successful call must be matched by `sentry_scope_end_read` before freeing the
+ * scope.
+ */
+SENTRY_API int sentry_scope_begin_read(const sentry_scope_t *scope);
+
+/**
+ * Ends a read batch begun by `sentry_scope_begin_read`.
+ *
+ * The outermost call releases the scope read lock. Reads nested inside a write
+ * batch leave the scope write-locked until the outermost
+ * `sentry_scope_end_write`. This must be called on the same thread as the
+ * matching begin call.
+ */
+SENTRY_API void sentry_scope_end_read(const sentry_scope_t *scope);
+
+/**
+ * Begins a batch write of `scope`.
+ *
+ * The scope remains write-locked until the matching
+ * `sentry_scope_end_write` call on the same thread. Scope functions may be
+ * called normally during the batch, including functions that read the scope.
+ * Writes may be nested for the same scope, but an outermost read batch cannot
+ * be upgraded to a write batch.
+ *
+ * Returns 0 on success or 1 if `scope` is NULL, allocation fails, or a read
+ * batch would need upgrading. Each successful call must be matched by
+ * `sentry_scope_end_write` before freeing the scope.
+ */
+SENTRY_API int sentry_scope_begin_write(sentry_scope_t *scope);
+
+/**
+ * Ends a write batch begun by `sentry_scope_begin_write`.
+ *
+ * The outermost call releases the scope write lock and flushes any pending
+ * global scope changes to the backend. This must be called on the
+ * same thread as the matching begin call.
+ */
+SENTRY_API void sentry_scope_end_write(sentry_scope_t *scope);
+
+/**
  * Frees a scope created via `sentry_scope_new`, `sentry_scope_clone`, or
  * `sentry_local_scope_new`.
  */

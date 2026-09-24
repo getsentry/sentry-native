@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+**Features**:
+
+- Add `sentry_scope_begin_read`/`sentry_scope_end_read` and `sentry_scope_begin_write`/`sentry_scope_end_write` for consistent reads of multiple scope properties and applying multiple scope changes with a single scope flush. ([#2107](https://github.com/getsentry/sentry-native/pull/2107))
+
 ## 0.17.1
 
 **Fixes**:
