@@ -103,6 +103,9 @@ extern "C" {
 #ifndef SENTRY_SDK_VERSION
 #    define SENTRY_SDK_VERSION "0.17.1"
 #endif
+#define SENTRY_SDK_VERSION_MAJOR 0
+#define SENTRY_SDK_VERSION_MINOR 17
+#define SENTRY_SDK_VERSION_PATCH 1
 #define SENTRY_SDK_USER_AGENT SENTRY_SDK_NAME "/" SENTRY_SDK_VERSION
 
 /* marks a function as part of the sentry API */

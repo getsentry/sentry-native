@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+**Features**:
+
+- Add `SENTRY_SDK_VERSION_MAJOR`, `SENTRY_SDK_VERSION_MINOR`, and `SENTRY_SDK_VERSION_PATCH` for compile-time version checks. ([#2136](https://github.com/getsentry/sentry-native/pull/2136))
+
 ## 0.17.1
 
 **Fixes**:
