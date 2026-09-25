@@ -5,6 +5,7 @@
 **Features**:
 
 - Add `SENTRY_SDK_VERSION_MAJOR`, `SENTRY_SDK_VERSION_MINOR`, `SENTRY_SDK_VERSION_PATCH`, and `SENTRY_SDK_VERSION_AT_LEAST` for compile-time version checks. ([#2136](https://github.com/getsentry/sentry-native/pull/2136))
+- Add an option to limit non-crashing thread stack capture size in `crashpad` on Linux. ([#2137](https://github.com/getsentry/sentry-native/pull/2137), [crashpad#172](https://github.com/getsentry/crashpad/pull/172))
 
 ## 0.17.1
 
