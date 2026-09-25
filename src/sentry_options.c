@@ -106,7 +106,7 @@ sentry_options_new(void)
         false;
 #endif
     opts->backend = sentry__backend_new();
-    opts->transport = sentry__transport_new_default();
+    opts->transport = sentry_transport_new_default();
     opts->refcount = 1;
     opts->shutdown_timeout = SENTRY_DEFAULT_SHUTDOWN_TIMEOUT;
     opts->transfer_timeout = SENTRY_DEFAULT_TRANSFER_TIMEOUT;

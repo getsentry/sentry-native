@@ -410,7 +410,7 @@ exit:;
 }
 
 sentry_transport_t *
-sentry__transport_new_default(void)
+sentry_transport_new_default(void)
 {
     SENTRY_INFO("initializing winhttp transport");
     winhttp_client_t *client = winhttp_client_new();
