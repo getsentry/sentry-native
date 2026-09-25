@@ -1192,6 +1192,11 @@ crashpad_backend_startup(
             crashpad::TriState::kEnabled);
     }
 
+    if (options->crashpad_max_stack_capture_size) {
+        crashpad_info->set_max_stack_capture_size(
+            options->crashpad_max_stack_capture_size);
+    }
+
 #if defined(SENTRY_PLATFORM_WINDOWS) || defined(SENTRY_PLATFORM_LINUX)         \
     || defined(SENTRY_PLATFORM_MACOS)
     sentry_scope_observer_t *observer = sentry__scope_observer_new();
