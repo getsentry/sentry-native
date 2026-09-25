@@ -90,6 +90,7 @@ sentry_options_new(void)
     opts->propagate_traceparent = false;
     opts->strict_trace_continuation = false;
     opts->crashpad_limit_stack_capture_to_sp = false;
+    opts->crashpad_max_stack_capture_size = 0;
     opts->cache_keep = SENTRY_CACHE_KEEP_NONE;
     opts->cache_max_age = 0;
     opts->cache_max_size = 0;
@@ -753,6 +754,13 @@ sentry_options_set_crashpad_limit_stack_capture_to_sp(
     sentry_options_t *opts, int enabled)
 {
     opts->crashpad_limit_stack_capture_to_sp = !!enabled;
+}
+
+void
+sentry_options_set_crashpad_max_stack_capture_size(
+    sentry_options_t *opts, uint32_t max_stack_capture_size)
+{
+    opts->crashpad_max_stack_capture_size = max_stack_capture_size;
 }
 
 void
