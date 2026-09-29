@@ -223,26 +223,22 @@ static bool
 write_attachment_to_envelope(sentry_envelope_t *envelope, const char *file_path,
     const char *filename, const char *attachment_type, const char *content_type)
 {
-    sentry_path_t *path = sentry__path_from_str(file_path);
-    sentry_envelope_item_t *item
-        = sentry__envelope_add_from_path(envelope, path, "attachment");
-    sentry__path_free(path);
-    if (!item) {
+    sentry_value_t attachment = sentry__attachment_from_file(file_path);
+    if (sentry_value_is_null(attachment)) {
         return false;
     }
 
     // Write attachment item header
-    sentry__envelope_item_set_header(item, "attachment_type",
-        sentry_value_new_string(sentry__string_empty(attachment_type)
-                ? SENTRY_ATTACHMENT_TYPE_GENERIC
-                : attachment_type));
-    if (content_type) {
-        sentry__envelope_item_set_header(
-            item, "content_type", sentry_value_new_string(content_type));
-    }
-    sentry__envelope_item_set_header(item, "filename",
-        sentry_value_new_string(filename ? filename : "attachment"));
-    return true;
+    sentry_attachment_set_type(attachment,
+        sentry__string_empty(attachment_type) ? SENTRY_ATTACHMENT_TYPE_GENERIC
+                                              : attachment_type);
+    sentry_attachment_set_content_type(attachment, content_type);
+    sentry_attachment_set_filename(
+        attachment, filename ? filename : "attachment");
+    sentry_envelope_item_t *item
+        = sentry__envelope_add_attachment(envelope, attachment);
+    sentry_value_decref(attachment);
+    return item != NULL;
 }
 
 /**
@@ -329,17 +325,7 @@ write_attachments_from_manifest(sentry_envelope_t *envelope,
     const sentry_options_t *options, const sentry_path_t *run_folder)
 {
     sentry_value_t attachments = read_attachment_manifest(run_folder);
-    size_t len = sentry_value_get_length(attachments);
-    for (size_t i = 0; i < len; i++) {
-        sentry_value_t attachment = sentry_value_get_by_index(attachments, i);
-        const char *path = sentry__attachment_get_path(attachment);
-        if (!sentry__attachment_is_placeholder(attachment, options)) {
-            write_attachment_to_envelope(envelope, path,
-                sentry__attachment_get_filename(attachment),
-                sentry__attachment_get_type(attachment),
-                sentry__attachment_get_content_type(attachment));
-        }
-    }
+    sentry__envelope_add_attachments(envelope, attachments, options);
     sentry_value_decref(attachments);
 }
 
