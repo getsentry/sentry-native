@@ -299,3 +299,43 @@ sentry__writer_into_string(sentry_writer_t *writer, size_t *len_out)
     sentry_free(writer);
     return rv;
 }
+
+bool
+sentry__writer_write_from_path(
+    sentry_writer_t *writer, const sentry_path_t *path, size_t len)
+{
+    if (sentry__writer_has_failed(writer)) {
+        return false;
+    }
+    if (!path || writer->closed) {
+        writer->failed = true;
+        return false;
+    }
+#ifdef SENTRY_PLATFORM_WINDOWS
+    FILE *file = _wfopen(path->path_w, L"rb");
+#else
+    FILE *file = fopen(path->path, "rb");
+#endif
+    if (!file) {
+        writer->failed = true;
+        return false;
+    }
+    char buf[8192];
+    size_t remaining = len;
+    while (remaining) {
+        size_t n = remaining < sizeof(buf) ? remaining : sizeof(buf);
+        if (fread(buf, 1, n, file) != n
+            || !sentry__writer_write(writer, buf, n)) {
+            break;
+        }
+        remaining -= n;
+    }
+    bool ok = remaining == 0;
+    if (fclose(file) != 0) {
+        ok = false;
+    }
+    if (!ok) {
+        writer->failed = true;
+    }
+    return ok;
+}

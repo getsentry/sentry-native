@@ -8,6 +8,7 @@
 #include "sentry_ratelimiter.h"
 #include "sentry_string.h"
 #include "sentry_testsupport.h"
+#include "sentry_transport.h"
 #include "sentry_utils.h"
 #include "sentry_value.h"
 #include "transports/sentry_http_transport.h"
@@ -820,6 +821,7 @@ SENTRY_TEST(attachment_bytes_no_copy)
         = sentry__envelope_add_attachment(envelope, attachment);
 
     TEST_ASSERT(!!item);
+    sentry__envelope_load(envelope);
     size_t payload_len = 0;
     const char *payload = sentry__envelope_item_get_payload(item, &payload_len);
     TEST_CHECK(payload == attachment_bytes);
@@ -852,6 +854,7 @@ SENTRY_TEST(attachment_ref_creation)
 
         TEST_CHECK(!!item);
         TEST_CHECK_INT_EQUAL(sentry__envelope_get_item_count(envelope), 1);
+        sentry__envelope_load(envelope);
         size_t payload_len = 0;
         TEST_CHECK_STRING_EQUAL(
             sentry__envelope_item_get_payload(item, &payload_len), "small");
@@ -907,6 +910,7 @@ SENTRY_TEST(attachment_ref_from_path)
 
         TEST_CHECK(!!item);
         TEST_CHECK_INT_EQUAL(sentry__envelope_get_item_count(envelope), 1);
+        sentry__envelope_load(envelope);
         size_t payload_len = 0;
         TEST_CHECK_STRING_EQUAL(
             sentry__envelope_item_get_payload(item, &payload_len), "small");
@@ -1553,6 +1557,7 @@ SENTRY_TEST(envelope_raw)
 
     sentry_envelope_t *envelope = sentry__envelope_from_path(path);
     TEST_ASSERT(!!envelope);
+    sentry__envelope_load(envelope);
     TEST_CHECK(sentry__envelope_is_raw(envelope));
     TEST_CHECK_INT_EQUAL(sentry__envelope_get_item_count(envelope), 0);
     TEST_CHECK(!sentry__envelope_get_item(envelope, 0));
@@ -1581,5 +1586,151 @@ SENTRY_TEST(envelope_raw)
 
     sentry_envelope_free(envelope);
     sentry__path_remove(path);
+    sentry__path_free(path);
+}
+
+SENTRY_TEST(envelope_path)
+{
+    char data[16387] = "binary\0payload\n";
+    data[sizeof(data) - 1] = 'z';
+    const size_t sizes[] = { 0, sizeof(data) };
+    sentry_path_t *path = sentry__path_from_str(
+        SENTRY_TEST_PATH_PREFIX "sentry_test_path_\xc3\xa4.bin");
+    sentry_path_t *output = sentry__path_from_str(
+        SENTRY_TEST_PATH_PREFIX "sentry_test_path.envelope");
+    for (size_t i = 0; i < sizeof(sizes) / sizeof(sizes[0]); i++) {
+        TEST_ASSERT(sentry__path_write_buffer(path, data, sizes[i]) == 0);
+        sentry_envelope_t *envelope = sentry__envelope_new_with_dsn(NULL);
+        TEST_ASSERT(
+            !!sentry__envelope_add_from_path(envelope, path, "attachment"));
+        TEST_ASSERT(sentry_envelope_write_to_path(envelope, output) == 0);
+
+        size_t len = 0;
+        char *written = sentry__path_read_to_buffer(output, &len);
+        TEST_ASSERT(!!written);
+        char header[64];
+        size_t header_len = (size_t)snprintf(header, sizeof(header),
+            "{}\n{\"type\":\"attachment\",\"length\":%zu}\n", sizes[i]);
+        TEST_ASSERT_INT_EQUAL(len, header_len + sizes[i]);
+        TEST_CHECK(memcmp(written, header, header_len) == 0);
+        TEST_CHECK(memcmp(written + header_len, data, sizes[i]) == 0);
+
+        size_t serialized_len = 0;
+        char *serialized = sentry_envelope_serialize(envelope, &serialized_len);
+        TEST_ASSERT(!!serialized);
+        TEST_ASSERT_INT_EQUAL(serialized_len, len);
+        TEST_CHECK(memcmp(serialized, written, len) == 0);
+        sentry_free(serialized);
+        sentry_free(written);
+        sentry_envelope_free(envelope);
+    }
+
+    // truncated and missing files
+    TEST_ASSERT(sentry__path_write_buffer(path, "data", 4) == 0);
+    sentry_envelope_t *envelope = sentry__envelope_new_with_dsn(NULL);
+    TEST_ASSERT(!!sentry__envelope_add_from_path(envelope, path, "attachment"));
+    TEST_ASSERT(!!sentry__envelope_add_from_buffer(envelope, "{}", 2, "event"));
+
+    TEST_ASSERT(sentry__path_write_buffer(path, "da", 2) == 0);
+    TEST_CHECK(sentry_envelope_write_to_path(envelope, output) != 0);
+    TEST_CHECK(!sentry__path_is_file(output));
+    size_t len = 1;
+    TEST_CHECK(!sentry_envelope_serialize(envelope, &len));
+    TEST_CHECK_INT_EQUAL(len, 0);
+    bool owned = false;
+    TEST_CHECK(
+        !sentry_envelope_serialize_ratelimited(envelope, NULL, &len, &owned));
+    TEST_CHECK_INT_EQUAL(len, 0);
+    sentry_stringbuilder_t sb;
+    sentry__stringbuilder_init(&sb);
+    TEST_CHECK(!sentry__envelope_serialize_into_stringbuilder(envelope, &sb));
+    TEST_CHECK_INT_EQUAL(sentry__stringbuilder_len(&sb), 0);
+    sentry__stringbuilder_cleanup(&sb);
+
+    TEST_ASSERT(sentry__path_remove(path) == 0);
+    TEST_CHECK(sentry_envelope_write_to_path(envelope, output) != 0);
+    TEST_CHECK(!sentry__path_is_file(output));
+    TEST_CHECK(!sentry__envelope_add_from_path(envelope, path, "attachment"));
+    sentry__envelope_load(envelope);
+    TEST_CHECK_INT_EQUAL(sentry__envelope_get_item_count(envelope), 1);
+    TEST_CHECK_STRING_EQUAL(sentry__envelope_item_get_payload(
+                                sentry__envelope_get_item(envelope, 0), NULL),
+        "{}");
+    sentry_envelope_free(envelope);
+
+#if !defined(SENTRY_PLATFORM_ANDROID) && !defined(SENTRY_PLATFORM_NX)          \
+    && !defined(SENTRY_PLATFORM_PS) && !defined(SENTRY_PLATFORM_XBOX)
+    // files larger than the buffer-read limit
+    const size_t size = 512 * 1024 * 1024 + 1;
+    sentry__path_free(path);
+    path
+        = sentry__path_from_str(SENTRY_TEST_PATH_PREFIX "sentry_test_path.bin");
+    FILE *file = fopen(path->path, "wb");
+    TEST_ASSERT(!!file);
+    TEST_ASSERT(fseek(file, (long)(size - 1), SEEK_SET) == 0);
+    TEST_ASSERT(fputc('z', file) == 'z');
+    TEST_ASSERT(fclose(file) == 0);
+    envelope = sentry__envelope_new_with_dsn(NULL);
+    sentry_envelope_item_t *item
+        = sentry__envelope_add_from_path(envelope, path, "attachment");
+    TEST_ASSERT(!!item);
+    TEST_CHECK_UINT64_EQUAL(
+        sentry_value_as_uint64(
+            sentry__envelope_item_get_header(item, "length")),
+        size);
+    TEST_ASSERT(sentry_envelope_write_to_path(envelope, output) == 0);
+    const char header[]
+        = "{}\n{\"type\":\"attachment\",\"length\":536870913}\n";
+    TEST_CHECK_INT_EQUAL(
+        sentry__path_get_size(output), sizeof(header) - 1 + size);
+    file = fopen(output->path, "rb");
+    TEST_ASSERT(!!file);
+    char buf[sizeof(header)] = { 0 };
+    TEST_ASSERT(fread(buf, 1, sizeof(header) - 1, file) == sizeof(header) - 1);
+    TEST_CHECK_STRING_EQUAL(buf, header);
+    TEST_CHECK(fgetc(file) == 0);
+    TEST_ASSERT(fseek(file, -1, SEEK_END) == 0);
+    TEST_CHECK(fgetc(file) == 'z');
+    TEST_CHECK(fclose(file) == 0);
+    sentry_envelope_free(envelope);
+#endif
+    sentry__path_remove(output);
+    sentry__path_free(output);
+    sentry__path_remove(path);
+    sentry__path_free(path);
+}
+
+static void
+retain_envelope(sentry_envelope_t *envelope, void *data)
+{
+    *(sentry_envelope_t **)data = envelope;
+}
+
+SENTRY_TEST(envelope_load)
+{
+    sentry_path_t *path
+        = sentry__path_from_str(SENTRY_TEST_PATH_PREFIX "sentry_test_load.bin");
+    TEST_ASSERT(sentry__path_write_buffer(path, "data", 4) == 0);
+    sentry_envelope_t *envelope = sentry__envelope_new_with_dsn(NULL);
+    sentry_envelope_item_t *item
+        = sentry__envelope_add_from_path(envelope, path, "attachment");
+    TEST_ASSERT(!!item);
+    TEST_CHECK(!sentry__envelope_item_get_payload(item, NULL));
+
+    sentry_envelope_t *queued = NULL;
+    sentry_transport_t *transport = sentry_transport_new(retain_envelope);
+    sentry_transport_set_state(transport, &queued);
+    sentry__transport_send_envelope(transport, envelope);
+    TEST_ASSERT(queued == envelope);
+    size_t len = 0;
+    const char *payload = sentry__envelope_item_get_payload(item, &len);
+    TEST_ASSERT(!!payload);
+    TEST_ASSERT(sentry__path_remove(path) == 0);
+    sentry__envelope_load(queued);
+    TEST_CHECK_INT_EQUAL(len, 4);
+    TEST_CHECK_STRING_EQUAL(payload, "data");
+
+    sentry_envelope_free(queued);
+    sentry_transport_free(transport);
     sentry__path_free(path);
 }

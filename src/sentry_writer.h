@@ -50,4 +50,10 @@ size_t sentry__writer_byte_count(const sentry_writer_t *writer);
  */
 char *sentry__writer_into_string(sentry_writer_t *writer, size_t *len_out);
 
+/**
+ * stream exactly `len` bytes from `path`; failures are sticky
+ */
+bool sentry__writer_write_from_path(
+    sentry_writer_t *writer, const sentry_path_t *path, size_t len);
+
 #endif
