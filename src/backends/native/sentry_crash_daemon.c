@@ -245,16 +245,6 @@ write_attachment_to_envelope(sentry_envelope_t *envelope, const char *file_path,
     return true;
 }
 
-static bool
-attachment_is_placeholder(const sentry_options_t *options, const char *path)
-{
-    sentry_value_t attachment = sentry__attachment_from_file(path);
-    bool is_placeholder
-        = sentry__attachment_is_placeholder(attachment, options);
-    sentry_value_decref(attachment);
-    return is_placeholder;
-}
-
 /**
  * Reads a legacy JSON attachment manifest (TODO: remove in 1.0)
  */
@@ -343,7 +333,7 @@ write_attachments_from_manifest(sentry_envelope_t *envelope,
     for (size_t i = 0; i < len; i++) {
         sentry_value_t attachment = sentry_value_get_by_index(attachments, i);
         const char *path = sentry__attachment_get_path(attachment);
-        if (!attachment_is_placeholder(options, path)) {
+        if (!sentry__attachment_is_placeholder(attachment, options)) {
             write_attachment_to_envelope(envelope, path,
                 sentry__attachment_get_filename(attachment),
                 sentry__attachment_get_type(attachment),
