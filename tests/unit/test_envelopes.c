@@ -1537,3 +1537,49 @@ SENTRY_TEST(minidump_rate_limit)
     sentry__rate_limiter_free(rl);
     sentry_envelope_free(envelope);
 }
+
+SENTRY_TEST(envelope_raw)
+{
+    const char raw[] = "{\"message\":\n\"truncated";
+    sentry_envelope_t *src = sentry__envelope_new_with_dsn(NULL);
+    TEST_ASSERT(!!src);
+    sentry__envelope_set_header(src, "test", sentry_value_new_int32(42));
+    sentry_envelope_item_t *item
+        = sentry__envelope_add_from_buffer(src, raw, sizeof(raw) - 1, "event");
+    TEST_ASSERT(!!item);
+    sentry_path_t *path = sentry__path_from_str(
+        SENTRY_TEST_PATH_PREFIX "sentry_test_raw.envelope");
+    TEST_ASSERT(sentry_envelope_write_to_path(src, path) == 0);
+
+    sentry_envelope_t *envelope = sentry__envelope_from_path(path);
+    TEST_ASSERT(!!envelope);
+    TEST_CHECK(sentry__envelope_is_raw(envelope));
+    TEST_CHECK_INT_EQUAL(sentry__envelope_get_item_count(envelope), 0);
+    TEST_CHECK(!sentry__envelope_get_item(envelope, 0));
+    TEST_CHECK(!sentry__envelope_remove_item(envelope, item));
+    TEST_CHECK(!sentry__envelope_add_from_buffer(envelope, "{}", 2, "event"));
+    TEST_CHECK(sentry_value_is_null(sentry_envelope_get_event(envelope)));
+    TEST_CHECK(sentry_value_is_null(sentry_envelope_get_transaction(envelope)));
+    TEST_CHECK(
+        sentry_value_is_null(sentry_envelope_get_header(envelope, "test")));
+    sentry__envelope_set_header(envelope, "test", sentry_value_new_int32(43));
+    sentry_envelope_free(src);
+
+    TEST_ASSERT(sentry__envelope_materialize(envelope));
+    TEST_CHECK(!sentry__envelope_is_raw(envelope));
+    TEST_CHECK_INT_EQUAL(sentry__envelope_get_item_count(envelope), 1);
+    TEST_CHECK_INT_EQUAL(
+        sentry_value_as_int32(sentry_envelope_get_header(envelope, "test")),
+        42);
+    item = sentry__envelope_get_item(envelope, 0);
+    TEST_ASSERT(!!item);
+    size_t len = 0;
+    const char *payload = sentry__envelope_item_get_payload(item, &len);
+    TEST_ASSERT(!!payload);
+    TEST_CHECK_INT_EQUAL(len, sizeof(raw) - 1);
+    TEST_CHECK_STRING_EQUAL(payload, raw);
+
+    sentry_envelope_free(envelope);
+    sentry__path_remove(path);
+    sentry__path_free(path);
+}
