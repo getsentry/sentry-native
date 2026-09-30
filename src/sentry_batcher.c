@@ -530,16 +530,29 @@ process_batch(sentry_batcher_t *batcher, sentry_value_t items, bool crash_safe)
         return;
     }
 
-    if (sentry__threadpool_start(batcher->threadpool) != 0
-        || sentry__threadpool_submit(batcher->threadpool, batch_task_exec,
-               batch_task_complete_and_cleanup, NULL, task)
-            != 0) {
+    if (sentry__threadpool_start(batcher->threadpool) != 0) {
         SENTRY_WARN("serializing telemetry batch synchronously: "
-                    "serialization pool unavailable or out of memory");
+                    "serialization pool unavailable");
         batch_task_unlink(task);
         process_batch_sync_ordered(batcher, envelope, items);
         sentry_free(task);
         return;
+    }
+
+    const int result = sentry__threadpool_submit(batcher->threadpool,
+        batch_task_exec, batch_task_complete_and_cleanup, NULL, task);
+    if (result != 0) {
+        batch_task_unlink(task);
+        if (result > 0) {
+            sentry__client_report_discard(SENTRY_DISCARD_REASON_QUEUE_OVERFLOW,
+                batcher->data_category,
+                (long)sentry_value_get_length(
+                    sentry_value_get_by_key(task->items, "items")));
+        } else {
+            SENTRY_WARN("discarding telemetry batch: "
+                        "serialization task submission failed");
+        }
+        batch_task_free(task);
     }
 }
 

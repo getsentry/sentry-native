@@ -1177,7 +1177,7 @@ SENTRY_TEST(threadpool_max_pending)
     TEST_CHECK(sentry__threadpool_submit(pool, threadpool_max_pending_exec,
                    threadpool_max_pending_complete,
                    threadpool_max_pending_cleanup, &state)
-        != 0);
+        == 1);
     TEST_CHECK_INT_EQUAL(sentry__atomic_fetch(&state.cleaned_up), 1);
 
     sentry__mutex_lock(&state.lock);
@@ -1397,7 +1397,7 @@ SENTRY_TEST(threadpool_invalid_args)
     TEST_CHECK(sentry__threadpool_start(NULL) != 0);
     TEST_CHECK(sentry__threadpool_submit(NULL, threadpool_count_exec,
                    threadpool_count_complete, threadpool_count_cleanup, &state)
-        != 0);
+        == -1);
     TEST_CHECK_INT_EQUAL(sentry__atomic_fetch(&state.cleaned_up), 1);
     sentry__threadpool_setname(NULL, "ignored");
     sentry__threadpool_flush(NULL);
@@ -1410,7 +1410,7 @@ SENTRY_TEST(threadpool_invalid_args)
     TEST_CHECK_INT_EQUAL(sentry__threadpool_start(pool), 0);
     TEST_CHECK(sentry__threadpool_submit(pool, NULL, threadpool_count_complete,
                    threadpool_count_cleanup, &state)
-        != 0);
+        == -1);
     TEST_CHECK_INT_EQUAL(sentry__atomic_fetch(&state.cleaned_up), 2);
     TEST_CHECK_INT_EQUAL(sentry__atomic_fetch(&state.completed), 0);
     TEST_CHECK_INT_EQUAL(sentry__atomic_fetch(&state.executed), 0);
@@ -1515,7 +1515,7 @@ SENTRY_TEST(threadpool_rejected_submit_cleans_up)
 
     TEST_CHECK(sentry__threadpool_submit(pool, threadpool_test_exec,
                    threadpool_test_complete, threadpool_test_cleanup, &task)
-        != 0);
+        == -1);
     TEST_CHECK_INT_EQUAL(state.cleanup_count, 1);
     TEST_CHECK_INT_EQUAL(state.completion_count, 0);
 
