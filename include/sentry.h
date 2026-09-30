@@ -2381,9 +2381,10 @@ SENTRY_API void sentry_options_set_crashpad_limit_stack_capture_to_sp(
  * Sets the maximum stack capture size for non-crashing threads.
  * A value of `0` disables the limit. This is disabled by default.
  *
- * This setting only has an effect when using the `crashpad` backend on Linux.
+ * This setting only has an effect when using the `crashpad` or `native` backend
+ * on Linux.
  */
-SENTRY_API void sentry_options_set_crashpad_max_stack_capture_size(
+SENTRY_API void sentry_options_set_max_stack_capture_size(
     sentry_options_t *opts, uint32_t max_stack_capture_size);
 
 /**

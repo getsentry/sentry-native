@@ -1216,7 +1216,7 @@ write_cv_record(minidump_writer_t *writer, const char *module_path,
  */
 static minidump_rva_t
 write_thread_stack(minidump_writer_t *writer, uint64_t stack_pointer,
-    size_t *stack_size_out, uint64_t *stack_start_out)
+    pid_t thread_id, size_t *stack_size_out, uint64_t *stack_start_out)
 {
     SENTRY_DEBUGF(
         "write_thread_stack: SP=0x%llx", (unsigned long long)stack_pointer);
@@ -1284,6 +1284,11 @@ write_thread_stack(minidump_writer_t *writer, uint64_t stack_pointer,
     // Limit to 1MB
     if (stack_size > SENTRY_CRASH_MAX_STACK_SIZE) {
         stack_size = SENTRY_CRASH_MAX_STACK_SIZE;
+    }
+    if (thread_id != writer->crash_ctx->crashed_tid
+        && writer->crash_ctx->max_stack_capture_size
+        && stack_size > writer->crash_ctx->max_stack_capture_size) {
+        stack_size = writer->crash_ctx->max_stack_capture_size;
     }
 
     void *stack_buffer = sentry_malloc(stack_size);
@@ -1387,8 +1392,8 @@ ptrace_capture_thread(
     if (ptrace_sp != 0) {
         size_t stack_size = 0;
         uint64_t stack_start = 0;
-        thread->stack.memory.rva
-            = write_thread_stack(writer, ptrace_sp, &stack_size, &stack_start);
+        thread->stack.memory.rva = write_thread_stack(
+            writer, ptrace_sp, thread->thread_id, &stack_size, &stack_start);
         thread->stack.memory.size = stack_size;
         thread->stack.start_address = stack_start;
         record_thread_stack(writer, thread);
@@ -1477,8 +1482,8 @@ write_thread_list_stream(minidump_writer_t *writer, minidump_directory_t *dir)
             if (sp != 0) {
                 size_t stack_size = 0;
                 uint64_t stack_start = 0;
-                thread->stack.memory.rva
-                    = write_thread_stack(writer, sp, &stack_size, &stack_start);
+                thread->stack.memory.rva = write_thread_stack(
+                    writer, sp, thread->thread_id, &stack_size, &stack_start);
                 thread->stack.memory.size = stack_size;
                 thread->stack.start_address = stack_start;
                 record_thread_stack(writer, thread);

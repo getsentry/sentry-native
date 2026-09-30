@@ -292,6 +292,7 @@ typedef struct {
     int crash_reporting_mode; // sentry_crash_reporting_mode_t
     int crash_upload_mode; // sentry_crash_upload_mode_t
     int thread_stackwalk_mode; // sentry_thread_stackwalk_mode_t
+    uint32_t max_stack_capture_size;
     bool debug_enabled; // Debug logging enabled in parent process
     bool attach_screenshot; // Screenshot attachment enabled in parent process
     bool attach_session_replay; // Session replay attachment enabled in parent
