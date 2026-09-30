@@ -86,8 +86,24 @@ pending_batch_func(sentry_envelope_t *envelope, sentry_value_t items)
     return sentry__envelope_add_from_buffer(envelope, "{}", 2, "event");
 }
 
+static sentry_batcher_t *
+new_batcher(sentry_batch_func_t batch_func, sentry_threadpool_t *pool)
+{
+    sentry_batcher_t *batcher = sentry__batcher_new(1, pool);
+    sentry__batcher_set_queue(
+        batcher, 0, SENTRY_DATA_CATEGORY_LOG_ITEM, batch_func);
+    return batcher;
+}
+
 static long g_first_batch_calls;
 static long g_second_batch_calls;
+
+static sentry_envelope_item_t *
+first_batch_func(sentry_envelope_t *envelope, sentry_value_t items)
+{
+    sentry__atomic_fetch_and_add(&g_first_batch_calls, 1);
+    return pending_batch_func(envelope, items);
+}
 
 static sentry_envelope_item_t *
 second_batch_func(sentry_envelope_t *envelope, sentry_value_t items)
@@ -171,8 +187,12 @@ free_test_run(sentry_run_t *run, sentry_path_t *database_path)
 
 SENTRY_TEST(batcher_sync_flush_sends)
 {
-    sentry_batcher_t *batcher = sentry__batcher_new(pending_batch_func, NULL);
+    sentry_batcher_t *batcher = sentry__batcher_new(2, NULL);
     TEST_ASSERT(!!batcher);
+    sentry__batcher_set_queue(
+        batcher, 0, SENTRY_DATA_CATEGORY_TRACE_METRIC, pending_batch_func);
+    sentry__batcher_set_queue(
+        batcher, 1, SENTRY_DATA_CATEGORY_LOG_ITEM, pending_batch_func);
     sentry_path_t *database_path = NULL;
     sentry_run_t *run = new_test_run(
         SENTRY_TEST_PATH_PREFIX ".batcher-sync-flush", &database_path);
@@ -184,12 +204,112 @@ SENTRY_TEST(batcher_sync_flush_sends)
     batcher->run = run;
     batcher->transport = transport;
 
-    TEST_CHECK(sentry__batcher_enqueue(batcher, sentry_value_new_null()));
+    TEST_CHECK(sentry__batcher_enqueue(
+        batcher, SENTRY_DATA_CATEGORY_LOG_ITEM, sentry_value_new_null()));
+    TEST_CHECK(sentry__batcher_enqueue(
+        batcher, SENTRY_DATA_CATEGORY_TRACE_METRIC, sentry_value_new_null()));
     TEST_CHECK(sentry__batcher_flush(batcher, false));
-    TEST_CHECK_INT_EQUAL(sentry__atomic_fetch(&sent), 1);
+    TEST_CHECK_INT_EQUAL(sentry__atomic_fetch(&sent), 2);
+
+    TEST_CHECK(sentry__batcher_enqueue(
+        batcher, SENTRY_DATA_CATEGORY_LOG_ITEM, sentry_value_new_null()));
+    TEST_CHECK(sentry__batcher_enqueue(
+        batcher, SENTRY_DATA_CATEGORY_TRACE_METRIC, sentry_value_new_null()));
+    sentry__atomic_store(&batcher->queues[0].flushing, 1);
+    TEST_CHECK(!sentry__batcher_flush(batcher, false));
+    TEST_CHECK_INT_EQUAL(sentry__atomic_fetch(&sent), 3);
+    sentry__atomic_store(&batcher->queues[0].flushing, 0);
+    TEST_CHECK(sentry__batcher_flush(batcher, false));
+    TEST_CHECK_INT_EQUAL(sentry__atomic_fetch(&sent), 4);
 
     sentry__batcher_release(batcher);
     sentry_transport_free(transport);
+    free_test_run(run, database_path);
+}
+
+SENTRY_TEST(batcher_flushes_requested)
+{
+    sentry_path_t *database_path = NULL;
+    sentry_run_t *run = new_test_run(
+        SENTRY_TEST_PATH_PREFIX ".batcher-group", &database_path);
+    long sent = 0;
+    sentry_transport_t *transport
+        = sentry_transport_new(counting_transport_send);
+    TEST_ASSERT(!!transport);
+    sentry_transport_set_state(transport, &sent);
+
+    sentry_batcher_t *batcher = sentry__batcher_new(2, NULL);
+    TEST_ASSERT(!!batcher);
+    sentry__batcher_set_queue(
+        batcher, 0, SENTRY_DATA_CATEGORY_LOG_ITEM, first_batch_func);
+    sentry__batcher_set_queue(
+        batcher, 1, SENTRY_DATA_CATEGORY_TRACE_METRIC, second_batch_func);
+    sentry_options_t options = { .run = run };
+    options.transport = transport;
+    sentry__atomic_store(&g_first_batch_calls, 0);
+    sentry__atomic_store(&g_second_batch_calls, 0);
+
+    sentry__batcher_startup(batcher, &options);
+    TEST_CHECK_INT_EQUAL(sentry__atomic_fetch(&batcher->thread_state),
+        SENTRY_BATCHER_THREAD_IDLE);
+    TEST_CHECK(sentry__batcher_enqueue(
+        batcher, SENTRY_DATA_CATEGORY_TRACE_METRIC, sentry_value_new_null()));
+    sentry__batcher_wait_for_thread_startup(batcher);
+    for (int i = 0; i < SENTRY_BATCHER_QUEUE_LENGTH; i++) {
+        TEST_CHECK(sentry__batcher_enqueue(
+            batcher, SENTRY_DATA_CATEGORY_LOG_ITEM, sentry_value_new_null()));
+    }
+
+    const uint64_t deadline = sentry__monotonic_time() + 1000;
+    while (!sentry__atomic_fetch(&g_first_batch_calls)
+        && sentry__monotonic_time() < deadline) {
+        sentry__thread_yield();
+    }
+    TEST_CHECK_INT_EQUAL(sentry__atomic_fetch(&g_first_batch_calls), 1);
+    TEST_CHECK_INT_EQUAL(sentry__atomic_fetch(&g_second_batch_calls), 0);
+
+    TEST_CHECK(sentry__batcher_enqueue(
+        batcher, SENTRY_DATA_CATEGORY_LOG_ITEM, sentry_value_new_null()));
+    sentry__batcher_force_flush(batcher);
+    TEST_CHECK_INT_EQUAL(sentry__atomic_fetch(&g_first_batch_calls), 2);
+    TEST_CHECK_INT_EQUAL(sentry__atomic_fetch(&g_second_batch_calls), 1);
+    TEST_CHECK_INT_EQUAL(sentry__atomic_fetch(&sent), 3);
+
+    sentry__batcher_shutdown(batcher, 0);
+    sentry__batcher_release(batcher);
+    sentry_transport_free(transport);
+    free_test_run(run, database_path);
+}
+
+SENTRY_TEST(batcher_crash_flushes_all)
+{
+    sentry_path_t *database_path = NULL;
+    sentry_run_t *run = new_test_run(
+        SENTRY_TEST_PATH_PREFIX ".batcher-group-crash", &database_path);
+    sentry_batcher_t *batcher = sentry__batcher_new(2, NULL);
+    TEST_ASSERT(!!batcher);
+    sentry__batcher_set_queue(
+        batcher, 0, SENTRY_DATA_CATEGORY_LOG_ITEM, first_batch_func);
+    sentry__batcher_set_queue(
+        batcher, 1, SENTRY_DATA_CATEGORY_TRACE_METRIC, second_batch_func);
+    sentry_options_t options = { .run = run };
+    sentry__atomic_store(&g_first_batch_calls, 0);
+    sentry__atomic_store(&g_second_batch_calls, 0);
+
+    sentry__batcher_startup(batcher, &options);
+    TEST_CHECK(sentry__batcher_enqueue(
+        batcher, SENTRY_DATA_CATEGORY_LOG_ITEM, sentry_value_new_null()));
+    TEST_CHECK(sentry__batcher_enqueue(
+        batcher, SENTRY_DATA_CATEGORY_TRACE_METRIC, sentry_value_new_null()));
+    sentry__batcher_wait_for_thread_startup(batcher);
+    sentry__batcher_flush_crash_safe(batcher);
+
+    TEST_CHECK_INT_EQUAL(sentry__atomic_fetch(&g_first_batch_calls), 1);
+    TEST_CHECK_INT_EQUAL(sentry__atomic_fetch(&g_second_batch_calls), 1);
+    TEST_CHECK(sentry__atomic_fetch(&run->retain));
+
+    sentry__batcher_shutdown(batcher, 0);
+    sentry__batcher_release(batcher);
     free_test_run(run, database_path);
 }
 
@@ -197,15 +317,16 @@ SENTRY_TEST(batcher_enqueue_overflow)
 {
     sentry_threadpool_t *pool = sentry__threadpool_new(1, 10);
     TEST_ASSERT(!!pool);
-    sentry_batcher_t *batcher = sentry__batcher_new(pending_batch_func, pool);
+    sentry_batcher_t *batcher = new_batcher(pending_batch_func, pool);
     TEST_ASSERT(!!batcher);
-    sentry__batcher_set_category(batcher, SENTRY_DATA_CATEGORY_LOG_ITEM, NULL);
 
     for (int i = 0;
         i < SENTRY_BATCHER_BUFFER_COUNT * SENTRY_BATCHER_QUEUE_LENGTH; i++) {
-        TEST_CHECK(sentry__batcher_enqueue(batcher, sentry_value_new_null()));
+        TEST_CHECK(sentry__batcher_enqueue(
+            batcher, SENTRY_DATA_CATEGORY_LOG_ITEM, sentry_value_new_null()));
     }
-    TEST_CHECK(!sentry__batcher_enqueue(batcher, sentry_value_new_null()));
+    TEST_CHECK(!sentry__batcher_enqueue(
+        batcher, SENTRY_DATA_CATEGORY_LOG_ITEM, sentry_value_new_null()));
 
     sentry__batcher_release(batcher);
     sentry__threadpool_free(pool);
@@ -224,14 +345,14 @@ SENTRY_TEST(batcher_force_flush_sends)
         = sentry_transport_new(counting_transport_send);
     TEST_ASSERT(!!transport);
     sentry_transport_set_state(transport, &sent);
-    sentry_batcher_t *batcher = sentry__batcher_new(pending_batch_func, pool);
+    sentry_batcher_t *batcher = new_batcher(pending_batch_func, pool);
     TEST_ASSERT(!!batcher);
     batcher->run = run;
     batcher->transport = transport;
 
-    TEST_CHECK(sentry__batcher_enqueue(batcher, sentry_value_new_null()));
-    sentry__batcher_force_flush_begin(batcher);
-    sentry__batcher_force_flush_wait(batcher);
+    TEST_CHECK(sentry__batcher_enqueue(
+        batcher, SENTRY_DATA_CATEGORY_LOG_ITEM, sentry_value_new_null()));
+    sentry__batcher_force_flush(batcher);
     TEST_CHECK_INT_EQUAL(sentry__atomic_fetch(&sent), 1);
 
     sentry__batcher_release(batcher);
@@ -260,14 +381,14 @@ SENTRY_TEST(batcher_full_pool_discards)
         = sentry_transport_new(counting_transport_send);
     TEST_ASSERT(!!transport);
     sentry_transport_set_state(transport, &sent);
-    sentry_batcher_t *batcher = sentry__batcher_new(pending_batch_func, pool);
+    sentry_batcher_t *batcher = new_batcher(pending_batch_func, pool);
     TEST_ASSERT(!!batcher);
-    sentry__batcher_set_category(batcher, SENTRY_DATA_CATEGORY_LOG_ITEM, NULL);
     batcher->run = run;
     batcher->transport = transport;
     sentry__client_report_reset();
 
-    TEST_CHECK(sentry__batcher_enqueue(batcher, sentry_value_new_null()));
+    TEST_CHECK(sentry__batcher_enqueue(
+        batcher, SENTRY_DATA_CATEGORY_LOG_ITEM, sentry_value_new_null()));
     TEST_CHECK(sentry__batcher_flush(batcher, false));
     TEST_CHECK_INT_EQUAL(sentry__atomic_fetch(&sent), 0);
     sentry_client_report_t report;
@@ -298,8 +419,7 @@ SENTRY_TEST(batcher_shutdown_wait)
         }
 
         SENTRY_TEST_OPTIONS_NEW(options);
-        sentry_batcher_t *batcher
-            = sentry__batcher_new(pending_batch_func, pool);
+        sentry_batcher_t *batcher = new_batcher(pending_batch_func, pool);
         TEST_ASSERT(!!batcher);
         sentry__batcher_startup(batcher, options);
         sentry__batcher_wait_for_thread_startup(batcher);
@@ -349,12 +469,12 @@ SENTRY_TEST(batcher_shutdown_wait)
         options->run = run;
         sentry_options_set_transport(options, transport);
 
-        sentry_batcher_t *batcher
-            = sentry__batcher_new(pending_batch_func, pool);
+        sentry_batcher_t *batcher = new_batcher(pending_batch_func, pool);
         TEST_ASSERT(!!batcher);
         sentry__batcher_startup(batcher, options);
 
-        TEST_CHECK(sentry__batcher_enqueue(batcher, sentry_value_new_null()));
+        TEST_CHECK(sentry__batcher_enqueue(
+            batcher, SENTRY_DATA_CATEGORY_LOG_ITEM, sentry_value_new_null()));
         sentry__batcher_wait_for_thread_startup(batcher);
         TEST_CHECK(sentry__batcher_flush(batcher, false));
         while (!sentry__atomic_fetch(&blocking_transport.started)) {
@@ -402,13 +522,14 @@ SENTRY_TEST(batcher_crash_flush_buffers)
     sentry_path_t *database_path = NULL;
     sentry_run_t *run = new_test_run(
         SENTRY_TEST_PATH_PREFIX ".batcher-crash-flush", &database_path);
-    sentry_batcher_t *batcher = sentry__batcher_new(pending_batch_func, pool);
+    sentry_batcher_t *batcher = new_batcher(pending_batch_func, pool);
     TEST_ASSERT(!!batcher);
     batcher->run = run;
     sentry__atomic_store(
         &batcher->thread_state, (long)SENTRY_BATCHER_THREAD_RUNNING);
 
-    TEST_CHECK(sentry__batcher_enqueue(batcher, sentry_value_new_null()));
+    TEST_CHECK(sentry__batcher_enqueue(
+        batcher, SENTRY_DATA_CATEGORY_LOG_ITEM, sentry_value_new_null()));
     sentry__batcher_flush_crash_safe(batcher);
     TEST_CHECK(sentry__atomic_fetch(&run->retain));
 
@@ -422,11 +543,12 @@ SENTRY_TEST(batcher_crash_flush_stopped_buffers)
     sentry_path_t *database_path = NULL;
     sentry_run_t *run = new_test_run(
         SENTRY_TEST_PATH_PREFIX ".batcher-stopped-crash-flush", &database_path);
-    sentry_batcher_t *batcher = sentry__batcher_new(pending_batch_func, NULL);
+    sentry_batcher_t *batcher = new_batcher(pending_batch_func, NULL);
     TEST_ASSERT(!!batcher);
     batcher->run = run;
 
-    TEST_CHECK(sentry__batcher_enqueue(batcher, sentry_value_new_null()));
+    TEST_CHECK(sentry__batcher_enqueue(
+        batcher, SENTRY_DATA_CATEGORY_LOG_ITEM, sentry_value_new_null()));
     sentry__batcher_flush_crash_safe(batcher);
     TEST_CHECK(sentry__atomic_fetch(&run->retain));
 
@@ -455,7 +577,7 @@ SENTRY_TEST(batcher_crash_flush_pending)
         sentry__thread_yield();
     }
 
-    sentry_batcher_t *batcher = sentry__batcher_new(pending_batch_func, pool);
+    sentry_batcher_t *batcher = new_batcher(pending_batch_func, pool);
     TEST_ASSERT(!!batcher);
     long sent = 0;
     sentry_transport_t *transport
@@ -465,7 +587,8 @@ SENTRY_TEST(batcher_crash_flush_pending)
     batcher->run = run;
     batcher->transport = transport;
 
-    TEST_CHECK(sentry__batcher_enqueue(batcher, sentry_value_new_null()));
+    TEST_CHECK(sentry__batcher_enqueue(
+        batcher, SENTRY_DATA_CATEGORY_LOG_ITEM, sentry_value_new_null()));
     TEST_CHECK(sentry__batcher_flush(batcher, false));
     TEST_CHECK(!sentry__atomic_fetch(&run->retain));
 
@@ -516,11 +639,12 @@ SENTRY_TEST(batcher_shutdown_waits_after_crash_flush)
     options->run = run;
     sentry_options_set_transport(options, transport);
 
-    sentry_batcher_t *batcher = sentry__batcher_new(pending_batch_func, pool);
+    sentry_batcher_t *batcher = new_batcher(pending_batch_func, pool);
     TEST_ASSERT(!!batcher);
     sentry__batcher_startup(batcher, options);
 
-    TEST_CHECK(sentry__batcher_enqueue(batcher, sentry_value_new_null()));
+    TEST_CHECK(sentry__batcher_enqueue(
+        batcher, SENTRY_DATA_CATEGORY_LOG_ITEM, sentry_value_new_null()));
     sentry__batcher_wait_for_thread_startup(batcher);
     TEST_CHECK(sentry__batcher_flush(batcher, false));
     TEST_CHECK(!sentry__atomic_fetch(&run->retain));
@@ -577,12 +701,13 @@ SENTRY_TEST(batcher_crash_flush_completing)
     TEST_ASSERT(!!transport);
     sentry_transport_set_state(transport, &transport_state);
 
-    sentry_batcher_t *batcher = sentry__batcher_new(pending_batch_func, pool);
+    sentry_batcher_t *batcher = new_batcher(pending_batch_func, pool);
     TEST_ASSERT(!!batcher);
     batcher->run = run;
     batcher->transport = transport;
 
-    TEST_CHECK(sentry__batcher_enqueue(batcher, sentry_value_new_null()));
+    TEST_CHECK(sentry__batcher_enqueue(
+        batcher, SENTRY_DATA_CATEGORY_LOG_ITEM, sentry_value_new_null()));
     TEST_CHECK(sentry__batcher_flush(batcher, false));
     while (!sentry__atomic_fetch(&transport_state.started)) {
         sentry__thread_yield();
@@ -629,17 +754,18 @@ SENTRY_TEST(batcher_crash_dump_does_not_block_workers)
 
     crash_dump_test_t test = { .run = run };
     g_crash_dump_test = &test;
-    sentry_batcher_t *batcher
-        = sentry__batcher_new(crash_dump_batch_func, pool);
+    sentry_batcher_t *batcher = new_batcher(crash_dump_batch_func, pool);
     TEST_ASSERT(!!batcher);
     batcher->run = run;
 
-    TEST_CHECK(sentry__batcher_enqueue(batcher, sentry_value_new_null()));
+    TEST_CHECK(sentry__batcher_enqueue(
+        batcher, SENTRY_DATA_CATEGORY_LOG_ITEM, sentry_value_new_null()));
     TEST_CHECK(sentry__batcher_flush(batcher, false));
     while (!sentry__atomic_fetch(&test.first_started)) {
         sentry__thread_yield();
     }
-    TEST_CHECK(sentry__batcher_enqueue(batcher, sentry_value_new_null()));
+    TEST_CHECK(sentry__batcher_enqueue(
+        batcher, SENTRY_DATA_CATEGORY_LOG_ITEM, sentry_value_new_null()));
     TEST_CHECK(sentry__batcher_flush(batcher, false));
 
     sentry__batcher_flush_crash_safe(batcher);
@@ -658,7 +784,7 @@ SENTRY_TEST(batcher_crash_flush_after_release)
     // the crash thread pins the batcher before sentry_close() swaps the global
     // reference, so shutdown must not release it until crash flushing finishes.
     sentry_batcher_ref_t ref = SENTRY_BATCHER_REF_INIT;
-    sentry_batcher_t *batcher = sentry__batcher_new(pending_batch_func, NULL);
+    sentry_batcher_t *batcher = new_batcher(pending_batch_func, NULL);
     TEST_ASSERT(!!batcher);
 
     sentry_path_t *database_path = NULL;
@@ -714,18 +840,22 @@ SENTRY_THREAD_FN
 first_enqueue_exec(void *data)
 {
     first_use_task_t *task = data;
-    sentry__atomic_fetch_and_add(&task->ready, 1);
+    const long index = sentry__atomic_fetch_and_add(&task->ready, 1);
     while (!sentry__atomic_fetch(&task->go)) {
         sentry__thread_yield();
     }
-    if (sentry__batcher_enqueue(task->batcher, sentry_value_new_null())) {
+    const sentry_data_category_t category
+        = task->batcher->queues[(size_t)index % task->batcher->num_queues]
+              .data_category;
+    if (sentry__batcher_enqueue(
+            task->batcher, category, sentry_value_new_null())) {
         sentry__atomic_fetch_and_add(&task->enqueued, 1);
     }
     return 0;
 }
 
 static void
-check_concurrent_start(bool shutdown)
+check_concurrent_start(bool shutdown, size_t num_queues)
 {
     sentry_path_t *database_path = NULL;
     sentry_run_t *run = new_test_run(
@@ -741,9 +871,14 @@ check_concurrent_start(bool shutdown)
     for (int iteration = 0; iteration < 50; iteration++) {
         sentry_threadpool_t *pool = sentry__threadpool_new(2, 10);
         TEST_ASSERT(!!pool);
-        sentry_batcher_t *batcher
-            = sentry__batcher_new(pending_batch_func, pool);
+        sentry_batcher_t *batcher = sentry__batcher_new(num_queues, pool);
         TEST_ASSERT(!!batcher);
+        sentry__batcher_set_queue(
+            batcher, 0, SENTRY_DATA_CATEGORY_LOG_ITEM, pending_batch_func);
+        if (num_queues > 1) {
+            sentry__batcher_set_queue(batcher, 1,
+                SENTRY_DATA_CATEGORY_TRACE_METRIC, pending_batch_func);
+        }
         sentry__batcher_startup(batcher, options);
         first_use_task_t task = { .batcher = batcher };
         sentry_threadid_t threads[4];
@@ -771,7 +906,8 @@ check_concurrent_start(bool shutdown)
                 SENTRY_BATCHER_THREAD_RUNNING);
             sentry__batcher_shutdown(batcher, 0);
             sentry__threadpool_free(pool);
-            TEST_CHECK_INT_EQUAL(sentry__atomic_fetch(&sent), iteration + 1);
+            TEST_CHECK_INT_EQUAL(
+                sentry__atomic_fetch(&sent), (iteration + 1) * num_queues);
         }
         TEST_CHECK_INT_EQUAL(sentry__atomic_fetch(&batcher->thread_state),
             SENTRY_BATCHER_THREAD_STOPPED);
@@ -784,9 +920,9 @@ check_concurrent_start(bool shutdown)
     sentry__path_free(database_path);
 }
 
-SENTRY_TEST(batcher_concurrent_start) { check_concurrent_start(false); }
+SENTRY_TEST(batcher_concurrent_start) { check_concurrent_start(false, 1); }
 
-SENTRY_TEST(batcher_start_during_shutdown) { check_concurrent_start(true); }
+SENTRY_TEST(batcher_start_during_shutdown) { check_concurrent_start(true, 1); }
 
 SENTRY_TEST(batcher_crash_before_start)
 {
@@ -797,14 +933,15 @@ SENTRY_TEST(batcher_crash_before_start)
     TEST_ASSERT(!!pool);
     SENTRY_TEST_OPTIONS_NEW(options);
     options->run = run;
-    sentry_batcher_t *batcher = sentry__batcher_new(pending_batch_func, pool);
+    sentry_batcher_t *batcher = new_batcher(pending_batch_func, pool);
     TEST_ASSERT(!!batcher);
     sentry__batcher_startup(batcher, options);
 
     sentry__batcher_flush_crash_safe(batcher);
     TEST_CHECK_INT_EQUAL(sentry__atomic_fetch(&batcher->thread_state),
         SENTRY_BATCHER_THREAD_STOPPED);
-    TEST_CHECK(sentry__batcher_enqueue(batcher, sentry_value_new_null()));
+    TEST_CHECK(sentry__batcher_enqueue(
+        batcher, SENTRY_DATA_CATEGORY_LOG_ITEM, sentry_value_new_null()));
     sentry__batcher_flush_crash_safe(batcher);
     TEST_CHECK(sentry__atomic_fetch(&run->retain));
     sentry__batcher_shutdown(batcher, 0);
@@ -824,12 +961,13 @@ SENTRY_TEST(batcher_crash_during_start)
     sentry_path_t *database_path = NULL;
     sentry_run_t *run = new_test_run(
         SENTRY_TEST_PATH_PREFIX ".batcher-crash-during-start", &database_path);
-    sentry_batcher_t *batcher = sentry__batcher_new(pending_batch_func, NULL);
+    sentry_batcher_t *batcher = new_batcher(pending_batch_func, NULL);
     TEST_ASSERT(!!batcher);
     batcher->run = run;
     sentry__atomic_store(
         &batcher->thread_state, (long)SENTRY_BATCHER_THREAD_SPAWNING);
-    TEST_CHECK(sentry__batcher_enqueue(batcher, sentry_value_new_null()));
+    TEST_CHECK(sentry__batcher_enqueue(
+        batcher, SENTRY_DATA_CATEGORY_LOG_ITEM, sentry_value_new_null()));
 
     crash_flush_task_t task = { .batcher = batcher };
     sentry_threadid_t thread;
@@ -871,6 +1009,87 @@ SENTRY_TEST(batcher_crash_during_start)
     free_test_run(run, database_path);
 }
 
+SENTRY_TEST(batcher_shutdown_flushes_all)
+{
+    sentry_path_t *database_path = NULL;
+    sentry_run_t *run = new_test_run(
+        SENTRY_TEST_PATH_PREFIX ".batcher-shutdown-all", &database_path);
+    long sent = 0;
+    sentry_transport_t *transport
+        = sentry_transport_new(counting_transport_send);
+    TEST_ASSERT(!!transport);
+    sentry_transport_set_state(transport, &sent);
+    sentry_batcher_t *batcher = sentry__batcher_new(2, NULL);
+    TEST_ASSERT(!!batcher);
+    sentry__batcher_set_queue(
+        batcher, 0, SENTRY_DATA_CATEGORY_LOG_ITEM, first_batch_func);
+    sentry__batcher_set_queue(
+        batcher, 1, SENTRY_DATA_CATEGORY_TRACE_METRIC, second_batch_func);
+    const sentry_options_t options = { .run = run, .transport = transport };
+    sentry__batcher_startup(batcher, &options);
+    sentry__atomic_store(&g_first_batch_calls, 0);
+    sentry__atomic_store(&g_second_batch_calls, 0);
+
+    TEST_CHECK(sentry__batcher_enqueue(
+        batcher, SENTRY_DATA_CATEGORY_LOG_ITEM, sentry_value_new_null()));
+    TEST_CHECK(sentry__batcher_enqueue(
+        batcher, SENTRY_DATA_CATEGORY_TRACE_METRIC, sentry_value_new_null()));
+    sentry__batcher_shutdown(batcher, 0);
+    TEST_CHECK_INT_EQUAL(sentry__atomic_fetch(&g_first_batch_calls), 1);
+    TEST_CHECK_INT_EQUAL(sentry__atomic_fetch(&g_second_batch_calls), 1);
+    TEST_CHECK_INT_EQUAL(sentry__atomic_fetch(&sent), 2);
+
+    sentry__batcher_release(batcher);
+    sentry_transport_free(transport);
+    free_test_run(run, database_path);
+}
+
+SENTRY_TEST(batcher_queues_start_together) { check_concurrent_start(false, 2); }
+
+SENTRY_TEST(batcher_queues_start_during_shutdown)
+{
+    check_concurrent_start(true, 2);
+}
+
+SENTRY_TEST(batcher_queues_overflow_independently)
+{
+    sentry_batcher_t *batcher = sentry__batcher_new(2, NULL);
+    TEST_ASSERT(!!batcher);
+    sentry__batcher_set_queue(
+        batcher, 0, SENTRY_DATA_CATEGORY_LOG_ITEM, pending_batch_func);
+    sentry__batcher_set_queue(
+        batcher, 1, SENTRY_DATA_CATEGORY_TRACE_METRIC, pending_batch_func);
+
+    for (size_t i = 0; i < 2; i++) {
+        const sentry_data_category_t category
+            = batcher->queues[i].data_category;
+        for (int j = 0;
+            j < SENTRY_BATCHER_BUFFER_COUNT * SENTRY_BATCHER_QUEUE_LENGTH;
+            j++) {
+            TEST_CHECK(sentry__batcher_enqueue(
+                batcher, category, sentry_value_new_null()));
+        }
+        TEST_CHECK(!sentry__batcher_enqueue(
+            batcher, category, sentry_value_new_null()));
+    }
+
+    sentry__batcher_release(batcher);
+}
+
+SENTRY_TEST(batcher_unconfigured_category)
+{
+    sentry_batcher_t *batcher = new_batcher(pending_batch_func, NULL);
+    TEST_ASSERT(!!batcher);
+    sentry_value_t item = sentry_value_new_string("metric");
+
+    TEST_CHECK(!sentry__batcher_enqueue(
+        batcher, SENTRY_DATA_CATEGORY_TRACE_METRIC, item));
+    TEST_CHECK_STRING_EQUAL(sentry_value_as_string(item), "metric");
+
+    sentry_value_decref(item);
+    sentry__batcher_release(batcher);
+}
+
 static blocking_task_t *g_blocking_batch;
 
 static sentry_envelope_item_t *
@@ -893,14 +1112,12 @@ SENTRY_TEST(batcher_full_pool_does_not_block)
         = sentry_transport_new(counting_transport_send);
     TEST_ASSERT(!!transport);
     sentry_transport_set_state(transport, &sent);
-    sentry_batcher_t *batcher = sentry__batcher_new(blocking_batch_func, pool);
+    sentry_batcher_t *batcher = sentry__batcher_new(2, pool);
     TEST_ASSERT(!!batcher);
-    sentry__batcher_set_category(batcher, SENTRY_DATA_CATEGORY_LOG_ITEM, NULL);
-    sentry_batcher_t *metric_batcher
-        = sentry__batcher_new(second_batch_func, pool);
-    TEST_ASSERT(!!metric_batcher);
-    sentry__batcher_set_category(
-        metric_batcher, SENTRY_DATA_CATEGORY_TRACE_METRIC, NULL);
+    sentry__batcher_set_queue(
+        batcher, 0, SENTRY_DATA_CATEGORY_LOG_ITEM, blocking_batch_func);
+    sentry__batcher_set_queue(
+        batcher, 1, SENTRY_DATA_CATEGORY_TRACE_METRIC, second_batch_func);
     const sentry_options_t options = { .run = run, .transport = transport };
     blocking_task_t task = { 0 };
     g_blocking_batch = &task;
@@ -908,10 +1125,10 @@ SENTRY_TEST(batcher_full_pool_does_not_block)
     sentry__atomic_store(&g_second_batch_calls, 0);
     sentry__client_report_reset();
     sentry__batcher_startup(batcher, &options);
-    sentry__batcher_startup(metric_batcher, &options);
 
     for (int i = 0; i < SENTRY_BATCHER_QUEUE_LENGTH; i++) {
-        TEST_CHECK(sentry__batcher_enqueue(batcher, sentry_value_new_null()));
+        TEST_CHECK(sentry__batcher_enqueue(
+            batcher, SENTRY_DATA_CATEGORY_LOG_ITEM, sentry_value_new_null()));
     }
     uint64_t deadline = sentry__monotonic_time() + 1000;
     while (!sentry__atomic_fetch(&task.started)
@@ -921,9 +1138,10 @@ SENTRY_TEST(batcher_full_pool_does_not_block)
     TEST_CHECK(sentry__atomic_fetch(&task.started));
 
     for (int i = 0; i < SENTRY_BATCHER_QUEUE_LENGTH; i++) {
-        TEST_CHECK(sentry__batcher_enqueue(batcher, sentry_value_new_null()));
-        TEST_CHECK(
-            sentry__batcher_enqueue(metric_batcher, sentry_value_new_null()));
+        TEST_CHECK(sentry__batcher_enqueue(
+            batcher, SENTRY_DATA_CATEGORY_LOG_ITEM, sentry_value_new_null()));
+        TEST_CHECK(sentry__batcher_enqueue(batcher,
+            SENTRY_DATA_CATEGORY_TRACE_METRIC, sentry_value_new_null()));
     }
 
     long logs = 0;
@@ -947,27 +1165,21 @@ SENTRY_TEST(batcher_full_pool_does_not_block)
     TEST_CHECK_INT_EQUAL(sentry__atomic_fetch(&sent), 0);
 
     sentry__atomic_store(&task.release, 1);
-    sentry__batcher_force_flush_begin(batcher);
-    sentry__batcher_force_flush_begin(metric_batcher);
-    sentry__batcher_force_flush_wait(batcher);
-    sentry__batcher_force_flush_wait(metric_batcher);
+    sentry__batcher_force_flush(batcher);
     TEST_CHECK_INT_EQUAL(sentry__atomic_fetch(&sent), 1);
 
-    TEST_CHECK(sentry__batcher_enqueue(batcher, sentry_value_new_null()));
-    sentry__batcher_force_flush_begin(batcher);
-    sentry__batcher_force_flush_wait(batcher);
-    TEST_CHECK(
-        sentry__batcher_enqueue(metric_batcher, sentry_value_new_null()));
-    sentry__batcher_force_flush_begin(metric_batcher);
-    sentry__batcher_force_flush_wait(metric_batcher);
+    TEST_CHECK(sentry__batcher_enqueue(
+        batcher, SENTRY_DATA_CATEGORY_LOG_ITEM, sentry_value_new_null()));
+    sentry__batcher_force_flush(batcher);
+    TEST_CHECK(sentry__batcher_enqueue(
+        batcher, SENTRY_DATA_CATEGORY_TRACE_METRIC, sentry_value_new_null()));
+    sentry__batcher_force_flush(batcher);
     TEST_CHECK_INT_EQUAL(sentry__atomic_fetch(&g_first_batch_calls), 2);
     TEST_CHECK_INT_EQUAL(sentry__atomic_fetch(&g_second_batch_calls), 1);
     TEST_CHECK_INT_EQUAL(sentry__atomic_fetch(&sent), 3);
 
     sentry__batcher_shutdown(batcher, 0);
-    sentry__batcher_shutdown(metric_batcher, 0);
     sentry__batcher_release(batcher);
-    sentry__batcher_release(metric_batcher);
     sentry__threadpool_free(pool);
     sentry_transport_free(transport);
     free_test_run(run, database_path);

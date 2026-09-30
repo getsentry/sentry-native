@@ -390,20 +390,23 @@ SENTRY_TEST(client_report_queue_overflow)
     SENTRY_TEST_OPTIONS_NEW(options);
     sentry_init(options);
 
-    sentry_batcher_t *batcher = sentry__batcher_new(dummy_batch_func, NULL);
+    sentry_batcher_t *batcher = sentry__batcher_new(1, NULL);
     TEST_CHECK(!!batcher);
-    sentry__batcher_set_category(batcher, SENTRY_DATA_CATEGORY_LOG_ITEM, NULL);
+    sentry__batcher_set_queue(
+        batcher, 0, SENTRY_DATA_CATEGORY_LOG_ITEM, dummy_batch_func);
 
     // Fill all buffers (SENTRY_BATCHER_QUEUE_LENGTH is 5 in unit tests)
     for (int i = 0;
         i < SENTRY_BATCHER_BUFFER_COUNT * SENTRY_BATCHER_QUEUE_LENGTH; i++) {
-        TEST_CHECK(sentry__batcher_enqueue(batcher, sentry_value_new_null()));
+        TEST_CHECK(sentry__batcher_enqueue(
+            batcher, SENTRY_DATA_CATEGORY_LOG_ITEM, sentry_value_new_null()));
     }
 
     TEST_CHECK(!sentry__client_report_has_pending());
 
     // This should overflow and record a discard
-    TEST_CHECK(!sentry__batcher_enqueue(batcher, sentry_value_new_null()));
+    TEST_CHECK(!sentry__batcher_enqueue(
+        batcher, SENTRY_DATA_CATEGORY_LOG_ITEM, sentry_value_new_null()));
 
     TEST_CHECK(sentry__client_report_has_pending());
 

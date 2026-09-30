@@ -2,6 +2,7 @@
 #include "sentry_logs.h"
 #include "sentry_scope.h"
 #include "sentry_sync.h"
+#include "sentry_telemetry.h"
 #include "sentry_testsupport.h"
 #include "sentry_tracing.h"
 
@@ -843,8 +844,7 @@ setup_lazy_start(long *sent, sentry_before_send_log_function_t before_send)
     sentry_options_set_before_send_log(options, before_send, NULL);
     TEST_ASSERT(sentry_init(options) == 0);
 
-    sentry_batcher_t *batcher
-        = (sentry_batcher_t *)sentry__logs_force_flush_begin();
+    sentry_batcher_t *batcher = sentry__telemetry_get_batcher();
     TEST_ASSERT(!!batcher);
     TEST_ASSERT(!!batcher->threadpool);
     return batcher;
@@ -873,8 +873,8 @@ SENTRY_TEST(logs_lazy_start)
         SENTRY_BATCHER_THREAD_STOPPED);
 
     // options and pool are gone; late enqueues must not restart workers
-    TEST_CHECK(
-        sentry__batcher_enqueue(batcher, sentry_value_new_string("log")));
+    TEST_CHECK(sentry__batcher_enqueue(batcher, SENTRY_DATA_CATEGORY_LOG_ITEM,
+        sentry_value_new_string("log")));
     sentry__batcher_release(batcher);
 }
 
@@ -895,8 +895,8 @@ SENTRY_TEST(logs_lazy_start_empty)
         SENTRY_BATCHER_THREAD_STOPPED);
 
     // options and pool are gone; late enqueues must not restart workers
-    TEST_CHECK(
-        sentry__batcher_enqueue(batcher, sentry_value_new_string("log")));
+    TEST_CHECK(sentry__batcher_enqueue(batcher, SENTRY_DATA_CATEGORY_LOG_ITEM,
+        sentry_value_new_string("log")));
     sentry__batcher_release(batcher);
 }
 
@@ -918,7 +918,7 @@ SENTRY_TEST(logs_lazy_start_discard)
         SENTRY_BATCHER_THREAD_STOPPED);
 
     // options and pool are gone; late enqueues must not restart workers
-    TEST_CHECK(
-        sentry__batcher_enqueue(batcher, sentry_value_new_string("log")));
+    TEST_CHECK(sentry__batcher_enqueue(batcher, SENTRY_DATA_CATEGORY_LOG_ITEM,
+        sentry_value_new_string("log")));
     sentry__batcher_release(batcher);
 }

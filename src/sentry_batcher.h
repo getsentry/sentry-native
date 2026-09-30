@@ -48,26 +48,32 @@ typedef sentry_envelope_item_t *(*sentry_batch_func_t)(
 struct sentry_batch_task_s;
 
 typedef struct {
-    long refcount; // (atomic) reference count
     sentry_batcher_buffer_t buffers[SENTRY_BATCHER_BUFFER_COUNT];
     long active_idx; // (atomic) index to the active buffer
     long drain_idx; // (atomic) index to the oldest buffer to drain
     long flushing; // (atomic) reentrancy guard to the flusher
-    long crash_flush; // (atomic) write completed batch work to disk
     long task_lock; // (atomic) protects in-flight batch tasks
     struct sentry_batch_task_s *tasks; // in-flight batch tasks
     sentry_mutex_t task_wait_mutex; // mutex for task completion waiters
     sentry_cond_t task_wait_cond; // signals changes to in-flight tasks
+    long request_flush; // (atomic) queue requested an immediate flush
+    struct sentry_batcher_s *batcher; // non-owning parent
+    sentry_batch_func_t batch_func; // function to add items to envelope
+    sentry_data_category_t data_category; // for client report discard tracking
+} sentry_batcher_queue_t;
+
+typedef struct sentry_batcher_s {
+    long refcount; // (atomic) reference count
+    long crash_flush; // (atomic) write completed batch work to disk
     long thread_state; // (atomic) sentry_batcher_thread_state_t
     sentry_waitable_flag_t request_flush; // level-triggered flush flag
     sentry_threadid_t batching_thread; // the batching thread
     sentry_threadpool_t *threadpool; // thread pool for batch work
-    sentry_batch_func_t batch_func; // function to add items to envelope
-    sentry_data_category_t data_category; // for client report discard tracking
-    char *thread_name;
     sentry_dsn_t *dsn;
     sentry_transport_t *transport;
     sentry_run_t *run;
+    size_t num_queues;
+    sentry_batcher_queue_t *queues;
 } sentry_batcher_t;
 
 typedef struct {
@@ -79,9 +85,9 @@ typedef struct {
 #define SENTRY_BATCHER_REF_INIT { NULL, 0, 0 }
 
 sentry_batcher_t *sentry__batcher_new(
-    sentry_batch_func_t batch_func, sentry_threadpool_t *threadpool);
-void sentry__batcher_set_category(sentry_batcher_t *batcher,
-    sentry_data_category_t data_category, const char *thread_name);
+    size_t num_queues, sentry_threadpool_t *threadpool);
+void sentry__batcher_set_queue(sentry_batcher_t *batcher, size_t index,
+    sentry_data_category_t data_category, sentry_batch_func_t batch_func);
 
 /**
  * Acquires a reference to the batcher behind `ref`, atomically incrementing
@@ -102,6 +108,12 @@ sentry_batcher_t *sentry__batcher_pin(sentry_batcher_ref_t *ref);
 void sentry__batcher_unpin(sentry_batcher_ref_t *ref);
 
 /**
+ * Increments the refcount of a batcher whose lifetime the caller already
+ * protects. Returns the same pointer, or NULL if batcher is NULL.
+ */
+sentry_batcher_t *sentry__batcher_incref(sentry_batcher_t *batcher);
+
+/**
  * Decrements the batcher's refcount and frees it when it reaches zero.
  */
 void sentry__batcher_release(sentry_batcher_t *batcher);
@@ -114,13 +126,13 @@ sentry_batcher_t *sentry__batcher_swap(
     sentry_batcher_ref_t *ref, sentry_batcher_t *batcher);
 
 bool sentry__batcher_flush(sentry_batcher_t *batcher, bool crash_safe);
-bool sentry__batcher_enqueue(sentry_batcher_t *batcher, sentry_value_t item);
+bool sentry__batcher_enqueue(sentry_batcher_t *batcher,
+    sentry_data_category_t data_category, sentry_value_t item);
 void sentry__batcher_startup(
     sentry_batcher_t *batcher, const sentry_options_t *options);
 void sentry__batcher_shutdown(sentry_batcher_t *batcher, uint64_t timeout);
 void sentry__batcher_flush_crash_safe(sentry_batcher_t *batcher);
-void sentry__batcher_force_flush_begin(sentry_batcher_t *batcher);
-void sentry__batcher_force_flush_wait(sentry_batcher_t *batcher);
+void sentry__batcher_force_flush(sentry_batcher_t *batcher);
 
 #ifdef SENTRY_UNITTEST
 void sentry__batcher_wait_for_thread_startup(sentry_batcher_t *batcher);

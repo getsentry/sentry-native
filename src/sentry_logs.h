@@ -1,20 +1,19 @@
 #ifndef SENTRY_LOGS_H_INCLUDED
 #define SENTRY_LOGS_H_INCLUDED
 
+#include "sentry_batcher.h"
 #include "sentry_boot.h"
-#include "sentry_sync.h"
 
 log_return_value_t sentry__logs_log(
     sentry_level_t level, const char *message, va_list args);
 
 /**
- * Sets up the logs timer/flush thread
+ * Sets up logs with the shared telemetry batcher.
  */
-void sentry__logs_startup(
-    const sentry_options_t *options, sentry_threadpool_t *threadpool);
+void sentry__logs_startup(sentry_batcher_t *batcher);
 
 /**
- * Shuts down the logs timer/flush thread.
+ * Releases the logs reference to the telemetry batcher.
  */
 void sentry__logs_shutdown(uint64_t timeout);
 
@@ -24,18 +23,6 @@ void sentry__logs_shutdown(uint64_t timeout);
  * waiting for the batching thread to shut down cleanly.
  */
 void sentry__logs_flush_crash_safe(void);
-
-/**
- * Begin non-blocking force flush of logs. Returns an opaque token that must
- * be passed to sentry__logs_force_flush_wait to complete the flush.
- */
-uintptr_t sentry__logs_force_flush_begin(void);
-
-/**
- * Wait for the logs force flush to complete. Takes the token returned by
- * sentry__logs_force_flush_begin.
- */
-void sentry__logs_force_flush_wait(uintptr_t token);
 
 #ifdef SENTRY_UNITTEST
 int populate_message_parameters(
