@@ -664,6 +664,8 @@ SENTRY_TEST(metrics_lazy_start)
     long sent = 0;
     sentry_batcher_t *batcher = setup_lazy_start(&sent, NULL);
 
+    TEST_CHECK_INT_EQUAL(sentry__atomic_fetch(&batcher->thread_state),
+        SENTRY_BATCHER_THREAD_IDLE);
     TEST_CHECK(sentry__threadpool_submit(
         batcher->threadpool, noop_task_exec, NULL, NULL, NULL));
     TEST_CHECK_INT_EQUAL(
@@ -672,10 +674,18 @@ SENTRY_TEST(metrics_lazy_start)
     sentry__batcher_wait_for_thread_startup(batcher);
     TEST_CHECK(sentry_flush(1000) == 0);
     TEST_CHECK_INT_EQUAL(sentry__atomic_fetch(&sent), 1);
+    TEST_CHECK_INT_EQUAL(sentry__atomic_fetch(&batcher->thread_state),
+        SENTRY_BATCHER_THREAD_RUNNING);
     TEST_CHECK(!sentry__threadpool_submit(
         batcher->threadpool, noop_task_exec, NULL, NULL, NULL));
 
     sentry_close();
+    TEST_CHECK_INT_EQUAL(sentry__atomic_fetch(&batcher->thread_state),
+        SENTRY_BATCHER_THREAD_STOPPED);
+
+    // options and pool are gone; late enqueues must not restart workers
+    TEST_CHECK(
+        sentry__batcher_enqueue(batcher, sentry_value_new_string("metric")));
     sentry__batcher_release(batcher);
 }
 
@@ -686,10 +696,18 @@ SENTRY_TEST(metrics_lazy_start_empty)
 
     TEST_CHECK(sentry_flush(1000) == 0);
     TEST_CHECK_INT_EQUAL(sentry__atomic_fetch(&sent), 0);
+    TEST_CHECK_INT_EQUAL(sentry__atomic_fetch(&batcher->thread_state),
+        SENTRY_BATCHER_THREAD_IDLE);
     TEST_CHECK(sentry__threadpool_submit(
         batcher->threadpool, noop_task_exec, NULL, NULL, NULL));
 
     sentry_close();
+    TEST_CHECK_INT_EQUAL(sentry__atomic_fetch(&batcher->thread_state),
+        SENTRY_BATCHER_THREAD_STOPPED);
+
+    // options and pool are gone; late enqueues must not restart workers
+    TEST_CHECK(
+        sentry__batcher_enqueue(batcher, sentry_value_new_string("metric")));
     sentry__batcher_release(batcher);
 }
 
@@ -703,9 +721,17 @@ SENTRY_TEST(metrics_lazy_start_discard)
         SENTRY_METRICS_RESULT_DISCARD);
     TEST_CHECK(sentry_flush(1000) == 0);
     TEST_CHECK_INT_EQUAL(sentry__atomic_fetch(&sent), 0);
+    TEST_CHECK_INT_EQUAL(sentry__atomic_fetch(&batcher->thread_state),
+        SENTRY_BATCHER_THREAD_IDLE);
     TEST_CHECK(sentry__threadpool_submit(
         batcher->threadpool, noop_task_exec, NULL, NULL, NULL));
 
     sentry_close();
+    TEST_CHECK_INT_EQUAL(sentry__atomic_fetch(&batcher->thread_state),
+        SENTRY_BATCHER_THREAD_STOPPED);
+
+    // options and pool are gone; late enqueues must not restart workers
+    TEST_CHECK(
+        sentry__batcher_enqueue(batcher, sentry_value_new_string("metric")));
     sentry__batcher_release(batcher);
 }

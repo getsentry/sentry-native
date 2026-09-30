@@ -8,7 +8,7 @@
 
 **Fixes**:
 
-- Start telemetry pool threads on demand, avoiding unnecessary worker threads for applications that do not send logs or metrics. ([#2144](https://github.com/getsentry/sentry-native/pull/2144))
+- Start telemetry pool and batcher threads on demand, avoiding unnecessary worker threads for applications that do not send logs or metrics. ([#2144](https://github.com/getsentry/sentry-native/pull/2144), [#2145](https://github.com/getsentry/sentry-native/pull/2145))
 
 ## 0.17.1
 
