@@ -796,9 +796,11 @@ start_thread(sentry_batcher_t *batcher)
         // Failed to spawn, reset to STOPPED
         sentry__atomic_store(
             &batcher->thread_state, (long)SENTRY_BATCHER_THREAD_STOPPED);
-    } else {
-        sentry__atomic_store(
-            &batcher->thread_state, (long)SENTRY_BATCHER_THREAD_STARTING);
+    } else if (!sentry__atomic_compare_swap(&batcher->thread_state,
+                   (long)SENTRY_BATCHER_THREAD_SPAWNING,
+                   (long)SENTRY_BATCHER_THREAD_STARTING)) {
+        // Crash shutdown canceled startup; the producer still holds a reference
+        sentry__thread_join(batcher->batching_thread);
     }
 }
 
@@ -814,7 +816,8 @@ sentry__batcher_shutdown(sentry_batcher_t *batcher, uint64_t timeout)
     long old_state;
     while (true) {
         old_state = sentry__atomic_fetch(&batcher->thread_state);
-        if (old_state == SENTRY_BATCHER_THREAD_SPAWNING) {
+        if (old_state == SENTRY_BATCHER_THREAD_SPAWNING
+            && !sentry__atomic_fetch(&batcher->crash_flush)) {
             sentry__cpu_relax();
             continue;
         }
@@ -824,9 +827,9 @@ sentry__batcher_shutdown(sentry_batcher_t *batcher, uint64_t timeout)
         }
     }
 
-    // If thread was never started, nothing to join
-    if (old_state <= SENTRY_BATCHER_THREAD_IDLE) {
-        SENTRY_DEBUG("batcher thread was not started, skipping thread join");
+    // The creator joins a canceled spawn after thread creation returns
+    if (old_state <= SENTRY_BATCHER_THREAD_SPAWNING) {
+        SENTRY_DEBUG("batcher thread is not joinable, skipping thread join");
     } else {
         // Thread was started (STARTING, RUNNING, or STOPPING), signal it to
         // stop

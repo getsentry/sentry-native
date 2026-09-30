@@ -829,9 +829,25 @@ SENTRY_TEST(batcher_crash_during_start)
     TEST_CHECK_INT_EQUAL(sentry__atomic_fetch(&batcher->thread_state),
         SENTRY_BATCHER_THREAD_SPAWNING);
 
-    // allow a blocked flush to finish before joining
+    shutdown_task_t shutdown_task = { .batcher = batcher };
+    sentry_threadid_t shutdown_thread;
+    sentry__thread_init(&shutdown_thread);
+    TEST_ASSERT(!sentry__thread_spawn(
+        &shutdown_thread, shutdown_task_exec, &shutdown_task));
+    const uint64_t shutdown_deadline = sentry__monotonic_time() + 1000;
+    while (!sentry__atomic_fetch(&shutdown_task.completed)
+        && sentry__monotonic_time() < shutdown_deadline) {
+        sentry__thread_yield();
+    }
+    TEST_CHECK(sentry__atomic_fetch(&shutdown_task.completed));
+    TEST_CHECK_INT_EQUAL(sentry__atomic_fetch(&batcher->thread_state),
+        SENTRY_BATCHER_THREAD_STOPPED);
+
+    // allow a blocked flush or shutdown to finish before joining
     sentry__atomic_store(
         &batcher->thread_state, (long)SENTRY_BATCHER_THREAD_STOPPED);
+    sentry__thread_join(shutdown_thread);
+    sentry__thread_free(&shutdown_thread);
     sentry__thread_join(thread);
     sentry__thread_free(&thread);
     sentry__batcher_release(batcher);
