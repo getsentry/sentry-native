@@ -1,3 +1,4 @@
+#include "sentry_batcher.h"
 #include "sentry_logs.h"
 #include "sentry_scope.h"
 #include "sentry_sync.h"
@@ -809,4 +810,89 @@ SENTRY_TEST(logs_reinit_stress)
     for (int t = 0; t < 8; t++) {
         sentry__thread_join(threads[t]);
     }
+}
+
+static void
+counting_transport_send(sentry_envelope_t *envelope, void *data)
+{
+    sentry__atomic_fetch_and_add((long *)data, 1);
+    sentry_envelope_free(envelope);
+}
+
+static void
+noop_task_exec(void *UNUSED(data))
+{
+}
+
+static sentry_value_t
+discard_log(sentry_value_t item, void *UNUSED(data))
+{
+    sentry_value_decref(item);
+    return sentry_value_new_null();
+}
+
+static sentry_batcher_t *
+setup_lazy_start(long *sent, sentry_before_send_log_function_t before_send)
+{
+    SENTRY_TEST_OPTIONS_NEW(options);
+    sentry_options_set_auto_session_tracking(options, false);
+    sentry_transport_t *transport
+        = sentry_transport_new(counting_transport_send);
+    sentry_transport_set_state(transport, sent);
+    sentry_options_set_transport(options, transport);
+    sentry_options_set_before_send_log(options, before_send, NULL);
+    TEST_ASSERT(sentry_init(options) == 0);
+
+    sentry_batcher_t *batcher
+        = (sentry_batcher_t *)sentry__logs_force_flush_begin();
+    TEST_ASSERT(!!batcher);
+    TEST_ASSERT(!!batcher->threadpool);
+    return batcher;
+}
+
+SENTRY_TEST(logs_lazy_start)
+{
+    long sent = 0;
+    sentry_batcher_t *batcher = setup_lazy_start(&sent, NULL);
+
+    TEST_CHECK(sentry__threadpool_submit(
+        batcher->threadpool, noop_task_exec, NULL, NULL, NULL));
+    TEST_CHECK_INT_EQUAL(sentry_log_info("log"), SENTRY_LOG_RETURN_SUCCESS);
+    sentry__batcher_wait_for_thread_startup(batcher);
+    TEST_CHECK(sentry_flush(1000) == 0);
+    TEST_CHECK_INT_EQUAL(sentry__atomic_fetch(&sent), 1);
+    TEST_CHECK(!sentry__threadpool_submit(
+        batcher->threadpool, noop_task_exec, NULL, NULL, NULL));
+
+    sentry_close();
+    sentry__batcher_release(batcher);
+}
+
+SENTRY_TEST(logs_lazy_start_empty)
+{
+    long sent = 0;
+    sentry_batcher_t *batcher = setup_lazy_start(&sent, NULL);
+
+    TEST_CHECK(sentry_flush(1000) == 0);
+    TEST_CHECK_INT_EQUAL(sentry__atomic_fetch(&sent), 0);
+    TEST_CHECK(sentry__threadpool_submit(
+        batcher->threadpool, noop_task_exec, NULL, NULL, NULL));
+
+    sentry_close();
+    sentry__batcher_release(batcher);
+}
+
+SENTRY_TEST(logs_lazy_start_discard)
+{
+    long sent = 0;
+    sentry_batcher_t *batcher = setup_lazy_start(&sent, discard_log);
+
+    TEST_CHECK_INT_EQUAL(sentry_log_info("discard"), SENTRY_LOG_RETURN_DISCARD);
+    TEST_CHECK(sentry_flush(1000) == 0);
+    TEST_CHECK_INT_EQUAL(sentry__atomic_fetch(&sent), 0);
+    TEST_CHECK(sentry__threadpool_submit(
+        batcher->threadpool, noop_task_exec, NULL, NULL, NULL));
+
+    sentry_close();
+    sentry__batcher_release(batcher);
 }
