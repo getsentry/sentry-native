@@ -233,8 +233,15 @@ SENTRY_TEST(batcher_force_flush_sends)
 
 SENTRY_TEST(batcher_rejected_submit_sends)
 {
-    sentry_threadpool_t *pool = sentry__threadpool_new(1, 10);
+    sentry_threadpool_t *pool = sentry__threadpool_new(1, 1);
     TEST_ASSERT(!!pool);
+    TEST_ASSERT(sentry__threadpool_start(pool) == 0);
+
+    // fill the pool to force rejection
+    blocking_task_t task = { 0 };
+    TEST_ASSERT(!sentry__threadpool_submit(
+        pool, blocking_task_exec, NULL, NULL, &task));
+
     sentry_path_t *database_path = NULL;
     sentry_run_t *run = new_test_run(
         SENTRY_TEST_PATH_PREFIX ".batcher-rejected-submit", &database_path);
@@ -254,6 +261,7 @@ SENTRY_TEST(batcher_rejected_submit_sends)
 
     sentry__batcher_release(batcher);
     sentry_transport_free(transport);
+    sentry__atomic_store(&task.release, 1);
     sentry__threadpool_free(pool);
     free_test_run(run, database_path);
 }

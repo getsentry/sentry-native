@@ -9,6 +9,7 @@
 **Fixes**:
 
 - Crashpad: avoid logging expected report lock contention ([crashpad#171](https://github.com/getsentry/crashpad/pull/171), [#2138](https://github.com/getsentry/sentry-native/pull/2138))
+- Start telemetry pool threads on demand, avoiding unnecessary worker threads for applications that do not send logs or metrics. ([#2144](https://github.com/getsentry/sentry-native/pull/2144))
 
 **Thank you**:
 

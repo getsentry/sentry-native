@@ -530,9 +530,10 @@ process_batch(sentry_batcher_t *batcher, sentry_value_t items, bool crash_safe)
         return;
     }
 
-    if (sentry__threadpool_submit(batcher->threadpool, batch_task_exec,
-            batch_task_complete_and_cleanup, NULL, task)
-        != 0) {
+    if (sentry__threadpool_start(batcher->threadpool) != 0
+        || sentry__threadpool_submit(batcher->threadpool, batch_task_exec,
+               batch_task_complete_and_cleanup, NULL, task)
+            != 0) {
         SENTRY_WARN("serializing telemetry batch synchronously: "
                     "serialization pool unavailable or out of memory");
         batch_task_unlink(task);
