@@ -6,6 +6,10 @@
 
 - Add `SENTRY_SDK_VERSION_MAJOR`, `SENTRY_SDK_VERSION_MINOR`, `SENTRY_SDK_VERSION_PATCH`, and `SENTRY_SDK_VERSION_AT_LEAST` for compile-time version checks. ([#2136](https://github.com/getsentry/sentry-native/pull/2136))
 
+**Fixes**:
+
+- Start telemetry pool threads on demand, avoiding unnecessary worker threads for applications that do not send logs or metrics. ([#2144](https://github.com/getsentry/sentry-native/pull/2144))
+
 ## 0.17.1
 
 **Fixes**:
