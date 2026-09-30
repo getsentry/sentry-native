@@ -684,7 +684,7 @@ def test_native_noncrashing_thread_unwind(cmake, httpserver):
         run_crash(
             tmp_path,
             "sentry_example",
-            ["log", "stdout", "crash"] + SANITIZER_ARGS,
+            ["log", "crash"] + SANITIZER_ARGS,
             env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
         )
     assert waiting.result
