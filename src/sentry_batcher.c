@@ -1,6 +1,7 @@
 #include "sentry_batcher.h"
 #include "sentry_alloc.h"
 #include "sentry_cpu_relax.h"
+#include "sentry_ftrace.h"
 #include "sentry_options.h"
 #include "sentry_utils.h"
 
@@ -9,6 +10,15 @@
 // regardless of how recently they were enqueued.
 #define SENTRY_BATCHER_FLUSH_INTERVAL_MS 5000
 #define SENTRY_BATCHER_THREAD_NAME "sentry-batcher"
+
+#ifdef SENTRY_FTRACE
+static const char *
+queue_name(const sentry_batcher_queue_t *queue)
+{
+    return queue->data_category == SENTRY_DATA_CATEGORY_LOG_ITEM ? "logs"
+                                                                 : "metrics";
+}
+#endif
 
 #ifdef SENTRY_UNITTEST
 #    ifdef SENTRY_PLATFORM_WINDOWS
@@ -347,8 +357,18 @@ static void
 process_batch_sync(sentry_batcher_queue_t *queue, sentry_envelope_t *envelope,
     sentry_value_t items, bool crash_safe)
 {
+    if (!crash_safe) {
+        SENTRY_FTRACE_BEGIN("batcher.serialize_sync.%s", queue_name(queue));
+    }
     queue->batch_func(envelope, items);
+    if (!crash_safe) {
+        SENTRY_FTRACE_END();
+        SENTRY_FTRACE_BEGIN("batcher.destroy_items.%s", queue_name(queue));
+    }
     sentry_value_decref(items);
+    if (!crash_safe) {
+        SENTRY_FTRACE_END();
+    }
 
     if (crash_safe || sentry__atomic_fetch(&queue->batcher->crash_flush)) {
         // Write directly to disk to avoid transport queuing during
@@ -359,7 +379,9 @@ process_batch_sync(sentry_batcher_queue_t *queue, sentry_envelope_t *envelope,
         // Normal operation: use transport for HTTP transmission
         sentry__transport_send_envelope(queue->batcher->transport, envelope);
     } else {
+        SENTRY_FTRACE_BEGIN("batcher.destroy_envelope.%s", queue_name(queue));
         sentry_envelope_free(envelope);
+        SENTRY_FTRACE_END();
     }
 }
 
@@ -369,8 +391,12 @@ process_batch_sync_ordered(sentry_batcher_queue_t *queue,
 {
     // Preserve FIFO order when falling back after earlier batches were
     // accepted by the serialization pool.
+    SENTRY_FTRACE_BEGIN("batcher.fallback.%s", queue_name(queue));
+    SENTRY_FTRACE_BEGIN("batcher.wait_tasks.%s", queue_name(queue));
     batch_task_wait_all(queue);
+    SENTRY_FTRACE_END();
     process_batch_sync(queue, envelope, items, false);
+    SENTRY_FTRACE_END();
 }
 
 static void
@@ -389,12 +415,18 @@ batch_task_exec(void *task_data)
     }
     unlock_tasks(queue);
 
+    SENTRY_FTRACE_BEGIN("batcher.task.%s", queue_name(queue));
+    SENTRY_FTRACE_BEGIN("batcher.serialize.%s", queue_name(queue));
     queue->batch_func(task->envelope, task->items);
+    SENTRY_FTRACE_END();
+    SENTRY_FTRACE_BEGIN("batcher.destroy_items.%s", queue_name(queue));
     sentry_value_decref(task->items);
+    SENTRY_FTRACE_END();
     task->items = sentry_value_new_null();
     lock_tasks(queue);
     sentry__atomic_store(&task->state, SENTRY_BATCH_TASK_READY);
     unlock_tasks(queue);
+    SENTRY_FTRACE_END();
 }
 
 static void
@@ -413,26 +445,36 @@ batch_task_complete(void *task_data)
     sentry__atomic_store(&task->state, SENTRY_BATCH_TASK_COMPLETING);
     unlock_tasks(queue);
 
+    SENTRY_FTRACE_BEGIN("batcher.complete.%s", queue_name(queue));
     if (sentry__atomic_fetch(&queue->batcher->crash_flush)) {
         sentry__run_write_envelope(queue->batcher->run, task->envelope);
+        SENTRY_FTRACE_BEGIN("batcher.destroy_envelope.%s", queue_name(queue));
         sentry_envelope_free(task->envelope);
+        SENTRY_FTRACE_END();
     } else if (!sentry__run_should_skip_upload(queue->batcher->run)) {
         // Normal operation: use transport for HTTP transmission
         sentry__transport_send_envelope(
             queue->batcher->transport, task->envelope);
     } else {
+        SENTRY_FTRACE_BEGIN("batcher.destroy_envelope.%s", queue_name(queue));
         sentry_envelope_free(task->envelope);
+        SENTRY_FTRACE_END();
     }
     task->envelope = NULL;
 
     batch_task_unlink(task);
+    SENTRY_FTRACE_END();
 }
 
 static void
 batch_task_free(sentry_batch_task_t *task)
 {
+    SENTRY_FTRACE_BEGIN("batcher.destroy_items.%s", queue_name(task->queue));
     sentry_value_decref(task->items);
+    SENTRY_FTRACE_END();
+    SENTRY_FTRACE_BEGIN("batcher.destroy_envelope.%s", queue_name(task->queue));
     sentry_envelope_free(task->envelope);
+    SENTRY_FTRACE_END();
     sentry_free(task);
 }
 
@@ -538,6 +580,8 @@ process_batch(
 
     sentry_batch_task_t *task = SENTRY_MAKE(sentry_batch_task_t);
     if (!task) {
+        SENTRY_FTRACE_INSTANT(
+            "batcher.task_alloc_failed.%s", queue_name(queue));
         SENTRY_WARN("serializing telemetry batch synchronously: "
                     "serialization task allocation failed");
         process_batch_sync_ordered(queue, envelope, items);
@@ -551,6 +595,7 @@ process_batch(
     batch_task_link(task);
 
     if (!queue->batcher->threadpool) {
+        SENTRY_FTRACE_INSTANT("batcher.no_pool.%s", queue_name(queue));
         batch_task_exec(task);
         batch_task_complete(task);
         batch_task_free(task);
@@ -558,6 +603,7 @@ process_batch(
     }
 
     if (sentry__threadpool_start(queue->batcher->threadpool) != 0) {
+        SENTRY_FTRACE_INSTANT("batcher.submit_failed.%s", queue_name(queue));
         SENTRY_WARN("serializing telemetry batch synchronously: "
                     "serialization pool unavailable");
         batch_task_unlink(task);
@@ -571,11 +617,15 @@ process_batch(
     if (result != 0) {
         batch_task_unlink(task);
         if (result > 0) {
+            SENTRY_FTRACE_INSTANT(
+                "batcher.pool_overflow.%s", queue_name(queue));
             sentry__client_report_discard(SENTRY_DISCARD_REASON_QUEUE_OVERFLOW,
                 queue->data_category,
                 (long)sentry_value_get_length(
                     sentry_value_get_by_key(task->items, "items")));
         } else {
+            SENTRY_FTRACE_INSTANT(
+                "batcher.submit_failed.%s", queue_name(queue));
             SENTRY_WARN("discarding telemetry batch: "
                         "serialization task submission failed");
         }
@@ -603,6 +653,9 @@ flush_queue(sentry_batcher_queue_t *queue, bool crash_safe)
         if (already_flushing) {
             return false;
         }
+    }
+    if (!crash_safe) {
+        SENTRY_FTRACE_BEGIN("batcher.flush.%s", queue_name(queue));
     }
     // Flush through the buffer that was active when this call began. Later
     // partial buffers remain queued until the next flush.
@@ -638,6 +691,11 @@ flush_queue(sentry_batcher_queue_t *queue, bool crash_safe)
         if (n > 0) {
             // now we can do the actual batching of the old buffer
 
+            if (!crash_safe) {
+                SENTRY_FTRACE_COUNTER(
+                    n, "batcher.batch_size.%s", queue_name(queue));
+                SENTRY_FTRACE_BEGIN("batcher.collect.%s", queue_name(queue));
+            }
             sentry_value_t logs = sentry_value_new_object();
             sentry_value_t log_items = sentry_value_new_list();
             int i;
@@ -646,7 +704,14 @@ flush_queue(sentry_batcher_queue_t *queue, bool crash_safe)
             }
             sentry_value_set_by_key(logs, "items", log_items);
 
+            if (!crash_safe) {
+                SENTRY_FTRACE_END();
+                SENTRY_FTRACE_BEGIN("batcher.dispatch.%s", queue_name(queue));
+            }
             process_batch(queue, logs, crash_safe);
+            if (!crash_safe) {
+                SENTRY_FTRACE_END();
+            }
         }
 
         // Reset the drained buffer...
@@ -656,6 +721,9 @@ flush_queue(sentry_batcher_queue_t *queue, bool crash_safe)
             &queue->drain_idx, (old_buf_idx + 1) % SENTRY_BATCHER_BUFFER_COUNT);
     }
 
+    if (!crash_safe) {
+        SENTRY_FTRACE_END();
+    }
     sentry__atomic_store(&queue->flushing, 0);
     return true;
 }
@@ -686,9 +754,10 @@ sentry__batcher_enqueue(sentry_batcher_t *batcher,
     if (index == batcher->num_queues || !batcher->queues[index].batch_func) {
         return false;
     }
+    sentry_batcher_queue_t *queue = &batcher->queues[index];
+    SENTRY_FTRACE_BEGIN("batcher.enqueue.%s", queue_name(queue));
     start_thread(batcher);
 
-    sentry_batcher_queue_t *queue = &batcher->queues[index];
     while (true) {
         // retrieve the active buffer
         const long active_idx = sentry__atomic_fetch(&queue->active_idx);
@@ -722,14 +791,18 @@ sentry__batcher_enqueue(sentry_batcher_t *batcher,
             // got a slot, write item while keeping the flusher blocked through
             // a possible rotation
             active->items[item_idx] = item;
+            SENTRY_FTRACE_COUNTER(
+                item_idx + 1, "batcher.buffer_size.%s", queue_name(queue));
 
             // Check if active buffer is now full and trigger flush.
             if (item_idx == SENTRY_BATCHER_QUEUE_LENGTH - 1) {
+                SENTRY_FTRACE_INSTANT("batcher.full.%s", queue_name(queue));
                 rotate_buffer(queue, active_idx);
                 sentry__atomic_store(&queue->request_flush, 1);
                 sentry__waitable_flag_set(&batcher->request_flush);
             }
             sentry__atomic_fetch_and_add(&active->adding, -1);
+            SENTRY_FTRACE_END();
             return true;
         }
         const bool rotated = rotate_buffer(queue, active_idx);
@@ -744,6 +817,8 @@ sentry__batcher_enqueue(sentry_batcher_t *batcher,
         }
         sentry__client_report_discard(
             SENTRY_DISCARD_REASON_QUEUE_OVERFLOW, queue->data_category, 1);
+        SENTRY_FTRACE_INSTANT("batcher.overflow.%s", queue_name(queue));
+        SENTRY_FTRACE_END();
         return false;
     }
 }
@@ -790,13 +865,16 @@ batcher_thread_func(void *data)
         // Sleep until the next periodic flush or request_flush is set
         const uint64_t now = sentry__monotonic_time();
         const uint64_t timeout = now < next_flush ? next_flush - now : 0;
+        SENTRY_FTRACE_BEGIN("batcher.sleep");
         sentry__waitable_flag_wait(&batcher->request_flush, timeout);
+        SENTRY_FTRACE_END();
 
         if (sentry__atomic_fetch(&batcher->thread_state)
             != SENTRY_BATCHER_THREAD_RUNNING) {
             break;
         }
 
+        SENTRY_FTRACE_BEGIN("batcher.cycle");
         const uint64_t after_wait = sentry__monotonic_time();
         const bool timed_out = after_wait >= next_flush;
         if (timed_out) {
@@ -831,6 +909,7 @@ batcher_thread_func(void *data)
 
             flush_queue(queue, false);
         }
+        SENTRY_FTRACE_END();
     }
 
     SENTRY_DEBUG("batching thread exiting");

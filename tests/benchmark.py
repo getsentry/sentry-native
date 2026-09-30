@@ -227,3 +227,15 @@ def test_benchmark_scope_apply(case, cmake, httpserver, gbenchmark):
         gbenchmark,
         f"Scope apply ({kind}, {count} {item})",
     )
+
+
+@pytest.mark.parametrize("threads", [1, 8, 16, 32])
+def test_benchmark_telemetry(threads, cmake, httpserver, gbenchmark):
+    run_benchmark(
+        f"^benchmark_telemetry.*threads:{threads}$",
+        "none",
+        cmake,
+        httpserver,
+        gbenchmark,
+        f"Logs and metrics ({threads} thread{'s' if threads > 1 else ''})",
+    )

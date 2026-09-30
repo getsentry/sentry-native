@@ -2,6 +2,7 @@
 #include "sentry_batcher.h"
 #include "sentry_core.h"
 #include "sentry_envelope.h"
+#include "sentry_ftrace.h"
 #include "sentry_options.h"
 #include "sentry_scope.h"
 #include "sentry_string.h"
@@ -65,18 +66,22 @@ sentry_scope_capture_metric(sentry_scope_t *scope, sentry_metric_type_t type,
     const char *name, sentry_value_t value, const char *unit,
     sentry_value_t attributes)
 {
+    SENTRY_FTRACE_BEGIN("metrics.capture");
     const sentry_options_t *options = sentry__options_getref();
     if (!options) {
         sentry_value_decref(value);
         sentry_value_decref(attributes);
         sentry__scope_free_one_shot(scope);
+        SENTRY_FTRACE_END();
         return SENTRY_METRICS_RESULT_DISABLED;
     }
 
     bool discarded = false;
+    SENTRY_FTRACE_BEGIN("metrics.construct");
     sentry_value_t metric
         = construct_metric(options, scope, type, name, value, unit, attributes);
     sentry__scope_free_one_shot(scope);
+    SENTRY_FTRACE_END();
     if (options->before_send_metric_func) {
         metric = options->before_send_metric_func(
             metric, options->before_send_metric_data);
@@ -91,6 +96,7 @@ sentry_scope_capture_metric(sentry_scope_t *scope, sentry_metric_type_t type,
 
     sentry_options_free((sentry_options_t *)options);
     if (discarded) {
+        SENTRY_FTRACE_END();
         return SENTRY_METRICS_RESULT_DISCARD;
     }
     sentry_batcher_t *batcher = sentry__batcher_acquire(&g_batcher);
@@ -99,9 +105,11 @@ sentry_scope_capture_metric(sentry_scope_t *scope, sentry_metric_type_t type,
             batcher, SENTRY_DATA_CATEGORY_TRACE_METRIC, metric)) {
         sentry__batcher_release(batcher);
         sentry_value_decref(metric);
+        SENTRY_FTRACE_END();
         return SENTRY_METRICS_RESULT_FAILED;
     }
     sentry__batcher_release(batcher);
+    SENTRY_FTRACE_END();
     return SENTRY_METRICS_RESULT_SUCCESS;
 }
 

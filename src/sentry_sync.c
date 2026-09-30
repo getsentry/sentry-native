@@ -1,6 +1,7 @@
 #include "sentry_sync.h"
 #include "sentry_alloc.h"
 #include "sentry_core.h"
+#include "sentry_ftrace.h"
 #include "sentry_string.h"
 #include "sentry_utils.h"
 #include <limits.h>
@@ -179,13 +180,19 @@ threadpool_commit_ready(sentry_threadpool_t *pool)
         }
 
         sentry__mutex_unlock(&pool->lock);
+        SENTRY_FTRACE_BEGIN("threadpool.complete.%s",
+            pool->thread_name ? pool->thread_name : "unnamed");
         if (task->complete_func) {
             task->complete_func(task->task_data);
         }
         threadpool_task_free(task);
+        SENTRY_FTRACE_END();
         sentry__mutex_lock(&pool->lock);
 
         sentry__atomic_fetch_and_add(&pool->pending, -1);
+        SENTRY_FTRACE_COUNTER(sentry__atomic_fetch(&pool->pending),
+            "threadpool.pending.%s",
+            pool->thread_name ? pool->thread_name : "unnamed");
     }
 
     pool->committing = false;
@@ -221,7 +228,10 @@ threadpool_thread(void *data)
         pool->next_task = task->next;
         sentry__mutex_unlock(&pool->lock);
 
+        SENTRY_FTRACE_BEGIN("threadpool.exec.%s",
+            pool->thread_name ? pool->thread_name : "unnamed");
         task->exec_func(task->task_data);
+        SENTRY_FTRACE_END();
 
         sentry__mutex_lock(&pool->lock);
         task->done = true;
@@ -342,15 +352,23 @@ sentry__threadpool_submit(sentry_threadpool_t *pool,
     task->cleanup_func = cleanup_func;
     task->task_data = task_data;
 
+    SENTRY_FTRACE_BEGIN("threadpool.submit.%s",
+        pool->thread_name ? pool->thread_name : "unnamed");
     sentry__mutex_lock(&pool->lock);
     if (!sentry__atomic_fetch(&pool->running) || pool->stopping) {
+        SENTRY_FTRACE_INSTANT("threadpool.rejected.%s",
+            pool->thread_name ? pool->thread_name : "unnamed");
         sentry__mutex_unlock(&pool->lock);
         threadpool_task_free(task);
+        SENTRY_FTRACE_END();
         return -1;
     }
     if (sentry__atomic_fetch(&pool->pending) >= pool->max_pending) {
+        SENTRY_FTRACE_INSTANT("threadpool.full.%s",
+            pool->thread_name ? pool->thread_name : "unnamed");
         sentry__mutex_unlock(&pool->lock);
         threadpool_task_free(task);
+        SENTRY_FTRACE_END();
         return 1;
     }
 
@@ -364,8 +382,12 @@ sentry__threadpool_submit(sentry_threadpool_t *pool,
         pool->next_task = task;
     }
     sentry__atomic_fetch_and_add(&pool->pending, 1);
+    SENTRY_FTRACE_COUNTER(sentry__atomic_fetch(&pool->pending),
+        "threadpool.pending.%s",
+        pool->thread_name ? pool->thread_name : "unnamed");
     sentry__cond_wake(&pool->work_signal);
     sentry__mutex_unlock(&pool->lock);
+    SENTRY_FTRACE_END();
     return 0;
 }
 

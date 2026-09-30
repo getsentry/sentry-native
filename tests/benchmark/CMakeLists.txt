@@ -17,6 +17,7 @@ add_executable(sentry_benchmark
 	benchmark_metrics.cpp
 	benchmark_scope.cpp
 	benchmark_tags.cpp
+	benchmark_telemetry.cpp
 )
 
 if(SENTRY_BACKEND_CRASHPAD)

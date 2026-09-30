@@ -2,6 +2,7 @@
 #include "sentry_batcher.h"
 #include "sentry_core.h"
 #include "sentry_envelope.h"
+#include "sentry_ftrace.h"
 #include "sentry_options.h"
 #include "sentry_os.h"
 #include "sentry_scope.h"
@@ -519,15 +520,20 @@ send_log(
 log_return_value_t
 sentry__logs_log(sentry_level_t level, const char *message, va_list args)
 {
+    SENTRY_FTRACE_BEGIN("logs.capture");
     const sentry_options_t *options = sentry__options_getref();
     if (!options) {
+        SENTRY_FTRACE_END();
         return SENTRY_LOG_RETURN_DISABLED;
     }
+    SENTRY_FTRACE_BEGIN("logs.construct");
     sentry_value_t log = construct_log(options, level, message, args);
+    SENTRY_FTRACE_END();
     log_return_value_t result = sentry_value_is_null(log)
         ? SENTRY_LOG_RETURN_FAILED
         : send_log(options, level, log);
     sentry_options_free((sentry_options_t *)options);
+    SENTRY_FTRACE_END();
     return result;
 }
 
@@ -608,22 +614,27 @@ log_return_value_t
 sentry_scope_capture_log(sentry_scope_t *scope, sentry_level_t level,
     const char *body, sentry_value_t custom_attributes)
 {
+    SENTRY_FTRACE_BEGIN("logs.capture");
     const sentry_options_t *options = sentry__options_getref();
     if (!options) {
         sentry_value_decref(custom_attributes);
         sentry__scope_free_one_shot(scope);
+        SENTRY_FTRACE_END();
         return SENTRY_LOG_RETURN_DISABLED;
     }
 
+    SENTRY_FTRACE_BEGIN("logs.construct");
     sentry_value_t log = sentry_value_new_object();
     sentry_value_t attributes = clone_attributes(custom_attributes);
 
     sentry_value_set_by_key(log, "body", sentry_value_new_string(body));
     apply_attributes(options, scope, log, attributes, level);
     sentry__scope_free_one_shot(scope);
+    SENTRY_FTRACE_END();
 
     log_return_value_t result = send_log(options, level, log);
     sentry_options_free((sentry_options_t *)options);
+    SENTRY_FTRACE_END();
     return result;
 }
 
