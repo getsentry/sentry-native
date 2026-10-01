@@ -11,6 +11,7 @@
 - Crashpad: avoid logging expected report lock contention ([crashpad#171](https://github.com/getsentry/crashpad/pull/171), [#2138](https://github.com/getsentry/sentry-native/pull/2138))
 - Start telemetry pool and batcher threads on demand, avoiding unnecessary worker threads for applications that do not send logs or metrics. ([#2144](https://github.com/getsentry/sentry-native/pull/2144), [#2145](https://github.com/getsentry/sentry-native/pull/2145))
 - Discard log and metric batches when the serialization pool is full instead of blocking the batcher threads with synchronous serialization. ([#2148](https://github.com/getsentry/sentry-native/pull/2148))
+- Restore the installation ID as the default `user.id` when removing the global user with `sentry_remove_user`. ([#2151](https://github.com/getsentry/sentry-native/pull/2151))
 
 **Thank you**:
 
