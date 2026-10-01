@@ -62,7 +62,7 @@ extern "C" {
  * The returned string is owned by the platform implementation, which may reuse
  * its storage on the next call, and must be a 36-character UUID string, of any
  * version; anything else is rejected. `public_key` is the DSN's public key, or
- * NULL, and may differ between calls.
+ * an empty string when there is no valid DSN, and may differ between calls.
  */
 const char *sentry__platform_installation_id(const char *public_key);
 
