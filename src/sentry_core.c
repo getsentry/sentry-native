@@ -1077,7 +1077,7 @@ sentry_set_user(sentry_value_t user)
 void
 sentry_remove_user(void)
 {
-    sentry_set_user(sentry_value_new_null());
+    sentry_set_user(sentry_value_new_object());
 }
 
 void

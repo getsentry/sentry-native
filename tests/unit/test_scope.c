@@ -821,13 +821,16 @@ SENTRY_TEST(scope_user_id)
         "dave");
     sentry_value_decref(event);
 
-    // remove_user -> no user on event (installation ID suppressed)
+    // remove_user -> installation ID
     sentry_remove_user();
     SENTRY_WITH_SCOPE (scope) {
         sentry_value_t event = sentry_value_new_object();
         sentry__scope_apply_to_event(scope, options, event, SENTRY_SCOPE_NONE);
-        TEST_CHECK(
-            sentry_value_is_null(sentry_value_get_by_key(event, "user")));
+        sentry_value_t user = sentry_value_get_by_key(event, "user");
+        TEST_CHECK_STRING_EQUAL(
+            sentry_value_as_string(sentry_value_get_by_key(user, "id")),
+            options->run->installation_id);
+        TEST_CHECK_INT_EQUAL(sentry_value_get_length(user), 1);
         sentry_value_decref(event);
     }
 
@@ -2245,7 +2248,7 @@ SENTRY_TEST(scope_observer_user)
     d.was_called = false;
     sentry_remove_user();
     TEST_CHECK(d.was_called);
-    TEST_CHECK(sentry_value_is_null(d.user));
+    TEST_CHECK_JSON_VALUE(d.user, "{}");
 
     sentry_close();
 }
