@@ -5,7 +5,7 @@
 **Features**:
 
 - Add `SENTRY_SDK_VERSION_MAJOR`, `SENTRY_SDK_VERSION_MINOR`, `SENTRY_SDK_VERSION_PATCH`, and `SENTRY_SDK_VERSION_AT_LEAST` for compile-time version checks. ([#2136](https://github.com/getsentry/sentry-native/pull/2136))
-- Add `SENTRY_PLATFORM_INSTALLATION_ID` build option, letting downstream platforms supply the installation ID. ([#2150](https://github.com/getsentry/sentry-native/pull/2150))
+- Let a platform integration supply the installation ID that backs the default `user.id`, via `installation_id_func`. ([#2150](https://github.com/getsentry/sentry-native/pull/2150))
 
 **Fixes**:
 

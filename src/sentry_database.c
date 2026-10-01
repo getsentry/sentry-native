@@ -157,7 +157,8 @@ sentry__run_load_user_consent(
 
 void
 sentry__run_load_installation_id(sentry_run_t *run,
-    const sentry_path_t *database_path, const char *public_key)
+    const sentry_path_t *database_path, const char *public_key,
+    const char *integration_id)
 {
     sentry_path_t *id_path
         = sentry__path_join_str(database_path, "installation_id");
@@ -187,22 +188,17 @@ sentry__run_load_installation_id(sentry_run_t *run,
     sentry_free(contents);
 
     if (uuid_str[0] == '\0') {
-        bool from_platform = false;
-#ifdef SENTRY_PLATFORM_INSTALLATION_ID
-        const char *platform_id = sentry__platform_installation_id(public_key);
-        if (platform_id) {
-            const size_t platform_id_len = strlen(platform_id);
-            if (platform_id_len == uuid_len
-                && sentry__uuid_is_valid(platform_id, platform_id_len)) {
-                memcpy(uuid_str, platform_id, uuid_len);
+        if (integration_id) {
+            const size_t integration_id_len = strlen(integration_id);
+            if (integration_id_len == uuid_len
+                && sentry__uuid_is_valid(integration_id, integration_id_len)) {
+                memcpy(uuid_str, integration_id, uuid_len);
                 uuid_str[uuid_len] = '\0';
-                from_platform = true;
             } else {
-                SENTRY_WARN("the platform installation ID is not a UUID");
+                SENTRY_WARN("the integration installation ID is not a UUID");
             }
         }
-#endif
-        if (!from_platform) {
+        if (uuid_str[0] == '\0') {
             sentry_uuid_t uuid = sentry_uuid_new_v4();
             sentry_uuid_as_string(&uuid, uuid_str);
         }

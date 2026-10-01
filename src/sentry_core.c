@@ -91,6 +91,27 @@ register_integrations(sentry_scope_t *scope, const sentry_options_t *options)
     }
 }
 
+static const char *
+integration_installation_id(const sentry_options_t *options)
+{
+    const char *public_key = options->dsn && options->dsn->public_key
+        ? options->dsn->public_key
+        : "";
+
+    for (size_t i = 0; i < options->num_integrations; i++) {
+        sentry_integration_t *integration = options->integrations[i];
+        if (!integration->installation_id_func) {
+            continue;
+        }
+        const char *id
+            = integration->installation_id_func(integration->data, public_key);
+        if (id) {
+            return id;
+        }
+    }
+    return NULL;
+}
+
 static void
 unregister_integrations(sentry_scope_t *scope, const sentry_options_t *options)
 {
@@ -201,7 +222,8 @@ sentry_init(sentry_options_t *options)
     }
 
     sentry__run_load_installation_id(options->run, options->database_path,
-        options->dsn ? options->dsn->public_key : NULL);
+        options->dsn ? options->dsn->public_key : NULL,
+        integration_installation_id(options));
 
     if (transport) {
         if (sentry__transport_startup(transport, options) != 0) {

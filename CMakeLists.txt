@@ -128,9 +128,6 @@ option(SENTRY_BUILD_BENCHMARKS "Build sentry-native benchmarks" OFF)
 option(SENTRY_INTEGRATION_PLATFORM
 	"Enable the downstream-provided platform integration" OFF)
 
-option(SENTRY_PLATFORM_INSTALLATION_ID
-	"Let the downstream platform provide the installation ID" OFF)
-
 # Platform version embedding options
 option(SENTRY_EMBED_INFO "Embed version information in binary" OFF)
 set(SENTRY_BUILD_PLATFORM "${CMAKE_SYSTEM_NAME}" CACHE STRING "Platform name for embedded version (e.g., switch, playstation, xbox)")
@@ -309,7 +306,6 @@ message(STATUS "SENTRY_BACKEND=${SENTRY_BACKEND}")
 message(STATUS "SENTRY_LIBRARY_TYPE=${SENTRY_LIBRARY_TYPE}")
 message(STATUS "SENTRY_SDK_NAME=${SENTRY_SDK_NAME}")
 message(STATUS "SENTRY_INTEGRATION_PLATFORM=${SENTRY_INTEGRATION_PLATFORM}")
-message(STATUS "SENTRY_PLATFORM_INSTALLATION_ID=${SENTRY_PLATFORM_INSTALLATION_ID}")
 message(STATUS "SENTRY_HANDLER_STACK_SIZE=${SENTRY_HANDLER_STACK_SIZE}")
 message(STATUS "SENTRY_BATCHER_BUFFER_COUNT=${SENTRY_BATCHER_BUFFER_COUNT}")
 if (WIN32)
@@ -433,10 +429,6 @@ add_subdirectory(src)
 
 if(SENTRY_INTEGRATION_PLATFORM)
 	target_compile_definitions(sentry PRIVATE SENTRY_INTEGRATION_PLATFORM)
-endif()
-
-if(SENTRY_PLATFORM_INSTALLATION_ID)
-	target_compile_definitions(sentry PRIVATE SENTRY_PLATFORM_INSTALLATION_ID)
 endif()
 
 target_compile_definitions(sentry PRIVATE SENTRY_HANDLER_STACK_SIZE=${SENTRY_HANDLER_STACK_SIZE})
