@@ -5,6 +5,7 @@
 **Features**:
 
 - Add `SENTRY_SDK_VERSION_MAJOR`, `SENTRY_SDK_VERSION_MINOR`, `SENTRY_SDK_VERSION_PATCH`, and `SENTRY_SDK_VERSION_AT_LEAST` for compile-time version checks. ([#2136](https://github.com/getsentry/sentry-native/pull/2136))
+- Let downstream platform integrations supply the installation ID. ([#2150](https://github.com/getsentry/sentry-native/pull/2150))
 - Add `sentry_value_from_msgpack` and `sentry_value_from_msgpack_stream` for MessagePack deserialization, and promote `sentry_value_to_msgpack` from experimental to stable. ([#2153](https://github.com/getsentry/sentry-native/pull/2153))
 
 **Fixes**:

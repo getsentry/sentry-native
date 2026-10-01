@@ -4,6 +4,7 @@
 #include "sentry_backend.h"
 #include "sentry_client_report.h"
 #include "sentry_envelope.h"
+#include "sentry_integration.h"
 #include "sentry_json.h"
 #include "sentry_options.h"
 #include "sentry_session.h"
@@ -155,19 +156,37 @@ sentry__run_load_user_consent(
     sentry_free(contents);
 }
 
+static const char *
+integration_installation_id(
+    const sentry_options_t *options, const char *public_key)
+{
+    for (size_t i = 0; i < options->num_integrations; i++) {
+        sentry_integration_t *integration = options->integrations[i];
+        if (!integration->installation_id_func) {
+            continue;
+        }
+        const char *id
+            = integration->installation_id_func(integration->data, public_key);
+        if (id) {
+            return id;
+        }
+    }
+    return NULL;
+}
+
 void
-sentry__run_load_installation_id(sentry_run_t *run,
-    const sentry_path_t *database_path, const char *public_key)
+sentry__run_load_installation_id(
+    sentry_run_t *run, const sentry_options_t *options)
 {
     sentry_path_t *id_path
-        = sentry__path_join_str(database_path, "installation_id");
+        = sentry__path_join_str(options->database_path, "installation_id");
     if (!id_path) {
         return;
     }
 
-    if (!public_key) {
-        public_key = "";
-    }
+    const char *public_key = options->dsn && options->dsn->public_key
+        ? options->dsn->public_key
+        : "";
     const size_t key_len = strlen(public_key);
 
     const size_t uuid_len = 36;
@@ -187,8 +206,22 @@ sentry__run_load_installation_id(sentry_run_t *run,
     sentry_free(contents);
 
     if (uuid_str[0] == '\0') {
-        sentry_uuid_t uuid = sentry_uuid_new_v4();
-        sentry_uuid_as_string(&uuid, uuid_str);
+        const char *integration_id
+            = integration_installation_id(options, public_key);
+        if (integration_id) {
+            const size_t integration_id_len = strlen(integration_id);
+            if (integration_id_len == uuid_len
+                && sentry__uuid_is_valid(integration_id, integration_id_len)) {
+                memcpy(uuid_str, integration_id, uuid_len);
+                uuid_str[uuid_len] = '\0';
+            } else {
+                SENTRY_WARN("the integration installation ID is not a UUID");
+            }
+        }
+        if (uuid_str[0] == '\0') {
+            sentry_uuid_t uuid = sentry_uuid_new_v4();
+            sentry_uuid_as_string(&uuid, uuid_str);
+        }
 
         const size_t buf_len = uuid_len + 1 + key_len + 1;
         char *buf = sentry_malloc(buf_len);
