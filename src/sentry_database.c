@@ -175,7 +175,8 @@ integration_installation_id(
 }
 
 void
-sentry__run_load_installation_id(const sentry_options_t *options)
+sentry__run_load_installation_id(
+    sentry_run_t *run, const sentry_options_t *options)
 {
     sentry_path_t *id_path
         = sentry__path_join_str(options->database_path, "installation_id");
@@ -236,7 +237,7 @@ sentry__run_load_installation_id(const sentry_options_t *options)
         }
     }
 
-    options->run->installation_id = sentry__string_clone(uuid_str);
+    run->installation_id = sentry__string_clone(uuid_str);
     sentry__path_free(id_path);
 }
 

@@ -200,7 +200,7 @@ sentry_init(sentry_options_t *options)
             "the provided DSN \"%s\" is not valid", raw_dsn ? raw_dsn : "");
     }
 
-    sentry__run_load_installation_id(options);
+    sentry__run_load_installation_id(options->run, options);
 
     if (transport) {
         if (sentry__transport_startup(transport, options) != 0) {
