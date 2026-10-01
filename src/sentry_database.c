@@ -191,7 +191,9 @@ sentry__run_load_installation_id(sentry_run_t *run,
 #ifdef SENTRY_PLATFORM_INSTALLATION_ID
         const char *platform_id = sentry__platform_installation_id(public_key);
         if (platform_id) {
-            if (strlen(platform_id) == uuid_len) {
+            const size_t platform_id_len = strlen(platform_id);
+            if (platform_id_len == uuid_len
+                && sentry__uuid_is_valid(platform_id, platform_id_len)) {
                 memcpy(uuid_str, platform_id, uuid_len);
                 uuid_str[uuid_len] = '\0';
                 from_platform = true;
