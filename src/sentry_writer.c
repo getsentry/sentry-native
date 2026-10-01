@@ -307,8 +307,11 @@ sentry__writer_write_from_path(
     if (sentry__writer_has_failed(writer)) {
         return false;
     }
-    if (!path || writer->closed) {
+    if (writer->closed) {
         writer->failed = true;
+        return false;
+    }
+    if (!path) {
         return false;
     }
 #ifdef SENTRY_PLATFORM_WINDOWS
@@ -317,7 +320,6 @@ sentry__writer_write_from_path(
     FILE *file = fopen(path->path, "rb");
 #endif
     if (!file) {
-        writer->failed = true;
         return false;
     }
     char buf[8192];
@@ -333,9 +335,6 @@ sentry__writer_write_from_path(
     bool ok = remaining == 0;
     if (fclose(file) != 0) {
         ok = false;
-    }
-    if (!ok) {
-        writer->failed = true;
     }
     return ok;
 }

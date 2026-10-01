@@ -804,11 +804,21 @@ sentry__envelope_add_attachment(
             sentry_value_get_length(bytes), "attachment", bytes);
     } else {
         sentry_path_t *path = sentry__attachment_make_path(attachment);
-        if (!path) {
+        if (!path || !sentry__path_is_file(path)) {
+            sentry__path_free(path);
             return NULL;
         }
-        item = sentry__envelope_add_from_path(envelope, path, "attachment");
-        sentry__path_free(path);
+        item = envelope_add_item(envelope);
+        if (!item) {
+            sentry__path_free(path);
+            return NULL;
+        }
+        item->payload_path = path;
+        item->payload_len = sentry__path_get_size(path);
+        sentry__envelope_item_set_header(
+            item, "type", sentry_value_new_string("attachment"));
+        sentry__envelope_item_set_header(
+            item, "length", sentry_value_new_uint64(item->payload_len));
     }
     if (!item) {
         return NULL;
@@ -864,25 +874,17 @@ sentry_envelope_item_t *
 sentry__envelope_add_from_path(
     sentry_envelope_t *envelope, const sentry_path_t *path, const char *type)
 {
-    if (!envelope || !path || !sentry__path_is_file(path)) {
+    if (!envelope || !path) {
         return NULL;
     }
-    sentry_path_t *owned_path = sentry__path_clone(path);
-    if (!owned_path) {
+    size_t buf_len;
+    char *buf = sentry__path_read_to_buffer(path, &buf_len);
+    if (!buf) {
+        SENTRY_WARNF("failed to read envelope item from \"%s\"", path->path);
         return NULL;
     }
-    sentry_envelope_item_t *item = envelope_add_item(envelope);
-    if (!item) {
-        sentry__path_free(owned_path);
-        return NULL;
-    }
-    item->payload_path = owned_path;
-    item->payload_len = sentry__path_get_size(path);
-    sentry__envelope_item_set_header(
-        item, "type", sentry_value_new_string(type));
-    sentry__envelope_item_set_header(
-        item, "length", sentry_value_new_uint64(item->payload_len));
-    return item;
+    // NOTE: function will free `buf` on error
+    return envelope_add_from_owned_buffer(envelope, buf, buf_len, type);
 }
 
 void
@@ -920,8 +922,13 @@ envelope_write_payload(
     const sentry_envelope_item_t *item, sentry_writer_t *output)
 {
     if (item->payload_path) {
-        return sentry__writer_write_from_path(
+        bool ok = sentry__writer_write_from_path(
             output, item->payload_path, item->payload_len);
+        if (!ok && !sentry__writer_has_failed(output)) {
+            SENTRY_WARNF("failed to read envelope item from \"%s\"",
+                item->payload_path->path);
+        }
+        return ok;
     }
     return sentry__writer_write(output, item->payload, item->payload_len);
 }
@@ -941,6 +948,7 @@ static bool
 sentry__envelope_serialize_item_into_stringbuilder(
     const sentry_envelope_item_t *item, sentry_stringbuilder_t *sb)
 {
+    size_t start = sentry__stringbuilder_len(sb);
     sentry_jsonwriter_t *jw = sentry__jsonwriter_new_sb(sb);
     if (!jw) {
         return false;
@@ -959,6 +967,13 @@ sentry__envelope_serialize_item_into_stringbuilder(
     }
     sentry_writer_t *output = sentry__writer_new_sb(sb);
     bool ok = envelope_write_payload(item, output);
+    if (!ok && !sentry__writer_has_failed(output)) {
+        sentry__stringbuilder_set_len(sb, start);
+        if (sb->buf) {
+            sb->buf[start] = '\0';
+        }
+        ok = true;
+    }
     sentry__writer_free(output);
     return ok;
 }
@@ -1029,11 +1044,12 @@ sentry_envelope_serialize_ratelimited(const sentry_envelope_t *envelope,
                 item_type_to_data_category(ty), 1);
             continue;
         }
+        size_t start = sentry__stringbuilder_len(&sb);
         if (!envelope_serialize_item(item, &sb)) {
             *size_out = 0;
             return NULL;
         }
-        serialized_items += 1;
+        serialized_items += sentry__stringbuilder_len(&sb) > start;
     }
 
     if (!serialized_items) {
@@ -1076,7 +1092,8 @@ static int
 envelope_write_to_path(const sentry_envelope_t *envelope,
     const sentry_path_t *path, envelope_item_writer_fn item_writer, void *data)
 {
-    sentry_writer_t *output = sentry__writer_new_file(path);
+    sentry_filewriter_t *fw = sentry__filewriter_new(path);
+    sentry_writer_t *output = sentry__writer_new_filewriter(fw, true);
     if (!output) {
         return 1;
     }
@@ -1107,6 +1124,7 @@ envelope_write_to_path(const sentry_envelope_t *envelope,
                 continue;
             }
 
+            size_t start = sentry__filewriter_byte_count(fw);
             sentry__writer_write_char(output, '\n');
             sentry__jsonwriter_write_value(jw, item->headers);
             sentry__jsonwriter_reset(jw);
@@ -1116,6 +1134,10 @@ envelope_write_to_path(const sentry_envelope_t *envelope,
 
             sentry__writer_write_char(output, '\n');
             if (!envelope_write_payload(item, output)) {
+                if (!sentry__writer_has_failed(output)
+                    && sentry__filewriter_truncate(fw, start)) {
+                    continue;
+                }
                 failed = 1;
                 goto done;
             }

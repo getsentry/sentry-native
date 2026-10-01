@@ -493,6 +493,7 @@ void
 sentry__submit_envelope(sentry_transport_t *transport,
     sentry_envelope_t *envelope, const sentry_options_t *options)
 {
+    sentry__envelope_load(envelope);
     if (!sentry__run_should_skip_upload(options->run)) {
         sentry__transport_send_envelope(transport, envelope);
         return;
@@ -1970,6 +1971,8 @@ sentry__launch_external_crash_reporter(
     if (sentry__run_should_skip_upload(options->run)) {
         return false;
     }
+
+    sentry__envelope_load(envelope);
 
     // Raw crash envelopes (native daemon) need parsing before cache_dir header.
     if (options->cache_keep && sentry__envelope_is_raw(envelope)

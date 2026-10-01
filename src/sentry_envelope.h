@@ -98,6 +98,8 @@ sentry_envelope_item_t *sentry__envelope_add_session(
 
 /**
  * Add an attachment to this envelope.
+ * File payloads are deferred; the file must remain unchanged until
+ * serialization or loading finishes.
  */
 sentry_envelope_item_t *sentry__envelope_add_attachment(
     sentry_envelope_t *envelope, sentry_value_t attachment);
@@ -138,14 +140,13 @@ void sentry__envelope_discard(const sentry_envelope_t *envelope,
 
 /**
  * This will add the file contents from `path` as an envelope item of type
- * `type`. Copies the path; the file must remain unchanged until serialization
- * or loading finishes.
+ * `type`.
  */
 sentry_envelope_item_t *sentry__envelope_add_from_path(
     sentry_envelope_t *envelope, const sentry_path_t *path, const char *type);
 
 /**
- * Load deferred file payloads into memory before transport handoff.
+ * Load deferred file payloads into memory before submission.
  * Leaves raw envelopes unchanged. Unreadable file items are omitted.
  */
 void sentry__envelope_load(sentry_envelope_t *envelope);

@@ -270,9 +270,10 @@ SENTRY_TEST(writer_from_path)
     TEST_CHECK_STRING_EQUAL(sb.buf, "dat");
     TEST_CHECK_INT_EQUAL(sentry__writer_byte_count(writer), 3);
     TEST_CHECK(!sentry__writer_write_from_path(writer, path, 5));
-    TEST_CHECK(sentry__writer_has_failed(writer));
-    TEST_CHECK(!sentry__writer_write_char(writer, '!'));
-    TEST_CHECK_INT_EQUAL(sentry__writer_byte_count(writer), 3);
+    TEST_CHECK(!sentry__writer_has_failed(writer));
+    TEST_CHECK(sentry__writer_write_char(writer, '!'));
+    TEST_CHECK_INT_EQUAL(sentry__writer_byte_count(writer), 4);
+    TEST_CHECK_STRING_EQUAL(sb.buf, "dat!");
     sentry__writer_free(writer);
     sentry__stringbuilder_cleanup(&sb);
 
@@ -280,7 +281,7 @@ SENTRY_TEST(writer_from_path)
     writer = sentry__writer_new_sb(NULL);
     TEST_ASSERT(!!writer);
     TEST_CHECK(!sentry__writer_write_from_path(writer, path, 1));
-    TEST_CHECK(sentry__writer_has_failed(writer));
+    TEST_CHECK(!sentry__writer_has_failed(writer));
     sentry__writer_free(writer);
     sentry__path_free(path);
 }

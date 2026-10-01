@@ -94,7 +94,6 @@ sentry__transport_send_envelope(
         sentry_envelope_free(envelope);
         return;
     }
-    sentry__envelope_load(envelope);
     SENTRY_DEBUG("sending envelope");
     transport->send_envelope_func(envelope, transport->state);
     if (sentry__atomic_fetch(&transport->suspended)) {
