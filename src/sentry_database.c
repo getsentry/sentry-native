@@ -187,8 +187,23 @@ sentry__run_load_installation_id(sentry_run_t *run,
     sentry_free(contents);
 
     if (uuid_str[0] == '\0') {
-        sentry_uuid_t uuid = sentry_uuid_new_v4();
-        sentry_uuid_as_string(&uuid, uuid_str);
+        bool from_platform = false;
+#ifdef SENTRY_PLATFORM_INSTALLATION_ID
+        const char *platform_id = sentry__platform_installation_id(public_key);
+        if (platform_id) {
+            if (strlen(platform_id) == uuid_len) {
+                memcpy(uuid_str, platform_id, uuid_len);
+                uuid_str[uuid_len] = '\0';
+                from_platform = true;
+            } else {
+                SENTRY_WARN("the platform installation ID is not a UUID");
+            }
+        }
+#endif
+        if (!from_platform) {
+            sentry_uuid_t uuid = sentry_uuid_new_v4();
+            sentry_uuid_as_string(&uuid, uuid_str);
+        }
 
         const size_t buf_len = uuid_len + 1 + key_len + 1;
         char *buf = sentry_malloc(buf_len);
