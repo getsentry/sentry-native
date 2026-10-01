@@ -1819,8 +1819,8 @@ SENTRY_TEST(event_with_id)
 
 SENTRY_TEST(value_from_msgpack_empty)
 {
-    TEST_CHECK(sentry_value_is_null(sentry__value_from_msgpack(NULL, 0)));
-    TEST_CHECK(sentry_value_is_null(sentry__value_from_msgpack("", 0)));
+    TEST_CHECK(sentry_value_is_null(sentry_value_from_msgpack(NULL, 0)));
+    TEST_CHECK(sentry_value_is_null(sentry_value_from_msgpack("", 0)));
 }
 
 SENTRY_TEST(value_from_msgpack_null)
@@ -1829,7 +1829,7 @@ SENTRY_TEST(value_from_msgpack_null)
     size_t size = 0;
     char *buf = sentry_value_to_msgpack(val, &size);
 
-    sentry_value_t deserialized = sentry__value_from_msgpack(buf, size);
+    sentry_value_t deserialized = sentry_value_from_msgpack(buf, size);
     TEST_CHECK(sentry_value_get_type(deserialized) == SENTRY_VALUE_TYPE_NULL);
     TEST_CHECK(sentry_value_is_null(deserialized));
 
@@ -1845,7 +1845,7 @@ SENTRY_TEST(value_from_msgpack_bool)
         size_t size = 0;
         char *buf = sentry_value_to_msgpack(val, &size);
 
-        sentry_value_t deserialized = sentry__value_from_msgpack(buf, size);
+        sentry_value_t deserialized = sentry_value_from_msgpack(buf, size);
         TEST_CHECK(
             sentry_value_get_type(deserialized) == SENTRY_VALUE_TYPE_BOOL);
         TEST_CHECK(sentry_value_is_true(deserialized));
@@ -1859,7 +1859,7 @@ SENTRY_TEST(value_from_msgpack_bool)
         size_t size = 0;
         char *buf = sentry_value_to_msgpack(val, &size);
 
-        sentry_value_t deserialized = sentry__value_from_msgpack(buf, size);
+        sentry_value_t deserialized = sentry_value_from_msgpack(buf, size);
         TEST_CHECK(
             sentry_value_get_type(deserialized) == SENTRY_VALUE_TYPE_BOOL);
         TEST_CHECK(!sentry_value_is_true(deserialized));
@@ -1877,7 +1877,7 @@ SENTRY_TEST(value_from_msgpack_int32)
         size_t size = 0;
         char *buf = sentry_value_to_msgpack(val, &size);
 
-        sentry_value_t deserialized = sentry__value_from_msgpack(buf, size);
+        sentry_value_t deserialized = sentry_value_from_msgpack(buf, size);
         TEST_CHECK(
             sentry_value_get_type(deserialized) == SENTRY_VALUE_TYPE_INT32);
         TEST_CHECK(sentry_value_as_int32(deserialized) == 42);
@@ -1891,7 +1891,7 @@ SENTRY_TEST(value_from_msgpack_int32)
         size_t size = 0;
         char *buf = sentry_value_to_msgpack(val, &size);
 
-        sentry_value_t deserialized = sentry__value_from_msgpack(buf, size);
+        sentry_value_t deserialized = sentry_value_from_msgpack(buf, size);
         TEST_CHECK(
             sentry_value_get_type(deserialized) == SENTRY_VALUE_TYPE_INT32);
         TEST_CHECK(sentry_value_as_int32(deserialized) == -123);
@@ -1909,7 +1909,7 @@ SENTRY_TEST(value_from_msgpack_int64)
         size_t size = 0;
         char *buf = sentry_value_to_msgpack(val, &size);
 
-        sentry_value_t deserialized = sentry__value_from_msgpack(buf, size);
+        sentry_value_t deserialized = sentry_value_from_msgpack(buf, size);
         TEST_CHECK(
             sentry_value_get_type(deserialized) == SENTRY_VALUE_TYPE_INT64);
         TEST_CHECK(
@@ -1924,7 +1924,7 @@ SENTRY_TEST(value_from_msgpack_int64)
         size_t size = 0;
         char *buf = sentry_value_to_msgpack(val, &size);
 
-        sentry_value_t deserialized = sentry__value_from_msgpack(buf, size);
+        sentry_value_t deserialized = sentry_value_from_msgpack(buf, size);
         TEST_CHECK(
             sentry_value_get_type(deserialized) == SENTRY_VALUE_TYPE_INT64);
         TEST_CHECK(sentry_value_as_int64(deserialized) == INT64_MIN);
@@ -1938,7 +1938,7 @@ SENTRY_TEST(value_from_msgpack_int64)
         size_t size = 0;
         char *buf = sentry_value_to_msgpack(val, &size);
 
-        sentry_value_t deserialized = sentry__value_from_msgpack(buf, size);
+        sentry_value_t deserialized = sentry_value_from_msgpack(buf, size);
         TEST_CHECK(
             sentry_value_get_type(deserialized) == SENTRY_VALUE_TYPE_INT64);
         TEST_CHECK(
@@ -1953,7 +1953,7 @@ SENTRY_TEST(value_from_msgpack_int64)
         size_t size = 0;
         char *buf = sentry_value_to_msgpack(val, &size);
 
-        sentry_value_t deserialized = sentry__value_from_msgpack(buf, size);
+        sentry_value_t deserialized = sentry_value_from_msgpack(buf, size);
         TEST_CHECK(
             sentry_value_get_type(deserialized) == SENTRY_VALUE_TYPE_INT64);
         TEST_CHECK(sentry_value_as_int64(deserialized) == INT64_MAX);
@@ -1970,7 +1970,7 @@ SENTRY_TEST(value_from_msgpack_uint64)
     size_t size = 0;
     char *buf = sentry_value_to_msgpack(val, &size);
 
-    sentry_value_t deserialized = sentry__value_from_msgpack(buf, size);
+    sentry_value_t deserialized = sentry_value_from_msgpack(buf, size);
     TEST_CHECK(sentry_value_get_type(deserialized) == SENTRY_VALUE_TYPE_UINT64);
     TEST_CHECK(sentry_value_as_uint64(deserialized) == UINT64_MAX);
 
@@ -1985,7 +1985,7 @@ SENTRY_TEST(value_from_msgpack_double)
     size_t size = 0;
     char *buf = sentry_value_to_msgpack(val, &size);
 
-    sentry_value_t deserialized = sentry__value_from_msgpack(buf, size);
+    sentry_value_t deserialized = sentry_value_from_msgpack(buf, size);
     TEST_CHECK(sentry_value_get_type(deserialized) == SENTRY_VALUE_TYPE_DOUBLE);
     double d = sentry_value_as_double(deserialized);
     TEST_CHECK(d > 3.14 && d < 3.15);
@@ -2001,7 +2001,7 @@ SENTRY_TEST(value_from_msgpack_string)
     size_t size = 0;
     char *buf = sentry_value_to_msgpack(val, &size);
 
-    sentry_value_t deserialized = sentry__value_from_msgpack(buf, size);
+    sentry_value_t deserialized = sentry_value_from_msgpack(buf, size);
     TEST_CHECK(sentry_value_get_type(deserialized) == SENTRY_VALUE_TYPE_STRING);
     TEST_CHECK_STRING_EQUAL(
         sentry_value_as_string(deserialized), "őá…–🤮🚀¿ 한글 테스트 \a\v");
@@ -2024,7 +2024,7 @@ SENTRY_TEST(value_from_msgpack_list)
     size_t size = 0;
     char *buf = sentry_value_to_msgpack(val, &size);
 
-    sentry_value_t deserialized = sentry__value_from_msgpack(buf, size);
+    sentry_value_t deserialized = sentry_value_from_msgpack(buf, size);
     TEST_CHECK(sentry_value_get_type(deserialized) == SENTRY_VALUE_TYPE_LIST);
     TEST_CHECK(sentry_value_get_length(deserialized) == 2);
 
@@ -2048,13 +2048,13 @@ SENTRY_TEST(value_from_msgpack_deeply_nested)
     char accepted[64 + 1]; // SENTRY_MPACK_MAX_DEPTH + 1
     write_nested_msgpack_arrays(accepted, sizeof(accepted) - 1);
     sentry_value_t value
-        = sentry__value_from_msgpack(accepted, sizeof(accepted));
+        = sentry_value_from_msgpack(accepted, sizeof(accepted));
     TEST_CHECK(sentry_value_get_type(value) == SENTRY_VALUE_TYPE_LIST);
     sentry_value_decref(value);
 
     char too_deep[64 + 2]; // SENTRY_MPACK_MAX_DEPTH + 2
     write_nested_msgpack_arrays(too_deep, sizeof(too_deep) - 1);
-    value = sentry__value_from_msgpack(too_deep, sizeof(too_deep));
+    value = sentry_value_from_msgpack(too_deep, sizeof(too_deep));
     TEST_CHECK(sentry_value_is_null(value));
     sentry_value_decref(value);
 }
@@ -2072,7 +2072,7 @@ SENTRY_TEST(value_from_msgpack_object)
     size_t size = 0;
     char *buf = sentry_value_to_msgpack(val, &size);
 
-    sentry_value_t deserialized = sentry__value_from_msgpack(buf, size);
+    sentry_value_t deserialized = sentry_value_from_msgpack(buf, size);
     TEST_CHECK(sentry_value_get_type(deserialized) == SENTRY_VALUE_TYPE_OBJECT);
 
     sentry_value_t position = sentry_value_get_by_key(deserialized, "position");
@@ -2092,8 +2092,8 @@ SENTRY_TEST(value_from_msgpack_object)
 SENTRY_TEST(value_from_msgpack_flat_buffer)
 {
     // buffers holding multiple concatenated msgpack values are rejected by
-    // `sentry__value_from_msgpack`; they must be decoded with
-    // `sentry__value_from_msgpack_stream` instead
+    // `sentry_value_from_msgpack`; they must be decoded with
+    // `sentry_value_from_msgpack_stream` instead
     sentry_value_t val1 = sentry_value_new_list();
     sentry_value_append(val1, sentry_value_new_int32(1));
     sentry_value_append(val1, sentry_value_new_int32(2));
@@ -2111,7 +2111,7 @@ SENTRY_TEST(value_from_msgpack_flat_buffer)
     memcpy(combined + combined_size, buf2, size2);
     combined_size += size2;
 
-    sentry_value_t result = sentry__value_from_msgpack(combined, combined_size);
+    sentry_value_t result = sentry_value_from_msgpack(combined, combined_size);
     TEST_CHECK(sentry_value_is_null(result));
 
     // a single value followed by trailing garbage is rejected as well
@@ -2119,7 +2119,7 @@ SENTRY_TEST(value_from_msgpack_flat_buffer)
     memset(combined + combined_size, 0xC1, 4); // 0xC1 is never used in msgpack
     combined_size += 4;
 
-    result = sentry__value_from_msgpack(combined, combined_size);
+    result = sentry_value_from_msgpack(combined, combined_size);
     TEST_CHECK(sentry_value_is_null(result));
 
     sentry_free(buf1);
@@ -2130,18 +2130,17 @@ SENTRY_TEST(value_from_msgpack_flat_buffer)
 
 SENTRY_TEST(value_from_msgpack_stream)
 {
-    TEST_CHECK(
-        sentry_value_is_null(sentry__value_from_msgpack_stream(NULL, 0)));
-    TEST_CHECK(sentry_value_is_null(sentry__value_from_msgpack_stream("", 0)));
+    TEST_CHECK(sentry_value_is_null(sentry_value_from_msgpack_stream(NULL, 0)));
+    TEST_CHECK(sentry_value_is_null(sentry_value_from_msgpack_stream("", 0)));
 
     // a single value decodes to a one-element list, unlike
-    // `sentry__value_from_msgpack` which decodes it bare
+    // `sentry_value_from_msgpack` which decodes it bare
     sentry_value_t val1 = sentry_value_new_object();
     sentry_value_set_by_key(val1, "message", sentry_value_new_string("first"));
     size_t size1 = 0;
     char *buf1 = sentry_value_to_msgpack(val1, &size1);
 
-    sentry_value_t single = sentry__value_from_msgpack_stream(buf1, size1);
+    sentry_value_t single = sentry_value_from_msgpack_stream(buf1, size1);
     TEST_CHECK(sentry_value_get_type(single) == SENTRY_VALUE_TYPE_LIST);
     TEST_CHECK(sentry_value_get_length(single) == 1);
     TEST_CHECK_STRING_EQUAL(
@@ -2163,7 +2162,7 @@ SENTRY_TEST(value_from_msgpack_stream)
     combined_size += size2;
 
     sentry_value_t multi
-        = sentry__value_from_msgpack_stream(combined, combined_size);
+        = sentry_value_from_msgpack_stream(combined, combined_size);
     TEST_CHECK(sentry_value_get_type(multi) == SENTRY_VALUE_TYPE_LIST);
     TEST_CHECK(sentry_value_get_length(multi) == 2);
     TEST_CHECK_STRING_EQUAL(

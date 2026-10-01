@@ -3344,7 +3344,7 @@ read_breadcrumb_ring_file(const sentry_path_t *run_folder, const char *name)
         sentry_free(buf);
         return sentry_value_new_null();
     }
-    sentry_value_t list = sentry__value_from_msgpack_stream(buf, size);
+    sentry_value_t list = sentry_value_from_msgpack_stream(buf, size);
     sentry_free(buf);
     return list;
 }
