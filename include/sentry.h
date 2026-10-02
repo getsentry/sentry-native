@@ -2567,7 +2567,7 @@ SENTRY_API sentry_scope_t *sentry_scope_new(void);
 
 /**
  * Frees a scope created via `sentry_scope_new`, `sentry_scope_clone`, or
- * `sentry_local_scope_new`.
+ * `sentry_local_scope_new`, or acquired via `sentry_acquire_global_scope`.
  */
 SENTRY_API void sentry_scope_free(sentry_scope_t *scope);
 
@@ -2586,6 +2586,13 @@ SENTRY_API sentry_scope_t *sentry_scope_clone(const sentry_scope_t *scope);
  * its trace. The scope is not freed and can be reused.
  */
 SENTRY_API void sentry_scope_clear(sentry_scope_t *scope);
+
+/**
+ * Acquires a reference to the global scope.
+ *
+ * The caller must release the reference with `sentry_scope_free`.
+ */
+SENTRY_API sentry_scope_t *sentry_acquire_global_scope(void);
 
 /**
  * Returns the ID of the last event sent with the global scope.

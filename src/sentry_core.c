@@ -151,6 +151,12 @@ sentry_init(sentry_options_t *options)
 
     sentry_close();
 
+    if (!sentry__global_scope_init()) {
+        SENTRY_WARN("failed to initialize global scope");
+        goto fail;
+    }
+    initial_scope_prepared = true;
+
     sentry__client_report_reset();
 
     sentry_logger_t logger = { NULL, NULL, SENTRY_LEVEL_DEBUG };
@@ -234,7 +240,6 @@ sentry_init(sentry_options_t *options)
     SENTRY_WITH_SCOPE_MUT_NO_FLUSH (scope) {
         sentry__scope_apply_options(scope, options);
     }
-    initial_scope_prepared = true;
 
     // and then we will start the backend, since it requires a valid run
     sentry_backend_t *backend = options->backend;
@@ -399,6 +404,10 @@ sentry_reinstall_backend(void)
     SENTRY_WITH_OPTIONS (options) {
         // prevent scope observers from racing with backend reinstall
         sentry_scope_t *scope = sentry__scope_getref();
+        if (!scope) {
+            rv = 1;
+            continue;
+        }
         sentry__mutex_lock(&scope->observers_lock);
         sentry_backend_t *backend = options->backend;
         if (backend && backend->shutdown_func) {
@@ -2259,4 +2268,10 @@ sentry_get_last_event_id(void)
         event_id = sentry_scope_get_last_event_id(scope);
     }
     return event_id;
+}
+
+sentry_scope_t *
+sentry_acquire_global_scope(void)
+{
+    return sentry__scope_getref();
 }

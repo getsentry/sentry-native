@@ -2250,6 +2250,7 @@ SENTRY_TEST(scope_observer_user)
     TEST_CHECK(d.was_called);
     TEST_CHECK_JSON_VALUE(d.user, "{}");
 
+    sentry_value_decref(d.user);
     sentry_close();
 }
 
@@ -3475,4 +3476,34 @@ SENTRY_TEST(scope_clone_keeps_bound_span)
     sentry_transaction_finish(tx);
 
     sentry_close();
+}
+
+SENTRY_TEST(scope_acquire_global)
+{
+    SENTRY_TEST_OPTIONS_NEW(options);
+    TEST_ASSERT_INT_EQUAL(sentry_init(options), 0);
+    sentry_scope_t *first = sentry_acquire_global_scope();
+    TEST_ASSERT(!!first);
+    sentry_scope_set_level(first, SENTRY_LEVEL_INFO);
+
+    sentry_scope_t *again = sentry_acquire_global_scope();
+    TEST_CHECK_PTR_EQUAL(again, first);
+    sentry_scope_free(again);
+    TEST_CHECK_INT_EQUAL(sentry__scope_get_level(first), SENTRY_LEVEL_INFO);
+
+    SENTRY_TEST_OPTIONS_NEW(next_options);
+    TEST_ASSERT_INT_EQUAL(sentry_init(next_options), 0);
+    sentry_scope_t *second = sentry_acquire_global_scope();
+    TEST_ASSERT(!!second);
+    TEST_CHECK(second != first);
+    TEST_CHECK_INT_EQUAL(sentry__scope_get_level(second), SENTRY_LEVEL_ERROR);
+    TEST_CHECK_INT_EQUAL(sentry__scope_get_level(first), SENTRY_LEVEL_INFO);
+
+    sentry_close();
+    sentry_scope_set_level(first, SENTRY_LEVEL_DEBUG);
+    TEST_CHECK_INT_EQUAL(sentry__scope_get_level(first), SENTRY_LEVEL_DEBUG);
+    sentry_scope_set_level(second, SENTRY_LEVEL_FATAL);
+    TEST_CHECK_INT_EQUAL(sentry__scope_get_level(second), SENTRY_LEVEL_FATAL);
+    sentry_scope_free(first);
+    sentry_scope_free(second);
 }

@@ -104,7 +104,15 @@ sentry_scope_t *sentry__scope_incref(sentry_scope_t *scope);
 void sentry__scope_decref(sentry_scope_t *scope);
 
 /**
- * This will free all the data attached to the global scope
+ * Initialize a new global scope.
+ *
+ * TODO: use sentry__global_scope_* names for global scope specific functions
+ */
+bool sentry__global_scope_init(void);
+
+/**
+ * This will release the global scope reference, freeing all the data attached
+ * to the global scope if it was the last reference
  */
 void sentry__scope_cleanup(void);
 
