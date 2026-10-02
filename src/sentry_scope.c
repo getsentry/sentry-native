@@ -836,6 +836,7 @@ sentry__scope_load_propagation_context(const sentry_scope_t *scope)
 static void
 notify_trace(sentry_scope_t *scope)
 {
+    lock_scope_notify(scope);
     bool observed = false;
     for (size_t i = 0; i < scope->num_observers; i++) {
         if (scope->observers[i] && scope->observers[i]->set_trace) {
@@ -844,6 +845,7 @@ notify_trace(sentry_scope_t *scope)
         }
     }
     if (!observed) {
+        unlock_scope_notify(scope);
         return;
     }
     sentry_value_t span = sentry__scope_load_span_or_transaction(scope);
@@ -868,6 +870,7 @@ notify_trace(sentry_scope_t *scope)
     SENTRY_SCOPE_NOTIFY(scope, set_trace, trace);
     sentry_value_decref(trace);
     sentry_value_decref(span);
+    unlock_scope_notify(scope);
 }
 
 void
