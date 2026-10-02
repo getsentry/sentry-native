@@ -1795,8 +1795,11 @@ sentry_span_finish_ts(sentry_span_t *opaque_span, uint64_t timestamp)
     }
 
     sentry_scope_t *scope = sentry__scope_getref();
-    bool removed = sentry__scope_remove_span_value(scope, opaque_span->inner);
-    sentry__scope_finish_mut(scope, removed);
+    if (scope) {
+        bool removed
+            = sentry__scope_remove_span_value(scope, opaque_span->inner);
+        sentry__scope_finish_mut(scope, removed);
+    }
 
     sentry_transaction_t *opaque_root_transaction = opaque_span->transaction;
     if (!opaque_root_transaction
