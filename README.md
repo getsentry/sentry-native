@@ -119,11 +119,16 @@ install
 └── lib
    ├── cmake
    │  └── sentry
-   ├── libsentry.dylib
-   └── libsentry.dylib.dSYM
+   ├── libsentry.1.0.0.dylib
+   ├── libsentry.1.dylib -> libsentry.1.0.0.dylib
+   ├── libsentry.dylib -> libsentry.1.dylib
+   └── libsentry.1.0.0.dylib.dSYM
 ```
 
 Please refer to the CMake Manual for more details.
+
+Starting with 1.0.0, shared libraries on macOS and Linux use ABI-versioned
+runtime names such as `libsentry.1.dylib` or `libsentry.so.1`.
 
 **Android**:
 
