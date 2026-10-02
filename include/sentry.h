@@ -2227,7 +2227,7 @@ SENTRY_API void sentry_options_set_database_pathw_n(
  * Note: this function depends on the SDK being initialized when doing static
  * builds or in any configuration on Xbox.
  */
-SENTRY_EXPERIMENTAL_API int sentry_set_thread_stack_guarantee(
+SENTRY_API int sentry_set_thread_stack_guarantee(
     uint32_t stack_guarantee_in_bytes);
 #endif
 
@@ -2488,7 +2488,7 @@ SENTRY_API int sentry_shutdown(void);
  * Returns a new reference to an immutable, frozen list.
  * The reference must be released with `sentry_value_decref`.
  */
-SENTRY_EXPERIMENTAL_API sentry_value_t sentry_get_modules_list(void);
+SENTRY_API sentry_value_t sentry_get_modules_list(void);
 
 /**
  * Clears the internal module cache.
@@ -2499,7 +2499,7 @@ SENTRY_EXPERIMENTAL_API sentry_value_t sentry_get_modules_list(void);
  * `sentry_clear_modulecache` when doing so to make sure that the next call to
  * `sentry_capture_event` will have an up-to-date module list.
  */
-SENTRY_EXPERIMENTAL_API void sentry_clear_modulecache(void);
+SENTRY_API void sentry_clear_modulecache(void);
 
 /**
  * Re-initializes the Sentry backend.
@@ -2510,7 +2510,7 @@ SENTRY_EXPERIMENTAL_API void sentry_clear_modulecache(void);
  *
  * Returns 0 on success.
  */
-SENTRY_EXPERIMENTAL_API int sentry_reinstall_backend(void);
+SENTRY_API int sentry_reinstall_backend(void);
 
 /**
  * Gives user consent.
@@ -4413,7 +4413,7 @@ SENTRY_EXPERIMENTAL_API int sentry_clear_crashed_last_run(void);
 /**
  * Sentry SDK version.
  */
-SENTRY_EXPERIMENTAL_API const char *sentry_sdk_version(void);
+SENTRY_API const char *sentry_sdk_version(void);
 
 /**
  * Sentry SDK name set during build time.
