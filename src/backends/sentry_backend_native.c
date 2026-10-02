@@ -1429,6 +1429,18 @@ set_trace(void *data, sentry_value_t trace)
 }
 
 static bool
+init_scope_observer(void *data, const sentry_scope_t *scope)
+{
+    native_backend_state_t *state = data;
+    sentry_value_t attachments = sentry__scope_load_attachments(scope);
+    for (size_t i = 0; i < sentry_value_get_length(attachments); i++) {
+        add_attachment(state, sentry_value_get_by_index(attachments, i));
+    }
+    sentry_value_decref(attachments);
+    return snapshot_scope(state, scope);
+}
+
+static bool
 observe_scope(native_backend_state_t *state)
 {
     sentry_scope_observer_t *observer = sentry__scope_observer_new();
@@ -1455,15 +1467,10 @@ observe_scope(native_backend_state_t *state)
     observer->remove_attachment = sync_attachments;
     bool sent = false;
     SENTRY_WITH_SCOPE_MUT_NO_FLUSH (scope) {
-        if (sentry__scope_add_observer(scope, observer)) {
+        if (sentry__scope_add_observer_with_init(
+                scope, observer, init_scope_observer)) {
             state->scope_observer = observer;
-            sentry_value_t attachments = sentry__scope_load_attachments(scope);
-            for (size_t i = 0; i < sentry_value_get_length(attachments); i++) {
-                add_attachment(
-                    state, sentry_value_get_by_index(attachments, i));
-            }
-            sentry_value_decref(attachments);
-            sent = snapshot_scope(state, scope);
+            sent = true;
         }
     }
     return sent;

@@ -3556,3 +3556,77 @@ SENTRY_TEST(scope_observer_trace_serialized)
     TEST_CHECK_INT_EQUAL(sentry__atomic_fetch(&state.calls), 1);
     sentry_scope_free(scope);
 }
+
+static bool
+init_trace_observer(void *data, const sentry_scope_t *scope)
+{
+    trace_notify_state_t *state = data;
+    TEST_CHECK(scope == state->scope);
+    TEST_ASSERT(scope->num_observers == 1);
+    TEST_CHECK(scope->observers[0]->data == data);
+    TEST_ASSERT(
+        !sentry__thread_spawn(&state->writer, notify_scope_trace, state));
+    TEST_ASSERT(sentry__waitable_flag_wait(&state->started, 1000));
+    TEST_CHECK(!sentry__waitable_flag_wait(&state->finished, 100));
+    TEST_CHECK_INT_EQUAL(sentry__atomic_fetch(&state->calls), 0);
+
+    TEST_ASSERT(
+        !sentry__thread_spawn(&state->reader, read_scope_during_notify, state));
+    TEST_CHECK(sentry__waitable_flag_wait(&state->read_finished, 1000));
+    return true;
+}
+
+SENTRY_TEST(scope_observer_init)
+{
+    sentry_scope_t *scope = sentry_scope_new();
+    TEST_ASSERT(!!scope);
+    trace_notify_state_t state = { .scope = scope };
+    sentry__waitable_flag_init(&state.started);
+    sentry__waitable_flag_init(&state.finished);
+    sentry__waitable_flag_init(&state.read_finished);
+    sentry__thread_init(&state.writer);
+    sentry__thread_init(&state.reader);
+    sentry_scope_observer_t *observer = sentry__scope_observer_new();
+    TEST_ASSERT(!!observer);
+    observer->data = &state;
+    observer->set_trace = observe_trace;
+
+    TEST_ASSERT(sentry__scope_add_observer_with_init(
+        scope, observer, init_trace_observer));
+
+    TEST_CHECK(sentry__waitable_flag_wait(&state.finished, 1000));
+    sentry__thread_join(state.writer);
+    sentry__thread_join(state.reader);
+    sentry__thread_free(&state.writer);
+    sentry__thread_free(&state.reader);
+    TEST_CHECK_INT_EQUAL(sentry__atomic_fetch(&state.calls), 1);
+    sentry_scope_free(scope);
+}
+
+static bool
+reject_scope_observer(void *data, const sentry_scope_t *scope)
+{
+    TEST_CHECK_INT_EQUAL(scope->num_observers, 2);
+    *(bool *)data = true;
+    return false;
+}
+
+SENTRY_TEST(scope_observer_init_failure)
+{
+    sentry_scope_t *scope = sentry_scope_new();
+    TEST_ASSERT(!!scope);
+    sentry_scope_observer_t *existing = sentry__scope_observer_new();
+    TEST_ASSERT(!!existing);
+    TEST_ASSERT(sentry__scope_add_observer(scope, existing));
+
+    bool initialized = false;
+    sentry_scope_observer_t *observer = sentry__scope_observer_new();
+    TEST_ASSERT(!!observer);
+    observer->data = &initialized;
+    TEST_CHECK(!sentry__scope_add_observer_with_init(
+        scope, observer, reject_scope_observer));
+    TEST_CHECK(initialized);
+    TEST_CHECK_INT_EQUAL(scope->num_observers, 1);
+    TEST_CHECK(scope->observers[0] == existing);
+    sentry_scope_free(scope);
+}
