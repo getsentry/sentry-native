@@ -255,3 +255,33 @@ SENTRY_TEST(writer_filewriter_wrapper)
     sentry__path_remove(path);
     sentry__path_free(path);
 }
+
+SENTRY_TEST(writer_from_path)
+{
+    sentry_path_t *path = sentry__path_from_str(
+        SENTRY_TEST_PATH_PREFIX "sentry_test_writer_from_path");
+    TEST_ASSERT(sentry__path_write_buffer(path, "data", 4) == 0);
+    sentry_stringbuilder_t sb;
+    sentry__stringbuilder_init(&sb);
+    sentry_writer_t *writer = sentry__writer_new_sb(&sb);
+    TEST_ASSERT(!!writer);
+
+    TEST_CHECK(sentry__writer_write_from_path(writer, path, 3));
+    TEST_CHECK_STRING_EQUAL(sb.buf, "dat");
+    TEST_CHECK_INT_EQUAL(sentry__writer_byte_count(writer), 3);
+    TEST_CHECK(!sentry__writer_write_from_path(writer, path, 5));
+    TEST_CHECK(!sentry__writer_has_failed(writer));
+    TEST_CHECK(sentry__writer_write_char(writer, '!'));
+    TEST_CHECK_INT_EQUAL(sentry__writer_byte_count(writer), 4);
+    TEST_CHECK_STRING_EQUAL(sb.buf, "dat!");
+    sentry__writer_free(writer);
+    sentry__stringbuilder_cleanup(&sb);
+
+    TEST_ASSERT(sentry__path_remove(path) == 0);
+    writer = sentry__writer_new_sb(NULL);
+    TEST_ASSERT(!!writer);
+    TEST_CHECK(!sentry__writer_write_from_path(writer, path, 1));
+    TEST_CHECK(!sentry__writer_has_failed(writer));
+    sentry__writer_free(writer);
+    sentry__path_free(path);
+}

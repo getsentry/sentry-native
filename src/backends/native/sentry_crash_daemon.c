@@ -220,148 +220,25 @@ __asan_default_options(void)
  * Returns true on success, false on failure
  */
 static bool
-write_attachment_to_envelope(int fd, const char *file_path,
+write_attachment_to_envelope(sentry_envelope_t *envelope, const char *file_path,
     const char *filename, const char *attachment_type, const char *content_type)
 {
-#if defined(SENTRY_PLATFORM_UNIX)
-    int attach_fd = open(file_path, O_RDONLY);
-#elif defined(SENTRY_PLATFORM_WINDOWS)
-    // Use wide-char API for proper UTF-8 path support
-    wchar_t *wpath = sentry__string_to_wstr(file_path);
-    int attach_fd = wpath ? _wopen(wpath, _O_RDONLY | _O_BINARY) : -1;
-    sentry_free(wpath);
-#endif
-    if (attach_fd < 0) {
-        SENTRY_WARNF("Failed to open attachment file: %s", file_path);
+    sentry_value_t attachment = sentry__attachment_from_file(file_path);
+    if (sentry_value_is_null(attachment)) {
         return false;
     }
-
-#if defined(SENTRY_PLATFORM_UNIX)
-    struct stat st;
-    if (fstat(attach_fd, &st) != 0) {
-        SENTRY_WARNF("Failed to stat attachment file: %s", file_path);
-        close(attach_fd);
-        return false;
-    }
-    long long file_size = (long long)st.st_size;
-#elif defined(SENTRY_PLATFORM_WINDOWS)
-    struct __stat64 st;
-    if (_fstat64(attach_fd, &st) != 0) {
-        SENTRY_WARNF("Failed to stat attachment file: %s", file_path);
-        _close(attach_fd);
-        return false;
-    }
-    long long file_size = (long long)st.st_size;
-#endif
 
     // Write attachment item header
-    sentry_jsonwriter_t *jw = sentry__jsonwriter_new_sb(NULL);
-    if (!jw) {
-        SENTRY_WARN("Failed to create attachment header writer");
-#if defined(SENTRY_PLATFORM_UNIX)
-        close(attach_fd);
-#elif defined(SENTRY_PLATFORM_WINDOWS)
-        _close(attach_fd);
-#endif
-        return false;
-    }
-
-    sentry__jsonwriter_write_object_start(jw);
-    sentry__jsonwriter_write_key(jw, "type");
-    sentry__jsonwriter_write_str(jw, "attachment");
-    sentry__jsonwriter_write_key(jw, "length");
-    sentry__jsonwriter_write_int64(jw, file_size);
-    sentry__jsonwriter_write_key(jw, "attachment_type");
-    sentry__jsonwriter_write_str(jw,
+    sentry_attachment_set_type(attachment,
         sentry__string_empty(attachment_type) ? SENTRY_ATTACHMENT_TYPE_GENERIC
                                               : attachment_type);
-    if (content_type) {
-        sentry__jsonwriter_write_key(jw, "content_type");
-        sentry__jsonwriter_write_str(jw, content_type);
-    }
-    sentry__jsonwriter_write_key(jw, "filename");
-    sentry__jsonwriter_write_str(jw, filename ? filename : "attachment");
-    sentry__jsonwriter_write_object_end(jw);
-
-    size_t header_written = 0;
-    char *header = sentry__jsonwriter_into_string(jw, &header_written);
-    if (!header) {
-        SENTRY_WARN("Failed to write attachment header");
-#if defined(SENTRY_PLATFORM_UNIX)
-        close(attach_fd);
-#elif defined(SENTRY_PLATFORM_WINDOWS)
-        _close(attach_fd);
-#endif
-        return false;
-    }
-
-#if defined(SENTRY_PLATFORM_UNIX)
-    if (write(fd, header, header_written) != (ssize_t)header_written
-        || write(fd, "\n", 1) != 1) {
-        SENTRY_WARN("Failed to write attachment header to envelope");
-    }
-#elif defined(SENTRY_PLATFORM_WINDOWS)
-    _write(fd, header, (unsigned int)header_written);
-    _write(fd, "\n", 1);
-#endif
-    sentry_free(header);
-
-    // Copy attachment content
-    char buf[SENTRY_CRASH_FILE_BUFFER_SIZE];
-#if defined(SENTRY_PLATFORM_UNIX)
-    ssize_t n;
-    while ((n = read(attach_fd, buf, sizeof(buf))) > 0) {
-        ssize_t written = write(fd, buf, n);
-        if (written != n) {
-            SENTRY_WARNF(
-                "Failed to write attachment content for: %s", file_path);
-            close(attach_fd);
-            return false;
-        }
-    }
-
-    if (n < 0) {
-        SENTRY_WARNF("Failed to read attachment file: %s", file_path);
-        close(attach_fd);
-        return false;
-    }
-
-    if (write(fd, "\n", 1) != 1) {
-        SENTRY_WARN("Failed to write newline to envelope");
-    }
-    close(attach_fd);
-#elif defined(SENTRY_PLATFORM_WINDOWS)
-    int n;
-    while ((n = _read(attach_fd, buf, sizeof(buf))) > 0) {
-        int written = _write(fd, buf, (unsigned int)n);
-        if (written != n) {
-            SENTRY_WARNF(
-                "Failed to write attachment content for: %s", file_path);
-            _close(attach_fd);
-            return false;
-        }
-    }
-
-    if (n < 0) {
-        SENTRY_WARNF("Failed to read attachment file: %s", file_path);
-        _close(attach_fd);
-        return false;
-    }
-
-    _write(fd, "\n", 1);
-    _close(attach_fd);
-#endif
-    return true;
-}
-
-static bool
-attachment_is_placeholder(const sentry_options_t *options, const char *path)
-{
-    sentry_value_t attachment = sentry__attachment_from_file(path);
-    bool is_placeholder
-        = sentry__attachment_is_placeholder(attachment, options);
+    sentry_attachment_set_content_type(attachment, content_type);
+    sentry_attachment_set_filename(
+        attachment, filename ? filename : "attachment");
+    sentry_envelope_item_t *item
+        = sentry__envelope_add_attachment(envelope, attachment);
     sentry_value_decref(attachment);
-    return is_placeholder;
+    return item != NULL;
 }
 
 /**
@@ -444,21 +321,11 @@ read_attachment_manifest(const sentry_path_t *run_folder)
 }
 
 static void
-write_attachments_from_manifest(
-    int fd, const sentry_options_t *options, const sentry_path_t *run_folder)
+write_attachments_from_manifest(sentry_envelope_t *envelope,
+    const sentry_options_t *options, const sentry_path_t *run_folder)
 {
     sentry_value_t attachments = read_attachment_manifest(run_folder);
-    size_t len = sentry_value_get_length(attachments);
-    for (size_t i = 0; i < len; i++) {
-        sentry_value_t attachment = sentry_value_get_by_index(attachments, i);
-        const char *path = sentry__attachment_get_path(attachment);
-        if (!attachment_is_placeholder(options, path)) {
-            write_attachment_to_envelope(fd, path,
-                sentry__attachment_get_filename(attachment),
-                sentry__attachment_get_type(attachment),
-                sentry__attachment_get_content_type(attachment));
-        }
-    }
+    sentry__envelope_add_attachments(envelope, attachments, options);
     sentry_value_decref(attachments);
 }
 
@@ -3843,150 +3710,42 @@ write_envelope_with_native_stacktrace(const sentry_options_t *options,
         return false;
     }
 
-    // Open envelope file for writing
-#if defined(SENTRY_PLATFORM_UNIX)
-    int fd = open(envelope_path, O_WRONLY | O_CREAT | O_TRUNC, 0644);
-#elif defined(SENTRY_PLATFORM_WINDOWS)
-    wchar_t *wpath = sentry__string_to_wstr(envelope_path);
-    int fd = wpath ? _wopen(wpath, _O_WRONLY | _O_CREAT | _O_TRUNC | _O_BINARY,
-                         _S_IREAD | _S_IWRITE)
-                   : -1;
-    sentry_free(wpath);
-#endif
-    if (fd < 0) {
-        SENTRY_WARN("Failed to open envelope file for writing");
+    // create envelope for writing
+    sentry_envelope_t *envelope
+        = sentry__envelope_new_with_dsn(options ? options->dsn : NULL);
+    if (!envelope) {
+        SENTRY_WARN("Failed to create envelope");
         sentry_free(event_json);
         sentry_free(event_id);
         return false;
     }
 
     // Write envelope header
-    const char *dsn
-        = options && options->dsn ? sentry_options_get_dsn(options) : NULL;
-    char header_buf[SENTRY_CRASH_ENVELOPE_HEADER_SIZE];
-    int header_len;
-    if (dsn && !sentry__string_empty(event_id)) {
-        header_len = snprintf(header_buf, sizeof(header_buf),
-            "{\"dsn\":\"%s\",\"event_id\":\"%s\"}\n", dsn, event_id);
-    } else if (dsn) {
-        header_len = snprintf(
-            header_buf, sizeof(header_buf), "{\"dsn\":\"%s\"}\n", dsn);
-    } else if (!sentry__string_empty(event_id)) {
-        header_len = snprintf(header_buf, sizeof(header_buf),
-            "{\"event_id\":\"%s\"}\n", event_id);
-    } else {
-        header_len = snprintf(header_buf, sizeof(header_buf), "{}\n");
+    if (!sentry__string_empty(event_id)) {
+        sentry__envelope_set_header(
+            envelope, "event_id", sentry_value_new_string(event_id));
     }
     sentry_free(event_id);
-    if (header_len > 0 && header_len < (int)sizeof(header_buf)) {
-#if defined(SENTRY_PLATFORM_UNIX)
-        if (write(fd, header_buf, header_len) != header_len) {
-            SENTRY_WARN("Failed to write envelope header");
-        }
-#elif defined(SENTRY_PLATFORM_WINDOWS)
-        _write(fd, header_buf, (unsigned int)header_len);
-#endif
-    }
 
     // Write event item
-    char event_header[SENTRY_CRASH_ITEM_HEADER_SIZE];
-    int ev_header_len = snprintf(event_header, sizeof(event_header),
-        "{\"type\":\"event\",\"length\":%zu}\n", event_size);
-    if (ev_header_len > 0 && ev_header_len < (int)sizeof(event_header)) {
-#if defined(SENTRY_PLATFORM_UNIX)
-        if (write(fd, event_header, ev_header_len) != ev_header_len) {
-            SENTRY_WARN("Failed to write event header to envelope");
-        }
-        if (write(fd, event_json, event_size) != (ssize_t)event_size) {
-            SENTRY_WARN("Failed to write event data to envelope");
-        }
-        if (write(fd, "\n", 1) != 1) {
-            SENTRY_WARN("Failed to write event newline to envelope");
-        }
-#elif defined(SENTRY_PLATFORM_WINDOWS)
-        _write(fd, event_header, (unsigned int)ev_header_len);
-        _write(fd, event_json, (unsigned int)event_size);
-        _write(fd, "\n", 1);
-#endif
+    if (!sentry__envelope_add_from_buffer(
+            envelope, event_json, event_size, "event")) {
+        sentry_free(event_json);
+        sentry_envelope_free(envelope);
+        return false;
     }
 
     sentry_free(event_json);
 
     // Add minidump as attachment if provided
     if (!sentry__string_empty(minidump_path)) {
-#if defined(SENTRY_PLATFORM_UNIX)
-        int minidump_fd = open(minidump_path, O_RDONLY);
-#elif defined(SENTRY_PLATFORM_WINDOWS)
-        wchar_t *wpath_md = sentry__string_to_wstr(minidump_path);
-        int minidump_fd
-            = wpath_md ? _wopen(wpath_md, _O_RDONLY | _O_BINARY) : -1;
-        sentry_free(wpath_md);
-#endif
-        if (minidump_fd >= 0) {
-#if defined(SENTRY_PLATFORM_UNIX)
-            struct stat st;
-            if (fstat(minidump_fd, &st) == 0) {
-                long long minidump_size = (long long)st.st_size;
-#elif defined(SENTRY_PLATFORM_WINDOWS)
-            struct __stat64 st;
-            if (_fstat64(minidump_fd, &st) == 0) {
-                long long minidump_size = (long long)st.st_size;
-#endif
-                // Write minidump attachment header
-                char md_header[SENTRY_CRASH_ITEM_HEADER_SIZE];
-                int md_header_len = snprintf(md_header, sizeof(md_header),
-                    "{\"type\":\"attachment\",\"length\":%lld,"
-                    "\"attachment_type\":\"event.minidump\","
-                    "\"filename\":\"minidump.dmp\"}\n",
-                    minidump_size);
-
-                if (md_header_len > 0
-                    && md_header_len < (int)sizeof(md_header)) {
-#if defined(SENTRY_PLATFORM_UNIX)
-                    if (write(fd, md_header, md_header_len) != md_header_len) {
-                        SENTRY_WARN(
-                            "Failed to write minidump header to envelope");
-                    }
-#elif defined(SENTRY_PLATFORM_WINDOWS)
-                    _write(fd, md_header, (unsigned int)md_header_len);
-#endif
-                }
-
-                // Copy minidump content
-                char buf[SENTRY_CRASH_FILE_BUFFER_SIZE];
-#if defined(SENTRY_PLATFORM_UNIX)
-                ssize_t n;
-                while ((n = read(minidump_fd, buf, sizeof(buf))) > 0) {
-                    if (write(fd, buf, n) != n) {
-                        SENTRY_WARN("Failed to write minidump to envelope");
-                        break;
-                    }
-                }
-                if (write(fd, "\n", 1) != 1) {
-                    SENTRY_WARN("Failed to write newline to envelope");
-                }
-                close(minidump_fd);
-#elif defined(SENTRY_PLATFORM_WINDOWS)
-                int n;
-                while ((n = _read(minidump_fd, buf, sizeof(buf))) > 0) {
-                    _write(fd, buf, (unsigned int)n);
-                }
-                _write(fd, "\n", 1);
-                _close(minidump_fd);
-#endif
-            } else {
-#if defined(SENTRY_PLATFORM_UNIX)
-                close(minidump_fd);
-#elif defined(SENTRY_PLATFORM_WINDOWS)
-                _close(minidump_fd);
-#endif
-            }
-        }
+        write_attachment_to_envelope(envelope, minidump_path, "minidump.dmp",
+            SENTRY_ATTACHMENT_TYPE_MINIDUMP, NULL);
     }
 
     // Add scope attachments using metadata file
     if (run_folder) {
-        write_attachments_from_manifest(fd, options, run_folder);
+        write_attachments_from_manifest(envelope, options, run_folder);
     }
 
     // Add screenshot attachment if captured by the daemon
@@ -3994,8 +3753,8 @@ write_envelope_with_native_stacktrace(const sentry_options_t *options,
         sentry_path_t *screenshot_path
             = sentry__path_join_str(run_folder, "screenshot.png");
         if (screenshot_path) {
-            write_attachment_to_envelope(
-                fd, screenshot_path->path, "screenshot.png", NULL, "image/png");
+            write_attachment_to_envelope(envelope, screenshot_path->path,
+                "screenshot.png", NULL, "image/png");
             sentry__path_free(screenshot_path);
         }
     }
@@ -4005,23 +3764,19 @@ write_envelope_with_native_stacktrace(const sentry_options_t *options,
         sentry_path_t *replay_path
             = sentry__path_join_str(run_folder, "session-replay.mp4");
         if (replay_path) {
-            write_attachment_to_envelope(
-                fd, replay_path->path, "session-replay.mp4", NULL, "video/mp4");
+            write_attachment_to_envelope(envelope, replay_path->path,
+                "session-replay.mp4", NULL, "video/mp4");
             sentry__path_free(replay_path);
         }
     }
 
-#if defined(SENTRY_PLATFORM_UNIX)
-    close(fd);
-#elif defined(SENTRY_PLATFORM_WINDOWS)
-    _close(fd);
-#endif
-
-    return true;
+    bool written = sentry_envelope_write_to_file(envelope, envelope_path) == 0;
+    sentry_envelope_free(envelope);
+    return written;
 }
 
 /**
- * Manually write a Sentry envelope with event, minidump, and attachments.
+ * Write a Sentry envelope with event, minidump, and attachments.
  * Format matches what Crashpad's Envelope class does.
  */
 static bool
@@ -4072,151 +3827,41 @@ write_envelope_with_minidump(const sentry_options_t *options,
         sentry_free(base_json);
     }
 
-    // Open envelope file for writing
-#if defined(SENTRY_PLATFORM_UNIX)
-    int fd = open(envelope_path, O_WRONLY | O_CREAT | O_TRUNC, 0644);
-#elif defined(SENTRY_PLATFORM_WINDOWS)
-    // Use wide-char API for proper UTF-8 path support
-    wchar_t *wpath = sentry__string_to_wstr(envelope_path);
-    int fd = wpath ? _wopen(wpath, _O_WRONLY | _O_CREAT | _O_TRUNC | _O_BINARY,
-                         _S_IREAD | _S_IWRITE)
-                   : -1;
-    sentry_free(wpath);
-#endif
-    if (fd < 0) {
-        SENTRY_WARN("Failed to open envelope file for writing");
+    // create envelope for writing
+    sentry_envelope_t *envelope
+        = sentry__envelope_new_with_dsn(options ? options->dsn : NULL);
+    if (!envelope) {
+        SENTRY_WARN("Failed to create envelope");
         sentry_free(event_json);
         sentry_free(event_id);
         return false;
     }
 
     // Write envelope headers (just DSN and event ID if available)
-    const char *dsn
-        = options && options->dsn ? sentry_options_get_dsn(options) : NULL;
-    char header_buf[SENTRY_CRASH_ENVELOPE_HEADER_SIZE];
-    int header_len;
-    if (dsn && !sentry__string_empty(event_id)) {
-        header_len = snprintf(header_buf, sizeof(header_buf),
-            "{\"dsn\":\"%s\",\"event_id\":\"%s\"}\n", dsn, event_id);
-    } else if (dsn) {
-        header_len = snprintf(
-            header_buf, sizeof(header_buf), "{\"dsn\":\"%s\"}\n", dsn);
-    } else if (!sentry__string_empty(event_id)) {
-        header_len = snprintf(header_buf, sizeof(header_buf),
-            "{\"event_id\":\"%s\"}\n", event_id);
-    } else {
-        header_len = snprintf(header_buf, sizeof(header_buf), "{}\n");
+    if (!sentry__string_empty(event_id)) {
+        sentry__envelope_set_header(
+            envelope, "event_id", sentry_value_new_string(event_id));
     }
     sentry_free(event_id);
-    if (header_len > 0 && header_len < (int)sizeof(header_buf)) {
-#if defined(SENTRY_PLATFORM_UNIX)
-        if (write(fd, header_buf, header_len) != header_len) {
-            SENTRY_WARN("Failed to write envelope header");
-        }
-#elif defined(SENTRY_PLATFORM_WINDOWS)
-        _write(fd, header_buf, (unsigned int)header_len);
-#endif
-    }
 
     // Write event item
     if (event_json && event_size > 0) {
-        char event_header[SENTRY_CRASH_ITEM_HEADER_SIZE];
-        int ev_header_len = snprintf(event_header, sizeof(event_header),
-            "{\"type\":\"event\",\"length\":%zu}\n", event_size);
-        if (ev_header_len > 0 && ev_header_len < (int)sizeof(event_header)) {
-#if defined(SENTRY_PLATFORM_UNIX)
-            if (write(fd, event_header, ev_header_len) != ev_header_len) {
-                SENTRY_WARN("Failed to write event header to envelope");
-            }
-            if (write(fd, event_json, event_size) != (ssize_t)event_size) {
-                SENTRY_WARN("Failed to write event data to envelope");
-            }
-            if (write(fd, "\n", 1) != 1) {
-                SENTRY_WARN("Failed to write event newline to envelope");
-            }
-#elif defined(SENTRY_PLATFORM_WINDOWS)
-            _write(fd, event_header, (unsigned int)ev_header_len);
-            _write(fd, event_json, (unsigned int)event_size);
-            _write(fd, "\n", 1);
-#endif
+        if (!sentry__envelope_add_from_buffer(
+                envelope, event_json, event_size, "event")) {
+            sentry_free(event_json);
+            sentry_envelope_free(envelope);
+            return false;
         }
     }
     sentry_free(event_json);
 
     // Add minidump as attachment
-#if defined(SENTRY_PLATFORM_UNIX)
-    int minidump_fd = open(minidump_path, O_RDONLY);
-#elif defined(SENTRY_PLATFORM_WINDOWS)
-    // Use wide-char API for proper UTF-8 path support
-    wchar_t *wpath_md = sentry__string_to_wstr(minidump_path);
-    int minidump_fd = wpath_md ? _wopen(wpath_md, _O_RDONLY | _O_BINARY) : -1;
-    sentry_free(wpath_md);
-#endif
-    if (minidump_fd >= 0) {
-#if defined(SENTRY_PLATFORM_UNIX)
-        struct stat st;
-        if (fstat(minidump_fd, &st) == 0) {
-            long long minidump_size = (long long)st.st_size;
-#elif defined(SENTRY_PLATFORM_WINDOWS)
-        struct __stat64 st;
-        if (_fstat64(minidump_fd, &st) == 0) {
-            long long minidump_size = (long long)st.st_size;
-#endif
-            // Write minidump item header
-            char minidump_header[SENTRY_CRASH_ITEM_HEADER_SIZE];
-            int md_header_len
-                = snprintf(minidump_header, sizeof(minidump_header),
-                    "{\"type\":\"attachment\",\"length\":%lld,"
-                    "\"attachment_type\":\"event.minidump\","
-                    "\"filename\":\"minidump.dmp\"}\n",
-                    minidump_size);
-
-            if (md_header_len > 0
-                && md_header_len < (int)sizeof(minidump_header)) {
-#if defined(SENTRY_PLATFORM_UNIX)
-                if (write(fd, minidump_header, md_header_len)
-                    != md_header_len) {
-                    SENTRY_WARN("Failed to write minidump header to envelope");
-                }
-#elif defined(SENTRY_PLATFORM_WINDOWS)
-                _write(fd, minidump_header, (unsigned int)md_header_len);
-#endif
-            }
-
-            // Copy minidump content
-            char buf[SENTRY_CRASH_READ_BUFFER_SIZE];
-#if defined(SENTRY_PLATFORM_UNIX)
-            ssize_t n;
-            while ((n = read(minidump_fd, buf, sizeof(buf))) > 0) {
-                if (write(fd, buf, (size_t)n) != n) {
-                    SENTRY_WARN("Failed to write minidump data to envelope");
-                    break;
-                }
-            }
-            if (n < 0) {
-                SENTRY_WARN("Failed to read minidump data");
-            }
-            if (write(fd, "\n", 1) != 1) {
-                SENTRY_WARN("Failed to write minidump newline to envelope");
-            }
-#elif defined(SENTRY_PLATFORM_WINDOWS)
-            int n;
-            while ((n = _read(minidump_fd, buf, sizeof(buf))) > 0) {
-                _write(fd, buf, (unsigned int)n);
-            }
-            _write(fd, "\n", 1);
-#endif
-        }
-#if defined(SENTRY_PLATFORM_UNIX)
-        close(minidump_fd);
-#elif defined(SENTRY_PLATFORM_WINDOWS)
-        _close(minidump_fd);
-#endif
-    }
+    write_attachment_to_envelope(envelope, minidump_path, "minidump.dmp",
+        SENTRY_ATTACHMENT_TYPE_MINIDUMP, NULL);
 
     // Add scope attachments using metadata file
     if (run_folder) {
-        write_attachments_from_manifest(fd, options, run_folder);
+        write_attachments_from_manifest(envelope, options, run_folder);
     }
 
     // Add screenshot attachment if captured by the daemon
@@ -4224,8 +3869,8 @@ write_envelope_with_minidump(const sentry_options_t *options,
         sentry_path_t *screenshot_path
             = sentry__path_join_str(run_folder, "screenshot.png");
         if (screenshot_path) {
-            write_attachment_to_envelope(
-                fd, screenshot_path->path, "screenshot.png", NULL, "image/png");
+            write_attachment_to_envelope(envelope, screenshot_path->path,
+                "screenshot.png", NULL, "image/png");
             sentry__path_free(screenshot_path);
         }
     }
@@ -4235,19 +3880,18 @@ write_envelope_with_minidump(const sentry_options_t *options,
         sentry_path_t *replay_path
             = sentry__path_join_str(run_folder, "session-replay.mp4");
         if (replay_path) {
-            write_attachment_to_envelope(
-                fd, replay_path->path, "session-replay.mp4", NULL, "video/mp4");
+            write_attachment_to_envelope(envelope, replay_path->path,
+                "session-replay.mp4", NULL, "video/mp4");
             sentry__path_free(replay_path);
         }
     }
 
-#if defined(SENTRY_PLATFORM_UNIX)
-    close(fd);
-#elif defined(SENTRY_PLATFORM_WINDOWS)
-    _close(fd);
-#endif
-    SENTRY_DEBUG("Envelope written successfully");
-    return true;
+    bool written = sentry_envelope_write_to_file(envelope, envelope_path) == 0;
+    sentry_envelope_free(envelope);
+    if (written) {
+        SENTRY_DEBUG("Envelope written successfully");
+    }
+    return written;
 }
 
 /**

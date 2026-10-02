@@ -98,6 +98,8 @@ sentry_envelope_item_t *sentry__envelope_add_session(
 
 /**
  * Add an attachment to this envelope.
+ * File payloads are deferred; the file must remain unchanged until
+ * serialization or loading finishes.
  */
 sentry_envelope_item_t *sentry__envelope_add_attachment(
     sentry_envelope_t *envelope, sentry_value_t attachment);
@@ -144,6 +146,12 @@ sentry_envelope_item_t *sentry__envelope_add_from_path(
     sentry_envelope_t *envelope, const sentry_path_t *path, const char *type);
 
 /**
+ * Load deferred file payloads into memory before submission.
+ * Leaves raw envelopes unchanged. Unreadable file items are omitted.
+ */
+void sentry__envelope_load(sentry_envelope_t *envelope);
+
+/**
  * This will add the given buffer as a new envelope item of type `type`.
  */
 sentry_envelope_item_t *sentry__envelope_add_from_buffer(
@@ -179,9 +187,9 @@ bool sentry__envelope_item_is_ratelimited(const sentry_envelope_t *envelope,
 
 /**
  * Serialize a complete envelope with all its items into the given string
- * builder.
+ * builder. Returns false and resets the builder on failure.
  */
-void sentry__envelope_serialize_into_stringbuilder(
+bool sentry__envelope_serialize_into_stringbuilder(
     const sentry_envelope_t *envelope, sentry_stringbuilder_t *sb);
 
 /**

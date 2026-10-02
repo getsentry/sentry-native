@@ -870,3 +870,20 @@ sentry__filewriter_byte_count(const sentry_filewriter_t *filewriter)
 {
     return filewriter ? filewriter->byte_count : 0;
 }
+
+bool
+sentry__filewriter_truncate(sentry_filewriter_t *filewriter, size_t len)
+{
+    if (!filewriter || filewriter->failed) {
+        return false;
+    }
+    if (filewriter->closed || len > filewriter->byte_count
+        || fflush(filewriter->f) != 0
+        || _chsize_s(_fileno(filewriter->f), (__int64)len) != 0
+        || _fseeki64(filewriter->f, (__int64)len, SEEK_SET) != 0) {
+        filewriter->failed = true;
+        return false;
+    }
+    filewriter->byte_count = len;
+    return true;
+}

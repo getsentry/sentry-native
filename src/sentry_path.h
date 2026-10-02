@@ -310,6 +310,11 @@ size_t sentry__filewriter_byte_count(const sentry_filewriter_t *filewriter);
  */
 void sentry__filewriter_free(sentry_filewriter_t *filewriter);
 
+/**
+ * discard output after `len` bytes and resume writing there
+ */
+bool sentry__filewriter_truncate(sentry_filewriter_t *filewriter, size_t len);
+
 /* windows-specific API additions */
 #ifdef SENTRY_PLATFORM_WINDOWS
 /**
