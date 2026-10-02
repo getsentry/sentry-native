@@ -391,7 +391,7 @@ read_legacy_manifest(const sentry_path_t *manifest_path)
     }
     sentry_value_t legacy
         = start < trimmed_end && *start == '[' && trimmed_end[-1] == ']'
-        ? sentry__value_from_json(start, (size_t)(trimmed_end - start))
+        ? sentry_value_from_json(start, (size_t)(trimmed_end - start))
         : sentry_value_new_null();
     sentry_free(buf);
     if (sentry_value_get_type(legacy) != SENTRY_VALUE_TYPE_LIST) {
@@ -3344,7 +3344,7 @@ read_breadcrumb_ring_file(const sentry_path_t *run_folder, const char *name)
         sentry_free(buf);
         return sentry_value_new_null();
     }
-    sentry_value_t list = sentry__value_from_msgpack_stream(buf, size);
+    sentry_value_t list = sentry_value_from_msgpack_stream(buf, size);
     sentry_free(buf);
     return list;
 }
@@ -3438,7 +3438,7 @@ build_native_event(const sentry_crash_context_t *ctx,
                 = sentry__path_read_to_buffer(ev_path, &event_size);
             sentry__path_free(ev_path);
             if (event_json && event_size > 0) {
-                event = sentry__value_from_json(event_json, event_size);
+                event = sentry_value_from_json(event_json, event_size);
                 sentry_free(event_json);
             }
         }
@@ -4041,8 +4041,7 @@ write_envelope_with_minidump(const sentry_options_t *options,
         char *base_json = sentry__path_read_to_buffer(ev_path, &base_size);
         sentry__path_free(ev_path);
         if (base_json && base_size > 0) {
-            sentry_value_t event
-                = sentry__value_from_json(base_json, base_size);
+            sentry_value_t event = sentry_value_from_json(base_json, base_size);
             if (sentry_value_is_null(event)) {
                 // Parsing the base event failed (e.g. truncated buffer or
                 // OOM). Don't serialize the null into "null" and ship an
@@ -4604,7 +4603,7 @@ cleanup:
             size_t ev_len = 0;
             char *ev_json = sentry__path_read_to_buffer(ev_path, &ev_len);
             if (ev_json) {
-                crash_event = sentry__value_from_json(ev_json, ev_len);
+                crash_event = sentry_value_from_json(ev_json, ev_len);
                 sentry_free(ev_json);
             }
         }

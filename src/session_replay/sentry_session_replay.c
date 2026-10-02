@@ -402,7 +402,7 @@ sentry__session_replay_flush_pending(const sentry_options_t *options,
     size_t json_len = 0;
     char *json = sentry__path_read_to_buffer(sidecar_path, &json_len);
     if (json) {
-        sentry_value_t meta = sentry__value_from_json(json, json_len);
+        sentry_value_t meta = sentry_value_from_json(json, json_len);
         sentry_free(json);
 
         // build_replay_envelope falls back to the sidecar's end timestamp if 0.

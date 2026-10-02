@@ -505,7 +505,7 @@ read_msgpack_stream_file(const sentry_path_t *path)
     if (!data) {
         return sentry_value_new_null();
     }
-    sentry_value_t value = sentry__value_from_msgpack_stream(data, size);
+    sentry_value_t value = sentry_value_from_msgpack_stream(data, size);
     sentry_free(data);
     return value;
 }
@@ -692,7 +692,7 @@ read_msgpack_file(const sentry_path_t *path)
     if (!data) {
         return sentry_value_new_null();
     }
-    sentry_value_t value = sentry__value_from_msgpack(data, size);
+    sentry_value_t value = sentry_value_from_msgpack(data, size);
     sentry_free(data);
     return value;
 }

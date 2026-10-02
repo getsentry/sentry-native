@@ -701,8 +701,7 @@ read_manifest(const char *buf, size_t buf_len)
         return sentry_value_new_list();
     }
 
-    sentry_value_t attachments
-        = sentry__value_from_msgpack_stream(buf, buf_len);
+    sentry_value_t attachments = sentry_value_from_msgpack_stream(buf, buf_len);
     size_t i = 0;
     while (i < sentry_value_get_length(attachments)) {
         sentry_value_t attachment = sentry_value_get_by_index(attachments, i);

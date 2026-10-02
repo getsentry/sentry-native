@@ -574,6 +574,16 @@ SENTRY_API int sentry_value_is_true(sentry_value_t value);
 SENTRY_API int sentry_value_is_null(sentry_value_t value);
 
 /**
+ * Deserialize a sentry value from JSON.
+ *
+ * Parses the given JSON string into a new value.
+ *
+ * The returned value must be released with `sentry_value_decref`.
+ */
+SENTRY_API sentry_value_t sentry_value_from_json(
+    const char *buf, size_t buf_len);
+
+/**
  * Serialize a sentry value to JSON.
  *
  * The string is freshly allocated and must be freed with
@@ -713,8 +723,34 @@ SENTRY_API void sentry_event_add_thread(
  * `sentry_free`. Since msgpack is not zero terminated,
  * the size is written to the `size_out` parameter.
  */
-SENTRY_EXPERIMENTAL_API char *sentry_value_to_msgpack(
+SENTRY_API char *sentry_value_to_msgpack(
     sentry_value_t value, size_t *size_out);
+
+/**
+ * Deserialize a single sentry value from msgpack.
+ *
+ * The value must span the whole buffer; buffers containing multiple
+ * sequential msgpack values (as in append-only streams like breadcrumb ring
+ * files) are rejected with null and must be decoded with
+ * `sentry_value_from_msgpack_stream`.
+ *
+ * The returned value must be released with `sentry_value_decref`.
+ */
+SENTRY_API sentry_value_t sentry_value_from_msgpack(
+    const char *buf, size_t buf_len);
+
+/**
+ * Deserialize a buffer of sequential msgpack values into a list.
+ *
+ * Unlike `sentry_value_from_msgpack`, the result is a list even when the
+ * buffer holds a single value, so files written as append-only streams (e.g.
+ * breadcrumb ring files) decode to a consistent shape. Returns null for an
+ * empty buffer or when the first value fails to parse.
+ *
+ * The returned value must be released with `sentry_value_decref`.
+ */
+SENTRY_API sentry_value_t sentry_value_from_msgpack_stream(
+    const char *buf, size_t buf_len);
 
 /**
  * Adds a stack trace to an event.

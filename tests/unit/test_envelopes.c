@@ -164,7 +164,7 @@ SENTRY_TEST(basic_http_request_preparation_for_user_feedback)
     TEST_CHECK_STRING_EQUAL(line2, "{\"type\":\"feedback\",\"length\":269}");
 
     char *line3 = line2_end + 1;
-    sentry_value_t line3_json = sentry__value_from_json(line3, strlen(line3));
+    sentry_value_t line3_json = sentry_value_from_json(line3, strlen(line3));
     TEST_CHECK(!sentry_value_is_null(line3_json));
 
     TEST_CHECK_STRING_EQUAL(
