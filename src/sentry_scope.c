@@ -61,16 +61,7 @@ struct sentry_scope_data_s {
     bool trace_managed;
 };
 
-static bool g_scope_initialized = false;
-static sentry_scope_t g_scope = { 0 };
-static sentry_scope_data_t g_scope_data = { 0 };
-static bool g_scope_idle_initialized = false;
-static sentry_cond_t g_scope_idle;
-#ifdef _MSC_VER
-static __declspec(thread) size_t g_scope_depth;
-#else
-static __thread size_t g_scope_depth;
-#endif
+static sentry_scope_t *g_scope = NULL;
 #ifdef SENTRY__MUTEX_INIT_DYN
 SENTRY__MUTEX_INIT_DYN(g_lock)
 #else
@@ -220,29 +211,6 @@ free_scope_data(sentry_scope_data_t *data)
 }
 
 static void
-cleanup_global_data(sentry_scope_data_t *data)
-{
-    cleanup_scope_data(data);
-    sentry__rwlock_free(&data->rwlock);
-}
-
-static void
-init_global_data(sentry_scope_data_t *data)
-{
-    sentry__value_replace(&data->user, sentry_value_new_object());
-    sentry_value_set_by_key(data->contexts, "os", sentry__get_os_context());
-#if defined(SENTRY_PLATFORM_WINDOWS) && !defined(SENTRY_PLATFORM_XBOX)
-    sentry_value_t wine_context = sentry__get_wine_context();
-    if (!sentry_value_is_null(wine_context)) {
-        sentry_value_set_by_key(data->contexts, "wine", wine_context);
-    } else {
-        sentry_value_decref(wine_context);
-    }
-#endif
-    sentry__value_replace(&data->client_sdk, get_client_sdk());
-}
-
-static void
 clear_scope_data(sentry_scope_data_t *data)
 {
     SENTRY_SCOPE_WRITE_LOCK (data) {
@@ -384,25 +352,26 @@ init_scope(sentry_scope_t *scope, sentry_scope_data_t *data)
 }
 
 static sentry_scope_t *
-get_scope(void)
+new_global_scope(void)
 {
-    // cleanup clears g_scope_initialized before existing references finish
-    if (g_scope.data) {
-        return &g_scope;
+    sentry_scope_t *scope = sentry_scope_new();
+    if (!scope) {
+        return NULL;
     }
 
-    memset(&g_scope, 0, sizeof(sentry_scope_t));
-    memset(&g_scope_data, 0, sizeof(sentry_scope_data_t));
-    sentry__rwlock_init(&g_scope_data.rwlock);
-    init_scope_data(&g_scope_data);
-    if (!init_scope(&g_scope, &g_scope_data)) {
-        return &g_scope;
+    sentry_scope_data_t *data = scope->data;
+    sentry__value_replace(&data->user, sentry_value_new_object());
+    sentry_value_set_by_key(data->contexts, "os", sentry__get_os_context());
+#if defined(SENTRY_PLATFORM_WINDOWS) && !defined(SENTRY_PLATFORM_XBOX)
+    sentry_value_t wine_context = sentry__get_wine_context();
+    if (!sentry_value_is_null(wine_context)) {
+        sentry_value_set_by_key(data->contexts, "wine", wine_context);
+    } else {
+        sentry_value_decref(wine_context);
     }
-    init_global_data(g_scope.data);
-
-    g_scope_initialized = true;
-
-    return &g_scope;
+#endif
+    sentry__value_replace(&data->client_sdk, get_client_sdk());
+    return scope;
 }
 
 static void
@@ -443,23 +412,28 @@ sentry__scope_decref(sentry_scope_t *scope)
         return;
     }
 
-    if (scope == &g_scope) {
-        SENTRY__MUTEX_INIT_DYN_ONCE(g_lock);
-        sentry__mutex_lock(&g_lock);
-        long refcount = sentry__atomic_fetch_and_add(&scope->refcount, -1);
-        assert(refcount > 1);
-        if (refcount == 2 && g_scope_idle_initialized) {
-            sentry__cond_wake_all(&g_scope_idle);
-        }
-        sentry__mutex_unlock(&g_lock);
-        return;
-    }
-
     if (sentry__atomic_fetch_and_add(&scope->refcount, -1) != 1) {
         return;
     }
     cleanup_scope(scope);
     sentry_free(scope);
+}
+
+bool
+sentry__global_scope_init(void)
+{
+    sentry_scope_t *scope = new_global_scope();
+    if (!scope) {
+        return false;
+    }
+
+    SENTRY__MUTEX_INIT_DYN_ONCE(g_lock);
+    sentry__mutex_lock(&g_lock);
+    sentry_scope_t *old_scope = g_scope;
+    g_scope = scope;
+    sentry__mutex_unlock(&g_lock);
+    sentry__scope_decref(old_scope);
+    return true;
 }
 
 void
@@ -473,45 +447,27 @@ sentry__scope_cleanup(void)
     SENTRY__MUTEX_INIT_DYN_ONCE(g_lock);
     sentry__mutex_lock(&g_lock);
     sentry__options_unlock();
-    if (!g_scope_idle_initialized) {
-        sentry__cond_init(&g_scope_idle);
-        g_scope_idle_initialized = true;
-    }
-    if (g_scope_initialized) {
-        g_scope_initialized = false;
-        while (sentry__atomic_fetch(&g_scope.refcount) > 1) {
-            sentry__cond_wait(&g_scope_idle, &g_lock);
-        }
-        cleanup_global_data(g_scope.data);
-        g_scope.data = NULL;
-        cleanup_observers(&g_scope);
-        sentry__mutex_free(&g_scope.observers_lock);
-    }
-    sentry__cond_wake_all(&g_scope_idle);
+    sentry_scope_t *scope = g_scope;
+    g_scope = NULL;
     sentry__mutex_unlock(&g_lock);
+    sentry__scope_decref(scope);
 }
 
 sentry_scope_t *
 sentry__scope_getref(void)
 {
 #ifndef SENTRY_PLATFORM_WINDOWS
-    // avoid dynamic TLS access in the signal handler
+    // avoid dynamic mutex initialization in the signal handler
     if (!sentry__block_for_signal_handler()) {
-        return sentry__scope_incref(get_scope());
+        return sentry__scope_incref(g_scope);
     }
 #endif
     SENTRY__MUTEX_INIT_DYN_ONCE(g_lock);
     sentry__mutex_lock(&g_lock);
-    if (!g_scope_idle_initialized) {
-        sentry__cond_init(&g_scope_idle);
-        g_scope_idle_initialized = true;
+    if (!g_scope) {
+        g_scope = new_global_scope();
     }
-    // let existing callers finish reentrant scope access during cleanup
-    while (!g_scope_initialized && g_scope.data && !g_scope_depth) {
-        sentry__cond_wait(&g_scope_idle, &g_lock);
-    }
-    sentry_scope_t *scope = sentry__scope_incref(get_scope());
-    g_scope_depth++;
+    sentry_scope_t *scope = sentry__scope_incref(g_scope);
     sentry__mutex_unlock(&g_lock);
     return scope;
 }
@@ -523,13 +479,6 @@ sentry__scope_finish(sentry_scope_t *scope)
         return;
     }
 
-    if (scope == &g_scope
-#ifndef SENTRY_PLATFORM_WINDOWS
-        && sentry__block_for_signal_handler()
-#endif
-    ) {
-        g_scope_depth--;
-    }
     sentry__scope_decref(scope);
 }
 

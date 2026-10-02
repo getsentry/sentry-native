@@ -6,6 +6,7 @@
 
 - Add `SENTRY_SDK_VERSION_MAJOR`, `SENTRY_SDK_VERSION_MINOR`, `SENTRY_SDK_VERSION_PATCH`, and `SENTRY_SDK_VERSION_AT_LEAST` for compile-time version checks. ([#2136](https://github.com/getsentry/sentry-native/pull/2136))
 - Let downstream platform integrations supply the installation ID. ([#2150](https://github.com/getsentry/sentry-native/pull/2150))
+- Add `sentry_acquire_global_scope` to acquire a global scope reference. ([#2160](https://github.com/getsentry/sentry-native/pull/2160))
 
 **Fixes**:
 
