@@ -3,6 +3,7 @@
 
 #include "sentry_boot.h"
 #include "sentry_crash_context.h"
+#include "sentry_ringbuffer.h"
 
 #include <stddef.h>
 #include <stdint.h>
@@ -22,8 +23,14 @@
 #define SENTRY_CRASH_IPC_MESSAGE_PREFIX_SIZE 4u
 #define SENTRY_CRASH_IPC_MESSAGE_HEADER_SIZE 16u
 #define SENTRY_CRASH_IPC_MESSAGE_MIN_LEN 12u
-#define SENTRY_CRASH_IPC_MESSAGE_MAX_LEN UINT32_MAX
+#define SENTRY_CRASH_IPC_MESSAGE_MAX_LEN (256u * 1024u * 1024u)
 
+/**
+ * Frames use little-endian length/type/flags/sequence, followed by one msgpack
+ * value. Flags are reserved (zero). Snapshots carry {event, attachments}; keyed
+ * setters carry [key, value], removals carry the key, and other updates carry
+ * the new value. Crash and shutdown frames have no payload.
+ */
 typedef enum {
     SENTRY_CRASH_IPC_MESSAGE_SCOPE_SNAPSHOT = 1,
     SENTRY_CRASH_IPC_MESSAGE_SET_RELEASE = 2,
@@ -70,6 +77,22 @@ sentry_crash_ipc_message_result_t sentry__crash_ipc_message_encode(
 sentry_crash_ipc_message_result_t sentry__crash_ipc_message_decode(
     const char *buf, size_t buf_len, sentry_crash_ipc_message_t *message);
 
+typedef struct {
+    sentry_value_t event;
+    sentry_value_t attachments;
+    sentry_ringbuffer_t *breadcrumbs;
+    uint64_t sequence;
+    bool initialized;
+    bool stopped;
+} sentry_crash_scope_t;
+
+bool sentry__crash_scope_init(
+    sentry_crash_scope_t *scope, size_t max_breadcrumbs);
+void sentry__crash_scope_free(sentry_crash_scope_t *scope);
+bool sentry__crash_scope_apply(
+    sentry_crash_scope_t *scope, const sentry_crash_ipc_message_t *message);
+sentry_value_t sentry__crash_scope_event(const sentry_crash_scope_t *scope);
+
 #if defined(SENTRY_PLATFORM_WINDOWS)
 typedef HANDLE sentry_process_handle_t;
 #else
@@ -81,6 +104,20 @@ typedef pid_t sentry_process_handle_t;
  */
 typedef struct {
     sentry_crash_context_t *shmem;
+
+    // app-only writer guard; crash handling must never wait for its owner
+    volatile long writing;
+    volatile long message_failed;
+    volatile long stopped;
+    uint64_t sequence;
+
+    // daemon-only staged state and incremental frame reader
+    sentry_crash_scope_t scope;
+    char *message_buf;
+    size_t message_len;
+    size_t message_size;
+    bool message_closed;
+    bool notify_pending;
 
 #if defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID)
     int shm_fd;
@@ -181,6 +218,20 @@ void sentry__crash_ipc_notify(sentry_crash_ipc_t *ipc);
  * Returns true if crash occurred, false on timeout.
  */
 bool sentry__crash_ipc_wait(sentry_crash_ipc_t *ipc, int timeout_ms);
+
+/**
+ * Send a borrowed value. Normal callers must hold the global scope lock.
+ * Returns false on failure or if a crash interrupted another writer.
+ */
+bool sentry__crash_ipc_send(
+    sentry_crash_ipc_t *ipc, uint16_t type, sentry_value_t value);
+
+/**
+ * Receive and apply ordered frames, returning true at the crash boundary.
+ * An out-of-band notification drains complete available frames first; an
+ * interrupted partial frame is discarded without changing staged state.
+ */
+bool sentry__crash_ipc_receive(sentry_crash_ipc_t *ipc, int timeout_ms);
 
 /**
  * Unlink the shared memory.
