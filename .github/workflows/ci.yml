@@ -582,8 +582,10 @@ jobs:
 
       - name: Create source archive
         run: |
+          version=$(sed -nE 's/^#[[:space:]]*define[[:space:]]+SENTRY_SDK_VERSION[[:space:]]+"([^"]+)".*/\1/p' include/sentry.h)
+          test -n "$version"
           rm -rf build .c* .e* .git* scripts Makefile external/breakpad/src/tools external/breakpad/src/processor
-          zip -r sentry-native.zip .
+          zip -r "sentry-native-$version.zip" .
 
       - name: Build NDK artifacts
         working-directory: ndk
@@ -595,6 +597,6 @@ jobs:
           name: ${{ github.sha }}
           if-no-files-found: error
           path: |
-            sentry-native.zip
+            sentry-native-*.zip
             ndk/lib/build/distributions/*.zip
             ndk/lib/build/intermediates/merged_native_libs/release/mergeReleaseNativeLibs/out/lib/*

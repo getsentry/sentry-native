@@ -8,7 +8,7 @@ targets:
       github:getsentry/sentry-native:
       maven:io.sentry:sentry-native-ndk:
   - name: gcs
-    includeNames: /^(sentry-native\.zip)$/
+    includeNames: /^sentry-native-\d+\.\d+\.\d+.*\.zip$/
     bucket: sentry-sdk-assets
     paths:
       - path: /sentry-native/{{version}}/
@@ -32,4 +32,4 @@ targets:
     batchType: android
     bundleIdPrefix: sentry-native-ndk-
 requireNames:
-  - /^sentry-native.zip$/
+  - /^sentry-native-\d+\.\d+\.\d+.*\.zip$/
