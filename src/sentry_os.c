@@ -64,8 +64,11 @@ void
 sentry__win32_install_sigabrt_handler(sentry__win32_abort_handler_t handler)
 {
     g_sigabrt_handler = handler;
-    if (!g_sigabrt_installed) {
-        g_previous_sigabrt_handler = signal(SIGABRT, handle_sigabrt);
+    void (*previous)(int) = signal(SIGABRT, handle_sigabrt);
+    if (previous != SIG_ERR) {
+        if (previous != handle_sigabrt) {
+            g_previous_sigabrt_handler = previous;
+        }
         g_sigabrt_installed = true;
     }
 }

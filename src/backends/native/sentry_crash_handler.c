@@ -945,6 +945,35 @@ sentry__crash_handler_init(
     return 0;
 }
 
+int
+sentry__crash_handler_reinstall(void)
+{
+    if (!g_crash_ipc) {
+        return -1;
+    }
+
+    struct sigaction sa;
+    memset(&sa, 0, sizeof(sa));
+    sigemptyset(&sa.sa_mask);
+    sa.sa_sigaction = crash_signal_handler;
+    sa.sa_flags = SA_SIGINFO | SA_ONSTACK;
+
+    for (size_t i = 0; i < g_crash_signal_count; i++) {
+        struct sigaction previous;
+        int sig = g_crash_signals[i];
+        if (sigaction(sig, &sa, &previous) < 0) {
+            SENTRY_WARNF("failed to reinstall handler for signal %d: %s", sig,
+                strerror(errno));
+            return -1;
+        }
+        if (!(previous.sa_flags & SA_SIGINFO)
+            || previous.sa_sigaction != crash_signal_handler) {
+            g_previous_handlers[i] = previous;
+        }
+    }
+    return 0;
+}
+
 void
 sentry__crash_handler_shutdown(void)
 {
@@ -1072,19 +1101,34 @@ sentry__crash_handler_init(
 
     g_crash_ipc = ipc;
 
-    // Install exception filter
-    g_previous_filter = SetUnhandledExceptionFilter(crash_exception_filter);
-    sentry__win32_install_sigabrt_handler(crash_sigabrt_handler);
+    sentry__crash_handler_reinstall();
 
     SENTRY_DEBUG("crash handler initialized (Windows SEH)");
+    return 0;
+}
+
+int
+sentry__crash_handler_reinstall(void)
+{
+    if (!g_crash_ipc) {
+        return -1;
+    }
+
+    // Install exception filter
+    LPTOP_LEVEL_EXCEPTION_FILTER previous
+        = SetUnhandledExceptionFilter(crash_exception_filter);
+    if (previous != crash_exception_filter) {
+        g_previous_filter = previous;
+    }
+    sentry__win32_install_sigabrt_handler(crash_sigabrt_handler);
     return 0;
 }
 
 void
 sentry__crash_handler_shutdown(void)
 {
-    // Restore previous exception filter
-    if (g_previous_filter) {
+    // Restore previous exception filter (including NULL)
+    if (g_crash_ipc) {
         SetUnhandledExceptionFilter(g_previous_filter);
         g_previous_filter = NULL;
     }

@@ -1477,6 +1477,13 @@ native_backend_except(sentry_backend_t *backend, const sentry_ucontext_t *uctx)
     }
 }
 
+static int
+native_backend_reinstall(sentry_backend_t *backend)
+{
+    (void)backend;
+    return sentry__crash_handler_reinstall() < 0;
+}
+
 void
 sentry__backend_preload(void)
 {
@@ -1501,6 +1508,7 @@ sentry__backend_new(void)
     backend->add_breadcrumb_func = native_backend_add_breadcrumb;
     backend->user_consent_changed_func = native_backend_user_consent_changed;
     backend->process_old_run_func = native_backend_process_old_run;
+    backend->reinstall_func = native_backend_reinstall;
     backend->can_capture_after_shutdown = false;
 
     return backend;

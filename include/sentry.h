@@ -2510,7 +2510,7 @@ SENTRY_EXPERIMENTAL_API void sentry_clear_modulecache(void);
  *
  * Returns 0 on success.
  */
-SENTRY_EXPERIMENTAL_API int sentry_reinstall_backend(void);
+SENTRY_API int sentry_reinstall_backend(void);
 
 /**
  * Gives user consent.
