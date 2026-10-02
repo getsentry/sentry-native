@@ -243,6 +243,15 @@ using `cmake -D BUILD_SHARED_LIBS=OFF ..`.
   - **none**: Do not build any HTTP transport. This should be used if users
     want to handle uploads themselves
 
+- `SENTRY_SCREENSHOT` (Default: `windows` on Windows, `none` elsewhere):
+  Selects the screenshot implementation. Set it to `custom` and provide an
+  external `int sentry_screenshot_capture(const char *path, uint32_t pid)`
+  implementation (with `extern "C"` linkage if written in C++).
+  Save a PNG screenshot to `path` and return `0` on success, nonzero on failure.
+  `pid` selects whose windows to capture: `0` for the current process, or the
+  crashed application's PID when capture runs in a separate daemon. The path is
+  UTF-8 on Windows.
+
 - `SENTRY_BACKEND` (Default: depending on platform):
   Sentry can use different backends depending on the platform.
 
