@@ -3476,3 +3476,83 @@ SENTRY_TEST(scope_clone_keeps_bound_span)
 
     sentry_close();
 }
+
+typedef struct {
+    sentry_scope_t *scope;
+    sentry_waitable_flag_t started;
+    sentry_waitable_flag_t finished;
+    sentry_waitable_flag_t read_finished;
+    sentry_threadid_t writer;
+    sentry_threadid_t reader;
+    volatile long calls;
+} trace_notify_state_t;
+
+static void
+observe_trace(void *data, sentry_value_t UNUSED(trace))
+{
+    trace_notify_state_t *state = data;
+    sentry__atomic_fetch_and_add(&state->calls, 1);
+}
+
+SENTRY_THREAD_FN
+notify_scope_trace(void *data)
+{
+    trace_notify_state_t *state = data;
+    sentry__waitable_flag_set(&state->started);
+    sentry_scope_set_span(state->scope, NULL);
+    sentry__waitable_flag_set(&state->finished);
+    return 0;
+}
+
+SENTRY_THREAD_FN
+read_scope_during_notify(void *data)
+{
+    trace_notify_state_t *state = data;
+    sentry_value_decref(sentry__scope_load_tags(state->scope));
+    sentry__waitable_flag_set(&state->read_finished);
+    return 0;
+}
+
+static void
+observe_tag_with_trace(
+    void *data, const char *UNUSED(key), sentry_value_t UNUSED(value))
+{
+    trace_notify_state_t *state = data;
+    TEST_ASSERT(
+        !sentry__thread_spawn(&state->writer, notify_scope_trace, state));
+    TEST_ASSERT(sentry__waitable_flag_wait(&state->started, 1000));
+    TEST_CHECK(!sentry__waitable_flag_wait(&state->finished, 100));
+    TEST_CHECK_INT_EQUAL(sentry__atomic_fetch(&state->calls), 0);
+
+    TEST_ASSERT(
+        !sentry__thread_spawn(&state->reader, read_scope_during_notify, state));
+    TEST_CHECK(sentry__waitable_flag_wait(&state->read_finished, 1000));
+}
+
+SENTRY_TEST(scope_observer_trace_serialized)
+{
+    sentry_scope_t *scope = sentry_scope_new();
+    TEST_ASSERT(!!scope);
+    trace_notify_state_t state = { .scope = scope };
+    sentry__waitable_flag_init(&state.started);
+    sentry__waitable_flag_init(&state.finished);
+    sentry__waitable_flag_init(&state.read_finished);
+    sentry__thread_init(&state.writer);
+    sentry__thread_init(&state.reader);
+    sentry_scope_observer_t *observer = sentry__scope_observer_new();
+    TEST_ASSERT(!!observer);
+    observer->data = &state;
+    observer->set_tag = observe_tag_with_trace;
+    observer->set_trace = observe_trace;
+
+    TEST_ASSERT(sentry__scope_add_observer(scope, observer));
+    sentry_scope_set_tag(scope, "tag", "value");
+
+    TEST_CHECK(sentry__waitable_flag_wait(&state.finished, 1000));
+    sentry__thread_join(state.writer);
+    sentry__thread_join(state.reader);
+    sentry__thread_free(&state.writer);
+    sentry__thread_free(&state.reader);
+    TEST_CHECK_INT_EQUAL(sentry__atomic_fetch(&state.calls), 1);
+    sentry_scope_free(scope);
+}
