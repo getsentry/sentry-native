@@ -461,7 +461,8 @@ def test_native_scope_updates_without_snapshot(cmake, httpserver, mode, scoped_t
     assert event["extra"]["large"] == "x" * (1024 * 1024)
     assert set(event["extra"]) == {"large", "expected-trace"}
     assert set(event["contexts"]) == {"trace", "ipc"} or (
-        sys.platform == "win32" and set(event["contexts"]) == {"trace", "ipc", "device"}
+        (sys.platform == "win32" or is_wine)
+        and set(event["contexts"]) == {"trace", "ipc", "device"}
     )
     assert event["contexts"]["ipc"] == {"status": "latest"}
     assert event["contexts"]["trace"] == event["extra"]["expected-trace"]
