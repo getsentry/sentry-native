@@ -1,0 +1,52 @@
+# Sentry Native SDK - Project Overview
+
+This is the **Sentry Native SDK**, a C/C++ crash reporting and error monitoring library that serves as the foundation for other Sentry SDKs (Android, Unity, Unreal Engine).
+
+## Core Architecture
+
+The SDK is structured around multiple **backends** for crash handling:
+- **crashpad**: Out-of-process handler (default on Windows, macOS, Linux desktop)
+- **breakpad**: In-process handler (desktop platforms)
+- **inproc**: Minimal in-process handler (default on Android, mobile)
+- **none**: No crash handling (testing only)
+
+## Platform Support Matrix
+
+**Officially Supported:**
+- Windows (MSVC 2019/2022, MinGW, ClangCL)
+- macOS 13+ (Xcode LLVM, clang 15/18)
+- Linux (GCC 9-14, clang 19, x86/x64/arm64)
+- Android (API 16+ with NDK 19/27)
+- iOS (Xcode builds)
+- Gaming platforms (Xbox, PlayStation)
+
+**Transport Layer:**
+- **curl**: Linux, macOS (requires libcurl)
+- **winhttp**: Windows system library
+- **none**: Custom user implementations
+
+## SDK Foundation Role
+
+This SDK is **NOT** meant to be used standalone - it's designed as a robust foundation for higher-level SDKs:
+- [sentry-java](mdc:ndk/README.md) (Android integration)
+- [sentry-unreal](mdc:README.md) (Unreal Engine)
+- Unity SDK integration
+- Direct C/C++ usage (experimental)
+
+## Key Design Principles
+
+1. **Thread Safety**: All public APIs are thread-safe
+2. **Signal Safety**: Core functionality works in signal handlers
+3. **Minimal Dependencies**: Self-contained with vendored dependencies
+4. **Cross-Platform**: Consistent API across all platforms
+5. **Performance**: Minimal overhead in normal operation
+6. **Robustness**: Must not crash the host application
+
+## Build System
+
+- **CMake-based** with extensive configuration options
+- **Static/Shared** library support
+- **Cross-compilation** support for all platforms
+- **Submodule dependencies** in [external/](mdc:external)
+
+Reference the [README.md](mdc:README.md) for detailed platform support and [CONTRIBUTING.md](mdc:CONTRIBUTING.md) for development setup.
