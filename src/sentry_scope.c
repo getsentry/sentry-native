@@ -573,6 +573,14 @@ bool
 sentry__scope_add_observer(
     sentry_scope_t *scope, sentry_scope_observer_t *observer)
 {
+    return sentry__scope_add_observer_with_init(scope, observer, NULL);
+}
+
+bool
+sentry__scope_add_observer_with_init(sentry_scope_t *scope,
+    sentry_scope_observer_t *observer,
+    bool (*init)(void *data, const sentry_scope_t *scope))
+{
     if (!observer) {
         return false;
     }
@@ -594,6 +602,11 @@ sentry__scope_add_observer(
     new_array[scope->num_observers] = observer;
     scope->observers = new_array;
     scope->num_observers = new_count;
+    if (init && !init(observer->data, scope)) {
+        sentry__scope_remove_observer(scope, observer);
+        sentry__mutex_unlock(&scope->observers_lock);
+        return false;
+    }
     sentry__mutex_unlock(&scope->observers_lock);
     return true;
 }

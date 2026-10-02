@@ -251,6 +251,18 @@ bool sentry__scope_add_observer(
     sentry_scope_t *scope, sentry_scope_observer_t *observer);
 
 /**
+ * Register and initialize a scope observer.
+ *
+ * Calls `init` with the observer's data and the scope after registration,
+ * while scope notifications are locked. The callback must only read the scope.
+ * Returning false removes the observer. Takes ownership of `observer`,
+ * freeing it if registration or initialization fails.
+ */
+bool sentry__scope_add_observer_with_init(sentry_scope_t *scope,
+    sentry_scope_observer_t *observer,
+    bool (*init)(void *data, const sentry_scope_t *scope));
+
+/**
  * Remove a scope observer.
  *
  * Frees `observer` if it is registered. Does nothing if `observer` is NULL or
