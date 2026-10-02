@@ -20,7 +20,7 @@ send_envelope(sentry_envelope_t *envelope, void *data)
 
     size_t buf_len;
     const char *buf = sentry__envelope_item_get_payload(item, &buf_len);
-    sentry_value_t session = sentry__value_from_json(buf, buf_len);
+    sentry_value_t session = sentry_value_from_json(buf, buf_len);
 
     TEST_CHECK(sentry_value_is_true(sentry_value_get_by_key(session, "init")));
     TEST_CHECK_INT_EQUAL(
@@ -129,7 +129,7 @@ send_sampled_envelope(sentry_envelope_t *envelope, void *data)
 
         size_t buf_len;
         const char *buf = sentry__envelope_item_get_payload(item, &buf_len);
-        sentry_value_t session = sentry__value_from_json(buf, buf_len);
+        sentry_value_t session = sentry_value_from_json(buf, buf_len);
 
         TEST_CHECK_STRING_EQUAL(
             sentry_value_as_string(sentry_value_get_by_key(session, "status")),
@@ -209,7 +209,7 @@ send_release_env_envelope(sentry_envelope_t *envelope, void *data)
 
             size_t buf_len;
             const char *buf = sentry__envelope_item_get_payload(item, &buf_len);
-            sentry_value_t session = sentry__value_from_json(buf, buf_len);
+            sentry_value_t session = sentry_value_from_json(buf, buf_len);
 
             sentry_value_t attrs = sentry_value_get_by_key(session, "attrs");
             TEST_CHECK_STRING_EQUAL(

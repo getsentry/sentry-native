@@ -189,9 +189,6 @@ Java_io_sentry_ndk_NativeScope_nativeSetTrace(
     (*env)->ReleaseStringUTFChars(env, parent_span_id, charParentSpanId);
 }
 
-// sentry_json.h
-extern sentry_value_t sentry__value_from_json(const char *buf, size_t buflen);
-
 JNIEXPORT void JNICALL
 Java_io_sentry_ndk_NativeScope_nativeAddBreadcrumb(JNIEnv *env, jclass cls,
     jstring level, jstring message, jstring category, jstring type,
@@ -247,7 +244,7 @@ Java_io_sentry_ndk_NativeScope_nativeAddBreadcrumb(JNIEnv *env, jclass cls,
         // JSON object string. Parse it back into a value so it's not a raw
         // string.
         sentry_value_t dataObject
-            = sentry__value_from_json(charData, strlen(charData));
+            = sentry_value_from_json(charData, strlen(charData));
         if (!sentry_value_is_null(dataObject)) {
             sentry_value_set_by_key(crumb, "data", dataObject);
         }

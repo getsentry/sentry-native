@@ -44,7 +44,7 @@ SENTRY_TEST(client_report_discard)
     TEST_CHECK(!!payload);
     TEST_CHECK(payload_len > 0);
 
-    sentry_value_t value = sentry__value_from_json(payload, payload_len);
+    sentry_value_t value = sentry_value_from_json(payload, payload_len);
     TEST_CHECK(!sentry_value_is_null(value));
 
     TEST_CHECK(
@@ -113,7 +113,7 @@ SENTRY_TEST(client_report_restore)
 
     size_t payload_len = 0;
     const char *payload = sentry__envelope_item_get_payload(item, &payload_len);
-    sentry_value_t value = sentry__value_from_json(payload, payload_len);
+    sentry_value_t value = sentry_value_from_json(payload, payload_len);
 
     sentry_value_t discarded
         = sentry_value_get_by_key(value, "discarded_events");
@@ -175,7 +175,7 @@ SENTRY_TEST(client_report_discard_envelope)
 
     size_t payload_len = 0;
     const char *payload = sentry__envelope_item_get_payload(item, &payload_len);
-    sentry_value_t value = sentry__value_from_json(payload, payload_len);
+    sentry_value_t value = sentry_value_from_json(payload, payload_len);
 
     sentry_value_t discarded
         = sentry_value_get_by_key(value, "discarded_events");
@@ -293,7 +293,7 @@ SENTRY_TEST(client_report_cache_overflow)
 
     size_t payload_len = 0;
     const char *payload = sentry__envelope_item_get_payload(item, &payload_len);
-    sentry_value_t value = sentry__value_from_json(payload, payload_len);
+    sentry_value_t value = sentry_value_from_json(payload, payload_len);
 
     sentry_value_t discarded
         = sentry_value_get_by_key(value, "discarded_events");
@@ -341,7 +341,7 @@ SENTRY_TEST(client_report_discard_rate_limited)
 
     size_t payload_len = 0;
     const char *payload = sentry__envelope_item_get_payload(item, &payload_len);
-    sentry_value_t value = sentry__value_from_json(payload, payload_len);
+    sentry_value_t value = sentry_value_from_json(payload, payload_len);
 
     sentry_value_t discarded
         = sentry_value_get_by_key(value, "discarded_events");
@@ -417,7 +417,7 @@ SENTRY_TEST(client_report_queue_overflow)
     size_t payload_len = 0;
     const char *payload
         = sentry__envelope_item_get_payload(cr_item, &payload_len);
-    sentry_value_t value = sentry__value_from_json(payload, payload_len);
+    sentry_value_t value = sentry_value_from_json(payload, payload_len);
 
     sentry_value_t discarded
         = sentry_value_get_by_key(value, "discarded_events");
@@ -473,7 +473,7 @@ SENTRY_TEST(client_report_discard_raw_envelope)
 
     size_t payload_len = 0;
     const char *payload = sentry__envelope_item_get_payload(item, &payload_len);
-    sentry_value_t value = sentry__value_from_json(payload, payload_len);
+    sentry_value_t value = sentry_value_from_json(payload, payload_len);
 
     sentry_value_t discarded
         = sentry_value_get_by_key(value, "discarded_events");
@@ -569,8 +569,7 @@ flush_thread_func(void *data)
             size_t payload_len = 0;
             const char *payload
                 = sentry__envelope_item_get_payload(item, &payload_len);
-            sentry_value_t value
-                = sentry__value_from_json(payload, payload_len);
+            sentry_value_t value = sentry_value_from_json(payload, payload_len);
             sentry_value_t discarded
                 = sentry_value_get_by_key(value, "discarded_events");
             for (uint32_t j = 0; j < sentry_value_get_length(discarded); j++) {
@@ -630,7 +629,7 @@ SENTRY_TEST(client_report_concurrent)
         size_t payload_len = 0;
         const char *payload
             = sentry__envelope_item_get_payload(item, &payload_len);
-        sentry_value_t value = sentry__value_from_json(payload, payload_len);
+        sentry_value_t value = sentry_value_from_json(payload, payload_len);
         sentry_value_t discarded
             = sentry_value_get_by_key(value, "discarded_events");
         for (uint32_t j = 0; j < sentry_value_get_length(discarded); j++) {

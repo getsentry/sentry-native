@@ -315,7 +315,7 @@ SENTRY_TEST(value_string_n)
     TEST_CHECK_JSON_VALUE(val, "\"he\\u0000lo\"");
 
     char *json = sentry_value_to_json(val);
-    sentry_value_t deserialized = sentry__value_from_json(json, strlen(json));
+    sentry_value_t deserialized = sentry_value_from_json(json, strlen(json));
     TEST_CHECK(
         sentry_value_get_length(deserialized) == sizeof(string_with_nul));
     TEST_CHECK(memcmp(sentry_value_as_string(deserialized), string_with_nul,
@@ -1186,51 +1186,51 @@ SENTRY_TEST(value_json_parsing)
 {
     sentry_value_t rv;
 
-    rv = sentry__value_from_json(STRING("42"));
+    rv = sentry_value_from_json(STRING("42"));
     TEST_CHECK(sentry_value_get_type(rv) == SENTRY_VALUE_TYPE_INT32);
     TEST_CHECK_INT_EQUAL(sentry_value_as_int32(rv), 42);
     sentry_value_decref(rv);
 
     const char number_with_trailing_digit[] = "420";
-    rv = sentry__value_from_json(number_with_trailing_digit, 2);
+    rv = sentry_value_from_json(number_with_trailing_digit, 2);
     TEST_CHECK(sentry_value_get_type(rv) == SENTRY_VALUE_TYPE_INT32);
     TEST_CHECK_INT_EQUAL(sentry_value_as_int32(rv), 42);
     sentry_value_decref(rv);
 
-    rv = sentry__value_from_json(STRING("11111111111111111111111111111111"));
+    rv = sentry_value_from_json(STRING("11111111111111111111111111111111"));
     TEST_CHECK(sentry_value_get_type(rv) == SENTRY_VALUE_TYPE_DOUBLE);
     sentry_value_decref(rv);
 
-    rv = sentry__value_from_json(STRING("-9223372036854775808"));
+    rv = sentry_value_from_json(STRING("-9223372036854775808"));
     TEST_CHECK(sentry_value_get_type(rv) == SENTRY_VALUE_TYPE_INT64);
     TEST_CHECK_INT_EQUAL(sentry_value_as_int64(rv), INT64_MIN);
     sentry_value_decref(rv);
 
-    rv = sentry__value_from_json(STRING("-9223372036854775809"));
+    rv = sentry_value_from_json(STRING("-9223372036854775809"));
     TEST_CHECK(sentry_value_get_type(rv) == SENTRY_VALUE_TYPE_DOUBLE);
     TEST_CHECK_INT_EQUAL(sentry_value_as_double(rv), -9.2233720368547758E+18);
     sentry_value_decref(rv);
 
-    rv = sentry__value_from_json(STRING("18446744073709551615"));
+    rv = sentry_value_from_json(STRING("18446744073709551615"));
     TEST_CHECK(sentry_value_get_type(rv) == SENTRY_VALUE_TYPE_UINT64);
     TEST_CHECK_UINT64_EQUAL(sentry_value_as_uint64(rv), UINT64_MAX);
     sentry_value_decref(rv);
 
-    rv = sentry__value_from_json(STRING("18446744073709551616"));
+    rv = sentry_value_from_json(STRING("18446744073709551616"));
     TEST_CHECK(sentry_value_get_type(rv) == SENTRY_VALUE_TYPE_DOUBLE);
     TEST_CHECK(sentry_value_as_double(rv) == 1.8446744073709552E+19);
     sentry_value_decref(rv);
 
-    rv = sentry__value_from_json(STRING("false"));
+    rv = sentry_value_from_json(STRING("false"));
     TEST_CHECK(sentry_value_get_type(rv) == SENTRY_VALUE_TYPE_BOOL);
     TEST_CHECK(!sentry_value_is_true(rv));
     sentry_value_decref(rv);
 
-    rv = sentry__value_from_json(STRING("invalid json"));
+    rv = sentry_value_from_json(STRING("invalid json"));
     TEST_CHECK(sentry_value_is_null(rv));
     sentry_value_decref(rv);
 
-    rv = sentry__value_from_json(STRING("[42, \"foo\\u2603\"]"));
+    rv = sentry_value_from_json(STRING("[42, \"foo\\u2603\"]"));
     TEST_CHECK_INT_EQUAL(
         sentry_value_as_int32(sentry_value_get_by_index(rv, 0)), 42);
     TEST_CHECK_STRING_EQUAL(
@@ -1239,19 +1239,19 @@ SENTRY_TEST(value_json_parsing)
     sentry_value_decref(rv);
 
     char string_with_nul[] = { 'h', 'e', '\0', 'l', 'o' };
-    rv = sentry__value_from_json(STRING("\"he\\u0000lo\""));
+    rv = sentry_value_from_json(STRING("\"he\\u0000lo\""));
     TEST_CHECK(sentry_value_get_length(rv) == sizeof(string_with_nul));
     TEST_CHECK(memcmp(sentry_value_as_string(rv), string_with_nul,
                    sizeof(string_with_nul))
         == 0);
     sentry_value_decref(rv);
 
-    rv = sentry__value_from_json(
+    rv = sentry_value_from_json(
         STRING("[false, 42, \"foo\\u2603\", \"bar\", {\"foo\": 42}]"));
     TEST_CHECK_JSON_VALUE(rv, "[false,42,\"foo☃\",\"bar\",{\"foo\":42}]");
     sentry_value_decref(rv);
 
-    rv = sentry__value_from_json(
+    rv = sentry_value_from_json(
         STRING("{\"escapes\": "
                "\"quot: \\\", backslash: \\\\, slash: \\/, backspace: \\b, "
                "formfeed: \\f, linefeed: \\n, carriage: \\r, tab: \\t\", "
@@ -1266,9 +1266,9 @@ SENTRY_TEST(value_json_parsing)
     sentry_value_decref(rv);
 
     // unmatched surrogates don't parse
-    rv = sentry__value_from_json(STRING("\"\\uD801\""));
+    rv = sentry_value_from_json(STRING("\"\\uD801\""));
     TEST_CHECK(sentry_value_is_null(rv));
-    rv = sentry__value_from_json(
+    rv = sentry_value_from_json(
         STRING("{\"valid key\": true, \"invalid key \\uD801\": false}"));
     TEST_CHECK_JSON_VALUE(rv, "{\"valid key\":true}");
     sentry_value_decref(rv);
@@ -1304,7 +1304,7 @@ SENTRY_TEST(value_json_deeply_nested)
     TEST_ASSERT(!!serialized);
     sentry_value_decref(root);
 
-    sentry_value_t parsed = sentry__value_from_json(serialized, serialized_len);
+    sentry_value_t parsed = sentry_value_from_json(serialized, serialized_len);
     sentry_free(serialized);
 
     TEST_CHECK(!sentry_value_is_null(parsed));
@@ -1315,13 +1315,13 @@ SENTRY_TEST(value_json_max_depth)
 {
     char accepted[64 * 2 + sizeof("null")]; // SENTRY_JSON_MAX_DEPTH
     write_nested_json_arrays(accepted, 64);
-    sentry_value_t value = sentry__value_from_json(accepted, strlen(accepted));
+    sentry_value_t value = sentry_value_from_json(accepted, strlen(accepted));
     TEST_CHECK(sentry_value_get_type(value) == SENTRY_VALUE_TYPE_LIST);
     sentry_value_decref(value);
 
     char too_deep[65 * 2 + sizeof("null")]; // SENTRY_JSON_MAX_DEPTH + 1
     write_nested_json_arrays(too_deep, 65);
-    value = sentry__value_from_json(too_deep, strlen(too_deep));
+    value = sentry_value_from_json(too_deep, strlen(too_deep));
     TEST_CHECK(sentry_value_is_null(value));
     sentry_value_decref(value);
 }
@@ -1346,7 +1346,7 @@ SENTRY_TEST(value_json_len_out)
 
 SENTRY_TEST(value_json_escaping)
 {
-    sentry_value_t rv = sentry__value_from_json(
+    sentry_value_t rv = sentry_value_from_json(
         STRING("{\"escapes\": "
                "\"quot: \\\", backslash: \\\\, slash: \\/, backspace: \\b, "
                "formfeed: \\f, linefeed: \\n, carriage: \\r, tab: \\t\"}"));
@@ -1358,21 +1358,21 @@ SENTRY_TEST(value_json_escaping)
     sentry_value_decref(rv);
 
     // trailing blackslash
-    rv = sentry__value_from_json(STRING("\"\\\""));
+    rv = sentry_value_from_json(STRING("\"\\\""));
     TEST_CHECK(sentry_value_is_null(rv));
 }
 
 SENTRY_TEST(value_json_surrogates)
 {
-    sentry_value_t rv = sentry__value_from_json(
+    sentry_value_t rv = sentry_value_from_json(
         STRING("{\"surrogates\": \"oh \\uD801\\udc37 hi\"}"));
     TEST_CHECK_JSON_VALUE(rv, "{\"surrogates\":\"oh 𐐷 hi\"}");
     sentry_value_decref(rv);
 
     // unmatched surrogates don't parse
-    rv = sentry__value_from_json(STRING("\"\\uD801\""));
+    rv = sentry_value_from_json(STRING("\"\\uD801\""));
     TEST_CHECK(sentry_value_is_null(rv));
-    rv = sentry__value_from_json(
+    rv = sentry_value_from_json(
         STRING("{\"valid key\": true, \"invalid key \\uD801\": false}"));
     TEST_CHECK_JSON_VALUE(rv, "{\"valid key\":true}");
     sentry_value_decref(rv);
@@ -1384,11 +1384,11 @@ SENTRY_TEST(value_json_locales)
     // correctly with a decimal dot.
     setlocale(LC_ALL, "de-DE");
 
-    sentry_value_t rv = sentry__value_from_json(
-        STRING("{\"dbl_max\": 1.7976931348623158e+308,"
-               "\"dbl_min\": 2.2250738585072014e-308,"
-               "\"max_int32\": 4294967295,"
-               "\"max_safe_int\": 9007199254740991}"));
+    sentry_value_t rv
+        = sentry_value_from_json(STRING("{\"dbl_max\": 1.7976931348623158e+308,"
+                                        "\"dbl_min\": 2.2250738585072014e-308,"
+                                        "\"max_int32\": 4294967295,"
+                                        "\"max_safe_int\": 9007199254740991}"));
 
     // thou shalt not use exact comparison for floating point values
     TEST_CHECK(sentry_value_as_double(sentry_value_get_by_key(rv, "dbl_max"))

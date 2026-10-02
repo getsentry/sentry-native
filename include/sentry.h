@@ -574,6 +574,16 @@ SENTRY_API int sentry_value_is_true(sentry_value_t value);
 SENTRY_API int sentry_value_is_null(sentry_value_t value);
 
 /**
+ * Deserialize a sentry value from JSON.
+ *
+ * Parses the given JSON string into a new value.
+ *
+ * The returned value must be released with `sentry_value_decref`.
+ */
+SENTRY_API sentry_value_t sentry_value_from_json(
+    const char *buf, size_t buf_len);
+
+/**
  * Serialize a sentry value to JSON.
  *
  * The string is freshly allocated and must be freed with
