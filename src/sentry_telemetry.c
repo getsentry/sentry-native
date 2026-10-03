@@ -24,9 +24,7 @@ sentry__telemetry_startup(const sentry_options_t *options)
     // https://develop.sentry.dev/sdk/telemetry/logs/#buffering
     g_telemetry_pool = sentry__threadpool_new(2, 10);
     sentry__threadpool_setname(g_telemetry_pool, "sentry-tele");
-    if (!g_telemetry_pool || sentry__threadpool_start(g_telemetry_pool) != 0) {
-        sentry__threadpool_free(g_telemetry_pool);
-        g_telemetry_pool = NULL;
+    if (!g_telemetry_pool) {
         SENTRY_WARN(
             "telemetry pool unavailable; serializing in batcher thread");
     }

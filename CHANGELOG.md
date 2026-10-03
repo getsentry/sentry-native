@@ -5,7 +5,20 @@
 **Features**:
 
 - Add `SENTRY_SDK_VERSION_MAJOR`, `SENTRY_SDK_VERSION_MINOR`, `SENTRY_SDK_VERSION_PATCH`, and `SENTRY_SDK_VERSION_AT_LEAST` for compile-time version checks. ([#2136](https://github.com/getsentry/sentry-native/pull/2136))
-- Add an option to limit non-crashing thread stack capture size in `crashpad` and `native` on Linux. ([#2137](https://github.com/getsentry/sentry-native/pull/2137), [crashpad#172](https://github.com/getsentry/crashpad/pull/172))
+- Let downstream platform integrations supply the installation ID. ([#2150](https://github.com/getsentry/sentry-native/pull/2150))
+- Native/Crashpad/Linux: Add `max_stack_capture_size` option to limit non-crashing thread stack capture size. ([#2137](https://github.com/getsentry/sentry-native/pull/2137), [crashpad#172](https://github.com/getsentry/crashpad/pull/172))
+
+**Fixes**:
+
+- Crashpad: avoid logging expected report lock contention ([crashpad#171](https://github.com/getsentry/crashpad/pull/171), [#2138](https://github.com/getsentry/sentry-native/pull/2138))
+- Start telemetry pool and batcher threads on demand, avoiding unnecessary worker threads for applications that do not send logs or metrics. ([#2144](https://github.com/getsentry/sentry-native/pull/2144), [#2145](https://github.com/getsentry/sentry-native/pull/2145))
+- Discard log and metric batches when the serialization pool is full instead of blocking the batcher threads with synchronous serialization. ([#2148](https://github.com/getsentry/sentry-native/pull/2148))
+- Restore the installation ID as the default `user.id` when removing the global user with `sentry_remove_user`. ([#2151](https://github.com/getsentry/sentry-native/pull/2151))
+- Unbind a finished span from the scope even when the span is dropped. ([#2158](https://github.com/getsentry/sentry-native/pull/2158))
+
+**Thank you**:
+
+- [IanHollow](https://github.com/IanHollow)
 
 ## 0.17.1
 

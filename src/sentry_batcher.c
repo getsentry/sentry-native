@@ -530,15 +530,29 @@ process_batch(sentry_batcher_t *batcher, sentry_value_t items, bool crash_safe)
         return;
     }
 
-    if (sentry__threadpool_submit(batcher->threadpool, batch_task_exec,
-            batch_task_complete_and_cleanup, NULL, task)
-        != 0) {
+    if (sentry__threadpool_start(batcher->threadpool) != 0) {
         SENTRY_WARN("serializing telemetry batch synchronously: "
-                    "serialization pool unavailable or out of memory");
+                    "serialization pool unavailable");
         batch_task_unlink(task);
         process_batch_sync_ordered(batcher, envelope, items);
         sentry_free(task);
         return;
+    }
+
+    const int result = sentry__threadpool_submit(batcher->threadpool,
+        batch_task_exec, batch_task_complete_and_cleanup, NULL, task);
+    if (result != 0) {
+        batch_task_unlink(task);
+        if (result > 0) {
+            sentry__client_report_discard(SENTRY_DISCARD_REASON_QUEUE_OVERFLOW,
+                batcher->data_category,
+                (long)sentry_value_get_length(
+                    sentry_value_get_by_key(task->items, "items")));
+        } else {
+            SENTRY_WARN("discarding telemetry batch: "
+                        "serialization task submission failed");
+        }
+        batch_task_free(task);
     }
 }
 
@@ -620,9 +634,13 @@ sentry__batcher_flush(sentry_batcher_t *batcher, bool crash_safe)
     return true;
 }
 
+static void start_thread(sentry_batcher_t *batcher);
+
 bool
 sentry__batcher_enqueue(sentry_batcher_t *batcher, sentry_value_t item)
 {
+    start_thread(batcher);
+
     while (true) {
         // retrieve the active buffer
         const long active_idx = sentry__atomic_fetch(&batcher->active_idx);
@@ -691,12 +709,19 @@ batcher_thread_func(void *data)
     sentry__thread_setname(sentry__current_thread(), thread_name);
     SENTRY_DEBUGF("Starting %s thread", thread_name);
 
+    while (sentry__atomic_fetch(&batcher->thread_state)
+            == SENTRY_BATCHER_THREAD_SPAWNING
+        && !sentry__atomic_fetch(&batcher->crash_flush)) {
+        sentry__cpu_relax();
+    }
+
     // Transition from STARTING to RUNNING using compare-and-swap
     // CAS ensures atomic state verification: only succeeds if state is STARTING
     // If CAS fails, shutdown already set state to STOPPED, so exit immediately
     // Uses sequential consistency to ensure all thread initialization is
     // visible
-    if (!sentry__atomic_compare_swap(&batcher->thread_state,
+    if (sentry__atomic_fetch(&batcher->crash_flush)
+        || !sentry__atomic_compare_swap(&batcher->thread_state,
             (long)SENTRY_BATCHER_THREAD_STARTING,
             (long)SENTRY_BATCHER_THREAD_RUNNING)) {
         SENTRY_DEBUG(
@@ -758,20 +783,37 @@ sentry__batcher_startup(
     batcher->transport = options->transport;
     batcher->run = options->run;
 
-    // Mark thread as starting before actually spawning so thread can transition
+    // Defer thread creation until there's work; IDLE allows the first enqueue
+    // to start it, while STOPPED prevents startup after shutdown.
+    sentry__atomic_store(
+        &batcher->thread_state, (long)SENTRY_BATCHER_THREAD_IDLE);
+}
+
+static void
+start_thread(sentry_batcher_t *batcher)
+{
+    // Mark thread as spawning before actually spawning so thread can transition
     // to RUNNING. This prevents shutdown from thinking the thread was never
     // started if it races with the thread's initialization.
-    sentry__atomic_store(
-        &batcher->thread_state, (long)SENTRY_BATCHER_THREAD_STARTING);
+    if (!sentry__atomic_compare_swap(&batcher->thread_state,
+            (long)SENTRY_BATCHER_THREAD_IDLE,
+            (long)SENTRY_BATCHER_THREAD_SPAWNING)) {
+        return;
+    }
 
     int spawn_result = sentry__thread_spawn(
         &batcher->batching_thread, batcher_thread_func, batcher);
 
-    if (spawn_result == 1) {
+    if (spawn_result != 0) {
         SENTRY_ERROR("Failed to start batching thread");
         // Failed to spawn, reset to STOPPED
         sentry__atomic_store(
             &batcher->thread_state, (long)SENTRY_BATCHER_THREAD_STOPPED);
+    } else if (!sentry__atomic_compare_swap(&batcher->thread_state,
+                   (long)SENTRY_BATCHER_THREAD_SPAWNING,
+                   (long)SENTRY_BATCHER_THREAD_STARTING)) {
+        // Crash shutdown canceled startup; the producer still holds a reference
+        sentry__thread_join(batcher->batching_thread);
     }
 }
 
@@ -784,12 +826,23 @@ sentry__batcher_shutdown(sentry_batcher_t *batcher, uint64_t timeout)
     // This handles the race where thread might be in STARTING state:
     // - If thread's CAS hasn't run yet: CAS will fail, thread exits cleanly
     // - If thread already transitioned to RUNNING: normal shutdown path
-    const long old_state = sentry__atomic_store(
-        &batcher->thread_state, (long)SENTRY_BATCHER_THREAD_STOPPED);
+    long old_state;
+    while (true) {
+        old_state = sentry__atomic_fetch(&batcher->thread_state);
+        if (old_state == SENTRY_BATCHER_THREAD_SPAWNING
+            && !sentry__atomic_fetch(&batcher->crash_flush)) {
+            sentry__cpu_relax();
+            continue;
+        }
+        if (sentry__atomic_compare_swap(&batcher->thread_state, old_state,
+                (long)SENTRY_BATCHER_THREAD_STOPPED)) {
+            break;
+        }
+    }
 
-    // If thread was never started, nothing to join
-    if (old_state == SENTRY_BATCHER_THREAD_STOPPED) {
-        SENTRY_DEBUG("batcher thread was not started, skipping thread join");
+    // The creator joins a canceled spawn after thread creation returns
+    if (old_state <= SENTRY_BATCHER_THREAD_SPAWNING) {
+        SENTRY_DEBUG("batcher thread is not joinable, skipping thread join");
     } else {
         // Thread was started (STARTING, RUNNING, or STOPPING), signal it to
         // stop
@@ -811,8 +864,10 @@ sentry__batcher_flush_crash_safe(sentry_batcher_t *batcher)
 {
     // Check if batcher is initialized
     sentry__atomic_store(&batcher->crash_flush, 1);
+    sentry__atomic_compare_swap(&batcher->thread_state,
+        (long)SENTRY_BATCHER_THREAD_IDLE, (long)SENTRY_BATCHER_THREAD_STOPPED);
     const long state = sentry__atomic_fetch(&batcher->thread_state);
-    if (state == SENTRY_BATCHER_THREAD_STOPPED) {
+    if (state <= SENTRY_BATCHER_THREAD_SPAWNING) {
         sentry__batcher_flush(batcher, true);
         batch_task_dump_pending_all(batcher);
         return;
@@ -820,8 +875,12 @@ sentry__batcher_flush_crash_safe(sentry_batcher_t *batcher)
 
     // Signal the thread to stop but don't wait, since the crash-safe flush
     // will spin-lock on flushing anyway.
-    sentry__atomic_store(
-        &batcher->thread_state, (long)SENTRY_BATCHER_THREAD_STOPPING);
+    sentry__atomic_compare_swap(&batcher->thread_state,
+        (long)SENTRY_BATCHER_THREAD_STARTING,
+        (long)SENTRY_BATCHER_THREAD_STOPPING);
+    sentry__atomic_compare_swap(&batcher->thread_state,
+        (long)SENTRY_BATCHER_THREAD_RUNNING,
+        (long)SENTRY_BATCHER_THREAD_STOPPING);
 
     // Perform crash-safe flush directly to disk to avoid transport queuing
     // This is safe because we're in a crash scenario and the main thread
@@ -852,6 +911,7 @@ sentry__batcher_force_flush_wait(sentry_batcher_t *batcher)
 #ifdef SENTRY_UNITTEST
 /**
  * Wait for the batching thread to be ready.
+ * Returns immediately if the thread has not been requested yet.
  * This is a test-only helper to avoid race conditions in tests.
  */
 void
@@ -863,6 +923,9 @@ sentry__batcher_wait_for_thread_startup(sentry_batcher_t *batcher)
 
     for (int i = 0; i < max_attempts; i++) {
         const long state = sentry__atomic_fetch(&batcher->thread_state);
+        if (state <= SENTRY_BATCHER_THREAD_IDLE) {
+            return;
+        }
         if (state == SENTRY_BATCHER_THREAD_RUNNING) {
             SENTRY_DEBUGF(
                 "batcher thread ready after %d ms", i * check_interval_ms);

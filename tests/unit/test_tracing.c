@@ -780,6 +780,38 @@ SENTRY_TEST(unsampled_spans)
     sentry_close();
 }
 
+SENTRY_TEST(unsampled_span_finish_unbinds_from_scope)
+{
+    SENTRY_TEST_OPTIONS_NEW(options);
+    sentry_options_set_traces_sample_rate(options, 1.0);
+    sentry_init(options);
+
+    sentry_transaction_context_t *tx_ctx
+        = sentry_transaction_context_new("unsampled", NULL);
+    sentry_transaction_context_set_sampled(tx_ctx, 0);
+    sentry_transaction_t *tx
+        = sentry_transaction_start(tx_ctx, sentry_value_new_null());
+    sentry_span_t *span = sentry_transaction_start_child(tx, "op", "desc");
+    sentry_set_span(span);
+
+    SENTRY_WITH_SCOPE (scope) {
+        sentry_span_t *scope_span = sentry__scope_ref_span(scope);
+        TEST_CHECK(scope_span == span);
+        sentry__span_decref(scope_span);
+    }
+
+    sentry_span_finish(span);
+
+    SENTRY_WITH_SCOPE (scope) {
+        sentry_span_t *scope_span = sentry__scope_ref_span(scope);
+        TEST_CHECK(scope_span == NULL);
+        sentry__span_decref(scope_span);
+    }
+
+    sentry_transaction_finish(tx);
+    sentry_close();
+}
+
 static void
 check_spans(sentry_envelope_t *envelope, void *data)
 {

@@ -38,13 +38,15 @@ void sentry__run_load_user_consent(
 
 /**
  * Loads or creates the persisted installation ID. The file
- * `<database>/installation_id` stores a UUIDv4 on line 1 and the given
- * `public_key` on line 2. If the stored key matches, the UUID is reused;
- * otherwise a new one is generated and the file is rewritten. A NULL
- * `public_key` is treated as an empty string.
+ * `<database>/installation_id` stores a UUID on line 1 and the DSN's public key
+ * on line 2. If the stored key matches, the UUID is reused; otherwise a new one
+ * is generated and the file is rewritten.
+ *
+ * An ID that has to be created comes from the first integration providing
+ * `installation_id_func`, or is a random UUIDv4 if none does.
  */
-void sentry__run_load_installation_id(sentry_run_t *run,
-    const sentry_path_t *database_path, const char *public_key);
+void sentry__run_load_installation_id(
+    sentry_run_t *run, const sentry_options_t *options);
 
 /**
  * This creates a new application run including its associated directory and

@@ -200,8 +200,7 @@ sentry_init(sentry_options_t *options)
             "the provided DSN \"%s\" is not valid", raw_dsn ? raw_dsn : "");
     }
 
-    sentry__run_load_installation_id(options->run, options->database_path,
-        options->dsn ? options->dsn->public_key : NULL);
+    sentry__run_load_installation_id(options->run, options);
 
     if (transport) {
         if (sentry__transport_startup(transport, options) != 0) {
@@ -1077,7 +1076,7 @@ sentry_set_user(sentry_value_t user)
 void
 sentry_remove_user(void)
 {
-    sentry_set_user(sentry_value_new_null());
+    sentry_set_user(sentry_value_new_object());
 }
 
 void
@@ -1786,6 +1785,10 @@ sentry_span_finish_ts(sentry_span_t *opaque_span, uint64_t timestamp)
         goto fail;
     }
 
+    sentry_scope_t *scope = sentry__scope_getref();
+    bool removed = sentry__scope_remove_span_value(scope, opaque_span->inner);
+    sentry__scope_finish_mut(scope, removed);
+
     sentry_transaction_t *opaque_root_transaction = opaque_span->transaction;
     if (!opaque_root_transaction
         || sentry_value_is_null(opaque_root_transaction->inner)) {
@@ -1812,10 +1815,6 @@ sentry_span_finish_ts(sentry_span_t *opaque_span, uint64_t timestamp)
     }
 
     sentry_value_t span = sentry__value_clone(opaque_span->inner);
-
-    SENTRY_WITH_SCOPE_MUT (scope) {
-        sentry__scope_remove_span_value(scope, span);
-    }
 
     // Note that the current API makes it impossible to set a sampled value
     // that's different from the span's root transaction, but let's just be safe

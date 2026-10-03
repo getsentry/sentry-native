@@ -328,14 +328,14 @@ sentry__threadpool_submit(sentry_threadpool_t *pool,
         if (cleanup_func) {
             cleanup_func(task_data);
         }
-        return 1;
+        return -1;
     }
     sentry_threadpool_task_t *task = SENTRY_MAKE(sentry_threadpool_task_t);
     if (!task) {
         if (cleanup_func) {
             cleanup_func(task_data);
         }
-        return 1;
+        return -1;
     }
     task->exec_func = exec_func;
     task->complete_func = complete_func;
@@ -343,8 +343,12 @@ sentry__threadpool_submit(sentry_threadpool_t *pool,
     task->task_data = task_data;
 
     sentry__mutex_lock(&pool->lock);
-    if (!sentry__atomic_fetch(&pool->running) || pool->stopping
-        || sentry__atomic_fetch(&pool->pending) >= pool->max_pending) {
+    if (!sentry__atomic_fetch(&pool->running) || pool->stopping) {
+        sentry__mutex_unlock(&pool->lock);
+        threadpool_task_free(task);
+        return -1;
+    }
+    if (sentry__atomic_fetch(&pool->pending) >= pool->max_pending) {
         sentry__mutex_unlock(&pool->lock);
         threadpool_task_free(task);
         return 1;
