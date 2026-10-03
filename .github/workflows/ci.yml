@@ -164,7 +164,7 @@ jobs:
             CXX: clang++
             SYSTEM_PYTHON: 1
             CMAKE_DEFINES: -DSENTRY_LIBUNWIND_SYSTEM=ON
-          - name: macOS 14 (xcode llvm)
+          - name: macOS 15 (xcode llvm)
             os: macos-15
             ERROR_ON_WARNINGS: 1
             SYSTEM_VERSION_COMPAT: 0
