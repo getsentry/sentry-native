@@ -72,4 +72,8 @@ sentry_value_t sentry__get_os_context(void);
 
 sentry_value_t sentry__build_registers(const sentry_ucontext_t *uctx);
 
+#if defined(SENTRY_PLATFORM_UNIX)
+const char *sentry__signal_to_string(int signum);
+#endif
+
 #endif

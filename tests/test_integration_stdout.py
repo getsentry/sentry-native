@@ -1,3 +1,4 @@
+import json
 import os
 import shutil
 import subprocess
@@ -21,6 +22,7 @@ from .assertions import (
     assert_breakpad_crash,
     assert_exception,
     wait_for,
+    assert_crash_stack,
 )
 from .conditions import has_breakpad, has_files, is_qemu, is_wine
 
@@ -180,11 +182,16 @@ def assert_crash_hint_attachments(envelope, callback):
         item.headers.get("filename") in ("CMakeCache.txt", "bytes.bin")
         for item in envelope
     )
-    assert any(
-        item.headers.get("filename") == "callback.txt"
-        and item.payload.bytes == callback.replace("-", "_").encode()
-        for item in envelope
+    filename = callback.replace("-", "_") + ".json"
+    snapshot = json.loads(
+        next(
+            item.payload.bytes
+            for item in envelope
+            if item.headers.get("filename") == filename
+        )
     )
+    assert snapshot["level"] == "fatal"
+    return snapshot
 
 
 def test_inproc_crash_stdout(cmake):
@@ -245,9 +252,10 @@ def test_inproc_crash_stdout_before_send(cmake):
     assert_no_crash_timestamp(has_files, tmp_path)
     assert_meta(envelope, integration="inproc")
     assert_breadcrumb(envelope)
-    assert_crash_hint_attachments(envelope, "before-send")
+    snapshot = assert_crash_hint_attachments(envelope, "before-send")
     assert_inproc_crash(envelope)
     assert_before_send(envelope)
+    assert_crash_stack(snapshot)
 
 
 @pytest.mark.skipif(is_qemu, reason="unreliable under qemu-user")
@@ -274,8 +282,9 @@ def test_inproc_crash_stdout_before_send_and_on_crash(cmake):
     assert_no_crash_timestamp(has_files, tmp_path)
     assert_meta(envelope, integration="inproc")
     assert_breadcrumb(envelope)
-    assert_crash_hint_attachments(envelope, "on-crash")
+    snapshot = assert_crash_hint_attachments(envelope, "on-crash")
     assert_inproc_crash(envelope)
+    assert_crash_stack(snapshot)
 
 
 @pytest.mark.parametrize(

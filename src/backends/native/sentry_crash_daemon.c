@@ -500,34 +500,6 @@ add_attachment_refs(sentry_envelope_t *envelope,
     sentry_value_decref(list);
 }
 
-#if defined(SENTRY_PLATFORM_UNIX)
-/**
- * Get signal name from signal number (Unix platforms only)
- */
-static const char *
-get_signal_name(int signum)
-{
-    switch (signum) {
-    case SIGABRT:
-        return "SIGABRT";
-    case SIGBUS:
-        return "SIGBUS";
-    case SIGFPE:
-        return "SIGFPE";
-    case SIGILL:
-        return "SIGILL";
-    case SIGSEGV:
-        return "SIGSEGV";
-    case SIGSYS:
-        return "SIGSYS";
-    case SIGTRAP:
-        return "SIGTRAP";
-    default:
-        return "UNKNOWN";
-    }
-}
-#endif
-
 /**
  * Build registers value from crash context for a specific thread.
  *
@@ -717,7 +689,40 @@ enrich_frame_with_module_info(
     || defined(SENTRY_PLATFORM_MACOS)
 static void enrich_frame_with_symbol(
     const sentry_crash_context_t *ctx, sentry_value_t frame, uint64_t addr);
+#elif defined(SENTRY_PLATFORM_WINDOWS)
+static void
+enrich_frame_with_symbol(
+    const sentry_crash_context_t *ctx, sentry_value_t frame, uint64_t addr)
+{
+    (void)ctx;
+    if (!g_stack_walk_process) {
+        return;
+    }
+    const size_t size = sizeof(SYMBOL_INFOW) + MAX_SYM_NAME * sizeof(WCHAR);
+    SYMBOL_INFOW *symbol = sentry_malloc(size);
+    if (!symbol) {
+        return;
+    }
+    memset(symbol, 0, size);
+    symbol->SizeOfStruct = sizeof(SYMBOL_INFOW);
+    symbol->MaxNameLen = MAX_SYM_NAME;
+    if (SymFromAddrW(g_stack_walk_process, addr, NULL, symbol)
+        && !(symbol->Flags & SYMFLAG_EXPORT)) {
+        char *name = sentry__string_from_wstr(symbol->Name);
+        if (name) {
+            sentry_value_set_by_key(
+                frame, "function", sentry_value_new_string(name));
+            sentry_free(name);
+        }
+        sentry_value_set_by_key(
+            frame, "symbol_addr", sentry__value_new_addr(symbol->Address));
+    }
+    sentry_free(symbol);
+}
 #endif
+
+static void enrich_stacktrace(
+    const sentry_crash_context_t *ctx, sentry_value_t stacktrace);
 
 /**
  * Build stacktrace frames for a specific thread using frame pointer-based
@@ -732,6 +737,15 @@ static sentry_value_t
 build_stacktrace_for_thread(
     const sentry_crash_context_t *ctx, size_t thread_idx)
 {
+    if (thread_idx == SIZE_MAX
+        && (ctx->capture.count > 1
+            || (ctx->capture.count == 1 && ctx->capture.ips[0] != 0))) {
+        sentry_value_t captured = sentry__crash_context_build_stacktrace(
+            ctx, build_registers_from_ctx(ctx, SIZE_MAX));
+        enrich_stacktrace(ctx, captured);
+        return captured;
+    }
+
     sentry_value_t stacktrace = sentry_value_new_object();
     sentry_value_t frames = sentry_value_new_list();
 
@@ -1078,57 +1092,6 @@ build_stacktrace_for_thread(
     }
     // Fall through to pre-captured backtrace or FP-walking if remote
     // unwinding failed
-#endif
-
-#if defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID)
-    // Fallback: use pre-captured libunwind backtrace if available
-    // (DWARF-based, works without frame pointers).
-    if (ctx->platform.backtrace_count > 0
-        && (thread_idx == SIZE_MAX || thread_idx == 0)) {
-        SENTRY_DEBUGF("Using pre-captured libunwind backtrace (%zu frames)",
-            ctx->platform.backtrace_count);
-
-        for (size_t i = 0;
-            i < ctx->platform.backtrace_count && frame_count < MAX_STACK_FRAMES;
-            i++) {
-            uint64_t frame_ip = ctx->platform.backtrace_ips[i];
-            if (frame_ip == 0 || !is_valid_code_addr(frame_ip)) {
-                continue;
-            }
-            temp_frames[frame_count] = sentry_value_new_object();
-            sentry_value_set_by_key(temp_frames[frame_count],
-                "instruction_addr", sentry__value_new_addr(frame_ip));
-            // Trust describes the unwind source, not the emitted frame index.
-            // If the initial cursor frame is filtered out, the next emitted
-            // frame was still reached via CFI.
-            sentry_value_set_by_key(temp_frames[frame_count], "trust",
-                sentry_value_new_string(i == 0 ? "context" : "cfi"));
-            enrich_frame_with_module_info(
-                ctx, temp_frames[frame_count], frame_ip);
-            enrich_frame_with_symbol(ctx, temp_frames[frame_count], frame_ip);
-            frame_count++;
-        }
-
-        if (stack_buf) {
-            sentry_free(stack_buf);
-        }
-
-        if (frame_count == 0) {
-            sentry_value_decref(frames);
-            sentry_value_decref(stacktrace);
-            return sentry_value_new_null();
-        }
-
-        // Sentry expects frames in reverse order (outermost caller first)
-        for (int i = frame_count - 1; i >= 0; i--) {
-            sentry_value_append(frames, temp_frames[i]);
-        }
-
-        sentry_value_set_by_key(stacktrace, "frames", frames);
-        sentry_value_set_by_key(
-            stacktrace, "registers", build_registers_from_ctx(ctx, thread_idx));
-        return stacktrace;
-    }
 #endif
 
     // Add the crashing frame (instruction pointer)
@@ -3205,6 +3168,40 @@ apply_wer_context(sentry_value_t event, const sentry_crash_context_t *ctx)
 }
 #endif
 
+static void
+enrich_stacktrace(const sentry_crash_context_t *ctx, sentry_value_t stacktrace)
+{
+    sentry_value_t frames = sentry_value_get_by_key(stacktrace, "frames");
+    if (sentry_value_get_type(frames) != SENTRY_VALUE_TYPE_LIST) {
+        return;
+    }
+    for (size_t i = 0; i < sentry_value_get_length(frames); i++) {
+        sentry_value_t frame = sentry_value_get_by_index(frames, i);
+        sentry_value_t value
+            = sentry_value_get_by_key(frame, "instruction_addr");
+        uint64_t addr = sentry_value_as_uint64(value);
+        if (sentry_value_get_type(value) == SENTRY_VALUE_TYPE_STRING) {
+            const char *text = sentry_value_as_string(value);
+            char *end = NULL;
+            addr = strtoull(text, &end, 0);
+            if (end == text || *end != '\0') {
+                continue;
+            }
+        }
+        if (!addr) {
+            continue;
+        }
+        if (sentry_value_is_null(sentry_value_get_by_key(frame, "package"))) {
+            enrich_frame_with_module_info(ctx, frame, addr);
+        }
+        if (sentry_value_is_null(sentry_value_get_by_key(frame, "function"))
+            && sentry_value_is_null(
+                sentry_value_get_by_key(frame, "symbol_addr"))) {
+            enrich_frame_with_symbol(ctx, frame, addr);
+        }
+    }
+}
+
 /**
  * Build a native event and set the level, mechanism, and handled state
  *
@@ -3253,53 +3250,7 @@ build_native_event(const sentry_crash_context_t *ctx,
 
     sentry_value_set_by_key(event, "level", sentry_value_new_string(level));
 
-    // Build exception
-#if defined(SENTRY_PLATFORM_UNIX)
-    int signal_number = ctx->platform.signum;
-    const char *signal_name = get_signal_name(signal_number);
-#elif defined(SENTRY_PLATFORM_WINDOWS)
-    // Exception code is used directly below as unsigned
-    const char *signal_name = "EXCEPTION";
-#else
-#    error Unsupported platform
-#endif
-
-    sentry_value_t exc = sentry_value_new_object();
-    sentry_value_set_by_key(exc, "type", sentry_value_new_string(signal_name));
-
-    char value_buf[128];
-    snprintf(value_buf, sizeof(value_buf), "Fatal crash: %s", signal_name);
-    sentry_value_set_by_key(exc, "value", sentry_value_new_string(value_buf));
-
-    // Add mechanism
-    sentry_value_t mechanism = sentry_value_new_object();
-    sentry_value_set_by_key(
-        mechanism, "type", sentry_value_new_string(mechanism_type));
-    sentry_value_set_by_key(
-        mechanism, "synthetic", sentry_value_new_bool(true));
-    sentry_value_set_by_key(
-        mechanism, "handled", sentry_value_new_bool(handled));
-
-    // Add signal metadata
-    sentry_value_t meta = sentry_value_new_object();
-    sentry_value_t signal_info = sentry_value_new_object();
-#if defined(SENTRY_PLATFORM_WINDOWS)
-    // Windows exception codes are unsigned 32-bit values (e.g., 0xC0000005)
-    // Use uint64 to preserve the unsigned value for the symbolicator
-    sentry_value_set_by_key(signal_info, "number",
-        sentry_value_new_uint64((uint64_t)ctx->platform.exception_code));
-#else
-    sentry_value_set_by_key(
-        signal_info, "number", sentry_value_new_int32(signal_number));
-#endif
-    sentry_value_set_by_key(
-        signal_info, "name", sentry_value_new_string(signal_name));
-    sentry_value_set_by_key(meta, "signal", signal_info);
-    sentry_value_set_by_key(mechanism, "meta", meta);
-
-    sentry_value_set_by_key(exc, "mechanism", mechanism);
-
-    // Add stacktrace to exception
+    // other threads and missing local captures may still need DbgHelp
 #if defined(SENTRY_PLATFORM_WINDOWS)
     g_stack_walk_process
         = OpenProcess(PROCESS_VM_READ | PROCESS_QUERY_INFORMATION, FALSE,
@@ -3317,14 +3268,24 @@ build_native_event(const sentry_crash_context_t *ctx,
             ctx->crashed_pid, GetLastError());
     }
 #endif
-    sentry_value_set_by_key(exc, "stacktrace", build_stacktrace_from_ctx(ctx));
 
-    // Wrap exception in values array
-    sentry_value_t exceptions = sentry_value_new_object();
-    sentry_value_t exc_values = sentry_value_new_list();
-    sentry_value_append(exc_values, exc);
-    sentry_value_set_by_key(exceptions, "values", exc_values);
-    sentry_value_set_by_key(event, "exception", exceptions);
+    sentry_value_t exception = sentry_value_get_by_key(event, "exception");
+    sentry_value_t values = sentry_value_get_by_key(exception, "values");
+    sentry_value_t exc = sentry_value_get_by_index(values, 0);
+    if (sentry_value_is_null(exc)) {
+        sentry_value_t stacktrace = build_stacktrace_from_ctx(ctx);
+        if (sentry_value_is_null(stacktrace)) {
+            stacktrace = sentry__crash_context_build_stacktrace(
+                ctx, build_registers_from_ctx(ctx, SIZE_MAX));
+        }
+        exc = sentry__crash_context_build_exception(
+            ctx, mechanism_type, handled, stacktrace);
+        // Wrap exception in values array
+        sentry_event_add_exception(event, exc);
+    } else {
+        sentry_value_t stacktrace = sentry_value_get_by_key(exc, "stacktrace");
+        enrich_stacktrace(ctx, stacktrace);
+    }
 
     // Always add threads with names to the event JSON
     {
@@ -4058,6 +4019,10 @@ sentry__process_crash(const sentry_options_t *options, sentry_crash_ipc_t *ipc)
     // Mark as processing
     sentry__atomic_store(&ctx->state, SENTRY_CRASH_STATE_PROCESSING);
     SENTRY_DEBUG("Marked state as PROCESSING");
+    if (!ctx->event_path[0]) {
+        SENTRY_DEBUG("Crash event discarded by local callback");
+        goto done;
+    }
 
     // Check crash reporting mode
     int mode = ctx->crash_reporting_mode;

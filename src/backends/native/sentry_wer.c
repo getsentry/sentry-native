@@ -154,6 +154,7 @@ process_wer_exception(
         == SENTRY_CRASH_STATE_READY) {
         ctx->crashed_pid = GetProcessId(exception_info->hProcess);
         ctx->crashed_tid = GetThreadId(exception_info->hThread);
+        ctx->capture.count = 0;
         ctx->platform.exception_code
             = exception_info->exceptionRecord.ExceptionCode;
         ctx->platform.exception_record = exception_info->exceptionRecord;

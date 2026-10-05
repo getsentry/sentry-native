@@ -9,7 +9,10 @@
 
 #include "sentry.h" // For sentry_minidump_mode_t
 #include "sentry_boot.h"
+#include "sentry_os.h"
 #include "sentry_sync.h"
+#include "sentry_utils.h"
+#include "sentry_value.h"
 
 #include <limits.h>
 #include <stddef.h>
@@ -39,6 +42,14 @@ typedef DWORD pid_t;
 #define SENTRY_CRASH_MAX_THREADS 256
 #define SENTRY_CRASH_MAX_MODULES 2048
 #define SENTRY_CRASH_MAX_MAPPINGS 4096
+// Max frames for pre-captured backtrace (crash handler -> daemon)
+#define SENTRY_CRASH_MAX_BACKTRACE_FRAMES 128
+
+typedef struct {
+    uint32_t count;
+    uint8_t frame_pointer;
+    uint64_t ips[SENTRY_CRASH_MAX_BACKTRACE_FRAMES];
+} sentry_crash_capture_t;
 
 // Max path length in crash context
 // Use system PATH_MAX where available (typically 4096 on Linux/macOS, 260 on
@@ -149,9 +160,6 @@ typedef struct {
 
 #if defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID)
 
-// Max frames for pre-captured backtrace (signal handler -> daemon)
-#    define SENTRY_CRASH_MAX_BACKTRACE_FRAMES 128
-
 /**
  * Linux/Android thread context
  */
@@ -169,12 +177,6 @@ typedef struct {
     int signum;
     siginfo_t siginfo;
     ucontext_t context;
-
-    // Pre-captured backtrace from signal handler using libunwind (DWARF-based).
-    // This works without frame pointers, unlike the daemon's FP-based walking.
-    // The daemon prefers this over FP-walking when backtrace_count > 0.
-    size_t backtrace_count;
-    uint64_t backtrace_ips[SENTRY_CRASH_MAX_BACKTRACE_FRAMES];
 
     // Additional thread contexts (for multi-thread dumps)
     size_t num_threads;
@@ -323,6 +325,11 @@ typedef struct {
     sentry_crash_platform_windows_t platform;
 #endif
 
+    // Fault-context capture, callee-first; failed capture may contain the IP.
+    // On Linux, libunwind captures using DWARF without frame pointers.
+    // The daemon prefers captures over its own stack walk.
+    sentry_crash_capture_t capture;
+
     // Sentry-specific metadata paths
     char database_path[SENTRY_CRASH_MAX_PATH]; // Shared across runs
     char run_path[SENTRY_CRASH_MAX_PATH]; // For current run
@@ -373,5 +380,97 @@ sentry__crash_context_init(sentry_crash_context_t *ctx)
 // Shared memory size: calculated at compile-time based on actual struct size
 // Add 8KB padding for safety and future additions
 #define SENTRY_CRASH_SHM_SIZE (sizeof(sentry_crash_context_t) + (8 * 1024))
+
+static inline sentry_value_t
+sentry__crash_context_build_stacktrace(
+    const sentry_crash_context_t *ctx, sentry_value_t registers)
+{
+    const sentry_crash_capture_t *capture = &ctx->capture;
+    size_t count = capture->count;
+    if (count == 0) {
+        sentry_value_decref(registers);
+        return sentry_value_new_null();
+    }
+    if (count > SENTRY_CRASH_MAX_BACKTRACE_FRAMES) {
+        count = SENTRY_CRASH_MAX_BACKTRACE_FRAMES;
+    }
+    sentry_value_t stacktrace = sentry_value_new_object();
+    sentry_value_t frames = sentry_value_new_list();
+    // Sentry expects frames in reverse order (outermost caller first)
+    for (size_t i = count; i > 0; i--) {
+        sentry_value_t frame = sentry_value_new_object();
+        sentry_value_set_by_key(frame, "instruction_addr",
+            sentry__value_new_addr(capture->ips[i - 1]));
+        // Trust describes the unwind source, not the emitted frame index.
+        sentry_value_set_by_key(frame, "trust",
+            sentry_value_new_string(i == 1   ? "context"
+                    : capture->frame_pointer ? "fp"
+                                             : "cfi"));
+        sentry_value_append(frames, frame);
+    }
+    sentry_value_set_by_key(stacktrace, "frames", frames);
+    sentry_value_set_by_key(stacktrace, "registers", registers);
+#if defined(SENTRY_PLATFORM_MACOS)
+    // the SDK's macOS unwinder already adjusts return addresses
+    sentry_value_set_by_key(stacktrace, "instruction_addr_adjustment",
+        sentry_value_new_string("none"));
+#endif
+    return stacktrace;
+}
+
+static inline sentry_value_t
+sentry__crash_context_build_exception(const sentry_crash_context_t *ctx,
+    const char *mechanism_type, bool handled, sentry_value_t stacktrace)
+{
+    // Build exception
+#if defined(SENTRY_PLATFORM_UNIX)
+    int signal_number = ctx->platform.signum;
+    const char *signal_name = sentry__signal_to_string(signal_number);
+#elif defined(SENTRY_PLATFORM_WINDOWS)
+    // Exception code is used directly below as unsigned
+    const char *signal_name = "EXCEPTION";
+#else
+#    error Unsupported platform
+#endif
+
+    // Avoid snprintf in signal handlers (not async-signal-safe)
+    char value_buf[128] = "Fatal crash: ";
+    size_t prefix_len = sizeof("Fatal crash: ") - 1;
+    size_t len = MIN(strlen(signal_name), sizeof(value_buf) - prefix_len - 1);
+    memcpy(value_buf + prefix_len, signal_name, len);
+    value_buf[prefix_len + len] = '\0';
+    sentry_value_t exc = sentry_value_new_exception(signal_name, value_buf);
+
+    // Add mechanism
+    sentry_value_t mechanism = sentry_value_new_object();
+    sentry_value_set_by_key(
+        mechanism, "type", sentry_value_new_string(mechanism_type));
+    sentry_value_set_by_key(
+        mechanism, "synthetic", sentry_value_new_bool(true));
+    sentry_value_set_by_key(
+        mechanism, "handled", sentry_value_new_bool(handled));
+    // Add signal metadata
+    sentry_value_t meta = sentry_value_new_object();
+    sentry_value_t signal_info = sentry_value_new_object();
+#if defined(SENTRY_PLATFORM_WINDOWS)
+    // Windows exception codes are unsigned 32-bit values (e.g., 0xC0000005)
+    // Use uint64 to preserve the unsigned value for the symbolicator
+    sentry_value_set_by_key(signal_info, "number",
+        sentry_value_new_uint64((uint64_t)ctx->platform.exception_code));
+#else
+    sentry_value_set_by_key(
+        signal_info, "number", sentry_value_new_int32(signal_number));
+#endif
+    sentry_value_set_by_key(
+        signal_info, "name", sentry_value_new_string(signal_name));
+    sentry_value_set_by_key(meta, "signal", signal_info);
+    sentry_value_set_by_key(mechanism, "meta", meta);
+    sentry_value_set_by_key(exc, "mechanism", mechanism);
+    // Add stacktrace to exception
+    if (!sentry_value_is_null(stacktrace)) {
+        sentry_value_set_by_key(exc, "stacktrace", stacktrace);
+    }
+    return exc;
+}
 
 #endif

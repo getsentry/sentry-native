@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+**Features**:
+
+- Native: Provide exception metadata, registers, and a basic crashing-thread stack to `on_crash` for crash identification. ([#2174](https://github.com/getsentry/sentry-native/pull/2174))
+
 **Fixes**:
 
 - The persisted installation ID is no longer required to be a UUID, so a platform integration can supply any ID that `user.id` accepts. ([#2177](https://github.com/getsentry/sentry-native/pull/2177))

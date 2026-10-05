@@ -1251,6 +1251,7 @@ native_backend_flush_scope(
 
     // Create event with current scope
     sentry_value_t event = sentry_value_new_object();
+    sentry__ensure_event_id(event, NULL);
     sentry_value_set_by_key(
         event, "level", sentry__value_new_level(SENTRY_LEVEL_FATAL));
 
@@ -1353,6 +1354,15 @@ native_backend_except(sentry_backend_t *backend, const sentry_ucontext_t *uctx)
         sentry_value_t event = sentry_value_new_event();
         sentry_value_set_by_key(
             event, "level", sentry__value_new_level(SENTRY_LEVEL_FATAL));
+        sentry_crash_context_t *ctx
+            = state && state->ipc ? state->ipc->shmem : NULL;
+        if (ctx) {
+            sentry_value_t exc = sentry__crash_context_build_exception(ctx,
+                "signalhandler", false,
+                sentry__crash_context_build_stacktrace(
+                    ctx, sentry__build_registers(uctx)));
+            sentry_event_add_exception(event, exc);
+        }
         sentry_hint_t hint;
         sentry__hint_init(&hint);
 
@@ -1474,6 +1484,9 @@ native_backend_except(sentry_backend_t *backend, const sentry_ucontext_t *uctx)
             SENTRY_DEBUG("event was discarded by the `on_crash` hook");
             sentry_value_decref(event);
             sentry_value_decref(transaction);
+        }
+        if (!should_handle && ctx) {
+            ctx->event_path[0] = '\0';
         }
         sentry__hint_deinit(&hint);
     }
