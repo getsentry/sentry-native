@@ -11,6 +11,7 @@
 #include "sentry_json.h"
 #include "sentry_logger.h"
 #include "sentry_options.h"
+#include "sentry_os.h"
 #include "sentry_path.h"
 #include "sentry_process.h"
 #include "sentry_screenshot.h"
@@ -538,241 +539,32 @@ get_signal_name(int signum)
 static sentry_value_t
 build_registers_from_ctx(const sentry_crash_context_t *ctx, size_t thread_idx)
 {
-    sentry_value_t registers = sentry_value_new_object();
-
+    sentry_ucontext_t uctx = { 0 };
 #if defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID)
     // Use thread-specific context, defaulting to crashed thread
-    const ucontext_t *uctx = &ctx->platform.context;
-    if (thread_idx != SIZE_MAX && ctx->platform.num_threads > 0
-        && thread_idx < ctx->platform.num_threads) {
-        uctx = &ctx->platform.threads[thread_idx].context;
+    const ucontext_t *context = &ctx->platform.context;
+    if (thread_idx != SIZE_MAX && thread_idx < ctx->platform.num_threads) {
+        context = &ctx->platform.threads[thread_idx].context;
     }
-
-#    if defined(__x86_64__)
-    uintptr_t *mctx = (uintptr_t *)&uctx->uc_mcontext;
-    sentry_value_set_by_key(
-        registers, "r8", sentry__value_new_addr((uint64_t)mctx[0]));
-    sentry_value_set_by_key(
-        registers, "r9", sentry__value_new_addr((uint64_t)mctx[1]));
-    sentry_value_set_by_key(
-        registers, "r10", sentry__value_new_addr((uint64_t)mctx[2]));
-    sentry_value_set_by_key(
-        registers, "r11", sentry__value_new_addr((uint64_t)mctx[3]));
-    sentry_value_set_by_key(
-        registers, "r12", sentry__value_new_addr((uint64_t)mctx[4]));
-    sentry_value_set_by_key(
-        registers, "r13", sentry__value_new_addr((uint64_t)mctx[5]));
-    sentry_value_set_by_key(
-        registers, "r14", sentry__value_new_addr((uint64_t)mctx[6]));
-    sentry_value_set_by_key(
-        registers, "r15", sentry__value_new_addr((uint64_t)mctx[7]));
-    sentry_value_set_by_key(
-        registers, "rdi", sentry__value_new_addr((uint64_t)mctx[8]));
-    sentry_value_set_by_key(
-        registers, "rsi", sentry__value_new_addr((uint64_t)mctx[9]));
-    sentry_value_set_by_key(
-        registers, "rbp", sentry__value_new_addr((uint64_t)mctx[10]));
-    sentry_value_set_by_key(
-        registers, "rbx", sentry__value_new_addr((uint64_t)mctx[11]));
-    sentry_value_set_by_key(
-        registers, "rdx", sentry__value_new_addr((uint64_t)mctx[12]));
-    sentry_value_set_by_key(
-        registers, "rax", sentry__value_new_addr((uint64_t)mctx[13]));
-    sentry_value_set_by_key(
-        registers, "rcx", sentry__value_new_addr((uint64_t)mctx[14]));
-    sentry_value_set_by_key(
-        registers, "rsp", sentry__value_new_addr((uint64_t)mctx[15]));
-    sentry_value_set_by_key(
-        registers, "rip", sentry__value_new_addr((uint64_t)mctx[16]));
-#    elif defined(__aarch64__)
-    // Use struct field access instead of raw pointer indexing because
-    // struct sigcontext has fault_address before regs[31] on aarch64.
-    for (int i = 0; i < 29; i++) {
-        char name[4];
-        snprintf(name, sizeof(name), "x%d", i);
-        sentry_value_set_by_key(
-            registers, name, sentry__value_new_addr(uctx->uc_mcontext.regs[i]));
-    }
-    sentry_value_set_by_key(
-        registers, "fp", sentry__value_new_addr(uctx->uc_mcontext.regs[29]));
-    sentry_value_set_by_key(
-        registers, "lr", sentry__value_new_addr(uctx->uc_mcontext.regs[30]));
-    sentry_value_set_by_key(
-        registers, "sp", sentry__value_new_addr(uctx->uc_mcontext.sp));
-    sentry_value_set_by_key(
-        registers, "pc", sentry__value_new_addr(uctx->uc_mcontext.pc));
-#    elif defined(__arm__)
-    sentry_value_set_by_key(
-        registers, "r0", sentry__value_new_addr(uctx->uc_mcontext.arm_r0));
-    sentry_value_set_by_key(
-        registers, "r1", sentry__value_new_addr(uctx->uc_mcontext.arm_r1));
-    sentry_value_set_by_key(
-        registers, "r2", sentry__value_new_addr(uctx->uc_mcontext.arm_r2));
-    sentry_value_set_by_key(
-        registers, "r3", sentry__value_new_addr(uctx->uc_mcontext.arm_r3));
-    sentry_value_set_by_key(
-        registers, "r4", sentry__value_new_addr(uctx->uc_mcontext.arm_r4));
-    sentry_value_set_by_key(
-        registers, "r5", sentry__value_new_addr(uctx->uc_mcontext.arm_r5));
-    sentry_value_set_by_key(
-        registers, "r6", sentry__value_new_addr(uctx->uc_mcontext.arm_r6));
-    sentry_value_set_by_key(
-        registers, "r7", sentry__value_new_addr(uctx->uc_mcontext.arm_r7));
-    sentry_value_set_by_key(
-        registers, "r8", sentry__value_new_addr(uctx->uc_mcontext.arm_r8));
-    sentry_value_set_by_key(
-        registers, "r9", sentry__value_new_addr(uctx->uc_mcontext.arm_r9));
-    sentry_value_set_by_key(
-        registers, "r10", sentry__value_new_addr(uctx->uc_mcontext.arm_r10));
-    sentry_value_set_by_key(
-        registers, "fp", sentry__value_new_addr(uctx->uc_mcontext.arm_fp));
-    sentry_value_set_by_key(
-        registers, "ip", sentry__value_new_addr(uctx->uc_mcontext.arm_ip));
-    sentry_value_set_by_key(
-        registers, "sp", sentry__value_new_addr(uctx->uc_mcontext.arm_sp));
-    sentry_value_set_by_key(
-        registers, "lr", sentry__value_new_addr(uctx->uc_mcontext.arm_lr));
-    sentry_value_set_by_key(
-        registers, "pc", sentry__value_new_addr(uctx->uc_mcontext.arm_pc));
-    sentry_value_set_by_key(
-        registers, "cpsr", sentry__value_new_addr(uctx->uc_mcontext.arm_cpsr));
-#    endif
-
+    uctx.user_context = (ucontext_t *)context;
 #elif defined(SENTRY_PLATFORM_MACOS)
     // Use thread-specific context, defaulting to crashed thread
-    const _STRUCT_MCONTEXT *mctx = &ctx->platform.mcontext;
-    if (thread_idx != SIZE_MAX && ctx->platform.num_threads > 0
-        && thread_idx < ctx->platform.num_threads) {
-        mctx = &ctx->platform.threads[thread_idx].state;
+    const _STRUCT_MCONTEXT *mcontext = &ctx->platform.mcontext;
+    if (thread_idx != SIZE_MAX && thread_idx < ctx->platform.num_threads) {
+        mcontext = &ctx->platform.threads[thread_idx].state;
     }
-
-#    if defined(__x86_64__)
-    sentry_value_set_by_key(
-        registers, "rax", sentry__value_new_addr(mctx->__ss.__rax));
-    sentry_value_set_by_key(
-        registers, "rbx", sentry__value_new_addr(mctx->__ss.__rbx));
-    sentry_value_set_by_key(
-        registers, "rcx", sentry__value_new_addr(mctx->__ss.__rcx));
-    sentry_value_set_by_key(
-        registers, "rdx", sentry__value_new_addr(mctx->__ss.__rdx));
-    sentry_value_set_by_key(
-        registers, "rdi", sentry__value_new_addr(mctx->__ss.__rdi));
-    sentry_value_set_by_key(
-        registers, "rsi", sentry__value_new_addr(mctx->__ss.__rsi));
-    sentry_value_set_by_key(
-        registers, "rbp", sentry__value_new_addr(mctx->__ss.__rbp));
-    sentry_value_set_by_key(
-        registers, "rsp", sentry__value_new_addr(mctx->__ss.__rsp));
-    sentry_value_set_by_key(
-        registers, "r8", sentry__value_new_addr(mctx->__ss.__r8));
-    sentry_value_set_by_key(
-        registers, "r9", sentry__value_new_addr(mctx->__ss.__r9));
-    sentry_value_set_by_key(
-        registers, "r10", sentry__value_new_addr(mctx->__ss.__r10));
-    sentry_value_set_by_key(
-        registers, "r11", sentry__value_new_addr(mctx->__ss.__r11));
-    sentry_value_set_by_key(
-        registers, "r12", sentry__value_new_addr(mctx->__ss.__r12));
-    sentry_value_set_by_key(
-        registers, "r13", sentry__value_new_addr(mctx->__ss.__r13));
-    sentry_value_set_by_key(
-        registers, "r14", sentry__value_new_addr(mctx->__ss.__r14));
-    sentry_value_set_by_key(
-        registers, "r15", sentry__value_new_addr(mctx->__ss.__r15));
-    sentry_value_set_by_key(
-        registers, "rip", sentry__value_new_addr(mctx->__ss.__rip));
-#    elif defined(__aarch64__)
-    for (int i = 0; i < 29; i++) {
-        char name[4];
-        snprintf(name, sizeof(name), "x%d", i);
-        sentry_value_set_by_key(
-            registers, name, sentry__value_new_addr(mctx->__ss.__x[i]));
-    }
-    sentry_value_set_by_key(registers, "fp",
-        sentry__value_new_addr(SENTRY__ARM64_GET_FP(mctx->__ss)));
-    sentry_value_set_by_key(registers, "lr",
-        sentry__value_new_addr(SENTRY__ARM64_GET_LR(mctx->__ss)));
-    sentry_value_set_by_key(registers, "sp",
-        sentry__value_new_addr(SENTRY__ARM64_GET_SP(mctx->__ss)));
-    sentry_value_set_by_key(registers, "pc",
-        sentry__value_new_addr(SENTRY__ARM64_GET_PC(mctx->__ss)));
-#    endif
-
+    ucontext_t context = { 0 };
+    context.uc_mcontext = (_STRUCT_MCONTEXT *)mcontext;
+    uctx.user_context = &context;
 #elif defined(SENTRY_PLATFORM_WINDOWS)
     // Use thread-specific context, defaulting to crashed thread
-    const CONTEXT *wctx = &ctx->platform.context;
-    if (thread_idx != SIZE_MAX && ctx->platform.num_threads > 0
-        && thread_idx < ctx->platform.num_threads) {
-        wctx = &ctx->platform.threads[thread_idx].context;
+    const CONTEXT *context = &ctx->platform.context;
+    if (thread_idx != SIZE_MAX && thread_idx < ctx->platform.num_threads) {
+        context = &ctx->platform.threads[thread_idx].context;
     }
-
-#    if defined(_M_AMD64)
-    sentry_value_set_by_key(
-        registers, "rax", sentry__value_new_addr(wctx->Rax));
-    sentry_value_set_by_key(
-        registers, "rbx", sentry__value_new_addr(wctx->Rbx));
-    sentry_value_set_by_key(
-        registers, "rcx", sentry__value_new_addr(wctx->Rcx));
-    sentry_value_set_by_key(
-        registers, "rdx", sentry__value_new_addr(wctx->Rdx));
-    sentry_value_set_by_key(
-        registers, "rdi", sentry__value_new_addr(wctx->Rdi));
-    sentry_value_set_by_key(
-        registers, "rsi", sentry__value_new_addr(wctx->Rsi));
-    sentry_value_set_by_key(
-        registers, "rbp", sentry__value_new_addr(wctx->Rbp));
-    sentry_value_set_by_key(
-        registers, "rsp", sentry__value_new_addr(wctx->Rsp));
-    sentry_value_set_by_key(registers, "r8", sentry__value_new_addr(wctx->R8));
-    sentry_value_set_by_key(registers, "r9", sentry__value_new_addr(wctx->R9));
-    sentry_value_set_by_key(
-        registers, "r10", sentry__value_new_addr(wctx->R10));
-    sentry_value_set_by_key(
-        registers, "r11", sentry__value_new_addr(wctx->R11));
-    sentry_value_set_by_key(
-        registers, "r12", sentry__value_new_addr(wctx->R12));
-    sentry_value_set_by_key(
-        registers, "r13", sentry__value_new_addr(wctx->R13));
-    sentry_value_set_by_key(
-        registers, "r14", sentry__value_new_addr(wctx->R14));
-    sentry_value_set_by_key(
-        registers, "r15", sentry__value_new_addr(wctx->R15));
-    sentry_value_set_by_key(
-        registers, "rip", sentry__value_new_addr(wctx->Rip));
-#    elif defined(_M_IX86)
-    sentry_value_set_by_key(
-        registers, "eax", sentry__value_new_addr(wctx->Eax));
-    sentry_value_set_by_key(
-        registers, "ebx", sentry__value_new_addr(wctx->Ebx));
-    sentry_value_set_by_key(
-        registers, "ecx", sentry__value_new_addr(wctx->Ecx));
-    sentry_value_set_by_key(
-        registers, "edx", sentry__value_new_addr(wctx->Edx));
-    sentry_value_set_by_key(
-        registers, "edi", sentry__value_new_addr(wctx->Edi));
-    sentry_value_set_by_key(
-        registers, "esi", sentry__value_new_addr(wctx->Esi));
-    sentry_value_set_by_key(
-        registers, "ebp", sentry__value_new_addr(wctx->Ebp));
-    sentry_value_set_by_key(
-        registers, "esp", sentry__value_new_addr(wctx->Esp));
-    sentry_value_set_by_key(
-        registers, "eip", sentry__value_new_addr(wctx->Eip));
-#    elif defined(_M_ARM64)
-    for (int i = 0; i < 29; i++) {
-        char name[4];
-        snprintf(name, sizeof(name), "x%d", i);
-        sentry_value_set_by_key(
-            registers, name, sentry__value_new_addr(wctx->X[i]));
-    }
-    sentry_value_set_by_key(registers, "fp", sentry__value_new_addr(wctx->Fp));
-    sentry_value_set_by_key(registers, "lr", sentry__value_new_addr(wctx->Lr));
-    sentry_value_set_by_key(registers, "sp", sentry__value_new_addr(wctx->Sp));
-    sentry_value_set_by_key(registers, "pc", sentry__value_new_addr(wctx->Pc));
-#    endif
+    uctx.exception_ptrs.ContextRecord = (CONTEXT *)context;
 #endif
-
-    return registers;
+    return sentry__build_registers(&uctx);
 }
 
 #ifdef SENTRY_WITH_UNWINDER_LIBUNWIND_REMOTE
