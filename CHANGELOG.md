@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased (1.0.0)
+
+**Features**:
+
+- Native: reduce disk I/O on scope changes by sending incremental updates to the crash daemon over IPC. ([#2155](https://github.com/getsentry/sentry-native/pull/2155), [#2157](https://github.com/getsentry/sentry-native/pull/2157))
+
 ## Unreleased
 
 **Features**:

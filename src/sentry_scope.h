@@ -37,7 +37,7 @@ typedef struct sentry_scope_observer_s {
 
     void (*add_breadcrumb)(void *data, sentry_value_t breadcrumb);
 
-    void (*set_tag)(void *data, const char *key, const char *value);
+    void (*set_tag)(void *data, const char *key, sentry_value_t value);
     void (*remove_tag)(void *data, const char *key);
 
     void (*set_extra)(void *data, const char *key, sentry_value_t value);
@@ -48,6 +48,8 @@ typedef struct sentry_scope_observer_s {
 
     void (*add_attachment)(void *data, sentry_value_t attachment);
     void (*remove_attachment)(void *data, sentry_value_t attachment);
+
+    void (*set_trace)(void *data, sentry_value_t trace);
 } sentry_scope_observer_t;
 
 typedef struct sentry_scope_data_s sentry_scope_data_t;
@@ -247,6 +249,18 @@ sentry_scope_observer_t *sentry__scope_observer_new(void);
  */
 bool sentry__scope_add_observer(
     sentry_scope_t *scope, sentry_scope_observer_t *observer);
+
+/**
+ * Register and initialize a scope observer.
+ *
+ * Calls `init` with the observer's data and the scope after registration,
+ * while scope notifications are locked. The callback must only read the scope.
+ * Returning false removes the observer. Takes ownership of `observer`,
+ * freeing it if registration or initialization fails.
+ */
+bool sentry__scope_add_observer_with_init(sentry_scope_t *scope,
+    sentry_scope_observer_t *observer,
+    bool (*init)(void *data, const sentry_scope_t *scope));
 
 /**
  * Remove a scope observer.
