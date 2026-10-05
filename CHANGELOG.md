@@ -20,6 +20,7 @@
 **Thank you**:
 
 - [IanHollow](https://github.com/IanHollow)
+- [cerisier](https://github.com/cerisier)
 
 ## 0.17.1
 
