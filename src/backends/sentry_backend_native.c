@@ -1298,7 +1298,7 @@ native_backend_add_breadcrumb(sentry_backend_t *backend,
 
     // Append as msgpack, matching the crashpad backend. msgpack values are
     // self-delimiting, so the daemon can read the concatenated ring file back
-    // into a list via `sentry__value_from_msgpack`.
+    // into a list via `sentry_value_from_msgpack`.
     size_t mpack_size = 0;
     char *mpack = sentry_value_to_msgpack(breadcrumb, &mpack_size);
     if (!mpack) {

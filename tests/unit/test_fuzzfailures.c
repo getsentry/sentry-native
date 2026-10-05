@@ -15,7 +15,7 @@ parse_json_roundtrip(const sentry_path_t *path)
     }
 
     // parse the incoming json
-    sentry_value_t value = sentry__value_from_json(buf, buf_len);
+    sentry_value_t value = sentry_value_from_json(buf, buf_len);
     sentry_free(buf);
 
     sentry_jsonwriter_t *jw = sentry__jsonwriter_new_sb(NULL);
@@ -24,7 +24,7 @@ parse_json_roundtrip(const sentry_path_t *path)
     char *serialized1 = sentry__jsonwriter_into_string(jw, &serialized1_len);
     sentry_value_decref(value);
 
-    value = sentry__value_from_json(serialized1, serialized1_len);
+    value = sentry_value_from_json(serialized1, serialized1_len);
 
     jw = sentry__jsonwriter_new_sb(NULL);
     sentry__jsonwriter_write_value(jw, value);

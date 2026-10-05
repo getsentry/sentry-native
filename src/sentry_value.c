@@ -2041,7 +2041,7 @@ value_from_mpack(mpack_node_t node, size_t depth, bool *ok)
 }
 
 sentry_value_t
-sentry__value_from_msgpack(const char *buf, size_t buf_len)
+sentry_value_from_msgpack(const char *buf, size_t buf_len)
 {
     if (!buf || buf_len == 0) {
         return sentry_value_new_null();
@@ -2063,7 +2063,7 @@ sentry__value_from_msgpack(const char *buf, size_t buf_len)
 
     // reject buffers with trailing data after the first value; buffers
     // holding concatenated values must be decoded with
-    // `sentry__value_from_msgpack_stream`
+    // `sentry_value_from_msgpack_stream`
     if (!ok || size != buf_len) {
         sentry_value_decref(value);
         return sentry_value_new_null();
@@ -2073,7 +2073,7 @@ sentry__value_from_msgpack(const char *buf, size_t buf_len)
 }
 
 sentry_value_t
-sentry__value_from_msgpack_stream(const char *buf, size_t buf_len)
+sentry_value_from_msgpack_stream(const char *buf, size_t buf_len)
 {
     if (!buf || buf_len == 0) {
         return sentry_value_new_null();
