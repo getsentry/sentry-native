@@ -86,6 +86,13 @@ sentry_path_t *sentry__path_join_str(
     const sentry_path_t *base, const char *other);
 
 /**
+ * Join a single filename to `dir`, rejecting empty names, path separators,
+ * `.` and `..`. Does not check the filesystem.
+ */
+sentry_path_t *sentry__path_join_filename(
+    const sentry_path_t *dir, const char *filename);
+
+/**
  * Return a new path with the given suffix stripped.
  * If `suffix` is NULL, strips at the last dot in the filename.
  * Returns NULL if the suffix does not match.

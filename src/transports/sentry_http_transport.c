@@ -510,13 +510,15 @@ static int
 tus_upload_file(http_transport_state_t *state, const sentry_path_t *cache_path,
     const sentry_attachment_ref_t *ref, char **location_out)
 {
-    if (sentry__string_empty(ref->path)) {
+    *location_out = NULL;
+    sentry_path_t *att_file = sentry__path_join_filename(cache_path, ref->path);
+    if (!att_file || !sentry__path_is_file(att_file)
+        || sentry__path_is_symlink(att_file)) {
+        sentry__path_free(att_file);
         return RESULT_ERROR;
     }
-    *location_out = NULL;
-    sentry_path_t *att_file = sentry__path_join_str(cache_path, ref->path);
-    size_t file_size = att_file ? sentry__path_get_size(att_file) : 0;
-    if (!att_file || file_size == 0) {
+    size_t file_size = sentry__path_get_size(att_file);
+    if (file_size == 0) {
         sentry__path_free(att_file);
         return RESULT_ERROR;
     }
@@ -659,9 +661,11 @@ prune_attachment_refs(const sentry_run_t *run, sentry_value_t paths,
             || (keep && has_attachment_ref_path(keep, path))) {
             continue;
         }
-        sentry_path_t *p = sentry__path_join_str(run->cache_path, path);
+        sentry_path_t *p = sentry__path_join_filename(run->cache_path, path);
         if (p) {
-            sentry__path_remove(p);
+            if (sentry__path_is_file(p) && !sentry__path_is_symlink(p)) {
+                sentry__path_remove(p);
+            }
             sentry__path_free(p);
         }
     }
