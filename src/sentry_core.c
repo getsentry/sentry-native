@@ -401,13 +401,22 @@ sentry_reinstall_backend(void)
         sentry_scope_t *scope = sentry__scope_getref();
         sentry__mutex_lock(&scope->observers_lock);
         sentry_backend_t *backend = options->backend;
-        if (backend && backend->shutdown_func) {
-            backend->shutdown_func(backend);
-        }
+        if (backend) {
+            // use the reinstall hook if provided; otherwise restart the backend
+            if (backend->reinstall_func) {
+                if (backend->reinstall_func(backend)) {
+                    rv = 1;
+                }
+            } else {
+                if (backend->shutdown_func) {
+                    backend->shutdown_func(backend);
+                }
 
-        if (backend && backend->startup_func) {
-            if (backend->startup_func(backend, options)) {
-                rv = 1;
+                if (backend->startup_func) {
+                    if (backend->startup_func(backend, options)) {
+                        rv = 1;
+                    }
+                }
             }
         }
         sentry__mutex_unlock(&scope->observers_lock);
