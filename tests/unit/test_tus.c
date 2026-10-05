@@ -256,6 +256,8 @@ SENTRY_TEST(tus_upload_error)
 typedef struct {
     char *captured_body;
     size_t captured_body_len;
+    int create_count;
+    int patch_count;
 } tus_capture_state_t;
 
 static const char *TUS_RELATIVE_LOCATION
@@ -269,12 +271,14 @@ tus_capture_send(void *client, sentry_prepared_http_request_t *req,
 
     // TUS create: POST with no body
     if (strcmp(req->method, "POST") == 0 && !req->body && !req->body_path) {
+        cap->create_count++;
         resp->status_code = 201;
         resp->location = sentry__string_clone(TUS_RELATIVE_LOCATION);
         return true;
     }
     // TUS upload: PATCH with body_path
     if (strcmp(req->method, "PATCH") == 0 && req->body_path) {
+        cap->patch_count++;
         resp->status_code = 204;
         return true;
     }
@@ -347,5 +351,107 @@ SENTRY_TEST(tus_placeholder_uses_raw_location)
     sentry_free(cap.captured_body);
     sentry__path_remove(test_file_path);
     sentry__path_free(test_file_path);
+#endif
+}
+
+static void
+capture_serialized_ref(const char *path)
+{
+    sentry_envelope_t *envelope = sentry__envelope_new();
+    TEST_ASSERT(!!envelope);
+    sentry__envelope_add_event(envelope,
+        sentry_value_new_message_event(SENTRY_LEVEL_INFO, NULL, "test"));
+
+    sentry_attachment_ref_t ref = { 0 };
+    ref.path = path;
+    TEST_ASSERT(!!sentry__envelope_add_attachment_ref(
+        envelope, &ref, "payload.bin", NULL, 7));
+
+    size_t len = 0;
+    char *buf = sentry_envelope_serialize(envelope, &len);
+    sentry_envelope_free(envelope);
+    TEST_ASSERT(!!buf);
+    envelope = sentry_envelope_deserialize(buf, len);
+    sentry_free(buf);
+    TEST_ASSERT(!!envelope);
+    sentry_capture_envelope(envelope);
+    TEST_CHECK_INT_EQUAL(sentry_flush(5000), 0);
+}
+
+SENTRY_TEST(tus_attachment_ref_confinement)
+{
+#if defined(SENTRY_PLATFORM_ANDROID) || defined(SENTRY_PLATFORM_NX)            \
+    || defined(SENTRY_PLATFORM_PS) || defined(SENTRY_PLATFORM_XBOX)
+    SKIP_TEST();
+#else
+    sentry_path_t *db = sentry__path_from_str(
+        SENTRY_TEST_PATH_PREFIX "sentry_test_tus_ref_db");
+    TEST_ASSERT(!!db);
+    TEST_ASSERT_INT_EQUAL(sentry__path_remove_all(db), 0);
+    TEST_ASSERT_INT_EQUAL(sentry__path_create_dir_all(db), 0);
+    sentry_path_t *cache = sentry__path_join_str(db, "cache");
+    sentry_path_t *db_abs = sentry__path_absolute(db);
+    TEST_ASSERT(!!db_abs);
+    sentry_path_t *parent = sentry__path_dir(db_abs);
+    sentry_path_t *outside = parent
+        ? sentry__path_join_str(parent, "sentry_test_tus_outside")
+        : NULL;
+    sentry__path_free(parent);
+    sentry__path_free(db_abs);
+    sentry_path_t *inside = sentry__path_join_str(cache, "safe.bin");
+    TEST_ASSERT(!!cache && !!outside && !!inside);
+
+    tus_capture_state_t cap = { 0 };
+    sentry_transport_t *transport
+        = sentry__http_transport_new(&cap, tus_capture_send);
+    TEST_ASSERT(!!transport);
+    SENTRY_TEST_OPTIONS_NEW(options);
+    sentry_options_set_database_path(options, db->path);
+    sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
+    sentry_options_set_transport(options, transport);
+    sentry_init(options);
+
+    TEST_ASSERT_INT_EQUAL(sentry__path_create_dir_all(cache), 0);
+    TEST_ASSERT_INT_EQUAL(sentry__path_write_buffer(outside, "outside", 7), 0);
+    TEST_ASSERT_INT_EQUAL(sentry__path_write_buffer(inside, "inside!", 7), 0);
+    sentry_path_t *outside_abs = sentry__path_absolute(outside);
+    TEST_ASSERT(!!outside_abs);
+
+    const char *invalid[] = { "../../sentry_test_tus_outside",
+        "..\\..\\sentry_test_tus_outside", outside_abs->path, ".", ".." };
+    for (size_t i = 0; i < sizeof(invalid) / sizeof(invalid[0]); i++) {
+        capture_serialized_ref(invalid[i]);
+        TEST_CHECK_INT_EQUAL(cap.create_count, 0);
+        TEST_CHECK_INT_EQUAL(cap.patch_count, 0);
+        TEST_CHECK(sentry__path_is_file(outside));
+    }
+
+    capture_serialized_ref("safe.bin");
+    TEST_CHECK_INT_EQUAL(cap.create_count, 1);
+    TEST_CHECK_INT_EQUAL(cap.patch_count, 1);
+    TEST_CHECK(!sentry__path_is_file(inside));
+    TEST_CHECK(sentry__path_is_file(outside));
+
+#    if defined(SENTRY_PLATFORM_UNIX)
+    sentry_path_t *link = sentry__path_join_str(cache, "linked.bin");
+    TEST_ASSERT(!!link);
+    TEST_ASSERT_INT_EQUAL(symlink(outside_abs->path, link->path), 0);
+    capture_serialized_ref("linked.bin");
+    TEST_CHECK_INT_EQUAL(cap.create_count, 1);
+    TEST_CHECK_INT_EQUAL(cap.patch_count, 1);
+    TEST_CHECK(sentry__path_is_file(outside));
+    sentry__path_remove(link);
+    sentry__path_free(link);
+#    endif
+
+    sentry_close();
+    sentry_free(cap.captured_body);
+    sentry__path_free(outside_abs);
+    sentry__path_free(inside);
+    TEST_CHECK_INT_EQUAL(sentry__path_remove(outside), 0);
+    sentry__path_free(outside);
+    sentry__path_free(cache);
+    TEST_CHECK_INT_EQUAL(sentry__path_remove_all(db), 0);
+    sentry__path_free(db);
 #endif
 }

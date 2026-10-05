@@ -17,6 +17,7 @@
 - Restore the installation ID as the default `user.id` when removing the global user with `sentry_remove_user`. ([#2151](https://github.com/getsentry/sentry-native/pull/2151))
 - Unbind a finished span from the scope even when the span is dropped. ([#2158](https://github.com/getsentry/sentry-native/pull/2158))
 - Native: fix `sentry_reinstall_backend` to reinstall crash handlers without restarting the backend. ([#2159](https://github.com/getsentry/sentry-native/pull/2159))
+- Validate attachment reference paths before TUS upload and cleanup to prevent path traversal and unintended file uploads or deletions. ([#2165](https://github.com/getsentry/sentry-native/pull/2165))
 
 **Thank you**:
 
