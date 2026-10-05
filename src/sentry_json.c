@@ -709,7 +709,7 @@ error:
 }
 
 sentry_value_t
-sentry__value_from_json(const char *buf, size_t buflen)
+sentry_value_from_json(const char *buf, size_t buflen)
 {
     int token_count;
     jsmn_parser jsmn_p;

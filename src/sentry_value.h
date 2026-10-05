@@ -158,31 +158,6 @@ void sentry__value_add_attribute(sentry_value_t attributes,
     sentry_value_t value, const char *type, const char *name);
 
 /**
- * Deserialize a single sentry value from msgpack.
- *
- * The value must span the whole buffer; buffers containing multiple
- * sequential msgpack values (as in append-only streams like breadcrumb ring
- * files) are rejected with null and must be decoded with
- * `sentry__value_from_msgpack_stream`.
- *
- * The returned value must be released with `sentry_value_decref`.
- */
-sentry_value_t sentry__value_from_msgpack(const char *buf, size_t buf_len);
-
-/**
- * Deserialize a buffer of sequential msgpack values into a list.
- *
- * Unlike `sentry__value_from_msgpack`, the result is a list even when the
- * buffer holds a single value, so files written as append-only streams (e.g.
- * breadcrumb ring files) decode to a consistent shape. Returns null for an
- * empty buffer or when the first value fails to parse.
- *
- * The returned value must be released with `sentry_value_decref`.
- */
-sentry_value_t sentry__value_from_msgpack_stream(
-    const char *buf, size_t buf_len);
-
-/**
  * Merges two breadcrumb lists in timestamp order, keeping at most `max` items.
  * Returns a new list with the merged breadcrumbs.
  */
