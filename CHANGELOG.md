@@ -14,6 +14,7 @@
 - Let downstream platform integrations supply the installation ID. ([#2150](https://github.com/getsentry/sentry-native/pull/2150))
 - Native/Crashpad/Linux: Add `max_stack_capture_size` option to limit non-crashing thread stack capture size. ([#2137](https://github.com/getsentry/sentry-native/pull/2137), [crashpad#172](https://github.com/getsentry/crashpad/pull/172))
 - Add `sentry_value_from_json`, `sentry_value_from_msgpack`, and `sentry_value_from_msgpack_stream` alongside the existing JSON and MessagePack serialization APIs to provide public bidirectional APIs for serializing and deserializing sentry values as JSON and MessagePack. ([#2153](https://github.com/getsentry/sentry-native/pull/2153))
+- Add `sentry_lookup_module` to look up the cached module containing an instruction pointer.
 
 **Fixes**:
 

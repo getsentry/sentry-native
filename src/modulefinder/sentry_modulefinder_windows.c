@@ -265,6 +265,9 @@ load_modules(void)
                     sentry_value_set_by_key(rv, "image_addr",
                         sentry__value_new_addr(
                             (uint64_t)module_info.lpBaseOfDll));
+                    sentry_value_set_by_key(rv, "image_size",
+                        sentry_value_new_int32(
+                            (int32_t)module_info.SizeOfImage));
 
                     sentry_value_set_by_key(rv, "code_file",
                         sentry__value_new_string_from_wstr(szModName));

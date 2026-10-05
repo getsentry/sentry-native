@@ -2556,7 +2556,7 @@ SENTRY_API int sentry_shutdown(void);
  * Returns a new reference to an immutable, frozen list.
  * The reference must be released with `sentry_value_decref`.
  */
-SENTRY_EXPERIMENTAL_API sentry_value_t sentry_get_modules_list(void);
+SENTRY_API sentry_value_t sentry_get_modules_list(void);
 
 /**
  * Clears the internal module cache.
@@ -2567,7 +2567,31 @@ SENTRY_EXPERIMENTAL_API sentry_value_t sentry_get_modules_list(void);
  * `sentry_clear_modulecache` when doing so to make sure that the next call to
  * `sentry_capture_event` will have an up-to-date module list.
  */
-SENTRY_EXPERIMENTAL_API void sentry_clear_modulecache(void);
+SENTRY_API void sentry_clear_modulecache(void);
+
+/**
+ * Looks up the module whose image address range contains `address`.
+ *
+ * The address can be an instruction pointer from `sentry_unwind_stack` or
+ * `sentry_unwind_stack_from_ucontext`, a program counter from a Unix
+ * `ucontext_t`, or an instruction pointer from a Windows `CONTEXT`.
+ * The address is not dereferenced.
+ *
+ * Note: This function identifies the module containing the supplied address,
+ * not the cause of a crash. In applications that load plugins, a plugin may
+ * call a host function that faults. Looking up the faulting instruction returns
+ * the host module; inspect caller frames to identify the calling plugin.
+ *
+ * Uses the same lazily loaded cache as `sentry_get_modules_list`. Call
+ * `sentry_clear_modulecache` after loading or unloading libraries at runtime
+ * to ensure that subsequent lookups use an up-to-date module list.
+ *
+ * Returns a new reference to an immutable, frozen module object with the same
+ * fields as the entries in `sentry_get_modules_list`, or a null value if no
+ * module contains the address. The reference remains valid after clearing the
+ * module cache and must be released with `sentry_value_decref`.
+ */
+SENTRY_API sentry_value_t sentry_lookup_module(const void *address);
 
 /**
  * Re-initializes the Sentry backend.

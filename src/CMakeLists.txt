@@ -74,6 +74,7 @@ sentry_target_sources_cwd(sentry
 	sentry_writer.h
 	sentry_tracing.c
 	sentry_tracing.h
+	modulefinder/sentry_modulefinder.c
 	path/sentry_path.c
 	screenshot/sentry_screenshot.c
 	session_replay/sentry_session_replay.c

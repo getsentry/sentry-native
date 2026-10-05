@@ -2,10 +2,15 @@
 #include "sentry_path.h"
 #include "sentry_testsupport.h"
 
+#include <stdlib.h>
+
+#if defined(__arm64e__)
+#    include <ptrauth.h>
+#endif
+
 #ifdef SENTRY_PLATFORM_LINUX
 #    include "modulefinder/sentry_modulefinder_linux.h"
 #    include <fcntl.h>
-#    include <stdlib.h>
 #    include <unistd.h>
 #endif
 
@@ -289,4 +294,107 @@ SENTRY_TEST(build_id_parser)
     parse_elf_and_check_code_and_build_id("../fixtures/libstdc++.so", NULL,
         "7fa824da-38f1-b87c-04df-718fda64990c");
 #endif
+}
+
+static sentry_value_t
+lookup_test_module(void)
+{
+#if defined(SENTRY_PLATFORM_AIX)                                               \
+    || (defined(__powerpc64__) && defined(_CALL_ELF) && _CALL_ELF == 1)
+    const void *address = *(void **)&test_sentry_module_finder;
+#elif defined(__arm64e__)
+    const void *address = ptrauth_strip(
+        (void *)&test_sentry_module_finder, ptrauth_key_function_pointer);
+#else
+    const void *address = (const void *)&test_sentry_module_finder;
+#endif
+    return sentry_lookup_module(address);
+}
+
+SENTRY_TEST(module_lookup)
+{
+#if defined(SENTRY_PLATFORM_NX)
+    SKIP_TEST();
+#endif
+
+    sentry_clear_modulecache();
+    sentry_value_t module = lookup_test_module();
+    TEST_ASSERT(sentry_value_get_type(module) == SENTRY_VALUE_TYPE_OBJECT);
+    TEST_CHECK(sentry_value_is_frozen(module));
+
+    sentry_value_t modules = sentry_get_modules_list();
+    bool found = false;
+    for (size_t i = 0; i < sentry_value_get_length(modules); i++) {
+        if (sentry_value_get_by_index(modules, i)._bits == module._bits) {
+            found = true;
+            break;
+        }
+    }
+    TEST_CHECK(found);
+    sentry_value_decref(modules);
+    sentry_clear_modulecache();
+
+    TEST_CHECK_INT_EQUAL(sentry_value_refcount(module), 1);
+    const char *name
+        = sentry_value_as_string(sentry_value_get_by_key(module, "code_file"));
+    TEST_CHECK(strstr(name, "sentry_test_unit") != NULL);
+    sentry_value_decref(module);
+
+    module = lookup_test_module();
+    TEST_CHECK(sentry_value_get_type(module) == SENTRY_VALUE_TYPE_OBJECT);
+    sentry_value_decref(module);
+    sentry_clear_modulecache();
+}
+
+SENTRY_TEST(module_lookup_bounds)
+{
+#if defined(SENTRY_PLATFORM_NX)
+    SKIP_TEST();
+#endif
+
+    sentry_value_t module = lookup_test_module();
+    TEST_ASSERT(sentry_value_get_type(module) == SENTRY_VALUE_TYPE_OBJECT);
+    const char *address
+        = sentry_value_as_string(sentry_value_get_by_key(module, "image_addr"));
+    uintptr_t start = (uintptr_t)strtoull(address, NULL, 0);
+    int64_t size
+        = sentry_value_as_int64(sentry_value_get_by_key(module, "image_size"));
+    TEST_ASSERT(start > 0);
+    TEST_ASSERT(size > 0 && (uint64_t)size <= UINTPTR_MAX - start);
+
+    uintptr_t addresses[] = {
+        start,
+        start + (uintptr_t)size - 1,
+        start - 1,
+        start + (uintptr_t)size,
+    };
+    for (size_t i = 0; i < sizeof(addresses) / sizeof(addresses[0]); i++) {
+        sentry_value_t result
+            = sentry_lookup_module((const void *)addresses[i]);
+        TEST_CHECK((result._bits == module._bits) == (i < 2));
+        sentry_value_decref(result);
+    }
+    sentry_value_decref(module);
+    sentry_clear_modulecache();
+}
+
+SENTRY_TEST(module_lookup_unknown)
+{
+#if defined(SENTRY_PLATFORM_NX)
+    SKIP_TEST();
+#endif
+
+    int stack_var = 0;
+    const void *addresses[] = {
+        NULL,
+        &stack_var,
+        (const void *)(uintptr_t)1,
+        (const void *)UINTPTR_MAX,
+    };
+    for (size_t i = 0; i < sizeof(addresses) / sizeof(addresses[0]); i++) {
+        sentry_value_t module = sentry_lookup_module(addresses[i]);
+        TEST_CHECK(sentry_value_is_null(module));
+        sentry_value_decref(module);
+    }
+    sentry_clear_modulecache();
 }
