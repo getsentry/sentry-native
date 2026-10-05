@@ -145,6 +145,7 @@ typedef struct {
     base::FilePath breadcrumb1_path;
     base::FilePath breadcrumb2_path;
     base::FilePath external_report_path;
+    size_t max_breadcrumbs;
     size_t num_breadcrumbs;
     std::atomic<bool> crashed;
     std::atomic<bool> scope_flush;
@@ -152,8 +153,8 @@ typedef struct {
     sentry_scope_observer_t *scope_observer;
 } crashpad_state_t;
 
-static void crashpad_backend_add_breadcrumb(sentry_backend_t *backend,
-    sentry_value_t breadcrumb, const sentry_options_t *options);
+static void crashpad_backend_add_breadcrumb(
+    void *data, sentry_value_t breadcrumb);
 
 /**
  * Correctly destruct C++ members of the crashpad state.
@@ -446,8 +447,7 @@ write_attachment_manifest(crashpad_state_t *state, sentry_value_t attachments)
 #endif
 
 static void
-preload_scope_breadcrumbs(
-    sentry_backend_t *backend, const sentry_options_t *options)
+preload_scope_breadcrumbs(crashpad_state_t *data)
 {
     sentry_value_t breadcrumbs = sentry_value_new_null();
     SENTRY_WITH_SCOPE (scope) {
@@ -457,7 +457,7 @@ preload_scope_breadcrumbs(
     size_t breadcrumb_count = sentry_value_get_length(breadcrumbs);
     for (size_t i = 0; i < breadcrumb_count; i++) {
         crashpad_backend_add_breadcrumb(
-            backend, sentry_value_get_by_index(breadcrumbs, i), options);
+            data, sentry_value_get_by_index(breadcrumbs, i));
     }
     sentry_value_decref(breadcrumbs);
 }
@@ -1002,6 +1002,7 @@ crashpad_backend_startup(
     auto *data = static_cast<crashpad_state_t *>(backend->data);
     sentry__path_free(data->run_path);
     data->run_path = sentry__path_clone(current_run_folder);
+    data->max_breadcrumbs = options->max_breadcrumbs;
 
     // pre-generate event ID for a potential future crash to be able to
     // associate feedback with the crash event.
@@ -1079,7 +1080,7 @@ crashpad_backend_startup(
     }
 
     // Persist the preloaded scope before Crashpad starts handling crashes.
-    preload_scope_breadcrumbs(backend, options);
+    preload_scope_breadcrumbs(data);
     flush_scope_attachments(data, options);
 
     std::vector<std::string> arguments { "--no-rate-limit" };
@@ -1197,20 +1198,21 @@ crashpad_backend_startup(
             options->max_stack_capture_size);
     }
 
-#if defined(SENTRY_PLATFORM_WINDOWS) || defined(SENTRY_PLATFORM_LINUX)         \
-    || defined(SENTRY_PLATFORM_MACOS)
     sentry_scope_observer_t *observer = sentry__scope_observer_new();
     if (observer) {
         observer->data = data;
+        observer->add_breadcrumb = crashpad_backend_add_breadcrumb;
+#if defined(SENTRY_PLATFORM_WINDOWS) || defined(SENTRY_PLATFORM_LINUX)         \
+    || defined(SENTRY_PLATFORM_MACOS)
         observer->add_attachment = add_attachment;
         observer->remove_attachment = remove_attachment;
+#endif
         SENTRY_WITH_SCOPE_MUT_NO_FLUSH (scope) {
             if (sentry__scope_add_observer(scope, observer)) {
                 data->scope_observer = observer;
             }
         }
     }
-#endif
 
     return 0;
 }
@@ -1219,15 +1221,12 @@ static void
 crashpad_backend_shutdown(sentry_backend_t *backend)
 {
     auto *data = static_cast<crashpad_state_t *>(backend->data);
-#if defined(SENTRY_PLATFORM_WINDOWS) || defined(SENTRY_PLATFORM_LINUX)         \
-    || defined(SENTRY_PLATFORM_MACOS)
     if (data->scope_observer) {
         SENTRY_WITH_SCOPE_MUT_NO_FLUSH (scope) {
             sentry__scope_remove_observer(scope, data->scope_observer);
         }
         data->scope_observer = nullptr;
     }
-#endif
 
 #ifdef SENTRY_PLATFORM_LINUX
     // restore signal handlers to their default state
@@ -1249,12 +1248,11 @@ crashpad_backend_shutdown(sentry_backend_t *backend)
 }
 
 static void
-crashpad_backend_add_breadcrumb(sentry_backend_t *backend,
-    sentry_value_t breadcrumb, const sentry_options_t *options)
+crashpad_backend_add_breadcrumb(void *state, sentry_value_t breadcrumb)
 {
-    auto *data = static_cast<crashpad_state_t *>(backend->data);
+    auto *data = static_cast<crashpad_state_t *>(state);
 
-    size_t max_breadcrumbs = options->max_breadcrumbs;
+    size_t max_breadcrumbs = data->max_breadcrumbs;
     if (!max_breadcrumbs) {
         return;
     }
@@ -1435,7 +1433,6 @@ sentry__backend_new(void)
     backend->except_func = crashpad_backend_except;
     backend->free_func = crashpad_backend_free;
     backend->flush_scope_func = crashpad_backend_flush_scope;
-    backend->add_breadcrumb_func = crashpad_backend_add_breadcrumb;
     backend->user_consent_changed_func = crashpad_backend_user_consent_changed;
     backend->get_last_crash_func = crashpad_backend_last_crash;
     backend->process_old_run_func = crashpad_backend_process_old_run;

@@ -1131,21 +1131,13 @@ sentry_add_breadcrumb(sentry_value_t breadcrumb)
                 discarded = true;
             }
         }
-
-        if (!discarded && options->backend
-            && options->backend->add_breadcrumb_func) {
-            // the hook will *not* take ownership
-            options->backend->add_breadcrumb_func(
-                options->backend, breadcrumb, options);
-        }
     }
 
     if (discarded) {
         return;
     }
 
-    // the `no_flush` will avoid triggering *both* scope-change and
-    // breadcrumb-add events.
+    // backend observers persist breadcrumbs without a scope flush
     SENTRY_WITH_SCOPE_MUT_NO_FLUSH (scope) {
         sentry_scope_add_breadcrumb(scope, breadcrumb);
     }
