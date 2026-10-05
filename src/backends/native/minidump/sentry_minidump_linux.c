@@ -1277,18 +1277,22 @@ write_thread_stack(minidump_writer_t *writer, uint64_t stack_pointer,
     if (capture_start < stack_start) {
         capture_start = stack_start;
     }
+    // Limit to 1MB by default
+    size_t max_size = SENTRY_CRASH_MAX_STACK_SIZE;
+    if (thread_id != writer->crash_ctx->crashed_tid
+        && writer->crash_ctx->max_stack_capture_size) {
+        max_size = writer->crash_ctx->max_stack_capture_size;
+    }
+    // Omit the red zone to include SP
+    if (max_size <= stack_pointer - capture_start) {
+        capture_start = stack_pointer;
+    }
 
     // Capture from adjusted SP to end of stack (upwards)
     size_t stack_size = stack_end - capture_start;
 
-    // Limit to 1MB
-    if (stack_size > SENTRY_CRASH_MAX_STACK_SIZE) {
-        stack_size = SENTRY_CRASH_MAX_STACK_SIZE;
-    }
-    if (thread_id != writer->crash_ctx->crashed_tid
-        && writer->crash_ctx->max_stack_capture_size
-        && stack_size > writer->crash_ctx->max_stack_capture_size) {
-        stack_size = writer->crash_ctx->max_stack_capture_size;
+    if (stack_size > max_size) {
+        stack_size = max_size;
     }
 
     void *stack_buffer = sentry_malloc(stack_size);
