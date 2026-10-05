@@ -162,7 +162,7 @@ SENTRY_TEST(attachments_add_dedupe)
     TEST_ASSERT(!!observer);
     observer->data = &add_count;
     observer->add_attachment = count_attachment;
-    SENTRY_WITH_SCOPE_MUT_NO_FLUSH (scope) {
+    SENTRY_WITH_SCOPE_MUT (scope) {
         TEST_ASSERT(sentry__scope_add_observer(scope, observer));
     }
 

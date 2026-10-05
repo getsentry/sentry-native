@@ -299,7 +299,7 @@ SENTRY_TEST(concurrent_reinstall)
     TEST_CHECK_INT_EQUAL(sentry__atomic_fetch(&state.shutdowns), 0);
 
     sentry__mutex_unlock(&scope->observers_lock);
-    sentry__scope_finish_mut(scope, false);
+    sentry__scope_finish(scope);
     sentry__thread_join(thread);
     sentry__thread_free(&thread);
     TEST_CHECK_INT_EQUAL(sentry__atomic_fetch(&state.shutdowns), 1);
