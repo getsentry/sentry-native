@@ -6,6 +6,7 @@
 
 - Add `SENTRY_SDK_VERSION_MAJOR`, `SENTRY_SDK_VERSION_MINOR`, `SENTRY_SDK_VERSION_PATCH`, and `SENTRY_SDK_VERSION_AT_LEAST` for compile-time version checks. ([#2136](https://github.com/getsentry/sentry-native/pull/2136))
 - Let downstream platform integrations supply the installation ID. ([#2150](https://github.com/getsentry/sentry-native/pull/2150))
+- Native/Crashpad/Linux: Add `max_stack_capture_size` option to limit non-crashing thread stack capture size. ([#2137](https://github.com/getsentry/sentry-native/pull/2137), [crashpad#172](https://github.com/getsentry/crashpad/pull/172))
 - Add `sentry_value_from_json`, `sentry_value_from_msgpack`, and `sentry_value_from_msgpack_stream` alongside the existing JSON and MessagePack serialization APIs to provide public bidirectional APIs for serializing and deserializing sentry values as JSON and MessagePack. ([#2153](https://github.com/getsentry/sentry-native/pull/2153))
 
 **Fixes**:
