@@ -1207,7 +1207,7 @@ crashpad_backend_startup(
         observer->add_attachment = add_attachment;
         observer->remove_attachment = remove_attachment;
 #endif
-        SENTRY_WITH_SCOPE_MUT_NO_FLUSH (scope) {
+        SENTRY_WITH_SCOPE_MUT (scope) {
             if (sentry__scope_add_observer(scope, observer)) {
                 data->scope_observer = observer;
             }
@@ -1222,7 +1222,7 @@ crashpad_backend_shutdown(sentry_backend_t *backend)
 {
     auto *data = static_cast<crashpad_state_t *>(backend->data);
     if (data->scope_observer) {
-        SENTRY_WITH_SCOPE_MUT_NO_FLUSH (scope) {
+        SENTRY_WITH_SCOPE_MUT (scope) {
             sentry__scope_remove_observer(scope, data->scope_observer);
         }
         data->scope_observer = nullptr;

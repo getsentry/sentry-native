@@ -1716,7 +1716,7 @@ observe_set_tag_remove_self_and_add(
 {
     reentrant_observer_data_t *d = (reentrant_observer_data_t *)data;
     observe_set_tag(d->self_data, key, value);
-    SENTRY_WITH_SCOPE_MUT_NO_FLUSH (scope) {
+    SENTRY_WITH_SCOPE_MUT (scope) {
         sentry__scope_remove_observer(scope, d->self);
         TEST_CHECK(sentry__scope_add_observer(scope, d->added));
     }
@@ -1730,7 +1730,7 @@ observe_set_tag_remove_self(void *data, const char *key, const char *value)
 {
     reentrant_observer_data_t *d = (reentrant_observer_data_t *)data;
     observe_set_tag(d->self_data, key, value);
-    SENTRY_WITH_SCOPE_MUT_NO_FLUSH (scope) {
+    SENTRY_WITH_SCOPE_MUT (scope) {
         sentry__scope_remove_observer(scope, d->self);
     }
 }
@@ -2394,6 +2394,24 @@ SENTRY_TEST(scope_tags_flush)
     sentry_set_tag("singular", "value");
     TEST_CHECK_INT_EQUAL(observer_data.set_tag_count, 4);
     TEST_CHECK_INT_EQUAL(flush_data.total_flush_count, 2);
+
+    SENTRY_WITH_SCOPE_MUT (scope) {
+        sentry_scope_set_tag(scope, "batch", "one");
+        sentry_scope_set_tag(scope, "another", "two");
+        TEST_CHECK_INT_EQUAL(flush_data.total_flush_count, 2);
+    }
+    TEST_CHECK_INT_EQUAL(flush_data.total_flush_count, 3);
+
+    SENTRY_WITH_SCOPE_MUT (scope) {
+        (void)sentry__scope_get_level(scope);
+    }
+    TEST_CHECK_INT_EQUAL(flush_data.total_flush_count, 3);
+
+    sentry_scope_t *scope = sentry__scope_getref();
+    sentry_scope_set_tag(scope, "direct", "value");
+    TEST_CHECK_INT_EQUAL(flush_data.total_flush_count, 3);
+    sentry__scope_finish_mut(scope);
+    TEST_CHECK_INT_EQUAL(flush_data.total_flush_count, 4);
 
     sentry_value_decref(observer_data.tags);
     sentry_close();
