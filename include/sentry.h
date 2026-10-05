@@ -1609,7 +1609,7 @@ SENTRY_API void sentry_options_set_before_send(
  * The hint is always provided and can be used to modify attachments on the
  * event.
  *
- * Only the `inproc` backend currently fills the passed-in event with crash
+ * Only the `inproc` and `native` backends fill the passed-in event with crash
  * meta-data. Since both `breakpad` and `crashpad` use minidumps to capture the
  * crash state, the passed-in event is empty when using these backends. Changes
  * to the event from inside the hooks will be passed along, but in the case of
@@ -1632,7 +1632,7 @@ SENTRY_API void sentry_options_set_before_send(
  *  - if you are not interested in normal events, but only want to act on
  *    crashes (within the limits mentioned below), then only define an
  *    `on_crash` callback with the option to filter (on all backends) or enrich
- *    (only inproc) the crash event
+ *    (inproc and native) the crash event
  *
  * This function may be invoked inside a signal handler and must be safe for
  * that purpose, see https://man7.org/linux/man-pages/man7/signal-safety.7.html.
