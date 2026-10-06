@@ -2612,6 +2612,69 @@ SENTRY_API sentry_scope_t *sentry_local_scope_new(void);
 SENTRY_API sentry_scope_t *sentry_scope_new(void);
 
 /**
+ * Begins a batch read of `scope`.
+ *
+ * Tip: Individual scope property reads acquire a read lock automatically.
+ * Use this function to batch multiple reads under one read lock.
+ *
+ * The scope remains read-locked until the matching `sentry_scope_end_read` call
+ * on the same thread, so multiple properties can be read consistently. Other
+ * threads may read the scope concurrently, but cannot modify it until the read
+ * lock is released. Reads may be nested for the same scope, including inside a
+ * write batch, which keeps its write lock.
+ *
+ * Warning: A read lock allows only reads. Use `sentry_scope_begin_write` if
+ * you need to modify the scope. Calling a scope-mutating function while
+ * read-locked triggers an assertion in debug builds and may deadlock in
+ * release builds.
+ *
+ * Returns 0 on success or 1 if `scope` is NULL or allocation fails. Each
+ * successful call must be matched by `sentry_scope_end_read` before freeing the
+ * scope.
+ */
+SENTRY_API int sentry_scope_begin_read(const sentry_scope_t *scope);
+
+/**
+ * Ends a read batch begun by `sentry_scope_begin_read`.
+ *
+ * The final matching call releases the scope read lock. Reads nested inside a
+ * write batch leave the scope write-locked until the final matching
+ * `sentry_scope_end_write`. This must be called on the same thread as the
+ * matching begin call.
+ */
+SENTRY_API void sentry_scope_end_read(const sentry_scope_t *scope);
+
+/**
+ * Begins a batch write of `scope`.
+ *
+ * Tip: Individual scope property accesses acquire the appropriate read or
+ * write lock automatically. Use this function to batch multiple reads, writes,
+ * or both under one write lock.
+ *
+ * The scope remains write-locked until the matching
+ * `sentry_scope_end_write` call on the same thread. A write lock allows reads
+ * and writes. Writes may be nested for the same scope.
+ *
+ * Note: A read lock cannot be upgraded to a write lock. If this thread already
+ * holds a read lock on the scope, this function returns 1 without changing
+ * the lock.
+ *
+ * Returns 0 on success or 1 if `scope` is NULL, allocation fails, or the
+ * calling thread already holds a read lock on the scope. Each successful call
+ * must be matched by `sentry_scope_end_write` before freeing the scope.
+ */
+SENTRY_API int sentry_scope_begin_write(sentry_scope_t *scope);
+
+/**
+ * Ends a write batch begun by `sentry_scope_begin_write`.
+ *
+ * The final matching call releases the scope write lock and flushes any
+ * pending global scope changes to the backend. This must be called on the
+ * same thread as the matching begin call.
+ */
+SENTRY_API void sentry_scope_end_write(sentry_scope_t *scope);
+
+/**
  * Frees a scope created via `sentry_scope_new`, `sentry_scope_clone`, or
  * `sentry_local_scope_new`.
  */
