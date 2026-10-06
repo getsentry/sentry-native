@@ -1506,7 +1506,7 @@ SENTRY_API void sentry_options_free(sentry_options_t *opts);
  * The callback is invoked synchronously once during `sentry_init`, after
  * option-derived defaults are applied and before the crash backend is started.
  * The scope is borrowed. Configure it with `sentry_scope_*` functions rather
- * than global scope functions such as `sentry_set_tag`.
+ * than top-level scope functions such as `sentry_set_tag`.
  */
 typedef void (*sentry_initial_scope_function_t)(
     sentry_scope_t *scope, void *user_data);
@@ -2614,6 +2614,33 @@ SENTRY_API sentry_user_consent_t sentry_user_consent_get(void);
 SENTRY_API int sentry_user_consent_is_required(void);
 
 /**
+ * Acquires the isolation scope used by top-level scope functions.
+ *
+ * Returns an owned reference that must be released with `sentry_scope_release`.
+ *
+ * A separate isolation scope is used for each SDK run. The scope should be
+ * acquired after `sentry_init`, since scope changes made before initialization
+ * are not carried over. An explicitly acquired reference remains valid after
+ * the SDK is closed, but modifying the scope no longer has any effect.
+ *
+ * Note: The SDK operates in global mode: all threads share the same
+ * process-wide isolation scope, which inherits global data such as release and
+ * environment from the global scope. Changes made through top-level scope
+ * functions or the acquired scope are shared across all threads.
+ *
+ * For details on Sentry's scope model, see:
+ * https://develop.sentry.dev/sdk/foundations/state-management/scopes/#isolation-scope
+ */
+SENTRY_API sentry_scope_t *sentry_scope_acquire(void);
+
+/**
+ * Releases a reference acquired with `sentry_scope_acquire`.
+ *
+ * This is an alias for `sentry_scope_free`.
+ */
+SENTRY_API void sentry_scope_release(sentry_scope_t *scope);
+
+/**
  * Creates a local scope.
  *
  * A local scope is a one-shot scope: the capture function it is passed to (such
@@ -2634,10 +2661,10 @@ SENTRY_API sentry_scope_t *sentry_local_scope_new(void);
 SENTRY_API sentry_scope_t *sentry_scope_new(void);
 
 /**
- * Begins a batch read of `scope`.
+ * Begins a batch read of `scope` and its parent scopes.
  *
  * Tip: Individual scope property reads acquire a read lock automatically.
- * Use this function to batch multiple reads under one read lock.
+ * Use this function to batch multiple reads.
  *
  * The scope remains read-locked until the matching `sentry_scope_end_read` call
  * on the same thread, so multiple properties can be read consistently. Other
@@ -2691,7 +2718,7 @@ SENTRY_API int sentry_scope_begin_write(sentry_scope_t *scope);
  * Ends a write batch begun by `sentry_scope_begin_write`.
  *
  * The final matching call releases the scope write lock and flushes any
- * pending global scope changes to the backend. This must be called on the
+ * pending isolation scope changes to the backend. This must be called on the
  * same thread as the matching begin call.
  */
 SENTRY_API void sentry_scope_end_write(sentry_scope_t *scope);
@@ -2719,7 +2746,7 @@ SENTRY_API sentry_scope_t *sentry_scope_clone(const sentry_scope_t *scope);
 SENTRY_API void sentry_scope_clear(sentry_scope_t *scope);
 
 /**
- * Returns the ID of the last event sent with the global scope.
+ * Returns the ID of the last event sent with the isolation scope.
  *
  * Returns a nil UUID if no event has been sent.
  */
@@ -3323,13 +3350,13 @@ SENTRY_API log_return_value_t sentry_log(
  * Sends a structured log with a scope.
  *
  * Behaves like `sentry_log`, except the log also carries the attributes and
- * trace of `scope`, layered on top of the global scope. An attribute set in
- * more than one place resolves to the most specific: `attributes` > `scope` >
- * global scope.
+ * trace of `scope`, layered on top of its isolation and global scopes.
+ * An attribute set in more than one place resolves to the most
+ * specific: `attributes` > `scope` > isolation scope > global scope.
  *
  * Scope ownership works as in `sentry_scope_capture_event`: a local scope
  * is freed by this function, a user-owned one is not. Pass `NULL` to apply the
- * global scope only.
+ * isolation and global scopes.
  */
 SENTRY_API log_return_value_t sentry_scope_capture_log(sentry_scope_t *scope,
     sentry_level_t level, const char *body, sentry_value_t attributes);
@@ -3499,15 +3526,15 @@ typedef enum {
  * Records a metric of the given type with a scope.
  *
  * Behaves like the `sentry_metrics_*` functions, except the metric also carries
- * the attributes and trace of `scope`, layered on top of the global scope. An
- * attribute set in more than one place resolves to the most specific:
- * `attributes` > `scope` > global scope.
+ * the attributes and trace of `scope`, layered on top of its isolation and
+ * global scopes. An attribute set in more than one place resolves to
+ * the most specific: `attributes` > `scope` > isolation scope > global scope.
  *
  * Ownership of `value` is transferred to this function, on top of `attributes`.
  *
  * Scope ownership works as in `sentry_scope_capture_event`: a local scope
  * is freed by this function, a user-owned one is not. Pass `NULL` to apply the
- * global scope only.
+ * isolation and global scopes.
  */
 SENTRY_API sentry_metrics_result_t sentry_scope_capture_metric(
     sentry_scope_t *scope, sentry_metric_type_t type, const char *name,

@@ -67,6 +67,7 @@ typedef struct {
     sentry_value_t environment;
     sentry_value_t tag;
     int result;
+    sentry_options_t *options;
 } scope_access_thread_t;
 
 SENTRY_THREAD_FN
@@ -74,12 +75,23 @@ read_scope_batch(void *data)
 {
     scope_access_thread_t *state = data;
     sentry__waitable_flag_set(&state->started);
-    state->result = sentry_scope_begin_read(state->scope);
-    if (state->result == 0) {
-        state->environment = sentry__scope_ref_environment(state->scope);
-        state->tag = scope_value_get_by_key(
-            sentry__scope_load_tags, state->scope, "version");
-        sentry_scope_end_read(state->scope);
+    if (state->options) {
+        sentry_value_t event = sentry_value_new_event();
+        sentry__scope_apply_to_event(
+            state->scope, state->options, event, SENTRY_SCOPE_NONE);
+        state->environment
+            = sentry_value_get_by_key_owned(event, "environment");
+        state->tag = sentry_value_get_by_key_owned(
+            sentry_value_get_by_key(event, "tags"), "version");
+        sentry_value_decref(event);
+    } else {
+        state->result = sentry_scope_begin_read(state->scope);
+        if (state->result == 0) {
+            state->environment = sentry__scope_ref_environment(state->scope);
+            state->tag = scope_value_get_by_key(
+                sentry__scope_load_tags, state->scope, "version");
+            sentry_scope_end_read(state->scope);
+        }
     }
     sentry__waitable_flag_set(&state->finished);
     return 0;
@@ -111,6 +123,30 @@ SENTRY_TEST(scope_write_exclusive)
     TEST_CHECK_STRING_EQUAL(sentry_value_as_string(state.tag), "new");
     sentry_value_decref(state.environment);
     sentry_value_decref(state.tag);
+
+    sentry_scope_clear(scope);
+    sentry_scope_set_tag(scope, "version", "old");
+    sentry_scope_t *parent = sentry_scope_acquire();
+    TEST_ASSERT(sentry_scope_begin_write(parent) == 0);
+    sentry_scope_set_environment(parent, "old");
+    scope_access_thread_t apply
+        = { .scope = scope, .options = sentry_options_new() };
+    sentry__waitable_flag_init(&apply.started);
+    sentry__waitable_flag_init(&apply.finished);
+    TEST_ASSERT(!sentry__thread_spawn(&thread, read_scope_batch, &apply));
+    TEST_ASSERT(sentry__waitable_flag_wait(&apply.started, 1000));
+    TEST_CHECK(!sentry__waitable_flag_wait(&apply.finished, 10));
+    sentry_scope_set_tag(scope, "version", "new");
+    sentry_scope_set_environment(parent, "new");
+    sentry_scope_end_write(parent);
+    TEST_CHECK(sentry__waitable_flag_wait(&apply.finished, 1000));
+    sentry__thread_join(thread);
+    TEST_CHECK_STRING_EQUAL(sentry_value_as_string(apply.environment), "new");
+    TEST_CHECK_STRING_EQUAL(sentry_value_as_string(apply.tag), "new");
+    sentry_value_decref(apply.environment);
+    sentry_value_decref(apply.tag);
+    sentry_options_free(apply.options);
+    sentry_scope_release(parent);
     sentry_scope_free(scope);
 }
 
@@ -182,6 +218,13 @@ SENTRY_TEST(scope_contexts)
             sentry__scope_load_contexts, local_scope, "n-removed");
         TEST_CHECK(sentry_value_is_null(removed));
         sentry_value_decref(removed);
+
+        sentry_value_t contexts = sentry__scope_load_contexts(local_scope);
+        TEST_CHECK_JSON_VALUE(
+            sentry_value_get_by_key(contexts, "global"), "\"global\"");
+        TEST_CHECK_JSON_VALUE(
+            sentry_value_get_by_key(contexts, "scope"), "\"local\"");
+        sentry_value_decref(contexts);
 
         // event:
         // {"all":"event","event":"event"}
@@ -359,6 +402,26 @@ SENTRY_TEST(scope_propagation_context)
         // local scope applied first must not prevent the global scope
         // from adding the trace context afterwards
         sentry_scope_t *local_scope = sentry_local_scope_new();
+        sentry_value_t trace = sentry__scope_load_trace_context(local_scope);
+        TEST_CHECK_STRING_EQUAL(
+            sentry_value_as_string(sentry_value_get_by_key(trace, "trace_id")),
+            "aaaabbbbccccddddeeeeffff00001111");
+        TEST_CHECK(!sentry__scope_is_trace_managed(local_scope));
+        sentry__scope_update_dsc(local_scope, options);
+        sentry_value_t dsc = sentry__scope_load_dsc(local_scope);
+        TEST_CHECK(
+            sentry_value_as_double(sentry_value_get_by_key(dsc, "sample_rand"))
+            == sentry_value_as_double(
+                sentry_value_get_by_key(trace, "sample_rand")));
+        sentry_value_decref(dsc);
+        sentry_value_decref(trace);
+        sentry_value_t propagation
+            = sentry__scope_load_propagation_context(local_scope);
+        TEST_CHECK_STRING_EQUAL(
+            sentry_value_as_string(sentry_value_get_by_key(
+                sentry_value_get_by_key(propagation, "trace"), "trace_id")),
+            "aaaabbbbccccddddeeeeffff00001111");
+        sentry_value_decref(propagation);
         sentry_value_t event = sentry_value_new_object();
         sentry__scope_apply_to_event(
             local_scope, options, event, SENTRY_SCOPE_NONE);
@@ -366,6 +429,13 @@ SENTRY_TEST(scope_propagation_context)
             global_scope, options, event, SENTRY_SCOPE_NONE);
         TEST_CHECK_EVENT_TRACE_ID_EQUAL(
             event, "aaaabbbbccccddddeeeeffff00001111");
+
+        sentry__scope_regenerate_propagation_context(local_scope);
+        TEST_CHECK(sentry__scope_is_trace_managed(local_scope));
+        propagation = sentry__scope_load_propagation_context(local_scope);
+        TEST_CHECK(sentry_value_is_null(sentry_value_get_by_key(
+            sentry_value_get_by_key(propagation, "trace"), "parent_span_id")));
+        sentry_value_decref(propagation);
         sentry_scope_free(local_scope);
         sentry_value_decref(event);
     }
@@ -462,6 +532,13 @@ SENTRY_TEST(scope_extra)
         TEST_CHECK(sentry_value_is_null(removed));
         sentry_value_decref(removed);
 
+        sentry_value_t extra = sentry__scope_load_extra(local_scope);
+        TEST_CHECK_JSON_VALUE(
+            sentry_value_get_by_key(extra, "global"), "\"global\"");
+        TEST_CHECK_JSON_VALUE(
+            sentry_value_get_by_key(extra, "scope"), "\"local\"");
+        sentry_value_decref(extra);
+
         // event:
         // {"all":"event","event":"event"}
         sentry_value_t event = sentry_value_new_object();
@@ -551,6 +628,10 @@ SENTRY_TEST(scope_fingerprint)
         // local:
         // ["local1", "local2"]
         sentry_scope_t *local_scope = sentry_local_scope_new();
+        sentry_value_t local_fingerprint
+            = sentry__scope_ref_fingerprint(local_scope);
+        TEST_CHECK_JSON_VALUE(local_fingerprint, "[\"global1\",\"global2\"]");
+        sentry_value_decref(local_fingerprint);
         sentry_scope_set_fingerprint(local_scope, "local1", "local2", NULL);
 
         // event:
@@ -577,14 +658,17 @@ SENTRY_TEST(scope_fingerprint)
         TEST_CHECK_JSON_VALUE(sentry_value_get_by_key(event, "fingerprint"),
             "[\"event1\",\"event2\"]");
 
-        sentry_value_t local_fingerprint
-            = sentry__scope_ref_fingerprint(local_scope);
+        local_fingerprint = sentry__scope_ref_fingerprint(local_scope);
         sentry_scope_remove_fingerprint(local_scope);
         TEST_CHECK_INT_EQUAL(sentry_value_get_length(local_fingerprint), 2);
         TEST_CHECK_STRING_EQUAL(
             sentry_value_as_string(
                 sentry_value_get_by_index(local_fingerprint, 0)),
             "local1");
+        sentry_value_decref(local_fingerprint);
+
+        local_fingerprint = sentry__scope_ref_fingerprint(local_scope);
+        TEST_CHECK_JSON_VALUE(local_fingerprint, "[\"global1\",\"global2\"]");
         sentry_value_decref(local_fingerprint);
 
         sentry_scope_free(local_scope);
@@ -710,9 +794,17 @@ SENTRY_TEST(scope_tags)
         // local:
         // {"all":"scope","scope":"scope","local":"local"}
         sentry_scope_t *local_scope = sentry_local_scope_new();
+        sentry_value_t local_tags = sentry__scope_load_tags(local_scope);
+        sentry_value_set_by_key(
+            local_tags, "scope", sentry_value_new_string("detached"));
+        sentry_value_decref(local_tags);
+        local_tags = sentry__scope_load_tags(local_scope);
+        TEST_CHECK_JSON_VALUE(
+            sentry_value_get_by_key(local_tags, "scope"), "\"global\"");
+        sentry_value_decref(local_tags);
         sentry_scope_set_tag(local_scope, "all", "local");
         sentry_scope_set_tag(local_scope, "scope", "overwritten");
-        sentry_value_t local_tags = sentry_value_new_object();
+        local_tags = sentry_value_new_object();
         sentry_value_set_by_key(
             local_tags, "local", sentry_value_new_string("local"));
         sentry_value_set_by_key(
@@ -730,6 +822,13 @@ SENTRY_TEST(scope_tags)
             sentry__scope_load_tags, local_scope, "n-removed");
         TEST_CHECK(sentry_value_is_null(removed));
         sentry_value_decref(removed);
+
+        local_tags = sentry__scope_load_tags(local_scope);
+        TEST_CHECK_JSON_VALUE(
+            sentry_value_get_by_key(local_tags, "global"), "\"global\"");
+        TEST_CHECK_JSON_VALUE(
+            sentry_value_get_by_key(local_tags, "scope"), "\"local\"");
+        sentry_value_decref(local_tags);
 
         // event:
         // {"all":"event","event":"event"}
@@ -797,6 +896,10 @@ SENTRY_TEST(scope_user)
     SENTRY_WITH_SCOPE (global_scope) {
         // local: {"id":"2","username":"local","email":"@local"}
         sentry_scope_t *local_scope = sentry_local_scope_new();
+        sentry_value_t local_user = sentry__scope_ref_user(local_scope);
+        TEST_CHECK_JSON_VALUE(local_user,
+            "{\"id\":\"1\",\"username\":\"global\",\"email\":\"@global\"}");
+        sentry_value_decref(local_user);
         sentry_scope_set_user(
             local_scope, sentry_value_new_user("2", "local", "@local", NULL));
 
@@ -817,11 +920,16 @@ SENTRY_TEST(scope_user)
         TEST_CHECK_JSON_VALUE(sentry_value_get_by_key(event, "user"),
             "{\"id\":\"3\",\"username\":\"event\"}");
 
-        sentry_value_t local_user = sentry__scope_ref_user(local_scope);
+        local_user = sentry__scope_ref_user(local_scope);
         sentry_scope_set_user(local_scope, sentry_value_new_null());
         TEST_CHECK_STRING_EQUAL(
             sentry_value_as_string(sentry_value_get_by_key(local_user, "id")),
             "2");
+        sentry_value_decref(local_user);
+
+        local_user = sentry__scope_ref_user(local_scope);
+        TEST_CHECK_JSON_VALUE(local_user,
+            "{\"id\":\"1\",\"username\":\"global\",\"email\":\"@global\"}");
         sentry_value_decref(local_user);
 
         sentry_scope_free(local_scope);
@@ -958,7 +1066,11 @@ SENTRY_TEST(scope_level)
     SENTRY_WITH_SCOPE (global_scope) {
         // local: fatal
         sentry_scope_t *local_scope = sentry_local_scope_new();
+        TEST_CHECK_INT_EQUAL(
+            sentry__scope_get_level(local_scope), SENTRY_LEVEL_WARNING);
         sentry_scope_set_level(local_scope, SENTRY_LEVEL_FATAL);
+        TEST_CHECK_INT_EQUAL(
+            sentry__scope_get_level(local_scope), SENTRY_LEVEL_FATAL);
 
         // event: debug
         sentry_value_t event = sentry_value_new_object();
@@ -974,6 +1086,25 @@ SENTRY_TEST(scope_level)
         sentry__scope_apply_to_event(
             local_scope, options, event, SENTRY_SCOPE_NONE);
         TEST_CHECK_LEVEL_EQUAL(event, "debug");
+
+        sentry_scope_set_level(local_scope, SENTRY_LEVEL_ERROR);
+        TEST_CHECK_INT_EQUAL(
+            sentry__scope_get_level(local_scope), SENTRY_LEVEL_ERROR);
+        sentry_value_remove_by_key(event, "level");
+        sentry__scope_apply_to_event(
+            local_scope, options, event, SENTRY_SCOPE_NONE);
+        TEST_CHECK_LEVEL_EQUAL(event, "error");
+
+        sentry_scope_clear(local_scope);
+        TEST_CHECK_INT_EQUAL(
+            sentry__scope_get_level(local_scope), SENTRY_LEVEL_WARNING);
+        sentry_value_remove_by_key(event, "level");
+        sentry__scope_apply_to_event(
+            local_scope, options, event, SENTRY_SCOPE_NONE);
+        TEST_CHECK_LEVEL_EQUAL(event, "warning");
+        sentry_set_level(SENTRY_LEVEL_DEBUG);
+        TEST_CHECK_INT_EQUAL(
+            sentry__scope_get_level(local_scope), SENTRY_LEVEL_DEBUG);
 
         sentry_scope_free(local_scope);
         sentry_value_decref(event);
@@ -999,7 +1130,7 @@ SENTRY_TEST(scope_breadcrumbs)
     sentry_options_set_max_breadcrumbs(options, 5);
     sentry_init(options);
 
-    // global: ["global1", "global4"]
+    // isolation: ["global1", "global4"]
     sentry_add_breadcrumb(breadcrumb_ts("global1", 1));
     sentry_add_breadcrumb(breadcrumb_ts("global4", 4));
 
@@ -1009,13 +1140,13 @@ SENTRY_TEST(scope_breadcrumbs)
             sentry_value_get_by_index(breadcrumbs, index), "message")),        \
         message)
 
-    SENTRY_WITH_SCOPE (global_scope) {
+    SENTRY_WITH_SCOPE (isolation_scope) {
         // event: null
         sentry_value_t event = sentry_value_new_object();
 
-        // event <- global: ["global1", "global4"]
+        // event <- isolation: ["global1", "global4"]
         sentry__scope_apply_to_event(
-            global_scope, options, event, SENTRY_SCOPE_BREADCRUMBS);
+            isolation_scope, options, event, SENTRY_SCOPE_BREADCRUMBS);
 
         sentry_value_t result = sentry_value_get_by_key(event, "breadcrumbs");
         TEST_CHECK(sentry_value_get_type(result) == SENTRY_VALUE_TYPE_LIST);
@@ -1026,7 +1157,7 @@ SENTRY_TEST(scope_breadcrumbs)
         sentry_value_decref(event);
     }
 
-    SENTRY_WITH_SCOPE (global_scope) {
+    SENTRY_WITH_SCOPE (isolation_scope) {
         // event: ["event3", "event5"]
         sentry_value_t event = sentry_value_new_object();
         {
@@ -1036,9 +1167,9 @@ SENTRY_TEST(scope_breadcrumbs)
             sentry_value_set_by_key(event, "breadcrumbs", breadcrumbs);
         }
 
-        // event <- global: ["global1", "event3", "global4", "event5"]
+        // event <- isolation: ["global1", "event3", "global4", "event5"]
         sentry__scope_apply_to_event(
-            global_scope, options, event, SENTRY_SCOPE_BREADCRUMBS);
+            isolation_scope, options, event, SENTRY_SCOPE_BREADCRUMBS);
 
         sentry_value_t result = sentry_value_get_by_key(event, "breadcrumbs");
         TEST_CHECK(sentry_value_get_type(result) == SENTRY_VALUE_TYPE_LIST);
@@ -1051,11 +1182,21 @@ SENTRY_TEST(scope_breadcrumbs)
         sentry_value_decref(event);
     }
 
-    SENTRY_WITH_SCOPE (global_scope) {
+    SENTRY_WITH_SCOPE (isolation_scope) {
         // local: ["local2", "local6"]
         sentry_scope_t *local_scope = sentry_local_scope_new();
+        TEST_CHECK_PTR_EQUAL(local_scope->parent, isolation_scope);
         sentry_scope_add_breadcrumb(local_scope, breadcrumb_ts("local2", 2));
         sentry_scope_add_breadcrumb(local_scope, breadcrumb_ts("local6", 6));
+
+        sentry_value_t breadcrumbs
+            = sentry__scope_breadcrumbs_to_list(local_scope);
+        TEST_CHECK_INT_EQUAL(sentry_value_get_length(breadcrumbs), 4);
+        TEST_CHECK_MESSAGE_EQUAL(breadcrumbs, 0, "global1");
+        TEST_CHECK_MESSAGE_EQUAL(breadcrumbs, 1, "local2");
+        TEST_CHECK_MESSAGE_EQUAL(breadcrumbs, 2, "global4");
+        TEST_CHECK_MESSAGE_EQUAL(breadcrumbs, 3, "local6");
+        sentry_value_decref(breadcrumbs);
 
         // event: ["event3", "event5"]
         sentry_value_t event = sentry_value_new_object();
@@ -1066,21 +1207,25 @@ SENTRY_TEST(scope_breadcrumbs)
             sentry_value_set_by_key(event, "breadcrumbs", breadcrumbs);
         }
 
-        // event <- local: ["local2", "event3", "event5", "local6"]
-        sentry__scope_apply_to_event(
-            local_scope, options, event, SENTRY_SCOPE_BREADCRUMBS);
+        // event <- isolation: ["global1", "event3", "global4", "event5"]
+        sentry_value_t isolation_event = sentry__value_clone(event);
+        sentry__scope_apply_to_event(isolation_scope, options, isolation_event,
+            SENTRY_SCOPE_BREADCRUMBS);
 
-        sentry_value_t result = sentry_value_get_by_key(event, "breadcrumbs");
+        sentry_value_t result
+            = sentry_value_get_by_key(isolation_event, "breadcrumbs");
         TEST_CHECK(sentry_value_get_type(result) == SENTRY_VALUE_TYPE_LIST);
         TEST_CHECK_INT_EQUAL(sentry_value_get_length(result), 4);
-        TEST_CHECK_MESSAGE_EQUAL(result, 0, "local2");
+        TEST_CHECK_MESSAGE_EQUAL(result, 0, "global1");
         TEST_CHECK_MESSAGE_EQUAL(result, 1, "event3");
-        TEST_CHECK_MESSAGE_EQUAL(result, 2, "event5");
-        TEST_CHECK_MESSAGE_EQUAL(result, 3, "local6");
+        TEST_CHECK_MESSAGE_EQUAL(result, 2, "global4");
+        TEST_CHECK_MESSAGE_EQUAL(result, 3, "event5");
+        sentry_value_decref(isolation_event);
 
-        // event <- global: ["local2", "event3", "global4", "event5", "local6"]
+        // event <- local and isolation:
+        // ["local2", "event3", "global4", "event5", "local6"]
         sentry__scope_apply_to_event(
-            global_scope, options, event, SENTRY_SCOPE_BREADCRUMBS);
+            local_scope, options, event, SENTRY_SCOPE_BREADCRUMBS);
 
         result = sentry_value_get_by_key(event, "breadcrumbs");
         TEST_CHECK(sentry_value_get_type(result) == SENTRY_VALUE_TYPE_LIST);
@@ -1441,6 +1586,10 @@ SENTRY_TEST(scope_local_attributes)
         sentry_value_t local_attributes
             = sentry__scope_load_attributes(local_scope);
 
+        TEST_CHECK_JSON_VALUE(
+            sentry_value_get_by_key(local_attributes, "global"),
+            "{\"type\":\"string\",\"value\":\"global\"}");
+
         // Verify local attributes are set
         TEST_CHECK_STRING_EQUAL(
             sentry_value_as_string(sentry_value_get_by_key(
@@ -1594,6 +1743,20 @@ SENTRY_TEST(scope_transaction)
         TEST_CHECK_STRING_EQUAL(
             sentry_value_as_string(transaction), "my-transaction");
         sentry_value_decref(transaction);
+
+        sentry_scope_t *local_scope = sentry_scope_new();
+        for (size_t i = 0; i < 3; i++) {
+            if (i == 1) {
+                sentry_scope_set_transaction(local_scope, "local-transaction");
+            } else if (i == 2) {
+                sentry_scope_clear(local_scope);
+            }
+            transaction = sentry__scope_ref_transaction(local_scope);
+            TEST_CHECK_STRING_EQUAL(sentry_value_as_string(transaction),
+                i == 1 ? "local-transaction" : "my-transaction");
+            sentry_value_decref(transaction);
+        }
+        sentry_scope_free(local_scope);
     }
 
     sentry_close();
@@ -2144,7 +2307,7 @@ SENTRY_TEST(scope_observer_deferred_flush)
 
     observer_data.total_flush_count = 0;
     observer_data.nested_flush_count = 0;
-    sentry_scope_t *scope = sentry__scope_getref();
+    sentry_scope_t *scope = sentry_scope_acquire();
     TEST_ASSERT(sentry_scope_begin_write(scope) == 0);
     sentry_scope_set_tag(scope, "batched", "value");
     TEST_CHECK_INT_EQUAL(observer_data.nested_flush_count, 0);
@@ -2157,7 +2320,7 @@ SENTRY_TEST(scope_observer_deferred_flush)
     TEST_ASSERT(sentry_scope_begin_read(scope) == 0);
     sentry_scope_end_read(scope);
     TEST_CHECK_INT_EQUAL(observer_data.total_flush_count, 1);
-    sentry__scope_finish(scope);
+    sentry_scope_release(scope);
 
     sentry_close();
 }
@@ -2345,6 +2508,7 @@ SENTRY_TEST(scope_observer_user)
     TEST_CHECK(d.was_called);
     TEST_CHECK_JSON_VALUE(d.user, "{}");
 
+    sentry_value_decref(d.user);
     sentry_close();
 }
 
@@ -2502,10 +2666,10 @@ SENTRY_TEST(scope_tags_flush)
     }
     TEST_CHECK_INT_EQUAL(flush_data.total_flush_count, 3);
 
-    sentry_scope_t *scope = sentry__scope_getref();
+    sentry_scope_t *scope = sentry_scope_acquire();
     sentry_scope_set_tag(scope, "direct", "value");
     TEST_CHECK_INT_EQUAL(flush_data.total_flush_count, 3);
-    sentry__scope_finish_mut(scope);
+    sentry_scope_release(scope);
     TEST_CHECK_INT_EQUAL(flush_data.total_flush_count, 4);
 
     sentry_value_decref(observer_data.tags);
@@ -2906,6 +3070,10 @@ SENTRY_TEST(scope_clone_preserves_data)
 
 SENTRY_TEST(scope_attachments)
 {
+    SENTRY_TEST_OPTIONS_NEW(options);
+    sentry_options_add_attachment(options, "configured.txt");
+    TEST_ASSERT_INT_EQUAL(sentry_init(options), 0);
+
     sentry_scope_t *scope = sentry_scope_new();
     sentry_uuid_t first_id = sentry_scope_add_attachment(
         scope, sentry_attachment_from_bytes("first", 5, "first.txt"));
@@ -2915,30 +3083,33 @@ SENTRY_TEST(scope_attachments)
     TEST_CHECK(!sentry_uuid_is_nil(&second_id));
 
     sentry_value_t snapshot = sentry__scope_load_attachments(scope);
-    TEST_CHECK_INT_EQUAL(sentry_value_get_length(snapshot), 2);
+    TEST_CHECK_INT_EQUAL(sentry_value_get_length(snapshot), 3);
     TEST_CHECK_STRING_EQUAL(
         sentry__attachment_get_filename(sentry_value_get_by_index(snapshot, 0)),
         "first.txt");
     TEST_CHECK_STRING_EQUAL(
         sentry__attachment_get_filename(sentry_value_get_by_index(snapshot, 1)),
         "second.txt");
+    TEST_CHECK_STRING_EQUAL(
+        sentry__attachment_get_filename(sentry_value_get_by_index(snapshot, 2)),
+        "configured.txt");
 
     sentry_uuid_t third_id = sentry_scope_add_attachment(
         scope, sentry_attachment_from_bytes("third", 5, "third.txt"));
     TEST_CHECK(!sentry_uuid_is_nil(&third_id));
 
     sentry_value_t current = sentry__scope_load_attachments(scope);
-    TEST_CHECK_INT_EQUAL(sentry_value_get_length(current), 3);
+    TEST_CHECK_INT_EQUAL(sentry_value_get_length(current), 4);
     TEST_CHECK_STRING_EQUAL(
         sentry__attachment_get_filename(sentry_value_get_by_index(current, 2)),
         "third.txt");
     sentry_value_decref(current);
-    TEST_CHECK_INT_EQUAL(sentry_value_get_length(snapshot), 2);
+    TEST_CHECK_INT_EQUAL(sentry_value_get_length(snapshot), 3);
 
     sentry_scope_remove_attachment(scope, first_id);
 
     current = sentry__scope_load_attachments(scope);
-    TEST_CHECK_INT_EQUAL(sentry_value_get_length(current), 2);
+    TEST_CHECK_INT_EQUAL(sentry_value_get_length(current), 3);
     TEST_CHECK_STRING_EQUAL(
         sentry__attachment_get_filename(sentry_value_get_by_index(current, 0)),
         "second.txt");
@@ -2946,22 +3117,26 @@ SENTRY_TEST(scope_attachments)
         sentry__attachment_get_filename(sentry_value_get_by_index(current, 1)),
         "third.txt");
     sentry_value_decref(current);
-    TEST_CHECK_INT_EQUAL(sentry_value_get_length(snapshot), 2);
+    TEST_CHECK_INT_EQUAL(sentry_value_get_length(snapshot), 3);
     TEST_CHECK_STRING_EQUAL(
         sentry__attachment_get_filename(sentry_value_get_by_index(snapshot, 0)),
         "first.txt");
 
     sentry_scope_clear(scope);
     current = sentry__scope_load_attachments(scope);
-    TEST_CHECK_INT_EQUAL(sentry_value_get_length(current), 0);
+    TEST_CHECK_INT_EQUAL(sentry_value_get_length(current), 1);
+    TEST_CHECK_STRING_EQUAL(
+        sentry__attachment_get_filename(sentry_value_get_by_index(current, 0)),
+        "configured.txt");
     sentry_value_decref(current);
-    TEST_CHECK_INT_EQUAL(sentry_value_get_length(snapshot), 2);
+    TEST_CHECK_INT_EQUAL(sentry_value_get_length(snapshot), 3);
     TEST_CHECK_STRING_EQUAL(
         sentry__attachment_get_filename(sentry_value_get_by_index(snapshot, 1)),
         "second.txt");
 
     sentry_value_decref(snapshot);
     sentry_scope_free(scope);
+    sentry_close();
 }
 
 SENTRY_TEST(scope_clone_shares_span)
@@ -3093,7 +3268,10 @@ SENTRY_TEST(scope_clear)
     // Everything is reset to the state of a fresh scope.
     TEST_CHECK(scope_value_get_length(sentry__scope_load_tags, scope) == 0);
     TEST_CHECK(scope_value_get_length(sentry__scope_load_extra, scope) == 0);
-    TEST_CHECK(scope_value_get_length(sentry__scope_load_contexts, scope) == 0);
+    sentry_value_t contexts = sentry__scope_load_contexts(scope);
+    TEST_CHECK(sentry_value_is_null(sentry_value_get_by_key(contexts, "ctx")));
+    TEST_CHECK(!sentry_value_is_null(sentry_value_get_by_key(contexts, "os")));
+    sentry_value_decref(contexts);
     TEST_CHECK(
         scope_value_get_length(sentry__scope_load_attributes, scope) == 0);
     scope_user = sentry__scope_ref_user(scope);
@@ -3475,10 +3653,25 @@ SENTRY_TEST(scope_bind_span_or_transaction_not_both)
     TEST_ASSERT(!!span);
 
     // Only one binding can be active at a time.
+    sentry_scope_t *parent = sentry_scope_acquire();
+    sentry_scope_set_transaction_object(parent, tx);
     sentry_scope_t *scope = sentry_scope_new();
+    sentry_transaction_t *inherited
+        = sentry__scope_ref_transaction_object(scope);
+    TEST_CHECK_PTR_EQUAL(inherited, tx);
+    sentry__transaction_decref(inherited);
+    sentry_value_t value = sentry__scope_load_span_or_transaction(scope);
+    TEST_CHECK_STRING_EQUAL(
+        sentry_value_as_string(sentry_value_get_by_key(value, "span_id")),
+        sentry_value_as_string(sentry_value_get_by_key(tx->inner, "span_id")));
+    sentry_value_decref(value);
+    sentry_scope_set_span(parent, span);
+    sentry_span_t *bound_span = sentry__scope_ref_span(scope);
+    TEST_CHECK_PTR_EQUAL(bound_span, span);
+    sentry__span_decref(bound_span);
     sentry_scope_set_span(scope, span);
     sentry_scope_set_transaction_object(scope, tx);
-    sentry_span_t *bound_span = sentry__scope_ref_span(scope);
+    bound_span = sentry__scope_ref_span(scope);
     sentry_transaction_t *bound_tx
         = sentry__scope_ref_transaction_object(scope);
     TEST_CHECK(bound_span == NULL);
@@ -3486,11 +3679,18 @@ SENTRY_TEST(scope_bind_span_or_transaction_not_both)
     sentry__span_decref(bound_span);
     sentry__transaction_decref(bound_tx);
 
+    sentry_scope_set_transaction_object(parent, tx);
     sentry_scope_set_span(scope, span);
     bound_tx = sentry__scope_ref_transaction_object(scope);
     bound_span = sentry__scope_ref_span(scope);
     TEST_CHECK(bound_tx == NULL);
     TEST_CHECK_PTR_EQUAL(bound_span, span);
+    value = sentry__scope_load_span_or_transaction(scope);
+    TEST_CHECK_STRING_EQUAL(
+        sentry_value_as_string(sentry_value_get_by_key(value, "span_id")),
+        sentry_value_as_string(
+            sentry_value_get_by_key(span->inner, "span_id")));
+    sentry_value_decref(value);
     sentry__transaction_decref(bound_tx);
     sentry__span_decref(bound_span);
 
@@ -3499,11 +3699,13 @@ SENTRY_TEST(scope_bind_span_or_transaction_not_both)
     bound_span = sentry__scope_ref_span(scope);
     bound_tx = sentry__scope_ref_transaction_object(scope);
     TEST_CHECK(bound_span == NULL);
-    TEST_CHECK(bound_tx == NULL);
+    TEST_CHECK_PTR_EQUAL(bound_tx, tx);
+    TEST_CHECK(!sentry__scope_remove_transaction_object(scope, tx));
     sentry__span_decref(bound_span);
     sentry__transaction_decref(bound_tx);
 
     sentry_scope_free(scope);
+    sentry_scope_release(parent);
     sentry_span_finish(span);
     sentry_transaction_finish(tx);
 
@@ -3636,45 +3838,53 @@ SENTRY_TEST(scope_read_blocks_write)
 {
     sentry_scope_t *scope = sentry_scope_new();
     TEST_ASSERT(!!scope);
-    sentry_scope_set_environment(scope, "old");
-    sentry_scope_set_tag(scope, "version", "old");
+    sentry_scope_t *parent = sentry_scope_acquire();
+    TEST_ASSERT(!!parent);
+    sentry_scope_t *targets[] = { scope, parent };
+    for (size_t i = 0; i < 2; i++) {
+        sentry_scope_t *target = targets[i];
+        sentry_scope_clear(scope);
+        sentry_scope_set_environment(target, "old");
+        sentry_scope_set_tag(target, "version", "old");
 
-    scope_access_thread_t state = { .scope = scope };
-    sentry__waitable_flag_init(&state.started);
-    sentry__waitable_flag_init(&state.finished);
+        scope_access_thread_t state = { .scope = target };
+        sentry__waitable_flag_init(&state.started);
+        sentry__waitable_flag_init(&state.finished);
 
-    TEST_ASSERT(sentry_scope_begin_read(scope) == 0);
-    sentry_value_t environment = sentry__scope_ref_environment(scope);
-    TEST_CHECK_STRING_EQUAL(sentry_value_as_string(environment), "old");
-    sentry_value_decref(environment);
+        TEST_ASSERT(sentry_scope_begin_read(scope) == 0);
+        sentry_value_t environment = sentry__scope_ref_environment(scope);
+        TEST_CHECK_STRING_EQUAL(sentry_value_as_string(environment), "old");
+        sentry_value_decref(environment);
 
-    sentry_threadid_t thread;
-    sentry__thread_init(&thread);
-    TEST_ASSERT(
-        !sentry__thread_spawn(&thread, write_scope_during_read, &state));
-    TEST_ASSERT(sentry__waitable_flag_wait(&state.started, 1000));
-    TEST_CHECK(!sentry__waitable_flag_wait(&state.finished, 10));
+        sentry_threadid_t thread;
+        sentry__thread_init(&thread);
+        TEST_ASSERT(
+            !sentry__thread_spawn(&thread, write_scope_during_read, &state));
+        TEST_ASSERT(sentry__waitable_flag_wait(&state.started, 1000));
+        TEST_CHECK(!sentry__waitable_flag_wait(&state.finished, 10));
 
-    TEST_ASSERT(sentry_scope_begin_read(scope) == 0);
-    sentry_value_t tag
-        = scope_value_get_by_key(sentry__scope_load_tags, scope, "version");
-    TEST_CHECK_STRING_EQUAL(sentry_value_as_string(tag), "old");
-    sentry_value_decref(tag);
-    TEST_CHECK(sentry_scope_begin_write(scope) == 1);
-    sentry_scope_end_read(scope);
-    TEST_CHECK(!sentry__waitable_flag_wait(&state.finished, 10));
+        TEST_ASSERT(sentry_scope_begin_read(scope) == 0);
+        sentry_value_t tag
+            = scope_value_get_by_key(sentry__scope_load_tags, scope, "version");
+        TEST_CHECK_STRING_EQUAL(sentry_value_as_string(tag), "old");
+        sentry_value_decref(tag);
+        TEST_CHECK(sentry_scope_begin_write(target) == 1);
+        sentry_scope_end_read(scope);
+        TEST_CHECK(!sentry__waitable_flag_wait(&state.finished, 10));
 
-    sentry_scope_end_read(scope);
-    TEST_CHECK(sentry__waitable_flag_wait(&state.finished, 1000));
-    sentry__thread_join(thread);
+        sentry_scope_end_read(scope);
+        TEST_CHECK(sentry__waitable_flag_wait(&state.finished, 1000));
+        sentry__thread_join(thread);
 
-    TEST_CHECK_INT_EQUAL(state.result, 0);
-    environment = sentry__scope_ref_environment(scope);
-    tag = scope_value_get_by_key(sentry__scope_load_tags, scope, "version");
-    TEST_CHECK_STRING_EQUAL(sentry_value_as_string(environment), "new");
-    TEST_CHECK_STRING_EQUAL(sentry_value_as_string(tag), "new");
-    sentry_value_decref(environment);
-    sentry_value_decref(tag);
+        TEST_CHECK_INT_EQUAL(state.result, 0);
+        environment = sentry__scope_ref_environment(scope);
+        tag = scope_value_get_by_key(sentry__scope_load_tags, scope, "version");
+        TEST_CHECK_STRING_EQUAL(sentry_value_as_string(environment), "new");
+        TEST_CHECK_STRING_EQUAL(sentry_value_as_string(tag), "new");
+        sentry_value_decref(environment);
+        sentry_value_decref(tag);
+    }
+    sentry_scope_release(parent);
     sentry_scope_free(scope);
 }
 
@@ -3705,4 +3915,394 @@ SENTRY_TEST(scope_access_multiple)
 
     sentry_scope_free(first);
     sentry_scope_free(second);
+}
+
+typedef struct {
+    scope_access_thread_t access;
+    sentry_threadid_t thread;
+    int started;
+    bool finished;
+} breadcrumb_read_t;
+
+static sentry_value_t
+before_breadcrumb_read_scope(sentry_value_t breadcrumb, void *data)
+{
+    breadcrumb_read_t *state = data;
+    state->started = sentry__thread_spawn(
+        &state->thread, read_scope_batch, &state->access);
+    state->finished = state->started == 0
+        && sentry__waitable_flag_wait(&state->access.finished, 1000);
+    return breadcrumb;
+}
+
+SENTRY_TEST(before_breadcrumb_read_scope)
+{
+    breadcrumb_read_t state = { 0 };
+    sentry__waitable_flag_init(&state.access.started);
+    sentry__waitable_flag_init(&state.access.finished);
+    sentry__thread_init(&state.thread);
+
+    SENTRY_TEST_OPTIONS_NEW(options);
+    sentry_options_set_before_breadcrumb(
+        options, before_breadcrumb_read_scope, &state);
+    TEST_ASSERT_INT_EQUAL(sentry_init(options), 0);
+    state.access.scope = sentry_scope_acquire();
+    TEST_ASSERT(!!state.access.scope);
+
+    sentry_add_breadcrumb(sentry_value_new_breadcrumb(NULL, "read scope"));
+    TEST_CHECK_INT_EQUAL(state.started, 0);
+    TEST_CHECK(state.finished);
+    if (state.started == 0) {
+        sentry__thread_join(state.thread);
+    }
+    sentry__thread_free(&state.thread);
+    sentry_value_decref(state.access.environment);
+    sentry_value_decref(state.access.tag);
+    sentry_scope_release(state.access.scope);
+    sentry_close();
+}
+
+SENTRY_TEST(scope_isolation_reset)
+{
+    SENTRY_TEST_OPTIONS_NEW(options);
+    sentry_options_set_release(options, "configured-release");
+    sentry_options_set_environment(options, "configured-environment");
+    sentry_options_set_sdk_name(options, "sentry.native.test");
+    sentry_options_set_max_breadcrumbs(options, 2);
+    TEST_ASSERT_INT_EQUAL(sentry_init(options), 0);
+
+    sentry_scope_t *scope = sentry_scope_acquire();
+    TEST_ASSERT(!!scope);
+    sentry_scope_set_release(scope, "changed-release");
+    sentry_scope_set_environment(scope, "changed-environment");
+    sentry_scope_set_tag(scope, "tag", "value");
+    sentry_scope_set_user(scope, sentry_value_new_user("42", NULL, NULL, NULL));
+
+    sentry_scope_clear(scope);
+
+    sentry_value_t release = sentry__scope_ref_release(scope);
+    TEST_CHECK_STRING_EQUAL(
+        sentry_value_as_string(release), "configured-release");
+    sentry_value_decref(release);
+    sentry_value_t environment = sentry__scope_ref_environment(scope);
+    TEST_CHECK_STRING_EQUAL(
+        sentry_value_as_string(environment), "configured-environment");
+    sentry_value_decref(environment);
+    sentry_value_t sdk = sentry__scope_ref_client_sdk(scope);
+    TEST_CHECK_STRING_EQUAL(
+        sentry_value_as_string(sentry_value_get_by_key(sdk, "name")),
+        "sentry.native.test");
+    sentry_value_decref(sdk);
+    sentry_value_t user = sentry__scope_ref_user(scope);
+    TEST_CHECK(sentry_value_is_null(user));
+    sentry_value_decref(user);
+    TEST_CHECK_INT_EQUAL(
+        scope_value_get_length(sentry__scope_load_tags, scope), 0);
+
+    for (size_t i = 0; i < 3; i++) {
+        sentry_scope_add_breadcrumb(
+            scope, sentry_value_new_breadcrumb(NULL, "breadcrumb"));
+    }
+    TEST_CHECK_INT_EQUAL(scope_breadcrumb_count(scope), 2);
+
+    sentry_scope_release(scope);
+    sentry_close();
+}
+
+typedef struct {
+    sentry_scope_t *scope;
+    sentry_value_t event;
+} shared_scope_thread_t;
+
+SENTRY_THREAD_FN
+capture_shared_scope(void *data)
+{
+    shared_scope_thread_t *state = data;
+    state->scope = sentry_scope_acquire();
+    sentry_set_tag("thread", "worker");
+    state->event = sentry_value_new_event();
+    SENTRY_WITH_OPTIONS (options) {
+        sentry__scope_apply_to_event(
+            state->scope, options, state->event, SENTRY_SCOPE_NONE);
+    }
+    return 0;
+}
+
+SENTRY_TEST(scope_isolation_shared)
+{
+    SENTRY_TEST_OPTIONS_NEW(options);
+    sentry_options_set_auto_session_tracking(options, false);
+    TEST_ASSERT_INT_EQUAL(sentry_init(options), 0);
+    sentry_scope_t *scope = sentry_scope_acquire();
+    TEST_ASSERT(!!scope);
+    shared_scope_thread_t state = { 0 };
+    sentry_threadid_t thread;
+    sentry__thread_init(&thread);
+    TEST_ASSERT(!sentry__thread_spawn(&thread, capture_shared_scope, &state));
+    sentry__thread_join(thread);
+    sentry__thread_free(&thread);
+    TEST_CHECK_PTR_EQUAL(state.scope, scope);
+    sentry_value_t tag
+        = scope_value_get_by_key(sentry__scope_load_tags, scope, "thread");
+    TEST_CHECK_STRING_EQUAL(sentry_value_as_string(tag), "worker");
+    sentry_value_decref(tag);
+    TEST_CHECK(!sentry_value_is_null(sentry_value_get_by_key(
+        sentry_value_get_by_key(state.event, "contexts"), "os")));
+    TEST_CHECK(
+        !sentry_value_is_null(sentry_value_get_by_key(state.event, "sdk")));
+    sentry_value_decref(state.event);
+    sentry_scope_release(state.scope);
+    sentry_scope_release(scope);
+    sentry_close();
+}
+
+SENTRY_TEST(scope_global_immutable)
+{
+    SENTRY_TEST_OPTIONS_NEW(options);
+    sentry_options_set_auto_session_tracking(options, false);
+    TEST_ASSERT_INT_EQUAL(sentry_init(options), 0);
+    sentry_scope_t *scope = sentry_scope_acquire();
+    const sentry_scope_t *global = scope->parent;
+    TEST_ASSERT(!!global);
+    TEST_CHECK(global->parent == NULL);
+    TEST_CHECK(global->state == NULL);
+    TEST_CHECK(global->flush_func == NULL);
+    TEST_CHECK_INT_EQUAL(global->num_observers, 0);
+    TEST_CHECK(scope->num_observers > 0);
+    TEST_CHECK(scope->flush_func != NULL);
+    sentry_scope_t *clone = sentry_scope_clone(scope);
+    TEST_ASSERT(!!clone);
+    sentry_value_t sdk = sentry__scope_ref_client_sdk(global);
+    sentry_value_t os
+        = scope_value_get_by_key(sentry__scope_load_contexts, global, "os");
+    TEST_CHECK(sentry_value_is_frozen(sdk));
+    char *sdk_json = sentry_value_to_json(sdk);
+    char *os_json = sentry_value_to_json(os);
+    TEST_CHECK_INT_EQUAL(sentry_value_set_by_key(
+                             sdk, "name", sentry_value_new_string("changed")),
+        1);
+    sentry_value_set_by_key(os, "name", sentry_value_new_string("changed"));
+    sentry_value_decref(sdk);
+    sentry_value_decref(os);
+
+    sentry_set_context("os", sentry_value_new_object());
+    sentry_scope_clear(scope);
+    sentry_value_t event = sentry_value_new_event();
+    sentry__scope_apply_to_event(scope, options, event, SENTRY_SCOPE_NONE);
+    TEST_CHECK_JSON_VALUE(sentry_value_get_by_key(
+                              sentry_value_get_by_key(event, "contexts"), "os"),
+        os_json);
+    sentry_value_decref(event);
+    sentry_close();
+
+    SENTRY_TEST_OPTIONS_NEW(next_options);
+    sentry_options_set_auto_session_tracking(next_options, false);
+    TEST_ASSERT_INT_EQUAL(sentry_init(next_options), 0);
+    sentry_scope_t *next = sentry_scope_acquire();
+    TEST_CHECK(next != scope);
+    TEST_CHECK_PTR_EQUAL(next->parent, global);
+    sdk = sentry__scope_ref_client_sdk(global);
+    os = scope_value_get_by_key(sentry__scope_load_contexts, global, "os");
+    TEST_CHECK_JSON_VALUE(sdk, sdk_json);
+    TEST_CHECK_JSON_VALUE(os, os_json);
+    sentry_value_decref(sdk);
+    sentry_value_decref(os);
+    sentry_scope_release(scope);
+    event = sentry_value_new_event();
+    sentry__scope_apply_to_event(clone, next_options, event, SENTRY_SCOPE_NONE);
+    TEST_CHECK_JSON_VALUE(sentry_value_get_by_key(event, "sdk"), sdk_json);
+    TEST_CHECK_JSON_VALUE(sentry_value_get_by_key(
+                              sentry_value_get_by_key(event, "contexts"), "os"),
+        os_json);
+    sentry_value_decref(event);
+    sentry_scope_free(clone);
+    sentry_free(sdk_json);
+    sentry_free(os_json);
+    sentry_scope_release(next);
+    sentry_close();
+}
+
+SENTRY_TEST(scope_sdk_inheritance)
+{
+    sentry_scope_t *before_init = sentry_scope_acquire();
+    TEST_ASSERT(!!before_init);
+    SENTRY_TEST_OPTIONS_NEW(options);
+    sentry_options_set_auto_session_tracking(options, false);
+    sentry_options_set_sdk_name(options, "sentry.native.test");
+    sentry_integration_t *integration = SENTRY_MAKE(sentry_integration_t);
+    TEST_ASSERT(!!integration);
+    integration->name = "test-integration";
+    TEST_ASSERT(sentry__options_add_integration(options, integration));
+    TEST_ASSERT_INT_EQUAL(sentry_init(options), 0);
+    sentry_scope_release(before_init);
+
+    sentry_scope_t *scope = sentry_scope_acquire();
+    sentry_value_t sdk = sentry__scope_ref_client_sdk(scope);
+    sentry_value_t global_sdk = sentry__scope_ref_client_sdk(scope->parent);
+    TEST_CHECK_JSON_VALUE(
+        sentry_value_get_by_key(global_sdk, "name"), "\"sentry.native.test\"");
+    TEST_CHECK(sentry_value_is_frozen(global_sdk));
+    char *json = sentry_value_to_json(global_sdk);
+    TEST_CHECK_JSON_VALUE(sdk, json);
+    sentry_value_t integrations = sentry_value_get_by_key(sdk, "integrations");
+    bool found = false;
+    for (size_t i = 0; i < sentry_value_get_length(integrations); i++) {
+        found |= !strcmp(
+            sentry_value_as_string(sentry_value_get_by_index(integrations, i)),
+            "test-integration");
+    }
+    TEST_CHECK(found);
+    sentry_value_decref(sdk);
+    sentry_value_decref(global_sdk);
+
+    sentry_scope_clear(scope);
+    sdk = sentry__scope_ref_client_sdk(scope);
+    TEST_CHECK_JSON_VALUE(sdk, json);
+    sentry_value_decref(sdk);
+    sentry_scope_t *local = sentry_scope_new();
+    sdk = sentry__scope_ref_client_sdk(local);
+    TEST_CHECK_JSON_VALUE(sdk, json);
+    sentry_value_decref(sdk);
+    sentry_scope_free(local);
+
+    sentry_value_t event = sentry_value_new_event();
+    sentry__scope_apply_to_event(scope, options, event, SENTRY_SCOPE_NONE);
+    TEST_CHECK_JSON_VALUE(sentry_value_get_by_key(event, "sdk"), json);
+    sentry_value_decref(event);
+    sentry_free(json);
+    sentry_scope_release(scope);
+    sentry_close();
+}
+
+SENTRY_TEST(scope_parent_lifetime)
+{
+    SENTRY_TEST_OPTIONS_NEW(options);
+    sentry_options_set_auto_session_tracking(options, false);
+    TEST_ASSERT_INT_EQUAL(sentry_init(options), 0);
+    sentry_set_tag("parent", "original");
+    sentry_scope_t *scope = sentry_scope_new();
+    TEST_ASSERT(!!scope);
+    sentry_scope_t *clone = sentry_scope_clone(scope);
+    TEST_ASSERT(!!clone);
+    sentry_scope_free(scope);
+    sentry_close();
+
+    SENTRY_TEST_OPTIONS_NEW(next_options);
+    sentry_options_set_auto_session_tracking(next_options, false);
+    TEST_ASSERT_INT_EQUAL(sentry_init(next_options), 0);
+    sentry_set_tag("parent", "new");
+    sentry_value_t event = sentry_value_new_event();
+    sentry__scope_apply_to_event(clone, next_options, event, SENTRY_SCOPE_NONE);
+    TEST_CHECK_JSON_VALUE(sentry_value_get_by_key(
+                              sentry_value_get_by_key(event, "tags"), "parent"),
+        "\"original\"");
+    sentry_value_decref(event);
+    sentry_scope_free(clone);
+    sentry_close();
+}
+
+SENTRY_TEST(scope_global_before_init)
+{
+    sentry_scope_t *scope = sentry_scope_acquire();
+    TEST_ASSERT(!!scope);
+    const sentry_scope_t *global = scope->parent;
+    TEST_ASSERT(!!global);
+    sentry_value_t sdk = sentry__scope_ref_client_sdk(global);
+    TEST_ASSERT(sentry_value_get_type(sdk) == SENTRY_VALUE_TYPE_OBJECT);
+    TEST_CHECK(sentry_value_is_frozen(sdk));
+    TEST_CHECK(
+        sentry_value_get_length(sentry_value_get_by_key(sdk, "name")) > 0);
+    TEST_CHECK_STRING_EQUAL(
+        sentry_value_as_string(sentry_value_get_by_key(sdk, "version")),
+        SENTRY_SDK_VERSION);
+    sentry_value_decref(sdk);
+    sentry_value_t contexts = sentry__scope_load_contexts(global);
+    TEST_CHECK(sentry_value_get_type(contexts) == SENTRY_VALUE_TYPE_OBJECT);
+    sentry_value_decref(contexts);
+    sentry_scope_release(scope);
+    sentry_close();
+}
+
+SENTRY_TEST(scope_defaults)
+{
+    SENTRY_TEST_OPTIONS_NEW(options);
+    sentry_options_set_release(options, "configured-release");
+    sentry_options_set_environment(options, "configured-environment");
+    sentry_options_set_traces_sample_rate(options, 0.25);
+    TEST_ASSERT_INT_EQUAL(sentry_init(options), 0);
+    sentry_scope_t *scope = sentry_scope_acquire();
+    TEST_ASSERT(!!scope);
+    sentry_scope_t *local = sentry_scope_new();
+    TEST_ASSERT(!!local);
+
+    for (int i = 0; i < 4; i++) {
+        if (i == 1 || i == 3) {
+            sentry_set_release("override-release");
+            sentry_set_environment("override-environment");
+        }
+        if (i == 2) {
+            sentry_set_release(NULL);
+            sentry_set_environment(NULL);
+        } else if (i == 3) {
+            sentry_scope_clear(scope);
+        }
+        const char *release
+            = i == 1 ? "override-release" : "configured-release";
+        const char *environment
+            = i == 1 ? "override-environment" : "configured-environment";
+        sentry_value_t event = sentry_value_new_event();
+        sentry__scope_apply_to_event(scope, options, event, SENTRY_SCOPE_NONE);
+        TEST_CHECK_STRING_EQUAL(
+            sentry_value_as_string(sentry_value_get_by_key(event, "release")),
+            release);
+        TEST_CHECK_STRING_EQUAL(sentry_value_as_string(sentry_value_get_by_key(
+                                    event, "environment")),
+            environment);
+        sentry_value_decref(event);
+        sentry_value_t dsc = sentry__scope_load_dsc(scope);
+        TEST_CHECK_STRING_EQUAL(
+            sentry_value_as_string(sentry_value_get_by_key(dsc, "release")),
+            release);
+        TEST_CHECK_STRING_EQUAL(
+            sentry_value_as_string(sentry_value_get_by_key(dsc, "environment")),
+            environment);
+        sentry_value_decref(dsc);
+        dsc = sentry__scope_load_dsc(local);
+        TEST_CHECK(
+            sentry_value_as_double(sentry_value_get_by_key(dsc, "sample_rate"))
+            == 0.25);
+        TEST_CHECK_STRING_EQUAL(
+            sentry_value_as_string(sentry_value_get_by_key(dsc, "release")),
+            release);
+        TEST_CHECK_STRING_EQUAL(
+            sentry_value_as_string(sentry_value_get_by_key(dsc, "environment")),
+            environment);
+        sentry_value_decref(dsc);
+        sentry_value_t global_release
+            = sentry__scope_ref_release(scope->parent);
+        TEST_CHECK_STRING_EQUAL(
+            sentry_value_as_string(global_release), "configured-release");
+        sentry_value_decref(global_release);
+        sentry_value_t global_environment
+            = sentry__scope_ref_environment(scope->parent);
+        TEST_CHECK_STRING_EQUAL(sentry_value_as_string(global_environment),
+            "configured-environment");
+        sentry_value_decref(global_environment);
+    }
+    sentry_scope_set_release(local, "local-release");
+    sentry_value_t dsc = sentry__scope_load_dsc(local);
+    TEST_CHECK_JSON_VALUE(
+        sentry_value_get_by_key(dsc, "release"), "\"local-release\"");
+    sentry_value_decref(dsc);
+    dsc = sentry_value_new_object();
+    sentry_value_set_by_key(
+        dsc, "release", sentry_value_new_string("upstream"));
+    sentry__scope_freeze_dsc(scope, dsc);
+    sentry_value_decref(dsc);
+    dsc = sentry__scope_load_dsc(local);
+    TEST_CHECK_JSON_VALUE(dsc, "{\"release\":\"upstream\"}");
+    sentry_value_decref(dsc);
+    sentry_scope_free(local);
+    sentry_scope_release(scope);
+    sentry_close();
 }

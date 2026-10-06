@@ -169,6 +169,7 @@ SENTRY_TEST(attachments_add_dedupe)
     sentry_attach_file(SENTRY_TEST_PATH_PREFIX ".a.txt");
     sentry_attach_file(SENTRY_TEST_PATH_PREFIX ".b.txt");
     sentry_attach_file(SENTRY_TEST_PATH_PREFIX ".c.txt");
+    sentry_attach_file(SENTRY_TEST_PATH_PREFIX ".c.txt");
 #ifdef SENTRY_PLATFORM_WINDOWS
     sentry_attach_filew(SENTRY_TEST_PATH_PREFIX L".a.txt");
     sentry_attach_filew(SENTRY_TEST_PATH_PREFIX L".b.txt");
@@ -194,10 +195,10 @@ SENTRY_TEST(attachments_add_dedupe)
 
     TEST_CHECK_STRING_EQUAL(serialized,
         "{}\n"
+        "{\"type\":\"attachment\",\"length\":3,\"filename\":\".c.txt\"}\nccc\n"
         "{\"type\":\"attachment\",\"length\":3,\"filename\":\".a.txt\"}\naaa\n"
-        "{\"type\":\"attachment\",\"length\":3,\"filename\":\".b.txt\"}\nbbb\n"
-        "{\"type\":\"attachment\",\"length\":3,\"filename\":\".c.txt\"}"
-        "\nccc");
+        "{\"type\":\"attachment\",\"length\":3,\"filename\":\".b.txt\"}"
+        "\nbbb");
 
     sentry_free(serialized);
 
@@ -274,18 +275,19 @@ SENTRY_TEST(attachments_add_remove)
     TEST_CHECK_STRING_EQUAL(serialized,
         "{}\n"
         "{\"type\":\"attachment\",\"length\":3,\"filename\":\".a.txt\"}\naaa\n"
+        "{\"type\":\"attachment\",\"length\":3,\"filename\":\".c.txt\"}\nccc\n"
         "{\"type\":\"attachment\",\"length\":3,\"filename\":\".b.txt\"}"
         "\nbbb");
 
-    sentry_free(serialized);
-
+    sentry_attach_bytes("ddd", 3, ".d.txt");
     sentry_clear_attachments();
 
     envelope = sentry__envelope_new();
     add_scope_attachments(envelope);
-    serialized = sentry_envelope_serialize(envelope, NULL);
+    char *cleared = sentry_envelope_serialize(envelope, NULL);
     sentry_envelope_free(envelope);
-    TEST_CHECK_STRING_EQUAL(serialized, "{}");
+    TEST_CHECK_STRING_EQUAL(cleared, serialized);
+    sentry_free(cleared);
     sentry_free(serialized);
 
     sentry_close();

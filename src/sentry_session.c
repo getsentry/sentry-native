@@ -225,7 +225,8 @@ sentry_start_session(void)
     sentry_end_session();
     sentry_options_t *options = sentry__options_lock();
     SENTRY_WITH_SCOPE (scope) {
-        if (options) {
+        if (options && !sentry_scope_begin_read(scope)) {
+            sentry__mutex_lock(&options->session_lock);
             options->session = sentry__session_new(scope);
             if (options->session) {
                 sentry_value_t user = sentry__scope_ref_user(scope);
@@ -234,6 +235,8 @@ sentry_start_session(void)
                 sentry_value_decref(user);
                 sentry__run_write_session(options->run, options->session);
             }
+            sentry__mutex_unlock(&options->session_lock);
+            sentry_scope_end_read(scope);
         }
     }
     sentry__options_unlock();
@@ -243,8 +246,12 @@ void
 sentry__record_errors_on_current_session(uint32_t error_count)
 {
     sentry_options_t *options = sentry__options_lock();
-    if (options && options->session) {
-        options->session->errors += error_count;
+    if (options) {
+        sentry__mutex_lock(&options->session_lock);
+        if (options->session) {
+            options->session->errors += error_count;
+        }
+        sentry__mutex_unlock(&options->session_lock);
     }
     sentry__options_unlock();
 }
@@ -255,9 +262,11 @@ sentry__end_session_internal(void)
     sentry_session_t *session = NULL;
     sentry_options_t *options = sentry__options_lock();
     if (options) {
+        sentry__mutex_lock(&options->session_lock);
         session = options->session;
         options->session = NULL;
         sentry__run_clear_session(options->run);
+        sentry__mutex_unlock(&options->session_lock);
     }
     sentry__options_unlock();
 

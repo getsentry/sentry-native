@@ -602,6 +602,31 @@ daemon_start(pid_t app_pid, uint64_t app_tid, HANDLE event_handle,
 #endif
 }
 
+static void
+clear_scope(void *data)
+{
+    native_backend_state_t *state = (native_backend_state_t *)data;
+    if (!state) {
+        return;
+    }
+
+    const sentry_path_t *paths[]
+        = { state->breadcrumb1_path, state->breadcrumb2_path };
+    for (size_t i = 0; i < sizeof(paths) / sizeof(paths[0]); i++) {
+        if (paths[i] && sentry__path_write_buffer(paths[i], "", 0) != 0) {
+            SENTRY_WARN("failed to clear persisted breadcrumbs");
+        }
+    }
+    state->num_breadcrumbs = 0;
+
+    sentry_path_t *path
+        = sentry__path_join_str(state->run_path, "__sentry-attachments");
+    if (path && sentry__path_is_file(path) && sentry__path_remove(path) != 0) {
+        SENTRY_WARN("failed to clear attachment manifest");
+    }
+    sentry__path_free(path);
+}
+
 static int
 native_backend_startup(
     sentry_backend_t *backend, const sentry_options_t *options)
@@ -1013,6 +1038,7 @@ native_backend_startup(
     sentry_scope_observer_t *observer = sentry__scope_observer_new();
     if (observer) {
         observer->data = state;
+        observer->clear = clear_scope;
         observer->add_breadcrumb = native_backend_add_breadcrumb;
         observer->add_attachment = add_attachment;
         SENTRY_WITH_SCOPE_MUT (scope) {
