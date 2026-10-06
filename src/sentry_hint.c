@@ -2,6 +2,7 @@
 
 #include "sentry_alloc.h"
 #include "sentry_attachment.h"
+#include "sentry_core.h"
 #include "sentry_scope.h"
 #include "sentry_string.h"
 

@@ -35,9 +35,8 @@
  * This function will check the user consent, and return `true` if uploads
  * should *not* be sent to the sentry server, and be discarded instead.
  *
- * Note: This function acquires the options lock internally. Use
- * `sentry__run_should_skip_upload` from worker threads that may run while
- * the options are locked during SDK shutdown.
+ * Worker threads with an existing run should use
+ * `sentry__run_should_skip_upload` for that run.
  */
 bool sentry__should_skip_upload(void);
 
@@ -64,6 +63,12 @@ sentry_value_t sentry__invoke_on_crash(const sentry_options_t *options,
  */
 sentry_value_t sentry__invoke_before_send(
     const sentry_options_t *options, sentry_value_t event, sentry_hint_t *hint);
+
+/**
+ * Invokes the configured `before_breadcrumb` callback, if any.
+ */
+sentry_value_t sentry__invoke_before_breadcrumb(
+    const sentry_options_t *options, sentry_value_t breadcrumb);
 
 /**
  * Prepares an event by recording errors on the current session and applying
@@ -177,6 +182,26 @@ bool sentry__launch_external_crash_reporter(
 
 void sentry__enter_crash_handler(void);
 void sentry__exit_crash_handler(void);
+
+/**
+ * Acquires an owned reference to the global scope.
+ */
+sentry_scope_t *sentry__acquire_global_scope(void);
+
+/**
+ * These are convenience macros to access the global scope inside a code block.
+ */
+#define SENTRY_WITH_SCOPE(Scope)                                               \
+    for (const sentry_scope_t *Scope = sentry__acquire_global_scope(); Scope;  \
+        sentry__scope_decref((sentry_scope_t *)Scope), Scope = NULL)
+#define SENTRY_WITH_SCOPE_MUT(Scope)                                           \
+    for (sentry_scope_t *Scope = sentry__acquire_global_scope(); Scope;        \
+        sentry_scope_free(Scope), Scope = NULL)                                \
+        for (bool _scope_lock_acquired = !sentry_scope_begin_write(Scope),     \
+                  _scope_locked_once = true;                                   \
+            _scope_locked_once;                                                \
+            _scope_lock_acquired ? sentry_scope_end_write(Scope) : (void)0,    \
+                  _scope_locked_once = false)
 
 #define SENTRY_WITH_OPTIONS(Options)                                           \
     for (const sentry_options_t *Options = sentry__options_getref(); Options;  \

@@ -2145,7 +2145,7 @@ SENTRY_TEST(scope_observer_deferred_flush)
 
     observer_data.total_flush_count = 0;
     observer_data.nested_flush_count = 0;
-    sentry_scope_t *scope = sentry__scope_getref();
+    sentry_scope_t *scope = sentry__acquire_global_scope();
     TEST_ASSERT(sentry_scope_begin_write(scope) == 0);
     sentry_scope_set_tag(scope, "batched", "value");
     TEST_CHECK_INT_EQUAL(observer_data.nested_flush_count, 0);
@@ -2158,7 +2158,7 @@ SENTRY_TEST(scope_observer_deferred_flush)
     TEST_ASSERT(sentry_scope_begin_read(scope) == 0);
     sentry_scope_end_read(scope);
     TEST_CHECK_INT_EQUAL(observer_data.total_flush_count, 1);
-    sentry__scope_finish(scope);
+    sentry_scope_free(scope);
 
     sentry_close();
 }
@@ -2346,6 +2346,7 @@ SENTRY_TEST(scope_observer_user)
     TEST_CHECK(d.was_called);
     TEST_CHECK_JSON_VALUE(d.user, "{}");
 
+    sentry_value_decref(d.user);
     sentry_close();
 }
 
@@ -2503,10 +2504,10 @@ SENTRY_TEST(scope_tags_flush)
     }
     TEST_CHECK_INT_EQUAL(flush_data.total_flush_count, 3);
 
-    sentry_scope_t *scope = sentry__scope_getref();
+    sentry_scope_t *scope = sentry__acquire_global_scope();
     sentry_scope_set_tag(scope, "direct", "value");
     TEST_CHECK_INT_EQUAL(flush_data.total_flush_count, 3);
-    sentry__scope_finish_mut(scope);
+    sentry_scope_free(scope);
     TEST_CHECK_INT_EQUAL(flush_data.total_flush_count, 4);
 
     sentry_value_decref(observer_data.tags);

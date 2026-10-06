@@ -65,7 +65,10 @@ struct sentry_scope_s {
     size_t is_notifying;
     bool pending_flush;
     void (*flush_func)(sentry_scope_t *scope);
+    void (*clear_func)(sentry_scope_t *scope);
     void *state;
+    // owned; immutable after construction
+    sentry_scope_t *parent;
 
     // Whether this scope is single-use. A capture function frees a one-shot
     // scope after applying it.
@@ -89,10 +92,9 @@ typedef enum {
 } sentry_scope_mode_t;
 
 /**
- * This will return a new reference to the global scope, initializing it if
- * needed.
+ * Allocate a scope.
  */
-sentry_scope_t *sentry__scope_getref(void);
+sentry_scope_t *sentry__scope_alloc(void);
 
 /**
  * Increment the refcount and return the scope pointer.
@@ -105,14 +107,6 @@ sentry_scope_t *sentry__scope_incref(sentry_scope_t *scope);
  */
 void sentry__scope_decref(sentry_scope_t *scope);
 
-/**
- * This will free all the data attached to the global scope
- */
-void sentry__scope_cleanup(void);
-
-void sentry__scope_apply_options(
-    sentry_scope_t *scope, sentry_options_t *options);
-
 bool sentry__scope_is_one_shot(const sentry_scope_t *scope);
 void sentry__scope_set_one_shot(sentry_scope_t *scope, bool one_shot);
 
@@ -122,23 +116,13 @@ void sentry__scope_set_one_shot(sentry_scope_t *scope, bool one_shot);
 void sentry__scope_free_one_shot(sentry_scope_t *scope);
 
 /**
- * Finish a read-only global scope access.
- * This consumes the caller's scope reference.
- */
-void sentry__scope_finish(sentry_scope_t *scope);
-
-/**
- * Finish a mutable global scope access, flushing pending changes.
- * This consumes the caller's scope reference.
- */
-void sentry__scope_finish_mut(sentry_scope_t *scope);
-
-/**
  * Flush scope changes. The flush is deferred until mutable access finishes.
  * No-op for non-global scopes without a flush callback.
  */
 void sentry__scope_flush(sentry_scope_t *scope);
 void sentry__scope_set_flush_func(
+    sentry_scope_t *scope, void (*func)(sentry_scope_t *scope));
+void sentry__scope_set_clear_func(
     sentry_scope_t *scope, void (*func)(sentry_scope_t *scope));
 void sentry__scope_set_state(sentry_scope_t *scope, void *state);
 
@@ -167,12 +151,16 @@ void sentry__scope_set_fingerprint_nva(sentry_scope_t *scope,
 sentry_value_t sentry__scope_ref_user(const sentry_scope_t *scope);
 sentry_level_t sentry__scope_get_level(const sentry_scope_t *scope);
 sentry_value_t sentry__scope_ref_client_sdk(const sentry_scope_t *scope);
+void sentry__scope_set_client_sdk(sentry_scope_t *scope, sentry_value_t sdk);
+void sentry__scope_set_max_breadcrumbs(sentry_scope_t *scope, size_t max);
 
 /**
  * Returns an owned reference to the scope attachment list.
  * The caller must release it with `sentry_value_decref`.
  */
 sentry_value_t sentry__scope_load_attachments(const sentry_scope_t *scope);
+void sentry__scope_set_attachments(
+    sentry_scope_t *scope, sentry_value_t attachments);
 sentry_value_t sentry__scope_add_attachment(
     sentry_scope_t *scope, sentry_value_t attachment);
 void sentry__scope_clear_attachments(sentry_scope_t *scope);
@@ -228,16 +216,6 @@ bool sentry__scope_is_trace_managed(const sentry_scope_t *scope);
 void sentry__scope_set_trace_managed(sentry_scope_t *scope, bool managed);
 
 /**
- * These are convenience macros to access the global scope inside a code block.
- */
-#define SENTRY_WITH_SCOPE(Scope)                                               \
-    for (const sentry_scope_t *Scope = sentry__scope_getref(); Scope;          \
-        sentry__scope_finish((sentry_scope_t *)Scope), Scope = NULL)
-#define SENTRY_WITH_SCOPE_MUT(Scope)                                           \
-    for (sentry_scope_t *Scope = sentry__scope_getref(); Scope;                \
-        sentry__scope_finish_mut(Scope), Scope = NULL)
-
-/**
  * Allocate and zero-initialize a scope observer.
  *
  * Returns NULL on allocation failure. The caller sets whichever callback
@@ -285,9 +263,8 @@ void sentry__scope_update_dsc(
 void sentry__scope_freeze_dsc(sentry_scope_t *scope, sentry_value_t incoming);
 
 /**
- * Merges the given scope data into a telemetry item (a log or metric): its
- * attributes, trace, user, etc. Existing values are kept, so this can be called
- * for each scope in a precedence chain, most specific first (first write wins).
+ * Merges the scope and its parent scopes into a log or metric, most specific
+ * first. Existing values are kept.
  */
 void sentry__scope_apply_to_telemetry(const sentry_scope_t *scope,
     sentry_value_t telemetry, sentry_value_t attributes);
@@ -301,6 +278,20 @@ void sentry__scope_set_last_event_id(
 void sentry__scope_capture_envelope(sentry_scope_t *scope,
     sentry_transport_t *transport, sentry_envelope_t *envelope,
     const sentry_options_t *options);
+
+/**
+ * Applies the scope and its parent scopes to the event, most specific first.
+ * Modules and stacktraces are applied once.
+ */
+void sentry__scope_prepare_event(const sentry_scope_t *scope,
+    const sentry_options_t *options, sentry_value_t event,
+    sentry_scope_mode_t mode);
+
+/**
+ * Extends the attachment list with the scope and its parent scopes.
+ */
+void sentry__scope_apply_to_attachments(
+    const sentry_scope_t *scope, sentry_value_t *attachments);
 
 #endif
 

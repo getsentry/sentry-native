@@ -27,7 +27,7 @@ SENTRY_TEST(mpack_removed_tags)
     sentry_options_free(options);
     sentry_value_decref(obj);
     sentry_free(buf);
-    sentry__scope_cleanup();
+    sentry_close();
 }
 
 SENTRY_TEST(mpack_newlines)
