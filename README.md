@@ -357,13 +357,11 @@ In addition to platform support, the "Advanced Usage" section of the SDK docs no
   the project's executable.
 - `sentry_test_unit`: These are the main unit-tests, which are conveniently built
   also by the toplevel makefile.
-- `sentry_example`: This is a small example program highlighting the API, which
-  can be controlled via command-line parameters, and is also used for
-  integration tests.
+- `sentry_example_*`: These are small [examples](examples/README.md) highlighting common APIs.
 
 ## Runtime Configuration
 
-A minimal working example looks like this. For a more elaborate example, see the [example.c](examples/example.c) file, which is also used to run sentries integration tests.
+A minimal working example looks like this. For more elaborate examples, see [examples/README.md](examples/README.md).
 
 ```c
 sentry_options_t *options = sentry_options_new();
