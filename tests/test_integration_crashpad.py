@@ -617,14 +617,14 @@ def test_crashpad_dumping_crash(cmake, httpserver, run_args, build_args):
 
     envelope = Envelope.deserialize(session)
     assert_session(envelope, {"status": "crashed", "errors": 1})
-    expect_attachments = not any(
-        arg in run_args for arg in ("before-send", "on-crash", "clear-attachments")
-    )
+    expect_attachments = not any(arg in run_args for arg in ("before-send", "on-crash"))
+    cleared = "clear-attachments" in run_args
     attachments = assert_crashpad_upload(
         multipart,
         expect_attachment=expect_attachments,
-        expect_view_hierarchy=expect_attachments,
+        expect_view_hierarchy=expect_attachments and not cleared,
         breadcrumb_count=101,
+        expect_byte_attachment=expect_attachments and not cleared,
     )
     callback = next(
         (arg for arg in run_args if arg in ("before-send", "on-crash")), None
@@ -1491,3 +1491,46 @@ def test_crashpad_breadcrumbs(cmake, httpserver, count, reinstall, crash_arg):
 
     if crash_arg == "fastfail":
         assert wait_for_no_werfault()
+
+
+@pytest.mark.parametrize("clear", [False, True])
+def test_crashpad_acquired_scope(cmake, httpserver, clear):
+    tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "crashpad"})
+    httpserver.expect_oneshot_request("/api/123456/minidump/").respond_with_data("OK")
+    args = [
+        "log",
+        "no-setup",
+        "attachment",
+        "acquire-scope",
+        "crashpad-wait-for-upload",
+        "crash",
+    ]
+    if clear:
+        args.append("clear-scope")
+    with httpserver.wait(timeout=10) as waiting:
+        run(
+            tmp_path,
+            "sentry_test_integration",
+            args,
+            expect_failure=True,
+            env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
+        )
+    assert waiting.result
+
+    attachments = assert_crashpad_upload(
+        httpserver.log[0][0],
+        expect_attachment=True,
+        expect_breadcrumbs=False,
+        expect_default_scope=False,
+        expect_byte_attachment=not clear,
+    )
+    event = attachments.event
+    assert event["release"] == ("test-example-release" if clear else "scope-release")
+    assert event["environment"] == ("development" if clear else "scope-environment")
+    assert ("acquired" in event.get("tags", {})) == (not clear)
+    assert any(
+        crumb.get("message") == "acquired breadcrumb"
+        for crumb in attachments.breadcrumb1 + attachments.breadcrumb2
+    ) == (not clear)
+    if not clear:
+        assert event["user"]["id"] == "scope-user"

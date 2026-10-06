@@ -610,6 +610,7 @@ def assert_crashpad_upload(
     expect_breadcrumbs=True,
     expect_default_scope=True,
     breadcrumb_count=0,
+    expect_byte_attachment=None,
 ):
     multipart = gzip.decompress(req.get_data())
     msg = email.message_from_bytes(bytes(str(req.headers), encoding="utf8") + multipart)
@@ -624,9 +625,13 @@ def assert_crashpad_upload(
         assert_event_meta(attachments.event, integrations=["crashpad"])
     if expect_attachment:
         assert attachments.cmake_cache > 0
-        assert attachments.bytes_bin == b"\xc0\xff\xee"
     else:
         assert attachments.cmake_cache == -1
+    if expect_byte_attachment is None:
+        expect_byte_attachment = expect_attachment
+    if expect_byte_attachment:
+        assert attachments.bytes_bin == b"\xc0\xff\xee"
+    else:
         assert attachments.bytes_bin == None
     if expect_view_hierarchy:
         assert_attachment_content_view_hierarchy(attachments.view_hierarchy)

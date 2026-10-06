@@ -1732,3 +1732,36 @@ def test_native_incomplete_crash(cmake, callback):
             child.kill()
         child.wait()
         assert wait_for(lambda: not list(db_dir.glob("*.run.daemon.lock")))
+
+
+@pytest.mark.parametrize("clear", [False, True])
+def test_native_acquired_scope(cmake, httpserver, clear):
+    tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "native"})
+    httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data("OK")
+    args = ["log", "no-setup", "attachment", "acquire-scope", "crash"]
+    if clear:
+        args.append("clear-scope")
+    with httpserver.wait(timeout=10) as waiting:
+        run_crash(
+            tmp_path,
+            "sentry_test_integration",
+            args,
+            env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
+        )
+    assert waiting.result
+
+    envelope = Envelope.deserialize(httpserver.log[0][0].get_data())
+    assert_native_crash(envelope)
+    event = envelope.get_event()
+    assert event["release"] == ("test-example-release" if clear else "scope-release")
+    assert event["environment"] == ("development" if clear else "scope-environment")
+    assert event["sdk"]["name"] == "sentry.native"
+    assert event["contexts"]["os"]["name"]
+    assert ("acquired" in event.get("tags", {})) == (not clear)
+    assert any(
+        crumb.get("message") == "acquired breadcrumb"
+        for crumb in (event.get("breadcrumbs") or [])
+    ) == (not clear)
+    filenames = {item.headers.get("filename") for item in envelope}
+    assert "CMakeCache.txt" in filenames
+    assert ("scope.txt" in filenames) == (not clear)

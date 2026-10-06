@@ -607,6 +607,10 @@ SENTRY_TEST(scope_capture_log_attributes)
     sentry_set_attribute("from_global", string_attribute("global"));
     sentry_set_attribute("scope_over_global", string_attribute("global"));
     sentry_set_attribute("log_over_all", string_attribute("global"));
+    sentry_value_t os = sentry_value_new_object();
+    sentry_value_set_by_key(os, "name", sentry_value_new_string("ParentOS"));
+    sentry_value_set_by_key(os, "version", sentry_value_new_string("1.0"));
+    sentry_set_context("os", os);
 
     sentry_scope_t *scope = sentry_scope_new();
     sentry_scope_set_attribute(scope, "from_scope", string_attribute("scope"));
@@ -614,6 +618,9 @@ SENTRY_TEST(scope_capture_log_attributes)
         scope, "scope_over_global", string_attribute("scope"));
     sentry_scope_set_attribute(
         scope, "log_over_all", string_attribute("scope"));
+    os = sentry_value_new_object();
+    sentry_value_set_by_key(os, "name", sentry_value_new_string("ChildOS"));
+    sentry_scope_set_context(scope, "os", os);
 
     sentry_value_t attrs = sentry_value_new_object();
     sentry_value_set_by_key(attrs, "from_log", string_attribute("log"));
@@ -636,6 +643,8 @@ SENTRY_TEST(scope_capture_log_attributes)
     TEST_CHECK_STRING_EQUAL(
         attribute_value(log_attrs, "scope_over_global"), "scope");
     TEST_CHECK_STRING_EQUAL(attribute_value(log_attrs, "log_over_all"), "log");
+    TEST_CHECK_STRING_EQUAL(attribute_value(log_attrs, "os.name"), "ChildOS");
+    TEST_CHECK_STRING_EQUAL(attribute_value(log_attrs, "os.version"), "1.0");
 
     sentry_scope_free(scope);
     sentry_value_decref(captured_log);
