@@ -1,5 +1,7 @@
 #include <benchmark/benchmark.h>
 
+#include "sentry_benchmark.h"
+
 extern "C" {
 #include "sentry_core.h"
 #include "sentry_options.h"
@@ -11,7 +13,11 @@ benchmark_breadcrumbs(benchmark::State &state)
 {
     sentry_options_t *options = sentry_options_new();
     sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
-    sentry_init(options);
+    sentry_options_set_debug(options, true);
+    if (!sentry_benchmark_init(state, options)) {
+        sentry_close();
+        return;
+    }
 
     int i = 0;
     for (auto _ : state) {

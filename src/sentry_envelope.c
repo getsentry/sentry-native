@@ -369,7 +369,7 @@ sentry__envelope_get_event_id(const sentry_envelope_t *envelope)
         size_t payload_len = envelope->contents.raw.payload_len;
         const char *newline = memchr(payload, '\n', payload_len);
         size_t header_len = newline ? (size_t)(newline - payload) : payload_len;
-        sentry_value_t header = sentry__value_from_json(payload, header_len);
+        sentry_value_t header = sentry_value_from_json(payload, header_len);
         sentry_uuid_t event_id = sentry_uuid_from_string(sentry_value_as_string(
             sentry_value_get_by_key(header, "event_id")));
         sentry_value_decref(header);
@@ -1128,8 +1128,7 @@ deserialize_into(sentry_envelope_t *envelope, const char *buf, size_t buf_len)
     }
     size_t headers_len = (size_t)(headers_end - ptr);
     sentry_value_decref(envelope->contents.items.headers);
-    envelope->contents.items.headers
-        = sentry__value_from_json(ptr, headers_len);
+    envelope->contents.items.headers = sentry_value_from_json(ptr, headers_len);
     if (sentry_value_get_type(envelope->contents.items.headers)
         != SENTRY_VALUE_TYPE_OBJECT) {
         return false;
@@ -1154,7 +1153,7 @@ deserialize_into(sentry_envelope_t *envelope, const char *buf, size_t buf_len)
         }
         size_t item_headers_len = (size_t)(item_headers_end - ptr);
         sentry_value_decref(item->headers);
-        item->headers = sentry__value_from_json(ptr, item_headers_len);
+        item->headers = sentry_value_from_json(ptr, item_headers_len);
         if (sentry_value_get_type(item->headers) != SENTRY_VALUE_TYPE_OBJECT) {
             return false;
         }
@@ -1206,7 +1205,7 @@ deserialize_into(sentry_envelope_t *envelope, const char *buf, size_t buf_len)
                 && (sentry__string_eq(type, "event")
                     || sentry__string_eq(type, "transaction"))) {
                 item->event
-                    = sentry__value_from_json(item->payload, item->payload_len);
+                    = sentry_value_from_json(item->payload, item->payload_len);
             }
 
             ptr += item->payload_len;
@@ -1643,7 +1642,7 @@ sentry__envelope_item_get_attachment_ref(
         ref->_owner = sentry_value_new_null();
         return true;
     }
-    ref->_owner = sentry__value_from_json(item->payload, item->payload_len);
+    ref->_owner = sentry_value_from_json(item->payload, item->payload_len);
     ref->path
         = sentry_value_as_string(sentry_value_get_by_key(ref->_owner, "path"));
     ref->location = sentry_value_as_string(

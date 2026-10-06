@@ -2,6 +2,9 @@
 #include "sentry_path.h"
 #include "sentry_slice.h"
 #include "sentry_string.h"
+#include "sentry_value.h"
+
+#include <stdio.h>
 #if defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_WINDOWS)
 #    include "sentry_core.h"
 #    include "sentry_logger.h"
@@ -64,8 +67,11 @@ void
 sentry__win32_install_sigabrt_handler(sentry__win32_abort_handler_t handler)
 {
     g_sigabrt_handler = handler;
-    if (!g_sigabrt_installed) {
-        g_previous_sigabrt_handler = signal(SIGABRT, handle_sigabrt);
+    void (*previous)(int) = signal(SIGABRT, handle_sigabrt);
+    if (previous != SIG_ERR) {
+        if (previous != handle_sigabrt) {
+            g_previous_sigabrt_handler = previous;
+        }
         g_sigabrt_installed = true;
     }
 }
@@ -897,3 +903,335 @@ sentry__get_os_context(void)
 }
 
 #endif
+
+sentry_value_t
+sentry__build_registers(const sentry_ucontext_t *uctx)
+{
+    sentry_value_t registers = sentry_value_new_object();
+    if (!uctx) {
+        return registers;
+    }
+#if defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_DARWIN)
+    if (!uctx->user_context) {
+        return registers;
+    }
+#    if defined(SENTRY_PLATFORM_DARWIN)
+    if (!uctx->user_context->uc_mcontext) {
+        return registers;
+    }
+#    endif
+#elif defined(SENTRY_PLATFORM_WINDOWS)
+    if (!uctx->exception_ptrs.ContextRecord) {
+        return registers;
+    }
+#endif
+
+#if defined(SENTRY_PLATFORM_LINUX)
+
+#    if defined(__x86_64__) || defined(__i386__) || defined(__arm__)
+    // just assume the ctx is a bunch of uintpr_t, and index that directly
+    uintptr_t *ctx = (uintptr_t *)&uctx->user_context->uc_mcontext;
+#    endif
+
+#    define SET_REG(name, num)                                                 \
+        sentry_value_set_by_key(registers, name,                               \
+            sentry__value_new_addr((uint64_t)(size_t)ctx[num]));
+
+#    if defined(__x86_64__)
+
+    SET_REG("r8", 0);
+    SET_REG("r9", 1);
+    SET_REG("r10", 2);
+    SET_REG("r11", 3);
+    SET_REG("r12", 4);
+    SET_REG("r13", 5);
+    SET_REG("r14", 6);
+    SET_REG("r15", 7);
+    SET_REG("rdi", 8);
+    SET_REG("rsi", 9);
+    SET_REG("rbp", 10);
+    SET_REG("rbx", 11);
+    SET_REG("rdx", 12);
+    SET_REG("rax", 13);
+    SET_REG("rcx", 14);
+    SET_REG("rsp", 15);
+    SET_REG("rip", 16);
+
+#    elif defined(__i386__)
+
+    // gs, fs, es, ds
+    SET_REG("edi", 4);
+    SET_REG("esi", 5);
+    SET_REG("ebp", 6);
+    SET_REG("esp", 7);
+    SET_REG("ebx", 8);
+    SET_REG("edx", 9);
+    SET_REG("ecx", 10);
+    SET_REG("eax", 11);
+    SET_REG("eip", 14);
+    SET_REG("eflags", 16);
+
+#    elif defined(__aarch64__)
+
+    // Use struct field access instead of raw pointer indexing because
+    // struct sigcontext has fault_address before regs[31] on aarch64.
+    for (int i = 0; i < 29; i++) {
+        char name[4];
+        snprintf(name, sizeof(name), "x%d", i);
+        sentry_value_set_by_key(registers, name,
+            sentry__value_new_addr(uctx->user_context->uc_mcontext.regs[i]));
+    }
+    sentry_value_set_by_key(registers, "fp",
+        sentry__value_new_addr(uctx->user_context->uc_mcontext.regs[29]));
+    sentry_value_set_by_key(registers, "lr",
+        sentry__value_new_addr(uctx->user_context->uc_mcontext.regs[30]));
+    sentry_value_set_by_key(registers, "sp",
+        sentry__value_new_addr(uctx->user_context->uc_mcontext.sp));
+    sentry_value_set_by_key(registers, "pc",
+        sentry__value_new_addr(uctx->user_context->uc_mcontext.pc));
+
+#    elif defined(__arm__)
+
+    // trap_no, _error_code, oldmask
+    SET_REG("r0", 3);
+    SET_REG("r1", 4);
+    SET_REG("r2", 5);
+    SET_REG("r3", 6);
+    SET_REG("r4", 7);
+    SET_REG("r5", 8);
+    SET_REG("r6", 9);
+    SET_REG("r7", 10);
+    SET_REG("r8", 11);
+    SET_REG("r9", 12);
+    SET_REG("r10", 13);
+    SET_REG("fp", 14);
+    SET_REG("ip", 15);
+    SET_REG("sp", 16);
+    SET_REG("lr", 17);
+    SET_REG("pc", 18);
+    sentry_value_set_by_key(registers, "cpsr",
+        sentry__value_new_addr(uctx->user_context->uc_mcontext.arm_cpsr));
+
+#    endif
+
+#    undef SET_REG
+
+#elif defined(SENTRY_PLATFORM_DARWIN)
+
+#    define SET_REG(name, prop)                                                \
+        sentry_value_set_by_key(registers, name,                               \
+            sentry__value_new_addr((uint64_t)(size_t)thread_state->prop));
+
+#    if defined(__x86_64__)
+
+    _STRUCT_X86_THREAD_STATE64 *thread_state
+        = &uctx->user_context->uc_mcontext->__ss;
+
+    SET_REG("rax", __rax);
+    SET_REG("rbx", __rbx);
+    SET_REG("rcx", __rcx);
+    SET_REG("rdx", __rdx);
+    SET_REG("rdi", __rdi);
+    SET_REG("rsi", __rsi);
+    SET_REG("rbp", __rbp);
+    SET_REG("rsp", __rsp);
+    SET_REG("r8", __r8);
+    SET_REG("r9", __r9);
+    SET_REG("r10", __r10);
+    SET_REG("r11", __r11);
+    SET_REG("r12", __r12);
+    SET_REG("r13", __r13);
+    SET_REG("r14", __r14);
+    SET_REG("r15", __r15);
+    SET_REG("rip", __rip);
+
+#    elif defined(__arm64__)
+
+    _STRUCT_ARM_THREAD_STATE64 *thread_state
+        = &uctx->user_context->uc_mcontext->__ss;
+
+    SET_REG("x0", __x[0]);
+    SET_REG("x1", __x[1]);
+    SET_REG("x2", __x[2]);
+    SET_REG("x3", __x[3]);
+    SET_REG("x4", __x[4]);
+    SET_REG("x5", __x[5]);
+    SET_REG("x6", __x[6]);
+    SET_REG("x7", __x[7]);
+    SET_REG("x8", __x[8]);
+    SET_REG("x9", __x[9]);
+    SET_REG("x10", __x[10]);
+    SET_REG("x11", __x[11]);
+    SET_REG("x12", __x[12]);
+    SET_REG("x13", __x[13]);
+    SET_REG("x14", __x[14]);
+    SET_REG("x15", __x[15]);
+    SET_REG("x16", __x[16]);
+    SET_REG("x17", __x[17]);
+    SET_REG("x18", __x[18]);
+    SET_REG("x19", __x[19]);
+    SET_REG("x20", __x[20]);
+    SET_REG("x21", __x[21]);
+    SET_REG("x22", __x[22]);
+    SET_REG("x23", __x[23]);
+    SET_REG("x24", __x[24]);
+    SET_REG("x25", __x[25]);
+    SET_REG("x26", __x[26]);
+    SET_REG("x27", __x[27]);
+    SET_REG("x28", __x[28]);
+#        if __DARWIN_OPAQUE_ARM_THREAD_STATE64
+    sentry_value_set_by_key(registers, "fp",
+        sentry__value_new_addr(
+            (uint64_t)__darwin_arm_thread_state64_get_fp(*thread_state)));
+    sentry_value_set_by_key(registers, "lr",
+        sentry__value_new_addr(
+            (uint64_t)__darwin_arm_thread_state64_get_lr(*thread_state)));
+    sentry_value_set_by_key(registers, "sp",
+        sentry__value_new_addr(
+            (uint64_t)__darwin_arm_thread_state64_get_sp(*thread_state)));
+    sentry_value_set_by_key(registers, "pc",
+        sentry__value_new_addr(
+            (uint64_t)__darwin_arm_thread_state64_get_pc(*thread_state)));
+#        else
+    SET_REG("fp", __fp);
+    SET_REG("lr", __lr);
+    SET_REG("sp", __sp);
+    SET_REG("pc", __pc);
+#        endif
+
+#    elif defined(__arm__)
+
+    _STRUCT_ARM_THREAD_STATE *thread_state
+        = &uctx->user_context->uc_mcontext->__ss;
+
+    SET_REG("r0", __r[0]);
+    SET_REG("r1", __r[1]);
+    SET_REG("r2", __r[2]);
+    SET_REG("r3", __r[3]);
+    SET_REG("r4", __r[4]);
+    SET_REG("r5", __r[5]);
+    SET_REG("r6", __r[6]);
+    SET_REG("r7", __r[7]);
+    SET_REG("r8", __r[8]);
+    SET_REG("r9", __r[9]);
+    SET_REG("r10", __r[10]);
+    SET_REG("fp", __r[11]);
+    SET_REG("ip", __r[12]);
+    SET_REG("sp", __sp);
+    SET_REG("lr", __lr);
+    SET_REG("pc", __pc);
+
+#    endif
+
+#    undef SET_REG
+
+#elif defined(SENTRY_PLATFORM_WINDOWS)
+    PCONTEXT ctx = uctx->exception_ptrs.ContextRecord;
+
+#    define SET_REG(name, prop)                                                \
+        sentry_value_set_by_key(registers, name,                               \
+            sentry__value_new_addr((uint64_t)(size_t)ctx->prop))
+
+#    if defined(_M_AMD64)
+
+    if ((ctx->ContextFlags & CONTEXT_INTEGER) == CONTEXT_INTEGER) {
+        SET_REG("rax", Rax);
+        SET_REG("rcx", Rcx);
+        SET_REG("rdx", Rdx);
+        SET_REG("rbx", Rbx);
+        SET_REG("rbp", Rbp);
+        SET_REG("rsi", Rsi);
+        SET_REG("rdi", Rdi);
+        SET_REG("r8", R8);
+        SET_REG("r9", R9);
+        SET_REG("r10", R10);
+        SET_REG("r11", R11);
+        SET_REG("r12", R12);
+        SET_REG("r13", R13);
+        SET_REG("r14", R14);
+        SET_REG("r15", R15);
+    }
+
+    if ((ctx->ContextFlags & CONTEXT_CONTROL) == CONTEXT_CONTROL) {
+        SET_REG("rsp", Rsp);
+        SET_REG("rip", Rip);
+    }
+
+#    elif defined(_M_IX86)
+
+    if ((ctx->ContextFlags & CONTEXT_INTEGER) == CONTEXT_INTEGER) {
+        SET_REG("edi", Edi);
+        SET_REG("esi", Esi);
+        SET_REG("ebx", Ebx);
+        SET_REG("edx", Edx);
+        SET_REG("ecx", Ecx);
+        SET_REG("eax", Eax);
+    }
+
+    if ((ctx->ContextFlags & CONTEXT_CONTROL) == CONTEXT_CONTROL) {
+        SET_REG("ebp", Ebp);
+        SET_REG("eip", Eip);
+        SET_REG("eflags", EFlags);
+        SET_REG("esp", Esp);
+    }
+
+#    elif defined(_M_ARM64)
+
+    if ((ctx->ContextFlags & CONTEXT_INTEGER) == CONTEXT_INTEGER) {
+        SET_REG("x0", X0);
+        SET_REG("x1", X1);
+        SET_REG("x2", X2);
+        SET_REG("x3", X3);
+        SET_REG("x4", X4);
+        SET_REG("x5", X5);
+        SET_REG("x6", X6);
+        SET_REG("x7", X7);
+        SET_REG("x8", X8);
+        SET_REG("x9", X9);
+        SET_REG("x10", X10);
+        SET_REG("x11", X11);
+        SET_REG("x12", X12);
+        SET_REG("x13", X13);
+        SET_REG("x14", X14);
+        SET_REG("x15", X15);
+        SET_REG("x16", X16);
+        SET_REG("x17", X17);
+        SET_REG("x18", X18);
+        SET_REG("x19", X19);
+        SET_REG("x20", X20);
+        SET_REG("x21", X21);
+        SET_REG("x22", X22);
+        SET_REG("x23", X23);
+        SET_REG("x24", X24);
+        SET_REG("x25", X25);
+        SET_REG("x26", X26);
+        SET_REG("x27", X27);
+        SET_REG("x28", X28);
+    }
+
+    if ((ctx->ContextFlags & CONTEXT_CONTROL) == CONTEXT_CONTROL) {
+        SET_REG("fp", Fp);
+        SET_REG("lr", Lr);
+        SET_REG("sp", Sp);
+        SET_REG("pc", Pc);
+    }
+
+#    elif defined(_M_ARM)
+
+    if ((ctx->ContextFlags & CONTEXT_INTEGER) == CONTEXT_INTEGER) {
+        SET_REG("fp", R11);
+    }
+
+    if ((ctx->ContextFlags & CONTEXT_CONTROL) == CONTEXT_CONTROL) {
+        SET_REG("sp", Sp);
+        SET_REG("pc", Pc);
+    }
+
+#    endif
+
+#    undef SET_REG
+
+#endif
+
+    return registers;
+}

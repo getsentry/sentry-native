@@ -23,12 +23,16 @@
 typedef enum {
     /** Thread is not running (initial state or after shutdown) */
     SENTRY_BATCHER_THREAD_STOPPED = 0,
+    /** Configured and ready to start on the first enqueue */
+    SENTRY_BATCHER_THREAD_IDLE = 1,
+    /** Thread creation is in progress; the handle is not yet published */
+    SENTRY_BATCHER_THREAD_SPAWNING = 2,
     /** Thread is starting up but not yet ready */
-    SENTRY_BATCHER_THREAD_STARTING = 1,
+    SENTRY_BATCHER_THREAD_STARTING = 3,
     /** Thread is running and processing items */
-    SENTRY_BATCHER_THREAD_RUNNING = 2,
+    SENTRY_BATCHER_THREAD_RUNNING = 4,
     /** Thread has been asked to stop and still needs to be joined */
-    SENTRY_BATCHER_THREAD_STOPPING = 3,
+    SENTRY_BATCHER_THREAD_STOPPING = 5,
 } sentry_batcher_thread_state_t;
 
 typedef struct {

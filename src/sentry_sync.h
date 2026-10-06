@@ -753,9 +753,9 @@ int sentry__threadpool_start(sentry_threadpool_t *pool);
  * Takes ownership of `task_data` on every call. If the task is rejected,
  * `cleanup_func` is called immediately when provided.
  *
- * Returns 0 if the task was accepted, or a non-zero value if the arguments are
- * invalid, the pool is not running or is stopping, its pending-task limit has
- * been reached, or allocation fails.
+ * Returns 0 if the task was accepted, 1 if the pending-task limit has been
+ * reached, or -1 if the arguments are invalid, the pool is not running or is
+ * stopping, or allocation fails.
  */
 int sentry__threadpool_submit(sentry_threadpool_t *pool,
     void (*exec_func)(void *task_data), void (*complete_func)(void *task_data),

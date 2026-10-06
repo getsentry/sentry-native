@@ -211,6 +211,7 @@ typedef struct {
     sentry_path_t *breadcrumb1_path;
     sentry_path_t *breadcrumb2_path;
     sentry_path_t *envelope_path;
+    size_t max_breadcrumbs;
     size_t num_breadcrumbs;
     volatile long crashed;
     sentry_scope_observer_t *scope_observer;
@@ -218,13 +219,12 @@ typedef struct {
 
 static void native_backend_flush_scope(
     sentry_backend_t *backend, const sentry_options_t *options);
-static void native_backend_add_breadcrumb(sentry_backend_t *backend,
-    sentry_value_t breadcrumb, const sentry_options_t *options);
+static void native_backend_add_breadcrumb(
+    void *data, sentry_value_t breadcrumb);
 static void add_attachment(void *data, sentry_value_t attachment);
 
 static void
-native_backend_preload_scope(
-    sentry_backend_t *backend, const sentry_options_t *options)
+native_backend_preload_scope(sentry_backend_t *backend)
 {
     sentry_value_t breadcrumbs = sentry_value_new_null();
     SENTRY_WITH_SCOPE (scope) {
@@ -241,7 +241,7 @@ native_backend_preload_scope(
     size_t breadcrumb_count = sentry_value_get_length(breadcrumbs);
     for (size_t i = 0; i < breadcrumb_count; i++) {
         native_backend_add_breadcrumb(
-            backend, sentry_value_get_by_index(breadcrumbs, i), options);
+            backend->data, sentry_value_get_by_index(breadcrumbs, i));
     }
     sentry_value_decref(breadcrumbs);
 }
@@ -665,6 +665,7 @@ native_backend_startup(
     }
     backend->data = state;
     state->run_path = sentry__path_clone(options->run->run_path);
+    state->max_breadcrumbs = options->max_breadcrumbs;
 
     // Initialize IPC (protected by global synchronization for concurrent
     // access)
@@ -727,6 +728,7 @@ native_backend_startup(
     ctx->system_crash_reporter_enabled = options->system_crash_reporter_enabled;
     ctx->crash_upload_mode = options->crash_upload_mode;
     ctx->thread_stackwalk_mode = options->thread_stackwalk_mode;
+    ctx->max_stack_capture_size = options->max_stack_capture_size;
 
     // Pass debug logging setting to daemon
     ctx->debug_enabled = options->debug;
@@ -886,7 +888,7 @@ native_backend_startup(
 #endif
 
     // Persist the preloaded scope before any crash handler becomes active.
-    native_backend_preload_scope(backend, options);
+    native_backend_preload_scope(backend);
     native_backend_flush_scope(backend, options);
 
     // Install crash handlers (signal handlers on Linux/macOS, Mach exception
@@ -1011,6 +1013,7 @@ native_backend_startup(
     sentry_scope_observer_t *observer = sentry__scope_observer_new();
     if (observer) {
         observer->data = state;
+        observer->add_breadcrumb = native_backend_add_breadcrumb;
         observer->add_attachment = add_attachment;
         SENTRY_WITH_SCOPE_MUT_NO_FLUSH (scope) {
             if (sentry__scope_add_observer(scope, observer)) {
@@ -1270,15 +1273,14 @@ native_backend_flush_scope(
 }
 
 static void
-native_backend_add_breadcrumb(sentry_backend_t *backend,
-    sentry_value_t breadcrumb, const sentry_options_t *options)
+native_backend_add_breadcrumb(void *data, sentry_value_t breadcrumb)
 {
-    native_backend_state_t *state = (native_backend_state_t *)backend->data;
+    native_backend_state_t *state = (native_backend_state_t *)data;
     if (!state) {
         return;
     }
 
-    size_t max_breadcrumbs = options->max_breadcrumbs;
+    size_t max_breadcrumbs = state->max_breadcrumbs;
     if (!max_breadcrumbs) {
         return;
     }
@@ -1298,7 +1300,7 @@ native_backend_add_breadcrumb(sentry_backend_t *backend,
 
     // Append as msgpack, matching the crashpad backend. msgpack values are
     // self-delimiting, so the daemon can read the concatenated ring file back
-    // into a list via `sentry__value_from_msgpack`.
+    // into a list via `sentry_value_from_msgpack`.
     size_t mpack_size = 0;
     char *mpack = sentry_value_to_msgpack(breadcrumb, &mpack_size);
     if (!mpack) {
@@ -1477,6 +1479,13 @@ native_backend_except(sentry_backend_t *backend, const sentry_ucontext_t *uctx)
     }
 }
 
+static int
+native_backend_reinstall(sentry_backend_t *backend)
+{
+    (void)backend;
+    return sentry__crash_handler_reinstall() < 0;
+}
+
 void
 sentry__backend_preload(void)
 {
@@ -1498,9 +1507,9 @@ sentry__backend_new(void)
     backend->free_func = native_backend_free;
     backend->except_func = native_backend_except;
     backend->flush_scope_func = native_backend_flush_scope;
-    backend->add_breadcrumb_func = native_backend_add_breadcrumb;
     backend->user_consent_changed_func = native_backend_user_consent_changed;
     backend->process_old_run_func = native_backend_process_old_run;
+    backend->reinstall_func = native_backend_reinstall;
     backend->can_capture_after_shutdown = false;
 
     return backend;

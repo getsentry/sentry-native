@@ -29,6 +29,7 @@ from . import (
     REPLAY_ID,
 )
 from .assertions import (
+    assert_attachment,
     assert_breadcrumb,
     assert_crash_timestamp,
     assert_no_crash_timestamp,
@@ -684,7 +685,7 @@ def test_native_noncrashing_thread_unwind(cmake, httpserver):
         run_crash(
             tmp_path,
             "sentry_example",
-            ["log", "stdout", "crash"] + SANITIZER_ARGS,
+            ["log", "crash"] + SANITIZER_ARGS,
             env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
         )
     assert waiting.result
@@ -1649,3 +1650,27 @@ def test_native_early_init(cmake):
         [],
     )
     assert result.returncode == 0
+
+
+@pytest.mark.parametrize("crash_arg", ["crash", "abort"])
+def test_native_reinstall(cmake, httpserver, crash_arg):
+    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "native"})
+
+    httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data("OK")
+
+    with httpserver.wait(timeout=10) as waiting:
+        run_crash(
+            tmp_path,
+            "sentry_example",
+            ["log", "attachment", "reinstall", crash_arg, *SANITIZER_ARGS],
+            env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
+        )
+    assert waiting.result
+
+    assert len(httpserver.log) == 1
+    envelope = Envelope.deserialize(httpserver.log[0][0].get_data())
+    assert_native_crash(envelope)
+    assert_breadcrumb(envelope)
+    assert_attachment(envelope)
+    breadcrumbs = envelope.get_event()["breadcrumbs"]
+    assert sum(crumb.get("message") == "debug crumb" for crumb in breadcrumbs) == 1

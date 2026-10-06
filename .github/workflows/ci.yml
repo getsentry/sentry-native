@@ -164,16 +164,16 @@ jobs:
             CXX: clang++
             SYSTEM_PYTHON: 1
             CMAKE_DEFINES: -DSENTRY_LIBUNWIND_SYSTEM=ON
-          - name: macOS 14 (xcode llvm)
-            os: macos-14
+          - name: macOS 15 (xcode llvm)
+            os: macos-15
             ERROR_ON_WARNINGS: 1
             SYSTEM_VERSION_COMPAT: 0
           - name: macOS 26 (xcode llvm)
             os: macos-26
             ERROR_ON_WARNINGS: 1
             SYSTEM_VERSION_COMPAT: 0
-          - name: macOS 14 (xcode llvm + universal)
-            os: macos-14
+          - name: macOS 15 (xcode llvm + universal)
+            os: macos-15
             ERROR_ON_WARNINGS: 1
             SYSTEM_VERSION_COMPAT: 0
             CMAKE_DEFINES: -DCMAKE_OSX_ARCHITECTURES=arm64;x86_64
@@ -456,7 +456,7 @@ jobs:
 
       - name: Setup Gradle
         if: ${{ env['ANDROID_API'] }}
-        uses: gradle/actions/setup-gradle@9c971963bec38e04b3d30dcc455b5382be2fdbfb # pin@v6.3.0
+        uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # pin@v6.4.0
 
       - name: Setup .NET for Android
         if: ${{ env['ANDROID_API'] }}
@@ -527,7 +527,7 @@ jobs:
 
       - name: "Upload to codecov.io"
         if: ${{ contains(env['RUN_ANALYZER'], 'cov') }}
-        uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f # pin@v7.0.0
+        uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5 # pin@v7.1.1
         with:
           directory: coverage
           token: ${{ secrets.CODECOV_TOKEN }}
@@ -578,7 +578,7 @@ jobs:
           java-version: "17"
 
       - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@9c971963bec38e04b3d30dcc455b5382be2fdbfb # pin@v6.3.0
+        uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # pin@v6.4.0
 
       - name: Create source archive
         run: |

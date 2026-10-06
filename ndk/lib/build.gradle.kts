@@ -1,3 +1,5 @@
+import com.android.build.gradle.internal.lint.AndroidLintAnalysisTask
+
 plugins {
     id("com.android.library")
     kotlin("android")
@@ -110,7 +112,7 @@ android {
         warningsAsErrors = true
         checkDependencies = true
         checkReleaseBuilds = true
-        disable.add("NewerVersionAvailable")
+        disable.addAll(listOf("NewerVersionAvailable", "GradleDependency", "AndroidGradlePluginVersion"))
     }
 
     packaging {
@@ -178,4 +180,10 @@ afterEvaluate {
                 }
         }
     }
+}
+
+// always rerun lint analysis
+// cached results can hide errors when dependency metadata changes
+tasks.withType<AndroidLintAnalysisTask>().configureEach {
+    doNotTrackState("Dependency metadata can change without code changes")
 }

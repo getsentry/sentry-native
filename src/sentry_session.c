@@ -153,7 +153,7 @@ sentry__session_to_json(
 sentry_session_t *
 sentry__session_from_json(const char *buf, size_t buflen)
 {
-    sentry_value_t value = sentry__value_from_json(buf, buflen);
+    sentry_value_t value = sentry_value_from_json(buf, buflen);
     if (sentry_value_is_null(value)) {
         return NULL;
     }

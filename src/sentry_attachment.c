@@ -420,15 +420,8 @@ sentry__attachment_make_run_path(
     char uuid[37];
     sentry_uuid_as_string(&id, uuid);
     sentry_path_t *dir = sentry__path_join_str(run_path, uuid);
-    sentry_path_t *path = dir ? sentry__path_join_str(dir, filename) : NULL;
-    sentry_path_t *parent = path ? sentry__path_dir(path) : NULL;
-    bool valid = parent && sentry__path_eq(parent, dir);
-    sentry__path_free(parent);
+    sentry_path_t *path = sentry__path_join_filename(dir, filename);
     sentry__path_free(dir);
-    if (!valid) {
-        sentry__path_free(path);
-        return NULL;
-    }
     return path;
 }
 
@@ -701,8 +694,7 @@ read_manifest(const char *buf, size_t buf_len)
         return sentry_value_new_list();
     }
 
-    sentry_value_t attachments
-        = sentry__value_from_msgpack_stream(buf, buf_len);
+    sentry_value_t attachments = sentry_value_from_msgpack_stream(buf, buf_len);
     size_t i = 0;
     while (i < sentry_value_get_length(attachments)) {
         sentry_value_t attachment = sentry_value_get_by_index(attachments, i);

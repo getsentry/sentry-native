@@ -1,5 +1,35 @@
 # Changelog
 
+## 0.17.2
+
+**Features**:
+
+- Add `SENTRY_SDK_VERSION_MAJOR`, `SENTRY_SDK_VERSION_MINOR`, `SENTRY_SDK_VERSION_PATCH`, and `SENTRY_SDK_VERSION_AT_LEAST` for compile-time version checks. ([#2136](https://github.com/getsentry/sentry-native/pull/2136))
+- Let downstream platform integrations supply the installation ID. ([#2150](https://github.com/getsentry/sentry-native/pull/2150))
+- Native/Crashpad/Linux: Add `max_stack_capture_size` option to limit non-crashing thread stack capture size. ([#2137](https://github.com/getsentry/sentry-native/pull/2137), [crashpad#172](https://github.com/getsentry/crashpad/pull/172))
+- Add `sentry_value_from_json`, `sentry_value_from_msgpack`, and `sentry_value_from_msgpack_stream` alongside the existing JSON and MessagePack serialization APIs to provide public bidirectional APIs for serializing and deserializing sentry values as JSON and MessagePack. ([#2153](https://github.com/getsentry/sentry-native/pull/2153))
+
+**Fixes**:
+
+- Crashpad: avoid logging expected report lock contention ([crashpad#171](https://github.com/getsentry/crashpad/pull/171), [#2138](https://github.com/getsentry/sentry-native/pull/2138))
+- Start telemetry pool and batcher threads on demand, avoiding unnecessary worker threads for applications that do not send logs or metrics. ([#2144](https://github.com/getsentry/sentry-native/pull/2144), [#2145](https://github.com/getsentry/sentry-native/pull/2145))
+- Discard log and metric batches when the serialization pool is full instead of blocking the batcher threads with synchronous serialization. ([#2148](https://github.com/getsentry/sentry-native/pull/2148))
+- Restore the installation ID as the default `user.id` when removing the global user with `sentry_remove_user`. ([#2151](https://github.com/getsentry/sentry-native/pull/2151))
+- Unbind a finished span from the scope even when the span is dropped. ([#2158](https://github.com/getsentry/sentry-native/pull/2158))
+- Native: fix `sentry_reinstall_backend` to reinstall crash handlers without restarting the backend. ([#2159](https://github.com/getsentry/sentry-native/pull/2159))
+- Validate attachment reference paths before TUS upload and cleanup to prevent path traversal and unintended file uploads or deletions. ([#2165](https://github.com/getsentry/sentry-native/pull/2165))
+
+**Thank you**:
+
+- [IanHollow](https://github.com/IanHollow)
+- [cerisier](https://github.com/cerisier)
+
+## 0.17.1
+
+**Fixes**:
+
+- Fix crash context missing from PlayStation crash reports when an `on_crash` callback is set. ([#2133](https://github.com/getsentry/sentry-native/pull/2133))
+
 ## 0.17.0
 
 **Breaking / Important behavior changes**:

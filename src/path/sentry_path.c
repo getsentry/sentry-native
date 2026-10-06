@@ -133,13 +133,24 @@ sentry__path_unique(const sentry_path_t *dir, const char *basename)
             snprintf(
                 buf, sizeof(buf), "%.*s-%d%s", (int)stem_len, basename, n, ext);
         }
-        sentry_path_t *candidate = sentry__path_join_str(dir, buf);
+        sentry_path_t *candidate = sentry__path_join_filename(dir, buf);
         if (!candidate || !sentry__path_is_file(candidate)) {
             return candidate;
         }
         sentry__path_free(candidate);
     }
     return NULL;
+}
+
+sentry_path_t *
+sentry__path_join_filename(const sentry_path_t *dir, const char *filename)
+{
+    if (!dir || sentry__string_empty(filename)
+        || sentry__string_eq(filename, ".") || sentry__string_eq(filename, "..")
+        || sentry__path_filename_from_str(filename) != filename) {
+        return NULL;
+    }
+    return sentry__path_join_str(dir, filename);
 }
 
 sentry_filelock_t *
