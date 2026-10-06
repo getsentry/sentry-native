@@ -101,11 +101,11 @@ extern "C" {
 #    endif
 #endif
 #ifndef SENTRY_SDK_VERSION
-#    define SENTRY_SDK_VERSION "0.17.1"
+#    define SENTRY_SDK_VERSION "0.17.2"
 #endif
 #define SENTRY_SDK_VERSION_MAJOR 0
 #define SENTRY_SDK_VERSION_MINOR 17
-#define SENTRY_SDK_VERSION_PATCH 1
+#define SENTRY_SDK_VERSION_PATCH 2
 #define SENTRY_SDK_VERSION_AT_LEAST(major, minor, patch)                       \
     (SENTRY_SDK_VERSION_MAJOR > (major)                                        \
         || (SENTRY_SDK_VERSION_MAJOR == (major)                                \
