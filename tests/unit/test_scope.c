@@ -9,6 +9,7 @@
 #include "sentry_testsupport.h"
 #include "sentry_tracing.h"
 #include "sentry_utils.h"
+#include "sentry_value.h"
 
 #define TEST_CHECK_UUID_EQUAL(Actual, Expected)                                \
     TEST_CHECK(memcmp(&(Actual), &(Expected), sizeof(sentry_uuid_t)) == 0)
@@ -2777,7 +2778,7 @@ SENTRY_TEST(scope_clone_preserves_data)
     sentry_value_t scope_attachments = sentry__scope_load_attachments(scope);
     TEST_CHECK_INT_EQUAL(sentry_value_get_length(clone_attachments), 1);
     TEST_CHECK_INT_EQUAL(sentry_value_get_length(scope_attachments), 0);
-    TEST_CHECK(clone_attachments._bits != scope_attachments._bits);
+    TEST_CHECK(!sentry__value_same(clone_attachments, scope_attachments));
     sentry_value_t clone_attachment
         = sentry_value_get_by_index(clone_attachments, 0);
     TEST_CHECK(sentry_value_is_frozen(clone_attachment));

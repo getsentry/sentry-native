@@ -2224,3 +2224,146 @@ sentry__value_merge_breadcrumbs(
 
     return result;
 }
+
+bool
+sentry__value_same(sentry_value_t a, sentry_value_t b)
+{
+    sentry_value_type_t type = sentry_value_get_type(a);
+    if (type != sentry_value_get_type(b)) {
+        return false;
+    }
+    switch (type) {
+    case SENTRY_VALUE_TYPE_STRING:
+    case SENTRY_VALUE_TYPE_LIST:
+    case SENTRY_VALUE_TYPE_OBJECT:
+        return a._bits == b._bits;
+    default:
+        // scalar identity follows value equality
+        return sentry__value_eq(a, b);
+    }
+}
+
+static bool
+string_eq(const blob_t *a, const blob_t *b)
+{
+    if (a == b) {
+        return true;
+    }
+    return a->len == b->len && memcmp(a->s, b->s, a->len) == 0;
+}
+
+static bool
+list_eq(const list_t *a, const list_t *b)
+{
+    if (a == b) {
+        return true;
+    }
+    if (a->len != b->len) {
+        return false;
+    }
+    for (size_t i = 0; i < a->len; i++) {
+        if (!sentry__value_eq(a->items[i], b->items[i])) {
+            return false;
+        }
+    }
+    return true;
+}
+
+static bool
+obj_eq(const obj_t *a, const obj_t *b)
+{
+    if (a == b) {
+        return true;
+    }
+    if (a->len != b->len) {
+        return false;
+    }
+    // start by comparing entries in order (linear)
+    size_t i = 0;
+    for (; i < a->len; i++) {
+        if (!sentry__string_eq(a->pairs[i].k, b->pairs[i].k)) {
+            break;
+        }
+        if (!sentry__value_eq(a->pairs[i].v, b->pairs[i].v)) {
+            return false;
+        }
+    }
+    // fall back to unordered lookup (quadratic)
+    size_t start = i;
+    for (; i < a->len; i++) {
+        size_t j;
+        for (j = start; j < b->len; j++) {
+            if (sentry__string_eq(a->pairs[i].k, b->pairs[j].k)) {
+                break;
+            }
+        }
+        if (j == b->len || !sentry__value_eq(a->pairs[i].v, b->pairs[j].v)) {
+            return false;
+        }
+    }
+    return true;
+}
+
+static bool
+thing_eq(const thing_t *a, const thing_t *b)
+{
+    if (a == b) {
+        return true;
+    }
+    switch (thing_get_type(a)) {
+    case THING_TYPE_STRING:
+        return string_eq(a->payload._ptr, b->payload._ptr);
+    case THING_TYPE_LIST:
+        return list_eq(a->payload._ptr, b->payload._ptr);
+    case THING_TYPE_OBJECT:
+        return obj_eq(a->payload._ptr, b->payload._ptr);
+    case THING_TYPE_DOUBLE:
+        return a->payload._double == b->payload._double
+            || (isnan(a->payload._double) && isnan(b->payload._double));
+    default:
+        return false;
+    }
+}
+
+bool
+sentry__value_eq(sentry_value_t a, sentry_value_t b)
+{
+    sentry_value_type_t a_type = sentry_value_get_type(a);
+    sentry_value_type_t b_type = sentry_value_get_type(b);
+    switch (a_type) {
+    case SENTRY_VALUE_TYPE_NULL:
+    case SENTRY_VALUE_TYPE_BOOL:
+        return a._bits == b._bits;
+    case SENTRY_VALUE_TYPE_STRING:
+    case SENTRY_VALUE_TYPE_LIST:
+    case SENTRY_VALUE_TYPE_OBJECT:
+    case SENTRY_VALUE_TYPE_DOUBLE:
+        return a_type == b_type
+            && thing_eq(value_as_thing(a), value_as_thing(b));
+    case SENTRY_VALUE_TYPE_INT32:
+    case SENTRY_VALUE_TYPE_INT64:
+    case SENTRY_VALUE_TYPE_UINT64:
+        if (b_type != SENTRY_VALUE_TYPE_INT32
+            && b_type != SENTRY_VALUE_TYPE_INT64
+            && b_type != SENTRY_VALUE_TYPE_UINT64) {
+            return false;
+        }
+        break;
+    default:
+        return false;
+    }
+
+    bool a_signed = a_type != SENTRY_VALUE_TYPE_UINT64;
+    bool b_signed = b_type != SENTRY_VALUE_TYPE_UINT64;
+    if (a_signed && b_signed) {
+        return sentry_value_as_int64(a) == sentry_value_as_int64(b);
+    }
+    if (!a_signed && !b_signed) {
+        return sentry_value_as_uint64(a) == sentry_value_as_uint64(b);
+    }
+
+    // signed vs. unsigned: a negative value can never match
+    int64_t signed_num = sentry_value_as_int64(a_signed ? a : b);
+    uint64_t unsigned_num = sentry_value_as_uint64(a_signed ? b : a);
+    return signed_num >= 0 && (uint64_t)signed_num == unsigned_num;
+}

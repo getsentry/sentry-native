@@ -506,10 +506,12 @@ SENTRY_TEST(value_clone_list)
 
     sentry_value_t clone = sentry__value_clone(original);
     TEST_CHECK(sentry_value_refcount(clone) == 1);
-    TEST_CHECK_JSON_VALUE(clone, "[1,2,3]");
+    TEST_CHECK(sentry__value_eq(original, clone));
+    TEST_CHECK(!sentry__value_same(original, clone));
 
     // mutating the clone triggers COW — original is unaffected
     sentry_value_append(clone, sentry_value_new_int32(4));
+    TEST_CHECK(!sentry__value_eq(original, clone));
     TEST_CHECK_JSON_VALUE(clone, "[1,2,3,4]");
     TEST_CHECK_JSON_VALUE(original, "[1,2,3]");
 
@@ -535,10 +537,12 @@ SENTRY_TEST(value_clone_object)
 
     sentry_value_t clone = sentry__value_clone(original);
     TEST_CHECK(sentry_value_refcount(clone) == 1);
-    TEST_CHECK_JSON_VALUE(clone, "{\"a\":1,\"b\":2}");
+    TEST_CHECK(sentry__value_eq(original, clone));
+    TEST_CHECK(!sentry__value_same(original, clone));
 
     // mutating the clone triggers COW — original is unaffected
     sentry_value_set_by_key(clone, "a", sentry_value_new_int32(10));
+    TEST_CHECK(!sentry__value_eq(original, clone));
     TEST_CHECK_INT_EQUAL(
         sentry_value_as_int32(sentry_value_get_by_key(clone, "a")), 10);
     TEST_CHECK_INT_EQUAL(
@@ -2025,18 +2029,7 @@ SENTRY_TEST(value_from_msgpack_list)
     char *buf = sentry_value_to_msgpack(val, &size);
 
     sentry_value_t deserialized = sentry_value_from_msgpack(buf, size);
-    TEST_CHECK(sentry_value_get_type(deserialized) == SENTRY_VALUE_TYPE_LIST);
-    TEST_CHECK(sentry_value_get_length(deserialized) == 2);
-
-    sentry_value_t nested = sentry_value_get_by_index(deserialized, 0);
-    TEST_CHECK(sentry_value_get_type(nested) == SENTRY_VALUE_TYPE_LIST);
-    TEST_CHECK(sentry_value_get_length(nested) == 2);
-
-    sentry_value_t nested_elem0 = sentry_value_get_by_index(nested, 0);
-    TEST_CHECK(sentry_value_as_int32(nested_elem0) == 1);
-
-    sentry_value_t nested_elem1 = sentry_value_get_by_index(nested, 1);
-    TEST_CHECK(sentry_value_as_int32(nested_elem1) == 2);
+    TEST_CHECK(sentry__value_eq(val, deserialized));
 
     sentry_free(buf);
     sentry_value_decref(val);
@@ -2073,16 +2066,7 @@ SENTRY_TEST(value_from_msgpack_object)
     char *buf = sentry_value_to_msgpack(val, &size);
 
     sentry_value_t deserialized = sentry_value_from_msgpack(buf, size);
-    TEST_CHECK(sentry_value_get_type(deserialized) == SENTRY_VALUE_TYPE_OBJECT);
-
-    sentry_value_t position = sentry_value_get_by_key(deserialized, "position");
-    TEST_CHECK(sentry_value_get_type(position) == SENTRY_VALUE_TYPE_OBJECT);
-
-    sentry_value_t x = sentry_value_get_by_key(position, "x");
-    TEST_CHECK(sentry_value_as_int32(x) == 10);
-
-    sentry_value_t y = sentry_value_get_by_key(position, "y");
-    TEST_CHECK(sentry_value_as_int32(y) == 20);
+    TEST_CHECK(sentry__value_eq(val, deserialized));
 
     sentry_free(buf);
     sentry_value_decref(val);
@@ -2330,6 +2314,7 @@ SENTRY_TEST(value_replace)
     sentry_value_t replacement = sentry_value_new_string("new");
 
     sentry__value_replace(&target, replacement);
+    TEST_CHECK(sentry__value_same(target, replacement));
     TEST_CHECK_STRING_EQUAL(sentry_value_as_string(target), "new");
     TEST_CHECK_INT_EQUAL(1, sentry_value_refcount(target));
     TEST_CHECK_INT_EQUAL(1, sentry_value_refcount(old));
@@ -2341,4 +2326,305 @@ SENTRY_TEST(value_replace)
     sentry__value_replace(&target, sentry_value_incref(target));
     TEST_CHECK_INT_EQUAL(1, sentry_value_refcount(target));
     sentry_value_decref(target);
+}
+
+SENTRY_TEST(value_eq_scalars)
+{
+    sentry_value_t values[][2] = {
+        { sentry_value_new_null(), sentry_value_new_null() },
+        { sentry_value_new_bool(false), sentry_value_new_bool(false) },
+        { sentry_value_new_bool(true), sentry_value_new_bool(true) },
+        { sentry_value_new_int32(1), sentry_value_new_int32(1) },
+        { sentry_value_new_int32(-42), sentry_value_new_int32(-42) },
+        { sentry_value_new_int32(42), sentry_value_new_int32(42) },
+        { sentry_value_new_int64(INT64_MIN),
+            sentry_value_new_int64(INT64_MIN) },
+        { sentry_value_new_int64(INT64_MAX),
+            sentry_value_new_int64(INT64_MAX) },
+        { sentry_value_new_uint64(UINT64_MAX),
+            sentry_value_new_uint64(UINT64_MAX) },
+        { sentry_value_new_double(42), sentry_value_new_double(42) },
+        { sentry_value_new_string(""), sentry_value_new_string("") },
+        { sentry_value_new_string("42"), sentry_value_new_string("42") },
+        { sentry_value_new_string("a"), sentry_value_new_string("a") },
+        { sentry_value_new_string_n("a\0", 2),
+            sentry_value_new_string_n("a\0", 2) },
+        { sentry_value_new_string_n("a\0b", 3),
+            sentry_value_new_string_n("a\0b", 3) },
+        { sentry_value_new_string_n("a\0c", 3),
+            sentry_value_new_string_n("a\0c", 3) },
+    };
+    size_t count = sizeof(values) / sizeof(values[0]);
+    for (size_t i = 0; i < count; i++) {
+        TEST_CHECK(sentry__value_eq(values[i][0], values[i][0]));
+        for (size_t j = 0; j < count; j++) {
+            TEST_CHECK_(
+                sentry__value_eq(values[i][0], values[j][1]) == (i == j),
+                "scalar equality at %zu, %zu", i, j);
+        }
+    }
+    for (size_t i = 0; i < count; i++) {
+        sentry_value_decref(values[i][0]);
+        sentry_value_decref(values[i][1]);
+    }
+}
+
+SENTRY_TEST(value_eq_doubles)
+{
+    const struct {
+        double a;
+        double b;
+        bool equal;
+    } cases[] = {
+        { 0.0, -0.0, true },
+        { INFINITY, INFINITY, true },
+        { -INFINITY, -INFINITY, true },
+        { INFINITY, -INFINITY, false },
+        { NAN, -NAN, true },
+        { NAN, 0.0, false },
+        { 1.0, 1.5, false },
+    };
+    for (size_t i = 0; i < sizeof(cases) / sizeof(cases[0]); i++) {
+        sentry_value_t a = sentry_value_new_double(cases[i].a);
+        sentry_value_t b = sentry_value_new_double(cases[i].b);
+        TEST_CHECK(sentry__value_eq(a, a));
+        TEST_CHECK(sentry__value_eq(a, b) == cases[i].equal);
+        TEST_CHECK(sentry__value_eq(b, a) == cases[i].equal);
+        sentry_value_decref(a);
+        sentry_value_decref(b);
+    }
+}
+
+SENTRY_TEST(value_eq_lists)
+{
+    sentry_value_t a = sentry_value_new_list();
+    sentry_value_t b = sentry_value_new_list();
+    sentry_value_t object = sentry_value_new_object();
+    TEST_CHECK(sentry__value_eq(a, b));
+    TEST_CHECK(!sentry__value_eq(a, object));
+    TEST_CHECK(!sentry__value_eq(object, a));
+    TEST_CHECK(!sentry__value_eq(a, sentry_value_new_null()));
+
+    sentry_value_append(a, sentry_value_new_null());
+    TEST_CHECK(!sentry__value_eq(a, b));
+    TEST_CHECK(!sentry__value_eq(b, a));
+    sentry_value_append(b, sentry_value_new_null());
+    TEST_CHECK(sentry__value_eq(a, b));
+
+    sentry_value_append(a, sentry_value_new_bool(true));
+    sentry_value_append(b, sentry_value_new_bool(false));
+    TEST_CHECK(!sentry__value_eq(a, b));
+    sentry_value_set_by_index(b, 1, sentry_value_new_bool(true));
+    TEST_CHECK(sentry__value_eq(a, b));
+
+    sentry_value_set_by_index(b, 0, sentry_value_new_bool(true));
+    sentry_value_set_by_index(b, 1, sentry_value_new_null());
+    TEST_CHECK(!sentry__value_eq(a, b));
+    TEST_CHECK(!sentry__value_eq(b, a));
+
+    sentry_value_decref(a);
+    sentry_value_decref(b);
+    sentry_value_decref(object);
+}
+
+SENTRY_TEST(value_eq_objects)
+{
+    sentry_value_t a = sentry_value_new_object();
+    sentry_value_t b = sentry_value_new_object();
+    TEST_CHECK(sentry__value_eq(a, b));
+    TEST_CHECK(!sentry__value_eq(a, sentry_value_new_null()));
+
+    sentry_value_set_by_key(a, "a", sentry_value_new_null());
+    TEST_CHECK(!sentry__value_eq(a, b));
+    sentry_value_set_by_key(b, "b", sentry_value_new_null());
+    TEST_CHECK(!sentry__value_eq(a, b));
+    TEST_CHECK(!sentry__value_eq(b, a));
+
+    sentry_value_set_by_key(a, "b", sentry_value_new_int32(42));
+    sentry_value_set_by_key(b, "a", sentry_value_new_null());
+    sentry_value_set_by_key(b, "b", sentry_value_new_int32(42));
+    TEST_CHECK(sentry__value_eq(a, b));
+    TEST_CHECK(sentry__value_eq(b, a));
+
+    sentry_value_set_by_key(b, "b", sentry_value_new_int32(43));
+    TEST_CHECK(!sentry__value_eq(a, b));
+    TEST_CHECK(!sentry__value_eq(b, a));
+
+    sentry_value_decref(a);
+    sentry_value_decref(b);
+
+    const char *json = "{\"prefix\":0,\"left\":1,\"right\":2}";
+    a = sentry_value_from_json(json, strlen(json));
+    json = "{\"prefix\":0,\"right\":2,\"left\":1}";
+    b = sentry_value_from_json(json, strlen(json));
+    TEST_ASSERT(sentry_value_get_type(a) == SENTRY_VALUE_TYPE_OBJECT);
+    TEST_ASSERT(sentry_value_get_type(b) == SENTRY_VALUE_TYPE_OBJECT);
+    TEST_CHECK(sentry__value_eq(a, b));
+    TEST_CHECK(sentry__value_eq(b, a));
+
+    sentry_value_set_by_key(b, "right", sentry_value_new_int32(3));
+    TEST_CHECK(!sentry__value_eq(a, b));
+    TEST_CHECK(!sentry__value_eq(b, a));
+    sentry_value_decref(a);
+    sentry_value_decref(b);
+}
+
+SENTRY_TEST(value_eq_nested)
+{
+    const char *json = "{\"items\":[{\"x\":1},null],\"tag\":\"v1\"}";
+    sentry_value_t a = sentry_value_from_json(json, strlen(json));
+    json = "{\"tag\":\"v1\",\"items\":[{\"x\":1},null]}";
+    sentry_value_t b = sentry_value_from_json(json, strlen(json));
+    TEST_ASSERT(sentry_value_get_type(a) == SENTRY_VALUE_TYPE_OBJECT);
+    TEST_ASSERT(sentry_value_get_type(b) == SENTRY_VALUE_TYPE_OBJECT);
+    TEST_CHECK(sentry__value_eq(a, b));
+
+    sentry_value_freeze(a);
+    TEST_CHECK(sentry__value_eq(a, b));
+    sentry_value_t clone = sentry__value_clone(a);
+    TEST_ASSERT(sentry_value_get_type(clone) == SENTRY_VALUE_TYPE_OBJECT);
+    TEST_CHECK(sentry__value_eq(a, clone));
+
+    sentry_value_set_by_key(
+        sentry_value_get_by_index(sentry_value_get_by_key(b, "items"), 0), "x",
+        sentry_value_new_int32(2));
+    TEST_CHECK(!sentry__value_eq(a, b));
+    TEST_CHECK(!sentry__value_eq(b, a));
+    TEST_CHECK(sentry__value_eq(a, clone));
+
+    sentry_value_set_by_key(
+        sentry_value_get_by_index(sentry_value_get_by_key(clone, "items"), 0),
+        "x", sentry_value_new_int32(3));
+    TEST_CHECK(!sentry__value_eq(a, clone));
+    TEST_CHECK_INT_EQUAL(1, sentry_value_refcount(a));
+    TEST_CHECK_INT_EQUAL(1, sentry_value_refcount(b));
+    TEST_CHECK_INT_EQUAL(1, sentry_value_refcount(clone));
+
+    sentry_value_decref(a);
+    sentry_value_decref(b);
+    sentry_value_decref(clone);
+}
+
+SENTRY_TEST(value_same)
+{
+    const struct {
+        sentry_value_t a;
+        sentry_value_t b;
+        bool same;
+    } cases[] = {
+        { sentry_value_new_null(), sentry_value_new_null(), true },
+        { sentry_value_new_bool(false), sentry_value_new_bool(false), true },
+        { sentry_value_new_bool(true), sentry_value_new_bool(true), true },
+        { sentry_value_new_int32(42), sentry_value_new_int32(42), true },
+        { sentry_value_new_null(), sentry_value_new_bool(false), false },
+        { sentry_value_new_int32(42), sentry_value_new_int32(43), false },
+        { sentry_value_new_int32(42), sentry_value_new_int64(42), false },
+        { sentry_value_new_int64(42), sentry_value_new_int64(42), true },
+        { sentry_value_new_int64(42), sentry_value_new_int64(43), false },
+        { sentry_value_new_int64(INT64_MIN), sentry_value_new_int64(INT64_MIN),
+            true },
+        { sentry_value_new_int64(INT64_MAX), sentry_value_new_int64(INT64_MAX),
+            true },
+        { sentry_value_new_uint64(42), sentry_value_new_uint64(42), true },
+        { sentry_value_new_uint64(42), sentry_value_new_uint64(43), false },
+        { sentry_value_new_uint64(UINT64_MAX),
+            sentry_value_new_uint64(UINT64_MAX), true },
+        { sentry_value_new_double(42), sentry_value_new_double(42), true },
+        { sentry_value_new_double(42), sentry_value_new_double(43), false },
+        { sentry_value_new_double(0.0), sentry_value_new_double(-0.0), true },
+        { sentry_value_new_double(NAN), sentry_value_new_double(-NAN), true },
+        { sentry_value_new_double(NAN), sentry_value_new_double(0.0), false },
+        { sentry_value_new_int64(42), sentry_value_new_uint64(42), false },
+        { sentry_value_new_int64(42), sentry_value_new_double(42), false },
+        { sentry_value_new_string("42"), sentry_value_new_string("42"), false },
+        { sentry_value_new_list(), sentry_value_new_list(), false },
+        { sentry_value_new_object(), sentry_value_new_object(), false },
+    };
+    for (size_t i = 0; i < sizeof(cases) / sizeof(cases[0]); i++) {
+        sentry_value_t alias = sentry_value_incref(cases[i].a);
+        TEST_CHECK(sentry__value_same(cases[i].a, alias));
+        TEST_CHECK_(sentry__value_same(cases[i].a, cases[i].b) == cases[i].same,
+            "value identity at %zu", i);
+        TEST_CHECK_(sentry__value_same(cases[i].b, cases[i].a) == cases[i].same,
+            "value identity at %zu", i);
+        sentry_value_decref(alias);
+        sentry_value_decref(cases[i].a);
+        sentry_value_decref(cases[i].b);
+    }
+}
+
+SENTRY_TEST(value_eq_integers)
+{
+    const struct {
+        sentry_value_t a;
+        sentry_value_t b;
+        bool equal;
+    } cases[] = {
+        { sentry_value_new_int32(42), sentry_value_new_int64(42), true },
+        { sentry_value_new_int32(42), sentry_value_new_uint64(42), true },
+        { sentry_value_new_int64(42), sentry_value_new_uint64(42), true },
+        { sentry_value_new_int32(-42), sentry_value_new_int64(-42), true },
+        { sentry_value_new_int32(0), sentry_value_new_uint64(0), true },
+        { sentry_value_new_int64(0), sentry_value_new_uint64(0), true },
+        { sentry_value_new_int32(INT32_MIN), sentry_value_new_int64(INT32_MIN),
+            true },
+        { sentry_value_new_int32(INT32_MAX), sentry_value_new_int64(INT32_MAX),
+            true },
+        { sentry_value_new_int32(INT32_MAX), sentry_value_new_uint64(INT32_MAX),
+            true },
+        { sentry_value_new_int64(INT64_MAX), sentry_value_new_uint64(INT64_MAX),
+            true },
+        { sentry_value_new_int64(9007199254740993LL),
+            sentry_value_new_uint64(9007199254740993ULL), true },
+        { sentry_value_new_int32(42), sentry_value_new_int64(43), false },
+        { sentry_value_new_int32(42), sentry_value_new_uint64(43), false },
+        { sentry_value_new_int64(42), sentry_value_new_uint64(43), false },
+        { sentry_value_new_int32(-1), sentry_value_new_uint64(UINT64_MAX),
+            false },
+        { sentry_value_new_int64(-1), sentry_value_new_uint64(UINT64_MAX),
+            false },
+        { sentry_value_new_int64(INT64_MIN),
+            sentry_value_new_uint64((uint64_t)INT64_MAX + 1), false },
+        { sentry_value_new_int64(INT64_MAX),
+            sentry_value_new_uint64(UINT64_MAX), false },
+        { sentry_value_new_int64(9007199254740992LL),
+            sentry_value_new_uint64(9007199254740993ULL), false },
+        { sentry_value_new_int32(42), sentry_value_new_double(42), false },
+        { sentry_value_new_int64(42), sentry_value_new_double(42), false },
+        { sentry_value_new_uint64(42), sentry_value_new_double(42), false },
+        { sentry_value_new_int32(0), sentry_value_new_bool(false), false },
+        { sentry_value_new_int32(1), sentry_value_new_bool(true), false },
+        { sentry_value_new_int32(0), sentry_value_new_null(), false },
+        { sentry_value_new_int32(3), sentry_value_new_uint64(3), true },
+        { sentry_value_new_int64(3), sentry_value_new_uint64(3), true },
+    };
+    for (size_t i = 0; i < sizeof(cases) / sizeof(cases[0]); i++) {
+        TEST_CHECK_(sentry__value_eq(cases[i].a, cases[i].b) == cases[i].equal,
+            "integer equality at %zu", i);
+        TEST_CHECK_(sentry__value_eq(cases[i].b, cases[i].a) == cases[i].equal,
+            "integer equality at %zu", i);
+        TEST_CHECK(!sentry__value_same(cases[i].a, cases[i].b));
+        TEST_CHECK(!sentry__value_same(cases[i].b, cases[i].a));
+        sentry_value_decref(cases[i].a);
+        sentry_value_decref(cases[i].b);
+    }
+
+    sentry_value_t a = sentry_value_new_object();
+    sentry_value_t b = sentry_value_new_object();
+    sentry_value_set_by_key(a, "x", sentry_value_new_int32(42));
+    sentry_value_set_by_key(b, "x", sentry_value_new_int64(42));
+    TEST_CHECK(sentry__value_eq(a, b));
+    sentry_value_t list_a = sentry_value_new_list();
+    sentry_value_t list_b = sentry_value_new_list();
+    sentry_value_append(list_a, a);
+    sentry_value_append(list_b, b);
+    TEST_CHECK(sentry__value_eq(list_a, list_b));
+    sentry_value_set_by_key(b, "x", sentry_value_new_uint64(42));
+    TEST_CHECK(sentry__value_eq(a, b));
+    TEST_CHECK(sentry__value_eq(list_a, list_b));
+    sentry_value_set_by_key(b, "x", sentry_value_new_uint64(43));
+    TEST_CHECK(!sentry__value_eq(a, b));
+    TEST_CHECK(!sentry__value_eq(list_a, list_b));
+    sentry_value_decref(list_a);
+    sentry_value_decref(list_b);
 }

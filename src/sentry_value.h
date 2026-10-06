@@ -164,4 +164,24 @@ void sentry__value_add_attribute(sentry_value_t attributes,
 sentry_value_t sentry__value_merge_breadcrumbs(
     sentry_value_t list_a, sentry_value_t list_b, size_t max);
 
+/**
+ * Compares whether two values and their types are identical.
+ *
+ * Strings, lists, and objects are compared by reference. All scalar types are
+ * compared by value.
+ */
+bool sentry__value_same(sentry_value_t a, sentry_value_t b);
+
+/**
+ * Compares whether two values are equal.
+ *
+ * - Integers are compared by value regardless of size or sign.
+ * - Strings are compared by byte length and contents.
+ * - Lists are compared in order.
+ * - Objects are compared by keys and values, ignoring insertion order.
+ * - NaNs are considered equal, as are positive and negative zero.
+ * - Frozen state and reference sharing do not affect equality.
+ */
+bool sentry__value_eq(sentry_value_t a, sentry_value_t b);
+
 #endif
