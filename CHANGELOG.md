@@ -9,6 +9,10 @@
   - NOTE: Applications must package the real versioned library and its symlinks, including `libsentry.1.dylib` or `libsentry.so.1`, because they link to and load the ABI-versioned name.
 - Release archives now include the SDK version in the filename, such as `sentry-native-1.0.0.zip`. ([#2105](https://github.com/getsentry/sentry-native/pull/2105))
 
+**Features**:
+
+- Add `sentry_scope_begin_read`/`sentry_scope_end_read` and `sentry_scope_begin_write`/`sentry_scope_end_write` for consistent reads of multiple scope properties and applying multiple scope changes with a single scope flush. ([#2107](https://github.com/getsentry/sentry-native/pull/2107))
+
 ## Unreleased
 
 **Features**:
