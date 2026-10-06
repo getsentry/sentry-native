@@ -70,4 +70,6 @@ void sentry__win32_restore_sigabrt_handler(void);
 
 sentry_value_t sentry__get_os_context(void);
 
+sentry_value_t sentry__build_registers(const sentry_ucontext_t *uctx);
+
 #endif
