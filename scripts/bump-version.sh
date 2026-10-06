@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -eux
 
-if [ "${CI:-}" != "true" ]; then
+if [ "${GITHUB_ACTIONS:-}" != "true" ]; then
     echo "Please use the GitHub Action."
     exit 1
 fi
