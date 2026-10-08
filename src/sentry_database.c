@@ -215,10 +215,11 @@ sentry__run_load_installation_id(
         const char *integration_id
             = integration_installation_id(options, public_key);
         if (integration_id) {
-            const size_t integration_id_len = strlen(integration_id);
-            if (integration_id_len > 0 && integration_id_len <= max_id_len
-                && !strchr(integration_id, '\n')) {
-                id = sentry__string_clone(integration_id);
+            sentry_slice_t slice
+                = sentry__slice_trim(sentry__slice_from_str(integration_id));
+            if (slice.len > 0 && slice.len <= max_id_len
+                && !memchr(slice.ptr, '\n', slice.len)) {
+                id = sentry__slice_to_owned(slice);
             } else {
                 SENTRY_WARN("the integration installation ID is not valid");
             }
