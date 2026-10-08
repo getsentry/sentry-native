@@ -134,7 +134,9 @@ def pytest_runtest_setup(item):
         pytest.skip("need --with_wer to run this test")
 
 
+@pytest.hookimpl(tryfirst=True)
 def pytest_configure(config):
+    config.option.flaky_success_report = False
     config.addinivalue_line(
         "markers",
         "with_wer: mark test to only run when WER testing is enabled",
