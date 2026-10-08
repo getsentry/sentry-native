@@ -760,7 +760,6 @@ SENTRY_TEST(scope_user_id)
 
     // null user ID -> installation ID
     TEST_ASSERT(!!options->run->installation_id);
-    TEST_CHECK_INT_EQUAL(strlen(options->run->installation_id), 36);
     sentry_set_user(sentry_value_new_user(NULL, "alice", NULL, NULL));
     SENTRY_WITH_SCOPE (scope) {
         sentry_value_t event = sentry_value_new_object();

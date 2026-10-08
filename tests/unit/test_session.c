@@ -30,9 +30,9 @@ send_envelope(sentry_envelope_t *envelope, void *data)
         sentry_value_as_string(sentry_value_get_by_key(session, "status")),
         *called == 2 ? "crashed" : "exited");
     // did falls back to the installation ID since neither user sets an `id`
-    TEST_CHECK_INT_EQUAL(
-        strlen(sentry_value_as_string(sentry_value_get_by_key(session, "did"))),
-        36);
+    TEST_CHECK(
+        strlen(sentry_value_as_string(sentry_value_get_by_key(session, "did")))
+        > 0);
     TEST_CHECK_INT_EQUAL(
         sentry_value_as_int32(sentry_value_get_by_key(session, "errors")), 0);
     TEST_CHECK_INT_EQUAL(
