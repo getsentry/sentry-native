@@ -22,9 +22,10 @@ typedef struct sentry_integration_s {
      * first time, so a stored ID is never replaced.
      *
      * The returned string is owned by the integration, which may reuse its
-     * storage on the next call, and must be a 36-character UUID string, of any
-     * version; anything else is rejected. `public_key` is the DSN's public key,
-     * or an empty string when there is no valid DSN.
+     * storage on the next call. Like a user ID it can be any string, as long as
+     * it is non-empty, at most 128 characters long and contains no newline;
+     * anything else is rejected. `public_key` is the DSN's public key, or an
+     * empty string when there is no valid DSN.
      */
     const char *(*installation_id_func)(void *data, const char *public_key);
 } sentry_integration_t;

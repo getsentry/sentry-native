@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+**Fixes**:
+
+- The persisted installation ID is no longer required to be a UUID, so a platform integration can supply any ID that `user.id` accepts. ([#2177](https://github.com/getsentry/sentry-native/pull/2177))
+
 ## 0.17.2
 
 **Features**:
