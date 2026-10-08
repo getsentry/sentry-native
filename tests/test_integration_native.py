@@ -1674,3 +1674,57 @@ def test_native_reinstall(cmake, httpserver, crash_arg):
     assert_attachment(envelope)
     breadcrumbs = envelope.get_event()["breadcrumbs"]
     assert sum(crumb.get("message") == "debug crumb" for crumb in breadcrumbs) == 1
+
+
+@pytest.mark.parametrize("callback", ["crashing-on-crash", "hanging-on-crash"])
+def test_native_incomplete_crash(cmake, callback):
+    tmp_path = cmake(
+        ["sentry_example"],
+        {"SENTRY_BACKEND": "native", "SENTRY_TRANSPORT": "none"},
+    )
+    cmd = run_command(str(tmp_path / "sentry_example"))
+    env = dict(os.environ)
+    if is_asan:
+        env["ASAN_OPTIONS"] = (
+            env.get("ASAN_OPTIONS", "") + ":handle_segv=0:allow_user_segv_handler=1"
+        )
+    child = subprocess.Popen(
+        [*cmd, "log", "initial-scope", "no-setup", callback, "abort"],
+        cwd=tmp_path,
+        env=env,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+    db_dir = tmp_path / ".sentry-native"
+
+    def daemon_log():
+        return "\n".join(
+            path.read_text(encoding="utf-8", errors="replace")
+            for path in db_dir.glob("*.run/sentry-daemon.log")
+        )
+
+    try:
+        if callback == "hanging-on-crash":
+            assert wait_for(
+                lambda: "Crash handler has not completed" in daemon_log(),
+                timeout=40,
+            )
+            assert child.poll() is None
+            assert daemon_log().count("Crash handler has not completed") == 1
+            child.kill()
+        child.wait(timeout=40)
+        assert child.returncode != 0
+        assert wait_for(
+            lambda: "Parent process exited before crash handling completed"
+            in daemon_log()
+        )
+        assert "Parent process exited without crash" not in daemon_log()
+        assert "Crash notification received, processing" not in daemon_log()
+        assert not list(db_dir.glob("*.run/*.dmp"))
+        snapshot = json.loads(next(db_dir.glob("*.run/__sentry-event")).read_text())
+        assert "exception" not in snapshot
+    finally:
+        if child.poll() is None:
+            child.kill()
+        child.wait()
+        assert wait_for(lambda: not list(db_dir.glob("*.run.daemon.lock")))

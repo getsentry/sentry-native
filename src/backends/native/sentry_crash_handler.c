@@ -359,6 +359,22 @@ crash_signal_handler(int signum, siginfo_t *info, void *context)
     signal_safe_memcpy(&ctx->platform.threads[0].context, uctx,
         sizeof(ctx->platform.threads[0].context));
 
+#    elif defined(SENTRY_PLATFORM_MACOS)
+    ctx->platform.signum = signum;
+    // Use signal-safe memcpy to avoid TSAN-intercepted memcpy in signal handler
+    signal_safe_memcpy(
+        &ctx->platform.siginfo, info, sizeof(ctx->platform.siginfo));
+    // Copy mcontext data (ucontext_t.uc_mcontext is just a pointer)
+    signal_safe_memcpy(&ctx->platform.mcontext, uctx->uc_mcontext,
+        sizeof(ctx->platform.mcontext));
+#    endif
+
+    if (sentry__atomic_compare_swap(&ctx->state, SENTRY_CRASH_STATE_READY,
+            SENTRY_CRASH_STATE_CRASHING)) {
+        sentry__crash_ipc_notify(ipc);
+    }
+
+#    if defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID)
     // Capture backtrace using libunwind (DWARF-based, works without frame
     // pointers). This runs in the signal handler, which is safe because
     // libunwind's core unwinding API (unw_init_local2, unw_step, unw_get_reg)
@@ -387,14 +403,6 @@ crash_signal_handler(int signum, siginfo_t *info, void *context)
 #        endif
 
 #    elif defined(SENTRY_PLATFORM_MACOS)
-    ctx->platform.signum = signum;
-    // Use signal-safe memcpy to avoid TSAN-intercepted memcpy in signal handler
-    signal_safe_memcpy(
-        &ctx->platform.siginfo, info, sizeof(ctx->platform.siginfo));
-    // Copy mcontext data (ucontext_t.uc_mcontext is just a pointer)
-    signal_safe_memcpy(&ctx->platform.mcontext, uctx->uc_mcontext,
-        sizeof(ctx->platform.mcontext));
-
     // Capture all threads (signal-safe on macOS)
     ctx->platform.num_threads = 0;
     task_t task = mach_task_self();
@@ -763,7 +771,7 @@ crash_signal_handler(int signum, siginfo_t *info, void *context)
     sentry_handle_exception(&sentry_uctx);
 
     // Try to notify daemon
-    if (sentry__atomic_compare_swap(&ctx->state, SENTRY_CRASH_STATE_READY,
+    if (sentry__atomic_compare_swap(&ctx->state, SENTRY_CRASH_STATE_CRASHING,
             SENTRY_CRASH_STATE_CRASHED)) {
 
         // Successfully claimed crash slot, notify daemon
@@ -1056,13 +1064,18 @@ crash_exception_filter(EXCEPTION_POINTERS *exception_info)
     ctx->platform.threads[0].thread_id = GetCurrentThreadId();
     ctx->platform.threads[0].context = *exception_info->ContextRecord;
 
+    if (sentry__atomic_compare_swap(&ctx->state, SENTRY_CRASH_STATE_READY,
+            SENTRY_CRASH_STATE_CRASHING)) {
+        sentry__crash_ipc_notify(ipc);
+    }
+
     // Call Sentry's exception handler
     sentry_ucontext_t sentry_uctx = { 0 };
     sentry_uctx.exception_ptrs = *exception_info;
     sentry_handle_exception(&sentry_uctx);
 
     bool swap_result = sentry__atomic_compare_swap(
-        &ctx->state, SENTRY_CRASH_STATE_READY, SENTRY_CRASH_STATE_CRASHED);
+        &ctx->state, SENTRY_CRASH_STATE_CRASHING, SENTRY_CRASH_STATE_CRASHED);
 
     if (swap_result) {
         // Successfully claimed crash slot, notify daemon

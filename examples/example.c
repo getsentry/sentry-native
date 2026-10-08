@@ -174,7 +174,15 @@ on_crash_callback(const sentry_ucontext_t *uctx, sentry_value_t event,
     sentry_hint_t *hint, void *user_data)
 {
     (void)uctx;
-    (void)user_data;
+
+    if (user_data && strcmp(user_data, "crash") == 0) {
+        sentry_crash();
+    }
+    if (user_data && strcmp(user_data, "hang") == 0) {
+        for (;;) {
+            sleep_s(1);
+        }
+    }
 
     sentry_hint_clear_attachments(hint);
     sentry_hint_add_attachment(hint,
@@ -830,6 +838,14 @@ main(int argc, char **argv)
     if (has_arg(argc, argv, "restart-on-crash")) {
         sentry_options_set_on_crash(
             options, restart_on_crash, restart_args(argc, argv));
+    }
+
+    if (has_arg(argc, argv, "crashing-on-crash")) {
+        sentry_options_set_on_crash(options, on_crash_callback, "crash");
+    }
+
+    if (has_arg(argc, argv, "hanging-on-crash")) {
+        sentry_options_set_on_crash(options, on_crash_callback, "hang");
     }
 
     if (has_arg(argc, argv, "before-transaction")) {
