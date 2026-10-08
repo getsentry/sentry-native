@@ -9,6 +9,7 @@
 #include "sentry_sync.h"
 #include "sentry_testsupport.h"
 #include "sentry_transport.h"
+#include "sentry_uuid.h"
 #include "transports/sentry_http_transport.h"
 
 static void
@@ -483,7 +484,10 @@ SENTRY_TEST(installation_id)
     sentry_init(opts0);
     SENTRY_WITH_OPTIONS (options) {
         TEST_ASSERT(!!options->run->installation_id);
-        TEST_CHECK_INT_EQUAL(strlen(options->run->installation_id), 36);
+#ifndef SENTRY_INTEGRATION_PLATFORM
+        TEST_CHECK(sentry__uuid_is_valid(options->run->installation_id,
+            strlen(options->run->installation_id)));
+#endif
     }
     sentry_close();
 
@@ -494,7 +498,10 @@ SENTRY_TEST(installation_id)
     char *id_a = NULL;
     SENTRY_WITH_OPTIONS (options) {
         TEST_ASSERT(!!options->run->installation_id);
-        TEST_CHECK_INT_EQUAL(strlen(options->run->installation_id), 36);
+#ifndef SENTRY_INTEGRATION_PLATFORM
+        TEST_CHECK(sentry__uuid_is_valid(options->run->installation_id,
+            strlen(options->run->installation_id)));
+#endif
         id_a = sentry__string_clone(options->run->installation_id);
     }
     sentry_close();
@@ -516,6 +523,27 @@ SENTRY_TEST(installation_id)
     SENTRY_WITH_OPTIONS (options) {
         TEST_ASSERT(!!options->run->installation_id);
         TEST_CHECK(strcmp(options->run->installation_id, id_a) != 0);
+    }
+    sentry_close();
+
+    // an ID that is not a UUID is persisted and loaded as-is
+    const char *id_c = "0123456789abcdef0123456789abcdef0123456789ab";
+    const char *persisted = "0123456789abcdef0123456789abcdef0123456789ab\n"
+                            "keyc\n";
+    sentry_path_t *db_path
+        = sentry__path_from_str(SENTRY_TEST_PATH_PREFIX ".sentry-native");
+    sentry_path_t *id_path = sentry__path_join_str(db_path, "installation_id");
+    TEST_CHECK_INT_EQUAL(
+        sentry__path_write_buffer(id_path, persisted, strlen(persisted)), 0);
+    sentry__path_free(id_path);
+    sentry__path_free(db_path);
+
+    SENTRY_TEST_OPTIONS_NEW(opts4);
+    sentry_options_set_dsn(opts4, "http://keyc@127.0.0.1/42");
+    sentry_init(opts4);
+    SENTRY_WITH_OPTIONS (options) {
+        TEST_ASSERT(!!options->run->installation_id);
+        TEST_CHECK_STRING_EQUAL(options->run->installation_id, id_c);
     }
     sentry_close();
 
