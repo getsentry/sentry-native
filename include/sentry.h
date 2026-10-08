@@ -100,12 +100,34 @@ extern "C" {
 #        define SENTRY_SDK_NAME "sentry.native"
 #    endif
 #endif
+
+/**
+ * Compile-time SDK version as string.
+ *
+ * May include a prerelease suffix (e.g. `-rc.1`) or downstream SDK build
+ * metadata (e.g. `+YYYYMMDD`). Use `SENTRY_SDK_VERSION_AT_LEAST` for version
+ * checks, or `sentry_sdk_version()` for the runtime version.
+ */
 #ifndef SENTRY_SDK_VERSION
 #    define SENTRY_SDK_VERSION "0.17.2"
 #endif
+
+/**
+ * Compile-time SDK version `major.minor.patch` as individual numbers.
+ */
 #define SENTRY_SDK_VERSION_MAJOR 0
 #define SENTRY_SDK_VERSION_MINOR 17
 #define SENTRY_SDK_VERSION_PATCH 2
+
+/**
+ * Checks whether the compile-time SDK version is at least `major.minor.patch`.
+ *
+ * ```c
+ * #if SENTRY_SDK_VERSION_AT_LEAST(1, 2, 3)
+ *     // use APIs introduced in 1.2.3
+ * #endif
+ * ```
+ */
 #define SENTRY_SDK_VERSION_AT_LEAST(major, minor, patch)                       \
     (SENTRY_SDK_VERSION_MAJOR > (major)                                        \
         || (SENTRY_SDK_VERSION_MAJOR == (major)                                \
@@ -4457,9 +4479,13 @@ SENTRY_DEPRECATED("The crash marker is cleared by `sentry_init()`.")
 SENTRY_EXPERIMENTAL_API int sentry_clear_crashed_last_run(void);
 
 /**
- * Sentry SDK version.
+ * Returns the runtime SDK version as string.
+ *
+ * May include a prerelease suffix (e.g. `-rc.1`) or downstream SDK build
+ * metadata (e.g. `+YYYYMMDD`). Use `SENTRY_SDK_VERSION` for the compile-time
+ * version.
  */
-SENTRY_EXPERIMENTAL_API const char *sentry_sdk_version(void);
+SENTRY_API const char *sentry_sdk_version(void);
 
 /**
  * Sentry SDK name set during build time.
