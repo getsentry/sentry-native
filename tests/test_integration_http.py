@@ -845,7 +845,6 @@ def test_breakpad_reinstall(cmake, httpserver):
 
 
 @pytest.mark.skipif(not has_breakpad or is_qemu, reason="test needs breakpad backend")
-@flaky(max_runs=3)
 def test_breakpad_dump_inflight(cmake, httpserver):
     tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "breakpad"})
 
