@@ -13,6 +13,7 @@ from .assertions import (
     assert_breadcrumb,
     assert_stacktrace,
     assert_event,
+    assert_event_meta,
     assert_inproc_crash,
     assert_minidump,
     assert_before_send,
@@ -20,6 +21,7 @@ from .assertions import (
     assert_no_crash_timestamp,
     assert_breakpad_crash,
     assert_exception,
+    assert_crash_hint_attachments,
     wait_for,
 )
 from .conditions import has_breakpad, has_files, is_qemu, is_wine
@@ -175,18 +177,6 @@ def run_crash_stdout_for(backend, cmake, example_args):
     return run_stdout_for(backend, cmake, ["attachment", "crash"] + example_args)
 
 
-def assert_crash_hint_attachments(envelope, callback):
-    assert not any(
-        item.headers.get("filename") in ("CMakeCache.txt", "bytes.bin")
-        for item in envelope
-    )
-    assert any(
-        item.headers.get("filename") == "callback.txt"
-        and item.payload.bytes == callback.replace("-", "_").encode()
-        for item in envelope
-    )
-
-
 def test_inproc_crash_stdout(cmake):
     tmp_path, output = run_crash_stdout_for("inproc", cmake, [])
 
@@ -245,7 +235,9 @@ def test_inproc_crash_stdout_before_send(cmake):
     assert_no_crash_timestamp(has_files, tmp_path)
     assert_meta(envelope, integration="inproc")
     assert_breadcrumb(envelope)
-    assert_crash_hint_attachments(envelope, "before-send")
+    snapshot = assert_crash_hint_attachments(envelope, "before-send")
+    assert_event_meta(snapshot, integrations=["inproc"])
+    assert snapshot["debug_meta"] == envelope.get_event()["debug_meta"]
     assert_inproc_crash(envelope)
     assert_before_send(envelope)
 
@@ -274,7 +266,8 @@ def test_inproc_crash_stdout_before_send_and_on_crash(cmake):
     assert_no_crash_timestamp(has_files, tmp_path)
     assert_meta(envelope, integration="inproc")
     assert_breadcrumb(envelope)
-    assert_crash_hint_attachments(envelope, "on-crash")
+    snapshot = assert_crash_hint_attachments(envelope, "on-crash")
+    assert snapshot["debug_meta"] == envelope.get_event()["debug_meta"]
     assert_inproc_crash(envelope)
 
 

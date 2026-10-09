@@ -1353,6 +1353,7 @@ native_backend_except(sentry_backend_t *backend, const sentry_ucontext_t *uctx)
         sentry_value_t event = sentry_value_new_event();
         sentry_value_set_by_key(
             event, "level", sentry__value_new_level(SENTRY_LEVEL_FATAL));
+        sentry__event_ensure_modules(event);
         sentry_hint_t hint;
         sentry__hint_init(&hint);
 

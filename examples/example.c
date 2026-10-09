@@ -131,10 +131,11 @@ before_send_callback(sentry_value_t event, sentry_hint_t *hint, void *user_data)
 {
     (void)user_data;
 
+    char *json = sentry_value_to_json(event);
     sentry_hint_clear_attachments(hint);
     sentry_hint_add_attachment(hint,
-        sentry_attachment_from_bytes(
-            "before_send", strlen("before_send"), "callback.txt"));
+        sentry_attachment_from_bytes(json, strlen(json), "before_send.json"));
+    sentry_free(json);
 
     // make our mark on the event
     sentry_value_set_by_key(
@@ -176,10 +177,11 @@ on_crash_callback(const sentry_ucontext_t *uctx, sentry_value_t event,
     (void)uctx;
     (void)user_data;
 
+    char *json = sentry_value_to_json(event);
     sentry_hint_clear_attachments(hint);
     sentry_hint_add_attachment(hint,
-        sentry_attachment_from_bytes(
-            "on_crash", strlen("on_crash"), "callback.txt"));
+        sentry_attachment_from_bytes(json, strlen(json), "on_crash.json"));
+    sentry_free(json);
 
     // tell the backend to retain the event
     return event;

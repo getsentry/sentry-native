@@ -1,3 +1,4 @@
+import json
 import os
 import struct
 import subprocess
@@ -612,8 +613,10 @@ def test_crashpad_dumping_crash(cmake, httpserver, run_args, build_args):
     callback = next(
         (arg for arg in run_args if arg in ("before-send", "on-crash")), None
     )
-    expected_callback = callback.replace("-", "_").encode() if callback else None
-    assert attachments.callback == expected_callback
+    if callback:
+        assert json.loads(attachments.callback)["level"] == "fatal"
+    else:
+        assert attachments.callback is None
     event_id = attachments.event["event_id"]
     if sys.platform == "win32":
         minidump = tmp_path / ".sentry-native" / "reports" / f"{event_id}.dmp"

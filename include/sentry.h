@@ -1609,7 +1609,7 @@ SENTRY_API void sentry_options_set_before_send(
  * The hint is always provided and can be used to modify attachments on the
  * event.
  *
- * Only the `inproc` backend currently fills the passed-in event with crash
+ * Only the `inproc` and `native` backends fill the passed-in event with crash
  * meta-data. Since both `breakpad` and `crashpad` use minidumps to capture the
  * crash state, the passed-in event is empty when using these backends. Changes
  * to the event from inside the hooks will be passed along, but in the case of
@@ -2556,7 +2556,7 @@ SENTRY_API int sentry_shutdown(void);
  * Returns a new reference to an immutable, frozen list.
  * The reference must be released with `sentry_value_decref`.
  */
-SENTRY_EXPERIMENTAL_API sentry_value_t sentry_get_modules_list(void);
+SENTRY_API sentry_value_t sentry_get_modules_list(void);
 
 /**
  * Clears the internal module cache.
@@ -2567,7 +2567,7 @@ SENTRY_EXPERIMENTAL_API sentry_value_t sentry_get_modules_list(void);
  * `sentry_clear_modulecache` when doing so to make sure that the next call to
  * `sentry_capture_event` will have an up-to-date module list.
  */
-SENTRY_EXPERIMENTAL_API void sentry_clear_modulecache(void);
+SENTRY_API void sentry_clear_modulecache(void);
 
 /**
  * Re-initializes the Sentry backend.
