@@ -304,7 +304,7 @@ def test_aot_signals_inproc(cmake):
 ANDROID_PACKAGE = "io.sentry.ndk.dotnet.signal.test"
 
 
-def run_android(args=None, strategy=None, reinit=False, timeout=30):
+def run_android(args=None, strategy=None, reinit=False, timeout=30, check_exit=False):
     if args is None:
         args = []
     adb("logcat", "-c")
@@ -336,7 +336,7 @@ def run_android(args=None, strategy=None, reinit=False, timeout=30):
     pid = adb(
         "shell", "pidof", ANDROID_PACKAGE, capture_output=True, text=True
     ).stdout.strip()
-    wait_for(
+    exited = wait_for(
         lambda: adb(
             "shell", "pidof", ANDROID_PACKAGE, capture_output=True, text=True
         ).returncode
@@ -344,13 +344,18 @@ def run_android(args=None, strategy=None, reinit=False, timeout=30):
         timeout=timeout,
     )
     logcat_args = ["logcat", "-d"]
-    if pid:
+    if pid.isdigit():
         logcat_args += ["--pid=" + pid]
-    return adb(*logcat_args, capture_output=True, text=True).stdout
+    logcat = adb(*logcat_args, capture_output=True, text=True).stdout
+    if check_exit:
+        assert exited, f"Process did not exit within {timeout}s.\nlogcat:\n{logcat}"
+    return logcat
 
 
 def run_android_managed_exception(strategy=None, reinit=False):
-    return run_android(["managed-exception"], strategy=strategy, reinit=reinit)
+    return run_android(
+        ["managed-exception"], strategy=strategy, reinit=reinit, check_exit=True
+    )
 
 
 def run_android_unhandled_managed_exception(strategy=None):
