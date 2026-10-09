@@ -78,6 +78,8 @@ typedef enum {
     SENTRY_SCOPE_NONE = 0x0,
     // Add all the breadcrumbs from the scope to the event.
     SENTRY_SCOPE_BREADCRUMBS = 0x1,
+    // TODO: remove
+    SENTRY_SCOPE_MODULES = 0x2,
     // Symbolize all the stacktraces on-device which are found in the event.
     SENTRY_SCOPE_STACKTRACES = 0x4,
     // All of the above.
