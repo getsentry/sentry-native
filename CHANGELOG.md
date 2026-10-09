@@ -15,6 +15,10 @@
 - Add `sentry_scope_acquire` and `sentry_scope_release` to access the isolation scope. ([#2160](https://github.com/getsentry/sentry-native/pull/2160))
 - Native: Provide exception metadata, registers, and a basic crashing-thread stack to `on_crash` for crash identification. ([#2174](https://github.com/getsentry/sentry-native/pull/2174))
 
+**Fixes**:
+
+- Native/Inproc: provide `debug_meta.images` in events passed to `on_crash`. ([#2184](https://github.com/getsentry/sentry-native/pull/2184))
+
 ## Unreleased
 
 **Features**:

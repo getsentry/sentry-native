@@ -1,4 +1,3 @@
-import json
 import os
 import shutil
 import subprocess
@@ -14,6 +13,7 @@ from .assertions import (
     assert_breadcrumb,
     assert_stacktrace,
     assert_event,
+    assert_event_meta,
     assert_inproc_crash,
     assert_minidump,
     assert_before_send,
@@ -21,6 +21,7 @@ from .assertions import (
     assert_no_crash_timestamp,
     assert_breakpad_crash,
     assert_exception,
+    assert_crash_hint_attachments,
     wait_for,
     assert_crash_stack,
 )
@@ -179,23 +180,6 @@ def run_crash_stdout_for(backend, cmake, example_args):
     return run_stdout_for(backend, cmake, ["attachment", "crash"] + example_args)
 
 
-def assert_crash_hint_attachments(envelope, callback):
-    assert not any(
-        item.headers.get("filename") in ("CMakeCache.txt", "bytes.bin")
-        for item in envelope
-    )
-    filename = callback.replace("-", "_") + ".json"
-    snapshot = json.loads(
-        next(
-            item.payload.bytes
-            for item in envelope
-            if item.headers.get("filename") == filename
-        )
-    )
-    assert snapshot["level"] == "fatal"
-    return snapshot
-
-
 def test_inproc_crash_stdout(cmake):
     tmp_path, output = run_crash_stdout_for("inproc", cmake, [])
 
@@ -255,6 +239,8 @@ def test_inproc_crash_stdout_before_send(cmake):
     assert_meta(envelope, integration="inproc")
     assert_breadcrumb(envelope)
     snapshot = assert_crash_hint_attachments(envelope, "before-send")
+    assert_event_meta(snapshot, integrations=["inproc"])
+    assert snapshot["debug_meta"] == envelope.get_event()["debug_meta"]
     assert_inproc_crash(envelope)
     assert_before_send(envelope)
     assert_crash_stack(snapshot)
@@ -285,6 +271,7 @@ def test_inproc_crash_stdout_before_send_and_on_crash(cmake):
     assert_meta(envelope, integration="inproc")
     assert_breadcrumb(envelope)
     snapshot = assert_crash_hint_attachments(envelope, "on-crash")
+    assert snapshot["debug_meta"] == envelope.get_event()["debug_meta"]
     assert_inproc_crash(envelope)
     assert_crash_stack(snapshot)
 

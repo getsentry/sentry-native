@@ -2556,7 +2556,7 @@ SENTRY_API int sentry_shutdown(void);
  * Returns a new reference to an immutable, frozen list.
  * The reference must be released with `sentry_value_decref`.
  */
-SENTRY_EXPERIMENTAL_API sentry_value_t sentry_get_modules_list(void);
+SENTRY_API sentry_value_t sentry_get_modules_list(void);
 
 /**
  * Clears the internal module cache.
@@ -2567,7 +2567,7 @@ SENTRY_EXPERIMENTAL_API sentry_value_t sentry_get_modules_list(void);
  * `sentry_clear_modulecache` when doing so to make sure that the next call to
  * `sentry_capture_event` will have an up-to-date module list.
  */
-SENTRY_EXPERIMENTAL_API void sentry_clear_modulecache(void);
+SENTRY_API void sentry_clear_modulecache(void);
 
 /**
  * Re-initializes the Sentry backend.
