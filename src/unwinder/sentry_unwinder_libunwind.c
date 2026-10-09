@@ -1,5 +1,4 @@
 #include "sentry_boot.h"
-#include "sentry_logger.h"
 #include "sentry_unwinder.h"
 #define UNW_LOCAL_ONLY
 #include <libunwind.h>
@@ -156,7 +155,6 @@ sentry__unwind_stack_libunwind(
         int ret = unw_init_local2(&cursor, (unw_context_t *)uctx->user_context,
             UNW_INIT_SIGNAL_FRAME);
         if (ret != 0) {
-            SENTRY_WARN("Failed to initialize libunwind with ucontext");
             return 0;
         }
     } else {
@@ -171,13 +169,11 @@ sentry__unwind_stack_libunwind(
 #    pragma clang diagnostic pop
 #endif
         if (ret != 0) {
-            SENTRY_WARN("Failed to retrieve context with libunwind");
             return 0;
         }
 
         ret = unw_init_local(&cursor, &uc);
         if (ret != 0) {
-            SENTRY_WARN("Failed to initialize libunwind with local context");
             return 0;
         }
     }
@@ -203,9 +199,6 @@ sentry__unwind_stack_libunwind(
     // ensure we have a valid stack pointer otherwise we only send the top frame
     mem_range_t stack = { 0, 0 };
     if (uctx && !find_mem_range((uintptr_t)sp, &stack)) {
-        SENTRY_WARNF("unwinder: SP (%p) is in unmapped memory likely due to "
-                     "stack overflow",
-            (void *)sp);
         return n;
     }
 

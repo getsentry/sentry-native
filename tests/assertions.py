@@ -556,7 +556,7 @@ def _load_crashpad_attachments(msg):
                 cmake_cache = len(part.get_payload(decode=True))
             case "bytes.bin":
                 bytes_bin = part.get_payload(decode=True)
-            case "callback.txt":
+            case "before_send.json" | "on_crash.json":
                 callback = part.get_payload(decode=True)
 
         if (
@@ -861,3 +861,17 @@ def assert_replay_envelope(envelope, video, replay_id=REPLAY_ID):
     assert crumbs[2]["category"] == "something else"
 
     assert body["replay_video"] == video
+
+
+def assert_crash_stack(event):
+    assert event["level"] == "fatal"
+    stack = event["exception"]["values"][0]["stacktrace"]
+    ips = [int(frame["instruction_addr"], 16) for frame in stack["frames"]]
+    assert ips and all(ip >= 0x1000 for ip in ips[:-1])
+    assert ips[-1] == 0 or ips[-1] >= 0x1000
+    registers = stack["registers"]
+    register = next(key for key in ("rip", "eip", "pc") if key in registers)
+    assert ips[-1] == int(registers[register], 16)
+    # ARM32 frame-pointer fallback can provide only the faulting instruction
+    if "pc" not in registers or "x0" in registers:
+        assert len(ips) > 1

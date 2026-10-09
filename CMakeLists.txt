@@ -1134,7 +1134,7 @@ if(SENTRY_BUILD_EXAMPLES)
 	else()
 		# Disable all optimizations for the `sentry_example` in gcc/clang. This allows us to keep crash triggers simple.
 		# The effects besides reproducible code-gen across compiler versions, will be negligible for build- and runtime.
-		target_compile_options(sentry_example PRIVATE $<BUILD_INTERFACE:-O0>)
+		target_compile_options(sentry_example PRIVATE $<BUILD_INTERFACE:-O0 -fno-omit-frame-pointer>)
 	endif()
 
 	if(CMAKE_GENERATOR STREQUAL "Xcode")

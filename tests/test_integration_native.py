@@ -42,8 +42,9 @@ from .assertions import (
     wait_for,
     wait_for_file,
     assert_user_feedback,
+    assert_crash_stack,
 )
-from .conditions import has_files
+from .conditions import has_files, is_arm64e
 from .conditions import has_native, has_oom, is_asan, is_tsan, is_qemu, is_wine
 
 pytestmark = pytest.mark.skipif(
@@ -81,8 +82,22 @@ def test_native_capture_crash(cmake, httpserver):
     assert_native_crash(envelope)
 
 
-@pytest.mark.parametrize("callback", ["before-send", "on-crash"])
-def test_native_crash_hint_attachments(cmake, httpserver, callback):
+@pytest.mark.parametrize(
+    "callback, crash",
+    [
+        ("before-send", "crash"),
+        ("on-crash", "crash"),
+        pytest.param(
+            "on-crash",
+            "crash-null",
+            marks=pytest.mark.skipif(
+                sys.platform not in ["linux", "darwin"] or is_wine or is_arm64e,
+                reason="Null function-pointer calls must fault at IP zero",
+            ),
+        ),
+    ],
+)
+def test_native_crash_hint_attachments(cmake, httpserver, callback, crash):
     tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "native"})
 
     httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data("OK")
@@ -91,7 +106,7 @@ def test_native_crash_hint_attachments(cmake, httpserver, callback):
         run_crash(
             tmp_path,
             "sentry_example",
-            ["log", "attachment", callback, "crash"],
+            ["log", "attachment", callback, crash],
             env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
         )
     assert waiting.result
@@ -101,11 +116,26 @@ def test_native_crash_hint_attachments(cmake, httpserver, callback):
     assert not any(
         item.headers.get("filename") == "CMakeCache.txt" for item in envelope
     )
-    assert any(
-        item.headers.get("filename") == "callback.txt"
-        and item.payload.bytes == callback.replace("-", "_").encode()
-        for item in envelope
+    filename = callback.replace("-", "_") + ".json"
+    snapshot = json.loads(
+        next(
+            item.payload.bytes
+            for item in envelope
+            if item.headers.get("filename") == filename
+        )
     )
+    assert_crash_stack(snapshot)
+    if crash == "crash-null":
+        frames = snapshot["exception"]["values"][0]["stacktrace"]["frames"]
+        assert int(frames[-1]["instruction_addr"], 16) == 0
+    exceptions = envelope.get_event()["exception"]["values"]
+    assert len(exceptions) == len(snapshot["exception"]["values"])
+    exc = exceptions[0]
+    local_exc = snapshot["exception"]["values"][0]
+    assert exc["mechanism"] == local_exc["mechanism"]
+    assert [frame["instruction_addr"] for frame in exc["stacktrace"]["frames"]] == [
+        frame["instruction_addr"] for frame in local_exc["stacktrace"]["frames"]
+    ]
 
 
 def test_native_on_crashed_last_run(cmake, httpserver):
@@ -227,7 +257,7 @@ def test_native_wer_crash(cmake, httpserver, crash_arg, exception_code):
         run_crash(
             tmp_path,
             "sentry_example",
-            ["log", "stdout", crash_arg],
+            ["log", "stdout", "initial-scope", "no-setup", crash_arg],
             env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
         )
     assert waiting.result
@@ -235,6 +265,9 @@ def test_native_wer_crash(cmake, httpserver, crash_arg, exception_code):
     assert len(httpserver.log) >= 1
     envelope = Envelope.deserialize(httpserver.log[0][0].get_data())
     assert_native_crash(envelope, exception_code=exception_code)
+    event = envelope.get_event()
+    assert event["tags"]["test.initial-tag"] == "initial-value"
+    assert event["contexts"]["initial"]["foo"] == "bar"
 
 
 @pytest.mark.skipif(not has_oom, reason="OOM test unreliable in this environment")
@@ -1726,5 +1759,38 @@ def test_native_incomplete_crash(cmake, callback):
     finally:
         if child.poll() is None:
             child.kill()
+        child.wait()
+        assert wait_for(lambda: not list(db_dir.glob("*.run.daemon.lock")))
+
+
+def test_native_scope_snapshot(cmake, httpserver):
+    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "native"})
+    cmd = run_command(str(tmp_path / "sentry_example"))
+    child = subprocess.Popen(
+        [*cmd, "initial-scope", "no-setup", "sleep"],
+        cwd=tmp_path,
+        env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
+    )
+    db_dir = tmp_path / ".sentry-native"
+    snapshot = None
+
+    def scope_was_written():
+        nonlocal snapshot
+        paths = list(db_dir.glob("*.run/__sentry-event"))
+        if not paths:
+            return False
+        try:
+            snapshot = json.loads(paths[0].read_text())
+        except (OSError, json.JSONDecodeError):
+            return False
+        return snapshot.get("tags", {}).get("test.initial-tag") == "initial-value"
+
+    try:
+        assert wait_for(scope_was_written)
+        assert snapshot["event_id"]
+        assert snapshot["level"] == "fatal"
+        assert "exception" not in snapshot
+    finally:
+        child.terminate()
         child.wait()
         assert wait_for(lambda: not list(db_dir.glob("*.run.daemon.lock")))

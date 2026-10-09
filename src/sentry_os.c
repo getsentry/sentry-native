@@ -1235,3 +1235,31 @@ sentry__build_registers(const sentry_ucontext_t *uctx)
 
     return registers;
 }
+
+#if defined(SENTRY_PLATFORM_UNIX)
+/**
+ * Get signal name from signal number (Unix platforms only)
+ */
+const char *
+sentry__signal_to_string(int signum)
+{
+    switch (signum) {
+    case SIGABRT:
+        return "SIGABRT";
+    case SIGBUS:
+        return "SIGBUS";
+    case SIGFPE:
+        return "SIGFPE";
+    case SIGILL:
+        return "SIGILL";
+    case SIGSEGV:
+        return "SIGSEGV";
+    case SIGSYS:
+        return "SIGSYS";
+    case SIGTRAP:
+        return "SIGTRAP";
+    default:
+        return "UNKNOWN";
+    }
+}
+#endif

@@ -264,6 +264,12 @@ if(WIN32)
 	sentry_target_sources_cwd(sentry
 		unwinder/sentry_unwinder_dbghelp.c
 	)
+	if(MINGW AND CMAKE_C_COMPILER_ID STREQUAL "Clang")
+		set_source_files_properties(
+			"${CMAKE_CURRENT_SOURCE_DIR}/unwinder/sentry_unwinder_dbghelp.c"
+			DIRECTORY "${PROJECT_SOURCE_DIR}"
+			PROPERTIES COMPILE_OPTIONS -fms-extensions)
+	endif()
 endif()
 
 if(PROSPERO)
