@@ -2763,8 +2763,7 @@ sentry__scope_apply_to_telemetry(const sentry_scope_t *scope,
     sentry_span_t *span = sentry__scope_ref_span(scope);
     sentry_transaction_t *transaction
         = sentry__scope_ref_transaction_object(scope);
-    sentry_value_t trace = sentry_value_new_null();
-    sentry_value_t parent_span_id = sentry_value_new_null();
+    sentry_value_t trace;
     if (span) {
         trace = span->inner;
     } else if (transaction) {
@@ -2772,6 +2771,7 @@ sentry__scope_apply_to_telemetry(const sentry_scope_t *scope,
     } else {
         trace = sentry__scope_load_trace_context(scope);
     }
+    sentry_value_t parent_span_id = sentry_value_new_null();
     sentry_value_t trace_id = sentry_value_get_by_key_owned(trace, "trace_id");
     if (span || transaction) {
         parent_span_id = sentry_value_get_by_key_owned(trace, "span_id");
