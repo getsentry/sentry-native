@@ -236,6 +236,8 @@ void sentry__scope_set_trace_managed(sentry_scope_t *scope, bool managed);
 #define SENTRY_WITH_SCOPE_MUT(Scope)                                           \
     for (sentry_scope_t *Scope = sentry__scope_getref(); Scope;                \
         sentry__scope_finish_mut(Scope), Scope = NULL)
+// TODO: adapt console SDKs to SENTRY_WITH_SCOPE_MUT and remove the alias
+#define SENTRY_WITH_SCOPE_MUT_NO_FLUSH(Scope) SENTRY_WITH_SCOPE_MUT (Scope)
 
 /**
  * Allocate and zero-initialize a scope observer.
