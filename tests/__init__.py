@@ -170,6 +170,7 @@ def run(
         )
     check = expect_failure == False
     __tracebackhide__ = True
+    kwargs.setdefault("timeout", 300)
     started_at = time.time()
     if os.environ.get("ANDROID_API"):
         # older android emulators do not correctly pass down the returncode

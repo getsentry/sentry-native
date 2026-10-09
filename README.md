@@ -17,9 +17,19 @@ The _Sentry Native SDK_ is an error and crash reporting client for native
 applications, optimized for C and C++. Sentry allows adding tags, breadcrumbs, and arbitrary custom context to enrich error reports. Supports Sentry _20.6.0_
 and later.
 
-### Note <!-- omit in toc -->
+It also provides native crash reporting for other Sentry SDKs:
 
-Using the `sentry-native` SDK in a standalone use case is currently an experimental feature. The SDK’s primary function is to fuel our other SDKs, like [`sentry-java`](https://github.com/getsentry/sentry-java) or [`sentry-unreal`](https://github.com/getsentry/sentry-unreal). Support from our side is best effort and we do what we can to respond to issues in a timely fashion, but please understand if we won’t be able to address your issues or feature suggestions.
+- Android (NDK): [`sentry-java`](https://github.com/getsentry/sentry-java)
+- Flutter: [`sentry-dart`](https://github.com/getsentry/sentry-dart)
+- Godot: [`sentry-godot`](https://github.com/getsentry/sentry-godot)
+- .NET: [`sentry-dotnet`](https://github.com/getsentry/sentry-dotnet)
+- Unity: [`sentry-unity`](https://github.com/getsentry/sentry-unity)
+- Unreal Engine: [`sentry-unreal`](https://github.com/getsentry/sentry-unreal)
+
+Sentry’s console SDKs also build on the Native SDK. See the
+[Nintendo Switch](https://docs.sentry.io/platforms/nintendo-switch/),
+[PlayStation](https://docs.sentry.io/platforms/playstation/), and
+[Xbox](https://docs.sentry.io/platforms/xbox/) documentation to get access.
 
 ## Resources <!-- omit in toc -->
 
@@ -61,15 +71,10 @@ The SDK bundle contains the following folders:
 
 The SDK currently supports and is tested on the following OS/Compiler variations:
 
-- x64/arm64 Linux with GCC 14
-- x64 Linux with GCC 12
-- x64 Linux with GCC 9
-- x64/arm64 Linux with clang 19
-- x86 Linux with GCC 9 (cross compiled from x64 host)
-- x86, x64 and arm64 Windows with MSVC 2022
-- macOS 13, 14, 15, 26 with respective most recent Apple compiler toolchain and LLVM clang 15 + 18
-- Android API35 built by NDK27 toolchain
-- Android API16 built by NDK19 toolchain
+- Linux (x86, x64, arm32 and arm64) with GCC 9+ and Clang 11+
+- Windows (x86, x64 and arm64) with MSVC (Visual Studio 2022+) and LLVM-MinGW
+- macOS 15+ with Apple Clang and LLVM Clang 15+
+- Android API 21+ with NDK 23+
 - PlayStation via [sentry-playstation](https://github.com/getsentry/sentry-playstation). See [PlayStation documentation](https://docs.sentry.io/platforms/playstation/) to get access.
 - Xbox via [sentry-xbox](https://github.com/getsentry/sentry-xbox). See the [Xbox documentation](https://docs.sentry.io/platforms/xbox/) for access.
 - Nintendo Switch via [sentry-switch](https://github.com/getsentry/sentry-switch). See [Nintendo Switch documentation](https://docs.sentry.io/platforms/nintendo-switch/) to get access.
@@ -78,7 +83,6 @@ Additionally, the SDK should support the following platforms, although they are
 not automatically tested, so breakage may occur:
 
 - Windows Versions lower than Windows 10 / Windows Server 2016
-- Windows builds with the MSYS2 + MinGW + Clang toolchain (which also runs in CI)
 
 The SDK supports different features on the target platform:
 
@@ -110,7 +114,7 @@ $ cmake --build build --parallel
 # install the resulting artifacts into a specific prefix (use the correct config on Windows)
 $ cmake --install build --prefix install --config RelWithDebInfo
 # which will result in the following (on macOS):
-$ exa --tree install
+$ eza --tree install
 install
 ├── bin
 │  └── crashpad_handler
@@ -262,6 +266,11 @@ using `cmake -D BUILD_SHARED_LIBS=OFF ..`.
 - `SENTRY_INTEGRATION_QT` (Default: `OFF`):
   Builds the Qt integration, which turns Qt log messages into breadcrumbs.
 
+- `SENTRY_INTEGRATION_WER` (Default: `OFF`, only for Windows):
+  Builds the Windows Error Reporting (WER) integration, which registers Sentry
+  tags and attachments with WER. Compatible with the `none`, `inproc`, and `native`
+  backends.
+
 - `SENTRY_BREAKPAD_SYSTEM` (Default: `OFF`):
   This instructs the build system to use system-installed breakpad libraries instead of the in-tree version.
 
@@ -351,10 +360,19 @@ In addition to platform support, the "Advanced Usage" section of the SDK docs no
 
 ### Build Targets
 
-- `sentry`: This is the main library and the only default build target.
+The default standalone build includes the library, backend dependencies, tests,
+and examples.
+
+- `sentry`: This is the main library.
 - `crashpad_handler`: When configured with the `crashpad` backend, this is
   the out-of-process crash handler, which will need to be installed along with
   the project's executable.
+- `sentry-crash`: When configured with the `native` backend, this is
+  the out-of-process crash handler, which will need to be installed along with
+  the project's executable.
+- `sentry-wer`: With the `native` backend on Windows, this builds the WER
+  module for fast-fail crash reporting. Install `sentry-wer.dll` alongside
+  `sentry-crash.exe`.
 - `sentry_test_unit`: These are the main unit-tests, which are conveniently built
   also by the toplevel makefile.
 - `sentry_test_integration`: This is the integration test fixture, controlled via
@@ -379,7 +397,7 @@ Other important configuration options include:
 
 - `sentry_options_set_database_path`: Sentry needs to persist some cache data across application restarts, especially for proper handling of release health sessions. It is recommended to set an explicit absolute path corresponding to the application's cache directory (equivalent to `AppData/Local` on Windows, and `XDG_CACHE_HOME` on Linux). Sentry should be given its own directory, not shared with other application data, because the SDK will enumerate and possibly delete files in that directory. An example might be `$XDG_CACHE_HOME/your-app/sentry`.
   When not explicitly set, Sentry will create and use the `.sentry-native` directory in the current working directory.
-- `sentry_options_set_handler_path`: When using the crashpad backend, Sentry will look for a `crashpad_handler` executable in the same directory as the running executable. It is recommended to set this as an explicit absolute path based on the application's install location.
+- `sentry_options_set_handler_path`: When using the `crashpad` or `native` backend, Sentry will look for a `crashpad_handler` or `sentry-crash` executable, respectively, in the same directory as the running executable. It is recommended to set this as an explicit absolute path based on the application's install location.
 - `sentry_options_set_release`: Some features in Sentry, including release health, need to have a release version set. This corresponds to the application’s version and needs to be set explicitly. See [Releases](https://docs.sentry.io/product/releases/) for more information.
 
 ## Known Limitations
@@ -397,10 +415,12 @@ Other important configuration options include:
 
 ## Benchmarks
 
-The SDK is automatically benchmarked in the CI on every push to the `master` branch. The benchmarks cover the following scenarios:
+The SDK is automatically benchmarked in CI. The benchmarks cover the following scenarios:
 
 - **SDK initialization time**: Measures the duration of the `sentry_init()` call, representing the overall initialization time of the SDK.
-- **Backend startup time**: A subset of the SDK initialization time, focusing on the time required to initialize the `inproc`, `breakpad`, or `crashpad` backend.
+- **Backend startup time**: A subset of the SDK initialization time, focusing on the time required to initialize the selected backend.
+- **Event enrichment**: Measures the overhead of adding breadcrumbs, tags, and contexts.
+- **Logs and metrics**: Measures capture performance with different numbers of threads.
 
 The benchmarks are run on Windows, macOS, and Linux, and the results are published on [GitHub Pages](https://getsentry.github.io/sentry-native/).
 If you want to run benchmarks locally, follow the instructions in the [contribution guide](./CONTRIBUTING.md).

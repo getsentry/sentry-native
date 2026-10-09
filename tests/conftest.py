@@ -41,6 +41,17 @@ def pytest_generate_tests(metafunc):
         metafunc.parametrize("unittest", enumerate_unittests())
 
 
+# retry known intermittent deadlocks in Breakpad tests (#1502)
+def pytest_collection_modifyitems(items):
+    for item in items:
+        params = getattr(getattr(item, "callspec", None), "params", {})
+        if "breakpad" in item.name or any(
+            isinstance(value, dict) and value.get("SENTRY_BACKEND") == "breakpad"
+            for value in params.values()
+        ):
+            item.add_marker(pytest.mark.flaky(max_runs=3))
+
+
 @pytest.fixture(scope="session")
 def cmake(tmp_path_factory):
     cmake = CMake(tmp_path_factory)
@@ -123,7 +134,9 @@ def pytest_runtest_setup(item):
         pytest.skip("need --with_wer to run this test")
 
 
+@pytest.hookimpl(tryfirst=True)
 def pytest_configure(config):
+    config.option.flaky_success_report = False
     config.addinivalue_line(
         "markers",
         "with_wer: mark test to only run when WER testing is enabled",

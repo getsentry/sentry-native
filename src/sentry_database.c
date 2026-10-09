@@ -12,7 +12,6 @@
 #include "sentry_sync.h"
 #include "sentry_utils.h"
 #include "sentry_uuid.h"
-#include <ctype.h>
 #include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -188,48 +187,58 @@ sentry__run_load_installation_id(
         ? options->dsn->public_key
         : "";
     const size_t key_len = strlen(public_key);
+    const size_t max_id_len = 128;
 
-    const size_t uuid_len = 36;
-    char uuid_str[37] = { 0 };
+    char *id = NULL;
     size_t size = 0;
     char *contents = sentry__path_read_to_buffer(id_path, &size);
-    if (contents && size >= uuid_len) {
-        // expect: "<uuid>(\s+<public_key>)?"
-        sentry_slice_t tail = { contents + uuid_len, size - uuid_len };
+    if (contents) {
+        // expect: "<id>(\n<public_key>)?"
+        sentry_slice_t all = { contents, size };
+        sentry_slice_t line = all;
+        sentry_slice_t tail = { contents + size, 0 };
+        const size_t eol = sentry__slice_find(all, '\n');
+        if (eol != (size_t)-1) {
+            line.len = eol;
+            tail = sentry__slice_advance(all, eol + 1);
+        }
+        sentry_slice_t stored_id = sentry__slice_trim(line);
         sentry_slice_t key = sentry__slice_trim(tail);
-        if ((tail.len == 0 || isspace((unsigned char)tail.ptr[0]))
+        if (stored_id.len > 0 && stored_id.len <= max_id_len
             && sentry__slice_eqs(key, public_key)) {
-            memcpy(uuid_str, contents, uuid_len);
-            uuid_str[uuid_len] = '\0';
+            id = sentry__slice_to_owned(stored_id);
         }
     }
     sentry_free(contents);
 
-    if (uuid_str[0] == '\0') {
+    if (!id) {
         const char *integration_id
             = integration_installation_id(options, public_key);
         if (integration_id) {
-            const size_t integration_id_len = strlen(integration_id);
-            if (integration_id_len == uuid_len
-                && sentry__uuid_is_valid(integration_id, integration_id_len)) {
-                memcpy(uuid_str, integration_id, uuid_len);
-                uuid_str[uuid_len] = '\0';
+            sentry_slice_t slice
+                = sentry__slice_trim(sentry__slice_from_str(integration_id));
+            if (slice.len > 0 && slice.len <= max_id_len
+                && !memchr(slice.ptr, '\n', slice.len)) {
+                id = sentry__slice_to_owned(slice);
             } else {
-                SENTRY_WARN("the integration installation ID is not a UUID");
+                SENTRY_WARN("the integration installation ID is not valid");
             }
         }
-        if (uuid_str[0] == '\0') {
+        if (!id) {
+            char uuid_str[37] = { 0 };
             sentry_uuid_t uuid = sentry_uuid_new_v4();
             sentry_uuid_as_string(&uuid, uuid_str);
+            id = sentry__string_clone(uuid_str);
         }
 
-        const size_t buf_len = uuid_len + 1 + key_len + 1;
-        char *buf = sentry_malloc(buf_len);
+        const size_t id_len = id ? strlen(id) : 0;
+        const size_t buf_len = id_len + 1 + key_len + 1;
+        char *buf = id ? sentry_malloc(buf_len) : NULL;
         if (buf) {
-            memcpy(buf, uuid_str, uuid_len);
-            buf[uuid_len] = '\n';
-            memcpy(buf + uuid_len + 1, public_key, key_len);
-            buf[uuid_len + 1 + key_len] = '\n';
+            memcpy(buf, id, id_len);
+            buf[id_len] = '\n';
+            memcpy(buf + id_len + 1, public_key, key_len);
+            buf[id_len + 1 + key_len] = '\n';
             if (sentry__path_write_buffer(id_path, buf, buf_len) != 0) {
                 SENTRY_WARN("failed to persist installation ID");
             }
@@ -237,7 +246,7 @@ sentry__run_load_installation_id(
         }
     }
 
-    run->installation_id = sentry__string_clone(uuid_str);
+    run->installation_id = id;
     sentry__path_free(id_path);
 }
 
