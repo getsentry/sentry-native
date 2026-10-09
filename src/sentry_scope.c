@@ -387,19 +387,22 @@ sentry__scope_update_dsc(sentry_scope_t *scope, const sentry_options_t *options)
             dsc, "sample_rate", sentry_value_new_double(1.0));
     }
 
+    sentry_value_t parent_trace = scope->parent
+        ? sentry__scope_load_trace_context(scope->parent)
+        : sentry_value_new_null();
     SENTRY_SCOPE_WRITE_LOCK (data) {
         sentry_value_t trace
             = sentry_value_get_by_key(data->propagation_context, "trace");
         sentry_value_t sample_rand
             = sentry_value_get_by_key_owned(trace, "sample_rand");
         if (sentry_value_is_null(trace) && scope->parent) {
-            trace = sentry__scope_load_trace_context(scope->parent);
-            sample_rand = sentry_value_get_by_key_owned(trace, "sample_rand");
-            sentry_value_decref(trace);
+            sample_rand
+                = sentry_value_get_by_key_owned(parent_trace, "sample_rand");
         }
         sentry_value_set_by_key(dsc, "sample_rand", sample_rand);
         sentry__value_replace(&data->dynamic_sampling_context, dsc);
     }
+    sentry_value_decref(parent_trace);
 }
 
 static bool
