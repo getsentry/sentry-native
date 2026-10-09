@@ -1566,7 +1566,9 @@ sentry__scope_apply_to_event(const sentry_scope_t *scope,
 void
 sentry_scope_add_breadcrumb(sentry_scope_t *scope, sentry_value_t breadcrumb)
 {
-    const sentry_options_t *options = sentry__options_getref();
+    sentry__mutex_lock(&scope->observers_lock);
+    const sentry_options_t *options = sentry__options_incref(scope->state);
+    sentry__mutex_unlock(&scope->observers_lock);
     breadcrumb = sentry__invoke_before_breadcrumb(options, breadcrumb);
     sentry_options_free((sentry_options_t *)options);
     if (sentry_value_is_null(breadcrumb)) {
