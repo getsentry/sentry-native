@@ -24,13 +24,14 @@ def _run_logger_crash_test(backend, cmake, logger_option):
                and parsed_data is the parsed logging data
     """
     tmp_path = cmake(
-        ["sentry_example"], {"SENTRY_BACKEND": backend, "SENTRY_TRANSPORT": "none"}
+        ["sentry_test_integration"],
+        {"SENTRY_BACKEND": backend, "SENTRY_TRANSPORT": "none"},
     )
 
     # Run the example with the specified logger option - expect it to crash
     child = run(
         tmp_path,
-        "sentry_example",
+        "sentry_test_integration",
         [
             logger_option,  # enable or disable logging during crash
             "log",  # Enable debug logging

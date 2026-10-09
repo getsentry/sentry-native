@@ -7,7 +7,7 @@ pytestmark = pytest.mark.skipif(not has_http, reason="tests need http")
 
 
 def test_retry_after(cmake, httpserver):
-    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "none"})
+    tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "none"})
 
     env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
 
@@ -15,18 +15,18 @@ def test_retry_after(cmake, httpserver):
     httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data(
         "OK", 200, {"retry-after": "60"}
     )
-    run(tmp_path, "sentry_example", ["log", "capture-multiple"], env=env)
+    run(tmp_path, "sentry_test_integration", ["log", "capture-multiple"], env=env)
     assert len(httpserver.log) == 1
 
     httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data(
         "OK", 429, {"retry-after": "60"}
     )
-    run(tmp_path, "sentry_example", ["log", "capture-multiple"], env=env)
+    run(tmp_path, "sentry_test_integration", ["log", "capture-multiple"], env=env)
     assert len(httpserver.log) == 2
 
 
 def test_rate_limits(cmake, httpserver):
-    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "none"})
+    tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "none"})
 
     env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
     headers = {"X-Sentry-Rate-Limits": "60::organization"}
@@ -34,23 +34,23 @@ def test_rate_limits(cmake, httpserver):
     httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data(
         "OK", 200, headers
     )
-    run(tmp_path, "sentry_example", ["log", "capture-multiple"], env=env)
+    run(tmp_path, "sentry_test_integration", ["log", "capture-multiple"], env=env)
     assert len(httpserver.log) == 1
 
     httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data(
         "OK", 429, headers
     )
-    run(tmp_path, "sentry_example", ["log", "capture-multiple"], env=env)
+    run(tmp_path, "sentry_test_integration", ["log", "capture-multiple"], env=env)
     assert len(httpserver.log) == 2
 
 
 def test_only_429(cmake, httpserver):
-    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "none"})
+    tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "none"})
 
     env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
 
     httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data(
         "OK", 429
     )
-    run(tmp_path, "sentry_example", ["log", "capture-multiple"], env=env)
+    run(tmp_path, "sentry_test_integration", ["log", "capture-multiple"], env=env)
     assert len(httpserver.log) == 1
