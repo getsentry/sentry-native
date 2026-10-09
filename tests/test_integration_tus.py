@@ -220,7 +220,15 @@ def test_tus_rate_limit(cmake, httpserver):
     run(
         tmp_path,
         "sentry_test_integration",
-        ["log", "no-setup", "large-attachment", "capture-multiple"],
+        [
+            "log",
+            "no-setup",
+            "large-attachment",
+            "capture-multiple",
+            # extra time for pruning 10x100 MiB cache
+            "shutdown-timeout",
+            "10000",
+        ],
         env=env,
     )
 
@@ -334,7 +342,13 @@ def test_tus_shutdown(cmake, httpserver):
         run(
             tmp_path,
             "sentry_test_integration",
-            ["log", "no-setup"],
+            [
+                "log",
+                "no-setup",
+                # extra time for resuming 100 MiB upload
+                "shutdown-timeout",
+                "10000",
+            ],
             env=env,
         )
 
