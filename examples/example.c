@@ -628,6 +628,14 @@ trigger_oom(void)
     }
 }
 
+static void
+trigger_null_call(void)
+{
+    // keep a caller frame independent of libc startup
+    void (*volatile func)(void) = NULL;
+    func();
+}
+
 static sentry_value_t
 create_debug_crumb(const char *message)
 {
@@ -1358,8 +1366,7 @@ main(int argc, char **argv)
         sentry_crash();
     }
     if (has_arg(argc, argv, "crash-null")) {
-        void (*volatile func)(void) = NULL;
-        func();
+        trigger_null_call();
     }
     if (has_arg(argc, argv, "stack-overflow")) {
         trigger_stack_overflow();
