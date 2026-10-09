@@ -125,11 +125,12 @@ typedef DWORD pid_t;
  */
 typedef enum {
     SENTRY_CRASH_STATE_READY = 0,
-    SENTRY_CRASH_STATE_CRASHED = 1,
-    SENTRY_CRASH_STATE_PROCESSING = 2,
-    SENTRY_CRASH_STATE_PROCESSED = 3,
-    SENTRY_CRASH_STATE_CAPTURED = 4,
-    SENTRY_CRASH_STATE_DONE = 5
+    SENTRY_CRASH_STATE_CRASHING = 1, // preparing crash context
+    SENTRY_CRASH_STATE_CRASHED = 2, // crash context ready
+    SENTRY_CRASH_STATE_PROCESSING = 3, // out-of-process capture
+    SENTRY_CRASH_STATE_PROCESSED = 4, // app may exit for WER
+    SENTRY_CRASH_STATE_CAPTURED = 5, // crash data saved, app may exit
+    SENTRY_CRASH_STATE_DONE = 6 // daemon finished
 } sentry_crash_state_t;
 
 /**
