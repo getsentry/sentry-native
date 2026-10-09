@@ -1672,3 +1672,37 @@ def test_early_init(cmake, backend):
 
     result = run(tmp_path, "sentry_early_init", [])
     assert result.returncode == 0
+
+
+@pytest.mark.parametrize("capture", ["capture-event", "capture-with-scope"])
+@pytest.mark.parametrize("clear", [False, True])
+def test_capture_acquired_scope(cmake, httpserver, capture, clear):
+    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "none"})
+    httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data("OK")
+    args = ["log", "no-setup", "attachment", "acquire-scope", capture]
+    if clear:
+        args.append("clear-scope")
+    run(
+        tmp_path,
+        "sentry_example",
+        args,
+        env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
+    )
+
+    assert len(httpserver.log) == 1
+    envelope = Envelope.deserialize(httpserver.log[0][0].get_data())
+    event = envelope.get_event()
+    assert event["release"] == ("test-example-release" if clear else "scope-release")
+    assert event["environment"] == ("development" if clear else "scope-environment")
+    assert event["sdk"]["version"] == SENTRY_VERSION
+    assert event["contexts"]["os"]["name"]
+    assert ("acquired" in event.get("tags", {})) == (not clear)
+    assert any(
+        crumb.get("message") == "acquired breadcrumb"
+        for crumb in (event.get("breadcrumbs") or [])
+    ) == (not clear)
+    filenames = {item.headers.get("filename") for item in envelope}
+    assert "CMakeCache.txt" in filenames
+    assert ("scope.txt" in filenames) == (not clear)
+    if not clear:
+        assert event["user"]["id"] == "scope-user"

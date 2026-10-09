@@ -1218,6 +1218,25 @@ main(int argc, char **argv)
         sentry_set_environment("updated-environment");
     }
 
+    if (has_arg(argc, argv, "acquire-scope")) {
+        sentry_scope_t *scope = sentry_scope_acquire();
+        sentry_scope_set_tag(scope, "acquired", "yes");
+        sentry_scope_set_release(scope, "scope-release");
+        sentry_scope_set_environment(scope, "scope-environment");
+        sentry_scope_set_user(
+            scope, sentry_value_new_user("scope-user", NULL, NULL, NULL));
+        sentry_scope_add_breadcrumb(
+            scope, sentry_value_new_breadcrumb(NULL, "acquired breadcrumb"));
+        sentry_scope_attach_bytes(scope, "scope", 5, "scope.txt");
+        sentry_scope_release(scope);
+    }
+
+    if (has_arg(argc, argv, "clear-scope")) {
+        sentry_scope_t *scope = sentry_scope_acquire();
+        sentry_scope_clear(scope);
+        sentry_scope_release(scope);
+    }
+
     if (has_arg(argc, argv, "start-session")) {
         sentry_start_session();
     }
