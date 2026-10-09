@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+**Breaking / Important behavior changes**:
+
+- The `native` backend is now the default on Linux, macOS, and Windows. ([#2186](https://github.com/getsentry/sentry-native/pull/2186))
+
 **Fixes**:
 
 - The persisted installation ID is no longer required to be a UUID, so a platform integration can supply any ID that `user.id` accepts. ([#2177](https://github.com/getsentry/sentry-native/pull/2177))
