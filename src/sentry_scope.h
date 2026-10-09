@@ -64,6 +64,8 @@ struct sentry_scope_s {
     size_t num_observers;
     size_t is_notifying;
     bool pending_flush;
+    void (*flush_func)(sentry_scope_t *scope);
+    void *state;
 
     // Whether this scope is single-use. A capture function frees a one-shot
     // scope after applying it.
@@ -126,10 +128,19 @@ void sentry__scope_free_one_shot(sentry_scope_t *scope);
 void sentry__scope_finish(sentry_scope_t *scope);
 
 /**
- * Finish a mutable global scope access, optionally notifying the backend of
- * changes. This consumes the caller's scope reference.
+ * Finish a mutable global scope access, flushing pending changes.
+ * This consumes the caller's scope reference.
  */
-void sentry__scope_finish_mut(sentry_scope_t *scope, bool flush);
+void sentry__scope_finish_mut(sentry_scope_t *scope);
+
+/**
+ * Flush scope changes. The flush is deferred until mutable access finishes.
+ * No-op for non-global scopes without a flush callback.
+ */
+void sentry__scope_flush(sentry_scope_t *scope);
+void sentry__scope_set_flush_func(
+    sentry_scope_t *scope, void (*func)(sentry_scope_t *scope));
+void sentry__scope_set_state(sentry_scope_t *scope, void *state);
 
 /**
  * This will merge the requested data which is in the given `scope` to the given
@@ -224,10 +235,9 @@ void sentry__scope_set_trace_managed(sentry_scope_t *scope, bool managed);
         sentry__scope_finish((sentry_scope_t *)Scope), Scope = NULL)
 #define SENTRY_WITH_SCOPE_MUT(Scope)                                           \
     for (sentry_scope_t *Scope = sentry__scope_getref(); Scope;                \
-        sentry__scope_finish_mut(Scope, true), Scope = NULL)
-#define SENTRY_WITH_SCOPE_MUT_NO_FLUSH(Scope)                                  \
-    for (sentry_scope_t *Scope = sentry__scope_getref(); Scope;                \
-        sentry__scope_finish_mut(Scope, false), Scope = NULL)
+        sentry__scope_finish_mut(Scope), Scope = NULL)
+// TODO: adapt console SDKs to SENTRY_WITH_SCOPE_MUT and remove the alias
+#define SENTRY_WITH_SCOPE_MUT_NO_FLUSH(Scope) SENTRY_WITH_SCOPE_MUT (Scope)
 
 /**
  * Allocate and zero-initialize a scope observer.
