@@ -384,6 +384,27 @@ add_library(sentry ${SENTRY_LIBRARY_TYPE} "${PROJECT_SOURCE_DIR}/src/sentry_mpac
 if (XBOX)
 	set_target_properties(sentry PROPERTIES VS_USER_PROPS gdk_build.props)
 endif()
+
+set_target_properties(sentry PROPERTIES
+	VERSION "${SENTRY_VERSION_BASE}"
+	SOVERSION "${SENTRY_VERSION_MAJOR}")
+
+if(WIN32 AND SENTRY_BUILD_SHARED_LIBS)
+	set(_SENTRY_IMAGE_VERSION "${SENTRY_VERSION_MAJOR}.${SENTRY_VERSION_MINOR}")
+	if(CMAKE_GENERATOR MATCHES "^Visual Studio " AND CMAKE_VERSION VERSION_LESS 4.1)
+		# VS generators before CMake 4.1 ignore VERSION for the PE image header.
+		target_link_options(sentry PRIVATE "/VERSION:${_SENTRY_IMAGE_VERSION}")
+	elseif(MINGW)
+		include(CheckLinkerFlag)
+		check_linker_flag(C "LINKER:/version:0.0" _SENTRY_LINKER_SUPPORTS_PE_VERSION)
+		if(_SENTRY_LINKER_SUPPORTS_PE_VERSION)
+			# lld silently ignores CMake's GNU image-version flags.
+			target_link_options(sentry PRIVATE "LINKER:/version:${_SENTRY_IMAGE_VERSION}")
+		endif()
+	endif()
+	unset(_SENTRY_IMAGE_VERSION)
+endif()
+
 target_sources(sentry PRIVATE "${PROJECT_SOURCE_DIR}/include/sentry.h")
 add_library(sentry::sentry ALIAS sentry)
 

@@ -36,7 +36,9 @@ def _create_sandbox_app_bundle(tmp_path, exe_name="sentry_example"):
     app_dir = os.path.join(str(tmp_path), "SentryTest.app")
     contents_dir = os.path.join(app_dir, "Contents")
     macos_dir = os.path.join(contents_dir, "MacOS")
-    os.makedirs(macos_dir, exist_ok=True)
+    if os.path.exists(app_dir):
+        shutil.rmtree(app_dir)
+    os.makedirs(macos_dir)
 
     # Copy executable and sentry-crash into the bundle
     src_exe = os.path.join(str(tmp_path), exe_name)
@@ -48,11 +50,13 @@ def _create_sandbox_app_bundle(tmp_path, exe_name="sentry_example"):
     if os.path.exists(src_daemon):
         shutil.copy2(src_daemon, dst_daemon)
 
-    # Copy libsentry.dylib if it exists (shared library build)
-    src_lib = os.path.join(str(tmp_path), "libsentry.dylib")
-    if os.path.exists(src_lib):
-        dst_lib = os.path.join(macos_dir, "libsentry.dylib")
-        shutil.copy2(src_lib, dst_lib)
+    # Copy the shared library and its versioned symlink chain into the bundle
+    for src_lib in tmp_path.glob("libsentry*.dylib"):
+        shutil.copy2(
+            src_lib,
+            os.path.join(macos_dir, src_lib.name),
+            follow_symlinks=False,
+        )
 
     # Write minimal Info.plist
     info_plist = {
@@ -97,6 +101,8 @@ def _codesign_bundle(app_dir, entitlements_path, exe_name="sentry_example"):
         if name == exe_name:
             continue  # Main exe gets signed with the bundle
         path = os.path.join(macos_dir, name)
+        if os.path.islink(path):
+            continue
         if os.access(path, os.X_OK) or name.endswith(".dylib"):
             subprocess.run(
                 ["codesign", "--force", "--sign", "-", path],
@@ -128,7 +134,7 @@ def _run_sandboxed(app_dir, exe_name, args, env, expect_failure=False):
     """
     exe_path = os.path.join(app_dir, "Contents", "MacOS", exe_name)
 
-    # Set DYLD_LIBRARY_PATH so the executable can find libsentry.dylib
+    # Set DYLD_LIBRARY_PATH so the executable can find the bundled dylib
     # inside the bundle (dyld respects this even in sandbox for ad-hoc signed)
     run_env = dict(env)
     run_env["DYLD_LIBRARY_PATH"] = os.path.join(app_dir, "Contents", "MacOS")
