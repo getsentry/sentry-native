@@ -4306,3 +4306,44 @@ SENTRY_TEST(scope_defaults)
     sentry_scope_release(scope);
     sentry_close();
 }
+
+SENTRY_TEST(scope_parent_lock)
+{
+    sentry_scope_t *scope = sentry_scope_new();
+    TEST_ASSERT(!!scope);
+    sentry_scope_t *parent = sentry_scope_acquire();
+    TEST_ASSERT(!!parent);
+    sentry_scope_set_environment(parent, "old");
+    sentry_scope_set_tag(parent, "version", "old");
+
+    scope_access_thread_t state = { .scope = parent };
+    sentry__waitable_flag_init(&state.started);
+    sentry__waitable_flag_init(&state.finished);
+
+    TEST_ASSERT(sentry_scope_begin_write(scope) == 0);
+    sentry_threadid_t thread;
+    sentry__thread_init(&thread);
+    TEST_ASSERT(
+        !sentry__thread_spawn(&thread, write_scope_during_read, &state));
+    TEST_ASSERT(sentry__waitable_flag_wait(&state.started, 1000));
+    TEST_CHECK(!sentry__waitable_flag_wait(&state.finished, 10));
+
+    sentry_value_t environment = sentry__scope_ref_environment(scope);
+    sentry_value_t tag
+        = scope_value_get_by_key(sentry__scope_load_tags, scope, "version");
+    TEST_CHECK_STRING_EQUAL(sentry_value_as_string(environment), "old");
+    TEST_CHECK_STRING_EQUAL(sentry_value_as_string(tag), "old");
+    sentry_value_decref(environment);
+    sentry_value_decref(tag);
+
+    sentry_scope_end_write(scope);
+    TEST_CHECK(sentry__waitable_flag_wait(&state.finished, 1000));
+    sentry__thread_join(thread);
+    sentry__thread_free(&thread);
+    TEST_CHECK_INT_EQUAL(state.result, 0);
+    environment = sentry__scope_ref_environment(scope);
+    TEST_CHECK_STRING_EQUAL(sentry_value_as_string(environment), "new");
+    sentry_value_decref(environment);
+    sentry_scope_release(parent);
+    sentry_scope_free(scope);
+}

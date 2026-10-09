@@ -889,7 +889,19 @@ sentry_scope_begin_read(const sentry_scope_t *scope)
 int
 sentry_scope_begin_write(sentry_scope_t *scope)
 {
-    return scope_begin(scope, true);
+    if (!scope) {
+        return 1;
+    }
+    if (scope->parent && sentry_scope_begin_read(scope->parent)) {
+        return 1;
+    }
+    if (!scope_begin(scope, true)) {
+        return 0;
+    }
+    if (scope->parent) {
+        sentry_scope_end_read(scope->parent);
+    }
+    return 1;
 }
 
 static void
@@ -945,7 +957,7 @@ sentry_scope_end_read(const sentry_scope_t *scope)
 void
 sentry_scope_end_write(sentry_scope_t *scope)
 {
-    scope_end(scope);
+    sentry_scope_end_read(scope);
 }
 
 void

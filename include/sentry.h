@@ -2700,9 +2700,10 @@ SENTRY_API void sentry_scope_end_read(const sentry_scope_t *scope);
  * write lock automatically. Use this function to batch multiple reads, writes,
  * or both under one write lock.
  *
- * The scope remains write-locked until the matching
- * `sentry_scope_end_write` call on the same thread. A write lock allows reads
- * and writes. Writes may be nested for the same scope.
+ * The scope remains write-locked and its parent scopes read-locked until the
+ * matching `sentry_scope_end_write` call on the same thread, so inherited
+ * properties can be read consistently. A write lock allows reads and writes.
+ * Writes may be nested for the same scope.
  *
  * Note: A read lock cannot be upgraded to a write lock. If this thread already
  * holds a read lock on the scope, this function returns 1 without changing
