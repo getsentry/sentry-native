@@ -2135,10 +2135,11 @@ SENTRY_EXPERIMENTAL_API void sentry_options_set_session_replay_duration(
     sentry_options_t *opts, uint32_t duration_ms);
 
 /**
- * Sets the path to the crashpad handler if the crashpad backend is used.
+ * Sets the path to the crash handler if the native or crashpad backend is used.
  *
- * The path defaults to the `crashpad_handler`/`crashpad_handler.exe`
- * executable in the same directory as the application executable.
+ * The path defaults to the `sentry-crash`/`sentry-crash.exe` executable for the
+ * native backend or `crashpad_handler`/`crashpad_handler.exe` for the crashpad
+ * backend, in the same directory as the application executable.
  *
  * Meaning if your application resides in
  *
@@ -2146,7 +2147,7 @@ SENTRY_EXPERIMENTAL_API void sentry_options_set_session_replay_duration(
  *
  * then the handler path will be set (by default) to
  *
- * "C:\path\to\your\crashpad_handler.exe"
+ * "C:\path\to\your\sentry-crash.exe" when using the native backend.
  *
  * It is recommended that library users set an explicit handler path, depending
  * on the directory/executable structure of their app.

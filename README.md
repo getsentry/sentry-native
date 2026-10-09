@@ -107,7 +107,7 @@ Building the Breakpad and Crashpad backends requires a `C++17` compatible compil
 **Build example**:
 
 ```sh
-# configure the cmake build into the `build` directory, with crashpad (on macOS)
+# configure the cmake build into the `build` directory, with native (on macOS)
 $ cmake -B build -DCMAKE_BUILD_TYPE=RelWithDebInfo
 # build the project
 $ cmake --build build --parallel
@@ -117,7 +117,7 @@ $ cmake --install build --prefix install --config RelWithDebInfo
 $ eza --tree install
 install
 ├── bin
-│  └── crashpad_handler
+│  └── sentry-crash
 ├── include
 │  └── sentry.h
 └── lib
@@ -144,7 +144,7 @@ The `ndk` folder provides a Gradle project that adds a Java JNI layer for Androi
 **MinGW**:
 
 64-bit is the only platform supported for now.
-LLVM + Clang are mandatory here : they are required to generate .pdb files, used by Crashpad for the report generation.
+LLVM + Clang are mandatory here : they are required to generate .pdb files, used to symbolicate crash reports.
 
 For your application to generate the appropriate .pdb output, you need to activate CodeView file format generation on your application target. To do so, update your own CMakeLists.txt with something like `target_compile_options(${yourApplicationTarget} PRIVATE -gcodeview)`.
 
@@ -251,14 +251,14 @@ using `cmake -D BUILD_SHARED_LIBS=OFF ..`.
   Sentry can use different backends depending on the platform.
 
   - **crashpad**: This uses the out-of-process crashpad handler. It is currently
-    only supported on Desktop OSes and used as the default on Windows, Linux, and macOS.
+    only supported on Desktop OSes.
   - **breakpad**: This uses the in-process breakpad handler. It is currently
     only supported on Desktop OSs.
   - **inproc**: A small in-process handler that is supported on all platforms,
     and is used as a default on Android.
   - **native**: An out-of-process crash handler that uses a lightweight daemon
     to monitor the application, generate minidumps, and send crash reports.
-    Supports Linux, macOS, and Windows. Compatible with TSAN and ASAN
+    Supports Linux, macOS, and Windows, where it is the default. Compatible with TSAN and ASAN
     sanitizers.
   - **none**: This builds `sentry-native` without a backend, so it does not handle
     crashes. It is primarily used for tests.
@@ -342,8 +342,8 @@ using `cmake -D BUILD_SHARED_LIBS=OFF ..`.
 | - none     | ✓       | ✓     | ✓     | ☑       | ☑    |
 |            |         |       |       |         |      |
 | Backends   |         |       |       |         |      |
-| - crashpad | ☑       | ☑     | ☑     |         |      |
-| - native   | ✓       | ✓     | ✓     |         |      |
+| - crashpad | ✓       | ✓     | ✓     |         |      |
+| - native   | ☑       | ☑     | ☑     |         |      |
 | - breakpad | ✓       | ✓     | ✓     | (✓)*    | (✓)* |
 | - inproc   | ✓       | ✓     | ✓     | ☑       |      |
 | - none     | ✓       | ✓     | ✓     | ✓       |      |
