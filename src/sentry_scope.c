@@ -1229,15 +1229,6 @@ sentry__scope_apply_to_event(const sentry_scope_t *scope,
     }
 
 #if !defined(SENTRY_PLATFORM_NX)
-    if (mode & SENTRY_SCOPE_MODULES) {
-        sentry_value_t modules = sentry_get_modules_list();
-        if (!sentry_value_is_null(modules)) {
-            sentry_value_t debug_meta = sentry_value_new_object();
-            sentry_value_set_by_key(debug_meta, "images", modules);
-            sentry_value_set_by_key(event, "debug_meta", debug_meta);
-        }
-    }
-
     if (mode & SENTRY_SCOPE_STACKTRACES) {
         sentry__foreach_stacktrace(event, sentry__symbolize_stacktrace);
     }

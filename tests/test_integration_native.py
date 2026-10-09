@@ -32,6 +32,7 @@ from .assertions import (
     assert_attachment,
     assert_breadcrumb,
     assert_crash_timestamp,
+    assert_crash_hint_attachments,
     assert_no_crash_timestamp,
     assert_debug_meta_images_do_not_overlap,
     assert_meta,
@@ -98,13 +99,10 @@ def test_native_crash_hint_attachments(cmake, httpserver, callback):
 
     assert len(httpserver.log) >= 1
     envelope = Envelope.deserialize(httpserver.log[0][0].get_data())
-    assert not any(
-        item.headers.get("filename") == "CMakeCache.txt" for item in envelope
-    )
+    snapshot = assert_crash_hint_attachments(envelope, callback)
     assert any(
-        item.headers.get("filename") == "callback.txt"
-        and item.payload.bytes == callback.replace("-", "_").encode()
-        for item in envelope
+        "sentry_example" in image["code_file"]
+        for image in snapshot["debug_meta"]["images"]
     )
 
 

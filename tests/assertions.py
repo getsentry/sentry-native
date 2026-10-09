@@ -194,6 +194,8 @@ def assert_event_meta(
             "sentry_example" in image["code_file"]
             for image in event["debug_meta"]["images"]
         )
+    elif event.get("type") == "transaction":
+        assert "debug_meta" not in event
 
 
 def assert_debug_meta_images_do_not_overlap(event):
@@ -455,6 +457,7 @@ def assert_exception(envelope):
 def assert_inproc_crash(envelope):
     event = envelope.get_event()
     assert_matches(event, {"level": "fatal"})
+    assert event["debug_meta"]["images"]
     # depending on the unwinder, we currently don’t get any stack frames from
     # a `ucontext`
     assert_stacktrace(envelope, inside_exception=True, check_size=False)
@@ -496,6 +499,23 @@ def assert_before_send(envelope):
 def assert_no_before_send(envelope):
     event = envelope.get_event()
     assert ("adapted_by", "before_send") not in event.items()
+
+
+def assert_crash_hint_attachments(envelope, callback):
+    assert not any(
+        item.headers.get("filename") in ("CMakeCache.txt", "bytes.bin")
+        for item in envelope
+    )
+    filename = callback.replace("-", "_") + ".json"
+    snapshot = json.loads(
+        next(
+            item.payload.bytes
+            for item in envelope
+            if item.headers.get("filename") == filename
+        )
+    )
+    assert snapshot["level"] == "fatal"
+    return snapshot
 
 
 def assert_before_breadcrumb(envelope):
@@ -556,7 +576,7 @@ def _load_crashpad_attachments(msg):
                 cmake_cache = len(part.get_payload(decode=True))
             case "bytes.bin":
                 bytes_bin = part.get_payload(decode=True)
-            case "callback.txt":
+            case "before_send.json" | "on_crash.json":
                 callback = part.get_payload(decode=True)
 
         if (
