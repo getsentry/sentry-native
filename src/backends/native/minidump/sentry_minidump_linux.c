@@ -2861,22 +2861,28 @@ sentry__write_minidump(
     SENTRY_DEBUGF("crashed_pid=%d, crashed_tid=%d, num_threads=%zu",
         ctx->crashed_pid, ctx->crashed_tid, ctx->platform.num_threads);
 
-    minidump_writer_t writer = { 0 };
-    writer.crash_ctx = ctx;
+    minidump_writer_t *writer = SENTRY_MAKE(minidump_writer_t);
+    if (!writer) {
+        SENTRY_WARN("failed to allocate minidump writer");
+        return -1;
+    }
+    writer->crash_ctx = ctx;
 
     // Open output file. O_RDWR (not O_WRONLY) because SMART-mode indirect
     // memory capture pread()'s thread-stack bytes back from the dump after
     // they're written, so it can scan them for heap pointers.
-    writer.fd = open(output_path, O_RDWR | O_CREAT | O_TRUNC, 0600);
-    if (writer.fd < 0) {
+    writer->fd = open(output_path, O_RDWR | O_CREAT | O_TRUNC, 0600);
+    if (writer->fd < 0) {
         SENTRY_WARNF("failed to create minidump: %s", strerror(errno));
+        sentry_free(writer);
         return -1;
     }
 
     // Parse process information
-    if (parse_proc_maps(&writer) < 0 || enumerate_threads(&writer) < 0) {
-        close(writer.fd);
+    if (parse_proc_maps(writer) < 0 || enumerate_threads(writer) < 0) {
+        close(writer->fd);
         unlink(output_path);
+        sentry_free(writer);
         return -1;
     }
 
@@ -2884,7 +2890,7 @@ sentry__write_minidump(
     // 1. Read memory using ptrace for memory list stream
     // 2. Get FPU state for crashed thread via PTRACE_GETFPREGS
     // 3. Get registers for threads with missing context via PTRACE_GETREGS
-    if (!ptrace_attach_process(&writer)) {
+    if (!ptrace_attach_process(writer)) {
         SENTRY_WARN(
             "Failed to attach to process via ptrace, continuing without "
             "it");
@@ -2916,19 +2922,20 @@ sentry__write_minidump(
     // fails the directory entry stays at type/size/rva = 0 (consumers ignore
     // it).
     const uint32_t stream_count = 14;
-    writer.current_offset = sizeof(minidump_header_t)
+    writer->current_offset = sizeof(minidump_header_t)
         + (stream_count * sizeof(minidump_directory_t));
 
     SENTRY_DEBUGF("reserving space for %u streams, offset=%zu", stream_count,
-        writer.current_offset);
+        writer->current_offset);
 
-    if (lseek(writer.fd, writer.current_offset, SEEK_SET) < 0) {
+    if (lseek(writer->fd, writer->current_offset, SEEK_SET) < 0) {
         SENTRY_WARN("lseek failed");
-        if (writer.ptrace_attached) {
+        if (writer->ptrace_attached) {
             ptrace(PTRACE_DETACH, ctx->crashed_tid, NULL, NULL);
         }
-        close(writer.fd);
+        close(writer->fd);
         unlink(output_path);
+        sentry_free(writer);
         return -1;
     }
 
@@ -2938,16 +2945,16 @@ sentry__write_minidump(
     int result = 0;
 
     SENTRY_DEBUG("writing system info stream");
-    result |= write_system_info_stream(&writer, &directories[0]);
+    result |= write_system_info_stream(writer, &directories[0]);
     SENTRY_DEBUG("writing thread list stream");
-    result |= write_thread_list_stream(&writer, &directories[1]);
+    result |= write_thread_list_stream(writer, &directories[1]);
     SENTRY_DEBUG("writing module list stream");
-    result |= write_module_list_stream(&writer, &directories[2]);
+    result |= write_module_list_stream(writer, &directories[2]);
     SENTRY_DEBUG("writing exception stream");
-    result |= write_exception_stream(&writer, &directories[3]);
+    result |= write_exception_stream(writer, &directories[3]);
 
     // Write memory list stream (empty for STACK_ONLY, populated for SMART/FULL)
-    result |= write_memory_list_stream(&writer, &directories[4]);
+    result |= write_memory_list_stream(writer, &directories[4]);
 
     // Write Linux-specific streams for debugger compatibility.
     // These are non-fatal: if they fail, the minidump is still valid. The
@@ -2962,109 +2969,114 @@ sentry__write_minidump(
         } while (0)
 
     SENTRY_DEBUG("writing linux proc status stream");
-    if (write_linux_proc_status_stream(&writer, &directories[5]) < 0) {
+    if (write_linux_proc_status_stream(writer, &directories[5]) < 0) {
         SENTRY_WARN("failed to write linux proc status stream");
         NULLIFY_DIR_ENTRY(5, MINIDUMP_STREAM_LINUX_PROC_STATUS);
     }
 
     SENTRY_DEBUG("writing linux maps stream");
-    if (write_linux_maps_stream(&writer, &directories[6]) < 0) {
+    if (write_linux_maps_stream(writer, &directories[6]) < 0) {
         SENTRY_WARN("failed to write linux maps stream");
         NULLIFY_DIR_ENTRY(6, MINIDUMP_STREAM_LINUX_MAPS);
     }
 
     // Write thread names stream (matches Crashpad format)
     SENTRY_DEBUG("writing thread names stream");
-    if (write_thread_names_stream(&writer, &directories[7]) < 0) {
+    if (write_thread_names_stream(writer, &directories[7]) < 0) {
         SENTRY_WARN("failed to write thread names stream");
         NULLIFY_DIR_ENTRY(7, MINIDUMP_STREAM_THREAD_NAMES);
     }
 
     SENTRY_DEBUG("writing linux auxv stream");
-    if (write_linux_auxv_stream(&writer, &directories[8]) < 0) {
+    if (write_linux_auxv_stream(writer, &directories[8]) < 0) {
         SENTRY_WARN("failed to write linux auxv stream");
         NULLIFY_DIR_ENTRY(8, MINIDUMP_STREAM_LINUX_AUXV);
     }
 
     SENTRY_DEBUG("writing linux cpu info stream");
-    if (write_linux_cpu_info_stream(&writer, &directories[9]) < 0) {
+    if (write_linux_cpu_info_stream(writer, &directories[9]) < 0) {
         SENTRY_DEBUG("linux cpu info stream unavailable");
         NULLIFY_DIR_ENTRY(9, MINIDUMP_STREAM_LINUX_CPU_INFO);
     }
 
     SENTRY_DEBUG("writing linux lsb release stream");
-    if (write_linux_lsb_release_stream(&writer, &directories[10]) < 0) {
+    if (write_linux_lsb_release_stream(writer, &directories[10]) < 0) {
         // Many distros don't ship /etc/lsb-release; this is expected.
         SENTRY_DEBUG("linux lsb release stream unavailable");
         NULLIFY_DIR_ENTRY(10, MINIDUMP_STREAM_LINUX_LSB_RELEASE);
     }
 
     SENTRY_DEBUG("writing linux cmd line stream");
-    if (write_linux_cmd_line_stream(&writer, &directories[11]) < 0) {
+    if (write_linux_cmd_line_stream(writer, &directories[11]) < 0) {
         SENTRY_DEBUG("linux cmd line stream unavailable");
         NULLIFY_DIR_ENTRY(11, MINIDUMP_STREAM_LINUX_CMD_LINE);
     }
 
     SENTRY_DEBUG("writing linux environ stream");
-    if (write_linux_environ_stream(&writer, &directories[12]) < 0) {
+    if (write_linux_environ_stream(writer, &directories[12]) < 0) {
         SENTRY_DEBUG("linux environ stream unavailable");
         NULLIFY_DIR_ENTRY(12, MINIDUMP_STREAM_LINUX_ENVIRON);
     }
 
     SENTRY_DEBUG("writing linux dso debug stream");
-    if (write_linux_dso_debug_stream(&writer, &directories[13]) < 0) {
+    if (write_linux_dso_debug_stream(writer, &directories[13]) < 0) {
         SENTRY_WARN("failed to write linux dso debug stream");
         NULLIFY_DIR_ENTRY(13, MINIDUMP_STREAM_LINUX_DSO_DEBUG);
     }
 #    undef NULLIFY_DIR_ENTRY
 
     if (result < 0) {
-        if (writer.ptrace_attached) {
+        if (writer->ptrace_attached) {
             ptrace(PTRACE_DETACH, ctx->crashed_tid, NULL, NULL);
         }
-        close(writer.fd);
+        close(writer->fd);
         unlink(output_path);
+        sentry_free(writer);
         return -1;
     }
 
     // Write header and directory at the beginning
-    if (lseek(writer.fd, 0, SEEK_SET) < 0) {
-        if (writer.ptrace_attached) {
+    if (lseek(writer->fd, 0, SEEK_SET) < 0) {
+        if (writer->ptrace_attached) {
             ptrace(PTRACE_DETACH, ctx->crashed_tid, NULL, NULL);
         }
-        close(writer.fd);
+        close(writer->fd);
         unlink(output_path);
+        sentry_free(writer);
         return -1;
     }
 
-    if (write_header(&writer, stream_count) < 0) {
-        if (writer.ptrace_attached) {
+    if (write_header(writer, stream_count) < 0) {
+        if (writer->ptrace_attached) {
             ptrace(PTRACE_DETACH, ctx->crashed_tid, NULL, NULL);
         }
-        close(writer.fd);
+        close(writer->fd);
         unlink(output_path);
+        sentry_free(writer);
         return -1;
     }
 
     // Write only the directory entries we actually used
     size_t dir_size = stream_count * sizeof(minidump_directory_t);
-    if (write(writer.fd, directories, dir_size) != (ssize_t)dir_size) {
-        if (writer.ptrace_attached) {
+    if (write(writer->fd, directories, dir_size) != (ssize_t)dir_size) {
+        if (writer->ptrace_attached) {
             ptrace(PTRACE_DETACH, ctx->crashed_tid, NULL, NULL);
         }
-        close(writer.fd);
+        close(writer->fd);
         unlink(output_path);
+        sentry_free(writer);
         return -1;
     }
 
-    close(writer.fd);
+    close(writer->fd);
 
     // Detach from process if we attached
-    if (writer.ptrace_attached) {
+    if (writer->ptrace_attached) {
         ptrace(PTRACE_DETACH, ctx->crashed_tid, NULL, NULL);
         SENTRY_DEBUGF("Detached from thread %d", ctx->crashed_tid);
     }
 
+    sentry_free(writer);
     SENTRY_DEBUG("successfully wrote minidump");
     return 0;
 }
