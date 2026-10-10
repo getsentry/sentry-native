@@ -1,0 +1,41 @@
+buildscript {
+    repositories {
+        google()
+        mavenCentral()
+    }
+    dependencies {
+        classpath "com.android.tools.build:gradle:${agpVersion}"
+    }
+}
+
+apply plugin: "com.android.application"
+
+android {
+    namespace = "io.sentry.e2e"
+    compileSdk = project.property("compileSdk").toInteger()
+    compileSdkMinor = project.property("compileSdkMinor").toInteger()
+    ndkVersion = new File(System.getenv("ANDROID_NDK")).name
+
+    defaultConfig {
+        applicationId = "io.sentry.e2e"
+        minSdk = 30
+        targetSdk = project.property("targetSdk").toInteger()
+        ndk { abiFilters.add(System.getenv("ANDROID_ARCH")) }
+    }
+
+    externalNativeBuild {
+        cmake { path = file("CMakeLists.txt") }
+    }
+
+    packaging {
+        jniLibs { useLegacyPackaging = true }
+    }
+}
+
+dependencies {
+    implementation "io.sentry:sentry-android-ndk-native:${sentryVersion}"
+}
+
+configurations.configureEach {
+    resolutionStrategy.force("io.sentry:sentry-native-ndk-native:${sentryVersion}")
+}
