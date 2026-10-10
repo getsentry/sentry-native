@@ -904,7 +904,19 @@ def test_e2e_android_native(android_e2e_app, tombstone):
             assert mechanism["type"] == "TombstoneMerged"
         else:
             assert mechanism["type"] in ["signalhandler", "minidump"]
-        assert len(exception["stacktrace"]["frames"]) >= 3
+        frames = exception["stacktrace"]["frames"]
+        assert len(frames) >= 3
+        if tombstone:
+            functions = [frame.get("function") or "" for frame in frames]
+            assert {"e2e_segfault", "e2e_native_crash"}.issubset(functions)
+            assert any(
+                "io.sentry.e2e.MainActivity.triggerNativeCrash" in function
+                for function in functions
+            )
+            assert any(
+                "io.sentry.e2e.MainActivity.callNativeCrash" in function
+                for function in functions
+            )
 
         threads = get_threads_from_event(event)
         assert len(threads["values"]) >= (2 if tombstone else 1)

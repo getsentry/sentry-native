@@ -32,6 +32,14 @@ public class MainActivity extends Activity {
           user.setId(testId);
           scope.setUser(user);
         });
-    new Handler(getMainLooper()).postDelayed(MainActivity::crash, 1000);
+    new Handler(getMainLooper()).postDelayed(MainActivity::triggerNativeCrash, 1000);
+  }
+
+  private static void callNativeCrash() {
+    crash();
+  }
+
+  private static void triggerNativeCrash() {
+    callNativeCrash();
   }
 }
