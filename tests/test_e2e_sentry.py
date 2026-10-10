@@ -9,6 +9,8 @@ Requires environment variables:
 - SENTRY_E2E_AUTH_TOKEN: Sentry API token with project:read scope
 - SENTRY_E2E_ORG: Sentry organization slug
 - SENTRY_E2E_PROJECT: Sentry project slug
+- SENTRY_E2E_ANDROID_APK: Optional prepared Android fixture APK path
+  (defaults to build/android-e2e/app/build/outputs/apk/debug/app-debug.apk).
 
 Skip these tests if env vars not set (for regular CI runs).
 """
@@ -18,18 +20,21 @@ import re
 import subprocess
 import sys
 import time
+import uuid
+from pathlib import Path
 from urllib.parse import urlsplit, urlunsplit
 
 import pytest
 import requests
 
-from . import run, check_output
+from . import adb, run, check_output, sourcedir
 from .conditions import (
     has_breakpad,
     has_crashpad,
     has_http,
     has_native,
     is_asan,
+    is_android,
 )
 
 # Skip all tests if E2E env vars not configured
@@ -39,7 +44,7 @@ pytestmark = [
         reason="E2E tests require SENTRY_E2E_DSN environment variable",
     ),
     pytest.mark.skipif(
-        not has_http,
+        not has_http and not is_android,
         reason="E2E tests require http transport",
     ),
 ]
@@ -384,6 +389,7 @@ def run_crash_e2e(tmp_path, exe, args, env, wait_for_daemon=False):
     not has_native,
     reason="E2E crash mode tests require native backend",
 )
+@pytest.mark.skipif(is_android, reason="Standalone E2E tests require http transport")
 class TestE2ENative:
     """E2E tests for all 3 crash reporting modes against real Sentry."""
 
@@ -691,6 +697,7 @@ class TestE2ENative:
         )
 
 
+@pytest.mark.skipif(is_android, reason="Standalone E2E tests require http transport")
 def test_e2e_inproc(cmake):
     """Verify that inproc can send a signal-handler crash event to Sentry."""
     tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "inproc"})
@@ -827,3 +834,96 @@ def test_e2e_crashpad(cmake):
     ), f"Crashpad crash should capture threads (>= 1), got {thread_count}"
 
     verify_no_thread_duplication(threads_data, "test_e2e_crashpad")
+
+
+@pytest.fixture(scope="module")
+def android_e2e_app():
+    get_sentry_headers()
+    get_sentry_org_project()
+    apk = (
+        Path(
+            os.environ.get(
+                "SENTRY_E2E_ANDROID_APK",
+                Path(sourcedir)
+                / "build/android-e2e/app/build/outputs/apk/debug/app-debug.apk",
+            )
+        )
+        .expanduser()
+        .resolve()
+    )
+    assert apk.is_file(), "Prepare the APK with scripts/setup-android-e2e.py first"
+    package = "io.sentry.e2e"
+    adb("install", "-r", str(apk), check=True)
+    yield package
+    adb("uninstall", package, check=False)
+
+
+@pytest.mark.skipif(
+    not is_android or not has_native, reason="Tests need Android + native"
+)
+@pytest.mark.skipif(
+    is_android < 30, reason="The native crash service needs Android API 30+"
+)
+@pytest.mark.parametrize("tombstone", [False, True], ids=["native", "tombstone"])
+def test_e2e_android_native(android_e2e_app, tombstone):
+    """The crash service sends native crashes, optionally merged with a tombstone."""
+    if tombstone and is_android < 31:
+        pytest.skip("Tombstone merging needs Android API 31+")
+    test_id = str(uuid.uuid4())
+    package = android_e2e_app
+    adb("shell", "pm", "clear", package, check=True, capture_output=True)
+    try:
+        adb(
+            "shell",
+            "am",
+            "start",
+            "-n",
+            f"{package}/.MainActivity",
+            "--es",
+            "dsn",
+            os.environ["SENTRY_E2E_DSN"],
+            "--es",
+            "test_id",
+            test_id,
+            "--ez",
+            "tombstone",
+            str(tombstone).lower(),
+            check=True,
+            capture_output=True,
+        )
+        # no restart: delivery must happen from the surviving crash service
+        event = poll_sentry_for_event(test_id)
+        assert event["platform"] == "native"
+        assert event["release"]["version"] == "sentry-native-e2e"
+        assert event["user"]["id"] == test_id
+
+        exception = get_exception_from_event(event)["values"][0]
+        mechanism = exception["mechanism"]
+        assert mechanism["handled"] is False
+        if tombstone:
+            assert mechanism["type"] == "TombstoneMerged"
+        else:
+            assert mechanism["type"] in ["signalhandler", "minidump"]
+        frames = exception["stacktrace"]["frames"]
+        assert len(frames) >= 3
+        if tombstone:
+            functions = [frame.get("function") or "" for frame in frames]
+            assert {"e2e_segfault", "e2e_native_crash"}.issubset(functions)
+            assert any(
+                "io.sentry.e2e.MainActivity.triggerNativeCrash" in function
+                for function in functions
+            )
+            assert any(
+                "io.sentry.e2e.MainActivity.callNativeCrash" in function
+                for function in functions
+            )
+
+        threads = get_threads_from_event(event)
+        assert len(threads["values"]) >= (2 if tombstone else 1)
+        assert any(thread["crashed"] for thread in threads["values"])
+        verify_no_thread_duplication(threads, "test_e2e_android_native")
+
+        images = get_debug_meta_from_event(event)["images"]
+        assert any(image["code_file"].endswith("libe2e.so") for image in images)
+    finally:
+        adb("shell", "am", "force-stop", package, check=False)
