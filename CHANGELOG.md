@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+**Features**:
+
+- Native: add Android support. ([#1725](https://github.com/getsentry/sentry-native/pull/1725))
+
 **Fixes**:
 
 - The persisted installation ID is no longer required to be a UUID, so a platform integration can supply any ID that `user.id` accepts. ([#2177](https://github.com/getsentry/sentry-native/pull/2177))

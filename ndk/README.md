@@ -73,3 +73,17 @@ The `ndk` project uses the Gradle build system in combination with CMake. You ca
 ## Development
 
 Please see the [contribution guide](../CONTRIBUTING.md).
+
+## Crash backends
+
+`sentry-native-ndk` uses the inproc backend. The opt-in
+`sentry-native-ndk-native` package includes the native backend and crash daemon.
+Both provide `libsentry.so` and must not be used together.
+
+Android SDK apps select `sentry-android-ndk-native` through the Sentry Gradle plugin:
+
+```kotlin
+sentry {
+    ndkBackend.set("native")
+}
+```

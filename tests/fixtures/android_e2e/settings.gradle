@@ -1,0 +1,12 @@
+dependencyResolutionManagement {
+    repositories {
+        google()
+        mavenCentral()
+        exclusiveContent {
+            forRepository { maven { url = uri(localRepo) } }
+            filter { includeGroup("io.sentry") }
+        }
+    }
+}
+
+rootProject.name = "app"

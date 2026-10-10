@@ -61,3 +61,71 @@ jobs:
           SENTRY_E2E_ORG: ${{ secrets.SENTRY_E2E_ORG }}
           SENTRY_E2E_PROJECT: ${{ secrets.SENTRY_E2E_PROJECT }}
         run: pytest --capture=no --verbose tests/test_e2e_sentry.py
+
+  android:
+    name: ${{ matrix.name }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: E2E Test (Android API 36, NDK 30)
+            ANDROID_API: 36
+            ANDROID_NDK_VERSION: 30.0.16138531
+    runs-on: ubuntu-latest
+    env:
+      ANDROID_API: ${{ matrix.ANDROID_API }}
+      ANDROID_ARCH: x86_64
+      ANDROID_NDK_VERSION: ${{ matrix.ANDROID_NDK_VERSION }}
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          submodules: recursive
+
+      - name: Check out sentry-java
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: jpnurmi/sentry-java ### TODO: getsentry/sentry-java
+          ref: feat/native-crash-service
+          path: sentry-java
+
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+
+      - name: Install test dependencies
+        run: pip install -r tests/requirements.txt
+
+      - name: Set up Java
+        uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+        with:
+          distribution: "temurin"
+          java-version: "17"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@9c971963bec38e04b3d30dcc455b5382be2fdbfb # pin@v6.3.0
+
+      - name: Enable KVM group perms
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Set up and run Android E2E tests
+        uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0
+        env:
+          SENTRY_E2E_DSN: ${{ secrets.SENTRY_E2E_DSN }}
+          SENTRY_E2E_AUTH_TOKEN: ${{ secrets.SENTRY_E2E_AUTH_TOKEN }}
+          SENTRY_E2E_ORG: ${{ secrets.SENTRY_E2E_ORG }}
+          SENTRY_E2E_PROJECT: ${{ secrets.SENTRY_E2E_PROJECT }}
+        with:
+          api-level: ${{ env.ANDROID_API }}
+          ndk: ${{ env.ANDROID_NDK_VERSION }}
+          arch: ${{ env.ANDROID_ARCH }}
+          target: google_apis
+          emulator-boot-timeout: 1200
+          script: |
+            export ANDROID_NDK="$ANDROID_HOME/ndk/$ANDROID_NDK_VERSION"
+            python scripts/setup-android-e2e.py sentry-java
+            pytest --capture=no --verbose tests/test_e2e_sentry.py::test_e2e_android_native
