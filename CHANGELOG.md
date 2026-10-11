@@ -11,6 +11,10 @@
 
 - Add small, focused [examples](https://github.com/getsentry/sentry-native/tree/master/examples) demonstrating common SDK operations. The old `example.c` has moved to [`tests/fixtures/integration.c`](https://github.com/getsentry/sentry-native/blob/78d8defb7861d008ff30129b012ac5626e608635/tests%2Ffixtures%2Fintegration.c). ([#2125](https://github.com/getsentry/sentry-native/pull/2125), [#2173](https://github.com/getsentry/sentry-native/pull/2173))
 
+**Thank you**:
+
+- [Denimworld12](https://github.com/Denimworld12)
+
 ## 0.17.2
 
 **Features**:
