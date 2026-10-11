@@ -529,7 +529,6 @@ sentry__iso8601_to_usec(const char *iso)
     // we optionally have microsecond precision
     if (iso[0] == '.') {
         if (sscanf(iso, ".%d%n", &usec, &consumed) < 1 || consumed != 7) {
-            printf("consumed = %d\n", consumed);
             return 0;
         }
         iso += consumed;
