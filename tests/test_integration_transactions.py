@@ -34,14 +34,14 @@ UPSTREAM_PARENT_SPAN_ID = "bbbbbbbbbbbbbbbb"
 )
 def test_transaction_only(cmake, httpserver, build_args):
     build_args.update({"SENTRY_BACKEND": "none"})
-    tmp_path = cmake(["sentry_example"], build_args)
+    tmp_path = cmake(["sentry_test_integration"], build_args)
 
     httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data("OK")
     env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver), SENTRY_RELEASE="🤮🚀")
 
     run(
         tmp_path,
-        "sentry_example",
+        "sentry_test_integration",
         ["log", "capture-transaction"],
         env=env,
     )
@@ -94,14 +94,14 @@ def test_transaction_only(cmake, httpserver, build_args):
 
 
 def test_before_transaction_callback(cmake, httpserver):
-    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "none"})
+    tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "none"})
 
     httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data("OK")
     env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver), SENTRY_RELEASE="🤮🚀")
 
     run(
         tmp_path,
-        "sentry_example",
+        "sentry_test_integration",
         ["log", "capture-transaction", "before-transaction"],
         env=env,
     )
@@ -150,14 +150,14 @@ def test_before_transaction_callback(cmake, httpserver):
 
 
 def test_before_transaction_discard(cmake, httpserver):
-    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "none"})
+    tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "none"})
 
     httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data("OK")
     env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver), SENTRY_RELEASE="🤮🚀")
 
     run(
         tmp_path,
-        "sentry_example",
+        "sentry_test_integration",
         ["log", "capture-transaction", "discarding-before-transaction"],
         env=env,
     )
@@ -167,14 +167,14 @@ def test_before_transaction_discard(cmake, httpserver):
 
 
 def test_transaction_event(cmake, httpserver):
-    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "none"})
+    tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "none"})
 
     httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data("OK")
     env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver), SENTRY_RELEASE="🤮🚀")
 
     run(
         tmp_path,
-        "sentry_example",
+        "sentry_test_integration",
         ["log", "capture-transaction", "capture-event"],
         env=env,
     )
@@ -224,14 +224,14 @@ def test_transaction_event(cmake, httpserver):
 
 
 def test_transaction_trace_header(cmake, httpserver):
-    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "none"})
+    tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "none"})
 
     httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data("OK")
     env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver), SENTRY_RELEASE="🤮🚀")
 
     run(
         tmp_path,
-        "sentry_example",
+        "sentry_test_integration",
         ["log", "set-trace", "capture-transaction"],
         env=env,
     )
@@ -269,14 +269,14 @@ def test_transaction_trace_header(cmake, httpserver):
 
 
 def test_event_trace_header(cmake, httpserver):
-    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "none"})
+    tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "none"})
 
     httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data("OK")
     env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver), SENTRY_RELEASE="🤮🚀")
 
     run(
         tmp_path,
-        "sentry_example",
+        "sentry_test_integration",
         ["log", "set-trace", "capture-event"],
         env=env,
     )
@@ -313,14 +313,14 @@ def test_event_trace_header(cmake, httpserver):
 
 
 def test_set_trace_event(cmake, httpserver):
-    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "none"})
+    tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "none"})
 
     httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data("OK")
     env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver), SENTRY_RELEASE="🤮🚀")
 
     run(
         tmp_path,
-        "sentry_example",
+        "sentry_test_integration",
         ["log", "set-trace", "capture-event"],
         env=env,
     )
@@ -345,14 +345,14 @@ def test_set_trace_event(cmake, httpserver):
 
 
 def test_set_trace_transaction_scoped_event(cmake, httpserver):
-    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "none"})
+    tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "none"})
 
     httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data("OK")
     env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver), SENTRY_RELEASE="🤮🚀")
 
     run(
         tmp_path,
-        "sentry_example",
+        "sentry_test_integration",
         ["log", "capture-transaction", "scope-transaction-event"],
         env=env,
     )
@@ -401,14 +401,14 @@ def test_set_trace_transaction_scoped_event(cmake, httpserver):
 
 
 def test_set_trace_transaction_update_from_header_event(cmake, httpserver):
-    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "none"})
+    tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "none"})
 
     httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data("OK")
     env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver), SENTRY_RELEASE="🤮🚀")
 
     run(
         tmp_path,
-        "sentry_example",
+        "sentry_test_integration",
         [
             "log",
             "capture-transaction",
@@ -520,7 +520,7 @@ def test_set_trace_transaction_update_from_header_event(cmake, httpserver):
 def test_strict_trace_continuation(
     cmake, httpserver, strict, incoming_baggage_flag, continues, expected_dsc
 ):
-    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "none"})
+    tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "none"})
 
     httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data("OK")
     env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver), SENTRY_RELEASE="🤮🚀")
@@ -536,7 +536,7 @@ def test_strict_trace_continuation(
     if incoming_baggage_flag:
         args.append(incoming_baggage_flag)
 
-    run(tmp_path, "sentry_example", args, env=env)
+    run(tmp_path, "sentry_test_integration", args, env=env)
 
     assert len(httpserver.log) == 1
     event_envelope = Envelope.deserialize(httpserver.log[0][0].get_data())

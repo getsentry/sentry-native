@@ -81,6 +81,16 @@ sentry__should_skip_upload(void)
 }
 
 static void
+flush_global_scope(sentry_scope_t *scope)
+{
+    sentry_options_t *options = sentry__options_incref(scope->state);
+    if (options && options->backend && options->backend->flush_scope_func) {
+        options->backend->flush_scope_func(options->backend, options);
+    }
+    sentry_options_free(options);
+}
+
+static void
 register_integrations(sentry_scope_t *scope, const sentry_options_t *options)
 {
     for (size_t i = 0; i < options->num_integrations; i++) {
@@ -231,7 +241,7 @@ sentry_init(sentry_options_t *options)
     sentry__init_cached_kernel32_functions();
 #endif
 
-    SENTRY_WITH_SCOPE_MUT_NO_FLUSH (scope) {
+    SENTRY_WITH_SCOPE_MUT (scope) {
         sentry__scope_apply_options(scope, options);
     }
     initial_scope_prepared = true;
@@ -258,7 +268,10 @@ sentry_init(sentry_options_t *options)
     // *after* setting the global options, register integrations and trigger a
     // scope and consent flush, since at least crashpad needs that.
     SENTRY_WITH_SCOPE_MUT (scope) {
+        sentry__scope_set_state(scope, sentry__options_incref(options));
+        sentry__scope_set_flush_func(scope, flush_global_scope);
         register_integrations(scope, options);
+        sentry__scope_flush(scope);
     }
     if (backend && backend->user_consent_changed_func) {
         backend->user_consent_changed_func(backend);
@@ -332,7 +345,7 @@ sentry_close(void)
     // envelope creation.
     SENTRY_WITH_OPTIONS (options) {
         if (options->num_integrations) {
-            SENTRY_WITH_SCOPE_MUT_NO_FLUSH (scope) {
+            SENTRY_WITH_SCOPE_MUT (scope) {
                 unregister_integrations(scope, options);
             }
         }
@@ -353,6 +366,12 @@ sentry_close(void)
 
     size_t dumped_envelopes = 0;
     if (options) {
+        SENTRY_WITH_SCOPE_MUT (scope) {
+            sentry_options_t *scope_options = scope->state;
+            sentry__scope_set_flush_func(scope, NULL);
+            sentry__scope_set_state(scope, NULL);
+            sentry_options_free(scope_options);
+        }
         sentry_end_session();
         if (options->backend && options->backend->shutdown_func) {
             SENTRY_DEBUG("shutting down backend");
@@ -420,7 +439,7 @@ sentry_reinstall_backend(void)
             }
         }
         sentry__mutex_unlock(&scope->observers_lock);
-        sentry__scope_finish_mut(scope, false);
+        sentry__scope_finish(scope);
     }
     return rv;
 }
@@ -526,7 +545,7 @@ sentry__capture_envelope(sentry_transport_t *transport,
 {
     sentry_uuid_t event_id = sentry__envelope_get_event_id(envelope);
     if (!sentry_uuid_is_nil(&event_id)) {
-        SENTRY_WITH_SCOPE_MUT_NO_FLUSH (scope) {
+        SENTRY_WITH_SCOPE_MUT (scope) {
             sentry__scope_set_last_event_id(scope, event_id);
         }
     }
@@ -1138,7 +1157,7 @@ sentry_add_breadcrumb(sentry_value_t breadcrumb)
     }
 
     // backend observers persist breadcrumbs without a scope flush
-    SENTRY_WITH_SCOPE_MUT_NO_FLUSH (scope) {
+    SENTRY_WITH_SCOPE_MUT (scope) {
         sentry_scope_add_breadcrumb(scope, breadcrumb);
     }
 }
@@ -1163,12 +1182,6 @@ sentry_set_tag_n(
 void
 sentry_set_tags(sentry_value_t tags)
 {
-    if (sentry_value_get_type(tags) != SENTRY_VALUE_TYPE_OBJECT
-        || sentry_value_get_length(tags) == 0) {
-        sentry_value_decref(tags);
-        return;
-    }
-
     SENTRY_WITH_SCOPE_MUT (scope) {
         sentry_scope_set_tags(scope, tags);
     }
@@ -1395,6 +1408,7 @@ sentry_set_trace_n(const char *trace_id, size_t trace_id_len,
         sentry_value_set_by_key(
             context, "span_id", sentry__value_new_span_uuid(&span_id));
         sentry__scope_set_trace_managed(scope, false);
+        sentry__scope_flush(scope);
     }
 
     if (!sentry_value_is_null(context)) {
@@ -1405,6 +1419,7 @@ sentry_set_trace_n(const char *trace_id, size_t trace_id_len,
         SENTRY_WITH_OPTIONS (options) {
             SENTRY_WITH_SCOPE_MUT (scope) {
                 sentry__scope_update_dsc(scope, options);
+                sentry__scope_flush(scope);
             }
         }
     }
@@ -1418,6 +1433,7 @@ sentry_start_new_trace(void)
             sentry__scope_regenerate_propagation_context(scope);
             sentry__scope_set_trace_managed(scope, false);
             sentry__scope_update_dsc(scope, options);
+            sentry__scope_flush(scope);
         }
     }
 }
@@ -1512,6 +1528,7 @@ sentry_transaction_start_ts(sentry_transaction_context_t *opaque_tx_ctx,
                     sentry_value_remove_by_key(tx, "sampled");
                     sentry__scope_update_dsc(scope, options);
                 }
+                sentry__scope_flush(scope);
             }
         }
     }
@@ -1596,6 +1613,7 @@ sentry__transaction_finish_value(
 
             sentry__scope_set_trace_context(scope, "trace_id", txn_trace_id);
         }
+        sentry__scope_flush(scope);
     }
     // The sampling decision should already be made for transactions
     // during their construction. No need to recalculate here. See
@@ -1786,9 +1804,9 @@ sentry_span_finish_ts(sentry_span_t *opaque_span, uint64_t timestamp)
         goto fail;
     }
 
-    sentry_scope_t *scope = sentry__scope_getref();
-    bool removed = sentry__scope_remove_span_value(scope, opaque_span->inner);
-    sentry__scope_finish_mut(scope, removed);
+    SENTRY_WITH_SCOPE_MUT (scope) {
+        sentry__scope_remove_span_value(scope, opaque_span->inner);
+    }
 
     sentry_transaction_t *opaque_root_transaction = opaque_span->transaction;
     if (!opaque_root_transaction

@@ -238,7 +238,7 @@ def run_wer_crash(cmake, backend, crash_arg, httpserver=None, appx=False):
     if httpserver is None:
         build_options["SENTRY_TRANSPORT"] = "none"
 
-    target = "sentry_example_appx" if appx else "sentry_example"
+    target = "sentry_test_appx" if appx else "sentry_test_integration"
     tmp_path = cmake(
         [target],
         build_options,

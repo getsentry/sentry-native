@@ -20,13 +20,13 @@ pytestmark = pytest.mark.skipif(not has_http, reason="tests need http")
 
 
 def test_logs_timer(cmake, httpserver):
-    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "none"})
+    tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "none"})
 
     httpserver.expect_request("/api/123456/envelope/").respond_with_data("OK")
 
     run(
         tmp_path,
-        "sentry_example",
+        "sentry_test_integration",
         ["log", "logs-timer"],
         env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
     )
@@ -47,13 +47,13 @@ def test_logs_timer(cmake, httpserver):
 
 
 def test_logs_event(cmake, httpserver):
-    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "none"})
+    tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "none"})
 
     httpserver.expect_request("/api/123456/envelope/").respond_with_data("OK")
 
     run(
         tmp_path,
-        "sentry_example",
+        "sentry_test_integration",
         ["log", "capture-log", "capture-event"],
         env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
     )
@@ -78,13 +78,13 @@ def test_logs_event(cmake, httpserver):
 
 
 def test_logs_scoped_transaction(cmake, httpserver):
-    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "none"})
+    tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "none"})
 
     httpserver.expect_request("/api/123456/envelope/").respond_with_data("OK")
 
     run(
         tmp_path,
-        "sentry_example",
+        "sentry_test_integration",
         [
             "log",
             "logs-scoped-transaction",
@@ -122,13 +122,13 @@ def test_logs_scoped_transaction(cmake, httpserver):
 
 
 def test_logs_threaded(cmake, httpserver):
-    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "none"})
+    tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "none"})
 
     httpserver.expect_request("/api/123456/envelope/").respond_with_data("OK")
 
     run(
         tmp_path,
-        "sentry_example",
+        "sentry_test_integration",
         ["log", "logs-threads"],
         env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
     )
@@ -147,14 +147,14 @@ def test_logs_threaded(cmake, httpserver):
 
 
 def test_before_send_log(cmake, httpserver):
-    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "none"})
+    tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "none"})
 
     httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data("OK")
     env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver), SENTRY_RELEASE="🤮🚀")
 
     run(
         tmp_path,
-        "sentry_example",
+        "sentry_test_integration",
         ["log", "capture-log", "before-send-log"],
         env=env,
     )
@@ -185,14 +185,14 @@ def test_before_send_log(cmake, httpserver):
 
 
 def test_before_send_log_discard(cmake, httpserver):
-    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "none"})
+    tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "none"})
 
     httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data("OK")
     env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver), SENTRY_RELEASE="🤮🚀")
 
     run(
         tmp_path,
-        "sentry_example",
+        "sentry_test_integration",
         ["log", "capture-log", "discarding-before-send-log"],
         env=env,
     )
@@ -202,14 +202,14 @@ def test_before_send_log_discard(cmake, httpserver):
 
 
 def test_logs_on_crash_none(cmake, httpserver):
-    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "none"})
+    tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "none"})
 
     httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data("OK")
     env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver), SENTRY_RELEASE="🤮🚀")
 
     run(
         tmp_path,
-        "sentry_example",
+        "sentry_test_integration",
         ["log", "capture-log", "crash"],
         expect_failure=True,
         env=env,
@@ -232,7 +232,7 @@ def test_logs_on_crash_none(cmake, httpserver):
     ],
 )
 def test_logs_on_crash(cmake, httpserver, backend):
-    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": backend})
+    tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": backend})
 
     httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data("OK")
     httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data("OK")
@@ -240,7 +240,7 @@ def test_logs_on_crash(cmake, httpserver, backend):
 
     run(
         tmp_path,
-        "sentry_example",
+        "sentry_test_integration",
         ["log", "capture-log", "crash"],
         expect_failure=True,
         env=env,
@@ -249,7 +249,7 @@ def test_logs_on_crash(cmake, httpserver, backend):
     with httpserver.wait(timeout=10):
         run(
             tmp_path,
-            "sentry_example",
+            "sentry_test_integration",
             ["log", "no-setup"],
             env=env,
         )
@@ -270,7 +270,7 @@ def test_logs_on_crash(cmake, httpserver, backend):
 @pytest.mark.skipif(not has_native or is_qemu, reason="test needs native backend")
 @pytest.mark.parametrize("rerun", [True, False], ids=["rerun", "no-rerun"])
 def test_logs_on_crash_native(cmake, httpserver, rerun):
-    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "native"})
+    tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "native"})
 
     httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data("OK")
     httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data("OK")
@@ -279,7 +279,7 @@ def test_logs_on_crash_native(cmake, httpserver, rerun):
     with httpserver.wait(timeout=10):
         run(
             tmp_path,
-            "sentry_example",
+            "sentry_test_integration",
             ["log", "capture-log", "crash"],
             expect_failure=True,
             env=env,
@@ -290,7 +290,7 @@ def test_logs_on_crash_native(cmake, httpserver, rerun):
             # and a second daemon do not conflict with each other
             run(
                 tmp_path,
-                "sentry_example",
+                "sentry_test_integration",
                 ["log", "no-setup"],
                 env=env,
             )
@@ -309,14 +309,14 @@ def test_logs_on_crash_native(cmake, httpserver, rerun):
 
 
 def test_logs_with_custom_attributes(cmake, httpserver):
-    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "none"})
+    tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "none"})
 
     httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data("OK")
     env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
 
     run(
         tmp_path,
-        "sentry_example",
+        "sentry_test_integration",
         ["log", "log-attributes"],
         env=env,
     )
@@ -399,14 +399,14 @@ def test_logs_with_custom_attributes(cmake, httpserver):
 
 
 def test_logs_global_and_local_attributes_merge(cmake, httpserver):
-    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "none"})
+    tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "none"})
 
     httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data("OK")
     env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
 
     run(
         tmp_path,
-        "sentry_example",
+        "sentry_test_integration",
         ["log", "set-global-attribute", "log-attributes"],
         env=env,
     )

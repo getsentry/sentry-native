@@ -68,7 +68,7 @@ android {
             useLegacyPackaging = true
         }
     }
-    ndkVersion = "27.0.12077973"
+    ndkVersion = System.getenv("ANDROID_NDK")?.let { File(it).name } ?: "27.0.12077973"
 }
 
 dependencies {

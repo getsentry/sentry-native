@@ -30,7 +30,7 @@ upload_metadata = "sentry eyJhdHRhY2htZW50X3R5cGUiOiJldmVudC5taW5pZHVtcCJ9"
 
 def test_tus_upload(cmake, httpserver):
     tmp_path = cmake(
-        ["sentry_example"],
+        ["sentry_test_integration"],
         {"SENTRY_BACKEND": "none"},
     )
 
@@ -66,7 +66,7 @@ def test_tus_upload(cmake, httpserver):
 
     run(
         tmp_path,
-        "sentry_example",
+        "sentry_test_integration",
         ["log", "no-setup", "attachment", "large-attachment", "capture-event"],
         env=env,
     )
@@ -133,7 +133,7 @@ def test_tus_upload(cmake, httpserver):
 
 def test_tus_error(cmake, httpserver):
     tmp_path = cmake(
-        ["sentry_example"],
+        ["sentry_test_integration"],
         {"SENTRY_BACKEND": "none"},
     )
 
@@ -150,7 +150,7 @@ def test_tus_error(cmake, httpserver):
 
     run(
         tmp_path,
-        "sentry_example",
+        "sentry_test_integration",
         ["log", "no-setup", "large-attachment", "capture-event"],
         env=env,
     )
@@ -183,7 +183,7 @@ def test_tus_error(cmake, httpserver):
 
 def test_tus_rate_limit(cmake, httpserver):
     tmp_path = cmake(
-        ["sentry_example"],
+        ["sentry_test_integration"],
         {"SENTRY_BACKEND": "none"},
     )
 
@@ -219,7 +219,7 @@ def test_tus_rate_limit(cmake, httpserver):
 
     run(
         tmp_path,
-        "sentry_example",
+        "sentry_test_integration",
         ["log", "no-setup", "large-attachment", "capture-multiple"],
         env=env,
     )
@@ -253,7 +253,7 @@ def test_tus_rate_limit(cmake, httpserver):
 
 def test_tus_shutdown(cmake, httpserver):
     tmp_path = cmake(
-        ["sentry_example"],
+        ["sentry_test_integration"],
         {"SENTRY_BACKEND": "none"},
     )
 
@@ -278,7 +278,7 @@ def test_tus_shutdown(cmake, httpserver):
         try:
             run(
                 tmp_path,
-                "sentry_example",
+                "sentry_test_integration",
                 [
                     "log",
                     "no-setup",
@@ -333,7 +333,7 @@ def test_tus_shutdown(cmake, httpserver):
     with httpserver.wait(timeout=10):
         run(
             tmp_path,
-            "sentry_example",
+            "sentry_test_integration",
             ["log", "no-setup"],
             env=env,
         )
@@ -376,7 +376,7 @@ def test_tus_shutdown(cmake, httpserver):
 )
 def test_tus_crash_restart(cmake, httpserver, backend):
     tmp_path = cmake(
-        ["sentry_example"],
+        ["sentry_test_integration"],
         {"SENTRY_BACKEND": backend},
     )
 
@@ -385,7 +385,7 @@ def test_tus_crash_restart(cmake, httpserver, backend):
     # First run: crash with large attachment (no server expectations needed)
     run(
         tmp_path,
-        "sentry_example",
+        "sentry_test_integration",
         ["log", "large-attachment", "crash"],
         expect_failure=True,
         env=env,
@@ -440,7 +440,7 @@ def test_tus_crash_restart(cmake, httpserver, backend):
 
     run(
         tmp_path,
-        "sentry_example",
+        "sentry_test_integration",
         ["log", "no-setup"],
         env=env,
     )
@@ -502,7 +502,7 @@ def test_tus_crash_native(cmake, httpserver):
     # caches the large attachment, writes the envelope with attachment-ref
     # items, and uploads via TUS itself when the server responds within the
     # crash transport shutdown window.
-    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "native"})
+    tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "native"})
 
     upload_uri = "/api/123456/upload/abc123def456789/"
     upload_qs = "length=104857600&signature=xyz"
@@ -530,7 +530,7 @@ def test_tus_crash_native(cmake, httpserver):
     with httpserver.wait(timeout=15) as waiting:
         run(
             tmp_path,
-            "sentry_example",
+            "sentry_test_integration",
             [
                 "log",
                 "large-attachment",

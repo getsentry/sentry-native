@@ -91,7 +91,7 @@ class CMake:
                 # then export lcov from the profiling data, since this needs access
                 # to the object files, we need to do it per-test
                 objects = [
-                    exe_name("sentry_example"),
+                    exe_name("sentry_test_integration"),
                     exe_name("sentry_test_unit"),
                     lib_name("sentry"),
                     exe_name("sentry-crash"),
@@ -153,7 +153,7 @@ def cmake_configure(cwd, options, cflags=None):
             "CMAKE_RUNTIME_OUTPUT_DIRECTORY_DEBUG": cwd,
             "CMAKE_RUNTIME_OUTPUT_DIRECTORY_RELEASE": cwd,
             # Also set library output directory so shared libraries (libsentry.so/.dylib)
-            # are in the same directory as executables (sentry-crash, sentry_example).
+            # are in the same directory as executables (sentry-crash, sentry_test_integration).
             # This is needed for the native backend daemon to find sentry-crash.
             "CMAKE_LIBRARY_OUTPUT_DIRECTORY": cwd,
             "CMAKE_LIBRARY_OUTPUT_DIRECTORY_DEBUG": cwd,

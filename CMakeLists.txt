@@ -1097,8 +1097,8 @@ endif()
 
 # ===== examples =====
 
-if(SENTRY_BUILD_EXAMPLES)
-	function(sentry_add_sample TARGET SOURCE)
+if(SENTRY_BUILD_TESTS OR SENTRY_BUILD_EXAMPLES)
+	function(sentry_add_executable TARGET SOURCE)
 		add_executable(${TARGET} ${SOURCE})
 		target_link_libraries(${TARGET} PRIVATE sentry)
 		if(XBOX)
@@ -1111,42 +1111,47 @@ if(SENTRY_BUILD_EXAMPLES)
 			set_target_properties(${TARGET} PROPERTIES FOLDER ${SENTRY_FOLDER})
 		endif()
 	endfunction()
+endif()
 
+if(SENTRY_BUILD_EXAMPLES)
 	foreach(EXAMPLE message crash enrich feedback logs metrics scope tracing)
-		sentry_add_sample(sentry_example_${EXAMPLE} examples/${EXAMPLE}.c)
+		sentry_add_executable(sentry_example_${EXAMPLE} examples/${EXAMPLE}.c)
 	endforeach()
+endif()
 
-	# also used as integration test
-	sentry_add_sample(sentry_example examples/example.c)
+# ===== test fixtures =====
+
+if(SENTRY_BUILD_TESTS)
+	sentry_add_executable(sentry_test_integration tests/fixtures/integration.c)
 
 	if(MSVC)
-		target_compile_options(sentry_example PRIVATE $<BUILD_INTERFACE:/wd5105 /wd4717>)
+		target_compile_options(sentry_test_integration PRIVATE $<BUILD_INTERFACE:/wd5105 /wd4717>)
 		if(CMAKE_CXX_COMPILER_ID STREQUAL "Clang") # clang-cl
 			# ignore the warning for the intentionally infinite recursion
-			target_compile_options(sentry_example PRIVATE $<BUILD_INTERFACE:-Wno-infinite-recursion>)
-			# ensure that clang-cl builds an unoptimized `sentry_example` in all build types
-			target_compile_options(sentry_example PRIVATE $<BUILD_INTERFACE:/Od>)
+			target_compile_options(sentry_test_integration PRIVATE $<BUILD_INTERFACE:-Wno-infinite-recursion>)
+			# ensure that clang-cl builds an unoptimized `sentry_test_integration` in all build types
+			target_compile_options(sentry_test_integration PRIVATE $<BUILD_INTERFACE:/Od>)
 		endif()
 
 		# to test handling SEH by-passing exceptions we need to enable the control flow guard
-		target_compile_options(sentry_example PRIVATE $<BUILD_INTERFACE:/guard:cf>)
-		target_link_options(sentry_example PRIVATE $<BUILD_INTERFACE:/GUARD:CF>)
+		target_compile_options(sentry_test_integration PRIVATE $<BUILD_INTERFACE:/guard:cf>)
+		target_link_options(sentry_test_integration PRIVATE $<BUILD_INTERFACE:/GUARD:CF>)
 	else()
-		# Disable all optimizations for the `sentry_example` in gcc/clang. This allows us to keep crash triggers simple.
+		# Disable all optimizations for the `sentry_test_integration` in gcc/clang. This allows us to keep crash triggers simple.
 		# The effects besides reproducible code-gen across compiler versions, will be negligible for build- and runtime.
-		target_compile_options(sentry_example PRIVATE $<BUILD_INTERFACE:-O0>)
+		target_compile_options(sentry_test_integration PRIVATE $<BUILD_INTERFACE:-O0>)
 	endif()
 
 	if(CMAKE_GENERATOR STREQUAL "Xcode")
-		set(SENTRY_FIXTURE_OUTPUT_DIR "$<TARGET_BUNDLE_DIR:sentry_example>/..")
+		set(SENTRY_FIXTURE_OUTPUT_DIR "$<TARGET_BUNDLE_DIR:sentry_test_integration>/..")
 	else()
-		set(SENTRY_FIXTURE_OUTPUT_DIR "$<TARGET_FILE_DIR:sentry_example>")
+		set(SENTRY_FIXTURE_OUTPUT_DIR "$<TARGET_FILE_DIR:sentry_test_integration>")
 	endif()
 
-	add_custom_command(TARGET sentry_example POST_BUILD
+	add_custom_command(TARGET sentry_test_integration POST_BUILD
 		COMMAND ${CMAKE_COMMAND} -E copy_if_different "${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/minidump.dmp" "${SENTRY_FIXTURE_OUTPUT_DIR}/minidump.dmp")
 
-	add_custom_command(TARGET sentry_example POST_BUILD
+	add_custom_command(TARGET sentry_test_integration POST_BUILD
 		COMMAND ${CMAKE_COMMAND} -E copy_if_different "${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/view-hierarchy.json" "${SENTRY_FIXTURE_OUTPUT_DIR}/view-hierarchy.json")
 endif()
 

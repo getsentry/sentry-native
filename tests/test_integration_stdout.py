@@ -34,7 +34,7 @@ from .conditions import has_breakpad, has_files, is_qemu, is_wine
 )
 def test_capture_stdout(cmake):
     tmp_path = cmake(
-        ["sentry_example"],
+        ["sentry_test_integration"],
         {
             "SENTRY_BACKEND": "none",
             "SENTRY_TRANSPORT": "none",
@@ -43,7 +43,7 @@ def test_capture_stdout(cmake):
 
     output = check_output(
         tmp_path,
-        "sentry_example",
+        "sentry_test_integration",
         ["stdout", "attachment", "capture-event", "add-stacktrace"],
     )
     envelope = Envelope.deserialize(output)
@@ -78,7 +78,7 @@ def copy_except(src: Path, dst: Path, exceptions: list[str] = None) -> None:
 
 def test_dynamic_sdk_name_override(cmake):
     tmp_path = cmake(
-        ["sentry_example"],
+        ["sentry_test_integration"],
         {
             "SENTRY_BACKEND": "none",
             "SENTRY_TRANSPORT": "none",
@@ -87,7 +87,7 @@ def test_dynamic_sdk_name_override(cmake):
 
     output = check_output(
         tmp_path,
-        "sentry_example",
+        "sentry_test_integration",
         ["stdout", "override-sdk-name", "capture-event"],
     )
     envelope = Envelope.deserialize(output)
@@ -99,7 +99,7 @@ def test_dynamic_sdk_name_override(cmake):
 def test_sdk_name_override(cmake):
     sdk_name = "cUsToM.SDK"
     tmp_path = cmake(
-        ["sentry_example"],
+        ["sentry_test_integration"],
         {
             "SENTRY_BACKEND": "none",
             "SENTRY_TRANSPORT": "none",
@@ -109,7 +109,7 @@ def test_sdk_name_override(cmake):
 
     output = check_output(
         tmp_path,
-        "sentry_example",
+        "sentry_test_integration",
         ["stdout", "capture-event"],
     )
     envelope = Envelope.deserialize(output)
@@ -123,13 +123,13 @@ def test_multi_process(cmake):
     # NOTE: It would have been nice to do *everything* in a unicode-named
     # directory, but apparently cmake does not like that either.
     tmp_path = cmake(
-        ["sentry_example"],
+        ["sentry_test_integration"],
         {"SENTRY_BACKEND": "none", "SENTRY_TRANSPORT": "none"},
     )
 
     cwd = tmp_path.joinpath("unicode ❤️ Юля")
     cwd.mkdir()
-    cmd = run_command(str(tmp_path / "sentry_example"))
+    cmd = run_command(str(tmp_path / "sentry_test_integration"))
 
     child1 = subprocess.Popen([*cmd, "sleep"], cwd=cwd)
     child2 = subprocess.Popen([*cmd, "sleep"], cwd=cwd)
@@ -164,11 +164,13 @@ def run_stdout_for(backend, cmake, example_args, build_args=None, env=None):
     build_args = dict(build_args or {})
     build_args.update({"SENTRY_BACKEND": backend, "SENTRY_TRANSPORT": "none"})
 
-    tmp_path = cmake(["sentry_example"], build_args)
+    tmp_path = cmake(["sentry_test_integration"], build_args)
 
-    run(tmp_path, "sentry_example", example_args, expect_failure=True, env=env)
+    run(tmp_path, "sentry_test_integration", example_args, expect_failure=True, env=env)
 
-    return tmp_path, check_output(tmp_path, "sentry_example", ["stdout", "no-setup"])
+    return tmp_path, check_output(
+        tmp_path, "sentry_test_integration", ["stdout", "no-setup"]
+    )
 
 
 def run_crash_stdout_for(backend, cmake, example_args):
@@ -410,7 +412,7 @@ def test_breakpad_stack_overflow_stdout(cmake, stack_size):
 @pytest.mark.skipif(not is_wine, reason="test needs Wine")
 def test_wine_context(cmake):
     tmp_path = cmake(
-        ["sentry_example"],
+        ["sentry_test_integration"],
         {
             "SENTRY_BACKEND": "none",
             "SENTRY_TRANSPORT": "none",
@@ -421,7 +423,7 @@ def test_wine_context(cmake):
 
     output = check_output(
         tmp_path,
-        "sentry_example",
+        "sentry_test_integration",
         ["stdout", "capture-event"],
         env=env,
     )

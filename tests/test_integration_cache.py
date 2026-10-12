@@ -33,14 +33,14 @@ pytestmark = [
     ],
 )
 def test_cache_keep(cmake, backend, cache_args, expect_cache, unreachable_dsn):
-    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": backend})
+    tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": backend})
     cache_dir = tmp_path.joinpath(".sentry-native/cache")
     env = dict(os.environ, SENTRY_DSN=unreachable_dsn)
 
     # capture
     run(
         tmp_path,
-        "sentry_example",
+        "sentry_test_integration",
         ["log", "no-http-retry", "flush", "crash"] + cache_args,
         expect_failure=True,
         env=env,
@@ -51,7 +51,7 @@ def test_cache_keep(cmake, backend, cache_args, expect_cache, unreachable_dsn):
     # flush + cache
     run(
         tmp_path,
-        "sentry_example",
+        "sentry_test_integration",
         ["log", "no-http-retry", "flush", "no-setup"] + cache_args,
         env=env,
     )
@@ -79,13 +79,13 @@ def test_cache_keep(cmake, backend, cache_args, expect_cache, unreachable_dsn):
     ],
 )
 def test_cache_keep_native(cmake, cache_args, expect_cache, unreachable_dsn):
-    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "native"})
+    tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "native"})
     cache_dir = tmp_path / ".sentry-native" / "cache"
     env = dict(os.environ, SENTRY_DSN=unreachable_dsn)
 
     run_crash(
         tmp_path,
-        "sentry_example",
+        "sentry_test_integration",
         ["log", "stdout", "crash"] + cache_args,
         env=env,
         wait_for_daemon=not expect_cache,
@@ -103,7 +103,7 @@ def test_cache_keep_native(cmake, cache_args, expect_cache, unreachable_dsn):
 
 
 def test_cache_keep_always(cmake, httpserver):
-    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "inproc"})
+    tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "inproc"})
     cache_dir = tmp_path.joinpath(".sentry-native/cache")
     env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
 
@@ -111,7 +111,7 @@ def test_cache_keep_always(cmake, httpserver):
     with httpserver.wait(timeout=10) as waiting:
         run(
             tmp_path,
-            "sentry_example",
+            "sentry_test_integration",
             ["log", "cache-keep-always", "flush", "capture-event"],
             env=env,
         )
@@ -141,14 +141,14 @@ def test_cache_keep_always(cmake, httpserver):
     ],
 )
 def test_cache_max_size(cmake, backend, unreachable_dsn):
-    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": backend})
+    tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": backend})
     cache_dir = tmp_path.joinpath(".sentry-native/cache")
     env = dict(os.environ, SENTRY_DSN=unreachable_dsn)
 
     for i in range(5):
         run_crash(
             tmp_path,
-            "sentry_example",
+            "sentry_test_integration",
             [
                 "log",
                 "no-http-retry",
@@ -169,7 +169,7 @@ def test_cache_max_size(cmake, backend, unreachable_dsn):
         # flush + cache
         run(
             tmp_path,
-            "sentry_example",
+            "sentry_test_integration",
             ["log", "no-http-retry", "cache-keep", "flush", "no-setup"],
             env=env,
         )
@@ -185,7 +185,7 @@ def test_cache_max_size(cmake, backend, unreachable_dsn):
     # max 16mb
     run(
         tmp_path,
-        "sentry_example",
+        "sentry_test_integration",
         ["log", "no-http-retry", "cache-keep", "no-setup"],
         env=env,
     )
@@ -214,14 +214,14 @@ def test_cache_max_size(cmake, backend, unreachable_dsn):
     ],
 )
 def test_cache_max_age(cmake, backend, unreachable_dsn):
-    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": backend})
+    tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": backend})
     cache_dir = tmp_path.joinpath(".sentry-native/cache")
     env = dict(os.environ, SENTRY_DSN=unreachable_dsn)
 
     for i in range(5):
         run_crash(
             tmp_path,
-            "sentry_example",
+            "sentry_test_integration",
             [
                 "log",
                 "no-http-retry",
@@ -242,7 +242,7 @@ def test_cache_max_age(cmake, backend, unreachable_dsn):
         # flush + cache
         run(
             tmp_path,
-            "sentry_example",
+            "sentry_test_integration",
             ["log", "no-http-retry", "cache-keep", "flush", "no-setup"],
             env=env,
         )
@@ -258,7 +258,7 @@ def test_cache_max_age(cmake, backend, unreachable_dsn):
     # max 5 days
     run(
         tmp_path,
-        "sentry_example",
+        "sentry_test_integration",
         ["log", "no-http-retry", "cache-keep", "no-setup"],
         env=env,
     )
@@ -288,14 +288,14 @@ def test_cache_max_age(cmake, backend, unreachable_dsn):
     ],
 )
 def test_cache_max_items(cmake, backend, unreachable_dsn):
-    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": backend})
+    tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": backend})
     cache_dir = tmp_path.joinpath(".sentry-native/cache")
     env = dict(os.environ, SENTRY_DSN=unreachable_dsn)
 
     for i in range(6):
         run_crash(
             tmp_path,
-            "sentry_example",
+            "sentry_test_integration",
             [
                 "log",
                 "no-http-retry",
@@ -315,7 +315,7 @@ def test_cache_max_items(cmake, backend, unreachable_dsn):
     # flush + cache
     run(
         tmp_path,
-        "sentry_example",
+        "sentry_test_integration",
         ["log", "no-http-retry", "cache-keep", "flush", "no-setup"],
         env=env,
     )
@@ -346,7 +346,7 @@ def test_cache_max_items(cmake, backend, unreachable_dsn):
     ],
 )
 def test_cache_max_items_with_retry(cmake, backend, unreachable_dsn):
-    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": backend})
+    tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": backend})
     cache_dir = tmp_path.joinpath(".sentry-native/cache")
     env = dict(os.environ, SENTRY_DSN=unreachable_dsn)
 
@@ -354,7 +354,7 @@ def test_cache_max_items_with_retry(cmake, backend, unreachable_dsn):
     for i in range(4):
         run_crash(
             tmp_path,
-            "sentry_example",
+            "sentry_test_integration",
             ["log", "cache-keep", "flush", "crash", "crash-mode", "native"],
             env=env,
             wait_for_daemon=backend == "native",
@@ -367,7 +367,7 @@ def test_cache_max_items_with_retry(cmake, backend, unreachable_dsn):
         # flush + cache
         run(
             tmp_path,
-            "sentry_example",
+            "sentry_test_integration",
             ["log", "cache-keep", "flush", "no-setup"],
             env=env,
         )
@@ -383,7 +383,7 @@ def test_cache_max_items_with_retry(cmake, backend, unreachable_dsn):
     # Trigger sentry_init which runs cleanup
     run(
         tmp_path,
-        "sentry_example",
+        "sentry_test_integration",
         ["log", "cache-keep", "no-setup"],
         env=env,
     )
@@ -396,13 +396,13 @@ def test_cache_max_items_with_retry(cmake, backend, unreachable_dsn):
 
 def test_cache_consent_revoke(cmake, unreachable_dsn):
     """With consent revoked and cache_keep, envelopes are cached to disk."""
-    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "none"})
+    tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "none"})
     cache_dir = tmp_path.joinpath(".sentry-native/cache")
     env = dict(os.environ, SENTRY_DSN=unreachable_dsn)
 
     run(
         tmp_path,
-        "sentry_example",
+        "sentry_test_integration",
         [
             "log",
             "cache-keep",
@@ -421,13 +421,13 @@ def test_cache_consent_revoke(cmake, unreachable_dsn):
 
 def test_cache_consent_discard(cmake, unreachable_dsn):
     """With consent revoked but no cache_keep, envelopes are discarded."""
-    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "none"})
+    tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "none"})
     cache_dir = tmp_path.joinpath(".sentry-native/cache")
     env = dict(os.environ, SENTRY_DSN=unreachable_dsn)
 
     run(
         tmp_path,
-        "sentry_example",
+        "sentry_test_integration",
         [
             "log",
             "require-user-consent",
@@ -445,7 +445,7 @@ def test_cache_consent_flush(cmake, httpserver):
     """Giving consent after capturing flushes cached envelopes immediately."""
     from . import make_dsn
 
-    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "none"})
+    tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "none"})
     cache_dir = tmp_path.joinpath(".sentry-native/cache")
     env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
 
@@ -453,7 +453,7 @@ def test_cache_consent_flush(cmake, httpserver):
 
     run(
         tmp_path,
-        "sentry_example",
+        "sentry_test_integration",
         [
             "log",
             "http-retry",
@@ -475,13 +475,13 @@ def test_cache_consent_flush(cmake, httpserver):
 )
 def test_cache_consent_native(cmake, httpserver):
     """Daemon honors revoked consent for crash envelopes."""
-    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "native"})
+    tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "native"})
     cache_dir = tmp_path / ".sentry-native" / "cache"
     env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
 
     run_crash(
         tmp_path,
-        "sentry_example",
+        "sentry_test_integration",
         [
             "log",
             "stdout",
@@ -502,7 +502,7 @@ def test_cache_consent_native(cmake, httpserver):
     with httpserver.wait(timeout=10) as waiting:
         run(
             tmp_path,
-            "sentry_example",
+            "sentry_test_integration",
             [
                 "log",
                 "cache-keep",

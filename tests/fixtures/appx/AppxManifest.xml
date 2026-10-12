@@ -34,7 +34,7 @@
   <Applications>
     <Application
       Id="App"
-      Executable="sentry_example_appx.exe"
+      Executable="sentry_test_appx.exe"
       uap10:TrustLevel="mediumIL"
       uap10:RuntimeBehavior="win32App">
       <uap:VisualElements

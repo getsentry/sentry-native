@@ -191,7 +191,7 @@ def assert_event_meta(
         assert event["sdk"]["integrations"] == integrations
     if event.get("type") == "event":
         assert any(
-            "sentry_example" in image["code_file"]
+            "sentry_test_integration" in image["code_file"]
             for image in event["debug_meta"]["images"]
         )
 

@@ -390,7 +390,7 @@ class TestE2ENative:
     @pytest.fixture(autouse=True)
     def setup(self, cmake):
         """Build the test app and set up DSN."""
-        self.tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "native"})
+        self.tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "native"})
         self.dsn = os.environ["SENTRY_E2E_DSN"]
 
     def print_daemon_logs(self):
@@ -436,7 +436,7 @@ class TestE2ENative:
         crash_args = ["log", "e2e-test", "capture-log"] + mode_args + ["crash"]
         output = run_crash_e2e(
             self.tmp_path,
-            "sentry_example",
+            "sentry_test_integration",
             crash_args,
             env=env,
             wait_for_daemon=True,
@@ -447,7 +447,7 @@ class TestE2ENative:
         self.print_daemon_logs()
 
         # Restart to send pending crash (no-setup skips scope setup but still sends)
-        run(self.tmp_path, "sentry_example", ["no-setup"], env=env)
+        run(self.tmp_path, "sentry_test_integration", ["no-setup"], env=env)
 
         return test_id
 
@@ -693,19 +693,19 @@ class TestE2ENative:
 
 def test_e2e_inproc(cmake):
     """Verify that inproc can send a signal-handler crash event to Sentry."""
-    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "inproc"})
+    tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "inproc"})
     env = dict(os.environ, SENTRY_DSN=os.environ["SENTRY_E2E_DSN"])
 
     output = run_crash_e2e(
         tmp_path,
-        "sentry_example",
+        "sentry_test_integration",
         ["log", "e2e-test", "capture-log", "crash"],
         env=env,
     )
     test_id = extract_test_id(output)
 
     time.sleep(2)
-    run(tmp_path, "sentry_example", ["no-setup"], env=env)
+    run(tmp_path, "sentry_test_integration", ["no-setup"], env=env)
 
     event = poll_sentry_for_event(test_id)
 
@@ -732,19 +732,19 @@ def test_e2e_inproc(cmake):
 )
 def test_e2e_breakpad(cmake):
     """Verify that breakpad can send a minidump crash event to Sentry."""
-    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "breakpad"})
+    tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "breakpad"})
     env = dict(os.environ, SENTRY_DSN=os.environ["SENTRY_E2E_DSN"])
 
     output = run_crash_e2e(
         tmp_path,
-        "sentry_example",
+        "sentry_test_integration",
         ["log", "e2e-test", "capture-log", "crash"],
         env=env,
     )
     test_id = extract_test_id(output)
 
     time.sleep(2)
-    run(tmp_path, "sentry_example", ["no-setup"], env=env)
+    run(tmp_path, "sentry_test_integration", ["no-setup"], env=env)
 
     event = poll_sentry_for_event(test_id)
 
@@ -785,12 +785,12 @@ def test_e2e_breakpad(cmake):
 )
 def test_e2e_crashpad(cmake):
     """Verify that crashpad can send a minidump crash event to Sentry."""
-    tmp_path = cmake(["sentry_example"], {"SENTRY_BACKEND": "crashpad"})
+    tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "crashpad"})
     env = dict(os.environ, SENTRY_DSN=os.environ["SENTRY_E2E_DSN"])
 
     output = run_crash_e2e(
         tmp_path,
-        "sentry_example",
+        "sentry_test_integration",
         ["log", "e2e-test", "capture-log", "crashpad-wait-for-upload", "crash"],
         env=env,
     )

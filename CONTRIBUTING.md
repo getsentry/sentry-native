@@ -100,7 +100,7 @@ abort after the first failure.
 
 ## Integration Test Parameters
 
-The integration test suite runs the `sentry_example` target using a variety of
+The integration test suite runs the `sentry_test_integration` target using a variety of
 different compile-time parameters, and asserts different use-cases.
 
 Some of its behavior is controlled by env-variables:
@@ -140,17 +140,17 @@ packages.
 [install instructions](https://github.com/Ericsson/codechecker#install-guide)
 with a list of needed dependencies.
 
-**Running examples manually**:
+**Running the integration fixture manually**:
 
     $ cmake -B build -D CMAKE_RUNTIME_OUTPUT_DIRECTORY=$(pwd)/build
-    $ cmake --build build --target sentry_example
-    $ ./build/sentry_example log capture-event
+    $ cmake --build build --target sentry_test_integration
+    $ ./build/sentry_test_integration log capture-event
 
-The example can be run manually with a variety of commands to test different
+The fixture can be run manually with a variety of commands to test different
 scenarios. Additionally, it will use the `SENTRY_DSN` env-variable, and can thus
 also be used to capture events/crashes directly to sentry.
 
-The example currently supports the following commands:
+The fixture currently supports the following commands:
 
 - `capture-event`: Captures an event.
 - `crash`: Triggers a crash to be captured.

@@ -160,8 +160,8 @@ def run(
 ):
     if wait_for_daemon:
         assert (
-            "log" in args or exe != "sentry_example"
-        ), "sentry_example needs 'log' when waiting for the daemon"
+            "log" in args or exe != "sentry_test_integration"
+        ), "sentry_test_integration needs 'log' when waiting for the daemon"
     if env is None:
         env = dict(os.environ)
     if kwargs.get("check"):
