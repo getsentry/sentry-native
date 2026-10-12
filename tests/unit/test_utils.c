@@ -31,6 +31,9 @@ SENTRY_TEST(iso_time)
     TEST_CHECK_STRING_EQUAL(str, "2020-04-27T11:02:36.050505Z");
     sentry_free(str);
 
+    usec = sentry__iso8601_to_usec("2020-04-27T11:02:36.05050aZ");
+    TEST_CHECK_INT_EQUAL(usec, 0);
+
     usec = sentry__usec_time();
     str = sentry__usec_time_to_iso8601(usec);
     TEST_ASSERT(!!str);

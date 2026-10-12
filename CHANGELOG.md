@@ -6,10 +6,15 @@
 
 - The persisted installation ID is no longer required to be a UUID, so a platform integration can supply any ID that `user.id` accepts. ([#2177](https://github.com/getsentry/sentry-native/pull/2177))
 - The `org_id` parsed from a DSN host is now validated as a whole `uint64`, so a host like `o123abc.example.com` no longer produces a malformed `org_id` in the `baggage` header and in strict trace continuation. ([#2188](https://github.com/getsentry/sentry-native/pull/2188))
+- Parsing a timestamp with a malformed fractional-second part no longer writes a leftover debug line to `stdout`. ([#2187](https://github.com/getsentry/sentry-native/pull/2187))
 
 **Other changes**:
 
 - Add small, focused [examples](https://github.com/getsentry/sentry-native/tree/master/examples) demonstrating common SDK operations. The old `example.c` has moved to [`tests/fixtures/integration.c`](https://github.com/getsentry/sentry-native/blob/78d8defb7861d008ff30129b012ac5626e608635/tests%2Ffixtures%2Fintegration.c). ([#2125](https://github.com/getsentry/sentry-native/pull/2125), [#2173](https://github.com/getsentry/sentry-native/pull/2173))
+
+**Thank you**:
+
+- [Denimworld12](https://github.com/Denimworld12)
 
 ## 0.17.2
 
