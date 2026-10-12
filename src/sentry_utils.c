@@ -261,15 +261,11 @@ sentry__dsn_new_n(const char *raw_dsn, size_t raw_dsn_len)
     if (org_id_dot && url.host[0] == 'o') {
         const char *label = url.host + 1; // leave the o
         size_t length = (size_t)(org_id_dot - label);
-        // the whole label has to be one uint64, not just a numeric prefix
-        bool is_u64 = length > 0 && length <= 20;
-        for (size_t i = 0; is_u64 && i < length; i++) {
-            is_u64 = label[i] >= '0' && label[i] <= '9';
+        bool is_digits = length > 0 && length <= 20;
+        for (size_t i = 0; is_digits && i < length; i++) {
+            is_digits = label[i] >= '0' && label[i] <= '9';
         }
-        if (is_u64 && length == 20) {
-            is_u64 = memcmp(label, "18446744073709551615", 20) <= 0;
-        }
-        if (is_u64) {
+        if (is_digits) {
             memcpy(org_id, label, length);
             org_id[length] = '\0'; // Null-terminate the string
         }
