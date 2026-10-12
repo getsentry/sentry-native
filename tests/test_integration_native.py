@@ -1683,10 +1683,10 @@ def test_native_reinstall(cmake, httpserver, crash_arg):
 @pytest.mark.parametrize("callback", ["crashing-on-crash", "hanging-on-crash"])
 def test_native_incomplete_crash(cmake, callback):
     tmp_path = cmake(
-        ["sentry_example"],
+        ["sentry_test_integration"],
         {"SENTRY_BACKEND": "native", "SENTRY_TRANSPORT": "none"},
     )
-    cmd = run_command(str(tmp_path / "sentry_example"))
+    cmd = run_command(str(tmp_path / "sentry_test_integration"))
     env = dict(os.environ)
     if is_asan:
         env["ASAN_OPTIONS"] = (
