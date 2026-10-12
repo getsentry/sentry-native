@@ -583,9 +583,8 @@ trigger_oom(void)
 #ifdef SENTRY_PLATFORM_WINDOWS
     // Optionally limit process memory to trigger OOM faster.
     // Set SENTRY_TEST_OOM_LIMIT to the limit in MiB (e.g. "8192" for 8GB).
-    // Without this, OOM exhausts all virtual memory which can take minutes.
-    // Note: a Job Object limit only constrains user-mode allocations and
-    // does not exhaust kernel pool memory like a real system-wide OOM would.
+    // Without this, allocations consume the system-wide commit budget.
+    // A Job Object limit only creates allocation pressure in this process.
     const char *oom_limit = getenv("SENTRY_TEST_OOM_LIMIT");
     if (oom_limit) {
         unsigned long long limit = strtoull(oom_limit, NULL, 10) * 1024 * 1024;
@@ -606,7 +605,13 @@ trigger_oom(void)
 
     size_t count = 1024;
     for (;;) {
+#ifdef SENTRY_PLATFORM_WINDOWS
+        // Avoid the Debug CRT's 0xCD fills, which make large OOM tests slow.
+        // HeapAlloc consumes system-wide commit without filling every page.
+        void *p = HeapAlloc(GetProcessHeap(), 0, count);
+#else
         void *p = malloc(count);
+#endif
         if (!p) {
 #ifdef SENTRY_PLATFORM_WINDOWS
             RaiseException(0xc000, 0, 0, NULL);
