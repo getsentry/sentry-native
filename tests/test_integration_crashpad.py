@@ -376,6 +376,9 @@ def test_crashpad_crash_proxy(cmake, httpserver, run_args, proxy_running):
 
 def test_crashpad_reinstall(cmake, httpserver):
     tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "crashpad"})
+    args = ["log"]
+    if sys.platform == "win32":
+        args.append("overflow-breadcrumbs")
 
     env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
     httpserver.expect_oneshot_request("/api/123456/minidump/").respond_with_data("OK")
@@ -384,7 +387,7 @@ def test_crashpad_reinstall(cmake, httpserver):
         run(
             tmp_path,
             "sentry_test_integration",
-            ["log", "reinstall", "crash"],
+            [*args, "reinstall", "crash"],
             expect_failure=True,
             env=env,
         )
@@ -394,6 +397,9 @@ def test_crashpad_reinstall(cmake, httpserver):
     run(tmp_path, "sentry_test_integration", ["log", "no-setup"], env=env)
 
     assert len(httpserver.log) == 1
+
+    if sys.platform == "win32":
+        assert_crashpad_upload(httpserver.log[0][0])
 
 
 @pytest.mark.skipif(
