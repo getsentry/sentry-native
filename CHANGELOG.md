@@ -6,6 +6,7 @@
 
 - The persisted installation ID is no longer required to be a UUID, so a platform integration can supply any ID that `user.id` accepts. ([#2177](https://github.com/getsentry/sentry-native/pull/2177))
 - Parsing a timestamp with a malformed fractional-second part no longer writes a leftover debug line to `stdout`. ([#2187](https://github.com/getsentry/sentry-native/pull/2187))
+- Crashpad/Windows: Breadcrumb and scope IPC updates are no longer blocked by earlier disk writes keeping the handler's pipe instances busy, and consecutive updates are applied in order. ([#2182](https://github.com/getsentry/sentry-native/issues/2182))
 
 **Other changes**:
 

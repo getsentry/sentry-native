@@ -1223,9 +1223,13 @@ main(int argc, char **argv)
     }
 
     if (has_arg(argc, argv, "overflow-breadcrumbs")) {
-        for (size_t i = 0; i < 101; i++) {
-            char buffer[4];
-            snprintf(buffer, 4, "%zu", i);
+        const char *breadcrumb_count
+            = get_arg_value(argc, argv, "breadcrumb-count");
+        size_t count
+            = breadcrumb_count ? strtoull(breadcrumb_count, NULL, 10) : 101;
+        for (size_t i = 0; i < count; i++) {
+            char buffer[32];
+            snprintf(buffer, sizeof(buffer), "%zu", i);
             sentry_add_breadcrumb(sentry_value_new_breadcrumb(0, buffer));
         }
     }
