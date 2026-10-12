@@ -181,6 +181,17 @@ SENTRY_TEST(dsn_parsing_incorrect_org)
     sentry__dsn_decref(dsn);
 }
 
+SENTRY_TEST(dsn_parsing_numeric_prefix_org)
+{
+    // org_id with a trailing non-numeric part
+    SENTRY_TEST_DSN_NEW(
+        dsn, "http://username:password@o123abc.example.com/42%21");
+    TEST_CHECK(dsn->is_valid);
+    TEST_CHECK_STRING_EQUAL(dsn->host, "o123abc.example.com");
+    TEST_CHECK_STRING_EQUAL(dsn->org_id, "");
+    sentry__dsn_decref(dsn);
+}
+
 SENTRY_TEST(dsn_parsing_project_id_without_path)
 {
     SENTRY_TEST_DSN_NEW(dsn, "https://username@example.com/42%21");

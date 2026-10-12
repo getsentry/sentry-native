@@ -259,16 +259,15 @@ sentry__dsn_new_n(const char *raw_dsn, size_t raw_dsn_len)
     dsn->host = url.host;
     const char *org_id_dot = strchr(url.host, '.');
     if (org_id_dot && url.host[0] == 'o') {
-        size_t length = (size_t)(org_id_dot - url.host - 1); // leave the o
-        strncpy(org_id, url.host + 1, MIN(length, 20));
-        org_id[MIN(length, 20)] = '\0'; // Null-terminate the string
-        char *org_id_end_ptr;
-        const unsigned long long int org_id_int
-            = strtoull(org_id, &org_id_end_ptr, 10);
-        // check if valid uint64 AND not actually the number 0
-        if (length > 20
-            || (org_id_int == 0ULL && org_id_end_ptr != org_id + length)) {
-            memset(org_id, '\0', 20);
+        const char *label = url.host + 1; // leave the o
+        size_t length = (size_t)(org_id_dot - label);
+        bool is_digits = length > 0 && length <= 20;
+        for (size_t i = 0; is_digits && i < length; i++) {
+            is_digits = label[i] >= '0' && label[i] <= '9';
+        }
+        if (is_digits) {
+            memcpy(org_id, label, length);
+            org_id[length] = '\0'; // Null-terminate the string
         }
     }
     dsn->org_id = sentry__string_clone(org_id);
