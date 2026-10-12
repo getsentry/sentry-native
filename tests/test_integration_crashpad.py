@@ -376,6 +376,9 @@ def test_crashpad_crash_proxy(cmake, httpserver, run_args, proxy_running):
 
 def test_crashpad_reinstall(cmake, httpserver):
     tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "crashpad"})
+    args = ["log"]
+    if sys.platform == "win32":
+        args.append("overflow-breadcrumbs")
 
     env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
     httpserver.expect_oneshot_request("/api/123456/minidump/").respond_with_data("OK")
@@ -384,7 +387,7 @@ def test_crashpad_reinstall(cmake, httpserver):
         run(
             tmp_path,
             "sentry_test_integration",
-            ["log", "reinstall", "crash"],
+            [*args, "reinstall", "crash"],
             expect_failure=True,
             env=env,
         )
@@ -394,6 +397,9 @@ def test_crashpad_reinstall(cmake, httpserver):
     run(tmp_path, "sentry_test_integration", ["log", "no-setup"], env=env)
 
     assert len(httpserver.log) == 1
+
+    if sys.platform == "win32":
+        assert_crashpad_upload(httpserver.log[0][0], breadcrumb_count=101)
 
 
 @pytest.mark.skipif(
@@ -517,7 +523,10 @@ def test_crashpad_wer_crash(cmake, httpserver, run_args):
 
     assert_session(envelope, {"status": "crashed", "errors": 1})
     assert_crashpad_upload(
-        multipart, expect_attachment=True, expect_view_hierarchy=True
+        multipart,
+        expect_attachment=True,
+        expect_view_hierarchy=True,
+        breadcrumb_count=101,
     )
 
     assert wait_for_no_werfault()
@@ -608,6 +617,7 @@ def test_crashpad_dumping_crash(cmake, httpserver, run_args, build_args):
         multipart,
         expect_attachment=expect_attachments,
         expect_view_hierarchy=expect_attachments,
+        breadcrumb_count=101,
     )
     callback = next(
         (arg for arg in run_args if arg in ("before-send", "on-crash")), None
@@ -1413,3 +1423,64 @@ def test_crashpad_early_init(cmake):
         [],
     )
     assert result.returncode == 0
+
+
+@pytest.mark.parametrize("count", [97, 98, 101, 997, 1000, 1097])
+@pytest.mark.parametrize(
+    "reinstall",
+    [
+        False,
+        pytest.param(
+            True,
+            marks=pytest.mark.skipif(
+                sys.platform != "win32",
+                reason="reinstall keeps the handler only on Windows",
+            ),
+        ),
+    ],
+)
+@pytest.mark.parametrize(
+    "crash_arg",
+    [
+        "crash",
+        pytest.param(
+            "fastfail",
+            marks=[
+                pytest.mark.with_wer,
+                pytest.mark.skipif(
+                    sys.platform != "win32" or bool(os.environ.get("TEST_MINGW")),
+                    reason="fast-fail is only available in MSVC Windows builds",
+                ),
+            ],
+        ),
+    ],
+)
+def test_crashpad_breadcrumbs(cmake, httpserver, count, reinstall, crash_arg):
+    tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "crashpad"})
+    args = [
+        "log",
+        "overflow-breadcrumbs",
+        "breadcrumb-count",
+        str(count),
+        "crashpad-wait-for-upload",
+    ]
+    if reinstall:
+        args.append("reinstall")
+
+    httpserver.expect_oneshot_request("/api/123456/minidump/").respond_with_data("OK")
+
+    with httpserver.wait(timeout=10) as waiting:
+        run(
+            tmp_path,
+            "sentry_test_integration",
+            [*args, crash_arg],
+            expect_failure=True,
+            env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
+        )
+
+    assert waiting.result
+    assert len(httpserver.log) == 1
+    assert_crashpad_upload(httpserver.log[0][0], breadcrumb_count=count)
+
+    if crash_arg == "fastfail":
+        assert wait_for_no_werfault()

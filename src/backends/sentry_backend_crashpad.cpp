@@ -1407,6 +1407,20 @@ crashpad_backend_prune_database(sentry_backend_t *backend)
     crashpad::PruneCrashReportDatabase(data->db, &condition);
 }
 
+#ifdef SENTRY_PLATFORM_WINDOWS
+static int
+crashpad_backend_reinstall(sentry_backend_t *backend)
+{
+    auto *data = static_cast<crashpad_state_t *>(backend->data);
+    if (!data->client) {
+        return 1;
+    }
+
+    data->client->RegisterHandlers();
+    return 0;
+}
+#endif
+
 void
 sentry__backend_preload(void)
 {
@@ -1437,6 +1451,9 @@ sentry__backend_new(void)
     backend->get_last_crash_func = crashpad_backend_last_crash;
     backend->process_old_run_func = crashpad_backend_process_old_run;
     backend->prune_database_func = crashpad_backend_prune_database;
+#ifdef SENTRY_PLATFORM_WINDOWS
+    backend->reinstall_func = crashpad_backend_reinstall;
+#endif
     backend->data = data;
     backend->can_capture_after_shutdown = true;
 

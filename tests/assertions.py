@@ -585,21 +585,22 @@ def is_valid_timestamp(timestamp):
         return False
 
 
-def _validate_breadcrumb_seq(seq, breadcrumb_func):
-    for i in seq:
-        breadcrumb = breadcrumb_func(i)
-        assert breadcrumb["message"] == str(i)
-        assert is_valid_timestamp(breadcrumb["timestamp"])
-
-
-def assert_overflowing_breadcrumb(attachments):
-    if len(attachments.breadcrumb1) > 3:
-        _validate_breadcrumb_seq(range(97), lambda i: attachments.breadcrumb1[3 + i])
-        _validate_breadcrumb_seq(
-            range(97, 101), lambda i: attachments.breadcrumb2[i - 97]
+def assert_overflowing_breadcrumb(attachments, count):
+    max_breadcrumbs = 100
+    messages = ["default level is info", "debug crumb", "lf\ncrlf\r\nlf\n..."]
+    messages += [str(i) for i in range(count)]
+    total = len(messages)
+    start = max(0, ((total - 1) // max_breadcrumbs - 1) * max_breadcrumbs)
+    for file, breadcrumbs in enumerate(
+        (attachments.breadcrumb1, attachments.breadcrumb2)
+    ):
+        expected = [
+            messages[i] for i in range(start, total) if i // max_breadcrumbs % 2 == file
+        ]
+        assert [breadcrumb["message"] for breadcrumb in breadcrumbs] == expected
+        assert all(
+            is_valid_timestamp(breadcrumb["timestamp"]) for breadcrumb in breadcrumbs
         )
-    else:
-        assert_breadcrumb_inner(attachments.breadcrumb1)
 
 
 def assert_crashpad_upload(
@@ -608,13 +609,17 @@ def assert_crashpad_upload(
     expect_view_hierarchy=False,
     expect_breadcrumbs=True,
     expect_default_scope=True,
+    breadcrumb_count=0,
 ):
     multipart = gzip.decompress(req.get_data())
     msg = email.message_from_bytes(bytes(str(req.headers), encoding="utf8") + multipart)
     attachments = _load_crashpad_attachments(msg)
 
     if expect_breadcrumbs:
-        assert_overflowing_breadcrumb(attachments)
+        if breadcrumb_count:
+            assert_overflowing_breadcrumb(attachments, breadcrumb_count)
+        else:
+            assert_breadcrumb_inner(attachments.breadcrumb1)
     if expect_default_scope:
         assert_event_meta(attachments.event, integrations=["crashpad"])
     if expect_attachment:

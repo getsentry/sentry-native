@@ -7,6 +7,7 @@
 - The persisted installation ID is no longer required to be a UUID, so a platform integration can supply any ID that `user.id` accepts. ([#2177](https://github.com/getsentry/sentry-native/pull/2177))
 - The `org_id` parsed from a DSN host now has to be all digits, so a host like `o123abc.example.com` no longer produces a malformed `org_id` in the `baggage` header and in trace continuation. ([#2188](https://github.com/getsentry/sentry-native/pull/2188))
 - Parsing a timestamp with a malformed fractional-second part no longer writes a leftover debug line to `stdout`. ([#2187](https://github.com/getsentry/sentry-native/pull/2187))
+- Crashpad/Windows: Breadcrumb and scope IPC updates are no longer blocked by earlier disk writes keeping the handler's pipe instances busy. ([#2190](https://github.com/getsentry/sentry-native/pull/2190), [crashpad#174](https://github.com/getsentry/crashpad/pull/174))
 
 **Other changes**:
 
