@@ -4711,46 +4711,67 @@ sentry__crash_daemon_main(pid_t app_pid, uint64_t app_tid, HANDLE event_handle,
 
     // Daemon main loop
     bool crash_processed = false;
+    uint64_t crash_deadline = 0;
     while (true) {
         // Wait for crash notification (with timeout to check parent health)
         bool wait_result
             = sentry__crash_ipc_wait(ipc, SENTRY_CRASH_DAEMON_WAIT_TIMEOUT_MS);
         if (wait_result) {
-            // Crash occurred!
             SENTRY_DEBUG("Event signaled, checking crash state");
+        }
 
-            // Retry reading state with delays to handle CPU cache coherency
-            // issues Between processes, cache lines may take time to
-            // invalidate/sync
-            long state = sentry__atomic_fetch(&ipc->shmem->state);
-            if (state == SENTRY_CRASH_STATE_CRASHED && !crash_processed) {
-                SENTRY_DEBUG("Crash notification received, processing");
-                bool crash_captured = sentry__process_crash(options, ipc);
-                crash_processed = true;
+        // Check shared state even when notifications are lost
+        long state = sentry__atomic_fetch(&ipc->shmem->state);
+        bool parent_alive = is_parent_alive(ipc->parent_handle);
+        if (!parent_alive) {
+            // The parent may have published a crash just before exiting.
+            state = sentry__atomic_fetch(&ipc->shmem->state);
+        }
+        if (state == SENTRY_CRASH_STATE_CRASHED) {
+            SENTRY_DEBUG("Crash notification received, processing");
+            bool crash_captured = sentry__process_crash(options, ipc);
+            crash_processed = true;
 
-                if (crash_captured
-                    && ipc->shmem->crash_upload_mode
-                        == SENTRY_CRASH_UPLOAD_MODE_ASYNC) {
-                    // Crash data is durable after processing returns;
-                    // remaining daemon work does not require the crashed
-                    // process.
-                    SENTRY_DEBUG(
-                        "Crash captured, allowing app process to exit");
-                    sentry__atomic_store(
-                        &ipc->shmem->state, SENTRY_CRASH_STATE_CAPTURED);
-                }
+            if (crash_captured
+                && ipc->shmem->crash_upload_mode
+                    == SENTRY_CRASH_UPLOAD_MODE_ASYNC) {
+                // Crash data is durable after processing returns;
+                // remaining daemon work does not require the crashed
+                // process.
+                SENTRY_DEBUG("Crash captured, allowing app process to exit");
+                sentry__atomic_store(
+                    &ipc->shmem->state, SENTRY_CRASH_STATE_CAPTURED);
+            }
 
-                // After processing crash, exit regardless of parent state
-                // (parent has likely already exited after re-raising signal)
-                SENTRY_DEBUG("Crash processed, daemon exiting");
+            // After processing crash, exit regardless of parent state
+            // (parent has likely already exited after re-raising signal)
+            SENTRY_DEBUG("Crash processed, daemon exiting");
+            break;
+        }
+
+        if (state == SENTRY_CRASH_STATE_CRASHING) {
+            if (!crash_deadline) {
+                crash_deadline = sentry__monotonic_time()
+                    + SENTRY_CRASH_HANDLER_WAIT_TIMEOUT_MS;
+                SENTRY_DEBUG("Crash handling started, waiting for completion");
+            }
+            if (!parent_alive) {
+                SENTRY_WARN(
+                    "Parent process exited before crash handling completed");
                 break;
             }
+            if (sentry__monotonic_time() >= crash_deadline) {
+                crash_deadline = UINT64_MAX; // Warn only once
+                SENTRY_WARN("Crash handler has not completed; waiting for "
+                            "crash context");
+            }
+        } else if (wait_result) {
             // If crash already processed, just ignore spurious notifications
             SENTRY_DEBUG("Spurious notification or already processed");
         }
 
         // Check if parent is still alive (only if no crash processed yet)
-        if (!crash_processed && !is_parent_alive(ipc->parent_handle)) {
+        if (!parent_alive) {
             SENTRY_DEBUG("Parent process exited without crash");
             break;
         }
