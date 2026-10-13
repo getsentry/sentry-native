@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+**Features**:
+
+- Add the `attach_stacktrace` option, which attaches the stack trace of the capturing thread to events that carry none, so messages group by call site instead of by message text. ([#2195](https://github.com/getsentry/sentry-native/pull/2195))
+
 ## 0.17.3
 
 **Fixes**:
