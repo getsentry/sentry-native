@@ -99,6 +99,7 @@ jobs:
       # console repo for this to work. A missing next/* branch is created
       # from main so console migration can start from there.
       - name: Trigger console build
+        id: dispatch
         env:
           GH_TOKEN: ${{ steps.token.outputs.token }}
           MATRIX_REPO: ${{ matrix.repo }}
@@ -111,9 +112,14 @@ jobs:
           PR_NUMBER: ${{ github.event.pull_request.number || github.ref_name }}
         run: |
           if [[ "$CONSOLE_REF" != main ]] && ! gh api "repos/$MATRIX_REPO/git/ref/heads/$CONSOLE_REF" --silent 2>/dev/null; then
-            gh api -X POST "repos/$MATRIX_REPO/git/refs" \
+            gh api -X POST "repos/$MATRIX_REPO/git/refs" --silent \
               -f ref="refs/heads/$CONSOLE_REF" \
-              -f sha="$(gh api "repos/$MATRIX_REPO/git/ref/heads/main" --jq .object.sha)"
+              -f sha="$(gh api "repos/$MATRIX_REPO/git/ref/heads/main" --jq .object.sha)" || {
+              title="Missing $CONSOLE_REF branch in $MATRIX_REPO"
+              echo "error=$title: create it from main (or grant Console CI App contents: write)" >> "$GITHUB_OUTPUT"
+              echo "::error title=$title::The branch could not be created automatically. Create $CONSOLE_REF from main in $MATRIX_REPO manually, or grant the Console CI App write access to contents so this workflow can create it."
+              exit 1
+            }
           fi
           gh workflow run native-compat-check.yml \
             --repo "$MATRIX_REPO" \
@@ -132,8 +138,9 @@ jobs:
           REPOSITORY: ${{ github.repository }}
           SHA: ${{ github.event.pull_request.head.sha || github.sha }}
           CONTEXT: ${{ matrix.context }}
+          DESCRIPTION: ${{ steps.dispatch.outputs.error || 'Could not resolve or dispatch the console build' }}
         run: |
           gh api repos/"$REPOSITORY"/statuses/"$SHA" \
             -f state=failure \
             -f context="$CONTEXT" \
-            -f description="Could not resolve or dispatch the console build"
+            -f description="$DESCRIPTION"
