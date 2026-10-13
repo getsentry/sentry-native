@@ -96,7 +96,8 @@ jobs:
 
       # gh workflow run sends a workflow_dispatch event to the console repo.
       # native-compat-check.yml must exist on the resolved branch of the
-      # console repo for this to work.
+      # console repo for this to work. A missing next/* branch is created
+      # from main so console migration can start from there.
       - name: Trigger console build
         env:
           GH_TOKEN: ${{ steps.token.outputs.token }}
@@ -109,6 +110,11 @@ jobs:
           CONSOLE_REF: ${{ steps.ref.outputs.console_ref }}
           PR_NUMBER: ${{ github.event.pull_request.number || github.ref_name }}
         run: |
+          if [[ "$CONSOLE_REF" != main ]] && ! gh api "repos/$MATRIX_REPO/git/ref/heads/$CONSOLE_REF" --silent 2>/dev/null; then
+            gh api -X POST "repos/$MATRIX_REPO/git/refs" \
+              -f ref="refs/heads/$CONSOLE_REF" \
+              -f sha="$(gh api "repos/$MATRIX_REPO/git/ref/heads/main" --jq .object.sha)"
+          fi
           gh workflow run native-compat-check.yml \
             --repo "$MATRIX_REPO" \
             --ref "$CONSOLE_REF" \
