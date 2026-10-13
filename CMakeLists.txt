@@ -1136,6 +1136,10 @@ if(SENTRY_BUILD_TESTS)
 		# to test handling SEH by-passing exceptions we need to enable the control flow guard
 		target_compile_options(sentry_test_integration PRIVATE $<BUILD_INTERFACE:/guard:cf>)
 		target_link_options(sentry_test_integration PRIVATE $<BUILD_INTERFACE:/GUARD:CF>)
+
+		# Disable incremental linking because trigger_stack_buffer_overrun offsets a function pointer.
+		# Jump stubs can make that offset land on another valid entry, preventing the CFG failure.
+		target_link_options(sentry_test_integration PRIVATE $<BUILD_INTERFACE:/INCREMENTAL:NO>)
 	else()
 		# Disable all optimizations for the `sentry_test_integration` in gcc/clang. This allows us to keep crash triggers simple.
 		# The effects besides reproducible code-gen across compiler versions, will be negligible for build- and runtime.
