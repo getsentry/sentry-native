@@ -579,6 +579,22 @@ event_is_considered_error(sentry_value_t event)
     return false;
 }
 
+static void
+attach_current_stacktrace(sentry_value_t event)
+{
+    if (sentry_value_get_type(event) != SENTRY_VALUE_TYPE_OBJECT
+        || !sentry_value_is_null(sentry_value_get_by_key(event, "exception"))
+        || !sentry_value_is_null(sentry_value_get_by_key(event, "threads"))) {
+        return;
+    }
+
+    sentry_value_t thread = sentry_value_new_object();
+    sentry_value_set_by_key(thread, "current", sentry_value_new_bool(true));
+    sentry_value_set_by_key(thread, "crashed", sentry_value_new_bool(false));
+    sentry_value_set_stacktrace(thread, NULL, 0);
+    sentry_event_add_thread(event, thread);
+}
+
 bool
 sentry__event_is_transaction(sentry_value_t event)
 {
@@ -651,6 +667,9 @@ sentry__capture_event(
                 // A failed allocation is tolerated: operating on a NULL hint
                 // no-ops.
                 hint = sentry_hint_new();
+            }
+            if (options->attach_stacktrace) {
+                attach_current_stacktrace(event);
             }
             event = sentry__prepare_event(options, event, local_scope);
             sentry_value_t attachments = prepare_attachments(hint, local_scope);

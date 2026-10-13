@@ -131,6 +131,7 @@ sentry_options_new(void)
     opts->http_retry = false;
     opts->send_client_reports = true;
     opts->enable_large_attachments = false;
+    opts->attach_stacktrace = false;
 #ifdef SENTRY_INTEGRATION_PLATFORM
     if (!sentry__options_add_integration(
             opts, sentry_integration_platform_new())) {
@@ -1161,6 +1162,19 @@ int
 sentry_options_get_http_retry(const sentry_options_t *opts)
 {
     return opts->http_retry;
+}
+
+void
+sentry_options_set_attach_stacktrace(
+    sentry_options_t *opts, int attach_stacktrace)
+{
+    opts->attach_stacktrace = !!attach_stacktrace;
+}
+
+int
+sentry_options_get_attach_stacktrace(const sentry_options_t *opts)
+{
+    return opts->attach_stacktrace;
 }
 
 void
