@@ -15,7 +15,6 @@ on:
   push:
     branches:
       - master
-      - v1
       - "release/**"
 
 concurrency:
@@ -67,7 +66,7 @@ jobs:
         run: |
           if [[ "$EVENT_NAME" == "push" && "$REF" == refs/heads/release/* ]]; then
             echo "mode=FULL_TEST" >> "$GITHUB_OUTPUT"
-          elif [[ "$EVENT_NAME" == "push" && "$REF" == refs/heads/@(master|v1) ]]; then
+          elif [[ "$EVENT_NAME" == "push" && "$REF" == "refs/heads/master" ]]; then
             echo "mode=UNIT_TEST" >> "$GITHUB_OUTPUT"
           else
             echo "mode=BUILD_ONLY" >> "$GITHUB_OUTPUT"
