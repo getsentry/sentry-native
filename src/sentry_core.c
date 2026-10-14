@@ -1092,6 +1092,7 @@ sentry_set_user(sentry_value_t user)
             sentry__session_sync_user(options->session, user,
                 options->run ? options->run->installation_id : NULL);
             sentry__run_write_session(options->run, options->session);
+            sentry__session_notify_changed(options);
         }
         sentry__options_unlock();
     }

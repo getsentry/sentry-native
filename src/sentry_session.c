@@ -1,5 +1,6 @@
 #include "sentry_session.h"
 #include "sentry_alloc.h"
+#include "sentry_backend.h"
 #include "sentry_core.h"
 #include "sentry_database.h"
 #include "sentry_envelope.h"
@@ -233,6 +234,7 @@ sentry_start_session(void)
                     options->run ? options->run->installation_id : NULL);
                 sentry_value_decref(user);
                 sentry__run_write_session(options->run, options->session);
+                sentry__session_notify_changed(options);
             }
         }
     }
@@ -258,6 +260,9 @@ sentry__end_session_internal(void)
         session = options->session;
         options->session = NULL;
         sentry__run_clear_session(options->run);
+        if (session) {
+            sentry__session_notify_changed(options);
+        }
     }
     sentry__options_unlock();
 
@@ -310,6 +315,15 @@ sentry_end_session_with_status(sentry_session_status_t status)
 
     sentry__capture_session(session);
     sentry__session_free(session);
+}
+
+void
+sentry__session_notify_changed(const sentry_options_t *options)
+{
+    if (options && options->backend && options->backend->session_changed_func) {
+        options->backend->session_changed_func(
+            options->backend, options, options->session);
+    }
 }
 
 void
