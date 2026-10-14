@@ -4,7 +4,7 @@
 
 **Features**:
 
-- Add a `session_changed_func` backend hook that is invoked whenever the current session starts, syncs its user or ends, so backends that cannot run at crash time (such as the Nintendo Switch backend) can mirror the session ahead of a crash. ([#TBD](https://github.com/getsentry/sentry-native/pull/TBD))
+- Let custom backends track the current session through a new `session_changed_func` hook, invoked when a session starts, syncs its user or ends. ([#2200](https://github.com/getsentry/sentry-native/pull/2200))
 
 ## 0.17.3
 
