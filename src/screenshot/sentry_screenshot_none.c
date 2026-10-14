@@ -2,8 +2,9 @@
 
 #include "sentry_core.h"
 
-int
-sentry_screenshot_capture(const char *UNUSED(path), uint32_t UNUSED(pid))
+bool
+sentry__screenshot_capture(
+    const sentry_path_t *UNUSED(path), uint32_t UNUSED(pid))
 {
-    return 1;
+    return false;
 }
