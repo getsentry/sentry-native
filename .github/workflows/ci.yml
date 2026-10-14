@@ -586,6 +586,7 @@ jobs:
           test -n "$version"
           rm -rf build .c* .e* .git* scripts Makefile external/breakpad/src/tools external/breakpad/src/processor
           zip -r "sentry-native-$version.zip" .
+          cp "sentry-native-$version.zip" sentry-native.zip
 
       - name: Build NDK artifacts
         working-directory: ndk
@@ -598,5 +599,6 @@ jobs:
           if-no-files-found: error
           path: |
             sentry-native-*.zip
+            sentry-native.zip
             ndk/lib/build/distributions/*.zip
             ndk/lib/build/intermediates/merged_native_libs/release/mergeReleaseNativeLibs/out/lib/*
