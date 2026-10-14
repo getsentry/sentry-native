@@ -204,7 +204,7 @@ The fixture currently supports the following commands:
 Only on Linux using crashpad:
 - `crashpad-wait-for-upload`: Couples application shutdown to complete the upload in the `crashpad_handler`.
 
-Only on Windows using crashpad with its WER handler module:
+Only on Windows using the native or crashpad backend with its WER handler module:
 
 - `fastfail`: Crashes the application using the `__fastfail` intrinsic directly, thus by-passing SEH.
 - `stack-buffer-overrun`: Triggers the Windows Control Flow Guard, which also fast fails and in turn by-passes SEH.
