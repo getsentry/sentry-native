@@ -681,6 +681,7 @@ sentry__capture_event(
                     // the init flag to false because we're no longer in the
                     // initial session update.
                     mut_options->session->init = false;
+                    sentry__session_notify_changed(mut_options);
                 }
                 sentry__options_unlock();
             }

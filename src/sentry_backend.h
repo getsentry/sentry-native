@@ -20,7 +20,8 @@ struct sentry_backend_s {
     void (*flush_scope_func)(
         sentry_backend_t *, const sentry_options_t *options);
     // called with the options lock held whenever the current session starts,
-    // syncs its user or ends; `session` is NULL once it ended
+    // is first sent (`init` turns false), syncs its user or ends; `session`
+    // is NULL once it ended
     void (*session_changed_func)(sentry_backend_t *,
         const sentry_options_t *options, const sentry_session_t *session);
     void (*user_consent_changed_func)(sentry_backend_t *);
