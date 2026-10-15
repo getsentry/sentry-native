@@ -420,3 +420,14 @@ SENTRY_TEST(options_sample_rate)
 
     sentry_options_free(options);
 }
+
+SENTRY_TEST(options_attach_stacktrace)
+{
+    SENTRY_TEST_OPTIONS_NEW(options);
+    TEST_CHECK_INT_EQUAL(sentry_options_get_attach_stacktrace(options), 0);
+    sentry_options_set_attach_stacktrace(options, 1);
+    TEST_CHECK_INT_EQUAL(sentry_options_get_attach_stacktrace(options), 1);
+    sentry_options_set_attach_stacktrace(options, 0);
+    TEST_CHECK_INT_EQUAL(sentry_options_get_attach_stacktrace(options), 0);
+    sentry_options_free(options);
+}

@@ -311,6 +311,7 @@ typedef struct {
     uint64_t transfer_timeout;
     bool system_crash_reporter_enabled;
     uint32_t max_breadcrumbs;
+    bool symbolize_stacktraces;
 
     // Atomic user consent (sentry_user_consent_t), updated whenever user
     // consent changes so the daemon can honor it at crash time.

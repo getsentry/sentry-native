@@ -36,7 +36,7 @@ typedef struct {
 
 size_t sentry__unwind_stack_from_thread(pid_t tid,
     sentry_remote_frame_t *frames, size_t max_frames,
-    sentry_remote_registers_t *registers);
+    sentry_remote_registers_t *registers, bool symbolize);
 
 #endif
 

@@ -773,3 +773,95 @@ SENTRY_TEST(capture_filter_attachments)
         }
     }
 }
+
+typedef struct {
+    sentry_value_t threads;
+    uint64_t called;
+} stacktrace_capture_t;
+
+static void
+send_envelope_stacktrace(sentry_envelope_t *envelope, void *data)
+{
+    stacktrace_capture_t *state = data;
+    state->called += 1;
+    sentry_value_decref(state->threads);
+    state->threads = sentry_value_get_by_key_owned(
+        sentry_envelope_get_event(envelope), "threads");
+    sentry_envelope_free(envelope);
+}
+
+static void
+init_with_stacktrace_capture(stacktrace_capture_t *state, bool attach)
+{
+    SENTRY_TEST_OPTIONS_NEW(options);
+    sentry_options_set_auto_session_tracking(options, false);
+    sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
+    sentry_transport_t *transport
+        = sentry_transport_new(send_envelope_stacktrace);
+    sentry_transport_set_state(transport, state);
+    sentry_options_set_transport(options, transport);
+    sentry_options_set_attach_stacktrace(options, attach);
+    sentry_init(options);
+}
+
+SENTRY_TEST(attach_stacktrace_adds_thread_to_message_event)
+{
+    stacktrace_capture_t state = { sentry_value_new_null(), 0 };
+    init_with_stacktrace_capture(&state, true);
+
+    sentry_capture_event(
+        sentry_value_new_message_event(SENTRY_LEVEL_INFO, NULL, "Hello"));
+    sentry_close();
+
+    TEST_CHECK_INT_EQUAL(state.called, 1);
+    sentry_value_t values = sentry_value_get_by_key(state.threads, "values");
+    TEST_CHECK_INT_EQUAL(sentry_value_get_length(values), 1);
+
+    sentry_value_t thread = sentry_value_get_by_index(values, 0);
+    TEST_CHECK(
+        sentry_value_is_true(sentry_value_get_by_key(thread, "current")));
+    TEST_CHECK(
+        !sentry_value_is_true(sentry_value_get_by_key(thread, "crashed")));
+
+    sentry_value_t frames = sentry_value_get_by_key(
+        sentry_value_get_by_key(thread, "stacktrace"), "frames");
+    TEST_CHECK(sentry_value_get_type(frames) == SENTRY_VALUE_TYPE_LIST);
+#if !defined(SENTRY_PLATFORM_NX) && !defined(SENTRY_PLATFORM_XBOX)             \
+    && !defined(SENTRY_PLATFORM_PS)
+    TEST_CHECK(sentry_value_get_length(frames) > 0);
+#endif
+
+    sentry_value_decref(state.threads);
+}
+
+SENTRY_TEST(attach_stacktrace_is_disabled_by_default)
+{
+    stacktrace_capture_t state = { sentry_value_new_null(), 0 };
+    init_with_stacktrace_capture(&state, false);
+
+    sentry_capture_event(
+        sentry_value_new_message_event(SENTRY_LEVEL_INFO, NULL, "Hello"));
+    sentry_close();
+
+    TEST_CHECK_INT_EQUAL(state.called, 1);
+    TEST_CHECK(sentry_value_is_null(state.threads));
+
+    sentry_value_decref(state.threads);
+}
+
+SENTRY_TEST(attach_stacktrace_leaves_events_with_a_stacktrace_alone)
+{
+    stacktrace_capture_t state = { sentry_value_new_null(), 0 };
+    init_with_stacktrace_capture(&state, true);
+
+    sentry_value_t event = sentry_value_new_event();
+    sentry_event_add_exception(
+        event, sentry_value_new_exception("ValueError", "bad value"));
+    sentry_capture_event(event);
+    sentry_close();
+
+    TEST_CHECK_INT_EQUAL(state.called, 1);
+    TEST_CHECK(sentry_value_is_null(state.threads));
+
+    sentry_value_decref(state.threads);
+}

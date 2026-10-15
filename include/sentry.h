@@ -1967,18 +1967,27 @@ SENTRY_API int sentry_options_get_require_user_consent(
     const sentry_options_t *opts);
 
 /**
- * Enables or disables on-device symbolication of stack traces.
+ * Enables or disables client-side symbolication of stack traces.
  *
- * This feature can have a performance impact and is enabled by default on
- * Android. It is usually only necessary when it is not possible to provide
- * debug information files for system libraries which are needed for serverside
- * symbolication.
+ * Client-side symbolication is useful for resolving system library frames
+ * when debug information files cannot be provided for server-side
+ * symbolication, and for displaying readable stack traces in external crash
+ * reporters.
+ *
+ * The native backend enables symbolication by default on all supported
+ * platforms, because crash symbolication runs in a separate daemon process.
+ * Other backends enable symbolication by default on Android, AIX, and
+ * PlayStation.
+ *
+ * This feature can have a performance impact. Symbolication runs in the
+ * application process when handling crashes with the inproc backend, or when
+ * capturing events using `sentry_capture_event` with any backend.
  */
 SENTRY_API void sentry_options_set_symbolize_stacktraces(
     sentry_options_t *opts, int val);
 
 /**
- * Returns true if on-device symbolication of stack traces is enabled.
+ * Returns true if client-side symbolication of stack traces is enabled.
  */
 SENTRY_API int sentry_options_get_symbolize_stacktraces(
     const sentry_options_t *opts);
@@ -3225,6 +3234,23 @@ SENTRY_API int sentry_options_get_strict_trace_continuation(
 SENTRY_EXPERIMENTAL_API void sentry_options_set_http_retry(
     sentry_options_t *opts, int enabled);
 SENTRY_EXPERIMENTAL_API int sentry_options_get_http_retry(
+    const sentry_options_t *opts);
+
+/**
+ * Enables or disables attaching a stack trace to events that carry none.
+ *
+ * Events captured without an exception or a thread stack trace, like messages,
+ * get the stack trace of the capturing thread attached as a thread. Events
+ * that already carry a stack trace, including crashes, are left untouched.
+ *
+ * Attaching a stack trace makes messages group by call site rather than by
+ * message text.
+ *
+ * Disabled by default.
+ */
+SENTRY_EXPERIMENTAL_API void sentry_options_set_attach_stacktrace(
+    sentry_options_t *opts, int attach_stacktrace);
+SENTRY_EXPERIMENTAL_API int sentry_options_get_attach_stacktrace(
     const sentry_options_t *opts);
 
 /**
