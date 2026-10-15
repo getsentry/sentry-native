@@ -1,3 +1,5 @@
+#include "sentry_alloc.h"
+#include "sentry_backend.h"
 #include "sentry_envelope.h"
 #include "sentry_options.h"
 #include "sentry_path.h"
@@ -292,4 +294,88 @@ SENTRY_TEST(update_release_and_environment_late)
     TEST_CHECK_INT_EQUAL(assertion.sessions, 1);
 
     sentry_close();
+}
+
+typedef struct {
+    size_t calls;
+    bool last_had_session;
+    bool last_init;
+    char last_did[64];
+} session_hook_data_t;
+
+static void
+record_session_changed(sentry_backend_t *backend,
+    const sentry_options_t *UNUSED(options), const sentry_session_t *session)
+{
+    session_hook_data_t *d = backend->data;
+    d->calls++;
+    d->last_had_session = !!session;
+    d->last_init = session && session->init;
+    d->last_did[0] = '\0';
+    if (session && !sentry_value_is_null(session->distinct_id)) {
+        snprintf(d->last_did, sizeof(d->last_did), "%s",
+            sentry_value_as_string(session->distinct_id));
+    }
+}
+
+static void
+discard_envelope(sentry_envelope_t *envelope, void *UNUSED(data))
+{
+    sentry_envelope_free(envelope);
+}
+
+SENTRY_TEST(session_changed_backend_hook)
+{
+    SENTRY_TEST_OPTIONS_NEW(options);
+    sentry__path_remove_all(options->database_path);
+    sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
+    sentry_options_set_transport(
+        options, sentry_transport_new(discard_envelope));
+    sentry_options_set_release(options, "my_release");
+
+    session_hook_data_t data = { 0 };
+    sentry_backend_t *backend = SENTRY_MAKE(sentry_backend_t);
+    TEST_ASSERT(!!backend);
+    backend->data = &data;
+    backend->session_changed_func = record_session_changed;
+    sentry_options_set_backend(options, backend);
+
+    TEST_CHECK_INT_EQUAL(sentry_init(options), 0);
+    // auto session tracking started a session during init
+    TEST_CHECK_INT_EQUAL(data.calls, 1);
+    TEST_CHECK(data.last_had_session);
+    TEST_CHECK(data.last_init);
+
+    // the first event carries the initial session update
+    sentry_capture_event(
+        sentry_value_new_message_event(SENTRY_LEVEL_INFO, NULL, "first event"));
+    TEST_CHECK_INT_EQUAL(data.calls, 2);
+    TEST_CHECK(data.last_had_session);
+    TEST_CHECK(!data.last_init);
+
+    // later events do not change the session
+    sentry_capture_event(sentry_value_new_message_event(
+        SENTRY_LEVEL_INFO, NULL, "second event"));
+    TEST_CHECK_INT_EQUAL(data.calls, 3);
+
+    sentry_set_user(sentry_value_new_user("user-id", NULL, NULL, NULL));
+    TEST_CHECK_INT_EQUAL(data.calls, 4);
+    TEST_CHECK_STRING_EQUAL(data.last_did, "user-id");
+
+    sentry_end_session();
+    TEST_CHECK_INT_EQUAL(data.calls, 5);
+    TEST_CHECK(!data.last_had_session);
+
+    // ending without a current session does not notify
+    sentry_end_session();
+    TEST_CHECK_INT_EQUAL(data.calls, 5);
+
+    sentry_start_session();
+    TEST_CHECK_INT_EQUAL(data.calls, 6);
+    TEST_CHECK(data.last_had_session);
+    TEST_CHECK(data.last_init);
+
+    sentry_close();
+    TEST_CHECK_INT_EQUAL(data.calls, 7);
+    TEST_CHECK(!data.last_had_session);
 }

@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+**Features**:
+
+- Let custom backends track the current session through a new `session_changed_func` hook, invoked when a session starts, is first sent, syncs its user or ends. ([#2200](https://github.com/getsentry/sentry-native/pull/2200))
+
 ## 0.17.3
 
 **Fixes**:
