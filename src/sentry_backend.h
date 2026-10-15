@@ -19,6 +19,11 @@ struct sentry_backend_s {
     void (*except_func)(sentry_backend_t *, const struct sentry_ucontext_s *);
     void (*flush_scope_func)(
         sentry_backend_t *, const sentry_options_t *options);
+    // called with the options lock held whenever the current session starts,
+    // is first sent (`init` turns false), syncs its user or ends; `session`
+    // is NULL once it ended
+    void (*session_changed_func)(sentry_backend_t *,
+        const sentry_options_t *options, const sentry_session_t *session);
     void (*user_consent_changed_func)(sentry_backend_t *);
     uint64_t (*get_last_crash_func)(sentry_backend_t *);
     // called with the run file lock held; false retains the run
