@@ -44,7 +44,7 @@ from .assertions import (
     wait_for_file,
     assert_user_feedback,
 )
-from .conditions import has_files
+from .conditions import has_files, is_kcov
 from .conditions import has_native, has_oom, is_asan, is_tsan, is_qemu, is_wine
 
 pytestmark = pytest.mark.skipif(
@@ -1780,3 +1780,69 @@ def test_native_http_retry(cmake, httpserver, unreachable_dsn, cache_args):
     assert_native_crash(envelope)
     assert_minidump(envelope)
     assert not cached.exists()
+
+
+@pytest.mark.parametrize("crash_mode", ["native", "native-with-minidump"])
+@pytest.mark.parametrize(
+    "symbolize",
+    [
+        pytest.param(
+            "default",
+            marks=pytest.mark.xfail(
+                bool(os.environ.get("TEST_MINGW")),
+                reason="DbgHelp cannot read MinGW DWARF symbols",
+                raises=pytest.RaisesExc(
+                    AssertionError, match="^missing symbolicated function names"
+                ),
+                strict=True,
+            ),
+        ),
+        "0",
+    ],
+)
+def test_native_symbolication(cmake, httpserver, crash_mode, symbolize):
+    tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "native"})
+    httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data("OK")
+
+    with httpserver.wait(timeout=10) as waiting:
+        run_crash(
+            tmp_path,
+            "sentry_test_integration",
+            [
+                "log",
+                "stdout",
+                "crash-mode",
+                crash_mode,
+                "symbolize-stacktraces",
+                symbolize,
+                "capture-log",
+                "flush",
+                "crash",
+            ]
+            + SANITIZER_ARGS,
+            env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
+        )
+    assert waiting.result
+
+    envelope = Envelope.deserialize(httpserver.log[0][0].get_data())
+    event = envelope.get_event()
+    exc = event["exception"]["values"][0]
+    stacks = [
+        value["stacktrace"]["frames"]
+        for value in (event["threads"]["values"] + event["exception"]["values"])
+        if "stacktrace" in value
+    ]
+    # kcov's ptrace tracer prevents unwinding other threads.
+    if not is_kcov:
+        assert len(stacks) > 1
+    assert len(exc["stacktrace"]["frames"]) > 1
+    for frames in stacks:
+        assert frames
+        assert all(is_valid_hex(frame["instruction_addr"]) for frame in frames)
+        if symbolize == "0":
+            assert all("function" not in frame for frame in frames), frames
+            assert all("symbol_addr" not in frame for frame in frames), frames
+    if symbolize == "default":
+        assert any(
+            "function" in frame for frame in exc["stacktrace"]["frames"]
+        ), "missing symbolicated function names"

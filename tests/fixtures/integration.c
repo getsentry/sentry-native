@@ -756,7 +756,11 @@ main(int argc, char **argv)
     sentry_options_set_database_path(options, ".sentry-native");
 
     sentry_options_set_auto_session_tracking(options, false);
-    sentry_options_set_symbolize_stacktraces(options, true);
+    const char *symbolize = get_arg_value(argc, argv, "symbolize-stacktraces");
+    if (!symbolize || strcmp(symbolize, "default") != 0) {
+        sentry_options_set_symbolize_stacktraces(
+            options, symbolize ? atoi(symbolize) : true);
+    }
     const char *shutdown_timeout
         = get_arg_value(argc, argv, "shutdown-timeout");
     if (shutdown_timeout) {
@@ -793,6 +797,10 @@ main(int argc, char **argv)
     if (has_arg(argc, argv, "app-hang")) {
         sentry_options_set_enable_app_hang_tracking(options, 1);
         sentry_options_set_app_hang_timeout(options, 1000);
+    }
+
+    if (has_arg(argc, argv, "attach-stacktrace")) {
+        sentry_options_set_attach_stacktrace(options, 1);
     }
 
     if (has_arg(argc, argv, "stdout")) {

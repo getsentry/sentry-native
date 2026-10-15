@@ -97,11 +97,12 @@ sentry_options_new(void)
     opts->cache_max_items = 30;
     opts->attachments = sentry_value_new_null();
     opts->symbolize_stacktraces =
+    // The native backend resolves symbols out-of-process.
     // AIX doesn't have reliable debug IDs for server-side symbolication,
     // and the diversity of Android makes it infeasible to have access to debug
     // files.
-#if defined(SENTRY_PLATFORM_ANDROID) || defined(SENTRY_PLATFORM_AIX)           \
-    || defined(SENTRY_PLATFORM_PS)
+#if defined(SENTRY_BACKEND_NATIVE) || defined(SENTRY_PLATFORM_ANDROID)         \
+    || defined(SENTRY_PLATFORM_AIX) || defined(SENTRY_PLATFORM_PS)
         true;
 #else
         false;
@@ -131,6 +132,7 @@ sentry_options_new(void)
     opts->http_retry = false;
     opts->send_client_reports = true;
     opts->enable_large_attachments = false;
+    opts->attach_stacktrace = false;
 #ifdef SENTRY_INTEGRATION_PLATFORM
     if (!sentry__options_add_integration(
             opts, sentry_integration_platform_new())) {
@@ -1161,6 +1163,19 @@ int
 sentry_options_get_http_retry(const sentry_options_t *opts)
 {
     return opts->http_retry;
+}
+
+void
+sentry_options_set_attach_stacktrace(
+    sentry_options_t *opts, int attach_stacktrace)
+{
+    opts->attach_stacktrace = !!attach_stacktrace;
+}
+
+int
+sentry_options_get_attach_stacktrace(const sentry_options_t *opts)
+{
+    return opts->attach_stacktrace;
 }
 
 void
