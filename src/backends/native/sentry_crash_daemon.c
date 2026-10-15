@@ -1011,8 +1011,8 @@ build_stacktrace_for_thread(
             sentry_remote_frame_t *remote_frames
                 = sentry_malloc(sizeof(*remote_frames) * MAX_STACK_FRAMES);
             size_t remote_count = remote_frames
-                ? sentry__unwind_stack_from_thread(
-                      tid, remote_frames, MAX_STACK_FRAMES, &registers)
+                ? sentry__unwind_stack_from_thread(tid, remote_frames,
+                      MAX_STACK_FRAMES, &registers, ctx->symbolize_stacktraces)
                 : 0;
 
             if (remote_count > 0) {
@@ -1768,6 +1768,10 @@ static void
 enrich_frame_with_symbol(
     const sentry_crash_context_t *ctx, sentry_value_t frame, uint64_t addr)
 {
+    if (!ctx->symbolize_stacktraces) {
+        return;
+    }
+
     uint32_t module_count = MIN(ctx->module_count, SENTRY_CRASH_MAX_MODULES);
     for (uint32_t i = 0; i < module_count; i++) {
         const sentry_module_info_t *mod = &ctx->modules[i];
@@ -2437,6 +2441,10 @@ static void
 enrich_frame_with_symbol(
     const sentry_crash_context_t *ctx, sentry_value_t frame, uint64_t addr)
 {
+    if (!ctx->symbolize_stacktraces) {
+        return;
+    }
+
     uint32_t module_count = MIN(ctx->module_count, SENTRY_CRASH_MAX_MODULES);
     for (uint32_t i = 0; i < module_count; i++) {
         const sentry_module_info_t *mod = &ctx->modules[i];
@@ -2648,7 +2656,9 @@ walk_stack_with_dbghelp(HANDLE hProcess, DWORD crashed_tid,
 
     const size_t sym_info_size
         = sizeof(SYMBOL_INFOW) + MAX_SYM_NAME * sizeof(WCHAR);
-    SYMBOL_INFOW *sym_info = (SYMBOL_INFOW *)sentry_malloc(sym_info_size);
+    SYMBOL_INFOW *sym_info = crash_ctx->symbolize_stacktraces
+        ? (SYMBOL_INFOW *)sentry_malloc(sym_info_size)
+        : NULL;
 
     size_t frame_count = 0;
     while (frame_count < max_frames

@@ -97,11 +97,12 @@ sentry_options_new(void)
     opts->cache_max_items = 30;
     opts->attachments = sentry_value_new_null();
     opts->symbolize_stacktraces =
+    // The native backend resolves symbols out-of-process.
     // AIX doesn't have reliable debug IDs for server-side symbolication,
     // and the diversity of Android makes it infeasible to have access to debug
     // files.
-#if defined(SENTRY_PLATFORM_ANDROID) || defined(SENTRY_PLATFORM_AIX)           \
-    || defined(SENTRY_PLATFORM_PS)
+#if defined(SENTRY_BACKEND_NATIVE) || defined(SENTRY_PLATFORM_ANDROID)         \
+    || defined(SENTRY_PLATFORM_AIX) || defined(SENTRY_PLATFORM_PS)
         true;
 #else
         false;

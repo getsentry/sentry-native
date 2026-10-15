@@ -24,12 +24,12 @@ DEFINE_UNWINDER(psunwind);
 #    define DEFINE_THREAD_UNWINDER(Func)                                       \
         size_t sentry__unwind_stack_from_thread_##Func(pid_t tid,              \
             sentry_remote_frame_t *frames, size_t max_frames,                  \
-            sentry_remote_registers_t *registers)
+            sentry_remote_registers_t *registers, bool symbolize)
 
 #    define TRY_THREAD_UNWINDER(Func)                                          \
         do {                                                                   \
             size_t rv = sentry__unwind_stack_from_thread_##Func(               \
-                tid, frames, max_frames, registers);                           \
+                tid, frames, max_frames, registers, symbolize);                \
             if (rv > 0) {                                                      \
                 return rv;                                                     \
             }                                                                  \
@@ -79,12 +79,13 @@ sentry_unwind_stack_from_ucontext(
 #if defined(SENTRY_PLATFORM_LINUX)
 size_t
 sentry__unwind_stack_from_thread(pid_t tid, sentry_remote_frame_t *frames,
-    size_t max_frames, sentry_remote_registers_t *registers)
+    size_t max_frames, sentry_remote_registers_t *registers, bool symbolize)
 {
     (void)tid;
     (void)frames;
     (void)max_frames;
     (void)registers;
+    (void)symbolize;
 #    ifdef SENTRY_WITH_UNWINDER_LIBUNWIND_REMOTE
     TRY_THREAD_UNWINDER(libunwind_remote);
 #    endif
