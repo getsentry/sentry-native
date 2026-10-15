@@ -43,7 +43,7 @@ from .assertions import (
     wait_for_file,
     assert_user_feedback,
 )
-from .conditions import has_files
+from .conditions import has_files, is_kcov
 from .conditions import has_native, has_oom, is_asan, is_tsan, is_qemu, is_wine
 
 pytestmark = pytest.mark.skipif(
@@ -1784,7 +1784,9 @@ def test_native_symbolication(cmake, httpserver, crash_mode, symbolize):
         for value in (event["threads"]["values"] + event["exception"]["values"])
         if "stacktrace" in value
     ]
-    assert len(stacks) > 1
+    # kcov's ptrace tracer prevents unwinding other threads.
+    if not is_kcov:
+        assert len(stacks) > 1
     assert len(exc["stacktrace"]["frames"]) > 1
     for frames in stacks:
         assert frames
