@@ -61,6 +61,13 @@ struct sentry_scope_data_s {
     bool trace_managed;
 };
 
+typedef struct scope_access_s {
+    sentry_scope_data_t *data;
+    size_t depth;
+    bool write;
+    struct scope_access_s *next;
+} scope_access_t;
+
 static bool g_scope_initialized = false;
 static sentry_scope_t g_scope = { 0 };
 static sentry_scope_data_t g_scope_data = { 0 };
@@ -68,8 +75,10 @@ static bool g_scope_idle_initialized = false;
 static sentry_cond_t g_scope_idle;
 #ifdef _MSC_VER
 static __declspec(thread) size_t g_scope_depth;
+static __declspec(thread) scope_access_t *g_scope_access;
 #else
 static __thread size_t g_scope_depth;
+static __thread scope_access_t *g_scope_access;
 #endif
 #ifdef SENTRY__MUTEX_INIT_DYN
 SENTRY__MUTEX_INIT_DYN(g_lock)
@@ -77,23 +86,79 @@ SENTRY__MUTEX_INIT_DYN(g_lock)
 static sentry_mutex_t g_lock = SENTRY__MUTEX_INIT;
 #endif
 
+static scope_access_t *
+scope_data_get_access(const sentry_scope_data_t *data)
+{
+#ifndef SENTRY_PLATFORM_WINDOWS
+    // avoid dynamic TLS access during signal handling
+    if (!sentry__block_for_signal_handler()) {
+        return NULL;
+    }
+#endif
+    for (scope_access_t *access = g_scope_access; access;
+        access = access->next) {
+        if (access->data == data) {
+            return access;
+        }
+    }
+    return NULL;
+}
+
+static bool
+scope_data_read_lock(const sentry_scope_data_t *data)
+{
+    if (scope_data_get_access(data)) {
+        return false;
+    }
+    sentry__rwlock_read_lock((sentry_rwlock_t *)&data->rwlock);
+    return true;
+}
+
+static void
+scope_data_read_unlock(const sentry_scope_data_t *data, bool locked)
+{
+    if (locked) {
+        sentry__rwlock_read_unlock((sentry_rwlock_t *)&data->rwlock);
+    }
+}
+
+static bool
+scope_data_write_lock(sentry_scope_data_t *data)
+{
+    scope_access_t *access = scope_data_get_access(data);
+    assert(!access || access->write);
+    if (access && access->write) {
+        return false;
+    }
+    sentry__rwlock_write_lock(&data->rwlock);
+    return true;
+}
+
+static void
+scope_data_write_unlock(sentry_scope_data_t *data, bool locked)
+{
+    if (locked) {
+        sentry__rwlock_write_unlock(&data->rwlock);
+    }
+}
+
 #define SENTRY_SCOPE_READ_LOCK(Data)                                           \
     for (const sentry_scope_data_t *_locked_data = (Data); _locked_data;       \
-        sentry__rwlock_read_unlock((sentry_rwlock_t *)&_locked_data->rwlock),  \
-                                   _locked_data = NULL)                        \
-        for (bool _locked_once                                                 \
-            = (sentry__rwlock_read_lock(                                       \
-                   (sentry_rwlock_t *)&_locked_data->rwlock),                  \
-                true);                                                         \
-            _locked_once; _locked_once = false)
+        _locked_data = NULL)                                                   \
+        for (bool _lock_acquired = scope_data_read_lock(_locked_data),         \
+                  _locked_once = true;                                         \
+            _locked_once;                                                      \
+            scope_data_read_unlock(_locked_data, _lock_acquired),              \
+                  _locked_once = false)
 
 #define SENTRY_SCOPE_WRITE_LOCK(Data)                                          \
     for (sentry_scope_data_t *_locked_data = (Data); _locked_data;             \
-        sentry__rwlock_write_unlock(&_locked_data->rwlock),                    \
-                             _locked_data = NULL)                              \
-        for (bool _locked_once                                                 \
-            = (sentry__rwlock_write_lock(&_locked_data->rwlock), true);        \
-            _locked_once; _locked_once = false)
+        _locked_data = NULL)                                                   \
+        for (bool _lock_acquired = scope_data_write_lock(_locked_data),        \
+                  _locked_once = true;                                         \
+            _locked_once;                                                      \
+            scope_data_write_unlock(_locked_data, _lock_acquired),             \
+                  _locked_once = false)
 
 static size_t begin_scope_notify(sentry_scope_t *scope);
 static void end_scope_notify(sentry_scope_t *scope);
@@ -543,7 +608,9 @@ flush_scope(sentry_scope_t *scope)
     }
 
     sentry__mutex_lock(&scope->observers_lock);
-    if (scope->pending_flush && !scope->is_notifying) {
+    scope_access_t *access = scope_data_get_access(scope->data);
+    if (scope->pending_flush && !scope->is_notifying
+        && (!access || !access->write)) {
         scope->pending_flush = false;
         if (scope->flush_func) {
             scope->flush_func(scope);
@@ -713,6 +780,109 @@ sentry_scope_new(void)
         return NULL;
     }
     return scope;
+}
+
+static int
+scope_begin(const sentry_scope_t *scope, bool write)
+{
+    if (!scope) {
+        return 1;
+    }
+#ifndef SENTRY_PLATFORM_WINDOWS
+    if (!sentry__block_for_signal_handler()) {
+        return 0;
+    }
+#endif
+
+    sentry_scope_data_t *data = scope->data;
+    scope_access_t *access = scope_data_get_access(data);
+    if (access) {
+        if (write && !access->write) {
+            return 1;
+        }
+        access->depth++;
+        return 0;
+    }
+
+    access = SENTRY_MAKE(scope_access_t);
+    if (!access) {
+        return 1;
+    }
+
+    if (write) {
+        lock_scope_notify((sentry_scope_t *)scope);
+        sentry__rwlock_write_lock(&data->rwlock);
+    } else {
+        sentry__rwlock_read_lock(&data->rwlock);
+    }
+    access->data = data;
+    access->depth = 1;
+    access->write = write;
+    access->next = g_scope_access;
+    g_scope_access = access;
+    return 0;
+}
+
+int
+sentry_scope_begin_read(const sentry_scope_t *scope)
+{
+    return scope_begin(scope, false);
+}
+
+int
+sentry_scope_begin_write(sentry_scope_t *scope)
+{
+    return scope_begin(scope, true);
+}
+
+static void
+scope_end(const sentry_scope_t *scope)
+{
+    if (!scope) {
+        return;
+    }
+#ifndef SENTRY_PLATFORM_WINDOWS
+    if (!sentry__block_for_signal_handler()) {
+        return;
+    }
+#endif
+
+    scope_access_t **link = &g_scope_access;
+    while (*link && (*link)->data != scope->data) {
+        link = &(*link)->next;
+    }
+    scope_access_t *access = *link;
+    if (!access) {
+        assert(false);
+        return;
+    }
+    if (--access->depth > 0) {
+        return;
+    }
+
+    *link = access->next;
+    bool write = access->write;
+    sentry_free(access);
+    if (!write) {
+        sentry__rwlock_read_unlock(&scope->data->rwlock);
+        return;
+    }
+    sentry__rwlock_write_unlock(&scope->data->rwlock);
+
+    flush_scope((sentry_scope_t *)scope);
+    unlock_scope_notify((sentry_scope_t *)scope);
+}
+
+void
+sentry_scope_end_read(const sentry_scope_t *scope)
+{
+    scope_end(scope);
+}
+
+void
+sentry_scope_end_write(sentry_scope_t *scope)
+{
+    scope_end(scope);
 }
 
 void
