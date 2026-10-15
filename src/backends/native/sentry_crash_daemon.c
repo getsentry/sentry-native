@@ -4246,7 +4246,6 @@ sentry__process_crash(const sentry_options_t *options, sentry_crash_ipc_t *ipc)
         }
     }
 
-#    if !defined(SENTRY_PLATFORM_XBOX)
     // wer_enabled only confirms WER module registration. Wait only when
     // wer_integration indicates the report ID and other metadata are expected,
     // to avoid waiting for the full crash-handler timeout when the WER service
@@ -4263,7 +4262,6 @@ sentry__process_crash(const sentry_options_t *options, sentry_crash_ipc_t *ipc)
             elapsed_ms += SENTRY_CRASH_HANDLER_POLL_INTERVAL_MS;
         }
     }
-#    endif
 #endif
 
     // Write envelope based on mode
