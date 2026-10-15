@@ -795,6 +795,10 @@ main(int argc, char **argv)
         sentry_options_set_app_hang_timeout(options, 1000);
     }
 
+    if (has_arg(argc, argv, "attach-stacktrace")) {
+        sentry_options_set_attach_stacktrace(options, 1);
+    }
+
     if (has_arg(argc, argv, "stdout")) {
         sentry_options_set_transport(
             options, sentry_transport_new(print_envelope));

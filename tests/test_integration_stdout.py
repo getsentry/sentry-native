@@ -56,6 +56,89 @@ def test_capture_stdout(cmake):
     assert_event(envelope)
 
 
+@pytest.mark.skipif(is_qemu, reason="unreliable under qemu-user")
+@pytest.mark.xfail(
+    bool(os.environ.get("TEST_MINGW")),
+    reason="DbgHelp cannot read MinGW DWARF symbols",
+    raises=pytest.RaisesExc(AssertionError, match="^missing symbolicated frames"),
+    strict=True,
+)
+def test_capture_stdout_attach_stacktrace(cmake):
+    tmp_path = cmake(
+        ["sentry_test_integration"],
+        {
+            "SENTRY_BACKEND": "none",
+            "SENTRY_TRANSPORT": "none",
+        },
+    )
+
+    output = check_output(
+        tmp_path,
+        "sentry_test_integration",
+        ["stdout", "attach-stacktrace", "capture-event"],
+    )
+    envelope = Envelope.deserialize(output)
+
+    assert_meta(envelope)
+    assert_stacktrace(envelope)
+
+    thread = envelope.get_event()["threads"]["values"][0]
+    assert thread["current"] is True
+    assert thread["crashed"] is False
+
+    assert_event(envelope)
+
+
+def test_capture_stdout_without_attach_stacktrace(cmake):
+    tmp_path = cmake(
+        ["sentry_test_integration"],
+        {
+            "SENTRY_BACKEND": "none",
+            "SENTRY_TRANSPORT": "none",
+        },
+    )
+
+    output = check_output(
+        tmp_path,
+        "sentry_test_integration",
+        ["stdout", "capture-event"],
+    )
+    envelope = Envelope.deserialize(output)
+
+    assert_meta(envelope)
+    assert "threads" not in envelope.get_event()
+
+    assert_event(envelope)
+
+
+@pytest.mark.skipif(is_qemu, reason="unreliable under qemu-user")
+@pytest.mark.xfail(
+    bool(os.environ.get("TEST_MINGW")),
+    reason="DbgHelp cannot read MinGW DWARF symbols",
+    raises=pytest.RaisesExc(AssertionError, match="^missing symbolicated frames"),
+    strict=True,
+)
+def test_capture_stdout_attach_stacktrace_keeps_exception(cmake):
+    tmp_path = cmake(
+        ["sentry_test_integration"],
+        {
+            "SENTRY_BACKEND": "none",
+            "SENTRY_TRANSPORT": "none",
+        },
+    )
+
+    output = check_output(
+        tmp_path,
+        "sentry_test_integration",
+        ["stdout", "attach-stacktrace", "capture-exception", "add-stacktrace"],
+    )
+    envelope = Envelope.deserialize(output)
+
+    assert_meta(envelope)
+    assert_stacktrace(envelope, inside_exception=True)
+    assert "threads" not in envelope.get_event()
+
+
 def copy_except(src: Path, dst: Path, exceptions: list[str] = None) -> None:
     """
     Recursively copy everything from src to dst, except for entries whose
