@@ -785,6 +785,7 @@ static void
 init_with_stacktrace_capture(stacktrace_capture_t *state, bool attach)
 {
     SENTRY_TEST_OPTIONS_NEW(options);
+    sentry_options_set_auto_session_tracking(options, false);
     sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
     sentry_transport_t *transport
         = sentry_transport_new(send_envelope_stacktrace);
