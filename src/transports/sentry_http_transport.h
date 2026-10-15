@@ -60,6 +60,8 @@ void sentry__http_transport_set_start_client(sentry_transport_t *transport,
     int (*start_client)(void *, const sentry_options_t *));
 void sentry__http_transport_set_shutdown_client(
     sentry_transport_t *transport, void (*shutdown_client)(void *));
+void sentry__http_transport_set_retry_enabled(
+    sentry_transport_t *transport, bool enabled);
 
 #ifdef SENTRY_UNITTEST
 void *sentry__http_transport_get_bgworker(sentry_transport_t *transport);

@@ -35,6 +35,7 @@ from .assertions import (
     assert_no_crash_timestamp,
     assert_debug_meta_images_do_not_overlap,
     assert_meta,
+    assert_minidump,
     assert_native_crash,
     assert_replay_envelope,
     assert_session,
@@ -1732,3 +1733,50 @@ def test_native_incomplete_crash(cmake, callback):
             child.kill()
         child.wait()
         assert wait_for(lambda: not list(db_dir.glob("*.run.daemon.lock")))
+
+
+@pytest.mark.parametrize(
+    "cache_args",
+    [
+        pytest.param([], id="none"),
+        pytest.param(["cache-keep"], id="offline"),
+        pytest.param(["cache-keep-always"], id="always"),
+    ],
+)
+def test_native_http_retry(cmake, httpserver, unreachable_dsn, cache_args):
+    tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "native"})
+    cache_dir = tmp_path / ".sentry-native" / "cache"
+
+    run_crash(
+        tmp_path,
+        "sentry_test_integration",
+        ["log", "http-retry", "crash", *cache_args, *SANITIZER_ARGS],
+        env=dict(os.environ, SENTRY_DSN=unreachable_dsn),
+        wait_for_daemon=True,
+    )
+
+    cache_files = list(cache_dir.glob("*.envelope"))
+    assert len(cache_files) == 1
+    cached = cache_files[0]
+    assert "-00-" in cached.name
+    envelope = Envelope.deserialize(cached.read_bytes())
+    assert_native_crash(envelope)
+    assert_minidump(envelope)
+    crash_id = envelope.headers["event_id"]
+    assert cached.stem[-36:] == crash_id
+
+    httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data("OK")
+    with httpserver.wait(timeout=10) as waiting:
+        run(
+            tmp_path,
+            "sentry_test_integration",
+            ["log", "http-retry", "no-setup", *cache_args],
+            env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
+        )
+    assert waiting.result
+    assert len(httpserver.log) == 1
+    envelope = Envelope.deserialize(httpserver.log[0][0].get_data())
+    assert envelope.headers["event_id"] == crash_id
+    assert_native_crash(envelope)
+    assert_minidump(envelope)
+    assert not cached.exists()

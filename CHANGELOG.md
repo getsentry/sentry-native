@@ -5,6 +5,7 @@
 **Fixes**:
 
 - Fix a race that could drop a failed upload during `sentry_close` when `http_retry` is enabled. ([#2199](https://github.com/getsentry/sentry-native/pull/2199))
+- Native: Retry failed daemon uploads on the next SDK start when `http_retry` is enabled. ([#2199](https://github.com/getsentry/sentry-native/pull/2199))
 
 ## 0.17.3
 
