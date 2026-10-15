@@ -3146,6 +3146,23 @@ SENTRY_EXPERIMENTAL_API int sentry_options_get_http_retry(
     const sentry_options_t *opts);
 
 /**
+ * Enables or disables attaching a stack trace to events that carry none.
+ *
+ * Events captured without an exception or a thread stack trace, like messages,
+ * get the stack trace of the capturing thread attached as a thread. Events
+ * that already carry a stack trace, including crashes, are left untouched.
+ *
+ * Attaching a stack trace makes messages group by call site rather than by
+ * message text.
+ *
+ * Disabled by default.
+ */
+SENTRY_EXPERIMENTAL_API void sentry_options_set_attach_stacktrace(
+    sentry_options_t *opts, int attach_stacktrace);
+SENTRY_EXPERIMENTAL_API int sentry_options_get_attach_stacktrace(
+    const sentry_options_t *opts);
+
+/**
  * Enables or disables out-of-band upload of large attachments.
  *
  * When enabled, attachments above an internal size threshold are uploaded
