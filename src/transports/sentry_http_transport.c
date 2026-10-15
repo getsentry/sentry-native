@@ -978,7 +978,6 @@ http_transport_shutdown(uint64_t timeout, void *transport_state)
     if (rv != 0) {
         sentry__bgworker_foreach_matching(
             bgworker, http_cleanup_cache_task, http_flush_cleanup_cb, NULL);
-        sentry__retry_seal(state->retry);
     }
     return rv;
 }
@@ -1003,8 +1002,13 @@ static size_t
 http_dump_queue(sentry_run_t *run, void *transport_state)
 {
     sentry_bgworker_t *bgworker = transport_state;
-    return sentry__bgworker_foreach_matching(
+    http_transport_state_t *state = sentry__bgworker_get_state(bgworker);
+    size_t dumped = sentry__bgworker_foreach_matching(
         bgworker, http_send_task, http_dump_task_cb, run);
+    // Sealing makes a failing in-flight send discard its envelope. Do it only
+    // after the dump has written that envelope, or it is lost.
+    sentry__retry_seal(state->retry);
+    return dumped;
 }
 
 static http_transport_state_t *
