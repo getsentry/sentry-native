@@ -4,6 +4,7 @@
 
 **Features**:
 
+- Add the `attach_stacktrace` option, which attaches the stack trace of the capturing thread to events that carry none, so messages group by call site instead of by message text. ([#2195](https://github.com/getsentry/sentry-native/pull/2195))
 - Let custom backends track the current session through a new `session_changed_func` hook, invoked when a session starts, is first sent, syncs its user or ends. ([#2200](https://github.com/getsentry/sentry-native/pull/2200))
 
 ## 0.17.3
