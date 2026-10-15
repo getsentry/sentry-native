@@ -32,6 +32,7 @@ from .assertions import (
     assert_attachment,
     assert_breadcrumb,
     assert_crash_timestamp,
+    assert_crash_hint_attachments,
     assert_no_crash_timestamp,
     assert_debug_meta_images_do_not_overlap,
     assert_meta,
@@ -113,16 +114,10 @@ def test_native_crash_hint_attachments(cmake, httpserver, callback, crash):
 
     assert len(httpserver.log) >= 1
     envelope = Envelope.deserialize(httpserver.log[0][0].get_data())
-    assert not any(
-        item.headers.get("filename") == "CMakeCache.txt" for item in envelope
-    )
-    filename = callback.replace("-", "_") + ".json"
-    snapshot = json.loads(
-        next(
-            item.payload.bytes
-            for item in envelope
-            if item.headers.get("filename") == filename
-        )
+    snapshot = assert_crash_hint_attachments(envelope, callback)
+    assert any(
+        "sentry_test_integration" in image["code_file"]
+        for image in snapshot["debug_meta"]["images"]
     )
     assert_crash_stack(snapshot)
     if crash == "crash-null":

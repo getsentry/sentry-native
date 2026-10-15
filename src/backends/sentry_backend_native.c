@@ -1389,6 +1389,7 @@ native_backend_except(sentry_backend_t *backend, const sentry_ucontext_t *uctx)
                     ctx, sentry__build_registers(uctx)));
             sentry_event_add_exception(event, exc);
         }
+        sentry__event_ensure_modules(event);
         sentry_hint_t hint;
         sentry__hint_init(&hint);
 

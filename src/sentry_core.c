@@ -851,6 +851,28 @@ prepare_attachments(sentry_hint_t *hint, sentry_scope_t *local_scope)
     return attachments;
 }
 
+void
+sentry__event_ensure_modules(sentry_value_t event)
+{
+    sentry_value_t debug_meta = sentry_value_get_by_key(event, "debug_meta");
+    sentry_value_t images = sentry_value_get_by_key(debug_meta, "images");
+    if (!sentry_value_is_null(images)) {
+        return;
+    }
+
+    sentry_value_t modules = sentry_get_modules_list();
+    if (!sentry_value_is_null(modules)) {
+        bool had_debug_meta = !sentry_value_is_null(debug_meta);
+        if (!had_debug_meta) {
+            debug_meta = sentry_value_new_object();
+        }
+        sentry_value_set_by_key(debug_meta, "images", modules);
+        if (!had_debug_meta) {
+            sentry_value_set_by_key(event, "debug_meta", debug_meta);
+        }
+    }
+}
+
 sentry_value_t
 sentry__invoke_on_crash(const sentry_options_t *options,
     const sentry_ucontext_t *uctx, sentry_value_t event, sentry_hint_t *hint)
@@ -904,6 +926,8 @@ sentry__prepare_event(const sentry_options_t *options, sentry_value_t event,
         sentry__record_errors_on_current_session(1);
     }
 
+    sentry__event_ensure_modules(event);
+
     sentry_scope_mode_t mode = SENTRY_SCOPE_ALL;
     if (!options->symbolize_stacktraces) {
         mode &= ~SENTRY_SCOPE_STACKTRACES;
@@ -956,8 +980,7 @@ sentry__prepare_transaction(const sentry_options_t *options,
     SENTRY_WITH_SCOPE (scope) {
         SENTRY_DEBUG("merging scope into transaction");
         // Don't include debugging info
-        sentry_scope_mode_t mode = SENTRY_SCOPE_ALL & ~SENTRY_SCOPE_MODULES
-            & ~SENTRY_SCOPE_STACKTRACES;
+        sentry_scope_mode_t mode = SENTRY_SCOPE_ALL & ~SENTRY_SCOPE_STACKTRACES;
         sentry__scope_apply_to_event(scope, options, transaction, mode);
     }
 

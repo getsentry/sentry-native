@@ -48,6 +48,11 @@ bool sentry__should_skip_upload(void);
 bool sentry__event_is_transaction(sentry_value_t event);
 
 /**
+ * Populates missing `debug_meta.images` with cached modules when available.
+ */
+void sentry__event_ensure_modules(sentry_value_t event);
+
+/**
  * Invokes the configured `on_crash` callback, if any.
  *
  * Returns the callback result, or `event` unchanged when no callback is
