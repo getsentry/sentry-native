@@ -8,6 +8,7 @@
 #include "sentry_integration.h"
 #include "sentry_logger.h"
 #include "sentry_session.h"
+#include "sentry_sync.h"
 #include "sentry_utils.h"
 
 // Defaults to 2s as per
@@ -101,6 +102,7 @@ struct sentry_options_s {
        not exposed through the options API */
     struct sentry_backend_s *backend;
     sentry_session_t *session;
+    sentry_mutex_t session_lock;
     sentry_integration_t **integrations;
     size_t num_integrations;
     bool retain_crash_marker;

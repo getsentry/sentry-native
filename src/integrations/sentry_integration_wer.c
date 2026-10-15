@@ -232,8 +232,6 @@ wer_clear(void *data)
     sentry_value_t tags = sentry__scope_load_tags(scope);
     sentry_value_foreach_key_value(tags, wer_cleanup_tag, wer_data);
     sentry_value_decref(tags);
-
-    wer_for_each_attachment(scope, wer_data, wer_remove_attachment);
 }
 
 static void
