@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+**Features**:
+
+- Let custom backends track the current session through a new `session_changed_func` hook, invoked when a session starts, is first sent, syncs its user or ends. ([#2200](https://github.com/getsentry/sentry-native/pull/2200))
+
 **Fixes**:
 
 - Fix a race that could drop a failed upload during `sentry_close` when `http_retry` is enabled. ([#2199](https://github.com/getsentry/sentry-native/pull/2199))
