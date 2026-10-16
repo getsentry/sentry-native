@@ -14,6 +14,7 @@
 - Add `sentry_scope_begin_read`/`sentry_scope_end_read` and `sentry_scope_begin_write`/`sentry_scope_end_write` for consistent reads of multiple scope properties and applying multiple scope changes with a single scope flush. ([#2107](https://github.com/getsentry/sentry-native/pull/2107))
 - Add `sentry_scope_acquire` and `sentry_scope_release` to access the isolation scope. ([#2160](https://github.com/getsentry/sentry-native/pull/2160))
 - Native: Provide exception metadata, registers, and a basic crashing-thread stack to `on_crash` for crash identification. ([#2174](https://github.com/getsentry/sentry-native/pull/2174))
+- Native: reduce disk I/O on scope changes by sending incremental updates to the crash daemon over IPC. ([#2155](https://github.com/getsentry/sentry-native/pull/2155), [#2157](https://github.com/getsentry/sentry-native/pull/2157))
 
 **Fixes**:
 
