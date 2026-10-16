@@ -773,6 +773,7 @@ native_backend_startup(
     ctx->shutdown_timeout = options->shutdown_timeout;
     ctx->transfer_timeout = options->transfer_timeout;
     ctx->max_breadcrumbs = (uint32_t)options->max_breadcrumbs;
+    ctx->symbolize_stacktraces = options->symbolize_stacktraces;
 #if defined(SENTRY_PLATFORM_WINDOWS)
     ctx->platform.wer_integration
         = sentry__options_has_integration(options, "wer");

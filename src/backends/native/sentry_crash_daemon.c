@@ -23,6 +23,7 @@
 #include "sentry_utils.h"
 #include "sentry_uuid.h"
 #include "sentry_value.h"
+#include "transports/sentry_http_transport.h"
 
 #include <limits.h>
 #include <stdarg.h>
@@ -1011,8 +1012,8 @@ build_stacktrace_for_thread(
             sentry_remote_frame_t *remote_frames
                 = sentry_malloc(sizeof(*remote_frames) * MAX_STACK_FRAMES);
             size_t remote_count = remote_frames
-                ? sentry__unwind_stack_from_thread(
-                      tid, remote_frames, MAX_STACK_FRAMES, &registers)
+                ? sentry__unwind_stack_from_thread(tid, remote_frames,
+                      MAX_STACK_FRAMES, &registers, ctx->symbolize_stacktraces)
                 : 0;
 
             if (remote_count > 0) {
@@ -1768,6 +1769,10 @@ static void
 enrich_frame_with_symbol(
     const sentry_crash_context_t *ctx, sentry_value_t frame, uint64_t addr)
 {
+    if (!ctx->symbolize_stacktraces) {
+        return;
+    }
+
     uint32_t module_count = MIN(ctx->module_count, SENTRY_CRASH_MAX_MODULES);
     for (uint32_t i = 0; i < module_count; i++) {
         const sentry_module_info_t *mod = &ctx->modules[i];
@@ -2437,6 +2442,10 @@ static void
 enrich_frame_with_symbol(
     const sentry_crash_context_t *ctx, sentry_value_t frame, uint64_t addr)
 {
+    if (!ctx->symbolize_stacktraces) {
+        return;
+    }
+
     uint32_t module_count = MIN(ctx->module_count, SENTRY_CRASH_MAX_MODULES);
     for (uint32_t i = 0; i < module_count; i++) {
         const sentry_module_info_t *mod = &ctx->modules[i];
@@ -2648,7 +2657,9 @@ walk_stack_with_dbghelp(HANDLE hProcess, DWORD crashed_tid,
 
     const size_t sym_info_size
         = sizeof(SYMBOL_INFOW) + MAX_SYM_NAME * sizeof(WCHAR);
-    SYMBOL_INFOW *sym_info = (SYMBOL_INFOW *)sentry_malloc(sym_info_size);
+    SYMBOL_INFOW *sym_info = crash_ctx->symbolize_stacktraces
+        ? (SYMBOL_INFOW *)sentry_malloc(sym_info_size)
+        : NULL;
 
     size_t frame_count = 0;
     while (frame_count < max_frames
@@ -4339,19 +4350,10 @@ sentry__process_crash(const sentry_options_t *options, sentry_crash_ipc_t *ipc)
 
     add_attachment_refs(envelope, options, run_folder);
 
-    bool has_attachment_refs = sentry__envelope_has_content_type(
-        envelope, SENTRY_ATTACHMENT_REF_MIME);
-
     SENTRY_DEBUG("Envelope loaded, capturing");
 
     // Launch reporter, or fall back to transport (consent/caching in core).
     if (!sentry__launch_external_crash_reporter(options, envelope)) {
-        if (has_attachment_refs && options && options->run) {
-            if (!sentry__run_write_envelope(options->run, envelope)) {
-                SENTRY_WARN(
-                    "Failed to dump crash envelope for resend on restart");
-            }
-        }
         if (options && options->transport && options->run) {
             SENTRY_DEBUG("Capturing crash envelope");
             sentry__capture_envelope(options->transport, envelope, options);
@@ -4416,22 +4418,6 @@ done:
     SENTRY_DEBUG("Processing crash - END");
     SENTRY_DEBUG("Crash processing complete");
     return crash_captured;
-}
-
-static void
-remove_pending_run_envelopes(const sentry_path_t *run_path)
-{
-    sentry_pathiter_t *it = sentry__path_iter_directory(run_path);
-    const sentry_path_t *file;
-    while (it && (file = sentry__pathiter_next(it)) != NULL) {
-        if (sentry__path_is_file(file) && !sentry__path_is_symlink(file)
-            && sentry__path_ends_with(file, ".envelope")
-            && !sentry__path_filename_matches(
-                file, "__sentry-crash.envelope")) {
-            sentry__path_remove(file);
-        }
-    }
-    sentry__pathiter_free(it);
 }
 
 /**
@@ -4699,8 +4685,11 @@ sentry__crash_daemon_main(pid_t app_pid, uint64_t app_tid, HANDLE event_handle,
         sentry__transport_startup(options->transport, options);
         // Set http_retry after transport startup to keep daemon-side retry
         // polling disabled, while letting capture cache consent-revoked
-        // envelopes in retry format for the app to send on restart.
+        // envelopes in retry format for the app to send on restart and
+        // letting the transport do the same for failed uploads.
         options->http_retry = ipc->shmem->http_retry;
+        sentry__http_transport_set_retry_enabled(
+            options->transport, options->http_retry);
     } else {
         SENTRY_WARN("No transport available");
     }
@@ -4779,7 +4768,6 @@ sentry__crash_daemon_main(pid_t app_pid, uint64_t app_tid, HANDLE event_handle,
 
     // Cleanup
     if (options) {
-        size_t dumped_envelopes = 0;
         if (options->transport) {
             // Wait for the configured SDK shutdown timeout to send pending
             // envelopes (crash envelope + logs envelope, etc.).
@@ -4790,11 +4778,11 @@ sentry__crash_daemon_main(pid_t app_pid, uint64_t app_tid, HANDLE event_handle,
             }
 
             if (crash_processed) {
-                dumped_envelopes = sentry__transport_dump_queue(
-                    options->transport, options->run);
-                if (rv == 0 && !dumped_envelopes && options->run) {
-                    remove_pending_run_envelopes(options->run->run_path);
-                }
+                sentry__transport_dump_queue(options->transport, options->run);
+                // The dump already wrote any upload the worker is still stuck
+                // on. Don't cache it for retry as well if it fails before exit.
+                sentry__http_transport_set_retry_enabled(
+                    options->transport, false);
             }
         }
     }

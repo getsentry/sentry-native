@@ -1967,18 +1967,27 @@ SENTRY_API int sentry_options_get_require_user_consent(
     const sentry_options_t *opts);
 
 /**
- * Enables or disables on-device symbolication of stack traces.
+ * Enables or disables client-side symbolication of stack traces.
  *
- * This feature can have a performance impact and is enabled by default on
- * Android. It is usually only necessary when it is not possible to provide
- * debug information files for system libraries which are needed for serverside
- * symbolication.
+ * Client-side symbolication is useful for resolving system library frames
+ * when debug information files cannot be provided for server-side
+ * symbolication, and for displaying readable stack traces in external crash
+ * reporters.
+ *
+ * The native backend enables symbolication by default on all supported
+ * platforms, because crash symbolication runs in a separate daemon process.
+ * Other backends enable symbolication by default on Android, AIX, and
+ * PlayStation.
+ *
+ * This feature can have a performance impact. Symbolication runs in the
+ * application process when handling crashes with the inproc backend, or when
+ * capturing events using `sentry_capture_event` with any backend.
  */
 SENTRY_API void sentry_options_set_symbolize_stacktraces(
     sentry_options_t *opts, int val);
 
 /**
- * Returns true if on-device symbolication of stack traces is enabled.
+ * Returns true if client-side symbolication of stack traces is enabled.
  */
 SENTRY_API int sentry_options_get_symbolize_stacktraces(
     const sentry_options_t *opts);

@@ -9,6 +9,9 @@
 
 **Fixes**:
 
+- Fix a race that could drop a failed upload during `sentry_close` when `http_retry` is enabled. ([#2199](https://github.com/getsentry/sentry-native/pull/2199))
+- Native: Retry failed daemon uploads on the next SDK start when `http_retry` is enabled. ([#2199](https://github.com/getsentry/sentry-native/pull/2199))
+- Native: Respect `symbolize_stacktraces` for crash capture and enable it by default. ([#2205](https://github.com/getsentry/sentry-native/pull/2205))
 - Native/Xbox: fix capture of fast-fail crashes via Windows Error Reporting (WER). ([#2207](https://github.com/getsentry/sentry-native/pull/2207))
 
 **Thank you**:
