@@ -15,8 +15,6 @@
 #        include <mach-o/dyld.h>
 #        include <spawn.h>
 #    endif
-#elif defined(SENTRY_PLATFORM_WINDOWS) && !defined(SENTRY_PLATFORM_XBOX)
-#    include <werapi.h>
 #endif
 
 #include <inttypes.h>
@@ -72,27 +70,43 @@ static sentry_mutex_t g_ipc_init_mutex = SENTRY__MUTEX_INIT;
 #    endif
 #endif
 
-#if defined(SENTRY_PLATFORM_WINDOWS) && !defined(SENTRY_PLATFORM_XBOX)
+#if defined(SENTRY_PLATFORM_WINDOWS)
+typedef HRESULT(WINAPI *sentry_wer_module_func_t)(PCWSTR, PVOID);
+
 static sentry_wer_registration_t g_wer_registration = { 0 };
 
 static sentry_path_t *g_wer_path = NULL;
+static sentry_wer_module_func_t g_wer_unregister_module = NULL;
+
+static const wchar_t *g_wer_registry_key
+    = L"Software\\Microsoft\\Windows\\Windows Error Reporting\\"
+      L"RuntimeExceptionHelperModules";
 
 static LSTATUS
 wer_set_registry_value(const sentry_path_t *wer_path, DWORD value)
 {
-    return RegSetKeyValueW(HKEY_CURRENT_USER,
-        L"Software\\Microsoft\\Windows\\Windows Error Reporting\\"
-        L"RuntimeExceptionHelperModules",
-        wer_path->path_w, REG_DWORD, &value, sizeof(value));
+    HKEY key = NULL;
+    LSTATUS status = RegCreateKeyExW(HKEY_CURRENT_USER, g_wer_registry_key, 0,
+        NULL, 0, KEY_SET_VALUE, NULL, &key, NULL);
+    if (status == ERROR_SUCCESS) {
+        status = RegSetValueExW(key, wer_path->path_w, 0, REG_DWORD,
+            (const BYTE *)&value, sizeof(value));
+        RegCloseKey(key);
+    }
+    return status;
 }
 
 static LSTATUS
 wer_delete_registry_value(const sentry_path_t *wer_path)
 {
-    return RegDeleteKeyValueW(HKEY_CURRENT_USER,
-        L"Software\\Microsoft\\Windows\\Windows Error Reporting\\"
-        L"RuntimeExceptionHelperModules",
-        wer_path->path_w);
+    HKEY key = NULL;
+    LSTATUS status = RegOpenKeyExW(
+        HKEY_CURRENT_USER, g_wer_registry_key, 0, KEY_SET_VALUE, &key);
+    if (status == ERROR_SUCCESS) {
+        status = RegDeleteValueW(key, wer_path->path_w);
+        RegCloseKey(key);
+    }
+    return status == ERROR_FILE_NOT_FOUND ? ERROR_SUCCESS : status;
 }
 
 static sentry_path_t *
@@ -147,21 +161,37 @@ wer_unregister_module(void)
         return;
     }
 
-    WerUnregisterRuntimeExceptionModule(
-        g_wer_path->path_w, &g_wer_registration);
+    g_wer_unregister_module(g_wer_path->path_w, &g_wer_registration);
     wer_delete_registry_value(g_wer_path);
     sentry__path_free(g_wer_path);
     g_wer_path = NULL;
+    g_wer_unregister_module = NULL;
     memset(&g_wer_registration, 0, sizeof(g_wer_registration));
 }
 
 static bool
 wer_register_module(uint64_t app_tid, const sentry_options_t *options)
 {
+#    if !defined(SENTRY_PLATFORM_XBOX)
     windows_version_t win_ver;
     if (!sentry__get_windows_version(&win_ver) || win_ver.build < 19041) {
         SENTRY_WARN("Native WER module not registered, because Windows "
                     "doesn't meet version requirements (build >= 19041).");
+        return false;
+    }
+#    endif
+
+    HMODULE kernel32 = GetModuleHandleW(L"kernel32.dll");
+    sentry_wer_module_func_t register_module = kernel32
+        ? (sentry_wer_module_func_t)GetProcAddress(
+              kernel32, "WerRegisterRuntimeExceptionModule")
+        : NULL;
+    sentry_wer_module_func_t unregister_module = kernel32
+        ? (sentry_wer_module_func_t)GetProcAddress(
+              kernel32, "WerUnregisterRuntimeExceptionModule")
+        : NULL;
+    if (!register_module || !unregister_module) {
+        SENTRY_WARN("Native WER runtime exception APIs not available");
         return false;
     }
 
@@ -183,8 +213,7 @@ wer_register_module(uint64_t app_tid, const sentry_options_t *options)
     g_wer_registration.app_pid = GetCurrentProcessId();
     g_wer_registration.app_tid = app_tid;
 
-    HRESULT hr = WerRegisterRuntimeExceptionModule(
-        wer_path->path_w, &g_wer_registration);
+    HRESULT hr = register_module(wer_path->path_w, &g_wer_registration);
     if (FAILED(hr)) {
         SENTRY_WARN("registering native WER module failed");
         wer_delete_registry_value(wer_path);
@@ -195,6 +224,7 @@ wer_register_module(uint64_t app_tid, const sentry_options_t *options)
 
     SENTRY_DEBUGF("registered native WER module \"%s\"", wer_path->path);
     g_wer_path = wer_path;
+    g_wer_unregister_module = unregister_module;
     return true;
 }
 
@@ -977,7 +1007,7 @@ native_backend_startup(
         SENTRY_DEBUG("Daemon signaled ready");
     }
 
-#    if defined(SENTRY_PLATFORM_WINDOWS) && !defined(SENTRY_PLATFORM_XBOX)
+#    if defined(SENTRY_PLATFORM_WINDOWS)
     state->ipc->shmem->platform.wer_enabled = wer_register_module(tid, options);
 #    endif
 
@@ -991,9 +1021,7 @@ native_backend_startup(
 #    if defined(SENTRY_PLATFORM_UNIX)
         kill(state->daemon_pid, SIGTERM);
 #    elif defined(SENTRY_PLATFORM_WINDOWS)
-#        if !defined(SENTRY_PLATFORM_XBOX)
         wer_unregister_module();
-#        endif
         // On Windows, terminate the daemon process
         HANDLE hDaemon
             = OpenProcess(PROCESS_TERMINATE, FALSE, state->daemon_pid);
@@ -1042,7 +1070,7 @@ native_backend_shutdown(sentry_backend_t *backend)
         state->scope_observer = NULL;
     }
 
-#if defined(SENTRY_PLATFORM_WINDOWS) && !defined(SENTRY_PLATFORM_XBOX)
+#if defined(SENTRY_PLATFORM_WINDOWS)
     wer_unregister_module();
 #endif
 
