@@ -14,7 +14,6 @@
 #include "sentry_scope.h"
 #include "sentry_testsupport.h"
 #include "sentry_tracing.h"
-#include <signal.h>
 #include <stdlib.h>
 #include <string.h>
 
