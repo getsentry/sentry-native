@@ -1118,6 +1118,12 @@ main(int argc, char **argv)
         sentry_attachment_set_content_type(bytes, "application/octet-stream");
         sentry_add_attachment(bytes);
     }
+    if (has_arg(argc, argv, "binary-attachment")) {
+        sentry_value_t bytes = sentry_attachment_from_bytes(
+            "\xc0\0\xff\n\r\n\xee", 7, "binary.bin");
+        sentry_attachment_set_content_type(bytes, "application/octet-stream");
+        sentry_add_attachment(bytes);
+    }
     if (has_arg(argc, argv, "attach-view-hierarchy")) {
         // assuming the example / test is run directly from the cmake build
         // directory
