@@ -1022,11 +1022,11 @@ elseif(SENTRY_BACKEND_NATIVE)
 
 	# Install daemon
 	install(TARGETS sentry-crash
-		RUNTIME DESTINATION bin
+		RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}"
 	)
 	if(WIN32 AND NOT XBOX)
 		install(TARGETS sentry-wer
-			RUNTIME DESTINATION bin
+			RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}"
 			LIBRARY DESTINATION "${CMAKE_INSTALL_LIBDIR}"
 			ARCHIVE DESTINATION "${CMAKE_INSTALL_LIBDIR}"
 		)
@@ -1203,7 +1203,7 @@ endif()
 if(SENTRY_INSTALL_PKGCONFIG)
   set(PREFIX "${CMAKE_INSTALL_PREFIX}")
   set(PKGCONFIG_VERSION "${SENTRY_VERSION_FULL}")
-  # Use absolute paths for libdir and includedir to support non-standard layouts (e.g., lib64)
+  # Use absolute paths for libdir, includedir, and bindir to support non-standard layouts (e.g., lib64)
   if(IS_ABSOLUTE "${CMAKE_INSTALL_LIBDIR}")
     set(PKGCONFIG_LIBDIR "${CMAKE_INSTALL_LIBDIR}")
   else()
@@ -1213,6 +1213,11 @@ if(SENTRY_INSTALL_PKGCONFIG)
     set(PKGCONFIG_INCLUDEDIR "${CMAKE_INSTALL_INCLUDEDIR}")
   else()
     set(PKGCONFIG_INCLUDEDIR "\${prefix}/${CMAKE_INSTALL_INCLUDEDIR}")
+  endif()
+  if(IS_ABSOLUTE "${CMAKE_INSTALL_BINDIR}")
+    set(PKGCONFIG_BINDIR "${CMAKE_INSTALL_BINDIR}")
+  else()
+    set(PKGCONFIG_BINDIR "\${prefix}/${CMAKE_INSTALL_BINDIR}")
   endif()
   configure_file(
     "${CMAKE_CURRENT_SOURCE_DIR}/sentry.pc.in"

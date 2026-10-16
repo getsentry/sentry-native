@@ -2,10 +2,14 @@ import subprocess
 import sys
 import os
 import struct
+import shutil
+import shlex
+from pathlib import Path
 
 import pytest
 
-from . import SENTRY_VERSION, lib_name
+from . import SENTRY_VERSION, lib_name, run
+from .build_config import get_test_executable_cflags, get_test_executable_env
 from .conditions import (
     has_breakpad,
     has_crashpad,
@@ -193,3 +197,46 @@ def test_static_mpack(cmake):
     assert any(
         symbol.startswith("sentry__mpack_") for symbol in symbols
     ), f"{library.name} contains no Sentry-prefixed MPack symbols"
+
+
+@pytest.mark.skipif(
+    sys.platform not in ("linux", "darwin") or not has_native or is_qemu or is_wine,
+    reason="test requires a native Unix build",
+)
+def test_pkgconfig(cmake, tmp_path, monkeypatch):
+    if shutil.which("pkg-config") is None:
+        pytest.skip("pkg-config is not installed")
+
+    destdir = tmp_path / "install"
+    directory = cmake(["sentry"], {"SENTRY_TRANSPORT": "none"})
+    subprocess.run(
+        ["cmake", "--install", directory],
+        env=dict(os.environ, DESTDIR=str(destdir)),
+        check=True,
+    )
+
+    (pc,) = destdir.rglob("sentry.pc")
+    (library,) = destdir.rglob(lib_name("sentry"))
+    _assert_shared_version(library.parent)
+
+    monkeypatch.setenv("PKG_CONFIG_PATH", str(pc.parent))
+    monkeypatch.setenv("PKG_CONFIG_LIBDIR", str(pc.parent))
+    monkeypatch.setenv("PKG_CONFIG_SYSROOT_DIR", str(destdir))
+    env = get_test_executable_env()
+    version = subprocess.check_output(
+        ["pkg-config", "--modversion", "sentry"], env=env, text=True
+    )
+    assert version.strip() == SENTRY_VERSION
+    flags = subprocess.check_output(
+        ["pkg-config", "--libs-only-L", "sentry"], env=env, text=True
+    )
+    assert shlex.split(flags) == [f"-L{library.parent}"]
+
+    consumer = cmake(
+        ["sentry_test_pkgconfig"],
+        {"CMAKE_FIND_ROOT_PATH": str(destdir)},
+        cflags=get_test_executable_cflags(),
+        source_dir=Path(__file__).parent / "fixtures" / "pkgconfig",
+    )
+    env["SENTRY_DATABASE_PATH"] = str(tmp_path / "database")
+    run(consumer, "sentry_test_pkgconfig", [], env=env)

@@ -2,6 +2,7 @@ prefix=@PREFIX@
 exec_prefix=${prefix}
 libdir=@PKGCONFIG_LIBDIR@
 includedir=@PKGCONFIG_INCLUDEDIR@
+bindir=@PKGCONFIG_BINDIR@
 
 Name: sentry
 Description: Sentry SDK for C, C++ and native applications
