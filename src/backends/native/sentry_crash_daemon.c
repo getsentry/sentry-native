@@ -694,8 +694,7 @@ static void
 enrich_frame_with_symbol(
     const sentry_crash_context_t *ctx, sentry_value_t frame, uint64_t addr)
 {
-    (void)ctx;
-    if (!g_stack_walk_process) {
+    if (!ctx->symbolize_stacktraces || !g_stack_walk_process) {
         return;
     }
     const size_t size = sizeof(SYMBOL_INFOW) + MAX_SYM_NAME * sizeof(WCHAR);
