@@ -48,6 +48,7 @@ count_sent_envelopes(sentry_envelope_t *envelope, void *state)
 #    include <fcntl.h>
 #    include <stdlib.h>
 #    include <sys/stat.h>
+#    include <sys/wait.h>
 #    include <unistd.h>
 #endif
 
@@ -1461,5 +1462,73 @@ SENTRY_TEST(crash_ipc_crashing)
                                 ipc->scope.event, "release")),
         "latest");
     sentry__crash_ipc_free(ipc);
+#endif
+}
+
+SENTRY_TEST(crash_daemon_shutdown_during_crash)
+{
+#if !defined(SENTRY_BACKEND_NATIVE) || !defined(SENTRY_PLATFORM_LINUX)
+    SKIP_TEST();
+#else
+    const char *daemon = getenv("SENTRY_TEST_NATIVE_DAEMON");
+    if (!daemon) {
+        SKIP_TEST();
+    }
+    SENTRY_TEST_OPTIONS_NEW(options);
+    TEST_ASSERT(sentry__path_create_dir_all(options->database_path) == 0);
+    sentry_run_t *run = sentry__run_new(options->database_path);
+    TEST_ASSERT(run != NULL);
+    sentry_crash_ipc_t *ipc = new_test_ipc();
+    snprintf(ipc->shmem->database_path, sizeof(ipc->shmem->database_path), "%s",
+        options->database_path->path);
+    snprintf(ipc->shmem->run_path, sizeof(ipc->shmem->run_path), "%s",
+        run->run_path->path);
+    ipc->shmem->event_discarded = true;
+    sentry__atomic_store(&ipc->shmem->state, SENTRY_CRASH_STATE_CRASHING);
+    TEST_ASSERT(sentry__crash_ipc_send(
+        ipc, SENTRY_CRASH_IPC_MESSAGE_SHUTDOWN, sentry_value_new_null()));
+
+    char pid[32], tid[32], notify[32], ready[32], message[32];
+    snprintf(pid, sizeof(pid), "%d", (int)getpid());
+    snprintf(tid, sizeof(tid), "%llx", (unsigned long long)pthread_self());
+    snprintf(notify, sizeof(notify), "%d", ipc->notify_fd);
+    snprintf(ready, sizeof(ready), "%d", ipc->ready_fd);
+    snprintf(message, sizeof(message), "%d", ipc->message_fd[1]);
+    pid_t child = fork();
+    TEST_ASSERT(child >= 0);
+    if (child == 0) {
+        int fds[] = { ipc->notify_fd, ipc->ready_fd, ipc->message_fd[1] };
+        for (size_t i = 0; i < sizeof(fds) / sizeof(fds[0]); i++) {
+            fcntl(fds[i], F_SETFD, 0);
+        }
+        execl(daemon, daemon, pid, tid, notify, ready, message, NULL);
+        _exit(1);
+    }
+    TEST_CHECK(sentry__crash_ipc_wait_for_ready(ipc, 5000));
+    sleep_ms(100);
+    TEST_CHECK_INT_EQUAL(waitpid(child, NULL, WNOHANG), 0);
+
+    sentry__atomic_store(&ipc->shmem->state, SENTRY_CRASH_STATE_CRASHED);
+    sentry__crash_ipc_notify(ipc);
+    int status = 0;
+    pid_t result = 0;
+    for (int i = 0; i < 500; i++) {
+        result = waitpid(child, &status, WNOHANG);
+        if (result != 0) {
+            break;
+        }
+        sleep_ms(10);
+    }
+    if (result == 0) {
+        kill(child, SIGKILL);
+        waitpid(child, &status, 0);
+    }
+    TEST_CHECK_INT_EQUAL(result, child);
+    TEST_CHECK(WIFEXITED(status) && WEXITSTATUS(status) == 0);
+    TEST_CHECK_INT_EQUAL(
+        sentry__atomic_fetch(&ipc->shmem->state), SENTRY_CRASH_STATE_DONE);
+    sentry__crash_ipc_free(ipc);
+    sentry__run_free(run);
+    sentry_options_free(options);
 #endif
 }

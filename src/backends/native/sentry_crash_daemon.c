@@ -4683,7 +4683,7 @@ sentry__crash_daemon_main(pid_t app_pid, uint64_t app_tid, HANDLE event_handle,
             SENTRY_DEBUG("Spurious notification or already processed");
         }
 
-        if (ipc->scope.stopped) {
+        if (ipc->scope.stopped && state != SENTRY_CRASH_STATE_CRASHING) {
             break;
         }
         if (ipc->message_closed && parent_alive) {

@@ -1031,12 +1031,12 @@ native_backend_shutdown(sentry_backend_t *backend)
     wer_unregister_module();
 #endif
 
-    sentry__crash_ipc_send(
-        state->ipc, SENTRY_CRASH_IPC_MESSAGE_SHUTDOWN, sentry_value_new_null());
-
     // Shutdown crash handlers (signal handlers on Linux/macOS, Mach exception
     // handler on iOS)
     sentry__crash_handler_shutdown();
+
+    sentry__crash_ipc_send(
+        state->ipc, SENTRY_CRASH_IPC_MESSAGE_SHUTDOWN, sentry_value_new_null());
 
     bool daemon_stopped = false;
 #if defined(SENTRY_PLATFORM_UNIX) && !defined(SENTRY_PLATFORM_IOS)

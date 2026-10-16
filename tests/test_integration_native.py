@@ -1906,3 +1906,20 @@ def test_native_scope_updates_in_crash_callback(cmake, httpserver, clear_hint):
         assert len(attachments) == 1
         assert attachments[0].headers["filename"] == "callback.txt"
         assert attachments[0].payload.bytes == b"callback"
+
+
+@pytest.mark.skipif(
+    sys.platform != "linux" or is_wine,
+    reason="Test uses Linux daemon startup",
+)
+def test_native_shutdown_during_crash(cmake):
+    tmp_path = cmake(
+        ["sentry_test_unit", "sentry-crash"],
+        {"SENTRY_BACKEND": "native", "SENTRY_TRANSPORT": "none"},
+    )
+    run(
+        tmp_path,
+        "sentry_test_unit",
+        ["--no-exec", "crash_daemon_shutdown_during_crash"],
+        env=dict(os.environ, SENTRY_TEST_NATIVE_DAEMON=str(tmp_path / "sentry-crash")),
+    )
