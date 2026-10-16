@@ -205,7 +205,7 @@ def cmake_configure(cwd, options, cflags=None, source_dir=None):
 
     cflags.extend(get_cflags())
     if "llvm-cov" in os.environ.get("RUN_ANALYZER", ""):
-        configure_llvm_cov(config_cmd, cflags)
+        configure_llvm_cov(config_cmd)
     env = dict(os.environ)
     env["CFLAGS"] = env["CXXFLAGS"] = " ".join(cflags)
 
@@ -331,7 +331,7 @@ def configure_clang_cl(config_cmd: list[str]):
     config_cmd.append("-T ClangCL")
 
 
-def configure_llvm_cov(config_cmd: list[str], cflags: list[str]):
+def configure_llvm_cov(config_cmd: list[str]):
     def cmake_flags(name: str, value: str) -> str:
         if os.environ.get("VS_GENERATOR_TOOLSET") == "ClangCL":
             return f"-D{name}={value}"
@@ -362,7 +362,6 @@ def configure_llvm_cov(config_cmd: list[str], cflags: list[str]):
             config_cmd.append(f"-DCMAKE_EXE_LINKER_FLAGS={profile_lib}")
             config_cmd.append(f"-DCMAKE_SHARED_LINKER_FLAGS={profile_lib}")
             config_cmd.append(f"-DCMAKE_MODULE_LINKER_FLAGS={profile_lib}")
-    flags = " ".join([*cflags, flags])
     config_cmd.append(cmake_flags("CMAKE_C_FLAGS", flags))
 
     # Since we overwrite `CXXFLAGS` below, we must add the experimental library here for the GHA runner that builds

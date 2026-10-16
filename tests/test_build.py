@@ -9,7 +9,7 @@ from pathlib import Path
 import pytest
 
 from . import SENTRY_VERSION, lib_name, run
-from .build_config import get_test_executable_cflags, get_test_executable_env
+from .build_config import get_test_executable_env
 from .conditions import (
     has_breakpad,
     has_crashpad,
@@ -235,7 +235,6 @@ def test_pkgconfig(cmake, tmp_path, monkeypatch):
     consumer = cmake(
         ["sentry_test_pkgconfig"],
         {"CMAKE_FIND_ROOT_PATH": str(destdir)},
-        cflags=get_test_executable_cflags(),
         source_dir=Path(__file__).parent / "fixtures" / "pkgconfig",
     )
     env["SENTRY_DATABASE_PATH"] = str(tmp_path / "database")
