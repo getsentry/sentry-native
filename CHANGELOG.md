@@ -19,6 +19,7 @@
 **Fixes**:
 
 - Native/Inproc: provide `debug_meta.images` in events passed to `on_crash`. ([#2184](https://github.com/getsentry/sentry-native/pull/2184))
+- Native/Linux: reduce stack usage when unwinding the crashed thread. ([#2212](https://github.com/getsentry/sentry-native/pull/2212))
 
 ## Unreleased
 
