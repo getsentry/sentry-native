@@ -15,6 +15,7 @@ public final class NdkOptions {
   private NdkHandlerStrategy ndkHandlerStrategy =
       NdkHandlerStrategy.SENTRY_HANDLER_STRATEGY_DEFAULT;
   private float tracesSampleRate = 0;
+  private boolean tombstoneEnabled = false;
   private boolean enableAppHangTracking = false;
   private long appHangTimeoutMillis = 5000;
 
@@ -89,6 +90,14 @@ public final class NdkOptions {
 
   public float getTracesSampleRate() {
     return tracesSampleRate;
+  }
+
+  public void setTombstoneEnabled(final boolean tombstoneEnabled) {
+    this.tombstoneEnabled = tombstoneEnabled;
+  }
+
+  public boolean isTombstoneEnabled() {
+    return tombstoneEnabled;
   }
 
   public void setEnableAppHangTracking(final boolean enableAppHangTracking) {
