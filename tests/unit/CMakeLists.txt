@@ -77,6 +77,9 @@ target_link_libraries(sentry_test_unit PRIVATE
 
 if(MINGW)
 	if(CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
+		set_source_files_properties(
+			"${PROJECT_SOURCE_DIR}/src/unwinder/sentry_unwinder_dbghelp.c"
+			PROPERTIES COMPILE_OPTIONS -fms-extensions)
 		target_link_options(sentry_test_unit PRIVATE -Wl,-pdb=) # IMPORTANT ! LLD must generate pdb files
 		target_compile_options(sentry_test_unit PRIVATE -gcodeview) # IMPORTANT ! Clang must generate pdb to CodeView format
 	else()

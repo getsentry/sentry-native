@@ -41,6 +41,7 @@ sentry_options_new(void)
     if (!opts) {
         return NULL;
     }
+    sentry__mutex_init(&opts->session_lock);
     opts->database_path = sentry__path_from_str(".sentry-native");
     // we assume the DSN to be ASCII only
     sentry_options_set_dsn(opts, getenv("SENTRY_DSN"));
@@ -108,7 +109,7 @@ sentry_options_new(void)
         false;
 #endif
     opts->backend = sentry__backend_new();
-    opts->transport = sentry__transport_new_default();
+    opts->transport = sentry_transport_new_default();
     opts->refcount = 1;
     opts->shutdown_timeout = SENTRY_DEFAULT_SHUTDOWN_TIMEOUT;
     opts->transfer_timeout = SENTRY_DEFAULT_TRANSFER_TIMEOUT;
@@ -199,6 +200,7 @@ sentry_options_free(sentry_options_t *opts)
     }
     sentry_free(opts->integrations);
 
+    sentry__mutex_free(&opts->session_lock);
     sentry_free(opts);
 }
 

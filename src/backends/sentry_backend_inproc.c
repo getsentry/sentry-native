@@ -704,6 +704,8 @@ make_signal_event(const struct signal_slot *sig_slot,
     sentry_value_set_by_key(exc, "stacktrace", stacktrace);
     sentry_event_add_exception(event, exc);
 
+    sentry__event_ensure_modules(event);
+
     return event;
 }
 
@@ -806,8 +808,8 @@ process_ucontext_deferred(const sentry_ucontext_t *uctx,
                 sentry_path_t *path = sentry__screenshot_get_path(options);
                 sentry_value_t screenshot
                     = sentry_attachment_from_file(path ? path->path : NULL);
-                if (!sentry_value_is_null(screenshot)
-                    && sentry__screenshot_capture(path, 0)) {
+                if (path && !sentry_value_is_null(screenshot)
+                    && sentry_screenshot_capture(path->path, 0) == 0) {
                     sentry__envelope_add_attachment(envelope, screenshot);
                 }
                 sentry_value_decref(screenshot);

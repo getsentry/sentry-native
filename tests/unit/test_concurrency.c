@@ -280,7 +280,7 @@ SENTRY_TEST(concurrent_reinstall)
 
     // Holding the scope observer lock simulates an observer callback in
     // progress. Backend reinstall must wait until that callback finishes.
-    sentry_scope_t *scope = sentry__scope_getref();
+    sentry_scope_t *scope = sentry_scope_acquire();
     TEST_ASSERT(!!scope);
     sentry__mutex_lock(&scope->observers_lock);
     sentry_threadid_t thread;
@@ -299,7 +299,7 @@ SENTRY_TEST(concurrent_reinstall)
     TEST_CHECK_INT_EQUAL(sentry__atomic_fetch(&state.shutdowns), 0);
 
     sentry__mutex_unlock(&scope->observers_lock);
-    sentry__scope_finish(scope);
+    sentry_scope_release(scope);
     sentry__thread_join(thread);
     sentry__thread_free(&thread);
     TEST_CHECK_INT_EQUAL(sentry__atomic_fetch(&state.shutdowns), 1);
@@ -321,7 +321,7 @@ SENTRY_THREAD_FN
 scope_access_thread(void *data)
 {
     scope_cleanup_state_t *state = data;
-    sentry_scope_t *scope = sentry__scope_getref();
+    sentry_scope_t *scope = sentry_scope_acquire();
 
     sentry__mutex_lock(&state->lock);
     state->accesses++;
@@ -337,7 +337,7 @@ scope_access_thread(void *data)
     SENTRY_WITH_SCOPE (nested) {
         (void)sentry__scope_get_level(nested);
     }
-    sentry__scope_finish(scope);
+    sentry_scope_release(scope);
     return 0;
 }
 
@@ -392,14 +392,14 @@ SENTRY_TEST(scope_cleanup)
         sentry__cond_wait(&state.cleanup_signal, &state.lock);
     }
     sentry__cond_wait_timeout(&state.cleanup_signal, &state.lock, 250);
-    TEST_CHECK(!state.cleanup_finished);
+    TEST_CHECK(state.cleanup_finished);
 
     sentry_threadid_t late_thread;
     sentry__thread_init(&late_thread);
     TEST_ASSERT_INT_EQUAL(
         sentry__thread_spawn(&late_thread, scope_access_thread, &state), 0);
     sentry__cond_wait_timeout(&state.access_signal, &state.lock, 250);
-    TEST_CHECK_INT_EQUAL(state.accesses, 1);
+    TEST_CHECK_INT_EQUAL(state.accesses, 2);
     state.release_access = true;
     sentry__cond_wake_all(&state.access_signal);
     sentry__mutex_unlock(&state.lock);

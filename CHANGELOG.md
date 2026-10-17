@@ -1,5 +1,25 @@
 # Changelog
 
+## Unreleased (v1)
+
+**Breaking / Important behavior changes**:
+
+- The `native` backend is now the default on Linux, macOS, and Windows. ([#2186](https://github.com/getsentry/sentry-native/pull/2186))
+- macOS/Linux: shared libraries now use ABI-versioned filenames, such as `libsentry.1.dylib` or `libsentry.so.1` for 1.x. Windows, Android, and static libraries remain unchanged. ([#2103](https://github.com/getsentry/sentry-native/pull/2103))
+  - NOTE: Applications must package the real versioned library and its symlinks, including `libsentry.1.dylib` or `libsentry.so.1`, because they link to and load the ABI-versioned name.
+- Release archives now include the SDK version in the filename, such as `sentry-native-1.0.0.zip`. ([#2105](https://github.com/getsentry/sentry-native/pull/2105))
+
+**Features**:
+
+- Add `sentry_scope_begin_read`/`sentry_scope_end_read` and `sentry_scope_begin_write`/`sentry_scope_end_write` for consistent reads of multiple scope properties and applying multiple scope changes with a single scope flush. ([#2107](https://github.com/getsentry/sentry-native/pull/2107))
+- Add `sentry_scope_acquire` and `sentry_scope_release` to access the isolation scope. ([#2160](https://github.com/getsentry/sentry-native/pull/2160))
+- Native: Provide exception metadata, registers, and a basic crashing-thread stack to `on_crash` for crash identification. ([#2174](https://github.com/getsentry/sentry-native/pull/2174))
+- Native: reduce disk I/O on scope changes by sending incremental updates to the crash daemon over IPC. ([#2155](https://github.com/getsentry/sentry-native/pull/2155), [#2157](https://github.com/getsentry/sentry-native/pull/2157))
+
+**Fixes**:
+
+- Native/Inproc: provide `debug_meta.images` in events passed to `on_crash`. ([#2184](https://github.com/getsentry/sentry-native/pull/2184))
+
 ## 0.17.4
 
 **Features**:

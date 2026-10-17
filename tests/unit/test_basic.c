@@ -34,6 +34,11 @@ send_envelope_test_basic(sentry_envelope_t *envelope, void *data)
         const char *trans = sentry_value_as_string(
             sentry_value_get_by_key(event, "transaction"));
         TEST_CHECK_STRING_EQUAL(trans, "demo-trans");
+    } else {
+        TEST_CHECK_STRING_EQUAL(
+            sentry_value_as_string(sentry_value_get_by_key(
+                sentry_value_get_by_key(event, "debug_meta"), "custom")),
+            "kept");
     }
     sentry_envelope_free(envelope);
 }
@@ -63,6 +68,10 @@ SENTRY_TEST(basic_function_transport)
     sentry_value_t obj = sentry_value_new_object();
     // something that is not a UUID, as this will be forcibly changed
     sentry_value_set_by_key(obj, "event_id", sentry_value_new_int32(1234));
+    sentry_value_t debug_meta = sentry_value_new_object();
+    sentry_value_set_by_key(
+        debug_meta, "custom", sentry_value_new_string("kept"));
+    sentry_value_set_by_key(obj, "debug_meta", debug_meta);
     sentry_capture_event(obj);
 
     sentry_user_consent_revoke();

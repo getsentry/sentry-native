@@ -71,7 +71,7 @@ void sentry__session_sync_user(sentry_session_t *session, sentry_value_t user,
 
 /**
  * This notifies the backend that the current session of `options` started,
- * changed or ended. Must be called with the options lock held.
+ * changed or ended. Must be called with the session lock held.
  */
 void sentry__session_notify_changed(const sentry_options_t *options);
 
