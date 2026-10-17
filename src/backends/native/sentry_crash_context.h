@@ -330,13 +330,11 @@ typedef struct {
     // On Linux, libunwind captures using DWARF without frame pointers.
     // The daemon prefers captures over its own stack walk.
     sentry_crash_capture_t capture;
+    bool event_discarded;
 
     // Sentry-specific metadata paths
     char database_path[SENTRY_CRASH_MAX_PATH]; // Shared across runs
     char run_path[SENTRY_CRASH_MAX_PATH]; // For current run
-    char event_path[SENTRY_CRASH_MAX_PATH];
-    char breadcrumb1_path[SENTRY_CRASH_MAX_PATH];
-    char breadcrumb2_path[SENTRY_CRASH_MAX_PATH];
     char envelope_path[SENTRY_CRASH_MAX_PATH];
     char external_reporter_path[SENTRY_CRASH_MAX_PATH];
     char dsn[SENTRY_CRASH_MAX_PATH]; // Sentry DSN for uploading crashes

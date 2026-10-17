@@ -3,7 +3,17 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
+
+#if defined(SENTRY_PLATFORM_XBOX)
+// WER callback types are hidden from the Games API partition
+#    pragma push_macro("WINAPI_FAMILY")
+#    undef WINAPI_FAMILY
+#    define WINAPI_FAMILY WINAPI_FAMILY_DESKTOP_APP
+#endif
 #include <werapi.h>
+#if defined(SENTRY_PLATFORM_XBOX)
+#    pragma pop_macro("WINAPI_FAMILY")
+#endif
 #include <windows.h>
 
 #ifndef STATUS_FAIL_FAST_EXCEPTION

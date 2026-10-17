@@ -62,8 +62,9 @@ sentry_integration_wer_free(void *data)
 }
 
 static void
-wer_set_tag(void *data, const char *key, const char *value)
+wer_set_tag(void *data, const char *key, sentry_value_t tag)
 {
+    const char *value = sentry_value_as_string(tag);
     sentry_integration_wer_data_t *wer_data
         = (sentry_integration_wer_data_t *)data;
     if (!wer_data->WerRegisterCustomMetadata) {
@@ -135,7 +136,7 @@ static int
 wer_sync_tag(const char *key, sentry_value_t value, void *data)
 {
     if (sentry_value_get_type(value) == SENTRY_VALUE_TYPE_STRING) {
-        wer_set_tag(data, key, sentry_value_as_string(value));
+        wer_set_tag(data, key, value);
     }
     return 0;
 }
