@@ -27,6 +27,7 @@ from .proxy import (
     cleanup_proxy_env_vars,
     start_proxy,
     proxy_test_finally,
+    system_proxy,
 )
 from .assertions import (
     assert_breadcrumb,
@@ -303,6 +304,38 @@ def test_crashpad_proxy_set_empty(cmake, httpserver):
     finally:
         cleanup_proxy_env_vars()
         proxy_test_finally(1, httpserver, proxy_process, expected_proxy_logsize=0)
+
+
+@pytest.mark.skipif(
+    sys.platform not in ["win32", "darwin"],
+    reason="only the Windows and macOS handlers read the system proxy",
+)
+@pytest.mark.parametrize("proxy_empty", [False, True])
+def test_crashpad_proxy_system(cmake, httpserver, proxy_empty):
+    proxy_process = None  # store the proxy process to terminate it later
+    try:
+        env, proxy_process, tmp_path, port = _setup_crashpad_proxy_test(
+            cmake, httpserver, "http-proxy"
+        )
+
+        with system_proxy(port):
+            with httpserver.wait(timeout=10) as waiting:
+                run(
+                    tmp_path,
+                    "sentry_test_integration",
+                    ["log", "crash"] + (["proxy-empty"] if proxy_empty else []),
+                    expect_failure=True,
+                    env=env,
+                )
+            assert waiting.result
+
+    finally:
+        proxy_test_finally(
+            1,
+            httpserver,
+            proxy_process,
+            expected_proxy_logsize=0 if proxy_empty else None,
+        )
 
 
 def test_crashpad_proxy_https_not_http(cmake, httpserver):
