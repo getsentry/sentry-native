@@ -4611,7 +4611,7 @@ sentry__crash_daemon_main(pid_t app_pid, uint64_t app_tid, HANDLE event_handle,
         sentry_options_set_ca_certs(options, ipc->shmem->ca_certs);
     }
 
-    if (ipc->shmem->proxy[0] != '\0') {
+    if (ipc->shmem->has_proxy) {
         SENTRY_DEBUGF("Setting proxy: %s", ipc->shmem->proxy);
         sentry_options_set_proxy(options, ipc->shmem->proxy);
     }
