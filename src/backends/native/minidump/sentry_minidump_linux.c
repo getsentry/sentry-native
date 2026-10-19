@@ -2881,10 +2881,7 @@ sentry__write_minidump(
 
     // Parse process information
     if (parse_proc_maps(writer) < 0 || enumerate_threads(writer) < 0) {
-        close(writer->fd);
-        unlink(output_path);
-        sentry_free(writer);
-        return -1;
+        goto cleanup_error;
     }
 
     // Attach to crashed process via ptrace early so we can:
@@ -2931,13 +2928,7 @@ sentry__write_minidump(
 
     if (lseek(writer->fd, writer->current_offset, SEEK_SET) < 0) {
         SENTRY_WARN("lseek failed");
-        if (writer->ptrace_attached) {
-            ptrace(PTRACE_DETACH, ctx->crashed_tid, NULL, NULL);
-        }
-        close(writer->fd);
-        unlink(output_path);
-        sentry_free(writer);
-        return -1;
+        goto cleanup_error;
     }
 
     // Write streams
@@ -3027,46 +3018,22 @@ sentry__write_minidump(
 #    undef NULLIFY_DIR_ENTRY
 
     if (result < 0) {
-        if (writer->ptrace_attached) {
-            ptrace(PTRACE_DETACH, ctx->crashed_tid, NULL, NULL);
-        }
-        close(writer->fd);
-        unlink(output_path);
-        sentry_free(writer);
-        return -1;
+        goto cleanup_error;
     }
 
     // Write header and directory at the beginning
     if (lseek(writer->fd, 0, SEEK_SET) < 0) {
-        if (writer->ptrace_attached) {
-            ptrace(PTRACE_DETACH, ctx->crashed_tid, NULL, NULL);
-        }
-        close(writer->fd);
-        unlink(output_path);
-        sentry_free(writer);
-        return -1;
+        goto cleanup_error;
     }
 
     if (write_header(writer, stream_count) < 0) {
-        if (writer->ptrace_attached) {
-            ptrace(PTRACE_DETACH, ctx->crashed_tid, NULL, NULL);
-        }
-        close(writer->fd);
-        unlink(output_path);
-        sentry_free(writer);
-        return -1;
+        goto cleanup_error;
     }
 
     // Write only the directory entries we actually used
     size_t dir_size = stream_count * sizeof(minidump_directory_t);
     if (write(writer->fd, directories, dir_size) != (ssize_t)dir_size) {
-        if (writer->ptrace_attached) {
-            ptrace(PTRACE_DETACH, ctx->crashed_tid, NULL, NULL);
-        }
-        close(writer->fd);
-        unlink(output_path);
-        sentry_free(writer);
-        return -1;
+        goto cleanup_error;
     }
 
     close(writer->fd);
@@ -3080,6 +3047,15 @@ sentry__write_minidump(
     sentry_free(writer);
     SENTRY_DEBUG("successfully wrote minidump");
     return 0;
+
+cleanup_error:
+    if (writer->ptrace_attached) {
+        ptrace(PTRACE_DETACH, ctx->crashed_tid, NULL, NULL);
+    }
+    close(writer->fd);
+    unlink(output_path);
+    sentry_free(writer);
+    return -1;
 }
 
 #endif // SENTRY_PLATFORM_LINUX || SENTRY_PLATFORM_ANDROID
