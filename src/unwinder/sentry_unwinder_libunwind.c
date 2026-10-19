@@ -64,7 +64,7 @@ static
     bool
     find_mem_range_from_fd(int fd, uintptr_t ptr, mem_range_t *range)
 {
-    char buf[4096];
+    char buf[512];
     size_t carry = 0;
     bool skip_to_nl = false; // true while discarding an oversized line's tail
 
