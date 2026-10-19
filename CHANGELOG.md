@@ -9,6 +9,7 @@
 **Thank you**:
 
 - [orenjp](https://github.com/orenjp)
+- [IanHollow](https://github.com/IanHollow)
 
 ## 0.17.4
 
