@@ -910,7 +910,8 @@ daemon_handling:
     // Dump daemon log for debugging (uses stdio, safe after page allocator
     // enabled)
     if (ctx && ctx->run_path[0] != '\0') {
-        char log_path[SENTRY_CRASH_MAX_PATH];
+        // Static to save signal stack space (guarded by handling_crash)
+        static char log_path[SENTRY_CRASH_MAX_PATH];
         const char suffix[] = "/sentry-daemon.log";
         int len = 0;
         // Manually build path string (signal-safe)
