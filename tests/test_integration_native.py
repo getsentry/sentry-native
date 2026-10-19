@@ -44,7 +44,7 @@ from .assertions import (
     wait_for_file,
     assert_user_feedback,
 )
-from .conditions import has_files, is_kcov
+from .conditions import has_files, has_system_proxy, is_kcov
 from .conditions import has_native, has_oom, is_asan, is_tsan, is_qemu, is_wine
 from .proxy import proxy_test_finally, start_proxy, system_proxy
 
@@ -1878,6 +1878,7 @@ def test_native_proxy_set_empty(cmake, httpserver):
         proxy_test_finally(1, httpserver, proxy_process, expected_proxy_logsize=0)
 
 
+@pytest.mark.skipif(not has_system_proxy, reason="needs TEST_SYSTEM_PROXY")
 @pytest.mark.skipif(
     sys.platform != "win32" or is_wine,
     reason="only the WinHTTP transport reads the system proxy",

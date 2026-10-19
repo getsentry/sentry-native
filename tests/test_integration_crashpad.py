@@ -21,7 +21,7 @@ from . import (
     lib_name,
     REPLAY_ID,
 )
-from .conditions import has_crashpad, has_files, has_oom
+from .conditions import has_crashpad, has_files, has_oom, has_system_proxy
 from .proxy import (
     setup_proxy_env_vars,
     cleanup_proxy_env_vars,
@@ -306,6 +306,7 @@ def test_crashpad_proxy_set_empty(cmake, httpserver):
         proxy_test_finally(1, httpserver, proxy_process, expected_proxy_logsize=0)
 
 
+@pytest.mark.skipif(not has_system_proxy, reason="needs TEST_SYSTEM_PROXY")
 @pytest.mark.skipif(
     sys.platform not in ["win32", "darwin"] or bool(os.environ.get("TEST_MINGW")),
     reason="system proxy discovery requires macOS or non-MinGW Windows builds",

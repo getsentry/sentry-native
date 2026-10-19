@@ -10,7 +10,7 @@ from . import (
 from .assertions import (
     assert_failed_proxy_auth_request,
 )
-from .conditions import has_http, is_wine
+from .conditions import has_http, has_system_proxy, is_wine
 from .proxy import (
     closed_port,
     start_proxy,
@@ -172,6 +172,7 @@ def test_proxy_set_empty(cmake, httpserver):
         proxy_test_finally(1, httpserver, proxy_process, expected_proxy_logsize=0)
 
 
+@pytest.mark.skipif(not has_system_proxy, reason="needs TEST_SYSTEM_PROXY")
 @pytest.mark.skipif(
     sys.platform != "win32" or is_wine,
     reason="only the WinHTTP transport reads the system proxy",
