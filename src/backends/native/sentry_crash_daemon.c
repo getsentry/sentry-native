@@ -20,6 +20,7 @@
 #include "sentry_symbolizer.h"
 #include "sentry_sync.h"
 #include "sentry_transport.h"
+#include "sentry_unix_pageallocator.h"
 #include "sentry_utils.h"
 #include "sentry_uuid.h"
 #include "sentry_value.h"
@@ -4359,6 +4360,165 @@ daemon_file_logger(
     fflush(log_file); // Flush immediately to ensure logs are written
 }
 
+static long g_crash_handling = 0;
+
+static void
+dump_crash_queue(void)
+{
+    if (!sentry__atomic_compare_swap(&g_crash_handling, 0, 1)) {
+        return;
+    }
+
+#if defined(SENTRY_PLATFORM_UNIX)
+    (void)!sentry__enter_signal_handler();
+    sentry__page_allocator_enable();
+#endif
+    sentry__logger_disable();
+
+    SENTRY_WITH_OPTIONS (options) {
+        if (options->run && options->transport) {
+            sentry__transport_dump_queue(options->transport, options->run);
+            sentry__http_transport_set_retry_enabled(options->transport, false);
+        }
+    }
+
+#if defined(SENTRY_PLATFORM_UNIX)
+    sentry__leave_signal_handler();
+#endif
+}
+
+#if defined(SENTRY_PLATFORM_UNIX)
+#    define SIGNAL_COUNT 6
+#    define SIGNAL_STACK_SIZE (1024 * SENTRY_HANDLER_STACK_SIZE)
+static const int SIGNALS[SIGNAL_COUNT]
+    = { SIGILL, SIGTRAP, SIGABRT, SIGBUS, SIGFPE, SIGSEGV };
+static struct sigaction g_previous_handlers[SIGNAL_COUNT];
+static stack_t g_signal_stack = { 0 };
+
+static void
+reset_signal_handlers(void)
+{
+    for (size_t i = 0; i < SIGNAL_COUNT; i++) {
+        sigaction(SIGNALS[i], &g_previous_handlers[i], NULL);
+    }
+}
+
+static void
+invoke_signal_handler(int signum, siginfo_t *info, void *user_context)
+{
+    for (size_t i = 0; i < SIGNAL_COUNT; i++) {
+        if (SIGNALS[i] == signum) {
+            struct sigaction *handler = &g_previous_handlers[i];
+            if (handler->sa_handler == SIG_DFL) {
+                raise(signum);
+            } else if (handler->sa_flags & SA_SIGINFO) {
+                handler->sa_sigaction(signum, info, user_context);
+            } else if (handler->sa_handler != SIG_IGN) {
+                handler->sa_handler(signum);
+            }
+            return;
+        }
+    }
+}
+
+static void
+handle_signal(int signum, siginfo_t *info, void *user_context)
+{
+    dump_crash_queue();
+    reset_signal_handlers();
+    invoke_signal_handler(signum, info, user_context);
+}
+
+static void
+uninstall_crash_handler(void)
+{
+    reset_signal_handlers();
+    if (g_signal_stack.ss_sp) {
+        g_signal_stack.ss_flags = SS_DISABLE;
+        sigaltstack(&g_signal_stack, NULL);
+        sentry_free(g_signal_stack.ss_sp);
+        g_signal_stack.ss_sp = NULL;
+    }
+}
+
+static int
+install_crash_handler(void)
+{
+    for (size_t i = 0; i < SIGNAL_COUNT; i++) {
+        if (sigaction(SIGNALS[i], NULL, &g_previous_handlers[i]) == -1) {
+            return 1;
+        }
+    }
+
+    stack_t old_stack;
+    if (sigaltstack(NULL, &old_stack) == 0
+        && old_stack.ss_flags == SS_DISABLE) {
+        g_signal_stack.ss_sp = sentry_malloc(SIGNAL_STACK_SIZE);
+        if (g_signal_stack.ss_sp) {
+            g_signal_stack.ss_size = SIGNAL_STACK_SIZE;
+            g_signal_stack.ss_flags = 0;
+            if (sigaltstack(&g_signal_stack, NULL) != 0) {
+                sentry_free(g_signal_stack.ss_sp);
+                g_signal_stack.ss_sp = NULL;
+            }
+        }
+    }
+
+    struct sigaction action = { 0 };
+    sigemptyset(&action.sa_mask);
+    action.sa_sigaction = handle_signal;
+    // Allow recursive faults to fall through to the original handler
+    action.sa_flags = SA_SIGINFO | SA_ONSTACK | SA_NODEFER;
+    for (size_t i = 0; i < SIGNAL_COUNT; i++) {
+        if (sigaction(SIGNALS[i], &action, NULL) == -1) {
+            uninstall_crash_handler();
+            return 1;
+        }
+    }
+    return 0;
+}
+#elif defined(SENTRY_PLATFORM_WINDOWS)
+static LPTOP_LEVEL_EXCEPTION_FILTER g_previous_handler = NULL;
+
+static LONG WINAPI
+handle_exception(EXCEPTION_POINTERS *exception)
+{
+    DWORD code = exception->ExceptionRecord->ExceptionCode;
+    if (code == EXCEPTION_BREAKPOINT || code == EXCEPTION_SINGLE_STEP) {
+        return EXCEPTION_CONTINUE_SEARCH;
+    }
+
+    dump_crash_queue();
+    SetUnhandledExceptionFilter(g_previous_handler);
+    return EXCEPTION_CONTINUE_SEARCH;
+}
+
+static void
+handle_sigabrt(EXCEPTION_POINTERS *exception)
+{
+    handle_exception(exception);
+}
+
+static int
+install_crash_handler(void)
+{
+    g_previous_handler = SetUnhandledExceptionFilter(handle_exception);
+    sentry__win32_install_sigabrt_handler(handle_sigabrt);
+    return 0;
+}
+
+static void
+uninstall_crash_handler(void)
+{
+    LPTOP_LEVEL_EXCEPTION_FILTER current_handler
+        = SetUnhandledExceptionFilter(g_previous_handler);
+    if (current_handler != handle_exception) {
+        SetUnhandledExceptionFilter(current_handler);
+    }
+    sentry__win32_restore_sigabrt_handler();
+}
+#endif
+
 #if defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID)
 int
 sentry__crash_daemon_main(pid_t app_pid, uint64_t app_tid, int notify_eventfd,
@@ -4461,7 +4621,6 @@ sentry__crash_daemon_main(pid_t app_pid, uint64_t app_tid, HANDLE event_handle,
 #endif
 
     // Initialize Sentry options for daemon (reuses all SDK infrastructure)
-    // Options are passed explicitly to all functions, no global state
     sentry_options_t *options = sentry_options_new();
     if (!options) {
         SENTRY_ERROR("sentry_options_new() failed");
@@ -4597,6 +4756,12 @@ sentry__crash_daemon_main(pid_t app_pid, uint64_t app_tid, HANDLE event_handle,
         SENTRY_WARN("No transport available");
     }
 
+    sentry__options_set(options);
+    bool crash_handler_installed = install_crash_handler() == 0;
+    if (!crash_handler_installed) {
+        SENTRY_WARN("Failed to install daemon crash handler");
+    }
+
     SENTRY_DEBUG("Entering main loop");
 
     // Daemon main loop
@@ -4698,6 +4863,11 @@ sentry__crash_daemon_main(pid_t app_pid, uint64_t app_tid, HANDLE event_handle,
             }
         }
     }
+    if (crash_handler_installed) {
+        uninstall_crash_handler();
+    }
+    sentry__options_set(NULL);
+
     if (crash_processed) {
         // Mark as done
         SENTRY_DEBUG("Marking crash state as DONE");
