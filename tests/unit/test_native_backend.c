@@ -14,6 +14,7 @@
 #include "sentry_scope.h"
 #include "sentry_testsupport.h"
 #include "sentry_tracing.h"
+#include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -284,9 +285,7 @@ SENTRY_TEST(minidump_context_sizes)
     TEST_CHECK(ctx.float_save.mx_csr == 0x1f80);
 
 #    elif defined(__aarch64__)
-    // ARM64 context: 4+4 + 29*8 + 3*8 + 32*16 + 4+4 + 8*8 + 8*8 + 2*4 + 2*8
-    // = 8 + 232 + 24 + 512 + 8 + 64 + 64 + 8 + 16 = 936 bytes (actual: 912 with
-    // packing)
+    // ARM64 context, including FP/SIMD and debug registers, is 912 bytes.
     TEST_CHECK(sizeof(minidump_context_arm64_t) == 912);
 
     minidump_context_arm64_t ctx = { 0 };
@@ -758,25 +757,32 @@ SENTRY_TEST(crash_context_null_options)
 }
 
 /**
- * Test packed attribute works correctly
+ * Test serialized minidump structure sizes and field offsets.
  */
 SENTRY_TEST(minidump_structures_packed)
 {
 #ifdef SENTRY_BACKEND_NATIVE
-    // Structures should not have padding
-    // This is critical for binary format compatibility
+    // The array must immediately follow the 32-bit count, without alignment
+    // padding before its 64-bit start_address field.
+    TEST_CHECK(offsetof(minidump_memory_list_t, ranges) == 4);
 
+    // These are format-defined boundaries, not native ABI-dependent sizes.
 #    if defined(__x86_64__)
-    // x86_64 context: 6*8 + 4*2 + 6*2 + 2*4 + 8*8 + 16*8 + 512 + 26*16 + 6*8 =
-    // 1232
-    size_t expected_x86_64 = 48 + 8 + 12 + 8 + 64 + 128 + 512 + 416 + 48;
-    TEST_CHECK(sizeof(minidump_context_x86_64_t) == expected_x86_64);
-
+    TEST_CHECK(sizeof(minidump_context_x86_64_t) == 1232);
+    TEST_CHECK(offsetof(minidump_context_x86_64_t, context_flags) == 48);
+    TEST_CHECK(offsetof(minidump_context_x86_64_t, rip) == 248);
+    TEST_CHECK(offsetof(minidump_context_x86_64_t, float_save) == 256);
+    TEST_CHECK(offsetof(minidump_context_x86_64_t, vector_register) == 768);
+    TEST_CHECK(offsetof(minidump_context_x86_64_t, vector_control) == 1184);
 #    elif defined(__aarch64__)
-    // ARM64 context: 4 + 4 + 29*8 + 4*8 + 32*16 + 4 + 4 + 8*4 + 8*8 + 2*4 + 2*8
-    // = 1344
-    size_t expected_arm64 = 8 + 232 + 32 + 512 + 8 + 32 + 64 + 8 + 16;
-    TEST_CHECK(sizeof(minidump_context_arm64_t) <= expected_arm64 + 100);
+    TEST_CHECK(sizeof(minidump_context_arm64_t) == 912);
+    TEST_CHECK(offsetof(minidump_context_arm64_t, regs) == 8);
+    TEST_CHECK(offsetof(minidump_context_arm64_t, pc) == 264);
+    TEST_CHECK(offsetof(minidump_context_arm64_t, fpsimd) == 272);
+    TEST_CHECK(offsetof(minidump_context_arm64_t, bcr) == 792);
+    TEST_CHECK(offsetof(minidump_context_arm64_t, bvr) == 824);
+    TEST_CHECK(offsetof(minidump_context_arm64_t, wcr) == 888);
+    TEST_CHECK(offsetof(minidump_context_arm64_t, wvr) == 896);
 #    endif
 #else
     SKIP_TEST();
