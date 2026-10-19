@@ -979,19 +979,9 @@ sentry__crash_handler_init(
     g_handler_strategy = strategy;
 
     // Set up signal stack
-    g_signal_stack.ss_sp = sentry_malloc(SENTRY_CRASH_SIGNAL_STACK_SIZE);
-    if (!g_signal_stack.ss_sp) {
-        SENTRY_WARN("failed to allocate signal stack");
-        return -1;
-    }
-
-    g_signal_stack.ss_size = SENTRY_CRASH_SIGNAL_STACK_SIZE;
-    g_signal_stack.ss_flags = 0;
-
-    if (sigaltstack(&g_signal_stack, NULL) < 0) {
-        SENTRY_WARNF("failed to set signal stack: %s", strerror(errno));
-        sentry_free(g_signal_stack.ss_sp);
-        g_signal_stack.ss_sp = NULL;
+    if (sentry__setup_sigaltstack(
+            &g_signal_stack, SENTRY_CRASH_SIGNAL_STACK_SIZE, "init")
+        < 0) {
         return -1;
     }
 
@@ -1013,10 +1003,7 @@ sentry__crash_handler_init(
                 sigaction(g_crash_signals[j], &g_previous_handlers[j], NULL);
             }
             // Clean up signal stack
-            g_signal_stack.ss_flags = SS_DISABLE;
-            sigaltstack(&g_signal_stack, NULL);
-            sentry_free(g_signal_stack.ss_sp);
-            g_signal_stack.ss_sp = NULL;
+            sentry__teardown_sigaltstack(&g_signal_stack);
             return -1;
         }
         installed_count++;
@@ -1091,12 +1078,7 @@ sentry__crash_handler_shutdown(void)
     reset_signal_handlers();
 
     // Clean up signal stack
-    if (g_signal_stack.ss_sp) {
-        g_signal_stack.ss_flags = SS_DISABLE;
-        sigaltstack(&g_signal_stack, NULL);
-        sentry_free(g_signal_stack.ss_sp);
-        g_signal_stack.ss_sp = NULL;
-    }
+    sentry__teardown_sigaltstack(&g_signal_stack);
 
     g_crash_ipc = NULL;
 

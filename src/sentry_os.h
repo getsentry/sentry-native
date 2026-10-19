@@ -3,6 +3,10 @@
 
 #include "sentry_boot.h"
 
+#ifdef SENTRY_PLATFORM_UNIX
+#    include <signal.h>
+#endif
+
 #ifdef SENTRY_PLATFORM_LINUX
 #    include <stdint.h>
 
@@ -74,6 +78,23 @@ sentry_value_t sentry__build_registers(const sentry_ucontext_t *uctx);
 
 #if defined(SENTRY_PLATFORM_UNIX)
 const char *sentry__signal_to_string(int signum);
+#endif
+
+#ifdef SENTRY_PLATFORM_UNIX
+/**
+ * Sets up an alternate signal stack for the current thread if one isn't
+ * already configured. The allocated stack is stored in `out_stack` so it
+ * can be freed later via `sentry__teardown_sigaltstack()`.
+ * Returns 0 on success or -1 on failure.
+ */
+int sentry__setup_sigaltstack(
+    stack_t *out_stack, size_t size, const char *context);
+
+/**
+ * Tears down a signal stack previously set up via
+ * `sentry__setup_sigaltstack()`.
+ */
+void sentry__teardown_sigaltstack(stack_t *sig_stack);
 #endif
 
 #endif
