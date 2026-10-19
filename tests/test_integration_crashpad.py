@@ -307,8 +307,8 @@ def test_crashpad_proxy_set_empty(cmake, httpserver):
 
 
 @pytest.mark.skipif(
-    sys.platform not in ["win32", "darwin"],
-    reason="only the Windows and macOS handlers read the system proxy",
+    sys.platform not in ["win32", "darwin"] or bool(os.environ.get("TEST_MINGW")),
+    reason="system proxy discovery requires macOS or non-MinGW Windows builds",
 )
 @pytest.mark.parametrize("proxy_empty", [False, True])
 def test_crashpad_proxy_system(cmake, httpserver, proxy_empty):
