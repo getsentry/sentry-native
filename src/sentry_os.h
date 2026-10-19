@@ -3,7 +3,7 @@
 
 #include "sentry_boot.h"
 
-#ifdef SENTRY_PLATFORM_UNIX
+#if defined(SENTRY_PLATFORM_UNIX) && !defined(SENTRY_PLATFORM_PS)
 #    include <signal.h>
 #endif
 
@@ -80,7 +80,7 @@ sentry_value_t sentry__build_registers(const sentry_ucontext_t *uctx);
 const char *sentry__signal_to_string(int signum);
 #endif
 
-#ifdef SENTRY_PLATFORM_UNIX
+#if defined(SENTRY_PLATFORM_UNIX) && !defined(SENTRY_PLATFORM_PS)
 /**
  * Sets up an alternate signal stack for the current thread if one isn't
  * already configured. The allocated stack is stored in `out_stack` so it

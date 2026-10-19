@@ -375,7 +375,7 @@ SENTRY_TEST(stack_guarantee_auto_init)
 
 SENTRY_TEST(sigaltstack)
 {
-#ifndef SENTRY_PLATFORM_UNIX
+#if !defined(SENTRY_PLATFORM_UNIX) || defined(SENTRY_PLATFORM_PS)
     SKIP_TEST();
 #else
     const size_t size = 64 * 1024;
@@ -410,6 +410,8 @@ SENTRY_TEST(sigaltstack)
     TEST_CHECK(!stack.ss_sp);
     TEST_ASSERT_INT_EQUAL(sigaltstack(NULL, &current), 0);
     TEST_CHECK_INT_EQUAL(current.ss_flags, SS_DISABLE);
-    TEST_ASSERT_INT_EQUAL(sigaltstack(&old_stack, NULL), 0);
+    if (!(old_stack.ss_flags & SS_DISABLE)) {
+        TEST_ASSERT_INT_EQUAL(sigaltstack(&old_stack, NULL), 0);
+    }
 #endif
 }

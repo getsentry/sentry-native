@@ -10,7 +10,7 @@
 #    include "sentry_core.h"
 #    include "sentry_utils.h"
 #endif
-#ifdef SENTRY_PLATFORM_UNIX
+#if defined(SENTRY_PLATFORM_UNIX) && !defined(SENTRY_PLATFORM_PS)
 #    include <errno.h>
 #    include <string.h>
 #endif
@@ -1268,7 +1268,7 @@ sentry__signal_to_string(int signum)
 }
 #endif
 
-#ifdef SENTRY_PLATFORM_UNIX
+#if defined(SENTRY_PLATFORM_UNIX) && !defined(SENTRY_PLATFORM_PS)
 int
 sentry__setup_sigaltstack(stack_t *out_stack, size_t size, const char *context)
 {
