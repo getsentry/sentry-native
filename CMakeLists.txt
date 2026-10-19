@@ -200,6 +200,8 @@ elseif(SENTRY_TRANSPORT STREQUAL "curl")
 	set(SENTRY_TRANSPORT_CURL TRUE)
 elseif(SENTRY_TRANSPORT STREQUAL "none")
 	set(SENTRY_TRANSPORT_NONE TRUE)
+elseif(SENTRY_TRANSPORT STREQUAL "stdout")
+	set(SENTRY_TRANSPORT_STDOUT TRUE)
 elseif(SENTRY_TRANSPORT STREQUAL "pshttp")
 	# Not implemented here, but in the downstream SDK
 	if(NOT PROSPERO)
@@ -876,7 +878,7 @@ elseif(SENTRY_BACKEND_NATIVE)
 	# Native backend sources and configuration are in src/CMakeLists.txt
 	# The native backend requires C11 for atomics (set in src/CMakeLists.txt)
 
-	if(WIN32 AND NOT XBOX)
+	if(WIN32)
 		add_library(sentry-wer SHARED
 			src/backends/native/sentry_wer.c
 			src/backends/native/sentry_wer.def
@@ -886,10 +888,20 @@ elseif(SENTRY_BACKEND_NATIVE)
 			${PROJECT_SOURCE_DIR}/src
 			${PROJECT_SOURCE_DIR}/src/backends/native
 		)
-		target_link_libraries(sentry-wer PRIVATE wer)
+		if(XBOX)
+			# link to xgameplatform.lib in CMAKE_CXX_STANDARD_LIBRARIES
+			set_property(TARGET sentry-wer PROPERTY LINKER_LANGUAGE CXX)
+		else()
+			target_link_libraries(sentry-wer PRIVATE wer)
+		endif()
 		set_property(TARGET sentry-wer PROPERTY PREFIX "") # ensure MINGW doesn't prefix "lib" to dll name
 		set_property(TARGET sentry-wer PROPERTY DEBUG_POSTFIX "") # prevent CMAKE_DEBUG_POSTFIX from being applied
-		if(SENTRY_BUILD_RUNTIMESTATIC AND MSVC)
+		if(XBOX)
+			# WerFault needs system UCRT and static VCRuntime
+			set_property(TARGET sentry-wer PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreadedDLL")
+			target_link_options(sentry-wer PRIVATE /NODEFAULTLIB:vcruntime.lib)
+			target_link_libraries(sentry-wer PRIVATE libvcruntime.lib)
+		elseif(SENTRY_BUILD_RUNTIMESTATIC AND MSVC)
 			set_property(TARGET sentry-wer PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 		endif()
 		sentry_add_version_resource(sentry-wer "Native WER Module")
@@ -1015,7 +1027,7 @@ elseif(SENTRY_BACKEND_NATIVE)
 
 	# Make sentry library depend on crash daemon so it's always built together
 	add_dependencies(sentry sentry-crash)
-	if(WIN32 AND NOT XBOX)
+	if(WIN32)
 		add_dependencies(sentry sentry-wer)
 	endif()
 
@@ -1023,7 +1035,7 @@ elseif(SENTRY_BACKEND_NATIVE)
 	install(TARGETS sentry-crash
 		RUNTIME DESTINATION bin
 	)
-	if(WIN32 AND NOT XBOX)
+	if(WIN32)
 		install(TARGETS sentry-wer
 			RUNTIME DESTINATION bin
 			LIBRARY DESTINATION "${CMAKE_INSTALL_LIBDIR}"

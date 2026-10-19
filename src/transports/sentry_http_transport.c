@@ -42,6 +42,7 @@ typedef struct {
     // regular request error without the client having to report it back.
     volatile long shutting_down;
     sentry_retry_t *retry;
+    volatile long retry_enabled;
     sentry_cache_keep_t cache_keep;
     sentry_run_t *run;
     bool send_client_reports;
@@ -855,7 +856,11 @@ http_send_task(void *_envelope, void *_state)
 
     const sentry_envelope_t *ref_owner = NULL;
     if (status_code < 0) {
-        if (sentry_value_get_length(ref_paths) > 0
+        if (sentry__atomic_fetch(&state->retry_enabled) && !state->retry
+            && sentry__run_write_cache(state->run, envelope, 0)) {
+            // Keep attachment-ref cache siblings for retry on restart.
+            ref_owner = envelope;
+        } else if (sentry_value_get_length(ref_paths) > 0
             && status_code == RESULT_SHUTDOWN
             && sentry__run_write_envelope(state->run, envelope)) {
             // Keep attachment-ref cache siblings for the persisted envelope.
@@ -921,6 +926,7 @@ http_transport_start(const sentry_options_t *options, void *transport_state)
     state->dsn = sentry__dsn_incref(options->dsn);
     state->user_agent = sentry__string_clone(options->user_agent);
     state->cache_keep = options->cache_keep;
+    state->retry_enabled = options->http_retry;
     state->run = sentry__run_incref(options->run);
     state->send_client_reports = options->send_client_reports;
 
@@ -936,7 +942,7 @@ http_transport_start(const sentry_options_t *options, void *transport_state)
         return rv;
     }
 
-    if (options->http_retry) {
+    if (state->retry_enabled) {
         state->retry = sentry__retry_new(options);
         if (state->retry) {
             sentry__retry_start(state->retry, bgworker, retry_send_cb, state);
@@ -978,7 +984,6 @@ http_transport_shutdown(uint64_t timeout, void *transport_state)
     if (rv != 0) {
         sentry__bgworker_foreach_matching(
             bgworker, http_cleanup_cache_task, http_flush_cleanup_cb, NULL);
-        sentry__retry_seal(state->retry);
     }
     return rv;
 }
@@ -1003,8 +1008,13 @@ static size_t
 http_dump_queue(sentry_run_t *run, void *transport_state)
 {
     sentry_bgworker_t *bgworker = transport_state;
-    return sentry__bgworker_foreach_matching(
+    http_transport_state_t *state = sentry__bgworker_get_state(bgworker);
+    size_t dumped = sentry__bgworker_foreach_matching(
         bgworker, http_send_task, http_dump_task_cb, run);
+    // Sealing makes a failing in-flight send discard its envelope. Do it only
+    // after the dump has written that envelope, or it is lost.
+    sentry__retry_seal(state->retry);
+    return dumped;
 }
 
 static http_transport_state_t *
@@ -1093,6 +1103,16 @@ sentry__http_transport_set_shutdown_client(
     sentry_transport_t *transport, void (*shutdown_client)(void *))
 {
     http_transport_get_state(transport)->shutdown_client = shutdown_client;
+}
+
+void
+sentry__http_transport_set_retry_enabled(
+    sentry_transport_t *transport, bool enabled)
+{
+    if (sentry__transport_get_state(transport)) {
+        sentry__atomic_store(
+            &http_transport_get_state(transport)->retry_enabled, enabled);
+    }
 }
 
 sentry_transport_t *
