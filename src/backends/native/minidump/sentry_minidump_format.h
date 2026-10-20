@@ -50,6 +50,7 @@ typedef enum {
     MINIDUMP_CPU_ARM = 5, // PROCESSOR_ARCHITECTURE_ARM
     MINIDUMP_CPU_X86_64 = 9, // PROCESSOR_ARCHITECTURE_AMD64
     MINIDUMP_CPU_ARM64 = 12, // PROCESSOR_ARCHITECTURE_ARM64
+    MINIDUMP_CPU_RISCV64 = 0x8006, // MD_CPU_ARCHITECTURE_RISCV64 (Breakpad)
 } minidump_cpu_type_t;
 
 // OS types (must match Breakpad MDOSPlatform values)
@@ -317,6 +318,18 @@ typedef struct {
     uint64_t fpregs[32]; // D0-D31
     uint32_t fpextra[8];
 } PACKED_ATTR minidump_context_arm_t;
+PACKED_STRUCT_END
+
+#elif defined(__riscv) && __riscv_xlen == 64
+PACKED_STRUCT_BEGIN
+typedef struct {
+    uint32_t context_flags;
+    uint32_t version;
+    uint64_t regs[32]; // PC, X1-X31
+    uint64_t fpregs[32]; // F0-F31
+    uint32_t fcsr;
+    uint32_t reserved;
+} PACKED_ATTR minidump_context_riscv64_t;
 PACKED_STRUCT_END
 #endif
 

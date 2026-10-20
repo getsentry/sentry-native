@@ -69,11 +69,17 @@ jobs:
             CC: gcc-9
             CXX: g++-9
             TEST_X86: 1
-          - name: Linux Arm32 (gcc-arm-linux-gnueabihf + qemu-user)
+          - name: Linux Arm32 (cross-GCC + QEMU)
             os: ubuntu-24.04-arm
             CC: arm-linux-gnueabihf-gcc
             CXX: arm-linux-gnueabihf-g++
             TEST_ARM32: 1
+            TEST_QEMU: 1
+          - name: Linux RISC-V (cross-GCC + QEMU)
+            os: ubuntu-24.04-arm
+            CC: riscv64-linux-gnu-gcc
+            CXX: riscv64-linux-gnu-g++
+            TEST_RISCV: 1
             TEST_QEMU: 1
           - name: Linux (GCC 9.5.0)
             os: ubuntu-24.04
@@ -260,6 +266,7 @@ jobs:
       TEST_MINGW: ${{ matrix.TEST_MINGW }}
       TEST_WINE: ${{ matrix.TEST_WINE }}
       TEST_ARM32: ${{ matrix.TEST_ARM32 }}
+      TEST_RISCV: ${{ matrix.TEST_RISCV }}
       TEST_QEMU: ${{ matrix.TEST_QEMU }}
       TEST_SYSTEM_PROXY: ${{ matrix.TEST_SYSTEM_PROXY }}
       USE_SCCACHE: ${{ matrix.USE_SCCACHE }}
@@ -297,7 +304,7 @@ jobs:
           [ -n "$CC" ] && [ -n "$CXX" ] || { echo "Ubuntu runner configurations require toolchain selection via CC and CXX" >&2; exit 1; }
 
       - name: Installing Linux Dependencies
-        if: ${{ runner.os == 'Linux' && !env['TEST_X86'] && !env['TEST_ARM32'] && !env['ANDROID_API'] && !matrix.container }}
+        if: ${{ runner.os == 'Linux' && !env['TEST_X86'] && !env['TEST_ARM32'] && !env['TEST_RISCV'] && !env['ANDROID_API'] && !matrix.container }}
         run: |
           sudo apt update
           # Install common dependencies
@@ -367,11 +374,23 @@ jobs:
             liblzma-dev:armhf \
             libstdc++6:armhf
 
-      - name: Installing qemu-user
-        if: ${{ runner.os == 'Linux' && env['TEST_QEMU'] && !matrix.container }}
+      - name: Installing Linux RISC-V Dependencies
+        if: ${{ runner.os == 'Linux' && env['TEST_RISCV'] && !matrix.container }}
         run: |
-          sudo apt update
-          sudo apt install -y qemu-user-static binfmt-support
+          sudo dpkg --add-architecture riscv64
+          sudo apt-get update
+          sudo apt-get install -y \
+            cmake llvm \
+            gcc-riscv64-linux-gnu g++-riscv64-linux-gnu \
+            zlib1g-dev:riscv64 libssl-dev:riscv64 \
+            libcurl4-openssl-dev:riscv64 liblzma-dev:riscv64 \
+            libstdc++6:riscv64
+          echo "PKG_CONFIG_LIBDIR=/usr/lib/riscv64-linux-gnu/pkgconfig:/usr/share/pkgconfig" >> "$GITHUB_ENV"
+
+      - uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4.4.0
+        if: ${{ runner.os == 'Linux' && env['TEST_QEMU'] && !matrix.container }}
+        with:
+          platforms: ${{ env['TEST_ARM32'] && 'arm' || 'riscv64' }}
 
       - name: Installing Alpine Linux Dependencies
         if: ${{ contains(matrix.container, 'alpine') }}

@@ -1,4 +1,4 @@
-# CMakeLists.txt for vendored libunwind (Linux only; x86_64, aarch64, x86, arm)
+# CMakeLists.txt for vendored libunwind (Linux only; x86_64, aarch64, x86, arm, riscv64)
 # Builds the local unwinding library (libunwind.a equivalent).
 # When LIBUNWIND_BUILD_REMOTE is set, also builds unwind_remote with
 # generic (G-prefix) sources and ptrace accessors for remote unwinding.
@@ -23,6 +23,8 @@ if(_UNWIND_PROCESSOR MATCHES "^(x86_64|amd64|x64|i[3-6]86|x86)$")
 elseif(_UNWIND_PROCESSOR MATCHES "^(aarch64|arm64|arm)")
     set(_UNWIND_ARCH_32 "arm")
     set(_UNWIND_ARCH_64 "aarch64")
+elseif(_UNWIND_PROCESSOR STREQUAL "riscv64")
+    set(_UNWIND_ARCH_64 "riscv")
 else()
     message(FATAL_ERROR "Unsupported architecture for vendored libunwind: ${CMAKE_SYSTEM_PROCESSOR}")
 endif()
@@ -193,6 +195,26 @@ elseif(UNWIND_ARCH STREQUAL "arm")
         ${LIBUNWIND_SRC}/arm/Lstep.c
         ${LIBUNWIND_SRC}/arm/Ltrace.c
     )
+elseif(UNWIND_ARCH STREQUAL "riscv")
+    set(UNWIND_ARCH_SOURCES
+        ${LIBUNWIND_SRC}/riscv/is_fpreg.c
+        ${LIBUNWIND_SRC}/riscv/regname.c
+        ${LIBUNWIND_SRC}/riscv/getcontext.S
+        ${LIBUNWIND_SRC}/riscv/Lapply_reg_state.c
+        ${LIBUNWIND_SRC}/riscv/Lcreate_addr_space.c
+        ${LIBUNWIND_SRC}/riscv/Lget_proc_info.c
+        ${LIBUNWIND_SRC}/riscv/Lget_save_loc.c
+        ${LIBUNWIND_SRC}/riscv/Lglobal.c
+        ${LIBUNWIND_SRC}/riscv/Linit.c
+        ${LIBUNWIND_SRC}/riscv/Linit_local.c
+        ${LIBUNWIND_SRC}/riscv/Linit_remote.c
+        ${LIBUNWIND_SRC}/riscv/Lis_signal_frame.c
+        ${LIBUNWIND_SRC}/riscv/Lregs.c
+        ${LIBUNWIND_SRC}/riscv/Lreg_states_iterate.c
+        ${LIBUNWIND_SRC}/riscv/Lresume.c
+        ${LIBUNWIND_SRC}/riscv/Lstep.c
+        ${LIBUNWIND_SRC}/riscv/setcontext.S
+    )
 endif()
 
 add_library(unwind STATIC
@@ -291,6 +313,9 @@ elseif(UNWIND_ARCH STREQUAL "x86")
 elseif(UNWIND_ARCH STREQUAL "arm")
     target_include_directories(unwind PRIVATE ${LIBUNWIND_INC}/tdep-arm)
     target_compile_definitions(unwind PRIVATE UNW_TARGET_ARM=1)
+elseif(UNWIND_ARCH STREQUAL "riscv")
+    target_include_directories(unwind PRIVATE ${LIBUNWIND_INC}/tdep-riscv)
+    target_compile_definitions(unwind PRIVATE UNW_TARGET_RISCV=1)
 endif()
 
 target_compile_definitions(unwind PRIVATE
@@ -419,6 +444,22 @@ elseif(UNWIND_ARCH STREQUAL "arm")
         ${LIBUNWIND_SRC}/arm/Gstep.c
         ${LIBUNWIND_SRC}/arm/Gtrace.c
     )
+elseif(UNWIND_ARCH STREQUAL "riscv")
+    set(UNWIND_GENERIC_ARCH_SOURCES
+        ${LIBUNWIND_SRC}/riscv/Gapply_reg_state.c
+        ${LIBUNWIND_SRC}/riscv/Gcreate_addr_space.c
+        ${LIBUNWIND_SRC}/riscv/Gget_proc_info.c
+        ${LIBUNWIND_SRC}/riscv/Gget_save_loc.c
+        ${LIBUNWIND_SRC}/riscv/Gglobal.c
+        ${LIBUNWIND_SRC}/riscv/Ginit.c
+        ${LIBUNWIND_SRC}/riscv/Ginit_local.c
+        ${LIBUNWIND_SRC}/riscv/Ginit_remote.c
+        ${LIBUNWIND_SRC}/riscv/Gis_signal_frame.c
+        ${LIBUNWIND_SRC}/riscv/Gregs.c
+        ${LIBUNWIND_SRC}/riscv/Greg_states_iterate.c
+        ${LIBUNWIND_SRC}/riscv/Gresume.c
+        ${LIBUNWIND_SRC}/riscv/Gstep.c
+    )
 endif()
 
 # Ptrace accessor library (_UPT_* functions for remote unwinding via ptrace)
@@ -475,6 +516,9 @@ elseif(UNWIND_ARCH STREQUAL "x86")
 elseif(UNWIND_ARCH STREQUAL "arm")
     target_include_directories(unwind_remote PRIVATE ${LIBUNWIND_INC}/tdep-arm)
     target_compile_definitions(unwind_remote PRIVATE UNW_TARGET_ARM=1)
+elseif(UNWIND_ARCH STREQUAL "riscv")
+    target_include_directories(unwind_remote PRIVATE ${LIBUNWIND_INC}/tdep-riscv)
+    target_compile_definitions(unwind_remote PRIVATE UNW_TARGET_RISCV=1)
 endif()
 
 target_compile_definitions(unwind_remote PRIVATE

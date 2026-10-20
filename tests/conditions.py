@@ -7,6 +7,7 @@ is_android = os.environ.get("ANDROID_API")
 is_wine = bool(os.environ.get("TEST_WINE"))
 is_x86 = os.environ.get("TEST_X86")
 is_arm32 = bool(os.environ.get("TEST_ARM32"))
+is_riscv = bool(os.environ.get("TEST_RISCV"))
 is_qemu = bool(os.environ.get("TEST_QEMU"))
 # opt-in because the tests change the user's system proxy settings (with sudo on macOS)
 has_system_proxy = bool(os.environ.get("TEST_SYSTEM_PROXY"))
@@ -41,6 +42,8 @@ has_crashpad = (
     and not is_aix
     and not is_tsan
     and not is_wine
+    # ptrace is unavailable under RISC-V user-mode emulation
+    and not (is_riscv and is_qemu)
 )
 # android has no local filesystem
 has_files = not is_android

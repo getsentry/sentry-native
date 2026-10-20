@@ -777,6 +777,10 @@ build_stacktrace_for_thread(
     ip = (uint64_t)thread_context->uc_mcontext.arm_pc;
     fp = (uint64_t)thread_context->uc_mcontext.arm_fp;
     sp = (uint64_t)thread_context->uc_mcontext.arm_sp;
+#    elif defined(__riscv) && __riscv_xlen == 64
+    ip = (uint64_t)thread_context->uc_mcontext.__gregs[REG_PC];
+    fp = (uint64_t)thread_context->uc_mcontext.__gregs[REG_S0];
+    sp = (uint64_t)thread_context->uc_mcontext.__gregs[REG_SP];
 #    endif
 #elif defined(SENTRY_PLATFORM_MACOS)
 #    if defined(__x86_64__)
@@ -1170,6 +1174,14 @@ build_stacktrace_for_thread(
                     break;
                 }
             }
+#elif defined(__riscv) && __riscv_xlen == 64
+            // RISC-V frame records precede the CFA held in s0
+            if (!read_stack_value(stack_buf, stack_start, stack_size,
+                    current_fp - 2 * sizeof(uintptr_t), &saved_fp)
+                || !read_stack_value(stack_buf, stack_start, stack_size,
+                    current_fp - sizeof(uintptr_t), &return_addr)) {
+                break;
+            }
 #else
             // Read saved frame pointer and return address
             // Frame layout: [FP] = saved FP, [FP + pointer size] = return addr
@@ -1285,7 +1297,8 @@ extract_elf_build_id_for_module(
     }
 
     // Read ELF header
-#    if defined(__x86_64__) || defined(__aarch64__)
+#    if defined(__x86_64__) || defined(__aarch64__)                            \
+        || (defined(__riscv) && __riscv_xlen == 64)
     Elf64_Ehdr ehdr;
 #    else
     Elf32_Ehdr ehdr;
@@ -1322,7 +1335,8 @@ extract_elf_build_id_for_module(
         return 0;
     }
 
-#    if defined(__x86_64__) || defined(__aarch64__)
+#    if defined(__x86_64__) || defined(__aarch64__)                            \
+        || (defined(__riscv) && __riscv_xlen == 64)
     Elf64_Shdr *sections = (Elf64_Shdr *)shdr_buf;
 #    else
     Elf32_Shdr *sections = (Elf32_Shdr *)shdr_buf;
@@ -1418,7 +1432,8 @@ elf_locate_symtab(const char *path, int allow_dynsym, sym_source_t *src,
         return 0;
     }
 
-#    if defined(__x86_64__) || defined(__aarch64__)
+#    if defined(__x86_64__) || defined(__aarch64__)                            \
+        || (defined(__riscv) && __riscv_xlen == 64)
     Elf64_Ehdr ehdr;
 #    else
     Elf32_Ehdr ehdr;
@@ -1449,7 +1464,8 @@ elf_locate_symtab(const char *path, int allow_dynsym, sym_source_t *src,
         return 0;
     }
 
-#    if defined(__x86_64__) || defined(__aarch64__)
+#    if defined(__x86_64__) || defined(__aarch64__)                            \
+        || (defined(__riscv) && __riscv_xlen == 64)
     Elf64_Shdr *sections = (Elf64_Shdr *)shdr_buf;
 #    else
     Elf32_Shdr *sections = (Elf32_Shdr *)shdr_buf;
@@ -1652,7 +1668,8 @@ sym_source_lookup(const sym_source_t *src, uint64_t sym_target, char *name_out,
         return 0;
     }
 
-#    if defined(__x86_64__) || defined(__aarch64__)
+#    if defined(__x86_64__) || defined(__aarch64__)                            \
+        || (defined(__riscv) && __riscv_xlen == 64)
     Elf64_Sym chunk[256];
 #    else
     Elf32_Sym chunk[256];
@@ -1676,7 +1693,8 @@ sym_source_lookup(const sym_source_t *src, uint64_t sym_target, char *name_out,
         }
 
         for (size_t k = 0; k < n; k++) {
-#    if defined(__x86_64__) || defined(__aarch64__)
+#    if defined(__x86_64__) || defined(__aarch64__)                            \
+        || (defined(__riscv) && __riscv_xlen == 64)
             unsigned char sym_type = ELF64_ST_TYPE(chunk[k].st_info);
 #    else
             unsigned char sym_type = ELF32_ST_TYPE(chunk[k].st_info);
