@@ -1801,6 +1801,11 @@ capture_modules_from_proc_maps(sentry_crash_context_t *ctx)
             continue; // No pathname or special mapping like [stack]
         }
 
+        // Skip non-readable mappings
+        if (perms[0] != 'r') {
+            continue;
+        }
+
         const char *pathname = line + pathname_offset;
         // Trim newline
         size_t len = strlen(pathname);
@@ -1811,12 +1816,21 @@ capture_modules_from_proc_maps(sentry_crash_context_t *ctx)
             continue;
         }
 
+        if (offset > start) {
+            continue;
+        }
+
         // Check if this file is already captured - if so, extend size if needed
+        // A mapping at offset 0 starts another load of the file, unless the
+        // file was captured last (small libraries can map all segments at
+        // offset 0)
         sentry_module_info_t *existing_mod = NULL;
-        for (uint32_t j = 0; j < ctx->module_count; j++) {
-            if (strncmp(ctx->modules[j].name, pathname, len) == 0
-                && ctx->modules[j].name[len] == '\0') {
-                existing_mod = &ctx->modules[j];
+        for (uint32_t j = ctx->module_count; j > 0; j--) {
+            if (strncmp(ctx->modules[j - 1].name, pathname, len) == 0
+                && ctx->modules[j - 1].name[len] == '\0') {
+                if (offset != 0 || j == ctx->module_count) {
+                    existing_mod = &ctx->modules[j - 1];
+                }
                 break;
             }
         }

@@ -1446,7 +1446,7 @@ def test_crash_mode_native_only(cmake, httpserver):
     # Should have debug_meta
     assert "debug_meta" in event
     assert len(event["debug_meta"]["images"]) > 0
-    if sys.platform == "darwin":
+    if sys.platform in ["linux", "darwin"] and not is_wine:
         assert_debug_meta_images_do_not_overlap(event)
 
 
@@ -1500,7 +1500,7 @@ def test_crash_mode_native_with_minidump(cmake, httpserver):
 
     # Should have debug_meta
     assert "debug_meta" in event
-    if sys.platform == "darwin":
+    if sys.platform in ["linux", "darwin"] and not is_wine:
         assert_debug_meta_images_do_not_overlap(event)
 
 
