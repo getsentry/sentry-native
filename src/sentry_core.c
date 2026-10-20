@@ -478,12 +478,6 @@ sentry_close(void)
 }
 
 int
-sentry_shutdown(void)
-{
-    return sentry_close();
-}
-
-int
 sentry_reinstall_backend(void)
 {
     int rv = 0;
@@ -698,12 +692,6 @@ sentry_scope_capture_event(
     } else {
         return sentry__capture_event(event, scope, hint);
     }
-}
-
-sentry_uuid_t
-sentry_capture_event_with_scope(sentry_value_t event, sentry_scope_t *scope)
-{
-    return sentry_scope_capture_event(scope, event, NULL);
 }
 
 static sentry_value_t prepare_attachments(
@@ -1030,24 +1018,6 @@ fail:
     SENTRY_WARN("dropping transaction");
     sentry_envelope_free(envelope);
     sentry_value_decref(transaction);
-    return NULL;
-}
-
-static sentry_envelope_t *
-prepare_user_report(sentry_value_t user_report)
-{
-    sentry_envelope_t *envelope = NULL;
-
-    envelope = sentry__envelope_new();
-    if (!envelope || !sentry__envelope_add_user_report(envelope, user_report)) {
-        goto fail;
-    }
-
-    return envelope;
-
-fail:
-    SENTRY_WARN("dropping user report");
-    sentry_envelope_free(envelope);
     return NULL;
 }
 
@@ -1542,12 +1512,6 @@ sentry_start_new_trace(void)
 }
 
 void
-sentry_regenerate_trace(void)
-{
-    sentry_start_new_trace();
-}
-
-void
 sentry_set_transaction(const char *transaction)
 {
     sentry_set_transaction_n(transaction, sentry__guarded_strlen(transaction));
@@ -2000,20 +1964,6 @@ sentry_span_discard(sentry_span_t *opaque_span)
     sentry__span_decref(opaque_span);
 }
 
-void
-sentry_capture_user_feedback(sentry_value_t user_report)
-{
-    sentry_envelope_t *envelope = NULL;
-
-    SENTRY_WITH_OPTIONS (options) {
-        envelope = prepare_user_report(user_report);
-        if (envelope) {
-            sentry__capture_envelope(options->transport, envelope, options);
-        }
-    }
-    sentry_value_decref(user_report);
-}
-
 static sentry_uuid_t
 capture_feedback(sentry_value_t user_feedback, sentry_hint_t *hint,
     sentry_scope_t *local_scope)
@@ -2141,18 +2091,6 @@ int
 sentry_get_crashed_last_run(void)
 {
     return g_last_crash;
-}
-
-int
-sentry_clear_crashed_last_run(void)
-{
-    bool success = false;
-    sentry_options_t *options = sentry__options_lock();
-    if (options) {
-        success = sentry__clear_crash_marker(options);
-    }
-    sentry__options_unlock();
-    return success ? 0 : 1;
 }
 
 sentry_uuid_t

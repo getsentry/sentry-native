@@ -1505,19 +1505,6 @@ main(int argc, char **argv)
         // Clean up the temporary file
         remove(attachment_path);
     }
-    if (has_arg(argc, argv, "capture-user-report")) {
-        sentry_value_t event = sentry_value_new_message_event(
-            SENTRY_LEVEL_INFO, "my-logger", "Hello user feedback!");
-        sentry_uuid_t event_id = sentry_capture_event(event);
-
-        SENTRY_SUPPRESS_DEPRECATED
-        sentry_value_t user_feedback = sentry_value_new_user_feedback(
-            &event_id, "some-name", "some-email", "some-comment");
-
-        sentry_capture_user_feedback(user_feedback);
-        SENTRY_RESTORE_DEPRECATED
-    }
-
     if (has_arg(argc, argv, "capture-transaction")) {
         sentry_transaction_context_t *tx_ctx
             = sentry_transaction_context_new("little.teapot",

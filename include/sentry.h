@@ -775,20 +775,6 @@ SENTRY_API sentry_value_t sentry_value_from_msgpack_stream(
     const char *buf, size_t buf_len);
 
 /**
- * Adds a stack trace to an event.
- *
- * The stack trace is added as part of a new thread object.
- *
- * If `ips` is NULL, the current stack trace is captured. Otherwise, `len`
- * stack trace instruction pointers are attached to the event.
- */
-SENTRY_DEPRECATED(
-    "Use `sentry_value_new_stacktrace` in combination with "
-    "`sentry_value_new_thread` and `sentry_event_add_thread` instead")
-SENTRY_EXPERIMENTAL_API void sentry_event_value_add_stacktrace(
-    sentry_value_t event, void **ips, size_t len);
-
-/**
  * This represents the OS-dependent user context in the case of a crash and can
  * be used to manually capture a crash.
  */
@@ -1317,17 +1303,6 @@ SENTRY_EXPERIMENTAL_API void sentry_http_transport_set_client_shutdown_func(
     void (*shutdown_func)(sentry_http_client_t *client));
 
 /**
- * Create a new function transport.
- *
- * It is a convenience function that works with a borrowed `data`, and will
- * automatically free the envelope, so the user-provided function does not need
- * to do that.
- */
-SENTRY_DEPRECATED("Use `sentry_transport_new` instead")
-SENTRY_API sentry_transport_t *sentry_new_function_transport(
-    void (*func)(const sentry_envelope_t *envelope, void *data), void *data);
-
-/**
  * This represents an interface for user-defined backends.
  *
  * Backends are responsible for handling crashes. They are maintained at runtime
@@ -1793,19 +1768,6 @@ SENTRY_API void sentry_options_set_proxy_n(
 SENTRY_API const char *sentry_options_get_proxy(const sentry_options_t *opts);
 
 /**
- * Configures the proxy.
- *
- * The given proxy has to include the full scheme,
- * e.g., `http://some.proxy/.
- */
-SENTRY_DEPRECATED("Use `sentry_options_set_proxy` instead")
-SENTRY_API void sentry_options_set_http_proxy(
-    sentry_options_t *opts, const char *proxy);
-SENTRY_DEPRECATED("Use `sentry_options_set_proxy_n` instead")
-SENTRY_API void sentry_options_set_http_proxy_n(
-    sentry_options_t *opts, const char *proxy, size_t proxy_len);
-
-/**
  * Returns the configured proxy.
  */
 SENTRY_API const char *sentry_options_get_http_proxy(
@@ -2062,26 +2024,6 @@ SENTRY_API void sentry_options_add_attachment_n(
     sentry_options_t *opts, const char *path, size_t path_len);
 
 /**
- * Adds a new view hierarchy attachment to be sent along.
- *
- * The primary use-case is for downstream SDKs (like sentry-godot). The
- * view-hierarchy.json file should follow the representation defined in RFC#33
- * https://github.com/getsentry/rfcs/blob/main/text/0033-view-hierarchy.md
- *
- * `path` is assumed to be in platform-specific filesystem path encoding.
- * API Users on windows are encouraged to use
- * `sentry_options_add_view_hierarchyw` instead.
- */
-SENTRY_DEPRECATED("Use `sentry_attach_*` with `sentry_attachment_set_type` and "
-                  "`SENTRY_ATTACHMENT_TYPE_VIEW_HIERARCHY` instead")
-SENTRY_API void sentry_options_add_view_hierarchy(
-    sentry_options_t *opts, const char *path);
-SENTRY_DEPRECATED("Use `sentry_attach_*` with `sentry_attachment_set_type` and "
-                  "`SENTRY_ATTACHMENT_TYPE_VIEW_HIERARCHY` instead")
-SENTRY_API void sentry_options_add_view_hierarchy_n(
-    sentry_options_t *opts, const char *path, size_t path_len);
-
-/**
  * Enables or disables attaching screenshots to fatal error events. Disabled by
  * default.
  *
@@ -2239,18 +2181,6 @@ SENTRY_API void sentry_options_set_database_path_n(
 SENTRY_API void sentry_options_add_attachmentw(
     sentry_options_t *opts, const wchar_t *path);
 SENTRY_API void sentry_options_add_attachmentw_n(
-    sentry_options_t *opts, const wchar_t *path, size_t path_len);
-
-/**
- * Wide char version of `sentry_options_add_view_hierarchy`.
- */
-SENTRY_DEPRECATED("Use `sentry_attach_*` with `sentry_attachment_set_type` and "
-                  "`SENTRY_ATTACHMENT_TYPE_VIEW_HIERARCHY` instead")
-SENTRY_API void sentry_options_add_view_hierarchyw(
-    sentry_options_t *opts, const wchar_t *path);
-SENTRY_DEPRECATED("Use `sentry_attach_*` with `sentry_attachment_set_type` and "
-                  "`SENTRY_ATTACHMENT_TYPE_VIEW_HIERARCHY` instead")
-SENTRY_API void sentry_options_add_view_hierarchyw_n(
     sentry_options_t *opts, const wchar_t *path, size_t path_len);
 
 /**
@@ -2556,14 +2486,6 @@ SENTRY_API int sentry_flush(uint64_t timeout);
 SENTRY_API int sentry_close(void);
 
 /**
- * Shuts down the sentry client and forces transports to flush out.
- *
- * Returns the number of envelopes that have been dumped.
- */
-SENTRY_DEPRECATED("Use `sentry_close` instead")
-SENTRY_API int sentry_shutdown(void);
-
-/**
  * This will lazily load and cache a list of all the loaded libraries.
  *
  * Returns a new reference to an immutable, frozen list.
@@ -2797,15 +2719,6 @@ SENTRY_API sentry_uuid_t sentry_capture_event(sentry_value_t event);
  */
 SENTRY_API sentry_uuid_t sentry_scope_capture_event(
     sentry_scope_t *scope, sentry_value_t event, sentry_hint_t *hint);
-
-/**
- * Deprecated alias for `sentry_scope_capture_event`. Note the reversed argument
- * order: the replacement takes the scope first. This alias will be removed in
- * 2027.
- */
-SENTRY_DEPRECATED("Use `sentry_scope_capture_event` instead")
-SENTRY_API sentry_uuid_t sentry_capture_event_with_scope(
-    sentry_value_t event, sentry_scope_t *scope);
 
 /**
  * Allows capturing independently created minidumps.
@@ -3098,9 +3011,6 @@ SENTRY_API void sentry_set_trace_n(const char *trace_id, size_t trace_id_len,
  * interfere with cross-SDK traces which are managed by these SDKs.
  */
 SENTRY_API void sentry_start_new_trace(void);
-
-SENTRY_DEPRECATED("Use `sentry_start_new_trace` instead")
-SENTRY_API void sentry_regenerate_trace(void);
 
 /**
  * Sets the transaction.
@@ -4306,28 +4216,6 @@ SENTRY_API void sentry_transaction_set_name_n(
     sentry_transaction_t *transaction, const char *name, size_t name_len);
 
 /**
- * Creates a deprecated User Report with a specific name, email, and comments.
- *
- * See
- * https://develop.sentry.dev/sdk/data-model/envelope-items/#user-report---deprecated
- */
-SENTRY_DEPRECATED("Use `sentry_value_new_feedback` instead")
-SENTRY_API sentry_value_t sentry_value_new_user_feedback(
-    const sentry_uuid_t *uuid, const char *name, const char *email,
-    const char *comments);
-SENTRY_DEPRECATED("Use `sentry_value_new_feedback_n` instead")
-SENTRY_API sentry_value_t sentry_value_new_user_feedback_n(
-    const sentry_uuid_t *uuid, const char *name, size_t name_len,
-    const char *email, size_t email_len, const char *comments,
-    size_t comments_len);
-
-/**
- * Captures a deprecated User Report and sends it to Sentry.
- */
-SENTRY_DEPRECATED("Use `sentry_capture_feedback` instead")
-SENTRY_API void sentry_capture_user_feedback(sentry_value_t user_report);
-
-/**
  * Creates a new User Feedback with a specific message (required), and optional
  * contact_email, name, message, and associated_event_id.
  *
@@ -4587,19 +4475,6 @@ SENTRY_API void sentry_transaction_iter_headers(sentry_transaction_t *tx,
 SENTRY_API int sentry_get_crashed_last_run(void);
 
 /**
- * Clear the persisted status of the "crashed-last-run".
- *
- * Notes:
- *   * This doesn't change the value of sentry_get_crashed_last_run() yet.
- *     However, if sentry_init() is called again, the value will change.
- *   * This may only be called after sentry_init() and before sentry_close().
- *
- * Returns 0 on success, 1 on error.
- */
-SENTRY_DEPRECATED("The crash marker is cleared by `sentry_init()`.")
-SENTRY_EXPERIMENTAL_API int sentry_clear_crashed_last_run(void);
-
-/**
  * Returns the runtime SDK version as string.
  *
  * May include a prerelease suffix (e.g. `-rc.1`) or downstream SDK build
@@ -4607,18 +4482,6 @@ SENTRY_EXPERIMENTAL_API int sentry_clear_crashed_last_run(void);
  * version.
  */
 SENTRY_API const char *sentry_sdk_version(void);
-
-/**
- * Sentry SDK name set during build time.
- */
-SENTRY_DEPRECATED("Use `sentry_options_get_sdk_name` instead")
-SENTRY_EXPERIMENTAL_API const char *sentry_sdk_name(void);
-
-/**
- * Sentry SDK User-Agent set during build time.
- */
-SENTRY_DEPRECATED("Use `sentry_options_get_user_agent` instead")
-SENTRY_EXPERIMENTAL_API const char *sentry_sdk_user_agent(void);
 
 #ifdef __cplusplus
 }

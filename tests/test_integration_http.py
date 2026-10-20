@@ -30,7 +30,6 @@ from .assertions import (
     assert_replay_envelope,
     assert_session,
     assert_user_feedback,
-    assert_user_report,
     assert_minidump,
     assert_breakpad_crash,
     assert_crash_timestamp,
@@ -284,34 +283,6 @@ def test_user_feedback_with_attachments_http(cmake, httpserver):
 
     # Should have 2 attachments (one file, one bytes)
     assert attachment_count == 2
-
-
-def test_user_report_http(cmake, httpserver):
-    tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "none"})
-
-    httpserver.expect_request(
-        "/api/123456/envelope/",
-        headers={"x-sentry-auth": auth_header},
-    ).respond_with_data("OK")
-    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
-
-    run(
-        tmp_path,
-        "sentry_test_integration",
-        ["log", "capture-user-report"],
-        env=env,
-    )
-
-    assert len(httpserver.log) == 2
-    output = httpserver.log[0][0].get_data()
-    envelope = Envelope.deserialize(output)
-
-    assert_event(envelope, "Hello user feedback!")
-
-    output = httpserver.log[1][0].get_data()
-    envelope = Envelope.deserialize(output)
-
-    assert_user_report(envelope)
 
 
 @pytest.mark.parametrize(

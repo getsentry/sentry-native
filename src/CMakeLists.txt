@@ -77,7 +77,6 @@ sentry_target_sources_cwd(sentry
 	path/sentry_path.c
 	screenshot/sentry_screenshot.c
 	session_replay/sentry_session_replay.c
-	transports/sentry_function_transport.c
 	transports/sentry_http_transport.c
 	transports/sentry_http_transport.h
 	unwinder/sentry_unwinder.c
