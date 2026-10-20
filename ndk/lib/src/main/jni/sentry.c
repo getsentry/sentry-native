@@ -8,14 +8,21 @@
 #include <string.h>
 #include <sys/stat.h>
 
+#include "sentry_http.h"
+
 extern void sentry_android_crash_daemon_init(const char *shm_path,
     int notify_fd, int ready_fd, int message_fd) __attribute__((weak));
-extern char *sentry_android_crash_daemon_run(int app_pid,
+typedef struct sentry_crash_daemon_s sentry_crash_daemon_t;
+extern sentry_crash_daemon_t *sentry_android_crash_daemon_run(int app_pid,
     uint64_t app_tid, int notify_fd, int ready_fd, int message_fd,
-    const char *shm_path) __attribute__((weak));
+    const char *shm_path, sentry_transport_t *transport) __attribute__((weak));
+extern const char *sentry_android_crash_daemon_get_envelope_path(
+    const sentry_crash_daemon_t *daemon) __attribute__((weak));
 extern bool sentry_android_crash_daemon_send(
-    const char *path, uint64_t timeout) __attribute__((weak));
-extern void sentry_android_crash_daemon_close(void) __attribute__((weak));
+    sentry_crash_daemon_t *daemon, const char *path,
+    uint64_t timeout) __attribute__((weak));
+extern void sentry_android_crash_daemon_close(
+    sentry_crash_daemon_t *daemon) __attribute__((weak));
 
 #define ENSURE(Expr)                                                           \
     if (!(Expr))                                                               \
@@ -587,7 +594,7 @@ Java_io_sentry_ndk_SentryNdk_nativeInitCrashDaemon(
     (*env)->ReleaseStringUTFChars(env, shm_path, shm_path_chars);
 }
 
-JNIEXPORT jstring JNICALL
+JNIEXPORT jlong JNICALL
 Java_io_sentry_ndk_SentryNdk_nativeRunCrashDaemon(
         JNIEnv *env,
         jclass cls,
@@ -598,61 +605,56 @@ Java_io_sentry_ndk_SentryNdk_nativeRunCrashDaemon(
         jint message_fd,
         jstring shm_path) {
     if (!shm_path) {
-        return NULL;
+        return 0;
     }
 
     const char *shm_path_chars = (*env)->GetStringUTFChars(env, shm_path, 0);
     if (!shm_path_chars) {
-        return NULL;
+        return 0;
     }
 
-    char *envelope_path = NULL;
+    sentry_crash_daemon_t *daemon = NULL;
     if (sentry_android_crash_daemon_run) {
-        envelope_path = sentry_android_crash_daemon_run((int) app_pid,
+        daemon = sentry_android_crash_daemon_run((int) app_pid,
             (uint64_t) app_tid, (int) notify_fd, (int) ready_fd,
-            (int) message_fd, shm_path_chars);
+            (int) message_fd, shm_path_chars,
+            sentry_android_http_transport_new());
     }
 
     (*env)->ReleaseStringUTFChars(env, shm_path, shm_path_chars);
-    if (!envelope_path) {
-        return NULL;
-    }
+    return (jlong)(uintptr_t)daemon;
+}
 
-    jstring rv = (*env)->NewStringUTF(env, envelope_path);
-    sentry_free(envelope_path);
-    return rv;
+JNIEXPORT jstring JNICALL
+Java_io_sentry_ndk_SentryNdk_nativeGetCrashEnvelopePath(
+        JNIEnv *env, jclass cls, jlong handle) {
+    return (*env)->NewStringUTF(env,
+        sentry_android_crash_daemon_get_envelope_path(
+            (sentry_crash_daemon_t *)(uintptr_t)handle));
 }
 
 JNIEXPORT jboolean JNICALL
 Java_io_sentry_ndk_SentryNdk_nativeSendEnvelope(
         JNIEnv *env,
         jclass cls,
+        jlong handle,
         jstring path,
         jlong timeout) {
-    if (!path) {
-        return JNI_FALSE;
-    }
-
     const char *path_chars = (*env)->GetStringUTFChars(env, path, 0);
-    if (!path_chars) {
-        return JNI_FALSE;
+    bool sent = sentry_android_crash_daemon_send(
+        (sentry_crash_daemon_t *)(uintptr_t)handle, path_chars,
+        (uint64_t) timeout);
+    if (path_chars) {
+        (*env)->ReleaseStringUTFChars(env, path, path_chars);
     }
-
-    bool sent = false;
-    if (sentry_android_crash_daemon_send) {
-        sent = sentry_android_crash_daemon_send(
-            path_chars, (uint64_t) timeout);
-    }
-
-    (*env)->ReleaseStringUTFChars(env, path, path_chars);
     return sent ? JNI_TRUE : JNI_FALSE;
 }
 
 JNIEXPORT void JNICALL
-Java_io_sentry_ndk_SentryNdk_nativeCloseCrashDaemon(JNIEnv *env, jclass cls) {
-    if (sentry_android_crash_daemon_close) {
-        sentry_android_crash_daemon_close();
-    }
+Java_io_sentry_ndk_SentryNdk_nativeCloseCrashDaemon(
+        JNIEnv *env, jclass cls, jlong handle) {
+    sentry_android_crash_daemon_close(
+        (sentry_crash_daemon_t *)(uintptr_t)handle);
 }
 
 JNIEXPORT void JNICALL

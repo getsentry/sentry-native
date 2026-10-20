@@ -238,7 +238,6 @@ fun Project.configureNdkLibrary() {
     val nativeBackend = project.name == "sentry-native-ndk-native"
     val sentryBackend = if (nativeBackend) "native" else providers.gradleProperty("sentryBackend").orElse("inproc").get()
     val libDir = rootProject.file("lib")
-    val nativeTransport = "io.github.vvb2060.ndk:curl:8.18.0"
     val sanitizer =
         System.getenv("RUN_ANALYZER").orEmpty().split(',')
             .firstOrNull { it == "asan" || it == "tsan" }
@@ -370,11 +369,6 @@ fun Project.configureNdkLibrary() {
     }
 
     dependencies {
-        // TODO: this was the first match on maven central..
-        if (sentryBackend == "native") {
-            "implementation"(nativeTransport)
-        }
-
         "compileOnly"("org.jetbrains:annotations:23.0.0")
 
         "testImplementation"("androidx.test.ext:junit:1.3.0")

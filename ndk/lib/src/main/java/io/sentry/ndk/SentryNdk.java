@@ -24,12 +24,14 @@ public final class SentryNdk {
   private static native void nativeInitCrashDaemon(
       @NotNull String shmPath, int notifyFd, int readyFd, int messageFd);
 
-  private static native @Nullable String nativeRunCrashDaemon(
+  private static native long nativeRunCrashDaemon(
       int appPid, long appTid, int notifyFd, int readyFd, int messageFd, @NotNull String shmPath);
 
-  private static native boolean nativeSendEnvelope(@NotNull String path, long timeout);
+  private static native @NotNull String nativeGetCrashEnvelopePath(long handle);
 
-  private static native void nativeCloseCrashDaemon();
+  private static native boolean nativeSendEnvelope(long handle, @NotNull String path, long timeout);
+
+  private static native void nativeCloseCrashDaemon(long handle);
 
   private static native void shutdown();
 
@@ -72,20 +74,42 @@ public final class SentryNdk {
     nativeInitCrashDaemon(shmPath, notifyFd, readyFd, messageFd);
   }
 
-  public static @Nullable String runCrashDaemon(
+  public static @Nullable CrashDaemon runCrashDaemon(
       int appPid, long appTid, int notifyFd, int readyFd, int messageFd, @NotNull String shmPath) {
     loadNativeLibraries();
-    return nativeRunCrashDaemon(appPid, appTid, notifyFd, readyFd, messageFd, shmPath);
+    final long handle = nativeRunCrashDaemon(appPid, appTid, notifyFd, readyFd, messageFd, shmPath);
+    return handle == 0 ? null : new CrashDaemon(handle);
   }
 
-  public static boolean sendEnvelope(@NotNull String path, long timeout) {
-    loadNativeLibraries();
-    return nativeSendEnvelope(path, timeout);
-  }
+  @ApiStatus.Internal
+  public static final class CrashDaemon implements AutoCloseable {
+    private final @NotNull String envelopePath;
+    private long handle;
 
-  public static void closeCrashDaemon() {
-    loadNativeLibraries();
-    nativeCloseCrashDaemon();
+    private CrashDaemon(long handle) {
+      this.handle = handle;
+      envelopePath = nativeGetCrashEnvelopePath(handle);
+    }
+
+    public @NotNull String getEnvelopePath() {
+      return envelopePath;
+    }
+
+    /** Sends the merged envelope and closes the daemon. */
+    public synchronized boolean sendEnvelope(@NotNull String path, long timeout) {
+      final long handle = this.handle;
+      this.handle = 0;
+      return handle != 0 && nativeSendEnvelope(handle, path, timeout);
+    }
+
+    @Override
+    public synchronized void close() {
+      final long handle = this.handle;
+      this.handle = 0;
+      if (handle != 0) {
+        nativeCloseCrashDaemon(handle);
+      }
+    }
   }
 
   /** Closes the NDK integration */

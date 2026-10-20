@@ -2,7 +2,10 @@ cmake_minimum_required(VERSION 3.10)
 project(Sentry-Android LANGUAGES C CXX)
 
 # Add sentry-android shared library
-add_library(sentry-android SHARED src/main/jni/sentry.c)
+add_library(sentry-android SHARED
+	src/main/jni/sentry.c
+	src/main/jni/sentry_http.c
+)
 
 # Conditionally add test library if ENABLE_TESTS is set
 if(ENABLE_TESTS)
@@ -14,13 +17,7 @@ set(BUILD_SHARED_LIBS ON)
 set(SENTRY_BUILD_SHARED_LIBS ON)
 
 if(SENTRY_BACKEND STREQUAL "native")
-	find_package(curl REQUIRED CONFIG)
-	if(NOT TARGET CURL::libcurl)
-		add_library(CURL::libcurl INTERFACE IMPORTED)
-		target_link_libraries(CURL::libcurl INTERFACE curl::curl_static)
-	endif()
-	set(SENTRY_TRANSPORT "curl" CACHE STRING "" FORCE)
-	set(SENTRY_LINK_CURL "ON" CACHE STRING "" FORCE)
+	set(SENTRY_TRANSPORT "none" CACHE STRING "" FORCE)
 endif()
 
 # Adding sentry-native project

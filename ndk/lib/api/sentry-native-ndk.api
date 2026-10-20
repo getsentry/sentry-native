@@ -111,13 +111,17 @@ public final class io/sentry/ndk/NdkOptions {
 
 public final class io/sentry/ndk/SentryNdk {
 	public static fun close ()V
-	public static fun closeCrashDaemon ()V
 	public static fun init (Lio/sentry/ndk/NdkOptions;)V
 	public static fun initCrashDaemon (Ljava/lang/String;III)V
 	public static fun loadNativeLibraries ()V
 	public static fun preload ()V
-	public static fun runCrashDaemon (IJIIILjava/lang/String;)Ljava/lang/String;
-	public static fun sendEnvelope (Ljava/lang/String;J)Z
+	public static fun runCrashDaemon (IJIIILjava/lang/String;)Lio/sentry/ndk/SentryNdk$CrashDaemon;
+}
+
+public final class io/sentry/ndk/SentryNdk$CrashDaemon : java/lang/AutoCloseable {
+	public fun close ()V
+	public fun getEnvelopePath ()Ljava/lang/String;
+	public fun sendEnvelope (Ljava/lang/String;J)Z
 }
 
 public final class io/sentry/ndk/SentryNdkPreloadProvider : android/content/ContentProvider {
