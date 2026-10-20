@@ -826,6 +826,7 @@ native_backend_startup(
     }
 
     if (options->proxy) {
+        ctx->has_proxy = true;
 #ifdef _WIN32
         strncpy_s(ctx->proxy, sizeof(ctx->proxy), options->proxy, _TRUNCATE);
 #else

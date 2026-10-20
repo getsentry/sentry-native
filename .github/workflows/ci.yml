@@ -168,6 +168,7 @@ jobs:
             os: macos-15
             ERROR_ON_WARNINGS: 1
             SYSTEM_VERSION_COMPAT: 0
+            TEST_SYSTEM_PROXY: 1
           - name: macOS 26 (xcode llvm)
             os: macos-26
             ERROR_ON_WARNINGS: 1
@@ -194,6 +195,7 @@ jobs:
             TEST_X86: 1
           - name: Windows (latest)
             os: windows-latest
+            TEST_SYSTEM_PROXY: 1
           - name: Windows (MSVC analyzer)
             os: windows-2022
             RUN_ANALYZER: msvc
@@ -259,6 +261,7 @@ jobs:
       TEST_WINE: ${{ matrix.TEST_WINE }}
       TEST_ARM32: ${{ matrix.TEST_ARM32 }}
       TEST_QEMU: ${{ matrix.TEST_QEMU }}
+      TEST_SYSTEM_PROXY: ${{ matrix.TEST_SYSTEM_PROXY }}
       USE_SCCACHE: ${{ matrix.USE_SCCACHE }}
       SCCACHE_GHA_ENABLED: ${{ matrix.USE_SCCACHE && 'true' || '' }}
       ERROR_ON_WARNINGS: ${{ matrix.ERROR_ON_WARNINGS }}

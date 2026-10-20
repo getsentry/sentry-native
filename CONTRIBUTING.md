@@ -126,6 +126,9 @@ Some of its behavior is controlled by env-variables:
   switches to the Ninja generator (`choco install ninja`) and uses `/Z7` debug
   info format for compatibility.
 - `TEST_X86`: Passes flags to CMake to enable a 32-bit (cross-)compile.
+- `TEST_SYSTEM_PROXY`: Runs the tests that point the user's system proxy
+  settings at a local test proxy, and restores them afterwards. On macOS this
+  needs passwordless `sudo`.
 - `ANDROID_API` / `ANDROID_NDK` / `ANDROID_ARCH`: Instructs the test runner to
   build using the given Android `NDK` version, targeting the given `API` and
   `ARCH`. The test runner assumes an already running simulator matching the
