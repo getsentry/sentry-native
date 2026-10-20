@@ -74,7 +74,7 @@ subprojects {
             }
         }
     }
-    if (name == "sentry-native-ndk-native") {
+    if (name == "sentry-native-ndk-outproc") {
         plugins.withId("com.android.library") {
             configureNdkLibrary()
         }
@@ -230,12 +230,12 @@ fun MavenPublishBaseExtension.assignAarTypes() {
 }
 
 apiValidation {
-    ignoredProjects.addAll(listOf("sample", "sentry-native-ndk-native"))
+    ignoredProjects.addAll(listOf("sample", "sentry-native-ndk-outproc"))
 }
 
 fun Project.configureNdkLibrary() {
     var sentryNativeSrc: String = "${project.projectDir}/../.."
-    val nativeBackend = project.name == "sentry-native-ndk-native"
+    val nativeBackend = project.name == "sentry-native-ndk-outproc"
     val sentryBackend = if (nativeBackend) "native" else providers.gradleProperty("sentryBackend").orElse("inproc").get()
     val libDir = rootProject.file("lib")
     val sanitizer =

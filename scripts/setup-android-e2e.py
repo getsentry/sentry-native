@@ -26,7 +26,7 @@ def main():
     )
     args = parser.parse_args()
     java = args.sentry_java.expanduser().resolve()
-    if not (java / "sentry-android-ndk-native").is_dir():
+    if not (java / "sentry-android-ndk-outproc").is_dir():
         parser.error(
             "sentry-java must contain the native crash service (feat/native-crash-service)"
         )
@@ -49,7 +49,7 @@ gradle.settingsEvaluated {{ settings ->
 }}
 allprojects {{
     configurations.configureEach {{
-        resolutionStrategy.force('io.sentry:sentry-native-ndk-native:{version}')
+        resolutionStrategy.force('io.sentry:sentry-native-ndk-outproc:{version}')
     }}
 }}
 """)
@@ -67,8 +67,8 @@ allprojects {{
 
     gradle(
         PROJECT_DIR / "ndk",
-        "-PPOM_ARTIFACT_ID=sentry-native-ndk-native",
-        ":sentry-native-ndk-native:publishToMavenLocal",
+        "-PPOM_ARTIFACT_ID=sentry-native-ndk-outproc",
+        ":sentry-native-ndk-outproc:publishToMavenLocal",
     )
     gradle(
         java,
@@ -76,7 +76,7 @@ allprojects {{
         str(init),
         ":sentry:publishToMavenLocal",
         ":sentry-android-core:publishToMavenLocal",
-        ":sentry-android-ndk-native:publishToMavenLocal",
+        ":sentry-android-ndk-outproc:publishToMavenLocal",
     )
 
     versions = tomllib.loads((java / "gradle/libs.versions.toml").read_text())[

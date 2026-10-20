@@ -33,9 +33,9 @@ android {
 }
 
 dependencies {
-    implementation "io.sentry:sentry-android-ndk-native:${sentryVersion}"
+    implementation "io.sentry:sentry-android-ndk-outproc:${sentryVersion}"
 }
 
 configurations.configureEach {
-    resolutionStrategy.force("io.sentry:sentry-native-ndk-native:${sentryVersion}")
+    resolutionStrategy.force("io.sentry:sentry-native-ndk-outproc:${sentryVersion}")
 }
