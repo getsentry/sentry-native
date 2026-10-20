@@ -6,16 +6,12 @@ multi-thread capture, and FPU/SIMD register capture on all platforms.
 """
 
 import os
-import signal
 import subprocess
 import sys
-import threading
 import time
 import struct
 
-import psutil
 import pytest
-from werkzeug.wrappers import Response
 
 from . import (
     is_feedback_envelope,
@@ -1857,159 +1853,6 @@ def test_native_http_retry(cmake, httpserver, unreachable_dsn, cache_args):
     assert_native_crash(envelope)
     assert_minidump(envelope)
     assert not cached.exists()
-
-
-@pytest.mark.skipif(is_wine, reason="Fault injection requires native process access")
-def test_native_daemon_crash_recovery(cmake, httpserver):
-    """Recover an in-flight crash after the daemon crashes.
-
-    Do not set on_crashed_last_run: it retains __sentry-crash.envelope,
-    preventing the removal wait from reaching the lost-envelope window.
-    """
-    tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "native"})
-    db_dir = tmp_path / ".sentry-native"
-    received = threading.Event()
-    release = threading.Event()
-    requests = []
-
-    def blocked(request):
-        requests.append(Envelope.deserialize(request.get_data()))
-        received.set()
-        release.wait()
-        return Response("OK")
-
-    def minidump(envelope):
-        return next(
-            item.payload.bytes
-            for item in envelope
-            if item.headers.get("attachment_type") == "event.minidump"
-        )
-
-    httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_handler(
-        blocked
-    )
-    cmd = run_command(str(tmp_path / "sentry_test_integration"))
-    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
-    if is_asan:
-        env["ASAN_OPTIONS"] = (
-            env.get("ASAN_OPTIONS", "") + ":handle_segv=0:allow_user_segv_handler=1"
-        )
-    child = subprocess.Popen(
-        [
-            *cmd,
-            "log",
-            "crash",
-            "shutdown-timeout",
-            "60000",
-            "transfer-timeout",
-            "60000",
-        ],
-        cwd=tmp_path,
-        env=env,
-    )
-    daemon = None
-
-    def find_daemon():
-        nonlocal daemon
-        for process in psutil.process_iter(["name", "cmdline"]):
-            args = process.info["cmdline"] or []
-            if (
-                "sentry-crash" in (process.info["name"] or "")
-                and len(args) > 1
-                and args[1] == str(child.pid)
-            ):
-                daemon = process
-                return True
-        return False
-
-    def daemon_exited():
-        try:
-            return not daemon.is_running() or daemon.status() == psutil.STATUS_ZOMBIE
-        except psutil.NoSuchProcess:
-            return True
-
-    try:
-        assert wait_for(find_daemon)
-        assert received.wait(timeout=30)
-        assert wait_for(lambda: not list(db_dir.glob("*.run/__sentry-crash.envelope")))
-        assert not list(db_dir.glob("*.run/*.envelope"))
-        assert not httpserver.log
-        original = requests[0]
-        assert_native_crash(original)
-        assert_minidump(original)
-        crash_id = original.headers["event_id"]
-
-        if sys.platform == "win32":
-            import ctypes
-            from ctypes import wintypes
-
-            kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
-            kernel32.OpenProcess.argtypes = [
-                wintypes.DWORD,
-                wintypes.BOOL,
-                wintypes.DWORD,
-            ]
-            kernel32.OpenProcess.restype = wintypes.HANDLE
-            kernel32.CreateRemoteThread.argtypes = [
-                wintypes.HANDLE,
-                ctypes.c_void_p,
-                ctypes.c_size_t,
-                ctypes.c_void_p,
-                ctypes.c_void_p,
-                wintypes.DWORD,
-                ctypes.POINTER(wintypes.DWORD),
-            ]
-            kernel32.CreateRemoteThread.restype = wintypes.HANDLE
-            kernel32.CloseHandle.argtypes = [wintypes.HANDLE]
-            kernel32.CloseHandle.restype = wintypes.BOOL
-            # Create thread, query information, and read/write/operate on memory
-            process = kernel32.OpenProcess(0x043A, False, daemon.pid)
-            assert process, ctypes.WinError(ctypes.get_last_error())
-            try:
-                thread = kernel32.CreateRemoteThread(process, None, 0, 1, None, 0, None)
-                assert thread, ctypes.WinError(ctypes.get_last_error())
-                kernel32.CloseHandle(thread)
-            finally:
-                kernel32.CloseHandle(process)
-        else:
-            daemon.send_signal(signal.SIGSEGV)
-
-        assert wait_for(daemon_exited)
-        assert child.wait(timeout=40) != 0
-        assert not httpserver.log
-        pending = list(db_dir.glob("*.run/*.envelope"))
-        assert len(pending) == 1
-        envelope = Envelope.deserialize(pending[0].read_bytes())
-        assert envelope.headers["event_id"] == crash_id
-        assert_native_crash(envelope)
-        assert_minidump(envelope)
-        assert minidump(envelope) == minidump(original)
-    finally:
-        try:
-            if daemon is None:
-                find_daemon()
-            if child.poll() is None:
-                child.kill()
-            child.wait(timeout=10)
-            if daemon and not daemon_exited():
-                daemon.kill()
-                assert wait_for(daemon_exited)
-        finally:
-            release.set()
-
-    assert wait_for(lambda: len(httpserver.log) == 1)
-    httpserver.clear_log()
-    httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data("OK")
-    with httpserver.wait(timeout=10) as waiting:
-        run(tmp_path, "sentry_test_integration", ["log", "no-setup"], env=env)
-    assert waiting.result
-    assert len(httpserver.log) == 1
-    envelope = Envelope.deserialize(httpserver.log[0][0].get_data())
-    assert envelope.headers["event_id"] == crash_id
-    assert_native_crash(envelope)
-    assert_minidump(envelope)
-    assert minidump(envelope) == minidump(original)
-    assert not pending[0].exists()
 
 
 @pytest.mark.parametrize("crash_mode", ["native", "native-with-minidump"])

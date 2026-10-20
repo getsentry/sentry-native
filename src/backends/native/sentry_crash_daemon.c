@@ -4,6 +4,7 @@
 #include "sentry_alloc.h"
 #include "sentry_attachment.h"
 #include "sentry_core.h"
+#include "sentry_crash_handler.h"
 #include "sentry_crash_ipc.h"
 #include "sentry_database.h"
 #include "sentry_elf.h"
@@ -4387,138 +4388,6 @@ dump_crash_queue(void)
 #endif
 }
 
-#if defined(SENTRY_PLATFORM_UNIX)
-#    define SIGNAL_COUNT 6
-#    define SIGNAL_STACK_SIZE (1024 * SENTRY_HANDLER_STACK_SIZE)
-static const int SIGNALS[SIGNAL_COUNT]
-    = { SIGILL, SIGTRAP, SIGABRT, SIGBUS, SIGFPE, SIGSEGV };
-static struct sigaction g_previous_handlers[SIGNAL_COUNT];
-static stack_t g_signal_stack = { 0 };
-
-static void
-reset_signal_handlers(void)
-{
-    for (size_t i = 0; i < SIGNAL_COUNT; i++) {
-        sigaction(SIGNALS[i], &g_previous_handlers[i], NULL);
-    }
-}
-
-static void
-invoke_signal_handler(int signum, siginfo_t *info, void *user_context)
-{
-    for (size_t i = 0; i < SIGNAL_COUNT; i++) {
-        if (SIGNALS[i] == signum) {
-            struct sigaction *handler = &g_previous_handlers[i];
-            if (handler->sa_handler == SIG_DFL) {
-                raise(signum);
-            } else if (handler->sa_flags & SA_SIGINFO) {
-                handler->sa_sigaction(signum, info, user_context);
-            } else if (handler->sa_handler != SIG_IGN) {
-                handler->sa_handler(signum);
-            }
-            return;
-        }
-    }
-}
-
-static void
-handle_signal(int signum, siginfo_t *info, void *user_context)
-{
-    dump_crash_queue();
-    reset_signal_handlers();
-    invoke_signal_handler(signum, info, user_context);
-}
-
-static void
-uninstall_crash_handler(void)
-{
-    reset_signal_handlers();
-    if (g_signal_stack.ss_sp) {
-        g_signal_stack.ss_flags = SS_DISABLE;
-        sigaltstack(&g_signal_stack, NULL);
-        sentry_free(g_signal_stack.ss_sp);
-        g_signal_stack.ss_sp = NULL;
-    }
-}
-
-static int
-install_crash_handler(void)
-{
-    for (size_t i = 0; i < SIGNAL_COUNT; i++) {
-        if (sigaction(SIGNALS[i], NULL, &g_previous_handlers[i]) == -1) {
-            return 1;
-        }
-    }
-
-    stack_t old_stack;
-    if (sigaltstack(NULL, &old_stack) == 0
-        && old_stack.ss_flags == SS_DISABLE) {
-        g_signal_stack.ss_sp = sentry_malloc(SIGNAL_STACK_SIZE);
-        if (g_signal_stack.ss_sp) {
-            g_signal_stack.ss_size = SIGNAL_STACK_SIZE;
-            g_signal_stack.ss_flags = 0;
-            if (sigaltstack(&g_signal_stack, NULL) != 0) {
-                sentry_free(g_signal_stack.ss_sp);
-                g_signal_stack.ss_sp = NULL;
-            }
-        }
-    }
-
-    struct sigaction action = { 0 };
-    sigemptyset(&action.sa_mask);
-    action.sa_sigaction = handle_signal;
-    // Allow recursive faults to fall through to the original handler
-    action.sa_flags = SA_SIGINFO | SA_ONSTACK | SA_NODEFER;
-    for (size_t i = 0; i < SIGNAL_COUNT; i++) {
-        if (sigaction(SIGNALS[i], &action, NULL) == -1) {
-            uninstall_crash_handler();
-            return 1;
-        }
-    }
-    return 0;
-}
-#elif defined(SENTRY_PLATFORM_WINDOWS)
-static LPTOP_LEVEL_EXCEPTION_FILTER g_previous_handler = NULL;
-
-static LONG WINAPI
-handle_exception(EXCEPTION_POINTERS *exception)
-{
-    DWORD code = exception->ExceptionRecord->ExceptionCode;
-    if (code == EXCEPTION_BREAKPOINT || code == EXCEPTION_SINGLE_STEP) {
-        return EXCEPTION_CONTINUE_SEARCH;
-    }
-
-    dump_crash_queue();
-    SetUnhandledExceptionFilter(g_previous_handler);
-    return EXCEPTION_CONTINUE_SEARCH;
-}
-
-static void
-handle_sigabrt(EXCEPTION_POINTERS *exception)
-{
-    handle_exception(exception);
-}
-
-static int
-install_crash_handler(void)
-{
-    g_previous_handler = SetUnhandledExceptionFilter(handle_exception);
-    sentry__win32_install_sigabrt_handler(handle_sigabrt);
-    return 0;
-}
-
-static void
-uninstall_crash_handler(void)
-{
-    LPTOP_LEVEL_EXCEPTION_FILTER current_handler
-        = SetUnhandledExceptionFilter(g_previous_handler);
-    if (current_handler != handle_exception) {
-        SetUnhandledExceptionFilter(current_handler);
-    }
-    sentry__win32_restore_sigabrt_handler();
-}
-#endif
-
 #if defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID)
 int
 sentry__crash_daemon_main(pid_t app_pid, uint64_t app_tid, int notify_eventfd,
@@ -4757,7 +4626,10 @@ sentry__crash_daemon_main(pid_t app_pid, uint64_t app_tid, HANDLE event_handle,
     }
 
     sentry__options_set(options);
-    bool crash_handler_installed = install_crash_handler() == 0;
+    bool crash_handler_installed
+        = sentry__crash_handler_init(
+              NULL, SENTRY_HANDLER_STRATEGY_DEFAULT, dump_crash_queue)
+        == 0;
     if (!crash_handler_installed) {
         SENTRY_WARN("Failed to install daemon crash handler");
     }
@@ -4864,7 +4736,7 @@ sentry__crash_daemon_main(pid_t app_pid, uint64_t app_tid, HANDLE event_handle,
         }
     }
     if (crash_handler_installed) {
-        uninstall_crash_handler();
+        sentry__crash_handler_shutdown();
     }
     sentry__options_set(NULL);
 

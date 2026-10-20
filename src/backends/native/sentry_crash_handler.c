@@ -34,6 +34,8 @@
 #    include <winnt.h>
 #endif
 
+static void (*g_crash_callback)(void) = NULL;
+
 #if (defined(SENTRY_PLATFORM_WINDOWS)                                          \
     && !((defined(_MSC_VER) || defined(__clang__))                             \
         && (defined(_M_AMD64) || defined(_M_ARM64))))                          \
@@ -393,6 +395,9 @@ capture_stack(sentry_crash_capture_t *capture, ucontext_t *uctx)
 static void
 crash_signal_handler(int signum, siginfo_t *info, void *context)
 {
+    if (g_crash_callback) {
+        g_crash_callback();
+    }
     sentry__enter_crash_handler();
     ucontext_t *uctx = (ucontext_t *)context;
 
@@ -968,15 +973,16 @@ daemon_handling:
 }
 
 int
-sentry__crash_handler_init(
-    sentry_crash_ipc_t *ipc, sentry_handler_strategy_t strategy)
+sentry__crash_handler_init(sentry_crash_ipc_t *ipc,
+    sentry_handler_strategy_t strategy, void (*callback)(void))
 {
-    if (!ipc) {
+    if (!ipc && !callback) {
         return -1;
     }
 
     g_crash_ipc = ipc;
     g_handler_strategy = strategy;
+    g_crash_callback = callback;
 
     // Set up signal stack
     g_signal_stack.ss_sp = sentry_malloc(SENTRY_CRASH_SIGNAL_STACK_SIZE);
@@ -1001,6 +1007,9 @@ sentry__crash_handler_init(
     sigemptyset(&sa.sa_mask);
     sa.sa_sigaction = crash_signal_handler;
     sa.sa_flags = SA_SIGINFO | SA_ONSTACK;
+    if (g_crash_callback) {
+        sa.sa_flags |= SA_NODEFER;
+    }
 
     size_t installed_count = 0;
     for (size_t i = 0; i < g_crash_signal_count; i++) {
@@ -1058,7 +1067,7 @@ sentry__crash_handler_init(
 int
 sentry__crash_handler_reinstall(void)
 {
-    if (!g_crash_ipc) {
+    if (!g_crash_ipc && !g_crash_callback) {
         return -1;
     }
 
@@ -1067,6 +1076,9 @@ sentry__crash_handler_reinstall(void)
     sigemptyset(&sa.sa_mask);
     sa.sa_sigaction = crash_signal_handler;
     sa.sa_flags = SA_SIGINFO | SA_ONSTACK;
+    if (g_crash_callback) {
+        sa.sa_flags |= SA_NODEFER;
+    }
 
     for (size_t i = 0; i < g_crash_signal_count; i++) {
         struct sigaction previous;
@@ -1099,6 +1111,7 @@ sentry__crash_handler_shutdown(void)
     }
 
     g_crash_ipc = NULL;
+    g_crash_callback = NULL;
 
     SENTRY_DEBUG("crash handler shutdown");
 }
@@ -1186,6 +1199,16 @@ crash_sigabrt_handler(EXCEPTION_POINTERS *exception_pointers)
 static LONG WINAPI
 crash_exception_filter(EXCEPTION_POINTERS *exception_info)
 {
+    if (g_crash_callback) {
+        DWORD code = exception_info->ExceptionRecord->ExceptionCode;
+        if (code == EXCEPTION_BREAKPOINT || code == EXCEPTION_SINGLE_STEP) {
+            return EXCEPTION_CONTINUE_SEARCH;
+        }
+        g_crash_callback();
+        SetUnhandledExceptionFilter(g_previous_filter);
+        return EXCEPTION_CONTINUE_SEARCH;
+    }
+
     sentry__enter_crash_handler();
     // Only handle crash once
     static volatile long handling_crash = 0;
@@ -1271,15 +1294,16 @@ crash_exception_filter(EXCEPTION_POINTERS *exception_info)
 }
 
 int
-sentry__crash_handler_init(
-    sentry_crash_ipc_t *ipc, sentry_handler_strategy_t strategy)
+sentry__crash_handler_init(sentry_crash_ipc_t *ipc,
+    sentry_handler_strategy_t strategy, void (*callback)(void))
 {
-    if (!ipc) {
+    if (!ipc && !callback) {
         return -1;
     }
     (void)strategy;
 
     g_crash_ipc = ipc;
+    g_crash_callback = callback;
 
     sentry__crash_handler_reinstall();
 
@@ -1290,7 +1314,7 @@ sentry__crash_handler_init(
 int
 sentry__crash_handler_reinstall(void)
 {
-    if (!g_crash_ipc) {
+    if (!g_crash_ipc && !g_crash_callback) {
         return -1;
     }
 
@@ -1308,7 +1332,7 @@ void
 sentry__crash_handler_shutdown(void)
 {
     // Restore previous exception filter (including NULL)
-    if (g_crash_ipc) {
+    if (g_crash_ipc || g_crash_callback) {
         SetUnhandledExceptionFilter(g_previous_filter);
         g_previous_filter = NULL;
     }
@@ -1316,6 +1340,7 @@ sentry__crash_handler_shutdown(void)
     sentry__win32_restore_sigabrt_handler();
 
     g_crash_ipc = NULL;
+    g_crash_callback = NULL;
 
     SENTRY_DEBUG("crash handler shutdown");
 }

@@ -163,7 +163,7 @@ const sentry_options_t *sentry__options_getref(void);
 
 /**
  * Replaces the global options with a retained reference, or clears them if
- * NULL. The caller manages initialization and shutdown.
+ * NULL.
  */
 void sentry__options_set(sentry_options_t *options);
 
