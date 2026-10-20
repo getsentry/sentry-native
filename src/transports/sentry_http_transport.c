@@ -22,11 +22,12 @@
 #define ENVELOPE_MIME "application/x-sentry-envelope"
 #define TUS_MIME "application/offset+octet-stream"
 #define TUS_CHUNK_SIZE (32 * 1024 * 1024) // 32 MiB
-#define TUS_MAX_HTTP_HEADERS 4
 #ifdef SENTRY_TRANSPORT_COMPRESSION
 #    define MAX_HTTP_HEADERS 4
+#    define TUS_MAX_HTTP_HEADERS 6
 #else
 #    define MAX_HTTP_HEADERS 3
+#    define TUS_MAX_HTTP_HEADERS 4
 #endif
 
 typedef struct {
@@ -96,6 +97,23 @@ gzipped_with_compression(const char *body, const size_t body_len,
 
     deflateEnd(&stream);
     return true;
+}
+
+static bool
+gzipped_file_chunk(const sentry_path_t *path, size_t offset, size_t len,
+    char **compressed_body, size_t *compressed_body_len)
+{
+    FILE *file = sentry__path_open(path, "rb", offset);
+    if (!file) {
+        return false;
+    }
+    char *chunk = sentry_malloc(len);
+    bool compressed = chunk && fread(chunk, 1, len, file) == len
+        && gzipped_with_compression(
+            chunk, len, compressed_body, compressed_body_len);
+    sentry_free(chunk);
+    fclose(file);
+    return compressed;
 }
 #endif
 
@@ -307,9 +325,22 @@ prepare_tus_upload_request(const char *location, const sentry_path_t *path,
 
     req->method = "PATCH";
     req->url = sentry__string_clone(location);
-    req->body_path = sentry__path_clone(path);
-    req->body_len = body_len;
-    req->body_offset = upload_offset;
+
+    bool compressed = false;
+#ifdef SENTRY_TRANSPORT_COMPRESSION
+    // Compression buffers the chunk in memory, so skip oversized chunks such
+    // as unchunked uploads.
+    if (body_len <= TUS_CHUNK_SIZE) {
+        compressed = gzipped_file_chunk(
+            path, upload_offset, body_len, &req->body, &req->body_len);
+        req->body_owned = compressed;
+    }
+#endif
+    if (!compressed) {
+        req->body_path = sentry__path_clone(path);
+        req->body_len = body_len;
+        req->body_offset = upload_offset;
+    }
 
     sentry_prepared_http_header_t *h;
     h = &req->headers[req->headers_len++];
@@ -327,6 +358,18 @@ prepare_tus_upload_request(const char *location, const sentry_path_t *path,
     h = &req->headers[req->headers_len++];
     h->key = "upload-offset";
     h->value = sentry__uint64_to_string((uint64_t)upload_offset);
+
+#ifdef SENTRY_TRANSPORT_COMPRESSION
+    if (compressed) {
+        h = &req->headers[req->headers_len++];
+        h->key = "content-encoding";
+        h->value = sentry__string_clone("gzip");
+
+        h = &req->headers[req->headers_len++];
+        h->key = "x-decoded-content-length";
+        h->value = sentry__uint64_to_string((uint64_t)body_len);
+    }
+#endif
 
     return req;
 }
