@@ -1777,6 +1777,10 @@ SENTRY_API const char *sentry_options_get_dist(const sentry_options_t *opts);
  * transport on macOS for a SOCKS proxy, but not for an HTTP proxy.
  * All transports that use libcurl (Linux and the Native SDK transport on macOS)
  * will honor the proxy settings and not fall back.
+ *
+ * An empty string disables the proxy: no transport then reads the
+ * `http_proxy` and `https_proxy` environment variables or the system proxy
+ * settings.
  */
 SENTRY_API void sentry_options_set_proxy(
     sentry_options_t *opts, const char *proxy);
