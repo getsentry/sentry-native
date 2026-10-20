@@ -865,3 +865,19 @@ SENTRY_TEST(attach_stacktrace_leaves_events_with_a_stacktrace_alone)
 
     sentry_value_decref(state.threads);
 }
+
+SENTRY_TEST(options_global_lifetime)
+{
+    SENTRY_TEST_OPTIONS_NEW(options);
+    sentry__options_set(options);
+    TEST_CHECK_INT_EQUAL(options->refcount, 2);
+
+    SENTRY_WITH_OPTIONS (current) {
+        TEST_CHECK_PTR_EQUAL(current, options);
+        sentry__options_set(NULL);
+        TEST_CHECK(!sentry_is_enabled());
+        TEST_CHECK_INT_EQUAL(options->refcount, 2);
+    }
+    TEST_CHECK_INT_EQUAL(options->refcount, 1);
+    sentry_options_free(options);
+}

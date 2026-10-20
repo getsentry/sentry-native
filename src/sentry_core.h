@@ -162,6 +162,12 @@ sentry_value_t sentry__ensure_event_id(
 const sentry_options_t *sentry__options_getref(void);
 
 /**
+ * Replaces the global options with a retained reference, or clears them if
+ * NULL.
+ */
+void sentry__options_set(sentry_options_t *options);
+
+/**
  * This will acquire a lock on the global options.
  */
 sentry_options_t *sentry__options_lock(void);

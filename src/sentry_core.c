@@ -56,6 +56,17 @@ sentry__options_getref(void)
     return options;
 }
 
+void
+sentry__options_set(sentry_options_t *options)
+{
+    SENTRY__MUTEX_INIT_DYN_ONCE(g_options_lock);
+    sentry__mutex_lock(&g_options_lock);
+    sentry_options_t *previous = g_options;
+    g_options = sentry__options_incref(options);
+    sentry__mutex_unlock(&g_options_lock);
+    sentry_options_free(previous);
+}
+
 sentry_options_t *
 sentry__options_lock(void)
 {

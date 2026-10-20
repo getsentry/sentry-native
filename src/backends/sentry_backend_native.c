@@ -901,7 +901,8 @@ native_backend_startup(
     // Install crash handlers (signal handlers on Linux/macOS, Mach exception
     // handler on iOS)
 #if defined(SENTRY_PLATFORM_IOS)
-    if (sentry__crash_handler_init(state->ipc, SENTRY_HANDLER_STRATEGY_DEFAULT)
+    if (sentry__crash_handler_init(
+            state->ipc, SENTRY_HANDLER_STRATEGY_DEFAULT, NULL)
         < 0) {
         SENTRY_WARN("failed to initialize crash handler");
         sentry__crash_ipc_free(state->ipc);
@@ -1009,7 +1010,7 @@ native_backend_startup(
         options ? sentry_options_get_handler_strategy(options) :
 #    endif
                 SENTRY_HANDLER_STRATEGY_DEFAULT;
-    if (sentry__crash_handler_init(state->ipc, strategy) < 0) {
+    if (sentry__crash_handler_init(state->ipc, strategy, NULL) < 0) {
         SENTRY_WARN("failed to initialize crash handler");
 #    if defined(SENTRY_PLATFORM_UNIX)
         kill(state->daemon_pid, SIGTERM);

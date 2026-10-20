@@ -4,6 +4,7 @@
 #include "sentry_alloc.h"
 #include "sentry_attachment.h"
 #include "sentry_core.h"
+#include "sentry_crash_handler.h"
 #include "sentry_crash_ipc.h"
 #include "sentry_database.h"
 #include "sentry_elf.h"
@@ -20,6 +21,7 @@
 #include "sentry_symbolizer.h"
 #include "sentry_sync.h"
 #include "sentry_transport.h"
+#include "sentry_unix_pageallocator.h"
 #include "sentry_utils.h"
 #include "sentry_uuid.h"
 #include "sentry_value.h"
@@ -4359,6 +4361,33 @@ daemon_file_logger(
     fflush(log_file); // Flush immediately to ensure logs are written
 }
 
+static long g_crash_handling = 0;
+
+static void
+dump_crash_queue(void)
+{
+    if (!sentry__atomic_compare_swap(&g_crash_handling, 0, 1)) {
+        return;
+    }
+
+#if defined(SENTRY_PLATFORM_UNIX)
+    (void)!sentry__enter_signal_handler();
+    sentry__page_allocator_enable();
+#endif
+    sentry__logger_disable();
+
+    SENTRY_WITH_OPTIONS (options) {
+        if (options->run && options->transport) {
+            sentry__transport_dump_queue(options->transport, options->run);
+            sentry__http_transport_set_retry_enabled(options->transport, false);
+        }
+    }
+
+#if defined(SENTRY_PLATFORM_UNIX)
+    sentry__leave_signal_handler();
+#endif
+}
+
 #if defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID)
 int
 sentry__crash_daemon_main(pid_t app_pid, uint64_t app_tid, int notify_eventfd,
@@ -4461,7 +4490,6 @@ sentry__crash_daemon_main(pid_t app_pid, uint64_t app_tid, HANDLE event_handle,
 #endif
 
     // Initialize Sentry options for daemon (reuses all SDK infrastructure)
-    // Options are passed explicitly to all functions, no global state
     sentry_options_t *options = sentry_options_new();
     if (!options) {
         SENTRY_ERROR("sentry_options_new() failed");
@@ -4597,6 +4625,15 @@ sentry__crash_daemon_main(pid_t app_pid, uint64_t app_tid, HANDLE event_handle,
         SENTRY_WARN("No transport available");
     }
 
+    sentry__options_set(options);
+    bool crash_handler_installed
+        = sentry__crash_handler_init(
+              NULL, SENTRY_HANDLER_STRATEGY_DEFAULT, dump_crash_queue)
+        == 0;
+    if (!crash_handler_installed) {
+        SENTRY_WARN("Failed to install daemon crash handler");
+    }
+
     SENTRY_DEBUG("Entering main loop");
 
     // Daemon main loop
@@ -4698,6 +4735,11 @@ sentry__crash_daemon_main(pid_t app_pid, uint64_t app_tid, HANDLE event_handle,
             }
         }
     }
+    if (crash_handler_installed) {
+        sentry__crash_handler_shutdown();
+    }
+    sentry__options_set(NULL);
+
     if (crash_processed) {
         // Mark as done
         SENTRY_DEBUG("Marking crash state as DONE");
