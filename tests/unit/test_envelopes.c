@@ -1537,3 +1537,36 @@ SENTRY_TEST(minidump_rate_limit)
     sentry__rate_limiter_free(rl);
     sentry_envelope_free(envelope);
 }
+
+SENTRY_TEST(attachment_ref_chunk_size_roundtrip)
+{
+    size_t sizes[] = { 32 * 1024 * 1024, SIZE_MAX };
+    for (size_t i = 0; i < sizeof(sizes) / sizeof(sizes[0]); i++) {
+        sentry_envelope_t *envelope = sentry__envelope_new();
+        sentry_attachment_ref_t ref = { 0 };
+        ref.path = "abc-crashlog.bin";
+        sentry_envelope_item_t *item = sentry__envelope_add_attachment_ref(
+            envelope, &ref, "crashlog.bin", NULL, 12345);
+        TEST_ASSERT(!!item);
+        TEST_CHECK(sentry__envelope_item_get_attachment_ref(item, &ref));
+        TEST_CHECK_INT_EQUAL(ref.chunk_size, 0);
+        sentry__attachment_ref_cleanup(&ref);
+        TEST_CHECK(sentry__envelope_item_resolve_attachment_ref(
+            item, "abc-crashlog.bin", "/upload/abc", sizes[i]));
+
+        size_t len = 0;
+        char *buf = sentry_envelope_serialize(envelope, &len);
+        TEST_ASSERT(!!buf);
+        sentry_envelope_free(envelope);
+        envelope = sentry_envelope_deserialize(buf, len);
+        sentry_free(buf);
+        TEST_ASSERT(!!envelope);
+        item = sentry__envelope_get_item(envelope, 0);
+        TEST_CHECK(sentry__envelope_item_get_attachment_ref(item, &ref));
+        TEST_CHECK_STRING_EQUAL(ref.path, "abc-crashlog.bin");
+        TEST_CHECK_STRING_EQUAL(ref.location, "/upload/abc");
+        TEST_CHECK(ref.chunk_size == sizes[i]);
+        sentry__attachment_ref_cleanup(&ref);
+        sentry_envelope_free(envelope);
+    }
+}

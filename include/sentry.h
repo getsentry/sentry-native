@@ -1163,7 +1163,8 @@ SENTRY_EXPERIMENTAL_API const char *sentry_http_request_get_body(
  * Returns the path to a file that should be streamed as the request body of
  * `req`, and writes its size to `*len_out`. Returns `NULL` unless `req`
  * requires a file-backed body -- see `sentry_http_request_get_body`, which
- * also covers requests with no body at all.
+ * also covers requests with no body at all. Custom HTTP clients must honor
+ * `sentry_http_request_get_body_file_offset` when streaming the file.
  *
  * The path is in a platform-specific filesystem path encoding, which on
  * Windows is UTF-8 rather than the ANSI code page the narrow Win32 APIs
@@ -1173,6 +1174,15 @@ SENTRY_EXPERIMENTAL_API const char *sentry_http_request_get_body(
  */
 SENTRY_EXPERIMENTAL_API const char *sentry_http_request_get_body_file_path(
     const sentry_http_request_t *req, size_t *len_out);
+
+/**
+ * Returns the byte offset at which a file-backed request body starts. The
+ * client must seek to this position before streaming the number of bytes
+ * returned by `sentry_http_request_get_body_file_path`. Returns `0` for
+ * requests without a file-backed body.
+ */
+SENTRY_EXPERIMENTAL_API size_t sentry_http_request_get_body_file_offset(
+    const sentry_http_request_t *req);
 
 #ifdef SENTRY_PLATFORM_WINDOWS
 /**
@@ -1200,10 +1210,11 @@ SENTRY_EXPERIMENTAL_API void sentry_http_response_set_status_code(
 /**
  * Records a response header on `resp`. `key` is matched case-insensitively
  * against the headers sentry-native cares about (currently `Retry-After`,
- * `X-Sentry-Rate-Limits`, and `Location`); anything else is ignored. Pass
- * every header the HTTP response actually had -- sentry-native, not the
- * client, decides which ones matter, so headers Sentry starts caring about
- * later don't require client changes.
+ * `X-Sentry-Rate-Limits`, `Location`, `Upload-Offset`, `Upload-Min-Chunk-Size`,
+ * `Upload-Max-Chunk-Size`, and `Upload-Chunk-Granularity`); anything else is
+ * ignored. Pass every header the HTTP response actually had -- sentry-native,
+ * not the client, decides which ones matter, so headers Sentry starts caring
+ * about later don't require client changes.
  */
 SENTRY_EXPERIMENTAL_API void sentry_http_response_set_header(
     sentry_http_response_t *resp, const char *key, const char *value);

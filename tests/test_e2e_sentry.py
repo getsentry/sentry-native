@@ -23,7 +23,7 @@ from urllib.parse import urlsplit, urlunsplit
 import pytest
 import requests
 
-from . import run, check_output
+from . import run, check_output, Envelope
 from .conditions import (
     has_breakpad,
     has_crashpad,
@@ -31,6 +31,7 @@ from .conditions import (
     has_native,
     is_asan,
 )
+from .proxy import start_proxy
 
 # Skip all tests if E2E env vars not configured
 pytestmark = [
@@ -210,6 +211,48 @@ def poll_sentry_for_event(test_id, max_attempts=POLL_MAX_ATTEMPTS):
     if last_error:
         error_msg += f". Last error: {last_error}"
     raise TimeoutError(error_msg)
+
+
+def poll_sentry_for_attachments(event_id, name, max_attempts=20):
+    """Poll until the event lists the attachment called `name`."""
+    org, project = get_sentry_org_project()
+    headers = get_sentry_headers()
+    api_base = get_sentry_api_base()
+    url = f"{api_base}/projects/{org}/{project}/events/{event_id}/attachments/"
+    last_error = None
+
+    for attempt in range(max_attempts):
+        try:
+            response = requests.get(url, headers=headers, timeout=30)
+            last_error = f"Attachments API returned {response.status_code}: {response.text[:200]}"
+            print(f"  Attempt {attempt + 1}/{max_attempts}: {last_error}")
+            if response.status_code == 200:
+                attachments = response.json()
+                if any(a.get("name") == name for a in attachments):
+                    return attachments
+        except requests.RequestException as e:
+            last_error = str(e)
+            print(f"    Request exception: {last_error}")
+
+        if attempt + 1 < max_attempts:
+            time.sleep(POLL_INTERVAL)
+
+    raise TimeoutError(
+        f"Attachment {name} for event {event_id} not found after {max_attempts} attempts. "
+        f"Last error: {last_error}"
+    )
+
+
+def assert_large_attachment(attachments):
+    large = [a for a in attachments if a.get("name") == ".sentry-large-attachment"]
+    assert len(large) == 1, f"Expected one large attachment, got {attachments}"
+    attachment = large[0]
+    assert (
+        attachment.get("type") == "event.attachment"
+    ), f"Unexpected attachment type: {attachment}"
+    assert (
+        attachment.get("size") == 104857600
+    ), f"Unexpected attachment size: {attachment}"
 
 
 def get_exception_from_event(event):
@@ -827,3 +870,73 @@ def test_e2e_crashpad(cmake):
     ), f"Crashpad crash should capture threads (>= 1), got {thread_count}"
 
     verify_no_thread_duplication(threads_data, "test_e2e_crashpad")
+
+
+@pytest.mark.skipif(not has_native, reason="native backend not available")
+def test_e2e_tus(cmake):
+    """Verify a large crash attachment reaches Sentry after an interrupted upload."""
+    tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "native"})
+    env = dict(os.environ, SENTRY_DSN=os.environ["SENTRY_E2E_DSN"])
+
+    # The daemon uploads the crash through a throttled proxy, so its shutdown
+    # timeout interrupts the upload and persists the envelope for the restart.
+    proxy, port = start_proxy("http-proxy", throttle=1024 * 1024)
+    try:
+        output = run_crash_e2e(
+            tmp_path,
+            "sentry_test_integration",
+            [
+                "log",
+                "e2e-test",
+                "http-proxy",
+                "large-attachment",
+                "shutdown-timeout",
+                "10000",
+                "crash",
+            ],
+            env=dict(env, SENTRY_TEST_PROXY_PORT=str(port)),
+            wait_for_daemon=True,
+        )
+        test_id = extract_test_id(output)
+    finally:
+        proxy.terminate()
+        proxy.communicate(timeout=10)
+
+    envelopes = list(tmp_path.glob(".sentry-native/*.run/*.envelope"))
+    assert envelopes, "Interrupted upload should persist its envelope"
+    refs = [
+        item
+        for envelope in envelopes
+        for item in Envelope.deserialize(envelope.read_bytes())
+        if item.headers.get("content_type")
+        == "application/vnd.sentry.attachment-ref+json"
+    ]
+    assert len(refs) == 1, "Interrupted upload should retain its attachment"
+    location = refs[0].payload.json.get("location")
+    assert location, "Upload location should be persisted"
+
+    output = check_output(
+        tmp_path,
+        "sentry_test_integration",
+        ["log", "trace", "no-setup", "shutdown-timeout", "120000"],
+        env=env,
+        stderr=subprocess.STDOUT,
+    )
+    output = output.decode("utf-8", errors="replace")
+
+    # The persisted upload must be resumed, not re-created: only HEAD targets
+    # the persisted location, and nothing may hit the creation URL. The curl
+    # client traces request lines, the winhttp client logs request URLs.
+    target = urlsplit(location)
+    assert (
+        urlunsplit(("", "", target.path, target.query, "")) in output
+    ), "Resumed upload should query the offset of its location"
+    assert not re.search(
+        r'/upload/["\s]', output
+    ), "Resumed upload should not create a new upload"
+
+    event = poll_sentry_for_event(test_id)
+    attachments = poll_sentry_for_attachments(
+        event["eventID"], ".sentry-large-attachment"
+    )
+    assert_large_attachment(attachments)
