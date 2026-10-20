@@ -16,6 +16,7 @@
 - Native: Provide exception metadata, registers, and a basic crashing-thread stack to `on_crash` for crash identification. ([#2174](https://github.com/getsentry/sentry-native/pull/2174))
 - Native: reduce disk I/O on scope changes by sending incremental updates to the crash daemon over IPC. ([#2155](https://github.com/getsentry/sentry-native/pull/2155), [#2157](https://github.com/getsentry/sentry-native/pull/2157))
 - Resume interrupted TUS attachment uploads from the server-provided upload offset. ([#2058](https://github.com/getsentry/sentry-native/pull/2058))
+- Compress TUS attachment uploads when `SENTRY_TRANSPORT_COMPRESSION` is enabled. ([#2222](https://github.com/getsentry/sentry-native/pull/2222))
 
 **Fixes**:
 
