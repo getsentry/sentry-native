@@ -22,6 +22,7 @@
 - Native/Linux: reduce daemon stack usage during minidump creation to avoid stack overflows in environments with limited stack space. ([#2211](https://github.com/getsentry/sentry-native/pull/2211))
 - Native/Linux: reduce stack usage when unwinding the crashed thread. ([#2212](https://github.com/getsentry/sentry-native/pull/2212))
 - Native/Unix: Preserve existing alternate signal stacks to prevent ASan aborts when the initializing thread exits before SDK shutdown. ([#2219](https://github.com/getsentry/sentry-native/pull/2219))
+- Native/Linux: fix oversized `debug_meta.images` entries that overlapped other libraries when a file was mapped more than once. ([#2228](https://github.com/getsentry/sentry-native/pull/2228))
 
 ## Unreleased
 
