@@ -35,7 +35,12 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           sudo apt update
-          sudo apt install -y cmake libcurl4-openssl-dev
+          sudo apt install -y cmake libcurl4-openssl-dev zlib1g-dev
+
+      - name: Set up zlib for Windows
+        if: runner.os == 'Windows'
+        shell: powershell
+        run: . "scripts\install-zlib.ps1"
 
       - name: Set up Python
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0

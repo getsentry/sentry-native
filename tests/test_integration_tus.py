@@ -11,7 +11,11 @@ from . import (
     Envelope,
     SENTRY_VERSION,
 )
-from .assertions import assert_attachment
+from .assertions import (
+    assert_attachment,
+    assert_gzip_content_encoding,
+    assert_gzip_file_header,
+)
 from .conditions import has_breakpad, has_files, has_http, has_native, is_qemu
 
 pytestmark = [
@@ -38,20 +42,31 @@ chunk_headers = {
 
 
 def expect_upload_chunks(
-    httpserver, upload_uri, upload_qs, final_location, offset=0, size=chunk_size
+    httpserver,
+    upload_uri,
+    upload_qs,
+    final_location,
+    offset=0,
+    size=chunk_size,
+    compressed=False,
 ):
     while offset < upload_size:
         length = min(size, upload_size - offset)
         headers = {"Upload-Offset": str(offset + length)}
         if offset + length == upload_size:
             headers["Location"] = final_location
+        length_header = (
+            {"x-decoded-content-length": str(length)}
+            if compressed
+            else {"content-length": str(length)}
+        )
         httpserver.expect_oneshot_request(
             upload_uri,
             method="PATCH",
             headers={
                 "tus-resumable": "1.0.0",
                 "upload-offset": str(offset),
-                "content-length": str(length),
+                **length_header,
             },
             query_string=upload_qs,
         ).respond_with_data("", status=204, headers=headers)
@@ -59,13 +74,21 @@ def expect_upload_chunks(
 
 
 @pytest.mark.parametrize(
-    "granularity", [1, 6, None], ids=["chunked", "rounded", "single"]
+    "granularity, build_args",
+    [
+        (1, {}),
+        (6, {}),
+        (None, {}),
+        (1, {"SENTRY_TRANSPORT_COMPRESSION": "On"}),
+    ],
+    ids=["chunked", "rounded", "single", "compressed"],
 )
-def test_tus_upload(cmake, httpserver, granularity):
+def test_tus_upload(cmake, httpserver, granularity, build_args):
     tmp_path = cmake(
         ["sentry_test_integration"],
-        {"SENTRY_BACKEND": "none"},
+        {"SENTRY_BACKEND": "none", **build_args},
     )
+    compressed = build_args.get("SENTRY_TRANSPORT_COMPRESSION") == "On"
 
     upload_uri = "/api/123456/upload/abc123def456789/"
     upload_qs = "length=104857600&signature=xyz"
@@ -100,6 +123,7 @@ def test_tus_upload(cmake, httpserver, granularity):
         upload_qs,
         final_location,
         size=size,
+        compressed=compressed,
     )
 
     httpserver.expect_request(
@@ -112,7 +136,16 @@ def test_tus_upload(cmake, httpserver, granularity):
     run(
         tmp_path,
         "sentry_test_integration",
-        ["log", "no-setup", "attachment", "large-attachment", "capture-event"],
+        [
+            "log",
+            "no-setup",
+            "attachment",
+            "large-attachment",
+            "capture-event",
+            # extra time for compressing 100 MiB
+            "shutdown-timeout",
+            "30000",
+        ],
         env=env,
     )
 
@@ -146,6 +179,9 @@ def test_tus_upload(cmake, httpserver, granularity):
     assert upload_req.headers.get("tus-resumable") == "1.0.0"
     assert upload_req.headers.get("content-type") == "application/offset+octet-stream"
     assert upload_req.headers.get("upload-offset") == str((count - 1) * size)
+    if compressed:
+        assert_gzip_content_encoding(upload_req)
+        assert_gzip_file_header(upload_req.get_data())
 
     # The envelope contains normal small attachments and the large
     # attachment-ref.

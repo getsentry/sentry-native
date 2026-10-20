@@ -102,9 +102,11 @@ SENTRY_TEST(tus_request_preparation)
     TEST_CHECK(!!req);
     TEST_CHECK_STRING_EQUAL(req->method, "PATCH");
     TEST_CHECK_STRING_EQUAL(req->url, location);
+#ifndef SENTRY_TRANSPORT_COMPRESSION
     TEST_CHECK(!!req->body_path);
     TEST_CHECK_INT_EQUAL(req->body_len, 9);
     TEST_CHECK(!req->body);
+#endif
 
     has_tus_resumable = false;
     has_content_type = false;
@@ -134,8 +136,10 @@ SENTRY_TEST(tus_request_preparation)
     req = sentry__prepare_tus_upload_request(
         location, test_file_path, 9, 4, 3, dsn, NULL);
     TEST_CHECK(!!req);
+#ifndef SENTRY_TRANSPORT_COMPRESSION
     TEST_CHECK_INT_EQUAL(req->body_offset, 4);
     TEST_CHECK_INT_EQUAL(req->body_len, 3);
+#endif
     has_upload_offset = false;
     for (size_t i = 0; i < req->headers_len; i++) {
         if (strcmp(req->headers[i].key, "upload-offset") == 0) {
@@ -304,8 +308,8 @@ tus_capture_send(void *client, sentry_prepared_http_request_t *req,
         resp->location = sentry__string_clone(TUS_RELATIVE_LOCATION);
         return true;
     }
-    // TUS upload: PATCH with body_path
-    if (strcmp(req->method, "PATCH") == 0 && req->body_path) {
+    // TUS upload: PATCH
+    if (strcmp(req->method, "PATCH") == 0) {
         cap->patch_count++;
         resp->status_code = 204;
         resp->location = sentry__string_clone(TUS_FINAL_LOCATION);

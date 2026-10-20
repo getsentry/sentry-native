@@ -940,3 +940,42 @@ def test_e2e_tus(cmake):
         event["eventID"], ".sentry-large-attachment"
     )
     assert_large_attachment(attachments)
+
+
+def test_e2e_tus_compressed(cmake):
+    """Verify a large attachment reaches Sentry in gzip-compressed chunks."""
+    tmp_path = cmake(
+        ["sentry_test_integration"],
+        {"SENTRY_BACKEND": "none", "SENTRY_TRANSPORT_COMPRESSION": "On"},
+    )
+    env = dict(os.environ, SENTRY_DSN=os.environ["SENTRY_E2E_DSN"])
+
+    output = check_output(
+        tmp_path,
+        "sentry_test_integration",
+        [
+            "log",
+            "trace",
+            "e2e-test",
+            "large-attachment",
+            "capture-event",
+            "shutdown-timeout",
+            "120000",
+        ],
+        env=env,
+        stderr=subprocess.STDOUT,
+    )
+    test_id = extract_test_id(output)
+    output = output.decode("utf-8", errors="replace")
+
+    # Envelopes are compressed too, but only upload chunks carry the decoded
+    # length.
+    assert (
+        "x-decoded-content-length:" in output
+    ), "Upload chunks should be gzip-compressed"
+
+    event = poll_sentry_for_event(test_id)
+    attachments = poll_sentry_for_attachments(
+        event["eventID"], ".sentry-large-attachment"
+    )
+    assert_large_attachment(attachments)
