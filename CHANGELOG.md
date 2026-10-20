@@ -6,6 +6,11 @@
 
 - An empty proxy (`sentry_options_set_proxy(options, "")`) now means a direct connection with every transport and backend. Before, the WinHTTP transport, the Windows and macOS crashpad handlers and the native backend's daemon fell back to the proxy environment variables or the system proxy settings. ([#2218](https://github.com/getsentry/sentry-native/pull/2218), [crashpad#175](https://github.com/getsentry/crashpad/pull/175))
 
+**Thank you**:
+
+- [orenjp](https://github.com/orenjp)
+- [IanHollow](https://github.com/IanHollow)
+
 ## 0.17.4
 
 **Features**:
