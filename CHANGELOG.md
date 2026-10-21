@@ -8,6 +8,18 @@
 - macOS/Linux: shared libraries now use ABI-versioned filenames, such as `libsentry.1.dylib` or `libsentry.so.1` for 1.x. Windows, Android, and static libraries remain unchanged. ([#2103](https://github.com/getsentry/sentry-native/pull/2103))
   - NOTE: Applications must package the real versioned library and its symlinks, including `libsentry.1.dylib` or `libsentry.so.1`, because they link to and load the ABI-versioned name.
 - Release archives now include the SDK version in the filename, such as `sentry-native-1.0.0.zip`. ([#2105](https://github.com/getsentry/sentry-native/pull/2105))
+- Remove deprecated APIs. Migrate to the following alternatives: ([#2230](https://github.com/getsentry/sentry-native/pull/2230))
+  - `sentry_new_function_transport`: use `sentry_transport_new` and `sentry_transport_set_state`. The send callback now receives a mutable envelope, takes ownership of it, and must free it with `sentry_envelope_free`.
+  - `sentry_event_value_add_stacktrace`: create a thread with `sentry_value_new_thread`, set its stack with `sentry_value_set_stacktrace`, and add it to the event with `sentry_event_add_thread`.
+  - `sentry_shutdown`: use `sentry_close`.
+  - `sentry_sdk_name` and `sentry_sdk_user_agent`: use `sentry_options_get_sdk_name` and `sentry_options_get_user_agent`, or `SENTRY_SDK_NAME` and `SENTRY_SDK_USER_AGENT` for build-time values.
+  - `sentry_options_set_http_proxy` and `sentry_options_set_http_proxy_n`: use `sentry_options_set_proxy` and `sentry_options_set_proxy_n`.
+  - `sentry_value_new_user_feedback` and `sentry_value_new_user_feedback_n`: use `sentry_value_new_feedback` and `sentry_value_new_feedback_n`. The constructor arguments are now message, contact email, name, and associated event ID, with lengths following each string in the `_n` variant.
+  - `sentry_capture_user_feedback`: use `sentry_capture_feedback`.
+  - `sentry_options_add_view_hierarchy`, `sentry_options_add_view_hierarchy_n`, `sentry_options_add_view_hierarchyw`, and `sentry_options_add_view_hierarchyw_n`: create an attachment with `sentry_attachment_from_file` or its `_n`/wide-string variants, set its type to `SENTRY_ATTACHMENT_TYPE_VIEW_HIERARCHY` with `sentry_attachment_set_type`, and add it with `sentry_add_attachment`. For startup configuration, use `sentry_scope_add_attachment` in a `sentry_options_set_initial_scope` callback.
+  - `sentry_capture_event_with_scope(event, scope)`: use `sentry_scope_capture_event(scope, event, NULL)`.
+  - `sentry_clear_crashed_last_run`: remove the call. `sentry_init` clears the crash marker automatically.
+  - `sentry_regenerate_trace`: use `sentry_start_new_trace`.
 
 **Features**:
 
