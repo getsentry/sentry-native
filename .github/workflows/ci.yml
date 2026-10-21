@@ -380,7 +380,7 @@ jobs:
           sudo dpkg --add-architecture riscv64
           sudo apt-get update
           sudo apt-get install -y \
-            cmake llvm \
+            cmake \
             gcc-riscv64-linux-gnu g++-riscv64-linux-gnu \
             zlib1g-dev:riscv64 libssl-dev:riscv64 \
             libcurl4-openssl-dev:riscv64 liblzma-dev:riscv64 \
