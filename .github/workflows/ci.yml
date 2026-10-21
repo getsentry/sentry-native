@@ -388,9 +388,9 @@ jobs:
           echo "PKG_CONFIG_LIBDIR=/usr/lib/riscv64-linux-gnu/pkgconfig:/usr/share/pkgconfig" >> "$GITHUB_ENV"
 
       - uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4.4.0
-        if: ${{ runner.os == 'Linux' && env['TEST_QEMU'] && !matrix.container }}
+        if: ${{ runner.os == 'Linux' && env['TEST_RISCV'] && !matrix.container }}
         with:
-          platforms: ${{ env['TEST_ARM32'] && 'arm' || 'riscv64' }}
+          platforms: riscv64
 
       - name: Installing Alpine Linux Dependencies
         if: ${{ contains(matrix.container, 'alpine') }}
