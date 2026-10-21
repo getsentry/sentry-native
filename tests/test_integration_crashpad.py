@@ -23,7 +23,14 @@ from . import (
     REPLAY_ID,
     SENTRY_VERSION,
 )
-from .conditions import has_crashpad, has_files, has_oom, has_system_proxy
+from .conditions import (
+    has_crashpad,
+    has_files,
+    has_oom,
+    has_system_proxy,
+    is_qemu,
+    is_riscv,
+)
 from .proxy import (
     setup_proxy_env_vars,
     cleanup_proxy_env_vars,
@@ -47,8 +54,9 @@ from .assertions import (
     wait_for_file,
 )
 
+# ptrace is unavailable under RISC-V user-mode emulation
 pytestmark = pytest.mark.skipif(
-    not has_crashpad,
+    not has_crashpad or (is_riscv and is_qemu),
     reason="Tests need a crashpad backend and a valid environment for it",
 )
 

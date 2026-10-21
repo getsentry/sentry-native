@@ -42,8 +42,6 @@ has_crashpad = (
     and not is_aix
     and not is_tsan
     and not is_wine
-    # ptrace is unavailable under RISC-V user-mode emulation
-    and not (is_riscv and is_qemu)
 )
 # android has no local filesystem
 has_files = not is_android
