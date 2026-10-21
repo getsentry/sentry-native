@@ -16,6 +16,7 @@
 - Native: Provide exception metadata, registers, and a basic crashing-thread stack to `on_crash` for crash identification. ([#2174](https://github.com/getsentry/sentry-native/pull/2174))
 - Native: reduce disk I/O on scope changes by sending incremental updates to the crash daemon over IPC. ([#2155](https://github.com/getsentry/sentry-native/pull/2155), [#2157](https://github.com/getsentry/sentry-native/pull/2157))
 - Native: install handlers for the daemon's own fatal signals and unhandled exceptions, allowing best-effort recovery actions such as dumping pending envelopes before termination. ([#2220](https://github.com/getsentry/sentry-native/pull/2220))
+- Linux: add RISC-V support. ([#2232](https://github.com/getsentry/sentry-native/pull/2232))
 
 **Fixes**:
 
