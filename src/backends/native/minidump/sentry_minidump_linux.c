@@ -875,6 +875,7 @@ write_thread_context(
 
     minidump_context_riscv64_t context = { 0 };
     context.context_flags = 0x08000003; // RISCV64 | Integer | Floating point
+    context.version = 1;
     memcpy(context.regs, uctx->uc_mcontext.__gregs, sizeof(context.regs));
     memcpy(context.fpregs, uctx->uc_mcontext.__fpregs.__d.__f,
         sizeof(context.fpregs));
