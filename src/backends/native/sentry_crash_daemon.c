@@ -1182,6 +1182,13 @@ build_stacktrace_for_thread(
                     current_fp - sizeof(uintptr_t), &return_addr)) {
                 break;
             }
+            // GCC < 14 leaf frames save only s0, so the caller is in ra
+            if (walk_count == 0 && return_addr >= stack_start
+                && return_addr < stack_end) {
+                saved_fp = return_addr;
+                return_addr
+                    = (uint64_t)thread_context->uc_mcontext.__gregs[REG_RA];
+            }
 #else
             // Read saved frame pointer and return address
             // Frame layout: [FP] = saved FP, [FP + pointer size] = return addr
