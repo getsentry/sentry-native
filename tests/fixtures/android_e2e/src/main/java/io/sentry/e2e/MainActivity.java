@@ -1,6 +1,8 @@
 package io.sentry.e2e;
 
 import android.app.Activity;
+import android.content.Context;
+import android.content.Intent;
 import android.os.Bundle;
 import android.os.Handler;
 import io.sentry.Sentry;
@@ -13,18 +15,25 @@ public class MainActivity extends Activity {
   @Override
   public void onCreate(Bundle state) {
     super.onCreate(state);
+    init(getApplicationContext(), getIntent());
+    if (getIntent().getBooleanExtra("crash", true)) {
+      new Handler(getMainLooper()).postDelayed(MainActivity::triggerNativeCrash, 1000);
+    }
+  }
+
+  static void init(Context context, Intent intent) {
     System.loadLibrary("e2e");
     SentryAndroid.init(
-        getApplicationContext(),
+        context,
         options -> {
-          options.setDsn(getIntent().getStringExtra("dsn"));
+          options.setDsn(intent.getStringExtra("dsn"));
           options.setDebug(true);
           options.setRelease("sentry-native-e2e");
-          options.setTombstoneEnabled(getIntent().getBooleanExtra("tombstone", false));
+          options.setTombstoneEnabled(intent.getBooleanExtra("tombstone", false));
           options.setEnableAutoSessionTracking(false);
           options.setShutdownTimeoutMillis(30000);
         });
-    String testId = getIntent().getStringExtra("test_id");
+    String testId = intent.getStringExtra("test_id");
     Sentry.configureScope(
         scope -> {
           scope.setTag("test.id", testId);
@@ -32,14 +41,13 @@ public class MainActivity extends Activity {
           user.setId(testId);
           scope.setUser(user);
         });
-    new Handler(getMainLooper()).postDelayed(MainActivity::triggerNativeCrash, 1000);
   }
 
   private static void callNativeCrash() {
     crash();
   }
 
-  private static void triggerNativeCrash() {
+  static void triggerNativeCrash() {
     callNativeCrash();
   }
 }

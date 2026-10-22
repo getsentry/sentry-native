@@ -26,10 +26,6 @@ android {
     externalNativeBuild {
         cmake { path = file("CMakeLists.txt") }
     }
-
-    packaging {
-        jniLibs { useLegacyPackaging = true }
-    }
 }
 
 dependencies {

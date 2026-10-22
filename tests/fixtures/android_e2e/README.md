@@ -6,7 +6,7 @@ native crash service (currently `feat/native-crash-service`). Set `ANDROID_HOME`
 
 ```sh
 python scripts/setup-android-e2e.py ../sentry-java
-pytest -s -v tests/test_e2e_sentry.py::test_e2e_android_native
+pytest -s -v tests/test_e2e_sentry.py
 ```
 
 Run these commands from the sentry-native root. Testing needs a running emulator

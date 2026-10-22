@@ -128,4 +128,4 @@ jobs:
           script: |
             export ANDROID_NDK="$ANDROID_HOME/ndk/$ANDROID_NDK_VERSION"
             python scripts/setup-android-e2e.py sentry-java
-            pytest --capture=no --verbose tests/test_e2e_sentry.py::test_e2e_android_native
+            pytest --capture=no --verbose tests/test_e2e_sentry.py
