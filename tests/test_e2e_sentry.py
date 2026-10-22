@@ -869,7 +869,7 @@ def assert_android_native_event(event, test_id, tombstone, debuggable=True):
     if tombstone:
         assert mechanism["type"] == "TombstoneMerged"
     else:
-        assert mechanism["type"] in ["signalhandler", "minidump"]
+        assert mechanism["type"] == "signalhandler"
     frames = exception["stacktrace"]["frames"]
     # the frame-pointer walk stops before libart in non-debuggable apps
     assert len(frames) >= (3 if debuggable else 2)

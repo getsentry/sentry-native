@@ -434,9 +434,6 @@ Java_io_sentry_ndk_SentryNdk_initSentryNative(
     jmethodID app_hang_timeout_mid = (*env)->GetMethodID(
         env, options_cls, "getAppHangTimeoutMillis", "()J");
 
-    jmethodID tombstone_enabled_mid
-        = (*env)->GetMethodID(env, options_cls, "isTombstoneEnabled", "()Z");
-
     (*env)->DeleteLocalRef(env, options_cls);
 
     char *outbox_path = NULL;
@@ -453,14 +450,10 @@ Java_io_sentry_ndk_SentryNdk_initSentryNative(
     options = sentry_options_new();
     ENSURE_OR_FAIL(options);
 
-    // Minidumps take precedence over native envelopes during processing. When
-    // tombstone merging is enabled, use native-only mode so the native envelope
-    // can be enriched; otherwise attach a minidump for extra crash context.
-    jboolean tombstone_enabled =
-        (jboolean)(*env)->CallBooleanMethod(env, sentry_ndk_options, tombstone_enabled_mid);
-    sentry_options_set_crash_reporting_mode(options,
-        tombstone_enabled ? SENTRY_CRASH_REPORTING_MODE_NATIVE
-                          : SENTRY_CRASH_REPORTING_MODE_NATIVE_WITH_MINIDUMP);
+    // Minidumps take precedence over native envelopes during processing and
+    // make crash envelopes large. Send native envelopes only, like inproc.
+    sentry_options_set_crash_reporting_mode(
+        options, SENTRY_CRASH_REPORTING_MODE_NATIVE);
 
     // Android SDK needs to retain the marker timestamp for session finalization
     // and cleans it up when appropriate
