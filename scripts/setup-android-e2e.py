@@ -93,11 +93,12 @@ allprojects {{
             f"-PsentryVersion={version}",
             f"-PlocalRepo={repo}",
             "assembleDebug",
+            "assembleNondebuggable",
         ],
         cwd=app,
         check=True,
     )
-    print(f"Prepared APK: {app / 'build/outputs/apk/debug/app-debug.apk'}")
+    print(f"Prepared APKs: {app / 'build/outputs/apk'}")
 
 
 if __name__ == "__main__":

@@ -15,6 +15,6 @@ module. The crash service needs API 30+; tombstone merging needs API 31+.
 
 The setup script builds this checkout's native NDK package and the Java SDK
 into an isolated Maven repository, overriding the Java SDK's pinned NDK dependency.
-It then builds the fixture APK under `build/android-e2e`. Use `--build-dir` to
-choose another output directory and set `SENTRY_E2E_ANDROID_APK` to its APK path
-when running pytest.
+It then builds debuggable and non-debuggable fixture APKs under
+`build/android-e2e`. Use `--build-dir` to choose another output directory and
+set `SENTRY_E2E_ANDROID_BUILD_DIR` to it when running pytest.

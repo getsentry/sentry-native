@@ -1081,7 +1081,8 @@ build_stacktrace_for_thread(
 #    endif
 
     // On Linux, use process_vm_readv to read stack memory from crashed process
-    if (ctx->platform.num_threads > 0) {
+    // (threads enumerated from /proc have no registers)
+    if (ctx->platform.num_threads > 0 && sp != 0) {
         pid_t pid = ctx->crashed_pid;
         stack_size = SENTRY_CRASH_MAX_STACK_CAPTURE;
         stack_start = sp;
@@ -1094,8 +1095,9 @@ build_stacktrace_for_thread(
             ssize_t bytes_read = sentry__process_vm_readv(
                 pid, &local_iov, 1, &remote_iov, 1, 0);
             if (bytes_read <= 0) {
-                SENTRY_DEBUG(
-                    "process_vm_readv failed, falling back to single frame");
+                SENTRY_DEBUGF("process_vm_readv failed for %d: %s, falling "
+                              "back to single frame",
+                    pid, strerror(errno));
                 sentry_free(stack_buf);
                 stack_buf = NULL;
             } else {
@@ -2085,7 +2087,8 @@ enumerate_threads_from_proc(sentry_crash_context_t *ctx)
 
     DIR *dir = opendir(task_path);
     if (!dir) {
-        SENTRY_WARNF("Failed to open %s for thread enumeration", task_path);
+        SENTRY_WARNF("Failed to open %s for thread enumeration: %s", task_path,
+            strerror(errno));
         return;
     }
 

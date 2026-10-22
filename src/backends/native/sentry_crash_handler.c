@@ -27,6 +27,9 @@
 #    if defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID)
 #        include <sys/uio.h>
 #    endif
+#    if defined(SENTRY_PLATFORM_ANDROID)
+#        include <sys/prctl.h>
+#    endif
 #    include <unistd.h>
 #elif defined(SENTRY_PLATFORM_WINDOWS)
 #    include <tlhelp32.h>
@@ -446,6 +449,14 @@ crash_signal_handler(int signum, siginfo_t *info, void *context)
     }
 
     sentry_crash_context_t *ctx = ipc->shmem;
+
+#    if defined(SENTRY_PLATFORM_ANDROID)
+    // Let the daemon ptrace and read this process. Non-debuggable apps are not
+    // dumpable, and Yama requires a declared ptracer (EINVAL without Yama).
+    // Not restored, since the process terminates after the crash.
+    prctl(PR_SET_DUMPABLE, 1, 0, 0, 0);
+    prctl(PR_SET_PTRACER, PR_SET_PTRACER_ANY, 0, 0, 0);
+#    endif
 
     // Fill crash context
     ctx->crashed_pid = getpid();

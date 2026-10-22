@@ -9,8 +9,8 @@ Requires environment variables:
 - SENTRY_E2E_AUTH_TOKEN: Sentry API token with project:read scope
 - SENTRY_E2E_ORG: Sentry organization slug
 - SENTRY_E2E_PROJECT: Sentry project slug
-- SENTRY_E2E_ANDROID_APK: Optional prepared Android fixture APK path
-  (defaults to build/android-e2e/app/build/outputs/apk/debug/app-debug.apk).
+- SENTRY_E2E_ANDROID_BUILD_DIR: Optional build directory of the prepared
+  Android fixture APKs (defaults to build/android-e2e).
 
 Skip these tests if env vars not set (for regular CI runs).
 """
@@ -837,20 +837,20 @@ def test_e2e_crashpad(cmake):
 
 
 @pytest.fixture(scope="module")
-def android_e2e_app():
+def android_e2e_app(request):
     get_sentry_headers()
     get_sentry_org_project()
-    apk = (
+    build_dir = (
         Path(
             os.environ.get(
-                "SENTRY_E2E_ANDROID_APK",
-                Path(sourcedir)
-                / "build/android-e2e/app/build/outputs/apk/debug/app-debug.apk",
+                "SENTRY_E2E_ANDROID_BUILD_DIR", Path(sourcedir) / "build/android-e2e"
             )
         )
         .expanduser()
         .resolve()
     )
+    build_type = getattr(request, "param", "debug")
+    apk = build_dir / f"app/build/outputs/apk/{build_type}/app-{build_type}.apk"
     assert apk.is_file(), "Prepare the APK with scripts/setup-android-e2e.py first"
     package = "io.sentry.e2e"
     adb("install", "-r", str(apk), check=True)
@@ -858,7 +858,7 @@ def android_e2e_app():
     adb("uninstall", package, check=False)
 
 
-def assert_android_native_event(event, test_id, tombstone):
+def assert_android_native_event(event, test_id, tombstone, debuggable=True):
     assert event["platform"] == "native"
     assert event["release"]["version"] == "sentry-native-e2e"
     assert event["user"]["id"] == test_id
@@ -871,7 +871,8 @@ def assert_android_native_event(event, test_id, tombstone):
     else:
         assert mechanism["type"] in ["signalhandler", "minidump"]
     frames = exception["stacktrace"]["frames"]
-    assert len(frames) >= 3
+    # the frame-pointer walk stops before libart in non-debuggable apps
+    assert len(frames) >= (3 if debuggable else 2)
     if tombstone:
         functions = [frame.get("function") or "" for frame in frames]
         assert {"e2e_segfault", "e2e_native_crash"}.issubset(functions)
@@ -885,7 +886,8 @@ def assert_android_native_event(event, test_id, tombstone):
         )
 
     threads = get_threads_from_event(event)
-    assert len(threads["values"]) >= (2 if tombstone else 1)
+    # a single thread means the daemon could not read the app's /proc
+    assert len(threads["values"]) >= 2
     assert any(thread["crashed"] for thread in threads["values"])
     verify_no_thread_duplication(threads, "test_e2e_android_native")
 
@@ -902,8 +904,15 @@ def assert_android_native_event(event, test_id, tombstone):
 @pytest.mark.skipif(
     is_android < 30, reason="The native crash service needs Android API 30+"
 )
+@pytest.mark.parametrize(
+    "android_e2e_app, debuggable",
+    [("debug", True), ("nondebuggable", False)],
+    ids=["debuggable", "nondebuggable"],
+    indirect=["android_e2e_app"],
+    scope="module",
+)
 @pytest.mark.parametrize("tombstone", [False, True], ids=["native", "tombstone"])
-def test_e2e_android_native(android_e2e_app, tombstone):
+def test_e2e_android_native(android_e2e_app, debuggable, tombstone):
     """The crash service sends native crashes, optionally merged with a tombstone."""
     if tombstone and is_android < 31:
         pytest.skip("Tombstone merging needs Android API 31+")
@@ -931,7 +940,7 @@ def test_e2e_android_native(android_e2e_app, tombstone):
         )
         # no restart: delivery must happen from the surviving crash service
         event = poll_sentry_for_event(test_id)
-        assert_android_native_event(event, test_id, tombstone)
+        assert_android_native_event(event, test_id, tombstone, debuggable)
     finally:
         adb("shell", "am", "force-stop", package, check=False)
 

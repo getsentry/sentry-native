@@ -23,6 +23,14 @@ android {
         ndk { abiFilters.add(System.getenv("ANDROID_ARCH")) }
     }
 
+    buildTypes {
+        // non-debuggable apps are not dumpable
+        nondebuggable {
+            initWith(debug)
+            debuggable = false
+        }
+    }
+
     externalNativeBuild {
         cmake { path = file("CMakeLists.txt") }
     }
