@@ -961,88 +961,6 @@ done:
 }
 
 /**
- * Compute the virtual memory size of an ELF file from its PT_LOAD segments.
- * This matches Crashpad's behavior: size = max(p_vaddr + p_memsz) -
- * min(p_vaddr) across all PT_LOAD segments, rather than using page-aligned
- * /proc/maps sizes.
- * Returns the computed size, or 0 on failure (caller should fall back to
- * /proc/maps size).
- */
-static uint64_t
-compute_elf_size_from_phdrs(const char *elf_path, uint64_t elf_offset)
-{
-    int fd = sentry__elf_open(elf_path);
-    if (fd < 0) {
-        return 0;
-    }
-
-#    if defined(__x86_64__) || defined(__aarch64__)
-    Elf64_Ehdr ehdr;
-#    else
-    Elf32_Ehdr ehdr;
-#    endif
-
-    if (pread(fd, &ehdr, sizeof(ehdr), (off_t)elf_offset) != sizeof(ehdr)
-        || memcmp(ehdr.e_ident, ELFMAG, SELFMAG) != 0 || ehdr.e_phnum == 0) {
-        close(fd);
-        return 0;
-    }
-
-    if (!sentry__elf_has_phdr_size(ehdr.e_ident, ehdr.e_phentsize)) {
-        close(fd);
-        return 0;
-    }
-
-    // Read program headers
-    size_t phdr_size = (size_t)ehdr.e_phentsize * ehdr.e_phnum;
-    void *phdr_buf = sentry_malloc(phdr_size);
-    if (!phdr_buf) {
-        close(fd);
-        return 0;
-    }
-
-    uint64_t phoff = elf_offset + ehdr.e_phoff;
-    if (lseek(fd, (off_t)phoff, SEEK_SET) != (off_t)phoff
-        || read(fd, phdr_buf, phdr_size) != (ssize_t)phdr_size) {
-        sentry_free(phdr_buf);
-        close(fd);
-        return 0;
-    }
-
-#    if defined(__x86_64__) || defined(__aarch64__)
-    Elf64_Phdr *phdrs = (Elf64_Phdr *)phdr_buf;
-#    else
-    Elf32_Phdr *phdrs = (Elf32_Phdr *)phdr_buf;
-#    endif
-
-    uint64_t min_vaddr = UINT64_MAX;
-    uint64_t max_vaddr = 0;
-    bool found_load = false;
-
-    for (int i = 0; i < ehdr.e_phnum; i++) {
-        if (phdrs[i].p_type == PT_LOAD) {
-            found_load = true;
-            if (phdrs[i].p_vaddr < min_vaddr) {
-                min_vaddr = phdrs[i].p_vaddr;
-            }
-            uint64_t end = phdrs[i].p_vaddr + phdrs[i].p_memsz;
-            if (end > max_vaddr) {
-                max_vaddr = end;
-            }
-        }
-    }
-
-    sentry_free(phdr_buf);
-    close(fd);
-
-    if (!found_load || max_vaddr <= min_vaddr) {
-        return 0;
-    }
-
-    return max_vaddr - min_vaddr;
-}
-
-/**
  * Read the DT_SONAME from an ELF file's dynamic section.
  * Crashpad uses SONAME as the module name, falling back to the /proc/maps
  * path. This function reads the .dynamic section to find DT_SONAME and
@@ -1674,7 +1592,8 @@ resolve_modules(const minidump_writer_t *writer, resolved_module_t *modules,
         mod->base = mapping->start;
         mod->end = mapping->end;
         // Known up front to group the other segments of an embedded image.
-        mod->elf_size = compute_elf_size_from_phdrs(mod->name, mod->elf_offset);
+        mod->elf_size
+            = sentry__elf_compute_size_from_phdrs(mod->name, mod->elf_offset);
     }
 
     // Extract Build IDs and SONAMEs for each resolved module
