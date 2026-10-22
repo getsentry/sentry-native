@@ -4361,7 +4361,12 @@ daemon_file_logger(
 
     // Get current timestamp
     time_t now = time(NULL);
+#if defined(SENTRY_PLATFORM_WINDOWS)
     struct tm *tm_info = localtime(&now);
+#else
+    struct tm tm_buf;
+    struct tm *tm_info = localtime_r(&now, &tm_buf);
+#endif
     char timestamp[SENTRY_CRASH_TIMESTAMP_SIZE];
     strftime(timestamp, sizeof(timestamp), "%Y-%m-%d %H:%M:%S", tm_info);
 
