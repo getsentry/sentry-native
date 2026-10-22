@@ -85,7 +85,7 @@ jobs:
       - name: Check out sentry-java
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          repository: jpnurmi/sentry-java ### TODO: getsentry/sentry-java
+          repository: getsentry/sentry-java
           ref: jpnurmi/feat/native-android
           path: sentry-java
 
