@@ -248,6 +248,8 @@ sentry_android_crash_daemon_run(pid_t app_pid, uint64_t app_tid, int notify_fd,
         sentry_transport_free(transport);
         return NULL;
     }
+    // the app maps the file before it notifies, neither side needs the name
+    unlink(shm_path);
 
     sentry_crash_daemon_t *daemon = SENTRY_MAKE(sentry_crash_daemon_t);
     if (!daemon) {
