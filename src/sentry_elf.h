@@ -37,9 +37,11 @@ sentry__elf_open(const char *path)
  * Used to filter out non-ELF mappings (e.g. files under /dev/shm, deleted
  * files, sentry-native's own IPC shared memory) from the module list — LLDB and
  * other consumers can choke on entries that look like modules but aren't.
+ * A non-zero offset checks for an ELF image inside a larger file, such as a
+ * library that Android maps straight from an APK.
  */
 static inline bool
-sentry__elf_is_file(const char *path)
+sentry__elf_is_file_at(const char *path, uint64_t offset)
 {
     int fd = sentry__elf_open(path);
     if (fd < 0) {
@@ -47,10 +49,16 @@ sentry__elf_is_file(const char *path)
     }
 
     unsigned char magic[SELFMAG];
-    bool is_elf = read(fd, magic, SELFMAG) == (ssize_t)SELFMAG
+    bool is_elf = pread(fd, magic, SELFMAG, (off_t)offset) == (ssize_t)SELFMAG
         && memcmp(magic, ELFMAG, SELFMAG) == 0;
     close(fd);
     return is_elf;
+}
+
+static inline bool
+sentry__elf_is_file(const char *path)
+{
+    return sentry__elf_is_file_at(path, 0);
 }
 
 static inline bool

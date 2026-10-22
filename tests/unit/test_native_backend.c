@@ -241,6 +241,27 @@ SENTRY_TEST(elf_rejects_non_regular_files)
 #endif
 }
 
+SENTRY_TEST(elf_detects_embedded_image)
+{
+#if !defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID)
+    SKIP_TEST();
+#else
+    // an APK-like zip with an uncompressed library at a page-aligned offset
+    char path[] = "/tmp/sentry-minidump-apk-XXXXXX";
+    int fd = mkstemp(path);
+    TEST_ASSERT(fd >= 0);
+    TEST_ASSERT(write(fd, "PK\3\4", 4) == 4);
+    TEST_ASSERT(pwrite(fd, ELFMAG, SELFMAG, 4096) == (ssize_t)SELFMAG);
+    close(fd);
+
+    TEST_CHECK(!sentry__elf_is_file(path));
+    TEST_CHECK(sentry__elf_is_file_at(path, 4096));
+    TEST_CHECK(!sentry__elf_is_file_at(path, 8192));
+
+    TEST_CHECK(unlink(path) == 0);
+#endif
+}
+
 /**
  * Test minidump directory entry structure
  */
