@@ -23,7 +23,9 @@ endif()
 # Adding sentry-native project
 add_subdirectory(${SENTRY_NATIVE_SRC} sentry_build)
 
-if(SENTRY_BACKEND STREQUAL "native")
+# Package the daemon executable only for the instrumented tests, which fork/exec
+# it. Apps run the daemon from libsentry.so in the sentry-java crash service.
+if(SENTRY_BACKEND STREQUAL "native" AND ENABLE_TESTS)
 	set_target_properties(sentry-crash PROPERTIES
 		PREFIX "lib"
 		OUTPUT_NAME "sentry-crash"
