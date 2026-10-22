@@ -65,11 +65,7 @@ allprojects {{
         print("+ " + " ".join(command), flush=True)
         subprocess.run(command, cwd=project, check=True)
 
-    gradle(
-        PROJECT_DIR / "ndk",
-        "-PPOM_ARTIFACT_ID=sentry-native-ndk-outproc",
-        ":sentry-native-ndk-outproc:publishToMavenLocal",
-    )
+    gradle(PROJECT_DIR / "ndk", ":sentry-native-ndk-outproc:publishToMavenLocal")
     gradle(
         java,
         "--init-script",
