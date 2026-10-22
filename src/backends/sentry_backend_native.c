@@ -16,6 +16,7 @@
 #        include <spawn.h>
 #    endif
 #    if defined(SENTRY_PLATFORM_ANDROID)
+#        include <android/api-level.h>
 #        include <dlfcn.h>
 #    endif
 #endif
@@ -1174,10 +1175,20 @@ native_backend_startup(
     }
 
     sentry_handler_strategy_t strategy =
-#    if defined(SENTRY_PLATFORM_LINUX) && !defined(SENTRY_PLATFORM_ANDROID)
+#    if defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID)
         options ? sentry_options_get_handler_strategy(options) :
 #    endif
                 SENTRY_HANDLER_STRATEGY_DEFAULT;
+#    if defined(SENTRY_PLATFORM_ANDROID)
+    // CHAIN_AT_START invokes the previous handler and expects to regain
+    // control. On Android API < 26, the old debuggerd daemon kills the
+    // crashing process via SIGKILL after the chained handler triggers
+    // it, so we fall back to DEFAULT which chains at the end instead.
+    if (strategy == SENTRY_HANDLER_STRATEGY_CHAIN_AT_START
+        && android_get_device_api_level() < 26) {
+        strategy = SENTRY_HANDLER_STRATEGY_DEFAULT;
+    }
+#    endif
     if (sentry__crash_handler_init(state->ipc, strategy, NULL) < 0) {
         SENTRY_WARN("failed to initialize crash handler");
 #    if defined(SENTRY_PLATFORM_UNIX)
