@@ -86,6 +86,12 @@ sentry_android_crash_daemon_init(
     }
 
     sentry__mutex_lock(&g_ipc_sync_mutex);
+    // replaces a configuration that no backend startup took
+    if (g_android_crash_daemon_config.configured) {
+        close(g_android_crash_daemon_config.notify_fd);
+        close(g_android_crash_daemon_config.ready_fd);
+        close(g_android_crash_daemon_config.message_fd);
+    }
     strncpy(g_android_crash_daemon_config.shm_path, shm_path,
         sizeof(g_android_crash_daemon_config.shm_path) - 1);
     g_android_crash_daemon_config

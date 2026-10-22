@@ -232,21 +232,18 @@ sentry_android_crash_daemon_run(pid_t app_pid, uint64_t app_tid, int notify_fd,
     sentry_transport_t *transport)
 {
     if (!shm_path || !shm_path[0]) {
-        sentry_transport_free(transport);
-        return NULL;
+        goto fail;
     }
 
     // app configuration must be complete before attaching to shm
     sentry_crash_ipc_t ipc = { .notify_fd = notify_fd };
     if (!sentry__crash_ipc_wait(&ipc, SENTRY_CRASH_DAEMON_READY_TIMEOUT_MS)) {
-        sentry_transport_free(transport);
-        return NULL;
+        goto fail;
     }
 
     int shm_fd = open(shm_path, O_RDWR | O_CLOEXEC);
     if (shm_fd < 0) {
-        sentry_transport_free(transport);
-        return NULL;
+        goto fail;
     }
     // the app maps the file before it notifies, neither side needs the name
     unlink(shm_path);
@@ -254,8 +251,7 @@ sentry_android_crash_daemon_run(pid_t app_pid, uint64_t app_tid, int notify_fd,
     sentry_crash_daemon_t *daemon = SENTRY_MAKE(sentry_crash_daemon_t);
     if (!daemon) {
         close(shm_fd);
-        sentry_transport_free(transport);
-        return NULL;
+        goto fail;
     }
     daemon->transport = transport;
 
@@ -268,6 +264,14 @@ sentry_android_crash_daemon_run(pid_t app_pid, uint64_t app_tid, int notify_fd,
     }
 
     return daemon;
+
+fail:
+    // the daemon owns the fds, even when it does not start
+    close(notify_fd);
+    close(ready_fd);
+    close(message_fd);
+    sentry_transport_free(transport);
+    return NULL;
 }
 
 __attribute__((visibility("default"))) const char *
