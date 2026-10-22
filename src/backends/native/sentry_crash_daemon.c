@@ -207,6 +207,13 @@ static size_t walk_stack_with_dbghelp(HANDLE hProcess, DWORD crashed_tid,
 #endif
 
 #if defined(SENTRY_PLATFORM_ANDROID)
+// matches io.sentry.ndk.SentryNdk.CrashDaemon.SendResult
+typedef enum {
+    SENTRY_ANDROID_SEND_FAILED,
+    SENTRY_ANDROID_SEND_SENT,
+    SENTRY_ANDROID_SEND_KEPT,
+} sentry_android_send_result_t;
+
 struct sentry_crash_daemon_s {
     sentry_options_t *options;
     sentry_crash_ipc_t *ipc;
@@ -4551,13 +4558,13 @@ done:
 }
 
 #if defined(SENTRY_PLATFORM_ANDROID)
-__attribute__((visibility("default"))) bool
+__attribute__((visibility("default"))) int
 sentry_android_crash_daemon_send(
     sentry_crash_daemon_t *daemon, const char *path, uint64_t timeout)
 {
     if (!path || !path[0]) {
         android_cleanup_pending_crash_daemon(daemon, false);
-        return false;
+        return SENTRY_ANDROID_SEND_FAILED;
     }
 
     sentry_path_t *envelope_path = sentry__path_from_str(path);
@@ -4569,19 +4576,21 @@ sentry_android_crash_daemon_send(
     if (!envelope) {
         SENTRY_WARN("Failed to read merged Android crash envelope");
         android_cleanup_pending_crash_daemon(daemon, false);
-        return false;
+        return SENTRY_ANDROID_SEND_FAILED;
     }
 
-    bool sent = false;
+    sentry_android_send_result_t result = SENTRY_ANDROID_SEND_FAILED;
     if (daemon->options->transport && daemon->options->run) {
         SENTRY_DEBUG("Capturing merged Android crash envelope");
+        // keep a failed upload in the run folder for the next launch
+        sentry__http_transport_set_dump_failed(
+            daemon->options->transport, true);
         sentry__capture_envelope(
             daemon->options->transport, envelope, daemon->options);
 
         sentry_path_t *raw_path = sentry__path_from_str(daemon->envelope_path);
         if (raw_path) {
             sentry__path_remove(raw_path);
-            sentry__path_free(raw_path);
         }
         if (strcmp(path, daemon->envelope_path) != 0) {
             sentry_path_t *merged_path = sentry__path_from_str(path);
@@ -4598,11 +4607,19 @@ sentry_android_crash_daemon_send(
         if (rv != 0) {
             SENTRY_WARN("transport did not shut down cleanly");
         }
-        size_t dumped_envelopes = sentry__transport_dump_queue(
+        sentry__transport_dump_queue(
             daemon->options->transport, daemon->options->run);
         sentry__http_transport_set_retry_enabled(
             daemon->options->transport, false);
-        sent = rv == 0 && dumped_envelopes == 0;
+        sentry__http_transport_set_dump_failed(
+            daemon->options->transport, false);
+        // the dump and a failed upload both write the raw envelope path
+        if (raw_path && sentry__path_is_file(raw_path)) {
+            result = SENTRY_ANDROID_SEND_KEPT;
+        } else if (rv == 0) {
+            result = SENTRY_ANDROID_SEND_SENT;
+        }
+        sentry__path_free(raw_path);
     } else {
         SENTRY_WARN(
             "No transport available for sending Android crash envelope");
@@ -4610,7 +4627,7 @@ sentry_android_crash_daemon_send(
     }
 
     android_cleanup_pending_crash_daemon(daemon, false);
-    return sent;
+    return result;
 }
 
 __attribute__((visibility("default"))) void

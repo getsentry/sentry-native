@@ -29,7 +29,7 @@ public final class SentryNdk {
 
   private static native @NotNull String nativeGetCrashEnvelopePath(long handle);
 
-  private static native boolean nativeSendEnvelope(long handle, @NotNull String path, long timeout);
+  private static native int nativeSendEnvelope(long handle, @NotNull String path, long timeout);
 
   private static native void nativeCloseCrashDaemon(long handle);
 
@@ -96,10 +96,12 @@ public final class SentryNdk {
     }
 
     /** Sends the merged envelope and closes the daemon. */
-    public synchronized boolean sendEnvelope(@NotNull String path, long timeout) {
+    public synchronized @NotNull SendResult sendEnvelope(@NotNull String path, long timeout) {
       final long handle = this.handle;
       this.handle = 0;
-      return handle != 0 && nativeSendEnvelope(handle, path, timeout);
+      return handle != 0
+          ? SendResult.values()[nativeSendEnvelope(handle, path, timeout)]
+          : SendResult.FAILED;
     }
 
     @Override
@@ -109,6 +111,16 @@ public final class SentryNdk {
       if (handle != 0) {
         nativeCloseCrashDaemon(handle);
       }
+    }
+
+    /** The outcome of {@link #sendEnvelope(String, long)}. */
+    public enum SendResult {
+      /** The envelope was neither sent nor kept. */
+      FAILED,
+      /** The envelope was sent. */
+      SENT,
+      /** The envelope was not sent and is kept for the next launch. */
+      KEPT
     }
   }
 

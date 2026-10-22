@@ -670,3 +670,29 @@ SENTRY_TEST(retry_consent)
     sentry__retry_free(retry);
     sentry_close();
 }
+
+SENTRY_TEST(transport_dump_failed)
+{
+    SENTRY_TEST_OPTIONS_NEW(options);
+    sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
+    sentry_transport_t *transport
+        = sentry__http_transport_new(NULL, test_http_send_fails);
+    TEST_ASSERT(!!transport);
+    sentry_options_set_transport(options, transport);
+    sentry_init(options);
+    sentry__http_transport_set_dump_failed(transport, true);
+
+    sentry_path_t *run_path = sentry__path_clone(options->run->run_path);
+    TEST_ASSERT(!!run_path);
+    TEST_CHECK_INT_EQUAL(count_envelope_files(run_path), 0);
+
+    sentry_capture_event(
+        sentry_value_new_message_event(SENTRY_LEVEL_INFO, NULL, "test"));
+    sentry_flush(5000);
+
+    TEST_CHECK_INT_EQUAL(count_envelope_files(run_path), 1);
+
+    sentry_close();
+    sentry__path_remove_all(run_path);
+    sentry__path_free(run_path);
+}

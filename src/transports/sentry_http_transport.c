@@ -43,6 +43,7 @@ typedef struct {
     volatile long shutting_down;
     sentry_retry_t *retry;
     volatile long retry_enabled;
+    volatile long dump_failed;
     sentry_cache_keep_t cache_keep;
     sentry_run_t *run;
     bool send_client_reports;
@@ -865,6 +866,10 @@ http_send_task(void *_envelope, void *_state)
             && sentry__run_write_envelope(state->run, envelope)) {
             // Keep attachment-ref cache siblings for the persisted envelope.
             ref_owner = envelope;
+        } else if (sentry__atomic_fetch(&state->dump_failed)
+            && sentry__run_write_envelope(state->run, envelope)) {
+            // Keep attachment-ref cache siblings for the dumped envelope.
+            ref_owner = envelope;
         } else if (state->retry
             && sentry__retry_enqueue(state->retry, envelope)) {
             // Keep attachment-ref cache siblings for the queued retry envelope.
@@ -1112,6 +1117,16 @@ sentry__http_transport_set_retry_enabled(
     if (sentry__transport_get_state(transport)) {
         sentry__atomic_store(
             &http_transport_get_state(transport)->retry_enabled, enabled);
+    }
+}
+
+void
+sentry__http_transport_set_dump_failed(
+    sentry_transport_t *transport, bool enabled)
+{
+    if (sentry__transport_get_state(transport)) {
+        sentry__atomic_store(
+            &http_transport_get_state(transport)->dump_failed, enabled);
     }
 }
 

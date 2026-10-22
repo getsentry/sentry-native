@@ -121,7 +121,15 @@ public final class io/sentry/ndk/SentryNdk {
 public final class io/sentry/ndk/SentryNdk$CrashDaemon : java/lang/AutoCloseable {
 	public fun close ()V
 	public fun getEnvelopePath ()Ljava/lang/String;
-	public fun sendEnvelope (Ljava/lang/String;J)Z
+	public fun sendEnvelope (Ljava/lang/String;J)Lio/sentry/ndk/SentryNdk$CrashDaemon$SendResult;
+}
+
+public final class io/sentry/ndk/SentryNdk$CrashDaemon$SendResult : java/lang/Enum {
+	public static final field FAILED Lio/sentry/ndk/SentryNdk$CrashDaemon$SendResult;
+	public static final field KEPT Lio/sentry/ndk/SentryNdk$CrashDaemon$SendResult;
+	public static final field SENT Lio/sentry/ndk/SentryNdk$CrashDaemon$SendResult;
+	public static fun valueOf (Ljava/lang/String;)Lio/sentry/ndk/SentryNdk$CrashDaemon$SendResult;
+	public static fun values ()[Lio/sentry/ndk/SentryNdk$CrashDaemon$SendResult;
 }
 
 public final class io/sentry/ndk/SentryNdkPreloadProvider : android/content/ContentProvider {
