@@ -1383,14 +1383,6 @@ sentry_update_context_n(const char *key, size_t key_len, sentry_value_t value)
 }
 
 void
-sentry__set_propagation_context(const char *key, sentry_value_t value)
-{
-    SENTRY_WITH_SCOPE_MUT (scope) {
-        sentry__scope_set_propagation_context(scope, key, value);
-    }
-}
-
-void
 sentry__apply_to_telemetry(const sentry_scope_t *scope,
     const sentry_options_t *options, sentry_value_t telemetry,
     sentry_value_t attributes)
@@ -1473,39 +1465,9 @@ void
 sentry_set_trace_n(const char *trace_id, size_t trace_id_len,
     const char *parent_span_id, size_t parent_span_id_len)
 {
-    sentry_value_t context = sentry_value_new_null();
-
     SENTRY_WITH_SCOPE_MUT (scope) {
-        context = sentry_value_new_object();
-
-        sentry_value_set_by_key(
-            context, "type", sentry_value_new_string("trace"));
-
-        sentry_value_set_by_key(context, "trace_id",
-            sentry_value_new_string_n(trace_id, trace_id_len));
-        if (parent_span_id && parent_span_id_len) {
-            sentry_value_set_by_key(context, "parent_span_id",
-                sentry_value_new_string_n(parent_span_id, parent_span_id_len));
-        }
-
-        sentry_uuid_t span_id = sentry_uuid_new_v4();
-        sentry_value_set_by_key(
-            context, "span_id", sentry__value_new_span_uuid(&span_id));
-        sentry__scope_set_trace_managed(scope, false);
-        sentry__scope_flush(scope);
-    }
-
-    if (!sentry_value_is_null(context)) {
-        sentry__generate_sample_rand(context);
-
-        sentry__set_propagation_context("trace", context);
-
-        SENTRY_WITH_OPTIONS (options) {
-            SENTRY_WITH_SCOPE_MUT (scope) {
-                sentry__scope_update_dsc(scope, options);
-                sentry__scope_flush(scope);
-            }
-        }
+        sentry_scope_set_trace_n(
+            scope, trace_id, trace_id_len, parent_span_id, parent_span_id_len);
     }
 }
 

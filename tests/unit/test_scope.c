@@ -463,6 +463,63 @@ SENTRY_TEST(scope_propagation_context)
     sentry_close();
 }
 
+SENTRY_TEST(scope_set_trace)
+{
+    SENTRY_TEST_OPTIONS_NEW(options);
+    sentry_init(options);
+
+    sentry_value_t global_trace = sentry_value_new_null();
+    SENTRY_WITH_SCOPE (global_scope) {
+        global_trace = sentry__scope_load_trace_context(global_scope);
+    }
+
+    sentry_scope_t *local_scope = sentry_local_scope_new();
+    TEST_CHECK(sentry__scope_is_trace_managed(local_scope));
+
+    sentry_scope_set_trace(
+        local_scope, "aaaabbbbccccddddeeeeffff00001111", "9c2a92b49b7c4d1e");
+    TEST_CHECK(!sentry__scope_is_trace_managed(local_scope));
+
+    sentry_value_t trace = sentry__scope_load_trace_context(local_scope);
+    TEST_CHECK_STRING_EQUAL(
+        sentry_value_as_string(sentry_value_get_by_key(trace, "trace_id")),
+        "aaaabbbbccccddddeeeeffff00001111");
+    TEST_CHECK_STRING_EQUAL(sentry_value_as_string(sentry_value_get_by_key(
+                                trace, "parent_span_id")),
+        "9c2a92b49b7c4d1e");
+    sentry_value_t dsc = sentry__scope_load_dsc(local_scope);
+    TEST_CHECK(
+        sentry_value_as_double(sentry_value_get_by_key(dsc, "sample_rand"))
+        == sentry_value_as_double(
+            sentry_value_get_by_key(trace, "sample_rand")));
+    sentry_value_decref(dsc);
+    sentry_value_decref(trace);
+
+    // the global scope keeps its trace
+    SENTRY_WITH_SCOPE (global_scope) {
+        trace = sentry__scope_load_trace_context(global_scope);
+        TEST_CHECK_STRING_EQUAL(
+            sentry_value_as_string(sentry_value_get_by_key(trace, "trace_id")),
+            sentry_value_as_string(
+                sentry_value_get_by_key(global_trace, "trace_id")));
+        sentry_value_decref(trace);
+    }
+    sentry_value_decref(global_trace);
+
+    sentry_scope_set_trace_n(
+        local_scope, "11112222333344445555666677778888xxxx", 32, NULL, 0);
+    trace = sentry__scope_load_trace_context(local_scope);
+    TEST_CHECK_STRING_EQUAL(
+        sentry_value_as_string(sentry_value_get_by_key(trace, "trace_id")),
+        "11112222333344445555666677778888");
+    TEST_CHECK(
+        sentry_value_is_null(sentry_value_get_by_key(trace, "parent_span_id")));
+    sentry_value_decref(trace);
+
+    sentry_scope_free(local_scope);
+    sentry_close();
+}
+
 SENTRY_TEST(scope_extra)
 {
     SENTRY_TEST_OPTIONS_NEW(options);
