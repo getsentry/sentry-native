@@ -19,6 +19,7 @@
 #include "sentry_tracing.h"
 #include "sentry_transport.h"
 #include "sentry_unix_pageallocator.h"
+#include "unwinder/sentry_unwinder.h"
 #include <errno.h>
 #include <limits.h>
 #ifdef SENTRY_PLATFORM_UNIX
@@ -876,6 +877,7 @@ handler_thread_main(void *UNUSED(data))
     stack_t handler_thread_stack;
     setup_sigaltstack(&handler_thread_stack, "handler");
 #endif
+    sentry__unwind_init();
 
     signal_handler_ready();
 
