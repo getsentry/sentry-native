@@ -4,7 +4,7 @@
 
 **Features**:
 
-- Add the `send_session_start_update` option, which sends the initial session update when the session starts instead of with the first event. ([#TODO](https://github.com/getsentry/sentry-native/pull/TODO))
+- Add the `send_session_start_update` option, which sends the initial session update when the session starts instead of with the first event. ([#2242](https://github.com/getsentry/sentry-native/pull/2242))
 
 **Fixes**:
 
