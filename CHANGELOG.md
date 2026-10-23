@@ -30,6 +30,7 @@
 - Native: install handlers for the daemon's own fatal signals and unhandled exceptions, allowing best-effort recovery actions such as dumping pending envelopes before termination. ([#2220](https://github.com/getsentry/sentry-native/pull/2220))
 - Add `sentry_scope_set_trace` for per-scope traces. ([#2236](https://github.com/getsentry/sentry-native/pull/2236))
 - Add `sentry_continue_trace` to continue incoming traces without a transaction. ([#2237](https://github.com/getsentry/sentry-native/pull/2237))
+- Add `sentry_iter_trace_propagation_headers` to propagate traces without a span. ([#2240](https://github.com/getsentry/sentry-native/pull/2240))
 
 **Fixes**:
 
