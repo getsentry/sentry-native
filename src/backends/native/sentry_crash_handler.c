@@ -324,6 +324,8 @@ capture_frame_pointer_stack(
     fp = (uintptr_t)uctx->uc_mcontext.gregs[REG_EBP];
 #            elif defined(__aarch64__)
     fp = (uintptr_t)uctx->uc_mcontext.regs[29];
+#            elif defined(__riscv) && __riscv_xlen == 64
+    fp = (uintptr_t)uctx->uc_mcontext.__gregs[REG_S0];
 #            endif
     capture->frame_pointer = true;
     while (fp && fp >= sp && fp - sp <= SENTRY_CRASH_MAX_STACK_CAPTURE
@@ -331,7 +333,14 @@ capture_frame_pointer_stack(
         && capture->count < SENTRY_CRASH_MAX_BACKTRACE_FRAMES) {
         uintptr_t pair[2];
         struct iovec local = { pair, sizeof(pair) };
-        struct iovec remote = { (void *)fp, sizeof(pair) };
+        uintptr_t record = fp;
+#            if defined(__riscv) && __riscv_xlen == 64
+        record -= sizeof(pair);
+        if (record < sp) {
+            break;
+        }
+#            endif
+        struct iovec remote = { (void *)record, sizeof(pair) };
         if (syscall(SYS_process_vm_readv, getpid(), &local, 1, &remote, 1, 0)
             != (ssize_t)sizeof(pair)) {
             break;

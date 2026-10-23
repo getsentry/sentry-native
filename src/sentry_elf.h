@@ -56,7 +56,8 @@ sentry__elf_is_file(const char *path)
 static inline bool
 sentry__elf_is_native_class(const unsigned char e_ident[EI_NIDENT])
 {
-#    if defined(__x86_64__) || defined(__aarch64__)
+#    if defined(__x86_64__) || defined(__aarch64__)                            \
+        || (defined(__riscv) && __riscv_xlen == 64)
     return e_ident[EI_CLASS] == ELFCLASS64;
 #    else
     return e_ident[EI_CLASS] == ELFCLASS32;
@@ -71,7 +72,8 @@ sentry__elf_has_shdr_size(
         return false;
     }
 
-#    if defined(__x86_64__) || defined(__aarch64__)
+#    if defined(__x86_64__) || defined(__aarch64__)                            \
+        || (defined(__riscv) && __riscv_xlen == 64)
     return e_shentsize == sizeof(Elf64_Shdr);
 #    else
     return e_shentsize == sizeof(Elf32_Shdr);
@@ -86,7 +88,8 @@ sentry__elf_has_sym_entsize(
         return false;
     }
 
-#    if defined(__x86_64__) || defined(__aarch64__)
+#    if defined(__x86_64__) || defined(__aarch64__)                            \
+        || (defined(__riscv) && __riscv_xlen == 64)
     return sh_entsize == sizeof(Elf64_Sym);
 #    else
     return sh_entsize == sizeof(Elf32_Sym);
@@ -101,7 +104,8 @@ sentry__elf_has_phdr_size(
         return false;
     }
 
-#    if defined(__x86_64__) || defined(__aarch64__)
+#    if defined(__x86_64__) || defined(__aarch64__)                            \
+        || (defined(__riscv) && __riscv_xlen == 64)
     return e_phentsize == sizeof(Elf64_Phdr);
 #    else
     return e_phentsize == sizeof(Elf32_Phdr);

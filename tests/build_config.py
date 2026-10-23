@@ -62,6 +62,16 @@ def get_platform_cmake_args():
                 "-DCMAKE_ASM_COMPILER=arm-linux-gnueabihf-gcc",
             ]
         )
+    elif sys.platform == "linux" and os.environ.get("TEST_RISCV"):
+        args.extend(
+            [
+                "-DCMAKE_SYSTEM_NAME=Linux",
+                "-DCMAKE_SYSTEM_PROCESSOR=riscv64",
+                "-DCMAKE_C_COMPILER=riscv64-linux-gnu-gcc",
+                "-DCMAKE_CXX_COMPILER=riscv64-linux-gnu-g++",
+                "-DCMAKE_ASM_COMPILER=riscv64-linux-gnu-gcc",
+            ]
+        )
     elif sys.platform == "linux" and os.environ.get("TEST_WINE"):
         cc = os.environ.get("CC") or "clang"
         cxx = os.environ.get("CXX") or "clang++"

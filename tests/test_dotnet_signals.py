@@ -13,6 +13,8 @@ from tests.conditions import (
     has_native,
     is_android,
     is_arm32,
+    is_qemu,
+    is_riscv,
     is_tsan,
     is_wine,
     is_x86,
@@ -22,7 +24,8 @@ from tests.conditions import (
 project_fixture_path = pathlib.Path("tests/fixtures/dotnet_signal")
 
 pytestmark = pytest.mark.skipif(
-    is_wine, reason=".NET signal tests do not support Windows targets under Wine"
+    is_wine or (is_riscv and is_qemu),
+    reason=".NET signal tests do not support Wine or emulated RISC-V targets",
 )
 
 

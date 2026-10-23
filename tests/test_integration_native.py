@@ -773,6 +773,7 @@ def _parse_minidump(path):
     is_arm64 = cpu_arch in (0x8003, 0xC)
     is_amd64 = cpu_arch == 9
     is_x86 = cpu_arch == 0
+    is_riscv = cpu_arch == 0x8006
 
     threads = []
     if 3 in streams:  # ThreadList
@@ -799,6 +800,9 @@ def _parse_minidump(path):
                 elif is_x86:
                     # CONTEXT_X86: esp at offset 0xC4.
                     sp = struct.unpack_from("<I", data, ctx_rva + 0xC4)[0]
+                elif is_riscv:
+                    # CONTEXT_RISCV64: flags, version, PC, RA, SP.
+                    sp = struct.unpack_from("<Q", data, ctx_rva + 24)[0]
 
             threads.append(
                 {
