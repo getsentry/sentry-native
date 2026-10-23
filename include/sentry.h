@@ -4487,6 +4487,20 @@ SENTRY_API void sentry_transaction_iter_headers(sentry_transaction_t *tx,
     sentry_iter_headers_function_t callback, void *userdata);
 
 /**
+ * Iterates the distributed tracing HTTP headers for the current trace: of the
+ * span or transaction bound to the scope, if any, otherwise of the scope's
+ * propagation context. This allows propagating a trace without a span.
+ *
+ * Without a span, the `sentry-trace` header carries a sampling decision only
+ * if one was inherited with `sentry_continue_trace`.
+ */
+SENTRY_API void sentry_iter_trace_propagation_headers(
+    sentry_iter_headers_function_t callback, void *userdata);
+SENTRY_API void sentry_scope_iter_trace_propagation_headers(
+    const sentry_scope_t *scope, sentry_iter_headers_function_t callback,
+    void *userdata);
+
+/**
  * Returns whether the application has crashed on the last run.
  *
  * Notes:

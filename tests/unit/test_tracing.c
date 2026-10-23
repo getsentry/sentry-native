@@ -2809,6 +2809,60 @@ SENTRY_TEST(continue_trace_on_clone)
     sentry_close();
 }
 
+SENTRY_TEST(iter_trace_propagation_headers)
+{
+    SENTRY_TEST_OPTIONS_NEW(options);
+    sentry_options_set_dsn(options, "https://k@o123456.ingest.sentry.io/1");
+    sentry_options_set_transport(
+        options, sentry_transport_new(discard_envelope));
+    sentry_options_set_traces_sample_rate(options, 1.0);
+    sentry_init(options);
+
+    // no span: the propagation context with a deferred sampling decision
+    char sentry_trace[64];
+    char baggage_prefix[64];
+    SENTRY_WITH_SCOPE (scope) {
+        sentry_value_t trace = sentry__scope_load_trace_context(scope);
+        const char *trace_id = sentry_value_as_string(
+            sentry_value_get_by_key(trace, "trace_id"));
+        snprintf(sentry_trace, sizeof(sentry_trace), "%s-%s", trace_id,
+            sentry_value_as_string(sentry_value_get_by_key(trace, "span_id")));
+        snprintf(baggage_prefix, sizeof(baggage_prefix), "sentry-trace_id=%s,",
+            trace_id);
+        sentry_value_decref(trace);
+    }
+    continuation_collector_t c = { 0 };
+    sentry_iter_trace_propagation_headers(collect_continuation_headers, &c);
+    TEST_CHECK_STRING_EQUAL(c.sentry_trace, sentry_trace);
+    TEST_CHECK(strncmp(c.baggage, baggage_prefix, strlen(baggage_prefix)) == 0);
+    TEST_CHECK(strstr(c.baggage, "sentry-org_id=123456") != NULL);
+    TEST_CHECK(strstr(c.baggage, "sentry-sampled") == NULL);
+
+    // inherited sampling decision
+    sentry_continue_trace(UPSTREAM_SENTRY_TRACE, "sentry-environment=upstream");
+    memset(&c, 0, sizeof(c));
+    sentry_iter_trace_propagation_headers(collect_continuation_headers, &c);
+    TEST_CHECK(strncmp(c.sentry_trace, UPSTREAM_TRACE_ID "-", 33) == 0);
+    TEST_CHECK(strcmp(c.sentry_trace + strlen(c.sentry_trace) - 2, "-1") == 0);
+    TEST_CHECK(strstr(c.baggage, "sentry-trace_id=" UPSTREAM_TRACE_ID) != NULL);
+    TEST_CHECK(strstr(c.baggage, "sentry-environment=upstream") != NULL);
+
+    // bound transaction
+    sentry_transaction_t *tx = sentry_transaction_start(
+        sentry_transaction_context_new("name", "op"), sentry_value_new_null());
+    sentry_set_transaction_object(tx);
+    continuation_collector_t tx_headers = { 0 };
+    sentry_transaction_iter_headers(
+        tx, collect_continuation_headers, &tx_headers);
+    memset(&c, 0, sizeof(c));
+    sentry_iter_trace_propagation_headers(collect_continuation_headers, &c);
+    TEST_CHECK_STRING_EQUAL(c.sentry_trace, tx_headers.sentry_trace);
+    TEST_CHECK_STRING_EQUAL(c.baggage, tx_headers.baggage);
+
+    sentry_transaction_finish(tx);
+    sentry_close();
+}
+
 #undef UPSTREAM_SENTRY_TRACE
 #undef UPSTREAM_PARENT_SPAN_ID
 #undef UPSTREAM_TRACE_ID
