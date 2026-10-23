@@ -247,6 +247,7 @@ SENTRY_TEST(set_release_and_environment_late)
         = sentry_transport_new(send_release_env_envelope);
     sentry_transport_set_state(transport, &assertion);
     sentry_options_set_transport(options, transport);
+    sentry_options_set_send_session_start_update(options, 0);
     sentry_init(options);
 
     sentry_set_release("late_release");
@@ -278,6 +279,7 @@ SENTRY_TEST(update_release_and_environment_late)
     sentry_options_set_transport(options, transport);
     sentry_options_set_release(options, "initial");
     sentry_options_set_environment(options, "initial");
+    sentry_options_set_send_session_start_update(options, 0);
     sentry_init(options);
 
     sentry_end_session();
