@@ -29,6 +29,10 @@
 - Native: reduce disk I/O on scope changes by sending incremental updates to the crash daemon over IPC. ([#2155](https://github.com/getsentry/sentry-native/pull/2155), [#2157](https://github.com/getsentry/sentry-native/pull/2157))
 - Native: install handlers for the daemon's own fatal signals and unhandled exceptions, allowing best-effort recovery actions such as dumping pending envelopes before termination. ([#2220](https://github.com/getsentry/sentry-native/pull/2220))
 
+**Features**:
+
+- Report the host OS in the OS context under Wine and Proton, instead of the Windows version that Wine emulates. ([#2241](https://github.com/getsentry/sentry-native/pull/2241))
+
 **Fixes**:
 
 - Native/Inproc: provide `debug_meta.images` in events passed to `on_crash`. ([#2184](https://github.com/getsentry/sentry-native/pull/2184))
