@@ -343,6 +343,50 @@ def test_set_trace_event(cmake, httpserver):
     assert trace_context["parent_span_id"] == "f0f0f0f0f0f0f0f0"
 
 
+def test_set_scope_trace_event(cmake, httpserver):
+    tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "none"})
+
+    httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data("OK")
+    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver), SENTRY_RELEASE="🤮🚀")
+
+    run(
+        tmp_path,
+        "sentry_test_integration",
+        ["log", "set-trace", "set-scope-trace", "capture-with-scope"],
+        env=env,
+    )
+
+    assert len(httpserver.log) == 1
+    event_req = httpserver.log[0][0]
+    event_body = event_req.get_data()
+
+    event_envelope = Envelope.deserialize(event_body)
+
+    # Extract the one-and-only-item
+    (event,) = event_envelope.items
+
+    payload = event.payload.json
+
+    # the local scope's trace takes precedence over the isolation scope's
+    trace_context = payload["contexts"]["trace"]
+    assert trace_context["trace_id"] == "11112222333344445555666677778888"
+    assert trace_context["parent_span_id"] == "0f0f0f0f0f0f0f0f"
+
+    trace_header = event_envelope.headers["trace"]
+    assert trace_header["sample_rand"] == trace_context["sample_rand"]
+    del trace_header["sample_rand"]
+    assert trace_header == {
+        "environment": "development",
+        "public_key": "uiaeosnrtdy",
+        "release": "test-example-release",
+        "sample_rate": 0,
+        "sampled": "false",
+        "trace_id": "11112222333344445555666677778888",
+    }
+
+    assert "dsc" not in payload
+
+
 def test_set_trace_transaction_scoped_event(cmake, httpserver):
     tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "none"})
 

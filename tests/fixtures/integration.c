@@ -1320,6 +1320,12 @@ main(int argc, char **argv)
             sentry_scope_add_attachment(scope, bytes);
         }
 
+        if (has_arg(argc, argv, "set-scope-trace")) {
+            const char *scope_trace_id = "11112222333344445555666677778888";
+            const char *scope_parent_span_id = "0f0f0f0f0f0f0f0f";
+            sentry_scope_set_trace(scope, scope_trace_id, scope_parent_span_id);
+        }
+
         sentry_scope_capture_event(scope, event, NULL);
     }
 
