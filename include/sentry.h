@@ -3003,6 +3003,27 @@ SENTRY_API void sentry_scope_set_trace_n(sentry_scope_t *scope,
     size_t parent_span_id_len);
 
 /**
+ * Continues a trace from the `sentry-trace` and `baggage` headers of an
+ * incoming request, without starting a transaction. Either header may be NULL.
+ *
+ * Events and transactions afterwards continue the incoming trace and inherit
+ * its sampling decision. If the headers carry no valid trace, or strict trace
+ * continuation rejects it, a new trace is started instead.
+ *
+ * As with `sentry_set_trace`, transactions no longer act as automatic trace
+ * boundaries.
+ */
+SENTRY_API void sentry_continue_trace(
+    const char *sentry_trace, const char *baggage);
+SENTRY_API void sentry_continue_trace_n(const char *sentry_trace,
+    size_t sentry_trace_len, const char *baggage, size_t baggage_len);
+SENTRY_API void sentry_scope_continue_trace(
+    sentry_scope_t *scope, const char *sentry_trace, const char *baggage);
+SENTRY_API void sentry_scope_continue_trace_n(sentry_scope_t *scope,
+    const char *sentry_trace, size_t sentry_trace_len, const char *baggage,
+    size_t baggage_len);
+
+/**
  * Generates a new random `trace_id` and `span_id` and sets these onto
  * the propagation context. Use this to set a trace boundary for
  * events/transactions.

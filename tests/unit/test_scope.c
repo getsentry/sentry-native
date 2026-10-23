@@ -577,6 +577,48 @@ SENTRY_TEST(scope_capture_dsc)
     sentry_value_decref(trace);
 }
 
+SENTRY_TEST(scope_continue_trace)
+{
+    sentry_value_t trace = sentry_value_new_null();
+    SENTRY_TEST_OPTIONS_NEW(options);
+    sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
+    sentry_transport_t *transport = sentry_transport_new(store_trace_header);
+    sentry_transport_set_state(transport, &trace);
+    sentry_options_set_transport(options, transport);
+    sentry_init(options);
+
+    sentry_scope_t *scope = sentry_scope_new();
+    sentry_scope_continue_trace(scope,
+        "aaaabbbbccccddddeeeeffff00001111-9c2a92b49b7c4d1e-1",
+        "sentry-environment=upstream");
+
+    // the global scope keeps its trace
+    SENTRY_WITH_SCOPE (global_scope) {
+        sentry_value_t global_trace
+            = sentry__scope_load_trace_context(global_scope);
+        TEST_CHECK(strcmp(sentry_value_as_string(sentry_value_get_by_key(
+                              global_trace, "trace_id")),
+                       "aaaabbbbccccddddeeeeffff00001111")
+            != 0);
+        sentry_value_decref(global_trace);
+    }
+
+    sentry_scope_capture_event(scope, sentry_value_new_event(), NULL);
+    TEST_CHECK_STRING_EQUAL(
+        sentry_value_as_string(sentry_value_get_by_key(trace, "trace_id")),
+        "aaaabbbbccccddddeeeeffff00001111");
+    TEST_CHECK_STRING_EQUAL(
+        sentry_value_as_string(sentry_value_get_by_key(trace, "environment")),
+        "upstream");
+    TEST_CHECK_STRING_EQUAL(
+        sentry_value_as_string(sentry_value_get_by_key(trace, "sampled")),
+        "true");
+
+    sentry_scope_free(scope);
+    sentry_close();
+    sentry_value_decref(trace);
+}
+
 SENTRY_TEST(scope_extra)
 {
     SENTRY_TEST_OPTIONS_NEW(options);

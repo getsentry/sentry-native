@@ -1233,6 +1233,13 @@ main(int argc, char **argv)
         sentry_set_trace(direct_trace_id, direct_parent_span_id);
     }
 
+    if (has_arg(argc, argv, "continue-trace")) {
+        sentry_continue_trace(
+            "aaaabbbbccccddddeeeeffff00001111-f0f0f0f0f0f0f0f0-1",
+            "sentry-trace_id=aaaabbbbccccddddeeeeffff00001111,"
+            "sentry-environment=upstream,sentry-sample_rand=0.25");
+    }
+
     if (has_arg(argc, argv, "replay-context")) {
         // mimics an embedder (e.g. sentry-unreal) that stages replay clips in
         // `<database>/replays/` and announces the active replay on the scope

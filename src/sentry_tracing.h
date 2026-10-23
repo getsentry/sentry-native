@@ -93,4 +93,13 @@ sentry_value_t sentry__value_get_trace_context(sentry_value_t span);
 bool sentry__trace_can_continue(
     sentry_value_t incoming, const sentry_options_t *options);
 
+/**
+ * Parses incoming `sentry-trace` and `baggage` headers into an object with
+ * `trace_id`, `parent_span_id`, `sampled`, `sample_rand` and `incoming_dsc`.
+ * Missing or invalid values are left out, except `sample_rand`, which is
+ * derived from the incoming sampling decision or generated when missing.
+ */
+sentry_value_t sentry__parse_trace_headers(const char *sentry_trace,
+    size_t sentry_trace_len, const char *baggage, size_t baggage_len);
+
 #endif
