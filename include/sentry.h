@@ -1950,6 +1950,25 @@ SENTRY_API int sentry_options_get_auto_session_tracking(
     const sentry_options_t *opts);
 
 /**
+ * Enables or disables sending the initial session update when a session starts.
+ *
+ * By default the initial update only travels with the first event or the end
+ * of the session, so a run that sends neither is never counted. When enabled,
+ * `sentry_start_session` queues it right away. The session counts as sent once
+ * handed to the transport, so a crash before delivery arrives without it.
+ *
+ * Enabled by default on Nintendo Switch and PlayStation, disabled elsewhere.
+ */
+SENTRY_API void sentry_options_set_send_session_start_update(
+    sentry_options_t *opts, int val);
+
+/**
+ * Returns true if the initial session update is sent when a session starts.
+ */
+SENTRY_API int sentry_options_get_send_session_start_update(
+    const sentry_options_t *opts);
+
+/**
  * Enables or disables user consent requirements for uploads.
  *
  * This disables uploads until the user has given the consent to the SDK.

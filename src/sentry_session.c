@@ -224,6 +224,7 @@ void
 sentry_start_session(void)
 {
     sentry_end_session();
+    sentry_envelope_t *envelope = NULL;
     sentry_options_t *options = sentry__options_lock();
     SENTRY_WITH_SCOPE (scope) {
         if (options) {
@@ -233,12 +234,31 @@ sentry_start_session(void)
                 sentry__session_sync_user(options->session, user,
                     options->run ? options->run->installation_id : NULL);
                 sentry_value_decref(user);
-                sentry__run_write_session(options->run, options->session);
                 sentry__session_notify_changed(options);
+                if (options->send_session_start_update) {
+                    // as in `sentry__capture_event`, a session added to an
+                    // envelope counts as sent, so `init` turns false now; the
+                    // session file below gets the same so old runs don't
+                    // re-send it
+                    envelope = sentry__envelope_new();
+                    sentry__envelope_add_session(envelope, options->session);
+                    options->session->init = false;
+                    sentry__session_notify_changed(options);
+                }
+                sentry__run_write_session(options->run, options->session);
             }
         }
     }
     sentry__options_unlock();
+
+    if (envelope) {
+        // submit outside the options lock, like `sentry__capture_session`
+        SENTRY_WITH_OPTIONS (opts) {
+            sentry__capture_envelope(opts->transport, envelope, opts);
+            envelope = NULL;
+        }
+        sentry_envelope_free(envelope);
+    }
 }
 
 void
