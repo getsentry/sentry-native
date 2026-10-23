@@ -34,6 +34,11 @@ send_envelope_test_basic(sentry_envelope_t *envelope, void *data)
         const char *trans = sentry_value_as_string(
             sentry_value_get_by_key(event, "transaction"));
         TEST_CHECK_STRING_EQUAL(trans, "demo-trans");
+    } else {
+        TEST_CHECK_STRING_EQUAL(
+            sentry_value_as_string(sentry_value_get_by_key(
+                sentry_value_get_by_key(event, "debug_meta"), "custom")),
+            "kept");
     }
     sentry_envelope_free(envelope);
 }
@@ -63,6 +68,10 @@ SENTRY_TEST(basic_function_transport)
     sentry_value_t obj = sentry_value_new_object();
     // something that is not a UUID, as this will be forcibly changed
     sentry_value_set_by_key(obj, "event_id", sentry_value_new_int32(1234));
+    sentry_value_t debug_meta = sentry_value_new_object();
+    sentry_value_set_by_key(
+        debug_meta, "custom", sentry_value_new_string("kept"));
+    sentry_value_set_by_key(obj, "debug_meta", debug_meta);
     sentry_capture_event(obj);
 
     sentry_user_consent_revoke();
@@ -197,10 +206,6 @@ SENTRY_TEST(crash_marker)
 
 SENTRY_TEST(crashed_last_run)
 {
-    // fails before init() is called
-    SENTRY_TEST_DEPRECATED(
-        TEST_CHECK_INT_EQUAL(sentry_clear_crashed_last_run(), 1));
-
     // clear any leftover from previous test runs
     {
         SENTRY_TEST_OPTIONS_NEW(options);
@@ -253,9 +258,7 @@ SENTRY_TEST(crashed_last_run)
 
         TEST_CHECK_INT_EQUAL(sentry_get_crashed_last_run(), 1);
         TEST_CHECK(sentry__has_crash_marker(options));
-        // explicit clearing remains supported on all platforms
-        SENTRY_TEST_DEPRECATED(
-            TEST_CHECK_INT_EQUAL(sentry_clear_crashed_last_run(), 0));
+        TEST_CHECK(sentry__clear_crash_marker(options));
 
         sentry_close();
     }
@@ -855,4 +858,20 @@ SENTRY_TEST(attach_stacktrace_leaves_events_with_a_stacktrace_alone)
     TEST_CHECK(sentry_value_is_null(state.threads));
 
     sentry_value_decref(state.threads);
+}
+
+SENTRY_TEST(options_global_lifetime)
+{
+    SENTRY_TEST_OPTIONS_NEW(options);
+    sentry__options_set(options);
+    TEST_CHECK_INT_EQUAL(options->refcount, 2);
+
+    SENTRY_WITH_OPTIONS (current) {
+        TEST_CHECK_PTR_EQUAL(current, options);
+        sentry__options_set(NULL);
+        TEST_CHECK(!sentry_is_enabled());
+        TEST_CHECK_INT_EQUAL(options->refcount, 2);
+    }
+    TEST_CHECK_INT_EQUAL(options->refcount, 1);
+    sentry_options_free(options);
 }

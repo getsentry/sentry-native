@@ -372,3 +372,46 @@ SENTRY_TEST(stack_guarantee_auto_init)
     g_kernel32_GetCurrentThreadStackLimits = NULL;
 #endif
 }
+
+SENTRY_TEST(sigaltstack)
+{
+#if !defined(SENTRY_PLATFORM_UNIX) || defined(SENTRY_PLATFORM_PS)
+    SKIP_TEST();
+#else
+    const size_t size = 64 * 1024;
+    stack_t old_stack;
+    TEST_ASSERT_INT_EQUAL(sigaltstack(NULL, &old_stack), 0);
+    stack_t disabled = { 0 };
+    disabled.ss_size = size;
+    disabled.ss_flags = SS_DISABLE;
+    TEST_ASSERT_INT_EQUAL(sigaltstack(&disabled, NULL), 0);
+
+    stack_t stack;
+    TEST_ASSERT_INT_EQUAL(sentry__setup_sigaltstack(&stack, size, "test"), 0);
+    TEST_CHECK(!!stack.ss_sp);
+
+    stack_t current;
+    TEST_ASSERT_INT_EQUAL(sigaltstack(NULL, &current), 0);
+    TEST_CHECK(current.ss_sp == stack.ss_sp);
+    TEST_CHECK_INT_EQUAL(current.ss_size, size);
+    TEST_CHECK_INT_EQUAL(current.ss_flags, 0);
+
+    stack_t other;
+    TEST_ASSERT_INT_EQUAL(
+        sentry__setup_sigaltstack(&other, size * 2, "test"), 0);
+    TEST_CHECK(!other.ss_sp);
+    sentry__teardown_sigaltstack(&other);
+    TEST_ASSERT_INT_EQUAL(sigaltstack(NULL, &current), 0);
+    TEST_CHECK(current.ss_sp == stack.ss_sp);
+    TEST_CHECK_INT_EQUAL(current.ss_size, size);
+    TEST_CHECK_INT_EQUAL(current.ss_flags, 0);
+
+    sentry__teardown_sigaltstack(&stack);
+    TEST_CHECK(!stack.ss_sp);
+    TEST_ASSERT_INT_EQUAL(sigaltstack(NULL, &current), 0);
+    TEST_CHECK_INT_EQUAL(current.ss_flags, SS_DISABLE);
+    if (!(old_stack.ss_flags & SS_DISABLE)) {
+        TEST_ASSERT_INT_EQUAL(sigaltstack(&old_stack, NULL), 0);
+    }
+#endif
+}

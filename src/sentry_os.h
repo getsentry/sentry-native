@@ -3,6 +3,15 @@
 
 #include "sentry_boot.h"
 
+#if defined(SENTRY_PLATFORM_UNIX) && !defined(SENTRY_PLATFORM_PS)
+#    include <signal.h>
+#endif
+
+#if defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID)
+#    include <sys/types.h>
+#    include <sys/uio.h>
+#endif
+
 #ifdef SENTRY_PLATFORM_LINUX
 #    include <stdint.h>
 
@@ -68,8 +77,35 @@ void sentry__win32_restore_sigabrt_handler(void);
 
 #endif
 
+#if defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID)
+ssize_t sentry__process_vm_readv(pid_t pid, const struct iovec *local_iov,
+    unsigned long local_iov_count, const struct iovec *remote_iov,
+    unsigned long remote_iov_count, unsigned long flags);
+#endif
+
 sentry_value_t sentry__get_os_context(void);
 
 sentry_value_t sentry__build_registers(const sentry_ucontext_t *uctx);
+
+#if defined(SENTRY_PLATFORM_UNIX)
+const char *sentry__signal_to_string(int signum);
+#endif
+
+#if defined(SENTRY_PLATFORM_UNIX) && !defined(SENTRY_PLATFORM_PS)
+/**
+ * Sets up an alternate signal stack for the current thread if one isn't
+ * already configured. The allocated stack is stored in `out_stack` so it
+ * can be freed later via `sentry__teardown_sigaltstack()`.
+ * Returns 0 on success or -1 on failure.
+ */
+int sentry__setup_sigaltstack(
+    stack_t *out_stack, size_t size, const char *context);
+
+/**
+ * Tears down a signal stack previously set up via
+ * `sentry__setup_sigaltstack()`.
+ */
+void sentry__teardown_sigaltstack(stack_t *sig_stack);
+#endif
 
 #endif

@@ -1,8 +1,43 @@
 # Changelog
 
-## Unreleased
+## Unreleased (v1)
+
+**Breaking / Important behavior changes**:
+
+- The `native` backend is now the default on Linux, macOS, and Windows. ([#2186](https://github.com/getsentry/sentry-native/pull/2186))
+- macOS/Linux: shared libraries now use ABI-versioned filenames, such as `libsentry.1.dylib` or `libsentry.so.1` for 1.x. Windows, Android, and static libraries remain unchanged. ([#2103](https://github.com/getsentry/sentry-native/pull/2103))
+  - NOTE: Applications must package the real versioned library and its symlinks, including `libsentry.1.dylib` or `libsentry.so.1`, because they link to and load the ABI-versioned name.
+- Release archives now include the SDK version in the filename, such as `sentry-native-1.0.0.zip`. ([#2105](https://github.com/getsentry/sentry-native/pull/2105))
+- Remove deprecated APIs. Migrate to the following alternatives: ([#2230](https://github.com/getsentry/sentry-native/pull/2230))
+  - `sentry_new_function_transport`: use `sentry_transport_new` and `sentry_transport_set_state`. The send callback now receives a mutable envelope, takes ownership of it, and must free it with `sentry_envelope_free`.
+  - `sentry_event_value_add_stacktrace`: create a thread with `sentry_value_new_thread`, set its stack with `sentry_value_set_stacktrace`, and add it to the event with `sentry_event_add_thread`.
+  - `sentry_shutdown`: use `sentry_close`.
+  - `sentry_sdk_name` and `sentry_sdk_user_agent`: use `sentry_options_get_sdk_name` and `sentry_options_get_user_agent`, or `SENTRY_SDK_NAME` and `SENTRY_SDK_USER_AGENT` for build-time values.
+  - `sentry_options_set_http_proxy` and `sentry_options_set_http_proxy_n`: use `sentry_options_set_proxy` and `sentry_options_set_proxy_n`.
+  - `sentry_value_new_user_feedback` and `sentry_value_new_user_feedback_n`: use `sentry_value_new_feedback` and `sentry_value_new_feedback_n`. The constructor arguments are now message, contact email, name, and associated event ID, with lengths following each string in the `_n` variant.
+  - `sentry_capture_user_feedback`: use `sentry_capture_feedback`.
+  - `sentry_options_add_view_hierarchy`, `sentry_options_add_view_hierarchy_n`, `sentry_options_add_view_hierarchyw`, and `sentry_options_add_view_hierarchyw_n`: create an attachment with `sentry_attachment_from_file` or its `_n`/wide-string variants, set its type to `SENTRY_ATTACHMENT_TYPE_VIEW_HIERARCHY` with `sentry_attachment_set_type`, and add it with `sentry_add_attachment`. For startup configuration, use `sentry_scope_add_attachment` in a `sentry_options_set_initial_scope` callback.
+  - `sentry_capture_event_with_scope(event, scope)`: use `sentry_scope_capture_event(scope, event, NULL)`.
+  - `sentry_clear_crashed_last_run`: remove the call. `sentry_init` clears the crash marker automatically.
+  - `sentry_regenerate_trace`: use `sentry_start_new_trace`.
+
+**Features**:
+
+- Add `sentry_scope_begin_read`/`sentry_scope_end_read` and `sentry_scope_begin_write`/`sentry_scope_end_write` for consistent reads of multiple scope properties and applying multiple scope changes with a single scope flush. ([#2107](https://github.com/getsentry/sentry-native/pull/2107))
+- Add `sentry_scope_acquire` and `sentry_scope_release` to access the isolation scope. ([#2160](https://github.com/getsentry/sentry-native/pull/2160))
+- Native: Provide exception metadata, registers, and a basic crashing-thread stack to `on_crash` for crash identification. ([#2174](https://github.com/getsentry/sentry-native/pull/2174))
+- Native: reduce disk I/O on scope changes by sending incremental updates to the crash daemon over IPC. ([#2155](https://github.com/getsentry/sentry-native/pull/2155), [#2157](https://github.com/getsentry/sentry-native/pull/2157))
+- Native: install handlers for the daemon's own fatal signals and unhandled exceptions, allowing best-effort recovery actions such as dumping pending envelopes before termination. ([#2220](https://github.com/getsentry/sentry-native/pull/2220))
 
 **Fixes**:
+
+- Native/Inproc: provide `debug_meta.images` in events passed to `on_crash`. ([#2184](https://github.com/getsentry/sentry-native/pull/2184))
+- Native/Linux: reduce daemon stack usage during minidump creation to avoid stack overflows in environments with limited stack space. ([#2211](https://github.com/getsentry/sentry-native/pull/2211))
+- Native/Linux: reduce stack usage when unwinding the crashed thread. ([#2212](https://github.com/getsentry/sentry-native/pull/2212))
+- Native/Unix: Preserve existing alternate signal stacks to prevent ASan aborts when the initializing thread exits before SDK shutdown. ([#2219](https://github.com/getsentry/sentry-native/pull/2219))
+- Native/Linux: fix oversized `debug_meta.images` entries that overlapped other libraries when a file was mapped more than once. ([#2228](https://github.com/getsentry/sentry-native/pull/2228))
+
+## Unreleased
 
 - An empty proxy (`sentry_options_set_proxy(options, "")`) now means a direct connection with every transport and backend. Before, the WinHTTP transport, the Windows and macOS crashpad handlers and the native backend's daemon fell back to the proxy environment variables or the system proxy settings. ([#2218](https://github.com/getsentry/sentry-native/pull/2218), [crashpad#175](https://github.com/getsentry/crashpad/pull/175))
 

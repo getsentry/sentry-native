@@ -1,4 +1,5 @@
 #include "sentry_os.h"
+#include "sentry_logger.h"
 #include "sentry_path.h"
 #include "sentry_slice.h"
 #include "sentry_string.h"
@@ -7,11 +8,33 @@
 #include <stdio.h>
 #if defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_WINDOWS)
 #    include "sentry_core.h"
-#    include "sentry_logger.h"
 #    include "sentry_utils.h"
 #endif
+#if defined(SENTRY_PLATFORM_UNIX) && !defined(SENTRY_PLATFORM_PS)
+#    include <errno.h>
+#    include <string.h>
+#endif
 #ifdef SENTRY_PLATFORM_LINUX
+#    include <sys/syscall.h>
+#    include <sys/uio.h>
 #    include <unistd.h>
+#endif
+
+#if defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID)
+ssize_t
+sentry__process_vm_readv(pid_t pid, const struct iovec *local_iov,
+    unsigned long local_iov_count, const struct iovec *remote_iov,
+    unsigned long remote_iov_count, unsigned long flags)
+{
+#    if defined(SENTRY_PLATFORM_ANDROID) && defined(__ANDROID_API__)           \
+        && __ANDROID_API__ < 23
+    return syscall(__NR_process_vm_readv, pid, local_iov, local_iov_count,
+        remote_iov, remote_iov_count, flags);
+#    else
+    return process_vm_readv(
+        pid, local_iov, local_iov_count, remote_iov, remote_iov_count, flags);
+#    endif
+}
 #endif
 
 #ifdef SENTRY_PLATFORM_WINDOWS
@@ -1235,3 +1258,76 @@ sentry__build_registers(const sentry_ucontext_t *uctx)
 
     return registers;
 }
+
+#if defined(SENTRY_PLATFORM_UNIX)
+/**
+ * Get signal name from signal number (Unix platforms only)
+ */
+const char *
+sentry__signal_to_string(int signum)
+{
+    switch (signum) {
+    case SIGABRT:
+        return "SIGABRT";
+    case SIGBUS:
+        return "SIGBUS";
+    case SIGFPE:
+        return "SIGFPE";
+    case SIGILL:
+        return "SIGILL";
+    case SIGSEGV:
+        return "SIGSEGV";
+    case SIGSYS:
+        return "SIGSYS";
+    case SIGTRAP:
+        return "SIGTRAP";
+    default:
+        return "UNKNOWN";
+    }
+}
+#endif
+
+#if defined(SENTRY_PLATFORM_UNIX) && !defined(SENTRY_PLATFORM_PS)
+int
+sentry__setup_sigaltstack(stack_t *out_stack, size_t size, const char *context)
+{
+    memset(out_stack, 0, sizeof(*out_stack));
+
+    stack_t old_sig_stack;
+    int ret = sigaltstack(NULL, &old_sig_stack);
+    if (ret == 0 && old_sig_stack.ss_flags == SS_DISABLE) {
+        SENTRY_DEBUGF("installing %s sigaltstack (size: %zu)", context, size);
+        out_stack->ss_sp = sentry_malloc(size);
+        if (!out_stack->ss_sp) {
+            SENTRY_WARN("failed to allocate signal stack");
+            return -1;
+        }
+        out_stack->ss_size = size;
+        out_stack->ss_flags = 0;
+        if (sigaltstack(out_stack, 0) < 0) {
+            SENTRY_WARNF("failed to set signal stack: %s", strerror(errno));
+            sentry_free(out_stack->ss_sp);
+            out_stack->ss_sp = NULL;
+            return -1;
+        }
+    } else if (ret == 0) {
+        SENTRY_DEBUGF("using existing signal stack (size: %d, flags: %d)",
+            old_sig_stack.ss_size, old_sig_stack.ss_flags);
+    } else if (ret == -1) {
+        SENTRY_WARNF("failed to query signal stack: %s", strerror(errno));
+        return -1;
+    }
+    return 0;
+}
+
+void
+sentry__teardown_sigaltstack(stack_t *sig_stack)
+{
+    if (sig_stack->ss_sp) {
+        sig_stack->ss_flags = SS_DISABLE;
+        sigaltstack(sig_stack, 0);
+        sentry_free(sig_stack->ss_sp);
+        sig_stack->ss_sp = NULL;
+    }
+}
+#endif

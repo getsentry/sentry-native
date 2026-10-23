@@ -69,8 +69,6 @@ sentry__telemetry_force_flush(void)
 void
 sentry__telemetry_flush_crash_safe(void)
 {
-    SENTRY_SIGNAL_SAFE_LOG("DEBUG crash-safe telemetry flush");
     sentry__logs_flush_crash_safe();
     sentry__metrics_flush_crash_safe();
-    SENTRY_SIGNAL_SAFE_LOG("DEBUG crash-safe telemetry flush complete");
 }

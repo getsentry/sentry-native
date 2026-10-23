@@ -5,18 +5,24 @@
  * and low-level crash handling functionality.
  */
 
+#include "sentry_backend.h"
+#include "sentry_core.h"
 #include "sentry_database.h"
 #include "sentry_envelope.h"
 #include "sentry_options.h"
 #include "sentry_path.h"
+#include "sentry_scope.h"
 #include "sentry_testsupport.h"
+#include "sentry_tracing.h"
 #include <stddef.h>
+#include <stdlib.h>
 #include <string.h>
 
 #ifdef SENTRY_BACKEND_NATIVE
 // Include native backend headers
 #    include "../../src/backends/native/minidump/sentry_minidump_format.h"
 #    include "../../src/backends/native/sentry_crash_context.h"
+#    include "../../src/backends/native/sentry_crash_ipc.h"
 
 static void
 noop_crashed_last_run(const sentry_envelope_t *envelope, void *user_data)
@@ -42,6 +48,7 @@ count_sent_envelopes(sentry_envelope_t *envelope, void *state)
 #    include <fcntl.h>
 #    include <stdlib.h>
 #    include <sys/stat.h>
+#    include <sys/wait.h>
 #    include <unistd.h>
 #endif
 
@@ -817,5 +824,716 @@ SENTRY_TEST(elf_header_entry_sizes)
     TEST_CHECK(!sentry__elf_is_native_class(e_ident));
     TEST_CHECK(!sentry__elf_has_shdr_size(e_ident, shdr_size));
     TEST_CHECK(!sentry__elf_has_phdr_size(e_ident, phdr_size));
+#endif
+}
+
+SENTRY_TEST(crash_ipc_message_roundtrip)
+{
+#ifndef SENTRY_BACKEND_NATIVE
+    SKIP_TEST();
+#else
+    const char payload[] = "\x81\xa3key\xa5value";
+    char *buf = NULL;
+    size_t buf_len = 0;
+
+    sentry_crash_ipc_message_result_t result
+        = sentry__crash_ipc_message_encode(SENTRY_CRASH_IPC_MESSAGE_SET_TAG, 7,
+            42, payload, sizeof(payload) - 1, &buf, &buf_len);
+    TEST_CHECK_INT_EQUAL(result, SENTRY_CRASH_IPC_MESSAGE_OK);
+    TEST_CHECK(buf != NULL);
+    TEST_CHECK_INT_EQUAL(
+        buf_len, SENTRY_CRASH_IPC_MESSAGE_HEADER_SIZE + sizeof(payload) - 1);
+
+    sentry_crash_ipc_message_t message;
+    result = sentry__crash_ipc_message_decode(buf, buf_len, &message);
+    TEST_CHECK_INT_EQUAL(result, SENTRY_CRASH_IPC_MESSAGE_OK);
+    TEST_CHECK_INT_EQUAL(message.type, SENTRY_CRASH_IPC_MESSAGE_SET_TAG);
+    TEST_CHECK_INT_EQUAL(message.flags, 7);
+    TEST_CHECK_INT_EQUAL(message.sequence, 42);
+    TEST_CHECK_INT_EQUAL(message.payload_len, sizeof(payload) - 1);
+    TEST_CHECK(memcmp(message.payload, payload, sizeof(payload) - 1) == 0);
+
+    sentry_free(buf);
+#endif
+}
+
+SENTRY_TEST(crash_ipc_message_partial)
+{
+#ifndef SENTRY_BACKEND_NATIVE
+    SKIP_TEST();
+#else
+    char *buf = NULL;
+    size_t buf_len = 0;
+
+    sentry_crash_ipc_message_result_t result = sentry__crash_ipc_message_encode(
+        SENTRY_CRASH_IPC_MESSAGE_CRASH, 0, 9, NULL, 0, &buf, &buf_len);
+    TEST_CHECK_INT_EQUAL(result, SENTRY_CRASH_IPC_MESSAGE_OK);
+
+    sentry_crash_ipc_message_t message;
+    result = sentry__crash_ipc_message_decode(buf, 3, &message);
+    TEST_CHECK_INT_EQUAL(result, SENTRY_CRASH_IPC_MESSAGE_PARTIAL);
+
+    result = sentry__crash_ipc_message_decode(buf, buf_len - 1, &message);
+    TEST_CHECK_INT_EQUAL(result, SENTRY_CRASH_IPC_MESSAGE_PARTIAL);
+
+    sentry_free(buf);
+#endif
+}
+
+SENTRY_TEST(crash_ipc_message_invalid_lengths)
+{
+#ifndef SENTRY_BACKEND_NATIVE
+    SKIP_TEST();
+#else
+    char too_small_len[4] = { 11, 0, 0, 0 };
+    sentry_crash_ipc_message_t message;
+
+    sentry_crash_ipc_message_result_t result = sentry__crash_ipc_message_decode(
+        too_small_len, sizeof(too_small_len), &message);
+    TEST_CHECK_INT_EQUAL(result, SENTRY_CRASH_IPC_MESSAGE_INVALID);
+
+    char *buf = NULL;
+    size_t buf_len = 0;
+    result = sentry__crash_ipc_message_encode(
+        SENTRY_CRASH_IPC_MESSAGE_SHUTDOWN, 0, 1, NULL, 0, &buf, &buf_len);
+    TEST_CHECK_INT_EQUAL(result, SENTRY_CRASH_IPC_MESSAGE_OK);
+
+    char extra[32];
+    memcpy(extra, buf, buf_len);
+    extra[buf_len] = 0;
+    result = sentry__crash_ipc_message_decode(extra, buf_len + 1, &message);
+    TEST_CHECK_INT_EQUAL(result, SENTRY_CRASH_IPC_MESSAGE_INVALID);
+
+    sentry_free(buf);
+#endif
+}
+
+SENTRY_TEST(crash_ipc_message_unknown_type)
+{
+#ifndef SENTRY_BACKEND_NATIVE
+    SKIP_TEST();
+#else
+    char *buf = NULL;
+    size_t buf_len = 0;
+
+    sentry_crash_ipc_message_result_t result = sentry__crash_ipc_message_encode(
+        SENTRY_CRASH_IPC_MESSAGE_CRASH, 0, 1, NULL, 0, &buf, &buf_len);
+    TEST_CHECK_INT_EQUAL(result, SENTRY_CRASH_IPC_MESSAGE_OK);
+    buf[4] = 0xff;
+    buf[5] = 0x7f;
+
+    sentry_crash_ipc_message_t message;
+    result = sentry__crash_ipc_message_decode(buf, buf_len, &message);
+    TEST_CHECK_INT_EQUAL(result, SENTRY_CRASH_IPC_MESSAGE_UNKNOWN_TYPE);
+
+    sentry_free(buf);
+#endif
+}
+
+SENTRY_TEST(crash_ipc_message_oversized)
+{
+#ifndef SENTRY_BACKEND_NATIVE
+    SKIP_TEST();
+#else
+    char oversized_len[4] = { 0 };
+    uint32_t len = SENTRY_CRASH_IPC_MESSAGE_MAX_LEN + 1;
+    oversized_len[0] = (char)(len & 0xffu);
+    oversized_len[1] = (char)((len >> 8) & 0xffu);
+    oversized_len[2] = (char)((len >> 16) & 0xffu);
+    oversized_len[3] = (char)((len >> 24) & 0xffu);
+
+    sentry_crash_ipc_message_t message;
+    sentry_crash_ipc_message_result_t result = sentry__crash_ipc_message_decode(
+        oversized_len, sizeof(oversized_len), &message);
+    TEST_CHECK_INT_EQUAL(result, SENTRY_CRASH_IPC_MESSAGE_OVERSIZED);
+
+    char payload = 0;
+    char *buf = NULL;
+    size_t buf_len = 0;
+    result = sentry__crash_ipc_message_encode(
+        SENTRY_CRASH_IPC_MESSAGE_SCOPE_SNAPSHOT, 0, 0, &payload,
+        SENTRY_CRASH_IPC_MESSAGE_MAX_LEN, &buf, &buf_len);
+    TEST_CHECK_INT_EQUAL(result, SENTRY_CRASH_IPC_MESSAGE_OVERSIZED);
+    result = sentry__crash_ipc_message_encode(
+        SENTRY_CRASH_IPC_MESSAGE_SCOPE_SNAPSHOT, 0, 0, &payload,
+        SIZE_MAX - SENTRY_CRASH_IPC_MESSAGE_HEADER_SIZE + 1, &buf, &buf_len);
+    TEST_CHECK_INT_EQUAL(result, SENTRY_CRASH_IPC_MESSAGE_OVERSIZED);
+#endif
+}
+
+SENTRY_TEST(crash_ipc_message_large_roundtrip)
+{
+#ifndef SENTRY_BACKEND_NATIVE
+    SKIP_TEST();
+#else
+    size_t payload_len = 200u * 1024u * 1024u;
+    char *payload = sentry_malloc(payload_len);
+    TEST_ASSERT(payload != NULL);
+    memset(payload, 0xa5, payload_len);
+    char *buf = NULL;
+    size_t buf_len = 0;
+
+    sentry_crash_ipc_message_result_t result = sentry__crash_ipc_message_encode(
+        SENTRY_CRASH_IPC_MESSAGE_SCOPE_SNAPSHOT, 0, 42, payload, payload_len,
+        &buf, &buf_len);
+    TEST_ASSERT(result == SENTRY_CRASH_IPC_MESSAGE_OK);
+    TEST_CHECK(buf_len == SENTRY_CRASH_IPC_MESSAGE_HEADER_SIZE + payload_len);
+
+    sentry_crash_ipc_message_t message;
+    result = sentry__crash_ipc_message_decode(buf, buf_len - 1, &message);
+    TEST_CHECK_INT_EQUAL(result, SENTRY_CRASH_IPC_MESSAGE_PARTIAL);
+    result = sentry__crash_ipc_message_decode(buf, buf_len, &message);
+    TEST_ASSERT(result == SENTRY_CRASH_IPC_MESSAGE_OK);
+    TEST_CHECK(message.payload_len == payload_len);
+    TEST_CHECK(memcmp(message.payload, payload, payload_len) == 0);
+
+    sentry_free(buf);
+    sentry_free(payload);
+#endif
+}
+
+#ifdef SENTRY_BACKEND_NATIVE
+static bool
+apply_scope_message(
+    sentry_crash_scope_t *scope, uint16_t type, sentry_value_t value)
+{
+    size_t len = 0;
+    char *payload = sentry_value_to_msgpack(value, &len);
+    sentry_crash_ipc_message_t message
+        = { type, 0, scope->sequence + 1, payload, len };
+    bool applied = sentry__crash_scope_apply(scope, &message);
+    sentry_free(payload);
+    sentry_value_decref(value);
+    return applied;
+}
+
+static sentry_value_t
+scope_snapshot(void)
+{
+    sentry_value_t snapshot = sentry_value_new_object();
+    sentry_value_set_by_key(snapshot, "event", sentry_value_new_object());
+    sentry_value_set_by_key(snapshot, "attachments", sentry_value_new_list());
+    return snapshot;
+}
+
+static sentry_value_t
+scope_pair(const char *key, sentry_value_t value)
+{
+    sentry_value_t pair = sentry_value_new_list();
+    sentry_value_append(pair, sentry_value_new_string(key));
+    sentry_value_append(pair, value);
+    return pair;
+}
+#endif
+
+SENTRY_TEST(crash_scope_updates)
+{
+#ifndef SENTRY_BACKEND_NATIVE
+    SKIP_TEST();
+#else
+    sentry_crash_scope_t scope;
+    TEST_ASSERT(sentry__crash_scope_init(&scope, 2));
+    TEST_CHECK(!apply_scope_message(
+        &scope, SENTRY_CRASH_IPC_MESSAGE_SET_USER, sentry_value_new_object()));
+    TEST_ASSERT(apply_scope_message(
+        &scope, SENTRY_CRASH_IPC_MESSAGE_SCOPE_SNAPSHOT, scope_snapshot()));
+    struct {
+        uint16_t set;
+        uint16_t remove;
+        const char *field;
+    } keyed[] = {
+        { SENTRY_CRASH_IPC_MESSAGE_SET_TAG, SENTRY_CRASH_IPC_MESSAGE_REMOVE_TAG,
+            "tags" },
+        { SENTRY_CRASH_IPC_MESSAGE_SET_EXTRA,
+            SENTRY_CRASH_IPC_MESSAGE_REMOVE_EXTRA, "extra" },
+        { SENTRY_CRASH_IPC_MESSAGE_SET_CONTEXT,
+            SENTRY_CRASH_IPC_MESSAGE_REMOVE_CONTEXT, "contexts" },
+    };
+    for (size_t i = 0; i < sizeof(keyed) / sizeof(keyed[0]); i++) {
+        TEST_CHECK(apply_scope_message(&scope, keyed[i].set,
+            scope_pair("key", sentry_value_new_string("first"))));
+        TEST_CHECK(apply_scope_message(
+            &scope, keyed[i].remove, sentry_value_new_string("key")));
+        TEST_CHECK(sentry_value_is_null(sentry_value_get_by_key(
+            sentry_value_get_by_key(scope.event, keyed[i].field), "key")));
+        TEST_CHECK(apply_scope_message(&scope, keyed[i].set,
+            scope_pair("key", sentry_value_new_string("last"))));
+        TEST_CHECK_STRING_EQUAL(
+            sentry_value_as_string(sentry_value_get_by_key(
+                sentry_value_get_by_key(scope.event, keyed[i].field), "key")),
+            "last");
+    }
+    struct {
+        uint16_t type;
+        const char *field;
+    } fields[] = {
+        { SENTRY_CRASH_IPC_MESSAGE_SET_RELEASE, "release" },
+        { SENTRY_CRASH_IPC_MESSAGE_SET_ENVIRONMENT, "environment" },
+        { SENTRY_CRASH_IPC_MESSAGE_SET_TRANSACTION, "transaction" },
+        { SENTRY_CRASH_IPC_MESSAGE_SET_LEVEL, "level" },
+    };
+    for (size_t i = 0; i < sizeof(fields) / sizeof(fields[0]); i++) {
+        TEST_CHECK(apply_scope_message(
+            &scope, fields[i].type, sentry_value_new_string_n("a\0b", 3)));
+        TEST_CHECK_INT_EQUAL(sentry_value_get_length(sentry_value_get_by_key(
+                                 scope.event, fields[i].field)),
+            3);
+        TEST_CHECK(apply_scope_message(
+            &scope, fields[i].type, sentry_value_new_null()));
+        TEST_CHECK(sentry_value_is_null(
+            sentry_value_get_by_key(scope.event, fields[i].field)));
+    }
+    TEST_CHECK(apply_scope_message(
+        &scope, SENTRY_CRASH_IPC_MESSAGE_SET_USER, sentry_value_new_object()));
+    TEST_CHECK(apply_scope_message(
+        &scope, SENTRY_CRASH_IPC_MESSAGE_SET_USER, sentry_value_new_null()));
+    TEST_CHECK(apply_scope_message(&scope,
+        SENTRY_CRASH_IPC_MESSAGE_SET_FINGERPRINT, sentry_value_new_list()));
+    TEST_CHECK(apply_scope_message(&scope,
+        SENTRY_CRASH_IPC_MESSAGE_SET_FINGERPRINT, sentry_value_new_null()));
+    for (int i = 0; i < 3; i++) {
+        sentry_value_t crumb = sentry_value_new_object();
+        sentry_value_set_by_key(crumb, "index", sentry_value_new_int32(i));
+        TEST_CHECK(apply_scope_message(
+            &scope, SENTRY_CRASH_IPC_MESSAGE_ADD_BREADCRUMB, crumb));
+    }
+    sentry_value_t event = sentry__crash_scope_event(&scope);
+    sentry_value_t crumbs = sentry_value_get_by_key(event, "breadcrumbs");
+    TEST_CHECK_INT_EQUAL(sentry_value_get_length(crumbs), 2);
+    TEST_CHECK_INT_EQUAL(sentry_value_as_int32(sentry_value_get_by_key(
+                             sentry_value_get_by_index(crumbs, 0), "index")),
+        1);
+    sentry_value_decref(event);
+    sentry_value_t attachments = sentry_value_new_list();
+    sentry_value_append(attachments, sentry_value_new_object());
+    TEST_CHECK(apply_scope_message(
+        &scope, SENTRY_CRASH_IPC_MESSAGE_SET_ATTACHMENT_LIST, attachments));
+    TEST_CHECK_INT_EQUAL(sentry_value_get_length(scope.attachments), 1);
+    TEST_CHECK(apply_scope_message(&scope,
+        SENTRY_CRASH_IPC_MESSAGE_SET_ATTACHMENT_LIST, sentry_value_new_list()));
+    TEST_CHECK_INT_EQUAL(sentry_value_get_length(scope.attachments), 0);
+    TEST_CHECK(apply_scope_message(
+        &scope, SENTRY_CRASH_IPC_MESSAGE_SCOPE_SNAPSHOT, scope_snapshot()));
+    TEST_CHECK_INT_EQUAL(sentry_value_get_length(scope.event), 0);
+    sentry_crash_ipc_message_t crash
+        = { SENTRY_CRASH_IPC_MESSAGE_CRASH, 0, scope.sequence + 1, NULL, 0 };
+    TEST_CHECK(sentry__crash_scope_apply(&scope, &crash));
+    TEST_CHECK(!apply_scope_message(
+        &scope, SENTRY_CRASH_IPC_MESSAGE_SET_USER, sentry_value_new_object()));
+    sentry__crash_scope_free(&scope);
+#endif
+}
+
+SENTRY_TEST(crash_scope_invalid_updates)
+{
+#ifndef SENTRY_BACKEND_NATIVE
+    SKIP_TEST();
+#else
+    sentry_crash_scope_t scope;
+    TEST_ASSERT(sentry__crash_scope_init(&scope, 0));
+    TEST_ASSERT(apply_scope_message(
+        &scope, SENTRY_CRASH_IPC_MESSAGE_SCOPE_SNAPSHOT, scope_snapshot()));
+    TEST_CHECK(!apply_scope_message(&scope, SENTRY_CRASH_IPC_MESSAGE_SET_TAG,
+        sentry_value_new_string("invalid")));
+    TEST_CHECK(!apply_scope_message(
+        &scope, SENTRY_CRASH_IPC_MESSAGE_SET_USER, sentry_value_new_int32(1)));
+    TEST_CHECK(!apply_scope_message(&scope,
+        SENTRY_CRASH_IPC_MESSAGE_SET_ATTACHMENT_LIST,
+        sentry_value_new_object()));
+    sentry_crash_ipc_message_t message
+        = { SENTRY_CRASH_IPC_MESSAGE_SET_USER, 0, 2, "\x81", 1 };
+    TEST_CHECK(!sentry__crash_scope_apply(&scope, &message));
+    message.payload = "\xc0\xc0";
+    message.payload_len = 2;
+    TEST_CHECK(!sentry__crash_scope_apply(&scope, &message));
+    message.payload = "\xc0";
+    message.payload_len = 1;
+    message.sequence = 3;
+    TEST_CHECK(!sentry__crash_scope_apply(&scope, &message));
+    message.sequence = 2;
+    message.flags = 1;
+    TEST_CHECK(!sentry__crash_scope_apply(&scope, &message));
+    TEST_CHECK_INT_EQUAL(scope.sequence, 1);
+    TEST_CHECK(apply_scope_message(&scope,
+        SENTRY_CRASH_IPC_MESSAGE_ADD_BREADCRUMB, sentry_value_new_object()));
+    sentry_value_t event = sentry__crash_scope_event(&scope);
+    TEST_CHECK_INT_EQUAL(
+        sentry_value_get_length(sentry_value_get_by_key(event, "breadcrumbs")),
+        0);
+    sentry_value_decref(event);
+    sentry__crash_scope_free(&scope);
+#endif
+}
+
+#ifdef SENTRY_BACKEND_NATIVE
+static sentry_value_t
+native_scope_on_crash(const sentry_ucontext_t *UNUSED(uctx),
+    sentry_value_t event, sentry_hint_t *hint, void *UNUSED(data))
+{
+    sentry_set_tag("tag", "callback");
+    if (getenv("SENTRY_TEST_NATIVE_SCOPE_HINT_CLEAR")) {
+        sentry_hint_clear_attachments(hint);
+    } else {
+        sentry_clear_attachments();
+        sentry_attach_bytes("callback", 8, "callback.txt");
+    }
+    sentry_value_set_by_key(event, "callback", sentry_value_new_bool(true));
+    return event;
+}
+#endif
+
+SENTRY_TEST(native_scope_updates)
+{
+#ifndef SENTRY_BACKEND_NATIVE
+    SKIP_TEST();
+#else
+    const char *crash_mode = getenv("SENTRY_TEST_NATIVE_SCOPE_CRASH");
+    bool callback = getenv("SENTRY_TEST_NATIVE_SCOPE_CALLBACK") != NULL;
+    SENTRY_TEST_OPTIONS_NEW(options);
+    if (callback) {
+        sentry_options_set_on_crash(options, native_scope_on_crash, NULL);
+    }
+    sentry_options_set_auto_session_tracking(options, false);
+    sentry_options_set_max_breadcrumbs(options, 3);
+    sentry_options_set_traces_sample_rate(options, 1);
+    sentry_options_set_debug(options, true);
+    if (crash_mode) {
+        sentry_options_set_dsn(options, getenv("SENTRY_DSN"));
+        sentry_options_set_crash_reporting_mode(options, atoi(crash_mode));
+    }
+    TEST_ASSERT(sentry_init(options) == 0);
+    sentry_set_tag("cleared", "old");
+    sentry_attach_bytes("old", 3, "cleared.txt");
+    SENTRY_WITH_SCOPE_MUT (scope) {
+        sentry_scope_clear(scope);
+    }
+    for (int i = 0; i < 1000; i++) {
+        sentry_set_tag("tag", "old");
+        sentry_remove_tag("tag");
+    }
+    sentry_set_tag("tag", "latest");
+    sentry_set_tag_n("binary-tag-tail", 10, "v\0x", 3);
+    sentry_set_tag_n("gone-tag-tail", 8, "old", 3);
+    sentry_remove_tag_n("gone-tag-tail", 8);
+    sentry_set_extra_n("gone-extra-tail", 10, sentry_value_new_int32(1));
+    sentry_remove_extra_n("gone-extra-tail", 10);
+    sentry_set_context_n("gone-context-tail", 12, sentry_value_new_object());
+    sentry_remove_context_n("gone-context-tail", 12);
+    sentry_set_release("ipc-release");
+    sentry_set_environment("ipc-environment");
+    sentry_set_transaction("ipc-transaction");
+    sentry_set_level(SENTRY_LEVEL_WARNING);
+    sentry_set_fingerprint("ipc", "latest", NULL);
+    sentry_value_t user = sentry_value_new_object();
+    sentry_value_set_by_key(
+        user, "username", sentry_value_new_string("ipc-user"));
+    sentry_set_user(user);
+    sentry_set_extra("removed", sentry_value_new_int32(1));
+    sentry_remove_extra("removed");
+    size_t size = 1024 * 1024;
+    char *large = sentry_malloc(size);
+    TEST_ASSERT(large != NULL);
+    memset(large, 'x', size);
+    sentry_set_extra("large", sentry_value_new_string_n(large, size));
+    sentry_free(large);
+    sentry_set_context("removed", sentry_value_new_object());
+    sentry_remove_context("removed");
+    sentry_value_t context = sentry_value_new_object();
+    sentry_value_set_by_key(
+        context, "status", sentry_value_new_string("latest"));
+    sentry_set_context("ipc", context);
+    sentry_transaction_t *tx = sentry_transaction_start(
+        sentry_transaction_context_new("bound", "work"),
+        sentry_value_new_null());
+    sentry_set_transaction_object(tx);
+    sentry_span_t *span = sentry_transaction_start_child(tx, "child", "work");
+    sentry_set_span(span);
+    bool scoped_trace = getenv("SENTRY_TEST_NATIVE_SCOPE_SPAN") != NULL;
+    if (!scoped_trace) {
+        sentry_set_span(NULL);
+    }
+    sentry_set_context("trace", sentry_value_new_object());
+    sentry_value_t trace = sentry_value_new_null();
+    SENTRY_WITH_SCOPE_MUT (scope) {
+        sentry__scope_regenerate_propagation_context(scope);
+        if (scoped_trace) {
+            sentry_value_t active
+                = sentry__scope_load_span_or_transaction(scope);
+            trace = sentry__value_get_trace_context(active);
+            sentry_value_decref(active);
+        } else {
+            trace = sentry__scope_load_trace_context(scope);
+        }
+    }
+    sentry_set_extra("expected-trace", trace);
+    for (int i = 0; i < 5; i++) {
+        sentry_value_t crumb = sentry_value_new_breadcrumb(NULL, NULL);
+        sentry_value_set_by_key(crumb, "index", sentry_value_new_int32(i));
+        sentry_add_breadcrumb(crumb);
+    }
+    sentry_attach_bytes("old", 3, "cleared-again.txt");
+    sentry_clear_attachments();
+    sentry_uuid_t removed = sentry_attach_bytes("old", 3, "removed.txt");
+    sentry_attach_bytes("new", 3, "latest.txt");
+    sentry_remove_attachment(removed);
+    SENTRY_WITH_OPTIONS (current) {
+        const char *names[] = { "__sentry-event", "__sentry-breadcrumb1",
+            "__sentry-breadcrumb2", "__sentry-attachments" };
+        for (size_t i = 0; i < sizeof(names) / sizeof(names[0]); i++) {
+            sentry_path_t *path
+                = sentry__path_join_str(current->run->run_path, names[i]);
+            TEST_CHECK(!sentry__path_is_file(path));
+            sentry__path_free(path);
+        }
+        if (crash_mode && !callback) {
+            // exercise staged IPC state without a crash-time snapshot
+            current->backend->except_func = NULL;
+        }
+    }
+    if (crash_mode) {
+#    if defined(SENTRY_PLATFORM_WINDOWS)
+        RaiseException(EXCEPTION_ACCESS_VIOLATION, 0, 0, NULL);
+#    else
+        raise(SIGSEGV);
+#    endif
+    }
+    sentry_span_finish(span);
+    sentry_transaction_finish(tx);
+    sentry_close();
+#endif
+}
+
+#ifdef SENTRY_BACKEND_NATIVE
+static sentry_crash_ipc_t *
+new_test_ipc(void)
+{
+    sentry_crash_ipc_t *ipc = sentry__crash_ipc_init_app(NULL);
+    TEST_ASSERT(ipc != NULL);
+    TEST_ASSERT(sentry__crash_scope_init(&ipc->scope, 2));
+    sentry_value_t snapshot = scope_snapshot();
+    TEST_ASSERT(sentry__crash_ipc_send(
+        ipc, SENTRY_CRASH_IPC_MESSAGE_SCOPE_SNAPSHOT, snapshot));
+    sentry_value_decref(snapshot);
+    return ipc;
+}
+
+static void
+write_test_frame(sentry_crash_ipc_t *ipc, const char *buf, size_t len)
+{
+#    if defined(SENTRY_PLATFORM_WINDOWS)
+    DWORD written = 0;
+    TEST_ASSERT(
+        WriteFile(ipc->message_write_handle, buf, (DWORD)len, &written, NULL));
+    TEST_CHECK_INT_EQUAL(written, len);
+#    else
+    TEST_CHECK_INT_EQUAL(write(ipc->message_fd[0], buf, len), len);
+#    endif
+}
+#endif
+
+SENTRY_TEST(crash_ipc_stream_ordering)
+{
+#ifndef SENTRY_BACKEND_NATIVE
+    SKIP_TEST();
+#else
+    sentry_crash_ipc_t *ipc = new_test_ipc();
+    sentry_value_t value = sentry_value_new_string("latest");
+    TEST_CHECK(sentry__crash_ipc_send(
+        ipc, SENTRY_CRASH_IPC_MESSAGE_SET_RELEASE, value));
+    sentry_value_decref(value);
+    sentry__crash_ipc_notify(ipc);
+    TEST_CHECK(sentry__crash_ipc_receive(ipc, 100));
+    TEST_CHECK_STRING_EQUAL(sentry_value_as_string(sentry_value_get_by_key(
+                                ipc->scope.event, "release")),
+        "latest");
+    TEST_CHECK(!sentry__crash_ipc_send(
+        ipc, SENTRY_CRASH_IPC_MESSAGE_SET_USER, sentry_value_new_null()));
+    sentry__crash_ipc_free(ipc);
+#endif
+}
+
+SENTRY_TEST(crash_ipc_interrupted_frame)
+{
+#ifndef SENTRY_BACKEND_NATIVE
+    SKIP_TEST();
+#else
+    sentry_crash_ipc_t *ipc = new_test_ipc();
+    TEST_CHECK(!sentry__crash_ipc_receive(ipc, 0));
+    char *buf = NULL;
+    size_t len = 0;
+    const char payload[] = "\xa6latest";
+    TEST_ASSERT(
+        sentry__crash_ipc_message_encode(SENTRY_CRASH_IPC_MESSAGE_SET_RELEASE,
+            0, 2, payload, sizeof(payload) - 1, &buf, &len)
+        == SENTRY_CRASH_IPC_MESSAGE_OK);
+    write_test_frame(ipc, buf, 7);
+    TEST_CHECK(!sentry__crash_ipc_receive(ipc, 0));
+    write_test_frame(ipc, buf + 7, len - 8);
+    TEST_CHECK(!sentry__crash_ipc_receive(ipc, 0));
+    ipc->writing = 1;
+    sentry__crash_ipc_notify(ipc);
+    TEST_CHECK(sentry__crash_ipc_receive(ipc, 100));
+    TEST_CHECK_INT_EQUAL(ipc->scope.sequence, 1);
+    TEST_CHECK(sentry_value_is_null(
+        sentry_value_get_by_key(ipc->scope.event, "release")));
+    sentry_free(buf);
+    sentry__crash_ipc_free(ipc);
+#endif
+}
+
+SENTRY_TEST(crash_ipc_partial_reads)
+{
+#ifndef SENTRY_BACKEND_NATIVE
+    SKIP_TEST();
+#else
+    sentry_crash_ipc_t *ipc = new_test_ipc();
+    TEST_CHECK(!sentry__crash_ipc_receive(ipc, 0));
+    char *buf = NULL;
+    size_t len = 0;
+    const char payload[] = "\xa6latest";
+    TEST_ASSERT(
+        sentry__crash_ipc_message_encode(SENTRY_CRASH_IPC_MESSAGE_SET_RELEASE,
+            0, 2, payload, sizeof(payload) - 1, &buf, &len)
+        == SENTRY_CRASH_IPC_MESSAGE_OK);
+    for (size_t i = 0; i < len; i++) {
+        write_test_frame(ipc, buf + i, 1);
+        TEST_CHECK(!sentry__crash_ipc_receive(ipc, 0));
+        TEST_CHECK_INT_EQUAL(ipc->scope.sequence, i + 1 == len ? 2 : 1);
+    }
+    TEST_CHECK_STRING_EQUAL(sentry_value_as_string(sentry_value_get_by_key(
+                                ipc->scope.event, "release")),
+        "latest");
+    sentry_free(buf);
+    sentry__crash_ipc_free(ipc);
+#endif
+}
+
+SENTRY_TEST(crash_ipc_shutdown)
+{
+#ifndef SENTRY_BACKEND_NATIVE
+    SKIP_TEST();
+#else
+    sentry_crash_ipc_t *ipc = new_test_ipc();
+    TEST_CHECK(sentry__crash_ipc_send(
+        ipc, SENTRY_CRASH_IPC_MESSAGE_SHUTDOWN, sentry_value_new_null()));
+    TEST_CHECK(!sentry__crash_ipc_receive(ipc, 100));
+    TEST_CHECK(ipc->scope.stopped);
+    sentry__crash_ipc_free(ipc);
+#endif
+}
+
+SENTRY_TEST(crash_ipc_broken_stream)
+{
+#ifndef SENTRY_BACKEND_NATIVE
+    SKIP_TEST();
+#else
+    sentry_crash_ipc_t *ipc = new_test_ipc();
+    TEST_CHECK(!sentry__crash_ipc_receive(ipc, 0));
+    char invalid[SENTRY_CRASH_IPC_MESSAGE_HEADER_SIZE]
+        = { 12, 0, 0, 0, (char)0xff, (char)0xff, 0, 0, 2 };
+    write_test_frame(ipc, invalid, sizeof(invalid));
+    TEST_CHECK(!sentry__crash_ipc_receive(ipc, 0));
+    TEST_CHECK(ipc->message_closed);
+    TEST_CHECK_INT_EQUAL(ipc->scope.sequence, 1);
+    TEST_CHECK(!sentry__crash_ipc_send(
+        ipc, SENTRY_CRASH_IPC_MESSAGE_SET_USER, sentry_value_new_null()));
+    sentry__crash_ipc_notify(ipc);
+    TEST_CHECK(sentry__crash_ipc_receive(ipc, 100));
+    sentry__crash_ipc_free(ipc);
+#endif
+}
+
+SENTRY_TEST(crash_ipc_crashing)
+{
+#ifndef SENTRY_BACKEND_NATIVE
+    SKIP_TEST();
+#else
+    sentry_crash_ipc_t *ipc = new_test_ipc();
+    sentry__atomic_store(&ipc->shmem->state, SENTRY_CRASH_STATE_CRASHING);
+    sentry__crash_ipc_notify(ipc);
+    TEST_CHECK(sentry__crash_ipc_receive(ipc, 100));
+    TEST_CHECK(!ipc->scope.stopped);
+    TEST_CHECK(!ipc->notify_pending);
+
+    sentry_value_t value = sentry_value_new_string("latest");
+    TEST_CHECK(sentry__crash_ipc_send(
+        ipc, SENTRY_CRASH_IPC_MESSAGE_SET_RELEASE, value));
+    sentry_value_decref(value);
+    sentry__atomic_store(&ipc->shmem->state, SENTRY_CRASH_STATE_CRASHED);
+    sentry__crash_ipc_notify(ipc);
+    TEST_CHECK(sentry__crash_ipc_receive(ipc, 100));
+    TEST_CHECK(ipc->scope.stopped);
+    TEST_CHECK_STRING_EQUAL(sentry_value_as_string(sentry_value_get_by_key(
+                                ipc->scope.event, "release")),
+        "latest");
+    sentry__crash_ipc_free(ipc);
+#endif
+}
+
+SENTRY_TEST(crash_daemon_shutdown_during_crash)
+{
+#if !defined(SENTRY_BACKEND_NATIVE) || !defined(SENTRY_PLATFORM_LINUX)
+    SKIP_TEST();
+#else
+    const char *daemon = getenv("SENTRY_TEST_NATIVE_DAEMON");
+    if (!daemon) {
+        SKIP_TEST();
+    }
+    SENTRY_TEST_OPTIONS_NEW(options);
+    TEST_ASSERT(sentry__path_create_dir_all(options->database_path) == 0);
+    sentry_run_t *run = sentry__run_new(options->database_path);
+    TEST_ASSERT(run != NULL);
+    sentry_crash_ipc_t *ipc = new_test_ipc();
+    snprintf(ipc->shmem->database_path, sizeof(ipc->shmem->database_path), "%s",
+        options->database_path->path);
+    snprintf(ipc->shmem->run_path, sizeof(ipc->shmem->run_path), "%s",
+        run->run_path->path);
+    ipc->shmem->event_discarded = true;
+    sentry__atomic_store(&ipc->shmem->state, SENTRY_CRASH_STATE_CRASHING);
+    TEST_ASSERT(sentry__crash_ipc_send(
+        ipc, SENTRY_CRASH_IPC_MESSAGE_SHUTDOWN, sentry_value_new_null()));
+
+    char pid[32], tid[32], notify[32], ready[32], message[32];
+    snprintf(pid, sizeof(pid), "%d", (int)getpid());
+    snprintf(tid, sizeof(tid), "%llx", (unsigned long long)pthread_self());
+    snprintf(notify, sizeof(notify), "%d", ipc->notify_fd);
+    snprintf(ready, sizeof(ready), "%d", ipc->ready_fd);
+    snprintf(message, sizeof(message), "%d", ipc->message_fd[1]);
+    pid_t child = fork();
+    TEST_ASSERT(child >= 0);
+    if (child == 0) {
+        int fds[] = { ipc->notify_fd, ipc->ready_fd, ipc->message_fd[1] };
+        for (size_t i = 0; i < sizeof(fds) / sizeof(fds[0]); i++) {
+            fcntl(fds[i], F_SETFD, 0);
+        }
+        execl(daemon, daemon, pid, tid, notify, ready, message, NULL);
+        _exit(1);
+    }
+    TEST_CHECK(sentry__crash_ipc_wait_for_ready(ipc, 5000));
+    sleep_ms(100);
+    TEST_CHECK_INT_EQUAL(waitpid(child, NULL, WNOHANG), 0);
+
+    sentry__atomic_store(&ipc->shmem->state, SENTRY_CRASH_STATE_CRASHED);
+    sentry__crash_ipc_notify(ipc);
+    int status = 0;
+    pid_t result = 0;
+    for (int i = 0; i < 500; i++) {
+        result = waitpid(child, &status, WNOHANG);
+        if (result != 0) {
+            break;
+        }
+        sleep_ms(10);
+    }
+    if (result == 0) {
+        kill(child, SIGKILL);
+        waitpid(child, &status, 0);
+    }
+    TEST_CHECK_INT_EQUAL(result, child);
+    TEST_CHECK(WIFEXITED(status) && WEXITSTATUS(status) == 0);
+    TEST_CHECK_INT_EQUAL(
+        sentry__atomic_fetch(&ipc->shmem->state), SENTRY_CRASH_STATE_DONE);
+    sentry__crash_ipc_free(ipc);
+    sentry__run_free(run);
+    sentry_options_free(options);
 #endif
 }

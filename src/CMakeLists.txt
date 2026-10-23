@@ -77,7 +77,6 @@ sentry_target_sources_cwd(sentry
 	path/sentry_path.c
 	screenshot/sentry_screenshot.c
 	session_replay/sentry_session_replay.c
-	transports/sentry_function_transport.c
 	transports/sentry_http_transport.c
 	transports/sentry_http_transport.h
 	unwinder/sentry_unwinder.c
@@ -144,6 +143,10 @@ elseif(SENTRY_TRANSPORT_WINHTTP)
 elseif(SENTRY_TRANSPORT_NONE)
 	sentry_target_sources_cwd(sentry
 		transports/sentry_transport_none.c
+	)
+elseif(SENTRY_TRANSPORT_STDOUT)
+	sentry_target_sources_cwd(sentry
+		transports/sentry_transport_stdout.c
 	)
 endif()
 
@@ -264,6 +267,12 @@ if(WIN32)
 	sentry_target_sources_cwd(sentry
 		unwinder/sentry_unwinder_dbghelp.c
 	)
+	if(MINGW AND CMAKE_C_COMPILER_ID STREQUAL "Clang")
+		set_source_files_properties(
+			"${CMAKE_CURRENT_SOURCE_DIR}/unwinder/sentry_unwinder_dbghelp.c"
+			DIRECTORY "${PROJECT_SOURCE_DIR}"
+			PROPERTIES COMPILE_OPTIONS -fms-extensions)
+	endif()
 endif()
 
 if(PROSPERO)

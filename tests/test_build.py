@@ -1,15 +1,69 @@
 import subprocess
 import sys
 import os
+import struct
+
 import pytest
+
+from . import SENTRY_VERSION, lib_name
 from .conditions import (
     has_breakpad,
     has_crashpad,
     has_native,
+    is_aix,
     is_android,
     is_qemu,
     is_wine,
 )
+
+
+def _assert_symlink(path, target):
+    assert path.is_symlink()
+    assert os.readlink(path) == target
+
+
+def _assert_shared_version(directory):
+    major, minor, _ = SENTRY_VERSION.split(".")
+
+    if sys.platform == "darwin":
+        real_name = f"libsentry.{SENTRY_VERSION}.dylib"
+        abi_name = f"libsentry.{major}.dylib"
+        _assert_symlink(directory / "libsentry.dylib", abi_name)
+        _assert_symlink(directory / abi_name, real_name)
+        output = subprocess.check_output(
+            ["otool", "-L", directory / real_name], text=True
+        )
+        assert abi_name in output
+        assert f"compatibility version {major}.0.0" in output
+        assert f"current version {SENTRY_VERSION}" in output
+    elif sys.platform == "win32":
+        dll = directory / lib_name("sentry")
+        with dll.open("rb") as binary:
+            binary.seek(0x3C)
+            pe_offset = struct.unpack("<I", binary.read(4))[0]
+            binary.seek(pe_offset + 4 + 20 + 44)
+            assert struct.unpack("<HH", binary.read(4)) == (int(major), int(minor))
+    elif is_wine:
+        assert (directory / "libsentry.dll").is_file()
+    else:
+        real_name = f"libsentry.so.{SENTRY_VERSION}"
+        abi_name = f"libsentry.so.{major}"
+        _assert_symlink(directory / "libsentry.so", abi_name)
+        _assert_symlink(directory / abi_name, real_name)
+        output = subprocess.check_output(
+            ["readelf", "-d", directory / real_name], text=True
+        )
+        assert f"Library soname: [{abi_name}]" in output
+
+
+@pytest.mark.skipif(is_android or is_aix, reason="test requires a desktop build")
+def test_shared_lib(cmake):
+    directory = cmake(
+        ["sentry"],
+        {"SENTRY_BACKEND": "none", "SENTRY_TRANSPORT": "none"},
+    )
+
+    _assert_shared_version(directory)
 
 
 def test_static_lib(cmake):

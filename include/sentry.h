@@ -775,20 +775,6 @@ SENTRY_API sentry_value_t sentry_value_from_msgpack_stream(
     const char *buf, size_t buf_len);
 
 /**
- * Adds a stack trace to an event.
- *
- * The stack trace is added as part of a new thread object.
- *
- * If `ips` is NULL, the current stack trace is captured. Otherwise, `len`
- * stack trace instruction pointers are attached to the event.
- */
-SENTRY_DEPRECATED(
-    "Use `sentry_value_new_stacktrace` in combination with "
-    "`sentry_value_new_thread` and `sentry_event_add_thread` instead")
-SENTRY_EXPERIMENTAL_API void sentry_event_value_add_stacktrace(
-    sentry_value_t event, void **ips, size_t len);
-
-/**
  * This represents the OS-dependent user context in the case of a crash and can
  * be used to manually capture a crash.
  */
@@ -1317,17 +1303,6 @@ SENTRY_EXPERIMENTAL_API void sentry_http_transport_set_client_shutdown_func(
     void (*shutdown_func)(sentry_http_client_t *client));
 
 /**
- * Create a new function transport.
- *
- * It is a convenience function that works with a borrowed `data`, and will
- * automatically free the envelope, so the user-provided function does not need
- * to do that.
- */
-SENTRY_DEPRECATED("Use `sentry_transport_new` instead")
-SENTRY_API sentry_transport_t *sentry_new_function_transport(
-    void (*func)(const sentry_envelope_t *envelope, void *data), void *data);
-
-/**
  * This represents an interface for user-defined backends.
  *
  * Backends are responsible for handling crashes. They are maintained at runtime
@@ -1506,7 +1481,7 @@ SENTRY_API void sentry_options_free(sentry_options_t *opts);
  * The callback is invoked synchronously once during `sentry_init`, after
  * option-derived defaults are applied and before the crash backend is started.
  * The scope is borrowed. Configure it with `sentry_scope_*` functions rather
- * than global scope functions such as `sentry_set_tag`.
+ * than top-level scope functions such as `sentry_set_tag`.
  */
 typedef void (*sentry_initial_scope_function_t)(
     sentry_scope_t *scope, void *user_data);
@@ -1609,7 +1584,7 @@ SENTRY_API void sentry_options_set_before_send(
  * The hint is always provided and can be used to modify attachments on the
  * event.
  *
- * Only the `inproc` backend currently fills the passed-in event with crash
+ * Only the `inproc` and `native` backends fill the passed-in event with crash
  * meta-data. Since both `breakpad` and `crashpad` use minidumps to capture the
  * crash state, the passed-in event is empty when using these backends. Changes
  * to the event from inside the hooks will be passed along, but in the case of
@@ -1632,7 +1607,7 @@ SENTRY_API void sentry_options_set_before_send(
  *  - if you are not interested in normal events, but only want to act on
  *    crashes (within the limits mentioned below), then only define an
  *    `on_crash` callback with the option to filter (on all backends) or enrich
- *    (only inproc) the crash event
+ *    (inproc and native) the crash event
  *
  * This function may be invoked inside a signal handler and must be safe for
  * that purpose, see https://man7.org/linux/man-pages/man7/signal-safety.7.html.
@@ -1791,19 +1766,6 @@ SENTRY_API void sentry_options_set_proxy_n(
  * Returns the configured proxy.
  */
 SENTRY_API const char *sentry_options_get_proxy(const sentry_options_t *opts);
-
-/**
- * Configures the proxy.
- *
- * The given proxy has to include the full scheme,
- * e.g., `http://some.proxy/.
- */
-SENTRY_DEPRECATED("Use `sentry_options_set_proxy` instead")
-SENTRY_API void sentry_options_set_http_proxy(
-    sentry_options_t *opts, const char *proxy);
-SENTRY_DEPRECATED("Use `sentry_options_set_proxy_n` instead")
-SENTRY_API void sentry_options_set_http_proxy_n(
-    sentry_options_t *opts, const char *proxy, size_t proxy_len);
 
 /**
  * Returns the configured proxy.
@@ -2062,26 +2024,6 @@ SENTRY_API void sentry_options_add_attachment_n(
     sentry_options_t *opts, const char *path, size_t path_len);
 
 /**
- * Adds a new view hierarchy attachment to be sent along.
- *
- * The primary use-case is for downstream SDKs (like sentry-godot). The
- * view-hierarchy.json file should follow the representation defined in RFC#33
- * https://github.com/getsentry/rfcs/blob/main/text/0033-view-hierarchy.md
- *
- * `path` is assumed to be in platform-specific filesystem path encoding.
- * API Users on windows are encouraged to use
- * `sentry_options_add_view_hierarchyw` instead.
- */
-SENTRY_DEPRECATED("Use `sentry_attach_*` with `sentry_attachment_set_type` and "
-                  "`SENTRY_ATTACHMENT_TYPE_VIEW_HIERARCHY` instead")
-SENTRY_API void sentry_options_add_view_hierarchy(
-    sentry_options_t *opts, const char *path);
-SENTRY_DEPRECATED("Use `sentry_attach_*` with `sentry_attachment_set_type` and "
-                  "`SENTRY_ATTACHMENT_TYPE_VIEW_HIERARCHY` instead")
-SENTRY_API void sentry_options_add_view_hierarchy_n(
-    sentry_options_t *opts, const char *path, size_t path_len);
-
-/**
  * Enables or disables attaching screenshots to fatal error events. Disabled by
  * default.
  *
@@ -2093,7 +2035,7 @@ SENTRY_API void sentry_options_add_view_hierarchy_n(
  * To decide per-event whether a screenshot should be captured, set a
  * `before_screenshot` callback via `sentry_options_set_before_screenshot`.
  */
-SENTRY_EXPERIMENTAL_API void sentry_options_set_attach_screenshot(
+SENTRY_API void sentry_options_set_attach_screenshot(
     sentry_options_t *opts, int val);
 
 /**
@@ -2122,9 +2064,8 @@ typedef int (*sentry_before_screenshot_function_t)(
  * See the `sentry_before_screenshot_function_t` typedef above for more
  * information.
  */
-SENTRY_EXPERIMENTAL_API void sentry_options_set_before_screenshot(
-    sentry_options_t *opts, sentry_before_screenshot_function_t func,
-    void *user_data);
+SENTRY_API void sentry_options_set_before_screenshot(sentry_options_t *opts,
+    sentry_before_screenshot_function_t func, void *user_data);
 
 /**
  * Enables capturing a short retroactive video replay on crash. Currently only
@@ -2148,10 +2089,11 @@ SENTRY_EXPERIMENTAL_API void sentry_options_set_session_replay_duration(
     sentry_options_t *opts, uint32_t duration_ms);
 
 /**
- * Sets the path to the crashpad handler if the crashpad backend is used.
+ * Sets the path to the crash handler if the native or crashpad backend is used.
  *
- * The path defaults to the `crashpad_handler`/`crashpad_handler.exe`
- * executable in the same directory as the application executable.
+ * The path defaults to the `sentry-crash`/`sentry-crash.exe` executable for the
+ * native backend or `crashpad_handler`/`crashpad_handler.exe` for the crashpad
+ * backend, in the same directory as the application executable.
  *
  * Meaning if your application resides in
  *
@@ -2159,7 +2101,7 @@ SENTRY_EXPERIMENTAL_API void sentry_options_set_session_replay_duration(
  *
  * then the handler path will be set (by default) to
  *
- * "C:\path\to\your\crashpad_handler.exe"
+ * "C:\path\to\your\sentry-crash.exe" when using the native backend.
  *
  * It is recommended that library users set an explicit handler path, depending
  * on the directory/executable structure of their app.
@@ -2239,18 +2181,6 @@ SENTRY_API void sentry_options_set_database_path_n(
 SENTRY_API void sentry_options_add_attachmentw(
     sentry_options_t *opts, const wchar_t *path);
 SENTRY_API void sentry_options_add_attachmentw_n(
-    sentry_options_t *opts, const wchar_t *path, size_t path_len);
-
-/**
- * Wide char version of `sentry_options_add_view_hierarchy`.
- */
-SENTRY_DEPRECATED("Use `sentry_attach_*` with `sentry_attachment_set_type` and "
-                  "`SENTRY_ATTACHMENT_TYPE_VIEW_HIERARCHY` instead")
-SENTRY_API void sentry_options_add_view_hierarchyw(
-    sentry_options_t *opts, const wchar_t *path);
-SENTRY_DEPRECATED("Use `sentry_attach_*` with `sentry_attachment_set_type` and "
-                  "`SENTRY_ATTACHMENT_TYPE_VIEW_HIERARCHY` instead")
-SENTRY_API void sentry_options_add_view_hierarchyw_n(
     sentry_options_t *opts, const wchar_t *path, size_t path_len);
 
 /**
@@ -2556,20 +2486,12 @@ SENTRY_API int sentry_flush(uint64_t timeout);
 SENTRY_API int sentry_close(void);
 
 /**
- * Shuts down the sentry client and forces transports to flush out.
- *
- * Returns the number of envelopes that have been dumped.
- */
-SENTRY_DEPRECATED("Use `sentry_close` instead")
-SENTRY_API int sentry_shutdown(void);
-
-/**
  * This will lazily load and cache a list of all the loaded libraries.
  *
  * Returns a new reference to an immutable, frozen list.
  * The reference must be released with `sentry_value_decref`.
  */
-SENTRY_EXPERIMENTAL_API sentry_value_t sentry_get_modules_list(void);
+SENTRY_API sentry_value_t sentry_get_modules_list(void);
 
 /**
  * Clears the internal module cache.
@@ -2580,7 +2502,7 @@ SENTRY_EXPERIMENTAL_API sentry_value_t sentry_get_modules_list(void);
  * `sentry_clear_modulecache` when doing so to make sure that the next call to
  * `sentry_capture_event` will have an up-to-date module list.
  */
-SENTRY_EXPERIMENTAL_API void sentry_clear_modulecache(void);
+SENTRY_API void sentry_clear_modulecache(void);
 
 /**
  * Re-initializes the Sentry backend.
@@ -2627,6 +2549,33 @@ SENTRY_API sentry_user_consent_t sentry_user_consent_get(void);
 SENTRY_API int sentry_user_consent_is_required(void);
 
 /**
+ * Acquires the isolation scope used by top-level scope functions.
+ *
+ * Returns an owned reference that must be released with `sentry_scope_release`.
+ *
+ * A separate isolation scope is used for each SDK run. The scope should be
+ * acquired after `sentry_init`, since scope changes made before initialization
+ * are not carried over. An explicitly acquired reference remains valid after
+ * the SDK is closed, but modifying the scope no longer has any effect.
+ *
+ * Note: The SDK operates in global mode: all threads share the same
+ * process-wide isolation scope, which inherits global data such as release and
+ * environment from the global scope. Changes made through top-level scope
+ * functions or the acquired scope are shared across all threads.
+ *
+ * For details on Sentry's scope model, see:
+ * https://develop.sentry.dev/sdk/foundations/state-management/scopes/#isolation-scope
+ */
+SENTRY_API sentry_scope_t *sentry_scope_acquire(void);
+
+/**
+ * Releases a reference acquired with `sentry_scope_acquire`.
+ *
+ * This is an alias for `sentry_scope_free`.
+ */
+SENTRY_API void sentry_scope_release(sentry_scope_t *scope);
+
+/**
  * Creates a local scope.
  *
  * A local scope is a one-shot scope: the capture function it is passed to (such
@@ -2645,6 +2594,70 @@ SENTRY_API sentry_scope_t *sentry_local_scope_new(void);
  * `sentry_scope_free`.
  */
 SENTRY_API sentry_scope_t *sentry_scope_new(void);
+
+/**
+ * Begins a batch read of `scope` and its parent scopes.
+ *
+ * Tip: Individual scope property reads acquire a read lock automatically.
+ * Use this function to batch multiple reads.
+ *
+ * The scope remains read-locked until the matching `sentry_scope_end_read` call
+ * on the same thread, so multiple properties can be read consistently. Other
+ * threads may read the scope concurrently, but cannot modify it until the read
+ * lock is released. Reads may be nested for the same scope, including inside a
+ * write batch, which keeps its write lock.
+ *
+ * Warning: A read lock allows only reads. Use `sentry_scope_begin_write` if
+ * you need to modify the scope. Calling a scope-mutating function while
+ * read-locked triggers an assertion in debug builds and may deadlock in
+ * release builds.
+ *
+ * Returns 0 on success or 1 if `scope` is NULL or allocation fails. Each
+ * successful call must be matched by `sentry_scope_end_read` before freeing the
+ * scope.
+ */
+SENTRY_API int sentry_scope_begin_read(const sentry_scope_t *scope);
+
+/**
+ * Ends a read batch begun by `sentry_scope_begin_read`.
+ *
+ * The final matching call releases the scope read lock. Reads nested inside a
+ * write batch leave the scope write-locked until the final matching
+ * `sentry_scope_end_write`. This must be called on the same thread as the
+ * matching begin call.
+ */
+SENTRY_API void sentry_scope_end_read(const sentry_scope_t *scope);
+
+/**
+ * Begins a batch write of `scope`.
+ *
+ * Tip: Individual scope property accesses acquire the appropriate read or
+ * write lock automatically. Use this function to batch multiple reads, writes,
+ * or both under one write lock.
+ *
+ * The scope remains write-locked and its parent scopes read-locked until the
+ * matching `sentry_scope_end_write` call on the same thread, so inherited
+ * properties can be read consistently. A write lock allows reads and writes.
+ * Writes may be nested for the same scope.
+ *
+ * Note: A read lock cannot be upgraded to a write lock. If this thread already
+ * holds a read lock on the scope, this function returns 1 without changing
+ * the lock.
+ *
+ * Returns 0 on success or 1 if `scope` is NULL, allocation fails, or the
+ * calling thread already holds a read lock on the scope. Each successful call
+ * must be matched by `sentry_scope_end_write` before freeing the scope.
+ */
+SENTRY_API int sentry_scope_begin_write(sentry_scope_t *scope);
+
+/**
+ * Ends a write batch begun by `sentry_scope_begin_write`.
+ *
+ * The final matching call releases the scope write lock and flushes any
+ * pending isolation scope changes to the backend. This must be called on the
+ * same thread as the matching begin call.
+ */
+SENTRY_API void sentry_scope_end_write(sentry_scope_t *scope);
 
 /**
  * Frees a scope created via `sentry_scope_new`, `sentry_scope_clone`, or
@@ -2669,7 +2682,7 @@ SENTRY_API sentry_scope_t *sentry_scope_clone(const sentry_scope_t *scope);
 SENTRY_API void sentry_scope_clear(sentry_scope_t *scope);
 
 /**
- * Returns the ID of the last event sent with the global scope.
+ * Returns the ID of the last event sent with the isolation scope.
  *
  * Returns a nil UUID if no event has been sent.
  */
@@ -2706,15 +2719,6 @@ SENTRY_API sentry_uuid_t sentry_capture_event(sentry_value_t event);
  */
 SENTRY_API sentry_uuid_t sentry_scope_capture_event(
     sentry_scope_t *scope, sentry_value_t event, sentry_hint_t *hint);
-
-/**
- * Deprecated alias for `sentry_scope_capture_event`. Note the reversed argument
- * order: the replacement takes the scope first. This alias will be removed in
- * 2027.
- */
-SENTRY_DEPRECATED("Use `sentry_scope_capture_event` instead")
-SENTRY_API sentry_uuid_t sentry_capture_event_with_scope(
-    sentry_value_t event, sentry_scope_t *scope);
 
 /**
  * Allows capturing independently created minidumps.
@@ -3008,9 +3012,6 @@ SENTRY_API void sentry_set_trace_n(const char *trace_id, size_t trace_id_len,
  */
 SENTRY_API void sentry_start_new_trace(void);
 
-SENTRY_DEPRECATED("Use `sentry_start_new_trace` instead")
-SENTRY_API void sentry_regenerate_trace(void);
-
 /**
  * Sets the transaction.
  */
@@ -3290,13 +3291,13 @@ SENTRY_API log_return_value_t sentry_log(
  * Sends a structured log with a scope.
  *
  * Behaves like `sentry_log`, except the log also carries the attributes and
- * trace of `scope`, layered on top of the global scope. An attribute set in
- * more than one place resolves to the most specific: `attributes` > `scope` >
- * global scope.
+ * trace of `scope`, layered on top of its isolation and global scopes.
+ * An attribute set in more than one place resolves to the most
+ * specific: `attributes` > `scope` > isolation scope > global scope.
  *
  * Scope ownership works as in `sentry_scope_capture_event`: a local scope
  * is freed by this function, a user-owned one is not. Pass `NULL` to apply the
- * global scope only.
+ * isolation and global scopes.
  */
 SENTRY_API log_return_value_t sentry_scope_capture_log(sentry_scope_t *scope,
     sentry_level_t level, const char *body, sentry_value_t attributes);
@@ -3466,15 +3467,15 @@ typedef enum {
  * Records a metric of the given type with a scope.
  *
  * Behaves like the `sentry_metrics_*` functions, except the metric also carries
- * the attributes and trace of `scope`, layered on top of the global scope. An
- * attribute set in more than one place resolves to the most specific:
- * `attributes` > `scope` > global scope.
+ * the attributes and trace of `scope`, layered on top of its isolation and
+ * global scopes. An attribute set in more than one place resolves to
+ * the most specific: `attributes` > `scope` > isolation scope > global scope.
  *
  * Ownership of `value` is transferred to this function, on top of `attributes`.
  *
  * Scope ownership works as in `sentry_scope_capture_event`: a local scope
  * is freed by this function, a user-owned one is not. Pass `NULL` to apply the
- * global scope only.
+ * isolation and global scopes.
  */
 SENTRY_API sentry_metrics_result_t sentry_scope_capture_metric(
     sentry_scope_t *scope, sentry_metric_type_t type, const char *name,
@@ -4215,28 +4216,6 @@ SENTRY_API void sentry_transaction_set_name_n(
     sentry_transaction_t *transaction, const char *name, size_t name_len);
 
 /**
- * Creates a deprecated User Report with a specific name, email, and comments.
- *
- * See
- * https://develop.sentry.dev/sdk/data-model/envelope-items/#user-report---deprecated
- */
-SENTRY_DEPRECATED("Use `sentry_value_new_feedback` instead")
-SENTRY_API sentry_value_t sentry_value_new_user_feedback(
-    const sentry_uuid_t *uuid, const char *name, const char *email,
-    const char *comments);
-SENTRY_DEPRECATED("Use `sentry_value_new_feedback_n` instead")
-SENTRY_API sentry_value_t sentry_value_new_user_feedback_n(
-    const sentry_uuid_t *uuid, const char *name, size_t name_len,
-    const char *email, size_t email_len, const char *comments,
-    size_t comments_len);
-
-/**
- * Captures a deprecated User Report and sends it to Sentry.
- */
-SENTRY_DEPRECATED("Use `sentry_capture_feedback` instead")
-SENTRY_API void sentry_capture_user_feedback(sentry_value_t user_report);
-
-/**
  * Creates a new User Feedback with a specific message (required), and optional
  * contact_email, name, message, and associated_event_id.
  *
@@ -4496,19 +4475,6 @@ SENTRY_API void sentry_transaction_iter_headers(sentry_transaction_t *tx,
 SENTRY_API int sentry_get_crashed_last_run(void);
 
 /**
- * Clear the persisted status of the "crashed-last-run".
- *
- * Notes:
- *   * This doesn't change the value of sentry_get_crashed_last_run() yet.
- *     However, if sentry_init() is called again, the value will change.
- *   * This may only be called after sentry_init() and before sentry_close().
- *
- * Returns 0 on success, 1 on error.
- */
-SENTRY_DEPRECATED("The crash marker is cleared by `sentry_init()`.")
-SENTRY_EXPERIMENTAL_API int sentry_clear_crashed_last_run(void);
-
-/**
  * Returns the runtime SDK version as string.
  *
  * May include a prerelease suffix (e.g. `-rc.1`) or downstream SDK build
@@ -4516,18 +4482,6 @@ SENTRY_EXPERIMENTAL_API int sentry_clear_crashed_last_run(void);
  * version.
  */
 SENTRY_API const char *sentry_sdk_version(void);
-
-/**
- * Sentry SDK name set during build time.
- */
-SENTRY_DEPRECATED("Use `sentry_options_get_sdk_name` instead")
-SENTRY_EXPERIMENTAL_API const char *sentry_sdk_name(void);
-
-/**
- * Sentry SDK User-Agent set during build time.
- */
-SENTRY_DEPRECATED("Use `sentry_options_get_user_agent` instead")
-SENTRY_EXPERIMENTAL_API const char *sentry_sdk_user_agent(void);
 
 #ifdef __cplusplus
 }

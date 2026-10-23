@@ -24,11 +24,35 @@
 #    include <signal.h>
 #    include <sys/stat.h>
 #    include <sys/types.h>
+#    if defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID)
+#        include <sys/uio.h>
+#    endif
 #    include <unistd.h>
 #elif defined(SENTRY_PLATFORM_WINDOWS)
 #    include <tlhelp32.h>
 #    include <windows.h>
 #    include <winnt.h>
+#endif
+
+static void (*g_crash_callback)(void) = NULL;
+
+#if (defined(SENTRY_PLATFORM_WINDOWS)                                          \
+    && !((defined(_MSC_VER) || defined(__clang__))                             \
+        && (defined(_M_AMD64) || defined(_M_ARM64))))                          \
+    || defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID)
+static inline bool
+capture_valid_ip(uint64_t ip)
+{
+    if (ip < 0x1000) {
+        return false;
+    }
+#    if defined(__x86_64__) || defined(_M_AMD64)
+    if (ip > 0x00007FFFFFFFFFFFULL) {
+        return false;
+    }
+#    endif
+    return true;
+}
 #endif
 
 // signal_safe_memcpy and signal_safe_memzero are only used on Unix
@@ -285,12 +309,95 @@ safe_build_stack_path(
 }
 #    endif
 
+#    if defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID)
+// libunwindstack uses C++ allocation; keep the handler's FP walk bounded
+static void
+capture_frame_pointer_stack(
+    sentry_crash_capture_t *capture, const ucontext_t *uctx)
+{
+#        if defined(SYS_process_vm_readv) && !defined(__arm__)
+    uintptr_t sp = sentry__ucontext_get_sp(uctx);
+    uintptr_t fp = 0;
+#            if defined(__x86_64__)
+    fp = (uintptr_t)uctx->uc_mcontext.gregs[REG_RBP];
+#            elif defined(__i386__)
+    fp = (uintptr_t)uctx->uc_mcontext.gregs[REG_EBP];
+#            elif defined(__aarch64__)
+    fp = (uintptr_t)uctx->uc_mcontext.regs[29];
+#            endif
+    capture->frame_pointer = true;
+    while (fp && fp >= sp && fp - sp <= SENTRY_CRASH_MAX_STACK_CAPTURE
+        && fp % sizeof(uintptr_t) == 0
+        && capture->count < SENTRY_CRASH_MAX_BACKTRACE_FRAMES) {
+        uintptr_t pair[2];
+        struct iovec local = { pair, sizeof(pair) };
+        struct iovec remote = { (void *)fp, sizeof(pair) };
+        if (syscall(SYS_process_vm_readv, getpid(), &local, 1, &remote, 1, 0)
+            != (ssize_t)sizeof(pair)) {
+            break;
+        }
+        uintptr_t next = pair[0];
+        uintptr_t ret = pair[1];
+        if (!ret) {
+            break;
+        }
+        if (!capture_valid_ip(ret)
+            || (next
+                && (next <= fp || next < sp
+                    || next - sp > SENTRY_CRASH_MAX_STACK_CAPTURE))) {
+            break;
+        }
+        capture->ips[capture->count++] = (uint64_t)ret;
+        if (!next) {
+            break;
+        }
+        fp = next;
+    }
+#        else
+    (void)capture;
+    (void)uctx;
+#        endif
+}
+#    endif
+
+#    if defined(SENTRY_WITH_UNWINDER_LIBUNWIND)                                \
+        || defined(SENTRY_WITH_UNWINDER_LIBUNWIND_MAC)
+static void
+capture_stack(sentry_crash_capture_t *capture, ucontext_t *uctx)
+{
+#        if defined(SENTRY_WITH_UNWINDER_LIBUNWIND)
+    // the libunwind path stops at IP zero; recover callers via FP
+    if (capture->ips[0] == 0) {
+        capture_frame_pointer_stack(capture, uctx);
+        return;
+    }
+#        endif
+    sentry_ucontext_t context = { 0 };
+    context.user_context = uctx;
+    void *ips[SENTRY_CRASH_MAX_BACKTRACE_FRAMES];
+    size_t count = sentry_unwind_stack_from_ucontext(
+        &context, ips, SENTRY_CRASH_MAX_BACKTRACE_FRAMES);
+#        if defined(SENTRY_WITH_UNWINDER_LIBUNWIND_MAC)
+    capture->frame_pointer = true;
+#        endif
+    for (size_t i = capture->count; i < count; i++) {
+        capture->ips[i] = (uint64_t)(uintptr_t)ips[i];
+    }
+    if (count > capture->count) {
+        capture->count = (uint32_t)count;
+    }
+}
+#    endif
+
 /**
  * Signal handler (signal-safe)
  */
 static void
 crash_signal_handler(int signum, siginfo_t *info, void *context)
 {
+    if (g_crash_callback) {
+        g_crash_callback();
+    }
     sentry__enter_crash_handler();
     ucontext_t *uctx = (ucontext_t *)context;
 
@@ -315,8 +422,8 @@ crash_signal_handler(int signum, siginfo_t *info, void *context)
 #    endif
 
     sentry_crash_ipc_t *ipc = g_crash_ipc;
-    if (!ipc || !ipc->shmem) {
-        // No IPC available, forward to the previous handler
+    if (!uctx || !ipc || !ipc->shmem) {
+        // No context or IPC available, forward to the previous handler
         // Re-enable previous signal handlers before re-raising to prevent loops
         reset_signal_handlers();
         if (g_handler_strategy != SENTRY_HANDLER_STRATEGY_CHAIN_AT_START) {
@@ -341,6 +448,19 @@ crash_signal_handler(int signum, siginfo_t *info, void *context)
     // Fill crash context
     ctx->crashed_pid = getpid();
     ctx->crashed_tid = get_tid();
+    ctx->capture.count = 0;
+    ctx->capture.frame_pointer = false;
+#    if defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID)
+    uintptr_t fault_ip = sentry__ucontext_get_ip(uctx);
+#    elif defined(SENTRY_PLATFORM_MACOS) && defined(__x86_64__)
+    uintptr_t fault_ip = uctx->uc_mcontext->__ss.__rip;
+#    elif defined(SENTRY_PLATFORM_MACOS) && defined(__aarch64__)
+    uintptr_t fault_ip
+        = SENTRY__ARM64_GET_PC(uctx->uc_mcontext->__ss) & 0x00007FFFFFFFFFFFULL;
+#    else
+    uintptr_t fault_ip = 0;
+#    endif
+    ctx->capture.ips[ctx->capture.count++] = (uint64_t)fault_ip;
 
 #    if defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID)
     ctx->platform.signum = signum;
@@ -380,29 +500,16 @@ crash_signal_handler(int signum, siginfo_t *info, void *context)
     // libunwind's core unwinding API (unw_init_local2, unw_step, unw_get_reg)
     // is async-signal-safe. The daemon will prefer this over FP-based walking.
 #        ifdef SENTRY_WITH_UNWINDER_LIBUNWIND
-    ctx->platform.backtrace_count = 0;
-    {
-        unw_cursor_t cursor;
-        int ret = unw_init_local2(
-            &cursor, (unw_context_t *)uctx, UNW_INIT_SIGNAL_FRAME);
-        if (ret == 0) {
-            size_t n = 0;
-            while (n < SENTRY_CRASH_MAX_BACKTRACE_FRAMES) {
-                unw_word_t ip = 0;
-                if (unw_get_reg(&cursor, UNW_REG_IP, &ip) < 0 || ip == 0) {
-                    break;
-                }
-                ctx->platform.backtrace_ips[n++] = (uint64_t)ip;
-                if (unw_step(&cursor) <= 0) {
-                    break;
-                }
-            }
-            ctx->platform.backtrace_count = n;
-        }
-    }
+    capture_stack(&ctx->capture, uctx);
+#        else
+    capture_frame_pointer_stack(&ctx->capture, uctx);
 #        endif
 
 #    elif defined(SENTRY_PLATFORM_MACOS)
+#        if defined(SENTRY_WITH_UNWINDER_LIBUNWIND_MAC)
+    capture_stack(&ctx->capture, uctx);
+#        endif
+
     // Capture all threads (signal-safe on macOS)
     ctx->platform.num_threads = 0;
     task_t task = mach_task_self();
@@ -808,7 +915,8 @@ daemon_handling:
     // Dump daemon log for debugging (uses stdio, safe after page allocator
     // enabled)
     if (ctx && ctx->run_path[0] != '\0') {
-        char log_path[SENTRY_CRASH_MAX_PATH];
+        // Static to save signal stack space (guarded by handling_crash)
+        static char log_path[SENTRY_CRASH_MAX_PATH];
         const char suffix[] = "/sentry-daemon.log";
         int len = 0;
         // Manually build path string (signal-safe)
@@ -866,30 +974,21 @@ daemon_handling:
 }
 
 int
-sentry__crash_handler_init(
-    sentry_crash_ipc_t *ipc, sentry_handler_strategy_t strategy)
+sentry__crash_handler_init(sentry_crash_ipc_t *ipc,
+    sentry_handler_strategy_t strategy, void (*callback)(void))
 {
-    if (!ipc) {
+    if (!ipc && !callback) {
         return -1;
     }
 
     g_crash_ipc = ipc;
     g_handler_strategy = strategy;
+    g_crash_callback = callback;
 
     // Set up signal stack
-    g_signal_stack.ss_sp = sentry_malloc(SENTRY_CRASH_SIGNAL_STACK_SIZE);
-    if (!g_signal_stack.ss_sp) {
-        SENTRY_WARN("failed to allocate signal stack");
-        return -1;
-    }
-
-    g_signal_stack.ss_size = SENTRY_CRASH_SIGNAL_STACK_SIZE;
-    g_signal_stack.ss_flags = 0;
-
-    if (sigaltstack(&g_signal_stack, NULL) < 0) {
-        SENTRY_WARNF("failed to set signal stack: %s", strerror(errno));
-        sentry_free(g_signal_stack.ss_sp);
-        g_signal_stack.ss_sp = NULL;
+    if (sentry__setup_sigaltstack(
+            &g_signal_stack, SENTRY_CRASH_SIGNAL_STACK_SIZE, "init")
+        < 0) {
         return -1;
     }
 
@@ -899,6 +998,9 @@ sentry__crash_handler_init(
     sigemptyset(&sa.sa_mask);
     sa.sa_sigaction = crash_signal_handler;
     sa.sa_flags = SA_SIGINFO | SA_ONSTACK;
+    if (g_crash_callback) {
+        sa.sa_flags |= SA_NODEFER;
+    }
 
     size_t installed_count = 0;
     for (size_t i = 0; i < g_crash_signal_count; i++) {
@@ -911,10 +1013,7 @@ sentry__crash_handler_init(
                 sigaction(g_crash_signals[j], &g_previous_handlers[j], NULL);
             }
             // Clean up signal stack
-            g_signal_stack.ss_flags = SS_DISABLE;
-            sigaltstack(&g_signal_stack, NULL);
-            sentry_free(g_signal_stack.ss_sp);
-            g_signal_stack.ss_sp = NULL;
+            sentry__teardown_sigaltstack(&g_signal_stack);
             return -1;
         }
         installed_count++;
@@ -956,7 +1055,7 @@ sentry__crash_handler_init(
 int
 sentry__crash_handler_reinstall(void)
 {
-    if (!g_crash_ipc) {
+    if (!g_crash_ipc && !g_crash_callback) {
         return -1;
     }
 
@@ -965,6 +1064,9 @@ sentry__crash_handler_reinstall(void)
     sigemptyset(&sa.sa_mask);
     sa.sa_sigaction = crash_signal_handler;
     sa.sa_flags = SA_SIGINFO | SA_ONSTACK;
+    if (g_crash_callback) {
+        sa.sa_flags |= SA_NODEFER;
+    }
 
     for (size_t i = 0; i < g_crash_signal_count; i++) {
         struct sigaction previous;
@@ -989,14 +1091,10 @@ sentry__crash_handler_shutdown(void)
     reset_signal_handlers();
 
     // Clean up signal stack
-    if (g_signal_stack.ss_sp) {
-        g_signal_stack.ss_flags = SS_DISABLE;
-        sigaltstack(&g_signal_stack, NULL);
-        sentry_free(g_signal_stack.ss_sp);
-        g_signal_stack.ss_sp = NULL;
-    }
+    sentry__teardown_sigaltstack(&g_signal_stack);
 
     g_crash_ipc = NULL;
+    g_crash_callback = NULL;
 
     SENTRY_DEBUG("crash handler shutdown");
 }
@@ -1010,6 +1108,69 @@ static LPTOP_LEVEL_EXCEPTION_FILTER g_previous_filter = NULL;
 static LONG WINAPI crash_exception_filter(EXCEPTION_POINTERS *exception_info);
 
 static void
+capture_windows_stack(sentry_crash_capture_t *capture, const CONTEXT *original)
+{
+    capture->count = 0;
+    capture->frame_pointer = false;
+#    if (defined(_MSC_VER) || defined(__clang__))                              \
+        && (defined(_M_AMD64) || defined(_M_ARM64))
+    sentry_ucontext_t uctx = { 0 };
+    uctx.exception_ptrs.ContextRecord = (CONTEXT *)original;
+    void *ips[SENTRY_CRASH_MAX_BACKTRACE_FRAMES];
+    capture->count = (uint32_t)sentry_unwind_stack_from_ucontext(
+        &uctx, ips, SENTRY_CRASH_MAX_BACKTRACE_FRAMES);
+    for (size_t i = 0; i < capture->count; i++) {
+        capture->ips[i] = (uint64_t)(uintptr_t)ips[i];
+    }
+#    elif defined(_M_AMD64) || defined(_M_IX86) || defined(_M_ARM64)
+#        if defined(_M_AMD64)
+    uintptr_t ip = original->Rip;
+    uintptr_t fp = original->Rbp;
+    uintptr_t sp = original->Rsp;
+#        elif defined(_M_IX86)
+    uintptr_t ip = original->Eip;
+    uintptr_t fp = original->Ebp;
+    uintptr_t sp = original->Esp;
+#        else
+    uintptr_t ip = original->Pc;
+    uintptr_t fp = original->Fp;
+    uintptr_t sp = original->Sp;
+#        endif
+    capture->ips[capture->count++] = ip;
+    capture->frame_pointer = true;
+    while (fp && fp >= sp && fp - sp <= SENTRY_CRASH_MAX_STACK_CAPTURE
+        && fp % sizeof(uintptr_t) == 0
+        && capture->count < SENTRY_CRASH_MAX_BACKTRACE_FRAMES) {
+        uintptr_t pair[2];
+        SIZE_T read = 0;
+        if (!ReadProcessMemory(
+                GetCurrentProcess(), (void *)fp, pair, sizeof(pair), &read)
+            || read != sizeof(pair)) {
+            break;
+        }
+        if (!pair[1]) {
+            break;
+        }
+        if (!capture_valid_ip(pair[1])
+            || (pair[0]
+                && (pair[0] <= fp || pair[0] < sp
+                    || pair[0] - sp > SENTRY_CRASH_MAX_STACK_CAPTURE))) {
+            break;
+        }
+        capture->ips[capture->count++] = pair[1];
+        if (!pair[0]) {
+            break;
+        }
+        fp = pair[0];
+    }
+#    elif defined(_M_ARM)
+    capture->ips[capture->count++] = original->Pc;
+#    else
+    (void)original;
+#    endif
+}
+
+static void
 crash_sigabrt_handler(EXCEPTION_POINTERS *exception_pointers)
 {
     crash_exception_filter(exception_pointers);
@@ -1021,6 +1182,16 @@ crash_sigabrt_handler(EXCEPTION_POINTERS *exception_pointers)
 static LONG WINAPI
 crash_exception_filter(EXCEPTION_POINTERS *exception_info)
 {
+    if (g_crash_callback) {
+        DWORD code = exception_info->ExceptionRecord->ExceptionCode;
+        if (code == EXCEPTION_BREAKPOINT || code == EXCEPTION_SINGLE_STEP) {
+            return EXCEPTION_CONTINUE_SEARCH;
+        }
+        g_crash_callback();
+        SetUnhandledExceptionFilter(g_previous_filter);
+        return EXCEPTION_CONTINUE_SEARCH;
+    }
+
     sentry__enter_crash_handler();
     // Only handle crash once
     static volatile long handling_crash = 0;
@@ -1069,6 +1240,8 @@ crash_exception_filter(EXCEPTION_POINTERS *exception_info)
         sentry__crash_ipc_notify(ipc);
     }
 
+    capture_windows_stack(&ctx->capture, exception_info->ContextRecord);
+
     // Call Sentry's exception handler
     sentry_ucontext_t sentry_uctx = { 0 };
     sentry_uctx.exception_ptrs = *exception_info;
@@ -1104,15 +1277,16 @@ crash_exception_filter(EXCEPTION_POINTERS *exception_info)
 }
 
 int
-sentry__crash_handler_init(
-    sentry_crash_ipc_t *ipc, sentry_handler_strategy_t strategy)
+sentry__crash_handler_init(sentry_crash_ipc_t *ipc,
+    sentry_handler_strategy_t strategy, void (*callback)(void))
 {
-    if (!ipc) {
+    if (!ipc && !callback) {
         return -1;
     }
     (void)strategy;
 
     g_crash_ipc = ipc;
+    g_crash_callback = callback;
 
     sentry__crash_handler_reinstall();
 
@@ -1123,7 +1297,7 @@ sentry__crash_handler_init(
 int
 sentry__crash_handler_reinstall(void)
 {
-    if (!g_crash_ipc) {
+    if (!g_crash_ipc && !g_crash_callback) {
         return -1;
     }
 
@@ -1141,7 +1315,7 @@ void
 sentry__crash_handler_shutdown(void)
 {
     // Restore previous exception filter (including NULL)
-    if (g_crash_ipc) {
+    if (g_crash_ipc || g_crash_callback) {
         SetUnhandledExceptionFilter(g_previous_filter);
         g_previous_filter = NULL;
     }
@@ -1149,6 +1323,7 @@ sentry__crash_handler_shutdown(void)
     sentry__win32_restore_sigabrt_handler();
 
     g_crash_ipc = NULL;
+    g_crash_callback = NULL;
 
     SENTRY_DEBUG("crash handler shutdown");
 }

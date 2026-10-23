@@ -5,14 +5,12 @@ Tests crash handling, minidump generation, Build ID/UUID extraction,
 multi-thread capture, and FPU/SIMD register capture on all platforms.
 """
 
-import json
 import os
 import subprocess
 import sys
 import time
 import struct
 
-import msgpack
 import pytest
 
 from . import (
@@ -32,6 +30,7 @@ from .assertions import (
     assert_attachment,
     assert_breadcrumb,
     assert_crash_timestamp,
+    assert_crash_hint_attachments,
     assert_no_crash_timestamp,
     assert_debug_meta_images_do_not_overlap,
     assert_meta,
@@ -43,8 +42,9 @@ from .assertions import (
     wait_for,
     wait_for_file,
     assert_user_feedback,
+    assert_crash_stack,
 )
-from .conditions import has_files, has_system_proxy, is_kcov
+from .conditions import has_files, has_system_proxy, is_arm64e, is_kcov
 from .conditions import has_native, has_oom, is_asan, is_tsan, is_qemu, is_wine
 from .proxy import proxy_test_finally, start_proxy, system_proxy
 
@@ -83,8 +83,22 @@ def test_native_capture_crash(cmake, httpserver):
     assert_native_crash(envelope)
 
 
-@pytest.mark.parametrize("callback", ["before-send", "on-crash"])
-def test_native_crash_hint_attachments(cmake, httpserver, callback):
+@pytest.mark.parametrize(
+    "callback, crash",
+    [
+        ("before-send", "crash"),
+        ("on-crash", "crash"),
+        pytest.param(
+            "on-crash",
+            "crash-null",
+            marks=pytest.mark.skipif(
+                sys.platform not in ["linux", "darwin"] or is_wine or is_arm64e,
+                reason="Null function-pointer calls must fault at IP zero",
+            ),
+        ),
+    ],
+)
+def test_native_crash_hint_attachments(cmake, httpserver, callback, crash):
     tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "native"})
 
     httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data("OK")
@@ -93,21 +107,30 @@ def test_native_crash_hint_attachments(cmake, httpserver, callback):
         run_crash(
             tmp_path,
             "sentry_test_integration",
-            ["log", "attachment", callback, "crash"],
+            ["log", "attachment", callback, crash],
             env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
         )
     assert waiting.result
 
     assert len(httpserver.log) >= 1
     envelope = Envelope.deserialize(httpserver.log[0][0].get_data())
-    assert not any(
-        item.headers.get("filename") == "CMakeCache.txt" for item in envelope
-    )
+    snapshot = assert_crash_hint_attachments(envelope, callback)
     assert any(
-        item.headers.get("filename") == "callback.txt"
-        and item.payload.bytes == callback.replace("-", "_").encode()
-        for item in envelope
+        "sentry_test_integration" in image["code_file"]
+        for image in snapshot["debug_meta"]["images"]
     )
+    assert_crash_stack(snapshot)
+    if crash == "crash-null":
+        frames = snapshot["exception"]["values"][0]["stacktrace"]["frames"]
+        assert int(frames[-1]["instruction_addr"], 16) == 0
+    exceptions = envelope.get_event()["exception"]["values"]
+    assert len(exceptions) == len(snapshot["exception"]["values"])
+    exc = exceptions[0]
+    local_exc = snapshot["exception"]["values"][0]
+    assert exc["mechanism"] == local_exc["mechanism"]
+    assert [frame["instruction_addr"] for frame in exc["stacktrace"]["frames"]] == [
+        frame["instruction_addr"] for frame in local_exc["stacktrace"]["frames"]
+    ]
 
 
 def test_native_on_crashed_last_run(cmake, httpserver):
@@ -229,7 +252,7 @@ def test_native_wer_crash(cmake, httpserver, crash_arg, exception_code):
         run_crash(
             tmp_path,
             "sentry_test_integration",
-            ["log", "stdout", crash_arg],
+            ["log", "stdout", "initial-scope", "no-setup", crash_arg],
             env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
         )
     assert waiting.result
@@ -237,6 +260,9 @@ def test_native_wer_crash(cmake, httpserver, crash_arg, exception_code):
     assert len(httpserver.log) >= 1
     envelope = Envelope.deserialize(httpserver.log[0][0].get_data())
     assert_native_crash(envelope, exception_code=exception_code)
+    event = envelope.get_event()
+    assert event["tags"]["test.initial-tag"] == "initial-value"
+    assert event["contexts"]["initial"]["foo"] == "bar"
 
 
 @pytest.mark.skipif(not has_oom, reason="OOM test unreliable in this environment")
@@ -358,21 +384,17 @@ def test_native_capture_minidump_generated(cmake, httpserver):
     assert not list(db_dir.glob("*.run*.lock"))
 
 
-# Both daemon envelope writers merge the breadcrumb ring files: the native
-# stacktrace writer builds the event from scratch, while the minidump-only
-# writer re-parses the parent's event JSON, merges, and re-serializes. Exercise
-# both so the minidump path's extra parse/serialize roundtrip is covered too.
+# Both daemon envelope writers use the scope received over IPC.
+# Exercise breadcrumbs in both native-stacktrace and minidump-only events.
 BREADCRUMB_CRASH_MODES = ["native", "minidump"]
 
 
 @pytest.mark.parametrize("crash_mode", BREADCRUMB_CRASH_MODES)
 def test_native_breadcrumbs(cmake, httpserver, crash_mode):
-    """Test that breadcrumbs survive the daemon's ring-file merge.
+    """Test that breadcrumbs survive the daemon's IPC scope updates.
 
-    The crashing process appends breadcrumbs as msgpack to the ring files; the
-    daemon reads, merges, and attaches them to the event. Asserting on the
-    default `debug crumb` verifies that whole roundtrip, not just that an event
-    arrived.
+    Asserting on the default `debug crumb` verifies the whole roundtrip, not
+    just that an event arrived.
     """
     tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "native"})
 
@@ -397,7 +419,7 @@ def test_native_breadcrumbs(cmake, httpserver, crash_mode):
 
 @pytest.mark.parametrize("crash_mode", BREADCRUMB_CRASH_MODES)
 def test_native_overflow_breadcrumbs(cmake, httpserver, crash_mode):
-    """Test that the daemon caps merged breadcrumbs at max_breadcrumbs.
+    """Test that the daemon caps staged breadcrumbs at max_breadcrumbs.
 
     The example adds 3 default crumbs plus 101 numbered crumbs ("0".."100").
     With the default max_breadcrumbs (100), the daemon keeps the newest 100,
@@ -431,62 +453,61 @@ def test_native_overflow_breadcrumbs(cmake, httpserver, crash_mode):
     assert any(b.get("message") == "100" for b in breadcrumbs)
 
 
-def test_native_attachment_manifest_is_current(cmake, httpserver):
-    """The attachment manifest must reflect the live attachment state (#1933).
-
-    The daemon builds hard-crash envelopes from `<run>/__sentry-attachments`,
-    which the backend only rewrites on a scope flush. `sentry_add_attachment`
-    adds the fully configured attachment before that flush, so the manifest
-    must contain all its metadata immediately.
-
-    Asserting on the manifest rather than on a crash envelope keeps this
-    deterministic: the in-process crash handler happens to flush the scope (via
-    `sentry__trace_finish`), which repairs the manifest before the daemon reads
-    it, but out-of-process paths such as WER never run that handler.
-    """
-    tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "native"})
-
-    cmd = run_command(str(tmp_path / "sentry_test_integration"))
-    child = subprocess.Popen(
-        [*cmd, "log", "attach-custom-filename", "sleep"],
-        cwd=tmp_path,
-        env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
+@pytest.mark.parametrize("mode", [0, 1, 2])
+@pytest.mark.parametrize("scoped_trace", [False, True])
+def test_native_scope_updates_without_snapshot(cmake, httpserver, mode, scoped_trace):
+    tmp_path = cmake(["sentry_test_unit", "sentry-crash"], {"SENTRY_BACKEND": "native"})
+    httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data("OK")
+    env = dict(
+        os.environ,
+        SENTRY_DSN=make_dsn(httpserver),
+        SENTRY_TEST_NATIVE_SCOPE_CRASH=str(mode),
     )
-    db_dir = tmp_path / ".sentry-native"
-
-    last_manifest = None
-
-    def manifest_is_current():
-        # Validate the complete expected state against a single snapshot
-        # instead of waiting on one field and re-reading the file.
-        nonlocal last_manifest
-        paths = list(db_dir.glob("*.run/__sentry-attachments"))
-        if not paths:
-            return False
-        try:
-            unpacker = msgpack.Unpacker(raw=False)
-            unpacker.feed(paths[0].read_bytes())
-            manifest = list(unpacker)
-        except (OSError, msgpack.UnpackException):
-            # rewritten in place, so a read can catch a partial file
-            return False
-        last_manifest = manifest
-        return (
-            len(manifest) == 1
-            and manifest[0].get("filename") == "custom-name.log"
-            and manifest[0].get("content_type") == "application/zstd"
-            and manifest[0].get("path", "").endswith("CMakeCache.txt")
+    if scoped_trace:
+        env["SENTRY_TEST_NATIVE_SCOPE_SPAN"] = "1"
+    with httpserver.wait(timeout=15) as waiting:
+        run_crash(
+            tmp_path,
+            "sentry_test_unit",
+            ["--no-exec", "native_scope_updates"],
+            env=env,
         )
-
-    try:
-        up_to_date = wait_for(manifest_is_current)
-    finally:
-        child.terminate()
-        child.wait()
-
-    assert (
-        up_to_date
-    ), f"attachment manifest does not reflect the live attachment state: {last_manifest}"
+    assert waiting.result
+    envelope = Envelope.deserialize(httpserver.log[0][0].get_data())
+    event = envelope.get_event()
+    assert event["release"] == "ipc-release"
+    assert event["environment"] == "ipc-environment"
+    assert event["transaction"] == "ipc-transaction"
+    assert event["level"] == "fatal"
+    assert event["fingerprint"] == ["ipc", "latest"]
+    assert event["user"]["username"] == "ipc-user"
+    assert event["user"]["id"]
+    assert event["tags"] == {"tag": "latest", "binary-tag": "v\0x"}
+    assert event["extra"]["large"] == "x" * (1024 * 1024)
+    assert set(event["extra"]) == {"large", "expected-trace"}
+    contexts = {"trace", "ipc", "os"}
+    if sys.platform == "win32" or is_wine:
+        contexts.add("device")
+    if is_wine:
+        contexts.add("wine")
+    assert set(event["contexts"]) == contexts
+    assert event["contexts"]["ipc"] == {"status": "latest"}
+    assert event["contexts"]["trace"] == event["extra"]["expected-trace"]
+    assert [crumb["index"] for crumb in event["breadcrumbs"]] == [2, 3, 4]
+    attachments = {
+        item.headers.get("filename"): item.payload.bytes
+        for item in envelope
+        if item.headers.get("type") == "attachment"
+        and item.headers.get("attachment_type") != "event.minidump"
+    }
+    assert attachments == {"latest.txt": b"new"}
+    for name in (
+        "__sentry-event",
+        "__sentry-breadcrumb1",
+        "__sentry-breadcrumb2",
+        "__sentry-attachments",
+    ):
+        assert not list((tmp_path / ".sentry-native").glob(f"*.run/{name}"))
 
 
 def test_native_byte_attachment_is_confined(cmake, unreachable_dsn):
@@ -1425,7 +1446,7 @@ def test_crash_mode_native_only(cmake, httpserver):
     # Should have debug_meta
     assert "debug_meta" in event
     assert len(event["debug_meta"]["images"]) > 0
-    if sys.platform == "darwin":
+    if sys.platform in ["linux", "darwin"] and not is_wine:
         assert_debug_meta_images_do_not_overlap(event)
 
 
@@ -1479,7 +1500,7 @@ def test_crash_mode_native_with_minidump(cmake, httpserver):
 
     # Should have debug_meta
     assert "debug_meta" in event
-    if sys.platform == "darwin":
+    if sys.platform in ["linux", "darwin"] and not is_wine:
         assert_debug_meta_images_do_not_overlap(event)
 
 
@@ -1727,13 +1748,65 @@ def test_native_incomplete_crash(cmake, callback):
         assert "Parent process exited without crash" not in daemon_log()
         assert "Crash notification received, processing" not in daemon_log()
         assert not list(db_dir.glob("*.run/*.dmp"))
-        snapshot = json.loads(next(db_dir.glob("*.run/__sentry-event")).read_text())
-        assert "exception" not in snapshot
+        assert not list(db_dir.glob("*.run/__sentry-event"))
     finally:
         if child.poll() is None:
             child.kill()
         child.wait()
         assert wait_for(lambda: not list(db_dir.glob("*.run.daemon.lock")))
+
+
+@pytest.mark.parametrize("clear", [False, True])
+def test_native_acquired_scope(cmake, httpserver, clear):
+    tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "native"})
+    httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data("OK")
+    args = ["log", "no-setup", "attachment", "acquire-scope", "crash"]
+    if clear:
+        args.append("clear-scope")
+    with httpserver.wait(timeout=10) as waiting:
+        run_crash(
+            tmp_path,
+            "sentry_test_integration",
+            args,
+            env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
+        )
+    assert waiting.result
+
+    envelope = Envelope.deserialize(httpserver.log[0][0].get_data())
+    assert_native_crash(envelope)
+    event = envelope.get_event()
+    assert event["release"] == ("test-example-release" if clear else "scope-release")
+    assert event["environment"] == ("development" if clear else "scope-environment")
+    assert event["sdk"]["name"] == "sentry.native"
+    assert event["contexts"]["os"]["name"]
+    assert ("acquired" in event.get("tags", {})) == (not clear)
+    assert any(
+        crumb.get("message") == "acquired breadcrumb"
+        for crumb in (event.get("breadcrumbs") or [])
+    ) == (not clear)
+    filenames = {item.headers.get("filename") for item in envelope}
+    assert "CMakeCache.txt" in filenames
+    assert ("scope.txt" in filenames) == (not clear)
+
+
+def test_native_scope_snapshot(cmake, httpserver):
+    tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "native"})
+    httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data("OK")
+
+    with httpserver.wait(timeout=10) as waiting:
+        run_crash(
+            tmp_path,
+            "sentry_test_integration",
+            ["initial-scope", "no-setup", "crash"],
+            env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
+        )
+    assert waiting.result
+
+    envelope = Envelope.deserialize(httpserver.log[0][0].get_data())
+    event = envelope.get_event()
+    assert event["tags"]["test.initial-tag"] == "initial-value"
+    assert event["event_id"]
+    assert event["level"] == "fatal"
 
 
 @pytest.mark.parametrize(
@@ -1847,6 +1920,58 @@ def test_native_symbolication(cmake, httpserver, crash_mode, symbolize):
         assert any(
             "function" in frame for frame in exc["stacktrace"]["frames"]
         ), "missing symbolicated function names"
+
+
+@pytest.mark.parametrize("clear_hint", [False, True])
+def test_native_scope_updates_in_crash_callback(cmake, httpserver, clear_hint):
+    tmp_path = cmake(["sentry_test_unit", "sentry-crash"], {"SENTRY_BACKEND": "native"})
+    httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data("OK")
+    env = dict(
+        os.environ,
+        SENTRY_DSN=make_dsn(httpserver),
+        SENTRY_TEST_NATIVE_SCOPE_CRASH="1",
+        SENTRY_TEST_NATIVE_SCOPE_CALLBACK="1",
+    )
+    if clear_hint:
+        env["SENTRY_TEST_NATIVE_SCOPE_HINT_CLEAR"] = "1"
+    with httpserver.wait(timeout=15) as waiting:
+        run_crash(
+            tmp_path,
+            "sentry_test_unit",
+            ["--no-exec", "native_scope_updates"],
+            env=env,
+        )
+    assert waiting.result
+    envelope = Envelope.deserialize(httpserver.log[0][0].get_data())
+    event = envelope.get_event()
+    assert event["callback"] is True
+    assert event["tags"]["tag"] == "callback"
+    attachments = [
+        item for item in envelope if item.headers.get("type") == "attachment"
+    ]
+    if clear_hint:
+        assert attachments == []
+    else:
+        assert len(attachments) == 1
+        assert attachments[0].headers["filename"] == "callback.txt"
+        assert attachments[0].payload.bytes == b"callback"
+
+
+@pytest.mark.skipif(
+    sys.platform != "linux" or is_wine,
+    reason="Test uses Linux daemon startup",
+)
+def test_native_shutdown_during_crash(cmake):
+    tmp_path = cmake(
+        ["sentry_test_unit", "sentry-crash"],
+        {"SENTRY_BACKEND": "native", "SENTRY_TRANSPORT": "none"},
+    )
+    run(
+        tmp_path,
+        "sentry_test_unit",
+        ["--no-exec", "crash_daemon_shutdown_during_crash"],
+        env=dict(os.environ, SENTRY_TEST_NATIVE_DAEMON=str(tmp_path / "sentry-crash")),
+    )
 
 
 def test_native_proxy_set_empty(cmake, httpserver):

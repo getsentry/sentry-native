@@ -633,39 +633,6 @@ sentry__envelope_add_metrics(
 }
 
 sentry_envelope_item_t *
-sentry__envelope_add_user_report(
-    sentry_envelope_t *envelope, sentry_value_t user_report)
-{
-    sentry_envelope_item_t *item = envelope_add_item(envelope);
-    if (!item) {
-        return NULL;
-    }
-
-    sentry_jsonwriter_t *jw = sentry__jsonwriter_new_sb(NULL);
-    if (!jw) {
-        return NULL;
-    }
-
-    sentry_uuid_t event_id;
-    sentry__ensure_event_id(user_report, &event_id);
-
-    sentry__jsonwriter_write_value(jw, user_report);
-    item->payload = sentry__jsonwriter_into_string(jw, &item->payload_len);
-    if (!item->payload) {
-        return NULL;
-    }
-
-    sentry__envelope_item_set_header(
-        item, "type", sentry_value_new_string("user_report"));
-    sentry_value_t length = sentry_value_new_int32((int32_t)item->payload_len);
-    sentry__envelope_item_set_header(item, "length", length);
-
-    sentry__envelope_set_event_id(envelope, &event_id);
-
-    return item;
-}
-
-sentry_envelope_item_t *
 sentry__envelope_add_feedback_event(
     sentry_envelope_t *envelope, sentry_value_t feedback_event)
 {
