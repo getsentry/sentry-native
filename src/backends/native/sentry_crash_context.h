@@ -155,6 +155,8 @@ typedef struct {
     uint32_t pdb_age; // PDB age (Windows PE only, appended to debug_id)
 #if defined(SENTRY_PLATFORM_WINDOWS)
     char pdb_name[SENTRY_CRASH_MAX_PATH]; // PDB filename (Windows PE only)
+#elif defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID)
+    uint64_t elf_offset; // File offset of the ELF image (non-zero in an APK)
 #endif
 } sentry_module_info_t;
 

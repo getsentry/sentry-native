@@ -27,6 +27,9 @@
 #    if defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID)
 #        include <sys/uio.h>
 #    endif
+#    if defined(SENTRY_PLATFORM_ANDROID)
+#        include <sys/prctl.h>
+#    endif
 #    include <unistd.h>
 #elif defined(SENTRY_PLATFORM_WINDOWS)
 #    include <tlhelp32.h>
@@ -125,6 +128,8 @@ static sentry_handler_strategy_t g_handler_strategy
     = SENTRY_HANDLER_STRATEGY_DEFAULT;
 static struct sigaction g_previous_handlers[16];
 static stack_t g_signal_stack = { 0 };
+static volatile long g_handlers_installed = 0;
+static volatile long g_preloaded = 0;
 
 static void
 reset_signal_handlers(void)
@@ -401,7 +406,7 @@ crash_signal_handler(int signum, siginfo_t *info, void *context)
     sentry__enter_crash_handler();
     ucontext_t *uctx = (ucontext_t *)context;
 
-#    if defined(SENTRY_PLATFORM_LINUX) && !defined(SENTRY_PLATFORM_ANDROID)
+#    if defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID)
     if (g_handler_strategy == SENTRY_HANDLER_STRATEGY_CHAIN_AT_START
         && signum != SIGABRT && uctx) {
         uintptr_t ip = sentry__ucontext_get_ip(uctx);
@@ -444,6 +449,14 @@ crash_signal_handler(int signum, siginfo_t *info, void *context)
     }
 
     sentry_crash_context_t *ctx = ipc->shmem;
+
+#    if defined(SENTRY_PLATFORM_ANDROID)
+    // Let the daemon ptrace and read this process. Non-debuggable apps are not
+    // dumpable, and Yama requires a declared ptracer (EINVAL without Yama).
+    // Not restored, since the process terminates after the crash.
+    prctl(PR_SET_DUMPABLE, 1, 0, 0, 0);
+    prctl(PR_SET_PTRACER, PR_SET_PTRACER_ANY, 0, 0, 0);
+#    endif
 
     // Fill crash context
     ctx->crashed_pid = getpid();
@@ -973,12 +986,20 @@ daemon_handling:
     reraise_signal(signum);
 }
 
-int
-sentry__crash_handler_init(sentry_crash_ipc_t *ipc,
+static int
+install_signal_handlers(sentry_crash_ipc_t *ipc, bool preload,
     sentry_handler_strategy_t strategy, void (*callback)(void))
 {
-    if (!ipc && !callback) {
+    if (!preload && !ipc && !callback) {
         return -1;
+    }
+
+    if (sentry__atomic_fetch(&g_handlers_installed)) {
+        if (!preload) {
+            g_crash_ipc = ipc;
+            g_handler_strategy = strategy;
+        }
+        return 0;
     }
 
     g_crash_ipc = ipc;
@@ -1019,6 +1040,12 @@ sentry__crash_handler_init(sentry_crash_ipc_t *ipc,
         installed_count++;
     }
 
+    g_crash_ipc = ipc;
+    sentry__atomic_store(&g_handlers_installed, 1);
+    if (preload) {
+        sentry__atomic_store(&g_preloaded, 1);
+    }
+
     // Prime libunwind's internal cache by performing a short unwind.
     // This forces dl_iterate_phdr to be called now (while safe) rather than
     // in the signal handler where it could deadlock if the crash occurs
@@ -1050,6 +1077,20 @@ sentry__crash_handler_init(sentry_crash_ipc_t *ipc,
 
     SENTRY_DEBUG("crash handler initialized");
     return 0;
+}
+
+int
+sentry__crash_handler_init(sentry_crash_ipc_t *ipc,
+    sentry_handler_strategy_t strategy, void (*callback)(void))
+{
+    return install_signal_handlers(ipc, false, strategy, callback);
+}
+
+int
+sentry__crash_handler_preload(void)
+{
+    return install_signal_handlers(
+        NULL, true, SENTRY_HANDLER_STRATEGY_DEFAULT, NULL);
 }
 
 int
@@ -1087,6 +1128,16 @@ sentry__crash_handler_reinstall(void)
 void
 sentry__crash_handler_shutdown(void)
 {
+    if (sentry__atomic_fetch(&g_preloaded)) {
+        g_crash_ipc = NULL;
+        SENTRY_DEBUG("crash handler deactivated, keeping preloaded handlers");
+        return;
+    }
+
+    if (!sentry__atomic_fetch(&g_handlers_installed)) {
+        return;
+    }
+
     // Restore previous signal handlers
     reset_signal_handlers();
 
@@ -1095,6 +1146,8 @@ sentry__crash_handler_shutdown(void)
 
     g_crash_ipc = NULL;
     g_crash_callback = NULL;
+    sentry__atomic_store(&g_handlers_installed, 0);
+    sentry__atomic_store(&g_preloaded, 0);
 
     SENTRY_DEBUG("crash handler shutdown");
 }

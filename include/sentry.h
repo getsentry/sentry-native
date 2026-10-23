@@ -3486,8 +3486,8 @@ SENTRY_API sentry_metrics_result_t sentry_scope_capture_metric(
 /**
  * Returns the currently set strategy for the handler.
  *
- * This option works for the `inproc` backend on `Linux` and `Android`, and for
- * the `native` backend on `Linux`.
+ * This option works for the `inproc` and `native` backends on `Linux` and
+ * `Android`.
  *
  * The main use-case is when the Native SDK is used in the context of the
  * CLR/Mono runtimes which convert some POSIX signals into managed-code

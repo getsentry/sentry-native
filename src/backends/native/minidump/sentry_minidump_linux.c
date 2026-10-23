@@ -862,11 +862,12 @@ write_thread_context(
 }
 
 /**
- * Extract Build ID from ELF file
+ * Extract Build ID from the ELF image at `elf_offset` in a file
  * Returns the Build ID length, or 0 if not found
  */
 static size_t
-extract_elf_build_id(const char *elf_path, uint8_t *build_id, size_t max_len)
+extract_elf_build_id(const char *elf_path, uint64_t elf_offset,
+    uint8_t *build_id, size_t max_len)
 {
     int fd = sentry__elf_open(elf_path);
     if (fd < 0) {
@@ -880,7 +881,7 @@ extract_elf_build_id(const char *elf_path, uint8_t *build_id, size_t max_len)
     Elf32_Ehdr ehdr;
 #    endif
 
-    if (read(fd, &ehdr, sizeof(ehdr)) != sizeof(ehdr)) {
+    if (pread(fd, &ehdr, sizeof(ehdr), (off_t)elf_offset) != sizeof(ehdr)) {
         close(fd);
         return 0;
     }
@@ -906,7 +907,8 @@ extract_elf_build_id(const char *elf_path, uint8_t *build_id, size_t max_len)
         return 0;
     }
 
-    if (lseek(fd, ehdr.e_shoff, SEEK_SET) != (off_t)ehdr.e_shoff
+    uint64_t shoff = elf_offset + ehdr.e_shoff;
+    if (lseek(fd, (off_t)shoff, SEEK_SET) != (off_t)shoff
         || read(fd, shdr_buf, shdr_size) != (ssize_t)shdr_size) {
         sentry_free(shdr_buf);
         close(fd);
@@ -932,8 +934,8 @@ extract_elf_build_id(const char *elf_path, uint8_t *build_id, size_t max_len)
             if (!note_buf)
                 continue;
 
-            if (lseek(fd, sections[i].sh_offset, SEEK_SET)
-                    == (off_t)sections[i].sh_offset
+            uint64_t note_offset = elf_offset + sections[i].sh_offset;
+            if (lseek(fd, (off_t)note_offset, SEEK_SET) == (off_t)note_offset
                 && read(fd, note_buf, note_size) == (ssize_t)note_size) {
                 // Find the GNU build-id note. SHT_NOTE uses 4-byte alignment.
                 size_t desc_size = 0;
@@ -959,87 +961,6 @@ done:
 }
 
 /**
- * Compute the virtual memory size of an ELF file from its PT_LOAD segments.
- * This matches Crashpad's behavior: size = max(p_vaddr + p_memsz) -
- * min(p_vaddr) across all PT_LOAD segments, rather than using page-aligned
- * /proc/maps sizes.
- * Returns the computed size, or 0 on failure (caller should fall back to
- * /proc/maps size).
- */
-static uint64_t
-compute_elf_size_from_phdrs(const char *elf_path)
-{
-    int fd = sentry__elf_open(elf_path);
-    if (fd < 0) {
-        return 0;
-    }
-
-#    if defined(__x86_64__) || defined(__aarch64__)
-    Elf64_Ehdr ehdr;
-#    else
-    Elf32_Ehdr ehdr;
-#    endif
-
-    if (read(fd, &ehdr, sizeof(ehdr)) != sizeof(ehdr)
-        || memcmp(ehdr.e_ident, ELFMAG, SELFMAG) != 0 || ehdr.e_phnum == 0) {
-        close(fd);
-        return 0;
-    }
-
-    if (!sentry__elf_has_phdr_size(ehdr.e_ident, ehdr.e_phentsize)) {
-        close(fd);
-        return 0;
-    }
-
-    // Read program headers
-    size_t phdr_size = (size_t)ehdr.e_phentsize * ehdr.e_phnum;
-    void *phdr_buf = sentry_malloc(phdr_size);
-    if (!phdr_buf) {
-        close(fd);
-        return 0;
-    }
-
-    if (lseek(fd, ehdr.e_phoff, SEEK_SET) != (off_t)ehdr.e_phoff
-        || read(fd, phdr_buf, phdr_size) != (ssize_t)phdr_size) {
-        sentry_free(phdr_buf);
-        close(fd);
-        return 0;
-    }
-
-#    if defined(__x86_64__) || defined(__aarch64__)
-    Elf64_Phdr *phdrs = (Elf64_Phdr *)phdr_buf;
-#    else
-    Elf32_Phdr *phdrs = (Elf32_Phdr *)phdr_buf;
-#    endif
-
-    uint64_t min_vaddr = UINT64_MAX;
-    uint64_t max_vaddr = 0;
-    bool found_load = false;
-
-    for (int i = 0; i < ehdr.e_phnum; i++) {
-        if (phdrs[i].p_type == PT_LOAD) {
-            found_load = true;
-            if (phdrs[i].p_vaddr < min_vaddr) {
-                min_vaddr = phdrs[i].p_vaddr;
-            }
-            uint64_t end = phdrs[i].p_vaddr + phdrs[i].p_memsz;
-            if (end > max_vaddr) {
-                max_vaddr = end;
-            }
-        }
-    }
-
-    sentry_free(phdr_buf);
-    close(fd);
-
-    if (!found_load || max_vaddr <= min_vaddr) {
-        return 0;
-    }
-
-    return max_vaddr - min_vaddr;
-}
-
-/**
  * Read the DT_SONAME from an ELF file's dynamic section.
  * Crashpad uses SONAME as the module name, falling back to the /proc/maps
  * path. This function reads the .dynamic section to find DT_SONAME and
@@ -1047,7 +968,8 @@ compute_elf_size_from_phdrs(const char *elf_path)
  * Returns true if SONAME was found and written to soname_buf.
  */
 static bool
-read_elf_soname(const char *elf_path, char *soname_buf, size_t soname_buf_size)
+read_elf_soname(const char *elf_path, uint64_t elf_offset, char *soname_buf,
+    size_t soname_buf_size)
 {
     int fd = sentry__elf_open(elf_path);
     if (fd < 0) {
@@ -1066,7 +988,7 @@ read_elf_soname(const char *elf_path, char *soname_buf, size_t soname_buf_size)
 
     bool result = false;
 
-    if (read(fd, &ehdr, sizeof(ehdr)) != sizeof(ehdr)
+    if (pread(fd, &ehdr, sizeof(ehdr), (off_t)elf_offset) != sizeof(ehdr)
         || memcmp(ehdr.e_ident, ELFMAG, SELFMAG) != 0) {
         close(fd);
         return false;
@@ -1085,7 +1007,8 @@ read_elf_soname(const char *elf_path, char *soname_buf, size_t soname_buf_size)
         return false;
     }
 
-    if (lseek(fd, ehdr.e_shoff, SEEK_SET) != (off_t)ehdr.e_shoff
+    uint64_t shoff = elf_offset + ehdr.e_shoff;
+    if (lseek(fd, (off_t)shoff, SEEK_SET) != (off_t)shoff
         || read(fd, shdr_buf, shdr_size) != (ssize_t)shdr_size) {
         sentry_free(shdr_buf);
         close(fd);
@@ -1123,7 +1046,7 @@ read_elf_soname(const char *elf_path, char *soname_buf, size_t soname_buf_size)
 
     // Read .dynstr
     char *dynstr = sentry__elf_read_metadata_section(
-        fd, dynstr_shdr->sh_offset, dynstr_shdr->sh_size);
+        fd, elf_offset + dynstr_shdr->sh_offset, dynstr_shdr->sh_size);
     if (!dynstr) {
         sentry_free(shdr_buf);
         close(fd);
@@ -1133,7 +1056,7 @@ read_elf_soname(const char *elf_path, char *soname_buf, size_t soname_buf_size)
 
     // Read .dynamic entries and find DT_SONAME
     void *dyn_buf = sentry__elf_read_metadata_section(
-        fd, dynamic_shdr->sh_offset, dynamic_shdr->sh_size);
+        fd, elf_offset + dynamic_shdr->sh_offset, dynamic_shdr->sh_size);
     if (!dyn_buf) {
         sentry_free(dynstr);
         sentry_free(shdr_buf);
@@ -1536,9 +1459,10 @@ write_thread_list_stream(minidump_writer_t *writer, minidump_directory_t *dir)
  * unwinding to correctly compute RVAs (rva = ip - base_of_image).
  */
 typedef struct {
-    uint64_t base; // Start of mapping with offset==0
+    uint64_t base; // Start of mapping with offset==elf_offset
     uint64_t end; // End of last mapping for this file
     char *name; // Pointer into mappings[].name (not owned)
+    uint64_t elf_offset; // File offset of the ELF image (non-zero in an APK)
     char soname[256]; // SONAME from ELF dynamic section (empty if not found)
     uint64_t elf_size; // Size from PT_LOAD segments (0 = use maps size)
     uint8_t build_id[32];
@@ -1562,6 +1486,11 @@ typedef struct {
  *
  * base_of_image is set to the address of the offset==0 mapping — the real
  * ELF load address — which is what Breakpad/Crashpad/rust-minidump expect.
+ *
+ * Android maps uncompressed libraries straight from the APK, so one file can
+ * hold several ELF images. Such an image starts at the mapping whose file
+ * offset holds the ELF header, and its other segments are grouped by the
+ * image's load range instead of by file name.
  */
 static size_t
 resolve_modules(const minidump_writer_t *writer, resolved_module_t *modules,
@@ -1596,15 +1525,21 @@ resolve_modules(const minidump_writer_t *writer, resolved_module_t *modules,
                 break;
             }
         }
-        if (already_skipped) {
+        // A non-ELF file can still hold ELF images at non-zero offsets.
+        if (already_skipped && mapping->offset == 0) {
             continue;
         }
 
         // Find an existing module entry by name. This merges across
         // non-contiguous /proc/maps lines — fixes duplicate ld-linux entries.
+        // An ELF image inside a larger file only owns its load range.
         resolved_module_t *mod = NULL;
         for (size_t j = 0; j < module_count; j++) {
-            if (strcmp(modules[j].name, mapping->name) == 0) {
+            if (strcmp(modules[j].name, mapping->name) == 0
+                && (modules[j].elf_offset == 0
+                    || (mapping->start >= modules[j].base
+                        && mapping->start
+                            < modules[j].base + modules[j].elf_size))) {
                 mod = &modules[j];
                 break;
             }
@@ -1627,10 +1562,18 @@ resolve_modules(const minidump_writer_t *writer, resolved_module_t *modules,
             continue;
         }
 
+        // An ELF image can also start inside a larger file, such as a library
+        // that Android maps straight from an APK.
+        bool embedded = mapping->offset != 0
+            && sentry__elf_is_file_at(mapping->name, mapping->offset);
+        if (!embedded && already_skipped) {
+            continue;
+        }
+
         // First time we see this file — confirm it's actually an ELF before
         // adding it as a module. This drops sentry-native's own IPC shm,
         // deleted semaphores, and any other non-ELF named mapping.
-        if (!sentry__elf_is_file(mapping->name)) {
+        if (!embedded && !sentry__elf_is_file(mapping->name)) {
             if (skip_count < SENTRY_CRASH_MAX_MODULES) {
                 skip_names[skip_count++] = mapping->name;
             }
@@ -1645,17 +1588,21 @@ resolve_modules(const minidump_writer_t *writer, resolved_module_t *modules,
         mod = &modules[module_count++];
         memset(mod, 0, sizeof(*mod));
         mod->name = (char *)mapping->name;
+        mod->elf_offset = embedded ? mapping->offset : 0;
         mod->base = mapping->start;
         mod->end = mapping->end;
+        // Known up front to group the other segments of an embedded image.
+        mod->elf_size
+            = sentry__elf_compute_size_from_phdrs(mod->name, mod->elf_offset);
     }
 
-    // Extract Build IDs, ELF sizes, and SONAMEs for each resolved module
+    // Extract Build IDs and SONAMEs for each resolved module
     for (size_t i = 0; i < module_count; i++) {
-        modules[i].build_id_len = extract_elf_build_id(
-            modules[i].name, modules[i].build_id, sizeof(modules[i].build_id));
-        modules[i].elf_size = compute_elf_size_from_phdrs(modules[i].name);
-        if (!read_elf_soname(modules[i].name, modules[i].soname,
-                sizeof(modules[i].soname))) {
+        modules[i].build_id_len
+            = extract_elf_build_id(modules[i].name, modules[i].elf_offset,
+                modules[i].build_id, sizeof(modules[i].build_id));
+        if (!read_elf_soname(modules[i].name, modules[i].elf_offset,
+                modules[i].soname, sizeof(modules[i].soname))) {
             modules[i].soname[0] = '\0';
         }
     }

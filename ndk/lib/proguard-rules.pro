@@ -6,6 +6,8 @@
 # The JNI layer uses this class through reflection
 -keep class io.sentry.ndk.NdkOptions { *; }
 -keep class io.sentry.ndk.DebugImage { *; }
+-keep class io.sentry.ndk.SentryHttpClient { *; }
+-keep class io.sentry.ndk.SentryHttpClient$Response { *; }
 
 # For native methods, see http://proguard.sourceforge.net/manual/examples.html#native
 -keepclasseswithmembernames,includedescriptorclasses class io.sentry.ndk.** {

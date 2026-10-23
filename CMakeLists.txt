@@ -273,6 +273,10 @@ elseif(SENTRY_BACKEND STREQUAL "inproc")
 elseif(SENTRY_BACKEND STREQUAL "breakpad")
 	set(SENTRY_BACKEND_BREAKPAD TRUE)
 elseif(SENTRY_BACKEND STREQUAL "native")
+	if(ANDROID)
+		message(WARNING "The 'native' backend on Android is experimental. "
+			"It may have incomplete features or unexpected behavior.")
+	endif()
 	set(SENTRY_BACKEND_NATIVE TRUE)
 elseif(SENTRY_BACKEND STREQUAL "none")
 	set(SENTRY_BACKEND_NONE TRUE)
@@ -978,6 +982,11 @@ elseif(SENTRY_BACKEND_NATIVE)
 		${PROJECT_SOURCE_DIR}/src
 		${PROJECT_SOURCE_DIR}/src/backends/native
 	)
+	if(SENTRY_WITH_LIBUNWINDSTACK)
+		target_include_directories(sentry-crash PRIVATE
+			${PROJECT_SOURCE_DIR}/external/libunwindstack-ndk/include
+		)
+	endif()
 
 	# Link same libraries as sentry
 	target_link_libraries(sentry-crash PRIVATE ${_SENTRY_PLATFORM_LIBS})

@@ -2,7 +2,10 @@ cmake_minimum_required(VERSION 3.10)
 project(Sentry-Android LANGUAGES C CXX)
 
 # Add sentry-android shared library
-add_library(sentry-android SHARED src/main/jni/sentry.c)
+add_library(sentry-android SHARED
+	src/main/jni/sentry.c
+	src/main/jni/sentry_http.c
+)
 
 # Conditionally add test library if ENABLE_TESTS is set
 if(ENABLE_TESTS)
@@ -13,8 +16,23 @@ endif()
 set(BUILD_SHARED_LIBS ON)
 set(SENTRY_BUILD_SHARED_LIBS ON)
 
+if(SENTRY_BACKEND STREQUAL "native")
+	set(SENTRY_TRANSPORT "none" CACHE STRING "" FORCE)
+endif()
+
 # Adding sentry-native project
 add_subdirectory(${SENTRY_NATIVE_SRC} sentry_build)
+
+# Package the daemon executable only for the instrumented tests, which fork/exec
+# it. Apps run the daemon from libsentry.so in the sentry-java crash service.
+if(SENTRY_BACKEND STREQUAL "native" AND ENABLE_TESTS)
+	set_target_properties(sentry-crash PROPERTIES
+		PREFIX "lib"
+		OUTPUT_NAME "sentry-crash"
+		SUFFIX ".so"
+	)
+	target_link_options(sentry-crash PRIVATE "-Wl,-z,max-page-size=16384")
+endif()
 
 if(WITH_ASAN_OPTION)
 	set(SENTRY_ANDROID_SANITIZER address)

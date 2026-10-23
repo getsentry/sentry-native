@@ -12,6 +12,7 @@
 
 // Forward declaration
 struct sentry_options_s;
+typedef struct sentry_crash_daemon_s sentry_crash_daemon_t;
 
 /**
  * Daemon main loop (runs in forked child on Unix, or separate process on
@@ -21,7 +22,11 @@ struct sentry_options_s;
  * @param notify_handle Notification handle for crash signals
  * @param ready_handle Ready signal handle to signal parent
  */
-#if defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID)
+#if defined(SENTRY_PLATFORM_ANDROID)
+int sentry__crash_daemon_main(pid_t app_pid, uint64_t app_tid,
+    int notify_eventfd, int ready_eventfd, int shm_fd, int message_fd,
+    sentry_crash_daemon_t *daemon);
+#elif defined(SENTRY_PLATFORM_LINUX)
 int sentry__crash_daemon_main(pid_t app_pid, uint64_t app_tid,
     int notify_eventfd, int ready_eventfd, int message_fd);
 #elif defined(SENTRY_PLATFORM_MACOS)
@@ -42,9 +47,10 @@ int sentry__crash_daemon_main(pid_t app_pid, uint64_t app_tid,
  *
  * @param options Sentry options (DSN, transport, etc.)
  * @param ipc Crash IPC with crash context in shared memory
+ * @param daemon Android service-hosted daemon to defer the upload to, or NULL
  * @return true if the crash envelope was captured for upload or reporting
  */
-bool sentry__process_crash(
-    const struct sentry_options_s *options, sentry_crash_ipc_t *ipc);
+bool sentry__process_crash(const struct sentry_options_s *options,
+    sentry_crash_ipc_t *ipc, sentry_crash_daemon_t *daemon);
 
 #endif
