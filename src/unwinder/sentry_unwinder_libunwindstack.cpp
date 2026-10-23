@@ -66,14 +66,14 @@ sentry__unwind_stack_libunwindstack(
     }
 }
 
+// Itanium C++ ABI (libc++abi), not declared in <cxxabi.h> (NDK)
+extern void *__cxa_get_globals(void);
+
 void
 sentry__unwind_init_libunwindstack(void)
 {
-    // the first exception on a thread allocates its exception state, and
-    // aborts if that fails
-    try {
-        throw 0;
-    } catch (...) {
-    }
+    // allocates the thread's exception state, which the first throw would
+    // otherwise allocate, and abort if that fails
+    __cxa_get_globals();
 }
 }
