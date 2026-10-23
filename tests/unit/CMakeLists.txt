@@ -57,6 +57,10 @@ add_executable(sentry_test_unit
 	tests.inc
 )
 
+if(SENTRY_WITH_LIBUNWINDSTACK)
+	target_sources(sentry_test_unit PRIVATE test_unwinder.cpp)
+endif()
+
 # FIXME: cmake 3.13 introduced target_link_options
 target_compile_definitions(sentry_test_unit PRIVATE ${SENTRY_COMPILE_DEFINITIONS})
 
