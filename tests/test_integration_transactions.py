@@ -1,6 +1,6 @@
 import os
-import time
 import uuid
+from datetime import datetime
 
 import pytest
 
@@ -20,7 +20,6 @@ from .conditions import has_http
 
 pytestmark = pytest.mark.skipif(not has_http, reason="tests need http")
 
-RFC3339_FORMAT = "%Y-%m-%dT%H:%M:%S.%fZ"
 UPSTREAM_TRACE_ID = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 UPSTREAM_PARENT_SPAN_ID = "bbbbbbbbbbbbbbbb"
 
@@ -85,9 +84,9 @@ def test_transaction_only(cmake, httpserver, build_args):
     assert trace_context["span_id"]
     assert trace_context["status"] == "ok"
 
-    start_timestamp = time.strptime(payload["start_timestamp"], RFC3339_FORMAT)
+    start_timestamp = datetime.fromisoformat(payload["start_timestamp"])
     assert start_timestamp
-    timestamp = time.strptime(payload["timestamp"], RFC3339_FORMAT)
+    timestamp = datetime.fromisoformat(payload["timestamp"])
     assert timestamp >= start_timestamp
 
     assert trace_context["data"] == {"url": "https://example.com"}
@@ -141,9 +140,9 @@ def test_before_transaction_callback(cmake, httpserver):
     assert trace_context["span_id"]
     assert trace_context["status"] == "ok"
 
-    start_timestamp = time.strptime(payload["start_timestamp"], RFC3339_FORMAT)
+    start_timestamp = datetime.fromisoformat(payload["start_timestamp"])
     assert start_timestamp
-    timestamp = time.strptime(payload["timestamp"], RFC3339_FORMAT)
+    timestamp = datetime.fromisoformat(payload["timestamp"])
     assert timestamp >= start_timestamp
 
     assert trace_context["data"] == {"url": "https://example.com"}
