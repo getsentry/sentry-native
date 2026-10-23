@@ -827,3 +827,39 @@ def test_e2e_crashpad(cmake):
     ), f"Crashpad crash should capture threads (>= 1), got {thread_count}"
 
     verify_no_thread_duplication(threads_data, "test_e2e_crashpad")
+
+
+def test_e2e_trace_propagation(cmake):
+    """Verify that Sentry links the events of an upstream and a downstream app
+    when the downstream app continues the trace from the upstream headers."""
+    tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "none"})
+    env = dict(os.environ, SENTRY_DSN=os.environ["SENTRY_E2E_DSN"])
+
+    # upstream: capture an event and print the propagation headers of its trace
+    output = check_output(
+        tmp_path,
+        "sentry_test_integration",
+        ["log", "e2e-test", "iter-trace-headers", "capture-event"],
+        env=env,
+    )
+    upstream_id = extract_test_id(output)
+    headers = dict(
+        re.findall(r"^(sentry-trace|baggage): (.+)$", output.decode(), re.MULTILINE)
+    )
+
+    # downstream: continue the trace from those headers and capture an event
+    env["SENTRY_TEST_SENTRY_TRACE"] = headers["sentry-trace"]
+    env["SENTRY_TEST_BAGGAGE"] = headers["baggage"]
+    output = check_output(
+        tmp_path,
+        "sentry_test_integration",
+        ["log", "e2e-test", "continue-trace", "capture-event"],
+        env=env,
+    )
+    downstream_id = extract_test_id(output)
+
+    upstream_trace = poll_sentry_for_event(upstream_id)["contexts"]["trace"]
+    downstream_trace = poll_sentry_for_event(downstream_id)["contexts"]["trace"]
+
+    assert downstream_trace["trace_id"] == upstream_trace["trace_id"]
+    assert downstream_trace["parent_span_id"] == upstream_trace["span_id"]
