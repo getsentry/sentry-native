@@ -58,6 +58,7 @@ init_framework(long *called)
     sentry_options_set_release(options, "prod");
     sentry_options_set_require_user_consent(options, false);
     sentry_options_set_auto_session_tracking(options, true);
+    sentry_options_set_send_session_start_update(options, false);
 
     sentry_init(options);
 }

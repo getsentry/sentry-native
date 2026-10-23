@@ -69,6 +69,14 @@ sentry_options_new(void)
     sentry_options_set_sdk_name(opts, SENTRY_SDK_NAME);
     opts->max_breadcrumbs = SENTRY_BREADCRUMBS_MAX;
     opts->auto_session_tracking = true;
+    // consoles embed the live session in the crash report, so the start
+    // update is what counts a run that never sends anything else
+    opts->send_session_start_update =
+#if defined(SENTRY_PLATFORM_NX) || defined(SENTRY_PLATFORM_PS)
+        true;
+#else
+        false;
+#endif
     opts->system_crash_reporter_enabled = false;
     opts->attach_screenshot = false;
     opts->attach_session_replay = false;
@@ -595,6 +603,18 @@ int
 sentry_options_get_auto_session_tracking(const sentry_options_t *opts)
 {
     return opts->auto_session_tracking;
+}
+
+void
+sentry_options_set_send_session_start_update(sentry_options_t *opts, int val)
+{
+    opts->send_session_start_update = !!val;
+}
+
+int
+sentry_options_get_send_session_start_update(const sentry_options_t *opts)
+{
+    return opts->send_session_start_update;
 }
 
 void

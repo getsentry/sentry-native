@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+**Features**:
+
+- Add the `send_session_start_update` option, which sends the initial session update when the session starts instead of with the first event. ([#2242](https://github.com/getsentry/sentry-native/pull/2242))
+
 **Fixes**:
 
 - An empty proxy (`sentry_options_set_proxy(options, "")`) now means a direct connection with every transport and backend. Before, the WinHTTP transport, the Windows and macOS crashpad handlers and the native backend's daemon fell back to the proxy environment variables or the system proxy settings. ([#2218](https://github.com/getsentry/sentry-native/pull/2218), [crashpad#175](https://github.com/getsentry/crashpad/pull/175))
