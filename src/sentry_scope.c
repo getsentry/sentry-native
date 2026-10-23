@@ -2450,6 +2450,18 @@ sentry_scope_continue_trace_n(sentry_scope_t *scope, const char *sentry_trace,
     sentry_value_decref(context);
 }
 
+void
+sentry_scope_iter_trace_propagation_headers(const sentry_scope_t *scope,
+    sentry_iter_headers_function_t callback, void *userdata)
+{
+    sentry_value_t span = sentry__scope_load_span_or_transaction(scope);
+    if (sentry_value_is_null(span)) {
+        span = sentry__scope_load_trace_context(scope);
+    }
+    sentry__span_iter_headers(scope, span, callback, userdata);
+    sentry_value_decref(span);
+}
+
 sentry_level_t
 sentry__scope_get_level(const sentry_scope_t *scope)
 {

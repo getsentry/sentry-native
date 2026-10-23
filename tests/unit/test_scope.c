@@ -619,6 +619,39 @@ SENTRY_TEST(scope_continue_trace)
     sentry_value_decref(trace);
 }
 
+static void
+collect_sentry_trace(const char *key, const char *value, void *userdata)
+{
+    if (strcmp(key, "sentry-trace") == 0) {
+        snprintf((char *)userdata, 64, "%s", value);
+    }
+}
+
+SENTRY_TEST(scope_iter_trace_propagation_headers)
+{
+    SENTRY_TEST_OPTIONS_NEW(options);
+    sentry_init(options);
+
+    // a local scope without a trace falls back to the global one
+    sentry_scope_t *scope = sentry_scope_new();
+    char global_trace[64] = { 0 };
+    char local_trace[64] = { 0 };
+    sentry_iter_trace_propagation_headers(collect_sentry_trace, global_trace);
+    sentry_scope_iter_trace_propagation_headers(
+        scope, collect_sentry_trace, local_trace);
+    TEST_CHECK_STRING_EQUAL(local_trace, global_trace);
+
+    sentry_scope_set_trace(
+        scope, "aaaabbbbccccddddeeeeffff00001111", "9c2a92b49b7c4d1e");
+    sentry_scope_iter_trace_propagation_headers(
+        scope, collect_sentry_trace, local_trace);
+    TEST_CHECK(
+        strncmp(local_trace, "aaaabbbbccccddddeeeeffff00001111-", 33) == 0);
+
+    sentry_scope_free(scope);
+    sentry_close();
+}
+
 SENTRY_TEST(scope_extra)
 {
     SENTRY_TEST_OPTIONS_NEW(options);
