@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+**Features**:
+
+- Report the host OS in the OS context under Wine and Proton, instead of the Windows version that Wine emulates. ([#2241](https://github.com/getsentry/sentry-native/pull/2241))
+
 **Fixes**:
 
 - An empty proxy (`sentry_options_set_proxy(options, "")`) now means a direct connection with every transport and backend. Before, the WinHTTP transport, the Windows and macOS crashpad handlers and the native backend's daemon fell back to the proxy environment variables or the system proxy settings. ([#2218](https://github.com/getsentry/sentry-native/pull/2218), [crashpad#175](https://github.com/getsentry/crashpad/pull/175))
