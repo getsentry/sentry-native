@@ -442,6 +442,13 @@ test_logger_callback(
 }
 
 static void
+set_header_extra(const char *key, const char *value, void *userdata)
+{
+    (void)userdata;
+    sentry_set_extra(key, sentry_value_new_string(value));
+}
+
+static void
 print_envelope(sentry_envelope_t *envelope, void *unused_state)
 {
     (void)unused_state;
@@ -1238,6 +1245,10 @@ main(int argc, char **argv)
             "aaaabbbbccccddddeeeeffff00001111-f0f0f0f0f0f0f0f0-1",
             "sentry-trace_id=aaaabbbbccccddddeeeeffff00001111,"
             "sentry-environment=upstream,sentry-sample_rand=0.25");
+    }
+
+    if (has_arg(argc, argv, "iter-trace-headers")) {
+        sentry_iter_trace_propagation_headers(set_header_extra, NULL);
     }
 
     if (has_arg(argc, argv, "replay-context")) {
