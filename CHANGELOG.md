@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+**Features**:
+
+- Add the `send_session_start_update` option, which sends the initial session update when the session starts instead of with the first event. ([#TODO](https://github.com/getsentry/sentry-native/pull/TODO))
+
 **Fixes**:
 
 - Rate limits in an `X-Sentry-Rate-Limits` header are no longer dropped when a limit leaves out the optional scope field. Each limit is now split at the comma before its fields are read; previously a limit such as `60:error` consumed the one after it, so only the last limit in the header applied. ([#2245](https://github.com/getsentry/sentry-native/pull/2245))
