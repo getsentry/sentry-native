@@ -16,6 +16,7 @@
 #include "sentry_uuid.h"
 #include "sentry_value.h"
 
+#include <math.h>
 #include <stdlib.h>
 
 #ifdef SENTRY_BACKEND_CRASHPAD
@@ -1278,6 +1279,33 @@ sentry__scope_load_dsc(const sentry_scope_t *scope)
     return dsc;
 }
 
+static sentry_value_t
+make_dsc(const sentry_scope_t *scope, const sentry_options_t *options)
+{
+    sentry_value_t dsc = sentry__scope_load_dsc(scope);
+    sentry_value_t trace_context = sentry__scope_load_trace_context(scope);
+    double sample_rand = sentry_value_as_double(
+        sentry_value_get_by_key(trace_context, "sample_rand"));
+    sentry_value_decref(trace_context);
+    if (!sentry_value_is_null(dsc)) {
+        if (!isnan(sample_rand)) {
+            if (sample_rand >= options->traces_sample_rate) {
+                sentry_value_set_by_key(
+                    dsc, "sampled", sentry_value_new_string("false"));
+            } else {
+                sentry_value_set_by_key(
+                    dsc, "sampled", sentry_value_new_string("true"));
+            }
+        } else {
+            // only for testing; in production, the SDK should always have a
+            // non-null sample_rand. We don't set "sampled" to keep dsc empty
+            SENTRY_WARN("couldn't retrieve sample_rand from scope to apply to "
+                        "the dynamic sampling context");
+        }
+    }
+    return dsc;
+}
+
 void
 sentry__scope_foreach_dsc(const sentry_scope_t *scope,
     sentry_value_foreach_key_value_function_t callback, void *userdata)
@@ -1497,6 +1525,7 @@ sentry__scope_apply_to_event(const sentry_scope_t *scope,
     sentry_value_t scope_trace = sentry_value_new_null();
     sentry_value_t propagation_context = sentry_value_new_null();
     sentry_value_t scope_breadcrumbs = sentry_value_new_null();
+    sentry_value_t dsc = sentry_value_new_null();
 
     if (!is_transaction) {
         scope_trace = load_span_or_transaction_trace_context(scope);
@@ -1504,6 +1533,9 @@ sentry__scope_apply_to_event(const sentry_scope_t *scope,
             && sentry_value_is_null(
                 sentry_value_get_by_key(event_contexts, "trace"))) {
             propagation_context = sentry__scope_load_propagation_context(scope);
+        }
+        if (mode & SENTRY_SCOPE_DSC) {
+            dsc = make_dsc(scope, options);
         }
     }
     if (mode & SENTRY_SCOPE_BREADCRUMBS) {
@@ -1570,6 +1602,9 @@ sentry__scope_apply_to_event(const sentry_scope_t *scope,
 
     PLACE_VALUE("sdk", client_sdk);
     sentry_value_decref(client_sdk);
+
+    PLACE_VALUE("dsc", dsc);
+    sentry_value_decref(dsc);
 
     if (is_transaction && !sentry_value_is_null(contexts)) {
         sentry_value_remove_by_key(contexts, "trace");

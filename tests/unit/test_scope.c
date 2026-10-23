@@ -520,6 +520,63 @@ SENTRY_TEST(scope_set_trace)
     sentry_close();
 }
 
+static void
+store_trace_header(sentry_envelope_t *envelope, void *data)
+{
+    sentry_value_t *trace = data;
+    sentry_value_decref(*trace);
+    *trace = sentry_value_incref(sentry_envelope_get_header(envelope, "trace"));
+    TEST_CHECK(sentry_value_is_null(
+        sentry_value_get_by_key(sentry_envelope_get_event(envelope), "dsc")));
+    sentry_envelope_free(envelope);
+}
+
+SENTRY_TEST(scope_capture_dsc)
+{
+    sentry_value_t trace = sentry_value_new_null();
+    SENTRY_TEST_OPTIONS_NEW(options);
+    sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
+    sentry_options_set_traces_sample_rate(options, 0.5);
+    sentry_transport_t *transport = sentry_transport_new(store_trace_header);
+    sentry_transport_set_state(transport, &trace);
+    sentry_options_set_transport(options, transport);
+    sentry_init(options);
+
+    SENTRY_WITH_SCOPE_MUT (global_scope) {
+        sentry__scope_set_trace_context(
+            global_scope, "sample_rand", sentry_value_new_double(0.25));
+    }
+
+    sentry_scope_t *scope = sentry_scope_new();
+    sentry_scope_set_trace(
+        scope, "aaaabbbbccccddddeeeeffff00001111", "9c2a92b49b7c4d1e");
+    sentry__scope_set_trace_context(
+        scope, "sample_rand", sentry_value_new_double(0.75));
+
+    sentry_scope_capture_event(scope, sentry_value_new_event(), NULL);
+    TEST_CHECK_STRING_EQUAL(
+        sentry_value_as_string(sentry_value_get_by_key(trace, "trace_id")),
+        "aaaabbbbccccddddeeeeffff00001111");
+    TEST_CHECK_STRING_EQUAL(
+        sentry_value_as_string(sentry_value_get_by_key(trace, "sampled")),
+        "false");
+
+    sentry_value_decref(trace);
+    trace = sentry_value_new_null();
+    sentry_scope_capture_feedback(
+        scope, sentry_value_new_feedback("feedback", NULL, NULL, NULL), NULL);
+    TEST_CHECK_STRING_EQUAL(
+        sentry_value_as_string(sentry_value_get_by_key(trace, "trace_id")),
+        "aaaabbbbccccddddeeeeffff00001111");
+    TEST_CHECK_STRING_EQUAL(
+        sentry_value_as_string(sentry_value_get_by_key(trace, "sampled")),
+        "false");
+
+    sentry_scope_free(scope);
+    sentry_close();
+    sentry_value_decref(trace);
+}
+
 SENTRY_TEST(scope_extra)
 {
     SENTRY_TEST_OPTIONS_NEW(options);

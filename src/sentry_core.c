@@ -1047,11 +1047,11 @@ prepare_user_feedback(const sentry_options_t *options,
 
     if (local_scope) {
         sentry__scope_apply_to_event(
-            local_scope, options, event, SENTRY_SCOPE_NONE);
+            local_scope, options, event, SENTRY_SCOPE_DSC);
     } else {
         SENTRY_WITH_SCOPE (scope) {
             sentry__scope_apply_to_event(
-                scope, options, event, SENTRY_SCOPE_NONE);
+                scope, options, event, SENTRY_SCOPE_DSC);
         }
     }
 
