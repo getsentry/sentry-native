@@ -985,8 +985,8 @@ sentry_transaction_set_status(
     }
 }
 
-static void
-sentry__span_iter_headers(sentry_value_t span,
+void
+sentry__span_iter_headers(const sentry_scope_t *scope, sentry_value_t span,
     sentry_iter_headers_function_t callback, void *userdata)
 {
     sentry_value_t trace_id = sentry_value_get_by_key(span, "trace_id");
@@ -999,9 +999,15 @@ sentry__span_iter_headers(sentry_value_t span,
 
     // (32 char trace_id)-(16-char span_id)-(0|1) + null terminator
     char buf[SENTRY_TRACE_LEN + 1];
-    snprintf(buf, sizeof(buf), "%s-%s-%s", sentry_value_as_string(trace_id),
-        sentry_value_as_string(span_id),
-        sentry_value_is_true(sampled) ? "1" : "0");
+    if (sentry_value_is_null(sampled)) {
+        // deferred sampling decision
+        snprintf(buf, sizeof(buf), "%s-%s", sentry_value_as_string(trace_id),
+            sentry_value_as_string(span_id));
+    } else {
+        snprintf(buf, sizeof(buf), "%s-%s-%s", sentry_value_as_string(trace_id),
+            sentry_value_as_string(span_id),
+            sentry_value_is_true(sampled) ? "1" : "0");
+    }
     callback("sentry-trace", buf, userdata);
 
     // Outgoing baggage: build from the scope DSC (frozen from upstream when
@@ -1015,9 +1021,7 @@ sentry__span_iter_headers(sentry_value_t span,
         sentry__stringbuilder_append(&sb, "sentry-trace_id=");
         sentry__stringbuilder_append(&sb, sentry_value_as_string(trace_id));
 
-        SENTRY_WITH_SCOPE (scope) {
-            sentry__scope_foreach_dsc(scope, append_baggage_member, &sb);
-        }
+        sentry__scope_foreach_dsc(scope, append_baggage_member, &sb);
 
         char *baggage = sentry__stringbuilder_into_string(&sb);
         if (baggage) {
@@ -1046,7 +1050,9 @@ sentry_span_iter_headers(sentry_span_t *span,
     sentry_iter_headers_function_t callback, void *userdata)
 {
     if (span) {
-        sentry__span_iter_headers(span->inner, callback, userdata);
+        SENTRY_WITH_SCOPE (scope) {
+            sentry__span_iter_headers(scope, span->inner, callback, userdata);
+        }
     }
 }
 
@@ -1055,7 +1061,9 @@ sentry_transaction_iter_headers(sentry_transaction_t *tx,
     sentry_iter_headers_function_t callback, void *userdata)
 {
     if (tx) {
-        sentry__span_iter_headers(tx->inner, callback, userdata);
+        SENTRY_WITH_SCOPE (scope) {
+            sentry__span_iter_headers(scope, tx->inner, callback, userdata);
+        }
     }
 }
 

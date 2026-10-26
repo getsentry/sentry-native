@@ -102,4 +102,12 @@ bool sentry__trace_can_continue(
 sentry_value_t sentry__parse_trace_headers(const char *sentry_trace,
     size_t sentry_trace_len, const char *baggage, size_t baggage_len);
 
+/**
+ * Iterates the distributed tracing headers of the given span, or of a
+ * propagation trace context, with the baggage built from the dynamic sampling
+ * context of `scope`. The sampled flag is omitted if `span` has none.
+ */
+void sentry__span_iter_headers(const sentry_scope_t *scope, sentry_value_t span,
+    sentry_iter_headers_function_t callback, void *userdata);
+
 #endif

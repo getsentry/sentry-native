@@ -425,6 +425,46 @@ def test_continue_trace_event(cmake, httpserver):
     }
 
 
+@pytest.mark.parametrize("continue_trace", [False, True])
+def test_iter_trace_propagation_headers(cmake, httpserver, continue_trace):
+    tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "none"})
+
+    httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data("OK")
+    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver), SENTRY_RELEASE="🤮🚀")
+
+    args = ["log", "iter-trace-headers", "capture-event"]
+    if continue_trace:
+        args.insert(1, "continue-trace")
+    run(tmp_path, "sentry_test_integration", args, env=env)
+
+    assert len(httpserver.log) == 1
+    event_req = httpserver.log[0][0]
+    event_body = event_req.get_data()
+
+    event_envelope = Envelope.deserialize(event_body)
+
+    # Extract the one-and-only-item
+    (event,) = event_envelope.items
+
+    payload = event.payload.json
+
+    # the propagated headers continue the event's trace
+    trace_context = payload["contexts"]["trace"]
+    sentry_trace = f"{trace_context['trace_id']}-{trace_context['span_id']}"
+    if continue_trace:
+        sentry_trace += "-1"
+    assert payload["extra"]["sentry-trace"] == sentry_trace
+
+    # the baggage carries the event's DSC, without a deferred sampling decision
+    baggage = dict(m.split("=", 1) for m in payload["extra"]["baggage"].split(","))
+    assert baggage.pop("sentry-trace_id") == trace_context["trace_id"]
+    trace_header = event_envelope.headers["trace"]
+    assert {f"sentry-{key}" for key in trace_header} - {
+        "sentry-trace_id",
+        "sentry-sampled",
+    } == set(baggage)
+
+
 def test_set_trace_transaction_scoped_event(cmake, httpserver):
     tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "none"})
 

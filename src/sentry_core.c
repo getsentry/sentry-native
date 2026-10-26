@@ -1489,6 +1489,15 @@ sentry_continue_trace_n(const char *sentry_trace, size_t sentry_trace_len,
 }
 
 void
+sentry_iter_trace_propagation_headers(
+    sentry_iter_headers_function_t callback, void *userdata)
+{
+    SENTRY_WITH_SCOPE (scope) {
+        sentry_scope_iter_trace_propagation_headers(scope, callback, userdata);
+    }
+}
+
+void
 sentry_start_new_trace(void)
 {
     SENTRY_WITH_OPTIONS (options) {
