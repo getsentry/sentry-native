@@ -85,6 +85,15 @@ set_os_uname(sentry_value_t os, const char *sysname, const char *release)
 #    define OS_RELEASE_MAX_KEY_SIZE 64
 #    define OS_RELEASE_MAX_VALUE_SIZE 128
 
+// Prefer the host over the Steam Runtime or Flatpak container.
+static const char *const os_release_paths[] = {
+    "/run/host/etc/os-release",
+    "/run/host/usr/lib/os-release",
+    "/run/host/os-release",
+    "/etc/os-release",
+    "/usr/lib/os-release",
+};
+
 static int
 parse_os_release_line(const char *line, char *key, char *value)
 {
@@ -579,10 +588,6 @@ get_wine_host_os_context(void)
     }
 
     if (strcmp(sysname, "Linux") == 0) {
-        // Prefer the host over the Steam Runtime or Flatpak container.
-        const char *os_release_paths[] = { "/run/host/etc/os-release",
-            "/run/host/usr/lib/os-release", "/run/host/os-release",
-            "/etc/os-release", "/usr/lib/os-release" };
         for (size_t i = 0;
             i < sizeof(os_release_paths) / sizeof(os_release_paths[0]); i++) {
             sentry_value_t os_dist = get_wine_os_release(os_release_paths[i]);
@@ -1003,24 +1008,15 @@ sentry__get_os_context(void)
     }
 
 #    if defined(SENTRY_PLATFORM_LINUX)
-    /**
-     * The file /etc/os-release takes precedence over /usr/lib/os-release.
-     * Applications should check for the former, and exclusively use its data if
-     * it exists, and only fall back to /usr/lib/os-release if it is missing.
-     * Applications should not read data from both files at the same time.
-     *
-     * From:
-     * https://www.freedesktop.org/software/systemd/man/latest/os-release.html#Description
-     */
-    sentry_value_t os_dist = get_linux_os_release("/etc/os-release");
-    if (sentry_value_is_null(os_dist)) {
-        os_dist = get_linux_os_release("/usr/lib/os-release");
-        if (sentry_value_is_null(os_dist)) {
-            return os;
+    for (size_t i = 0;
+        i < sizeof(os_release_paths) / sizeof(os_release_paths[0]); i++) {
+        sentry_value_t os_dist = get_linux_os_release(os_release_paths[i]);
+        if (!sentry_value_is_null(os_dist)) {
+            set_os_distribution(os, os_dist);
+            sentry_value_decref(os_dist);
+            break;
         }
     }
-    set_os_distribution(os, os_dist);
-    sentry_value_decref(os_dist);
 #    endif // defined(SENTRY_PLATFORM_LINUX)
 
     return os;
