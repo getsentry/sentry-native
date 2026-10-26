@@ -41,11 +41,6 @@ sentry__process_vm_readv(pid_t pid, const struct iovec *local_iov,
 #if (defined(SENTRY_PLATFORM_WINDOWS) && !defined(SENTRY_PLATFORM_XBOX))       \
     || (defined(SENTRY_PLATFORM_UNIX) && !defined(SENTRY_PLATFORM_MACOS)       \
         && !defined(SENTRY_PLATFORM_PS))
-/**
- * Sets the `name`, `version` and `build` keys from `uname` values, where the
- * release is split into a numeric version and a build suffix, e.g.
- * "6.1.52-valve22-1-neptune" -> "6.1.52" + "valve22-1-neptune".
- */
 static bool
 set_os_uname(sentry_value_t os, const char *sysname, const char *release)
 {
