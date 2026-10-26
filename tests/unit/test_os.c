@@ -129,6 +129,24 @@ assert_equals_snap(sentry_value_t os_dist)
 }
 
 extern sentry_value_t get_linux_os_release(const char *os_rel_path);
+extern void set_os_distribution(
+    sentry_value_t os, sentry_value_t os_dist, const char *release);
+
+static sentry_value_t
+make_linux_os(void)
+{
+    sentry_value_t os = sentry_value_new_object();
+    sentry_value_set_by_key(os, "name", sentry_value_new_string("Linux"));
+    sentry_value_set_by_key(os, "version", sentry_value_new_string("6.1.0"));
+    sentry_value_set_by_key(os, "build", sentry_value_new_string("test"));
+    return os;
+}
+
+static const char *
+os_string(sentry_value_t os, const char *key)
+{
+    return sentry_value_as_string(sentry_value_get_by_key(os, key));
+}
 #endif // defined(SENTRY_PLATFORM_LINUX) && !defined(SENTRY_PLATFORM_ANDROID)
 
 SENTRY_TEST(os_releases_snapshot)
@@ -192,6 +210,63 @@ SENTRY_TEST(os_release_non_existent_files)
 #else
     sentry_value_t os_release = get_linux_os_release("invalid_path");
     TEST_ASSERT(sentry_value_is_null(os_release));
+#endif // !defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID)
+}
+
+SENTRY_TEST(os_release_named_distributions)
+{
+#if !defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID)
+    SKIP_TEST();
+#else
+    sentry_value_t os = make_linux_os();
+    sentry_value_t os_dist = sentry_value_new_object();
+    sentry_value_set_by_key(
+        os_dist, "name", sentry_value_new_string("steamos"));
+    sentry_value_set_by_key(
+        os_dist, "display_name", sentry_value_new_string("SteamOS"));
+    sentry_value_set_by_key(os_dist, "version", sentry_value_new_string("3.7"));
+    sentry_value_set_by_key(
+        os_dist, "build", sentry_value_new_string("20250101.1"));
+    set_os_distribution(os, os_dist, "6.1.0-test");
+    TEST_CHECK_STRING_EQUAL(os_string(os, "name"), "SteamOS");
+    TEST_CHECK_STRING_EQUAL(os_string(os, "version"), "3.7");
+    TEST_CHECK_STRING_EQUAL(os_string(os, "build"), "20250101.1");
+    TEST_CHECK_STRING_EQUAL(os_string(os, "kernel_version"), "6.1.0-test");
+    TEST_CHECK(
+        sentry_value_is_null(sentry_value_get_by_key(os, "distribution_name")));
+    sentry_value_decref(os_dist);
+    sentry_value_decref(os);
+
+    // falls back to ID and the kernel version, and drops the kernel build
+    os = make_linux_os();
+    os_dist = sentry_value_new_object();
+    sentry_value_set_by_key(
+        os_dist, "name", sentry_value_new_string("bazzite"));
+    set_os_distribution(os, os_dist, "6.1.0-test");
+    TEST_CHECK_STRING_EQUAL(os_string(os, "name"), "bazzite");
+    TEST_CHECK_STRING_EQUAL(os_string(os, "version"), "6.1.0");
+    TEST_CHECK(sentry_value_is_null(sentry_value_get_by_key(os, "build")));
+    TEST_CHECK_STRING_EQUAL(os_string(os, "kernel_version"), "6.1.0-test");
+    sentry_value_decref(os_dist);
+    sentry_value_decref(os);
+
+    os = make_linux_os();
+    os_dist = sentry_value_new_object();
+    sentry_value_set_by_key(os_dist, "name", sentry_value_new_string("ubuntu"));
+    sentry_value_set_by_key(
+        os_dist, "display_name", sentry_value_new_string("Ubuntu"));
+    sentry_value_set_by_key(
+        os_dist, "version", sentry_value_new_string("24.04"));
+    set_os_distribution(os, os_dist, "6.1.0-test");
+    TEST_CHECK_STRING_EQUAL(os_string(os, "name"), "Linux");
+    TEST_CHECK_STRING_EQUAL(os_string(os, "version"), "6.1.0");
+    TEST_CHECK_STRING_EQUAL(os_string(os, "build"), "test");
+    TEST_CHECK_STRING_EQUAL(os_string(os, "distribution_name"), "ubuntu");
+    TEST_CHECK_STRING_EQUAL(os_string(os, "distribution_version"), "24.04");
+    TEST_CHECK(
+        sentry_value_is_null(sentry_value_get_by_key(os, "kernel_version")));
+    sentry_value_decref(os_dist);
+    sentry_value_decref(os);
 #endif // !defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID)
 }
 

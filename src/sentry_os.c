@@ -142,12 +142,50 @@ parse_line_into_object(const char *line, sentry_value_t os_dist)
             sentry_value_set_by_key(
                 os_dist, "pretty_name", sentry_value_new_string(value));
         }
+
+        if (strcmp(key, "NAME") == 0) {
+            sentry_value_set_by_key(
+                os_dist, "display_name", sentry_value_new_string(value));
+        }
+
+        if (strcmp(key, "BUILD_ID") == 0) {
+            sentry_value_set_by_key(
+                os_dist, "build", sentry_value_new_string(value));
+        }
     }
 }
 
-static void
-set_os_distribution(sentry_value_t os, sentry_value_t os_dist)
+#    ifndef SENTRY_UNITTEST
+static
+#    endif
+    void
+    set_os_distribution(
+        sentry_value_t os, sentry_value_t os_dist, const char *release)
 {
+    sentry_value_t id = sentry_value_get_by_key(os_dist, "name");
+    const char *id_str = sentry_value_as_string(id);
+
+    // SteamOS and Bazzite are reported as the OS itself, not as a distribution.
+    if (strcmp(id_str, "steamos") == 0 || strcmp(id_str, "bazzite") == 0) {
+        sentry_value_t name = sentry_value_get_by_key(os_dist, "display_name");
+        if (sentry_value_is_null(name)) {
+            name = id;
+        }
+        sentry_value_t version = sentry_value_get_by_key(os_dist, "version");
+        if (!sentry_value_is_null(version)) {
+            sentry_value_incref(version);
+            sentry_value_set_by_key(os, "version", version);
+        }
+        sentry_value_set_by_key(os, "name", name);
+        sentry_value_set_by_key(
+            os, "build", sentry_value_get_by_key(os_dist, "build"));
+        sentry_value_set_by_key(
+            os, "kernel_version", sentry_value_new_string(release));
+        sentry_value_incref(name);
+        sentry_value_incref(sentry_value_get_by_key(os_dist, "build"));
+        return;
+    }
+
     sentry_value_set_by_key(
         os, "distribution_name", sentry_value_get_by_key(os_dist, "name"));
     sentry_value_set_by_key(os, "distribution_version",
@@ -592,7 +630,7 @@ get_wine_host_os_context(void)
             i < sizeof(os_release_paths) / sizeof(os_release_paths[0]); i++) {
             sentry_value_t os_dist = get_wine_os_release(os_release_paths[i]);
             if (!sentry_value_is_null(os_dist)) {
-                set_os_distribution(os, os_dist);
+                set_os_distribution(os, os_dist, release);
                 sentry_value_decref(os_dist);
                 break;
             }
@@ -1012,7 +1050,7 @@ sentry__get_os_context(void)
         i < sizeof(os_release_paths) / sizeof(os_release_paths[0]); i++) {
         sentry_value_t os_dist = get_linux_os_release(os_release_paths[i]);
         if (!sentry_value_is_null(os_dist)) {
-            set_os_distribution(os, os_dist);
+            set_os_distribution(os, os_dist, uts.release);
             sentry_value_decref(os_dist);
             break;
         }

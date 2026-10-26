@@ -28,7 +28,7 @@
 - Native: Provide exception metadata, registers, and a basic crashing-thread stack to `on_crash` for crash identification. ([#2174](https://github.com/getsentry/sentry-native/pull/2174))
 - Native: reduce disk I/O on scope changes by sending incremental updates to the crash daemon over IPC. ([#2155](https://github.com/getsentry/sentry-native/pull/2155), [#2157](https://github.com/getsentry/sentry-native/pull/2157))
 - Native: install handlers for the daemon's own fatal signals and unhandled exceptions, allowing best-effort recovery actions such as dumping pending envelopes before termination. ([#2220](https://github.com/getsentry/sentry-native/pull/2220))
-- Report the host OS in the OS context under Wine and Proton, instead of the Windows version that Wine emulates. ([#2241](https://github.com/getsentry/sentry-native/pull/2241))
+- Report the host OS in the OS context under Wine and Proton, instead of the Windows version that Wine emulates. On Linux, prefer the host `os-release` inside Steam Runtime and Flatpak containers, and report SteamOS and Bazzite as the OS name. ([#2241](https://github.com/getsentry/sentry-native/pull/2241))
 - Add `sentry_scope_set_trace` for per-scope traces. ([#2236](https://github.com/getsentry/sentry-native/pull/2236))
 - Add `sentry_continue_trace` to continue incoming traces without a transaction. ([#2237](https://github.com/getsentry/sentry-native/pull/2237))
 - Add `sentry_iter_trace_propagation_headers` to propagate traces without a span. ([#2240](https://github.com/getsentry/sentry-native/pull/2240))
