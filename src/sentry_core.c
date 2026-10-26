@@ -1472,6 +1472,23 @@ sentry_set_trace_n(const char *trace_id, size_t trace_id_len,
 }
 
 void
+sentry_continue_trace(const char *sentry_trace, const char *baggage)
+{
+    sentry_continue_trace_n(sentry_trace, sentry__guarded_strlen(sentry_trace),
+        baggage, sentry__guarded_strlen(baggage));
+}
+
+void
+sentry_continue_trace_n(const char *sentry_trace, size_t sentry_trace_len,
+    const char *baggage, size_t baggage_len)
+{
+    SENTRY_WITH_SCOPE_MUT (scope) {
+        sentry_scope_continue_trace_n(
+            scope, sentry_trace, sentry_trace_len, baggage, baggage_len);
+    }
+}
+
+void
 sentry_start_new_trace(void)
 {
     SENTRY_WITH_OPTIONS (options) {

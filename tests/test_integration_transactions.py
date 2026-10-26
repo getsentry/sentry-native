@@ -387,6 +387,44 @@ def test_set_scope_trace_event(cmake, httpserver):
     assert "dsc" not in payload
 
 
+def test_continue_trace_event(cmake, httpserver):
+    tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "none"})
+
+    httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data("OK")
+    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver), SENTRY_RELEASE="🤮🚀")
+
+    run(
+        tmp_path,
+        "sentry_test_integration",
+        ["log", "continue-trace", "capture-event"],
+        env=env,
+    )
+
+    assert len(httpserver.log) == 1
+    event_req = httpserver.log[0][0]
+    event_body = event_req.get_data()
+
+    event_envelope = Envelope.deserialize(event_body)
+
+    # Extract the one-and-only-item
+    (event,) = event_envelope.items
+
+    payload = event.payload.json
+
+    trace_context = payload["contexts"]["trace"]
+    assert trace_context["trace_id"] == "aaaabbbbccccddddeeeeffff00001111"
+    assert trace_context["parent_span_id"] == "f0f0f0f0f0f0f0f0"
+    assert trace_context["sampled"] is True
+
+    # the frozen upstream DSC with the inherited sampling decision
+    assert event_envelope.headers["trace"] == {
+        "environment": "upstream",
+        "sample_rand": "0.25",
+        "sampled": "true",
+        "trace_id": "aaaabbbbccccddddeeeeffff00001111",
+    }
+
+
 def test_set_trace_transaction_scoped_event(cmake, httpserver):
     tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "none"})
 
