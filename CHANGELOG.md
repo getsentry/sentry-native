@@ -4,6 +4,7 @@
 
 **Fixes**:
 
+- Rate limits in an `X-Sentry-Rate-Limits` header are no longer dropped when a limit leaves out the optional scope field. Each limit is now split at the comma before its fields are read; previously a limit such as `60:error` consumed the one after it, so only the last limit in the header applied. ([#PRNUM](https://github.com/getsentry/sentry-native/pull/PRNUM))
 - An empty proxy (`sentry_options_set_proxy(options, "")`) now means a direct connection with every transport and backend. Before, the WinHTTP transport, the Windows and macOS crashpad handlers and the native backend's daemon fell back to the proxy environment variables or the system proxy settings. ([#2218](https://github.com/getsentry/sentry-native/pull/2218), [crashpad#175](https://github.com/getsentry/crashpad/pull/175))
 
 **Thank you**:
