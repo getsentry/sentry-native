@@ -13,7 +13,6 @@
 #include "sentry_value.h"
 #include <assert.h>
 #include <limits.h>
-#include <math.h>
 #include <string.h>
 
 struct sentry_envelope_item_s {
@@ -439,9 +438,12 @@ sentry__envelope_add_event(sentry_envelope_t *envelope, sentry_value_t event)
     sentry_uuid_t event_id;
     sentry__ensure_event_id(event, &event_id);
 
+    sentry_value_t dsc = sentry__value_take_by_key(event, "dsc");
+
     sentry__jsonwriter_write_value(jw, event);
     item->payload = sentry__jsonwriter_into_string(jw, &item->payload_len);
     if (!item->payload) {
+        sentry_value_decref(dsc);
         return NULL;
     }
     item->event = event;
@@ -453,19 +455,6 @@ sentry__envelope_add_event(sentry_envelope_t *envelope, sentry_value_t event)
 
     sentry__envelope_set_event_id(envelope, &event_id);
 
-    double traces_sample_rate = 0.0;
-    SENTRY_WITH_OPTIONS (options) {
-        traces_sample_rate = options->traces_sample_rate;
-    }
-    sentry_value_t dsc = sentry_value_new_null();
-    double sample_rand = (double)NAN;
-    SENTRY_WITH_SCOPE (scope) {
-        dsc = sentry__scope_load_dsc(scope);
-        sentry_value_t trace_context = sentry__scope_load_trace_context(scope);
-        sample_rand = sentry_value_as_double(
-            sentry_value_get_by_key(trace_context, "sample_rand"));
-        sentry_value_decref(trace_context);
-    }
     if (!sentry_value_is_null(dsc)) {
         sentry_value_t trace_id = sentry_value_get_by_key(
             sentry_value_get_by_key(
@@ -477,20 +466,6 @@ sentry__envelope_add_event(sentry_envelope_t *envelope, sentry_value_t event)
         } else {
             SENTRY_WARN("couldn't retrieve trace_id from scope to apply to the "
                         "dynamic sampling context");
-        }
-        if (!isnan(sample_rand)) {
-            if (sample_rand >= traces_sample_rate) {
-                sentry_value_set_by_key(
-                    dsc, "sampled", sentry_value_new_string("false"));
-            } else {
-                sentry_value_set_by_key(
-                    dsc, "sampled", sentry_value_new_string("true"));
-            }
-        } else {
-            // only for testing; in production, the SDK should always have a
-            // non-null sample_rand. We don't set "sampled" to keep dsc empty
-            SENTRY_WARN("couldn't retrieve sample_rand from scope to apply to "
-                        "the dynamic sampling context");
         }
         // only add dsc if it has values
         if (sentry_value_is_true(dsc)) {

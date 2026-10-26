@@ -849,32 +849,53 @@ sentry_value_set_by_key(sentry_value_t value, const char *k, sentry_value_t v)
     return 1;
 }
 
-char *
-sentry__value_remove_and_take_key_n(
-    sentry_value_t value, const char *k, size_t k_len)
+static bool
+take_pair(sentry_value_t value, const char *k, size_t k_len, obj_pair_t *out)
 {
     if (!k) {
-        return NULL;
+        return false;
     }
     sentry_slice_t k_slice = { k, k_len };
     thing_t *thing = value_as_unfrozen_thing(value);
     if (!thing || thing_get_type(thing) != THING_TYPE_OBJECT
         || !thing_detach(thing)) {
-        return NULL;
+        return false;
     }
     obj_t *o = thing->payload._ptr;
     for (size_t i = 0; i < o->len; i++) {
         obj_pair_t *pair = &o->pairs[i];
         if (sentry__slice_eqs(k_slice, pair->k)) {
-            char *key = pair->k;
-            sentry_value_decref(pair->v);
+            *out = *pair;
             memmove(o->pairs + i, o->pairs + i + 1,
                 (o->len - i - 1) * sizeof(o->pairs[0]));
             o->len--;
-            return key;
+            return true;
         }
     }
-    return NULL;
+    return false;
+}
+
+char *
+sentry__value_remove_and_take_key_n(
+    sentry_value_t value, const char *k, size_t k_len)
+{
+    obj_pair_t pair;
+    if (!take_pair(value, k, k_len, &pair)) {
+        return NULL;
+    }
+    sentry_value_decref(pair.v);
+    return pair.k;
+}
+
+sentry_value_t
+sentry__value_take_by_key(sentry_value_t value, const char *k)
+{
+    obj_pair_t pair;
+    if (!k || !take_pair(value, k, strlen(k), &pair)) {
+        return sentry_value_new_null();
+    }
+    sentry_free(pair.k);
+    return pair.v;
 }
 
 int

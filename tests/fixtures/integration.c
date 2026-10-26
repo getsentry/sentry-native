@@ -442,6 +442,14 @@ test_logger_callback(
 }
 
 static void
+report_trace_header(const char *key, const char *value, void *userdata)
+{
+    (void)userdata;
+    printf("%s: %s\n", key, value);
+    sentry_set_extra(key, sentry_value_new_string(value));
+}
+
+static void
 print_envelope(sentry_envelope_t *envelope, void *unused_state)
 {
     (void)unused_state;
@@ -1233,6 +1241,22 @@ main(int argc, char **argv)
         sentry_set_trace(direct_trace_id, direct_parent_span_id);
     }
 
+    if (has_arg(argc, argv, "continue-trace")) {
+        // the headers of an upstream app, if given
+        const char *sentry_trace = getenv("SENTRY_TEST_SENTRY_TRACE");
+        const char *baggage = getenv("SENTRY_TEST_BAGGAGE");
+        sentry_continue_trace(sentry_trace
+                ? sentry_trace
+                : "aaaabbbbccccddddeeeeffff00001111-f0f0f0f0f0f0f0f0-1",
+            baggage ? baggage
+                    : "sentry-trace_id=aaaabbbbccccddddeeeeffff00001111,"
+                      "sentry-environment=upstream,sentry-sample_rand=0.25");
+    }
+
+    if (has_arg(argc, argv, "iter-trace-headers")) {
+        sentry_iter_trace_propagation_headers(report_trace_header, NULL);
+    }
+
     if (has_arg(argc, argv, "replay-context")) {
         // mimics an embedder (e.g. sentry-unreal) that stages replay clips in
         // `<database>/replays/` and announces the active replay on the scope
@@ -1318,6 +1342,12 @@ main(int argc, char **argv)
             sentry_attachment_set_content_type(
                 bytes, "application/octet-stream");
             sentry_scope_add_attachment(scope, bytes);
+        }
+
+        if (has_arg(argc, argv, "set-scope-trace")) {
+            const char *scope_trace_id = "11112222333344445555666677778888";
+            const char *scope_parent_span_id = "0f0f0f0f0f0f0f0f";
+            sentry_scope_set_trace(scope, scope_trace_id, scope_parent_span_id);
         }
 
         sentry_scope_capture_event(scope, event, NULL);

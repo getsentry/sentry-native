@@ -1082,8 +1082,7 @@ SENTRY_API void sentry_transport_set_shutdown_func(
  * extended network outages may exhaust retry attempts that might have
  * succeeded with the SDK's built-in exponential backoff.
  */
-SENTRY_EXPERIMENTAL_API void sentry_transport_retry(
-    sentry_transport_t *transport);
+SENTRY_API void sentry_transport_retry(sentry_transport_t *transport);
 
 /**
  * Generic way to free transport.
@@ -2996,6 +2995,32 @@ SENTRY_API void sentry_set_trace(
     const char *trace_id, const char *parent_span_id);
 SENTRY_API void sentry_set_trace_n(const char *trace_id, size_t trace_id_len,
     const char *parent_span_id, size_t parent_span_id_len);
+SENTRY_API void sentry_scope_set_trace(
+    sentry_scope_t *scope, const char *trace_id, const char *parent_span_id);
+SENTRY_API void sentry_scope_set_trace_n(sentry_scope_t *scope,
+    const char *trace_id, size_t trace_id_len, const char *parent_span_id,
+    size_t parent_span_id_len);
+
+/**
+ * Continues a trace from the `sentry-trace` and `baggage` headers of an
+ * incoming request, without starting a transaction. Either header may be NULL.
+ *
+ * Events and transactions afterwards continue the incoming trace and inherit
+ * its sampling decision. If the headers carry no valid trace, or strict trace
+ * continuation rejects it, a new trace is started instead.
+ *
+ * As with `sentry_set_trace`, transactions no longer act as automatic trace
+ * boundaries.
+ */
+SENTRY_API void sentry_continue_trace(
+    const char *sentry_trace, const char *baggage);
+SENTRY_API void sentry_continue_trace_n(const char *sentry_trace,
+    size_t sentry_trace_len, const char *baggage, size_t baggage_len);
+SENTRY_API void sentry_scope_continue_trace(
+    sentry_scope_t *scope, const char *sentry_trace, const char *baggage);
+SENTRY_API void sentry_scope_continue_trace_n(sentry_scope_t *scope,
+    const char *sentry_trace, size_t sentry_trace_len, const char *baggage,
+    size_t baggage_len);
 
 /**
  * Generates a new random `trace_id` and `span_id` and sets these onto
@@ -3145,10 +3170,9 @@ SENTRY_API int sentry_options_get_strict_trace_continuation(
  *
  * Disabled by default.
  */
-SENTRY_EXPERIMENTAL_API void sentry_options_set_http_retry(
+SENTRY_API void sentry_options_set_http_retry(
     sentry_options_t *opts, int enabled);
-SENTRY_EXPERIMENTAL_API int sentry_options_get_http_retry(
-    const sentry_options_t *opts);
+SENTRY_API int sentry_options_get_http_retry(const sentry_options_t *opts);
 
 /**
  * Enables or disables attaching a stack trace to events that carry none.
@@ -4459,6 +4483,20 @@ SENTRY_API void sentry_span_iter_headers(sentry_span_t *span,
  */
 SENTRY_API void sentry_transaction_iter_headers(sentry_transaction_t *tx,
     sentry_iter_headers_function_t callback, void *userdata);
+
+/**
+ * Iterates the distributed tracing HTTP headers for the current trace: of the
+ * span or transaction bound to the scope, if any, otherwise of the scope's
+ * propagation context. This allows propagating a trace without a span.
+ *
+ * Without a span, the `sentry-trace` header carries a sampling decision only
+ * if one was inherited with `sentry_continue_trace`.
+ */
+SENTRY_API void sentry_iter_trace_propagation_headers(
+    sentry_iter_headers_function_t callback, void *userdata);
+SENTRY_API void sentry_scope_iter_trace_propagation_headers(
+    const sentry_scope_t *scope, sentry_iter_headers_function_t callback,
+    void *userdata);
 
 /**
  * Returns whether the application has crashed on the last run.

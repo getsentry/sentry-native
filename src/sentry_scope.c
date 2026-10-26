@@ -16,6 +16,7 @@
 #include "sentry_uuid.h"
 #include "sentry_value.h"
 
+#include <math.h>
 #include <stdlib.h>
 
 #ifdef SENTRY_BACKEND_CRASHPAD
@@ -1051,11 +1052,11 @@ sentry__scope_apply_options(sentry_scope_t *scope, sentry_options_t *options)
         sentry__ringbuffer_set_max_size(
             data->breadcrumbs, options->max_breadcrumbs);
     }
+    sentry__scope_update_dsc(scope, options);
 
     if (options->initial_scope_func) {
         options->initial_scope_func(scope, options->initial_scope_data);
     }
-    sentry__scope_update_dsc(scope, options);
 }
 
 void
@@ -1278,6 +1279,41 @@ sentry__scope_load_dsc(const sentry_scope_t *scope)
     return dsc;
 }
 
+static sentry_value_t
+make_dsc(const sentry_scope_t *scope, const sentry_options_t *options)
+{
+    sentry_value_t dsc = sentry__scope_load_dsc(scope);
+    sentry_value_t trace_context = sentry__scope_load_trace_context(scope);
+    double sample_rand = sentry_value_as_double(
+        sentry_value_get_by_key(trace_context, "sample_rand"));
+    sentry_value_t sampled
+        = sentry_value_get_by_key_owned(trace_context, "sampled");
+    sentry_value_decref(trace_context);
+    if (!sentry_value_is_null(dsc)) {
+        if (!sentry_value_is_null(sampled)) {
+            // inherit the incoming sampling decision
+            sentry_value_set_by_key(dsc, "sampled",
+                sentry_value_new_string(
+                    sentry_value_is_true(sampled) ? "true" : "false"));
+        } else if (!isnan(sample_rand)) {
+            if (sample_rand >= options->traces_sample_rate) {
+                sentry_value_set_by_key(
+                    dsc, "sampled", sentry_value_new_string("false"));
+            } else {
+                sentry_value_set_by_key(
+                    dsc, "sampled", sentry_value_new_string("true"));
+            }
+        } else {
+            // only for testing; in production, the SDK should always have a
+            // non-null sample_rand. We don't set "sampled" to keep dsc empty
+            SENTRY_WARN("couldn't retrieve sample_rand from scope to apply to "
+                        "the dynamic sampling context");
+        }
+    }
+    sentry_value_decref(sampled);
+    return dsc;
+}
+
 void
 sentry__scope_foreach_dsc(const sentry_scope_t *scope,
     sentry_value_foreach_key_value_function_t callback, void *userdata)
@@ -1497,6 +1533,7 @@ sentry__scope_apply_to_event(const sentry_scope_t *scope,
     sentry_value_t scope_trace = sentry_value_new_null();
     sentry_value_t propagation_context = sentry_value_new_null();
     sentry_value_t scope_breadcrumbs = sentry_value_new_null();
+    sentry_value_t dsc = sentry_value_new_null();
 
     if (!is_transaction) {
         scope_trace = load_span_or_transaction_trace_context(scope);
@@ -1504,6 +1541,9 @@ sentry__scope_apply_to_event(const sentry_scope_t *scope,
             && sentry_value_is_null(
                 sentry_value_get_by_key(event_contexts, "trace"))) {
             propagation_context = sentry__scope_load_propagation_context(scope);
+        }
+        if (mode & SENTRY_SCOPE_DSC) {
+            dsc = make_dsc(scope, options);
         }
     }
     if (mode & SENTRY_SCOPE_BREADCRUMBS) {
@@ -1570,6 +1610,9 @@ sentry__scope_apply_to_event(const sentry_scope_t *scope,
 
     PLACE_VALUE("sdk", client_sdk);
     sentry_value_decref(client_sdk);
+
+    PLACE_VALUE("dsc", dsc);
+    sentry_value_decref(dsc);
 
     if (is_transaction && !sentry_value_is_null(contexts)) {
         sentry_value_remove_by_key(contexts, "trace");
@@ -2323,6 +2366,118 @@ sentry_scope_remove_fingerprint(sentry_scope_t *scope)
     SENTRY_SCOPE_NOTIFY_OWNED(scope, set_fingerprint, fingerprint);
     unlock_scope_notify(scope);
     sentry__scope_flush(scope);
+}
+
+// the options attached to the isolation scope, available already while
+// `sentry_init` applies the initial scope, or the global options
+static sentry_options_t *
+ref_options(const sentry_scope_t *scope)
+{
+    sentry_options_t *options = NULL;
+    for (; scope && !options; scope = scope->parent) {
+        sentry__mutex_lock((sentry_mutex_t *)&scope->observers_lock);
+        options = sentry__options_incref(scope->state);
+        sentry__mutex_unlock((sentry_mutex_t *)&scope->observers_lock);
+    }
+    return options ? options : (sentry_options_t *)sentry__options_getref();
+}
+
+void
+sentry_scope_set_trace(
+    sentry_scope_t *scope, const char *trace_id, const char *parent_span_id)
+{
+    sentry_scope_set_trace_n(scope, trace_id, sentry__guarded_strlen(trace_id),
+        parent_span_id, sentry__guarded_strlen(parent_span_id));
+}
+
+void
+sentry_scope_set_trace_n(sentry_scope_t *scope, const char *trace_id,
+    size_t trace_id_len, const char *parent_span_id, size_t parent_span_id_len)
+{
+    sentry_value_t context = sentry_value_new_object();
+
+    sentry_value_set_by_key(context, "type", sentry_value_new_string("trace"));
+
+    sentry_value_set_by_key(
+        context, "trace_id", sentry_value_new_string_n(trace_id, trace_id_len));
+    if (parent_span_id && parent_span_id_len) {
+        sentry_value_set_by_key(context, "parent_span_id",
+            sentry_value_new_string_n(parent_span_id, parent_span_id_len));
+    }
+
+    sentry_uuid_t span_id = sentry_uuid_new_v4();
+    sentry_value_set_by_key(
+        context, "span_id", sentry__value_new_span_uuid(&span_id));
+    sentry__scope_set_trace_managed(scope, false);
+
+    sentry__generate_sample_rand(context);
+
+    sentry__scope_set_propagation_context(scope, "trace", context);
+
+    sentry_options_t *options = ref_options(scope);
+    if (options) {
+        sentry__scope_update_dsc(scope, options);
+        sentry__scope_flush(scope);
+    }
+    sentry_options_free(options);
+}
+
+void
+sentry_scope_continue_trace(
+    sentry_scope_t *scope, const char *sentry_trace, const char *baggage)
+{
+    sentry_scope_continue_trace_n(scope, sentry_trace,
+        sentry__guarded_strlen(sentry_trace), baggage,
+        sentry__guarded_strlen(baggage));
+}
+
+void
+sentry_scope_continue_trace_n(sentry_scope_t *scope, const char *sentry_trace,
+    size_t sentry_trace_len, const char *baggage, size_t baggage_len)
+{
+    sentry_value_t context = sentry__parse_trace_headers(
+        sentry_trace, sentry_trace_len, baggage, baggage_len);
+    sentry_value_t dsc = sentry__value_take_by_key(context, "incoming_dsc");
+
+    sentry_options_t *options = ref_options(scope);
+    if (options) {
+        if (!sentry_value_is_null(sentry_value_get_by_key(context, "trace_id"))
+            && sentry__trace_can_continue(dsc, options)) {
+            sentry_value_set_by_key(
+                context, "type", sentry_value_new_string("trace"));
+            sentry_uuid_t span_id = sentry_uuid_new_v4();
+            sentry_value_set_by_key(
+                context, "span_id", sentry__value_new_span_uuid(&span_id));
+            sentry__scope_set_propagation_context(
+                scope, "trace", sentry_value_incref(context));
+            if (sentry_value_get_length(dsc) > 0) {
+                sentry__scope_freeze_dsc(scope, dsc);
+            } else {
+                sentry__scope_update_dsc(scope, options);
+            }
+        } else {
+            // start a new trace if the incoming one cannot be continued
+            sentry__scope_regenerate_propagation_context(scope);
+            sentry__scope_update_dsc(scope, options);
+        }
+        sentry__scope_set_trace_managed(scope, false);
+        sentry__scope_flush(scope);
+    }
+    sentry_options_free(options);
+    sentry_value_decref(dsc);
+    sentry_value_decref(context);
+}
+
+void
+sentry_scope_iter_trace_propagation_headers(const sentry_scope_t *scope,
+    sentry_iter_headers_function_t callback, void *userdata)
+{
+    sentry_value_t span = sentry__scope_load_span_or_transaction(scope);
+    if (sentry_value_is_null(span)) {
+        span = sentry__scope_load_trace_context(scope);
+    }
+    sentry__span_iter_headers(scope, span, callback, userdata);
+    sentry_value_decref(span);
 }
 
 sentry_level_t

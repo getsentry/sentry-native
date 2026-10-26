@@ -1047,11 +1047,11 @@ prepare_user_feedback(const sentry_options_t *options,
 
     if (local_scope) {
         sentry__scope_apply_to_event(
-            local_scope, options, event, SENTRY_SCOPE_NONE);
+            local_scope, options, event, SENTRY_SCOPE_DSC);
     } else {
         SENTRY_WITH_SCOPE (scope) {
             sentry__scope_apply_to_event(
-                scope, options, event, SENTRY_SCOPE_NONE);
+                scope, options, event, SENTRY_SCOPE_DSC);
         }
     }
 
@@ -1383,14 +1383,6 @@ sentry_update_context_n(const char *key, size_t key_len, sentry_value_t value)
 }
 
 void
-sentry__set_propagation_context(const char *key, sentry_value_t value)
-{
-    SENTRY_WITH_SCOPE_MUT (scope) {
-        sentry__scope_set_propagation_context(scope, key, value);
-    }
-}
-
-void
 sentry__apply_to_telemetry(const sentry_scope_t *scope,
     const sentry_options_t *options, sentry_value_t telemetry,
     sentry_value_t attributes)
@@ -1473,39 +1465,35 @@ void
 sentry_set_trace_n(const char *trace_id, size_t trace_id_len,
     const char *parent_span_id, size_t parent_span_id_len)
 {
-    sentry_value_t context = sentry_value_new_null();
-
     SENTRY_WITH_SCOPE_MUT (scope) {
-        context = sentry_value_new_object();
-
-        sentry_value_set_by_key(
-            context, "type", sentry_value_new_string("trace"));
-
-        sentry_value_set_by_key(context, "trace_id",
-            sentry_value_new_string_n(trace_id, trace_id_len));
-        if (parent_span_id && parent_span_id_len) {
-            sentry_value_set_by_key(context, "parent_span_id",
-                sentry_value_new_string_n(parent_span_id, parent_span_id_len));
-        }
-
-        sentry_uuid_t span_id = sentry_uuid_new_v4();
-        sentry_value_set_by_key(
-            context, "span_id", sentry__value_new_span_uuid(&span_id));
-        sentry__scope_set_trace_managed(scope, false);
-        sentry__scope_flush(scope);
+        sentry_scope_set_trace_n(
+            scope, trace_id, trace_id_len, parent_span_id, parent_span_id_len);
     }
+}
 
-    if (!sentry_value_is_null(context)) {
-        sentry__generate_sample_rand(context);
+void
+sentry_continue_trace(const char *sentry_trace, const char *baggage)
+{
+    sentry_continue_trace_n(sentry_trace, sentry__guarded_strlen(sentry_trace),
+        baggage, sentry__guarded_strlen(baggage));
+}
 
-        sentry__set_propagation_context("trace", context);
+void
+sentry_continue_trace_n(const char *sentry_trace, size_t sentry_trace_len,
+    const char *baggage, size_t baggage_len)
+{
+    SENTRY_WITH_SCOPE_MUT (scope) {
+        sentry_scope_continue_trace_n(
+            scope, sentry_trace, sentry_trace_len, baggage, baggage_len);
+    }
+}
 
-        SENTRY_WITH_OPTIONS (options) {
-            SENTRY_WITH_SCOPE_MUT (scope) {
-                sentry__scope_update_dsc(scope, options);
-                sentry__scope_flush(scope);
-            }
-        }
+void
+sentry_iter_trace_propagation_headers(
+    sentry_iter_headers_function_t callback, void *userdata)
+{
+    SENTRY_WITH_SCOPE (scope) {
+        sentry_scope_iter_trace_propagation_headers(scope, callback, userdata);
     }
 }
 
