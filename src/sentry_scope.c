@@ -1052,11 +1052,11 @@ sentry__scope_apply_options(sentry_scope_t *scope, sentry_options_t *options)
         sentry__ringbuffer_set_max_size(
             data->breadcrumbs, options->max_breadcrumbs);
     }
+    sentry__scope_update_dsc(scope, options);
 
     if (options->initial_scope_func) {
         options->initial_scope_func(scope, options->initial_scope_data);
     }
-    sentry__scope_update_dsc(scope, options);
 }
 
 void
@@ -2368,6 +2368,20 @@ sentry_scope_remove_fingerprint(sentry_scope_t *scope)
     sentry__scope_flush(scope);
 }
 
+// the options attached to the isolation scope, available already while
+// `sentry_init` applies the initial scope
+static sentry_options_t *
+ref_options(const sentry_scope_t *scope)
+{
+    sentry_options_t *options = NULL;
+    for (; scope && !options; scope = scope->parent) {
+        sentry__mutex_lock((sentry_mutex_t *)&scope->observers_lock);
+        options = sentry__options_incref(scope->state);
+        sentry__mutex_unlock((sentry_mutex_t *)&scope->observers_lock);
+    }
+    return options;
+}
+
 void
 sentry_scope_set_trace(
     sentry_scope_t *scope, const char *trace_id, const char *parent_span_id)
@@ -2400,10 +2414,12 @@ sentry_scope_set_trace_n(sentry_scope_t *scope, const char *trace_id,
 
     sentry__scope_set_propagation_context(scope, "trace", context);
 
-    SENTRY_WITH_OPTIONS (options) {
+    sentry_options_t *options = ref_options(scope);
+    if (options) {
         sentry__scope_update_dsc(scope, options);
         sentry__scope_flush(scope);
     }
+    sentry_options_free(options);
 }
 
 void
@@ -2423,7 +2439,8 @@ sentry_scope_continue_trace_n(sentry_scope_t *scope, const char *sentry_trace,
         sentry_trace, sentry_trace_len, baggage, baggage_len);
     sentry_value_t dsc = sentry__value_take_by_key(context, "incoming_dsc");
 
-    SENTRY_WITH_OPTIONS (options) {
+    sentry_options_t *options = ref_options(scope);
+    if (options) {
         if (!sentry_value_is_null(sentry_value_get_by_key(context, "trace_id"))
             && sentry__trace_can_continue(dsc, options)) {
             sentry_value_set_by_key(
@@ -2446,6 +2463,7 @@ sentry_scope_continue_trace_n(sentry_scope_t *scope, const char *sentry_trace,
         sentry__scope_set_trace_managed(scope, false);
         sentry__scope_flush(scope);
     }
+    sentry_options_free(options);
     sentry_value_decref(dsc);
     sentry_value_decref(context);
 }

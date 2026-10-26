@@ -2736,6 +2736,60 @@ SENTRY_TEST(continue_trace_derives_sample_rand)
     sentry_close();
 }
 
+static void
+continue_upstream_trace(sentry_scope_t *scope, void *UNUSED(data))
+{
+    sentry_scope_continue_trace(
+        scope, UPSTREAM_SENTRY_TRACE, "sentry-environment=upstream");
+}
+
+SENTRY_TEST(continue_trace_on_init)
+{
+    SENTRY_TEST_OPTIONS_NEW(options);
+    sentry_options_set_initial_scope(options, continue_upstream_trace, NULL);
+    sentry_init(options);
+
+    SENTRY_WITH_SCOPE (scope) {
+        sentry_value_t trace = sentry__scope_load_trace_context(scope);
+        CHECK_STRING_PROPERTY(trace, "trace_id", UPSTREAM_TRACE_ID);
+        sentry_value_decref(trace);
+
+        sentry_value_t dsc = sentry__scope_load_dsc(scope);
+        CHECK_STRING_PROPERTY(dsc, "environment", "upstream");
+        sentry_value_decref(dsc);
+    }
+
+    sentry_close();
+}
+
+static void
+set_upstream_trace(sentry_scope_t *scope, void *UNUSED(data))
+{
+    sentry_scope_set_trace(scope, UPSTREAM_TRACE_ID, UPSTREAM_PARENT_SPAN_ID);
+}
+
+SENTRY_TEST(set_trace_on_init)
+{
+    SENTRY_TEST_OPTIONS_NEW(options);
+    sentry_options_set_initial_scope(options, set_upstream_trace, NULL);
+    sentry_init(options);
+
+    SENTRY_WITH_SCOPE (scope) {
+        sentry_value_t trace = sentry__scope_load_trace_context(scope);
+        CHECK_STRING_PROPERTY(trace, "trace_id", UPSTREAM_TRACE_ID);
+
+        sentry_value_t dsc = sentry__scope_load_dsc(scope);
+        TEST_CHECK(
+            sentry_value_as_double(sentry_value_get_by_key(dsc, "sample_rand"))
+            == sentry_value_as_double(
+                sentry_value_get_by_key(trace, "sample_rand")));
+        sentry_value_decref(dsc);
+        sentry_value_decref(trace);
+    }
+
+    sentry_close();
+}
+
 #undef UPSTREAM_SENTRY_TRACE
 #undef UPSTREAM_PARENT_SPAN_ID
 #undef UPSTREAM_TRACE_ID
