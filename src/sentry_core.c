@@ -832,7 +832,7 @@ sentry__prepare_event(const sentry_options_t *options, sentry_value_t event,
     sentry_scope_t *local_scope)
 {
     if (event_is_considered_error(event)) {
-        sentry__record_errors_on_current_session(1);
+        sentry__record_errors_on_current_session(options, 1);
     }
 
     if (local_scope) {

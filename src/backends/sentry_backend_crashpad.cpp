@@ -609,9 +609,9 @@ crashpad_handler(int signum, siginfo_t *info, ucontext_t *user_context)
             flush_scope_from_handler(options, crash_event);
             sentry__write_crash_marker(options);
 
-            sentry__record_errors_on_current_session(1);
+            sentry__record_errors_on_current_session(options, 1);
             sentry_session_t *session = sentry__end_current_session_with_status(
-                SENTRY_SESSION_STATUS_CRASHED);
+                options, SENTRY_SESSION_STATUS_CRASHED);
             if (session) {
                 sentry_envelope_t *envelope = sentry__envelope_new(options);
                 sentry__envelope_add_session(envelope, session);
