@@ -1483,7 +1483,8 @@ native_backend_except(sentry_backend_t *backend, const sentry_ucontext_t *uctx)
                         }
                     }
                     if (session) {
-                        sentry_envelope_t *envelope = sentry__envelope_new();
+                        sentry_envelope_t *envelope
+                            = sentry__envelope_new(options);
                         if (envelope) {
                             sentry__envelope_add_session(envelope, session);
                             sentry__capture_envelope(

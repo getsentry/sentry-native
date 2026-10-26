@@ -122,7 +122,7 @@ suspend_dump(sentry_run_t *run, void *data)
 SENTRY_THREAD_FN
 suspend_send_thread(void *data)
 {
-    sentry__transport_send_envelope(data, sentry__envelope_new());
+    sentry__transport_send_envelope(data, sentry__envelope_new(NULL));
     return 0;
 }
 
@@ -160,7 +160,7 @@ SENTRY_TEST(transport_suspend)
     TEST_CHECK_INT_EQUAL(sentry__atomic_fetch(&state.dump_count), 1);
     TEST_CHECK(!state.queued);
 
-    sentry__transport_send_envelope(transport, sentry__envelope_new());
+    sentry__transport_send_envelope(transport, sentry__envelope_new(NULL));
     TEST_CHECK_INT_EQUAL(sentry__atomic_fetch(&state.send_count), 1);
     TEST_CHECK(sentry__atomic_fetch(&run->retain));
 

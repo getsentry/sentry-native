@@ -285,10 +285,9 @@ sentry__end_current_session_with_status(sentry_session_status_t status)
 static void
 sentry__capture_session(sentry_session_t *session)
 {
-    sentry_envelope_t *envelope = sentry__envelope_new();
-    sentry__envelope_add_session(envelope, session);
-
     SENTRY_WITH_OPTIONS (options) {
+        sentry_envelope_t *envelope = sentry__envelope_new(options);
+        sentry__envelope_add_session(envelope, session);
         sentry__capture_envelope(options->transport, envelope, options);
     }
 }

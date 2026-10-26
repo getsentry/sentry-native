@@ -302,15 +302,9 @@ sentry__envelope_set_header(
 }
 
 sentry_envelope_t *
-sentry__envelope_new(void)
+sentry__envelope_new(const sentry_options_t *options)
 {
-    sentry_dsn_t *dsn = NULL;
-    SENTRY_WITH_OPTIONS (options) {
-        dsn = sentry__dsn_incref(options->dsn);
-    }
-    sentry_envelope_t *rv = sentry__envelope_new_with_dsn(dsn);
-    sentry__dsn_decref(dsn);
-    return rv;
+    return sentry__envelope_new_with_dsn(options ? options->dsn : NULL);
 }
 
 sentry_envelope_t *
@@ -424,7 +418,8 @@ sentry_envelope_get_transaction(const sentry_envelope_t *envelope)
 }
 
 sentry_envelope_item_t *
-sentry__envelope_add_event(sentry_envelope_t *envelope, sentry_value_t event)
+sentry__envelope_add_event(sentry_envelope_t *envelope, sentry_value_t event,
+    const sentry_options_t *options)
 {
     sentry_envelope_item_t *item = envelope_add_item(envelope);
     if (!item) {
@@ -453,10 +448,7 @@ sentry__envelope_add_event(sentry_envelope_t *envelope, sentry_value_t event)
 
     sentry__envelope_set_event_id(envelope, &event_id);
 
-    double traces_sample_rate = 0.0;
-    SENTRY_WITH_OPTIONS (options) {
-        traces_sample_rate = options->traces_sample_rate;
-    }
+    double traces_sample_rate = options ? options->traces_sample_rate : 0.0;
     sentry_value_t dsc = sentry_value_new_null();
     double sample_rand = (double)NAN;
     SENTRY_WITH_SCOPE (scope) {
@@ -666,11 +658,11 @@ sentry__envelope_add_user_report(
 }
 
 sentry_envelope_item_t *
-sentry__envelope_add_feedback_event(
-    sentry_envelope_t *envelope, sentry_value_t feedback_event)
+sentry__envelope_add_feedback_event(sentry_envelope_t *envelope,
+    sentry_value_t feedback_event, const sentry_options_t *options)
 {
     sentry_envelope_item_t *item
-        = sentry__envelope_add_event(envelope, feedback_event);
+        = sentry__envelope_add_event(envelope, feedback_event, options);
     if (!item) {
         // The event is left untouched on failure and freed by the caller.
         return NULL;
@@ -1095,11 +1087,9 @@ static bool deserialize_into(
 sentry_envelope_t *
 sentry_envelope_deserialize(const char *buf, size_t buf_len)
 {
-    // Use sentry__envelope_new_with_dsn(NULL) instead of sentry__envelope_new()
-    // because the DSN is part of the serialized headers and will be restored by
-    // deserialization. This avoids acquiring the options lock, which would
-    // deadlock if called from a bgworker thread during shutdown.
-    sentry_envelope_t *envelope = sentry__envelope_new_with_dsn(NULL);
+    // The DSN is part of the serialized headers and will be restored by
+    // deserialization.
+    sentry_envelope_t *envelope = sentry__envelope_new(NULL);
     if (!envelope) {
         return NULL;
     }
