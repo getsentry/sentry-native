@@ -442,9 +442,10 @@ test_logger_callback(
 }
 
 static void
-set_header_extra(const char *key, const char *value, void *userdata)
+report_trace_header(const char *key, const char *value, void *userdata)
 {
     (void)userdata;
+    printf("%s: %s\n", key, value);
     sentry_set_extra(key, sentry_value_new_string(value));
 }
 
@@ -1241,14 +1242,19 @@ main(int argc, char **argv)
     }
 
     if (has_arg(argc, argv, "continue-trace")) {
-        sentry_continue_trace(
-            "aaaabbbbccccddddeeeeffff00001111-f0f0f0f0f0f0f0f0-1",
-            "sentry-trace_id=aaaabbbbccccddddeeeeffff00001111,"
-            "sentry-environment=upstream,sentry-sample_rand=0.25");
+        // the headers of an upstream app, if given
+        const char *sentry_trace = getenv("SENTRY_TEST_SENTRY_TRACE");
+        const char *baggage = getenv("SENTRY_TEST_BAGGAGE");
+        sentry_continue_trace(sentry_trace
+                ? sentry_trace
+                : "aaaabbbbccccddddeeeeffff00001111-f0f0f0f0f0f0f0f0-1",
+            baggage ? baggage
+                    : "sentry-trace_id=aaaabbbbccccddddeeeeffff00001111,"
+                      "sentry-environment=upstream,sentry-sample_rand=0.25");
     }
 
     if (has_arg(argc, argv, "iter-trace-headers")) {
-        sentry_iter_trace_propagation_headers(set_header_extra, NULL);
+        sentry_iter_trace_propagation_headers(report_trace_header, NULL);
     }
 
     if (has_arg(argc, argv, "replay-context")) {
