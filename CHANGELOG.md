@@ -12,6 +12,7 @@
 
 - [orenjp](https://github.com/orenjp)
 - [IanHollow](https://github.com/IanHollow)
+- [Denimworld12](https://github.com/Denimworld12)
 
 ## 0.17.4
 
