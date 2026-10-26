@@ -2369,7 +2369,7 @@ sentry_scope_remove_fingerprint(sentry_scope_t *scope)
 }
 
 // the options attached to the isolation scope, available already while
-// `sentry_init` applies the initial scope
+// `sentry_init` applies the initial scope, or the global options
 static sentry_options_t *
 ref_options(const sentry_scope_t *scope)
 {
@@ -2379,7 +2379,7 @@ ref_options(const sentry_scope_t *scope)
         options = sentry__options_incref(scope->state);
         sentry__mutex_unlock((sentry_mutex_t *)&scope->observers_lock);
     }
-    return options;
+    return options ? options : (sentry_options_t *)sentry__options_getref();
 }
 
 void

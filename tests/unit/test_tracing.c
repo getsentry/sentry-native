@@ -2790,6 +2790,25 @@ SENTRY_TEST(set_trace_on_init)
     sentry_close();
 }
 
+SENTRY_TEST(continue_trace_on_clone)
+{
+    SENTRY_TEST_OPTIONS_NEW(options);
+    sentry_init(options);
+
+    sentry_scope_t *clone = NULL;
+    SENTRY_WITH_SCOPE (scope) {
+        clone = sentry_scope_clone(scope);
+    }
+    sentry_scope_continue_trace(clone, UPSTREAM_SENTRY_TRACE, NULL);
+
+    sentry_value_t trace = sentry__scope_load_trace_context(clone);
+    CHECK_STRING_PROPERTY(trace, "trace_id", UPSTREAM_TRACE_ID);
+    sentry_value_decref(trace);
+
+    sentry_scope_free(clone);
+    sentry_close();
+}
+
 #undef UPSTREAM_SENTRY_TRACE
 #undef UPSTREAM_PARENT_SPAN_ID
 #undef UPSTREAM_TRACE_ID
