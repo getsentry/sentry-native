@@ -1082,8 +1082,7 @@ SENTRY_API void sentry_transport_set_shutdown_func(
  * extended network outages may exhaust retry attempts that might have
  * succeeded with the SDK's built-in exponential backoff.
  */
-SENTRY_EXPERIMENTAL_API void sentry_transport_retry(
-    sentry_transport_t *transport);
+SENTRY_API void sentry_transport_retry(sentry_transport_t *transport);
 
 /**
  * Generic way to free transport.
@@ -3171,10 +3170,9 @@ SENTRY_API int sentry_options_get_strict_trace_continuation(
  *
  * Disabled by default.
  */
-SENTRY_EXPERIMENTAL_API void sentry_options_set_http_retry(
+SENTRY_API void sentry_options_set_http_retry(
     sentry_options_t *opts, int enabled);
-SENTRY_EXPERIMENTAL_API int sentry_options_get_http_retry(
-    const sentry_options_t *opts);
+SENTRY_API int sentry_options_get_http_retry(const sentry_options_t *opts);
 
 /**
  * Enables or disables attaching a stack trace to events that carry none.
