@@ -140,8 +140,6 @@ SENTRY_TEST(discarding_before_send)
 
     SENTRY_TEST_OPTIONS_NEW(options);
     sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
-    // Disable sessions or this test would fail if env:SENTRY_RELEASE is set.
-    sentry_options_set_auto_session_tracking(options, 0);
     sentry_transport_t *transport
         = sentry_transport_new(counting_transport_func);
     sentry_transport_set_state(transport, &called_transport);
@@ -609,7 +607,6 @@ SENTRY_TEST(capture_event_hints)
     for (int mode = 0; mode < 4; mode++) {
         sentry_envelope_t *captured = NULL;
         SENTRY_TEST_OPTIONS_NEW(options);
-        sentry_options_set_auto_session_tracking(options, false);
         sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
         sentry_transport_t *transport = sentry_transport_new(capture_envelope);
         sentry_transport_set_state(transport, &captured);
@@ -710,7 +707,6 @@ SENTRY_TEST(capture_filter_attachments)
             filter.clear = mode == 1;
             filter.discard = mode == 2;
             SENTRY_TEST_OPTIONS_NEW(options);
-            sentry_options_set_auto_session_tracking(options, false);
             sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
             sentry_transport_t *transport
                 = sentry_transport_new(capture_envelope);
@@ -785,7 +781,6 @@ static void
 init_with_stacktrace_capture(stacktrace_capture_t *state, bool attach)
 {
     SENTRY_TEST_OPTIONS_NEW(options);
-    sentry_options_set_auto_session_tracking(options, false);
     sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
     sentry_transport_t *transport
         = sentry_transport_new(send_envelope_stacktrace);

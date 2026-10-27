@@ -1260,7 +1260,6 @@ SENTRY_TEST(capture_minidump_oversized)
     sentry_transport_set_state(transport, &called);
     SENTRY_TEST_OPTIONS_NEW(options);
     sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
-    sentry_options_set_auto_session_tracking(options, false);
     sentry_options_set_enable_large_attachments(options, true);
     sentry_options_set_transport(options, transport);
     TEST_ASSERT_INT_EQUAL(sentry_init(options), 0);

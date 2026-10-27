@@ -67,6 +67,7 @@ SENTRY_TEST(session_basics)
 {
     uint64_t called = 0;
     SENTRY_TEST_OPTIONS_NEW(options);
+    sentry_options_set_auto_session_tracking(options, true);
     // clear any leftover from previous test runs
     sentry__path_remove_all(options->database_path);
     sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
@@ -156,6 +157,7 @@ SENTRY_TEST(count_sampled_events)
     session_assertion_t assertion = { false, 0 };
 
     SENTRY_TEST_OPTIONS_NEW(options);
+    sentry_options_set_auto_session_tracking(options, true);
     // clear any leftover from previous test runs
     sentry__path_remove_all(options->database_path);
     sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
@@ -273,6 +275,7 @@ SENTRY_TEST(update_release_and_environment_late)
         = { false, 0, 0, "updated_release", "updated_env" };
 
     SENTRY_TEST_OPTIONS_NEW(options);
+    sentry_options_set_auto_session_tracking(options, true);
     sentry__path_remove_all(options->database_path);
     sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
     sentry_transport_t *transport
@@ -333,6 +336,7 @@ discard_envelope(sentry_envelope_t *envelope, void *UNUSED(data))
 SENTRY_TEST(session_changed_backend_hook)
 {
     SENTRY_TEST_OPTIONS_NEW(options);
+    sentry_options_set_auto_session_tracking(options, true);
     sentry__path_remove_all(options->database_path);
     sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
     sentry_options_set_transport(
@@ -436,6 +440,7 @@ session_file_has_init(void)
 SENTRY_TEST(session_start_update)
 {
     SENTRY_TEST_OPTIONS_NEW(options);
+    sentry_options_set_auto_session_tracking(options, true);
     sentry__path_remove_all(options->database_path);
     sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
     sentry_transport_t *transport

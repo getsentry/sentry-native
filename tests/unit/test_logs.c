@@ -835,7 +835,6 @@ static sentry_batcher_t *
 setup_lazy_start(long *sent, sentry_before_send_log_function_t before_send)
 {
     SENTRY_TEST_OPTIONS_NEW(options);
-    sentry_options_set_auto_session_tracking(options, false);
     sentry_transport_t *transport
         = sentry_transport_new(counting_transport_send);
     sentry_transport_set_state(transport, sent);
