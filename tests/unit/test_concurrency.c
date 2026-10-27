@@ -58,7 +58,6 @@ init_framework(long *called)
     sentry_options_set_release(options, "prod");
     sentry_options_set_require_user_consent(options, false);
     sentry_options_set_auto_session_tracking(options, true);
-    sentry_options_set_send_session_start_update(options, false);
 
     sentry_init(options);
 }
@@ -83,7 +82,8 @@ SENTRY_TEST(multiple_inits)
     sentry_close();
     sentry_close();
 
-    TEST_CHECK_INT_EQUAL(called, 4);
+    // two session starts, two session ends and two events
+    TEST_CHECK_INT_EQUAL(called, 6);
 }
 
 typedef struct {
@@ -213,11 +213,11 @@ SENTRY_TEST(concurrent_init)
 
     sentry_close();
 
-    // 1 session, and up to 2 events per thread.
+    // 1 session start, 1 session end, and up to 2 events per thread.
     // might be less because `capture_event` races with close/init and might
     // lose events.
-    TEST_CHECK(called >= THREADS_NUM * 1);
-    TEST_CHECK(called <= THREADS_NUM * 3);
+    TEST_CHECK(called >= THREADS_NUM * 2);
+    TEST_CHECK(called <= THREADS_NUM * 4);
 }
 
 SENTRY_THREAD_FN

@@ -26,13 +26,16 @@ send_envelope(sentry_envelope_t *envelope, void *data)
     const char *buf = sentry__envelope_item_get_payload(item, &buf_len);
     sentry_value_t session = sentry_value_from_json(buf, buf_len);
 
-    TEST_CHECK(sentry_value_is_true(sentry_value_get_by_key(session, "init")));
+    // odd calls are start updates, even calls are the session's end
+    bool is_start = *called % 2 == 1;
+    TEST_CHECK(sentry_value_is_true(sentry_value_get_by_key(session, "init"))
+        == is_start);
     TEST_CHECK_INT_EQUAL(
         sentry_value_get_type(sentry_value_get_by_key(session, "sid")),
         SENTRY_VALUE_TYPE_STRING);
     TEST_CHECK_STRING_EQUAL(
         sentry_value_as_string(sentry_value_get_by_key(session, "status")),
-        *called == 2 ? "crashed" : "exited");
+        is_start ? "ok" : (*called == 4 ? "crashed" : "exited"));
     // did falls back to the installation ID since neither user sets an `id`
     TEST_CHECK(
         strlen(sentry_value_as_string(sentry_value_get_by_key(session, "did")))
@@ -71,7 +74,6 @@ SENTRY_TEST(session_basics)
     sentry_transport_set_state(transport, &called);
     sentry_options_set_transport(options, transport);
     sentry_options_set_release(options, "my_release");
-    sentry_options_set_send_session_start_update(options, 0);
 
     // the default environment is always `production` if not overwritten by the
     // OS environment variable `SENTRY_ENVIRONMENT`
@@ -104,7 +106,8 @@ SENTRY_TEST(session_basics)
 
     sentry_close();
 
-    TEST_CHECK_INT_EQUAL(called, 3);
+    // three starts and three ends, each sent on their own
+    TEST_CHECK_INT_EQUAL(called, 6);
 }
 
 typedef struct {
@@ -247,7 +250,6 @@ SENTRY_TEST(set_release_and_environment_late)
         = sentry_transport_new(send_release_env_envelope);
     sentry_transport_set_state(transport, &assertion);
     sentry_options_set_transport(options, transport);
-    sentry_options_set_send_session_start_update(options, 0);
     sentry_init(options);
 
     sentry_set_release("late_release");
@@ -260,7 +262,7 @@ SENTRY_TEST(set_release_and_environment_late)
     sentry_end_session();
 
     TEST_CHECK_INT_EQUAL(assertion.events, 1);
-    TEST_CHECK_INT_EQUAL(assertion.sessions, 1);
+    TEST_CHECK_INT_EQUAL(assertion.sessions, 2);
 
     sentry_close();
 }
@@ -279,7 +281,6 @@ SENTRY_TEST(update_release_and_environment_late)
     sentry_options_set_transport(options, transport);
     sentry_options_set_release(options, "initial");
     sentry_options_set_environment(options, "initial");
-    sentry_options_set_send_session_start_update(options, 0);
     sentry_init(options);
 
     sentry_end_session();
@@ -296,7 +297,7 @@ SENTRY_TEST(update_release_and_environment_late)
     sentry_end_session();
 
     TEST_CHECK_INT_EQUAL(assertion.events, 1);
-    TEST_CHECK_INT_EQUAL(assertion.sessions, 1);
+    TEST_CHECK_INT_EQUAL(assertion.sessions, 2);
 
     sentry_close();
 }
@@ -337,7 +338,6 @@ SENTRY_TEST(session_changed_backend_hook)
     sentry_options_set_transport(
         options, sentry_transport_new(discard_envelope));
     sentry_options_set_release(options, "my_release");
-    sentry_options_set_send_session_start_update(options, 0);
 
     session_hook_data_t data = { 0 };
     sentry_backend_t *backend = SENTRY_MAKE(sentry_backend_t);
@@ -347,22 +347,18 @@ SENTRY_TEST(session_changed_backend_hook)
     sentry_options_set_backend(options, backend);
 
     TEST_CHECK_INT_EQUAL(sentry_init(options), 0);
-    // auto session tracking started a session during init
-    TEST_CHECK_INT_EQUAL(data.calls, 1);
-    TEST_CHECK(data.last_had_session);
-    TEST_CHECK(data.last_init);
-
-    // the first event carries the initial session update
-    sentry_capture_event(
-        sentry_value_new_message_event(SENTRY_LEVEL_INFO, NULL, "first event"));
+    // auto session tracking started a session during init and sent its
+    // initial update right away, flipping `init`
     TEST_CHECK_INT_EQUAL(data.calls, 2);
     TEST_CHECK(data.last_had_session);
     TEST_CHECK(!data.last_init);
 
-    // later events do not change the session
-    sentry_capture_event(sentry_value_new_message_event(
-        SENTRY_LEVEL_INFO, NULL, "second event"));
+    // events carry the session but do not change it
+    sentry_capture_event(
+        sentry_value_new_message_event(SENTRY_LEVEL_INFO, NULL, "first event"));
     TEST_CHECK_INT_EQUAL(data.calls, 3);
+    TEST_CHECK(data.last_had_session);
+    TEST_CHECK(!data.last_init);
 
     sentry_set_user(sentry_value_new_user("user-id", NULL, NULL, NULL));
     TEST_CHECK_INT_EQUAL(data.calls, 4);
@@ -377,12 +373,12 @@ SENTRY_TEST(session_changed_backend_hook)
     TEST_CHECK_INT_EQUAL(data.calls, 5);
 
     sentry_start_session();
-    TEST_CHECK_INT_EQUAL(data.calls, 6);
+    TEST_CHECK_INT_EQUAL(data.calls, 7);
     TEST_CHECK(data.last_had_session);
-    TEST_CHECK(data.last_init);
+    TEST_CHECK(!data.last_init);
 
     sentry_close();
-    TEST_CHECK_INT_EQUAL(data.calls, 7);
+    TEST_CHECK_INT_EQUAL(data.calls, 8);
     TEST_CHECK(!data.last_had_session);
 }
 
@@ -451,14 +447,6 @@ SENTRY_TEST(session_start_update)
     sentry_options_set_transport(options, transport);
     sentry_options_set_release(options, "my_release");
 
-#if defined(SENTRY_PLATFORM_NX) || defined(SENTRY_PLATFORM_PS)
-    TEST_CHECK(sentry_options_get_send_session_start_update(options));
-#else
-    TEST_CHECK(!sentry_options_get_send_session_start_update(options));
-#endif
-    sentry_options_set_send_session_start_update(options, 1);
-    TEST_CHECK(sentry_options_get_send_session_start_update(options));
-
     TEST_CHECK_INT_EQUAL(sentry_init(options), 0);
     // automatic session tracking sent the initial update right away
     TEST_CHECK_INT_EQUAL(data.calls, 1);
@@ -499,47 +487,4 @@ SENTRY_TEST(session_start_update)
     TEST_CHECK(data.last_had_session);
     TEST_CHECK(!data.last_init);
     TEST_CHECK_STRING_EQUAL(data.last_status, "exited");
-}
-
-SENTRY_TEST(session_start_update_backend_hook)
-{
-    SENTRY_TEST_OPTIONS_NEW(options);
-    sentry__path_remove_all(options->database_path);
-    sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
-    // the default null transport drops the update, which still counts as sent
-    sentry_options_set_release(options, "my_release");
-    sentry_options_set_send_session_start_update(options, 1);
-
-    session_hook_data_t data = { 0 };
-    sentry_backend_t *backend = SENTRY_MAKE(sentry_backend_t);
-    TEST_ASSERT(!!backend);
-    backend->data = &data;
-    backend->session_changed_func = record_session_changed;
-    sentry_options_set_backend(options, backend);
-
-    TEST_CHECK_INT_EQUAL(sentry_init(options), 0);
-    // the session started and was sent right away, flipping `init`
-    TEST_CHECK_INT_EQUAL(data.calls, 2);
-    TEST_CHECK(data.last_had_session);
-    TEST_CHECK(!data.last_init);
-
-    // events no longer change the session
-    sentry_capture_event(
-        sentry_value_new_message_event(SENTRY_LEVEL_INFO, NULL, "first event"));
-    TEST_CHECK_INT_EQUAL(data.calls, 3);
-    TEST_CHECK(data.last_had_session);
-    TEST_CHECK(!data.last_init);
-
-    sentry_end_session();
-    TEST_CHECK_INT_EQUAL(data.calls, 4);
-    TEST_CHECK(!data.last_had_session);
-
-    sentry_start_session();
-    TEST_CHECK_INT_EQUAL(data.calls, 6);
-    TEST_CHECK(data.last_had_session);
-    TEST_CHECK(!data.last_init);
-
-    sentry_close();
-    TEST_CHECK_INT_EQUAL(data.calls, 7);
-    TEST_CHECK(!data.last_had_session);
 }

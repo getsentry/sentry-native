@@ -41,7 +41,6 @@ struct sentry_options_s {
     size_t max_breadcrumbs;
     bool debug;
     bool auto_session_tracking;
-    bool send_session_start_update;
     bool require_user_consent;
     bool symbolize_stacktraces;
     bool system_crash_reporter_enabled;

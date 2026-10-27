@@ -299,8 +299,6 @@ SENTRY_TEST(retry_restore_report)
     SENTRY_TEST_OPTIONS_NEW(options);
     sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
     sentry_options_set_http_retry(options, true);
-    // keep the session's start update out of the retry cache
-    sentry_options_set_send_session_start_update(options, 0);
     sentry_transport_t *transport
         = sentry__http_transport_new(NULL, test_http_send_fails);
     TEST_ASSERT(!!transport);
