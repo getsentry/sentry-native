@@ -693,14 +693,10 @@ sentry__capture_event(
                 sentry_options_t *mut_options = sentry__options_lock();
                 // recheck inside the lock since our previous read is racy.
                 if (mut_options->session) {
+                    // the initial update went out when the session started,
+                    // so attaching it here does not change the session
                     sentry__envelope_add_session(
                         envelope, mut_options->session);
-                    // we're assuming that if a session is added to an envelope,
-                    // it will be sent onwards.  This means we now need to set
-                    // the init flag to false because we're no longer in the
-                    // initial session update.
-                    mut_options->session->init = false;
-                    sentry__session_notify_changed(mut_options);
                 }
                 sentry__options_unlock();
             }

@@ -347,38 +347,36 @@ SENTRY_TEST(session_changed_backend_hook)
     sentry_options_set_backend(options, backend);
 
     TEST_CHECK_INT_EQUAL(sentry_init(options), 0);
-    // auto session tracking started a session during init and sent its
-    // initial update right away, flipping `init`
-    TEST_CHECK_INT_EQUAL(data.calls, 2);
+    // auto session tracking started a session during init; its initial
+    // update already went out, so the hook sees `init` as false
+    TEST_CHECK_INT_EQUAL(data.calls, 1);
     TEST_CHECK(data.last_had_session);
     TEST_CHECK(!data.last_init);
 
-    // events carry the session but do not change it
+    // events carry the session but do not change it, so no notification
     sentry_capture_event(
         sentry_value_new_message_event(SENTRY_LEVEL_INFO, NULL, "first event"));
-    TEST_CHECK_INT_EQUAL(data.calls, 3);
-    TEST_CHECK(data.last_had_session);
-    TEST_CHECK(!data.last_init);
+    TEST_CHECK_INT_EQUAL(data.calls, 1);
 
     sentry_set_user(sentry_value_new_user("user-id", NULL, NULL, NULL));
-    TEST_CHECK_INT_EQUAL(data.calls, 4);
+    TEST_CHECK_INT_EQUAL(data.calls, 2);
     TEST_CHECK_STRING_EQUAL(data.last_did, "user-id");
 
     sentry_end_session();
-    TEST_CHECK_INT_EQUAL(data.calls, 5);
+    TEST_CHECK_INT_EQUAL(data.calls, 3);
     TEST_CHECK(!data.last_had_session);
 
     // ending without a current session does not notify
     sentry_end_session();
-    TEST_CHECK_INT_EQUAL(data.calls, 5);
+    TEST_CHECK_INT_EQUAL(data.calls, 3);
 
     sentry_start_session();
-    TEST_CHECK_INT_EQUAL(data.calls, 7);
+    TEST_CHECK_INT_EQUAL(data.calls, 4);
     TEST_CHECK(data.last_had_session);
     TEST_CHECK(!data.last_init);
 
     sentry_close();
-    TEST_CHECK_INT_EQUAL(data.calls, 8);
+    TEST_CHECK_INT_EQUAL(data.calls, 5);
     TEST_CHECK(!data.last_had_session);
 }
 

@@ -234,10 +234,9 @@ sentry_start_session(void)
                 sentry__session_sync_user(options->session, user,
                     options->run ? options->run->installation_id : NULL);
                 sentry_value_decref(user);
-                sentry__session_notify_changed(options);
-                // the start update goes out on its own; as in
-                // `sentry__capture_event`, a session added to an envelope
-                // counts as sent, so `init` turns false before the file write
+                // the start update goes out on its own; a session added to an
+                // envelope counts as sent, so `init` turns false before the
+                // backend and the session file see it
                 envelope = sentry__envelope_new();
                 sentry__envelope_add_session(envelope, options->session);
                 options->session->init = false;
