@@ -22,6 +22,31 @@ INSTALLATION_ID_RE = re.compile(
 )
 
 
+OS_RELEASE_PATHS = [
+    "/run/host/etc/os-release",
+    "/run/host/usr/lib/os-release",
+    "/run/host/os-release",
+    "/etc/os-release",
+    "/usr/lib/os-release",
+]
+
+
+def read_os_release():
+    for path in OS_RELEASE_PATHS:
+        try:
+            with open(path) as f:
+                lines = f.read().splitlines()
+        except OSError:
+            continue
+        fields = {}
+        for line in lines:
+            key, sep, value = line.partition("=")
+            if sep:
+                fields[key] = value.strip('"')
+        return fields
+    return {}
+
+
 def matches(actual, expected):
     return {k: v for (k, v) in actual.items() if k in expected.keys()} == expected
 
@@ -131,13 +156,26 @@ def assert_event_meta(
             match = VERSION_RE.match(version)
             version = match.group(1)
             build = match.group(2)
-            expected_os_context = {"name": "Linux", "version": version}
-            if build:
-                expected_os_context["build"] = build
+            os_release = read_os_release()
+            if os_release.get("ID") in ("steamos", "bazzite"):
+                expected_os_context = {
+                    "name": os_release.get("NAME", os_release["ID"]),
+                    "version": os_release.get("VERSION_ID", version),
+                    "kernel_version": platform.release(),
+                }
+                if "BUILD_ID" in os_release:
+                    expected_os_context["build"] = os_release["BUILD_ID"]
 
-            assert_matches(event["contexts"]["os"], expected_os_context)
-            assert "distribution_name" in event["contexts"]["os"]
-            assert "distribution_version" in event["contexts"]["os"]
+                assert_matches(event["contexts"]["os"], expected_os_context)
+                assert "distribution_name" not in event["contexts"]["os"]
+            else:
+                expected_os_context = {"name": "Linux", "version": version}
+                if build:
+                    expected_os_context["build"] = build
+
+                assert_matches(event["contexts"]["os"], expected_os_context)
+                assert "distribution_name" in event["contexts"]["os"]
+                assert "distribution_version" in event["contexts"]["os"]
         elif sys.platform == "darwin":
             version = platform.mac_ver()[0].split(".")
             if len(version) < 3:
