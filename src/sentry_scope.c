@@ -1113,16 +1113,16 @@ sentry__scope_load_propagation_context(const sentry_scope_t *scope)
 {
     sentry_value_t propagation_context = sentry_value_new_null();
     SENTRY_SCOPE_READ_LOCK (scope->data) {
-        propagation_context
-            = sentry__value_clone(scope->data->propagation_context);
+        if (!scope->parent
+            || sentry_value_get_length(scope->data->propagation_context)) {
+            propagation_context
+                = sentry__value_clone(scope->data->propagation_context);
+        }
     }
     if (scope->parent) {
         sentry_value_t parent
             = sentry__scope_load_propagation_context(scope->parent);
-        // TODO: optimize sentry__value_merge_objects_shallow for empty
-        // destinations
-        if (!sentry_value_get_length(propagation_context)) {
-            sentry_value_decref(propagation_context);
+        if (sentry_value_is_null(propagation_context)) {
             return parent;
         }
         sentry__value_merge_objects_shallow(propagation_context, parent);
@@ -1752,13 +1752,13 @@ sentry__scope_load_tags(const sentry_scope_t *scope)
 {
     sentry_value_t tags = sentry_value_new_null();
     SENTRY_SCOPE_READ_LOCK (scope->data) {
-        tags = sentry__value_clone(scope->data->tags);
+        if (!scope->parent || sentry_value_get_length(scope->data->tags)) {
+            tags = sentry__value_clone(scope->data->tags);
+        }
     }
     if (scope->parent) {
         sentry_value_t parent = sentry__scope_load_tags(scope->parent);
-        // TODO: optimize sentry__value_merge_objects for empty destinations
-        if (!sentry_value_get_length(tags)) {
-            sentry_value_decref(tags);
+        if (sentry_value_is_null(tags)) {
             return parent;
         }
         sentry__value_merge_objects(tags, parent);
@@ -1883,13 +1883,13 @@ sentry__scope_load_extra(const sentry_scope_t *scope)
 {
     sentry_value_t extra = sentry_value_new_null();
     SENTRY_SCOPE_READ_LOCK (scope->data) {
-        extra = sentry__value_clone(scope->data->extra);
+        if (!scope->parent || sentry_value_get_length(scope->data->extra)) {
+            extra = sentry__value_clone(scope->data->extra);
+        }
     }
     if (scope->parent) {
         sentry_value_t parent = sentry__scope_load_extra(scope->parent);
-        // TODO: optimize sentry__value_merge_objects for empty destinations
-        if (!sentry_value_get_length(extra)) {
-            sentry_value_decref(extra);
+        if (sentry_value_is_null(extra)) {
             return parent;
         }
         sentry__value_merge_objects(extra, parent);
@@ -2007,14 +2007,14 @@ sentry__scope_load_attributes(const sentry_scope_t *scope)
 {
     sentry_value_t attributes = sentry_value_new_null();
     SENTRY_SCOPE_READ_LOCK (scope->data) {
-        attributes = sentry__value_clone(scope->data->attributes);
+        if (!scope->parent
+            || sentry_value_get_length(scope->data->attributes)) {
+            attributes = sentry__value_clone(scope->data->attributes);
+        }
     }
     if (scope->parent) {
         sentry_value_t parent = sentry__scope_load_attributes(scope->parent);
-        // TODO: optimize sentry__value_merge_objects_shallow for empty
-        // destinations
-        if (!sentry_value_get_length(attributes)) {
-            sentry_value_decref(attributes);
+        if (sentry_value_is_null(attributes)) {
             return parent;
         }
         sentry__value_merge_objects_shallow(attributes, parent);
@@ -2047,13 +2047,13 @@ sentry__scope_load_contexts(const sentry_scope_t *scope)
 {
     sentry_value_t contexts = sentry_value_new_null();
     SENTRY_SCOPE_READ_LOCK (scope->data) {
-        contexts = sentry__value_clone(scope->data->contexts);
+        if (!scope->parent || sentry_value_get_length(scope->data->contexts)) {
+            contexts = sentry__value_clone(scope->data->contexts);
+        }
     }
     if (scope->parent) {
         sentry_value_t parent = sentry__scope_load_contexts(scope->parent);
-        // TODO: optimize sentry__value_merge_objects for empty destinations
-        if (!sentry_value_get_length(contexts)) {
-            sentry_value_decref(contexts);
+        if (sentry_value_is_null(contexts)) {
             return parent;
         }
         sentry__value_merge_objects(contexts, parent);
