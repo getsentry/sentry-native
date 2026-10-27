@@ -325,9 +325,11 @@ flush_external_crash_report(crashpad_state_t *state,
         return;
     }
     sentry__envelope_set_event_id(envelope, crash_event_id);
+    sentry__mutex_lock((sentry_mutex_t *)&options->session_lock);
     if (options->session) {
         sentry__envelope_add_session(envelope, options->session);
     }
+    sentry__mutex_unlock((sentry_mutex_t *)&options->session_lock);
 
     if (options->cache_keep) {
         sentry__envelope_set_header(envelope, "cache_dir",
