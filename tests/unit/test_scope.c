@@ -14,6 +14,8 @@
     TEST_CHECK(memcmp(&(Actual), &(Expected), sizeof(sentry_uuid_t)) == 0)
 
 typedef sentry_value_t (*scope_value_getter_t)(const sentry_scope_t *scope);
+typedef void (*scope_value_setter_t)(
+    sentry_scope_t *scope, const char *key, const char *value);
 
 static sentry_value_t
 scope_value_get_by_key(
@@ -4719,4 +4721,133 @@ SENTRY_TEST(scope_observer_init_failure)
     TEST_CHECK_INT_EQUAL(scope->num_observers, 1);
     TEST_CHECK(scope->observers[0] == existing);
     sentry_scope_free(scope);
+}
+
+static void
+set_tag(sentry_scope_t *scope, const char *key, const char *value)
+{
+    sentry_scope_set_tag(scope, key, value);
+}
+
+static void
+set_extra(sentry_scope_t *scope, const char *key, const char *value)
+{
+    sentry_scope_set_extra(scope, key, sentry_value_new_string(value));
+}
+
+static void
+set_context(sentry_scope_t *scope, const char *key, const char *value)
+{
+    sentry_value_t context = sentry_value_new_object();
+    sentry_value_set_by_key(context, "value", sentry_value_new_string(value));
+    sentry_scope_set_context(scope, key, context);
+}
+
+static void
+set_attribute(sentry_scope_t *scope, const char *key, const char *value)
+{
+    sentry_scope_set_attribute(scope, key,
+        sentry_value_new_attribute(sentry_value_new_string(value), NULL));
+}
+
+static void
+set_propagation_context(
+    sentry_scope_t *scope, const char *key, const char *value)
+{
+    sentry__scope_set_propagation_context(
+        scope, key, sentry_value_new_string(value));
+}
+
+static sentry_scope_t *
+scope_new_child(sentry_scope_t *parent)
+{
+    sentry_scope_t *scope = sentry_scope_new();
+    TEST_ASSERT(!!scope);
+    sentry__scope_decref((sentry_scope_t *)scope->parent);
+    scope->parent = parent;
+    return scope;
+}
+
+static const char *
+get_string(sentry_value_t values, const char *key)
+{
+    sentry_value_t value = sentry_value_get_by_key(values, key);
+    if (sentry_value_get_type(value) == SENTRY_VALUE_TYPE_OBJECT) {
+        value = sentry_value_get_by_key(value, "value");
+    }
+    return sentry_value_as_string(value);
+}
+
+static void
+check_scope_inheritance(scope_value_getter_t load, scope_value_setter_t set)
+{
+    sentry_scope_t *root = scope_new_child(NULL);
+    sentry_scope_t *middle = scope_new_child(root);
+    sentry_scope_t *leaf = scope_new_child(middle);
+
+    sentry_value_t values = load(leaf);
+    TEST_CHECK(sentry_value_get_type(values) == SENTRY_VALUE_TYPE_OBJECT);
+    TEST_CHECK_INT_EQUAL(sentry_value_get_length(values), 0);
+    sentry_value_decref(values);
+
+    // the empty middle and leaf inherit the root values
+    set(root, "root", "root");
+    set(root, "shared", "root");
+    values = load(leaf);
+    TEST_CHECK_INT_EQUAL(sentry_value_get_length(values), 2);
+    TEST_CHECK_STRING_EQUAL(get_string(values, "root"), "root");
+    TEST_CHECK_STRING_EQUAL(get_string(values, "shared"), "root");
+
+    // the loaded values are detached from the root
+    sentry_value_set_by_key(values, "root", sentry_value_new_string("changed"));
+    sentry_value_set_by_key(sentry_value_get_by_key(values, "shared"), "value",
+        sentry_value_new_string("changed"));
+    sentry_value_decref(values);
+    values = load(root);
+    TEST_CHECK_STRING_EQUAL(get_string(values, "root"), "root");
+    TEST_CHECK_STRING_EQUAL(get_string(values, "shared"), "root");
+    sentry_value_decref(values);
+
+    // the leaf overrides the root across the empty middle
+    set(leaf, "leaf", "leaf");
+    set(leaf, "shared", "leaf");
+    values = load(leaf);
+    TEST_CHECK_INT_EQUAL(sentry_value_get_length(values), 3);
+    TEST_CHECK_STRING_EQUAL(get_string(values, "root"), "root");
+    TEST_CHECK_STRING_EQUAL(get_string(values, "leaf"), "leaf");
+    TEST_CHECK_STRING_EQUAL(get_string(values, "shared"), "leaf");
+    sentry_value_decref(values);
+
+    values = load(middle);
+    TEST_CHECK_INT_EQUAL(sentry_value_get_length(values), 2);
+    TEST_CHECK_STRING_EQUAL(get_string(values, "shared"), "root");
+    sentry_value_decref(values);
+
+    sentry_scope_free(leaf);
+}
+
+SENTRY_TEST(scope_inheritance_tags)
+{
+    check_scope_inheritance(sentry__scope_load_tags, set_tag);
+}
+
+SENTRY_TEST(scope_inheritance_extra)
+{
+    check_scope_inheritance(sentry__scope_load_extra, set_extra);
+}
+
+SENTRY_TEST(scope_inheritance_contexts)
+{
+    check_scope_inheritance(sentry__scope_load_contexts, set_context);
+}
+
+SENTRY_TEST(scope_inheritance_attributes)
+{
+    check_scope_inheritance(sentry__scope_load_attributes, set_attribute);
+}
+
+SENTRY_TEST(scope_inheritance_propagation_context)
+{
+    check_scope_inheritance(
+        sentry__scope_load_propagation_context, set_propagation_context);
 }
