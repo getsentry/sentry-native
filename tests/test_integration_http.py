@@ -647,10 +647,18 @@ def test_inproc_crash_http(cmake, httpserver, build_args):
     ).respond_with_data("OK")
     env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver))
 
+    # flush so the session's start update is not in flight when we crash
     run(
         tmp_path,
         "sentry_test_integration",
-        ["log", "start-session", "attachment", "attach-view-hierarchy", "crash"],
+        [
+            "log",
+            "start-session",
+            "flush",
+            "attachment",
+            "attach-view-hierarchy",
+            "crash",
+        ],
         expect_failure=True,
         env=env,
     )
@@ -756,7 +764,14 @@ def test_breakpad_crash_http(cmake, httpserver, build_args):
     run(
         tmp_path,
         "sentry_test_integration",
-        ["log", "start-session", "attachment", "attach-view-hierarchy", "crash"],
+        [
+            "log",
+            "start-session",
+            "flush",
+            "attachment",
+            "attach-view-hierarchy",
+            "crash",
+        ],
         expect_failure=True,
         env=env,
     )
