@@ -516,7 +516,11 @@ startup_inproc_backend(
         return 1;
     }
 
-    return install_signal_handlers();
+    if (install_signal_handlers() != 0) {
+        stop_handler_thread();
+        return 1;
+    }
+    return 0;
 }
 
 static void
