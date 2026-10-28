@@ -109,7 +109,7 @@ extern "C" {
  * checks, or `sentry_sdk_version()` for the runtime version.
  */
 #ifndef SENTRY_SDK_VERSION
-#    define SENTRY_SDK_VERSION "0.17.4"
+#    define SENTRY_SDK_VERSION "0.17.5"
 #endif
 
 /**
@@ -117,7 +117,7 @@ extern "C" {
  */
 #define SENTRY_SDK_VERSION_MAJOR 0
 #define SENTRY_SDK_VERSION_MINOR 17
-#define SENTRY_SDK_VERSION_PATCH 4
+#define SENTRY_SDK_VERSION_PATCH 5
 
 /**
  * Checks whether the compile-time SDK version is at least `major.minor.patch`.
