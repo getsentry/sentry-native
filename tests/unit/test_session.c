@@ -491,3 +491,49 @@ SENTRY_TEST(session_start_update)
     TEST_CHECK(!data.last_init);
     TEST_CHECK_STRING_EQUAL(data.last_status, "exited");
 }
+
+SENTRY_TEST(session_start_update_waits_for_consent)
+{
+    SENTRY_TEST_OPTIONS_NEW(options);
+    sentry_options_set_auto_session_tracking(options, true);
+    sentry__path_remove_all(options->database_path);
+    sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
+    sentry_options_set_require_user_consent(options, true);
+    sentry_transport_t *transport
+        = sentry_transport_new(record_session_envelope);
+    session_envelope_data_t data = { 0 };
+    sentry_transport_set_state(transport, &data);
+    sentry_options_set_transport(options, transport);
+    sentry_options_set_release(options, "my_release");
+
+    TEST_CHECK_INT_EQUAL(sentry_init(options), 0);
+    // without consent the initial update would be dropped, so it is held back
+    TEST_CHECK_INT_EQUAL(data.calls, 0);
+    TEST_CHECK(session_file_has_init());
+
+    // a dropped event leaves the session untouched
+    sentry_capture_event(
+        sentry_value_new_message_event(SENTRY_LEVEL_INFO, NULL, "dropped"));
+    TEST_CHECK_INT_EQUAL(data.calls, 0);
+    TEST_CHECK(session_file_has_init());
+
+    // giving consent sends the initial update
+    sentry_user_consent_give();
+    TEST_CHECK_INT_EQUAL(data.calls, 1);
+    TEST_CHECK_INT_EQUAL(data.last_item_count, 1);
+    TEST_CHECK(data.last_had_session);
+    TEST_CHECK(data.last_init);
+    TEST_CHECK_STRING_EQUAL(data.last_status, "ok");
+    TEST_CHECK(!session_file_has_init());
+
+    // but only once
+    sentry_user_consent_revoke();
+    sentry_user_consent_give();
+    TEST_CHECK_INT_EQUAL(data.calls, 1);
+
+    sentry_close();
+    TEST_CHECK_INT_EQUAL(data.calls, 2);
+    TEST_CHECK(data.last_had_session);
+    TEST_CHECK(!data.last_init);
+    TEST_CHECK_STRING_EQUAL(data.last_status, "exited");
+}

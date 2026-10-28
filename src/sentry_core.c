@@ -460,6 +460,7 @@ set_user_consent(sentry_user_consent_t new_val)
             switch (new_val) {
             case SENTRY_USER_CONSENT_GIVEN:
                 sentry__path_write_buffer(consent_path, "1\n", 2);
+                sentry__session_send_start_update(options);
                 // flush any envelopes cached while consent was revoked
                 sentry_transport_retry(options->transport);
                 break;
