@@ -27,9 +27,10 @@ typedef struct {
 } sentry_attachment_ref_t;
 
 /**
- * Create a new empty envelope.
+ * Create a new empty envelope with the DSN header from the given options, if
+ * any.
  */
-sentry_envelope_t *sentry__envelope_new(void);
+sentry_envelope_t *sentry__envelope_new(const sentry_options_t *options);
 
 /**
  * Create a new empty envelope with the given DSN header.
@@ -57,8 +58,8 @@ void sentry__envelope_set_event_id(
 /**
  * Add an event to this envelope.
  */
-sentry_envelope_item_t *sentry__envelope_add_event(
-    sentry_envelope_t *envelope, sentry_value_t event);
+sentry_envelope_item_t *sentry__envelope_add_event(sentry_envelope_t *envelope,
+    sentry_value_t event, const sentry_options_t *options);
 
 /**
  * Add a transaction to this envelope.
@@ -88,7 +89,8 @@ sentry_envelope_item_t *sentry__envelope_add_metrics(
  * Add a feedback event to this envelope.
  */
 sentry_envelope_item_t *sentry__envelope_add_feedback_event(
-    sentry_envelope_t *envelope, sentry_value_t feedback_event);
+    sentry_envelope_t *envelope, sentry_value_t feedback_event,
+    const sentry_options_t *options);
 
 /**
  * Add a session to this envelope.

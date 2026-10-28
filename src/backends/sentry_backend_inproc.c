@@ -350,7 +350,7 @@ wake_handler_thread(bool close_for_exit)
 #endif
 }
 
-static int start_handler_thread(void);
+static int start_handler_thread(const sentry_options_t *options);
 static void stop_handler_thread(void);
 
 #ifdef SENTRY_PLATFORM_UNIX
@@ -512,11 +512,15 @@ startup_inproc_backend(
         backend->data = &g_backend_config;
     }
 
-    if (start_handler_thread() != 0) {
+    if (start_handler_thread(options) != 0) {
         return 1;
     }
 
-    return install_signal_handlers();
+    if (install_signal_handlers() != 0) {
+        stop_handler_thread();
+        return 1;
+    }
+    return 0;
 }
 
 static void
@@ -605,7 +609,7 @@ startup_inproc_backend(
         && defined(SENTRY_THREAD_STACK_GUARANTEE_AUTO_INIT)
     sentry__set_default_thread_stack_guarantee();
 #    endif
-    if (start_handler_thread() != 0) {
+    if (start_handler_thread(options) != 0) {
         return 1;
     }
     g_previous_handler = SetUnhandledExceptionFilter(&handle_exception);
@@ -741,13 +745,14 @@ sentry__set_test_crash_callback(sentry_test_crash_callback_t callback)
 #endif
 
 static void
-process_ucontext_deferred(const sentry_ucontext_t *uctx,
-    const struct signal_slot *sig_slot, bool skip_hooks)
+process_ucontext_deferred(const sentry_options_t *options,
+    const sentry_ucontext_t *uctx, const struct signal_slot *sig_slot,
+    bool skip_hooks)
 {
     SENTRY_INFO("entering signal handler");
     TEST_CRASH_POINT("after_enter");
 
-    SENTRY_WITH_OPTIONS (options) {
+    if (options) {
         sentry_handler_strategy_t strategy =
 #if defined(SENTRY_PLATFORM_LINUX)
             options ? sentry_options_get_handler_strategy(options) :
@@ -800,7 +805,7 @@ process_ucontext_deferred(const sentry_ucontext_t *uctx,
                 event_id = sentry__envelope_get_event_id(envelope);
             }
             sentry_session_t *session = sentry__end_current_session_with_status(
-                SENTRY_SESSION_STATUS_CRASHED);
+                options, SENTRY_SESSION_STATUS_CRASHED);
             sentry__envelope_add_session(envelope, session);
 
             if (capture_screenshot) {
@@ -870,8 +875,10 @@ process_ucontext_deferred(const sentry_ucontext_t *uctx,
 }
 
 SENTRY_THREAD_FN
-handler_thread_main(void *UNUSED(data))
+handler_thread_main(void *data)
 {
+    sentry_options_t *options = data;
+
 #ifdef SENTRY_PLATFORM_UNIX
     // Set up an alternate signal stack for the handler thread
     stack_t handler_thread_stack;
@@ -910,7 +917,7 @@ handler_thread_main(void *UNUSED(data))
 
         sentry__enter_crash_handler();
         process_ucontext_deferred(
-            &g_handler_state.uctx, g_handler_state.sig_slot, false);
+            options, &g_handler_state.uctx, g_handler_state.sig_slot, false);
         sentry__exit_crash_handler();
         sentry__atomic_store(&g_handler_has_work, 0);
 #ifdef SENTRY_PLATFORM_UNIX
@@ -942,6 +949,8 @@ handler_thread_main(void *UNUSED(data))
     teardown_sigaltstack(&handler_thread_stack);
 #endif
 
+    sentry_options_free(options);
+
 #ifdef SENTRY_PLATFORM_WINDOWS
     return 0;
 #else
@@ -950,7 +959,7 @@ handler_thread_main(void *UNUSED(data))
 }
 
 static int
-start_handler_thread(void)
+start_handler_thread(const sentry_options_t *options)
 {
     if (sentry__atomic_fetch(&g_handler_thread_ready)) {
         return 0;
@@ -964,9 +973,13 @@ start_handler_thread(void)
         return 1;
     }
 
-    if (sentry__thread_spawn(&g_handler_thread, handler_thread_main, NULL)
+    // The handler thread owns an options reference, because `sentry_close()`
+    // holds the options lock while joining it.
+    sentry_options_t *ref = sentry__options_incref((sentry_options_t *)options);
+    if (sentry__thread_spawn(&g_handler_thread, handler_thread_main, ref)
         != 0) {
         SENTRY_WARN("failed to spawn handler thread");
+        sentry_options_free(ref);
         teardown_handler_sync();
         return 1;
     }
@@ -1039,7 +1052,9 @@ dispatch_ucontext(const sentry_ucontext_t *uctx,
     // run the signal-unsafe part in the signal handler like we did before.
     // Disable stdio-based logging - not safe in signal handler context.
     sentry__logger_disable();
-    process_ucontext_deferred(uctx, sig_slot, skip_hooks);
+    SENTRY_WITH_OPTIONS (options) {
+        process_ucontext_deferred(options, uctx, sig_slot, skip_hooks);
+    }
     return true;
 #else
     if (has_handler_thread_crashed()) {
@@ -1051,7 +1066,9 @@ dispatch_ucontext(const sentry_ucontext_t *uctx,
         // report an error when the handler thread has crashed.
         // Always skip hooks here since the first attempt (from handler thread)
         // already failed, likely due to a crashing hook.
-        process_ucontext_deferred(uctx, sig_slot, true);
+        SENTRY_WITH_OPTIONS (options) {
+            process_ucontext_deferred(options, uctx, sig_slot, true);
+        }
         return true;
     }
 
@@ -1080,7 +1097,9 @@ dispatch_ucontext(const sentry_ucontext_t *uctx,
     if (!sentry__atomic_fetch(&g_handler_thread_ready)) {
         // Disable stdio-based logging - not safe in signal handler context.
         sentry__logger_disable();
-        process_ucontext_deferred(uctx, sig_slot, skip_hooks);
+        SENTRY_WITH_OPTIONS (options) {
+            process_ucontext_deferred(options, uctx, sig_slot, skip_hooks);
+        }
         return true;
     }
 
@@ -1143,7 +1162,9 @@ dispatch_ucontext(const sentry_ucontext_t *uctx,
         // fresh depth: the lock was released above, so depth here is
         // always 1, which would incorrectly re-run hooks on a recursive
         // crash where the pipe also fails.
-        process_ucontext_deferred(uctx, sig_slot, skip_hooks);
+        SENTRY_WITH_OPTIONS (options) {
+            process_ucontext_deferred(options, uctx, sig_slot, skip_hooks);
+        }
         return true;
     }
 #    elif defined(SENTRY_PLATFORM_WINDOWS)
@@ -1160,7 +1181,9 @@ dispatch_ucontext(const sentry_ucontext_t *uctx,
         // Fall back to in-handler processing
         // Disable stdio-based logging - not safe in signal handler context.
         sentry__logger_disable();
-        process_ucontext_deferred(uctx, sig_slot, skip_hooks);
+        SENTRY_WITH_OPTIONS (options) {
+            process_ucontext_deferred(options, uctx, sig_slot, skip_hooks);
+        }
         return true;
     }
 #    endif

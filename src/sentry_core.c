@@ -690,7 +690,8 @@ sentry__capture_event(
             bool has_session = options->session;
             SENTRY_TSAN_IGNORE_READS_END();
             if (has_session) {
-                sentry_options_t *mut_options = sentry__options_lock();
+                sentry_options_t *mut_options = (sentry_options_t *)options;
+                sentry__mutex_lock(&mut_options->session_lock);
                 // recheck inside the lock since our previous read is racy.
                 if (mut_options->session) {
                     // the initial update went out when the session started,
@@ -698,7 +699,7 @@ sentry__capture_event(
                     sentry__envelope_add_session(
                         envelope, mut_options->session);
                 }
-                sentry__options_unlock();
+                sentry__mutex_unlock(&mut_options->session_lock);
             }
 
             bool should_skip = !sentry__roll_dice(options->sample_rate);
@@ -827,7 +828,7 @@ sentry__prepare_event(const sentry_options_t *options, sentry_value_t event,
     sentry_scope_t *local_scope)
 {
     if (event_is_considered_error(event)) {
-        sentry__record_errors_on_current_session(1);
+        sentry__record_errors_on_current_session(options, 1);
     }
 
     if (local_scope) {
@@ -857,8 +858,8 @@ sentry__enclose_event(const sentry_options_t *options, sentry_value_t event,
     sentry_envelope_t *envelope = NULL;
 
     sentry__ensure_event_id(event, event_id);
-    envelope = sentry__envelope_new();
-    if (!envelope || !sentry__envelope_add_event(envelope, event)) {
+    envelope = sentry__envelope_new(options);
+    if (!envelope || !sentry__envelope_add_event(envelope, event, options)) {
         goto fail;
     }
 
@@ -904,7 +905,7 @@ sentry__prepare_transaction(const sentry_options_t *options,
     }
 
     sentry__ensure_event_id(transaction, event_id);
-    envelope = sentry__envelope_new();
+    envelope = sentry__envelope_new(options);
     if (!envelope || !sentry__envelope_add_transaction(envelope, transaction)) {
         goto fail;
     }
@@ -921,11 +922,11 @@ fail:
 }
 
 static sentry_envelope_t *
-prepare_user_report(sentry_value_t user_report)
+prepare_user_report(const sentry_options_t *options, sentry_value_t user_report)
 {
     sentry_envelope_t *envelope = NULL;
 
-    envelope = sentry__envelope_new();
+    envelope = sentry__envelope_new(options);
     if (!envelope || !sentry__envelope_add_user_report(envelope, user_report)) {
         goto fail;
     }
@@ -984,8 +985,9 @@ prepare_user_feedback(const sentry_options_t *options,
 
     sentry__ensure_event_id(event, event_id);
 
-    sentry_envelope_t *envelope = sentry__envelope_new();
-    if (!envelope || !sentry__envelope_add_feedback_event(envelope, event)) {
+    sentry_envelope_t *envelope = sentry__envelope_new(options);
+    if (!envelope
+        || !sentry__envelope_add_feedback_event(envelope, event, options)) {
         goto fail;
     }
 
@@ -1104,11 +1106,15 @@ sentry_set_user(sentry_value_t user)
 {
     if (!sentry_value_is_null(user)) {
         sentry_options_t *options = sentry__options_lock();
-        if (options && options->session) {
-            sentry__session_sync_user(options->session, user,
-                options->run ? options->run->installation_id : NULL);
-            sentry__run_write_session(options->run, options->session);
-            sentry__session_notify_changed(options);
+        if (options) {
+            sentry__mutex_lock(&options->session_lock);
+            if (options->session) {
+                sentry__session_sync_user(options->session, user,
+                    options->run ? options->run->installation_id : NULL);
+                sentry__run_write_session(options->run, options->session);
+                sentry__session_notify_changed(options);
+            }
+            sentry__mutex_unlock(&options->session_lock);
         }
         sentry__options_unlock();
     }
@@ -1920,7 +1926,7 @@ sentry_capture_user_feedback(sentry_value_t user_report)
     sentry_envelope_t *envelope = NULL;
 
     SENTRY_WITH_OPTIONS (options) {
-        envelope = prepare_user_report(user_report);
+        envelope = prepare_user_report(options, user_report);
         if (envelope) {
             sentry__capture_envelope(options->transport, envelope, options);
         }
