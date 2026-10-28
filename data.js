@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1793172226891,
+  "lastUpdate": 1793175995585,
   "repoUrl": "https://github.com/getsentry/sentry-native",
   "entries": {
     "Linux": [
@@ -84181,6 +84181,306 @@ window.BENCHMARK_DATA = {
           {
             "name": "Scope apply (transaction, 1000 spans)",
             "value": 0.021147402000678994,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.021ms\nMax 0.021ms\nMean 0.021ms\nMedian 0.021ms\nCPU 0.021ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "jpnurmi@gmail.com",
+            "name": "J-P Nurmi",
+            "username": "jpnurmi"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "a4c7507017b16ae7b9b42103ef20316fec119dd7",
+          "message": "fix(inproc): remove options lock from the handler thread (#2252)\n\n* fix(inproc): remove options lock from the handler thread\n\n`sentry_close()` holds `g_options_lock` while joining the handler\nthread, so a crash during `sentry_close()` deadlocked in the\n`SENTRY_WITH_OPTIONS` of `process_ucontext_deferred()`.\n\nPass the handler thread a counted options reference as its start\nargument, released when the thread exits. In-handler fallbacks keep\nusing `SENTRY_WITH_OPTIONS`.\n\nFixes: #2244\n\n* fix(inproc): stop the handler thread if signal setup fails\n\n`startup_inproc_backend()` returned an error after\n`install_signal_handlers()` failed but left the handler thread running\nwith the options of the failed `sentry_init()`. The next `sentry_init()`\nkept that thread instead of starting one with its own options.",
+          "timestamp": "2026-10-28T09:18:46+01:00",
+          "tree_id": "bc721384993107b2785d85b9edfc8ca3365bea46",
+          "url": "https://github.com/getsentry/sentry-native/commit/a4c7507017b16ae7b9b42103ef20316fec119dd7"
+        },
+        "date": 1793175967301,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "SDK init (inproc)",
+            "value": 0.8313670000035245,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.795ms\nMax 0.836ms\nMean 0.822ms\nStdDev 0.017ms\nMedian 0.831ms\nCPU 0.780ms"
+          },
+          {
+            "name": "SDK init (breakpad)",
+            "value": 0.7621670000048653,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.738ms\nMax 0.777ms\nMean 0.760ms\nStdDev 0.014ms\nMedian 0.762ms\nCPU 0.760ms"
+          },
+          {
+            "name": "SDK init (crashpad)",
+            "value": 2.8528889999961393,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 2.740ms\nMax 2.889ms\nMean 2.827ms\nStdDev 0.061ms\nMedian 2.853ms\nCPU 1.461ms"
+          },
+          {
+            "name": "SDK init (native)",
+            "value": 2.33187399999224,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 2.252ms\nMax 2.373ms\nMean 2.327ms\nStdDev 0.046ms\nMedian 2.332ms\nCPU 1.478ms"
+          },
+          {
+            "name": "Backend startup (inproc)",
+            "value": 0.11115800000993659,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.110ms\nMax 0.137ms\nMean 0.116ms\nStdDev 0.012ms\nMedian 0.111ms\nCPU 0.075ms"
+          },
+          {
+            "name": "Backend startup (breakpad)",
+            "value": 0.03318199998147975,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.029ms\nMax 0.041ms\nMean 0.034ms\nStdDev 0.005ms\nMedian 0.033ms\nCPU 0.033ms"
+          },
+          {
+            "name": "Backend startup (crashpad)",
+            "value": 1.821821999982376,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 1.755ms\nMax 1.840ms\nMean 1.814ms\nStdDev 0.034ms\nMedian 1.822ms\nCPU 0.482ms"
+          },
+          {
+            "name": "Backend startup (native)",
+            "value": 1.521031000009998,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 1.487ms\nMax 1.587ms\nMean 1.525ms\nStdDev 0.040ms\nMedian 1.521ms\nCPU 0.678ms"
+          },
+          {
+            "name": "Tags (inproc)",
+            "value": 0.004687105999977348,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.005ms\nMax 0.005ms\nMean 0.005ms\nMedian 0.005ms\nCPU 0.005ms"
+          },
+          {
+            "name": "Tags (breakpad)",
+            "value": 0.004853767999975389,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.005ms\nMax 0.005ms\nMean 0.005ms\nMedian 0.005ms\nCPU 0.005ms"
+          },
+          {
+            "name": "Tags (crashpad)",
+            "value": 0.004890406000015446,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.005ms\nMax 0.005ms\nMean 0.005ms\nMedian 0.005ms\nCPU 0.005ms"
+          },
+          {
+            "name": "Tags (native)",
+            "value": 0.08813500900001259,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.088ms\nMax 0.088ms\nMean 0.088ms\nMedian 0.088ms\nCPU 0.088ms"
+          },
+          {
+            "name": "Breadcrumbs (inproc)",
+            "value": 0.0005817189999959282,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.001ms\nMax 0.001ms\nMean 0.001ms\nMedian 0.001ms\nCPU 0.001ms"
+          },
+          {
+            "name": "Breadcrumbs (breakpad)",
+            "value": 0.0005615419999855931,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.001ms\nMax 0.001ms\nMean 0.001ms\nMedian 0.001ms\nCPU 0.001ms"
+          },
+          {
+            "name": "Breadcrumbs (crashpad)",
+            "value": 0.005247875000009117,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.005ms\nMax 0.005ms\nMean 0.005ms\nMedian 0.005ms\nCPU 0.005ms"
+          },
+          {
+            "name": "Breadcrumbs (native)",
+            "value": 0.004687947999997277,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.005ms\nMax 0.005ms\nMean 0.005ms\nMedian 0.005ms\nCPU 0.005ms"
+          },
+          {
+            "name": "Logs (1 thread)",
+            "value": 0.008143375000102537,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.008ms\nMax 0.008ms\nMean 0.008ms\nMedian 0.008ms\nCPU 0.008ms"
+          },
+          {
+            "name": "Logs (8 threads)",
+            "value": 0.010543574218813134,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.011ms\nMax 0.011ms\nMean 0.011ms\nMedian 0.011ms\nCPU 0.011ms"
+          },
+          {
+            "name": "Logs (16 threads)",
+            "value": 0.010587003906326053,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.011ms\nMax 0.011ms\nMean 0.011ms\nMedian 0.011ms\nCPU 0.010ms"
+          },
+          {
+            "name": "Logs (32 threads)",
+            "value": 0.08255475097657117,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.083ms\nMax 0.083ms\nMean 0.083ms\nMedian 0.083ms\nCPU 0.009ms"
+          },
+          {
+            "name": "Metrics (1 thread)",
+            "value": 0.005854718748921073,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.006ms\nMax 0.006ms\nMean 0.006ms\nMedian 0.006ms\nCPU 0.006ms"
+          },
+          {
+            "name": "Metrics (8 threads)",
+            "value": 0.007530738281191773,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.008ms\nMax 0.008ms\nMean 0.008ms\nMedian 0.008ms\nCPU 0.007ms"
+          },
+          {
+            "name": "Metrics (16 threads)",
+            "value": 0.007115121093526078,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.007ms\nMax 0.007ms\nMean 0.007ms\nMedian 0.007ms\nCPU 0.007ms"
+          },
+          {
+            "name": "Metrics (32 threads)",
+            "value": 0.011554014648529343,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.012ms\nMax 0.012ms\nMean 0.012ms\nMedian 0.012ms\nCPU 0.007ms"
+          },
+          {
+            "name": "Library size (inproc)",
+            "value": 621056,
+            "range": "linear",
+            "unit": "bytes",
+            "extra": "Size 621056b"
+          },
+          {
+            "name": "Library size (breakpad)",
+            "value": 742656,
+            "range": "linear",
+            "unit": "bytes",
+            "extra": "Size 742656b"
+          },
+          {
+            "name": "Library size (crashpad)",
+            "value": 1040544,
+            "range": "linear",
+            "unit": "bytes",
+            "extra": "Size 1040544b"
+          },
+          {
+            "name": "Library size (native)",
+            "value": 626336,
+            "range": "linear",
+            "unit": "bytes",
+            "extra": "Size 626336b"
+          },
+          {
+            "name": "Stack usage (inproc)",
+            "value": 7624,
+            "unit": "bytes",
+            "extra": "Peak 7624b, Segments 2"
+          },
+          {
+            "name": "Stack usage (breakpad)",
+            "value": 3104,
+            "unit": "bytes",
+            "extra": "Peak 3104b, Segments 1"
+          },
+          {
+            "name": "Stack usage (crashpad)",
+            "value": 2088,
+            "unit": "bytes",
+            "extra": "Peak 2088b, Segments 1"
+          },
+          {
+            "name": "Stack usage (native)",
+            "value": 2472,
+            "unit": "bytes",
+            "extra": "Peak 2472b, Segments 1"
+          },
+          {
+            "name": "Contexts (inproc)",
+            "value": 0.005182758999978887,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.005ms\nMax 0.005ms\nMean 0.005ms\nMedian 0.005ms\nCPU 0.005ms"
+          },
+          {
+            "name": "Contexts (breakpad)",
+            "value": 0.005248381000001245,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.005ms\nMax 0.005ms\nMean 0.005ms\nMedian 0.005ms\nCPU 0.005ms"
+          },
+          {
+            "name": "Contexts (crashpad)",
+            "value": 0.0051729599999816855,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.005ms\nMax 0.005ms\nMean 0.005ms\nMedian 0.005ms\nCPU 0.005ms"
+          },
+          {
+            "name": "Contexts (native)",
+            "value": 0.19166036599995095,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.192ms\nMax 0.192ms\nMean 0.192ms\nMedian 0.192ms\nCPU 0.192ms"
+          },
+          {
+            "name": "Scope apply (event, 10 frames)",
+            "value": 0.02053261300079612,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.021ms\nMax 0.021ms\nMean 0.021ms\nMedian 0.021ms\nCPU 0.020ms"
+          },
+          {
+            "name": "Scope apply (event, 256 frames)",
+            "value": 0.029073242999572813,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.029ms\nMax 0.029ms\nMean 0.029ms\nMedian 0.029ms\nCPU 0.029ms"
+          },
+          {
+            "name": "Scope apply (transaction, 100 spans)",
+            "value": 0.02089804599938816,
+            "range": "logarithmic",
+            "unit": "ms",
+            "extra": "Min 0.021ms\nMax 0.021ms\nMean 0.021ms\nMedian 0.021ms\nCPU 0.021ms"
+          },
+          {
+            "name": "Scope apply (transaction, 1000 spans)",
+            "value": 0.021106283000619896,
             "range": "logarithmic",
             "unit": "ms",
             "extra": "Min 0.021ms\nMax 0.021ms\nMean 0.021ms\nMedian 0.021ms\nCPU 0.021ms"
