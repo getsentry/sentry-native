@@ -43,7 +43,8 @@ static sentry_mutex_t g_options_lock = SENTRY__MUTEX_INIT;
 #endif
 /// see sentry_get_crashed_last_run() for the possible values
 static int g_last_crash = -1;
-/// nesting depth of the crash handler, see sentry__enter_crash_handler()
+/// > 0 while a crash is handled; nests, e.g. inproc enters on both the
+/// crashing and the handler thread
 static volatile long g_crash_handler_depth = 0;
 
 const sentry_options_t *
