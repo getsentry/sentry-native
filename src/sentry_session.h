@@ -71,6 +71,12 @@ void sentry__session_sync_user(sentry_session_t *session, sentry_value_t user,
     const char *installation_id);
 
 /**
+ * This sends the initial update of the current session if it is still
+ * pending, which happens when the session started without user consent.
+ */
+void sentry__session_send_start_update(const sentry_options_t *options);
+
+/**
  * This notifies the backend that the current session of `options` started,
  * changed or ended. Must be called with the options lock held.
  */

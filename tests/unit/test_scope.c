@@ -3079,7 +3079,6 @@ SENTRY_TEST(scope_capture_unlocked)
 
     SENTRY_TEST_OPTIONS_NEW(options);
     sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
-    sentry_options_set_auto_session_tracking(options, false);
     sentry_transport_t *transport
         = sentry_transport_new(send_envelope_while_mutating_scope);
     sentry_transport_set_state(transport, &state);
@@ -3113,7 +3112,6 @@ SENTRY_TEST(scope_last_event_id)
     bool discard = false;
     SENTRY_TEST_OPTIONS_NEW(options);
     sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
-    sentry_options_set_auto_session_tracking(options, false);
     sentry_options_set_traces_sample_rate(options, 1.0);
     sentry_options_set_before_send(
         options, conditionally_discard_event, &discard);
@@ -3207,7 +3205,6 @@ SENTRY_TEST(scope_capture_user_owned)
     uint64_t called = 0;
     SENTRY_TEST_OPTIONS_NEW(options);
     sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
-    sentry_options_set_auto_session_tracking(options, false);
     sentry_transport_t *transport = sentry_transport_new(send_envelope_count);
     sentry_transport_set_state(transport, &called);
     sentry_options_set_transport(options, transport);

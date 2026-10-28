@@ -3708,7 +3708,8 @@ typedef enum {
 } sentry_session_status_t;
 
 /**
- * Starts a new session.
+ * Starts a new session and sends its initial update right away, or once the
+ * user gives consent when `require_user_consent` is set.
  */
 SENTRY_API void sentry_start_session(void);
 

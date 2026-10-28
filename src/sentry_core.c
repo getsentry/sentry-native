@@ -460,6 +460,7 @@ set_user_consent(sentry_user_consent_t new_val)
             switch (new_val) {
             case SENTRY_USER_CONSENT_GIVEN:
                 sentry__path_write_buffer(consent_path, "1\n", 2);
+                sentry__session_send_start_update(options);
                 // flush any envelopes cached while consent was revoked
                 sentry_transport_retry(options->transport);
                 break;
@@ -694,14 +695,10 @@ sentry__capture_event(
                 sentry__mutex_lock(&mut_options->session_lock);
                 // recheck inside the lock since our previous read is racy.
                 if (mut_options->session) {
+                    // the initial update went out when the session started,
+                    // so attaching it here does not change the session
                     sentry__envelope_add_session(
                         envelope, mut_options->session);
-                    // we're assuming that if a session is added to an envelope,
-                    // it will be sent onwards.  This means we now need to set
-                    // the init flag to false because we're no longer in the
-                    // initial session update.
-                    mut_options->session->init = false;
-                    sentry__session_notify_changed(mut_options);
                 }
                 sentry__mutex_unlock(&mut_options->session_lock);
             }

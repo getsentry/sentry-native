@@ -8,6 +8,7 @@
 - An empty proxy (`sentry_options_set_proxy(options, "")`) now means a direct connection with every transport and backend. Before, the WinHTTP transport, the Windows and macOS crashpad handlers and the native backend's daemon fell back to the proxy environment variables or the system proxy settings. ([#2218](https://github.com/getsentry/sentry-native/pull/2218), [crashpad#175](https://github.com/getsentry/crashpad/pull/175))
 - Inproc/Android: keep the original crash when the unwinder fails to allocate memory in the crash handler. ([#2239](https://github.com/getsentry/sentry-native/pull/2239))
 - Inproc: fix a deadlock when a crash occurs during `sentry_close()`, such as when re-initializing the SDK. ([#2252](https://github.com/getsentry/sentry-native/pull/2252))
+- Session starts are now sent immediately, instead of with the first event or the end of the session. With `require_user_consent`, the initial update waits for the consent to be given. ([#2242](https://github.com/getsentry/sentry-native/pull/2242))
 
 **Thank you**:
 
