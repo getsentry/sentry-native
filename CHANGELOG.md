@@ -8,6 +8,7 @@
 - An empty proxy (`sentry_options_set_proxy(options, "")`) now means a direct connection with every transport and backend. Before, the WinHTTP transport, the Windows and macOS crashpad handlers and the native backend's daemon fell back to the proxy environment variables or the system proxy settings. ([#2218](https://github.com/getsentry/sentry-native/pull/2218), [crashpad#175](https://github.com/getsentry/crashpad/pull/175))
 - Inproc/Android: keep the original crash when the unwinder fails to allocate memory in the crash handler. ([#2239](https://github.com/getsentry/sentry-native/pull/2239))
 - Inproc: fix a deadlock when a crash occurs during `sentry_close()`, such as when re-initializing the SDK. ([#2252](https://github.com/getsentry/sentry-native/pull/2252))
+- Android: fix image addresses of libraries loaded from the APK. ([#2262](https://github.com/getsentry/sentry-native/pull/2262))
 
 **Thank you**:
 
