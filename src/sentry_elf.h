@@ -37,9 +37,11 @@ sentry__elf_open(const char *path)
  * Used to filter out non-ELF mappings (e.g. files under /dev/shm, deleted
  * files, sentry-native's own IPC shared memory) from the module list — LLDB and
  * other consumers can choke on entries that look like modules but aren't.
+ * A non-zero offset checks for an ELF image inside a larger file, such as a
+ * library that Android maps straight from an APK.
  */
 static inline bool
-sentry__elf_is_file(const char *path)
+sentry__elf_is_file_at(const char *path, uint64_t offset)
 {
     int fd = sentry__elf_open(path);
     if (fd < 0) {
@@ -47,10 +49,16 @@ sentry__elf_is_file(const char *path)
     }
 
     unsigned char magic[SELFMAG];
-    bool is_elf = read(fd, magic, SELFMAG) == (ssize_t)SELFMAG
+    bool is_elf = pread(fd, magic, SELFMAG, (off_t)offset) == (ssize_t)SELFMAG
         && memcmp(magic, ELFMAG, SELFMAG) == 0;
     close(fd);
     return is_elf;
+}
+
+static inline bool
+sentry__elf_is_file(const char *path)
+{
+    return sentry__elf_is_file_at(path, 0);
 }
 
 static inline bool
@@ -201,6 +209,88 @@ sentry__elf_find_note(const void *buf, size_t buf_size, size_t alignment,
     }
 
     return NULL;
+}
+
+/**
+ * Compute the virtual memory size of an ELF file from its PT_LOAD segments.
+ * This matches Crashpad's behavior: size = max(p_vaddr + p_memsz) -
+ * min(p_vaddr) across all PT_LOAD segments, rather than using page-aligned
+ * /proc/maps sizes.
+ * Returns the computed size, or 0 on failure (caller should fall back to
+ * /proc/maps size).
+ */
+static inline uint64_t
+sentry__elf_compute_size_from_phdrs(const char *elf_path, uint64_t elf_offset)
+{
+    int fd = sentry__elf_open(elf_path);
+    if (fd < 0) {
+        return 0;
+    }
+
+#    if defined(__x86_64__) || defined(__aarch64__)
+    Elf64_Ehdr ehdr;
+#    else
+    Elf32_Ehdr ehdr;
+#    endif
+
+    if (pread(fd, &ehdr, sizeof(ehdr), (off_t)elf_offset) != sizeof(ehdr)
+        || memcmp(ehdr.e_ident, ELFMAG, SELFMAG) != 0 || ehdr.e_phnum == 0) {
+        close(fd);
+        return 0;
+    }
+
+    if (!sentry__elf_has_phdr_size(ehdr.e_ident, ehdr.e_phentsize)) {
+        close(fd);
+        return 0;
+    }
+
+    // Read program headers
+    size_t phdr_size = (size_t)ehdr.e_phentsize * ehdr.e_phnum;
+    void *phdr_buf = sentry_malloc(phdr_size);
+    if (!phdr_buf) {
+        close(fd);
+        return 0;
+    }
+
+    uint64_t phoff = elf_offset + ehdr.e_phoff;
+    if (lseek(fd, (off_t)phoff, SEEK_SET) != (off_t)phoff
+        || read(fd, phdr_buf, phdr_size) != (ssize_t)phdr_size) {
+        sentry_free(phdr_buf);
+        close(fd);
+        return 0;
+    }
+
+#    if defined(__x86_64__) || defined(__aarch64__)
+    Elf64_Phdr *phdrs = (Elf64_Phdr *)phdr_buf;
+#    else
+    Elf32_Phdr *phdrs = (Elf32_Phdr *)phdr_buf;
+#    endif
+
+    uint64_t min_vaddr = UINT64_MAX;
+    uint64_t max_vaddr = 0;
+    bool found_load = false;
+
+    for (int i = 0; i < ehdr.e_phnum; i++) {
+        if (phdrs[i].p_type == PT_LOAD) {
+            found_load = true;
+            if (phdrs[i].p_vaddr < min_vaddr) {
+                min_vaddr = phdrs[i].p_vaddr;
+            }
+            uint64_t end = phdrs[i].p_vaddr + phdrs[i].p_memsz;
+            if (end > max_vaddr) {
+                max_vaddr = end;
+            }
+        }
+    }
+
+    sentry_free(phdr_buf);
+    close(fd);
+
+    if (!found_load || max_vaddr <= min_vaddr) {
+        return 0;
+    }
+
+    return max_vaddr - min_vaddr;
 }
 
 #endif
