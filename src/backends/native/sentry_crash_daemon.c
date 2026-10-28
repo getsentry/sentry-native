@@ -1316,7 +1316,8 @@ extract_elf_build_id_for_module(const char *elf_path, uint64_t elf_offset,
         return 0;
     }
 
-    if (lseek(fd, ehdr.e_shoff, SEEK_SET) != (off_t)ehdr.e_shoff
+    uint64_t shoff = elf_offset + ehdr.e_shoff;
+    if (lseek(fd, (off_t)shoff, SEEK_SET) != (off_t)shoff
         || read(fd, shdr_buf, shdr_size) != (ssize_t)shdr_size) {
         sentry_free(shdr_buf);
         close(fd);
@@ -1443,8 +1444,7 @@ elf_locate_symtab(const char *path, int allow_dynsym, sym_source_t *src,
         return 0;
     }
 
-    uint64_t shoff = elf_offset + ehdr.e_shoff;
-    if (lseek(fd, (off_t)shoff, SEEK_SET) != (off_t)shoff
+    if (lseek(fd, ehdr.e_shoff, SEEK_SET) != (off_t)ehdr.e_shoff
         || read(fd, shdr_buf, shdr_size) != (ssize_t)shdr_size) {
         sentry_free(shdr_buf);
         close(fd);
