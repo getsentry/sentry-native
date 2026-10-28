@@ -221,10 +221,10 @@ sentry__session_from_path(const sentry_path_t *path)
 }
 
 // takes the initial update of the current session, or returns NULL if it was
-// taken already or would be dropped for missing consent (the transport only
-// holds on to it when caching is on). A session added to an envelope counts
-// as sent, so `init` turns false before the backend and the session file see
-// it. Must be called with the session lock held.
+// taken already or would be dropped for missing consent (only `http_retry`
+// sends it later; a `cache_keep` copy never leaves the cache). A session added
+// to an envelope counts as sent, so `init` turns false before the backend and
+// the session file see it. Must be called with the session lock held.
 static sentry_envelope_t *
 take_session_start_update(sentry_options_t *options)
 {
@@ -233,7 +233,7 @@ take_session_start_update(sentry_options_t *options)
         return NULL;
     }
     if (options->run && sentry__run_should_skip_upload(options->run)
-        && !options->cache_keep && !options->http_retry) {
+        && !options->http_retry) {
         return NULL;
     }
     sentry_envelope_t *envelope = sentry__envelope_new(options);
