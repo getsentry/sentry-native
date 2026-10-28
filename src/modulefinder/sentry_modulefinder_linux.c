@@ -208,6 +208,46 @@ sentry__module_mapping_push(
     }
 }
 
+#define ELFN_PROGRAM_HEADER_ITER(N, INNER)                                     \
+    Elf##N##_Ehdr elf;                                                         \
+    ENSURE(sentry__module_read_safely(&elf, module, 0, sizeof(elf)));          \
+                                                                               \
+    for (uint32_t i = 0; i < elf.e_phnum; i++) {                               \
+        Elf##N##_Phdr header;                                                  \
+        ENSURE(sentry__module_read_safely(&header, module,                     \
+            elf.e_phoff + (uint64_t)elf.e_phentsize * i, sizeof(header)));     \
+                                                                               \
+        INNER                                                                  \
+    }
+
+#define ELF_PROGRAM_HEADER_ITER(INNER)                                         \
+    unsigned char e_ident[EI_NIDENT];                                          \
+    ENSURE(sentry__module_read_safely(e_ident, module, 0, EI_NIDENT));         \
+    if (e_ident[EI_CLASS] == ELFCLASS64) {                                     \
+        ELFN_PROGRAM_HEADER_ITER(64, INNER)                                    \
+    } else {                                                                   \
+        ELFN_PROGRAM_HEADER_ITER(32, INNER)                                    \
+    }
+
+/**
+ * Returns the size of the address range that the PT_LOAD segments of the
+ * `module` span, or 0 if it cannot be determined.
+ */
+static uint64_t
+get_load_size(const sentry_module_t *module)
+{
+    uint64_t min_vaddr = UINT64_MAX;
+    uint64_t max_vaddr = 0;
+
+    ELF_PROGRAM_HEADER_ITER(if (header.p_type == PT_LOAD) {
+        min_vaddr = MIN(min_vaddr, header.p_vaddr);
+        max_vaddr = MAX(max_vaddr, (uint64_t)header.p_vaddr + header.p_memsz);
+    })
+    return max_vaddr > min_vaddr ? max_vaddr - min_vaddr : 0;
+fail:
+    return 0;
+}
+
 static bool
 is_duplicated_mapping(
     const sentry_module_t *module, const sentry_parsed_module_t *parsed)
@@ -217,7 +257,9 @@ is_duplicated_mapping(
     }
     const sentry_mapped_region_t *mapping = &module->mappings[0];
     return (mapping->offset == parsed->offset
-        && module->mappings_inode == parsed->inode);
+        && module->mappings_inode == parsed->inode
+        // the same file can also be mapped elsewhere, outside of this load
+        && parsed->start - mapping->addr < get_load_size(module));
 }
 
 int
@@ -266,22 +308,9 @@ get_code_id_from_program_header(const sentry_module_t *module, size_t *size_out)
     *size_out = 0;
 
     // iterate over all the program headers, for 32/64 bit separately
-    unsigned char e_ident[EI_NIDENT];
-    ENSURE(sentry__module_read_safely(e_ident, module, 0, EI_NIDENT));
-    if (e_ident[EI_CLASS] == ELFCLASS64) {
-        Elf64_Ehdr elf;
-        ENSURE(sentry__module_read_safely(&elf, module, 0, sizeof(Elf64_Ehdr)));
-
-        for (uint32_t i = 0; i < elf.e_phnum; i++) {
-            Elf64_Phdr header;
-            ENSURE(sentry__module_read_safely(&header, module,
-                elf.e_phoff + (uint64_t)elf.e_phentsize * i,
-                sizeof(Elf64_Phdr)));
-
-            // we are only interested in notes
-            if (header.p_type != PT_NOTE) {
-                continue;
-            }
+    ELF_PROGRAM_HEADER_ITER(
+        // we are only interested in notes
+        if (header.p_type == PT_NOTE) {
             void *segment_addr = sentry__module_get_addr(
                 module, header.p_offset, header.p_filesz);
             ENSURE(segment_addr);
@@ -291,32 +320,7 @@ get_code_id_from_program_header(const sentry_module_t *module, size_t *size_out)
             if (code_id) {
                 return code_id;
             }
-        }
-    } else {
-        Elf32_Ehdr elf;
-        ENSURE(sentry__module_read_safely(&elf, module, 0, sizeof(Elf32_Ehdr)));
-
-        for (uint32_t i = 0; i < elf.e_phnum; i++) {
-            Elf32_Phdr header;
-            ENSURE(sentry__module_read_safely(&header, module,
-                elf.e_phoff + (uint64_t)elf.e_phentsize * i,
-                sizeof(Elf32_Phdr)));
-
-            // we are only interested in notes
-            if (header.p_type != PT_NOTE) {
-                continue;
-            }
-            void *segment_addr = sentry__module_get_addr(
-                module, header.p_offset, header.p_filesz);
-            ENSURE(segment_addr);
-            const uint8_t *code_id
-                = sentry__elf_find_note(segment_addr, header.p_filesz,
-                    header.p_align, NT_GNU_BUILD_ID, "GNU", 4, size_out);
-            if (code_id) {
-                return code_id;
-            }
-        }
-    }
+        })
 fail:
     return NULL;
 }
@@ -422,6 +426,8 @@ fail:
     return sentry_uuid_nil();
 }
 
+#undef ELFN_PROGRAM_HEADER_ITER
+#undef ELF_PROGRAM_HEADER_ITER
 #undef ELF_SECTION_ITER
 
 bool

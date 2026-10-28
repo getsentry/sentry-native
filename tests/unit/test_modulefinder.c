@@ -4,8 +4,13 @@
 
 #ifdef SENTRY_PLATFORM_LINUX
 #    include "modulefinder/sentry_modulefinder_linux.h"
+#    include "sentry_string.h"
+#    include <dlfcn.h>
 #    include <fcntl.h>
+#    include <limits.h>
 #    include <stdlib.h>
+#    include <sys/mman.h>
+#    include <sys/stat.h>
 #    include <unistd.h>
 #endif
 
@@ -288,5 +293,68 @@ SENTRY_TEST(build_id_parser)
 
     parse_elf_and_check_code_and_build_id("../fixtures/libstdc++.so", NULL,
         "7fa824da-38f1-b87c-04df-718fda64990c");
+#endif
+}
+
+SENTRY_TEST(module_finder_remapped_image)
+{
+#if !defined(SENTRY_PLATFORM_LINUX) || !defined(MAP_FIXED_NOREPLACE)
+    SKIP_TEST();
+#else
+    Dl_info info;
+    TEST_ASSERT(dladdr((void *)&sentry_get_modules_list, &info) != 0);
+    uint64_t base = (uint64_t)(uintptr_t)info.dli_fbase;
+
+    char path[PATH_MAX];
+    ssize_t len = readlink("/proc/self/exe", path, sizeof(path) - 1);
+    TEST_ASSERT(len > 0);
+    path[len] = '\0';
+
+    int fd = open(path, O_RDONLY);
+    TEST_ASSERT(fd >= 0);
+    struct stat st;
+    TEST_ASSERT(fstat(fd, &st) == 0);
+
+    // map the ELF header of the executable again, further below than its
+    // load spans, and reserve the gap to keep other modules out of it
+    uint64_t page = (uint64_t)getpagesize();
+    uint64_t gap = ((uint64_t)st.st_size * 2 + page - 1) & ~(page - 1);
+    void *addr = (void *)(uintptr_t)(base - gap);
+    void *reserved = MAP_FAILED;
+    if (gap < base) {
+        reserved = mmap(addr, gap, PROT_NONE,
+            MAP_PRIVATE | MAP_ANONYMOUS | MAP_NORESERVE | MAP_FIXED_NOREPLACE,
+            -1, 0);
+    }
+    if (reserved != addr) {
+        if (reserved != MAP_FAILED) {
+            munmap(reserved, gap);
+        }
+        close(fd);
+        SKIP_TEST();
+    }
+    void *header = mmap(addr, page, PROT_READ, MAP_PRIVATE | MAP_FIXED, fd, 0);
+    close(fd);
+
+    sentry_clear_modulecache();
+    sentry_value_t modules = sentry_get_modules_list();
+    munmap(addr, gap);
+    TEST_CHECK(header == addr);
+
+    char expected[32];
+    sentry__addr_to_string(expected, sizeof(expected), base);
+
+    bool found = false;
+    for (size_t i = 0; i < sentry_value_get_length(modules); i++) {
+        sentry_value_t mod = sentry_value_get_by_index(modules, i);
+        const char *image_addr = sentry_value_as_string(
+            sentry_value_get_by_key(mod, "image_addr"));
+        found |= strcmp(image_addr, expected) == 0;
+    }
+    sentry_value_decref(modules);
+    sentry_clear_modulecache();
+
+    TEST_CHECK(found);
+    TEST_MSG("Expected a module at %s", expected);
 #endif
 }
