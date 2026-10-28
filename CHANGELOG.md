@@ -9,6 +9,7 @@
 - Inproc/Android: keep the original crash when the unwinder fails to allocate memory in the crash handler. ([#2239](https://github.com/getsentry/sentry-native/pull/2239))
 - Inproc: fix a deadlock when a crash occurs during `sentry_close()`, such as when re-initializing the SDK. ([#2252](https://github.com/getsentry/sentry-native/pull/2252))
 - Android: fix image addresses of libraries loaded from the APK. ([#2262](https://github.com/getsentry/sentry-native/pull/2262))
+- Android: unwind past PAC-signed return addresses on ARM64. ([#2263](https://github.com/getsentry/sentry-native/pull/2263), [libunwindstack-ndk#10](https://github.com/getsentry/libunwindstack-ndk/pull/10))
 
 **Thank you**:
 
