@@ -56,12 +56,13 @@ sentry_session_t *sentry__session_from_path(const sentry_path_t *path);
  * This will end the current session with an explicit `status` code.
  */
 sentry_session_t *sentry__end_current_session_with_status(
-    sentry_session_status_t status);
+    const sentry_options_t *options, sentry_session_status_t status);
 
 /**
  * This will add `error_count` new errors to the current session.
  */
-void sentry__record_errors_on_current_session(uint32_t error_count);
+void sentry__record_errors_on_current_session(
+    const sentry_options_t *options, uint32_t error_count);
 
 /**
  * This will update a sessions `distinct_id`, which is based on the user.

@@ -800,7 +800,7 @@ process_ucontext_deferred(const sentry_ucontext_t *uctx,
                 event_id = sentry__envelope_get_event_id(envelope);
             }
             sentry_session_t *session = sentry__end_current_session_with_status(
-                SENTRY_SESSION_STATUS_CRASHED);
+                options, SENTRY_SESSION_STATUS_CRASHED);
             sentry__envelope_add_session(envelope, session);
 
             if (capture_screenshot) {

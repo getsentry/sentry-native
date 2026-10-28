@@ -690,7 +690,8 @@ sentry__capture_event(
             bool has_session = options->session;
             SENTRY_TSAN_IGNORE_READS_END();
             if (has_session) {
-                sentry_options_t *mut_options = sentry__options_lock();
+                sentry_options_t *mut_options = (sentry_options_t *)options;
+                sentry__mutex_lock(&mut_options->session_lock);
                 // recheck inside the lock since our previous read is racy.
                 if (mut_options->session) {
                     sentry__envelope_add_session(
@@ -702,7 +703,7 @@ sentry__capture_event(
                     mut_options->session->init = false;
                     sentry__session_notify_changed(mut_options);
                 }
-                sentry__options_unlock();
+                sentry__mutex_unlock(&mut_options->session_lock);
             }
 
             bool should_skip = !sentry__roll_dice(options->sample_rate);
@@ -831,7 +832,7 @@ sentry__prepare_event(const sentry_options_t *options, sentry_value_t event,
     sentry_scope_t *local_scope)
 {
     if (event_is_considered_error(event)) {
-        sentry__record_errors_on_current_session(1);
+        sentry__record_errors_on_current_session(options, 1);
     }
 
     if (local_scope) {
@@ -1109,11 +1110,15 @@ sentry_set_user(sentry_value_t user)
 {
     if (!sentry_value_is_null(user)) {
         sentry_options_t *options = sentry__options_lock();
-        if (options && options->session) {
-            sentry__session_sync_user(options->session, user,
-                options->run ? options->run->installation_id : NULL);
-            sentry__run_write_session(options->run, options->session);
-            sentry__session_notify_changed(options);
+        if (options) {
+            sentry__mutex_lock(&options->session_lock);
+            if (options->session) {
+                sentry__session_sync_user(options->session, user,
+                    options->run ? options->run->installation_id : NULL);
+                sentry__run_write_session(options->run, options->session);
+                sentry__session_notify_changed(options);
+            }
+            sentry__mutex_unlock(&options->session_lock);
         }
         sentry__options_unlock();
     }

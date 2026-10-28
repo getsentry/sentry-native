@@ -325,9 +325,11 @@ flush_external_crash_report(crashpad_state_t *state,
         return;
     }
     sentry__envelope_set_event_id(envelope, crash_event_id);
+    sentry__mutex_lock((sentry_mutex_t *)&options->session_lock);
     if (options->session) {
         sentry__envelope_add_session(envelope, options->session);
     }
+    sentry__mutex_unlock((sentry_mutex_t *)&options->session_lock);
 
     if (options->cache_keep) {
         sentry__envelope_set_header(envelope, "cache_dir",
@@ -607,9 +609,9 @@ crashpad_handler(int signum, siginfo_t *info, ucontext_t *user_context)
             flush_scope_from_handler(options, crash_event);
             sentry__write_crash_marker(options);
 
-            sentry__record_errors_on_current_session(1);
+            sentry__record_errors_on_current_session(options, 1);
             sentry_session_t *session = sentry__end_current_session_with_status(
-                SENTRY_SESSION_STATUS_CRASHED);
+                options, SENTRY_SESSION_STATUS_CRASHED);
             if (session) {
                 sentry_envelope_t *envelope = sentry__envelope_new(options);
                 sentry__envelope_add_session(envelope, session);

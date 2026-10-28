@@ -227,6 +227,7 @@ sentry_start_session(void)
     sentry_options_t *options = sentry__options_lock();
     SENTRY_WITH_SCOPE (scope) {
         if (options) {
+            sentry__mutex_lock(&options->session_lock);
             options->session = sentry__session_new(scope);
             if (options->session) {
                 sentry_value_t user = sentry__scope_ref_user(scope);
@@ -236,35 +237,36 @@ sentry_start_session(void)
                 sentry__run_write_session(options->run, options->session);
                 sentry__session_notify_changed(options);
             }
+            sentry__mutex_unlock(&options->session_lock);
         }
     }
     sentry__options_unlock();
 }
 
 void
-sentry__record_errors_on_current_session(uint32_t error_count)
+sentry__record_errors_on_current_session(
+    const sentry_options_t *options, uint32_t error_count)
 {
-    sentry_options_t *options = sentry__options_lock();
-    if (options && options->session) {
-        options->session->errors += error_count;
+    sentry_options_t *mut_options = (sentry_options_t *)options;
+    sentry__mutex_lock(&mut_options->session_lock);
+    if (mut_options->session) {
+        mut_options->session->errors += error_count;
     }
-    sentry__options_unlock();
+    sentry__mutex_unlock(&mut_options->session_lock);
 }
 
 static sentry_session_t *
-sentry__end_session_internal(void)
+sentry__end_session_internal(const sentry_options_t *options)
 {
-    sentry_session_t *session = NULL;
-    sentry_options_t *options = sentry__options_lock();
-    if (options) {
-        session = options->session;
-        options->session = NULL;
-        sentry__run_clear_session(options->run);
-        if (session) {
-            sentry__session_notify_changed(options);
-        }
+    sentry_options_t *mut_options = (sentry_options_t *)options;
+    sentry__mutex_lock(&mut_options->session_lock);
+    sentry_session_t *session = mut_options->session;
+    mut_options->session = NULL;
+    sentry__run_clear_session(mut_options->run);
+    if (session) {
+        sentry__session_notify_changed(mut_options);
     }
-    sentry__options_unlock();
+    sentry__mutex_unlock(&mut_options->session_lock);
 
     if (session && session->status == SENTRY_SESSION_STATUS_OK) {
         session->status = SENTRY_SESSION_STATUS_EXITED;
@@ -273,9 +275,10 @@ sentry__end_session_internal(void)
 }
 
 sentry_session_t *
-sentry__end_current_session_with_status(sentry_session_status_t status)
+sentry__end_current_session_with_status(
+    const sentry_options_t *options, sentry_session_status_t status)
 {
-    sentry_session_t *session = sentry__end_session_internal();
+    sentry_session_t *session = sentry__end_session_internal(options);
     if (session) {
         session->status = status;
     }
@@ -283,37 +286,37 @@ sentry__end_current_session_with_status(sentry_session_status_t status)
 }
 
 static void
-sentry__capture_session(sentry_session_t *session)
+sentry__capture_session(
+    const sentry_options_t *options, sentry_session_t *session)
 {
-    SENTRY_WITH_OPTIONS (options) {
-        sentry_envelope_t *envelope = sentry__envelope_new(options);
-        sentry__envelope_add_session(envelope, session);
-        sentry__capture_envelope(options->transport, envelope, options);
-    }
+    sentry_envelope_t *envelope = sentry__envelope_new(options);
+    sentry__envelope_add_session(envelope, session);
+    sentry__capture_envelope(options->transport, envelope, options);
 }
 
 void
 sentry_end_session(void)
 {
-    sentry_session_t *session = sentry__end_session_internal();
-    if (!session) {
-        return;
+    SENTRY_WITH_OPTIONS (options) {
+        sentry_session_t *session = sentry__end_session_internal(options);
+        if (session) {
+            sentry__capture_session(options, session);
+            sentry__session_free(session);
+        }
     }
-
-    sentry__capture_session(session);
-    sentry__session_free(session);
 }
 
 void
 sentry_end_session_with_status(sentry_session_status_t status)
 {
-    sentry_session_t *session = sentry__end_current_session_with_status(status);
-    if (!session) {
-        return;
+    SENTRY_WITH_OPTIONS (options) {
+        sentry_session_t *session
+            = sentry__end_current_session_with_status(options, status);
+        if (session) {
+            sentry__capture_session(options, session);
+            sentry__session_free(session);
+        }
     }
-
-    sentry__capture_session(session);
-    sentry__session_free(session);
 }
 
 void
