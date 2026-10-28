@@ -1818,10 +1818,6 @@ capture_modules_from_proc_maps(sentry_crash_context_t *ctx)
             continue;
         }
 
-        if (offset > start) {
-            continue;
-        }
-
         // Check if this file is already captured - if so, extend size if needed
         // A mapping at offset 0 starts another load of the file, unless the
         // file was captured last (small libraries can map all segments at
@@ -1885,7 +1881,7 @@ capture_modules_from_proc_maps(sentry_crash_context_t *ctx)
             mod->elf_offset = offset;
             mod->base_address = start;
             mod->size = MAX(end - start, elf_size);
-        } else if (!sentry__elf_is_file(mod->name)) {
+        } else if (offset > start || !sentry__elf_is_file(mod->name)) {
             continue;
         }
 
