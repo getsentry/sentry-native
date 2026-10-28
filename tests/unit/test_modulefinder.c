@@ -8,9 +8,10 @@
 #    include <dlfcn.h>
 #    include <fcntl.h>
 #    include <limits.h>
+#    include <link.h>
 #    include <stdlib.h>
+#    include <sys/auxv.h>
 #    include <sys/mman.h>
-#    include <sys/stat.h>
 #    include <unistd.h>
 #endif
 
@@ -312,13 +313,19 @@ SENTRY_TEST(module_finder_remapped_image)
 
     int fd = open(path, O_RDONLY);
     TEST_ASSERT(fd >= 0);
-    struct stat st;
-    TEST_ASSERT(fstat(fd, &st) == 0);
 
     // map the ELF header of the executable again, further below than its
     // load spans, and reserve the gap to keep other modules out of it
+    const ElfW(Phdr) *phdrs = (const ElfW(Phdr) *)getauxval(AT_PHDR);
+    uint64_t span = 0;
+    for (size_t i = 0; i < getauxval(AT_PHNUM); i++) {
+        if (phdrs[i].p_type == PT_LOAD
+            && phdrs[i].p_vaddr + phdrs[i].p_memsz > span) {
+            span = phdrs[i].p_vaddr + phdrs[i].p_memsz;
+        }
+    }
     uint64_t page = (uint64_t)getpagesize();
-    uint64_t gap = ((uint64_t)st.st_size * 2 + page - 1) & ~(page - 1);
+    uint64_t gap = (span + page - 1) & ~(page - 1);
     void *addr = (void *)(uintptr_t)(base - gap);
     void *reserved = MAP_FAILED;
     if (gap < base) {
