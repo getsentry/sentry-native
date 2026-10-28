@@ -15,11 +15,8 @@
 
 #    include "sentry_logger.h"
 
-#    include <errno.h>
 #    include <string.h>
 #    include <sys/ptrace.h>
-#    include <sys/wait.h>
-#    include <unistd.h>
 
 #    include <libunwind-ptrace.h>
 #    include <libunwind.h>
@@ -78,41 +75,7 @@ sentry__unwind_stack_from_thread_libunwind_remote(pid_t tid,
         memset(registers, 0, sizeof(*registers));
     }
 
-    if (ptrace(PTRACE_ATTACH, tid, NULL, NULL) != 0) {
-        SENTRY_WARNF("remote_unwind: ptrace attach failed for %d: %s", tid,
-            strerror(errno));
-        return 0;
-    }
-
-    // Poll with WNOHANG to avoid hanging on threads in D state. PTRACE_ATTACH
-    // sends SIGSTOP but the thread won't stop until it leaves uninterruptible
-    // sleep, which may never happen.
-    int status = 0;
-    int retries = 20;
-    for (;;) {
-        pid_t waited = waitpid(tid, &status, __WALL | WNOHANG);
-        if (waited == tid) {
-            break;
-        }
-        if (waited < 0) {
-            SENTRY_WARNF("remote_unwind: waitpid failed for %d: %s", tid,
-                strerror(errno));
-            ptrace(PTRACE_DETACH, tid, NULL, NULL);
-            return 0;
-        }
-        if (--retries <= 0) {
-            SENTRY_WARNF("remote_unwind: waitpid timed out for %d", tid);
-            ptrace(PTRACE_DETACH, tid, NULL, NULL);
-            return 0;
-        }
-        usleep(100000);
-    }
-
-    if (!WIFSTOPPED(status)) {
-        SENTRY_WARNF(
-            "remote_unwind: thread %d did not stop after attach: status=%d",
-            tid, status);
-        ptrace(PTRACE_DETACH, tid, NULL, NULL);
+    if (!sentry__ptrace_attach_thread(tid)) {
         return 0;
     }
 
