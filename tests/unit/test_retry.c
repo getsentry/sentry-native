@@ -304,6 +304,8 @@ SENTRY_TEST(retry_restore_report)
     TEST_ASSERT(!!transport);
     sentry_options_set_transport(options, transport);
     sentry_init(options);
+    // NX needs time to unlock the cache dir before sentry__path_remove_all()
+    sentry_flush(5000);
 
     sentry__client_report_reset();
     sentry__client_report_discard(
