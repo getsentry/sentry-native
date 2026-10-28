@@ -57,9 +57,9 @@ static void
 write_retry_file(const sentry_run_t *run, uint64_t timestamp, int retry_count,
     const sentry_uuid_t *event_id)
 {
-    sentry_envelope_t *envelope = sentry__envelope_new();
+    sentry_envelope_t *envelope = sentry__envelope_new(NULL);
     sentry_value_t event = sentry__value_new_event_with_id(event_id);
-    sentry__envelope_add_event(envelope, event);
+    sentry__envelope_add_event(envelope, event, NULL);
 
     char uuid[37];
     sentry_uuid_as_string(event_id, uuid);
@@ -352,7 +352,7 @@ SENTRY_TEST(retry_session)
         session = sentry__session_new(scope);
     }
     TEST_ASSERT(!!session);
-    sentry_envelope_t *envelope = sentry__envelope_new();
+    sentry_envelope_t *envelope = sentry__envelope_new(NULL);
     TEST_ASSERT(!!envelope);
     sentry__envelope_add_session(envelope, session);
 

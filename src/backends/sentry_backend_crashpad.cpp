@@ -320,7 +320,7 @@ flush_external_crash_report(crashpad_state_t *state,
     const base::FilePath &external_report_path, const sentry_options_t *options,
     const sentry_uuid_t *crash_event_id)
 {
-    sentry_envelope_t *envelope = sentry__envelope_new_with_dsn(options->dsn);
+    sentry_envelope_t *envelope = sentry__envelope_new(options);
     if (!envelope) {
         return;
     }
@@ -611,7 +611,7 @@ crashpad_handler(int signum, siginfo_t *info, ucontext_t *user_context)
             sentry_session_t *session = sentry__end_current_session_with_status(
                 SENTRY_SESSION_STATUS_CRASHED);
             if (session) {
-                sentry_envelope_t *envelope = sentry__envelope_new();
+                sentry_envelope_t *envelope = sentry__envelope_new(options);
                 sentry__envelope_add_session(envelope, session);
                 sentry__capture_envelope(options->transport, envelope, options);
             }
@@ -762,11 +762,7 @@ report_to_envelope(const crashpad::CrashReportDatabase::Report &report,
 
     sentry_envelope_t *envelope = nullptr;
     if (!sentry_value_is_null(event)) {
-        envelope = sentry__envelope_new();
-        if (envelope && options->dsn && options->dsn->is_valid) {
-            sentry__envelope_set_header(envelope, "dsn",
-                sentry_value_new_string(sentry_options_get_dsn(options)));
-        }
+        envelope = sentry__envelope_new(options);
     }
     if (envelope) {
         sentry_value_set_by_key(event, "breadcrumbs",
@@ -775,7 +771,7 @@ report_to_envelope(const crashpad::CrashReportDatabase::Report &report,
         sentry_value_decref(sentry__attachments_add_path(&attachments,
             minidump_path->path, SENTRY_ATTACHMENT_TYPE_MINIDUMP, nullptr));
 
-        if (sentry__envelope_add_event(envelope, event)) {
+        if (sentry__envelope_add_event(envelope, event, options)) {
             sentry__envelope_add_attachments(envelope, attachments, options);
             if (options->run) {
                 sentry__cache_attachment_refs(envelope, attachments, options,

@@ -3179,9 +3179,9 @@ SENTRY_TEST(scope_last_event_id)
     TEST_CHECK_UUID_EQUAL(last_event_id, feedback_id);
 
     sentry_uuid_t submitted_id = sentry_uuid_new_v4();
-    sentry_envelope_t *envelope = sentry__envelope_new();
+    sentry_envelope_t *envelope = sentry__envelope_new(NULL);
     sentry__envelope_add_event(
-        envelope, sentry__value_new_event_with_id(&submitted_id));
+        envelope, sentry__value_new_event_with_id(&submitted_id), NULL);
     SENTRY_WITH_OPTIONS (current_options) {
         sentry__submit_envelope(
             current_options->transport, envelope, current_options);

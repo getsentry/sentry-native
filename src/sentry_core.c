@@ -861,8 +861,8 @@ sentry__enclose_event(const sentry_options_t *options, sentry_value_t event,
     sentry_envelope_t *envelope = NULL;
 
     sentry__ensure_event_id(event, event_id);
-    envelope = sentry__envelope_new();
-    if (!envelope || !sentry__envelope_add_event(envelope, event)) {
+    envelope = sentry__envelope_new(options);
+    if (!envelope || !sentry__envelope_add_event(envelope, event, options)) {
         goto fail;
     }
 
@@ -908,7 +908,7 @@ sentry__prepare_transaction(const sentry_options_t *options,
     }
 
     sentry__ensure_event_id(transaction, event_id);
-    envelope = sentry__envelope_new();
+    envelope = sentry__envelope_new(options);
     if (!envelope || !sentry__envelope_add_transaction(envelope, transaction)) {
         goto fail;
     }
@@ -925,11 +925,11 @@ fail:
 }
 
 static sentry_envelope_t *
-prepare_user_report(sentry_value_t user_report)
+prepare_user_report(const sentry_options_t *options, sentry_value_t user_report)
 {
     sentry_envelope_t *envelope = NULL;
 
-    envelope = sentry__envelope_new();
+    envelope = sentry__envelope_new(options);
     if (!envelope || !sentry__envelope_add_user_report(envelope, user_report)) {
         goto fail;
     }
@@ -988,8 +988,9 @@ prepare_user_feedback(const sentry_options_t *options,
 
     sentry__ensure_event_id(event, event_id);
 
-    sentry_envelope_t *envelope = sentry__envelope_new();
-    if (!envelope || !sentry__envelope_add_feedback_event(envelope, event)) {
+    sentry_envelope_t *envelope = sentry__envelope_new(options);
+    if (!envelope
+        || !sentry__envelope_add_feedback_event(envelope, event, options)) {
         goto fail;
     }
 
@@ -1924,7 +1925,7 @@ sentry_capture_user_feedback(sentry_value_t user_report)
     sentry_envelope_t *envelope = NULL;
 
     SENTRY_WITH_OPTIONS (options) {
-        envelope = prepare_user_report(user_report);
+        envelope = prepare_user_report(options, user_report);
         if (envelope) {
             sentry__capture_envelope(options->transport, envelope, options);
         }

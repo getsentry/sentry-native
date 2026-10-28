@@ -357,10 +357,10 @@ SENTRY_TEST(tus_placeholder_uses_raw_location)
 static void
 capture_serialized_ref(const char *path)
 {
-    sentry_envelope_t *envelope = sentry__envelope_new();
+    sentry_envelope_t *envelope = sentry__envelope_new(NULL);
     TEST_ASSERT(!!envelope);
     sentry__envelope_add_event(envelope,
-        sentry_value_new_message_event(SENTRY_LEVEL_INFO, NULL, "test"));
+        sentry_value_new_message_event(SENTRY_LEVEL_INFO, NULL, "test"), NULL);
 
     sentry_attachment_ref_t ref = { 0 };
     ref.path = path;
