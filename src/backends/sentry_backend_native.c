@@ -835,6 +835,7 @@ native_backend_startup(
     }
 
     if (options->proxy) {
+        ctx->has_proxy = true;
 #ifdef _WIN32
         strncpy_s(ctx->proxy, sizeof(ctx->proxy), options->proxy, _TRUNCATE);
 #else
@@ -900,7 +901,8 @@ native_backend_startup(
     // Install crash handlers (signal handlers on Linux/macOS, Mach exception
     // handler on iOS)
 #if defined(SENTRY_PLATFORM_IOS)
-    if (sentry__crash_handler_init(state->ipc, SENTRY_HANDLER_STRATEGY_DEFAULT)
+    if (sentry__crash_handler_init(
+            state->ipc, SENTRY_HANDLER_STRATEGY_DEFAULT, NULL)
         < 0) {
         SENTRY_WARN("failed to initialize crash handler");
         sentry__crash_ipc_free(state->ipc);
@@ -1008,7 +1010,7 @@ native_backend_startup(
         options ? sentry_options_get_handler_strategy(options) :
 #    endif
                 SENTRY_HANDLER_STRATEGY_DEFAULT;
-    if (sentry__crash_handler_init(state->ipc, strategy) < 0) {
+    if (sentry__crash_handler_init(state->ipc, strategy, NULL) < 0) {
         SENTRY_WARN("failed to initialize crash handler");
 #    if defined(SENTRY_PLATFORM_UNIX)
         kill(state->daemon_pid, SIGTERM);
@@ -1605,10 +1607,10 @@ native_backend_except(sentry_backend_t *backend, const sentry_ucontext_t *uctx)
 
                 // End session with crashed status and write session envelope to
                 // disk
-                sentry__record_errors_on_current_session(1);
+                sentry__record_errors_on_current_session(options, 1);
                 sentry_session_t *session
                     = sentry__end_current_session_with_status(
-                        SENTRY_SESSION_STATUS_CRASHED);
+                        options, SENTRY_SESSION_STATUS_CRASHED);
 
                 if (session || !sentry_value_is_null(transaction)) {
                     if (!sentry_value_is_null(transaction)) {
@@ -1621,7 +1623,8 @@ native_backend_except(sentry_backend_t *backend, const sentry_ucontext_t *uctx)
                         }
                     }
                     if (session) {
-                        sentry_envelope_t *envelope = sentry__envelope_new();
+                        sentry_envelope_t *envelope
+                            = sentry__envelope_new(options);
                         if (envelope) {
                             sentry__envelope_add_session(envelope, session);
                             sentry__capture_envelope(

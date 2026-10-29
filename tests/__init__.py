@@ -45,7 +45,7 @@ def run_command(name):
 # https://docs.pytest.org/en/latest/assert.html#assert-details
 pytest.register_assert_rewrite("tests.assertions")
 
-SENTRY_VERSION = "0.17.4"
+SENTRY_VERSION = "0.17.5"
 
 # must match the fixed id set by the example's "replay-context" arg
 REPLAY_ID = "deadbeefdeadbeefdeadbeefdeadbeef"
@@ -87,7 +87,24 @@ def _check_sentry_native_resolves_to_localhost():
 
 
 def is_session_envelope(data):
+    # compressed transports gzip the whole envelope
+    if data[:3] == b"\x1f\x8b\x08":
+        data = gzip.decompress(data)
     return b'"type":"session"' in data
+
+
+def is_session_start_envelope(data):
+    """The session's initial update, sent on its own when the session starts."""
+    try:
+        envelope = Envelope.deserialize(data)
+    except Exception:
+        return False
+    return any(
+        item.headers.get("type") == "session"
+        and item.payload.json is not None
+        and item.payload.json.get("init") is True
+        for item in envelope
+    )
 
 
 def is_logs_envelope(data):

@@ -14,6 +14,10 @@
 extern bool find_mem_range_from_fd(int fd, uintptr_t ptr, mem_range_t *range);
 #endif
 
+#ifdef SENTRY_WITH_UNWINDER_LIBUNWINDSTACK
+extern void fail_operator_new(size_t min_size);
+#endif
+
 // On arm64e, function pointers have PAC (Pointer Authentication Code) bits
 // that must be stripped for comparison with addresses from dladdr().
 #if defined(__arm64e__)
@@ -130,6 +134,30 @@ SENTRY_TEST(unwinder_unmapped_ip)
 #endif
 }
 
+SENTRY_TEST(unwinder_alloc_failure)
+{
+#if !defined(SENTRY_WITH_UNWINDER_LIBUNWINDSTACK)
+    SKIP_TEST();
+#else
+    void *backtrace[MAX_FRAMES] = { 0 };
+
+    // reading /proc/self/maps fails, but the registers are already captured
+    fail_operator_new(4096);
+    size_t frame_count = sentry_unwind_stack(NULL, backtrace, MAX_FRAMES);
+    fail_operator_new(0);
+    TEST_CHECK_INT_EQUAL(frame_count, 1);
+    TEST_CHECK(backtrace[0] != NULL);
+
+    // capturing the registers fails
+    fail_operator_new(1);
+    frame_count = sentry_unwind_stack(NULL, backtrace, MAX_FRAMES);
+    fail_operator_new(0);
+    TEST_CHECK_INT_EQUAL(frame_count, 0);
+
+    TEST_CHECK(sentry_unwind_stack(NULL, backtrace, MAX_FRAMES) > 1);
+#endif
+}
+
 SENTRY_TEST(find_mem_range)
 {
 #if !defined(SENTRY_WITH_UNWINDER_LIBUNWIND)
@@ -195,12 +223,29 @@ SENTRY_TEST(find_mem_range)
 
     mem_range_t crafted_range = { 0, 0 };
     found = find_mem_range_from_fd(fd, (uintptr_t)0xdead1000, &crafted_range);
-    close(fd);
-    unlink(tmp_path);
     TEST_CHECK(found);
     TEST_CHECK_PTR_EQUAL(
         (void *)crafted_range.lo, (void *)(uintptr_t)0xdead0000);
     TEST_CHECK_PTR_EQUAL(
         (void *)crafted_range.hi, (void *)(uintptr_t)0xdeadf000);
+
+    // Test that the address prefix can span two 512-byte reads.
+    TEST_ASSERT(ftruncate(fd, 0) == 0);
+    lseek(fd, 0, SEEK_SET);
+    TEST_ASSERT(write(fd, skip_prefix, strlen(skip_prefix))
+        == (ssize_t)strlen(skip_prefix));
+    size_t padding = 507 - strlen(skip_prefix);
+    TEST_ASSERT(write(fd, filler, padding) == (ssize_t)padding);
+    TEST_ASSERT(write(fd, "\n", 1) == 1);
+    TEST_ASSERT(write(fd, target, strlen(target)) == (ssize_t)strlen(target));
+    lseek(fd, 0, SEEK_SET);
+
+    mem_range_t split_range = { 0, 0 };
+    found = find_mem_range_from_fd(fd, (uintptr_t)0xdead1000, &split_range);
+    close(fd);
+    unlink(tmp_path);
+    TEST_CHECK(found);
+    TEST_CHECK_PTR_EQUAL((void *)split_range.lo, (void *)(uintptr_t)0xdead0000);
+    TEST_CHECK_PTR_EQUAL((void *)split_range.hi, (void *)(uintptr_t)0xdeadf000);
 #endif
 }

@@ -44,8 +44,9 @@ from .assertions import (
     assert_user_feedback,
     assert_crash_stack,
 )
-from .conditions import has_files, is_arm64e, is_kcov
+from .conditions import has_files, has_system_proxy, is_arm64e, is_kcov
 from .conditions import has_native, has_oom, is_asan, is_tsan, is_qemu, is_wine
+from .proxy import proxy_test_finally, start_proxy, system_proxy
 
 pytestmark = pytest.mark.skipif(
     not has_native or is_qemu,
@@ -1445,7 +1446,7 @@ def test_crash_mode_native_only(cmake, httpserver):
     # Should have debug_meta
     assert "debug_meta" in event
     assert len(event["debug_meta"]["images"]) > 0
-    if sys.platform == "darwin":
+    if sys.platform in ["linux", "darwin"] and not is_wine:
         assert_debug_meta_images_do_not_overlap(event)
 
 
@@ -1499,7 +1500,7 @@ def test_crash_mode_native_with_minidump(cmake, httpserver):
 
     # Should have debug_meta
     assert "debug_meta" in event
-    if sys.platform == "darwin":
+    if sys.platform in ["linux", "darwin"] and not is_wine:
         assert_debug_meta_images_do_not_overlap(event)
 
 
@@ -1971,3 +1972,67 @@ def test_native_shutdown_during_crash(cmake):
         ["--no-exec", "crash_daemon_shutdown_during_crash"],
         env=dict(os.environ, SENTRY_TEST_NATIVE_DAEMON=str(tmp_path / "sentry-crash")),
     )
+
+
+def test_native_proxy_set_empty(cmake, httpserver):
+    proxy_process = None  # store the proxy process to terminate it later
+    try:
+        proxy_process, port = start_proxy("http-proxy")
+        tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "native"})
+        httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data(
+            "OK"
+        )
+        # we start the proxy but expect it to remain unused
+        env = dict(
+            os.environ,
+            SENTRY_DSN=make_dsn(httpserver, proxy_host=True),
+            http_proxy=f"http://127.0.0.1:{port}",
+            https_proxy=f"http://127.0.0.1:{port}",
+        )
+
+        with httpserver.wait(timeout=10) as waiting:
+            run_crash(
+                tmp_path,
+                "sentry_test_integration",
+                ["log", "crash", "proxy-empty"],
+                env=env,
+            )
+        assert waiting.result
+
+    finally:
+        proxy_test_finally(1, httpserver, proxy_process, expected_proxy_logsize=0)
+
+
+@pytest.mark.skipif(not has_system_proxy, reason="needs TEST_SYSTEM_PROXY")
+@pytest.mark.skipif(
+    sys.platform != "win32" or is_wine,
+    reason="only the WinHTTP transport reads the system proxy",
+)
+@pytest.mark.parametrize("proxy_empty", [False, True])
+def test_native_proxy_system(cmake, httpserver, proxy_empty):
+    proxy_process = None  # store the proxy process to terminate it later
+    try:
+        proxy_process, port = start_proxy("http-proxy")
+        tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "native"})
+        httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data(
+            "OK"
+        )
+        env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver, proxy_host=True))
+
+        with system_proxy(port):
+            with httpserver.wait(timeout=10) as waiting:
+                run_crash(
+                    tmp_path,
+                    "sentry_test_integration",
+                    ["log", "crash"] + (["proxy-empty"] if proxy_empty else []),
+                    env=env,
+                )
+            assert waiting.result
+
+    finally:
+        proxy_test_finally(
+            1,
+            httpserver,
+            proxy_process,
+            expected_proxy_logsize=0 if proxy_empty else None,
+        )

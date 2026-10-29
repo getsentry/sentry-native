@@ -122,6 +122,10 @@ winhttp_client_start(void *_client, const sentry_options_t *opts)
         client->session
             = WinHttpOpen(user_agent, WINHTTP_ACCESS_TYPE_NAMED_PROXY,
                 client->proxy, WINHTTP_NO_PROXY_BYPASS, 0);
+    } else if (opts->proxy && opts->proxy[0] == '\0') {
+        // an explicitly empty proxy disables proxy discovery
+        client->session = WinHttpOpen(user_agent, WINHTTP_ACCESS_TYPE_NO_PROXY,
+            WINHTTP_NO_PROXY_NAME, WINHTTP_NO_PROXY_BYPASS, 0);
     } else {
 #if _WIN32_WINNT >= 0x0603
         client->session

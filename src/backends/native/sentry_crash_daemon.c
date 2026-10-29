@@ -4,6 +4,7 @@
 #include "sentry_alloc.h"
 #include "sentry_attachment.h"
 #include "sentry_core.h"
+#include "sentry_crash_handler.h"
 #include "sentry_crash_ipc.h"
 #include "sentry_database.h"
 #include "sentry_elf.h"
@@ -20,6 +21,7 @@
 #include "sentry_symbolizer.h"
 #include "sentry_sync.h"
 #include "sentry_transport.h"
+#include "sentry_unix_pageallocator.h"
 #include "sentry_utils.h"
 #include "sentry_uuid.h"
 #include "sentry_value.h"
@@ -905,8 +907,8 @@ build_stacktrace_for_thread(
                 = { .iov_base = stack_buf, .iov_len = stack_size };
             struct iovec remote_iov
                 = { .iov_base = (void *)stack_start, .iov_len = stack_size };
-            ssize_t bytes_read
-                = process_vm_readv(pid, &local_iov, 1, &remote_iov, 1, 0);
+            ssize_t bytes_read = sentry__process_vm_readv(
+                pid, &local_iov, 1, &remote_iov, 1, 0);
             if (bytes_read <= 0) {
                 SENTRY_DEBUG(
                     "process_vm_readv failed, falling back to single frame");
@@ -1799,6 +1801,11 @@ capture_modules_from_proc_maps(sentry_crash_context_t *ctx)
             continue; // No pathname or special mapping like [stack]
         }
 
+        // Skip non-readable mappings
+        if (perms[0] != 'r') {
+            continue;
+        }
+
         const char *pathname = line + pathname_offset;
         // Trim newline
         size_t len = strlen(pathname);
@@ -1809,12 +1816,21 @@ capture_modules_from_proc_maps(sentry_crash_context_t *ctx)
             continue;
         }
 
+        if (offset > start) {
+            continue;
+        }
+
         // Check if this file is already captured - if so, extend size if needed
+        // A mapping at offset 0 starts another load of the file, unless the
+        // file was captured last (small libraries can map all segments at
+        // offset 0)
         sentry_module_info_t *existing_mod = NULL;
-        for (uint32_t j = 0; j < ctx->module_count; j++) {
-            if (strncmp(ctx->modules[j].name, pathname, len) == 0
-                && ctx->modules[j].name[len] == '\0') {
-                existing_mod = &ctx->modules[j];
+        for (uint32_t j = ctx->module_count; j > 0; j--) {
+            if (strncmp(ctx->modules[j - 1].name, pathname, len) == 0
+                && ctx->modules[j - 1].name[len] == '\0') {
+                if (offset != 0 || j == ctx->module_count) {
+                    existing_mod = &ctx->modules[j - 1];
+                }
                 break;
             }
         }
@@ -4345,7 +4361,12 @@ daemon_file_logger(
 
     // Get current timestamp
     time_t now = time(NULL);
+#if defined(SENTRY_PLATFORM_WINDOWS)
     struct tm *tm_info = localtime(&now);
+#else
+    struct tm tm_buf;
+    struct tm *tm_info = localtime_r(&now, &tm_buf);
+#endif
     char timestamp[SENTRY_CRASH_TIMESTAMP_SIZE];
     strftime(timestamp, sizeof(timestamp), "%Y-%m-%d %H:%M:%S", tm_info);
 
@@ -4357,6 +4378,33 @@ daemon_file_logger(
     vfprintf(log_file, message, args);
     fprintf(log_file, "\n");
     fflush(log_file); // Flush immediately to ensure logs are written
+}
+
+static long g_crash_handling = 0;
+
+static void
+dump_crash_queue(void)
+{
+    if (!sentry__atomic_compare_swap(&g_crash_handling, 0, 1)) {
+        return;
+    }
+
+#if defined(SENTRY_PLATFORM_UNIX)
+    (void)!sentry__enter_signal_handler();
+    sentry__page_allocator_enable();
+#endif
+    sentry__logger_disable();
+
+    SENTRY_WITH_OPTIONS (options) {
+        if (options->run && options->transport) {
+            sentry__transport_dump_queue(options->transport, options->run);
+            sentry__http_transport_set_retry_enabled(options->transport, false);
+        }
+    }
+
+#if defined(SENTRY_PLATFORM_UNIX)
+    sentry__leave_signal_handler();
+#endif
 }
 
 #if defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID)
@@ -4461,7 +4509,6 @@ sentry__crash_daemon_main(pid_t app_pid, uint64_t app_tid, HANDLE event_handle,
 #endif
 
     // Initialize Sentry options for daemon (reuses all SDK infrastructure)
-    // Options are passed explicitly to all functions, no global state
     sentry_options_t *options = sentry_options_new();
     if (!options) {
         SENTRY_ERROR("sentry_options_new() failed");
@@ -4503,7 +4550,7 @@ sentry__crash_daemon_main(pid_t app_pid, uint64_t app_tid, HANDLE event_handle,
         sentry_options_set_ca_certs(options, ipc->shmem->ca_certs);
     }
 
-    if (ipc->shmem->proxy[0] != '\0') {
+    if (ipc->shmem->has_proxy) {
         SENTRY_DEBUGF("Setting proxy: %s", ipc->shmem->proxy);
         sentry_options_set_proxy(options, ipc->shmem->proxy);
     }
@@ -4595,6 +4642,15 @@ sentry__crash_daemon_main(pid_t app_pid, uint64_t app_tid, HANDLE event_handle,
             options->transport, options->http_retry);
     } else {
         SENTRY_WARN("No transport available");
+    }
+
+    sentry__options_set(options);
+    bool crash_handler_installed
+        = sentry__crash_handler_init(
+              NULL, SENTRY_HANDLER_STRATEGY_DEFAULT, dump_crash_queue)
+        == 0;
+    if (!crash_handler_installed) {
+        SENTRY_WARN("Failed to install daemon crash handler");
     }
 
     SENTRY_DEBUG("Entering main loop");
@@ -4698,6 +4754,11 @@ sentry__crash_daemon_main(pid_t app_pid, uint64_t app_tid, HANDLE event_handle,
             }
         }
     }
+    if (crash_handler_installed) {
+        sentry__crash_handler_shutdown();
+    }
+    sentry__options_set(NULL);
+
     if (crash_processed) {
         // Mark as done
         SENTRY_DEBUG("Marking crash state as DONE");

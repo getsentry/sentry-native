@@ -1,17 +1,201 @@
 #include "sentry_os.h"
+#include "sentry_logger.h"
 #include "sentry_path.h"
 #include "sentry_slice.h"
 #include "sentry_string.h"
 #include "sentry_value.h"
 
 #include <stdio.h>
+#include <string.h>
 #if defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_WINDOWS)
 #    include "sentry_core.h"
-#    include "sentry_logger.h"
 #    include "sentry_utils.h"
 #endif
+#if defined(SENTRY_PLATFORM_UNIX) && !defined(SENTRY_PLATFORM_PS)
+#    include <errno.h>
+#    include <string.h>
+#endif
 #ifdef SENTRY_PLATFORM_LINUX
+#    include <sys/syscall.h>
+#    include <sys/uio.h>
 #    include <unistd.h>
+#endif
+
+#if defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID)
+ssize_t
+sentry__process_vm_readv(pid_t pid, const struct iovec *local_iov,
+    unsigned long local_iov_count, const struct iovec *remote_iov,
+    unsigned long remote_iov_count, unsigned long flags)
+{
+#    if defined(SENTRY_PLATFORM_ANDROID) && defined(__ANDROID_API__)           \
+        && __ANDROID_API__ < 23
+    return syscall(__NR_process_vm_readv, pid, local_iov, local_iov_count,
+        remote_iov, remote_iov_count, flags);
+#    else
+    return process_vm_readv(
+        pid, local_iov, local_iov_count, remote_iov, remote_iov_count, flags);
+#    endif
+}
+#endif
+
+#if (defined(SENTRY_PLATFORM_WINDOWS) && !defined(SENTRY_PLATFORM_XBOX))       \
+    || (defined(SENTRY_PLATFORM_UNIX) && !defined(SENTRY_PLATFORM_MACOS)       \
+        && !defined(SENTRY_PLATFORM_PS))
+static bool
+set_os_uname(sentry_value_t os, const char *sysname, const char *release)
+{
+    char *version = sentry__string_clone(release);
+    if (!version) {
+        return false;
+    }
+
+    char *build = version;
+    size_t num_dots = 0;
+    for (; build[0] != '\0'; build++) {
+        char c = build[0];
+        if (c == '.') {
+            num_dots += 1;
+        }
+        if (!(c >= '0' && c <= '9') && (c != '.' || num_dots > 2)) {
+            break;
+        }
+    }
+    char *build_start = build;
+    if (build[0] == '-' || build[0] == '.') {
+        build_start++;
+    }
+
+    if (build_start[0] != '\0') {
+        sentry_value_set_by_key(
+            os, "build", sentry_value_new_string(build_start));
+    }
+
+    build[0] = '\0';
+
+    sentry_value_set_by_key(os, "name", sentry_value_new_string(sysname));
+    sentry_value_set_by_key(os, "version", sentry_value_new_string(version));
+    sentry_free(version);
+    return true;
+}
+#endif
+
+#if defined(SENTRY_PLATFORM_LINUX)                                             \
+    || (defined(SENTRY_PLATFORM_WINDOWS) && !defined(SENTRY_PLATFORM_XBOX))
+#    define OS_RELEASE_MAX_LINE_SIZE 256
+#    define OS_RELEASE_MAX_KEY_SIZE 64
+#    define OS_RELEASE_MAX_VALUE_SIZE 128
+
+// Prefer the host over the Steam Runtime or Flatpak container.
+static const char *const os_release_paths[] = {
+    "/run/host/etc/os-release",
+    "/run/host/usr/lib/os-release",
+    "/run/host/os-release",
+    "/etc/os-release",
+    "/usr/lib/os-release",
+};
+
+static int
+parse_os_release_line(const char *line, char *key, char *value)
+{
+    const char *equals = strchr(line, '=');
+    if (equals == NULL)
+        return 1;
+
+    size_t key_length
+        = MIN((size_t)(equals - line), OS_RELEASE_MAX_KEY_SIZE - 1);
+    strncpy(key, line, key_length);
+    key[key_length] = '\0';
+
+    sentry_slice_t value_slice
+        = { .ptr = equals + 1, .len = strlen(equals + 1) };
+
+    // some values are wrapped in double quotes
+    if (value_slice.len >= 2 && value_slice.ptr[0] == '\"'
+        && value_slice.ptr[value_slice.len - 1] == '\"') {
+        value_slice.ptr++;
+        value_slice.len -= 2;
+    }
+
+    sentry__slice_to_buffer(value_slice, value, OS_RELEASE_MAX_VALUE_SIZE);
+
+    return 0;
+}
+
+static void
+parse_line_into_object(const char *line, sentry_value_t os_dist)
+{
+    char value[OS_RELEASE_MAX_VALUE_SIZE];
+    char key[OS_RELEASE_MAX_KEY_SIZE];
+
+    if (parse_os_release_line(line, key, value) == 0) {
+        if (strcmp(key, "ID") == 0) {
+            sentry_value_set_by_key(
+                os_dist, "name", sentry_value_new_string(value));
+        }
+
+        if (strcmp(key, "VERSION_ID") == 0) {
+            sentry_value_set_by_key(
+                os_dist, "version", sentry_value_new_string(value));
+        }
+
+        if (strcmp(key, "PRETTY_NAME") == 0) {
+            sentry_value_set_by_key(
+                os_dist, "pretty_name", sentry_value_new_string(value));
+        }
+
+        if (strcmp(key, "NAME") == 0) {
+            sentry_value_set_by_key(
+                os_dist, "display_name", sentry_value_new_string(value));
+        }
+
+        if (strcmp(key, "BUILD_ID") == 0) {
+            sentry_value_set_by_key(
+                os_dist, "build", sentry_value_new_string(value));
+        }
+    }
+}
+
+#    ifndef SENTRY_UNITTEST
+static
+#    endif
+    void
+    set_os_distribution(
+        sentry_value_t os, sentry_value_t os_dist, const char *release)
+{
+    sentry_value_t id = sentry_value_get_by_key(os_dist, "name");
+    const char *id_str = sentry_value_as_string(id);
+
+    // SteamOS and Bazzite are reported as the OS itself, not as a distribution.
+    if (strcmp(id_str, "steamos") == 0 || strcmp(id_str, "bazzite") == 0) {
+        sentry_value_t name = sentry_value_get_by_key(os_dist, "display_name");
+        if (sentry_value_is_null(name)) {
+            name = id;
+        }
+        sentry_value_t version = sentry_value_get_by_key(os_dist, "version");
+        if (!sentry_value_is_null(version)) {
+            sentry_value_incref(version);
+            sentry_value_set_by_key(os, "version", version);
+        }
+        sentry_value_set_by_key(os, "name", name);
+        sentry_value_set_by_key(
+            os, "build", sentry_value_get_by_key(os_dist, "build"));
+        sentry_value_set_by_key(
+            os, "kernel_version", sentry_value_new_string(release));
+        sentry_value_incref(name);
+        sentry_value_incref(sentry_value_get_by_key(os_dist, "build"));
+        return;
+    }
+
+    sentry_value_set_by_key(
+        os, "distribution_name", sentry_value_get_by_key(os_dist, "name"));
+    sentry_value_set_by_key(os, "distribution_version",
+        sentry_value_get_by_key(os_dist, "version"));
+    sentry_value_set_by_key(os, "distribution_pretty_name",
+        sentry_value_get_by_key(os_dist, "pretty_name"));
+    sentry_value_incref(sentry_value_get_by_key(os_dist, "name"));
+    sentry_value_incref(sentry_value_get_by_key(os_dist, "version"));
+    sentry_value_incref(sentry_value_get_by_key(os_dist, "pretty_name"));
+}
 #endif
 
 #ifdef SENTRY_PLATFORM_WINDOWS
@@ -379,11 +563,96 @@ sentry__get_wine_context(void)
     return context;
 }
 
+static sentry_value_t
+get_wine_os_release(const char *path)
+{
+    sentry_path_t *wine_path = make_wine_path(path, "");
+    char *buf = read_wine_file(wine_path);
+    sentry__path_free(wine_path);
+    if (!buf) {
+        return sentry_value_new_null();
+    }
+
+    sentry_value_t os_dist = sentry_value_new_object();
+    for (char *line = buf; line && *line;) {
+        char *next = strchr(line, '\n');
+        if (next) {
+            *next++ = '\0';
+        }
+        size_t len = strlen(line);
+        if (len > 0 && line[len - 1] == '\r') {
+            line[len - 1] = '\0';
+        }
+        parse_line_into_object(line, os_dist);
+        line = next;
+    }
+    sentry_free(buf);
+    return os_dist;
+}
+
+typedef void(CDECL *sentry__wine_get_host_version_t)(
+    const char **sysname, const char **release);
+
+/**
+ * Under Wine, reports the host OS instead of the Windows version that Wine
+ * emulates, in the same shape as the native Linux and macOS OS contexts.
+ */
+static sentry_value_t
+get_wine_host_os_context(void)
+{
+    const HMODULE ntdll = GetModuleHandleW(L"ntdll.dll");
+    if (!ntdll) {
+        return sentry_value_new_null();
+    }
+
+    const sentry__wine_get_host_version_t wine_get_host_version
+        = (sentry__wine_get_host_version_t)GetProcAddress(
+            ntdll, "wine_get_host_version");
+    if (!wine_get_host_version) {
+        return sentry_value_new_null();
+    }
+
+    const char *sysname = NULL;
+    const char *release = NULL;
+    wine_get_host_version(&sysname, &release);
+    if (sentry__string_empty(sysname) || sentry__string_empty(release)) {
+        return sentry_value_new_null();
+    }
+
+    sentry_value_t os = sentry_value_new_object();
+    if (sentry_value_is_null(os) || !set_os_uname(os, sysname, release)) {
+        sentry_value_decref(os);
+        return sentry_value_new_null();
+    }
+
+    if (strcmp(sysname, "Linux") == 0) {
+        for (size_t i = 0;
+            i < sizeof(os_release_paths) / sizeof(os_release_paths[0]); i++) {
+            sentry_value_t os_dist = get_wine_os_release(os_release_paths[i]);
+            if (!sentry_value_is_null(os_dist)) {
+                set_os_distribution(os, os_dist, release);
+                sentry_value_decref(os_dist);
+                break;
+            }
+        }
+    }
+
+    sentry_value_freeze(os);
+    return os;
+}
+
 #    endif // !defined(SENTRY_PLATFORM_XBOX)
 
 sentry_value_t
 sentry__get_os_context(void)
 {
+#    if !defined(SENTRY_PLATFORM_XBOX)
+    sentry_value_t wine_os = get_wine_host_os_context();
+    if (!sentry_value_is_null(wine_os)) {
+        return wine_os;
+    }
+#    endif
+
     const sentry_value_t os = sentry_value_new_object();
     if (sentry_value_is_null(os)) {
         return os;
@@ -699,60 +968,6 @@ fail:
 #    include <sys/utsname.h>
 
 #    if defined(SENTRY_PLATFORM_LINUX)
-#        define OS_RELEASE_MAX_LINE_SIZE 256
-#        define OS_RELEASE_MAX_KEY_SIZE 64
-#        define OS_RELEASE_MAX_VALUE_SIZE 128
-
-static int
-parse_os_release_line(const char *line, char *key, char *value)
-{
-    const char *equals = strchr(line, '=');
-    if (equals == NULL)
-        return 1;
-
-    unsigned long key_length = MIN(equals - line, OS_RELEASE_MAX_KEY_SIZE - 1);
-    strncpy(key, line, key_length);
-    key[key_length] = '\0';
-
-    sentry_slice_t value_slice
-        = { .ptr = equals + 1, .len = strlen(equals + 1) };
-
-    // some values are wrapped in double quotes
-    if (value_slice.len >= 2 && value_slice.ptr[0] == '\"'
-        && value_slice.ptr[value_slice.len - 1] == '\"') {
-        value_slice.ptr++;
-        value_slice.len -= 2;
-    }
-
-    sentry__slice_to_buffer(value_slice, value, OS_RELEASE_MAX_VALUE_SIZE);
-
-    return 0;
-}
-
-static void
-parse_line_into_object(const char *line, sentry_value_t os_dist)
-{
-    char value[OS_RELEASE_MAX_VALUE_SIZE];
-    char key[OS_RELEASE_MAX_KEY_SIZE];
-
-    if (parse_os_release_line(line, key, value) == 0) {
-        if (strcmp(key, "ID") == 0) {
-            sentry_value_set_by_key(
-                os_dist, "name", sentry_value_new_string(value));
-        }
-
-        if (strcmp(key, "VERSION_ID") == 0) {
-            sentry_value_set_by_key(
-                os_dist, "version", sentry_value_new_string(value));
-        }
-
-        if (strcmp(key, "PRETTY_NAME") == 0) {
-            sentry_value_set_by_key(
-                os_dist, "pretty_name", sentry_value_new_string(value));
-        }
-    }
-}
-
 #        ifndef SENTRY_UNITTEST
 static
 #        endif
@@ -826,60 +1041,20 @@ sentry__get_os_context(void)
         goto fail;
     }
 
-    char *build = uts.release;
-    size_t num_dots = 0;
-    for (; build[0] != '\0'; build++) {
-        char c = build[0];
-        if (c == '.') {
-            num_dots += 1;
-        }
-        if (!(c >= '0' && c <= '9') && (c != '.' || num_dots > 2)) {
+    if (!set_os_uname(os, uts.sysname, uts.release)) {
+        goto fail;
+    }
+
+#    if defined(SENTRY_PLATFORM_LINUX)
+    for (size_t i = 0;
+        i < sizeof(os_release_paths) / sizeof(os_release_paths[0]); i++) {
+        sentry_value_t os_dist = get_linux_os_release(os_release_paths[i]);
+        if (!sentry_value_is_null(os_dist)) {
+            set_os_distribution(os, os_dist, uts.release);
+            sentry_value_decref(os_dist);
             break;
         }
     }
-    char *build_start = build;
-    if (build[0] == '-' || build[0] == '.') {
-        build_start++;
-    }
-
-    if (build_start[0] != '\0') {
-        sentry_value_set_by_key(
-            os, "build", sentry_value_new_string(build_start));
-    }
-
-    build[0] = '\0';
-
-    sentry_value_set_by_key(os, "name", sentry_value_new_string(uts.sysname));
-    sentry_value_set_by_key(
-        os, "version", sentry_value_new_string(uts.release));
-
-#    if defined(SENTRY_PLATFORM_LINUX)
-    /**
-     * The file /etc/os-release takes precedence over /usr/lib/os-release.
-     * Applications should check for the former, and exclusively use its data if
-     * it exists, and only fall back to /usr/lib/os-release if it is missing.
-     * Applications should not read data from both files at the same time.
-     *
-     * From:
-     * https://www.freedesktop.org/software/systemd/man/latest/os-release.html#Description
-     */
-    sentry_value_t os_dist = get_linux_os_release("/etc/os-release");
-    if (sentry_value_is_null(os_dist)) {
-        os_dist = get_linux_os_release("/usr/lib/os-release");
-        if (sentry_value_is_null(os_dist)) {
-            return os;
-        }
-    }
-    sentry_value_set_by_key(
-        os, "distribution_name", sentry_value_get_by_key(os_dist, "name"));
-    sentry_value_set_by_key(os, "distribution_version",
-        sentry_value_get_by_key(os_dist, "version"));
-    sentry_value_set_by_key(os, "distribution_pretty_name",
-        sentry_value_get_by_key(os_dist, "pretty_name"));
-    sentry_value_incref(sentry_value_get_by_key(os_dist, "name"));
-    sentry_value_incref(sentry_value_get_by_key(os_dist, "version"));
-    sentry_value_incref(sentry_value_get_by_key(os_dist, "pretty_name"));
-    sentry_value_decref(os_dist);
 #    endif // defined(SENTRY_PLATFORM_LINUX)
 
     return os;
@@ -1260,6 +1435,51 @@ sentry__signal_to_string(int signum)
         return "SIGTRAP";
     default:
         return "UNKNOWN";
+    }
+}
+#endif
+
+#if defined(SENTRY_PLATFORM_UNIX) && !defined(SENTRY_PLATFORM_PS)
+int
+sentry__setup_sigaltstack(stack_t *out_stack, size_t size, const char *context)
+{
+    memset(out_stack, 0, sizeof(*out_stack));
+
+    stack_t old_sig_stack;
+    int ret = sigaltstack(NULL, &old_sig_stack);
+    if (ret == 0 && old_sig_stack.ss_flags == SS_DISABLE) {
+        SENTRY_DEBUGF("installing %s sigaltstack (size: %zu)", context, size);
+        out_stack->ss_sp = sentry_malloc(size);
+        if (!out_stack->ss_sp) {
+            SENTRY_WARN("failed to allocate signal stack");
+            return -1;
+        }
+        out_stack->ss_size = size;
+        out_stack->ss_flags = 0;
+        if (sigaltstack(out_stack, 0) < 0) {
+            SENTRY_WARNF("failed to set signal stack: %s", strerror(errno));
+            sentry_free(out_stack->ss_sp);
+            out_stack->ss_sp = NULL;
+            return -1;
+        }
+    } else if (ret == 0) {
+        SENTRY_DEBUGF("using existing signal stack (size: %d, flags: %d)",
+            old_sig_stack.ss_size, old_sig_stack.ss_flags);
+    } else if (ret == -1) {
+        SENTRY_WARNF("failed to query signal stack: %s", strerror(errno));
+        return -1;
+    }
+    return 0;
+}
+
+void
+sentry__teardown_sigaltstack(stack_t *sig_stack)
+{
+    if (sig_stack->ss_sp) {
+        sig_stack->ss_flags = SS_DISABLE;
+        sigaltstack(sig_stack, 0);
+        sentry_free(sig_stack->ss_sp);
+        sig_stack->ss_sp = NULL;
     }
 }
 #endif
