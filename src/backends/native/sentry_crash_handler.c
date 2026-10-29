@@ -143,7 +143,7 @@ reraise_signal(int signum)
     raise(signum);
 }
 
-static void
+static bool
 invoke_previous_signal_handler(int signum, siginfo_t *info, void *context)
 {
     for (size_t i = 0; i < g_crash_signal_count; i++) {
@@ -152,8 +152,11 @@ invoke_previous_signal_handler(int signum, siginfo_t *info, void *context)
         }
 
         struct sigaction *handler = &g_previous_handlers[i];
-        if (handler->sa_handler == SIG_DFL || handler->sa_handler == SIG_IGN) {
-            return;
+        if (handler->sa_handler == SIG_DFL) {
+            return false;
+        }
+        if (handler->sa_handler == SIG_IGN) {
+            return true;
         }
 
         if (handler->sa_flags & SA_SIGINFO) {
@@ -162,8 +165,9 @@ invoke_previous_signal_handler(int signum, siginfo_t *info, void *context)
             handler->sa_handler(signum);
         }
 
-        return;
+        return true;
     }
+    return false;
 }
 
 /**
@@ -426,13 +430,24 @@ crash_signal_handler(int signum, siginfo_t *info, void *context)
     sentry_crash_ipc_t *ipc = g_crash_ipc;
     if (!uctx || !ipc || !ipc->shmem) {
         // No context or IPC available, forward to the previous handler
-        // Re-enable previous signal handlers before re-raising to prevent loops
+        // Re-enable previous signal handlers to prevent loops
         reset_signal_handlers();
+        bool preloaded = sentry__atomic_fetch(&g_preloaded);
+        if (preloaded) {
+            // Consume the preload so that a later init reinstalls the handlers
+            sentry__atomic_store(&g_handlers_installed, 0);
+            sentry__atomic_store(&g_preloaded, 0);
+        }
+        bool handled = false;
         if (g_handler_strategy != SENTRY_HANDLER_STRATEGY_CHAIN_AT_START) {
-            invoke_previous_signal_handler(signum, info, context);
+            handled = invoke_previous_signal_handler(signum, info, context);
+        }
+        sentry__exit_crash_handler();
+        if (preloaded && handled) {
+            // Resume wherever the previous handler left off
+            return;
         }
         // The previous handler returned, fall back to default termination
-        sentry__exit_crash_handler();
         reraise_signal(signum);
         return;
     }
