@@ -27,7 +27,7 @@
 - Add `sentry_scope_acquire` and `sentry_scope_release` to access the isolation scope. ([#2160](https://github.com/getsentry/sentry-native/pull/2160))
 - Native: Provide exception metadata, registers, and a basic crashing-thread stack to `on_crash` for crash identification. ([#2174](https://github.com/getsentry/sentry-native/pull/2174))
 - Native: reduce disk I/O on scope changes by sending incremental updates to the crash daemon over IPC. ([#2155](https://github.com/getsentry/sentry-native/pull/2155), [#2157](https://github.com/getsentry/sentry-native/pull/2157))
-- Add pkg-config support. ([#1411](https://github.com/getsentry/sentry-native/pull/1411))
+- Add pkg-config support for shared builds. ([#1411](https://github.com/getsentry/sentry-native/pull/1411))
 - Native: install handlers for the daemon's own fatal signals and unhandled exceptions, allowing best-effort recovery actions such as dumping pending envelopes before termination. ([#2220](https://github.com/getsentry/sentry-native/pull/2220))
 - Report the host OS in the OS context under Wine and Proton, instead of the Windows version that Wine emulates. On Linux, prefer the host `os-release` inside Steam Runtime and Flatpak containers, and report SteamOS and Bazzite as the OS name. ([#2241](https://github.com/getsentry/sentry-native/pull/2241))
 - Add `sentry_scope_set_trace` for per-scope traces. ([#2236](https://github.com/getsentry/sentry-native/pull/2236))

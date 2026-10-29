@@ -246,7 +246,7 @@ if("${CMAKE_SOURCE_DIR}" STREQUAL "${PROJECT_SOURCE_DIR}")
 endif()
 
 option(SENTRY_ENABLE_INSTALL "Enable sentry installation" "${SENTRY_MAIN_PROJECT}")
-option(SENTRY_INSTALL_PKGCONFIG "Generate and install pkg-config file" ON)
+option(SENTRY_INSTALL_PKGCONFIG "Generate and install pkg-config file for shared builds" ON)
 
 if(MSVC AND CMAKE_GENERATOR_TOOLSET MATCHES "_xp$")
 	message(WARNING "Crashpad is not supported for MSVC with XP toolset. Default backend was switched to 'breakpad'")
@@ -1212,7 +1212,7 @@ if(SENTRY_BUILD_SHARED_LIBS)
 endif()
 
 # Generate and install pkg-config file
-if(SENTRY_INSTALL_PKGCONFIG)
+if(SENTRY_INSTALL_PKGCONFIG AND SENTRY_BUILD_SHARED_LIBS)
   set(PREFIX "${CMAKE_INSTALL_PREFIX}")
   set(PKGCONFIG_VERSION "${SENTRY_VERSION_FULL}")
   # Use absolute paths for libdir, includedir, and bindir to support non-standard layouts (e.g., lib64)
