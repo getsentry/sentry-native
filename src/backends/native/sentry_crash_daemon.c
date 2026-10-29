@@ -536,7 +536,8 @@ build_registers_from_ctx(const sentry_crash_context_t *ctx, size_t thread_idx)
     return sentry__build_registers(&uctx);
 }
 
-#ifdef SENTRY_WITH_UNWINDER_LIBUNWIND_REMOTE
+#if defined(SENTRY_WITH_UNWINDER_LIBUNWIND_REMOTE)                             \
+    || defined(SENTRY_WITH_UNWINDER_LIBUNWINDSTACK_REMOTE)
 static sentry_value_t
 build_registers_from_remote_registers(
     const sentry_remote_registers_t *remote_registers)
@@ -1002,10 +1003,11 @@ build_stacktrace_for_thread(
     int frame_count = 0;
 
 #if defined(SENTRY_PLATFORM_LINUX)
-    // Remote DWARF unwinding via libunwind ptrace accessors. Do not attach to
+    // Remote DWARF unwinding via ptrace. Do not attach to
     // the crashed thread from the daemon; use the saved fault context below.
     {
-#    ifdef SENTRY_WITH_UNWINDER_LIBUNWIND_REMOTE
+#    if defined(SENTRY_WITH_UNWINDER_LIBUNWIND_REMOTE)                         \
+        || defined(SENTRY_WITH_UNWINDER_LIBUNWINDSTACK_REMOTE)
         pid_t tid = 0;
         if (thread_idx == SIZE_MAX) {
             tid = ctx->crashed_tid;
@@ -1075,6 +1077,12 @@ build_stacktrace_for_thread(
                         sentry_value_set_by_key(stacktrace, "registers",
                             build_registers_from_remote_registers(&registers));
                     }
+#        ifdef SENTRY_WITH_UNWINDER_LIBUNWINDSTACK_REMOTE
+                    // libunwindstack already adjusts the caller frames
+                    sentry_value_set_by_key(stacktrace,
+                        "instruction_addr_adjustment",
+                        sentry_value_new_string("none"));
+#        endif
                     sentry_free(remote_frames);
                     return stacktrace;
                 }

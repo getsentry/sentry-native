@@ -178,6 +178,12 @@ elseif(SENTRY_BACKEND_NATIVE)
 		backends/native/sentry_crash_ipc.c
 		backends/native/sentry_crash_handler.c
 	)
+	if(SENTRY_WITH_LIBUNWINDSTACK)
+		target_compile_definitions(sentry PRIVATE SENTRY_WITH_UNWINDER_LIBUNWINDSTACK_REMOTE)
+		sentry_target_sources_cwd(sentry
+			unwinder/sentry_unwinder_libunwindstack_remote.cpp
+		)
+	endif()
 
 	# Add include directory for native backend headers
 	target_include_directories(sentry PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/backends/native)
