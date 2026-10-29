@@ -407,7 +407,7 @@ crash_signal_handler(int signum, siginfo_t *info, void *context)
     sentry__enter_crash_handler();
     ucontext_t *uctx = (ucontext_t *)context;
 
-#    if defined(SENTRY_PLATFORM_LINUX) && !defined(SENTRY_PLATFORM_ANDROID)
+#    if defined(SENTRY_PLATFORM_LINUX) || defined(SENTRY_PLATFORM_ANDROID)
     if (g_handler_strategy == SENTRY_HANDLER_STRATEGY_CHAIN_AT_START
         && signum != SIGABRT && uctx) {
         uintptr_t ip = sentry__ucontext_get_ip(uctx);
