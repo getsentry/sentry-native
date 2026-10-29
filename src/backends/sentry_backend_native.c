@@ -1663,6 +1663,11 @@ native_backend_reinstall(sentry_backend_t *backend)
 void
 sentry__backend_preload(void)
 {
+#ifdef SENTRY_PLATFORM_UNIX
+    if (sentry__crash_handler_preload() < 0) {
+        SENTRY_WARN("failed to preload native crash handler");
+    }
+#endif
 }
 
 /**
