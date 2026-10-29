@@ -69,7 +69,7 @@ The SDK bundle contains the following folders:
 
 ## Platform and Feature Support
 
-The SDK is fully supported and tested on the following OS/Compiler variations:
+The SDK currently supports and is tested on the following OS/Compiler variations:
 
 - Linux (x86, x64 and arm64) with GCC 9+ and Clang 11+
 - Windows (x86, x64 and arm64) with MSVC (Visual Studio 2022+) and LLVM-MinGW
@@ -83,7 +83,7 @@ Additionally, the SDK should support the following platforms, although they are
 not fully tested, so breakage may occur:
 
 - Windows versions lower than Windows 10 / Windows Server 2016: not tested in CI.
-- Linux arm32 and riscv: cross-compiled in CI, with only a subset of non-crash
+- Linux arm32 and riscv64: cross-compiled in CI, with only a subset of non-crash
   tests run under QEMU.
 
 The SDK supports different features on the target platform:
