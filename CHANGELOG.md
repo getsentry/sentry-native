@@ -6,6 +6,10 @@
 
 - Events captured while a crash is being handled, such as from the `on_crash` hook, are no longer dropped by `sample_rate`, matching the crash itself. ([#2269](https://github.com/getsentry/sentry-native/pull/2269))
 
+**Thank you**:
+
+- [bitsandfoxes](https://github.com/bitsandfoxes)
+
 ## 0.17.5
 
 **Fixes**:
