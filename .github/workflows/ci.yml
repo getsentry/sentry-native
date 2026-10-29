@@ -374,6 +374,12 @@ jobs:
             liblzma-dev:armhf \
             libstdc++6:armhf
 
+      - name: Installing qemu-user
+        if: ${{ runner.os == 'Linux' && env['TEST_ARM32'] && !matrix.container }}
+        run: |
+          sudo apt update
+          sudo apt install -y qemu-user-static binfmt-support
+
       - name: Installing Linux RISC-V Dependencies
         if: ${{ runner.os == 'Linux' && env['TEST_RISCV'] && !matrix.container }}
         run: |
