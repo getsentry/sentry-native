@@ -322,6 +322,12 @@ SENTRY_TEST(minidump_context_sizes)
     ctx.fpsr = 0x12345678;
     TEST_CHECK(ctx.fpsr == 0x12345678);
 
+#    elif defined(__riscv) && __riscv_xlen == 64
+    TEST_CHECK(sizeof(minidump_context_riscv64_t) == 528);
+    TEST_CHECK(offsetof(minidump_context_riscv64_t, regs) == 8);
+    TEST_CHECK(offsetof(minidump_context_riscv64_t, fpregs) == 264);
+    TEST_CHECK(offsetof(minidump_context_riscv64_t, fcsr) == 520);
+
 #    endif
 #else
     SKIP_TEST();
@@ -467,6 +473,7 @@ SENTRY_TEST(minidump_cpu_architectures)
     TEST_CHECK(MINIDUMP_CPU_ARM == 5); // PROCESSOR_ARCHITECTURE_ARM
     TEST_CHECK(MINIDUMP_CPU_ARM64 == 12); // PROCESSOR_ARCHITECTURE_ARM64
     TEST_CHECK(MINIDUMP_CPU_X86_64 == 9); // PROCESSOR_ARCHITECTURE_AMD64
+    TEST_CHECK(MINIDUMP_CPU_RISCV64 == 0x8006); // MD_CPU_ARCHITECTURE_RISCV64
 #else
     SKIP_TEST();
 #endif
@@ -821,7 +828,8 @@ SENTRY_TEST(elf_header_entry_sizes)
     size_t shdr_size;
     size_t phdr_size;
 
-#    if defined(__x86_64__) || defined(__aarch64__)
+#    if defined(__x86_64__) || defined(__aarch64__)                            \
+        || (defined(__riscv) && __riscv_xlen == 64)
     e_ident[EI_CLASS] = ELFCLASS64;
     other_class = ELFCLASS32;
     shdr_size = sizeof(Elf64_Shdr);

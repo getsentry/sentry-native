@@ -213,6 +213,8 @@ sentry__minidump_get_context_size(void)
     return sizeof(minidump_context_x86_t);
 #    elif defined(__arm__)
     return sizeof(minidump_context_arm_t);
+#    elif defined(__riscv) && __riscv_xlen == 64
+    return sizeof(minidump_context_riscv64_t);
 #    else
 #        error "Unsupported architecture"
 #    endif

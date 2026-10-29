@@ -1187,6 +1187,17 @@ sentry__build_registers(const sentry_ucontext_t *uctx)
     sentry_value_set_by_key(registers, "cpsr",
         sentry__value_new_addr(uctx->user_context->uc_mcontext.arm_cpsr));
 
+#    elif defined(__riscv) && __riscv_xlen == 64
+
+    static const char *names[]
+        = { "pc", "ra", "sp", "gp", "tp", "t0", "t1", "t2", "s0", "s1", "a0",
+              "a1", "a2", "a3", "a4", "a5", "a6", "a7", "s2", "s3", "s4", "s5",
+              "s6", "s7", "s8", "s9", "s10", "s11", "t3", "t4", "t5", "t6" };
+    for (size_t i = 0; i < sizeof(names) / sizeof(names[0]); i++) {
+        sentry_value_set_by_key(registers, names[i],
+            sentry__value_new_addr(uctx->user_context->uc_mcontext.__gregs[i]));
+    }
+
 #    endif
 
 #    undef SET_REG

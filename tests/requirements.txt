@@ -4,7 +4,7 @@ pytest-httpserver==1.0.10
 flaky==3.8.1
 msgpack==1.2.3
 pytest-xdist==3.8.0
-clang-format==20.1.5
+clang-format==20.1.5; platform_machine != "riscv64"
 pywin32==311; sys_platform == "win32"
 psutil==7.1.1
 # For E2E tests that call Sentry API

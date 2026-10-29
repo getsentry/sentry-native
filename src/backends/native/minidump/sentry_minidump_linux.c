@@ -259,6 +259,18 @@ ptrace_get_thread_registers(pid_t tid, ucontext_t *uctx)
         SENTRY_DEBUGF("ptrace(PTRACE_GETREGSET) failed for thread %d: %s", tid,
             strerror(errno));
     }
+#    elif defined(__riscv) && __riscv_xlen == 64
+    struct iovec iov
+        = { uctx->uc_mcontext.__gregs, sizeof(uctx->uc_mcontext.__gregs) };
+    if (ptrace(PTRACE_GETREGSET, tid, (void *)NT_PRSTATUS, &iov) == 0) {
+        success = true;
+        struct iovec fp_iov = { &uctx->uc_mcontext.__fpregs.__d,
+            sizeof(uctx->uc_mcontext.__fpregs.__d) };
+        ptrace(PTRACE_GETREGSET, tid, (void *)NT_FPREGSET, &fp_iov);
+    } else {
+        SENTRY_DEBUGF("ptrace(PTRACE_GETREGSET) failed for thread %d: %s", tid,
+            strerror(errno));
+    }
 #    elif defined(__i386__)
     struct user_regs_struct regs;
     if (ptrace(PTRACE_GETREGS, tid, NULL, &regs) == 0) {
@@ -548,6 +560,8 @@ write_system_info_stream(minidump_writer_t *writer, minidump_directory_t *dir)
     sysinfo.processor_architecture = MINIDUMP_CPU_X86;
 #    elif defined(__arm__)
     sysinfo.processor_architecture = MINIDUMP_CPU_ARM;
+#    elif defined(__riscv) && __riscv_xlen == 64
+    sysinfo.processor_architecture = MINIDUMP_CPU_RISCV64;
 #    endif
 
 #    if defined(SENTRY_PLATFORM_ANDROID)
@@ -856,6 +870,19 @@ write_thread_context(
 
     return write_data(writer, &context, sizeof(context));
 
+#    elif defined(__riscv) && __riscv_xlen == 64
+    (void)tid;
+
+    minidump_context_riscv64_t context = { 0 };
+    context.context_flags = 0x08000003; // RISCV64 | Integer | Floating point
+    context.version = 1;
+    memcpy(context.regs, uctx->uc_mcontext.__gregs, sizeof(context.regs));
+    memcpy(context.fpregs, uctx->uc_mcontext.__fpregs.__d.__f,
+        sizeof(context.fpregs));
+    context.fcsr = uctx->uc_mcontext.__fpregs.__d.__fcsr;
+
+    return write_data(writer, &context, sizeof(context));
+
 #    else
 #        error "Unsupported architecture for Linux"
 #    endif
@@ -875,7 +902,8 @@ extract_elf_build_id(const char *elf_path, uint64_t elf_offset,
     }
 
     // Read ELF header
-#    if defined(__x86_64__) || defined(__aarch64__)
+#    if defined(__x86_64__) || defined(__aarch64__)                            \
+        || (defined(__riscv) && __riscv_xlen == 64)
     Elf64_Ehdr ehdr;
 #    else
     Elf32_Ehdr ehdr;
@@ -915,7 +943,8 @@ extract_elf_build_id(const char *elf_path, uint64_t elf_offset,
         return 0;
     }
 
-#    if defined(__x86_64__) || defined(__aarch64__)
+#    if defined(__x86_64__) || defined(__aarch64__)                            \
+        || (defined(__riscv) && __riscv_xlen == 64)
     Elf64_Shdr *sections = (Elf64_Shdr *)shdr_buf;
 #    else
     Elf32_Shdr *sections = (Elf32_Shdr *)shdr_buf;
@@ -976,7 +1005,8 @@ read_elf_soname(const char *elf_path, uint64_t elf_offset, char *soname_buf,
         return false;
     }
 
-#    if defined(__x86_64__) || defined(__aarch64__)
+#    if defined(__x86_64__) || defined(__aarch64__)                            \
+        || (defined(__riscv) && __riscv_xlen == 64)
     Elf64_Ehdr ehdr;
     typedef Elf64_Dyn DynT;
     typedef Elf64_Shdr ShdrT;
@@ -1313,6 +1343,8 @@ ptrace_capture_thread(
     ptrace_sp = (uint32_t)ptrace_ctx.uc_mcontext.gregs[REG_ESP];
 #    elif defined(__arm__)
     ptrace_sp = ptrace_ctx.uc_mcontext.arm_sp;
+#    elif defined(__riscv) && __riscv_xlen == 64
+    ptrace_sp = ptrace_ctx.uc_mcontext.__gregs[REG_SP];
 #    endif
 
     if (ptrace_sp != 0) {
@@ -1400,6 +1432,8 @@ write_thread_list_stream(minidump_writer_t *writer, minidump_directory_t *dir)
             sp = (uint32_t)uctx->uc_mcontext.gregs[REG_ESP];
 #    elif defined(__arm__)
             sp = uctx->uc_mcontext.arm_sp;
+#    elif defined(__riscv) && __riscv_xlen == 64
+            sp = uctx->uc_mcontext.__gregs[REG_SP];
 #    endif
 
             SENTRY_DEBUGF("Thread %u: has context, SP=0x%llx",
@@ -2088,6 +2122,11 @@ walk_indirect_registers_for_tid(minidump_writer_t *writer, pid_t tid,
     for (size_t i = 0; i < sizeof(x86_gprs) / sizeof(x86_gprs[0]); i++) {
         sentry__indirect_consider(acc, base,
             (uint64_t)(uint32_t)uctx->uc_mcontext.gregs[x86_gprs[i]], ops);
+    }
+#    elif defined(__riscv) && __riscv_xlen == 64
+    for (int r = 1; r < 32; r++) {
+        sentry__indirect_consider(
+            acc, base, (uint64_t)uctx->uc_mcontext.__gregs[r], ops);
     }
 #    elif defined(__arm__)
     // ARMv7's mcontext fields are individual struct members rather than

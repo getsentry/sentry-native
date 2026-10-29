@@ -26,6 +26,8 @@ sentry__ucontext_get_ip(const ucontext_t *uctx)
     return (uintptr_t)uctx->uc_mcontext.arm_pc;
 #    elif defined(__aarch64__)
     return (uintptr_t)uctx->uc_mcontext.pc;
+#    elif defined(__riscv) && __riscv_xlen == 64
+    return (uintptr_t)uctx->uc_mcontext.__gregs[REG_PC];
 #    else
     (void)uctx;
     return 0;
@@ -43,6 +45,8 @@ sentry__ucontext_get_sp(const ucontext_t *uctx)
     return (uintptr_t)uctx->uc_mcontext.arm_sp;
 #    elif defined(__aarch64__)
     return (uintptr_t)uctx->uc_mcontext.sp;
+#    elif defined(__riscv) && __riscv_xlen == 64
+    return (uintptr_t)uctx->uc_mcontext.__gregs[REG_SP];
 #    else
     (void)uctx;
     return 0;
