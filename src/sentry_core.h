@@ -177,8 +177,6 @@ sentry_options_t *sentry__options_lock(void);
  */
 void sentry__options_unlock(void);
 
-void sentry__set_propagation_context(const char *key, sentry_value_t value);
-
 /*
  * Populates a telemetry item (a log or metric) with attributes and scope data
  * from all available sources. Values are applied in precedence order, where the

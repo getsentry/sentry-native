@@ -44,6 +44,9 @@ static sentry_mutex_t g_options_lock = SENTRY__MUTEX_INIT;
 #endif
 /// see sentry_get_crashed_last_run() for the possible values
 static int g_last_crash = -1;
+/// > 0 while a crash is handled; nests, e.g. inproc enters on both the
+/// crashing and the handler thread
+static volatile long g_crash_handler_depth = 0;
 
 const sentry_options_t *
 sentry__options_getref(void)
@@ -186,6 +189,8 @@ unregister_integrations(sentry_scope_t *scope, const sentry_options_t *options)
 void
 sentry__enter_crash_handler(void)
 {
+    sentry__atomic_fetch_and_add(&g_crash_handler_depth, 1);
+
     const sentry_options_t *options = g_options;
     if (options) {
         for (size_t i = 0; i < options->num_integrations; i++) {
@@ -209,6 +214,8 @@ sentry__exit_crash_handler(void)
             }
         }
     }
+
+    sentry__atomic_fetch_and_add(&g_crash_handler_depth, -1);
 }
 
 int
@@ -489,12 +496,6 @@ sentry_close(void)
 }
 
 int
-sentry_shutdown(void)
-{
-    return sentry_close();
-}
-
-int
 sentry_reinstall_backend(void)
 {
     int rv = 0;
@@ -547,6 +548,7 @@ set_user_consent(sentry_user_consent_t new_val)
             switch (new_val) {
             case SENTRY_USER_CONSENT_GIVEN:
                 sentry__path_write_buffer(consent_path, "1\n", 2);
+                sentry__session_send_start_update(options);
                 // flush any envelopes cached while consent was revoked
                 sentry_transport_retry(options->transport);
                 break;
@@ -711,12 +713,6 @@ sentry_scope_capture_event(
     }
 }
 
-sentry_uuid_t
-sentry_capture_event_with_scope(sentry_value_t event, sentry_scope_t *scope)
-{
-    return sentry_scope_capture_event(scope, event, NULL);
-}
-
 static sentry_value_t prepare_attachments(
     sentry_hint_t *hint, sentry_scope_t *local_scope);
 
@@ -781,19 +777,18 @@ sentry__capture_event(
                 sentry__mutex_lock(&mut_options->session_lock);
                 // recheck inside the lock since our previous read is racy.
                 if (mut_options->session) {
+                    // the initial update went out when the session started,
+                    // so attaching it here does not change the session
                     sentry__envelope_add_session(
                         envelope, mut_options->session);
-                    // we're assuming that if a session is added to an envelope,
-                    // it will be sent onwards.  This means we now need to set
-                    // the init flag to false because we're no longer in the
-                    // initial session update.
-                    mut_options->session->init = false;
-                    sentry__session_notify_changed(mut_options);
                 }
                 sentry__mutex_unlock(&mut_options->session_lock);
             }
 
-            bool should_skip = !sentry__roll_dice(options->sample_rate);
+            // events captured while handling a crash belong to the crash, which
+            // is never sampled
+            bool should_skip = sentry__atomic_fetch(&g_crash_handler_depth) == 0
+                && !sentry__roll_dice(options->sample_rate);
             if (should_skip) {
                 SENTRY_INFO("throwing away event due to sample rate");
                 sentry__client_report_discard(SENTRY_DISCARD_REASON_SAMPLE_RATE,
@@ -953,7 +948,7 @@ sentry__prepare_event(const sentry_options_t *options, sentry_value_t event,
     sentry_scope_t *local_scope)
 {
     if (event_is_considered_error(event)) {
-        sentry__record_errors_on_current_session(1);
+        sentry__record_errors_on_current_session(options, 1);
     }
 
     sentry__event_ensure_modules(event);
@@ -982,8 +977,8 @@ sentry__enclose_event(const sentry_options_t *options, sentry_value_t event,
     sentry_envelope_t *envelope = NULL;
 
     sentry__ensure_event_id(event, event_id);
-    envelope = sentry__envelope_new();
-    if (!envelope || !sentry__envelope_add_event(envelope, event)) {
+    envelope = sentry__envelope_new(options);
+    if (!envelope || !sentry__envelope_add_event(envelope, event, options)) {
         goto fail;
     }
 
@@ -1028,7 +1023,7 @@ sentry__prepare_transaction(const sentry_options_t *options,
     }
 
     sentry__ensure_event_id(transaction, event_id);
-    envelope = sentry__envelope_new();
+    envelope = sentry__envelope_new(options);
     if (!envelope || !sentry__envelope_add_transaction(envelope, transaction)) {
         goto fail;
     }
@@ -1041,24 +1036,6 @@ fail:
     SENTRY_WARN("dropping transaction");
     sentry_envelope_free(envelope);
     sentry_value_decref(transaction);
-    return NULL;
-}
-
-static sentry_envelope_t *
-prepare_user_report(sentry_value_t user_report)
-{
-    sentry_envelope_t *envelope = NULL;
-
-    envelope = sentry__envelope_new();
-    if (!envelope || !sentry__envelope_add_user_report(envelope, user_report)) {
-        goto fail;
-    }
-
-    return envelope;
-
-fail:
-    SENTRY_WARN("dropping user report");
-    sentry_envelope_free(envelope);
     return NULL;
 }
 
@@ -1077,11 +1054,11 @@ prepare_user_feedback(const sentry_options_t *options,
 
     if (local_scope) {
         sentry__scope_apply_to_event(
-            local_scope, options, event, SENTRY_SCOPE_NONE);
+            local_scope, options, event, SENTRY_SCOPE_DSC);
     } else {
         SENTRY_WITH_SCOPE (scope) {
             sentry__scope_apply_to_event(
-                scope, options, event, SENTRY_SCOPE_NONE);
+                scope, options, event, SENTRY_SCOPE_DSC);
         }
     }
 
@@ -1108,8 +1085,9 @@ prepare_user_feedback(const sentry_options_t *options,
 
     sentry__ensure_event_id(event, event_id);
 
-    sentry_envelope_t *envelope = sentry__envelope_new();
-    if (!envelope || !sentry__envelope_add_feedback_event(envelope, event)) {
+    sentry_envelope_t *envelope = sentry__envelope_new(options);
+    if (!envelope
+        || !sentry__envelope_add_feedback_event(envelope, event, options)) {
         goto fail;
     }
 
@@ -1413,14 +1391,6 @@ sentry_update_context_n(const char *key, size_t key_len, sentry_value_t value)
 }
 
 void
-sentry__set_propagation_context(const char *key, sentry_value_t value)
-{
-    SENTRY_WITH_SCOPE_MUT (scope) {
-        sentry__scope_set_propagation_context(scope, key, value);
-    }
-}
-
-void
 sentry__apply_to_telemetry(const sentry_scope_t *scope,
     const sentry_options_t *options, sentry_value_t telemetry,
     sentry_value_t attributes)
@@ -1503,39 +1473,35 @@ void
 sentry_set_trace_n(const char *trace_id, size_t trace_id_len,
     const char *parent_span_id, size_t parent_span_id_len)
 {
-    sentry_value_t context = sentry_value_new_null();
-
     SENTRY_WITH_SCOPE_MUT (scope) {
-        context = sentry_value_new_object();
-
-        sentry_value_set_by_key(
-            context, "type", sentry_value_new_string("trace"));
-
-        sentry_value_set_by_key(context, "trace_id",
-            sentry_value_new_string_n(trace_id, trace_id_len));
-        if (parent_span_id && parent_span_id_len) {
-            sentry_value_set_by_key(context, "parent_span_id",
-                sentry_value_new_string_n(parent_span_id, parent_span_id_len));
-        }
-
-        sentry_uuid_t span_id = sentry_uuid_new_v4();
-        sentry_value_set_by_key(
-            context, "span_id", sentry__value_new_span_uuid(&span_id));
-        sentry__scope_set_trace_managed(scope, false);
-        sentry__scope_flush(scope);
+        sentry_scope_set_trace_n(
+            scope, trace_id, trace_id_len, parent_span_id, parent_span_id_len);
     }
+}
 
-    if (!sentry_value_is_null(context)) {
-        sentry__generate_sample_rand(context);
+void
+sentry_continue_trace(const char *sentry_trace, const char *baggage)
+{
+    sentry_continue_trace_n(sentry_trace, sentry__guarded_strlen(sentry_trace),
+        baggage, sentry__guarded_strlen(baggage));
+}
 
-        sentry__set_propagation_context("trace", context);
+void
+sentry_continue_trace_n(const char *sentry_trace, size_t sentry_trace_len,
+    const char *baggage, size_t baggage_len)
+{
+    SENTRY_WITH_SCOPE_MUT (scope) {
+        sentry_scope_continue_trace_n(
+            scope, sentry_trace, sentry_trace_len, baggage, baggage_len);
+    }
+}
 
-        SENTRY_WITH_OPTIONS (options) {
-            SENTRY_WITH_SCOPE_MUT (scope) {
-                sentry__scope_update_dsc(scope, options);
-                sentry__scope_flush(scope);
-            }
-        }
+void
+sentry_iter_trace_propagation_headers(
+    sentry_iter_headers_function_t callback, void *userdata)
+{
+    SENTRY_WITH_SCOPE (scope) {
+        sentry_scope_iter_trace_propagation_headers(scope, callback, userdata);
     }
 }
 
@@ -1550,12 +1516,6 @@ sentry_start_new_trace(void)
             sentry__scope_flush(scope);
         }
     }
-}
-
-void
-sentry_regenerate_trace(void)
-{
-    sentry_start_new_trace();
 }
 
 void
@@ -2011,20 +1971,6 @@ sentry_span_discard(sentry_span_t *opaque_span)
     sentry__span_decref(opaque_span);
 }
 
-void
-sentry_capture_user_feedback(sentry_value_t user_report)
-{
-    sentry_envelope_t *envelope = NULL;
-
-    SENTRY_WITH_OPTIONS (options) {
-        envelope = prepare_user_report(user_report);
-        if (envelope) {
-            sentry__capture_envelope(options->transport, envelope, options);
-        }
-    }
-    sentry_value_decref(user_report);
-}
-
 static sentry_uuid_t
 capture_feedback(sentry_value_t user_feedback, sentry_hint_t *hint,
     sentry_scope_t *local_scope)
@@ -2152,18 +2098,6 @@ int
 sentry_get_crashed_last_run(void)
 {
     return g_last_crash;
-}
-
-int
-sentry_clear_crashed_last_run(void)
-{
-    bool success = false;
-    sentry_options_t *options = sentry__options_lock();
-    if (options) {
-        success = sentry__clear_crash_marker(options);
-    }
-    sentry__options_unlock();
-    return success ? 0 : 1;
 }
 
 sentry_uuid_t

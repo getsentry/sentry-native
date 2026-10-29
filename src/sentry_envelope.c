@@ -13,7 +13,6 @@
 #include "sentry_value.h"
 #include <assert.h>
 #include <limits.h>
-#include <math.h>
 #include <string.h>
 
 struct sentry_envelope_item_s {
@@ -302,15 +301,9 @@ sentry__envelope_set_header(
 }
 
 sentry_envelope_t *
-sentry__envelope_new(void)
+sentry__envelope_new(const sentry_options_t *options)
 {
-    sentry_dsn_t *dsn = NULL;
-    SENTRY_WITH_OPTIONS (options) {
-        dsn = sentry__dsn_incref(options->dsn);
-    }
-    sentry_envelope_t *rv = sentry__envelope_new_with_dsn(dsn);
-    sentry__dsn_decref(dsn);
-    return rv;
+    return sentry__envelope_new_with_dsn(options ? options->dsn : NULL);
 }
 
 sentry_envelope_t *
@@ -424,8 +417,10 @@ sentry_envelope_get_transaction(const sentry_envelope_t *envelope)
 }
 
 sentry_envelope_item_t *
-sentry__envelope_add_event(sentry_envelope_t *envelope, sentry_value_t event)
+sentry__envelope_add_event(sentry_envelope_t *envelope, sentry_value_t event,
+    const sentry_options_t *options)
 {
+    (void)options;
     sentry_envelope_item_t *item = envelope_add_item(envelope);
     if (!item) {
         return NULL;
@@ -439,9 +434,12 @@ sentry__envelope_add_event(sentry_envelope_t *envelope, sentry_value_t event)
     sentry_uuid_t event_id;
     sentry__ensure_event_id(event, &event_id);
 
+    sentry_value_t dsc = sentry__value_take_by_key(event, "dsc");
+
     sentry__jsonwriter_write_value(jw, event);
     item->payload = sentry__jsonwriter_into_string(jw, &item->payload_len);
     if (!item->payload) {
+        sentry_value_decref(dsc);
         return NULL;
     }
     item->event = event;
@@ -453,19 +451,6 @@ sentry__envelope_add_event(sentry_envelope_t *envelope, sentry_value_t event)
 
     sentry__envelope_set_event_id(envelope, &event_id);
 
-    double traces_sample_rate = 0.0;
-    SENTRY_WITH_OPTIONS (options) {
-        traces_sample_rate = options->traces_sample_rate;
-    }
-    sentry_value_t dsc = sentry_value_new_null();
-    double sample_rand = (double)NAN;
-    SENTRY_WITH_SCOPE (scope) {
-        dsc = sentry__scope_load_dsc(scope);
-        sentry_value_t trace_context = sentry__scope_load_trace_context(scope);
-        sample_rand = sentry_value_as_double(
-            sentry_value_get_by_key(trace_context, "sample_rand"));
-        sentry_value_decref(trace_context);
-    }
     if (!sentry_value_is_null(dsc)) {
         sentry_value_t trace_id = sentry_value_get_by_key(
             sentry_value_get_by_key(
@@ -477,20 +462,6 @@ sentry__envelope_add_event(sentry_envelope_t *envelope, sentry_value_t event)
         } else {
             SENTRY_WARN("couldn't retrieve trace_id from scope to apply to the "
                         "dynamic sampling context");
-        }
-        if (!isnan(sample_rand)) {
-            if (sample_rand >= traces_sample_rate) {
-                sentry_value_set_by_key(
-                    dsc, "sampled", sentry_value_new_string("false"));
-            } else {
-                sentry_value_set_by_key(
-                    dsc, "sampled", sentry_value_new_string("true"));
-            }
-        } else {
-            // only for testing; in production, the SDK should always have a
-            // non-null sample_rand. We don't set "sampled" to keep dsc empty
-            SENTRY_WARN("couldn't retrieve sample_rand from scope to apply to "
-                        "the dynamic sampling context");
         }
         // only add dsc if it has values
         if (sentry_value_is_true(dsc)) {
@@ -633,44 +604,11 @@ sentry__envelope_add_metrics(
 }
 
 sentry_envelope_item_t *
-sentry__envelope_add_user_report(
-    sentry_envelope_t *envelope, sentry_value_t user_report)
-{
-    sentry_envelope_item_t *item = envelope_add_item(envelope);
-    if (!item) {
-        return NULL;
-    }
-
-    sentry_jsonwriter_t *jw = sentry__jsonwriter_new_sb(NULL);
-    if (!jw) {
-        return NULL;
-    }
-
-    sentry_uuid_t event_id;
-    sentry__ensure_event_id(user_report, &event_id);
-
-    sentry__jsonwriter_write_value(jw, user_report);
-    item->payload = sentry__jsonwriter_into_string(jw, &item->payload_len);
-    if (!item->payload) {
-        return NULL;
-    }
-
-    sentry__envelope_item_set_header(
-        item, "type", sentry_value_new_string("user_report"));
-    sentry_value_t length = sentry_value_new_int32((int32_t)item->payload_len);
-    sentry__envelope_item_set_header(item, "length", length);
-
-    sentry__envelope_set_event_id(envelope, &event_id);
-
-    return item;
-}
-
-sentry_envelope_item_t *
-sentry__envelope_add_feedback_event(
-    sentry_envelope_t *envelope, sentry_value_t feedback_event)
+sentry__envelope_add_feedback_event(sentry_envelope_t *envelope,
+    sentry_value_t feedback_event, const sentry_options_t *options)
 {
     sentry_envelope_item_t *item
-        = sentry__envelope_add_event(envelope, feedback_event);
+        = sentry__envelope_add_event(envelope, feedback_event, options);
     if (!item) {
         // The event is left untouched on failure and freed by the caller.
         return NULL;
@@ -1095,11 +1033,9 @@ static bool deserialize_into(
 sentry_envelope_t *
 sentry_envelope_deserialize(const char *buf, size_t buf_len)
 {
-    // Use sentry__envelope_new_with_dsn(NULL) instead of sentry__envelope_new()
-    // because the DSN is part of the serialized headers and will be restored by
-    // deserialization. This avoids acquiring the options lock, which would
-    // deadlock if called from a bgworker thread during shutdown.
-    sentry_envelope_t *envelope = sentry__envelope_new_with_dsn(NULL);
+    // The DSN is part of the serialized headers and will be restored by
+    // deserialization.
+    sentry_envelope_t *envelope = sentry__envelope_new(NULL);
     if (!envelope) {
         return NULL;
     }

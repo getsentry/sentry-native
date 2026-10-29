@@ -103,3 +103,58 @@ SENTRY_TEST(rate_limit_longest)
 
     sentry__rate_limiter_free(rl);
 }
+
+SENTRY_TEST(rate_limit_header_without_scope)
+{
+    uint64_t now = sentry__monotonic_time();
+    sentry_rate_limiter_t *rl = sentry__rate_limiter_new();
+    TEST_ASSERT(!!rl);
+
+    // The scope is optional, so a limit can end at the comma. Every limit has
+    // to apply, not just the last one.
+    TEST_CHECK(sentry__rate_limiter_update_from_header(
+        rl, "60:error, 120:session, 30:transaction"));
+
+    TEST_CHECK(
+        sentry__rate_limiter_get_disabled_until(rl, SENTRY_RL_CATEGORY_ERROR)
+        >= now + 60000);
+    TEST_CHECK(
+        sentry__rate_limiter_get_disabled_until(rl, SENTRY_RL_CATEGORY_SESSION)
+        >= now + 120000);
+    TEST_CHECK(sentry__rate_limiter_get_disabled_until(
+                   rl, SENTRY_RL_CATEGORY_TRANSACTION)
+        >= now + 30000);
+
+    sentry__rate_limiter_free(rl);
+}
+
+SENTRY_TEST(rate_limit_header_mixed_scopes)
+{
+    uint64_t now = sentry__monotonic_time();
+    sentry_rate_limiter_t *rl = sentry__rate_limiter_new();
+    TEST_ASSERT(!!rl);
+
+    // A limit that leaves the scope out must not consume the one after it,
+    // whichever side of the header it sits on.
+    TEST_CHECK(sentry__rate_limiter_update_from_header(
+        rl, "60:replay, 120:feedback:organization, 30:error;session"));
+
+    TEST_CHECK(
+        sentry__rate_limiter_get_disabled_until(rl, SENTRY_RL_CATEGORY_REPLAY)
+        >= now + 60000);
+    TEST_CHECK(
+        sentry__rate_limiter_get_disabled_until(rl, SENTRY_RL_CATEGORY_FEEDBACK)
+        >= now + 120000);
+    TEST_CHECK(
+        sentry__rate_limiter_get_disabled_until(rl, SENTRY_RL_CATEGORY_ERROR)
+        >= now + 30000);
+    TEST_CHECK(
+        sentry__rate_limiter_get_disabled_until(rl, SENTRY_RL_CATEGORY_SESSION)
+        >= now + 30000);
+    // Nothing in this header is a blanket limit.
+    TEST_CHECK(
+        sentry__rate_limiter_get_disabled_until(rl, SENTRY_RL_CATEGORY_ANY)
+        == 0);
+
+    sentry__rate_limiter_free(rl);
+}

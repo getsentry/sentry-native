@@ -8,6 +8,18 @@
 - macOS/Linux: shared libraries now use ABI-versioned filenames, such as `libsentry.1.dylib` or `libsentry.so.1` for 1.x. Windows, Android, and static libraries remain unchanged. ([#2103](https://github.com/getsentry/sentry-native/pull/2103))
   - NOTE: Applications must package the real versioned library and its symlinks, including `libsentry.1.dylib` or `libsentry.so.1`, because they link to and load the ABI-versioned name.
 - Release archives now include the SDK version in the filename, such as `sentry-native-1.0.0.zip`. ([#2105](https://github.com/getsentry/sentry-native/pull/2105))
+- Remove deprecated APIs. Migrate to the following alternatives: ([#2230](https://github.com/getsentry/sentry-native/pull/2230))
+  - `sentry_new_function_transport`: use `sentry_transport_new` and `sentry_transport_set_state`. The send callback now receives a mutable envelope, takes ownership of it, and must free it with `sentry_envelope_free`.
+  - `sentry_event_value_add_stacktrace`: create a thread with `sentry_value_new_thread`, set its stack with `sentry_value_set_stacktrace`, and add it to the event with `sentry_event_add_thread`.
+  - `sentry_shutdown`: use `sentry_close`.
+  - `sentry_sdk_name` and `sentry_sdk_user_agent`: use `sentry_options_get_sdk_name` and `sentry_options_get_user_agent`, or `SENTRY_SDK_NAME` and `SENTRY_SDK_USER_AGENT` for build-time values.
+  - `sentry_options_set_http_proxy` and `sentry_options_set_http_proxy_n`: use `sentry_options_set_proxy` and `sentry_options_set_proxy_n`.
+  - `sentry_value_new_user_feedback` and `sentry_value_new_user_feedback_n`: use `sentry_value_new_feedback` and `sentry_value_new_feedback_n`. The constructor arguments are now message, contact email, name, and associated event ID, with lengths following each string in the `_n` variant.
+  - `sentry_capture_user_feedback`: use `sentry_capture_feedback`.
+  - `sentry_options_add_view_hierarchy`, `sentry_options_add_view_hierarchy_n`, `sentry_options_add_view_hierarchyw`, and `sentry_options_add_view_hierarchyw_n`: create an attachment with `sentry_attachment_from_file` or its `_n`/wide-string variants, set its type to `SENTRY_ATTACHMENT_TYPE_VIEW_HIERARCHY` with `sentry_attachment_set_type`, and add it with `sentry_add_attachment`. For startup configuration, use `sentry_scope_add_attachment` in a `sentry_options_set_initial_scope` callback.
+  - `sentry_capture_event_with_scope(event, scope)`: use `sentry_scope_capture_event(scope, event, NULL)`.
+  - `sentry_clear_crashed_last_run`: remove the call. `sentry_init` clears the crash marker automatically.
+  - `sentry_regenerate_trace`: use `sentry_start_new_trace`.
 
 **Features**:
 
@@ -17,6 +29,10 @@
 - Native: reduce disk I/O on scope changes by sending incremental updates to the crash daemon over IPC. ([#2155](https://github.com/getsentry/sentry-native/pull/2155), [#2157](https://github.com/getsentry/sentry-native/pull/2157))
 - Native: install handlers for the daemon's own fatal signals and unhandled exceptions, allowing best-effort recovery actions such as dumping pending envelopes before termination. ([#2220](https://github.com/getsentry/sentry-native/pull/2220))
 - Linux: add RISC-V support. ([#2232](https://github.com/getsentry/sentry-native/pull/2232))
+- Report the host OS in the OS context under Wine and Proton, instead of the Windows version that Wine emulates. On Linux, prefer the host `os-release` inside Steam Runtime and Flatpak containers, and report SteamOS and Bazzite as the OS name. ([#2241](https://github.com/getsentry/sentry-native/pull/2241))
+- Add `sentry_scope_set_trace` for per-scope traces. ([#2236](https://github.com/getsentry/sentry-native/pull/2236))
+- Add `sentry_continue_trace` to continue incoming traces without a transaction. ([#2237](https://github.com/getsentry/sentry-native/pull/2237))
+- Add `sentry_iter_trace_propagation_headers` to propagate traces without a span. ([#2240](https://github.com/getsentry/sentry-native/pull/2240))
 
 **Fixes**:
 
@@ -28,12 +44,25 @@
 
 ## Unreleased
 
+**Fixes**:
+
+- Events captured while a crash is being handled, such as from the `on_crash` hook, are no longer dropped by `sample_rate`, matching the crash itself. ([#2269](https://github.com/getsentry/sentry-native/pull/2269))
+
+## 0.17.5
+
+**Fixes**:
+
+- Rate limits in an `X-Sentry-Rate-Limits` header are no longer dropped when a limit leaves out the optional scope field. Each limit is now split at the comma before its fields are read; previously a limit such as `60:error` consumed the one after it, so only the last limit in the header applied. ([#2245](https://github.com/getsentry/sentry-native/pull/2245))
 - An empty proxy (`sentry_options_set_proxy(options, "")`) now means a direct connection with every transport and backend. Before, the WinHTTP transport, the Windows and macOS crashpad handlers and the native backend's daemon fell back to the proxy environment variables or the system proxy settings. ([#2218](https://github.com/getsentry/sentry-native/pull/2218), [crashpad#175](https://github.com/getsentry/crashpad/pull/175))
+- Inproc/Android: keep the original crash when the unwinder fails to allocate memory in the crash handler. ([#2239](https://github.com/getsentry/sentry-native/pull/2239))
+- Inproc: fix a deadlock when a crash occurs during `sentry_close()`, such as when re-initializing the SDK. ([#2252](https://github.com/getsentry/sentry-native/pull/2252))
+- Session starts are now sent immediately, instead of with the first event or the end of the session. With `require_user_consent`, the initial update waits for the consent to be given. ([#2242](https://github.com/getsentry/sentry-native/pull/2242))
 
 **Thank you**:
 
 - [orenjp](https://github.com/orenjp)
 - [IanHollow](https://github.com/IanHollow)
+- [Denimworld12](https://github.com/Denimworld12)
 
 ## 0.17.4
 

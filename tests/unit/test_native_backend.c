@@ -162,10 +162,11 @@ SENTRY_TEST(corrupt_crash_envelope_does_not_block_old_run)
     TEST_ASSERT(!!crash_envelope && !!queued_envelope);
     TEST_ASSERT(sentry__path_write_buffer(crash_envelope, "garbage", 7) == 0);
 
-    sentry_envelope_t *envelope = sentry__envelope_new();
+    sentry_envelope_t *envelope = sentry__envelope_new(NULL);
     TEST_ASSERT(!!envelope);
     sentry__envelope_add_event(envelope,
-        sentry_value_new_message_event(SENTRY_LEVEL_ERROR, NULL, "queued"));
+        sentry_value_new_message_event(SENTRY_LEVEL_ERROR, NULL, "queued"),
+        NULL);
     TEST_ASSERT(sentry_envelope_write_to_path(envelope, queued_envelope) == 0);
     sentry_envelope_free(envelope);
 

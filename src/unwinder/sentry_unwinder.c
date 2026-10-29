@@ -20,6 +20,8 @@ DEFINE_UNWINDER(libunwind);
 DEFINE_UNWINDER(libunwind_mac);
 DEFINE_UNWINDER(psunwind);
 
+void sentry__unwind_init_libunwindstack(void);
+
 #if defined(SENTRY_PLATFORM_LINUX)
 #    define DEFINE_THREAD_UNWINDER(Func)                                       \
         size_t sentry__unwind_stack_from_thread_##Func(pid_t tid,              \
@@ -92,3 +94,11 @@ sentry__unwind_stack_from_thread(pid_t tid, sentry_remote_frame_t *frames,
     return 0;
 }
 #endif
+
+void
+sentry__unwind_init(void)
+{
+#ifdef SENTRY_WITH_UNWINDER_LIBUNWINDSTACK
+    sentry__unwind_init_libunwindstack();
+#endif
+}

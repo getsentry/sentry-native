@@ -24,7 +24,7 @@ SENTRY_TEST(client_report_discard)
 
     TEST_CHECK(sentry__client_report_has_pending());
 
-    sentry_envelope_t *envelope = sentry__envelope_new();
+    sentry_envelope_t *envelope = sentry__envelope_new(NULL);
     TEST_CHECK(!!envelope);
 
     sentry_client_report_t report;
@@ -106,7 +106,7 @@ SENTRY_TEST(client_report_restore)
     // Verify restored counts appear in the next report
     sentry_client_report_t next_report;
     TEST_CHECK(sentry__client_report_save(&next_report));
-    sentry_envelope_t *envelope = sentry__envelope_new();
+    sentry_envelope_t *envelope = sentry__envelope_new(NULL);
     sentry_envelope_item_t *item
         = sentry__envelope_add_client_report(envelope, &next_report);
     TEST_CHECK(!!item);
@@ -151,7 +151,7 @@ SENTRY_TEST(client_report_discard_envelope)
 
     TEST_CHECK(!sentry__client_report_has_pending());
 
-    sentry_envelope_t *envelope = sentry__envelope_new();
+    sentry_envelope_t *envelope = sentry__envelope_new(NULL);
     sentry__envelope_add_from_buffer(envelope, "{}", 2, "event");
     sentry__envelope_add_from_buffer(envelope, "{}", 2, "session");
     sentry__envelope_add_from_buffer(envelope, "{}", 2, "transaction");
@@ -168,7 +168,7 @@ SENTRY_TEST(client_report_discard_envelope)
 
     sentry_client_report_t report;
     TEST_CHECK(sentry__client_report_save(&report));
-    sentry_envelope_t *carrier = sentry__envelope_new();
+    sentry_envelope_t *carrier = sentry__envelope_new(NULL);
     sentry_envelope_item_t *item
         = sentry__envelope_add_client_report(carrier, &report);
     TEST_CHECK(!!item);
@@ -274,10 +274,10 @@ SENTRY_TEST(client_report_cache_overflow)
 
     for (size_t i = 0; i < 2; i++) {
         sentry_uuid_t event_id = sentry_uuid_new_v4();
-        sentry_envelope_t *envelope = sentry__envelope_new();
+        sentry_envelope_t *envelope = sentry__envelope_new(NULL);
         TEST_ASSERT(!!envelope);
         sentry_value_t event = sentry__value_new_event_with_id(&event_id);
-        sentry__envelope_add_event(envelope, event);
+        sentry__envelope_add_event(envelope, event, NULL);
         TEST_ASSERT(sentry__envelope_write_to_cache(envelope, cache_path) == 0);
         sentry_envelope_free(envelope);
     }
@@ -286,7 +286,7 @@ SENTRY_TEST(client_report_cache_overflow)
 
     sentry_client_report_t report;
     TEST_CHECK(sentry__client_report_save(&report));
-    sentry_envelope_t *carrier = sentry__envelope_new();
+    sentry_envelope_t *carrier = sentry__envelope_new(NULL);
     sentry_envelope_item_t *item
         = sentry__envelope_add_client_report(carrier, &report);
     TEST_CHECK(!!item);
@@ -321,7 +321,7 @@ SENTRY_TEST(client_report_discard_rate_limited)
     SENTRY_TEST_OPTIONS_NEW(options);
     sentry_init(options);
 
-    sentry_envelope_t *envelope = sentry__envelope_new();
+    sentry_envelope_t *envelope = sentry__envelope_new(NULL);
     sentry__envelope_add_from_buffer(envelope, "{}", 2, "event");
     sentry__envelope_add_from_buffer(envelope, "{}", 2, "session");
 
@@ -334,7 +334,7 @@ SENTRY_TEST(client_report_discard_rate_limited)
 
     sentry_client_report_t report;
     TEST_CHECK(sentry__client_report_save(&report));
-    sentry_envelope_t *carrier = sentry__envelope_new();
+    sentry_envelope_t *carrier = sentry__envelope_new(NULL);
     sentry_envelope_item_t *item
         = sentry__envelope_add_client_report(carrier, &report);
     TEST_CHECK(!!item);
@@ -409,7 +409,7 @@ SENTRY_TEST(client_report_queue_overflow)
 
     sentry_client_report_t report;
     TEST_CHECK(sentry__client_report_save(&report));
-    sentry_envelope_t *envelope = sentry__envelope_new();
+    sentry_envelope_t *envelope = sentry__envelope_new(NULL);
     sentry_envelope_item_t *cr_item
         = sentry__envelope_add_client_report(envelope, &report);
     TEST_CHECK(!!cr_item);
@@ -446,7 +446,7 @@ SENTRY_TEST(client_report_discard_raw_envelope)
 
     // Build a structured envelope, serialize it, then deserialize to get
     // a parsed copy (simulating what retry_send_cb does with raw envelopes).
-    sentry_envelope_t *envelope = sentry__envelope_new();
+    sentry_envelope_t *envelope = sentry__envelope_new(NULL);
     sentry__envelope_add_from_buffer(envelope, "{}", 2, "event");
     sentry__envelope_add_from_buffer(envelope, "{}", 2, "session");
 
@@ -466,7 +466,7 @@ SENTRY_TEST(client_report_discard_raw_envelope)
 
     sentry_client_report_t report;
     TEST_CHECK(sentry__client_report_save(&report));
-    sentry_envelope_t *carrier = sentry__envelope_new();
+    sentry_envelope_t *carrier = sentry__envelope_new(NULL);
     sentry_envelope_item_t *item
         = sentry__envelope_add_client_report(carrier, &report);
     TEST_CHECK(!!item);
@@ -510,7 +510,7 @@ SENTRY_TEST(client_report_save_raw_envelope)
     TEST_CHECK(sentry__client_report_has_pending());
 
     // Create a raw (file-backed) envelope
-    sentry_envelope_t *structured = sentry__envelope_new();
+    sentry_envelope_t *structured = sentry__envelope_new(NULL);
     sentry__envelope_add_from_buffer(structured, "{}", 2, "event");
     const char *path_str = SENTRY_TEST_PATH_PREFIX "sentry_test_cr_raw";
     sentry_path_t *path = sentry__path_from_str(path_str);
@@ -562,7 +562,7 @@ flush_thread_func(void *data)
             sentry__thread_yield();
             continue;
         }
-        sentry_envelope_t *envelope = sentry__envelope_new();
+        sentry_envelope_t *envelope = sentry__envelope_new(NULL);
         sentry_envelope_item_t *item
             = sentry__envelope_add_client_report(envelope, &report);
         if (item) {
@@ -622,7 +622,7 @@ SENTRY_TEST(client_report_concurrent)
     sentry_envelope_item_t *item = NULL;
     sentry_envelope_t *envelope = NULL;
     if (sentry__client_report_save(&report)) {
-        envelope = sentry__envelope_new();
+        envelope = sentry__envelope_new(NULL);
         item = sentry__envelope_add_client_report(envelope, &report);
     }
     if (item) {

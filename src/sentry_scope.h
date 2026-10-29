@@ -89,6 +89,8 @@ typedef enum {
     SENTRY_SCOPE_MODULES = 0x2,
     // Symbolize all the stacktraces on-device which are found in the event.
     SENTRY_SCOPE_STACKTRACES = 0x4,
+    // Add the dynamic sampling context for the envelope trace header.
+    SENTRY_SCOPE_DSC = 0x8,
     // All of the above.
     SENTRY_SCOPE_ALL = ~0,
 } sentry_scope_mode_t;

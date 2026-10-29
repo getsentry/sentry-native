@@ -1,8 +1,8 @@
-black==26.3.1
+black==26.10.1
 pytest==9.0.3
 pytest-httpserver==1.0.10
 flaky==3.8.1
-msgpack==1.2.1
+msgpack==1.2.3
 pytest-xdist==3.8.0
 clang-format==20.1.5; platform_machine != "riscv64"
 pywin32==311; sys_platform == "win32"
