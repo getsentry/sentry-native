@@ -1272,12 +1272,13 @@ build_stacktrace_for_thread(
 #    include <elf.h>
 
 /**
- * Extract Build ID from ELF file (for debug_meta)
+ * Extract Build ID from the ELF image at `elf_offset` in a file
+ * (for debug_meta)
  * Returns the Build ID length, or 0 if not found
  */
 static size_t
-extract_elf_build_id_for_module(
-    const char *elf_path, uint8_t *build_id, size_t max_len)
+extract_elf_build_id_for_module(const char *elf_path, uint64_t elf_offset,
+    uint8_t *build_id, size_t max_len)
 {
     int fd = sentry__elf_open(elf_path);
     if (fd < 0) {
@@ -1291,7 +1292,7 @@ extract_elf_build_id_for_module(
     Elf32_Ehdr ehdr;
 #    endif
 
-    if (read(fd, &ehdr, sizeof(ehdr)) != sizeof(ehdr)) {
+    if (pread(fd, &ehdr, sizeof(ehdr), (off_t)elf_offset) != sizeof(ehdr)) {
         close(fd);
         return 0;
     }
@@ -1315,7 +1316,8 @@ extract_elf_build_id_for_module(
         return 0;
     }
 
-    if (lseek(fd, ehdr.e_shoff, SEEK_SET) != (off_t)ehdr.e_shoff
+    uint64_t shoff = elf_offset + ehdr.e_shoff;
+    if (lseek(fd, (off_t)shoff, SEEK_SET) != (off_t)shoff
         || read(fd, shdr_buf, shdr_size) != (ssize_t)shdr_size) {
         sentry_free(shdr_buf);
         close(fd);
@@ -1345,8 +1347,8 @@ extract_elf_build_id_for_module(
             continue;
         }
 
-        if (lseek(fd, sections[i].sh_offset, SEEK_SET)
-                != (off_t)sections[i].sh_offset
+        uint64_t note_offset = elf_offset + sections[i].sh_offset;
+        if (lseek(fd, (off_t)note_offset, SEEK_SET) != (off_t)note_offset
             || read(fd, note_buf, note_size) != (ssize_t)note_size) {
             sentry_free(note_buf);
             continue;
@@ -1571,7 +1573,7 @@ get_sym_source(const sentry_module_info_t *mod, uint32_t mod_idx)
     if (debuglink[0]) {
         uint8_t mod_bid[16];
         size_t mod_bid_len = extract_elf_build_id_for_module(
-            mod->name, mod_bid, sizeof(mod_bid));
+            mod->name, mod->elf_offset, mod_bid, sizeof(mod_bid));
 
         const char *slash = strrchr(mod->name, '/');
         int dir_len = slash ? (int)(slash - mod->name) : 0;
@@ -1605,7 +1607,7 @@ get_sym_source(const sentry_module_info_t *mod, uint32_t mod_idx)
 
             uint8_t dbg_bid[16];
             size_t dbg_bid_len = extract_elf_build_id_for_module(
-                candidate, dbg_bid, sizeof(dbg_bid));
+                candidate, 0, dbg_bid, sizeof(dbg_bid));
             if (mod_bid_len && dbg_bid_len
                 && (mod_bid_len != dbg_bid_len
                     || memcmp(mod_bid, dbg_bid, mod_bid_len) != 0)) {
@@ -1816,20 +1818,26 @@ capture_modules_from_proc_maps(sentry_crash_context_t *ctx)
             continue;
         }
 
-        if (offset > start) {
-            continue;
-        }
-
         // Check if this file is already captured - if so, extend size if needed
         // A mapping at offset 0 starts another load of the file, unless the
         // file was captured last (small libraries can map all segments at
         // offset 0)
         sentry_module_info_t *existing_mod = NULL;
         for (uint32_t j = ctx->module_count; j > 0; j--) {
-            if (strncmp(ctx->modules[j - 1].name, pathname, len) == 0
-                && ctx->modules[j - 1].name[len] == '\0') {
+            sentry_module_info_t *other = &ctx->modules[j - 1];
+            if (strncmp(other->name, pathname, len) == 0
+                && other->name[len] == '\0') {
+                // An ELF image inside a larger file only owns its load range
+                if (other->elf_offset != 0) {
+                    if (start >= other->base_address
+                        && start < other->base_address + other->size) {
+                        existing_mod = other;
+                        break;
+                    }
+                    continue;
+                }
                 if (offset != 0 || j == ctx->module_count) {
-                    existing_mod = &ctx->modules[j - 1];
+                    existing_mod = other;
                 }
                 break;
             }
@@ -1863,7 +1871,17 @@ capture_modules_from_proc_maps(sentry_crash_context_t *ctx)
         memcpy(mod->name, pathname, copy_len);
         mod->name[copy_len] = '\0';
 
-        if (!sentry__elf_is_file(mod->name)) {
+        // An ELF image can also start inside a larger file, such as a library
+        // that Android maps straight from an APK. Its load size is known up
+        // front to group the image's other segments.
+        mod->elf_offset = 0;
+        if (offset != 0 && sentry__elf_is_file_at(mod->name, offset)) {
+            uint64_t elf_size
+                = sentry__elf_compute_size_from_phdrs(mod->name, offset);
+            mod->elf_offset = offset;
+            mod->base_address = start;
+            mod->size = MAX(end - start, elf_size);
+        } else if (offset > start || !sentry__elf_is_file(mod->name)) {
             continue;
         }
 
@@ -1871,7 +1889,7 @@ capture_modules_from_proc_maps(sentry_crash_context_t *ctx)
         memset(mod->uuid, 0, sizeof(mod->uuid));
         mod->pdb_age = 0; // Not used on Linux, only for Windows PE modules
         extract_elf_build_id_for_module(
-            mod->name, mod->uuid, sizeof(mod->uuid));
+            mod->name, mod->elf_offset, mod->uuid, sizeof(mod->uuid));
 
         // Convert to little-endian GUID format for Sentry debug_id
         sentry__uuid_swap_guid_bytes(mod->uuid);
