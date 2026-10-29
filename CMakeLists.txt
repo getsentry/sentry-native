@@ -246,6 +246,7 @@ if("${CMAKE_SOURCE_DIR}" STREQUAL "${PROJECT_SOURCE_DIR}")
 endif()
 
 option(SENTRY_ENABLE_INSTALL "Enable sentry installation" "${SENTRY_MAIN_PROJECT}")
+option(SENTRY_INSTALL_PKGCONFIG "Generate and install pkg-config file for shared builds" ON)
 
 if(MSVC AND CMAKE_GENERATOR_TOOLSET MATCHES "_xp$")
 	message(WARNING "Crashpad is not supported for MSVC with XP toolset. Default backend was switched to 'breakpad'")
@@ -1038,11 +1039,11 @@ elseif(SENTRY_BACKEND_NATIVE)
 
 	# Install daemon
 	install(TARGETS sentry-crash
-		RUNTIME DESTINATION bin
+		RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}"
 	)
 	if(WIN32)
 		install(TARGETS sentry-wer
-			RUNTIME DESTINATION bin
+			RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}"
 			LIBRARY DESTINATION "${CMAKE_INSTALL_LIBDIR}"
 			ARCHIVE DESTINATION "${CMAKE_INSTALL_LIBDIR}"
 		)
@@ -1213,4 +1214,35 @@ if(SENTRY_BUILD_SHARED_LIBS)
 	target_link_libraries(sentry PRIVATE
 	    "$<$<PLATFORM_ID:Android>:-Wl,-z,max-page-size=16384>"
 	)
+endif()
+
+# Generate and install pkg-config file
+if(SENTRY_INSTALL_PKGCONFIG AND SENTRY_BUILD_SHARED_LIBS)
+  set(PREFIX "${CMAKE_INSTALL_PREFIX}")
+  set(PKGCONFIG_VERSION "${SENTRY_VERSION_FULL}")
+  # Use absolute paths for libdir, includedir, and bindir to support non-standard layouts (e.g., lib64)
+  if(IS_ABSOLUTE "${CMAKE_INSTALL_LIBDIR}")
+    set(PKGCONFIG_LIBDIR "${CMAKE_INSTALL_LIBDIR}")
+  else()
+    set(PKGCONFIG_LIBDIR "\${prefix}/${CMAKE_INSTALL_LIBDIR}")
+  endif()
+  if(IS_ABSOLUTE "${CMAKE_INSTALL_INCLUDEDIR}")
+    set(PKGCONFIG_INCLUDEDIR "${CMAKE_INSTALL_INCLUDEDIR}")
+  else()
+    set(PKGCONFIG_INCLUDEDIR "\${prefix}/${CMAKE_INSTALL_INCLUDEDIR}")
+  endif()
+  if(IS_ABSOLUTE "${CMAKE_INSTALL_BINDIR}")
+    set(PKGCONFIG_BINDIR "${CMAKE_INSTALL_BINDIR}")
+  else()
+    set(PKGCONFIG_BINDIR "\${prefix}/${CMAKE_INSTALL_BINDIR}")
+  endif()
+  configure_file(
+    "${CMAKE_CURRENT_SOURCE_DIR}/sentry.pc.in"
+    "${CMAKE_CURRENT_BINARY_DIR}/sentry.pc"
+    @ONLY
+  )
+  sentry_install(
+    FILES "${CMAKE_CURRENT_BINARY_DIR}/sentry.pc"
+    DESTINATION "${CMAKE_INSTALL_LIBDIR}/pkgconfig"
+  )
 endif()
