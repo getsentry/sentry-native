@@ -77,7 +77,6 @@ SENTRY_TEST(lazy_attachments)
     sentry__stringbuilder_init(&testdata.serialized_envelope);
 
     SENTRY_TEST_OPTIONS_NEW(options);
-    sentry_options_set_auto_session_tracking(options, false);
     sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
     sentry_transport_t *transport
         = sentry_transport_new(send_envelope_test_attachments);
@@ -624,7 +623,6 @@ SENTRY_TEST(attachments_before_send)
     sentry_before_send_attachment_testdata_t before_send_data = { 0 };
 
     SENTRY_TEST_OPTIONS_NEW(options);
-    sentry_options_set_auto_session_tracking(options, false);
     sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
     sentry_options_set_before_send(
         options, before_send_attach_bytes, &before_send_data);
@@ -700,7 +698,6 @@ SENTRY_TEST(attachments_more_than_ten)
     sentry__stringbuilder_init(&testdata.serialized_envelope);
 
     SENTRY_TEST_OPTIONS_NEW(options);
-    sentry_options_set_auto_session_tracking(options, false);
     sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
     sentry_transport_t *transport
         = sentry_transport_new(send_envelope_test_attachments);
