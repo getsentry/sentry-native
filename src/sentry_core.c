@@ -44,6 +44,9 @@ static sentry_mutex_t g_options_lock = SENTRY__MUTEX_INIT;
 #endif
 /// see sentry_get_crashed_last_run() for the possible values
 static int g_last_crash = -1;
+/// > 0 while a crash is handled; nests, e.g. inproc enters on both the
+/// crashing and the handler thread
+static volatile long g_crash_handler_depth = 0;
 
 const sentry_options_t *
 sentry__options_getref(void)
@@ -186,6 +189,8 @@ unregister_integrations(sentry_scope_t *scope, const sentry_options_t *options)
 void
 sentry__enter_crash_handler(void)
 {
+    sentry__atomic_fetch_and_add(&g_crash_handler_depth, 1);
+
     const sentry_options_t *options = g_options;
     if (options) {
         for (size_t i = 0; i < options->num_integrations; i++) {
@@ -209,6 +214,8 @@ sentry__exit_crash_handler(void)
             }
         }
     }
+
+    sentry__atomic_fetch_and_add(&g_crash_handler_depth, -1);
 }
 
 int
@@ -541,6 +548,7 @@ set_user_consent(sentry_user_consent_t new_val)
             switch (new_val) {
             case SENTRY_USER_CONSENT_GIVEN:
                 sentry__path_write_buffer(consent_path, "1\n", 2);
+                sentry__session_send_start_update(options);
                 // flush any envelopes cached while consent was revoked
                 sentry_transport_retry(options->transport);
                 break;
@@ -769,19 +777,18 @@ sentry__capture_event(
                 sentry__mutex_lock(&mut_options->session_lock);
                 // recheck inside the lock since our previous read is racy.
                 if (mut_options->session) {
+                    // the initial update went out when the session started,
+                    // so attaching it here does not change the session
                     sentry__envelope_add_session(
                         envelope, mut_options->session);
-                    // we're assuming that if a session is added to an envelope,
-                    // it will be sent onwards.  This means we now need to set
-                    // the init flag to false because we're no longer in the
-                    // initial session update.
-                    mut_options->session->init = false;
-                    sentry__session_notify_changed(mut_options);
                 }
                 sentry__mutex_unlock(&mut_options->session_lock);
             }
 
-            bool should_skip = !sentry__roll_dice(options->sample_rate);
+            // events captured while handling a crash belong to the crash, which
+            // is never sampled
+            bool should_skip = sentry__atomic_fetch(&g_crash_handler_depth) == 0
+                && !sentry__roll_dice(options->sample_rate);
             if (should_skip) {
                 SENTRY_INFO("throwing away event due to sample rate");
                 sentry__client_report_discard(SENTRY_DISCARD_REASON_SAMPLE_RATE,
@@ -941,7 +948,7 @@ sentry__prepare_event(const sentry_options_t *options, sentry_value_t event,
     sentry_scope_t *local_scope)
 {
     if (event_is_considered_error(event)) {
-        sentry__record_errors_on_current_session(1);
+        sentry__record_errors_on_current_session(options, 1);
     }
 
     sentry__event_ensure_modules(event);
@@ -970,8 +977,8 @@ sentry__enclose_event(const sentry_options_t *options, sentry_value_t event,
     sentry_envelope_t *envelope = NULL;
 
     sentry__ensure_event_id(event, event_id);
-    envelope = sentry__envelope_new();
-    if (!envelope || !sentry__envelope_add_event(envelope, event)) {
+    envelope = sentry__envelope_new(options);
+    if (!envelope || !sentry__envelope_add_event(envelope, event, options)) {
         goto fail;
     }
 
@@ -1016,7 +1023,7 @@ sentry__prepare_transaction(const sentry_options_t *options,
     }
 
     sentry__ensure_event_id(transaction, event_id);
-    envelope = sentry__envelope_new();
+    envelope = sentry__envelope_new(options);
     if (!envelope || !sentry__envelope_add_transaction(envelope, transaction)) {
         goto fail;
     }
@@ -1078,8 +1085,9 @@ prepare_user_feedback(const sentry_options_t *options,
 
     sentry__ensure_event_id(event, event_id);
 
-    sentry_envelope_t *envelope = sentry__envelope_new();
-    if (!envelope || !sentry__envelope_add_feedback_event(envelope, event)) {
+    sentry_envelope_t *envelope = sentry__envelope_new(options);
+    if (!envelope
+        || !sentry__envelope_add_feedback_event(envelope, event, options)) {
         goto fail;
     }
 

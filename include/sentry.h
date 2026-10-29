@@ -109,7 +109,7 @@ extern "C" {
  * checks, or `sentry_sdk_version()` for the runtime version.
  */
 #ifndef SENTRY_SDK_VERSION
-#    define SENTRY_SDK_VERSION "0.17.4"
+#    define SENTRY_SDK_VERSION "0.17.5"
 #endif
 
 /**
@@ -117,7 +117,7 @@ extern "C" {
  */
 #define SENTRY_SDK_VERSION_MAJOR 0
 #define SENTRY_SDK_VERSION_MINOR 17
-#define SENTRY_SDK_VERSION_PATCH 4
+#define SENTRY_SDK_VERSION_PATCH 5
 
 /**
  * Checks whether the compile-time SDK version is at least `major.minor.patch`.
@@ -3733,7 +3733,8 @@ typedef enum {
 } sentry_session_status_t;
 
 /**
- * Starts a new session.
+ * Starts a new session and sends its initial update right away, or once the
+ * user gives consent when `require_user_consent` is set.
  */
 SENTRY_API void sentry_start_session(void);
 

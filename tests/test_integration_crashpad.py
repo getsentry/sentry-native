@@ -15,6 +15,7 @@ from . import (
     Envelope,
     split_log_request_cond,
     extract_request,
+    is_session_start_envelope,
     is_session_envelope,
     is_logs_envelope,
     is_feedback_envelope,
@@ -90,7 +91,8 @@ def test_crashpad_capture(cmake, httpserver):
         env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
     )
 
-    assert len(httpserver.log) == 2
+    # the start update, the event with its session, and the session's end
+    assert len(httpserver.log) == 3
 
 
 def test_crashpad_on_crashed_last_run(cmake):
@@ -537,12 +539,14 @@ def test_crashpad_wer_crash(cmake, httpserver, run_args):
     httpserver.expect_request("/api/123456/envelope/").respond_with_data("OK")
 
     with httpserver.wait(timeout=10) as waiting:
+        # flush so the session's start update is not in flight when we crash
         run(
             tmp_path,
             "sentry_test_integration",
             [
                 "log",
                 "start-session",
+                "flush",
                 "attachment",
                 "attach-view-hierarchy",
                 "overflow-breadcrumbs",
@@ -556,10 +560,13 @@ def test_crashpad_wer_crash(cmake, httpserver, run_args):
 
     run(tmp_path, "sentry_test_integration", ["log", "no-setup"], env=env)
 
-    assert len(httpserver.log) == 2
-    session_request, multipart = split_log_request_cond(
-        httpserver.log, is_session_envelope
+    # the start update, the crashed session and the minidump
+    assert len(httpserver.log) == 3
+    _start_request, remaining = extract_request(
+        httpserver.log, is_session_start_envelope
     )
+    session_request, remaining = extract_request(remaining, is_session_envelope)
+    multipart = remaining[0][0]
     session = session_request.get_data()
     envelope = Envelope.deserialize(session)
 
@@ -624,6 +631,7 @@ def test_crashpad_dumping_crash(cmake, httpserver, run_args, build_args):
             [
                 "log",
                 "start-session",
+                "flush",
                 "attach-view-hierarchy",
                 "overflow-breadcrumbs",
                 "crashpad-wait-for-upload",
@@ -642,10 +650,13 @@ def test_crashpad_dumping_crash(cmake, httpserver, run_args, build_args):
 
     run(tmp_path, "sentry_test_integration", ["log", "no-setup"], env=env)
 
-    assert len(httpserver.log) == 2
-    session_request, multipart = split_log_request_cond(
-        httpserver.log, is_session_envelope
+    # the start update, the crashed session and the minidump
+    assert len(httpserver.log) == 3
+    _start_request, remaining = extract_request(
+        httpserver.log, is_session_start_envelope
     )
+    session_request, remaining = extract_request(remaining, is_session_envelope)
+    multipart = remaining[0][0]
     session = session_request.get_data()
     if build_args.get("SENTRY_TRANSPORT_COMPRESSION") == "On":
         assert_gzip_file_header(session)
@@ -713,6 +724,7 @@ def test_crashpad_dumping_stack_overflow(cmake, httpserver, stack_size):
             [
                 "log",
                 "start-session",
+                "flush",
                 "attachment",
                 "attach-view-hierarchy",
                 "crashpad-wait-for-upload",
@@ -730,10 +742,13 @@ def test_crashpad_dumping_stack_overflow(cmake, httpserver, stack_size):
 
     run(tmp_path, "sentry_test_integration", ["log", "no-setup"], env=env)
 
-    assert len(httpserver.log) == 2
-    session_request, multipart = split_log_request_cond(
-        httpserver.log, is_session_envelope
+    # the start update, the crashed session and the minidump
+    assert len(httpserver.log) == 3
+    _start_request, remaining = extract_request(
+        httpserver.log, is_session_start_envelope
     )
+    session_request, remaining = extract_request(remaining, is_session_envelope)
+    multipart = remaining[0][0]
     session = session_request.get_data()
 
     envelope = Envelope.deserialize(session)
@@ -755,7 +770,7 @@ def test_crashpad_oom(cmake, httpserver):
         run(
             tmp_path,
             "sentry_test_integration",
-            ["log", "start-session", "oom"],
+            ["log", "start-session", "flush", "oom"],
             expect_failure=True,
             env=env,
         )
@@ -766,10 +781,13 @@ def test_crashpad_oom(cmake, httpserver):
 
     run(tmp_path, "sentry_test_integration", ["log", "no-setup"], env=env)
 
-    assert len(httpserver.log) == 2
-    session_request, multipart = split_log_request_cond(
-        httpserver.log, is_session_envelope
+    # the start update, the crashed session and the minidump
+    assert len(httpserver.log) == 3
+    _start_request, remaining = extract_request(
+        httpserver.log, is_session_start_envelope
     )
+    session_request, remaining = extract_request(remaining, is_session_envelope)
+    multipart = remaining[0][0]
     envelope = Envelope.deserialize(session_request.get_data())
     assert_session(envelope, {"status": "crashed", "errors": 1})
     assert_crashpad_upload(multipart)
@@ -796,6 +814,7 @@ def test_crashpad_non_dumping_crash(cmake, httpserver, run_args):
             [
                 "log",
                 "start-session",
+                "flush",
                 "attachment",
                 "overflow-breadcrumbs",
                 "crash",
@@ -813,10 +832,12 @@ def test_crashpad_non_dumping_crash(cmake, httpserver, run_args):
 
     run(tmp_path, "sentry_test_integration", ["log", "no-setup"], env=env)
 
-    assert len(httpserver.log) == 1
-    output = httpserver.log[0][0]
-    session = output.get_data()
-    envelope = Envelope.deserialize(session)
+    # the start update and the abnormal session
+    assert len(httpserver.log) == 2
+    _start_request, output = split_log_request_cond(
+        httpserver.log, is_session_start_envelope
+    )
+    envelope = Envelope.deserialize(output.get_data())
 
     assert_session(envelope, {"status": "abnormal", "errors": 0})
 
@@ -921,7 +942,7 @@ def test_crashpad_logs_and_session_on_crash(cmake, httpserver):
         run(
             tmp_path,
             "sentry_test_integration",
-            ["log", "capture-log", "crash", "start-session"],
+            ["log", "capture-log", "crash", "start-session", "flush"],
             expect_failure=True,
             env=env,
         )
@@ -930,10 +951,12 @@ def test_crashpad_logs_and_session_on_crash(cmake, httpserver):
 
     run(tmp_path, "sentry_test_integration", ["log", "no-setup"], env=env)
 
-    # we expect 1 envelope with the log, 1 for the crash, and 1 for the session
-    assert len(httpserver.log) == 3
+    # we expect 1 envelope with the log, 1 for the session start, 1 for the
+    # crash, and 1 for the crashed session
+    assert len(httpserver.log) == 4
 
     logs_request, remaining = extract_request(httpserver.log, is_logs_envelope)
+    _start_request, remaining = extract_request(remaining, is_session_start_envelope)
     session_request, remaining = extract_request(remaining, is_session_envelope)
     multipart = remaining[0][0]  # The crash/minidump
 

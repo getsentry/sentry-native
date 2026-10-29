@@ -36,11 +36,11 @@ SENTRY_TEST(basic_http_request_preparation_for_event)
 
     sentry_uuid_t event_id
         = sentry_uuid_from_string("c993afb6-b4ac-48a6-b61b-2558e601d65d");
-    sentry_envelope_t *envelope = sentry__envelope_new();
+    sentry_envelope_t *envelope = sentry__envelope_new(NULL);
     sentry_value_t event = sentry_value_new_object();
     sentry_value_set_by_key(
         event, "event_id", sentry__value_new_uuid(&event_id));
-    sentry__envelope_add_event(envelope, event);
+    sentry__envelope_add_event(envelope, event, NULL);
 
     sentry_prepared_http_request_t *req
         = sentry__prepare_http_request(envelope, dsn, NULL, NULL);
@@ -65,7 +65,7 @@ SENTRY_TEST(basic_http_request_preparation_for_transaction)
 
     sentry_uuid_t event_id
         = sentry_uuid_from_string("c993afb6-b4ac-48a6-b61b-2558e601d65d");
-    sentry_envelope_t *envelope = sentry__envelope_new();
+    sentry_envelope_t *envelope = sentry__envelope_new(NULL);
     sentry_value_t transaction = sentry_value_new_object();
     sentry_value_set_by_key(
         transaction, "event_id", sentry__value_new_uuid(&event_id));
@@ -99,14 +99,14 @@ SENTRY_TEST(basic_http_request_preparation_for_user_feedback)
 
     sentry_uuid_t event_id
         = sentry_uuid_from_string("c993afb6-b4ac-48a6-b61b-2558e601d65d");
-    sentry_envelope_t *envelope = sentry__envelope_new();
+    sentry_envelope_t *envelope = sentry__envelope_new(NULL);
     sentry_value_t user_feedback = sentry_value_new_feedback(
         "some-message", "some-email", "some-name", &event_id);
     sentry_value_t feedback_event = sentry_value_new_event();
     sentry_value_t feedback_contexts = sentry_value_new_object();
     sentry_value_set_by_key(feedback_contexts, "feedback", user_feedback);
     sentry_value_set_by_key(feedback_event, "contexts", feedback_contexts);
-    sentry__envelope_add_feedback_event(envelope, feedback_event);
+    sentry__envelope_add_feedback_event(envelope, feedback_event, NULL);
 
     sentry_prepared_http_request_t *req
         = sentry__prepare_http_request(envelope, dsn, NULL, NULL);
@@ -172,11 +172,11 @@ SENTRY_TEST(basic_http_request_preparation_for_event_with_attachment)
 
     sentry_uuid_t event_id
         = sentry_uuid_from_string("c993afb6-b4ac-48a6-b61b-2558e601d65d");
-    sentry_envelope_t *envelope = sentry__envelope_new();
+    sentry_envelope_t *envelope = sentry__envelope_new(NULL);
     sentry_value_t event = sentry_value_new_object();
     sentry_value_set_by_key(
         event, "event_id", sentry__value_new_uuid(&event_id));
-    sentry__envelope_add_event(envelope, event);
+    sentry__envelope_add_event(envelope, event, NULL);
     char msg[] = "Hello World!";
     sentry__envelope_add_from_buffer(
         envelope, msg, sizeof(msg) - 1, "attachment");
@@ -204,7 +204,7 @@ SENTRY_TEST(basic_http_request_preparation_for_minidump)
 {
     SENTRY_TEST_DSN_NEW_DEFAULT(dsn);
 
-    sentry_envelope_t *envelope = sentry__envelope_new();
+    sentry_envelope_t *envelope = sentry__envelope_new(NULL);
     char dmp[] = "MDMP";
     sentry__envelope_add_from_buffer(
         envelope, dmp, sizeof(dmp) - 1, "minidump");
@@ -241,13 +241,13 @@ create_test_envelope()
 
     sentry_uuid_t event_id
         = sentry_uuid_from_string("c993afb6-b4ac-48a6-b61b-2558e601d65d");
-    sentry_envelope_t *envelope = sentry__envelope_new();
+    sentry_envelope_t *envelope = sentry__envelope_new(options);
     sentry_value_t event = sentry_value_new_object();
     sentry_value_set_by_key(
         event, "event_id", sentry__value_new_uuid(&event_id));
     sentry_value_set_by_key(
         event, "some-context", sentry_value_new_int32(1234));
-    sentry__envelope_add_event(envelope, event);
+    sentry__envelope_add_event(envelope, event, options);
 
     char dmp[] = "MDMP";
     sentry__envelope_add_from_buffer(
@@ -300,7 +300,7 @@ SENTRY_TEST(basic_write_envelope_to_file)
 
 SENTRY_TEST(read_write_envelope_to_file_null)
 {
-    sentry_envelope_t *empty_envelope = sentry__envelope_new();
+    sentry_envelope_t *empty_envelope = sentry__envelope_new(NULL);
 
     TEST_CHECK(!sentry_envelope_read_from_file(NULL));
     TEST_CHECK_INT_EQUAL(
@@ -714,8 +714,8 @@ SENTRY_TEST(envelope_materialize)
         = SENTRY_TEST_PATH_PREFIX "sentry_test_envelope_materialize";
     sentry_path_t *path = sentry__path_from_str(path_str);
 
-    sentry_envelope_t *src = sentry__envelope_new();
-    sentry__envelope_add_event(src, sentry_value_new_object());
+    sentry_envelope_t *src = sentry__envelope_new(NULL);
+    sentry__envelope_add_event(src, sentry_value_new_object(), NULL);
     TEST_ASSERT(sentry_envelope_write_to_path(src, path) == 0);
     sentry_envelope_free(src);
 
@@ -746,7 +746,7 @@ SENTRY_TEST(envelope_materialize)
 
 SENTRY_TEST(envelope_remove_item)
 {
-    sentry_envelope_t *envelope = sentry__envelope_new();
+    sentry_envelope_t *envelope = sentry__envelope_new(NULL);
     sentry_envelope_item_t *first
         = sentry__envelope_add_from_buffer(envelope, "one", 3, "attachment");
     sentry_envelope_item_t *second
@@ -779,7 +779,7 @@ SENTRY_TEST(attachment_bytes_no_copy)
         = sentry_attachment_from_bytes(bytes, sizeof(bytes), "bytes.bin");
     const char *attachment_bytes
         = sentry__attachment_get_bytes(attachment, NULL);
-    sentry_envelope_t *envelope = sentry__envelope_new();
+    sentry_envelope_t *envelope = sentry__envelope_new(NULL);
     sentry_envelope_item_t *item
         = sentry__envelope_add_attachment(envelope, attachment);
 
@@ -803,7 +803,7 @@ SENTRY_TEST(attachment_ref_creation)
 
     // Small file: should be added to envelope
     {
-        sentry_envelope_t *envelope = sentry__envelope_new();
+        sentry_envelope_t *envelope = sentry__envelope_new(NULL);
         char small_data[] = "small";
         TEST_CHECK_INT_EQUAL(sentry__path_write_buffer(test_file_path,
                                  small_data, sizeof(small_data) - 1),
@@ -828,7 +828,7 @@ SENTRY_TEST(attachment_ref_creation)
     // allocation failure. Attachment processing must fail without dereferencing
     // the missing path object.
     {
-        sentry_envelope_t *envelope = sentry__envelope_new();
+        sentry_envelope_t *envelope = sentry__envelope_new(NULL);
         sentry_value_t attachment
             = sentry_attachment_from_file(test_file_path->path);
         sentry_value_remove_by_key(attachment, "path");
@@ -860,7 +860,7 @@ SENTRY_TEST(attachment_ref_from_path)
 
     // Small file: should be added to envelope
     {
-        sentry_envelope_t *envelope = sentry__envelope_new();
+        sentry_envelope_t *envelope = sentry__envelope_new(NULL);
         char small_data[] = "small";
         TEST_CHECK_INT_EQUAL(sentry__path_write_buffer(test_file_path,
                                  small_data, sizeof(small_data) - 1),
@@ -950,7 +950,7 @@ SENTRY_TEST(attachment_ref_copy)
     sentry_attachment_set_type(attachment, SENTRY_ATTACHMENT_TYPE_MINIDUMP);
     sentry_attachment_set_content_type(attachment, "application/x-dmp");
 
-    sentry_envelope_t *envelope = sentry__envelope_new();
+    sentry_envelope_t *envelope = sentry__envelope_new(NULL);
     sentry__envelope_set_event_id(envelope, &event_id);
     sentry_path_t *db_path = NULL;
     SENTRY_WITH_OPTIONS (opts) {
@@ -1032,7 +1032,7 @@ SENTRY_TEST(attachment_ref_move)
 
     sentry_value_t attachment = sentry_attachment_from_file(src_path->path);
 
-    sentry_envelope_t *envelope = sentry__envelope_new();
+    sentry_envelope_t *envelope = sentry__envelope_new(NULL);
     sentry__envelope_set_event_id(envelope, &event_id);
     SENTRY_WITH_OPTIONS (opts) {
         // run_path passed → file is renamed (moved)
@@ -1110,7 +1110,7 @@ SENTRY_TEST(attachment_ref_cache_discard)
 
     sentry_uuid_t event_id
         = sentry_uuid_from_string("c993afb6-b4ac-48a6-b61b-2558e601d65d");
-    sentry_envelope_t *envelope = sentry__envelope_new();
+    sentry_envelope_t *envelope = sentry__envelope_new(NULL);
     sentry__envelope_set_event_id(envelope, &event_id);
 
     sentry_path_t *cache_path = sentry__path_from_str(
@@ -1147,9 +1147,9 @@ SENTRY_TEST(attachment_ref_roundtrip)
 {
     // An envelope with an attachment-ref item carrying `path` survives
     // a serialize / deserialize round-trip and preserves all headers + path.
-    sentry_envelope_t *envelope = sentry__envelope_new();
+    sentry_envelope_t *envelope = sentry__envelope_new(NULL);
     sentry_value_t event = sentry_value_new_object();
-    sentry__envelope_add_event(envelope, event);
+    sentry__envelope_add_event(envelope, event, NULL);
 
     sentry_attachment_ref_t ref = { 0 };
     ref.path = "abc-crashlog.bin";
@@ -1224,7 +1224,6 @@ SENTRY_TEST(capture_minidump_oversized)
     sentry_transport_set_state(transport, &called);
     SENTRY_TEST_OPTIONS_NEW(options);
     sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
-    sentry_options_set_auto_session_tracking(options, false);
     sentry_options_set_enable_large_attachments(options, true);
     sentry_options_set_transport(options, transport);
     TEST_ASSERT_INT_EQUAL(sentry_init(options), 0);
@@ -1261,7 +1260,7 @@ SENTRY_TEST(envelope_can_add_client_report)
     SENTRY_TEST_OPTIONS_NEW(options);
     sentry_init(options);
 
-    sentry_envelope_t *envelope = sentry__envelope_new();
+    sentry_envelope_t *envelope = sentry__envelope_new(NULL);
     sentry__envelope_add_from_buffer(envelope, "{}", 2, "event");
     TEST_CHECK(sentry__envelope_can_add_client_report(envelope, NULL));
 
@@ -1274,20 +1273,20 @@ SENTRY_TEST(envelope_can_add_client_report)
     sentry_envelope_free(envelope);
 
     // Empty envelope
-    envelope = sentry__envelope_new();
+    envelope = sentry__envelope_new(NULL);
     TEST_CHECK(!sentry__envelope_can_add_client_report(envelope, NULL));
 
     sentry_envelope_free(envelope);
 
     // Envelope with only internal items
-    envelope = sentry__envelope_new();
+    envelope = sentry__envelope_new(NULL);
     sentry__envelope_add_from_buffer(envelope, "{}", 2, "client_report");
     TEST_CHECK(!sentry__envelope_can_add_client_report(envelope, NULL));
 
     sentry_envelope_free(envelope);
 
     // Raw envelope
-    envelope = sentry__envelope_new();
+    envelope = sentry__envelope_new(NULL);
     sentry__envelope_add_from_buffer(envelope, "{}", 2, "event");
     const char *path_str = SENTRY_TEST_PATH_PREFIX "sentry_test_raw";
     sentry_path_t *path = sentry__path_from_str(path_str);
@@ -1326,7 +1325,7 @@ SENTRY_TEST(write_envelope_partial_write_fails)
     sentry_options_set_backend(options, NULL);
     sentry_init(options);
 
-    sentry_envelope_t *envelope = sentry__envelope_new();
+    sentry_envelope_t *envelope = sentry__envelope_new(NULL);
     TEST_CHECK(envelope != NULL);
 
     size_t big_len = 40000;
@@ -1383,7 +1382,7 @@ SENTRY_TEST(write_envelope_partial_write_fails)
 static size_t
 check_rate_limit(const char *header, const char *type1, const char *type2)
 {
-    sentry_envelope_t *envelope = sentry__envelope_new();
+    sentry_envelope_t *envelope = sentry__envelope_new(NULL);
     TEST_ASSERT(!!envelope);
 
     TEST_ASSERT(!!sentry__envelope_add_from_buffer(envelope, "{}", 2, type1));
@@ -1481,7 +1480,7 @@ SENTRY_TEST(attachment_rate_limit)
 
 SENTRY_TEST(minidump_rate_limit)
 {
-    sentry_envelope_t *envelope = sentry__envelope_new();
+    sentry_envelope_t *envelope = sentry__envelope_new(NULL);
     TEST_ASSERT(!!envelope);
     sentry_envelope_item_t *item
         = sentry__envelope_add_from_buffer(envelope, "MDMP", 4, "attachment");

@@ -77,7 +77,7 @@ SENTRY_TEST(empty_transport)
         TEST_ASSERT(!!runtime_options->transport);
         sentry__transport_suspend(runtime_options->transport);
         sentry__transport_send_envelope(
-            runtime_options->transport, sentry__envelope_new());
+            runtime_options->transport, sentry__envelope_new(NULL));
         TEST_CHECK(sentry__atomic_fetch(&runtime_options->run->retain));
     }
 
