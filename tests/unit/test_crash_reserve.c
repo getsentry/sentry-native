@@ -44,10 +44,10 @@ SENTRY_TEST(crash_reserve_init_close)
     sentry_close();
     TEST_CHECK_INT_EQUAL(sentry__crash_reserve_size(), 0);
 
-    // the build setting defaults to no reserve
     SENTRY_TEST_OPTIONS_NEW(default_options);
     sentry_init(default_options);
-    TEST_CHECK_INT_EQUAL(sentry__crash_reserve_size(), 0);
+    TEST_CHECK_INT_EQUAL(sentry__crash_reserve_size(),
+        (size_t)SENTRY_CRASH_MEMORY_RESERVE * 1024);
     sentry_close();
 #endif
 }
