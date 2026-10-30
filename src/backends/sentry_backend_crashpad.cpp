@@ -6,6 +6,7 @@ extern "C" {
 #include "sentry_backend.h"
 #include "sentry_core.h"
 #include "sentry_cpu_relax.h"
+#include "sentry_crash_reserve.h"
 #include "sentry_database.h"
 #include "sentry_envelope.h"
 #include "sentry_hint.h"
@@ -557,6 +558,7 @@ crashpad_handler(int signum, siginfo_t *info, ucontext_t *user_context)
     (void)!sentry__enter_signal_handler();
 #    endif
     sentry__enter_crash_handler();
+    sentry__crash_reserve_release();
     // Disable logging during crash handling if the option is set
     SENTRY_WITH_OPTIONS (options) {
         if (!options->enable_logging_when_crashed) {

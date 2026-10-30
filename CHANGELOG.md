@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+**Features**:
+
+- Add an opt-in memory reserve that is released when a crash is handled, so crashes are still captured after running out of memory. ([#2274](https://github.com/getsentry/sentry-native/pull/2274))
+
 **Fixes**:
 
 - Events captured while a crash is being handled, such as from the `on_crash` hook, are no longer dropped by `sample_rate`, matching the crash itself. ([#2269](https://github.com/getsentry/sentry-native/pull/2269))

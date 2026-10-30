@@ -6,6 +6,7 @@ extern "C" {
 #include "sentry_backend.h"
 #include "sentry_client_report.h"
 #include "sentry_core.h"
+#include "sentry_crash_reserve.h"
 #include "sentry_database.h"
 #include "sentry_envelope.h"
 #include "sentry_hint.h"
@@ -344,6 +345,20 @@ IsDebuggerActive()
 }
 #endif
 
+// called before the minidump is written
+#ifdef SENTRY_PLATFORM_WINDOWS
+static bool
+breakpad_backend_filter(void *UNUSED(context),
+    EXCEPTION_POINTERS *UNUSED(exinfo), MDRawAssertionInfo *UNUSED(assertion))
+#else
+static bool
+breakpad_backend_filter(void *UNUSED(context))
+#endif
+{
+    sentry__crash_reserve_release();
+    return true;
+}
+
 static int
 breakpad_backend_startup(
     sentry_backend_t *backend, const sentry_options_t *options)
@@ -355,26 +370,28 @@ breakpad_backend_startup(
         && defined(SENTRY_THREAD_STACK_GUARANTEE_AUTO_INIT)
     sentry__set_default_thread_stack_guarantee();
 #    endif
-    backend->data = new (std::nothrow) google_breakpad::ExceptionHandler(
-        current_run_folder->path_w, nullptr, breakpad_backend_callback, nullptr,
-        google_breakpad::ExceptionHandler::HANDLER_EXCEPTION);
+    backend->data = new (std::nothrow)
+        google_breakpad::ExceptionHandler(current_run_folder->path_w,
+            breakpad_backend_filter, breakpad_backend_callback, nullptr,
+            google_breakpad::ExceptionHandler::HANDLER_EXCEPTION);
     if (backend->data) {
         sentry__win32_install_sigabrt_handler(handle_sigabrt);
     }
 #elif defined(SENTRY_PLATFORM_MACOS)
     // If process is being debugged and there are breakpoints set it will cause
     // task_set_exception_ports to crash the whole process and debugger
-    backend->data = new (std::nothrow)
-        google_breakpad::ExceptionHandler(current_run_folder->path, nullptr,
-            breakpad_backend_callback, nullptr, !IsDebuggerActive(), nullptr);
+    backend->data = new (std::nothrow) google_breakpad::ExceptionHandler(
+        current_run_folder->path, breakpad_backend_filter,
+        breakpad_backend_callback, nullptr, !IsDebuggerActive(), nullptr);
 #elif defined(SENTRY_PLATFORM_IOS)
-    backend->data = new (std::nothrow)
-        google_breakpad::ExceptionHandler(current_run_folder->path, nullptr,
-            breakpad_backend_callback, nullptr, true, nullptr);
+    backend->data = new (std::nothrow) google_breakpad::ExceptionHandler(
+        current_run_folder->path, breakpad_backend_filter,
+        breakpad_backend_callback, nullptr, true, nullptr);
 #else
     google_breakpad::MinidumpDescriptor descriptor(current_run_folder->path);
-    backend->data = new (std::nothrow) google_breakpad::ExceptionHandler(
-        descriptor, nullptr, breakpad_backend_callback, nullptr, true, -1);
+    backend->data = new (std::nothrow)
+        google_breakpad::ExceptionHandler(descriptor, breakpad_backend_filter,
+            breakpad_backend_callback, nullptr, true, -1);
 #endif
     return backend->data == nullptr;
 }

@@ -8,6 +8,7 @@
 
 #include "sentry_alloc.h"
 #include "sentry_core.h"
+#include "sentry_crash_reserve.h"
 #include "sentry_logger.h"
 #include "sentry_os.h"
 #include "sentry_sync.h"
@@ -335,6 +336,8 @@ crash_signal_handler(int signum, siginfo_t *info, void *context)
         sentry__exit_crash_handler();
         _exit(1);
     }
+
+    sentry__crash_reserve_release();
 
     sentry_crash_context_t *ctx = ipc->shmem;
 
@@ -1036,6 +1039,9 @@ crash_exception_filter(EXCEPTION_POINTERS *exception_info)
         sentry__exit_crash_handler();
         return EXCEPTION_CONTINUE_SEARCH;
     }
+
+    // the daemon may share the application's memory budget
+    sentry__crash_reserve_release();
 
     sentry_crash_context_t *ctx = ipc->shmem;
 

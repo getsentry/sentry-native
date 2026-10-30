@@ -321,6 +321,25 @@ def test_abort_stdout(cmake, backend):
         pytest.fail(f"unsupported backend: {backend}")
 
 
+@pytest.mark.skipif(not has_breakpad, reason="test needs breakpad backend")
+@pytest.mark.skipif(
+    sys.platform != "win32", reason="test needs a Job Object memory limit"
+)
+def test_breakpad_oom_crash_memory_reserve_stdout(cmake):
+    """Test that a crash is captured after the process ran out of memory."""
+    tmp_path, output = run_stdout_for(
+        "breakpad",
+        cmake,
+        ["crash-memory-reserve", "oom-exhaust"],
+        env=dict(os.environ, SENTRY_TEST_OOM_LIMIT="256"),
+    )
+
+    envelope = Envelope.deserialize(output)
+
+    assert_minidump(envelope)
+    assert_breakpad_crash(envelope)
+
+
 @pytest.mark.skipif(is_qemu, reason="unreliable under qemu-user")
 def test_inproc_crash_stdout_before_send(cmake):
     tmp_path, output = run_crash_stdout_for("inproc", cmake, ["before-send"])
