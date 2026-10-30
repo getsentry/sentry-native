@@ -16,6 +16,8 @@ sentry_target_sources_cwd(sentry
 	sentry_client_report.h
 	sentry_core.c
 	sentry_core.h
+	sentry_crash_reserve.c
+	sentry_crash_reserve.h
 	sentry_cpu_relax.h
 	sentry_database.c
 	sentry_database.h
