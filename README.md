@@ -280,7 +280,7 @@ using `cmake -D BUILD_SHARED_LIBS=OFF ..`.
   - **native**: An out-of-process crash handler that uses a lightweight daemon
     to monitor the application, generate minidumps, and send crash reports.
     Supports Linux, macOS, and Windows, where it is the default. Compatible with TSAN and ASAN
-    sanitizers.
+    sanitizers. Support on Android is **experimental**.
   - **none**: This builds `sentry-native` without a backend, so it does not handle
     crashes. It is primarily used for tests.
 
@@ -364,7 +364,7 @@ using `cmake -D BUILD_SHARED_LIBS=OFF ..`.
 |            |         |       |       |         |      |
 | Backends   |         |       |       |         |      |
 | - crashpad | ✓       | ✓     | ✓     |         |      |
-| - native   | ☑       | ☑     | ☑     |         |      |
+| - native   | ☑       | ☑     | ☑     | (✓)***  |      |
 | - breakpad | ✓       | ✓     | ✓     | (✓)*    | (✓)* |
 | - inproc   | ✓       | ✓     | ✓     | ☑       |      |
 | - none     | ✓       | ✓     | ✓     | ✓       |      |
@@ -376,6 +376,7 @@ Legend:
 - (✓) supported with limitations
 - `*`: `breakpad` on Android and iOS builds and should work according to upstream but is untested.
 - `**`: `curl` as a transport works on Android but isn't used in any supported configuration to reduce the size of our artifacts.
+- `***`: The `native` backend on Android is experimental.
 
 In addition to platform support, the "Advanced Usage" section of the SDK docs now [describes the tradeoffs](https://docs.sentry.io/platforms/native/advanced-usage/backend-tradeoffs/) involved in choosing a suitable backend for a particular use case.
 

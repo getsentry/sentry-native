@@ -2,6 +2,7 @@ package io.sentry.ndk;
 
 import org.jetbrains.annotations.ApiStatus;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 @ApiStatus.Internal
 public final class SentryNdk {
@@ -19,6 +20,18 @@ public final class SentryNdk {
    *     to initialize
    */
   private static native int initSentryNative(@NotNull final NdkOptions options);
+
+  private static native void nativeInitCrashDaemon(
+      @NotNull String shmPath, int notifyFd, int readyFd, int messageFd);
+
+  private static native long nativeRunCrashDaemon(
+      int appPid, long appTid, int notifyFd, int readyFd, int messageFd, @NotNull String shmPath);
+
+  private static native @NotNull String nativeGetCrashEnvelopePath(long handle);
+
+  private static native int nativeSendEnvelope(long handle, @NotNull String path, long timeout);
+
+  private static native void nativeCloseCrashDaemon(long handle);
 
   private static native void shutdown();
 
@@ -52,6 +65,62 @@ public final class SentryNdk {
           "A sentry-native internal init error occurred, please check the logs for more details.");
     } else if (returnCode < 0) {
       throw new IllegalStateException("A sentry-native setup failure occurred");
+    }
+  }
+
+  public static void initCrashDaemon(
+      @NotNull String shmPath, int notifyFd, int readyFd, int messageFd) {
+    loadNativeLibraries();
+    nativeInitCrashDaemon(shmPath, notifyFd, readyFd, messageFd);
+  }
+
+  public static @Nullable CrashDaemon runCrashDaemon(
+      int appPid, long appTid, int notifyFd, int readyFd, int messageFd, @NotNull String shmPath) {
+    loadNativeLibraries();
+    final long handle = nativeRunCrashDaemon(appPid, appTid, notifyFd, readyFd, messageFd, shmPath);
+    return handle == 0 ? null : new CrashDaemon(handle);
+  }
+
+  @ApiStatus.Internal
+  public static final class CrashDaemon implements AutoCloseable {
+    private final @NotNull String envelopePath;
+    private long handle;
+
+    private CrashDaemon(long handle) {
+      this.handle = handle;
+      envelopePath = nativeGetCrashEnvelopePath(handle);
+    }
+
+    public @NotNull String getEnvelopePath() {
+      return envelopePath;
+    }
+
+    /** Sends the merged envelope and closes the daemon. */
+    public synchronized @NotNull SendResult sendEnvelope(@NotNull String path, long timeout) {
+      final long handle = this.handle;
+      this.handle = 0;
+      return handle != 0
+          ? SendResult.values()[nativeSendEnvelope(handle, path, timeout)]
+          : SendResult.FAILED;
+    }
+
+    @Override
+    public synchronized void close() {
+      final long handle = this.handle;
+      this.handle = 0;
+      if (handle != 0) {
+        nativeCloseCrashDaemon(handle);
+      }
+    }
+
+    /** The outcome of {@link #sendEnvelope(String, long)}. */
+    public enum SendResult {
+      /** The envelope was neither sent nor kept. */
+      FAILED,
+      /** The envelope was sent. */
+      SENT,
+      /** The envelope was not sent and is kept for the next launch. */
+      KEPT
     }
   }
 
