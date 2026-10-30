@@ -28,7 +28,6 @@ setup_feedback_test_with_before_send(sentry_feedback_testdata_t *testdata,
     sentry__stringbuilder_init(&testdata->serialized_envelope);
 
     SENTRY_TEST_OPTIONS_NEW(options);
-    sentry_options_set_auto_session_tracking(options, false);
     sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
     sentry_options_set_release(options, "my-app@1.2.3");
     sentry_options_set_environment(options, "staging");
