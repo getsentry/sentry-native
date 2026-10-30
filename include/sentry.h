@@ -2459,6 +2459,17 @@ SENTRY_API void sentry_options_set_max_stack_capture_size(
     sentry_options_t *opts, uint32_t max_stack_capture_size);
 
 /**
+ * Sets the size (in bytes) of memory that is reserved on `sentry_init` and
+ * released when a crash is handled, so the crash handler can still allocate
+ * after the application has run out of memory. `0` disables it.
+ *
+ * Defaults to the `SENTRY_CRASH_MEMORY_RESERVE` build setting (in KiB), which
+ * is `0`. Custom backends must release the reserve from their crash handler.
+ */
+SENTRY_API void sentry_options_set_crash_memory_reserve(
+    sentry_options_t *opts, size_t bytes);
+
+/**
  * Sets the maximum time (in milliseconds) to wait for the asynchronous
  * tasks to end on shutdown before attempting a forced termination.
  */

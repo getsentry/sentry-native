@@ -314,6 +314,10 @@ using `cmake -D BUILD_SHARED_LIBS=OFF ..`.
   this value can be as small as 16KiB with `breakpad` and 24KiB with `crashpad` and `native`, but we recommend 32KiB
   as the lower bound on 64-bit systems. **The value should be a multiple of the page size**.
 
+- `SENTRY_CRASH_MEMORY_RESERVE` (Default: `0`):
+  The size in KiB of memory reserved on `sentry_init()` and released when a crash is handled, so the crash handler
+  can still allocate after the application has run out of memory. `0` disables it.
+
 - `SENTRY_THREAD_STACK_GUARANTEE_FACTOR` (Default: `10`, only for Windows):
   Defines the factor by which the thread's stack reserve must exceed the specified guarantee for the handler.
   _Example_: if the `SENTRY_HANDLER_STACK_SIZE` is defined as 64KiB, then the thread's stack reserve must at least have
