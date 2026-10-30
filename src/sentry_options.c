@@ -109,7 +109,7 @@ sentry_options_new(void)
         false;
 #endif
     opts->backend = sentry__backend_new();
-    opts->transport = sentry__transport_new_default();
+    opts->transport = sentry_transport_new_default();
     opts->refcount = 1;
     opts->shutdown_timeout = SENTRY_DEFAULT_SHUTDOWN_TIMEOUT;
     opts->transfer_timeout = SENTRY_DEFAULT_TRANSFER_TIMEOUT;
@@ -433,19 +433,6 @@ const char *
 sentry_options_get_proxy(const sentry_options_t *opts)
 {
     return opts->proxy;
-}
-
-void
-sentry_options_set_http_proxy_n(
-    sentry_options_t *opts, const char *proxy, size_t proxy_len)
-{
-    sentry_options_set_proxy_n(opts, proxy, proxy_len);
-}
-
-void
-sentry_options_set_http_proxy(sentry_options_t *opts, const char *proxy)
-{
-    sentry_options_set_proxy(opts, proxy);
 }
 
 const char *
@@ -809,21 +796,6 @@ sentry_options_add_attachment_n(
 }
 
 void
-sentry_options_add_view_hierarchy(sentry_options_t *opts, const char *path)
-{
-    sentry_value_decref(sentry__attachments_add_path(&opts->attachments, path,
-        SENTRY_ATTACHMENT_TYPE_VIEW_HIERARCHY, "application/json"));
-}
-
-void
-sentry_options_add_view_hierarchy_n(
-    sentry_options_t *opts, const char *path, size_t path_len)
-{
-    sentry_value_decref(sentry__attachments_add_path_n(&opts->attachments, path,
-        path_len, SENTRY_ATTACHMENT_TYPE_VIEW_HIERARCHY, "application/json"));
-}
-
-void
 sentry_options_set_attach_screenshot(sentry_options_t *opts, int val)
 {
     opts->attach_screenshot = !!val;
@@ -910,24 +882,6 @@ sentry_options_add_attachmentw(sentry_options_t *opts, const wchar_t *path)
 {
     size_t path_len = path ? wcslen(path) : 0;
     sentry_options_add_attachmentw_n(opts, path, path_len);
-}
-
-void
-sentry_options_add_view_hierarchyw(sentry_options_t *opts, const wchar_t *path)
-{
-    size_t path_len = path ? wcslen(path) : 0;
-    sentry_value_decref(
-        sentry__attachments_add_wpath_n(&opts->attachments, path, path_len,
-            SENTRY_ATTACHMENT_TYPE_VIEW_HIERARCHY, "application/json"));
-}
-
-void
-sentry_options_add_view_hierarchyw_n(
-    sentry_options_t *opts, const wchar_t *path, size_t path_len)
-{
-    sentry_value_decref(
-        sentry__attachments_add_wpath_n(&opts->attachments, path, path_len,
-            SENTRY_ATTACHMENT_TYPE_VIEW_HIERARCHY, "application/json"));
 }
 
 void

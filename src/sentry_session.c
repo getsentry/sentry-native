@@ -249,7 +249,7 @@ sentry_start_session(void)
     sentry_envelope_t *envelope = NULL;
     sentry_options_t *options = sentry__options_lock();
     SENTRY_WITH_SCOPE (scope) {
-        if (options) {
+        if (options && !sentry_scope_begin_read(scope)) {
             sentry__mutex_lock(&options->session_lock);
             options->session = sentry__session_new(scope);
             if (options->session) {
@@ -262,6 +262,7 @@ sentry_start_session(void)
                 sentry__run_write_session(options->run, options->session);
             }
             sentry__mutex_unlock(&options->session_lock);
+            sentry_scope_end_read(scope);
         }
     }
     sentry__options_unlock();

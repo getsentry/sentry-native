@@ -10,6 +10,7 @@ typedef WORD(NTAPI *RtlCaptureStackBackTraceProc)(DWORD FramesToSkip,
 #ifdef __clang__
 #    pragma clang diagnostic push
 #    pragma clang diagnostic ignored "-Wmissing-prototypes"
+#    pragma clang diagnostic ignored "-Wlanguage-extension-token"
 #endif
 
 size_t
@@ -40,6 +41,90 @@ sentry__unwind_stack_dbghelp(
         return (size_t)CaptureStackBackTrace(1, (ULONG)max_frames, ptrs, 0);
 #endif
     }
+
+#if (defined(_MSC_VER) || defined(__clang__))                                  \
+    && (defined(_M_AMD64) || defined(_M_ARM64))
+    if (!addr) {
+        // unwind tables without DbgHelp or symbol loading
+        CONTEXT walk = *uctx->exception_ptrs.ContextRecord;
+#    if defined(_M_ARM64)
+        DWORD64 *ip = &walk.Pc;
+        DWORD64 *sp = &walk.Sp;
+#    else
+        DWORD64 *ip = &walk.Rip;
+        DWORD64 *sp = &walk.Rsp;
+#    endif
+        size_t size = 0;
+        if (size < max_frames) {
+            ptrs[size++] = (void *)(uintptr_t)*ip;
+        } else {
+            return 0;
+        }
+        while (size < max_frames) {
+            DWORD64 control_pc = *ip;
+#    if defined(_M_ARM64)
+            // use the call instruction for lookup, keeping frame PCs unadjusted
+            if (walk.ContextFlags & CONTEXT_UNWOUND_TO_CALL) {
+                control_pc -= 4;
+            }
+            DWORD64 previous_ip = *ip;
+#    endif
+            DWORD64 image_base = 0;
+            PRUNTIME_FUNCTION entry = NULL;
+            __try {
+                entry = RtlLookupFunctionEntry(control_pc, &image_base, NULL);
+            } __except (EXCEPTION_EXECUTE_HANDLER) {
+                break;
+            }
+            DWORD64 previous_sp = *sp;
+            if (entry) {
+                PVOID handler_data = NULL;
+                DWORD64 establisher = 0;
+                __try {
+                    RtlVirtualUnwind(UNW_FLAG_NHANDLER, image_base, control_pc,
+                        entry, &walk, &handler_data, &establisher, NULL);
+                } __except (EXCEPTION_EXECUTE_HANDLER) {
+                    break;
+                }
+            } else {
+#    if defined(_M_ARM64)
+                walk.Pc = walk.Lr;
+                walk.ContextFlags |= CONTEXT_UNWOUND_TO_CALL;
+#    else
+                DWORD64 ret = 0;
+                SIZE_T read = 0;
+                if (!ReadProcessMemory(GetCurrentProcess(), (void *)walk.Rsp,
+                        &ret, sizeof(ret), &read)
+                    || read != sizeof(ret)) {
+                    break;
+                }
+                walk.Rip = ret;
+                walk.Rsp += sizeof(ret);
+#    endif
+            }
+            if (!*ip) {
+                break;
+            }
+            if (*ip < 0x1000
+#    if defined(_M_AMD64)
+                || *ip > 0x00007FFFFFFFFFFFULL
+#    endif
+            ) {
+                break;
+            }
+#    if defined(_M_ARM64)
+            if (*sp < previous_sp
+                || (*sp == previous_sp && *ip == previous_ip)) {
+#    else
+            if (*sp <= previous_sp) {
+#    endif
+                break;
+            }
+            ptrs[size++] = (void *)(uintptr_t)*ip;
+        }
+        return size;
+    }
+#endif
 
     sentry__init_dbghelp();
 

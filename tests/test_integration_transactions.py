@@ -1,6 +1,6 @@
 import os
-import time
 import uuid
+from datetime import datetime
 
 import pytest
 
@@ -20,7 +20,6 @@ from .conditions import has_http
 
 pytestmark = pytest.mark.skipif(not has_http, reason="tests need http")
 
-RFC3339_FORMAT = "%Y-%m-%dT%H:%M:%S.%fZ"
 UPSTREAM_TRACE_ID = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 UPSTREAM_PARENT_SPAN_ID = "bbbbbbbbbbbbbbbb"
 
@@ -85,9 +84,9 @@ def test_transaction_only(cmake, httpserver, build_args):
     assert trace_context["span_id"]
     assert trace_context["status"] == "ok"
 
-    start_timestamp = time.strptime(payload["start_timestamp"], RFC3339_FORMAT)
+    start_timestamp = datetime.fromisoformat(payload["start_timestamp"])
     assert start_timestamp
-    timestamp = time.strptime(payload["timestamp"], RFC3339_FORMAT)
+    timestamp = datetime.fromisoformat(payload["timestamp"])
     assert timestamp >= start_timestamp
 
     assert trace_context["data"] == {"url": "https://example.com"}
@@ -141,9 +140,9 @@ def test_before_transaction_callback(cmake, httpserver):
     assert trace_context["span_id"]
     assert trace_context["status"] == "ok"
 
-    start_timestamp = time.strptime(payload["start_timestamp"], RFC3339_FORMAT)
+    start_timestamp = datetime.fromisoformat(payload["start_timestamp"])
     assert start_timestamp
-    timestamp = time.strptime(payload["timestamp"], RFC3339_FORMAT)
+    timestamp = datetime.fromisoformat(payload["timestamp"])
     assert timestamp >= start_timestamp
 
     assert trace_context["data"] == {"url": "https://example.com"}
@@ -342,6 +341,128 @@ def test_set_trace_event(cmake, httpserver):
     assert_event(event_envelope, "Hello World!", "aaaabbbbccccddddeeeeffff00001111")
     assert trace_context["parent_span_id"]
     assert trace_context["parent_span_id"] == "f0f0f0f0f0f0f0f0"
+
+
+def test_set_scope_trace_event(cmake, httpserver):
+    tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "none"})
+
+    httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data("OK")
+    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver), SENTRY_RELEASE="🤮🚀")
+
+    run(
+        tmp_path,
+        "sentry_test_integration",
+        ["log", "set-trace", "set-scope-trace", "capture-with-scope"],
+        env=env,
+    )
+
+    assert len(httpserver.log) == 1
+    event_req = httpserver.log[0][0]
+    event_body = event_req.get_data()
+
+    event_envelope = Envelope.deserialize(event_body)
+
+    # Extract the one-and-only-item
+    (event,) = event_envelope.items
+
+    payload = event.payload.json
+
+    # the local scope's trace takes precedence over the isolation scope's
+    trace_context = payload["contexts"]["trace"]
+    assert trace_context["trace_id"] == "11112222333344445555666677778888"
+    assert trace_context["parent_span_id"] == "0f0f0f0f0f0f0f0f"
+
+    trace_header = event_envelope.headers["trace"]
+    assert trace_header["sample_rand"] == trace_context["sample_rand"]
+    del trace_header["sample_rand"]
+    assert trace_header == {
+        "environment": "development",
+        "public_key": "uiaeosnrtdy",
+        "release": "test-example-release",
+        "sample_rate": 0,
+        "sampled": "false",
+        "trace_id": "11112222333344445555666677778888",
+    }
+
+    assert "dsc" not in payload
+
+
+def test_continue_trace_event(cmake, httpserver):
+    tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "none"})
+
+    httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data("OK")
+    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver), SENTRY_RELEASE="🤮🚀")
+
+    run(
+        tmp_path,
+        "sentry_test_integration",
+        ["log", "continue-trace", "capture-event"],
+        env=env,
+    )
+
+    assert len(httpserver.log) == 1
+    event_req = httpserver.log[0][0]
+    event_body = event_req.get_data()
+
+    event_envelope = Envelope.deserialize(event_body)
+
+    # Extract the one-and-only-item
+    (event,) = event_envelope.items
+
+    payload = event.payload.json
+
+    trace_context = payload["contexts"]["trace"]
+    assert trace_context["trace_id"] == "aaaabbbbccccddddeeeeffff00001111"
+    assert trace_context["parent_span_id"] == "f0f0f0f0f0f0f0f0"
+    assert trace_context["sampled"] is True
+
+    # the frozen upstream DSC with the inherited sampling decision
+    assert event_envelope.headers["trace"] == {
+        "environment": "upstream",
+        "sample_rand": "0.25",
+        "sampled": "true",
+        "trace_id": "aaaabbbbccccddddeeeeffff00001111",
+    }
+
+
+@pytest.mark.parametrize("continue_trace", [False, True])
+def test_iter_trace_propagation_headers(cmake, httpserver, continue_trace):
+    tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "none"})
+
+    httpserver.expect_oneshot_request("/api/123456/envelope/").respond_with_data("OK")
+    env = dict(os.environ, SENTRY_DSN=make_dsn(httpserver), SENTRY_RELEASE="🤮🚀")
+
+    args = ["log", "iter-trace-headers", "capture-event"]
+    if continue_trace:
+        args.insert(1, "continue-trace")
+    run(tmp_path, "sentry_test_integration", args, env=env)
+
+    assert len(httpserver.log) == 1
+    event_req = httpserver.log[0][0]
+    event_body = event_req.get_data()
+
+    event_envelope = Envelope.deserialize(event_body)
+
+    # Extract the one-and-only-item
+    (event,) = event_envelope.items
+
+    payload = event.payload.json
+
+    # the propagated headers continue the event's trace
+    trace_context = payload["contexts"]["trace"]
+    sentry_trace = f"{trace_context['trace_id']}-{trace_context['span_id']}"
+    if continue_trace:
+        sentry_trace += "-1"
+    assert payload["extra"]["sentry-trace"] == sentry_trace
+
+    # the baggage carries the event's DSC, without a deferred sampling decision
+    baggage = dict(m.split("=", 1) for m in payload["extra"]["baggage"].split(","))
+    assert baggage.pop("sentry-trace_id") == trace_context["trace_id"]
+    trace_header = event_envelope.headers["trace"]
+    assert {f"sentry-{key}" for key in trace_header} - {
+        "sentry-trace_id",
+        "sentry-sampled",
+    } == set(baggage)
 
 
 def test_set_trace_transaction_scoped_event(cmake, httpserver):

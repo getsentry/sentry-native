@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - master
+      - v1
     paths-ignore:
       - "*.md"
   pull_request:
@@ -59,5 +60,5 @@ jobs:
           tool: customSmallerIsBetter
           output-file-path: benchmark.json
           github-token: ${{ secrets.GITHUB_TOKEN }}
-          benchmark-data-dir-path: ./
+          benchmark-data-dir-path: ${{ github.ref_name == 'v1' && 'v1/' || './' }}
           auto-push: true

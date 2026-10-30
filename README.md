@@ -71,7 +71,7 @@ The SDK bundle contains the following folders:
 
 The SDK currently supports and is tested on the following OS/Compiler variations:
 
-- Linux (x86, x64, arm32 and arm64) with GCC 9+ and Clang 11+
+- Linux (x86, x64 and arm64) with GCC 9+ and Clang 11+
 - Windows (x86, x64 and arm64) with MSVC (Visual Studio 2022+) and LLVM-MinGW
 - macOS 15+ with Apple Clang and LLVM Clang 15+
 - Android API 21+ with NDK 23+
@@ -80,9 +80,11 @@ The SDK currently supports and is tested on the following OS/Compiler variations
 - Nintendo Switch via [sentry-switch](https://github.com/getsentry/sentry-switch). See [Nintendo Switch documentation](https://docs.sentry.io/platforms/nintendo-switch/) to get access.
 
 Additionally, the SDK should support the following platforms, although they are
-not automatically tested, so breakage may occur:
+not fully tested, so breakage may occur:
 
-- Windows Versions lower than Windows 10 / Windows Server 2016
+- Windows versions lower than Windows 10 / Windows Server 2016: not tested in CI.
+- Linux arm32 and riscv64: cross-compiled in CI, with only a subset of non-crash
+  tests run under QEMU.
 
 The SDK supports different features on the target platform:
 
@@ -107,7 +109,7 @@ Building the Breakpad and Crashpad backends requires a `C++17` compatible compil
 **Build example**:
 
 ```sh
-# configure the cmake build into the `build` directory, with crashpad (on macOS)
+# configure the cmake build into the `build` directory, with native (on macOS)
 $ cmake -B build -DCMAKE_BUILD_TYPE=RelWithDebInfo
 # build the project
 $ cmake --build build --parallel
@@ -117,17 +119,22 @@ $ cmake --install build --prefix install --config RelWithDebInfo
 $ eza --tree install
 install
 ├── bin
-│  └── crashpad_handler
+│  └── sentry-crash
 ├── include
 │  └── sentry.h
 └── lib
    ├── cmake
    │  └── sentry
-   ├── libsentry.dylib
-   └── libsentry.dylib.dSYM
+   ├── libsentry.1.0.0.dylib
+   ├── libsentry.1.dylib -> libsentry.1.0.0.dylib
+   ├── libsentry.dylib -> libsentry.1.dylib
+   └── libsentry.1.0.0.dylib.dSYM
 ```
 
 Please refer to the CMake Manual for more details.
+
+Starting with 1.0.0, shared libraries on macOS and Linux use ABI-versioned
+runtime names such as `libsentry.1.dylib` or `libsentry.so.1`.
 
 **Android**:
 
@@ -144,7 +151,7 @@ The `ndk` folder provides a Gradle project that adds a Java JNI layer for Androi
 **MinGW**:
 
 64-bit is the only platform supported for now.
-LLVM + Clang are mandatory here : they are required to generate .pdb files, used by Crashpad for the report generation.
+LLVM + Clang are mandatory here : they are required to generate .pdb files, used to symbolicate crash reports.
 
 For your application to generate the appropriate .pdb output, you need to activate CodeView file format generation on your application target. To do so, update your own CMakeLists.txt with something like `target_compile_options(${yourApplicationTarget} PRIVATE -gcodeview)`.
 
@@ -246,19 +253,33 @@ using `cmake -D BUILD_SHARED_LIBS=OFF ..`.
     Windows and is the default there.
   - **none**: Do not build any HTTP transport. This should be used if users
     want to handle uploads themselves
+  - **custom**: Provide an external
+    `sentry_transport_t *sentry_transport_new_default(void)` implementation
+    (with `extern "C"` linkage if written in C++). Return a transport created
+    with `sentry_transport_new` or `sentry_http_transport_new`, or `NULL` to
+    disable uploads.
+
+- `SENTRY_SCREENSHOT` (Default: `windows` on Windows, `none` elsewhere):
+  Selects the screenshot implementation. Set it to `custom` and provide an
+  external `int sentry_screenshot_capture(const char *path, uint32_t pid)`
+  implementation (with `extern "C"` linkage if written in C++).
+  Save a PNG screenshot to `path` and return `0` on success, nonzero on failure.
+  `pid` selects whose windows to capture: `0` for the current process, or the
+  crashed application's PID when capture runs in a separate daemon. The path is
+  UTF-8 on Windows.
 
 - `SENTRY_BACKEND` (Default: depending on platform):
   Sentry can use different backends depending on the platform.
 
   - **crashpad**: This uses the out-of-process crashpad handler. It is currently
-    only supported on Desktop OSes and used as the default on Windows, Linux, and macOS.
+    only supported on Desktop OSes.
   - **breakpad**: This uses the in-process breakpad handler. It is currently
     only supported on Desktop OSs.
   - **inproc**: A small in-process handler that is supported on all platforms,
     and is used as a default on Android.
   - **native**: An out-of-process crash handler that uses a lightweight daemon
     to monitor the application, generate minidumps, and send crash reports.
-    Supports Linux, macOS, and Windows. Compatible with TSAN and ASAN
+    Supports Linux, macOS, and Windows, where it is the default. Compatible with TSAN and ASAN
     sanitizers.
   - **none**: This builds `sentry-native` without a backend, so it does not handle
     crashes. It is primarily used for tests.
@@ -342,8 +363,8 @@ using `cmake -D BUILD_SHARED_LIBS=OFF ..`.
 | - none     | ✓       | ✓     | ✓     | ☑       | ☑    |
 |            |         |       |       |         |      |
 | Backends   |         |       |       |         |      |
-| - crashpad | ☑       | ☑     | ☑     |         |      |
-| - native   | ✓       | ✓     | ✓     |         |      |
+| - crashpad | ✓       | ✓     | ✓     |         |      |
+| - native   | ☑       | ☑     | ☑     |         |      |
 | - breakpad | ✓       | ✓     | ✓     | (✓)*    | (✓)* |
 | - inproc   | ✓       | ✓     | ✓     | ☑       |      |
 | - none     | ✓       | ✓     | ✓     | ✓       |      |

@@ -952,6 +952,24 @@ remove_attachment(void *state, sentry_value_t attachment)
 }
 #endif
 
+static void
+clear_scope(void *state)
+{
+    auto *data = static_cast<crashpad_state_t *>(state);
+    if (!data) {
+        return;
+    }
+
+    const base::FilePath *paths[]
+        = { &data->breadcrumb1_path, &data->breadcrumb2_path };
+    for (const auto *path : paths) {
+        if (!path->empty() && write_attachment(data, *path, "", 0) != 0) {
+            SENTRY_WARN("failed to clear persisted breadcrumbs");
+        }
+    }
+    data->num_breadcrumbs = 0;
+}
+
 static int
 crashpad_backend_startup(
     sentry_backend_t *backend, const sentry_options_t *options)
@@ -1198,6 +1216,7 @@ crashpad_backend_startup(
     sentry_scope_observer_t *observer = sentry__scope_observer_new();
     if (observer) {
         observer->data = data;
+        observer->clear = clear_scope;
         observer->add_breadcrumb = crashpad_backend_add_breadcrumb;
 #if defined(SENTRY_PLATFORM_WINDOWS) || defined(SENTRY_PLATFORM_LINUX)         \
     || defined(SENTRY_PLATFORM_MACOS)

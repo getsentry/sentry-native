@@ -10,6 +10,7 @@
 #include "sentry_utils.h"
 #include "sentry_value.h"
 #include <ctype.h>
+#include <math.h>
 #include <string.h>
 
 static inline bool
@@ -109,6 +110,12 @@ transaction_context_new_n(sentry_slice_t name, sentry_slice_t operation)
             sentry_value_set_by_key(transaction_context, "parent_span_id",
                 sentry__value_clone(
                     sentry_value_get_by_key(trace_context, "parent_span_id")));
+            sentry_value_t sampled
+                = sentry_value_get_by_key(trace_context, "sampled");
+            if (!sentry_value_is_null(sampled)) {
+                sentry_value_set_by_key(transaction_context, "sampled",
+                    sentry__value_clone(sampled));
+            }
         }
         sentry_value_decref(trace_context);
     }
@@ -287,8 +294,7 @@ compare_header_key(
 }
 
 static void
-parse_sentry_trace(
-    sentry_transaction_context_t *tx_ctx, const char *value, size_t value_len)
+parse_sentry_trace(sentry_value_t inner, const char *value, size_t value_len)
 {
     // Parse sentry-trace header: traceid-spanid(-sampled)?
     const char *trace_id_start = value;
@@ -297,8 +303,6 @@ parse_sentry_trace(
         SENTRY_WARN("invalid trace id format in given header");
         return;
     }
-
-    sentry_value_t inner = tx_ctx->inner;
 
     char *s = sentry__string_clone_n(
         trace_id_start, (size_t)(trace_id_end - trace_id_start));
@@ -350,15 +354,13 @@ parse_sentry_trace(
 }
 
 static void
-parse_baggage(
-    sentry_transaction_context_t *tx_ctx, const char *value, size_t value_len)
+parse_baggage(sentry_value_t inner, const char *value, size_t value_len)
 {
     // https://www.w3.org/TR/baggage/ — Sentry-prefixed members are kept and
     // percent-decoded; non-sentry members are ignored.
     static const char sentry_prefix[] = "sentry-";
     static const size_t sentry_prefix_len = sizeof(sentry_prefix) - 1;
 
-    sentry_value_t inner = tx_ctx->inner;
     sentry_value_t incoming = sentry_value_get_by_key(inner, "incoming_dsc");
     if (sentry_value_is_null(incoming)) {
         incoming = sentry_value_new_object();
@@ -405,6 +407,58 @@ sentry__trace_can_continue(
     return true;
 }
 
+static double
+parse_double(sentry_value_t value)
+{
+    const char *str = sentry_value_as_string(value);
+    char *end = NULL;
+    double d = sentry__strtod_c(str, &end);
+    return end != str && *end == '\0' ? d : (double)NAN;
+}
+
+sentry_value_t
+sentry__parse_trace_headers(const char *sentry_trace, size_t sentry_trace_len,
+    const char *baggage, size_t baggage_len)
+{
+    sentry_value_t trace = sentry_value_new_object();
+    if (sentry_trace && sentry_trace_len) {
+        parse_sentry_trace(trace, sentry_trace, sentry_trace_len);
+    }
+    if (baggage && baggage_len) {
+        parse_baggage(trace, baggage, baggage_len);
+    }
+
+    sentry_value_t dsc = sentry_value_get_by_key(trace, "incoming_dsc");
+    double sample_rand
+        = parse_double(sentry_value_get_by_key(dsc, "sample_rand"));
+    if (sample_rand >= 0.0 && sample_rand < 1.0) {
+        sentry_value_set_by_key(
+            trace, "sample_rand", sentry_value_new_double(sample_rand));
+        return trace;
+    }
+
+    sentry__generate_sample_rand(trace);
+    sentry_value_t sampled = sentry_value_get_by_key(trace, "sampled");
+    double sample_rate
+        = parse_double(sentry_value_get_by_key(dsc, "sample_rate"));
+    if (!sentry_value_is_null(sampled) && sample_rate >= 0.0
+        && sample_rate <= 1.0) {
+        // keep the incoming sampling decision when compared to `sample_rate`
+        sample_rand = sentry_value_as_double(
+            sentry_value_get_by_key(trace, "sample_rand"));
+        sample_rand = sentry_value_is_true(sampled)
+            ? sample_rand * sample_rate
+            : sample_rate + sample_rand * (1.0 - sample_rate);
+        sentry_value_set_by_key(
+            trace, "sample_rand", sentry_value_new_double(sample_rand));
+    }
+    if (sentry_value_get_length(dsc) > 0) {
+        sentry_value_set_by_key(dsc, "sample_rand",
+            sentry_value_incref(sentry_value_get_by_key(trace, "sample_rand")));
+    }
+    return trace;
+}
+
 void
 sentry_transaction_context_update_from_header_n(
     sentry_transaction_context_t *tx_ctx, const char *key, size_t key_len,
@@ -418,14 +472,14 @@ sentry_transaction_context_update_from_header_n(
     const char sentry_trace[] = "sentry-trace";
     const size_t sentry_trace_len = sizeof(sentry_trace) - 1;
     if (compare_header_key(key, key_len, sentry_trace, sentry_trace_len)) {
-        parse_sentry_trace(tx_ctx, value, value_len);
+        parse_sentry_trace(tx_ctx->inner, value, value_len);
         return;
     }
 
     const char baggage[] = "baggage";
     const size_t baggage_len = sizeof(baggage) - 1;
     if (compare_header_key(key, key_len, baggage, baggage_len)) {
-        parse_baggage(tx_ctx, value, value_len);
+        parse_baggage(tx_ctx->inner, value, value_len);
         return;
     }
 }
@@ -931,8 +985,8 @@ sentry_transaction_set_status(
     }
 }
 
-static void
-sentry__span_iter_headers(sentry_value_t span,
+void
+sentry__span_iter_headers(const sentry_scope_t *scope, sentry_value_t span,
     sentry_iter_headers_function_t callback, void *userdata)
 {
     sentry_value_t trace_id = sentry_value_get_by_key(span, "trace_id");
@@ -945,9 +999,15 @@ sentry__span_iter_headers(sentry_value_t span,
 
     // (32 char trace_id)-(16-char span_id)-(0|1) + null terminator
     char buf[SENTRY_TRACE_LEN + 1];
-    snprintf(buf, sizeof(buf), "%s-%s-%s", sentry_value_as_string(trace_id),
-        sentry_value_as_string(span_id),
-        sentry_value_is_true(sampled) ? "1" : "0");
+    if (sentry_value_is_null(sampled)) {
+        // deferred sampling decision
+        snprintf(buf, sizeof(buf), "%s-%s", sentry_value_as_string(trace_id),
+            sentry_value_as_string(span_id));
+    } else {
+        snprintf(buf, sizeof(buf), "%s-%s-%s", sentry_value_as_string(trace_id),
+            sentry_value_as_string(span_id),
+            sentry_value_is_true(sampled) ? "1" : "0");
+    }
     callback("sentry-trace", buf, userdata);
 
     // Outgoing baggage: build from the scope DSC (frozen from upstream when
@@ -961,9 +1021,7 @@ sentry__span_iter_headers(sentry_value_t span,
         sentry__stringbuilder_append(&sb, "sentry-trace_id=");
         sentry__stringbuilder_append(&sb, sentry_value_as_string(trace_id));
 
-        SENTRY_WITH_SCOPE (scope) {
-            sentry__scope_foreach_dsc(scope, append_baggage_member, &sb);
-        }
+        sentry__scope_foreach_dsc(scope, append_baggage_member, &sb);
 
         char *baggage = sentry__stringbuilder_into_string(&sb);
         if (baggage) {
@@ -992,7 +1050,9 @@ sentry_span_iter_headers(sentry_span_t *span,
     sentry_iter_headers_function_t callback, void *userdata)
 {
     if (span) {
-        sentry__span_iter_headers(span->inner, callback, userdata);
+        SENTRY_WITH_SCOPE (scope) {
+            sentry__span_iter_headers(scope, span->inner, callback, userdata);
+        }
     }
 }
 
@@ -1001,7 +1061,9 @@ sentry_transaction_iter_headers(sentry_transaction_t *tx,
     sentry_iter_headers_function_t callback, void *userdata)
 {
     if (tx) {
-        sentry__span_iter_headers(tx->inner, callback, userdata);
+        SENTRY_WITH_SCOPE (scope) {
+            sentry__span_iter_headers(scope, tx->inner, callback, userdata);
+        }
     }
 }
 

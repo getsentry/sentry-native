@@ -1,3 +1,4 @@
+import json
 import os
 import struct
 import subprocess
@@ -21,8 +22,16 @@ from . import (
     is_replay_envelope,
     lib_name,
     REPLAY_ID,
+    SENTRY_VERSION,
 )
-from .conditions import has_crashpad, has_files, has_oom, has_system_proxy
+from .conditions import (
+    has_crashpad,
+    has_files,
+    has_oom,
+    has_system_proxy,
+    is_qemu,
+    is_riscv,
+)
 from .proxy import (
     setup_proxy_env_vars,
     cleanup_proxy_env_vars,
@@ -46,8 +55,9 @@ from .assertions import (
     wait_for_file,
 )
 
+# ptrace is unavailable under RISC-V user-mode emulation
 pytestmark = pytest.mark.skipif(
-    not has_crashpad,
+    not has_crashpad or (is_riscv and is_qemu),
     reason="Tests need a crashpad backend and a valid environment for it",
 )
 
@@ -163,7 +173,13 @@ def test_crashpad_codeview(cmake, httpserver):
         name.replace("\\", "/").rsplit("/", 1)[-1]: codeview
         for name, codeview in _minidump_modules(attachments.minidump)
     }
-    codeview = codeviews[lib_name("sentry")]
+    library = lib_name("sentry")
+    major = SENTRY_VERSION.split(".", 1)[0]
+    if sys.platform == "linux":
+        library = f"{library}.{major}"
+    elif sys.platform == "darwin":
+        library = library.replace(".dylib", f".{SENTRY_VERSION}.dylib")
+    codeview = codeviews[library]
     signature = codeview[:4]
     if sys.platform == "linux":
         assert signature == b"LEpB"
@@ -655,20 +671,22 @@ def test_crashpad_dumping_crash(cmake, httpserver, run_args, build_args):
 
     envelope = Envelope.deserialize(session)
     assert_session(envelope, {"status": "crashed", "errors": 1})
-    expect_attachments = not any(
-        arg in run_args for arg in ("before-send", "on-crash", "clear-attachments")
-    )
+    expect_attachments = not any(arg in run_args for arg in ("before-send", "on-crash"))
+    cleared = "clear-attachments" in run_args
     attachments = assert_crashpad_upload(
         multipart,
         expect_attachment=expect_attachments,
-        expect_view_hierarchy=expect_attachments,
+        expect_view_hierarchy=expect_attachments and not cleared,
         breadcrumb_count=101,
+        expect_byte_attachment=expect_attachments and not cleared,
     )
     callback = next(
         (arg for arg in run_args if arg in ("before-send", "on-crash")), None
     )
-    expected_callback = callback.replace("-", "_").encode() if callback else None
-    assert attachments.callback == expected_callback
+    if callback:
+        assert json.loads(attachments.callback)["level"] == "fatal"
+    else:
+        assert attachments.callback is None
     event_id = attachments.event["event_id"]
     if sys.platform == "win32":
         minidump = tmp_path / ".sentry-native" / "reports" / f"{event_id}.dmp"
@@ -1541,3 +1559,46 @@ def test_crashpad_breadcrumbs(cmake, httpserver, count, reinstall, crash_arg):
 
     if crash_arg == "fastfail":
         assert wait_for_no_werfault()
+
+
+@pytest.mark.parametrize("clear", [False, True])
+def test_crashpad_acquired_scope(cmake, httpserver, clear):
+    tmp_path = cmake(["sentry_test_integration"], {"SENTRY_BACKEND": "crashpad"})
+    httpserver.expect_oneshot_request("/api/123456/minidump/").respond_with_data("OK")
+    args = [
+        "log",
+        "no-setup",
+        "attachment",
+        "acquire-scope",
+        "crashpad-wait-for-upload",
+        "crash",
+    ]
+    if clear:
+        args.append("clear-scope")
+    with httpserver.wait(timeout=10) as waiting:
+        run(
+            tmp_path,
+            "sentry_test_integration",
+            args,
+            expect_failure=True,
+            env=dict(os.environ, SENTRY_DSN=make_dsn(httpserver)),
+        )
+    assert waiting.result
+
+    attachments = assert_crashpad_upload(
+        httpserver.log[0][0],
+        expect_attachment=True,
+        expect_breadcrumbs=False,
+        expect_default_scope=False,
+        expect_byte_attachment=not clear,
+    )
+    event = attachments.event
+    assert event["release"] == ("test-example-release" if clear else "scope-release")
+    assert event["environment"] == ("development" if clear else "scope-environment")
+    assert ("acquired" in event.get("tags", {})) == (not clear)
+    assert any(
+        crumb.get("message") == "acquired breadcrumb"
+        for crumb in attachments.breadcrumb1 + attachments.breadcrumb2
+    ) == (not clear)
+    if not clear:
+        assert event["user"]["id"] == "scope-user"

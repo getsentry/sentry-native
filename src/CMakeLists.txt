@@ -77,7 +77,6 @@ sentry_target_sources_cwd(sentry
 	path/sentry_path.c
 	screenshot/sentry_screenshot.c
 	session_replay/sentry_session_replay.c
-	transports/sentry_function_transport.c
 	transports/sentry_http_transport.c
 	transports/sentry_http_transport.h
 	unwinder/sentry_unwinder.c
@@ -145,6 +144,10 @@ elseif(SENTRY_TRANSPORT_NONE)
 	sentry_target_sources_cwd(sentry
 		transports/sentry_transport_none.c
 	)
+elseif(SENTRY_TRANSPORT_STDOUT)
+	sentry_target_sources_cwd(sentry
+		transports/sentry_transport_stdout.c
+	)
 endif()
 
 # backends
@@ -175,6 +178,12 @@ elseif(SENTRY_BACKEND_NATIVE)
 		backends/native/sentry_crash_ipc.c
 		backends/native/sentry_crash_handler.c
 	)
+	if(SENTRY_WITH_LIBUNWINDSTACK)
+		target_compile_definitions(sentry PRIVATE SENTRY_WITH_UNWINDER_LIBUNWINDSTACK_REMOTE)
+		sentry_target_sources_cwd(sentry
+			unwinder/sentry_unwinder_libunwindstack_remote.cpp
+		)
+	endif()
 
 	# Add include directory for native backend headers
 	target_include_directories(sentry PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/backends/native)
@@ -264,6 +273,12 @@ if(WIN32)
 	sentry_target_sources_cwd(sentry
 		unwinder/sentry_unwinder_dbghelp.c
 	)
+	if(MINGW AND CMAKE_C_COMPILER_ID STREQUAL "Clang")
+		set_source_files_properties(
+			"${CMAKE_CURRENT_SOURCE_DIR}/unwinder/sentry_unwinder_dbghelp.c"
+			DIRECTORY "${PROJECT_SOURCE_DIR}"
+			PROPERTIES COMPILE_OPTIONS -fms-extensions)
+	endif()
 endif()
 
 if(PROSPERO)

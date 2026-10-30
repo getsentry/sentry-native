@@ -13,13 +13,38 @@ import tests
 import msgpack
 
 from . import REPLAY_ID, SENTRY_VERSION
-from .conditions import is_android, is_asan, is_tsan, is_wine
+from .conditions import is_android, is_asan, is_tsan
 
 VERSION_RE = re.compile(r"(\d+\.\d+\.\d+)[-.]?(.*)")
 
 INSTALLATION_ID_RE = re.compile(
     r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
 )
+
+
+OS_RELEASE_PATHS = [
+    "/run/host/etc/os-release",
+    "/run/host/usr/lib/os-release",
+    "/run/host/os-release",
+    "/etc/os-release",
+    "/usr/lib/os-release",
+]
+
+
+def read_os_release():
+    for path in OS_RELEASE_PATHS:
+        try:
+            with open(path) as f:
+                lines = f.read().splitlines()
+        except OSError:
+            continue
+        fields = {}
+        for line in lines:
+            key, sep, value = line.partition("=")
+            if sep:
+                fields[key] = value.strip('"')
+        return fields
+    return {}
 
 
 def matches(actual, expected):
@@ -62,18 +87,6 @@ def assert_user_feedback(envelope):
     assert user_feedback["name"] == "some-name"
     assert user_feedback["contact_email"] == "some-email"
     assert user_feedback["message"] == "some-message"
-
-
-def assert_user_report(envelope):
-    user_report = None
-    for item in envelope:
-        if item.headers.get("type") == "user_report" and item.payload.json is not None:
-            user_report = item.payload.json
-
-    assert user_report is not None
-    assert user_report["name"] == "some-name"
-    assert user_report["email"] == "some-email"
-    assert user_report["comments"] == "some-comment"
 
 
 def assert_meta(
@@ -131,11 +144,11 @@ def assert_event_meta(
     if is_android:
         expected_sdk["name"] = "sentry.native.android"
     else:
-        if sys.platform == "win32" or is_wine:
-            expected_os_context = {"name": "Windows"}
-            if not is_wine:
-                expected_os_context["version"] = platform.version()
-            assert_matches(event["contexts"]["os"], expected_os_context)
+        if sys.platform == "win32":
+            assert_matches(
+                event["contexts"]["os"],
+                {"name": "Windows", "version": platform.version()},
+            )
             assert event["contexts"]["os"]["version"] is not None
             assert event["contexts"]["os"]["build"] is not None
         elif sys.platform == "linux":
@@ -143,13 +156,26 @@ def assert_event_meta(
             match = VERSION_RE.match(version)
             version = match.group(1)
             build = match.group(2)
-            expected_os_context = {"name": "Linux", "version": version}
-            if build:
-                expected_os_context["build"] = build
+            os_release = read_os_release()
+            if os_release.get("ID") in ("steamos", "bazzite"):
+                expected_os_context = {
+                    "name": os_release.get("NAME", os_release["ID"]),
+                    "version": os_release.get("VERSION_ID", version),
+                    "kernel_version": platform.release(),
+                }
+                if "BUILD_ID" in os_release:
+                    expected_os_context["build"] = os_release["BUILD_ID"]
 
-            assert_matches(event["contexts"]["os"], expected_os_context)
-            assert "distribution_name" in event["contexts"]["os"]
-            assert "distribution_version" in event["contexts"]["os"]
+                assert_matches(event["contexts"]["os"], expected_os_context)
+                assert "distribution_name" not in event["contexts"]["os"]
+            else:
+                expected_os_context = {"name": "Linux", "version": version}
+                if build:
+                    expected_os_context["build"] = build
+
+                assert_matches(event["contexts"]["os"], expected_os_context)
+                assert "distribution_name" in event["contexts"]["os"]
+                assert "distribution_version" in event["contexts"]["os"]
         elif sys.platform == "darwin":
             version = platform.mac_ver()[0].split(".")
             if len(version) < 3:
@@ -194,6 +220,8 @@ def assert_event_meta(
             "sentry_test_integration" in image["code_file"]
             for image in event["debug_meta"]["images"]
         )
+    elif event.get("type") == "transaction":
+        assert "debug_meta" not in event
 
 
 def assert_debug_meta_images_do_not_overlap(event):
@@ -455,6 +483,7 @@ def assert_exception(envelope):
 def assert_inproc_crash(envelope):
     event = envelope.get_event()
     assert_matches(event, {"level": "fatal"})
+    assert event["debug_meta"]["images"]
     # depending on the unwinder, we currently don’t get any stack frames from
     # a `ucontext`
     assert_stacktrace(envelope, inside_exception=True, check_size=False)
@@ -496,6 +525,23 @@ def assert_before_send(envelope):
 def assert_no_before_send(envelope):
     event = envelope.get_event()
     assert ("adapted_by", "before_send") not in event.items()
+
+
+def assert_crash_hint_attachments(envelope, callback):
+    assert not any(
+        item.headers.get("filename") in ("CMakeCache.txt", "bytes.bin")
+        for item in envelope
+    )
+    filename = callback.replace("-", "_") + ".json"
+    snapshot = json.loads(
+        next(
+            item.payload.bytes
+            for item in envelope
+            if item.headers.get("filename") == filename
+        )
+    )
+    assert snapshot["level"] == "fatal"
+    return snapshot
 
 
 def assert_before_breadcrumb(envelope):
@@ -556,7 +602,7 @@ def _load_crashpad_attachments(msg):
                 cmake_cache = len(part.get_payload(decode=True))
             case "bytes.bin":
                 bytes_bin = part.get_payload(decode=True)
-            case "callback.txt":
+            case "before_send.json" | "on_crash.json":
                 callback = part.get_payload(decode=True)
 
         if (
@@ -610,6 +656,7 @@ def assert_crashpad_upload(
     expect_breadcrumbs=True,
     expect_default_scope=True,
     breadcrumb_count=0,
+    expect_byte_attachment=None,
 ):
     multipart = gzip.decompress(req.get_data())
     msg = email.message_from_bytes(bytes(str(req.headers), encoding="utf8") + multipart)
@@ -624,9 +671,13 @@ def assert_crashpad_upload(
         assert_event_meta(attachments.event, integrations=["crashpad"])
     if expect_attachment:
         assert attachments.cmake_cache > 0
-        assert attachments.bytes_bin == b"\xc0\xff\xee"
     else:
         assert attachments.cmake_cache == -1
+    if expect_byte_attachment is None:
+        expect_byte_attachment = expect_attachment
+    if expect_byte_attachment:
+        assert attachments.bytes_bin == b"\xc0\xff\xee"
+    else:
         assert attachments.bytes_bin == None
     if expect_view_hierarchy:
         assert_attachment_content_view_hierarchy(attachments.view_hierarchy)
@@ -866,3 +917,17 @@ def assert_replay_envelope(envelope, video, replay_id=REPLAY_ID):
     assert crumbs[2]["category"] == "something else"
 
     assert body["replay_video"] == video
+
+
+def assert_crash_stack(event):
+    assert event["level"] == "fatal"
+    stack = event["exception"]["values"][0]["stacktrace"]
+    ips = [int(frame["instruction_addr"], 16) for frame in stack["frames"]]
+    assert ips and all(ip >= 0x1000 for ip in ips[:-1])
+    assert ips[-1] == 0 or ips[-1] >= 0x1000
+    registers = stack["registers"]
+    register = next(key for key in ("rip", "eip", "pc") if key in registers)
+    assert ips[-1] == int(registers[register], 16)
+    # ARM32 frame-pointer fallback can provide only the faulting instruction
+    if "pc" not in registers or "x0" in registers:
+        assert len(ips) > 1

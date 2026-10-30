@@ -36,6 +36,7 @@
 #endif
 
 static sentry_options_t *g_options = NULL;
+static sentry_scope_observer_t *g_scope_observer = NULL;
 #ifdef SENTRY__MUTEX_INIT_DYN
 SENTRY__MUTEX_INIT_DYN(g_options_lock)
 #else
@@ -56,6 +57,17 @@ sentry__options_getref(void)
     options = sentry__options_incref(g_options);
     sentry__mutex_unlock(&g_options_lock);
     return options;
+}
+
+void
+sentry__options_set(sentry_options_t *options)
+{
+    SENTRY__MUTEX_INIT_DYN_ONCE(g_options_lock);
+    sentry__mutex_lock(&g_options_lock);
+    sentry_options_t *previous = g_options;
+    g_options = sentry__options_incref(options);
+    sentry__mutex_unlock(&g_options_lock);
+    sentry_options_free(previous);
 }
 
 sentry_options_t *
@@ -84,12 +96,71 @@ sentry__should_skip_upload(void)
 }
 
 static void
-flush_global_scope(sentry_scope_t *scope)
+flush_scope(sentry_scope_t *scope)
 {
     sentry_options_t *options = sentry__options_incref(scope->state);
     if (options && options->backend && options->backend->flush_scope_func) {
         options->backend->flush_scope_func(options->backend, options);
     }
+    sentry_options_free(options);
+}
+
+static void
+update_session_user(void *data, sentry_value_t user)
+{
+    sentry_scope_t *scope = data;
+    sentry_options_t *options = sentry__options_incref(scope->state);
+    sentry__mutex_lock(&options->session_lock);
+    if (options->session) {
+        sentry__session_sync_user(options->session, user,
+            options->run ? options->run->installation_id : NULL);
+        sentry__run_write_session(options->run, options->session);
+        sentry__session_notify_changed(options);
+    }
+    sentry__mutex_unlock(&options->session_lock);
+    sentry_options_free(options);
+}
+
+static void
+clear_session_user(void *data)
+{
+    update_session_user(data, sentry_value_new_null());
+}
+
+static bool
+register_scope_observer(sentry_scope_t *scope, sentry_options_t *options)
+{
+    sentry_scope_observer_t *observer = sentry__scope_observer_new();
+    if (!observer) {
+        return false;
+    }
+    observer->data = scope;
+    observer->clear = clear_session_user;
+    observer->set_user = update_session_user;
+    sentry__mutex_lock(&scope->observers_lock);
+    if (!sentry__scope_add_observer(scope, observer)) {
+        sentry__mutex_unlock(&scope->observers_lock);
+        return false;
+    }
+    sentry__scope_set_state(scope, sentry__options_incref(options));
+    g_scope_observer = observer;
+    sentry__mutex_unlock(&scope->observers_lock);
+    return true;
+}
+
+static void
+unregister_scope_observer(sentry_scope_t *scope)
+{
+    if (!g_scope_observer) {
+        return;
+    }
+    sentry__mutex_lock(&scope->observers_lock);
+    sentry_options_t *options = scope->state;
+    sentry__scope_set_flush_func(scope, NULL);
+    sentry__scope_remove_observer(scope, g_scope_observer);
+    g_scope_observer = NULL;
+    sentry__scope_set_state(scope, NULL);
+    sentry__mutex_unlock(&scope->observers_lock);
     sentry_options_free(options);
 }
 
@@ -167,6 +238,12 @@ sentry_init(sentry_options_t *options)
     sentry__mutex_lock(&g_options_lock);
 
     sentry_close();
+
+    if (!sentry__scope_init(options)) {
+        SENTRY_WARN("failed to initialize scopes");
+        goto fail;
+    }
+    initial_scope_prepared = true;
 
     sentry__client_report_reset();
 
@@ -249,9 +326,14 @@ sentry_init(sentry_options_t *options)
 #endif
 
     SENTRY_WITH_SCOPE_MUT (scope) {
-        sentry__scope_apply_options(scope, options);
+        if (register_scope_observer(scope, options)) {
+            sentry__scope_apply_options(scope, options);
+        }
     }
-    initial_scope_prepared = true;
+    if (!g_scope_observer) {
+        SENTRY_WARN("failed to register scope observer");
+        goto fail;
+    }
 
     // and then we will start the backend, since it requires a valid run
     sentry_backend_t *backend = options->backend;
@@ -275,8 +357,7 @@ sentry_init(sentry_options_t *options)
     // *after* setting the global options, register integrations and trigger a
     // scope and consent flush, since at least crashpad needs that.
     SENTRY_WITH_SCOPE_MUT (scope) {
-        sentry__scope_set_state(scope, sentry__options_incref(options));
-        sentry__scope_set_flush_func(scope, flush_global_scope);
+        sentry__scope_set_flush_func(scope, flush_scope);
         register_integrations(scope, options);
         sentry__scope_flush(scope);
     }
@@ -313,6 +394,11 @@ sentry_init(sentry_options_t *options)
 
 fail:
     SENTRY_WARN("`sentry_init` failed");
+    if (initial_scope_prepared) {
+        SENTRY_WITH_SCOPE_MUT (scope) {
+            unregister_scope_observer(scope);
+        }
+    }
     if (transport) {
         sentry__transport_shutdown(transport, 0);
     }
@@ -374,10 +460,7 @@ sentry_close(void)
     size_t dumped_envelopes = 0;
     if (options) {
         SENTRY_WITH_SCOPE_MUT (scope) {
-            sentry_options_t *scope_options = scope->state;
-            sentry__scope_set_flush_func(scope, NULL);
-            sentry__scope_set_state(scope, NULL);
-            sentry_options_free(scope_options);
+            unregister_scope_observer(scope);
         }
         sentry_end_session();
         if (options->backend && options->backend->shutdown_func) {
@@ -413,18 +496,16 @@ sentry_close(void)
 }
 
 int
-sentry_shutdown(void)
-{
-    return sentry_close();
-}
-
-int
 sentry_reinstall_backend(void)
 {
     int rv = 0;
     SENTRY_WITH_OPTIONS (options) {
         // prevent scope observers from racing with backend reinstall
-        sentry_scope_t *scope = sentry__scope_getref();
+        sentry_scope_t *scope = sentry_scope_acquire();
+        if (!scope) {
+            rv = 1;
+            continue;
+        }
         sentry__mutex_lock(&scope->observers_lock);
         sentry_backend_t *backend = options->backend;
         if (backend) {
@@ -446,7 +527,7 @@ sentry_reinstall_backend(void)
             }
         }
         sentry__mutex_unlock(&scope->observers_lock);
-        sentry__scope_finish(scope);
+        sentry_scope_release(scope);
     }
     return rv;
 }
@@ -632,12 +713,6 @@ sentry_scope_capture_event(
     }
 }
 
-sentry_uuid_t
-sentry_capture_event_with_scope(sentry_value_t event, sentry_scope_t *scope)
-{
-    return sentry_scope_capture_event(scope, event, NULL);
-}
-
 static sentry_value_t prepare_attachments(
     sentry_hint_t *hint, sentry_scope_t *local_scope);
 
@@ -788,22 +863,39 @@ prepare_attachments(sentry_hint_t *hint, sentry_scope_t *local_scope)
     if (hint) {
         sentry__attachments_extend(&attachments, hint->attachments);
     }
-    if (local_scope) {
-        sentry_value_t local_attachments
-            = sentry__scope_load_attachments(local_scope);
-        sentry__attachments_extend(&attachments, local_attachments);
-        sentry_value_decref(local_attachments);
-    }
-    SENTRY_WITH_SCOPE (scope) {
-        sentry_value_t global_attachments
-            = sentry__scope_load_attachments(scope);
-        sentry__attachments_extend(&attachments, global_attachments);
-        sentry_value_decref(global_attachments);
+    sentry_scope_t *scope = local_scope ? local_scope : sentry_scope_acquire();
+    sentry_value_t scope_attachments = sentry__scope_load_attachments(scope);
+    sentry__attachments_extend(&attachments, scope_attachments);
+    sentry_value_decref(scope_attachments);
+    if (!local_scope) {
+        sentry_scope_release(scope);
     }
     if (hint) {
         sentry__hint_set_attachments(hint, sentry_value_incref(attachments));
     }
     return attachments;
+}
+
+void
+sentry__event_ensure_modules(sentry_value_t event)
+{
+    sentry_value_t debug_meta = sentry_value_get_by_key(event, "debug_meta");
+    sentry_value_t images = sentry_value_get_by_key(debug_meta, "images");
+    if (!sentry_value_is_null(images)) {
+        return;
+    }
+
+    sentry_value_t modules = sentry_get_modules_list();
+    if (!sentry_value_is_null(modules)) {
+        bool had_debug_meta = !sentry_value_is_null(debug_meta);
+        if (!had_debug_meta) {
+            debug_meta = sentry_value_new_object();
+        }
+        sentry_value_set_by_key(debug_meta, "images", modules);
+        if (!had_debug_meta) {
+            sentry_value_set_by_key(event, "debug_meta", debug_meta);
+        }
+    }
 }
 
 sentry_value_t
@@ -835,6 +927,23 @@ sentry__invoke_before_send(
 }
 
 sentry_value_t
+sentry__invoke_before_breadcrumb(
+    const sentry_options_t *options, sentry_value_t breadcrumb)
+{
+    if (!options || !options->before_breadcrumb_func) {
+        return breadcrumb;
+    }
+    SENTRY_DEBUG("invoking `before_breadcrumb` hook");
+    breadcrumb = options->before_breadcrumb_func(
+        breadcrumb, options->before_breadcrumb_data);
+    if (sentry_value_is_null(breadcrumb)) {
+        SENTRY_DEBUG(
+            "breadcrumb was discarded by the `before_breadcrumb` hook");
+    }
+    return breadcrumb;
+}
+
+sentry_value_t
 sentry__prepare_event(const sentry_options_t *options, sentry_value_t event,
     sentry_scope_t *local_scope)
 {
@@ -842,19 +951,18 @@ sentry__prepare_event(const sentry_options_t *options, sentry_value_t event,
         sentry__record_errors_on_current_session(options, 1);
     }
 
-    if (local_scope) {
-        SENTRY_DEBUG("merging local scope into event");
-        sentry_scope_mode_t mode = SENTRY_SCOPE_BREADCRUMBS;
-        sentry__scope_apply_to_event(local_scope, options, event, mode);
-    }
+    sentry__event_ensure_modules(event);
 
-    SENTRY_WITH_SCOPE (scope) {
-        SENTRY_DEBUG("merging global scope into event");
-        sentry_scope_mode_t mode = SENTRY_SCOPE_ALL;
-        if (!options->symbolize_stacktraces) {
-            mode &= ~SENTRY_SCOPE_STACKTRACES;
+    sentry_scope_mode_t mode = SENTRY_SCOPE_ALL;
+    if (!options->symbolize_stacktraces) {
+        mode &= ~SENTRY_SCOPE_STACKTRACES;
+    }
+    if (local_scope) {
+        sentry__scope_apply_to_event(local_scope, options, event, mode);
+    } else {
+        SENTRY_WITH_SCOPE (scope) {
+            sentry__scope_apply_to_event(scope, options, event, mode);
         }
-        sentry__scope_apply_to_event(scope, options, event, mode);
     }
     return event;
 }
@@ -897,8 +1005,7 @@ sentry__prepare_transaction(const sentry_options_t *options,
     SENTRY_WITH_SCOPE (scope) {
         SENTRY_DEBUG("merging scope into transaction");
         // Don't include debugging info
-        sentry_scope_mode_t mode = SENTRY_SCOPE_ALL & ~SENTRY_SCOPE_MODULES
-            & ~SENTRY_SCOPE_STACKTRACES;
+        sentry_scope_mode_t mode = SENTRY_SCOPE_ALL & ~SENTRY_SCOPE_STACKTRACES;
         sentry__scope_apply_to_event(scope, options, transaction, mode);
     }
 
@@ -933,24 +1040,6 @@ fail:
 }
 
 static sentry_envelope_t *
-prepare_user_report(const sentry_options_t *options, sentry_value_t user_report)
-{
-    sentry_envelope_t *envelope = NULL;
-
-    envelope = sentry__envelope_new(options);
-    if (!envelope || !sentry__envelope_add_user_report(envelope, user_report)) {
-        goto fail;
-    }
-
-    return envelope;
-
-fail:
-    SENTRY_WARN("dropping user report");
-    sentry_envelope_free(envelope);
-    return NULL;
-}
-
-static sentry_envelope_t *
 prepare_user_feedback(const sentry_options_t *options,
     sentry_value_t user_feedback, sentry_hint_t *hint,
     sentry_scope_t *local_scope, sentry_uuid_t *event_id)
@@ -964,13 +1053,13 @@ prepare_user_feedback(const sentry_options_t *options,
         event, "level", sentry__value_new_level(SENTRY_LEVEL_INFO));
 
     if (local_scope) {
-        SENTRY_DEBUG("merging local scope into feedback event");
         sentry__scope_apply_to_event(
-            local_scope, options, event, SENTRY_SCOPE_NONE);
-    }
-    SENTRY_WITH_SCOPE (scope) {
-        SENTRY_DEBUG("merging global scope into feedback event");
-        sentry__scope_apply_to_event(scope, options, event, SENTRY_SCOPE_NONE);
+            local_scope, options, event, SENTRY_SCOPE_DSC);
+    } else {
+        SENTRY_WITH_SCOPE (scope) {
+            sentry__scope_apply_to_event(
+                scope, options, event, SENTRY_SCOPE_DSC);
+        }
     }
 
     sentry_value_t all_attachments = prepare_attachments(hint, local_scope);
@@ -1115,21 +1204,6 @@ sentry__ensure_event_id(sentry_value_t event, sentry_uuid_t *uuid_out)
 void
 sentry_set_user(sentry_value_t user)
 {
-    if (!sentry_value_is_null(user)) {
-        sentry_options_t *options = sentry__options_lock();
-        if (options) {
-            sentry__mutex_lock(&options->session_lock);
-            if (options->session) {
-                sentry__session_sync_user(options->session, user,
-                    options->run ? options->run->installation_id : NULL);
-                sentry__run_write_session(options->run, options->session);
-                sentry__session_notify_changed(options);
-            }
-            sentry__mutex_unlock(&options->session_lock);
-        }
-        sentry__options_unlock();
-    }
-
     SENTRY_WITH_SCOPE_MUT (scope) {
         sentry_scope_set_user(scope, user);
     }
@@ -1172,24 +1246,6 @@ sentry_set_environment(const char *environment)
 void
 sentry_add_breadcrumb(sentry_value_t breadcrumb)
 {
-    bool discarded = false;
-    SENTRY_WITH_OPTIONS (options) {
-        if (options->before_breadcrumb_func) {
-            SENTRY_DEBUG("invoking `before_breadcrumb` hook");
-            breadcrumb = options->before_breadcrumb_func(
-                breadcrumb, options->before_breadcrumb_data);
-            if (sentry_value_is_null(breadcrumb)) {
-                SENTRY_DEBUG("breadcrumb was discarded by the "
-                             "`before_breadcrumb` hook");
-                discarded = true;
-            }
-        }
-    }
-
-    if (discarded) {
-        return;
-    }
-
     // backend observers persist breadcrumbs without a scope flush
     SENTRY_WITH_SCOPE_MUT (scope) {
         sentry_scope_add_breadcrumb(scope, breadcrumb);
@@ -1335,23 +1391,17 @@ sentry_update_context_n(const char *key, size_t key_len, sentry_value_t value)
 }
 
 void
-sentry__set_propagation_context(const char *key, sentry_value_t value)
-{
-    SENTRY_WITH_SCOPE_MUT (scope) {
-        sentry__scope_set_propagation_context(scope, key, value);
-    }
-}
-
-void
 sentry__apply_to_telemetry(const sentry_scope_t *scope,
     const sentry_options_t *options, sentry_value_t telemetry,
     sentry_value_t attributes)
 {
     if (scope) {
         sentry__scope_apply_to_telemetry(scope, telemetry, attributes);
-    }
-    SENTRY_WITH_SCOPE (global_scope) {
-        sentry__scope_apply_to_telemetry(global_scope, telemetry, attributes);
+    } else {
+        SENTRY_WITH_SCOPE (global_scope) {
+            sentry__scope_apply_to_telemetry(
+                global_scope, telemetry, attributes);
+        }
     }
     sentry__value_add_attribute(attributes,
         sentry_value_new_string(sentry_options_get_sdk_name(options)), "string",
@@ -1423,39 +1473,35 @@ void
 sentry_set_trace_n(const char *trace_id, size_t trace_id_len,
     const char *parent_span_id, size_t parent_span_id_len)
 {
-    sentry_value_t context = sentry_value_new_null();
-
     SENTRY_WITH_SCOPE_MUT (scope) {
-        context = sentry_value_new_object();
-
-        sentry_value_set_by_key(
-            context, "type", sentry_value_new_string("trace"));
-
-        sentry_value_set_by_key(context, "trace_id",
-            sentry_value_new_string_n(trace_id, trace_id_len));
-        if (parent_span_id && parent_span_id_len) {
-            sentry_value_set_by_key(context, "parent_span_id",
-                sentry_value_new_string_n(parent_span_id, parent_span_id_len));
-        }
-
-        sentry_uuid_t span_id = sentry_uuid_new_v4();
-        sentry_value_set_by_key(
-            context, "span_id", sentry__value_new_span_uuid(&span_id));
-        sentry__scope_set_trace_managed(scope, false);
-        sentry__scope_flush(scope);
+        sentry_scope_set_trace_n(
+            scope, trace_id, trace_id_len, parent_span_id, parent_span_id_len);
     }
+}
 
-    if (!sentry_value_is_null(context)) {
-        sentry__generate_sample_rand(context);
+void
+sentry_continue_trace(const char *sentry_trace, const char *baggage)
+{
+    sentry_continue_trace_n(sentry_trace, sentry__guarded_strlen(sentry_trace),
+        baggage, sentry__guarded_strlen(baggage));
+}
 
-        sentry__set_propagation_context("trace", context);
+void
+sentry_continue_trace_n(const char *sentry_trace, size_t sentry_trace_len,
+    const char *baggage, size_t baggage_len)
+{
+    SENTRY_WITH_SCOPE_MUT (scope) {
+        sentry_scope_continue_trace_n(
+            scope, sentry_trace, sentry_trace_len, baggage, baggage_len);
+    }
+}
 
-        SENTRY_WITH_OPTIONS (options) {
-            SENTRY_WITH_SCOPE_MUT (scope) {
-                sentry__scope_update_dsc(scope, options);
-                sentry__scope_flush(scope);
-            }
-        }
+void
+sentry_iter_trace_propagation_headers(
+    sentry_iter_headers_function_t callback, void *userdata)
+{
+    SENTRY_WITH_SCOPE (scope) {
+        sentry_scope_iter_trace_propagation_headers(scope, callback, userdata);
     }
 }
 
@@ -1470,12 +1516,6 @@ sentry_start_new_trace(void)
             sentry__scope_flush(scope);
         }
     }
-}
-
-void
-sentry_regenerate_trace(void)
-{
-    sentry_start_new_trace();
 }
 
 void
@@ -1931,20 +1971,6 @@ sentry_span_discard(sentry_span_t *opaque_span)
     sentry__span_decref(opaque_span);
 }
 
-void
-sentry_capture_user_feedback(sentry_value_t user_report)
-{
-    sentry_envelope_t *envelope = NULL;
-
-    SENTRY_WITH_OPTIONS (options) {
-        envelope = prepare_user_report(options, user_report);
-        if (envelope) {
-            sentry__capture_envelope(options->transport, envelope, options);
-        }
-    }
-    sentry_value_decref(user_report);
-}
-
 static sentry_uuid_t
 capture_feedback(sentry_value_t user_feedback, sentry_hint_t *hint,
     sentry_scope_t *local_scope)
@@ -2072,18 +2098,6 @@ int
 sentry_get_crashed_last_run(void)
 {
     return g_last_crash;
-}
-
-int
-sentry_clear_crashed_last_run(void)
-{
-    bool success = false;
-    sentry_options_t *options = sentry__options_lock();
-    if (options) {
-        success = sentry__clear_crash_marker(options);
-    }
-    sentry__options_unlock();
-    return success ? 0 : 1;
 }
 
 sentry_uuid_t
