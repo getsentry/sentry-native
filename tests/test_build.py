@@ -200,7 +200,11 @@ def test_static_mpack(cmake):
 
 
 @pytest.mark.skipif(
-    sys.platform not in ("linux", "darwin") or not has_native or is_qemu or is_wine,
+    sys.platform not in ("linux", "darwin")
+    or not has_native
+    or is_android
+    or is_qemu
+    or is_wine,
     reason="test requires a native Unix build",
 )
 def test_pkgconfig(cmake, tmp_path, monkeypatch):
