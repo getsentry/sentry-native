@@ -1,0 +1,272 @@
+# Logging & Debugging Practices
+
+## Logging System Architecture
+
+The SDK uses a centralized logging system defined in [src/sentry_logger.h](mdc:src/sentry_logger.h) with platform-specific implementations.
+
+**Log Levels:**
+- `SENTRY_LEVEL_DEBUG` - Detailed diagnostic information
+- `SENTRY_LEVEL_INFO` - General information messages
+- `SENTRY_LEVEL_WARNING` - Warning conditions
+- `SENTRY_LEVEL_ERROR` - Error conditions
+- `SENTRY_LEVEL_FATAL` - Critical errors leading to termination
+
+## Logging Macros and Usage
+
+**Standard Logging Macros:**
+```c
+// Use appropriate level macros for consistent formatting
+SENTRY_DEBUG("Simple debug message");
+SENTRY_DEBUGF("Debug with formatting: %s = %d", key, value);
+
+SENTRY_INFO("Initialization complete");
+SENTRY_INFOF("Processed %zu items", count);
+
+SENTRY_WARN("Deprecated API usage detected");
+SENTRY_WARNF("Failed to load optional component: %s", component_name);
+
+SENTRY_ERROR("Critical configuration error");
+SENTRY_ERRORF("Memory allocation failed: requested %zu bytes", size);
+```
+
+**Conditional Debug Logging:**
+```c
+// Debug logs only appear when debug mode is enabled
+#if !defined(NDEBUG)
+    SENTRY_DEBUGF("Internal state: refcount=%ld", thing->refcount);
+#endif
+```
+
+## Platform-Specific Logging
+
+**Android Logging ([src/sentry_logger.c](mdc:src/sentry_logger.c)):**
+```c
+#if defined(SENTRY_PLATFORM_ANDROID)
+#include <android/log.h>
+
+void sentry__logger_defaultlogger(sentry_level_t level, const char *message,
+                                  va_list args, void *data) {
+    android_LogPriority priority = ANDROID_LOG_DEBUG;
+    switch (level) {
+    case SENTRY_LEVEL_DEBUG: priority = ANDROID_LOG_DEBUG; break;
+    case SENTRY_LEVEL_WARNING: priority = ANDROID_LOG_WARN; break;
+    case SENTRY_LEVEL_ERROR: priority = ANDROID_LOG_ERROR; break;
+    case SENTRY_LEVEL_FATAL: priority = ANDROID_LOG_FATAL; break;
+    }
+    __android_log_vprint(priority, "sentry-native", message, args);
+}
+#endif
+```
+
+**Standard Platform Logging:**
+```c
+void sentry__logger_defaultlogger(sentry_level_t level, const char *message,
+                                  va_list args, void *data) {
+    const char *prefix = "[sentry] ";
+    const char *priority = sentry__logger_describe(level);
+
+    // Format: [sentry] LEVEL: message
+    vfprintf(stderr, format, args);
+}
+```
+
+## Custom Logger Integration
+
+**Logger Function Type:**
+```c
+typedef void (*sentry_logger_function_t)(
+    sentry_level_t level, const char *message, va_list args, void *userdata);
+
+// Custom logger setup
+void custom_logger(sentry_level_t level, const char *message,
+                   va_list args, void *userdata) {
+    // Custom logging implementation
+    my_logging_system_vprintf(level, message, args);
+}
+
+sentry_options_t *options = sentry_options_new();
+sentry_options_set_logger(options, custom_logger, userdata);
+```
+
+**Thread-Safe Logger Requirements:**
+```c
+// Note: Multiple threads may invoke your logger function
+void threadsafe_logger(sentry_level_t level, const char *message,
+                       va_list args, void *userdata) {
+    logger_state_t *state = (logger_state_t *)userdata;
+
+    // Proper synchronization if modifying shared state
+    pthread_mutex_lock(&state->mutex);
+    // ... logging implementation
+    pthread_mutex_unlock(&state->mutex);
+}
+```
+
+## Debug Mode Configuration
+
+**Enabling Debug Logging:**
+```c
+// Via options
+sentry_options_t *options = sentry_options_new();
+sentry_options_set_debug(options, true);  // Enable debug logging
+sentry_options_set_logger_level(options, SENTRY_LEVEL_DEBUG);
+
+// Via environment variable
+export SENTRY_DEBUG=1  // Enables debug logging
+```
+
+**Automatic Debug Mode:**
+```c
+// Debug mode is automatically enabled in debug builds
+#if !defined(NDEBUG)
+    if (!opts->debug && (!debug || !sentry__string_eq(debug, "0"))) {
+        opts->debug = 1;  // Auto-enable in debug builds
+    }
+#endif
+```
+
+## Diagnostic Information
+
+**Memory Diagnostics:**
+```c
+// Log memory allocation patterns
+SENTRY_DEBUGF("Allocated %zu bytes for %s", size, purpose);
+
+// Reference counting diagnostics
+SENTRY_DEBUGF("Value refcount: %zu", sentry_value_refcount(value));
+
+// Page allocator status
+if (sentry__page_allocator_enabled()) {
+    SENTRY_DEBUG("Using signal-safe page allocator");
+}
+```
+
+**Backend Diagnostics:**
+```c
+// Backend initialization
+SENTRY_INFOF("Initializing %s backend", SENTRY_BACKEND);
+
+// Crash handler setup
+#ifdef SENTRY_PLATFORM_LINUX
+    SENTRY_DEBUGF("Installing signal stack (size: %d)", SIGNAL_STACK_SIZE);
+#endif
+
+// Transport configuration
+SENTRY_DEBUGF("Using %s transport", transport_name);
+```
+
+## Error Context Reporting
+
+**Error Reporting with Context:**
+```c
+// Include relevant context in error messages
+SENTRY_ERRORF("Failed to initialize backend %s: %s",
+              backend_name, error_description);
+
+// System error integration
+SENTRY_ERRORF("File operation failed: %s (errno=%d)",
+              strerror(errno), errno);
+
+// Platform-specific error codes
+#ifdef SENTRY_PLATFORM_WINDOWS
+    DWORD error = GetLastError();
+    SENTRY_ERRORF("Windows API failed: error code %lu", error);
+#endif
+```
+
+## Performance Diagnostics
+
+**Timing Information:**
+```c
+// Benchmark critical operations
+uint64_t start_time = sentry__usec_time();
+// ... operation ...
+uint64_t elapsed = sentry__usec_time() - start_time;
+SENTRY_DEBUGF("Operation completed in %llu microseconds", elapsed);
+```
+
+**Resource Usage:**
+```c
+// Memory usage tracking
+size_t allocated_bytes = get_allocated_memory();
+SENTRY_DEBUGF("Current memory usage: %zu bytes", allocated_bytes);
+
+// Backend-specific metrics
+SENTRY_DEBUGF("Crashpad handler PID: %d", handler_process_id);
+```
+
+## Signal-Safe Logging
+
+**Constraints in Signal Handlers:**
+```c
+// AVOID: Regular logging in signal handlers (not async-signal-safe)
+void signal_handler(int sig) {
+    // DON'T DO THIS:
+    // SENTRY_ERRORF("Signal %d received", sig);  // NOT SAFE
+
+    // Instead, use minimal async-safe operations:
+    static const char msg[] = "Signal received\n";
+    write(STDERR_FILENO, msg, sizeof(msg) - 1);
+}
+```
+
+**Pre-formatted Messages:**
+```c
+// Pre-format critical messages for signal safety
+static const char *signal_names[] = {
+    [SIGSEGV] = "Segmentation fault",
+    [SIGBUS] = "Bus error",
+    [SIGFPE] = "Floating point exception",
+};
+
+void signal_safe_log_signal(int sig) {
+    if (sig < sizeof(signal_names)/sizeof(signal_names[0]) && signal_names[sig]) {
+        write(STDERR_FILENO, signal_names[sig], strlen(signal_names[sig]));
+    }
+}
+```
+
+## Test and Debug Utilities
+
+**Test Logger Implementation:**
+```c
+// Example from test suite
+typedef struct {
+    uint64_t called;
+    bool assert_now;
+} logger_test_t;
+
+static void test_logger(sentry_level_t level, const char *message,
+                        va_list args, void *data) {
+    logger_test_t *test_data = data;
+    if (test_data->assert_now) {
+        test_data->called++;
+        TEST_CHECK(level == SENTRY_LEVEL_WARNING);
+        // ... test assertions
+    }
+}
+```
+
+**Debug Assertions:**
+```c
+// Use TEST_CHECK macros in test code
+TEST_CHECK_STRING_EQUAL(actual_log_output, expected_message);
+TEST_CHECK_INT_EQUAL(log_call_count, expected_calls);
+```
+
+## Production Logging Best Practices
+
+**Log Level Guidelines:**
+- **DEBUG**: Internal state, algorithm details, memory operations
+- **INFO**: Initialization, configuration, major state changes
+- **WARN**: Recoverable errors, deprecated usage, performance issues
+- **ERROR**: Configuration errors, I/O failures, API misuse
+- **FATAL**: Unrecoverable errors leading to termination
+
+**Performance Considerations:**
+- Debug logging is completely disabled in release builds unless explicitly enabled
+- Use format strings efficiently - avoid expensive string construction
+- Consider log volume in production environments
+- Custom loggers should be thread-safe and performant
+
+Reference [src/sentry_logger.h](mdc:src/sentry_logger.h) for the complete logging API and [tests/unit/test_logger.c](mdc:tests/unit/test_logger.c) for usage examples.
