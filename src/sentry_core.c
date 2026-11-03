@@ -12,6 +12,7 @@
 #include "sentry_backend.h"
 #include "sentry_client_report.h"
 #include "sentry_core.h"
+#include "sentry_crash_reserve.h"
 #include "sentry_database.h"
 #include "sentry_envelope.h"
 #include "sentry_hint.h"
@@ -335,6 +336,8 @@ sentry_init(sentry_options_t *options)
         goto fail;
     }
 
+    sentry__crash_reserve_alloc(options->crash_memory_reserve);
+
     // and then we will start the backend, since it requires a valid run
     sentry_backend_t *backend = options->backend;
     if (backend && backend->startup_func) {
@@ -399,6 +402,7 @@ fail:
             unregister_scope_observer(scope);
         }
     }
+    sentry__crash_reserve_release();
     if (transport) {
         sentry__transport_shutdown(transport, 0);
     }
@@ -467,6 +471,7 @@ sentry_close(void)
             SENTRY_DEBUG("shutting down backend");
             options->backend->shutdown_func(options->backend);
         }
+        sentry__crash_reserve_release();
 
         if (options->transport) {
             if (sentry__transport_shutdown(

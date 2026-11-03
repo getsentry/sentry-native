@@ -1,4 +1,9 @@
 import com.android.build.gradle.internal.lint.AndroidLintAnalysisTask
+import org.objectweb.asm.ClassReader
+import org.objectweb.asm.ClassVisitor
+import org.objectweb.asm.ClassWriter
+import org.objectweb.asm.MethodVisitor
+import org.objectweb.asm.Opcodes
 
 plugins {
     id("com.android.library")
@@ -186,4 +191,86 @@ afterEvaluate {
 // cached results can hide errors when dependency metadata changes
 tasks.withType<AndroidLintAnalysisTask>().configureEach {
     doNotTrackState("Dependency metadata can change without code changes")
+}
+
+// keep the classes dexable by D8/R8 of AGP 8.0 and older when compiled with JDK 21+
+tasks.withType<JavaCompile>().configureEach {
+    doLast(StripMethodParameters())
+}
+
+/**
+ * Removes the MethodParameters attribute from methods that have a parameter without a name.
+ *
+ * Since JDK 21 (JDK-8292275) javac writes MethodParameters for synthetic or mandated parameters,
+ * e.g. of enums, even without `-parameters`. Those entries have no name, and the D8/R8 of AGP 8.0
+ * and older crash on them. Same as getsentry/sentry-java#6356.
+ */
+class StripMethodParameters : Action<Task> {
+    override fun execute(task: Task) {
+        (task as JavaCompile)
+            .destinationDirectory
+            .get()
+            .asFile
+            .walkTopDown()
+            .filter { it.isFile && it.extension == "class" }
+            .forEach { file ->
+                val reader = ClassReader(file.readBytes())
+                val methods = reader.methodsWithUnnamedParameters()
+                if (methods.isNotEmpty()) {
+                    val writer = ClassWriter(reader, 0)
+                    reader.accept(
+                        object : ClassVisitor(Opcodes.ASM9, writer) {
+                            override fun visitMethod(
+                                access: Int,
+                                name: String?,
+                                descriptor: String?,
+                                signature: String?,
+                                exceptions: Array<out String>?,
+                            ): MethodVisitor? {
+                                val next = super.visitMethod(access, name, descriptor, signature, exceptions)
+                                if (name + descriptor !in methods) {
+                                    return next
+                                }
+                                return object : MethodVisitor(Opcodes.ASM9, next) {
+                                    override fun visitParameter(
+                                        name: String?,
+                                        access: Int,
+                                    ) = Unit
+                                }
+                            }
+                        },
+                        0,
+                    )
+                    file.writeBytes(writer.toByteArray())
+                }
+            }
+    }
+
+    private fun ClassReader.methodsWithUnnamedParameters(): Set<String> {
+        val methods = mutableSetOf<String>()
+        accept(
+            object : ClassVisitor(Opcodes.ASM9) {
+                override fun visitMethod(
+                    access: Int,
+                    name: String?,
+                    descriptor: String?,
+                    signature: String?,
+                    exceptions: Array<out String>?,
+                ): MethodVisitor =
+                    object : MethodVisitor(Opcodes.ASM9) {
+                        override fun visitParameter(
+                            parameterName: String?,
+                            access: Int,
+                        ) {
+                            if (parameterName == null) {
+                                methods.add(name + descriptor)
+                            }
+                        }
+                    }
+            },
+            // no SKIP_DEBUG, ASM counts MethodParameters as debug info
+            ClassReader.SKIP_CODE,
+        )
+        return methods
+    }
 }
