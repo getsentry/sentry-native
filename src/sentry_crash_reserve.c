@@ -15,16 +15,15 @@
 #endif
 
 static void *volatile g_reserve = NULL;
-static size_t g_reserve_size = 0;
 
 #ifdef SENTRY_CRASH_RESERVE_SUPPORTED
 static void *
-take_reserve(void)
+swap_reserve(void *ptr)
 {
 #    ifdef SENTRY_PLATFORM_WINDOWS
-    return InterlockedExchangePointer((void *volatile *)&g_reserve, NULL);
+    return InterlockedExchangePointer((void *volatile *)&g_reserve, ptr);
 #    else
-    return __atomic_exchange_n(&g_reserve, NULL, __ATOMIC_SEQ_CST);
+    return __atomic_exchange_n(&g_reserve, ptr, __ATOMIC_SEQ_CST);
 #    endif
 }
 
@@ -58,9 +57,9 @@ sentry__crash_reserve_alloc(size_t size)
     }
     // touch the pages so they are backed by memory
     memset(ptr, 1, size);
-
-    g_reserve_size = size;
-    g_reserve = ptr;
+    // the size travels with the mapping
+    *(size_t *)ptr = size;
+    swap_reserve(ptr);
     SENTRY_DEBUGF("reserved %zu bytes of crash handler memory", size);
 #else
     SENTRY_WARN("the crash memory reserve is not supported on this platform");
@@ -71,14 +70,14 @@ void
 sentry__crash_reserve_release(void)
 {
 #ifdef SENTRY_CRASH_RESERVE_SUPPORTED
-    void *ptr = take_reserve();
+    void *ptr = swap_reserve(NULL);
     if (!ptr) {
         return;
     }
 #    ifdef SENTRY_PLATFORM_WINDOWS
     VirtualFree(ptr, 0, MEM_RELEASE);
 #    else
-    munmap(ptr, g_reserve_size);
+    munmap(ptr, *(size_t *)ptr);
 #    endif
 #endif
 }
@@ -86,5 +85,6 @@ sentry__crash_reserve_release(void)
 size_t
 sentry__crash_reserve_size(void)
 {
-    return g_reserve ? g_reserve_size : 0;
+    void *ptr = g_reserve;
+    return ptr ? *(size_t *)ptr : 0;
 }
