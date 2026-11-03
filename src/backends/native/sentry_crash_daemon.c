@@ -4802,7 +4802,7 @@ sentry__crash_daemon_main(pid_t app_pid, uint64_t app_tid, HANDLE event_handle,
 #if defined(SENTRY_PLATFORM_ANDROID)
     // the crash service hosts a daemon for each app process
     bool shared_process = daemon != NULL;
-#elif defined(SENTRY_PLATFORM_UNIX)
+#else
     bool shared_process = false;
 #endif
 
@@ -5043,13 +5043,17 @@ sentry__crash_daemon_main(pid_t app_pid, uint64_t app_tid, HANDLE event_handle,
         SENTRY_WARN("No transport available");
     }
 
-    sentry__options_set(options);
-    bool crash_handler_installed
-        = sentry__crash_handler_init(
-              NULL, SENTRY_HANDLER_STRATEGY_DEFAULT, dump_crash_queue)
-        == 0;
-    if (!crash_handler_installed) {
-        SENTRY_WARN("Failed to install daemon crash handler");
+    // process-wide, not per daemon
+    bool crash_handler_installed = false;
+    if (!shared_process) {
+        sentry__options_set(options);
+        crash_handler_installed
+            = sentry__crash_handler_init(
+                  NULL, SENTRY_HANDLER_STRATEGY_DEFAULT, dump_crash_queue)
+            == 0;
+        if (!crash_handler_installed) {
+            SENTRY_WARN("Failed to install daemon crash handler");
+        }
     }
 
     SENTRY_DEBUG("Entering main loop");
@@ -5183,7 +5187,9 @@ sentry__crash_daemon_main(pid_t app_pid, uint64_t app_tid, HANDLE event_handle,
     if (crash_handler_installed) {
         sentry__crash_handler_shutdown();
     }
-    sentry__options_set(NULL);
+    if (!shared_process) {
+        sentry__options_set(NULL);
+    }
 
     if (crash_processed) {
         // Mark as done
