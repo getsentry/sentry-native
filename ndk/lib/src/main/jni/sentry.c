@@ -575,21 +575,21 @@ Java_io_sentry_ndk_SentryNdk_nativeInitCrashDaemon(
         jint notify_fd,
         jint ready_fd,
         jint message_fd) {
-    if (!shm_path) {
-        return;
-    }
+    ENSURE_OR_FAIL(shm_path && sentry_android_crash_daemon_init);
 
     const char *shm_path_chars = (*env)->GetStringUTFChars(env, shm_path, 0);
-    if (!shm_path_chars) {
-        return;
-    }
+    ENSURE_OR_FAIL(shm_path_chars);
 
-    if (sentry_android_crash_daemon_init) {
-        sentry_android_crash_daemon_init(
-            shm_path_chars, (int) notify_fd, (int) ready_fd, (int) message_fd);
-    }
+    sentry_android_crash_daemon_init(
+        shm_path_chars, (int) notify_fd, (int) ready_fd, (int) message_fd);
 
     (*env)->ReleaseStringUTFChars(env, shm_path, shm_path_chars);
+    return;
+
+fail:
+    close(notify_fd);
+    close(ready_fd);
+    close(message_fd);
 }
 
 JNIEXPORT jlong JNICALL
@@ -603,24 +603,30 @@ Java_io_sentry_ndk_SentryNdk_nativeRunCrashDaemon(
         jint message_fd,
         jstring shm_path,
         jint shm_fd) {
+    ENSURE_OR_FAIL(sentry_android_crash_daemon_run);
+
     const char *shm_path_chars
         = shm_path ? (*env)->GetStringUTFChars(env, shm_path, 0) : NULL;
-    if (shm_path && !shm_path_chars) {
-        return 0;
-    }
+    ENSURE_OR_FAIL(!shm_path || shm_path_chars);
 
-    sentry_crash_daemon_t *daemon = NULL;
-    if (sentry_android_crash_daemon_run) {
-        daemon = sentry_android_crash_daemon_run((int) app_pid,
-            (uint64_t) app_tid, (int) notify_fd, (int) ready_fd,
-            (int) message_fd, shm_path_chars, (int) shm_fd,
-            sentry_android_http_transport_new());
-    }
+    sentry_crash_daemon_t *daemon = sentry_android_crash_daemon_run(
+        (int) app_pid, (uint64_t) app_tid, (int) notify_fd, (int) ready_fd,
+        (int) message_fd, shm_path_chars, (int) shm_fd,
+        sentry_android_http_transport_new());
 
     if (shm_path_chars) {
         (*env)->ReleaseStringUTFChars(env, shm_path, shm_path_chars);
     }
     return (jlong)(uintptr_t)daemon;
+
+fail:
+    close(notify_fd);
+    close(ready_fd);
+    close(message_fd);
+    if (shm_fd >= 0) {
+        close(shm_fd);
+    }
+    return 0;
 }
 
 JNIEXPORT jint JNICALL

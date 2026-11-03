@@ -82,6 +82,10 @@ sentry_android_crash_daemon_init(
 {
     if (!shm_path || !shm_path[0] || notify_fd < 0 || ready_fd < 0
         || message_fd < 0) {
+        // the backend owns the fds, even when it rejects them
+        close(notify_fd);
+        close(ready_fd);
+        close(message_fd);
         return;
     }
 
