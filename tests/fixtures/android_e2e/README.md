@@ -1,8 +1,8 @@
 # Android native E2E fixture
 
 Prepare the APK separately from pytest, using a sentry-java checkout with the
-native crash service (currently `feat/native-crash-service`). Set `ANDROID_HOME`,
-`ANDROID_NDK` (the NDK directory), and `ANDROID_ARCH` for the build:
+native crash service. Set `ANDROID_HOME`, `ANDROID_NDK` (the NDK directory), and
+`ANDROID_ARCH` for the build:
 
 ```sh
 python scripts/setup-android-e2e.py ../sentry-java

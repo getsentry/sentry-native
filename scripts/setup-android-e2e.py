@@ -27,9 +27,7 @@ def main():
     args = parser.parse_args()
     java = args.sentry_java.expanduser().resolve()
     if not (java / "sentry-android-ndk-outproc").is_dir():
-        parser.error(
-            "sentry-java must contain the native crash service (feat/native-crash-service)"
-        )
+        parser.error("sentry-java must contain the native crash service")
     for name in ["ANDROID_HOME", "ANDROID_NDK", "ANDROID_ARCH"]:
         if not os.environ.get(name):
             parser.error(f"{name} must be set")
