@@ -79,7 +79,11 @@ sentry__crash_reserve_release(void)
 #    ifdef SENTRY_PLATFORM_WINDOWS
     VirtualFree(ptr, 0, MEM_RELEASE);
 #    else
-    munmap(ptr, *(size_t *)ptr);
+    size_t *hdr = ptr;
+    // don't let a corrupted size unmap unrelated memory
+    if (hdr[1] == ~hdr[0]) {
+        munmap(ptr, hdr[0]);
+    }
 #    endif
 #endif
 }
