@@ -523,21 +523,6 @@ enum {
     RESULT_DISCARD = -3,
 };
 
-static int
-http_send_request(http_transport_state_t *state,
-    sentry_prepared_http_request_t *req, sentry_http_response_t *resp)
-{
-    memset(resp, 0, sizeof(*resp));
-    if (!state->send_func(state->client, req, resp)) {
-        int result = sentry__atomic_fetch(&state->shutting_down)
-            ? RESULT_SHUTDOWN
-            : RESULT_ERROR;
-        http_response_cleanup(resp);
-        return result;
-    }
-    return resp->status_code;
-}
-
 static bool
 http_handle_error(int status_code)
 {
@@ -565,7 +550,22 @@ http_update_ratelimiter(
     } else if (resp->status_code == 429) {
         sentry__rate_limiter_update_from_429(state->ratelimiter);
     }
-    http_response_cleanup(resp);
+}
+
+static int
+http_send_request(http_transport_state_t *state,
+    sentry_prepared_http_request_t *req, sentry_http_response_t *resp)
+{
+    memset(resp, 0, sizeof(*resp));
+    if (!state->send_func(state->client, req, resp)) {
+        int result = sentry__atomic_fetch(&state->shutting_down)
+            ? RESULT_SHUTDOWN
+            : RESULT_ERROR;
+        http_response_cleanup(resp);
+        return result;
+    }
+    http_update_ratelimiter(state, resp);
+    return resp->status_code;
 }
 
 static bool
@@ -929,8 +929,11 @@ resolve_attachment_refs(
             return result;
         }
         sentry__attachment_ref_cleanup(&ref);
-        sentry__client_report_discard(SENTRY_DISCARD_REASON_SEND_ERROR,
-            SENTRY_DATA_CATEGORY_ATTACHMENT, 1);
+        // Relay records outcomes for 429 responses.
+        if (result != 429) {
+            sentry__client_report_discard(SENTRY_DISCARD_REASON_SEND_ERROR,
+                SENTRY_DATA_CATEGORY_ATTACHMENT, 1);
+        }
         if (!sentry__envelope_remove_item(envelope, item)) {
             return RESULT_ERROR;
         }
@@ -975,7 +978,7 @@ http_send_envelope(sentry_envelope_t *envelope, void *_state)
     int status_code = http_send_request(state, req, &resp);
     sentry__prepared_http_request_free(req);
     if (status_code >= 0) {
-        http_update_ratelimiter(state, &resp);
+        http_response_cleanup(&resp);
     }
     return status_code;
 }

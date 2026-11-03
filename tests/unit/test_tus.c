@@ -528,3 +528,64 @@ SENTRY_TEST(tus_chunk_size)
         TEST_CHECK_INT_EQUAL(size, cases[i].size);
     }
 }
+
+static int
+tus_rate_limit_send(void *client, sentry_prepared_http_request_t *req,
+    sentry_http_response_t *resp)
+{
+    int *create_count = client;
+    if (strcmp(req->method, "POST") == 0 && !req->body && !req->body_path) {
+        (*create_count)++;
+        resp->status_code = 429;
+        resp->retry_after = sentry__string_clone("60");
+        return true;
+    }
+    resp->status_code = 200;
+    return true;
+}
+
+SENTRY_TEST(tus_rate_limit)
+{
+#if defined(SENTRY_PLATFORM_ANDROID) || defined(SENTRY_PLATFORM_NX)            \
+    || defined(SENTRY_PLATFORM_PS) || defined(SENTRY_PLATFORM_XBOX)
+    SKIP_TEST();
+#else
+    const char *test_file_str
+        = SENTRY_TEST_PATH_PREFIX "sentry_test_tus_rate_limit";
+    sentry_path_t *test_file_path = sentry__path_from_str(test_file_str);
+    create_large_test_file(test_file_str);
+
+    int create_count = 0;
+    sentry_transport_t *transport
+        = sentry__http_transport_new(&create_count, tus_rate_limit_send);
+    TEST_ASSERT(!!transport);
+    sentry__client_report_reset();
+
+    SENTRY_TEST_OPTIONS_NEW(options);
+    sentry_options_set_dsn(options, "https://foo@sentry.invalid/42");
+    sentry_options_set_transport(options, transport);
+    sentry_options_set_enable_large_attachments(options, 1);
+    sentry_options_add_attachment(options, test_file_str);
+    sentry_init(options);
+
+    sentry_capture_event(
+        sentry_value_new_message_event(SENTRY_LEVEL_INFO, NULL, "test"));
+
+    sentry_close();
+
+    // The upload's 429 rate-limits the event without a send error report.
+    TEST_CHECK_INT_EQUAL(create_count, 1);
+    sentry_client_report_t report = { { 0 } };
+    TEST_CHECK(sentry__client_report_save(&report));
+    TEST_CHECK_INT_EQUAL(report.counts[SENTRY_DISCARD_REASON_SEND_ERROR]
+                                      [SENTRY_DATA_CATEGORY_ATTACHMENT],
+        0);
+    TEST_CHECK_INT_EQUAL(report.counts[SENTRY_DISCARD_REASON_RATELIMIT_BACKOFF]
+                                      [SENTRY_DATA_CATEGORY_ERROR],
+        1);
+    sentry__client_report_reset();
+
+    sentry__path_remove(test_file_path);
+    sentry__path_free(test_file_path);
+#endif
+}
