@@ -202,6 +202,7 @@ typedef struct {
 typedef struct {
     FILE *file;
     const sentry_path_t *path;
+    size_t remaining;
 } file_body_t;
 
 static curl_client_t *
@@ -411,10 +412,14 @@ file_read_callback(char *buffer, size_t size, size_t nitems, void *userdata)
         goto fail;
     }
     size_t capacity = size * nitems;
+    if (capacity > body->remaining) {
+        capacity = body->remaining;
+    }
     size_t read = fread(buffer, 1, capacity, body->file);
     if (read < capacity && ferror(body->file)) {
         goto fail;
     }
+    body->remaining -= read;
     return read;
 
 fail:
@@ -480,6 +485,7 @@ curl_send_task(void *_client, sentry_prepared_http_request_t *req,
         }
         file_body.file = body_file;
         file_body.path = req->body_path;
+        file_body.remaining = req->body_len;
         g_curl.easy_setopt(curl, CURLOPT_UPLOAD, 1L);
         g_curl.easy_setopt(curl, CURLOPT_CUSTOMREQUEST, req->method);
         g_curl.easy_setopt(curl, CURLOPT_READFUNCTION, file_read_callback);
