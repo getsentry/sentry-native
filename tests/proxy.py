@@ -213,7 +213,11 @@ def _wait_for_output_file(process, output_file, timeout=10):
 
 
 def start_proxy(
-    proxy_type, proxy_auth: str = None, listen_host: str = "127.0.0.1", retries: int = 3
+    proxy_type,
+    proxy_auth: str = None,
+    listen_host: str = "127.0.0.1",
+    retries: int = 3,
+    throttle: int = 0,
 ):
     """Start the stdlib test proxy on a free port. Returns (process, port)."""
     proxy_server = Path(__file__).with_name("proxy_server.py")
@@ -242,6 +246,8 @@ def start_proxy(
 
         if proxy_auth:
             proxy_command += ["--proxy-auth", proxy_auth]
+        if throttle:
+            proxy_command += ["--throttle", str(throttle)]
 
         proxy_process = subprocess.Popen(
             proxy_command,

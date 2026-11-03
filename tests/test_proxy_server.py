@@ -57,7 +57,7 @@ def start_proxy(tmp_path):
     processes = []
     proxy_server = Path(__file__).with_name("proxy_server.py")
 
-    def start(proxy_type, proxy_auth=None):
+    def start(proxy_type, proxy_auth=None, throttle=0):
         output = tmp_path / "proxy-{}.port".format(len(processes))
         command = [
             sys.executable,
@@ -74,6 +74,8 @@ def start_proxy(tmp_path):
         ]
         if proxy_auth:
             command += ["--proxy-auth", proxy_auth]
+        if throttle:
+            command += ["--throttle", str(throttle)]
 
         process = subprocess.Popen(
             command,
@@ -218,3 +220,46 @@ def test_socks5_tunneling(start_proxy, target_server):
     assert response.endswith(b"OK")
     method, path, _, body = target_server.requests.get(timeout=5)
     assert (method, path, body) == ("GET", "/through-socks", b"")
+
+
+@pytest.mark.parametrize("tunnel", [False, True], ids=["http", "connect"])
+def test_upload_throttle(start_proxy, target_server, tunnel):
+    throttle = 128 * 1024
+    port = start_proxy("http-proxy", throttle=throttle)
+    target_port = target_server.server_address[1]
+    body = b"x" * (64 * 1024)
+
+    with socket.create_connection(("127.0.0.1", port), timeout=5) as client:
+        if tunnel:
+            client.sendall(
+                (
+                    f"CONNECT 127.0.0.1:{target_port} HTTP/1.1\r\n"
+                    f"Host: 127.0.0.1:{target_port}\r\n\r\n"
+                ).encode("ascii")
+            )
+            response = b"HTTP/1.1 200 Connection Established\r\n\r\n"
+            assert _recv_exact(client, len(response)) == response
+
+        target = "/upload" if tunnel else f"http://127.0.0.1:{target_port}/upload"
+        request = (
+            f"POST {target} HTTP/1.1\r\n"
+            f"Host: 127.0.0.1:{target_port}\r\n"
+            f"Content-Length: {len(body)}\r\n"
+            "Connection: close\r\n\r\n"
+        ).encode("ascii") + body
+        started = time.monotonic()
+        client.sendall(request)
+        client.shutdown(socket.SHUT_WR)
+        response = b""
+        while True:
+            chunk = client.recv(64 * 1024)
+            if not chunk:
+                break
+            response += chunk
+        elapsed = time.monotonic() - started
+
+    assert response.startswith(b"HTTP/1.1 200")
+    assert response.endswith(b"OK")
+    method, path, _, received = target_server.requests.get(timeout=5)
+    assert (method, path, received) == ("POST", "/upload", body)
+    assert elapsed >= len(body) / throttle
