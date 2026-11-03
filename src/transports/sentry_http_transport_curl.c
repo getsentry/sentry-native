@@ -488,6 +488,7 @@ curl_send_task(void *_client, sentry_prepared_http_request_t *req,
             curl, CURLOPT_INFILESIZE_LARGE, (curl_off_t)req->body_len);
     } else if (req->body) {
         g_curl.easy_setopt(curl, CURLOPT_POST, (long)1);
+        g_curl.easy_setopt(curl, CURLOPT_CUSTOMREQUEST, req->method);
         g_curl.easy_setopt(curl, CURLOPT_POSTFIELDS, req->body);
         g_curl.easy_setopt(curl, CURLOPT_POSTFIELDSIZE, (long)req->body_len);
     } else if (sentry__string_eq(req->method, "HEAD")) {
