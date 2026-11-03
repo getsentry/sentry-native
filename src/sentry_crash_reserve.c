@@ -58,7 +58,9 @@ sentry__crash_reserve_alloc(size_t size)
     // touch the pages so they are backed by memory
     memset(ptr, 1, size);
     // the size travels with the mapping
-    *(size_t *)ptr = size;
+    size_t *hdr = ptr;
+    hdr[0] = size;
+    hdr[1] = ~size;
     swap_reserve(ptr);
     SENTRY_DEBUGF("reserved %zu bytes of crash handler memory", size);
 #else
