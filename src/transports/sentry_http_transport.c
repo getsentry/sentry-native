@@ -624,6 +624,16 @@ tus_choose_chunk_size(const sentry_http_response_t *resp, size_t *chunk_size)
     return true;
 }
 
+// The upload spec marks 503 and 504 as retryable.
+static int
+tus_status_result(int status)
+{
+    if (status == 503 || status == 504) {
+        return RESULT_ERROR;
+    }
+    return status ? status : RESULT_ERROR;
+}
+
 // Perform a TUS upload for the file at <cache>/<basename> and put the
 // resulting remote location into the attachment-ref item.
 static int
@@ -674,7 +684,7 @@ tus_upload_file(http_transport_state_t *state, const sentry_path_t *cache_path,
         create = status == 404 || status == 410;
         if (!create && !valid_offset) {
             sentry__path_free(att_file);
-            return status ? status : RESULT_ERROR;
+            return tus_status_result(status);
         }
 
         if (!create) {
@@ -705,7 +715,7 @@ tus_upload_file(http_transport_state_t *state, const sentry_path_t *cache_path,
             int status = resp.status_code;
             sentry__path_free(att_file);
             http_response_cleanup(&resp);
-            return status ? status : RESULT_ERROR;
+            return tus_status_result(status);
         }
 
         if (!tus_choose_chunk_size(&resp, &chunk_size)) {
@@ -757,7 +767,7 @@ tus_upload_file(http_transport_state_t *state, const sentry_path_t *cache_path,
         if (status == 409) {
             result = RESULT_ERROR;
         } else if (status != 204) {
-            result = status ? status : RESULT_ERROR;
+            result = tus_status_result(status);
         } else if (!tus_parse_size(resp.upload_offset, file_size, &offset)
             || offset < upload_offset || (offset == upload_offset && len)
             || (offset == file_size && sentry__string_empty(resp.location))) {

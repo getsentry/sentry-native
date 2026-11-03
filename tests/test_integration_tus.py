@@ -450,7 +450,9 @@ def test_tus_resume_after_shutdown(cmake, httpserver, chunked):
     assert leftover_siblings == []
 
 
-@pytest.mark.parametrize("status", [409, 204], ids=["conflict", "partial"])
+@pytest.mark.parametrize(
+    "status", [409, 503, 204], ids=["conflict", "unavailable", "partial"]
+)
 def test_tus_resume_after_retry(cmake, httpserver, status):
     tmp_path = cmake(
         ["sentry_test_integration"],
@@ -473,8 +475,8 @@ def test_tus_resume_after_retry(cmake, httpserver, status):
         "OK", status=201, headers={"Location": location, **chunk_headers}
     )
 
-    # The server only received part of the body, reported either as an
-    # offset conflict or as a partial Upload-Offset on the 204.
+    # The server only received part of the body, reported as an offset
+    # conflict, as unavailable, or as a partial Upload-Offset on the 204.
     httpserver.expect_oneshot_request(
         upload_uri,
         method="PATCH",
