@@ -41,6 +41,7 @@
 #    include <fcntl.h>
 #    include <inttypes.h>
 #    include <signal.h>
+#    include <sys/mman.h>
 #    include <sys/stat.h>
 #    include <sys/types.h>
 #    include <sys/uio.h>
@@ -95,11 +96,12 @@ typedef struct {
     bool write;
     bool exec;
 } vma_range_t;
-static vma_range_t *g_vmas = NULL;
-static size_t g_vma_count = 0;
-static size_t g_vma_capacity = 0;
-static bool g_vma_alloc_failed = false;
-static bool g_vma_complete = false;
+// per daemon thread, the Android crash service hosts several in one process
+static __thread vma_range_t *g_vmas = NULL;
+static __thread size_t g_vma_count = 0;
+static __thread size_t g_vma_capacity = 0;
+static __thread bool g_vma_alloc_failed = false;
+static __thread bool g_vma_complete = false;
 
 static bool
 vma_record(uint64_t start, uint64_t end, const char *perms)
@@ -224,6 +226,18 @@ struct sentry_crash_daemon_s {
 
 static void android_cleanup_pending_crash_daemon(
     sentry_crash_daemon_t *daemon, bool discard_envelope);
+
+static pthread_once_t g_android_logcat_once = PTHREAD_ONCE_INIT;
+
+// daemons in one crash service process share the global logger
+static void
+android_install_logcat_logger(void)
+{
+    sentry_logger_t logger = { .logger_func = sentry__logger_defaultlogger,
+        .logger_data = NULL,
+        .logger_level = SENTRY_LEVEL_DEBUG };
+    sentry__logger_set_global(logger);
+}
 
 __attribute__((visibility("default"))) sentry_crash_daemon_t *
 sentry_android_crash_daemon_run(pid_t app_pid, uint64_t app_tid, int notify_fd,
@@ -1527,7 +1541,13 @@ typedef struct {
 
 // Direct-mapped by module index; see get_sym_source. Being BSS, only the
 // slots touched during resolution are committed to physical memory.
+#    if defined(SENTRY_PLATFORM_ANDROID)
+// Each daemon thread of the Android crash service maps its own instead, which
+// is zero-filled on demand the same way.
+static __thread sym_source_t *g_sym_sources = NULL;
+#    else
 static sym_source_t g_sym_sources[SENTRY_CRASH_MAX_MODULES];
+#    endif
 
 /**
  * Parse the ELF file at `path` and record the location of its symbol table
@@ -1684,6 +1704,11 @@ get_sym_source(const sentry_module_info_t *mod, uint32_t mod_idx)
     // most once and reused for every frame in that module. This covers all
     // modules the context can hold, so no frame is left unsymbolicated for
     // want of a cache slot.
+#    if defined(SENTRY_PLATFORM_ANDROID)
+    if (!g_sym_sources) {
+        return NULL;
+    }
+#    endif
     sym_source_t *slot = &g_sym_sources[mod_idx];
     if (slot->state != 0) {
         return slot->state > 0 ? slot : NULL;
@@ -4752,6 +4777,13 @@ sentry__crash_daemon_main(pid_t app_pid, uint64_t app_tid, HANDLE event_handle,
         return 1;
     }
 
+#if defined(SENTRY_PLATFORM_ANDROID)
+    // the crash service hosts a daemon for each app process
+    bool shared_process = daemon != NULL;
+#elif defined(SENTRY_PLATFORM_UNIX)
+    bool shared_process = false;
+#endif
+
     // Set up logging to file for daemon BEFORE redirecting streams
     char log_path[SENTRY_CRASH_MAX_PATH];
     FILE *log_file = NULL;
@@ -4773,7 +4805,8 @@ sentry__crash_daemon_main(pid_t app_pid, uint64_t app_tid, HANDLE event_handle,
     int log_path_len = snprintf(log_path, sizeof(log_path),
         "%s/sentry-daemon.log", ipc->shmem->run_path);
 
-    if (log_path_len > 0 && log_path_len < (int)sizeof(log_path)) {
+    if (!shared_process && log_path_len > 0
+        && log_path_len < (int)sizeof(log_path)) {
         log_file = fopen(log_path, "w");
     }
 #endif
@@ -4798,20 +4831,29 @@ sentry__crash_daemon_main(pid_t app_pid, uint64_t app_tid, HANDLE event_handle,
         SENTRY_DEBUGF("Database path: %s", ipc->shmem->database_path);
     }
 
-#if defined(SENTRY_PLATFORM_UNIX)
-    // Close standard streams to avoid interfering with parent
-    close(STDIN_FILENO);
-    close(STDOUT_FILENO);
-    close(STDERR_FILENO);
+#if defined(SENTRY_PLATFORM_ANDROID)
+    if (shared_process && ipc->shmem->debug_enabled) {
+        pthread_once(&g_android_logcat_once, android_install_logcat_logger);
+    }
+#endif
 
-    // Open /dev/null for std streams
-    int devnull = open("/dev/null", O_RDWR);
-    if (devnull >= 0) {
-        dup2(devnull, STDIN_FILENO);
-        dup2(devnull, STDOUT_FILENO);
-        dup2(devnull, STDERR_FILENO);
-        if (devnull > STDERR_FILENO) {
-            close(devnull);
+#if defined(SENTRY_PLATFORM_UNIX)
+    // other threads of a shared process own the standard streams
+    if (!shared_process) {
+        // Close standard streams to avoid interfering with parent
+        close(STDIN_FILENO);
+        close(STDOUT_FILENO);
+        close(STDERR_FILENO);
+
+        // Open /dev/null for std streams
+        int devnull = open("/dev/null", O_RDWR);
+        if (devnull >= 0) {
+            dup2(devnull, STDIN_FILENO);
+            dup2(devnull, STDOUT_FILENO);
+            dup2(devnull, STDERR_FILENO);
+            if (devnull > STDERR_FILENO) {
+                close(devnull);
+            }
         }
     }
 #elif defined(SENTRY_PLATFORM_WINDOWS)
@@ -4943,6 +4985,18 @@ sentry__crash_daemon_main(pid_t app_pid, uint64_t app_tid, HANDLE event_handle,
         return 1;
     }
 
+#if defined(SENTRY_PLATFORM_ANDROID)
+    // mapped ahead of the crash, which then goes without symbols on failure
+    void *sym_sources
+        = mmap(NULL, SENTRY_CRASH_MAX_MODULES * sizeof(*g_sym_sources),
+            PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+    if (sym_sources != MAP_FAILED) {
+        g_sym_sources = sym_sources;
+    } else {
+        SENTRY_WARN("Failed to map the symbol cache");
+    }
+#endif
+
     // Signal to parent that daemon is ready
     SENTRY_DEBUG("Signaling ready to parent");
     sentry__crash_ipc_signal_ready(ipc);
@@ -5060,6 +5114,20 @@ sentry__crash_daemon_main(pid_t app_pid, uint64_t app_tid, HANDLE event_handle,
     }
 
     SENTRY_DEBUG("Daemon exiting");
+
+#if defined(SENTRY_PLATFORM_ANDROID)
+    if (g_sym_sources) {
+        munmap(
+            g_sym_sources, SENTRY_CRASH_MAX_MODULES * sizeof(*g_sym_sources));
+        g_sym_sources = NULL;
+    }
+#endif
+#if defined(SENTRY_PLATFORM_UNIX) && defined(__arm__)
+    sentry_free(g_vmas);
+    g_vmas = NULL;
+    g_vma_count = 0;
+    g_vma_capacity = 0;
+#endif
 
 #if defined(SENTRY_PLATFORM_ANDROID)
     if (daemon && daemon->envelope_path[0]) {
